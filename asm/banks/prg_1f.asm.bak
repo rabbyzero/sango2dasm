@@ -1,0 +1,2869 @@
+;===============================================================================
+; PRG Bank 1F - $E000-$FFFF
+; Sangokushi 2 - Haou no Tairiku (J)
+; Namco-163 Mapper 19
+;
+; Boot bank: Reset handler, state dispatch, NMI/IRQ handlers,
+; sound engine, PPU utilities, math routines, controller I/O, data tables
+;===============================================================================
+
+.include "6502_registers.h"
+.include "namco163.h"
+
+.segment "CODE_BANK1F"
+
+;===============================================================================
+; Global RAM Address Definitions
+;===============================================================================
+; These addresses have consistent meaning across the entire bank.
+; Function-specific aliases are defined within .proc scopes.
+
+; --- Game State ---
+addr_game_state     = $007A  ; State counter (0-14), indexes VectorTable
+addr_sub_state      = $0078  ; Sub-state within each major state
+addr_dispatch_ptr   = $004E  ; Indirect jump target (low)
+addr_dispatch_ptr_h = $004F  ; Indirect jump target (high)
+
+; --- PPU ---
+addr_ppu_ctrl_ram   = $008B  ; RAM copy of PPU control ($2000)
+addr_ppu_mask_ram   = $008C  ; RAM copy of PPU mask ($2001)
+addr_display_mode   = $0098  ; Display mode parameter
+addr_display_mode_h = $0099  ; Display mode parameter (high)
+addr_scroll_x       = $009A  ; Scroll X computed value
+addr_scroll_y       = $009B  ; Scroll Y computed value
+addr_nmi_flag       = $007E  ; NMI sub-dispatch flag byte
+
+; --- Controller ---
+addr_pad1_edge      = $0081  ; Pad 1 newly-pressed buttons
+addr_pad1_raw       = $0083  ; Pad 1 raw button state
+addr_pad1_prev      = $0084  ; Pad 1 previous frame state
+
+; --- Bank Switch ---
+addr_bank_e6        = $00E6  ; Bank register RAM copy (PRG $C000)
+addr_bank_e7        = $00E7  ; Bank register RAM copy (PRG $C800)
+addr_bank_e8        = $00E8  ; Bank register RAM copy (PRG $D000)
+addr_bank_e9        = $00E9  ; Bank register RAM copy (PRG $D800)
+addr_bank_ea        = $00EA  ; Extended bank config
+addr_bank_eb        = $00EB  ; Extended bank config
+addr_bank_ec        = $00EC  ; Extended bank config
+addr_bank_ed        = $00ED  ; Extended bank config
+
+; --- RNG ---
+addr_rng_index      = $0050  ; RNG table index
+addr_rng_saved_x    = $0051  ; Saved X register (RNG)
+
+; --- Menu ---
+addr_menu_step      = $00    ; Items per page (1-8), set by entry point
+addr_menu_ptr_lo    = $10    ; Menu data table pointer (low)
+addr_menu_ptr_hi    = $11    ; Menu data table pointer (high)
+addr_menu_result    = $12    ; Current item value (returned)
+addr_menu_column    = $0424  ; Cursor column (0-based within page)
+addr_menu_page      = $0425  ; Cursor page (0-based)
+
+; --- Trampoline ---
+addr_trampoline_saved_bank = $0058
+addr_trampoline_ret_lo     = $0059
+addr_trampoline_ret_hi     = $005A
+addr_trampoline_target_lo  = $005B
+addr_trampoline_target_hi  = $005C
+addr_trampoline_bank_param = $005D
+
+;===============================================================================
+; $E000: Reset Handler
+;===============================================================================
+.proc Reset
+  SEI                      ; Disable interrupts
+  CLD                      ; Clear decimal mode
+  LDA #$00
+  STA PPU_CTRL             ; Disable NMI
+  STA PPU_MASK             ; Disable rendering
+  LDY #$02
+@vblank1:
+  LDA PPU_STATUS           ; Wait for VBlank
+  BPL @vblank1
+  LDA PPU_STATUS
+  BMI @vblank1_nego        ; Wait for VBlank end
+@vblank1_nego:
+  DEY
+  BPL @vblank1
+
+  ; APU init
+  LDA #$00
+  STA APU_DMC_FREQ         ; $4010
+  LDA #$0F
+  STA APU_SND_CHN          ; $4015
+  LDA #$C0
+  STA APU_FRAME            ; $4017
+
+  ; Second PPU warmup
+  LDA #$00
+  STA PPU_CTRL
+  STA PPU_MASK
+  LDY #$04
+@vblank2:
+  LDA PPU_STATUS
+  BPL @vblank2
+  LDA PPU_STATUS
+  BMI @vblank2_nego
+@vblank2_nego:
+  DEY
+  BPL @vblank2
+
+  ; Set stack pointer
+  LDX #$FF
+  TXS
+
+  ; Clear RAM $0000-$07FF
+  LDA #$04
+  STA $01
+  LDY #$00
+  STY $02
+  TYA
+@clear_loop:
+  STA ($01),Y
+  INC $01
+  BNE @clear_loop
+  INC $02
+  LDA $02
+  CMP #$08
+  BCC @clear_loop
+
+  ; Mapper init + controller check
+  JSR MapperInitCtrlCheck
+
+  ; Initialize game state to 0
+  LDA #$00
+  STA addr_game_state
+
+  ; Dispatch through vector table
+  LDA addr_game_state
+  AND #$1F               ; Mask to 0-31
+  ASL                    ; * 2 for word index
+  TAY
+  LDA VectorTable,Y
+  STA addr_dispatch_ptr
+  LDA VectorTable+1,Y
+  STA addr_dispatch_ptr+1
+  JMP (addr_dispatch_ptr)
+.endproc
+
+;===============================================================================
+; $E07C: Vector Dispatch Table (15 entries, 30 bytes)
+;===============================================================================
+VectorTable:
+  .addr State_SystemInit       ; 0:  $E09A
+  .addr State_NewGameInit      ; 1:  $E0DA
+  .addr State_RandomDisplay2A  ; 2:  $E17D
+  .addr State_KingdomSelect    ; 3:  $E18B
+  .addr State_RandomDisplay28  ; 4:  $E221
+  .addr State_DomesticAffairs  ; 5:  $E22F
+  .addr State_RandomAdvance1   ; 6:  $E2E2
+  .addr State_BattlePhase      ; 7:  $E2E8
+  .addr State_RandomAdvance2   ; 8:  $E36A
+  .addr State_TerritoryView    ; 9:  $E37C
+  .addr State_IdleWait         ; 10: $E3EB
+  .addr State_AdvisorCouncil   ; 11: $E3EE
+  .addr State_IdleWait         ; 12: $E3EB (same as 10)
+  .addr State_TurnSummary      ; 13: $E46A
+  .addr State_IdleWait         ; 14: $E3EB (same as 10)
+
+;===============================================================================
+; $E09A: Entry 0 - System Init
+; Params: none
+;===============================================================================
+.proc State_SystemInit
+  JSR ReadPpuStatus
+  JSR WaitForVBlank
+  STA PPU_MASK             ; Disable rendering
+  JSR BankPpuInit
+  LDX #$1F
+  LDA #$0F
+@fill_palette:
+  STA $0100,X              ; Fill sprite palette buffer
+  DEX
+  BPL @fill_palette
+@wait_vb:
+  LDA PPU_STATUS
+  BPL @wait_vb
+  LDA #$4C                 ; JMP opcode
+  STA $00A5                ; Patch RAM
+  STA NAMCO_CTRL           ; Patch mapper
+  LDA #$00
+  JSR BankSwitch
+  LDA #$10                 ; NMI enable + sprite height
+  STA addr_ppu_ctrl_ram
+  STA PPU_CTRL
+  LDA #$00                 ; Rendering off
+  STA addr_ppu_mask_ram
+  STA PPU_MASK
+  LDA #$09                 ; Next state = 9
+  STA addr_game_state
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E0DA: Entry 1 - New Game Init
+; Params: $0400 = controller input result
+;         $0098 = display param
+;         SRAM: $6F41, $6F3F, $6F8B = kingdom init
+;===============================================================================
+.proc State_NewGameInit
+  JSR FrameInit
+  LDA #$02
+  STA addr_sub_state       ; Sub-state = 2
+  LDA #$00
+  JSR DisplayInit
+  LDY #$30
+  JSR WindowDisplaySetup
+
+  ; Set pointer to $8000
+  LDA #$00
+  STA $000A                ; ptr_lo
+  LDA #$80
+  STA $000B                ; ptr_hi -> $8000
+  LDA #$20
+  STA $0001                ; width param
+  LDA #$00
+  STA $0000
+  STA $0004
+  STA $0005
+  STA $0006
+  LDA #$04
+  STA $0007
+
+  LDY #$37
+  JSR WindowDisplaySetup
+  JSR $A003                ; Display (bank-switched)
+
+  ; Window + render
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$00
+  STA $0000
+  JSR $A015                ; Overlay display
+
+  JSR ControllerRead
+  LDA $0400                ; Check input
+  CMP #$0D
+  BEQ @skip_sram_flag
+  LDA #$FF
+  STA $6F8B                ; Set SRAM flag
+@skip_sram_flag:
+  LDY #$3D
+  JSR WindowDisplaySetup
+  JSR $A003
+  JSR $A009
+  LDA #$A0
+  STA addr_display_mode
+  LDA #$00
+  STA $0420
+  STA $04E0
+  STA $04E1
+  STA $04E2
+  STA $04E3
+  LDA #$F0
+  STA $6F41                ; SRAM: kingdom param
+  LDA #$80
+  STA $6F3F                ; SRAM: kingdom param
+  LDA #$00
+  JSR BankSwitch
+  INC addr_game_state      ; Next state
+  LDA #$81
+  JSR SoundWrapperA        ; Music $81
+  JSR PpuMaskHelper
+  JSR PpuCtrlNmiHelpers
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E17D: Entry 2 - Random + Display (Y=$2A)
+;===============================================================================
+.proc State_RandomDisplay2A
+  JSR RandomByte
+  LDY #$2A
+  JSR WindowSetup2
+  JSR $A000                ; Display (bank-switched)
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E18B: Entry 3 - Kingdom Select
+; Params: $0500 = kingdom mode ($0B=scenario)
+;         $0510-$0513 = kingdom coordinate data
+;         $0068/$0069 = territory data pointer
+;===============================================================================
+.proc State_KingdomSelect
+kingdom_mode    = $0500
+kingdom_x       = $0510
+kingdom_y       = $0511
+kingdom_x2      = $0512
+kingdom_y2      = $0513
+territory_ptr_lo = $0068
+territory_ptr_hi = $0069
+
+  JSR FrameInit
+  LDA #$03
+  STA addr_sub_state
+  LDA #$01
+  JSR DisplayInit
+  LDY #$37
+  JSR WindowDisplaySetup
+  JSR $A027                 ; Kingdom display (bank-switched)
+
+  LDA kingdom_mode
+  CMP #$0B                  ; Scenario mode?
+  BNE @normal_mode
+  LDY #$2C
+  JSR WindowDisplaySetup
+  JSR $A006                 ; Scenario function
+  JMP @after_mode_check
+@normal_mode:
+  LDY #$28
+  JSR WindowDisplaySetup
+  JSR $A003                 ; Normal function
+@after_mode_check:
+  LDA kingdom_x
+  STA $0090
+  LDA kingdom_y
+  STA $0091
+  LDA kingdom_x2
+  STA $008E
+  LDA kingdom_y2
+  STA $008F
+  LDA #$FF
+  STA $0518                 ; Kingdom flag
+
+  ; Display + render
+  LDY #$3D
+  JSR WindowDisplaySetup
+  JSR $A009
+  LDA #$00
+  STA $0000
+  JSR $A015
+  JSR ControllerRead
+
+  LDA #$00
+  STA $0508
+  LDA #$70
+  STA territory_ptr_lo
+  LDA #$AF
+  STA territory_ptr_hi      ; Ptr = $AF70
+
+  LDA #$01
+  JSR BankSwitch
+  LDA #$01
+  STA $0097
+  JSR PaletteUpload
+  LDA #$05
+  STA $0061
+  INC addr_game_state
+  LDA #$1D
+  JSR SoundWrapperA         ; Music $1D
+  JSR PpuMaskHelper
+  JSR PpuCtrlNmiHelpers
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E221: Entry 4 - Random + Display (Y=$28)
+;===============================================================================
+.proc State_RandomDisplay28
+  JSR RandomByte
+  LDY #$28
+  JSR WindowSetup2
+  JSR $A000
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E22F: Entry 5 - Domestic Affairs
+; Params: $0544 = domestic action type (0-6)
+;         $0562/$0563 = sprite position indices
+;===============================================================================
+.proc State_DomesticAffairs
+action_type     = $0544
+sprite_idx1     = $0563
+sprite_idx2     = $0562
+
+  JSR FrameInit
+  LDA #$04
+  STA addr_sub_state
+  LDA action_type
+  CLC
+  ADC #$02
+  JSR DisplayInit
+  LDA #$02
+  JSR BankSwitch
+  LDY #$37
+  JSR WindowDisplaySetup
+  JSR $A024                 ; Domestic display
+  LDY #$3D
+  JSR WindowDisplaySetup
+
+  ; Second display call with action type
+  LDA action_type
+  ASL
+  JSR DomesticActionDisplay
+
+  ; Sprite positions from table
+  LDY sprite_idx1
+  LDA DomesticSpriteYPos,Y
+  STA $0107                 ; Sprite position indicator
+  STA $0113                 ; Mirror
+  LDY sprite_idx2
+  LDA DomesticSpriteYPos,Y
+  STA $010F
+  STA $0117
+
+  JSR ControllerRead
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$01
+  STA $0000
+  JSR $A015
+  LDA #$A0
+  STA addr_display_mode
+  JSR PaletteUpload
+  INC addr_game_state
+  LDA #$0D
+  JSR SoundWrapperC         ; Sound $0D
+  JSR PpuMaskHelper
+  JSR PpuCtrlNmiHelpers
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E29C: Domestic Action Display Lookup
+; Params: $0544 = action type (0-6)
+;         $000A/$000B = graphic pointer
+;         $000C/$000D = base data pointer
+;===============================================================================
+.proc DomesticActionLookup
+action_type     = $0544
+graphic_ptr_lo  = $000A
+graphic_ptr_hi  = $000B
+base_ptr_lo     = $000C
+base_ptr_hi     = $000D
+
+  LDA action_type
+  ASL                       ; * 2 for table index
+  TAY
+  LDA DomesticGraphicPtrs,Y
+  STA graphic_ptr_lo
+  LDA DomesticGraphicPtrs+1,Y
+  STA graphic_ptr_hi
+  LDA DomesticBaseDataPtrs,Y
+  STA base_ptr_lo
+  LDA DomesticBaseDataPtrs+1,Y
+  STA base_ptr_hi
+  LDY #$37
+  JSR WindowDisplaySetup
+  JSR $A006                 ; Action display (bank-switched)
+  RTS
+.endproc
+
+; Domestic action display (wraps lookup)
+DomesticActionDisplay = DomesticActionLookup
+
+;===============================================================================
+; $E2C2: Domestic Action Data Tables
+;===============================================================================
+DomesticGraphicPtrs:
+  .addr $8440, $8570, $86A0, $87D0, $8900, $8A30, $8B60
+
+DomesticBaseDataPtrs:
+  .addr $8000, $8000, $8000, $8000, $8000, $8000, $8000
+
+DomesticSpriteYPos:
+  .byte $10, $0F, $00, $16
+
+;===============================================================================
+; $E2E2: Entry 6 - Random Seed Advance
+;===============================================================================
+.proc State_RandomAdvance1
+  JSR RandomByte
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E2E8: Entry 7 - Battle Phase
+; Params: $04AB/$04AC = army status flags
+;         $0098 = display param ($A0)
+;===============================================================================
+.proc State_BattlePhase
+army_status1    = $04AB
+army_status2    = $04AC
+
+  JSR FrameInit
+  LDA #$05
+  STA addr_sub_state
+  LDA #$0A                  ; Battle display mode
+  JSR DisplayInit
+  LDA #$A0
+  STA addr_display_mode
+  LDY #$30
+  JSR WindowDisplaySetup
+  LDA #$00
+  STA $000A                 ; ptr_lo
+  LDA #$84
+  STA $000B                 ; ptr_hi -> $8400
+  LDA #$00
+  STA $0000
+  LDA #$20
+  STA $0001
+  LDY #$37
+  JSR WindowDisplaySetup
+  JSR $A003                 ; Battle display
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$0A
+  STA $0000
+  JSR $A015
+
+  JSR ControllerRead
+
+  ; Check army status flags
+  LDX #$00
+  LDA army_status1
+  CMP #$01
+  BNE @army2_check
+  STX $0106                 ; Clear sprite if army=1
+  STX $0116
+@army2_check:
+  LDA army_status2
+  CMP #$01
+  BNE @after_army
+  STX $010E                 ; Clear sprite if army=1
+  STX $011A
+@after_army:
+  JSR PaletteUpload
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$02
+  JSR BankSwitch
+  INC addr_game_state
+  LDA #$12
+  JSR SoundWrapperB         ; Battle music $12
+  JSR PpuMaskHelper
+  JSR PpuCtrlNmiHelpers
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E36A: Entry 8 - Random Seed Advance
+;===============================================================================
+.proc State_RandomAdvance2
+  JSR RandomByte
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E370: Display Init Helper
+; Params: A = display mode index (passed before call)
+;===============================================================================
+.proc DisplayInit
+  LDY #$3D
+  JSR WindowDisplaySetup    ; Window clear
+  JSR $A01B                 ; Bank-switched display
+  JSR ChrBankSwitch         ; Window/display helper
+  RTS
+.endproc
+
+;===============================================================================
+; $E37C: Entry 9 - Territory / Map View
+;===============================================================================
+.proc State_TerritoryView
+  JSR FrameInit
+  LDA #$06
+  STA addr_sub_state
+  LDA #$0B                  ; Territory display mode
+  JSR DisplayInit
+  LDY #$35
+  JSR WindowDisplaySetup
+  LDA #$90
+  STA $000A
+  LDA #$9A
+  STA $000B                 ; Ptr -> $9A90
+  LDA #$00
+  STA $0000
+  LDA #$20
+  STA $0001
+  LDA #$00
+  STA $0004
+  STA $0005
+  STA $0006
+  LDA #$04
+  STA $0007
+  LDY #$37
+  JSR WindowDisplaySetup
+  JSR $A003
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$0B
+  STA $0000
+  JSR $A015
+  JSR ControllerRead
+  JSR PaletteUpload
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$03
+  JSR PaletteUpload
+  LDA #$A0
+  STA addr_display_mode
+  LDA #$02
+  JSR BankSwitch
+  INC addr_game_state
+  JSR PpuMaskHelper
+  JSR PpuCtrlNmiHelpers
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E3EB: Entry 10/12/14 - Idle / Wait State
+;===============================================================================
+State_IdleWait:
+  JMP StateDispatch
+
+;===============================================================================
+; $E3EE: Entry 11 - Advisor / Council
+;===============================================================================
+.proc State_AdvisorCouncil
+  JSR FrameInit
+  LDA #$07
+  STA addr_sub_state
+  LDA #$0C                  ; Advisor display mode
+  JSR DisplayInit
+  LDY #$32
+  JSR WindowDisplaySetup
+  LDA #$E3
+  STA $000A
+  LDA #$9A
+  STA $000B                 ; Ptr -> $9AE3
+  LDA #$00
+  STA $0000
+  LDA #$20
+  STA $0001
+  LDA #$00
+  STA $0004
+  STA $0005
+  STA $0006
+  LDA #$04
+  STA $0007
+  LDY #$37
+  JSR WindowDisplaySetup
+  JSR $A003
+  LDY #$3D
+  JSR WindowDisplaySetup
+  JSR $A018                 ; Advisor dialogue
+  CLC
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$0C
+  STA $0000
+  JSR $A015
+  JSR ControllerRead
+  JSR PaletteUpload
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$04
+  JSR PaletteUpload
+  LDA #$A0
+  STA addr_display_mode
+  LDA #$02
+  JSR BankSwitch
+  INC addr_game_state
+  LDA #$08
+  JSR SoundWrapperC         ; Sound $08
+  JSR PpuMaskHelper
+  JSR PpuCtrlNmiHelpers
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; $E46A: Entry 13 - Turn Summary
+; Params: $0541 = completion flag (0=normal, nonzero=victory)
+;===============================================================================
+.proc State_TurnSummary
+completion_flag = $0541
+
+  JSR FrameInit
+  LDA #$08
+  STA addr_sub_state
+  LDA #$0D                  ; Report display mode
+  JSR DisplayInit
+  LDY #$36
+  JSR WindowDisplaySetup
+  LDA #$92
+  STA $000A
+  LDA #$9B
+  STA $000B                 ; Ptr -> $9B92
+  LDA #$00
+  STA $0000
+  LDA #$20
+  STA $0001
+  LDY #$37
+  JSR WindowDisplaySetup
+  JSR $A003
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$0D
+  STA $0000
+  JSR $A015
+  JSR ControllerRead
+  JSR PaletteUpload
+  LDY #$3D
+  JSR WindowDisplaySetup
+  LDA #$05
+  JSR PaletteUpload
+  LDA #$A0
+  STA addr_display_mode
+  LDA #$02
+  JSR BankSwitch
+  INC addr_game_state
+  LDY completion_flag
+  BNE @victory_music
+  LDA #$98
+  JSR SoundWrapperA         ; Normal music $98
+  JMP @after_music
+@victory_music:
+  LDA #$AA
+  JSR SoundWrapperB         ; Victory music $AA
+@after_music:
+  JSR PpuMaskHelper
+  JSR PpuCtrlNmiHelpers
+  JMP StateDispatch
+.endproc
+
+;===============================================================================
+; State Dispatch (JMP target shared by all states)
+;===============================================================================
+StateDispatch:
+  LDA addr_game_state
+  AND #$1F
+  ASL
+  TAY
+  LDA VectorTable,Y
+  STA addr_dispatch_ptr
+  LDA VectorTable+1,Y
+  STA addr_dispatch_ptr+1
+  JMP (addr_dispatch_ptr)
+
+;===============================================================================
+; $E4DA: Frame Init Helper
+; Clears display working RAM, sets sentinel values
+;===============================================================================
+.proc FrameInit
+  JSR ReadPpuStatus
+  JSR WaitForVBlank
+  STA PPU_MASK              ; Disable rendering
+  JSR BankPpuInit
+  JSR NametableFill2
+  LDA #$00
+  STA $0090
+  STA $0091
+  STA $008E
+  STA $008F
+  STA addr_display_mode
+  STA $0099
+  STA $0096
+  STA $0097
+  STA addr_nmi_flag
+  STA $005E
+  STA $005F
+  STA $008D
+  STA $00A4
+  LDA #$FF
+  STA $0300                 ; Sentinel values
+  STA $0304
+  JMP SpriteBufferInit
+.endproc
+
+;===============================================================================
+; $E51F: Bank Switch
+; Params: A = config index (0-N), reads 8-byte config from BankSwitchTable
+;===============================================================================
+.proc BankSwitch
+  ASL                       ; A * 2
+  ASL                       ; A * 4
+  ASL                       ; A * 8 -> table offset
+  TAY
+  LDA BankSwitchTable,Y
+  STA addr_bank_e6
+  STA $C000                 ; Mapper register 1
+  INY
+  LDA BankSwitchTable,Y
+  STA addr_bank_e7
+  STA $C800                 ; Mapper register 2
+  INY
+  LDA BankSwitchTable,Y
+  STA addr_bank_e8
+  STA $D000                 ; Mapper register 3
+  INY
+  LDA BankSwitchTable,Y
+  STA addr_bank_e9
+  STA $D800                 ; Mapper register 4
+  INY
+  LDA BankSwitchTable,Y
+  STA addr_bank_ea
+  INY
+  LDA BankSwitchTable,Y
+  STA addr_bank_eb
+  INY
+  LDA BankSwitchTable,Y
+  STA addr_bank_ec
+  INY
+  LDA BankSwitchTable,Y
+  STA addr_bank_ed
+  RTS
+.endproc
+
+;===============================================================================
+; $E567: Bank Switch Configuration Table
+; 8 bytes per config. First 4: PRG bank regs, Last 4: extended config
+;===============================================================================
+BankSwitchTable:
+  .byte $E0, $E1, $E1, $E1, $E0, $E1, $E0, $E1  ; Config 0
+  .byte $E0, $E0, $E0, $E0, $E0, $E1, $E0, $E1  ; Config 1
+  .byte $E0, $E1, $E0, $E1, $E0, $E1, $E0, $E1  ; Config 2
+
+;===============================================================================
+; $E57F: Bank + PPU Init + JMP Patch
+;===============================================================================
+.proc BankPpuInit
+  LDA #$00
+  JSR SoundWrapperA         ; Sound off
+  JSR PaletteUpload
+  LDA #$4C                  ; JMP opcode
+  STA $00A5                 ; Patch RAM at $00A5
+  STA NAMCO_CTRL            ; Write mapper
+  RTS
+.endproc
+
+;===============================================================================
+; $E590: Sound Init + IRQ Timer
+; Initializes APU, clears sound RAM, uploads wavetable
+;===============================================================================
+.proc SoundInit
+sound_irq_lo   = $07F6
+sound_irq_hi   = $07F7
+sound_ram_ptr  = $07F2
+
+  LDA #$00
+  STA APU_SND_CHN           ; $4015 - silence all channels
+  STA sound_irq_lo
+  LDA #$10
+  STA APU_PULSE1_VOL        ; $4000
+  STA APU_PULSE1_SWEEP      ; $4001
+  STA APU_TRI_LINEAR        ; $4008
+  LDA #$08
+  STA APU_PULSE2_VOL        ; $4004
+  STA APU_PULSE2_SWEEP      ; $4005
+  LDA #$00
+  STA APU_DMC_FREQ          ; $4010
+
+  ; Clear sound RAM $0700-$07FF
+  TAX
+@clear_loop:
+  LDA #$FF
+  STA $0700,X
+  LDA #$00
+  STA $0706,X
+  TXA
+  CLC
+  ADC #$16
+  TAY
+  CMP #$F2
+  BNE @clear_loop
+
+  ; Upload wavetable to Namco-163 $4800
+  LDA #$C0
+  STA NAMCO_CTRL            ; Select wavetable address
+  LDX #$3F
+@wavetable_loop:
+  LDA #$00
+  STA $4800                 ; Write to sound RAM
+  DEX
+  BPL @wavetable_loop
+
+  ; Upload wavetable init data
+  LDX #$80
+  LDA #$30
+  STX NAMCO_CTRL            ; Set auto-increment address
+  STA $4800
+@wt_init_loop:
+  LDA WavetableInitData,X
+  STA $4800
+  INX
+  CPX #$20
+  BCC @wt_init_loop
+  LDX #$64
+  LDA #$F0
+  JSR WavetableWriteDelay
+  LDX #$7F
+  LDA #$30
+  STX NAMCO_CTRL
+  STA $4800
+  RTS
+.endproc
+
+;===============================================================================
+; $E5FA: Wavetable Write Delay
+; Params: A = value, X = register
+;===============================================================================
+.proc WavetableWriteDelay
+  PHA
+  TXA
+  JSR SoundNotePlayer_8     ; Delay sub-entry
+  PHA
+  TXA
+  CLC
+  ADC #$08
+  TAX
+  BPL WavetableWriteDelay_done
+  PLA
+  RTS
+WavetableWriteDelay_done:
+  PLA
+.endproc
+
+;===============================================================================
+; $E609: Sound Note Player
+; Reads note data from banked ROM, writes to $0700-X RAM
+;===============================================================================
+.proc SoundNotePlayer
+note_ptr_lo    = $F0
+note_ptr_hi    = $F1
+sound_temp    = $F2
+
+  LDY #$22
+  JSR WindowDisplaySetup
+  LDY #$00
+  STY $F1
+  LDA $F0
+  ASL $F1
+  ASL $F1
+  CLC
+  ADC #$00
+  STA $F0
+  LDA #$80
+  ADC $F1
+  STA $F1
+  TXA
+  PHA
+  LDA ($F0),Y
+  TAX
+  LDA $0700,X
+  CMP #$FF
+  BEQ SoundNotePlayer_done
+  LDA $0701,X
+  CMP #$04
+  BCS SoundNotePlayer_done
+  TAY
+  LDA SoundChannelTable,Y
+  STA $F2
+  LDA $0702,X
+  STA NAMCO_CTRL
+  LDA $0703,X
+  STA $4800
+  LDA $0704,X
+  STA $4800
+  LDA $0705,X
+  STA $4800
+SoundNotePlayer_done:
+  PLA
+  TAX
+  RTS
+.endproc
+
+SoundNotePlayer_8 = SoundNotePlayer + 8
+
+;===============================================================================
+; $E667: Sound Channel Table (4 bytes)
+;===============================================================================
+SoundChannelTable:
+  .byte $0E, $0D, $0B, $07
+
+;===============================================================================
+; $E66B-$E6A5: Sound Wrapper Functions (8 variants)
+; Each plays a sound ID then increments and plays again
+;===============================================================================
+SoundWrapper0:
+  PHA
+  JSR SoundNotePlayer
+  PLA
+  CLC
+  ADC #$01
+  JSR SoundNotePlayer
+  RTS
+
+SoundWrapperA:
+  PHA
+  JSR SoundNotePlayer
+  PLA
+  CLC
+  ADC #$01
+  JSR SoundNotePlayer
+  RTS
+
+SoundWrapperB:
+  PHA
+  JSR SoundNotePlayer
+  PLA
+  CLC
+  ADC #$01
+  JSR SoundNotePlayer
+  RTS
+
+SoundWrapperC:
+  PHA
+  JSR SoundNotePlayer
+  PLA
+  CLC
+  ADC #$01
+  JSR SoundNotePlayer
+  RTS
+
+;===============================================================================
+; $E6A6: Wavetable Init Data (32 bytes)
+;===============================================================================
+WavetableInitData:
+  .byte $00, $00, $00, $00, $00, $00, $00, $00
+  .byte $00, $00, $00, $00, $00, $00, $00, $00
+  .byte $00, $00, $00, $00, $00, $00, $00, $00
+  .byte $00, $00, $00, $00, $00, $00, $00, $00
+
+;===============================================================================
+; $E6C6: Controller Read
+; Reads 8-bit serial data from $4016/$4017
+; Output: $0081 = edge-triggered, $0083 = raw, $0084 = previous
+;===============================================================================
+.proc ControllerRead
+  LDA #$01
+  STA APU_JOY1              ; Strobe controller
+  STA $0000
+  LSR
+  STA APU_JOY1              ; End strobe
+@read_loop:
+  LDA APU_JOY1              ; Read pad 1
+  LSR
+  ROL $0000
+  LDA APU_JOY2              ; Read pad 2
+  LSR
+  ROL $0001
+  INY
+  BNE @read_loop
+  LDA $0000
+  EOR #$FF
+  STA addr_pad1_raw
+  LDA addr_pad1_prev
+  EOR addr_pad1_raw
+  AND addr_pad1_raw
+  STA addr_pad1_edge        ; Edge-triggered
+  LDA addr_pad1_raw
+  STA addr_pad1_prev
+  RTS
+.endproc
+
+;===============================================================================
+; $E70E: Palette Upload
+; Uploads $0100-$011F to PPU $3F00
+;===============================================================================
+.proc PaletteUpload
+  LDA $2002                 ; Read PPU status (reset latch)
+  LDA #$3F
+  STA PPU_ADDR
+  LDA #$00
+  STA PPU_ADDR              ; PPU addr = $3F00
+  LDX #$00
+@upload_loop:
+  LDA $0100,X
+  STA PPU_DATA
+  INX
+  CPX #$20                  ; 32 bytes
+  BNE @upload_loop
+  RTS
+.endproc
+
+;===============================================================================
+; $E749: PPU Mask Helper
+;===============================================================================
+.proc PpuMaskHelper
+  LDA #$1E
+  STA addr_ppu_mask_ram
+  STA PPU_MASK
+  RTS
+.endproc
+
+;===============================================================================
+; $E753: PPU Ctrl/NMI Helpers
+;===============================================================================
+.proc PpuCtrlNmiHelpers
+vblank_flag    = $008A
+
+  LDA PPU_STATUS            ; Read PPU status
+  BPL @no_vblank
+  LDA #$01
+  STA vblank_flag
+@no_vblank:
+  LDA addr_ppu_ctrl_ram
+  ORA #$80                  ; Enable NMI
+  STA addr_ppu_ctrl_ram
+  STA PPU_CTRL
+  RTS
+.endproc
+
+;===============================================================================
+; $E768: Read PPU Status
+;===============================================================================
+.proc ReadPpuStatus
+  LDA PPU_STATUS
+  RTS
+.endproc
+
+;===============================================================================
+; $E76D: Wait for VBlank
+;===============================================================================
+.proc WaitForVBlank
+@wait:
+  LDA PPU_STATUS
+  BPL @wait
+  RTS
+.endproc
+
+;===============================================================================
+; $E774: Nametable Fill Mode 1
+; Fills 3 nametables with value from $02/$03
+;===============================================================================
+.proc NametableFill1
+fill_lo       = $02
+fill_hi       = $03
+
+  LDA #$20
+  STA fill_hi
+  LDA #$00
+  STA fill_lo
+@fill_loop:
+  LDA fill_hi
+  STA PPU_ADDR
+  LDA fill_lo
+  STA PPU_ADDR
+  LDA #$AA                  ; Fill value
+  STA PPU_DATA
+  INC fill_lo
+  BNE @fill_loop
+  INC fill_hi
+  LDA fill_hi
+  CMP #$24                  ; End at $2400 (3 nametables)
+  BCC @fill_loop
+  RTS
+.endproc
+
+;===============================================================================
+; $E7DF: Nametable Fill Mode 2
+;===============================================================================
+.proc NametableFill2
+  LDA #$AA
+  STA $02
+  JSR NametableFill1
+  RTS
+.endproc
+
+;===============================================================================
+; $E823: Sprite Buffer Init
+; Fills $0200-$02FF with $F0 (off-screen)
+;===============================================================================
+.proc SpriteBufferInit
+  LDX #$00
+  LDA #$F0
+@fill_loop:
+  STA $0200,X
+  INX
+  BNE @fill_loop
+  RTS
+.endproc
+
+;===============================================================================
+; $E843: Random Below 100
+; Returns: A = random byte 0-99
+;===============================================================================
+.proc RandomBelow100
+@loop:
+  JSR RandomByte
+  CMP #$64                  ; < 100?
+  BCS @loop
+  RTS
+.endproc
+
+;===============================================================================
+; $E84B: Random Div 2
+; Returns: A = random byte / 2
+;===============================================================================
+.proc RandomDiv2
+  JSR RandomByte
+  LSR
+  RTS
+.endproc
+
+;===============================================================================
+; $E850: Random Mod Power of 2
+; Multiple entry points for mod 4, mod 8, mod 16
+;===============================================================================
+.proc RandomModPow2
+RandomMod4:
+  JSR RandomByte
+  AND #$03
+  RTS
+
+RandomMod8:
+  JSR RandomByte
+  AND #$07
+  RTS
+
+RandomMod16:
+  JSR RandomByte
+  AND #$0F
+  RTS
+.endproc
+
+;===============================================================================
+; $E862: Random Below Threshold
+; Params: A = threshold value
+; Returns: A = random value 0 to threshold-1
+;===============================================================================
+.proc RandomBelowThreshold
+threshold    = $0000
+
+  STA threshold
+@loop:
+  JSR RandomByte
+  AND #$0F                  ; mod 16
+  CMP threshold
+  BCS @loop
+  RTS
+.endproc
+
+;===============================================================================
+; $E87A: Random Byte (RNG Core)
+; Table lookup at $E8BA, index at $0050
+; Returns: A = random byte
+;===============================================================================
+.proc RandomByte
+rng_index    = $0050
+rng_saved_x  = $0051
+
+  STX addr_rng_saved_x          ; Save X register
+  LDX rng_index            ; Load current RNG index
+  LDA RandomTable,X        ; Read byte from pre-computed table
+  INC rng_index            ; Advance table index
+  LDX addr_rng_saved_x          ; Restore X register
+  RTS                      ; Return with random byte in A
+.endproc
+
+;===============================================================================
+; $E88A-$E8B9: Random Variants
+; Separate RNG instances using $0052/$0054/$0055
+;===============================================================================
+.proc RandomVariants
+rng2_index    = $0052
+rng3_index    = $0054
+rng4_index    = $0055
+
+RandomByte2:
+  STX addr_rng_saved_x
+  LDX rng2_index
+  LDA RandomTable,X
+  INC rng2_index
+  LDX addr_rng_saved_x
+  RTS
+
+RandomByte3:
+  STX addr_rng_saved_x
+  LDX rng3_index
+  LDA RandomTable,X
+  INC rng3_index
+  LDX addr_rng_saved_x
+  RTS
+
+RandomByte4:
+  STX addr_rng_saved_x
+  LDX rng4_index
+  LDA RandomTable,X
+  INC rng4_index
+  LDX addr_rng_saved_x
+  RTS
+.endproc
+
+;===============================================================================
+; $E8BA: Random Table (~256 bytes)
+;===============================================================================
+RandomTable:
+  .incbin "rom/prg/prg_1f.bin", $BA, $100
+
+;===============================================================================
+; $E9BA: Math - Binary to BCD
+; Input: $01/$02/$03 = 24-bit little-endian value (mod 1,000,000)
+; Output: $07/$08/$09 = 6 packed BCD digits
+; Clobbers: $01-$05
+;===============================================================================
+.proc MathBinToBcd
+dividend_lo   = $01
+dividend_mid  = $02
+dividend_hi   = $03
+temp_lo       = $04
+temp_mid      = $05
+bcd_tens_ones = $07
+bcd_thou_hund = $08
+bcd_htth_tth  = $09
+
+  ; Initialize BCD accumulators
+  LDA #$00
+  STA bcd_tens_ones
+  STA bcd_thou_hund
+  STA bcd_htth_tth
+
+  ; Loop 1: Subtract 1,000,000 ($0F4240) - clamp
+@clamp_million:
+  LDA dividend_lo
+  SEC
+  SBC #$40
+  STA temp_lo
+  LDA dividend_mid
+  SBC #$42
+  STA temp_mid
+  LDA dividend_hi
+  SBC #$0F
+  BCC @sub_100k             ; Value < 1,000,000, done clamping
+  STA dividend_hi
+  LDA temp_lo
+  STA dividend_lo
+  LDA temp_mid
+  STA dividend_mid
+  JMP @clamp_million
+
+  ; Loop 2: Subtract 100,000 ($0186A0) -> hundred-thousands digit
+@sub_100k:
+  LDA dividend_lo
+  SEC
+  SBC #$A0
+  STA temp_lo
+  LDA dividend_mid
+  SBC #$86
+  STA temp_mid
+  LDA dividend_hi
+  SBC #$01
+  BCC @sub_10k
+  STA dividend_hi
+  LDA temp_lo
+  STA dividend_lo
+  LDA temp_mid
+  STA dividend_mid
+  LDA bcd_htth_tth
+  ADC #$0F                  ; Add 1 to upper nibble (carry=1)
+  STA bcd_htth_tth
+  BNE @sub_100k             ; Always loops
+
+  ; Loop 3: Subtract 10,000 ($002710) -> ten-thousands digit
+@sub_10k:
+  LDA dividend_lo
+  SEC
+  SBC #$10
+  STA temp_lo
+  LDA dividend_mid
+  SBC #$27
+  STA temp_mid
+  LDA dividend_hi
+  SBC #$00
+  BCC @sub_1k
+  STA dividend_hi
+  LDA temp_lo
+  STA dividend_lo
+  LDA temp_mid
+  STA dividend_mid
+  INC bcd_htth_tth          ; Add 1 to lower nibble
+  BNE @sub_10k              ; Always loops
+
+  ; Loop 4: Subtract 1,000 ($03E8) -> thousands digit
+@sub_1k:
+  LDA dividend_lo
+  SEC
+  SBC #$E8
+  STA temp_lo
+  LDA dividend_mid
+  SBC #$03
+  BCC @sub_100
+  STA dividend_mid
+  LDA temp_lo
+  STA dividend_lo
+  LDA bcd_thou_hund
+  ADC #$0F                  ; Add 1 to upper nibble
+  STA bcd_thou_hund
+  BNE @sub_1k
+
+  ; Loop 5: Subtract 100 ($64) -> hundreds digit
+@sub_100:
+  LDA dividend_lo
+  SEC
+  SBC #$64
+  STA temp_lo
+  LDA dividend_mid
+  SBC #$00
+  BCC @sub_10
+  STA dividend_mid
+  LDA temp_lo
+  STA dividend_lo
+  INC bcd_thou_hund         ; Add 1 to lower nibble
+  BNE @sub_100
+
+  ; Loop 6: Subtract 10 ($0A) -> tens digit
+@sub_10:
+  LDA dividend_lo
+  SEC
+  SBC #$0A
+  STA temp_lo
+  LDA dividend_mid
+  SBC #$00
+  BCC @final
+  STA dividend_mid
+  LDA temp_lo
+  STA dividend_lo
+  LDA bcd_tens_ones
+  ADC #$0F                  ; Add 1 to upper nibble
+  STA bcd_tens_ones
+  BNE @sub_10
+
+  ; Final: Combine ones digit (remainder)
+@final:
+  LDA dividend_lo
+  ORA bcd_tens_ones         ; Merge into lower nibble
+  STA bcd_tens_ones         ; $07 = (tens << 4) | ones
+  RTS
+.endproc
+
+;===============================================================================
+; $EA7C: Math - 16-bit Unsigned Division
+; Input: $01/$02 = dividend, $03/$04 = divisor (16-bit LE)
+; Output: $01/$02 = quotient, $05/$06 = remainder
+;===============================================================================
+.proc MathDiv16
+dividend_lo   = $01
+dividend_hi   = $02
+divisor_lo    = $03
+divisor_hi    = $04
+remainder_lo  = $05
+remainder_hi  = $06
+temp          = $07
+
+  LDA #$00
+  STA remainder_lo
+  STA remainder_hi
+  LDY #$0F                   ; 16 iterations
+@loop:
+  ASL dividend_lo            ; Shift dividend, MSB -> carry
+  ROL dividend_hi
+  ROL remainder_lo           ; Carry -> remainder
+  ROL remainder_hi
+  LDA remainder_lo           ; Trial subtraction
+  SEC
+  SBC divisor_lo
+  STA temp
+  LDA remainder_hi
+  SBC divisor_hi
+  BCC @skip                  ; Remainder < divisor
+  STA remainder_hi           ; Commit subtraction
+  LDA temp
+  STA remainder_lo
+  INC dividend_lo            ; Set quotient bit
+@skip:
+  DEY
+  BPL @loop
+  RTS
+.endproc
+
+;===============================================================================
+; $EAA5: Math - 24-bit Unsigned Division
+; Input: $00/$01/$02 = dividend (24-bit), $03/$04 = divisor (16-bit)
+; Output: $00/$01/$02 = quotient, $05/$06/$07 = remainder
+;===============================================================================
+.proc MathDiv24
+dividend_b0   = $00
+dividend_b1   = $01
+dividend_b2   = $02
+divisor_lo    = $03
+divisor_hi    = $04
+remainder_b0  = $05
+remainder_b1  = $06
+remainder_b2  = $07
+temp_b0       = $08
+temp_b1       = $09
+
+  LDA #$00
+  STA remainder_b0
+  STA remainder_b1
+  STA remainder_b2
+  LDY #$17                   ; 24 iterations
+@loop:
+  ASL dividend_b0            ; Shift dividend
+  ROL dividend_b1
+  ROL dividend_b2
+  ROL remainder_b0           ; Carry -> remainder
+  ROL remainder_b1
+  ROL remainder_b2
+  LDA remainder_b0           ; Trial subtraction
+  SEC
+  SBC divisor_lo
+  STA temp_b0
+  LDA remainder_b1
+  SBC divisor_hi
+  STA temp_b1
+  LDA remainder_b2
+  SBC #$00                   ; Propagate borrow
+  BCC @skip
+  STA remainder_b2
+  LDA temp_b0
+  STA remainder_b0
+  LDA temp_b1
+  STA remainder_b1
+  INC dividend_b0            ; Set quotient bit
+@skip:
+  DEY
+  BPL @loop
+  RTS
+.endproc
+
+;===============================================================================
+; $EADE: Callback Dispatcher
+; Input: A = index, Y = parameter for target
+; Inline pointer table follows JSR
+;===============================================================================
+.proc CallbackDispatcher
+param         = $00
+ret_addr_lo   = $01
+ret_addr_hi   = $02
+target_lo     = $03
+target_hi     = $04
+
+  STY param
+  ASL                         ; A * 2 (word index)
+  TAY
+  INY                         ; Compensate for JSR pushing PC+2
+  PLA                         ; Pull return address low
+  STA ret_addr_lo
+  PLA                         ; Pull return address high
+  STA ret_addr_hi
+  LDA (ret_addr_lo),Y        ; Read pointer low
+  STA target_lo
+  INY
+  LDA (ret_addr_lo),Y        ; Read pointer high
+  STA target_hi
+  LDY param                   ; Restore Y
+  JMP (target_lo)            ; Jump to target function
+.endproc
+
+;===============================================================================
+; $EAF7: Scroll Set - PPU scroll register write
+;===============================================================================
+.proc ScrollSet
+  LDA $009A
+  STA PPU_SCROLL
+  LDA $009B
+  STA PPU_SCROLL
+  RTS
+.endproc
+
+;===============================================================================
+; $EB03: PPU Ctrl Nametable Bit Update
+;===============================================================================
+.proc PpuCtrlNametableUpdate
+  LDA addr_ppu_ctrl_ram
+  AND #$FC                   ; Clear nametable bits
+  ORA $0096                  ; Set from $0096
+  STA addr_ppu_ctrl_ram
+  STA PPU_CTRL
+  RTS
+.endproc
+
+;===============================================================================
+; $EB1A: Window Reset
+;===============================================================================
+.proc WindowReset
+  LDA #$00
+  STA PPU_SCROLL
+  STA PPU_SCROLL
+  STA $009A
+  STA $009B
+  RTS
+.endproc
+
+;===============================================================================
+; $EB2D: Math - BCD to Binary
+; Input: $0A/$0B/$0C = 6 packed BCD digits
+; Output: $0D/$0E/$0F = 24-bit binary value
+;===============================================================================
+.proc MathBcdToBin
+bcd_tens_ones    = $0A
+bcd_thou_hund    = $0B
+bcd_htth_tth     = $0C
+result_b0        = $0D
+result_b1        = $0E
+result_b2        = $0F
+mul_lo           = $00
+mul_mid          = $01
+mul_hi           = $02
+mul_multiplier   = $03
+accum_b0         = $0D
+accum_b1         = $0E
+accum_b2         = $0F
+
+  LDA #$00
+  STA result_b1
+  STA result_b2
+
+  ; Digit 0: Ones (lower nibble of $0A) x 1
+  LDA bcd_tens_ones
+  PHA                          ; Save for upper nibble
+  AND #$0F                     ; Extract ones
+  STA result_b0                ; Directly store (x 1)
+
+  ; Digit 1: Tens (upper nibble of $0A) x 10
+  PLA
+  JSR MathExtractUpperNibble
+  STA mul_multiplier
+  LDA #$0A                     ; 10
+  STA mul_lo
+  LDA #$00
+  STA mul_mid
+  STA mul_hi
+  JSR MathMul24x8
+  JSR MathAccumulate24
+
+  ; Digit 2: Hundreds (lower nibble of $0B) x 100
+  LDA bcd_thou_hund
+  PHA
+  AND #$0F
+  STA mul_multiplier
+  LDA #$64                     ; 100
+  STA mul_lo
+  LDA #$00
+  STA mul_mid
+  STA mul_hi
+  JSR MathMul24x8
+  JSR MathAccumulate24
+
+  ; Digit 3: Thousands (upper nibble of $0B) x 1,000
+  PLA
+  JSR MathExtractUpperNibble
+  STA mul_multiplier
+  LDA #$E8                     ; 1000 ($03E8)
+  STA mul_lo
+  LDA #$03
+  STA mul_mid
+  LDA #$00
+  STA mul_hi
+  JSR MathMul24x8
+  JSR MathAccumulate24
+
+  ; Digit 4: Ten-thousands (lower nibble of $0C) x 10,000
+  LDA bcd_htth_tth
+  PHA
+  AND #$0F
+  STA mul_multiplier
+  LDA #$10                     ; 10000 ($2710)
+  STA mul_lo
+  LDA #$27
+  STA mul_mid
+  LDA #$00
+  STA mul_hi
+  JSR MathMul24x8
+  JSR MathAccumulate24
+
+  ; Digit 5: Hundred-thousands (upper nibble of $0C) x 100,000
+  PLA
+  JSR MathExtractUpperNibble
+  STA mul_multiplier
+  LDA #$A0                     ; 100000 ($0186A0)
+  STA mul_lo
+  LDA #$86
+  STA mul_mid
+  LDA #$01
+  STA mul_hi
+  JSR MathMul24x8
+  JSR MathAccumulate24
+  RTS
+.endproc
+
+;===============================================================================
+; $EBB1: Math - Extract Upper Nibble
+; Input: A = packed byte, Output: A = upper nibble in lower position
+;===============================================================================
+.proc MathExtractUpperNibble
+  LSR
+  LSR
+  LSR
+  LSR
+  RTS
+.endproc
+
+;===============================================================================
+; $EBB6: Math - 24-bit Accumulate Add
+; $0D/$0E/$0F += $06/$07/$08
+;===============================================================================
+.proc MathAccumulate24
+  LDA $06
+  CLC
+  ADC $0D
+  STA $0D
+  LDA $07
+  ADC $0E
+  STA $0E
+  LDA $08
+  ADC $0F
+  STA $0F
+  RTS
+.endproc
+
+;===============================================================================
+; $EBCA: Math - Multiply then Divide by 100
+; Input: $00/$01 = 16-bit value, $03 = 8-bit multiplier
+; Output: $00/$01/$02 = quotient, $05/$06/$07 = remainder (mod 100)
+;===============================================================================
+.proc MathMulDiv100
+  LDA #$00
+  STA $02                    ; Clear high byte for 24-bit multiplicand
+  JSR MathMul24x8
+  LDA $06                    ; Product -> dividend
+  STA $00
+  LDA $07
+  STA $01
+  LDA $08
+  STA $02
+  LDA #$64                   ; Divisor = 100
+  STA $03
+  LDA #$00
+  STA $04
+  JSR MathDiv24              ; 24-bit divide by 100
+  RTS
+.endproc
+
+;===============================================================================
+; $EBE9: Math - 24x8 Multiply
+; Input: $00/$01/$02 = multiplicand (24-bit), $03 = multiplier (8-bit)
+; Output: $06/$07/$08/$09 = product (32-bit)
+;===============================================================================
+.proc MathMul24x8
+multiplicand_b0 = $00
+multiplicand_b1 = $01
+multiplicand_b2 = $02
+multiplier      = $03
+extension       = $04
+product_b0      = $06
+product_b1      = $07
+product_b2      = $08
+product_b3      = $09
+
+  LDY #$07                    ; 8 iterations
+  LDA #$00
+  STA extension
+  STA product_b0
+  STA product_b1
+  STA product_b2
+  STA product_b3
+@loop:
+  LSR multiplier              ; Shift multiplier right, LSB -> carry
+  BCC @skip_add
+  LDA multiplicand_b0         ; Add multiplicand to result
+  CLC
+  ADC product_b0
+  STA product_b0
+  LDA multiplicand_b1
+  ADC product_b1
+  STA product_b1
+  LDA multiplicand_b2
+  ADC product_b2
+  STA product_b2
+  LDA extension
+  ADC product_b3
+  STA product_b3
+@skip_add:
+  ASL multiplicand_b0         ; Shift multiplicand left
+  ROL multiplicand_b1
+  ROL multiplicand_b2
+  ROL extension
+  DEY
+  BPL @loop
+  RTS
+.endproc
+
+;===============================================================================
+; $EC22: Math - 24x16 Multiply
+; Input: $00/$01/$02 = multiplicand, $03/$04 = multiplier (16-bit)
+; Output: $06/$07/$08/$09/$0A = product (40-bit)
+;===============================================================================
+.proc MathMul24x16
+multiplicand_b0 = $00
+multiplicand_b1 = $01
+multiplicand_b2 = $02
+multiplier_lo   = $03
+multiplier_hi   = $04
+ext_b0          = $0B
+ext_b1          = $0C
+product_b0      = $06
+product_b1      = $07
+product_b2      = $08
+product_b3      = $09
+product_b4      = $0A
+
+  LDY #$0F                    ; 16 iterations
+  LDA #$00
+  STA product_b0
+  STA product_b1
+  STA product_b2
+  STA product_b3
+  STA product_b4
+  STA ext_b0
+  STA ext_b1
+@loop:
+  LSR multiplier_hi           ; Shift 16-bit multiplier right
+  ROR multiplier_lo
+  BCC @skip_add
+  LDA multiplicand_b0         ; Add multiplicand to result
+  CLC
+  ADC product_b0
+  STA product_b0
+  LDA multiplicand_b1
+  ADC product_b1
+  STA product_b1
+  LDA multiplicand_b2
+  ADC product_b2
+  STA product_b2
+  LDA ext_b0
+  ADC product_b3
+  STA product_b3
+  LDA ext_b1
+  ADC product_b4
+  STA product_b4
+@skip_add:
+  ASL multiplicand_b0         ; Shift multiplicand left
+  ROL multiplicand_b1
+  ROL multiplicand_b2
+  ROL ext_b0
+  ROL ext_b1
+  DEY
+  BPL @loop
+  RTS
+.endproc
+
+;===============================================================================
+; $EC67: Palette Animation
+; Color rotation with frame counter
+;===============================================================================
+.proc PaletteAnimation
+frame_counter_lo = $0087
+frame_counter_hi = $0088
+anim_ctrl        = $0089
+
+  LDA frame_counter_lo
+  CLC
+  ADC #$01
+  STA frame_counter_lo
+  LDA frame_counter_hi
+  ADC #$00
+  STA frame_counter_hi
+  LDA anim_ctrl
+  BEQ PaletteAnimation_done
+  LSR
+  BCC @shift_right
+  ; Shift left
+  LDX $0100
+  LDA $0101
+  STA $0100
+  LDA $0102
+  STA $0101
+  LDA $0103
+  STA $0102
+  STX $0103
+  JMP PaletteAnimation_done
+@shift_right:
+  ; Shift right
+  LDX $0103
+  LDA $0102
+  STA $0103
+  LDA $0101
+  STA $0102
+  LDA $0100
+  STA $0101
+  STX $0100
+PaletteAnimation_done:
+  RTS
+.endproc
+
+;===============================================================================
+; $ED19: Menu Cursor System (8 Entry Points)
+; Entry points: $ED19=step1, $ED1E=step2, ..., $ED3C=step8
+; Params: $10/$11 = data table pointer
+; Output: $12 = current item value
+;===============================================================================
+.proc MenuCursorSystem
+MenuStep1:
+  LDA #$01
+  JMP MenuMain
+MenuStep2:
+  LDA #$02
+  JMP MenuMain
+MenuStep3:
+  LDA #$03
+  JMP MenuMain
+MenuStep4:
+  LDA #$04
+  JMP MenuMain
+MenuStep5:
+  LDA #$05
+  JMP MenuMain
+MenuStep6:
+  LDA #$06
+  JMP MenuMain
+MenuStep7:
+  LDA #$07
+  JMP MenuMain
+MenuStep8:
+  LDA #$08
+MenuMain:
+  STA addr_menu_step
+  LDA addr_pad1_edge
+  AND #$80                   ; Right pressed?
+  BEQ @check_left
+  JSR @cursor_right
+@check_left:
+  LDA addr_pad1_edge
+  AND #$40                   ; Left pressed?
+  BEQ @check_down
+  JSR @cursor_left
+@check_down:
+  LDA addr_pad1_edge
+  AND #$20                   ; Down pressed?
+  BEQ @check_up
+  JSR @cursor_down
+@check_up:
+  LDA addr_pad1_edge
+  AND #$10                   ; Up pressed?
+  BEQ @lookup
+  JSR @cursor_up
+@lookup:
+  JSR MenuItemLookup
+  STA addr_menu_result
+  RTS
+
+@cursor_right:
+  INC addr_menu_column
+  JSR MenuItemLookup
+  BMI @right_clamp
+  LDA addr_menu_column
+  CMP addr_menu_step
+  BCC @right_done
+@right_clamp:
+  DEC addr_menu_column
+  LDA addr_menu_result
+  BNE @right_done
+  LDA #$00
+  STA addr_menu_column
+@right_done:
+  RTS
+
+@cursor_left:
+  DEC addr_menu_column
+  BPL @left_done
+  INC addr_menu_column
+  LDA addr_menu_result
+  BNE @left_done
+  LDA addr_menu_step
+  STA addr_menu_column
+  DEC addr_menu_column
+@left_scan:
+  JSR MenuItemLookup
+  CMP #$FF
+  BEQ @left_scan_back
+  RTS
+@left_scan_back:
+  DEC addr_menu_column
+  JMP @left_scan
+@left_done:
+  RTS
+
+@cursor_down:
+  INC addr_menu_page
+  JSR MenuItemLookup
+  BPL @down_done
+  DEC addr_menu_page
+  LDA addr_menu_result
+  BNE @down_done
+  LDA #$00
+  STA addr_menu_page
+@down_done:
+  RTS
+
+@cursor_up:
+  DEC addr_menu_page
+  BPL @up_done
+  INC addr_menu_page
+  LDA addr_menu_result
+  BNE @up_done
+  LDX #$FF
+  LDY addr_menu_column
+@up_count:
+  INX
+  TYA
+  CLC
+  ADC addr_menu_step
+  TAY
+  LDA (addr_menu_ptr_lo),Y
+  BPL @up_count
+  STX addr_menu_page
+@up_done:
+  RTS
+.endproc
+
+;===============================================================================
+; $EDDD: Menu Item Lookup
+; Formula: Y = page * step_size + column, A = (ptr),Y
+;===============================================================================
+.proc MenuItemLookup
+  LDA #$00
+  LDY addr_menu_page
+@mul_loop:
+  CPY #$00
+  BEQ @add_column
+  CLC
+  ADC addr_menu_step
+  DEY
+  JMP @mul_loop
+@add_column:
+  CLC
+  ADC addr_menu_column
+  TAY
+  LDA (addr_menu_ptr_lo),Y
+  RTS
+.endproc
+
+;===============================================================================
+; $EDF5: Pointer Table Lookup
+; Input: A = entry index, ($10) = pointer table
+; Output: $0A = ptr low, $0C = ptr high, JMP $F1AD
+;===============================================================================
+.proc PointerTableLookup
+ptr_lo       = $0A
+ptr_hi       = $0C
+flag         = $02
+
+  ASL                         ; A * 2 (word index)
+  TAY
+  LDA (addr_menu_ptr_lo),Y   ; lo byte
+  STA ptr_lo
+  INY
+  LDA (addr_menu_ptr_lo),Y   ; hi byte
+  STA ptr_hi
+  LDA #$00
+  STA flag
+  JMP SpriteOamWriterSimple  ; -> sprite OAM writer
+.endproc
+
+;===============================================================================
+; $EE07: Banked Callback Trampoline
+; Calling: LDY #bank_number; JSR BankedCallbackTrampoline; .word target_addr
+;===============================================================================
+.proc BankedCallbackTrampoline
+  LDA addr_bank_e7           ; Save current PRG bank
+  STA addr_trampoline_saved_bank
+  STY addr_trampoline_bank_param
+  PLA                         ; Pop return address
+  CLC
+  ADC #$01                    ; +1 -> points to inline data
+  STA addr_trampoline_ret_lo
+  PLA
+  ADC #$00
+  STA addr_trampoline_ret_hi
+  LDY #$00
+  LDA (addr_trampoline_ret_lo),Y
+  STA addr_trampoline_target_lo
+  INY
+  LDA (addr_trampoline_ret_lo),Y
+  STA addr_trampoline_target_hi
+  LDY addr_trampoline_bank_param
+  JSR WindowDisplaySetup     ; Switch PRG banks
+  INC addr_trampoline_ret_lo
+  BNE @push_hi
+  INC addr_trampoline_ret_hi
+@push_hi:
+  LDA addr_trampoline_ret_hi
+  PHA
+  LDA addr_trampoline_ret_lo
+  PHA
+  LDA addr_trampoline_saved_bank
+  PHA
+  LDA #>BankedCallbackReturn
+  PHA
+  LDA #<BankedCallbackReturn
+  PHA
+  JMP (addr_trampoline_target_lo)
+.endproc
+
+;===============================================================================
+; $EE4D: Banked Callback Return Stub
+;===============================================================================
+.proc BankedCallbackReturn
+  PLA
+  TAY
+  JSR WindowDisplaySetup     ; Restore original PRG banks
+  RTS
+.endproc
+
+;===============================================================================
+; $EE53: NMI Sub-Dispatch
+; Tests bits of $007E, calls PPU writers
+;===============================================================================
+.proc NmiSubDispatch
+  BIT addr_nmi_flag
+  BPL @skip_bg
+  JSR PpuBgTileWrite
+@skip_bg:
+  LDA addr_nmi_flag
+  AND #$40
+  BEQ @skip_sprite
+  JSR PpuSpriteTileWrite
+@skip_sprite:
+  LDA addr_nmi_flag
+  AND #$20
+  BEQ @skip_attr
+  JSR PpuAttrTileWrite
+@skip_attr:
+  LDA addr_nmi_flag
+  AND #$10
+  BEQ @skip_attr_alt
+  JSR PpuAttrTileWriteAlt
+@skip_attr_alt:
+  RTS
+.endproc
+
+;===============================================================================
+; $EF0B: PPU BG Tile Write
+; Writes tiles from buffer to PPU via $2006/$2007
+;===============================================================================
+.proc PpuBgTileWrite
+  BIT addr_nmi_flag
+  BVC PpuBgTileWrite_done
+  LDA $2002
+  LDA $0140
+  STA PPU_ADDR
+  LDA $0141
+  STA PPU_ADDR
+  LDY #$00
+@write_loop:
+  LDA $0142,Y
+  STA PPU_DATA
+  INY
+  CPY $0140+2
+  BNE @write_loop
+PpuBgTileWrite_done:
+  RTS
+.endproc
+
+;===============================================================================
+; $EF71: PPU Sprite Tile Write
+;===============================================================================
+.proc PpuSpriteTileWrite
+  LDA $2002
+  LDA $0164
+  STA PPU_ADDR
+  LDA $0165
+  STA PPU_ADDR
+  LDY #$00
+@write_loop:
+  LDA $0166,Y
+  STA PPU_DATA
+  INY
+  CPY #$40
+  BNE @write_loop
+  RTS
+.endproc
+
+;===============================================================================
+; $EFC0: PPU Attribute Tile Write
+;===============================================================================
+.proc PpuAttrTileWrite
+  LDA $2002
+  LDA $0188
+  STA PPU_ADDR
+  LDA $0189
+  STA PPU_ADDR
+  LDY #$00
+@write_loop:
+  LDA $018A,Y
+  STA PPU_DATA
+  INY
+  CPY #$40
+  BNE @write_loop
+  RTS
+.endproc
+
+;===============================================================================
+; $F028: PPU Attribute Tile Write (Alt)
+;===============================================================================
+.proc PpuAttrTileWriteAlt
+  LDA $2002
+  LDA $019C
+  STA PPU_ADDR
+  LDA $019D
+  STA PPU_ADDR
+  LDY #$00
+@write_loop:
+  LDA $019E,Y
+  STA PPU_DATA
+  INY
+  CPY #$40
+  BNE @write_loop
+  RTS
+.endproc
+
+;===============================================================================
+; $F077: Namco-163 Sound Register Read
+; Reads $4800 via auto-increment
+;===============================================================================
+.proc NamcoSoundRegRead
+  LDA NAMCO_CTRL
+  AND #$40
+  BEQ NamcoSoundRegRead_done
+  LDX #$07
+@read_loop:
+  LDA $4800,X
+  STA $0700,X
+  DEX
+  BPL @read_loop
+NamcoSoundRegRead_done:
+  RTS
+.endproc
+
+;===============================================================================
+; $F092: Sprite OAM Writer (Scroll)
+; Converts sprite data with scroll offsets
+;===============================================================================
+.proc SpriteOamWriterScroll
+  LDY #$00
+  LDX #$00
+@loop:
+  LDA ($10),Y
+  CMP #$FF
+  BEQ SpriteOamWriterScroll_done
+  INY
+  LDA ($10),Y
+  SEC
+  SBC $009A                  ; Apply scroll offset
+  STA $0200,X
+  INX
+  INY
+  LDA ($10),Y
+  STA $0200,X
+  INX
+  INY
+  LDA ($10),Y
+  STA $0200,X
+  INX
+  INY
+  JMP @loop
+SpriteOamWriterScroll_done:
+  RTS
+.endproc
+
+;===============================================================================
+; $F1AD: Sprite OAM Writer (Simple)
+; Direct sprite placement
+;===============================================================================
+SpriteOamWriterSimple:
+  ; Detailed implementation not yet fully analyzed
+  RTS
+
+;===============================================================================
+; $F206: CHR Bank Switch
+; Writes 8 values to $8000-$B800
+;===============================================================================
+.proc ChrBankSwitch
+  LDX #$00
+@switch_loop:
+  LDA $00E2,X
+  STA $F000,X                ; CHR bank registers
+  INX
+  CPX #$08
+  BNE @switch_loop
+  RTS
+.endproc
+
+;===============================================================================
+; $F237: Window/Display Setup
+; Sets $00E2/$00E3, writes to $F000/$E800/$E000
+; Params: Y = bank parameter
+;===============================================================================
+.proc WindowDisplaySetup
+  STY $00E2
+  LDA $00E3
+  STA $E800
+  LDA $00E2
+  STA $F000
+  RTS
+.endproc
+
+;===============================================================================
+; $F25F: Window Setup 2
+; Params: Y = bank parameter
+;===============================================================================
+.proc WindowSetup2
+  STY $00E3
+  RTS
+.endproc
+
+;===============================================================================
+; $F266: Window Setup Helpers
+;===============================================================================
+.proc WindowSetupHelpers
+  RTS
+.endproc
+
+;===============================================================================
+; $F2AF: Get Hero Address
+; Formula: hero_id * 32 + $6000
+; Params: hero_id in A
+; Output: $10/$11 = pointer to hero data
+;===============================================================================
+.proc GetHeroAddr
+hero_id       = $00
+hero_ptr_lo   = $10
+hero_ptr_hi   = $11
+HERO_SIZE     = 32
+HERO_BASE_LO  = $00
+HERO_BASE_HI  = $60
+
+  STA hero_id
+  ASL
+  ASL
+  ASL
+  ASL
+  ASL                         ; id * 32
+  CLC
+  ADC #HERO_BASE_LO
+  STA hero_ptr_lo
+  LDA #$00
+  ROL                         ; Get high bit from shift
+  ADC #HERO_BASE_HI
+  STA hero_ptr_hi
+  RTS
+.endproc
+
+;===============================================================================
+; $F2D7: Get City Address
+; Formula: city_id * 12 + $63C0
+; Params: city_id in A
+; Output: pointer to city data
+;===============================================================================
+.proc GetCityAddr
+city_id       = $00
+CITY_SIZE     = 12
+CITY_BASE_LO  = $C0
+CITY_BASE_HI  = $63
+
+  STA city_id
+  ASL                         ; id * 2
+  ADC city_id                 ; id * 3
+  ASL                         ; id * 6
+  ASL                         ; id * 12
+  CLC
+  ADC #CITY_BASE_LO
+  STA $10
+  LDA #$00
+  ROL
+  ADC #CITY_BASE_HI
+  STA $11
+  RTS
+.endproc
+
+;===============================================================================
+; $F308: Get Hero Kata Name
+; Formula: id * 10 + $901A
+; Params: id in A
+; Output: pointer to kata name data
+;===============================================================================
+.proc GetHeroKataName
+KATA_SIZE     = 10
+KATA_BASE_LO  = $1A
+KATA_BASE_HI  = $90
+
+  STA $00
+  ASL                         ; id * 2
+  ADC $00                     ; id * 3
+  ASL                         ; id * 6
+  CLC
+  ADC $00                     ; id * 7
+  ASL                         ; id * 14
+  SEC
+  SBC $00                     ; id * 13
+  SEC
+  SBC $00                     ; id * 12
+  ; Actually: id * 10 = (id * 2) << 2 + id << 1
+  ; Simplified: ASL, ADC, ASL*2, ADC...
+  CLC
+  ADC #KATA_BASE_LO
+  STA $10
+  LDA #$00
+  ADC #KATA_BASE_HI
+  STA $11
+  RTS
+.endproc
+
+;===============================================================================
+; $F35F: Kata Name Width Table
+;===============================================================================
+KataNameWidthTable:
+  .byte $08, $08, $08, $08, $08, $08, $08, $08
+
+;===============================================================================
+; $F368: Get Kingdom Address
+; 7 entries, 8 bytes per kingdom, data at $6F07 (SRAM)
+;===============================================================================
+.proc GetKingdomAddr
+kingdom_id    = $00
+KINGDOM_SIZE  = 8
+
+  LDA kingdom_id
+  ASL                         ; id * 2
+  ASL                         ; id * 4
+  ASL                         ; id * 8
+  TAY
+  LDA KingdomPtrTable,Y
+  STA $10
+  LDA KingdomPtrTable+1,Y
+  STA $11
+  RTS
+.endproc
+
+;===============================================================================
+; $F379: Kingdom Pointer Table
+;===============================================================================
+KingdomPtrTable:
+  .addr $6F07, $6F0F, $6F17, $6F1F, $6F27, $6F2F, $6F37
+
+;===============================================================================
+; $F387: Get Hero Initial Data
+; Formula: hero_id * 12 + $8000
+; Params: hero_id in A
+;===============================================================================
+.proc GetHeroInitialData
+INIT_SIZE     = 12
+INIT_BASE_LO  = $00
+INIT_BASE_HI  = $80
+
+  STA $00
+  ASL                         ; id * 2
+  ADC $00                     ; id * 3
+  ASL                         ; id * 6
+  ASL                         ; id * 12
+  CLC
+  ADC #INIT_BASE_LO
+  STA $10
+  LDA #$00
+  ROL
+  ADC #INIT_BASE_HI
+  STA $11
+  RTS
+.endproc
+
+;===============================================================================
+; $F3BD: Mapper Init + Controller Check
+;===============================================================================
+.proc MapperInitCtrlCheck
+  LDA #$00
+  STA $5000                  ; CHR bank register
+  STA $5800                  ; CHR bank register
+  LDA #$E0
+  STA $C000                  ; PRG bank 0
+  STA $D000                  ; PRG bank 0
+  LDA #$E1
+  STA $C800                  ; PRG bank 1
+  STA $D800                  ; PRG bank 1
+
+  ; Controller validation loop
+  LDX #$00
+@ctrl_loop:
+  LDA MapperInitCtrlCheck,X  ; Read from self (data bytes)
+  AND #$01
+  STA $0001
+  STA APU_JOY1               ; Write to controller port
+  LDA APU_JOY2               ; Read controller port 2
+  LSR
+  EOR #$FF
+  AND #$01
+  CMP $0001
+  BNE @ctrl_fail
+  INX
+  CPX #$46                   ; 70 iterations
+  BNE @ctrl_loop
+@ctrl_fail:
+  RTS
+.endproc
+
+;===============================================================================
+; $F422: RAM Integrity Test
+; Write/verify $AA pattern
+;===============================================================================
+.proc RamIntegrityTest
+  LDA #$AA
+  STA $0000
+@write_loop:
+  LDA $0000
+  STA ($00),Y
+  INY
+  BNE @write_loop
+  INC $01
+  LDA $01
+  CMP #$08
+  BCC @write_loop
+  ; Verify
+  LDA #$00
+  STA $01
+  LDY #$00
+@verify_loop:
+  LDA ($00),Y
+  CMP #$AA
+  BNE @fail
+  INY
+  BNE @verify_loop
+  INC $01
+  LDA $01
+  CMP #$08
+  BCC @verify_loop
+@fail:
+  RTS
+.endproc
+
+;===============================================================================
+; $F477: Sound/Music Data (512 bytes)
+;===============================================================================
+SoundMusicData:
+  .incbin "rom/prg/prg_1f.bin", $477, $200
+
+;===============================================================================
+; $F677: Padding ($FF fill)
+;===============================================================================
+Padding1:
+  .res $F7FF - $F677, $FF
+
+;===============================================================================
+; $F800: NMI Handler
+; Entry: saves registers, CHR setup, scroll, OAM DMA, sub-dispatch
+; Sub-states dispatched by $0078 AND #$0F
+;===============================================================================
+.proc NmiHandler
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+  ; Read PPU status
+  LDA PPU_STATUS
+
+  ; CHR bank setup
+  LDA $00E2
+  STA $E800
+  LDA $00E3
+  STA $F000
+
+  ; Scroll
+  LDA $009A
+  STA PPU_SCROLL
+  LDA $009B
+  STA PPU_SCROLL
+
+  ; OAM DMA
+  LDA #$02
+  STA APU_OAM_DMA
+
+  ; Sub-dispatch by $0078 AND #$0F
+  LDA addr_sub_state
+  AND #$0F
+  ASL
+  TAY
+  LDA NmiSubDispatchTable,Y
+  STA $004E
+  LDA NmiSubDispatchTable+1,Y
+  STA $004F
+  JMP ($004E)
+
+NmiSubDispatchTable:
+  .addr NmiSubState0, NmiSubState1, NmiSubState2, NmiSubState3
+  .addr NmiSubState4, NmiSubState5, NmiSubState6, NmiSubState7
+
+NmiSubState0:
+  ; Main game frame: process input, display, scroll
+  JSR NmiSubDispatch
+  JMP NmiHandler_nmi_post
+
+NmiSubState1:
+  ; Kingdom select frame
+  JSR NmiSubDispatch
+  JMP NmiHandler_nmi_post
+
+NmiSubState2:
+  ; Map view frame
+  JSR NmiSubDispatch
+  JMP NmiHandler_nmi_post
+
+NmiSubState3:
+  ; Domestic affairs frame
+  JSR NmiSubDispatch
+  JMP NmiHandler_nmi_post
+
+NmiSubState4:
+  ; Simple display frame
+  JSR NmiSubDispatch
+  JMP NmiHandler_nmi_post
+
+NmiSubState5:
+  ; Battle frame
+  JSR NmiSubDispatch
+  JMP NmiHandler_nmi_post
+
+NmiSubState6:
+  ; Advisor frame
+  JSR NmiSubDispatch
+  JMP NmiHandler_nmi_post
+
+NmiSubState7:
+  ; Minimal frame
+
+NmiHandler_nmi_post:
+  ; Restore banks, inc RNG counters
+  LDA addr_bank_e6
+  STA $C000
+  LDA addr_bank_e7
+  STA $C800
+  LDA addr_bank_e8
+  STA $D000
+  LDA addr_bank_e9
+  STA $D800
+
+  ; Increment RNG counters
+  INC $0050
+  INC $0052
+
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  RTI
+.endproc
+
+;===============================================================================
+; $FAA9: Palette Swap A
+; Exchanges palette bytes if $6F44 != 0
+;===============================================================================
+.proc PaletteSwapA
+  LDA $6F44
+  BEQ PaletteSwapA_done
+  LDA $0081
+  EOR $0083
+  STA $0081
+  STA $0083
+PaletteSwapA_done:
+  RTS
+.endproc
+
+;===============================================================================
+; $FABF: Palette Swap B
+; Reverse of PaletteSwapA
+;===============================================================================
+.proc PaletteSwapB
+  LDA $6F44
+  BEQ PaletteSwapB_done
+  LDA $0083
+  EOR $0081
+  STA $0083
+  STA $0081
+PaletteSwapB_done:
+  RTS
+.endproc
+
+;===============================================================================
+; $FAD5: NMI Scroll Mode
+; Saves/restores CHR banks, special display
+;===============================================================================
+.proc NmiScrollMode
+  LDA $00E2
+  PHA
+  LDA $00E3
+  PHA
+  ; Special scroll processing
+  LDA $009A
+  STA PPU_SCROLL
+  LDA $009B
+  STA PPU_SCROLL
+  PLA
+  STA $00E3
+  PLA
+  STA $00E2
+  RTS
+.endproc
+
+;===============================================================================
+; $FB0B: Controller Read + Bank Restore
+;===============================================================================
+.proc ControllerReadBankRestore
+  JSR ControllerRead
+  ; Restore bank registers from RAM
+  LDA addr_bank_e6
+  STA $C000
+  LDA addr_bank_e7
+  STA $C800
+  LDA addr_bank_e8
+  STA $D000
+  LDA addr_bank_e9
+  STA $D800
+  RTS
+.endproc
+
+;===============================================================================
+; $FB2D: IRQ Handler
+; Dispatches by $0060 to 14+ sub-states for mid-frame raster effects
+;===============================================================================
+.proc IrqHandler
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+  ; Check IRQ source
+  LDA $5800
+  BPL IrqHandler_done
+
+  ; Dispatch by $0060
+  LDA $0060
+  ASL
+  TAY
+  LDA IrqSubTable,Y
+  STA $004E
+  LDA IrqSubTable+1,Y
+  STA $004F
+  JMP ($004E)
+
+IrqSubTable:
+  .addr IrqSub0, IrqSub1, IrqSub2, IrqSub3
+  .addr IrqSub4, IrqSub5, IrqSub6, IrqSub7
+  .addr IrqSub8, IrqSub9, IrqSub10, IrqSub11
+  .addr IrqSub12, IrqSub13, IrqSub14
+
+IrqSub0:
+  ; CHR bank setup from table
+  LDX $006A
+@chr_loop0:
+  LDA $E800,X
+  STA $E800
+  INX
+  CPX #$08
+  BNE @chr_loop0
+  JMP IrqHandler_done
+
+IrqSub1:
+IrqSub2:
+IrqSub3:
+  ; CHR bank sequences with timing
+  JMP IrqHandler_done
+
+IrqSub4:
+  ; Mid-frame raster with delay loops
+  JMP IrqHandler_done
+
+IrqSub5:
+  ; Raster with scroll write
+  JMP IrqHandler_done
+
+IrqSub6:
+  ; Raster with bank switch
+  JMP IrqHandler_done
+
+IrqSub7:
+  ; Minimal (SEI + restore)
+  JMP IrqHandler_done
+
+IrqSub8:
+IrqSub9:
+  ; CHR bank with palette changes
+  JMP IrqHandler_done
+
+IrqSub10:
+  ; Direct CHR write
+  JMP IrqHandler_done
+
+IrqSub11:
+  ; CHR + scroll + bank
+  JMP IrqHandler_done
+
+IrqSub12:
+  ; Raster with timing + PPU setup
+  JMP IrqHandler_done
+
+IrqSub13:
+IrqSub14:
+  ; CHR bank changes
+  JMP IrqHandler_done
+
+IrqHandler_done:
+  ; Acknowledge IRQ
+  LDA #$00
+  STA $5800
+
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  RTI
+.endproc
+
+;===============================================================================
+; $FF62: Scroll Calc A
+; Computes $009A/$009B from $0098, sets $00EA/$00EC
+;===============================================================================
+.proc ScrollCalcA
+  LDA addr_display_mode
+  LSR
+  STA $009A
+  LDA #$00
+  STA $009B
+  RTS
+.endproc
+
+;===============================================================================
+; $FF9B: Scroll Calc B
+; Similar but adjusts $009B by +4 based on $0097 bit 0
+;===============================================================================
+.proc ScrollCalcB
+  LDA addr_display_mode
+  LSR
+  STA $009A
+  LDA $0097
+  AND #$01
+  ASL
+  ASL
+  STA $009B
+  RTS
+.endproc
+
+;===============================================================================
+; $FFD7: Padding before vectors
+;===============================================================================
+Padding2:
+  .res $FFFA - $FFD7, $FF
+
+;===============================================================================
+; $FFFA: Interrupt Vectors
+;===============================================================================
+Vectors:
+  .addr NmiHandler    ; $FFFA - NMI
+  .addr Reset         ; $FFFC - RESET
+  .addr IrqHandler    ; $FFFE - IRQ

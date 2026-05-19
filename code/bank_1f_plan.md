@@ -93,15 +93,15 @@ PPU tile writing, number rendering, and palette animation effects. Note: $EB2D-$
 
 ---
 
-## Session 7: Menu System ($ED19-$EE4D)
+## Session 7: Menu System ($ED19-$EE4D) — DONE
 Menu cursor, scrolling, string lookup, and callback dispatch.
 
-| Range | Function | Notes |
-|-------|----------|-------|
-| $ED19-$EDEC | Menu cursor/scroll | 8 entry points, directional movement via $0081 bits |
-| $EDED-$EDF4 | Menu string lookup | Calculates offset from cursor position |
-| $EDF5-$EE06 | Pointer table lookup | Reads 16-bit pointer from table |
-| $EE07-$EE4D | Callback trampoline | Complex return-address manipulation for banked calls |
+| Range | Function | Status | Notes |
+|-------|----------|--------|-------|
+| $ED19-$EDEC | Menu cursor/scroll | DONE | 8 entry points (step=1-8), D-pad R/L=item, D/U=page, $0081 edge-triggered |
+| $EDED-$EDF4 | Menu string lookup | DONE | Y = page*step_size + column, reads ($10),Y |
+| $EDF5-$EE06 | Pointer table lookup | DONE | ASL A for word index, reads 16-bit ptr → $0A/$0C, JMP $F1AD |
+| $EE07-$EE4D | Callback trampoline | DONE | Banked call via inline .word ptr, stack manipulation, $EE4D return stub |
 
 ---
 

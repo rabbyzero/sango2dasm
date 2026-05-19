@@ -9,6 +9,16 @@
 
 ---
 
+## Analysis Progress
+
+| Session | Regions Analyzed | Status |
+|---------|-----------------|--------|
+| 1 | $E000-$E079 (Reset), $E07C-$E099 (Vectors), $E09A-$E4D9 (Handlers), $E4DA-$E566 (Helpers), $E87A-$E889 (RNG), $F2AF-$F3BC (Data Access) | DONE |
+| 2 | $E9BA-$EC66 (Math Library - 10 functions: BCD conv, division x2, multiply x2, callback, helpers, mul/div100) | DONE |
+| 3 | $ED19-$EE4D (Menu System - cursor engine, string lookup, pointer table, callback trampoline), $E6C6 (Controller Read) | IN PROGRESS |
+
+---
+
 ## $E000-$E079: Reset Handler
 
 ```asm
@@ -1229,15 +1239,312 @@ Color rotation with frame counter $0087-$0089 and palette scroll effects.
 
 ---
 
-## $ED19-$EDEC: Menu Cursor System *(not yet analyzed)*
+## $ED19-$EDEC: Menu Cursor System
 
-8 entry points for step sizes 1-8, directional handlers via $0081 bits ($80=Up, $40=Down, $20=Left, $10=Right), modifies cursor position $0424/$0425.
+### Overview
+
+Generic menu cursor/scroll engine with 8 entry points for different page sizes (1-8 items per page). Navigates a 2D cursor over a data table using D-pad input. Returns the selected item value in $12.
+
+### Controller Input Format ($0081)
+
+Written by $E6C6 controller read subroutine. $0081 is edge-triggered (newly pressed only, not held):
+
+```
+$0083 = raw pad 1 state (8 ROR reads from $4016)
+$0084 = previous frame $0083
+$0081 = ($0083 XOR $0084) AND $0083 = new presses this frame
+```
+
+| Bit | Value | Button |
+|-----|-------|--------|
+| 7 | $80 | Right |
+| 6 | $40 | Left |
+| 5 | $20 | Down |
+| 4 | $10 | Up |
+| 3 | $08 | Start |
+| 2 | $04 | Select |
+| 1 | $02 | B |
+| 0 | $01 | A |
+
+### Variable Map
+
+| Address | Name | Description |
+|---------|------|-------------|
+| $00 | step_size | Items per page (1-8), set by entry point |
+| $10/$11 | data_ptr | Pointer to menu item data table |
+| $12 | cur_item | Current item value (returned from $EDDD) |
+| $0424 | column | Cursor column (item index within page, 0-based) |
+| $0425 | page | Cursor page (page index, 0-based) |
+| $0081 | pad1_edge | Pad 1 newly-pressed buttons |
+| $0083 | pad1_raw | Pad 1 raw button state |
+| $0084 | pad1_prev | Pad 1 previous frame state |
+
+### Data Table Format
+
+The data table at ($10) is a flat byte array organized as pages of `step_size` items:
+- **$00-$7F**: Valid menu items (indices, character codes, etc.)
+- **$80-$FE**: Page/row terminators (bit 7 set = end of row)
+- **$FF**: Empty slot marker (no valid item at this position)
+
+Layout: `[item0][item1]...[itemN][term][item0]...[term]...`
+Each page occupies `step_size` bytes. The total table length = (num_pages + 1) * step_size.
+
+### $ED19-$ED40: Entry Points (40 bytes)
+
+8 entry points, each sets a step size and falls through to the main handler:
+
+```
+$ED19: LDA #$01 : JMP $ED41   ; step=1 (1 item per page)
+$ED1E: LDA #$02 : JMP $ED41   ; step=2
+$ED23: LDA #$03 : JMP $ED41   ; step=3
+$ED28: LDA #$04 : JMP $ED41   ; step=4
+$ED2D: LDA #$05 : JMP $ED41   ; step=5
+$ED32: LDA #$06 : JMP $ED41   ; step=6
+$ED37: LDA #$07 : JMP $ED41   ; step=7
+$ED3C: LDA #$08 : JMP $ED41   ; step=8 (8 items per page)
+```
+
+**Caller convention**: Set $10/$11 to data table pointer before calling. Most common entry point is $ED1E (step=2), used by 30+ callers across banks 09, 0C, 0D, 0E, 0F, 17, 19, 1A, 1B, 1C.
+
+**Cross-reference summary** (from PRG ROM scan):
+
+| Entry | Step | Callers |
+|-------|------|---------|
+| $ED19 | 1 | prg_0b (x2), prg_1b (x3), prg_1c (x1) |
+| $ED1E | 2 | prg_09 (x5), prg_0c (x3), prg_0d (x2), prg_0e (x1), prg_0f (x1), prg_17 (x2), prg_19 (x1), prg_1a (x1), prg_1b (x8), prg_1c (x8) |
+| $ED23 | 3 | prg_0d (x2) |
+| $ED28 | 4 | prg_0f (x1), prg_1b (x1), prg_1c (x1, JMP) |
+| $ED2D-$ED3C | 5-8 | No callers found |
+
+### $ED41-$ED70: Main Cursor Handler (48 bytes)
+
+```
+$ED41: STA $00           ; store step_size
+$ED43: LDA $0081 : AND #$80 : BEQ $ED4D   ; Right pressed?
+$ED4A: JSR $ED71                              ; → next item
+$ED4D: LDA $0081 : AND #$40 : BEQ $ED57   ; Left pressed?
+$ED54: JSR $ED8D                              ; → prev item
+$ED57: LDA $0081 : AND #$20 : BEQ $ED61   ; Down pressed?
+$ED5E: JSR $EDA9                              ; → next page
+$ED61: LDA $0081 : AND #$10 : BEQ $ED6B   ; Up pressed?
+$ED68: JSR $EDBE                              ; → prev page
+$ED6B: JSR $EDDD                              ; lookup current item
+$ED6E: STA $12                               ; store result
+$ED70: RTS
+```
+
+All 4 directions are checked each frame (not mutually exclusive). After processing direction input, the current item is looked up via $EDDD and stored to $12.
+
+### $ED71-$ED8C: Right Handler — Next Item (28 bytes)
+
+```
+$ED71: INC $0424          ; column++
+$ED74: JSR $EDDD          ; lookup new position
+$ED77: BMI $ED80          ; bit 7 set = past end of data → clamp
+$ED79: LDA $0424
+$ED7C: CMP $00            ; column >= step_size?
+$ED7E: BCC $ED8C          ; no → valid, done
+$ED80: DEC $0424          ; revert: column--
+$ED83: LDA $12            ; check current item
+$ED85: BNE $ED8C          ; non-zero → on valid item, keep position
+$ED87: LDA #$00
+$ED89: STA $0424          ; current is $00 (empty) → reset to column 0
+$ED8C: RTS
+```
+
+**Logic**: Increment column. If new position is past end (terminator byte with bit 7 set) or >= step_size, revert. If reverted position holds $00 (empty slot), reset to column 0.
+
+### $ED8D-$EDA8: Left Handler — Prev Item (28 bytes)
+
+```
+$ED8D: DEC $0424          ; column--
+$ED90: BPL $EDA8          ; column >= 0 → valid, done
+$ED92: INC $0424          ; was -1, revert to 0
+$ED95: LDA $12            ; check current item
+$ED97: BNE $EDA8          ; non-zero → on valid item, keep position
+$ED99: LDA $00            ; step_size
+$ED9B: STA $0424          ; column = step_size
+$ED9E: DEC $0424          ; column = step_size - 1
+$EDA1: JSR $EDDD          ; lookup at this column
+$EDA4: CMP #$FF           ; empty slot?
+$EDA6: BEQ $ED9E          ; yes → try column - 1
+$EDA8: RTS
+```
+
+**Logic**: Decrement column. If goes negative, scan backward from (step_size - 1) until a non-$FF item is found. This handles pages with fewer items than step_size.
+
+### $EDA9-$EDBD: Down Handler — Next Page (21 bytes)
+
+```
+$EDA9: INC $0425          ; page++
+$EDAC: JSR $EDDD          ; lookup new position
+$EDAF: BPL $EDBD          ; item valid (bit 7 clear) → done
+$EDB1: DEC $0425          ; past end, revert page--
+$EDB4: LDA $12            ; check current item
+$EDB6: BNE $EDBD          ; non-zero → on valid item, keep position
+$EDB8: LDA #$00
+$EDBA: STA $0425          ; current is $00 → reset to page 0
+$EDBD: RTS
+```
+
+**Logic**: Increment page. If new page hits a terminator (bit 7 set), revert. If current position holds $00, reset to page 0.
+
+### $EDBE-$EDDC: Up Handler — Prev Page (31 bytes)
+
+```
+$EDBE: DEC $0425          ; page--
+$EDC1: BPL $EDDC          ; page >= 0 → valid, done
+$EDC3: INC $0425          ; was -1, revert to 0
+$EDC6: LDA $12            ; check current item
+$EDC8: BNE $EDDC          ; non-zero → on valid item, keep position
+$EDCA: LDX #$FF           ; X = -1 (row counter)
+$EDCC: LDY $0424          ; Y = current column
+$EDCF: INX                ; X++ (count rows)
+$EDD0: TYA
+$EDD1: CLC
+$EDD2: ADC $00            ; Y += step_size (advance to next row)
+$EDD4: TAY
+$EDD5: LDA ($10),Y        ; read item at row Y
+$EDD7: BPL $EDCF          ; valid item (bit 7 clear) → keep counting
+$EDD9: STX $0425          ; X = number of valid rows → new page
+$EDDC: RTS
+```
+
+**Logic**: Decrement page. If goes negative, scan forward through data table from current column position, counting rows (stepping by step_size) until a terminator is found. The count of valid rows becomes the new page number, effectively wrapping to the last page.
+
+### Design Notes
+
+- The cursor engine is fully generic — any menu with 1-8 items per page can use it by setting $10/$11 and calling the appropriate entry point.
+- $0081 is edge-triggered, so holding a direction moves the cursor only once per press.
+- D-pad Right/Left navigates items within a page; Down/Up navigates between pages. This is consistent with Koei's horizontal-list menu style common in strategy games.
+- The wrap-around logic in Left/Up handlers gracefully handles variable-length pages where the last page may have fewer items than step_size.
+- The $12 return value is the raw byte from the data table, which callers use as an index into further tables or as a command identifier.
 
 ---
 
-## $EDED-$EE4D: Menu & Callback Functions *(not yet analyzed)*
+## $EDED-$EE4D: Menu String Lookup & Callback Functions
 
-String lookup ($EDED), pointer table lookup ($EDF5), callback trampoline ($EE07).
+### $EDDD-$EDF4: String/Item Lookup (24 bytes)
+
+*(Entry at $EDDD, spans into this section)*
+
+```
+$EDDD: LDA #$00           ; accumulator = 0
+$EDDF: LDY $0425          ; Y = page
+$EDE2: CPY #$00           ; page == 0?
+$EDE4: BEQ $EDED          ; yes → skip multiply
+$EDE6: CLC
+$EDE7: ADC $00            ; A += step_size
+$EDE9: DEY                ; Y--
+$EDEA: JMP $EDE2          ; loop (multiply: A = page * step_size)
+$EDED: CLC
+$EDEE: ADC $0424          ; A += column
+$EDF1: TAY                ; Y = page * step_size + column
+$EDF2: LDA ($10),Y        ; A = data_table[Y]
+$EDF4: RTS
+```
+
+**Formula**: `Y = $0425 * step_size + $0424`, then `A = ($10),Y`
+
+Returns the byte at the cursor position in the data table pointed to by $10/$11. The multiply loop at $EDE2-$EDEA is a simple repeated-addition (no MUL instruction on 6502). Result is also available in Y as the computed offset.
+
+### $EDF5-$EE06: Pointer Table Lookup (18 bytes)
+
+```
+$EDF5: ASL                ; A *= 2 (word index)
+$EDF6: TAY                ; Y = index
+$EDF7: LDA ($10),Y        ; lo byte of pointer
+$EDF9: STA $0A            ; → $0A
+$EDFB: INY
+$EDFC: LDA ($10),Y        ; hi byte of pointer
+$EDFE: STA $0C            ; → $0C
+$EE00: LDA #$00
+$EE02: STA $02            ; $02 = 0 (flag?)
+$EE04: JMP $F1AD          ; → sprite OAM writer
+```
+
+**Purpose**: Reads a 16-bit pointer from a word-sized pointer table at ($10). Input A = entry index (0-based). The pointer is stored to $0A/$0C, $02 is cleared, then control transfers to $F1AD (sprite OAM DMA writer) which presumably uses the pointer to fetch sprite tile data.
+
+**Note**: This is a separate utility from the cursor system — it reads a pointer table, not a flat item array. The $02 = 0 may select sprite vs. BG tile destination.
+
+### $EE07-$EE4C: Banked Callback Trampoline (70 bytes)
+
+A sophisticated mechanism for calling functions in other PRG banks from bank 1F code. Manipulates the 6502 stack to insert a bank-restore return stub.
+
+**Calling convention**:
+```
+    LDY #bank_number       ; Y = PRG bank parameter for $F237
+    JSR $EE07              ; call trampoline
+    .word target_address   ; inline 2-byte pointer (in bank-switched region)
+    ; execution continues here after callback returns
+```
+
+**Detailed operation**:
+
+```
+$EE07: LDA $00E2          ; save current PRG bank (for $A000-$BFFF)
+$EE0A: STA $0058          ; → $0058
+$EE0D: STY $005D          ; save Y (bank parameter) → $005D
+$EE10: PLA                ; pop return address lo (points to last byte of JSR)
+$EE11: CLC
+$EE12: ADC #$01           ; +1 → points to first inline byte
+$EE14: STA $0059          ; → $0059 (pointer to inline data)
+$EE17: PLA                ; pop return address hi
+$EE18: ADC #$00           ; + carry
+$EE1A: STA $005A          ; → $005A
+$EE1D: LDY #$00
+$EE1F: LDA ($59),Y        ; read inline pointer lo
+$EE21: STA $005B          ; → $005B (target address lo)
+$EE24: INY
+$EE25: LDA ($59),Y        ; read inline pointer hi
+$EE27: STA $005C          ; → $005C (target address hi)
+$EE2A: LDY $005D          ; restore Y = bank parameter
+$EE2D: JSR $F237          ; switch PRG banks (Y sets $A000-$BFFF and $C000-$DFFF)
+$EE30: INC $0059          ; advance past 1st inline byte
+$EE33: BNE $EE38
+$EE35: INC $005A          ; 16-bit increment
+$EE38: LDA $005A          ; push adjusted return address (points to 2nd inline byte)
+$EE3B: PHA                ; RTS will add 1 → past both inline bytes
+$EE3C: LDA $0059
+$EE3F: PHA
+$EE40: LDA $0058          ; push saved PRG bank
+$EE43: PHA
+$EE44: LDA #$EE           ; push $EE4C as return address for target function
+$EE46: PHA
+$EE47: LDA #$4C
+$EE49: PHA
+$EE4A: JMP ($005B)        ; jump to target function
+```
+
+**Return stub** (target function RTS's here):
+```
+$EE4D: PLA                ; pop saved PRG bank
+$EE4E: TAY                ; Y = original $00E2 value
+$EE4F: JSR $F237          ; restore original PRG banks
+$EE52: RTS                ; return to caller (past inline pointer)
+```
+
+**Stack state at JMP ($005B)** (top to bottom):
+1. $EE4C (return to bank-restore stub) — target function returns here
+2. $0058 (saved PRG bank) — restored by stub
+3. $0059/$005A (adjusted return address) — returns to caller past inline data
+
+**Example** (from prg_0e at $A024):
+```
+$A024: LDY #$3D           ; bank = $3D → $1D (prg_1d.bin) for $A000-$BFFF
+$A026: JSR $EE07          ; trampoline call
+$A029: .word $A003        ; inline target = $A003 (in bank-switched region)
+                             ; execution resumes at $A02B
+```
+
+### Temporary Variables Used by Trampoline
+
+| Address | Purpose |
+|---------|---------|
+| $0058 | Saved $00E2 (PRG bank for $A000-$BFFF) |
+| $0059/$005A | Adjusted return address (past inline pointer after RTS+1) |
+| $005B/$005C | Target function address (from inline pointer) |
+| $005D | Saved Y register (bank parameter) |
 
 ---
 
