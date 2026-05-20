@@ -1,0 +1,287 @@
+# Bank Switching for Data Access
+
+<cite>
+**Referenced Files in This Document**
+- [namco163.h](file://include/namco163.h)
+- [prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [main.asm](file://asm/main.asm)
+- [PROJECT.md](file://PROJECT.md)
+- [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
+- [key_functions_analysis.md](file://code/key_functions_analysis.md)
+- [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
+</cite>
+
+## Table of Contents
+1. [Introduction](#introduction)
+2. [Project Structure](#project-structure)
+3. [Core Components](#core-components)
+4. [Architecture Overview](#architecture-overview)
+5. [Detailed Component Analysis](#detailed-component-analysis)
+6. [Dependency Analysis](#dependency-analysis)
+7. [Performance Considerations](#performance-considerations)
+8. [Troubleshooting Guide](#troubleshooting-guide)
+9. [Conclusion](#conclusion)
+
+## Introduction
+This document explains the bank switching mechanisms that enable cross-bank data access in the Sangokushi 2 disassembly. It focuses on the Namco-163 mapper implementation (mapper 19) and how the system uses 32 PRG banks of 8 KB each (256 KB total) to organize code and data. Special attention is given to how bank switching is orchestrated so that code in bank 0x1F can access data tables located in other banks, particularly around the $6000-$7FFF range. The document also covers the reset handler and mapper initialization that establish the proper memory mapping, and provides practical examples of bank switching sequences used during gameplay.
+
+## Project Structure
+The project is organized around a 32-bank PRG layout with bank 0x1F containing the reset handler and state dispatch logic. Banks are mapped into four PRG slots:
+- $8000-$9FFF controlled by register $F800
+- $A000-$BFFF controlled by register $FA00
+- $C000-$DFFF controlled by register $FC00
+- $E000-$FFFF fixed to bank 0x1F
+
+```mermaid
+graph TB
+CPU["CPU 6502"]
+REG_F800["Namco-163 Register $F800"]
+REG_FA00["Namco-163 Register $FA00"]
+REG_FC00["Namco-163 Register $FC00"]
+REG_FE00["Namco-163 Register $FE00"]
+SLOT_8000["$8000-$9FFF"]
+SLOT_A000["$A000-$BFFF"]
+SLOT_C000["$C000-$DFFF"]
+SLOT_E000["$E000-$FFFF"]
+CPU --> REG_F800
+CPU --> REG_FA00
+CPU --> REG_FC00
+CPU --> REG_FE00
+REG_F800 --> SLOT_8000
+REG_FA00 --> SLOT_A000
+REG_FC00 --> SLOT_C000
+REG_FE00 --> SLOT_E000
+```
+
+**Diagram sources**
+- [namco163.h:10-14](file://include/namco163.h#L10-L14)
+- [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
+
+**Section sources**
+- [PROJECT.md:70-117](file://PROJECT.md#L70-L117)
+- [namco163.h:1-87](file://include/namco163.h#L1-L87)
+
+## Core Components
+- Namco-163 mapper registers and bank indices are defined in the include header.
+- Bank switching routines in bank 0x1F manage PRG slot contents.
+- Data access functions compute pointers into bank-switched memory regions.
+- The reset handler and mapper initialization establish the initial memory mapping.
+
+Key elements:
+- Mapper register addresses and macros for writing bank numbers to PRG slots.
+- BankSwitch routine that loads 8-byte configurations into PRG registers and extended RAM.
+- Data access functions that calculate addresses for heroes, cities, kata names, kingdoms, and initial hero data.
+- Reset handler that initializes PPU/APU, performs mapper/controller checks, and dispatches to state handlers.
+
+**Section sources**
+- [namco163.h:10-86](file://include/namco163.h#L10-L86)
+- [prg_1f.asm:781-818](file://asm/banks/prg_1f.asm#L781-L818)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
+- [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
+
+## Architecture Overview
+The system uses bank 0x1F as the boot bank and dispatch hub. During runtime, code in bank 0x1F switches PRG slots to access data tables in other banks. The bank switching configuration table encodes which banks are loaded into each slot for different scenarios (initialization, gameplay display, data access).
+
+```mermaid
+sequenceDiagram
+participant Reset as "Reset Handler<br/>Bank 0x1F"
+participant Mapper as "MapperInitCtrlCheck<br/>Bank 0x1F"
+participant State as "State Handler<br/>Bank 0x1F"
+participant Data as "Data Tables<br/>Bank N"
+Reset->>Mapper : Initialize mapper and controller
+Mapper-->>Reset : Ready
+Reset->>State : Dispatch to state entry
+State->>State : Compute bank config index
+State->>State : Call BankSwitch(config)
+State->>Data : Access data tables (e.g., $6000)
+State-->>State : Continue gameplay
+```
+
+**Diagram sources**
+- [prg_1f.asm:72-148](file://asm/banks/prg_1f.asm#L72-L148)
+- [prg_1f.asm:131-132](file://asm/banks/prg_1f.asm#L131-L132)
+- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
+- [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
+
+## Detailed Component Analysis
+
+### Namco-163 Mapper Implementation
+The mapper exposes write-only registers that select the 8 KB PRG bank for each slot:
+- $F800 controls $8000-$9FFF
+- $FA00 controls $A000-$BFFF
+- $FC00 controls $C000-$DFFF
+- $FE00 controls $E000-$FFFF (fixed to bank 0x1F)
+
+The include header defines convenient macros and constants for switching banks programmatically.
+
+```mermaid
+classDiagram
+class Namco163 {
++registers : $F800, $FA00, $FC00, $FE00
++banks : 32 (0x00..0x1F)
++switch_bank_8000(bank)
++switch_bank_A000(bank)
++switch_bank_C000(bank)
++switch_bank_E000(bank)
+}
+```
+
+**Diagram sources**
+- [namco163.h:10-14](file://include/namco163.h#L10-L14)
+- [namco163.h:68-86](file://include/namco163.h#L68-L86)
+
+**Section sources**
+- [namco163.h:10-86](file://include/namco163.h#L10-L86)
+- [PROJECT.md:84-100](file://PROJECT.md#L84-L100)
+
+### BankSwitch Routine and Configuration Table
+The BankSwitch routine computes an 8-byte configuration offset from the input index, loads the configuration from the table, and writes the first four bytes to PRG registers $C000/$C800/$D000/$D800. The remaining four bytes are stored in RAM locations $00EA-$00ED for later use.
+
+```mermaid
+flowchart TD
+Start(["BankSwitch Entry"]) --> Shift["Shift A left three times<br/>Y = A * 8"]
+Shift --> LoadCfg["Load 8-byte config from BankSwitchTable[Y]"]
+LoadCfg --> WriteC000["Write config byte 0 to $C000"]
+WriteC000 --> WriteC800["Write config byte 1 to $C800"]
+WriteC800 --> WriteD000["Write config byte 2 to $D000"]
+WriteD000 --> WriteD800["Write config byte 3 to $D800"]
+WriteD800 --> StoreExt["Store bytes 4-7 in $00EA-$00ED"]
+StoreExt --> End(["Return"])
+```
+
+**Diagram sources**
+- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
+- [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
+
+**Section sources**
+- [prg_1f.asm:785-818](file://asm/banks/prg_1f.asm#L785-L818)
+- [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
+
+### Reset Handler and Mapper Initialization
+The reset handler performs PPU/APU initialization, clears RAM, calls the mapper/controller initialization routine, and dispatches to the first state. The mapper initialization routine writes to mapper registers and validates controller input.
+
+```mermaid
+sequenceDiagram
+participant CPU as "CPU"
+participant Reset as "Reset Handler<br/>$E000"
+participant Mapper as "MapperInitCtrlCheck<br/>$F3BD"
+participant Dispatch as "Vector Dispatch<br/>$E07C"
+CPU->>Reset : Assert RESET
+Reset->>Reset : PPU warmup and APU init
+Reset->>Reset : Clear RAM $0000-$07FF
+Reset->>Mapper : JSR MapperInitCtrlCheck
+Mapper-->>Reset : Controller validation complete
+Reset->>Dispatch : Initialize state counter
+Reset->>Dispatch : Load vector from $E07C
+Reset->>CPU : Jump to state entry
+```
+
+**Diagram sources**
+- [prg_1f.asm:72-148](file://asm/banks/prg_1f.asm#L72-L148)
+- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+- [bank_1f_analysis.md:22-51](file://code/bank_1f_analysis.md#L22-L51)
+
+**Section sources**
+- [prg_1f.asm:72-148](file://asm/banks/prg_1f.asm#L72-L148)
+- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+- [bank_1f_analysis.md:22-51](file://code/bank_1f_analysis.md#L22-L51)
+
+### Data Access Functions and Bank Coordination
+Data access functions compute pointers into bank-switched memory regions. For example:
+- GetHeroAddr: computes hero data pointer using formula `id * 32 + $6000`
+- GetCityAddr: computes city data pointer using formula `id * 12 + $63C0`
+- GetHeroKataName: computes kata name pointer using formula `id * 10 + $901A`
+- GetHeroInitialData: computes initial data pointer using formula `id * 12 + $8000`
+
+These functions rely on the calling code having switched the appropriate banks beforehand so that the computed addresses resolve to valid data in the selected bank.
+
+```mermaid
+flowchart TD
+Entry(["Data Access Function"]) --> ComputeOffset["Compute offset using formula"]
+ComputeOffset --> SetBank["Switch banks via BankSwitch(config)"]
+SetBank --> ResolvePtr["Resolve pointer in $0000/$0001"]
+ResolvePtr --> AccessData["Access data at computed address"]
+AccessData --> Exit(["Return"])
+```
+
+**Diagram sources**
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
+- [key_functions_analysis.md:159-189](file://code/key_functions_analysis.md#L159-L189)
+- [key_functions_analysis.md:192-228](file://code/key_functions_analysis.md#L192-L228)
+- [bank_1f_analysis.md:1563-1584](file://code/bank_1f_analysis.md#L1563-L1584)
+
+**Section sources**
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
+- [key_functions_analysis.md:159-189](file://code/key_functions_analysis.md#L159-L189)
+- [key_functions_analysis.md:192-228](file://code/key_functions_analysis.md#L192-L228)
+- [bank_1f_analysis.md:1563-1584](file://code/bank_1f_analysis.md#L1563-L1584)
+
+### Practical Bank Switching Sequences
+The following examples illustrate typical sequences used during gameplay:
+
+- Initialization state (Config 0): Ensures all banks are 0/1 for early boot operations.
+- Data access state (Config 1): Loads all banks to 0 for consistent access to data tables at $6000, $63C0, $8000, $901A.
+- Game display state (Config 2): Alternates banks 0 and 1 to support display-related functions.
+
+```mermaid
+sequenceDiagram
+participant State as "State Handler"
+participant BankSwitch as "BankSwitch(config)"
+participant PRG as "PRG Slots"
+State->>BankSwitch : A = config index
+BankSwitch->>PRG : Write config bytes to $C000/$C800/$D000/$D800
+PRG-->>State : PRG slots updated
+State->>State : Proceed with data access
+```
+
+**Diagram sources**
+- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
+- [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
+
+**Section sources**
+- [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
+
+## Dependency Analysis
+The bank switching mechanism depends on several interrelated components:
+- BankSwitch routine depends on the BankSwitchTable for configuration.
+- Data access functions depend on the calling code to set the correct bank configuration prior to access.
+- The reset handler and mapper initialization establish the baseline memory mapping and controller validation.
+
+```mermaid
+graph TB
+BankSwitch["BankSwitch<br/>$E51F"] --> Table["BankSwitchTable<br/>$E567"]
+DataFuncs["Data Access Functions<br/>$F2AF, $F2D7, $F308, $F368, $F387"] --> BankSwitch
+Reset["Reset Handler<br/>$E000"] --> MapperInit["MapperInitCtrlCheck<br/>$F3BD"]
+MapperInit --> BankSwitch
+```
+
+**Diagram sources**
+- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
+- [prg_1f.asm:824-827](file://asm/banks/prg_1f.asm#L824-L827)
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
+- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+
+**Section sources**
+- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
+- [prg_1f.asm:824-827](file://asm/banks/prg_1f.asm#L824-L827)
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
+- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+
+## Performance Considerations
+- Bank switching involves multiple register writes and RAM storage operations; minimize unnecessary switches to reduce overhead.
+- Use the appropriate configuration index to avoid redundant bank changes during a single operation.
+- Keep data access functions close to their callers to reduce the number of bank switches required across frames.
+
+## Troubleshooting Guide
+Common issues and remedies:
+- Incorrect bank configuration leading to invalid data access: verify the configuration index passed to BankSwitch and confirm the resulting register values in $C000/$C800/$D000/$D800.
+- Timing-sensitive accesses: ensure bank switching occurs before any indirect access to banked data.
+- Controller validation failures: review the controller check loop in MapperInitCtrlCheck for proper input handling.
+
+**Section sources**
+- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+- [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
+
+## Conclusion
+The bank switching mechanism in this disassembly leverages the Namco-163 mapper to provide flexible access to 256 KB of PRG ROM across 32 banks. Bank 0x1F serves as the boot and dispatch hub, while the BankSwitch routine and configuration table coordinate PRG slot contents for different scenarios. Data access functions compute pointers into bank-switched memory regions, relying on the calling code to properly configure banks before access. The reset handler and mapper initialization establish the baseline memory mapping, ensuring reliable operation across the entire game state machine.

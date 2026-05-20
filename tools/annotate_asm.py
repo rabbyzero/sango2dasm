@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Annotate ca65 assembly file with ROM addresses and opcode bytes.
 
-Estimates instruction sizes from the asm operand text (using a symbol table
-built from the file's definitions and includes), tracks the current ROM
-address, and looks up the binary for opcode bytes. Uses address-hint resync
-from section header comments ('; $XXXX:') to correct drift.
+Tracks a running address through the ROM address space. For each asm
+instruction, looks up the binary at the current address. If the mnemonic
+matches, annotates with verified address + opcode bytes from the binary.
+If it doesn't match (asm diverges from ROM), annotates address-only.
+Section headers ('; $XXXX:') resync the address exactly.
 
 Usage:
     python3 tools/annotate_asm.py [--in-place] [--verify]
@@ -205,6 +206,7 @@ def extract_mnemonic_and_operand(line):
 
 INSTR_RE = re.compile(r'^(\s+)([A-Z]{3})\b')
 ADDR_HINT_RE = re.compile(r';\s+\$([0-9A-Fa-f]{4})\s*:')
+RANGE_HINT_RE = re.compile(r';\s+\$([0-9A-Fa-f]{4})-\$([0-9A-Fa-f]{4})\s*:')
 BYTE_RE = re.compile(r'^\s+\.byte\b')
 ADDR_DIR_RE = re.compile(r'^\s+\.addr\b')
 WORD_RE = re.compile(r'^\s+\.word\b')
@@ -217,7 +219,35 @@ def is_instruction(line):
     return bool(m and m.group(2) in MNEMONICS)
 
 
+def is_section_header(line):
+    """Check if a line is a section header comment (not an instruction annotation)."""
+    # Section headers are comment-only lines starting with ';'
+    # Instruction annotations are on lines with code before the ';'
+    stripped = line.strip()
+    return stripped.startswith(';') and not stripped.startswith(';;')
+
+
 def parse_address_hint(line):
+    """Extract ROM address offset from section header comments.
+
+    Handles both '; $XXXX:' and '; $XXXX-$YYYY:' range formats.
+    Only matches on comment-only lines (section headers), not instruction
+    annotations which also contain '; $XXXX:'.
+
+    Returns the offset from BASE_ADDR, or None.
+    """
+    # Only process section header lines (comments, not code lines)
+    if not is_section_header(line):
+        return None
+
+    # Try range format first
+    m = RANGE_HINT_RE.search(line)
+    if m:
+        addr = int(m.group(1), 16)
+        offset = addr - BASE_ADDR
+        if 0 <= offset < 8192:
+            return offset
+    # Try single address format
     m = ADDR_HINT_RE.search(line)
     if m:
         addr = int(m.group(1), 16)
@@ -278,9 +308,76 @@ def parse_incbin_size(line):
     return 0
 
 
-# ── Annotation ──
+# ── Pre-disassembly ──
+
+def predisassemble_binary(binary_data, base_addr):
+    """Disassemble entire binary into instruction tuples.
+
+    Returns:
+        instructions: list of (address, mnemonic, size, bytes_list)
+        addr_to_idx: dict mapping address -> index in instructions list
+    """
+    instructions = []
+    addr_to_idx = {}
+    offset = 0
+    while offset < len(binary_data):
+        addr = base_addr + offset
+        idx = len(instructions)
+        addr_to_idx[addr] = idx
+        opcode = binary_data[offset]
+        if opcode in OPCODES:
+            mnemonic, size = OPCODES[opcode]
+            end = min(offset + size, len(binary_data))
+            bytes_list = list(binary_data[offset:end])
+            instructions.append((addr, mnemonic, size, bytes_list))
+            offset += size
+        else:
+            # Unknown/illegal opcode
+            instructions.append((addr, '???', 1, [opcode]))
+            offset += 1
+    return instructions, addr_to_idx
+
+
+# ── Annotation formatting ──
+
+# Regex to strip existing annotation prefix from instruction comments
+ANNOTATION_RE = re.compile(
+    r'^\s+\$[0-9A-Fa-f]{4}'
+    r'(?::\s*[0-9A-Fa-f]{2}(?:\s+[0-9A-Fa-f]{2})*)?'
+    r'(?:\s{2}(.*))?$'
+)
+
+
+def strip_annotation(line):
+    """Strip address/opcode annotation from an instruction line.
+
+    Preserves any original comment that existed before annotation.
+    Only processes instruction lines (detected by INSTR_RE).
+    """
+    if not is_instruction(line):
+        return line
+
+    comment_pos = line.find(';')
+    if comment_pos < 0:
+        return line
+
+    code = line[:comment_pos].rstrip()
+    comment = line[comment_pos + 1:]
+
+    m = ANNOTATION_RE.match(comment)
+    if m:
+        existing = m.group(1)
+        if existing and existing.strip():
+            return f"{code}  ; {existing.strip()}"
+        else:
+            return code
+    else:
+        # Not an annotation comment, keep as-is
+        return line
+
 
 def annotate_line(line, addr_str, bytes_str):
+    """Annotate an instruction line with address and opcode bytes."""
     comment_pos = line.find(';')
     if comment_pos >= 0:
         code = line[:comment_pos].rstrip()
@@ -296,7 +393,7 @@ def annotate_line(line, addr_str, bytes_str):
 
 
 def annotate_line_addr_only(line, addr_str):
-    """Add only the address comment (no opcode bytes) when binary doesn't match."""
+    """Add only the address comment (no opcode bytes) when no match found."""
     comment_pos = line.find(';')
     if comment_pos >= 0:
         code = line[:comment_pos].rstrip()
@@ -317,6 +414,7 @@ def main():
 
     binary_path = os.path.join(project_dir, "rom/prg/prg_1f.bin")
     asm_path = os.path.join(project_dir, "asm/banks/prg_1f.asm")
+    bak_path = asm_path + ".bak"
     include_dir = os.path.join(project_dir, "include")
 
     in_place = '--in-place' in sys.argv
@@ -324,83 +422,100 @@ def main():
 
     if in_place:
         output_path = asm_path
-        backup_path = asm_path + ".bak"
     else:
         output_path = os.path.join(project_dir, "asm/banks/prg_1f_annotated.asm")
-        backup_path = None
 
     # 1. Read binary
     with open(binary_path, 'rb') as f:
         binary_data = f.read()
     assert len(binary_data) == 8192
 
-    # 2. Build symbol table
-    symbols = build_symbol_table(asm_path, [include_dir])
+    # 2. Pre-disassemble binary
+    instructions, addr_to_idx = predisassemble_binary(binary_data, BASE_ADDR)
+    print(f"Binary disassembled: {len(instructions)} instruction tuples")
+
+    # 3. Build symbol table
+    symbol_source = bak_path if os.path.isfile(bak_path) else asm_path
+    symbols = build_symbol_table(symbol_source, [include_dir])
     print(f"Symbol table: {len(symbols)} entries")
 
-    # 3. Read asm file
-    with open(asm_path) as f:
+    # 4. Read asm file - prefer .bak (un-annotated) as input
+    input_path = bak_path if os.path.isfile(bak_path) else asm_path
+    print(f"Input: {input_path}")
+    with open(input_path) as f:
         asm_lines = f.readlines()
 
-    # 4. Process lines
+    # 5. Process lines with direct address-based lookup + section header resync
+    #
+    # Track current_addr through the ROM address space. For each asm
+    # instruction, look up the binary at current_addr. If the mnemonic
+    # matches, annotate with verified opcodes from the binary and advance
+    # by the binary's instruction size. If it doesn't match (asm diverges
+    # from ROM), annotate address-only and advance by the asm's estimated
+    # size. Section headers resync current_addr exactly via addr_to_idx.
+    #
     current_addr = BASE_ADDR
     annotated_lines = []
     warnings = []
     instruction_count = 0
-    mismatch_count = 0
+    full_count = 0
+    addr_only_count = 0
     resync_count = 0
     data_bytes_skipped = 0
 
     for line_num, raw_line in enumerate(asm_lines, 1):
         line = raw_line.rstrip('\n')
 
-        # ── Address hint resync ──
+        # Strip any existing annotations from instruction lines
+        line = strip_annotation(line)
+
+        # ── Address hint resync (section headers only) ──
         hint_offset = parse_address_hint(line)
         if hint_offset is not None:
             hint_addr = BASE_ADDR + hint_offset
-            if current_addr != hint_addr:
-                delta = hint_addr - current_addr
-                warnings.append(
-                    f"Line {line_num}: Resync ${current_addr:04X} -> ${hint_addr:04X} "
-                    f"(delta={delta})"
-                )
+            if hint_addr in addr_to_idx:
                 resync_count += 1
-            current_addr = hint_addr
+                current_addr = hint_addr
+            else:
+                # Address falls inside a multi-byte instruction;
+                # find nearest instruction at or before hint_addr
+                for search_addr in range(hint_addr, BASE_ADDR - 1, -1):
+                    if search_addr in addr_to_idx:
+                        resync_count += 1
+                        current_addr = hint_addr
+                        break
 
         # ── CPU instruction ──
         if is_instruction(line):
             mnemonic, operand = extract_mnemonic_and_operand(line)
             est_size = estimate_instruction_size(mnemonic, operand, symbols)
 
-            # Look up binary at current address for opcode bytes
-            binary_offset = current_addr - BASE_ADDR
-            binary_bytes = None
-            binary_mnemonic = None
-            if 0 <= binary_offset and binary_offset + est_size <= len(binary_data):
-                binary_bytes = list(binary_data[binary_offset:binary_offset + est_size])
-                binary_opcode = binary_bytes[0]
-                if binary_opcode in OPCODES:
-                    binary_mnemonic = OPCODES[binary_opcode][0]
+            matched = False
+            if current_addr in addr_to_idx:
+                idx = addr_to_idx[current_addr]
+                # Try current binary instruction and the next few (forward search)
+                # to handle cases where the ROM has 1-2 instructions the asm doesn't
+                for skip in range(3):
+                    check_idx = idx + skip
+                    if check_idx >= len(instructions):
+                        break
+                    bin_addr, bin_mnemonic, bin_size, bin_bytes = instructions[check_idx]
+                    if bin_mnemonic == mnemonic:
+                        # Match — annotate with verified address + opcode bytes
+                        bytes_str = " ".join(f"{b:02X}" for b in bin_bytes)
+                        addr_str = f"${bin_addr:04X}"
+                        annotated_lines.append(annotate_line(line, addr_str, bytes_str))
+                        current_addr = bin_addr + bin_size
+                        full_count += 1
+                        matched = True
+                        break
 
-            addr_str = f"${current_addr:04X}"
-
-            if binary_mnemonic == mnemonic:
-                # Mnemonic matches: use binary's actual instruction size
-                # (handles zero-page vs absolute addressing correctly)
-                binary_size = OPCODES[binary_bytes[0]][1]
-                # Re-read binary bytes with the correct size
-                if binary_size != est_size and 0 <= binary_offset and binary_offset + binary_size <= len(binary_data):
-                    binary_bytes = list(binary_data[binary_offset:binary_offset + binary_size])
-                bytes_str = " ".join(f"{b:02X}" for b in binary_bytes)
-                annotated_lines.append(annotate_line(line, addr_str, bytes_str))
-                current_addr += binary_size
-            else:
-                # Mnemonic mismatch (asm differs from ROM at this address):
-                # show address only, omit misleading opcode bytes
-                # Advance by estimated size (asm's perspective)
-                mismatch_count += 1
+            if not matched:
+                # Divergence — annotate address-only
+                addr_str = f"${current_addr:04X}"
                 annotated_lines.append(annotate_line_addr_only(line, addr_str))
                 current_addr += est_size
+                addr_only_count += 1
 
             instruction_count += 1
 
@@ -429,7 +544,7 @@ def main():
         else:
             annotated_lines.append(line)
 
-    # 5. Validation
+    # 6. Validation
     expected_end = BASE_ADDR + len(binary_data)
     if current_addr != expected_end:
         warnings.append(
@@ -437,10 +552,11 @@ def main():
             f"(diff={expected_end - current_addr})"
         )
 
-    # 6. Write output
-    if backup_path:
-        shutil.copy2(asm_path, backup_path)
-        print(f"Backup written to {backup_path}")
+    # 7. Write output
+    if in_place:
+        # Backup current file before overwriting
+        shutil.copy2(asm_path, bak_path)
+        print(f"Backup written to {bak_path}")
 
     with open(output_path, 'w') as f:
         f.write('\n'.join(annotated_lines))
@@ -449,8 +565,9 @@ def main():
 
     print(f"Output written to {output_path}")
     print(f"Instructions annotated: {instruction_count}")
+    print(f"  Full (addr + opcodes): {full_count} ({100*full_count//max(instruction_count,1)}%)")
+    print(f"  Address-only:          {addr_only_count} ({100*addr_only_count//max(instruction_count,1)}%)")
     print(f"Data bytes skipped: {data_bytes_skipped}")
-    print(f"Mnemonic mismatches: {mismatch_count}")
     print(f"Resync events: {resync_count}")
     print(f"Symbols: {len(symbols)}")
     print(f"Warnings: {len(warnings)}")
@@ -459,7 +576,7 @@ def main():
     if len(warnings) > 30:
         print(f"  ... and {len(warnings) - 30} more")
 
-    # 7. Verification
+    # 8. Verification
     if verify:
         ca65_path = os.path.expanduser("~/.local/bin/ca65")
         obj_path = os.path.join(project_dir, "build/prg_1f_annotated.o")
