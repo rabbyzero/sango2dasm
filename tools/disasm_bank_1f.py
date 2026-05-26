@@ -81,10 +81,10 @@ def disassemble_one(data, offset, base_addr):
         return None, offset
     opcode = data[offset]
     if opcode not in OPCODES:
-        return f".byte ${opcode:02X}", offset + 1
+        return f"  .byte ${opcode:02X}", offset + 1
     mnem, mode, size = OPCODES[opcode]
     if offset + size > len(data):
-        return f".byte ${opcode:02X}", offset + 1
+        return f"  .byte ${opcode:02X}", offset + 1
 
     if mode == 'imp' or mode == 'acc':
         return f"  {mnem}", offset + size
@@ -131,7 +131,7 @@ def disassemble_one(data, offset, base_addr):
         offset_val = sign_extend_byte(val)
         target = (base_addr + offset + 2 + offset_val) & 0xFFFF
         return f"  {mnem} ${target:04X}", offset + size
-    return f".byte ${opcode:02X}", offset + 1
+    return f"  .byte ${opcode:02X}", offset + 1
 
 # Full function/table definitions for bank 1F
 # Each entry: (start_addr, end_addr_exclusive, name, type)
@@ -338,20 +338,22 @@ def disassemble_range(data, start_offset, end_offset, base_addr):
         asm_str, next_offset = result
         # Emit raw bytes as comment
         raw = data[offset:next_offset]
-        raw_str = " ".join(f"${b:02X}" for b in raw)
+        raw_str = " ".join(f"{b:02X}" for b in raw)
         lines.append((addr, asm_str, raw_str))
         offset = next_offset
     return lines
 
 def format_data_bytes(data, start_offset, end_offset, base_addr, per_line=16):
-    """Format a data region as .byte directives."""
+    """Format a data region as .byte directives with inline addr+bytes comment."""
     lines = []
     offset = start_offset
     while offset < end_offset:
         addr = base_addr + offset
         chunk = data[offset:min(offset + per_line, end_offset)]
         byte_str = ", ".join(f"${b:02X}" for b in chunk)
-        lines.append((addr, f"  .byte {byte_str}", ""))
+        raw_str  = " ".join(f"{b:02X}" for b in chunk)
+        asm_str  = f"  .byte {byte_str}"
+        lines.append((addr, asm_str, raw_str))
         offset += per_line
     return lines
 
@@ -381,7 +383,10 @@ def build_asm(data, base_addr=0xE000):
     output.append("; sound engine, PPU utilities, math routines, controller I/O, data tables")
     output.append(";===============================================================================")
     output.append("")
-    output.append(".segment \"CODE3\"")
+    output.append(".include \"6502_registers.h\"")
+    output.append(".include \"namco163.h\"")
+    output.append("")
+    output.append(".segment \"CODE_BANK1F\"")
     output.append("")
 
     for start, end, name, rtype in regions:
@@ -400,18 +405,22 @@ def build_asm(data, base_addr=0xE000):
             lines = disassemble_range(data, start_offset, end_offset, base_addr)
             for addr, asm_str, raw_str in lines:
                 if raw_str:
-                    output.append(f"  ; {raw_str}")
-                output.append(asm_str)
+                    comment = f"; ${addr:04X}: {raw_str}"
+                    output.append(f"{asm_str:<28}{comment}")
+                else:
+                    output.append(asm_str)
         elif rtype == "table":
             output.append(f"{name}:")
             lines = format_data_bytes(data, start_offset, end_offset, base_addr)
             for addr, asm_str, raw_str in lines:
-                output.append(asm_str)
+                comment = f"; ${addr:04X}: {raw_str}"
+                output.append(f"{asm_str:<28}{comment}")
         elif rtype == "data":
             output.append(f"{name}:")
             lines = format_data_bytes(data, start_offset, end_offset, base_addr)
             for addr, asm_str, raw_str in lines:
-                output.append(asm_str)
+                comment = f"; ${addr:04X}: {raw_str}"
+                output.append(f"{asm_str:<28}{comment}")
         elif rtype == "padding":
             size = end - start
             output.append(f"{name}:")
@@ -553,8 +562,9 @@ if __name__ == "__main__":
         f.write(table)
     print(f"Function table written to code/bank_1f_function_table.md")
 
-    # Build raw disassembly
+    # Build disassembly
     asm = build_asm(data, base_addr)
-    with open("code/bank_1f_raw.asm", "w") as f:
+    out_path = "asm/banks/prg_1f.asm"
+    with open(out_path, "w") as f:
         f.write(asm)
-    print(f"Raw disassembly written to code/bank_1f_raw.asm")
+    print(f"Disassembly written to {out_path}")

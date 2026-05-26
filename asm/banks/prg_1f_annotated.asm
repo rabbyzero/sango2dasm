@@ -19,46 +19,46 @@
 ; Function-specific aliases are defined within .proc scopes.
 
 ; --- Game State ---
-addr_game_state     = $007A                     ; State counter (0-14), indexes VectorTable
-addr_sub_state      = $0078                     ; Sub-state within each major state
-addr_dispatch_ptr   = $004E                     ; Indirect jump target (low)
-addr_dispatch_ptr_h = $004F                     ; Indirect jump target (high)
+addr_game_state     = $007A  ; State counter (0-14), indexes VectorTable
+addr_sub_state      = $0078  ; Sub-state within each major state
+addr_dispatch_ptr   = $004E  ; Indirect jump target (low)
+addr_dispatch_ptr_h = $004F  ; Indirect jump target (high)
 
 ; --- PPU ---
-addr_ppu_ctrl_ram   = $008B                     ; RAM copy of PPU control ($2000)
-addr_ppu_mask_ram   = $008C                     ; RAM copy of PPU mask ($2001)
-addr_display_mode   = $0098                     ; Display mode parameter
-addr_display_mode_h = $0099                     ; Display mode parameter (high)
-addr_scroll_x       = $009A                     ; Scroll X computed value
-addr_scroll_y       = $009B                     ; Scroll Y computed value
-addr_nmi_flag       = $007E                     ; NMI sub-dispatch flag byte
+addr_ppu_ctrl_ram   = $008B  ; RAM copy of PPU control ($2000)
+addr_ppu_mask_ram   = $008C  ; RAM copy of PPU mask ($2001)
+addr_display_mode   = $0098  ; Display mode parameter
+addr_display_mode_h = $0099  ; Display mode parameter (high)
+addr_scroll_x       = $009A  ; Scroll X computed value
+addr_scroll_y       = $009B  ; Scroll Y computed value
+addr_nmi_flag       = $007E  ; NMI sub-dispatch flag byte
 
 ; --- Controller ---
-addr_pad1_edge      = $0081                     ; Pad 1 newly-pressed buttons
-addr_pad1_raw       = $0083                     ; Pad 1 raw button state
-addr_pad1_prev      = $0084                     ; Pad 1 previous frame state
+addr_pad1_edge      = $0081  ; Pad 1 newly-pressed buttons
+addr_pad1_raw       = $0083  ; Pad 1 raw button state
+addr_pad1_prev      = $0084  ; Pad 1 previous frame state
 
 ; --- Bank Switch ---
-addr_bank_e6        = $00E6                     ; Bank register RAM copy (PRG $C000)
-addr_bank_e7        = $00E7                     ; Bank register RAM copy (PRG $C800)
-addr_bank_e8        = $00E8                     ; Bank register RAM copy (PRG $D000)
-addr_bank_e9        = $00E9                     ; Bank register RAM copy (PRG $D800)
-addr_bank_ea        = $00EA                     ; Extended bank config
-addr_bank_eb        = $00EB                     ; Extended bank config
-addr_bank_ec        = $00EC                     ; Extended bank config
-addr_bank_ed        = $00ED                     ; Extended bank config
+addr_bank_e6        = $00E6  ; Bank register RAM copy (PRG $C000)
+addr_bank_e7        = $00E7  ; Bank register RAM copy (PRG $C800)
+addr_bank_e8        = $00E8  ; Bank register RAM copy (PRG $D000)
+addr_bank_e9        = $00E9  ; Bank register RAM copy (PRG $D800)
+addr_bank_ea        = $00EA  ; Extended bank config
+addr_bank_eb        = $00EB  ; Extended bank config
+addr_bank_ec        = $00EC  ; Extended bank config
+addr_bank_ed        = $00ED  ; Extended bank config
 
 ; --- RNG ---
-addr_rng_index      = $0050                     ; RNG table index
-addr_rng_saved_x    = $0051                     ; Saved X register (RNG)
+addr_rng_index      = $0050  ; RNG table index
+addr_rng_saved_x    = $0051  ; Saved X register (RNG)
 
 ; --- Menu ---
-addr_menu_step      = $00                       ; Items per page (1-8), set by entry point
-addr_menu_ptr_lo    = $10                       ; Menu data table pointer (low)
-addr_menu_ptr_hi    = $11                       ; Menu data table pointer (high)
-addr_menu_result    = $12                       ; Current item value (returned)
-addr_menu_column    = $0424                     ; Cursor column (0-based within page)
-addr_menu_page      = $0425                     ; Cursor page (0-based)
+addr_menu_step      = $00    ; Items per page (1-8), set by entry point
+addr_menu_ptr_lo    = $10    ; Menu data table pointer (low)
+addr_menu_ptr_hi    = $11    ; Menu data table pointer (high)
+addr_menu_result    = $12    ; Current item value (returned)
+addr_menu_column    = $0424  ; Cursor column (0-based within page)
+addr_menu_page      = $0425  ; Cursor page (0-based)
 
 ; --- Trampoline ---
 addr_trampoline_saved_bank = $0058
@@ -89,11 +89,11 @@ addr_trampoline_bank_param = $005D
 
   ; APU init
   LDA #$00  ; $E019: A9 00
-  STA APU_DMC_FREQ  ; $E01B: 8D 10 40  $4010
+  STA APU_DMC_FREQ  ; $E01B: 8D 10 40
   LDA #$0F  ; $E01E: A9 0F
-  STA APU_SND_CHN  ; $E020: 8D 15 40  $4015
+  STA APU_SND_CHN  ; $E020: 8D 15 40
   LDA #$C0  ; $E023: A9 C0
-  STA APU_FRAME  ; $E025: 8D 17 40  $4017
+  STA APU_FRAME  ; $E025: 8D 17 40
 
   ; Second PPU warmup
   LDA #$00  ; $E028: A9 00
@@ -151,21 +151,21 @@ addr_trampoline_bank_param = $005D
 ; $E07C: Vector Dispatch Table (15 entries, 30 bytes)
 ;===============================================================================
 VectorTable:
-  .addr State_SystemInit                        ; 0:  $E09A
-  .addr State_NewGameInit                       ; 1:  $E0DA
-  .addr State_RandomDisplay2A                   ; 2:  $E17D
-  .addr State_KingdomSelect                     ; 3:  $E18B
-  .addr State_RandomDisplay28                   ; 4:  $E221
-  .addr State_DomesticAffairs                   ; 5:  $E22F
-  .addr State_RandomAdvance1                    ; 6:  $E2E2
-  .addr State_BattlePhase                       ; 7:  $E2E8
-  .addr State_RandomAdvance2                    ; 8:  $E36A
-  .addr State_TerritoryView                     ; 9:  $E37C
-  .addr State_IdleWait                          ; 10: $E3EB
-  .addr State_AdvisorCouncil                    ; 11: $E3EE
-  .addr State_IdleWait                          ; 12: $E3EB (same as 10)
-  .addr State_TurnSummary                       ; 13: $E46A
-  .addr State_IdleWait                          ; 14: $E3EB (same as 10)
+  .addr State_SystemInit       ; 0:  $E09A
+  .addr State_NewGameInit      ; 1:  $E0DA
+  .addr State_RandomDisplay2A  ; 2:  $E17D
+  .addr State_KingdomSelect    ; 3:  $E18B
+  .addr State_RandomDisplay28  ; 4:  $E221
+  .addr State_DomesticAffairs  ; 5:  $E22F
+  .addr State_RandomAdvance1   ; 6:  $E2E2
+  .addr State_BattlePhase      ; 7:  $E2E8
+  .addr State_RandomAdvance2   ; 8:  $E36A
+  .addr State_TerritoryView    ; 9:  $E37C
+  .addr State_IdleWait         ; 10: $E3EB
+  .addr State_AdvisorCouncil   ; 11: $E3EE
+  .addr State_IdleWait         ; 12: $E3EB (same as 10)
+  .addr State_TurnSummary      ; 13: $E46A
+  .addr State_IdleWait         ; 14: $E3EB (same as 10)
 
 ;===============================================================================
 ; $E09A: Entry 0 - System Init
@@ -852,14 +852,14 @@ sound_ram_ptr  = $07F2
   STA APU_SND_CHN  ; $E592: 8D 15 40  $4015 - silence all channels
   STA sound_irq_lo  ; $E595: 8D F6 07
   LDA #$10  ; $E598: A9 10
-  STA APU_PULSE1_VOL  ; $E59A: 8D 00 40  $4000
-  STA APU_PULSE1_SWEEP  ; $E59D: 8D 04 40  $4001
-  STA APU_TRI_LINEAR  ; $E5A0: 8D 0C 40  $4008
+  STA APU_PULSE1_VOL  ; $E59A: 8D 00 40
+  STA APU_PULSE1_SWEEP  ; $E59D: 8D 04 40
+  STA APU_TRI_LINEAR  ; $E5A0: 8D 0C 40
   LDA #$08  ; $E5A3: A9 08
-  STA APU_PULSE2_VOL  ; $E5A5: 8D 01 40  $4004
-  STA APU_PULSE2_SWEEP  ; $E5A8: 8D 05 40  $4005
+  STA APU_PULSE2_VOL  ; $E5A5: 8D 01 40
+  STA APU_PULSE2_SWEEP  ; $E5A8: 8D 05 40
   LDA #$00  ; $E5AB: A9 00
-  STA APU_DMC_FREQ  ; $E5AD: 8D 08 40  $4010
+  STA APU_DMC_FREQ  ; $E5AD: 8D 08 40
 
   ; Clear sound RAM $0700-$07FF
   TAX  ; $E5B3: AA
@@ -2864,6 +2864,6 @@ Padding2:
 ; $FFFA: Interrupt Vectors
 ;===============================================================================
 Vectors:
-  .addr NmiHandler                              ; $FFFA - NMI
-  .addr Reset                                   ; $FFFC - RESET
-  .addr IrqHandler                              ; $FFFE - IRQ
+  .addr NmiHandler    ; $FFFA - NMI
+  .addr Reset         ; $FFFC - RESET
+  .addr IrqHandler    ; $FFFE - IRQ
