@@ -9,6 +9,7 @@
 - [tools/verify_rom.py](file://tools/verify_rom.py)
 - [tools/split_rom.py](file://tools/split_rom.py)
 - [tools/disasm_6502.py](file://tools/disasm_6502.py)
+- [tools/disasm_bank_1f.py](file://tools/disasm_bank_1f.py)
 - [tools/generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
 - [tools/analyze_rom.py](file://tools/analyze_rom.py)
 - [tools/annotate_asm.py](file://tools/annotate_asm.py)
@@ -18,20 +19,28 @@
 - [asm/banks/all_banks.asm](file://asm/banks/all_banks.asm)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Enhanced disassembly tool documentation to reflect improved output format with inline binary comments and detailed address mapping
+- Added comprehensive coverage of the enhanced disasm_bank_1f.py tool with structured function disassembly
+- Updated annotation tool documentation to highlight advanced address mapping capabilities
+- Expanded practical examples demonstrating the enhanced output formats
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+6. [Enhanced Disassembly Tools](#enhanced-disassembly-tools)
+7. [Dependency Analysis](#dependency-analysis)
+8. [Performance Considerations](#performance-considerations)
+9. [Troubleshooting Guide](#troubleshooting-guide)
+10. [Conclusion](#conclusion)
+11. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the annotation tools used to document and validate disassembly. It also documents the relationships between tools, error handling strategies, and practical examples for integrating the pipeline into a development workflow.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features significantly improved disassembly tools with inline binary comments and detailed address mapping capabilities that provide unprecedented precision in ROM analysis and reconstruction.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, and verification. The structure supports:
@@ -60,6 +69,7 @@ T_build["tools/build_nes.py"]
 T_verify["tools/verify_rom.py"]
 T_split["tools/split_rom.py"]
 T_disasm["tools/disasm_6502.py"]
+T_disasm1f["tools/disasm_bank_1f.py"]
 T_gen["tools/generate_bank_stubs.py"]
 T_analyze["tools/analyze_rom.py"]
 T_annotate["tools/annotate_asm.py"]
@@ -80,6 +90,7 @@ MK --> T_build
 MK --> T_verify
 MK --> T_split
 MK --> T_disasm
+MK --> T_disasm1f
 MK --> T_gen
 MK --> T_analyze
 MK --> T_annotate
@@ -97,9 +108,10 @@ T_verify --> OUT
 - [tools/verify_rom.py:1-73](file://tools/verify_rom.py#L1-L73)
 - [tools/split_rom.py:1-140](file://tools/split_rom.py#L1-L140)
 - [tools/disasm_6502.py:1-363](file://tools/disasm_6502.py#L1-L363)
+- [tools/disasm_bank_1f.py:1-571](file://tools/disasm_bank_1f.py#L1-L571)
 - [tools/generate_bank_stubs.py:1-53](file://tools/generate_bank_stubs.py#L1-L53)
 - [tools/analyze_rom.py:1-135](file://tools/analyze_rom.py#L1-L135)
-- [tools/annotate_asm.py:1-481](file://tools/annotate_asm.py#L1-L481)
+- [tools/annotate_asm.py:1-599](file://tools/annotate_asm.py#L1-L599)
 - [asm/main.asm:1-141](file://asm/main.asm#L1-L141)
 - [include/namco163.h:1-87](file://include/namco163.h#L1-L87)
 - [include/macros.h:1-72](file://include/macros.h#L1-L72)
@@ -118,7 +130,7 @@ Key capabilities:
 - Assemble and link to produce a raw PRG binary.
 - Add an iNES header and pad to the correct size to form a complete ROM.
 - Split an original ROM into PRG/CHR banks for disassembly.
-- Disassemble binaries into annotated assembly listings.
+- Disassemble binaries into annotated assembly listings with inline binary comments.
 - Analyze ROM structure to identify code-heavy banks and vectors.
 - Verify byte-exact rebuilds against the original ROM.
 - Generate bank stubs to bootstrap disassembly.
@@ -128,6 +140,7 @@ Key capabilities:
 - [tools/build_nes.py:10-51](file://tools/build_nes.py#L10-L51)
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-L362)
+- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/analyze_rom.py:10-128](file://tools/analyze_rom.py#L10-L128)
 - [tools/verify_rom.py:10-51](file://tools/verify_rom.py#L10-L51)
 - [tools/generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46)
@@ -236,16 +249,21 @@ Info --> Combined["Write prg_combined.bin"]
 
 ### Disassembly and Annotation Tools
 - disasm_6502.py disassembles 6502 binaries into ca65 assembly with address and byte columns, supporting various addressing modes.
+- disasm_bank_1f.py provides comprehensive disassembly for Bank 0x1F with structured function definitions, named regions, and inline binary comments.
 - annotate_asm.py annotates existing assembly with ROM addresses and actual opcode bytes, using a symbol table and instruction size heuristics. It can optionally verify assembly with ca65.
+
+**Updated** Enhanced with improved output format supporting inline binary comments and detailed address mapping for precise ROM analysis.
 
 ```mermaid
 sequenceDiagram
 participant DS as "disasm_6502.py"
+participant DS1F as "disasm_bank_1f.py"
 participant AN as "annotate_asm.py"
 participant ASM as "Assembly Source"
 participant BIN as "Binary Bank"
 BIN->>DS : "Binary data"
 DS-->>ASM : "Listing with addresses and bytes"
+DS1F-->>ASM : "Structured assembly with inline comments"
 ASM->>AN : "Assembly with placeholders"
 AN->>BIN : "Lookup opcode bytes"
 AN-->>ASM : "Annotated assembly with addresses and bytes"
@@ -253,10 +271,12 @@ AN-->>ASM : "Annotated assembly with addresses and bytes"
 
 **Diagram sources**
 - [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-L362)
+- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
 
 **Section sources**
 - [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-L362)
+- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
 
 ### ROM Verification System
@@ -325,6 +345,62 @@ M --> L["linker.cfg"]
 - [include/namco163.h:10-87](file://include/namco163.h#L10-L87)
 - [include/macros.h:8-72](file://include/macros.h#L8-L72)
 
+## Enhanced Disassembly Tools
+
+### Advanced Disassembly Capabilities
+The project now features significantly enhanced disassembly tools with improved output formats that provide detailed address mapping and inline binary comments:
+
+#### disasm_6502.py - Enhanced Basic Disassembler
+- Produces formatted output with address, byte columns, and instruction mnemonics
+- Supports various addressing modes with proper operand formatting
+- Provides truncated instruction handling for boundary conditions
+- Includes base address mapping for accurate CPU address translation
+
+#### disasm_bank_1f.py - Comprehensive Bank 0x1F Disassembler
+- **Structured Function Analysis**: Organizes Bank 0x1F into named functions and data regions
+- **Inline Binary Comments**: Each instruction includes detailed address and raw byte information
+- **Named Region Definitions**: Groups code into logical sections (Reset, State Handlers, Sound Engine, etc.)
+- **Complete Interrupt Vector Support**: Properly handles NMI/RESET/IRQ vectors with inline comments
+- **Data Table Formatting**: Formats data regions with inline address and byte comments
+- **Padding Detection**: Identifies and formats unused ROM regions
+
+**Enhanced Output Format Features**:
+- Address mapping: `${addr:04X}:` provides precise ROM address information
+- Inline binary comments: Raw byte sequences appended as `; ${addr:04X}: ${raw_str}`
+- Structured organization: Logical grouping of functions, tables, and data sections
+- Complete coverage: Handles all 8KB of Bank 0x1F with detailed analysis
+
+```mermaid
+flowchart TD
+Start(["Binary Input"]) --> Parse["Parse Instructions"]
+Parse --> Structure["Structure by Named Regions"]
+Structure --> Comment["Add Inline Binary Comments"]
+Comment --> Format["Format Assembly Output"]
+Format --> End(["Enhanced Assembly Listing"])
+```
+
+**Diagram sources**
+- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
+
+**Section sources**
+- [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-L362)
+- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
+
+### Advanced Annotation and Address Mapping
+- annotate_asm.py provides sophisticated address mapping with section header resynchronization
+- Supports both address-only and full annotation modes
+- Includes forward search capability to handle ROM instruction variations
+- Provides verification support with optional ca65 compilation checks
+
+**Enhanced Annotation Features**:
+- Address hint parsing: Resynchronizes address mapping using section header comments
+- Forward instruction search: Handles cases where ROM has extra instructions
+- Symbol resolution: Integrates with include files for accurate operand resolution
+- Verification integration: Optional ca65 compilation to validate annotated assembly
+
+**Section sources**
+- [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
+
 ## Dependency Analysis
 The build system exhibits clear separation of concerns:
 - Makefile orchestrates tool invocations and manages dependencies between assembly, linking, and ROM packaging.
@@ -340,6 +416,7 @@ MK --> BN["build_nes.py"]
 MK --> VR["verify_rom.py"]
 MK --> SP["split_rom.py"]
 MK --> DS["disasm_6502.py"]
+MK --> DS1F["disasm_bank_1f.py"]
 MK --> GS["generate_bank_stubs.py"]
 MK --> AZ["analyze_rom.py"]
 MK --> AN["annotate_asm.py"]
@@ -355,6 +432,7 @@ AB["asm/banks/all_banks.asm"] --> M_main
 - [tools/verify_rom.py:10-69](file://tools/verify_rom.py#L10-L69)
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-L362)
+- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46)
 - [tools/analyze_rom.py:10-128](file://tools/analyze_rom.py#L10-L128)
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
@@ -371,6 +449,7 @@ AB["asm/banks/all_banks.asm"] --> M_main
 - Disassembly and annotation operate on 8KB banks; keep input binaries small and targeted for faster iteration.
 - The verification step compares entire ROMs; ensure original and rebuilt files are present and sized correctly to avoid unnecessary overhead.
 - Linker segmentation should be kept minimal until needed to reduce linking complexity and runtime.
+- Enhanced disassembly tools provide more detailed output but may require additional processing time for complex bank analysis.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -380,11 +459,13 @@ Common issues and resolutions:
 - Verification fails due to size mismatch: Confirm both ROMs are padded to the same size; build_nes.py pads PRG to 16KB pages.
 - Disassembly address drift: Use annotate_asm.py with address hints in assembly comments to resynchronize.
 - Linker errors: Update linker.cfg with new segments as banks are disassembled; ensure segments map to correct PRG slots.
+- Enhanced disassembly output issues: Ensure proper base address mapping and inline comment formatting for accurate analysis.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
 - Analyze ROM structure: make analyze
 - Verify rebuilt ROM: make verify
+- Generate enhanced Bank 0x1F disassembly: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - Clean build artifacts: make clean
 - Clean and remove ROM dumps: make distclean
 
@@ -395,17 +476,19 @@ Practical examples:
 - [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The Makefile provides a unified interface to orchestrate the pipeline, while tools like split_rom.py, disasm_6502.py, analyze_rom.py, annotate_asm.py, and verify_rom.py enable precise, repeatable workflows. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent enhancements to the disassembly tools provide unprecedented precision with inline binary comments and detailed address mapping, enabling precise, repeatable workflows. The Makefile provides a unified interface to orchestrate the pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, analyze_rom.py, annotate_asm.py, and verify_rom.py enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity.
 
 ## Appendices
 
 ### Practical Workflows
 - Initial setup: make split, make banks
-- Disassembly: make disasm, tools/annotate_asm.py
+- Enhanced disassembly: make disasm, tools/disasm_bank_1f.py, tools/annotate_asm.py
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
 
 ### Example Commands
-- make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
+- make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=1024
 - make analyze
 - make verify
+- python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
+- python3 tools/annotate_asm.py --in-place --verify

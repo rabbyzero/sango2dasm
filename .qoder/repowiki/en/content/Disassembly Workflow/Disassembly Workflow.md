@@ -14,13 +14,23 @@
 - [tools/split_rom.py](file://tools/split_rom.py)
 - [tools/verify_rom.py](file://tools/verify_rom.py)
 - [tools/build_nes.py](file://tools/build_nes.py)
+- [tools/align_comments.py](file://tools/align_comments.py)
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [asm/banks/prg_1f_annotated.asm](file://asm/banks/prg_1f_annotated.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
 - [code/bank_1f_plan.md](file://code/bank_1f_plan.md)
 - [code/key_functions_analysis.md](file://code/key_functions_analysis.md)
+- [code/bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Enhanced PRG bank 1F disassembly output with improved binary code comments and inline machine code documentation
+- Added automated comment alignment tool for consistent formatting
+- Expanded analysis documentation with detailed examples and explanations
+- Improved cross-referencing and label management documentation
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -37,6 +47,8 @@
 ## Introduction
 This document describes a systematic disassembly workflow for the Namco-163 (Mapper 19) ROM of Sangokushi 2 - Haou no Tairiku (J). It focuses on extracting and documenting game code from the PRG banks, starting with Bank 0x1F that contains the reset handler and vector dispatch table. The guide covers bank prioritization, stub replacement, modular organization, cross-references, label management, incremental development, and verification.
 
+**Updated** Enhanced with improved binary code comments and inline machine code documentation for better traceability and debugging capabilities.
+
 ## Project Structure
 The repository organizes assets around a cc65 toolchain and a modular bank structure:
 - ROM splitting and analysis tools
@@ -44,6 +56,7 @@ The repository organizes assets around a cc65 toolchain and a modular bank struc
 - Linker configuration for 4 PRG slots
 - Include files for hardware and macros
 - Planning and analysis documents for Bank 0x1F
+- Automated comment alignment for consistent formatting
 
 ```mermaid
 graph TB
@@ -51,16 +64,19 @@ A["ROM (.nes)"] --> B["tools/split_rom.py"]
 B --> C["rom/prg/*.bin<br/>rom/chr/*.bin"]
 C --> D["tools/generate_bank_stubs.py"]
 D --> E["asm/banks/*.asm"]
-E --> F["asm/main.asm"]
-F --> G["linker.cfg"]
-G --> H["build/prg.bin"]
-H --> I["tools/build_nes.py"]
-I --> J["build/sango2.nes"]
+E --> F["tools/align_comments.py"]
+F --> G["asm/banks/prg_1f.aligned.asm"]
+G --> H["asm/main.asm"]
+H --> I["linker.cfg"]
+I --> J["build/prg.bin"]
+J --> K["tools/build_nes.py"]
+K --> L["build/sango2.nes"]
 ```
 
 **Diagram sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [tools/generate_bank_stubs.py:12-52](file://tools/generate_bank_stubs.py#L12-L52)
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 - [Makefile:38-48](file://Makefile#L38-L48)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [tools/build_nes.py:10-57](file://tools/build_nes.py#L10-L57)
@@ -73,16 +89,20 @@ I --> J["build/sango2.nes"]
 ## Core Components
 - ROM splitting and analysis: Separate PRG/CHR banks and detect code patterns and vectors.
 - Bank stub generation: Create per-bank assembly files with .incbin placeholders.
-- Disassemblers: Quick listing disassembler and comprehensive Bank 0x1F disassembler.
+- Disassemblers: Quick listing disassembler and comprehensive Bank 0x1F disassembler with enhanced inline comments.
 - Linker configuration: Define 4 PRG slots and segments for banked code.
 - Annotation and verification: Annotate assembly with ROM addresses and verify byte-for-byte accuracy.
+- Comment alignment: Automatically align inline comments for consistent formatting.
 - Build pipeline: Assemble, link, package into an iNES ROM.
+
+**Updated** Enhanced disassembler now provides detailed inline machine code documentation with ROM addresses and raw bytes for each instruction.
 
 **Section sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [tools/generate_bank_stubs.py:12-52](file://tools/generate_bank_stubs.py#L12-L52)
 - [tools/disasm_6502.py:336-362](file://tools/disasm_6502.py#L336-L362)
 - [tools/disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-L561)
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
 - [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
@@ -174,6 +194,8 @@ Typical output highlights:
 - Use the comprehensive Bank 0x1F disassembler to produce a ca65-compatible .asm file with labeled functions and tables.
 - Alternatively, use the quick listing disassembler to explore specific ranges (e.g., $E000–$E100 for reset handler).
 
+**Updated** Enhanced disassembly now includes detailed inline comments showing ROM addresses and raw machine code bytes for each instruction, improving traceability and debugging.
+
 Workflow:
 - Generate function table and raw disassembly for Bank 0x1F
 - Review the vector table and state handlers
@@ -187,9 +209,9 @@ participant OUT as "code/bank_1f_raw.asm"
 participant TAB as "code/bank_1f_function_table.md"
 ROM->>DIS : Read PRG bank 0x1F
 DIS->>DIS : Build function table
-DIS->>DIS : Build raw assembly
+DIS->>DIS : Build raw assembly with inline comments
 DIS-->>TAB : Write function table
-DIS-->>OUT : Write disassembly
+DIS-->>OUT : Write disassembly with ROM addresses
 ```
 
 **Diagram sources**
@@ -203,7 +225,7 @@ DIS-->>OUT : Write disassembly
 ### Step 4: Replace Stubs with Real Disassembly
 - Edit asm/banks/prg_XX.asm to replace .incbin with actual disassembled code.
 - Use proper .segment directives for each bank as you add code.
-- Keep the bank’s logical address in mind (e.g., Bank 0x1F maps to $E000–$FFFF).
+- Keep the bank's logical address in mind (e.g., Bank 0x1F maps to $E000–$FFFF).
 
 Guidance:
 - Start with Bank 0x1F and progressively move to other banks based on dispatch targets and analysis results.
@@ -241,9 +263,11 @@ Cross-references in Bank 0x1F:
 - [include/namco163.h:68-86](file://include/namco163.h#L68-L86)
 
 ### Step 7: Incremental Development and Progress Tracking
-- Assemble and link after adding each bank’s code.
+- Assemble and link after adding each bank's code.
 - Use make verify to compare the rebuilt ROM with the original byte-by-byte.
 - Iterate: disassemble → annotate → assemble → verify → refine.
+
+**Updated** Enhanced verification now includes detailed inline machine code documentation to aid in debugging and cross-referencing.
 
 Verification:
 - Byte-for-byte comparison with original ROM
@@ -258,6 +282,8 @@ Verification:
 - The tool resolves symbols from include files and estimates instruction sizes to align comments with actual ROM bytes.
 - Use address hints (comments like "; $XXXX:") to resync and correct drift.
 
+**Updated** Enhanced disassembly output now includes automatic comment alignment to ensure consistent formatting of inline machine code documentation.
+
 Annotation workflow:
 - Build symbol table from includes and assembly
 - Estimate instruction sizes from operand text
@@ -271,6 +297,8 @@ Annotation workflow:
 - Recognize common 6502 patterns: shift-and-subtract division, table-driven RNG, pointer tables, multiply-by-constants via ASL/ADC chains.
 - Identify data tables and string tables used by display and menu systems.
 - Use analysis tools to locate vectors, bank switches, and repeated utility patterns.
+
+**Updated** Enhanced analysis documentation now includes detailed examples with inline machine code comments showing ROM addresses and raw bytes for better understanding of code patterns.
 
 Examples:
 - RNG core at $E87A reads from a precomputed table
@@ -290,11 +318,29 @@ Prioritize by:
 - I/O and subsystems (PPU, sound, controller)
 - Complexity and impact (NMI/IRQ handlers)
 
+**Updated** Analysis plan now includes detailed documentation with enhanced inline comments and machine code examples for better understanding of each bank's role and dependencies.
+
 Plan document outlines sessions and dependencies for Bank 0x1F.
 
 **Section sources**
 - [PROJECT.md:120-133](file://PROJECT.md#L120-L133)
 - [code/bank_1f_plan.md:213-223](file://code/bank_1f_plan.md#L213-L223)
+
+### Step 11: Enhanced Comment Alignment and Formatting
+- Use the align_comments.py tool to automatically align inline comments to column 48.
+- Ensures consistent formatting across the entire disassembly output.
+- Improves readability and makes it easier to correlate assembly with ROM addresses.
+
+**New Section** Added to improve code readability and maintainability.
+
+Comment alignment workflow:
+- Read prg_1f.asm file
+- Calculate current column position of inline comments
+- Adjust spacing to align comments to column 48
+- Write prg_1f.aligned.asm with consistent formatting
+
+**Section sources**
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 
 ## Dependency Analysis
 The disassembly pipeline depends on:
@@ -303,11 +349,14 @@ The disassembly pipeline depends on:
 - Linker configuration for PRG slots
 - Include files for hardware and macros
 - Annotation and verification tools for accuracy
+- Comment alignment tool for consistent formatting
 
 ```mermaid
 graph TB
 SPLIT["tools/split_rom.py"] --> BIN["rom/prg_combined.bin"]
 STUB["tools/generate_bank_stubs.py"] --> ASM["asm/banks/*.asm"]
+ASM --> ALIGN["tools/align_comments.py"]
+ALIGN --> ALIGNED["asm/banks/prg_1f.aligned.asm"]
 ASM --> LINK["linker.cfg"]
 LINK --> OBJ["build/prg.bin"]
 OBJ --> NES["tools/build_nes.py"]
@@ -318,6 +367,7 @@ VERIFY --> ACC["Accuracy Report"]
 **Diagram sources**
 - [tools/split_rom.py:112-122](file://tools/split_rom.py#L112-L122)
 - [tools/generate_bank_stubs.py:36-46](file://tools/generate_bank_stubs.py#L36-L46)
+- [tools/align_comments.py:44-48](file://tools/align_comments.py#L44-L48)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [tools/build_nes.py:10-57](file://tools/build_nes.py#L10-L57)
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
@@ -331,6 +381,7 @@ VERIFY --> ACC["Accuracy Report"]
 - Keep disassembly sessions focused on contiguous regions to minimize re-linking.
 - Prefer incremental assembly and targeted verification to catch errors early.
 - Use the annotation tool to quickly validate instruction boundaries and operand sizes.
+- **Updated** Leverage enhanced inline comments for faster debugging and cross-referencing.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -339,15 +390,19 @@ Common issues and remedies:
 - Symbol resolution failures: Verify include paths and symbol definitions.
 - Bank switching confusion: Confirm mapper register addresses and bank indices from namco163.h.
 - Linker errors: Add new MEMORY regions and SEGMENTS for each disassembled bank in linker.cfg.
+- **Updated** Comment formatting issues: Use align_comments.py to fix inconsistent inline comment alignment.
 
 **Section sources**
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
 - [tools/disasm_6502.py:11-237](file://tools/disasm_6502.py#L11-L237)
 - [include/namco163.h:10-86](file://include/namco163.h#L10-L86)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 
 ## Conclusion
-This workflow establishes a repeatable, incremental approach to disassembling Sangokushi 2’s PRG banks. Starting with Bank 0x1F ensures you understand the reset handler and dispatch mechanism, after which you can systematically replace stubs with real disassembly, manage cross-references, and verify accuracy through byte-exact comparisons. The modular bank structure and toolchain support continuous refinement and expansion.
+This workflow establishes a repeatable, incremental approach to disassembling Sangokushi 2's PRG banks. Starting with Bank 0x1F ensures you understand the reset handler and dispatch mechanism, after which you can systematically replace stubs with real disassembly, manage cross-references, and verify accuracy through byte-exact comparisons. The modular bank structure and toolchain support continuous refinement and expansion.
+
+**Updated** Enhanced disassembly output with improved binary code comments and inline machine code documentation significantly improves traceability, debugging capabilities, and overall code quality for this complex 6502 project.
 
 ## Appendices
 
@@ -360,7 +415,31 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
   - make analyze
 - Verify ROM:
   - make verify
+- **Updated** Align comments for consistent formatting:
+  - python3 tools/align_comments.py
 
 **Section sources**
 - [Makefile:64-69](file://Makefile#L64-L69)
 - [PROJECT.md:136-150](file://PROJECT.md#L136-L150)
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
+
+### Enhanced Disassembly Features
+**New Section** Highlighting the improvements to PRG bank 1F disassembly output.
+
+Key enhancements:
+- **Inline Machine Code Comments**: Each instruction now includes detailed comments showing ROM address and raw bytes
+- **Consistent Formatting**: Automatic comment alignment to column 48 for improved readability
+- **Enhanced Traceability**: Easy correlation between assembly and original ROM bytes
+- **Debugging Support**: Better tooling for identifying instruction boundaries and operand sizes
+
+Example of enhanced output format:
+```asm
+$E000: SEI              ; $E000: 78  Disable interrupts
+$E001: CLD              ; $E001: D8  Clear decimal mode
+$E002-$E018: PPU warmup ; $E002: A9 00 ... Wait for 3 VBlanks ($2002 polling)
+```
+
+**Section sources**
+- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
+- [code/bank_1f_analysis.md:1-800](file://code/bank_1f_analysis.md#L1-L800)
