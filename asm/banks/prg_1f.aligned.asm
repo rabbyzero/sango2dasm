@@ -35,8 +35,11 @@ addr_nmi_flag       = $007E                     ; NMI sub-dispatch flag byte
 
 ; --- Controller ---
 addr_pad1_edge      = $0081                     ; Pad 1 newly-pressed buttons
+addr_pad2_edge      = $0082                     ; Pad 2 newly-pressed buttons
 addr_pad1_raw       = $0083                     ; Pad 1 raw button state
 addr_pad1_prev      = $0084                     ; Pad 1 previous frame state
+addr_pad2_raw       = $0085                     ; Pad 2 raw button state
+addr_pad2_prev      = $0086                     ; Pad 2 previous frame state
 
 ; --- Bank Switch ---
 addr_bank_e6        = $00E6                     ; Bank register RAM copy (PRG $C000)
@@ -134,8 +137,13 @@ addr_trampoline_bank_param = $005D
   ; Initialize game state to 0
   LDA #$00                                      ; $E061: A9 00
   STA addr_game_state                           ; $E063: 8D 7A 00
+.endproc
 
-  ; Dispatch through vector table
+;===============================================================================
+; StateDispatch: Main game loop dispatch target ($E066)
+; All state handlers JMP here to re-enter the main loop.
+;===============================================================================
+.proc StateDispatch
   LDA addr_game_state                           ; $E066: AD 7A 00
   AND #$1F                                      ; $E069: 29 1F  Mask to 0-31
   ASL                                           ; $E06B: 0A  * 2 for word index
@@ -151,28 +159,28 @@ addr_trampoline_bank_param = $005D
 ; $E07C: Vector Dispatch Table (15 entries, 30 bytes)
 ;===============================================================================
 VectorTable:
-  .addr State_SystemInit                        ; 0:  $E09A
-  .addr State_NewGameInit                       ; 1:  $E0DA
-  .addr State_RandomDisplay2A                   ; 2:  $E17D
-  .addr State_KingdomSelect                     ; 3:  $E18B
-  .addr State_RandomDisplay28                   ; 4:  $E221
-  .addr State_DomesticAffairs                   ; 5:  $E22F
-  .addr State_RandomAdvance1                    ; 6:  $E2E2
-  .addr State_BattlePhase                       ; 7:  $E2E8
-  .addr State_RandomAdvance2                    ; 8:  $E36A
-  .addr State_TerritoryView                     ; 9:  $E37C
-  .addr State_IdleWait                          ; 10: $E3EB
-  .addr State_AdvisorCouncil                    ; 11: $E3EE
-  .addr State_IdleWait                          ; 12: $E3EB (same as 10)
-  .addr State_TurnSummary                       ; 13: $E46A
-  .addr State_IdleWait                          ; 14: $E3EB (same as 10)
+  .addr State_SystemInit                        ; $E07C: 9A E0 | 0:  $E09A
+  .addr State_NewGameInit                       ; $E07E: DA E0 | 1:  $E0DA
+  .addr State_RandomDisplay2A                   ; $E080: 7D E1 | 2:  $E17D
+  .addr State_KingdomSelect                     ; $E082: 8B E1 | 3:  $E18B
+  .addr State_RandomDisplay28                   ; $E084: 21 E2 | 4:  $E221
+  .addr State_DomesticAffairs                   ; $E086: 2F E2 | 5:  $E22F
+  .addr State_RandomAdvance1                    ; $E088: E2 E2 | 6:  $E2E2
+  .addr State_BattlePhase                       ; $E08A: E8 E2 | 7:  $E2E8
+  .addr State_RandomAdvance2                    ; $E08C: 6A E3 | 8:  $E36A
+  .addr State_TerritoryView                     ; $E08E: 7C E3 | 9:  $E37C
+  .addr State_IdleWait                          ; $E090: EB E3 | 10: $E3EB
+  .addr State_AdvisorCouncil                    ; $E092: EE E3 | 11: $E3EE
+  .addr State_IdleWait                          ; $E094: EB E3 | 12: $E3EB (same as 10)
+  .addr State_TurnSummary                       ; $E096: 6A E4 | 13: $E46A
+  .addr State_IdleWait                          ; $E098: EB E3 | 14: $E3EB (same as 10)
 
 ;===============================================================================
 ; $E09A: Entry 0 - System Init
 ; Params: none
 ;===============================================================================
 .proc State_SystemInit
-  JSR ReadPpuStatus                             ; $E09A: 20 68 E7
+  JSR NmiDisable                                ; $E09A: 20 68 E7
   JSR WaitForVBlank                             ; $E09D: 20 4D E7
   STA PPU_MASK                                  ; $E0A0: 8D 01 20  Disable rendering
   JSR BankPpuInit                               ; $E0A3: 20 7F E5
@@ -271,7 +279,7 @@ VectorTable:
   LDA #$81                                      ; $E16F: A9 81
   JSR SoundWrapperA                             ; $E171: 20 73 E6  Music $81
   JSR PpuMaskHelper                             ; $E174: 20 49 E7
-  JSR PpuCtrlNmiHelpers                         ; $E177: 20 53 E7
+  JSR NmiEnable                                 ; $E177: 20 53 E7
   JMP StateDispatch                             ; $E17A: 4C 66 E0
 .endproc
 
@@ -360,7 +368,7 @@ territory_ptr_hi = $0069
   LDA #$1D                                      ; $E213: A9 1D
   JSR SoundWrapperA                             ; $E215: 20 73 E6  Music $1D
   JSR PpuMaskHelper                             ; $E218: 20 49 E7
-  JSR PpuCtrlNmiHelpers                         ; $E21B: 20 53 E7
+  JSR NmiEnable                                 ; $E21B: 20 53 E7
   JMP StateDispatch                             ; $E21E: 4C 66 E0
 .endproc
 
@@ -402,7 +410,9 @@ sprite_idx2     = $0562
 
   ; Second display call with action type
   LDA action_type                               ; $E252: AD 44 05
-  ASL                                           ; $E255
+  CLC                                           ; $E255: 18
+  ADC #$02                                      ; $E256: 69 02
+  STA $0000                                     ; $E258: 8D 00 00
   JSR DomesticActionDisplay                     ; $E25B: 20 15 A0
 
   ; Sprite positions from table
@@ -421,15 +431,12 @@ sprite_idx2     = $0562
   LDA #$01                                      ; $E27E: A9 01
   STA $0000                                     ; $E285: 8D 98 00
   JSR $A015                                     ; $E288: 20 BF EC
-  LDA #$A0                                      ; $E28E: A9 0D
-  STA addr_display_mode                         ; $E290
-  JSR PaletteUpload                             ; $E292
-  INC addr_game_state                           ; $E295
-  LDA #$0D                                      ; $E297
-  JSR SoundWrapperC                             ; $E299  Sound $0D
-  JSR PpuMaskHelper                             ; $E29C
-  JSR PpuCtrlNmiHelpers                         ; $E29F
-  JMP StateDispatch                             ; $E2A2
+  INC addr_game_state                           ; $E28B: EE 7A 00
+  LDA #$0D                                      ; $E28E: A9 0D
+  JSR SoundWrapperC                             ; $E290: 20 83 E6
+  JSR PpuMaskHelper                             ; $E293: 20 49 E7
+  JSR NmiEnable                                 ; $E296: 20 53 E7
+  JMP StateDispatch                             ; $E299: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -469,19 +476,21 @@ DomesticActionDisplay = DomesticActionLookup
 ; $E2C2: Domestic Action Data Tables
 ;===============================================================================
 DomesticGraphicPtrs:
-  .addr $8440, $8570, $86A0, $87D0, $8900, $8A30, $8B60
+  .addr $8440, $8570, $86A0, $87D0              ; $E2C2: 40 84 70 85 A0 86 D0 87
+  .addr $8900, $8A30, $8B60                     ; $E2CA: 00 89 30 8A 60 8B
 
 DomesticBaseDataPtrs:
-  .addr $8000, $8000, $8000, $8000, $8000, $8000, $8000
+  .addr $8000, $8000, $8000, $8000              ; $E2D0: 00 80 00 80 00 80 00 80
+  .addr $8000, $8000, $8000                     ; $E2D8: 00 80 00 80 00 80
 
 DomesticSpriteYPos:
-  .byte $10, $0F, $00, $16
+  .byte $10, $0F, $00, $16                      ; $E2DE: 10 0F 00 16
 
 ;===============================================================================
 ; $E2E2: Entry 6 - Random Seed Advance
 ;===============================================================================
 .proc State_RandomAdvance1
-  JSR RandomByte                                ; $E2E2
+  JSR RandomByte                                ; $E2E2: 20 7A E8
   JMP StateDispatch                             ; $E2E5: 4C 66 E0
 .endproc
 
@@ -545,7 +554,7 @@ army_status2    = $04AC
   LDA #$12                                      ; $E35C: A9 12
   JSR SoundWrapperB                             ; $E35E: 20 7B E6  Battle music $12
   JSR PpuMaskHelper                             ; $E361: 20 49 E7
-  JSR PpuCtrlNmiHelpers                         ; $E364: 20 53 E7
+  JSR NmiEnable                                 ; $E364: 20 53 E7
   JMP StateDispatch                             ; $E367: 4C 66 E0
 .endproc
 
@@ -584,13 +593,12 @@ army_status2    = $04AC
   STA $000A                                     ; $E390: 8D 0A 00
   LDA #$9A                                      ; $E393: A9 9A
   STA $000B                                     ; $E395: 8D 0B 00  Ptr -> $9A90
-  LDA #$00                                      ; $E398: A9 20
-  STA $0000                                     ; $E39A: 8D 01 00
-  LDA #$20                                      ; $E39D: A9 00
-  STA $0001                                     ; $E39F: 8D 00 00
-  LDA #$00                                      ; $E3A2
-  STA $0004                                     ; $E3A4
-  STA $0005                                     ; $E3A6
+  LDA #$20                                      ; $E398: A9 20
+  STA $0001                                     ; $E39A: 8D 01 00
+  LDA #$00                                      ; $E39D: A9 00
+  STA $0000                                     ; $E39F: 8D 00 00
+  STA $0004                                     ; $E3A2: 8D 04 00
+  STA $0005                                     ; $E3A5: 8D 05 00
   STA $0006                                     ; $E3A8: 8D 06 00
   LDA #$04                                      ; $E3AB: A9 04
   STA $0007                                     ; $E3AD: 8D 07 00
@@ -614,7 +622,7 @@ army_status2    = $04AC
   JSR BankSwitch                                ; $E3DC: 20 1F E5
   INC addr_game_state                           ; $E3DF: EE 7A 00
   JSR PpuMaskHelper                             ; $E3E2: 20 49 E7
-  JSR PpuCtrlNmiHelpers                         ; $E3E5: 20 53 E7
+  JSR NmiEnable                                 ; $E3E5: 20 53 E7
   JMP StateDispatch                             ; $E3E8: 4C 66 E0
 .endproc
 
@@ -639,13 +647,12 @@ State_IdleWait:
   STA $000A                                     ; $E402: 8D 0A 00
   LDA #$9A                                      ; $E405: A9 9A
   STA $000B                                     ; $E407: 8D 0B 00  Ptr -> $9AE3
-  LDA #$00                                      ; $E40A: A9 20
-  STA $0000                                     ; $E40C: 8D 01 00
-  LDA #$20                                      ; $E40F: A9 00
-  STA $0001                                     ; $E411: 8D 00 00
-  LDA #$00                                      ; $E414
-  STA $0004                                     ; $E416
-  STA $0005                                     ; $E418
+  LDA #$20                                      ; $E40A: A9 20
+  STA $0001                                     ; $E40C: 8D 01 00
+  LDA #$00                                      ; $E40F: A9 00
+  STA $0000                                     ; $E411: 8D 00 00
+  STA $0004                                     ; $E414: 8D 04 00
+  STA $0005                                     ; $E417: 8D 05 00
   STA $0006                                     ; $E41A: 8D 06 00
   LDA #$04                                      ; $E41D: A9 04
   STA $0007                                     ; $E41F: 8D 07 00
@@ -655,11 +662,10 @@ State_IdleWait:
   LDY #$3D                                      ; $E42A: A0 3D
   JSR WindowDisplaySetup                        ; $E42C: 20 37 F2
   JSR $A018                                     ; $E42F: 20 18 A0  Advisor dialogue
-  CLC                                           ; $E432
-  LDY #$3D                                      ; $E433
-  JSR WindowDisplaySetup                        ; $E435
-  LDA #$0C                                      ; $E438
-  STA $0000                                     ; $E43A
+  LDY #$3D                                      ; $E432: A0 3D
+  JSR WindowDisplaySetup                        ; $E434: 20 37 F2
+  LDA #$0C                                      ; $E437: A9 0C
+  STA $0000                                     ; $E439: 8D 00 00
   JSR $A015                                     ; $E43C: 20 15 A0
   JSR ControllerRead                            ; $E43F: 20 F7 EA
   JSR PaletteUpload                             ; $E442: 20 BF EC
@@ -675,7 +681,7 @@ State_IdleWait:
   LDA #$08                                      ; $E45C: A9 08
   JSR SoundWrapperC                             ; $E45E: 20 83 E6  Sound $08
   JSR PpuMaskHelper                             ; $E461: 20 49 E7
-  JSR PpuCtrlNmiHelpers                         ; $E464: 20 53 E7
+  JSR NmiEnable                                 ; $E464: 20 53 E7
   JMP StateDispatch                             ; $E467: 4C 66 E0
 .endproc
 
@@ -709,51 +715,36 @@ completion_flag = $0541
   LDA #$0D                                      ; $E49D: A9 0D
   STA $0000                                     ; $E49F: 8D 00 00
   JSR $A015                                     ; $E4A2: 20 15 A0
-  JSR ControllerRead                            ; $E4A5: 20 F7 EA
-  JSR PaletteUpload                             ; $E4AA: 20 37 F2
-  LDY #$3D                                      ; $E4AD
-  JSR WindowDisplaySetup                        ; $E4AF: 20 45 A0
-  LDA #$05                                      ; $E4B2: A9 A0
-  JSR PaletteUpload                             ; $E4B9: 20 1F E5
-  LDA #$A0                                      ; $E4BC
-  STA addr_display_mode                         ; $E4BE
-  LDA #$02                                      ; $E4C0
-  JSR BankSwitch                                ; $E4C6: 20 73 E6
-  INC addr_game_state                           ; $E4C9
-  LDY completion_flag                           ; $E4CB
-  BNE @victory_music                            ; $E4CE
-  LDA #$98                                      ; $E4D0
-  JSR SoundWrapperA                             ; $E4D2  Normal music $98
-  JMP @after_music                              ; $E4D5
+  JSR ScrollSet                                 ; $E4A5: 20 F7 EA
+  LDY #$3D                                      ; $E4A8: A0 3D
+  JSR WindowDisplaySetup                        ; $E4AA: 20 37 F2
+  LDA #$05                                      ; $E4AD: A9 05
+  JSR $A045                                     ; $E4AF: 20 45 A0
+  LDA #$A0                                      ; $E4B2: A9 A0
+  STA addr_display_mode                         ; $E4B4: 8D 98 00
+  LDA #$02                                      ; $E4B7: A9 02
+  JSR BankSwitch                                ; $E4B9: 20 1F E5
+  INC addr_game_state                           ; $E4BC: EE 7A 00
+  LDY completion_flag                           ; $E4BF: AC 41 05
+  BNE @victory_music                            ; $E4C2: D0 08
+  LDA #$98                                      ; $E4C4: A9 98
+  JSR SoundWrapperA                             ; $E4C6: 20 73 E6  Normal music $98
+  JMP @after_music                              ; $E4C9: 4C D1 E4
 @victory_music:
-  LDA #$AA                                      ; $E4D8
-  JSR SoundWrapperB                             ; $E4DA: 20 68 E7  Victory music $AA
+  LDA #$AA                                      ; $E4CC: A9 AA
+  JSR SoundWrapperB                             ; $E4CE: 20 7B E6  Victory music $AA
 @after_music:
-  JSR PpuMaskHelper                             ; $E4DD: 20 4D E7
-  JSR PpuCtrlNmiHelpers                         ; $E4E3: 20 7F E5
-  JMP StateDispatch                             ; $E4E6
+  JSR PpuMaskHelper                             ; $E4D1: 20 49 E7
+  JSR NmiEnable                                 ; $E4D4: 20 53 E7
+  JMP StateDispatch                             ; $E4D7: 4C 66 E0
 .endproc
-
-;===============================================================================
-; State Dispatch (JMP target shared by all states)
-;===============================================================================
-StateDispatch:
-  LDA addr_game_state                           ; $E4E9: A9 00
-  AND #$1F                                      ; $E4EB
-  ASL                                           ; $E4ED
-  TAY                                           ; $E4EE
-  LDA VectorTable,Y                             ; $E4EF
-  STA addr_dispatch_ptr                         ; $E4F2
-  LDA VectorTable+1,Y                           ; $E4F4
-  STA addr_dispatch_ptr+1                       ; $E4F7: 8D 98 00
-  JMP (addr_dispatch_ptr)                       ; $E4FA
 
 ;===============================================================================
 ; $E4DA: Frame Init Helper
 ; Clears display working RAM, sets sentinel values
 ;===============================================================================
 .proc FrameInit
-  JSR ReadPpuStatus                             ; $E4DA: 20 68 E7
+  JSR NmiDisable                                ; $E4DA: 20 68 E7
   JSR WaitForVBlank                             ; $E4DD: 20 4D E7
   STA PPU_MASK                                  ; $E4E0: 8D 01 20  Disable rendering
   JSR BankPpuInit                               ; $E4E3: 20 7F E5
@@ -822,9 +813,9 @@ StateDispatch:
 ; 8 bytes per config. First 4: PRG bank regs, Last 4: extended config
 ;===============================================================================
 BankSwitchTable:
-  .byte $E0, $E1, $E1, $E1, $E0, $E1, $E0, $E1  ; Config 0
-  .byte $E0, $E0, $E0, $E0, $E0, $E1, $E0, $E1  ; Config 1
-  .byte $E0, $E1, $E0, $E1, $E0, $E1, $E0, $E1  ; Config 2
+  .byte $E0, $E1, $E1, $E1, $E0, $E1, $E0, $E1  ; $E567: E0 E1 E1 E1 E0 E1 E0 E1  Config 0
+  .byte $E0, $E0, $E0, $E0, $E0, $E1, $E0, $E1  ; $E56F: E0 E0 E0 E0 E1 E1 E1 E1  Config 1
+  .byte $E0, $E1, $E0, $E1, $E0, $E1, $E0, $E1  ; $E577: E0 E1 E0 E1 E0 E1 E0 E1  Config 2
 
 ;===============================================================================
 ; $E57F: Bank + PPU Init + JMP Patch
@@ -853,13 +844,14 @@ sound_ram_ptr  = $07F2
   STA sound_irq_lo                              ; $E595: 8D F6 07
   LDA #$10                                      ; $E598: A9 10
   STA APU_PULSE1_VOL                            ; $E59A: 8D 00 40  $4000
-  STA APU_PULSE1_SWEEP                          ; $E59D: 8D 04 40  $4001
-  STA APU_TRI_LINEAR                            ; $E5A0: 8D 0C 40  $4008
+  STA APU_PULSE2_VOL                            ; $E59D: 8D 04 40  $4004
+  STA APU_NOISE_VOL                             ; $E5A0: 8D 0C 40  $400C
   LDA #$08                                      ; $E5A3: A9 08
-  STA APU_PULSE2_VOL                            ; $E5A5: 8D 01 40  $4004
+  STA APU_PULSE1_SWEEP                          ; $E5A5: 8D 01 40  $4001
   STA APU_PULSE2_SWEEP                          ; $E5A8: 8D 05 40  $4005
   LDA #$00                                      ; $E5AB: A9 00
-  STA APU_DMC_FREQ                              ; $E5AD: 8D 08 40  $4010
+  STA APU_TRI_LINEAR                            ; $E5AD: 8D 08 40  $4008
+  STA sound_ram_ptr                             ; $E5B0: 8D F2 07  $07F2
 
   ; Clear sound RAM $0700-$07FF
   TAX                                           ; $E5B3: AA
@@ -871,7 +863,7 @@ sound_ram_ptr  = $07F2
   TXA                                           ; $E5BE: 8A
   CLC                                           ; $E5BF: 18
   ADC #$16                                      ; $E5C0: 69 16
-  TAY                                           ; $E5C2
+  TAX                                           ; $E5C2: AA
   CMP #$F2                                      ; $E5C3: C9 F2
   BNE @clear_loop                               ; $E5C5: D0 ED
 
@@ -879,31 +871,31 @@ sound_ram_ptr  = $07F2
   LDA #$C0                                      ; $E5C7: A9 C0
   STA NAMCO_CTRL                                ; $E5C9: 8D 00 F8  Select wavetable address
   LDX #$3F                                      ; $E5CC: A2 3F
-@wavetable_loop:
   LDA #$00                                      ; $E5CE: A9 00
-  STA $4800                                     ; $E5D0: 8D 00 48  Write to sound RAM
+@wavetable_loop:
+  STA NAMCO_SOUND                               ; $E5D0: 8D 00 48  Write to sound RAM
   DEX                                           ; $E5D3: CA
   BPL @wavetable_loop                           ; $E5D4: 10 FA
 
   ; Upload wavetable init data
   LDX #$80                                      ; $E5D6: A2 80
-  LDA #$30                                      ; $E5DD: BD A6 E6
-  STX NAMCO_CTRL                                ; $E5E0  Set auto-increment address
-  STA $4800                                     ; $E5E3
+  STX NAMCO_CTRL                                ; $E5D8: 8E 00 F8  Set auto-increment address
+  LDX #$00                                      ; $E5DB: A2 00
 @wt_init_loop:
-  LDA WavetableInitData,X                       ; $E5EA: A9 F0
-  STA $4800                                     ; $E5EC
-  INX                                           ; $E5EF
-  CPX #$20                                      ; $E5F0
-  BCC @wt_init_loop                             ; $E5F2
-  LDX #$64                                      ; $E5F4
-  LDA #$F0                                      ; $E5F6
-  JSR WavetableWriteDelay                       ; $E5F8
-  LDX #$7F                                      ; $E5FB
-  LDA #$30                                      ; $E5FD
-  STX NAMCO_CTRL                                ; $E5FF
-  STA $4800                                     ; $E602
-  RTS                                           ; $E608: 60
+  LDA WavetableInitData,X                       ; $E5DD: BD A6 E6
+  STA NAMCO_SOUND                               ; $E5E0: 8D 00 48
+  INX                                           ; $E5E3: E8
+  CPX #$20                                      ; $E5E4: E0 20
+  BCC @wt_init_loop                             ; $E5E6: 90 F5
+  LDX #$64                                      ; $E5E8: A2 64
+  LDA #$F0                                      ; $E5EA: A9 F0
+  JSR WavetableWriteDelay                       ; $E5EC: 20 FA E5
+  LDX #$7F                                      ; $E5EF: A2 7F
+  LDA #$30                                      ; $E5F1: A9 30
+WavetableWriteEntry:
+  STX NAMCO_CTRL                                ; $E5F3: 8E 00 F8
+  STA NAMCO_SOUND                               ; $E5F6: 8D 00 48
+  RTS                                           ; $E5F9: 60
 .endproc
 
 ;===============================================================================
@@ -912,79 +904,87 @@ sound_ram_ptr  = $07F2
 ;===============================================================================
 .proc WavetableWriteDelay
   PHA                                           ; $E5FA: 48
-  TXA                                           ; $E5FB
-  JSR SoundNotePlayer_8                         ; $E5FC: 20 F3 E5  Delay sub-entry
+@loop:
+  PLA                                           ; $E5FB: 68
+  JSR WavetableWriteEntry                       ; $E5FC: 20 F3 E5  Delay sub-entry ($E5F3)
   PHA                                           ; $E5FF: 48
   TXA                                           ; $E600: 8A
   CLC                                           ; $E601: 18
   ADC #$08                                      ; $E602: 69 08
   TAX                                           ; $E604: AA
-  BPL WavetableWriteDelay_done                  ; $E605: 10 F4
+  BPL @loop                                     ; $E605: 10 F4
   PLA                                           ; $E607: 68
   RTS                                           ; $E608: 60
-WavetableWriteDelay_done:
-  PLA                                           ; $E609
 .endproc
 
 ;===============================================================================
 ; $E609: Sound Note Player
-; Reads note data from banked ROM, writes to $0700-X RAM
+; Reads 4-byte note entry from $8000+A*4 in banked ROM.
+; Validates channel, copies entry bytes 1-3 to $0701-$0703+X,
+; stores (byte3+$40) low ptr at $0703+X and $00 high ptr at $0700+X.
 ;===============================================================================
 .proc SoundNotePlayer
 note_ptr_lo    = $F0
 note_ptr_hi    = $F1
-sound_temp    = $F2
+sound_channel_ram = $07F6                       ; RAM copy of Namco sound channel
 
-  LDY #$22                                      ; $E609: A0 22
-  JSR WindowDisplaySetup                        ; $E60B: 20 5F F2
-  LDY #$00                                      ; $E60E: A0 00
-  STY $F1                                       ; $E610: 8C F1 00
-  LDA $F0                                       ; $E613
-  ASL $F1                                       ; $E615
-  ASL $F1                                       ; $E617: 0A
-  CLC                                           ; $E61B: 18
-  ADC #$00                                      ; $E61C: 69 00
-  STA $F0                                       ; $E61E: 8D F0 00
-  LDA #$80                                      ; $E621: A9 80
-  ADC $F1                                       ; $E623: 6D F1 00
-  STA $F1                                       ; $E626: 8D F1 00
-  TXA                                           ; $E629: 8A
-  PHA                                           ; $E62A: 48
-  LDA ($F0),Y                                   ; $E62B: B1 F0
-  TAX                                           ; $E62D: AA
-  LDA $0700,X                                   ; $E62E: BD 00 07
-  CMP #$FF                                      ; $E631: C9 FF
-  BEQ SoundNotePlayer_done                      ; $E633: F0 14
-  LDA $0701,X                                   ; $E635: BD 01 07
-  CMP #$04                                      ; $E638: C9 04
-  BCS SoundNotePlayer_done                      ; $E63A: B0 0D
-  TAY                                           ; $E63C: A8
-  LDA SoundChannelTable,Y                       ; $E63D: B9 67 E6
-  STA $F2                                       ; $E643: 8D F6 07
-  LDA $0702,X                                   ; $E64B: B1 F0
-  STA NAMCO_CTRL                                ; $E64D: 9D 01 07
-  LDA $0703,X                                   ; $E651: B1 F0
-  STA $4800                                     ; $E653: 9D 02 07
-  LDA $0704,X                                   ; $E657: B1 F0
-  STA $4800                                     ; $E65C: 9D 03 07
-  LDA $0705,X                                   ; $E65F: A9 00
-  STA $4800                                     ; $E661: 9D 00 07
-SoundNotePlayer_done:
-  PLA                                           ; $E664: 68
+  LDY #$22                                      ; $E609: A0 22           ; window param for display setup
+  JSR WindowDisplaySetup                        ; $E60B: 20 5F F2        ; prepare display/window context
+  LDY #$00                                      ; $E60E: A0 00           ; Y=0 for indirect indexed access
+  STY note_ptr_hi                               ; $E610: 8C F1 00        ; clear high byte of pointer
+  ASL A                                         ; $E613: 0A              ; A = entry_index * 2 (shift 1)
+  ROL note_ptr_hi                               ; $E614: 2E F1 00        ; rotate carry into high byte
+  ASL A                                         ; $E617: 0A              ; A = entry_index * 4 (shift 2)
+  ROL note_ptr_hi                               ; $E618: 2E F1 00        ; rotate carry into high byte
+  CLC                                           ; $E61B: 18              ; prepare 16-bit add
+  ADC #$00                                      ; $E61C: 69 00           ; add leftover carry to low byte
+  STA note_ptr_lo                               ; $E61E: 8D F0 00        ; $F0 = low byte of (index*4)
+  LDA #$80                                      ; $E621: A9 80           ; base address $8000 (PRG_SLOT0)
+  ADC note_ptr_hi                               ; $E623: 6D F1 00        ; $80 + high byte of (index*4)
+  STA note_ptr_hi                               ; $E626: 8D F1 00        ; $F1 = high byte → ptr = $8000+A*4
+  TXA                                           ; $E629: 8A              ; save X (slot index in $0700)
+  PHA                                           ; $E62A: 48              ; push X to stack
+  LDA (note_ptr_lo),Y                           ; $E62B: B1 F0           ; read entry byte 0 (Y=0)
+  TAX                                           ; $E62D: AA              ; X = entry byte 0 (lookup index)
+  LDA $0700,X                                   ; $E62E: BD 00 07        ; load stored ptr high from slot
+  CMP #$FF                                      ; $E631: C9 FF           ; $FF = end-of-sequence sentinel
+  BEQ SoundNotePlayer_done                      ; $E633: F0 14           ; if sentinel → skip channel setup
+  LDA $0701,X                                   ; $E635: BD 01 07        ; load channel index from slot
+  CMP #$04                                      ; $E638: C9 04           ; must be valid channel (0-3)
+  BCS SoundNotePlayer_done                      ; $E63A: B0 0D           ; if ≥ 4 → skip channel setup
+  TAY                                           ; $E63C: A8              ; Y = sound channel index (0-3)
+  LDA SoundChannelTable,Y                       ; $E63D: B9 67 E6        ; lookup Namco channel bits
+  AND sound_channel_ram                         ; $E640: 2D F6 07        ; mask with current channel RAM
+  STA sound_channel_ram                         ; $E643: 8D F6 07        ; save masked channel to RAM
+  STA APU_SND_CHN                               ; $E646: 8D 15 40        ; write to APU_SND_CHN (channel enable)
+SoundNotePlayer_done:                                                   ; entry[0]=$FF → skip to LDY
+  LDY #$01                                      ; $E649: A0 01           ; Y=1: start reading entry byte 1
+  LDA (note_ptr_lo),Y                           ; $E64B: B1 F0           ; read entry byte 1
+  STA $0701,X                                   ; $E64D: 9D 01 07        ; store to slot byte 1
+  INY                                           ; $E650: C8              ; Y=2
+  LDA (note_ptr_lo),Y                           ; $E651: B1 F0           ; read entry byte 2
+  STA $0702,X                                   ; $E653: 9D 02 07        ; store to slot byte 2
+  INY                                           ; $E656: C8              ; Y=3
+  LDA (note_ptr_lo),Y                           ; $E657: B1 F0           ; read entry byte 3
+  CLC                                           ; $E659: 18              ; prepare addition
+  ADC #$40                                      ; $E65A: 69 40           ; A = byte3 + $40 (low ptr byte)
+  STA $0703,X                                   ; $E65C: 9D 03 07        ; store to slot byte 3
+  LDA #$00                                      ; $E65F: A9 00           ; high byte = $00
+  STA $0700,X                                   ; $E661: 9D 00 07        ; store to slot byte 0 (ptr high)
+  PLA                                           ; $E664: 68              ; restore X
   TAX                                           ; $E665: AA
   RTS                                           ; $E666: 60
 .endproc
 
-SoundNotePlayer_8 = SoundNotePlayer + 8
-
 ;===============================================================================
 ; $E667: Sound Channel Table (4 bytes)
+; Maps logical channel index (0-3) to Namco-163 hardware channel
 ;===============================================================================
 SoundChannelTable:
   .byte $0E, $0D, $0B, $07
 
 ;===============================================================================
-; $E66B-$E6A5: Sound Wrapper Functions (8 variants)
+; $E66B-$E6A5: Sound Wrapper Functions (7 variants)
 ; Each plays a sound ID then increments and plays again
 ;===============================================================================
 SoundWrapper0:
@@ -993,193 +993,316 @@ SoundWrapper0:
   PLA                                           ; $E66F: 68
   CLC                                           ; $E670: 18
   ADC #$01                                      ; $E671: 69 01
-  JSR SoundNotePlayer                           ; $E674: 20 09 E6
-  RTS                                           ; $E677
 
 SoundWrapperA:
+  PHA                                           ; $E673: 48
+  JSR SoundNotePlayer                           ; $E674: 20 09 E6
+  PLA                                           ; $E677: 68
+  CLC                                           ; $E678: 18
+  ADC #$01                                      ; $E679: 69 01
+
+SoundWrapperB:
   PHA                                           ; $E67B: 48
   JSR SoundNotePlayer                           ; $E67C: 20 09 E6
   PLA                                           ; $E67F: 68
   CLC                                           ; $E680: 18
   ADC #$01                                      ; $E681: 69 01
-  JSR SoundNotePlayer                           ; $E684: 20 09 E6
-  RTS                                           ; $E687
 
-SoundWrapperB:
+SoundWrapperC:
+  PHA                                           ; $E683: 48
+  JSR SoundNotePlayer                           ; $E684: 20 09 E6
+  PLA                                           ; $E687: 68
+  CLC                                           ; $E688: 18
+  ADC #$01                                      ; $E689: 69 01
+
+SoundWrapperD:
   PHA                                           ; $E68B: 48
   JSR SoundNotePlayer                           ; $E68C: 20 09 E6
   PLA                                           ; $E68F: 68
   CLC                                           ; $E690: 18
   ADC #$01                                      ; $E691: 69 01
-  JSR SoundNotePlayer                           ; $E694: 20 09 E6
-  RTS                                           ; $E697
 
-SoundWrapperC:
+SoundWrapperE:
+  PHA                                           ; $E693: 48
+  JSR SoundNotePlayer                           ; $E694: 20 09 E6
+  PLA                                           ; $E697: 68
+  CLC                                           ; $E698: 18
+  ADC #$01                                      ; $E699: 69 01
+
+SoundWrapperF:
   PHA                                           ; $E69B: 48
   JSR SoundNotePlayer                           ; $E69C: 20 09 E6
   PLA                                           ; $E69F: 68
   CLC                                           ; $E6A0: 18
   ADC #$01                                      ; $E6A1: 69 01
-  JSR SoundNotePlayer                           ; $E6A3
-  RTS                                           ; $E6A6
+  JMP SoundNotePlayer                           ; $E6A3: 4C 09 E6
 
 ;===============================================================================
 ; $E6A6: Wavetable Init Data (32 bytes)
 ;===============================================================================
 WavetableInitData:
-  .byte $00, $00, $00, $00, $00, $00, $00, $00
-  .byte $00, $00, $00, $00, $00, $00, $00, $00
-  .byte $00, $00, $00, $00, $00, $00, $00, $00
-  .byte $00, $00, $00, $00, $00, $00, $00, $00
+  .byte $FF, $00, $00, $00, $00, $00, $00, $00   ; $E6A6: FF 00 00 00 00 00 00 00
+  .byte $FF, $FF, $00, $00, $00, $00, $00, $00   ; $E6AE: FF FF 00 00 00 00 00 00
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF   ; $E6B6: FF FF FF FF FF FF FF FF
+  .byte $FF, $00, $FF, $00, $FF, $00, $FF, $00   ; $E6BE: FF 00 FF 00 FF 00 FF 00
 
 ;===============================================================================
-; $E6C6: Controller Read
-; Reads 8-bit serial data from $4016/$4017
-; Output: $0081 = edge-triggered, $0083 = raw, $0084 = previous
+; $E6C6: Controller Read (Both Pads)
+; Reads 8-bit serial data from $4016/$4017 for both controllers
+; Output: $0081 = pad1 edge, $0083 = pad1 raw, $0084 = pad1 prev
+;         $0082 = pad2 edge, $0085 = pad2 raw, $0086 = pad2 prev
 ;===============================================================================
 .proc ControllerRead
-  LDA #$01                                      ; $E6C6: AD 83 00
-  STA APU_JOY1                                  ; $E6C9: 8D 84 00  Strobe controller
-  STA $0000                                     ; $E6CF: 8D 86 00
-  LSR                                           ; $E6D2
-  STA APU_JOY1                                  ; $E6D3  End strobe
+  LDA addr_pad1_raw                             ; $E6C6: AD 83 00
+  STA addr_pad1_prev                            ; $E6C9: 8D 84 00  Save previous pad1
+  LDA addr_pad2_raw                             ; $E6CC: AD 85 00
+  STA addr_pad2_prev                            ; $E6CF: 8D 86 00  Save previous pad2
+  LDA #$01                                      ; $E6D2: A9 01
+  STA APU_JOY1                                  ; $E6D4: 8D 16 40  Strobe controller (start)
+  LDA #$00                                      ; $E6D7: A9 00
+  STA APU_JOY1                                  ; $E6D9: 8D 16 40  Strobe controller (end)
+  LDX #$07                                      ; $E6DC: A2 07      8 bits per controller
 @read_loop:
-  LDA APU_JOY1                                  ; $E6D6  Read pad 1
-  LSR                                           ; $E6D9
-  ROL $0000                                     ; $E6DA
-  LDA APU_JOY2                                  ; $E6DE: AD 16 40  Read pad 2
-  LSR                                           ; $E6E1
-  ROL $0001                                     ; $E6E2
-  INY                                           ; $E6E4
-  BNE @read_loop                                ; $E6E5
-  LDA $0000                                     ; $E6E7
-  EOR #$FF                                      ; $E6E9
-  STA addr_pad1_raw                             ; $E6EB
-  LDA addr_pad1_prev                            ; $E6ED
-  EOR addr_pad1_raw                             ; $E6EF
-  AND addr_pad1_raw                             ; $E6F1
-  STA addr_pad1_edge                            ; $E6F3  Edge-triggered
+  LDA APU_JOY1                                  ; $E6DE: AD 16 40  Read pad 1 bit
+  AND #$03                                      ; $E6E1: 29 03
+  CMP #$01                                      ; $E6E3: C9 01
+  ROR addr_pad1_raw                             ; $E6E5: 6E 83 00  Shift into pad1 raw
+  LDA APU_JOY2                                  ; $E6E8: AD 17 40  Read pad 2 bit
+  AND #$03                                      ; $E6EB: 29 03
+  CMP #$01                                      ; $E6ED: C9 01
+  ROR addr_pad2_raw                             ; $E6EF: 6E 85 00  Shift into pad2 raw
+  DEX                                           ; $E6F2: CA
+  BPL @read_loop                                ; $E6F3: 10 E9      Loop 8 times
   LDA addr_pad1_raw                             ; $E6F5: AD 83 00
-  STA addr_pad1_prev                            ; $E6FE: 8D 81 00
-  RTS                                           ; $E701
+  EOR addr_pad1_prev                            ; $E6F8: 4D 84 00
+  AND addr_pad1_raw                             ; $E6FB: 2D 83 00
+  STA addr_pad1_edge                            ; $E6FE: 8D 81 00  Pad 1 edge-triggered
+  LDA addr_pad2_raw                             ; $E701: AD 85 00
+  EOR addr_pad2_prev                            ; $E704: 4D 86 00
+  AND addr_pad2_raw                             ; $E707: 2D 85 00
+  STA addr_pad2_edge                            ; $E70A: 8D 82 00  Pad 2 edge-triggered
+  RTS                                           ; $E70D: 60
 .endproc
 
 ;===============================================================================
 ; $E70E: Palette Upload
-; Uploads $0100-$011F to PPU $3F00
+; Uploads palette data from $0100-$011F to PPU $3F00
 ;===============================================================================
 .proc PaletteUpload
-  LDA $2002                                     ; $E70E: AD 8B 00  Read PPU status (reset latch)
-  LDA #$3F                                      ; $E716: AD 02 20
-  STA PPU_ADDR                                  ; $E719
-  LDA #$00                                      ; $E71C
-  STA PPU_ADDR                                  ; $E720: 8D 06 20  PPU addr = $3F00
-  LDX #$00                                      ; $E723
+  LDA addr_ppu_ctrl_ram                         ; $E70E: AD 8B 00  Load PPU ctrl mirror
+  AND #$FB                                      ; $E711: 29 FB     Clear VRAM inc bit (set +1)
+  STA PPU_CTRL                                  ; $E713: 8D 00 20  Apply to PPU
+  LDA PPU_STATUS                                ; $E716: AD 02 20  Reset PPU address latch
+  LDY #$00                                      ; $E719: A0 00
+  STY $007D                                     ; $E71B: 8C 7D 00
+  LDA #$3F                                      ; $E71E: A9 3F
+  STA PPU_ADDR                                  ; $E720: 8D 06 20  PPU addr high = $3F
+  STY PPU_ADDR                                  ; $E723: 8C 06 20  PPU addr low = $00
 @upload_loop:
-  LDA $0100,X                                   ; $E725
-  STA PPU_DATA                                  ; $E728
-  INX                                           ; $E72B
-  CPX #$20                                      ; $E72C  32 bytes
-  BNE @upload_loop                              ; $E72E
-  RTS                                           ; $E730
+  LDA $0100,Y                                   ; $E726: B9 00 01
+  STA PPU_DATA                                  ; $E729: 8D 07 20
+  LDA $0101,Y                                   ; $E72C: B9 01 01
+  STA PPU_DATA                                  ; $E72F: 8D 07 20
+  INY                                           ; $E732: C8
+  INY                                           ; $E733: C8
+  CPY #$20                                      ; $E734: C0 20     32 bytes total
+  BCC @upload_loop                              ; $E736: 90 EE
+  LDA #$3F                                      ; $E738: A9 3F
+  STA PPU_ADDR                                  ; $E73A: 8D 06 20  Reset PPU addr
+  LDA #$00                                      ; $E73D: A9 00
+  STA PPU_ADDR                                  ; $E73F: 8D 06 20  → $0000
+  STA PPU_ADDR                                  ; $E742: 8D 06 20
+  STA PPU_ADDR                                  ; $E745: 8D 06 20
+  RTS                                           ; $E748: 60
 .endproc
 
 ;===============================================================================
-; $E749: PPU Mask Helper
+; $E749/$E74D: PPU Mask Helpers
+; $E749 entry: enable rendering (mask=$1E)
+; $E74D entry: disable rendering (mask=$00)
 ;===============================================================================
-.proc PpuMaskHelper
+PpuMaskEnable:
   LDA #$1E                                      ; $E749: A9 1E
-  STA addr_ppu_mask_ram                         ; $E74F: 8D 8C 00
-  STA PPU_MASK                                  ; $E752
-  RTS                                           ; $E755
-.endproc
+  BNE :+                                        ; $E74B: D0 02     (always taken)
+PpuMaskDisable:
+  LDA #$00                                      ; $E74D: A9 00
+: STA addr_ppu_mask_ram                         ; $E74F: 8D 8C 00
+  RTS                                           ; $E752: 60
 
 ;===============================================================================
-; $E753: PPU Ctrl/NMI Helpers
+; $E753/$E768: PPU Ctrl NMI Helpers
+; $E753 entry: enable NMI (set bit 7 of PPU_CTRL)
+; $E768 entry: disable NMI (clear bit 7 of PPU_CTRL)
 ;===============================================================================
-.proc PpuCtrlNmiHelpers
-vblank_flag    = $008A
-
-  LDA PPU_STATUS                                ; $E753: AD 02 20  Read PPU status
-  BPL @no_vblank                                ; $E756
-  LDA #$01                                      ; $E75E: AD 8B 00
-  STA vblank_flag                               ; $E763: 8D 8B 00
-@no_vblank:
+NmiEnable:
+  LDA PPU_STATUS                                ; $E753: AD 02 20  Reset PPU latch
+  LDY #$00                                      ; $E756: A0 00
+  STY $007B                                     ; $E758: 8C 7B 00
+  STY $007E                                     ; $E75B: 8C 7E 00
+  LDA addr_ppu_ctrl_ram                         ; $E75E: AD 8B 00
+  ORA #$80                                      ; $E761: 09 80     Set NMI enable bit
+  STA addr_ppu_ctrl_ram                         ; $E763: 8D 8B 00
+  BNE :+                                        ; $E766: D0 08     (always taken)
+NmiDisable:
   LDA addr_ppu_ctrl_ram                         ; $E768: AD 8B 00
-  ORA #$80                                      ; $E76B  Enable NMI
+  AND #$7F                                      ; $E76B: 29 7F     Clear NMI enable bit
   STA addr_ppu_ctrl_ram                         ; $E76D: 8D 8B 00
-  STA PPU_CTRL                                  ; $E770: 8D 00 20
+: STA PPU_CTRL                                  ; $E770: 8D 00 20
   RTS                                           ; $E773: 60
-.endproc
-
-;===============================================================================
-; $E768: Read PPU Status
-;===============================================================================
-.proc ReadPpuStatus
-  LDA PPU_STATUS                                ; $E768: AD 8B 00
-  RTS                                           ; $E76B
-.endproc
-
-;===============================================================================
-; $E76D: Wait for VBlank
-;===============================================================================
-.proc WaitForVBlank
-@wait:
-  LDA PPU_STATUS                                ; $E76D
-  BPL @wait                                     ; $E770
-  RTS                                           ; $E772
-.endproc
 
 ;===============================================================================
 ; $E774: Nametable Fill Mode 1
-; Fills 3 nametables with value from $02/$03
+; Sets NT CHR banks to CIRAM, fills nametables $2000/$2400/$2800
+; with tile=$01, attr=$00
 ;===============================================================================
 .proc NametableFill1
-fill_lo       = $02
-fill_hi       = $03
+fill_tile     = $02
+fill_attr     = $03
+page_count    = $01
 
-  LDA #$20                                      ; $E774: A9 E0
-  STA fill_hi                                   ; $E776: 8D 00 C0
-  LDA #$00                                      ; $E779: A9 E1
-  STA fill_lo                                   ; $E77B: 8D 00 C8
-@fill_loop:
-  LDA fill_hi                                   ; $E77E: A9 E0
-  STA PPU_ADDR                                  ; $E780: 8D 00 D0
-  LDA fill_lo                                   ; $E783: A9 E1
-  STA PPU_ADDR                                  ; $E785: 8D 00 D8
-  LDA #$AA                                      ; $E788: AD 02 20  Fill value
-  STA PPU_DATA                                  ; $E78D: 85 02
-  INC fill_lo                                   ; $E78F
-  BNE @fill_loop                                ; $E791
-  INC fill_hi                                   ; $E793
-  LDA fill_hi                                   ; $E798: AD 02 20
-  CMP #$24                                      ; $E79B  End at $2400 (3 nametables)
-  BCC @fill_loop                                ; $E79D
-  RTS                                           ; $E79F
+  LDA #$E0                                      ; $E774: A9 E0     NT0 = CIRAM page 0
+  STA $C000                                     ; $E776: 8D 00 C0
+  LDA #$E1                                      ; $E779: A9 E1     NT1 = CIRAM page 1
+  STA $C800                                     ; $E77B: 8D 00 C8
+  LDA #$E0                                      ; $E77E: A9 E0     NT2 = CIRAM page 0
+  STA $D000                                     ; $E780: 8D 00 D0
+  LDA #$E1                                      ; $E783: A9 E1     NT3 = CIRAM page 1
+  STA $D800                                     ; $E785: 8D 00 D8
+  LDA PPU_STATUS                                ; $E788: AD 02 20  Reset PPU latch
+  LDA #$01                                      ; $E78B: A9 01
+  STA fill_tile                                 ; $E78D: 85 02
+  LDA #$00                                      ; $E78F: A9 00
+  STA fill_attr                                 ; $E791: 85 03
+  LDA #$20                                      ; $E793: A9 20     Nametable $2000
+  JSR NametableFillSub                          ; $E795: 20 B5 E7
+  LDA PPU_STATUS                                ; $E798: AD 02 20  Reset PPU latch
+  LDA #$01                                      ; $E79B: A9 01
+  STA fill_tile                                 ; $E79D: 85 02
+  LDA #$00                                      ; $E79F: A9 00
+  STA fill_attr                                 ; $E7A1: 85 03
+  LDA #$24                                      ; $E7A3: A9 24     Nametable $2400
+  JSR NametableFillSub                          ; $E7A5: 20 B5 E7
+  LDA PPU_STATUS                                ; $E7A8: AD 02 20  Reset PPU latch
+  LDA #$01                                      ; $E7AB: A9 01
+  STA fill_tile                                 ; $E7AD: 85 02
+  LDA #$00                                      ; $E7AF: A9 00
+  STA fill_attr                                 ; $E7B1: 85 03
+  LDA #$28                                      ; $E7B3: A9 28     Nametable $2800 (fall through)
+.endproc
+
+;===============================================================================
+; $E7B5: Nametable Fill Subroutine
+; Fills one nametable (1024 bytes) starting at PPU address A:$00
+; Input: A = high byte of PPU address, $02 = tile value, $03 = attr value
+; Writes 960 bytes of tile, 64 bytes of attribute
+;===============================================================================
+.proc NametableFillSub
+fill_tile     = $02
+fill_attr     = $03
+page_count    = $01
+
+  STA PPU_ADDR                                  ; $E7B5: 8D 06 20  PPU addr high
+  LDA #$00                                      ; $E7B8: A9 00
+  STA PPU_ADDR                                  ; $E7BA: 8D 06 20  PPU addr low
+  TAY                                           ; $E7BD: A8        Y = 0
+  LDA #$03                                      ; $E7BE: A9 03
+  STA page_count                                ; $E7C0: 85 01     3 pages = 768 bytes
+  LDA fill_tile                                 ; $E7C2: A5 02
+@tile_loop:
+  STA PPU_DATA                                  ; $E7C4: 8D 07 20
+  DEY                                           ; $E7C7: 88
+  BNE @tile_loop                                ; $E7C8: D0 FA
+  DEC page_count                                ; $E7CA: C6 01
+  BNE @tile_loop                                ; $E7CC: D0 F6
+@tile_extra:
+  STA PPU_DATA                                  ; $E7CE: 8D 07 20  192 more tiles
+  INY                                           ; $E7D1: C8
+  CPY #$C0                                      ; $E7D2: C0 C0
+  BCC @tile_extra                               ; $E7D4: 90 F8
+  LDA fill_attr                                 ; $E7D6: A5 03
+@attr_loop:
+  STA PPU_DATA                                  ; $E7D8: 8D 07 20  64 attr bytes
+  INY                                           ; $E7DB: C8
+  BNE @attr_loop                                ; $E7DC: D0 FA
+  RTS                                           ; $E7DE: 60
 .endproc
 
 ;===============================================================================
 ; $E7DF: Nametable Fill Mode 2
+; Same as Fill1 but with tile=$01, attr=$AA
 ;===============================================================================
 .proc NametableFill2
-  LDA #$AA                                      ; $E7DF: A9 E0
-  STA $02                                       ; $E7E1: 8D 00 C0
-  JSR NametableFill1                            ; $E7E4
-  RTS                                           ; $E7E7
+fill_tile     = $02
+fill_attr     = $03
+
+  LDA #$E0                                      ; $E7DF: A9 E0     NT0 = CIRAM page 0
+  STA $C000                                     ; $E7E1: 8D 00 C0
+  LDA #$E1                                      ; $E7E4: A9 E1     NT1 = CIRAM page 1
+  STA $C800                                     ; $E7E6: 8D 00 C8
+  LDA #$E0                                      ; $E7E9: A9 E0     NT2 = CIRAM page 0
+  STA $D000                                     ; $E7EB: 8D 00 D0
+  LDA #$E1                                      ; $E7EE: A9 E1     NT3 = CIRAM page 1
+  STA $D800                                     ; $E7F0: 8D 00 D8
+  LDA PPU_STATUS                                ; $E7F3: AD 02 20  Reset PPU latch
+  LDA #$01                                      ; $E7F6: A9 01
+  STA fill_tile                                 ; $E7F8: 85 02
+  LDA #$AA                                      ; $E7FA: A9 AA
+  STA fill_attr                                 ; $E7FC: 85 03
+  LDA #$20                                      ; $E7FE: A9 20     Nametable $2000
+  JSR NametableFillSub                          ; $E800: 20 B5 E7
+  LDA PPU_STATUS                                ; $E803: AD 02 20  Reset PPU latch
+  LDA #$01                                      ; $E806: A9 01
+  STA fill_tile                                 ; $E808: 85 02
+  LDA #$AA                                      ; $E80A: A9 AA
+  STA fill_attr                                 ; $E80C: 85 03
+  LDA #$24                                      ; $E80E: A9 24     Nametable $2400
+  JSR NametableFillSub                          ; $E810: 20 B5 E7
+  LDA PPU_STATUS                                ; $E813: AD 02 20  Reset PPU latch
+  LDA #$01                                      ; $E816: A9 01
+  STA fill_tile                                 ; $E818: 85 02
+  LDA #$AA                                      ; $E81A: A9 AA
+  STA fill_attr                                 ; $E81C: 85 03
+  LDA #$28                                      ; $E81E: A9 28     Nametable $2800
+  JMP NametableFillSub                          ; $E820: 4C B5 E7
 .endproc
 
 ;===============================================================================
 ; $E823: Sprite Buffer Init
-; Fills $0200-$02FF with $F0 (off-screen)
+; Two entry points:
+;   $E823 - fills $0204-$02FF with $F0 (preserves sprite 0)
+;   $E825 - fills $0200-$02FF with $F0 (all sprites off-screen)
 ;===============================================================================
 .proc SpriteBufferInit
-  LDX #$00                                      ; $E823
+  LDY #$04                                      ; $E823: A0 04
+SpriteBufferInitAll:
+  LDY #$00                                      ; $E825: A0 00
   LDA #$F0                                      ; $E827: A9 F0
 @fill_loop:
-  STA $0200,X                                   ; $E829: 99 00 02
-  INX                                           ; $E82C
+  STA $0200,Y                                   ; $E829: 99 00 02
+  INY                                           ; $E82C: C8
   BNE @fill_loop                                ; $E82D: D0 FA
   RTS                                           ; $E82F: 60
+.endproc
+
+;===============================================================================
+; $E830: Sprite Clear From Index
+; Clears sprites from index in $007C onward (4 bytes per sprite)
+; If $007C == $FF, does nothing
+;===============================================================================
+.proc SpriteClearFromIndex
+  LDX $7C                                       ; $E830: AE 7C 00
+  CPX #$FF                                      ; $E833: E0 FF
+  BEQ @done                                     ; $E835: F0 0B
+@clear_loop:
+  LDA #$F0                                      ; $E837: A9 F0
+  STA $0200,X                                   ; $E839: 9D 00 02
+  INX                                           ; $E83C: E8
+  INX                                           ; $E83D: E8
+  INX                                           ; $E83E: E8
+  INX                                           ; $E83F: E8
+  BNE @clear_loop                               ; $E840: D0 F5
+@done:
+  RTS                                           ; $E842: 60
 .endproc
 
 ;===============================================================================

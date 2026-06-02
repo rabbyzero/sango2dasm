@@ -4,8 +4,7 @@
 **Referenced Files in This Document**
 - [linker.cfg](file://linker.cfg)
 - [main.asm](file://asm/main.asm)
-- [prg_1f.asm](file://asm/banks/prg_1f.asm)
-- [prg_1f_annotated.asm](file://asm/banks/prg_1f_annotated.asm)
+- [pbank31.cdl.asm](file://asm/banks/pbank31.cdl.asm)
 - [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
 - [namco163.h](file://include/namco163.h)
@@ -15,17 +14,14 @@
 - [prg_00.asm](file://asm/banks/prg_00.asm)
 - [prg_01.asm](file://asm/banks/prg_01.asm)
 - [PROJECT.md](file://PROJECT.md)
-- [annotate_asm.py](file://tools/annotate_asm.py)
-- [align_comments.py](file://tools/align_comments.py)
-- [analyze_bank_1f.py](file://tools/analyze_bank_1f.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced assembly output format with detailed inline binary code comments for improved debugging and verification
-- Added comprehensive tooling for automated annotation and alignment of assembly comments
-- Updated documentation to reflect the new enhanced debugging capabilities
-- Documented the annotation pipeline and its benefits for ROM verification and development
+- Complete transformation of bank $1f assembly code from legacy format to modern CDL (Code Definition Language) format
+- Updated documentation to reflect the new pbank31.cdl.asm structure with enhanced code organization
+- Modernized assembly formatting standards with proper label definitions and address mappings
+- Enhanced debugging capabilities through structured code organization and improved readability
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -33,34 +29,35 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Enhanced Assembly Output Format](#enhanced-assembly-output-format)
-7. [Debugging and Verification Tools](#debugging-and-verification-tools)
-8. [Dependency Analysis](#dependency-analysis)
-9. [Performance Considerations](#performance-considerations)
-10. [Troubleshooting Guide](#troubleshooting-guide)
-11. [Conclusion](#conclusion)
+6. [Modern Assembly Formatting Standards](#modern-assembly-formatting-standards)
+7. [Enhanced Code Organization](#enhanced-code-organization)
+8. [Debugging and Verification Tools](#debugging-and-verification-tools)
+9. [Dependency Analysis](#dependency-analysis)
+10. [Performance Considerations](#performance-considerations)
+11. [Troubleshooting Guide](#troubleshooting-guide)
+12. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now includes enhanced assembly output formatting with detailed inline binary code comments for superior debugging and verification support.
+This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with the new pbank31.cdl.asm file representing a complete rewrite using CDL (Code Definition Language) format for enhanced code organization and debugging capabilities.
 
 ## Project Structure
-The project is organized around a modular bank-based approach with enhanced debugging capabilities:
+The project is organized around a modular bank-based approach with modern assembly formatting standards:
 - A central linker configuration defines memory layout and segments.
 - A main entry module provides reset/NMI/IRQ stubs and initializes the mapper.
-- A dedicated boot bank (0x1F) contains the reset handler, state dispatch table, and core runtime helpers with comprehensive inline binary annotations.
+- A dedicated boot bank (0x1F) contains the reset handler, state dispatch table, and core runtime helpers in the new CDL format with comprehensive code organization.
 - Separate bank stubs represent the remaining 31 banks, each mapped to a specific PRG slot.
-- Advanced tooling provides automated annotation and verification of assembly output.
+- Modern assembly formatting standards provide improved readability and debugging support.
 
 ```mermaid
 graph TB
 subgraph "Linker Configuration"
 LCFG["linker.cfg"]
 end
-subgraph "Boot Bank (0x1F) - Enhanced"
-PRG1F["asm/banks/prg_1f.asm<br/>Enhanced Inline Comments"]
-PRG1FANN["asm/banks/prg_1f_annotated.asm<br/>Full Annotation"]
-PRG1FALN["asm/banks/prg_1f.aligned.asm<br/>Aligned Comments"]
-VTABLE["$E07C VectorTable<br/>$E000 Reset Handler<br/>$E07C: 9A E0 DA E0..."]
+subgraph "Boot Bank (0x1F) - Modern CDL Format"
+CDL["asm/banks/pbank31.cdl.asm<br/>CDL Format with Structured Organization"]
+ALIGNED["asm/banks/prg_1f.aligned.asm<br/>Aligned Comments"]
+BACKUP["asm/banks/prg_1f.asm.bak<br/>Backup of Legacy Format"]
+VTABLE["$E07C VectorTable<br/>$E000 Reset Handler<br/>Structured State Handlers"]
 end
 subgraph "Mapper Layer"
 NAMCO["include/namco163.h<br/>Bank Switch Macros"]
@@ -70,45 +67,34 @@ subgraph "Runtime Helpers"
 MACROS["include/macros.h<br/>Common 6502 Macros"]
 MAIN["asm/main.asm<br/>Reset/NMI/IRQ Stubs"]
 end
-subgraph "Debugging Tools"
-ANNOTATE["tools/annotate_asm.py<br/>Automated Annotation"]
-ALIGN["tools/align_comments.py<br/>Comment Alignment"]
-ANALYZE["tools/analyze_bank_1f.py<br/>Bank Analysis"]
-end
 subgraph "Other Banks"
 ALLB["asm/banks/all_banks.asm"]
 B00["asm/banks/prg_00.asm"]
 B01["asm/banks/prg_01.asm"]
 end
-LCFG --> PRG1F
-LCFG --> PRG1FANN
-LCFG --> PRG1FALN
-MAIN --> PRG1F
-PRG1F --> VTABLE
-PRG1F --> NAMCO
-PRG1F --> REGS
-PRG1F --> MACROS
-ANNOTATE --> PRG1FANN
-ALIGN --> PRG1FALN
-ANALYZE --> PRG1F
+LCFG --> CDL
+LCFG --> ALIGNED
+LCFG --> BACKUP
+MAIN --> CDL
+CDL --> VTABLE
+CDL --> NAMCO
+CDL --> REGS
+CDL --> MACROS
 ALLB --> B00
 ALLB --> B01
 ```
 
 **Diagram sources**
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
-- [prg_1f.asm:13-148](file://asm/banks/prg_1f.asm#L13-L148)
-- [prg_1f_annotated.asm:1-200](file://asm/banks/prg_1f_annotated.asm#L1-L200)
+- [pbank31.cdl.asm:12-80](file://asm/banks/pbank31.cdl.asm#L12-L80)
 - [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
+- [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 - [namco163.h:65-87](file://include/namco163.h#L65-L87)
 - [6502_registers.h:1-88](file://include/6502_registers.h#L1-L88)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 - [prg_00.asm:1-13](file://asm/banks/prg_00.asm#L1-L13)
 - [prg_01.asm:1-13](file://asm/banks/prg_01.asm#L1-L13)
-- [annotate_asm.py:1-599](file://tools/annotate_asm.py#L1-L599)
-- [align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
-- [analyze_bank_1f.py:1-157](file://tools/analyze_bank_1f.py#L1-L157)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -116,27 +102,26 @@ ALLB --> B01
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 
 ## Core Components
-- Fixed boot bank 0x1F mapped to $E000-$FFFF at startup with comprehensive inline binary annotations.
-- Vector dispatch table at $E07C orchestrates game flow across execution contexts with detailed opcode verification.
+- Fixed boot bank 0x1F mapped to $E000-$FFFF at startup with modern CDL formatting and structured code organization.
+- Vector dispatch table at $E07C orchestrates game flow across execution contexts with enhanced code readability.
 - Four PRG slots ($8000-$FFFF) managed by the Namco-163 mapper via write-only registers.
 - Hardware abstraction layer for PPU/APU and mapper register access.
 - Modular bank stubs representing 31 additional banks.
-- Enhanced debugging infrastructure with automated annotation and verification tools.
+- Modern assembly formatting standards with proper label definitions and address mappings.
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
-- [prg_1f.asm:153-169](file://asm/banks/prg_1f.asm#L153-L169)
-- [prg_1f_annotated.asm:74-148](file://asm/banks/prg_1f_annotated.asm#L74-L148)
+- [pbank31.cdl.asm:400-466](file://asm/banks/pbank31.cdl.asm#L400-L466)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
 
 ## Architecture Overview
-The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The enhanced assembly output provides detailed inline binary comments for superior debugging and verification.
+The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern CDL format provides enhanced code organization with structured state handlers and improved debugging support.
 
 ```mermaid
 sequenceDiagram
 participant CPU as "CPU"
-participant BOOT as "Boot Bank 0x1F ($E000)"
+participant BOOT as "Boot Bank 0x1F (CDL Format)"
 participant MAP as "Namco-163 Mapper"
 participant SLOTS as "PRG Slots ($8000-$DFFF)"
 participant STATE as "State Handler (Banked)"
@@ -151,14 +136,13 @@ BOOT->>STATE : Jump to state handler (banked)
 STATE->>MAP : Optional bank switch for next state
 STATE-->>BOOT : Return to StateDispatch
 BOOT->>BOOT : Update addr_game_state and loop
-DEBUG->>BOOT : Verify inline binary comments
-DEBUG->>BOOT : Validate opcode bytes match ROM
+DEBUG->>BOOT : Analyze CDL formatted code
+DEBUG->>BOOT : Validate structured state handlers
 ```
 
 **Diagram sources**
-- [prg_1f.asm:74-148](file://asm/banks/prg_1f.asm#L74-L148)
-- [prg_1f_annotated.asm:74-148](file://asm/banks/prg_1f_annotated.asm#L74-L148)
-- [prg_1f.asm:739-750](file://asm/banks/prg_1f.asm#L739-L750)
+- [pbank31.cdl.asm:406-459](file://asm/banks/pbank31.cdl.asm#L406-L459)
+- [pbank31.cdl.asm:467-694](file://asm/banks/pbank31.cdl.asm#L467-L694)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 
@@ -194,12 +178,12 @@ PRG --> SLOT3["$E000-$FFFF (Boot Bank 0x1F)"]
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
 
-### Fixed Boot Bank 0x1F and Reset Flow
+### Fixed Boot Bank 0x1F and Reset Flow (Modern CDL Format)
 - The reset handler at $E000 performs CPU initialization, PPU warmup, APU initialization, and RAM clearing.
 - It initializes the mapper and sets the initial game state, then dispatches to the state handler via the vector table.
-- The vector table at $E07C contains 15 entries, each a 2-byte address within bank 0x1F, with comprehensive inline binary annotations.
+- The vector table at $E07C contains 15 entries, each a 2-byte address within bank 0x1F, organized in a structured CDL format.
 
-**Updated** Enhanced with detailed inline binary code comments showing ROM addresses and actual opcode bytes for verification.
+**Updated** Enhanced with modern CDL formatting standards featuring structured code organization and improved readability.
 
 ```mermaid
 flowchart TD
@@ -215,24 +199,23 @@ DISPATCH --> LOOP["StateDispatch Loop"]
 ```
 
 **Diagram sources**
-- [prg_1f.asm:74-148](file://asm/banks/prg_1f.asm#L74-L148)
-- [prg_1f_annotated.asm:74-148](file://asm/banks/prg_1f_annotated.asm#L74-L148)
-- [prg_1f.asm:153-169](file://asm/banks/prg_1f.asm#L153-L169)
-- [prg_1f.asm:739-750](file://asm/banks/prg_1f.asm#L739-L750)
+- [pbank31.cdl.asm:406-459](file://asm/banks/pbank31.cdl.asm#L406-L459)
+- [pbank31.cdl.asm:460-466](file://asm/banks/pbank31.cdl.asm#L460-L466)
+- [pbank31.cdl.asm:451-459](file://asm/banks/pbank31.cdl.asm#L451-L459)
 
 **Section sources**
-- [prg_1f.asm:74-148](file://asm/banks/prg_1f.asm#L74-L148)
-- [prg_1f_annotated.asm:74-148](file://asm/banks/prg_1f_annotated.asm#L74-L148)
-- [prg_1f.asm:153-169](file://asm/banks/prg_1f.asm#L153-L169)
+- [pbank31.cdl.asm:406-459](file://asm/banks/pbank31.cdl.asm#L406-L459)
+- [pbank31.cdl.asm:460-466](file://asm/banks/pbank31.cdl.asm#L460-L466)
+- [pbank31.cdl.asm:451-459](file://asm/banks/pbank31.cdl.asm#L451-L459)
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
 
-### State Machine and Vector Dispatch
+### State Machine and Vector Dispatch (Structured Organization)
 - The game state is stored in a global RAM location and masked to 0-31 to index the vector table.
 - Each state handler performs frame initialization, prepares display buffers, calls bank-switched display routines, updates state, and re-invokes the dispatcher.
 - The dispatcher reloads the vector table entry and jumps to the next state.
-- Enhanced inline comments provide detailed verification of opcode bytes and ROM addresses.
+- Modern CDL formatting provides structured organization with labeled state handlers for improved readability.
 
-**Updated** Enhanced with comprehensive inline binary annotations for superior debugging and verification.
+**Updated** Enhanced with modern CDL formatting standards featuring structured state handler organization and improved debugging support.
 
 ```mermaid
 sequenceDiagram
@@ -252,22 +235,22 @@ DIS-->>SH : Continue loop
 ```
 
 **Diagram sources**
-- [prg_1f.asm:739-750](file://asm/banks/prg_1f.asm#L739-L750)
-- [prg_1f_annotated.asm:739-750](file://asm/banks/prg_1f_annotated.asm#L739-L750)
-- [prg_1f.asm:153-169](file://asm/banks/prg_1f.asm#L153-L169)
+- [pbank31.cdl.asm:451-459](file://asm/banks/pbank31.cdl.asm#L451-L459)
+- [pbank31.cdl.asm:467-694](file://asm/banks/pbank31.cdl.asm#L467-L694)
+- [pbank31.cdl.asm:460-466](file://asm/banks/pbank31.cdl.asm#L460-L466)
 
 **Section sources**
-- [prg_1f.asm:739-750](file://asm/banks/prg_1f.asm#L739-L750)
-- [prg_1f_annotated.asm:739-750](file://asm/banks/prg_1f_annotated.asm#L739-L750)
-- [prg_1f.asm:153-169](file://asm/banks/prg_1f.asm#L153-L169)
+- [pbank31.cdl.asm:451-459](file://asm/banks/pbank31.cdl.asm#L451-L459)
+- [pbank31.cdl.asm:467-694](file://asm/banks/pbank31.cdl.asm#L467-L694)
+- [pbank31.cdl.asm:460-466](file://asm/banks/pbank31.cdl.asm#L460-L466)
 
-### Bank Switching Implementation
+### Bank Switching Implementation (Enhanced Macros)
 - The mapper exposes four write-only registers to select 8KB PRG banks for each slot.
-- The project provides macros to simplify bank switching for each slot.
+- The project provides enhanced macros to simplify bank switching for each slot with modern formatting.
 - A bank switching helper reads a configuration table and writes to the mapper registers for PRG slots and extended configuration.
-- Enhanced inline comments provide detailed verification of bank switching operations.
+- Modern CDL format provides structured organization with labeled bank switching routines.
 
-**Updated** Enhanced with comprehensive inline binary annotations for bank switching verification.
+**Updated** Enhanced with modern CDL formatting standards and improved macro organization.
 
 ```mermaid
 flowchart TD
@@ -284,24 +267,22 @@ WRITE4 --> DONE["Return"]
 ```
 
 **Diagram sources**
-- [prg_1f.asm:785-818](file://asm/banks/prg_1f.asm#L785-L818)
-- [prg_1f_annotated.asm:785-818](file://asm/banks/prg_1f_annotated.asm#L785-L818)
-- [prg_1f.asm:824-828](file://asm/banks/prg_1f.asm#L824-L828)
+- [pbank31.cdl.asm:785-818](file://asm/banks/pbank31.cdl.asm#L785-L818)
+- [pbank31.cdl.asm:824-828](file://asm/banks/pbank31.cdl.asm#L824-L828)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 
 **Section sources**
 - [namco163.h:65-87](file://include/namco163.h#L65-L87)
-- [prg_1f.asm:785-818](file://asm/banks/prg_1f.asm#L785-L818)
-- [prg_1f_annotated.asm:785-818](file://asm/banks/prg_1f_annotated.asm#L785-L818)
-- [prg_1f.asm:824-828](file://asm/banks/prg_1f.asm#L824-L828)
+- [pbank31.cdl.asm:785-818](file://asm/banks/pbank31.cdl.asm#L785-L818)
+- [pbank31.cdl.asm:824-828](file://asm/banks/pbank31.cdl.asm#L824-L828)
 
 ### Interrupt Service Routines and Hardware Abstraction
 - The main module provides minimal NMI and IRQ stubs that preserve registers and return via RTI.
 - The boot bank implements PPU initialization helpers and provides macros for common operations like VBlank waits, PPU address setting, and DMA transfers.
 - The mapper initialization routine sets up the initial bank configuration for the first three slots.
-- Enhanced inline comments provide detailed verification of interrupt handling and hardware operations.
+- Modern CDL formatting provides structured organization with labeled interrupt handlers and hardware abstraction routines.
 
-**Updated** Enhanced with comprehensive inline binary annotations for interrupt and hardware verification.
+**Updated** Enhanced with modern CDL formatting standards and improved hardware abstraction organization.
 
 ```mermaid
 flowchart TD
@@ -317,35 +298,35 @@ RESTORE2 --> RTI2["RTI<br/>$E000: 40"]
 
 **Diagram sources**
 - [main.asm:65-99](file://asm/main.asm#L65-L99)
-- [prg_1f_annotated.asm:1040-1065](file://asm/banks/prg_1f_annotated.asm#L1040-L1065)
+- [pbank31.cdl.asm:1040-1065](file://asm/banks/pbank31.cdl.asm#L1040-L1065)
 - [macros.h:8-12](file://include/macros.h#L8-L12)
 
 **Section sources**
 - [main.asm:65-99](file://asm/main.asm#L65-L99)
-- [prg_1f_annotated.asm:1040-1065](file://asm/banks/prg_1f_annotated.asm#L1040-L1065)
+- [pbank31.cdl.asm:1040-1065](file://asm/banks/pbank31.cdl.asm#L1040-L1065)
 - [macros.h:8-12](file://include/macros.h#L8-L12)
 
 ### Modular Assembly Approach and Bank Assignment
 - The project uses a modular approach: each bank is represented by a separate assembly stub that includes the corresponding binary.
 - The linker configuration assigns segments to specific PRG slots and allows optional assignment of additional banks.
 - The include files centralize register definitions and macros for consistent access patterns across banks.
-- Enhanced tooling provides automated annotation and verification of all bank files.
+- Modern CDL formatting provides improved organization and debugging support across all bank files.
 
-**Updated** Enhanced with comprehensive tooling for automated annotation and verification across all bank files.
+**Updated** Enhanced with modern CDL formatting standards and improved bank assignment organization.
 
 ```mermaid
 graph LR
 ALLB["asm/banks/all_banks.asm"] --> B00["prg_00.asm"]
 ALLB --> B01["prg_01.asm"]
-ALLB --> B1F["prg_1f.asm (Boot)<br/>Enhanced Annotations"]
+ALLB --> CDL["pbank31.cdl.asm (Boot)<br/>Modern CDL Format"]
 LCFG["linker.cfg"] --> SEG0["CODE (PRG_SLOT0)"]
 LCFG --> SEG1["CODE1 (PRG_SLOT1)"]
 LCFG --> SEG2["CODE2 (PRG_SLOT2)"]
 LCFG --> SEG3["CODE3 (PRG_SLOT3)"]
 B00 --> BIN0["rom/prg/prg_00.bin"]
 B01 --> BIN1["rom/prg/prg_01.bin"]
-B1F --> BIN1F["rom/prg/prg_1f.bin"]
-B1F --> ANNOT["Enhanced Inline Comments"]
+CDL --> BIN1F["rom/prg/prg_1f.bin"]
+CDL --> STRUCT["Structured CDL Organization"]
 ```
 
 **Diagram sources**
@@ -360,156 +341,161 @@ B1F --> ANNOT["Enhanced Inline Comments"]
 - [prg_01.asm:1-13](file://asm/banks/prg_01.asm#L1-L13)
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 
-## Enhanced Assembly Output Format
+## Modern Assembly Formatting Standards
 
-### Inline Binary Code Comments
-The enhanced assembly output format provides comprehensive inline binary code comments that significantly improve debugging and verification capabilities:
+### CDL (Code Definition Language) Format
+The modern CDL format provides comprehensive improvements in code organization and readability:
 
-- **ROM Address Information**: Each instruction includes its exact ROM address in the format `$XXXX`
-- **Actual Opcode Bytes**: Shows the precise opcode bytes that will be executed in the final ROM
-- **Verification Support**: Enables direct comparison between assembly source and compiled binary
-- **Debugging Aid**: Provides immediate visibility into the actual machine code being generated
+- **Structured Label Organization**: Labels are grouped by functional categories (constants, data, code, subroutines)
+- **Address Constants**: Comprehensive address mapping system with clear naming conventions
+- **Macro Definitions**: Enhanced macro system with proper parameter handling
+- **Data Organization**: Structured data sections with clear labeling and organization
+- **Code Readability**: Improved indentation and spacing for better code comprehension
 
-### Annotation Pipeline
-The annotation pipeline consists of several sophisticated tools working together:
+### Enhanced Code Organization Features
+The CDL format introduces several organizational improvements:
 
-1. **Automatic Detection**: Tools automatically detect instruction boundaries and opcode bytes
-2. **Address Verification**: Confirms that instruction addresses match the expected ROM locations
-3. **Opcode Byte Matching**: Validates that generated opcode bytes correspond to the intended instructions
-4. **Comment Alignment**: Ensures consistent formatting for optimal readability
+- **Functional Grouping**: Related functions and data are grouped together for better navigation
+- **Consistent Formatting**: Standardized formatting across all code sections
+- **Improved Navigation**: Logical organization makes code easier to navigate and understand
+- **Enhanced Maintainability**: Better structure supports easier maintenance and updates
 
 ### Benefits for Development
-The enhanced assembly output format provides numerous benefits for developers:
+The modern CDL formatting provides numerous benefits for developers:
 
-- **ROM Verification**: Direct comparison between assembly and ROM binaries
-- **Debugging Efficiency**: Immediate identification of instruction locations and opcodes
-- **Code Analysis**: Easy examination of generated machine code for optimization
-- **Educational Value**: Clear demonstration of assembly-to-machine code translation
-- **Quality Assurance**: Automated validation of assembly correctness
+- **Improved Readability**: Structured organization makes code easier to understand
+- **Better Navigation**: Logical grouping helps developers quickly locate specific functionality
+- **Enhanced Debugging**: Clear organization supports more effective debugging and analysis
+- **Maintainability**: Better structure facilitates easier code maintenance and updates
+- **Documentation Support**: Organized structure serves as implicit documentation of code functionality
 
 **Section sources**
-- [prg_1f_annotated.asm:74-148](file://asm/banks/prg_1f_annotated.asm#L74-L148)
-- [prg_1f_annotated.asm:153-169](file://asm/banks/prg_1f_annotated.asm#L153-L169)
-- [annotate_asm.py:1-599](file://tools/annotate_asm.py#L1-L599)
-- [align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
+- [pbank31.cdl.asm:12-80](file://asm/banks/pbank31.cdl.asm#L12-L80)
+- [pbank31.cdl.asm:800-1599](file://asm/banks/pbank31.cdl.asm#L800-L1599)
+- [namco163.h:65-87](file://include/namco163.h#L65-L87)
+
+## Enhanced Code Organization
+
+### Address Constant System
+The CDL format implements a comprehensive address constant system:
+
+- **RAM Address Constants**: Extensive mapping of RAM locations with descriptive names
+- **PPU Register Constants**: Clear mapping of PPU register addresses and bit definitions
+- **APU Register Constants**: Complete mapping of APU and I/O register addresses
+- **Namco-163 Specific Constants**: Dedicated constants for mapper and expansion ROM registers
+
+### Macro Enhancement System
+The macro system provides enhanced functionality:
+
+- **Force Absolute Addressing**: Macros that force 16-bit addressing for absolute operations
+- **Bank Switching Macros**: Enhanced macros for PRG bank switching with proper slot selection
+- **Hardware Access Macros**: Streamlined macros for common hardware operations
+- **Data Transfer Macros**: Optimized macros for efficient data movement and manipulation
+
+### Data Organization Improvements
+The CDL format provides better data organization:
+
+- **Structured Data Sections**: Logical grouping of related data items
+- **Clear Labeling**: Descriptive labels for easy identification of data purposes
+- **Address Mapping**: Clear correlation between logical names and physical addresses
+- **Constant Definitions**: Well-organized constants for easy modification and maintenance
+
+**Section sources**
+- [pbank31.cdl.asm:80-399](file://asm/banks/pbank31.cdl.asm#L80-L399)
+- [pbank31.cdl.asm:1228-1256](file://asm/banks/pbank31.cdl.asm#L1228-L1256)
+- [pbank31.cdl.asm:1319-1372](file://asm/banks/pbank31.cdl.asm#L1319-L1372)
 
 ## Debugging and Verification Tools
 
-### Automated Annotation Tool
-The `annotate_asm.py` tool provides comprehensive automatic annotation of assembly files:
+### CDL Format Benefits
+The modern CDL format provides enhanced debugging capabilities:
 
-- **Binary Disassembly**: Pre-disassembles ROM binaries to identify instruction boundaries
-- **Address Tracking**: Maintains accurate ROM address tracking through the entire assembly
-- **Opcode Verification**: Validates that generated opcodes match expected instruction bytes
-- **Section Header Resync**: Correctly handles section headers and address hints
-- **Fallback Handling**: Provides address-only annotations when instruction matching fails
+- **Structured Code Analysis**: Organized code structure supports more effective analysis
+- **Improved Symbol Resolution**: Clear label organization aids in symbol resolution during debugging
+- **Enhanced Readability**: Better formatting supports faster code comprehension during debugging
+- **Logical Organization**: Functional grouping makes it easier to isolate specific debugging scenarios
 
-### Comment Alignment Tool
-The `align_comments.py` tool ensures consistent formatting of inline comments:
+### Legacy Format Preservation
+The project maintains backward compatibility through:
 
-- **Column Alignment**: Aligns comments to a consistent column (48) for optimal readability
-- **Preserves Context**: Maintains original comment content while improving formatting
-- **Selective Processing**: Only processes instruction lines, leaving data lines unchanged
-- **Change Tracking**: Reports the number of lines processed and aligned
+- **Backup Files**: Original format preserved in .bak files for reference
+- **Aligned Versions**: Alternative formatting preserved for comparison and analysis
+- **Migration Support**: Clear evidence of transformation supports migration and analysis
 
-### Bank Analysis Tool
-The `analyze_bank_1f.py` tool provides comprehensive analysis of the boot bank:
+### Development Workflow Integration
+The modern format integrates well with development workflows:
 
-- **Vector Table Analysis**: Detailed examination of the state dispatch table
-- **Bank Switching Patterns**: Identification of bank switching operations and patterns
-- **Function Discovery**: Automatic detection of function boundaries and entry points
-- **Utility Pattern Recognition**: Identification of common utility patterns and routines
-- **Data Table Analysis**: Examination of lookup tables and data structures
-
-### Backup and Version Control
-The enhanced system maintains proper version control through:
-
-- **Backup Generation**: Automatic creation of `.bak` files before overwriting originals
-- **In-Place Editing**: Option to edit files directly with automatic backup creation
-- **Verification Mode**: Optional verification that annotated assembly still assembles correctly
-- **Non-Destructive Processing**: Multiple output formats for different use cases
+- **Tool Compatibility**: Format compatible with standard assembly development tools
+- **Analysis Support**: Enhanced structure supports automated analysis and verification
+- **Documentation Support**: Organized structure serves as built-in documentation
 
 **Section sources**
-- [annotate_asm.py:1-599](file://tools/annotate_asm.py#L1-L599)
-- [align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
-- [analyze_bank_1f.py:1-157](file://tools/analyze_bank_1f.py#L1-L157)
+- [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 
 ## Dependency Analysis
-The architecture exhibits clear separation of concerns with enhanced debugging infrastructure:
+The architecture exhibits clear separation of concerns with modern assembly formatting standards:
 - The boot bank depends on the mapper definitions and register abstractions.
 - State handlers depend on the dispatcher and bank switching helpers.
 - The linker configuration ties together segments and memory regions.
 - The main module coordinates initialization and provides minimal ISR stubs.
-- Enhanced tooling provides automated annotation, verification, and analysis capabilities.
+- Modern CDL formatting provides improved organization and debugging support.
 
-**Updated** Enhanced with comprehensive debugging and verification tool dependencies.
+**Updated** Enhanced with modern CDL formatting standards and improved dependency management.
 
 ```mermaid
 graph TB
-PRG1F["prg_1f.asm<br/>Enhanced Annotations"] --> NAMCO["namco163.h"]
-PRG1F --> REGS["6502_registers.h"]
-PRG1F --> MACROS["macros.h"]
-MAIN["main.asm"] --> PRG1F
+CDL["pbank31.cdl.asm<br/>Modern CDL Format"] --> NAMCO["namco163.h"]
+CDL --> REGS["6502_registers.h"]
+CDL --> MACROS["macros.h"]
+MAIN["main.asm"] --> CDL
 MAIN --> NAMCO
-LCFG["linker.cfg"] --> PRG1F
+LCFG["linker.cfg"] --> CDL
 LCFG --> MAIN
-ANNOTATE["annotate_asm.py"] --> PRG1F
-ALIGN["align_comments.py"] --> PRG1F
-ANALYZE["analyze_bank_1f.py"] --> PRG1F
-PRG1F --> ANNOTATE
-PRG1F --> ALIGN
-PRG1F --> ANALYZE
+CDL --> STRUCT["Structured Organization"]
+CDL --> DEBUG["Enhanced Debugging"]
 ```
 
 **Diagram sources**
-- [prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
-- [prg_1f_annotated.asm:10-11](file://asm/banks/prg_1f_annotated.asm#L10-L11)
+- [pbank31.cdl.asm:10-11](file://asm/banks/pbank31.cdl.asm#L10-L11)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
 - [main.asm:6-7](file://asm/main.asm#L6-L7)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
-- [annotate_asm.py:1-599](file://tools/annotate_asm.py#L1-L599)
-- [align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
-- [analyze_bank_1f.py:1-157](file://tools/analyze_bank_1f.py#L1-L157)
 
 **Section sources**
-- [prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
-- [prg_1f_annotated.asm:10-11](file://asm/banks/prg_1f_annotated.asm#L10-L11)
+- [pbank31.cdl.asm:10-11](file://asm/banks/pbank31.cdl.asm#L10-L11)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
 - [main.asm:6-7](file://asm/main.asm#L6-L7)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
-- [annotate_asm.py:1-599](file://tools/annotate_asm.py#L1-L599)
-- [align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
-- [analyze_bank_1f.py:1-157](file://tools/analyze_bank_1f.py#L1-L157)
 
 ## Performance Considerations
 - Bank switching involves writing to mapper registers; minimize unnecessary switches to reduce overhead.
-- Use the provided macros to keep register writes compact and consistent.
+- Use the provided enhanced macros to keep register writes compact and consistent.
 - Leverage the vector dispatch to avoid frequent branching and to centralize state transitions.
 - Keep PPU/APU operations synchronized with VBlank to prevent flicker and timing issues.
-- **Enhanced Debugging**: The inline binary comments provide immediate visibility into performance-critical code paths.
-- **Verification Overhead**: Automated annotation tools add processing time but provide significant debugging benefits.
-- **Memory Usage**: Enhanced comments increase file sizes but improve development efficiency.
+- **Enhanced Organization**: The modern CDL format provides improved code organization for better performance analysis.
+- **Debugging Efficiency**: Structured organization improves debugging efficiency and performance optimization.
+- **Maintenance Overhead**: Modern formatting adds minimal overhead while providing significant development benefits.
 
 ## Troubleshooting Guide
 - If the game does not enter the intended state, verify the vector table indexing and ensure the state counter is properly masked.
 - If graphics appear incorrect after a bank switch, confirm the mapper register writes and palette upload sequences.
 - If interrupts are not firing, ensure PPU control bits are set correctly and that the NMI flag is cleared appropriately.
-- Use the provided macros for PPU operations to avoid off-by-one address errors.
-- **Enhanced Debugging**: Utilize inline binary comments to verify that instructions are located at expected ROM addresses.
-- **Verification**: Use the annotation tools to validate that generated opcode bytes match expected instruction bytes.
-- **Comparison**: Compare annotated assembly output with ROM binaries to identify discrepancies.
-- **Backup Restoration**: Use the `.bak` files to restore original unannotated versions when needed.
+- Use the provided enhanced macros for PPU operations to avoid off-by-one address errors.
+- **Modern Format Benefits**: Utilize the structured CDL format to quickly locate and analyze specific code sections.
+- **Organization Advantages**: Clear code organization makes troubleshooting more efficient and systematic.
+- **Legacy Reference**: Use backup files to compare with original format when needed for analysis.
+- **Migration Support**: Modern format supports easier migration and updates compared to legacy formats.
 
 **Section sources**
-- [prg_1f_annotated.asm:739-750](file://asm/banks/prg_1f_annotated.asm#L739-L750)
-- [prg_1f_annotated.asm:1071-1085](file://asm/banks/prg_1f_annotated.asm#L1071-L1085)
-- [prg_1f_annotated.asm:1100-1113](file://asm/banks/prg_1f_annotated.asm#L1100-L1113)
+- [pbank31.cdl.asm:739-750](file://asm/banks/pbank31.cdl.asm#L739-L750)
+- [pbank31.cdl.asm:1071-1085](file://asm/banks/pbank31.cdl.asm#L1071-L1085)
+- [pbank31.cdl.asm:1100-1113](file://asm/banks/pbank31.cdl.asm#L1100-L1113)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 
 ## Conclusion
-The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The enhanced assembly output format with detailed inline binary code comments significantly improves debugging and verification capabilities, providing developers with immediate visibility into ROM addresses and actual opcode bytes. The comprehensive tooling infrastructure supports automated annotation, verification, and analysis, making the development process more efficient and reliable. By following the documented patterns for bank assignment, state transitions, hardware abstraction, and utilizing the enhanced debugging tools, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support.
+The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern CDL format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The modern CDL formatting with structured organization and enhanced debugging support significantly improves the development experience, providing developers with immediate visibility into code organization and functionality. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. By following the documented patterns for bank assignment, state transitions, hardware abstraction, and utilizing the modern CDL formatting standards, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.

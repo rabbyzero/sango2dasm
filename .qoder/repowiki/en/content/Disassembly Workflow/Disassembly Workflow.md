@@ -15,22 +15,35 @@
 - [tools/verify_rom.py](file://tools/verify_rom.py)
 - [tools/build_nes.py](file://tools/build_nes.py)
 - [tools/align_comments.py](file://tools/align_comments.py)
+- [tools/fix_mnemonics.py](file://tools/fix_mnemonics.py)
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [asm/banks/prg_1f_annotated.asm](file://asm/banks/prg_1f_annotated.asm)
+- [asm/banks/pbank31.cdl.asm](file://asm/banks/pbank31.cdl.asm)
+- [asm/test_1f.asm](file://asm/test_1f.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
 - [code/bank_1f_plan.md](file://code/bank_1f_plan.md)
 - [code/key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [code/bank_1f_analysis.md](file://code/bank_1f_analysis.md)
+- [transform_wrap.py](file://transform_wrap.py)
+- [transform_final.py](file://transform_final.py)
+- [fix_labels.py](file://fix_labels.py)
+- [fix_syntax.py](file://fix_syntax.py)
+- [fix_scope.py](file://fix_scope.py)
+- [check_baseline.py](file://check_baseline.py)
+- [apply_fixes.py](file://apply_fixes.py)
+- [check_diff.py](file://check_diff.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced PRG bank 1F disassembly output with improved binary code comments and inline machine code documentation
-- Added automated comment alignment tool for consistent formatting
-- Expanded analysis documentation with detailed examples and explanations
-- Improved cross-referencing and label management documentation
+- Enhanced PRG bank 1F disassembly process with new transformation pipeline
+- Added automated assembly code cleaning, modernization, and validation steps
+- Updated to cover the new pbank31.cdl.asm format and complete transformation process
+- Integrated comprehensive .proc wrapping, branch/sublabel conversion, and validation workflow
+- Added automated mnemonic correction using reference CDL format
+- Implemented systematic gap byte insertion and cross-proc scope management
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -47,12 +60,14 @@
 ## Introduction
 This document describes a systematic disassembly workflow for the Namco-163 (Mapper 19) ROM of Sangokushi 2 - Haou no Tairiku (J). It focuses on extracting and documenting game code from the PRG banks, starting with Bank 0x1F that contains the reset handler and vector dispatch table. The guide covers bank prioritization, stub replacement, modular organization, cross-references, label management, incremental development, and verification.
 
-**Updated** Enhanced with improved binary code comments and inline machine code documentation for better traceability and debugging capabilities.
+**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format.
 
 ## Project Structure
-The repository organizes assets around a cc65 toolchain and a modular bank structure:
+The repository organizes assets around a cc65 toolchain and a modular bank structure with advanced transformation capabilities:
 - ROM splitting and analysis tools
 - Bank stub generation and per-bank assembly
+- Comprehensive transformation pipeline for code modernization
+- Reference CDL format for automated validation
 - Linker configuration for 4 PRG slots
 - Include files for hardware and macros
 - Planning and analysis documents for Bank 0x1F
@@ -64,18 +79,26 @@ A["ROM (.nes)"] --> B["tools/split_rom.py"]
 B --> C["rom/prg/*.bin<br/>rom/chr/*.bin"]
 C --> D["tools/generate_bank_stubs.py"]
 D --> E["asm/banks/*.asm"]
-E --> F["tools/align_comments.py"]
-F --> G["asm/banks/prg_1f.aligned.asm"]
-G --> H["asm/main.asm"]
-H --> I["linker.cfg"]
-I --> J["build/prg.bin"]
-J --> K["tools/build_nes.py"]
-K --> L["build/sango2.nes"]
+E --> F["transform_wrap.py<br/>transform_final.py"]
+F --> G["asm/banks/prg_1f.asm<br/>(Modernized)"]
+G --> H["tools/fix_mnemonics.py"]
+H --> I["asm/banks/prg_1f.aligned.asm<br/>(Cleaned)"]
+I --> J["asm/banks/pbank31.cdl.asm<br/>(Reference)"]
+J --> K["tools/align_comments.py"]
+K --> L["asm/banks/prg_1f.aligned.asm<br/>(Validated)"]
+L --> M["asm/main.asm"]
+M --> N["linker.cfg"]
+N --> O["build/prg.bin"]
+O --> P["tools/build_nes.py"]
+P --> Q["build/sango2.nes"]
 ```
 
 **Diagram sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [tools/generate_bank_stubs.py:12-52](file://tools/generate_bank_stubs.py#L12-L52)
+- [transform_wrap.py:1-303](file://transform_wrap.py#L1-L303)
+- [transform_final.py:1-235](file://transform_final.py#L1-L235)
+- [tools/fix_mnemonics.py:1-312](file://tools/fix_mnemonics.py#L1-L312)
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 - [Makefile:38-48](file://Makefile#L38-L48)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
@@ -89,17 +112,22 @@ K --> L["build/sango2.nes"]
 ## Core Components
 - ROM splitting and analysis: Separate PRG/CHR banks and detect code patterns and vectors.
 - Bank stub generation: Create per-bank assembly files with .incbin placeholders.
+- Transformation pipeline: Comprehensive code modernization including .proc wrapping, branch conversion, and validation.
+- Reference format validation: Use pbank31.cdl.asm for automated mnemonic correction and opcode validation.
 - Disassemblers: Quick listing disassembler and comprehensive Bank 0x1F disassembler with enhanced inline comments.
 - Linker configuration: Define 4 PRG slots and segments for banked code.
 - Annotation and verification: Annotate assembly with ROM addresses and verify byte-for-byte accuracy.
 - Comment alignment: Automatically align inline comments for consistent formatting.
 - Build pipeline: Assemble, link, package into an iNES ROM.
 
-**Updated** Enhanced disassembler now provides detailed inline machine code documentation with ROM addresses and raw bytes for each instruction.
+**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction.
 
 **Section sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [tools/generate_bank_stubs.py:12-52](file://tools/generate_bank_stubs.py#L12-L52)
+- [transform_wrap.py:1-303](file://transform_wrap.py#L1-L303)
+- [transform_final.py:1-235](file://transform_final.py#L1-L235)
+- [tools/fix_mnemonics.py:1-312](file://tools/fix_mnemonics.py#L1-L312)
 - [tools/disasm_6502.py:336-362](file://tools/disasm_6502.py#L336-L362)
 - [tools/disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-L561)
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
@@ -222,7 +250,65 @@ DIS-->>OUT : Write disassembly with ROM addresses
 - [tools/disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-L561)
 - [tools/disasm_6502.py:336-362](file://tools/disasm_6502.py#L336-L362)
 
-### Step 4: Replace Stubs with Real Disassembly
+### Step 4: Transform Assembly Code (New Pipeline)
+- Apply comprehensive .proc wrapping to organize code into logical functions
+- Convert branch targets from hex addresses to meaningful labels
+- Insert gap bytes between functions with proper labeling
+- Modernize code structure and improve readability
+
+Transformation pipeline:
+- transform_wrap.py: Wraps functions in .proc blocks, converts sub-labels to @labels
+- transform_final.py: Fixes remaining hex targets, inserts gap bytes, balances .proc/.endproc
+- fix_labels.py: Resolves cross-proc label scope issues
+- fix_syntax.py: Converts :: syntax to proper namespace syntax
+- fix_scope.py: Handles cross-proc scoping for @-labels
+
+**New Section** Added to implement comprehensive code modernization pipeline.
+
+**Section sources**
+- [transform_wrap.py:1-303](file://transform_wrap.py#L1-L303)
+- [transform_final.py:1-235](file://transform_final.py#L1-L235)
+- [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
+- [fix_syntax.py:1-72](file://fix_syntax.py#L1-L72)
+- [fix_scope.py:1-149](file://fix_scope.py#L1-L149)
+
+### Step 5: Validate Against Reference Format
+- Use pbank31.cdl.asm as authoritative reference for correct mnemonics and opcodes
+- Apply automated mnemonic correction to fix mismatches
+- Validate instruction boundaries and operand correctness
+- Ensure all hex branch targets are properly converted to labels
+
+Validation workflow:
+- tools/fix_mnemonics.py: Parses CDL reference and fixes mnemonic-opcode mismatches
+- Compares aligned assembly against reference format
+- Adds opcode bytes to comments for traceability
+- Maintains consistent formatting across corrections
+
+**New Section** Added to implement automated validation against reference CDL format.
+
+**Section sources**
+- [tools/fix_mnemonics.py:1-312](file://tools/fix_mnemonics.py#L1-L312)
+- [asm/banks/pbank31.cdl.asm:1-800](file://asm/banks/pbank31.cdl.asm#L1-L800)
+
+### Step 6: Apply Manual Fixes and Final Touches
+- Apply comprehensive manual fixes to prg_1f.asm after transformation
+- Add global aliases for cross-bank function targets
+- Insert missing labels and clean up orphaned directives
+- Finalize code structure and prepare for assembly
+
+Finalization steps:
+- apply_fixes.py: Applies all manual fixes and cleanup operations
+- Adds global aliases before .segment directive
+- Inserts dispatch_loop and other missing labels
+- Cleans up orphan .endproc and spurious .byte directives
+- Replaces physical labels with semantic references
+
+**New Section** Added to implement final manual cleanup and validation.
+
+**Section sources**
+- [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+
+### Step 7: Replace Stubs with Real Disassembly
 - Edit asm/banks/prg_XX.asm to replace .incbin with actual disassembled code.
 - Use proper .segment directives for each bank as you add code.
 - Keep the bank's logical address in mind (e.g., Bank 0x1F maps to $E000–$FFFF).
@@ -235,7 +321,7 @@ Guidance:
 - [PROJECT.md:134-151](file://PROJECT.md#L134-L151)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 
-### Step 5: Organize Code Within Modular Bank Structure
+### Step 8: Organize Code Within Modular Bank Structure
 - Use .segment directives to group code by bank and purpose.
 - Maintain consistent label naming and scope within .proc blocks.
 - Reference include files for hardware registers and macros.
@@ -249,7 +335,7 @@ Examples:
 - [include/namco163.h:1-87](file://include/namco163.h#L1-L87)
 - [include/macros.h:1-72](file://include/macros.h#L1-L72)
 
-### Step 6: Cross-Reference Handling and Label Management
+### Step 9: Cross-Reference Handling and Label Management
 - Track cross-bank calls and data references.
 - Use banked call patterns (e.g., JSR to $A000–$A045) and bank switching macros.
 - Maintain a plan document to track which regions are analyzed and planned.
@@ -262,7 +348,7 @@ Cross-references in Bank 0x1F:
 - [code/bank_1f_plan.md:224-245](file://code/bank_1f_plan.md#L224-L245)
 - [include/namco163.h:68-86](file://include/namco163.h#L68-L86)
 
-### Step 7: Incremental Development and Progress Tracking
+### Step 10: Incremental Development and Progress Tracking
 - Assemble and link after adding each bank's code.
 - Use make verify to compare the rebuilt ROM with the original byte-by-byte.
 - Iterate: disassemble → annotate → assemble → verify → refine.
@@ -277,7 +363,7 @@ Verification:
 - [Makefile:58-61](file://Makefile#L58-L61)
 - [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
 
-### Step 8: Interpreting Disassembly Output and Annotation
+### Step 11: Interpreting Disassembly Output and Annotation
 - Use the annotation tool to overlay ROM addresses and opcode bytes onto assembly.
 - The tool resolves symbols from include files and estimates instruction sizes to align comments with actual ROM bytes.
 - Use address hints (comments like "; $XXXX:") to resync and correct drift.
@@ -293,7 +379,7 @@ Annotation workflow:
 **Section sources**
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
 
-### Step 9: Handling Complex Code Patterns and Data Discovery
+### Step 12: Handling Complex Code Patterns and Data Discovery
 - Recognize common 6502 patterns: shift-and-subtract division, table-driven RNG, pointer tables, multiply-by-constants via ASL/ADC chains.
 - Identify data tables and string tables used by display and menu systems.
 - Use analysis tools to locate vectors, bank switches, and repeated utility patterns.
@@ -311,7 +397,7 @@ Examples:
 - [code/key_functions_analysis.md:66-100](file://code/key_functions_analysis.md#L66-L100)
 - [code/key_functions_analysis.md:159-189](file://code/key_functions_analysis.md#L159-L189)
 
-### Step 10: Bank Prioritization Strategy
+### Step 13: Bank Prioritization Strategy
 Prioritize by:
 - Execution flow importance (reset handler and dispatch)
 - Frequency of calls (high JSR/RTI banks)
@@ -326,7 +412,7 @@ Plan document outlines sessions and dependencies for Bank 0x1F.
 - [PROJECT.md:120-133](file://PROJECT.md#L120-L133)
 - [code/bank_1f_plan.md:213-223](file://code/bank_1f_plan.md#L213-L223)
 
-### Step 11: Enhanced Comment Alignment and Formatting
+### Step 14: Enhanced Comment Alignment and Formatting
 - Use the align_comments.py tool to automatically align inline comments to column 48.
 - Ensures consistent formatting across the entire disassembly output.
 - Improves readability and makes it easier to correlate assembly with ROM addresses.
@@ -342,10 +428,46 @@ Comment alignment workflow:
 **Section sources**
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 
+### Step 15: Baseline Verification and Validation
+- Use check_baseline.py to remove gap byte insertions and verify baseline alignment
+- Parse addresses and check for gaps/overlaps in cleaned source
+- Ensure proper address continuity and instruction/data byte alignment
+- Validate total instruction/data bytes match expected ROM size
+
+**New Section** Added to implement systematic baseline verification.
+
+Baseline verification workflow:
+- Remove all gap byte insertions from previous sessions
+- Verify address alignment in cleaned source
+- Check for gaps and overlaps between instructions
+- Validate total byte count matches expected ROM size
+
+**Section sources**
+- [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
+
+### Step 16: Differential Analysis and Comparison
+- Use check_diff.py to compare ROM and assembled output byte-by-byte
+- Identify first differences and analyze mismatch patterns
+- Check assembly output characteristics and address alignment
+- Validate transformation pipeline effectiveness
+
+**New Section** Added to implement differential analysis for validation.
+
+Differential analysis workflow:
+- Compare ROM and assembled output byte-by-byte
+- Identify first differences and analyze patterns
+- Check assembly output characteristics and alignment
+- Validate transformation pipeline effectiveness
+
+**Section sources**
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)
+
 ## Dependency Analysis
 The disassembly pipeline depends on:
 - ROM splitting and combined PRG for analysis
 - Bank stubs for modular assembly
+- Transformation pipeline for code modernization
+- Reference CDL format for validation
 - Linker configuration for PRG slots
 - Include files for hardware and macros
 - Annotation and verification tools for accuracy
@@ -355,7 +477,14 @@ The disassembly pipeline depends on:
 graph TB
 SPLIT["tools/split_rom.py"] --> BIN["rom/prg_combined.bin"]
 STUB["tools/generate_bank_stubs.py"] --> ASM["asm/banks/*.asm"]
-ASM --> ALIGN["tools/align_comments.py"]
+ASM --> TRANS["transform_wrap.py<br/>transform_final.py"]
+TRANS --> MOD["asm/banks/prg_1f.asm<br/>(Modernized)"]
+MOD --> FIX["fix_labels.py<br/>fix_syntax.py<br/>fix_scope.py"]
+FIX --> CLEAN["asm/banks/prg_1f.asm<br/>(Cleaned)"]
+CLEAN --> REF["tools/fix_mnemonics.py"]
+REF --> VALID["asm/banks/prg_1f.aligned.asm<br/>(Validated)"]
+VALID --> CDL["asm/banks/pbank31.cdl.asm<br/>(Reference)"]
+CDL --> ALIGN["tools/align_comments.py"]
 ALIGN --> ALIGNED["asm/banks/prg_1f.aligned.asm"]
 ASM --> LINK["linker.cfg"]
 LINK --> OBJ["build/prg.bin"]
@@ -367,6 +496,12 @@ VERIFY --> ACC["Accuracy Report"]
 **Diagram sources**
 - [tools/split_rom.py:112-122](file://tools/split_rom.py#L112-L122)
 - [tools/generate_bank_stubs.py:36-46](file://tools/generate_bank_stubs.py#L36-L46)
+- [transform_wrap.py:286-303](file://transform_wrap.py#L286-L303)
+- [transform_final.py:222-235](file://transform_final.py#L222-L235)
+- [fix_labels.py:13-68](file://fix_labels.py#L13-L68)
+- [fix_syntax.py:11-72](file://fix_syntax.py#L11-L72)
+- [fix_scope.py:13-149](file://fix_scope.py#L13-L149)
+- [tools/fix_mnemonics.py:284-312](file://tools/fix_mnemonics.py#L284-L312)
 - [tools/align_comments.py:44-48](file://tools/align_comments.py#L44-L48)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [tools/build_nes.py:10-57](file://tools/build_nes.py#L10-L57)
@@ -382,6 +517,7 @@ VERIFY --> ACC["Accuracy Report"]
 - Prefer incremental assembly and targeted verification to catch errors early.
 - Use the annotation tool to quickly validate instruction boundaries and operand sizes.
 - **Updated** Leverage enhanced inline comments for faster debugging and cross-referencing.
+- **Updated** Utilize transformation pipeline for systematic code modernization and validation.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -391,6 +527,9 @@ Common issues and remedies:
 - Bank switching confusion: Confirm mapper register addresses and bank indices from namco163.h.
 - Linker errors: Add new MEMORY regions and SEGMENTS for each disassembled bank in linker.cfg.
 - **Updated** Comment formatting issues: Use align_comments.py to fix inconsistent inline comment alignment.
+- **Updated** Mnemonic mismatches: Use tools/fix_mnemonics.py to correct against pbank31.cdl.asm reference.
+- **Updated** Scope issues: Use fix_scope.py and fix_labels.py to resolve cross-proc label problems.
+- **Updated** Hex target issues: Use transform_final.py to convert remaining hex branch targets to labels.
 
 **Section sources**
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
@@ -398,11 +537,15 @@ Common issues and remedies:
 - [include/namco163.h:10-86](file://include/namco163.h#L10-L86)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
+- [tools/fix_mnemonics.py:148-282](file://tools/fix_mnemonics.py#L148-L282)
+- [fix_scope.py:13-149](file://fix_scope.py#L13-L149)
+- [fix_labels.py:13-68](file://fix_labels.py#L13-L68)
+- [transform_final.py:57-235](file://transform_final.py#L57-L235)
 
 ## Conclusion
-This workflow establishes a repeatable, incremental approach to disassembling Sangokushi 2's PRG banks. Starting with Bank 0x1F ensures you understand the reset handler and dispatch mechanism, after which you can systematically replace stubs with real disassembly, manage cross-references, and verify accuracy through byte-exact comparisons. The modular bank structure and toolchain support continuous refinement and expansion.
+This workflow establishes a repeatable, incremental approach to disassembling Sangokushi 2's PRG banks with comprehensive transformation capabilities. Starting with Bank 0x1F ensures you understand the reset handler and dispatch mechanism, after which you can systematically replace stubs with real disassembly, manage cross-references, and verify accuracy through byte-exact comparisons. The modular bank structure, transformation pipeline, and reference format validation support continuous refinement and expansion while ensuring code quality and consistency.
 
-**Updated** Enhanced disassembly output with improved binary code comments and inline machine code documentation significantly improves traceability, debugging capabilities, and overall code quality for this complex 6502 project.
+**Updated** Enhanced transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project.
 
 ## Appendices
 
@@ -415,6 +558,16 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
   - make analyze
 - Verify ROM:
   - make verify
+- **Updated** Apply transformation pipeline:
+  - python3 transform_wrap.py
+  - python3 transform_final.py
+  - python3 fix_labels.py
+  - python3 fix_syntax.py
+  - python3 fix_scope.py
+  - python3 tools/fix_mnemonics.py
+  - python3 apply_fixes.py
+  - python3 check_baseline.py
+  - python3 check_diff.py
 - **Updated** Align comments for consistent formatting:
   - python3 tools/align_comments.py
 
@@ -422,24 +575,42 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
 - [Makefile:64-69](file://Makefile#L64-L69)
 - [PROJECT.md:136-150](file://PROJECT.md#L136-L150)
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
+- [transform_wrap.py:134-303](file://transform_wrap.py#L134-L303)
+- [transform_final.py:8-235](file://transform_final.py#L8-L235)
+- [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
+- [fix_syntax.py:1-72](file://fix_syntax.py#L1-L72)
+- [fix_scope.py:1-149](file://fix_scope.py#L1-L149)
+- [tools/fix_mnemonics.py:148-312](file://tools/fix_mnemonics.py#L148-L312)
+- [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)
 
 ### Enhanced Disassembly Features
-**New Section** Highlighting the improvements to PRG bank 1F disassembly output.
+**New Section** Highlighting the improvements to PRG bank 1F disassembly output and transformation pipeline.
 
 Key enhancements:
-- **Inline Machine Code Comments**: Each instruction now includes detailed comments showing ROM address and raw bytes
-- **Consistent Formatting**: Automatic comment alignment to column 48 for improved readability
-- **Enhanced Traceability**: Easy correlation between assembly and original ROM bytes
-- **Debugging Support**: Better tooling for identifying instruction boundaries and operand sizes
+- **Comprehensive Transformation Pipeline**: End-to-end automation for code modernization and validation
+- **Reference Format Validation**: Automated correction against pbank31.cdl.asm for accuracy
+- **.proc Wrapping**: Logical function organization with proper scope management
+- **Label Conversion**: Hex branch targets to meaningful semantic labels
+- **Gap Byte Management**: Proper insertion and labeling of inter-function gaps
+- **Cross-Proc Scope Resolution**: Automated handling of @-labels and namespace syntax
+- **Mnemonic Correction**: Automated fixing of instruction opcodes and addressing modes
+- **Baseline Verification**: Systematic validation of address alignment and continuity
+- **Differential Analysis**: Byte-by-byte comparison for transformation effectiveness
 
 Example of enhanced output format:
 ```asm
-$E000: SEI              ; $E000: 78  Disable interrupts
-$E001: CLD              ; $E001: D8  Clear decimal mode
-$E002-$E018: PPU warmup ; $E002: A9 00 ... Wait for 3 VBlanks ($2002 polling)
+; $E000: SEI              ; $E000: 78  Disable interrupts
+; $E001: CLD              ; $E001: D8  Clear decimal mode
+; $E002-$E018: PPU warmup ; $E002: A9 00 ... Wait for 3 VBlanks ($2002 polling)
 ```
 
 **Section sources**
 - [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 - [code/bank_1f_analysis.md:1-800](file://code/bank_1f_analysis.md#L1-L800)
+- [transform_wrap.py:11-100](file://transform_wrap.py#L11-L100)
+- [transform_final.py:25-164](file://transform_final.py#L25-L164)
+- [tools/fix_mnemonics.py:65-146](file://tools/fix_mnemonics.py#L65-L146)
+- [check_baseline.py:15-104](file://check_baseline.py#L15-L104)
