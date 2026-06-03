@@ -2,11 +2,18 @@
 
 <cite>
 **Referenced Files in This Document**
-- [prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [namco163.h](file://include/namco163.h)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Updated centralized state dispatch architecture from inline dispatch logic to new StateDispatch procedure
+- Migrated from old dual-controller system (addr_pad1_*) to new dual-controller architecture (addr_pad2_*)
+- Replaced direct sound register manipulation with new SoundNotePlayer routine using sound_channel_ram
+- Updated state transition patterns and controller input handling throughout state handlers
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -20,49 +27,84 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document provides comprehensive analysis of the game state management system in the Sango2DASM project, focusing on the 15-game state system implemented through a vector dispatch table at $E07C. The system orchestrates different game phases including title screen, gameplay, battle sequences, and menu systems, with careful coordination of memory bank switching and execution flow control.
+This document provides comprehensive analysis of the game state management system in the Sango2DASM project, focusing on the 15-game state system implemented through a centralized vector dispatch table at $E07C. The system orchestrates different game phases including title screen, gameplay, battle sequences, and menu systems, with careful coordination of memory bank switching and execution flow control. The architecture has been modernized with a centralized StateDispatch procedure replacing previous inline dispatch logic, dual-controller input handling, and a new sound system utilizing SoundNotePlayer.
 
 ## Project Structure
-The state management system is implemented entirely within Bank 0x1F ($E000-$FFFF), which serves as the boot bank containing the reset handler, state dispatch mechanism, and all state-specific implementations. The system utilizes the Namco-163 mapper for dynamic bank switching across the 32 available PRG banks.
+The state management system is implemented entirely within Bank 0x1F ($E000-$FFFF), which serves as the boot bank containing the reset handler, centralized state dispatch mechanism, and all state-specific implementations. The system utilizes the Namco-163 mapper for dynamic bank switching across the 32 available PRG banks.
 
 ```mermaid
 graph TB
 subgraph "Bank 0x1F Layout"
 Reset["$E000: Reset Handler"]
-Dispatch["$E07C: Vector Dispatch Table"]
+StateDispatch["$E066: Centralized StateDispatch"]
+VectorTable["$E07C: Vector Dispatch Table"]
 States["$E09A-$E4D8: 15 State Handlers"]
 Helpers["$E4DA-$E566: Utility Functions"]
+SoundEngine["$E609-$E6A5: SoundNotePlayer"]
+Controllers["$E6C6-$E70D: Dual-Controller System"]
 BankSwitch["$E51F: Bank Switch Routine"]
 end
 subgraph "Memory Map"
 RAM["$0000-$07FF: Zero Page"]
 WorkRAM["$0080-$07FF: Working RAM"]
 StateVars["$0078-$007A: State Variables"]
+ControllerRAM["$0081-$0086: Dual-Controller RAM"]
+SoundRAM["$07F6-$07FF: Sound Channel RAM"]
 end
-Reset --> Dispatch
-Dispatch --> States
+Reset --> StateDispatch
+StateDispatch --> VectorTable
+VectorTable --> States
 States --> Helpers
+Helpers --> SoundEngine
+Helpers --> Controllers
 Helpers --> BankSwitch
 ```
 
 **Diagram sources**
-- [prg_1f.asm:72-148](file://asm/banks/prg_1f.asm#L72-L148)
-- [prg_1f.asm:151-168](file://asm/banks/prg_1f.asm#L151-L168)
-- [prg_1f.asm:738-749](file://asm/banks/prg_1f.asm#L738-L749)
+- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
+- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
+- [prg_1f.aligned.asm:925-1085](file://asm/banks/prg_1f.aligned.asm#L925-L1085)
 
 **Section sources**
-- [prg_1f.asm:1-800](file://asm/banks/prg_1f.asm#L1-L800)
+- [prg_1f.aligned.asm:1-800](file://asm/banks/prg_1f.aligned.asm#L1-L800)
 - [bank_1f_function_table.md:1-98](file://code/bank_1f_function_table.md#L1-L98)
 
 ## Core Components
+
+### Centralized State Dispatch Architecture
+The system now employs a centralized StateDispatch procedure at $E066 that replaces previous inline dispatch logic within each state handler. This provides consistent state entry points and improved maintainability.
+
+**Updated** The StateDispatch procedure handles state selection through a 30-byte vector table containing 15 state entry points, with each state handler now ending its execution by jumping to StateDispatch instead of implementing inline dispatch logic.
+
+### Dual-Controller Input System
+The controller system has been completely redesigned with a dual-controller architecture:
+
+**Updated** Controller addresses now use the addr_pad2_* naming convention:
+- **addr_pad2_edge** ($0082): Newly pressed buttons for controller 2
+- **addr_pad2_raw** ($0085): Raw button state for controller 2  
+- **addr_pad2_prev** ($0086): Previous frame state for controller 2
+
+The old addr_pad1_* addresses (addr_pad1_edge, addr_pad1_raw, addr_pad1_prev) are no longer used in the current implementation.
+
+### Enhanced Sound System
+The sound system has been modernized with the SoundNotePlayer routine:
+
+**Updated** The new SoundNotePlayer routine at $E609 provides centralized sound processing using sound_channel_ram ($07F6) for channel management, replacing previous direct register manipulation approaches.
 
 ### State Variable Architecture
 The system maintains two primary state variables in RAM:
 - **addr_game_state ($007A)**: Main state counter (0-14) indexing the vector table
 - **addr_sub_state ($0078)**: Sub-state within each major state, enabling fine-grained control
 
-### Vector Dispatch Mechanism
-The central dispatch system operates through a 30-byte vector table containing 15 state entry points:
+**Section sources**
+- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
+- [prg_1f.aligned.asm:36-42](file://asm/banks/prg_1f.aligned.asm#L36-L42)
+- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+
+## Architecture Overview
+
+### Centralized State Dispatch Mechanism
+The new centralized dispatch system operates through a streamlined StateDispatch procedure:
 
 ```mermaid
 flowchart TD
@@ -76,21 +118,13 @@ StorePtr --> FetchHigh["Fetch VectorTable+1,Y"]
 FetchHigh --> StorePtrHigh["Store in addr_dispatch_ptr+1"]
 StorePtrHigh --> Jump["JMP (addr_dispatch_ptr)"]
 Jump --> StateHandler["Execute State Handler"]
-StateHandler --> IncState["Increment addr_game_state"]
-IncState --> DispatchLoop["StateDispatch Loop"]
-DispatchLoop --> LoadState
+StateHandler --> StateDispatch["JMP StateDispatch"]
+StateDispatch --> LoadState
 ```
 
 **Diagram sources**
-- [prg_1f.asm:138-147](file://asm/banks/prg_1f.asm#L138-L147)
-- [prg_1f.asm:740-749](file://asm/banks/prg_1f.asm#L740-L749)
-
-**Section sources**
-- [prg_1f.asm:21-26](file://asm/banks/prg_1f.asm#L21-L26)
-- [prg_1f.asm:151-168](file://asm/banks/prg_1f.asm#L151-L168)
-- [prg_1f.asm:738-749](file://asm/banks/prg_1f.asm#L738-L749)
-
-## Architecture Overview
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
 
 ### State Machine Design
 The system implements a classic finite state machine with 15 distinct states, each representing a specific game phase:
@@ -116,60 +150,53 @@ IdleWait --> IdleWait : State 14 -> State 14
 ```
 
 **Diagram sources**
-- [prg_1f.asm:153-168](file://asm/banks/prg_1f.asm#L153-L168)
+- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
 
-### Memory Bank Management
-The system utilizes the Namco-163 mapper for dynamic bank switching across 32 PRG banks. Each state can access different memory banks through the centralized bank switching mechanism:
+### Enhanced Sound Processing Pipeline
+The new sound system provides centralized audio processing:
 
 ```mermaid
-classDiagram
-class BankSwitch {
-+BankSwitchTable : 8-byte configs
-+switch_bank_8000(bank)
-+switch_bank_A000(bank)
-+switch_bank_C000(bank)
-+switch_bank_E000(bank)
-}
-class StateHandler {
-+FrameInit()
-+DisplayInit()
-+BankSwitch()
-+StateDispatch()
-}
-class MapperInit {
-+CHR_bank_setup()
-+PRG_bank_setup()
-+Controller_validation()
-}
-StateHandler --> BankSwitch : uses
-StateHandler --> MapperInit : initializes
-BankSwitch --> MapperInit : configures
+sequenceDiagram
+participant State as "State Handler"
+participant SNP as "SoundNotePlayer"
+participant SCR as "sound_channel_ram"
+participant APU as "APU Registers"
+State->>SNP : Call with note index
+SNP->>SNP : Calculate pointer ($8000+A*4)
+SNP->>SCR : Validate channel (0-3)
+SNP->>SCR : Copy entry bytes 1-3
+SNP->>SCR : Store low/high pointers
+SNP->>APU : Enable channel via APU_SND_CHN
+State->>State : Continue execution
 ```
 
 **Diagram sources**
-- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
-- [prg_1f.asm:2477-2505](file://asm/banks/prg_1f.asm#L2477-L2505)
+- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.aligned.asm:997-1038](file://asm/banks/prg_1f.aligned.asm#L997-L1038)
 
 **Section sources**
-- [prg_1f.asm:781-818](file://asm/banks/prg_1f.asm#L781-L818)
-- [prg_1f.asm:2475-2506](file://asm/banks/prg_1f.asm#L2475-L2506)
-- [namco163.h:10-14](file://include/namco163.h#L10-L14)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
+- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
 
 ## Detailed Component Analysis
 
-### Reset Handler and Initial State Setup
-The reset handler performs critical initialization sequence:
+### Reset Handler and Modernized Initialization
+The reset handler performs critical initialization sequence with enhanced setup:
 
 1. **PPU Warmup**: Two-stage VBlank synchronization for stable PPU initialization
 2. **APU Initialization**: Silence all sound channels and configure frame sequencer
 3. **RAM Clear**: Full zero-page and working RAM initialization
 4. **Mapper Setup**: Namco-163 configuration and controller validation
-5. **State Initialization**: Set initial state to 0 and dispatch
+5. **State Initialization**: Set initial state to 0 and dispatch through centralized StateDispatch
+
+**Updated** The reset handler now calls the centralized StateDispatch procedure instead of inline dispatch logic, ensuring consistent state entry points across all state handlers.
 
 ```mermaid
 sequenceDiagram
 participant CPU as "CPU"
 participant Reset as "Reset Handler"
+participant StateDispatch as "StateDispatch"
 participant PPU as "PPU"
 participant Mapper as "Mapper"
 participant RAM as "RAM"
@@ -179,15 +206,17 @@ Reset->>Reset : Wait VBlank x2
 Reset->>Reset : Clear RAM $0000-$07FF
 Reset->>Mapper : MapperInitCtrlCheck()
 Reset->>RAM : Initialize addr_game_state = 0
-Reset->>Reset : Dispatch through VectorTable
-Reset->>CPU : Jump to State_SystemInit
+Reset->>StateDispatch : Jump to StateDispatch
+StateDispatch->>StateDispatch : Execute State 0
 ```
 
 **Diagram sources**
-- [prg_1f.asm:74-147](file://asm/banks/prg_1f.asm#L74-L147)
+- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 **Section sources**
-- [prg_1f.asm:74-147](file://asm/banks/prg_1f.asm#L74-L147)
+- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 ### State-Specific Implementation Patterns
 
@@ -216,23 +245,31 @@ Handles advisor dialogue system with menu cursor management.
 #### Turn Summary (State 13)
 Displays turn results with victory condition checking and appropriate music selection.
 
-**Section sources**
-- [prg_1f.asm:174-202](file://asm/banks/prg_1f.asm#L174-L202)
-- [prg_1f.asm:210-276](file://asm/banks/prg_1f.asm#L210-L276)
-- [prg_1f.asm:295-365](file://asm/banks/prg_1f.asm#L295-L365)
-- [prg_1f.asm:493-550](file://asm/banks/prg_1f.asm#L493-L550)
-- [prg_1f.asm:575-619](file://asm/banks/prg_1f.asm#L575-L619)
-- [prg_1f.asm:630-680](file://asm/banks/prg_1f.asm#L630-L680)
-- [prg_1f.asm:686-735](file://asm/banks/prg_1f.asm#L686-L735)
+**Updated** All state handlers now consistently end with `JMP StateDispatch` instead of inline dispatch logic, providing uniform execution flow and improved maintainability.
 
-### Data Structure Management
+**Section sources**
+- [prg_1f.aligned.asm:179-210](file://asm/banks/prg_1f.aligned.asm#L179-L210)
+- [prg_1f.aligned.asm:213-284](file://asm/banks/prg_1f.aligned.asm#L213-L284)
+- [prg_1f.aligned.asm:287-373](file://asm/banks/prg_1f.aligned.asm#L287-L373)
+- [prg_1f.aligned.asm:497-559](file://asm/banks/prg_1f.aligned.asm#L497-L559)
+- [prg_1f.aligned.asm:569-627](file://asm/banks/prg_1f.aligned.asm#L569-L627)
+- [prg_1f.aligned.asm:635-686](file://asm/banks/prg_1f.aligned.asm#L635-L686)
+- [prg_1f.aligned.asm:688-740](file://asm/banks/prg_1f.aligned.asm#L688-L740)
+
+### Enhanced Data Structure Management
 
 #### State Variables
 Each state maintains its own working data structures in RAM:
 - **Display parameters**: $0098-$009B for scroll and rendering
-- **Controller input**: $0081/$0083/$0084 for edge-triggered and raw input
+- **Dual-controller input**: $0082/$0085/$0086 for edge-triggered and raw input (updated)
 - **Palette buffers**: $0100-$011F for color data
 - **Menu systems**: $0424/$0425 for cursor positioning
+
+#### Sound Channel Management
+**Updated** The new sound system uses centralized channel management:
+- **sound_channel_ram ($07F6)**: RAM copy of Namco sound channel state
+- **SoundChannelTable ($E667)**: Maps logical channels to hardware channels
+- **Sound wrapper functions**: Seven variants (SoundWrapperA-F) for different audio effects
 
 #### Bank Configuration Storage
 State handlers store bank configuration in dedicated RAM locations:
@@ -241,34 +278,42 @@ State handlers store bank configuration in dedicated RAM locations:
 - **addr_trampoline_*$:** Temporary storage for bank switching operations
 
 **Section sources**
-- [prg_1f.asm:27-69](file://asm/banks/prg_1f.asm#L27-L69)
-- [prg_1f.asm:824-827](file://asm/banks/prg_1f.asm#L824-L827)
+- [prg_1f.aligned.asm:21-73](file://asm/banks/prg_1f.aligned.asm#L21-L73)
+- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.aligned.asm:983-984](file://asm/banks/prg_1f.aligned.asm#L983-L984)
+- [prg_1f.aligned.asm:815-818](file://asm/banks/prg_1f.aligned.asm#L815-L818)
 
-### Inter-State Communication Mechanisms
+### Modernized Inter-State Communication Mechanisms
 
-#### State Transition Protocol
-States communicate primarily through the global state counter:
-1. **Explicit transitions**: Direct increment of addr_game_state
+#### Centralized State Transition Protocol
+**Updated** States communicate through the centralized StateDispatch mechanism:
+1. **Explicit transitions**: Direct increment of addr_game_state followed by StateDispatch
 2. **Conditional transitions**: Based on game conditions (victory, defeat)
 3. **Shared data**: Persistent RAM variables for cross-state information
 
-#### Shared Resource Access
-Common resources are accessed through centralized utility functions:
-- **Frame initialization**: Consistent per-frame setup across all states
+#### Enhanced Shared Resource Access
+**Updated** Common resources are accessed through centralized utility functions:
+- **Frame initialization**: Consistent per-frame setup across all states via FrameInit
 - **Display management**: Unified window and palette systems
-- **Input handling**: Standardized controller reading and edge detection
+- **Dual-controller input**: Standardized controller reading and edge detection
+- **Sound processing**: Centralized SoundNotePlayer routine for audio effects
 
 **Section sources**
-- [prg_1f.asm:755-779](file://asm/banks/prg_1f.asm#L755-L779)
-- [prg_1f.asm:1040-1065](file://asm/banks/prg_1f.asm#L1040-L1065)
+- [prg_1f.aligned.asm:742-770](file://asm/banks/prg_1f.aligned.asm#L742-L770)
+- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
+- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
 
 ## Dependency Analysis
 
-### State Handler Dependencies
-Each state handler depends on specific utility functions and memory layouts:
+### Modernized State Handler Dependencies
+**Updated** Each state handler now depends on the centralized StateDispatch system:
 
 ```mermaid
 graph LR
+subgraph "Centralized System"
+StateDispatch["StateDispatch ($E066)"]
+VectorTable["VectorTable ($E07C)"]
+End
 subgraph "State Handlers"
 State0["SystemInit"]
 State1["NewGameInit"]
@@ -284,39 +329,50 @@ BankSwitch["BankSwitch"]
 ControllerRead["ControllerRead"]
 DisplayInit["DisplayInit"]
 PaletteUpload["PaletteUpload"]
+SoundNotePlayer["SoundNotePlayer"]
 end
 subgraph "Memory Dependencies"
 StateVars["State Variables"]
 BankConfig["Bank Config"]
 DisplayParams["Display Params"]
+SoundRAM["sound_channel_ram"]
+ControllerRAM["Dual-Controller RAM"]
 end
-State0 --> FrameInit
-State1 --> FrameInit
-State3 --> FrameInit
-State7 --> FrameInit
-State9 --> FrameInit
-State11 --> FrameInit
-State13 --> FrameInit
+State0 --> StateDispatch
+State1 --> StateDispatch
+State3 --> StateDispatch
+State7 --> StateDispatch
+State9 --> StateDispatch
+State11 --> StateDispatch
+State13 --> StateDispatch
+StateDispatch --> VectorTable
+StateHandlers --> FrameInit
 StateHandlers --> BankSwitch
 StateHandlers --> ControllerRead
 StateHandlers --> DisplayInit
 StateHandlers --> PaletteUpload
+StateHandlers --> SoundNotePlayer
 StateHandlers --> StateVars
 StateHandlers --> BankConfig
 StateHandlers --> DisplayParams
+StateHandlers --> SoundRAM
+StateHandlers --> ControllerRAM
 ```
 
 **Diagram sources**
-- [prg_1f.asm:755-779](file://asm/banks/prg_1f.asm#L755-L779)
-- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
-- [prg_1f.asm:1040-1065](file://asm/banks/prg_1f.asm#L1040-L1065)
+- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
+- [prg_1f.aligned.asm:742-770](file://asm/banks/prg_1f.aligned.asm#L742-L770)
+- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
 
-### Bank Switching Dependencies
-The bank switching system creates dependencies between states and memory banks:
+### Enhanced Bank Switching Dependencies
+**Updated** The bank switching system creates dependencies between states and memory banks:
 
 ```mermaid
 flowchart TD
-StateHandlers["State Handlers"] --> BankSwitch["BankSwitch Routine"]
+StateHandlers["State Handlers"] --> StateDispatch["StateDispatch"]
+StateDispatch --> VectorTable["VectorTable"]
+VectorTable --> BankSwitch["BankSwitch Routine"]
 BankSwitch --> PRGBank0["PRG Bank 0"]
 BankSwitch --> PRGBank1["PRG Bank 1"]
 BankSwitch --> PRGBank2["PRG Bank 2"]
@@ -329,33 +385,37 @@ BattleLogic --> StateHandlers
 ```
 
 **Diagram sources**
-- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
-- [prg_1f.asm:824-827](file://asm/banks/prg_1f.asm#L824-L827)
+- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
+- [prg_1f.aligned.asm:772-809](file://asm/banks/prg_1f.aligned.asm#L772-L809)
 
 **Section sources**
-- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
-- [prg_1f.asm:824-827](file://asm/banks/prg_1f.asm#L824-L827)
+- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
+- [prg_1f.aligned.asm:772-809](file://asm/banks/prg_1f.aligned.asm#L772-L809)
 
 ## Performance Considerations
 
-### Execution Flow Optimization
-The state management system employs several optimization strategies:
+### Streamlined Execution Flow Optimization
+**Updated** The centralized StateDispatch system provides several optimization benefits:
 
-1. **Vector dispatch**: Direct function pointer resolution eliminates branching overhead
+1. **Reduced code duplication**: Single dispatch mechanism eliminates redundant inline dispatch logic
 2. **Consistent frame timing**: Centralized frame initialization ensures predictable timing
 3. **Minimal state switching cost**: Direct RAM variable updates avoid expensive operations
 4. **Bank switching efficiency**: Centralized bank configuration reduces repeated setup
+5. **Unified sound processing**: SoundNotePlayer provides optimized audio pipeline
 
-### Memory Usage Patterns
+### Enhanced Memory Usage Patterns
+**Updated** The system maintains strict memory optimization through:
 - **Zero-page optimization**: Critical variables ($0078-$007A) placed in zero-page for fast access
 - **Working RAM organization**: Structured layout enables efficient state data management
 - **Bank memory sharing**: Multiple states share common bank configurations to reduce memory footprint
+- **Centralized sound RAM**: sound_channel_ram ($07F6) provides efficient channel state management
 
-### Timing Considerations
-The system maintains strict timing through:
+### Improved Timing Considerations
+**Updated** The system maintains strict timing through:
 - **VBlank synchronization**: Consistent frame boundaries across all states
 - **NMI sub-dispatch**: Fine-grained control over rendering operations
-- **Interrupt-driven updates**: Controller input processed during interrupts
+- **Interrupt-driven updates**: Dual-controller input processed during interrupts
+- **Centralized sound scheduling**: SoundNotePlayer provides consistent audio timing
 
 ## Troubleshooting Guide
 
@@ -373,38 +433,56 @@ The system maintains strict timing through:
 - Verify bank switching restores correct RAM contents
 - Implement memory integrity checks
 
-#### Bank Switching Problems
-**Symptoms**: Incorrect graphics, missing data, or crashes during state transitions
+#### Centralized Dispatch Problems
+**Updated** **Symptoms**: States not executing or jumping to wrong handlers
 **Causes**:
-- Improper bank configuration in BankSwitchTable
-- Missing bank restoration in interrupt handlers
-- Conflicting bank assignments between states
+- Incorrect VectorTable entries
+- Modified StateDispatch procedure
+- Invalid state indices (exceeding 14)
 
 **Solutions**:
-- Verify BankSwitchTable entries match intended bank configurations
-- Ensure NMI handler restores bank registers before processing
-- Use centralized bank switching routine for consistency
+- Verify VectorTable contains valid addresses for states 0-14
+- Check StateDispatch logic for proper masking and indexing
+- Ensure addr_game_state stays within 0-14 range
 
-#### Display Issues
-**Symptoms**: Incorrect graphics, palette problems, or rendering artifacts
+#### Dual-Controller Input Issues
+**Updated** **Symptoms**: Controller input not detected or incorrect edge triggering
 **Causes**:
-- Inconsistent display parameter setup
-- Missing palette uploads
-- Incorrect CHR bank switching
+- Using old addr_pad1_* addresses instead of addr_pad2_*
+- Incorrect controller strobe timing
+- Memory corruption in controller RAM
 
 **Solutions**:
-- Use DisplayInit helper for consistent setup
-- Verify palette uploads after bank switches
-- Check CHR bank configuration matches graphics data
+- Use addr_pad2_edge, addr_pad2_raw, addr_pad2_prev addresses
+- Verify ControllerRead routine executes correctly
+- Check controller RAM integrity
+
+#### Sound System Problems
+**Updated** **Symptoms**: Audio not playing or incorrect channel assignment
+**Causes**:
+- Invalid sound channel indices (≥ 4)
+- Incorrect sound_channel_ram state
+- Missing sound initialization
+
+**Solutions**:
+- Verify sound_channel_ram contains valid channel data
+- Use SoundNotePlayer instead of direct register manipulation
+- Ensure SoundInit routine executes during reset
 
 **Section sources**
-- [prg_1f.asm:2559-2659](file://asm/banks/prg_1f.asm#L2559-L2659)
-- [prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
-- [prg_1f.asm:1071-1084](file://asm/banks/prg_1f.asm#L1071-L1084)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
+- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
 
 ## Conclusion
 
-The Sango2DASM state management system demonstrates sophisticated design patterns for NES game development. The 15-state vector dispatch architecture provides clean separation of concerns while maintaining efficient execution flow. The integration with the Namco-163 mapper enables flexible memory management across 32 PRG banks, allowing each state to access specialized resources.
+The Sango2DASM state management system demonstrates sophisticated design patterns for NES game development. The centralized StateDispatch architecture provides clean separation of concerns while maintaining efficient execution flow. The integration with the Namco-163 mapper enables flexible memory management across 32 PRG banks, allowing each state to access specialized resources.
+
+**Updated Key improvements in the current system:**
+- **Centralized dispatch**: Single StateDispatch procedure eliminates code duplication
+- **Dual-controller support**: Modernized input handling with addr_pad2_* addresses
+- **Enhanced sound system**: SoundNotePlayer provides optimized audio processing
+- **Improved maintainability**: Consistent state handler patterns across all 15 states
 
 Key strengths of the system include:
 - **Predictable timing**: Centralized frame management ensures consistent execution
@@ -412,4 +490,4 @@ Key strengths of the system include:
 - **Bank flexibility**: Dynamic bank switching enables modular resource organization
 - **Extensibility**: Well-defined patterns support easy addition of new states
 
-The system's architecture provides a solid foundation for extending the game with additional states, menus, or gameplay mechanics while maintaining the established patterns and performance characteristics.
+The system's architecture provides a solid foundation for extending the game with additional states, menus, or gameplay mechanics while maintaining the established patterns and performance characteristics. The centralized approach ensures that future modifications can be made efficiently while preserving the system's reliability and performance.
