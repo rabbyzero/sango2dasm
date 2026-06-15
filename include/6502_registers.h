@@ -40,14 +40,12 @@ APU_FRAME       = $4017
 ; Namco-163 Registers
 NAMCO_IRQ       = $4800
 NAMCO_SOUND     = $4800
-NAMCO_CTRL      = $F800
 
-; Namco-163 PRG Bank Switching
+; Namco-163 PRG Bank Switching (mirrors defined in namco163.h)
 ; Writing to these addresses switches 8KB PRG banks
-PRG_BANK_8000   = $F800
-PRG_BANK_A000   = $FA00
-PRG_BANK_C000   = $FC00
-PRG_BANK_E000   = $FE00
+PRG_BANK_8000   = $E000
+PRG_BANK_A000   = $E800
+PRG_BANK_C000   = $F000
 
 ;===============================================================================
 ; PPU Control Bits

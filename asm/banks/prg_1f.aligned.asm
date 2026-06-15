@@ -41,10 +41,10 @@ addr_pad2_raw       = $0085                     ; Pad 2 raw button state
 addr_pad2_prev      = $0086                     ; Pad 2 previous frame state
 
 ; --- Bank Switch ---
-addr_bank_e6        = $00E6                     ; Bank register RAM copy (PRG $C000)
-addr_bank_e7        = $00E7                     ; Bank register RAM copy (PRG $C800)
-addr_bank_e8        = $00E8                     ; Bank register RAM copy (PRG $D000)
-addr_bank_e9        = $00E9                     ; Bank register RAM copy (PRG $D800)
+addr_bank_e6        = $00E6                     ; CHR bank register RAM copy (NAMCO_CHR_BANK_0)
+addr_bank_e7        = $00E7                     ; CHR bank register RAM copy (NAMCO_CHR_BANK_1)
+addr_bank_e8        = $00E8                     ; CHR bank register RAM copy (NAMCO_CHR_BANK_2)
+addr_bank_e9        = $00E9                     ; CHR bank register RAM copy (NAMCO_CHR_BANK_3)
 addr_bank_ea        = $00EA                     ; Extended bank config
 addr_bank_eb        = $00EB                     ; Extended bank config
 addr_bank_ec        = $00EC                     ; Extended bank config
@@ -822,19 +822,19 @@ completion_flag = $0541
   TAY                                           ; $E522: A8
   LDA BankSwitchTable,Y                         ; $E523: B9 67 E5
   STA addr_bank_e6                              ; $E526: 8D E6 00
-  STA $C000                                     ; $E529: 8D 00 C0  Mapper register 1
+  STA NAMCO_CHR_BANK_0                                     ; $E529: 8D 00 C0  CHR bank 0
   INY                                           ; $E52C: C8
   LDA BankSwitchTable,Y                         ; $E52D: B9 67 E5
   STA addr_bank_e7                              ; $E530: 8D E7 00
-  STA $C800                                     ; $E533: 8D 00 C8  Mapper register 2
+  STA NAMCO_CHR_BANK_1                                     ; $E533: 8D 00 C8  CHR bank 1
   INY                                           ; $E536: C8
   LDA BankSwitchTable,Y                         ; $E537: B9 67 E5
   STA addr_bank_e8                              ; $E53A: 8D E8 00
-  STA $D000                                     ; $E53D: 8D 00 D0  Mapper register 3
+  STA NAMCO_CHR_BANK_2                                     ; $E53D: 8D 00 D0  CHR bank 2
   INY                                           ; $E540: C8
   LDA BankSwitchTable,Y                         ; $E541: B9 67 E5
   STA addr_bank_e9                              ; $E544: 8D E9 00
-  STA $D800                                     ; $E547: 8D 00 D8  Mapper register 4
+  STA NAMCO_CHR_BANK_3                                     ; $E547: 8D 00 D8  CHR bank 3
   INY                                           ; $E54A: C8
   LDA BankSwitchTable,Y                         ; $E54B: B9 67 E5
   STA addr_bank_ea                              ; $E54E: 8D EA 00
@@ -1203,13 +1203,13 @@ fill_attr     = $03
 page_count    = $01
 
   LDA #$E0                                      ; $E774: A9 E0     NT0 = CIRAM page 0
-  STA $C000                                     ; $E776: 8D 00 C0
+  STA NAMCO_CHR_BANK_0                                     ; $E776: 8D 00 C0
   LDA #$E1                                      ; $E779: A9 E1     NT1 = CIRAM page 1
-  STA $C800                                     ; $E77B: 8D 00 C8
+  STA NAMCO_CHR_BANK_1                                     ; $E77B: 8D 00 C8
   LDA #$E0                                      ; $E77E: A9 E0     NT2 = CIRAM page 0
-  STA $D000                                     ; $E780: 8D 00 D0
+  STA NAMCO_CHR_BANK_2                                     ; $E780: 8D 00 D0
   LDA #$E1                                      ; $E783: A9 E1     NT3 = CIRAM page 1
-  STA $D800                                     ; $E785: 8D 00 D8
+  STA NAMCO_CHR_BANK_3                                     ; $E785: 8D 00 D8
   LDA PPU_STATUS                                ; $E788: AD 02 20  Reset PPU latch
   LDA #$01                                      ; $E78B: A9 01
   STA fill_tile                                 ; $E78D: 85 02
@@ -1278,13 +1278,13 @@ fill_tile     = $02
 fill_attr     = $03
 
   LDA #$E0                                      ; $E7DF: A9 E0     NT0 = CIRAM page 0
-  STA $C000                                     ; $E7E1: 8D 00 C0
+  STA NAMCO_CHR_BANK_0                                     ; $E7E1: 8D 00 C0
   LDA #$E1                                      ; $E7E4: A9 E1     NT1 = CIRAM page 1
-  STA $C800                                     ; $E7E6: 8D 00 C8
+  STA NAMCO_CHR_BANK_1                                     ; $E7E6: 8D 00 C8
   LDA #$E0                                      ; $E7E9: A9 E0     NT2 = CIRAM page 0
-  STA $D000                                     ; $E7EB: 8D 00 D0
+  STA NAMCO_CHR_BANK_2                                     ; $E7EB: 8D 00 D0
   LDA #$E1                                      ; $E7EE: A9 E1     NT3 = CIRAM page 1
-  STA $D800                                     ; $E7F0: 8D 00 D8
+  STA NAMCO_CHR_BANK_3                                     ; $E7F0: 8D 00 D8
   LDA PPU_STATUS                                ; $E7F3: AD 02 20  Reset PPU latch
   LDA #$01                                      ; $E7F6: A9 01
   STA fill_tile                                 ; $E7F8: 85 02
@@ -2983,23 +2983,23 @@ nmi_ctrl = $007E
 ;===============================================================================
 ; $F237: Switch Bank Pair at $A000+$C000 (Slot B)
 ; Input: Y = bank number for $A000 window (Y+1 maps to $C000)
-; Writes to Namco-163 registers $E800 (A000, with CHR flags $C0) and $F000 (C000)
+; Writes to Namco-163 registers NAMCO_PRG_A000 (A000, with CHR flags $C0) and NAMCO_PRG_C000 (C000)
 ; Saves bank numbers to RAM slot B ($00E2, $00E3)
 ;===============================================================================
 .proc SwitchBankAC_B
   STY addr_prg_select_2b                        ; $F237: 8C E2 00
   INY                                           ; $F23A: C8
   STY addr_prg_select_3b                        ; $F23B: 8C E3 00
-  ; Write $F000 first: Y already holds bank Y+1 for the $C000 window.
-  ; $F000 only needs the raw bank number (bits 0-5), so STY works directly.
-  STY $F000                                     ; $F23E: 8C 00 F0
+  ; Write NAMCO_PRG_C000 first: Y already holds bank Y+1 for the $C000 window.
+  ; NAMCO_PRG_C000 only needs the raw bank number (bits 0-5), so STY works directly.
+  STY NAMCO_PRG_C000                                     ; $F23E: 8C 00 F0
   DEY                                           ; $F241: 88
-  ; Write $E800 second: the $A000 register requires bits 6-7 set ($C0)
+  ; Write NAMCO_PRG_A000 second: the $A000 register requires bits 6-7 set ($C0)
   ; to disable CHR-RAM. This needs ORA in A, so we save/restore caller's A.
   PHA                                           ; $F242: 48
   TYA                                           ; $F243: 98
   ORA #$C0                                      ; $F244: 09 C0
-  STA $E800                                     ; $F246: 8D 00 E8
+  STA NAMCO_PRG_A000                                     ; $F246: 8D 00 E8
   PLA                                           ; $F249: 68
   RTS                                           ; $F24A: 60
 .endproc
@@ -3007,19 +3007,19 @@ nmi_ctrl = $007E
 ;===============================================================================
 ; $F24B: Switch Bank Pair at $A000+$C000 (Slot A)
 ; Input: Y = bank number for $A000 window (Y+1 maps to $C000)
-; Writes to Namco-163 registers $E800 (A000, with CHR flags $C0) and $F000 (C000)
+; Writes to Namco-163 registers NAMCO_PRG_A000 (A000, with CHR flags $C0) and NAMCO_PRG_C000 (C000)
 ; Saves bank numbers to RAM slot A ($00DF, $00E0)
 ;===============================================================================
 .proc SwitchBankAC_A
   STY addr_prg_select_2a                        ; $F24B: 8C DF 00
   INY                                           ; $F24E: C8
   STY addr_prg_select_3a                        ; $F24F: 8C E0 00
-  STY $F000                                     ; $F252: 8C 00 F0
+  STY NAMCO_PRG_C000                                     ; $F252: 8C 00 F0
   DEY                                           ; $F255: 88
   PHA                                           ; $F256: 48
   TYA                                           ; $F257: 98
   ORA #$C0                                      ; $F258: 09 C0
-  STA $E800                                     ; $F25A: 8D 00 E8
+  STA NAMCO_PRG_A000                                     ; $F25A: 8D 00 E8
   PLA                                           ; $F25D: 68
   RTS                                           ; $F25E: 60
 .endproc
@@ -3027,22 +3027,22 @@ nmi_ctrl = $007E
 ;===============================================================================
 ; $F25F: Switch Bank at $8000 (Slot B)
 ; Input: Y = bank number for $8000-$9FFF window
-; Writes to Namco-163 register $E000, saves to RAM slot B ($00E1)
+; Writes to Namco-163 register NAMCO_PRG_8000, saves to RAM slot B ($00E1)
 ;===============================================================================
-.proc SwitchBank8000_B
+.proc SwitchBank8_B
   STY addr_prg_select_1b                        ; $F25F: 8C E1 00
-  STY $E000                                     ; $F262: 8C 00 E0
+  STY NAMCO_PRG_8000                                     ; $F262: 8C 00 E0
   RTS                                           ; $F265: 60
 .endproc
 
 ;===============================================================================
 ; $F266: Switch Bank at $8000 (Slot A)
 ; Input: Y = bank number for $8000-$9FFF window
-; Writes to Namco-163 register $E000, saves to RAM slot A ($00DE)
+; Writes to Namco-163 register NAMCO_PRG_8000, saves to RAM slot A ($00DE)
 ;===============================================================================
-.proc SwitchBank8000_A
+.proc SwitchBank8_A
   STY addr_prg_select_1a                        ; $F266: 8C DE 00
-  STY $E000                                     ; $F269: 8C 00 E0
+  STY NAMCO_PRG_8000                                     ; $F269: 8C 00 E0
   RTS                                           ; $F26C: 60
 .endproc
 
@@ -3110,545 +3110,1439 @@ nmi_ctrl = $007E
 .endproc
 
 ;===============================================================================
-; $F2AF: Get Hero Address
-; Formula: hero_id * 32 + $6000
-; Params: hero_id in A
-; Output: $10/$11 = pointer to hero data
+; $F2AF: GetProvinceRecordAddr
+; Computes: A * 32 + $6000 -> ($0000, $0001) as 16-bit pointer
+; Input: A = province index
+; Output: $0000/$0001 = 16-bit pointer to province record in SRAM
+; Used for: Province data record lookup (32 bytes per entry, base $6000)
 ;===============================================================================
-.proc GetHeroAddr
-hero_id       = $00
-hero_ptr_lo   = $10
-hero_ptr_hi   = $11
-HERO_SIZE     = 32
-HERO_BASE_LO  = $00
-HERO_BASE_HI  = $60
-
-  STA hero_id                                   ; $F2AF
-  ASL                                           ; $F2B4: 0A
-  ASL                                           ; $F2B8: 0A
-  ASL                                           ; $F2BC: 0A
-  ASL                                           ; $F2C0: 0A
-  ASL                                           ; $F2C4: 0A  id * 32
+.proc GetProvinceRecordAddr
+  LDY #$00                                      ; $F2AF: A0 00
+  STY $0001                                     ; $F2B1: 8C 01 00
+  ASL A                                         ; $F2B4: 0A
+  ROL $0001                                     ; $F2B5: 2E 01 00
+  ASL A                                         ; $F2B8: 0A
+  ROL $0001                                     ; $F2B9: 2E 01 00
+  ASL A                                         ; $F2BC: 0A
+  ROL $0001                                     ; $F2BD: 2E 01 00
+  ASL A                                         ; $F2C0: 0A
+  ROL $0001                                     ; $F2C1: 2E 01 00
+  ASL A                                         ; $F2C4: 0A
+  ROL $0001                                     ; $F2C5: 2E 01 00
   CLC                                           ; $F2C8: 18
-  ADC #HERO_BASE_LO                             ; $F2C9: 69 00
-  STA hero_ptr_lo                               ; $F2CB: 8D 00 00
-  LDA #$00                                      ; $F2CE: AD 01 00
-  ROL                                           ; $F2D1  Get high bit from shift
-  ADC #HERO_BASE_HI                             ; $F2D2
-  STA hero_ptr_hi                               ; $F2D4
+  ADC #$00                                      ; $F2C9: 69 00
+  STA $0000                                     ; $F2CB: 8D 00 00
+  LDA $0001                                     ; $F2CE: AD 01 00
+  ADC #$60                                      ; $F2D1: 69 60
+  STA $0001                                     ; $F2D3: 8D 01 00
   RTS                                           ; $F2D6: 60
 .endproc
 
 ;===============================================================================
-; $F2D7: Get City Address
-; Formula: city_id * 12 + $63C0
-; Params: city_id in A
-; Output: pointer to city data
+; $F2D7: GetOfficerRecordAddr
+; Computes: A * 12 + $63C0 -> ($0000, $0001) as 16-bit pointer
+; Input: A = officer index
+; Output: $0000/$0001 = 16-bit pointer to officer record in SRAM
+; Method: A*2 + A = A*3, then shift left twice = A*12, add base $63C0
+; Used for: Officer data record lookup (12 bytes per entry, base $63C0)
 ;===============================================================================
-.proc GetCityAddr
-city_id       = $00
-CITY_SIZE     = 12
-CITY_BASE_LO  = $C0
-CITY_BASE_HI  = $63
-
-  STA city_id                                   ; $F2DC: 8D 00 00
-  ASL                                           ; $F2DF: 0A  id * 2
-  ADC city_id                                   ; $F2E4: 6D 00 00  id * 3
-  ASL                                           ; $F2E7  id * 6
-  ASL                                           ; $F2E8  id * 12
-  CLC                                           ; $F2E9
-  ADC #CITY_BASE_LO                             ; $F2EA
-  STA $10                                       ; $F2EC
-  LDA #$00                                      ; $F2EE
-  ROL                                           ; $F2F2: 2E 01 00
-  ADC #CITY_BASE_HI                             ; $F2F5
-  STA $11                                       ; $F2F7
-  RTS                                           ; $F2F9
+.proc GetOfficerRecordAddr
+  LDY #$00                                      ; $F2D7: A0 00
+  STY $0001                                     ; $F2D9: 8C 01 00
+  STA $0000                                     ; $F2DC: 8D 00 00
+  ASL A                                         ; $F2DF: 0A
+  ROL $0001                                     ; $F2E0: 2E 01 00
+  CLC                                           ; $F2E3: 18
+  ADC $0000                                     ; $F2E4: 6D 00 00
+  PHA                                           ; $F2E7: 48
+  LDA $0001                                     ; $F2E8: AD 01 00
+  ADC #$00                                      ; $F2EB: 69 00
+  STA $0001                                     ; $F2ED: 8D 01 00
+  PLA                                           ; $F2F0: 68
+  ASL A                                         ; $F2F1: 0A
+  ROL $0001                                     ; $F2F2: 2E 01 00
+  ASL A                                         ; $F2F5: 0A
+  ROL $0001                                     ; $F2F6: 2E 01 00
+  CLC                                           ; $F2F9: 18
+  ADC #$C0                                      ; $F2FA: 69 C0
+  STA $0000                                     ; $F2FC: 8D 00 00
+  LDA $0001                                     ; $F2FF: AD 01 00
+  ADC #$63                                      ; $F302: 69 63
+  STA $0001                                     ; $F304: 8D 01 00
+  RTS                                           ; $F307: 60
 .endproc
 
 ;===============================================================================
-; $F308: Get Hero Kata Name
-; Formula: id * 10 + $901A
-; Params: id in A
-; Output: pointer to kata name data
+; $F308: GetNameDisplayScale
+; Switches to PRG bank $10 at $8000, computes address = A*10 + $901A,
+; then scans string at that address counting characters that are not
+; separator bytes ($39/$3A) or null terminator ($00).
+; Returns a display scale value from NameScaleTable based on count.
+; Input: A = name string index
+; Output: A = display scale value from table (3,3,3,2,2,1,1,0,0) leading spaces
 ;===============================================================================
-.proc GetHeroKataName
-KATA_SIZE     = 10
-KATA_BASE_LO  = $1A
-KATA_BASE_HI  = $90
-
-  STA $00                                       ; $F308: 8D 02 00
-  ASL                                           ; $F30B  id * 2
-  ADC $00                                       ; $F30C  id * 3
-  ASL                                           ; $F30E  id * 6
-  CLC                                           ; $F30F
-  ADC $00                                       ; $F310  id * 7
-  ASL                                           ; $F318: 0A  id * 14
-  SEC                                           ; $F319
-  SBC $00                                       ; $F31A  id * 13
-  SEC                                           ; $F31C
-  SBC $00                                       ; $F31D  id * 12
-  ; Actually: id * 10 = (id * 2) << 2 + id << 1
-  ; Simplified: ASL, ADC, ASL*2, ADC...
-  CLC                                           ; $F31F
-  ADC #KATA_BASE_LO                             ; $F321: 6D 02 00
-  STA $10                                       ; $F324: 8D 00 00
-  LDA #$00                                      ; $F327: AD 01 00
-  ADC #KATA_BASE_HI                             ; $F32A: 69 00
-  STA $11                                       ; $F32C: 8D 01 00
-  RTS                                           ; $F32F
+.proc GetNameDisplayScale
+  STA $0002                                     ; $F308: 8D 02 00
+  LDY #$30                                      ; $F30B: A0 30
+  JSR SwitchBank8_B                             ; $F30D: 20 5F F2
+  LDA #$00                                      ; $F310: A9 00
+  STA $0001                                     ; $F312: 8D 01 00
+  LDA $0002                                     ; $F315: AD 02 00
+  ASL A                                         ; $F318: 0A
+  ROL $0001                                     ; $F319: 2E 01 00
+  ASL A                                         ; $F31C: 0A
+  ROL $0001                                     ; $F31D: 2E 01 00
+  CLC                                           ; $F320: 18
+  ADC $0002                                     ; $F321: 6D 02 00
+  STA $0000                                     ; $F324: 8D 00 00
+  LDA $0001                                     ; $F327: AD 01 00
+  ADC #$00                                      ; $F32A: 69 00
+  STA $0001                                     ; $F32C: 8D 01 00
+  ASL $0000                                     ; $F32F: 0E 00 00
+  ROL $0001                                     ; $F332: 2E 01 00
+  LDA $0000                                     ; $F335: AD 00 00
+  CLC                                           ; $F338: 18
+  ADC #$1A                                      ; $F339: 69 1A
+  STA $0000                                     ; $F33B: 8D 00 00
+  LDA $0001                                     ; $F33E: AD 01 00
+  ADC #$90                                      ; $F341: 69 90
+  STA $0001                                     ; $F343: 8D 01 00
+  LDY #$00                                      ; $F346: A0 00
+  LDX #$00                                      ; $F348: A2 00
+@scan_loop:
+  LDA ($00),Y                                   ; $F34A: B1 00
+  BEQ @done                                     ; $F34C: F0 0D
+  INY                                           ; $F34E: C8
+  CMP #$39                                      ; $F34F: C9 39
+  BEQ @scan_loop                                ; $F351: F0 F7
+  CMP #$3A                                      ; $F353: C9 3A
+  BEQ @scan_loop                                ; $F355: F0 F3
+  INX                                           ; $F357: E8
+  JMP @scan_loop                                ; $F358: 4C 4A F3
+@done:
+  LDA NameScaleTable,X                          ; $F35B: BD 5F F3
+  RTS                                           ; $F35E: 60
 .endproc
 
 ;===============================================================================
-; $F35F: Kata Name Width Table
+; $F35F: NameScaleTable
+; Maps character count (X=0..8) to a display scale value.
+; Higher counts yield lower values (more compressed display).
 ;===============================================================================
-KataNameWidthTable:
-  .byte $08, $08, $08, $08, $08, $08, $08, $08
+NameScaleTable:
+  .byte $03,$03,$03,$02,$02,$01,$01,$00,$00      ; $F35F: 03 03 03 02 02 01 01 00 00
 
 ;===============================================================================
-; $F368: Get Kingdom Address
-; 7 entries, 8 bytes per kingdom, data at $6F07 (SRAM)
+; $F368: GetRulerDataPtr
+; Masks A to low 4 bits (ruler index 0-6), looks up SRAM pointer.
+; Input: A = value (low nibble = ruler index, 0-6 valid)
+; Output: $0000/$0001 = 16-bit pointer to ruler's 8-byte data block
 ;===============================================================================
-.proc GetKingdomAddr
-kingdom_id    = $00
-KINGDOM_SIZE  = 8
-
-  LDA kingdom_id                                ; $F368
-  ASL                                           ; $F36A: 0A  id * 2
-  ASL                                           ; $F36B  id * 4
-  ASL                                           ; $F36C  id * 8
-  TAY                                           ; $F36D
-  LDA KingdomPtrTable,Y                         ; $F36E
-  STA $10                                       ; $F371
-  LDA KingdomPtrTable+1,Y                       ; $F373
-  STA $11                                       ; $F376
+.proc GetRulerDataPtr
+  AND #$0F                                      ; $F368: 29 0F
+  ASL A                                         ; $F36A: 0A
+  TAY                                           ; $F36B: A8
+  LDA RulerDataPtrTable,Y                       ; $F36C: B9 79 F3
+  STA $0000                                     ; $F36F: 8D 00 00
+  LDA RulerDataPtrTable+1,Y                     ; $F372: B9 7A F3
+  STA $0001                                     ; $F375: 8D 01 00
   RTS                                           ; $F378: 60
 .endproc
 
 ;===============================================================================
-; $F379: Kingdom Pointer Table
+; $F379: RulerDataPtrTable
+; 7 word entries pointing to per-ruler 8-byte SRAM blocks ($6F07-$6F37)
 ;===============================================================================
-KingdomPtrTable:
-  .addr $6F07, $6F0F, $6F17, $6F1F, $6F27, $6F2F, $6F37
+RulerDataPtrTable:
+  .word $6F07                                   ; $F379: 07 6F
+  .word $6F0F                                   ; $F37B: 0F 6F
+  .word $6F17                                   ; $F37D: 17 6F
+  .word $6F1F                                   ; $F37F: 1F 6F
+  .word $6F27                                   ; $F381: 27 6F
+  .word $6F2F                                   ; $F383: 2F 6F
+  .word $6F37                                   ; $F385: 37 6F
 
 ;===============================================================================
-; $F387: Get Hero Initial Data
-; Formula: hero_id * 12 + $8000
-; Params: hero_id in A
+; $F387: GetOfficerRomRecordAddr
+; Switches to PRG bank $11 at $8000, computes: A * 12 + $8000
+; Input: A = officer index
+; Output: $0000/$0001 = 16-bit pointer to officer ROM record (bank $11)
+; Method: A*2 + A = A*3, then shift left twice = A*12, add base $8000
+; Used for: ROM-based default officer data lookup (12 bytes per entry)
 ;===============================================================================
-.proc GetHeroInitialData
-INIT_SIZE     = 12
-INIT_BASE_LO  = $00
-INIT_BASE_HI  = $80
-
-  STA $00                                       ; $F387
-  ASL                                           ; $F389  id * 2
-  ADC $00                                       ; $F38A  id * 3
-  ASL                                           ; $F38C  id * 6
-  ASL                                           ; $F38D  id * 12
-  CLC                                           ; $F38E
-  ADC #INIT_BASE_LO                             ; $F38F
-  STA $10                                       ; $F391: 8D 00 00
-  LDA #$00                                      ; $F394
-  ROL                                           ; $F396
-  ADC #INIT_BASE_HI                             ; $F397
-  STA $11                                       ; $F399
-  RTS                                           ; $F39B
+.proc GetOfficerRomRecordAddr
+  LDY #$31                                      ; $F387: A0 31
+  JSR SwitchBank8_B                             ; $F389: 20 5F F2
+  LDY #$00                                      ; $F38C: A0 00
+  STY $0001                                     ; $F38E: 8C 01 00
+  STA $0000                                     ; $F391: 8D 00 00
+  ASL A                                         ; $F394: 0A
+  ROL $0001                                     ; $F395: 2E 01 00
+  CLC                                           ; $F398: 18
+  ADC $0000                                     ; $F399: 6D 00 00
+  PHA                                           ; $F39C: 48
+  LDA $0001                                     ; $F39D: AD 01 00
+  ADC #$00                                      ; $F3A0: 69 00
+  STA $0001                                     ; $F3A2: 8D 01 00
+  PLA                                           ; $F3A5: 68
+  ASL A                                         ; $F3A6: 0A
+  ROL $0001                                     ; $F3A7: 2E 01 00
+  ASL A                                         ; $F3AA: 0A
+  ROL $0001                                     ; $F3AB: 2E 01 00
+  CLC                                           ; $F3AE: 18
+  ADC #$00                                      ; $F3AF: 69 00
+  STA $0000                                     ; $F3B1: 8D 00 00
+  LDA $0001                                     ; $F3B4: AD 01 00
+  ADC #$80                                      ; $F3B7: 69 80
+  STA $0001                                     ; $F3B9: 8D 01 00
+  RTS                                           ; $F3BC: 60
 .endproc
 
 ;===============================================================================
-; $F3BD: Mapper Init + Controller Check
+; $F3BD: CopyProtectionCheck
+; Initializes Namco-163 mapper (IRQ disable, nametable mapping), then performs
+; a controller port 2 bit-verification against code bytes. Under normal
+; hardware conditions the check fails early and returns via RTS.
+; If the check passes (anti-piracy trigger), performs RAM test and halts
+; with a diagnostic palette color.
+; Input: None
+; Output: Returns normally if check fails (expected); halts if check passes
 ;===============================================================================
-.proc MapperInitCtrlCheck
+.proc CopyProtectionCheck
   LDA #$00                                      ; $F3BD: A9 00
-  STA $5000                                     ; $F3BF: 8D 00 50  CHR bank register
-  STA $5800                                     ; $F3C2: 8D 00 58  CHR bank register
+  STA $5000                                     ; $F3BF: 8D 00 50
+  STA $5800                                     ; $F3C2: 8D 00 58
   LDA #$E0                                      ; $F3C5: A9 E0
-  STA $C000                                     ; $F3C7: 8D 00 C0  PRG bank 0
-  STA $D000                                     ; $F3CA: 8D 00 D0  PRG bank 0
+  STA NAMCO_CHR_BANK_0                                     ; $F3C7: 8D 00 C0
+  STA NAMCO_CHR_BANK_2                                     ; $F3CA: 8D 00 D0
   LDA #$E1                                      ; $F3CD: A9 E1
-  STA $C800                                     ; $F3CF: 8D 00 C8  PRG bank 1
-  STA $D800                                     ; $F3D2: 8D 00 D8  PRG bank 1
-
-  ; Controller validation loop
+  STA NAMCO_CHR_BANK_1                                     ; $F3CF: 8D 00 C8
+  STA NAMCO_CHR_BANK_3                                     ; $F3D2: 8D 00 D8
   LDX #$00                                      ; $F3D5: A2 00
-@ctrl_loop:
-  LDA MapperInitCtrlCheck,X                     ; $F3D7: BD BD F3  Read from self (data bytes)
+@check_loop:
+  LDA CopyProtectionCheck,X                                   ; $F3D7: BD BD F3
   AND #$01                                      ; $F3DA: 29 01
   STA $0001                                     ; $F3DC: 8D 01 00
-  STA APU_JOY1                                  ; $F3DF: 8D 16 40  Write to controller port
-  LDA APU_JOY2                                  ; $F3E2: AD 17 40  Read controller port 2
-  LSR                                           ; $F3E5: 4A
+  STA APU_JOY1                                   ; $F3DF: 8D 16 40
+  LDA APU_JOY2                                   ; $F3E2: AD 17 40
+  LSR A                                         ; $F3E5: 4A
   EOR #$FF                                      ; $F3E6: 49 FF
   AND #$01                                      ; $F3E8: 29 01
   CMP $0001                                     ; $F3EA: CD 01 00
-  BNE @ctrl_fail                                ; $F3ED: D0 32
+  BNE @normal_exit                              ; $F3ED: D0 32
   INX                                           ; $F3EF: E8
-  CPX #$46                                      ; $F3F0: E0 46  70 iterations
-  BNE @ctrl_loop                                ; $F3F2: D0 E3
-@ctrl_fail:
-  RTS                                           ; $F3F4
+  CPX #$46                                      ; $F3F0: E0 46
+  BNE @check_loop                               ; $F3F2: D0 E3
+  ; --- Anti-piracy path: all 70 checks passed (should not happen normally) ---
+  LDA #$40                                      ; $F3F4: A9 40
+  STA NAMCO_PRG_8000_ALT                             ; $F3F6: 8D 00 F8
+  LDX #$01                                      ; $F3F9: A2 01
+  JSR VerifyRamPattern                          ; $F3FB: 20 22 F4
+  BEQ @display_error                            ; $F3FE: F0 0C
+  LDX #$37                                      ; $F400: A2 37
+  JSR WriteRamPattern                           ; $F402: 20 3F F4
+  JSR VerifyRamPattern                          ; $F405: 20 22 F4
+  BEQ @display_error                            ; $F408: F0 02
+  LDX #$16                                      ; $F40A: A2 16
+@display_error:
+  LDA #$3F                                      ; $F40C: A9 3F
+  STA PPU_ADDR                                   ; $F40E: 8D 06 20
+  LDY #$00                                      ; $F411: A0 00
+  STY PPU_ADDR                                   ; $F413: 8C 06 20
+@fill_palette:
+  STX PPU_DATA                                   ; $F416: 8E 07 20
+  INY                                           ; $F419: C8
+  CPY #$20                                      ; $F41A: C0 20
+  BNE @fill_palette                             ; $F41C: D0 F8
+@halt_loop:
+  JMP @halt_loop                                ; $F41E: 4C 1E F4
+@normal_exit:
+  RTS                                           ; $F421: 60
 .endproc
 
 ;===============================================================================
-; $F422: RAM Integrity Test
-; Write/verify $AA pattern
+; $F422: VerifyRamPattern
+; Verifies that RAM ($6000-$7FFF) contains the expected pseudo-random pattern.
+; Initializes parameters via InitRamTestParams, then reads each byte and
+; compares against the hash-generated expected value.
+; Output: Z=1 (A=0) if all match; Z=0 (A=mismatch value) if any differ
 ;===============================================================================
-.proc RamIntegrityTest
-  LDA #$AA                                      ; $F425: B1 02
-  STA $0000                                     ; $F427
-@write_loop:
-  LDA $0000                                     ; $F429
-  STA ($00),Y                                   ; $F42B
-  INY                                           ; $F42D
-  BNE @write_loop                               ; $F42E
-  INC $01                                       ; $F432: EE 03 00
-  LDA $01                                       ; $F435: AD 03 00
-  CMP #$08                                      ; $F438: C9 80
-  BCC @write_loop                               ; $F43A
-  ; Verify
-  LDA #$00                                      ; $F43C: A9 00
-  STA $01                                       ; $F43E
-  LDY #$00                                      ; $F440
+.proc VerifyRamPattern
+  JSR InitRamTestParams                         ; $F422: 20 58 F4
 @verify_loop:
-  LDA ($00),Y                                   ; $F442: AD 00 00
-  CMP #$AA                                      ; $F445
-  BNE @fail                                     ; $F44B: D0 F5
-  INY                                           ; $F44D
-  BNE @verify_loop                              ; $F44E
-  INC $01                                       ; $F450
-  LDA $01                                       ; $F452
-  CMP #$08                                      ; $F454
-  BCC @verify_loop                              ; $F456
+  LDA ($02),Y                                   ; $F425: B1 02
+  CMP $0000                                     ; $F427: CD 00 00
+  BNE @fail                                     ; $F42A: D0 12
+  JSR AdvanceHashPattern                        ; $F42C: 20 68 F4
+  INY                                           ; $F42F: C8
+  BNE @verify_loop                              ; $F430: D0 F3
+  INC $0003                                     ; $F432: EE 03 00
+  LDA $0003                                     ; $F435: AD 03 00
+  CMP #$80                                      ; $F438: C9 80
+  BNE @verify_loop                              ; $F43A: D0 E9
+  LDA #$00                                      ; $F43C: A9 00
 @fail:
-  RTS                                           ; $F458
+  RTS                                           ; $F43E: 60
 .endproc
 
 ;===============================================================================
-; $F477: Sound/Music Data (512 bytes)
+; $F43F: WriteRamPattern
+; Fills RAM ($6000-$7FFF) with a pseudo-random pattern generated by
+; AdvanceHashPattern. Used to write a test pattern for later verification.
 ;===============================================================================
-SoundMusicData:
-  .incbin "rom/prg/prg_1f.bin", $477, $200
+.proc WriteRamPattern
+  JSR InitRamTestParams                         ; $F43F: 20 58 F4
+@write_loop:
+  LDA $0000                                     ; $F442: AD 00 00
+  STA ($02),Y                                   ; $F445: 91 02
+  JSR AdvanceHashPattern                        ; $F447: 20 68 F4
+  INY                                           ; $F44A: C8
+  BNE @write_loop                               ; $F44B: D0 F5
+  INC $0003                                     ; $F44D: EE 03 00
+  LDA $0003                                     ; $F450: AD 03 00
+  CMP #$80                                      ; $F453: C9 80
+  BNE @write_loop                               ; $F455: D0 EB
+  RTS                                           ; $F457: 60
+.endproc
 
 ;===============================================================================
-; $F677: Padding ($FF fill)
+; $F458: InitRamTestParams
+; Initializes parameters for RAM test routines.
+; Sets pointer ($02/$03) = $6000, pattern seed ($0000) = $AA, Y = 0
 ;===============================================================================
-Padding1:
-  .res $F7FF - $F677, $FF
+.proc InitRamTestParams
+  LDY #$00                                      ; $F458: A0 00
+  STY $0002                                     ; $F45A: 8C 02 00
+  LDA #$60                                      ; $F45D: A9 60
+  STA $0003                                     ; $F45F: 8D 03 00
+  LDA #$AA                                      ; $F462: A9 AA
+  STA $0000                                     ; $F464: 8D 00 00
+  RTS                                           ; $F467: 60
+.endproc
 
 ;===============================================================================
-; $F800: NMI Handler
-; Entry: saves registers, CHR setup, scroll, OAM DMA, sub-dispatch
-; Sub-states dispatched by $0078 AND #$0F
+; $F468: AdvanceHashPattern
+; Advances the pseudo-random hash value in $0000.
+; Algorithm: value = (value << 2) + value + 1 (SEC before ADC)
+; If result is zero, retries to avoid zero values.
+; Input/Output: $0000 = current/next hash value
+;===============================================================================
+.proc AdvanceHashPattern
+@retry:
+  LDA $0000                                     ; $F468: AD 00 00
+  ASL A                                         ; $F46B: 0A
+  ASL A                                         ; $F46C: 0A
+  SEC                                           ; $F46D: 38
+  ADC $0000                                     ; $F46E: 6D 00 00
+  STA $0000                                     ; $F471: 8D 00 00
+  BEQ @retry                                    ; $F474: F0 F2
+  RTS                                           ; $F476: 60
+.endproc
+
+;===============================================================================
+; $F477: MetaTileData
+; Metatile attribute/composition data table (497 bytes).
+; Used for map tile rendering and attribute lookup.
+;===============================================================================
+MetaTileData:
+  .byte $00,$00,$00,$00,$01,$01,$01,$01,$14,$15,$24,$25,$07,$08,$17,$18 ; $F477: 00 00 00 00 01 01 01 01 14 15 24 25 07 08 17 18
+  .byte $07,$27,$1A,$25,$26,$08,$24,$1B,$12,$15,$17,$37,$14,$13,$36,$18 ; $F487: 07 27 1A 25 26 08 24 1B 12 15 17 37 14 13 36 18
+  .byte $07,$0A,$1A,$25,$0A,$08,$24,$1B,$12,$15,$17,$0A,$14,$13,$0A,$18 ; $F497: 07 0A 1A 25 0A 08 24 1B 12 15 17 0A 14 13 0A 18
+  .byte $26,$0A,$0A,$0A,$0A,$27,$0A,$0A,$0A,$0A,$0A,$37,$0A,$0A,$36,$0A ; $F4A7: 26 0A 0A 0A 0A 27 0A 0A 0A 0A 0A 37 0A 0A 36 0A
+  .byte $26,$27,$0A,$0A,$0A,$0A,$36,$37,$0A,$27,$0A,$37,$26,$0A,$36,$0A ; $F4B7: 26 27 0A 0A 0A 0A 36 37 0A 27 0A 37 26 0A 36 0A
+  .byte $26,$27,$24,$25,$14,$15,$36,$37,$07,$27,$17,$37,$26,$08,$36,$18 ; $F4C7: 26 27 24 25 14 15 36 37 07 27 17 37 26 08 36 18
+  .byte $0A,$0A,$24,$25,$14,$15,$0A,$0A,$07,$0A,$17,$0A,$0A,$08,$0A,$18 ; $F4D7: 0A 0A 24 25 14 15 0A 0A 07 0A 17 0A 0A 08 0A 18
+  .byte $22,$23,$04,$05,$34,$35,$32,$33,$22,$06,$32,$16,$09,$23,$19,$33 ; $F4E7: 22 23 04 05 34 35 32 33 22 06 32 16 09 23 19 33
+  .byte $0C,$0D,$1C,$1D,$0E,$0F,$1E,$1F,$22,$40,$32,$50,$41,$42,$51,$52 ; $F4F7: 0C 0D 1C 1D 0E 0F 1E 1F 22 40 32 50 41 42 51 52
+  .byte $43,$44,$53,$54,$22,$23,$55,$33,$46,$42,$56,$54,$22,$23,$55,$33 ; $F507: 43 44 53 54 22 23 55 33 46 42 56 54 22 23 55 33
+  .byte $2C,$2D,$3C,$3D,$2E,$2F,$3E,$3F,$20,$21,$30,$31,$22,$23,$45,$33 ; $F517: 2C 2D 3C 3D 2E 2F 3E 3F 20 21 30 31 22 23 45 33
+  .byte $2A,$2B,$3A,$3B,$60,$63,$70,$73,$22,$23,$48,$49,$58,$59,$32,$33 ; $F527: 2A 2B 3A 3B 60 63 70 73 22 23 48 49 58 59 32 33
+  .byte $22,$57,$32,$33,$5A,$23,$32,$33,$22,$23,$32,$47,$22,$23,$4A,$33 ; $F537: 22 57 32 33 5A 23 32 33 22 23 32 47 22 23 4A 33
+  .byte $22,$4B,$32,$5B,$4C,$23,$5C,$33,$60,$61,$5D,$3B,$62,$63,$3A,$5E ; $F547: 22 4B 32 5B 4C 23 5C 33 60 61 5D 3B 62 63 3A 5E
+  .byte $4D,$2B,$70,$71,$22,$23,$32,$33,$60,$4E,$70,$73,$60,$63,$5D,$5E ; $F557: 4D 2B 70 71 22 23 32 33 60 4E 70 73 60 63 5D 5E
+  .byte $60,$61,$70,$71,$62,$63,$72,$73,$4D,$4E,$5D,$5E,$62,$61,$72,$71 ; $F567: 60 61 70 71 62 63 72 73 4D 4E 5D 5E 62 61 72 71
+  .byte $0A,$27,$24,$25,$0A,$08,$36,$18,$26,$08,$0A,$18,$14,$15,$36,$0A ; $F577: 0A 27 24 25 0A 08 36 18 26 08 0A 18 14 15 36 0A
+  .byte $14,$15,$0A,$37,$07,$27,$17,$0A,$07,$0A,$17,$37,$26,$0A,$24,$25 ; $F587: 14 15 0A 37 07 27 17 0A 07 0A 17 37 26 0A 24 25
+  .byte $4C,$4B,$4F,$5F,$2A,$4E,$72,$73,$2A,$2B,$72,$71,$62,$61,$3A,$3B ; $F597: 4C 4B 4F 5F 2A 4E 72 73 2A 2B 72 71 62 61 3A 3B
+  .byte $22,$23,$32,$33,$64,$23,$64,$33,$22,$74,$32,$74,$65,$65,$32,$33 ; $F5A7: 22 23 32 33 64 23 64 33 22 74 32 74 65 65 32 33
+  .byte $22,$23,$75,$75,$66,$66,$65,$33,$22,$75,$66,$66,$66,$23,$66,$64 ; $F5B7: 22 23 75 75 66 66 65 33 22 75 66 66 66 23 66 64
+  .byte $22,$66,$74,$66,$22,$23,$55,$33,$2C,$2D,$67,$3D,$0B,$35,$19,$33 ; $F5C7: 22 66 74 66 22 23 55 33 2C 2D 67 3D 0B 35 19 33
+  .byte $22,$06,$04,$76,$43,$68,$53,$78,$09,$23,$77,$05,$6A,$0D,$7A,$1D ; $F5D7: 22 06 04 76 43 68 53 78 09 23 77 05 6A 0D 7A 1D
+  .byte $6B,$2D,$7B,$3D,$69,$21,$79,$31,$0A,$0A,$0A,$0A,$4D,$3B,$5D,$3B ; $F5E7: 6B 2D 7B 3D 69 21 79 31 0A 0A 0A 0A 4D 3B 5D 3B
+  .byte $22,$23,$32,$33,$22,$23,$32,$33,$8C,$8D,$86,$87,$88,$89,$8C,$8D ; $F5F7: 22 23 32 33 22 23 32 33 8C 8D 86 87 88 89 8C 8D
+  .byte $8A,$8B,$8E,$8F,$14,$13,$24,$1B,$3B,$4E,$3B,$5E,$12,$13,$17,$18 ; $F607: 8A 8B 8E 8F 14 13 24 1B 3B 4E 3B 5E 12 13 17 18
+  .byte $D2,$15,$1A,$25,$17,$18,$1A,$1B,$6C,$01,$01,$01,$01,$01,$7C,$01 ; $F617: D2 15 1A 25 17 18 1A 1B 6C 01 01 01 01 01 7C 01
+  .byte $01,$6D,$01,$01,$01,$01,$01,$7D,$6E,$23,$7E,$33,$23,$6F,$33,$7F ; $F627: 01 6D 01 01 01 01 01 7D 6E 23 7E 33 23 6F 33 7F
+  .byte $01,$6D,$01,$7D,$6E,$23,$23,$23,$6E,$33,$23,$33,$33,$6F,$33,$33 ; $F637: 01 6D 01 7D 6E 23 23 23 6E 33 23 33 33 6F 33 33
+  .byte $01,$01,$7C,$7D,$33,$6F,$33,$33,$6E,$6F,$22,$22,$26,$0A,$0A,$37 ; $F647: 01 01 7C 7D 33 6F 33 33 6E 6F 22 22 26 0A 0A 37
+  .byte $0A,$27,$36,$0A,$22,$23,$32,$33,$22,$23,$32,$33,$22,$23,$32,$33 ; $F657: 0A 27 36 0A 22 23 32 33 22 23 32 33 22 23 32 33
+
+;===============================================================================
+; $F667-$F67E: Unused padding (24 bytes of $00)
+;===============================================================================
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $F667: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  .byte $00,$00,$00,$00,$00,$00,$00,$00                 ; $F677: 00 00 00 00 00 00 00 00
+
+;===============================================================================
+; $F67F-$F7FF: Unused space (385 bytes of $FF)
+;===============================================================================
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F67F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F68F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F69F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F6AF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F6BF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F6CF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F6DF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F6EF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F6FF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F70F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F71F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F72F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F73F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F74F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F75F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F76F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F77F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F78F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F79F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F7AF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F7BF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F7CF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F7DF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $F7EF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF                                             ; $F7FF: FF
+
+;===============================================================================
+; $F800: NmiHandler
+; Non-Maskable Interrupt handler. Saves registers, configures Namco-163
+; sound/IRQ, sets nametable mirroring, restores PRG banks, performs OAM DMA,
+; then dispatches to a game-state-specific VBlank handler via jump table.
 ;===============================================================================
 .proc NmiHandler
-  PHA                                           ; $F800: 48
-  TXA                                           ; $F801: 8A
-  PHA                                           ; $F802: 48
-  TYA                                           ; $F803: 98
-  PHA                                           ; $F804: 48
-
-  ; Read PPU status
-  LDA PPU_STATUS                                ; $F805: AD 02 20
-
-  ; CHR bank setup
-  LDA $00E2                                     ; $F808: A9 00
-  STA $E800                                     ; $F80A: 8D 00 58
-  LDA $00E3                                     ; $F80D: AD 68 00
-  STA $F000                                     ; $F810: 8D 00 50
-
-  ; Scroll
-  LDA $009A                                     ; $F813: AD 69 00
-  STA PPU_SCROLL                                ; $F816: 8D 00 58
-  LDA $009B                                     ; $F81C: AD 61 00
-  STA PPU_SCROLL                                ; $F81F: 8D 60 00
-
-  ; OAM DMA
-  LDA #$02                                      ; $F823: A9 E0
-  STA APU_OAM_DMA                               ; $F825: 8D 00 C0
-
-  ; Sub-dispatch by $0078 AND #$0F
-  LDA addr_sub_state                            ; $F828: A9 E1
-  AND #$0F                                      ; $F82A
-  ASL                                           ; $F82C
-  TAY                                           ; $F82D
-  LDA NmiSubDispatchTable,Y                     ; $F82E
-  STA $004E                                     ; $F831
-  LDA NmiSubDispatchTable+1,Y                   ; $F833
-  STA $004F                                     ; $F836
-  JMP ($004E)                                   ; $F838
-
-NmiSubDispatchTable:
-  .addr NmiSubState0, NmiSubState1, NmiSubState2, NmiSubState3
-  .addr NmiSubState4, NmiSubState5, NmiSubState6, NmiSubState7
-
-NmiSubState0:
-  ; Main game frame: process input, display, scroll
-  JSR NmiSubDispatch                            ; $F84B
-  JMP NmiHandler_nmi_post                       ; $F84E
-
-NmiSubState1:
-  ; Kingdom select frame
-  JSR NmiSubDispatch                            ; $F851
-  JMP NmiHandler_nmi_post                       ; $F854
-
-NmiSubState2:
-  ; Map view frame
-  JSR NmiSubDispatch                            ; $F857
-  JMP NmiHandler_nmi_post                       ; $F85A
-
-NmiSubState3:
-  ; Domestic affairs frame
-  JSR NmiSubDispatch                            ; $F85D
-  JMP NmiHandler_nmi_post                       ; $F860
-
-NmiSubState4:
-  ; Simple display frame
-  JSR NmiSubDispatch                            ; $F863
-  JMP NmiHandler_nmi_post                       ; $F866
-
-NmiSubState5:
-  ; Battle frame
-  JSR NmiSubDispatch                            ; $F869
-  JMP NmiHandler_nmi_post                       ; $F86C
-
-NmiSubState6:
-  ; Advisor frame
-  JSR NmiSubDispatch                            ; $F86F
-  JMP NmiHandler_nmi_post                       ; $F878: 6C 00 00
-
-NmiSubState7:
-  ; Minimal frame
-
-NmiHandler_nmi_post:
-  ; Restore banks, inc RNG counters
-  LDA addr_bank_e6                              ; $F87B
-  STA $C000                                     ; $F87D
-  LDA addr_bank_e7                              ; $F880
-  STA $C800                                     ; $F882
-  LDA addr_bank_e8                              ; $F885
-  STA $D000                                     ; $F887
-  LDA addr_bank_e9                              ; $F88A
-  STA $D800                                     ; $F88C
-
-  ; Increment RNG counters
-  INC $0050                                     ; $F88F
-  INC $0052                                     ; $F891
-
-  PLA                                           ; $F893
-  TAY                                           ; $F894
-  PLA                                           ; $F895
-  TAX                                           ; $F896
-  PLA                                           ; $F897
-  RTI                                           ; $F898
+  PHA                                         ; $F800: 48
+  TXA                                         ; $F801: 8A
+  PHA                                         ; $F802: 48
+  TYA                                         ; $F803: 98
+  PHA                                         ; $F804: 48
+  LDA PPU_STATUS                               ; $F805: AD 02 20
+  LDA #$00                                    ; $F808: A9 00
+  STA $5800                                   ; $F80A: 8D 00 58
+  LDA $0068                                   ; $F80D: AD 68 00
+  STA $5000                                   ; $F810: 8D 00 50
+  LDA $0069                                   ; $F813: AD 69 00
+  STA $5800                                   ; $F816: 8D 00 58
+  STA $0062                                   ; $F819: 8D 62 00
+  LDA $0061                                   ; $F81C: AD 61 00
+  STA $0060                                   ; $F81F: 8D 60 00
+  CLI                                         ; $F822: 58
+  LDA #$E0                                    ; $F823: A9 E0
+  STA NAMCO_CHR_BANK_0                                   ; $F825: 8D 00 C0
+  LDA #$E1                                    ; $F828: A9 E1
+  STA NAMCO_CHR_BANK_1                                   ; $F82A: 8D 00 C8
+  LDA #$E0                                    ; $F82D: A9 E0
+  STA NAMCO_CHR_BANK_2                                   ; $F82F: 8D 00 D0
+  LDA #$E1                                    ; $F832: A9 E1
+  STA NAMCO_CHR_BANK_3                                   ; $F834: 8D 00 D8
+  LDA $7B                                     ; $F837: A5 7B
+  BEQ @set_prg_banks                          ; $F839: F0 03
+  JMP NmiHandler_Busy                         ; $F83B: 4C D5 FA
+@set_prg_banks:
+  LDA $E1                                     ; $F83E: A5 E1
+  STA NAMCO_PRG_8000                                   ; $F840: 8D 00 E0
+  LDA $E2                                     ; $F843: A5 E2
+  ORA #$C0                                    ; $F845: 09 C0
+  STA NAMCO_PRG_A000                                   ; $F847: 8D 00 E8
+  LDA $E3                                     ; $F84A: A5 E3
+  STA NAMCO_PRG_C000                                   ; $F84C: 8D 00 F0
+  LDY #$00                                    ; $F84F: A0 00
+  STY PPU_OAM_ADDR                             ; $F851: 8C 03 20
+  INY                                         ; $F854: C8
+  STY $7B                                     ; $F855: 84 7B
+  LDA #$02                                    ; $F857: A9 02
+  STA APU_OAM_DMA                              ; $F859: 8D 14 40
+  LDA $008C                                   ; $F85C: AD 8C 00
+  STA PPU_MASK                                 ; $F85F: 8D 01 20
+  LDA #$00                                    ; $F862: A9 00
+  STA $7C                                     ; $F864: 85 7C
+  LDA $78                                     ; $F866: A5 78
+  AND #$0F                                    ; $F868: 29 0F
+  ASL A                                       ; $F86A: 0A
+  TAY                                         ; $F86B: A8
+  LDA NmiDispatchTable,Y                      ; $F86C: B9 7B F8
+  STA $0000                                   ; $F86F: 8D 00 00
+  LDA NmiDispatchTable+1,Y                                 ; $F872: B9 7C F8
+  STA $0001                                   ; $F875: 8D 01 00
+  JMP ($0000)                                 ; $F878: 6C 00 00
 .endproc
 
 ;===============================================================================
-; $FAA9: Palette Swap A
-; Exchanges palette bytes if $6F44 != 0
+; $F87B: NmiDispatchTable - Jump table for NMI game state dispatch.
+; 9 interleaved lo/hi address pairs. Index = ($78 & $0F) * 2.
 ;===============================================================================
-.proc PaletteSwapA
-  LDA $6F44                                     ; $FAA9: AD 44 6F
-  BEQ PaletteSwapA_done                         ; $FAAC: F0 10
-  LDA $0081                                     ; $FAB0: A5 82
-  EOR $0083                                     ; $FAB2
-  STA $0081                                     ; $FAB4
-  STA $0083                                     ; $FABA: 85 83
-PaletteSwapA_done:
-  RTS                                           ; $FABE: 60
+NmiDispatchTable:
+  .byte $97,$FA,$97,$FA,$B5,$F8,$FE,$F8,$6A,$F9         ; $F87B: 97 FA 97 FA B5 F8 FE F8 6A F9
+  .byte $A0,$F9,$E4,$F9,$13,$FA,$53,$FA                 ; $F885: A0 F9 E4 F9 13 FA 53 FA
+
+;===============================================================================
+; $F88D: NmiEpilogue
+; Restores PRG banks, increments tick counters, restores regs, RTI.
+;===============================================================================
+.proc NmiEpilogue
+  DEC $007B                                   ; $F88D: CE 7B 00
+  LDA $DE                                     ; $F890: A5 DE
+  STA NAMCO_PRG_8000                                   ; $F892: 8D 00 E0
+  LDA $DF                                     ; $F895: A5 DF
+  ORA #$C0                                    ; $F897: 09 C0
+  STA NAMCO_PRG_A000                                   ; $F899: 8D 00 E8
+  LDA $E0                                     ; $F89C: A5 E0
+  STA NAMCO_PRG_C000                                   ; $F89E: 8D 00 F0
+  INC $50                                     ; $F8A1: E6 50
+  INC $52                                     ; $F8A3: E6 52
+  INC $54                                     ; $F8A5: E6 54
+  INC $55                                     ; $F8A7: E6 55
+  INC $5E                                     ; $F8A9: E6 5E
+  BNE @restore_regs                           ; $F8AB: D0 02
+  INC $5F                                     ; $F8AD: E6 5F
+@restore_regs:
+  PLA                                         ; $F8AF: 68
+  TAY                                         ; $F8B0: A8
+  PLA                                         ; $F8B1: 68
+  TAX                                         ; $F8B2: AA
+  PLA                                         ; $F8B3: 68
+  RTI                                         ; $F8B4: 40
+.endproc
+
+;--- $F8B5: VBlank handler - map screen ---
+.proc NmiState2_MapScreen
+  JSR NmiSubDispatch                                   ; $F8B5: 20 53 EE
+  JSR ChrBankSwitch                                   ; $F8B8: 20 06 F2
+  JSR SetupChrBanksAndWait                    ; $F8BB: 20 0B FB
+  JSR PaletteAnimation                                   ; $F8BE: 20 67 EC
+  JSR ControllerRead                                   ; $F8C1: 20 C6 E6
+  LDY #$2E                                    ; $F8C4: A0 2E
+  JSR SwitchBankAC_B                                   ; $F8C6: 20 37 F2
+  JSR $A003                                   ; $F8C9: 20 03 A0
+  LDA #$4C                                    ; $F8CC: A9 4C
+  STA $A5                                     ; $F8CE: 85 A5
+  STA NAMCO_PRG_8000_ALT                           ; $F8D0: 8D 00 F8
+  JSR CalcScrollAddrAlt                       ; $F8D3: 20 9B FF
+  JSR SwapPlayerPointers                      ; $F8D6: 20 A9 FA
+  LDY #$3D                                    ; $F8D9: A0 3D
+  JSR SwitchBankAC_B                                   ; $F8DB: 20 37 F2
+  JSR $A003                                   ; $F8DE: 20 03 A0
+  JSR $A009                                   ; $F8E1: 20 09 A0
+  JSR $A00F                                   ; $F8E4: 20 0F A0
+  JSR $A03F                                   ; $F8E7: 20 3F A0
+  LDY #$3B                                    ; $F8EA: A0 3B
+  JSR SwitchBankAC_B                                   ; $F8EC: 20 37 F2
+  JSR $A000                                   ; $F8EF: 20 00 A0
+  JSR RestorePlayerPointers                   ; $F8F2: 20 BF FA
+  JSR SpriteClearFromIndex                                   ; $F8F5: 20 30 E8
+  JSR WaitVBlank                              ; $F8F8: 20 28 FB
+  JMP NmiEpilogue                             ; $F8FB: 4C 8D F8
+.endproc
+
+;--- $F8FE: VBlank handler - battle ---
+.proc NmiState3_Battle
+  JSR NmiSubDispatch                                   ; $F8FE: 20 53 EE
+  JSR ChrBankSwitch                                   ; $F901: 20 06 F2
+  JSR SetupChrBanksAndWait                    ; $F904: 20 0B FB
+  LDA #$00                                    ; $F907: A9 00
+  STA $7C                                     ; $F909: 85 7C
+  JSR PaletteAnimation                                   ; $F90B: 20 67 EC
+  JSR ControllerRead                                   ; $F90E: 20 C6 E6
+  LDY #$2E                                    ; $F911: A0 2E
+  JSR SwitchBankAC_B                                   ; $F913: 20 37 F2
+  JSR $A003                                   ; $F916: 20 03 A0
+  LDA #$4C                                    ; $F919: A9 4C
+  STA $A5                                     ; $F91B: 85 A5
+  STA NAMCO_PRG_8000_ALT                           ; $F91D: 8D 00 F8
+  JSR CalcScrollAddr                          ; $F920: 20 62 FF
+  LDA $0500                                   ; $F923: AD 00 05
+  CMP #$0C                                    ; $F926: C9 0C
+  BCS @skip_weather                           ; $F928: B0 13
+  LDA $008F                                   ; $F92A: AD 8F 00
+  BNE @skip_weather                           ; $F92D: D0 0E
+  JSR NamcoSoundRegRead                                   ; $F92F: 20 77 F0
+  LDY #$37                                    ; $F932: A0 37
+  JSR SwitchBankAC_B                                   ; $F934: 20 37 F2
+  JSR $A00C                                   ; $F937: 20 0C A0
+  JSR $A00F                                   ; $F93A: 20 0F A0
+@skip_weather:
+  JSR SwapPlayerPointers                      ; $F93D: 20 A9 FA
+  LDY #$39                                    ; $F940: A0 39
+  JSR SwitchBankAC_B                                   ; $F942: 20 37 F2
+  JSR $A00F                                   ; $F945: 20 0F A0
+  LDY #$2C                                    ; $F948: A0 2C
+  JSR SwitchBankAC_B                                   ; $F94A: 20 37 F2
+  JSR $A000                                   ; $F94D: 20 00 A0
+  LDY #$3D                                    ; $F950: A0 3D
+  JSR SwitchBankAC_B                                   ; $F952: 20 37 F2
+  JSR $A003                                   ; $F955: 20 03 A0
+  JSR RestorePlayerPointers                   ; $F958: 20 BF FA
+  JSR SpriteClearFromIndex                                   ; $F95B: 20 30 E8
+  LDA $009C                                   ; $F95E: AD 9C 00
+  STA $009D                                   ; $F961: 8D 9D 00
+  JSR WaitVBlank                              ; $F964: 20 28 FB
+  JMP NmiEpilogue                             ; $F967: 4C 8D F8
+.endproc
+
+;--- $F96A: VBlank handler - menu ---
+.proc NmiState4_Menu
+  JSR NmiSubDispatch                                   ; $F96A: 20 53 EE
+  JSR ChrBankSwitch                                   ; $F96D: 20 06 F2
+  JSR SetupChrBanksAndWait                    ; $F970: 20 0B FB
+  LDA #$00                                    ; $F973: A9 00
+  STA $7C                                     ; $F975: 85 7C
+  JSR PaletteAnimation                                   ; $F977: 20 67 EC
+  JSR ControllerRead                                   ; $F97A: 20 C6 E6
+  LDY #$2E                                    ; $F97D: A0 2E
+  JSR SwitchBankAC_B                                   ; $F97F: 20 37 F2
+  JSR $A003                                   ; $F982: 20 03 A0
+  LDA #$4C                                    ; $F985: A9 4C
+  STA $A5                                     ; $F987: 85 A5
+  STA NAMCO_PRG_8000_ALT                           ; $F989: 8D 00 F8
+  JSR CalcScrollAddr                          ; $F98C: 20 62 FF
+  LDY #$2E                                    ; $F98F: A0 2E
+  JSR SwitchBankAC_B                                   ; $F991: 20 37 F2
+  JSR $A000                                   ; $F994: 20 00 A0
+  JSR SpriteClearFromIndex                                   ; $F997: 20 30 E8
+  JSR WaitVBlank                              ; $F99A: 20 28 FB
+  JMP NmiEpilogue                             ; $F99D: 4C 8D F8
+.endproc
+
+;--- $F9A0: VBlank handler - diplomacy ---
+.proc NmiState5_Diplomacy
+  JSR NmiSubDispatch                                   ; $F9A0: 20 53 EE
+  JSR ChrBankSwitch                                   ; $F9A3: 20 06 F2
+  JSR SetupChrBanksAndWait                    ; $F9A6: 20 0B FB
+  LDA #$00                                    ; $F9A9: A9 00
+  STA $7C                                     ; $F9AB: 85 7C
+  JSR PaletteAnimation                                   ; $F9AD: 20 67 EC
+  JSR ControllerRead                                   ; $F9B0: 20 C6 E6
+  LDY #$2E                                    ; $F9B3: A0 2E
+  JSR SwitchBankAC_B                                   ; $F9B5: 20 37 F2
+  JSR $A003                                   ; $F9B8: 20 03 A0
+  LDA #$4C                                    ; $F9BB: A9 4C
+  STA $A5                                     ; $F9BD: 85 A5
+  STA NAMCO_PRG_8000_ALT                           ; $F9BF: 8D 00 F8
+  JSR CalcScrollAddr                          ; $F9C2: 20 62 FF
+  JSR SwapPlayerPointers                      ; $F9C5: 20 A9 FA
+  LDY #$37                                    ; $F9C8: A0 37
+  JSR SwitchBankAC_B                                   ; $F9CA: 20 37 F2
+  JSR $A01B                                   ; $F9CD: 20 1B A0
+  LDY #$3D                                    ; $F9D0: A0 3D
+  JSR SwitchBankAC_B                                   ; $F9D2: 20 37 F2
+  JSR $A003                                   ; $F9D5: 20 03 A0
+  JSR RestorePlayerPointers                   ; $F9D8: 20 BF FA
+  JSR SpriteClearFromIndex                                   ; $F9DB: 20 30 E8
+  JSR WaitVBlank                              ; $F9DE: 20 28 FB
+  JMP NmiEpilogue                             ; $F9E1: 4C 8D F8
+.endproc
+
+;--- $F9E4: VBlank handler - event ---
+.proc NmiState6_Event
+  JSR NmiSubDispatch                                   ; $F9E4: 20 53 EE
+  JSR ChrBankSwitch                                   ; $F9E7: 20 06 F2
+  JSR SetupChrBanksAndWait                    ; $F9EA: 20 0B FB
+  JSR ControllerRead                                   ; $F9ED: 20 C6 E6
+  LDY #$2E                                    ; $F9F0: A0 2E
+  JSR SwitchBankAC_B                                   ; $F9F2: 20 37 F2
+  JSR $A003                                   ; $F9F5: 20 03 A0
+  LDA #$4C                                    ; $F9F8: A9 4C
+  STA $A5                                     ; $F9FA: 85 A5
+  STA NAMCO_PRG_8000_ALT                           ; $F9FC: 8D 00 F8
+  LDY #$2A                                    ; $F9FF: A0 2A
+  JSR SwitchBankAC_B                                   ; $FA01: 20 37 F2
+  JSR $A003                                   ; $FA04: 20 03 A0
+  JSR CalcScrollAddr                          ; $FA07: 20 62 FF
+  JSR SpriteClearFromIndex                                   ; $FA0A: 20 30 E8
+  JSR WaitVBlank                              ; $FA0D: 20 28 FB
+  JMP NmiEpilogue                             ; $FA10: 4C 8D F8
+.endproc
+
+;--- $FA13: VBlank handler - strategy ---
+.proc NmiState7_Strategy
+  JSR NmiSubDispatch                                   ; $FA13: 20 53 EE
+  JSR ChrBankSwitch                                   ; $FA16: 20 06 F2
+  JSR SetupChrBanksAndWait                    ; $FA19: 20 0B FB
+  JSR PaletteAnimation                                   ; $FA1C: 20 67 EC
+  JSR ControllerRead                                   ; $FA1F: 20 C6 E6
+  LDY #$2E                                    ; $FA22: A0 2E
+  JSR SwitchBankAC_B                                   ; $FA24: 20 37 F2
+  JSR $A003                                   ; $FA27: 20 03 A0
+  JSR CalcScrollAddrAlt                       ; $FA2A: 20 9B FF
+  LDA #$4C                                    ; $FA2D: A9 4C
+  STA $A5                                     ; $FA2F: 85 A5
+  STA NAMCO_PRG_8000_ALT                           ; $FA31: 8D 00 F8
+  JSR SwapPlayerPointers                      ; $FA34: 20 A9 FA
+  LDY #$3D                                    ; $FA37: A0 3D
+  JSR SwitchBankAC_B                                   ; $FA39: 20 37 F2
+  JSR $A003                                   ; $FA3C: 20 03 A0
+  LDY #$28                                    ; $FA3F: A0 28
+  JSR SwitchBankAC_B                                   ; $FA41: 20 37 F2
+  JSR $A024                                   ; $FA44: 20 24 A0
+  JSR RestorePlayerPointers                   ; $FA47: 20 BF FA
+  JSR SpriteClearFromIndex                                   ; $FA4A: 20 30 E8
+  JSR WaitVBlank                              ; $FA4D: 20 28 FB
+  JMP NmiEpilogue                             ; $FA50: 4C 8D F8
+.endproc
+
+;--- $FA53: VBlank handler - officer mgmt ---
+.proc NmiState8_Officer
+  JSR NmiSubDispatch                                   ; $FA53: 20 53 EE
+  JSR ChrBankSwitch                                   ; $FA56: 20 06 F2
+  JSR SetupChrBanksAndWait                    ; $FA59: 20 0B FB
+  JSR PaletteAnimation                                   ; $FA5C: 20 67 EC
+  LDY #$2E                                    ; $FA5F: A0 2E
+  JSR SwitchBankAC_B                                   ; $FA61: 20 37 F2
+  JSR $A003                                   ; $FA64: 20 03 A0
+  LDA #$00                                    ; $FA67: A9 00
+  STA $81                                     ; $FA69: 85 81
+  LDY #$3D                                    ; $FA6B: A0 3D
+  JSR SwitchBankAC_B                                   ; $FA6D: 20 37 F2
+  JSR $A003                                   ; $FA70: 20 03 A0
+  LDA #$4C                                    ; $FA73: A9 4C
+  STA $A5                                     ; $FA75: 85 A5
+  STA NAMCO_PRG_8000_ALT                           ; $FA77: 8D 00 F8
+  JSR ControllerRead                                   ; $FA7A: 20 C6 E6
+  JSR SwapPlayerPointers                      ; $FA7D: 20 A9 FA
+  LDY #$37                                    ; $FA80: A0 37
+  JSR SwitchBankAC_B                                   ; $FA82: 20 37 F2
+  JSR $A01E                                   ; $FA85: 20 1E A0
+  JSR RestorePlayerPointers                   ; $FA88: 20 BF FA
+  JSR CalcScrollAddr                          ; $FA8B: 20 62 FF
+  JSR SpriteClearFromIndex                                   ; $FA8E: 20 30 E8
+  JSR WaitVBlank                              ; $FA91: 20 28 FB
+  JMP NmiEpilogue                             ; $FA94: 4C 8D F8
+.endproc
+
+;--- $FA97: VBlank handler - idle (states 0,1) ---
+.proc NmiState0_Idle
+  JSR SetupChrBanksAndWait                    ; $FA97: 20 0B FB
+  JSR ChrBankSwitch                                   ; $FA9A: 20 06 F2
+  JSR ControllerRead                                   ; $FA9D: 20 C6 E6
+  JSR CalcScrollAddr                          ; $FAA0: 20 62 FF
+  JSR WaitVBlank                              ; $FAA3: 20 28 FB
+  JMP NmiEpilogue                             ; $FAA6: 4C 8D F8
+.endproc
+
+;--- $FAA9: Swap player pointers if 2P ---
+.proc SwapPlayerPointers
+  LDA $6F44                                   ; $FAA9: AD 44 6F
+  BEQ @rts_swap                               ; $FAAC: F0 10
+  LDY $81                                     ; $FAAE: A4 81
+  LDA $82                                     ; $FAB0: A5 82
+  STA $81                                     ; $FAB2: 85 81
+  STY $82                                     ; $FAB4: 84 82
+  LDY $83                                     ; $FAB6: A4 83
+  LDA $85                                     ; $FAB8: A5 85
+  STA $83                                     ; $FABA: 85 83
+  STY $85                                     ; $FABC: 84 85
+@rts_swap:
+  RTS                                         ; $FABE: 60
+.endproc
+
+;--- $FABF: Restore player pointers ---
+.proc RestorePlayerPointers
+  LDA $6F44                                   ; $FABF: AD 44 6F
+  BEQ @rts_restore                            ; $FAC2: F0 10
+  LDY $82                                     ; $FAC4: A4 82
+  LDA $81                                     ; $FAC6: A5 81
+  STA $82                                     ; $FAC8: 85 82
+  STY $81                                     ; $FACA: 84 81
+  LDY $85                                     ; $FACC: A4 85
+  LDA $83                                     ; $FACE: A5 83
+  STA $85                                     ; $FAD0: 85 85
+  STY $83                                     ; $FAD2: 84 83
+@rts_restore:
+  RTS                                         ; $FAD4: 60
+.endproc
+
+;--- $FAD5: NMI when busy ($7B != 0) ---
+.proc NmiHandler_Busy
+  JSR ChrBankSwitch                                   ; $FAD5: 20 06 F2
+  JSR SetupChrBanksAndWait                    ; $FAD8: 20 0B FB
+  LDA $E3                                     ; $FADB: A5 E3
+  PHA                                         ; $FADD: 48
+  LDA $E2                                     ; $FADE: A5 E2
+  PHA                                         ; $FAE0: 48
+  LDA $E1                                     ; $FAE1: A5 E1
+  PHA                                         ; $FAE3: 48
+  LDY #$2E                                    ; $FAE4: A0 2E
+  JSR SwitchBankAC_B                                   ; $FAE6: 20 37 F2
+  JSR $A003                                   ; $FAE9: 20 03 A0
+  LDA $A5                                     ; $FAEC: A5 A5
+  STA NAMCO_PRG_8000_ALT                           ; $FAEE: 8D 00 F8
+  PLA                                         ; $FAF1: 68
+  STA $E1                                     ; $FAF2: 85 E1
+  STA NAMCO_PRG_8000                                   ; $FAF4: 8D 00 E0
+  PLA                                         ; $FAF7: 68
+  STA $E2                                     ; $FAF8: 85 E2
+  ORA #$C0                                    ; $FAFA: 09 C0
+  STA NAMCO_PRG_A000                                   ; $FAFC: 8D 00 E8
+  PLA                                         ; $FAFF: 68
+  STA $E3                                     ; $FB00: 85 E3
+  STA NAMCO_PRG_C000                                   ; $FB02: 8D 00 F0
+  JSR WaitVBlank                              ; $FB05: 20 28 FB
+  JMP @restore_regs                           ; $FB08: 4C AF F8
+.endproc
+
+;--- $FB0B: Setup CHR banks and wait for sprite-0 ---
+.proc SetupChrBanksAndWait
+  JSR ScrollSet                                   ; $FB0B: 20 F7 EA
+  LDA $E6                                     ; $FB0E: A5 E6
+  STA NAMCO_CHR_BANK_0                                   ; $FB10: 8D 00 C0
+  LDA $E7                                     ; $FB13: A5 E7
+  STA NAMCO_CHR_BANK_1                                   ; $FB15: 8D 00 C8
+  LDA $E8                                     ; $FB18: A5 E8
+  STA NAMCO_CHR_BANK_2                                   ; $FB1A: 8D 00 D0
+  LDA $E9                                     ; $FB1D: A5 E9
+  STA NAMCO_CHR_BANK_3                                   ; $FB1F: 8D 00 D8
+@wait_vbl_flag:
+  BIT PPU_STATUS                               ; $FB22: 2C 02 20
+  BVS @wait_vbl_flag                          ; $FB25: 70 FB
+  RTS                                         ; $FB27: 60
+.endproc
+
+;--- $FB28: Wait for VBlank completion (poll $62) ---
+.proc WaitVBlank
+  LDA $62                                     ; $FB28: A5 62
+  BNE WaitVBlank                              ; $FB2A: D0 FC
+  RTS                                         ; $FB2C: 60
 .endproc
 
 ;===============================================================================
-; $FABF: Palette Swap B
-; Reverse of PaletteSwapA
-;===============================================================================
-.proc PaletteSwapB
-  LDA $6F44                                     ; $FABF: AD 44 6F
-  BEQ PaletteSwapB_done                         ; $FAC2: F0 10
-  LDA $0083                                     ; $FAC6: A5 81
-  EOR $0081                                     ; $FAC8
-  STA $0083                                     ; $FACA
-  STA $0081                                     ; $FAD0: 85 85
-PaletteSwapB_done:
-  RTS                                           ; $FAD4: 60
-.endproc
-
-;===============================================================================
-; $FAD5: NMI Scroll Mode
-; Saves/restores CHR banks, special display
-;===============================================================================
-.proc NmiScrollMode
-  LDA $00E2                                     ; $FADB: A5 E3
-  PHA                                           ; $FADD: 48
-  LDA $00E3                                     ; $FADE: A5 E2
-  PHA                                           ; $FAE0: 48
-  ; Special scroll processing
-  LDA $009A                                     ; $FAE1: A5 E1
-  STA PPU_SCROLL                                ; $FAE3
-  LDA $009B                                     ; $FAEC: A5 A5
-  STA PPU_SCROLL                                ; $FAEE: 8D 00 F8
-  PLA                                           ; $FAF1: 68
-  STA $00E3                                     ; $FAF2: 85 E1
-  PLA                                           ; $FAF7: 68
-  STA $00E2                                     ; $FAF8: 85 E2
-  RTS                                           ; $FAFA
-.endproc
-
-;===============================================================================
-; $FB0B: Controller Read + Bank Restore
-;===============================================================================
-.proc ControllerReadBankRestore
-  JSR ControllerRead                            ; $FB0B: 20 F7 EA
-  ; Restore bank registers from RAM
-  LDA addr_bank_e6                              ; $FB0E: A5 E6
-  STA $C000                                     ; $FB10: 8D 00 C0
-  LDA addr_bank_e7                              ; $FB13: A5 E7
-  STA $C800                                     ; $FB15: 8D 00 C8
-  LDA addr_bank_e8                              ; $FB18: A5 E8
-  STA $D000                                     ; $FB1A: 8D 00 D0
-  LDA addr_bank_e9                              ; $FB1D: A5 E9
-  STA $D800                                     ; $FB1F: 8D 00 D8
-  RTS                                           ; $FB27: 60
-.endproc
-
-;===============================================================================
-; $FB2D: IRQ Handler
-; Dispatches by $0060 to 14+ sub-states for mid-frame raster effects
+; $FB2D: IrqHandler
+; Scanline IRQ (Namco-163). Dispatches to 12 modes based on $0060.
 ;===============================================================================
 .proc IrqHandler
-  PHA                                           ; $FB2D: 48
-  TXA                                           ; $FB2E: 8A
-  PHA                                           ; $FB2F: 48
-  TYA                                           ; $FB30: 98
-  PHA                                           ; $FB31: 48
+  PHA                                         ; $FB2D: 48
+  TXA                                         ; $FB2E: 8A
+  PHA                                         ; $FB2F: 48
+  TYA                                         ; $FB30: 98
+  PHA                                         ; $FB31: 48
+  LDA $5800                                   ; $FB32: AD 00 58
+  AND #$7F                                    ; $FB35: 29 7F
+  CMP #$7F                                    ; $FB37: C9 7F
+  BEQ @irq_dispatch                           ; $FB39: F0 04
+  NOP                                         ; $FB3B: EA
+@irq_hang:
+  JMP @irq_hang                               ; $FB3C: 4C 3C FB
+@irq_dispatch:
+  LDY $0060                                   ; $FB3F: AC 60 00
+  BEQ @irq_exit_sei                           ; $FB42: F0 4E
+  DEY                                         ; $FB44: 88
+  BNE @check_mode2                            ; $FB45: D0 09
+  NOP                                         ; $FB47: EA
+  NOP                                         ; $FB48: EA
+  NOP                                         ; $FB49: EA
+  NOP                                         ; $FB4A: EA
+  NOP                                         ; $FB4B: EA
+  NOP                                         ; $FB4C: EA
+  JMP IrqMode1_SoundAndChr                    ; $FB4D: 4C A4 FB
+@check_mode2:
+  DEY                                         ; $FB50: 88
+  BNE @check_mode3                            ; $FB51: D0 03
+  JMP IrqMode2_FullSetup                      ; $FB53: 4C 8B FC
+@check_mode3:
+  DEY                                         ; $FB56: 88
+  BNE @check_mode4                            ; $FB57: D0 03
+  JMP IrqMode1_SoundAndChr                    ; $FB59: 4C A4 FB
+@check_mode4:
+  DEY                                         ; $FB5C: 88
+  BNE @check_mode5                            ; $FB5D: D0 03
+  JMP IrqMode4_SimpleChr                      ; $FB5F: 4C 2A FD
+@check_mode5:
+  DEY                                         ; $FB62: 88
+  BNE @check_mode6                            ; $FB63: D0 03
+  JMP IrqMode5_PpuAddrChr                     ; $FB65: 4C 95 FD
+@check_mode6:
+  DEY                                         ; $FB68: 88
+  BNE @check_mode7                            ; $FB69: D0 03
+  JMP IrqMode6_Minimal                        ; $FB6B: 4C F4 FD
+@check_mode7:
+  DEY                                         ; $FB6E: 88
+  BNE @check_mode8                            ; $FB6F: D0 03
+  JMP IrqMode7_SoundChr                       ; $FB71: 4C 03 FE
+@check_mode8:
+  DEY                                         ; $FB74: 88
+  BNE @check_mode9                            ; $FB75: D0 03
+  JMP IrqMode8_SoundChr                       ; $FB77: 4C 69 FE
+@check_mode9:
+  DEY                                         ; $FB7A: 88
+  BNE @check_mode10                           ; $FB7B: D0 03
+  JMP IrqMode9_BasicChr                       ; $FB7D: 4C 96 FE
+@check_mode10:
+  DEY                                         ; $FB80: 88
+  BNE @check_mode11                           ; $FB81: D0 03
+  JMP IrqMode10_PpuScroll                     ; $FB83: 4C CD FE
+@check_mode11:
+  DEY                                         ; $FB86: 88
+  BNE @check_mode12                           ; $FB87: D0 03
+  JMP IrqMode11_ScrollFwd                     ; $FB89: 4C 31 FF
+@check_mode12:
+  DEY                                         ; $FB8C: 88
+  BNE @irq_exit_sei                           ; $FB8D: D0 03
+  JMP IrqMode12_ScrollBack                    ; $FB8F: 4C 48 FF
+@irq_exit_sei:
+  SEI                                         ; $FB92: 78
+  LDA #$00                                    ; $FB93: A9 00
+  STA $0062                                   ; $FB95: 8D 62 00
+  STA $5000                                   ; $FB98: 8D 00 50
+  STA $5800                                   ; $FB9B: 8D 00 58
+.endproc
 
-  ; Check IRQ source
-  LDA $5800                                     ; $FB32: AD 00 58
-  BPL IrqHandler_done                           ; $FB35
+;--- $FB9E: IrqExit - restore regs and RTI ---
+IrqExit:
+  PLA                                         ; $FB9E: 68
+  TAY                                         ; $FB9F: A8
+  PLA                                         ; $FBA0: 68
+  TAX                                         ; $FBA1: AA
+  PLA                                         ; $FBA2: 68
+  RTI                                         ; $FBA3: 40
 
-  ; Dispatch by $0060
-  LDA $0060                                     ; $FB37
-  ASL                                           ; $FB39
-  TAY                                           ; $FB3A
-  LDA IrqSubTable,Y                             ; $FB3B
-  STA $004E                                     ; $FB3E
-  LDA IrqSubTable+1,Y                           ; $FB40
-  STA $004F                                     ; $FB43
-  JMP ($004E)                                   ; $FB45
+;--- $FBA4: IRQ modes 1,3 - sound regs + CHR dispatch ---
+.proc IrqMode1_SoundAndChr
+  LDA $0063                                   ; $FBA4: AD 63 00
+  ASL A                                       ; $FBA7: 0A
+  TAX                                         ; $FBA8: AA
+  LDA #$00                                    ; $FBA9: A9 00
+  STA $5000                                   ; $FBAB: 8D 00 50
+  LDA $006A,X                                 ; $FBAE: BD 6A 00
+  STA $5000                                   ; $FBB1: 8D 00 50
+  LDA $006B,X                                 ; $FBB4: BD 6B 00
+  STA $5800                                   ; $FBB7: 8D 00 58
+@check_sub2:
+  LDY $0063                                   ; $FBBA: AC 63 00
+  BEQ IrqChrUpdate_Block1                     ; $FBBD: F0 0F
+  DEY                                         ; $FBBF: 88
+  BNE @check_sub3                             ; $FBC0: D0 03
+  JMP IrqChrUpdate_Block2                     ; $FBC2: 4C FC FB
+@check_sub3:
+  DEY                                         ; $FBC5: 88
+  BNE @dispatch_block4                        ; $FBC6: D0 03
+  JMP IrqChrUpdate_Block3                     ; $FBC8: 4C 2A FC
+@dispatch_block4:
+  JMP IrqChrUpdate_Block4                     ; $FBCB: 4C 58 FC
+.endproc
 
-IrqSubTable:
-  .addr IrqSub0, IrqSub1, IrqSub2, IrqSub3
-  .addr IrqSub4, IrqSub5, IrqSub6, IrqSub7
-  .addr IrqSub8, IrqSub9, IrqSub10, IrqSub11
-  .addr IrqSub12, IrqSub13, IrqSub14
+;--- $FBCE: CHR update block 1 ---
+.proc IrqChrUpdate_Block1
+  LDA $C2                                     ; $FBCE: A5 C2
+  LDY $C3                                     ; $FBD0: A4 C3
+  LDX $C4                                     ; $FBD2: A6 C4
+  STA $A000                                   ; $FBD4: 8D 00 A0
+  STY $A800                                   ; $FBD7: 8C 00 A8
+  STX $B000                                   ; $FBDA: 8E 00 B0
+  LDA $C5                                     ; $FBDD: A5 C5
+  STA $B800                                   ; $FBDF: 8D 00 B8
+  LDA $BE                                     ; $FBE2: A5 BE
+  LDY $BF                                     ; $FBE4: A4 BF
+  LDX $C0                                     ; $FBE6: A6 C0
+  STA $8000                                   ; $FBE8: 8D 00 80
+  STY $8800                                   ; $FBEB: 8C 00 88
+  STX $9000                                   ; $FBEE: 8E 00 90
+  LDA $C1                                     ; $FBF1: A5 C1
+  STA $9800                                   ; $FBF3: 8D 00 98
+  INC $0063                                   ; $FBF6: EE 63 00
+  JMP IrqExit                                 ; $FBF9: 4C 9E FB
+.endproc
 
-IrqSub0:
-  ; CHR bank setup from table
-  LDX $006A                                     ; $FB66
-@chr_loop0:
-  LDA $E800,X                                   ; $FB68
-  STA $E800                                     ; $FB6B
-  INX                                           ; $FB6E
-  CPX #$08                                      ; $FB6F
-  BNE @chr_loop0                                ; $FB75: D0 03
-  JMP IrqHandler_done                           ; $FB77: 4C 69 FE  $10001
+;--- $FBFC: CHR update block 2 ---
+.proc IrqChrUpdate_Block2
+  LDA $CA                                     ; $FBFC: A5 CA
+  LDY $CB                                     ; $FBFE: A4 CB
+  LDX $CC                                     ; $FC00: A6 CC
+  STA $A000                                   ; $FC02: 8D 00 A0
+  STY $A800                                   ; $FC05: 8C 00 A8
+  STX $B000                                   ; $FC08: 8E 00 B0
+  LDA $CD                                     ; $FC0B: A5 CD
+  STA $B800                                   ; $FC0D: 8D 00 B8
+  LDY $C6                                     ; $FC10: A4 C6
+  LDX $C7                                     ; $FC12: A6 C7
+  LDA $C8                                     ; $FC14: A5 C8
+  STY $8000                                   ; $FC16: 8C 00 80
+  STX $8800                                   ; $FC19: 8E 00 88
+  STA $9000                                   ; $FC1C: 8D 00 90
+  LDY $C9                                     ; $FC1F: A4 C9
+  STY $9800                                   ; $FC21: 8C 00 98
+  INC $0063                                   ; $FC24: EE 63 00
+  JMP IrqExit                                 ; $FC27: 4C 9E FB
+.endproc
 
-IrqSub1:
-IrqSub2:
-IrqSub3:
-  ; CHR bank sequences with timing
-  JMP IrqHandler_done                           ; $FB7D: 4C 96 FE  $10004
+;--- $FC2A: CHR update block 3 ---
+.proc IrqChrUpdate_Block3
+  LDA $D2                                     ; $FC2A: A5 D2
+  LDY $D3                                     ; $FC2C: A4 D3
+  LDX $D4                                     ; $FC2E: A6 D4
+  STA $A000                                   ; $FC30: 8D 00 A0
+  STY $A800                                   ; $FC33: 8C 00 A8
+  STX $B000                                   ; $FC36: 8E 00 B0
+  LDA $D5                                     ; $FC39: A5 D5
+  STA $B800                                   ; $FC3B: 8D 00 B8
+  LDY $CE                                     ; $FC3E: A4 CE
+  LDX $CF                                     ; $FC40: A6 CF
+  STY $8000                                   ; $FC42: 8C 00 80
+  STX $8800                                   ; $FC45: 8E 00 88
+  LDA $D0                                     ; $FC48: A5 D0
+  LDY $D1                                     ; $FC4A: A4 D1
+  STA $9000                                   ; $FC4C: 8D 00 90
+  STY $9800                                   ; $FC4F: 8C 00 98
+  INC $0063                                   ; $FC52: EE 63 00
+  JMP IrqExit                                 ; $FC55: 4C 9E FB
+.endproc
 
-IrqSub4:
-  ; Mid-frame raster with delay loops
-  JMP IrqHandler_done                           ; $FB83: 4C CD FE  $10007
+;--- $FC58: CHR update block 4 (resets counter) ---
+.proc IrqChrUpdate_Block4
+  LDA $DA                                     ; $FC58: A5 DA
+  LDY $DB                                     ; $FC5A: A4 DB
+  LDX $DC                                     ; $FC5C: A6 DC
+  STA $A000                                   ; $FC5E: 8D 00 A0
+  STY $A800                                   ; $FC61: 8C 00 A8
+  STX $B000                                   ; $FC64: 8E 00 B0
+  LDA $DD                                     ; $FC67: A5 DD
+  STA $B800                                   ; $FC69: 8D 00 B8
+  LDY $D6                                     ; $FC6C: A4 D6
+  LDX $D7                                     ; $FC6E: A6 D7
+  STY $8000                                   ; $FC70: 8C 00 80
+  STX $8800                                   ; $FC73: 8E 00 88
+  LDA $D8                                     ; $FC76: A5 D8
+  LDY $D9                                     ; $FC78: A4 D9
+  STA $9000                                   ; $FC7A: 8D 00 90
+  STY $9800                                   ; $FC7D: 8C 00 98
+  LDA #$00                                    ; $FC80: A9 00
+  STA $0063                                   ; $FC82: 8D 63 00
+  INC $0060                                   ; $FC85: EE 60 00
+  JMP IrqExit                                 ; $FC88: 4C 9E FB
+.endproc
 
-IrqSub5:
-  ; Raster with scroll write
-  JMP IrqHandler_done                           ; $FB89: 4C 31 FF  $1000A
+;--- $FC8B: IRQ mode 2 - full CHR/PPU with delays ---
+.proc IrqMode2_FullSetup
+  SEI                                         ; $FC8B: 78
+  LDA #$00                                    ; $FC8C: A9 00
+  STA $0062                                   ; $FC8E: 8D 62 00
+  STA $5000                                   ; $FC91: 8D 00 50
+  STA $5800                                   ; $FC94: 8D 00 58
+  LDY #$08                                    ; $FC97: A0 08
+@delay_spin1:
+  DEY                                         ; $FC99: 88
+  BPL @delay_spin1                            ; $FC9A: 10 FD
+  LDA $0099                                   ; $FC9C: AD 99 00
+  AND #$07                                    ; $FC9F: 29 07
+  ASL A                                       ; $FCA1: 0A
+  TAY                                         ; $FCA2: A8
+  LDA ScanlineDelayTable,Y                    ; $FCA3: B9 1A FD
+  STA $0046                                   ; $FCA6: 8D 46 00
+  LDA ScanlineDelayTable+1,Y                                 ; $FCA9: B9 1B FD
+  STA $0047                                   ; $FCAC: 8D 47 00
+  LDA #$0F                                    ; $FCAF: A9 0F
+  STA $8000                                   ; $FCB1: 8D 00 80
+  STA $8800                                   ; $FCB4: 8D 00 88
+  STA $9000                                   ; $FCB7: 8D 00 90
+  STA $9800                                   ; $FCBA: 8D 00 98
+  STA $A000                                   ; $FCBD: 8D 00 A0
+  STA $A800                                   ; $FCC0: 8D 00 A8
+  STA $B000                                   ; $FCC3: 8D 00 B0
+  STA $B800                                   ; $FCC6: 8D 00 B8
+@delay_loop1:
+  DEC $0046                                   ; $FCC9: CE 46 00
+  BNE @delay_loop1                            ; $FCCC: D0 FB
+  LDA $EA                                     ; $FCCE: A5 EA
+  LDY $9B                                     ; $FCD0: A4 9B
+  LDX $9A                                     ; $FCD2: A6 9A
+  STA $C700                                   ; $FCD4: 8D 00 C7
+  STY PPU_ADDR                                 ; $FCD7: 8C 06 20
+  STX PPU_ADDR                                 ; $FCDA: 8E 06 20
+  LDX $96                                     ; $FCDD: A6 96
+  STX PPU_SCROLL                               ; $FCDF: 8E 05 20
+  STX PPU_SCROLL                               ; $FCE2: 8E 05 20
+@delay_loop2:
+  DEC $0047                                   ; $FCE5: CE 47 00
+  BNE @delay_loop2                            ; $FCE8: D0 FB
+  LDA $BA                                     ; $FCEA: A5 BA
+  LDY $BB                                     ; $FCEC: A4 BB
+  LDX $BC                                     ; $FCEE: A6 BC
+  STA $A000                                   ; $FCF0: 8D 00 A0
+  STY $A800                                   ; $FCF3: 8C 00 A8
+  STX $B000                                   ; $FCF6: 8E 00 B0
+  LDA $BD                                     ; $FCF9: A5 BD
+  STA $B800                                   ; $FCFB: 8D 00 B8
+  LDY #$1B                                    ; $FCFE: A0 1B
+@delay_loop3:
+  DEY                                         ; $FD00: 88
+  BNE @delay_loop3                            ; $FD01: D0 FD
+  LDA $B6                                     ; $FD03: A5 B6
+  LDY $B7                                     ; $FD05: A4 B7
+  LDX $B8                                     ; $FD07: A6 B8
+  STA $8000                                   ; $FD09: 8D 00 80
+  STY $8800                                   ; $FD0C: 8C 00 88
+  STX $9000                                   ; $FD0F: 8E 00 90
+  LDA $B9                                     ; $FD12: A5 B9
+  STA $9800                                   ; $FD14: 8D 00 98
+  JMP IrqExit                                 ; $FD17: 4C 9E FB
+.endproc
 
-IrqSub6:
-  ; Raster with bank switch
-  JMP IrqHandler_done                           ; $FB8F: 4C 48 FF  $1000D
+;--- $FD1A: Scanline delay table (8 pairs) ---
+ScanlineDelayTable:
+  .byte $68,$0B,$5C,$18,$50,$23,$44,$2E                 ; $FD1A: 68 0B 5C 18 50 23 44 2E
+  .byte $37,$39,$2A,$45,$1E,$50,$12,$5B                 ; $FD22: 37 39 2A 45 1E 50 12 5B
 
-IrqSub7:
-  ; Minimal (SEI + restore)
-  JMP IrqHandler_done                           ; $FB92  $10010
+;--- $FD2A: IRQ mode 4 - simple CHR with ZP delays ---
+.proc IrqMode4_SimpleChr
+  SEI                                         ; $FD2A: 78
+  LDA #$00                                    ; $FD2B: A9 00
+  STA $0062                                   ; $FD2D: 8D 62 00
+  STA $5000                                   ; $FD30: 8D 00 50
+  STA $5800                                   ; $FD33: 8D 00 58
+  LDY #$0F                                    ; $FD36: A0 0F
+  STY $A000                                   ; $FD38: 8C 00 A0
+  STY $A800                                   ; $FD3B: 8C 00 A8
+  STY $B000                                   ; $FD3E: 8C 00 B0
+  STY $B800                                   ; $FD41: 8C 00 B8
+  LDY $72                                     ; $FD44: A4 72
+@delay1:
+  DEY                                         ; $FD46: 88
+  BPL @delay1                                 ; $FD47: 10 FD
+  LDA $EA                                     ; $FD49: A5 EA
+  LDX $9B                                     ; $FD4B: A6 9B
+  LDY $9A                                     ; $FD4D: A4 9A
+  STX PPU_ADDR                                   ; $FD4F: 8E 06 20
+  STY PPU_ADDR                                   ; $FD52: 8C 06 20
+  LDX $96                                     ; $FD55: A6 96
+  STX PPU_SCROLL                                   ; $FD57: 8E 05 20
+  STX PPU_SCROLL                                   ; $FD5A: 8E 05 20
+  STA $C700                                   ; $FD5D: 8D 00 C7
+  LDY $73                                     ; $FD60: A4 73
+@delay2:
+  DEY                                         ; $FD62: 88
+  BPL @delay2                                 ; $FD63: 10 FD
+  LDA $BA                                     ; $FD65: A5 BA
+  LDY $BB                                     ; $FD67: A4 BB
+  LDX $BC                                     ; $FD69: A6 BC
+  STA $A000                                   ; $FD6B: 8D 00 A0
+  STY $A800                                   ; $FD6E: 8C 00 A8
+  STX $B000                                   ; $FD71: 8E 00 B0
+  LDA $BD                                     ; $FD74: A5 BD
+  STA $B800                                   ; $FD76: 8D 00 B8
+  LDY $74                                     ; $FD79: A4 74
+@delay3:
+  DEY                                         ; $FD7B: 88
+  BPL @delay3                                 ; $FD7C: 10 FD
+  LDA $B6                                     ; $FD7E: A5 B6
+  LDY $B7                                     ; $FD80: A4 B7
+  LDX $B8                                     ; $FD82: A6 B8
+  STA $8000                                   ; $FD84: 8D 00 80
+  STY $8800                                   ; $FD87: 8C 00 88
+  STX $9000                                   ; $FD8A: 8E 00 90
+  LDA $B9                                     ; $FD8D: A5 B9
+  STA $9800                                   ; $FD8F: 8D 00 98
+  JMP IrqExit                                 ; $FD92: 4C 9E FB
+.endproc
 
-IrqSub8:
-IrqSub9:
-  ; CHR bank with palette changes
-  JMP IrqHandler_done                           ; $FB95  $10013
+;--- $FD95: IRQ mode 5 - PPU addr + CHR + nametable ---
+.proc IrqMode5_PpuAddrChr
+  SEI                                         ; $FD95: 78
+  LDA #$00                                    ; $FD96: A9 00
+  STA $0062                                   ; $FD98: 8D 62 00
+  STA $5000                                   ; $FD9B: 8D 00 50
+  STA $5800                                   ; $FD9E: 8D 00 58
+  LDA PPU_STATUS                                   ; $FDA1: AD 02 20
+  LDA #$E1                                    ; $FDA4: A9 E1
+  LDX $9B                                     ; $FDA6: A6 9B
+  LDY $9A                                     ; $FDA8: A4 9A
+  STA $C700                                   ; $FDAA: 8D 00 C7
+  STA NAMCO_CHR_BANK_2                                   ; $FDAD: 8D 00 D0
+  STA NAMCO_CHR_BANK_1                                   ; $FDB0: 8D 00 C8
+  STA NAMCO_CHR_BANK_3                                   ; $FDB3: 8D 00 D8
+  STX PPU_ADDR                                   ; $FDB6: 8E 06 20
+  STY PPU_ADDR                                   ; $FDB9: 8C 06 20
+  LDY $BB                                     ; $FDBC: A4 BB
+  LDX $BC                                     ; $FDBE: A6 BC
+  LDA $BA                                     ; $FDC0: A5 BA
+  STA $A000                                   ; $FDC2: 8D 00 A0
+  STY $A800                                   ; $FDC5: 8C 00 A8
+  STX $B000                                   ; $FDC8: 8E 00 B0
+  LDA $BD                                     ; $FDCB: A5 BD
+  STA $B800                                   ; $FDCD: 8D 00 B8
+  LDX $96                                     ; $FDD0: A6 96
+  STX PPU_SCROLL                                   ; $FDD2: 8E 05 20
+  STX PPU_SCROLL                                   ; $FDD5: 8E 05 20
+  LDY #$30                                    ; $FDD8: A0 30
+@delay_loop3:
+  DEY                                         ; $FDDA: 88
+  BPL @delay_loop3                            ; $FDDB: 10 FD
+  LDA $B6                                     ; $FDDD: A5 B6
+  LDY $B7                                     ; $FDDF: A4 B7
+  LDX $B8                                     ; $FDE1: A6 B8
+  STA $8000                                   ; $FDE3: 8D 00 80
+  STY $8800                                   ; $FDE6: 8C 00 88
+  STX $9000                                   ; $FDE9: 8E 00 90
+  LDA $B9                                     ; $FDEC: A5 B9
+  STA $9800                                   ; $FDEE: 8D 00 98
+  JMP IrqExit                                 ; $FDF1: 4C 9E FB
+.endproc
 
-IrqSub10:
-  ; Direct CHR write
-  JMP IrqHandler_done                           ; $FB98  $10016
+;--- $FDF4: IRQ mode 6 - minimal (disable + exit) ---
+.proc IrqMode6_Minimal
+  SEI                                         ; $FDF4: 78
+  LDA #$00                                    ; $FDF5: A9 00
+  STA $0062                                   ; $FDF7: 8D 62 00
+  STA $5000                                   ; $FDFA: 8D 00 50
+  STA $5800                                   ; $FDFD: 8D 00 58
+  JMP IrqExit                                 ; $FE00: 4C 9E FB
+.endproc
 
-IrqSub11:
-  ; CHR + scroll + bank
-  JMP IrqHandler_done                           ; $FB9B  $10019
+;--- $FE03: IRQ mode 7 - sound + CHR sub-dispatch ---
+.proc IrqMode7_SoundChr
+  LDA $0063                                   ; $FE03: AD 63 00
+  ASL A                                       ; $FE06: 0A
+  TAX                                         ; $FE07: AA
+  LDA #$00                                    ; $FE08: A9 00
+  STA $5000                                   ; $FE0A: 8D 00 50
+  LDA $006A,X                                 ; $FE0D: BD 6A 00
+  STA $5000                                   ; $FE10: 8D 00 50
+  LDA $006B,X                                 ; $FE13: BD 6B 00
+  STA $5800                                   ; $FE16: 8D 00 58
+  LDY $0063                                   ; $FE19: AC 63 00
+  BEQ @block1_update                          ; $FE1C: F0 09
+  DEY                                         ; $FE1E: 88
+@mode7_dispatch:
+  BEQ @jmp_block3                             ; $FE1F: F0 3A
+  DEY                                         ; $FE21: 88
+  BEQ @jmp_block4                             ; $FE22: F0 3A
+  JMP IrqMode7_Exit                           ; $FE24: 4C 61 FE
+@block1_update:
+  LDA PPU_STATUS                                   ; $FE27: AD 02 20
+  LDA #$E1                                    ; $FE2A: A9 E1
+  LDX #$25                                    ; $FE2C: A2 25
+  LDY #$B8                                    ; $FE2E: A0 B8
+  STA $C700                                   ; $FE30: 8D 00 C7
+  STA NAMCO_CHR_BANK_2                                   ; $FE33: 8D 00 D0
+  STA NAMCO_CHR_BANK_1                                   ; $FE36: 8D 00 C8
+  STA NAMCO_CHR_BANK_3                                   ; $FE39: 8D 00 D8
+  STX PPU_ADDR                                   ; $FE3C: 8E 06 20
+  STY PPU_ADDR                                   ; $FE3F: 8C 06 20
+  LDA #$0F                                    ; $FE42: A9 0F
+  STA $A000                                   ; $FE44: 8D 00 A0
+  STA $A800                                   ; $FE47: 8D 00 A8
+  STA $B000                                   ; $FE4A: 8D 00 B0
+  STA $B800                                   ; $FE4D: 8D 00 B8
+  LDX #$00                                    ; $FE50: A2 00
+  STX PPU_SCROLL                                   ; $FE52: 8E 05 20
+  STX PPU_SCROLL                                   ; $FE55: 8E 05 20
+  JMP IrqChrUpdate_Block1                     ; $FE58: 4C CE FB
+@jmp_block3:
+  JMP IrqChrUpdate_Block2                     ; $FE5B: 4C FC FB
+@jmp_block4:
+  JMP IrqChrUpdate_Block3                     ; $FE5E: 4C 2A FC
+  LDA #$00                                    ; $FE61: A9 00
+  STA $0063                                   ; $FE63: 8D 63 00
+  JMP IrqMode5_PpuAddrChr                     ; $FE66: 4C 95 FD
+.endproc
 
-IrqSub12:
-  ; Raster with timing + PPU setup
-  JMP IrqHandler_done                           ; $FB9E  $1001C
+;--- $FE69: IRQ mode 8 - sound + CHR variant ---
+.proc IrqMode8_SoundChr
+  LDA $0063                                   ; $FE69: AD 63 00
+  ASL A                                       ; $FE6C: 0A
+  TAX                                         ; $FE6D: AA
+  LDA #$00                                    ; $FE6E: A9 00
+  STA $5000                                   ; $FE70: 8D 00 50
+  LDA $006A,X                                 ; $FE73: BD 6A 00
+  STA $5000                                   ; $FE76: 8D 00 50
+  LDA $006B,X                                 ; $FE79: BD 6B 00
+  STA $5800                                   ; $FE7C: 8D 00 58
+  LDY $0063                                   ; $FE7F: AC 63 00
+  BNE @mode8_check1                           ; $FE82: D0 03
+  JMP IrqChrUpdate_Block1                     ; $FE84: 4C CE FB
+@mode8_check1:
+  DEY                                         ; $FE87: 88
+  BNE @mode8_check2                           ; $FE88: D0 03
+  JMP IrqChrUpdate_Block2                     ; $FE8A: 4C FC FB
+@mode8_check2:
+  DEY                                         ; $FE8D: 88
+  BNE @mode8_jmp4                             ; $FE8E: D0 03
+  JMP IrqChrUpdate_Block3                     ; $FE90: 4C 2A FC
+@mode8_jmp4:
+  JMP IrqChrUpdate_Block4                     ; $FE93: 4C 58 FC
+.endproc
 
-IrqSub13:
-IrqSub14:
-  ; CHR bank changes
-  JMP IrqHandler_done                           ; $FBA1  $1001F
+;--- $FE96: IRQ mode 9 - basic CHR ---
+.proc IrqMode9_BasicChr
+  SEI                                         ; $FE96: 78
+  LDA #$00                                    ; $FE97: A9 00
+  STA $0062                                   ; $FE99: 8D 62 00
+  STA $5000                                   ; $FE9C: 8D 00 50
+  STA $5800                                   ; $FE9F: 8D 00 58
+  LDA $BA                                     ; $FEA2: A5 BA
+  LDY $BB                                     ; $FEA4: A4 BB
+  LDX $BC                                     ; $FEA6: A6 BC
+  STA $A000                                   ; $FEA8: 8D 00 A0
+  STY $A800                                   ; $FEAB: 8C 00 A8
+  STX $B000                                   ; $FEAE: 8E 00 B0
+  LDA $BD                                     ; $FEB1: A5 BD
+  STA $B800                                   ; $FEB3: 8D 00 B8
+  LDA $B6                                     ; $FEB6: A5 B6
+  LDY $B7                                     ; $FEB8: A4 B7
+  LDX $B8                                     ; $FEBA: A6 B8
+  STA $8000                                   ; $FEBC: 8D 00 80
+  STY $8800                                   ; $FEBF: 8C 00 88
+  STX $9000                                   ; $FEC2: 8E 00 90
+  LDA $B9                                     ; $FEC5: A5 B9
+  STA $9800                                   ; $FEC7: 8D 00 98
+  JMP IrqExit                                 ; $FECA: 4C 9E FB
+.endproc
 
-IrqHandler_done:
-  ; Acknowledge IRQ
-  LDA #$00                                      ; $FBA4: AD 63 00  $10022
-  STA $5800                                     ; $FBA7  $10024
+;--- $FECD: IRQ mode 10 - PPU scroll + CHR ---
+.proc IrqMode10_PpuScroll
+  SEI                                         ; $FECD: 78
+  LDA #$00                                    ; $FECE: A9 00
+  STA $0062                                   ; $FED0: 8D 62 00
+  STA $5000                                   ; $FED3: 8D 00 50
+  STA $5800                                   ; $FED6: 8D 00 58
+  LDA PPU_STATUS                                   ; $FED9: AD 02 20
+  LDA $EA                                     ; $FEDC: A5 EA
+  STA NAMCO_CHR_BANK_0                                   ; $FEDE: 8D 00 C0
+  LDA #$0F                                    ; $FEE1: A9 0F
+  LDY $9B                                     ; $FEE3: A4 9B
+  LDX $9A                                     ; $FEE5: A6 9A
+  STA $A000                                   ; $FEE7: 8D 00 A0
+  STA $A800                                   ; $FEEA: 8D 00 A8
+  STA $B000                                   ; $FEED: 8D 00 B0
+  STA $B800                                   ; $FEF0: 8D 00 B8
+  STY PPU_ADDR                                   ; $FEF3: 8C 06 20
+  STX PPU_ADDR                                   ; $FEF6: 8E 06 20
+  LDA #$00                                    ; $FEF9: A9 00
+  STA PPU_SCROLL                                   ; $FEFB: 8D 05 20
+  STA PPU_SCROLL                                   ; $FEFE: 8D 05 20
+  LDY #$10                                    ; $FF01: A0 10
+@delay_m10:
+  DEY                                         ; $FF03: 88
+  BPL @delay_m10                              ; $FF04: 10 FD
+  LDA $BA                                     ; $FF06: A5 BA
+  LDY $BB                                     ; $FF08: A4 BB
+  LDX $BC                                     ; $FF0A: A6 BC
+  STA $A000                                   ; $FF0C: 8D 00 A0
+  STY $A800                                   ; $FF0F: 8C 00 A8
+  STX $B000                                   ; $FF12: 8E 00 B0
+  LDA $BD                                     ; $FF15: A5 BD
+  STA $B800                                   ; $FF17: 8D 00 B8
+  LDA $B6                                     ; $FF1A: A5 B6
+  LDY $B7                                     ; $FF1C: A4 B7
+  LDX $B8                                     ; $FF1E: A6 B8
+  STA $8000                                   ; $FF20: 8D 00 80
+  STY $8800                                   ; $FF23: 8C 00 88
+  STX $9000                                   ; $FF26: 8E 00 90
+  LDA $B9                                     ; $FF29: A5 B9
+  STA $9800                                   ; $FF2B: 8D 00 98
+  JMP IrqExit                                 ; $FF2E: 4C 9E FB
+.endproc
 
-  PLA                                           ; $FBAA  $10027
-  TAY                                           ; $FBAB  $10028
-  PLA                                           ; $FBAC  $10029
-  TAX                                           ; $FBAD  $1002A
-  PLA                                           ; $FBAE  $1002B
-  RTI                                           ; $FBAF  $1002C
+;--- $FF31: IRQ mode 11 - scroll forward ---
+.proc IrqMode11_ScrollFwd
+  LDA #$00                                    ; $FF31: A9 00
+  STA $5000                                   ; $FF33: 8D 00 50
+  LDA $006A                                   ; $FF36: AD 6A 00
+  STA $5000                                   ; $FF39: 8D 00 50
+  LDA $006B                                   ; $FF3C: AD 6B 00
+  STA $5800                                   ; $FF3F: 8D 00 58
+  INC $0060                                   ; $FF42: EE 60 00
+  JMP IrqChrUpdate_Block1                     ; $FF45: 4C CE FB
+.endproc
+
+;--- $FF48: IRQ mode 12 - scroll backward ---
+.proc IrqMode12_ScrollBack
+  LDA #$00                                    ; $FF48: A9 00
+  STA $5000                                   ; $FF4A: 8D 00 50
+  LDA $006C                                   ; $FF4D: AD 6C 00
+  STA $5000                                   ; $FF50: 8D 00 50
+  LDA $006D                                   ; $FF53: AD 6D 00
+  STA $5800                                   ; $FF56: 8D 00 58
+  DEC $0060                                   ; $FF59: CE 60 00
+  DEC $0060                                   ; $FF5C: CE 60 00
+  JMP IrqChrUpdate_Block2                     ; $FF5F: 4C FC FB
 .endproc
 
 ;===============================================================================
-; $FF62: Scroll Calc A
-; Computes $009A/$009B from $0098, sets $00EA/$00EC
+; $FF62: CalcScrollAddr
+; Calculates PPU scroll address from map position ($0098).
+; Output: $0099=copy, $009A/$009B=PPU addr, $00EA/$00EC=nametable.
 ;===============================================================================
-.proc ScrollCalcA
-  LDA addr_display_mode                         ; $FF62: A9 00
-  LSR                                           ; $FF64
-  STA $009A                                     ; $FF65
-  LDA #$00                                      ; $FF67: AD 98 00
-  STA $009B                                     ; $FF6A: 8D 99 00
-  RTS                                           ; $FF6D
+.proc CalcScrollAddr
+  LDA #$00                                    ; $FF62: A9 00
+  STA $0047                                   ; $FF64: 8D 47 00
+  LDA $0098                                   ; $FF67: AD 98 00
+  STA $0099                                   ; $FF6A: 8D 99 00
+  AND #$F8                                    ; $FF6D: 29 F8
+  ASL A                                       ; $FF6F: 0A
+  ROL $0047                                   ; $FF70: 2E 47 00
+  ASL A                                       ; $FF73: 0A
+  ROL $0047                                   ; $FF74: 2E 47 00
+  STA $009A                                   ; $FF77: 8D 9A 00
+  LDA $0047                                   ; $FF7A: AD 47 00
+  CLC                                         ; $FF7D: 18
+  ADC #$20                                    ; $FF7E: 69 20
+  STA $009B                                   ; $FF80: 8D 9B 00
+  LDA #$E0                                    ; $FF83: A9 E0
+  STA $00EA                                   ; $FF85: 8D EA 00
+  STA $00EC                                   ; $FF88: 8D EC 00
+  LDA $0097                                   ; $FF8B: AD 97 00
+  AND #$01                                    ; $FF8E: 29 01
+@check_nt:
+  BEQ @rts_calc                               ; $FF90: F0 08
+  LDA #$E1                                    ; $FF92: A9 E1
+  STA $00EA                                   ; $FF94: 8D EA 00
+  STA $00EC                                   ; $FF97: 8D EC 00
+@rts_calc:
+  RTS                                         ; $FF9A: 60
 .endproc
 
 ;===============================================================================
-; $FF9B: Scroll Calc B
-; Similar but adjusts $009B by +4 based on $0097 bit 0
+; $FF9B: CalcScrollAddrAlt
+; Alternate version: adds +4 to $009B when on nametable $E1.
 ;===============================================================================
-.proc ScrollCalcB
-  LDA addr_display_mode                         ; $FF9B: A9 00
-  LSR                                           ; $FF9D
-  STA $009A                                     ; $FF9E
-  LDA $0097                                     ; $FFA0: AD 98 00
-  AND #$01                                      ; $FFA6: 29 F8
-  ASL                                           ; $FFA8: 0A
-  ASL                                           ; $FFAC: 0A
-  STA $009B                                     ; $FFB0: 8D 9A 00
-  RTS                                           ; $FFB3
+.proc CalcScrollAddrAlt
+  LDA #$00                                    ; $FF9B: A9 00
+  STA $0047                                   ; $FF9D: 8D 47 00
+  LDA $0098                                   ; $FFA0: AD 98 00
+  STA $0099                                   ; $FFA3: 8D 99 00
+  AND #$F8                                    ; $FFA6: 29 F8
+  ASL A                                       ; $FFA8: 0A
+  ROL $0047                                   ; $FFA9: 2E 47 00
+  ASL A                                       ; $FFAC: 0A
+  ROL $0047                                   ; $FFAD: 2E 47 00
+  STA $009A                                   ; $FFB0: 8D 9A 00
+  LDA $0047                                   ; $FFB3: AD 47 00
+  CLC                                         ; $FFB6: 18
+  ADC #$20                                    ; $FFB7: 69 20
+  STA $009B                                   ; $FFB9: 8D 9B 00
+  LDA #$E0                                    ; $FFBC: A9 E0
+  STA $00EA                                   ; $FFBE: 8D EA 00
+  LDA $0097                                   ; $FFC1: AD 97 00
+  AND #$01                                    ; $FFC4: 29 01
+@check_nt_alt:
+  BEQ @rts_calc_alt                           ; $FFC6: F0 0E
+  LDA $009B                                   ; $FFC8: AD 9B 00
+  CLC                                         ; $FFCB: 18
+  ADC #$04                                    ; $FFCC: 69 04
+  STA $009B                                   ; $FFCE: 8D 9B 00
+  LDA #$E1                                    ; $FFD1: A9 E1
+  STA $00EA                                   ; $FFD3: 8D EA 00
+@rts_calc_alt:
+  RTS                                         ; $FFD6: 60
 .endproc
 
 ;===============================================================================
-; $FFD7: Padding before vectors
+; $FFD7-$FFF9: Unused space (35 bytes of $FF)
 ;===============================================================================
-Padding2:
-  .res $FFFA - $FFD7, $FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $FFD7: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $FFE7: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+  .byte $FF,$FF,$00                                     ; $FFF7: FF FF 00
 
 ;===============================================================================
-; $FFFA: Interrupt Vectors
+; $FFFA-$FFFF: 6502 Interrupt Vectors
 ;===============================================================================
-Vectors:
-  .addr NmiHandler                              ; $FFFA - NMI
-  .addr Reset                                   ; $FFFC - RESET
-  .addr IrqHandler                              ; $FFFE - IRQ
+  .word NmiHandler                              ; $FFFA: 00 F8 (NMI -> $F800)
+  .word $E000                                   ; $FFFC: 00 E0 (RESET -> $E000)
+  .word IrqHandler                              ; $FFFE: 2D FB (IRQ -> $FB2D)
+

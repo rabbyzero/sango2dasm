@@ -50,14 +50,12 @@ Current file: asm/main.asm
 000000r 2               ; Namco-163 Registers
 000000r 2               NAMCO_IRQ       = $4800
 000000r 2               NAMCO_SOUND     = $4800
-000000r 2               NAMCO_CTRL      = $F800
 000000r 2               
-000000r 2               ; Namco-163 PRG Bank Switching
+000000r 2               ; Namco-163 PRG Bank Switching (mirrors defined in namco163.h)
 000000r 2               ; Writing to these addresses switches 8KB PRG banks
-000000r 2               PRG_BANK_8000   = $F800
-000000r 2               PRG_BANK_A000   = $FA00
-000000r 2               PRG_BANK_C000   = $FC00
-000000r 2               PRG_BANK_E000   = $FE00
+000000r 2               PRG_BANK_8000   = $E000
+000000r 2               PRG_BANK_A000   = $E800
+000000r 2               PRG_BANK_C000   = $F000
 000000r 2               
 000000r 2               ;===============================================================================
 000000r 2               ; PPU Control Bits
@@ -106,14 +104,20 @@ Current file: asm/main.asm
 000000r 2               ; Total PRG ROM: 32 banks x 8KB = 256KB
 000000r 2               ; Banks are 8KB each, mapped to $8000-$FFFF
 000000r 2               
-000000r 2               ; Bank switching registers (write-only)
-000000r 2               NAMCO_PRG_8000    = $F800  ; Switch PRG bank at $8000-$9FFF
-000000r 2               NAMCO_PRG_A000    = $FA00  ; Switch PRG bank at $A000-$BFFF
-000000r 2               NAMCO_PRG_C000    = $FC00  ; Switch PRG bank at $C000-$DFFF
-000000r 2               NAMCO_PRG_E000    = $FE00  ; Switch PRG bank at $E000-$FFFF (usually fixed)
+000000r 2               ; Namco-163 CHR Bank Registers (1KB CHR windows for nametable tile banks)
+000000r 2               NAMCO_CHR_BANK_0  = $C000  ; CHR bank 0 - NT slot 0
+000000r 2               NAMCO_CHR_BANK_1  = $C800  ; CHR bank 1 - NT slot 1
+000000r 2               NAMCO_CHR_BANK_2  = $D000  ; CHR bank 2 - NT slot 2
+000000r 2               NAMCO_CHR_BANK_3  = $D800  ; CHR bank 3 - NT slot 3
 000000r 2               
-000000r 2               ; Namco-163 Control Register (same as PRG_8000)
-000000r 2               ; NAMCO_CTRL = $F800  ; Defined above as NAMCO_PRG_8000
+000000r 2               ; Namco-163 PRG Bank Switching Registers (8KB PRG windows)
+000000r 2               NAMCO_PRG_8000    = $E000  ; Switch PRG bank at $8000-$9FFF
+000000r 2               NAMCO_PRG_A000    = $E800  ; Switch PRG bank at $A000-$BFFF (ORA #$C0 to disable CHR-RAM)
+000000r 2               NAMCO_PRG_C000    = $F000  ; Switch PRG bank at $C000-$DFFF
+000000r 2               NAMCO_PRG_8000_ALT = $F800 ; Alternate/mirror for PRG $8000; also Namco control register
+000000r 2               
+000000r 2               ; Namco-163 Control Register
+000000r 2               NAMCO_CTRL        = $F800  ; Sound/IRQ control (same address as PRG_8000_ALT)
 000000r 2               
 000000r 2               ; Namco-163 IRQ Register
 000000r 2               NAMCO_IRQ_COUNTER = $4800  ; IRQ counter
@@ -179,10 +183,6 @@ Current file: asm/main.asm
 000000r 2                   STA NAMCO_PRG_C000
 000000r 2               .endmacro
 000000r 2               
-000000r 2               .macro switch_bank_E000 bank
-000000r 2                   LDA #bank
-000000r 2                   STA NAMCO_PRG_E000
-000000r 2               .endmacro
 000000r 2               
 000000r 1               
 000000r 1               ;===============================================================================
@@ -295,11 +295,11 @@ Current file: asm/main.asm
 00005Dr 1               ;-------------------------------------------------------------------------------
 00005Dr 1               Mapper_Init:
 00005Dr 1  A9 00 8D 00      switch_bank_8000 BANK_00
-000061r 1  F8           
+000061r 1  E0           
 000062r 1  A9 01 8D 00      switch_bank_A000 BANK_01
-000066r 1  FA           
+000066r 1  E8           
 000067r 1  A9 02 8D 00      switch_bank_C000 BANK_02
-00006Br 1  FC           
+00006Br 1  F0           
 00006Cr 1  A9 00            LDA #$00
 00006Er 1  8D 00 48         STA NAMCO_IRQ_COUNTER
 000071r 1  60               RTS

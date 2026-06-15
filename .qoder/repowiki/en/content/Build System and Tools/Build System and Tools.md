@@ -34,7 +34,7 @@
 ## Update Summary
 **Changes Made**
 - Added comprehensive documentation for the new assembly transformation pipeline including automated cleanup and validation tools
-- Documented the complete 7-stage transformation workflow for Bank $1F assembly code
+- Documented the complete 11-stage transformation workflow for Bank $1F assembly code
 - Updated linker configuration documentation to reflect test_linker.cfg for standalone verification
 - Enhanced disassembly tool documentation to include the new transformation pipeline integration
 - Added detailed coverage of assembly code cleanup, address-to-label conversion, and final validation processes
@@ -176,7 +176,7 @@ Key capabilities:
 - Analyze ROM structure to identify code-heavy banks and vectors.
 - Verify byte-exact rebuilds against the original ROM.
 - Generate bank stubs to bootstrap disassembly.
-- **New**: Transform assembly code through 7 automated stages for Bank $1F cleanup and validation.
+- **New**: Transform assembly code through 11 automated stages for Bank $1F cleanup and validation.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)

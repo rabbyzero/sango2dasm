@@ -44,6 +44,9 @@
 - Integrated comprehensive .proc wrapping, branch/sublabel conversion, and validation workflow
 - Added automated mnemonic correction using reference CDL format
 - Implemented systematic gap byte insertion and cross-proc scope management
+- Added 11-stage transformation pipeline for Bank $1F assembly code modernization
+- Enhanced disassembly tools with improved output formats and inline machine code documentation
+- Integrated new verification utilities for baseline validation and differential analysis
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -60,7 +63,7 @@
 ## Introduction
 This document describes a systematic disassembly workflow for the Namco-163 (Mapper 19) ROM of Sangokushi 2 - Haou no Tairiku (J). It focuses on extracting and documenting game code from the PRG banks, starting with Bank 0x1F that contains the reset handler and vector dispatch table. The guide covers bank prioritization, stub replacement, modular organization, cross-references, label management, incremental development, and verification.
 
-**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format.
+**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format. The pipeline now includes an 11-stage process for Bank $1F assembly code modernization with systematic code organization, mnemonic correction, and validation utilities.
 
 ## Project Structure
 The repository organizes assets around a cc65 toolchain and a modular bank structure with advanced transformation capabilities:
@@ -72,6 +75,7 @@ The repository organizes assets around a cc65 toolchain and a modular bank struc
 - Include files for hardware and macros
 - Planning and analysis documents for Bank 0x1F
 - Automated comment alignment for consistent formatting
+- Enhanced verification utilities for baseline validation and differential analysis
 
 ```mermaid
 graph TB
@@ -91,6 +95,8 @@ M --> N["linker.cfg"]
 N --> O["build/prg.bin"]
 O --> P["tools/build_nes.py"]
 P --> Q["build/sango2.nes"]
+Q --> R["check_baseline.py<br/>check_diff.py"]
+R --> S["Validation Reports"]
 ```
 
 **Diagram sources**
@@ -103,6 +109,8 @@ P --> Q["build/sango2.nes"]
 - [Makefile:38-48](file://Makefile#L38-L48)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [tools/build_nes.py:10-57](file://tools/build_nes.py#L10-L57)
+- [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -119,8 +127,11 @@ P --> Q["build/sango2.nes"]
 - Annotation and verification: Annotate assembly with ROM addresses and verify byte-for-byte accuracy.
 - Comment alignment: Automatically align inline comments for consistent formatting.
 - Build pipeline: Assemble, link, package into an iNES ROM.
+- **New** Baseline validation: Systematic verification of address alignment and continuity using check_baseline.py.
+- **New** Differential analysis: Byte-by-byte comparison for transformation pipeline effectiveness using check_diff.py.
+- **New** 11-stage transformation pipeline: Complete modernization workflow for Bank $1F assembly code.
 
-**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction.
+**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction. The pipeline now consists of 11 systematic stages for complete code modernization.
 
 **Section sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
@@ -135,6 +146,8 @@ P --> Q["build/sango2.nes"]
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
 - [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
 - [tools/build_nes.py:10-57](file://tools/build_nes.py#L10-L57)
+- [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)
 
 ## Architecture Overview
 The disassembly architecture centers on Bank 0x1F as the boot bank. At startup, the reset handler initializes PPU/APU, clears RAM, and dispatches to a state handler via an indirect vector table. Bank 0x1F also contains NMI/IRQ handlers, sound engine, PPU utilities, math routines, and data access functions. Other banks are accessed via bank switching controlled by the Namco-163 mapper.
@@ -256,14 +269,47 @@ DIS-->>OUT : Write disassembly with ROM addresses
 - Insert gap bytes between functions with proper labeling
 - Modernize code structure and improve readability
 
-Transformation pipeline:
-- transform_wrap.py: Wraps functions in .proc blocks, converts sub-labels to @labels
-- transform_final.py: Fixes remaining hex targets, inserts gap bytes, balances .proc/.endproc
-- fix_labels.py: Resolves cross-proc label scope issues
-- fix_syntax.py: Converts :: syntax to proper namespace syntax
-- fix_scope.py: Handles cross-proc scoping for @-labels
+**New** Enhanced 11-stage transformation pipeline for complete Bank $1F assembly code modernization:
 
-**New Section** Added to implement comprehensive code modernization pipeline.
+**Stage 1: transform_wrap.py** - Wraps functions in .proc blocks, converts sub-labels to @labels
+**Stage 2: transform_final.py** - Fixes remaining hex targets, inserts gap bytes, balances .proc/.endproc  
+**Stage 3: fix_labels.py** - Resolves cross-proc label scope issues
+**Stage 4: fix_syntax.py** - Converts :: syntax to proper namespace syntax
+**Stage 5: fix_scope.py** - Handles cross-proc scoping for @-labels
+**Stage 6: tools/fix_mnemonics.py** - Parses CDL reference and fixes mnemonic-opcode mismatches
+**Stage 7: apply_fixes.py** - Applies all manual fixes and cleanup operations
+**Stage 8: tools/align_comments.py** - Aligns inline comments to column 48 for consistent formatting
+**Stage 9: check_baseline.py** - Removes gap byte insertions and verifies baseline alignment
+**Stage 10: check_diff.py** - Compares ROM and assembled output byte-by-byte for validation
+**Stage 11: tools/verify_rom.py** - Performs final byte-for-byte comparison with original ROM
+
+```mermaid
+flowchart TD
+A["Raw Assembly<br/>prg_1f.asm"] --> B["transform_wrap.py<br/>.proc Wrapping"]
+B --> C["transform_final.py<br/>Hex Targets -> Labels"]
+C --> D["fix_labels.py<br/>Cross-Proc Scopes"]
+D --> E["fix_syntax.py<br/>Namespace Syntax"]
+E --> F["fix_scope.py<br/>@-Label Handling"]
+F --> G["fix_mnemonics.py<br/>Mnemonic Correction"]
+G --> H["apply_fixes.py<br/>Manual Cleanup"]
+H --> I["align_comments.py<br/>Comment Alignment"]
+I --> J["check_baseline.py<br/>Baseline Validation"]
+J --> K["check_diff.py<br/>Differential Analysis"]
+K --> L["verify_rom.py<br/>Final Verification"]
+```
+
+**Diagram sources**
+- [transform_wrap.py:1-303](file://transform_wrap.py#L1-L303)
+- [transform_final.py:1-235](file://transform_final.py#L1-L235)
+- [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
+- [fix_syntax.py:1-72](file://fix_syntax.py#L1-L72)
+- [fix_scope.py:1-149](file://fix_scope.py#L1-L149)
+- [tools/fix_mnemonics.py:1-312](file://tools/fix_mnemonics.py#L1-L312)
+- [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
+- [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)
+- [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
 
 **Section sources**
 - [transform_wrap.py:1-303](file://transform_wrap.py#L1-L303)
@@ -271,6 +317,11 @@ Transformation pipeline:
 - [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
 - [fix_syntax.py:1-72](file://fix_syntax.py#L1-L72)
 - [fix_scope.py:1-149](file://fix_scope.py#L1-L149)
+- [tools/fix_mnemonics.py:1-312](file://tools/fix_mnemonics.py#L1-L312)
+- [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
+- [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)
 
 ### Step 5: Validate Against Reference Format
 - Use pbank31.cdl.asm as authoritative reference for correct mnemonics and opcodes
@@ -389,7 +440,7 @@ Annotation workflow:
 Examples:
 - RNG core at $E87A reads from a precomputed table
 - Address calculation patterns for heroes, cities, kingdoms, kata names
-- Pointer table for kingdom addresses
+- pointer table for kingdom addresses
 
 **Section sources**
 - [tools/analyze_bank_1f.py:1-157](file://tools/analyze_bank_1f.py#L1-L157)
@@ -472,6 +523,8 @@ The disassembly pipeline depends on:
 - Include files for hardware and macros
 - Annotation and verification tools for accuracy
 - Comment alignment tool for consistent formatting
+- **New** Baseline validation tools for systematic verification
+- **New** Differential analysis tools for transformation pipeline validation
 
 ```mermaid
 graph TB
@@ -486,11 +539,14 @@ REF --> VALID["asm/banks/prg_1f.aligned.asm<br/>(Validated)"]
 VALID --> CDL["asm/banks/pbank31.cdl.asm<br/>(Reference)"]
 CDL --> ALIGN["tools/align_comments.py"]
 ALIGN --> ALIGNED["asm/banks/prg_1f.aligned.asm"]
+ALIGNED --> BASE["check_baseline.py"]
+BASE --> DIFF["check_diff.py"]
+DIFF --> VERIFY["tools/verify_rom.py"]
+VERIFY --> ACC["Accuracy Report"]
 ASM --> LINK["linker.cfg"]
 LINK --> OBJ["build/prg.bin"]
 OBJ --> NES["tools/build_nes.py"]
-ANNO["tools/annotate_asm.py"] --> VERIFY["tools/verify_rom.py"]
-VERIFY --> ACC["Accuracy Report"]
+ANNO["tools/annotate_asm.py"] --> VERIFY
 ```
 
 **Diagram sources**
@@ -507,6 +563,8 @@ VERIFY --> ACC["Accuracy Report"]
 - [tools/build_nes.py:10-57](file://tools/build_nes.py#L10-L57)
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
 - [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
+- [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)
 
 **Section sources**
 - [Makefile:38-61](file://Makefile#L38-L61)
@@ -518,6 +576,7 @@ VERIFY --> ACC["Accuracy Report"]
 - Use the annotation tool to quickly validate instruction boundaries and operand sizes.
 - **Updated** Leverage enhanced inline comments for faster debugging and cross-referencing.
 - **Updated** Utilize transformation pipeline for systematic code modernization and validation.
+- **New** The 11-stage transformation pipeline provides systematic validation at each stage, reducing cumulative errors and improving overall code quality.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -530,6 +589,9 @@ Common issues and remedies:
 - **Updated** Mnemonic mismatches: Use tools/fix_mnemonics.py to correct against pbank31.cdl.asm reference.
 - **Updated** Scope issues: Use fix_scope.py and fix_labels.py to resolve cross-proc label problems.
 - **Updated** Hex target issues: Use transform_final.py to convert remaining hex branch targets to labels.
+- **New** Baseline validation failures: Use check_baseline.py to identify and fix address alignment issues.
+- **New** Differential analysis errors: Use check_diff.py to pinpoint transformation pipeline problems.
+- **New** Pipeline stage failures: Each of the 11 transformation stages provides specific error points for targeted debugging.
 
 **Section sources**
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
@@ -541,11 +603,13 @@ Common issues and remedies:
 - [fix_scope.py:13-149](file://fix_scope.py#L13-L149)
 - [fix_labels.py:13-68](file://fix_labels.py#L13-L68)
 - [transform_final.py:57-235](file://transform_final.py#L57-L235)
+- [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)
 
 ## Conclusion
 This workflow establishes a repeatable, incremental approach to disassembling Sangokushi 2's PRG banks with comprehensive transformation capabilities. Starting with Bank 0x1F ensures you understand the reset handler and dispatch mechanism, after which you can systematically replace stubs with real disassembly, manage cross-references, and verify accuracy through byte-exact comparisons. The modular bank structure, transformation pipeline, and reference format validation support continuous refinement and expansion while ensuring code quality and consistency.
 
-**Updated** Enhanced transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project.
+**Updated** Enhanced transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project. The new 11-stage pipeline provides systematic validation and error detection at each phase, ensuring reliable and accurate disassembly results.
 
 ## Appendices
 
@@ -566,8 +630,10 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
   - python3 fix_scope.py
   - python3 tools/fix_mnemonics.py
   - python3 apply_fixes.py
+  - python3 tools/align_comments.py
   - python3 check_baseline.py
   - python3 check_diff.py
+  - python3 tools/verify_rom.py
 - **Updated** Align comments for consistent formatting:
   - python3 tools/align_comments.py
 
@@ -582,14 +648,16 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
 - [fix_scope.py:1-149](file://fix_scope.py#L1-L149)
 - [tools/fix_mnemonics.py:148-312](file://tools/fix_mnemonics.py#L148-L312)
 - [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 - [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
 - [check_diff.py:1-35](file://check_diff.py#L1-L35)
+- [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
 
 ### Enhanced Disassembly Features
 **New Section** Highlighting the improvements to PRG bank 1F disassembly output and transformation pipeline.
 
 Key enhancements:
-- **Comprehensive Transformation Pipeline**: End-to-end automation for code modernization and validation
+- **Comprehensive Transformation Pipeline**: End-to-end automation for code modernization and validation across 11 systematic stages
 - **Reference Format Validation**: Automated correction against pbank31.cdl.asm for accuracy
 - **.proc Wrapping**: Logical function organization with proper scope management
 - **Label Conversion**: Hex branch targets to meaningful semantic labels
@@ -597,7 +665,9 @@ Key enhancements:
 - **Cross-Proc Scope Resolution**: Automated handling of @-labels and namespace syntax
 - **Mnemonic Correction**: Automated fixing of instruction opcodes and addressing modes
 - **Baseline Verification**: Systematic validation of address alignment and continuity
-- **Differential Analysis**: Byte-by-byte comparison for transformation effectiveness
+- **Differential Analysis**: Byte-by-byte comparison for transformation pipeline effectiveness
+- **Enhanced Inline Comments**: Detailed ROM address and machine code documentation for improved traceability
+- **Automated Quality Assurance**: Multi-stage validation pipeline ensuring code quality at each transformation stage
 
 Example of enhanced output format:
 ```asm
@@ -614,3 +684,4 @@ Example of enhanced output format:
 - [transform_final.py:25-164](file://transform_final.py#L25-L164)
 - [tools/fix_mnemonics.py:65-146](file://tools/fix_mnemonics.py#L65-L146)
 - [check_baseline.py:15-104](file://check_baseline.py#L15-L104)
+- [check_diff.py:1-35](file://check_diff.py#L1-L35)

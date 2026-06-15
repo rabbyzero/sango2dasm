@@ -7,14 +7,20 @@
 ; Total PRG ROM: 32 banks x 8KB = 256KB
 ; Banks are 8KB each, mapped to $8000-$FFFF
 
-; Bank switching registers (write-only)
-NAMCO_PRG_8000    = $F800  ; Switch PRG bank at $8000-$9FFF
-NAMCO_PRG_A000    = $FA00  ; Switch PRG bank at $A000-$BFFF
-NAMCO_PRG_C000    = $FC00  ; Switch PRG bank at $C000-$DFFF
-NAMCO_PRG_E000    = $FE00  ; Switch PRG bank at $E000-$FFFF (usually fixed)
+; Namco-163 CHR Bank Registers (1KB CHR windows for nametable tile banks)
+NAMCO_CHR_BANK_0  = $C000  ; CHR bank 0 - NT slot 0
+NAMCO_CHR_BANK_1  = $C800  ; CHR bank 1 - NT slot 1
+NAMCO_CHR_BANK_2  = $D000  ; CHR bank 2 - NT slot 2
+NAMCO_CHR_BANK_3  = $D800  ; CHR bank 3 - NT slot 3
 
-; Namco-163 Control Register (same as PRG_8000)
-; NAMCO_CTRL = $F800  ; Defined above as NAMCO_PRG_8000
+; Namco-163 PRG Bank Switching Registers (8KB PRG windows)
+NAMCO_PRG_8000    = $E000  ; Switch PRG bank at $8000-$9FFF
+NAMCO_PRG_A000    = $E800  ; Switch PRG bank at $A000-$BFFF (ORA #$C0 to disable CHR-RAM)
+NAMCO_PRG_C000    = $F000  ; Switch PRG bank at $C000-$DFFF
+NAMCO_PRG_8000_ALT = $F800 ; Alternate/mirror for PRG $8000; also Namco control register
+
+; Namco-163 Control Register
+NAMCO_CTRL        = $F800  ; Sound/IRQ control (same address as PRG_8000_ALT)
 
 ; Namco-163 IRQ Register
 NAMCO_IRQ_COUNTER = $4800  ; IRQ counter
@@ -80,7 +86,3 @@ BANK_1F           = $1F
     STA NAMCO_PRG_C000
 .endmacro
 
-.macro switch_bank_E000 bank
-    LDA #bank
-    STA NAMCO_PRG_E000
-.endmacro
