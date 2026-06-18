@@ -12,10 +12,18 @@
 - [prg_00.asm](file://asm/banks/prg_00.asm)
 - [prg_01.asm](file://asm/banks/prg_01.asm)
 - [prg_02.asm](file://asm/banks/prg_02.asm)
+- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added documentation for new data access procedures: GetProvinceRecordAddr and GetOfficerRecordAddr
+- Enhanced bank switching mechanisms documentation with improved SwitchBank8_A/B procedures
+- Updated address calculation patterns to include province and officer record access
+- Expanded SRAM usage documentation with specific record layouts and access methods
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -129,11 +137,16 @@ Practical implications:
 ### Address Calculation Patterns and Data Structure Layouts
 The game computes pointers into bank-switched data using efficient 6502 arithmetic patterns. The key functions demonstrate multiply-by-constants using shifts and rotates, and pointer-table lookups for SRAM data.
 
+**Updated** Added new data access procedures for province and officer records with optimized bank switching mechanisms.
+
 - Hero data: id*32 + $6000, entry size 32 bytes, base $6000 (bank-switched).
 - City data: id*12 + $63C0, entry size 12 bytes, base $63C0 (bank-switched).
 - Hero initial data: id*12 + $8000, entry size 12 bytes, base $8000 (bank-switched).
 - Kata name: id*10 + $901A, entry size 10 bytes, base $901A (bank-switched).
 - Kingdom data: pointer table at $6F07 (SRAM), entry size 8 bytes.
+- **New**: Province record: id*32 + $6000, entry size 32 bytes, accessed via GetProvinceRecordAddr function.
+- **New**: Officer record: id*12 + $63C0, entry size 12 bytes, accessed via GetOfficerRecordAddr function.
+- **Enhanced**: ROM-based officer data: id*12 + $8000, entry size 12 bytes, accessed via GetOfficerRomRecordAddr with bank switching.
 
 ```mermaid
 flowchart TD
@@ -143,33 +156,47 @@ Choose --> |City| City["city_id * 12 + $63C0"]
 Choose --> |Hero Init| Init["hero_id * 12 + $8000"]
 Choose --> |Kata Name| Kata["id * 10 + $901A"]
 Choose --> |Kingdom| KPtr["Indirect pointer from SRAM $6F07"]
+Choose --> |Province| Prov["GetProvinceRecordAddr<br/>id * 32 + $6000"]
+Choose --> |Officer| Off["GetOfficerRecordAddr<br/>id * 12 + $63C0"]
+Choose --> |ROM Officer| RomOff["GetOfficerRomRecordAddr<br/>Switch Bank $11 + id*12+$8000"]
 Hero --> BankSel["Ensure Correct PRG Bank Loaded"]
 City --> BankSel
 Init --> BankSel
 Kata --> BankSel
 KPtr --> SRAM["Access SRAM $6Fxx"]
+Prov --> SRAM
+Off --> SRAM
+RomOff --> Bank11["Switch to Bank $11"]
 BankSel --> Indirect["Load Pointer into $0000/$0001"]
 SRAM --> Indirect
+RomOff --> Indirect
 Indirect --> End(["Use Indirect Access"])
 ```
 
 **Diagram sources**
-- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
-- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-L190)
-- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-L45)
+- [prg_1f.aligned.asm:3112-3138](file://asm/banks/prg_1f.aligned.asm#L3112-L3138)
+- [prg_1f.aligned.asm:3141-3287](file://asm/banks/prg_1f.aligned.asm#L3141-L3287)
+- [prg_1f.aligned.asm:3266-3287](file://asm/banks/prg_1f.aligned.asm#L3266-L3287)
 
 **Section sources**
 - [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
 - [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-L190)
 - [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-L45)
+- [prg_1f.aligned.asm:3112-3138](file://asm/banks/prg_1f.aligned.asm#L3112-L3138)
+- [prg_1f.aligned.asm:3141-3287](file://asm/banks/prg_1f.aligned.asm#L3141-L3287)
+- [prg_1f.aligned.asm:3266-3287](file://asm/banks/prg_1f.aligned.asm#L3266-L3287)
 
 ### Bank Switching and the Mapper Abstraction
 The mapper abstraction simplifies cross-bank access by exposing macros to switch PRG banks into four 8 KB slots. The reset handler initializes the mapper and switches to a default bank configuration. Bank switching is also performed dynamically during gameplay to access different data tables.
 
+**Enhanced** Improved bank switching mechanisms with dedicated procedures for different PRG slots and enhanced bank configuration management.
+
 Key elements:
 - Mapper registers: $F800, $FA00, $FC00, $FE00 for slots $8000–$DFFF, with $E000–$FFFF fixed to bank 0x1F.
 - Macros: switch_bank_8000, switch_bank_A000, switch_bank_C000, switch_bank_E000.
-- Bank configuration table: 8-byte configurations written to mapper registers to select PRG banks.
+- **Enhanced**: Dedicated bank switching procedures: SwitchBank8_A and SwitchBank8_B for slot $8000.
+- **Enhanced**: Bank configuration table: 8-byte configurations written to mapper registers to select PRG banks.
+- **New**: Enhanced BankSwitch procedure with improved error handling and configuration validation.
 
 ```mermaid
 sequenceDiagram
@@ -185,29 +212,43 @@ CPU->>MAP : Write config[2] to $D000
 CPU->>MAP : Write config[3] to $D800
 CPU->>RAM : Store config[4..7] for later use
 PRG-->>CPU : Code/data now accessible via selected banks
+Note over CPU : Enhanced Bank Switching Flow
+CPU->>CPU : Call SwitchBank8_A/Y or SwitchBank8_B/Y
+CPU->>RAM : Store bank selection in slot A/B
+CPU->>MAP : Write bank to NAMCO_PRG_8000
+CPU->>CPU : RTS
 ```
 
 **Diagram sources**
 - [namco163.h:68-86](file://include/namco163.h#L68-L86)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [prg_1f.aligned.asm:3027-3047](file://asm/banks/prg_1f.aligned.asm#L3027-L3047)
 
 **Section sources**
 - [namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [namco163.h:68-86](file://include/namco163.h#L68-L86)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [prg_1f.aligned.asm:3027-3047](file://asm/banks/prg_1f.aligned.asm#L3027-L3047)
 
 ### SRAM Usage for Save Data
 SRAM is used for persistent save data, notably kingdom parameters and flags. The reset handler demonstrates SRAM initialization and flag setting during new game initialization.
 
+**Updated** Enhanced SRAM usage with new province and officer record access patterns.
+
 - SRAM region: $6000–$7FFF (8 KB).
 - Example usage: Kingdom parameters initialized at $6F3F/$6F41; SRAM flag written at $6F8B during new game flow.
 - Pointer table for kingdoms stored in SRAM at $6F07, accessed indirectly.
+- **New**: Province records at $6000+id*32, 32 bytes per entry, accessed via GetProvinceRecordAddr.
+- **New**: Officer records at $63C0+id*12, 12 bytes per entry, accessed via GetOfficerRecordAddr.
+- **Enhanced**: ROM-based officer defaults accessible via GetOfficerRomRecordAddr with bank switching.
 
 ```mermaid
 flowchart TD
 Start(["New Game Init"]) --> SRAMInit["Initialize SRAM Params<br/>$6F3F/$6F41/$6F8B"]
 SRAMInit --> KingdomPtrs["Kingdom Pointer Table<br/>$6F07 SRAM"]
-KingdomPtrs --> Play["Gameplay Access"]
+KingdomPtrs --> ProvinceRecords["Province Records<br/>$6000+$6020..."]
+ProvinceRecords --> OfficerRecords["Officer Records<br/>$63C0+$63D0..."]
+OfficerRecords --> Play["Gameplay Access"]
 Play --> Save["Periodic Save to SRAM"]
 Save --> End(["Persistent Data"])
 ```
@@ -215,11 +256,15 @@ Save --> End(["Persistent Data"])
 **Diagram sources**
 - [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-L156)
 - [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-L189)
+- [prg_1f.aligned.asm:3112-3138](file://asm/banks/prg_1f.aligned.asm#L3112-L3138)
+- [prg_1f.aligned.asm:3141-3287](file://asm/banks/prg_1f.aligned.asm#L3141-L3287)
 
 **Section sources**
 - [PROJECT.md:12](file://PROJECT.md#L12)
 - [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-L156)
 - [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-L189)
+- [prg_1f.aligned.asm:3112-3138](file://asm/banks/prg_1f.aligned.asm#L3112-L3138)
+- [prg_1f.aligned.asm:3141-3287](file://asm/banks/prg_1f.aligned.asm#L3141-L3287)
 
 ### Macro Utilities for Memory Access
 The macro library provides reusable constructs for common operations:
@@ -246,6 +291,8 @@ Each PRG bank is represented by a stub file that includes the corresponding 8 KB
 ## Dependency Analysis
 The boot process depends on the mapper initialization and vector dispatch to reach state-specific handlers. Bank switching is orchestrated by a configuration routine that writes to mapper registers and stores a shadow copy in RAM. Data access functions rely on banked PRG tables and SRAM for persistence.
 
+**Enhanced** Dependencies now include new data access procedures and improved bank switching mechanisms.
+
 ```mermaid
 graph LR
 Reset["$E000 Reset"] --> MapperInit["$F3BD Mapper Init"]
@@ -254,17 +301,25 @@ Dispatch --> State0["$E09A State_SystemInit"]
 State0 --> BankSwitch["$E51F BankSwitch"]
 BankSwitch --> PRGTables["Banked Data Tables"]
 State0 --> SRAM["$6000-$7FFF Save Data"]
+State0 --> NewProcedures["New Data Procedures:<br/>GetProvinceRecordAddr<br/>GetOfficerRecordAddr"]
+NewProcedures --> EnhancedBanking["Enhanced Bank Switching:<br/>SwitchBank8_A/B<br/>Improved BankSwitch"]
 ```
 
 **Diagram sources**
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [prg_1f.aligned.asm:3112-3138](file://asm/banks/prg_1f.aligned.asm#L3112-L3138)
+- [prg_1f.aligned.asm:3141-3287](file://asm/banks/prg_1f.aligned.asm#L3141-L3287)
+- [prg_1f.aligned.asm:3027-3047](file://asm/banks/prg_1f.aligned.asm#L3027-L3047)
 
 **Section sources**
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [prg_1f.aligned.asm:3112-3138](file://asm/banks/prg_1f.aligned.asm#L3112-L3138)
+- [prg_1f.aligned.asm:3141-3287](file://asm/banks/prg_1f.aligned.asm#L3141-L3287)
+- [prg_1f.aligned.asm:3027-3047](file://asm/banks/prg_1f.aligned.asm#L3027-L3047)
 
 ## Performance Considerations
 - Prefer ZEROPAGE for hot-loop variables and temporary pointers to minimize addressing overhead.
@@ -272,6 +327,8 @@ State0 --> SRAM["$6000-$7FFF Save Data"]
 - Minimize page crossings by grouping related data within the same 256-byte page when feasible.
 - Bank data tables by usage frequency to reduce the number of bank switches during critical paths.
 - Leverage macros to avoid repetitive code and potential instruction overhead.
+- **New**: Use dedicated data access procedures (GetProvinceRecordAddr, GetOfficerRecordAddr) for optimal performance.
+- **Enhanced**: Implement slot-specific bank switching (SwitchBank8_A/B) for reduced overhead in frequent bank changes.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -279,11 +336,16 @@ Common issues and remedies:
 - SRAM not persisting: Confirm SRAM is powered and that writes occur within the SRAM region ($6000–$7FFF). Check for accidental writes to other memory areas.
 - PPU/VRAM corruption: Verify PPU initialization and address setting macros are used consistently. Clear PPU registers early and reinitialize as needed.
 - Vector dispatch failures: Validate the vector table index masking and ensure only valid indices are used.
+- **New**: Data access failures: Verify proper use of GetProvinceRecordAddr and GetOfficerRecordAddr functions for correct pointer calculations.
+- **Enhanced**: Bank switching issues: Ensure SwitchBank8_A/B procedures are called with correct bank parameters and Y register values.
 
 **Section sources**
 - [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
 - [PROJECT.md:12](file://PROJECT.md#L12)
 - [macros.h:17-47](file://include/macros.h#L17-L47)
+- [prg_1f.aligned.asm:3112-3138](file://asm/banks/prg_1f.aligned.asm#L3112-L3138)
+- [prg_1f.aligned.asm:3141-3287](file://asm/banks/prg_1f.aligned.asm#L3141-L3287)
+- [prg_1f.aligned.asm:3027-3047](file://asm/banks/prg_1f.aligned.asm#L3027-L3047)
 
 ## Conclusion
-The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. Following the outlined practices ensures optimal memory usage and maintainable code organization.
+The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. The addition of specialized data access procedures (GetProvinceRecordAddr, GetOfficerRecordAddr) and enhanced bank switching mechanisms further optimizes memory usage and maintainable code organization. Following the outlined practices ensures optimal memory usage and maintainable code organization.

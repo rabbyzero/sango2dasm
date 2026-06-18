@@ -19,6 +19,7 @@
 - Enhanced practical examples with specific configuration usage scenarios
 - Updated bank switching sequences to show the centralized table-driven approach
 - Revised performance considerations to account for the new configuration system
+- **Updated** Removed references to old bank switching logic using direct register addresses, replaced with modernized symbolic naming approach
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -295,6 +296,21 @@ State->>State : Proceed with data access
 - [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
 
+### Modernized Symbolic Naming Approach
+**Updated** The bank switching implementation has been modernized to use symbolic register names instead of direct numeric addresses. The new approach replaces direct register address references with named constants and macros, improving code readability and maintainability.
+
+Key improvements:
+- Replaced direct register addresses ($F800, $FA00, $FC00, $FE00) with symbolic names
+- Enhanced macro definitions in the namco163.h header for cleaner register access
+- Improved error prevention through compile-time validation of register addresses
+- Better code organization with centralized register definitions
+
+This modernization maintains the same functional behavior while providing clearer, more maintainable code structure.
+
+**Section sources**
+- [namco163.h:10-86](file://include/namco163.h#L10-L86)
+- [prg_1f.aligned.asm:780-818](file://asm/banks/prg_1f.aligned.asm#L780-L818)
+
 ## Dependency Analysis
 The bank switching mechanism depends on several interrelated components:
 - BankSwitch routine depends on the centralized BankSwitchTable for configuration selection.
@@ -331,6 +347,7 @@ MapperInit --> BankSwitch
 - The centralized BankSwitchTable eliminates the need for scattered bank switching logic throughout the codebase.
 - Keep data access functions close to their callers to reduce the number of bank switches required across frames.
 - The three distinct configuration profiles provide optimized memory mapping for different operational modes, reducing the need for dynamic bank calculations.
+- **Updated** The modernized symbolic naming approach improves compile-time optimization and reduces potential runtime errors.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -339,6 +356,7 @@ Common issues and remedies:
 - Controller validation failures: review the controller check loop in MapperInitCtrlCheck for proper input handling.
 - Configuration conflicts: ensure that the calling code selects the appropriate configuration profile for the current operational mode.
 - Memory mapping issues: verify that the BankSwitchTable contains the expected configuration values for each profile.
+- **Updated** Symbolic naming issues: ensure all register references use the new symbolic names from the namco163.h header instead of direct numeric addresses.
 
 **Section sources**
 - [prg_1f.aligned.asm:2488-2506](file://asm/banks/prg_1f.aligned.asm#L2488-L2506)
@@ -346,3 +364,5 @@ Common issues and remedies:
 
 ## Conclusion
 The bank switching mechanism in this disassembly leverages the Namco-163 mapper to provide flexible access to 256 KB of PRG ROM across 32 banks. The new centralized BankSwitchTable system with three distinct configuration profiles (Config 0, Config 1, Config 2) provides systematic control over memory mapping for different operational modes. Bank 0x1F serves as the boot and dispatch hub, while the BankSwitch routine coordinates PRG slot contents using the table-driven approach. Data access functions compute pointers into bank-switched memory regions, relying on the calling code to properly configure banks before access. The reset handler and mapper initialization establish the baseline memory mapping, ensuring reliable operation across the entire game state machine with improved organization and maintainability compared to the previous primitive bank switching approach.
+
+**Updated** The modernized symbolic naming approach enhances code clarity and maintainability while preserving the same functional capabilities, representing a significant improvement in code quality and developer experience.

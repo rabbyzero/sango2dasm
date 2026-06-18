@@ -25,19 +25,22 @@
 - [tools/generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
 - [tools/analyze_rom.py](file://tools/analyze_rom.py)
 - [tools/annotate_asm.py](file://tools/annotate_asm.py)
+- [tools/gen_f667_ffff.py](file://tools/gen_f667_ffff.py)
+- [tools/verify_f3bd_f667.py](file://tools/verify_f3bd_f667.py)
 - [asm/main.asm](file://asm/main.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
 - [asm/banks/all_banks.asm](file://asm/banks/all_banks.asm)
+- [asm/banks/prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for the new assembly transformation pipeline including automated cleanup and validation tools
-- Documented the complete 11-stage transformation workflow for Bank $1F assembly code
-- Updated linker configuration documentation to reflect test_linker.cfg for standalone verification
-- Enhanced disassembly tool documentation to include the new transformation pipeline integration
-- Added detailed coverage of assembly code cleanup, address-to-label conversion, and final validation processes
+- Added comprehensive documentation for new Python tools gen_f667_ffff.py and verify_f3bd_f667.py for development workflow support
+- Updated disassembly tool documentation to include specialized Bank $1F range generation
+- Enhanced verification system documentation to cover targeted byte verification for specific assembly ranges
+- Added detailed coverage of the Bank $1F F667-FFFF disassembly generation workflow
+- Updated troubleshooting guide to include new verification and disassembly tools
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -47,14 +50,15 @@
 5. [Detailed Component Analysis](#detailed-component-analysis)
 6. [Assembly Transformation Pipeline](#assembly-transformation-pipeline)
 7. [Enhanced Disassembly Tools](#enhanced-disassembly-tools)
-8. [Dependency Analysis](#dependency-analysis)
-9. [Performance Considerations](#performance-considerations)
-10. [Troubleshooting Guide](#troubleshooting-guide)
-11. [Conclusion](#conclusion)
-12. [Appendices](#appendices)
+8. [Bank $1F Specialized Tools](#bank-1f-specialized-tools)
+9. [Dependency Analysis](#dependency-analysis)
+10. [Performance Considerations](#performance-considerations)
+11. [Troubleshooting Guide](#troubleshooting-guide)
+12. [Conclusion](#conclusion)
+13. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive assembly transformation pipeline that provides automated cleanup, address-to-label conversion, branch optimization, and final validation for Bank $1F assembly code.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive assembly transformation pipeline that provides automated cleanup, address-to-label conversion, branch optimization, and final validation for Bank $1F assembly code, along with specialized tools for targeted disassembly and verification workflows.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -63,7 +67,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - ROM assets under rom/ (split PRG/CHR banks and combined PRG)
 - Build outputs under build/
 - Automated tools under tools/
-- **New**: Assembly transformation pipeline under root directory for Bank $1F code cleanup
+- **New**: Specialized Bank $1F tools under tools/ for targeted disassembly and verification workflows
 
 ```mermaid
 graph TB
@@ -102,6 +106,8 @@ T_disasm1f["tools/disasm_bank_1f.py"]
 T_gen["tools/generate_bank_stubs.py"]
 T_analyze["tools/analyze_rom.py"]
 T_annotate["tools/annotate_asm.py"]
+T_gen1f["tools/gen_f667_ffff.py"]
+T_ver1f["tools/verify_f3bd_f667.py"]
 end
 subgraph "ROM Assets"
 R_rom["rom/*.bin"]
@@ -135,6 +141,8 @@ MK --> T_disasm1f
 MK --> T_gen
 MK --> T_analyze
 MK --> T_annotate
+MK --> T_gen1f
+MK --> T_ver1f
 T_split --> R_rom
 T_split --> R_info
 T_split --> R_combined
@@ -157,6 +165,8 @@ T_verify --> OUT
 - [fix_scope.py:1-149](file://fix_scope.py#L1-L149)
 - [fix_syntax.py:1-72](file://fix_syntax.py#L1-L72)
 - [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-L396)
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-L45)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -166,7 +176,7 @@ T_verify --> OUT
 - Makefile targets orchestrate the entire pipeline: assembling, linking, building the final ROM, splitting ROMs, disassembling, analyzing, verifying, cleaning, and the new assembly transformation pipeline.
 - The cc65 toolchain (ca65 and ld65) compiles assembly into an object file and links it according to the linker configuration.
 - Python tools handle ROM parsing, bank generation, disassembly, analysis, annotation, verification, and the comprehensive assembly transformation pipeline.
-- **New**: Assembly transformation pipeline provides automated cleanup, address-to-label conversion, branch optimization, and final validation for Bank $1F code.
+- **New**: Specialized Bank $1F tools provide targeted disassembly generation and verification for specific address ranges within Bank $1F.
 
 Key capabilities:
 - Assemble and link to produce a raw PRG binary.
@@ -177,6 +187,8 @@ Key capabilities:
 - Verify byte-exact rebuilds against the original ROM.
 - Generate bank stubs to bootstrap disassembly.
 - **New**: Transform assembly code through 11 automated stages for Bank $1F cleanup and validation.
+- **New**: Generate specialized disassembly for Bank $1F range $F667-$FFFF.
+- **New**: Verify targeted assembly ranges against binary ROM data.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -187,6 +199,8 @@ Key capabilities:
 - [tools/analyze_rom.py:10-128](file://tools/analyze_rom.py#L10-L128)
 - [tools/verify_rom.py:10-51](file://tools/verify_rom.py#L10-L51)
 - [tools/generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46)
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
 
 ## Architecture Overview
 The build system follows a linear pipeline with branching points for analysis and verification. The primary flow is:
@@ -196,6 +210,8 @@ The build system follows a linear pipeline with branching points for analysis an
 - Disassemble and annotate assembly for documentation and validation.
 - Verify the rebuilt ROM against the original.
 - **New**: Apply assembly transformation pipeline for Bank $1F code cleanup and validation.
+- **New**: Generate specialized Bank $1F disassembly for specific address ranges.
+- **New**: Verify targeted assembly ranges against binary ROM data.
 
 ```mermaid
 sequenceDiagram
@@ -206,6 +222,8 @@ participant LD as "ld65"
 participant BN as "build_nes.py"
 participant VR as "verify_rom.py"
 participant TP as "Assembly Transformation Pipeline"
+participant GF as "gen_f667_ffff.py"
+participant VF as "verify_f3bd_f667.py"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm"
 CA-->>MK : "main.o"
@@ -219,12 +237,18 @@ VR-->>Dev : "Byte-exact pass/fail"
 Dev->>MK : "make transform"
 MK->>TP : "Apply transformation pipeline"
 TP-->>Dev : "Cleaned assembly code"
+Dev->>GF : "Generate Bank $1F F667-FFFF disassembly"
+GF-->>Dev : "Specialized assembly listing"
+Dev->>VF : "Verify F3BD-F667 assembly range"
+VF-->>Dev : "Targeted byte verification"
 ```
 
 **Diagram sources**
 - [Makefile:31-48](file://Makefile#L31-L48)
 - [tools/build_nes.py:10-51](file://tools/build_nes.py#L10-L51)
 - [tools/verify_rom.py:10-69](file://tools/verify_rom.py#L10-L69)
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
 
 ## Detailed Component Analysis
 
@@ -244,6 +268,8 @@ Usage patterns:
 - Use make banks to bootstrap disassembly.
 - Disassemble and annotate code with make disasm and tools/annotate_asm.py.
 - **New**: Apply transformation pipeline with make transform for automated assembly cleanup.
+- **New**: Generate specialized Bank $1F disassembly using tools/gen_f667_ffff.py.
+- **New**: Verify targeted assembly ranges using tools/verify_f3bd_f667.py.
 - Iterate assembly and linking, then verify with make verify.
 
 **Section sources**
@@ -309,11 +335,13 @@ sequenceDiagram
 participant DS as "disasm_6502.py"
 participant DS1F as "disasm_bank_1f.py"
 participant AN as "annotate_asm.py"
+participant GF as "gen_f667_ffff.py"
 participant ASM as "Assembly Source"
 participant BIN as "Binary Bank"
 BIN->>DS : "Binary data"
 DS-->>ASM : "Listing with addresses and bytes"
 DS1F-->>ASM : "Structured assembly with inline comments"
+GF-->>ASM : "Specialized Bank $1F disassembly"
 ASM->>AN : "Assembly with placeholders"
 AN->>BIN : "Lookup opcode bytes"
 AN-->>ASM : "Annotated assembly with addresses and bytes"
@@ -323,6 +351,7 @@ AN-->>ASM : "Annotated assembly with addresses and bytes"
 - [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-L362)
 - [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
 
 **Section sources**
 - [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-L362)
@@ -585,11 +614,96 @@ Format --> End(["Enhanced Assembly Listing"])
 **Section sources**
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
 
+## Bank $1F Specialized Tools
+
+### gen_f667_ffff.py - Bank $1F Range Disassembly Generator
+The gen_f667_ffff.py tool provides specialized disassembly generation for Bank $1F range $F667-$FFFF. This tool focuses on the critical interrupt handling and scrolling routines located in the upper portion of Bank $1F.
+
+#### Key Features:
+- **Targeted Range Processing**: Processes only the $F667-$FFFF address range within Bank $1F
+- **Comprehensive Interrupt Handling**: Generates detailed disassembly for NMI and IRQ handlers
+- **Scroll Calculation Routines**: Includes specialized disassembly for PPU scroll address calculations
+- **Inline Binary Comments**: Provides precise address and byte information for each instruction
+- **Structured Organization**: Groups code into logical procedures and named regions
+
+#### Generated Content Includes:
+- **NMI Handler**: Complete disassembly with register saving, sound/IRQ configuration, and state dispatch
+- **IRQ Handler**: Scanline interrupt handling with 12 different modes based on $0060
+- **Scroll Calculation**: Two variants of scroll address calculation routines
+- **Interrupt Vectors**: Properly formatted 6502 interrupt vector table
+- **Padding Regions**: Explicitly documents unused zero-filled and FF-filled regions
+
+```mermaid
+flowchart TD
+Start(["Bank $1F $F667-$FFFF"]) --> Process["Process Target Range"]
+Process --> NMI["Generate NMI Handler"]
+Process --> IRQ["Generate IRQ Handler"]
+Process --> Scroll["Generate Scroll Routines"]
+Process --> Vectors["Generate Interrupt Vectors"]
+NMI --> Output["Write prg_1f_F667_FFFF.asm"]
+IRQ --> Output
+Scroll --> Output
+Vectors --> Output
+Output --> End(["Specialized Assembly Output"])
+```
+
+**Diagram sources**
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
+
+**Section sources**
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
+
+### verify_f3bd_f667.py - Targeted Assembly Verification
+The verify_f3bd_f667.py tool provides targeted verification for the Bank $1F assembly range from $F3BD to $F667. This tool specifically validates that the generated assembly matches the original binary data.
+
+#### Key Features:
+- **Range-Specific Verification**: Focuses on the $F3BD-$F667 address range within Bank $1F
+- **Inline Comment Parsing**: Extracts expected byte values from inline comments in assembly files
+- **Strict Hex Validation**: Ensures each byte matches exactly with the original binary
+- **Error Reporting**: Provides detailed mismatch information with line numbers and byte values
+- **Count Validation**: Confirms the total number of bytes verified matches expected values
+
+#### Verification Process:
+- Parses assembly file for inline byte comments in format `; $XXXX: XX XX XX...`
+- Extracts expected byte values from comments
+- Compares against corresponding bytes in the ROM binary
+- Reports mismatches with detailed information
+- Confirms total byte count verification
+
+```mermaid
+flowchart TD
+Start(["Verify F3BD-F667 Range"]) --> ReadASM["Read Assembly File"]
+ReadASM --> ReadBIN["Read ROM Binary"]
+ReadBIN --> ParseComments["Parse Inline Comments"]
+ParseComments --> ExtractBytes["Extract Expected Bytes"]
+ExtractBytes --> Compare["Compare with Actual Bytes"]
+Compare --> Report["Report Results"]
+Report --> End(["Verification Status"])
+```
+
+**Diagram sources**
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
+
+**Section sources**
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
+
+### Integration with Development Workflow
+These specialized tools integrate seamlessly with the existing development workflow:
+- **Parallel Processing**: gen_f667_ffff.py can run alongside the main transformation pipeline
+- **Incremental Verification**: verify_f3bd_f667.py provides targeted validation for specific assembly ranges
+- **Workflow Flexibility**: Developers can choose between full pipeline processing or targeted tool usage
+- **Debugging Support**: These tools help isolate issues to specific address ranges within Bank $1F
+
+**Section sources**
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
+
 ## Dependency Analysis
 The build system exhibits clear separation of concerns:
 - Makefile orchestrates tool invocations and manages dependencies between assembly, linking, and ROM packaging.
 - Python tools encapsulate domain-specific tasks (ROM parsing, disassembly, analysis, annotation, verification).
 - **New**: Assembly transformation pipeline provides automated cleanup and validation for Bank $1F code.
+- **New**: Specialized Bank $1F tools provide targeted disassembly and verification for specific address ranges.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
 
@@ -606,6 +720,8 @@ MK --> GS["generate_bank_stubs.py"]
 MK --> AZ["analyze_rom.py"]
 MK --> AN["annotate_asm.py"]
 MK --> TP["Assembly Transformation Pipeline"]
+MK --> GF["gen_f667_ffff.py"]
+MK --> VF["verify_f3bd_f667.py"]
 M_main["asm/main.asm"] --> H_namco["include/namco163.h"]
 M_main --> H_macros["include/macros.h"]
 M_main --> L_cfg["linker.cfg"]
@@ -621,6 +737,8 @@ TP --> FL["fix_labels.py"]
 TP --> FS["fix_scope.py"]
 TP --> FX["fix_syntax.py"]
 TP --> AF["apply_fixes.py"]
+GF --> PRG1F["rom/prg/prg_1f.bin"]
+VF --> PRG1F
 ```
 
 **Diagram sources**
@@ -644,6 +762,8 @@ TP --> AF["apply_fixes.py"]
 - [fix_scope.py:1-149](file://fix_scope.py#L1-L149)
 - [fix_syntax.py:1-72](file://fix_syntax.py#L1-L72)
 - [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -655,6 +775,8 @@ TP --> AF["apply_fixes.py"]
 - Linker segmentation should be kept minimal until needed to reduce linking complexity and runtime.
 - Enhanced disassembly tools provide more detailed output but may require additional processing time for complex bank analysis.
 - **New**: Assembly transformation pipeline processes the entire Bank $1F file in 11 sequential stages; expect significant processing time for large assembly files.
+- **New**: gen_f667_ffff.py processes only the $F667-$FFFF range, providing faster targeted disassembly for specific development needs.
+- **New**: verify_f3bd_f667.py focuses on a specific 683-byte range, providing quick targeted verification without full pipeline overhead.
 - **New**: Each transformation stage provides detailed logging; use make transform with verbose output to monitor progress during long-running operations.
 
 ## Troubleshooting Guide
@@ -669,12 +791,17 @@ Common issues and resolutions:
 - **New**: Transformation pipeline failures: Check individual stage logs in the terminal output; each stage prints detailed progress and error information.
 - **New**: Assembly compilation errors after transformation: Review the final apply_fixes.py output for manual fixes that may conflict with automatic transformations.
 - **New**: Incomplete transformation: Ensure all 11 stages complete successfully; the pipeline provides detailed status information for each stage.
+- **New**: gen_f667_ffff.py errors: Verify rom/prg/prg_1f.bin exists and is readable; check that the tool has proper permissions.
+- **New**: verify_f3bd_f667.py verification failures: Review the detailed mismatch reports; ensure the assembly file contains proper inline comments with hex byte values.
+- **New**: Targeted tool integration: Use gen_f667_ffff.py for rapid prototyping of Bank $1F modifications, then verify with verify_f3bd_f667.py before full pipeline processing.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
 - Analyze ROM structure: make analyze
 - Verify rebuilt ROM: make verify
 - **New**: Apply transformation pipeline: make transform
+- **New**: Generate Bank $1F F667-FFFF disassembly: python3 tools/gen_f667_ffff.py
+- **New**: Verify F3BD-F667 assembly range: python3 tools/verify_f3bd_f667.py
 - **New**: Transform specific stage: python3 check_baseline.py, python3 convert_hex.py, etc.
 - Generate enhanced Bank 0x1F disassembly: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - Clean build artifacts: make clean
@@ -685,9 +812,11 @@ Practical examples:
 - [tools/verify_rom.py:22-51](file://tools/verify_rom.py#L22-L51)
 - [tools/annotate_asm.py:357-404](file://tools/annotate_asm.py#L357-L404)
 - [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive assembly transformation pipeline provides unprecedented automation for Bank $1F code cleanup, featuring 11 sequential stages that automatically handle hex-to-label conversion, branch optimization, procedure wrapping, gap correction, and final validation. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, analyze_rom.py, annotate_asm.py, and the new transformation pipeline enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive assembly transformation pipeline provides unprecedented automation for Bank $1F code cleanup, featuring 11 sequential stages that automatically handle hex-to-label conversion, branch optimization, procedure wrapping, gap correction, and final validation. The new specialized tools gen_f667_ffff.py and verify_f3bd_f667.py enhance the development workflow by providing targeted disassembly generation and verification for specific Bank $1F address ranges. These tools complement the existing transformation pipeline and offer developers flexible options for different development scenarios. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, analyze_rom.py, annotate_asm.py, and the new transformation pipeline enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code.
 
 ## Appendices
 
@@ -695,6 +824,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - Initial setup: make split, make banks
 - Enhanced disassembly: make disasm, tools/disasm_bank_1f.py, tools/annotate_asm.py
 - **New**: Assembly transformation: make transform (or individual stages)
+- **New**: Targeted Bank $1F development: tools/gen_f667_ffff.py, tools/verify_f3bd_f667.py
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
 
@@ -703,6 +833,8 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - make analyze
 - make verify
 - **New**: make transform
+- **New**: python3 tools/gen_f667_ffff.py
+- **New**: python3 tools/verify_f3bd_f667.py
 - **New**: python3 check_baseline.py
 - **New**: python3 convert_hex.py
 - **New**: python3 transform_branches.py

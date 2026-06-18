@@ -110,6 +110,16 @@ Current file: asm/main.asm
 000000r 2               NAMCO_CHR_BANK_2  = $D000  ; CHR bank 2 - NT slot 2
 000000r 2               NAMCO_CHR_BANK_3  = $D800  ; CHR bank 3 - NT slot 3
 000000r 2               
+000000r 2               ; Namco-163 CHR Bank Registers - Primary Set (8 x 1KB pattern table slots)
+000000r 2               NAMCO163_CHR_0    = $8000  ; CHR slot 0 -> PPU $0000-$03FF
+000000r 2               NAMCO163_CHR_1    = $8800  ; CHR slot 1 -> PPU $0400-$07FF
+000000r 2               NAMCO163_CHR_2    = $9000  ; CHR slot 2 -> PPU $0800-$0BFF
+000000r 2               NAMCO163_CHR_3    = $9800  ; CHR slot 3 -> PPU $0C00-$0FFF
+000000r 2               NAMCO163_CHR_4    = $A000  ; CHR slot 4 -> PPU $1000-$13FF
+000000r 2               NAMCO163_CHR_5    = $A800  ; CHR slot 5 -> PPU $1400-$17FF
+000000r 2               NAMCO163_CHR_6    = $B000  ; CHR slot 6 -> PPU $1800-$1BFF
+000000r 2               NAMCO163_CHR_7    = $B800  ; CHR slot 7 -> PPU $1C00-$1FFF
+000000r 2               
 000000r 2               ; Namco-163 PRG Bank Switching Registers (8KB PRG windows)
 000000r 2               NAMCO_PRG_8000    = $E000  ; Switch PRG bank at $8000-$9FFF
 000000r 2               NAMCO_PRG_A000    = $E800  ; Switch PRG bank at $A000-$BFFF (ORA #$C0 to disable CHR-RAM)
@@ -119,13 +129,22 @@ Current file: asm/main.asm
 000000r 2               ; Namco-163 Control Register
 000000r 2               NAMCO_CTRL        = $F800  ; Sound/IRQ control (same address as PRG_8000_ALT)
 000000r 2               
-000000r 2               ; Namco-163 IRQ Register
-000000r 2               NAMCO_IRQ_COUNTER = $4800  ; IRQ counter
-000000r 2               NAMCO_IRQ_LATCH   = $5000  ; IRQ latch value
+000000r 2               ; Namco-163 Address/Control Port ($4800)
+000000r 2               ; Shared by sound and IRQ subsystems: write register index here first
+000000r 2               NAMCO163_ADDR     = $4800  ; Namco-163 register address port
+000000r 2               NAMCO_IRQ_COUNTER = $4800  ; IRQ counter (alias)
+000000r 2               NAMCO_SOUND_ADDR  = $4800  ; Sound register address (alias)
 000000r 2               
-000000r 2               ; Namco-163 Sound Registers (if used)
-000000r 2               NAMCO_SOUND_ADDR  = $4800  ; Sound register address
-000000r 2               NAMCO_SOUND_DATA  = $4800  ; Sound register data
+000000r 2               ; Namco-163 Data Ports ($5000/$5800)
+000000r 2               ; After writing address to $4800, read/write data through these
+000000r 2               NAMCO163_DATA_LO  = $5000  ; Data port low byte
+000000r 2               NAMCO163_DATA_HI  = $5800  ; Data port high byte
+000000r 2               ; Sound aliases
+000000r 2               NAMCO_SOUND_DATA_LO = $5000  ; Sound data low byte
+000000r 2               NAMCO_SOUND_DATA_HI = $5800  ; Sound data high byte
+000000r 2               ; IRQ aliases
+000000r 2               NAMCO_IRQ_LO      = $5000  ; IRQ counter low byte
+000000r 2               NAMCO_IRQ_HI      = $5800  ; IRQ counter high byte
 000000r 2               
 000000r 2               ; Number of PRG banks
 000000r 2               NUM_PRG_BANKS     = 32

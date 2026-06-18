@@ -9,6 +9,7 @@
 
 .include "6502_registers.h"
 .include "namco163.h"
+.include "functions.h"
 
 .segment "CODE_BANK1F"
 
@@ -174,7 +175,7 @@ addr_trampoline_bank_param = $005D
   BCC @clear_loop                               ; $E05C: 90 EE
 
   ; Mapper init + controller check
-  JSR MapperInitCtrlCheck                       ; $E05E: 20 BD F3
+  JSR B1F_CopyProtectionCheck                     ; $E05E: 20 BD F3
 
   ; Initialize game state to 0
   LDA #$00                                      ; $E061: A9 00
@@ -222,10 +223,10 @@ VectorTable:
 ; Params: none
 ;===============================================================================
 .proc State_SystemInit
-  JSR NmiDisable                                ; $E09A: 20 68 E7
-  JSR WaitForVBlank                             ; $E09D: 20 4D E7
+  JSR B1F_NmiDisable                              ; $E09A: 20 68 E7
+  JSR B1F_PpuMaskDisable                          ; $E09D: 20 4D E7
   STA PPU_MASK                                  ; $E0A0: 8D 01 20  Disable rendering
-  JSR BankPpuInit                               ; $E0A3: 20 7F E5
+  JSR B1F_BankPpuInit                             ; $E0A3: 20 7F E5
   LDX #$1F                                      ; $E0A6: A2 1F
   LDA #$0F                                      ; $E0A8: A9 0F
 @fill_palette:
@@ -239,7 +240,7 @@ VectorTable:
   STA $00A5                                     ; $E0B7: 8D A5 00  Patch RAM
   STA NAMCO_CTRL                                ; $E0BA: 8D 00 F8  Patch mapper
   LDA #$00                                      ; $E0BD: A9 00
-  JSR BankSwitch                                ; $E0BF: 20 1F E5
+  JSR B1F_BankSwitch                              ; $E0BF: 20 1F E5
   LDA #$10                                      ; $E0C2: A9 10  NMI enable + sprite height
   STA addr_ppu_ctrl_ram                         ; $E0C4: 8D 8B 00
   STA PPU_CTRL                                  ; $E0C7: 8D 00 20
@@ -248,7 +249,7 @@ VectorTable:
   STA PPU_MASK                                  ; $E0CF: 8D 01 20
   LDA #$09                                      ; $E0D2: A9 09  Next state = 9
   STA addr_game_state                           ; $E0D4: 8D 7A 00
-  JMP StateDispatch                             ; $E0D7: 4C 66 E0
+  JMP B1F_StateDispatch                           ; $E0D7: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -258,13 +259,13 @@ VectorTable:
 ;         SRAM: $6F41, $6F3F, $6F8B = kingdom init
 ;===============================================================================
 .proc State_NewGameInit
-  JSR FrameInit                                 ; $E0DA: 20 DA E4
+  JSR B1F_FrameInit                               ; $E0DA: 20 DA E4
   LDA #$02                                      ; $E0DD: A9 02
   STA addr_sub_state                            ; $E0DF: 8D 78 00  Sub-state = 2
   LDA #$00                                      ; $E0E2: A9 00
-  JSR DisplayInit                               ; $E0E4: 20 70 E3
+  JSR B1F_DisplayInit                             ; $E0E4: 20 70 E3
   LDY #$30                                      ; $E0E7: A0 30
-  JSR WindowDisplaySetup                        ; $E0E9: 20 5F F2
+  JSR B1F_SwitchBank8_B                           ; $E0E9: 20 5F F2
 
   ; Set pointer to $8000
   LDA #$00                                      ; $E0EC: A9 00
@@ -282,17 +283,17 @@ VectorTable:
   STA $0007                                     ; $E10B: 8D 07 00
 
   LDY #$37                                      ; $E10E: A0 37
-  JSR WindowDisplaySetup                        ; $E110: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E110: 20 37 F2
   JSR $A003                                     ; $E113: 20 03 A0  Display (bank-switched)
 
   ; Window + render
   LDY #$3D                                      ; $E116: A0 3D
-  JSR WindowDisplaySetup                        ; $E118: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E118: 20 37 F2
   LDA #$00                                      ; $E11B: A9 00
   STA $0000                                     ; $E11D: 8D 00 00
   JSR $A015                                     ; $E120: 20 15 A0  Overlay display
 
-  JSR ControllerRead                            ; $E123: 20 F7 EA
+  JSR B1F_ScrollSet                               ; $E123: 20 F7 EA
   LDA $0400                                     ; $E126: AD 00 04  Check input
   CMP #$0D                                      ; $E129: C9 0D
   BEQ @skip_sram_flag                           ; $E12B: F0 05
@@ -300,9 +301,9 @@ VectorTable:
   STA $6F8B                                     ; $E12F: 8D 8B 6F  Set SRAM flag
 @skip_sram_flag:
   LDY #$3D                                      ; $E132: A0 3D
-  JSR WindowDisplaySetup                        ; $E134: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E134: 20 37 F2
   JSR $A003                                     ; $E137: 20 36 A0
-  JSR $A009                                     ; $E13A: 20 BF EC
+  JSR B1F_PaletteFadeInit                         ; $E13A: 20 BF EC
   LDA #$A0                                      ; $E142: A9 00
   STA addr_display_mode                         ; $E149: 8D 98 00
   LDA #$00                                      ; $E14C: A9 00
@@ -316,24 +317,24 @@ VectorTable:
   LDA #$80                                      ; $E162: A9 80
   STA $6F3F                                     ; $E164: 8D 3F 6F  SRAM: kingdom param
   LDA #$00                                      ; $E167: A9 00
-  JSR BankSwitch                                ; $E169: 20 1F E5
+  JSR B1F_BankSwitch                              ; $E169: 20 1F E5
   INC addr_game_state                           ; $E16C: EE 7A 00  Next state
   LDA #$81                                      ; $E16F: A9 81
-  JSR SoundWrapperA                             ; $E171: 20 73 E6  Music $81
-  JSR PpuMaskHelper                             ; $E174: 20 49 E7
-  JSR NmiEnable                                 ; $E177: 20 53 E7
-  JMP StateDispatch                             ; $E17A: 4C 66 E0
+  JSR B1F_SoundWrapperA                           ; $E171: 20 73 E6  Music $81
+  JSR B1F_PpuMaskEnable                           ; $E174: 20 49 E7
+  JSR B1F_NmiEnable                               ; $E177: 20 53 E7
+  JMP B1F_StateDispatch                           ; $E17A: 4C 66 E0
 .endproc
 
 ;===============================================================================
 ; $E17D: Entry 2 - Random + Display (Y=$2A)
 ;===============================================================================
 .proc State_RandomDisplay2A
-  JSR RandomByte                                ; $E17D: 20 7A E8
+  JSR B1F_RandomByte                              ; $E17D: 20 7A E8
   LDY #$2A                                      ; $E180: A0 2A
-  JSR WindowSetup2                              ; $E182: 20 4B F2
+  JSR B1F_SwitchBankAC_A                          ; $E182: 20 4B F2
   JSR $A000                                     ; $E185: 20 00 A0  Display (bank-switched)
-  JMP StateDispatch                             ; $E188: 4C 66 E0
+  JMP B1F_StateDispatch                           ; $E188: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -351,25 +352,25 @@ kingdom_y2      = $0513
 territory_ptr_lo = $0068
 territory_ptr_hi = $0069
 
-  JSR FrameInit                                 ; $E18B: 20 DA E4
+  JSR B1F_FrameInit                               ; $E18B: 20 DA E4
   LDA #$03                                      ; $E18E: A9 03
   STA addr_sub_state                            ; $E190: 8D 78 00
   LDA #$01                                      ; $E193: A9 01
-  JSR DisplayInit                               ; $E195: 20 70 E3
+  JSR B1F_DisplayInit                             ; $E195: 20 70 E3
   LDY #$37                                      ; $E198: A0 37
-  JSR WindowDisplaySetup                        ; $E19A: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E19A: 20 37 F2
   JSR $A027                                     ; $E19D: 20 27 A0  Kingdom display (bank-switched)
 
   LDA kingdom_mode                              ; $E1A0: AD 00 05
   CMP #$0B                                      ; $E1A3: C9 0B  Scenario mode?
   BNE @normal_mode                              ; $E1A5: D0 0B
   LDY #$2C                                      ; $E1A7: A0 2C
-  JSR WindowDisplaySetup                        ; $E1A9: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E1A9: 20 37 F2
   JSR $A006                                     ; $E1AC: 20 06 A0  Scenario function
   JMP @after_mode_check                         ; $E1AF: 4C BA E1
 @normal_mode:
   LDY #$28                                      ; $E1B2: A0 28
-  JSR WindowDisplaySetup                        ; $E1B4: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E1B4: 20 37 F2
   JSR $A003                                     ; $E1B7: 20 03 A0  Normal function
 @after_mode_check:
   LDA kingdom_x                                 ; $E1BA: AD 10 05
@@ -385,12 +386,12 @@ territory_ptr_hi = $0069
 
   ; Display + render
   LDY #$3D                                      ; $E1D7: A0 37
-  JSR WindowDisplaySetup                        ; $E1D9: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E1D9: 20 37 F2
   JSR $A009                                     ; $E1DC: 20 09 A0
   LDA #$00                                      ; $E1E4: A9 01
   STA $0000                                     ; $E1E6: 8D 00 00
   JSR $A015                                     ; $E1E9: 20 15 A0
-  JSR ControllerRead                            ; $E1EC: 20 F7 EA
+  JSR B1F_ScrollSet                               ; $E1EC: 20 F7 EA
 
   LDA #$00                                      ; $E1EF: A9 00
   STA $0508                                     ; $E1F1: 8D 08 05
@@ -400,29 +401,29 @@ territory_ptr_hi = $0069
   STA territory_ptr_hi                          ; $E1FB: 8D 69 00  Ptr = $AF70
 
   LDA #$01                                      ; $E1FE: A9 01
-  JSR BankSwitch                                ; $E200: 20 1F E5
+  JSR B1F_BankSwitch                              ; $E200: 20 1F E5
   LDA #$01                                      ; $E203: A9 01
   STA $0097                                     ; $E205: 8D 97 00
-  JSR PaletteUpload                             ; $E208: 20 BF EC
+  JSR B1F_PaletteFadeInit                         ; $E208: 20 BF EC
   LDA #$05                                      ; $E20B: A9 05
   STA $0061                                     ; $E20D: 8D 61 00
   INC addr_game_state                           ; $E210: EE 7A 00
   LDA #$1D                                      ; $E213: A9 1D
-  JSR SoundWrapperA                             ; $E215: 20 73 E6  Music $1D
-  JSR PpuMaskHelper                             ; $E218: 20 49 E7
-  JSR NmiEnable                                 ; $E21B: 20 53 E7
-  JMP StateDispatch                             ; $E21E: 4C 66 E0
+  JSR B1F_SoundWrapperA                           ; $E215: 20 73 E6  Music $1D
+  JSR B1F_PpuMaskEnable                           ; $E218: 20 49 E7
+  JSR B1F_NmiEnable                               ; $E21B: 20 53 E7
+  JMP B1F_StateDispatch                           ; $E21E: 4C 66 E0
 .endproc
 
 ;===============================================================================
 ; $E221: Entry 4 - Random + Display (Y=$28)
 ;===============================================================================
 .proc State_RandomDisplay28
-  JSR RandomByte                                ; $E221: 20 7A E8
+  JSR B1F_RandomByte                              ; $E221: 20 7A E8
   LDY #$28                                      ; $E224: A0 28
-  JSR WindowSetup2                              ; $E226: 20 4B F2
+  JSR B1F_SwitchBankAC_A                          ; $E226: 20 4B F2
   JSR $A000                                     ; $E229: 20 00 A0
-  JMP StateDispatch                             ; $E22C: 4C 66 E0
+  JMP B1F_StateDispatch                           ; $E22C: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -435,20 +436,20 @@ action_type     = $0544
 sprite_idx1     = $0563
 sprite_idx2     = $0562
 
-  JSR FrameInit                                 ; $E22F: 20 DA E4
+  JSR B1F_FrameInit                               ; $E22F: 20 DA E4
   LDA #$04                                      ; $E232: A9 04
   STA addr_sub_state                            ; $E234: 8D 78 00
   LDA action_type                               ; $E237: AD 44 05
   CLC                                           ; $E23A: 18
   ADC #$02                                      ; $E23B: 69 02
-  JSR DisplayInit                               ; $E23D: 20 70 E3
+  JSR B1F_DisplayInit                             ; $E23D: 20 70 E3
   LDA #$02                                      ; $E240: A9 02
-  JSR BankSwitch                                ; $E242: 20 1F E5
+  JSR B1F_BankSwitch                              ; $E242: 20 1F E5
   LDY #$37                                      ; $E245: A0 37
-  JSR WindowDisplaySetup                        ; $E247: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E247: 20 37 F2
   JSR $A024                                     ; $E24A: 20 24 A0  Domestic display
   LDY #$3D                                      ; $E24D: A0 3D
-  JSR WindowDisplaySetup                        ; $E24F: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E24F: 20 37 F2
 
   ; Second display call with action type
   LDA action_type                               ; $E252: AD 44 05
@@ -467,18 +468,18 @@ sprite_idx2     = $0562
   STA $010F                                     ; $E270: 8D 0F 01
   STA $0117                                     ; $E273: 8D 17 01
 
-  JSR ControllerRead                            ; $E276: 20 F7 EA
+  JSR B1F_ScrollSet                               ; $E276: 20 F7 EA
   LDY #$3D                                      ; $E279: A0 3D
-  JSR WindowDisplaySetup                        ; $E27B: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E27B: 20 37 F2
   LDA #$01                                      ; $E27E: A9 01
   STA $0000                                     ; $E285: 8D 98 00
-  JSR $A015                                     ; $E288: 20 BF EC
+  JSR B1F_PaletteFadeInit                         ; $E288: 20 BF EC
   INC addr_game_state                           ; $E28B: EE 7A 00
   LDA #$0D                                      ; $E28E: A9 0D
-  JSR SoundWrapperC                             ; $E290: 20 83 E6
-  JSR PpuMaskHelper                             ; $E293: 20 49 E7
-  JSR NmiEnable                                 ; $E296: 20 53 E7
-  JMP StateDispatch                             ; $E299: 4C 66 E0
+  JSR B1F_SoundWrapperC                           ; $E290: 20 83 E6
+  JSR B1F_PpuMaskEnable                           ; $E293: 20 49 E7
+  JSR B1F_NmiEnable                               ; $E296: 20 53 E7
+  JMP B1F_StateDispatch                           ; $E299: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -506,7 +507,7 @@ base_ptr_hi     = $000D
   LDA DomesticBaseDataPtrs+1,Y                  ; $E2B3: B9 D1 E2
   STA base_ptr_hi                               ; $E2B6: 8D 0D 00
   LDY #$37                                      ; $E2B9: A0 37
-  JSR WindowDisplaySetup                        ; $E2BB: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E2BB: 20 37 F2
   JSR $A006                                     ; $E2BE: 20 06 A0  Action display (bank-switched)
   RTS                                           ; $E2C1: 60
 .endproc
@@ -532,8 +533,8 @@ DomesticSpriteYPos:
 ; $E2E2: Entry 6 - Random Seed Advance
 ;===============================================================================
 .proc State_RandomAdvance1
-  JSR RandomByte                                ; $E2E2: 20 7A E8
-  JMP StateDispatch                             ; $E2E5: 4C 66 E0
+  JSR B1F_RandomByte                              ; $E2E2: 20 7A E8
+  JMP B1F_StateDispatch                           ; $E2E5: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -545,15 +546,15 @@ DomesticSpriteYPos:
 army_status1    = $04AB
 army_status2    = $04AC
 
-  JSR FrameInit                                 ; $E2E8: 20 DA E4
+  JSR B1F_FrameInit                               ; $E2E8: 20 DA E4
   LDA #$05                                      ; $E2EB: A9 05
   STA addr_sub_state                            ; $E2ED: 8D 78 00
   LDA #$0A                                      ; $E2F0: A9 0A  Battle display mode
-  JSR DisplayInit                               ; $E2F2: 20 70 E3
+  JSR B1F_DisplayInit                             ; $E2F2: 20 70 E3
   LDA #$A0                                      ; $E2F5: A9 A0
   STA addr_display_mode                         ; $E2F7: 8D 98 00
   LDY #$30                                      ; $E2FA: A0 30
-  JSR WindowDisplaySetup                        ; $E2FC: 20 5F F2
+  JSR B1F_SwitchBank8_B                           ; $E2FC: 20 5F F2
   LDA #$00                                      ; $E2FF: A9 00
   STA $000A                                     ; $E301: 8D 0A 00  ptr_lo
   LDA #$84                                      ; $E304: A9 84
@@ -563,15 +564,15 @@ army_status2    = $04AC
   LDA #$20                                      ; $E30E: A9 20
   STA $0001                                     ; $E310: 8D 01 00
   LDY #$37                                      ; $E313: A0 37
-  JSR WindowDisplaySetup                        ; $E315: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E315: 20 37 F2
   JSR $A003                                     ; $E318: 20 03 A0  Battle display
   LDY #$3D                                      ; $E31B: A0 3D
-  JSR WindowDisplaySetup                        ; $E31D: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E31D: 20 37 F2
   LDA #$0A                                      ; $E320: A9 0A
   STA $0000                                     ; $E322: 8D 00 00
   JSR $A015                                     ; $E325: 20 15 A0
 
-  JSR ControllerRead                            ; $E328: 20 F7 EA
+  JSR B1F_ScrollSet                               ; $E328: 20 F7 EA
 
   ; Check army status flags
   LDX #$00                                      ; $E32B: A2 00
@@ -587,25 +588,25 @@ army_status2    = $04AC
   STX $010E                                     ; $E341: 8E 0E 01  Clear sprite if army=1
   STX $011A                                     ; $E344: 8E 1A 01
 @after_army:
-  JSR PaletteUpload                             ; $E347: 20 BF EC
+  JSR B1F_PaletteFadeInit                         ; $E347: 20 BF EC
   LDY #$3D                                      ; $E34A: A0 3D
-  JSR WindowDisplaySetup                        ; $E34C: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E34C: 20 37 F2
   LDA #$02                                      ; $E34F: A9 02
   JSR BankSwitch                                ; $E351: 20 45 A0
   INC addr_game_state                           ; $E359: EE 7A 00
   LDA #$12                                      ; $E35C: A9 12
-  JSR SoundWrapperB                             ; $E35E: 20 7B E6  Battle music $12
-  JSR PpuMaskHelper                             ; $E361: 20 49 E7
-  JSR NmiEnable                                 ; $E364: 20 53 E7
-  JMP StateDispatch                             ; $E367: 4C 66 E0
+  JSR B1F_SoundWrapperB                           ; $E35E: 20 7B E6  Battle music $12
+  JSR B1F_PpuMaskEnable                           ; $E361: 20 49 E7
+  JSR B1F_NmiEnable                               ; $E364: 20 53 E7
+  JMP B1F_StateDispatch                           ; $E367: 4C 66 E0
 .endproc
 
 ;===============================================================================
 ; $E36A: Entry 8 - Random Seed Advance
 ;===============================================================================
 .proc State_RandomAdvance2
-  JSR RandomByte                                ; $E36A: 20 7A E8
-  JMP StateDispatch                             ; $E36D: 4C 66 E0
+  JSR B1F_RandomByte                              ; $E36A: 20 7A E8
+  JMP B1F_StateDispatch                           ; $E36D: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -614,9 +615,9 @@ army_status2    = $04AC
 ;===============================================================================
 .proc DisplayInit
   LDY #$3D                                      ; $E370: A0 3D
-  JSR WindowDisplaySetup                        ; $E372: 20 37 F2  Window clear
+  JSR B1F_SwitchBankAC_B                          ; $E372: 20 37 F2  Window clear
   JSR $A01B                                     ; $E375: 20 1B A0  Bank-switched display
-  JSR ChrBankSwitch                             ; $E378: 20 06 F2  Window/display helper
+  JSR B1F_ChrBankSwitch                           ; $E378: 20 06 F2  Window/display helper
   RTS                                           ; $E37B: 60
 .endproc
 
@@ -624,13 +625,13 @@ army_status2    = $04AC
 ; $E37C: Entry 9 - Territory / Map View
 ;===============================================================================
 .proc State_TerritoryView
-  JSR FrameInit                                 ; $E37C: 20 DA E4
+  JSR B1F_FrameInit                               ; $E37C: 20 DA E4
   LDA #$06                                      ; $E37F: A9 06
   STA addr_sub_state                            ; $E381: 8D 78 00
   LDA #$0B                                      ; $E384: A9 0B  Territory display mode
-  JSR DisplayInit                               ; $E386: 20 70 E3
+  JSR B1F_DisplayInit                             ; $E386: 20 70 E3
   LDY #$35                                      ; $E389: A0 35
-  JSR WindowDisplaySetup                        ; $E38B: 20 5F F2
+  JSR B1F_SwitchBank8_B                           ; $E38B: 20 5F F2
   LDA #$90                                      ; $E38E: A9 90
   STA $000A                                     ; $E390: 8D 0A 00
   LDA #$9A                                      ; $E393: A9 9A
@@ -645,46 +646,46 @@ army_status2    = $04AC
   LDA #$04                                      ; $E3AB: A9 04
   STA $0007                                     ; $E3AD: 8D 07 00
   LDY #$37                                      ; $E3B0: A0 37
-  JSR WindowDisplaySetup                        ; $E3B2: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E3B2: 20 37 F2
   JSR $A003                                     ; $E3B5: 20 03 A0
   LDY #$3D                                      ; $E3B8: A0 3D
-  JSR WindowDisplaySetup                        ; $E3BA: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E3BA: 20 37 F2
   LDA #$0B                                      ; $E3BD: A9 0B
   STA $0000                                     ; $E3BF: 8D 00 00
   JSR $A015                                     ; $E3C2: 20 15 A0
-  JSR ControllerRead                            ; $E3C5: 20 F7 EA
-  JSR PaletteUpload                             ; $E3C8: 20 BF EC
+  JSR B1F_ScrollSet                               ; $E3C5: 20 F7 EA
+  JSR B1F_PaletteFadeInit                         ; $E3C8: 20 BF EC
   LDY #$3D                                      ; $E3CB: A0 3D
-  JSR WindowDisplaySetup                        ; $E3CD: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E3CD: 20 37 F2
   LDA #$03                                      ; $E3D0: A9 03
   JSR PaletteUpload                             ; $E3D2: 20 45 A0
   LDA #$A0                                      ; $E3D5: A9 A0
   STA addr_display_mode                         ; $E3D7: 8D 98 00
   LDA #$02                                      ; $E3DA: A9 02
-  JSR BankSwitch                                ; $E3DC: 20 1F E5
+  JSR B1F_BankSwitch                              ; $E3DC: 20 1F E5
   INC addr_game_state                           ; $E3DF: EE 7A 00
-  JSR PpuMaskHelper                             ; $E3E2: 20 49 E7
-  JSR NmiEnable                                 ; $E3E5: 20 53 E7
-  JMP StateDispatch                             ; $E3E8: 4C 66 E0
+  JSR B1F_PpuMaskEnable                           ; $E3E2: 20 49 E7
+  JSR B1F_NmiEnable                               ; $E3E5: 20 53 E7
+  JMP B1F_StateDispatch                           ; $E3E8: 4C 66 E0
 .endproc
 
 ;===============================================================================
 ; $E3EB: Entry 10/12/14 - Idle / Wait State
 ;===============================================================================
 State_IdleWait:
-  JMP StateDispatch                             ; $E3EB: 4C 66 E0
+  JMP B1F_StateDispatch                           ; $E3EB: 4C 66 E0
 
 ;===============================================================================
 ; $E3EE: Entry 11 - Advisor / Council
 ;===============================================================================
 .proc State_AdvisorCouncil
-  JSR FrameInit                                 ; $E3EE: 20 DA E4
+  JSR B1F_FrameInit                               ; $E3EE: 20 DA E4
   LDA #$07                                      ; $E3F1: A9 07
   STA addr_sub_state                            ; $E3F3: 8D 78 00
   LDA #$0C                                      ; $E3F6: A9 0C  Advisor display mode
-  JSR DisplayInit                               ; $E3F8: 20 70 E3
+  JSR B1F_DisplayInit                             ; $E3F8: 20 70 E3
   LDY #$32                                      ; $E3FB: A0 32
-  JSR WindowDisplaySetup                        ; $E3FD: 20 5F F2
+  JSR B1F_SwitchBank8_B                           ; $E3FD: 20 5F F2
   LDA #$E3                                      ; $E400: A9 E3
   STA $000A                                     ; $E402: 8D 0A 00
   LDA #$9A                                      ; $E405: A9 9A
@@ -699,32 +700,32 @@ State_IdleWait:
   LDA #$04                                      ; $E41D: A9 04
   STA $0007                                     ; $E41F: 8D 07 00
   LDY #$37                                      ; $E422: A0 37
-  JSR WindowDisplaySetup                        ; $E424: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E424: 20 37 F2
   JSR $A003                                     ; $E427: 20 03 A0
   LDY #$3D                                      ; $E42A: A0 3D
-  JSR WindowDisplaySetup                        ; $E42C: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E42C: 20 37 F2
   JSR $A018                                     ; $E42F: 20 18 A0  Advisor dialogue
   LDY #$3D                                      ; $E432: A0 3D
-  JSR WindowDisplaySetup                        ; $E434: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E434: 20 37 F2
   LDA #$0C                                      ; $E437: A9 0C
   STA $0000                                     ; $E439: 8D 00 00
   JSR $A015                                     ; $E43C: 20 15 A0
-  JSR ControllerRead                            ; $E43F: 20 F7 EA
-  JSR PaletteUpload                             ; $E442: 20 BF EC
+  JSR B1F_ScrollSet                               ; $E43F: 20 F7 EA
+  JSR B1F_PaletteFadeInit                         ; $E442: 20 BF EC
   LDY #$3D                                      ; $E445: A0 3D
-  JSR WindowDisplaySetup                        ; $E447: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E447: 20 37 F2
   LDA #$04                                      ; $E44A: A9 04
   JSR PaletteUpload                             ; $E44C: 20 45 A0
   LDA #$A0                                      ; $E44F: A9 A0
   STA addr_display_mode                         ; $E451: 8D 98 00
   LDA #$02                                      ; $E454: A9 02
-  JSR BankSwitch                                ; $E456: 20 1F E5
+  JSR B1F_BankSwitch                              ; $E456: 20 1F E5
   INC addr_game_state                           ; $E459: EE 7A 00
   LDA #$08                                      ; $E45C: A9 08
-  JSR SoundWrapperC                             ; $E45E: 20 83 E6  Sound $08
-  JSR PpuMaskHelper                             ; $E461: 20 49 E7
-  JSR NmiEnable                                 ; $E464: 20 53 E7
-  JMP StateDispatch                             ; $E467: 4C 66 E0
+  JSR B1F_SoundWrapperC                           ; $E45E: 20 83 E6  Sound $08
+  JSR B1F_PpuMaskEnable                           ; $E461: 20 49 E7
+  JSR B1F_NmiEnable                               ; $E464: 20 53 E7
+  JMP B1F_StateDispatch                           ; $E467: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -734,13 +735,13 @@ State_IdleWait:
 .proc State_TurnSummary
 completion_flag = $0541
 
-  JSR FrameInit                                 ; $E46A: 20 DA E4
+  JSR B1F_FrameInit                               ; $E46A: 20 DA E4
   LDA #$08                                      ; $E46D: A9 08
   STA addr_sub_state                            ; $E46F: 8D 78 00
   LDA #$0D                                      ; $E472: A9 0D  Report display mode
-  JSR DisplayInit                               ; $E474: 20 70 E3
+  JSR B1F_DisplayInit                             ; $E474: 20 70 E3
   LDY #$36                                      ; $E477: A0 36
-  JSR WindowDisplaySetup                        ; $E479: 20 5F F2
+  JSR B1F_SwitchBank8_B                           ; $E479: 20 5F F2
   LDA #$92                                      ; $E47C: A9 92
   STA $000A                                     ; $E47E: 8D 0A 00
   LDA #$9B                                      ; $E481: A9 9B
@@ -750,35 +751,35 @@ completion_flag = $0541
   LDA #$20                                      ; $E48B: A9 20
   STA $0001                                     ; $E48D: 8D 01 00
   LDY #$37                                      ; $E490: A0 37
-  JSR WindowDisplaySetup                        ; $E492: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E492: 20 37 F2
   JSR $A003                                     ; $E495: 20 03 A0
   LDY #$3D                                      ; $E498: A0 3D
-  JSR WindowDisplaySetup                        ; $E49A: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E49A: 20 37 F2
   LDA #$0D                                      ; $E49D: A9 0D
   STA $0000                                     ; $E49F: 8D 00 00
   JSR $A015                                     ; $E4A2: 20 15 A0
-  JSR ScrollSet                                 ; $E4A5: 20 F7 EA
+  JSR B1F_ScrollSet                               ; $E4A5: 20 F7 EA
   LDY #$3D                                      ; $E4A8: A0 3D
-  JSR WindowDisplaySetup                        ; $E4AA: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $E4AA: 20 37 F2
   LDA #$05                                      ; $E4AD: A9 05
   JSR $A045                                     ; $E4AF: 20 45 A0
   LDA #$A0                                      ; $E4B2: A9 A0
   STA addr_display_mode                         ; $E4B4: 8D 98 00
   LDA #$02                                      ; $E4B7: A9 02
-  JSR BankSwitch                                ; $E4B9: 20 1F E5
+  JSR B1F_BankSwitch                              ; $E4B9: 20 1F E5
   INC addr_game_state                           ; $E4BC: EE 7A 00
   LDY completion_flag                           ; $E4BF: AC 41 05
   BNE @victory_music                            ; $E4C2: D0 08
   LDA #$98                                      ; $E4C4: A9 98
-  JSR SoundWrapperA                             ; $E4C6: 20 73 E6  Normal music $98
+  JSR B1F_SoundWrapperA                           ; $E4C6: 20 73 E6  Normal music $98
   JMP @after_music                              ; $E4C9: 4C D1 E4
 @victory_music:
   LDA #$AA                                      ; $E4CC: A9 AA
-  JSR SoundWrapperB                             ; $E4CE: 20 7B E6  Victory music $AA
+  JSR B1F_SoundWrapperB                           ; $E4CE: 20 7B E6  Victory music $AA
 @after_music:
-  JSR PpuMaskHelper                             ; $E4D1: 20 49 E7
-  JSR NmiEnable                                 ; $E4D4: 20 53 E7
-  JMP StateDispatch                             ; $E4D7: 4C 66 E0
+  JSR B1F_PpuMaskEnable                           ; $E4D1: 20 49 E7
+  JSR B1F_NmiEnable                               ; $E4D4: 20 53 E7
+  JMP B1F_StateDispatch                           ; $E4D7: 4C 66 E0
 .endproc
 
 ;===============================================================================
@@ -786,11 +787,11 @@ completion_flag = $0541
 ; Clears display working RAM, sets sentinel values
 ;===============================================================================
 .proc FrameInit
-  JSR NmiDisable                                ; $E4DA: 20 68 E7
-  JSR WaitForVBlank                             ; $E4DD: 20 4D E7
+  JSR B1F_NmiDisable                              ; $E4DA: 20 68 E7
+  JSR B1F_PpuMaskDisable                          ; $E4DD: 20 4D E7
   STA PPU_MASK                                  ; $E4E0: 8D 01 20  Disable rendering
-  JSR BankPpuInit                               ; $E4E3: 20 7F E5
-  JSR NametableFill2                            ; $E4E6: 20 DF E7
+  JSR B1F_BankPpuInit                             ; $E4E3: 20 7F E5
+  JSR B1F_NametableFill2                          ; $E4E6: 20 DF E7
   LDA #$00                                      ; $E4E9: A9 00
   STA $0090                                     ; $E4EB: 8D 90 00
   STA $0091                                     ; $E4EE: 8D 91 00
@@ -808,7 +809,7 @@ completion_flag = $0541
   LDA #$FF                                      ; $E514: A9 FF
   STA $0300                                     ; $E516: 8D 00 03  Sentinel values
   STA $0304                                     ; $E519: 8D 04 03
-  JMP SpriteBufferInit                          ; $E51C: 4C 23 E8
+  JMP B1F_SpriteBufferInit                        ; $E51C: 4C 23 E8
 .endproc
 
 ;===============================================================================
@@ -864,8 +865,8 @@ BankSwitchTable:
 ;===============================================================================
 .proc BankPpuInit
   LDA #$00                                      ; $E57F: A9 00
-  JSR SoundWrapperA                             ; $E581: 20 73 E6  Sound off
-  JSR PaletteUpload                             ; $E584: 20 90 E5
+  JSR B1F_SoundWrapperA                           ; $E581: 20 73 E6  Sound off
+  JSR B1F_SoundInit                               ; $E584: 20 90 E5
   LDA #$4C                                      ; $E587: A9 4C  JMP opcode
   STA $00A5                                     ; $E589: 8D A5 00  Patch RAM at $00A5
   STA NAMCO_CTRL                                ; $E58C: 8D 00 F8  Write mapper
@@ -931,7 +932,7 @@ sound_ram_ptr  = $07F2
   BCC @wt_init_loop                             ; $E5E6: 90 F5
   LDX #$64                                      ; $E5E8: A2 64
   LDA #$F0                                      ; $E5EA: A9 F0
-  JSR WavetableWriteDelay                       ; $E5EC: 20 FA E5
+  JSR B1F_WavetableWriteDelay                     ; $E5EC: 20 FA E5
   LDX #$7F                                      ; $E5EF: A2 7F
   LDA #$30                                      ; $E5F1: A9 30
 WavetableWriteEntry:
@@ -948,7 +949,7 @@ WavetableWriteEntry:
   PHA                                           ; $E5FA: 48
 @loop:
   PLA                                           ; $E5FB: 68
-  JSR WavetableWriteEntry                       ; $E5FC: 20 F3 E5  Delay sub-entry ($E5F3)
+  JSR B1F_WavetableWriteEntry                     ; $E5FC: 20 F3 E5  Delay sub-entry ($E5F3)
   PHA                                           ; $E5FF: 48
   TXA                                           ; $E600: 8A
   CLC                                           ; $E601: 18
@@ -971,7 +972,7 @@ note_ptr_hi    = $F1
 sound_channel_ram = $07F6                       ; RAM copy of Namco sound channel
 
   LDY #$22                                      ; $E609: A0 22           ; window param for display setup
-  JSR WindowDisplaySetup                        ; $E60B: 20 5F F2        ; prepare display/window context
+  JSR B1F_SwitchBank8_B                           ; $E60B: 20 5F F2        ; prepare display/window context
   LDY #$00                                      ; $E60E: A0 00           ; Y=0 for indirect indexed access
   STY note_ptr_hi                               ; $E610: 8C F1 00        ; clear high byte of pointer
   ASL A                                         ; $E613: 0A              ; A = entry_index * 2 (shift 1)
@@ -1031,53 +1032,53 @@ SoundChannelTable:
 ;===============================================================================
 SoundWrapper0:
   PHA                                           ; $E66B: 48
-  JSR SoundNotePlayer                           ; $E66C: 20 09 E6
+  JSR B1F_SoundNotePlayer                         ; $E66C: 20 09 E6
   PLA                                           ; $E66F: 68
   CLC                                           ; $E670: 18
   ADC #$01                                      ; $E671: 69 01
 
 SoundWrapperA:
   PHA                                           ; $E673: 48
-  JSR SoundNotePlayer                           ; $E674: 20 09 E6
+  JSR B1F_SoundNotePlayer                         ; $E674: 20 09 E6
   PLA                                           ; $E677: 68
   CLC                                           ; $E678: 18
   ADC #$01                                      ; $E679: 69 01
 
 SoundWrapperB:
   PHA                                           ; $E67B: 48
-  JSR SoundNotePlayer                           ; $E67C: 20 09 E6
+  JSR B1F_SoundNotePlayer                         ; $E67C: 20 09 E6
   PLA                                           ; $E67F: 68
   CLC                                           ; $E680: 18
   ADC #$01                                      ; $E681: 69 01
 
 SoundWrapperC:
   PHA                                           ; $E683: 48
-  JSR SoundNotePlayer                           ; $E684: 20 09 E6
+  JSR B1F_SoundNotePlayer                         ; $E684: 20 09 E6
   PLA                                           ; $E687: 68
   CLC                                           ; $E688: 18
   ADC #$01                                      ; $E689: 69 01
 
 SoundWrapperD:
   PHA                                           ; $E68B: 48
-  JSR SoundNotePlayer                           ; $E68C: 20 09 E6
+  JSR B1F_SoundNotePlayer                         ; $E68C: 20 09 E6
   PLA                                           ; $E68F: 68
   CLC                                           ; $E690: 18
   ADC #$01                                      ; $E691: 69 01
 
 SoundWrapperE:
   PHA                                           ; $E693: 48
-  JSR SoundNotePlayer                           ; $E694: 20 09 E6
+  JSR B1F_SoundNotePlayer                         ; $E694: 20 09 E6
   PLA                                           ; $E697: 68
   CLC                                           ; $E698: 18
   ADC #$01                                      ; $E699: 69 01
 
 SoundWrapperF:
   PHA                                           ; $E69B: 48
-  JSR SoundNotePlayer                           ; $E69C: 20 09 E6
+  JSR B1F_SoundNotePlayer                         ; $E69C: 20 09 E6
   PLA                                           ; $E69F: 68
   CLC                                           ; $E6A0: 18
   ADC #$01                                      ; $E6A1: 69 01
-  JMP SoundNotePlayer                           ; $E6A3: 4C 09 E6
+  JMP B1F_SoundNotePlayer                         ; $E6A3: 4C 09 E6
 
 ;===============================================================================
 ; $E6A6: Wavetable Init Data (32 bytes)
@@ -1216,14 +1217,14 @@ page_count    = $01
   LDA #$00                                      ; $E78F: A9 00
   STA fill_attr                                 ; $E791: 85 03
   LDA #$20                                      ; $E793: A9 20     Nametable $2000
-  JSR NametableFillSub                          ; $E795: 20 B5 E7
+  JSR B1F_NametableFillSub                        ; $E795: 20 B5 E7
   LDA PPU_STATUS                                ; $E798: AD 02 20  Reset PPU latch
   LDA #$01                                      ; $E79B: A9 01
   STA fill_tile                                 ; $E79D: 85 02
   LDA #$00                                      ; $E79F: A9 00
   STA fill_attr                                 ; $E7A1: 85 03
   LDA #$24                                      ; $E7A3: A9 24     Nametable $2400
-  JSR NametableFillSub                          ; $E7A5: 20 B5 E7
+  JSR B1F_NametableFillSub                        ; $E7A5: 20 B5 E7
   LDA PPU_STATUS                                ; $E7A8: AD 02 20  Reset PPU latch
   LDA #$01                                      ; $E7AB: A9 01
   STA fill_tile                                 ; $E7AD: 85 02
@@ -1291,21 +1292,21 @@ fill_attr     = $03
   LDA #$AA                                      ; $E7FA: A9 AA
   STA fill_attr                                 ; $E7FC: 85 03
   LDA #$20                                      ; $E7FE: A9 20     Nametable $2000
-  JSR NametableFillSub                          ; $E800: 20 B5 E7
+  JSR B1F_NametableFillSub                        ; $E800: 20 B5 E7
   LDA PPU_STATUS                                ; $E803: AD 02 20  Reset PPU latch
   LDA #$01                                      ; $E806: A9 01
   STA fill_tile                                 ; $E808: 85 02
   LDA #$AA                                      ; $E80A: A9 AA
   STA fill_attr                                 ; $E80C: 85 03
   LDA #$24                                      ; $E80E: A9 24     Nametable $2400
-  JSR NametableFillSub                          ; $E810: 20 B5 E7
+  JSR B1F_NametableFillSub                        ; $E810: 20 B5 E7
   LDA PPU_STATUS                                ; $E813: AD 02 20  Reset PPU latch
   LDA #$01                                      ; $E816: A9 01
   STA fill_tile                                 ; $E818: 85 02
   LDA #$AA                                      ; $E81A: A9 AA
   STA fill_attr                                 ; $E81C: 85 03
   LDA #$28                                      ; $E81E: A9 28     Nametable $2800
-  JMP NametableFillSub                          ; $E820: 4C B5 E7
+  JMP B1F_NametableFillSub                        ; $E820: 4C B5 E7
 .endproc
 
 ;===============================================================================
@@ -1353,7 +1354,7 @@ SpriteBufferInitAll:
 ;===============================================================================
 .proc RandomBelow100
 @loop:
-  JSR RandomByte                                ; $E843: 20 7A E8
+  JSR B1F_RandomByte                              ; $E843: 20 7A E8
   CMP #$64                                      ; $E846: C9 64
   BCS @loop                                     ; $E848: B0 F9
   RTS                                           ; $E84A: 60
@@ -1364,7 +1365,7 @@ SpriteBufferInitAll:
 ; Returns: A = random byte / 2 (range [0, 127])
 ;===============================================================================
 .proc RandomDiv2
-  JSR RandomByte                                ; $E84B: 20 7A E8
+  JSR B1F_RandomByte                              ; $E84B: 20 7A E8
   LSR                                           ; $E84E: 4A
   RTS                                           ; $E84F: 60
 .endproc
@@ -1375,17 +1376,17 @@ SpriteBufferInitAll:
 ;===============================================================================
 .proc RandomModPow2
 RandomMod4:
-  JSR RandomByte                                ; $E850: 20 7A E8
+  JSR B1F_RandomByte                              ; $E850: 20 7A E8
   AND #$03                                      ; $E853: 29 03
   RTS                                           ; $E855: 60
 
 RandomMod8:
-  JSR RandomByte                                ; $E856: 20 7A E8
+  JSR B1F_RandomByte                              ; $E856: 20 7A E8
   AND #$07                                      ; $E859: 29 07
   RTS                                           ; $E85B: 60
 
 RandomMod16:
-  JSR RandomByte                                ; $E85C: 20 7A E8
+  JSR B1F_RandomByte                              ; $E85C: 20 7A E8
   AND #$0F                                      ; $E85F: 29 0F
   RTS                                           ; $E861: 60
 .endproc
@@ -1403,13 +1404,13 @@ threshold = $10
   CMP #$0F                                      ; $E864: C9 0F
   BCS @full_range                               ; $E866: B0 0A
 @loop_masked:
-  JSR RandomByte                                ; $E868: 20 7A E8
+  JSR B1F_RandomByte                              ; $E868: 20 7A E8
   AND #$0F                                      ; $E86B: 29 0F
   CMP threshold                                 ; $E86D: C5 10
   BCS @loop_masked                              ; $E86F: B0 F7
   RTS                                           ; $E871: 60
 @full_range:
-  JSR RandomByte                                ; $E872: 20 7A E8
+  JSR B1F_RandomByte                              ; $E872: 20 7A E8
   CMP threshold                                 ; $E875: C5 10
   BCS @full_range                               ; $E877: B0 F9
   RTS                                           ; $E879: 60
@@ -1823,15 +1824,15 @@ multiplier    = $03
   STA result_b0                                 ; $EB38: 85 0D
   ; Tens digit x 10
   PLA                                           ; $EB3A: 68
-  JSR MathExtractUpperNibble                    ; $EB3B: 20 B1 EB
+  JSR B1F_MathExtractUpperNibble                  ; $EB3B: 20 B1 EB
   STA multiplier                                ; $EB3E: 85 03
   LDA #$0A                                      ; $EB40: A9 0A
   STA mul_lo                                    ; $EB42: 85 00
   LDA #$00                                      ; $EB44: A9 00
   STA mul_mid                                   ; $EB46: 85 01
   STA mul_hi                                    ; $EB48: 85 02
-  JSR MathMul24x8                               ; $EB4A: 20 E9 EB
-  JSR MathAccumulate24                          ; $EB4D: 20 B6 EB
+  JSR B1F_MathMul24x8                             ; $EB4A: 20 E9 EB
+  JSR B1F_MathAccumulate24                        ; $EB4D: 20 B6 EB
   ; Hundreds digit x 100
   LDA bcd_thou_hund                             ; $EB50: A5 0B
   PHA                                           ; $EB52: 48
@@ -1842,11 +1843,11 @@ multiplier    = $03
   LDA #$00                                      ; $EB5B: A9 00
   STA mul_mid                                   ; $EB5D: 85 01
   STA mul_hi                                    ; $EB5F: 85 02
-  JSR MathMul24x8                               ; $EB61: 20 E9 EB
-  JSR MathAccumulate24                          ; $EB64: 20 B6 EB
+  JSR B1F_MathMul24x8                             ; $EB61: 20 E9 EB
+  JSR B1F_MathAccumulate24                        ; $EB64: 20 B6 EB
   ; Thousands digit x 1000
   PLA                                           ; $EB67: 68
-  JSR MathExtractUpperNibble                    ; $EB68: 20 B1 EB
+  JSR B1F_MathExtractUpperNibble                  ; $EB68: 20 B1 EB
   STA multiplier                                ; $EB6B: 85 03
   LDA #$E8                                      ; $EB6D: A9 E8
   STA mul_lo                                    ; $EB6F: 85 00
@@ -1854,8 +1855,8 @@ multiplier    = $03
   STA mul_mid                                   ; $EB73: 85 01
   LDA #$00                                      ; $EB75: A9 00
   STA mul_hi                                    ; $EB77: 85 02
-  JSR MathMul24x8                               ; $EB79: 20 E9 EB
-  JSR MathAccumulate24                          ; $EB7C: 20 B6 EB
+  JSR B1F_MathMul24x8                             ; $EB79: 20 E9 EB
+  JSR B1F_MathAccumulate24                        ; $EB7C: 20 B6 EB
   ; Ten-thousands digit x 10000
   LDA bcd_htth_tth                              ; $EB7F: A5 0C
   PHA                                           ; $EB81: 48
@@ -1867,11 +1868,11 @@ multiplier    = $03
   STA mul_mid                                   ; $EB8C: 85 01
   LDA #$00                                      ; $EB8E: A9 00
   STA mul_hi                                    ; $EB90: 85 02
-  JSR MathMul24x8                               ; $EB92: 20 E9 EB
-  JSR MathAccumulate24                          ; $EB95: 20 B6 EB
+  JSR B1F_MathMul24x8                             ; $EB92: 20 E9 EB
+  JSR B1F_MathAccumulate24                        ; $EB95: 20 B6 EB
   ; Hundred-thousands digit x 100000
   PLA                                           ; $EB98: 68
-  JSR MathExtractUpperNibble                    ; $EB99: 20 B1 EB
+  JSR B1F_MathExtractUpperNibble                  ; $EB99: 20 B1 EB
   STA multiplier                                ; $EB9C: 85 03
   LDA #$A0                                      ; $EB9E: A9 A0
   STA mul_lo                                    ; $EBA0: 85 00
@@ -1879,8 +1880,8 @@ multiplier    = $03
   STA mul_mid                                   ; $EBA4: 85 01
   LDA #$01                                      ; $EBA6: A9 01
   STA mul_hi                                    ; $EBA8: 85 02
-  JSR MathMul24x8                               ; $EBAA: 20 E9 EB
-  JSR MathAccumulate24                          ; $EBAD: 20 B6 EB
+  JSR B1F_MathMul24x8                             ; $EBAA: 20 E9 EB
+  JSR B1F_MathAccumulate24                        ; $EBAD: 20 B6 EB
   RTS                                           ; $EBB0: 60
 .endproc
 
@@ -1923,7 +1924,7 @@ multiplier    = $03
 .proc MathMulDiv100
   LDA #$00                                      ; $EBCA: A9 00
   STA $02                                       ; $EBCC: 85 02
-  JSR MathMul24x8                               ; $EBCE: 20 E9 EB
+  JSR B1F_MathMul24x8                             ; $EBCE: 20 E9 EB
   LDA $06                                       ; $EBD1: A5 06
   STA $00                                       ; $EBD3: 85 00
   LDA $07                                       ; $EBD5: A5 07
@@ -1934,7 +1935,7 @@ multiplier    = $03
   STA $03                                       ; $EBDF: 85 03
   LDA #$00                                      ; $EBE1: A9 00
   STA $04                                       ; $EBE3: 85 04
-  JSR MathDiv24                                 ; $EBE5: 20 A5 EA
+  JSR B1F_MathDiv24                               ; $EBE5: 20 A5 EA
   RTS                                           ; $EBE8: 60
 .endproc
 
@@ -2185,28 +2186,28 @@ cur_item        = $12
 
 MenuStep1:
   LDA #$01                                      ; $ED19: A9 01
-  JMP MenuMain                                  ; $ED1B: 4C 41 ED
+  JMP B1F_MenuMain                                ; $ED1B: 4C 41 ED
 MenuStep2:
   LDA #$02                                      ; $ED1E: A9 02
-  JMP MenuMain                                  ; $ED20: 4C 41 ED
+  JMP B1F_MenuMain                                ; $ED20: 4C 41 ED
 MenuStep3:
   LDA #$03                                      ; $ED23: A9 03
-  JMP MenuMain                                  ; $ED25: 4C 41 ED
+  JMP B1F_MenuMain                                ; $ED25: 4C 41 ED
 MenuStep4:
   LDA #$04                                      ; $ED28: A9 04
-  JMP MenuMain                                  ; $ED2A: 4C 41 ED
+  JMP B1F_MenuMain                                ; $ED2A: 4C 41 ED
 MenuStep5:
   LDA #$05                                      ; $ED2D: A9 05
-  JMP MenuMain                                  ; $ED2F: 4C 41 ED
+  JMP B1F_MenuMain                                ; $ED2F: 4C 41 ED
 MenuStep6:
   LDA #$06                                      ; $ED32: A9 06
-  JMP MenuMain                                  ; $ED34: 4C 41 ED
+  JMP B1F_MenuMain                                ; $ED34: 4C 41 ED
 MenuStep7:
   LDA #$07                                      ; $ED37: A9 07
-  JMP MenuMain                                  ; $ED39: 4C 41 ED
+  JMP B1F_MenuMain                                ; $ED39: 4C 41 ED
 MenuStep8:
   LDA #$08                                      ; $ED3C: A9 08
-  JMP MenuMain                                  ; $ED3E: 4C 41 ED
+  JMP B1F_MenuMain                                ; $ED3E: 4C 41 ED
 MenuMain:
   STA step_size                                 ; $ED41: 85 00
   LDA addr_pad1_edge                            ; $ED43: AD 81 00
@@ -2229,14 +2230,14 @@ MenuMain:
   BEQ @do_lookup                                ; $ED66: F0 03
   JSR @cursor_up                                ; $ED68: 20 BE ED
 @do_lookup:
-  JSR MenuItemLookup                            ; $ED6B: 20 DD ED
+  JSR B1F_MenuItemLookup                          ; $ED6B: 20 DD ED
   STA cur_item                                  ; $ED6E: 85 12
   RTS                                           ; $ED70: 60
 
 ; --- cursor_right: increment column ---
 @cursor_right:
   INC addr_menu_column                          ; $ED71: EE 24 04
-  JSR MenuItemLookup                            ; $ED74: 20 DD ED
+  JSR B1F_MenuItemLookup                          ; $ED74: 20 DD ED
   BMI @right_overflow                           ; $ED77: 30 07
   LDA addr_menu_column                          ; $ED79: AD 24 04
   CMP step_size                                 ; $ED7C: C5 00
@@ -2261,7 +2262,7 @@ MenuMain:
   STA addr_menu_column                          ; $ED9B: 8D 24 04
 @left_scan:
   DEC addr_menu_column                          ; $ED9E: CE 24 04
-  JSR MenuItemLookup                            ; $EDA1: 20 DD ED
+  JSR B1F_MenuItemLookup                          ; $EDA1: 20 DD ED
   CMP #$FF                                      ; $EDA4: C9 FF
   BEQ @left_scan                                ; $EDA6: F0 F6
 @left_valid:
@@ -2270,7 +2271,7 @@ MenuMain:
 ; --- cursor_down: increment page ---
 @cursor_down:
   INC addr_menu_page                            ; $EDA9: EE 25 04
-  JSR MenuItemLookup                            ; $EDAC: 20 DD ED
+  JSR B1F_MenuItemLookup                          ; $EDAC: 20 DD ED
   BPL @down_done                                ; $EDAF: 10 0C
   DEC addr_menu_page                            ; $EDB1: CE 25 04
   LDA cur_item                                  ; $EDB4: A5 12
@@ -2346,7 +2347,7 @@ ptr_hi   = $0C
   STA ptr_hi                                    ; $EDFE: 85 0C
   LDA #$00                                      ; $EE00: A9 00
   STA $02                                       ; $EE02: 85 02
-  JMP SpriteOamWriterSimple                     ; $EE04: 4C AD F1
+  JMP B1F_SpriteOamWriterSimple                   ; $EE04: 4C AD F1
 .endproc
 
 ;===============================================================================
@@ -2372,7 +2373,7 @@ ptr_hi   = $0C
   LDA (addr_trampoline_ret_lo),Y                ; $EE25: B1 59
   STA addr_trampoline_target_hi                 ; $EE27: 8D 5C 00
   LDY addr_trampoline_bank_param                ; $EE2A: AC 5D 00
-  JSR SwitchBankAC_B                            ; $EE2D: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $EE2D: 20 37 F2
   INC addr_trampoline_ret_lo                    ; $EE30: EE 59 00
   BNE @no_carry                                 ; $EE33: D0 03
   INC addr_trampoline_ret_hi                    ; $EE35: EE 5A 00
@@ -2397,7 +2398,7 @@ ptr_hi   = $0C
 .proc BankedCallbackReturn
   PLA                                           ; $EE4D: 68
   TAY                                           ; $EE4E: A8
-  JSR SwitchBankAC_B                            ; $EE4F: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $EE4F: 20 37 F2
   RTS                                           ; $EE52: 60
 .endproc
 
@@ -2431,14 +2432,14 @@ nmi_ctrl = $007E
   ASL                                           ; $EE6F: 0A
   BMI @do_bank_3d_d                             ; $EE70: 30 6C
 @check_bits:
-  JMP PaletteUpload                             ; $EE72: 4C 0E E7
+  JMP B1F_PaletteUpload                           ; $EE72: 4C 0E E7
 
 @do_bg:
   PHA                                           ; $EE75: 48
   LDA nmi_ctrl                                  ; $EE76: AD 7E 00
   AND #$7F                                      ; $EE79: 29 7F
   STA nmi_ctrl                                  ; $EE7B: 8D 7E 00
-  JSR PpuBgTileWrite                            ; $EE7E: 20 0B EF
+  JSR B1F_PpuBgTileWrite                          ; $EE7E: 20 0B EF
   PLA                                           ; $EE81: 68
   RTS                                           ; $EE82: 60
   ASL                                           ; $EE83: 0A
@@ -2449,7 +2450,7 @@ nmi_ctrl = $007E
   LDA nmi_ctrl                                  ; $EE88: AD 7E 00
   AND #$BF                                      ; $EE8B: 29 BF
   STA nmi_ctrl                                  ; $EE8D: 8D 7E 00
-  JSR PpuSpriteTileWrite                        ; $EE90: 20 71 EF
+  JSR B1F_PpuSpriteTileWrite                      ; $EE90: 20 71 EF
   PLA                                           ; $EE93: 68
   RTS                                           ; $EE94: 60
   JMP @test_attr                                ; $EE95: 4C 60 EE
@@ -2458,17 +2459,17 @@ nmi_ctrl = $007E
   LDA nmi_ctrl                                  ; $EE98: AD 7E 00
   AND #$DF                                      ; $EE9B: 29 DF
   STA nmi_ctrl                                  ; $EE9D: 8D 7E 00
-  JMP PpuAttrTileWrite                          ; $EEA0: 4C C0 EF
+  JMP B1F_PpuAttrTileWrite                        ; $EEA0: 4C C0 EF
 
 @do_attr_alt:
   LDA nmi_ctrl                                  ; $EEA3: AD 7E 00
   AND #$EF                                      ; $EEA6: 29 EF
   STA nmi_ctrl                                  ; $EEA8: 8D 7E 00
-  JMP PpuAttrTileWriteAlt                       ; $EEAB: 4C 28 F0
+  JMP B1F_PpuAttrTileWriteAlt                     ; $EEAB: 4C 28 F0
 
 @do_bank_3d_a:
   LDY #$3D                                      ; $EEAE: A0 3D
-  JSR SwitchBankAC_B                            ; $EEB0: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $EEB0: 20 37 F2
   LDA nmi_ctrl                                  ; $EEB3: AD 7E 00
   AND #$F7                                      ; $EEB6: 29 F7
   STA nmi_ctrl                                  ; $EEB8: 8D 7E 00
@@ -2479,7 +2480,7 @@ nmi_ctrl = $007E
   AND #$FB                                      ; $EEC1: 29 FB
   STA nmi_ctrl                                  ; $EEC3: 8D 7E 00
   LDY #$3D                                      ; $EEC6: A0 3D
-  JSR SwitchBankAC_B                            ; $EEC8: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $EEC8: 20 37 F2
   JMP $A006                                     ; $EECB: 4C 06 A0
 
 @do_bank_3d_c:
@@ -2487,12 +2488,12 @@ nmi_ctrl = $007E
   AND #$FD                                      ; $EED1: 29 FD
   STA nmi_ctrl                                  ; $EED3: 8D 7E 00
   LDY #$3D                                      ; $EED6: A0 3D
-  JSR SwitchBankAC_B                            ; $EED8: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $EED8: 20 37 F2
   JMP $A012                                     ; $EEDB: 4C 12 A0
 
 @do_bank_3d_d:
   LDY #$3D                                      ; $EEDE: A0 3D
-  JSR SwitchBankAC_B                            ; $EEE0: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $EEE0: 20 37 F2
   JMP $A000                                     ; $EEE3: 4C 00 A0
 .endproc
 
@@ -2517,13 +2518,13 @@ nmi_ctrl = $007E
   LDA nmi_ctrl                                  ; $EEF5: AD 7E 00
   AND #$7F                                      ; $EEF8: 29 7F
   STA nmi_ctrl                                  ; $EEFA: 8D 7E 00
-  JMP PpuBgTileWrite                            ; $EEFD: 4C 0B EF
+  JMP B1F_PpuBgTileWrite                          ; $EEFD: 4C 0B EF
 
 @do_sprite:
   LDA nmi_ctrl                                  ; $EF00: AD 7E 00
   AND #$BF                                      ; $EF03: 29 BF
   STA nmi_ctrl                                  ; $EF05: 8D 7E 00
-  JMP PpuSpriteTileWrite                        ; $EF08: 4C 71 EF
+  JMP B1F_PpuSpriteTileWrite                      ; $EF08: 4C 71 EF
 .endproc
 
 ;===============================================================================
@@ -2962,21 +2963,21 @@ nmi_ctrl = $007E
 ;===============================================================================
 .proc ChrBankSwitch
   LDA addr_chr_bank_0                           ; $F206: AD AE 00
-  STA $8000                                     ; $F209: 8D 00 80
+  STA NAMCO163_CHR_0                                     ; $F209: 8D 00 80
   LDA addr_chr_bank_1                           ; $F20C: AD AF 00
-  STA $8800                                     ; $F20F: 8D 00 88
+  STA NAMCO163_CHR_1                                     ; $F20F: 8D 00 88
   LDA addr_chr_bank_2                           ; $F212: AD B0 00
-  STA $9000                                     ; $F215: 8D 00 90
+  STA NAMCO163_CHR_2                                     ; $F215: 8D 00 90
   LDA addr_chr_bank_3                           ; $F218: AD B1 00
-  STA $9800                                     ; $F21B: 8D 00 98
+  STA NAMCO163_CHR_3                                     ; $F21B: 8D 00 98
   LDA addr_chr_bank_4                           ; $F21E: AD B2 00
-  STA $A000                                     ; $F221: 8D 00 A0
+  STA NAMCO163_CHR_4                                     ; $F221: 8D 00 A0
   LDA addr_chr_bank_5                           ; $F224: AD B3 00
-  STA $A800                                     ; $F227: 8D 00 A8
+  STA NAMCO163_CHR_5                                     ; $F227: 8D 00 A8
   LDA addr_chr_bank_6                           ; $F22A: AD B4 00
-  STA $B000                                     ; $F22D: 8D 00 B0
+  STA NAMCO163_CHR_6                                     ; $F22D: 8D 00 B0
   LDA addr_chr_bank_7                           ; $F230: AD B5 00
-  STA $B800                                     ; $F233: 8D 00 B8
+  STA NAMCO163_CHR_7                                     ; $F233: 8D 00 B8
   RTS                                           ; $F236: 60
 .endproc
 
@@ -3184,7 +3185,7 @@ nmi_ctrl = $007E
 .proc GetNameDisplayScale
   STA $0002                                     ; $F308: 8D 02 00
   LDY #$30                                      ; $F30B: A0 30
-  JSR SwitchBank8_B                             ; $F30D: 20 5F F2
+  JSR B1F_SwitchBank8_B                           ; $F30D: 20 5F F2
   LDA #$00                                      ; $F310: A9 00
   STA $0001                                     ; $F312: 8D 01 00
   LDA $0002                                     ; $F315: AD 02 00
@@ -3272,7 +3273,7 @@ RulerDataPtrTable:
 ;===============================================================================
 .proc GetOfficerRomRecordAddr
   LDY #$31                                      ; $F387: A0 31
-  JSR SwitchBank8_B                             ; $F389: 20 5F F2
+  JSR B1F_SwitchBank8_B                           ; $F389: 20 5F F2
   LDY #$00                                      ; $F38C: A0 00
   STY $0001                                     ; $F38E: 8C 01 00
   STA $0000                                     ; $F391: 8D 00 00
@@ -3310,8 +3311,8 @@ RulerDataPtrTable:
 ;===============================================================================
 .proc CopyProtectionCheck
   LDA #$00                                      ; $F3BD: A9 00
-  STA $5000                                     ; $F3BF: 8D 00 50
-  STA $5800                                     ; $F3C2: 8D 00 58
+  STA NAMCO_IRQ_LO                                     ; $F3BF: 8D 00 50
+  STA NAMCO_IRQ_HI                                     ; $F3C2: 8D 00 58
   LDA #$E0                                      ; $F3C5: A9 E0
   STA NAMCO_CHR_BANK_0                                     ; $F3C7: 8D 00 C0
   STA NAMCO_CHR_BANK_2                                     ; $F3CA: 8D 00 D0
@@ -3337,11 +3338,11 @@ RulerDataPtrTable:
   LDA #$40                                      ; $F3F4: A9 40
   STA NAMCO_PRG_8000_ALT                             ; $F3F6: 8D 00 F8
   LDX #$01                                      ; $F3F9: A2 01
-  JSR VerifyRamPattern                          ; $F3FB: 20 22 F4
+  JSR B1F_VerifyRamPattern                        ; $F3FB: 20 22 F4
   BEQ @display_error                            ; $F3FE: F0 0C
   LDX #$37                                      ; $F400: A2 37
-  JSR WriteRamPattern                           ; $F402: 20 3F F4
-  JSR VerifyRamPattern                          ; $F405: 20 22 F4
+  JSR B1F_WriteRamPattern                         ; $F402: 20 3F F4
+  JSR B1F_VerifyRamPattern                        ; $F405: 20 22 F4
   BEQ @display_error                            ; $F408: F0 02
   LDX #$16                                      ; $F40A: A2 16
 @display_error:
@@ -3368,12 +3369,12 @@ RulerDataPtrTable:
 ; Output: Z=1 (A=0) if all match; Z=0 (A=mismatch value) if any differ
 ;===============================================================================
 .proc VerifyRamPattern
-  JSR InitRamTestParams                         ; $F422: 20 58 F4
+  JSR B1F_InitRamTestParams                       ; $F422: 20 58 F4
 @verify_loop:
   LDA ($02),Y                                   ; $F425: B1 02
   CMP $0000                                     ; $F427: CD 00 00
   BNE @fail                                     ; $F42A: D0 12
-  JSR AdvanceHashPattern                        ; $F42C: 20 68 F4
+  JSR B1F_AdvanceHashPattern                      ; $F42C: 20 68 F4
   INY                                           ; $F42F: C8
   BNE @verify_loop                              ; $F430: D0 F3
   INC $0003                                     ; $F432: EE 03 00
@@ -3391,11 +3392,11 @@ RulerDataPtrTable:
 ; AdvanceHashPattern. Used to write a test pattern for later verification.
 ;===============================================================================
 .proc WriteRamPattern
-  JSR InitRamTestParams                         ; $F43F: 20 58 F4
+  JSR B1F_InitRamTestParams                       ; $F43F: 20 58 F4
 @write_loop:
   LDA $0000                                     ; $F442: AD 00 00
   STA ($02),Y                                   ; $F445: 91 02
-  JSR AdvanceHashPattern                        ; $F447: 20 68 F4
+  JSR B1F_AdvanceHashPattern                      ; $F447: 20 68 F4
   INY                                           ; $F44A: C8
   BNE @write_loop                               ; $F44B: D0 F5
   INC $0003                                     ; $F44D: EE 03 00
@@ -3526,11 +3527,11 @@ MetaTileData:
   PHA                                         ; $F804: 48
   LDA PPU_STATUS                               ; $F805: AD 02 20
   LDA #$00                                    ; $F808: A9 00
-  STA $5800                                   ; $F80A: 8D 00 58
+  STA NAMCO_IRQ_HI                                   ; $F80A: 8D 00 58
   LDA $0068                                   ; $F80D: AD 68 00
-  STA $5000                                   ; $F810: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $F810: 8D 00 50
   LDA $0069                                   ; $F813: AD 69 00
-  STA $5800                                   ; $F816: 8D 00 58
+  STA NAMCO_IRQ_HI                                   ; $F816: 8D 00 58
   STA $0062                                   ; $F819: 8D 62 00
   LDA $0061                                   ; $F81C: AD 61 00
   STA $0060                                   ; $F81F: 8D 60 00
@@ -3545,7 +3546,7 @@ MetaTileData:
   STA NAMCO_CHR_BANK_3                                   ; $F834: 8D 00 D8
   LDA $7B                                     ; $F837: A5 7B
   BEQ @set_prg_banks                          ; $F839: F0 03
-  JMP NmiHandler_Busy                         ; $F83B: 4C D5 FA
+  JMP B1F_NmiHandler_Busy                         ; $F83B: 4C D5 FA
 @set_prg_banks:
   LDA $E1                                     ; $F83E: A5 E1
   STA NAMCO_PRG_8000                                   ; $F840: 8D 00 E0
@@ -3614,217 +3615,217 @@ NmiDispatchTable:
 
 ;--- $F8B5: VBlank handler - map screen ---
 .proc NmiState2_MapScreen
-  JSR NmiSubDispatch                                   ; $F8B5: 20 53 EE
-  JSR ChrBankSwitch                                   ; $F8B8: 20 06 F2
-  JSR SetupChrBanksAndWait                    ; $F8BB: 20 0B FB
-  JSR PaletteAnimation                                   ; $F8BE: 20 67 EC
-  JSR ControllerRead                                   ; $F8C1: 20 C6 E6
+  JSR B1F_NmiSubDispatch                          ; $F8B5: 20 53 EE
+  JSR B1F_ChrBankSwitch                           ; $F8B8: 20 06 F2
+  JSR B1F_SetupChrBanksAndWait                    ; $F8BB: 20 0B FB
+  JSR B1F_PaletteAnimation                        ; $F8BE: 20 67 EC
+  JSR B1F_ControllerRead                          ; $F8C1: 20 C6 E6
   LDY #$2E                                    ; $F8C4: A0 2E
-  JSR SwitchBankAC_B                                   ; $F8C6: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F8C6: 20 37 F2
   JSR $A003                                   ; $F8C9: 20 03 A0
   LDA #$4C                                    ; $F8CC: A9 4C
   STA $A5                                     ; $F8CE: 85 A5
   STA NAMCO_PRG_8000_ALT                           ; $F8D0: 8D 00 F8
-  JSR CalcScrollAddrAlt                       ; $F8D3: 20 9B FF
-  JSR SwapPlayerPointers                      ; $F8D6: 20 A9 FA
+  JSR B1F_CalcScrollAddrAlt                       ; $F8D3: 20 9B FF
+  JSR B1F_SwapPlayerPointers                      ; $F8D6: 20 A9 FA
   LDY #$3D                                    ; $F8D9: A0 3D
-  JSR SwitchBankAC_B                                   ; $F8DB: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F8DB: 20 37 F2
   JSR $A003                                   ; $F8DE: 20 03 A0
   JSR $A009                                   ; $F8E1: 20 09 A0
   JSR $A00F                                   ; $F8E4: 20 0F A0
   JSR $A03F                                   ; $F8E7: 20 3F A0
   LDY #$3B                                    ; $F8EA: A0 3B
-  JSR SwitchBankAC_B                                   ; $F8EC: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F8EC: 20 37 F2
   JSR $A000                                   ; $F8EF: 20 00 A0
-  JSR RestorePlayerPointers                   ; $F8F2: 20 BF FA
-  JSR SpriteClearFromIndex                                   ; $F8F5: 20 30 E8
-  JSR WaitVBlank                              ; $F8F8: 20 28 FB
-  JMP NmiEpilogue                             ; $F8FB: 4C 8D F8
+  JSR B1F_RestorePlayerPointers                   ; $F8F2: 20 BF FA
+  JSR B1F_SpriteClearFromIndex                    ; $F8F5: 20 30 E8
+  JSR B1F_WaitVBlank                              ; $F8F8: 20 28 FB
+  JMP B1F_NmiEpilogue                             ; $F8FB: 4C 8D F8
 .endproc
 
 ;--- $F8FE: VBlank handler - battle ---
 .proc NmiState3_Battle
-  JSR NmiSubDispatch                                   ; $F8FE: 20 53 EE
-  JSR ChrBankSwitch                                   ; $F901: 20 06 F2
-  JSR SetupChrBanksAndWait                    ; $F904: 20 0B FB
+  JSR B1F_NmiSubDispatch                          ; $F8FE: 20 53 EE
+  JSR B1F_ChrBankSwitch                           ; $F901: 20 06 F2
+  JSR B1F_SetupChrBanksAndWait                    ; $F904: 20 0B FB
   LDA #$00                                    ; $F907: A9 00
   STA $7C                                     ; $F909: 85 7C
-  JSR PaletteAnimation                                   ; $F90B: 20 67 EC
-  JSR ControllerRead                                   ; $F90E: 20 C6 E6
+  JSR B1F_PaletteAnimation                        ; $F90B: 20 67 EC
+  JSR B1F_ControllerRead                          ; $F90E: 20 C6 E6
   LDY #$2E                                    ; $F911: A0 2E
-  JSR SwitchBankAC_B                                   ; $F913: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F913: 20 37 F2
   JSR $A003                                   ; $F916: 20 03 A0
   LDA #$4C                                    ; $F919: A9 4C
   STA $A5                                     ; $F91B: 85 A5
   STA NAMCO_PRG_8000_ALT                           ; $F91D: 8D 00 F8
-  JSR CalcScrollAddr                          ; $F920: 20 62 FF
+  JSR B1F_CalcScrollAddr                          ; $F920: 20 62 FF
   LDA $0500                                   ; $F923: AD 00 05
   CMP #$0C                                    ; $F926: C9 0C
   BCS @skip_weather                           ; $F928: B0 13
   LDA $008F                                   ; $F92A: AD 8F 00
   BNE @skip_weather                           ; $F92D: D0 0E
-  JSR NamcoSoundRegRead                                   ; $F92F: 20 77 F0
+  JSR B1F_NamcoSoundRegRead                       ; $F92F: 20 77 F0
   LDY #$37                                    ; $F932: A0 37
-  JSR SwitchBankAC_B                                   ; $F934: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F934: 20 37 F2
   JSR $A00C                                   ; $F937: 20 0C A0
   JSR $A00F                                   ; $F93A: 20 0F A0
 @skip_weather:
-  JSR SwapPlayerPointers                      ; $F93D: 20 A9 FA
+  JSR B1F_SwapPlayerPointers                      ; $F93D: 20 A9 FA
   LDY #$39                                    ; $F940: A0 39
-  JSR SwitchBankAC_B                                   ; $F942: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F942: 20 37 F2
   JSR $A00F                                   ; $F945: 20 0F A0
   LDY #$2C                                    ; $F948: A0 2C
-  JSR SwitchBankAC_B                                   ; $F94A: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F94A: 20 37 F2
   JSR $A000                                   ; $F94D: 20 00 A0
   LDY #$3D                                    ; $F950: A0 3D
-  JSR SwitchBankAC_B                                   ; $F952: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F952: 20 37 F2
   JSR $A003                                   ; $F955: 20 03 A0
-  JSR RestorePlayerPointers                   ; $F958: 20 BF FA
-  JSR SpriteClearFromIndex                                   ; $F95B: 20 30 E8
+  JSR B1F_RestorePlayerPointers                   ; $F958: 20 BF FA
+  JSR B1F_SpriteClearFromIndex                    ; $F95B: 20 30 E8
   LDA $009C                                   ; $F95E: AD 9C 00
   STA $009D                                   ; $F961: 8D 9D 00
-  JSR WaitVBlank                              ; $F964: 20 28 FB
-  JMP NmiEpilogue                             ; $F967: 4C 8D F8
+  JSR B1F_WaitVBlank                              ; $F964: 20 28 FB
+  JMP B1F_NmiEpilogue                             ; $F967: 4C 8D F8
 .endproc
 
 ;--- $F96A: VBlank handler - menu ---
 .proc NmiState4_Menu
-  JSR NmiSubDispatch                                   ; $F96A: 20 53 EE
-  JSR ChrBankSwitch                                   ; $F96D: 20 06 F2
-  JSR SetupChrBanksAndWait                    ; $F970: 20 0B FB
+  JSR B1F_NmiSubDispatch                          ; $F96A: 20 53 EE
+  JSR B1F_ChrBankSwitch                           ; $F96D: 20 06 F2
+  JSR B1F_SetupChrBanksAndWait                    ; $F970: 20 0B FB
   LDA #$00                                    ; $F973: A9 00
   STA $7C                                     ; $F975: 85 7C
-  JSR PaletteAnimation                                   ; $F977: 20 67 EC
-  JSR ControllerRead                                   ; $F97A: 20 C6 E6
+  JSR B1F_PaletteAnimation                        ; $F977: 20 67 EC
+  JSR B1F_ControllerRead                          ; $F97A: 20 C6 E6
   LDY #$2E                                    ; $F97D: A0 2E
-  JSR SwitchBankAC_B                                   ; $F97F: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F97F: 20 37 F2
   JSR $A003                                   ; $F982: 20 03 A0
   LDA #$4C                                    ; $F985: A9 4C
   STA $A5                                     ; $F987: 85 A5
   STA NAMCO_PRG_8000_ALT                           ; $F989: 8D 00 F8
-  JSR CalcScrollAddr                          ; $F98C: 20 62 FF
+  JSR B1F_CalcScrollAddr                          ; $F98C: 20 62 FF
   LDY #$2E                                    ; $F98F: A0 2E
-  JSR SwitchBankAC_B                                   ; $F991: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F991: 20 37 F2
   JSR $A000                                   ; $F994: 20 00 A0
-  JSR SpriteClearFromIndex                                   ; $F997: 20 30 E8
-  JSR WaitVBlank                              ; $F99A: 20 28 FB
-  JMP NmiEpilogue                             ; $F99D: 4C 8D F8
+  JSR B1F_SpriteClearFromIndex                    ; $F997: 20 30 E8
+  JSR B1F_WaitVBlank                              ; $F99A: 20 28 FB
+  JMP B1F_NmiEpilogue                             ; $F99D: 4C 8D F8
 .endproc
 
 ;--- $F9A0: VBlank handler - diplomacy ---
 .proc NmiState5_Diplomacy
-  JSR NmiSubDispatch                                   ; $F9A0: 20 53 EE
-  JSR ChrBankSwitch                                   ; $F9A3: 20 06 F2
-  JSR SetupChrBanksAndWait                    ; $F9A6: 20 0B FB
+  JSR B1F_NmiSubDispatch                          ; $F9A0: 20 53 EE
+  JSR B1F_ChrBankSwitch                           ; $F9A3: 20 06 F2
+  JSR B1F_SetupChrBanksAndWait                    ; $F9A6: 20 0B FB
   LDA #$00                                    ; $F9A9: A9 00
   STA $7C                                     ; $F9AB: 85 7C
-  JSR PaletteAnimation                                   ; $F9AD: 20 67 EC
-  JSR ControllerRead                                   ; $F9B0: 20 C6 E6
+  JSR B1F_PaletteAnimation                        ; $F9AD: 20 67 EC
+  JSR B1F_ControllerRead                          ; $F9B0: 20 C6 E6
   LDY #$2E                                    ; $F9B3: A0 2E
-  JSR SwitchBankAC_B                                   ; $F9B5: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F9B5: 20 37 F2
   JSR $A003                                   ; $F9B8: 20 03 A0
   LDA #$4C                                    ; $F9BB: A9 4C
   STA $A5                                     ; $F9BD: 85 A5
   STA NAMCO_PRG_8000_ALT                           ; $F9BF: 8D 00 F8
-  JSR CalcScrollAddr                          ; $F9C2: 20 62 FF
-  JSR SwapPlayerPointers                      ; $F9C5: 20 A9 FA
+  JSR B1F_CalcScrollAddr                          ; $F9C2: 20 62 FF
+  JSR B1F_SwapPlayerPointers                      ; $F9C5: 20 A9 FA
   LDY #$37                                    ; $F9C8: A0 37
-  JSR SwitchBankAC_B                                   ; $F9CA: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F9CA: 20 37 F2
   JSR $A01B                                   ; $F9CD: 20 1B A0
   LDY #$3D                                    ; $F9D0: A0 3D
-  JSR SwitchBankAC_B                                   ; $F9D2: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F9D2: 20 37 F2
   JSR $A003                                   ; $F9D5: 20 03 A0
-  JSR RestorePlayerPointers                   ; $F9D8: 20 BF FA
-  JSR SpriteClearFromIndex                                   ; $F9DB: 20 30 E8
-  JSR WaitVBlank                              ; $F9DE: 20 28 FB
-  JMP NmiEpilogue                             ; $F9E1: 4C 8D F8
+  JSR B1F_RestorePlayerPointers                   ; $F9D8: 20 BF FA
+  JSR B1F_SpriteClearFromIndex                    ; $F9DB: 20 30 E8
+  JSR B1F_WaitVBlank                              ; $F9DE: 20 28 FB
+  JMP B1F_NmiEpilogue                             ; $F9E1: 4C 8D F8
 .endproc
 
 ;--- $F9E4: VBlank handler - event ---
 .proc NmiState6_Event
-  JSR NmiSubDispatch                                   ; $F9E4: 20 53 EE
-  JSR ChrBankSwitch                                   ; $F9E7: 20 06 F2
-  JSR SetupChrBanksAndWait                    ; $F9EA: 20 0B FB
-  JSR ControllerRead                                   ; $F9ED: 20 C6 E6
+  JSR B1F_NmiSubDispatch                          ; $F9E4: 20 53 EE
+  JSR B1F_ChrBankSwitch                           ; $F9E7: 20 06 F2
+  JSR B1F_SetupChrBanksAndWait                    ; $F9EA: 20 0B FB
+  JSR B1F_ControllerRead                          ; $F9ED: 20 C6 E6
   LDY #$2E                                    ; $F9F0: A0 2E
-  JSR SwitchBankAC_B                                   ; $F9F2: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $F9F2: 20 37 F2
   JSR $A003                                   ; $F9F5: 20 03 A0
   LDA #$4C                                    ; $F9F8: A9 4C
   STA $A5                                     ; $F9FA: 85 A5
   STA NAMCO_PRG_8000_ALT                           ; $F9FC: 8D 00 F8
   LDY #$2A                                    ; $F9FF: A0 2A
-  JSR SwitchBankAC_B                                   ; $FA01: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $FA01: 20 37 F2
   JSR $A003                                   ; $FA04: 20 03 A0
-  JSR CalcScrollAddr                          ; $FA07: 20 62 FF
-  JSR SpriteClearFromIndex                                   ; $FA0A: 20 30 E8
-  JSR WaitVBlank                              ; $FA0D: 20 28 FB
-  JMP NmiEpilogue                             ; $FA10: 4C 8D F8
+  JSR B1F_CalcScrollAddr                          ; $FA07: 20 62 FF
+  JSR B1F_SpriteClearFromIndex                    ; $FA0A: 20 30 E8
+  JSR B1F_WaitVBlank                              ; $FA0D: 20 28 FB
+  JMP B1F_NmiEpilogue                             ; $FA10: 4C 8D F8
 .endproc
 
 ;--- $FA13: VBlank handler - strategy ---
 .proc NmiState7_Strategy
-  JSR NmiSubDispatch                                   ; $FA13: 20 53 EE
-  JSR ChrBankSwitch                                   ; $FA16: 20 06 F2
-  JSR SetupChrBanksAndWait                    ; $FA19: 20 0B FB
-  JSR PaletteAnimation                                   ; $FA1C: 20 67 EC
-  JSR ControllerRead                                   ; $FA1F: 20 C6 E6
+  JSR B1F_NmiSubDispatch                          ; $FA13: 20 53 EE
+  JSR B1F_ChrBankSwitch                           ; $FA16: 20 06 F2
+  JSR B1F_SetupChrBanksAndWait                    ; $FA19: 20 0B FB
+  JSR B1F_PaletteAnimation                        ; $FA1C: 20 67 EC
+  JSR B1F_ControllerRead                          ; $FA1F: 20 C6 E6
   LDY #$2E                                    ; $FA22: A0 2E
-  JSR SwitchBankAC_B                                   ; $FA24: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $FA24: 20 37 F2
   JSR $A003                                   ; $FA27: 20 03 A0
-  JSR CalcScrollAddrAlt                       ; $FA2A: 20 9B FF
+  JSR B1F_CalcScrollAddrAlt                       ; $FA2A: 20 9B FF
   LDA #$4C                                    ; $FA2D: A9 4C
   STA $A5                                     ; $FA2F: 85 A5
   STA NAMCO_PRG_8000_ALT                           ; $FA31: 8D 00 F8
-  JSR SwapPlayerPointers                      ; $FA34: 20 A9 FA
+  JSR B1F_SwapPlayerPointers                      ; $FA34: 20 A9 FA
   LDY #$3D                                    ; $FA37: A0 3D
-  JSR SwitchBankAC_B                                   ; $FA39: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $FA39: 20 37 F2
   JSR $A003                                   ; $FA3C: 20 03 A0
   LDY #$28                                    ; $FA3F: A0 28
-  JSR SwitchBankAC_B                                   ; $FA41: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $FA41: 20 37 F2
   JSR $A024                                   ; $FA44: 20 24 A0
-  JSR RestorePlayerPointers                   ; $FA47: 20 BF FA
-  JSR SpriteClearFromIndex                                   ; $FA4A: 20 30 E8
-  JSR WaitVBlank                              ; $FA4D: 20 28 FB
-  JMP NmiEpilogue                             ; $FA50: 4C 8D F8
+  JSR B1F_RestorePlayerPointers                   ; $FA47: 20 BF FA
+  JSR B1F_SpriteClearFromIndex                    ; $FA4A: 20 30 E8
+  JSR B1F_WaitVBlank                              ; $FA4D: 20 28 FB
+  JMP B1F_NmiEpilogue                             ; $FA50: 4C 8D F8
 .endproc
 
 ;--- $FA53: VBlank handler - officer mgmt ---
 .proc NmiState8_Officer
-  JSR NmiSubDispatch                                   ; $FA53: 20 53 EE
-  JSR ChrBankSwitch                                   ; $FA56: 20 06 F2
-  JSR SetupChrBanksAndWait                    ; $FA59: 20 0B FB
-  JSR PaletteAnimation                                   ; $FA5C: 20 67 EC
+  JSR B1F_NmiSubDispatch                          ; $FA53: 20 53 EE
+  JSR B1F_ChrBankSwitch                           ; $FA56: 20 06 F2
+  JSR B1F_SetupChrBanksAndWait                    ; $FA59: 20 0B FB
+  JSR B1F_PaletteAnimation                        ; $FA5C: 20 67 EC
   LDY #$2E                                    ; $FA5F: A0 2E
-  JSR SwitchBankAC_B                                   ; $FA61: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $FA61: 20 37 F2
   JSR $A003                                   ; $FA64: 20 03 A0
   LDA #$00                                    ; $FA67: A9 00
   STA $81                                     ; $FA69: 85 81
   LDY #$3D                                    ; $FA6B: A0 3D
-  JSR SwitchBankAC_B                                   ; $FA6D: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $FA6D: 20 37 F2
   JSR $A003                                   ; $FA70: 20 03 A0
   LDA #$4C                                    ; $FA73: A9 4C
   STA $A5                                     ; $FA75: 85 A5
   STA NAMCO_PRG_8000_ALT                           ; $FA77: 8D 00 F8
-  JSR ControllerRead                                   ; $FA7A: 20 C6 E6
-  JSR SwapPlayerPointers                      ; $FA7D: 20 A9 FA
+  JSR B1F_ControllerRead                          ; $FA7A: 20 C6 E6
+  JSR B1F_SwapPlayerPointers                      ; $FA7D: 20 A9 FA
   LDY #$37                                    ; $FA80: A0 37
-  JSR SwitchBankAC_B                                   ; $FA82: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $FA82: 20 37 F2
   JSR $A01E                                   ; $FA85: 20 1E A0
-  JSR RestorePlayerPointers                   ; $FA88: 20 BF FA
-  JSR CalcScrollAddr                          ; $FA8B: 20 62 FF
-  JSR SpriteClearFromIndex                                   ; $FA8E: 20 30 E8
-  JSR WaitVBlank                              ; $FA91: 20 28 FB
-  JMP NmiEpilogue                             ; $FA94: 4C 8D F8
+  JSR B1F_RestorePlayerPointers                   ; $FA88: 20 BF FA
+  JSR B1F_CalcScrollAddr                          ; $FA8B: 20 62 FF
+  JSR B1F_SpriteClearFromIndex                    ; $FA8E: 20 30 E8
+  JSR B1F_WaitVBlank                              ; $FA91: 20 28 FB
+  JMP B1F_NmiEpilogue                             ; $FA94: 4C 8D F8
 .endproc
 
 ;--- $FA97: VBlank handler - idle (states 0,1) ---
 .proc NmiState0_Idle
-  JSR SetupChrBanksAndWait                    ; $FA97: 20 0B FB
-  JSR ChrBankSwitch                                   ; $FA9A: 20 06 F2
-  JSR ControllerRead                                   ; $FA9D: 20 C6 E6
-  JSR CalcScrollAddr                          ; $FAA0: 20 62 FF
-  JSR WaitVBlank                              ; $FAA3: 20 28 FB
-  JMP NmiEpilogue                             ; $FAA6: 4C 8D F8
+  JSR B1F_SetupChrBanksAndWait                    ; $FA97: 20 0B FB
+  JSR B1F_ChrBankSwitch                           ; $FA9A: 20 06 F2
+  JSR B1F_ControllerRead                          ; $FA9D: 20 C6 E6
+  JSR B1F_CalcScrollAddr                          ; $FAA0: 20 62 FF
+  JSR B1F_WaitVBlank                              ; $FAA3: 20 28 FB
+  JMP B1F_NmiEpilogue                             ; $FAA6: 4C 8D F8
 .endproc
 
 ;--- $FAA9: Swap player pointers if 2P ---
@@ -3861,8 +3862,8 @@ NmiDispatchTable:
 
 ;--- $FAD5: NMI when busy ($7B != 0) ---
 .proc NmiHandler_Busy
-  JSR ChrBankSwitch                                   ; $FAD5: 20 06 F2
-  JSR SetupChrBanksAndWait                    ; $FAD8: 20 0B FB
+  JSR B1F_ChrBankSwitch                           ; $FAD5: 20 06 F2
+  JSR B1F_SetupChrBanksAndWait                    ; $FAD8: 20 0B FB
   LDA $E3                                     ; $FADB: A5 E3
   PHA                                         ; $FADD: 48
   LDA $E2                                     ; $FADE: A5 E2
@@ -3870,7 +3871,7 @@ NmiDispatchTable:
   LDA $E1                                     ; $FAE1: A5 E1
   PHA                                         ; $FAE3: 48
   LDY #$2E                                    ; $FAE4: A0 2E
-  JSR SwitchBankAC_B                                   ; $FAE6: 20 37 F2
+  JSR B1F_SwitchBankAC_B                          ; $FAE6: 20 37 F2
   JSR $A003                                   ; $FAE9: 20 03 A0
   LDA $A5                                     ; $FAEC: A5 A5
   STA NAMCO_PRG_8000_ALT                           ; $FAEE: 8D 00 F8
@@ -3884,13 +3885,13 @@ NmiDispatchTable:
   PLA                                         ; $FAFF: 68
   STA $E3                                     ; $FB00: 85 E3
   STA NAMCO_PRG_C000                                   ; $FB02: 8D 00 F0
-  JSR WaitVBlank                              ; $FB05: 20 28 FB
+  JSR B1F_WaitVBlank                              ; $FB05: 20 28 FB
   JMP @restore_regs                           ; $FB08: 4C AF F8
 .endproc
 
 ;--- $FB0B: Setup CHR banks and wait for sprite-0 ---
 .proc SetupChrBanksAndWait
-  JSR ScrollSet                                   ; $FB0B: 20 F7 EA
+  JSR B1F_ScrollSet                               ; $FB0B: 20 F7 EA
   LDA $E6                                     ; $FB0E: A5 E6
   STA NAMCO_CHR_BANK_0                                   ; $FB10: 8D 00 C0
   LDA $E7                                     ; $FB13: A5 E7
@@ -3922,7 +3923,7 @@ NmiDispatchTable:
   PHA                                         ; $FB2F: 48
   TYA                                         ; $FB30: 98
   PHA                                         ; $FB31: 48
-  LDA $5800                                   ; $FB32: AD 00 58
+  LDA NAMCO_IRQ_HI                                   ; $FB32: AD 00 58
   AND #$7F                                    ; $FB35: 29 7F
   CMP #$7F                                    ; $FB37: C9 7F
   BEQ @irq_dispatch                           ; $FB39: F0 04
@@ -3940,57 +3941,57 @@ NmiDispatchTable:
   NOP                                         ; $FB4A: EA
   NOP                                         ; $FB4B: EA
   NOP                                         ; $FB4C: EA
-  JMP IrqMode1_SoundAndChr                    ; $FB4D: 4C A4 FB
+  JMP B1F_IrqMode1_SoundAndChr                    ; $FB4D: 4C A4 FB
 @check_mode2:
   DEY                                         ; $FB50: 88
   BNE @check_mode3                            ; $FB51: D0 03
-  JMP IrqMode2_FullSetup                      ; $FB53: 4C 8B FC
+  JMP B1F_IrqMode2_FullSetup                      ; $FB53: 4C 8B FC
 @check_mode3:
   DEY                                         ; $FB56: 88
   BNE @check_mode4                            ; $FB57: D0 03
-  JMP IrqMode1_SoundAndChr                    ; $FB59: 4C A4 FB
+  JMP B1F_IrqMode1_SoundAndChr                    ; $FB59: 4C A4 FB
 @check_mode4:
   DEY                                         ; $FB5C: 88
   BNE @check_mode5                            ; $FB5D: D0 03
-  JMP IrqMode4_SimpleChr                      ; $FB5F: 4C 2A FD
+  JMP B1F_IrqMode4_SimpleChr                      ; $FB5F: 4C 2A FD
 @check_mode5:
   DEY                                         ; $FB62: 88
   BNE @check_mode6                            ; $FB63: D0 03
-  JMP IrqMode5_PpuAddrChr                     ; $FB65: 4C 95 FD
+  JMP B1F_IrqMode5_PpuAddrChr                     ; $FB65: 4C 95 FD
 @check_mode6:
   DEY                                         ; $FB68: 88
   BNE @check_mode7                            ; $FB69: D0 03
-  JMP IrqMode6_Minimal                        ; $FB6B: 4C F4 FD
+  JMP B1F_IrqMode6_Minimal                        ; $FB6B: 4C F4 FD
 @check_mode7:
   DEY                                         ; $FB6E: 88
   BNE @check_mode8                            ; $FB6F: D0 03
-  JMP IrqMode7_SoundChr                       ; $FB71: 4C 03 FE
+  JMP B1F_IrqMode7_SoundChr                       ; $FB71: 4C 03 FE
 @check_mode8:
   DEY                                         ; $FB74: 88
   BNE @check_mode9                            ; $FB75: D0 03
-  JMP IrqMode8_SoundChr                       ; $FB77: 4C 69 FE
+  JMP B1F_IrqMode8_SoundChr                       ; $FB77: 4C 69 FE
 @check_mode9:
   DEY                                         ; $FB7A: 88
   BNE @check_mode10                           ; $FB7B: D0 03
-  JMP IrqMode9_BasicChr                       ; $FB7D: 4C 96 FE
+  JMP B1F_IrqMode9_BasicChr                       ; $FB7D: 4C 96 FE
 @check_mode10:
   DEY                                         ; $FB80: 88
   BNE @check_mode11                           ; $FB81: D0 03
-  JMP IrqMode10_PpuScroll                     ; $FB83: 4C CD FE
+  JMP B1F_IrqMode10_PpuScroll                     ; $FB83: 4C CD FE
 @check_mode11:
   DEY                                         ; $FB86: 88
   BNE @check_mode12                           ; $FB87: D0 03
-  JMP IrqMode11_ScrollFwd                     ; $FB89: 4C 31 FF
+  JMP B1F_IrqMode11_ScrollFwd                     ; $FB89: 4C 31 FF
 @check_mode12:
   DEY                                         ; $FB8C: 88
   BNE @irq_exit_sei                           ; $FB8D: D0 03
-  JMP IrqMode12_ScrollBack                    ; $FB8F: 4C 48 FF
+  JMP B1F_IrqMode12_ScrollBack                    ; $FB8F: 4C 48 FF
 @irq_exit_sei:
   SEI                                         ; $FB92: 78
   LDA #$00                                    ; $FB93: A9 00
   STA $0062                                   ; $FB95: 8D 62 00
-  STA $5000                                   ; $FB98: 8D 00 50
-  STA $5800                                   ; $FB9B: 8D 00 58
+  STA NAMCO_IRQ_LO                                   ; $FB98: 8D 00 50
+  STA NAMCO_IRQ_HI                                   ; $FB9B: 8D 00 58
 .endproc
 
 ;--- $FB9E: IrqExit - restore regs and RTI ---
@@ -4008,23 +4009,23 @@ IrqExit:
   ASL A                                       ; $FBA7: 0A
   TAX                                         ; $FBA8: AA
   LDA #$00                                    ; $FBA9: A9 00
-  STA $5000                                   ; $FBAB: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FBAB: 8D 00 50
   LDA $006A,X                                 ; $FBAE: BD 6A 00
-  STA $5000                                   ; $FBB1: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FBB1: 8D 00 50
   LDA $006B,X                                 ; $FBB4: BD 6B 00
-  STA $5800                                   ; $FBB7: 8D 00 58
+  STA NAMCO_IRQ_HI                                   ; $FBB7: 8D 00 58
 @check_sub2:
   LDY $0063                                   ; $FBBA: AC 63 00
   BEQ IrqChrUpdate_Block1                     ; $FBBD: F0 0F
   DEY                                         ; $FBBF: 88
   BNE @check_sub3                             ; $FBC0: D0 03
-  JMP IrqChrUpdate_Block2                     ; $FBC2: 4C FC FB
+  JMP B1F_IrqChrUpdate_Block2                     ; $FBC2: 4C FC FB
 @check_sub3:
   DEY                                         ; $FBC5: 88
   BNE @dispatch_block4                        ; $FBC6: D0 03
-  JMP IrqChrUpdate_Block3                     ; $FBC8: 4C 2A FC
+  JMP B1F_IrqChrUpdate_Block3                     ; $FBC8: 4C 2A FC
 @dispatch_block4:
-  JMP IrqChrUpdate_Block4                     ; $FBCB: 4C 58 FC
+  JMP B1F_IrqChrUpdate_Block4                     ; $FBCB: 4C 58 FC
 .endproc
 
 ;--- $FBCE: CHR update block 1 ---
@@ -4032,21 +4033,21 @@ IrqExit:
   LDA $C2                                     ; $FBCE: A5 C2
   LDY $C3                                     ; $FBD0: A4 C3
   LDX $C4                                     ; $FBD2: A6 C4
-  STA $A000                                   ; $FBD4: 8D 00 A0
-  STY $A800                                   ; $FBD7: 8C 00 A8
-  STX $B000                                   ; $FBDA: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FBD4: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FBD7: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FBDA: 8E 00 B0
   LDA $C5                                     ; $FBDD: A5 C5
-  STA $B800                                   ; $FBDF: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FBDF: 8D 00 B8
   LDA $BE                                     ; $FBE2: A5 BE
   LDY $BF                                     ; $FBE4: A4 BF
   LDX $C0                                     ; $FBE6: A6 C0
-  STA $8000                                   ; $FBE8: 8D 00 80
-  STY $8800                                   ; $FBEB: 8C 00 88
-  STX $9000                                   ; $FBEE: 8E 00 90
+  STA NAMCO163_CHR_0                                   ; $FBE8: 8D 00 80
+  STY NAMCO163_CHR_1                                   ; $FBEB: 8C 00 88
+  STX NAMCO163_CHR_2                                   ; $FBEE: 8E 00 90
   LDA $C1                                     ; $FBF1: A5 C1
-  STA $9800                                   ; $FBF3: 8D 00 98
+  STA NAMCO163_CHR_3                                   ; $FBF3: 8D 00 98
   INC $0063                                   ; $FBF6: EE 63 00
-  JMP IrqExit                                 ; $FBF9: 4C 9E FB
+  JMP B1F_IrqExit                                 ; $FBF9: 4C 9E FB
 .endproc
 
 ;--- $FBFC: CHR update block 2 ---
@@ -4054,21 +4055,21 @@ IrqExit:
   LDA $CA                                     ; $FBFC: A5 CA
   LDY $CB                                     ; $FBFE: A4 CB
   LDX $CC                                     ; $FC00: A6 CC
-  STA $A000                                   ; $FC02: 8D 00 A0
-  STY $A800                                   ; $FC05: 8C 00 A8
-  STX $B000                                   ; $FC08: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FC02: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FC05: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FC08: 8E 00 B0
   LDA $CD                                     ; $FC0B: A5 CD
-  STA $B800                                   ; $FC0D: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FC0D: 8D 00 B8
   LDY $C6                                     ; $FC10: A4 C6
   LDX $C7                                     ; $FC12: A6 C7
   LDA $C8                                     ; $FC14: A5 C8
-  STY $8000                                   ; $FC16: 8C 00 80
-  STX $8800                                   ; $FC19: 8E 00 88
-  STA $9000                                   ; $FC1C: 8D 00 90
+  STY NAMCO163_CHR_0                                   ; $FC16: 8C 00 80
+  STX NAMCO163_CHR_1                                   ; $FC19: 8E 00 88
+  STA NAMCO163_CHR_2                                   ; $FC1C: 8D 00 90
   LDY $C9                                     ; $FC1F: A4 C9
-  STY $9800                                   ; $FC21: 8C 00 98
+  STY NAMCO163_CHR_3                                   ; $FC21: 8C 00 98
   INC $0063                                   ; $FC24: EE 63 00
-  JMP IrqExit                                 ; $FC27: 4C 9E FB
+  JMP B1F_IrqExit                                 ; $FC27: 4C 9E FB
 .endproc
 
 ;--- $FC2A: CHR update block 3 ---
@@ -4076,21 +4077,21 @@ IrqExit:
   LDA $D2                                     ; $FC2A: A5 D2
   LDY $D3                                     ; $FC2C: A4 D3
   LDX $D4                                     ; $FC2E: A6 D4
-  STA $A000                                   ; $FC30: 8D 00 A0
-  STY $A800                                   ; $FC33: 8C 00 A8
-  STX $B000                                   ; $FC36: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FC30: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FC33: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FC36: 8E 00 B0
   LDA $D5                                     ; $FC39: A5 D5
-  STA $B800                                   ; $FC3B: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FC3B: 8D 00 B8
   LDY $CE                                     ; $FC3E: A4 CE
   LDX $CF                                     ; $FC40: A6 CF
-  STY $8000                                   ; $FC42: 8C 00 80
-  STX $8800                                   ; $FC45: 8E 00 88
+  STY NAMCO163_CHR_0                                   ; $FC42: 8C 00 80
+  STX NAMCO163_CHR_1                                   ; $FC45: 8E 00 88
   LDA $D0                                     ; $FC48: A5 D0
   LDY $D1                                     ; $FC4A: A4 D1
-  STA $9000                                   ; $FC4C: 8D 00 90
-  STY $9800                                   ; $FC4F: 8C 00 98
+  STA NAMCO163_CHR_2                                   ; $FC4C: 8D 00 90
+  STY NAMCO163_CHR_3                                   ; $FC4F: 8C 00 98
   INC $0063                                   ; $FC52: EE 63 00
-  JMP IrqExit                                 ; $FC55: 4C 9E FB
+  JMP B1F_IrqExit                                 ; $FC55: 4C 9E FB
 .endproc
 
 ;--- $FC58: CHR update block 4 (resets counter) ---
@@ -4098,23 +4099,23 @@ IrqExit:
   LDA $DA                                     ; $FC58: A5 DA
   LDY $DB                                     ; $FC5A: A4 DB
   LDX $DC                                     ; $FC5C: A6 DC
-  STA $A000                                   ; $FC5E: 8D 00 A0
-  STY $A800                                   ; $FC61: 8C 00 A8
-  STX $B000                                   ; $FC64: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FC5E: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FC61: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FC64: 8E 00 B0
   LDA $DD                                     ; $FC67: A5 DD
-  STA $B800                                   ; $FC69: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FC69: 8D 00 B8
   LDY $D6                                     ; $FC6C: A4 D6
   LDX $D7                                     ; $FC6E: A6 D7
-  STY $8000                                   ; $FC70: 8C 00 80
-  STX $8800                                   ; $FC73: 8E 00 88
+  STY NAMCO163_CHR_0                                   ; $FC70: 8C 00 80
+  STX NAMCO163_CHR_1                                   ; $FC73: 8E 00 88
   LDA $D8                                     ; $FC76: A5 D8
   LDY $D9                                     ; $FC78: A4 D9
-  STA $9000                                   ; $FC7A: 8D 00 90
-  STY $9800                                   ; $FC7D: 8C 00 98
+  STA NAMCO163_CHR_2                                   ; $FC7A: 8D 00 90
+  STY NAMCO163_CHR_3                                   ; $FC7D: 8C 00 98
   LDA #$00                                    ; $FC80: A9 00
   STA $0063                                   ; $FC82: 8D 63 00
   INC $0060                                   ; $FC85: EE 60 00
-  JMP IrqExit                                 ; $FC88: 4C 9E FB
+  JMP B1F_IrqExit                                 ; $FC88: 4C 9E FB
 .endproc
 
 ;--- $FC8B: IRQ mode 2 - full CHR/PPU with delays ---
@@ -4122,8 +4123,8 @@ IrqExit:
   SEI                                         ; $FC8B: 78
   LDA #$00                                    ; $FC8C: A9 00
   STA $0062                                   ; $FC8E: 8D 62 00
-  STA $5000                                   ; $FC91: 8D 00 50
-  STA $5800                                   ; $FC94: 8D 00 58
+  STA NAMCO_IRQ_LO                                   ; $FC91: 8D 00 50
+  STA NAMCO_IRQ_HI                                   ; $FC94: 8D 00 58
   LDY #$08                                    ; $FC97: A0 08
 @delay_spin1:
   DEY                                         ; $FC99: 88
@@ -4137,14 +4138,14 @@ IrqExit:
   LDA ScanlineDelayTable+1,Y                                 ; $FCA9: B9 1B FD
   STA $0047                                   ; $FCAC: 8D 47 00
   LDA #$0F                                    ; $FCAF: A9 0F
-  STA $8000                                   ; $FCB1: 8D 00 80
-  STA $8800                                   ; $FCB4: 8D 00 88
-  STA $9000                                   ; $FCB7: 8D 00 90
-  STA $9800                                   ; $FCBA: 8D 00 98
-  STA $A000                                   ; $FCBD: 8D 00 A0
-  STA $A800                                   ; $FCC0: 8D 00 A8
-  STA $B000                                   ; $FCC3: 8D 00 B0
-  STA $B800                                   ; $FCC6: 8D 00 B8
+  STA NAMCO163_CHR_0                                   ; $FCB1: 8D 00 80
+  STA NAMCO163_CHR_1                                   ; $FCB4: 8D 00 88
+  STA NAMCO163_CHR_2                                   ; $FCB7: 8D 00 90
+  STA NAMCO163_CHR_3                                   ; $FCBA: 8D 00 98
+  STA NAMCO163_CHR_4                                   ; $FCBD: 8D 00 A0
+  STA NAMCO163_CHR_5                                   ; $FCC0: 8D 00 A8
+  STA NAMCO163_CHR_6                                   ; $FCC3: 8D 00 B0
+  STA NAMCO163_CHR_7                                   ; $FCC6: 8D 00 B8
 @delay_loop1:
   DEC $0046                                   ; $FCC9: CE 46 00
   BNE @delay_loop1                            ; $FCCC: D0 FB
@@ -4163,11 +4164,11 @@ IrqExit:
   LDA $BA                                     ; $FCEA: A5 BA
   LDY $BB                                     ; $FCEC: A4 BB
   LDX $BC                                     ; $FCEE: A6 BC
-  STA $A000                                   ; $FCF0: 8D 00 A0
-  STY $A800                                   ; $FCF3: 8C 00 A8
-  STX $B000                                   ; $FCF6: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FCF0: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FCF3: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FCF6: 8E 00 B0
   LDA $BD                                     ; $FCF9: A5 BD
-  STA $B800                                   ; $FCFB: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FCFB: 8D 00 B8
   LDY #$1B                                    ; $FCFE: A0 1B
 @delay_loop3:
   DEY                                         ; $FD00: 88
@@ -4175,12 +4176,12 @@ IrqExit:
   LDA $B6                                     ; $FD03: A5 B6
   LDY $B7                                     ; $FD05: A4 B7
   LDX $B8                                     ; $FD07: A6 B8
-  STA $8000                                   ; $FD09: 8D 00 80
-  STY $8800                                   ; $FD0C: 8C 00 88
-  STX $9000                                   ; $FD0F: 8E 00 90
+  STA NAMCO163_CHR_0                                   ; $FD09: 8D 00 80
+  STY NAMCO163_CHR_1                                   ; $FD0C: 8C 00 88
+  STX NAMCO163_CHR_2                                   ; $FD0F: 8E 00 90
   LDA $B9                                     ; $FD12: A5 B9
-  STA $9800                                   ; $FD14: 8D 00 98
-  JMP IrqExit                                 ; $FD17: 4C 9E FB
+  STA NAMCO163_CHR_3                                   ; $FD14: 8D 00 98
+  JMP B1F_IrqExit                                 ; $FD17: 4C 9E FB
 .endproc
 
 ;--- $FD1A: Scanline delay table (8 pairs) ---
@@ -4193,13 +4194,13 @@ ScanlineDelayTable:
   SEI                                         ; $FD2A: 78
   LDA #$00                                    ; $FD2B: A9 00
   STA $0062                                   ; $FD2D: 8D 62 00
-  STA $5000                                   ; $FD30: 8D 00 50
-  STA $5800                                   ; $FD33: 8D 00 58
+  STA NAMCO_IRQ_LO                                   ; $FD30: 8D 00 50
+  STA NAMCO_IRQ_HI                                   ; $FD33: 8D 00 58
   LDY #$0F                                    ; $FD36: A0 0F
-  STY $A000                                   ; $FD38: 8C 00 A0
-  STY $A800                                   ; $FD3B: 8C 00 A8
-  STY $B000                                   ; $FD3E: 8C 00 B0
-  STY $B800                                   ; $FD41: 8C 00 B8
+  STY NAMCO163_CHR_4                                   ; $FD38: 8C 00 A0
+  STY NAMCO163_CHR_5                                   ; $FD3B: 8C 00 A8
+  STY NAMCO163_CHR_6                                   ; $FD3E: 8C 00 B0
+  STY NAMCO163_CHR_7                                   ; $FD41: 8C 00 B8
   LDY $72                                     ; $FD44: A4 72
 @delay1:
   DEY                                         ; $FD46: 88
@@ -4220,11 +4221,11 @@ ScanlineDelayTable:
   LDA $BA                                     ; $FD65: A5 BA
   LDY $BB                                     ; $FD67: A4 BB
   LDX $BC                                     ; $FD69: A6 BC
-  STA $A000                                   ; $FD6B: 8D 00 A0
-  STY $A800                                   ; $FD6E: 8C 00 A8
-  STX $B000                                   ; $FD71: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FD6B: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FD6E: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FD71: 8E 00 B0
   LDA $BD                                     ; $FD74: A5 BD
-  STA $B800                                   ; $FD76: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FD76: 8D 00 B8
   LDY $74                                     ; $FD79: A4 74
 @delay3:
   DEY                                         ; $FD7B: 88
@@ -4232,12 +4233,12 @@ ScanlineDelayTable:
   LDA $B6                                     ; $FD7E: A5 B6
   LDY $B7                                     ; $FD80: A4 B7
   LDX $B8                                     ; $FD82: A6 B8
-  STA $8000                                   ; $FD84: 8D 00 80
-  STY $8800                                   ; $FD87: 8C 00 88
-  STX $9000                                   ; $FD8A: 8E 00 90
+  STA NAMCO163_CHR_0                                   ; $FD84: 8D 00 80
+  STY NAMCO163_CHR_1                                   ; $FD87: 8C 00 88
+  STX NAMCO163_CHR_2                                   ; $FD8A: 8E 00 90
   LDA $B9                                     ; $FD8D: A5 B9
-  STA $9800                                   ; $FD8F: 8D 00 98
-  JMP IrqExit                                 ; $FD92: 4C 9E FB
+  STA NAMCO163_CHR_3                                   ; $FD8F: 8D 00 98
+  JMP B1F_IrqExit                                 ; $FD92: 4C 9E FB
 .endproc
 
 ;--- $FD95: IRQ mode 5 - PPU addr + CHR + nametable ---
@@ -4245,8 +4246,8 @@ ScanlineDelayTable:
   SEI                                         ; $FD95: 78
   LDA #$00                                    ; $FD96: A9 00
   STA $0062                                   ; $FD98: 8D 62 00
-  STA $5000                                   ; $FD9B: 8D 00 50
-  STA $5800                                   ; $FD9E: 8D 00 58
+  STA NAMCO_IRQ_LO                                   ; $FD9B: 8D 00 50
+  STA NAMCO_IRQ_HI                                   ; $FD9E: 8D 00 58
   LDA PPU_STATUS                                   ; $FDA1: AD 02 20
   LDA #$E1                                    ; $FDA4: A9 E1
   LDX $9B                                     ; $FDA6: A6 9B
@@ -4260,11 +4261,11 @@ ScanlineDelayTable:
   LDY $BB                                     ; $FDBC: A4 BB
   LDX $BC                                     ; $FDBE: A6 BC
   LDA $BA                                     ; $FDC0: A5 BA
-  STA $A000                                   ; $FDC2: 8D 00 A0
-  STY $A800                                   ; $FDC5: 8C 00 A8
-  STX $B000                                   ; $FDC8: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FDC2: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FDC5: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FDC8: 8E 00 B0
   LDA $BD                                     ; $FDCB: A5 BD
-  STA $B800                                   ; $FDCD: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FDCD: 8D 00 B8
   LDX $96                                     ; $FDD0: A6 96
   STX PPU_SCROLL                                   ; $FDD2: 8E 05 20
   STX PPU_SCROLL                                   ; $FDD5: 8E 05 20
@@ -4275,12 +4276,12 @@ ScanlineDelayTable:
   LDA $B6                                     ; $FDDD: A5 B6
   LDY $B7                                     ; $FDDF: A4 B7
   LDX $B8                                     ; $FDE1: A6 B8
-  STA $8000                                   ; $FDE3: 8D 00 80
-  STY $8800                                   ; $FDE6: 8C 00 88
-  STX $9000                                   ; $FDE9: 8E 00 90
+  STA NAMCO163_CHR_0                                   ; $FDE3: 8D 00 80
+  STY NAMCO163_CHR_1                                   ; $FDE6: 8C 00 88
+  STX NAMCO163_CHR_2                                   ; $FDE9: 8E 00 90
   LDA $B9                                     ; $FDEC: A5 B9
-  STA $9800                                   ; $FDEE: 8D 00 98
-  JMP IrqExit                                 ; $FDF1: 4C 9E FB
+  STA NAMCO163_CHR_3                                   ; $FDEE: 8D 00 98
+  JMP B1F_IrqExit                                 ; $FDF1: 4C 9E FB
 .endproc
 
 ;--- $FDF4: IRQ mode 6 - minimal (disable + exit) ---
@@ -4288,9 +4289,9 @@ ScanlineDelayTable:
   SEI                                         ; $FDF4: 78
   LDA #$00                                    ; $FDF5: A9 00
   STA $0062                                   ; $FDF7: 8D 62 00
-  STA $5000                                   ; $FDFA: 8D 00 50
-  STA $5800                                   ; $FDFD: 8D 00 58
-  JMP IrqExit                                 ; $FE00: 4C 9E FB
+  STA NAMCO_IRQ_LO                                   ; $FDFA: 8D 00 50
+  STA NAMCO_IRQ_HI                                   ; $FDFD: 8D 00 58
+  JMP B1F_IrqExit                                 ; $FE00: 4C 9E FB
 .endproc
 
 ;--- $FE03: IRQ mode 7 - sound + CHR sub-dispatch ---
@@ -4299,11 +4300,11 @@ ScanlineDelayTable:
   ASL A                                       ; $FE06: 0A
   TAX                                         ; $FE07: AA
   LDA #$00                                    ; $FE08: A9 00
-  STA $5000                                   ; $FE0A: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FE0A: 8D 00 50
   LDA $006A,X                                 ; $FE0D: BD 6A 00
-  STA $5000                                   ; $FE10: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FE10: 8D 00 50
   LDA $006B,X                                 ; $FE13: BD 6B 00
-  STA $5800                                   ; $FE16: 8D 00 58
+  STA NAMCO_IRQ_HI                                   ; $FE16: 8D 00 58
   LDY $0063                                   ; $FE19: AC 63 00
   BEQ @block1_update                          ; $FE1C: F0 09
   DEY                                         ; $FE1E: 88
@@ -4324,21 +4325,21 @@ ScanlineDelayTable:
   STX PPU_ADDR                                   ; $FE3C: 8E 06 20
   STY PPU_ADDR                                   ; $FE3F: 8C 06 20
   LDA #$0F                                    ; $FE42: A9 0F
-  STA $A000                                   ; $FE44: 8D 00 A0
-  STA $A800                                   ; $FE47: 8D 00 A8
-  STA $B000                                   ; $FE4A: 8D 00 B0
-  STA $B800                                   ; $FE4D: 8D 00 B8
+  STA NAMCO163_CHR_4                                   ; $FE44: 8D 00 A0
+  STA NAMCO163_CHR_5                                   ; $FE47: 8D 00 A8
+  STA NAMCO163_CHR_6                                   ; $FE4A: 8D 00 B0
+  STA NAMCO163_CHR_7                                   ; $FE4D: 8D 00 B8
   LDX #$00                                    ; $FE50: A2 00
   STX PPU_SCROLL                                   ; $FE52: 8E 05 20
   STX PPU_SCROLL                                   ; $FE55: 8E 05 20
-  JMP IrqChrUpdate_Block1                     ; $FE58: 4C CE FB
+  JMP B1F_IrqChrUpdate_Block1                     ; $FE58: 4C CE FB
 @jmp_block3:
-  JMP IrqChrUpdate_Block2                     ; $FE5B: 4C FC FB
+  JMP B1F_IrqChrUpdate_Block2                     ; $FE5B: 4C FC FB
 @jmp_block4:
-  JMP IrqChrUpdate_Block3                     ; $FE5E: 4C 2A FC
+  JMP B1F_IrqChrUpdate_Block3                     ; $FE5E: 4C 2A FC
   LDA #$00                                    ; $FE61: A9 00
   STA $0063                                   ; $FE63: 8D 63 00
-  JMP IrqMode5_PpuAddrChr                     ; $FE66: 4C 95 FD
+  JMP B1F_IrqMode5_PpuAddrChr                     ; $FE66: 4C 95 FD
 .endproc
 
 ;--- $FE69: IRQ mode 8 - sound + CHR variant ---
@@ -4347,24 +4348,24 @@ ScanlineDelayTable:
   ASL A                                       ; $FE6C: 0A
   TAX                                         ; $FE6D: AA
   LDA #$00                                    ; $FE6E: A9 00
-  STA $5000                                   ; $FE70: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FE70: 8D 00 50
   LDA $006A,X                                 ; $FE73: BD 6A 00
-  STA $5000                                   ; $FE76: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FE76: 8D 00 50
   LDA $006B,X                                 ; $FE79: BD 6B 00
-  STA $5800                                   ; $FE7C: 8D 00 58
+  STA NAMCO_IRQ_HI                                   ; $FE7C: 8D 00 58
   LDY $0063                                   ; $FE7F: AC 63 00
   BNE @mode8_check1                           ; $FE82: D0 03
-  JMP IrqChrUpdate_Block1                     ; $FE84: 4C CE FB
+  JMP B1F_IrqChrUpdate_Block1                     ; $FE84: 4C CE FB
 @mode8_check1:
   DEY                                         ; $FE87: 88
   BNE @mode8_check2                           ; $FE88: D0 03
-  JMP IrqChrUpdate_Block2                     ; $FE8A: 4C FC FB
+  JMP B1F_IrqChrUpdate_Block2                     ; $FE8A: 4C FC FB
 @mode8_check2:
   DEY                                         ; $FE8D: 88
   BNE @mode8_jmp4                             ; $FE8E: D0 03
-  JMP IrqChrUpdate_Block3                     ; $FE90: 4C 2A FC
+  JMP B1F_IrqChrUpdate_Block3                     ; $FE90: 4C 2A FC
 @mode8_jmp4:
-  JMP IrqChrUpdate_Block4                     ; $FE93: 4C 58 FC
+  JMP B1F_IrqChrUpdate_Block4                     ; $FE93: 4C 58 FC
 .endproc
 
 ;--- $FE96: IRQ mode 9 - basic CHR ---
@@ -4372,25 +4373,25 @@ ScanlineDelayTable:
   SEI                                         ; $FE96: 78
   LDA #$00                                    ; $FE97: A9 00
   STA $0062                                   ; $FE99: 8D 62 00
-  STA $5000                                   ; $FE9C: 8D 00 50
-  STA $5800                                   ; $FE9F: 8D 00 58
+  STA NAMCO_IRQ_LO                                   ; $FE9C: 8D 00 50
+  STA NAMCO_IRQ_HI                                   ; $FE9F: 8D 00 58
   LDA $BA                                     ; $FEA2: A5 BA
   LDY $BB                                     ; $FEA4: A4 BB
   LDX $BC                                     ; $FEA6: A6 BC
-  STA $A000                                   ; $FEA8: 8D 00 A0
-  STY $A800                                   ; $FEAB: 8C 00 A8
-  STX $B000                                   ; $FEAE: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FEA8: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FEAB: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FEAE: 8E 00 B0
   LDA $BD                                     ; $FEB1: A5 BD
-  STA $B800                                   ; $FEB3: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FEB3: 8D 00 B8
   LDA $B6                                     ; $FEB6: A5 B6
   LDY $B7                                     ; $FEB8: A4 B7
   LDX $B8                                     ; $FEBA: A6 B8
-  STA $8000                                   ; $FEBC: 8D 00 80
-  STY $8800                                   ; $FEBF: 8C 00 88
-  STX $9000                                   ; $FEC2: 8E 00 90
+  STA NAMCO163_CHR_0                                   ; $FEBC: 8D 00 80
+  STY NAMCO163_CHR_1                                   ; $FEBF: 8C 00 88
+  STX NAMCO163_CHR_2                                   ; $FEC2: 8E 00 90
   LDA $B9                                     ; $FEC5: A5 B9
-  STA $9800                                   ; $FEC7: 8D 00 98
-  JMP IrqExit                                 ; $FECA: 4C 9E FB
+  STA NAMCO163_CHR_3                                   ; $FEC7: 8D 00 98
+  JMP B1F_IrqExit                                 ; $FECA: 4C 9E FB
 .endproc
 
 ;--- $FECD: IRQ mode 10 - PPU scroll + CHR ---
@@ -4398,18 +4399,18 @@ ScanlineDelayTable:
   SEI                                         ; $FECD: 78
   LDA #$00                                    ; $FECE: A9 00
   STA $0062                                   ; $FED0: 8D 62 00
-  STA $5000                                   ; $FED3: 8D 00 50
-  STA $5800                                   ; $FED6: 8D 00 58
+  STA NAMCO_IRQ_LO                                   ; $FED3: 8D 00 50
+  STA NAMCO_IRQ_HI                                   ; $FED6: 8D 00 58
   LDA PPU_STATUS                                   ; $FED9: AD 02 20
   LDA $EA                                     ; $FEDC: A5 EA
   STA NAMCO_CHR_BANK_0                                   ; $FEDE: 8D 00 C0
   LDA #$0F                                    ; $FEE1: A9 0F
   LDY $9B                                     ; $FEE3: A4 9B
   LDX $9A                                     ; $FEE5: A6 9A
-  STA $A000                                   ; $FEE7: 8D 00 A0
-  STA $A800                                   ; $FEEA: 8D 00 A8
-  STA $B000                                   ; $FEED: 8D 00 B0
-  STA $B800                                   ; $FEF0: 8D 00 B8
+  STA NAMCO163_CHR_4                                   ; $FEE7: 8D 00 A0
+  STA NAMCO163_CHR_5                                   ; $FEEA: 8D 00 A8
+  STA NAMCO163_CHR_6                                   ; $FEED: 8D 00 B0
+  STA NAMCO163_CHR_7                                   ; $FEF0: 8D 00 B8
   STY PPU_ADDR                                   ; $FEF3: 8C 06 20
   STX PPU_ADDR                                   ; $FEF6: 8E 06 20
   LDA #$00                                    ; $FEF9: A9 00
@@ -4422,45 +4423,45 @@ ScanlineDelayTable:
   LDA $BA                                     ; $FF06: A5 BA
   LDY $BB                                     ; $FF08: A4 BB
   LDX $BC                                     ; $FF0A: A6 BC
-  STA $A000                                   ; $FF0C: 8D 00 A0
-  STY $A800                                   ; $FF0F: 8C 00 A8
-  STX $B000                                   ; $FF12: 8E 00 B0
+  STA NAMCO163_CHR_4                                   ; $FF0C: 8D 00 A0
+  STY NAMCO163_CHR_5                                   ; $FF0F: 8C 00 A8
+  STX NAMCO163_CHR_6                                   ; $FF12: 8E 00 B0
   LDA $BD                                     ; $FF15: A5 BD
-  STA $B800                                   ; $FF17: 8D 00 B8
+  STA NAMCO163_CHR_7                                   ; $FF17: 8D 00 B8
   LDA $B6                                     ; $FF1A: A5 B6
   LDY $B7                                     ; $FF1C: A4 B7
   LDX $B8                                     ; $FF1E: A6 B8
-  STA $8000                                   ; $FF20: 8D 00 80
-  STY $8800                                   ; $FF23: 8C 00 88
-  STX $9000                                   ; $FF26: 8E 00 90
+  STA NAMCO163_CHR_0                                   ; $FF20: 8D 00 80
+  STY NAMCO163_CHR_1                                   ; $FF23: 8C 00 88
+  STX NAMCO163_CHR_2                                   ; $FF26: 8E 00 90
   LDA $B9                                     ; $FF29: A5 B9
-  STA $9800                                   ; $FF2B: 8D 00 98
-  JMP IrqExit                                 ; $FF2E: 4C 9E FB
+  STA NAMCO163_CHR_3                                   ; $FF2B: 8D 00 98
+  JMP B1F_IrqExit                                 ; $FF2E: 4C 9E FB
 .endproc
 
 ;--- $FF31: IRQ mode 11 - scroll forward ---
 .proc IrqMode11_ScrollFwd
   LDA #$00                                    ; $FF31: A9 00
-  STA $5000                                   ; $FF33: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FF33: 8D 00 50
   LDA $006A                                   ; $FF36: AD 6A 00
-  STA $5000                                   ; $FF39: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FF39: 8D 00 50
   LDA $006B                                   ; $FF3C: AD 6B 00
-  STA $5800                                   ; $FF3F: 8D 00 58
+  STA NAMCO_IRQ_HI                                   ; $FF3F: 8D 00 58
   INC $0060                                   ; $FF42: EE 60 00
-  JMP IrqChrUpdate_Block1                     ; $FF45: 4C CE FB
+  JMP B1F_IrqChrUpdate_Block1                     ; $FF45: 4C CE FB
 .endproc
 
 ;--- $FF48: IRQ mode 12 - scroll backward ---
 .proc IrqMode12_ScrollBack
   LDA #$00                                    ; $FF48: A9 00
-  STA $5000                                   ; $FF4A: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FF4A: 8D 00 50
   LDA $006C                                   ; $FF4D: AD 6C 00
-  STA $5000                                   ; $FF50: 8D 00 50
+  STA NAMCO_IRQ_LO                                   ; $FF50: 8D 00 50
   LDA $006D                                   ; $FF53: AD 6D 00
-  STA $5800                                   ; $FF56: 8D 00 58
+  STA NAMCO_IRQ_HI                                   ; $FF56: 8D 00 58
   DEC $0060                                   ; $FF59: CE 60 00
   DEC $0060                                   ; $FF5C: CE 60 00
-  JMP IrqChrUpdate_Block2                     ; $FF5F: 4C FC FB
+  JMP B1F_IrqChrUpdate_Block2                     ; $FF5F: 4C FC FB
 .endproc
 
 ;===============================================================================

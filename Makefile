@@ -17,7 +17,7 @@ ROM_DIR := rom
 
 # Source files
 ASM_SOURCES := $(ASM_DIR)/main.asm
-ASM_INCLUDE := $(INC_DIR)/6502_registers.h $(INC_DIR)/namco163.h $(INC_DIR)/macros.h
+ASM_INCLUDE := $(INC_DIR)/6502_registers.h $(INC_DIR)/namco163.h $(INC_DIR)/macros.h $(INC_DIR)/functions.h
 
 # Output
 PRG_BIN := $(BUILD_DIR)/prg.bin
