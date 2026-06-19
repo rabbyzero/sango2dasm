@@ -19,7 +19,7 @@ FUNCTIONS_H = os.path.join(PROJECT_DIR, "include", "functions.h")
 ASM_FILE = os.path.join(PROJECT_DIR, "asm", "banks", "prg_1f.aligned.asm")
 
 # Column where ';' comment should be aligned (0-indexed)
-COMMENT_COLUMN = 50
+COMMENT_COLUMN = 48
 
 
 def parse_functions_h(path):

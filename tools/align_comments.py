@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Align inline comments to column 48 in prg_1f.asm
+# Align inline comments to column 48 in prg_1f.aligned.asm
 COMMENT_COL = 48
 
-with open('asm/banks/prg_1f.asm', 'r') as f:
+with open('asm/banks/prg_1f.aligned.asm', 'r') as f:
     lines = f.readlines()
 
 output = []

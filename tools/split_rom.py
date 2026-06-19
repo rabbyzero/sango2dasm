@@ -18,7 +18,7 @@ def parse_nes_header(data):
     flags6 = data[6]
     flags7 = data[7]
 
-    mapper = ((flags7 >> 4) & 0x0F) | (flags6 >> 4)
+    mapper = (flags6 >> 4) | ((flags7 >> 4) << 4)
     mirror = flags6 & 1
     has_battery = (flags6 & 2) >> 1
     has_trainer = (flags6 & 4) >> 2

@@ -12,6 +12,14 @@
 - [rom_info.h](file://rom/rom_info.h)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Updated PRG bank switching register definitions to reflect new addresses $E000, $E800, $F000, $F800 for $8000-$9FFF, $A000-$BFFF, $C000-$DFFF, $E000-$FFFF respectively
+- Removed old $F800-$FE00 mapping scheme that was replaced by the new register layout
+- Updated architectural diagrams to show the new register mapping scheme
+- Revised bank switching examples to use the new register addresses
+- Updated documentation to reflect the current implementation in the codebase
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
@@ -25,6 +33,8 @@
 
 ## Introduction
 This document provides comprehensive specifications for the Namco-163 mapper used by the game Sangokushi 2 - Haou no Tairiku (三國志II 覇王の大陸). The mapper enables 256 KB of PRG ROM through 32 banks of 8 KB each, with dedicated write-only registers for bank switching across four 8 KB PRG slots. A critical aspect of the mapper is the fixed boot bank concept, where the highest bank ($1F) is mapped to $E000-$FFFF at reset and cannot be switched, serving as the foundation for system initialization and runtime control.
+
+**Updated** The mapper now uses a new register mapping scheme where PRG bank switching registers are located at $E000, $E800, $F000, and $F800 for the four 8 KB PRG slots, replacing the previous $F800-$FE00 scheme.
 
 ## Project Structure
 The project organizes mapper definitions, macros, and bank analysis around the Namco-163 implementation. Key elements include:
@@ -60,7 +70,7 @@ RI --> MA
 ```
 
 **Diagram sources**
-- [namco163.h:1-87](file://include/namco163.h#L1-L87)
+- [namco163.h:1-108](file://include/namco163.h#L1-L108)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
 - [main.asm:1-141](file://asm/main.asm#L1-L141)
 - [bank_1f_analysis.md:1-120](file://code/bank_1f_analysis.md#L1-L120)
@@ -80,48 +90,51 @@ RI --> MA
 
 Key definitions and capabilities:
 - PRG configuration: 32 banks × 8 KB = 256 KB
-- Bank switching registers (write-only): $F800, $FA00, $FC00, $FE00
+- Bank switching registers (write-only): $E000, $E800, $F000, $F800
 - IRQ registers: $4800 (counter), $5000 (latch)
 - Fixed boot bank: Bank $1F mapped to $E000-$FFFF at reset
 
+**Updated** The bank switching registers have been updated to use the new addresses $E000, $E800, $F000, and $F800, which replace the previous $F800-$FE00 scheme.
+
 **Section sources**
-- [namco163.h:6-28](file://include/namco163.h#L6-L28)
-- [namco163.h:10-14](file://include/namco163.h#L10-L14)
-- [namco163.h:19-25](file://include/namco163.h#L19-L25)
+- [namco163.h:26-33](file://include/namco163.h#L26-L33)
+- [namco163.h:35-51](file://include/namco163.h#L35-L51)
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
 
 ## Architecture Overview
 The Namco-163 mapper exposes four write-only registers to control PRG bank mapping across four 8 KB slots:
-- $8000-$9FFF controlled by $F800
-- $A000-$BFFF controlled by $FA00
-- $C000-$DFFF controlled by $FC00
-- $E000-$FFFF controlled by $FE00
+- $8000-$9FFF controlled by $E000
+- $A000-$BFFF controlled by $E800
+- $C000-$DFFF controlled by $F000
+- $E000-$FFFF controlled by $F800 (fixed boot bank)
 
 At reset, the highest bank ($1F) is fixed in the $E000-$FFFF slot and cannot be changed. This boot bank contains the reset handler, state dispatch, NMI/IRQ handlers, sound engine, PPU utilities, math routines, controller I/O, and data tables.
+
+**Updated** The register mapping has been updated to use $E000, $E800, $F000, and $F800 for the four PRG slots, replacing the previous $F800-$FE00 scheme.
 
 ```mermaid
 graph TB
 CPU["CPU"]
-REG8000["$F800<br/>$8000-$9FFF"]
-REGA000["$FA00<br/>$A000-$BFFF"]
-REGC000["$FC00<br/>$C000-$DFFF"]
-REGE000["$FE00<br/>$E000-$FFFF (fixed)"]
+REGE000["$E000<br/>$8000-$9FFF"]
+REGE800["$E800<br/>$A000-$BFFF"]
+REGF000["$F000<br/>$C000-$DFFF"]
+REGF800["$F800<br/>$E000-$FFFF (fixed)"]
 PRG00["PRG Bank 00<br/>$8000-$9FFF"]
 PRG01["PRG Bank 01<br/>$A000-$BFFF"]
 PRG02["PRG Bank 02<br/>$C000-$DFFF"]
 PRG1F["PRG Bank 1F<br/>$E000-$FFFF (boot)"]
-CPU --> REG8000
-CPU --> REGA000
-CPU --> REGC000
 CPU --> REGE000
-REG8000 --> PRG00
-REGA000 --> PRG01
-REGC000 --> PRG02
-REGE000 --> PRG1F
+CPU --> REGE800
+CPU --> REGF000
+CPU --> REGF800
+REGE000 --> PRG00
+REGE800 --> PRG01
+REGF000 --> PRG02
+REGF800 --> PRG1F
 ```
 
 **Diagram sources**
-- [namco163.h:10-14](file://include/namco163.h#L10-L14)
+- [namco163.h:26-33](file://include/namco163.h#L26-L33)
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
 
 **Section sources**
@@ -130,26 +143,28 @@ REGE000 --> PRG1F
 ## Detailed Component Analysis
 
 ### PRG Bank Switching Registers
-- $F800 controls $8000-$9FFF
-- $FA00 controls $A000-$BFFF
-- $FC00 controls $C000-$DFFF
-- $FE00 controls $E000-$FFFF (fixed boot bank)
+- $E000 controls $8000-$9FFF
+- $E800 controls $A000-$BFFF
+- $F000 controls $C000-$DFFF
+- $F800 controls $E000-$FFFF (fixed boot bank)
+
+**Updated** The register addresses have been updated from the previous $F800-$FE00 scheme to $E000, $E800, $F000, and $F800 respectively.
 
 Bank switching is performed by writing the desired bank number to the corresponding register. The fixed boot bank ($1F) is loaded at reset and remains immutable in the $E000-$FFFF slot.
 
 **Section sources**
-- [namco163.h:10-14](file://include/namco163.h#L10-L14)
+- [namco163.h:26-33](file://include/namco163.h#L26-L33)
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
 
 ### Fixed Boot Bank Concept
 - Bank $1F is mapped to $E000-$FFFF at reset
-- Cannot be switched via $FE00 during normal operation
+- Cannot be switched via $F800 during normal operation
 - Contains reset handler, state dispatch, NMI/IRQ handlers, sound engine, PPU utilities, math routines, controller I/O, and data tables
 - Interrupt vectors are located at $FFFA-$FFFF in this bank
 
 Practical implications:
 - The boot bank serves as the central runtime for system initialization and control flow
-- Bank switching macros should not target $FE00 for bank $1F during normal gameplay
+- Bank switching macros should not target $F800 for bank $1F during normal gameplay
 - Bank switching routines must account for the fixed nature of this slot
 
 **Section sources**
@@ -168,7 +183,7 @@ Usage patterns:
 - The IRQ handler performs dispatch based on internal state and handles acknowledge logic
 
 **Section sources**
-- [namco163.h:19-25](file://include/namco163.h#L19-L25)
+- [namco163.h:35-51](file://include/namco163.h#L35-L51)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [bank_1f_analysis.md:180-198](file://code/bank_1f_analysis.md#L180-L198)
 
@@ -184,13 +199,15 @@ The project provides both explicit macros for each slot and a generalized macro 
 - Generalized macro:
   - switch_prg_bank(slot, bank) selects the register based on the provided slot address
 
+**Updated** The bank switching macros now use the new register addresses $E000, $E800, $F000, and $F800.
+
 Usage patterns observed in the codebase:
-- Mapper initialization writes known bank numbers to $F800, $FA00, $FC00
+- Mapper initialization writes known bank numbers to $E000, $E800, $F000
 - Bank switching helper routines load configurations from tables and write to mapper registers
 - Bank switching is used extensively to access banked display and data functions
 
 **Section sources**
-- [namco163.h:67-86](file://include/namco163.h#L67-L86)
+- [namco163.h:93-108](file://include/namco163.h#L93-L108)
 - [macros.h:58-71](file://include/macros.h#L58-L71)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
@@ -201,6 +218,8 @@ The bank switching routine demonstrates the typical pattern:
 - Load 8-byte configuration from a table
 - Write the first four bytes to mapper registers $C000, $C800, $D000, $D800
 - Store the last four bytes in RAM for later restoration
+
+**Updated** The bank switching routine now uses the new register addresses $E000, $E800, $F000, and $F800.
 
 This routine is invoked by various game states to change the active banks for display and data access.
 
@@ -225,10 +244,12 @@ Key aspects:
 - Using the generalized macro to switch banks based on a variable slot address
 - Initializing mapper registers during startup
 
+**Updated** Examples now demonstrate the new register addresses $E000, $E800, $F000, and $F800.
+
 These patterns ensure predictable bank mapping and facilitate modular code organization.
 
 **Section sources**
-- [namco163.h:67-86](file://include/namco163.h#L67-L86)
+- [namco163.h:93-108](file://include/namco163.h#L93-L108)
 - [macros.h:58-71](file://include/macros.h#L58-L71)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 
@@ -241,6 +262,8 @@ Unique aspects of Namco-163 relevant to disassembly and development:
 - Fixed boot bank concept at $E000-$FFFF that cannot be switched
 - Dedicated IRQ counter/latch registers for timing and interrupts
 - Extensive use of banked display and data functions requiring careful bank management
+
+**Updated** The register mapping scheme differs from other mappers with its specific $E000, $E800, $F000, $F800 layout.
 
 These characteristics influence how disassembly proceeds, requiring attention to the fixed boot bank and the bank switching helper routines.
 
@@ -270,7 +293,7 @@ DEF --> B1F
 ```
 
 **Diagram sources**
-- [namco163.h:1-87](file://include/namco163.h#L1-L87)
+- [namco163.h:1-108](file://include/namco163.h#L1-L108)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
 - [main.asm:1-141](file://asm/main.asm#L1-L141)
 - [rom_info.h:1-9](file://rom/rom_info.h#L1-L9)
@@ -285,14 +308,18 @@ DEF --> B1F
 
 ## Troubleshooting Guide
 Common issues and resolutions:
-- Unexpected bank content at $E000-$FFFF: Verify that the fixed boot bank ($1F) is not being overwritten by writes to $FE00. Ensure bank switching macros are not targeting the fixed slot.
+- Unexpected bank content at $E000-$FFFF: Verify that the fixed boot bank ($1F) is not being overwritten by writes to $F800. Ensure bank switching macros are not targeting the fixed slot.
 - IRQ not firing as expected: Confirm that the IRQ counter and latch registers are properly initialized and acknowledged in the IRQ handler.
 - Bank switching not taking effect: Ensure the correct register is written and that the bank number is valid (0–31). Check for proper sequencing in bank switching helper routines.
 
+**Updated** Troubleshooting guidance now reflects the new register addresses and the fixed nature of the boot bank.
+
 **Section sources**
-- [namco163.h:19-25](file://include/namco163.h#L19-L25)
+- [namco163.h:35-51](file://include/namco163.h#L35-L51)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 
 ## Conclusion
-The Namco-163 mapper in Sangokushi 2 provides a robust 256 KB PRG ROM configuration with four dedicated write-only registers for 8 KB bank switching. The fixed boot bank concept at $E000-$FFFF is central to system initialization and runtime control, while the IRQ counter and latch registers enable precise timing and interrupts. Bank switching macros and helper routines streamline development workflows, allowing organized access to banked code and data. Understanding these characteristics is essential for accurate disassembly and reliable development of the game’s codebase.
+The Namco-163 mapper in Sangokushi 2 provides a robust 256 KB PRG ROM configuration with four dedicated write-only registers for 8 KB bank switching. The fixed boot bank concept at $E000-$FFFF is central to system initialization and runtime control, while the IRQ counter and latch registers enable precise timing and interrupts. Bank switching macros and helper routines streamline development workflows, allowing organized access to banked code and data. Understanding these characteristics is essential for accurate disassembly and reliable development of the game's codebase.
+
+**Updated** The mapper now uses the updated register scheme with $E000, $E800, $F000, and $F800 for PRG bank switching, reflecting the current implementation in the codebase.

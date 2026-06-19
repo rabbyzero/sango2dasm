@@ -11,54 +11,124 @@
 .include "namco163.h"
 .include "functions.h"
 
+;===============================================================================
+; Global RAM Address Definitions
+;===============================================================================
+; These addresses have consistent meaning across the entire bank.
+; Function-specific aliases are defined within .proc scopes.
+
+; --- Game State ---
+addr_game_state     = $007A                     ; State counter (0-14), indexes VectorTable
+addr_sub_state      = $0078                     ; Sub-state within each major state
+addr_sprite_count   = $007C                     ; Current OAM slot index
+
+; --- PPU ---
+addr_ppu_ctrl_ram   = $008B                     ; RAM copy of PPU control ($2000)
+addr_ppu_mask_ram   = $008C                     ; RAM copy of PPU mask ($2001)
+addr_display_mode   = $0098                     ; Display mode parameter
+addr_display_mode_h = $0099                     ; Display mode parameter (high)
+addr_nmi_ctrl       = $007E                     ; NMI sub-dispatch control bits
+
+; --- Controller ---
+addr_pad1_edge      = $0081                     ; Pad 1 newly-pressed buttons
+addr_pad2_edge      = $0082                     ; Pad 2 newly-pressed buttons
+addr_pad1_raw       = $0083                     ; Pad 1 raw button state
+addr_pad1_prev      = $0084                     ; Pad 1 previous frame state
+addr_pad2_raw       = $0085                     ; Pad 2 raw button state
+addr_pad2_prev      = $0086                     ; Pad 2 previous frame state
+
+; --- Animation ---
+addr_anim_direction = $0087                     ; Palette animation direction
+addr_anim_step      = $0088                     ; Palette animation step
+addr_anim_speed     = $0089                     ; Palette animation speed
+addr_anim_counter   = $008A                     ; Palette animation tick counter
+
+; --- Scroll (actual PPU scroll) ---
+addr_scroll_x       = $008E                     ; Scroll X position
+addr_scroll_x_hi    = $008F                     ; Scroll X high (nametable bit)
+addr_scroll_y       = $0090                     ; Scroll Y position
+addr_scroll_y_hi    = $0091                     ; Scroll Y high
+
+; --- Input State ---
+addr_input_prev_x   = $0094                     ; Input prev X change flag
+addr_input_prev_y   = $0095                     ; Input prev Y change flag
+addr_ctrl_state_x   = $009C                     ; Controller state X
+addr_ctrl_state_y   = $009D                     ; Controller state Y
+
+; --- CHR Banks ---
+addr_chr_bank_0     = $00AE                     ; CHR bank 0 ($8000)
+addr_chr_bank_1     = $00AF                     ; CHR bank 1 ($8800)
+addr_chr_bank_2     = $00B0                     ; CHR bank 2 ($9000)
+addr_chr_bank_3     = $00B1                     ; CHR bank 3 ($9800)
+addr_chr_bank_4     = $00B2                     ; CHR bank 4 ($A000)
+addr_chr_bank_5     = $00B3                     ; CHR bank 5 ($A800)
+addr_chr_bank_6     = $00B4                     ; CHR bank 6 ($B000)
+addr_chr_bank_7     = $00B5                     ; CHR bank 7 ($B800)
+
+; --- RNG ---
+addr_rng_index      = $0050                     ; RNG table index
+addr_trampoline_saved_bank = $0058              ; Trampoline saved bank
+
 .segment "CODE_BANK17"
+
+;--- $A000: Jump Table ---
 
 ;===============================================================================
 ; Jump Table - Public entry points ($A000-$A029)
 ;===============================================================================
 ; B17_18_Entry00 ($A000):
-  JMP LA087                                           ; $A000: 4C 87 A0
+  JMP B17_18_PpuWriteRle                                           ; $A000: 4C 87 A0
 ; B17_18_Entry01 ($A003):
-  JMP LA212                                           ; $A003: 4C 12 A2
+  JMP B17_18_PpuCopyRaw                                           ; $A003: 4C 12 A2
 ; B17_18_Entry02 ($A006):
-  JMP LA24E                                           ; $A006: 4C 4E A2
+  JMP B17_18_PpuWriteTileOffset                                           ; $A006: 4C 4E A2
 ; B17_18_Entry03 ($A009):
-  JMP LA2FF                                           ; $A009: 4C FF A2
+  JMP B17_18_DisplayScrollLoop                                           ; $A009: 4C FF A2
 ; B17_18_Entry04 ($A00C):
-  JMP LA387                                           ; $A00C: 4C 87 A3
+  JMP B17_18_DisplayAndChrSetup                                           ; $A00C: 4C 87 A3
 ; B17_18_Entry05 ($A00F):
-  JMP LAB53                                           ; $A00F: 4C 53 AB
+  JMP B17_18_BattleEffects                                           ; $A00F: 4C 53 AB
 ; B17_18_Entry06 ($A012):
-  JMP LA61C                                           ; $A012: 4C 1C A6
+  JMP B17_18_BattleDispatch                                           ; $A012: 4C 1C A6
 ; B17_18_Entry07 ($A015):
-  JMP LAEF0                                           ; $A015: 4C F0 AE
+  JMP B17_18_OverlayWindow                                           ; $A015: 4C F0 AE
 ; B17_18_Entry08 ($A018):
-  JMP LA983                                           ; $A018: 4C 83 A9
+  JMP B17_18_AdvisorDialogue                                           ; $A018: 4C 83 A9
 ; B17_18_Entry09 ($A01B):
-  JMP LB100                                           ; $A01B: 4C 00 B1
+  JMP B17_18_MainGameDispatch                                           ; $A01B: 4C 00 B1
 ; B17_18_Entry0A ($A01E):
-  JMP B17_18_Target0A                                    ; $A01E: 4C 93 D6
+  JMP B17_18_DomesticActionDispatch                                    ; $A01E: 4C 93 D6
 ; B17_18_Entry0B ($A021):
-  JMP B17_18_Target0B                                    ; $A021: 4C 25 DE
+  JMP B17_18_AnimationDispatch                                    ; $A021: 4C 25 DE
 ; B17_18_Entry0C ($A024):
-  JMP LA02A                                           ; $A024: 4C 2A A0
+  JMP B17_18_DomesticDisplay                                           ; $A024: 4C 2A A0
 ; B17_18_Entry0D ($A027):
-  JMP B17_18_Target0C                                    ; $A027: 4C 15 DF
-LA02A:
+  JMP B17_18_DataRecordLoader                                    ; $A027: 4C 15 DF
+
+;===============================================================================
+; $A02A: B17_18_DomesticDisplay
+; Entry0C: Domestic affairs display (switches bank $21)
+;===============================================================================
+B17_18_DomesticDisplay:
   LDY #$21                                            ; $A02A: A0 21
   JSR B1F_SwitchBank8_B                               ; $A02C: 20 5F F2
   LDA #$00                                            ; $A02F: A9 00
   STA a:$0000                                         ; $A031: 8D 00 00
   LDA #$20                                            ; $A034: A9 20
   STA a:$0001                                         ; $A036: 8D 01 00
-  JSR LA04A                                           ; $A039: 20 4A A0
+  JSR B17_18_SetupDisplayPtrs                                           ; $A039: 20 4A A0
   LDA #$00                                            ; $A03C: A9 00
   STA a:$0000                                         ; $A03E: 8D 00 00
   LDA #$24                                            ; $A041: A9 24
   STA a:$0001                                         ; $A043: 8D 01 00
-  JSR LA04A                                           ; $A046: 20 4A A0
+  JSR B17_18_SetupDisplayPtrs                                           ; $A046: 20 4A A0
   RTS                                                 ; $A049: 60
-LA04A:
+
+;===============================================================================
+; $A04A: B17_18_SetupDisplayPtrs
+; Setup display pointers from $0544 index
+;===============================================================================
+B17_18_SetupDisplayPtrs:
   LDA $0544                                           ; $A04A: AD 44 05
   ASL A                                               ; $A04D: 0A
   TAY                                                 ; $A04E: A8
@@ -70,11 +140,23 @@ LA04A:
   STA a:$000C                                         ; $A05E: 8D 0C 00
   LDA $A07A,Y                                         ; $A061: B9 7A A0
   STA a:$000D                                         ; $A064: 8D 0D 00
-  JSR LA24E                                           ; $A067: 20 4E A2
+  JSR B17_18_PpuWriteTileOffset                                           ; $A067: 20 4E A2
   RTS                                                 ; $A06A: 60
+
+;===============================================================================
+; $A06B: Domestic tile/attribute pointer table
+; Domestic tile/attribute pointer table
+;===============================================================================
   .byte $40,$84,$70,$85,$A0,$86,$D0,$87,$00,$89,$30,$8A,$60,$8B,$00,$80; $A06B: 40 84 70 85 A0 86 D0 87 00 89 30 8A 60 8B 00 80
   .byte $00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$80; $A07B: 00 80 00 80 00 80 00 80 00 80 00 80
-LA087:
+
+;--- $A087: PPU Data Writers ---
+
+;===============================================================================
+; $A087: B17_18_PpuWriteRle
+; Entry00: RLE-encoded PPU data writer
+;===============================================================================
+B17_18_PpuWriteRle:
   LDA a:$008B                                         ; $A087: AD 8B 00
   AND #$FB                                            ; $A08A: 29 FB
   STA $2000                                           ; $A08C: 8D 00 20
@@ -86,30 +168,35 @@ LA087:
   LDY #$00                                            ; $A09E: A0 00
   LDA ($0A),Y                                         ; $A0A0: B1 0A
   STA a:$0002                                         ; $A0A2: 8D 02 00
-  JSR LA0D2                                           ; $A0A5: 20 D2 A0
+  JSR B17_18_AdvanceSrcPtr                                           ; $A0A5: 20 D2 A0
 LA0A8:
   LDA ($0A),Y                                         ; $A0A8: B1 0A
   CMP a:$0002                                         ; $A0AA: CD 02 00
   BEQ LA0B8                                           ; $A0AD: F0 09
   STA $2007                                           ; $A0AF: 8D 07 20
-  JSR LA0D2                                           ; $A0B2: 20 D2 A0
+  JSR B17_18_AdvanceSrcPtr                                           ; $A0B2: 20 D2 A0
   JMP LA0A8                                           ; $A0B5: 4C A8 A0
 LA0B8:
-  JSR LA0D2                                           ; $A0B8: 20 D2 A0
+  JSR B17_18_AdvanceSrcPtr                                           ; $A0B8: 20 D2 A0
   LDA ($0A),Y                                         ; $A0BB: B1 0A
   TAX                                                 ; $A0BD: AA
   BEQ LA0D1                                           ; $A0BE: F0 11
-  JSR LA0D2                                           ; $A0C0: 20 D2 A0
+  JSR B17_18_AdvanceSrcPtr                                           ; $A0C0: 20 D2 A0
   LDA ($0A),Y                                         ; $A0C3: B1 0A
 LA0C5:
   STA $2007                                           ; $A0C5: 8D 07 20
   DEX                                                 ; $A0C8: CA
   BNE LA0C5                                           ; $A0C9: D0 FA
-  JSR LA0D2                                           ; $A0CB: 20 D2 A0
+  JSR B17_18_AdvanceSrcPtr                                           ; $A0CB: 20 D2 A0
   JMP LA0A8                                           ; $A0CE: 4C A8 A0
 LA0D1:
   RTS                                                 ; $A0D1: 60
-LA0D2:
+
+;===============================================================================
+; $A0D2: B17_18_AdvanceSrcPtr
+; Advance source data pointer ($000A/$000B)
+;===============================================================================
+B17_18_AdvanceSrcPtr:
   LDA a:$000A                                         ; $A0D2: AD 0A 00
   CLC                                                 ; $A0D5: 18
   ADC #$01                                            ; $A0D6: 69 01
@@ -118,6 +205,11 @@ LA0D2:
   ADC #$00                                            ; $A0DE: 69 00
   STA a:$000B                                         ; $A0E0: 8D 0B 00
   RTS                                                 ; $A0E3: 60
+
+;===============================================================================
+; $A0E4: B17_18_PpuWriteRawRows
+; PPU raw row writer with RLE decompression
+;===============================================================================
   LDA #$00                                            ; $A0E4: A9 00
   STA a:$001A                                         ; $A0E6: 8D 1A 00
   STA a:$001B                                         ; $A0E9: 8D 1B 00
@@ -138,13 +230,13 @@ LA0D2:
   LDY #$00                                            ; $A115: A0 00
   LDA ($0A),Y                                         ; $A117: B1 0A
   STA a:$001A                                         ; $A119: 8D 1A 00
-  JSR LA209                                           ; $A11C: 20 09 A2
-  JSR LA1A5                                           ; $A11F: 20 A5 A1
+  JSR B17_18_AdvanceSrcPtr2                                           ; $A11C: 20 09 A2
+  JSR B17_18_ReadRleByte                                           ; $A11F: 20 A5 A1
   STA a:$0002                                         ; $A122: 8D 02 00
   LDA a:$0006                                         ; $A125: AD 06 00
   BNE LA169                                           ; $A128: D0 3F
 LA12A:
-  JSR LA1A5                                           ; $A12A: 20 A5 A1
+  JSR B17_18_ReadRleByte                                           ; $A12A: 20 A5 A1
   CMP a:$0002                                         ; $A12D: CD 02 00
   BEQ LA146                                           ; $A130: F0 14
   STA $2007                                           ; $A132: 8D 07 20
@@ -156,10 +248,10 @@ LA12A:
   BCC LA12A                                           ; $A143: 90 E5
   RTS                                                 ; $A145: 60
 LA146:
-  JSR LA1A5                                           ; $A146: 20 A5 A1
+  JSR B17_18_ReadRleByte                                           ; $A146: 20 A5 A1
   TAX                                                 ; $A149: AA
   BEQ LA168                                           ; $A14A: F0 1C
-  JSR LA1A5                                           ; $A14C: 20 A5 A1
+  JSR B17_18_ReadRleByte                                           ; $A14C: 20 A5 A1
 LA14F:
   STA $2007                                           ; $A14F: 8D 07 20
   INC a:$0004                                         ; $A152: EE 04 00
@@ -175,7 +267,7 @@ LA162:
 LA168:
   RTS                                                 ; $A168: 60
 LA169:
-  JSR LA1A5                                           ; $A169: 20 A5 A1
+  JSR B17_18_ReadRleByte                                           ; $A169: 20 A5 A1
   CMP a:$0002                                         ; $A16C: CD 02 00
   BEQ LA184                                           ; $A16F: F0 13
   INC a:$0004                                         ; $A171: EE 04 00
@@ -186,9 +278,9 @@ LA169:
   BCC LA169                                           ; $A17F: 90 E8
   JMP LA12A                                           ; $A181: 4C 2A A1
 LA184:
-  JSR LA1A5                                           ; $A184: 20 A5 A1
+  JSR B17_18_ReadRleByte                                           ; $A184: 20 A5 A1
   TAX                                                 ; $A187: AA
-  JSR LA1A5                                           ; $A188: 20 A5 A1
+  JSR B17_18_ReadRleByte                                           ; $A188: 20 A5 A1
 LA18B:
   INC a:$0004                                         ; $A18B: EE 04 00
   BNE LA19E                                           ; $A18E: D0 0E
@@ -202,7 +294,12 @@ LA19E:
   BNE LA18B                                           ; $A19F: D0 EA
   JMP LA169                                           ; $A1A1: 4C 69 A1
   .byte $60                                           ; $A1A4: 60
-LA1A5:
+
+;===============================================================================
+; $A1A5: B17_18_ReadRleByte
+; Read next byte from RLE-encoded data stream
+;===============================================================================
+B17_18_ReadRleByte:
   LDY #$00                                            ; $A1A5: A0 00
   LDA a:$001B                                         ; $A1A7: AD 1B 00
   BNE LA1F5                                           ; $A1AA: D0 49
@@ -213,7 +310,7 @@ LA1A5:
   STA a:$001C                                         ; $A1B6: 8D 1C 00
   LDA a:$000B                                         ; $A1B9: AD 0B 00
   STA a:$001D                                         ; $A1BC: 8D 1D 00
-  JSR LA209                                           ; $A1BF: 20 09 A2
+  JSR B17_18_AdvanceSrcPtr2                                           ; $A1BF: 20 09 A2
   LDA ($0A),Y                                         ; $A1C2: B1 0A
   BEQ LA203                                           ; $A1C4: F0 3D
   PHA                                                 ; $A1C6: 48
@@ -227,10 +324,10 @@ LA1A5:
   CLC                                                 ; $A1D1: 18
   ADC #$03                                            ; $A1D2: 69 03
   STA a:$001B                                         ; $A1D4: 8D 1B 00
-  JSR LA209                                           ; $A1D7: 20 09 A2
+  JSR B17_18_AdvanceSrcPtr2                                           ; $A1D7: 20 09 A2
   LDA ($0A),Y                                         ; $A1DA: B1 0A
   STA a:$001E                                         ; $A1DC: 8D 1E 00
-  JSR LA209                                           ; $A1DF: 20 09 A2
+  JSR B17_18_AdvanceSrcPtr2                                           ; $A1DF: 20 09 A2
   LDA a:$001C                                         ; $A1E2: AD 1C 00
   SEC                                                 ; $A1E5: 38
   SBC a:$001E                                         ; $A1E6: ED 1E 00
@@ -248,16 +345,26 @@ LA1FF:
   RTS                                                 ; $A202: 60
 LA203:
   PHA                                                 ; $A203: 48
-  JSR LA209                                           ; $A204: 20 09 A2
+  JSR B17_18_AdvanceSrcPtr2                                           ; $A204: 20 09 A2
   PLA                                                 ; $A207: 68
   RTS                                                 ; $A208: 60
-LA209:
+
+;===============================================================================
+; $A209: B17_18_AdvanceSrcPtr2
+; Advance source pointer ($000A/$000B) - variant 2
+;===============================================================================
+B17_18_AdvanceSrcPtr2:
   INC a:$000A                                         ; $A209: EE 0A 00
   BNE LA211                                           ; $A20C: D0 03
   INC a:$000B                                         ; $A20E: EE 0B 00
 LA211:
   RTS                                                 ; $A211: 60
-LA212:
+
+;===============================================================================
+; $A212: B17_18_PpuCopyRaw
+; Entry01: Raw 1KB PPU data copy
+;===============================================================================
+B17_18_PpuCopyRaw:
   LDA a:$008B                                         ; $A212: AD 8B 00
   AND #$FB                                            ; $A215: 29 FB
   STA $2000                                           ; $A217: 8D 00 20
@@ -284,7 +391,12 @@ LA246:
   CMP #$04                                            ; $A249: C9 04
   BCC LA231                                           ; $A24B: 90 E4
   RTS                                                 ; $A24D: 60
-LA24E:
+
+;===============================================================================
+; $A24E: B17_18_PpuWriteTileOffset
+; Entry02: PPU tile data write with offset calculation
+;===============================================================================
+B17_18_PpuWriteTileOffset:
   LDA a:$008B                                         ; $A24E: AD 8B 00
   AND #$FB                                            ; $A251: 29 FB
   STA $2000                                           ; $A253: 8D 00 20
@@ -327,7 +439,7 @@ LA2A2:
   INY                                                 ; $A2A7: C8
   LDA ($00),Y                                         ; $A2A8: B1 00
   STA $2007                                           ; $A2AA: 8D 07 20
-  JSR LA2E4                                           ; $A2AD: 20 E4 A2
+  JSR B17_18_AdvanceTilePtr                                           ; $A2AD: 20 E4 A2
   INC a:$0002                                         ; $A2B0: EE 02 00
   LDA a:$0002                                         ; $A2B3: AD 02 00
   AND #$0F                                            ; $A2B6: 29 0F
@@ -336,7 +448,7 @@ LA2A2:
   LDA a:$0003                                         ; $A2BD: AD 03 00
   AND #$01                                            ; $A2C0: 29 01
   BEQ LA2C7                                           ; $A2C2: F0 03
-  JSR LA2ED                                           ; $A2C4: 20 ED A2
+  JSR B17_18_RewindTilePtr16                                           ; $A2C4: 20 ED A2
 LA2C7:
   LDA a:$0003                                         ; $A2C7: AD 03 00
   CMP #$1E                                            ; $A2CA: C9 1E
@@ -354,13 +466,23 @@ LA2DA:
   DEX                                                 ; $A2E0: CA
   BNE LA2DA                                           ; $A2E1: D0 F7
   RTS                                                 ; $A2E3: 60
-LA2E4:
+
+;===============================================================================
+; $A2E4: B17_18_AdvanceTilePtr
+; Advance tile data pointer
+;===============================================================================
+B17_18_AdvanceTilePtr:
   INC a:$000A                                         ; $A2E4: EE 0A 00
   BNE LA2EC                                           ; $A2E7: D0 03
   INC a:$000B                                         ; $A2E9: EE 0B 00
 LA2EC:
   RTS                                                 ; $A2EC: 60
-LA2ED:
+
+;===============================================================================
+; $A2ED: B17_18_RewindTilePtr16
+; Rewind tile pointer by 16 bytes
+;===============================================================================
+B17_18_RewindTilePtr16:
   LDA a:$000A                                         ; $A2ED: AD 0A 00
   SEC                                                 ; $A2F0: 38
   SBC #$10                                            ; $A2F1: E9 10
@@ -369,7 +491,14 @@ LA2ED:
   SBC #$00                                            ; $A2F9: E9 00
   STA a:$000B                                         ; $A2FB: 8D 0B 00
   RTS                                                 ; $A2FE: 60
-LA2FF:
+
+;--- $A2FF: Display and Scroll ---
+
+;===============================================================================
+; $A2FF: B17_18_DisplayScrollLoop
+; Entry03: Display scroll and render loop
+;===============================================================================
+B17_18_DisplayScrollLoop:
   LDA a:$008E                                         ; $A2FF: AD 8E 00
   PHA                                                 ; $A302: 48
   LDA a:$008F                                         ; $A303: AD 8F 00
@@ -441,7 +570,12 @@ LA33D:
   STA a:$009C                                         ; $A380: 8D 9C 00
   STA a:$009D                                         ; $A383: 8D 9D 00
   RTS                                                 ; $A386: 60
-LA387:
+
+;===============================================================================
+; $A387: B17_18_DisplayAndChrSetup
+; Entry04: Display coordinate check + CHR setup
+;===============================================================================
+B17_18_DisplayAndChrSetup:
   LDA a:$008E                                         ; $A387: AD 8E 00
   CMP #$FE                                            ; $A38A: C9 FE
   BCC LA391                                           ; $A38C: 90 03
@@ -454,7 +588,7 @@ LA391:
   CMP a:$0093                                         ; $A394: CD 93 00
   BEQ LA39F                                           ; $A397: F0 06
   STA a:$0093                                         ; $A399: 8D 93 00
-  JSR LA3B1                                           ; $A39C: 20 B1 A3
+  JSR B17_18_DisplayUpdateScroll                                           ; $A39C: 20 B1 A3
 LA39F:
   LDA a:$0090                                         ; $A39F: AD 90 00
   LSR A                                               ; $A3A2: 4A
@@ -463,16 +597,26 @@ LA39F:
   CMP a:$0092                                         ; $A3A5: CD 92 00
   BEQ LA3B0                                           ; $A3A8: F0 06
   STA a:$0092                                         ; $A3AA: 8D 92 00
-  JSR LA3BC                                           ; $A3AD: 20 BC A3
+  JSR B17_18_DisplayRenderScene                                           ; $A3AD: 20 BC A3
 LA3B0:
   RTS                                                 ; $A3B0: 60
-LA3B1:
+
+;===============================================================================
+; $A3B1: B17_18_DisplayUpdateScroll
+; Display update scroll registers
+;===============================================================================
+B17_18_DisplayUpdateScroll:
   LDA a:$009C                                         ; $A3B1: AD 9C 00
   BPL LA3B9                                           ; $A3B4: 10 03
   JMP LA465                                           ; $A3B6: 4C 65 A4
 LA3B9:
   JMP LA3C9                                           ; $A3B9: 4C C9 A3
-LA3BC:
+
+;===============================================================================
+; $A3BC: B17_18_DisplayRenderScene
+; Display render scene (bank switching + rendering + helpers)
+;===============================================================================
+B17_18_DisplayRenderScene:
   LDA a:$009C                                         ; $A3BC: AD 9C 00
   AND #$20                                            ; $A3BF: 29 20
   BNE LA3C6                                           ; $A3C1: D0 03
@@ -544,7 +688,7 @@ LA442:
   STA a:$0000                                         ; $A451: 8D 00 00
   LDA #$01                                            ; $A454: A9 01
   STA a:$0001                                         ; $A456: 8D 01 00
-  JSR LA89A                                           ; $A459: 20 9A A8
+  JSR B17_18_BattleAttrAndHelpers                                           ; $A459: 20 9A A8
   LDA a:$007E                                         ; $A45C: AD 7E 00
   ORA #$80                                            ; $A45F: 09 80
   STA a:$007E                                         ; $A461: 8D 7E 00
@@ -623,7 +767,7 @@ LA4FC:
   STA a:$0000                                         ; $A508: 8D 00 00
   LDA #$01                                            ; $A50B: A9 01
   STA a:$0001                                         ; $A50D: 8D 01 00
-  JSR LA89A                                           ; $A510: 20 9A A8
+  JSR B17_18_BattleAttrAndHelpers                                           ; $A510: 20 9A A8
   LDA a:$007E                                         ; $A513: AD 7E 00
   ORA #$40                                            ; $A516: 09 40
   STA a:$007E                                         ; $A518: 8D 7E 00
@@ -767,7 +911,12 @@ LA610:
   TAY                                                 ; $A618: A8
   LDA ($A8),Y                                         ; $A619: B1 A8
   RTS                                                 ; $A61B: 60
-LA61C:
+
+;===============================================================================
+; $A61C: B17_18_BattleDispatch
+; Entry06: Battle dispatch (bank switch + pointer lookup)
+;===============================================================================
+B17_18_BattleDispatch:
   LDA a:$0000                                         ; $A61C: AD 00 00
 LA61F:
   PHA                                                 ; $A61F: 48
@@ -787,6 +936,11 @@ LA61F:
   TAY                                                 ; $A63D: A8
   JSR B1F_SwitchBank8_B                               ; $A63E: 20 5F F2
   RTS                                                 ; $A641: 60
+
+;===============================================================================
+; $A642: Battle screen tile data and PPU address tables
+; Battle screen tile data and PPU address tables
+;===============================================================================
   .byte $40,$80,$70,$81,$00,$82,$30,$83,$C0,$83,$F0,$84,$80,$85,$B0,$86; $A642: 40 80 70 81 00 82 30 83 C0 83 F0 84 80 85 B0 86
   .byte $40,$87,$70,$88,$00,$89,$30,$8A,$C0,$8A,$F0,$8B,$80,$8C,$B0,$8D; $A652: 40 87 70 88 00 89 30 8A C0 8A F0 8B 80 8C B0 8D
   .byte $40,$8E,$70,$8F,$00,$90,$30,$91,$C0,$91,$F0,$92,$80,$93,$B0,$94; $A662: 40 8E 70 8F 00 90 30 91 C0 91 F0 92 80 93 B0 94
@@ -825,7 +979,12 @@ LA61F:
   .byte $24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24; $A872: 24 24 24 24 24 24 24 24 24 24 24 24 24 24 24 24
   .byte $25,$25,$25,$25,$25,$25,$25,$25,$25,$25,$25,$25,$25,$25,$25,$25; $A882: 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25 25
   .byte $25,$25,$25,$25,$25,$25,$25,$25               ; $A892: 25 25 25 25 25 25 25 25
-LA89A:
+
+;===============================================================================
+; $A89A: B17_18_BattleAttrAndHelpers
+; Battle attribute setup + helper subroutines
+;===============================================================================
+B17_18_BattleAttrAndHelpers:
   LDY #$00                                            ; $A89A: A0 00
   LDA a:$000D                                         ; $A89C: AD 0D 00
   LDX #$20                                            ; $A89F: A2 20
@@ -964,7 +1123,12 @@ LA97F:
   DEY                                                 ; $A97F: 88
   BPL LA970                                           ; $A980: 10 EE
   RTS                                                 ; $A982: 60
-LA983:
+
+;===============================================================================
+; $A983: B17_18_AdvisorDialogue
+; Entry08: Advisor/council dialogue system
+;===============================================================================
+B17_18_AdvisorDialogue:
   LDY a:$0000                                         ; $A983: AC 00 00
 LA986:
   TYA                                                 ; $A986: 98
@@ -1172,7 +1336,12 @@ LAB26:
   LSR a:$0019                                         ; $AB4C: 4E 19 00
   LSR a:$0019                                         ; $AB4F: 4E 19 00
   RTS                                                 ; $AB52: 60
-LAB53:
+
+;===============================================================================
+; $AB53: B17_18_BattleEffects
+; Entry05: Battle visual effects (animations, palette, sprites)
+;===============================================================================
+B17_18_BattleEffects:
   LDA a:$008E                                         ; $AB53: AD 8E 00
   SEC                                                 ; $AB56: 38
   SBC #$06                                            ; $AB57: E9 06
@@ -1588,7 +1757,12 @@ LAEE7:
   LDA a:$0091                                         ; $AEE7: AD 91 00
   STA a:$000F                                         ; $AEEA: 8D 0F 00
   JMP LADBC                                           ; $AEED: 4C BC AD
-LAEF0:
+
+;===============================================================================
+; $AEF0: B17_18_OverlayWindow
+; Entry07: Overlay/window rendering (bank switch + dispatch)
+;===============================================================================
+B17_18_OverlayWindow:
   LDA a:$0000                                         ; $AEF0: AD 00 00
 LAEF3:
   PHA                                                 ; $AEF3: 48
@@ -1848,7 +2022,14 @@ LB08F:
   LSR a:$0017                                         ; $B0F9: 4E 17 00
   ASL a:$0017                                         ; $B0FC: 0E 17 00
   RTS                                                 ; $B0FF: 60
-LB100:
+
+;--- $B100: Main Game Dispatch ---
+
+;===============================================================================
+; $B100: B17_18_MainGameDispatch
+; Entry09: Main game mode dispatcher (22-entry dispatch table)
+;===============================================================================
+B17_18_MainGameDispatch:
   LDY $04AA                                           ; $B100: AC AA 04
   LDA $04AB,Y                                         ; $B103: B9 AB 04
   BPL LB10F                                           ; $B106: 10 07
@@ -1861,7 +2042,7 @@ LB10F:
   LDA $04A8                                           ; $B112: AD A8 04
   JSR B1F_CallbackDispatcher                          ; $B115: 20 DE EA
 ; --- Inline pointer table (22 entries) ---
-  .word LB144                                         ; $B118: 44 B1
+  .word B17_18_SubDispatch_Mode09                                         ; $B118: 44 B1
   .word LB34F                                         ; $B11A: 4F B3
   .word LB5C8                                         ; $B11C: C8 B5
   .word LB8C7                                         ; $B11E: C7 B8
@@ -1871,9 +2052,9 @@ LB10F:
   .word LBE78                                         ; $B126: 78 BE
   .word LC08A                                         ; $B128: 8A C0
   .word LC116                                         ; $B12A: 16 C1
-  .word LB144                                         ; $B12C: 44 B1
-  .word LB144                                         ; $B12E: 44 B1
-  .word LB144                                         ; $B130: 44 B1
+  .word B17_18_SubDispatch_Mode09                                         ; $B12C: 44 B1
+  .word B17_18_SubDispatch_Mode09                                         ; $B12E: 44 B1
+  .word B17_18_SubDispatch_Mode09                                         ; $B130: 44 B1
   .word LC21C                                         ; $B132: 1C C2
   .word LC2F6                                         ; $B134: F6 C2
   .word LC464                                         ; $B136: 64 C4
@@ -1883,7 +2064,12 @@ LB10F:
   .word LCB9E                                         ; $B13E: 9E CB
   .word LCC87                                         ; $B140: 87 CC
   .word LCD3C                                         ; $B142: 3C CD
-LB144:
+
+;===============================================================================
+; $B144: B17_18_SubDispatch_Mode09
+; Sub-dispatcher: mode 09 (8-entry dispatch table)
+;===============================================================================
+B17_18_SubDispatch_Mode09:
   LDA $04A9                                           ; $B144: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B147: 20 DE EA
 ; --- Inline pointer table (8 entries) ---
@@ -3583,7 +3769,7 @@ LBFB1:
 .segment "CODE_BANK18"
 
 ;===============================================================================
-; Data Region ($C000-$C089) - Tile/map lookup table
+; $C000-$C089: Tile/map lookup table
 ;===============================================================================
   .byte $01,$01,$01,$01,$01,$01,$01,$01,$02,$02,$01,$01,$01,$01,$01,$01; $C000: 01 01 01 01 01 01 01 01 02 02 01 01 01 01 01 01
   .byte $02,$02,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$02,$02; $C010: 02 02 01 01 01 01 01 01 01 01 01 01 01 01 02 02
@@ -5832,12 +6018,24 @@ LD2A9:
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $D66B: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$47,$48,$00,$00,$00,$00,$00; $D67B: 00 00 00 00 00 00 00 00 00 47 48 00 00 00 00 00
   .byte $4C,$4D,$4E,$00,$00,$00,$00,$00               ; $D68B: 4C 4D 4E 00 00 00 00 00
+
+;--- $D693: Domestic Action System ---
+
+;===============================================================================
+; $D693: B17_18_DomesticActionDispatch
+; Entry0A: Domestic action dispatch (6-entry dispatch table)
+;===============================================================================
 ; B17_18_Target0A ($D693):
-B17_18_Target0A:
+B17_18_DomesticActionDispatch:
   LDY #$26                                            ; $D693: A0 26
   JSR B1F_SwitchBank8_B                               ; $D695: 20 5F F2
   LDA $0541                                           ; $D698: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D69B: 20 DE EA
+
+;===============================================================================
+; $D69E: B17_18_DomAction_State0_Init
+; Domestic action state 0: Initialize
+;===============================================================================
 ; --- Inline pointer table (6 entries) ---
   .word LD6AA                                         ; $D69E: AA D6
   .word LD79B                                         ; $D6A0: 9B D7
@@ -6638,8 +6836,13 @@ LDCEF:
   .byte $22,$00,$00,$00,$00,$00,$00,$88,$A2,$A0,$A0,$A0,$A0,$A0,$A0,$A8; $DDF5: 22 00 00 00 00 00 00 88 A2 A0 A0 A0 A0 A0 A0 A8
   .byte $22,$00,$44,$15,$45,$11,$00,$88,$22,$00,$00,$00,$00,$00,$00,$88; $DE05: 22 00 44 15 45 11 00 88 22 00 00 00 00 00 00 88
   .byte $22,$00,$00,$00,$00,$00,$00,$88,$A2,$A0,$A0,$A0,$A0,$A0,$A0,$A8; $DE15: 22 00 00 00 00 00 00 88 A2 A0 A0 A0 A0 A0 A0 A8
+
+;===============================================================================
+; $DE25: B17_18_AnimationDispatch
+; Entry0B: Animation dispatch
+;===============================================================================
 ; B17_18_Target0B ($DE25):
-B17_18_Target0B:
+B17_18_AnimationDispatch:
   LDA a:$0081                                         ; $DE25: AD 81 00
   AND #$08                                            ; $DE28: 29 08
   BEQ LDE34                                           ; $DE2A: F0 08
@@ -6682,7 +6885,7 @@ LDE72:
   JSR B1F_SwitchBank8_B                               ; $DE74: 20 5F F2
   LDY $0543                                           ; $DE77: AC 43 05
   LDA $DEA0,Y                                         ; $DE7A: B9 A0 DE
-  JSR LDEFA                                           ; $DE7D: 20 FA DE
+  JSR B17_18_SpriteFromTable                                           ; $DE7D: 20 FA DE
   DEC $0544                                           ; $DE80: CE 44 05
   BNE LDE9F                                           ; $DE83: D0 1A
   LDA #$02                                            ; $DE85: A9 02
@@ -6697,13 +6900,18 @@ LDE72:
   STA $0544                                           ; $DE9C: 8D 44 05
 LDE9F:
   RTS                                                 ; $DE9F: 60
+
+;===============================================================================
+; $DEA0: Animation frame index table
+; Animation frame index table
+;===============================================================================
   .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$08,$08,$08,$08,$08,$08,$08; $DEA0: 00 01 02 03 04 05 06 07 08 08 08 08 08 08 08 08
   .byte $09,$0A,$0B,$0C,$0D,$0E,$0D,$08,$FF           ; $DEB0: 09 0A 0B 0C 0D 0E 0D 08 FF
 LDEB9:
   DEC $0544                                           ; $DEB9: CE 44 05
   BEQ LDEC3                                           ; $DEBC: F0 05
   LDA #$08                                            ; $DEBE: A9 08
-  JMP LDEFA                                           ; $DEC0: 4C FA DE
+  JMP B17_18_SpriteFromTable                                           ; $DEC0: 4C FA DE
 LDEC3:
   INC $0541                                           ; $DEC3: EE 41 05
   RTS                                                 ; $DEC6: 60
@@ -6730,7 +6938,14 @@ LDED6:
   LDA #$B0                                            ; $DEF4: A9 B0
   JSR $E673                                           ; $DEF6: 20 73 E6
   RTS                                                 ; $DEF9: 60
-LDEFA:
+
+;--- $DEFA: Sprite and Data ---
+
+;===============================================================================
+; $DEFA: B17_18_SpriteFromTable
+; Sprite OAM placement from table
+;===============================================================================
+B17_18_SpriteFromTable:
   ASL A                                               ; $DEFA: 0A
   TAY                                                 ; $DEFB: A8
   LDA $97EF,Y                                         ; $DEFC: B9 EF 97
@@ -6744,8 +6959,13 @@ LDEFA:
   LDA #$01                                            ; $DF0E: A9 01
   STA $02                                             ; $DF10: 85 02
   JMP B1F_SpriteOamWriterSimple                       ; $DF12: 4C AD F1
+
+;===============================================================================
+; $DF15: B17_18_DataRecordLoader
+; Entry0D: Data record loader (pointer table lookup)
+;===============================================================================
 ; B17_18_Target0C ($DF15):
-B17_18_Target0C:
+B17_18_DataRecordLoader:
   LDA $050E                                           ; $DF15: AD 0E 05
   ASL A                                               ; $DF18: 0A
   TAY                                                 ; $DF19: A8
@@ -6770,6 +6990,11 @@ B17_18_Target0C:
   LDA #$00                                            ; $DF44: A9 00
   STA a:$00A9                                         ; $DF46: 8D A9 00
   RTS                                                 ; $DF49: 60
+
+;===============================================================================
+; $DF4A: Data record pointer table + permutation table
+; Data record pointer table + permutation table
+;===============================================================================
   .byte $86,$DF,$8A,$DF,$8E,$DF,$92,$DF,$96,$DF,$9A,$DF,$9E,$DF,$A2,$DF; $DF4A: 86 DF 8A DF 8E DF 92 DF 96 DF 9A DF 9E DF A2 DF
   .byte $A6,$DF,$AA,$DF,$AE,$DF,$B2,$DF,$B6,$DF,$BA,$DF,$BE,$DF,$C2,$DF; $DF5A: A6 DF AA DF AE DF B2 DF B6 DF BA DF BE DF C2 DF
   .byte $C6,$DF,$CA,$DF,$CE,$DF,$D2,$DF,$D6,$DF,$DA,$DF,$DE,$DF,$E2,$DF; $DF6A: C6 DF CA DF CE DF D2 DF D6 DF DA DF DE DF E2 DF

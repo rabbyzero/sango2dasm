@@ -330,6 +330,9 @@ B17_18_Entry0A            = $A01E   ; -> JMP $D693 (bank $18)
 B17_18_Entry0B            = $A021   ; -> JMP $DE25 (bank $18)
 B17_18_Entry0C            = $A024   ; Domestic affairs display
 B17_18_Entry0D            = $A027   ; -> JMP $DF15 (bank $18)
+; Internal B17_18_ function/data symbols are defined as labels in
+; prg_17_18.asm and exported from there. They are only referenced
+; within that file, so no = assignments are needed here.
 
 ;-------------------------------------------------------------------------------
 ; Bank $2E - NMI rendering
