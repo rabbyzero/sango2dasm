@@ -29,9 +29,14 @@
 - [tools/gen_f667_ffff.py](file://tools/gen_f667_ffff.py)
 - [tools/update_jsr_labels.py](file://tools/update_jsr_labels.py)
 - [tools/verify_f3bd_f667.py](file://tools/verify_f3bd_f667.py)
+- [tools/verify_range.py](file://tools/verify_range.py)
 - [tools/generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
 - [tools/analyze_rom.py](file://tools/analyze_rom.py)
 - [tools/annotate_asm.py](file://tools/annotate_asm.py)
+- [tools/transform_17_18.py](file://tools/transform_17_18.py)
+- [tools/add_procs.py](file://tools/add_procs.py)
+- [tools/analyze_17_18.py](file://tools/analyze_17_18.py)
+- [tools/debug_regions.py](file://tools/debug_regions.py)
 - [asm/main.asm](file://asm/main.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
@@ -41,12 +46,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for six new Python disassembly tools including disasm_17_18.py (710 lines), fix_disasm.py, gen_f667_ffff.py, update_jsr_labels.py, and verify_f3bd_f667.py
-- Documented the new unified disassembly approach that replaces separate bank-specific tools
-- Enhanced disassembly tool documentation to cover the complete Bank $1F disassembly workflow
-- Updated linker configuration documentation to reflect new test configurations for bank-specific disassembly
-- Added detailed coverage of cross-bank reference handling and address-to-symbol mapping
-- Expanded verification system documentation to include specialized Bank $1F verification tools
+- Added comprehensive documentation for four new Python transformation tools for PRG bank $17/$18 assembly code: transform_17_18.py, add_procs.py, analyze_17_18.py, and debug_regions.py
+- Integrated these tools into the unified disassembly pipeline with semantic naming conventions and enhanced code organization
+- Updated the Makefile to include new targets for the transformation tools
+- Enhanced the transformation pipeline documentation to cover automated tooling for maintainability
+- Added detailed coverage of the semantic naming system (B17_18_ prefix) and cross-bank reference handling
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -56,14 +60,15 @@
 5. [Detailed Component Analysis](#detailed-component-analysis)
 6. [Unified Disassembly Pipeline](#unified-disassembly-pipeline)
 7. [Enhanced Disassembly Tools](#enhanced-disassembly-tools)
-8. [Dependency Analysis](#dependency-analysis)
-9. [Performance Considerations](#performance-considerations)
-10. [Troubleshooting Guide](#troubleshooting-guide)
-11. [Conclusion](#conclusion)
-12. [Appendices](#appendices)
+8. [Transformation Pipeline](#transformation-pipeline)
+9. [Dependency Analysis](#dependency-analysis)
+10. [Performance Considerations](#performance-considerations)
+11. [Troubleshooting Guide](#troubleshooting-guide)
+12. [Conclusion](#conclusion)
+13. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. Additionally, the transformation pipeline now includes sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions and enhanced code organization.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -72,7 +77,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - ROM assets under rom/ (split PRG/CHR banks and combined PRG)
 - Build outputs under build/
 - Automated tools under tools/
-- **New**: Unified disassembly pipeline with specialized tools for different ROM regions
+- **New**: Comprehensive transformation pipeline with specialized tools for PRG bank $17/$18 assembly code including semantic naming and cross-bank reference handling
 
 ```mermaid
 graph TB
@@ -99,6 +104,12 @@ UD3["gen_f667_ffff.py"]
 UD4["update_jsr_labels.py"]
 UD5["verify_f3bd_f667.py"]
 UD6["verify_range.py"]
+end
+subgraph "Transformation Pipeline"
+TP1["transform_17_18.py<br/>348 lines"]
+TP2["add_procs.py<br/>189 lines"]
+TP3["analyze_17_18.py<br/>118 lines"]
+TP4["debug_regions.py<br/>98 lines"]
 end
 subgraph "Tools"
 T_build["tools/build_nes.py"]
@@ -132,6 +143,10 @@ MK --> UD3
 MK --> UD4
 MK --> UD5
 MK --> UD6
+MK --> TP1
+MK --> TP2
+MK --> TP3
+MK --> TP4
 MK --> T_build
 MK --> T_verify
 MK --> T_split
@@ -159,16 +174,20 @@ T_verify --> OUT
 - [tools/update_jsr_labels.py:1-137](file://tools/update_jsr_labels.py#L1-L137)
 - [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-L45)
 - [tools/verify_range.py:1-42](file://tools/verify_range.py#L1-L42)
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
+- [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
+- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
+- [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
 - [Makefile:12-31](file://Makefile#L12-L31)
 
 ## Core Components
-- Makefile targets orchestrate the entire pipeline: assembling, linking, building the final ROM, splitting ROMs, disassembling, analyzing, verifying, cleaning, and the new unified disassembly pipeline.
+- Makefile targets orchestrate the entire pipeline: assembling, linking, building the final ROM, splitting ROMs, disassembling, analyzing, verifying, cleaning, and the new unified disassembly pipeline with transformation tools.
 - The cc65 toolchain (ca65 and ld65) compiles assembly into an object file and links it according to the linker configuration.
-- Python tools handle ROM parsing, bank generation, disassembly, analysis, annotation, verification, and the comprehensive unified disassembly pipeline.
-- **New**: Unified disassembly pipeline provides specialized tools for different ROM regions with cross-bank reference handling and address-to-symbol mapping.
+- Python tools handle ROM parsing, bank generation, disassembly, analysis, annotation, verification, and the comprehensive unified disassembly pipeline with transformation tools.
+- **New**: Transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, enhanced code organization, and automated tooling for maintainability.
 
 Key capabilities:
 - Assemble and link to produce a raw PRG binary.
@@ -179,6 +198,7 @@ Key capabilities:
 - Verify byte-exact rebuilds against the original ROM.
 - Generate bank stubs to bootstrap disassembly.
 - **New**: Unified disassembly with specialized tools for Bank $17/$18 paired disassembly, Bank $1F range disassembly, and cross-bank reference mapping.
+- **New**: Transformation pipeline with semantic naming (B17_18_), cross-bank reference handling, and automated code organization.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -198,6 +218,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - Disassemble and annotate assembly for documentation and validation.
 - Verify the rebuilt ROM against the original.
 - **New**: Apply unified disassembly pipeline for specialized ROM region processing with cross-bank reference handling.
+- **New**: Apply transformation pipeline for PRG bank $17/$18 assembly code with semantic naming and enhanced organization.
 
 ```mermaid
 sequenceDiagram
@@ -208,6 +229,7 @@ participant LD as "ld65"
 participant BN as "build_nes.py"
 participant VR as "verify_rom.py"
 participant UD as "Unified Disassembly Pipeline"
+participant TP as "Transformation Pipeline"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm"
 CA-->>MK : "main.o"
@@ -221,6 +243,9 @@ VR-->>Dev : "Byte-exact pass/fail"
 Dev->>MK : "make disasm_17_18"
 MK->>UD : "Unified disassembly for banks $17/$18"
 UD-->>Dev : "Cross-bank labeled assembly"
+Dev->>MK : "make transform_17_18"
+MK->>TP : "Apply transformation pipeline"
+TP-->>Dev : "Semantic naming and organization"
 ```
 
 **Diagram sources**
@@ -242,6 +267,10 @@ UD-->>Dev : "Cross-bank labeled assembly"
 - **New**: make disasm_17_18: Unified disassembly for paired Bank $17/$18 region with cross-bank references.
 - **New**: make gen_f667_ffff: Specialized disassembly for Bank $1F range $F667-$FFFF.
 - **New**: make update_jsr_labels: Update JSR/JMP operands using functions.h address map.
+- **New**: make transform_17_18: Apply semantic naming transformation to PRG bank $17/$18 assembly code.
+- **New**: make add_procs: Add .proc/.endproc scoping to PRG bank $17/$18 assembly code.
+- **New**: make analyze_17_18: Analyze PRG bank $17/$18 assembly code boundaries and function structure.
+- **New**: make debug_regions: Debug region transitions in PRG bank $17/$18 assembly code.
 
 Usage patterns:
 - Start with make split to prepare ROM assets.
@@ -250,6 +279,7 @@ Usage patterns:
 - **New**: Apply unified disassembly pipeline with make disasm_17_18 for paired bank processing.
 - **New**: Use make gen_f667_ffff for specialized Bank $1F range disassembly.
 - **New**: Use make update_jsr_labels to map addresses to symbols in Bank $1F assembly.
+- **New**: Use transformation pipeline for PRG bank $17/$18 assembly code organization.
 - Iterate assembly and linking, then verify with make verify.
 
 **Section sources**
@@ -620,14 +650,107 @@ Format --> End(["Enhanced Assembly Listing"])
 **Section sources**
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
 
+## Transformation Pipeline
+
+### Overview
+The transformation pipeline provides a comprehensive automated workflow for organizing and enhancing PRG bank $17/$18 assembly code with semantic naming conventions and cross-bank reference handling. The pipeline consists of four specialized tools that work together to provide systematic code organization, naming standardization, and debugging capabilities.
+
+### Pipeline Architecture
+The transformation pipeline operates on PRG bank $17/$18 assembly code with four specialized stages:
+
+```mermaid
+flowchart TD
+Stage1["transform_17_18.py<br/>348 lines - Semantic Naming"] --> Stage2["add_procs.py<br/>189 lines - Scoping"]
+Stage2 --> Stage3["analyze_17_18.py<br/>118 lines - Boundaries"]
+Stage3 --> Stage4["debug_regions.py<br/>98 lines - Transitions"]
+Stage4 --> Output["Organized Assembly Code"]
+```
+
+**Diagram sources**
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
+- [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
+- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
+- [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
+
+### Stage-by-Stage Breakdown
+
+#### Stage 1: Semantic Naming Transformation (transform_17_18.py)
+- **Region-Based Organization**: Uses a comprehensive region map to identify function boundaries and data sections across Bank $17 ($A000-$BFFF) and Bank $18 ($C000-$DFFF).
+- **Semantic Naming Convention**: Applies B17_18_ prefix to all identified functions and data structures for clear identification.
+- **Cross-Bank Reference Handling**: Automatically detects and handles cross-bank references between $A000-$BFFF and $C000-$DFFF.
+- **Section Headers**: Adds detailed section headers with address ranges, function types, and descriptions.
+- **Label Renaming**: Renames LXXXX labels to semantic B17_18_ names and updates all references.
+- **Dry Run Mode**: Supports --dry-run flag for previewing changes without modification.
+
+#### Stage 2: Procedure Scoping (add_procs.py)
+- **Block Parsing**: Parses assembly code into structured blocks including section headers, labels, code, data, and comments.
+- **Region Classification**: Classifies regions as code or data based on content analysis and section headers.
+- **Cross-Reference Analysis**: Identifies cross-referenced Lxxxx labels that need proper scoping.
+- **Scoping Implementation**: Adds .proc/.endproc directives around identified regions to improve code organization.
+- **Block Grouping**: Groups related blocks into logical regions for better maintainability.
+
+#### Stage 3: Boundary Analysis (analyze_17_18.py)
+- **Address Mapping**: Builds comprehensive address-to-line mappings from inline byte comments.
+- **Function Boundary Detection**: Analyzes RTS instructions, JSR/JMP patterns, and label relationships to identify function boundaries.
+- **Entry Point Analysis**: Identifies jump table entry targets and traces function extents.
+- **Cross-Bank Reference Analysis**: Detects and analyzes cross-bank references and their implications.
+- **Statistical Analysis**: Provides counts of JSR/JMP instructions and function sizes for code analysis.
+
+#### Stage 4: Region Debugging (debug_regions.py)
+- **Transition Analysis**: Tracks region transitions throughout the assembly code to ensure proper boundary detection.
+- **Boundary Validation**: Validates that region boundaries align with actual code structure and address ranges.
+- **Debug Output**: Provides detailed transition reports showing when and where region changes occur.
+- **Boundary Verification**: Compares detected transitions with expected region counts and boundaries.
+
+### Integration with Build System
+The transformation pipeline integrates seamlessly with the Makefile build system:
+- **New**: make transform_17_18 target applies semantic naming transformation to PRG bank $17/$18 assembly code.
+- **New**: make add_procs target adds .proc/.endproc scoping to organized assembly code.
+- **New**: make analyze_17_18 target analyzes function boundaries and cross-bank references.
+- **New**: make debug_regions target validates region transitions and boundary detection.
+- Each stage produces detailed logging and validation feedback.
+- Intermediate results are saved to maintain progress and enable debugging.
+- Final output provides well-organized, semantically-named assembly code ready for compilation.
+
+**Section sources**
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
+- [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
+- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
+- [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
+
+### Semantic Naming Conventions
+The transformation pipeline implements a comprehensive semantic naming system for PRG bank $17/$18 assembly code:
+
+#### Naming Pattern
+- **Prefix**: B17_18_ (identifies Bank $17/$18 origin)
+- **Function Names**: Descriptive names based on functionality (e.g., B17_18_PpuWriteRle, B17_18_DisplayRenderScene)
+- **Data Names**: Descriptive names indicating data purpose (e.g., B17_18_BattleTileData, B17_18_TileLookupTable)
+- **Table Names**: Descriptive names indicating table purpose (e.g., B17_18_JumpTable, B17_18_AnimFrameTable)
+
+#### Region Classification
+- **Functions**: Code regions ending with RTS, tail-call JMP, or region boundaries
+- **Data Tables**: Static data arrays and lookup tables
+- **Jump Tables**: Dispatch tables with multiple entry points
+- **State Machines**: Complex control flow with multiple states
+
+#### Cross-Bank Reference Handling
+- **Automatic Detection**: Identifies cross-bank references between $A000-$BFFF and $C000-$DFFF
+- **Proper Labeling**: Ensures cross-bank references use semantic naming conventions
+- **Equation Generation**: Creates proper equate statements for cross-bank references
+- **Scope Management**: Maintains proper scoping across bank boundaries
+
+**Section sources**
+- [tools/transform_17_18.py:30-168](file://tools/transform_17_18.py#L30-L168)
+
 ## Dependency Analysis
 The build system exhibits clear separation of concerns:
 - Makefile orchestrates tool invocations and manages dependencies between assembly, linking, and ROM packaging.
 - Python tools encapsulate domain-specific tasks (ROM parsing, disassembly, analysis, annotation, verification).
 - **New**: Unified disassembly pipeline provides specialized tools for different ROM regions with cross-bank reference handling.
+- **New**: Transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code organization.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools for comprehensive ROM coverage.
+- **New**: Cross-dependencies between unified disassembly tools and transformation pipeline for comprehensive ROM coverage.
 
 ```mermaid
 graph TB
@@ -647,6 +770,10 @@ MK --> UD3["gen_f667_ffff.py"]
 MK --> UD4["update_jsr_labels.py"]
 MK --> UD5["verify_f3bd_f667.py"]
 MK --> UD6["verify_range.py"]
+MK --> TP1["transform_17_18.py"]
+MK --> TP2["add_procs.py"]
+MK --> TP3["analyze_17_18.py"]
+MK --> TP4["debug_regions.py"]
 M_main["asm/main.asm"] --> H_namco["include/namco163.h"]
 M_main --> H_macros["include/macros.h"]
 M_main --> H_functions["include/functions.h"]
@@ -657,6 +784,9 @@ UD2 --> UD3
 UD3 --> UD4
 UD4 --> UD5
 UD5 --> UD6
+TP1 --> TP2
+TP2 --> TP3
+TP3 --> TP4
 ```
 
 **Diagram sources**
@@ -675,6 +805,10 @@ UD5 --> UD6
 - [tools/update_jsr_labels.py:1-137](file://tools/update_jsr_labels.py#L1-L137)
 - [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-L45)
 - [tools/verify_range.py:1-42](file://tools/verify_range.py#L1-L42)
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
+- [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
+- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
+- [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -686,8 +820,9 @@ UD5 --> UD6
 - Linker segmentation should be kept minimal until needed to reduce linking complexity and runtime.
 - Enhanced disassembly tools provide more detailed output but may require additional processing time for complex bank analysis.
 - **New**: Unified disassembly pipeline processes multiple ROM regions with sophisticated algorithms; expect significant processing time for large assembly files.
-- **New**: Each disassembly stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
-- **New**: Cross-bank reference handling requires additional processing time but provides more accurate disassembly results.
+- **New**: Transformation pipeline applies multiple passes with detailed analysis; expect substantial processing time for PRG bank $17/$18 assembly code.
+- **New**: Each disassembly and transformation stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
+- **New**: Cross-bank reference handling and semantic naming require additional processing time but provide more accurate and maintainable assembly results.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -702,6 +837,9 @@ Common issues and resolutions:
 - **New**: Cross-bank reference issues: Verify that fix_disasm.py has been run to enhance disasm_17_18.py output.
 - **New**: Address-to-symbol mapping failures: Ensure functions.h contains proper address-to-symbol mappings for $E000-$FFFF.
 - **New**: Range verification failures: Check that verify_f3bd_f667.py and verify_range.py are run with correct file paths and address ranges.
+- **New**: Transformation pipeline failures: Check individual stage logs for transform_17_18.py, add_procs.py, analyze_17_18.py, and debug_regions.py.
+- **New**: Semantic naming conflicts: Ensure transform_17_18.py runs before add_procs.py to avoid naming conflicts.
+- **New**: Dry run issues: Use --dry-run flag with transform_17_18.py to preview changes before applying.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
@@ -711,7 +849,11 @@ Practical examples:
 - **New**: Generate Bank $1F range disassembly: make gen_f667_ffff
 - **New**: Update JSR labels: make update_jsr_labels
 - **New**: Verify specific range: make verify_f3bd_f667
-- **New**: Transform specific stage: python3 tools/disasm_17_18.py, python3 tools/fix_disasm.py, etc.
+- **New**: Transform PRG bank $17/$18: make transform_17_18
+- **New**: Add procedure scoping: make add_procs
+- **New**: Analyze boundaries: make analyze_17_18
+- **New**: Debug regions: make debug_regions
+- **New**: Transform specific stage: python3 tools/transform_17_18.py, python3 tools/add_procs.py, etc.
 - Generate enhanced Bank 0x1F disassembly: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - Clean build artifacts: make clean
 - Clean and remove ROM dumps: make distclean
@@ -723,7 +865,7 @@ Practical examples:
 - [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the new unified disassembly tools, and the enhanced verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly added transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, enhanced code organization, and automated tooling for maintainability. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the transformation pipeline tools, and the enhanced verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling and semantic naming conventions.
 
 ## Appendices
 
@@ -732,6 +874,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - Enhanced disassembly: make disasm, tools/disasm_bank_1f.py, tools/annotate_asm.py
 - **New**: Unified disassembly: make disasm_17_18, make gen_f667_ffff, make update_jsr_labels
 - **New**: Range verification: make verify_f3bd_f667, make verify_range
+- **New**: Transformation pipeline: make transform_17_18, make add_procs, make analyze_17_18, make debug_regions
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
 
@@ -744,11 +887,17 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: make update_jsr_labels
 - **New**: make verify_f3bd_f667
 - **New**: make verify_range
-- **New**: python3 tools/disasm_17_18.py
-- **New**: python3 tools/fix_disasm.py
-- **New**: python3 tools/gen_f667_ffff.py
-- **New**: python3 tools/update_jsr_labels.py
-- **New**: python3 tools/verify_f3bd_f667.py
-- **New**: python3 tools/verify_range.py
+- **New**: make transform_17_18
+- **New**: make add_procs
+- **New**: make analyze_17_18
+- **New**: make debug_regions
+- **New**: python3 tools/transform_17_18.py
+- **New**: python3 tools/add_procs.py
+- **New**: python3 tools/analyze_17_18.py
+- **New**: python3 tools/debug_regions.py
+- **New**: python3 tools/transform_17_18.py --dry-run
+- **New**: python3 tools/add_procs.py asm/banks/prg_17_18.asm
+- **New**: python3 tools/analyze_17_18.py
+- **New**: python3 tools/debug_regions.py
 - python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - python3 tools/annotate_asm.py --in-place --verify

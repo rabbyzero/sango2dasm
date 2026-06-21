@@ -76,87 +76,101 @@ addr_trampoline_saved_bank = $0058              ; Trampoline saved bank
 ;===============================================================================
 ; Jump Table - Public entry points ($A000-$A029)
 ;===============================================================================
-; B17_18_Entry00 ($A000):
-  JMP B17_18_PpuWriteRle                                           ; $A000: 4C 87 A0
-; B17_18_Entry01 ($A003):
-  JMP B17_18_PpuCopyRaw                                           ; $A003: 4C 12 A2
-; B17_18_Entry02 ($A006):
-  JMP B17_18_PpuWriteTileOffset                                           ; $A006: 4C 4E A2
-; B17_18_Entry03 ($A009):
-  JMP B17_18_DisplayScrollLoop                                           ; $A009: 4C FF A2
-; B17_18_Entry04 ($A00C):
-  JMP B17_18_DisplayAndChrSetup                                           ; $A00C: 4C 87 A3
-; B17_18_Entry05 ($A00F):
-  JMP B17_18_BattleEffects                                           ; $A00F: 4C 53 AB
-; B17_18_Entry06 ($A012):
-  JMP B17_18_BattleDispatch                                           ; $A012: 4C 1C A6
-; B17_18_Entry07 ($A015):
-  JMP B17_18_OverlayWindow                                           ; $A015: 4C F0 AE
-; B17_18_Entry08 ($A018):
-  JMP B17_18_AdvisorDialogue                                           ; $A018: 4C 83 A9
-; B17_18_Entry09 ($A01B):
-  JMP B17_18_MainGameDispatch                                           ; $A01B: 4C 00 B1
-; B17_18_Entry0A ($A01E):
-  JMP B17_18_DomesticActionDispatch                                    ; $A01E: 4C 93 D6
-; B17_18_Entry0B ($A021):
-  JMP B17_18_AnimationDispatch                                    ; $A021: 4C 25 DE
-; B17_18_Entry0C ($A024):
-  JMP B17_18_DomesticDisplay                                           ; $A024: 4C 2A A0
-; B17_18_Entry0D ($A027):
-  JMP B17_18_DataRecordLoader                                    ; $A027: 4C 15 DF
+; Entry00 ($A000):
+  JMP PpuWriteRle                                           ; $A000: 4C 87 A0
+; Entry01 ($A003):
+  JMP PpuCopyRaw                                           ; $A003: 4C 12 A2
+; Entry02 ($A006):
+  JMP PpuWriteTileOffset                                           ; $A006: 4C 4E A2
+; Entry03 ($A009):
+  JMP DisplayScrollLoop                                           ; $A009: 4C FF A2
+; Entry04 ($A00C):
+  JMP DisplayAndChrSetup                                           ; $A00C: 4C 87 A3
+; Entry05 ($A00F):
+  JMP BattleEffects                                           ; $A00F: 4C 53 AB
+; Entry06 ($A012):
+  JMP BattleDispatch                                           ; $A012: 4C 1C A6
+; Entry07 ($A015):
+  JMP OverlayWindow                                           ; $A015: 4C F0 AE
+; Entry08 ($A018):
+  JMP AdvisorDialogue                                           ; $A018: 4C 83 A9
+; Entry09 ($A01B):
+  JMP MainGameDispatch                                           ; $A01B: 4C 00 B1
+; Entry0A ($A01E):
+  JMP DomesticActionDispatch                                    ; $A01E: 4C 93 D6
+; Entry0B ($A021):
+  JMP AnimationDispatch                                    ; $A021: 4C 25 DE
+; Entry0C ($A024):
+  JMP DomesticDisplay                                           ; $A024: 4C 2A A0
+; Entry0D ($A027):
+  JMP DataRecordLoader                                    ; $A027: 4C 15 DF
 
 ;===============================================================================
-; $A02A: B17_18_DomesticDisplay
+; $A02A: DomesticDisplay
 ; Entry0C: Domestic affairs display (switches bank $21)
 ;===============================================================================
-B17_18_DomesticDisplay:
+.proc DomesticDisplay
+DomesticDisplay:
   LDY #$21                                            ; $A02A: A0 21
   JSR B1F_SwitchBank8_B                               ; $A02C: 20 5F F2
   LDA #$00                                            ; $A02F: A9 00
   STA a:$0000                                         ; $A031: 8D 00 00
   LDA #$20                                            ; $A034: A9 20
   STA a:$0001                                         ; $A036: 8D 01 00
-  JSR B17_18_SetupDisplayPtrs                                           ; $A039: 20 4A A0
+  JSR SetupDisplayPtrs                                           ; $A039: 20 4A A0
   LDA #$00                                            ; $A03C: A9 00
   STA a:$0000                                         ; $A03E: 8D 00 00
   LDA #$24                                            ; $A041: A9 24
   STA a:$0001                                         ; $A043: 8D 01 00
-  JSR B17_18_SetupDisplayPtrs                                           ; $A046: 20 4A A0
+  JSR SetupDisplayPtrs                                           ; $A046: 20 4A A0
   RTS                                                 ; $A049: 60
+.endproc
 
 ;===============================================================================
-; $A04A: B17_18_SetupDisplayPtrs
+; $A04A: SetupDisplayPtrs
 ; Setup display pointers from $0544 index
 ;===============================================================================
-B17_18_SetupDisplayPtrs:
+.proc SetupDisplayPtrs
+SetupDisplayPtrs:
   LDA $0544                                           ; $A04A: AD 44 05
   ASL A                                               ; $A04D: 0A
   TAY                                                 ; $A04E: A8
-  LDA $A06B,Y                                         ; $A04F: B9 6B A0
+  LDA DomesticTilePtrTable,Y                          ; $A04F: B9 6B A0
   STA a:$000A                                         ; $A052: 8D 0A 00
-  LDA $A06C,Y                                         ; $A055: B9 6C A0
+  LDA DomesticTilePtrTable+1,Y                        ; $A055: B9 6C A0
   STA a:$000B                                         ; $A058: 8D 0B 00
-  LDA $A079,Y                                         ; $A05B: B9 79 A0
+  LDA DomesticAttrPtrTable,Y                          ; $A05B: B9 79 A0
   STA a:$000C                                         ; $A05E: 8D 0C 00
-  LDA $A07A,Y                                         ; $A061: B9 7A A0
+  LDA DomesticAttrPtrTable+1,Y                        ; $A061: B9 7A A0
   STA a:$000D                                         ; $A064: 8D 0D 00
-  JSR B17_18_PpuWriteTileOffset                                           ; $A067: 20 4E A2
+  JSR PpuWriteTileOffset                                           ; $A067: 20 4E A2
   RTS                                                 ; $A06A: 60
+.endproc
 
 ;===============================================================================
-; $A06B: Domestic tile/attribute pointer table
-; Domestic tile/attribute pointer table
+; $A06B: DomesticTilePtrTable
+; Domestic screen tile pattern pointer table (7 entries)
+; Indexed by $0544 * 2, loaded into $000A/$000B
 ;===============================================================================
-  .byte $40,$84,$70,$85,$A0,$86,$D0,$87,$00,$89,$30,$8A,$60,$8B,$00,$80; $A06B: 40 84 70 85 A0 86 D0 87 00 89 30 8A 60 8B 00 80
-  .byte $00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$80; $A07B: 00 80 00 80 00 80 00 80 00 80 00 80
+DomesticTilePtrTable:
+  .word $8440,$8570,$86A0,$87D0,$8900,$8A30,$8B60  ; $A06B: 40 84 70 85 A0 86 D0 87 00 89 30 8A 60 8B
+
+;===============================================================================
+; $A079: DomesticAttrPtrTable
+; Domestic screen attribute table pointer table (7 entries)
+; Indexed by $0544 * 2, loaded into $000C/$000D
+;===============================================================================
+DomesticAttrPtrTable:
+  .word $8000,$8000,$8000,$8000,$8000,$8000,$8000  ; $A079: 00 80 00 80 00 80 00 80 00 80 00 80 00 80
 
 ;--- $A087: PPU Data Writers ---
 
 ;===============================================================================
-; $A087: B17_18_PpuWriteRle
+; $A087: PpuWriteRle
 ; Entry00: RLE-encoded PPU data writer
 ;===============================================================================
-B17_18_PpuWriteRle:
+.proc PpuWriteRle
+PpuWriteRle:
   LDA a:$008B                                         ; $A087: AD 8B 00
   AND #$FB                                            ; $A08A: 29 FB
   STA $2000                                           ; $A08C: 8D 00 20
@@ -168,35 +182,37 @@ B17_18_PpuWriteRle:
   LDY #$00                                            ; $A09E: A0 00
   LDA ($0A),Y                                         ; $A0A0: B1 0A
   STA a:$0002                                         ; $A0A2: 8D 02 00
-  JSR B17_18_AdvanceSrcPtr                                           ; $A0A5: 20 D2 A0
-LA0A8:
+  JSR AdvanceSrcPtr                                           ; $A0A5: 20 D2 A0
+@process_rle:
   LDA ($0A),Y                                         ; $A0A8: B1 0A
   CMP a:$0002                                         ; $A0AA: CD 02 00
-  BEQ LA0B8                                           ; $A0AD: F0 09
+  BEQ @skip                                           ; $A0AD: F0 09
   STA $2007                                           ; $A0AF: 8D 07 20
-  JSR B17_18_AdvanceSrcPtr                                           ; $A0B2: 20 D2 A0
-  JMP LA0A8                                           ; $A0B5: 4C A8 A0
-LA0B8:
-  JSR B17_18_AdvanceSrcPtr                                           ; $A0B8: 20 D2 A0
+  JSR AdvanceSrcPtr                                           ; $A0B2: 20 D2 A0
+  JMP @process_rle                                           ; $A0B5: 4C A8 A0
+@skip:
+  JSR AdvanceSrcPtr                                           ; $A0B8: 20 D2 A0
   LDA ($0A),Y                                         ; $A0BB: B1 0A
   TAX                                                 ; $A0BD: AA
-  BEQ LA0D1                                           ; $A0BE: F0 11
-  JSR B17_18_AdvanceSrcPtr                                           ; $A0C0: 20 D2 A0
+  BEQ @skip_2                                           ; $A0BE: F0 11
+  JSR AdvanceSrcPtr                                           ; $A0C0: 20 D2 A0
   LDA ($0A),Y                                         ; $A0C3: B1 0A
-LA0C5:
+@loop:
   STA $2007                                           ; $A0C5: 8D 07 20
   DEX                                                 ; $A0C8: CA
-  BNE LA0C5                                           ; $A0C9: D0 FA
-  JSR B17_18_AdvanceSrcPtr                                           ; $A0CB: 20 D2 A0
-  JMP LA0A8                                           ; $A0CE: 4C A8 A0
-LA0D1:
+  BNE @loop                                           ; $A0C9: D0 FA
+  JSR AdvanceSrcPtr                                           ; $A0CB: 20 D2 A0
+  JMP @process_rle                                           ; $A0CE: 4C A8 A0
+@skip_2:
   RTS                                                 ; $A0D1: 60
+.endproc
 
 ;===============================================================================
-; $A0D2: B17_18_AdvanceSrcPtr
+; $A0D2: AdvanceSrcPtr
 ; Advance source data pointer ($000A/$000B)
 ;===============================================================================
-B17_18_AdvanceSrcPtr:
+.proc AdvanceSrcPtr
+AdvanceSrcPtr:
   LDA a:$000A                                         ; $A0D2: AD 0A 00
   CLC                                                 ; $A0D5: 18
   ADC #$01                                            ; $A0D6: 69 01
@@ -207,9 +223,11 @@ B17_18_AdvanceSrcPtr:
   RTS                                                 ; $A0E3: 60
 
 ;===============================================================================
-; $A0E4: B17_18_PpuWriteRawRows
+; $A0E4: PpuWriteRawRows
 ; PPU raw row writer with RLE decompression
 ;===============================================================================
+.proc PpuWriteRawRows
+PpuWriteRawRows:
   LDA #$00                                            ; $A0E4: A9 00
   STA a:$001A                                         ; $A0E6: 8D 1A 00
   STA a:$001B                                         ; $A0E9: 8D 1B 00
@@ -230,89 +248,99 @@ B17_18_AdvanceSrcPtr:
   LDY #$00                                            ; $A115: A0 00
   LDA ($0A),Y                                         ; $A117: B1 0A
   STA a:$001A                                         ; $A119: 8D 1A 00
-  JSR B17_18_AdvanceSrcPtr2                                           ; $A11C: 20 09 A2
-  JSR B17_18_ReadRleByte                                           ; $A11F: 20 A5 A1
+  JSR AdvanceSrcPtr2                                           ; $A11C: 20 09 A2
+  JSR ReadRleByte                                           ; $A11F: 20 A5 A1
   STA a:$0002                                         ; $A122: 8D 02 00
   LDA a:$0006                                         ; $A125: AD 06 00
-  BNE LA169                                           ; $A128: D0 3F
-LA12A:
-  JSR B17_18_ReadRleByte                                           ; $A12A: 20 A5 A1
+  BNE RleDecompressHelper                                           ; $A128: D0 3F
+@rle_loop:
+RleDecompressPpuData:
+  JSR ReadRleByte                                           ; $A12A: 20 A5 A1
   CMP a:$0002                                         ; $A12D: CD 02 00
-  BEQ LA146                                           ; $A130: F0 14
+  BEQ @skip                                           ; $A130: F0 14
   STA $2007                                           ; $A132: 8D 07 20
   INC a:$0004                                         ; $A135: EE 04 00
-  BNE LA12A                                           ; $A138: D0 F0
+  BNE @rle_loop                                           ; $A138: D0 F0
   INC a:$0005                                         ; $A13A: EE 05 00
   LDY a:$0005                                         ; $A13D: AC 05 00
   CPY a:$0007                                         ; $A140: CC 07 00
-  BCC LA12A                                           ; $A143: 90 E5
+  BCC @rle_loop                                           ; $A143: 90 E5
   RTS                                                 ; $A145: 60
-LA146:
-  JSR B17_18_ReadRleByte                                           ; $A146: 20 A5 A1
+@skip:
+  JSR ReadRleByte                                           ; $A146: 20 A5 A1
   TAX                                                 ; $A149: AA
-  BEQ LA168                                           ; $A14A: F0 1C
-  JSR B17_18_ReadRleByte                                           ; $A14C: 20 A5 A1
-LA14F:
+  BEQ @done                                           ; $A14A: F0 1C
+  JSR ReadRleByte                                           ; $A14C: 20 A5 A1
   STA $2007                                           ; $A14F: 8D 07 20
   INC a:$0004                                         ; $A152: EE 04 00
-  BNE LA162                                           ; $A155: D0 0B
+  BNE @decrement_counter                                           ; $A155: D0 0B
   INC a:$0005                                         ; $A157: EE 05 00
   LDY a:$0005                                         ; $A15A: AC 05 00
   CPY a:$0007                                         ; $A15D: CC 07 00
-  BCS LA168                                           ; $A160: B0 06
-LA162:
+  BCS @done                                           ; $A160: B0 06
+@decrement_counter:
   DEX                                                 ; $A162: CA
-  BNE LA14F                                           ; $A163: D0 EA
-  JMP LA12A                                           ; $A165: 4C 2A A1
-LA168:
+@write_and_check:
+  BNE @skip                                           ; $A163: D0 EA
+  JMP @rle_loop                                           ; $A165: 4C 2A A1
+@done:
   RTS                                                 ; $A168: 60
-LA169:
-  JSR B17_18_ReadRleByte                                           ; $A169: 20 A5 A1
+.endproc
+;===============================================================================
+; $A169: RleDecompressHelper
+; Helper for RLE decompression - processes literal and run-length encoded data
+; Called by PpuWriteRawRows, returns via JMP to RleDecompressPpuData
+;===============================================================================
+.proc RleDecompressHelper
+RleDecompressHelper:
+  JSR ReadRleByte                                           ; $A169: 20 A5 A1
   CMP a:$0002                                         ; $A16C: CD 02 00
-  BEQ LA184                                           ; $A16F: F0 13
+  BEQ @skip                                           ; $A16F: F0 13
   INC a:$0004                                         ; $A171: EE 04 00
-  BNE LA169                                           ; $A174: D0 F3
+  BNE RleDecompressHelper                                           ; $A174: D0 F3
   INC a:$0005                                         ; $A176: EE 05 00
   LDY a:$0005                                         ; $A179: AC 05 00
   CPY a:$0006                                         ; $A17C: CC 06 00
-  BCC LA169                                           ; $A17F: 90 E8
-  JMP LA12A                                           ; $A181: 4C 2A A1
-LA184:
-  JSR B17_18_ReadRleByte                                           ; $A184: 20 A5 A1
+  BCC RleDecompressHelper                                           ; $A17F: 90 E8
+  JMP RleDecompressPpuData                                           ; $A181: 4C 2A A1
+@skip:
+  JSR ReadRleByte                                           ; $A184: 20 A5 A1
   TAX                                                 ; $A187: AA
-  JSR B17_18_ReadRleByte                                           ; $A188: 20 A5 A1
-LA18B:
+  JSR ReadRleByte                                           ; $A188: 20 A5 A1
+@loop:
   INC a:$0004                                         ; $A18B: EE 04 00
-  BNE LA19E                                           ; $A18E: D0 0E
+  BNE @skip_2                                           ; $A18E: D0 0E
   INC a:$0005                                         ; $A190: EE 05 00
   LDY a:$0005                                         ; $A193: AC 05 00
   CPY a:$0006                                         ; $A196: CC 06 00
-  BCC LA19E                                           ; $A199: 90 03
-  JMP LA162                                           ; $A19B: 4C 62 A1
-LA19E:
+  BCC @skip_2                                           ; $A199: 90 03
+  JMP Sub_A162                                           ; $A19B: 4C 62 A1
+@skip_2:
   DEX                                                 ; $A19E: CA
-  BNE LA18B                                           ; $A19F: D0 EA
-  JMP LA169                                           ; $A1A1: 4C 69 A1
+  BNE @loop                                           ; $A19F: D0 EA
+  JMP RleDecompressHelper                                           ; $A1A1: 4C 69 A1
+.endproc
   .byte $60                                           ; $A1A4: 60
 
 ;===============================================================================
-; $A1A5: B17_18_ReadRleByte
+; $A1A5: ReadRleByte
 ; Read next byte from RLE-encoded data stream
 ;===============================================================================
-B17_18_ReadRleByte:
+.proc ReadRleByte
+ReadRleByte:
   LDY #$00                                            ; $A1A5: A0 00
   LDA a:$001B                                         ; $A1A7: AD 1B 00
-  BNE LA1F5                                           ; $A1AA: D0 49
+  BNE @skip                                           ; $A1AA: D0 49
   LDA ($0A),Y                                         ; $A1AC: B1 0A
   CMP a:$001A                                         ; $A1AE: CD 1A 00
-  BNE LA203                                           ; $A1B1: D0 50
+  BNE @skip_3                                           ; $A1B1: D0 50
   LDA a:$000A                                         ; $A1B3: AD 0A 00
   STA a:$001C                                         ; $A1B6: 8D 1C 00
   LDA a:$000B                                         ; $A1B9: AD 0B 00
   STA a:$001D                                         ; $A1BC: 8D 1D 00
-  JSR B17_18_AdvanceSrcPtr2                                           ; $A1BF: 20 09 A2
+  JSR AdvanceSrcPtr2                                           ; $A1BF: 20 09 A2
   LDA ($0A),Y                                         ; $A1C2: B1 0A
-  BEQ LA203                                           ; $A1C4: F0 3D
+  BEQ @skip_3                                           ; $A1C4: F0 3D
   PHA                                                 ; $A1C6: 48
   AND #$0F                                            ; $A1C7: 29 0F
   STA a:$001F                                         ; $A1C9: 8D 1F 00
@@ -324,10 +352,10 @@ B17_18_ReadRleByte:
   CLC                                                 ; $A1D1: 18
   ADC #$03                                            ; $A1D2: 69 03
   STA a:$001B                                         ; $A1D4: 8D 1B 00
-  JSR B17_18_AdvanceSrcPtr2                                           ; $A1D7: 20 09 A2
+  JSR AdvanceSrcPtr2                                           ; $A1D7: 20 09 A2
   LDA ($0A),Y                                         ; $A1DA: B1 0A
   STA a:$001E                                         ; $A1DC: 8D 1E 00
-  JSR B17_18_AdvanceSrcPtr2                                           ; $A1DF: 20 09 A2
+  JSR AdvanceSrcPtr2                                           ; $A1DF: 20 09 A2
   LDA a:$001C                                         ; $A1E2: AD 1C 00
   SEC                                                 ; $A1E5: 38
   SBC a:$001E                                         ; $A1E6: ED 1E 00
@@ -335,36 +363,40 @@ B17_18_ReadRleByte:
   LDA a:$001D                                         ; $A1EC: AD 1D 00
   SBC a:$001F                                         ; $A1EF: ED 1F 00
   STA a:$001D                                         ; $A1F2: 8D 1D 00
-LA1F5:
+@skip:
   LDA ($1C),Y                                         ; $A1F5: B1 1C
   INC a:$001C                                         ; $A1F7: EE 1C 00
-  BNE LA1FF                                           ; $A1FA: D0 03
+  BNE @skip_2                                           ; $A1FA: D0 03
   INC a:$001D                                         ; $A1FC: EE 1D 00
-LA1FF:
+@skip_2:
   DEC a:$001B                                         ; $A1FF: CE 1B 00
   RTS                                                 ; $A202: 60
-LA203:
+@skip_3:
   PHA                                                 ; $A203: 48
-  JSR B17_18_AdvanceSrcPtr2                                           ; $A204: 20 09 A2
+  JSR AdvanceSrcPtr2                                           ; $A204: 20 09 A2
   PLA                                                 ; $A207: 68
   RTS                                                 ; $A208: 60
+.endproc
 
 ;===============================================================================
-; $A209: B17_18_AdvanceSrcPtr2
+; $A209: AdvanceSrcPtr2
 ; Advance source pointer ($000A/$000B) - variant 2
 ;===============================================================================
-B17_18_AdvanceSrcPtr2:
+.proc AdvanceSrcPtr2
+AdvanceSrcPtr2:
   INC a:$000A                                         ; $A209: EE 0A 00
-  BNE LA211                                           ; $A20C: D0 03
+  BNE @skip                                           ; $A20C: D0 03
   INC a:$000B                                         ; $A20E: EE 0B 00
-LA211:
+@skip:
   RTS                                                 ; $A211: 60
+.endproc
 
 ;===============================================================================
-; $A212: B17_18_PpuCopyRaw
+; $A212: PpuCopyRaw
 ; Entry01: Raw 1KB PPU data copy
 ;===============================================================================
-B17_18_PpuCopyRaw:
+.proc PpuCopyRaw
+PpuCopyRaw:
   LDA a:$008B                                         ; $A212: AD 8B 00
   AND #$FB                                            ; $A215: 29 FB
   STA $2000                                           ; $A217: 8D 00 20
@@ -376,27 +408,29 @@ B17_18_PpuCopyRaw:
   LDY #$00                                            ; $A229: A0 00
   STY a:$000C                                         ; $A22B: 8C 0C 00
   STY a:$000D                                         ; $A22E: 8C 0D 00
-LA231:
+@loop:
   LDA ($0A),Y                                         ; $A231: B1 0A
   STA $2007                                           ; $A233: 8D 07 20
   INC a:$000A                                         ; $A236: EE 0A 00
-  BNE LA23E                                           ; $A239: D0 03
+  BNE @skip                                           ; $A239: D0 03
   INC a:$000B                                         ; $A23B: EE 0B 00
-LA23E:
+@skip:
   INC a:$000C                                         ; $A23E: EE 0C 00
-  BNE LA246                                           ; $A241: D0 03
+  BNE @skip_2                                           ; $A241: D0 03
   INC a:$000D                                         ; $A243: EE 0D 00
-LA246:
+@skip_2:
   LDA a:$000D                                         ; $A246: AD 0D 00
   CMP #$04                                            ; $A249: C9 04
-  BCC LA231                                           ; $A24B: 90 E4
+  BCC @loop                                           ; $A24B: 90 E4
   RTS                                                 ; $A24D: 60
+.endproc
 
 ;===============================================================================
-; $A24E: B17_18_PpuWriteTileOffset
+; $A24E: PpuWriteTileOffset
 ; Entry02: PPU tile data write with offset calculation
 ;===============================================================================
-B17_18_PpuWriteTileOffset:
+.proc PpuWriteTileOffset
+PpuWriteTileOffset:
   LDA a:$008B                                         ; $A24E: AD 8B 00
   AND #$FB                                            ; $A251: 29 FB
   STA $2000                                           ; $A253: 8D 00 20
@@ -415,7 +449,7 @@ B17_18_PpuWriteTileOffset:
   LDY #$00                                            ; $A272: A0 00
   STY a:$0002                                         ; $A274: 8C 02 00
   STY a:$0003                                         ; $A277: 8C 03 00
-LA27A:
+@loop:
   LDY #$00                                            ; $A27A: A0 00
   STY a:$0001                                         ; $A27C: 8C 01 00
   LDA ($0A),Y                                         ; $A27F: B1 0A
@@ -431,58 +465,62 @@ LA27A:
   STA a:$0001                                         ; $A296: 8D 01 00
   LDA a:$0002                                         ; $A299: AD 02 00
   AND #$10                                            ; $A29C: 29 10
-  BEQ LA2A2                                           ; $A29E: F0 02
+  BEQ @skip                                           ; $A29E: F0 02
   LDY #$02                                            ; $A2A0: A0 02
-LA2A2:
+@skip:
   LDA ($00),Y                                         ; $A2A2: B1 00
   STA $2007                                           ; $A2A4: 8D 07 20
   INY                                                 ; $A2A7: C8
   LDA ($00),Y                                         ; $A2A8: B1 00
   STA $2007                                           ; $A2AA: 8D 07 20
-  JSR B17_18_AdvanceTilePtr                                           ; $A2AD: 20 E4 A2
+  JSR AdvanceTilePtr                                           ; $A2AD: 20 E4 A2
   INC a:$0002                                         ; $A2B0: EE 02 00
   LDA a:$0002                                         ; $A2B3: AD 02 00
   AND #$0F                                            ; $A2B6: 29 0F
-  BNE LA2C7                                           ; $A2B8: D0 0D
+  BNE @skip_2                                           ; $A2B8: D0 0D
   INC a:$0003                                         ; $A2BA: EE 03 00
   LDA a:$0003                                         ; $A2BD: AD 03 00
   AND #$01                                            ; $A2C0: 29 01
-  BEQ LA2C7                                           ; $A2C2: F0 03
-  JSR B17_18_RewindTilePtr16                                           ; $A2C4: 20 ED A2
-LA2C7:
+  BEQ @skip_2                                           ; $A2C2: F0 03
+  JSR RewindTilePtr16                                           ; $A2C4: 20 ED A2
+@skip_2:
   LDA a:$0003                                         ; $A2C7: AD 03 00
   CMP #$1E                                            ; $A2CA: C9 1E
-  BCC LA27A                                           ; $A2CC: 90 AC
+  BCC @loop                                           ; $A2CC: 90 AC
   PLA                                                 ; $A2CE: 68
   STA a:$000B                                         ; $A2CF: 8D 0B 00
   PLA                                                 ; $A2D2: 68
   STA a:$000A                                         ; $A2D3: 8D 0A 00
   LDX #$40                                            ; $A2D6: A2 40
   LDY #$00                                            ; $A2D8: A0 00
-LA2DA:
+@loop_2:
   LDA ($0A),Y                                         ; $A2DA: B1 0A
   STA $2007                                           ; $A2DC: 8D 07 20
   INY                                                 ; $A2DF: C8
   DEX                                                 ; $A2E0: CA
-  BNE LA2DA                                           ; $A2E1: D0 F7
+  BNE @loop_2                                           ; $A2E1: D0 F7
   RTS                                                 ; $A2E3: 60
+.endproc
 
 ;===============================================================================
-; $A2E4: B17_18_AdvanceTilePtr
+; $A2E4: AdvanceTilePtr
 ; Advance tile data pointer
 ;===============================================================================
-B17_18_AdvanceTilePtr:
+.proc AdvanceTilePtr
+AdvanceTilePtr:
   INC a:$000A                                         ; $A2E4: EE 0A 00
-  BNE LA2EC                                           ; $A2E7: D0 03
+  BNE @skip                                           ; $A2E7: D0 03
   INC a:$000B                                         ; $A2E9: EE 0B 00
-LA2EC:
+@skip:
   RTS                                                 ; $A2EC: 60
+.endproc
 
 ;===============================================================================
-; $A2ED: B17_18_RewindTilePtr16
+; $A2ED: RewindTilePtr16
 ; Rewind tile pointer by 16 bytes
 ;===============================================================================
-B17_18_RewindTilePtr16:
+.proc RewindTilePtr16
+RewindTilePtr16:
   LDA a:$000A                                         ; $A2ED: AD 0A 00
   SEC                                                 ; $A2F0: 38
   SBC #$10                                            ; $A2F1: E9 10
@@ -491,14 +529,16 @@ B17_18_RewindTilePtr16:
   SBC #$00                                            ; $A2F9: E9 00
   STA a:$000B                                         ; $A2FB: 8D 0B 00
   RTS                                                 ; $A2FE: 60
+.endproc
 
 ;--- $A2FF: Display and Scroll ---
 
 ;===============================================================================
-; $A2FF: B17_18_DisplayScrollLoop
+; $A2FF: DisplayScrollLoop
 ; Entry03: Display scroll and render loop
 ;===============================================================================
-B17_18_DisplayScrollLoop:
+.proc DisplayScrollLoop
+DisplayScrollLoop:
   LDA a:$008E                                         ; $A2FF: AD 8E 00
   PHA                                                 ; $A302: 48
   LDA a:$008F                                         ; $A303: AD 8F 00
@@ -511,28 +551,28 @@ B17_18_DisplayScrollLoop:
   PHA                                                 ; $A314: 48
   INC a:$0091                                         ; $A315: EE 91 00
   LDA #$1E                                            ; $A318: A9 1E
-LA31A:
+@loop:
   PHA                                                 ; $A31A: 48
-  JSR LA485                                           ; $A31B: 20 85 A4
-  JSR LAD9F                                           ; $A31E: 20 9F AD
-LA321:
+  JSR Sub_A485                                           ; $A31B: 20 85 A4
+  JSR Sub_AD9F                                           ; $A31E: 20 9F AD
+@loop_2:
   JSR B1F_NmiSubDispatchAlt                           ; $A321: 20 E6 EE
   LDA a:$007E                                         ; $A324: AD 7E 00
-  BNE LA321                                           ; $A327: D0 F8
+  BNE @loop_2                                           ; $A327: D0 F8
   LDA a:$0090                                         ; $A329: AD 90 00
   SEC                                                 ; $A32C: 38
   SBC #$08                                            ; $A32D: E9 08
   STA a:$0090                                         ; $A32F: 8D 90 00
-  BCS LA33D                                           ; $A332: B0 09
+  BCS @skip                                           ; $A332: B0 09
   SEC                                                 ; $A334: 38
   SBC #$10                                            ; $A335: E9 10
   STA a:$0090                                         ; $A337: 8D 90 00
   DEC a:$0091                                         ; $A33A: CE 91 00
-LA33D:
+@skip:
   PLA                                                 ; $A33D: 68
   SEC                                                 ; $A33E: 38
   SBC #$01                                            ; $A33F: E9 01
-  BPL LA31A                                           ; $A341: 10 D7
+  BPL @loop                                           ; $A341: 10 D7
   PLA                                                 ; $A343: 68
   STA a:$0091                                         ; $A344: 8D 91 00
   PLA                                                 ; $A347: 68
@@ -570,60 +610,71 @@ LA33D:
   STA a:$009C                                         ; $A380: 8D 9C 00
   STA a:$009D                                         ; $A383: 8D 9D 00
   RTS                                                 ; $A386: 60
+.endproc
 
 ;===============================================================================
-; $A387: B17_18_DisplayAndChrSetup
+; $A387: DisplayAndChrSetup
 ; Entry04: Display coordinate check + CHR setup
 ;===============================================================================
-B17_18_DisplayAndChrSetup:
+.proc DisplayAndChrSetup
+DisplayAndChrSetup:
   LDA a:$008E                                         ; $A387: AD 8E 00
   CMP #$FE                                            ; $A38A: C9 FE
-  BCC LA391                                           ; $A38C: 90 03
+  BCC @skip                                           ; $A38C: 90 03
   CLC                                                 ; $A38E: 18
   ADC #$02                                            ; $A38F: 69 02
-LA391:
+@skip:
   LSR A                                               ; $A391: 4A
   LSR A                                               ; $A392: 4A
   LSR A                                               ; $A393: 4A
   CMP a:$0093                                         ; $A394: CD 93 00
-  BEQ LA39F                                           ; $A397: F0 06
+  BEQ @skip_2                                           ; $A397: F0 06
   STA a:$0093                                         ; $A399: 8D 93 00
-  JSR B17_18_DisplayUpdateScroll                                           ; $A39C: 20 B1 A3
-LA39F:
+  JSR DisplayUpdateScroll                                           ; $A39C: 20 B1 A3
+@skip_2:
   LDA a:$0090                                         ; $A39F: AD 90 00
   LSR A                                               ; $A3A2: 4A
   LSR A                                               ; $A3A3: 4A
   LSR A                                               ; $A3A4: 4A
   CMP a:$0092                                         ; $A3A5: CD 92 00
-  BEQ LA3B0                                           ; $A3A8: F0 06
+  BEQ @skip_3                                           ; $A3A8: F0 06
   STA a:$0092                                         ; $A3AA: 8D 92 00
-  JSR B17_18_DisplayRenderScene                                           ; $A3AD: 20 BC A3
-LA3B0:
+  JSR DisplayRenderScene                                           ; $A3AD: 20 BC A3
+@skip_3:
   RTS                                                 ; $A3B0: 60
+.endproc
 
 ;===============================================================================
-; $A3B1: B17_18_DisplayUpdateScroll
+; $A3B1: DisplayUpdateScroll
 ; Display update scroll registers
 ;===============================================================================
-B17_18_DisplayUpdateScroll:
+.proc DisplayUpdateScroll
+DisplayUpdateScroll:
   LDA a:$009C                                         ; $A3B1: AD 9C 00
-  BPL LA3B9                                           ; $A3B4: 10 03
-  JMP LA465                                           ; $A3B6: 4C 65 A4
-LA3B9:
-  JMP LA3C9                                           ; $A3B9: 4C C9 A3
+  BPL @skip                                           ; $A3B4: 10 03
+  JMP Sub_A465                                           ; $A3B6: 4C 65 A4
+@skip:
+  JMP Sub_A3C9                                           ; $A3B9: 4C C9 A3
+.endproc
 
 ;===============================================================================
-; $A3BC: B17_18_DisplayRenderScene
+; $A3BC: DisplayRenderScene
 ; Display render scene (bank switching + rendering + helpers)
 ;===============================================================================
-B17_18_DisplayRenderScene:
+.proc DisplayRenderScene
+DisplayRenderScene:
   LDA a:$009C                                         ; $A3BC: AD 9C 00
   AND #$20                                            ; $A3BF: 29 20
-  BNE LA3C6                                           ; $A3C1: D0 03
-  JMP LA485                                           ; $A3C3: 4C 85 A4
-LA3C6:
-  JMP LA51C                                           ; $A3C6: 4C 1C A5
-LA3C9:
+  BNE @skip                                           ; $A3C1: D0 03
+  JMP Sub_A485                                           ; $A3C3: 4C 85 A4
+@skip:
+  JMP Sub_A51C                                           ; $A3C6: 4C 1C A5
+.endproc
+;===============================================================================
+; $A3C9: Sub_A3C9
+;===============================================================================
+.proc Sub_A3C9
+Sub_A3C9:
   LDA a:$008E                                         ; $A3C9: AD 8E 00
   STA a:$000C                                         ; $A3CC: 8D 0C 00
   LDA a:$008F                                         ; $A3CF: AD 8F 00
@@ -632,14 +683,19 @@ LA3C9:
   STA a:$000E                                         ; $A3D8: 8D 0E 00
   LDA a:$0091                                         ; $A3DB: AD 91 00
   STA a:$000F                                         ; $A3DE: 8D 0F 00
-LA3E1:
+.endproc
+;===============================================================================
+; $A3E1: Sub_A3E1
+;===============================================================================
+.proc Sub_A3E1
+Sub_A3E1:
   LDA a:$007E                                         ; $A3E1: AD 7E 00
-  BPL LA3E7                                           ; $A3E4: 10 01
+  BPL @skip                                           ; $A3E4: 10 01
   RTS                                                 ; $A3E6: 60
-LA3E7:
-  JSR LA604                                           ; $A3E7: 20 04 A6
+@skip:
+  JSR Sub_A604                                           ; $A3E7: 20 04 A6
   STY a:$001A                                         ; $A3EA: 8C 1A 00
-  JSR LA61F                                           ; $A3ED: 20 1F A6
+  JSR Sub_A61F                                           ; $A3ED: 20 1F A6
   LDA a:$001A                                         ; $A3F0: AD 1A 00
   CLC                                                 ; $A3F3: 18
   ADC #$02                                            ; $A3F4: 69 02
@@ -661,7 +717,7 @@ LA3E7:
   CLC                                                 ; $A416: 18
   ADC a:$0008                                         ; $A417: 6D 08 00
   STA a:$0005                                         ; $A41A: 8D 05 00
-LA41D:
+@loop:
   LDY a:$0005                                         ; $A41D: AC 05 00
   LDA ($00),Y                                         ; $A420: B1 00
   JSR LA545                                           ; $A422: 20 45 A5
@@ -670,30 +726,35 @@ LA41D:
   CLC                                                 ; $A42B: 18
   ADC #$10                                            ; $A42C: 69 10
   CMP #$F0                                            ; $A42E: C9 F0
-  BCC LA442                                           ; $A430: 90 10
+  BCC @skip_2                                           ; $A430: 90 10
   AND #$0F                                            ; $A432: 29 0F
   PHA                                                 ; $A434: 48
   LDA a:$0010                                         ; $A435: AD 10 00
-  JSR LA61F                                           ; $A438: 20 1F A6
+  JSR Sub_A61F                                           ; $A438: 20 1F A6
   INC a:$0007                                         ; $A43B: EE 07 00
   INC a:$0019                                         ; $A43E: EE 19 00
   PLA                                                 ; $A441: 68
-LA442:
+@skip_2:
   STA a:$0005                                         ; $A442: 8D 05 00
   INC a:$0006                                         ; $A445: EE 06 00
   LDA a:$0006                                         ; $A448: AD 06 00
   CMP #$10                                            ; $A44B: C9 10
-  BCC LA41D                                           ; $A44D: 90 CE
+  BCC @loop                                           ; $A44D: 90 CE
   LDA #$40                                            ; $A44F: A9 40
   STA a:$0000                                         ; $A451: 8D 00 00
   LDA #$01                                            ; $A454: A9 01
   STA a:$0001                                         ; $A456: 8D 01 00
-  JSR B17_18_BattleAttrAndHelpers                                           ; $A459: 20 9A A8
+  JSR BattleAttrAndHelpers                                           ; $A459: 20 9A A8
   LDA a:$007E                                         ; $A45C: AD 7E 00
   ORA #$80                                            ; $A45F: 09 80
   STA a:$007E                                         ; $A461: 8D 7E 00
   RTS                                                 ; $A464: 60
-LA465:
+.endproc
+;===============================================================================
+; $A465: Sub_A465
+;===============================================================================
+.proc Sub_A465
+Sub_A465:
   LDA a:$008E                                         ; $A465: AD 8E 00
   CLC                                                 ; $A468: 18
   ADC #$F8                                            ; $A469: 69 F8
@@ -705,8 +766,13 @@ LA465:
   STA a:$000E                                         ; $A479: 8D 0E 00
   LDA a:$0091                                         ; $A47C: AD 91 00
   STA a:$000F                                         ; $A47F: 8D 0F 00
-  JMP LA3E1                                           ; $A482: 4C E1 A3
-LA485:
+  JMP Sub_A3E1                                           ; $A482: 4C E1 A3
+.endproc
+;===============================================================================
+; $A485: Sub_A485
+;===============================================================================
+.proc Sub_A485
+Sub_A485:
   LDA a:$008E                                         ; $A485: AD 8E 00
   STA a:$000C                                         ; $A488: 8D 0C 00
   LDA a:$008F                                         ; $A48B: AD 8F 00
@@ -714,16 +780,21 @@ LA485:
   LDA a:$0091                                         ; $A491: AD 91 00
   STA a:$000F                                         ; $A494: 8D 0F 00
   LDA a:$0090                                         ; $A497: AD 90 00
-LA49A:
+.endproc
+;===============================================================================
+; $A49A: Sub_A49A
+;===============================================================================
+.proc Sub_A49A
+Sub_A49A:
   STA a:$000E                                         ; $A49A: 8D 0E 00
   LDA a:$007E                                         ; $A49D: AD 7E 00
   ASL A                                               ; $A4A0: 0A
-  BPL LA4A4                                           ; $A4A1: 10 01
+  BPL @skip                                           ; $A4A1: 10 01
   RTS                                                 ; $A4A3: 60
-LA4A4:
-  JSR LA604                                           ; $A4A4: 20 04 A6
+@skip:
+  JSR Sub_A604                                           ; $A4A4: 20 04 A6
   STY a:$001A                                         ; $A4A7: 8C 1A 00
-  JSR LA61F                                           ; $A4AA: 20 1F A6
+  JSR Sub_A61F                                           ; $A4AA: 20 1F A6
   LDY a:$001A                                         ; $A4AD: AC 1A 00
   INY                                                 ; $A4B0: C8
   LDA ($A8),Y                                         ; $A4B1: B1 A8
@@ -742,7 +813,7 @@ LA4A4:
   STA a:$0005                                         ; $A4CC: 8D 05 00
   LDX #$00                                            ; $A4CF: A2 00
   STX a:$0006                                         ; $A4D1: 8E 06 00
-LA4D4:
+@loop:
   LDY a:$0005                                         ; $A4D4: AC 05 00
   LDA ($00),Y                                         ; $A4D7: B1 00
   JSR LA5A5                                           ; $A4D9: 20 A5 A5
@@ -751,28 +822,33 @@ LA4D4:
   INC a:$0005                                         ; $A4E2: EE 05 00
   AND #$0F                                            ; $A4E5: 29 0F
   CMP #$0F                                            ; $A4E7: C9 0F
-  BNE LA4FC                                           ; $A4E9: D0 11
+  BNE @skip_2                                           ; $A4E9: D0 11
   LDA a:$0010                                         ; $A4EB: AD 10 00
-  JSR LA61F                                           ; $A4EE: 20 1F A6
+  JSR Sub_A61F                                           ; $A4EE: 20 1F A6
   DEC a:$0005                                         ; $A4F1: CE 05 00
   LDA a:$0005                                         ; $A4F4: AD 05 00
   AND #$F0                                            ; $A4F7: 29 F0
   STA a:$0005                                         ; $A4F9: 8D 05 00
-LA4FC:
+@skip_2:
   INC a:$0006                                         ; $A4FC: EE 06 00
   LDA a:$0006                                         ; $A4FF: AD 06 00
   CMP #$11                                            ; $A502: C9 11
-  BCC LA4D4                                           ; $A504: 90 CE
+  BCC @loop                                           ; $A504: 90 CE
   LDA #$64                                            ; $A506: A9 64
   STA a:$0000                                         ; $A508: 8D 00 00
   LDA #$01                                            ; $A50B: A9 01
   STA a:$0001                                         ; $A50D: 8D 01 00
-  JSR B17_18_BattleAttrAndHelpers                                           ; $A510: 20 9A A8
+  JSR BattleAttrAndHelpers                                           ; $A510: 20 9A A8
   LDA a:$007E                                         ; $A513: AD 7E 00
   ORA #$40                                            ; $A516: 09 40
   STA a:$007E                                         ; $A518: 8D 7E 00
   RTS                                                 ; $A51B: 60
-LA51C:
+.endproc
+;===============================================================================
+; $A51C: Sub_A51C
+;===============================================================================
+.proc Sub_A51C
+Sub_A51C:
   LDA a:$008E                                         ; $A51C: AD 8E 00
   STA a:$000C                                         ; $A51F: 8D 0C 00
   LDA a:$008F                                         ; $A522: AD 8F 00
@@ -783,13 +859,13 @@ LA51C:
   LDA a:$0090                                         ; $A531: AD 90 00
   CLC                                                 ; $A534: 18
   ADC #$F0                                            ; $A535: 69 F0
-  BCS LA53F                                           ; $A537: B0 06
+  BCS @skip                                           ; $A537: B0 06
   SEC                                                 ; $A539: 38
   SBC #$10                                            ; $A53A: E9 10
   DEC a:$000F                                         ; $A53C: CE 0F 00
-LA53F:
+@skip:
   STA a:$000E                                         ; $A53F: 8D 0E 00
-  JMP LA49A                                           ; $A542: 4C 9A A4
+  JMP Sub_A49A                                           ; $A542: 4C 9A A4
 LA545:
   JSR LA8FD                                           ; $A545: 20 FD A8
   LDY #$00                                            ; $A548: A0 00
@@ -804,39 +880,44 @@ LA545:
   LDA a:$0009                                         ; $A55C: AD 09 00
   ADC a:$0003                                         ; $A55F: 6D 03 00
   STA a:$0009                                         ; $A562: 8D 09 00
-LA565:
+.endproc
+;===============================================================================
+; $A565: Sub_A565
+;===============================================================================
+.proc Sub_A565
+Sub_A565:
   LDY #$00                                            ; $A565: A0 00
   LDA a:$000C                                         ; $A567: AD 0C 00
   AND #$08                                            ; $A56A: 29 08
-  BNE LA589                                           ; $A56C: D0 1B
+  BNE @skip_3                                           ; $A56C: D0 1B
   LDA a:$0006                                         ; $A56E: AD 06 00
-  BNE LA57A                                           ; $A571: D0 07
+  BNE @skip                                           ; $A571: D0 07
   LDA a:$000E                                         ; $A573: AD 0E 00
   AND #$08                                            ; $A576: 29 08
-  BNE LA580                                           ; $A578: D0 06
-LA57A:
+  BNE @skip_2                                           ; $A578: D0 06
+@skip:
   LDA ($08),Y                                         ; $A57A: B1 08
   STA $0142,X                                         ; $A57C: 9D 42 01
   INX                                                 ; $A57F: E8
-LA580:
+@skip_2:
   INY                                                 ; $A580: C8
   INY                                                 ; $A581: C8
   LDA ($08),Y                                         ; $A582: B1 08
   STA $0142,X                                         ; $A584: 9D 42 01
   INX                                                 ; $A587: E8
   RTS                                                 ; $A588: 60
-LA589:
+@skip_3:
   INY                                                 ; $A589: C8
   LDA a:$0006                                         ; $A58A: AD 06 00
-  BNE LA596                                           ; $A58D: D0 07
+  BNE @skip_4                                           ; $A58D: D0 07
   LDA a:$000E                                         ; $A58F: AD 0E 00
   AND #$08                                            ; $A592: 29 08
-  BNE LA59C                                           ; $A594: D0 06
-LA596:
+  BNE @skip_5                                           ; $A594: D0 06
+@skip_4:
   LDA ($08),Y                                         ; $A596: B1 08
   STA $0142,X                                         ; $A598: 9D 42 01
   INX                                                 ; $A59B: E8
-LA59C:
+@skip_5:
   INY                                                 ; $A59C: C8
   INY                                                 ; $A59D: C8
   LDA ($08),Y                                         ; $A59E: B1 08
@@ -857,45 +938,55 @@ LA5A5:
   LDA a:$0009                                         ; $A5BC: AD 09 00
   ADC a:$0003                                         ; $A5BF: 6D 03 00
   STA a:$0009                                         ; $A5C2: 8D 09 00
-LA5C5:
+.endproc
+;===============================================================================
+; $A5C5: Sub_A5C5
+;===============================================================================
+.proc Sub_A5C5
+Sub_A5C5:
   LDY #$00                                            ; $A5C5: A0 00
   LDA a:$000E                                         ; $A5C7: AD 0E 00
   AND #$08                                            ; $A5CA: 29 08
-  BNE LA5E8                                           ; $A5CC: D0 1A
+  BNE @skip_3                                           ; $A5CC: D0 1A
   LDA a:$0006                                         ; $A5CE: AD 06 00
-  BNE LA5DA                                           ; $A5D1: D0 07
+  BNE @skip                                           ; $A5D1: D0 07
   LDA a:$000C                                         ; $A5D3: AD 0C 00
   AND #$08                                            ; $A5D6: 29 08
-  BNE LA5E0                                           ; $A5D8: D0 06
-LA5DA:
+  BNE @skip_2                                           ; $A5D8: D0 06
+@skip:
   LDA ($08),Y                                         ; $A5DA: B1 08
   STA $0166,X                                         ; $A5DC: 9D 66 01
   INX                                                 ; $A5DF: E8
-LA5E0:
+@skip_2:
   INY                                                 ; $A5E0: C8
   LDA ($08),Y                                         ; $A5E1: B1 08
   STA $0166,X                                         ; $A5E3: 9D 66 01
   INX                                                 ; $A5E6: E8
   RTS                                                 ; $A5E7: 60
-LA5E8:
+@skip_3:
   INY                                                 ; $A5E8: C8
   INY                                                 ; $A5E9: C8
   LDA a:$0006                                         ; $A5EA: AD 06 00
-  BNE LA5F6                                           ; $A5ED: D0 07
+  BNE @skip_4                                           ; $A5ED: D0 07
   LDA a:$000C                                         ; $A5EF: AD 0C 00
   AND #$08                                            ; $A5F2: 29 08
-  BNE LA5FC                                           ; $A5F4: D0 06
-LA5F6:
+  BNE @skip_5                                           ; $A5F4: D0 06
+@skip_4:
   LDA ($08),Y                                         ; $A5F6: B1 08
   STA $0166,X                                         ; $A5F8: 9D 66 01
   INX                                                 ; $A5FB: E8
-LA5FC:
+@skip_5:
   INY                                                 ; $A5FC: C8
   LDA ($08),Y                                         ; $A5FD: B1 08
   STA $0166,X                                         ; $A5FF: 9D 66 01
   INX                                                 ; $A602: E8
   RTS                                                 ; $A603: 60
-LA604:
+.endproc
+;===============================================================================
+; $A604: Sub_A604
+;===============================================================================
+.proc Sub_A604
+Sub_A604:
   LDA a:$000F                                         ; $A604: AD 0F 00
   ASL A                                               ; $A607: 0A
   CLC                                                 ; $A608: 18
@@ -911,14 +1002,21 @@ LA610:
   TAY                                                 ; $A618: A8
   LDA ($A8),Y                                         ; $A619: B1 A8
   RTS                                                 ; $A61B: 60
+.endproc
 
 ;===============================================================================
-; $A61C: B17_18_BattleDispatch
+; $A61C: BattleDispatch
 ; Entry06: Battle dispatch (bank switch + pointer lookup)
 ;===============================================================================
-B17_18_BattleDispatch:
+.proc BattleDispatch
+BattleDispatch:
   LDA a:$0000                                         ; $A61C: AD 00 00
-LA61F:
+.endproc
+;===============================================================================
+; $A61F: Sub_A61F
+;===============================================================================
+.proc Sub_A61F
+Sub_A61F:
   PHA                                                 ; $A61F: 48
   ASL A                                               ; $A620: 0A
   TAY                                                 ; $A621: A8
@@ -936,6 +1034,7 @@ LA61F:
   TAY                                                 ; $A63D: A8
   JSR B1F_SwitchBank8_B                               ; $A63E: 20 5F F2
   RTS                                                 ; $A641: 60
+.endproc
 
 ;===============================================================================
 ; $A642: Battle screen tile data and PPU address tables
@@ -981,17 +1080,18 @@ LA61F:
   .byte $25,$25,$25,$25,$25,$25,$25,$25               ; $A892: 25 25 25 25 25 25 25 25
 
 ;===============================================================================
-; $A89A: B17_18_BattleAttrAndHelpers
+; $A89A: BattleAttrAndHelpers
 ; Battle attribute setup + helper subroutines
 ;===============================================================================
-B17_18_BattleAttrAndHelpers:
+.proc BattleAttrAndHelpers
+BattleAttrAndHelpers:
   LDY #$00                                            ; $A89A: A0 00
   LDA a:$000D                                         ; $A89C: AD 0D 00
   LDX #$20                                            ; $A89F: A2 20
   LSR A                                               ; $A8A1: 4A
-  BCS LA8A6                                           ; $A8A2: B0 02
+  BCS @skip                                           ; $A8A2: B0 02
   LDX #$20                                            ; $A8A4: A2 20
-LA8A6:
+@skip:
   TXA                                                 ; $A8A6: 8A
   STA ($00),Y                                         ; $A8A7: 91 00
   INY                                                 ; $A8A9: C8
@@ -1017,14 +1117,19 @@ LA8A6:
   ADC a:$000F                                         ; $A8CD: 6D 0F 00
   STA ($00),Y                                         ; $A8D0: 91 00
   RTS                                                 ; $A8D2: 60
-LA8D3:
+.endproc
+;===============================================================================
+; $A8D3: Sub_A8D3
+;===============================================================================
+.proc Sub_A8D3
+Sub_A8D3:
   LDY #$00                                            ; $A8D3: A0 00
   LDA a:$000D                                         ; $A8D5: AD 0D 00
   LDX #$23                                            ; $A8D8: A2 23
   LSR A                                               ; $A8DA: 4A
-  BCS LA8DF                                           ; $A8DB: B0 02
+  BCS @skip                                           ; $A8DB: B0 02
   LDX #$23                                            ; $A8DD: A2 23
-LA8DF:
+@skip:
   TXA                                                 ; $A8DF: 8A
   STA ($00),Y                                         ; $A8E0: 91 00
   INY                                                 ; $A8E2: C8
@@ -1050,18 +1155,18 @@ LA8FD:
   LDY a:$0019                                         ; $A8FE: AC 19 00
   LDA $0680,Y                                         ; $A901: B9 80 06
   CMP #$FF                                            ; $A904: C9 FF
-  BEQ LA91C                                           ; $A906: F0 14
+  BEQ @skip_2                                           ; $A906: F0 14
   TAY                                                 ; $A908: A8
   PLA                                                 ; $A909: 68
   PLA                                                 ; $A90A: 68
   PLA                                                 ; $A90B: 68
-  JSR LA986                                           ; $A90C: 20 86 A9
+  JSR Sub_A986                                           ; $A90C: 20 86 A9
   LDA #$B0                                            ; $A90F: A9 B0
   STA a:$0008                                         ; $A911: 8D 08 00
   LDA #$01                                            ; $A914: A9 01
   STA a:$0009                                         ; $A916: 8D 09 00
-  JMP LA565                                           ; $A919: 4C 65 A5
-LA91C:
+  JMP Sub_A565                                           ; $A919: 4C 65 A5
+@skip_2:
   PLA                                                 ; $A91C: 68
   RTS                                                 ; $A91D: 60
 LA91E:
@@ -1069,89 +1174,96 @@ LA91E:
   LDY a:$0018                                         ; $A91F: AC 18 00
   LDA $0680,Y                                         ; $A922: B9 80 06
   CMP #$FF                                            ; $A925: C9 FF
-  BEQ LA93D                                           ; $A927: F0 14
+  BEQ @skip_3                                           ; $A927: F0 14
   TAY                                                 ; $A929: A8
   PLA                                                 ; $A92A: 68
   PLA                                                 ; $A92B: 68
   PLA                                                 ; $A92C: 68
-  JSR LA986                                           ; $A92D: 20 86 A9
+  JSR Sub_A986                                           ; $A92D: 20 86 A9
   LDA #$B0                                            ; $A930: A9 B0
   STA a:$0008                                         ; $A932: 8D 08 00
   LDA #$01                                            ; $A935: A9 01
   STA a:$0009                                         ; $A937: 8D 09 00
-  JMP LA5C5                                           ; $A93A: 4C C5 A5
-LA93D:
+  JMP Sub_A5C5                                           ; $A93A: 4C C5 A5
+@skip_3:
   PLA                                                 ; $A93D: 68
   RTS                                                 ; $A93E: 60
 LA93F:
-  JSR LAB26                                           ; $A93F: 20 26 AB
+  JSR Sub_AB26                                           ; $A93F: 20 26 AB
   LDY #$3F                                            ; $A942: A0 3F
   LDA #$FF                                            ; $A944: A9 FF
-LA946:
+@loop:
   STA $0680,Y                                         ; $A946: 99 80 06
   DEY                                                 ; $A949: 88
-  BPL LA946                                           ; $A94A: 10 FA
+  BPL @loop                                           ; $A94A: 10 FA
   LDY #$13                                            ; $A94C: A0 13
-LA94E:
+@loop_2:
   LDA $0600,Y                                         ; $A94E: B9 00 06
   CMP a:$0018                                         ; $A951: CD 18 00
-  BNE LA95D                                           ; $A954: D0 07
+  BNE @skip_4                                           ; $A954: D0 07
   LDX $0614,Y                                         ; $A956: BE 14 06
   TYA                                                 ; $A959: 98
   STA $0680,X                                         ; $A95A: 9D 80 06
-LA95D:
+@skip_4:
   DEY                                                 ; $A95D: 88
-  BPL LA94E                                           ; $A95E: 10 EE
+  BPL @loop_2                                           ; $A95E: 10 EE
   RTS                                                 ; $A960: 60
 LA961:
-  JSR LAB26                                           ; $A961: 20 26 AB
+  JSR Sub_AB26                                           ; $A961: 20 26 AB
   LDY #$3F                                            ; $A964: A0 3F
   LDA #$FF                                            ; $A966: A9 FF
-LA968:
+@loop_3:
   STA $0680,Y                                         ; $A968: 99 80 06
   DEY                                                 ; $A96B: 88
-  BPL LA968                                           ; $A96C: 10 FA
+  BPL @loop_3                                           ; $A96C: 10 FA
   LDY #$13                                            ; $A96E: A0 13
-LA970:
+@loop_4:
   LDA $0614,Y                                         ; $A970: B9 14 06
   CMP a:$0019                                         ; $A973: CD 19 00
-  BNE LA97F                                           ; $A976: D0 07
+  BNE @skip_5                                           ; $A976: D0 07
   LDX $0600,Y                                         ; $A978: BE 00 06
   TYA                                                 ; $A97B: 98
   STA $0680,X                                         ; $A97C: 9D 80 06
-LA97F:
+@skip_5:
   DEY                                                 ; $A97F: 88
-  BPL LA970                                           ; $A980: 10 EE
+  BPL @loop_4                                           ; $A980: 10 EE
   RTS                                                 ; $A982: 60
+.endproc
 
 ;===============================================================================
-; $A983: B17_18_AdvisorDialogue
+; $A983: AdvisorDialogue
 ; Entry08: Advisor/council dialogue system
 ;===============================================================================
-B17_18_AdvisorDialogue:
+.proc AdvisorDialogue
+AdvisorDialogue:
   LDY a:$0000                                         ; $A983: AC 00 00
-LA986:
+.endproc
+;===============================================================================
+; $A986: Sub_A986
+;===============================================================================
+.proc Sub_A986
+Sub_A986:
   TYA                                                 ; $A986: 98
   PHA                                                 ; $A987: 48
   LDA $0507                                           ; $A988: AD 07 05
   PHA                                                 ; $A98B: 48
   LDA $0628,Y                                         ; $A98C: B9 28 06
-  BPL LA997                                           ; $A98F: 10 06
+  BPL @skip                                           ; $A98F: 10 06
   PLA                                                 ; $A991: 68
   LSR A                                               ; $A992: 4A
   LSR A                                               ; $A993: 4A
   LSR A                                               ; $A994: 4A
   LSR A                                               ; $A995: 4A
   PHA                                                 ; $A996: 48
-LA997:
+@skip:
   PLA                                                 ; $A997: 68
   AND #$0F                                            ; $A998: 29 0F
   JSR LA9A8                                           ; $A99A: 20 A8 A9
   CMP #$00                                            ; $A99D: C9 00
-  BEQ LA9C4                                           ; $A99F: F0 23
+  BEQ @skip_2                                           ; $A99F: F0 23
   CMP #$01                                            ; $A9A1: C9 01
-  BEQ LAA24                                           ; $A9A3: F0 7F
-  JMP LAA84                                           ; $A9A5: 4C 84 AA
+  BEQ @skip_7                                           ; $A9A3: F0 7F
+  JMP @skip_12                                           ; $A9A5: 4C 84 AA
 LA9A8:
   TAY                                                 ; $A9A8: A8
   LDA a:$0000                                         ; $A9A9: AD 00 00
@@ -1169,7 +1281,7 @@ LA9A8:
   STA a:$0000                                         ; $A9BF: 8D 00 00
   TYA                                                 ; $A9C2: 98
   RTS                                                 ; $A9C3: 60
-LA9C4:
+@skip_2:
   PLA                                                 ; $A9C4: 68
   TAY                                                 ; $A9C5: A8
   PHA                                                 ; $A9C6: 48
@@ -1181,43 +1293,43 @@ LA9C4:
   STA $01B1                                           ; $A9D4: 8D B1 01
   PLA                                                 ; $A9D7: 68
   TAY                                                 ; $A9D8: A8
-  BEQ LA9DF                                           ; $A9D9: F0 04
+  BEQ @skip_3                                           ; $A9D9: F0 04
   CMP #$0A                                            ; $A9DB: C9 0A
-  BNE LA9F5                                           ; $A9DD: D0 16
-LA9DF:
+  BNE @skip_4                                           ; $A9DD: D0 16
+@skip_3:
   LDA #$BB                                            ; $A9DF: A9 BB
   STA $01B0                                           ; $A9E1: 8D B0 01
   LDA $063C,Y                                         ; $A9E4: B9 3C 06
   CMP #$0A                                            ; $A9E7: C9 0A
-  BNE LA9F5                                           ; $A9E9: D0 0A
+  BNE @skip_4                                           ; $A9E9: D0 0A
   LDA #$BA                                            ; $A9EB: A9 BA
   STA $01B0                                           ; $A9ED: 8D B0 01
   LDA #$AB                                            ; $A9F0: A9 AB
   STA $01B1                                           ; $A9F2: 8D B1 01
-LA9F5:
+@skip_4:
   LDA #$AE                                            ; $A9F5: A9 AE
   STA $01B2                                           ; $A9F7: 8D B2 01
   LDA #$AF                                            ; $A9FA: A9 AF
   STA $01B3                                           ; $A9FC: 8D B3 01
   LDA $0628,Y                                         ; $A9FF: B9 28 06
   AND #$03                                            ; $AA02: 29 03
-  BNE LAA10                                           ; $AA04: D0 0A
+  BNE @skip_5                                           ; $AA04: D0 0A
   LDA #$BD                                            ; $AA06: A9 BD
   STA $01B2                                           ; $AA08: 8D B2 01
   LDA #$BE                                            ; $AA0B: A9 BE
   STA $01B3                                           ; $AA0D: 8D B3 01
-LAA10:
+@skip_5:
   LDA $0628,Y                                         ; $AA10: B9 28 06
   AND #$03                                            ; $AA13: 29 03
   CMP #$01                                            ; $AA15: C9 01
-  BNE LAA23                                           ; $AA17: D0 0A
+  BNE @skip_6                                           ; $AA17: D0 0A
   LDA #$AC                                            ; $AA19: A9 AC
   STA $01B2                                           ; $AA1B: 8D B2 01
   LDA #$AD                                            ; $AA1E: A9 AD
   STA $01B3                                           ; $AA20: 8D B3 01
-LAA23:
+@skip_6:
   RTS                                                 ; $AA23: 60
-LAA24:
+@skip_7:
   PLA                                                 ; $AA24: 68
   TAY                                                 ; $AA25: A8
   PHA                                                 ; $AA26: 48
@@ -1229,43 +1341,43 @@ LAA24:
   STA $01B1                                           ; $AA34: 8D B1 01
   PLA                                                 ; $AA37: 68
   TAY                                                 ; $AA38: A8
-  BEQ LAA3F                                           ; $AA39: F0 04
+  BEQ @skip_8                                           ; $AA39: F0 04
   CPY #$0A                                            ; $AA3B: C0 0A
-  BNE LAA55                                           ; $AA3D: D0 16
-LAA3F:
+  BNE @skip_9                                           ; $AA3D: D0 16
+@skip_8:
   LDA #$B1                                            ; $AA3F: A9 B1
   STA $01B0                                           ; $AA41: 8D B0 01
   LDA $063C,Y                                         ; $AA44: B9 3C 06
   CMP #$0A                                            ; $AA47: C9 0A
-  BNE LAA55                                           ; $AA49: D0 0A
+  BNE @skip_9                                           ; $AA49: D0 0A
   LDA #$B0                                            ; $AA4B: A9 B0
   STA $01B0                                           ; $AA4D: 8D B0 01
   LDA #$8B                                            ; $AA50: A9 8B
   STA $01B1                                           ; $AA52: 8D B1 01
-LAA55:
+@skip_9:
   LDA #$8C                                            ; $AA55: A9 8C
   STA $01B2                                           ; $AA57: 8D B2 01
   LDA #$8D                                            ; $AA5A: A9 8D
   STA $01B3                                           ; $AA5C: 8D B3 01
   LDA $0628,Y                                         ; $AA5F: B9 28 06
   AND #$03                                            ; $AA62: 29 03
-  BNE LAA70                                           ; $AA64: D0 0A
+  BNE @skip_10                                           ; $AA64: D0 0A
   LDA #$B3                                            ; $AA66: A9 B3
   STA $01B2                                           ; $AA68: 8D B2 01
   LDA #$B4                                            ; $AA6B: A9 B4
   STA $01B3                                           ; $AA6D: 8D B3 01
-LAA70:
+@skip_10:
   LDA $0628,Y                                         ; $AA70: B9 28 06
   AND #$03                                            ; $AA73: 29 03
   CMP #$02                                            ; $AA75: C9 02
-  BNE LAA83                                           ; $AA77: D0 0A
+  BNE @skip_11                                           ; $AA77: D0 0A
   LDA #$8E                                            ; $AA79: A9 8E
   STA $01B2                                           ; $AA7B: 8D B2 01
   LDA #$8F                                            ; $AA7E: A9 8F
   STA $01B3                                           ; $AA80: 8D B3 01
-LAA83:
+@skip_11:
   RTS                                                 ; $AA83: 60
-LAA84:
+@skip_12:
   PLA                                                 ; $AA84: 68
   TAY                                                 ; $AA85: A8
   PHA                                                 ; $AA86: 48
@@ -1277,48 +1389,53 @@ LAA84:
   STA $01B1                                           ; $AA94: 8D B1 01
   PLA                                                 ; $AA97: 68
   TAY                                                 ; $AA98: A8
-  BEQ LAA9F                                           ; $AA99: F0 04
+  BEQ @skip_13                                           ; $AA99: F0 04
   CPY #$0A                                            ; $AA9B: C0 0A
-  BNE LAAB5                                           ; $AA9D: D0 16
-LAA9F:
+  BNE @skip_14                                           ; $AA9D: D0 16
+@skip_13:
   LDA #$B6                                            ; $AA9F: A9 B6
   STA $01B0                                           ; $AAA1: 8D B0 01
   LDA $063C,Y                                         ; $AAA4: B9 3C 06
   CMP #$0A                                            ; $AAA7: C9 0A
-  BNE LAAB5                                           ; $AAA9: D0 0A
+  BNE @skip_14                                           ; $AAA9: D0 0A
   LDA #$B5                                            ; $AAAB: A9 B5
   STA $01B0                                           ; $AAAD: 8D B0 01
   LDA #$9B                                            ; $AAB0: A9 9B
   STA $01B1                                           ; $AAB2: 8D B1 01
-LAAB5:
+@skip_14:
   LDA #$9C                                            ; $AAB5: A9 9C
   STA $01B2                                           ; $AAB7: 8D B2 01
   LDA #$9D                                            ; $AABA: A9 9D
   STA $01B3                                           ; $AABC: 8D B3 01
   LDA $0628,Y                                         ; $AABF: B9 28 06
   AND #$03                                            ; $AAC2: 29 03
-  BNE LAAD0                                           ; $AAC4: D0 0A
+  BNE @skip_15                                           ; $AAC4: D0 0A
   LDA #$B8                                            ; $AAC6: A9 B8
   STA $01B2                                           ; $AAC8: 8D B2 01
   LDA #$B9                                            ; $AACB: A9 B9
   STA $01B3                                           ; $AACD: 8D B3 01
-LAAD0:
+@skip_15:
   LDA $0628,Y                                         ; $AAD0: B9 28 06
   AND #$03                                            ; $AAD3: 29 03
   CMP #$02                                            ; $AAD5: C9 02
-  BNE LAAE3                                           ; $AAD7: D0 0A
+  BNE @skip_16                                           ; $AAD7: D0 0A
   LDA #$9E                                            ; $AAD9: A9 9E
   STA $01B2                                           ; $AADB: 8D B2 01
   LDA #$9F                                            ; $AADE: A9 9F
   STA $01B3                                           ; $AAE0: 8D B3 01
-LAAE3:
+@skip_16:
   RTS                                                 ; $AAE3: 60
+.endproc
   .byte $BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$AA,$A0,$A1,$A2,$A3,$A4; $AAE4: BC BC BC BC BC BC BC BC BC BC AA A0 A1 A2 A3 A4
   .byte $A5,$A6,$A7,$A8,$A9,$AB,$B2,$B2,$B2,$B2,$B2,$B2,$B2,$B2,$B2,$B2; $AAF4: A5 A6 A7 A8 A9 AB B2 B2 B2 B2 B2 B2 B2 B2 B2 B2
   .byte $8A,$80,$81,$82,$83,$84,$85,$86,$87,$88,$89,$8B,$B7,$B7,$B7,$B7; $AB04: 8A 80 81 82 83 84 85 86 87 88 89 8B B7 B7 B7 B7
   .byte $B7,$B7,$B7,$B7,$B7,$B7,$9A,$90,$91,$92,$93,$94,$95,$96,$97,$98; $AB14: B7 B7 B7 B7 B7 B7 9A 90 91 92 93 94 95 96 97 98
   .byte $99,$9B                                       ; $AB24: 99 9B
-LAB26:
+;===============================================================================
+; $AB26: Sub_AB26
+;===============================================================================
+.proc Sub_AB26
+Sub_AB26:
   LDA a:$000C                                         ; $AB26: AD 0C 00
   STA a:$0018                                         ; $AB29: 8D 18 00
   LDA a:$000D                                         ; $AB2C: AD 0D 00
@@ -1336,12 +1453,14 @@ LAB26:
   LSR a:$0019                                         ; $AB4C: 4E 19 00
   LSR a:$0019                                         ; $AB4F: 4E 19 00
   RTS                                                 ; $AB52: 60
+.endproc
 
 ;===============================================================================
-; $AB53: B17_18_BattleEffects
+; $AB53: BattleEffects
 ; Entry05: Battle visual effects (animations, palette, sprites)
 ;===============================================================================
-B17_18_BattleEffects:
+.proc BattleEffects
+BattleEffects:
   LDA a:$008E                                         ; $AB53: AD 8E 00
   SEC                                                 ; $AB56: 38
   SBC #$06                                            ; $AB57: E9 06
@@ -1349,37 +1468,37 @@ B17_18_BattleEffects:
   LSR A                                               ; $AB5A: 4A
   LSR A                                               ; $AB5B: 4A
   CMP a:$0095                                         ; $AB5C: CD 95 00
-  BEQ LAB68                                           ; $AB5F: F0 07
+  BEQ @skip                                           ; $AB5F: F0 07
   STA a:$0095                                         ; $AB61: 8D 95 00
   JSR LAB7B                                           ; $AB64: 20 7B AB
   RTS                                                 ; $AB67: 60
-LAB68:
+@skip:
   LDA a:$0090                                         ; $AB68: AD 90 00
   LSR A                                               ; $AB6B: 4A
   LSR A                                               ; $AB6C: 4A
   LSR A                                               ; $AB6D: 4A
   LSR A                                               ; $AB6E: 4A
   CMP a:$0094                                         ; $AB6F: CD 94 00
-  BEQ LAB7A                                           ; $AB72: F0 06
+  BEQ @skip_2                                           ; $AB72: F0 06
   STA a:$0094                                         ; $AB74: 8D 94 00
   JSR LAB87                                           ; $AB77: 20 87 AB
-LAB7A:
+@skip_2:
   RTS                                                 ; $AB7A: 60
 LAB7B:
   LDA a:$009C                                         ; $AB7B: AD 9C 00
   ASL A                                               ; $AB7E: 0A
-  BMI LAB84                                           ; $AB7F: 30 03
-  JMP LAD69                                           ; $AB81: 4C 69 AD
-LAB84:
-  JMP LAB94                                           ; $AB84: 4C 94 AB
+  BMI @skip_3                                           ; $AB7F: 30 03
+  JMP @skip_14                                           ; $AB81: 4C 69 AD
+@skip_3:
+  JMP @skip_5                                           ; $AB84: 4C 94 AB
 LAB87:
   LDA a:$009C                                         ; $AB87: AD 9C 00
   AND #$10                                            ; $AB8A: 29 10
-  BEQ LAB91                                           ; $AB8C: F0 03
-  JMP LAD9F                                           ; $AB8E: 4C 9F AD
-LAB91:
-  JMP LAEB5                                           ; $AB91: 4C B5 AE
-LAB94:
+  BEQ @skip_4                                           ; $AB8C: F0 03
+  JMP Sub_AD9F                                           ; $AB8E: 4C 9F AD
+@skip_4:
+  JMP Sub_AEB5                                           ; $AB91: 4C B5 AE
+@skip_5:
   LDA a:$008E                                         ; $AB94: AD 8E 00
   STA a:$000C                                         ; $AB97: 8D 0C 00
   LDA a:$008F                                         ; $AB9A: AD 8F 00
@@ -1397,10 +1516,10 @@ LAB94:
   STA a:$001E                                         ; $ABBE: 8D 1E 00
   LDA a:$0091                                         ; $ABC1: AD 91 00
   STA a:$001F                                         ; $ABC4: 8D 1F 00
-LABC7:
-  JSR LA604                                           ; $ABC7: 20 04 A6
+@loop:
+  JSR Sub_A604                                           ; $ABC7: 20 04 A6
   STY a:$000A                                         ; $ABCA: 8C 0A 00
-  JSR LAEF3                                           ; $ABCD: 20 F3 AE
+  JSR Sub_AEF3                                           ; $ABCD: 20 F3 AE
   LDA a:$000A                                         ; $ABD0: AD 0A 00
   CLC                                                 ; $ABD3: 18
   ADC #$02                                            ; $ABD4: 69 02
@@ -1409,7 +1528,7 @@ LABC7:
   STA a:$000A                                         ; $ABD9: 8D 0A 00
   JSR LA610                                           ; $ABDC: 20 10 A6
   STY a:$001A                                         ; $ABDF: 8C 1A 00
-  JSR LAF0C                                           ; $ABE2: 20 0C AF
+  JSR Sub_AF0C                                           ; $ABE2: 20 0C AF
   LDA a:$001A                                         ; $ABE5: AD 1A 00
   CLC                                                 ; $ABE8: 18
   ADC #$02                                            ; $ABE9: 69 02
@@ -1438,9 +1557,9 @@ LABC7:
   STA a:$0007                                         ; $AC16: 8D 07 00
   LDA a:$000E                                         ; $AC19: AD 0E 00
   AND #$10                                            ; $AC1C: 29 10
-  BEQ LAC23                                           ; $AC1E: F0 03
+  BEQ @loop_2                                           ; $AC1E: F0 03
   INC a:$0007                                         ; $AC20: EE 07 00
-LAC23:
+@loop_2:
   LDY a:$0005                                         ; $AC23: AC 05 00
   LDA ($00),Y                                         ; $AC26: B1 00
   STA a:$0002                                         ; $AC28: 8D 02 00
@@ -1456,25 +1575,25 @@ LAC23:
   CLC                                                 ; $AC45: 18
   ADC #$08                                            ; $AC46: 69 08
   CMP #$40                                            ; $AC48: C9 40
-  BCC LAC5C                                           ; $AC4A: 90 10
+  BCC @skip_6                                           ; $AC4A: 90 10
   AND #$07                                            ; $AC4C: 29 07
   PHA                                                 ; $AC4E: 48
   LDA a:$000A                                         ; $AC4F: AD 0A 00
-  JSR LAEF3                                           ; $AC52: 20 F3 AE
+  JSR Sub_AEF3                                           ; $AC52: 20 F3 AE
   LDA a:$001A                                         ; $AC55: AD 1A 00
-  JSR LAF0C                                           ; $AC58: 20 0C AF
+  JSR Sub_AF0C                                           ; $AC58: 20 0C AF
   PLA                                                 ; $AC5B: 68
-LAC5C:
+@skip_6:
   STA a:$0005                                         ; $AC5C: 8D 05 00
   INC a:$0006                                         ; $AC5F: EE 06 00
   LDA a:$0006                                         ; $AC62: AD 06 00
   CMP a:$0007                                         ; $AC65: CD 07 00
-  BCC LAC23                                           ; $AC68: 90 B9
+  BCC @loop_2                                           ; $AC68: 90 B9
   LDA #$88                                            ; $AC6A: A9 88
   STA a:$0000                                         ; $AC6C: 8D 00 00
   LDA #$01                                            ; $AC6F: A9 01
   STA a:$0001                                         ; $AC71: 8D 01 00
-  JSR LA8D3                                           ; $AC74: 20 D3 A8
+  JSR Sub_A8D3                                           ; $AC74: 20 D3 A8
   LDA a:$007E                                         ; $AC77: AD 7E 00
   ORA #$20                                            ; $AC7A: 09 20
   STA a:$007E                                         ; $AC7C: 8D 7E 00
@@ -1482,16 +1601,16 @@ LAC5C:
 LAC80:
   LDA a:$009C                                         ; $AC80: AD 9C 00
   ASL A                                               ; $AC83: 0A
-  BPL LACF4                                           ; $AC84: 10 6E
+  BPL @skip_10                                           ; $AC84: 10 6E
   LDA a:$000C                                         ; $AC86: AD 0C 00
   AND #$10                                            ; $AC89: 29 10
-  BNE LACB8                                           ; $AC8B: D0 2B
+  BNE @skip_8                                           ; $AC8B: D0 2B
   LDA a:$0006                                         ; $AC8D: AD 06 00
   CMP #$08                                            ; $AC90: C9 08
-  BNE LACB0                                           ; $AC92: D0 1C
+  BNE @skip_7                                           ; $AC92: D0 1C
   LDA a:$000E                                         ; $AC94: AD 0E 00
   AND #$10                                            ; $AC97: 29 10
-  BEQ LACB0                                           ; $AC99: F0 15
+  BEQ @skip_7                                           ; $AC99: F0 15
   LDA $018A                                           ; $AC9B: AD 8A 01
   AND #$F0                                            ; $AC9E: 29 F0
   STA $018A                                           ; $ACA0: 8D 8A 01
@@ -1501,15 +1620,15 @@ LAC80:
   STA $018A                                           ; $ACAB: 8D 8A 01
   INX                                                 ; $ACAE: E8
   RTS                                                 ; $ACAF: 60
-LACB0:
+@skip_7:
   LDA a:$0002                                         ; $ACB0: AD 02 00
   STA $018A,X                                         ; $ACB3: 9D 8A 01
   INX                                                 ; $ACB6: E8
   RTS                                                 ; $ACB7: 60
-LACB8:
+@skip_8:
   LDA a:$0006                                         ; $ACB8: AD 06 00
   CMP #$08                                            ; $ACBB: C9 08
-  BNE LACDF                                           ; $ACBD: D0 20
+  BNE @skip_9                                           ; $ACBD: D0 20
   LDA $018A                                           ; $ACBF: AD 8A 01
   AND #$F0                                            ; $ACC2: 29 F0
   STA $018A                                           ; $ACC4: 8D 8A 01
@@ -1523,7 +1642,7 @@ LACB8:
   STA $018A                                           ; $ACDA: 8D 8A 01
   INX                                                 ; $ACDD: E8
   RTS                                                 ; $ACDE: 60
-LACDF:
+@skip_9:
   LDA a:$0002                                         ; $ACDF: AD 02 00
   AND #$CC                                            ; $ACE2: 29 CC
   STA a:$0002                                         ; $ACE4: 8D 02 00
@@ -1533,16 +1652,16 @@ LACDF:
   STA $018A,X                                         ; $ACEF: 9D 8A 01
   INX                                                 ; $ACF2: E8
   RTS                                                 ; $ACF3: 60
-LACF4:
+@skip_10:
   LDA a:$000C                                         ; $ACF4: AD 0C 00
   AND #$10                                            ; $ACF7: 29 10
-  BEQ LAD26                                           ; $ACF9: F0 2B
+  BEQ @skip_12                                           ; $ACF9: F0 2B
   LDA a:$0006                                         ; $ACFB: AD 06 00
   CMP #$08                                            ; $ACFE: C9 08
-  BNE LAD1E                                           ; $AD00: D0 1C
+  BNE @skip_11                                           ; $AD00: D0 1C
   LDA a:$000E                                         ; $AD02: AD 0E 00
   AND #$10                                            ; $AD05: 29 10
-  BEQ LAD1E                                           ; $AD07: F0 15
+  BEQ @skip_11                                           ; $AD07: F0 15
   LDA $018A                                           ; $AD09: AD 8A 01
   AND #$F0                                            ; $AD0C: 29 F0
   STA $018A                                           ; $AD0E: 8D 8A 01
@@ -1552,18 +1671,18 @@ LACF4:
   STA $018A                                           ; $AD19: 8D 8A 01
   INX                                                 ; $AD1C: E8
   RTS                                                 ; $AD1D: 60
-LAD1E:
+@skip_11:
   LDA a:$0002                                         ; $AD1E: AD 02 00
   STA $018A,X                                         ; $AD21: 9D 8A 01
   INX                                                 ; $AD24: E8
   RTS                                                 ; $AD25: 60
-LAD26:
+@skip_12:
   LDA a:$0006                                         ; $AD26: AD 06 00
   CMP #$08                                            ; $AD29: C9 08
-  BNE LAD54                                           ; $AD2B: D0 27
+  BNE @skip_13                                           ; $AD2B: D0 27
   LDA a:$000E                                         ; $AD2D: AD 0E 00
   AND #$10                                            ; $AD30: 29 10
-  BEQ LAD54                                           ; $AD32: F0 20
+  BEQ @skip_13                                           ; $AD32: F0 20
   LDA $018A                                           ; $AD34: AD 8A 01
   AND #$F0                                            ; $AD37: 29 F0
   STA $018A                                           ; $AD39: 8D 8A 01
@@ -1577,7 +1696,7 @@ LAD26:
   STA $018A                                           ; $AD4F: 8D 8A 01
   INX                                                 ; $AD52: E8
   RTS                                                 ; $AD53: 60
-LAD54:
+@skip_13:
   LDA a:$0002                                         ; $AD54: AD 02 00
   AND #$33                                            ; $AD57: 29 33
   STA a:$0002                                         ; $AD59: 8D 02 00
@@ -1587,7 +1706,7 @@ LAD54:
   STA $018A,X                                         ; $AD64: 9D 8A 01
   INX                                                 ; $AD67: E8
   RTS                                                 ; $AD68: 60
-LAD69:
+@skip_14:
   LDA a:$008E                                         ; $AD69: AD 8E 00
   STA a:$000C                                         ; $AD6C: 8D 0C 00
   LDA a:$008F                                         ; $AD6F: AD 8F 00
@@ -1605,8 +1724,13 @@ LAD69:
   STA a:$001E                                         ; $AD93: 8D 1E 00
   LDA a:$0091                                         ; $AD96: AD 91 00
   STA a:$001F                                         ; $AD99: 8D 1F 00
-  JMP LABC7                                           ; $AD9C: 4C C7 AB
-LAD9F:
+  JMP @loop                                           ; $AD9C: 4C C7 AB
+.endproc
+;===============================================================================
+; $AD9F: Sub_AD9F
+;===============================================================================
+.proc Sub_AD9F
+Sub_AD9F:
   LDA a:$008E                                         ; $AD9F: AD 8E 00
   CLC                                                 ; $ADA2: 18
   ADC #$04                                            ; $ADA3: 69 04
@@ -1618,10 +1742,15 @@ LAD9F:
   STA a:$000E                                         ; $ADB3: 8D 0E 00
   LDA a:$0091                                         ; $ADB6: AD 91 00
   STA a:$000F                                         ; $ADB9: 8D 0F 00
-LADBC:
-  JSR LA604                                           ; $ADBC: 20 04 A6
+.endproc
+;===============================================================================
+; $ADBC: Sub_ADBC
+;===============================================================================
+.proc Sub_ADBC
+Sub_ADBC:
+  JSR Sub_A604                                           ; $ADBC: 20 04 A6
   STY a:$000A                                         ; $ADBF: 8C 0A 00
-  JSR LAEF3                                           ; $ADC2: 20 F3 AE
+  JSR Sub_AEF3                                           ; $ADC2: 20 F3 AE
   LDY a:$000A                                         ; $ADC5: AC 0A 00
   INY                                                 ; $ADC8: C8
   LDA ($A8),Y                                         ; $ADC9: B1 A8
@@ -1648,9 +1777,9 @@ LADBC:
   STA a:$0007                                         ; $ADF3: 8D 07 00
   LDA a:$000C                                         ; $ADF6: AD 0C 00
   AND #$10                                            ; $ADF9: 29 10
-  BEQ LAE00                                           ; $ADFB: F0 03
+  BEQ @loop                                           ; $ADFB: F0 03
   INC a:$0007                                         ; $ADFD: EE 07 00
-LAE00:
+@loop:
   LDY a:$0005                                         ; $AE00: AC 05 00
   LDA ($00),Y                                         ; $AE03: B1 00
   STA a:$0002                                         ; $AE05: 8D 02 00
@@ -1664,23 +1793,23 @@ LAE00:
   INC a:$0005                                         ; $AE1D: EE 05 00
   AND #$07                                            ; $AE20: 29 07
   CMP #$07                                            ; $AE22: C9 07
-  BNE LAE37                                           ; $AE24: D0 11
+  BNE @skip                                           ; $AE24: D0 11
   LDA a:$000A                                         ; $AE26: AD 0A 00
-  JSR LAEF3                                           ; $AE29: 20 F3 AE
+  JSR Sub_AEF3                                           ; $AE29: 20 F3 AE
   DEC a:$0005                                         ; $AE2C: CE 05 00
   LDA a:$0005                                         ; $AE2F: AD 05 00
   AND #$F8                                            ; $AE32: 29 F8
   STA a:$0005                                         ; $AE34: 8D 05 00
-LAE37:
+@skip:
   INC a:$0006                                         ; $AE37: EE 06 00
   LDA a:$0006                                         ; $AE3A: AD 06 00
   CMP a:$0007                                         ; $AE3D: CD 07 00
-  BCC LAE00                                           ; $AE40: 90 BE
+  BCC @loop                                           ; $AE40: 90 BE
   LDA #$9C                                            ; $AE42: A9 9C
   STA a:$0000                                         ; $AE44: 8D 00 00
   LDA #$01                                            ; $AE47: A9 01
   STA a:$0001                                         ; $AE49: 8D 01 00
-  JSR LA8D3                                           ; $AE4C: 20 D3 A8
+  JSR Sub_A8D3                                           ; $AE4C: 20 D3 A8
   LDA a:$007E                                         ; $AE4F: AD 7E 00
   ORA #$10                                            ; $AE52: 09 10
   STA a:$007E                                         ; $AE54: 8D 7E 00
@@ -1688,13 +1817,13 @@ LAE37:
 LAE58:
   LDA a:$009C                                         ; $AE58: AD 9C 00
   AND #$10                                            ; $AE5B: 29 10
-  BEQ LAE8A                                           ; $AE5D: F0 2B
+  BEQ @skip_3                                           ; $AE5D: F0 2B
   LDA a:$0006                                         ; $AE5F: AD 06 00
   CMP #$08                                            ; $AE62: C9 08
-  BNE LAE82                                           ; $AE64: D0 1C
+  BNE @skip_2                                           ; $AE64: D0 1C
   LDA a:$000C                                         ; $AE66: AD 0C 00
   AND #$10                                            ; $AE69: 29 10
-  BEQ LAE82                                           ; $AE6B: F0 15
+  BEQ @skip_2                                           ; $AE6B: F0 15
   LDA $019E                                           ; $AE6D: AD 9E 01
   AND #$CC                                            ; $AE70: 29 CC
   STA $019E                                           ; $AE72: 8D 9E 01
@@ -1704,18 +1833,18 @@ LAE58:
   STA $019E                                           ; $AE7D: 8D 9E 01
   INX                                                 ; $AE80: E8
   RTS                                                 ; $AE81: 60
-LAE82:
+@skip_2:
   LDA a:$0002                                         ; $AE82: AD 02 00
   STA $019E,X                                         ; $AE85: 9D 9E 01
   INX                                                 ; $AE88: E8
   RTS                                                 ; $AE89: 60
-LAE8A:
+@skip_3:
   LDA a:$0006                                         ; $AE8A: AD 06 00
   CMP #$08                                            ; $AE8D: C9 08
-  BNE LAEAD                                           ; $AE8F: D0 1C
+  BNE @skip_4                                           ; $AE8F: D0 1C
   LDA a:$000C                                         ; $AE91: AD 0C 00
   AND #$10                                            ; $AE94: 29 10
-  BEQ LAEAD                                           ; $AE96: F0 15
+  BEQ @skip_4                                           ; $AE96: F0 15
   LDA $019E                                           ; $AE98: AD 9E 01
   AND #$CC                                            ; $AE9B: 29 CC
   STA $019E                                           ; $AE9D: 8D 9E 01
@@ -1725,12 +1854,17 @@ LAE8A:
   STA $019E                                           ; $AEA8: 8D 9E 01
   INX                                                 ; $AEAB: E8
   RTS                                                 ; $AEAC: 60
-LAEAD:
+@skip_4:
   LDA a:$0002                                         ; $AEAD: AD 02 00
   STA $019E,X                                         ; $AEB0: 9D 9E 01
   INX                                                 ; $AEB3: E8
   RTS                                                 ; $AEB4: 60
-LAEB5:
+.endproc
+;===============================================================================
+; $AEB5: Sub_AEB5
+;===============================================================================
+.proc Sub_AEB5
+Sub_AEB5:
   LDA a:$008E                                         ; $AEB5: AD 8E 00
   CLC                                                 ; $AEB8: 18
   ADC #$04                                            ; $AEB9: 69 04
@@ -1742,29 +1876,36 @@ LAEB5:
   CLC                                                 ; $AEC9: 18
   ADC #$A0                                            ; $AECA: 69 A0
   STA a:$000E                                         ; $AECC: 8D 0E 00
-  BCS LAED5                                           ; $AECF: B0 04
+  BCS @skip                                           ; $AECF: B0 04
   CMP #$F0                                            ; $AED1: C9 F0
-  BCC LAEE7                                           ; $AED3: 90 12
-LAED5:
+  BCC @skip_2                                           ; $AED3: 90 12
+@skip:
   CLC                                                 ; $AED5: 18
   ADC #$10                                            ; $AED6: 69 10
   STA a:$000E                                         ; $AED8: 8D 0E 00
   LDA a:$0091                                         ; $AEDB: AD 91 00
   STA a:$000F                                         ; $AEDE: 8D 0F 00
   INC a:$000F                                         ; $AEE1: EE 0F 00
-  JMP LADBC                                           ; $AEE4: 4C BC AD
-LAEE7:
+  JMP Sub_ADBC                                           ; $AEE4: 4C BC AD
+@skip_2:
   LDA a:$0091                                         ; $AEE7: AD 91 00
   STA a:$000F                                         ; $AEEA: 8D 0F 00
-  JMP LADBC                                           ; $AEED: 4C BC AD
+  JMP Sub_ADBC                                           ; $AEED: 4C BC AD
+.endproc
 
 ;===============================================================================
-; $AEF0: B17_18_OverlayWindow
+; $AEF0: OverlayWindow
 ; Entry07: Overlay/window rendering (bank switch + dispatch)
 ;===============================================================================
-B17_18_OverlayWindow:
+.proc OverlayWindow
+OverlayWindow:
   LDA a:$0000                                         ; $AEF0: AD 00 00
-LAEF3:
+.endproc
+;===============================================================================
+; $AEF3: Sub_AEF3
+;===============================================================================
+.proc Sub_AEF3
+Sub_AEF3:
   PHA                                                 ; $AEF3: 48
   ASL A                                               ; $AEF4: 0A
   TAY                                                 ; $AEF5: A8
@@ -1778,7 +1919,12 @@ LAEF3:
   TAY                                                 ; $AF07: A8
   JSR B1F_SwitchBank8_B                               ; $AF08: 20 5F F2
   RTS                                                 ; $AF0B: 60
-LAF0C:
+.endproc
+;===============================================================================
+; $AF0C: Sub_AF0C
+;===============================================================================
+.proc Sub_AF0C
+Sub_AF0C:
   ASL A                                               ; $AF0C: 0A
   TAY                                                 ; $AF0D: A8
   LDA $A732,Y                                         ; $AF0E: B9 32 A7
@@ -1791,196 +1937,206 @@ LAF1B:
   CLC                                                 ; $AF1E: 18
   ADC #$08                                            ; $AF1F: 69 08
   AND #$10                                            ; $AF21: 29 10
-  BEQ LAF2C                                           ; $AF23: F0 07
-  JSR LAF30                                           ; $AF25: 20 30 AF
+  BEQ @skip                                           ; $AF23: F0 07
+  JSR Sub_AF30                                           ; $AF25: 20 30 AF
   JSR LAF71                                           ; $AF28: 20 71 AF
   RTS                                                 ; $AF2B: 60
-LAF2C:
-  JSR LAF30                                           ; $AF2C: 20 30 AF
+@skip:
+  JSR Sub_AF30                                           ; $AF2C: 20 30 AF
   RTS                                                 ; $AF2F: 60
-LAF30:
+.endproc
+;===============================================================================
+; $AF30: Sub_AF30
+;===============================================================================
+.proc Sub_AF30
+Sub_AF30:
   LDY a:$0019                                         ; $AF30: AC 19 00
   LDA $0680,Y                                         ; $AF33: B9 80 06
-  BMI LAF42                                           ; $AF36: 30 0A
+  BMI @skip                                           ; $AF36: 30 0A
   LDA a:$0002                                         ; $AF38: AD 02 00
   AND #$FC                                            ; $AF3B: 29 FC
   ORA #$02                                            ; $AF3D: 09 02
   STA a:$0002                                         ; $AF3F: 8D 02 00
-LAF42:
+@skip:
   LDA $06A0,Y                                         ; $AF42: B9 A0 06
-  BMI LAF51                                           ; $AF45: 30 0A
+  BMI @skip_2                                           ; $AF45: 30 0A
   LDA a:$0002                                         ; $AF47: AD 02 00
   AND #$F3                                            ; $AF4A: 29 F3
   ORA #$08                                            ; $AF4C: 09 08
   STA a:$0002                                         ; $AF4E: 8D 02 00
-LAF51:
+@skip_2:
   INY                                                 ; $AF51: C8
   LDA $0680,Y                                         ; $AF52: B9 80 06
-  BMI LAF61                                           ; $AF55: 30 0A
+  BMI @skip_3                                           ; $AF55: 30 0A
   LDA a:$0002                                         ; $AF57: AD 02 00
   AND #$CF                                            ; $AF5A: 29 CF
   ORA #$20                                            ; $AF5C: 09 20
   STA a:$0002                                         ; $AF5E: 8D 02 00
-LAF61:
+@skip_3:
   LDA $06A0,Y                                         ; $AF61: B9 A0 06
-  BMI LAF70                                           ; $AF64: 30 0A
+  BMI @skip_4                                           ; $AF64: 30 0A
   LDA a:$0002                                         ; $AF66: AD 02 00
   AND #$3F                                            ; $AF69: 29 3F
   ORA #$80                                            ; $AF6B: 09 80
   STA a:$0002                                         ; $AF6D: 8D 02 00
-LAF70:
+@skip_4:
   RTS                                                 ; $AF70: 60
 LAF71:
   LDY a:$0019                                         ; $AF71: AC 19 00
   LDA $06C0,Y                                         ; $AF74: B9 C0 06
-  BMI LAF83                                           ; $AF77: 30 0A
+  BMI @skip_5                                           ; $AF77: 30 0A
   LDA a:$0003                                         ; $AF79: AD 03 00
   AND #$FC                                            ; $AF7C: 29 FC
   ORA #$02                                            ; $AF7E: 09 02
   STA a:$0003                                         ; $AF80: 8D 03 00
-LAF83:
+@skip_5:
   LDA $06E0,Y                                         ; $AF83: B9 E0 06
-  BMI LAF92                                           ; $AF86: 30 0A
+  BMI @skip_6                                           ; $AF86: 30 0A
   LDA a:$0003                                         ; $AF88: AD 03 00
   AND #$F3                                            ; $AF8B: 29 F3
   ORA #$08                                            ; $AF8D: 09 08
   STA a:$0003                                         ; $AF8F: 8D 03 00
-LAF92:
+@skip_6:
   INY                                                 ; $AF92: C8
   LDA $06C0,Y                                         ; $AF93: B9 C0 06
-  BMI LAFA2                                           ; $AF96: 30 0A
+  BMI @skip_7                                           ; $AF96: 30 0A
   LDA a:$0003                                         ; $AF98: AD 03 00
   AND #$CF                                            ; $AF9B: 29 CF
   ORA #$20                                            ; $AF9D: 09 20
   STA a:$0003                                         ; $AF9F: 8D 03 00
-LAFA2:
+@skip_7:
   LDA $06E0,Y                                         ; $AFA2: B9 E0 06
-  BMI LAFB1                                           ; $AFA5: 30 0A
+  BMI @skip_8                                           ; $AFA5: 30 0A
   LDA a:$0003                                         ; $AFA7: AD 03 00
   AND #$3F                                            ; $AFAA: 29 3F
   ORA #$80                                            ; $AFAC: 09 80
   STA a:$0003                                         ; $AFAE: 8D 03 00
-LAFB1:
+@skip_8:
   DEC a:$0017                                         ; $AFB1: CE 17 00
   RTS                                                 ; $AFB4: 60
 LAFB5:
   LDY a:$0018                                         ; $AFB5: AC 18 00
   LDA $0680,Y                                         ; $AFB8: B9 80 06
-  BMI LAFC7                                           ; $AFBB: 30 0A
+  BMI @skip_9                                           ; $AFBB: 30 0A
   LDA a:$0002                                         ; $AFBD: AD 02 00
   AND #$FC                                            ; $AFC0: 29 FC
   ORA #$02                                            ; $AFC2: 09 02
   STA a:$0002                                         ; $AFC4: 8D 02 00
-LAFC7:
+@skip_9:
   LDA $06A0,Y                                         ; $AFC7: B9 A0 06
-  BMI LAFD6                                           ; $AFCA: 30 0A
+  BMI @skip_10                                           ; $AFCA: 30 0A
   LDA a:$0002                                         ; $AFCC: AD 02 00
   AND #$CF                                            ; $AFCF: 29 CF
   ORA #$20                                            ; $AFD1: 09 20
   STA a:$0002                                         ; $AFD3: 8D 02 00
-LAFD6:
+@skip_10:
   INY                                                 ; $AFD6: C8
   LDA $0680,Y                                         ; $AFD7: B9 80 06
-  BMI LAFE6                                           ; $AFDA: 30 0A
+  BMI @skip_11                                           ; $AFDA: 30 0A
   LDA a:$0002                                         ; $AFDC: AD 02 00
   AND #$F3                                            ; $AFDF: 29 F3
   ORA #$08                                            ; $AFE1: 09 08
   STA a:$0002                                         ; $AFE3: 8D 02 00
-LAFE6:
+@skip_11:
   LDA $06A0,Y                                         ; $AFE6: B9 A0 06
-  BMI LAFF5                                           ; $AFE9: 30 0A
+  BMI @skip_12                                           ; $AFE9: 30 0A
   LDA a:$0002                                         ; $AFEB: AD 02 00
   AND #$3F                                            ; $AFEE: 29 3F
   ORA #$80                                            ; $AFF0: 09 80
   STA a:$0002                                         ; $AFF2: 8D 02 00
-LAFF5:
+@skip_12:
   DEC a:$0017                                         ; $AFF5: CE 17 00
   RTS                                                 ; $AFF8: 60
 LAFF9:
-  JSR LB08F                                           ; $AFF9: 20 8F B0
+  JSR Sub_B08F                                           ; $AFF9: 20 8F B0
   LDY #$7F                                            ; $AFFC: A0 7F
   LDA #$FF                                            ; $AFFE: A9 FF
-LB000:
+@loop:
   STA $0680,Y                                         ; $B000: 99 80 06
   DEY                                                 ; $B003: 88
-  BPL LB000                                           ; $B004: 10 FA
+  BPL @loop                                           ; $B004: 10 FA
   LDY #$13                                            ; $B006: A0 13
-LB008:
+@loop_2:
   JSR LB00F                                           ; $B008: 20 0F B0
   DEY                                                 ; $B00B: 88
-  BPL LB008                                           ; $B00C: 10 FA
+  BPL @loop_2                                           ; $B00C: 10 FA
   RTS                                                 ; $B00E: 60
 LB00F:
   LDA $0600,Y                                         ; $B00F: B9 00 06
   CMP a:$0018                                         ; $B012: CD 18 00
-  BNE LB020                                           ; $B015: D0 09
+  BNE @skip_13                                           ; $B015: D0 09
   PHA                                                 ; $B017: 48
   LDX $0614,Y                                         ; $B018: BE 14 06
   TYA                                                 ; $B01B: 98
   STA $0680,X                                         ; $B01C: 9D 80 06
   PLA                                                 ; $B01F: 68
-LB020:
+@skip_13:
   INC a:$0018                                         ; $B020: EE 18 00
   CMP a:$0018                                         ; $B023: CD 18 00
-  BNE LB031                                           ; $B026: D0 09
+  BNE @skip_14                                           ; $B026: D0 09
   PHA                                                 ; $B028: 48
   LDX $0614,Y                                         ; $B029: BE 14 06
   TYA                                                 ; $B02C: 98
   STA $06A0,X                                         ; $B02D: 9D A0 06
   PLA                                                 ; $B030: 68
-LB031:
+@skip_14:
   CMP a:$0016                                         ; $B031: CD 16 00
-  BNE LB03F                                           ; $B034: D0 09
+  BNE @skip_15                                           ; $B034: D0 09
   PHA                                                 ; $B036: 48
   LDX $0614,Y                                         ; $B037: BE 14 06
   TYA                                                 ; $B03A: 98
   STA $06C0,X                                         ; $B03B: 9D C0 06
   PLA                                                 ; $B03E: 68
-LB03F:
+@skip_15:
   INC a:$0016                                         ; $B03F: EE 16 00
   CMP a:$0016                                         ; $B042: CD 16 00
-  BNE LB04E                                           ; $B045: D0 07
+  BNE @skip_16                                           ; $B045: D0 07
   LDX $0614,Y                                         ; $B047: BE 14 06
   TYA                                                 ; $B04A: 98
   STA $06E0,X                                         ; $B04B: 9D E0 06
-LB04E:
+@skip_16:
   DEC a:$0016                                         ; $B04E: CE 16 00
   DEC a:$0018                                         ; $B051: CE 18 00
   RTS                                                 ; $B054: 60
 LB055:
-  JSR LB08F                                           ; $B055: 20 8F B0
+  JSR Sub_B08F                                           ; $B055: 20 8F B0
   LDY #$3F                                            ; $B058: A0 3F
   LDA #$FF                                            ; $B05A: A9 FF
-LB05C:
+@loop_3:
   STA $0680,Y                                         ; $B05C: 99 80 06
   DEY                                                 ; $B05F: 88
-  BPL LB05C                                           ; $B060: 10 FA
+  BPL @loop_3                                           ; $B060: 10 FA
   LDY #$13                                            ; $B062: A0 13
-LB064:
+@loop_4:
   JSR LB06B                                           ; $B064: 20 6B B0
   DEY                                                 ; $B067: 88
-  BPL LB064                                           ; $B068: 10 FA
+  BPL @loop_4                                           ; $B068: 10 FA
   RTS                                                 ; $B06A: 60
 LB06B:
   LDA $0614,Y                                         ; $B06B: B9 14 06
   CMP a:$0019                                         ; $B06E: CD 19 00
-  BNE LB07C                                           ; $B071: D0 09
+  BNE @skip_17                                           ; $B071: D0 09
   PHA                                                 ; $B073: 48
   LDX $0600,Y                                         ; $B074: BE 00 06
   TYA                                                 ; $B077: 98
   STA $0680,X                                         ; $B078: 9D 80 06
   PLA                                                 ; $B07B: 68
-LB07C:
+@skip_17:
   INC a:$0019                                         ; $B07C: EE 19 00
   CMP a:$0019                                         ; $B07F: CD 19 00
-  BNE LB08B                                           ; $B082: D0 07
+  BNE @skip_18                                           ; $B082: D0 07
   LDX $0600,Y                                         ; $B084: BE 00 06
   TYA                                                 ; $B087: 98
   STA $06A0,X                                         ; $B088: 9D A0 06
-LB08B:
+@skip_18:
   DEC a:$0019                                         ; $B08B: CE 19 00
   RTS                                                 ; $B08E: 60
-LB08F:
+.endproc
+;===============================================================================
+; $B08F: Sub_B08F
+;===============================================================================
+.proc Sub_B08F
+Sub_B08F:
   LDA a:$000C                                         ; $B08F: AD 0C 00
   STA a:$0018                                         ; $B092: 8D 18 00
   LDA a:$000D                                         ; $B095: AD 0D 00
@@ -2022,73 +2178,82 @@ LB08F:
   LSR a:$0017                                         ; $B0F9: 4E 17 00
   ASL a:$0017                                         ; $B0FC: 0E 17 00
   RTS                                                 ; $B0FF: 60
+.endproc
 
 ;--- $B100: Main Game Dispatch ---
 
 ;===============================================================================
-; $B100: B17_18_MainGameDispatch
+; $B100: MainGameDispatch
 ; Entry09: Main game mode dispatcher (22-entry dispatch table)
 ;===============================================================================
-B17_18_MainGameDispatch:
+.proc MainGameDispatch
+MainGameDispatch:
   LDY $04AA                                           ; $B100: AC AA 04
   LDA $04AB,Y                                         ; $B103: B9 AB 04
-  BPL LB10F                                           ; $B106: 10 07
+  BPL @skip                                           ; $B106: 10 07
   TYA                                                 ; $B108: 98
   EOR #$01                                            ; $B109: 49 01
   TAY                                                 ; $B10B: A8
   LDA $04AB,Y                                         ; $B10C: B9 AB 04
-LB10F:
+@skip:
   STA $6F44                                           ; $B10F: 8D 44 6F
   LDA $04A8                                           ; $B112: AD A8 04
   JSR B1F_CallbackDispatcher                          ; $B115: 20 DE EA
 ; --- Inline pointer table (22 entries) ---
-  .word B17_18_SubDispatch_Mode09                                         ; $B118: 44 B1
-  .word LB34F                                         ; $B11A: 4F B3
-  .word LB5C8                                         ; $B11C: C8 B5
-  .word LB8C7                                         ; $B11E: C7 B8
-  .word LBA6D                                         ; $B120: 6D BA
-  .word LBC3B                                         ; $B122: 3B BC
-  .word LBCE9                                         ; $B124: E9 BC
-  .word LBE78                                         ; $B126: 78 BE
-  .word LC08A                                         ; $B128: 8A C0
-  .word LC116                                         ; $B12A: 16 C1
-  .word B17_18_SubDispatch_Mode09                                         ; $B12C: 44 B1
-  .word B17_18_SubDispatch_Mode09                                         ; $B12E: 44 B1
-  .word B17_18_SubDispatch_Mode09                                         ; $B130: 44 B1
-  .word LC21C                                         ; $B132: 1C C2
-  .word LC2F6                                         ; $B134: F6 C2
-  .word LC464                                         ; $B136: 64 C4
-  .word LC498                                         ; $B138: 98 C4
-  .word LC689                                         ; $B13A: 89 C6
-  .word LC949                                         ; $B13C: 49 C9
-  .word LCB9E                                         ; $B13E: 9E CB
-  .word LCC87                                         ; $B140: 87 CC
-  .word LCD3C                                         ; $B142: 3C CD
+  .word SubDispatch_Mode09                                         ; $B118: 44 B1
+  .word MainGameDispatch_01                                         ; $B11A: 4F B3
+  .word MainGameDispatch_02                                         ; $B11C: C8 B5
+  .word MainGameDispatch_03                                         ; $B11E: C7 B8
+  .word MainGameDispatch_04                                         ; $B120: 6D BA
+  .word MainGameDispatch_05                                         ; $B122: 3B BC
+  .word MainGameDispatch_06                                         ; $B124: E9 BC
+  .word MainGameDispatch_07                                         ; $B126: 78 BE
+  .word MainGameDispatch_08                                         ; $B128: 8A C0
+  .word MainGameDispatch_09                                         ; $B12A: 16 C1
+  .word SubDispatch_Mode09                                         ; $B12C: 44 B1
+  .word SubDispatch_Mode09                                         ; $B12E: 44 B1
+  .word SubDispatch_Mode09                                         ; $B130: 44 B1
+  .word MainGameDispatch_13                                         ; $B132: 1C C2
+  .word MainGameDispatch_14                                         ; $B134: F6 C2
+  .word MainGameDispatch_15                                         ; $B136: 64 C4
+  .word MainGameDispatch_16                                         ; $B138: 98 C4
+  .word MainGameDispatch_17                                         ; $B13A: 89 C6
+  .word MainGameDispatch_18                                         ; $B13C: 49 C9
+  .word MainGameDispatch_19                                         ; $B13E: 9E CB
+  .word MainGameDispatch_20                                         ; $B140: 87 CC
+  .word MainGameDispatch_21                                         ; $B142: 3C CD
+.endproc
 
 ;===============================================================================
-; $B144: B17_18_SubDispatch_Mode09
+; $B144: SubDispatch_Mode09
 ; Sub-dispatcher: mode 09 (8-entry dispatch table)
 ;===============================================================================
-B17_18_SubDispatch_Mode09:
+.proc SubDispatch_Mode09
+SubDispatch_Mode09:
   LDA $04A9                                           ; $B144: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B147: 20 DE EA
 ; --- Inline pointer table (8 entries) ---
-  .word LB15A                                         ; $B14A: 5A B1
-  .word LB1A6                                         ; $B14C: A6 B1
-  .word LB1BB                                         ; $B14E: BB B1
-  .word LB1D4                                         ; $B150: D4 B1
-  .word LB1EE                                         ; $B152: EE B1
-  .word LB21C                                         ; $B154: 1C B2
-  .word LB230                                         ; $B156: 30 B2
-  .word LB2E0                                         ; $B158: E0 B2
-LB15A:
+  .word SubDispatch_Mode09_00                                         ; $B14A: 5A B1
+  .word SubDispatch_Mode09_01                                         ; $B14C: A6 B1
+  .word SubDispatch_Mode09_02                                         ; $B14E: BB B1
+  .word SubDispatch_Mode09_03                                         ; $B150: D4 B1
+  .word SubDispatch_Mode09_04                                         ; $B152: EE B1
+  .word SubDispatch_Mode09_05                                         ; $B154: 1C B2
+  .word SubDispatch_Mode09_06                                         ; $B156: 30 B2
+  .word SubDispatch_Mode09_07                                         ; $B158: E0 B2
+.endproc
+;===============================================================================
+; $B15A: SubDispatch_Mode09_00
+;===============================================================================
+.proc SubDispatch_Mode09_00
+SubDispatch_Mode09_00:
   LDA a:$0087                                         ; $B15A: AD 87 00
-  BMI LB160                                           ; $B15D: 30 01
+  BMI @skip                                           ; $B15D: 30 01
   RTS                                                 ; $B15F: 60
-LB160:
+@skip:
   INC $04A9                                           ; $B160: EE A9 04
   LDX #$00                                            ; $B163: A2 00
-LB165:
+@loop:
   LDA $04AD,X                                         ; $B165: BD AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B168: 20 D7 F2
   LDY #$00                                            ; $B16B: A0 00
@@ -2097,80 +2262,105 @@ LB165:
   JSR LB188                                           ; $B172: 20 88 B1
   INX                                                 ; $B175: E8
   CPX #$02                                            ; $B176: E0 02
-  BCC LB165                                           ; $B178: 90 EB
+  BCC @loop                                           ; $B178: 90 EB
   LDA #$43                                            ; $B17A: A9 43
   STA a:$0000                                         ; $B17C: 8D 00 00
   LDA $04AF                                           ; $B17F: AD AF 04
   CLC                                                 ; $B182: 18
   ADC #$01                                            ; $B183: 69 01
-  JMP LCDFD                                           ; $B185: 4C FD CD
+  JMP Sub_CDFD                                           ; $B185: 4C FD CD
 LB188:
   LDY #$0A                                            ; $B188: A0 0A
   LDA ($00),Y                                         ; $B18A: B1 00
   AND #$1F                                            ; $B18C: 29 1F
   CMP #$10                                            ; $B18E: C9 10
-  BCC LB197                                           ; $B190: 90 05
+  BCC @skip_2                                           ; $B190: 90 05
   LDA #$01                                            ; $B192: A9 01
-  JMP LB1A2                                           ; $B194: 4C A2 B1
-LB197:
+  JMP Sub_B1A2                                           ; $B194: 4C A2 B1
+@skip_2:
   CMP #$08                                            ; $B197: C9 08
-  BCC LB1A0                                           ; $B199: 90 05
+  BCC @skip_3                                           ; $B199: 90 05
   LDA #$00                                            ; $B19B: A9 00
-  JMP LB1A2                                           ; $B19D: 4C A2 B1
-LB1A0:
+  JMP Sub_B1A2                                           ; $B19D: 4C A2 B1
+@skip_3:
   LDA #$02                                            ; $B1A0: A9 02
-LB1A2:
+.endproc
+;===============================================================================
+; $B1A2: Sub_B1A2
+;===============================================================================
+.proc Sub_B1A2
+Sub_B1A2:
   STA $04AF,X                                         ; $B1A2: 9D AF 04
   RTS                                                 ; $B1A5: 60
-LB1A6:
+.endproc
+;===============================================================================
+; $B1A6: SubDispatch_Mode09_01
+;===============================================================================
+.proc SubDispatch_Mode09_01
+SubDispatch_Mode09_01:
   LDA a:$007E                                         ; $B1A6: AD 7E 00
   AND #$04                                            ; $B1A9: 29 04
-  BNE LB1BA                                           ; $B1AB: D0 0D
+  BNE @skip                                           ; $B1AB: D0 0D
   LDA #$E3                                            ; $B1AD: A9 E3
   STA a:$0000                                         ; $B1AF: 8D 00 00
   LDA #$04                                            ; $B1B2: A9 04
-  JSR LCDFD                                           ; $B1B4: 20 FD CD
+  JSR Sub_CDFD                                           ; $B1B4: 20 FD CD
   INC $04A9                                           ; $B1B7: EE A9 04
-LB1BA:
+@skip:
   RTS                                                 ; $B1BA: 60
-LB1BB:
+.endproc
+;===============================================================================
+; $B1BB: SubDispatch_Mode09_02
+;===============================================================================
+.proc SubDispatch_Mode09_02
+SubDispatch_Mode09_02:
   LDA a:$007E                                         ; $B1BB: AD 7E 00
   AND #$04                                            ; $B1BE: 29 04
-  BNE LB1D3                                           ; $B1C0: D0 11
+  BNE @skip                                           ; $B1C0: D0 11
   LDA #$55                                            ; $B1C2: A9 55
   STA a:$0000                                         ; $B1C4: 8D 00 00
   LDA $04B0                                           ; $B1C7: AD B0 04
   CLC                                                 ; $B1CA: 18
   ADC #$05                                            ; $B1CB: 69 05
-  JSR LCDFD                                           ; $B1CD: 20 FD CD
+  JSR Sub_CDFD                                           ; $B1CD: 20 FD CD
   INC $04A9                                           ; $B1D0: EE A9 04
-LB1D3:
+@skip:
   RTS                                                 ; $B1D3: 60
-LB1D4:
+.endproc
+;===============================================================================
+; $B1D4: SubDispatch_Mode09_03
+;===============================================================================
+.proc SubDispatch_Mode09_03
+SubDispatch_Mode09_03:
   LDA a:$007E                                         ; $B1D4: AD 7E 00
   AND #$04                                            ; $B1D7: 29 04
-  BNE LB1ED                                           ; $B1D9: D0 12
+  BNE @skip                                           ; $B1D9: D0 12
   LDA #$F5                                            ; $B1DB: A9 F5
   STA a:$0000                                         ; $B1DD: 8D 00 00
   LDA #$08                                            ; $B1E0: A9 08
-  JSR LCDFD                                           ; $B1E2: 20 FD CD
+  JSR Sub_CDFD                                           ; $B1E2: 20 FD CD
   INC $04A9                                           ; $B1E5: EE A9 04
   LDA #$01                                            ; $B1E8: A9 01
   STA $04AA                                           ; $B1EA: 8D AA 04
-LB1ED:
+@skip:
   RTS                                                 ; $B1ED: 60
-LB1EE:
+.endproc
+;===============================================================================
+; $B1EE: SubDispatch_Mode09_04
+;===============================================================================
+.proc SubDispatch_Mode09_04
+SubDispatch_Mode09_04:
   LDY #$31                                            ; $B1EE: A0 31
   JSR B1F_SwitchBank8_B                               ; $B1F0: 20 5F F2
   LDX #$00                                            ; $B1F3: A2 00
   LDA #$44                                            ; $B1F5: A9 44
   STA a:$0003                                         ; $B1F7: 8D 03 00
   LDA $04AD                                           ; $B1FA: AD AD 04
-  JSR LCFA3                                           ; $B1FD: 20 A3 CF
+  JSR Sub_CFA3                                           ; $B1FD: 20 A3 CF
   LDA #$52                                            ; $B200: A9 52
   STA a:$0003                                         ; $B202: 8D 03 00
   LDA $04AE                                           ; $B205: AD AE 04
-  JSR LCFA3                                           ; $B208: 20 A3 CF
+  JSR Sub_CFA3                                           ; $B208: 20 A3 CF
   LDA #$FF                                            ; $B20B: A9 FF
   STA $0380,X                                         ; $B20D: 9D 80 03
   INC $04A9                                           ; $B210: EE A9 04
@@ -2178,8 +2368,13 @@ LB1EE:
   ORA #$04                                            ; $B216: 09 04
   STA a:$007E                                         ; $B218: 8D 7E 00
   RTS                                                 ; $B21B: 60
-LB21C:
-  JSR LD060                                           ; $B21C: 20 60 D0
+.endproc
+;===============================================================================
+; $B21C: SubDispatch_Mode09_05
+;===============================================================================
+.proc SubDispatch_Mode09_05
+SubDispatch_Mode09_05:
+  JSR Sub_D060                                           ; $B21C: 20 60 D0
   LDA #$FF                                            ; $B21F: A9 FF
   STA $0380,X                                         ; $B221: 9D 80 03
   INC $04A9                                           ; $B224: EE A9 04
@@ -2187,9 +2382,14 @@ LB21C:
   ORA #$04                                            ; $B22A: 09 04
   STA a:$007E                                         ; $B22C: 8D 7E 00
   RTS                                                 ; $B22F: 60
-LB230:
+.endproc
+;===============================================================================
+; $B230: SubDispatch_Mode09_06
+;===============================================================================
+.proc SubDispatch_Mode09_06
+SubDispatch_Mode09_06:
   LDX #$00                                            ; $B230: A2 00
-LB232:
+@loop:
   LDA $04AD,X                                         ; $B232: BD AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B235: 20 D7 F2
   LDY #$0A                                            ; $B238: A0 0A
@@ -2234,30 +2434,35 @@ LB232:
   SEC                                                 ; $B28E: 38
   SBC a:$0010                                         ; $B28F: ED 10 00
   STA $04B3,X                                         ; $B292: 9D B3 04
-LB295:
+@loop_2:
   JSR B1F_RandomByte                                  ; $B295: 20 7A E8
   AND #$0F                                            ; $B298: 29 0F
   CMP #$0B                                            ; $B29A: C9 0B
-  BCS LB295                                           ; $B29C: B0 F7
+  BCS @loop_2                                           ; $B29C: B0 F7
   ADC $04B3,X                                         ; $B29E: 7D B3 04
   STA $04BD,X                                         ; $B2A1: 9D BD 04
   INX                                                 ; $B2A4: E8
   CPX #$02                                            ; $B2A5: E0 02
-  BNE LB232                                           ; $B2A7: D0 89
+  BNE @loop                                           ; $B2A7: D0 89
   LDX #$00                                            ; $B2A9: A2 00
   LDA $04BD                                           ; $B2AB: AD BD 04
   CMP $04BE                                           ; $B2AE: CD BE 04
-  BCS LB2B4                                           ; $B2B1: B0 01
+  BCS @skip                                           ; $B2B1: B0 01
   INX                                                 ; $B2B3: E8
-LB2B4:
+@skip:
   STX $04AA                                           ; $B2B4: 8E AA 04
   LDA #$00                                            ; $B2B7: A9 00
   STA $04C0                                           ; $B2B9: 8D C0 04
   INC $04A9                                           ; $B2BC: EE A9 04
   RTS                                                 ; $B2BF: 60
+.endproc
   .byte $04,$03,$05,$08,$09,$06,$07,$04,$04,$06,$07,$08,$07,$06,$08,$0A; $B2C0: 04 03 05 08 09 06 07 04 04 06 07 08 07 06 08 0A
   .byte $04,$05,$06,$08,$07,$08,$06,$0A,$01,$02,$04,$06,$05,$0A,$03,$07; $B2D0: 04 05 06 08 07 08 06 0A 01 02 04 06 05 0A 03 07
-LB2E0:
+;===============================================================================
+; $B2E0: SubDispatch_Mode09_07
+;===============================================================================
+.proc SubDispatch_Mode09_07
+SubDispatch_Mode09_07:
   LDY $04AF                                           ; $B2E0: AC AF 04
   LDA $B34C,Y                                         ; $B2E3: B9 4C B3
   STA a:$0000                                         ; $B2E6: 8D 00 00
@@ -2299,48 +2504,58 @@ LB2E0:
   LDA #$00                                            ; $B33D: A9 00
   STA $04A9                                           ; $B33F: 8D A9 04
   RTS                                                 ; $B342: 60
+.endproc
   .byte $46,$4B,$3C,$37,$3C,$46,$50,$32,$3C,$01,$02,$00; $B343: 46 4B 3C 37 3C 46 50 32 3C 01 02 00
-LB34F:
+;===============================================================================
+; $B34F: MainGameDispatch_01
+;===============================================================================
+.proc MainGameDispatch_01
+MainGameDispatch_01:
   LDA $04A9                                           ; $B34F: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B352: 20 DE EA
 ; --- Inline pointer table (6 entries) ---
-  .word LB361                                         ; $B355: 61 B3
-  .word LB3F0                                         ; $B357: F0 B3
-  .word LB407                                         ; $B359: 07 B4
-  .word LB47E                                         ; $B35B: 7E B4
-  .word LB552                                         ; $B35D: 52 B5
-  .word LB569                                         ; $B35F: 69 B5
-LB361:
+  .word MainGameDispatch_01_00                                         ; $B355: 61 B3
+  .word MainGameDispatch_01_01                                         ; $B357: F0 B3
+  .word MainGameDispatch_01_02                                         ; $B359: 07 B4
+  .word MainGameDispatch_01_03                                         ; $B35B: 7E B4
+  .word MainGameDispatch_01_04                                         ; $B35D: 52 B5
+  .word MainGameDispatch_01_05                                         ; $B35F: 69 B5
+.endproc
+;===============================================================================
+; $B361: MainGameDispatch_01_00
+;===============================================================================
+.proc MainGameDispatch_01_00
+MainGameDispatch_01_00:
   LDA $04C0                                           ; $B361: AD C0 04
-  BNE LB36E                                           ; $B364: D0 08
+  BNE @skip                                           ; $B364: D0 08
   LDA $04AA                                           ; $B366: AD AA 04
   EOR #$01                                            ; $B369: 49 01
   STA $04AA                                           ; $B36B: 8D AA 04
-LB36E:
+@skip:
   INC $04C0                                           ; $B36E: EE C0 04
   LDA $04C0                                           ; $B371: AD C0 04
   CMP #$03                                            ; $B374: C9 03
-  BCC LB37B                                           ; $B376: 90 03
+  BCC @skip_2                                           ; $B376: 90 03
   JSR LB3C6                                           ; $B378: 20 C6 B3
-LB37B:
+@skip_2:
   LDA $04AA                                           ; $B37B: AD AA 04
   EOR #$01                                            ; $B37E: 49 01
   STA $04AA                                           ; $B380: 8D AA 04
   TAY                                                 ; $B383: A8
   LDA $04B5,Y                                         ; $B384: B9 B5 04
   AND #$7F                                            ; $B387: 29 7F
-  BEQ LB391                                           ; $B389: F0 06
+  BEQ @skip_3                                           ; $B389: F0 06
   SEC                                                 ; $B38B: 38
   SBC #$01                                            ; $B38C: E9 01
   STA $04B5,Y                                         ; $B38E: 99 B5 04
-LB391:
+@skip_3:
   LDY $04AA                                           ; $B391: AC AA 04
   LDA $04AB,Y                                         ; $B394: B9 AB 04
-  BPL LB39F                                           ; $B397: 10 06
+  BPL @skip_4                                           ; $B397: 10 06
   LDA #$02                                            ; $B399: A9 02
   STA $04A8                                           ; $B39B: 8D A8 04
   RTS                                                 ; $B39E: 60
-LB39F:
+@skip_4:
   LDY $04AA                                           ; $B39F: AC AA 04
   LDA $04AD,Y                                         ; $B3A2: B9 AD 04
   STA a:$0000                                         ; $B3A5: 8D 00 00
@@ -2351,48 +2566,58 @@ LB39F:
   LDY $04AA                                           ; $B3AF: AC AA 04
   LDA $04B5,Y                                         ; $B3B2: B9 B5 04
   AND #$7F                                            ; $B3B5: 29 7F
-  BEQ LB3BB                                           ; $B3B7: F0 02
+  BEQ @skip_5                                           ; $B3B7: F0 02
   LDA #$02                                            ; $B3B9: A9 02
-LB3BB:
+@skip_5:
   STA a:$00A4                                         ; $B3BB: 8D A4 00
   INC $04A9                                           ; $B3BE: EE A9 04
   LDA #$2B                                            ; $B3C1: A9 2B
   JMP B1F_SetUI0                                      ; $B3C3: 4C 6D F2
 LB3C6:
   LDX #$00                                            ; $B3C6: A2 00
-LB3C8:
+@loop:
   JSR B1F_RandomByte                                  ; $B3C8: 20 7A E8
   AND #$0F                                            ; $B3CB: 29 0F
   CMP #$0B                                            ; $B3CD: C9 0B
-  BCS LB3C8                                           ; $B3CF: B0 F7
+  BCS @loop                                           ; $B3CF: B0 F7
   ADC $04B3,X                                         ; $B3D1: 7D B3 04
   STA $04BD,X                                         ; $B3D4: 9D BD 04
   INX                                                 ; $B3D7: E8
   CPX #$02                                            ; $B3D8: E0 02
-  BCC LB3C8                                           ; $B3DA: 90 EC
+  BCC @loop                                           ; $B3DA: 90 EC
   LDX #$00                                            ; $B3DC: A2 00
   LDA $04BD                                           ; $B3DE: AD BD 04
   CMP $04BE                                           ; $B3E1: CD BE 04
-  BCC LB3E7                                           ; $B3E4: 90 01
+  BCC @skip_6                                           ; $B3E4: 90 01
   INX                                                 ; $B3E6: E8
-LB3E7:
+@skip_6:
   STX $04AA                                           ; $B3E7: 8E AA 04
   LDA #$01                                            ; $B3EA: A9 01
   STA $04C0                                           ; $B3EC: 8D C0 04
   RTS                                                 ; $B3EF: 60
-LB3F0:
-  JSR LD166                                           ; $B3F0: 20 66 D1
-  JSR LD299                                           ; $B3F3: 20 99 D2
-  BCC LB406                                           ; $B3F6: 90 0E
+.endproc
+;===============================================================================
+; $B3F0: MainGameDispatch_01_01
+;===============================================================================
+.proc MainGameDispatch_01_01
+MainGameDispatch_01_01:
+  JSR Sub_D166                                           ; $B3F0: 20 66 D1
+  JSR Sub_D299                                           ; $B3F3: 20 99 D2
+  BCC @skip                                           ; $B3F6: 90 0E
   LDA #$00                                            ; $B3F8: A9 00
   STA $0424                                           ; $B3FA: 8D 24 04
   STA $0425                                           ; $B3FD: 8D 25 04
   INC $04A9                                           ; $B400: EE A9 04
-  JMP LD17C                                           ; $B403: 4C 7C D1
-LB406:
+  JMP Sub_D17C                                           ; $B403: 4C 7C D1
+@skip:
   RTS                                                 ; $B406: 60
-LB407:
-  JSR LD166                                           ; $B407: 20 66 D1
+.endproc
+;===============================================================================
+; $B407: MainGameDispatch_01_02
+;===============================================================================
+.proc MainGameDispatch_01_02
+MainGameDispatch_01_02:
+  JSR Sub_D166                                           ; $B407: 20 66 D1
   LDA #$61                                            ; $B40A: A9 61
   STA a:$0010                                         ; $B40C: 8D 10 00
   LDA #$B4                                            ; $B40F: A9 B4
@@ -2412,29 +2637,34 @@ LB407:
   JSR B1F_PointerTableLookup                          ; $B433: 20 F5 ED
   LDA a:$0081                                         ; $B436: AD 81 00
   LSR A                                               ; $B439: 4A
-  BCC LB460                                           ; $B43A: 90 24
+  BCC @skip_2                                           ; $B43A: 90 24
   INC $04A9                                           ; $B43C: EE A9 04
   LDA a:$0012                                         ; $B43F: AD 12 00
   STA $04BF                                           ; $B442: 8D BF 04
   CMP #$04                                            ; $B445: C9 04
-  BNE LB460                                           ; $B447: D0 17
+  BNE @skip_2                                           ; $B447: D0 17
   LDY $04AA                                           ; $B449: AC AA 04
   LDA $04B5,Y                                         ; $B44C: B9 B5 04
   AND #$7F                                            ; $B44F: 29 7F
-  BNE LB45B                                           ; $B451: D0 08
+  BNE @skip                                           ; $B451: D0 08
   INC $04A9                                           ; $B453: EE A9 04
   LDA #$2C                                            ; $B456: A9 2C
   JMP B1F_SetUI0                                      ; $B458: 4C 6D F2
-LB45B:
+@skip:
   LDA #$02                                            ; $B45B: A9 02
   STA $04A9                                           ; $B45D: 8D A9 04
-LB460:
+@skip_2:
   RTS                                                 ; $B460: 60
+.endproc
   .byte $00,$01,$02,$03,$04,$05,$06,$FF,$FF,$FF,$A6,$88,$A6,$C0,$B6,$88; $B461: 00 01 02 03 04 05 06 FF FF FF A6 88 A6 C0 B6 88
   .byte $B6,$C0,$C6,$88,$C6,$C0,$D6,$88,$00,$07,$00,$00,$80; $B471: B6 C0 C6 88 C6 C0 D6 88 00 07 00 00 80
-LB47E:
+;===============================================================================
+; $B47E: MainGameDispatch_01_03
+;===============================================================================
+.proc MainGameDispatch_01_03
+MainGameDispatch_01_03:
   LDA $04BF                                           ; $B47E: AD BF 04
-  BNE LB4A5                                           ; $B481: D0 22
+  BNE @skip                                           ; $B481: D0 22
   LDA #$03                                            ; $B483: A9 03
   STA $04BD                                           ; $B485: 8D BD 04
   LDA #$00                                            ; $B488: A9 00
@@ -2448,18 +2678,18 @@ LB47E:
   STA $042C                                           ; $B49D: 8D 2C 04
   LDA #$23                                            ; $B4A0: A9 23
   JMP B1F_SetUI4                                      ; $B4A2: 4C 8B F2
-LB4A5:
+@skip:
   CMP #$01                                            ; $B4A5: C9 01
-  BNE LB4B8                                           ; $B4A7: D0 0F
+  BNE @skip_2                                           ; $B4A7: D0 0F
   LDA #$04                                            ; $B4A9: A9 04
   STA $04A8                                           ; $B4AB: 8D A8 04
   LDA #$00                                            ; $B4AE: A9 00
   STA $04A9                                           ; $B4B0: 8D A9 04
   LDA #$00                                            ; $B4B3: A9 00
   JMP B1F_SetUI4                                      ; $B4B5: 4C 8B F2
-LB4B8:
+@skip_2:
   CMP #$02                                            ; $B4B8: C9 02
-  BNE LB4DE                                           ; $B4BA: D0 22
+  BNE @skip_3                                           ; $B4BA: D0 22
   LDA #$03                                            ; $B4BC: A9 03
   STA $04BD                                           ; $B4BE: 8D BD 04
   LDA #$00                                            ; $B4C1: A9 00
@@ -2473,23 +2703,23 @@ LB4B8:
   STA $042C                                           ; $B4D6: 8D 2C 04
   LDA #$21                                            ; $B4D9: A9 21
   JMP B1F_SetUI4                                      ; $B4DB: 4C 8B F2
-LB4DE:
+@skip_3:
   CMP #$03                                            ; $B4DE: C9 03
-  BNE LB4FA                                           ; $B4E0: D0 18
-  JSR LD262                                           ; $B4E2: 20 62 D2
-  BCC LB4EB                                           ; $B4E5: 90 04
+  BNE @skip_5                                           ; $B4E0: D0 18
+  JSR Sub_D262                                           ; $B4E2: 20 62 D2
+  BCC @skip_4                                           ; $B4E5: 90 04
   DEC $04A9                                           ; $B4E7: CE A9 04
   RTS                                                 ; $B4EA: 60
-LB4EB:
+@skip_4:
   LDA #$06                                            ; $B4EB: A9 06
   STA $04A8                                           ; $B4ED: 8D A8 04
   LDA #$00                                            ; $B4F0: A9 00
   STA $04A9                                           ; $B4F2: 8D A9 04
   LDA #$00                                            ; $B4F5: A9 00
   JMP B1F_SetUI4                                      ; $B4F7: 4C 8B F2
-LB4FA:
+@skip_5:
   CMP #$05                                            ; $B4FA: C9 05
-  BNE LB512                                           ; $B4FC: D0 14
+  BNE @skip_6                                           ; $B4FC: D0 14
   LDA #$05                                            ; $B4FE: A9 05
   STA $04A8                                           ; $B500: 8D A8 04
   LDA #$00                                            ; $B503: A9 00
@@ -2498,9 +2728,9 @@ LB4FA:
   STA $04BE                                           ; $B50B: 8D BE 04
   STA $04BF                                           ; $B50E: 8D BF 04
   RTS                                                 ; $B511: 60
-LB512:
+@skip_6:
   CMP #$06                                            ; $B512: C9 06
-  BNE LB538                                           ; $B514: D0 22
+  BNE @skip_7                                           ; $B514: D0 22
   LDA #$03                                            ; $B516: A9 03
   STA $04BD                                           ; $B518: 8D BD 04
   LDA #$00                                            ; $B51B: A9 00
@@ -2514,33 +2744,43 @@ LB512:
   STA $042C                                           ; $B530: 8D 2C 04
   LDA #$24                                            ; $B533: A9 24
   JMP B1F_SetUI4                                      ; $B535: 4C 8B F2
-LB538:
+@skip_7:
   CMP #$07                                            ; $B538: C9 07
-  BNE LB547                                           ; $B53A: D0 0B
+  BNE @skip_8                                           ; $B53A: D0 0B
   LDA #$07                                            ; $B53C: A9 07
   STA $04A8                                           ; $B53E: 8D A8 04
   LDA #$00                                            ; $B541: A9 00
   STA $04A9                                           ; $B543: 8D A9 04
   RTS                                                 ; $B546: 60
-LB547:
+@skip_8:
   LDA #$08                                            ; $B547: A9 08
   STA $04A8                                           ; $B549: 8D A8 04
   LDA #$00                                            ; $B54C: A9 00
   STA $04A9                                           ; $B54E: 8D A9 04
   RTS                                                 ; $B551: 60
-LB552:
-  JSR LD166                                           ; $B552: 20 66 D1
-  JSR LD299                                           ; $B555: 20 99 D2
-  BCC LB568                                           ; $B558: 90 0E
+.endproc
+;===============================================================================
+; $B552: MainGameDispatch_01_04
+;===============================================================================
+.proc MainGameDispatch_01_04
+MainGameDispatch_01_04:
+  JSR Sub_D166                                           ; $B552: 20 66 D1
+  JSR Sub_D299                                           ; $B555: 20 99 D2
+  BCC @skip                                           ; $B558: 90 0E
   INC $04A9                                           ; $B55A: EE A9 04
   LDA #$00                                            ; $B55D: A9 00
   STA $0424                                           ; $B55F: 8D 24 04
   STA $0425                                           ; $B562: 8D 25 04
-  JMP LD17C                                           ; $B565: 4C 7C D1
-LB568:
+  JMP Sub_D17C                                           ; $B565: 4C 7C D1
+@skip:
   RTS                                                 ; $B568: 60
-LB569:
-  JSR LD166                                           ; $B569: 20 66 D1
+.endproc
+;===============================================================================
+; $B569: MainGameDispatch_01_05
+;===============================================================================
+.proc MainGameDispatch_01_05
+MainGameDispatch_01_05:
+  JSR Sub_D166                                           ; $B569: 20 66 D1
   LDA #$BB                                            ; $B56C: A9 BB
   STA a:$0010                                         ; $B56E: 8D 10 00
   LDA #$B5                                            ; $B571: A9 B5
@@ -2560,7 +2800,7 @@ LB569:
   JSR B1F_PointerTableLookup                          ; $B595: 20 F5 ED
   LDA a:$0081                                         ; $B598: AD 81 00
   LSR A                                               ; $B59B: 4A
-  BCC LB5AD                                           ; $B59C: 90 0F
+  BCC @skip                                           ; $B59C: 90 0F
   LDA a:$0012                                         ; $B59E: AD 12 00
   CLC                                                 ; $B5A1: 18
   ADC #$07                                            ; $B5A2: 69 07
@@ -2568,26 +2808,36 @@ LB569:
   LDA #$03                                            ; $B5A7: A9 03
   STA $04A9                                           ; $B5A9: 8D A9 04
   RTS                                                 ; $B5AC: 60
-LB5AD:
+@skip:
   LSR A                                               ; $B5AD: 4A
-  BCC LB5BA                                           ; $B5AE: 90 0A
+  BCC @skip_2                                           ; $B5AE: 90 0A
   LDA #$01                                            ; $B5B0: A9 01
   STA $04A9                                           ; $B5B2: 8D A9 04
   LDA #$2B                                            ; $B5B5: A9 2B
   JMP B1F_SetUI0                                      ; $B5B7: 4C 6D F2
-LB5BA:
+@skip_2:
   RTS                                                 ; $B5BA: 60
+.endproc
   .byte $00,$01,$FF,$FF,$B6,$88,$B6,$C0,$00,$07,$00,$00,$80; $B5BB: 00 01 FF FF B6 88 B6 C0 00 07 00 00 80
-LB5C8:
+;===============================================================================
+; $B5C8: MainGameDispatch_02
+;===============================================================================
+.proc MainGameDispatch_02
+MainGameDispatch_02:
   LDA $04A9                                           ; $B5C8: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B5CB: 20 DE EA
 ; --- Inline pointer table (5 entries) ---
-  .word LB5D8                                         ; $B5CE: D8 B5
-  .word LB626                                         ; $B5D0: 26 B6
-  .word LB659                                         ; $B5D2: 59 B6
-  .word LB689                                         ; $B5D4: 89 B6
-  .word LB719                                         ; $B5D6: 19 B7
-LB5D8:
+  .word MainGameDispatch_02_00                                         ; $B5CE: D8 B5
+  .word MainGameDispatch_02_01                                         ; $B5D0: 26 B6
+  .word MainGameDispatch_02_02                                         ; $B5D2: 59 B6
+  .word MainGameDispatch_02_03                                         ; $B5D4: 89 B6
+  .word MainGameDispatch_02_04                                         ; $B5D6: 19 B7
+.endproc
+;===============================================================================
+; $B5D8: MainGameDispatch_02_00
+;===============================================================================
+.proc MainGameDispatch_02_00
+MainGameDispatch_02_00:
   LDA $04AA                                           ; $B5D8: AD AA 04
   EOR #$01                                            ; $B5DB: 49 01
   TAY                                                 ; $B5DD: A8
@@ -2603,25 +2853,30 @@ LB5D8:
   LDY $04AA                                           ; $B5F5: AC AA 04
   LDA $04B1,Y                                         ; $B5F8: B9 B1 04
   CMP a:$0011                                         ; $B5FB: CD 11 00
-  BCS LB61F                                           ; $B5FE: B0 1F
+  BCS @skip                                           ; $B5FE: B0 1F
   CMP a:$0010                                         ; $B600: CD 10 00
-  BCS LB622                                           ; $B603: B0 1D
-  JSR LD262                                           ; $B605: 20 62 D2
-  BCS LB622                                           ; $B608: B0 18
+  BCS @skip_2                                           ; $B603: B0 1D
+  JSR Sub_D262                                           ; $B605: 20 62 D2
+  BCS @skip_2                                           ; $B608: B0 18
   JSR LB7B3                                           ; $B60A: 20 B3 B7
   CMP a:$0010                                         ; $B60D: CD 10 00
-  BCS LB622                                           ; $B610: B0 10
+  BCS @skip_2                                           ; $B610: B0 10
   LDA a:$0010                                         ; $B612: AD 10 00
-  BEQ LB622                                           ; $B615: F0 0B
+  BEQ @skip_2                                           ; $B615: F0 0B
   LDA #$03                                            ; $B617: A9 03
   STA $04BF                                           ; $B619: 8D BF 04
-  JMP LB7A8                                           ; $B61C: 4C A8 B7
-LB61F:
+  JMP Sub_B7A8                                           ; $B61C: 4C A8 B7
+@skip:
   INC $04A9                                           ; $B61F: EE A9 04
-LB622:
+@skip_2:
   INC $04A9                                           ; $B622: EE A9 04
   RTS                                                 ; $B625: 60
-LB626:
+.endproc
+;===============================================================================
+; $B626: MainGameDispatch_02_01
+;===============================================================================
+.proc MainGameDispatch_02_01
+MainGameDispatch_02_01:
   LDA $04AA                                           ; $B626: AD AA 04
   EOR #$01                                            ; $B629: 49 01
   TAY                                                 ; $B62B: A8
@@ -2632,47 +2887,57 @@ LB626:
   CLC                                                 ; $B638: 18
   ADC #$1E                                            ; $B639: 69 1E
   CMP a:$0010                                         ; $B63B: CD 10 00
-  BCS LB655                                           ; $B63E: B0 15
+  BCS @skip                                           ; $B63E: B0 15
   JSR LB7DD                                           ; $B640: 20 DD B7
   CMP a:$0010                                         ; $B643: CD 10 00
-  BCS LB655                                           ; $B646: B0 0D
+  BCS @skip                                           ; $B646: B0 0D
   LDA a:$0010                                         ; $B648: AD 10 00
-  BEQ LB655                                           ; $B64B: F0 08
+  BEQ @skip                                           ; $B64B: F0 08
   LDA #$06                                            ; $B64D: A9 06
   STA $04BF                                           ; $B64F: 8D BF 04
-  JMP LB7A8                                           ; $B652: 4C A8 B7
-LB655:
+  JMP Sub_B7A8                                           ; $B652: 4C A8 B7
+@skip:
   INC $04A9                                           ; $B655: EE A9 04
   RTS                                                 ; $B658: 60
-LB659:
+.endproc
+;===============================================================================
+; $B659: MainGameDispatch_02_02
+;===============================================================================
+.proc MainGameDispatch_02_02
+MainGameDispatch_02_02:
   LDY $04AA                                           ; $B659: AC AA 04
   LDA $04B1,Y                                         ; $B65C: B9 B1 04
   CMP #$1E                                            ; $B65F: C9 1E
-  BCS LB685                                           ; $B661: B0 22
+  BCS @skip                                           ; $B661: B0 22
   LDY $04AA                                           ; $B663: AC AA 04
   EOR #$01                                            ; $B666: 49 01
   TAY                                                 ; $B668: A8
   LDA $04B1,Y                                         ; $B669: B9 B1 04
   CMP #$32                                            ; $B66C: C9 32
-  BCC LB685                                           ; $B66E: 90 15
+  BCC @skip                                           ; $B66E: 90 15
   JSR LB816                                           ; $B670: 20 16 B8
   CMP a:$0010                                         ; $B673: CD 10 00
-  BCS LB685                                           ; $B676: B0 0D
+  BCS @skip                                           ; $B676: B0 0D
   LDA a:$0010                                         ; $B678: AD 10 00
-  BEQ LB685                                           ; $B67B: F0 08
+  BEQ @skip                                           ; $B67B: F0 08
   LDA #$02                                            ; $B67D: A9 02
   STA $04BF                                           ; $B67F: 8D BF 04
-  JMP LB7A8                                           ; $B682: 4C A8 B7
-LB685:
+  JMP Sub_B7A8                                           ; $B682: 4C A8 B7
+@skip:
   INC $04A9                                           ; $B685: EE A9 04
   RTS                                                 ; $B688: 60
-LB689:
+.endproc
+;===============================================================================
+; $B689: MainGameDispatch_02_03
+;===============================================================================
+.proc MainGameDispatch_02_03
+MainGameDispatch_02_03:
   LDY $04AA                                           ; $B689: AC AA 04
   LDA $04B5,Y                                         ; $B68C: B9 B5 04
   AND #$7F                                            ; $B68F: 29 7F
-  BEQ LB696                                           ; $B691: F0 03
-  JMP LB715                                           ; $B693: 4C 15 B7
-LB696:
+  BEQ @skip                                           ; $B691: F0 03
+  JMP @skip_3                                           ; $B693: 4C 15 B7
+@skip:
   LDA $04AD,Y                                         ; $B696: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B699: 20 D7 F2
   LDY #$02                                            ; $B69C: A0 02
@@ -2686,16 +2951,16 @@ LB696:
   LDY #$02                                            ; $B6AF: A0 02
   LDA ($00),Y                                         ; $B6B1: B1 00
   CMP a:$0010                                         ; $B6B3: CD 10 00
-  BCS LB6CD                                           ; $B6B6: B0 15
+  BCS @skip_2                                           ; $B6B6: B0 15
   JSR LB851                                           ; $B6B8: 20 51 B8
   CMP a:$0010                                         ; $B6BB: CD 10 00
-  BCS LB6CD                                           ; $B6BE: B0 0D
+  BCS @skip_2                                           ; $B6BE: B0 0D
   LDA a:$0010                                         ; $B6C0: AD 10 00
-  BEQ LB6CD                                           ; $B6C3: F0 08
+  BEQ @skip_2                                           ; $B6C3: F0 08
   LDA #$07                                            ; $B6C5: A9 07
   STA $04BF                                           ; $B6C7: 8D BF 04
-  JMP LB7A8                                           ; $B6CA: 4C A8 B7
-LB6CD:
+  JMP Sub_B7A8                                           ; $B6CA: 4C A8 B7
+@skip_2:
   LDY $04AA                                           ; $B6CD: AC AA 04
   LDA $04AD,Y                                         ; $B6D0: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B6D3: 20 D7 F2
@@ -2710,54 +2975,59 @@ LB6CD:
   LDY #$01                                            ; $B6E9: A0 01
   LDA ($00),Y                                         ; $B6EB: B1 00
   CMP a:$0010                                         ; $B6ED: CD 10 00
-  BCC LB715                                           ; $B6F0: 90 23
+  BCC @skip_3                                           ; $B6F0: 90 23
   JSR LB89B                                           ; $B6F2: 20 9B B8
   CMP a:$0010                                         ; $B6F5: CD 10 00
-  BCS LB715                                           ; $B6F8: B0 1B
+  BCS @skip_3                                           ; $B6F8: B0 1B
   LDY $04AA                                           ; $B6FA: AC AA 04
   LDA $04B5,Y                                         ; $B6FD: B9 B5 04
-  BMI LB715                                           ; $B700: 30 13
+  BMI @skip_3                                           ; $B700: 30 13
   TYA                                                 ; $B702: 98
   EOR #$01                                            ; $B703: 49 01
   TAY                                                 ; $B705: A8
   LDA $04B5,Y                                         ; $B706: B9 B5 04
   AND #$7F                                            ; $B709: 29 7F
-  BNE LB715                                           ; $B70B: D0 08
+  BNE @skip_3                                           ; $B70B: D0 08
   LDA #$08                                            ; $B70D: A9 08
   STA $04BF                                           ; $B70F: 8D BF 04
-  JMP LB7A8                                           ; $B712: 4C A8 B7
-LB715:
+  JMP Sub_B7A8                                           ; $B712: 4C A8 B7
+@skip_3:
   INC $04A9                                           ; $B715: EE A9 04
   RTS                                                 ; $B718: 60
-LB719:
+.endproc
+;===============================================================================
+; $B719: MainGameDispatch_02_04
+;===============================================================================
+.proc MainGameDispatch_02_04
+MainGameDispatch_02_04:
   LDX #$00                                            ; $B719: A2 00
   LDA $04AA                                           ; $B71B: AD AA 04
   EOR #$01                                            ; $B71E: 49 01
   TAY                                                 ; $B720: A8
   LDA $04B1,Y                                         ; $B721: B9 B1 04
   CMP #$1F                                            ; $B724: C9 1F
-  BCC LB730                                           ; $B726: 90 08
+  BCC @skip                                           ; $B726: 90 08
   LDX #$18                                            ; $B728: A2 18
   CMP #$3D                                            ; $B72A: C9 3D
-  BCC LB730                                           ; $B72C: 90 02
+  BCC @skip                                           ; $B72C: 90 02
   LDX #$30                                            ; $B72E: A2 30
-LB730:
+@skip:
   LDY $04AA                                           ; $B730: AC AA 04
   LDA $04B1,Y                                         ; $B733: B9 B1 04
   CMP #$1F                                            ; $B736: C9 1F
-  BCC LB74B                                           ; $B738: 90 11
+  BCC @skip_2                                           ; $B738: 90 11
   TXA                                                 ; $B73A: 8A
   CLC                                                 ; $B73B: 18
   ADC #$08                                            ; $B73C: 69 08
   TAX                                                 ; $B73E: AA
   LDA $04B1,Y                                         ; $B73F: B9 B1 04
   CMP #$3D                                            ; $B742: C9 3D
-  BCC LB74B                                           ; $B744: 90 05
+  BCC @skip_2                                           ; $B744: 90 05
   TXA                                                 ; $B746: 8A
   CLC                                                 ; $B747: 18
   ADC #$08                                            ; $B748: 69 08
   TAX                                                 ; $B74A: AA
-LB74B:
+@skip_2:
   JSR B1F_RandomMod8                                  ; $B74B: 20 56 E8
   STA a:$0000                                         ; $B74E: 8D 00 00
   TXA                                                 ; $B751: 8A
@@ -2766,13 +3036,18 @@ LB74B:
   TAX                                                 ; $B756: AA
   LDA $B760,X                                         ; $B757: BD 60 B7
   STA $04BF                                           ; $B75A: 8D BF 04
-  JMP LB7A8                                           ; $B75D: 4C A8 B7
+  JMP Sub_B7A8                                           ; $B75D: 4C A8 B7
+.endproc
   .byte $00,$00,$00,$02,$02,$02,$02,$02,$00,$00,$00,$00,$00,$02,$02,$02; $B760: 00 00 00 02 02 02 02 02 00 00 00 00 00 02 02 02
   .byte $00,$00,$00,$00,$00,$00,$02,$02,$00,$00,$02,$02,$02,$02,$02,$02; $B770: 00 00 00 00 00 00 02 02 00 00 02 02 02 02 02 02
   .byte $00,$00,$00,$00,$02,$02,$02,$02,$00,$00,$00,$00,$00,$02,$02,$02; $B780: 00 00 00 00 02 02 02 02 00 00 00 00 00 02 02 02
   .byte $00,$02,$02,$02,$02,$02,$02,$02,$00,$00,$00,$02,$02,$02,$02,$02; $B790: 00 02 02 02 02 02 02 02 00 00 00 02 02 02 02 02
   .byte $00,$00,$00,$00,$02,$02,$02,$02               ; $B7A0: 00 00 00 00 02 02 02 02
-LB7A8:
+;===============================================================================
+; $B7A8: Sub_B7A8
+;===============================================================================
+.proc Sub_B7A8
+Sub_B7A8:
   LDA #$01                                            ; $B7A8: A9 01
   STA $04A8                                           ; $B7AA: 8D A8 04
   LDA #$03                                            ; $B7AD: A9 03
@@ -2792,9 +3067,9 @@ LB7B3:
   LDA #$8C                                            ; $B7CD: A9 8C
   SEC                                                 ; $B7CF: 38
   SBC a:$0010                                         ; $B7D0: ED 10 00
-  BPL LB7D7                                           ; $B7D3: 10 02
+  BPL @skip                                           ; $B7D3: 10 02
   LDA #$00                                            ; $B7D5: A9 00
-LB7D7:
+@skip:
   STA a:$0010                                         ; $B7D7: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B7DA: 4C 43 E8
 LB7DD:
@@ -2807,9 +3082,9 @@ LB7DD:
   LDY #$02                                            ; $B7ED: A0 02
   LDA ($00),Y                                         ; $B7EF: B1 00
   CMP a:$0010                                         ; $B7F1: CD 10 00
-  BCC LB7F9                                           ; $B7F4: 90 03
+  BCC @skip_2                                           ; $B7F4: 90 03
   STA a:$0010                                         ; $B7F6: 8D 10 00
-LB7F9:
+@skip_2:
   LDY $04AA                                           ; $B7F9: AC AA 04
   LDA $04B1,Y                                         ; $B7FC: B9 B1 04
   CLC                                                 ; $B7FF: 18
@@ -2818,9 +3093,9 @@ LB7F9:
   LDA #$7C                                            ; $B806: A9 7C
   SEC                                                 ; $B808: 38
   SBC a:$0010                                         ; $B809: ED 10 00
-  BPL LB810                                           ; $B80C: 10 02
+  BPL @skip_3                                           ; $B80C: 10 02
   LDA #$00                                            ; $B80E: A9 00
-LB810:
+@skip_3:
   STA a:$0010                                         ; $B810: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B813: 4C 43 E8
 LB816:
@@ -2839,16 +3114,16 @@ LB816:
   LDA ($00),Y                                         ; $B834: B1 00
   SEC                                                 ; $B836: 38
   SBC a:$0010                                         ; $B837: ED 10 00
-  BPL LB83E                                           ; $B83A: 10 02
+  BPL @skip_4                                           ; $B83A: 10 02
   LDA #$00                                            ; $B83C: A9 00
-LB83E:
+@skip_4:
   STA a:$0010                                         ; $B83E: 8D 10 00
   LDA #$32                                            ; $B841: A9 32
   SEC                                                 ; $B843: 38
   SBC a:$0010                                         ; $B844: ED 10 00
-  BPL LB84B                                           ; $B847: 10 02
+  BPL @skip_5                                           ; $B847: 10 02
   LDA #$00                                            ; $B849: A9 00
-LB84B:
+@skip_5:
   STA a:$0010                                         ; $B84B: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B84E: 4C 43 E8
 LB851:
@@ -2879,9 +3154,9 @@ LB851:
   LDA a:$0010                                         ; $B88A: AD 10 00
   SEC                                                 ; $B88D: 38
   SBC a:$0011                                         ; $B88E: ED 11 00
-  BPL LB895                                           ; $B891: 10 02
+  BPL @skip_6                                           ; $B891: 10 02
   LDA #$00                                            ; $B893: A9 00
-LB895:
+@skip_6:
   STA a:$0010                                         ; $B895: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B898: 4C 43 E8
 LB89B:
@@ -2897,30 +3172,40 @@ LB89B:
   LDA ($00),Y                                         ; $B8B0: B1 00
   SEC                                                 ; $B8B2: 38
   SBC a:$0010                                         ; $B8B3: ED 10 00
-  BCS LB8BA                                           ; $B8B6: B0 02
+  BCS @skip_7                                           ; $B8B6: B0 02
   LDA #$00                                            ; $B8B8: A9 00
-LB8BA:
+@skip_7:
   CLC                                                 ; $B8BA: 18
   ADC #$0A                                            ; $B8BB: 69 0A
-  BPL LB8C1                                           ; $B8BD: 10 02
+  BPL @skip_8                                           ; $B8BD: 10 02
   LDA #$00                                            ; $B8BF: A9 00
-LB8C1:
+@skip_8:
   STA a:$0010                                         ; $B8C1: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B8C4: 4C 43 E8
-LB8C7:
+.endproc
+;===============================================================================
+; $B8C7: MainGameDispatch_03
+;===============================================================================
+.proc MainGameDispatch_03
+MainGameDispatch_03:
   LDA $04A9                                           ; $B8C7: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B8CA: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word LB8D3                                         ; $B8CD: D3 B8
-  .word LB9A5                                         ; $B8CF: A5 B9
-  .word LB9C8                                         ; $B8D1: C8 B9
-LB8D3:
+  .word MainGameDispatch_03_00                                         ; $B8CD: D3 B8
+  .word MainGameDispatch_03_01                                         ; $B8CF: A5 B9
+  .word MainGameDispatch_03_02                                         ; $B8D1: C8 B9
+.endproc
+;===============================================================================
+; $B8D3: MainGameDispatch_03_00
+;===============================================================================
+.proc MainGameDispatch_03_00
+MainGameDispatch_03_00:
   INC $04A9                                           ; $B8D3: EE A9 04
   JSR LBA15                                           ; $B8D6: 20 15 BA
   LDY $04AA                                           ; $B8D9: AC AA 04
   LDA $04B5,Y                                         ; $B8DC: B9 B5 04
   AND #$7F                                            ; $B8DF: 29 7F
-  BEQ LB909                                           ; $B8E1: F0 26
+  BEQ @loop_2                                           ; $B8E1: F0 26
   LDA a:$0010                                         ; $B8E3: AD 10 00
   CLC                                                 ; $B8E6: 18
   ADC #$14                                            ; $B8E7: 69 14
@@ -2930,73 +3215,78 @@ LB8D3:
   CLC                                                 ; $B8F0: 18
   ADC a:$0001                                         ; $B8F1: 6D 01 00
   STA a:$0002                                         ; $B8F4: 8D 02 00
-LB8F7:
+@loop:
   LDA a:$0002                                         ; $B8F7: AD 02 00
   CMP #$0A                                            ; $B8FA: C9 0A
-  BCC LB909                                           ; $B8FC: 90 0B
+  BCC @loop_2                                           ; $B8FC: 90 0B
   SBC #$0A                                            ; $B8FE: E9 0A
   STA a:$0002                                         ; $B900: 8D 02 00
   INC a:$0001                                         ; $B903: EE 01 00
-  JMP LB8F7                                           ; $B906: 4C F7 B8
-LB909:
+  JMP @loop                                           ; $B906: 4C F7 B8
+@loop_2:
   LDA $04BF                                           ; $B909: AD BF 04
-  BNE LB92B                                           ; $B90C: D0 1D
+  BNE @skip_2                                           ; $B90C: D0 1D
   LDA a:$0010                                         ; $B90E: AD 10 00
   CMP #$64                                            ; $B911: C9 64
-  BCC LB918                                           ; $B913: 90 03
-  JMP LB9A0                                           ; $B915: 4C A0 B9
-LB918:
+  BCC @skip                                           ; $B913: 90 03
+  JMP Sub_B9A0                                           ; $B915: 4C A0 B9
+@skip:
   LDA #$03                                            ; $B918: A9 03
   STA a:$0003                                         ; $B91A: 8D 03 00
   LDA #$00                                            ; $B91D: A9 00
   STA a:$0002                                         ; $B91F: 8D 02 00
   STA a:$0004                                         ; $B922: 8D 04 00
   JSR B1F_MathDiv16                                   ; $B925: 20 7C EA
-  JMP LB96D                                           ; $B928: 4C 6D B9
-LB92B:
+  JMP Sub_B96D                                           ; $B928: 4C 6D B9
+@skip_2:
   CMP #$06                                            ; $B92B: C9 06
-  BNE LB962                                           ; $B92D: D0 33
+  BNE @skip_5                                           ; $B92D: D0 33
   LDA a:$0010                                         ; $B92F: AD 10 00
   CMP #$1E                                            ; $B932: C9 1E
-  BCS LB940                                           ; $B934: B0 0A
+  BCS @skip_3                                           ; $B934: B0 0A
   LDA a:$0001                                         ; $B936: AD 01 00
   ASL A                                               ; $B939: 0A
   STA a:$0001                                         ; $B93A: 8D 01 00
-  JMP LB96D                                           ; $B93D: 4C 6D B9
-LB940:
+  JMP Sub_B96D                                           ; $B93D: 4C 6D B9
+@skip_3:
   JSR B1F_RandomByte                                  ; $B940: 20 7A E8
   AND #$1F                                            ; $B943: 29 1F
   CMP #$15                                            ; $B945: C9 15
-  BCS LB909                                           ; $B947: B0 C0
+  BCS @loop_2                                           ; $B947: B0 C0
   ADC #$0A                                            ; $B949: 69 0A
   STA a:$0000                                         ; $B94B: 8D 00 00
   LDY $04AA                                           ; $B94E: AC AA 04
   LDA $04B1,Y                                         ; $B951: B9 B1 04
   SEC                                                 ; $B954: 38
   SBC a:$0000                                         ; $B955: ED 00 00
-  BPL LB95C                                           ; $B958: 10 02
+  BPL @skip_4                                           ; $B958: 10 02
   LDA #$00                                            ; $B95A: A9 00
-LB95C:
+@skip_4:
   STA $04B1,Y                                         ; $B95C: 99 B1 04
-  JMP LB9A0                                           ; $B95F: 4C A0 B9
-LB962:
+  JMP Sub_B9A0                                           ; $B95F: 4C A0 B9
+@skip_5:
   LDY $04AA                                           ; $B962: AC AA 04
   LDA a:$0010                                         ; $B965: AD 10 00
   CMP $04C5,Y                                         ; $B968: D9 C5 04
-  BCS LB9A0                                           ; $B96B: B0 33
-LB96D:
+  BCS Sub_B9A0                                           ; $B96B: B0 33
+.endproc
+;===============================================================================
+; $B96D: Sub_B96D
+;===============================================================================
+.proc Sub_B96D
+Sub_B96D:
   LDA a:$0001                                         ; $B96D: AD 01 00
-  BEQ LB99B                                           ; $B970: F0 29
-  BMI LB99B                                           ; $B972: 30 27
+  BEQ @skip_2                                           ; $B970: F0 29
+  BMI @skip_2                                           ; $B972: 30 27
   LDA $04AA                                           ; $B974: AD AA 04
   EOR #$01                                            ; $B977: 49 01
   TAY                                                 ; $B979: A8
   LDA $04B1,Y                                         ; $B97A: B9 B1 04
   SEC                                                 ; $B97D: 38
   SBC a:$0001                                         ; $B97E: ED 01 00
-  BCS LB985                                           ; $B981: B0 02
+  BCS @skip                                           ; $B981: B0 02
   LDA #$00                                            ; $B983: A9 00
-LB985:
+@skip:
   STA $04B1,Y                                         ; $B985: 99 B1 04
   LDA a:$0001                                         ; $B988: AD 01 00
   STA $042C                                           ; $B98B: 8D 2C 04
@@ -3005,54 +3295,69 @@ LB985:
   STA $042E                                           ; $B993: 8D 2E 04
   LDA #$22                                            ; $B996: A9 22
   JMP B1F_SetUI4                                      ; $B998: 4C 8B F2
-LB99B:
+@skip_2:
   LDA #$39                                            ; $B99B: A9 39
   JMP B1F_SetUI4                                      ; $B99D: 4C 8B F2
-LB9A0:
+.endproc
+;===============================================================================
+; $B9A0: Sub_B9A0
+;===============================================================================
+.proc Sub_B9A0
+Sub_B9A0:
   LDA #$25                                            ; $B9A0: A9 25
   JMP B1F_SetUI0                                      ; $B9A2: 4C 6D F2
-LB9A5:
-  JSR LD299                                           ; $B9A5: 20 99 D2
-  BCC LB9C7                                           ; $B9A8: 90 1D
-  JSR LD13D                                           ; $B9AA: 20 3D D1
+.endproc
+;===============================================================================
+; $B9A5: MainGameDispatch_03_01
+;===============================================================================
+.proc MainGameDispatch_03_01
+MainGameDispatch_03_01:
+  JSR Sub_D299                                           ; $B9A5: 20 99 D2
+  BCC @skip                                           ; $B9A8: 90 1D
+  JSR Sub_D13D                                           ; $B9AA: 20 3D D1
   LDA a:$0081                                         ; $B9AD: AD 81 00
   AND #$03                                            ; $B9B0: 29 03
-  BEQ LB9C7                                           ; $B9B2: F0 13
-  JSR LD060                                           ; $B9B4: 20 60 D0
+  BEQ @skip                                           ; $B9B2: F0 13
+  JSR Sub_D060                                           ; $B9B4: 20 60 D0
   LDA #$FF                                            ; $B9B7: A9 FF
   STA $0380,X                                         ; $B9B9: 9D 80 03
   INC $04A9                                           ; $B9BC: EE A9 04
   LDA a:$007E                                         ; $B9BF: AD 7E 00
   ORA #$04                                            ; $B9C2: 09 04
   STA a:$007E                                         ; $B9C4: 8D 7E 00
-LB9C7:
+@skip:
   RTS                                                 ; $B9C7: 60
-LB9C8:
+.endproc
+;===============================================================================
+; $B9C8: MainGameDispatch_03_02
+;===============================================================================
+.proc MainGameDispatch_03_02
+MainGameDispatch_03_02:
   LDA a:$007E                                         ; $B9C8: AD 7E 00
   AND #$04                                            ; $B9CB: 29 04
-  BNE LB9EC                                           ; $B9CD: D0 1D
+  BNE @skip                                           ; $B9CD: D0 1D
   LDY $04AA                                           ; $B9CF: AC AA 04
   LDA $04B1,Y                                         ; $B9D2: B9 B1 04
-  BEQ LB9ED                                           ; $B9D5: F0 16
+  BEQ @skip_2                                           ; $B9D5: F0 16
   LDA $04AA                                           ; $B9D7: AD AA 04
   EOR #$01                                            ; $B9DA: 49 01
   TAY                                                 ; $B9DC: A8
   LDA $04B1,Y                                         ; $B9DD: B9 B1 04
-  BEQ LB9ED                                           ; $B9E0: F0 0B
+  BEQ @skip_2                                           ; $B9E0: F0 0B
   LDA #$01                                            ; $B9E2: A9 01
   STA $04A8                                           ; $B9E4: 8D A8 04
   LDA #$00                                            ; $B9E7: A9 00
   STA $04A9                                           ; $B9E9: 8D A9 04
-LB9EC:
+@skip:
   RTS                                                 ; $B9EC: 60
-LB9ED:
+@skip_2:
   STY $04AA                                           ; $B9ED: 8C AA 04
   LDA $04AD,Y                                         ; $B9F0: B9 AD 04
   STA $042C                                           ; $B9F3: 8D 2C 04
   CPY #$01                                            ; $B9F6: C0 01
-  BNE LB9FC                                           ; $B9F8: D0 02
+  BNE @skip_3                                           ; $B9F8: D0 02
   LDY #$02                                            ; $B9FA: A0 02
-LB9FC:
+@skip_3:
   LDA #$02                                            ; $B9FC: A9 02
   STA $0515,Y                                         ; $B9FE: 99 15 05
   TYA                                                 ; $BA01: 98
@@ -3072,9 +3377,9 @@ LBA15:
   LDX $04AA                                           ; $BA1D: AE AA 04
   LDA $04AD,X                                         ; $BA20: BD AD 04
   CMP $0560                                           ; $BA23: CD 60 05
-  BEQ LBA2A                                           ; $BA26: F0 02
+  BEQ @skip_4                                           ; $BA26: F0 02
   LDY #$01                                            ; $BA28: A0 01
-LBA2A:
+@skip_4:
   LDA $04C1,Y                                         ; $BA2A: B9 C1 04
   STA a:$0001                                         ; $BA2D: 8D 01 00
   LDA $0570,Y                                         ; $BA30: B9 70 05
@@ -3091,39 +3396,49 @@ LBA2A:
   SEC                                                 ; $BA48: 38
   SBC a:$0002                                         ; $BA49: ED 02 00
   STA a:$0001                                         ; $BA4C: 8D 01 00
-LBA4F:
+@loop:
   JSR B1F_RandomByte                                  ; $BA4F: 20 7A E8
   AND #$0F                                            ; $BA52: 29 0F
   CMP #$0B                                            ; $BA54: C9 0B
-  BCS LBA4F                                           ; $BA56: B0 F7
+  BCS @loop                                           ; $BA56: B0 F7
   SEC                                                 ; $BA58: 38
   SBC #$05                                            ; $BA59: E9 05
   STA a:$0002                                         ; $BA5B: 8D 02 00
   LDA a:$0001                                         ; $BA5E: AD 01 00
   CLC                                                 ; $BA61: 18
   ADC a:$0002                                         ; $BA62: 6D 02 00
-  BPL LBA69                                           ; $BA65: 10 02
+  BPL @skip_5                                           ; $BA65: 10 02
   LDA #$00                                            ; $BA67: A9 00
-LBA69:
+@skip_5:
   STA a:$0001                                         ; $BA69: 8D 01 00
   RTS                                                 ; $BA6C: 60
-LBA6D:
+.endproc
+;===============================================================================
+; $BA6D: MainGameDispatch_04
+;===============================================================================
+.proc MainGameDispatch_04
+MainGameDispatch_04:
   LDA $04A9                                           ; $BA6D: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BA70: 20 DE EA
 ; --- Inline pointer table (10 entries) ---
-  .word LBA87                                         ; $BA73: 87 BA
-  .word LBAA5                                         ; $BA75: A5 BA
-  .word LBAC0                                         ; $BA77: C0 BA
-  .word LBADA                                         ; $BA79: DA BA
-  .word LBB03                                         ; $BA7B: 03 BB
-  .word LBB41                                         ; $BA7D: 41 BB
-  .word LBB5B                                         ; $BA7F: 5B BB
-  .word LBB93                                         ; $BA81: 93 BB
-  .word LBBC0                                         ; $BA83: C0 BB
-  .word LBC00                                         ; $BA85: 00 BC
-LBA87:
-  JSR LD299                                           ; $BA87: 20 99 D2
-  BCC LBAA4                                           ; $BA8A: 90 18
+  .word MainGameDispatch_04_00                                         ; $BA73: 87 BA
+  .word MainGameDispatch_04_01                                         ; $BA75: A5 BA
+  .word MainGameDispatch_04_02                                         ; $BA77: C0 BA
+  .word MainGameDispatch_04_03                                         ; $BA79: DA BA
+  .word MainGameDispatch_04_04                                         ; $BA7B: 03 BB
+  .word MainGameDispatch_04_05                                         ; $BA7D: 41 BB
+  .word MainGameDispatch_04_06                                         ; $BA7F: 5B BB
+  .word MainGameDispatch_04_07                                         ; $BA81: 93 BB
+  .word MainGameDispatch_04_08                                         ; $BA83: C0 BB
+  .word MainGameDispatch_04_09                                         ; $BA85: 00 BC
+.endproc
+;===============================================================================
+; $BA87: MainGameDispatch_04_00
+;===============================================================================
+.proc MainGameDispatch_04_00
+MainGameDispatch_04_00:
+  JSR Sub_D299                                           ; $BA87: 20 99 D2
+  BCC @skip                                           ; $BA8A: 90 18
   INC $04A9                                           ; $BA8C: EE A9 04
   LDY $04AA                                           ; $BA8F: AC AA 04
   LDA $04AD,Y                                         ; $BA92: B9 AD 04
@@ -3134,24 +3449,34 @@ LBA87:
   .word $A030                                         ; $BA9D: 30 A0
   LDA #$29                                            ; $BA9F: A9 29
   JMP B1F_SetUI0                                      ; $BAA1: 4C 6D F2
-LBAA4:
+@skip:
   RTS                                                 ; $BAA4: 60
-LBAA5:
-  JSR LD166                                           ; $BAA5: 20 66 D1
-  JSR LD299                                           ; $BAA8: 20 99 D2
-  BCC LBABF                                           ; $BAAB: 90 12
-  JSR LD13D                                           ; $BAAD: 20 3D D1
+.endproc
+;===============================================================================
+; $BAA5: MainGameDispatch_04_01
+;===============================================================================
+.proc MainGameDispatch_04_01
+MainGameDispatch_04_01:
+  JSR Sub_D166                                           ; $BAA5: 20 66 D1
+  JSR Sub_D299                                           ; $BAA8: 20 99 D2
+  BCC @skip                                           ; $BAAB: 90 12
+  JSR Sub_D13D                                           ; $BAAD: 20 3D D1
   LDA a:$0081                                         ; $BAB0: AD 81 00
   AND #$03                                            ; $BAB3: 29 03
-  BEQ LBABF                                           ; $BAB5: F0 08
+  BEQ @skip                                           ; $BAB5: F0 08
   INC $04A9                                           ; $BAB7: EE A9 04
   LDA #$00                                            ; $BABA: A9 00
   JMP B1F_SetUI4                                      ; $BABC: 4C 8B F2
-LBABF:
+@skip:
   RTS                                                 ; $BABF: 60
-LBAC0:
-  JSR LD299                                           ; $BAC0: 20 99 D2
-  BCC LBAD9                                           ; $BAC3: 90 14
+.endproc
+;===============================================================================
+; $BAC0: MainGameDispatch_04_02
+;===============================================================================
+.proc MainGameDispatch_04_02
+MainGameDispatch_04_02:
+  JSR Sub_D299                                           ; $BAC0: 20 99 D2
+  BCC @skip                                           ; $BAC3: 90 14
   LDA #$04                                            ; $BAC5: A9 04
   STA $04BD                                           ; $BAC7: 8D BD 04
   LDA #$03                                            ; $BACA: A9 03
@@ -3160,11 +3485,16 @@ LBAC0:
   STA $04A8                                           ; $BAD1: 8D A8 04
   LDA #$00                                            ; $BAD4: A9 00
   STA $04A9                                           ; $BAD6: 8D A9 04
-LBAD9:
+@skip:
   RTS                                                 ; $BAD9: 60
-LBADA:
-  JSR LD299                                           ; $BADA: 20 99 D2
-  BCC LBB02                                           ; $BADD: 90 23
+.endproc
+;===============================================================================
+; $BADA: MainGameDispatch_04_03
+;===============================================================================
+.proc MainGameDispatch_04_03
+MainGameDispatch_04_03:
+  JSR Sub_D299                                           ; $BADA: 20 99 D2
+  BCC @skip                                           ; $BADD: 90 23
   LDA $04AA                                           ; $BADF: AD AA 04
   EOR #$01                                            ; $BAE2: 49 01
   STA $04AA                                           ; $BAE4: 8D AA 04
@@ -3180,17 +3510,22 @@ LBADA:
   INC $04A9                                           ; $BAFA: EE A9 04
   LDA #$2A                                            ; $BAFD: A9 2A
   JMP B1F_SetUI0                                      ; $BAFF: 4C 6D F2
-LBB02:
+@skip:
   RTS                                                 ; $BB02: 60
-LBB03:
+.endproc
+;===============================================================================
+; $BB03: MainGameDispatch_04_04
+;===============================================================================
+.proc MainGameDispatch_04_04
+MainGameDispatch_04_04:
   LDA $04AA                                           ; $BB03: AD AA 04
-  JSR LD166                                           ; $BB06: 20 66 D1
-  JSR LD299                                           ; $BB09: 20 99 D2
-  BCC LBB40                                           ; $BB0C: 90 32
-  JSR LD13D                                           ; $BB0E: 20 3D D1
+  JSR Sub_D166                                           ; $BB06: 20 66 D1
+  JSR Sub_D299                                           ; $BB09: 20 99 D2
+  BCC @skip_2                                           ; $BB0C: 90 32
+  JSR Sub_D13D                                           ; $BB0E: 20 3D D1
   LDA a:$0081                                         ; $BB11: AD 81 00
   AND #$03                                            ; $BB14: 29 03
-  BEQ LBB40                                           ; $BB16: F0 28
+  BEQ @skip_2                                           ; $BB16: F0 28
   LDA $04AA                                           ; $BB18: AD AA 04
   EOR #$01                                            ; $BB1B: 49 01
   TAY                                                 ; $BB1D: A8
@@ -3200,20 +3535,25 @@ LBB03:
   STA a:$0011                                         ; $BB23: 8D 11 00
   JSR B1F_RandomBelow100                              ; $BB26: 20 43 E8
   CMP a:$0011                                         ; $BB29: CD 11 00
-  BCS LBB38                                           ; $BB2C: B0 0A
+  BCS @skip                                           ; $BB2C: B0 0A
   LDA #$09                                            ; $BB2E: A9 09
   STA $04A9                                           ; $BB30: 8D A9 04
   LDA #$3C                                            ; $BB33: A9 3C
   JMP B1F_SetUI0                                      ; $BB35: 4C 6D F2
-LBB38:
+@skip:
   INC $04A9                                           ; $BB38: EE A9 04
   LDA #$00                                            ; $BB3B: A9 00
   JMP B1F_SetUI4                                      ; $BB3D: 4C 8B F2
-LBB40:
+@skip_2:
   RTS                                                 ; $BB40: 60
-LBB41:
-  JSR LD299                                           ; $BB41: 20 99 D2
-  BCC LBB5A                                           ; $BB44: 90 14
+.endproc
+;===============================================================================
+; $BB41: MainGameDispatch_04_05
+;===============================================================================
+.proc MainGameDispatch_04_05
+MainGameDispatch_04_05:
+  JSR Sub_D299                                           ; $BB41: 20 99 D2
+  BCC @skip                                           ; $BB44: 90 14
   LDA #$04                                            ; $BB46: A9 04
   STA $04BD                                           ; $BB48: 8D BD 04
   LDA #$06                                            ; $BB4B: A9 06
@@ -3222,9 +3562,14 @@ LBB41:
   STA $04A8                                           ; $BB52: 8D A8 04
   LDA #$00                                            ; $BB55: A9 00
   STA $04A9                                           ; $BB57: 8D A9 04
-LBB5A:
+@skip:
   RTS                                                 ; $BB5A: 60
-LBB5B:
+.endproc
+;===============================================================================
+; $BB5B: MainGameDispatch_04_06
+;===============================================================================
+.proc MainGameDispatch_04_06
+MainGameDispatch_04_06:
   LDA #$0A                                            ; $BB5B: A9 0A
   JSR B1F_RandomBelowThreshold                        ; $BB5D: 20 62 E8
   CLC                                                 ; $BB60: 18
@@ -3243,20 +3588,25 @@ LBB5B:
   LDA ($00),Y                                         ; $BB7F: B1 00
   SEC                                                 ; $BB81: 38
   SBC $042F                                           ; $BB82: ED 2F 04
-  BPL LBB89                                           ; $BB85: 10 02
+  BPL @skip                                           ; $BB85: 10 02
   LDA #$00                                            ; $BB87: A9 00
-LBB89:
+@skip:
   STA ($00),Y                                         ; $BB89: 91 00
   INC $04A9                                           ; $BB8B: EE A9 04
   LDA #$3D                                            ; $BB8E: A9 3D
   JMP B1F_SetUI4                                      ; $BB90: 4C 8B F2
-LBB93:
-  JSR LD299                                           ; $BB93: 20 99 D2
-  BCC LBBBF                                           ; $BB96: 90 27
-  JSR LD13D                                           ; $BB98: 20 3D D1
+.endproc
+;===============================================================================
+; $BB93: MainGameDispatch_04_07
+;===============================================================================
+.proc MainGameDispatch_04_07
+MainGameDispatch_04_07:
+  JSR Sub_D299                                           ; $BB93: 20 99 D2
+  BCC @skip_2                                           ; $BB96: 90 27
+  JSR Sub_D13D                                           ; $BB98: 20 3D D1
   LDA a:$0081                                         ; $BB9B: AD 81 00
   AND #$03                                            ; $BB9E: 29 03
-  BEQ LBBBF                                           ; $BBA0: F0 1D
+  BEQ @skip_2                                           ; $BBA0: F0 1D
   LDA $04AA                                           ; $BBA2: AD AA 04
   EOR #$01                                            ; $BBA5: 49 01
   TAY                                                 ; $BBA7: A8
@@ -3264,33 +3614,38 @@ LBB93:
   JSR B1F_GetOfficerRecordAddr                        ; $BBAB: 20 D7 F2
   LDY #$00                                            ; $BBAE: A0 00
   LDA ($00),Y                                         ; $BBB0: B1 00
-  BEQ LBBB7                                           ; $BBB2: F0 03
-  JMP LBC16                                           ; $BBB4: 4C 16 BC
-LBBB7:
+  BEQ @skip                                           ; $BBB2: F0 03
+  JMP Sub_BC16                                           ; $BBB4: 4C 16 BC
+@skip:
   INC $04A9                                           ; $BBB7: EE A9 04
   LDA #$26                                            ; $BBBA: A9 26
   JMP B1F_SetUI4                                      ; $BBBC: 4C 8B F2
-LBBBF:
+@skip_2:
   RTS                                                 ; $BBBF: 60
-LBBC0:
-  JSR LD299                                           ; $BBC0: 20 99 D2
-  BCC LBBCF                                           ; $BBC3: 90 0A
-  JSR LD13D                                           ; $BBC5: 20 3D D1
+.endproc
+;===============================================================================
+; $BBC0: MainGameDispatch_04_08
+;===============================================================================
+.proc MainGameDispatch_04_08
+MainGameDispatch_04_08:
+  JSR Sub_D299                                           ; $BBC0: 20 99 D2
+  BCC @skip                                           ; $BBC3: 90 0A
+  JSR Sub_D13D                                           ; $BBC5: 20 3D D1
   LDA a:$0081                                         ; $BBC8: AD 81 00
   AND #$03                                            ; $BBCB: 29 03
-  BNE LBBD0                                           ; $BBCD: D0 01
-LBBCF:
+  BNE @skip_2                                           ; $BBCD: D0 01
+@skip:
   RTS                                                 ; $BBCF: 60
-LBBD0:
+@skip_2:
   LDA $04AA                                           ; $BBD0: AD AA 04
   EOR #$01                                            ; $BBD3: 49 01
   TAY                                                 ; $BBD5: A8
   LDA $04AD,Y                                         ; $BBD6: B9 AD 04
   STA $042C                                           ; $BBD9: 8D 2C 04
   CPY #$01                                            ; $BBDC: C0 01
-  BNE LBBE2                                           ; $BBDE: D0 02
+  BNE @skip_3                                           ; $BBDE: D0 02
   LDY #$02                                            ; $BBE0: A0 02
-LBBE2:
+@skip_3:
   LDA #$02                                            ; $BBE2: A9 02
   STA $0515,Y                                         ; $BBE4: 99 15 05
   TYA                                                 ; $BBE7: 98
@@ -3305,24 +3660,34 @@ LBBE2:
   LDA #$FF                                            ; $BBFA: A9 FF
   STA $04C0                                           ; $BBFC: 8D C0 04
   RTS                                                 ; $BBFF: 60
-LBC00:
+.endproc
+;===============================================================================
+; $BC00: MainGameDispatch_04_09
+;===============================================================================
+.proc MainGameDispatch_04_09
+MainGameDispatch_04_09:
   LDA $04AA                                           ; $BC00: AD AA 04
-  JSR LD166                                           ; $BC03: 20 66 D1
-  JSR LD299                                           ; $BC06: 20 99 D2
-  BCC LBC15                                           ; $BC09: 90 0A
-  JSR LD13D                                           ; $BC0B: 20 3D D1
+  JSR Sub_D166                                           ; $BC03: 20 66 D1
+  JSR Sub_D299                                           ; $BC06: 20 99 D2
+  BCC @skip                                           ; $BC09: 90 0A
+  JSR Sub_D13D                                           ; $BC0B: 20 3D D1
   LDA a:$0081                                         ; $BC0E: AD 81 00
   AND #$03                                            ; $BC11: 29 03
-  BNE LBC16                                           ; $BC13: D0 01
-LBC15:
+  BNE Sub_BC16                                           ; $BC13: D0 01
+@skip:
   RTS                                                 ; $BC15: 60
-LBC16:
+.endproc
+;===============================================================================
+; $BC16: Sub_BC16
+;===============================================================================
+.proc Sub_BC16
+Sub_BC16:
   LDA $04AA                                           ; $BC16: AD AA 04
   EOR #$01                                            ; $BC19: 49 01
   STA $04AA                                           ; $BC1B: 8D AA 04
-  BEQ LBC22                                           ; $BC1E: F0 02
+  BEQ @skip                                           ; $BC1E: F0 02
   LDY #$02                                            ; $BC20: A0 02
-LBC22:
+@skip:
   LDA #$01                                            ; $BC22: A9 01
   STA $0515,Y                                         ; $BC24: 99 15 05
   TYA                                                 ; $BC27: 98
@@ -3335,14 +3700,24 @@ LBC22:
   LDA #$00                                            ; $BC35: A9 00
   STA $04A9                                           ; $BC37: 8D A9 04
   RTS                                                 ; $BC3A: 60
-LBC3B:
+.endproc
+;===============================================================================
+; $BC3B: MainGameDispatch_05
+;===============================================================================
+.proc MainGameDispatch_05
+MainGameDispatch_05:
   LDA $04A9                                           ; $BC3B: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BC3E: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word LBC47                                         ; $BC41: 47 BC
-  .word LBC5C                                         ; $BC43: 5C BC
-  .word LBC8C                                         ; $BC45: 8C BC
-LBC47:
+  .word MainGameDispatch_05_00                                         ; $BC41: 47 BC
+  .word MainGameDispatch_05_01                                         ; $BC43: 5C BC
+  .word MainGameDispatch_05_02                                         ; $BC45: 8C BC
+.endproc
+;===============================================================================
+; $BC47: MainGameDispatch_05_00
+;===============================================================================
+.proc MainGameDispatch_05_00
+MainGameDispatch_05_00:
   INC $04A9                                           ; $BC47: EE A9 04
   LDA #$00                                            ; $BC4A: A9 00
   STA $040C                                           ; $BC4C: 8D 0C 04
@@ -3351,10 +3726,15 @@ LBC47:
   LDA $04AD,Y                                         ; $BC55: B9 AD 04
   STA $0410                                           ; $BC58: 8D 10 04
   RTS                                                 ; $BC5B: 60
-LBC5C:
+.endproc
+;===============================================================================
+; $BC5C: MainGameDispatch_05_01
+;===============================================================================
+.proc MainGameDispatch_05_01
+MainGameDispatch_05_01:
   LDA $04BE                                           ; $BC5C: AD BE 04
   STA $04AA                                           ; $BC5F: 8D AA 04
-  JSR LD166                                           ; $BC62: 20 66 D1
+  JSR Sub_D166                                           ; $BC62: 20 66 D1
   LDA $04BF                                           ; $BC65: AD BF 04
   STA $04AA                                           ; $BC68: 8D AA 04
   LDY #$39                                            ; $BC6B: A0 39
@@ -3363,7 +3743,7 @@ LBC5C:
   .word $A012                                         ; $BC70: 12 A0
   LDA $040D                                           ; $BC72: AD 0D 04
   CMP #$FF                                            ; $BC75: C9 FF
-  BNE LBC8B                                           ; $BC77: D0 12
+  BNE @skip                                           ; $BC77: D0 12
   LDA #$06                                            ; $BC79: A9 06
   STA a:$00BB                                         ; $BC7B: 8D BB 00
   INC $04A9                                           ; $BC7E: EE A9 04
@@ -3371,31 +3751,36 @@ LBC5C:
   STA a:$0098                                         ; $BC83: 8D 98 00
   LDA #$01                                            ; $BC86: A9 01
   STA a:$0097                                         ; $BC88: 8D 97 00
-LBC8B:
+@skip:
   RTS                                                 ; $BC8B: 60
-LBC8C:
+.endproc
+;===============================================================================
+; $BC8C: MainGameDispatch_05_02
+;===============================================================================
+.proc MainGameDispatch_05_02
+MainGameDispatch_05_02:
   LDA $04BE                                           ; $BC8C: AD BE 04
   STA $04AA                                           ; $BC8F: 8D AA 04
-  JSR LD166                                           ; $BC92: 20 66 D1
+  JSR Sub_D166                                           ; $BC92: 20 66 D1
   LDA $04BF                                           ; $BC95: AD BF 04
   STA $04AA                                           ; $BC98: 8D AA 04
   LDA $040D                                           ; $BC9B: AD 0D 04
-  BPL LBCBE                                           ; $BC9E: 10 1E
+  BPL @skip                                           ; $BC9E: 10 1E
   LDA a:$0081                                         ; $BCA0: AD 81 00
   STA a:$0010                                         ; $BCA3: 8D 10 00
   AND #$02                                            ; $BCA6: 29 02
-  BNE LBCBF                                           ; $BCA8: D0 15
+  BNE @skip_2                                           ; $BCA8: D0 15
   LDA a:$0010                                         ; $BCAA: AD 10 00
   AND #$30                                            ; $BCAD: 29 30
-  BEQ LBCBE                                           ; $BCAF: F0 0D
+  BEQ @skip                                           ; $BCAF: F0 0D
   LDA $04BE                                           ; $BCB1: AD BE 04
   EOR #$01                                            ; $BCB4: 49 01
   STA $04BE                                           ; $BCB6: 8D BE 04
   LDA #$00                                            ; $BCB9: A9 00
   STA $04A9                                           ; $BCBB: 8D A9 04
-LBCBE:
+@skip:
   RTS                                                 ; $BCBE: 60
-LBCBF:
+@skip_2:
   LDA #$01                                            ; $BCBF: A9 01
   STA $04A8                                           ; $BCC1: 8D A8 04
   LDA #$02                                            ; $BCC4: A9 02
@@ -3413,19 +3798,29 @@ LBCBF:
   LDA #$A0                                            ; $BCE3: A9 A0
   STA a:$0098                                         ; $BCE5: 8D 98 00
   RTS                                                 ; $BCE8: 60
-LBCE9:
+.endproc
+;===============================================================================
+; $BCE9: MainGameDispatch_06
+;===============================================================================
+.proc MainGameDispatch_06
+MainGameDispatch_06:
   LDA $04A9                                           ; $BCE9: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BCEC: 20 DE EA
 ; --- Inline pointer table (6 entries) ---
-  .word LBCFB                                         ; $BCEF: FB BC
-  .word LBD1E                                         ; $BCF1: 1E BD
-  .word LBD40                                         ; $BCF3: 40 BD
-  .word LBD5D                                         ; $BCF5: 5D BD
-  .word LBDA9                                         ; $BCF7: A9 BD
-  .word LBE3F                                         ; $BCF9: 3F BE
-LBCFB:
-  JSR LD299                                           ; $BCFB: 20 99 D2
-  BCC LBD1D                                           ; $BCFE: 90 1D
+  .word MainGameDispatch_06_00                                         ; $BCEF: FB BC
+  .word MainGameDispatch_06_01                                         ; $BCF1: 1E BD
+  .word MainGameDispatch_06_02                                         ; $BCF3: 40 BD
+  .word MainGameDispatch_06_03                                         ; $BCF5: 5D BD
+  .word MainGameDispatch_06_04                                         ; $BCF7: A9 BD
+  .word MainGameDispatch_06_05                                         ; $BCF9: 3F BE
+.endproc
+;===============================================================================
+; $BCFB: MainGameDispatch_06_00
+;===============================================================================
+.proc MainGameDispatch_06_00
+MainGameDispatch_06_00:
+  JSR Sub_D299                                           ; $BCFB: 20 99 D2
+  BCC @skip                                           ; $BCFE: 90 1D
   INC $04A9                                           ; $BD00: EE A9 04
   LDY $04AA                                           ; $BD03: AC AA 04
   LDA $04AD,Y                                         ; $BD06: B9 AD 04
@@ -3438,38 +3833,58 @@ LBCFB:
   STA a:$00A4                                         ; $BD15: 8D A4 00
   LDA #$27                                            ; $BD18: A9 27
   JMP B1F_SetUI0                                      ; $BD1A: 4C 6D F2
-LBD1D:
+@skip:
   RTS                                                 ; $BD1D: 60
-LBD1E:
-  JSR LD166                                           ; $BD1E: 20 66 D1
-  JSR LD299                                           ; $BD21: 20 99 D2
-  BCC LBD5C                                           ; $BD24: 90 36
-  JSR LD13D                                           ; $BD26: 20 3D D1
+.endproc
+;===============================================================================
+; $BD1E: MainGameDispatch_06_01
+;===============================================================================
+.proc MainGameDispatch_06_01
+MainGameDispatch_06_01:
+  JSR Sub_D166                                           ; $BD1E: 20 66 D1
+  JSR Sub_D299                                           ; $BD21: 20 99 D2
+  BCC Sub_BD5C                                           ; $BD24: 90 36
+  JSR Sub_D13D                                           ; $BD26: 20 3D D1
   LDA a:$0081                                         ; $BD29: AD 81 00
   AND #$03                                            ; $BD2C: 29 03
-  BEQ LBD5C                                           ; $BD2E: F0 2C
+  BEQ Sub_BD5C                                           ; $BD2E: F0 2C
   INC $04A9                                           ; $BD30: EE A9 04
   JSR B1F_BankPpuInit                                 ; $BD33: 20 7F E5
   LDA #$6C                                            ; $BD36: A9 6C
   JSR B1F_SoundWrapperC                               ; $BD38: 20 83 E6
   LDA #$00                                            ; $BD3B: A9 00
   JMP B1F_SetUI4                                      ; $BD3D: 4C 8B F2
-LBD40:
-  JSR LD299                                           ; $BD40: 20 99 D2
-  BCC LBD5C                                           ; $BD43: 90 17
+.endproc
+;===============================================================================
+; $BD40: MainGameDispatch_06_02
+;===============================================================================
+.proc MainGameDispatch_06_02
+MainGameDispatch_06_02:
+  JSR Sub_D299                                           ; $BD40: 20 99 D2
+  BCC Sub_BD5C                                           ; $BD43: 90 17
   INC $04A9                                           ; $BD45: EE A9 04
   LDA #$43                                            ; $BD48: A9 43
   STA a:$0000                                         ; $BD4A: 8D 00 00
   LDY $04AA                                           ; $BD4D: AC AA 04
-  BEQ LBD57                                           ; $BD50: F0 05
+  BEQ @skip                                           ; $BD50: F0 05
   LDA #$55                                            ; $BD52: A9 55
   STA a:$0000                                         ; $BD54: 8D 00 00
-LBD57:
+@skip:
   LDA #$00                                            ; $BD57: A9 00
-  JMP LCDFD                                           ; $BD59: 4C FD CD
-LBD5C:
+  JMP Sub_CDFD                                           ; $BD59: 4C FD CD
+.endproc
+;===============================================================================
+; $BD5C: Sub_BD5C
+;===============================================================================
+.proc Sub_BD5C
+Sub_BD5C:
   RTS                                                 ; $BD5C: 60
-LBD5D:
+.endproc
+;===============================================================================
+; $BD5D: MainGameDispatch_06_03
+;===============================================================================
+.proc MainGameDispatch_06_03
+MainGameDispatch_06_03:
   LDA #$98                                            ; $BD5D: A9 98
   STA a:$00C6                                         ; $BD5F: 8D C6 00
   STA a:$00CE                                         ; $BD62: 8D CE 00
@@ -3492,15 +3907,20 @@ LBD5D:
   LDA #$E3                                            ; $BD90: A9 E3
   STA a:$0000                                         ; $BD92: 8D 00 00
   LDY $04AA                                           ; $BD95: AC AA 04
-  BEQ LBDA4                                           ; $BD98: F0 0A
+  BEQ @skip                                           ; $BD98: F0 0A
   LDA #$A8                                            ; $BD9A: A9 A8
   STA $04BB                                           ; $BD9C: 8D BB 04
   LDA #$F5                                            ; $BD9F: A9 F5
   STA a:$0000                                         ; $BDA1: 8D 00 00
-LBDA4:
+@skip:
   LDA #$00                                            ; $BDA4: A9 00
-  JMP LCDFD                                           ; $BDA6: 4C FD CD
-LBDA9:
+  JMP Sub_CDFD                                           ; $BDA6: 4C FD CD
+.endproc
+;===============================================================================
+; $BDA9: MainGameDispatch_06_04
+;===============================================================================
+.proc MainGameDispatch_06_04
+MainGameDispatch_06_04:
   INC $04B8                                           ; $BDA9: EE B8 04
   LDA $04B8                                           ; $BDAC: AD B8 04
   LSR A                                               ; $BDAF: 4A
@@ -3521,18 +3941,18 @@ LBDCB:
   STA a:$0010                                         ; $BDCB: 8D 10 00
   STA a:$0011                                         ; $BDCE: 8D 11 00
   LDA $04AA                                           ; $BDD1: AD AA 04
-  BNE LBDDF                                           ; $BDD4: D0 09
+  BNE @skip                                           ; $BDD4: D0 09
   LDA a:$0010                                         ; $BDD6: AD 10 00
   CLC                                                 ; $BDD9: 18
   ADC #$1A                                            ; $BDDA: 69 1A
   STA a:$0010                                         ; $BDDC: 8D 10 00
-LBDDF:
+@skip:
   LDA #$00                                            ; $BDDF: A9 00
   STA a:$0002                                         ; $BDE1: 8D 02 00
   LDA a:$0010                                         ; $BDE4: AD 10 00
   CLC                                                 ; $BDE7: 18
   ADC #$A8                                            ; $BDE8: 69 A8
-  JSR LCEA5                                           ; $BDEA: 20 A5 CE
+  JSR Sub_CEA5                                           ; $BDEA: 20 A5 CE
   LDA $04AA                                           ; $BDED: AD AA 04
   CLC                                                 ; $BDF0: 18
   ADC #$01                                            ; $BDF1: 69 01
@@ -3546,7 +3966,7 @@ LBDDF:
   ADC a:$0000                                         ; $BE02: 6D 00 00
   ADC a:$0010                                         ; $BE05: 6D 10 00
   ADC #$AD                                            ; $BE08: 69 AD
-  JSR LCEA5                                           ; $BE0A: 20 A5 CE
+  JSR Sub_CEA5                                           ; $BE0A: 20 A5 CE
   LDA a:$0010                                         ; $BE0D: AD 10 00
   SEC                                                 ; $BE10: 38
   SBC a:$0011                                         ; $BE11: ED 11 00
@@ -3555,34 +3975,39 @@ LBDDF:
   STA a:$0002                                         ; $BE19: 8D 02 00
   LDA a:$0011                                         ; $BE1C: AD 11 00
   CMP #$02                                            ; $BE1F: C9 02
-  BCC LBE3E                                           ; $BE21: 90 1B
+  BCC @skip_3                                           ; $BE21: 90 1B
   LDY #$BC                                            ; $BE23: A0 BC
   CMP #$02                                            ; $BE25: C9 02
-  BEQ LBE2B                                           ; $BE27: F0 02
+  BEQ @skip_2                                           ; $BE27: F0 02
   LDY #$BF                                            ; $BE29: A0 BF
-LBE2B:
+@skip_2:
   STY a:$0000                                         ; $BE2B: 8C 00 00
   LDY $04AA                                           ; $BE2E: AC AA 04
   LDA $04AF,Y                                         ; $BE31: B9 AF 04
   CLC                                                 ; $BE34: 18
   ADC a:$0010                                         ; $BE35: 6D 10 00
   ADC a:$0000                                         ; $BE38: 6D 00 00
-  JMP LCEA5                                           ; $BE3B: 4C A5 CE
-LBE3E:
+  JMP Sub_CEA5                                           ; $BE3B: 4C A5 CE
+@skip_3:
   RTS                                                 ; $BE3E: 60
-LBE3F:
+.endproc
+;===============================================================================
+; $BE3F: MainGameDispatch_06_05
+;===============================================================================
+.proc MainGameDispatch_06_05
+MainGameDispatch_06_05:
   LDA #$04                                            ; $BE3F: A9 04
   JSR LBDCB                                           ; $BE41: 20 CB BD
-  JSR LD299                                           ; $BE44: 20 99 D2
-  BCC LBE77                                           ; $BE47: 90 2E
-  JSR LD13D                                           ; $BE49: 20 3D D1
+  JSR Sub_D299                                           ; $BE44: 20 99 D2
+  BCC @skip_2                                           ; $BE47: 90 2E
+  JSR Sub_D13D                                           ; $BE49: 20 3D D1
   LDA a:$0081                                         ; $BE4C: AD 81 00
   AND #$03                                            ; $BE4F: 29 03
-  BEQ LBE77                                           ; $BE51: F0 24
+  BEQ @skip_2                                           ; $BE51: F0 24
   LDY $04AA                                           ; $BE53: AC AA 04
-  BEQ LBE5A                                           ; $BE56: F0 02
+  BEQ @skip                                           ; $BE56: F0 02
   LDY #$02                                            ; $BE58: A0 02
-LBE5A:
+@skip:
   LDA #$03                                            ; $BE5A: A9 03
   STA $0515,Y                                         ; $BE5C: 99 15 05
   TYA                                                 ; $BE5F: 98
@@ -3596,17 +4021,27 @@ LBE5A:
   STA $04A8                                           ; $BE6F: 8D A8 04
   LDA #$00                                            ; $BE72: A9 00
   STA $04A9                                           ; $BE74: 8D A9 04
-LBE77:
+@skip_2:
   RTS                                                 ; $BE77: 60
-LBE78:
+.endproc
+;===============================================================================
+; $BE78: MainGameDispatch_07
+;===============================================================================
+.proc MainGameDispatch_07
+MainGameDispatch_07:
   LDA $04A9                                           ; $BE78: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BE7B: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word LBE86                                         ; $BE7E: 86 BE
-  .word LBF43                                         ; $BE80: 43 BF
-  .word LBF66                                         ; $BE82: 66 BF
-  .word LBF7E                                         ; $BE84: 7E BF
-LBE86:
+  .word MainGameDispatch_07_00                                         ; $BE7E: 86 BE
+  .word MainGameDispatch_07_01                                         ; $BE80: 43 BF
+  .word MainGameDispatch_07_02                                         ; $BE82: 66 BF
+  .word MainGameDispatch_07_03                                         ; $BE84: 7E BF
+.endproc
+;===============================================================================
+; $BE86: MainGameDispatch_07_00
+;===============================================================================
+.proc MainGameDispatch_07_00
+MainGameDispatch_07_00:
   LDA $04AA                                           ; $BE86: AD AA 04
   EOR #$01                                            ; $BE89: 49 01
   TAY                                                 ; $BE8B: A8
@@ -3632,49 +4067,49 @@ LBE86:
   LDX #$00                                            ; $BEBB: A2 00
   LDA a:$0010                                         ; $BEBD: AD 10 00
   CMP #$50                                            ; $BEC0: C9 50
-  BCS LBED5                                           ; $BEC2: B0 11
+  BCS @skip                                           ; $BEC2: B0 11
   TXA                                                 ; $BEC4: 8A
   CLC                                                 ; $BEC5: 18
   ADC #$18                                            ; $BEC6: 69 18
   TAX                                                 ; $BEC8: AA
   LDA a:$0010                                         ; $BEC9: AD 10 00
   CMP #$32                                            ; $BECC: C9 32
-  BCS LBED5                                           ; $BECE: B0 05
+  BCS @skip                                           ; $BECE: B0 05
   TXA                                                 ; $BED0: 8A
   CLC                                                 ; $BED1: 18
   ADC #$18                                            ; $BED2: 69 18
   TAX                                                 ; $BED4: AA
-LBED5:
+@skip:
   LDA a:$0011                                         ; $BED5: AD 11 00
   CMP #$50                                            ; $BED8: C9 50
-  BCS LBEED                                           ; $BEDA: B0 11
+  BCS @skip_2                                           ; $BEDA: B0 11
   TXA                                                 ; $BEDC: 8A
   CLC                                                 ; $BEDD: 18
   ADC #$08                                            ; $BEDE: 69 08
   TAX                                                 ; $BEE0: AA
   LDA a:$0011                                         ; $BEE1: AD 11 00
   CMP #$32                                            ; $BEE4: C9 32
-  BCS LBEED                                           ; $BEE6: B0 05
+  BCS @skip_2                                           ; $BEE6: B0 05
   TXA                                                 ; $BEE8: 8A
   CLC                                                 ; $BEE9: 18
   ADC #$08                                            ; $BEEA: 69 08
   TAX                                                 ; $BEEC: AA
-LBEED:
+@skip_2:
   LDA a:$0012                                         ; $BEED: AD 12 00
   CMP #$B4                                            ; $BEF0: C9 B4
-  BCS LBF05                                           ; $BEF2: B0 11
+  BCS @skip_3                                           ; $BEF2: B0 11
   TXA                                                 ; $BEF4: 8A
   CLC                                                 ; $BEF5: 18
   ADC #$48                                            ; $BEF6: 69 48
   TAX                                                 ; $BEF8: AA
   LDA a:$0012                                         ; $BEF9: AD 12 00
   CMP #$82                                            ; $BEFC: C9 82
-  BCS LBF05                                           ; $BEFE: B0 05
+  BCS @skip_3                                           ; $BEFE: B0 05
   TXA                                                 ; $BF00: 8A
   CLC                                                 ; $BF01: 18
   ADC #$48                                            ; $BF02: 69 48
   TAX                                                 ; $BF04: AA
-LBF05:
+@skip_3:
   JSR B1F_RandomMod8                                  ; $BF05: 20 56 E8
   STA a:$0010                                         ; $BF08: 8D 10 00
   TXA                                                 ; $BF0B: 8A
@@ -3692,25 +4127,30 @@ LBF05:
   STA $04BD                                           ; $BF23: 8D BD 04
   LDA $04BF                                           ; $BF26: AD BF 04
   CMP #$03                                            ; $BF29: C9 03
-  BCS LBF38                                           ; $BF2B: B0 0B
+  BCS @skip_4                                           ; $BF2B: B0 0B
   LDA $04AA                                           ; $BF2D: AD AA 04
   EOR #$01                                            ; $BF30: 49 01
   TAY                                                 ; $BF32: A8
   LDA #$02                                            ; $BF33: A9 02
   STA $04C3,Y                                         ; $BF35: 99 C3 04
-LBF38:
+@skip_4:
   LDA #$09                                            ; $BF38: A9 09
   STA $04A8                                           ; $BF3A: 8D A8 04
   LDA #$00                                            ; $BF3D: A9 00
   STA $04A9                                           ; $BF3F: 8D A9 04
   RTS                                                 ; $BF42: 60
-LBF43:
+.endproc
+;===============================================================================
+; $BF43: MainGameDispatch_07_01
+;===============================================================================
+.proc MainGameDispatch_07_01
+MainGameDispatch_07_01:
   LDA $04AA                                           ; $BF43: AD AA 04
   EOR #$01                                            ; $BF46: 49 01
   TAY                                                 ; $BF48: A8
-  BEQ LBF4D                                           ; $BF49: F0 02
+  BEQ @skip                                           ; $BF49: F0 02
   LDY #$02                                            ; $BF4B: A0 02
-LBF4D:
+@skip:
   LDA #$01                                            ; $BF4D: A9 01
   STA $0515,Y                                         ; $BF4F: 99 15 05
   TYA                                                 ; $BF52: 98
@@ -3723,7 +4163,12 @@ LBF4D:
   LDA #$00                                            ; $BF60: A9 00
   STA $04A9                                           ; $BF62: 8D A9 04
   RTS                                                 ; $BF65: 60
-LBF66:
+.endproc
+;===============================================================================
+; $BF66: MainGameDispatch_07_02
+;===============================================================================
+.proc MainGameDispatch_07_02
+MainGameDispatch_07_02:
   LDA #$00                                            ; $BF66: A9 00
   STA $0515                                           ; $BF68: 8D 15 05
   STA $0517                                           ; $BF6B: 8D 17 05
@@ -3734,17 +4179,22 @@ LBF66:
   LDA #$FF                                            ; $BF78: A9 FF
   STA $04C0                                           ; $BF7A: 8D C0 04
   RTS                                                 ; $BF7D: 60
-LBF7E:
-  JSR LD299                                           ; $BF7E: 20 99 D2
-  BCC LBFB1                                           ; $BF81: 90 2E
-  JSR LD13D                                           ; $BF83: 20 3D D1
+.endproc
+;===============================================================================
+; $BF7E: MainGameDispatch_07_03
+;===============================================================================
+.proc MainGameDispatch_07_03
+MainGameDispatch_07_03:
+  JSR Sub_D299                                           ; $BF7E: 20 99 D2
+  BCC @skip_2                                           ; $BF81: 90 2E
+  JSR Sub_D13D                                           ; $BF83: 20 3D D1
   LDA a:$0081                                         ; $BF86: AD 81 00
   AND #$03                                            ; $BF89: 29 03
-  BEQ LBFB1                                           ; $BF8B: F0 24
+  BEQ @skip_2                                           ; $BF8B: F0 24
   LDY $04AA                                           ; $BF8D: AC AA 04
-  BEQ LBF94                                           ; $BF90: F0 02
+  BEQ @skip                                           ; $BF90: F0 02
   LDY #$02                                            ; $BF92: A0 02
-LBF94:
+@skip:
   LDA #$00                                            ; $BF94: A9 00
   STA $0515,Y                                         ; $BF96: 99 15 05
   TYA                                                 ; $BF99: 98
@@ -3758,8 +4208,9 @@ LBF94:
   STA $04A9                                           ; $BFA9: 8D A9 04
   LDA #$FF                                            ; $BFAC: A9 FF
   STA $04C0                                           ; $BFAE: 8D C0 04
-LBFB1:
+@skip_2:
   RTS                                                 ; $BFB1: 60
+.endproc
   .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $BFB2: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
   .byte $01,$01,$01,$01,$02,$02,$02,$02,$01,$01,$01,$01,$01,$01,$01,$02; $BFC2: 01 01 01 01 02 02 02 02 01 01 01 01 01 01 01 02
   .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$02,$02,$03,$03; $BFD2: 01 01 01 01 01 01 01 01 01 01 01 01 02 02 03 03
@@ -3780,7 +4231,11 @@ LBFB1:
   .byte $04,$04,$01,$01,$03,$03,$03,$03,$04,$04,$01,$01,$02,$02,$04,$04; $C060: 04 04 01 01 03 03 03 03 04 04 01 01 02 02 04 04
   .byte $04,$04,$01,$01,$01,$01,$04,$04,$04,$04,$01,$01,$02,$02,$04,$04; $C070: 04 04 01 01 01 01 04 04 04 04 01 01 02 02 04 04
   .byte $04,$04,$01,$01,$04,$04,$04,$04,$04,$04       ; $C080: 04 04 01 01 04 04 04 04 04 04
-LC08A:
+;===============================================================================
+; $C08A: MainGameDispatch_08
+;===============================================================================
+.proc MainGameDispatch_08
+MainGameDispatch_08:
   LDY $04AA                                           ; $C08A: AC AA 04
   LDA #$80                                            ; $C08D: A9 80
   STA $04B5,Y                                         ; $C08F: 99 B5 04
@@ -3804,25 +4259,25 @@ LC08A:
   ADC a:$0010                                         ; $C0B8: 6D 10 00
   SEC                                                 ; $C0BB: 38
   SBC a:$0011                                         ; $C0BC: ED 11 00
-  BCS LC0C3                                           ; $C0BF: B0 02
+  BCS @skip                                           ; $C0BF: B0 02
   LDA #$00                                            ; $C0C1: A9 00
-LC0C3:
+@skip:
   STA a:$0010                                         ; $C0C3: 8D 10 00
   INC a:$0010                                         ; $C0C6: EE 10 00
-LC0C9:
+@loop:
   JSR B1F_RandomMod16                                 ; $C0C9: 20 5C E8
   CMP #$0A                                            ; $C0CC: C9 0A
-  BCS LC0C9                                           ; $C0CE: B0 F9
+  BCS @loop                                           ; $C0CE: B0 F9
   ADC a:$0010                                         ; $C0D0: 6D 10 00
   CMP #$6E                                            ; $C0D3: C9 6E
-  BCS LC0DF                                           ; $C0D5: B0 08
+  BCS @loop_2                                           ; $C0D5: B0 08
   LDA #$2F                                            ; $C0D7: A9 2F
   STA $04BE                                           ; $C0D9: 8D BE 04
-  JMP LC103                                           ; $C0DC: 4C 03 C1
-LC0DF:
+  JMP @skip_2                                           ; $C0DC: 4C 03 C1
+@loop_2:
   JSR B1F_RandomMod4                                  ; $C0DF: 20 50 E8
   STA a:$0010                                         ; $C0E2: 8D 10 00
-  BEQ LC0DF                                           ; $C0E5: F0 F8
+  BEQ @loop_2                                           ; $C0E5: F0 F8
   INC a:$0010                                         ; $C0E7: EE 10 00
   INC a:$0010                                         ; $C0EA: EE 10 00
   LDA $04AA                                           ; $C0ED: AD AA 04
@@ -3834,7 +4289,7 @@ LC0DF:
   STA $04C3,Y                                         ; $C0FB: 99 C3 04
   LDA #$2E                                            ; $C0FE: A9 2E
   STA $04BE                                           ; $C100: 8D BE 04
-LC103:
+@skip_2:
   LDA #$2D                                            ; $C103: A9 2D
   STA $04BD                                           ; $C105: 8D BD 04
   LDA #$09                                            ; $C108: A9 09
@@ -3843,17 +4298,27 @@ LC103:
   STA $04A9                                           ; $C10F: 8D A9 04
   STA $04BF                                           ; $C112: 8D BF 04
   RTS                                                 ; $C115: 60
-LC116:
+.endproc
+;===============================================================================
+; $C116: MainGameDispatch_09
+;===============================================================================
+.proc MainGameDispatch_09
+MainGameDispatch_09:
   LDA $04A9                                           ; $C116: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C119: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word LC124                                         ; $C11C: 24 C1
-  .word LC13A                                         ; $C11E: 3A C1
-  .word LC14A                                         ; $C120: 4A C1
-  .word LC187                                         ; $C122: 87 C1
-LC124:
-  JSR LD299                                           ; $C124: 20 99 D2
-  BCC LC139                                           ; $C127: 90 10
+  .word MainGameDispatch_09_00                                         ; $C11C: 24 C1
+  .word MainGameDispatch_09_01                                         ; $C11E: 3A C1
+  .word MainGameDispatch_09_02                                         ; $C120: 4A C1
+  .word MainGameDispatch_09_03                                         ; $C122: 87 C1
+.endproc
+;===============================================================================
+; $C124: MainGameDispatch_09_00
+;===============================================================================
+.proc MainGameDispatch_09_00
+MainGameDispatch_09_00:
+  JSR Sub_D299                                           ; $C124: 20 99 D2
+  BCC @skip                                           ; $C127: 90 10
   INC $04A9                                           ; $C129: EE A9 04
   LDA $04AD                                           ; $C12C: AD AD 04
   STA a:$0000                                         ; $C12F: 8D 00 00
@@ -3861,17 +4326,27 @@ LC124:
   JSR B1F_BankedCallbackTrampoline                    ; $C134: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word $A030                                         ; $C137: 30 A0
-LC139:
+@skip:
   RTS                                                 ; $C139: 60
-LC13A:
+.endproc
+;===============================================================================
+; $C13A: MainGameDispatch_09_01
+;===============================================================================
+.proc MainGameDispatch_09_01
+MainGameDispatch_09_01:
   INC $04A9                                           ; $C13A: EE A9 04
   LDY #$3D                                            ; $C13D: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $C13F: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word $A033                                         ; $C142: 33 A0
   LDA $04BD                                           ; $C144: AD BD 04
-  JMP LD283                                           ; $C147: 4C 83 D2
-LC14A:
+  JMP Sub_D283                                           ; $C147: 4C 83 D2
+.endproc
+;===============================================================================
+; $C14A: MainGameDispatch_09_02
+;===============================================================================
+.proc MainGameDispatch_09_02
+MainGameDispatch_09_02:
   LDY $04AA                                           ; $C14A: AC AA 04
   LDA $04C3,Y                                         ; $C14D: B9 C3 04
   STA a:$0010,Y                                       ; $C150: 99 10 00
@@ -3880,13 +4355,13 @@ LC14A:
   TAY                                                 ; $C156: A8
   LDA #$80                                            ; $C157: A9 80
   STA a:$0010,Y                                       ; $C159: 99 10 00
-  JSR LC1E2                                           ; $C15C: 20 E2 C1
-  JSR LD299                                           ; $C15F: 20 99 D2
-  BCC LC186                                           ; $C162: 90 22
-  JSR LD13D                                           ; $C164: 20 3D D1
+  JSR Sub_C1E2                                           ; $C15C: 20 E2 C1
+  JSR Sub_D299                                           ; $C15F: 20 99 D2
+  BCC @skip                                           ; $C162: 90 22
+  JSR Sub_D13D                                           ; $C164: 20 3D D1
   LDA a:$0081                                         ; $C167: AD 81 00
   AND #$03                                            ; $C16A: 29 03
-  BEQ LC186                                           ; $C16C: F0 18
+  BEQ @skip                                           ; $C16C: F0 18
   INC $04A9                                           ; $C16E: EE A9 04
   LDA $04AA                                           ; $C171: AD AA 04
   EOR #$01                                            ; $C174: 49 01
@@ -3895,10 +4370,15 @@ LC14A:
   LDA $04AD,Y                                         ; $C17A: B9 AD 04
   STA $042C                                           ; $C17D: 8D 2C 04
   LDA $04BE                                           ; $C180: AD BE 04
-  JMP LD283                                           ; $C183: 4C 83 D2
-LC186:
+  JMP Sub_D283                                           ; $C183: 4C 83 D2
+@skip:
   RTS                                                 ; $C186: 60
-LC187:
+.endproc
+;===============================================================================
+; $C187: MainGameDispatch_09_03
+;===============================================================================
+.proc MainGameDispatch_09_03
+MainGameDispatch_09_03:
   LDY $04AA                                           ; $C187: AC AA 04
   LDA $04C3,Y                                         ; $C18A: B9 C3 04
   STA a:$0010,Y                                       ; $C18D: 99 10 00
@@ -3907,38 +4387,43 @@ LC187:
   TAY                                                 ; $C193: A8
   LDA #$80                                            ; $C194: A9 80
   STA a:$0010,Y                                       ; $C196: 99 10 00
-  JSR LC1E2                                           ; $C199: 20 E2 C1
-  JSR LD299                                           ; $C19C: 20 99 D2
-  BCC LC1E1                                           ; $C19F: 90 40
-  JSR LD13D                                           ; $C1A1: 20 3D D1
+  JSR Sub_C1E2                                           ; $C199: 20 E2 C1
+  JSR Sub_D299                                           ; $C19C: 20 99 D2
+  BCC @skip_2                                           ; $C19F: 90 40
+  JSR Sub_D13D                                           ; $C1A1: 20 3D D1
   LDA a:$0081                                         ; $C1A4: AD 81 00
   AND #$03                                            ; $C1A7: 29 03
-  BEQ LC1E1                                           ; $C1A9: F0 36
+  BEQ @skip_2                                           ; $C1A9: F0 36
   LDA $04AA                                           ; $C1AB: AD AA 04
   EOR #$01                                            ; $C1AE: 49 01
   STA $04AA                                           ; $C1B0: 8D AA 04
   LDA $04BF                                           ; $C1B3: AD BF 04
   CMP #$02                                            ; $C1B6: C9 02
-  BCC LC1D1                                           ; $C1B8: 90 17
+  BCC @skip                                           ; $C1B8: 90 17
   STA $04A9                                           ; $C1BA: 8D A9 04
   DEC $04A9                                           ; $C1BD: CE A9 04
   LDA #$07                                            ; $C1C0: A9 07
   STA $04A8                                           ; $C1C2: 8D A8 04
   LDA $04BF                                           ; $C1C5: AD BF 04
   CMP #$04                                            ; $C1C8: C9 04
-  BNE LC1E1                                           ; $C1CA: D0 15
+  BNE @skip_2                                           ; $C1CA: D0 15
   LDA #$38                                            ; $C1CC: A9 38
   JMP B1F_SetUI4                                      ; $C1CE: 4C 8B F2
-LC1D1:
+@skip:
   LDA #$01                                            ; $C1D1: A9 01
   STA $04A8                                           ; $C1D3: 8D A8 04
   LDA #$00                                            ; $C1D6: A9 00
   STA $04A9                                           ; $C1D8: 8D A9 04
   STA $04C3                                           ; $C1DB: 8D C3 04
   STA $04C4                                           ; $C1DE: 8D C4 04
-LC1E1:
+@skip_2:
   RTS                                                 ; $C1E1: 60
-LC1E2:
+.endproc
+;===============================================================================
+; $C1E2: Sub_C1E2
+;===============================================================================
+.proc Sub_C1E2
+Sub_C1E2:
   LDA #$A5                                            ; $C1E2: A9 A5
   STA a:$000A                                         ; $C1E4: 8D 0A 00
   LDX #$00                                            ; $C1E7: A2 00
@@ -3964,15 +4449,25 @@ LC1E2:
   LDA #$00                                            ; $C216: A9 00
   STA $04BC                                           ; $C218: 8D BC 04
   RTS                                                 ; $C21B: 60
-LC21C:
+.endproc
+;===============================================================================
+; $C21C: MainGameDispatch_13
+;===============================================================================
+.proc MainGameDispatch_13
+MainGameDispatch_13:
   LDA $04A9                                           ; $C21C: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C21F: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word LC22A                                         ; $C222: 2A C2
-  .word LC256                                         ; $C224: 56 C2
-  .word LC28E                                         ; $C226: 8E C2
-  .word LC2AA                                         ; $C228: AA C2
-LC22A:
+  .word MainGameDispatch_13_00                                         ; $C222: 2A C2
+  .word MainGameDispatch_13_01                                         ; $C224: 56 C2
+  .word MainGameDispatch_13_02                                         ; $C226: 8E C2
+  .word MainGameDispatch_13_03                                         ; $C228: AA C2
+.endproc
+;===============================================================================
+; $C22A: MainGameDispatch_13_00
+;===============================================================================
+.proc MainGameDispatch_13_00
+MainGameDispatch_13_00:
   JSR B1F_BankPpuInit                                 ; $C22A: 20 7F E5
   LDA #$71                                            ; $C22D: A9 71
   JSR B1F_SoundWrapperC                               ; $C22F: 20 83 E6
@@ -3985,13 +4480,18 @@ LC22A:
   STA a:$0000                                         ; $C242: 8D 00 00
   LDA #$13                                            ; $C245: A9 13
   LDY $04AA                                           ; $C247: AC AA 04
-  BEQ LC253                                           ; $C24A: F0 07
+  BEQ @skip                                           ; $C24A: F0 07
   LDA #$55                                            ; $C24C: A9 55
   STA a:$0000                                         ; $C24E: 8D 00 00
   LDA #$15                                            ; $C251: A9 15
-LC253:
-  JMP LCDFD                                           ; $C253: 4C FD CD
-LC256:
+@skip:
+  JMP Sub_CDFD                                           ; $C253: 4C FD CD
+.endproc
+;===============================================================================
+; $C256: MainGameDispatch_13_01
+;===============================================================================
+.proc MainGameDispatch_13_01
+MainGameDispatch_13_01:
   LDA #$90                                            ; $C256: A9 90
   STA a:$00C6                                         ; $C258: 8D C6 00
   STA a:$00CE                                         ; $C25B: 8D CE 00
@@ -4007,15 +4507,20 @@ LC256:
   STA a:$0000                                         ; $C275: 8D 00 00
   LDA #$14                                            ; $C278: A9 14
   LDY $04AA                                           ; $C27A: AC AA 04
-  BEQ LC28B                                           ; $C27D: F0 0C
+  BEQ @skip                                           ; $C27D: F0 0C
   LDA #$A8                                            ; $C27F: A9 A8
   STA $04BB                                           ; $C281: 8D BB 04
   LDA #$F5                                            ; $C284: A9 F5
   STA a:$0000                                         ; $C286: 8D 00 00
   LDA #$16                                            ; $C289: A9 16
-LC28B:
-  JMP LCDFD                                           ; $C28B: 4C FD CD
-LC28E:
+@skip:
+  JMP Sub_CDFD                                           ; $C28B: 4C FD CD
+.endproc
+;===============================================================================
+; $C28E: MainGameDispatch_13_02
+;===============================================================================
+.proc MainGameDispatch_13_02
+MainGameDispatch_13_02:
   INC $04B8                                           ; $C28E: EE B8 04
   LDA $04B8                                           ; $C291: AD B8 04
   ROL A                                               ; $C294: 2A
@@ -4023,37 +4528,47 @@ LC28E:
   ROL A                                               ; $C296: 2A
   AND #$03                                            ; $C297: 29 03
   CMP #$02                                            ; $C299: C9 02
-  BNE LC2CC                                           ; $C29B: D0 2F
+  BNE Sub_C2CC                                           ; $C29B: D0 2F
   LDA #$01                                            ; $C29D: A9 01
-  JSR LC2CC                                           ; $C29F: 20 CC C2
+  JSR Sub_C2CC                                           ; $C29F: 20 CC C2
   INC $04A9                                           ; $C2A2: EE A9 04
   LDA #$26                                            ; $C2A5: A9 26
   JMP B1F_SetUI4                                      ; $C2A7: 4C 8B F2
-LC2AA:
+.endproc
+;===============================================================================
+; $C2AA: MainGameDispatch_13_03
+;===============================================================================
+.proc MainGameDispatch_13_03
+MainGameDispatch_13_03:
   LDA #$01                                            ; $C2AA: A9 01
-  JSR LC2CC                                           ; $C2AC: 20 CC C2
-  JSR LD299                                           ; $C2AF: 20 99 D2
-  BCC LC2CB                                           ; $C2B2: 90 17
-  JSR LD13D                                           ; $C2B4: 20 3D D1
+  JSR Sub_C2CC                                           ; $C2AC: 20 CC C2
+  JSR Sub_D299                                           ; $C2AF: 20 99 D2
+  BCC @skip                                           ; $C2B2: 90 17
+  JSR Sub_D13D                                           ; $C2B4: 20 3D D1
   LDA a:$0081                                         ; $C2B7: AD 81 00
   AND #$03                                            ; $C2BA: 29 03
-  BEQ LC2CB                                           ; $C2BC: F0 0D
+  BEQ @skip                                           ; $C2BC: F0 0D
   LDA #$0E                                            ; $C2BE: A9 0E
   STA $04A8                                           ; $C2C0: 8D A8 04
   LDA #$00                                            ; $C2C3: A9 00
   STA $04A9                                           ; $C2C5: 8D A9 04
   STA $04C0                                           ; $C2C8: 8D C0 04
-LC2CB:
+@skip:
   RTS                                                 ; $C2CB: 60
-LC2CC:
+.endproc
+;===============================================================================
+; $C2CC: Sub_C2CC
+;===============================================================================
+.proc Sub_C2CC
+Sub_C2CC:
   STA a:$0010                                         ; $C2CC: 8D 10 00
   LDA $04AA                                           ; $C2CF: AD AA 04
-  BEQ LC2DD                                           ; $C2D2: F0 09
+  BEQ @skip                                           ; $C2D2: F0 09
   LDA a:$0010                                         ; $C2D4: AD 10 00
   CLC                                                 ; $C2D7: 18
   ADC #$06                                            ; $C2D8: 69 06
   STA a:$0010                                         ; $C2DA: 8D 10 00
-LC2DD:
+@skip:
   LDA $04AA                                           ; $C2DD: AD AA 04
   CLC                                                 ; $C2E0: 18
   ADC #$01                                            ; $C2E1: 69 01
@@ -4064,21 +4579,31 @@ LC2DD:
   CLC                                                 ; $C2ED: 18
   ADC a:$0010                                         ; $C2EE: 6D 10 00
   ADC #$6A                                            ; $C2F1: 69 6A
-  JMP LCEA5                                           ; $C2F3: 4C A5 CE
-LC2F6:
+  JMP Sub_CEA5                                           ; $C2F3: 4C A5 CE
+.endproc
+;===============================================================================
+; $C2F6: MainGameDispatch_14
+;===============================================================================
+.proc MainGameDispatch_14
+MainGameDispatch_14:
   LDA $04C0                                           ; $C2F6: AD C0 04
-  BMI LC300                                           ; $C2F9: 30 05
+  BMI @skip                                           ; $C2F9: 30 05
   LDA #$01                                            ; $C2FB: A9 01
-  JSR LC2CC                                           ; $C2FD: 20 CC C2
-LC300:
+  JSR Sub_C2CC                                           ; $C2FD: 20 CC C2
+@skip:
   LDA $04A9                                           ; $C300: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C303: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word LC30E                                         ; $C306: 0E C3
-  .word LC33B                                         ; $C308: 3B C3
-  .word LC35D                                         ; $C30A: 5D C3
-  .word LC44F                                         ; $C30C: 4F C4
-LC30E:
+  .word MainGameDispatch_14_00                                         ; $C306: 0E C3
+  .word MainGameDispatch_14_01                                         ; $C308: 3B C3
+  .word MainGameDispatch_14_02                                         ; $C30A: 5D C3
+  .word MainGameDispatch_14_03                                         ; $C30C: 4F C4
+.endproc
+;===============================================================================
+; $C30E: MainGameDispatch_14_00
+;===============================================================================
+.proc MainGameDispatch_14_00
+MainGameDispatch_14_00:
   LDA $04AD                                           ; $C30E: AD AD 04
   STA $0514                                           ; $C311: 8D 14 05
   LDA $04AE                                           ; $C314: AD AE 04
@@ -4086,86 +4611,96 @@ LC30E:
   LDY #$00                                            ; $C31A: A0 00
   LDA $0515                                           ; $C31C: AD 15 05
   CMP #$02                                            ; $C31F: C9 02
-  BEQ LC332                                           ; $C321: F0 0F
+  BEQ @skip                                           ; $C321: F0 0F
   LDY #$02                                            ; $C323: A0 02
   LDA $0517                                           ; $C325: AD 17 05
   CMP #$02                                            ; $C328: C9 02
-  BEQ LC332                                           ; $C32A: F0 06
+  BEQ @skip                                           ; $C32A: F0 06
   INC $04A9                                           ; $C32C: EE A9 04
   JMP B1F_PaletteCopyBuffer                           ; $C32F: 4C EE EC
-LC332:
+@skip:
   STY $04BD                                           ; $C332: 8C BD 04
   LDA #$02                                            ; $C335: A9 02
   STA $04A9                                           ; $C337: 8D A9 04
   RTS                                                 ; $C33A: 60
-LC33B:
+.endproc
+;===============================================================================
+; $C33B: MainGameDispatch_14_01
+;===============================================================================
+.proc MainGameDispatch_14_01
+MainGameDispatch_14_01:
   LDA a:$0087                                         ; $C33B: AD 87 00
-  BPL LC35C                                           ; $C33E: 10 1C
+  BPL @skip_2                                           ; $C33E: 10 1C
   LDA #$0B                                            ; $C340: A9 0B
   STA $0500                                           ; $C342: 8D 00 05
   LDA #$00                                            ; $C345: A9 00
   STA $0501                                           ; $C347: 8D 01 05
   LDA $050F                                           ; $C34A: AD 0F 05
   CMP #$03                                            ; $C34D: C9 03
-  BEQ LC354                                           ; $C34F: F0 03
+  BEQ @skip                                           ; $C34F: F0 03
   STA $6F44                                           ; $C351: 8D 44 6F
-LC354:
+@skip:
   LDA #$03                                            ; $C354: A9 03
   STA a:$007A                                         ; $C356: 8D 7A 00
   JMP B1F_PaletteFadeInit                             ; $C359: 4C BF EC
-LC35C:
+@skip_2:
   RTS                                                 ; $C35C: 60
-LC35D:
+.endproc
+;===============================================================================
+; $C35D: MainGameDispatch_14_02
+;===============================================================================
+.proc MainGameDispatch_14_02
+MainGameDispatch_14_02:
   LDX $04BD                                           ; $C35D: AE BD 04
   LDA $0514,X                                         ; $C360: BD 14 05
   CMP #$83                                            ; $C363: C9 83
-  BNE LC36A                                           ; $C365: D0 03
-  JMP LC3AA                                           ; $C367: 4C AA C3
-LC36A:
+  BNE @skip                                           ; $C365: D0 03
+  JMP @skip_6                                           ; $C367: 4C AA C3
+@skip:
   CMP #$AD                                            ; $C36A: C9 AD
-  BNE LC371                                           ; $C36C: D0 03
-  JMP LC3C0                                           ; $C36E: 4C C0 C3
-LC371:
+  BNE @skip_2                                           ; $C36C: D0 03
+  JMP @skip_7                                           ; $C36E: 4C C0 C3
+@skip_2:
   CMP #$B6                                            ; $C371: C9 B6
-  BNE LC378                                           ; $C373: D0 03
-  JMP LC401                                           ; $C375: 4C 01 C4
-LC378:
+  BNE @skip_3                                           ; $C373: D0 03
+  JMP @skip_9                                           ; $C375: 4C 01 C4
+@skip_3:
   CMP #$DE                                            ; $C378: C9 DE
-  BNE LC37F                                           ; $C37A: D0 03
-  JMP LC42E                                           ; $C37C: 4C 2E C4
-LC37F:
+  BNE @skip_4                                           ; $C37A: D0 03
+  JMP Sub_C42E                                           ; $C37C: 4C 2E C4
+@skip_4:
   LDA $6FE1                                           ; $C37F: AD E1 6F
   AND #$01                                            ; $C382: 29 01
-  BNE LC3A4                                           ; $C384: D0 1E
+  BNE @loop_2                                           ; $C384: D0 1E
   LDA #$00                                            ; $C386: A9 00
   STA a:$0010                                         ; $C388: 8D 10 00
-LC38B:
+@loop:
   JSR B1F_GetRulerDataPtr                             ; $C38B: 20 68 F3
   LDY #$00                                            ; $C38E: A0 00
   LDA ($00),Y                                         ; $C390: B1 00
   CMP $0514,X                                         ; $C392: DD 14 05
-  BNE LC39A                                           ; $C395: D0 03
-  JMP LC3E3                                           ; $C397: 4C E3 C3
-LC39A:
+  BNE @skip_5                                           ; $C395: D0 03
+  JMP @skip_8                                           ; $C397: 4C E3 C3
+@skip_5:
   INC a:$0010                                         ; $C39A: EE 10 00
   LDA a:$0010                                         ; $C39D: AD 10 00
   CMP #$07                                            ; $C3A0: C9 07
-  BCC LC38B                                           ; $C3A2: 90 E7
-LC3A4:
+  BCC @loop                                           ; $C3A2: 90 E7
+@loop_2:
   LDA #$01                                            ; $C3A4: A9 01
   STA $04A9                                           ; $C3A6: 8D A9 04
   RTS                                                 ; $C3A9: 60
-LC3AA:
+@skip_6:
   LDA #$64                                            ; $C3AA: A9 64
   JSR B1F_RandomBelowThreshold                        ; $C3AC: 20 62 E8
   CMP #$1E                                            ; $C3AF: C9 1E
-  BCS LC3A4                                           ; $C3B1: B0 F1
+  BCS @loop_2                                           ; $C3B1: B0 F1
   LDA #$06                                            ; $C3B3: A9 06
   STA a:$0010                                         ; $C3B5: 8D 10 00
   LDA #$3F                                            ; $C3B8: A9 3F
   STA a:$0011                                         ; $C3BA: 8D 11 00
-  JMP LC40B                                           ; $C3BD: 4C 0B C4
-LC3C0:
+  JMP Sub_C40B                                           ; $C3BD: 4C 0B C4
+@skip_7:
   LDA $04BD                                           ; $C3C0: AD BD 04
   EOR #$02                                            ; $C3C3: 49 02
   TAX                                                 ; $C3C5: AA
@@ -4175,17 +4710,17 @@ LC3C0:
   LDA ($00),Y                                         ; $C3CE: B1 00
   AND #$F0                                            ; $C3D0: 29 F0
   CMP #$20                                            ; $C3D2: C9 20
-  BCS LC3A4                                           ; $C3D4: B0 CE
+  BCS @loop_2                                           ; $C3D4: B0 CE
   LDA #$07                                            ; $C3D6: A9 07
   STA a:$0010                                         ; $C3D8: 8D 10 00
   LDA #$40                                            ; $C3DB: A9 40
   STA a:$0011                                         ; $C3DD: 8D 11 00
-  JMP LC40B                                           ; $C3E0: 4C 0B C4
-LC3E3:
+  JMP Sub_C40B                                           ; $C3E0: 4C 0B C4
+@skip_8:
   LDA #$64                                            ; $C3E3: A9 64
   JSR B1F_RandomBelowThreshold                        ; $C3E5: 20 62 E8
   CMP #$32                                            ; $C3E8: C9 32
-  BCS LC3A4                                           ; $C3EA: B0 B8
+  BCS @loop_2                                           ; $C3EA: B0 B8
   LDA $6FE1                                           ; $C3EC: AD E1 6F
   ORA #$01                                            ; $C3EF: 09 01
   STA $6FE1                                           ; $C3F1: 8D E1 6F
@@ -4193,13 +4728,18 @@ LC3E3:
   STA a:$0010                                         ; $C3F6: 8D 10 00
   LDA #$41                                            ; $C3F9: A9 41
   STA a:$0011                                         ; $C3FB: 8D 11 00
-  JMP LC40B                                           ; $C3FE: 4C 0B C4
-LC401:
+  JMP Sub_C40B                                           ; $C3FE: 4C 0B C4
+@skip_9:
   LDA #$05                                            ; $C401: A9 05
   STA a:$0010                                         ; $C403: 8D 10 00
   LDA #$3E                                            ; $C406: A9 3E
   STA a:$0011                                         ; $C408: 8D 11 00
-LC40B:
+.endproc
+;===============================================================================
+; $C40B: Sub_C40B
+;===============================================================================
+.proc Sub_C40B
+Sub_C40B:
   LDA $04BD                                           ; $C40B: AD BD 04
   EOR #$02                                            ; $C40E: 49 02
   TAX                                                 ; $C410: AA
@@ -4214,7 +4754,12 @@ LC40B:
   INC $04A9                                           ; $C425: EE A9 04
   LDA a:$0011                                         ; $C428: AD 11 00
   JMP B1F_SetUI4                                      ; $C42B: 4C 8B F2
-LC42E:
+.endproc
+;===============================================================================
+; $C42E: Sub_C42E
+;===============================================================================
+.proc Sub_C42E
+Sub_C42E:
   LDA $04BD                                           ; $C42E: AD BD 04
   EOR #$02                                            ; $C431: 49 02
   TAX                                                 ; $C433: AA
@@ -4229,66 +4774,101 @@ LC42E:
   INC $04A9                                           ; $C447: EE A9 04
   LDA #$42                                            ; $C44A: A9 42
   JMP B1F_SetUI4                                      ; $C44C: 4C 8B F2
-LC44F:
-  JSR LD299                                           ; $C44F: 20 99 D2
-  BCC LC463                                           ; $C452: 90 0F
-  JSR LD13D                                           ; $C454: 20 3D D1
+.endproc
+;===============================================================================
+; $C44F: MainGameDispatch_14_03
+;===============================================================================
+.proc MainGameDispatch_14_03
+MainGameDispatch_14_03:
+  JSR Sub_D299                                           ; $C44F: 20 99 D2
+  BCC @skip                                           ; $C452: 90 0F
+  JSR Sub_D13D                                           ; $C454: 20 3D D1
   LDA a:$0081                                         ; $C457: AD 81 00
   AND #$03                                            ; $C45A: 29 03
-  BEQ LC463                                           ; $C45C: F0 05
+  BEQ @skip                                           ; $C45C: F0 05
   LDA #$01                                            ; $C45E: A9 01
   STA $04A9                                           ; $C460: 8D A9 04
-LC463:
+@skip:
   RTS                                                 ; $C463: 60
-LC464:
+.endproc
+;===============================================================================
+; $C464: MainGameDispatch_15
+;===============================================================================
+.proc MainGameDispatch_15
+MainGameDispatch_15:
   LDA $04A9                                           ; $C464: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C467: 20 DE EA
 ; --- Inline pointer table (2 entries) ---
-  .word LC46E                                         ; $C46A: 6E C4
-  .word LC480                                         ; $C46C: 80 C4
-LC46E:
+  .word MainGameDispatch_15_00                                         ; $C46A: 6E C4
+  .word MainGameDispatch_15_01                                         ; $C46C: 80 C4
+.endproc
+;===============================================================================
+; $C46E: MainGameDispatch_15_00
+;===============================================================================
+.proc MainGameDispatch_15_00
+MainGameDispatch_15_00:
   LDA $04AD                                           ; $C46E: AD AD 04
   STA $0514                                           ; $C471: 8D 14 05
   LDA $04AE                                           ; $C474: AD AE 04
   STA $0516                                           ; $C477: 8D 16 05
   INC $04A9                                           ; $C47A: EE A9 04
   JMP B1F_PaletteCopyBuffer                           ; $C47D: 4C EE EC
-LC480:
+.endproc
+;===============================================================================
+; $C480: MainGameDispatch_15_01
+;===============================================================================
+.proc MainGameDispatch_15_01
+MainGameDispatch_15_01:
   LDA a:$0087                                         ; $C480: AD 87 00
-  BPL LC497                                           ; $C483: 10 12
+  BPL @skip_2                                           ; $C483: 10 12
   LDA $050F                                           ; $C485: AD 0F 05
   CMP #$03                                            ; $C488: C9 03
-  BEQ LC48F                                           ; $C48A: F0 03
+  BEQ @skip                                           ; $C48A: F0 03
   STA $6F44                                           ; $C48C: 8D 44 6F
-LC48F:
+@skip:
   LDA #$05                                            ; $C48F: A9 05
   STA a:$007A                                         ; $C491: 8D 7A 00
   JMP B1F_PaletteFadeInit                             ; $C494: 4C BF EC
-LC497:
+@skip_2:
   RTS                                                 ; $C497: 60
-LC498:
+.endproc
+;===============================================================================
+; $C498: MainGameDispatch_16
+;===============================================================================
+.proc MainGameDispatch_16
+MainGameDispatch_16:
   LDA $04A9                                           ; $C498: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C49B: 20 DE EA
 ; --- Inline pointer table (7 entries) ---
-  .word LC4AC                                         ; $C49E: AC C4
-  .word LC4C3                                         ; $C4A0: C3 C4
-  .word LC4E9                                         ; $C4A2: E9 C4
-  .word LC55A                                         ; $C4A4: 5A C5
-  .word LC598                                         ; $C4A6: 98 C5
-  .word LC5D2                                         ; $C4A8: D2 C5
-  .word LC66B                                         ; $C4AA: 6B C6
-LC4AC:
+  .word MainGameDispatch_16_00                                         ; $C49E: AC C4
+  .word MainGameDispatch_16_01                                         ; $C4A0: C3 C4
+  .word MainGameDispatch_16_02                                         ; $C4A2: E9 C4
+  .word MainGameDispatch_16_03                                         ; $C4A4: 5A C5
+  .word MainGameDispatch_16_04                                         ; $C4A6: 98 C5
+  .word MainGameDispatch_16_05                                         ; $C4A8: D2 C5
+  .word MainGameDispatch_16_06                                         ; $C4AA: 6B C6
+.endproc
+;===============================================================================
+; $C4AC: MainGameDispatch_16_00
+;===============================================================================
+.proc MainGameDispatch_16_00
+MainGameDispatch_16_00:
   INC $04A9                                           ; $C4AC: EE A9 04
   LDA #$43                                            ; $C4AF: A9 43
   STA a:$0000                                         ; $C4B1: 8D 00 00
   LDA $04AA                                           ; $C4B4: AD AA 04
-  BEQ LC4BE                                           ; $C4B7: F0 05
+  BEQ @skip                                           ; $C4B7: F0 05
   LDA #$55                                            ; $C4B9: A9 55
   STA a:$0000                                         ; $C4BB: 8D 00 00
-LC4BE:
+@skip:
   LDA #$00                                            ; $C4BE: A9 00
-  JMP LCDFD                                           ; $C4C0: 4C FD CD
-LC4C3:
+  JMP Sub_CDFD                                           ; $C4C0: 4C FD CD
+.endproc
+;===============================================================================
+; $C4C3: MainGameDispatch_16_01
+;===============================================================================
+.proc MainGameDispatch_16_01
+MainGameDispatch_16_01:
   LDA #$00                                            ; $C4C3: A9 00
   STA $04B8                                           ; $C4C5: 8D B8 04
   INC $04A9                                           ; $C4C8: EE A9 04
@@ -4297,48 +4877,53 @@ LC4C3:
   LDA #$E3                                            ; $C4D0: A9 E3
   STA a:$0000                                         ; $C4D2: 8D 00 00
   LDA $04AA                                           ; $C4D5: AD AA 04
-  BEQ LC4E4                                           ; $C4D8: F0 0A
+  BEQ @skip                                           ; $C4D8: F0 0A
   LDA #$A8                                            ; $C4DA: A9 A8
   STA $04BB                                           ; $C4DC: 8D BB 04
   LDA #$F5                                            ; $C4DF: A9 F5
   STA a:$0000                                         ; $C4E1: 8D 00 00
-LC4E4:
+@skip:
   LDA #$00                                            ; $C4E4: A9 00
-  JMP LCDFD                                           ; $C4E6: 4C FD CD
-LC4E9:
+  JMP Sub_CDFD                                           ; $C4E6: 4C FD CD
+.endproc
+;===============================================================================
+; $C4E9: MainGameDispatch_16_02
+;===============================================================================
+.proc MainGameDispatch_16_02
+MainGameDispatch_16_02:
   LDA $04AA                                           ; $C4E9: AD AA 04
-  BEQ LC4F8                                           ; $C4EC: F0 0A
+  BEQ @skip                                           ; $C4EC: F0 0A
   LDA $04BB                                           ; $C4EE: AD BB 04
   CMP #$58                                            ; $C4F1: C9 58
-  BEQ LC513                                           ; $C4F3: F0 1E
-  JMP LC4FF                                           ; $C4F5: 4C FF C4
-LC4F8:
+  BEQ @skip_4                                           ; $C4F3: F0 1E
+  JMP @skip_2                                           ; $C4F5: 4C FF C4
+@skip:
   LDA $04BB                                           ; $C4F8: AD BB 04
   CMP #$68                                            ; $C4FB: C9 68
-  BEQ LC513                                           ; $C4FD: F0 14
-LC4FF:
+  BEQ @skip_4                                           ; $C4FD: F0 14
+@skip_2:
   LDA $04AA                                           ; $C4FF: AD AA 04
   STA a:$0011                                         ; $C502: 8D 11 00
-  BEQ LC50D                                           ; $C505: F0 06
+  BEQ @skip_3                                           ; $C505: F0 06
   DEC $04BB                                           ; $C507: CE BB 04
-  JMP LCEE1                                           ; $C50A: 4C E1 CE
-LC50D:
+  JMP Sub_CEE1                                           ; $C50A: 4C E1 CE
+@skip_3:
   INC $04BB                                           ; $C50D: EE BB 04
-  JMP LCEE1                                           ; $C510: 4C E1 CE
-LC513:
+  JMP Sub_CEE1                                           ; $C510: 4C E1 CE
+@skip_4:
   INC $04A9                                           ; $C513: EE A9 04
   LDA $04AA                                           ; $C516: AD AA 04
-  BEQ LC525                                           ; $C519: F0 0A
+  BEQ @skip_5                                           ; $C519: F0 0A
   LDA #$4B                                            ; $C51B: A9 4B
   STA a:$0000                                         ; $C51D: 8D 00 00
   LDA #$18                                            ; $C520: A9 18
-  JMP LC52C                                           ; $C522: 4C 2C C5
-LC525:
+  JMP @skip_6                                           ; $C522: 4C 2C C5
+@skip_5:
   LDA #$4D                                            ; $C525: A9 4D
   STA a:$0000                                         ; $C527: 8D 00 00
   LDA #$17                                            ; $C52A: A9 17
-LC52C:
-  JSR LCDFD                                           ; $C52C: 20 FD CD
+@skip_6:
+  JSR Sub_CDFD                                           ; $C52C: 20 FD CD
   LDA #$02                                            ; $C52F: A9 02
   STA $03B7                                           ; $C531: 8D B7 03
   LDA #$23                                            ; $C534: A9 23
@@ -4356,8 +4941,13 @@ LC52C:
   LDA #$FF                                            ; $C550: A9 FF
   STA $03BC                                           ; $C552: 8D BC 03
   RTS                                                 ; $C555: 60
+.endproc
   .byte $44,$11,$CC,$33                               ; $C556: 44 11 CC 33
-LC55A:
+;===============================================================================
+; $C55A: MainGameDispatch_16_03
+;===============================================================================
+.proc MainGameDispatch_16_03
+MainGameDispatch_16_03:
   LDA #$92                                            ; $C55A: A9 92
   STA a:$00C7                                         ; $C55C: 8D C7 00
   STA a:$00CF                                         ; $C55F: 8D CF 00
@@ -4377,13 +4967,18 @@ LC55A:
   STA a:$0000                                         ; $C584: 8D 00 00
   LDA #$04                                            ; $C587: A9 04
   LDY $04AA                                           ; $C589: AC AA 04
-  BEQ LC595                                           ; $C58C: F0 07
+  BEQ @skip                                           ; $C58C: F0 07
   LDA #$EB                                            ; $C58E: A9 EB
   STA a:$0000                                         ; $C590: 8D 00 00
   LDA #$08                                            ; $C593: A9 08
-LC595:
-  JMP LCDFD                                           ; $C595: 4C FD CD
-LC598:
+@skip:
+  JMP Sub_CDFD                                           ; $C595: 4C FD CD
+.endproc
+;===============================================================================
+; $C598: MainGameDispatch_16_04
+;===============================================================================
+.proc MainGameDispatch_16_04
+MainGameDispatch_16_04:
   LDA #$90                                            ; $C598: A9 90
   STA a:$00CC                                         ; $C59A: 8D CC 00
   STA a:$00D4                                         ; $C59D: 8D D4 00
@@ -4395,21 +4990,26 @@ LC598:
   LDA $04AF,Y                                         ; $C5AC: B9 AF 04
   STA a:$0001                                         ; $C5AF: 8D 01 00
   CPY #$01                                            ; $C5B2: C0 01
-  BEQ LC5C4                                           ; $C5B4: F0 0E
+  BEQ @skip                                           ; $C5B4: F0 0E
   LDA #$43                                            ; $C5B6: A9 43
   STA a:$0000                                         ; $C5B8: 8D 00 00
   LDA #$0D                                            ; $C5BB: A9 0D
   CLC                                                 ; $C5BD: 18
   ADC a:$0001                                         ; $C5BE: 6D 01 00
-  JMP LCDFD                                           ; $C5C1: 4C FD CD
-LC5C4:
+  JMP Sub_CDFD                                           ; $C5C1: 4C FD CD
+@skip:
   LDA #$55                                            ; $C5C4: A9 55
   STA a:$0000                                         ; $C5C6: 8D 00 00
   LDA #$10                                            ; $C5C9: A9 10
   CLC                                                 ; $C5CB: 18
   ADC a:$0001                                         ; $C5CC: 6D 01 00
-  JMP LCDFD                                           ; $C5CF: 4C FD CD
-LC5D2:
+  JMP Sub_CDFD                                           ; $C5CF: 4C FD CD
+.endproc
+;===============================================================================
+; $C5D2: MainGameDispatch_16_05
+;===============================================================================
+.proc MainGameDispatch_16_05
+MainGameDispatch_16_05:
   LDA $04B8                                           ; $C5D2: AD B8 04
   LSR A                                               ; $C5D5: 4A
   LSR A                                               ; $C5D6: 4A
@@ -4425,17 +5025,17 @@ LC5D2:
   LSR A                                               ; $C5E7: 4A
   AND #$07                                            ; $C5E8: 29 07
   CMP #$05                                            ; $C5EA: C9 05
-  BNE LC622                                           ; $C5EC: D0 34
+  BNE @skip_2                                           ; $C5EC: D0 34
   INC $04A9                                           ; $C5EE: EE A9 04
   LDA #$4B                                            ; $C5F1: A9 4B
   STA a:$0000                                         ; $C5F3: 8D 00 00
   LDA $04AA                                           ; $C5F6: AD AA 04
-  BNE LC600                                           ; $C5F9: D0 05
+  BNE @skip                                           ; $C5F9: D0 05
   LDA #$4D                                            ; $C5FB: A9 4D
   STA a:$0000                                         ; $C5FD: 8D 00 00
-LC600:
+@skip:
   LDA #$00                                            ; $C600: A9 00
-  JSR LCDFD                                           ; $C602: 20 FD CD
+  JSR Sub_CDFD                                           ; $C602: 20 FD CD
   LDA #$02                                            ; $C605: A9 02
   STA $03B7                                           ; $C607: 8D B7 03
   LDA #$23                                            ; $C60A: A9 23
@@ -4448,23 +5048,23 @@ LC600:
   LDA #$FF                                            ; $C61C: A9 FF
   STA $03BC                                           ; $C61E: 8D BC 03
   RTS                                                 ; $C621: 60
-LC622:
+@skip_2:
   AND #$01                                            ; $C622: 29 01
   STA a:$0010                                         ; $C624: 8D 10 00
   STA a:$0011                                         ; $C627: 8D 11 00
-  BNE LC636                                           ; $C62A: D0 0A
+  BNE @skip_3                                           ; $C62A: D0 0A
   CMP a:$0012                                         ; $C62C: CD 12 00
-  BEQ LC636                                           ; $C62F: F0 05
+  BEQ @skip_3                                           ; $C62F: F0 05
   LDA #$62                                            ; $C631: A9 62
   JSR B1F_SoundWrapperE                               ; $C633: 20 93 E6
-LC636:
+@skip_3:
   LDA $04AA                                           ; $C636: AD AA 04
-  BEQ LC644                                           ; $C639: F0 09
+  BEQ @skip_4                                           ; $C639: F0 09
   LDA a:$0010                                         ; $C63B: AD 10 00
   CLC                                                 ; $C63E: 18
   ADC #$06                                            ; $C63F: 69 06
   STA a:$0010                                         ; $C641: 8D 10 00
-LC644:
+@skip_4:
   LDA $04AA                                           ; $C644: AD AA 04
   CLC                                                 ; $C647: 18
   ADC #$01                                            ; $C648: 69 01
@@ -4475,15 +5075,20 @@ LC644:
   CLC                                                 ; $C654: 18
   ADC a:$0010                                         ; $C655: 6D 10 00
   ADC #$5E                                            ; $C658: 69 5E
-  JSR LCEA5                                           ; $C65A: 20 A5 CE
+  JSR Sub_CEA5                                           ; $C65A: 20 A5 CE
   LDA a:$0011                                         ; $C65D: AD 11 00
-  BNE LC66A                                           ; $C660: D0 08
+  BNE @skip_5                                           ; $C660: D0 08
   LDA #$76                                            ; $C662: A9 76
   STA a:$0010                                         ; $C664: 8D 10 00
-  JMP LD235                                           ; $C667: 4C 35 D2
-LC66A:
+  JMP Sub_D235                                           ; $C667: 4C 35 D2
+@skip_5:
   RTS                                                 ; $C66A: 60
-LC66B:
+.endproc
+;===============================================================================
+; $C66B: MainGameDispatch_16_06
+;===============================================================================
+.proc MainGameDispatch_16_06
+MainGameDispatch_16_06:
   LDA #$13                                            ; $C66B: A9 13
   STA $04A8                                           ; $C66D: 8D A8 04
   LDA #$00                                            ; $C670: A9 00
@@ -4491,36 +5096,51 @@ LC66B:
   LDA #$ED                                            ; $C675: A9 ED
   STA a:$0000                                         ; $C677: 8D 00 00
   LDY $04AA                                           ; $C67A: AC AA 04
-  BEQ LC684                                           ; $C67D: F0 05
+  BEQ @skip                                           ; $C67D: F0 05
   LDA #$EB                                            ; $C67F: A9 EB
   STA a:$0000                                         ; $C681: 8D 00 00
-LC684:
+@skip:
   LDA #$00                                            ; $C684: A9 00
-  JMP LCDFD                                           ; $C686: 4C FD CD
-LC689:
+  JMP Sub_CDFD                                           ; $C686: 4C FD CD
+.endproc
+;===============================================================================
+; $C689: MainGameDispatch_17
+;===============================================================================
+.proc MainGameDispatch_17
+MainGameDispatch_17:
   LDA $04A9                                           ; $C689: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C68C: 20 DE EA
 ; --- Inline pointer table (8 entries) ---
-  .word LC69F                                         ; $C68F: 9F C6
-  .word LC6B6                                         ; $C691: B6 C6
-  .word LC6DC                                         ; $C693: DC C6
-  .word LC72D                                         ; $C695: 2D C7
-  .word LC773                                         ; $C697: 73 C7
-  .word LC809                                         ; $C699: 09 C8
-  .word LC84A                                         ; $C69B: 4A C8
-  .word LC884                                         ; $C69D: 84 C8
-LC69F:
+  .word MainGameDispatch_17_00                                         ; $C68F: 9F C6
+  .word MainGameDispatch_17_01                                         ; $C691: B6 C6
+  .word MainGameDispatch_17_02                                         ; $C693: DC C6
+  .word MainGameDispatch_17_03                                         ; $C695: 2D C7
+  .word MainGameDispatch_17_04                                         ; $C697: 73 C7
+  .word MainGameDispatch_17_05                                         ; $C699: 09 C8
+  .word MainGameDispatch_17_06                                         ; $C69B: 4A C8
+  .word MainGameDispatch_17_07                                         ; $C69D: 84 C8
+.endproc
+;===============================================================================
+; $C69F: MainGameDispatch_17_00
+;===============================================================================
+.proc MainGameDispatch_17_00
+MainGameDispatch_17_00:
   INC $04A9                                           ; $C69F: EE A9 04
   LDA #$43                                            ; $C6A2: A9 43
   STA a:$0000                                         ; $C6A4: 8D 00 00
   LDA $04AA                                           ; $C6A7: AD AA 04
-  BEQ LC6B1                                           ; $C6AA: F0 05
+  BEQ @skip                                           ; $C6AA: F0 05
   LDA #$55                                            ; $C6AC: A9 55
   STA a:$0000                                         ; $C6AE: 8D 00 00
-LC6B1:
+@skip:
   LDA #$00                                            ; $C6B1: A9 00
-  JMP LCDFD                                           ; $C6B3: 4C FD CD
-LC6B6:
+  JMP Sub_CDFD                                           ; $C6B3: 4C FD CD
+.endproc
+;===============================================================================
+; $C6B6: MainGameDispatch_17_01
+;===============================================================================
+.proc MainGameDispatch_17_01
+MainGameDispatch_17_01:
   LDA #$00                                            ; $C6B6: A9 00
   STA $04B8                                           ; $C6B8: 8D B8 04
   INC $04A9                                           ; $C6BB: EE A9 04
@@ -4529,64 +5149,74 @@ LC6B6:
   LDA #$E3                                            ; $C6C3: A9 E3
   STA a:$0000                                         ; $C6C5: 8D 00 00
   LDA $04AA                                           ; $C6C8: AD AA 04
-  BEQ LC6D7                                           ; $C6CB: F0 0A
+  BEQ @skip                                           ; $C6CB: F0 0A
   LDA #$A8                                            ; $C6CD: A9 A8
   STA $04BB                                           ; $C6CF: 8D BB 04
   LDA #$F5                                            ; $C6D2: A9 F5
   STA a:$0000                                         ; $C6D4: 8D 00 00
-LC6D7:
+@skip:
   LDA #$00                                            ; $C6D7: A9 00
-  JMP LCDFD                                           ; $C6D9: 4C FD CD
-LC6DC:
+  JMP Sub_CDFD                                           ; $C6D9: 4C FD CD
+.endproc
+;===============================================================================
+; $C6DC: MainGameDispatch_17_02
+;===============================================================================
+.proc MainGameDispatch_17_02
+MainGameDispatch_17_02:
   LDA $04AA                                           ; $C6DC: AD AA 04
-  BEQ LC6EB                                           ; $C6DF: F0 0A
+  BEQ @skip                                           ; $C6DF: F0 0A
   LDA $04BB                                           ; $C6E1: AD BB 04
   CMP #$58                                            ; $C6E4: C9 58
-  BNE LC719                                           ; $C6E6: D0 31
-  JMP LC6F2                                           ; $C6E8: 4C F2 C6
-LC6EB:
+  BNE @skip_4                                           ; $C6E6: D0 31
+  JMP @skip_2                                           ; $C6E8: 4C F2 C6
+@skip:
   LDA $04BB                                           ; $C6EB: AD BB 04
   CMP #$68                                            ; $C6EE: C9 68
-  BNE LC719                                           ; $C6F0: D0 27
-LC6F2:
+  BNE @skip_4                                           ; $C6F0: D0 27
+@skip_2:
   LDA #$8F                                            ; $C6F2: A9 8F
   STA a:$00CC                                         ; $C6F4: 8D CC 00
   STA a:$00D4                                         ; $C6F7: 8D D4 00
   STA a:$00DC                                         ; $C6FA: 8D DC 00
   INC $04A9                                           ; $C6FD: EE A9 04
   LDA $04AA                                           ; $C700: AD AA 04
-  BEQ LC70F                                           ; $C703: F0 0A
+  BEQ @skip_3                                           ; $C703: F0 0A
   LDA #$4B                                            ; $C705: A9 4B
   STA a:$0000                                         ; $C707: 8D 00 00
   LDA #$0B                                            ; $C70A: A9 0B
-  JMP LCDFD                                           ; $C70C: 4C FD CD
-LC70F:
+  JMP Sub_CDFD                                           ; $C70C: 4C FD CD
+@skip_3:
   LDA #$4D                                            ; $C70F: A9 4D
   STA a:$0000                                         ; $C711: 8D 00 00
   LDA #$09                                            ; $C714: A9 09
-  JMP LCDFD                                           ; $C716: 4C FD CD
-LC719:
+  JMP Sub_CDFD                                           ; $C716: 4C FD CD
+@skip_4:
   LDA $04AA                                           ; $C719: AD AA 04
   STA a:$0011                                         ; $C71C: 8D 11 00
-  BEQ LC727                                           ; $C71F: F0 06
+  BEQ @skip_5                                           ; $C71F: F0 06
   DEC $04BB                                           ; $C721: CE BB 04
-  JMP LCEE1                                           ; $C724: 4C E1 CE
-LC727:
+  JMP Sub_CEE1                                           ; $C724: 4C E1 CE
+@skip_5:
   INC $04BB                                           ; $C727: EE BB 04
-  JMP LCEE1                                           ; $C72A: 4C E1 CE
-LC72D:
+  JMP Sub_CEE1                                           ; $C72A: 4C E1 CE
+.endproc
+;===============================================================================
+; $C72D: MainGameDispatch_17_03
+;===============================================================================
+.proc MainGameDispatch_17_03
+MainGameDispatch_17_03:
   LDA #$83                                            ; $C72D: A9 83
   STA a:$00C9                                         ; $C72F: 8D C9 00
   STA a:$00D1                                         ; $C732: 8D D1 00
   STA a:$00D9                                         ; $C735: 8D D9 00
   LDY $04AA                                           ; $C738: AC AA 04
   LDA $04AF,Y                                         ; $C73B: B9 AF 04
-  BEQ LC74B                                           ; $C73E: F0 0B
+  BEQ @skip                                           ; $C73E: F0 0B
   LDA #$84                                            ; $C740: A9 84
   STA a:$00C6                                         ; $C742: 8D C6 00
   STA a:$00CE                                         ; $C745: 8D CE 00
   STA a:$00D6                                         ; $C748: 8D D6 00
-LC74B:
+@skip:
   LDA #$FF                                            ; $C74B: A9 FF
   STA $04B8                                           ; $C74D: 8D B8 04
   LDA #$00                                            ; $C750: A9 00
@@ -4598,13 +5228,18 @@ LC74B:
   STA a:$0000                                         ; $C75F: 8D 00 00
   LDA #$0A                                            ; $C762: A9 0A
   LDY $04AA                                           ; $C764: AC AA 04
-  BEQ LC770                                           ; $C767: F0 07
+  BEQ @skip_2                                           ; $C767: F0 07
   LDA #$EB                                            ; $C769: A9 EB
   STA a:$0000                                         ; $C76B: 8D 00 00
   LDA #$0C                                            ; $C76E: A9 0C
-LC770:
-  JMP LCDFD                                           ; $C770: 4C FD CD
-LC773:
+@skip_2:
+  JMP Sub_CDFD                                           ; $C770: 4C FD CD
+.endproc
+;===============================================================================
+; $C773: MainGameDispatch_17_04
+;===============================================================================
+.proc MainGameDispatch_17_04
+MainGameDispatch_17_04:
   LDA $04B8                                           ; $C773: AD B8 04
   LSR A                                               ; $C776: 4A
   LSR A                                               ; $C777: 4A
@@ -4618,45 +5253,45 @@ LC773:
   LSR A                                               ; $C786: 4A
   AND #$03                                            ; $C787: 29 03
   CMP #$03                                            ; $C789: C9 03
-  BNE LC7B3                                           ; $C78B: D0 26
+  BNE @skip_2                                           ; $C78B: D0 26
   LDA #$00                                            ; $C78D: A9 00
   STA $04B8                                           ; $C78F: 8D B8 04
   INC $04B9                                           ; $C792: EE B9 04
   LDY $04B9                                           ; $C795: AC B9 04
   CPY #$03                                            ; $C798: C0 03
-  BNE LC7B3                                           ; $C79A: D0 17
+  BNE @skip_2                                           ; $C79A: D0 17
   INC $04A9                                           ; $C79C: EE A9 04
   LDA #$4B                                            ; $C79F: A9 4B
   STA a:$0000                                         ; $C7A1: 8D 00 00
   LDA $04AA                                           ; $C7A4: AD AA 04
-  BNE LC7AE                                           ; $C7A7: D0 05
+  BNE @skip                                           ; $C7A7: D0 05
   LDA #$4D                                            ; $C7A9: A9 4D
   STA a:$0000                                         ; $C7AB: 8D 00 00
-LC7AE:
+@skip:
   LDA #$00                                            ; $C7AE: A9 00
-  JMP LCDFD                                           ; $C7B0: 4C FD CD
-LC7B3:
+  JMP Sub_CDFD                                           ; $C7B0: 4C FD CD
+@skip_2:
   STA a:$0010                                         ; $C7B3: 8D 10 00
   CMP #$01                                            ; $C7B6: C9 01
-  BNE LC7C4                                           ; $C7B8: D0 0A
+  BNE @skip_3                                           ; $C7B8: D0 0A
   CMP a:$0012                                         ; $C7BA: CD 12 00
-  BEQ LC7C4                                           ; $C7BD: F0 05
+  BEQ @skip_3                                           ; $C7BD: F0 05
   LDA #$61                                            ; $C7BF: A9 61
   JSR B1F_SoundNotePlayer                             ; $C7C1: 20 09 E6
-LC7C4:
+@skip_3:
   LDA $04AA                                           ; $C7C4: AD AA 04
-  BNE LC7D2                                           ; $C7C7: D0 09
+  BNE @skip_4                                           ; $C7C7: D0 09
   LDA a:$0010                                         ; $C7C9: AD 10 00
   CLC                                                 ; $C7CC: 18
   ADC #$0F                                            ; $C7CD: 69 0F
   STA a:$0010                                         ; $C7CF: 8D 10 00
-LC7D2:
+@skip_4:
   LDA #$00                                            ; $C7D2: A9 00
   STA a:$0002                                         ; $C7D4: 8D 02 00
   LDA a:$0010                                         ; $C7D7: AD 10 00
   CLC                                                 ; $C7DA: 18
   ADC #$22                                            ; $C7DB: 69 22
-  JSR LCEA5                                           ; $C7DD: 20 A5 CE
+  JSR Sub_CEA5                                           ; $C7DD: 20 A5 CE
   LDA $04AA                                           ; $C7E0: AD AA 04
   CLC                                                 ; $C7E3: 18
   ADC #$01                                            ; $C7E4: 69 01
@@ -4664,7 +5299,7 @@ LC7D2:
   LDA a:$0010                                         ; $C7E9: AD 10 00
   CLC                                                 ; $C7EC: 18
   ADC #$25                                            ; $C7ED: 69 25
-  JSR LCEA5                                           ; $C7EF: 20 A5 CE
+  JSR Sub_CEA5                                           ; $C7EF: 20 A5 CE
   LDY $04AA                                           ; $C7F2: AC AA 04
   LDA $04AF,Y                                         ; $C7F5: B9 AF 04
   STA a:$0011                                         ; $C7F8: 8D 11 00
@@ -4674,8 +5309,13 @@ LC7D2:
   CLC                                                 ; $C800: 18
   ADC a:$0010                                         ; $C801: 6D 10 00
   ADC #$28                                            ; $C804: 69 28
-  JMP LCEA5                                           ; $C806: 4C A5 CE
-LC809:
+  JMP Sub_CEA5                                           ; $C806: 4C A5 CE
+.endproc
+;===============================================================================
+; $C809: MainGameDispatch_17_05
+;===============================================================================
+.proc MainGameDispatch_17_05
+MainGameDispatch_17_05:
   LDA #$00                                            ; $C809: A9 00
   STA $04B8                                           ; $C80B: 8D B8 04
   LDA #$57                                            ; $C80E: A9 57
@@ -4687,23 +5327,28 @@ LC809:
   LDY $04AA                                           ; $C81E: AC AA 04
   LDA $04AF,Y                                         ; $C821: B9 AF 04
   CMP #$01                                            ; $C824: C9 01
-  BNE LC833                                           ; $C826: D0 0B
+  BNE @skip                                           ; $C826: D0 0B
   LDA #$96                                            ; $C828: A9 96
   STA a:$00C9                                         ; $C82A: 8D C9 00
   STA a:$00D1                                         ; $C82D: 8D D1 00
   STA a:$00D9                                         ; $C830: 8D D9 00
-LC833:
+@skip:
   INC $04A9                                           ; $C833: EE A9 04
   LDA #$EB                                            ; $C836: A9 EB
   STA a:$0000                                         ; $C838: 8D 00 00
   LDA $04AA                                           ; $C83B: AD AA 04
-  BNE LC845                                           ; $C83E: D0 05
+  BNE @skip_2                                           ; $C83E: D0 05
   LDA #$ED                                            ; $C840: A9 ED
   STA a:$0000                                         ; $C842: 8D 00 00
-LC845:
+@skip_2:
   LDA #$00                                            ; $C845: A9 00
-  JMP LCDFD                                           ; $C847: 4C FD CD
-LC84A:
+  JMP Sub_CDFD                                           ; $C847: 4C FD CD
+.endproc
+;===============================================================================
+; $C84A: MainGameDispatch_17_06
+;===============================================================================
+.proc MainGameDispatch_17_06
+MainGameDispatch_17_06:
   LDA #$90                                            ; $C84A: A9 90
   STA a:$00CC                                         ; $C84C: 8D CC 00
   STA a:$00D4                                         ; $C84F: 8D D4 00
@@ -4715,21 +5360,26 @@ LC84A:
   LDA $04AF,Y                                         ; $C85E: B9 AF 04
   STA a:$0001                                         ; $C861: 8D 01 00
   CPY #$01                                            ; $C864: C0 01
-  BEQ LC876                                           ; $C866: F0 0E
+  BEQ @skip                                           ; $C866: F0 0E
   LDA #$43                                            ; $C868: A9 43
   STA a:$0000                                         ; $C86A: 8D 00 00
   LDA #$0D                                            ; $C86D: A9 0D
   CLC                                                 ; $C86F: 18
   ADC a:$0001                                         ; $C870: 6D 01 00
-  JMP LCDFD                                           ; $C873: 4C FD CD
-LC876:
+  JMP Sub_CDFD                                           ; $C873: 4C FD CD
+@skip:
   LDA #$55                                            ; $C876: A9 55
   STA a:$0000                                         ; $C878: 8D 00 00
   LDA #$10                                            ; $C87B: A9 10
   CLC                                                 ; $C87D: 18
   ADC a:$0001                                         ; $C87E: 6D 01 00
-  JMP LCDFD                                           ; $C881: 4C FD CD
-LC884:
+  JMP Sub_CDFD                                           ; $C881: 4C FD CD
+.endproc
+;===============================================================================
+; $C884: MainGameDispatch_17_07
+;===============================================================================
+.proc MainGameDispatch_17_07
+MainGameDispatch_17_07:
   LDA $04B8                                           ; $C884: AD B8 04
   LSR A                                               ; $C887: 4A
   LSR A                                               ; $C888: 4A
@@ -4743,33 +5393,33 @@ LC884:
   LSR A                                               ; $C897: 4A
   AND #$07                                            ; $C898: 29 07
   CMP #$03                                            ; $C89A: C9 03
-  BCC LC8AF                                           ; $C89C: 90 11
+  BCC @skip_2                                           ; $C89C: 90 11
   CMP #$05                                            ; $C89E: C9 05
-  BCC LC8AD                                           ; $C8A0: 90 0B
+  BCC @skip                                           ; $C8A0: 90 0B
   LDA #$13                                            ; $C8A2: A9 13
   STA $04A8                                           ; $C8A4: 8D A8 04
   LDA #$00                                            ; $C8A7: A9 00
   STA $04A9                                           ; $C8A9: 8D A9 04
   RTS                                                 ; $C8AC: 60
-LC8AD:
+@skip:
   LDA #$02                                            ; $C8AD: A9 02
-LC8AF:
+@skip_2:
   STA a:$0010                                         ; $C8AF: 8D 10 00
   STA a:$0011                                         ; $C8B2: 8D 11 00
   CMP #$01                                            ; $C8B5: C9 01
-  BNE LC8C3                                           ; $C8B7: D0 0A
+  BNE @skip_3                                           ; $C8B7: D0 0A
   CMP a:$0012                                         ; $C8B9: CD 12 00
-  BEQ LC8C3                                           ; $C8BC: F0 05
+  BEQ @skip_3                                           ; $C8BC: F0 05
   LDA #$69                                            ; $C8BE: A9 69
   JSR B1F_SoundNotePlayer                             ; $C8C0: 20 09 E6
-LC8C3:
+@skip_3:
   LDA $04AA                                           ; $C8C3: AD AA 04
-  BNE LC8D1                                           ; $C8C6: D0 09
+  BNE @skip_4                                           ; $C8C6: D0 09
   LDA a:$0010                                         ; $C8C8: AD 10 00
   CLC                                                 ; $C8CB: 18
   ADC #$0F                                            ; $C8CC: 69 0F
   STA a:$0010                                         ; $C8CE: 8D 10 00
-LC8D1:
+@skip_4:
   LDA #$00                                            ; $C8D1: A9 00
   STA a:$0002                                         ; $C8D3: 8D 02 00
   LDA #$40                                            ; $C8D6: A9 40
@@ -4777,14 +5427,14 @@ LC8D1:
   LDY $04AA                                           ; $C8DB: AC AA 04
   LDA $04AF,Y                                         ; $C8DE: B9 AF 04
   CMP #$01                                            ; $C8E1: C9 01
-  BNE LC8EA                                           ; $C8E3: D0 05
+  BNE @skip_5                                           ; $C8E3: D0 05
   LDA #$4C                                            ; $C8E5: A9 4C
   STA a:$0001                                         ; $C8E7: 8D 01 00
-LC8EA:
+@skip_5:
   LDA a:$0010                                         ; $C8EA: AD 10 00
   CLC                                                 ; $C8ED: 18
   ADC a:$0001                                         ; $C8EE: 6D 01 00
-  JSR LCEA5                                           ; $C8F1: 20 A5 CE
+  JSR Sub_CEA5                                           ; $C8F1: 20 A5 CE
   LDA $04AA                                           ; $C8F4: AD AA 04
   CLC                                                 ; $C8F7: 18
   ADC #$01                                            ; $C8F8: 69 01
@@ -4798,55 +5448,70 @@ LC8EA:
   CLC                                                 ; $C90B: 18
   ADC a:$0010                                         ; $C90C: 6D 10 00
   ADC #$43                                            ; $C90F: 69 43
-  JSR LCEA5                                           ; $C911: 20 A5 CE
+  JSR Sub_CEA5                                           ; $C911: 20 A5 CE
   LDY $04AA                                           ; $C914: AC AA 04
   LDA $04AF,Y                                         ; $C917: B9 AF 04
   CMP #$01                                            ; $C91A: C9 01
-  BEQ LC930                                           ; $C91C: F0 12
+  BEQ @skip_6                                           ; $C91C: F0 12
   LDA $04B8                                           ; $C91E: AD B8 04
   CMP #$11                                            ; $C921: C9 11
-  BNE LC930                                           ; $C923: D0 0B
+  BNE @skip_6                                           ; $C923: D0 0B
   LDA #$84                                            ; $C925: A9 84
   STA a:$00C9                                         ; $C927: 8D C9 00
   STA a:$00D1                                         ; $C92A: 8D D1 00
   STA a:$00D9                                         ; $C92D: 8D D9 00
-LC930:
+@skip_6:
   LDA a:$0011                                         ; $C930: AD 11 00
   CMP #$02                                            ; $C933: C9 02
-  BNE LC948                                           ; $C935: D0 11
+  BNE @skip_7                                           ; $C935: D0 11
   LDY $04AA                                           ; $C937: AC AA 04
   LDA $04AF,Y                                         ; $C93A: B9 AF 04
   AND #$01                                            ; $C93D: 29 01
   CLC                                                 ; $C93F: 18
   ADC #$77                                            ; $C940: 69 77
   STA a:$0010                                         ; $C942: 8D 10 00
-  JMP LD235                                           ; $C945: 4C 35 D2
-LC948:
+  JMP Sub_D235                                           ; $C945: 4C 35 D2
+@skip_7:
   RTS                                                 ; $C948: 60
-LC949:
+.endproc
+;===============================================================================
+; $C949: MainGameDispatch_18
+;===============================================================================
+.proc MainGameDispatch_18
+MainGameDispatch_18:
   LDA $04A9                                           ; $C949: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C94C: 20 DE EA
 ; --- Inline pointer table (8 entries) ---
-  .word LC95F                                         ; $C94F: 5F C9
-  .word LC976                                         ; $C951: 76 C9
-  .word LC99C                                         ; $C953: 9C C9
-  .word LC9ED                                         ; $C955: ED C9
-  .word LCA50                                         ; $C957: 50 CA
-  .word LCAB8                                         ; $C959: B8 CA
-  .word LCAD4                                         ; $C95B: D4 CA
-  .word LCB0E                                         ; $C95D: 0E CB
-LC95F:
+  .word MainGameDispatch_18_00                                         ; $C94F: 5F C9
+  .word MainGameDispatch_18_01                                         ; $C951: 76 C9
+  .word MainGameDispatch_18_02                                         ; $C953: 9C C9
+  .word MainGameDispatch_18_03                                         ; $C955: ED C9
+  .word MainGameDispatch_18_04                                         ; $C957: 50 CA
+  .word MainGameDispatch_18_05                                         ; $C959: B8 CA
+  .word MainGameDispatch_18_06                                         ; $C95B: D4 CA
+  .word MainGameDispatch_18_07                                         ; $C95D: 0E CB
+.endproc
+;===============================================================================
+; $C95F: MainGameDispatch_18_00
+;===============================================================================
+.proc MainGameDispatch_18_00
+MainGameDispatch_18_00:
   INC $04A9                                           ; $C95F: EE A9 04
   LDA #$55                                            ; $C962: A9 55
   STA a:$0000                                         ; $C964: 8D 00 00
   LDA $04AA                                           ; $C967: AD AA 04
-  BNE LC971                                           ; $C96A: D0 05
+  BNE @skip                                           ; $C96A: D0 05
   LDA #$43                                            ; $C96C: A9 43
   STA a:$0000                                         ; $C96E: 8D 00 00
-LC971:
+@skip:
   LDA #$00                                            ; $C971: A9 00
-  JMP LCDFD                                           ; $C973: 4C FD CD
-LC976:
+  JMP Sub_CDFD                                           ; $C973: 4C FD CD
+.endproc
+;===============================================================================
+; $C976: MainGameDispatch_18_01
+;===============================================================================
+.proc MainGameDispatch_18_01
+MainGameDispatch_18_01:
   LDA #$00                                            ; $C976: A9 00
   STA $04B8                                           ; $C978: 8D B8 04
   INC $04A9                                           ; $C97B: EE A9 04
@@ -4855,52 +5520,62 @@ LC976:
   LDA #$F5                                            ; $C983: A9 F5
   STA a:$0000                                         ; $C985: 8D 00 00
   LDA $04AA                                           ; $C988: AD AA 04
-  BNE LC997                                           ; $C98B: D0 0A
+  BNE @skip                                           ; $C98B: D0 0A
   LDA #$18                                            ; $C98D: A9 18
   STA $04BB                                           ; $C98F: 8D BB 04
   LDA #$E3                                            ; $C992: A9 E3
   STA a:$0000                                         ; $C994: 8D 00 00
-LC997:
+@skip:
   LDA #$00                                            ; $C997: A9 00
-  JMP LCDFD                                           ; $C999: 4C FD CD
-LC99C:
+  JMP Sub_CDFD                                           ; $C999: 4C FD CD
+.endproc
+;===============================================================================
+; $C99C: MainGameDispatch_18_02
+;===============================================================================
+.proc MainGameDispatch_18_02
+MainGameDispatch_18_02:
   LDA $04AA                                           ; $C99C: AD AA 04
-  BEQ LC9AB                                           ; $C99F: F0 0A
+  BEQ @skip                                           ; $C99F: F0 0A
   LDA $04BB                                           ; $C9A1: AD BB 04
   CMP #$58                                            ; $C9A4: C9 58
-  BNE LC9D9                                           ; $C9A6: D0 31
-  JMP LC9B2                                           ; $C9A8: 4C B2 C9
-LC9AB:
+  BNE @skip_4                                           ; $C9A6: D0 31
+  JMP @skip_2                                           ; $C9A8: 4C B2 C9
+@skip:
   LDA $04BB                                           ; $C9AB: AD BB 04
   CMP #$68                                            ; $C9AE: C9 68
-  BNE LC9D9                                           ; $C9B0: D0 27
-LC9B2:
+  BNE @skip_4                                           ; $C9B0: D0 27
+@skip_2:
   LDA #$8F                                            ; $C9B2: A9 8F
   STA a:$00CC                                         ; $C9B4: 8D CC 00
   STA a:$00D4                                         ; $C9B7: 8D D4 00
   STA a:$00DC                                         ; $C9BA: 8D DC 00
   INC $04A9                                           ; $C9BD: EE A9 04
   LDA $04AA                                           ; $C9C0: AD AA 04
-  BEQ LC9CF                                           ; $C9C3: F0 0A
+  BEQ @skip_3                                           ; $C9C3: F0 0A
   LDA #$4B                                            ; $C9C5: A9 4B
   STA a:$0000                                         ; $C9C7: 8D 00 00
   LDA #$0B                                            ; $C9CA: A9 0B
-  JMP LCDFD                                           ; $C9CC: 4C FD CD
-LC9CF:
+  JMP Sub_CDFD                                           ; $C9CC: 4C FD CD
+@skip_3:
   LDA #$4D                                            ; $C9CF: A9 4D
   STA a:$0000                                         ; $C9D1: 8D 00 00
   LDA #$09                                            ; $C9D4: A9 09
-  JMP LCDFD                                           ; $C9D6: 4C FD CD
-LC9D9:
+  JMP Sub_CDFD                                           ; $C9D6: 4C FD CD
+@skip_4:
   LDA $04AA                                           ; $C9D9: AD AA 04
   STA a:$0011                                         ; $C9DC: 8D 11 00
-  BEQ LC9E7                                           ; $C9DF: F0 06
+  BEQ @skip_5                                           ; $C9DF: F0 06
   DEC $04BB                                           ; $C9E1: CE BB 04
-  JMP LCEE1                                           ; $C9E4: 4C E1 CE
-LC9E7:
+  JMP Sub_CEE1                                           ; $C9E4: 4C E1 CE
+@skip_5:
   INC $04BB                                           ; $C9E7: EE BB 04
-  JMP LCEE1                                           ; $C9EA: 4C E1 CE
-LC9ED:
+  JMP Sub_CEE1                                           ; $C9EA: 4C E1 CE
+.endproc
+;===============================================================================
+; $C9ED: MainGameDispatch_18_03
+;===============================================================================
+.proc MainGameDispatch_18_03
+MainGameDispatch_18_03:
   LDA #$3F                                            ; $C9ED: A9 3F
   STA $04BA                                           ; $C9EF: 8D BA 04
   LDA #$86                                            ; $C9F2: A9 86
@@ -4933,13 +5608,18 @@ LC9ED:
   STA a:$0000                                         ; $CA3C: 8D 00 00
   LDA #$0A                                            ; $CA3F: A9 0A
   LDY $04AA                                           ; $CA41: AC AA 04
-  BEQ LCA4D                                           ; $CA44: F0 07
+  BEQ @skip                                           ; $CA44: F0 07
   LDA #$EB                                            ; $CA46: A9 EB
   STA a:$0000                                         ; $CA48: 8D 00 00
   LDA #$0C                                            ; $CA4B: A9 0C
-LCA4D:
-  JMP LCDFD                                           ; $CA4D: 4C FD CD
-LCA50:
+@skip:
+  JMP Sub_CDFD                                           ; $CA4D: 4C FD CD
+.endproc
+;===============================================================================
+; $CA50: MainGameDispatch_18_04
+;===============================================================================
+.proc MainGameDispatch_18_04
+MainGameDispatch_18_04:
   INC $04B8                                           ; $CA50: EE B8 04
   LDA $04B8                                           ; $CA53: AD B8 04
   LSR A                                               ; $CA56: 4A
@@ -4947,34 +5627,34 @@ LCA50:
   LSR A                                               ; $CA58: 4A
   LSR A                                               ; $CA59: 4A
   AND #$01                                            ; $CA5A: 29 01
-  BEQ LCA7A                                           ; $CA5C: F0 1C
+  BEQ @skip_2                                           ; $CA5C: F0 1C
   LDA #$00                                            ; $CA5E: A9 00
   STA $04B8                                           ; $CA60: 8D B8 04
   INC $04A9                                           ; $CA63: EE A9 04
   LDA #$4B                                            ; $CA66: A9 4B
   STA a:$0000                                         ; $CA68: 8D 00 00
   LDA $04AA                                           ; $CA6B: AD AA 04
-  BNE LCA75                                           ; $CA6E: D0 05
+  BNE @skip                                           ; $CA6E: D0 05
   LDA #$4D                                            ; $CA70: A9 4D
   STA a:$0000                                         ; $CA72: 8D 00 00
-LCA75:
+@skip:
   LDA #$00                                            ; $CA75: A9 00
-  JMP LCDFD                                           ; $CA77: 4C FD CD
-LCA7A:
+  JMP Sub_CDFD                                           ; $CA77: 4C FD CD
+@skip_2:
   STA a:$0010                                         ; $CA7A: 8D 10 00
   LDA $04AA                                           ; $CA7D: AD AA 04
-  BNE LCA8B                                           ; $CA80: D0 09
+  BNE @skip_3                                           ; $CA80: D0 09
   LDA a:$0010                                         ; $CA82: AD 10 00
   CLC                                                 ; $CA85: 18
   ADC #$14                                            ; $CA86: 69 14
   STA a:$0010                                         ; $CA88: 8D 10 00
-LCA8B:
+@skip_3:
   LDA #$00                                            ; $CA8B: A9 00
   STA a:$0002                                         ; $CA8D: 8D 02 00
   LDA a:$0010                                         ; $CA90: AD 10 00
   CLC                                                 ; $CA93: 18
   ADC #$80                                            ; $CA94: 69 80
-  JSR LCEA5                                           ; $CA96: 20 A5 CE
+  JSR Sub_CEA5                                           ; $CA96: 20 A5 CE
   LDY $04AA                                           ; $CA99: AC AA 04
   TYA                                                 ; $CA9C: 98
   CLC                                                 ; $CA9D: 18
@@ -4989,21 +5669,31 @@ LCA8B:
   CLC                                                 ; $CAAF: 18
   ADC a:$0010                                         ; $CAB0: 6D 10 00
   ADC #$85                                            ; $CAB3: 69 85
-  JMP LCEA5                                           ; $CAB5: 4C A5 CE
-LCAB8:
+  JMP Sub_CEA5                                           ; $CAB5: 4C A5 CE
+.endproc
+;===============================================================================
+; $CAB8: MainGameDispatch_18_05
+;===============================================================================
+.proc MainGameDispatch_18_05
+MainGameDispatch_18_05:
   LDA #$00                                            ; $CAB8: A9 00
   STA $04B8                                           ; $CABA: 8D B8 04
   INC $04A9                                           ; $CABD: EE A9 04
   LDA #$EB                                            ; $CAC0: A9 EB
   STA a:$0000                                         ; $CAC2: 8D 00 00
   LDA $04AA                                           ; $CAC5: AD AA 04
-  BNE LCACF                                           ; $CAC8: D0 05
+  BNE @skip                                           ; $CAC8: D0 05
   LDA #$ED                                            ; $CACA: A9 ED
   STA a:$0000                                         ; $CACC: 8D 00 00
-LCACF:
+@skip:
   LDA #$00                                            ; $CACF: A9 00
-  JMP LCDFD                                           ; $CAD1: 4C FD CD
-LCAD4:
+  JMP Sub_CDFD                                           ; $CAD1: 4C FD CD
+.endproc
+;===============================================================================
+; $CAD4: MainGameDispatch_18_06
+;===============================================================================
+.proc MainGameDispatch_18_06
+MainGameDispatch_18_06:
   LDA #$90                                            ; $CAD4: A9 90
   STA a:$00CC                                         ; $CAD6: 8D CC 00
   STA a:$00D4                                         ; $CAD9: 8D D4 00
@@ -5015,21 +5705,26 @@ LCAD4:
   LDA $04AF,Y                                         ; $CAE8: B9 AF 04
   STA a:$0001                                         ; $CAEB: 8D 01 00
   CPY #$01                                            ; $CAEE: C0 01
-  BEQ LCB00                                           ; $CAF0: F0 0E
+  BEQ @skip                                           ; $CAF0: F0 0E
   LDA #$43                                            ; $CAF2: A9 43
   STA a:$0000                                         ; $CAF4: 8D 00 00
   LDA #$0D                                            ; $CAF7: A9 0D
   CLC                                                 ; $CAF9: 18
   ADC a:$0001                                         ; $CAFA: 6D 01 00
-  JMP LCDFD                                           ; $CAFD: 4C FD CD
-LCB00:
+  JMP Sub_CDFD                                           ; $CAFD: 4C FD CD
+@skip:
   LDA #$55                                            ; $CB00: A9 55
   STA a:$0000                                         ; $CB02: 8D 00 00
   LDA #$10                                            ; $CB05: A9 10
   CLC                                                 ; $CB07: 18
   ADC a:$0001                                         ; $CB08: 6D 01 00
-  JMP LCDFD                                           ; $CB0B: 4C FD CD
-LCB0E:
+  JMP Sub_CDFD                                           ; $CB0B: 4C FD CD
+.endproc
+;===============================================================================
+; $CB0E: MainGameDispatch_18_07
+;===============================================================================
+.proc MainGameDispatch_18_07
+MainGameDispatch_18_07:
   LDA $04B8                                           ; $CB0E: AD B8 04
   LSR A                                               ; $CB11: 4A
   LSR A                                               ; $CB12: 4A
@@ -5045,34 +5740,34 @@ LCB0E:
   LSR A                                               ; $CB23: 4A
   AND #$07                                            ; $CB24: 29 07
   CMP #$06                                            ; $CB26: C9 06
-  BNE LCB35                                           ; $CB28: D0 0B
+  BNE @skip                                           ; $CB28: D0 0B
   LDA #$13                                            ; $CB2A: A9 13
   STA $04A8                                           ; $CB2C: 8D A8 04
   LDA #$00                                            ; $CB2F: A9 00
   STA $04A9                                           ; $CB31: 8D A9 04
   RTS                                                 ; $CB34: 60
-LCB35:
+@skip:
   CMP #$03                                            ; $CB35: C9 03
-  BNE LCB45                                           ; $CB37: D0 0C
+  BNE @skip_2                                           ; $CB37: D0 0C
   CMP a:$0012                                         ; $CB39: CD 12 00
-  BEQ LCB45                                           ; $CB3C: F0 07
+  BEQ @skip_2                                           ; $CB3C: F0 07
   LDA #$68                                            ; $CB3E: A9 68
   JSR B1F_SoundNotePlayer                             ; $CB40: 20 09 E6
   LDA #$03                                            ; $CB43: A9 03
-LCB45:
+@skip_2:
   CMP #$04                                            ; $CB45: C9 04
-  BCC LCB4B                                           ; $CB47: 90 02
+  BCC @skip_3                                           ; $CB47: 90 02
   LDA #$03                                            ; $CB49: A9 03
-LCB4B:
+@skip_3:
   STA a:$0010                                         ; $CB4B: 8D 10 00
   STA a:$0011                                         ; $CB4E: 8D 11 00
   LDA $04AA                                           ; $CB51: AD AA 04
-  BNE LCB5F                                           ; $CB54: D0 09
+  BNE @skip_4                                           ; $CB54: D0 09
   LDA a:$0010                                         ; $CB56: AD 10 00
   CLC                                                 ; $CB59: 18
   ADC #$14                                            ; $CB5A: 69 14
   STA a:$0010                                         ; $CB5C: 8D 10 00
-LCB5F:
+@skip_4:
   LDA $04AA                                           ; $CB5F: AD AA 04
   CLC                                                 ; $CB62: 18
   ADC #$01                                            ; $CB63: 69 01
@@ -5087,29 +5782,39 @@ LCB5F:
   CLC                                                 ; $CB77: 18
   ADC a:$0010                                         ; $CB78: 6D 10 00
   ADC #$86                                            ; $CB7B: 69 86
-  JSR LCEA5                                           ; $CB7D: 20 A5 CE
+  JSR Sub_CEA5                                           ; $CB7D: 20 A5 CE
   LDA #$00                                            ; $CB80: A9 00
   STA a:$0002                                         ; $CB82: 8D 02 00
   LDA a:$0010                                         ; $CB85: AD 10 00
   CLC                                                 ; $CB88: 18
   ADC #$81                                            ; $CB89: 69 81
-  JSR LCEA5                                           ; $CB8B: 20 A5 CE
+  JSR Sub_CEA5                                           ; $CB8B: 20 A5 CE
   LDA a:$0011                                         ; $CB8E: AD 11 00
   CMP #$03                                            ; $CB91: C9 03
-  BNE LCB9D                                           ; $CB93: D0 08
+  BNE @skip_5                                           ; $CB93: D0 08
   LDA #$79                                            ; $CB95: A9 79
   STA a:$0010                                         ; $CB97: 8D 10 00
-  JMP LD235                                           ; $CB9A: 4C 35 D2
-LCB9D:
+  JMP Sub_D235                                           ; $CB9A: 4C 35 D2
+@skip_5:
   RTS                                                 ; $CB9D: 60
-LCB9E:
+.endproc
+;===============================================================================
+; $CB9E: MainGameDispatch_19
+;===============================================================================
+.proc MainGameDispatch_19
+MainGameDispatch_19:
   LDA $04A9                                           ; $CB9E: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $CBA1: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word LCBAA                                         ; $CBA4: AA CB
-  .word LCC0A                                         ; $CBA6: 0A CC
-  .word LCC62                                         ; $CBA8: 62 CC
-LCBAA:
+  .word MainGameDispatch_19_00                                         ; $CBA4: AA CB
+  .word MainGameDispatch_19_01                                         ; $CBA6: 0A CC
+  .word MainGameDispatch_19_02                                         ; $CBA8: 62 CC
+.endproc
+;===============================================================================
+; $CBAA: MainGameDispatch_19_00
+;===============================================================================
+.proc MainGameDispatch_19_00
+MainGameDispatch_19_00:
   LDA #$80                                            ; $CBAA: A9 80
   STA a:$00C6                                         ; $CBAC: 8D C6 00
   STA a:$00CE                                         ; $CBAF: 8D CE 00
@@ -5135,95 +5840,120 @@ LCBAA:
   LDA $04AF,Y                                         ; $CBE4: B9 AF 04
   STA a:$0001                                         ; $CBE7: 8D 01 00
   CPY #$01                                            ; $CBEA: C0 01
-  BEQ LCBFC                                           ; $CBEC: F0 0E
+  BEQ @skip                                           ; $CBEC: F0 0E
   LDA #$43                                            ; $CBEE: A9 43
   STA a:$0000                                         ; $CBF0: 8D 00 00
   LDA #$01                                            ; $CBF3: A9 01
   CLC                                                 ; $CBF5: 18
   ADC a:$0001                                         ; $CBF6: 6D 01 00
-  JMP LCDFD                                           ; $CBF9: 4C FD CD
-LCBFC:
+  JMP Sub_CDFD                                           ; $CBF9: 4C FD CD
+@skip:
   LDA #$55                                            ; $CBFC: A9 55
   STA a:$0000                                         ; $CBFE: 8D 00 00
   LDA #$05                                            ; $CC01: A9 05
   CLC                                                 ; $CC03: 18
   ADC a:$0001                                         ; $CC04: 6D 01 00
-  JMP LCDFD                                           ; $CC07: 4C FD CD
-LCC0A:
+  JMP Sub_CDFD                                           ; $CC07: 4C FD CD
+.endproc
+;===============================================================================
+; $CC0A: MainGameDispatch_19_01
+;===============================================================================
+.proc MainGameDispatch_19_01
+MainGameDispatch_19_01:
   LDA $04AA                                           ; $CC0A: AD AA 04
-  BEQ LCC19                                           ; $CC0D: F0 0A
+  BEQ @skip                                           ; $CC0D: F0 0A
   LDA $04BB                                           ; $CC0F: AD BB 04
   CMP #$A8                                            ; $CC12: C9 A8
-  BNE LCC49                                           ; $CC14: D0 33
-  JMP LCC20                                           ; $CC16: 4C 20 CC
-LCC19:
+  BNE @skip_4                                           ; $CC14: D0 33
+  JMP @skip_2                                           ; $CC16: 4C 20 CC
+@skip:
   LDA $04BB                                           ; $CC19: AD BB 04
   CMP #$18                                            ; $CC1C: C9 18
-  BNE LCC49                                           ; $CC1E: D0 29
-LCC20:
+  BNE @skip_4                                           ; $CC1E: D0 29
+@skip_2:
   INC $04A9                                           ; $CC20: EE A9 04
   LDA #$43                                            ; $CC23: A9 43
   STA a:$0000                                         ; $CC25: 8D 00 00
   LDA #$01                                            ; $CC28: A9 01
   STA a:$0001                                         ; $CC2A: 8D 01 00
   LDA $04AA                                           ; $CC2D: AD AA 04
-  BEQ LCC3C                                           ; $CC30: F0 0A
+  BEQ @skip_3                                           ; $CC30: F0 0A
   LDA #$55                                            ; $CC32: A9 55
   STA a:$0000                                         ; $CC34: 8D 00 00
   LDA #$05                                            ; $CC37: A9 05
   STA a:$0001                                         ; $CC39: 8D 01 00
-LCC3C:
+@skip_3:
   LDY $04AA                                           ; $CC3C: AC AA 04
   LDA $04AF,Y                                         ; $CC3F: B9 AF 04
   CLC                                                 ; $CC42: 18
   ADC a:$0001                                         ; $CC43: 6D 01 00
-  JMP LCDFD                                           ; $CC46: 4C FD CD
-LCC49:
+  JMP Sub_CDFD                                           ; $CC46: 4C FD CD
+@skip_4:
   LDA $04AA                                           ; $CC49: AD AA 04
   EOR #$01                                            ; $CC4C: 49 01
   STA a:$0011                                         ; $CC4E: 8D 11 00
   LDA $04AA                                           ; $CC51: AD AA 04
-  BEQ LCC5C                                           ; $CC54: F0 06
+  BEQ @skip_5                                           ; $CC54: F0 06
   INC $04BB                                           ; $CC56: EE BB 04
-  JMP LCEE1                                           ; $CC59: 4C E1 CE
-LCC5C:
+  JMP Sub_CEE1                                           ; $CC59: 4C E1 CE
+@skip_5:
   DEC $04BB                                           ; $CC5C: CE BB 04
-  JMP LCEE1                                           ; $CC5F: 4C E1 CE
-LCC62:
+  JMP Sub_CEE1                                           ; $CC5F: 4C E1 CE
+.endproc
+;===============================================================================
+; $CC62: MainGameDispatch_19_02
+;===============================================================================
+.proc MainGameDispatch_19_02
+MainGameDispatch_19_02:
   LDA $04BD                                           ; $CC62: AD BD 04
   STA $04A8                                           ; $CC65: 8D A8 04
   LDA $04BE                                           ; $CC68: AD BE 04
   STA $04A9                                           ; $CC6B: 8D A9 04
   LDA $04AA                                           ; $CC6E: AD AA 04
-  BEQ LCC7D                                           ; $CC71: F0 0A
+  BEQ @skip                                           ; $CC71: F0 0A
   LDA #$F5                                            ; $CC73: A9 F5
   STA a:$0000                                         ; $CC75: 8D 00 00
   LDA #$08                                            ; $CC78: A9 08
-  JMP LCDFD                                           ; $CC7A: 4C FD CD
-LCC7D:
+  JMP Sub_CDFD                                           ; $CC7A: 4C FD CD
+@skip:
   LDA #$E3                                            ; $CC7D: A9 E3
   STA a:$0000                                         ; $CC7F: 8D 00 00
   LDA #$04                                            ; $CC82: A9 04
-  JMP LCDFD                                           ; $CC84: 4C FD CD
-LCC87:
+  JMP Sub_CDFD                                           ; $CC84: 4C FD CD
+.endproc
+;===============================================================================
+; $CC87: MainGameDispatch_20
+;===============================================================================
+.proc MainGameDispatch_20
+MainGameDispatch_20:
   LDA $04A9                                           ; $CC87: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $CC8A: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word LCC93                                         ; $CC8D: 93 CC
-  .word LCCAA                                         ; $CC8F: AA CC
-  .word LCCD0                                         ; $CC91: D0 CC
-LCC93:
+  .word MainGameDispatch_20_00                                         ; $CC8D: 93 CC
+  .word MainGameDispatch_20_01                                         ; $CC8F: AA CC
+  .word MainGameDispatch_20_02                                         ; $CC91: D0 CC
+.endproc
+;===============================================================================
+; $CC93: MainGameDispatch_20_00
+;===============================================================================
+.proc MainGameDispatch_20_00
+MainGameDispatch_20_00:
   INC $04A9                                           ; $CC93: EE A9 04
   LDA #$55                                            ; $CC96: A9 55
   STA a:$0000                                         ; $CC98: 8D 00 00
   LDA $04AA                                           ; $CC9B: AD AA 04
-  BNE LCCA5                                           ; $CC9E: D0 05
+  BNE @skip                                           ; $CC9E: D0 05
   LDA #$43                                            ; $CCA0: A9 43
   STA a:$0000                                         ; $CCA2: 8D 00 00
-LCCA5:
+@skip:
   LDA #$00                                            ; $CCA5: A9 00
-  JMP LCDFD                                           ; $CCA7: 4C FD CD
-LCCAA:
+  JMP Sub_CDFD                                           ; $CCA7: 4C FD CD
+.endproc
+;===============================================================================
+; $CCAA: MainGameDispatch_20_01
+;===============================================================================
+.proc MainGameDispatch_20_01
+MainGameDispatch_20_01:
   LDA #$00                                            ; $CCAA: A9 00
   STA $04B8                                           ; $CCAC: 8D B8 04
   INC $04A9                                           ; $CCAF: EE A9 04
@@ -5232,92 +5962,112 @@ LCCAA:
   LDA #$F5                                            ; $CCB7: A9 F5
   STA a:$0000                                         ; $CCB9: 8D 00 00
   LDA $04AA                                           ; $CCBC: AD AA 04
-  BNE LCCCB                                           ; $CCBF: D0 0A
+  BNE @skip                                           ; $CCBF: D0 0A
   LDA #$18                                            ; $CCC1: A9 18
   STA $04BB                                           ; $CCC3: 8D BB 04
   LDA #$E3                                            ; $CCC6: A9 E3
   STA a:$0000                                         ; $CCC8: 8D 00 00
-LCCCB:
+@skip:
   LDA #$00                                            ; $CCCB: A9 00
-  JMP LCDFD                                           ; $CCCD: 4C FD CD
-LCCD0:
+  JMP Sub_CDFD                                           ; $CCCD: 4C FD CD
+.endproc
+;===============================================================================
+; $CCD0: MainGameDispatch_20_02
+;===============================================================================
+.proc MainGameDispatch_20_02
+MainGameDispatch_20_02:
   LDA $04AA                                           ; $CCD0: AD AA 04
-  BEQ LCCDF                                           ; $CCD3: F0 0A
+  BEQ @skip                                           ; $CCD3: F0 0A
   LDA $04BB                                           ; $CCD5: AD BB 04
   CMP #$08                                            ; $CCD8: C9 08
-  BNE LCCF3                                           ; $CCDA: D0 17
-  JMP LCCE6                                           ; $CCDC: 4C E6 CC
-LCCDF:
+  BNE @skip_3                                           ; $CCDA: D0 17
+  JMP @skip_2                                           ; $CCDC: 4C E6 CC
+@skip:
   LDA $04BB                                           ; $CCDF: AD BB 04
   CMP #$B8                                            ; $CCE2: C9 B8
-  BNE LCCF3                                           ; $CCE4: D0 0D
-LCCE6:
+  BNE @skip_3                                           ; $CCE4: D0 0D
+@skip_2:
   LDA $04BD                                           ; $CCE6: AD BD 04
   STA $04A8                                           ; $CCE9: 8D A8 04
   LDA $04BE                                           ; $CCEC: AD BE 04
   STA $04A9                                           ; $CCEF: 8D A9 04
   RTS                                                 ; $CCF2: 60
-LCCF3:
+@skip_3:
   LDA $04AA                                           ; $CCF3: AD AA 04
   EOR #$01                                            ; $CCF6: 49 01
   STA a:$0011                                         ; $CCF8: 8D 11 00
   LDA $04AA                                           ; $CCFB: AD AA 04
-  BEQ LCD06                                           ; $CCFE: F0 06
+  BEQ @skip_4                                           ; $CCFE: F0 06
   INC $04BB                                           ; $CD00: EE BB 04
-  JMP LCD09                                           ; $CD03: 4C 09 CD
-LCD06:
+  JMP @skip_5                                           ; $CD03: 4C 09 CD
+@skip_4:
   DEC $04BB                                           ; $CD06: CE BB 04
-LCD09:
-  JSR LCEE1                                           ; $CD09: 20 E1 CE
+@skip_5:
+  JSR Sub_CEE1                                           ; $CD09: 20 E1 CE
   LDY #$00                                            ; $CD0C: A0 00
   LDX #$00                                            ; $CD0E: A2 00
-LCD10:
+@loop:
   CPY a:$007C                                         ; $CD10: CC 7C 00
-  BEQ LCD3B                                           ; $CD13: F0 26
+  BEQ @skip_9                                           ; $CD13: F0 26
   INX                                                 ; $CD15: E8
   INX                                                 ; $CD16: E8
   INX                                                 ; $CD17: E8
   LDA $04AA                                           ; $CD18: AD AA 04
-  BEQ LCD25                                           ; $CD1B: F0 08
+  BEQ @skip_6                                           ; $CD1B: F0 08
   LDA $0200,X                                         ; $CD1D: BD 00 02
-  BMI LCD33                                           ; $CD20: 30 11
-  JMP LCD2E                                           ; $CD22: 4C 2E CD
-LCD25:
+  BMI @skip_8                                           ; $CD20: 30 11
+  JMP @skip_7                                           ; $CD22: 4C 2E CD
+@skip_6:
   LDA $0200,X                                         ; $CD25: BD 00 02
   CMP #$FF                                            ; $CD28: C9 FF
-  BCS LCD33                                           ; $CD2A: B0 07
-  BPL LCD33                                           ; $CD2C: 10 05
-LCD2E:
+  BCS @skip_8                                           ; $CD2A: B0 07
+  BPL @skip_8                                           ; $CD2C: 10 05
+@skip_7:
   LDA #$F0                                            ; $CD2E: A9 F0
   STA $0200,Y                                         ; $CD30: 99 00 02
-LCD33:
+@skip_8:
   INX                                                 ; $CD33: E8
   INY                                                 ; $CD34: C8
   INY                                                 ; $CD35: C8
   INY                                                 ; $CD36: C8
   INY                                                 ; $CD37: C8
-  JMP LCD10                                           ; $CD38: 4C 10 CD
-LCD3B:
+  JMP @loop                                           ; $CD38: 4C 10 CD
+@skip_9:
   RTS                                                 ; $CD3B: 60
-LCD3C:
+.endproc
+;===============================================================================
+; $CD3C: MainGameDispatch_21
+;===============================================================================
+.proc MainGameDispatch_21
+MainGameDispatch_21:
   LDA $04A9                                           ; $CD3C: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $CD3F: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word LCD48                                         ; $CD42: 48 CD
-  .word LCD5F                                         ; $CD44: 5F CD
-  .word LCD85                                         ; $CD46: 85 CD
-LCD48:
+  .word MainGameDispatch_21_00                                         ; $CD42: 48 CD
+  .word MainGameDispatch_21_01                                         ; $CD44: 5F CD
+  .word MainGameDispatch_21_02                                         ; $CD46: 85 CD
+.endproc
+;===============================================================================
+; $CD48: MainGameDispatch_21_00
+;===============================================================================
+.proc MainGameDispatch_21_00
+MainGameDispatch_21_00:
   INC $04A9                                           ; $CD48: EE A9 04
   LDA #$55                                            ; $CD4B: A9 55
   STA a:$0000                                         ; $CD4D: 8D 00 00
   LDA $04AA                                           ; $CD50: AD AA 04
-  BNE LCD5A                                           ; $CD53: D0 05
+  BNE @skip                                           ; $CD53: D0 05
   LDA #$43                                            ; $CD55: A9 43
   STA a:$0000                                         ; $CD57: 8D 00 00
-LCD5A:
+@skip:
   LDA #$00                                            ; $CD5A: A9 00
-  JMP LCDFD                                           ; $CD5C: 4C FD CD
-LCD5F:
+  JMP Sub_CDFD                                           ; $CD5C: 4C FD CD
+.endproc
+;===============================================================================
+; $CD5F: MainGameDispatch_21_01
+;===============================================================================
+.proc MainGameDispatch_21_01
+MainGameDispatch_21_01:
   LDA #$00                                            ; $CD5F: A9 00
   STA $04B8                                           ; $CD61: 8D B8 04
   INC $04A9                                           ; $CD64: EE A9 04
@@ -5326,80 +6076,90 @@ LCD5F:
   LDA #$F5                                            ; $CD6C: A9 F5
   STA a:$0000                                         ; $CD6E: 8D 00 00
   LDA $04AA                                           ; $CD71: AD AA 04
-  BNE LCD80                                           ; $CD74: D0 0A
+  BNE @skip                                           ; $CD74: D0 0A
   LDA #$18                                            ; $CD76: A9 18
   STA $04BB                                           ; $CD78: 8D BB 04
   LDA #$E3                                            ; $CD7B: A9 E3
   STA a:$0000                                         ; $CD7D: 8D 00 00
-LCD80:
+@skip:
   LDA #$00                                            ; $CD80: A9 00
-  JMP LCDFD                                           ; $CD82: 4C FD CD
-LCD85:
+  JMP Sub_CDFD                                           ; $CD82: 4C FD CD
+.endproc
+;===============================================================================
+; $CD85: MainGameDispatch_21_02
+;===============================================================================
+.proc MainGameDispatch_21_02
+MainGameDispatch_21_02:
   LDA $04AA                                           ; $CD85: AD AA 04
-  BEQ LCD94                                           ; $CD88: F0 0A
+  BEQ @skip                                           ; $CD88: F0 0A
   LDA $04BB                                           ; $CD8A: AD BB 04
   CMP #$B8                                            ; $CD8D: C9 B8
-  BNE LCDA8                                           ; $CD8F: D0 17
-  JMP LCD9B                                           ; $CD91: 4C 9B CD
-LCD94:
+  BNE @skip_3                                           ; $CD8F: D0 17
+  JMP @skip_2                                           ; $CD91: 4C 9B CD
+@skip:
   LDA $04BB                                           ; $CD94: AD BB 04
   CMP #$08                                            ; $CD97: C9 08
-  BNE LCDA8                                           ; $CD99: D0 0D
-LCD9B:
+  BNE @skip_3                                           ; $CD99: D0 0D
+@skip_2:
   LDA $04BD                                           ; $CD9B: AD BD 04
   STA $04A8                                           ; $CD9E: 8D A8 04
   LDA $04BE                                           ; $CDA1: AD BE 04
   STA $04A9                                           ; $CDA4: 8D A9 04
   RTS                                                 ; $CDA7: 60
-LCDA8:
+@skip_3:
   LDA $04AA                                           ; $CDA8: AD AA 04
   STA a:$0011                                         ; $CDAB: 8D 11 00
   LDA $04AA                                           ; $CDAE: AD AA 04
-  BNE LCDB9                                           ; $CDB1: D0 06
+  BNE @skip_4                                           ; $CDB1: D0 06
   INC $04BB                                           ; $CDB3: EE BB 04
-  JMP LCDBC                                           ; $CDB6: 4C BC CD
-LCDB9:
+  JMP @skip_5                                           ; $CDB6: 4C BC CD
+@skip_4:
   DEC $04BB                                           ; $CDB9: CE BB 04
-LCDBC:
-  JSR LCEE1                                           ; $CDBC: 20 E1 CE
+@skip_5:
+  JSR Sub_CEE1                                           ; $CDBC: 20 E1 CE
   LDY #$00                                            ; $CDBF: A0 00
   LDX #$00                                            ; $CDC1: A2 00
-LCDC3:
+@loop:
   CPY a:$007C                                         ; $CDC3: CC 7C 00
-  BEQ LCDFC                                           ; $CDC6: F0 34
+  BEQ @skip_10                                           ; $CDC6: F0 34
   INX                                                 ; $CDC8: E8
   INX                                                 ; $CDC9: E8
   INX                                                 ; $CDCA: E8
   LDA $04AA                                           ; $CDCB: AD AA 04
-  BEQ LCDDF                                           ; $CDCE: F0 0F
+  BEQ @skip_6                                           ; $CDCE: F0 0F
   LDA $04BB                                           ; $CDD0: AD BB 04
   CMP #$B8                                            ; $CDD3: C9 B8
-  BCC LCDF4                                           ; $CDD5: 90 1D
+  BCC @skip_9                                           ; $CDD5: 90 1D
   LDA $0200,X                                         ; $CDD7: BD 00 02
-  BMI LCDEF                                           ; $CDDA: 30 13
-  JMP LCDF4                                           ; $CDDC: 4C F4 CD
-LCDDF:
+  BMI @skip_8                                           ; $CDDA: 30 13
+  JMP @skip_9                                           ; $CDDC: 4C F4 CD
+@skip_6:
   LDA $04BB                                           ; $CDDF: AD BB 04
   CMP #$18                                            ; $CDE2: C9 18
-  BCC LCDEA                                           ; $CDE4: 90 04
+  BCC @skip_7                                           ; $CDE4: 90 04
   CMP #$C8                                            ; $CDE6: C9 C8
-  BCC LCDF4                                           ; $CDE8: 90 0A
-LCDEA:
+  BCC @skip_9                                           ; $CDE8: 90 0A
+@skip_7:
   LDA $0200,X                                         ; $CDEA: BD 00 02
-  BMI LCDF4                                           ; $CDED: 30 05
-LCDEF:
+  BMI @skip_9                                           ; $CDED: 30 05
+@skip_8:
   LDA #$F0                                            ; $CDEF: A9 F0
   STA $0200,Y                                         ; $CDF1: 99 00 02
-LCDF4:
+@skip_9:
   INX                                                 ; $CDF4: E8
   INY                                                 ; $CDF5: C8
   INY                                                 ; $CDF6: C8
   INY                                                 ; $CDF7: C8
   INY                                                 ; $CDF8: C8
-  JMP LCDC3                                           ; $CDF9: 4C C3 CD
-LCDFC:
+  JMP @loop                                           ; $CDF9: 4C C3 CD
+@skip_10:
   RTS                                                 ; $CDFC: 60
-LCDFD:
+.endproc
+;===============================================================================
+; $CDFD: Sub_CDFD
+;===============================================================================
+.proc Sub_CDFD
+Sub_CDFD:
   STA a:$0002                                         ; $CDFD: 8D 02 00
   LDA #$00                                            ; $CE00: A9 00
   STA a:$0003                                         ; $CE02: 8D 03 00
@@ -5434,7 +6194,7 @@ LCDFD:
   LDA #$21                                            ; $CE49: A9 21
   STA a:$0001                                         ; $CE4B: 8D 01 00
   LDX #$00                                            ; $CE4E: A2 00
-LCE50:
+@loop:
   LDA #$08                                            ; $CE50: A9 08
   STA $0380,X                                         ; $CE52: 9D 80 03
   INX                                                 ; $CE55: E8
@@ -5445,13 +6205,13 @@ LCE50:
   STA $0380,X                                         ; $CE60: 9D 80 03
   INX                                                 ; $CE63: E8
   LDY #$00                                            ; $CE64: A0 00
-LCE66:
+@loop_2:
   LDA ($02),Y                                         ; $CE66: B1 02
   STA $0380,X                                         ; $CE68: 9D 80 03
   INX                                                 ; $CE6B: E8
   INY                                                 ; $CE6C: C8
   CPY #$08                                            ; $CE6D: C0 08
-  BCC LCE66                                           ; $CE6F: 90 F5
+  BCC @loop_2                                           ; $CE6F: 90 F5
   LDA a:$0000                                         ; $CE71: AD 00 00
   CLC                                                 ; $CE74: 18
   ADC #$20                                            ; $CE75: 69 20
@@ -5467,29 +6227,34 @@ LCE66:
   ADC #$00                                            ; $CE8E: 69 00
   STA a:$0003                                         ; $CE90: 8D 03 00
   CPX #$37                                            ; $CE93: E0 37
-  BCC LCE50                                           ; $CE95: 90 B9
+  BCC @loop                                           ; $CE95: 90 B9
   LDA #$FF                                            ; $CE97: A9 FF
   STA $0380,X                                         ; $CE99: 9D 80 03
   LDA a:$007E                                         ; $CE9C: AD 7E 00
   ORA #$04                                            ; $CE9F: 09 04
   STA a:$007E                                         ; $CEA1: 8D 7E 00
   RTS                                                 ; $CEA4: 60
-LCEA5:
+.endproc
+;===============================================================================
+; $CEA5: Sub_CEA5
+;===============================================================================
+.proc Sub_CEA5
+Sub_CEA5:
   ASL A                                               ; $CEA5: 0A
-  BCS LCEB6                                           ; $CEA6: B0 0E
+  BCS @skip                                           ; $CEA6: B0 0E
   LDY #$34                                            ; $CEA8: A0 34
   JSR B1F_SwitchBank8_B                               ; $CEAA: 20 5F F2
   TAY                                                 ; $CEAD: A8
   LDA #$00                                            ; $CEAE: A9 00
   STA a:$0001                                         ; $CEB0: 8D 01 00
-  JMP LCEC1                                           ; $CEB3: 4C C1 CE
-LCEB6:
+  JMP @skip_2                                           ; $CEB3: 4C C1 CE
+@skip:
   LDY #$35                                            ; $CEB6: A0 35
   JSR B1F_SwitchBank8_B                               ; $CEB8: 20 5F F2
   TAY                                                 ; $CEBB: A8
   LDA #$20                                            ; $CEBC: A9 20
   STA a:$0001                                         ; $CEBE: 8D 01 00
-LCEC1:
+@skip_2:
   LDA $8000,Y                                         ; $CEC1: B9 00 80
   STA a:$0000                                         ; $CEC4: 8D 00 00
   INY                                                 ; $CEC7: C8
@@ -5502,16 +6267,21 @@ LCEC1:
   LDA $04BB                                           ; $CED8: AD BB 04
   STA a:$000C                                         ; $CEDB: 8D 0C 00
   JMP B1F_SpriteOamWriterSimple                       ; $CEDE: 4C AD F1
-LCEE1:
+.endproc
+;===============================================================================
+; $CEE1: Sub_CEE1
+;===============================================================================
+.proc Sub_CEE1
+Sub_CEE1:
   INC $04B8                                           ; $CEE1: EE B8 04
   LDA $04B8                                           ; $CEE4: AD B8 04
   CMP #$20                                            ; $CEE7: C9 20
-  BCC LCEF5                                           ; $CEE9: 90 0A
+  BCC @skip                                           ; $CEE9: 90 0A
   LDA #$00                                            ; $CEEB: A9 00
   STA $04B8                                           ; $CEED: 8D B8 04
   LDA #$60                                            ; $CEF0: A9 60
   JSR B1F_SoundNotePlayer                             ; $CEF2: 20 09 E6
-LCEF5:
+@skip:
   LSR A                                               ; $CEF5: 4A
   LSR A                                               ; $CEF6: 4A
   AND #$0F                                            ; $CEF7: 29 0F
@@ -5520,34 +6290,34 @@ LCEF5:
   STA $04BA                                           ; $CEFE: 8D BA 04
   LDA a:$0010                                         ; $CF01: AD 10 00
   CMP #$01                                            ; $CF04: C9 01
-  BEQ LCF1D                                           ; $CF06: F0 15
+  BEQ @skip_3                                           ; $CF06: F0 15
   CMP #$02                                            ; $CF08: C9 02
-  BEQ LCF1D                                           ; $CF0A: F0 11
+  BEQ @skip_3                                           ; $CF0A: F0 11
   CMP #$04                                            ; $CF0C: C9 04
-  BEQ LCF14                                           ; $CF0E: F0 04
+  BEQ @skip_2                                           ; $CF0E: F0 04
   CMP #$05                                            ; $CF10: C9 05
-  BNE LCF23                                           ; $CF12: D0 0F
-LCF14:
+  BNE @skip_4                                           ; $CF12: D0 0F
+@skip_2:
   INC $04BA                                           ; $CF14: EE BA 04
   INC $04BA                                           ; $CF17: EE BA 04
-  JMP LCF23                                           ; $CF1A: 4C 23 CF
-LCF1D:
+  JMP @skip_4                                           ; $CF1A: 4C 23 CF
+@skip_3:
   DEC $04BA                                           ; $CF1D: CE BA 04
   DEC $04BA                                           ; $CF20: CE BA 04
-LCF23:
+@skip_4:
   LDY $04AA                                           ; $CF23: AC AA 04
   LDA $04AF,Y                                         ; $CF26: B9 AF 04
   CMP #$02                                            ; $CF29: C9 02
-  BEQ LCF2F                                           ; $CF2B: F0 02
+  BEQ @skip_5                                           ; $CF2B: F0 02
   LDA #$00                                            ; $CF2D: A9 00
-LCF2F:
+@skip_5:
   STA a:$0012                                         ; $CF2F: 8D 12 00
   LDA a:$0011                                         ; $CF32: AD 11 00
-  BEQ LCF61                                           ; $CF35: F0 2A
+  BEQ @skip_6                                           ; $CF35: F0 2A
   LDA #$00                                            ; $CF37: A9 00
   STA a:$0002                                         ; $CF39: 8D 02 00
   LDA a:$0010                                         ; $CF3C: AD 10 00
-  JSR LCEA5                                           ; $CF3F: 20 A5 CE
+  JSR Sub_CEA5                                           ; $CF3F: 20 A5 CE
   LDA $04AA                                           ; $CF42: AD AA 04
   CLC                                                 ; $CF45: 18
   ADC #$01                                            ; $CF46: 69 01
@@ -5556,17 +6326,17 @@ LCF2F:
   LDA $CF9B,Y                                         ; $CF4E: B9 9B CF
   CLC                                                 ; $CF51: 18
   ADC a:$0012                                         ; $CF52: 6D 12 00
-  JSR LCEA5                                           ; $CF55: 20 A5 CE
+  JSR Sub_CEA5                                           ; $CF55: 20 A5 CE
   LDY a:$0010                                         ; $CF58: AC 10 00
   LDA $CF93,Y                                         ; $CF5B: B9 93 CF
-  JMP LCEA5                                           ; $CF5E: 4C A5 CE
-LCF61:
+  JMP Sub_CEA5                                           ; $CF5E: 4C A5 CE
+@skip_6:
   LDA #$40                                            ; $CF61: A9 40
   STA a:$0002                                         ; $CF63: 8D 02 00
   LDA a:$0010                                         ; $CF66: AD 10 00
   CLC                                                 ; $CF69: 18
   ADC #$11                                            ; $CF6A: 69 11
-  JSR LCEA5                                           ; $CF6C: 20 A5 CE
+  JSR Sub_CEA5                                           ; $CF6C: 20 A5 CE
   LDA $04AA                                           ; $CF6F: AD AA 04
   CLC                                                 ; $CF72: 18
   ADC #$41                                            ; $CF73: 69 41
@@ -5576,14 +6346,19 @@ LCF61:
   CLC                                                 ; $CF7E: 18
   ADC #$11                                            ; $CF7F: 69 11
   ADC a:$0012                                         ; $CF81: 6D 12 00
-  JSR LCEA5                                           ; $CF84: 20 A5 CE
+  JSR Sub_CEA5                                           ; $CF84: 20 A5 CE
   LDY a:$0010                                         ; $CF87: AC 10 00
   LDA $CF93,Y                                         ; $CF8A: B9 93 CF
   CLC                                                 ; $CF8D: 18
   ADC #$11                                            ; $CF8E: 69 11
-  JMP LCEA5                                           ; $CF90: 4C A5 CE
+  JMP Sub_CEA5                                           ; $CF90: 4C A5 CE
+.endproc
   .byte $08,$09,$0A,$0A,$0B,$0C,$0B,$0B,$0D,$0E,$0E,$0E,$0D,$0D,$0D,$0D; $CF93: 08 09 0A 0A 0B 0C 0B 0B 0D 0E 0E 0E 0D 0D 0D 0D
-LCFA3:
+;===============================================================================
+; $CFA3: Sub_CFA3
+;===============================================================================
+.proc Sub_CFA3
+Sub_CFA3:
   STA a:$0002                                         ; $CFA3: 8D 02 00
   LDA #$00                                            ; $CFA6: A9 00
   STA a:$0001                                         ; $CFA8: 8D 01 00
@@ -5622,14 +6397,14 @@ LCFA3:
   STA a:$0005                                         ; $CFF7: 8D 05 00
   LDA a:$0003                                         ; $CFFA: AD 03 00
   CMP #$52                                            ; $CFFD: C9 52
-  BNE LD007                                           ; $CFFF: D0 06
+  BNE @skip                                           ; $CFFF: D0 06
   LDA #$80                                            ; $D001: A9 80
   STA a:$0005                                         ; $D003: 8D 05 00
   INY                                                 ; $D006: C8
-LD007:
+@skip:
   LDA a:$0002                                         ; $D007: AD 02 00
   STA a:$00AE,Y                                       ; $D00A: 99 AE 00
-LD00D:
+@loop:
   LDA #$06                                            ; $D00D: A9 06
   STA $0380,X                                         ; $D00F: 9D 80 03
   INX                                                 ; $D012: E8
@@ -5640,26 +6415,26 @@ LD00D:
   STA $0380,X                                         ; $D01C: 9D 80 03
   INX                                                 ; $D01F: E8
   LDY #$01                                            ; $D020: A0 01
-LD022:
+@loop_2:
   LDA ($00),Y                                         ; $D022: B1 00
   CMP #$FF                                            ; $D024: C9 FF
-  BNE LD02D                                           ; $D026: D0 05
+  BNE @skip_2                                           ; $D026: D0 05
   LDA #$01                                            ; $D028: A9 01
-  JMP LD031                                           ; $D02A: 4C 31 D0
-LD02D:
+  JMP @skip_3                                           ; $D02A: 4C 31 D0
+@skip_2:
   CLC                                                 ; $D02D: 18
   ADC a:$0005                                         ; $D02E: 6D 05 00
-LD031:
+@skip_3:
   STA $0380,X                                         ; $D031: 9D 80 03
   INX                                                 ; $D034: E8
   INY                                                 ; $D035: C8
   TYA                                                 ; $D036: 98
   AND #$01                                            ; $D037: 29 01
-  BEQ LD022                                           ; $D039: F0 E7
+  BEQ @loop_2                                           ; $D039: F0 E7
   INY                                                 ; $D03B: C8
   INY                                                 ; $D03C: C8
   CPY #$0D                                            ; $D03D: C0 0D
-  BCC LD022                                           ; $D03F: 90 E1
+  BCC @loop_2                                           ; $D03F: 90 E1
   LDA a:$0000                                         ; $D041: AD 00 00
   CLC                                                 ; $D044: 18
   ADC #$02                                            ; $D045: 69 02
@@ -5672,11 +6447,16 @@ LD031:
   ADC #$20                                            ; $D056: 69 20
   STA a:$0003                                         ; $D058: 8D 03 00
   CMP #$80                                            ; $D05B: C9 80
-  BCC LD00D                                           ; $D05D: 90 AE
+  BCC @loop                                           ; $D05D: 90 AE
   RTS                                                 ; $D05F: 60
-LD060:
+.endproc
+;===============================================================================
+; $D060: Sub_D060
+;===============================================================================
+.proc Sub_D060
+Sub_D060:
   LDX #$00                                            ; $D060: A2 00
-LD062:
+@loop:
   LDA $04AD,X                                         ; $D062: BD AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $D065: 20 D7 F2
   LDA $04B1,X                                         ; $D068: BD B1 04
@@ -5684,7 +6464,7 @@ LD062:
   STA ($00),Y                                         ; $D06D: 91 00
   INX                                                 ; $D06F: E8
   CPX #$02                                            ; $D070: E0 02
-  BCC LD062                                           ; $D072: 90 EE
+  BCC @loop                                           ; $D072: 90 EE
   LDX #$00                                            ; $D074: A2 00
   LDA #$A4                                            ; $D076: A9 A4
   STA a:$0010                                         ; $D078: 8D 10 00
@@ -5706,105 +6486,110 @@ LD089:
   INX                                                 ; $D09E: E8
   LDA #$00                                            ; $D09F: A9 00
   STA a:$0000                                         ; $D0A1: 8D 00 00
-LD0A4:
+@loop_2:
   LDA a:$0001                                         ; $D0A4: AD 01 00
   CMP #$0A                                            ; $D0A7: C9 0A
-  BCC LD0B7                                           ; $D0A9: 90 0C
+  BCC @skip                                           ; $D0A9: 90 0C
   SEC                                                 ; $D0AB: 38
   SBC #$0A                                            ; $D0AC: E9 0A
   STA a:$0001                                         ; $D0AE: 8D 01 00
   INC a:$0000                                         ; $D0B1: EE 00 00
-  JMP LD0A4                                           ; $D0B4: 4C A4 D0
-LD0B7:
+  JMP @loop_2                                           ; $D0B4: 4C A4 D0
+@skip:
   LDA a:$0010                                         ; $D0B7: AD 10 00
   CMP #$A4                                            ; $D0BA: C9 A4
-  BEQ LD0C1                                           ; $D0BC: F0 03
-  JMP LD0FA                                           ; $D0BE: 4C FA D0
-LD0C1:
+  BEQ @skip_2                                           ; $D0BC: F0 03
+  JMP @skip_7                                           ; $D0BE: 4C FA D0
+@skip_2:
   LDY #$00                                            ; $D0C1: A0 00
   LDA #$04                                            ; $D0C3: A9 04
-LD0C5:
+@loop_3:
   CPY a:$0000                                         ; $D0C5: CC 00 00
-  BEQ LD0D2                                           ; $D0C8: F0 08
+  BEQ @skip_3                                           ; $D0C8: F0 08
   STA $0380,X                                         ; $D0CA: 9D 80 03
   INX                                                 ; $D0CD: E8
   INY                                                 ; $D0CE: C8
-  JMP LD0C5                                           ; $D0CF: 4C C5 D0
-LD0D2:
+  JMP @loop_3                                           ; $D0CF: 4C C5 D0
+@skip_3:
   CPY #$0A                                            ; $D0D2: C0 0A
-  BCS LD137                                           ; $D0D4: B0 61
+  BCS @skip_11                                           ; $D0D4: B0 61
   LDA a:$0001                                         ; $D0D6: AD 01 00
-  BEQ LD0EB                                           ; $D0D9: F0 10
+  BEQ @loop_4                                           ; $D0D9: F0 10
   CMP #$06                                            ; $D0DB: C9 06
-  BCS LD0E4                                           ; $D0DD: B0 05
+  BCS @skip_4                                           ; $D0DD: B0 05
   LDA #$05                                            ; $D0DF: A9 05
-  JMP LD0E6                                           ; $D0E1: 4C E6 D0
-LD0E4:
+  JMP @skip_5                                           ; $D0E1: 4C E6 D0
+@skip_4:
   LDA #$04                                            ; $D0E4: A9 04
-LD0E6:
+@skip_5:
   STA $0380,X                                         ; $D0E6: 9D 80 03
   INX                                                 ; $D0E9: E8
   INY                                                 ; $D0EA: C8
-LD0EB:
+@loop_4:
   CPY #$0A                                            ; $D0EB: C0 0A
-  BEQ LD0F9                                           ; $D0ED: F0 0A
+  BEQ @skip_6                                           ; $D0ED: F0 0A
   LDA #$06                                            ; $D0EF: A9 06
   STA $0380,X                                         ; $D0F1: 9D 80 03
   INX                                                 ; $D0F4: E8
   INY                                                 ; $D0F5: C8
-  JMP LD0EB                                           ; $D0F6: 4C EB D0
-LD0F9:
+  JMP @loop_4                                           ; $D0F6: 4C EB D0
+@skip_6:
   RTS                                                 ; $D0F9: 60
-LD0FA:
+@skip_7:
   TXA                                                 ; $D0FA: 8A
   CLC                                                 ; $D0FB: 18
   ADC #$09                                            ; $D0FC: 69 09
   TAX                                                 ; $D0FE: AA
   LDY #$00                                            ; $D0FF: A0 00
   LDA #$04                                            ; $D101: A9 04
-LD103:
+@loop_5:
   CPY a:$0000                                         ; $D103: CC 00 00
-  BEQ LD110                                           ; $D106: F0 08
+  BEQ @skip_8                                           ; $D106: F0 08
   STA $0380,X                                         ; $D108: 9D 80 03
   DEX                                                 ; $D10B: CA
   INY                                                 ; $D10C: C8
-  JMP LD103                                           ; $D10D: 4C 03 D1
-LD110:
+  JMP @loop_5                                           ; $D10D: 4C 03 D1
+@skip_8:
   CPY #$0A                                            ; $D110: C0 0A
-  BCS LD137                                           ; $D112: B0 23
+  BCS @skip_11                                           ; $D112: B0 23
   LDA a:$0001                                         ; $D114: AD 01 00
-  BEQ LD129                                           ; $D117: F0 10
+  BEQ @loop_6                                           ; $D117: F0 10
   CMP #$06                                            ; $D119: C9 06
-  BCS LD122                                           ; $D11B: B0 05
+  BCS @skip_9                                           ; $D11B: B0 05
   LDA #$07                                            ; $D11D: A9 07
-  JMP LD124                                           ; $D11F: 4C 24 D1
-LD122:
+  JMP @skip_10                                           ; $D11F: 4C 24 D1
+@skip_9:
   LDA #$04                                            ; $D122: A9 04
-LD124:
+@skip_10:
   STA $0380,X                                         ; $D124: 9D 80 03
   DEX                                                 ; $D127: CA
   INY                                                 ; $D128: C8
-LD129:
+@loop_6:
   CPY #$0A                                            ; $D129: C0 0A
-  BEQ LD137                                           ; $D12B: F0 0A
+  BEQ @skip_11                                           ; $D12B: F0 0A
   LDA #$06                                            ; $D12D: A9 06
   STA $0380,X                                         ; $D12F: 9D 80 03
   DEX                                                 ; $D132: CA
   INY                                                 ; $D133: C8
-  JMP LD129                                           ; $D134: 4C 29 D1
-LD137:
+  JMP @loop_6                                           ; $D134: 4C 29 D1
+@skip_11:
   TXA                                                 ; $D137: 8A
   CLC                                                 ; $D138: 18
   ADC #$0B                                            ; $D139: 69 0B
   TAX                                                 ; $D13B: AA
   RTS                                                 ; $D13C: 60
-LD13D:
+.endproc
+;===============================================================================
+; $D13D: Sub_D13D
+;===============================================================================
+.proc Sub_D13D
+Sub_D13D:
   INC $046C                                           ; $D13D: EE 6C 04
   LDA $046C                                           ; $D140: AD 6C 04
   AND #$10                                            ; $D143: 29 10
-  BEQ LD149                                           ; $D145: F0 02
+  BEQ @skip                                           ; $D145: F0 02
   LDA #$20                                            ; $D147: A9 20
-LD149:
+@skip:
   STA a:$000A                                         ; $D149: 8D 0A 00
   LDA #$00                                            ; $D14C: A9 00
   STA a:$0002                                         ; $D14E: 8D 02 00
@@ -5814,8 +6599,13 @@ LD149:
   LDA #$D1                                            ; $D159: A9 D1
   STA a:$0001                                         ; $D15B: 8D 01 00
   JMP B1F_SpriteOamWriterSimple                       ; $D15E: 4C AD F1
+.endproc
   .byte $D9,$04,$00,$7C,$80                           ; $D161: D9 04 00 7C 80
-LD166:
+;===============================================================================
+; $D166: Sub_D166
+;===============================================================================
+.proc Sub_D166
+Sub_D166:
   LDA #$A5                                            ; $D166: A9 A5
   STA a:$000A                                         ; $D168: 8D 0A 00
   LDY $04AA                                           ; $D16B: AC AA 04
@@ -5826,13 +6616,18 @@ LD166:
 ; --- BankedCallbackTrampoline target ---
   .word $A000                                         ; $D179: 00 A0
   RTS                                                 ; $D17B: 60
-LD17C:
+.endproc
+;===============================================================================
+; $D17C: Sub_D17C
+;===============================================================================
+.proc Sub_D17C
+Sub_D17C:
   LDY #$40                                            ; $D17C: A0 40
-LD17E:
+@loop:
   LDA $D1F4,Y                                         ; $D17E: B9 F4 D1
   STA $0380,Y                                         ; $D181: 99 80 03
   DEY                                                 ; $D184: 88
-  BPL LD17E                                           ; $D185: 10 F7
+  BPL @loop                                           ; $D185: 10 F7
   LDY $04AA                                           ; $D187: AC AA 04
   LDA $04AD,Y                                         ; $D18A: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $D18D: 20 D7 F2
@@ -5842,13 +6637,18 @@ LD17E:
   STA a:$0011                                         ; $D199: 8D 11 00
   LDY #$00                                            ; $D19C: A0 00
   LDX #$0E                                            ; $D19E: A2 0E
-LD1A0:
+.endproc
+;===============================================================================
+; $D1A0: Sub_D1A0
+;===============================================================================
+.proc Sub_D1A0
+Sub_D1A0:
   LDA #$00                                            ; $D1A0: A9 00
   STA a:$0002                                         ; $D1A2: 8D 02 00
   STA a:$0003                                         ; $D1A5: 8D 03 00
   LDA ($10),Y                                         ; $D1A8: B1 10
   CMP #$64                                            ; $D1AA: C9 64
-  BEQ LD1D3                                           ; $D1AC: F0 25
+  BEQ @skip_2                                           ; $D1AC: F0 25
   STA a:$0001                                         ; $D1AE: 8D 01 00
   JSR B1F_MathBinToBcd                                ; $D1B1: 20 BA E9
   LDA a:$0007                                         ; $D1B4: AD 07 00
@@ -5861,17 +6661,22 @@ LD1A0:
   LSR A                                               ; $D1C3: 4A
   LSR A                                               ; $D1C4: 4A
   LSR A                                               ; $D1C5: 4A
-  BNE LD1CD                                           ; $D1C6: D0 05
+  BNE @skip                                           ; $D1C6: D0 05
   LDA #$01                                            ; $D1C8: A9 01
-  JMP LD1D8                                           ; $D1CA: 4C D8 D1
-LD1CD:
+  JMP Sub_D1D8                                           ; $D1CA: 4C D8 D1
+@skip:
   CLC                                                 ; $D1CD: 18
   ADC #$76                                            ; $D1CE: 69 76
-  JMP LD1D8                                           ; $D1D0: 4C D8 D1
-LD1D3:
+  JMP Sub_D1D8                                           ; $D1D0: 4C D8 D1
+@skip_2:
   LDA #$32                                            ; $D1D3: A9 32
   STA a:$0000                                         ; $D1D5: 8D 00 00
-LD1D8:
+.endproc
+;===============================================================================
+; $D1D8: Sub_D1D8
+;===============================================================================
+.proc Sub_D1D8
+Sub_D1D8:
   STA $0380,X                                         ; $D1D8: 9D 80 03
   LDA a:$0000                                         ; $D1DB: AD 00 00
   STA $0381,X                                         ; $D1DE: 9D 81 03
@@ -5881,17 +6686,22 @@ LD1D8:
   TAX                                                 ; $D1E5: AA
   INY                                                 ; $D1E6: C8
   CPY #$04                                            ; $D1E7: C0 04
-  BCC LD1A0                                           ; $D1E9: 90 B5
+  BCC Sub_D1A0                                           ; $D1E9: 90 B5
   LDA a:$007E                                         ; $D1EB: AD 7E 00
   ORA #$04                                            ; $D1EE: 09 04
   STA a:$007E                                         ; $D1F0: 8D 7E 00
   RTS                                                 ; $D1F3: 60
+.endproc
   .byte $05,$22,$89,$80,$81,$01,$01,$01,$05,$22,$A9,$90,$91,$01,$01,$01; $D1F4: 05 22 89 80 81 01 01 01 05 22 A9 90 91 01 01 01
   .byte $05,$22,$C9,$84,$85,$01,$01,$01,$05,$22,$E9,$94,$95,$01,$01,$01; $D204: 05 22 C9 84 85 01 01 01 05 22 E9 94 95 01 01 01
   .byte $05,$23,$09,$82,$83,$01,$01,$01,$05,$23,$29,$92,$93,$01,$01,$01; $D214: 05 23 09 82 83 01 01 01 05 23 29 92 93 01 01 01
   .byte $05,$23,$49,$88,$89,$01,$01,$01,$05,$23,$69,$98,$99,$01,$01,$01; $D224: 05 23 49 88 89 01 01 01 05 23 69 98 99 01 01 01
   .byte $FF                                           ; $D234: FF
-LD235:
+;===============================================================================
+; $D235: Sub_D235
+;===============================================================================
+.proc Sub_D235
+Sub_D235:
   LDA $04BA                                           ; $D235: AD BA 04
   PHA                                                 ; $D238: 48
   LDA $04BB                                           ; $D239: AD BB 04
@@ -5900,40 +6710,50 @@ LD235:
   STA $04BA                                           ; $D23F: 8D BA 04
   LDX #$38                                            ; $D242: A2 38
   LDA $04AA                                           ; $D244: AD AA 04
-  BNE LD24B                                           ; $D247: D0 02
+  BNE @skip                                           ; $D247: D0 02
   LDX #$B8                                            ; $D249: A2 B8
-LD24B:
+@skip:
   STX $04BB                                           ; $D24B: 8E BB 04
   LDA #$03                                            ; $D24E: A9 03
   STA a:$0002                                         ; $D250: 8D 02 00
   LDA a:$0010                                         ; $D253: AD 10 00
-  JSR LCEA5                                           ; $D256: 20 A5 CE
+  JSR Sub_CEA5                                           ; $D256: 20 A5 CE
   PLA                                                 ; $D259: 68
   STA $04BB                                           ; $D25A: 8D BB 04
   PLA                                                 ; $D25D: 68
   STA $04BA                                           ; $D25E: 8D BA 04
   RTS                                                 ; $D261: 60
-LD262:
+.endproc
+;===============================================================================
+; $D262: Sub_D262
+;===============================================================================
+.proc Sub_D262
+Sub_D262:
   LDY $04AA                                           ; $D262: AC AA 04
   LDA $04AD,Y                                         ; $D265: B9 AD 04
   STA a:$0010                                         ; $D268: 8D 10 00
   LDX #$00                                            ; $D26B: A2 00
-LD26D:
+@loop:
   TXA                                                 ; $D26D: 8A
   JSR B1F_GetRulerDataPtr                             ; $D26E: 20 68 F3
   LDY #$00                                            ; $D271: A0 00
   LDA ($00),Y                                         ; $D273: B1 00
   CMP a:$0010                                         ; $D275: CD 10 00
-  BEQ LD281                                           ; $D278: F0 07
+  BEQ @skip                                           ; $D278: F0 07
   INX                                                 ; $D27A: E8
   CPX #$07                                            ; $D27B: E0 07
-  BCC LD26D                                           ; $D27D: 90 EE
+  BCC @loop                                           ; $D27D: 90 EE
   CLC                                                 ; $D27F: 18
   RTS                                                 ; $D280: 60
-LD281:
+@skip:
   SEC                                                 ; $D281: 38
   RTS                                                 ; $D282: 60
-LD283:
+.endproc
+;===============================================================================
+; $D283: Sub_D283
+;===============================================================================
+.proc Sub_D283
+Sub_D283:
   STA $0311                                           ; $D283: 8D 11 03
   LDA #$20                                            ; $D286: A9 20
   STA $0310                                           ; $D288: 8D 10 03
@@ -5943,18 +6763,24 @@ LD283:
   LDA #$00                                            ; $D293: A9 00
   STA $0300                                           ; $D295: 8D 00 03
   RTS                                                 ; $D298: 60
-LD299:
+.endproc
+;===============================================================================
+; $D299: Sub_D299
+;===============================================================================
+.proc Sub_D299
+Sub_D299:
   LDA $0304                                           ; $D299: AD 04 03
   CMP #$FF                                            ; $D29C: C9 FF
-  BNE LD2A9                                           ; $D29E: D0 09
+  BNE @skip                                           ; $D29E: D0 09
   LDA $0300                                           ; $D2A0: AD 00 03
   CMP #$FF                                            ; $D2A3: C9 FF
-  BNE LD2A9                                           ; $D2A5: D0 02
+  BNE @skip                                           ; $D2A5: D0 02
   SEC                                                 ; $D2A7: 38
   RTS                                                 ; $D2A8: 60
-LD2A9:
+@skip:
   CLC                                                 ; $D2A9: 18
   RTS                                                 ; $D2AA: 60
+.endproc
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $D2AB: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $D2BB: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $D2CB: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -6022,30 +6848,36 @@ LD2A9:
 ;--- $D693: Domestic Action System ---
 
 ;===============================================================================
-; $D693: B17_18_DomesticActionDispatch
+; $D693: DomesticActionDispatch
 ; Entry0A: Domestic action dispatch (6-entry dispatch table)
 ;===============================================================================
-; B17_18_Target0A ($D693):
-B17_18_DomesticActionDispatch:
+; Target0A ($D693):
+.proc DomesticActionDispatch
+DomesticActionDispatch:
   LDY #$26                                            ; $D693: A0 26
   JSR B1F_SwitchBank8_B                               ; $D695: 20 5F F2
   LDA $0541                                           ; $D698: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D69B: 20 DE EA
 
 ;===============================================================================
-; $D69E: B17_18_DomAction_State0_Init
+; $D69E: DomAction_State0_Init
 ; Domestic action state 0: Initialize
 ;===============================================================================
 ; --- Inline pointer table (6 entries) ---
-  .word LD6AA                                         ; $D69E: AA D6
-  .word LD79B                                         ; $D6A0: 9B D7
-  .word LD83A                                         ; $D6A2: 3A D8
-  .word LD8C9                                         ; $D6A4: C9 D8
-  .word LD9CA                                         ; $D6A6: CA D9
-  .word LD920                                         ; $D6A8: 20 D9
-LD6AA:
+  .word DomesticActionDispatch_00                                         ; $D69E: AA D6
+  .word DomesticActionDispatch_01                                         ; $D6A0: 9B D7
+  .word DomesticActionDispatch_02                                         ; $D6A2: 3A D8
+  .word DomesticActionDispatch_03                                         ; $D6A4: C9 D8
+  .word DomesticActionDispatch_04                                         ; $D6A6: CA D9
+  .word DomesticActionDispatch_05                                         ; $D6A8: 20 D9
+.endproc
+;===============================================================================
+; $D6AA: DomesticActionDispatch_00
+;===============================================================================
+.proc DomesticActionDispatch_00
+DomesticActionDispatch_00:
   LDA $04CA                                           ; $D6AA: AD CA 04
-  BNE LD6D4                                           ; $D6AD: D0 25
+  BNE @skip_2                                           ; $D6AD: D0 25
   LDA #$00                                            ; $D6AF: A9 00
   STA $04CD                                           ; $D6B1: 8D CD 04
   STA $04CE                                           ; $D6B4: 8D CE 04
@@ -6056,29 +6888,29 @@ LD6AA:
   LDA #$D9                                            ; $D6C2: A9 D9
   LDX $042E                                           ; $D6C4: AE 2E 04
   CPX #$FF                                            ; $D6C7: E0 FF
-  BEQ LD6CD                                           ; $D6C9: F0 02
+  BEQ @skip                                           ; $D6C9: F0 02
   LDA #$D8                                            ; $D6CB: A9 D8
-LD6CD:
+@skip:
   JSR B1F_SetUI4                                      ; $D6CD: 20 8B F2
   JSR B1F_PaletteFadeInit                             ; $D6D0: 20 BF EC
   RTS                                                 ; $D6D3: 60
-LD6D4:
+@skip_2:
   INC $04CD                                           ; $D6D4: EE CD 04
   LDA #$7E                                            ; $D6D7: A9 7E
   STA $10                                             ; $D6D9: 85 10
   LDA #$9A                                            ; $D6DB: A9 9A
   STA $11                                             ; $D6DD: 85 11
   LDY $04CB                                           ; $D6DF: AC CB 04
-  BMI LD6E7                                           ; $D6E2: 30 03
-  JSR LDBF3                                           ; $D6E4: 20 F3 DB
-LD6E7:
+  BMI @skip_3                                           ; $D6E2: 30 03
+  JSR Sub_DBF3                                           ; $D6E4: 20 F3 DB
+@skip_3:
   LDY $04CA                                           ; $D6E7: AC CA 04
-  JSR LDBF3                                           ; $D6EA: 20 F3 DB
+  JSR Sub_DBF3                                           ; $D6EA: 20 F3 DB
   LDA $04CA                                           ; $D6ED: AD CA 04
   CLC                                                 ; $D6F0: 18
   ADC #$04                                            ; $D6F1: 69 04
   TAY                                                 ; $D6F3: A8
-  JSR LDBF3                                           ; $D6F4: 20 F3 DB
+  JSR Sub_DBF3                                           ; $D6F4: 20 F3 DB
   LDA $04CD                                           ; $D6F7: AD CD 04
   LSR A                                               ; $D6FA: 4A
   LSR A                                               ; $D6FB: 4A
@@ -6089,13 +6921,13 @@ LD6E7:
   STA $04CA                                           ; $D702: 8D CA 04
   LDA $04CB                                           ; $D705: AD CB 04
   CMP #$FE                                            ; $D708: C9 FE
-  BEQ LD72A                                           ; $D70A: F0 1E
+  BEQ @skip_5                                           ; $D70A: F0 1E
   LDA $0300                                           ; $D70C: AD 00 03
   CMP #$FF                                            ; $D70F: C9 FF
-  BNE LD729                                           ; $D711: D0 16
+  BNE @skip_4                                           ; $D711: D0 16
   LDA $0304                                           ; $D713: AD 04 03
   CMP #$FF                                            ; $D716: C9 FF
-  BNE LD729                                           ; $D718: D0 0F
+  BNE @skip_4                                           ; $D718: D0 0F
   INC $04CE                                           ; $D71A: EE CE 04
   LDA $04CE                                           ; $D71D: AD CE 04
   LSR A                                               ; $D720: 4A
@@ -6103,14 +6935,14 @@ LD6E7:
   TAY                                                 ; $D722: A8
   LDA $D755,Y                                         ; $D723: B9 55 D7
   STA $04CB                                           ; $D726: 8D CB 04
-LD729:
+@skip_4:
   RTS                                                 ; $D729: 60
-LD72A:
+@skip_5:
   LDA a:$0081                                         ; $D72A: AD 81 00
   AND #$01                                            ; $D72D: 29 01
-  BEQ LD751                                           ; $D72F: F0 20
+  BEQ @skip_6                                           ; $D72F: F0 20
   LDA $6F43                                           ; $D731: AD 43 6F
-  BEQ LD752                                           ; $D734: F0 1C
+  BEQ @skip_7                                           ; $D734: F0 1C
   LDA #$00                                            ; $D736: A9 00
   STA $6F43                                           ; $D738: 8D 43 6F
   LDA $0472                                           ; $D73B: AD 72 04
@@ -6121,40 +6953,50 @@ LD72A:
   STA $0402                                           ; $D749: 8D 02 04
   LDA #$01                                            ; $D74C: A9 01
   STA a:$007A                                         ; $D74E: 8D 7A 00
-LD751:
+@skip_6:
   RTS                                                 ; $D751: 60
-LD752:
+@skip_7:
   JMP $E000                                           ; $D752: 4C 00 E0
+.endproc
   .byte $09,$0A,$0B,$0C,$F0,$F0,$F0,$0D,$0E,$0F,$10,$11,$12,$13,$13,$14; $D755: 09 0A 0B 0C F0 F0 F0 0D 0E 0F 10 11 12 13 13 14
   .byte $14,$15,$15,$14,$14,$13,$13,$FE               ; $D765: 14 15 15 14 14 13 13 FE
 LD76D:
   LDY #$00                                            ; $D76D: A0 00
-LD76F:
+;===============================================================================
+; $D76F: Sub_D76F
+;===============================================================================
+.proc Sub_D76F
+Sub_D76F:
   LDA $D77B,Y                                         ; $D76F: B9 7B D7
   STA $0100,Y                                         ; $D772: 99 00 01
   INY                                                 ; $D775: C8
   CPY #$20                                            ; $D776: C0 20
-  BCC LD76F                                           ; $D778: 90 F5
+  BCC Sub_D76F                                           ; $D778: 90 F5
   RTS                                                 ; $D77A: 60
+.endproc
   .byte $0F,$30,$10,$00,$0F,$27,$16,$2A,$0F,$36,$30,$16,$0F,$30,$10,$00; $D77B: 0F 30 10 00 0F 27 16 2A 0F 36 30 16 0F 30 10 00
   .byte $0F,$30,$10,$00,$0F,$0F,$1B,$28,$0F,$36,$30,$16,$0F,$20,$27,$17; $D78B: 0F 30 10 00 0F 0F 1B 28 0F 36 30 16 0F 20 27 17
-LD79B:
+;===============================================================================
+; $D79B: DomesticActionDispatch_01
+;===============================================================================
+.proc DomesticActionDispatch_01
+DomesticActionDispatch_01:
   LDA $04CA                                           ; $D79B: AD CA 04
-  BNE LD7D7                                           ; $D79E: D0 37
+  BNE @skip_3                                           ; $D79E: D0 37
   LDA $04C9                                           ; $D7A0: AD C9 04
-  BNE LD7B7                                           ; $D7A3: D0 12
+  BNE @skip                                           ; $D7A3: D0 12
   LDA #$A0                                            ; $D7A5: A9 A0
   STA a:$006A                                         ; $D7A7: 8D 6A 00
   LDA #$F8                                            ; $D7AA: A9 F8
   STA a:$006C                                         ; $D7AC: 8D 6C 00
   LDA #$F1                                            ; $D7AF: A9 F1
   STA a:$006D                                         ; $D7B1: 8D 6D 00
-  JSR LDCE1                                           ; $D7B4: 20 E1 DC
-LD7B7:
-  JSR LDC13                                           ; $D7B7: 20 13 DC
+  JSR Sub_DCE1                                           ; $D7B4: 20 E1 DC
+@skip:
+  JSR Sub_DC13                                           ; $D7B7: 20 13 DC
   LDA $04C9                                           ; $D7BA: AD C9 04
   CMP #$10                                            ; $D7BD: C9 10
-  BCC LD7D6                                           ; $D7BF: 90 15
+  BCC @skip_2                                           ; $D7BF: 90 15
   LDA #$00                                            ; $D7C1: A9 00
   STA $04CD                                           ; $D7C3: 8D CD 04
   STA $04CE                                           ; $D7C6: 8D CE 04
@@ -6163,23 +7005,23 @@ LD7B7:
   LDA #$DC                                            ; $D7CE: A9 DC
   JSR B1F_SetUI4                                      ; $D7D0: 20 8B F2
   JSR B1F_PaletteFadeInit                             ; $D7D3: 20 BF EC
-LD7D6:
+@skip_2:
   RTS                                                 ; $D7D6: 60
-LD7D7:
+@skip_3:
   LDA $04C9                                           ; $D7D7: AD C9 04
-  BPL LD7DF                                           ; $D7DA: 10 03
-  JMP LD815                                           ; $D7DC: 4C 15 D8
-LD7DF:
+  BPL @skip_4                                           ; $D7DA: 10 03
+  JMP @skip_7                                           ; $D7DC: 4C 15 D8
+@skip_4:
   INC $04CD                                           ; $D7DF: EE CD 04
-  BNE LD7E7                                           ; $D7E2: D0 03
+  BNE @skip_5                                           ; $D7E2: D0 03
   INC $04CE                                           ; $D7E4: EE CE 04
-LD7E7:
+@skip_5:
   LDA #$D9                                            ; $D7E7: A9 D9
   STA $10                                             ; $D7E9: 85 10
   LDA #$9C                                            ; $D7EB: A9 9C
   STA $11                                             ; $D7ED: 85 11
   LDY $04CA                                           ; $D7EF: AC CA 04
-  JSR LDBF3                                           ; $D7F2: 20 F3 DB
+  JSR Sub_DBF3                                           ; $D7F2: 20 F3 DB
   LDA $04CD                                           ; $D7F5: AD CD 04
   LSR A                                               ; $D7F8: 4A
   LSR A                                               ; $D7F9: 4A
@@ -6191,15 +7033,15 @@ LD7E7:
   STA $04CA                                           ; $D802: 8D CA 04
   LDA $04CE                                           ; $D805: AD CE 04
   CMP #$03                                            ; $D808: C9 03
-  BCC LD814                                           ; $D80A: 90 08
+  BCC @skip_6                                           ; $D80A: 90 08
   LDA #$80                                            ; $D80C: A9 80
   STA $04C9                                           ; $D80E: 8D C9 04
   JSR B1F_PaletteCopyBuffer                           ; $D811: 20 EE EC
-LD814:
+@skip_6:
   RTS                                                 ; $D814: 60
-LD815:
+@skip_7:
   LDA a:$0087                                         ; $D815: AD 87 00
-  BPL LD839                                           ; $D818: 10 1F
+  BPL @skip_8                                           ; $D818: 10 1F
   LDA #$70                                            ; $D81A: A9 70
   STA a:$006A                                         ; $D81C: 8D 6A 00
   LDA #$20                                            ; $D81F: A9 20
@@ -6212,19 +7054,24 @@ LD815:
   INC $0541                                           ; $D831: EE 41 05
   LDA #$00                                            ; $D834: A9 00
   JSR B1F_SetUI4                                      ; $D836: 20 8B F2
-LD839:
+@skip_8:
   RTS                                                 ; $D839: 60
-LD83A:
+.endproc
+;===============================================================================
+; $D83A: DomesticActionDispatch_02
+;===============================================================================
+.proc DomesticActionDispatch_02
+DomesticActionDispatch_02:
   LDA $04CA                                           ; $D83A: AD CA 04
-  BNE LD867                                           ; $D83D: D0 28
+  BNE @skip_3                                           ; $D83D: D0 28
   LDA $04C9                                           ; $D83F: AD C9 04
-  BNE LD847                                           ; $D842: D0 03
-  JSR LDCE1                                           ; $D844: 20 E1 DC
-LD847:
-  JSR LDC13                                           ; $D847: 20 13 DC
+  BNE @skip                                           ; $D842: D0 03
+  JSR Sub_DCE1                                           ; $D844: 20 E1 DC
+@skip:
+  JSR Sub_DC13                                           ; $D847: 20 13 DC
   LDA $04C9                                           ; $D84A: AD C9 04
   CMP #$10                                            ; $D84D: C9 10
-  BCC LD866                                           ; $D84F: 90 15
+  BCC @skip_2                                           ; $D84F: 90 15
   LDA #$00                                            ; $D851: A9 00
   STA $04CD                                           ; $D853: 8D CD 04
   STA $04CE                                           ; $D856: 8D CE 04
@@ -6233,70 +7080,75 @@ LD847:
   LDA #$DD                                            ; $D85E: A9 DD
   JSR B1F_SetUI4                                      ; $D860: 20 8B F2
   JSR B1F_PaletteFadeInit                             ; $D863: 20 BF EC
-LD866:
+@skip_2:
   RTS                                                 ; $D866: 60
-LD867:
+@skip_3:
   LDA $04C9                                           ; $D867: AD C9 04
-  BPL LD86F                                           ; $D86A: 10 03
-  JMP LD8B3                                           ; $D86C: 4C B3 D8
-LD86F:
+  BPL @skip_4                                           ; $D86A: 10 03
+  JMP @skip_8                                           ; $D86C: 4C B3 D8
+@skip_4:
   INC $04CD                                           ; $D86F: EE CD 04
-  BNE LD877                                           ; $D872: D0 03
+  BNE @skip_5                                           ; $D872: D0 03
   INC $04CE                                           ; $D874: EE CE 04
-LD877:
+@skip_5:
   LDA #$75                                            ; $D877: A9 75
   STA $10                                             ; $D879: 85 10
   LDA #$9E                                            ; $D87B: A9 9E
   STA $11                                             ; $D87D: 85 11
   LDY $04CA                                           ; $D87F: AC CA 04
-  JSR LDBF3                                           ; $D882: 20 F3 DB
+  JSR Sub_DBF3                                           ; $D882: 20 F3 DB
   LDA $04CA                                           ; $D885: AD CA 04
   CLC                                                 ; $D888: 18
   ADC #$03                                            ; $D889: 69 03
   TAY                                                 ; $D88B: A8
-  JSR LDBF3                                           ; $D88C: 20 F3 DB
+  JSR Sub_DBF3                                           ; $D88C: 20 F3 DB
   LDA $04CD                                           ; $D88F: AD CD 04
   LSR A                                               ; $D892: 4A
   LSR A                                               ; $D893: 4A
   LSR A                                               ; $D894: 4A
   AND #$03                                            ; $D895: 29 03
   CMP #$03                                            ; $D897: C9 03
-  BNE LD89D                                           ; $D899: D0 02
+  BNE @skip_6                                           ; $D899: D0 02
   LDA #$02                                            ; $D89B: A9 02
-LD89D:
+@skip_6:
   CLC                                                 ; $D89D: 18
   ADC #$01                                            ; $D89E: 69 01
   STA $04CA                                           ; $D8A0: 8D CA 04
   LDA $04CE                                           ; $D8A3: AD CE 04
   CMP #$03                                            ; $D8A6: C9 03
-  BCC LD8B2                                           ; $D8A8: 90 08
+  BCC @skip_7                                           ; $D8A8: 90 08
   LDA #$80                                            ; $D8AA: A9 80
   STA $04C9                                           ; $D8AC: 8D C9 04
   JSR B1F_PaletteCopyBuffer                           ; $D8AF: 20 EE EC
-LD8B2:
+@skip_7:
   RTS                                                 ; $D8B2: 60
-LD8B3:
+@skip_8:
   LDA a:$0087                                         ; $D8B3: AD 87 00
-  BPL LD8C8                                           ; $D8B6: 10 10
+  BPL @skip_9                                           ; $D8B6: 10 10
   INC $0541                                           ; $D8B8: EE 41 05
   LDA #$00                                            ; $D8BB: A9 00
   STA $04C9                                           ; $D8BD: 8D C9 04
   STA $04CA                                           ; $D8C0: 8D CA 04
   LDA #$00                                            ; $D8C3: A9 00
   JSR B1F_SetUI4                                      ; $D8C5: 20 8B F2
-LD8C8:
+@skip_9:
   RTS                                                 ; $D8C8: 60
-LD8C9:
+.endproc
+;===============================================================================
+; $D8C9: DomesticActionDispatch_03
+;===============================================================================
+.proc DomesticActionDispatch_03
+DomesticActionDispatch_03:
   LDA $04CA                                           ; $D8C9: AD CA 04
-  BNE LD8F6                                           ; $D8CC: D0 28
+  BNE @skip_3                                           ; $D8CC: D0 28
   LDA $04C9                                           ; $D8CE: AD C9 04
-  BNE LD8D6                                           ; $D8D1: D0 03
-  JSR LDCE1                                           ; $D8D3: 20 E1 DC
-LD8D6:
-  JSR LDC13                                           ; $D8D6: 20 13 DC
+  BNE @skip                                           ; $D8D1: D0 03
+  JSR Sub_DCE1                                           ; $D8D3: 20 E1 DC
+@skip:
+  JSR Sub_DC13                                           ; $D8D6: 20 13 DC
   LDA $04C9                                           ; $D8D9: AD C9 04
   CMP #$10                                            ; $D8DC: C9 10
-  BCC LD8F5                                           ; $D8DE: 90 15
+  BCC @skip_2                                           ; $D8DE: 90 15
   LDA #$00                                            ; $D8E0: A9 00
   STA $04CD                                           ; $D8E2: 8D CD 04
   STA $04CE                                           ; $D8E5: 8D CE 04
@@ -6305,41 +7157,51 @@ LD8D6:
   LDA #$DE                                            ; $D8ED: A9 DE
   JSR B1F_SetUI4                                      ; $D8EF: 20 8B F2
   JSR B1F_PaletteFadeInit                             ; $D8F2: 20 BF EC
-LD8F5:
+@skip_2:
   RTS                                                 ; $D8F5: 60
-LD8F6:
+@skip_3:
   INC $04CD                                           ; $D8F6: EE CD 04
-  BNE LD8FE                                           ; $D8F9: D0 03
+  BNE @skip_4                                           ; $D8F9: D0 03
   INC $04CE                                           ; $D8FB: EE CE 04
-LD8FE:
+@skip_4:
   LDA $04CE                                           ; $D8FE: AD CE 04
   CMP #$03                                            ; $D901: C9 03
-  BCC LD914                                           ; $D903: 90 0F
+  BCC @skip_5                                           ; $D903: 90 0F
   LDA $0435                                           ; $D905: AD 35 04
   CMP #$46                                            ; $D908: C9 46
-  BCC LD915                                           ; $D90A: 90 09
+  BCC @skip_6                                           ; $D90A: 90 09
   INC $0541                                           ; $D90C: EE 41 05
   LDA #$00                                            ; $D90F: A9 00
   STA $0542                                           ; $D911: 8D 42 05
-LD914:
+@skip_5:
   RTS                                                 ; $D914: 60
-LD915:
+@skip_6:
   LDA #$05                                            ; $D915: A9 05
   STA $0541                                           ; $D917: 8D 41 05
   LDA #$04                                            ; $D91A: A9 04
   STA $0542                                           ; $D91C: 8D 42 05
   RTS                                                 ; $D91F: 60
-LD920:
+.endproc
+;===============================================================================
+; $D920: DomesticActionDispatch_05
+;===============================================================================
+.proc DomesticActionDispatch_05
+DomesticActionDispatch_05:
   LDA $0542                                           ; $D920: AD 42 05
   JSR B1F_CallbackDispatcher                          ; $D923: 20 DE EA
 ; --- Inline pointer table (6 entries) ---
-  .word LD932                                         ; $D926: 32 D9
-  .word LD950                                         ; $D928: 50 D9
-  .word LD95A                                         ; $D92A: 5A D9
-  .word LD976                                         ; $D92C: 76 D9
-  .word LD9B4                                         ; $D92E: B4 D9
-  .word LD9C2                                         ; $D930: C2 D9
-LD932:
+  .word DomesticActionDispatch_05_00                                         ; $D926: 32 D9
+  .word DomesticActionDispatch_05_01                                         ; $D928: 50 D9
+  .word DomesticActionDispatch_05_02                                         ; $D92A: 5A D9
+  .word DomesticActionDispatch_05_03                                         ; $D92C: 76 D9
+  .word DomesticActionDispatch_05_04                                         ; $D92E: B4 D9
+  .word DomesticActionDispatch_05_05                                         ; $D930: C2 D9
+.endproc
+;===============================================================================
+; $D932: DomesticActionDispatch_05_00
+;===============================================================================
+.proc DomesticActionDispatch_05_00
+DomesticActionDispatch_05_00:
   LDA #$00                                            ; $D932: A9 00
   STA $98                                             ; $D934: 85 98
   LDA #$08                                            ; $D936: A9 08
@@ -6354,37 +7216,52 @@ LD932:
   LDA #$01                                            ; $D94A: A9 01
   STA $0544                                           ; $D94C: 8D 44 05
   RTS                                                 ; $D94F: 60
-LD950:
+.endproc
+;===============================================================================
+; $D950: DomesticActionDispatch_05_01
+;===============================================================================
+.proc DomesticActionDispatch_05_01
+DomesticActionDispatch_05_01:
   LDA $0543                                           ; $D950: AD 43 05
   JSR B1F_SetUI4                                      ; $D953: 20 8B F2
   INC $0542                                           ; $D956: EE 42 05
   RTS                                                 ; $D959: 60
-LD95A:
+.endproc
+;===============================================================================
+; $D95A: DomesticActionDispatch_05_02
+;===============================================================================
+.proc DomesticActionDispatch_05_02
+DomesticActionDispatch_05_02:
   LDA $0300                                           ; $D95A: AD 00 03
   CMP #$FF                                            ; $D95D: C9 FF
-  BNE LD975                                           ; $D95F: D0 14
+  BNE @skip                                           ; $D95F: D0 14
   LDA $0304                                           ; $D961: AD 04 03
   CMP #$FF                                            ; $D964: C9 FF
-  BNE LD975                                           ; $D966: D0 0D
+  BNE @skip                                           ; $D966: D0 0D
   DEC $0544                                           ; $D968: CE 44 05
-  BNE LD975                                           ; $D96B: D0 08
+  BNE @skip                                           ; $D96B: D0 08
   LDA #$00                                            ; $D96D: A9 00
   STA $0409                                           ; $D96F: 8D 09 04
   INC $0542                                           ; $D972: EE 42 05
-LD975:
+@skip:
   RTS                                                 ; $D975: 60
-LD976:
+.endproc
+;===============================================================================
+; $D976: DomesticActionDispatch_05_03
+;===============================================================================
+.proc DomesticActionDispatch_05_03
+DomesticActionDispatch_05_03:
   INC a:$0098                                         ; $D976: EE 98 00
   LDA a:$0098                                         ; $D979: AD 98 00
   CMP #$F0                                            ; $D97C: C9 F0
-  BCC LD985                                           ; $D97E: 90 05
+  BCC @skip                                           ; $D97E: 90 05
   LDA #$00                                            ; $D980: A9 00
   STA a:$0098                                         ; $D982: 8D 98 00
-LD985:
+@skip:
   INC $0409                                           ; $D985: EE 09 04
   LDA $0409                                           ; $D988: AD 09 04
   CMP #$50                                            ; $D98B: C9 50
-  BCC LD9B3                                           ; $D98D: 90 24
+  BCC @skip_3                                           ; $D98D: 90 24
   DEC $0542                                           ; $D98F: CE 42 05
   DEC $0542                                           ; $D992: CE 42 05
   LDA #$60                                            ; $D995: A9 60
@@ -6392,41 +7269,66 @@ LD985:
   INC $0543                                           ; $D99A: EE 43 05
   LDA $0543                                           ; $D99D: AD 43 05
   CMP #$F9                                            ; $D9A0: C9 F9
-  BNE LD9AA                                           ; $D9A2: D0 06
+  BNE @skip_2                                           ; $D9A2: D0 06
   LDA #$01                                            ; $D9A4: A9 01
   STA $0544                                           ; $D9A6: 8D 44 05
   RTS                                                 ; $D9A9: 60
-LD9AA:
+@skip_2:
   CMP #$FA                                            ; $D9AA: C9 FA
-  BNE LD9B3                                           ; $D9AC: D0 05
+  BNE @skip_3                                           ; $D9AC: D0 05
   LDA #$04                                            ; $D9AE: A9 04
   STA $0542                                           ; $D9B0: 8D 42 05
-LD9B3:
+@skip_3:
   RTS                                                 ; $D9B3: 60
-LD9B4:
+.endproc
+;===============================================================================
+; $D9B4: DomesticActionDispatch_05_04
+;===============================================================================
+.proc DomesticActionDispatch_05_04
+DomesticActionDispatch_05_04:
   LDA a:$0081                                         ; $D9B4: AD 81 00
   AND #$08                                            ; $D9B7: 29 08
-  BEQ LD9C1                                           ; $D9B9: F0 06
+  BEQ Sub_D9C1                                           ; $D9B9: F0 06
   JSR B1F_PaletteCopyBuffer                           ; $D9BB: 20 EE EC
   INC $0542                                           ; $D9BE: EE 42 05
-LD9C1:
+.endproc
+;===============================================================================
+; $D9C1: Sub_D9C1
+;===============================================================================
+.proc Sub_D9C1
+Sub_D9C1:
   RTS                                                 ; $D9C1: 60
-LD9C2:
+.endproc
+;===============================================================================
+; $D9C2: DomesticActionDispatch_05_05
+;===============================================================================
+.proc DomesticActionDispatch_05_05
+DomesticActionDispatch_05_05:
   LDA a:$0087                                         ; $D9C2: AD 87 00
-  BPL LD9C1                                           ; $D9C5: 10 FA
+  BPL Sub_D9C1                                           ; $D9C5: 10 FA
   JMP $E000                                           ; $D9C7: 4C 00 E0
-LD9CA:
+.endproc
+;===============================================================================
+; $D9CA: DomesticActionDispatch_04
+;===============================================================================
+.proc DomesticActionDispatch_04
+DomesticActionDispatch_04:
   LDA $0542                                           ; $D9CA: AD 42 05
   JSR B1F_CallbackDispatcher                          ; $D9CD: 20 DE EA
 ; --- Inline pointer table (7 entries) ---
-  .word LD9DE                                         ; $D9D0: DE D9
-  .word LDA41                                         ; $D9D2: 41 DA
-  .word LDA87                                         ; $D9D4: 87 DA
-  .word LDAB6                                         ; $D9D6: B6 DA
-  .word LDAE0                                         ; $D9D8: E0 DA
-  .word LDB90                                         ; $D9DA: 90 DB
-  .word LDBDA                                         ; $D9DC: DA DB
-LD9DE:
+  .word DomesticActionDispatch_04_00                                         ; $D9D0: DE D9
+  .word DomesticActionDispatch_04_01                                         ; $D9D2: 41 DA
+  .word DomesticActionDispatch_04_02                                         ; $D9D4: 87 DA
+  .word DomesticActionDispatch_04_03                                         ; $D9D6: B6 DA
+  .word DomesticActionDispatch_04_04                                         ; $D9D8: E0 DA
+  .word DomesticActionDispatch_04_05                                         ; $D9DA: 90 DB
+  .word DomesticActionDispatch_04_06                                         ; $D9DC: DA DB
+.endproc
+;===============================================================================
+; $D9DE: DomesticActionDispatch_04_00
+;===============================================================================
+.proc DomesticActionDispatch_04_00
+DomesticActionDispatch_04_00:
   LDY #$30                                            ; $D9DE: A0 30
   JSR B1F_SwitchBank8_B                               ; $D9E0: 20 5F F2
   LDA #$FE                                            ; $D9E3: A9 FE
@@ -6436,29 +7338,29 @@ LD9DE:
   LDX #$00                                            ; $D9EE: A2 00
   LDA #$02                                            ; $D9F0: A9 02
   STA $02                                             ; $D9F2: 85 02
-LD9F4:
+@loop:
   TXA                                                 ; $D9F4: 8A
   PHA                                                 ; $D9F5: 48
   JSR B1F_GetProvinceRecordAddr                       ; $D9F6: 20 AF F2
   LDY #$11                                            ; $D9F9: A0 11
-LD9FB:
+@loop_2:
   LDA ($00),Y                                         ; $D9FB: B1 00
   CMP #$FF                                            ; $D9FD: C9 FF
-  BEQ LDA0D                                           ; $D9FF: F0 0C
+  BEQ @skip                                           ; $D9FF: F0 0C
   CMP $0411                                           ; $DA01: CD 11 04
-  BEQ LDA0D                                           ; $DA04: F0 07
+  BEQ @skip                                           ; $DA04: F0 07
   LDX $02                                             ; $DA06: A6 02
   STA $0410,X                                         ; $DA08: 9D 10 04
   INC $02                                             ; $DA0B: E6 02
-LDA0D:
+@skip:
   INY                                                 ; $DA0D: C8
   CPY #$1B                                            ; $DA0E: C0 1B
-  BCC LD9FB                                           ; $DA10: 90 E9
+  BCC @loop_2                                           ; $DA10: 90 E9
   PLA                                                 ; $DA12: 68
   TAX                                                 ; $DA13: AA
   INX                                                 ; $DA14: E8
   CPX #$1E                                            ; $DA15: E0 1E
-  BCC LD9F4                                           ; $DA17: 90 DB
+  BCC @loop                                           ; $DA17: 90 DB
   LDA #$FE                                            ; $DA19: A9 FE
   LDX $02                                             ; $DA1B: A6 02
   STA $0410,X                                         ; $DA1D: 9D 10 04
@@ -6476,16 +7378,21 @@ LDA0D:
   LDA #$F1                                            ; $DA3B: A9 F1
   JSR B1F_SetUI4                                      ; $DA3D: 20 8B F2
   RTS                                                 ; $DA40: 60
-LDA41:
+.endproc
+;===============================================================================
+; $DA41: DomesticActionDispatch_04_01
+;===============================================================================
+.proc DomesticActionDispatch_04_01
+DomesticActionDispatch_04_01:
   LDY #$39                                            ; $DA41: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DA43: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word $A012                                         ; $DA46: 12 A0
   LDA $040D                                           ; $DA48: AD 0D 04
   CMP #$FF                                            ; $DA4B: C9 FF
-  BEQ LDA50                                           ; $DA4D: F0 01
+  BEQ @skip                                           ; $DA4D: F0 01
   RTS                                                 ; $DA4F: 60
-LDA50:
+@skip:
   LDA #$08                                            ; $DA50: A9 08
   STA $BA                                             ; $DA52: 85 BA
   LDA #$06                                            ; $DA54: A9 06
@@ -6512,7 +7419,12 @@ LDA50:
   LDA #$00                                            ; $DA81: A9 00
   STA $0408                                           ; $DA83: 8D 08 04
   RTS                                                 ; $DA86: 60
-LDA87:
+.endproc
+;===============================================================================
+; $DA87: DomesticActionDispatch_04_02
+;===============================================================================
+.proc DomesticActionDispatch_04_02
+DomesticActionDispatch_04_02:
   LDA #$AE                                            ; $DA87: A9 AE
   STA $0A                                             ; $DA89: 85 0A
   LDX $0408                                           ; $DA8B: AE 08 04
@@ -6534,7 +7446,12 @@ LDA87:
   TYA                                                 ; $DAB1: 98
   STA $040C                                           ; $DAB2: 8D 0C 04
   RTS                                                 ; $DAB5: 60
-LDAB6:
+.endproc
+;===============================================================================
+; $DAB6: DomesticActionDispatch_04_03
+;===============================================================================
+.proc DomesticActionDispatch_04_03
+DomesticActionDispatch_04_03:
   LDY #$39                                            ; $DAB6: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DAB8: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -6550,69 +7467,79 @@ LDAB6:
   .word $A000                                         ; $DACE: 00 A0
   LDA $040D                                           ; $DAD0: AD 0D 04
   CMP #$FF                                            ; $DAD3: C9 FF
-  BNE LDADF                                           ; $DAD5: D0 08
+  BNE @skip                                           ; $DAD5: D0 08
   DEC $0543                                           ; $DAD7: CE 43 05
-  BNE LDADF                                           ; $DADA: D0 03
+  BNE @skip                                           ; $DADA: D0 03
   INC $0542                                           ; $DADC: EE 42 05
-LDADF:
+@skip:
   RTS                                                 ; $DADF: 60
-LDAE0:
+.endproc
+;===============================================================================
+; $DAE0: DomesticActionDispatch_04_04
+;===============================================================================
+.proc DomesticActionDispatch_04_04
+DomesticActionDispatch_04_04:
   LDA $0409                                           ; $DAE0: AD 09 04
   CMP #$40                                            ; $DAE3: C9 40
-  BNE LDAF1                                           ; $DAE5: D0 0A
+  BNE @skip                                           ; $DAE5: D0 0A
   LDA $040E                                           ; $DAE7: AD 0E 04
   STA $BC                                             ; $DAEA: 85 BC
   LDA $040F                                           ; $DAEC: AD 0F 04
   STA $BD                                             ; $DAEF: 85 BD
-LDAF1:
+@skip:
   INC $98                                             ; $DAF1: E6 98
   LDA $98                                             ; $DAF3: A5 98
   CMP #$F0                                            ; $DAF5: C9 F0
-  BCC LDAFD                                           ; $DAF7: 90 04
+  BCC @skip_2                                           ; $DAF7: 90 04
   LDA #$00                                            ; $DAF9: A9 00
   STA $98                                             ; $DAFB: 85 98
-LDAFD:
+@skip_2:
   LDA $0409                                           ; $DAFD: AD 09 04
   CMP #$29                                            ; $DB00: C9 29
-  BCS LDB2A                                           ; $DB02: B0 26
+  BCS @skip_4                                           ; $DB02: B0 26
   LDA #$AC                                            ; $DB04: A9 AC
   SEC                                                 ; $DB06: 38
   SBC $0409                                           ; $DB07: ED 09 04
   STA $0A                                             ; $DB0A: 85 0A
   LDX $0408                                           ; $DB0C: AE 08 04
-  JSR LDB50                                           ; $DB0F: 20 50 DB
+  JSR Sub_DB50                                           ; $DB0F: 20 50 DB
   LDA #$FC                                            ; $DB12: A9 FC
   SEC                                                 ; $DB14: 38
   SBC $0409                                           ; $DB15: ED 09 04
   CMP #$AE                                            ; $DB18: C9 AE
-  BCS LDB1E                                           ; $DB1A: B0 02
+  BCS @skip_3                                           ; $DB1A: B0 02
   LDA #$AE                                            ; $DB1C: A9 AE
-LDB1E:
+@skip_3:
   STA $0A                                             ; $DB1E: 85 0A
   LDX $0408                                           ; $DB20: AE 08 04
   INX                                                 ; $DB23: E8
-  JSR LDB50                                           ; $DB24: 20 50 DB
-  JMP LDB5D                                           ; $DB27: 4C 5D DB
-LDB2A:
+  JSR Sub_DB50                                           ; $DB24: 20 50 DB
+  JMP Sub_DB5D                                           ; $DB27: 4C 5D DB
+@skip_4:
   LDA #$FC                                            ; $DB2A: A9 FC
   SEC                                                 ; $DB2C: 38
   SBC $0409                                           ; $DB2D: ED 09 04
   CMP #$AE                                            ; $DB30: C9 AE
-  BCS LDB36                                           ; $DB32: B0 02
+  BCS @skip_5                                           ; $DB32: B0 02
   LDA #$AE                                            ; $DB34: A9 AE
-LDB36:
+@skip_5:
   STA $0A                                             ; $DB36: 85 0A
   LDX $0408                                           ; $DB38: AE 08 04
   INX                                                 ; $DB3B: E8
-  JSR LDB50                                           ; $DB3C: 20 50 DB
+  JSR Sub_DB50                                           ; $DB3C: 20 50 DB
   LDA #$AC                                            ; $DB3F: A9 AC
   SEC                                                 ; $DB41: 38
   SBC $0409                                           ; $DB42: ED 09 04
   STA $0A                                             ; $DB45: 85 0A
   LDX $0408                                           ; $DB47: AE 08 04
-  JSR LDB50                                           ; $DB4A: 20 50 DB
-  JMP LDB5D                                           ; $DB4D: 4C 5D DB
-LDB50:
+  JSR Sub_DB50                                           ; $DB4A: 20 50 DB
+  JMP Sub_DB5D                                           ; $DB4D: 4C 5D DB
+.endproc
+;===============================================================================
+; $DB50: Sub_DB50
+;===============================================================================
+.proc Sub_DB50
+Sub_DB50:
   LDA $0410,X                                         ; $DB50: BD 10 04
   STA $00                                             ; $DB53: 85 00
   LDY #$39                                            ; $DB55: A0 39
@@ -6620,11 +7547,16 @@ LDB50:
 ; --- BankedCallbackTrampoline target ---
   .word $A000                                         ; $DB5A: 00 A0
   RTS                                                 ; $DB5C: 60
-LDB5D:
+.endproc
+;===============================================================================
+; $DB5D: Sub_DB5D
+;===============================================================================
+.proc Sub_DB5D
+Sub_DB5D:
   INC $0409                                           ; $DB5D: EE 09 04
   LDA $0409                                           ; $DB60: AD 09 04
   CMP #$50                                            ; $DB63: C9 50
-  BCC LDB8F                                           ; $DB65: 90 28
+  BCC @skip                                           ; $DB65: 90 28
   DEC $0542                                           ; $DB67: CE 42 05
   DEC $0542                                           ; $DB6A: CE 42 05
   INC $0408                                           ; $DB6D: EE 08 04
@@ -6634,16 +7566,21 @@ LDB5D:
   INY                                                 ; $DB78: C8
   LDA $0410,Y                                         ; $DB79: B9 10 04
   CMP #$FF                                            ; $DB7C: C9 FF
-  BNE LDB8F                                           ; $DB7E: D0 0F
+  BNE @skip                                           ; $DB7E: D0 0F
   LDA #$05                                            ; $DB80: A9 05
   STA $0542                                           ; $DB82: 8D 42 05
   LDA #$80                                            ; $DB85: A9 80
   STA $0543                                           ; $DB87: 8D 43 05
   LDA #$27                                            ; $DB8A: A9 27
   STA $0544                                           ; $DB8C: 8D 44 05
-LDB8F:
+@skip:
   RTS                                                 ; $DB8F: 60
-LDB90:
+.endproc
+;===============================================================================
+; $DB90: DomesticActionDispatch_04_05
+;===============================================================================
+.proc DomesticActionDispatch_04_05
+DomesticActionDispatch_04_05:
   LDA #$40                                            ; $DB90: A9 40
   STA $0380                                           ; $DB92: 8D 80 03
   LDA $0544                                           ; $DB95: AD 44 05
@@ -6652,11 +7589,11 @@ LDB90:
   STA $0382                                           ; $DB9E: 8D 82 03
   LDY #$00                                            ; $DBA1: A0 00
   LDA #$01                                            ; $DBA3: A9 01
-LDBA5:
+@loop:
   STA $0383,Y                                         ; $DBA5: 99 83 03
   INY                                                 ; $DBA8: C8
   CPY #$40                                            ; $DBA9: C0 40
-  BCC LDBA5                                           ; $DBAB: 90 F8
+  BCC @loop                                           ; $DBAB: 90 F8
   LDA #$FF                                            ; $DBAD: A9 FF
   STA $0383,Y                                         ; $DBAF: 99 83 03
   LDA $0543                                           ; $DBB2: AD 43 05
@@ -6667,30 +7604,40 @@ LDBA5:
   SBC #$00                                            ; $DBBE: E9 00
   STA $0544                                           ; $DBC0: 8D 44 05
   CMP #$23                                            ; $DBC3: C9 23
-  BNE LDBD1                                           ; $DBC5: D0 0A
+  BNE @skip                                           ; $DBC5: D0 0A
   LDA #$05                                            ; $DBC7: A9 05
   STA $0541                                           ; $DBC9: 8D 41 05
   LDA #$00                                            ; $DBCC: A9 00
   STA $0542                                           ; $DBCE: 8D 42 05
-LDBD1:
+@skip:
   LDA a:$007E                                         ; $DBD1: AD 7E 00
   ORA #$04                                            ; $DBD4: 09 04
   STA a:$007E                                         ; $DBD6: 8D 7E 00
   RTS                                                 ; $DBD9: 60
-LDBDA:
+.endproc
+;===============================================================================
+; $DBDA: DomesticActionDispatch_04_06
+;===============================================================================
+.proc DomesticActionDispatch_04_06
+DomesticActionDispatch_04_06:
   LDA $0300                                           ; $DBDA: AD 00 03
   CMP #$FF                                            ; $DBDD: C9 FF
-  BNE LDBF2                                           ; $DBDF: D0 11
+  BNE @skip                                           ; $DBDF: D0 11
   LDA $0304                                           ; $DBE1: AD 04 03
   CMP #$FF                                            ; $DBE4: C9 FF
-  BNE LDBF2                                           ; $DBE6: D0 0A
+  BNE @skip                                           ; $DBE6: D0 0A
   DEC $0543                                           ; $DBE8: CE 43 05
-  BNE LDBF2                                           ; $DBEB: D0 05
+  BNE @skip                                           ; $DBEB: D0 05
   LDA #$01                                            ; $DBED: A9 01
   STA $0542                                           ; $DBEF: 8D 42 05
-LDBF2:
+@skip:
   RTS                                                 ; $DBF2: 60
-LDBF3:
+.endproc
+;===============================================================================
+; $DBF3: Sub_DBF3
+;===============================================================================
+.proc Sub_DBF3
+Sub_DBF3:
   LDX #$10                                            ; $DBF3: A2 10
   STX $0C                                             ; $DBF5: 86 0C
   DEY                                                 ; $DBF7: 88
@@ -6707,14 +7654,19 @@ LDBF3:
   LDA #$00                                            ; $DC0B: A9 00
   STA a:$0002                                         ; $DC0D: 8D 02 00
   JMP B1F_SpriteOamWriterSimple                       ; $DC10: 4C AD F1
-LDC13:
+.endproc
+;===============================================================================
+; $DC13: Sub_DC13
+;===============================================================================
+.proc Sub_DC13
+Sub_DC13:
   LDY #$26                                            ; $DC13: A0 26
   JSR B1F_SwitchBank8_B                               ; $DC15: 20 5F F2
   LDA $04C9                                           ; $DC18: AD C9 04
   CMP #$02                                            ; $DC1B: C9 02
-  BCS LDC22                                           ; $DC1D: B0 03
-  JMP LDC7E                                           ; $DC1F: 4C 7E DC
-LDC22:
+  BCS @skip                                           ; $DC1D: B0 03
+  JMP @skip_2                                           ; $DC1F: 4C 7E DC
+@skip:
   LDA #$1C                                            ; $DC22: A9 1C
   STA $0380                                           ; $DC24: 8D 80 03
   LDA $04D5                                           ; $DC27: AD D5 04
@@ -6726,12 +7678,12 @@ LDC22:
   LDA $04D3                                           ; $DC39: AD D3 04
   STA a:$0011                                         ; $DC3C: 8D 11 00
   LDY #$00                                            ; $DC3F: A0 00
-LDC41:
+@loop:
   LDA ($10),Y                                         ; $DC41: B1 10
   STA $0383,Y                                         ; $DC43: 99 83 03
   INY                                                 ; $DC46: C8
   CPY #$1C                                            ; $DC47: C0 1C
-  BCC LDC41                                           ; $DC49: 90 F6
+  BCC @loop                                           ; $DC49: 90 F6
   LDA #$FF                                            ; $DC4B: A9 FF
   STA $0383,Y                                         ; $DC4D: 99 83 03
   LDA a:$0010                                         ; $DC50: AD 10 00
@@ -6748,13 +7700,13 @@ LDC41:
   LDA $04D5                                           ; $DC6A: AD D5 04
   ADC #$00                                            ; $DC6D: 69 00
   STA $04D5                                           ; $DC6F: 8D D5 04
-LDC72:
+@loop_2:
   INC $04C9                                           ; $DC72: EE C9 04
   LDA a:$007E                                         ; $DC75: AD 7E 00
   ORA #$04                                            ; $DC78: 09 04
   STA a:$007E                                         ; $DC7A: 8D 7E 00
   RTS                                                 ; $DC7D: 60
-LDC7E:
+@skip_2:
   LDA #$20                                            ; $DC7E: A9 20
   STA $0380                                           ; $DC80: 8D 80 03
   LDA #$23                                            ; $DC83: A9 23
@@ -6772,12 +7724,12 @@ LDC7E:
   LDA $DCDB,Y                                         ; $DC9C: B9 DB DC
   STA a:$0011                                         ; $DC9F: 8D 11 00
   LDY #$00                                            ; $DCA2: A0 00
-LDCA4:
+@loop_3:
   LDA ($10),Y                                         ; $DCA4: B1 10
   STA $0383,Y                                         ; $DCA6: 99 83 03
   INY                                                 ; $DCA9: C8
   CPY #$20                                            ; $DCAA: C0 20
-  BCC LDCA4                                           ; $DCAC: 90 F6
+  BCC @loop_3                                           ; $DCAC: 90 F6
   LDA #$FF                                            ; $DCAE: A9 FF
   STA $0383,Y                                         ; $DCB0: 99 83 03
   LDA $0541                                           ; $DCB3: AD 41 05
@@ -6794,9 +7746,14 @@ LDCA4:
   STA $04D4                                           ; $DCCA: 8D D4 04
   LDA #$20                                            ; $DCCD: A9 20
   STA $04D5                                           ; $DCCF: 8D D5 04
-  JMP LDC72                                           ; $DCD2: 4C 72 DC
+  JMP @loop_2                                           ; $DCD2: 4C 72 DC
+.endproc
   .byte $E6,$95,$6E,$97,$F6,$98,$C5,$DD,$E5,$DD,$05,$DE; $DCD5: E6 95 6E 97 F6 98 C5 DD E5 DD 05 DE
-LDCE1:
+;===============================================================================
+; $DCE1: Sub_DCE1
+;===============================================================================
+.proc Sub_DCE1
+Sub_DCE1:
   LDA $0541                                           ; $DCE1: AD 41 05
   SEC                                                 ; $DCE4: 38
   SBC #$01                                            ; $DCE5: E9 01
@@ -6807,7 +7764,7 @@ LDCE1:
   ASL A                                               ; $DCEB: 0A
   TAY                                                 ; $DCEC: A8
   LDX #$00                                            ; $DCED: A2 00
-LDCEF:
+@loop:
   LDA $DD05,Y                                         ; $DCEF: B9 05 DD
   STA a:$00BE,X                                       ; $DCF2: 9D BE 00
   LDA $DD65,Y                                         ; $DCF5: B9 65 DD
@@ -6815,9 +7772,10 @@ LDCEF:
   INY                                                 ; $DCFB: C8
   INX                                                 ; $DCFC: E8
   CPX #$20                                            ; $DCFD: E0 20
-  BCC LDCEF                                           ; $DCFF: 90 EE
+  BCC @loop                                           ; $DCFF: 90 EE
   INC $04C9                                           ; $DD01: EE C9 04
   RTS                                                 ; $DD04: 60
+.endproc
   .byte $DA,$C9,$00,$00,$02,$F9,$00,$00,$C5,$C2,$C0,$00,$02,$F9,$FA,$F5; $DD05: DA C9 00 00 02 F9 00 00 C5 C2 C0 00 02 F9 FA F5
   .byte $FB,$00,$00,$00,$02,$F6,$B5,$D7,$9F,$00,$00,$00,$02,$AB,$BF,$00; $DD15: FB 00 00 00 02 F6 B5 D7 9F 00 00 00 02 AB BF 00
   .byte $BB,$A9,$00,$00,$02,$AC,$AD,$AE,$BB,$A9,$00,$00,$02,$AC,$AD,$AE; $DD25: BB A9 00 00 02 AC AD AE BB A9 00 00 02 AC AD AE
@@ -6838,31 +7796,37 @@ LDCEF:
   .byte $22,$00,$00,$00,$00,$00,$00,$88,$A2,$A0,$A0,$A0,$A0,$A0,$A0,$A8; $DE15: 22 00 00 00 00 00 00 88 A2 A0 A0 A0 A0 A0 A0 A8
 
 ;===============================================================================
-; $DE25: B17_18_AnimationDispatch
+; $DE25: AnimationDispatch
 ; Entry0B: Animation dispatch
 ;===============================================================================
-; B17_18_Target0B ($DE25):
-B17_18_AnimationDispatch:
+; Target0B ($DE25):
+.proc AnimationDispatch
+AnimationDispatch:
   LDA a:$0081                                         ; $DE25: AD 81 00
   AND #$08                                            ; $DE28: 29 08
-  BEQ LDE34                                           ; $DE2A: F0 08
+  BEQ @skip                                           ; $DE2A: F0 08
   LDA #$03                                            ; $DE2C: A9 03
   STA $0541                                           ; $DE2E: 8D 41 05
-  JMP LDEC7                                           ; $DE31: 4C C7 DE
-LDE34:
+  JMP AnimationDispatch_03                                           ; $DE31: 4C C7 DE
+@skip:
   LDA $0541                                           ; $DE34: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $DE37: 20 DE EA
 ; --- Inline pointer table (5 entries) ---
-  .word LDE44                                         ; $DE3A: 44 DE
-  .word LDE66                                         ; $DE3C: 66 DE
-  .word LDEB9                                         ; $DE3E: B9 DE
-  .word LDEC7                                         ; $DE40: C7 DE
-  .word LDED6                                         ; $DE42: D6 DE
-LDE44:
+  .word AnimationDispatch_00                                         ; $DE3A: 44 DE
+  .word AnimationDispatch_01                                         ; $DE3C: 66 DE
+  .word AnimationDispatch_02                                         ; $DE3E: B9 DE
+  .word AnimationDispatch_03                                         ; $DE40: C7 DE
+  .word AnimationDispatch_04                                         ; $DE42: D6 DE
+.endproc
+;===============================================================================
+; $DE44: AnimationDispatch_00
+;===============================================================================
+.proc AnimationDispatch_00
+AnimationDispatch_00:
   INC $0544                                           ; $DE44: EE 44 05
   LDA $0544                                           ; $DE47: AD 44 05
   CMP #$20                                            ; $DE4A: C9 20
-  BCC LDE65                                           ; $DE4C: 90 17
+  BCC @skip                                           ; $DE4C: 90 17
   LDA #$16                                            ; $DE4E: A9 16
   STA $0115                                           ; $DE50: 8D 15 01
   LDA #$30                                            ; $DE53: A9 30
@@ -6872,34 +7836,40 @@ LDE44:
   LDA #$02                                            ; $DE5D: A9 02
   STA $0544                                           ; $DE5F: 8D 44 05
   INC $0541                                           ; $DE62: EE 41 05
-LDE65:
+@skip:
   RTS                                                 ; $DE65: 60
-LDE66:
+.endproc
+;===============================================================================
+; $DE66: AnimationDispatch_01
+;===============================================================================
+.proc AnimationDispatch_01
+AnimationDispatch_01:
   LDY $0543                                           ; $DE66: AC 43 05
   CPY #$14                                            ; $DE69: C0 14
-  BNE LDE72                                           ; $DE6B: D0 05
+  BNE @skip                                           ; $DE6B: D0 05
   LDA #$62                                            ; $DE6D: A9 62
   JSR B1F_SoundWrapperE                               ; $DE6F: 20 93 E6
-LDE72:
+@skip:
   LDY #$21                                            ; $DE72: A0 21
   JSR B1F_SwitchBank8_B                               ; $DE74: 20 5F F2
   LDY $0543                                           ; $DE77: AC 43 05
   LDA $DEA0,Y                                         ; $DE7A: B9 A0 DE
-  JSR B17_18_SpriteFromTable                                           ; $DE7D: 20 FA DE
+  JSR SpriteFromTable                                           ; $DE7D: 20 FA DE
   DEC $0544                                           ; $DE80: CE 44 05
-  BNE LDE9F                                           ; $DE83: D0 1A
+  BNE @skip_2                                           ; $DE83: D0 1A
   LDA #$02                                            ; $DE85: A9 02
   STA $0544                                           ; $DE87: 8D 44 05
   INC $0543                                           ; $DE8A: EE 43 05
   LDY $0543                                           ; $DE8D: AC 43 05
   LDA $DEA0,Y                                         ; $DE90: B9 A0 DE
   CMP #$FF                                            ; $DE93: C9 FF
-  BNE LDE9F                                           ; $DE95: D0 08
+  BNE @skip_2                                           ; $DE95: D0 08
   INC $0541                                           ; $DE97: EE 41 05
   LDA #$40                                            ; $DE9A: A9 40
   STA $0544                                           ; $DE9C: 8D 44 05
-LDE9F:
+@skip_2:
   RTS                                                 ; $DE9F: 60
+.endproc
 
 ;===============================================================================
 ; $DEA0: Animation frame index table
@@ -6907,22 +7877,36 @@ LDE9F:
 ;===============================================================================
   .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$08,$08,$08,$08,$08,$08,$08; $DEA0: 00 01 02 03 04 05 06 07 08 08 08 08 08 08 08 08
   .byte $09,$0A,$0B,$0C,$0D,$0E,$0D,$08,$FF           ; $DEB0: 09 0A 0B 0C 0D 0E 0D 08 FF
-LDEB9:
+;===============================================================================
+; $DEB9: AnimationDispatch_02
+;===============================================================================
+.proc AnimationDispatch_02
+AnimationDispatch_02:
   DEC $0544                                           ; $DEB9: CE 44 05
-  BEQ LDEC3                                           ; $DEBC: F0 05
+  BEQ @skip                                           ; $DEBC: F0 05
   LDA #$08                                            ; $DEBE: A9 08
-  JMP B17_18_SpriteFromTable                                           ; $DEC0: 4C FA DE
-LDEC3:
+  JMP SpriteFromTable                                           ; $DEC0: 4C FA DE
+@skip:
   INC $0541                                           ; $DEC3: EE 41 05
   RTS                                                 ; $DEC6: 60
-LDEC7:
+.endproc
+;===============================================================================
+; $DEC7: AnimationDispatch_03
+;===============================================================================
+.proc AnimationDispatch_03
+AnimationDispatch_03:
   INC $0541                                           ; $DEC7: EE 41 05
   LDA #$0F                                            ; $DECA: A9 0F
   STA $0115                                           ; $DECC: 8D 15 01
   STA $0116                                           ; $DECF: 8D 16 01
   STA $0117                                           ; $DED2: 8D 17 01
   RTS                                                 ; $DED5: 60
-LDED6:
+.endproc
+;===============================================================================
+; $DED6: AnimationDispatch_04
+;===============================================================================
+.proc AnimationDispatch_04
+AnimationDispatch_04:
   INC $0540                                           ; $DED6: EE 40 05
   LDA #$00                                            ; $DED9: A9 00
   STA $0541                                           ; $DEDB: 8D 41 05
@@ -6938,14 +7922,16 @@ LDED6:
   LDA #$B0                                            ; $DEF4: A9 B0
   JSR $E673                                           ; $DEF6: 20 73 E6
   RTS                                                 ; $DEF9: 60
+.endproc
 
 ;--- $DEFA: Sprite and Data ---
 
 ;===============================================================================
-; $DEFA: B17_18_SpriteFromTable
+; $DEFA: SpriteFromTable
 ; Sprite OAM placement from table
 ;===============================================================================
-B17_18_SpriteFromTable:
+.proc SpriteFromTable
+SpriteFromTable:
   ASL A                                               ; $DEFA: 0A
   TAY                                                 ; $DEFB: A8
   LDA $97EF,Y                                         ; $DEFC: B9 EF 97
@@ -6959,13 +7945,15 @@ B17_18_SpriteFromTable:
   LDA #$01                                            ; $DF0E: A9 01
   STA $02                                             ; $DF10: 85 02
   JMP B1F_SpriteOamWriterSimple                       ; $DF12: 4C AD F1
+.endproc
 
 ;===============================================================================
-; $DF15: B17_18_DataRecordLoader
+; $DF15: DataRecordLoader
 ; Entry0D: Data record loader (pointer table lookup)
 ;===============================================================================
-; B17_18_Target0C ($DF15):
-B17_18_DataRecordLoader:
+; Target0C ($DF15):
+.proc DataRecordLoader
+DataRecordLoader:
   LDA $050E                                           ; $DF15: AD 0E 05
   ASL A                                               ; $DF18: 0A
   TAY                                                 ; $DF19: A8
@@ -6990,6 +7978,7 @@ B17_18_DataRecordLoader:
   LDA #$00                                            ; $DF44: A9 00
   STA a:$00A9                                         ; $DF46: 8D A9 00
   RTS                                                 ; $DF49: 60
+.endproc
 
 ;===============================================================================
 ; $DF4A: Data record pointer table + permutation table

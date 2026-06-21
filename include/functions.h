@@ -316,23 +316,23 @@ B39_BattleEffects         = $A00F   ; Battle effects (NMI context)
 ; Banks $17+$18 - Domestic/Kingdom display (combined 16KB $A000-$DFFF)
 ; Loaded via SwitchBankAC with Y=$37
 ;-------------------------------------------------------------------------------
-B17_18_Entry00            = $A000   ; Scene rendering
-B17_18_Entry01            = $A003   ; Map/battle/UI rendering
-B17_18_Entry02            = $A006   ; Scenario/action display
-B17_18_Entry03            = $A009   ; Input handling + render
-B17_18_Entry04            = $A00C   ; Weather/battle effects
-B17_18_Entry05            = $A00F   ; Battle effects processing
-B17_18_Entry06            = $A012   ; Battle dispatch
-B17_18_Entry07            = $A015   ; Overlay/window display
-B17_18_Entry08            = $A018   ; Advisor dialogue rendering
-B17_18_Entry09            = $A01B   ; Display + CHR setup
-B17_18_Entry0A            = $A01E   ; -> JMP $D693 (bank $18)
-B17_18_Entry0B            = $A021   ; -> JMP $DE25 (bank $18)
-B17_18_Entry0C            = $A024   ; Domestic affairs display
-B17_18_Entry0D            = $A027   ; -> JMP $DF15 (bank $18)
-; Internal B17_18_ function/data symbols are defined as labels in
-; prg_17_18.asm and exported from there. They are only referenced
-; within that file, so no = assignments are needed here.
+B17_18_PpuWriteRle        = $A000   ; Entry00: RLE-encoded PPU data writer
+B17_18_PpuCopyRaw         = $A003   ; Entry01: Raw 1KB PPU data copy
+B17_18_PpuWriteTileOffset = $A006   ; Entry02: PPU tile data write with offset
+B17_18_DisplayScrollLoop  = $A009   ; Entry03: Display scroll and render loop
+B17_18_DisplayAndChrSetup = $A00C   ; Entry04: Display coordinate check + CHR setup
+B17_18_BattleEffects      = $A00F   ; Entry05: Battle visual effects
+B17_18_BattleDispatch     = $A012   ; Entry06: Battle dispatch
+B17_18_OverlayWindow      = $A015   ; Entry07: Overlay/window rendering
+B17_18_AdvisorDialogue    = $A018   ; Entry08: Advisor/council dialogue system
+B17_18_MainGameDispatch   = $A01B   ; Entry09: Main game mode dispatcher
+B17_18_DomesticActionDispatch = $A01E ; Entry0A: Domestic action dispatcher
+B17_18_AnimationDispatch  = $A021   ; Entry0B: Animation dispatch
+B17_18_DomesticDisplay    = $A024   ; Entry0C: Domestic affairs display
+B17_18_DataRecordLoader   = $A027   ; Entry0D: Data record loader
+; Internal function/data symbols in prg_17_18.asm use unprefixed names
+; (no B17_18_ prefix). They are only referenced within that file, so
+; no = assignments are needed here.
 
 ;-------------------------------------------------------------------------------
 ; Bank $2E - NMI rendering
