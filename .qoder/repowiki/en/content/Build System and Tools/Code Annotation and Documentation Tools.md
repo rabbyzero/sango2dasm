@@ -3,24 +3,28 @@
 <cite>
 **Referenced Files in This Document**
 - [annotate_asm.py](file://tools/annotate_asm.py)
-- [disasm_6502.py](file://tools/disasm_6502.py)
-- [generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
-- [split_rom.py](file://tools/split_rom.py)
-- [analyze_bank_1f.py](file://tools/analyze_bank_1f.py)
+- [disasm_17_18.py](file://tools/disasm_17_18.py)
+- [proc_scope_17_18.py](file://tools/proc_scope_17_18.py)
+- [add_procs.py](file://tools/add_procs.py)
+- [localize_labels.py](file://tools/localize_labels.py)
+- [fix_labels.py](file://tools/fix_labels.py)
 - [PROJECT.md](file://PROJECT.md)
 - [Makefile](file://Makefile)
 - [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [prg_1f_annotated.asm](file://asm/banks/prg_1f_annotated.asm)
+- [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [macros.h](file://include/macros.h)
+- [namco163.h](file://include/namco163.h)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced annotate_asm.py with improved ROM address tracking using pre-disassembly and address-to-index mapping
-- Added opcode verification capabilities with forward search for ROM alignment
-- Updated output file naming to use prg_1f_annotated.asm by default
-- Improved address hint parsing with range support and section header resynchronization
-- Enhanced verification process with ca65 integration
+- Enhanced annotation system now supports .proc/.endproc structure for improved label organization
+- Added comprehensive PRG bank 17-18 disassembly and transformation pipeline
+- Integrated proc scope management and cross-proc label handling
+- Updated annotation tools to work with structured assembly blocks
+- Enhanced label localization and scope resolution for complex assembly hierarchies
+- **Updated**: The old B17_18_ naming conventions are being phased out in favor of cleaner function organization
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -28,307 +32,332 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+6. [Proc Structure and Label Organization](#proc-structure-and-label-organization)
+7. [PRG Bank 17-18 Enhanced Pipeline](#prg-bank-17-18-enhanced-pipeline)
+8. [Dependency Analysis](#dependency-analysis)
+9. [Performance Considerations](#performance-considerations)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
+12. [Appendices](#appendices)
 
 ## Introduction
-This document describes the automated annotation system that enhances assembly code readability and maintainability for the Sangokushi 2 - Haou no Tairiku (J) NES disassembly project. The system has been enhanced with improved ROM address tracking, opcode verification capabilities, and comprehensive assembly annotation output. It explains how comments, labels, and cross-references are automatically generated and integrated into the assembly code, documents the annotation algorithms, data source integration, and output formatting, and demonstrates practical usage within the broader disassembly workflow. The goal is to improve code comprehension, streamline maintenance, and support collaborative reverse engineering efforts.
+This document describes the automated annotation system that enhances assembly code readability and maintainability for the Sangokushi 2 - Haou no Tairiku (J) NES disassembly project. The system has been significantly enhanced with support for .proc/.endproc structured assembly blocks, improved label organization across PRG banks 17-18, and comprehensive cross-proc label scope management. The enhanced system now provides sophisticated annotation capabilities that work seamlessly with structured assembly code, automatic proc boundary detection, and intelligent label localization for complex reverse engineering workflows.
+
+**Updated**: The annotation system now focuses on cleaner function organization with semantic naming conventions replacing the old B17_18_ prefixes, improving code comprehension and maintainability.
 
 ## Project Structure
-The project organizes the disassembly pipeline around a set of tools and assets:
-- ROM splitting and bank generation produce binary banks for analysis.
-- Disassembly tools convert binaries into human-readable assembly listings.
-- The enhanced annotation tool overlays ROM addresses and opcode bytes onto annotated assembly with improved accuracy.
-- Documentation and analysis scripts provide insights into function boundaries, data tables, and bank switching patterns.
-- Build automation integrates annotated assembly back into a full ROM.
+The project now includes an enhanced pipeline for handling structured assembly code with .proc/.endproc blocks and improved organization across multiple PRG banks:
 
 ```mermaid
 graph TB
 ROM["Original ROM<br/>Sangokushi 2 - Haou no Tairiku (J).nes"]
 SPLIT["split_rom.py<br/>Split ROM into PRG/CHR banks"]
 STUBS["generate_bank_stubs.py<br/>Generate bank stubs (.asm)"]
-DISASM["disasm_6502.py<br/>Disassemble binary to listing"]
-ANNOTATE["annotate_asm.py<br/>Enhanced annotation with ROM verification"]
-ASM_BANKS["asm/banks/prg_1f_annotated.asm<br/>Comprehensive annotated assembly"]
-BUILD["Makefile<br/>Build ROM from assembly"]
-ROM --> SPLIT --> STUBS --> DISASM --> ANNOTATE --> ASM_BANKS --> BUILD
+DISASM6502["disasm_6502.py<br/>Standard 6502 disassembly"]
+DISASM17_18["disasm_17_18.py<br/>Enhanced bank 17-18 disassembly"]
+TRANSFORM["transform_17_18.py<br/>Structured assembly transformation"]
+PROC_SCOPE["proc_scope_17_18.py<br/>Proc boundary management"]
+ADD_PROCS["add_procs.py<br/>Automatic proc insertion"]
+LOCALIZE["localize_labels.py<br/>Cross-proc label localization"]
+FIX_LABELS["fix_labels.py<br/>Label scope correction"]
+ANNOTATE["annotate_asm.py<br/>Enhanced annotation with proc support"]
+ASM_BANKS["asm/banks/<br/>Structured annotated assembly"]
+BUILD["Makefile<br/>Build ROM from structured assembly"]
+ROM --> SPLIT --> STUBS --> DISASM6502 --> DISASM17_18 --> TRANSFORM --> PROC_SCOPE --> ADD_PROCS --> LOCALIZE --> FIX_LABELS --> ANNOTATE --> ASM_BANKS --> BUILD
 ```
 
 **Diagram sources**
-- [split_rom.py:1-140](file://tools/split_rom.py#L1-L140)
-- [generate_bank_stubs.py:1-53](file://tools/generate_bank_stubs.py#L1-L53)
-- [disasm_6502.py:1-363](file://tools/disasm_6502.py#L1-L363)
-- [annotate_asm.py:1-599](file://tools/annotate_asm.py#L1-L599)
-- [Makefile:1-102](file://Makefile#L1-L102)
-
-**Section sources**
-- [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
-- [Makefile:50-75](file://Makefile#L50-L75)
+- [disasm_17_18.py:628-654](file://tools/disasm_17_18.py#L628-L654)
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [add_procs.py:1-50](file://tools/add_procs.py#L1-L50)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+- [fix_labels.py:1-29](file://tools/fix_labels.py#L1-L29)
+- [annotate_asm.py:1-16](file://tools/annotate_asm.py#L1-L16)
 
 ## Core Components
-- **Enhanced Annotate Assembly Tool**: Reads a PRG bank binary and an assembly file, performs pre-disassembly with address-to-index mapping, estimates instruction sizes from operand text, resolves symbols, compares mnemonics against the ROM with forward search verification, and annotates each instruction with its CPU address and actual opcode bytes. It supports in-place editing, backup creation, and optional verification via ca65.
-- **Disassembler**: Converts a 6502 binary into a formatted listing with addresses, bytes, and mnemonics, handling various addressing modes and truncated instructions.
-- **Bank Stubs Generator**: Creates assembly stub files for each PRG bank that include the corresponding binary, enabling incremental replacement with annotated code.
-- **ROM Splitter**: Parses the iNES header and splits PRG/CHR ROMs into 8KB banks, generating a combined PRG file and ROM metadata.
-- **Analysis Scripts**: Provide high-level insights into bank 0x1F, including vector tables, bank switching patterns, function boundaries, and data tables.
+The enhanced system now includes specialized tools for handling structured assembly code:
+
+- **Enhanced Annotate Assembly Tool**: Now supports .proc/.endproc structure with intelligent label scope resolution and cross-proc reference handling.
+- **Enhanced Bank 17-18 Disassembler**: Specialized tool for handling paired PRG banks with cross-references and structured output formatting.
+- **Transform 17-18**: Converts linear disassembly into structured assembly with proper proc boundaries and label organization.
+- **Proc Scope Manager**: Automatically detects and manages proc boundaries with intelligent function detection and scope resolution.
+- **Add Procs Tool**: Inserts .proc/.endproc blocks around functions with proper export/import declarations.
+- **Localize Labels**: Handles cross-proc label scope issues and converts sub-labels to @label syntax within proc contexts.
+- **Fix Labels**: Corrects remaining cross-proc label scope issues and moves gap byte labels outside proc boundaries.
 
 **Section sources**
 - [annotate_asm.py:1-16](file://tools/annotate_asm.py#L1-L16)
-- [disasm_6502.py:1-6](file://tools/disasm_6502.py#L1-L6)
-- [generate_bank_stubs.py:1-6](file://tools/generate_bank_stubs.py#L1-L6)
-- [split_rom.py:1-6](file://tools/split_rom.py#L1-L6)
-- [analyze_bank_1f.py:1-3](file://tools/analyze_bank_1f.py#L1-L3)
+- [disasm_17_18.py:628-654](file://tools/disasm_17_18.py#L628-L654)
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [add_procs.py:1-50](file://tools/add_procs.py#L1-L50)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+- [fix_labels.py:1-29](file://tools/fix_labels.py#L1-L29)
 
 ## Architecture Overview
-The enhanced annotation system operates as a post-processing step after disassembly and before linking. It consumes:
-- The PRG bank binary (e.g., prg_1f.bin) for ground-truth opcode bytes and instruction boundaries.
-- The assembly file (e.g., prg_1f.asm) for textual instructions, labels, and symbol definitions.
-- Include files (e.g., macros.h, 6502_registers.h, namco163.h) for symbol resolution and macro definitions.
-
-It produces:
-- Comprehensive annotated assembly with address and opcode byte comments in prg_1f_annotated.asm.
-- Optional in-place edits with .bak backups.
-- Optional ca65 verification to ensure correctness.
+The enhanced annotation system now operates with a multi-stage pipeline that handles structured assembly code with .proc/.endproc blocks:
 
 ```mermaid
 sequenceDiagram
 participant ROM as "ROM Splitter"
 participant BIN as "PRG Bank Binary"
 participant ASM as "Assembly Source"
-participant AN as "Enhanced Annotate Tool"
-participant PRE as "Pre-disassembly Engine"
-participant OUT as "Annotated Assembly (prg_1f_annotated.asm)"
-participant CA as "ca65 Verifier"
+participant DISASM as "Enhanced Disassemblers"
+participant TRANSFORM as "Structure Transformer"
+participant PROC as "Proc Manager"
+participant ANNOTATE as "Enhanced Annotate Tool"
+participant OUT as "Structured Annotated Assembly"
 ROM->>BIN : "Split ROM into banks"
-BIN->>PRE : "Pre-disassemble with address mapping"
-PRE->>AN : "Provide instruction tuples and addr_to_idx"
-ASM->>AN : "Provide assembly with labels and symbols"
-AN->>AN : "Build symbol table from includes and asm"
-AN->>AN : "Estimate instruction sizes from operands"
-AN->>AN : "Compare mnemonics with ROM (forward search)"
-AN->>OUT : "Write comprehensive annotations with addresses and bytes"
-AN->>CA : "Run ca65 verification (optional)"
-OUT-->>ASM : "Ready for integration into build"
+BIN->>DISASM : "Disassemble with bank-specific tools"
+DISASM->>TRANSFORM : "Linear assembly output"
+TRANSFORM->>PROC : "Detect function boundaries"
+PROC->>PROC : "Insert .proc/.endproc blocks"
+PROC->>ANNOTATE : "Structured assembly with scopes"
+ANNOTATE->>OUT : "Annotated assembly with proc support"
 ```
 
 **Diagram sources**
-- [split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
-- [annotate_asm.py:313-338](file://tools/annotate_asm.py#L313-L338)
-- [annotate_asm.py:433-435](file://tools/annotate_asm.py#L433-L435)
-- [Makefile:40-44](file://Makefile#L40-L44)
+- [disasm_17_18.py:628-654](file://tools/disasm_17_18.py#L628-L654)
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [annotate_asm.py:1-16](file://tools/annotate_asm.py#L1-L16)
 
 ## Detailed Component Analysis
 
-### Enhanced Annotate Assembly Tool
-The enhanced annotate tool performs a sophisticated line-by-line pass over the assembly file, tracking the current CPU address and aligning it with the PRG bank binary through pre-disassembly and address mapping. Key improvements include:
+### Enhanced Annotate Assembly Tool with Proc Support
+The enhanced annotate tool now includes sophisticated support for .proc/.endproc structured assembly blocks:
 
-- **Pre-disassembly Engine**: Creates instruction tuples with address-to-index mapping for precise ROM alignment.
-- **Forward Search Verification**: Searches forward up to 3 instructions to handle cases where ROM has extra instructions not present in assembly.
-- **Improved Address Hint Parsing**: Supports both single address and range formats in section headers for better resynchronization.
-- **Enhanced Section Header Resynchronization**: Uses addr_to_idx mapping to resync addresses exactly at instruction boundaries.
-- **Comprehensive Output**: Writes to prg_1f_annotated.asm by default with full address and opcode byte annotations.
-
-```mermaid
-flowchart TD
-Start(["Start"]) --> ReadBin["Read PRG bank binary"]
-ReadBin --> PreDisasm["Pre-disassemble with addr_to_idx mapping"]
-PreDisasm --> BuildSym["Build symbol table from includes and asm"]
-BuildSym --> ReadAsm["Read assembly lines"]
-ReadAsm --> Loop{"For each line"}
-Loop --> |Address hint| ParseHint["Parse address hint comment (range support)"]
-ParseHint --> Sync{"Resync address?"}
-Sync --> |Yes| ResyncAddr["Use addr_to_idx for exact resync"]
-Sync --> |No| NextLine
-ResyncAddr --> Loop
-NextLine --> IsInstr{"Is CPU instruction?"}
-IsInstr --> |Yes| Estimate["Estimate instruction size"]
-Estimate --> Lookup["Lookup opcode bytes from ROM (forward search)"]
-Lookup --> Match{"Mnemonic matches?"}
-Match --> |Yes| EmitBytes["Emit address + verified opcode bytes"]
-Match --> |No| EmitAddrOnly["Emit address only"]
-EmitBytes --> Advance["Advance by actual size"]
-EmitAddrOnly --> Advance
-Advance --> Loop
-IsInstr --> |No| IsData{"Is data directive?"}
-IsData --> |Yes| SkipData["Skip data bytes and advance"]
-SkipData --> Loop
-IsData --> |No| EmitPlain["Emit unchanged line"]
-EmitPlain --> Loop
-Loop --> EndCheck{"End of file?"}
-EndCheck --> |No| Loop
-EndCheck --> |Yes| Validate["Validate final address"]
-Validate --> WriteOut["Write prg_1f_annotated.asm"]
-WriteOut --> Verify{"--verify?"}
-Verify --> |Yes| Ca65["Run ca65 verification"]
-Verify --> |No| Done(["Done"])
-Ca65 --> Done
-```
-
-**Diagram sources**
-- [annotate_asm.py:313-338](file://tools/annotate_asm.py#L313-L338)
-- [annotate_asm.py:433-435](file://tools/annotate_asm.py#L433-L435)
-- [annotate_asm.py:488-518](file://tools/annotate_asm.py#L488-L518)
+- **Proc-Aware Address Tracking**: Maintains separate address tracking for each proc scope with proper boundary detection.
+- **Cross-Proc Label Resolution**: Handles labels that span multiple proc boundaries with intelligent scope resolution.
+- **Enhanced Symbol Table Building**: Incorporates proc context into symbol resolution for accurate cross-reference mapping.
+- **Structured Output Generation**: Preserves .proc/.endproc boundaries while adding comprehensive annotations.
 
 **Section sources**
 - [annotate_asm.py:23-85](file://tools/annotate_asm.py#L23-L85)
-- [annotate_asm.py:93-138](file://tools/annotate_asm.py#L93-L138)
-- [annotate_asm.py:143-188](file://tools/annotate_asm.py#L143-L188)
-- [annotate_asm.py:191-201](file://tools/annotate_asm.py#L191-L201)
-- [annotate_asm.py:220-227](file://tools/annotate_asm.py#L220-L227)
-- [annotate_asm.py:230-278](file://tools/annotate_asm.py#L230-L278)
-- [annotate_asm.py:283-311](file://tools/annotate_asm.py#L283-L311)
-- [annotate_asm.py:313-338](file://tools/annotate_asm.py#L313-L338)
-- [annotate_asm.py:412-427](file://tools/annotate_asm.py#L412-L427)
 - [annotate_asm.py:448-546](file://tools/annotate_asm.py#L448-L546)
-- [annotate_asm.py:579-599](file://tools/annotate_asm.py#L579-L599)
 
-### Disassembler Tool
-The disassembler converts a 6502 binary into a formatted listing with addresses, bytes, and mnemonics. It:
-- Maintains an opcode table with addressing modes and cycle counts.
-- Handles truncated instructions gracefully by emitting partial bytes.
-- Formats operands according to addressing mode (immediate, zero-page, absolute, indexed, relative, etc.).
-- Supports configurable start address, length, and base address mapping.
+### Enhanced Bank 17-18 Disassembler
+Specialized tool for handling the paired PRG banks 17-18 with cross-references:
+
+- **Paired Bank Processing**: Handles the unique $A000-$BFFF and $C000-$DFFF memory layout requirements.
+- **Cross-Bank Reference Management**: Generates proper cross-references between bank 17 and bank 18 addresses.
+- **Mapper-Specific Formatting**: Includes Namco-163 mapper configuration and bank switching macros.
+- **Structured Output Generation**: Produces organized assembly with proper segment declarations and cross-reference tables.
+
+**Section sources**
+- [disasm_17_18.py:628-654](file://tools/disasm_17_18.py#L628-L654)
+- [disasm_17_18.py:654-700](file://tools/disasm_17_18.py#L654-L700)
+
+### Transform 17-18 Pipeline
+Converts linear disassembly into structured assembly with proper proc boundaries:
+
+- **Function Boundary Detection**: Identifies function starts and ends using pattern recognition and call graph analysis.
+- **Proc Block Insertion**: Automatically inserts .proc/.endproc blocks around detected functions with proper naming conventions.
+- **Export/Import Declaration Handling**: Manages function visibility across module boundaries with :: syntax for exported functions.
+- **Sub-label Conversion**: Converts function-local labels to @label syntax within proc contexts.
+
+**Section sources**
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [add_procs.py:1-50](file://tools/add_procs.py#L1-L50)
+
+### Proc Scope Management System
+Intelligent management of .proc/.endproc boundaries and label scoping:
+
+- **Boundary Detection**: Automatically detects proc boundaries using function patterns and assembly structure analysis.
+- **Scope Resolution**: Handles nested proc scopes and cross-proc label references with proper scope resolution.
+- **Label Localization**: Converts global labels to localized @labels within appropriate proc contexts.
+- **Balance Verification**: Ensures proper .proc/.endproc balance and reports structural inconsistencies.
+
+**Section sources**
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+
+### Automatic Proc Insertion Tool
+Automatically wraps functions in .proc/.endproc blocks:
+
+- **Function Recognition**: Identifies function entry points using label patterns and instruction analysis.
+- **Export Declaration Logic**: Adds :: suffix for exported functions and normal naming for internal functions.
+- **Boundary Management**: Properly closes previous procs when encountering new function definitions.
+- **Sub-label Conversion**: Converts function-local sub-labels to @label syntax within proc contexts.
+
+**Section sources**
+- [add_procs.py:1-50](file://tools/add_procs.py#L1-L50)
+
+### Label Localization and Scope Fixing
+Handles complex label scope issues in structured assembly:
+
+- **Gap Byte Label Movement**: Moves gap byte labels outside proc boundaries to proper locations between procs.
+- **Cross-Proc Reference Correction**: Fixes remaining cross-proc label scope issues after initial processing.
+- **Sub-label Pattern Application**: Applies sub-label conversion patterns consistently across the entire assembly.
+- **Scope Balance Verification**: Ensures all labels are properly scoped within appropriate proc boundaries.
+
+**Section sources**
+- [fix_labels.py:13-29](file://tools/fix_labels.py#L13-L29)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+
+## Proc Structure and Label Organization
+
+### Enhanced .proc/.endproc Support
+The annotation system now provides comprehensive support for structured assembly blocks:
 
 ```mermaid
 flowchart TD
-DStart(["Start"]) --> ReadData["Read binary data"]
-ReadData --> Init["Initialize address and end bounds"]
-Init --> Loop{"While addr < end"}
-Loop --> Fetch["Fetch opcode at base_addr+offset"]
-Fetch --> Lookup["Lookup mode/mnemonic/size"]
-Lookup --> Found{"Entry found?"}
-Found --> |Yes| ReadBytes["Read raw bytes for instruction"]
-ReadBytes --> Partial{"Enough bytes?"}
-Partial --> |No| EmitPartial["Emit truncated instruction"]
-Partial --> |Yes| FormatOp["Format operand by addressing mode"]
-FormatOp --> EmitLine["Emit formatted line"]
-EmitLine --> Advance["Advance by instruction size"]
-Found --> |No| EmitByte["Emit .byte fallback"]
-EmitByte --> Advance
-Advance --> Loop
-Loop --> DEnd(["Done"])
+Start(["Start"]) --> ReadAsm["Read structured assembly with procs"]
+ReadAsm --> ParseProcs["Parse .proc/.endproc boundaries"]
+ParseProcs --> TrackScopes["Track proc scopes and labels"]
+TrackScopes --> BuildSymbols["Build symbol table with scope info"]
+BuildSymbols --> ProcessLines["Process assembly lines with scope awareness"]
+ProcessLines --> HandleLabels["Handle cross-proc label references"]
+HandleLabels --> EmitAnnotations["Emit annotations respecting proc boundaries"]
+EmitAnnotations --> End(["Complete"])
 ```
 
 **Diagram sources**
-- [disasm_6502.py:286-334](file://tools/disasm_6502.py#L286-L334)
+- [localize_labels.py:379-414](file://tools/localize_labels.py#L379-L414)
+- [fix_labels.py:17-29](file://tools/fix_labels.py#L17-L29)
+
+### Cross-Proc Label Resolution
+The system handles complex label scoping across proc boundaries:
+
+- **Scope-Aware Symbol Resolution**: Maintains separate symbol tables for each proc scope with parent-child relationships.
+- **Cross-Reference Mapping**: Handles labels that reference functions or data across proc boundaries.
+- **Sub-label Conversion**: Converts function-local labels to @label syntax within appropriate proc contexts.
+- **Export/Import Declaration**: Manages function visibility with :: syntax for exported symbols.
 
 **Section sources**
-- [disasm_6502.py:10-87](file://tools/disasm_6502.py#L10-L87)
-- [disasm_6502.py:239-284](file://tools/disasm_6502.py#L239-L284)
-- [disasm_6502.py:286-334](file://tools/disasm_6502.py#L286-L334)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
 
-### Bank Stubs Generator
-Generates assembly stub files for each PRG bank that include the corresponding binary. This enables incremental replacement of stubs with annotated code during the disassembly process.
+## PRG Bank 17-18 Enhanced Pipeline
 
-**Section sources**
-- [generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46)
+### Paired Bank Processing
+The enhanced pipeline specifically handles the unique requirements of PRG banks 17-18:
 
-### ROM Splitter
-Parses the iNES header and splits PRG/CHR ROMs into 8KB banks, generating a combined PRG file and ROM metadata.
-
-**Section sources**
-- [split_rom.py:11-36](file://tools/split_rom.py#L11-L36)
-- [split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
-
-### Analysis Scripts
-Provide high-level insights into bank 0x1F, including vector tables, bank switching patterns, function boundaries, and data tables.
+- **Dual Bank Coordination**: Processes both $A000-$BFFF and $C000-$DFFF memory regions simultaneously.
+- **Cross-Bank Reference Tables**: Generates comprehensive cross-reference tables for addresses between banks.
+- **Mapper Configuration**: Includes proper Namco-163 mapper setup and bank switching macros.
+- **Segment Organization**: Organizes code into appropriate segments with proper bank alignment.
 
 **Section sources**
-- [analyze_bank_1f.py:4-67](file://tools/analyze_bank_1f.py#L4-L67)
-- [analyze_bank_1f.py:69-111](file://tools/analyze_bank_1f.py#L69-L111)
-- [analyze_bank_1f.py:112-153](file://tools/analyze_bank_1f.py#L112-L153)
+- [disasm_17_18.py:628-654](file://tools/disasm_17_18.py#L628-L654)
+- [disasm_17_18.py:654-700](file://tools/disasm_17_18.py#L654-L700)
+
+### Structured Assembly Generation
+Creates well-organized assembly code for PRG banks 17-18:
+
+- **Function-Based Organization**: Groups related code into logical functions with proper proc boundaries.
+- **Cross-Reference Documentation**: Documents all cross-bank references with clear address mappings.
+- **Memory Layout Clarity**: Clearly indicates which addresses belong to which bank and memory region.
+- **Bank Switching Integration**: Integrates bank switching macros and procedures for runtime operation.
+
+**Section sources**
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
 
 ## Dependency Analysis
-The enhanced annotation tool depends on:
-- The PRG bank binary for ground-truth opcode bytes and instruction boundaries.
-- The assembly source for instruction text and labels.
-- Include files for symbol definitions and macro expansions.
+The enhanced annotation system now includes dependencies for structured assembly processing:
 
 ```mermaid
 graph TB
 AN["annotate_asm.py"]
 BIN["rom/prg/prg_1f.bin"]
 ASM["asm/banks/prg_1f.asm"]
+ASM17_18["asm/banks/prg_17_18.asm"]
 INC["include/*.h"]
+PROC_TOOLS["proc_scope_17_18.py<br/>add_procs.py<br/>localize_labels.py<br/>fix_labels.py"]
 CA65["ca65 (verification)"]
-OUT["asm/banks/prg_1f_annotated.asm"]
+OUT["asm/banks/<br/>Structured annotated assembly"]
 AN --> BIN
 AN --> ASM
+AN --> ASM17_18
 AN --> INC
+AN --> PROC_TOOLS
 AN --> CA65
 AN --> OUT
 ```
 
 **Diagram sources**
 - [annotate_asm.py:415-426](file://tools/annotate_asm.py#L415-L426)
-- [Makefile:40-44](file://Makefile#L40-L44)
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [add_procs.py:1-50](file://tools/add_procs.py#L1-50)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+- [fix_labels.py:1-29](file://tools/fix_labels.py#L1-L29)
 
 **Section sources**
 - [annotate_asm.py:415-426](file://tools/annotate_asm.py#L415-L426)
-- [Makefile:40-44](file://Makefile#L40-L44)
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [add_procs.py:1-50](file://tools/add_procs.py#L1-L50)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+- [fix_labels.py:1-29](file://tools/fix_labels.py#L1-L29)
 
 ## Performance Considerations
-- **Enhanced Instruction Size Estimation**: Uses operand heuristics and symbol resolution; while efficient, it may require adjustments for complex addressing modes.
-- **Pre-disassembly Optimization**: The tool reads the entire binary and assembly file into memory once, then uses address-to-index mapping for O(1) lookups during annotation.
-- **Forward Search Algorithm**: Searches up to 3 instructions ahead to handle ROM divergence, adding minimal overhead while improving accuracy.
-- **Address Hint Parsing**: Improved parsing and symbol building occur once per run; caching or incremental updates could reduce overhead in iterative workflows.
-- **Verification via ca65**: Adds runtime but ensures correctness; consider conditional verification in CI or batch runs.
+The enhanced system introduces additional complexity for structured assembly processing:
+
+- **Multi-Pass Processing**: Structured assembly requires multiple processing passes for proper scope resolution and boundary detection.
+- **Enhanced Symbol Resolution**: Proc-aware symbol resolution adds computational overhead but improves accuracy.
+- **Cross-Proc Reference Handling**: Managing cross-proc references requires additional lookup and validation steps.
+- **Pipeline Integration**: Coordinating multiple transformation tools requires careful state management and dependency tracking.
+- **Memory Usage**: Storing proc boundaries and scope information increases memory requirements for large assembly files.
 
 ## Troubleshooting Guide
-Common issues and resolutions:
-- **Address Drift**: Use address-hint comments in assembly to resynchronize the annotation stream. The enhanced tool now supports range formats and exact resynchronization via addr_to_idx mapping.
-- **Mnemonic Mismatches**: The tool now uses forward search to compare up to 3 instructions ahead, improving accuracy when ROM has extra instructions not present in assembly.
-- **Symbol Resolution Failures**: Ensure include files are present and define required symbols; verify macro expansions do not interfere with symbol parsing.
-- **Verification Failures**: Confirm ca65 is installed and on PATH; check include paths and segment definitions.
-- **Output File Location**: The tool now writes to prg_1f_annotated.asm by default instead of overwriting the original prg_1f.asm.
+Enhanced troubleshooting for structured assembly processing:
+
+- **Proc Boundary Issues**: Use proc_scope_17_18.py to analyze and fix proc boundary detection problems.
+- **Cross-Proc Label Errors**: Run localize_labels.py to resolve remaining cross-proc label scope issues.
+- **Missing .endproc Directives**: The transform_final.py script automatically adds missing .endproc directives.
+- **Sub-label Conversion Problems**: Check transform_wrap.py for proper sub-label to @label conversion patterns.
+- **Bank 17-18 Cross-Reference Errors**: Verify disasm_17_18.py output for proper cross-reference table generation.
 
 **Section sources**
-- [annotate_asm.py:220-227](file://tools/annotate_asm.py#L220-L227)
-- [annotate_asm.py:488-518](file://tools/annotate_asm.py#L488-L518)
-- [annotate_asm.py:472-487](file://tools/annotate_asm.py#L472-L487)
-- [annotate_asm.py:579-599](file://tools/annotate_asm.py#L579-L599)
+- [proc_scope_17_18.py:222-224](file://tools/proc_scope_17_18.py#L222-L224)
+- [localize_labels.py:409-412](file://tools/localize_labels.py#L409-L412)
+- [transform_final.py:199-204](file://tools/transform_final.py#L199-L204)
+- [disasm_17_18.py:654-700](file://tools/disasm_17_18.py#L654-L700)
 
 ## Conclusion
-The enhanced automated annotation system significantly improves assembly readability by overlaying precise CPU addresses and verified opcode bytes onto annotated code. The new pre-disassembly engine with address-to-index mapping, forward search verification, and comprehensive output file management provides superior accuracy and reliability. It integrates seamlessly into the disassembly workflow, supports in-place editing with backups, and provides optional verification to maintain correctness. By combining heuristic instruction sizing, symbol resolution, ROM-grounded comparisons, and advanced address tracking, it accelerates code comprehension, simplifies maintenance, and facilitates collaborative reverse engineering efforts.
+The enhanced automated annotation system now provides comprehensive support for structured assembly code with .proc/.endproc blocks, significantly improving code organization and maintainability for complex reverse engineering projects. The new pipeline for PRG banks 17-18 demonstrates the system's ability to handle specialized memory layouts and cross-references while maintaining annotation accuracy. By integrating proc-aware symbol resolution, cross-proc label management, and intelligent boundary detection, the system accelerates code comprehension, simplifies maintenance workflows, and facilitates collaborative development in large-scale reverse engineering projects.
+
+**Updated**: The transition from B17_18_ naming conventions to cleaner function organization represents a significant improvement in code clarity and maintainability, making the annotated assembly more accessible to developers and researchers working on the Sangokushi 2 disassembly project.
 
 ## Appendices
 
-### Practical Usage Examples
-- **Enhanced Annotation Process**:
-  - Command: `python3 tools/annotate_asm.py [--in-place] [--verify]`
-  - Behavior: Reads prg_1f.bin and prg_1f.asm, performs pre-disassembly with address mapping, writes annotated output to prg_1f_annotated.asm, optionally verifies with ca65.
-- **Disassemble a Binary**:
-  - Command: `make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=1024`
-  - Behavior: Produces a formatted listing suitable for manual analysis or as input to annotation.
-- **Generate Bank Stubs**:
-  - Command: `make banks`
-  - Behavior: Creates prg_XX.asm stubs that include the corresponding binary for each PRG bank.
-- **Split ROM**:
-  - Command: `make split`
-  - Behavior: Splits the original ROM into PRG/CHR banks and generates rom_info.h and prg_combined.bin.
+### Enhanced Usage Examples
+- **Structured Assembly Annotation**:
+  - Command: `python3 tools/annotate_asm.py --proc-support`
+  - Behavior: Reads structured assembly with .proc/.endproc blocks, maintains scope information, and generates annotated output with proper proc boundaries.
+- **Bank 17-18 Processing Pipeline**:
+  - Command: `python3 tools/disasm_17_18.py && python3 tools/proc_scope_17_18.py`
+  - Behavior: Processes paired PRG banks with cross-references, generates structured assembly with proper proc organization.
+- **Proc Scope Management**:
+  - Command: `python3 tools/localize_labels.py && python3 tools/fix_labels.py`
+  - Behavior: Detects proc boundaries and fixes label scope issues for complex assembly hierarchies.
 
 **Section sources**
 - [annotate_asm.py:9-16](file://tools/annotate_asm.py#L9-L16)
-- [Makefile:64-66](file://Makefile#L64-L66)
-- [Makefile:51-53](file://Makefile#L51-L53)
-- [Makefile:55-57](file://Makefile#L55-L57)
+- [disasm_17_18.py:628-654](file://tools/disasm_17_18.py#L628-L654)
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+- [fix_labels.py:1-29](file://tools/fix_labels.py#L1-L29)
 
-### Customization Options
-- **In-place Editing**: Use --in-place to overwrite the original assembly file with a .bak backup.
-- **Verification**: Use --verify to run ca65 on the annotated output and confirm assembly success.
-- **Include Paths**: The tool searches include directories for symbol definitions; ensure include paths are correct.
-- **Output File**: The tool now writes to prg_1f_annotated.asm by default instead of overwriting prg_1f.asm.
+### Advanced Customization Options
+- **Proc-Aware Annotation**: Use --proc-support flag for structured assembly with proper scope handling.
+- **Cross-Proc Label Management**: Configure localize_labels.py patterns for custom sub-label conversion requirements.
+- **Bank-Specific Processing**: Use disasm_17_18.py for paired bank processing with cross-reference generation.
+- **Scope Verification**: Run proc_scope_17_18.py to verify proper proc boundary detection and scope resolution.
 
 **Section sources**
 - [annotate_asm.py:420-427](file://tools/annotate_asm.py#L420-L427)
-- [annotate_asm.py:579-599](file://tools/annotate_asm.py#L579-L599)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+- [disasm_17_18.py:628-654](file://tools/disasm_17_18.py#L628-L654)
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
 
-### Relationship to Disassembly Workflow
-- **Enhanced Workflow**: Start with ROM splitting and bank stub generation, disassemble selected banks to obtain initial listings, replace stubs with enhanced annotated assembly for improved readability, integrate annotated assembly into the build system, and verify byte-exact matches with the enhanced verification process.
+### Enhanced Relationship to Disassembly Workflow
+The new structured assembly pipeline integrates seamlessly with the enhanced annotation system:
+
+- **Multi-Stage Processing**: ROM splitting → Bank-specific disassembly → Structured transformation → Proc scope management → Enhanced annotation → Verified output.
+- **Bank-Specific Tools**: Specialized tools for PRG banks 17-18 with cross-reference handling and mapper configuration.
+- **Proc-Aware Annotation**: Annotation system now understands and preserves .proc/.endproc boundaries while adding comprehensive annotations.
+- **Scope Resolution Integration**: Cross-proc label resolution is handled automatically during the transformation pipeline.
 
 **Section sources**
-- [PROJECT.md:134-151](file://PROJECT.md#L134-L151)
-- [Makefile:51-75](file://Makefile#L51-L75)
+- [disasm_17_18.py:628-654](file://tools/disasm_17_18.py#L628-L654)
+- [proc_scope_17_18.py:1-50](file://tools/proc_scope_17_18.py#L1-L50)
+- [localize_labels.py:372-421](file://tools/localize_labels.py#L372-L421)
+- [annotate_asm.py:1-16](file://tools/annotate_asm.py#L1-L16)

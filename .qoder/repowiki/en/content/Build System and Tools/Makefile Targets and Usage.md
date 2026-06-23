@@ -11,6 +11,13 @@
 - [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [tools/disasm_17_18.py](file://tools/disasm_17_18.py)
 - [tools/disasm_6502.py](file://tools/disasm_6502.py)
+- [tools/analyze_17_18.py](file://tools/analyze_17_18.py)
+- [tools/proc_scope_17_18.py](file://tools/proc_scope_17_18.py)
+- [tools/transform_17_18.py](file://tools/transform_17_18.py)
+- [tools/add_procs.py](file://tools/add_procs.py)
+- [tools/align_comments.py](file://tools/align_comments.py)
+- [tools/annotate_asm.py](file://tools/annotate_asm.py)
+- [tools/localize_labels.py](file://tools/localize_labels.py)
 - [asm/main.asm](file://asm/main.asm)
 - [include/macros.h](file://include/macros.h)
 - [include/namco163.h](file://include/namco163.h)
@@ -23,10 +30,10 @@
 
 ## Update Summary
 **Changes Made**
-- Added documentation for new test_17_18.cfg configuration file for combined bank structure testing
-- Updated unified disassembly workflow targeting banks 17 and 18
-- Enhanced Makefile targets section with new configuration files and disassembly capabilities
-- Added comprehensive coverage of the new prg_17_18.asm combined assembly file
+- Added documentation for new unified disassembly target for paired PRG banks 17 and 18
+- Enhanced transformation pipeline documentation with semantic naming and .proc/.endproc organization
+- Integrated new tools for automated code modernization including transform_17_18.py, proc_scope_17_18.py, and supporting utilities
+- Updated Makefile targets section to reflect the complete build orchestration system with enhanced toolchain integration
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -40,16 +47,17 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the complete build orchestration system centered around the Makefile. It covers all targets, their purpose, dependencies, execution flow, and practical usage. It also documents toolchain integration with ca65 and ld65, flag configurations, directory structure management, and the relationship between targets in the development workflow. The system now includes enhanced support for unified disassembly workflows targeting paired PRG banks 17 and 18, along with new configuration files for testing combined bank structures.
+This document explains the complete build orchestration system centered around the Makefile. It covers all targets, their purpose, dependencies, execution flow, and practical usage. It also documents toolchain integration with ca65 and ld65, flag configurations, directory structure management, and the relationship between targets in the development workflow. The system now includes enhanced support for unified disassembly workflows targeting paired PRG banks 17 and 18, along with new configuration files for testing combined bank structures and an integrated transformation pipeline for automated code modernization.
 
 ## Project Structure
-The project follows a layered structure with enhanced support for unified disassembly:
+The project follows a layered structure with enhanced support for unified disassembly and automated code modernization:
 - Source assembly and includes under asm/ and include/
 - Build outputs under build/ with new test configurations
 - ROM split outputs under rom/
-- Tools under tools/ implementing ROM splitting, disassembly, analysis, verification, and ROM building
+- Tools under tools/ implementing ROM splitting, disassembly, analysis, verification, ROM building, and automated transformation pipelines
 - Linker configuration under linker.cfg and new test configurations under build/
-- Unified disassembly support for paired banks 17 and 18
+- Unified disassembly support for paired banks 17 and 18 with combined memory mapping
+- Automated transformation pipeline for semantic naming and .proc/.endproc organization
 
 ```mermaid
 graph TB
@@ -68,6 +76,13 @@ A --> M["tools/build_nes.py"]
 A --> N["test_17_18.cfg"]
 A --> O["build/test_17_18.cfg"]
 A --> P["test_linker.cfg"]
+A --> Q["tools/transform_17_18.py"]
+A --> R["tools/proc_scope_17_18.py"]
+A --> S["tools/analyze_17_18.py"]
+A --> T["tools/add_procs.py"]
+A --> U["tools/align_comments.py"]
+A --> V["tools/annotate_asm.py"]
+A --> W["tools/localize_labels.py"]
 ```
 
 **Diagram sources**
@@ -85,6 +100,8 @@ A --> P["test_linker.cfg"]
 - Directory structure: build/ with test configurations, asm/, include/, rom/, tools/.
 - Linker configuration: Defines 4 PRG slots ($8000-$FFFF) and segments for code/data, plus new test configurations for unified bank disassembly.
 - Unified disassembly: Specialized support for paired PRG banks 17 and 18 with combined memory mapping.
+- Transformation pipeline: Automated tools for semantic naming, .proc/.endproc organization, and code modernization.
+- Enhanced analysis tools: Specialized analyzers for unified bank assembly files.
 
 **Section sources**
 - [Makefile:7-28](file://Makefile#L7-L28)
@@ -93,7 +110,7 @@ A --> P["test_linker.cfg"]
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
 
 ## Architecture Overview
-The build pipeline integrates assembly, linking, ROM construction, and verification with enhanced support for unified disassembly workflows. The Makefile orchestrates these steps and delegates specialized tasks to Python tools, including new unified disassembly for paired PRG banks.
+The build pipeline integrates assembly, linking, ROM construction, and verification with enhanced support for unified disassembly workflows and automated code modernization. The Makefile orchestrates these steps and delegates specialized tasks to Python tools, including new unified disassembly for paired PRG banks and comprehensive transformation pipelines.
 
 ```mermaid
 sequenceDiagram
@@ -103,6 +120,7 @@ participant CA as "ca65"
 participant LD as "ld65"
 participant PY as "Python Tools"
 participant UNI as "Unified Disassembly"
+participant TRANS as "Transformation Pipeline"
 participant OUT as "Artifacts"
 Dev->>MK : make all
 MK->>CA : assemble asm/main.asm
@@ -114,6 +132,9 @@ PY-->>OUT : build/sango2.nes
 Dev->>MK : make disasm_unified
 MK->>UNI : disasm_17_18.py (banks 17+18)
 UNI-->>OUT : asm/banks/prg_17_18.asm
+Dev->>MK : make transform_17_18
+MK->>TRANS : transform_17_18.py + proc_scope_17_18.py
+TRANS-->>OUT : Enhanced prg_17_18.asm with semantic naming
 Dev->>MK : make verify
 MK->>PY : verify_rom.py original.nes build/sango2.nes
 PY-->>Dev : comparison results
@@ -124,6 +145,8 @@ PY-->>Dev : comparison results
 - [tools/disasm_17_18.py:1-710](file://tools/disasm_17_18.py#L1-L710)
 - [tools/build_nes.py:10-51](file://tools/build_nes.py#L10-L51)
 - [tools/verify_rom.py:10-51](file://tools/verify_rom.py#L10-L51)
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
 
 ## Detailed Component Analysis
 
@@ -209,7 +232,7 @@ PY-->>Dev : comparison results
 - [tools/disasm_6502.py:1-363](file://tools/disasm_6502.py#L1-L363)
 
 ### Target: disasm_unified (Unified Disassembly for Banks 17-18)
-- Purpose: Perform unified disassembly of paired PRG banks 17 and 18 ($A000-$DFFF) using specialized recursive descent analysis.
+- Purpose: Perform unified disassembly of paired PRG banks 17 and 18 ($A000-$DFFF) using specialized recursive descent analysis with enhanced transformation pipeline.
 - Dependencies: tools/disasm_17_18.py, test_17_18.cfg, build/test_17_18.cfg
 - Execution flow:
   - Load prg_17.bin and prg_18.bin from rom/prg/
@@ -218,23 +241,53 @@ PY-->>Dev : comparison results
   - Trace code from entry points including jump tables and discovered patterns
   - Generate prg_17_18.asm with cross-references and inline tables
   - Create separate output files for bank 17 and bank 18
+  - Apply transformation pipeline for semantic naming and .proc/.endproc organization
 - Configuration files:
   - test_17_18.cfg: Memory layout for combined bank testing
   - build/test_17_18.cfg: Linker configuration for unified bank disassembly
 - Expected outputs:
-  - asm/banks/prg_17_18.asm (combined assembly)
+  - asm/banks/prg_17_18.asm (enhanced with semantic naming and .proc/.endproc)
   - Individual bank assembly files in asm/banks/
 - Practical usage:
   - make disasm_unified
   - Requires split ROM to be generated first (make split)
+  - Followed by make transform_17_18 for automated modernization
 
-**Updated** Added new unified disassembly target for paired PRG banks 17 and 18
+**Updated** Enhanced with integrated transformation pipeline for semantic naming and .proc/.endproc organization
 
 **Section sources**
 - [Makefile:63-65](file://Makefile#L63-L65)
 - [tools/disasm_17_18.py:1-710](file://tools/disasm_17_18.py#L1-L710)
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
+
+### Target: transform_17_18 (Automated Code Modernization)
+- Purpose: Apply comprehensive transformation pipeline to prg_17_18.asm for semantic naming, .proc/.endproc organization, and code modernization.
+- Dependencies: tools/transform_17_18.py, tools/proc_scope_17_18.py, tools/analyze_17_18.py, tools/add_procs.py, tools/align_comments.py, tools/annotate_asm.py, tools/localize_labels.py
+- Execution flow:
+  - Run transform_17_18.py for section headers and semantic naming
+  - Apply proc_scope_17_18.py for .proc/.endproc organization
+  - Execute analyze_17_18.py for function boundary analysis
+  - Use add_procs.py for additional procedure organization
+  - Apply align_comments.py for code formatting
+  - Run annotate_asm.py for enhanced assembly annotations
+  - Execute localize_labels.py for label localization
+- Expected outputs:
+  - Enhanced prg_17_18.asm with semantic B17_18_ naming
+  - Proper .proc/.endproc scoping
+  - Organized code structure with inline dispatch tables
+- Practical usage:
+  - make transform_17_18
+  - Requires disasm_unified to be executed first
+
+**Section sources**
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
+- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
+- [tools/add_procs.py](file://tools/add_procs.py)
+- [tools/align_comments.py](file://tools/align_comments.py)
+- [tools/annotate_asm.py](file://tools/annotate_asm.py)
+- [tools/localize_labels.py](file://tools/localize_labels.py)
 
 ### Target: analyze (ROM Analysis)
 - Purpose: Analyze ROM structure to identify banks, code density, and potential entry points.
@@ -291,11 +344,12 @@ PY-->>Dev : comparison results
 - [Makefile:77-80](file://Makefile#L77-L80)
 
 ## Dependency Analysis
-The Makefile orchestrates a clear dependency chain with enhanced support for unified disassembly:
+The Makefile orchestrates a clear dependency chain with enhanced support for unified disassembly and automated transformation:
 - all depends on $(OUTPUT) which depends on $(PRG_BIN)
 - $(PRG_BIN) depends on asm/main.asm, include files, and linker.cfg
 - $(OUTPUT) depends on $(PRG_BIN) and is produced by build_nes.py
 - disasm_unified depends on split ROM and uses specialized configuration files
+- transform_17_18 depends on disasm_unified and applies comprehensive transformation pipeline
 - Other targets (split, banks, disasm, analyze, verify) are independent and support the workflow
 
 ```mermaid
@@ -309,8 +363,8 @@ SPLIT["tools/split_rom.py"] --> ROMDIR["rom/"]
 BANKS["tools/generate_bank_stubs.py"] --> ASMBANKS["asm/banks/*"]
 DISASM["tools/disasm_6502.py"] --> OUTDISASM["analysis outputs"]
 UNIDISASM["tools/disasm_17_18.py"] --> COMBINED["asm/banks/prg_17_18.asm"]
-TESTCFG["test_17_18.cfg"] --> UNIDISASM
-BUILDCFG["build/test_17_18.cfg"] --> UNIDISASM
+TRANS["tools/transform_17_18.py"] --> MODERNIZED["Enhanced prg_17_18.asm"]
+PROCSCOPE["tools/proc_scope_17_18.py"] --> PROCSCOPED[".proc/.endproc organized"]
 ANALYZE["tools/analyze_rom.py"] --> OUTANALYZE["analysis report"]
 VERIFY["tools/verify_rom.py"] --> COMPARE["comparison results"]
 ```
@@ -319,6 +373,8 @@ VERIFY["tools/verify_rom.py"] --> COMPARE["comparison results"]
 - [Makefile:37-48](file://Makefile#L37-L48)
 - [tools/build_nes.py:10-51](file://tools/build_nes.py#L10-L51)
 - [tools/disasm_17_18.py:1-710](file://tools/disasm_17_18.py#L1-L710)
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
 
 **Section sources**
 - [Makefile:37-48](file://Makefile#L37-L48)
@@ -329,6 +385,8 @@ VERIFY["tools/verify_rom.py"] --> COMPARE["comparison results"]
 - Keeping linker.cfg minimal and adding segments incrementally avoids unnecessary re-linking.
 - Unified disassembly for banks 17-18 requires loading 16KB combined buffers but provides more accurate cross-referencing.
 - Test configurations allow isolated testing of combined bank structures without affecting main build process.
+- The transformation pipeline processes large assembly files but provides significant code organization benefits.
+- Automated tools reduce manual effort in code modernization while maintaining accuracy.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -353,6 +411,10 @@ Common issues and resolutions:
 - Unified disassembly failures:
   - Verify that split ROM has been generated (make split) before running unified disassembly.
   - Check that test_17_18.cfg and build/test_17_18.cfg are accessible and properly formatted.
+- Transformation pipeline issues:
+  - Ensure disasm_unified has been executed successfully before running transform_17_18.
+  - Verify that all transformation tools are executable and properly configured.
+  - Check that prg_17_18.asm exists in asm/banks/ before running transformations.
 
 Environment setup checklist:
 - Install cc65 (ca65, ld65)
@@ -360,10 +422,11 @@ Environment setup checklist:
 - Ensure tools/ scripts are executable
 - Place original ROM file as expected by tools
 - For unified disassembly: ensure rom/prg/ contains prg_17.bin and prg_18.bin
+- For transformation pipeline: ensure all Python tools are available and properly configured
 
 **Section sources**
 - [Makefile:4-10](file://Makefile#L4-L10)
 - [PROJECT.md:49-57](file://PROJECT.md#L49-L57)
 
 ## Conclusion
-The Makefile provides a robust, modular build system integrating assembly, linking, ROM construction, and verification with enhanced support for unified disassembly workflows. The new test_17_18.cfg configuration and disasm_17_18.py tool enable sophisticated analysis of paired PRG banks 17 and 18, providing accurate cross-referencing and inline table detection. Targets support a structured workflow: split ROM, generate bank stubs, perform unified disassembly for critical bank pairs, analyze, and verify. By following the documented dependencies, parameters, and troubleshooting steps, developers can efficiently manage the disassembly process and maintain byte-exact fidelity to the original ROM while leveraging the new unified disassembly capabilities for complex bank interactions.
+The Makefile provides a robust, modular build system integrating assembly, linking, ROM construction, and verification with enhanced support for unified disassembly workflows and automated code modernization. The new test_17_18.cfg configuration and disasm_17_18.py tool enable sophisticated analysis of paired PRG banks 17 and 18, providing accurate cross-referencing and inline table detection. The integrated transformation pipeline with tools like transform_17_18.py and proc_scope_17_18.py provides semantic naming, .proc/.endproc organization, and comprehensive code modernization. Targets support a structured workflow: split ROM, generate bank stubs, perform unified disassembly for critical bank pairs, apply automated transformation pipeline, analyze, and verify. By following the documented dependencies, parameters, and troubleshooting steps, developers can efficiently manage the disassembly process and maintain byte-exact fidelity to the original ROM while leveraging the new unified disassembly capabilities and automated modernization tools for complex bank interactions.

@@ -93,7 +93,7 @@ addr_trampoline_saved_bank = $0058              ; Trampoline saved bank
 ; Entry07 ($A015):
   JMP OverlayWindow                                           ; $A015: 4C F0 AE
 ; Entry08 ($A018):
-  JMP AdvisorDialogue                                           ; $A018: 4C 83 A9
+  JMP SetupAdvisorTiles                                           ; $A018: 4C 83 A9
 ; Entry09 ($A01B):
   JMP MainGameDispatch                                           ; $A01B: 4C 00 B1
 ; Entry0A ($A01E):
@@ -553,7 +553,7 @@ DisplayScrollLoop:
   LDA #$1E                                            ; $A318: A9 1E
 @loop:
   PHA                                                 ; $A31A: 48
-  JSR Sub_A485                                           ; $A31B: 20 85 A4
+  JSR RenderSceneVert::SetupRenderVert                                           ; $A31B: 20 85 A4
   JSR Sub_AD9F                                           ; $A31E: 20 9F AD
 @loop_2:
   JSR B1F_NmiSubDispatchAlt                           ; $A321: 20 E6 EE
@@ -639,7 +639,7 @@ DisplayAndChrSetup:
   CMP a:$0092                                         ; $A3A5: CD 92 00
   BEQ @skip_3                                           ; $A3A8: F0 06
   STA a:$0092                                         ; $A3AA: 8D 92 00
-  JSR DisplayRenderScene                                           ; $A3AD: 20 BC A3
+  JSR SceneRenderDispatch                                           ; $A3AD: 20 BC A3
 @skip_3:
   RTS                                                 ; $A3B0: 60
 .endproc
@@ -652,29 +652,47 @@ DisplayAndChrSetup:
 DisplayUpdateScroll:
   LDA a:$009C                                         ; $A3B1: AD 9C 00
   BPL @skip                                           ; $A3B4: 10 03
-  JMP Sub_A465                                           ; $A3B6: 4C 65 A4
+  JMP RenderSceneHoriz::AdjustScrollAndRender                                           ; $A3B6: 4C 65 A4
 @skip:
-  JMP Sub_A3C9                                           ; $A3B9: 4C C9 A3
+  JMP RenderSceneHoriz::CopyScrollRegs                           ; $A3B9: 4C C9 A3
 .endproc
-
 ;===============================================================================
-; $A3BC: DisplayRenderScene
-; Display render scene (bank switching + rendering + helpers)
+; $A3BC: SceneRenderDispatch
+; Entry05 dispatcher. Routes to horizontal or vertical rendering path
+; based on bit 5 of controller state $009C.
+;-------------------------------------------------------------------------------
+; Inputs:  $009C = controller/button state
+; Output:  dispatches to RenderSceneVert::SetupRenderVert (bit 5 clear) or RenderSceneVert::AdjustYAndRender (set)
 ;===============================================================================
-.proc DisplayRenderScene
-DisplayRenderScene:
+.proc SceneRenderDispatch
+SceneRenderDispatch:
   LDA a:$009C                                         ; $A3BC: AD 9C 00
   AND #$20                                            ; $A3BF: 29 20
   BNE @skip                                           ; $A3C1: D0 03
-  JMP Sub_A485                                           ; $A3C3: 4C 85 A4
+  JMP RenderSceneVert::SetupRenderVert                                           ; $A3C3: 4C 85 A4
 @skip:
-  JMP Sub_A51C                                           ; $A3C6: 4C 1C A5
+  JMP RenderSceneVert::AdjustYAndRender                                           ; $A3C6: 4C 1C A5
 .endproc
 ;===============================================================================
-; $A3C9: Sub_A3C9
+; $A3C9: RenderSceneHoriz
+; Main scene rendering loop for horizontal layout. Processes a 16x16 metatile
+; grid. For each metatile: computes VRAM address via CopyTileRowHoriz::CalcTileAddrHoriz, copies
+; tile data via CopyTileRowHoriz::CopyTileRowHoriz, then calls BattleAttrAndHelpers for attribute
+; tables. Sets NMI control bit $80 on completion.
+;-------------------------------------------------------------------------------
+; Three entry points:
+;   CopyScrollRegs ($A3C9): copies $008E-$0091 to $000C-$000F, then renders
+;   @main ($A3E1): assumes $000C-$000F already set up
+;   AdjustScrollAndRender ($A465): adjust scroll X by -8, set up $000C-$000F,
+;                                  then JMP @main
+; Inputs:  $008E-$0091 = scroll registers (via CopyScrollRegs/AdjustScrollAndRender)
+;          $000C-$000F = scroll registers (via @main entry)
+;          $007E = NMI control
+; Output:  tile data written to PPU buffer, NMI bit $80 set
+; Notes:   16 columns x 16 rows metatile grid
 ;===============================================================================
-.proc Sub_A3C9
-Sub_A3C9:
+.proc RenderSceneHoriz
+CopyScrollRegs:
   LDA a:$008E                                         ; $A3C9: AD 8E 00
   STA a:$000C                                         ; $A3CC: 8D 0C 00
   LDA a:$008F                                         ; $A3CF: AD 8F 00
@@ -683,26 +701,21 @@ Sub_A3C9:
   STA a:$000E                                         ; $A3D8: 8D 0E 00
   LDA a:$0091                                         ; $A3DB: AD 91 00
   STA a:$000F                                         ; $A3DE: 8D 0F 00
-.endproc
-;===============================================================================
-; $A3E1: Sub_A3E1
-;===============================================================================
-.proc Sub_A3E1
-Sub_A3E1:
+@main:
   LDA a:$007E                                         ; $A3E1: AD 7E 00
   BPL @skip                                           ; $A3E4: 10 01
   RTS                                                 ; $A3E6: 60
 @skip:
-  JSR Sub_A604                                           ; $A3E7: 20 04 A6
+  JSR BankPtrLookup                                           ; $A3E7: 20 04 A6
   STY a:$001A                                         ; $A3EA: 8C 1A 00
-  JSR Sub_A61F                                           ; $A3ED: 20 1F A6
+  JSR BattleResolve                                           ; $A3ED: 20 1F A6
   LDA a:$001A                                         ; $A3F0: AD 1A 00
   CLC                                                 ; $A3F3: 18
   ADC #$02                                            ; $A3F4: 69 02
   TAY                                                 ; $A3F6: A8
   LDA ($A8),Y                                         ; $A3F7: B1 A8
   STA a:$0010                                         ; $A3F9: 8D 10 00
-  JSR LA93F                                           ; $A3FC: 20 3F A9
+  JSR InitTileGridHoriz                               ; $A3FC: 20 3F A9
   LDX #$00                                            ; $A3FF: A2 00
   STX a:$0006                                         ; $A401: 8E 06 00
   STX a:$0007                                         ; $A404: 8E 07 00
@@ -720,7 +733,7 @@ Sub_A3E1:
 @loop:
   LDY a:$0005                                         ; $A41D: AC 05 00
   LDA ($00),Y                                         ; $A420: B1 00
-  JSR LA545                                           ; $A422: 20 45 A5
+  JSR CopyTileRowHoriz::CalcTileAddrHoriz                                           ; $A422: 20 45 A5
   INC a:$0019                                         ; $A425: EE 19 00
   LDA a:$0005                                         ; $A428: AD 05 00
   CLC                                                 ; $A42B: 18
@@ -730,7 +743,7 @@ Sub_A3E1:
   AND #$0F                                            ; $A432: 29 0F
   PHA                                                 ; $A434: 48
   LDA a:$0010                                         ; $A435: AD 10 00
-  JSR Sub_A61F                                           ; $A438: 20 1F A6
+  JSR BattleResolve                                           ; $A438: 20 1F A6
   INC a:$0007                                         ; $A43B: EE 07 00
   INC a:$0019                                         ; $A43E: EE 19 00
   PLA                                                 ; $A441: 68
@@ -749,12 +762,7 @@ Sub_A3E1:
   ORA #$80                                            ; $A45F: 09 80
   STA a:$007E                                         ; $A461: 8D 7E 00
   RTS                                                 ; $A464: 60
-.endproc
-;===============================================================================
-; $A465: Sub_A465
-;===============================================================================
-.proc Sub_A465
-Sub_A465:
+AdjustScrollAndRender:
   LDA a:$008E                                         ; $A465: AD 8E 00
   CLC                                                 ; $A468: 18
   ADC #$F8                                            ; $A469: 69 F8
@@ -766,13 +774,27 @@ Sub_A465:
   STA a:$000E                                         ; $A479: 8D 0E 00
   LDA a:$0091                                         ; $A47C: AD 91 00
   STA a:$000F                                         ; $A47F: 8D 0F 00
-  JMP Sub_A3E1                                           ; $A482: 4C E1 A3
+  JMP @main                                           ; $A482: 4C E1 A3
 .endproc
 ;===============================================================================
-; $A485: Sub_A485
+; $A485: RenderSceneVert
+; Main scene rendering loop for vertical layout. Processes a 17-column metatile
+; grid with per-row tile data. Uses CopyTileRowVert::CopyTileRowVert for tile copying.
+; Sets NMI control bit $40 on completion.
+;-------------------------------------------------------------------------------
+; Three entry points:
+;   SetupRenderVert ($A485): copies $008E-$0091 to $000C-$000F, then renders
+;   @main ($A49A): assumes $000C-$000F already set up
+;   AdjustYAndRender ($A51C): adjust Y by +$F0 (-16), set up $000C-$000F,
+;                             then JMP @main
+; Inputs:  $008E-$0091 = scroll registers (via SetupRenderVert/AdjustYAndRender)
+;          $000C-$000F = scroll registers (via @main entry)
+;          $007E = NMI control
+; Output:  tile data written to PPU buffer, NMI bit $40 set
+; Notes:   17 columns metatile grid
 ;===============================================================================
-.proc Sub_A485
-Sub_A485:
+.proc RenderSceneVert
+SetupRenderVert:
   LDA a:$008E                                         ; $A485: AD 8E 00
   STA a:$000C                                         ; $A488: 8D 0C 00
   LDA a:$008F                                         ; $A48B: AD 8F 00
@@ -780,26 +802,22 @@ Sub_A485:
   LDA a:$0091                                         ; $A491: AD 91 00
   STA a:$000F                                         ; $A494: 8D 0F 00
   LDA a:$0090                                         ; $A497: AD 90 00
-.endproc
-;===============================================================================
-; $A49A: Sub_A49A
-;===============================================================================
-.proc Sub_A49A
-Sub_A49A:
+  ; NOTE: falls through into @main (no RTS)
+@main:
   STA a:$000E                                         ; $A49A: 8D 0E 00
   LDA a:$007E                                         ; $A49D: AD 7E 00
   ASL A                                               ; $A4A0: 0A
   BPL @skip                                           ; $A4A1: 10 01
   RTS                                                 ; $A4A3: 60
 @skip:
-  JSR Sub_A604                                           ; $A4A4: 20 04 A6
+  JSR BankPtrLookup                                           ; $A4A4: 20 04 A6
   STY a:$001A                                         ; $A4A7: 8C 1A 00
-  JSR Sub_A61F                                           ; $A4AA: 20 1F A6
+  JSR BattleResolve                                           ; $A4AA: 20 1F A6
   LDY a:$001A                                         ; $A4AD: AC 1A 00
   INY                                                 ; $A4B0: C8
   LDA ($A8),Y                                         ; $A4B1: B1 A8
   STA a:$0010                                         ; $A4B3: 8D 10 00
-  JSR LA961                                           ; $A4B6: 20 61 A9
+  JSR InitTileGridVert                                ; $A4B6: 20 61 A9
   LDA a:$000C                                         ; $A4B9: AD 0C 00
   LSR A                                               ; $A4BC: 4A
   LSR A                                               ; $A4BD: 4A
@@ -816,7 +834,7 @@ Sub_A49A:
 @loop:
   LDY a:$0005                                         ; $A4D4: AC 05 00
   LDA ($00),Y                                         ; $A4D7: B1 00
-  JSR LA5A5                                           ; $A4D9: 20 A5 A5
+  JSR CopyTileRowVert::CalcTileAddrVert                                           ; $A4D9: 20 A5 A5
   INC a:$0018                                         ; $A4DC: EE 18 00
   LDA a:$0005                                         ; $A4DF: AD 05 00
   INC a:$0005                                         ; $A4E2: EE 05 00
@@ -824,7 +842,7 @@ Sub_A49A:
   CMP #$0F                                            ; $A4E7: C9 0F
   BNE @skip_2                                           ; $A4E9: D0 11
   LDA a:$0010                                         ; $A4EB: AD 10 00
-  JSR Sub_A61F                                           ; $A4EE: 20 1F A6
+  JSR BattleResolve                                           ; $A4EE: 20 1F A6
   DEC a:$0005                                         ; $A4F1: CE 05 00
   LDA a:$0005                                         ; $A4F4: AD 05 00
   AND #$F0                                            ; $A4F7: 29 F0
@@ -843,12 +861,7 @@ Sub_A49A:
   ORA #$40                                            ; $A516: 09 40
   STA a:$007E                                         ; $A518: 8D 7E 00
   RTS                                                 ; $A51B: 60
-.endproc
-;===============================================================================
-; $A51C: Sub_A51C
-;===============================================================================
-.proc Sub_A51C
-Sub_A51C:
+AdjustYAndRender:
   LDA a:$008E                                         ; $A51C: AD 8E 00
   STA a:$000C                                         ; $A51F: 8D 0C 00
   LDA a:$008F                                         ; $A522: AD 8F 00
@@ -859,15 +872,33 @@ Sub_A51C:
   LDA a:$0090                                         ; $A531: AD 90 00
   CLC                                                 ; $A534: 18
   ADC #$F0                                            ; $A535: 69 F0
-  BCS @skip                                           ; $A537: B0 06
+  BCS @skip_3                                           ; $A537: B0 06
   SEC                                                 ; $A539: 38
   SBC #$10                                            ; $A53A: E9 10
   DEC a:$000F                                         ; $A53C: CE 0F 00
-@skip:
+@skip_3:
   STA a:$000E                                         ; $A53F: 8D 0E 00
-  JMP Sub_A49A                                           ; $A542: 4C 9A A4
-LA545:
-  JSR LA8FD                                           ; $A545: 20 FD A8
+  JMP @main                                           ; $A542: 4C 9A A4
+.endproc
+
+;===============================================================================
+; $A545: CopyTileRowHoriz
+; Computes VRAM tile address and copies one metatile row (2 bytes) to sprite
+; buffer at $0142+X. Handles horizontal attribute mirroring based on $0006
+; and $000E bit 3.
+;-------------------------------------------------------------------------------
+; Two entry points:
+;   CalcTileAddrHoriz ($A545): computes VRAM addr from metatile index, then copies
+;   CopyTileRowHoriz ($A565): assumes $0008/$0009 already set, copies directly
+; Inputs:  A = metatile index, $0002/$0003 = base address (via CalcTileAddrHoriz)
+;          $0008/$0009 = source tile address (via CopyTileRowHoriz)
+;          X = dest buffer offset
+; Output:  2 bytes written to $0142+X, X advanced by 2
+; Notes:   mirroring controlled by $0006 and $000E bit 3
+;===============================================================================
+.proc CopyTileRowHoriz
+CalcTileAddrHoriz:
+  JSR CHRDataTable                                     ; $A545: 20 FD A8
   LDY #$00                                            ; $A548: A0 00
   STY a:$0009                                         ; $A54A: 8C 09 00
   ASL A                                               ; $A54D: 0A
@@ -880,12 +911,7 @@ LA545:
   LDA a:$0009                                         ; $A55C: AD 09 00
   ADC a:$0003                                         ; $A55F: 6D 03 00
   STA a:$0009                                         ; $A562: 8D 09 00
-.endproc
-;===============================================================================
-; $A565: Sub_A565
-;===============================================================================
-.proc Sub_A565
-Sub_A565:
+CopyTileRowHoriz:
   LDY #$00                                            ; $A565: A0 00
   LDA a:$000C                                         ; $A567: AD 0C 00
   AND #$08                                            ; $A56A: 29 08
@@ -924,8 +950,26 @@ Sub_A565:
   STA $0142,X                                         ; $A5A0: 9D 42 01
   INX                                                 ; $A5A3: E8
   RTS                                                 ; $A5A4: 60
-LA5A5:
-  JSR LA91E                                           ; $A5A5: 20 1E A9
+.endproc
+
+;===============================================================================
+; $A5A5: CopyTileRowVert
+; Computes VRAM tile address and copies one metatile row (2 bytes) to sprite
+; buffer at $0166+X. Handles vertical attribute mirroring based on $0006
+; and $000C bit 3.
+;-------------------------------------------------------------------------------
+; Two entry points:
+;   CalcTileAddrVert ($A5A5): computes VRAM addr from metatile index, then copies
+;   CopyTileRowVert ($A5C5): assumes $0008/$0009 already set, copies directly
+; Inputs:  A = metatile index, $0002/$0003 = base address (via CalcTileAddrVert)
+;          $0008/$0009 = source tile address (via CopyTileRowVert)
+;          X = dest buffer offset
+; Output:  2 bytes written to $0166+X, X advanced by 2
+; Notes:   mirroring controlled by $0006 and $000C bit 3
+;===============================================================================
+.proc CopyTileRowVert
+CalcTileAddrVert:
+  JSR DispatchTileRowVert                             ; $A5A5: 20 1E A9
   LDY #$00                                            ; $A5A8: A0 00
   STY a:$0009                                         ; $A5AA: 8C 09 00
   ASL A                                               ; $A5AD: 0A
@@ -938,12 +982,7 @@ LA5A5:
   LDA a:$0009                                         ; $A5BC: AD 09 00
   ADC a:$0003                                         ; $A5BF: 6D 03 00
   STA a:$0009                                         ; $A5C2: 8D 09 00
-.endproc
-;===============================================================================
-; $A5C5: Sub_A5C5
-;===============================================================================
-.proc Sub_A5C5
-Sub_A5C5:
+CopyTileRowVert:
   LDY #$00                                            ; $A5C5: A0 00
   LDA a:$000E                                         ; $A5C7: AD 0E 00
   AND #$08                                            ; $A5CA: 29 08
@@ -982,11 +1021,17 @@ Sub_A5C5:
   INX                                                 ; $A602: E8
   RTS                                                 ; $A603: 60
 .endproc
+
 ;===============================================================================
-; $A604: Sub_A604
+; $A604: BankPtrLookup
+; Computes bank pointer offset: Y = ($000F << 1) + $000D, then loads byte from
+; ($00A8),Y. Used for metatile-to-tile address table lookups.
+;-------------------------------------------------------------------------------
+; Inputs:  $000F = row index, $000D = column offset, $00A8 = table pointer
+; Output:  A = looked-up byte, Y = computed offset
 ;===============================================================================
-.proc Sub_A604
-Sub_A604:
+.proc BankPtrLookup
+BankPtrLookup:
   LDA a:$000F                                         ; $A604: AD 0F 00
   ASL A                                               ; $A607: 0A
   CLC                                                 ; $A608: 18
@@ -994,7 +1039,17 @@ Sub_A604:
   TAY                                                 ; $A60C: A8
   LDA ($A8),Y                                         ; $A60D: B1 A8
   RTS                                                 ; $A60F: 60
-LA610:
+.endproc
+;===============================================================================
+; $A610: BankPtrLookupAlt
+; Alternate bank pointer lookup: Y = ($001F << 1) + $001D, then loads byte from
+; ($00A8),Y. Variant using different ZP registers.
+;-------------------------------------------------------------------------------
+; Inputs:  $001F = row index, $001D = column offset, $00A8 = table pointer
+; Output:  A = looked-up byte, Y = computed offset
+;===============================================================================
+.proc BankPtrLookupAlt
+BankPtrLookupAlt:
   LDA a:$001F                                         ; $A610: AD 1F 00
   ASL A                                               ; $A613: 0A
   CLC                                                 ; $A614: 18
@@ -1011,18 +1066,16 @@ LA610:
 .proc BattleDispatch
 BattleDispatch:
   LDA a:$0000                                         ; $A61C: AD 00 00
-.endproc
-;===============================================================================
-; $A61F: Sub_A61F
-;===============================================================================
-.proc Sub_A61F
-Sub_A61F:
+;-------------------------------------------------------------------------------
+; Sub-entry: Battle resolve (pointer lookup + bank switch)
+;-------------------------------------------------------------------------------
+BattleResolve:
   PHA                                                 ; $A61F: 48
   ASL A                                               ; $A620: 0A
   TAY                                                 ; $A621: A8
-  LDA $A642,Y                                         ; $A622: B9 42 A6
+  LDA BattleTilePtrTable,Y                            ; $A622: B9 42 A6
   STA a:$0000                                         ; $A625: 8D 00 00
-  LDA $A643,Y                                         ; $A628: B9 43 A6
+  LDA BattleTilePtrTable+1,Y                          ; $A628: B9 43 A6
   STA a:$0001                                         ; $A62B: 8D 01 00
   LDA #$77                                            ; $A62E: A9 77
   STA a:$0002                                         ; $A630: 8D 02 00
@@ -1030,46 +1083,77 @@ Sub_A61F:
   STA a:$0003                                         ; $A635: 8D 03 00
   PLA                                                 ; $A638: 68
   TAY                                                 ; $A639: A8
-  LDA $A822,Y                                         ; $A63A: B9 22 A8
+  LDA BattleBankTable,Y                               ; $A63A: B9 22 A8
   TAY                                                 ; $A63D: A8
   JSR B1F_SwitchBank8_B                               ; $A63E: 20 5F F2
   RTS                                                 ; $A641: 60
 .endproc
 
 ;===============================================================================
-; $A642: Battle screen tile data and PPU address tables
-; Battle screen tile data and PPU address tables
+; $A642: BattleTilePtrTable
+; Battle scene tile pointer table (32 entries)
+; Used by BattleDispatch / BattleResolve for pointer lookup
 ;===============================================================================
-  .byte $40,$80,$70,$81,$00,$82,$30,$83,$C0,$83,$F0,$84,$80,$85,$B0,$86; $A642: 40 80 70 81 00 82 30 83 C0 83 F0 84 80 85 B0 86
-  .byte $40,$87,$70,$88,$00,$89,$30,$8A,$C0,$8A,$F0,$8B,$80,$8C,$B0,$8D; $A652: 40 87 70 88 00 89 30 8A C0 8A F0 8B 80 8C B0 8D
-  .byte $40,$8E,$70,$8F,$00,$90,$30,$91,$C0,$91,$F0,$92,$80,$93,$B0,$94; $A662: 40 8E 70 8F 00 90 30 91 C0 91 F0 92 80 93 B0 94
-  .byte $40,$95,$70,$96,$00,$97,$30,$98,$C0,$98,$F0,$99,$80,$9A,$B0,$9B; $A672: 40 95 70 96 00 97 30 98 C0 98 F0 99 80 9A B0 9B
+BattleTilePtrTable:
+  ; Bank $20 — indices 0-31
+  .word $8040,$8170,$8200,$8330,$83C0,$84F0,$8580,$86B0; $A642: 40 80 70 81 00 82 30 83 C0 83 F0 84 80 85 B0 86
+  .word $8740,$8870,$8900,$8A30,$8AC0,$8BF0,$8C80,$8DB0; $A652: 40 87 70 88 00 89 30 8A C0 8A F0 8B 80 8C B0 8D
+  .word $8E40,$8F70,$9000,$9130,$91C0,$92F0,$9380,$94B0; $A662: 40 8E 70 8F 00 90 30 91 C0 91 F0 92 80 93 B0 94
+  .word $9540,$9670,$9700,$9830,$98C0,$99F0,$9A80,$9BB0; $A672: 40 95 70 96 00 97 30 98 C0 98 F0 99 80 9A B0 9B
+
+;===============================================================================
+; $A682: BattleAttrTable
+; Battle scene attribute data (176 bytes)
+; Interleaved attribute address pairs and pointer patterns
+;===============================================================================
+BattleAttrTable:
+  ; Bank $23 — indices 32-55
   .byte $A6,$89,$D6,$8A,$66,$8B,$96,$8C,$26,$8D,$56,$8E,$E6,$8E,$16,$90; $A682: A6 89 D6 8A 66 8B 96 8C 26 8D 56 8E E6 8E 16 90
   .byte $A6,$90,$D6,$91,$66,$92,$96,$93,$26,$94,$56,$95,$E6,$95,$16,$97; $A692: A6 90 D6 91 66 92 96 93 26 94 56 95 E6 95 16 97
   .byte $A6,$97,$D6,$98,$66,$99,$96,$9A,$26,$9B,$56,$9C,$E6,$9C,$16,$9E; $A6A2: A6 97 D6 98 66 99 96 9A 26 9B 56 9C E6 9C 16 9E
+  ; Bank $24 — indices 56-87
   .byte $40,$95,$70,$96,$00,$97,$30,$98,$C0,$98,$F0,$99,$80,$9A,$B0,$9B; $A6B2: 40 95 70 96 00 97 30 98 C0 98 F0 99 80 9A B0 9B
   .byte $40,$80,$70,$81,$00,$82,$30,$83,$C0,$83,$F0,$84,$80,$85,$B0,$86; $A6C2: 40 80 70 81 00 82 30 83 C0 83 F0 84 80 85 B0 86
   .byte $40,$87,$70,$88,$00,$89,$30,$8A,$C0,$8A,$F0,$8B,$80,$8C,$B0,$8D; $A6D2: 40 87 70 88 00 89 30 8A C0 8A F0 8B 80 8C B0 8D
   .byte $40,$8E,$70,$8F,$00,$90,$30,$91,$C0,$91,$F0,$92,$80,$93,$B0,$94; $A6E2: 40 8E 70 8F 00 90 30 91 C0 91 F0 92 80 93 B0 94
+  ; Bank $25 — indices 88-119
   .byte $40,$95,$70,$96,$00,$97,$30,$98,$C0,$98,$F0,$99,$80,$9A,$B0,$9B; $A6F2: 40 95 70 96 00 97 30 98 C0 98 F0 99 80 9A B0 9B
   .byte $40,$80,$70,$81,$00,$82,$30,$83,$C0,$83,$F0,$84,$80,$85,$B0,$86; $A702: 40 80 70 81 00 82 30 83 C0 83 F0 84 80 85 B0 86
   .byte $40,$87,$70,$88,$00,$89,$30,$8A,$C0,$8A,$F0,$8B,$80,$8C,$B0,$8D; $A712: 40 87 70 88 00 89 30 8A C0 8A F0 8B 80 8C B0 8D
   .byte $40,$8E,$70,$8F,$00,$90,$30,$91,$C0,$91,$F0,$92,$80,$93,$B0,$94; $A722: 40 8E 70 8F 00 90 30 91 C0 91 F0 92 80 93 B0 94
-  .byte $00,$80,$30,$81,$C0,$81,$F0,$82,$80,$83,$B0,$84,$40,$85,$70,$86; $A732: 00 80 30 81 C0 81 F0 82 80 83 B0 84 40 85 70 86
-  .byte $00,$87,$30,$88,$C0,$88,$F0,$89,$80,$8A,$B0,$8B,$40,$8C,$70,$8D; $A742: 00 87 30 88 C0 88 F0 89 80 8A B0 8B 40 8C 70 8D
-  .byte $00,$8E,$30,$8F,$C0,$8F,$F0,$90,$80,$91,$B0,$92,$40,$93,$70,$94; $A752: 00 8E 30 8F C0 8F F0 90 80 91 B0 92 40 93 70 94
-  .byte $00,$95,$30,$96,$C0,$96,$F0,$97,$80,$98,$B0,$99,$40,$9A,$70,$9B; $A762: 00 95 30 96 C0 96 F0 97 80 98 B0 99 40 9A 70 9B
-  .byte $66,$89,$96,$8A,$26,$8B,$56,$8C,$E6,$8C,$16,$8E,$A6,$8E,$D6,$8F; $A772: 66 89 96 8A 26 8B 56 8C E6 8C 16 8E A6 8E D6 8F
-  .byte $66,$90,$96,$91,$26,$92,$56,$93,$E6,$93,$16,$95,$A6,$95,$D6,$96; $A782: 66 90 96 91 26 92 56 93 E6 93 16 95 A6 95 D6 96
-  .byte $66,$97,$96,$98,$26,$99,$56,$9A,$E6,$9A,$16,$9C,$A6,$9C,$D6,$9D; $A792: 66 97 96 98 26 99 56 9A E6 9A 16 9C A6 9C D6 9D
-  .byte $00,$95,$30,$96,$C0,$96,$F0,$97,$80,$98,$B0,$99,$40,$9A,$70,$9B; $A7A2: 00 95 30 96 C0 96 F0 97 80 98 B0 99 40 9A 70 9B
-  .byte $00,$80,$30,$81,$C0,$81,$F0,$82,$80,$83,$B0,$84,$40,$85,$70,$86; $A7B2: 00 80 30 81 C0 81 F0 82 80 83 B0 84 40 85 70 86
-  .byte $00,$87,$30,$88,$C0,$88,$F0,$89,$80,$8A,$B0,$8B,$40,$8C,$70,$8D; $A7C2: 00 87 30 88 C0 88 F0 89 80 8A B0 8B 40 8C 70 8D
-  .byte $00,$8E,$30,$8F,$C0,$8F,$F0,$90,$80,$91,$B0,$92,$40,$93,$70,$94; $A7D2: 00 8E 30 8F C0 8F F0 90 80 91 B0 92 40 93 70 94
-  .byte $00,$95,$30,$96,$C0,$96,$F0,$97,$80,$98,$B0,$99,$40,$9A,$70,$9B; $A7E2: 00 95 30 96 C0 96 F0 97 80 98 B0 99 40 9A 70 9B
-  .byte $00,$80,$30,$81,$C0,$81,$F0,$82,$80,$83,$B0,$84,$40,$85,$70,$86; $A7F2: 00 80 30 81 C0 81 F0 82 80 83 B0 84 40 85 70 86
-  .byte $00,$87,$30,$88,$C0,$88,$F0,$89,$80,$8A,$B0,$8B,$40,$8C,$70,$8D; $A802: 00 87 30 88 C0 88 F0 89 80 8A B0 8B 40 8C 70 8D
-  .byte $00,$8E,$30,$8F,$C0,$8F,$F0,$90,$80,$91,$B0,$92,$40,$93,$70,$94; $A812: 00 8E 30 8F C0 8F F0 90 80 91 B0 92 40 93 70 94
+
+;===============================================================================
+; $A732: BattleOverlayPtrTable
+; Battle overlay window pointer table (120 entries)
+; Used by Sub_AEF3 and Sub_AF0C for overlay dispatch
+;===============================================================================
+BattleOverlayPtrTable:
+  ; Bank $20 — indices 0-31
+  .word $8000,$8130,$81C0,$82F0,$8380,$84B0,$8540,$8670; $A732: 00 80 30 81 C0 81 F0 82 80 83 B0 84 40 85 70 86
+  .word $8700,$8830,$88C0,$89F0,$8A80,$8BB0,$8C40,$8D70; $A742: 00 87 30 88 C0 88 F0 89 80 8A B0 8B 40 8C 70 8D
+  .word $8E00,$8F30,$8FC0,$90F0,$9180,$92B0,$9340,$9470; $A752: 00 8E 30 8F C0 8F F0 90 80 91 B0 92 40 93 70 94
+  .word $9500,$9630,$96C0,$97F0,$9880,$99B0,$9A40,$9B70; $A762: 00 95 30 96 C0 96 F0 97 80 98 B0 99 40 9A 70 9B
+  ; Bank $23 — indices 32-55
+  .word $8966,$8A96,$8B26,$8C56,$8CE6,$8E16,$8EA6,$8FD6; $A772: 66 89 96 8A 26 8B 56 8C E6 8C 16 8E A6 8E D6 8F
+  .word $9066,$9196,$9226,$9356,$93E6,$9516,$95A6,$96D6; $A782: 66 90 96 91 26 92 56 93 E6 93 16 95 A6 95 D6 96
+  .word $9766,$9896,$9926,$9A56,$9AE6,$9C16,$9CA6,$9DD6; $A792: 66 97 96 98 26 99 56 9A E6 9A 16 9C A6 9C D6 9D
+  ; Bank $24 — indices 56-87
+  .word $9500,$9630,$96C0,$97F0,$9880,$99B0,$9A40,$9B70; $A7A2: 00 95 30 96 C0 96 F0 97 80 98 B0 99 40 9A 70 9B
+  .word $8000,$8130,$81C0,$82F0,$8380,$84B0,$8540,$8670; $A7B2: 00 80 30 81 C0 81 F0 82 80 83 B0 84 40 85 70 86
+  .word $8700,$8830,$88C0,$89F0,$8A80,$8BB0,$8C40,$8D70; $A7C2: 00 87 30 88 C0 88 F0 89 80 8A B0 8B 40 8C 70 8D
+  .word $8E00,$8F30,$8FC0,$90F0,$9180,$92B0,$9340,$9470; $A7D2: 00 8E 30 8F C0 8F F0 90 80 91 B0 92 40 93 70 94
+  ; Bank $25 — indices 88-119
+  .word $9500,$9630,$96C0,$97F0,$9880,$99B0,$9A40,$9B70; $A7E2: 00 95 30 96 C0 96 F0 97 80 98 B0 99 40 9A 70 9B
+  .word $8000,$8130,$81C0,$82F0,$8380,$84B0,$8540,$8670; $A7F2: 00 80 30 81 C0 81 F0 82 80 83 B0 84 40 85 70 86
+  .word $8700,$8830,$88C0,$89F0,$8A80,$8BB0,$8C40,$8D70; $A802: 00 87 30 88 C0 88 F0 89 80 8A B0 8B 40 8C 70 8D
+  .word $8E00,$8F30,$8FC0,$90F0,$9180,$92B0,$9340,$9470; $A812: 00 8E 30 8F C0 8F F0 90 80 91 B0 92 40 93 70 94
+
+;===============================================================================
+; $A822: BattleBankTable
+; Battle/overlay dispatch bank number table (120 entries)
+; Maps dispatch index to PRG bank number for B1F_SwitchBank8_B
+;===============================================================================
+BattleBankTable:
   .byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20; $A822: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
   .byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20; $A832: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
   .byte $23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23,$23; $A842: 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23
@@ -1119,10 +1203,10 @@ BattleAttrAndHelpers:
   RTS                                                 ; $A8D2: 60
 .endproc
 ;===============================================================================
-; $A8D3: Sub_A8D3
+; $A8D3: ComputeAttributeByte
 ;===============================================================================
-.proc Sub_A8D3
-Sub_A8D3:
+.proc ComputeAttributeByte
+ComputeAttributeByte:
   LDY #$00                                            ; $A8D3: A0 00
   LDA a:$000D                                         ; $A8D5: AD 0D 00
   LDX #$23                                            ; $A8D8: A2 23
@@ -1150,121 +1234,159 @@ Sub_A8D3:
   ADC ($00),Y                                         ; $A8F8: 71 00
   STA ($00),Y                                         ; $A8FA: 91 00
   RTS                                                 ; $A8FC: 60
-LA8FD:
-  PHA                                                 ; $A8FD: 48
-  LDY a:$0019                                         ; $A8FE: AC 19 00
-  LDA $0680,Y                                         ; $A901: B9 80 06
-  CMP #$FF                                            ; $A904: C9 FF
-  BEQ @skip_2                                           ; $A906: F0 14
-  TAY                                                 ; $A908: A8
-  PLA                                                 ; $A909: 68
+.endproc
+
+;===============================================================================
+; Tile Grid Data Structures
+;===============================================================================
+; $0680-$06BF: Tile index grid (64 bytes)
+;   - Each entry: tile index (0-255) or $FF (empty/uninitialized)
+;   - Indexed by screen position (0-63)
+;   - Populated by InitTileGridHoriz (horizontal) or InitTileGridVert (vertical)
+;   - Queried by DispatchTileRowHoriz (horizontal) or DispatchTileRowVert (vertical)
+;
+; $0600-$0613: X coordinate array (20 entries)
+;   - Used by InitTileGridHoriz for horizontal coordinate matching
+;
+; $0614-$0627: Y coordinate / grid position array (20 entries)
+;   - Used by InitTileGridHoriz for grid position mapping
+;
+; $0018: Target column (for vertical dispatch and horizontal init)
+; $0019: Target row (for horizontal dispatch and vertical init)
+; $0008-$0009: Destination pointer (set to $01B0 before copy)
+;===============================================================================
+
+;-------------------------------------------------------------------------------
+; Tile grid lookup and initialization routines
+; Manages the 64-byte tile index grid at $0680 for horizontal/vertical rendering
+;-------------------------------------------------------------------------------
+
+; DispatchTileRowHoriz: Horizontal Tile Dispatch ($A8FD-$A91D)
+.proc DispatchTileRowHoriz
+  PHA                                                 ; $A8FD: 48     ; Save A (caller's tile data)
+  LDY a:$0019                                         ; $A8FE: AC 19 00 ; Y = row index (horizontal mode)
+  LDA $0680,Y                                         ; $A901: B9 80 06 ; Lookup tile index from grid
+  CMP #$FF                                            ; $A904: C9 FF  ; Check if empty ($FF = no tile)
+  BEQ @empty                                          ; $A906: F0 14  ; Branch if empty
+  TAY                                                 ; $A908: A8     ; Y = tile index
+  PLA                                                 ; $A909: 68     ; Discard return address (3 bytes - skip caller's RTS)
   PLA                                                 ; $A90A: 68
   PLA                                                 ; $A90B: 68
-  JSR Sub_A986                                           ; $A90C: 20 86 A9
-  LDA #$B0                                            ; $A90F: A9 B0
-  STA a:$0008                                         ; $A911: 8D 08 00
-  LDA #$01                                            ; $A914: A9 01
-  STA a:$0009                                         ; $A916: 8D 09 00
-  JMP Sub_A565                                           ; $A919: 4C 65 A5
-@skip_2:
-  PLA                                                 ; $A91C: 68
-  RTS                                                 ; $A91D: 60
-LA91E:
-  PHA                                                 ; $A91E: 48
-  LDY a:$0018                                         ; $A91F: AC 18 00
-  LDA $0680,Y                                         ; $A922: B9 80 06
-  CMP #$FF                                            ; $A925: C9 FF
-  BEQ @skip_3                                           ; $A927: F0 14
-  TAY                                                 ; $A929: A8
-  PLA                                                 ; $A92A: 68
+  JSR SetupAdvisorTiles                                   ; $A90C: 20 86 A9 ; Setup advisor tiles
+  LDA #$B0                                            ; $A90F: A9 B0  ; Set destination pointer low byte
+  STA a:$0008                                         ; $A911: 8D 08 00 ; $0008 = $B0
+  LDA #$01                                            ; $A914: A9 01  ; Set destination pointer high byte
+  STA a:$0009                                         ; $A916: 8D 09 00 ; $0009 = $01 → dest = $01B0
+  JMP CopyTileRowHoriz                                ; $A919: 4C 65 A5 ; Jump to horizontal tile copy ($A565)
+@empty:
+  PLA                                                 ; $A91C: 68     ; Restore A
+  RTS                                                 ; $A91D: 60     ; Return (no tile to copy)
+.endproc
+
+; DispatchTileRowVert: Vertical Tile Dispatch ($A91E-$A93E)
+.proc DispatchTileRowVert
+  PHA                                                 ; $A91E: 48     ; Save A
+  LDY a:$0018                                         ; $A91F: AC 18 00 ; Y = column index (vertical mode)
+  LDA $0680,Y                                         ; $A922: B9 80 06 ; Lookup tile index from grid
+  CMP #$FF                                            ; $A925: C9 FF  ; Check if empty
+  BEQ @empty                                          ; $A927: F0 14
+  TAY                                                 ; $A929: A8     ; Y = tile index
+  PLA                                                 ; $A92A: 68     ; Discard return address
   PLA                                                 ; $A92B: 68
   PLA                                                 ; $A92C: 68
-  JSR Sub_A986                                           ; $A92D: 20 86 A9
-  LDA #$B0                                            ; $A930: A9 B0
+  JSR SetupAdvisorTiles                                   ; $A92D: 20 86 A9 ; Setup advisor tiles
+  LDA #$B0                                            ; $A930: A9 B0  ; Set destination pointer
   STA a:$0008                                         ; $A932: 8D 08 00
   LDA #$01                                            ; $A935: A9 01
-  STA a:$0009                                         ; $A937: 8D 09 00
-  JMP Sub_A5C5                                           ; $A93A: 4C C5 A5
-@skip_3:
+  STA a:$0009                                         ; $A937: 8D 09 00 ; dest = $01B0
+  JMP CopyTileRowVert                                 ; $A93A: 4C C5 A5 ; Jump to vertical tile copy ($A5C5)
+@empty:
   PLA                                                 ; $A93D: 68
   RTS                                                 ; $A93E: 60
-LA93F:
-  JSR Sub_AB26                                           ; $A93F: 20 26 AB
-  LDY #$3F                                            ; $A942: A0 3F
-  LDA #$FF                                            ; $A944: A9 FF
-@loop:
-  STA $0680,Y                                         ; $A946: 99 80 06
+.endproc
+
+; InitTileGridHoriz: Init Horizontal Lookup Table ($A93F-$A960)
+.proc InitTileGridHoriz
+  JSR CalcTileGridOrigin                                  ; $A93F: 20 26 AB ; Setup routine
+  LDY #$3F                                            ; $A942: A0 3F  ; Y = 63 (grid size - 1)
+  LDA #$FF                                            ; $A944: A9 FF  ; Fill value = $FF (empty marker)
+@fill_loop:
+  STA $0680,Y                                         ; $A946: 99 80 06 ; Fill grid with $FF
   DEY                                                 ; $A949: 88
-  BPL @loop                                           ; $A94A: 10 FA
-  LDY #$13                                            ; $A94C: A0 13
-@loop_2:
-  LDA $0600,Y                                         ; $A94E: B9 00 06
-  CMP a:$0018                                         ; $A951: CD 18 00
-  BNE @skip_4                                           ; $A954: D0 07
-  LDX $0614,Y                                         ; $A956: BE 14 06
-  TYA                                                 ; $A959: 98
-  STA $0680,X                                         ; $A95A: 9D 80 06
-@skip_4:
+  BPL @fill_loop                                      ; $A94A: 10 FA  ; Loop until Y < 0
+  ; Now populate matching entries
+  LDY #$13                                            ; $A94C: A0 13  ; Y = 19 (loop 20 times, indices 0-19)
+@populate_loop:
+  LDA $0600,Y                                         ; $A94E: B9 00 06 ; Load X coordinate from $0600
+  CMP a:$0018                                         ; $A951: CD 18 00 ; Compare with target column
+  BNE @skip                                           ; $A954: D0 07  ; Skip if no match
+  LDX $0614,Y                                         ; $A956: BE 14 06 ; Load grid position from $0614
+  TYA                                                 ; $A959: 98     ; A = Y (tile index)
+  STA $0680,X                                         ; $A95A: 9D 80 06 ; Store tile index at grid position X
+@skip:
   DEY                                                 ; $A95D: 88
-  BPL @loop_2                                           ; $A95E: 10 EE
+  BPL @populate_loop                                  ; $A95E: 10 EE  ; Loop until Y < 0
   RTS                                                 ; $A960: 60
-LA961:
-  JSR Sub_AB26                                           ; $A961: 20 26 AB
+.endproc
+
+; InitTileGridVert: Init Vertical Lookup Table ($A961-$A982)
+.proc InitTileGridVert
+  JSR CalcTileGridOrigin                                  ; $A961: 20 26 AB ; Setup routine
   LDY #$3F                                            ; $A964: A0 3F
   LDA #$FF                                            ; $A966: A9 FF
-@loop_3:
-  STA $0680,Y                                         ; $A968: 99 80 06
+@fill_loop:
+  STA $0680,Y                                         ; $A968: 99 80 06 ; Fill grid with $FF
   DEY                                                 ; $A96B: 88
-  BPL @loop_3                                           ; $A96C: 10 FA
+  BPL @fill_loop                                      ; $A96C: 10 FA
   LDY #$13                                            ; $A96E: A0 13
-@loop_4:
-  LDA $0614,Y                                         ; $A970: B9 14 06
-  CMP a:$0019                                         ; $A973: CD 19 00
-  BNE @skip_5                                           ; $A976: D0 07
-  LDX $0600,Y                                         ; $A978: BE 00 06
+@populate_loop:
+  LDA $0614,Y                                         ; $A970: B9 14 06 ; Load Y coordinate from $0614 (swapped!)
+  CMP a:$0019                                         ; $A973: CD 19 00 ; Compare with target row (swapped!)
+  BNE @skip                                           ; $A976: D0 07
+  LDX $0600,Y                                         ; $A978: BE 00 06 ; Load grid position from $0600 (swapped!)
   TYA                                                 ; $A97B: 98
-  STA $0680,X                                         ; $A97C: 9D 80 06
-@skip_5:
+  STA $0680,X                                         ; $A97C: 9D 80 06 ; Store tile index at grid position X
+@skip:
   DEY                                                 ; $A97F: 88
-  BPL @loop_4                                           ; $A980: 10 EE
+  BPL @populate_loop                                  ; $A980: 10 EE
   RTS                                                 ; $A982: 60
 .endproc
 
 ;===============================================================================
-; $A983: AdvisorDialogue
-; Entry08: Advisor/council dialogue system
+; $A983: SetupAdvisorTiles
+; Entry08: Advisor/council dialogue tile setup system
+; Takes a ruler index, fetches the ruler's dialogue type from SRAM, dispatches
+; to one of three cases (type 0/1/2), and writes four CHR tile indices into the
+; $01B0-$01B3 metatile buffer. Special overrides for ruler index 0 and 10.
+; Sub-tile overrides based on $0628[Y] bits 0-1.
+; Input:  Y = ruler index (loaded from $0000 at entry)
+; Output: $01B0-$01B3 = 4 CHR tile indices for advisor metatile
 ;===============================================================================
-.proc AdvisorDialogue
-AdvisorDialogue:
+.proc SetupAdvisorTiles
+SetupAdvisorTiles:
   LDY a:$0000                                         ; $A983: AC 00 00
-.endproc
-;===============================================================================
-; $A986: Sub_A986
-;===============================================================================
-.proc Sub_A986
-Sub_A986:
   TYA                                                 ; $A986: 98
   PHA                                                 ; $A987: 48
   LDA $0507                                           ; $A988: AD 07 05
   PHA                                                 ; $A98B: 48
   LDA $0628,Y                                         ; $A98C: B9 28 06
-  BPL @skip                                           ; $A98F: 10 06
+  BPL @no_shift                                       ; $A98F: 10 06
   PLA                                                 ; $A991: 68
   LSR A                                               ; $A992: 4A
   LSR A                                               ; $A993: 4A
   LSR A                                               ; $A994: 4A
   LSR A                                               ; $A995: 4A
   PHA                                                 ; $A996: 48
-@skip:
+@no_shift:
   PLA                                                 ; $A997: 68
   AND #$0F                                            ; $A998: 29 0F
-  JSR LA9A8                                           ; $A99A: 20 A8 A9
+  JSR @GetRulerDialogueType                           ; $A99A: 20 A8 A9
   CMP #$00                                            ; $A99D: C9 00
-  BEQ @skip_2                                           ; $A99F: F0 23
+  BEQ @type0                                          ; $A99F: F0 23
   CMP #$01                                            ; $A9A1: C9 01
-  BEQ @skip_7                                           ; $A9A3: F0 7F
-  JMP @skip_12                                           ; $A9A5: 4C 84 AA
-LA9A8:
+  BEQ @type1                                          ; $A9A3: F0 7F
+  JMP @type2                                          ; $A9A5: 4C 84 AA
+@GetRulerDialogueType:
   TAY                                                 ; $A9A8: A8
   LDA a:$0000                                         ; $A9A9: AD 00 00
   PHA                                                 ; $A9AC: 48
@@ -1281,161 +1403,172 @@ LA9A8:
   STA a:$0000                                         ; $A9BF: 8D 00 00
   TYA                                                 ; $A9C2: 98
   RTS                                                 ; $A9C3: 60
-@skip_2:
+@type0:
   PLA                                                 ; $A9C4: 68
   TAY                                                 ; $A9C5: A8
   PHA                                                 ; $A9C6: 48
   LDA $063C,Y                                         ; $A9C7: B9 3C 06
   TAY                                                 ; $A9CA: A8
-  LDA $AAE4,Y                                         ; $A9CB: B9 E4 AA
+  LDA AdvisorTileTbl0_Lo,Y                            ; $A9CB: B9 E4 AA
   STA $01B0                                           ; $A9CE: 8D B0 01
-  LDA $AAEF,Y                                         ; $A9D1: B9 EF AA
+  LDA AdvisorTileTbl0_Hi,Y                            ; $A9D1: B9 EF AA
   STA $01B1                                           ; $A9D4: 8D B1 01
   PLA                                                 ; $A9D7: 68
   TAY                                                 ; $A9D8: A8
-  BEQ @skip_3                                           ; $A9D9: F0 04
+  BEQ @type0_ruler_special                            ; $A9D9: F0 04
   CMP #$0A                                            ; $A9DB: C9 0A
-  BNE @skip_4                                           ; $A9DD: D0 16
-@skip_3:
+  BNE @type0_overrides_done                           ; $A9DD: D0 16
+@type0_ruler_special:
   LDA #$BB                                            ; $A9DF: A9 BB
   STA $01B0                                           ; $A9E1: 8D B0 01
   LDA $063C,Y                                         ; $A9E4: B9 3C 06
   CMP #$0A                                            ; $A9E7: C9 0A
-  BNE @skip_4                                           ; $A9E9: D0 0A
+  BNE @type0_overrides_done                           ; $A9E9: D0 0A
   LDA #$BA                                            ; $A9EB: A9 BA
   STA $01B0                                           ; $A9ED: 8D B0 01
   LDA #$AB                                            ; $A9F0: A9 AB
   STA $01B1                                           ; $A9F2: 8D B1 01
-@skip_4:
+@type0_overrides_done:
   LDA #$AE                                            ; $A9F5: A9 AE
   STA $01B2                                           ; $A9F7: 8D B2 01
   LDA #$AF                                            ; $A9FA: A9 AF
   STA $01B3                                           ; $A9FC: 8D B3 01
   LDA $0628,Y                                         ; $A9FF: B9 28 06
   AND #$03                                            ; $AA02: 29 03
-  BNE @skip_5                                           ; $AA04: D0 0A
+  BNE @type0_subtile_not0                             ; $AA04: D0 0A
   LDA #$BD                                            ; $AA06: A9 BD
   STA $01B2                                           ; $AA08: 8D B2 01
   LDA #$BE                                            ; $AA0B: A9 BE
   STA $01B3                                           ; $AA0D: 8D B3 01
-@skip_5:
+@type0_subtile_not0:
   LDA $0628,Y                                         ; $AA10: B9 28 06
   AND #$03                                            ; $AA13: 29 03
   CMP #$01                                            ; $AA15: C9 01
-  BNE @skip_6                                           ; $AA17: D0 0A
+  BNE @type0_subtile_not1                             ; $AA17: D0 0A
   LDA #$AC                                            ; $AA19: A9 AC
   STA $01B2                                           ; $AA1B: 8D B2 01
   LDA #$AD                                            ; $AA1E: A9 AD
   STA $01B3                                           ; $AA20: 8D B3 01
-@skip_6:
+@type0_subtile_not1:
   RTS                                                 ; $AA23: 60
-@skip_7:
+@type1:
   PLA                                                 ; $AA24: 68
   TAY                                                 ; $AA25: A8
   PHA                                                 ; $AA26: 48
   LDA $063C,Y                                         ; $AA27: B9 3C 06
   TAY                                                 ; $AA2A: A8
-  LDA $AAFA,Y                                         ; $AA2B: B9 FA AA
+  LDA AdvisorTileTbl1_Lo,Y                            ; $AA2B: B9 FA AA
   STA $01B0                                           ; $AA2E: 8D B0 01
-  LDA $AB05,Y                                         ; $AA31: B9 05 AB
+  LDA AdvisorTileTbl1_Hi,Y                            ; $AA31: B9 05 AB
   STA $01B1                                           ; $AA34: 8D B1 01
   PLA                                                 ; $AA37: 68
   TAY                                                 ; $AA38: A8
-  BEQ @skip_8                                           ; $AA39: F0 04
+  BEQ @type1_ruler_special                            ; $AA39: F0 04
   CPY #$0A                                            ; $AA3B: C0 0A
-  BNE @skip_9                                           ; $AA3D: D0 16
-@skip_8:
+  BNE @type1_overrides_done                           ; $AA3D: D0 16
+@type1_ruler_special:
   LDA #$B1                                            ; $AA3F: A9 B1
   STA $01B0                                           ; $AA41: 8D B0 01
   LDA $063C,Y                                         ; $AA44: B9 3C 06
   CMP #$0A                                            ; $AA47: C9 0A
-  BNE @skip_9                                           ; $AA49: D0 0A
+  BNE @type1_overrides_done                           ; $AA49: D0 0A
   LDA #$B0                                            ; $AA4B: A9 B0
   STA $01B0                                           ; $AA4D: 8D B0 01
   LDA #$8B                                            ; $AA50: A9 8B
   STA $01B1                                           ; $AA52: 8D B1 01
-@skip_9:
+@type1_overrides_done:
   LDA #$8C                                            ; $AA55: A9 8C
   STA $01B2                                           ; $AA57: 8D B2 01
   LDA #$8D                                            ; $AA5A: A9 8D
   STA $01B3                                           ; $AA5C: 8D B3 01
   LDA $0628,Y                                         ; $AA5F: B9 28 06
   AND #$03                                            ; $AA62: 29 03
-  BNE @skip_10                                           ; $AA64: D0 0A
+  BNE @type1_subtile_not0                             ; $AA64: D0 0A
   LDA #$B3                                            ; $AA66: A9 B3
   STA $01B2                                           ; $AA68: 8D B2 01
   LDA #$B4                                            ; $AA6B: A9 B4
   STA $01B3                                           ; $AA6D: 8D B3 01
-@skip_10:
+@type1_subtile_not0:
   LDA $0628,Y                                         ; $AA70: B9 28 06
   AND #$03                                            ; $AA73: 29 03
   CMP #$02                                            ; $AA75: C9 02
-  BNE @skip_11                                           ; $AA77: D0 0A
+  BNE @type1_subtile_not2                             ; $AA77: D0 0A
   LDA #$8E                                            ; $AA79: A9 8E
   STA $01B2                                           ; $AA7B: 8D B2 01
   LDA #$8F                                            ; $AA7E: A9 8F
   STA $01B3                                           ; $AA80: 8D B3 01
-@skip_11:
+@type1_subtile_not2:
   RTS                                                 ; $AA83: 60
-@skip_12:
+@type2:
   PLA                                                 ; $AA84: 68
   TAY                                                 ; $AA85: A8
   PHA                                                 ; $AA86: 48
   LDA $063C,Y                                         ; $AA87: B9 3C 06
   TAY                                                 ; $AA8A: A8
-  LDA $AB10,Y                                         ; $AA8B: B9 10 AB
+  LDA AdvisorTileTbl2_Lo,Y                            ; $AA8B: B9 10 AB
   STA $01B0                                           ; $AA8E: 8D B0 01
-  LDA $AB1B,Y                                         ; $AA91: B9 1B AB
+  LDA AdvisorTileTbl2_Hi,Y                            ; $AA91: B9 1B AB
   STA $01B1                                           ; $AA94: 8D B1 01
   PLA                                                 ; $AA97: 68
   TAY                                                 ; $AA98: A8
-  BEQ @skip_13                                           ; $AA99: F0 04
+  BEQ @type2_ruler_special                            ; $AA99: F0 04
   CPY #$0A                                            ; $AA9B: C0 0A
-  BNE @skip_14                                           ; $AA9D: D0 16
-@skip_13:
+  BNE @type2_overrides_done                           ; $AA9D: D0 16
+@type2_ruler_special:
   LDA #$B6                                            ; $AA9F: A9 B6
   STA $01B0                                           ; $AAA1: 8D B0 01
   LDA $063C,Y                                         ; $AAA4: B9 3C 06
   CMP #$0A                                            ; $AAA7: C9 0A
-  BNE @skip_14                                           ; $AAA9: D0 0A
+  BNE @type2_overrides_done                           ; $AAA9: D0 0A
   LDA #$B5                                            ; $AAAB: A9 B5
   STA $01B0                                           ; $AAAD: 8D B0 01
   LDA #$9B                                            ; $AAB0: A9 9B
   STA $01B1                                           ; $AAB2: 8D B1 01
-@skip_14:
+@type2_overrides_done:
   LDA #$9C                                            ; $AAB5: A9 9C
   STA $01B2                                           ; $AAB7: 8D B2 01
   LDA #$9D                                            ; $AABA: A9 9D
   STA $01B3                                           ; $AABC: 8D B3 01
   LDA $0628,Y                                         ; $AABF: B9 28 06
   AND #$03                                            ; $AAC2: 29 03
-  BNE @skip_15                                           ; $AAC4: D0 0A
+  BNE @type2_subtile_not0                             ; $AAC4: D0 0A
   LDA #$B8                                            ; $AAC6: A9 B8
   STA $01B2                                           ; $AAC8: 8D B2 01
   LDA #$B9                                            ; $AACB: A9 B9
   STA $01B3                                           ; $AACD: 8D B3 01
-@skip_15:
+@type2_subtile_not0:
   LDA $0628,Y                                         ; $AAD0: B9 28 06
   AND #$03                                            ; $AAD3: 29 03
   CMP #$02                                            ; $AAD5: C9 02
-  BNE @skip_16                                           ; $AAD7: D0 0A
+  BNE @type2_subtile_not2                             ; $AAD7: D0 0A
   LDA #$9E                                            ; $AAD9: A9 9E
   STA $01B2                                           ; $AADB: 8D B2 01
   LDA #$9F                                            ; $AADE: A9 9F
   STA $01B3                                           ; $AAE0: 8D B3 01
-@skip_16:
+@type2_subtile_not2:
   RTS                                                 ; $AAE3: 60
 .endproc
-  .byte $BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$AA,$A0,$A1,$A2,$A3,$A4; $AAE4: BC BC BC BC BC BC BC BC BC BC AA A0 A1 A2 A3 A4
-  .byte $A5,$A6,$A7,$A8,$A9,$AB,$B2,$B2,$B2,$B2,$B2,$B2,$B2,$B2,$B2,$B2; $AAF4: A5 A6 A7 A8 A9 AB B2 B2 B2 B2 B2 B2 B2 B2 B2 B2
-  .byte $8A,$80,$81,$82,$83,$84,$85,$86,$87,$88,$89,$8B,$B7,$B7,$B7,$B7; $AB04: 8A 80 81 82 83 84 85 86 87 88 89 8B B7 B7 B7 B7
-  .byte $B7,$B7,$B7,$B7,$B7,$B7,$9A,$90,$91,$92,$93,$94,$95,$96,$97,$98; $AB14: B7 B7 B7 B7 B7 B7 9A 90 91 92 93 94 95 96 97 98
-  .byte $99,$9B                                       ; $AB24: 99 9B
+; Dialogue type 0 tile tables
+AdvisorTileTbl0_Lo:                                   ; $AAE4
+  .byte $BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$BC,$AA   ; $AAE4-$AAEE (11 bytes)
+AdvisorTileTbl0_Hi:                                   ; $AAEF
+  .byte $A0,$A1,$A2,$A3,$A4,$A5,$A6,$A7,$A8,$A9,$AB   ; $AAEF-$AAF9 (11 bytes)
+; Dialogue type 1 tile tables
+AdvisorTileTbl1_Lo:                                   ; $AAFA
+  .byte $B2,$B2,$B2,$B2,$B2,$B2,$8A,$80,$81,$82,$83   ; $AAFA-$AB04 (11 bytes)
+AdvisorTileTbl1_Hi:                                   ; $AB05
+  .byte $84,$85,$86,$87,$88,$89,$8B,$B7,$B7,$B7,$B7   ; $AB05-$AB0F (11 bytes)
+; Dialogue type 2 tile tables
+AdvisorTileTbl2_Lo:                                   ; $AB10
+  .byte $B7,$B7,$B7,$B7,$B7,$9A,$90,$91,$92,$93,$94   ; $AB10-$AB1A (11 bytes)
+AdvisorTileTbl2_Hi:                                   ; $AB1B
+  .byte $95,$96,$97,$98,$99,$9B,$B7,$B7,$B7,$B7,$B7   ; $AB1B-$AB25 (11 bytes)
 ;===============================================================================
-; $AB26: Sub_AB26
+; $AB26: CalcTileGridOrigin
+; Converts scroll coordinates to tile grid indices
 ;===============================================================================
-.proc Sub_AB26
-Sub_AB26:
+.proc CalcTileGridOrigin
+CalcTileGridOrigin:
   LDA a:$000C                                         ; $AB26: AD 0C 00
   STA a:$0018                                         ; $AB29: 8D 18 00
   LDA a:$000D                                         ; $AB2C: AD 0D 00
@@ -1517,7 +1650,7 @@ LAB87:
   LDA a:$0091                                         ; $ABC1: AD 91 00
   STA a:$001F                                         ; $ABC4: 8D 1F 00
 @loop:
-  JSR Sub_A604                                           ; $ABC7: 20 04 A6
+  JSR BankPtrLookup                                           ; $ABC7: 20 04 A6
   STY a:$000A                                         ; $ABCA: 8C 0A 00
   JSR Sub_AEF3                                           ; $ABCD: 20 F3 AE
   LDA a:$000A                                         ; $ABD0: AD 0A 00
@@ -1526,7 +1659,7 @@ LAB87:
   TAY                                                 ; $ABD6: A8
   LDA ($A8),Y                                         ; $ABD7: B1 A8
   STA a:$000A                                         ; $ABD9: 8D 0A 00
-  JSR LA610                                           ; $ABDC: 20 10 A6
+  JSR BankPtrLookupAlt                                           ; $ABDC: 20 10 A6
   STY a:$001A                                         ; $ABDF: 8C 1A 00
   JSR Sub_AF0C                                           ; $ABE2: 20 0C AF
   LDA a:$001A                                         ; $ABE5: AD 1A 00
@@ -1593,7 +1726,7 @@ LAB87:
   STA a:$0000                                         ; $AC6C: 8D 00 00
   LDA #$01                                            ; $AC6F: A9 01
   STA a:$0001                                         ; $AC71: 8D 01 00
-  JSR Sub_A8D3                                           ; $AC74: 20 D3 A8
+  JSR LoadCHRCompressed                                  ; $AC74: 20 D3 A8
   LDA a:$007E                                         ; $AC77: AD 7E 00
   ORA #$20                                            ; $AC7A: 09 20
   STA a:$007E                                         ; $AC7C: 8D 7E 00
@@ -1748,7 +1881,7 @@ Sub_AD9F:
 ;===============================================================================
 .proc Sub_ADBC
 Sub_ADBC:
-  JSR Sub_A604                                           ; $ADBC: 20 04 A6
+  JSR BankPtrLookup                                           ; $ADBC: 20 04 A6
   STY a:$000A                                         ; $ADBF: 8C 0A 00
   JSR Sub_AEF3                                           ; $ADC2: 20 F3 AE
   LDY a:$000A                                         ; $ADC5: AC 0A 00
@@ -1809,7 +1942,7 @@ Sub_ADBC:
   STA a:$0000                                         ; $AE44: 8D 00 00
   LDA #$01                                            ; $AE47: A9 01
   STA a:$0001                                         ; $AE49: 8D 01 00
-  JSR Sub_A8D3                                           ; $AE4C: 20 D3 A8
+  JSR LoadCHRCompressed                                  ; $AE4C: 20 D3 A8
   LDA a:$007E                                         ; $AE4F: AD 7E 00
   ORA #$10                                            ; $AE52: 09 10
   STA a:$007E                                         ; $AE54: 8D 7E 00
@@ -1909,13 +2042,13 @@ Sub_AEF3:
   PHA                                                 ; $AEF3: 48
   ASL A                                               ; $AEF4: 0A
   TAY                                                 ; $AEF5: A8
-  LDA $A732,Y                                         ; $AEF6: B9 32 A7
+  LDA BattleOverlayPtrTable,Y                         ; $AEF6: B9 32 A7
   STA a:$0000                                         ; $AEF9: 8D 00 00
-  LDA $A733,Y                                         ; $AEFC: B9 33 A7
+  LDA BattleOverlayPtrTable+1,Y                       ; $AEFC: B9 33 A7
   STA a:$0001                                         ; $AEFF: 8D 01 00
   PLA                                                 ; $AF02: 68
   TAY                                                 ; $AF03: A8
-  LDA $A822,Y                                         ; $AF04: B9 22 A8
+  LDA BattleBankTable,Y                               ; $AF04: B9 22 A8
   TAY                                                 ; $AF07: A8
   JSR B1F_SwitchBank8_B                               ; $AF08: 20 5F F2
   RTS                                                 ; $AF0B: 60
@@ -1927,9 +2060,9 @@ Sub_AEF3:
 Sub_AF0C:
   ASL A                                               ; $AF0C: 0A
   TAY                                                 ; $AF0D: A8
-  LDA $A732,Y                                         ; $AF0E: B9 32 A7
+  LDA BattleOverlayPtrTable,Y                         ; $AF0E: B9 32 A7
   STA a:$0010                                         ; $AF11: 8D 10 00
-  LDA $A733,Y                                         ; $AF14: B9 33 A7
+  LDA BattleOverlayPtrTable+1,Y                       ; $AF14: B9 33 A7
   STA a:$0011                                         ; $AF17: 8D 11 00
   RTS                                                 ; $AF1A: 60
 LAF1B:

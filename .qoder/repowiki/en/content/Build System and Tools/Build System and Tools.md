@@ -37,20 +37,23 @@
 - [tools/add_procs.py](file://tools/add_procs.py)
 - [tools/analyze_17_18.py](file://tools/analyze_17_18.py)
 - [tools/debug_regions.py](file://tools/debug_regions.py)
+- [tools/proc_scope_17_18.py](file://tools/proc_scope_17_18.py)
+- [tools/localize_labels.py](file://tools/localize_labels.py)
 - [asm/main.asm](file://asm/main.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
 - [include/functions.h](file://include/functions.h)
 - [asm/banks/all_banks.asm](file://asm/banks/all_banks.asm)
+- [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for four new Python transformation tools for PRG bank $17/$18 assembly code: transform_17_18.py, add_procs.py, analyze_17_18.py, and debug_regions.py
-- Integrated these tools into the unified disassembly pipeline with semantic naming conventions and enhanced code organization
-- Updated the Makefile to include new targets for the transformation tools
-- Enhanced the transformation pipeline documentation to cover automated tooling for maintainability
-- Added detailed coverage of the semantic naming system (B17_18_ prefix) and cross-bank reference handling
+- Added comprehensive documentation for new tool scripts: proc_scope_17_18.py and localize_labels.py
+- Updated PRG bank 17/18 refactoring section to reflect cleaner naming conventions (PpuWriteRle, PpuCopyRaw, PpuWriteTileOffset, DomesticDisplay)
+- Enhanced transformation pipeline documentation to include new automated procedure scoping tools
+- Updated Makefile targets section to document new tool integration
+- Added detailed coverage of semantic naming improvements and enhanced .proc/.endproc organization
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -68,7 +71,7 @@
 13. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. Additionally, the transformation pipeline now includes sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions and enhanced code organization.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. Additionally, the transformation pipeline now includes sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, enhanced code organization, and comprehensive .proc/.endproc boundary analysis.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -77,7 +80,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - ROM assets under rom/ (split PRG/CHR banks and combined PRG)
 - Build outputs under build/
 - Automated tools under tools/
-- **New**: Comprehensive transformation pipeline with specialized tools for PRG bank $17/$18 assembly code including semantic naming and cross-bank reference handling
+- **New**: Comprehensive transformation pipeline with specialized tools for PRG bank $17/$18 assembly code including semantic naming, enhanced .proc/.endproc organization, and advanced boundary analysis
 
 ```mermaid
 graph TB
@@ -105,11 +108,13 @@ UD4["update_jsr_labels.py"]
 UD5["verify_f3bd_f667.py"]
 UD6["verify_range.py"]
 end
-subgraph "Transformation Pipeline"
+subgraph "Enhanced Transformation Pipeline"
 TP1["transform_17_18.py<br/>348 lines"]
 TP2["add_procs.py<br/>189 lines"]
 TP3["analyze_17_18.py<br/>118 lines"]
 TP4["debug_regions.py<br/>98 lines"]
+TP5["proc_scope_17_18.py<br/>Enhanced .proc/.endproc"]
+TP6["localize_labels.py<br/>New tool for @local labels"]
 end
 subgraph "Tools"
 T_build["tools/build_nes.py"]
@@ -147,6 +152,8 @@ MK --> TP1
 MK --> TP2
 MK --> TP3
 MK --> TP4
+MK --> TP5
+MK --> TP6
 MK --> T_build
 MK --> T_verify
 MK --> T_split
@@ -178,6 +185,8 @@ T_verify --> OUT
 - [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
 - [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
+- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -187,7 +196,7 @@ T_verify --> OUT
 - Makefile targets orchestrate the entire pipeline: assembling, linking, building the final ROM, splitting ROMs, disassembling, analyzing, verifying, cleaning, and the new unified disassembly pipeline with transformation tools.
 - The cc65 toolchain (ca65 and ld65) compiles assembly into an object file and links it according to the linker configuration.
 - Python tools handle ROM parsing, bank generation, disassembly, analysis, annotation, verification, and the comprehensive unified disassembly pipeline with transformation tools.
-- **New**: Transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, enhanced code organization, and automated tooling for maintainability.
+- **New**: Enhanced transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, comprehensive .proc/.endproc organization, and advanced boundary analysis.
 
 Key capabilities:
 - Assemble and link to produce a raw PRG binary.
@@ -198,7 +207,7 @@ Key capabilities:
 - Verify byte-exact rebuilds against the original ROM.
 - Generate bank stubs to bootstrap disassembly.
 - **New**: Unified disassembly with specialized tools for Bank $17/$18 paired disassembly, Bank $1F range disassembly, and cross-bank reference mapping.
-- **New**: Transformation pipeline with semantic naming (B17_18_), cross-bank reference handling, and automated code organization.
+- **New**: Enhanced transformation pipeline with semantic naming (B17_18_), comprehensive .proc/.endproc organization, cross-bank reference handling, and automated code organization.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -218,7 +227,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - Disassemble and annotate assembly for documentation and validation.
 - Verify the rebuilt ROM against the original.
 - **New**: Apply unified disassembly pipeline for specialized ROM region processing with cross-bank reference handling.
-- **New**: Apply transformation pipeline for PRG bank $17/$18 assembly code with semantic naming and enhanced organization.
+- **New**: Apply enhanced transformation pipeline for PRG bank $17/$18 assembly code with semantic naming, comprehensive .proc/.endproc organization, and advanced boundary analysis.
 
 ```mermaid
 sequenceDiagram
@@ -229,7 +238,7 @@ participant LD as "ld65"
 participant BN as "build_nes.py"
 participant VR as "verify_rom.py"
 participant UD as "Unified Disassembly Pipeline"
-participant TP as "Transformation Pipeline"
+participant TP as "Enhanced Transformation Pipeline"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm"
 CA-->>MK : "main.o"
@@ -244,8 +253,8 @@ Dev->>MK : "make disasm_17_18"
 MK->>UD : "Unified disassembly for banks $17/$18"
 UD-->>Dev : "Cross-bank labeled assembly"
 Dev->>MK : "make transform_17_18"
-MK->>TP : "Apply transformation pipeline"
-TP-->>Dev : "Semantic naming and organization"
+MK->>TP : "Apply enhanced transformation pipeline"
+TP-->>Dev : "Semantic naming, .proc/.endproc organization"
 ```
 
 **Diagram sources**
@@ -271,6 +280,8 @@ TP-->>Dev : "Semantic naming and organization"
 - **New**: make add_procs: Add .proc/.endproc scoping to PRG bank $17/$18 assembly code.
 - **New**: make analyze_17_18: Analyze PRG bank $17/$18 assembly code boundaries and function structure.
 - **New**: make debug_regions: Debug region transitions in PRG bank $17/$18 assembly code.
+- **New**: make proc_scope_17_18: Enhanced .proc/.endproc scoping with advanced boundary analysis for PRG bank $17/$18 assembly code.
+- **New**: make localize_labels: Convert branch-only labels to @local format with proper scoping.
 
 Usage patterns:
 - Start with make split to prepare ROM assets.
@@ -280,6 +291,8 @@ Usage patterns:
 - **New**: Use make gen_f667_ffff for specialized Bank $1F range disassembly.
 - **New**: Use make update_jsr_labels to map addresses to symbols in Bank $1F assembly.
 - **New**: Use transformation pipeline for PRG bank $17/$18 assembly code organization.
+- **New**: Use make proc_scope_17_18 for enhanced .proc/.endproc organization with advanced boundary analysis.
+- **New**: Use make localize_labels for converting branch-only labels to @local format.
 - Iterate assembly and linking, then verify with make verify.
 
 **Section sources**
@@ -653,17 +666,19 @@ Format --> End(["Enhanced Assembly Listing"])
 ## Transformation Pipeline
 
 ### Overview
-The transformation pipeline provides a comprehensive automated workflow for organizing and enhancing PRG bank $17/$18 assembly code with semantic naming conventions and cross-bank reference handling. The pipeline consists of four specialized tools that work together to provide systematic code organization, naming standardization, and debugging capabilities.
+The transformation pipeline provides a comprehensive automated workflow for organizing and enhancing PRG bank $17/$18 assembly code with semantic naming conventions, enhanced .proc/.endproc organization, and advanced boundary analysis. The pipeline consists of six specialized tools that work together to provide systematic code organization, naming standardization, and comprehensive debugging capabilities.
 
 ### Pipeline Architecture
-The transformation pipeline operates on PRG bank $17/$18 assembly code with four specialized stages:
+The transformation pipeline operates on PRG bank $17/$18 assembly code with six specialized stages:
 
 ```mermaid
 flowchart TD
-Stage1["transform_17_18.py<br/>348 lines - Semantic Naming"] --> Stage2["add_procs.py<br/>189 lines - Scoping"]
-Stage2 --> Stage3["analyze_17_18.py<br/>118 lines - Boundaries"]
-Stage3 --> Stage4["debug_regions.py<br/>98 lines - Transitions"]
-Stage4 --> Output["Organized Assembly Code"]
+Stage1["transform_17_18.py<br/>348 lines - Semantic Naming"] --> Stage2["add_procs.py<br/>189 lines - Basic Scoping"]
+Stage2 --> Stage3["analyze_17_18.py<br/>118 lines - Boundary Analysis"]
+Stage3 --> Stage4["debug_regions.py<br/>98 lines - Transition Debugging"]
+Stage4 --> Stage5["proc_scope_17_18.py<br/>Enhanced .proc/.endproc"]
+Stage5 --> Stage6["localize_labels.py<br/>New @local conversion"]
+Stage6 --> Output["Optimized Assembly Code"]
 ```
 
 **Diagram sources**
@@ -671,6 +686,8 @@ Stage4 --> Output["Organized Assembly Code"]
 - [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
 - [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
+- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
 
 ### Stage-by-Stage Breakdown
 
@@ -682,41 +699,60 @@ Stage4 --> Output["Organized Assembly Code"]
 - **Label Renaming**: Renames LXXXX labels to semantic B17_18_ names and updates all references.
 - **Dry Run Mode**: Supports --dry-run flag for previewing changes without modification.
 
-#### Stage 2: Procedure Scoping (add_procs.py)
+#### Stage 2: Basic Procedure Scoping (add_procs.py)
 - **Block Parsing**: Parses assembly code into structured blocks including section headers, labels, code, data, and comments.
 - **Region Classification**: Classifies regions as code or data based on content analysis and section headers.
 - **Cross-Reference Analysis**: Identifies cross-referenced Lxxxx labels that need proper scoping.
 - **Scoping Implementation**: Adds .proc/.endproc directives around identified regions to improve code organization.
 - **Block Grouping**: Groups related blocks into logical regions for better maintainability.
 
-#### Stage 3: Boundary Analysis (analyze_17_18.py)
+#### Stage 3: Advanced Boundary Analysis (analyze_17_18.py)
 - **Address Mapping**: Builds comprehensive address-to-line mappings from inline byte comments.
 - **Function Boundary Detection**: Analyzes RTS instructions, JSR/JMP patterns, and label relationships to identify function boundaries.
 - **Entry Point Analysis**: Identifies jump table entry targets and traces function extents.
 - **Cross-Bank Reference Analysis**: Detects and analyzes cross-bank references and their implications.
 - **Statistical Analysis**: Provides counts of JSR/JMP instructions and function sizes for code analysis.
 
-#### Stage 4: Region Debugging (debug_regions.py)
+#### Stage 4: Region Transition Debugging (debug_regions.py)
 - **Transition Analysis**: Tracks region transitions throughout the assembly code to ensure proper boundary detection.
 - **Boundary Validation**: Validates that region boundaries align with actual code structure and address ranges.
 - **Debug Output**: Provides detailed transition reports showing when and where region changes occur.
 - **Boundary Verification**: Compares detected transitions with expected region counts and boundaries.
 
+#### Stage 5: Enhanced .proc/.endproc Organization (proc_scope_17_18.py)
+- **Advanced Boundary Detection**: Implements sophisticated algorithm to determine optimal .proc/.endproc boundaries based on code structure and data regions.
+- **Proc Boundary Calculation**: Uses comprehensive analysis of label definitions, data ranges, and inline dispatch tables to determine proc boundaries.
+- **Inner Global Detection**: Identifies labels that appear in multiple contexts and marks them as inner globals requiring special handling.
+- **At-Candidate Analysis**: Detects labels that could be @-scoped references and analyzes their usage patterns.
+- **Word Target Processing**: Handles word-sized targets and their relationship to proc boundaries.
+- **Boundary Optimization**: Optimizes proc boundaries to minimize overlap and maximize code clarity.
+
+#### Stage 6: Localized Label Conversion (localize_labels.py)
+- **Branch-Only Label Detection**: Identifies labels that are only referenced by branch instructions (BCC, BCS, BEQ, etc.).
+- **@Local Conversion**: Converts these labels to @local format for proper scoping within procedures.
+- **Safety Verification**: Ensures that @local labels are only used within the same procedure context.
+- **Descriptive Naming**: Generates meaningful @ names based on branch direction and context (loop, done, skip, target).
+- **Cross-Reference Handling**: Manages cross-procedure references appropriately.
+
 ### Integration with Build System
 The transformation pipeline integrates seamlessly with the Makefile build system:
 - **New**: make transform_17_18 target applies semantic naming transformation to PRG bank $17/$18 assembly code.
-- **New**: make add_procs target adds .proc/.endproc scoping to organized assembly code.
+- **New**: make add_procs target adds basic .proc/.endproc scoping to organized assembly code.
 - **New**: make analyze_17_18 target analyzes function boundaries and cross-bank references.
 - **New**: make debug_regions target validates region transitions and boundary detection.
+- **New**: make proc_scope_17_18 target applies enhanced .proc/.endproc organization with advanced boundary analysis.
+- **New**: make localize_labels target converts branch-only labels to @local format with proper scoping.
 - Each stage produces detailed logging and validation feedback.
 - Intermediate results are saved to maintain progress and enable debugging.
-- Final output provides well-organized, semantically-named assembly code ready for compilation.
+- Final output provides well-organized, semantically-named assembly code with optimized .proc/.endproc boundaries ready for compilation.
 
 **Section sources**
 - [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
 - [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
 - [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
+- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
 
 ### Semantic Naming Conventions
 The transformation pipeline implements a comprehensive semantic naming system for PRG bank $17/$18 assembly code:
@@ -726,6 +762,13 @@ The transformation pipeline implements a comprehensive semantic naming system fo
 - **Function Names**: Descriptive names based on functionality (e.g., B17_18_PpuWriteRle, B17_18_DisplayRenderScene)
 - **Data Names**: Descriptive names indicating data purpose (e.g., B17_18_BattleTileData, B17_18_TileLookupTable)
 - **Table Names**: Descriptive names indicating table purpose (e.g., B17_18_JumpTable, B17_18_AnimFrameTable)
+
+#### Cleaner Naming Examples
+Recent refactoring has introduced cleaner, more descriptive function names:
+- **PpuWriteRle**: Replaces generic LXXXX naming with clear PPU RLE writing functionality
+- **PpuCopyRaw**: Clear indication of raw PPU data copying operation
+- **PpuWriteTileOffset**: Describes tile offset writing to PPU
+- **DomesticDisplay**: Self-explanatory domestic affairs display routine
 
 #### Region Classification
 - **Functions**: Code regions ending with RTS, tail-call JMP, or region boundaries
@@ -739,18 +782,63 @@ The transformation pipeline implements a comprehensive semantic naming system fo
 - **Equation Generation**: Creates proper equate statements for cross-bank references
 - **Scope Management**: Maintains proper scoping across bank boundaries
 
+### Enhanced .proc/.endproc Organization
+The proc_scope_17_18.py tool provides advanced .proc/.endproc organization with sophisticated boundary analysis:
+
+#### Advanced Boundary Detection Algorithm
+- **Proc Start Analysis**: Identifies potential proc start locations based on label definitions and code structure
+- **Data Region Integration**: Incorporates data region boundaries into proc boundary calculations
+- **Next Boundary Determination**: Calculates optimal end points by finding the nearest proc start or data region
+- **Boundary Optimization**: Minimizes overlap and maximizes code clarity through boundary optimization
+
+#### Inner Global Detection
+- **Multi-Context Labels**: Identifies labels that appear in multiple contexts requiring special handling
+- **Inner Global Marking**: Marks inner globals with appropriate scope qualifiers
+- **Cross-Reference Handling**: Ensures proper handling of cross-references to inner globals
+
+#### At-Candidate Analysis
+- **At-Reference Detection**: Identifies labels that could be @-scoped references
+- **Usage Pattern Analysis**: Analyzes usage patterns to determine appropriate scoping
+- **Candidate Classification**: Classifies labels as potential @-references for further processing
+
+#### Word Target Processing
+- **Word-Sized Target Detection**: Identifies word-sized targets and their relationship to proc boundaries
+- **Target Analysis**: Analyzes word targets to determine their impact on proc boundaries
+- **Boundary Adjustment**: Adjusts proc boundaries based on word target relationships
+
+### Localized Label Conversion
+The localize_labels.py tool provides systematic conversion of branch-only labels to @local format:
+
+#### Branch-Only Label Detection
+- **Reference Analysis**: Identifies labels that are only referenced by branch instructions (BCC, BCS, BEQ, etc.)
+- **Usage Pattern Recognition**: Analyzes instruction patterns to determine label scope requirements
+- **Safety Verification**: Ensures @local labels are only used within the same procedure context
+
+#### Descriptive @Naming Strategy
+- **Direction-Based Naming**: Generates meaningful names based on branch direction and context
+- **Loop Detection**: Identifies loop constructs and names them appropriately
+- **Conditional Logic**: Handles conditional branches with descriptive naming (skip, done)
+- **Fallback Naming**: Uses target as default when context doesn't indicate a specific pattern
+
+#### Safety and Validation
+- **Cross-Procedure Reference Checking**: Verifies that @local labels aren't referenced across procedure boundaries
+- **Iteration-Based Promotion**: Promotes labels with cross-procedure references to proc_starts
+- **Deterministic Ordering**: Processes labels in a consistent order for reproducible results
+
 **Section sources**
 - [tools/transform_17_18.py:30-168](file://tools/transform_17_18.py#L30-L168)
+- [tools/proc_scope_17_18.py:315-813](file://tools/proc_scope_17_18.py#L315-L813)
+- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
 
 ## Dependency Analysis
 The build system exhibits clear separation of concerns:
 - Makefile orchestrates tool invocations and manages dependencies between assembly, linking, and ROM packaging.
 - Python tools encapsulate domain-specific tasks (ROM parsing, disassembly, analysis, annotation, verification).
 - **New**: Unified disassembly pipeline provides specialized tools for different ROM regions with cross-bank reference handling.
-- **New**: Transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code organization.
+- **New**: Enhanced transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code organization with comprehensive .proc/.endproc boundary analysis.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools and transformation pipeline for comprehensive ROM coverage.
+- **New**: Cross-dependencies between unified disassembly tools and enhanced transformation pipeline for comprehensive ROM coverage.
 
 ```mermaid
 graph TB
@@ -774,6 +862,8 @@ MK --> TP1["transform_17_18.py"]
 MK --> TP2["add_procs.py"]
 MK --> TP3["analyze_17_18.py"]
 MK --> TP4["debug_regions.py"]
+MK --> TP5["proc_scope_17_18.py"]
+MK --> TP6["localize_labels.py"]
 M_main["asm/main.asm"] --> H_namco["include/namco163.h"]
 M_main --> H_macros["include/macros.h"]
 M_main --> H_functions["include/functions.h"]
@@ -787,6 +877,8 @@ UD5 --> UD6
 TP1 --> TP2
 TP2 --> TP3
 TP3 --> TP4
+TP4 --> TP5
+TP5 --> TP6
 ```
 
 **Diagram sources**
@@ -809,6 +901,8 @@ TP3 --> TP4
 - [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
 - [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
+- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -820,9 +914,10 @@ TP3 --> TP4
 - Linker segmentation should be kept minimal until needed to reduce linking complexity and runtime.
 - Enhanced disassembly tools provide more detailed output but may require additional processing time for complex bank analysis.
 - **New**: Unified disassembly pipeline processes multiple ROM regions with sophisticated algorithms; expect significant processing time for large assembly files.
-- **New**: Transformation pipeline applies multiple passes with detailed analysis; expect substantial processing time for PRG bank $17/$18 assembly code.
+- **New**: Enhanced transformation pipeline applies multiple passes with detailed analysis and advanced boundary detection; expect substantial processing time for PRG bank $17/$18 assembly code.
 - **New**: Each disassembly and transformation stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
-- **New**: Cross-bank reference handling and semantic naming require additional processing time but provide more accurate and maintainable assembly results.
+- **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
+- **New**: Localized label conversion adds another processing stage but significantly improves code readability and maintainability.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -834,12 +929,14 @@ Common issues and resolutions:
 - Linker errors: Update linker.cfg with new segments as banks are disassembled; ensure segments map to correct PRG slots.
 - Enhanced disassembly output issues: Ensure proper base address mapping and inline comment formatting for accurate analysis.
 - **New**: Unified disassembly pipeline failures: Check individual stage logs in the terminal output; each stage prints detailed progress and error information.
+- **New**: Enhanced transformation pipeline failures: Check individual stage logs for transform_17_18.py, add_procs.py, analyze_17_18.py, debug_regions.py, proc_scope_17_18.py, and localize_labels.py.
 - **New**: Cross-bank reference issues: Verify that fix_disasm.py has been run to enhance disasm_17_18.py output.
 - **New**: Address-to-symbol mapping failures: Ensure functions.h contains proper address-to-symbol mappings for $E000-$FFFF.
 - **New**: Range verification failures: Check that verify_f3bd_f667.py and verify_range.py are run with correct file paths and address ranges.
-- **New**: Transformation pipeline failures: Check individual stage logs for transform_17_18.py, add_procs.py, analyze_17_18.py, and debug_regions.py.
 - **New**: Semantic naming conflicts: Ensure transform_17_18.py runs before add_procs.py to avoid naming conflicts.
-- **New**: Dry run issues: Use --dry-run flag with transform_17_18.py to preview changes before applying.
+- **New**: .proc/.endproc boundary issues: Use proc_scope_17_18.py for advanced boundary analysis and optimization.
+- **New**: Localized label conversion failures: Check that localize_labels.py runs after proc_scope_17_18.py to ensure proper label classification.
+- **New**: Dry run issues: Use --dry-run flag with transform_17_18.py, proc_scope_17_18.py, and localize_labels.py to preview changes before applying.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
@@ -850,10 +947,14 @@ Practical examples:
 - **New**: Update JSR labels: make update_jsr_labels
 - **New**: Verify specific range: make verify_f3bd_f667
 - **New**: Transform PRG bank $17/$18: make transform_17_18
-- **New**: Add procedure scoping: make add_procs
+- **New**: Add basic procedure scoping: make add_procs
 - **New**: Analyze boundaries: make analyze_17_18
 - **New**: Debug regions: make debug_regions
+- **New**: Enhanced .proc/.endproc organization: make proc_scope_17_18
+- **New**: Localized label conversion: make localize_labels
 - **New**: Transform specific stage: python3 tools/transform_17_18.py, python3 tools/add_procs.py, etc.
+- **New**: Advanced boundary analysis: python3 tools/proc_scope_17_18.py
+- **New**: Localized label conversion: python3 tools/localize_labels.py
 - Generate enhanced Bank 0x1F disassembly: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - Clean build artifacts: make clean
 - Clean and remove ROM dumps: make distclean
@@ -865,7 +966,7 @@ Practical examples:
 - [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly added transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, enhanced code organization, and automated tooling for maintainability. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the transformation pipeline tools, and the enhanced verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling and semantic naming conventions.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, and advanced boundary analysis capabilities. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization and localize_labels.py for converting branch-only labels to @local format, significantly improving code readability and maintainability. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, and the improved verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, and optimized .proc/.endproc organization.
 
 ## Appendices
 
@@ -874,7 +975,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - Enhanced disassembly: make disasm, tools/disasm_bank_1f.py, tools/annotate_asm.py
 - **New**: Unified disassembly: make disasm_17_18, make gen_f667_ffff, make update_jsr_labels
 - **New**: Range verification: make verify_f3bd_f667, make verify_range
-- **New**: Transformation pipeline: make transform_17_18, make add_procs, make analyze_17_18, make debug_regions
+- **New**: Enhanced transformation pipeline: make transform_17_18, make add_procs, make analyze_17_18, make debug_regions, make proc_scope_17_18, make localize_labels
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
 
@@ -891,13 +992,21 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: make add_procs
 - **New**: make analyze_17_18
 - **New**: make debug_regions
+- **New**: make proc_scope_17_18
+- **New**: make localize_labels
 - **New**: python3 tools/transform_17_18.py
 - **New**: python3 tools/add_procs.py
 - **New**: python3 tools/analyze_17_18.py
 - **New**: python3 tools/debug_regions.py
+- **New**: python3 tools/proc_scope_17_18.py
+- **New**: python3 tools/localize_labels.py
 - **New**: python3 tools/transform_17_18.py --dry-run
+- **New**: python3 tools/proc_scope_17_18.py --dry-run
+- **New**: python3 tools/localize_labels.py --dry-run
 - **New**: python3 tools/add_procs.py asm/banks/prg_17_18.asm
 - **New**: python3 tools/analyze_17_18.py
 - **New**: python3 tools/debug_regions.py
+- **New**: python3 tools/proc_scope_17_18.py
+- **New**: python3 tools/localize_labels.py
 - python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - python3 tools/annotate_asm.py --in-place --verify
