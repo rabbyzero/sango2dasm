@@ -39,6 +39,15 @@
 - [tools/debug_regions.py](file://tools/debug_regions.py)
 - [tools/proc_scope_17_18.py](file://tools/proc_scope_17_18.py)
 - [tools/localize_labels.py](file://tools/localize_labels.py)
+- [tools/check_addresses.py](file://tools/check_addresses.py)
+- [tools/check_bank18.py](file://tools/check_bank18.py)
+- [tools/check_rom_offset.py](file://tools/check_rom_offset.py)
+- [tools/dump_chr_table.py](file://tools/dump_chr_table.py)
+- [tools/dump_correct_bytes.py](file://tools/dump_correct_bytes.py)
+- [tools/search_0530.py](file://tools/search_0530.py)
+- [tools/search_chr_loader.py](file://tools/search_chr_loader.py)
+- [tools/search_chr_loader2.py](file://tools/search_chr_loader2.py)
+- [tools/verify_disasm.py](file://tools/verify_disasm.py)
 - [asm/main.asm](file://asm/main.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
@@ -49,11 +58,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for new tool scripts: proc_scope_17_18.py and localize_labels.py
-- Updated PRG bank 17/18 refactoring section to reflect cleaner naming conventions (PpuWriteRle, PpuCopyRaw, PpuWriteTileOffset, DomesticDisplay)
-- Enhanced transformation pipeline documentation to include new automated procedure scoping tools
-- Updated Makefile targets section to document new tool integration
-- Added detailed coverage of semantic naming improvements and enhanced .proc/.endproc organization
+- Added comprehensive documentation for new Python analysis and verification tools
+- Updated ROM analysis tools section to include check_addresses.py, check_bank18.py, check_rom_offset.py, dump_chr_table.py, dump_correct_bytes.py, search_0530.py, search_chr_loader.py, search_chr_loader2.py, and verify_disasm.py
+- Enhanced verification system documentation to include detailed ROM byte verification capabilities
+- Updated troubleshooting guide to include new analysis tools for ROM debugging
+- Added new section covering ROM analysis and verification workflows
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -64,14 +73,15 @@
 6. [Unified Disassembly Pipeline](#unified-disassembly-pipeline)
 7. [Enhanced Disassembly Tools](#enhanced-disassembly-tools)
 8. [Transformation Pipeline](#transformation-pipeline)
-9. [Dependency Analysis](#dependency-analysis)
-10. [Performance Considerations](#performance-considerations)
-11. [Troubleshooting Guide](#troubleshooting-guide)
-12. [Conclusion](#conclusion)
-13. [Appendices](#appendices)
+9. [ROM Analysis and Verification Tools](#rom-analysis-and-verification-tools)
+10. [Dependency Analysis](#dependency-analysis)
+11. [Performance Considerations](#performance-considerations)
+12. [Troubleshooting Guide](#troubleshooting-guide)
+13. [Conclusion](#conclusion)
+14. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. Additionally, the transformation pipeline now includes sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, enhanced code organization, and comprehensive .proc/.endproc boundary analysis.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. Additionally, the transformation pipeline now includes sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, enhanced code organization, and comprehensive .proc/.endproc boundary analysis. The recent addition of dedicated ROM analysis and verification tools provides enhanced debugging capabilities for ROM reconstruction and validation.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -80,7 +90,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - ROM assets under rom/ (split PRG/CHR banks and combined PRG)
 - Build outputs under build/
 - Automated tools under tools/
-- **New**: Comprehensive transformation pipeline with specialized tools for PRG bank $17/$18 assembly code including semantic naming, enhanced .proc/.endproc organization, and advanced boundary analysis
+- **New**: Comprehensive ROM analysis and verification toolkit with dedicated tools for byte-level ROM inspection, pattern matching, and cross-referencing
 
 ```mermaid
 graph TB
@@ -115,6 +125,17 @@ TP3["analyze_17_18.py<br/>118 lines"]
 TP4["debug_regions.py<br/>98 lines"]
 TP5["proc_scope_17_18.py<br/>Enhanced .proc/.endproc"]
 TP6["localize_labels.py<br/>New tool for @local labels"]
+end
+subgraph "ROM Analysis and Verification"
+RA1["check_addresses.py<br/>Address verification"]
+RA2["check_bank18.py<br/>Bank verification"]
+RA3["check_rom_offset.py<br/>Offset mapping"]
+RA4["dump_chr_table.py<br/>CHR table inspection"]
+RA5["dump_correct_bytes.py<br/>Correct bytes verification"]
+RA6["search_0530.py<br/>$0530 pattern search"]
+RA7["search_chr_loader.py<br/>CHR loader pattern"]
+RA8["search_chr_loader2.py<br/>Specific CHR loader"]
+RA9["verify_disasm.py<br/>Disassembly verification"]
 end
 subgraph "Tools"
 T_build["tools/build_nes.py"]
@@ -154,6 +175,15 @@ MK --> TP3
 MK --> TP4
 MK --> TP5
 MK --> TP6
+MK --> RA1
+MK --> RA2
+MK --> RA3
+MK --> RA4
+MK --> RA5
+MK --> RA6
+MK --> RA7
+MK --> RA8
+MK --> RA9
 MK --> T_build
 MK --> T_verify
 MK --> T_split
@@ -187,6 +217,15 @@ T_verify --> OUT
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
 - [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
+- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -197,6 +236,7 @@ T_verify --> OUT
 - The cc65 toolchain (ca65 and ld65) compiles assembly into an object file and links it according to the linker configuration.
 - Python tools handle ROM parsing, bank generation, disassembly, analysis, annotation, verification, and the comprehensive unified disassembly pipeline with transformation tools.
 - **New**: Enhanced transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, comprehensive .proc/.endproc organization, and advanced boundary analysis.
+- **New**: Comprehensive ROM analysis and verification toolkit provides dedicated tools for byte-level ROM inspection, pattern matching, and cross-referencing.
 
 Key capabilities:
 - Assemble and link to produce a raw PRG binary.
@@ -208,6 +248,7 @@ Key capabilities:
 - Generate bank stubs to bootstrap disassembly.
 - **New**: Unified disassembly with specialized tools for Bank $17/$18 paired disassembly, Bank $1F range disassembly, and cross-bank reference mapping.
 - **New**: Enhanced transformation pipeline with semantic naming (B17_18_), comprehensive .proc/.endproc organization, cross-bank reference handling, and automated code organization.
+- **New**: Dedicated ROM analysis tools for address verification, bank validation, offset mapping, pattern searching, and disassembly verification.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -228,6 +269,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - Verify the rebuilt ROM against the original.
 - **New**: Apply unified disassembly pipeline for specialized ROM region processing with cross-bank reference handling.
 - **New**: Apply enhanced transformation pipeline for PRG bank $17/$18 assembly code with semantic naming, comprehensive .proc/.endproc organization, and advanced boundary analysis.
+- **New**: Utilize dedicated ROM analysis tools for detailed byte-level verification and pattern matching.
 
 ```mermaid
 sequenceDiagram
@@ -239,6 +281,7 @@ participant BN as "build_nes.py"
 participant VR as "verify_rom.py"
 participant UD as "Unified Disassembly Pipeline"
 participant TP as "Enhanced Transformation Pipeline"
+participant RA as "ROM Analysis Tools"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm"
 CA-->>MK : "main.o"
@@ -255,6 +298,9 @@ UD-->>Dev : "Cross-bank labeled assembly"
 Dev->>MK : "make transform_17_18"
 MK->>TP : "Apply enhanced transformation pipeline"
 TP-->>Dev : "Semantic naming, .proc/.endproc organization"
+Dev->>MK : "make check_addresses"
+MK->>RA : "Address verification and ROM analysis"
+RA-->>Dev : "Detailed byte-level inspection"
 ```
 
 **Diagram sources**
@@ -282,6 +328,15 @@ TP-->>Dev : "Semantic naming, .proc/.endproc organization"
 - **New**: make debug_regions: Debug region transitions in PRG bank $17/$18 assembly code.
 - **New**: make proc_scope_17_18: Enhanced .proc/.endproc scoping with advanced boundary analysis for PRG bank $17/$18 assembly code.
 - **New**: make localize_labels: Convert branch-only labels to @local format with proper scoping.
+- **New**: make check_addresses: Verify ROM bytes at specific addresses for disassembly accuracy.
+- **New**: make check_bank18: Validate bank $18 content and cross-check with bank $17.
+- **New**: make check_rom_offset: Map CPU addresses to ROM file offsets for verification.
+- **New**: make dump_chr_table: Inspect CHR table data in combined ROM.
+- **New**: make dump_correct_bytes: Verify correct bytes in ROM for disassembly validation.
+- **New**: make search_0530: Search for $0530 store patterns in ROM.
+- **New**: make search_chr_loader: Find CHR loader patterns in ROM.
+- **New**: make search_chr_loader2: Locate specific CHR loader with $0530/$0531 stores.
+- **New**: make verify_disasm: Comprehensive disassembly verification against ROM bytes.
 
 Usage patterns:
 - Start with make split to prepare ROM assets.
@@ -293,6 +348,7 @@ Usage patterns:
 - **New**: Use transformation pipeline for PRG bank $17/$18 assembly code organization.
 - **New**: Use make proc_scope_17_18 for enhanced .proc/.endproc organization with advanced boundary analysis.
 - **New**: Use make localize_labels for converting branch-only labels to @local format.
+- **New**: Utilize ROM analysis tools for detailed verification and debugging workflows.
 - Iterate assembly and linking, then verify with make verify.
 
 **Section sources**
@@ -352,7 +408,7 @@ Info --> Combined["Write prg_combined.bin"]
 - **New**: disasm_17_18.py provides unified recursive descent disassembly for paired Bank $17/$18 region with cross-bank reference handling.
 - **New**: gen_f667_ffff.py generates specialized disassembly for Bank $1F range $F667-$FFFF with detailed interrupt handler analysis.
 - **New**: update_jsr_labels.py maps JSR/JMP operands to symbolic names using functions.h address map.
-- **New**: verify_f3bd_f667.py verifies Bank $1F range $F3BD-$F667 assembly against binary.
+- **New**: verify_f3bd_f667.py verifies Bank $1F range $F3BD-$F667 assembly against binary with detailed error reporting.
 - annotate_asm.py annotates existing assembly with ROM addresses and actual opcode bytes, using a symbol table and instruction size heuristics. It can optionally verify assembly with ca65.
 
 **Updated** Enhanced with improved output format supporting inline binary comments and detailed address mapping for precise ROM analysis.
@@ -402,6 +458,7 @@ AN-->>ASM : "Annotated assembly with addresses and bytes"
 - verify_rom.py performs a byte-by-byte comparison of two ROM files, reporting total mismatches, first mismatch address, and accuracy percentage. It exits with success when identical.
 - **New**: verify_f3bd_f667.py verifies Bank $1F range $F3BD-$F667 assembly against binary with detailed error reporting.
 - **New**: verify_range.py verifies disassembly bytes in prg_1f.aligned.asm against the binary for range $E843-$F2AE.
+- **New**: verify_disasm.py provides comprehensive disassembly verification by checking multiple known addresses for byte-level accuracy.
 
 ```mermaid
 flowchart TD
@@ -830,15 +887,170 @@ The localize_labels.py tool provides systematic conversion of branch-only labels
 - [tools/proc_scope_17_18.py:315-813](file://tools/proc_scope_17_18.py#L315-L813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
 
+## ROM Analysis and Verification Tools
+
+### Overview
+The ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing. These tools complement the existing verification system by offering specialized analysis capabilities for ROM reconstruction and debugging.
+
+### Analysis Tool Architecture
+The ROM analysis toolkit consists of nine specialized tools that work together to provide comprehensive ROM verification and debugging capabilities:
+
+```mermaid
+flowchart TD
+AT1["check_addresses.py<br/>Address verification"] --> AT2["check_bank18.py<br/>Bank validation"]
+AT2 --> AT3["check_rom_offset.py<br/>Offset mapping"]
+AT3 --> AT4["dump_chr_table.py<br/>CHR table inspection"]
+AT4 --> AT5["dump_correct_bytes.py<br/>Correct bytes verification"]
+AT5 --> AT6["search_0530.py<br/>$0530 pattern search"]
+AT6 --> AT7["search_chr_loader.py<br/>CHR loader pattern"]
+AT7 --> AT8["search_chr_loader2.py<br/>Specific CHR loader"]
+AT8 --> AT9["verify_disasm.py<br/>Comprehensive verification"]
+```
+
+**Diagram sources**
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
+- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
+
+### Individual Tool Analysis
+
+#### check_addresses.py - Address Verification Tool
+- **Purpose**: Verifies ROM bytes at specific disassembly addresses for accuracy
+- **Functionality**: Reads ROM data from prg_17.bin and displays bytes at addresses $A8D3, $A944, and user-specified data table pointers
+- **Address Mapping**: Converts disassembly addresses to ROM file offsets (e.g., $A8D3 -> offset $08D3)
+- **Output Format**: Displays 16-byte chunks in hexadecimal format with CPU addresses
+- **Use Case**: Validates that ROM bytes match expected disassembly at critical addresses
+
+#### check_bank18.py - Bank Validation Tool
+- **Purpose**: Validates bank $18 content and cross-checks with bank $17
+- **Functionality**: Checks target byte sequences at specific offsets in prg_18.bin and prg_17.bin
+- **Cross-Bank Verification**: Compares bank $18 content with expected patterns and validates combined bank layout
+- **Target Bytes**: Searches for specific byte sequences (e.g., A0 00 AD 0D 00) to verify ROM structure
+- **Combined Bank Analysis**: Validates combined bank layout where bank $17 occupies $0000-$1FFF and bank $18 occupies $2000-$3FFF
+
+#### check_rom_offset.py - Offset Mapping Tool
+- **Purpose**: Maps CPU addresses to ROM file offsets for verification
+- **Functionality**: Calculates file offsets for CPU addresses within combined ROM structure
+- **Bank Calculation**: Computes bank-specific offsets using standard 8KB bank sizing ($2000 bytes per bank)
+- **Pattern Searching**: Searches for target byte sequences anywhere in the combined ROM
+- **Verification Workflow**: Provides systematic approach to verify ROM address mappings
+
+#### dump_chr_table.py - CHR Table Inspection Tool
+- **Purpose**: Inspects CHR table data in combined ROM for verification
+- **Functionality**: Dumps 256 bytes of ROM data centered around address $A8FD for detailed analysis
+- **Context Analysis**: Provides broader context around specific CHR table addresses
+- **Combined ROM Usage**: Works with prg_17_18_combined.bin for unified bank analysis
+- **Verification Support**: Supports CHR loader verification and table structure analysis
+
+#### dump_correct_bytes.py - Correct Bytes Verification Tool
+- **Purpose**: Verifies correct bytes in ROM for disassembly validation
+- **Functionality**: Dumps specific byte ranges from prg_17.bin and analyzes data table structures
+- **Range Analysis**: Covers disassembly addresses $A8D3-$A988 with detailed byte-by-byte output
+- **Data Table Processing**: Analyzes 10-byte entries in data tables with pointer extraction and address calculation
+- **ASCII Representation**: Provides ASCII character representation alongside hexadecimal data
+
+#### search_0530.py - $0530 Pattern Search Tool
+- **Purpose**: Searches for $0530 store patterns in ROM for CHR loader identification
+- **Functionality**: Searches for STA $0530 instructions (8D 30 05) and similar patterns (STA $0531)
+- **Pattern Recognition**: Identifies specific store instructions targeting $0530/$0531 addresses
+- **Context Display**: Shows instruction context around detected patterns for analysis
+- **CHR Loader Support**: Aids in identifying CHR loading routines and data structures
+
+#### search_chr_loader.py - CHR Loader Pattern Tool
+- **Purpose**: Finds general CHR loader patterns in ROM
+- **Functionality**: Searches for TAY followed by LDA absolute,Y instruction sequences
+- **Pattern Matching**: Identifies TAY (A8) followed by LDA absolute,Y (B9) patterns
+- **Loader Identification**: Supports identification of CHR loading routines using Y-indexed addressing
+- **Instruction Context**: Displays instruction context for pattern analysis
+
+#### search_chr_loader2.py - Specific CHR Loader Tool
+- **Purpose**: Locates specific CHR loader with $0530/$0531 stores
+- **Functionality**: Searches for complex pattern: TAY, LDA abs,Y, STA $0530, LDA abs,Y, STA $0531
+- **Multi-Step Verification**: Identifies complete CHR loading sequences with specific store addresses
+- **Pattern Validation**: Confirms complex instruction sequences for accurate loader identification
+- **Address Verification**: Supports verification of CHR loader address patterns
+
+#### verify_disasm.py - Comprehensive Disassembly Verification Tool
+- **Purpose**: Provides comprehensive disassembly verification against ROM bytes
+- **Functionality**: Checks multiple known addresses from disassembly for byte-level accuracy
+- **Test Addresses**: Validates addresses $A8D3 (LDY #$00), $A8D5 (LDA a:$000D), $A8FD (PHA), $A8FE (LDY a:$0019), $A901 (LDA $0680,Y)
+- **Multi-Address Testing**: Tests multiple addresses to ensure comprehensive disassembly accuracy
+- **Context Verification**: Displays actual ROM bytes at target addresses for comparison
+
+### Integration with Build System
+The ROM analysis toolkit integrates seamlessly with the Makefile build system:
+- **New**: make check_addresses target verifies ROM bytes at specific disassembly addresses.
+- **New**: make check_bank18 target validates bank $18 content and cross-checks with bank $17.
+- **New**: make check_rom_offset target maps CPU addresses to ROM file offsets for verification.
+- **New**: make dump_chr_table target inspects CHR table data in combined ROM.
+- **New**: make dump_correct_bytes target verifies correct bytes in ROM for disassembly validation.
+- **New**: make search_0530 target searches for $0530 store patterns in ROM.
+- **New**: make search_chr_loader target finds general CHR loader patterns in ROM.
+- **New**: make search_chr_loader2 target locates specific CHR loader with $0530/$0531 stores.
+- **New**: make verify_disasm target provides comprehensive disassembly verification.
+- Each tool produces detailed logging and validation feedback for ROM debugging.
+- Tools utilize ROM assets generated by make split and make banks targets.
+- Results support iterative assembly and linking workflows for accurate ROM reconstruction.
+
+**Section sources**
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
+- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
+
+### Advanced Verification Workflows
+The ROM analysis toolkit enables sophisticated verification workflows:
+
+#### Byte-Level Verification Workflow
+1. **Address Verification**: Use check_addresses.py to verify critical ROM addresses
+2. **Bank Validation**: Use check_bank18.py to validate bank-specific content
+3. **Offset Mapping**: Use check_rom_offset.py to verify CPU-to-file address mappings
+4. **Pattern Search**: Use search_0530.py, search_chr_loader.py, and search_chr_loader2.py to identify specific ROM patterns
+5. **Comprehensive Testing**: Use verify_disasm.py to test multiple addresses for accuracy
+
+#### CHR Loader Verification Workflow
+1. **Pattern Identification**: Use search_chr_loader.py and search_chr_loader2.py to locate CHR loaders
+2. **Table Analysis**: Use dump_chr_table.py and dump_correct_bytes.py to analyze CHR table structures
+3. **Address Validation**: Use check_addresses.py and verify_disasm.py to confirm ROM addresses
+4. **Cross-Reference Validation**: Use check_bank18.py to validate bank-specific CHR loader content
+
+#### Data Table Verification Workflow
+1. **Table Location**: Use dump_correct_bytes.py to locate and analyze data tables
+2. **Pointer Extraction**: Analyze 10-byte entries to extract and validate table pointers
+3. **Address Calculation**: Verify calculated addresses against ROM content
+4. **Pattern Matching**: Use search_0530.py to identify store patterns in data tables
+
+**Section sources**
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
+
 ## Dependency Analysis
 The build system exhibits clear separation of concerns:
 - Makefile orchestrates tool invocations and manages dependencies between assembly, linking, and ROM packaging.
 - Python tools encapsulate domain-specific tasks (ROM parsing, disassembly, analysis, annotation, verification).
 - **New**: Unified disassembly pipeline provides specialized tools for different ROM regions with cross-bank reference handling.
 - **New**: Enhanced transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code organization with comprehensive .proc/.endproc boundary analysis.
+- **New**: ROM analysis and verification toolkit provides dedicated tools for byte-level ROM inspection and pattern matching.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools and enhanced transformation pipeline for comprehensive ROM coverage.
+- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, and ROM analysis tools for comprehensive ROM coverage.
 
 ```mermaid
 graph TB
@@ -864,6 +1076,15 @@ MK --> TP3["analyze_17_18.py"]
 MK --> TP4["debug_regions.py"]
 MK --> TP5["proc_scope_17_18.py"]
 MK --> TP6["localize_labels.py"]
+MK --> RA1["check_addresses.py"]
+MK --> RA2["check_bank18.py"]
+MK --> RA3["check_rom_offset.py"]
+MK --> RA4["dump_chr_table.py"]
+MK --> RA5["dump_correct_bytes.py"]
+MK --> RA6["search_0530.py"]
+MK --> RA7["search_chr_loader.py"]
+MK --> RA8["search_chr_loader2.py"]
+MK --> RA9["verify_disasm.py"]
 M_main["asm/main.asm"] --> H_namco["include/namco163.h"]
 M_main --> H_macros["include/macros.h"]
 M_main --> H_functions["include/functions.h"]
@@ -879,6 +1100,14 @@ TP2 --> TP3
 TP3 --> TP4
 TP4 --> TP5
 TP5 --> TP6
+RA1 --> RA2
+RA2 --> RA3
+RA3 --> RA4
+RA4 --> RA5
+RA5 --> RA6
+RA6 --> RA7
+RA7 --> RA8
+RA8 --> RA9
 ```
 
 **Diagram sources**
@@ -903,6 +1132,15 @@ TP5 --> TP6
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
 - [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
+- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -915,9 +1153,11 @@ TP5 --> TP6
 - Enhanced disassembly tools provide more detailed output but may require additional processing time for complex bank analysis.
 - **New**: Unified disassembly pipeline processes multiple ROM regions with sophisticated algorithms; expect significant processing time for large assembly files.
 - **New**: Enhanced transformation pipeline applies multiple passes with detailed analysis and advanced boundary detection; expect substantial processing time for PRG bank $17/$18 assembly code.
-- **New**: Each disassembly and transformation stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
+- **New**: ROM analysis toolkit provides specialized tools for detailed byte-level inspection; expect processing time proportional to ROM size and search scope.
+- **New**: Each disassembly, transformation, and analysis stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
 - **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
 - **New**: Localized label conversion adds another processing stage but significantly improves code readability and maintainability.
+- **New**: Pattern searching tools may require scanning entire ROM files; consider performance implications for large ROM images.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -936,7 +1176,11 @@ Common issues and resolutions:
 - **New**: Semantic naming conflicts: Ensure transform_17_18.py runs before add_procs.py to avoid naming conflicts.
 - **New**: .proc/.endproc boundary issues: Use proc_scope_17_18.py for advanced boundary analysis and optimization.
 - **New**: Localized label conversion failures: Check that localize_labels.py runs after proc_scope_17_18.py to ensure proper label classification.
-- **New**: Dry run issues: Use --dry-run flag with transform_17_18.py, proc_scope_17_18.py, and localize_labels.py to preview changes before applying.
+- **New**: ROM analysis tool failures: Verify ROM files exist in rom/prg/ directory; check file permissions and sizes.
+- **New**: Address verification issues: Ensure check_addresses.py uses correct ROM file paths and address mappings.
+- **New**: Pattern search failures: Verify ROM files contain expected patterns; adjust search parameters if needed.
+- **New**: Offset mapping errors: Check bank sizing assumptions (8KB per bank) and CPU address calculations.
+- **New**: CHR loader identification problems: Use multiple search tools (search_chr_loader.py, search_chr_loader2.py) for comprehensive pattern detection.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
@@ -955,6 +1199,16 @@ Practical examples:
 - **New**: Transform specific stage: python3 tools/transform_17_18.py, python3 tools/add_procs.py, etc.
 - **New**: Advanced boundary analysis: python3 tools/proc_scope_17_18.py
 - **New**: Localized label conversion: python3 tools/localize_labels.py
+- **New**: Address verification: make check_addresses
+- **New**: Bank validation: make check_bank18
+- **New**: Offset mapping: make check_rom_offset
+- **New**: CHR table inspection: make dump_chr_table
+- **New**: Correct bytes verification: make dump_correct_bytes
+- **New**: $0530 pattern search: make search_0530
+- **New**: CHR loader pattern search: make search_chr_loader
+- **New**: Specific CHR loader search: make search_chr_loader2
+- **New**: Comprehensive disassembly verification: make verify_disasm
+- **New**: Direct tool execution: python3 tools/check_addresses.py, python3 tools/check_bank18.py, etc.
 - Generate enhanced Bank 0x1F disassembly: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - Clean build artifacts: make clean
 - Clean and remove ROM dumps: make distclean
@@ -966,7 +1220,7 @@ Practical examples:
 - [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, and advanced boundary analysis capabilities. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization and localize_labels.py for converting branch-only labels to @local format, significantly improving code readability and maintainability. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, and the improved verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, and optimized .proc/.endproc organization.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, and advanced boundary analysis capabilities. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization and localize_labels.py for converting branch-only labels to @local format, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the ROM analysis toolkit, and the improved verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, and comprehensive ROM analysis capabilities.
 
 ## Appendices
 
@@ -976,6 +1230,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: Unified disassembly: make disasm_17_18, make gen_f667_ffff, make update_jsr_labels
 - **New**: Range verification: make verify_f3bd_f667, make verify_range
 - **New**: Enhanced transformation pipeline: make transform_17_18, make add_procs, make analyze_17_18, make debug_regions, make proc_scope_17_18, make localize_labels
+- **New**: ROM analysis workflow: make check_addresses, make check_bank18, make check_rom_offset, make dump_chr_table, make dump_correct_bytes, make search_0530, make search_chr_loader, make search_chr_loader2, make verify_disasm
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
 
@@ -994,12 +1249,30 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: make debug_regions
 - **New**: make proc_scope_17_18
 - **New**: make localize_labels
+- **New**: make check_addresses
+- **New**: make check_bank18
+- **New**: make check_rom_offset
+- **New**: make dump_chr_table
+- **New**: make dump_correct_bytes
+- **New**: make search_0530
+- **New**: make search_chr_loader
+- **New**: make search_chr_loader2
+- **New**: make verify_disasm
 - **New**: python3 tools/transform_17_18.py
 - **New**: python3 tools/add_procs.py
 - **New**: python3 tools/analyze_17_18.py
 - **New**: python3 tools/debug_regions.py
 - **New**: python3 tools/proc_scope_17_18.py
 - **New**: python3 tools/localize_labels.py
+- **New**: python3 tools/check_addresses.py
+- **New**: python3 tools/check_bank18.py
+- **New**: python3 tools/check_rom_offset.py
+- **New**: python3 tools/dump_chr_table.py
+- **New**: python3 tools/dump_correct_bytes.py
+- **New**: python3 tools/search_0530.py
+- **New**: python3 tools/search_chr_loader.py
+- **New**: python3 tools/search_chr_loader2.py
+- **New**: python3 tools/verify_disasm.py
 - **New**: python3 tools/transform_17_18.py --dry-run
 - **New**: python3 tools/proc_scope_17_18.py --dry-run
 - **New**: python3 tools/localize_labels.py --dry-run
@@ -1008,5 +1281,14 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/debug_regions.py
 - **New**: python3 tools/proc_scope_17_18.py
 - **New**: python3 tools/localize_labels.py
+- **New**: python3 tools/check_addresses.py --address $A8D3
+- **New**: python3 tools/check_bank18.py --offset $08D3
+- **New**: python3 tools/check_rom_offset.py --cpu $A8D3
+- **New**: python3 tools/dump_chr_table.py --range 256
+- **New**: python3 tools/dump_correct_bytes.py --start $08D3 --end $0988
+- **New**: python3 tools/search_0530.py --pattern 8D3005
+- **New**: python3 tools/search_chr_loader.py --pattern A8B9
+- **New**: python3 tools/search_chr_loader2.py --pattern A8B98D3005B98D3105
+- **New**: python3 tools/verify_disasm.py --addresses A8D3,A8D5,A8FD,A8FE,A901
 - python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - python3 tools/annotate_asm.py --in-place --verify

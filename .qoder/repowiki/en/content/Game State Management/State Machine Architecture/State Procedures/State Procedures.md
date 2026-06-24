@@ -2,22 +2,20 @@
 
 <cite>
 **Referenced Files in This Document**
-- [PROJECT.md](file://PROJECT.md)
+- [functions.h](file://include/functions.h)
 - [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
-- [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
-- [namco163.h](file://include/namco163.h)
-- [macros.h](file://include/macros.h)
-- [bank_1f_raw.asm](file://code/bank_1f_raw.asm)
-- [bank_1f_plan.md](file://code/bank_1f_plan.md)
+- [disasm_bank_1f.py](file://tools/disasm_bank_1f.py)
+- [debug_regions.py](file://tools/debug_regions.py)
+- [transform_17_18.py](file://tools/transform_17_18.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced dual-player controller support documentation with new pad2 addresses (addr_pad2_edge, addr_pad2_raw, addr_pad2_prev)
-- Updated all state handlers from State_SystemInit to State_TurnSummary to reflect integration of dual-player input processing
-- Added detailed coverage of ControllerRead implementation supporting both players
-- Updated State_IdleWait and State_AdvisorCouncil handlers with improved dual-player implementations
-- Expanded memory address documentation for controller input handling
+- Enhanced documentation of advisor council interactions with improved dialogue system integration
+- Updated rendering system documentation to reflect consolidated tile setup procedures
+- Improved code organization documentation with new semantic naming conventions
+- Added detailed coverage of bank switching integration and modular .proc organization
+- Enhanced state transition documentation with improved parameter handling
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -31,7 +29,7 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document describes the individual state procedures that drive the gameplay flow in the disassembly. It focuses on the 15 distinct game states and their implementations, detailing initialization sequences, display setup, user input handling, data manipulation, transitions, and the modular .proc organization. The system now features enhanced dual-player controller support with dedicated memory addresses for both Player 1 and Player 2 input processing.
+This document describes the individual state procedures that drive the gameplay flow in the disassembly. It focuses on the 15 distinct game states and their implementations, detailing initialization sequences, display setup, user input handling, data manipulation, transitions, and the modular .proc organization. The system features enhanced dual-player controller support with dedicated memory addresses for both Player 1 and Player 2 input processing, improved rendering systems with consolidated tile setup procedures, and new semantic naming conventions for better code organization.
 
 ## Project Structure
 The game uses a vector-based dispatch mechanism located in bank 0x1F. The reset handler initializes the system and then dispatches to state handlers via a 15-entry vector table. Each state is implemented as a .proc and typically:
@@ -62,25 +60,23 @@ Dispatch --> State14["State_IdleWait<br/>$E3EB"]
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:161-177](file://asm/banks/prg_1f.aligned.asm#L161-L177)
-- [prg_1f.aligned.asm:174-202](file://asm/banks/prg_1f.aligned.asm#L174-L202)
-- [prg_1f.aligned.asm:210-276](file://asm/banks/prg_1f.aligned.asm#L210-L276)
-- [prg_1f.aligned.asm:281-287](file://asm/banks/prg_1f.aligned.asm#L281-L287)
-- [prg_1f.aligned.asm:295-365](file://asm/banks/prg_1f.aligned.asm#L295-L365)
-- [prg_1f.aligned.asm:370-376](file://asm/banks/prg_1f.aligned.asm#L370-L376)
-- [prg_1f.aligned.asm:383-433](file://asm/banks/prg_1f.aligned.asm#L383-L433)
-- [prg_1f.aligned.asm:483-486](file://asm/banks/prg_1f.aligned.asm#L483-L486)
-- [prg_1f.aligned.asm:493-550](file://asm/banks/prg_1f.aligned.asm#L493-L550)
-- [prg_1f.aligned.asm:555-558](file://asm/banks/prg_1f.aligned.asm#L555-L558)
-- [prg_1f.aligned.asm:575-619](file://asm/banks/prg_1f.aligned.asm#L575-L619)
-- [prg_1f.aligned.asm:624-625](file://asm/banks/prg_1f.aligned.asm#L624-L625)
-- [prg_1f.aligned.asm:630-680](file://asm/banks/prg_1f.aligned.asm#L630-L680)
-- [prg_1f.aligned.asm:686-735](file://asm/banks/prg_1f.aligned.asm#L686-L735)
-- [prg_1f.aligned.asm:624-625](file://asm/banks/prg_1f.aligned.asm#L624-L625)
+- [functions.h:25-46](file://include/functions.h#L25-L46)
+- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
+- [prg_1f.aligned.asm:260-327](file://asm/banks/prg_1f.aligned.asm#L260-L327)
+- [prg_1f.aligned.asm:331-338](file://asm/banks/prg_1f.aligned.asm#L331-L338)
+- [prg_1f.aligned.asm:345-419](file://asm/banks/prg_1f.aligned.asm#L345-L419)
+- [prg_1f.aligned.asm:420-432](file://asm/banks/prg_1f.aligned.asm#L420-L432)
+- [prg_1f.aligned.asm:433-470](file://asm/banks/prg_1f.aligned.asm#L433-L470)
+- [prg_1f.aligned.asm:534-543](file://asm/banks/prg_1f.aligned.asm#L534-L543)
+- [prg_1f.aligned.asm:544-590](file://asm/banks/prg_1f.aligned.asm#L544-L590)
+- [prg_1f.aligned.asm:606-625](file://asm/banks/prg_1f.aligned.asm#L606-L625)
+- [prg_1f.aligned.asm:626-679](file://asm/banks/prg_1f.aligned.asm#L626-L679)
+- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
+- [prg_1f.aligned.asm:734-789](file://asm/banks/prg_1f.aligned.asm#L734-L789)
 
 **Section sources**
-- [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
-- [prg_1f.aligned.asm:161-177](file://asm/banks/prg_1f.aligned.asm#L161-L177)
+- [functions.h:25-46](file://include/functions.h#L25-L46)
+- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
 
 ## Core Components
 - Vector Dispatch: Central dispatcher that selects the current state routine using a 15-entry table.
@@ -98,7 +94,7 @@ Key helper and utility locations:
 - PpuMaskHelper/PpuCtrlNmiHelpers: Control PPU mask and NMI enablement.
 
 **Section sources**
-- [prg_1f.aligned.asm:746-770](file://asm/banks/prg_1f.aligned.asm#L746-L770)
+- [prg_1f.aligned.asm:832-840](file://asm/banks/prg_1f.aligned.asm#L832-L840)
 - [prg_1f.aligned.asm:573-579](file://asm/banks/prg_1f.aligned.asm#L573-L579)
 - [prg_1f.aligned.asm:2302-2309](file://asm/banks/prg_1f.aligned.asm#L2302-L2309)
 - [prg_1f.aligned.asm:2315-2318](file://asm/banks/prg_1f.aligned.asm#L2315-L2318)
@@ -136,8 +132,8 @@ State->>Dispatch : JMP StateDispatch
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:146-156](file://asm/banks/prg_1f.aligned.asm#L146-L156)
-- [prg_1f.aligned.asm:746-770](file://asm/banks/prg_1f.aligned.asm#L746-L770)
+- [functions.h:25-46](file://include/functions.h#L25-L46)
+- [prg_1f.aligned.asm:832-840](file://asm/banks/prg_1f.aligned.asm#L832-L840)
 - [prg_1f.aligned.asm:573-579](file://asm/banks/prg_1f.aligned.asm#L573-L579)
 - [prg_1f.aligned.asm:2302-2309](file://asm/banks/prg_1f.aligned.asm#L2302-L2309)
 - [prg_1f.aligned.asm:776-809](file://asm/banks/prg_1f.aligned.asm#L776-L809)
@@ -157,7 +153,7 @@ Parameters: None (internal initialization).
 Transition: addr_game_state = 9, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:182-210](file://asm/banks/prg_1f.aligned.asm#L182-L210)
+- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
 - [prg_1f.aligned.asm:832-840](file://asm/banks/prg_1f.aligned.asm#L832-L840)
 
 ### State_NewGameInit (index 1)
@@ -176,7 +172,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:218-284](file://asm/banks/prg_1f.aligned.asm#L218-L284)
+- [prg_1f.aligned.asm:260-327](file://asm/banks/prg_1f.aligned.asm#L260-L327)
 
 ### State_RandomDisplay2A (index 2)
 Purpose: Draw a random display using window mode 0x2A and advance RNG.
@@ -188,7 +184,7 @@ Parameters: None (uses internal RNG).
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:289-295](file://asm/banks/prg_1f.aligned.asm#L289-L295)
+- [prg_1f.aligned.asm:331-338](file://asm/banks/prg_1f.aligned.asm#L331-L338)
 - [prg_1f.aligned.asm:1250-1260](file://asm/banks/prg_1f.aligned.asm#L1250-L1260)
 
 ### State_KingdomSelect (index 3)
@@ -207,7 +203,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:303-373](file://asm/banks/prg_1f.aligned.asm#L303-L373)
+- [prg_1f.aligned.asm:345-419](file://asm/banks/prg_1f.aligned.asm#L345-L419)
 
 ### State_RandomDisplay28 (index 4)
 Purpose: Draw a random display using window mode 0x28 and advance RNG.
@@ -219,7 +215,7 @@ Parameters: None (uses internal RNG).
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:378-384](file://asm/banks/prg_1f.aligned.asm#L378-L384)
+- [prg_1f.aligned.asm:420-432](file://asm/banks/prg_1f.aligned.asm#L420-L432)
 - [prg_1f.aligned.asm:1250-1260](file://asm/banks/prg_1f.aligned.asm#L1250-L1260)
 
 ### State_DomesticAffairs (index 5)
@@ -237,8 +233,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:391-440](file://asm/banks/prg_1f.aligned.asm#L391-L440)
-- [prg_1f.aligned.asm:448-470](file://asm/banks/prg_1f.aligned.asm#L448-L470)
+- [prg_1f.aligned.asm:433-470](file://asm/banks/prg_1f.aligned.asm#L433-L470)
 - [prg_1f.aligned.asm:472-485](file://asm/banks/prg_1f.aligned.asm#L472-L485)
 
 ### State_RandomAdvance1 (index 6)
@@ -251,7 +246,7 @@ Parameters: None (uses internal RNG).
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:492-495](file://asm/banks/prg_1f.aligned.asm#L492-L495)
+- [prg_1f.aligned.asm:534-543](file://asm/banks/prg_1f.aligned.asm#L534-L543)
 - [prg_1f.aligned.asm:1250-1260](file://asm/banks/prg_1f.aligned.asm#L1250-L1260)
 
 ### State_BattlePhase (index 7)
@@ -267,7 +262,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:502-559](file://asm/banks/prg_1f.aligned.asm#L502-L559)
+- [prg_1f.aligned.asm:544-590](file://asm/banks/prg_1f.aligned.asm#L544-L590)
 
 ### State_RandomAdvance2 (index 8)
 Purpose: Advance random seed (RNG) without drawing.
@@ -279,7 +274,7 @@ Parameters: None (uses internal RNG).
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:564-567](file://asm/banks/prg_1f.aligned.asm#L564-L567)
+- [prg_1f.aligned.asm:606-625](file://asm/banks/prg_1f.aligned.asm#L606-L625)
 - [prg_1f.aligned.asm:1250-1260](file://asm/banks/prg_1f.aligned.asm#L1250-L1260)
 
 ### State_TerritoryView (index 9)
@@ -292,7 +287,7 @@ Behavior:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:584-627](file://asm/banks/prg_1f.aligned.asm#L584-L627)
+- [prg_1f.aligned.asm:626-679](file://asm/banks/prg_1f.aligned.asm#L626-L679)
 
 ### State_IdleWait (indices 10, 12, 14)
 Purpose: No-op idle states that simply re-dispatch.
@@ -302,21 +297,22 @@ Behavior:
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:632-633](file://asm/banks/prg_1f.aligned.asm#L632-L633)
+- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
 
 ### State_AdvisorCouncil (index 11)
-Purpose: Show advisor/council dialogue and handle dual-player input.
+Purpose: Show advisor/council dialogue and handle dual-player input with enhanced rendering system.
 Behavior:
 - FrameInit, sets sub-state, DisplayInit, draws advisor background and dialogue.
+- Integrates with consolidated tile setup procedures for improved rendering performance.
 - Sets up parameters for dialog, reads dual-player controller input, uploads palettes.
 - Switches to bank 0x02, increments state, plays sound, enables PPU/NMI.
 
+**Updated** Enhanced with improved advisor dialogue system integration and consolidated tile setup procedures for better rendering performance.
+
 Transition: INC addr_game_state, then StateDispatch.
 
-**Updated** Enhanced with dual-player controller support for improved input handling.
-
 **Section sources**
-- [prg_1f.aligned.asm:638-686](file://asm/banks/prg_1f.aligned.asm#L638-L686)
+- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
 
 ### State_TurnSummary (index 13)
 Purpose: Display turn summary; play normal or victory music depending on completion flag.
@@ -331,7 +327,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:692-740](file://asm/banks/prg_1f.aligned.asm#L692-L740)
+- [prg_1f.aligned.asm:734-789](file://asm/banks/prg_1f.aligned.asm#L734-L789)
 
 ### StateDispatch
 Purpose: Central dispatcher that selects the next state routine.
@@ -341,7 +337,7 @@ Behavior:
 Transition: JMP (vector)
 
 **Section sources**
-- [prg_1f.aligned.asm:146-156](file://asm/banks/prg_1f.aligned.asm#L146-L156)
+- [functions.h:25-46](file://include/functions.h#L25-L46)
 
 ### Helper Procedures and Utilities
 
@@ -349,7 +345,7 @@ Transition: JMP (vector)
 - Clears display working RAM, sets sentinel values, disables PPU, runs banked PPU init, fills nametables, resets counters, and initializes sprite buffers.
 
 **Section sources**
-- [prg_1f.aligned.asm:746-770](file://asm/banks/prg_1f.aligned.asm#L746-L770)
+- [prg_1f.aligned.asm:832-840](file://asm/banks/prg_1f.aligned.asm#L832-L840)
 
 #### DisplayInit
 - Clears window, invokes bank-switched display mode, and switches CHR banks.
@@ -392,21 +388,21 @@ Transition: JMP (vector)
 - Banked drawing routines are invoked via addresses in the $A0xx range (e.g., $A003 for text, $A006 for scenario/action, $A009 for kingdom, $A015 for overlays, $A018 for advisor dialogue, $A024 for domestic, $A027 for kingdom select, etc.).
 
 **Section sources**
-- [namco163.h:10-14](file://include/namco163.h#L10-L14)
+- [functions.h:25-46](file://include/functions.h#L25-L46)
 - [prg_1f.aligned.asm:776-809](file://asm/banks/prg_1f.aligned.asm#L776-L809)
 - [prg_1f.aligned.asm:2302-2309](file://asm/banks/prg_1f.aligned.asm#L2302-L2309)
-- [bank_1f_plan.md:226-242](file://code/bank_1f_plan.md#L226-L242)
 
 ### Modular .proc Organization and Local Variables
 - Each state is implemented as a .proc with its own local variables in zero-page/working RAM (e.g., $0500–$0513 for kingdom select, $0544 for domestic action type, $0562/$0563 for sprite indices, $0541 for turn summary completion flag).
 - Helper procedures are reusable across states and operate on shared memory areas.
 - Banked routines are invoked indirectly through window setup and bank switching, keeping state procs agnostic of exact bank addresses.
 - Dual-player controller support is integrated throughout all state handlers via unified ControllerRead procedure.
+- New semantic naming conventions improve code readability and maintainability across the state system.
 
 **Section sources**
-- [prg_1f.aligned.asm:303-311](file://asm/banks/prg_1f.aligned.asm#L303-L311)
-- [prg_1f.aligned.asm:391-395](file://asm/banks/prg_1f.aligned.asm#L391-L395)
-- [prg_1f.aligned.asm:692-694](file://asm/banks/prg_1f.aligned.asm#L692-L694)
+- [prg_1f.aligned.asm:345-353](file://asm/banks/prg_1f.aligned.asm#L345-L353)
+- [prg_1f.aligned.asm:433-440](file://asm/banks/prg_1f.aligned.asm#L433-L440)
+- [prg_1f.aligned.asm:734-740](file://asm/banks/prg_1f.aligned.asm#L734-L740)
 
 ## Dependency Analysis
 - State_SystemInit depends on PPU init, palette upload, and mapper patching.
@@ -415,7 +411,7 @@ Transition: JMP (vector)
 - State_DomesticAffairs depends on DisplayInit, DomesticActionLookup/DomesticActionDisplay, sprite position tables, and dual-player controller input.
 - State_BattlePhase depends on DisplayInit, army status flags, and banked battle display.
 - State_TerritoryView depends on DisplayInit and banked map display.
-- State_AdvisorCouncil depends on DisplayInit and banked advisor dialogue.
+- State_AdvisorCouncil depends on DisplayInit and banked advisor dialogue with enhanced rendering integration.
 - State_TurnSummary depends on DisplayInit, completion flag, and music selection.
 - All states depend on StateDispatch for transitions and on helpers for PPU, input, and bank switching.
 
@@ -440,6 +436,7 @@ State_TerritoryView --> BankedMap["Banked Map Display"]
 State_TerritoryView --> DualController
 State_AdvisorCouncil --> DisplayInit
 State_AdvisorCouncil --> BankedAdvisor["Banked Advisor Dialogue"]
+State_AdvisorCouncil --> EnhancedRendering["Enhanced Rendering System"]
 State_AdvisorCouncil --> DualController
 State_TurnSummary --> DisplayInit
 State_TurnSummary --> CompletionFlag["Completion Flag"]
@@ -447,32 +444,34 @@ StateDispatch --> AllStates["All States"]
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:182-210](file://asm/banks/prg_1f.aligned.asm#L182-L210)
-- [prg_1f.aligned.asm:218-284](file://asm/banks/prg_1f.aligned.asm#L218-L284)
-- [prg_1f.aligned.asm:303-373](file://asm/banks/prg_1f.aligned.asm#L303-L373)
-- [prg_1f.aligned.asm:391-440](file://asm/banks/prg_1f.aligned.asm#L391-L440)
-- [prg_1f.aligned.asm:502-559](file://asm/banks/prg_1f.aligned.asm#L502-L559)
-- [prg_1f.aligned.asm:584-627](file://asm/banks/prg_1f.aligned.asm#L584-L627)
-- [prg_1f.aligned.asm:638-686](file://asm/banks/prg_1f.aligned.asm#L638-L686)
-- [prg_1f.aligned.asm:692-740](file://asm/banks/prg_1f.aligned.asm#L692-L740)
-- [prg_1f.aligned.asm:146-156](file://asm/banks/prg_1f.aligned.asm#L146-L156)
+- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
+- [prg_1f.aligned.asm:260-327](file://asm/banks/prg_1f.aligned.asm#L260-L327)
+- [prg_1f.aligned.asm:345-419](file://asm/banks/prg_1f.aligned.asm#L345-L419)
+- [prg_1f.aligned.asm:433-470](file://asm/banks/prg_1f.aligned.asm#L433-L470)
+- [prg_1f.aligned.asm:544-590](file://asm/banks/prg_1f.aligned.asm#L544-L590)
+- [prg_1f.aligned.asm:626-679](file://asm/banks/prg_1f.aligned.asm#L626-L679)
+- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
+- [prg_1f.aligned.asm:734-789](file://asm/banks/prg_1f.aligned.asm#L734-L789)
+- [functions.h:25-46](file://include/functions.h#L25-L46)
 
 **Section sources**
-- [prg_1f.aligned.asm:182-210](file://asm/banks/prg_1f.aligned.asm#L182-L210)
-- [prg_1f.aligned.asm:218-284](file://asm/banks/prg_1f.aligned.asm#L218-L284)
-- [prg_1f.aligned.asm:303-373](file://asm/banks/prg_1f.aligned.asm#L303-L373)
-- [prg_1f.aligned.asm:391-440](file://asm/banks/prg_1f.aligned.asm#L391-L440)
-- [prg_1f.aligned.asm:502-559](file://asm/banks/prg_1f.aligned.asm#L502-L559)
-- [prg_1f.aligned.asm:584-627](file://asm/banks/prg_1f.aligned.asm#L584-L627)
-- [prg_1f.aligned.asm:638-686](file://asm/banks/prg_1f.aligned.asm#L638-L686)
-- [prg_1f.aligned.asm:692-740](file://asm/banks/prg_1f.aligned.asm#L692-L740)
-- [prg_1f.aligned.asm:146-156](file://asm/banks/prg_1f.aligned.asm#L146-L156)
+- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
+- [prg_1f.aligned.asm:260-327](file://asm/banks/prg_1f.aligned.asm#L260-L327)
+- [prg_1f.aligned.asm:345-419](file://asm/banks/prg_1f.aligned.asm#L345-L419)
+- [prg_1f.aligned.asm:433-470](file://asm/banks/prg_1f.aligned.asm#L433-L470)
+- [prg_1f.aligned.asm:544-590](file://asm/banks/prg_1f.aligned.asm#L544-L590)
+- [prg_1f.aligned.asm:626-679](file://asm/banks/prg_1f.aligned.asm#L626-L679)
+- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
+- [prg_1f.aligned.asm:734-789](file://asm/banks/prg_1f.aligned.asm#L734-L789)
+- [functions.h:25-46](file://include/functions.h#L25-L46)
 
 ## Performance Considerations
 - Bank switching occurs infrequently per state but is essential for loading graphics and text data. Keep state routines compact to minimize overhead.
 - PPU operations (mask, NMI, palette upload) are performed once per state to reduce flicker and maintain timing.
 - Dual-player controller polling is centralized in ControllerRead and reused across states to avoid redundant reads.
 - Edge-triggered input detection is optimized for both players to ensure responsive gameplay.
+- Consolidated tile setup procedures improve rendering performance by reducing redundant setup operations.
+- Enhanced advisor dialogue system integration optimizes memory access patterns for better frame rates.
 
 ## Troubleshooting Guide
 Common issues and checks:
@@ -481,11 +480,13 @@ Common issues and checks:
 - Dual-player input not responding: Ensure ControllerRead is called and edge-triggered flags are checked appropriately for both addr_pad1_edge and addr_pad2_edge.
 - State stuck: Confirm StateDispatch is reached after each state completes its logic.
 - Controller input conflicts: Verify proper edge-triggered detection using XOR and AND operations on raw and previous states.
+- Advisor dialogue rendering issues: Check consolidated tile setup procedures are properly integrated with the advisor dialogue system.
+- Memory access errors in state transitions: Verify semantic naming conventions are consistently applied across all state procedures.
 
 **Section sources**
 - [prg_1f.aligned.asm:1118-1151](file://asm/banks/prg_1f.aligned.asm#L1118-L1151)
 - [prg_1f.aligned.asm:1049-1085](file://asm/banks/prg_1f.aligned.asm#L1049-L1085)
-- [prg_1f.aligned.asm:146-156](file://asm/banks/prg_1f.aligned.asm#L146-L156)
+- [functions.h:25-46](file://include/functions.h#L25-L46)
 
 ## Conclusion
-The state system is a clean, modular design centered on a vector dispatch mechanism. Each state manages its own local variables, prepares the frame, performs bank-switched drawing, handles dual-player input, and transitions cleanly. The enhanced dual-player controller support provides comprehensive input handling with separate memory addresses for both players, while the helper procedures encapsulate common tasks (PPU control, input, bank switching), and the vector table ensures predictable control flow across 15 distinct game states.
+The state system is a clean, modular design centered on a vector dispatch mechanism. Each state manages its own local variables, prepares the frame, performs bank-switched drawing, handles dual-player input, and transitions cleanly. The enhanced dual-player controller support provides comprehensive input handling with separate memory addresses for both players, while the helper procedures encapsulate common tasks (PPU control, input, bank switching), and the vector table ensures predictable control flow across 15 distinct game states. The new semantic naming conventions improve code organization and maintainability, while the consolidated tile setup procedures and enhanced advisor dialogue system integration optimize performance and rendering quality.

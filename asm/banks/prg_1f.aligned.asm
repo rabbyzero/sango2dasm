@@ -1,10 +1,44 @@
 ;===============================================================================
-; PRG Bank 1F - $E000-$FFFF
+; PRG Bank 1F - $E000-$FFFF (8KB fixed boot bank)
 ; Sangokushi 2 - Haou no Tairiku (J)
 ; Namco-163 Mapper 19
 ;
 ; Boot bank: Reset handler, state dispatch, NMI/IRQ handlers,
 ; sound engine, PPU utilities, math routines, controller I/O, data tables
+;
+; Interrupt Vectors: NMI=$F800, RESET=$E000, IRQ=$FB2D
+;
+;-------------------------------------------------------------------------------
+; Region Map
+;-------------------------------------------------------------------------------
+; $E000-$E079  Reset Handler        PPU/APU init, RAM clear, mapper init
+; $E07C-$E099  Vector Dispatch      15 state entry points indexed by $007A
+; $E09A-$E4D8  Game State Handlers  System init, new game, kingdom select,
+;                                   domestic affairs, battle, territory,
+;                                   advisor, turn summary, idle waits
+; $E4DA-$E566  Core Helpers         FrameInit, BankSwitch (8-byte config)
+; $E57F-$E6C5  Sound Engine         Init, wavetable, note player, 8 wrappers
+; $E6C6-$E8B9  Controller + RNG     Controller read, palette upload, PPU
+;                                   helpers, 6 RNG funcs + 256B random table
+; $E8BA-$E9B9  RNG Data Table       Pre-computed random bytes (256B)
+; $E9BA-$EC66  Math Library         BCD<->binary, 16/24-bit div, 24x8/24x16
+;                                   mul, mul-div-100, callback dispatcher
+; $EC67-$ED18  Palette Animation    Color rotation effects
+; $ED19-$EE51  Menu Cursor System   8 entry points (1-8 items/page), D-pad
+;                                   navigation, banked callback trampoline
+; $EE53-$F076  NMI Sub-Dispatch     BG/sprite/attribute tile writers
+; $F077-$F2AE  OAM/CHR/Window       Sprite OAM writers, CHR bank switch,
+;                                   display setup helpers
+; $F2AF-$F3BC  Data Access          Hero/city/kingdom/kata-name address calcs
+; $F3BD-$F476  Mapper Init + Test   Controller validation, RAM integrity
+; $F477-$F676  Sound/Music Data     Instrument definitions (512B)
+; $F677-$F7FF  Padding              Unused ROM ($FF)
+; $F800-$FAA8  NMI Handler          8 sub-states dispatched by $0078
+; $FAA9-$FB2C  Palette + Ctrl       Palette swap, NMI scroll, ctrl read
+; $FB2D-$FF5E  IRQ Handler          14+ sub-states for mid-frame raster/CHR
+; $FF62-$FFD6  Scroll Calc          Two scroll calculation variants
+; $FFD7-$FFF9  Padding              Unused ROM ($FF)
+; $FFFA-$FFFF  Interrupt Vectors    NMI=$F800, RESET=$E000, IRQ=$FB2D
 ;===============================================================================
 
 .include "6502_registers.h"

@@ -181,7 +181,7 @@ Practical distribution examples:
 - Bank 0x1F is mapped to $E000-$FFFF at reset
 - Contains reset handler, vector dispatch table, and core runtime functions
 - Interrupt vectors are located at $FFFA-$FFFF:
-  - NMI: $00F8
+  - NMI: $F800
   - RESET: $E000
   - IRQ: $FB2D
 
@@ -190,11 +190,59 @@ Boot sequence and dispatch:
 - The vector table holds 15 entries (2 bytes each) for game states
 - The state counter at $007A determines which entry to jump to
 
+#### Bank 1F Region Map
+
+| Address Range | Size | Purpose |
+|---|---|---|
+| $E000–$E079 | 121B | **Reset Handler** — PPU/APU init, RAM clear, mapper init |
+| $E07C–$E099 | 30B | **Vector Dispatch Table** — 15 state entry points indexed by `$007A` |
+| $E09A–$E4D8 | ~1KB | **Game State Handlers** — system init, new game, kingdom select, domestic affairs, battle, territory, advisor, turn summary, idle waits |
+| $E4DA–$E566 | ~110B | **Core Helpers** — FrameInit, BankSwitch (8-byte Namco-163 config) |
+| $E57F–$E6C5 | ~295B | **Sound Engine** — init, wavetable upload, note player, 8 sound wrappers |
+| $E6C6–$E8B9 | ~470B | **Controller I/O + RNG** — controller read, palette upload, PPU helpers, 6 RNG functions + 256-byte random table |
+| $E8BA–$E9B9 | 256B | **RNG Data Table** — pre-computed random bytes |
+| $E9BA–$EC66 | ~685B | **Math Library** — BCD↔binary, 16/24-bit division, 24x8/24x16 multiply, mul-div-100, callback dispatcher |
+| $EC67–$ED18 | ~178B | **Palette Animation** — color rotation effects |
+| $ED19–$EE51 | ~310B | **Menu Cursor System** — 8 entry points (1–8 items/page), D-pad navigation, banked callback trampoline |
+| $EE53–$F076 | ~550B | **NMI Sub-Dispatch + PPU Tile Writers** — BG/sprite/attribute tile writes |
+| $F077–$F2AE | ~570B | **Sprite OAM, CHR Banking, Window Setup** — OAM writers, CHR bank switch, display setup |
+| $F2AF–$F3BC | ~205B | **Data Access Functions** — hero/city/kingdom/kata-name address calculators |
+| $F3BD–$F476 | ~185B | **Mapper Init + RAM Test** — controller validation, RAM integrity check |
+| $F477–$F676 | 512B | **Sound/Music Data** — instrument definitions |
+| $F677–$F7FF | 392B | Padding ($FF) |
+| $F800–$FAA8 | 680B | **NMI Handler** — 8 sub-states dispatched by `$0078` |
+| $FAA9–$FB2C | ~120B | **Palette Swap + Controller Read** — with NMI scroll mode |
+| $FB2D–$FF5E | 990B | **IRQ Handler** — 14+ sub-states for mid-frame raster/CHR effects |
+| $FF62–$FFD6 | ~115B | **Scroll Calculations** — two variants |
+| $FFD7–$FFF9 | 35B | Padding |
+| $FFFA–$FFFF | 6B | **Interrupt Vectors** |
+
+#### Game State Machine (Vector Table at $E07C)
+
+| # | Address | Name | Description |
+|---|---------|------|-------------|
+| 0 | $E09A | System Init | PPU setup, transition to state 9 |
+| 1 | $E0DA | New Game Init | Display, SRAM init, music $81 |
+| 2 | $E17D | Random + Display (Y=$2A) | Brief transition |
+| 3 | $E18B | Kingdom Select | Scenario/normal mode selection |
+| 4 | $E221 | Random + Display (Y=$28) | Brief transition |
+| 5 | $E22F | Domestic Affairs | Action selection (farming, commerce, etc.) |
+| 6 | $E2E2 | RNG Advance | Pure random seed advance |
+| 7 | $E2E8 | Battle Phase | Combat with army status check |
+| 8 | $E36A | RNG Advance | Pure random seed advance |
+| 9 | $E37C | Territory/Map View | Game map display |
+| 10 | $E3EB | Idle/Wait | NMI frame wait |
+| 11 | $E3EE | Advisor/Council | Advisor dialogue |
+| 12 | $E3EB | Idle/Wait | NMI frame wait |
+| 13 | $E46A | Turn Summary | End-of-turn report |
+| 14 | $E3EB | Idle/Wait | NMI frame wait |
+
 **Section sources**
-- [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
+- [prg_1f.aligned.asm:1-50](file://asm/banks/prg_1f.aligned.asm#L1-L50)
 - [bank_1f_analysis.md:1-11](file://code/bank_1f_analysis.md#L1-L11)
 - [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-L45)
 - [bank_1f_analysis.md:54-77](file://code/bank_1f_analysis.md#L54-L77)
+- [bank_1f_function_table.md:1-98](file://code/bank_1f_function_table.md#L1-L98)
 
 ### Three Switchable PRG Slots at $8000-$DFFF
 - Slot 0: $8000-$9FFF (switchable via $F800)

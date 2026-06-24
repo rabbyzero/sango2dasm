@@ -313,7 +313,7 @@ graph LR
 subgraph "Centralized System"
 StateDispatch["StateDispatch ($E066)"]
 VectorTable["VectorTable ($E07C)"]
-End
+end
 subgraph "State Handlers"
 State0["SystemInit"]
 State1["NewGameInit"]
@@ -346,17 +346,17 @@ State9 --> StateDispatch
 State11 --> StateDispatch
 State13 --> StateDispatch
 StateDispatch --> VectorTable
-StateHandlers --> FrameInit
-StateHandlers --> BankSwitch
-StateHandlers --> ControllerRead
-StateHandlers --> DisplayInit
-StateHandlers --> PaletteUpload
-StateHandlers --> SoundNotePlayer
-StateHandlers --> StateVars
-StateHandlers --> BankConfig
-StateHandlers --> DisplayParams
-StateHandlers --> SoundRAM
-StateHandlers --> ControllerRAM
+State0 --> FrameInit
+State0 --> BankSwitch
+State0 --> ControllerRead
+State0 --> DisplayInit
+State0 --> PaletteUpload
+State0 --> SoundNotePlayer
+State0 --> StateVars
+State0 --> BankConfig
+State0 --> DisplayParams
+State0 --> SoundRAM
+State0 --> ControllerRAM
 ```
 
 **Diagram sources**

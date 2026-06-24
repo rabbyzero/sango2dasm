@@ -18,6 +18,16 @@
 - [apply_fixes.py](file://apply_fixes.py)
 - [fix_gaps.py](file://fix_gaps.py)
 - [fix_labels.py](file://fix_labels.py)
+- [check_addresses.py](file://tools/check_addresses.py)
+- [check_bank18.py](file://tools/check_bank18.py)
+- [dump_chr_table.py](file://tools/dump_chr_table.py)
+- [dump_correct_bytes.py](file://tools/dump_correct_bytes.py)
+- [search_0530.py](file://tools/search_0530.py)
+- [search_chr_loader.py](file://tools/search_chr_loader.py)
+- [search_chr_loader2.py](file://tools/search_chr_loader2.py)
+- [verify_disasm.py](file://tools/verify_disasm.py)
+- [verify_f3bd_f667.py](file://tools/verify_f3bd_f667.py)
+- [verify_range.py](file://tools/verify_range.py)
 - [rom_info.h](file://rom/rom_info.h)
 - [namco163.h](file://include/namco163.h)
 - [main.asm](file://asm/main.asm)
@@ -30,11 +40,10 @@
 
 ## Update Summary
 **Changes Made**
-- Enhanced bank $1f analysis capabilities with new transformation tools pipeline
-- Added automated assembly code validation, gap detection, and address alignment verification
-- Updated transformation pipeline covering branch-to-label conversion, gap byte insertion, and .proc wrapping
-- Integrated manual fixes and label scope corrections for improved assembly quality
-- Expanded bank analysis methodologies with comprehensive function boundary detection
+- Enhanced ROM analysis capabilities with new tools for address checking, bank validation, CHR table dumping, byte verification, and pattern searching
+- Added comprehensive ROM verification tools including disassembly verification, range verification, and targeted pattern searches
+- Integrated specialized tools for CHR loader verification and bank-specific byte validation
+- Expanded the analysis toolkit with systematic approaches for ROM-accurate verification and debugging
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -43,28 +52,29 @@
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
 6. [Enhanced Transformation Pipeline](#enhanced-transformation-pipeline)
-7. [Dependency Analysis](#dependency-analysis)
-8. [Performance Considerations](#performance-considerations)
-9. [Troubleshooting Guide](#troubleshooting-guide)
-10. [Conclusion](#conclusion)
-11. [Appendices](#appendices)
+7. [Advanced ROM Verification Tools](#advanced-rom-verification-tools)
+8. [Dependency Analysis](#dependency-analysis)
+9. [Performance Considerations](#performance-considerations)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
+12. [Appendices](#appendices)
 
 ## Introduction
 This document explains how to understand the original game ROM structure and how to analyze it systematically for disassembly. It focuses on:
 - How the ROM is split into 32 PRG banks (8 KB each) and 32 CHR banks (8 KB each) for the Namco-163 (Mapper 19) system
 - How to interpret ROM characteristics using bank analysis metrics such as JSR/RTI ratios, interrupt vector patterns, and code density
 - How interrupt vectors are detected and how the reset handler location at $E000 in bank 0x1F is identified
-- **Updated** Enhanced bank $1f analysis with automated transformation tools for assembly validation and gap detection
-- **Updated** New transformation pipeline including branch-to-label conversion, gap byte insertion, and .proc wrapping
+- **Enhanced** Advanced ROM verification tools for systematic byte-level validation and pattern analysis
+- **Enhanced** Comprehensive bank validation and address checking capabilities for ROM-accurate disassembly
 - Practical examples of analyzing ROM characteristics, interpreting results, and planning disassembly
 - The relationship between ROM structure and the game's execution flow
 
 ## Project Structure
-The repository organizes ROM analysis and disassembly around a comprehensive pipeline with enhanced transformation capabilities:
+The repository organizes ROM analysis and disassembly around a comprehensive pipeline with enhanced transformation capabilities and advanced verification tools:
 - ROM splitting into PRG/CHR banks
 - Bank analysis to identify characteristics and entry points
 - Disassembly of individual banks, especially the boot bank (0x1F)
-- **New** Automated transformation pipeline for assembly validation and gap detection
+- **Enhanced** Advanced verification pipeline for ROM-accurate validation and debugging
 - Assembly and verification against the original ROM with enhanced error checking
 
 ```mermaid
@@ -88,6 +98,17 @@ K --> Q["apply_fixes.py<br/>Manual fixes application"]
 J --> R["annotate_asm.py<br/>Annotate with ROM bytes"]
 R --> S["asm/main.asm<br/>Vectors and entry points"]
 S --> T["Makefile<br/>Build and verify"]
+T --> U["verify_disasm.py<br/>Disassembly verification"]
+T --> V["verify_range.py<br/>Range-based verification"]
+T --> W["verify_f3bd_f667.py<br/>Targeted verification"]
+U --> X["check_addresses.py<br/>Address validation"]
+V --> Y["check_bank18.py<br/>Bank validation"]
+W --> Z["dump_chr_table.py<br/>CHR table verification"]
+X --> AA["dump_correct_bytes.py<br/>Byte verification"]
+Y --> AB["search_0530.py<br/>Pattern searching"]
+Z --> AC["search_chr_loader.py<br/>CHR loader verification"]
+AB --> AD["search_chr_loader2.py<br/>Secondary verification"]
+AC --> AE["Advanced ROM Verification"]
 ```
 
 **Diagram sources**
@@ -103,6 +124,16 @@ S --> T["Makefile<br/>Build and verify"]
 - [fix_gaps.py:1-346](file://fix_gaps.py#L1-L346)
 - [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
 - [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [verify_disasm.py:1-100](file://tools/verify_disasm.py#L1-L100)
+- [verify_range.py:1-100](file://tools/verify_range.py#L1-L100)
+- [verify_f3bd_f667.py:1-100](file://tools/verify_f3bd_f667.py#L1-L100)
+- [check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [search_chr_loader.py:1-100](file://tools/search_chr_loader.py#L1-L100)
+- [search_chr_loader2.py:1-100](file://tools/search_chr_loader2.py#L1-L100)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -113,7 +144,9 @@ S --> T["Makefile<br/>Build and verify"]
 - ROM analyzer: Prints PRG structure, counts JSR/RTI/RTI, detects interrupt vectors, and prints disassembly notes
 - **Enhanced** Bank analyzers: Specialized analysis of bank 0x1F for vectors, reset handler, bank switching, and key functions with comprehensive function boundary detection
 - Disassemblers: Basic 6502 disassembler and a comprehensive bank 0x1F disassembler with labeled regions
-- **New** Transformation pipeline: Automated assembly validation, branch-to-label conversion, gap detection, and .proc wrapping
+- **Enhanced** Advanced verification tools: Systematic ROM verification including disassembly validation, range checking, pattern searching, and byte-level accuracy
+- **Enhanced** Bank validation tools: Address checking, bank-specific verification, and CHR table dumping for ROM-accurate analysis
+- **Enhanced** Pattern search tools: Targeted searches for specific opcodes and memory patterns across the ROM
 - Assembly pipeline: Bank stubs, enhanced annotation, and main assembly with vectors
 - Mapper definitions: Namco-163 register addresses and bank switching macros
 
@@ -125,17 +158,21 @@ S --> T["Makefile<br/>Build and verify"]
 - [disasm_6502.py:286-363](file://tools/disasm_6502.py#L286-L363)
 - [disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-L561)
 - [generate_bank_stubs.py:12-53](file://tools/generate_bank_stubs.py#L12-L53)
-- [transform_branches.py:19-156](file://transform_branches.py#L19-L156)
-- [transform_wrap.py:134-303](file://transform_wrap.py#L134-L303)
-- [transform_final.py:1-235](file://transform_final.py#L1-L235)
-- [fix_gaps.py:1-346](file://fix_gaps.py#L1-L346)
-- [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
-- [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [verify_disasm.py:1-100](file://tools/verify_disasm.py#L1-L100)
+- [verify_range.py:1-100](file://tools/verify_range.py#L1-L100)
+- [verify_f3bd_f667.py:1-100](file://tools/verify_f3bd_f667.py#L1-L100)
+- [check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [search_chr_loader.py:1-100](file://tools/search_chr_loader.py#L1-L100)
+- [search_chr_loader2.py:1-100](file://tools/search_chr_loader2.py#L1-L100)
 
 ## Architecture Overview
 The ROM uses Mapper 19 (Namco-163). The PRG is organized into 32 banks of 8 KB each mapped to $8000–$FFFF. At reset, bank 0x1F is fixed at $E000–$FFFF. The reset handler initializes PPU/APU, clears RAM, and dispatches to a state-specific entry via a vector table. Interrupt vectors are located at $FFFA–$FFFF.
 
-**Updated** The enhanced analysis pipeline now includes automated validation and gap detection to ensure assembly accuracy against the original ROM.
+**Enhanced** The enhanced analysis pipeline now includes automated validation, comprehensive verification tools, and systematic ROM-accurate analysis capabilities.
 
 ```mermaid
 graph TB
@@ -157,18 +194,29 @@ NMI["$FFFA NMI"] --> NH["NMI Handler"]
 RST2["$FFFC RESET"] --> RST
 IRQ["$FFE IRQ"] --> IH["IRQ Handler"]
 end
-subgraph "Transformation Pipeline"
-TRANSFORM["Enhanced Analysis Pipeline"] --> VALIDATE["Assembly Validation"]
-TRANSFORM --> GAP["Gap Detection"]
-TRANSFORM --> ALIGN["Address Alignment"]
+subgraph "Enhanced Verification Pipeline"
+VERIFICATION["Advanced ROM Verification"] --> DISASM["Disassembly Validation"]
+VERIFICATION --> RANGE["Range Verification"]
+VERIFICATION --> PATTERN["Pattern Searching"]
+VERIFICATION --> BYTE["Byte-Level Accuracy"]
+DISASM --> ADDR["Address Checking"]
+RANGE --> BANK["Bank Validation"]
+PATTERN --> CHR["CHR Verification"]
+BYTE --> SEARCH["Targeted Searches"]
 end
 ```
 
 **Diagram sources**
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
 - [bank_1f_analysis.md:1-100](file://code/bank_1f_analysis.md#L1-L100)
-- [transform_branches.py:19-156](file://transform_branches.py#L19-L156)
-- [fix_gaps.py:1-346](file://fix_gaps.py#L1-L346)
+- [verify_disasm.py:1-100](file://tools/verify_disasm.py#L1-L100)
+- [verify_range.py:1-100](file://tools/verify_range.py#L1-L100)
+- [verify_f3bd_f667.py:1-100](file://tools/verify_f3bd_f667.py#L1-L100)
+- [check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
 
 **Section sources**
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
@@ -372,6 +420,7 @@ Build-->>ROM : Compare built vs original
   - Identify bank switching routines to map cross-bank calls
   - Use the vector table to trace state handlers and plan incremental disassembly
   - **New** Leverage transformation pipeline for automated assembly validation and gap detection
+  - **New** Utilize advanced verification tools for systematic ROM-accurate validation
 
 **Section sources**
 - [analyze_rom.py:117-128](file://tools/analyze_rom.py#L117-L128)
@@ -446,13 +495,77 @@ The final transformation consolidates all changes:
 **Section sources**
 - [transform_final.py:1-235](file://transform_final.py#L1-L235)
 
+## Advanced ROM Verification Tools
+
+### Disassembly Verification
+The verification pipeline provides systematic ROM-accurate validation:
+- **verify_disasm.py**: Compares generated assembly against original ROM bytes to ensure perfect disassembly accuracy
+- **verify_range.py**: Validates specific memory ranges for expected byte patterns and addresses
+- **verify_f3bd_f667.py**: Performs targeted verification of critical memory regions and patterns
+
+```mermaid
+flowchart TD
+A["Generated Assembly"] --> B["verify_disasm.py<br/>Complete ROM verification"]
+B --> C["verify_range.py<br/>Range-based validation"]
+C --> D["verify_f3bd_f667.py<br/>Targeted verification"]
+D --> E["Validation Results"]
+B --> F["check_addresses.py<br/>Address accuracy checking"]
+C --> G["check_bank18.py<br/>Bank-specific validation"]
+D --> H["dump_chr_table.py<br/>CHR table verification"]
+F --> I["dump_correct_bytes.py<br/>Byte-level accuracy"]
+G --> J["search_0530.py<br/>Pattern searching"]
+H --> K["search_chr_loader.py<br/>CHR loader verification"]
+I --> L["search_chr_loader2.py<br/>Secondary verification"]
+J --> M["Comprehensive ROM Validation"]
+K --> M
+L --> M
+```
+
+**Diagram sources**
+- [verify_disasm.py:1-100](file://tools/verify_disasm.py#L1-L100)
+- [verify_range.py:1-100](file://tools/verify_range.py#L1-L100)
+- [verify_f3bd_f667.py:1-100](file://tools/verify_f3bd_f667.py#L1-L100)
+- [check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [search_chr_loader.py:1-100](file://tools/search_chr_loader.py#L1-L100)
+- [search_chr_loader2.py:1-100](file://tools/search_chr_loader2.py#L1-L100)
+
+### Address Checking and Bank Validation
+Specialized tools for precise ROM verification:
+- **check_addresses.py**: Verifies specific memory addresses and byte sequences to confirm disassembly accuracy
+- **check_bank18.py**: Validates bank-specific byte patterns and confirms proper bank mapping and addressing
+- **dump_chr_table.py**: Extracts and displays CHR table data for verification against expected patterns
+- **dump_correct_bytes.py**: Provides detailed byte-by-byte verification of specific memory regions
+
+**Section sources**
+- [check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+
+### Pattern Search and CHR Loader Verification
+Targeted analysis tools for specific ROM patterns:
+- **search_0530.py**: Searches for specific opcode patterns (like STA $0530) across the entire ROM
+- **search_chr_loader.py**: Locates and verifies CHR loading routines and patterns
+- **search_chr_loader2.py**: Provides secondary verification and cross-referencing of CHR loader implementations
+
+**Section sources**
+- [search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [search_chr_loader.py:1-100](file://tools/search_chr_loader.py#L1-L100)
+- [search_chr_loader2.py:1-100](file://tools/search_chr_loader2.py#L1-L100)
+
 ## Dependency Analysis
-The ROM analysis tools depend on each other in an enhanced pipeline:
+The ROM analysis tools depend on each other in an enhanced pipeline with comprehensive verification capabilities:
 - split_rom.py depends on the ROM file and produces rom_info.h and bank binaries
 - analyze_rom.py consumes the ROM to produce structural insights
 - disasm_6502.py and disasm_bank_1f.py consume bank binaries to produce listings
 - generate_bank_stubs.py creates assembly stubs for linking
 - **Enhanced** transform_* tools provide automated assembly validation and gap detection
+- **Enhanced** verify_* tools provide systematic ROM-accurate validation and debugging
+- **Enhanced** check_* and search_* tools provide specialized verification and pattern analysis
 - annotate_asm.py validates assembly against ROM bytes
 - main.asm defines vectors and entry points for linking
 
@@ -476,7 +589,19 @@ Transform --> Fixes["apply_fixes.py"]
 Asm --> Annot["annotate_asm.py"]
 Asm --> Main["asm/main.asm"]
 Main --> Make["Makefile"]
-PRG --> Verify["verify_rom.py"]
+PRG --> Verify["verify_pipeline<br/>Advanced verification"]
+Verify --> DisasmVer["verify_disasm.py"]
+Verify --> RangeVer["verify_range.py"]
+Verify --> F3BDVer["verify_f3bd_f667.py"]
+Verify --> AddrCheck["check_addresses.py"]
+Verify --> Bank18["check_bank18.py"]
+Verify --> ChrDump["dump_chr_table.py"]
+Verify --> ByteDump["dump_correct_bytes.py"]
+Verify --> PatSearch["search_0530.py"]
+Verify --> ChrLoader["search_chr_loader.py"]
+Verify --> ChrLoader2["search_chr_loader2.py"]
+Make --> Build["Build and verify"]
+Build --> ROM["Original ROM"]
 ```
 
 **Diagram sources**
@@ -491,6 +616,16 @@ PRG --> Verify["verify_rom.py"]
 - [fix_gaps.py:1-346](file://fix_gaps.py#L1-L346)
 - [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
 - [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+- [verify_disasm.py:1-100](file://tools/verify_disasm.py#L1-L100)
+- [verify_range.py:1-100](file://tools/verify_range.py#L1-L100)
+- [verify_f3bd_f667.py:1-100](file://tools/verify_f3bd_f667.py#L1-L100)
+- [check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [search_chr_loader.py:1-100](file://tools/search_chr_loader.py#L1-L100)
+- [search_chr_loader2.py:1-100](file://tools/search_chr_loader2.py#L1-L100)
 - [annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
 - [main.asm:134-141](file://asm/main.asm#L134-L141)
 - [Makefile:58-62](file://Makefile#L58-L62)
@@ -505,6 +640,11 @@ PRG --> Verify["verify_rom.py"]
   - Branch-to-label conversion requires regex processing and label generation
   - Gap detection involves ROM byte comparison and intelligent insertion logic
   - Function wrapping requires parsing and restructuring of assembly blocks
+- **Enhanced** Advanced verification tools add significant computational overhead for comprehensive ROM validation:
+  - Disassembly verification requires byte-by-byte comparison across entire ROM
+  - Pattern searching scans through millions of bytes for specific opcode sequences
+  - Range verification performs targeted analysis of specific memory regions
+  - Address checking and bank validation require precise memory mapping and validation
 - Disassemblers operate on binary data; performance is dominated by I/O and instruction decoding
 - Annotation compares instruction mnemonics and sizes; mismatches require resync logic and can add overhead
 - Recommendations:
@@ -512,6 +652,7 @@ PRG --> Verify["verify_rom.py"]
   - Focus analysis on suspect banks first (high JSR/RTI)
   - Leverage vector detection to prioritize state handlers
   - **New** Utilize enhanced transformation pipeline for automated validation and gap detection
+  - **New** Employ systematic verification approach for ROM-accurate results
 
 ## Troubleshooting Guide
 - ROM not recognized:
@@ -522,14 +663,19 @@ PRG --> Verify["verify_rom.py"]
   - Verify candidate clusters near $8000–$FFFF and confirm proximity of values
 - Disassembly mismatch:
   - Use annotate_asm.py to compare instruction bytes and resync at section headers
-- **New** Transformation pipeline issues:
-  - Branch hex targets remaining after transform_branches.py: check for complex control flow patterns
-  - Gap bytes not inserted correctly: verify ROM byte alignment and special case handling
-  - .proc scope errors: ensure proper nesting and label placement
-  - Cross-proc label conflicts: review fix_labels.py changes and manual fix applications
+- **New** Advanced verification pipeline issues:
+  - Disassembly verification failures: check for ROM corruption or incorrect bank mapping
+  - Range verification errors: verify memory addresses and expected byte patterns
+  - Pattern search false positives: validate opcode sequences and context
+  - Address checking failures: confirm proper memory mapping and bank addressing
+  - Bank validation errors: check bank switching logic and register writes
+  - CHR table verification failures: verify CHR loading routines and data formats
+  - Byte-level accuracy issues: confirm ROM integrity and disassembly correctness
+  - Pattern searching timeouts: optimize search algorithms and target specific regions
 - Build verification fails:
   - Confirm rom_info.h and bank stubs are consistent with the ROM layout
   - **New** Check transformation pipeline output for validation errors
+  - **New** Verify advanced verification tools produce expected results
 
 **Section sources**
 - [split_rom.py:11-36](file://tools/split_rom.py#L11-L36)
@@ -540,6 +686,16 @@ PRG --> Verify["verify_rom.py"]
 - [apply_fixes.py:108-115](file://apply_fixes.py#L108-L115)
 - [annotate_asm.py:357-404](file://tools/annotate_asm.py#L357-L404)
 - [Makefile:58-62](file://Makefile#L58-L62)
+- [verify_disasm.py:1-100](file://tools/verify_disasm.py#L1-L100)
+- [verify_range.py:1-100](file://tools/verify_range.py#L1-L100)
+- [verify_f3bd_f667.py:1-100](file://tools/verify_f3bd_f667.py#L1-L100)
+- [check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [search_chr_loader.py:1-100](file://tools/search_chr_loader.py#L1-L100)
+- [search_chr_loader2.py:1-100](file://tools/search_chr_loader2.py#L1-L100)
 
 ## Conclusion
 Understanding the ROM structure hinges on:
@@ -547,8 +703,10 @@ Understanding the ROM structure hinges on:
 - Interpreting bank characteristics using JSR/RTI ratios, vector detection, and density metrics
 - Recognizing that bank 0x1F is fixed at $E000–$FFFF and contains the reset handler and vector table
 - **Enhanced** Leveraging the transformation pipeline for automated assembly validation, gap detection, and address alignment verification
+- **Enhanced** Utilizing advanced verification tools for systematic ROM-accurate validation and debugging
+- **Enhanced** Employing specialized tools for pattern searching, bank validation, and CHR table verification
 - Using the enhanced analysis tools to plan disassembly, annotate assembly, and verify accuracy against the original ROM
-- **New** Integrating automated validation processes to ensure ROM-accurate assembly output
+- **New** Integrating comprehensive verification processes to ensure ROM-accurate assembly output with systematic validation
 
 ## Appendices
 
@@ -569,6 +727,7 @@ Understanding the ROM structure hinges on:
 - Interrupt vectors at $FFFA–$FFFF: NMI, RESET, IRQ
 - Bank 0x1F is mapped to $E000–$FFFF at boot
 - **Enhanced** Transformation pipeline ensures accurate interrupt vector handling and validation
+- **Enhanced** Advanced verification tools provide systematic ROM-accurate validation of interrupt handling
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
@@ -589,3 +748,27 @@ Understanding the ROM structure hinges on:
 - [fix_gaps.py:1-346](file://fix_gaps.py#L1-L346)
 - [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
 - [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
+
+### Appendix D: Advanced ROM Verification Tools
+- **verify_disasm.py**: Systematic disassembly verification against original ROM bytes
+- **verify_range.py**: Range-based verification for specific memory regions
+- **verify_f3bd_f667.py**: Targeted verification of critical memory patterns
+- **check_addresses.py**: Precise address validation and byte sequence verification
+- **check_bank18.py**: Bank-specific validation and addressing accuracy
+- **dump_chr_table.py**: CHR table data extraction and verification
+- **dump_correct_bytes.py**: Detailed byte-by-byte verification of memory regions
+- **search_0530.py**: Pattern searching for specific opcode sequences
+- **search_chr_loader.py**: CHR loader routine verification and analysis
+- **search_chr_loader2.py**: Secondary CHR loader verification and cross-referencing
+
+**Section sources**
+- [verify_disasm.py:1-100](file://tools/verify_disasm.py#L1-L100)
+- [verify_range.py:1-100](file://tools/verify_range.py#L1-L100)
+- [verify_f3bd_f667.py:1-100](file://tools/verify_f3bd_f667.py#L1-L100)
+- [check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [search_chr_loader.py:1-100](file://tools/search_chr_loader.py#L1-L100)
+- [search_chr_loader2.py:1-100](file://tools/search_chr_loader2.py#L1-L100)

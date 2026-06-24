@@ -4,11 +4,23 @@
 **Referenced Files in This Document**
 - [PROJECT.md](file://PROJECT.md)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
-- [key_functions_analysis.md](file://code/key_functions_analysis.md)
+- [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
+- [bank_1f_plan.md](file://code/bank_1f_plan.md)
+- [bank_1f_raw.asm](file://code/bank_1f_raw.asm)
+- [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
+- [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
+- [transform_17_18.py](file://tools/transform_17_18.py)
 - [namco163.h](file://include/namco163.h)
 - [main.asm](file://asm/main.asm)
 - [prg_1f.asm](file://asm/banks/prg_1f.asm)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Enhanced documentation of State 11 (Advisor/Council) with improved procedures for advisor dialogue setup
+- Added detailed coverage of tile grid calculations and rendering dispatch mechanisms
+- Updated semantic naming improvements and consolidated functionality descriptions
+- Expanded technical details on the advisor dialogue system architecture
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -308,24 +320,39 @@ Dispatch->>State : Next state entry
 - [bank_1f_analysis.md:406-413](file://code/bank_1f_analysis.md#L406-L413)
 
 ### State 11: Advisor / Council
-- Purpose: Display advisor dialogue and handle input.
+- Purpose: Display advisor dialogue and handle input with enhanced tile grid calculations and rendering dispatch.
 - Key operations:
   - Frame init; set sub-state 7; display mode $0C.
-  - Set pointer to advisor data at $9AE3.
-  - Invoke bank-switched advisor dialogue function.
+  - Initialize advisor dialogue data pointer ($9AE3) with proper bank switching.
+  - Execute comprehensive tile grid setup and calculation procedures.
+  - Dispatch rendering through consolidated advisor dialogue system.
   - Play sound $08 via wrapper $E683.
   - Transition to state 12.
 - Data structures accessed:
-  - Advisor data pointer at $000A/$000B.
-  - Bank-switched advisor function at $A018.
+  - Advisor data pointer at $9AE3.
+  - Tile grid structures ($0680-$06BF) for tile index management.
+  - X coordinate arrays ($0600-$0613) for horizontal coordinate matching.
+  - Consolidated advisor dialogue system in bank 17/18.
+- **Enhanced Procedures**: The advisor state now includes sophisticated tile grid calculations using horizontal/vertical dispatch routines, with specialized handling for ruler dialogue types and tile table lookups.
+- **Tile Grid Calculations**: Implements horizontal coordinate matching and vertical tile dispatch through dedicated helper functions including `InitTileGridHoriz`, `InitTileGridVert`, `DispatchTileRowHoriz`, and `DispatchTileRowVert`.
+- **Rendering Dispatch**: Utilizes consolidated advisor dialogue system with type-based routing for different ruler dialogue scenarios.
 - Typical duration: Single frame plus input wait.
-- Display mode: Mode $0C.
-- Bank switching: Config 2 via $E51F.
+- Display mode: Mode $0C with enhanced tile-based rendering.
+- Bank switching: Config 2 via $E51F with specialized advisor dialogue bank switching.
 - Audio/music: Sound $08 via wrapper $E683.
 - Shared memory: $0078 sub-state; $007A incremented.
 
+**Updated** Enhanced documentation reflects improved advisor dialogue setup procedures, tile grid calculations, and consolidated rendering dispatch mechanisms.
+
 **Section sources**
 - [bank_1f_analysis.md:416-442](file://code/bank_1f_analysis.md#L416-L442)
+- [bank_1f_analysis.md:415:1748](file://code/bank_1f_analysis.md#L1748)
+- [bank_1f_function_table.md:21:21](file://code/bank_1f_function_table.md#L21)
+- [bank_1f_plan.md:234:234](file://code/bank_1f_plan.md#L234)
+- [bank_1f_raw.asm:860:957](file://code/bank_1f_raw.asm#L860-L957)
+- [prg_1f.asm.bak:627:666](file://asm/banks/prg_1f.asm.bak#L627-L666)
+- [prg_17_18.asm:1380:1588](file://asm/banks/prg_17_18.asm#L1380-L1588)
+- [transform_17_18.py:115:117](file://tools/transform_17_18.py#L115-L117)
 
 ### State 12: Idle / Wait
 - Purpose: Same as State 10; immediate return to dispatch.
@@ -373,7 +400,7 @@ Dispatch->>State : Next state entry
 - [bank_1f_analysis.md:406-413](file://code/bank_1f_analysis.md#L406-L413)
 
 ### Conceptual Overview
-The state machine cycles through phases in a predictable order, with brief idle states used for frame synchronization and RNG refresh. Bank switching is orchestrated centrally via $E51F, and display modes are set per state. Audio/music is triggered through wrapper functions that accept a sound ID in A.
+The state machine cycles through phases in a predictable order, with brief idle states used for frame synchronization and RNG refresh. Bank switching is orchestrated centrally via $E51F, and display modes are set per state. Audio/music is triggered through wrapper functions that accept a sound ID in A. The advisor/council state now features enhanced tile grid calculations and consolidated rendering dispatch for improved performance and visual fidelity.
 
 ```mermaid
 flowchart TD
@@ -416,6 +443,7 @@ IdleWait4 --> SysInit
   - Wrapper functions $E673/$E67B/$E683 invoking a common note player with IDs in A.
 - Data access functions depend on:
   - Bank-switched memory; address computation via multiply/add patterns or pointer tables.
+- **Enhanced Dependencies**: State 11 now depends on specialized tile grid data structures and consolidated advisor dialogue system in bank 17/18.
 
 ```mermaid
 graph TB
@@ -448,6 +476,8 @@ State6 --> RNG
 State7 --> Music12["Music $12"]
 State11 --> Sound08["Sound $08"]
 State13 --> Music98["Music $98/$AA"]
+State11 --> TileGrid["Tile Grid Structures"]
+State11 --> AdvisorSys["Advisor Dialogue System"]
 ```
 
 **Diagram sources**
@@ -456,6 +486,7 @@ State13 --> Music98["Music $98/$AA"]
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 - [bank_1f_analysis.md:560-579](file://code/bank_1f_analysis.md#L560-L579)
 - [bank_1f_analysis.md:548-554](file://code/bank_1f_analysis.md#L548-L554)
+- [prg_17_18.asm:1380:1588](file://asm/banks/prg_17_18.asm#L1380-L1588)
 
 **Section sources**
 - [bank_1f_analysis.md:54-76](file://code/bank_1f_analysis.md#L54-L76)
@@ -463,6 +494,7 @@ State13 --> Music98["Music $98/$AA"]
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 - [bank_1f_analysis.md:560-579](file://code/bank_1f_analysis.md#L560-L579)
 - [bank_1f_analysis.md:548-554](file://code/bank_1f_analysis.md#L548-L554)
+- [prg_17_18.asm:1380:1588](file://asm/banks/prg_17_18.asm#L1380-L1588)
 
 ## Performance Considerations
 - Bank switching cost: Each bank switch via $E51F writes four mapper registers and updates RAM mirrors. Minimizing unnecessary switches improves frame pacing.
@@ -470,6 +502,7 @@ State13 --> Music98["Music $98/$AA"]
 - RNG usage: Sequential table lookup is fast and deterministic; avoid frequent advances unless needed for fairness.
 - PPU/APU setup: Centralized frame init ($E4DA) clears working RAM and prepares display buffers; reuse these helpers to reduce overhead.
 - Idle states: States 10, 12, 14 are minimal; rely on NMI to modify $007A to exit waits efficiently.
+- **Enhanced Performance**: State 11 benefits from consolidated advisor dialogue system and optimized tile grid calculations, reducing redundant bank switches and improving rendering efficiency.
 
 [No sources needed since this section provides general guidance]
 
@@ -490,12 +523,17 @@ State13 --> Music98["Music $98/$AA"]
   - Controller reads occur in several states; ensure input checks are performed consistently.
 - SRAM corruption:
   - New game initialization writes to SRAM at $6F3F/$6F41/$6F8B; confirm flags are set only when intended.
+- **Advisor/Council Issues**: 
+  - Verify tile grid structures ($0680-$06BF) are properly initialized before rendering.
+  - Check advisor dialogue pointer ($9AE3) points to valid data.
+  - Ensure consolidated advisor system is properly bank switched before execution.
 
 **Section sources**
 - [bank_1f_analysis.md:54-76](file://code/bank_1f_analysis.md#L54-L76)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 - [bank_1f_analysis.md:548-554](file://code/bank_1f_analysis.md#L548-L554)
 - [bank_1f_analysis.md:114-159](file://code/bank_1f_analysis.md#L114-L159)
+- [prg_17_18.asm:1380:1588](file://asm/banks/prg_17_18.asm#L1380-L1588)
 
 ## Conclusion
-The 15-state system in Bank 0x1F orchestrates Sangokushi 2’s gameplay flow with a clean dispatch mechanism, centralized frame initialization, and consistent bank switching. Each state has a focused purpose, minimal overhead, and clear data access patterns. Proper use of display modes, bank configs, and audio wrappers ensures smooth transitions and reliable behavior across all phases of the game.
+The 15-state system in Bank 0x1F orchestrates Sangokushi 2's gameplay flow with a clean dispatch mechanism, centralized frame initialization, and consistent bank switching. Each state has a focused purpose, minimal overhead, and clear data access patterns. The enhanced advisor/council state (State 11) now features sophisticated tile grid calculations, consolidated rendering dispatch, and improved procedural organization, demonstrating the evolution toward more efficient and maintainable code architecture. Proper use of display modes, bank configs, and audio wrappers ensures smooth transitions and reliable behavior across all phases of the game.
