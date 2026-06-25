@@ -48,6 +48,7 @@
 - [tools/search_chr_loader.py](file://tools/search_chr_loader.py)
 - [tools/search_chr_loader2.py](file://tools/search_chr_loader2.py)
 - [tools/verify_disasm.py](file://tools/verify_disasm.py)
+- [tools/auto_add_local_params.py](file://tools/auto_add_local_params.py)
 - [asm/main.asm](file://asm/main.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
@@ -58,11 +59,10 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for new Python analysis and verification tools
-- Updated ROM analysis tools section to include check_addresses.py, check_bank18.py, check_rom_offset.py, dump_chr_table.py, dump_correct_bytes.py, search_0530.py, search_chr_loader.py, search_chr_loader2.py, and verify_disasm.py
-- Enhanced verification system documentation to include detailed ROM byte verification capabilities
-- Updated troubleshooting guide to include new analysis tools for ROM debugging
-- Added new section covering ROM analysis and verification workflows
+- Added comprehensive documentation for the new Python utility tool 'auto_add_local_params.py' for automated parameter declaration generation
+- Updated transformation pipeline section to include this new tool in the enhanced .proc/.endproc organization workflow
+- Enhanced the automated code organization capabilities with systematic parameter naming conventions
+- Updated troubleshooting guide to include this new tool for advanced assembly code enhancement
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -81,7 +81,7 @@
 14. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. Additionally, the transformation pipeline now includes sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, enhanced code organization, and comprehensive .proc/.endproc boundary analysis. The recent addition of dedicated ROM analysis and verification tools provides enhanced debugging capabilities for ROM reconstruction and validation.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. Additionally, the transformation pipeline now includes sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, enhanced code organization, and comprehensive .proc/.endproc boundary analysis. The recent addition of the automated parameter declaration tool provides systematic approach to maintaining consistent parameter naming conventions across the codebase, significantly improving code readability and maintainability.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -90,7 +90,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - ROM assets under rom/ (split PRG/CHR banks and combined PRG)
 - Build outputs under build/
 - Automated tools under tools/
-- **New**: Comprehensive ROM analysis and verification toolkit with dedicated tools for byte-level ROM inspection, pattern matching, and cross-referencing
+- **New**: Automated parameter declaration tool 'auto_add_local_params.py' for systematic parameter naming in assembly code
 
 ```mermaid
 graph TB
@@ -125,6 +125,7 @@ TP3["analyze_17_18.py<br/>118 lines"]
 TP4["debug_regions.py<br/>98 lines"]
 TP5["proc_scope_17_18.py<br/>Enhanced .proc/.endproc"]
 TP6["localize_labels.py<br/>New tool for @local labels"]
+TP7["auto_add_local_params.py<br/>415 lines - Automated parameter naming"]
 end
 subgraph "ROM Analysis and Verification"
 RA1["check_addresses.py<br/>Address verification"]
@@ -175,6 +176,7 @@ MK --> TP3
 MK --> TP4
 MK --> TP5
 MK --> TP6
+MK --> TP7
 MK --> RA1
 MK --> RA2
 MK --> RA3
@@ -217,6 +219,7 @@ T_verify --> OUT
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
 - [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
+- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
 - [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
 - [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
 - [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
@@ -236,6 +239,7 @@ T_verify --> OUT
 - The cc65 toolchain (ca65 and ld65) compiles assembly into an object file and links it according to the linker configuration.
 - Python tools handle ROM parsing, bank generation, disassembly, analysis, annotation, verification, and the comprehensive unified disassembly pipeline with transformation tools.
 - **New**: Enhanced transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, comprehensive .proc/.endproc organization, and advanced boundary analysis.
+- **New**: Automated parameter declaration tool 'auto_add_local_params.py' provides systematic approach to maintaining consistent parameter naming conventions across assembly code.
 - **New**: Comprehensive ROM analysis and verification toolkit provides dedicated tools for byte-level ROM inspection, pattern matching, and cross-referencing.
 
 Key capabilities:
@@ -248,6 +252,7 @@ Key capabilities:
 - Generate bank stubs to bootstrap disassembly.
 - **New**: Unified disassembly with specialized tools for Bank $17/$18 paired disassembly, Bank $1F range disassembly, and cross-bank reference mapping.
 - **New**: Enhanced transformation pipeline with semantic naming (B17_18_), comprehensive .proc/.endproc organization, cross-bank reference handling, and automated code organization.
+- **New**: Automated parameter declaration system that generates meaningful local parameter names for .proc blocks.
 - **New**: Dedicated ROM analysis tools for address verification, bank validation, offset mapping, pattern searching, and disassembly verification.
 
 **Section sources**
@@ -269,6 +274,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - Verify the rebuilt ROM against the original.
 - **New**: Apply unified disassembly pipeline for specialized ROM region processing with cross-bank reference handling.
 - **New**: Apply enhanced transformation pipeline for PRG bank $17/$18 assembly code with semantic naming, comprehensive .proc/.endproc organization, and advanced boundary analysis.
+- **New**: Utilize automated parameter declaration tool for systematic parameter naming in assembly code.
 - **New**: Utilize dedicated ROM analysis tools for detailed byte-level verification and pattern matching.
 
 ```mermaid
@@ -281,6 +287,7 @@ participant BN as "build_nes.py"
 participant VR as "verify_rom.py"
 participant UD as "Unified Disassembly Pipeline"
 participant TP as "Enhanced Transformation Pipeline"
+participant AP as "Auto Parameter Tool"
 participant RA as "ROM Analysis Tools"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm"
@@ -297,6 +304,8 @@ MK->>UD : "Unified disassembly for banks $17/$18"
 UD-->>Dev : "Cross-bank labeled assembly"
 Dev->>MK : "make transform_17_18"
 MK->>TP : "Apply enhanced transformation pipeline"
+TP->>AP : "Automated parameter declaration"
+AP-->>TP : "Systematic parameter naming"
 TP-->>Dev : "Semantic naming, .proc/.endproc organization"
 Dev->>MK : "make check_addresses"
 MK->>RA : "Address verification and ROM analysis"
@@ -328,6 +337,7 @@ RA-->>Dev : "Detailed byte-level inspection"
 - **New**: make debug_regions: Debug region transitions in PRG bank $17/$18 assembly code.
 - **New**: make proc_scope_17_18: Enhanced .proc/.endproc scoping with advanced boundary analysis for PRG bank $17/$18 assembly code.
 - **New**: make localize_labels: Convert branch-only labels to @local format with proper scoping.
+- **New**: make auto_add_local_params: Automatically add local parameter declarations to .proc blocks.
 - **New**: make check_addresses: Verify ROM bytes at specific addresses for disassembly accuracy.
 - **New**: make check_bank18: Validate bank $18 content and cross-check with bank $17.
 - **New**: make check_rom_offset: Map CPU addresses to ROM file offsets for verification.
@@ -348,6 +358,7 @@ Usage patterns:
 - **New**: Use transformation pipeline for PRG bank $17/$18 assembly code organization.
 - **New**: Use make proc_scope_17_18 for enhanced .proc/.endproc organization with advanced boundary analysis.
 - **New**: Use make localize_labels for converting branch-only labels to @local format.
+- **New**: Use make auto_add_local_params for automated parameter declaration generation.
 - **New**: Utilize ROM analysis tools for detailed verification and debugging workflows.
 - Iterate assembly and linking, then verify with make verify.
 
@@ -723,10 +734,10 @@ Format --> End(["Enhanced Assembly Listing"])
 ## Transformation Pipeline
 
 ### Overview
-The transformation pipeline provides a comprehensive automated workflow for organizing and enhancing PRG bank $17/$18 assembly code with semantic naming conventions, enhanced .proc/.endproc organization, and advanced boundary analysis. The pipeline consists of six specialized tools that work together to provide systematic code organization, naming standardization, and comprehensive debugging capabilities.
+The transformation pipeline provides a comprehensive automated workflow for organizing and enhancing PRG bank $17/$18 assembly code with semantic naming conventions, enhanced .proc/.endproc organization, and advanced boundary analysis. The pipeline consists of seven specialized tools that work together to provide systematic parameter naming, code organization, naming standardization, and comprehensive debugging capabilities.
 
 ### Pipeline Architecture
-The transformation pipeline operates on PRG bank $17/$18 assembly code with six specialized stages:
+The transformation pipeline operates on PRG bank $17/$18 assembly code with seven specialized stages:
 
 ```mermaid
 flowchart TD
@@ -735,7 +746,8 @@ Stage2 --> Stage3["analyze_17_18.py<br/>118 lines - Boundary Analysis"]
 Stage3 --> Stage4["debug_regions.py<br/>98 lines - Transition Debugging"]
 Stage4 --> Stage5["proc_scope_17_18.py<br/>Enhanced .proc/.endproc"]
 Stage5 --> Stage6["localize_labels.py<br/>New @local conversion"]
-Stage6 --> Output["Optimized Assembly Code"]
+Stage6 --> Stage7["auto_add_local_params.py<br/>415 lines - Automated parameter naming"]
+Stage7 --> Output["Optimized Assembly Code"]
 ```
 
 **Diagram sources**
@@ -745,6 +757,7 @@ Stage6 --> Output["Optimized Assembly Code"]
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
 - [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
+- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
 
 ### Stage-by-Stage Breakdown
 
@@ -791,6 +804,15 @@ Stage6 --> Output["Optimized Assembly Code"]
 - **Descriptive Naming**: Generates meaningful @ names based on branch direction and context (loop, done, skip, target).
 - **Cross-Reference Handling**: Manages cross-procedure references appropriately.
 
+#### Stage 7: Automated Parameter Declaration (auto_add_local_params.py)
+- **Parameter Extraction**: Parses all .proc/.endproc blocks and extracts zero-page/RAM memory addresses used in each proc.
+- **Global Definition Filtering**: Skips addresses that are already globally defined, focusing only on local parameters.
+- **Meaningful Naming**: Generates descriptive parameter names based on context, usage patterns, and address ranges.
+- **Pointer Pair Detection**: Automatically identifies consecutive addresses that form pointer pairs (lo/hi) and renames them systematically.
+- **Parameter Insertion**: Inserts parameter definitions at the start of each .proc block with proper formatting.
+- **Address Replacement**: Replaces raw addresses in proc bodies with named parameters, handling both full and zero-page forms.
+- **Well-Known Address Support**: Uses predefined naming conventions for common addresses (pointers, counters, flags, etc.).
+
 ### Integration with Build System
 The transformation pipeline integrates seamlessly with the Makefile build system:
 - **New**: make transform_17_18 target applies semantic naming transformation to PRG bank $17/$18 assembly code.
@@ -799,9 +821,10 @@ The transformation pipeline integrates seamlessly with the Makefile build system
 - **New**: make debug_regions target validates region transitions and boundary detection.
 - **New**: make proc_scope_17_18 target applies enhanced .proc/.endproc organization with advanced boundary analysis.
 - **New**: make localize_labels target converts branch-only labels to @local format with proper scoping.
+- **New**: make auto_add_local_params target automatically adds local parameter declarations to .proc blocks.
 - Each stage produces detailed logging and validation feedback.
 - Intermediate results are saved to maintain progress and enable debugging.
-- Final output provides well-organized, semantically-named assembly code with optimized .proc/.endproc boundaries ready for compilation.
+- Final output provides well-organized, semantically-named assembly code with optimized .proc/.endproc boundaries and systematic parameter naming ready for compilation.
 
 **Section sources**
 - [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
@@ -810,6 +833,7 @@ The transformation pipeline integrates seamlessly with the Makefile build system
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
 - [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
+- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
 
 ### Semantic Naming Conventions
 The transformation pipeline implements a comprehensive semantic naming system for PRG bank $17/$18 assembly code:
@@ -882,10 +906,38 @@ The localize_labels.py tool provides systematic conversion of branch-only labels
 - **Iteration-Based Promotion**: Promotes labels with cross-procedure references to proc_starts
 - **Deterministic Ordering**: Processes labels in a consistent order for reproducible results
 
+### Automated Parameter Declaration System
+The auto_add_local_params.py tool provides systematic approach to maintaining consistent parameter naming conventions:
+
+#### Parameter Extraction and Analysis
+- **Proc Block Parsing**: Identifies all .proc/.endproc blocks and extracts memory addresses used within each block
+- **Address Range Filtering**: Skips hardware registers, ROM, and expansion memory ranges, focusing on RAM and zero-page addresses
+- **Usage Pattern Analysis**: Records instruction types, read/write operations, and access frequencies for each address
+- **Global Definition Detection**: Filters out addresses that are already globally defined, focusing on local parameters only
+
+#### Intelligent Parameter Naming
+- **Well-Known Address Support**: Uses predefined naming conventions for common addresses (pointers, counters, flags, etc.)
+- **Context-Aware Naming**: Generates descriptive names based on instruction patterns, address ranges, and usage characteristics
+- **Pointer Pair Detection**: Automatically identifies consecutive addresses that form pointer pairs and renames them systematically
+- **Name Collision Prevention**: Ensures unique parameter names by appending numeric suffixes when conflicts occur
+
+#### Parameter Insertion and Replacement
+- **Parameter Definition Generation**: Creates formatted parameter definitions with proper alignment and spacing
+- **Address Replacement**: Replaces raw addresses in proc bodies with named parameters, handling both absolute and zero-page forms
+- **Comment Preservation**: Maintains inline comments and formatting while replacing addresses with meaningful parameter names
+- **Pointer Form Handling**: Properly handles both full 16-bit addresses and 8-bit zero-page forms in address replacement
+
+#### Advanced Features
+- **Skip Range Management**: Excludes hardware registers, ROM, expansion ROM, and SRAM from parameter consideration
+- **Instruction Type Analysis**: Differentiates between read-only, write-only, and read-write operations for better naming decisions
+- **Branch Instruction Detection**: Identifies status flags and loop variables through branch instruction patterns
+- **State Variable Recognition**: Detects state machine variables through specific address range patterns
+
 **Section sources**
 - [tools/transform_17_18.py:30-168](file://tools/transform_17_18.py#L30-L168)
 - [tools/proc_scope_17_18.py:315-813](file://tools/proc_scope_17_18.py#L315-L813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
+- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
 
 ## ROM Analysis and Verification Tools
 
@@ -1046,11 +1098,11 @@ The build system exhibits clear separation of concerns:
 - Makefile orchestrates tool invocations and manages dependencies between assembly, linking, and ROM packaging.
 - Python tools encapsulate domain-specific tasks (ROM parsing, disassembly, analysis, annotation, verification).
 - **New**: Unified disassembly pipeline provides specialized tools for different ROM regions with cross-bank reference handling.
-- **New**: Enhanced transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code organization with comprehensive .proc/.endproc boundary analysis.
+- **New**: Enhanced transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code organization with comprehensive .proc/.endproc boundary analysis and automated parameter naming.
 - **New**: ROM analysis and verification toolkit provides dedicated tools for byte-level ROM inspection and pattern matching.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, and ROM analysis tools for comprehensive ROM coverage.
+- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, ROM analysis tools, and automated parameter declaration system for comprehensive ROM coverage.
 
 ```mermaid
 graph TB
@@ -1076,6 +1128,7 @@ MK --> TP3["analyze_17_18.py"]
 MK --> TP4["debug_regions.py"]
 MK --> TP5["proc_scope_17_18.py"]
 MK --> TP6["localize_labels.py"]
+MK --> TP7["auto_add_local_params.py"]
 MK --> RA1["check_addresses.py"]
 MK --> RA2["check_bank18.py"]
 MK --> RA3["check_rom_offset.py"]
@@ -1100,6 +1153,8 @@ TP2 --> TP3
 TP3 --> TP4
 TP4 --> TP5
 TP5 --> TP6
+TP6 --> TP7
+TP7 --> Output["Enhanced Assembly Output"]
 RA1 --> RA2
 RA2 --> RA3
 RA3 --> RA4
@@ -1132,6 +1187,7 @@ RA8 --> RA9
 - [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
 - [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
+- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
 - [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
 - [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
 - [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
@@ -1153,10 +1209,12 @@ RA8 --> RA9
 - Enhanced disassembly tools provide more detailed output but may require additional processing time for complex bank analysis.
 - **New**: Unified disassembly pipeline processes multiple ROM regions with sophisticated algorithms; expect significant processing time for large assembly files.
 - **New**: Enhanced transformation pipeline applies multiple passes with detailed analysis and advanced boundary detection; expect substantial processing time for PRG bank $17/$18 assembly code.
+- **New**: Automated parameter declaration tool processes entire .proc blocks with comprehensive address analysis; expect processing time proportional to code complexity and parameter count.
 - **New**: ROM analysis toolkit provides specialized tools for detailed byte-level inspection; expect processing time proportional to ROM size and search scope.
 - **New**: Each disassembly, transformation, and analysis stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
 - **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
 - **New**: Localized label conversion adds another processing stage but significantly improves code readability and maintainability.
+- **New**: Automated parameter declaration system requires comprehensive address analysis but provides systematic parameter naming improvements.
 - **New**: Pattern searching tools may require scanning entire ROM files; consider performance implications for large ROM images.
 
 ## Troubleshooting Guide
@@ -1169,13 +1227,15 @@ Common issues and resolutions:
 - Linker errors: Update linker.cfg with new segments as banks are disassembled; ensure segments map to correct PRG slots.
 - Enhanced disassembly output issues: Ensure proper base address mapping and inline comment formatting for accurate analysis.
 - **New**: Unified disassembly pipeline failures: Check individual stage logs in the terminal output; each stage prints detailed progress and error information.
-- **New**: Enhanced transformation pipeline failures: Check individual stage logs for transform_17_18.py, add_procs.py, analyze_17_18.py, debug_regions.py, proc_scope_17_18.py, and localize_labels.py.
+- **New**: Enhanced transformation pipeline failures: Check individual stage logs for transform_17_18.py, add_procs.py, analyze_17_18.py, debug_regions.py, proc_scope_17_18.py, localize_labels.py, and auto_add_local_params.py.
 - **New**: Cross-bank reference issues: Verify that fix_disasm.py has been run to enhance disasm_17_18.py output.
 - **New**: Address-to-symbol mapping failures: Ensure functions.h contains proper address-to-symbol mappings for $E000-$FFFF.
 - **New**: Range verification failures: Check that verify_f3bd_f667.py and verify_range.py are run with correct file paths and address ranges.
 - **New**: Semantic naming conflicts: Ensure transform_17_18.py runs before add_procs.py to avoid naming conflicts.
 - **New**: .proc/.endproc boundary issues: Use proc_scope_17_18.py for advanced boundary analysis and optimization.
 - **New**: Localized label conversion failures: Check that localize_labels.py runs after proc_scope_17_18.py to ensure proper label classification.
+- **New**: Automated parameter declaration failures: Verify that auto_add_local_params.py runs after proc_scope_17_18.py to ensure proper parameter insertion.
+- **New**: Parameter naming conflicts: Check that auto_add_local_params.py handles well-known address collisions properly.
 - **New**: ROM analysis tool failures: Verify ROM files exist in rom/prg/ directory; check file permissions and sizes.
 - **New**: Address verification issues: Ensure check_addresses.py uses correct ROM file paths and address mappings.
 - **New**: Pattern search failures: Verify ROM files contain expected patterns; adjust search parameters if needed.
@@ -1196,9 +1256,11 @@ Practical examples:
 - **New**: Debug regions: make debug_regions
 - **New**: Enhanced .proc/.endproc organization: make proc_scope_17_18
 - **New**: Localized label conversion: make localize_labels
+- **New**: Automated parameter declaration: make auto_add_local_params
 - **New**: Transform specific stage: python3 tools/transform_17_18.py, python3 tools/add_procs.py, etc.
 - **New**: Advanced boundary analysis: python3 tools/proc_scope_17_18.py
 - **New**: Localized label conversion: python3 tools/localize_labels.py
+- **New**: Automated parameter declaration: python3 tools/auto_add_local_params.py
 - **New**: Address verification: make check_addresses
 - **New**: Bank validation: make check_bank18
 - **New**: Offset mapping: make check_rom_offset
@@ -1209,6 +1271,7 @@ Practical examples:
 - **New**: Specific CHR loader search: make search_chr_loader2
 - **New**: Comprehensive disassembly verification: make verify_disasm
 - **New**: Direct tool execution: python3 tools/check_addresses.py, python3 tools/check_bank18.py, etc.
+- **New**: Automated parameter declaration: python3 tools/auto_add_local_params.py --input asm/banks/prg_17_18.asm --output asm/banks/prg_17_18_auto.asm
 - Generate enhanced Bank 0x1F disassembly: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - Clean build artifacts: make clean
 - Clean and remove ROM dumps: make distclean
@@ -1220,7 +1283,7 @@ Practical examples:
 - [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, and advanced boundary analysis capabilities. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization and localize_labels.py for converting branch-only labels to @local format, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the ROM analysis toolkit, and the improved verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, and comprehensive ROM analysis capabilities.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, and auto_add_local_params.py for systematic parameter naming in assembly code, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the ROM analysis toolkit, and the improved verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, and comprehensive ROM analysis capabilities.
 
 ## Appendices
 
@@ -1229,7 +1292,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - Enhanced disassembly: make disasm, tools/disasm_bank_1f.py, tools/annotate_asm.py
 - **New**: Unified disassembly: make disasm_17_18, make gen_f667_ffff, make update_jsr_labels
 - **New**: Range verification: make verify_f3bd_f667, make verify_range
-- **New**: Enhanced transformation pipeline: make transform_17_18, make add_procs, make analyze_17_18, make debug_regions, make proc_scope_17_18, make localize_labels
+- **New**: Enhanced transformation pipeline: make transform_17_18, make add_procs, make analyze_17_18, make debug_regions, make proc_scope_17_18, make localize_labels, make auto_add_local_params
 - **New**: ROM analysis workflow: make check_addresses, make check_bank18, make check_rom_offset, make dump_chr_table, make dump_correct_bytes, make search_0530, make search_chr_loader, make search_chr_loader2, make verify_disasm
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
@@ -1249,6 +1312,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: make debug_regions
 - **New**: make proc_scope_17_18
 - **New**: make localize_labels
+- **New**: make auto_add_local_params
 - **New**: make check_addresses
 - **New**: make check_bank18
 - **New**: make check_rom_offset
@@ -1264,6 +1328,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/debug_regions.py
 - **New**: python3 tools/proc_scope_17_18.py
 - **New**: python3 tools/localize_labels.py
+- **New**: python3 tools/auto_add_local_params.py
 - **New**: python3 tools/check_addresses.py
 - **New**: python3 tools/check_bank18.py
 - **New**: python3 tools/check_rom_offset.py
@@ -1276,11 +1341,13 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/transform_17_18.py --dry-run
 - **New**: python3 tools/proc_scope_17_18.py --dry-run
 - **New**: python3 tools/localize_labels.py --dry-run
+- **New**: python3 tools/auto_add_local_params.py --input asm/banks/prg_17_18.asm --output asm/banks/prg_17_18_auto.asm
 - **New**: python3 tools/add_procs.py asm/banks/prg_17_18.asm
 - **New**: python3 tools/analyze_17_18.py
 - **New**: python3 tools/debug_regions.py
 - **New**: python3 tools/proc_scope_17_18.py
 - **New**: python3 tools/localize_labels.py
+- **New**: python3 tools/auto_add_local_params.py
 - **New**: python3 tools/check_addresses.py --address $A8D3
 - **New**: python3 tools/check_bank18.py --offset $08D3
 - **New**: python3 tools/check_rom_offset.py --cpu $A8D3
