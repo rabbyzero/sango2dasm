@@ -230,11 +230,7 @@ addr_trampoline_bank_param = $005D
   LDA VectorTable+1,Y                           ; $E073: B9 7D E0
   STA addr_dispatch_ptr+1                       ; $E076: 8D 4F 00
   JMP (addr_dispatch_ptr)                       ; $E079: 6C 4E 00
-.endproc
 
-;===============================================================================
-; $E07C: Vector Dispatch Table (15 entries, 30 bytes)
-;===============================================================================
 VectorTable:
   .addr State_SystemInit                        ; $E07C: 9A E0 | 0:  $E09A
   .addr State_NewGameInit                       ; $E07E: DA E0 | 1:  $E0DA
@@ -251,6 +247,7 @@ VectorTable:
   .addr State_IdleWait                          ; $E094: EB E3 | 12: $E3EB (same as 10)
   .addr State_TurnSummary                       ; $E096: 6A E4 | 13: $E46A
   .addr State_IdleWait                          ; $E098: EB E3 | 14: $E3EB (same as 10)
+.endproc
 
 ;===============================================================================
 ; $E09A: Entry 0 - System Init
@@ -514,6 +511,9 @@ sprite_idx2     = $0562
   JSR PpuMaskEnable                         ; $E293: 20 49 E7
   JSR NmiEnable                             ; $E296: 20 53 E7
   JMP StateDispatch                         ; $E299: 4C 66 E0
+
+DomesticSpriteYPos:
+  .byte $10, $0F, $00, $16                      ; $E2DE: 10 0F 00 16
 .endproc
 
 ;===============================================================================
@@ -544,14 +544,7 @@ base_ptr_hi     = $000D
   JSR SwitchBankAC_B                        ; $E2BB: 20 37 F2
   JSR $A006                                     ; $E2BE: 20 06 A0  Action display (bank-switched)
   RTS                                           ; $E2C1: 60
-.endproc
 
-; Domestic action display (wraps lookup)
-DomesticActionDisplay = DomesticActionLookup
-
-;===============================================================================
-; $E2C2: Domestic Action Data Tables
-;===============================================================================
 DomesticGraphicPtrs:
   .addr $8440, $8570, $86A0, $87D0              ; $E2C2: 40 84 70 85 A0 86 D0 87
   .addr $8900, $8A30, $8B60                     ; $E2CA: 00 89 30 8A 60 8B
@@ -559,9 +552,10 @@ DomesticGraphicPtrs:
 DomesticBaseDataPtrs:
   .addr $8000, $8000, $8000, $8000              ; $E2D0: 00 80 00 80 00 80 00 80
   .addr $8000, $8000, $8000                     ; $E2D8: 00 80 00 80 00 80
+.endproc
 
-DomesticSpriteYPos:
-  .byte $10, $0F, $00, $16                      ; $E2DE: 10 0F 00 16
+; Domestic action display (wraps lookup)
+DomesticActionDisplay = DomesticActionLookup
 
 ;===============================================================================
 ; $E2E2: Entry 6 - Random Seed Advance
@@ -706,8 +700,9 @@ army_status2    = $04AC
 ;===============================================================================
 ; $E3EB: Entry 10/12/14 - Idle / Wait State
 ;===============================================================================
-State_IdleWait:
+.proc State_IdleWait
   JMP StateDispatch                         ; $E3EB: 4C 66 E0
+.endproc
 
 ;===============================================================================
 ; $E3EE: Entry 11 - Advisor / Council
@@ -883,16 +878,12 @@ completion_flag = $0541
   LDA BankSwitchTable,Y                         ; $E560: B9 67 E5
   STA addr_bank_ed                              ; $E563: 8D ED 00
   RTS                                           ; $E566: 60
-.endproc
 
-;===============================================================================
-; $E567: Bank Switch Configuration Table
-; 8 bytes per config. First 4: PRG bank regs, Last 4: extended config
-;===============================================================================
 BankSwitchTable:
   .byte $E0, $E1, $E1, $E1, $E0, $E1, $E0, $E1  ; $E567: E0 E1 E1 E1 E0 E1 E0 E1  Config 0
   .byte $E0, $E0, $E0, $E0, $E0, $E1, $E0, $E1  ; $E56F: E0 E0 E0 E0 E1 E1 E1 E1  Config 1
   .byte $E0, $E1, $E0, $E1, $E0, $E1, $E0, $E1  ; $E577: E0 E1 E0 E1 E0 E1 E0 E1  Config 2
+.endproc
 
 ;===============================================================================
 ; $E57F: Bank + PPU Init + JMP Patch
@@ -973,6 +964,12 @@ WavetableWriteEntry:
   STX NAMCO_CTRL                                ; $E5F3: 8E 00 F8
   STA NAMCO_SOUND                               ; $E5F6: 8D 00 48
   RTS                                           ; $E5F9: 60
+
+WavetableInitData:
+  .byte $FF, $00, $00, $00, $00, $00, $00, $00  ; $E6A6: FF 00 00 00 00 00 00 00
+  .byte $FF, $FF, $00, $00, $00, $00, $00, $00  ; $E6AE: FF FF 00 00 00 00 00 00
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF  ; $E6B6: FF FF FF FF FF FF FF FF
+  .byte $FF, $00, $FF, $00, $FF, $00, $FF, $00  ; $E6BE: FF 00 FF 00 FF 00 FF 00
 .endproc
 
 ;===============================================================================
@@ -1051,15 +1048,10 @@ SoundNotePlayer_done:                           ; entry[0]=$FF → skip to LDY
   PLA                                           ; $E664: 68              ; restore X
   TAX                                           ; $E665: AA
   RTS                                           ; $E666: 60
-.endproc
 
-;===============================================================================
-; $E667: Sound Channel Table (4 bytes)
-; Maps logical channel index (0-3) to Namco-163 hardware channel
-; ch0=%0000_1110 (no Pulse1), ch1=%0000_1101 (no Pulse2), ch2=%0000_1011 (no Triangle), ch3=%0000_0111 (no Noise)
-;===============================================================================
 SoundChannelTable:
-  .byte $0E, $0D, $0B, $07                      ; $E667: 0E 0D 0B 07    
+  .byte $0E, $0D, $0B, $07                      ; $E667: 0E 0D 0B 07
+.endproc
 
 ;===============================================================================
 ; $E66B-$E6A5: Sound Wrapper Functions (7 variants)
@@ -1114,15 +1106,6 @@ SoundWrapperF:
   CLC                                           ; $E6A0: 18
   ADC #$01                                      ; $E6A1: 69 01
   JMP SoundNotePlayer                       ; $E6A3: 4C 09 E6
-
-;===============================================================================
-; $E6A6: Wavetable Init Data (32 bytes)
-;===============================================================================
-WavetableInitData:
-  .byte $FF, $00, $00, $00, $00, $00, $00, $00  ; $E6A6: FF 00 00 00 00 00 00 00
-  .byte $FF, $FF, $00, $00, $00, $00, $00, $00  ; $E6AE: FF FF 00 00 00 00 00 00
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF  ; $E6B6: FF FF FF FF FF FF FF FF
-  .byte $FF, $00, $FF, $00, $FF, $00, $FF, $00  ; $E6BE: FF 00 FF 00 FF 00 FF 00
 
 ;===============================================================================
 ; $E6C6: Controller Read (Both Pads)
@@ -3258,15 +3241,10 @@ nmi_ctrl = $007E
 @done:
   LDA NameScaleTable,X                          ; $F35B: BD 5F F3
   RTS                                           ; $F35E: 60
-.endproc
 
-;===============================================================================
-; $F35F: NameScaleTable
-; Maps character count (X=0..8) to a display scale value.
-; Higher counts yield lower values (more compressed display).
-;===============================================================================
 NameScaleTable:
   .byte $03,$03,$03,$02,$02,$01,$01,$00,$00     ; $F35F: 03 03 03 02 02 01 01 00 00
+.endproc
 
 ;===============================================================================
 ; $F368: GetRulerDataPtr
@@ -3283,12 +3261,7 @@ NameScaleTable:
   LDA RulerDataPtrTable+1,Y                     ; $F372: B9 7A F3
   STA $0001                                     ; $F375: 8D 01 00
   RTS                                           ; $F378: 60
-.endproc
 
-;===============================================================================
-; $F379: RulerDataPtrTable
-; 7 word entries pointing to per-ruler 8-byte SRAM blocks ($6F07-$6F37)
-;===============================================================================
 RulerDataPtrTable:
   .word $6F07                                   ; $F379: 07 6F
   .word $6F0F                                   ; $F37B: 0F 6F
@@ -3297,6 +3270,7 @@ RulerDataPtrTable:
   .word $6F27                                   ; $F381: 27 6F
   .word $6F2F                                   ; $F383: 2F 6F
   .word $6F37                                   ; $F385: 37 6F
+.endproc
 
 ;===============================================================================
 ; $F387: GetOfficerRomRecordAddr
@@ -3609,15 +3583,14 @@ MetaTileData:
   LDA NmiDispatchTable+1,Y                      ; $F872: B9 7C F8
   STA $0001                                     ; $F875: 8D 01 00
   JMP ($0000)                                   ; $F878: 6C 00 00
-.endproc
 
-;===============================================================================
-; $F87B: NmiDispatchTable - Jump table for NMI game state dispatch.
-; 9 interleaved lo/hi address pairs. Index = ($78 & $0F) * 2.
-;===============================================================================
 NmiDispatchTable:
-  .byte $97,$FA,$97,$FA,$B5,$F8,$FE,$F8,$6A,$F9 ; $F87B: 97 FA 97 FA B5 F8 FE F8 6A F9
-  .byte $A0,$F9,$E4,$F9,$13,$FA,$53,$FA         ; $F885: A0 F9 E4 F9 13 FA 53 FA
+  .word NmiState0_Idle, NmiState0_Idle         ; $F87B: states 0,1
+  .word NmiState2_MapScreen, NmiState3_Battle  ; $F87F: states 2,3
+  .word NmiState4_Menu, NmiState5_Diplomacy    ; $F883: states 4,5
+  .word NmiState6_Event, NmiState7_Strategy    ; $F887: states 6,7
+  .word NmiState8_Officer                      ; $F88B: state 8
+.endproc
 
 ;===============================================================================
 ; $F88D: NmiEpilogue
@@ -4217,12 +4190,11 @@ IrqExit:
   LDA $B9                                       ; $FD12: A5 B9
   STA NAMCO163_CHR_3                            ; $FD14: 8D 00 98
   JMP IrqExit                               ; $FD17: 4C 9E FB
-.endproc
 
-;--- $FD1A: Scanline delay table (8 pairs) ---
 ScanlineDelayTable:
   .byte $68,$0B,$5C,$18,$50,$23,$44,$2E         ; $FD1A: 68 0B 5C 18 50 23 44 2E
   .byte $37,$39,$2A,$45,$1E,$50,$12,$5B         ; $FD22: 37 39 2A 45 1E 50 12 5B
+.endproc
 
 ;--- $FD2A: IRQ mode 4 - simple CHR with ZP delays ---
 .proc IrqMode4_SimpleChr

@@ -7,15 +7,28 @@
 - [6502_registers.h](file://include/6502_registers.h)
 - [namco163.h](file://include/namco163.h)
 - [macros.h](file://include/macros.h)
+- [functions.h](file://include/functions.h)
 - [main.asm](file://asm/main.asm)
 - [all_banks.asm](file://asm/banks/all_banks.asm)
 - [prg_00.asm](file://asm/banks/prg_00.asm)
 - [prg_01.asm](file://asm/banks/prg_01.asm)
 - [prg_02.asm](file://asm/banks/prg_02.asm)
+- [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
+- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
+- [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
+- [globalize_04xx.py](file://tools/globalize_04xx.py)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added comprehensive documentation for the new centralized global RAM definition system for $04xx memory region
+- Updated memory organization section to reflect canonical naming conventions and shared state variables
+- Enhanced detailed component analysis with specific examples from the $04xx RAM region
+- Added new section documenting the refactoring process and its benefits for code organization
+- Updated memory access patterns to include canonical names for shared state variables
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -23,16 +36,17 @@
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
+6. [Centralized Global RAM Definition System](#centralized-global-ram-definition-system)
+7. [Dependency Analysis](#dependency-analysis)
+8. [Performance Considerations](#performance-considerations)
+9. [Troubleshooting Guide](#troubleshooting-guide)
+10. [Conclusion](#conclusion)
 
 ## Introduction
-This document focuses on the data access and memory management patterns in the Sango2DASM project. It explains how the system organizes memory across the 6502 address space, how data structures are laid out and accessed, and how bank switching enables cross-bank data access via the Namco-163 mapper. It also documents SRAM usage for save data, RAM layout, and the macro utilities that simplify memory operations. Practical examples demonstrate memory optimization techniques and the relationship between code organization and memory efficiency.
+This document focuses on the data access and memory management patterns in the Sango2DASM project. It explains how the system organizes memory across the 6502 address space, how data structures are laid out and accessed, and how bank switching enables cross-bank data access via the Namco-163 mapper. The project has recently implemented a centralized global RAM definition system for the $04xx memory region, establishing canonical names for shared state variables across multiple game subsystems. It also documents SRAM usage for save data, RAM layout, and the macro utilities that simplify memory operations. Practical examples demonstrate memory optimization techniques and the relationship between code organization and memory efficiency.
 
 ## Project Structure
-The project is organized around a 6502-based NES game using the Namco-163 (mapper 19) with 32 PRG banks of 8 KB each. The linker configuration defines four PRG slots ($8000–$FFFF) that are switchable via mapper registers. Bank 0x1F is fixed at $E000–$FFFF at boot and contains the reset handler and state dispatch logic. The include directory centralizes register and macro definitions, while asm/banks contains stub files for each PRG bank.
+The project is organized around a 6502-based NES game using the Namco-163 (mapper 19) with 32 PRG banks of 8 KB each. The linker configuration defines four PRG slots ($8000–$FFFF) that are switchable via mapper registers. Bank 0x1F is fixed at $E000–$FFFF at boot and contains the reset handler and state dispatch logic. The include directory centralizes register and macro definitions, while asm/banks contains stub files for each PRG bank. The $04xx RAM region now features centralized global definitions with canonical names for shared state variables.
 
 ```mermaid
 graph TB
@@ -48,13 +62,19 @@ end
 subgraph "Boot Bank"
 BOOT["$E000-$FFFF<br/>Bank 0x1F (Fixed)"]
 end
+subgraph "$04xx RAM Region"
+GLOBAL_RAM["$0400-$04FF<br/>Centralized Global RAM"]
+CANONICAL_NAMES["Canonical Names<br/>for Shared State Variables"]
+END
 BOOT --- PRG_SLOTS
 BOOT --- SRAM
+GLOBAL_RAM --- CANONICAL_NAMES
 ```
 
 **Diagram sources**
 - [linker.cfg:4-12](file://linker.cfg#L4-L12)
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
 
 **Section sources**
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
@@ -62,6 +82,7 @@ BOOT --- SRAM
 
 ## Core Components
 - Memory map and segmentation: The linker defines ZEROPAGE, RAM, and four PRG slots. Bank 0x1F is mapped to $E000–$FFFF at boot.
+- Centralized global RAM definitions: The $04xx memory region now features canonical names for shared state variables across multiple game subsystems.
 - Register and mapper definitions: The 6502 registers and Namco-163 mapper registers are defined centrally for consistent access.
 - Macros: Common macros encapsulate PPU operations, DMA, and bank switching to reduce repetitive code and errors.
 - Bank stubs: Each PRG bank is represented by a stub file that includes the corresponding 8 KB binary until disassembly is complete.
@@ -72,9 +93,10 @@ BOOT --- SRAM
 - [namco163.h:1-87](file://include/namco163.h#L1-L87)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
 
 ## Architecture Overview
-The system uses a banked PRG model with a fixed boot bank (0x1F) and switchable PRG slots. Data tables and save data are located in bank-switched PRG and SRAM respectively. The mapper abstraction exposes simple macros to switch banks and configure registers. The reset handler initializes PPU/APU, clears RAM, and dispatches to state-specific handlers using a vector table in the boot bank.
+The system uses a banked PRG model with a fixed boot bank (0x1F) and switchable PRG slots. Data tables and save data are located in bank-switched PRG and SRAM respectively. The mapper abstraction exposes simple macros to switch banks and configure registers. The reset handler initializes PPU/APU, clears RAM, and dispatches to state-specific handlers using a vector table in the boot bank. The centralized $04xx RAM system provides canonical names for shared state variables across multiple game subsystems.
 
 ```mermaid
 graph TB
@@ -87,15 +109,20 @@ PRG0["PRG Slot 0<br/>$8000-$9FFF"]
 PRGA["PRG Slot A<br/>$A000-$BFFF"]
 PRGC["PRG Slot C<br/>$C000-$DFFF"]
 PRGE["PRG Slot E<br/>$E000-$FFFF<br/>Bank 0x1F (Fixed)"]
+GLOBAL_RAM["$0400-$04FF<br/>Centralized Global RAM"]
+CANONICAL_NAMES["Canonical Names<br/>for Shared State"]
 CPU --> PRG0
 CPU --> PRGA
 CPU --> PRGC
 CPU --> PRGE
 CPU --> SRAM
+CPU --> GLOBAL_RAM
 CPU --> PPU
 CPU --> APU_IO
 CPU --> MAPPER
 PRGE --> |"Vector Table + State Handlers"| CPU
+PRGE --> |"Centralized RAM Definitions"| GLOBAL_RAM
+GLOBAL_RAM --> |"Shared State Variables"| CANONICAL_NAMES
 CPU --> |"Writes to mapper regs"| MAPPER
 ```
 
@@ -103,6 +130,7 @@ CPU --> |"Writes to mapper regs"| MAPPER
 - [PROJECT.md:84-99](file://PROJECT.md#L84-L99)
 - [namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
@@ -114,17 +142,20 @@ CPU --> |"Writes to mapper regs"| MAPPER
 - Zero Page and System RAM: ZEROPAGE ($0000–$00FF) and BSS ($0100–$07FF) are defined in the linker. The main code reserves zero-page temporaries and a small RAM buffer for runtime use.
 - PRG Slots: Four 8 KB PRG slots are defined for banked code. Bank 0x1F is fixed at $E000–$FFFF; other banks are switchable via mapper registers.
 - SRAM: The linker and project documentation specify $6000–$7FFF as SRAM for save data.
+- Centralized $04xx RAM: The $0400–$04FF region now contains centralized global definitions with canonical names for shared state variables across multiple game subsystems.
 
 Practical implications:
 - Use ZEROPAGE for hot-loop variables and temporary pointers to minimize instruction cycles.
 - Keep frequently accessed small buffers in $0100–$07FF to avoid page crossings.
 - Bank 0x1F is ideal for boot-time initialization and dispatch logic.
+- The centralized $04xx RAM system eliminates redundant local memory address aliases and improves code organization.
 
 **Section sources**
 - [linker.cfg:18-30](file://linker.cfg#L18-L30)
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
 - [main.asm:13-20](file://asm/main.asm#L13-L20)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
 
 ### Address Calculation Patterns and Data Structure Layouts
 The game computes pointers into bank-switched data using efficient 6502 arithmetic patterns. The key functions demonstrate multiply-by-constants using shifts and rotates, and pointer-table lookups for SRAM data.
@@ -243,8 +274,61 @@ Each PRG bank is represented by a stub file that includes the corresponding 8 KB
 - [prg_01.asm:1-13](file://asm/banks/prg_01.asm#L1-L13)
 - [prg_02.asm:1-13](file://asm/banks/prg_02.asm#L1-L13)
 
+## Centralized Global RAM Definition System
+
+### Overview
+The project has implemented a centralized global RAM definition system for the $04xx memory region, eliminating redundant local memory address aliases and establishing canonical names for shared state variables. This refactoring improves code organization and maintainability across multiple game subsystems.
+
+### Canonical Naming Conventions
+The centralized system establishes consistent naming for shared state variables:
+
+- **Pointer/State ($0400-$0411)**: `domestic_work_ptr_lo`, `domestic_work_ptr_hi`, `scroll_ptr_lo`, `scroll_ptr_hi`, `domestic_cursor_lo`, `domestic_cursor_hi`, `domestic_officer_list_lo`, `domestic_officer_list_hi`
+- **Officer/Selection ($0424-$0435)**: `troop_assign_counter_lo`, `troop_assign_counter_hi`, `selected_officer_id`, `battle_result_phase`, `dispatch_timer`, `menu_blink_timer`
+- **Map/Scroll pointers ($0470-$0473)**: `anim_ppu_ptr_lo`, `anim_ppu_ptr_hi`, `map_scroll_ptr_lo`, `map_scroll_ptr_hi`
+- **Main game state ($04A8-$04C0)**: `game_state`, `sub_state`, `active_player_slot`, `player_flag_0`, `player_officer_id_0`, `player_officer_id_1`, `name_tile_index`, `domestic_action_index`, `player_army_value_0`, `player_army_value_1`, `player_random_offset_0`, `player_action_timer_0`, `anim_timer`, `map_scroll_phase`, `scroll_row_count`, `slide_y_pos`, `cutscene_load_progress`, `display_ptr_lo`, `display_ptr_hi`, `sub_action_type`, `frame_counter`, `player_scene_index`, `event_overlay_flag`, `ui_state`, `name_tile_ptr_lo`, `name_tile_ptr_hi`
+- **Extended state ($04C9-$04D5)**: `dispatch_step`, `dispatch_src_ptr_lo`, `dispatch_src_ptr_hi`, `dispatch_dst_ptr_lo`, `dispatch_dst_ptr_hi`, `dispatch_data_ptr_lo`, `dispatch_data_ptr_hi`, `dispatch_offset_ptr_lo`, `dispatch_offset_ptr_hi`
+
+### Implementation Details
+The refactoring process involved three key steps:
+
+1. **Insert global $04xx definition block**: A centralized block outside `.proc` scopes containing all canonical names
+2. **Remove local $04xx definitions**: Eliminated redundant local memory address aliases within function scopes
+3. **Replace old alias names**: Mapped legacy alias names to canonical names throughout instruction lines
+
+### Benefits
+- **Improved maintainability**: Single source of truth for shared state variables
+- **Reduced code duplication**: Eliminates redundant local definitions across multiple functions
+- **Enhanced clarity**: Canonical names provide clear semantic meaning for shared state
+- **Better organization**: Logical grouping of related state variables by functional area
+
+### Examples from Codebase
+The centralized system is evident throughout the codebase:
+
+- **Bank 17/18 combined bank**: Contains comprehensive $04xx RAM definitions with canonical names for domestic dispatch, officer selection, and game state management
+- **Bank 1F aligned bank**: Demonstrates the same canonical naming approach for shared state variables
+- **Tool support**: Automated refactoring tool (`globalize_04xx.py`) systematically applies the canonical naming scheme
+
+```mermaid
+flowchart TD
+LocalDefs["Local $04xx Definitions<br/>($0400-$04FF)"] --> GlobalBlock["Global $04xx Definition Block<br/>Outside .proc Scopes"]
+GlobalBlock --> CanonicalNames["Canonical Names<br/>for Shared State Variables"]
+CanonicalNames --> EliminateRedundancy["Eliminate Redundant Local Aliases"]
+EliminateRedundancy --> ReplaceAliases["Replace Old Alias Names<br/>with Canonical Names"]
+ReplaceAliases --> ImprovedMaintainability["Improved Code Organization<br/>and Maintainability"]
+```
+
+**Diagram sources**
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
+- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-L68)
+- [globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
+
+**Section sources**
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
+- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-L68)
+- [globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
+
 ## Dependency Analysis
-The boot process depends on the mapper initialization and vector dispatch to reach state-specific handlers. Bank switching is orchestrated by a configuration routine that writes to mapper registers and stores a shadow copy in RAM. Data access functions rely on banked PRG tables and SRAM for persistence.
+The boot process depends on the mapper initialization and vector dispatch to reach state-specific handlers. Bank switching is orchestrated by a configuration routine that writes to mapper registers and stores a shadow copy in RAM. Data access functions rely on banked PRG tables and SRAM for persistence. The centralized $04xx RAM system provides canonical names for shared state variables across multiple game subsystems, reducing dependency complexity.
 
 ```mermaid
 graph LR
@@ -254,12 +338,15 @@ Dispatch --> State0["$E09A State_SystemInit"]
 State0 --> BankSwitch["$E51F BankSwitch"]
 BankSwitch --> PRGTables["Banked Data Tables"]
 State0 --> SRAM["$6000-$7FFF Save Data"]
+State0 --> GlobalRAM["$0400-$04FF Centralized RAM"]
+GlobalRAM --> CanonicalNames["Canonical State Names"]
 ```
 
 **Diagram sources**
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
 
 **Section sources**
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
@@ -272,6 +359,7 @@ State0 --> SRAM["$6000-$7FFF Save Data"]
 - Minimize page crossings by grouping related data within the same 256-byte page when feasible.
 - Bank data tables by usage frequency to reduce the number of bank switches during critical paths.
 - Leverage macros to avoid repetitive code and potential instruction overhead.
+- The centralized $04xx RAM system reduces code size by eliminating redundant local definitions, improving cache efficiency.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -279,11 +367,13 @@ Common issues and remedies:
 - SRAM not persisting: Confirm SRAM is powered and that writes occur within the SRAM region ($6000–$7FFF). Check for accidental writes to other memory areas.
 - PPU/VRAM corruption: Verify PPU initialization and address setting macros are used consistently. Clear PPU registers early and reinitialize as needed.
 - Vector dispatch failures: Validate the vector table index masking and ensure only valid indices are used.
+- $04xx RAM access issues: Ensure canonical names are used instead of local aliases. Verify that the centralized RAM definitions are properly included in the compilation unit.
 
 **Section sources**
 - [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
 - [PROJECT.md:12](file://PROJECT.md#L12)
 - [macros.h:17-47](file://include/macros.h#L17-L47)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
 
 ## Conclusion
-The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. Following the outlined practices ensures optimal memory usage and maintainable code organization.
+The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. The recent implementation of a centralized global RAM definition system for the $04xx memory region significantly improves code organization and maintainability by establishing canonical names for shared state variables across multiple game subsystems. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. The centralized $04xx RAM system eliminates redundant local memory address aliases and provides a single source of truth for shared state variables. Following the outlined practices ensures optimal memory usage and maintainable code organization.

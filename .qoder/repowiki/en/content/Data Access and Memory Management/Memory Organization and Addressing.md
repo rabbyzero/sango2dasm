@@ -9,8 +9,18 @@
 - [include/macros.h](file://include/macros.h)
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
+- [asm/banks/prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [rom/rom_info.h](file://rom/rom_info.h)
+- [tools/globalize_04xx.py](file://tools/globalize_04xx.py)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Updated $04xx memory region documentation to reflect centralized global RAM definition system
+- Added canonical naming conventions for state variables in $04xx region
+- Enhanced memory addressing patterns documentation with improved organization
+- Updated memory management approach to eliminate redundant local definitions
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -24,7 +34,9 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the memory organization and addressing patterns used in the Sangokushi 2 disassembly targeting the NES. It covers how the 6502 accesses 256KB of PRG ROM across 32 banks despite only having 16-bit addresses, details the Namco-163 mapper’s bank switching mechanism, and documents the memory map layout. It also describes multiply-by-power-of-two techniques using accumulator shifts to accelerate arithmetic, and how the mapper abstraction enables seamless cross-bank data access while preserving logical addressing.
+This document explains the memory organization and addressing patterns used in the Sangokushi 2 disassembly targeting the NES. It covers how the 6502 accesses 256KB of PRG ROM across 32 banks despite only having 16-bit addresses, details the Namco-163 mapper's bank switching mechanism, and documents the memory map layout. It also describes multiply-by-power-of-two techniques using accumulator shifts to accelerate arithmetic, and how the mapper abstraction enables seamless cross-bank data access while preserving logical addressing.
+
+**Updated** The $04xx memory region now uses a centralized global RAM definition system with canonical naming conventions for state variables, eliminating redundant local definitions and establishing a more organized memory management approach across all banks.
 
 ## Project Structure
 The project organizes code around:
@@ -32,6 +44,7 @@ The project organizes code around:
 - 32 PRG banks mapped into four 8KB slots ($8000–$FFFF)
 - Mapper and register definitions under include/
 - Linker configuration defining memory regions and segments
+- Centralized global RAM definitions with canonical naming in key banks
 
 ```mermaid
 graph TB
@@ -69,6 +82,10 @@ PRG_SLOTS --> PRG
 - Mapper and bank switching
   - Namco-163 (mapper 19) exposes write-only registers at $F800–$FE00 to select PRG banks for each slot
   - Macros and constants in include/ facilitate switching
+- Centralized global RAM definitions
+  - Canonical naming system established in key banks (0x1F, 0x17-0x18)
+  - Eliminates redundant local $04xx definitions
+  - Standardized state variable naming across all banks
 - Linker configuration
   - Defines Zeropage, RAM, and four PRG slots; code segments map to specific slots
 - Entry point and dispatch
@@ -81,9 +98,12 @@ PRG_SLOTS --> PRG
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [asm/main.asm:30-60](file://asm/main.asm#L30-L60)
 - [asm/banks/prg_1f.asm:153-168](file://asm/banks/prg_1f.asm#L153-L168)
+- [tools/globalize_04xx.py:13-77](file://tools/globalize_04xx.py#L13-L77)
 
 ## Architecture Overview
 The system uses a fixed boot bank (0x1F) mapped to PRG slot 3 ($E000–$FFFF) and dynamically switches three lower slots ($8000–$DFFF) via mapper writes. The reset handler initializes hardware, clears RAM, and dispatches to a state routine via an indirect vector table. Bank switching is performed through dedicated routines and macros.
+
+**Updated** The centralized global RAM definition system ensures consistent memory addressing across all banks, with canonical names replacing scattered local definitions.
 
 ```mermaid
 sequenceDiagram
@@ -120,12 +140,30 @@ CPU->>State : Enter selected state
   - $A000–$BFFF (slot 1)
   - $C000–$DFFF (slot 2)
   - $E000–$FFFF (slot 3, fixed to bank 0x1F at boot)
+- Centralized $04xx region:
+  - Standardized state variables with canonical names
+  - Eliminated redundant local definitions
+  - Consistent addressing across all banks
 
-These regions are reflected in both the project documentation and the linker configuration.
+**Updated** The $04xx region now follows a centralized naming convention with canonical addresses like `game_state`, `selected_officer_id`, and pointer variables with standardized suffixes (`_lo`/`_hi`).
 
 **Section sources**
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
 - [linker.cfg:4-12](file://linker.cfg#L4-L12)
+- [tools/globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
+
+### Centralized Global RAM Definition System
+**New Section** The project now implements a centralized global RAM definition system that standardizes memory addressing patterns across all banks:
+
+- **Canonical Naming Convention**: Addresses like `$0400`, `$0401`, `$042C`, `$04A8` are consistently named using descriptive canonical names such as `ptr_0400_lo`, `ptr_0400_hi`, `selected_officer_id`, and `game_state`.
+- **Elimination of Redundancy**: Local `$04xx` definitions within `.proc` blocks have been removed, reducing code duplication and improving maintainability.
+- **Cross-Bank Consistency**: All banks now reference the same canonical addresses, ensuring consistent behavior regardless of which bank is active.
+- **Tool-Assisted Migration**: The `globalize_04xx.py` script automatically identifies local aliases and replaces them with canonical names across the codebase.
+
+**Section sources**
+- [tools/globalize_04xx.py:1-94](file://tools/globalize_04xx.py#L1-L94)
+- [asm/banks/prg_17_18.asm:14-30](file://asm/banks/prg_17_18.asm#L14-L30)
+- [asm/banks/prg_1f.aligned.asm:50-68](file://asm/banks/prg_1f.aligned.asm#L50-L68)
 
 ### Bank Switching Mechanism (Namco-163)
 - Mapper registers:
@@ -169,6 +207,7 @@ Apply4 --> End(["Done"])
 - Pointer arithmetic examples:
   - Setting a 16-bit pointer to $8000 and using it to call banked routines at $A003, $A015, etc.
   - Using Y-indexed window setup routines and banked display functions.
+- **Centralized $04xx addressing**: Now uses canonical names like `game_state` and `selected_officer_id` instead of scattered local aliases.
 
 ```mermaid
 flowchart TD
@@ -186,11 +225,13 @@ E --> F["JMP indirect to state routine"]
 **Section sources**
 - [asm/banks/prg_1f.asm:138-147](file://asm/banks/prg_1f.asm#L138-L147)
 - [asm/banks/prg_1f.asm:740-749](file://asm/banks/prg_1f.asm#L740-L749)
+- [tools/globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
 
 ### Indirect Addressing and Banked Calls
 - Banked functions are invoked by calling addresses within the $A000–$AFFF range, which resolves to the currently loaded bank for that slot.
 - Examples:
   - Calling $A003, $A015, $A027, $A006, $A009, $A018, etc., from within bank 0x1F after bank switching.
+- **Improved memory management**: Centralized canonical names ensure consistent addressing regardless of which bank contains the calling code.
 
 ```mermaid
 sequenceDiagram
@@ -243,6 +284,7 @@ Dec --> |No| End(["Return 32/40-bit product"])
 - Physical PRG banks are 8KB each; the mapper writes select which bank appears in each 8KB slot.
 - Logical addressing remains consistent within a bank; cross-bank access is achieved by writing to mapper registers before calling banked addresses.
 - The linker configuration defines four PRG slots and assigns code segments to them, ensuring correct placement during linking.
+- **Centralized RAM definitions**: Canonical naming ensures consistent logical addressing across all physical bank locations.
 
 **Section sources**
 - [PROJECT.md:84-94](file://PROJECT.md#L84-L94)
@@ -282,8 +324,7 @@ PRG1F --> MAC
 - Fast math: Shift-and-add routines replace slower multiplication routines, trading memory for speed.
 - Vector indexing: AND + ASL to compute word indices minimizes overhead in dispatch loops.
 - Clearing RAM: Efficient zero-page loops reduce startup time.
-
-[No sources needed since this section provides general guidance]
+- **Centralized RAM system**: Eliminates redundant memory definitions and improves code maintainability without performance impact.
 
 ## Troubleshooting Guide
 - Incorrect bank mapping
@@ -298,12 +339,18 @@ PRG1F --> MAC
 - Linker errors
   - Symptom: Segments not fitting or missing symbols
   - Check: PRG slot assignments and segment definitions in linker.cfg
+- **Centralized RAM naming issues**
+  - Symptom: Compilation errors for $04xx addresses
+  - Check: Ensure all references use canonical names from the centralized definition system
 
 **Section sources**
 - [asm/banks/prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
 - [asm/banks/prg_1f.asm:138-147](file://asm/banks/prg_1f.asm#L138-L147)
 - [PROJECT.md:78](file://PROJECT.md#L78)
 - [linker.cfg:43-47](file://linker.cfg#L43-L47)
+- [tools/globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
 
 ## Conclusion
 The Sangokushi 2 disassembly employs a robust bank switching strategy via the Namco-163 mapper to access 256KB of PRG ROM from 16-bit addressing. The reset handler and vector table provide a clean dispatch mechanism, while macros and helper routines streamline bank switching and cross-bank calls. Efficient shift-and-add routines demonstrate practical optimizations for arithmetic on the 6502. Together, these patterns enable maintainable, modular code while preserving predictable logical addressing across the full ROM space.
+
+**Updated** The implementation of a centralized global RAM definition system with canonical naming conventions further enhances maintainability by eliminating redundant local definitions and establishing consistent memory addressing patterns across all 32 PRG banks. This organizational improvement provides better code clarity and reduces the likelihood of memory-related bugs while maintaining the performance characteristics of the original implementation.
