@@ -93,6 +93,14 @@ addr_rng_temp_x     = $0053                     ; RNG temp X save (variants)
 addr_rng3_index     = $0054                     ; RNG variant 3 table index
 addr_rng4_index     = $0055                     ; RNG variant 4 table index
 
+; --- Trampoline ---
+addr_trampoline_saved_bank = $0058
+addr_trampoline_ret_lo     = $0059
+addr_trampoline_ret_hi     = $005A
+addr_trampoline_target_lo  = $005B
+addr_trampoline_target_hi  = $005C
+addr_trampoline_bank_param = $005D
+
 ; --- Sprite ---
 addr_sprite_count   = $007C                     ; Current OAM slot index
 
@@ -140,13 +148,10 @@ addr_menu_result    = $12                       ; Current item value (returned)
 addr_menu_column    = $0424                     ; Cursor column (0-based within page)
 addr_menu_page      = $0425                     ; Cursor page (0-based)
 
-; --- Trampoline ---
-addr_trampoline_saved_bank = $0058
-addr_trampoline_ret_lo     = $0059
-addr_trampoline_ret_hi     = $005A
-addr_trampoline_target_lo  = $005B
-addr_trampoline_target_hi  = $005C
-addr_trampoline_bank_param = $005D
+; --- SRAM ---
+sram_kingdom_param_0 = $6F3F                     ; Kingdom init param 0 (set to $80 on new game)
+sram_kingdom_param_1 = $6F41                     ; Kingdom init param 1 (set to $F0 on new game)
+sram_game_start_flag = $6F8B                     ; Game start flag (set to $FF on new game)
 
 ;===============================================================================
 ; $E000: Reset Handler
@@ -315,7 +320,7 @@ VectorTable:
 
   LDY #$37                                      ; $E10E: A0 37
   JSR SwitchBankAC_B                        ; $E110: 20 37 F2
-  JSR $A003                                     ; $E113: 20 03 A0  Display (bank-switched)
+  JSR B17_18_PpuCopyRaw                           ; $E113: 20 03 A0  Display (bank-switched)
 
   ; Window + render
   LDY #$3D                                      ; $E116: A0 3D
@@ -329,7 +334,7 @@ VectorTable:
   CMP #$0D                                      ; $E129: C9 0D
   BEQ @skip_sram_flag                           ; $E12B: F0 05
   LDA #$FF                                      ; $E12D: A9 FF
-  STA $6F8B                                     ; $E12F: 8D 8B 6F  Set SRAM flag
+  STA sram_game_start_flag                        ; $E12F: 8D 8B 6F  Set SRAM flag
 @skip_sram_flag:
   LDY #$3D                                      ; $E132: A0 3D
   JSR SwitchBankAC_B                        ; $E134: 20 37 F2
@@ -344,9 +349,9 @@ VectorTable:
   STA $04E2                                     ; $E157: 8D E2 04
   STA $04E3                                     ; $E15A: 8D E3 04
   LDA #$F0                                      ; $E15D: A9 F0
-  STA $6F41                                     ; $E15F: 8D 41 6F  SRAM: kingdom param
+  STA sram_kingdom_param_1                        ; $E15F: 8D 41 6F  SRAM: kingdom param
   LDA #$80                                      ; $E162: A9 80
-  STA $6F3F                                     ; $E164: 8D 3F 6F  SRAM: kingdom param
+  STA sram_kingdom_param_0                        ; $E164: 8D 3F 6F  SRAM: kingdom param
   LDA #$00                                      ; $E167: A9 00
   JSR BankSwitch                            ; $E169: 20 1F E5
   INC addr_game_state                           ; $E16C: EE 7A 00  Next state
@@ -390,7 +395,7 @@ territory_ptr_hi = $0069
   JSR DisplayInit                           ; $E195: 20 70 E3
   LDY #$37                                      ; $E198: A0 37
   JSR SwitchBankAC_B                        ; $E19A: 20 37 F2
-  JSR $A027                                     ; $E19D: 20 27 A0  Kingdom display (bank-switched)
+  JSR B17_18_DataRecordLoader                     ; $E19D: 20 27 A0  Kingdom display (bank-switched)
 
   LDA kingdom_mode                              ; $E1A0: AD 00 05
   CMP #$0B                                      ; $E1A3: C9 0B  Scenario mode?
@@ -478,7 +483,7 @@ sprite_idx2     = $0562
   JSR BankSwitch                            ; $E242: 20 1F E5
   LDY #$37                                      ; $E245: A0 37
   JSR SwitchBankAC_B                        ; $E247: 20 37 F2
-  JSR $A024                                     ; $E24A: 20 24 A0  Domestic display
+  JSR B17_18_DomesticDisplay                      ; $E24A: 20 24 A0  Domestic display
   LDY #$3D                                      ; $E24D: A0 3D
   JSR SwitchBankAC_B                        ; $E24F: 20 37 F2
 
@@ -542,7 +547,7 @@ base_ptr_hi     = $000D
   STA base_ptr_hi                               ; $E2B6: 8D 0D 00
   LDY #$37                                      ; $E2B9: A0 37
   JSR SwitchBankAC_B                        ; $E2BB: 20 37 F2
-  JSR $A006                                     ; $E2BE: 20 06 A0  Action display (bank-switched)
+  JSR B17_18_PpuWriteTileOffset                   ; $E2BE: 20 06 A0  Action display (bank-switched)
   RTS                                           ; $E2C1: 60
 
 DomesticGraphicPtrs:
@@ -593,7 +598,7 @@ army_status2    = $04AC
   STA $0001                                     ; $E310: 8D 01 00
   LDY #$37                                      ; $E313: A0 37
   JSR SwitchBankAC_B                        ; $E315: 20 37 F2
-  JSR $A003                                     ; $E318: 20 03 A0  Battle display
+  JSR B17_18_PpuCopyRaw                           ; $E318: 20 03 A0  Battle display
   LDY #$3D                                      ; $E31B: A0 3D
   JSR SwitchBankAC_B                        ; $E31D: 20 37 F2
   LDA #$0A                                      ; $E320: A9 0A
@@ -675,7 +680,7 @@ army_status2    = $04AC
   STA $0007                                     ; $E3AD: 8D 07 00
   LDY #$37                                      ; $E3B0: A0 37
   JSR SwitchBankAC_B                        ; $E3B2: 20 37 F2
-  JSR $A003                                     ; $E3B5: 20 03 A0
+  JSR B17_18_PpuCopyRaw                           ; $E3B5: 20 03 A0
   LDY #$3D                                      ; $E3B8: A0 3D
   JSR SwitchBankAC_B                        ; $E3BA: 20 37 F2
   LDA #$0B                                      ; $E3BD: A9 0B
@@ -730,7 +735,7 @@ army_status2    = $04AC
   STA $0007                                     ; $E41F: 8D 07 00
   LDY #$37                                      ; $E422: A0 37
   JSR SwitchBankAC_B                        ; $E424: 20 37 F2
-  JSR $A003                                     ; $E427: 20 03 A0
+  JSR B17_18_PpuCopyRaw                           ; $E427: 20 03 A0
   LDY #$3D                                      ; $E42A: A0 3D
   JSR SwitchBankAC_B                        ; $E42C: 20 37 F2
   JSR $A018                                     ; $E42F: 20 18 A0  Advisor dialogue
@@ -781,7 +786,7 @@ completion_flag = $0541
   STA $0001                                     ; $E48D: 8D 01 00
   LDY #$37                                      ; $E490: A0 37
   JSR SwitchBankAC_B                        ; $E492: 20 37 F2
-  JSR $A003                                     ; $E495: 20 03 A0
+  JSR B17_18_PpuCopyRaw                           ; $E495: 20 03 A0
   LDY #$3D                                      ; $E498: A0 3D
   JSR SwitchBankAC_B                        ; $E49A: 20 37 F2
   LDA #$0D                                      ; $E49D: A9 0D
@@ -3675,8 +3680,8 @@ NmiDispatchTable:
   JSR NamcoSoundRegRead                     ; $F92F: 20 77 F0
   LDY #$37                                      ; $F932: A0 37
   JSR SwitchBankAC_B                        ; $F934: 20 37 F2
-  JSR $A00C                                     ; $F937: 20 0C A0
-  JSR $A00F                                     ; $F93A: 20 0F A0
+  JSR B17_18_DisplayAndChrSetup                   ; $F937: 20 0C A0
+  JSR B17_18_BattleEffects                        ; $F93A: 20 0F A0
 @skip_weather:
   JSR SwapPlayerPointers                    ; $F93D: 20 A9 FA
   LDY #$39                                      ; $F940: A0 39
@@ -3739,7 +3744,7 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                    ; $F9C5: 20 A9 FA
   LDY #$37                                      ; $F9C8: A0 37
   JSR SwitchBankAC_B                        ; $F9CA: 20 37 F2
-  JSR $A01B                                     ; $F9CD: 20 1B A0
+  JSR B17_18_MainGameDispatch                     ; $F9CD: 20 1B A0
   LDY #$3D                                      ; $F9D0: A0 3D
   JSR SwitchBankAC_B                        ; $F9D2: 20 37 F2
   JSR $A003                                     ; $F9D5: 20 03 A0
@@ -3818,7 +3823,7 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                    ; $FA7D: 20 A9 FA
   LDY #$37                                      ; $FA80: A0 37
   JSR SwitchBankAC_B                        ; $FA82: 20 37 F2
-  JSR $A01E                                     ; $FA85: 20 1E A0
+  JSR B17_18_DomesticActionDispatch               ; $FA85: 20 1E A0
   JSR RestorePlayerPointers                 ; $FA88: 20 BF FA
   JSR CalcScrollAddr                        ; $FA8B: 20 62 FF
   JSR SpriteClearFromIndex                  ; $FA8E: 20 30 E8

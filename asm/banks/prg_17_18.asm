@@ -8154,7 +8154,7 @@ DomesticActionDispatch:
 ; $D69E: DomesticAction dispatch table
 ; --- Inline pointer table (6 entries) ---
   .word DomAction_InitOfficerScroll                                         ; $D69E: AA D6
-  .word DomAction_ScrollOfficerList                                         ; $D6A0: 9B D7
+  .word DomAction_ScrollIntroPanel                                          ; $D6A0: 9B D7
   .word DomAction_ScrollTextPhase2                                         ; $D6A2: 3A D8
   .word DomAction_ScrollAndWait                                         ; $D6A4: C9 D8
   .word DomAction_MainInteractive                                         ; $D6A6: CA D9
@@ -8265,14 +8265,14 @@ OfficerScrollPalette:
   .byte $0F,$30,$10,$00,$0F,$0F,$1B,$28,$0F,$36,$30,$16,$0F,$20,$27,$17; $D78B
 .endproc
 ;===============================================================================
-; $D79B: DomAction_ScrollOfficerList
-; Domestic action state 1: Scroll officer list with fade transition
+; $D79B: DomAction_ScrollIntroPanel
+; Domestic action state 1: Scroll intro panel with fade transition
 ;===============================================================================
-.proc DomAction_ScrollOfficerList
+.proc DomAction_ScrollIntroPanel
   temp_006a       = $006A
   ptr_006c_lo     = $006C
   ptr_006c_hi     = $006D
-DomAction_ScrollOfficerList:
+DomAction_ScrollIntroPanel:
   LDA dispatch_src_ptr_lo                                           ; $D79B: AD CA 04
   BNE @skip_3                                           ; $D79E: D0 37
   LDA dispatch_step                                           ; $D7A0: AD C9 04

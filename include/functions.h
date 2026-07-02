@@ -315,6 +315,8 @@ B39_BattleEffects         = $A00F   ; Battle effects (NMI context)
 ;-------------------------------------------------------------------------------
 ; Banks $17+$18 - Domestic/Kingdom display (combined 16KB $A000-$DFFF)
 ; Loaded via SwitchBankAC with Y=$37
+;
+; Jump table entry points ($A000-$A029)
 ;-------------------------------------------------------------------------------
 B17_18_PpuWriteRle        = $A000   ; Entry00: RLE-encoded PPU data writer
 B17_18_PpuCopyRaw         = $A003   ; Entry01: Raw 1KB PPU data copy
@@ -324,15 +326,225 @@ B17_18_DisplayAndChrSetup = $A00C   ; Entry04: Display coordinate check + CHR se
 B17_18_BattleEffects      = $A00F   ; Entry05: Battle visual effects
 B17_18_BattleDispatch     = $A012   ; Entry06: Battle dispatch
 B17_18_OverlayWindow      = $A015   ; Entry07: Overlay/window rendering
-B17_18_AdvisorDialogue    = $A018   ; Entry08: Advisor/council dialogue system
+B17_18_SetupAdvisorTiles  = $A018   ; Entry08: Setup advisor/council tiles
 B17_18_MainGameDispatch   = $A01B   ; Entry09: Main game mode dispatcher
 B17_18_DomesticActionDispatch = $A01E ; Entry0A: Domestic action dispatcher
 B17_18_AnimationDispatch  = $A021   ; Entry0B: Animation dispatch
 B17_18_DomesticDisplay    = $A024   ; Entry0C: Domestic affairs display
 B17_18_DataRecordLoader   = $A027   ; Entry0D: Data record loader
-; Internal function/data symbols in prg_17_18.asm use unprefixed names
-; (no B17_18_ prefix). They are only referenced within that file, so
-; no = assignments are needed here.
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $17 ($A02A-$BFFF)
+;-------------------------------------------------------------------------------
+B17_18_SetupDisplayPtrs   = $A04A
+B17_18_AdvanceSrcPtr      = $A0D2
+B17_18_PpuWriteRawRows    = $A0E4
+B17_18_RleDecompressHelper = $A169
+B17_18_ReadRleByte        = $A1A5
+B17_18_AdvanceSrcPtr2     = $A209
+B17_18_AdvanceTilePtr     = $A2E4
+B17_18_RewindTilePtr16    = $A2ED
+B17_18_DisplayUpdateScroll = $A3B1
+B17_18_SceneRenderDispatch = $A3BC
+B17_18_RenderSceneHoriz   = $A3C9
+B17_18_RenderSceneVert    = $A485
+B17_18_CopyTileRowHoriz   = $A545
+B17_18_CopyTileRowVert    = $A5A5
+B17_18_BankPtrLookup      = $A604
+B17_18_BankPtrLookupAlt   = $A610
+B17_18_BattleAttrAndHelpers = $A89A
+B17_18_ComputeAttributeByte = $A8D3
+B17_18_DispatchTileRowHoriz = $A8FD
+B17_18_DispatchTileRowVert = $A91E
+B17_18_InitTileGridHoriz  = $A93F
+B17_18_InitTileGridVert   = $A961
+B17_18_CalcTileGridOrigin = $AB26
+B17_18_BattleOverlayRender = $AB94
+B17_18_WriteBattleAttribute = $AC80
+B17_18_BattleOverlayCopy  = $AD69
+B17_18_SetScrollWorkOffset4 = $AD9F
+B17_18_LoadBattleOverlay  = $ADBC
+B17_18_LoadBattleOverlayWithOffset = $AEB5
+B17_18_LoadOverlaySecondary = $AF0C
+B17_18_PatchAttrAdjacency = $AF1B
+B17_18_PatchPrimaryAdjacency = $AF30
+B17_18_PatchSecondaryAdjacency = $AF71
+B17_18_PatchSingleAdjacency = $AFB5
+B17_18_BuildAdjacencyMap  = $AFF9
+B17_18_PopulateAdjacencyEntries = $B00F
+B17_18_BuildAdjacencyMapSmall = $B055
+B17_18_PopulateAdjacencyEntriesSmall = $B06B
+B17_18_PrepareAdjacencyPtrs = $B08F
+B17_18_DomesticAffairsDispatch = $B144
+B17_18_DomesticAffairs_InitOfficers = $B15A
+B17_18_DomesticAffairs_StoreOfficerSlot = $B1A2
+B17_18_DomesticAffairs_ShowMessage = $B1A6
+B17_18_DomesticAffairs_ShowDialog = $B1BB
+B17_18_DomesticAffairs_LoadPortrait = $B1D4
+B17_18_DomesticAffairs_BuildSpriteData = $B1EE
+B17_18_DomesticAffairs_FinalizeSprites = $B21C
+B17_18_DomesticAffairs_CalcTroopStats = $B230
+B17_18_DomesticAffairs_SetupDisplay = $B2E0
+B17_18_TroopAssignmentDispatch = $B34F
+B17_18_TroopAssign_SelectTarget = $B361
+B17_18_TroopAssign_Execute = $B3F0
+B17_18_TroopAssign_ShowMenu = $B407
+B17_18_TroopAssign_HandleResult = $B47E
+B17_18_TroopAssign_Confirm = $B552
+B17_18_TroopAssign_ShowSummary = $B569
+B17_18_CombatCalcDispatch = $B5C8
+B17_18_CombatCalc_CompareForces = $B5D8
+B17_18_CombatCalc_MoraleCheck = $B626
+B17_18_CombatCalc_DefenseCheck = $B659
+B17_18_CombatCalc_OfficerDuel = $B689
+B17_18_CombatCalc_DetermineOutcome = $B719
+B17_18_CombatCalc_SetActionResult = $B7A8
+B17_18_CombatCalc_MoraleCalc = $B7B3
+B17_18_CombatCalc_DefenseCalc = $B7DD
+B17_18_CombatCalc_LeadershipCheck = $B816
+B17_18_CombatCalc_DuelCheck = $B851
+B17_18_CombatCalc_FinalCalc = $B89B
+B17_18_BattleResultDispatch = $B8C7
+B17_18_BattleResult_Calculate = $B8D3
+B17_18_BattleResult_ApplyTroopLoss = $B96D
+B17_18_BattleResult_ShowVictory = $B9A0
+B17_18_BattleResult_CheckContinue = $B9A5
+B17_18_BattleResult_Finalize = $B9C8
+B17_18_SingleCombatDispatch = $BA6D
+B17_18_SingleCombat_Init  = $BA87
+B17_18_SingleCombat_CheckContinue = $BAA5
+B17_18_SingleCombat_ShowMenu = $BAC0
+B17_18_SingleCombat_PlayerAction = $BADA
+B17_18_SingleCombat_RandomEvent = $BB03
+B17_18_SingleCombat_ShowMenu2 = $BB41
+B17_18_SingleCombat_ApplyDamage = $BB5B
+B17_18_SingleCombat_CheckFlee = $BB93
+B17_18_SingleCombat_NextRound = $BBC0
+B17_18_SingleCombat_CheckEnd = $BC00
+B17_18_SingleCombat_SwapActive = $BC16
+B17_18_DiplomacyDispatch  = $BC3B
+B17_18_Diplomacy_Init     = $BC47
+B17_18_Diplomacy_ShowMenu = $BC5C
+B17_18_Diplomacy_HandleAction = $BC8C
+B17_18_EventCutsceneDispatch = $BCE9
+B17_18_EventCutscene_Init = $BCFB
+B17_18_EventCutscene_ShowText = $BD1E
+B17_18_EventCutscene_Display = $BD40
+B17_18_EventCutscene_NoOp = $BD5C
+B17_18_EventCutscene_NoEvent = $BD5D
+B17_18_EventCutscene_Execute = $BDA9
+B17_18_EventCutscene_Cleanup = $BE3F
+B17_18_BattleInitDispatch = $BE78
+B17_18_BattleInit_Setup   = $BE86
+B17_18_BattleInit_Position = $BF43
+B17_18_BattleInit_Configure = $BF66
+B17_18_BattleInit_Finalize = $BF7E
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $18 ($C000-$DFFF)
+;-------------------------------------------------------------------------------
+B17_18_BattleSetup_Exec   = $C08A
+B17_18_EventCutsceneDispatch2 = $C116
+B17_18_EventCutscene2_Init = $C124
+B17_18_EventCutscene2_LoadData = $C13A
+B17_18_EventCutscene2_Show = $C14A
+B17_18_EventCutscene2_Execute = $C187
+B17_18_EventCutscene_LoadOverlay = $C1E2
+B17_18_MapFadeDispatch    = $C21C
+B17_18_MapFade_Init       = $C22A
+B17_18_MapFade_FadeIn     = $C256
+B17_18_MapFade_Draw       = $C28E
+B17_18_MapFade_Complete   = $C2AA
+B17_18_MapFade_DrawColumn = $C2CC
+B17_18_TerritoryEventDispatch = $C2F6
+B17_18_TerritoryEvent_Init = $C30E
+B17_18_TerritoryEvent_Check = $C33B
+B17_18_TerritoryEvent_Execute = $C35D
+B17_18_TerritoryEvent_ApplyResult = $C40B
+B17_18_TerritoryEvent_CaptureOfficer = $C42E
+B17_18_TerritoryEvent_Finalize = $C44F
+B17_18_PaletteTransitionDispatch = $C464
+B17_18_PaletteTransition_Copy = $C46E
+B17_18_PaletteTransition_Fade = $C480
+B17_18_MapScrollDispatch_A = $C498
+B17_18_MapScrollA_Init    = $C4AC
+B17_18_MapScrollA_Scroll  = $C4C3
+B17_18_MapScrollA_Draw    = $C4E9
+B17_18_MapScrollA_Update  = $C55A
+B17_18_MapScrollA_Animate = $C598
+B17_18_MapScrollA_Finalize = $C5D2
+B17_18_MapScrollA_Complete = $C66B
+B17_18_MapScrollDispatch_B = $C689
+B17_18_MapScrollB_Init    = $C69F
+B17_18_MapScrollB_Scroll  = $C6B6
+B17_18_MapScrollB_Draw    = $C6DC
+B17_18_MapScrollB_Update  = $C72D
+B17_18_MapScrollB_Animate = $C773
+B17_18_MapScrollB_Finalize = $C809
+B17_18_MapScrollB_Complete = $C84A
+B17_18_MapScrollB_Extra   = $C884
+B17_18_MapScrollDispatch_C = $C949
+B17_18_MapScrollC_Init    = $C95F
+B17_18_MapScrollC_Scroll  = $C976
+B17_18_MapScrollC_Draw    = $C99C
+B17_18_MapScrollC_Update  = $C9ED
+B17_18_MapScrollC_Animate = $CA50
+B17_18_MapScrollC_Finalize = $CAB8
+B17_18_MapScrollC_Complete = $CAD4
+B17_18_MapScrollC_Extra   = $CB0E
+B17_18_MapSlideDispatch_A = $CB9E
+B17_18_MapSlideA_Init     = $CBAA
+B17_18_MapSlideA_Slide    = $CC0A
+B17_18_MapSlideA_Complete = $CC62
+B17_18_MapSlideDispatch_B = $CC87
+B17_18_MapSlideB_Init     = $CC93
+B17_18_MapSlideB_Slide    = $CCAA
+B17_18_MapSlideB_Complete = $CCD0
+B17_18_MapSlideDispatch_C = $CD3C
+B17_18_MapSlideC_Init     = $CD48
+B17_18_MapSlideC_Slide    = $CD5F
+B17_18_MapSlideC_Complete = $CD85
+B17_18_BuildPPUTileBuffer = $CDFD
+B17_18_DrawSpriteFromBank = $CEA5
+B17_18_MapScroll_UpdatePosition = $CEE1
+B17_18_ExpandMetatileToSprites = $CFA3
+B17_18_FinalizeSpriteBuffer = $D060
+B17_18_ReadMenuSelection  = $D13D
+B17_18_SetupMenuPtr       = $D166
+B17_18_TroopAssign_NextState = $D17C
+B17_18_DrawCompletionSprite = $D235
+B17_18_CheckPlayerIsRuler = $D262
+B17_18_SetDisplayPointer  = $D283
+B17_18_CheckButtonConfirm = $D299
+B17_18_DomAction_InitOfficerScroll = $D6AA
+B17_18_DomAction_ScrollIntroPanel = $D79B
+B17_18_DomAction_ScrollTextPhase2 = $D83A
+B17_18_DomAction_ScrollAndWait = $D8C9
+B17_18_DomAction_FinalizeCleanup = $D920
+B17_18_Finalize_Init      = $D932
+B17_18_Finalize_SetupUI   = $D950
+B17_18_Finalize_WaitConfirm = $D95A
+B17_18_Finalize_ScrollTimer = $D976
+B17_18_Finalize_PaletteCopy = $D9B4
+B17_18_Finalize_NoOp      = $D9C1
+B17_18_Finalize_ExitTransition = $D9C2
+B17_18_DomAction_MainInteractive = $D9CA
+B17_18_DomAction_BuildOfficerList = $D9DE
+B17_18_DomAction_InitOfficerDisplay = $DA41
+B17_18_DomAction_RenderOfficerEntry = $DA87
+B17_18_DomAction_UpdateOfficerDisplay = $DAB6
+B17_18_DomAction_ScrollOfficerList = $DAE0
+B17_18_DomAction_FinalizeDisplayBuffer = $DB90
+B17_18_DomAction_CheckConfirmInput = $DBDA
+B17_18_RenderDispatchSprite = $DBF3
+B17_18_ScrollPanel_LoadRow = $DC13
+B17_18_ScrollPanel_PrepareRowData = $DCE1
+B17_18_AnimSeq_Init       = $DE44
+B17_18_AnimSeq_PlayFrames = $DE66
+B17_18_AnimSeq_HoldFinalFrame = $DEB9
+B17_18_AnimSeq_PrepareTransition = $DEC7
+B17_18_AnimSeq_ResetScene = $DED6
+B17_18_SpriteFromTable    = $DEFA
 
 ;-------------------------------------------------------------------------------
 ; Bank $2E - NMI rendering
@@ -354,6 +566,29 @@ B2A_RenderMap             = $A003   ; Map rendering (NMI context)
 ; Bank $28 - NMI domestic
 ;-------------------------------------------------------------------------------
 B28_DomesticDisplay       = $A024   ; Domestic display (NMI context)
+
+;-------------------------------------------------------------------------------
+; Banks $1D+$1E - Combined 16KB ($A000-$DFFF)
+; Jump table entry points ($A000-$A047)
+;-------------------------------------------------------------------------------
+B1D_1E_PPUTileRender      = $A000   ; Entry00: PPU tile render
+B1D_1E_MenuUpdate          = $A003   ; Entry01: Menu update
+B1D_1E_VRAMBufferWrite     = $A006   ; Entry02: VRAM buffer write
+B1D_1E_StateHandler        = $A009   ; Entry03: State handler
+B1D_1E_MapDisplaySetup     = $A00C   ; Entry04: Map display setup
+B1D_1E_OfficerListHandler  = $A00F   ; Entry05: Officer list handler
+B1D_1E_NumberDisplaySetup  = $A01E   ; Entry10: Number display setup
+B1D_1E_FrameCounterCheck   = $A021   ; Entry11: Frame counter check
+B1D_1E_BcdDisplayHandler   = $A024   ; Entry12: BCD display handler
+B1D_1E_ProvinceDataHandler = $A027   ; Entry13: Province data handler
+B1D_1E_OfficerLookup       = $A02A   ; Entry14: Officer lookup
+B1D_1E_NameDisplay         = $A030   ; Entry16: Name display
+B1D_1E_RecordProcessor     = $A033   ; Entry17: Record processor
+; Internal procs - Bank $1E ($C000-$DFFF)
+B1D_1E_CommonReturn        = $C934   ; Shared return handler
+B1D_1E_SetupDisplayPtrs    = $C96D   ; Setup display pointers
+B1D_1E_ResetDispatchState  = $C98A   ; Reset dispatch state
+B1D_1E_DisplayTileData     = $C994   ; Tile data display engine
 
 ;===============================================================================
 ; SECTION 3: Banked Code at $8000-$9FFF (Slot 0)

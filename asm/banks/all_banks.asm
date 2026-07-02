@@ -30,7 +30,6 @@
 .include "prg_1a.asm"
 .include "prg_1b.asm"
 .include "prg_1c.asm"
-.include "prg_1d.asm"
-.include "prg_1e.asm"
+.include "prg_1d_1e.asm"
 .include "prg_1f.asm"
 

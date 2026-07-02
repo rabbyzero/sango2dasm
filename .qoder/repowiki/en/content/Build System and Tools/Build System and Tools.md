@@ -60,10 +60,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for the new Python utility tool 'globalize_04xx.py' for automated centralized global RAM definition system
-- Updated transformation pipeline section to include this new tool in the enhanced PRG bank $17/$18 assembly organization workflow
-- Enhanced the automated code organization capabilities with systematic $04xx memory region centralization
-- Updated troubleshooting guide to include this new tool for advanced assembly code enhancement and RAM definition standardization
+- Added comprehensive documentation for the new transformation pipeline tools (transform_17_18.py, add_procs.py, analyze_17_18.py, debug_regions.py) providing sophisticated semantic naming conventions, enhanced code organization, and automated tooling for PRG bank $17/$18 assembly code maintainability
+- Enhanced disassembly tools with unified pipeline for specialized ROM region processing
+- Updated transformation pipeline section to include detailed analysis of the sophisticated semantic naming system and advanced boundary detection capabilities
+- Added documentation for the new RAM centralization tool (globalize_04xx.py) for systematic $04xx memory region standardization
+- Enhanced automated code organization capabilities with systematic parameter naming and cross-bank reference handling
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -92,7 +93,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - ROM assets under rom/ (split PRG/CHR banks and combined PRG)
 - Build outputs under build/
 - Automated tools under tools/
-- **New**: Automated RAM centralization tool 'globalize_04xx.py' for systematic $04xx memory region standardization
+- **New**: Comprehensive transformation pipeline with sophisticated semantic naming, enhanced code organization, and automated tooling for PRG bank $17/$18 assembly code maintainability
 
 ```mermaid
 graph TB
@@ -121,10 +122,10 @@ UD5["verify_f3bd_f667.py"]
 UD6["verify_range.py"]
 end
 subgraph "Enhanced Transformation Pipeline"
-TP1["transform_17_18.py<br/>348 lines"]
-TP2["add_procs.py<br/>189 lines"]
-TP3["analyze_17_18.py<br/>118 lines"]
-TP4["debug_regions.py<br/>98 lines"]
+TP1["transform_17_18.py<br/>348 lines - Semantic Naming"]
+TP2["add_procs.py<br/>189 lines - Basic Scoping"]
+TP3["analyze_17_18.py<br/>118 lines - Boundary Analysis"]
+TP4["debug_regions.py<br/>98 lines - Transition Debugging"]
 TP5["proc_scope_17_18.py<br/>Enhanced .proc/.endproc"]
 TP6["localize_labels.py<br/>New tool for @local labels"]
 TP7["auto_add_local_params.py<br/>415 lines - Automated parameter naming"]
@@ -244,8 +245,8 @@ T_verify --> OUT
 - The cc65 toolchain (ca65 and ld65) compiles assembly into an object file and links it according to the linker configuration.
 - Python tools handle ROM parsing, bank generation, disassembly, analysis, annotation, verification, and the comprehensive unified disassembly pipeline with transformation tools.
 - **New**: Enhanced transformation pipeline provides sophisticated tools for PRG bank $17/$18 assembly code with semantic naming conventions, comprehensive .proc/.endproc organization, and advanced boundary analysis.
-- **New**: Automated parameter declaration tool 'auto_add_local_params.py' provides systematic approach to maintaining consistent parameter naming conventions across assembly code.
-- **New**: RAM centralization tool 'globalize_04xx.py' provides systematic approach to standardizing $04xx memory region definitions with centralized global RAM definitions.
+- **New**: Automated parameter declaration tool provides systematic approach to maintaining consistent parameter naming conventions across assembly code.
+- **New**: RAM centralization tool provides systematic approach to standardizing $04xx memory region definitions with centralized global RAM definitions.
 - **New**: Comprehensive ROM analysis and verification toolkit provides dedicated tools for byte-level ROM inspection, pattern matching, and cross-referencing.
 
 Key capabilities:
@@ -862,9 +863,9 @@ The transformation pipeline implements a comprehensive semantic naming system fo
 
 #### Naming Pattern
 - **Prefix**: B17_18_ (identifies Bank $17/$18 origin)
-- **Function Names**: Descriptive names based on functionality (e.g., B17_18_PpuWriteRle, B17_18_DisplayRenderScene)
-- **Data Names**: Descriptive names indicating data purpose (e.g., B17_18_BattleTileData, B17_18_TileLookupTable)
-- **Table Names**: Descriptive names indicating table purpose (e.g., B17_18_JumpTable, B17_18_AnimFrameTable)
+- **Function Names**: Descriptive names based on functionality (e.g., B17_18_ PpuWriteRle, B17_18_ DisplayRenderScene)
+- **Data Names**: Descriptive names indicating data purpose (e.g., B17_18_ BattleTileData, B17_18_ TileLookupTable)
+- **Table Names**: Descriptive names indicating table purpose (e.g., B17_18_ JumpTable, B17_18_ AnimFrameTable)
 
 #### Cleaner Naming Examples
 Recent refactoring has introduced cleaner, more descriptive function names:
@@ -1033,7 +1034,7 @@ Stage4 --> Output["Standardized Assembly Code"]
 #### Stage 3: Local Definition Removal
 - **Scope Detection**: Identifies .proc/.endproc block boundaries to ensure proper scope management
 - **Selective Removal**: Removes only local $04xx definitions that correspond to canonical addresses
-- **Reference Tracking**: Counts and reports the number of local definitions successfully removed
+- **Reference Tracking**: Counts and reports the number of local definitions removed
 - **Scope Preservation**: Maintains proper scoping for non-canonical addresses and local variables
 
 #### Stage 4: Alias Renaming

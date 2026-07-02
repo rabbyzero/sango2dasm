@@ -14,11 +14,11 @@
 
 ## Update Summary
 **Changes Made**
-- Enhanced documentation of State_AdvisorCouncil with detailed tile grid system procedures
-- Added comprehensive coverage of SetupAdvisorTiles and CalcTileGridOrigin functions
-- Updated rendering dispatch system documentation with improved tile grid calculation procedures
-- Consolidated advisor dialogue functionality documentation
-- Expanded tile grid data structure documentation with memory layout details
+- Enhanced documentation for battle overlay system with proper namespace qualification for BattleDispatch::BattleOverlayPtrTable and BattleDispatch::BattleBankTable references
+- Improved adjacency calculation routines documentation with clearer variable naming and memory addressing patterns
+- Updated State_BattlePhase section to reflect enhanced battle overlay system improvements
+- Added detailed coverage of PatchPrimaryAdjacency, PatchSecondaryAdjacency, and PatchSingleAdjacency procedures
+- Expanded battle effects system documentation with improved scene column and palette management
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -34,7 +34,7 @@
 ## Introduction
 This document explains the display and interaction states that drive gameplay in the disassembly of a Namco-163 mapper strategy game for the NES. It focuses on five core states: State_KingdomSelect, State_DomesticAffairs, State_BattlePhase, State_TerritoryView, and State_AdvisorCouncil. For each state, we describe how user interaction is handled, how display rendering is initialized and updated, how data is processed, and how state transitions occur. We also document display modes, window management, controller input handling, and the relationship between states and their underlying data structures. Finally, we explain how helper procedures support rendering, audio, and timing.
 
-**Updated** Enhanced documentation now includes detailed coverage of the advisor council state's tile grid system, including SetupAdvisorTiles and CalcTileGridOrigin procedures, and improved rendering dispatch mechanisms.
+**Updated** Enhanced documentation now includes detailed coverage of the battle overlay system with proper namespace qualification and improved adjacency calculation routines for better memory addressing patterns.
 
 ## Project Structure
 The project is organized around a 32-bank PRG layout with a fixed boot bank (0x1F) mapped to $E000-$FFFF. The reset handler initializes hardware, clears RAM, and dispatches to the first state via a vector table. The state machine is driven by a global state counter that indexes into the vector table to select the current state routine.
@@ -227,7 +227,7 @@ S->>S : JMP StateDispatch
 - [prg_1f_analysis.md:243-298](file://code/bank_1f_analysis.md#L243-L298)
 
 ### State_BattlePhase
-Purpose: Handles the battle/combat phase. Displays army graphics and adjusts sprite visibility based on army status flags.
+Purpose: Handles the battle/combat phase. Displays army graphics and adjusts sprite visibility based on army status flags. Features enhanced battle overlay system with proper namespace qualification.
 
 Interaction and rendering:
 - Calls FrameInit and sets sub-state.
@@ -236,9 +236,18 @@ Interaction and rendering:
 - Renders the battle display and overlays.
 - Reads controller input for potential interaction.
 - Adjusts sprite buffers based on army status flags.
+- **Enhanced** Implements improved battle effects system with BattleDispatch:: namespace qualification for overlay and bank tables.
+
+**Enhanced** Battle overlay system improvements include:
+- Proper namespace qualification: BattleDispatch::BattleOverlayPtrTable and BattleDispatch::BattleBankTable
+- Enhanced adjacency calculation routines: PatchPrimaryAdjacency, PatchSecondaryAdjacency, PatchSingleAdjacency
+- Improved memory addressing patterns with clearer variable naming
+- Optimized scene column and palette management through BattleEffects procedure
 
 Data processing:
 - Reads two army status flags and clears corresponding sprite entries if the flags indicate inactive armies.
+- **Enhanced** Battle effects processing: Computes scene column index using ($008E - 6) >> 3 and compares to cached values.
+- **Enhanced** Overlay management: Dispatches to overlay reload or palette update based on scene column changes.
 
 State transitions:
 - Increments the global state counter.
@@ -260,17 +269,28 @@ Flags --> |Else| Skip["Skip clear"]
 Clear1 --> Palette["PaletteUpload"]
 Clear2 --> Palette
 Skip --> Palette
-Palette --> Music["SoundWrapperB(music=$12)"]
+Palette --> BattleEffects["BattleEffects<br/>BattleDispatch:: namespace"]
+BattleEffects --> OverlayCheck{"Scene column changed?"}
+OverlayCheck --> |Yes| OverlayReload["DispatchOverlayMode"]
+OverlayCheck --> |No| PaletteUpdate["DispatchPaletteSetup"]
+OverlayReload --> Music["SoundWrapperB(music=$12)"]
+PaletteUpdate --> Music
 Music --> IncState["INC addr_game_state"]
 IncState --> End(["JMP StateDispatch"])
 ```
 
 **Diagram sources**
 - [prg_1f.asm:493-550](file://asm/banks/prg_1f.asm#L493-L550)
+- [prg_17_18.asm:2501-2507](file://asm/banks/prg_17_18.asm#L2501-L2507)
+- [prg_17_18.asm:2558-2651](file://asm/banks/prg_17_18.asm#L2558-L2651)
+- [prg_17_18.asm:1869-1883](file://asm/banks/prg_17_18.asm#L1869-L1883)
 
 **Section sources**
 - [prg_1f.asm:493-550](file://asm/banks/prg_1f.asm#L493-L550)
 - [prg_1f_analysis.md:312-349](file://code/bank_1f_analysis.md#L312-L349)
+- [prg_17_18.asm:2501-2507](file://asm/banks/prg_17_18.asm#L2501-L2507)
+- [prg_17_18.asm:2558-2651](file://asm/banks/prg_17_18.asm#L2558-L2651)
+- [prg_17_18.asm:1869-1883](file://asm/banks/prg_17_18.asm#L1869-L1883)
 
 ### State_TerritoryView
 Purpose: Displays the game map and territory view. Manages window setup, data pointers, and palette updates.
@@ -426,6 +446,13 @@ SAT["SetupAdvisorTiles"]
 CTGO["CalcTileGridOrigin"]
 TGD["Tile Grid Data Structures"]
 end
+subgraph "Battle System Enhancements"
+BOS["BattleOverlayPtrTable<br/>BattleBankTable<br/>BattleDispatch:: namespace"]
+PCA["PatchPrimaryAdjacency"]
+SCA["PatchSecondaryAdjacency"]
+PSA["PatchSingleAdjacency"]
+BE["BattleEffects"]
+end
 VTab --> Disp
 Disp --> KSel
 Disp --> DomAff
@@ -448,6 +475,11 @@ Batt --> DI
 Batt --> PU
 Batt --> CR
 Batt --> SWB
+Batt --> BOS
+Batt --> PCA
+Batt --> SCA
+Batt --> PSA
+Batt --> BE
 Terr --> FI
 Terr --> DI
 Terr --> PU
@@ -479,6 +511,9 @@ FI --> PN
 - [prg_1f.asm:1008-1024](file://asm/banks/prg_1f.asm#L1008-L1024)
 - [prg_17_18.asm:1520-1588](file://asm/banks/prg_17_18.asm#L1520-L1588)
 - [prg_17_18.asm:1734-1780](file://asm/banks/prg_17_18.asm#L1734-L1780)
+- [prg_17_18.asm:2501-2507](file://asm/banks/prg_17_18.asm#L2501-L2507)
+- [prg_17_18.asm:2558-2651](file://asm/banks/prg_17_18.asm#L2558-L2651)
+- [prg_17_18.asm:1869-1883](file://asm/banks/prg_17_18.asm#L1869-L1883)
 
 **Section sources**
 - [prg_1f.asm:150-168](file://asm/banks/prg_1f.asm#L150-L168)
@@ -490,6 +525,7 @@ FI --> PN
 - Bank switching cost: Each state may switch banks to access display routines and data. Batched rendering and careful ordering minimize unnecessary bank switches.
 - Palette uploads: Palettes are uploaded once per state update to keep color palettes synchronized with the current scene.
 - Controller polling: Input is polled once per frame and edge detection is computed to reduce redundant checks.
+- **Enhanced** Battle overlay performance: Improved namespace qualification and adjacency calculation routines reduce memory addressing overhead and improve cache locality.
 - **Enhanced** Advisor council performance: Tile grid system reduces rendering overhead through optimized grid calculations and dynamic content positioning.
 
 ## Troubleshooting Guide
@@ -499,6 +535,9 @@ Common issues and remedies:
 - No input response: Confirm ControllerRead is invoked and that edge-triggered flags are used for button press detection.
 - Audio not playing: Check that the correct SoundWrapper is called with the intended sound ID.
 - Palette mismatch: Ensure PaletteUpload is executed after changing palettes and before rendering.
+- **New** Battle overlay issues: Verify BattleDispatch:: namespace qualification is properly applied to BattleOverlayPtrTable and BattleBankTable references.
+- **New** Adjacency calculation problems: Check that PatchPrimaryAdjacency, PatchSecondaryAdjacency, and PatchSingleAdjacency use proper variable naming and memory addressing patterns.
+- **New** Battle effects system issues: Verify BattleEffects correctly computes scene column index and dispatches appropriate overlay or palette updates.
 - **New** Advisor council issues: Verify SetupAdvisorTiles executes before CalcTileGridOrigin and that tile grid data structures are properly initialized in the $0680-$06BF range.
 - **New** Tile grid problems: Check that tile index grid contains valid values (0-255) or $FF for empty/uninitialized states.
 
@@ -509,8 +548,13 @@ Common issues and remedies:
 - [prg_1f.asm:1008-1024](file://asm/banks/prg_1f.asm#L1008-L1024)
 - [prg_17_18.asm:1520-1588](file://asm/banks/prg_17_18.asm#L1520-L1588)
 - [prg_17_18.asm:1734-1780](file://asm/banks/prg_17_18.asm#L1734-L1780)
+- [prg_17_18.asm:2501-2507](file://asm/banks/prg_17_18.asm#L2501-L2507)
+- [prg_17_18.asm:2558-2651](file://asm/banks/prg_17_18.asm#L2558-L2651)
+- [prg_17_18.asm:1869-1883](file://asm/banks/prg_17_18.asm#L1869-L1883)
 
 ## Conclusion
 The display and interaction states form a cohesive state machine that drives the game's narrative and gameplay. Each state follows a consistent pattern: initialize per-frame resources, set up display and windows, render content, handle input, update audio and PPU, and transition to the next state. Shared helpers ensure predictable behavior across states, while bank switching and palette management provide flexibility for varied scenes.
 
 **Enhanced** The advisor council state now features a sophisticated tile grid system that significantly improves rendering efficiency and content management. The integration of SetupAdvisorTiles and CalcTileGridOrigin procedures demonstrates advanced game engine architecture, enabling dynamic content positioning and optimized resource utilization. Understanding these enhanced states and their specialized helper procedures is essential for maintaining and extending the game's presentation logic, particularly for complex interactive sequences involving advisor dialogue and tile-based rendering systems.
+
+**Enhanced** The battle phase now includes improved overlay system capabilities with proper namespace qualification and enhanced adjacency calculation routines. These improvements provide better memory addressing patterns, clearer variable naming, and more efficient scene management through the BattleEffects system. The integration of BattleDispatch:: namespace qualification ensures proper organization and access to battle-related data structures and functions.
