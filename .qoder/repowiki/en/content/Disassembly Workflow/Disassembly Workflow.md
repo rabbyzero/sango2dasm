@@ -10,6 +10,11 @@
 - [tools/disasm_6502.py](file://tools/disasm_6502.py)
 - [tools/disasm_bank_1f.py](file://tools/disasm_bank_1f.py)
 - [tools/disasm_17_18.py](file://tools/disasm_17_18.py)
+- [tools/disasm_1d.py](file://tools/disasm_1d.py)
+- [tools/disasm_1e.py](file://tools/disasm_1e.py)
+- [tools/disasm_1d_enhanced.py](file://tools/disasm_1d_enhanced.py)
+- [tools/disasm_1e_definitive.py](file://tools/disasm_1e_definitive.py)
+- [tools/assemble_prg_1d_1e.py](file://tools/assemble_prg_1d_1e.py)
 - [tools/generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
 - [tools/analyze_rom.py](file://tools/analyze_rom.py)
 - [tools/analyze_bank_1f.py](file://tools/analyze_bank_1f.py)
@@ -24,7 +29,8 @@
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
-- [asm/banks/prg_1f_annotated.asm](file://asm/banks/prg_1f_annotated.asm)
+- [asm/banks/prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
+- [asm/banks/all_banks.asm](file://asm/banks/all_banks.asm)
 - [asm/banks/pbank31.cdl.asm](file://asm/banks/pbank31.cdl.asm)
 - [asm/test_1f.asm](file://asm/test_1f.asm)
 - [include/namco163.h](file://include/namco163.h)
@@ -52,6 +58,9 @@
 - Updated workflow to include 11-stage transformation pipeline for Bank $1F assembly modernization
 - Added enhanced disassembly tools with improved output formats and inline machine code documentation
 - Integrated new verification utilities for baseline validation and differential analysis
+- **New** Added comprehensive PRG bank 1D/1E combined disassembly methodology with specialized tools and workflows
+- **New** Implemented systematic approach for handling the $1D/$1E combined bank system with automated validation pipelines
+- **New** Added paired bank analysis, cross-reference mapping, and enhanced disassembly tools for PRG banks $1D/$1E
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -68,7 +77,7 @@
 ## Introduction
 This document describes a systematic disassembly workflow for the Namco-163 (Mapper 19) ROM of Sangokushi 2 - Haou no Tairiku (J). It focuses on extracting and documenting game code from the PRG banks, starting with Bank 0x1F that contains the reset handler and vector dispatch table. The guide covers bank prioritization, stub replacement, modular organization, cross-references, label management, incremental development, and verification.
 
-**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format. The pipeline now includes an 11-stage process for Bank $1F assembly code modernization with systematic code organization, mnemonic correction, and validation utilities.
+**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format. The pipeline now includes an 11-stage process for Bank $1F assembly code modernization with systematic code organization, mnemonic correction, and validation utilities. **New** Added systematic approach for handling the $1D/$1E combined bank system with specialized tools and workflows for paired bank disassembly and validation.
 
 ## Project Structure
 The repository organizes assets around a cc65 toolchain and a modular bank structure with advanced transformation capabilities:
@@ -82,6 +91,7 @@ The repository organizes assets around a cc65 toolchain and a modular bank struc
 - Automated comment alignment for consistent formatting
 - Enhanced verification utilities for baseline validation and differential analysis
 - **New** Paired bank disassembly tools for PRG banks $17/$18 with systematic section headers and semantic naming
+- **New** Combined bank disassembly tools for PRG banks $1D/$1E with automated validation and cross-reference handling
 
 ```mermaid
 graph TB
@@ -91,26 +101,30 @@ C --> D["tools/generate_bank_stubs.py"]
 D --> E["asm/banks/*.asm"]
 E --> F["tools/disasm_17_18.py<br/>tools/transform_17_18.py"]
 F --> G["asm/banks/prg_17_18.asm<br/>(Paired Banks)"]
-G --> H["transform_wrap.py<br/>transform_final.py"]
-H --> I["asm/banks/prg_1f.asm<br/>(Modernized)"]
-I --> J["tools/fix_mnemonics.py"]
-J --> K["asm/banks/prg_1f.aligned.asm<br/>(Cleaned)"]
-K --> L["asm/banks/pbank31.cdl.asm<br/>(Reference)"]
-L --> M["tools/align_comments.py"]
-M --> N["asm/banks/prg_1f.aligned.asm<br/>(Validated)"]
-N --> O["asm/main.asm"]
-O --> P["linker.cfg"]
-P --> Q["build/prg.bin"]
-Q --> R["tools/build_nes.py"]
-R --> S["build/sango2.nes"]
-S --> T["check_baseline.py<br/>check_diff.py"]
-T --> U["Validation Reports"]
+E --> H["tools/disasm_1d.py<br/>tools/disasm_1e.py"]
+H --> I["asm/banks/prg_1d_1e.asm<br/>(Combined Banks)"]
+G --> J["transform_wrap.py<br/>transform_final.py"]
+J --> K["asm/banks/prg_1f.asm<br/>(Modernized)"]
+K --> L["tools/fix_mnemonics.py"]
+L --> M["asm/banks/prg_1f.aligned.asm<br/>(Cleaned)"]
+M --> N["asm/banks/pbank31.cdl.asm<br/>(Reference)"]
+N --> O["tools/align_comments.py"]
+O --> P["asm/banks/prg_1f.aligned.asm<br/>(Validated)"]
+P --> Q["asm/main.asm"]
+Q --> R["linker.cfg"]
+R --> S["build/prg.bin"]
+S --> T["tools/build_nes.py"]
+T --> U["build/sango2.nes"]
+U --> V["check_baseline.py<br/>check_diff.py"]
+V --> W["Validation Reports"]
 ```
 
 **Diagram sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [tools/generate_bank_stubs.py:12-52](file://tools/generate_bank_stubs.py#L12-L52)
 - [tools/disasm_17_18.py:567-710](file://tools/disasm_17_18.py#L567-L710)
+- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-L214)
+- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-L512)
 - [tools/transform_17_18.py:171-348](file://tools/transform_17_18.py#L171-L348)
 - [transform_wrap.py:1-303](file://transform_wrap.py#L1-L303)
 - [transform_final.py:1-235](file://transform_final.py#L1-L235)
@@ -132,10 +146,12 @@ T --> U["Validation Reports"]
 - Bank stub generation: Create per-bank assembly files with .incbin placeholders.
 - **New** Paired bank disassembly: Systematic disassembly of PRG banks $17/$18 with recursive descent analysis and cross-bank reference handling.
 - **New** Semantic naming transformation: Automated renaming of labels to B17_18_ prefixed semantic names with systematic section headers.
+- **New** Combined bank disassembly: Systematic disassembly of PRG banks $1D/$1E with enhanced tools and cross-reference mapping.
+- **New** Enhanced disassemblers: Recursive descent disassembler for paired banks with callback dispatcher detection and inline table analysis.
+- **New** Definitive disassemblers: Specialized tools for PRG banks $1D/$1E with improved data region detection and validation.
 - Transformation pipeline: Comprehensive code modernization including .proc wrapping, branch conversion, and validation.
 - Reference format validation: Use pbank31.cdl.asm for automated mnemonic correction and opcode validation.
 - Disassemblers: Quick listing disassembler and comprehensive Bank 0x1F disassembler with enhanced inline comments.
-- **New** Advanced disassemblers: Recursive descent disassembler for paired banks with callback dispatcher detection and inline table analysis.
 - Linker configuration: Define 4 PRG slots and segments for banked code.
 - Annotation and verification: Annotate assembly with ROM addresses and verify byte-for-byte accuracy.
 - Comment alignment: Automatically align inline comments for consistent formatting.
@@ -144,12 +160,17 @@ T --> U["Validation Reports"]
 - **New** Differential analysis: Byte-by-byte comparison for transformation pipeline effectiveness using check_diff.py.
 - **New** 11-stage transformation pipeline: Complete modernization workflow for Bank $1F assembly code.
 
-**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction. The pipeline now consists of 11 systematic stages for complete code modernization.
+**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction. The pipeline now consists of 11 systematic stages for complete code modernization. **New** Added comprehensive PRG bank 1D/1E disassembly methodology with specialized tools and workflows for systematic paired bank analysis and validation.
 
 **Section sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [tools/generate_bank_stubs.py:12-52](file://tools/generate_bank_stubs.py#L12-L52)
 - [tools/disasm_17_18.py:123-710](file://tools/disasm_17_18.py#L123-L710)
+- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-L214)
+- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-L512)
+- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-L443)
+- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
+- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
 - [tools/transform_17_18.py:171-348](file://tools/transform_17_18.py#L171-L348)
 - [transform_wrap.py:1-303](file://transform_wrap.py#L1-L303)
 - [transform_final.py:1-235](file://transform_final.py#L1-L235)
@@ -167,7 +188,7 @@ T --> U["Validation Reports"]
 ## Architecture Overview
 The disassembly architecture centers on Bank 0x1F as the boot bank. At startup, the reset handler initializes PPU/APU, clears RAM, and dispatches to a state handler via an indirect vector table. Bank 0x1F also contains NMI/IRQ handlers, sound engine, PPU utilities, math routines, and data access functions. Other banks are accessed via bank switching controlled by the Namco-163 mapper.
 
-**Updated** Enhanced with paired bank architecture for PRG banks $17/$18, which work together as a 16KB unit ($A000-$DFFF) with shared cross-bank references and coordinated loading via SwitchBankAC_A/B macros.
+**Updated** Enhanced with paired bank architecture for PRG banks $17/$18, which work together as a 16KB unit ($A000-$DFFF) with shared cross-bank references and coordinated loading via SwitchBankAC_A/B macros. **New** Enhanced with combined bank architecture for PRG banks $1D/$1E, which work together as a 16KB unit ($A000-$DFFF) with specialized disassembly tools and cross-reference mapping.
 
 ```mermaid
 graph TB
@@ -198,6 +219,11 @@ subgraph "Paired Banks $17/$18"
 PRG --> B17["$A000-$BFFF<br/>Display/Rendering"]
 PRG --> B18["$C000-$DFFF<br/>Data/Tiles"]
 B17 -.-> B18
+end
+subgraph "Combined Banks $1D/$1E"
+PRG --> B1D["$A000-$BFFF<br/>Menu/Display"]
+PRG --> B1E["$C000-$DFFF<br/>Domestic Affairs"]
+B1D -.-> B1E
 end
 subgraph "Other Banks"
 PRG --> B0["$A000-$A045<br/>Display/Dialog"]
@@ -318,7 +344,46 @@ H --> I["asm/banks/prg_17_18.asm<br/>(Systematic Organization)"]
 - [tools/analyze_17_18.py:8-118](file://tools/analyze_17_18.py#L8-L118)
 - [tools/transform_17_18.py:171-348](file://tools/transform_17_18.py#L171-L348)
 
-### Step 5: Transform Assembly Code (New Pipeline)
+### Step 5: Disassemble Combined Banks $1D/$1E (New Enhanced Pipeline)
+- Use the enhanced disassemblers to analyze PRG banks $1D and $1E as a combined 16KB unit ($A000-$DFFF).
+- The disassembler traces code from jump table entries, menu handlers, and domestic affairs actions.
+- Identifies tile data blocks, lookup tables, and cross-bank references automatically.
+- Uses specialized tools for definitive data region detection and validation.
+
+**New** Enhanced combined bank disassembly with systematic approach:
+
+**Stage 1: tools/disasm_1d.py** - Complete 6502 disassembly for bank $1D with enhanced labeling
+**Stage 2: tools/disasm_1e.py** - Two-pass disassembly with procedure detection for bank $1E
+**Stage 3: tools/disasm_1d_enhanced.py** - Enhanced disassembly with meaningful subroutine names and section markers
+**Stage 4: tools/disasm_1e_definitive.py** - Definitive disassembly with tile data block detection
+**Stage 5: tools/assemble_prg_1d_1e.py** - Automated assembly of combined bank file with cross-reference mapping
+
+```mermaid
+flowchart TD
+A["ROM Banks $1D/$1E<br/>Combined 16KB ($A000-$DFFF)"] --> B["tools/disasm_1d.py<br/>Complete 6502 Analysis"]
+A --> C["tools/disasm_1e.py<br/>Procedure Detection"]
+B --> D["tools/disasm_1d_enhanced.py<br/>Enhanced Labeling"]
+C --> E["tools/disasm_1e_definitive.py<br/>Definitive Data Detection"]
+D --> F["tools/assemble_prg_1d_1e.py<br/>Combined Assembly"]
+E --> F
+F --> G["asm/banks/prg_1d_1e.asm<br/>(Combined Banks)"]
+```
+
+**Diagram sources**
+- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-L214)
+- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-L512)
+- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-L443)
+- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
+- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
+
+**Section sources**
+- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-L214)
+- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-L512)
+- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-L443)
+- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
+- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
+
+### Step 6: Transform Assembly Code (New Pipeline)
 - Apply comprehensive .proc wrapping to organize code into logical functions
 - Convert branch targets from hex addresses to meaningful labels
 - Insert gap bytes between functions with proper labeling
@@ -378,7 +443,7 @@ K --> L["verify_rom.py<br/>Final Verification"]
 - [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
 - [check_diff.py:1-35](file://check_diff.py#L1-L35)
 
-### Step 6: Validate Against Reference Format
+### Step 7: Validate Against Reference Format
 - Use pbank31.cdl.asm as authoritative reference for correct mnemonics and opcodes
 - Apply automated mnemonic correction to fix mismatches
 - Validate instruction boundaries and operand correctness
@@ -396,7 +461,7 @@ Validation workflow:
 - [tools/fix_mnemonics.py:1-312](file://tools/fix_mnemonics.py#L1-L312)
 - [asm/banks/pbank31.cdl.asm:1-800](file://asm/banks/pbank31.cdl.asm#L1-L800)
 
-### Step 7: Apply Manual Fixes and Final Touches
+### Step 8: Apply Manual Fixes and Final Touches
 - Apply comprehensive manual fixes to prg_1f.asm after transformation
 - Add global aliases for cross-bank function targets
 - Insert missing labels and clean up orphaned directives
@@ -414,7 +479,7 @@ Finalization steps:
 **Section sources**
 - [apply_fixes.py:1-115](file://apply_fixes.py#L1-L115)
 
-### Step 8: Replace Stubs with Real Disassembly
+### Step 9: Replace Stubs with Real Disassembly
 - Edit asm/banks/prg_XX.asm to replace .incbin with actual disassembled code.
 - Use proper .segment directives for each bank as you add code.
 - Keep the bank's logical address in mind (e.g., Bank 0x1F maps to $E000–$FFFF).
@@ -427,7 +492,7 @@ Guidance:
 - [PROJECT.md:134-151](file://PROJECT.md#L134-L151)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 
-### Step 9: Organize Code Within Modular Bank Structure
+### Step 10: Organize Code Within Modular Bank Structure
 - Use .segment directives to group code by bank and purpose.
 - Maintain consistent label naming and scope within .proc blocks.
 - Reference include files for hardware registers and macros.
@@ -435,20 +500,22 @@ Guidance:
 Examples:
 - Bank 0x1F segment: .segment "CODE_BANK1F"
 - **New** Paired bank segments: .segment "CODE_BANK17", .segment "CODE_BANK18"
+- **New** Combined bank segments: .segment "CODE_BANK1D", .segment "CODE_BANK1E"
 - Include files: 6502_registers.h, namco163.h, macros.h
 
 **Section sources**
 - [asm/banks/prg_1f.asm:13-11](file://asm/banks/prg_1f.asm#L13-L11)
 - [asm/banks/prg_17_18.asm:72](file://asm/banks/prg_17_18.asm#L72)
+- [asm/banks/prg_1d_1e.asm:16](file://asm/banks/prg_1d_1e.asm#L16)
 - [include/namco163.h:1-87](file://include/namco163.h#L1-L87)
 - [include/macros.h:1-72](file://include/macros.h#L1-L72)
 
-### Step 10: Cross-Reference Handling and Label Management
+### Step 11: Cross-Reference Handling and Label Management
 - Track cross-bank calls and data references.
 - Use banked call patterns (e.g., JSR to $A000–$A045) and bank switching macros.
 - Maintain a plan document to track which regions are analyzed and planned.
 
-**Updated** Enhanced cross-reference handling for paired banks $17/$18 with automatic detection of cross-bank references and semantic naming.
+**Updated** Enhanced cross-reference handling for paired banks $17/$18 with automatic detection of cross-bank references and semantic naming. **New** Enhanced cross-reference handling for combined banks $1D/$1E with automatic detection of cross-bank references and specialized disassembly tools.
 
 Cross-references in Bank 0x1F:
 - Calls to bank-switched display routines at $A000–$A045
@@ -459,12 +526,19 @@ Cross-references in paired banks $17/$18:
 - Semantic naming convention: B17_18_ prefix for all functions
 - Systematic section headers for organized code structure
 
+Cross-references in combined banks $1D/$1E:
+- Automatic detection of cross-bank label references between $A000-$BFFF and $C000-$DFFF
+- Enhanced disassembly tools for specialized cross-reference mapping
+- Systematic organization with meaningful subroutine names
+
 **Section sources**
 - [code/bank_1f_plan.md:224-245](file://code/bank_1f_plan.md#L224-L245)
 - [include/namco163.h:68-86](file://include/namco163.h#L68-L86)
 - [tools/disasm_17_18.py:387-405](file://tools/disasm_17_18.py#L387-L405)
+- [tools/disasm_1d_enhanced.py:145-161](file://tools/disasm_1d_enhanced.py#L145-L161)
+- [tools/disasm_1e_definitive.py:332-414](file://tools/disasm_1e_definitive.py#L332-L414)
 
-### Step 11: Incremental Development and Progress Tracking
+### Step 12: Incremental Development and Progress Tracking
 - Assemble and link after adding each bank's code.
 - Use make verify to compare the rebuilt ROM with the original byte-by-byte.
 - Iterate: disassemble → annotate → assemble → verify → refine.
@@ -479,7 +553,7 @@ Verification:
 - [Makefile:58-61](file://Makefile#L58-L61)
 - [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
 
-### Step 12: Interpreting Disassembly Output and Annotation
+### Step 13: Interpreting Disassembly Output and Annotation
 - Use the annotation tool to overlay ROM addresses and opcode bytes onto assembly.
 - The tool resolves symbols from include files and estimates instruction sizes to align comments with actual ROM bytes.
 - Use address hints (comments like "; $XXXX:") to resync and correct drift.
@@ -495,19 +569,22 @@ Annotation workflow:
 **Section sources**
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
 
-### Step 13: Handling Complex Code Patterns and Data Discovery
+### Step 14: Handling Complex Code Patterns and Data Discovery
 - Recognize common 6502 patterns: shift-and-subtract division, table-driven RNG, pointer tables, multiply-by-constants via ASL/ADC chains.
 - Identify data tables and string tables used by display and menu systems.
 - Use analysis tools to locate vectors, bank switches, and repeated utility patterns.
 
 **Updated** Enhanced analysis documentation now includes detailed examples with inline machine code comments showing ROM addresses and raw bytes for better understanding of code patterns.
 
-**Updated** Enhanced paired bank analysis with systematic function boundary detection and cross-reference mapping.
+**Updated** Enhanced paired bank analysis with systematic function boundary detection and cross-reference mapping. **New** Enhanced combined bank analysis with specialized data region detection and validation.
 
 Examples:
 - RNG core at $E87A reads from a precomputed table
 - Address calculation patterns for heroes, cities, kingdoms, kata names
 - pointer table for kingdom addresses
+- **New** Menu handler routines with enhanced labeling and section markers
+- **New** Domestic affairs action dispatch with specialized procedure detection
+- **New** Tile data block detection with cross-reference mapping
 - **New** Callback dispatcher patterns at $EADE with inline pointer tables
 - **New** Banked callback trampoline patterns at $EE07 with 2-byte targets
 
@@ -517,14 +594,17 @@ Examples:
 - [code/key_functions_analysis.md:9-31](file://code/key_functions_analysis.md#L9-L31)
 - [code/key_functions_analysis.md:66-100](file://code/key_functions_analysis.md#L66-L100)
 - [code/key_functions_analysis.md:159-189](file://code/key_functions_analysis.md#L159-L189)
+- [tools/disasm_1d_enhanced.py:108-135](file://tools/disasm_1d_enhanced.py#L108-L135)
+- [tools/disasm_1e_definitive.py:86-278](file://tools/disasm_1e_definitive.py#L86-L278)
 
-### Step 14: Bank Prioritization Strategy
+### Step 15: Bank Prioritization Strategy
 Prioritize by:
 - Execution flow importance (reset handler and dispatch)
 - Frequency of calls (high JSR/RTI banks)
 - I/O and subsystems (PPU, sound, controller)
 - Complexity and impact (NMI/IRQ handlers)
 - **New** Paired bank coordination (banks $17/$18 work together)
+- **New** Combined bank coordination (banks $1D/$1E work together)
 
 **Updated** Analysis plan now includes detailed documentation with enhanced inline comments and machine code examples for better understanding of each bank's role and dependencies.
 
@@ -534,7 +614,7 @@ Plan document outlines sessions and dependencies for Bank 0x1F.
 - [PROJECT.md:120-133](file://PROJECT.md#L120-L133)
 - [code/bank_1f_plan.md:213-223](file://code/bank_1f_plan.md#L213-L223)
 
-### Step 15: Enhanced Comment Alignment and Formatting
+### Step 16: Enhanced Comment Alignment and Formatting
 - Use the align_comments.py tool to automatically align inline comments to column 48.
 - Ensures consistent formatting across the entire disassembly output.
 - Improves readability and makes it easier to correlate assembly with ROM addresses.
@@ -550,7 +630,7 @@ Comment alignment workflow:
 **Section sources**
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 
-### Step 16: Baseline Verification and Validation
+### Step 17: Baseline Verification and Validation
 - Use check_baseline.py to remove gap byte insertions and verify baseline alignment
 - Parse addresses and check for gaps/overlaps in cleaned source
 - Ensure proper address continuity and instruction/data byte alignment
@@ -567,7 +647,7 @@ Baseline verification workflow:
 **Section sources**
 - [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
 
-### Step 17: Differential Analysis and Comparison
+### Step 18: Differential Analysis and Comparison
 - Use check_diff.py to compare ROM and assembled output byte-by-byte
 - Identify first differences and analyze mismatch patterns
 - Check assembly output characteristics and address alignment
@@ -584,7 +664,7 @@ Differential analysis workflow:
 **Section sources**
 - [check_diff.py:1-35](file://check_diff.py#L1-L35)
 
-### Step 18: Paired Bank Coordination and Loading (New)
+### Step 19: Paired Bank Coordination and Loading (New)
 - Banks $17 and $18 work together as a 16KB unit ($A000-$DFFF)
 - Loaded simultaneously via SwitchBankAC_A/B macros with Y=$37
 - Share cross-bank references and coordinated functionality
@@ -602,11 +682,32 @@ Paired bank coordination:
 - [tools/disasm_17_18.py:632-679](file://tools/disasm_17_18.py#L632-L679)
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-9)
 
+### Step 20: Combined Bank Coordination and Loading (New)
+- Banks $1D and $1E work together as a 16KB unit ($A000-$DFFF)
+- Loaded simultaneously via SwitchBankAC_A/B macros with Y=$37
+- Share cross-bank references and coordinated functionality
+- Use specialized disassembly tools for enhanced analysis and validation
+
+**New Section** Added to handle the unique architecture of combined PRG banks.
+
+Combined bank coordination:
+- Shared memory space: $A000-$DFFF (16KB)
+- Cross-bank function calls and data references between menu/display and domestic affairs
+- Coordinated loading via SwitchBankAC macros
+- Enhanced disassembly tools for specialized analysis and validation
+- Systematic organization with meaningful subroutine names and section headers
+
+**Section sources**
+- [tools/disasm_1d_enhanced.py:246-264](file://tools/disasm_1d_enhanced.py#L246-L264)
+- [tools/disasm_1e_definitive.py:423-433](file://tools/disasm_1e_definitive.py#L423-L433)
+- [asm/banks/prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
+
 ## Dependency Analysis
 The disassembly pipeline depends on:
 - ROM splitting and combined PRG for analysis
 - Bank stubs for modular assembly
 - **New** Paired bank disassembly tools for systematic analysis of banks $17/$18
+- **New** Combined bank disassembly tools for systematic analysis of banks $1D/$1E
 - Transformation pipeline for code modernization
 - Reference CDL format for validation
 - Linker configuration for PRG slots
@@ -622,7 +723,10 @@ SPLIT["tools/split_rom.py"] --> BIN["rom/prg_combined.bin"]
 STUB["tools/generate_bank_stubs.py"] --> ASM["asm/banks/*.asm"]
 ASM --> DIS1718["tools/disasm_17_18.py<br/>tools/transform_17_18.py"]
 DIS1718 --> PAIR["asm/banks/prg_17_18.asm<br/>(Paired Banks)"]
+ASM --> DIS1D1E["tools/disasm_1d.py<br/>tools/disasm_1e.py<br/>tools/disasm_1d_enhanced.py<br/>tools/disasm_1e_definitive.py<br/>tools/assemble_prg_1d_1e.py"]
+DIS1D1E --> COMB["asm/banks/prg_1d_1e.asm<br/>(Combined Banks)"]
 PAIR --> TRANS["transform_wrap.py<br/>transform_final.py"]
+COMB --> TRANS
 TRANS --> MOD["asm/banks/prg_1f.asm<br/>(Modernized)"]
 MOD --> FIX["fix_labels.py<br/>fix_syntax.py<br/>fix_scope.py"]
 FIX --> CLEAN["asm/banks/prg_1f.asm<br/>(Cleaned)"]
@@ -645,6 +749,11 @@ ANNO["tools/annotate_asm.py"] --> VERIFY
 - [tools/split_rom.py:112-122](file://tools/split_rom.py#L112-L122)
 - [tools/generate_bank_stubs.py:36-46](file://tools/generate_bank_stubs.py#L36-L46)
 - [tools/disasm_17_18.py:567-710](file://tools/disasm_17_18.py#L567-L710)
+- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-L214)
+- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-L512)
+- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-L443)
+- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
+- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
 - [tools/transform_17_18.py:320-348](file://tools/transform_17_18.py#L320-L348)
 - [transform_wrap.py:286-303](file://transform_wrap.py#L286-L303)
 - [transform_final.py:222-235](file://transform_final.py#L222-L235)
@@ -672,6 +781,7 @@ ANNO["tools/annotate_asm.py"] --> VERIFY
 - **Updated** Utilize transformation pipeline for systematic code modernization and validation.
 - **Updated** The 11-stage transformation pipeline provides systematic validation at each stage, reducing cumulative errors and improving overall code quality.
 - **New** Paired bank disassembly benefits from recursive descent analysis that efficiently traces code paths and identifies cross-references automatically.
+- **New** Combined bank disassembly benefits from specialized tools that provide enhanced data region detection and cross-reference mapping.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -685,6 +795,7 @@ Common issues and remedies:
 - **Updated** Scope issues: Use fix_scope.py and fix_labels.py to resolve cross-proc label problems.
 - **Updated** Hex target issues: Use transform_final.py to convert remaining hex branch targets to labels.
 - **New** Paired bank analysis failures: Use tools/analyze_17_18.py to verify function boundaries and cross-references.
+- **New** Combined bank analysis failures: Use tools/disasm_1d_enhanced.py and tools/disasm_1e_definitive.py to verify function boundaries and cross-references.
 - **New** Semantic naming conflicts: Use tools/transform_17_18.py with --dry-run to preview label renames.
 - **New** Baseline validation failures: Use check_baseline.py to identify and fix address alignment issues.
 - **New** Differential analysis errors: Use check_diff.py to pinpoint transformation pipeline problems.
@@ -701,6 +812,8 @@ Common issues and remedies:
 - [fix_labels.py:13-68](file://fix_labels.py#L13-L68)
 - [transform_final.py:57-235](file://transform_final.py#L57-L235)
 - [tools/analyze_17_18.py:116-118](file://tools/analyze_17_18.py#L116-L118)
+- [tools/disasm_1d_enhanced.py:426-442](file://tools/disasm_1d_enhanced.py#L426-L442)
+- [tools/disasm_1e_definitive.py:507-521](file://tools/disasm_1e_definitive.py#L507-L521)
 - [tools/transform_17_18.py:320-348](file://tools/transform_17_18.py#L320-L348)
 - [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
 - [check_diff.py:1-35](file://check_diff.py#L1-L35)
@@ -708,7 +821,7 @@ Common issues and remedies:
 ## Conclusion
 This workflow establishes a repeatable, incremental approach to disassembling Sangokushi 2's PRG banks with comprehensive transformation capabilities. Starting with Bank 0x1F ensures you understand the reset handler and dispatch mechanism, after which you can systematically replace stubs with real disassembly, manage cross-references, and verify accuracy through byte-exact comparisons. The modular bank structure, transformation pipeline, and reference format validation support continuous refinement and expansion while ensuring code quality and consistency.
 
-**Updated** Enhanced transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project. The new 11-stage pipeline provides systematic validation and error detection at each phase, ensuring reliable and accurate disassembly results. The addition of paired bank disassembly tools for PRG banks $17/$18 further enhances the workflow with systematic section headers, semantic naming conventions, and automated cross-reference handling.
+**Updated** Enhanced transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project. The new 11-stage pipeline provides systematic validation and error detection at each phase, ensuring reliable and accurate disassembly results. The addition of paired bank disassembly tools for PRG banks $17/$18 and combined bank disassembly tools for PRG banks $1D/$1E further enhances the workflow with systematic section headers, semantic naming conventions, and automated cross-reference handling. These new tools provide specialized analysis and validation capabilities that streamline the disassembly process and improve code organization.
 
 ## Appendices
 
@@ -725,6 +838,12 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
   - python3 tools/disasm_17_18.py
   - python3 tools/analyze_17_18.py
   - python3 tools/transform_17_18.py
+- **Updated** Disassemble combined banks $1D/$1E:
+  - python3 tools/disasm_1d.py
+  - python3 tools/disasm_1e.py
+  - python3 tools/disasm_1d_enhanced.py
+  - python3 tools/disasm_1e_definitive.py
+  - python3 tools/assemble_prg_1d_1e.py
 - **Updated** Apply transformation pipeline:
   - python3 transform_wrap.py
   - python3 transform_final.py
@@ -747,6 +866,11 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
 - [tools/disasm_17_18.py:567-710](file://tools/disasm_17_18.py#L567-L710)
 - [tools/analyze_17_18.py:8-118](file://tools/analyze_17_18.py#L8-L118)
 - [tools/transform_17_18.py:171-348](file://tools/transform_17_18.py#L171-L348)
+- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-L214)
+- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-L512)
+- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-L443)
+- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
+- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
 - [transform_wrap.py:134-303](file://transform_wrap.py#L134-L303)
 - [transform_final.py:8-235](file://transform_final.py#L8-L235)
 - [fix_labels.py:1-68](file://fix_labels.py#L1-L68)
@@ -760,7 +884,7 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
 - [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
 
 ### Enhanced Disassembly Features
-**New Section** Highlighting the improvements to PRG bank 1F and paired bank disassembly processes.
+**New Section** Highlighting the improvements to PRG bank 1F, paired bank, and combined bank disassembly processes.
 
 Key enhancements:
 - **Comprehensive Transformation Pipeline**: End-to-end automation for code modernization and validation across 11 systematic stages
@@ -777,6 +901,10 @@ Key enhancements:
 - **Paired Bank Analysis**: Recursive descent disassembly with cross-bank reference detection
 - **Semantic Naming**: B17_18_ prefixed labels for systematic code organization
 - **Systematic Section Headers**: Organized code structure with clear functional boundaries
+- **Combined Bank Analysis**: Specialized tools for PRG banks $1D/$1E with enhanced data region detection
+- **Cross-Reference Mapping**: Automated detection and validation of cross-bank references
+- **Enhanced Data Region Detection**: Specialized algorithms for identifying tile data blocks and lookup tables
+- **Meaningful Subroutine Names**: Systematic naming conventions for improved code organization and readability
 
 Example of enhanced paired bank output format:
 ```asm
@@ -790,9 +918,44 @@ B17_18_Entry01:
   JMP B17_18_PpuCopyRaw                                           ; $A003: 4C 12 A2
 ```
 
+Example of enhanced combined bank output format:
+```asm
+;===============================================================================
+; PRG Bank $1D - $A000-$BFFF (8KB)
+; Sangokushi 2 - Haou no Tairiku (J)
+; Namco-163 Mapper 19
+;
+; Jump table at $A000-$A047 (24 entries dispatched by game state)
+; Code: $A048-$B304 (with inline data tables)
+; Data: $B305-$B988 (tile/map data, ~1636 bytes)
+; Code: $B989-$BFFF (menu/UI handler routines)
+;
+; Part of combined 16KB: prg_1d_1e.asm ($A000-$DFFF)
+;===============================================================================
+
+.include "6502_registers.h"
+.include "namco163.h"
+.include "functions.h"
+
+.segment "CODE_BANK1D"
+
+;===============================================================================
+; Jump Table ($A000-$A047) - 24 entries dispatched by game state
+;===============================================================================
+
+Entry00:
+  ; Entry00 = Entry00_PPUTileRender
+  JMP Entry00_PPUTileRender                                       ; $A000: 4C 48 A0
+Entry01:
+  ; Entry01 = Entry01_MenuUpdate
+  JMP Entry01_MenuUpdate                                          ; $A003: 4C 54 A1
+```
+
 **Section sources**
 - [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/disasm_17_18.py:322-405](file://tools/disasm_17_18.py#L322-L405)
+- [tools/disasm_1d_enhanced.py:246-264](file://tools/disasm_1d_enhanced.py#L246-L264)
+- [tools/disasm_1e_definitive.py:423-433](file://tools/disasm_1e_definitive.py#L423-L433)
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 - [code/bank_1f_analysis.md:1-800](file://code/bank_1f_analysis.md#L1-L800)
 - [tools/transform_17_18.py:206-223](file://tools/transform_17_18.py#L206-L223)

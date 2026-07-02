@@ -16,30 +16,67 @@
 .segment "CODE_BANK1D"
 
 ;===============================================================================
+; RAM Variable Definitions (file-scope)
+;===============================================================================
+
+; $03xx menu/display state variables
+menu_status       = $0300  ; $FF=done/inactive, $00=need init, $01=active
+overlay_flag      = $0303  ; $00=direct render, $80=overlay mode
+tile_col_idx      = $0304  ; current tile column being rendered
+render_bitmask    = $0305  ; bitmask checked against $005E for render skip
+vram_pos_hi       = $0306  ; VRAM address high byte for current tile row
+vram_pos_lo       = $0307  ; VRAM address low byte
+input_flag        = $0308  ; input pending flag (set when $0081 bit 0 set)
+saved_pos_hi      = $0309  ; saved VRAM pos hi (for push/pop position)
+saved_ptr_lo      = $030A  ; saved data ptr lo (for push/pop position)
+saved_ptr_hi      = $030B  ; saved data ptr hi (for push/pop position)
+indirect_flag     = $030C  ; $00=direct tiles, $01=indirect/overlay tiles
+tile_base_offset  = $030F  ; base offset added to tile values in StoreTileByte
+pos_buf_0         = $0310  ; VRAM position buffer (4-entry circular)
+pos_buf_1         = $0311
+pos_buf_2         = $0312
+pos_buf_3         = $0313
+tile_row1_hi      = $031C  ; tile buffer row 1: VRAM hi/lo/data
+tile_row1_lo      = $031D
+tile_row1_data    = $031E  ; start of row 1 tile data (indexed by tile_col_idx)
+tile_row2_hi      = $034C  ; tile buffer row 2: VRAM hi/lo/data
+tile_row2_lo      = $034D
+tile_row2_data    = $034E  ; start of row 2 tile data
+
+; Zero-page variables
+cmd_byte          = $0012  ; current command byte from data stream
+data_ptr_lo       = $00A6  ; menu data stream pointer (16-bit)
+data_ptr_hi       = $00A7
+frame_flags       = $007E  ; bit 0 = render request flag
+input_flags       = $0081  ; controller input flags
+ppu_ctrl_mirror   = $008B  ; mirror of PPU_CTRL ($2000)
+cur_bank_8000     = $00E1  ; current PRG bank mapped at $8000-$9FFF
+
+;===============================================================================
 ; Jump Table ($A000-$A047) - 24 entries dispatched by game state
 ;===============================================================================
 
 Entry00:
-  ; Entry00 = Entry00_PPUTileRender
-  JMP Entry00_PPUTileRender               ; $A000: 4C 48 A0
+  ; PPUTileRender
+  JMP PPUTileRender               ; $A000: 4C 48 A0
 Entry01:
-  ; Entry01 = Entry01_MenuUpdate
-  JMP Entry01_MenuUpdate                  ; $A003: 4C 54 A1
+  ; MenuUpdate
+  JMP MenuUpdate                  ; $A003: 4C 54 A1
 Entry02:
-  ; Entry02 = Entry02_VRAMBufferWrite
-  JMP Entry02_VRAMBufferWrite             ; $A006: 4C 1B A1
+  ; VRAMBufferWrite
+  JMP VRAMBufferWrite             ; $A006: 4C 1B A1
 Entry03:
-  ; Entry03 = Entry03_StateHandler
-  JMP Entry03_StateHandler                ; $A009: 4C D2 AB
+  ; StateHandler
+  JMP StateHandler                ; $A009: 4C D2 AB
 Entry04:
-  ; Entry04 = Entry04_MapDisplaySetup
-  JMP Entry04_MapDisplaySetup             ; $A00C: 4C 9F B2
+  ; MapDisplaySetup
+  JMP MapDisplaySetup             ; $A00C: 4C 9F B2
 Entry05:
-  ; Entry05 = Entry05_OfficerListHandler
-  JMP Entry05_OfficerListHandler          ; $A00F: 4C 89 B9
+  ; OfficerListHandler
+  JMP OfficerListHandler          ; $A00F: 4C 89 B9
 Entry06:
-  ; Entry06 = Entry06_Unknown
-  JMP Entry06_Unknown                     ; $A012: 4C 41 BC
+  ; Unknown
+  JMP Unknown                     ; $A012: 4C 41 BC
 Entry07:
   ; Entry07 -> $DBB1 (bank $1E)
   JMP $DBB1                               ; $A015: 4C B1 DB
@@ -50,44 +87,44 @@ Entry09:
   ; Entry09 -> $DE7E (bank $1E)
   JMP $DE7E                               ; $A01B: 4C 7E DE
 Entry10:
-  ; Entry10 = Entry10_NumberDisplaySetup
-  JMP Entry10_NumberDisplaySetup          ; $A01E: 4C B6 A6
+  ; YearDisplaySetup
+  JMP YearDisplaySetup          ; $A01E: 4C B6 A6
 Entry11:
-  ; Entry11 = Entry11_FrameCounterCheck
-  JMP Entry11_FrameCounterCheck           ; $A021: 4C 7F A7
+  ; PeriodicOverlayRefresh
+  JMP SlowPeriodic              ; $A021: 4C 7F A7
 Entry12:
-  ; Entry12 = Entry12_BcdDisplayHandler
-  JMP Entry12_BcdDisplayHandler           ; $A024: 4C B2 A7
+  ; PeriodicOverlayRefresh
+  JMP ImmediateOverlay            ; $A024: 4C B2 A7
 Entry13:
-  ; Entry13 = Entry13_ProvinceDataHandler
-  JMP Entry13_ProvinceDataHandler         ; $A027: 4C 30 A8
+  ; ProvinceDataHandler
+  JMP ProvinceDataHandler         ; $A027: 4C 30 A8
 Entry14:
-  ; Entry14 = Entry14_OfficerLookup
-  JMP Entry14_OfficerLookup               ; $A02A: 4C 90 A8
+  ; OfficerLookup
+  JMP OfficerLookup               ; $A02A: 4C 90 A8
 Entry15:
-  ; Entry15 = Entry15_FrameCounterAlt
-  JMP Entry15_FrameCounterAlt             ; $A02D: 4C 8A A7
+  ; PeriodicOverlayRefresh
+  JMP FastPeriodic              ; $A02D: 4C 8A A7
 Entry16:
-  ; Entry16 = Entry16_NameDisplay
-  JMP Entry16_NameDisplay                 ; $A030: 4C A4 A8
+  ; NameDisplay
+  JMP NameDisplay                 ; $A030: 4C A4 A8
 Entry17:
-  ; Entry17 = Entry17_RecordProcessor
-  JMP Entry17_RecordProcessor             ; $A033: 4C FD A8
+  ; RecordProcessor
+  JMP RecordProcessor             ; $A033: 4C FD A8
 Entry18:
-  ; Entry18 = Entry18_SmallRoutineA
-  JMP Entry18_SmallRoutineA               ; $A036: 4C 66 BC
+  ; SmallRoutineA
+  JMP SmallRoutineA               ; $A036: 4C 66 BC
 Entry19:
-  ; Entry19 = Entry19_SmallRoutineB
-  JMP Entry19_SmallRoutineB               ; $A039: 4C 71 BC
+  ; SmallRoutineB
+  JMP SmallRoutineB               ; $A039: 4C 71 BC
 Entry20:
-  ; Entry20 = Entry20_DataFormatter
-  JMP Entry20_DataFormatter               ; $A03C: 4C 91 A9
+  ; DataFormatter
+  JMP DataFormatter               ; $A03C: 4C 91 A9
 Entry21:
-  ; Entry21 = Entry21_MenuRenderer
-  JMP Entry21_MenuRenderer                ; $A03F: 4C 36 BE
+  ; MenuRenderer
+  JMP MenuRenderer                ; $A03F: 4C 36 BE
 Entry22:
-  ; Entry22 = Entry22_BankedDataHandler
-  JMP Entry22_BankedDataHandler           ; $A042: 4C 37 AA
+  ; BankedDataHandler
+  JMP BankedDataHandler           ; $A042: 4C 37 AA
 Entry23:
   ; Entry23 -> $DEB9 (bank $1E)
   JMP $DEB9                               ; $A045: 4C B9 DE
@@ -97,33 +134,30 @@ Entry23:
 ;===============================================================================
 
 
-;-----------------------------------------------------------------------------
-; Entry00: Entry00_PPUTileRender
-; Jump table entry 0 at $A000
-;-----------------------------------------------------------------------------
-Entry00_PPUTileRender:
+.proc PPUTileRender
+PPUTileRender:
   LDA $007E                               ; $A048: AD 7E 00
   AND #$04                                ; $A04B: 29 04
-  BEQ Loc_A050                            ; $A04D: F0 01
+  BEQ @check_flag2                            ; $A04D: F0 01
   RTS                                     ; $A04F: 60
-Loc_A050:
+@check_flag2:
   LDA $0303                               ; $A050: AD 03 03
-  BEQ Loc_A058                            ; $A053: F0 03
-  JMP Loc_A0C4                            ; $A055: 4C C4 A0
-Loc_A058:
+  BEQ @check_flag3                            ; $A053: F0 03
+  JMP @render_row1                            ; $A055: 4C C4 A0
+@check_flag3:
   LDA $0308                               ; $A058: AD 08 03
-  BEQ Loc_A060                            ; $A05B: F0 03
-  JMP Loc_A0C4                            ; $A05D: 4C C4 A0
-Loc_A060:
+  BEQ @check_mask                            ; $A05B: F0 03
+  JMP @render_row1                            ; $A05D: 4C C4 A0
+@check_mask:
   LDA $005E                               ; $A060: AD 5E 00
   AND $0305                               ; $A063: 2D 05 03
-  BEQ Loc_A06B                            ; $A066: F0 03
-  JMP $EE72                               ; $A068: 4C 72 EE
-Loc_A06B:
+  BEQ @render_single                            ; $A066: F0 03
+  JMP B1F_NmiPaletteUpload                      ; $A068: 4C 72 EE
+@render_single:
   LDY $0304                               ; $A06B: AC 04 03
   LDA $034E,Y                             ; $A06E: B9 4E 03
   CMP #$80                                ; $A071: C9 80
-  BEQ Loc_A0B6                            ; $A073: F0 41
+  BEQ @reset_tile                            ; $A073: F0 41
   LDA $2002                               ; $A075: AD 02 20
   LDA $031D                               ; $A078: AD 1D 03
   STA $2006                               ; $A07B: 8D 06 20
@@ -135,7 +169,7 @@ Loc_A06B:
   LDA $031E,Y                             ; $A08B: B9 1E 03
   STA $2007                               ; $A08E: 8D 07 20
   LDA $030C                               ; $A091: AD 0C 03
-  BNE Loc_A0B2                            ; $A094: D0 1C
+  BNE @inc_and_exit                            ; $A094: D0 1C
   LDA $2002                               ; $A096: AD 02 20
   LDA $034D                               ; $A099: AD 4D 03
   STA $2006                               ; $A09C: 8D 06 20
@@ -146,48 +180,48 @@ Loc_A06B:
   LDY $0304                               ; $A0A9: AC 04 03
   LDA $034E,Y                             ; $A0AC: B9 4E 03
   STA $2007                               ; $A0AF: 8D 07 20
-Loc_A0B2:
+@inc_and_exit:
   INC $0304                               ; $A0B2: EE 04 03
   RTS                                     ; $A0B5: 60
-Loc_A0B6:
+@reset_tile:
   LDA #$FF                                ; $A0B6: A9 FF
   STA $0304                               ; $A0B8: 8D 04 03
   LDA $007E                               ; $A0BB: AD 7E 00
   AND #$FE                                ; $A0BE: 29 FE
   STA $007E                               ; $A0C0: 8D 7E 00
   RTS                                     ; $A0C3: 60
-Loc_A0C4:
+@render_row1:
   LDA $2002                               ; $A0C4: AD 02 20
   LDA $031D                               ; $A0C7: AD 1D 03
   STA $2006                               ; $A0CA: 8D 06 20
   LDA $031C                               ; $A0CD: AD 1C 03
   STA $2006                               ; $A0D0: 8D 06 20
   LDY #$00                                ; $A0D3: A0 00
-Loc_A0D5:
+@row1_loop:
   LDA $031E,Y                             ; $A0D5: B9 1E 03
   CMP #$80                                ; $A0D8: C9 80
-  BEQ Loc_A0E3                            ; $A0DA: F0 07
+  BEQ @check_row2                            ; $A0DA: F0 07
   STA $2007                               ; $A0DC: 8D 07 20
   INY                                     ; $A0DF: C8
-  JMP Loc_A0D5                            ; $A0E0: 4C D5 A0
-Loc_A0E3:
+  JMP @row1_loop                            ; $A0E0: 4C D5 A0
+@check_row2:
   LDA $030C                               ; $A0E3: AD 0C 03
-  BNE Loc_A107                            ; $A0E6: D0 1F
+  BNE @render_done                            ; $A0E6: D0 1F
   LDA $2002                               ; $A0E8: AD 02 20
   LDA $034D                               ; $A0EB: AD 4D 03
   STA $2006                               ; $A0EE: 8D 06 20
   LDA $034C                               ; $A0F1: AD 4C 03
   STA $2006                               ; $A0F4: 8D 06 20
   LDY #$00                                ; $A0F7: A0 00
-Loc_A0F9:
+@row2_loop:
   LDA $034E,Y                             ; $A0F9: B9 4E 03
   CMP #$80                                ; $A0FC: C9 80
-  BEQ Loc_A107                            ; $A0FE: F0 07
+  BEQ @render_done                            ; $A0FE: F0 07
   STA $2007                               ; $A100: 8D 07 20
   INY                                     ; $A103: C8
-  JMP Loc_A0F9                            ; $A104: 4C F9 A0
-Loc_A107:
-  JMP Loc_A0B6                            ; $A107: 4C B6 A0
+  JMP @row2_loop                            ; $A104: 4C F9 A0
+@render_done:
+  JMP @reset_tile                            ; $A107: 4C B6 A0
   LDA #$FF                                ; $A10A: A9 FF
   STA $0300                               ; $A10C: 8D 00 03
   STA $0304                               ; $A10F: 8D 04 03
@@ -196,11 +230,10 @@ Loc_A107:
   STA $007E                               ; $A117: 8D 7E 00
   RTS                                     ; $A11A: 60
 
-;-----------------------------------------------------------------------------
-; Entry02: Entry02_VRAMBufferWrite
-; Jump table entry 2 at $A006
-;-----------------------------------------------------------------------------
-Entry02_VRAMBufferWrite:
+.endproc
+
+.proc VRAMBufferWrite
+VRAMBufferWrite:
   LDA $008B                               ; $A11B: AD 8B 00
   AND #$FB                                ; $A11E: 29 FB
   STA $2000                               ; $A120: 8D 00 20
@@ -210,10 +243,10 @@ Entry02_VRAMBufferWrite:
   STA $0001                               ; $A12A: 8D 01 00
   LDA $2002                               ; $A12D: AD 02 20
   LDY #$00                                ; $A130: A0 00
-Loc_A132:
+@vram_loop:
   LDA ($00),Y                             ; $A132: B1 00
   CMP #$FF                                ; $A134: C9 FF
-  BEQ Loc_A152                            ; $A136: F0 1A
+  BEQ @vram_done                            ; $A136: F0 1A
   INY                                     ; $A138: C8
   TAX                                     ; $A139: AA
   LDA ($00),Y                             ; $A13A: B1 00
@@ -222,215 +255,257 @@ Loc_A132:
   LDA ($00),Y                             ; $A140: B1 00
   STA $2006                               ; $A142: 8D 06 20
   INY                                     ; $A145: C8
-Loc_A146:
+@vram_write_loop:
   LDA ($00),Y                             ; $A146: B1 00
   STA $2007                               ; $A148: 8D 07 20
   INY                                     ; $A14B: C8
   DEX                                     ; $A14C: CA
-  BNE Loc_A146                            ; $A14D: D0 F7
-  JMP Loc_A132                            ; $A14F: 4C 32 A1
-Loc_A152:
+  BNE @vram_write_loop                            ; $A14D: D0 F7
+  JMP @vram_loop                            ; $A14F: 4C 32 A1
+@vram_done:
   RTS                                     ; $A152: 60
-Loc_A153:
-  RTS                                     ; $A153: 60
 
-;-----------------------------------------------------------------------------
-; Entry01: Entry01_MenuUpdate
-; Jump table entry 1 at $A003
-;-----------------------------------------------------------------------------
-Entry01_MenuUpdate:
+.endproc
+
+.proc MenuUpdate
+MenuUpdate_Exit:
+  RTS                                     ; $A153: 60
+MenuUpdate:
   JSR CheckInputAndProcess                ; $A154: 20 58 A1
   RTS                                     ; $A157: 60
 CheckInputAndProcess:
-  LDA $0081                               ; $A158: AD 81 00
+  LDA a:input_flags                       ; $A158: AD 81 00
   AND #$01                                ; $A15B: 29 01
-  BEQ Loc_A164                            ; $A15D: F0 05
+  BEQ @check_cmd                            ; $A15D: F0 05
   LDA #$01                                ; $A15F: A9 01
-  STA $0308                               ; $A161: 8D 08 03
-Loc_A164:
-  LDA $0300                               ; $A164: AD 00 03
+  STA input_flag                           ; $A161: 8D 08 03
+@check_cmd:
+  LDA menu_status                         ; $A164: AD 00 03
   CMP #$FF                                ; $A167: C9 FF
-  BEQ Loc_A153                            ; $A169: F0 E8
-  LDA $007E                               ; $A16B: AD 7E 00
+  BEQ MenuUpdate_Exit                            ; $A169: F0 E8
+  LDA a:frame_flags                       ; $A16B: AD 7E 00
   AND #$01                                ; $A16E: 29 01
-  BNE Loc_A153                            ; $A170: D0 E1
+  BNE MenuUpdate_Exit                            ; $A170: D0 E1
   LDA #$00                                ; $A172: A9 00
-  STA $0304                               ; $A174: 8D 04 03
-  JSR SwitchDataBank                      ; $A177: 20 90 A6
-  LDA $0300                               ; $A17A: AD 00 03
-  BNE Loc_A1AC                            ; $A17D: D0 2D
+  STA tile_col_idx                         ; $A174: 8D 04 03
+  JSR SelectDataBankByPos                      ; $A177: 20 90 A6
+  LDA menu_status                         ; $A17A: AD 00 03
+  BNE @init_render                            ; $A17D: D0 2D
   JSR CalcMenuDataPtr                     ; $A17F: 20 1D A6
   LDY #$00                                ; $A182: A0 00
   LDA ($A6),Y                             ; $A184: B1 A6
-  STA $0306                               ; $A186: 8D 06 03
+  STA vram_pos_hi                         ; $A186: 8D 06 03
   JSR AdvanceReadPtr                      ; $A189: 20 DF A1
   LDA ($A6),Y                             ; $A18C: B1 A6
-  STA $0307                               ; $A18E: 8D 07 03
+  STA vram_pos_lo                         ; $A18E: 8D 07 03
   JSR AdvanceReadPtr                      ; $A191: 20 DF A1
   LDA #$01                                ; $A194: A9 01
-  STA $0300                               ; $A196: 8D 00 03
+  STA menu_status                         ; $A196: 8D 00 03
   LDA #$00                                ; $A199: A9 00
-  STA $0303                               ; $A19B: 8D 03 03
-  STA $0308                               ; $A19E: 8D 08 03
-  STA $030C                               ; $A1A1: 8D 0C 03
-  STA $030F                               ; $A1A4: 8D 0F 03
+  STA overlay_flag                         ; $A19B: 8D 03 03
+  STA input_flag                           ; $A19E: 8D 08 03
+  STA indirect_flag                        ; $A1A1: 8D 0C 03
+  STA tile_base_offset                     ; $A1A4: 8D 0F 03
   LDA #$03                                ; $A1A7: A9 03
-  STA $0305                               ; $A1A9: 8D 05 03
-Loc_A1AC:
+  STA render_bitmask                               ; $A1A9: 8D 05 03
+@init_render:
   JSR ClearTileBuffers                    ; $A1AC: 20 0F A6
-  LDA $0306                               ; $A1AF: AD 06 03
-  STA $031C                               ; $A1B2: 8D 1C 03
+  LDA vram_pos_hi                         ; $A1AF: AD 06 03
+  STA tile_row1_hi                         ; $A1B2: 8D 1C 03
   SEC                                     ; $A1B5: 38
   SBC #$20                                ; $A1B6: E9 20
-  STA $034C                               ; $A1B8: 8D 4C 03
-  LDA $0307                               ; $A1BB: AD 07 03
-  STA $031D                               ; $A1BE: 8D 1D 03
+  STA tile_row2_hi                         ; $A1B8: 8D 4C 03
+  LDA vram_pos_lo                         ; $A1BB: AD 07 03
+  STA tile_row1_lo                         ; $A1BE: 8D 1D 03
   SBC #$00                                ; $A1C1: E9 00
-  STA $034D                               ; $A1C3: 8D 4D 03
+  STA tile_row2_lo                         ; $A1C3: 8D 4D 03
   LDX #$02                                ; $A1C6: A2 02
-Loc_A1C8:
+dispatch:
   LDY #$00                                ; $A1C8: A0 00
   LDA ($A6),Y                             ; $A1CA: B1 A6
   JSR AdvanceReadPtr                      ; $A1CC: 20 DF A1
-  STA $0012                               ; $A1CF: 8D 12 00
+  STA a:cmd_byte                          ; $A1CF: 8D 12 00
   TAY                                     ; $A1D2: A8
-  BPL Loc_A1D9                            ; $A1D3: 10 04
+  BPL @store_tile                            ; $A1D3: 10 04
   CMP #$C0                                ; $A1D5: C9 C0
-  BCC Loc_A202                            ; $A1D7: 90 29
-Loc_A1D9:
+  BCC dispatch_cmd                             ; $A1D7: 90 29
+@store_tile:
   JSR StoreTileByte                       ; $A1D9: 20 E8 A1
-  JMP Loc_A1C8                            ; $A1DC: 4C C8 A1
+  JMP dispatch                             ; $A1DC: 4C C8 A1
 AdvanceReadPtr:
-  INC $00A6                               ; $A1DF: EE A6 00
-  BNE Loc_A1E7                            ; $A1E2: D0 03
-  INC $00A7                               ; $A1E4: EE A7 00
-Loc_A1E7:
+  INC a:data_ptr_lo                       ; $A1DF: EE A6 00
+  BNE @adv_ptr_done                            ; $A1E2: D0 03
+  INC a:data_ptr_hi                       ; $A1E4: EE A7 00
+@adv_ptr_done:
   RTS                                     ; $A1E7: 60
 StoreTileByte:
-  LDY $030C                               ; $A1E8: AC 0C 03
-  BNE Loc_A1F5                            ; $A1EB: D0 08
+  LDY indirect_flag                       ; $A1E8: AC 0C 03
+  BNE @store_offset                            ; $A1EB: D0 08
   CMP #$39                                ; $A1ED: C9 39
-  BEQ Loc_A1FE                            ; $A1EF: F0 0D
+  BEQ @store_indirect                            ; $A1EF: F0 0D
   CMP #$3A                                ; $A1F1: C9 3A
-  BEQ Loc_A1FE                            ; $A1F3: F0 09
-Loc_A1F5:
+  BEQ @store_indirect                            ; $A1F3: F0 09
+@store_offset:
   CLC                                     ; $A1F5: 18
-  ADC $030F                               ; $A1F6: 6D 0F 03
-  STA $031C,X                             ; $A1F9: 9D 1C 03
+  ADC tile_base_offset                    ; $A1F6: 6D 0F 03
+  STA tile_row1_hi,X                      ; $A1F9: 9D 1C 03
   INX                                     ; $A1FC: E8
   RTS                                     ; $A1FD: 60
-Loc_A1FE:
+@store_indirect:
   STA $034B,X                             ; $A1FE: 9D 4B 03
   RTS                                     ; $A201: 60
-Loc_A202:
+dispatch_cmd:
   SEC                                     ; $A202: 38
   SBC #$80                                ; $A203: E9 80
   JSR B1F_CallbackDispatcher              ; $A205: 20 DE EA
-  PHA                                     ; $A208: 48
-
-; --- Data Region: CallbackData_Entry01 ---
-  .byte $A2,$81,$A2,$A3,$A2,$C2,$A2,$DD,$A2,$E5,$A2,$ED,$A2,$10,$A3,$18; $A209: A2 81 A2 A3 A2 C2 A2 DD A2 E5 A2 ED A2 10 A3 18
-  .byte $A3,$20,$A3,$ED,$A2,$ED,$A2,$ED,$A2,$ED,$A2,$ED,$A2,$ED,$A2,$2D; $A219: A3 20 A3 ED A2 ED A2 ED A2 ED A2 ED A2 ED A2 2D
-  .byte $A3,$2D,$A3,$2D,$A3,$2D,$A3,$2D,$A3,$2D,$A3,$2D,$A3,$2D,$A3,$B1; $A229: A3 2D A3 2D A3 2D A3 2D A3 2D A3 2D A3 2D A3 B1
-  .byte $A3,$B1,$A3,$B1,$A3,$B1,$A3,$26,$A4,$B0,$A4,$3E,$A5,$97,$A3; $A239: A3 B1 A3 B1 A3 B1 A3 26 A4 B0 A4 3E A5 97 A3
+;-------------------------------------------------------------------------------
+; Inline dispatch table (32 entries, 16-bit addresses)
+; CallbackDispatcher reads this via JSR return addr ($A207) + INY = $A208
+; Index = command_byte - $80 (range $00-$1F, commands $80-$9F)
+;-------------------------------------------------------------------------------
+MenuDispatchTable:
+  .word CmdEndMenu              ; $A208: 48 A2 | $80: Terminate rendering, shift pos buffer
+  .word CmdAdvanceRow           ; $A20A: 81 A2 | $81: Advance VRAM position by one row ($40)
+  .word CmdPushPosition         ; $A20C: A3 A2 | $82: Save VRAM pos + data ptr, read new pos
+  .word CmdPopPosition          ; $A20E: C2 A2 | $83: Restore saved VRAM pos + data ptr
+  .word CmdSetOverlayMode       ; $A210: DD A2 | $84: Set overlay_flag = $80
+  .word CmdClearOverlayMode     ; $A212: E5 A2 | $85: Set overlay_flag = $00
+  .word CmdSetVramPos           ; $A214: ED A2 | $86: Read 2 bytes, set VRAM addr + render flag
+  .word CmdEnableIndirect       ; $A216: 10 A3 | $87: Set indirect_flag = $01
+  .word CmdDisableIndirect      ; $A218: 18 A3 | $88: Set indirect_flag = $00
+  .word CmdSetTileOffset        ; $A21A: 20 A3 | $89: Read 1 byte, set tile_base_offset
+  .word CmdSetVramPos           ; $A21C: ED A2 | $8A: (same as $86)
+  .word CmdSetVramPos           ; $A21E: ED A2 | $8B: (same as $86)
+  .word CmdSetVramPos           ; $A220: ED A2 | $8C: (same as $86)
+  .word CmdSetVramPos           ; $A222: ED A2 | $8D: (same as $86)
+  .word CmdSetVramPos           ; $A224: ED A2 | $8E: (same as $86)
+  .word CmdSetVramPos           ; $A226: ED A2 | $8F: (same as $86)
+  .word CmdDrawName             ; $A228: 2D A3 | $90: Name from $042C table, index = cmd-$90
+  .word CmdDrawName             ; $A22A: 2D A3 | $91: (same, index 1)
+  .word CmdDrawName             ; $A22C: 2D A3 | $92: (same, index 2)
+  .word CmdDrawName             ; $A22E: 2D A3 | $93: (same, index 3)
+  .word CmdDrawName             ; $A230: 2D A3 | $94: (same, index 4)
+  .word CmdDrawName             ; $A232: 2D A3 | $95: (same, index 5)
+  .word CmdDrawName             ; $A234: 2D A3 | $96: (same, index 6)
+  .word CmdDrawName             ; $A236: 2D A3 | $97: (same, index 7)
+  .word CmdDrawNumber           ; $A238: B1 A3 | $98: BCD number, index = cmd-$98
+  .word CmdDrawNumber           ; $A23A: B1 A3 | $99: (same, index 1)
+  .word CmdDrawNumber           ; $A23C: B1 A3 | $9A: (same, index 2)
+  .word CmdDrawNumber           ; $A23E: B1 A3 | $9B: (same, index 3)
+  .word CmdDrawNameFromData     ; $A240: 26 A4 | $9C: Read index from data, 6-char name
+  .word CmdDrawNameFixed7       ; $A242: B0 A4 | $9D: Read index from data, 7-char name
+  .word CmdDrawFormattedNumber  ; $A244: 3E A5 | $9E: Read index, formatted number from $044C
+  .word CmdDrawNameFromParam    ; $A246: 97 A3 | $9F: Read index from data, name lookup
+  
+CmdEndMenu:
   LDA #$FF                                ; $A248: A9 FF
-  STA $0300                               ; $A24A: 8D 00 03
+  STA menu_status                         ; $A24A: 8D 00 03
   LDA #$80                                ; $A24D: A9 80
-  STA $031C,X                             ; $A24F: 9D 1C 03
-  STA $034C,X                             ; $A252: 9D 4C 03
-  LDA $007E                               ; $A255: AD 7E 00
+  STA tile_row1_hi,X                      ; $A24F: 9D 1C 03
+  STA tile_row2_hi,X                      ; $A252: 9D 4C 03
+  LDA a:frame_flags                       ; $A255: AD 7E 00
   ORA #$01                                ; $A258: 09 01
-  STA $007E                               ; $A25A: 8D 7E 00
-  LDA $0311                               ; $A25D: AD 11 03
-  STA $0310                               ; $A260: 8D 10 03
-  LDA $0312                               ; $A263: AD 12 03
-  STA $0311                               ; $A266: 8D 11 03
-  LDA $0313                               ; $A269: AD 13 03
-  STA $0312                               ; $A26C: 8D 12 03
+  STA a:frame_flags                       ; $A25A: 8D 7E 00
+  LDA pos_buf_1                           ; $A25D: AD 11 03
+  STA pos_buf_0                           ; $A260: 8D 10 03
+  LDA pos_buf_2                           ; $A263: AD 12 03
+  STA pos_buf_1                           ; $A266: 8D 11 03
+  LDA pos_buf_3                           ; $A269: AD 13 03
+  STA pos_buf_2                           ; $A26C: 8D 12 03
   LDA #$FF                                ; $A26F: A9 FF
-  STA $0313                               ; $A271: 8D 13 03
-  LDA $0310                               ; $A274: AD 10 03
+  STA pos_buf_3                           ; $A271: 8D 13 03
+  LDA pos_buf_0                           ; $A274: AD 10 03
   CMP #$FF                                ; $A277: C9 FF
-  BEQ Loc_A280                            ; $A279: F0 05
+  BEQ @clear_exit                            ; $A279: F0 05
   LDA #$00                                ; $A27B: A9 00
-  STA $0300                               ; $A27D: 8D 00 03
-Loc_A280:
+  STA menu_status                         ; $A27D: 8D 00 03
+@clear_exit:
   RTS                                     ; $A280: 60
+CmdAdvanceRow:
   LDA #$80                                ; $A281: A9 80
-  STA $031C,X                             ; $A283: 9D 1C 03
-  STA $034C,X                             ; $A286: 9D 4C 03
-  LDA $0306                               ; $A289: AD 06 03
+  STA tile_row1_hi,X                     ; $A283: 9D 1C 03
+  STA tile_row2_hi,X                     ; $A286: 9D 4C 03
+  LDA vram_pos_hi                        ; $A289: AD 06 03
   CLC                                     ; $A28C: 18
   ADC #$40                                ; $A28D: 69 40
-  STA $0306                               ; $A28F: 8D 06 03
-  LDA $0307                               ; $A292: AD 07 03
+  STA vram_pos_hi                        ; $A28F: 8D 06 03
+  LDA vram_pos_lo                        ; $A292: AD 07 03
   ADC #$00                                ; $A295: 69 00
-  STA $0307                               ; $A297: 8D 07 03
-  LDA $007E                               ; $A29A: AD 7E 00
+  STA vram_pos_lo                        ; $A297: 8D 07 03
+  LDA a:frame_flags                      ; $A29A: AD 7E 00
   ORA #$01                                ; $A29D: 09 01
-  STA $007E                               ; $A29F: 8D 7E 00
+  STA a:frame_flags                      ; $A29F: 8D 7E 00
   RTS                                     ; $A2A2: 60
-  LDA $0310                               ; $A2A3: AD 10 03
-  STA $0309                               ; $A2A6: 8D 09 03
-  LDA $00A6                               ; $A2A9: AD A6 00
-  STA $030A                               ; $A2AC: 8D 0A 03
-  LDA $00A7                               ; $A2AF: AD A7 00
-  STA $030B                               ; $A2B2: 8D 0B 03
+CmdPushPosition:
+  LDA pos_buf_0                          ; $A2A3: AD 10 03
+  STA saved_pos_hi                       ; $A2A6: 8D 09 03
+  LDA a:data_ptr_lo                      ; $A2A9: AD A6 00
+  STA saved_ptr_lo                       ; $A2AC: 8D 0A 03
+  LDA a:data_ptr_hi                      ; $A2AF: AD A7 00
+  STA saved_ptr_hi                       ; $A2B2: 8D 0B 03
   LDY #$00                                ; $A2B5: A0 00
   LDA ($A6),Y                             ; $A2B7: B1 A6
-  STA $0310                               ; $A2B9: 8D 10 03
+  STA pos_buf_0                          ; $A2B9: 8D 10 03
   JSR CalcMenuDataPtr                     ; $A2BC: 20 1D A6
-  JMP Loc_A1C8                            ; $A2BF: 4C C8 A1
-  LDA $0309                               ; $A2C2: AD 09 03
-  STA $0310                               ; $A2C5: 8D 10 03
+  JMP dispatch                             ; $A2BF: 4C C8 A1
+CmdPopPosition:
+  LDA saved_pos_hi                       ; $A2C2: AD 09 03
+  STA pos_buf_0                          ; $A2C5: 8D 10 03
   JSR CalcMenuDataPtr                     ; $A2C8: 20 1D A6
-  LDA $030A                               ; $A2CB: AD 0A 03
-  STA $00A6                               ; $A2CE: 8D A6 00
-  LDA $030B                               ; $A2D1: AD 0B 03
-  STA $00A7                               ; $A2D4: 8D A7 00
+  LDA saved_ptr_lo                       ; $A2CB: AD 0A 03
+  STA a:data_ptr_lo                      ; $A2CE: 8D A6 00
+  LDA saved_ptr_hi                       ; $A2D1: AD 0B 03
+  STA a:data_ptr_hi                      ; $A2D4: 8D A7 00
   JSR AdvanceReadPtr                      ; $A2D7: 20 DF A1
-  JMP Loc_A1C8                            ; $A2DA: 4C C8 A1
+  JMP dispatch                             ; $A2DA: 4C C8 A1
+CmdSetOverlayMode:
   LDA #$80                                ; $A2DD: A9 80
-  STA $0303                               ; $A2DF: 8D 03 03
-  JMP Loc_A1C8                            ; $A2E2: 4C C8 A1
+  STA overlay_flag                       ; $A2DF: 8D 03 03
+  JMP dispatch                             ; $A2E2: 4C C8 A1
+CmdClearOverlayMode:
   LDA #$00                                ; $A2E5: A9 00
-  STA $0303                               ; $A2E7: 8D 03 03
-  JMP Loc_A1C8                            ; $A2EA: 4C C8 A1
+  STA overlay_flag                       ; $A2E7: 8D 03 03
+  JMP dispatch                             ; $A2EA: 4C C8 A1
+CmdSetVramPos:
   LDY #$00                                ; $A2ED: A0 00
   LDA ($A6),Y                             ; $A2EF: B1 A6
-  STA $0306                               ; $A2F1: 8D 06 03
+  STA vram_pos_hi                        ; $A2F1: 8D 06 03
   JSR AdvanceReadPtr                      ; $A2F4: 20 DF A1
   LDA ($A6),Y                             ; $A2F7: B1 A6
-  STA $0307                               ; $A2F9: 8D 07 03
+  STA vram_pos_lo                        ; $A2F9: 8D 07 03
   JSR AdvanceReadPtr                      ; $A2FC: 20 DF A1
   LDA #$80                                ; $A2FF: A9 80
-  STA $031C,X                             ; $A301: 9D 1C 03
-  STA $034C,X                             ; $A304: 9D 4C 03
-  LDA $007E                               ; $A307: AD 7E 00
+  STA tile_row1_hi,X                     ; $A301: 9D 1C 03
+  STA tile_row2_hi,X                     ; $A304: 9D 4C 03
+  LDA a:frame_flags                      ; $A307: AD 7E 00
   ORA #$01                                ; $A30A: 09 01
-  STA $007E                               ; $A30C: 8D 7E 00
+  STA a:frame_flags                      ; $A30C: 8D 7E 00
   RTS                                     ; $A30F: 60
+CmdEnableIndirect:
   LDA #$01                                ; $A310: A9 01
-  STA $030C                               ; $A312: 8D 0C 03
-  JMP Loc_A1C8                            ; $A315: 4C C8 A1
+  STA indirect_flag                      ; $A312: 8D 0C 03
+  JMP dispatch                             ; $A315: 4C C8 A1
+CmdDisableIndirect:
   LDA #$00                                ; $A318: A9 00
-  STA $030C                               ; $A31A: 8D 0C 03
-  JMP Loc_A1C8                            ; $A31D: 4C C8 A1
+  STA indirect_flag                      ; $A31A: 8D 0C 03
+  JMP dispatch                             ; $A31D: 4C C8 A1
+CmdSetTileOffset:
   LDY #$00                                ; $A320: A0 00
   LDA ($A6),Y                             ; $A322: B1 A6
-  STA $030F                               ; $A324: 8D 0F 03
+  STA tile_base_offset                    ; $A324: 8D 0F 03
   JSR AdvanceReadPtr                      ; $A327: 20 DF A1
-  JMP Loc_A1C8                            ; $A32A: 4C C8 A1
-  LDA $00E1                               ; $A32D: AD E1 00
+  JMP dispatch                             ; $A32A: 4C C8 A1
+CmdDrawName:
+  LDA a:cur_bank_8000                    ; $A32D: AD E1 00
   PHA                                     ; $A330: 48
   LDY #$30                                ; $A331: A0 30
   JSR B1F_SwitchBank8_B                   ; $A333: 20 5F F2
   LDA #$00                                ; $A336: A9 00
   STA $0001                               ; $A338: 8D 01 00
-  LDA $0012                               ; $A33B: AD 12 00
+  LDA a:cmd_byte                         ; $A33B: AD 12 00
   SEC                                     ; $A33E: 38
   SBC #$90                                ; $A33F: E9 90
-Loc_A341:
+process_entry:
   TAY                                     ; $A341: A8
   LDA #$00                                ; $A342: A9 00
   STA $0001                               ; $A344: 8D 01 00
@@ -455,9 +530,9 @@ Loc_A341:
   ADC #$90                                ; $A373: 69 90
   STA $0001                               ; $A375: 8D 01 00
   LDY #$00                                ; $A378: A0 00
-Loc_A37A:
+@scan_loop:
   LDA ($00),Y                             ; $A37A: B1 00
-  BEQ Loc_A38F                            ; $A37C: F0 11
+  BEQ @scan_done                            ; $A37C: F0 11
   STA $0002                               ; $A37E: 8D 02 00
   TYA                                     ; $A381: 98
   PHA                                     ; $A382: 48
@@ -466,13 +541,14 @@ Loc_A37A:
   PLA                                     ; $A389: 68
   TAY                                     ; $A38A: A8
   INY                                     ; $A38B: C8
-  JMP Loc_A37A                            ; $A38C: 4C 7A A3
-Loc_A38F:
+  JMP @scan_loop                            ; $A38C: 4C 7A A3
+@scan_done:
   PLA                                     ; $A38F: 68
   TAY                                     ; $A390: A8
   JSR B1F_SwitchBank8_B                   ; $A391: 20 5F F2
-  JMP Loc_A1C8                            ; $A394: 4C C8 A1
-  LDA $00E1                               ; $A397: AD E1 00
+  JMP dispatch                             ; $A394: 4C C8 A1
+CmdDrawNameFromParam:
+  LDA a:cur_bank_8000                    ; $A397: AD E1 00
   PHA                                     ; $A39A: 48
   LDY #$00                                ; $A39B: A0 00
   LDA ($A6),Y                             ; $A39D: B1 A6
@@ -483,8 +559,9 @@ Loc_A38F:
   LDA #$00                                ; $A3A8: A9 00
   STA $0001                               ; $A3AA: 8D 01 00
   PLA                                     ; $A3AD: 68
-  JMP Loc_A341                            ; $A3AE: 4C 41 A3
-  LDA $0012                               ; $A3B1: AD 12 00
+  JMP process_entry                             ; $A3AE: 4C 41 A3
+CmdDrawNumber:
+  LDA a:cmd_byte                         ; $A3B1: AD 12 00
   SEC                                     ; $A3B4: 38
   SBC #$98                                ; $A3B5: E9 98
   STA $0000                               ; $A3B7: 8D 00 00
@@ -510,40 +587,41 @@ Loc_A38F:
   LSR A                                   ; $A3E2: 4A
   LSR A                                   ; $A3E3: 4A
   LSR A                                   ; $A3E4: 4A
-  JSR Loc_A411                            ; $A3E5: 20 11 A4
+  JSR @tile_convert                            ; $A3E5: 20 11 A4
   LDA $0009                               ; $A3E8: AD 09 00
-  JSR Loc_A411                            ; $A3EB: 20 11 A4
+  JSR @tile_convert                            ; $A3EB: 20 11 A4
   LDA $0008                               ; $A3EE: AD 08 00
   LSR A                                   ; $A3F1: 4A
   LSR A                                   ; $A3F2: 4A
   LSR A                                   ; $A3F3: 4A
   LSR A                                   ; $A3F4: 4A
-  JSR Loc_A411                            ; $A3F5: 20 11 A4
+  JSR @tile_convert                            ; $A3F5: 20 11 A4
   LDA $0008                               ; $A3F8: AD 08 00
-  JSR Loc_A411                            ; $A3FB: 20 11 A4
+  JSR @tile_convert                            ; $A3FB: 20 11 A4
   LDA $0007                               ; $A3FE: AD 07 00
   LSR A                                   ; $A401: 4A
   LSR A                                   ; $A402: 4A
   LSR A                                   ; $A403: 4A
   LSR A                                   ; $A404: 4A
-  JSR Loc_A411                            ; $A405: 20 11 A4
+  JSR @tile_convert                            ; $A405: 20 11 A4
   LDA $0007                               ; $A408: AD 07 00
-  JSR Loc_A41A                            ; $A40B: 20 1A A4
-  JMP Loc_A1C8                            ; $A40E: 4C C8 A1
-Loc_A411:
+  JSR @tile_write                            ; $A40B: 20 1A A4
+  JMP dispatch                             ; $A40E: 4C C8 A1
+@tile_convert:
   LDY $0000                               ; $A411: AC 00 00
-  BNE Loc_A41A                            ; $A414: D0 04
+  BNE @tile_write                            ; $A414: D0 04
   AND #$0F                                ; $A416: 29 0F
-  BEQ Loc_A425                            ; $A418: F0 0B
-Loc_A41A:
+  BEQ @tile_done                            ; $A418: F0 0B
+@tile_write:
   AND #$0F                                ; $A41A: 29 0F
   CLC                                     ; $A41C: 18
   ADC #$76                                ; $A41D: 69 76
   JSR StoreTileByte                       ; $A41F: 20 E8 A1
   INC $0000                               ; $A422: EE 00 00
-Loc_A425:
+@tile_done:
   RTS                                     ; $A425: 60
-  LDA $00E1                               ; $A426: AD E1 00
+CmdDrawNameFromData:
+  LDA a:cur_bank_8000                    ; $A426: AD E1 00
   PHA                                     ; $A429: 48
   LDY #$00                                ; $A42A: A0 00
   LDA ($A6),Y                             ; $A42C: B1 A6
@@ -558,9 +636,9 @@ Loc_A425:
   LDA #$00                                ; $A43E: A9 00
   STA $0001                               ; $A440: 8D 01 00
   LDA $042C,Y                             ; $A443: B9 2C 04
-  BPL Loc_A460                            ; $A446: 10 18
+  BPL @process_large                            ; $A446: 10 18
   LDA #$00                                ; $A448: A9 00
-Loc_A44A:
+@write_zero_loop:
   PHA                                     ; $A44A: 48
   LDA #$01                                ; $A44B: A9 01
   JSR StoreTileByte                       ; $A44D: 20 E8 A1
@@ -568,12 +646,12 @@ Loc_A44A:
   CLC                                     ; $A451: 18
   ADC #$01                                ; $A452: 69 01
   CMP #$06                                ; $A454: C9 06
-  BCC Loc_A44A                            ; $A456: 90 F2
+  BCC @write_zero_loop                            ; $A456: 90 F2
   PLA                                     ; $A458: 68
   TAY                                     ; $A459: A8
   JSR B1F_SwitchBank8_B                   ; $A45A: 20 5F F2
-  JMP Loc_A1C8                            ; $A45D: 4C C8 A1
-Loc_A460:
+  JMP dispatch                             ; $A45D: 4C C8 A1
+@process_large:
   ASL A                                   ; $A460: 0A
   ASL A                                   ; $A461: 0A
   ASL A                                   ; $A462: 0A
@@ -585,41 +663,42 @@ Loc_A460:
   STA $0001                               ; $A46D: 8D 01 00
   LDY #$00                                ; $A470: A0 00
   STY $0003                               ; $A472: 8C 03 00
-Loc_A475:
+@tile_loop:
   LDA ($00),Y                             ; $A475: B1 00
-  BNE Loc_A47B                            ; $A477: D0 02
+  BNE @tile_store                            ; $A477: D0 02
   LDA #$01                                ; $A479: A9 01
-Loc_A47B:
+@tile_store:
   STA $0002                               ; $A47B: 8D 02 00
   TYA                                     ; $A47E: 98
   PHA                                     ; $A47F: 48
   LDA $0002                               ; $A480: AD 02 00
   CMP #$39                                ; $A483: C9 39
-  BEQ Loc_A48B                            ; $A485: F0 04
+  BEQ @inc_offset                            ; $A485: F0 04
   CMP #$3A                                ; $A487: C9 3A
-  BNE Loc_A48E                            ; $A489: D0 03
-Loc_A48B:
+  BNE @tile_next                            ; $A489: D0 03
+@inc_offset:
   INC $0003                               ; $A48B: EE 03 00
-Loc_A48E:
+@tile_next:
   JSR StoreTileByte                       ; $A48E: 20 E8 A1
   PLA                                     ; $A491: 68
   TAY                                     ; $A492: A8
   INY                                     ; $A493: C8
   CPY #$06                                ; $A494: C0 06
-  BCC Loc_A475                            ; $A496: 90 DD
-Loc_A498:
+  BCC @tile_loop                            ; $A496: 90 DD
+@pad_loop:
   LDA $0003                               ; $A498: AD 03 00
-  BEQ Loc_A4A8                            ; $A49B: F0 0B
+  BEQ @pad_done                            ; $A49B: F0 0B
   LDA #$01                                ; $A49D: A9 01
   JSR StoreTileByte                       ; $A49F: 20 E8 A1
   DEC $0003                               ; $A4A2: CE 03 00
-  JMP Loc_A498                            ; $A4A5: 4C 98 A4
-Loc_A4A8:
+  JMP @pad_loop                            ; $A4A5: 4C 98 A4
+@pad_done:
   PLA                                     ; $A4A8: 68
   TAY                                     ; $A4A9: A8
   JSR B1F_SwitchBank8_B                   ; $A4AA: 20 5F F2
-  JMP Loc_A1C8                            ; $A4AD: 4C C8 A1
-  LDA $00E1                               ; $A4B0: AD E1 00
+  JMP dispatch                             ; $A4AD: 4C C8 A1
+CmdDrawNameFixed7:
+  LDA a:cur_bank_8000                    ; $A4B0: AD E1 00
   PHA                                     ; $A4B3: 48
   LDY #$00                                ; $A4B4: A0 00
   LDA ($A6),Y                             ; $A4B6: B1 A6
@@ -655,40 +734,41 @@ Loc_A4A8:
   STA $0001                               ; $A4FB: 8D 01 00
   LDY #$00                                ; $A4FE: A0 00
   STY $0003                               ; $A500: 8C 03 00
-Loc_A503:
+@tile2_loop:
   LDA ($00),Y                             ; $A503: B1 00
-  BNE Loc_A509                            ; $A505: D0 02
+  BNE @tile2_store                            ; $A505: D0 02
   LDA #$01                                ; $A507: A9 01
-Loc_A509:
+@tile2_store:
   STA $0002                               ; $A509: 8D 02 00
   TYA                                     ; $A50C: 98
   PHA                                     ; $A50D: 48
   LDA $0002                               ; $A50E: AD 02 00
   CMP #$39                                ; $A511: C9 39
-  BEQ Loc_A519                            ; $A513: F0 04
+  BEQ @inc2_offset                            ; $A513: F0 04
   CMP #$3A                                ; $A515: C9 3A
-  BNE Loc_A51C                            ; $A517: D0 03
-Loc_A519:
+  BNE @tile2_next                            ; $A517: D0 03
+@inc2_offset:
   INC $0003                               ; $A519: EE 03 00
-Loc_A51C:
+@tile2_next:
   JSR StoreTileByte                       ; $A51C: 20 E8 A1
   PLA                                     ; $A51F: 68
   TAY                                     ; $A520: A8
   INY                                     ; $A521: C8
   CPY #$07                                ; $A522: C0 07
-  BCC Loc_A503                            ; $A524: 90 DD
-Loc_A526:
+  BCC @tile2_loop                            ; $A524: 90 DD
+@pad2_loop:
   LDA $0003                               ; $A526: AD 03 00
-  BEQ Loc_A536                            ; $A529: F0 0B
+  BEQ @pad2_done                            ; $A529: F0 0B
   LDA #$01                                ; $A52B: A9 01
   JSR StoreTileByte                       ; $A52D: 20 E8 A1
   DEC $0003                               ; $A530: CE 03 00
-  JMP Loc_A526                            ; $A533: 4C 26 A5
-Loc_A536:
+  JMP @pad2_loop                            ; $A533: 4C 26 A5
+@pad2_done:
   PLA                                     ; $A536: 68
   TAY                                     ; $A537: A8
   JSR B1F_SwitchBank8_B                   ; $A538: 20 5F F2
-  JMP Loc_A1C8                            ; $A53B: 4C C8 A1
+  JMP dispatch                             ; $A53B: 4C C8 A1
+CmdDrawFormattedNumber:
   LDA #$00                                ; $A53E: A9 00
   STA $0010                               ; $A540: 8D 10 00
   LDY #$00                                ; $A543: A0 00
@@ -707,7 +787,7 @@ Loc_A536:
   STA $0002                               ; $A55E: 8D 02 00
   LDA $044E,Y                             ; $A561: B9 4E 04
   CMP #$FE                                ; $A564: C9 FE
-  BNE Loc_A57D                            ; $A566: D0 15
+  BNE @check_ff                            ; $A566: D0 15
   LDA #$01                                ; $A568: A9 01
   JSR StoreTileByte                       ; $A56A: 20 E8 A1
   LDA #$6F                                ; $A56D: A9 6F
@@ -715,15 +795,15 @@ Loc_A536:
   LDA #$6F                                ; $A572: A9 6F
   JSR StoreTileByte                       ; $A574: 20 E8 A1
   JSR AdvanceReadPtr                      ; $A577: 20 DF A1
-  JMP Loc_A1C8                            ; $A57A: 4C C8 A1
-Loc_A57D:
+  JMP dispatch                             ; $A57A: 4C C8 A1
+@check_ff:
   CMP #$FF                                ; $A57D: C9 FF
-  BNE Loc_A58C                            ; $A57F: D0 0B
+  BNE @format_num                            ; $A57F: D0 0B
   INC $0010                               ; $A581: EE 10 00
   LDA #$00                                ; $A584: A9 00
   STA $0001                               ; $A586: 8D 01 00
   STA $0002                               ; $A589: 8D 02 00
-Loc_A58C:
+@format_num:
   STA $0003                               ; $A58C: 8D 03 00
   TXA                                     ; $A58F: 8A
   PHA                                     ; $A590: 48
@@ -736,7 +816,7 @@ Loc_A58C:
   JSR AdvanceReadPtr                      ; $A59B: 20 DF A1
   PLA                                     ; $A59E: 68
   TAY                                     ; $A59F: A8
-  LDA $A607,Y                             ; $A5A0: B9 07 A6
+  LDA DigitTileOffsetTable,Y                ; $A5A0: B9 07 A6
   STA $0001                               ; $A5A3: 8D 01 00
   LDA #$00                                ; $A5A6: A9 00
   STA $0000                               ; $A5A8: 8D 00 00
@@ -745,130 +825,129 @@ Loc_A58C:
   LSR A                                   ; $A5AF: 4A
   LSR A                                   ; $A5B0: 4A
   LSR A                                   ; $A5B1: 4A
-  JSR Loc_A5DE                            ; $A5B2: 20 DE A5
+  JSR @dec_counter                            ; $A5B2: 20 DE A5
   LDA $0009                               ; $A5B5: AD 09 00
-  JSR Loc_A5DE                            ; $A5B8: 20 DE A5
+  JSR @dec_counter                            ; $A5B8: 20 DE A5
   LDA $0008                               ; $A5BB: AD 08 00
   LSR A                                   ; $A5BE: 4A
   LSR A                                   ; $A5BF: 4A
   LSR A                                   ; $A5C0: 4A
   LSR A                                   ; $A5C1: 4A
-  JSR Loc_A5DE                            ; $A5C2: 20 DE A5
+  JSR @dec_counter                            ; $A5C2: 20 DE A5
   LDA $0008                               ; $A5C5: AD 08 00
-  JSR Loc_A5DE                            ; $A5C8: 20 DE A5
+  JSR @dec_counter                            ; $A5C8: 20 DE A5
   LDA $0007                               ; $A5CB: AD 07 00
   LSR A                                   ; $A5CE: 4A
   LSR A                                   ; $A5CF: 4A
   LSR A                                   ; $A5D0: 4A
   LSR A                                   ; $A5D1: 4A
-  JSR Loc_A5DE                            ; $A5D2: 20 DE A5
+  JSR @dec_counter                            ; $A5D2: 20 DE A5
   LDA $0007                               ; $A5D5: AD 07 00
-  JSR Loc_A5F4                            ; $A5D8: 20 F4 A5
-  JMP Loc_A1C8                            ; $A5DB: 4C C8 A1
-Loc_A5DE:
+  JSR @write_tile_off                            ; $A5D8: 20 F4 A5
+  JMP dispatch                             ; $A5DB: 4C C8 A1
+@dec_counter:
   DEC $0001                               ; $A5DE: CE 01 00
   LDY $0000                               ; $A5E1: AC 00 00
-  BNE Loc_A5F4                            ; $A5E4: D0 0E
+  BNE @write_tile_off                            ; $A5E4: D0 0E
   AND #$0F                                ; $A5E6: 29 0F
-  BNE Loc_A5F4                            ; $A5E8: D0 0A
+  BNE @write_tile_off                            ; $A5E8: D0 0A
   LDY $0001                               ; $A5EA: AC 01 00
-  BPL Loc_A606                            ; $A5ED: 10 17
+  BPL @dec_return                            ; $A5ED: 10 17
   LDA #$01                                ; $A5EF: A9 01
   JMP StoreTileByte                       ; $A5F1: 4C E8 A1
-Loc_A5F4:
+@write_tile_off:
   AND #$0F                                ; $A5F4: 29 0F
   CLC                                     ; $A5F6: 18
   ADC #$76                                ; $A5F7: 69 76
   LDY $0010                               ; $A5F9: AC 10 00
-  BEQ Loc_A600                            ; $A5FC: F0 02
+  BEQ @write_and_inc                            ; $A5FC: F0 02
   LDA #$01                                ; $A5FE: A9 01
-Loc_A600:
+@write_and_inc:
   JSR StoreTileByte                       ; $A600: 20 E8 A1
   INC $0000                               ; $A603: EE 00 00
-Loc_A606:
+@dec_return:
   RTS                                     ; $A606: 60
-
-; --- Data Region: OffsetTable_0607 ---
+; --- Data Region ---
+DigitTileOffsetTable:                       ; $A607
   .byte $05,$05,$04,$03,$02,$01,$00,$00   ; $A607: 05 05 04 03 02 01 00 00
 ClearTileBuffers:
   LDY #$28                                ; $A60F: A0 28
   LDA #$01                                ; $A611: A9 01
-Loc_A613:
-  STA $031C,Y                             ; $A613: 99 1C 03
-  STA $034C,Y                             ; $A616: 99 4C 03
+@clear_buf_loop:
+  STA tile_row1_hi,Y                     ; $A613: 99 1C 03
+  STA tile_row2_hi,Y                     ; $A616: 99 4C 03
   DEY                                     ; $A619: 88
-  BNE Loc_A613                            ; $A61A: D0 F7
+  BNE @clear_buf_loop                            ; $A61A: D0 F7
   RTS                                     ; $A61C: 60
 CalcMenuDataPtr:
-  LDA $0310                               ; $A61D: AD 10 03
+  LDA pos_buf_0                          ; $A61D: AD 10 03
   STA $0000                               ; $A620: 8D 00 00
   LDA #$00                                ; $A623: A9 00
   STA $0001                               ; $A625: 8D 01 00
   ASL $0000                               ; $A628: 0E 00 00
   ROL $0001                               ; $A62B: 2E 01 00
-  JSR SwitchDataBank                      ; $A62E: 20 90 A6
+  JSR SelectDataBankByPos                      ; $A62E: 20 90 A6
   PHA                                     ; $A631: 48
   ASL A                                   ; $A632: 0A
   TAY                                     ; $A633: A8
   LDA $0000                               ; $A634: AD 00 00
   CLC                                     ; $A637: 18
-  ADC $A672,Y                             ; $A638: 79 72 A6
+  ADC BankPageOffsetTable,Y                 ; $A638: 79 72 A6
   STA $0000                               ; $A63B: 8D 00 00
   LDA $0001                               ; $A63E: AD 01 00
-  ADC $A673,Y                             ; $A641: 79 73 A6
+  ADC BankPageOffsetTable+1,Y               ; $A641: 79 73 A6
   STA $0001                               ; $A644: 8D 01 00
   PLA                                     ; $A647: 68
   CMP #$09                                ; $A648: C9 09
-  BCS Loc_A650                            ; $A64A: B0 04
+  BCS @load_ptr_lo                            ; $A64A: B0 04
   CMP #$03                                ; $A64C: C9 03
-  BCS Loc_A661                            ; $A64E: B0 11
-Loc_A650:
+  BCS @load_ptr_hi                            ; $A64E: B0 11
+@load_ptr_lo:
   LDY #$00                                ; $A650: A0 00
   LDA ($00),Y                             ; $A652: B1 00
-  STA $00A6                               ; $A654: 8D A6 00
+  STA a:data_ptr_lo                      ; $A654: 8D A6 00
   INY                                     ; $A657: C8
   LDA ($00),Y                             ; $A658: B1 00
   CLC                                     ; $A65A: 18
   ADC #$20                                ; $A65B: 69 20
-  STA $00A7                               ; $A65D: 8D A7 00
+  STA a:data_ptr_hi                      ; $A65D: 8D A7 00
   RTS                                     ; $A660: 60
-Loc_A661:
+@load_ptr_hi:
   LDY #$00                                ; $A661: A0 00
   LDA ($00),Y                             ; $A663: B1 00
-  STA $00A6                               ; $A665: 8D A6 00
+  STA a:data_ptr_lo                      ; $A665: 8D A6 00
   INY                                     ; $A668: C8
   LDA ($00),Y                             ; $A669: B1 00
   CLC                                     ; $A66B: 18
   ADC #$40                                ; $A66C: 69 40
-  STA $00A7                               ; $A66E: 8D A7 00
+  STA a:data_ptr_hi                      ; $A66E: 8D A7 00
   RTS                                     ; $A671: 60
-
-; --- Data Region: OffsetWordTable_0672 ---
-  .byte $00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$80; $A672: 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00 80
-  .byte $00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$80; $A682: 00 80 00 80 00 80 00 80 00 80 00 80 00 80
-SwitchDataBank:
+; --- Data Region ---
+BankPageOffsetTable:                        ; $A672
+  .word $8000,$8000,$8000,$8000,$8000,$8000,$8000,$8000; $A672: 00 80 00 80 00 80 00 80 00 80 00 80 00 80 00 80
+  .word $8000,$8000,$8000,$8000,$8000,$8000,$8000; $A682: 00 80 00 80 00 80 00 80 00 80 00 80 00 80
+SelectDataBankByPos:
   LDA #$00                                ; $A690: A9 00
-  LDY $0310                               ; $A692: AC 10 03
+  LDY pos_buf_0                          ; $A692: AC 10 03
   CPY #$20                                ; $A695: C0 20
-  BCC Loc_A69C                            ; $A697: 90 03
+  BCC @switch_bank                            ; $A697: 90 03
   LDA $007A                               ; $A699: AD 7A 00
-Loc_A69C:
+@switch_bank:
   PHA                                     ; $A69C: 48
   TAY                                     ; $A69D: A8
-  LDA $A6A7,Y                             ; $A69E: B9 A7 A6
+  LDA PosDataBankTable,Y                    ; $A69E: B9 A7 A6
   TAY                                     ; $A6A1: A8
   JSR B1F_SwitchBank8_B                   ; $A6A2: 20 5F F2
   PLA                                     ; $A6A5: 68
   RTS                                     ; $A6A6: 60
-
-; --- Data Region: BankSelectTable_06A7 ---
+; --- Data Region: PosDataBankTable ---
+PosDataBankTable:
   .byte $33,$33,$33,$32,$32,$32,$32,$32,$32,$33,$33,$33,$33,$33,$33; $A6A7: 33 33 33 32 32 32 32 32 32 33 33 33 33 33 33
 
-;-----------------------------------------------------------------------------
-; Entry10: Entry10_NumberDisplaySetup
-; Jump table entry 10 at $A01E
-;-----------------------------------------------------------------------------
-Entry10_NumberDisplaySetup:
+.endproc
+
+.proc YearDisplaySetup
+YearDisplaySetup:
   LDA $6F00                               ; $A6B6: AD 00 6F
   CLC                                     ; $A6B9: 18
   ADC #$64                                ; $A6BA: 69 64
@@ -919,9 +998,9 @@ Entry10_NumberDisplaySetup:
   LSR A                                   ; $A71B: 4A
   LSR A                                   ; $A71C: 4A
   LSR A                                   ; $A71D: 4A
-  BNE Loc_A722                            ; $A71E: D0 02
+  BNE @calc_offset                            ; $A71E: D0 02
   LDA #$0E                                ; $A720: A9 0E
-Loc_A722:
+@calc_offset:
   CLC                                     ; $A722: 18
   ADC #$04                                ; $A723: 69 04
   STA $0388                               ; $A725: 8D 88 03
@@ -963,50 +1042,44 @@ Loc_A722:
   STA $007E                               ; $A77B: 8D 7E 00
   RTS                                     ; $A77E: 60
 
-;-----------------------------------------------------------------------------
-; Entry11: Entry11_FrameCounterCheck
-; Jump table entry 11 at $A021
-;-----------------------------------------------------------------------------
-Entry11_FrameCounterCheck:
+.endproc
+
+.proc PeriodicOverlayRefresh
+; Entry: fires every 16th tick (tick ≡ 11 mod 16), delegates to BCD overlay
+::SlowPeriodic:
   LDA $005E                               ; $A77F: AD 5E 00
   CLC                                     ; $A782: 18
   ADC #$05                                ; $A783: 69 05
   AND #$0F                                ; $A785: 29 0F
-  BEQ Entry12_BcdDisplayHandler           ; $A787: F0 29
+  BEQ ImmediateOverlay            ; $A787: F0 29
   RTS                                     ; $A789: 60
 
-;-----------------------------------------------------------------------------
-; Entry15: Entry15_FrameCounterAlt
-; Jump table entry 15 at $A02D
-;-----------------------------------------------------------------------------
-Entry15_FrameCounterAlt:
+; Entry: every 4th tick copies template; every 8th tick also overlays BCD digits
+::FastPeriodic:
   LDA $005E                               ; $A78A: AD 5E 00
   CLC                                     ; $A78D: 18
   ADC #$01                                ; $A78E: 69 01
   AND #$03                                ; $A790: 29 03
-  BNE Loc_A7B1                            ; $A792: D0 1D
+  BNE @frame_exit                            ; $A792: D0 1D
   LDA $005E                               ; $A794: AD 5E 00
   CLC                                     ; $A797: 18
   ADC #$01                                ; $A798: 69 01
   AND #$04                                ; $A79A: 29 04
-  BNE Entry12_BcdDisplayHandler           ; $A79C: D0 14
+  BNE ImmediateOverlay            ; $A79C: D0 14
   LDY #$3A                                ; $A79E: A0 3A
-Loc_A7A0:
-  LDA $A7F6,Y                             ; $A7A0: B9 F6 A7
+@copy_table_loop:
+  LDA OverlayTemplate,Y                   ; $A7A0: B9 F6 A7
   STA $0380,Y                             ; $A7A3: 99 80 03
   DEY                                     ; $A7A6: 88
-  BPL Loc_A7A0                            ; $A7A7: 10 F7
+  BPL @copy_table_loop                            ; $A7A7: 10 F7
   LDA $007E                               ; $A7A9: AD 7E 00
   ORA #$04                                ; $A7AC: 09 04
   STA $007E                               ; $A7AE: 8D 7E 00
-Loc_A7B1:
+@frame_exit:
   RTS                                     ; $A7B1: 60
 
-;-----------------------------------------------------------------------------
-; Entry12: Entry12_BcdDisplayHandler
-; Jump table entry 12 at $A024
-;-----------------------------------------------------------------------------
-Entry12_BcdDisplayHandler:
+; Entry: always converts $6F05 to BCD, copies template, overlays digits
+::ImmediateOverlay:
   LDA #$00                                ; $A7B2: A9 00
   STA $0002                               ; $A7B4: 8D 02 00
   LDA $6F05                               ; $A7B7: AD 05 6F
@@ -1016,21 +1089,21 @@ Entry12_BcdDisplayHandler:
   STA $0003                               ; $A7C2: 8D 03 00
   JSR B1F_MathBinToBcd                    ; $A7C5: 20 BA E9
   LDY #$3A                                ; $A7C8: A0 3A
-Loc_A7CA:
-  LDA $A7F6,Y                             ; $A7CA: B9 F6 A7
+@bcd_copy_loop:
+  LDA OverlayTemplate,Y                   ; $A7CA: B9 F6 A7
   STA $0380,Y                             ; $A7CD: 99 80 03
   DEY                                     ; $A7D0: 88
-  BPL Loc_A7CA                            ; $A7D1: 10 F7
+  BPL @bcd_copy_loop                            ; $A7D1: 10 F7
   LDA $0007                               ; $A7D3: AD 07 00
   LSR A                                   ; $A7D6: 4A
   LSR A                                   ; $A7D7: 4A
   LSR A                                   ; $A7D8: 4A
   LSR A                                   ; $A7D9: 4A
-  BEQ Loc_A7E2                            ; $A7DA: F0 06
+  BEQ @bcd_low_digit                            ; $A7DA: F0 06
   CLC                                     ; $A7DC: 18
   ADC #$76                                ; $A7DD: 69 76
   STA $03AA                               ; $A7DF: 8D AA 03
-Loc_A7E2:
+@bcd_low_digit:
   LDA $0007                               ; $A7E2: AD 07 00
   AND #$0F                                ; $A7E5: 29 0F
   CLC                                     ; $A7E7: 18
@@ -1040,63 +1113,32 @@ Loc_A7E2:
   ORA #$04                                ; $A7F0: 09 04
   STA $007E                               ; $A7F2: 8D 7E 00
   RTS                                     ; $A7F5: 60
-  .byte $04                               ; $A7F6: 04
-  .byte $22                               ; $A7F7: 22
-  LDX #$01                                ; $A7F8: A2 01
-  ORA ($01,X)                             ; $A7FA: 01 01
-  ORA ($04,X)                             ; $A7FC: 01 04
-  .byte $22                               ; $A7FE: 22
-  .byte $C2                               ; $A7FF: C2
-  ORA ($01,X)                             ; $A800: 01 01
-  ORA ($01,X)                             ; $A802: 01 01
-  .byte $04                               ; $A804: 04
-  .byte $22                               ; $A805: 22
-  .byte $E2                               ; $A806: E2
-  ORA ($01,X)                             ; $A807: 01 01
-  ORA ($01,X)                             ; $A809: 01 01
-  .byte $04                               ; $A80B: 04
-  .byte $23                               ; $A80C: 23
-  .byte $02                               ; $A80D: 02
-  ORA ($01,X)                             ; $A80E: 01 01
-  ORA ($01,X)                             ; $A810: 01 01
-  .byte $04                               ; $A812: 04
-  .byte $23                               ; $A813: 23
-  .byte $22                               ; $A814: 22
-  LDY $A5                                 ; $A815: A4 A5
-  ORA ($01,X)                             ; $A817: 01 01
-  PHP                                     ; $A819: 08
-  .byte $23                               ; $A81A: 23
-  RTI                                     ; $A81B: 40
-  ORA ($01,X)                             ; $A81C: 01 01
-  LDX $A7                                 ; $A81E: A6 A7
-  ORA ($01,X)                             ; $A820: 01 01
-  TAY                                     ; $A822: A8
-  ORA ($08,X)                             ; $A823: 01 08
-  .byte $23                               ; $A825: 23
-  RTS                                     ; $A826: 60
-  ORA ($01,X)                             ; $A827: 01 01
-  ORA ($01,X)                             ; $A829: 01 01
-  ORA ($01,X)                             ; $A82B: 01 01
-  ORA ($01,X)                             ; $A82D: 01 01
-  .byte $FF                               ; $A82F: FF
+; Overlay template - 59 bytes copied to display buffer $0380-$03BA
+OverlayTemplate:
+  .byte $04, $22, $01, $01, $01, $04, $01, $01  ; $A7F6
+  .byte $22, $C2, $01, $01, $04, $22, $E2, $01  ; $A7FE
+  .byte $01, $04, $23, $02, $01, $01, $04, $23  ; $A806
+  .byte $22, $01, $01, $08, $23, $01, $01, $01  ; $A80E
+  .byte $A7, $01, $01, $A8, $01, $01, $01, $23  ; $A816
+  .byte $01, $01, $A8, $01, $01, $23, $01, $01  ; $A81E
+  .byte $A8, $01, $01, $A8, $01, $01, $23, $FF  ; $A826
 
-;-----------------------------------------------------------------------------
-; Entry13: Entry13_ProvinceDataHandler
-; Jump table entry 13 at $A027
-;-----------------------------------------------------------------------------
-Entry13_ProvinceDataHandler:
+.endproc
+
+.proc ProvinceDataHandler
+ProvinceDataHandler:
   LDY #$3A                                ; $A830: A0 3A
-Loc_A832:
+@prov_copy_loop:
   LDA $A856,Y                             ; $A832: B9 56 A8
   STA $0380,Y                             ; $A835: 99 80 03
   DEY                                     ; $A838: 88
-  BPL Loc_A832                            ; $A839: 10 F7
+  BPL @prov_copy_loop                            ; $A839: 10 F7
   LDY $0509                               ; $A83B: AC 09 05
   LDA $0664,Y                             ; $A83E: B9 64 06
-  JSR Loc_A957                            ; $A841: 20 57 A9
+  JSR DisplayScaledName                            ; $A841: 20 57 A9
   LDY $0509                               ; $A844: AC 09 05
   LDA $0664,Y                             ; $A847: B9 64 06
-  JSR Loc_A976                            ; $A84A: 20 76 A9
+  JSR DisplayScaledNumber                            ; $A84A: 20 76 A9
   LDA $007E                               ; $A84D: AD 7E 00
   ORA #$04                                ; $A850: 09 04
   STA $007E                               ; $A852: 8D 7E 00
@@ -1145,11 +1187,10 @@ Loc_A832:
   ORA ($01,X)                             ; $A88D: 01 01
   .byte $FF                               ; $A88F: FF
 
-;-----------------------------------------------------------------------------
-; Entry14: Entry14_OfficerLookup
-; Jump table entry 14 at $A02A
-;-----------------------------------------------------------------------------
-Entry14_OfficerLookup:
+.endproc
+
+.proc OfficerLookup
+OfficerLookup:
   LDA $0000                               ; $A890: AD 00 00
   PHA                                     ; $A893: 48
   LDA #$00                                ; $A894: A9 00
@@ -1160,22 +1201,21 @@ Entry14_OfficerLookup:
   PLA                                     ; $A8A0: 68
   STA $0000                               ; $A8A1: 8D 00 00
 
-;-----------------------------------------------------------------------------
-; Entry16: Entry16_NameDisplay
-; Jump table entry 16 at $A030
-;-----------------------------------------------------------------------------
-Entry16_NameDisplay:
+.endproc
+
+.proc NameDisplay
+NameDisplay:
   LDY #$3A                                ; $A8A4: A0 3A
-Loc_A8A6:
+@name_copy_loop:
   LDA $A8C3,Y                             ; $A8A6: B9 C3 A8
   STA $0380,Y                             ; $A8A9: 99 80 03
   DEY                                     ; $A8AC: 88
-  BPL Loc_A8A6                            ; $A8AD: 10 F7
+  BPL @name_copy_loop                            ; $A8AD: 10 F7
   LDA $0000                               ; $A8AF: AD 00 00
   PHA                                     ; $A8B2: 48
-  JSR Loc_A957                            ; $A8B3: 20 57 A9
+  JSR DisplayScaledName                            ; $A8B3: 20 57 A9
   PLA                                     ; $A8B6: 68
-  JSR Loc_A976                            ; $A8B7: 20 76 A9
+  JSR DisplayScaledNumber                            ; $A8B7: 20 76 A9
   LDA $007E                               ; $A8BA: AD 7E 00
   ORA #$04                                ; $A8BD: 09 04
   STA $007E                               ; $A8BF: 8D 7E 00
@@ -1230,21 +1270,20 @@ Loc_A8A6:
   ORA ($01,X)                             ; $A8FA: 01 01
   .byte $FF                               ; $A8FC: FF
 
-;-----------------------------------------------------------------------------
-; Entry17: Entry17_RecordProcessor
-; Jump table entry 17 at $A033
-;-----------------------------------------------------------------------------
-Entry17_RecordProcessor:
+.endproc
+
+.proc RecordProcessor
+RecordProcessor:
   LDY #$3A                                ; $A8FD: A0 3A
-Loc_A8FF:
+@rec_copy_loop:
   LDA $A91D,Y                             ; $A8FF: B9 1D A9
   STA $0380,Y                             ; $A902: 99 80 03
   DEY                                     ; $A905: 88
-  BPL Loc_A8FF                            ; $A906: 10 F7
+  BPL @rec_copy_loop                            ; $A906: 10 F7
   LDA $04AE                               ; $A908: AD AE 04
-  JSR Loc_A957                            ; $A90B: 20 57 A9
+  JSR DisplayScaledName                            ; $A90B: 20 57 A9
   LDA $04AE                               ; $A90E: AD AE 04
-  JSR Loc_A976                            ; $A911: 20 76 A9
+  JSR DisplayScaledNumber                            ; $A911: 20 76 A9
   LDA $007E                               ; $A914: AD 7E 00
   ORA #$04                                ; $A917: 09 04
   STA $007E                               ; $A919: 8D 7E 00
@@ -1289,72 +1328,71 @@ Loc_A8FF:
   ORA ($01,X)                             ; $A952: 01 01
   ORA ($01,X)                             ; $A954: 01 01
   .byte $FF                               ; $A956: FF
-Loc_A957:
+DisplayScaledName:
   JSR B1F_GetNameDisplayScale             ; $A957: 20 08 F3
   TAX                                     ; $A95A: AA
   LDY #$00                                ; $A95B: A0 00
-Loc_A95D:
+@name_scan_loop:
   LDA ($00),Y                             ; $A95D: B1 00
-  BEQ Loc_A96E                            ; $A95F: F0 0D
+  BEQ @name_scan_done                            ; $A95F: F0 0D
   CMP #$39                                ; $A961: C9 39
   BEQ FormatNumberPair                    ; $A963: F0 0A
   CMP #$3A                                ; $A965: C9 3A
   BEQ FormatNumberPair                    ; $A967: F0 06
   INY                                     ; $A969: C8
   INX                                     ; $A96A: E8
-  JMP Loc_A95D                            ; $A96B: 4C 5D A9
-Loc_A96E:
+  JMP @name_scan_loop                            ; $A96B: 4C 5D A9
+@name_scan_done:
   RTS                                     ; $A96E: 60
 FormatNumberPair:
   STA $03A5,X                             ; $A96F: 9D A5 03
   INY                                     ; $A972: C8
-  JMP Loc_A95D                            ; $A973: 4C 5D A9
-Loc_A976:
+  JMP @name_scan_loop                            ; $A973: 4C 5D A9
+DisplayScaledNumber:
   JSR B1F_GetNameDisplayScale             ; $A976: 20 08 F3
   TAX                                     ; $A979: AA
   LDY #$00                                ; $A97A: A0 00
-Loc_A97C:
+@num_scan_loop:
   LDA ($00),Y                             ; $A97C: B1 00
-  BEQ Loc_A990                            ; $A97E: F0 10
+  BEQ @num_scan_done                            ; $A97E: F0 10
   CMP #$39                                ; $A980: C9 39
-  BEQ Loc_A98C                            ; $A982: F0 08
+  BEQ @num_scan_next                            ; $A982: F0 08
   CMP #$3A                                ; $A984: C9 3A
-  BEQ Loc_A98C                            ; $A986: F0 04
+  BEQ @num_scan_next                            ; $A986: F0 04
   STA $03B1,X                             ; $A988: 9D B1 03
   INX                                     ; $A98B: E8
-Loc_A98C:
+@num_scan_next:
   INY                                     ; $A98C: C8
-  JMP Loc_A97C                            ; $A98D: 4C 7C A9
-Loc_A990:
+  JMP @num_scan_loop                            ; $A98D: 4C 7C A9
+@num_scan_done:
   RTS                                     ; $A990: 60
 
-;-----------------------------------------------------------------------------
-; Entry20: Entry20_DataFormatter
-; Jump table entry 20 at $A03C
-;-----------------------------------------------------------------------------
-Entry20_DataFormatter:
+.endproc
+
+.proc DataFormatter
+DataFormatter:
   LDA $0001                               ; $A991: AD 01 00
-  BNE Loc_A9A4                            ; $A994: D0 0E
+  BNE @fmt_setup2                            ; $A994: D0 0E
   LDY #$3A                                ; $A996: A0 3A
-Loc_A998:
+@fmt_copy_loop1:
   LDA $A9FD,Y                             ; $A998: B9 FD A9
   STA $0380,Y                             ; $A99B: 99 80 03
   DEY                                     ; $A99E: 88
-  BPL Loc_A998                            ; $A99F: 10 F7
-  JMP Loc_A9AF                            ; $A9A1: 4C AF A9
-Loc_A9A4:
+  BPL @fmt_copy_loop1                            ; $A99F: 10 F7
+  JMP @fmt_process                            ; $A9A1: 4C AF A9
+@fmt_setup2:
   LDY #$3A                                ; $A9A4: A0 3A
-Loc_A9A6:
+@fmt_copy_loop2:
   LDA $A9C3,Y                             ; $A9A6: B9 C3 A9
   STA $0380,Y                             ; $A9A9: 99 80 03
   DEY                                     ; $A9AC: 88
-  BPL Loc_A9A6                            ; $A9AD: 10 F7
-Loc_A9AF:
+  BPL @fmt_copy_loop2                            ; $A9AD: 10 F7
+@fmt_process:
   LDA $0000                               ; $A9AF: AD 00 00
   PHA                                     ; $A9B2: 48
-  JSR Loc_A957                            ; $A9B3: 20 57 A9
+  JSR DisplayScaledName                            ; $A9B3: 20 57 A9
   PLA                                     ; $A9B6: 68
-  JSR Loc_A976                            ; $A9B7: 20 76 A9
+  JSR DisplayScaledNumber                            ; $A9B7: 20 76 A9
   LDA $007E                               ; $A9BA: AD 7E 00
   ORA #$04                                ; $A9BD: 09 04
   STA $007E                               ; $A9BF: 8D 7E 00
@@ -1460,11 +1498,10 @@ ProcessItemEntry:
   ORA ($01,X)                             ; $AA34: 01 01
   .byte $FF                               ; $AA36: FF
 
-;-----------------------------------------------------------------------------
-; Entry22: Entry22_BankedDataHandler
-; Jump table entry 22 at $A042
-;-----------------------------------------------------------------------------
-Entry22_BankedDataHandler:
+.endproc
+
+.proc BankedDataHandler
+BankedDataHandler:
   LDA $000A                               ; $AA37: AD 0A 00
   PHA                                     ; $AA3A: 48
   LDA $000B                               ; $AA3B: AD 0B 00
@@ -1473,9 +1510,9 @@ Entry22_BankedDataHandler:
   PHA                                     ; $AA42: 48
   LDA $000B                               ; $AA43: AD 0B 00
   CMP #$FF                                ; $AA46: C9 FF
-  BEQ Loc_AA4D                            ; $AA48: F0 03
-  JSR Loc_AB38                            ; $AA4A: 20 38 AB
-Loc_AA4D:
+  BEQ @skip_jsr                            ; $AA48: F0 03
+  JSR @setup_bank_data                            ; $AA4A: 20 38 AB
+@skip_jsr:
   PLA                                     ; $AA4D: 68
   STA $000C                               ; $AA4E: 8D 0C 00
   PLA                                     ; $AA51: 68
@@ -1483,20 +1520,20 @@ Loc_AA4D:
   PLA                                     ; $AA55: 68
   STA $000A                               ; $AA56: 8D 0A 00
   LDA $000C                               ; $AA59: AD 0C 00
-  BEQ Loc_AA5F                            ; $AA5C: F0 01
+  BEQ @clear_display                            ; $AA5C: F0 01
   RTS                                     ; $AA5E: 60
-Loc_AA5F:
+@clear_display:
   LDY #$30                                ; $AA5F: A0 30
   LDA #$01                                ; $AA61: A9 01
-Loc_AA63:
+@clear_loop:
   STA $0380,Y                             ; $AA63: 99 80 03
   DEY                                     ; $AA66: 88
-  BPL Loc_AA63                            ; $AA67: 10 FA
+  BPL @clear_loop                            ; $AA67: 10 FA
   LDA $000A                               ; $AA69: AD 0A 00
   CMP #$FF                                ; $AA6C: C9 FF
-  BNE Loc_AA73                            ; $AA6E: D0 03
-  JMP Loc_AADE                            ; $AA70: 4C DE AA
-Loc_AA73:
+  BNE @calc_index                            ; $AA6E: D0 03
+  JMP @init_display                            ; $AA70: 4C DE AA
+@calc_index:
   ASL A                                   ; $AA73: 0A
   CLC                                     ; $AA74: 18
   ADC $000A                               ; $AA75: 6D 0A 00
@@ -1538,7 +1575,7 @@ Loc_AA73:
   LDA #$D1                                ; $AAD7: A9 D1
   STA $039D                               ; $AAD9: 8D 9D 03
   LDA #$FF                                ; $AADC: A9 FF
-Loc_AADE:
+@init_display:
   LDA #$10                                ; $AADE: A9 10
   STA $0380                               ; $AAE0: 8D 80 03
   STA $0393                               ; $AAE3: 8D 93 03
@@ -1577,7 +1614,7 @@ Loc_AADE:
   CPY $C6CD                               ; $AB22: CC CD C6
   .byte $C7                               ; $AB25: C7
   .byte $D2                               ; $AB26: D2
-Loc_AB27:
+@data_bytes:
   .byte $D3                               ; $AB27: D3
   .byte $DC                               ; $AB28: DC
   CMP $D7D6,X                             ; $AB29: DD D6 D7
@@ -1585,9 +1622,9 @@ Loc_AB27:
   SBC ($01,X)                             ; $AB2F: E1 01
   ORA ($DE,X)                             ; $AB31: 01 DE
   .byte $DF                               ; $AB33: DF
-  BEQ Loc_AB27                            ; $AB34: F0 F1
+  BEQ @data_bytes                            ; $AB34: F0 F1
   ORA ($01,X)                             ; $AB36: 01 01
-Loc_AB38:
+@setup_bank_data:
   LDY #$31                                ; $AB38: A0 31
   JSR B1F_SwitchBank8_B                   ; $AB3A: 20 5F F2
   LDA $000B                               ; $AB3D: AD 0B 00
@@ -1610,10 +1647,10 @@ Loc_AB38:
   STA $00B9                               ; $AB68: 8D B9 00
   LDX #$30                                ; $AB6B: A2 30
   LDY #$01                                ; $AB6D: A0 01
-Loc_AB6F:
+@copy_data_loop:
   LDA ($00),Y                             ; $AB6F: B1 00
   CMP #$FF                                ; $AB71: C9 FF
-  BEQ Loc_AB82                            ; $AB73: F0 0D
+  BEQ @copy_data_done                            ; $AB73: F0 0D
   TXA                                     ; $AB75: 8A
   SEC                                     ; $AB76: 38
   SBC #$10                                ; $AB77: E9 10
@@ -1623,15 +1660,15 @@ Loc_AB6F:
   INY                                     ; $AB7C: C8
   INY                                     ; $AB7D: C8
   CPY #$0D                                ; $AB7E: C0 0D
-  BCC Loc_AB6F                            ; $AB80: 90 ED
-Loc_AB82:
+  BCC @copy_data_loop                            ; $AB80: 90 ED
+@copy_data_done:
   STX $0002                               ; $AB82: 8E 02 00
   LDX $007C                               ; $AB85: AE 7C 00
   LDY #$01                                ; $AB88: A0 01
-Loc_AB8A:
+@copy_name_loop:
   LDA ($00),Y                             ; $AB8A: B1 00
   CMP #$FF                                ; $AB8C: C9 FF
-  BEQ Loc_ABB4                            ; $AB8E: F0 24
+  BEQ @copy_name_done                            ; $AB8E: F0 24
   CLC                                     ; $AB90: 18
   ADC #$C0                                ; $AB91: 69 C0
   STA $0201,X                             ; $AB93: 9D 01 02
@@ -1649,8 +1686,8 @@ Loc_AB8A:
   INX                                     ; $ABAE: E8
   INY                                     ; $ABAF: C8
   CPY #$0D                                ; $ABB0: C0 0D
-  BCC Loc_AB8A                            ; $ABB2: 90 D6
-Loc_ABB4:
+  BCC @copy_name_loop                            ; $ABB2: 90 D6
+@copy_name_done:
   STX $007C                               ; $ABB4: 8E 7C 00
   RTS                                     ; $ABB7: 60
   .byte $F0, $AF ; $ABB8: F0 AF
@@ -1670,68 +1707,67 @@ Loc_ABB4:
   SEC                                     ; $ABC8: 38
   RTI                                     ; $ABC9: 40
   PHA                                     ; $ABCA: 48
-  BVC Loc_AC15                            ; $ABCB: 50 48
-  BVC Loc_AC27                            ; $ABCD: 50 58
+  BVC @jmp_dispatch                            ; $ABCB: 50 48
+  BVC @check_val                            ; $ABCD: 50 58
   RTS                                     ; $ABCF: 60
   CLI                                     ; $ABD0: 58
   RTS                                     ; $ABD1: 60
 
-;-----------------------------------------------------------------------------
-; Entry03: Entry03_StateHandler
-; Jump table entry 3 at $A009
-;-----------------------------------------------------------------------------
-Entry03_StateHandler:
+.endproc
+
+.proc StateHandler
+StateHandler:
   LDA $037C                               ; $ABD2: AD 7C 03
-  BEQ Loc_ABF4                            ; $ABD5: F0 1D
+  BEQ @check_state                            ; $ABD5: F0 1D
   LDY #$31                                ; $ABD7: A0 31
   JSR B1F_SwitchBank8_B                   ; $ABD9: 20 5F F2
   LDA $037D                               ; $ABDC: AD 7D 03
   CMP #$FF                                ; $ABDF: C9 FF
-  BEQ Loc_ABE8                            ; $ABE1: F0 05
+  BEQ @check_sub1                            ; $ABE1: F0 05
   LDA #$01                                ; $ABE3: A9 01
   JSR RenderSubState                      ; $ABE5: 20 4C B1
-Loc_ABE8:
+@check_sub1:
   LDA $037E                               ; $ABE8: AD 7E 03
   CMP #$FF                                ; $ABEB: C9 FF
-  BEQ Loc_ABF4                            ; $ABED: F0 05
+  BEQ @check_state                            ; $ABED: F0 05
   LDA #$02                                ; $ABEF: A9 02
   JSR RenderSubState                      ; $ABF1: 20 4C B1
-Loc_ABF4:
+@check_state:
   LDA $0140                               ; $ABF4: AD 40 01
-  BEQ Loc_AC38                            ; $ABF7: F0 3F
+  BEQ @state_rts                            ; $ABF7: F0 3F
   LDA $0140                               ; $ABF9: AD 40 01
-  BMI Loc_AC39                            ; $ABFC: 30 3B
+  BMI @init_state5                            ; $ABFC: 30 3B
   AND #$0F                                ; $ABFE: 29 0F
   CMP #$01                                ; $AC00: C9 01
-  BEQ Loc_AC18                            ; $AC02: F0 14
+  BEQ @clear_state                            ; $AC02: F0 14
   LDA $007E                               ; $AC04: AD 7E 00
   AND #$08                                ; $AC07: 29 08
-  BNE Loc_AC38                            ; $AC09: D0 2D
+  BNE @state_rts                            ; $AC09: D0 2D
   LDA $0150                               ; $AC0B: AD 50 01
   AND #$0F                                ; $AC0E: 29 0F
-  BNE Loc_AC15                            ; $AC10: D0 03
-  JMP Loc_AEC9                            ; $AC12: 4C C9 AE
-Loc_AC15:
-  JMP Loc_ADF3                            ; $AC15: 4C F3 AD
-Loc_AC18:
+  BNE @jmp_dispatch                            ; $AC10: D0 03
+  JMP @advance_draw                            ; $AC12: 4C C9 AE
+@jmp_dispatch:
+  JMP @advance_state                            ; $AC15: 4C F3 AD
+@clear_state:
   LDA #$00                                ; $AC18: A9 00
   STA $0140                               ; $AC1A: 8D 40 01
   LDA $0150                               ; $AC1D: AD 50 01
   AND #$0F                                ; $AC20: 29 0F
-  BNE Loc_AC27                            ; $AC22: D0 03
+  BNE @check_val                            ; $AC22: D0 03
   STA $0420                               ; $AC24: 8D 20 04
-Loc_AC27:
+@check_val:
   CMP #$01                                ; $AC27: C9 01
-  BNE Loc_AC30                            ; $AC29: D0 05
+  BNE @store_flags                            ; $AC29: D0 05
   LDA #$FF                                ; $AC2B: A9 FF
   STA $037C                               ; $AC2D: 8D 7C 03
-Loc_AC30:
+@store_flags:
   LDA $0150                               ; $AC30: AD 50 01
   AND #$80                                ; $AC33: 29 80
   STA $0150                               ; $AC35: 8D 50 01
-Loc_AC38:
+@state_rts:
   RTS                                     ; $AC38: 60
-Loc_AC39:
+@init_state5:
   LDA #$00                                ; $AC39: A9 00
   STA $037C                               ; $AC3B: 8D 7C 03
   LDA #$05                                ; $AC3E: A9 05
@@ -1744,9 +1780,9 @@ Loc_AC39:
   STA $0154                               ; $AC4F: 8D 54 01
   LDA $0150                               ; $AC52: AD 50 01
   AND #$0F                                ; $AC55: 29 0F
-  BNE Loc_AC5C                            ; $AC57: D0 03
-  JMP Loc_AD92                            ; $AC59: 4C 92 AD
-Loc_AC5C:
+  BNE @setup_coords1                            ; $AC57: D0 03
+  JMP @init_window                            ; $AC59: 4C 92 AD
+@setup_coords1:
   LDA #$83                                ; $AC5C: A9 83
   STA $0152                               ; $AC5E: 8D 52 01
   LDA #$B6                                ; $AC61: A9 B6
@@ -1759,20 +1795,20 @@ Loc_AC5C:
   STA $00DC                               ; $AC74: 8D DC 00
   LDY #$80                                ; $AC77: A0 80
   LDA $0150                               ; $AC79: AD 50 01
-  BPL Loc_AC80                            ; $AC7C: 10 02
+  BPL @set_scroll                            ; $AC7C: 10 02
   LDY #$40                                ; $AC7E: A0 40
-Loc_AC80:
+@set_scroll:
   STY $0420                               ; $AC80: 8C 20 04
   AND #$0F                                ; $AC83: 29 0F
   CMP #$01                                ; $AC85: C9 01
-  BEQ Loc_ACCD                            ; $AC87: F0 44
+  BEQ @setup_case1                            ; $AC87: F0 44
   CMP #$02                                ; $AC89: C9 02
-  BEQ Loc_AC95                            ; $AC8B: F0 08
+  BEQ @setup_case3                            ; $AC8B: F0 08
   CMP #$03                                ; $AC8D: C9 03
-  BEQ Loc_ACAF                            ; $AC8F: F0 1E
+  BEQ @setup_case5                            ; $AC8F: F0 1E
   CMP #$04                                ; $AC91: C9 04
-  BEQ Loc_ACBE                            ; $AC93: F0 29
-Loc_AC95:
+  BEQ @setup_case4                            ; $AC93: F0 29
+@setup_case3:
   LDA #$E5                                ; $AC95: A9 E5
   STA $0149                               ; $AC97: 8D 49 01
   LDA #$B3                                ; $AC9A: A9 B3
@@ -1782,22 +1818,22 @@ Loc_AC95:
   STA $00C3                               ; $ACA4: 8D C3 00
   STA $00CB                               ; $ACA7: 8D CB 00
   LDA #$05                                ; $ACAA: A9 05
-  JMP Loc_AD1F                            ; $ACAC: 4C 1F AD
-Loc_ACAF:
+  JMP @set_counters2                            ; $ACAC: 4C 1F AD
+@setup_case5:
   LDA #$C1                                ; $ACAF: A9 C1
   STA $0149                               ; $ACB1: 8D 49 01
   LDA #$B4                                ; $ACB4: A9 B4
   STA $014A                               ; $ACB6: 8D 4A 01
   LDA #$05                                ; $ACB9: A9 05
-  JMP Loc_AD16                            ; $ACBB: 4C 16 AD
-Loc_ACBE:
+  JMP @set_counters1                            ; $ACBB: 4C 16 AD
+@setup_case4:
   LDA #$9C                                ; $ACBE: A9 9C
   STA $0149                               ; $ACC0: 8D 49 01
   LDA #$B5                                ; $ACC3: A9 B5
   STA $014A                               ; $ACC5: 8D 4A 01
   LDA #$05                                ; $ACC8: A9 05
-  JMP Loc_AD16                            ; $ACCA: 4C 16 AD
-Loc_ACCD:
+  JMP @set_counters1                            ; $ACCA: 4C 16 AD
+@setup_case1:
   LDA #$05                                ; $ACCD: A9 05
   STA $0149                               ; $ACCF: 8D 49 01
   LDA #$B3                                ; $ACD2: A9 B3
@@ -1810,10 +1846,10 @@ Loc_ACCD:
   LDY #$00                                ; $ACE4: A0 00
   LDA ($00),Y                             ; $ACE6: B1 00
   CMP #$07                                ; $ACE8: C9 07
-  BNE Loc_ACF1                            ; $ACEA: D0 05
+  BNE @load_table_addr                            ; $ACEA: D0 05
   LDA #$FF                                ; $ACEC: A9 FF
-  JMP Loc_AD03                            ; $ACEE: 4C 03 AD
-Loc_ACF1:
+  JMP @init_timers                            ; $ACEE: 4C 03 AD
+@load_table_addr:
   ASL A                                   ; $ACF1: 0A
   TAY                                     ; $ACF2: A8
   LDA $AD84,Y                             ; $ACF3: B9 84 AD
@@ -1822,7 +1858,7 @@ Loc_ACF1:
   STA $0001                               ; $ACFC: 8D 01 00
   LDY #$00                                ; $ACFF: A0 00
   LDA ($00),Y                             ; $AD01: B1 00
-Loc_AD03:
+@init_timers:
   STA $037D                               ; $AD03: 8D 7D 03
   LDA #$08                                ; $AD06: A9 08
   STA $00B4                               ; $AD08: 8D B4 00
@@ -1830,11 +1866,11 @@ Loc_AD03:
   STA $00CC                               ; $AD0E: 8D CC 00
   STA $00D4                               ; $AD11: 8D D4 00
   LDA #$01                                ; $AD14: A9 01
-Loc_AD16:
+@set_counters1:
   STA $00B3                               ; $AD16: 8D B3 00
   STA $00C3                               ; $AD19: 8D C3 00
   STA $00CB                               ; $AD1C: 8D CB 00
-Loc_AD1F:
+@set_counters2:
   STA $00D3                               ; $AD1F: 8D D3 00
   STA $00DB                               ; $AD22: 8D DB 00
   LDA #$00                                ; $AD25: A9 00
@@ -1848,7 +1884,7 @@ Loc_AD1F:
   LDA #$23                                ; $AD3B: A9 23
   STA $0148                               ; $AD3D: 8D 48 01
   LDA $0150                               ; $AD40: AD 50 01
-  BPL Loc_AD5B                            ; $AD43: 10 16
+  BPL @setup_pos1                            ; $AD43: 10 16
   LDA #$C4                                ; $AD45: A9 C4
   STA $0147                               ; $AD47: 8D 47 01
   LDA #$7F                                ; $AD4A: A9 7F
@@ -1857,8 +1893,8 @@ Loc_AD1F:
   STA $0146                               ; $AD51: 8D 46 01
   LDX #$10                                ; $AD54: A2 10
   LDY #$CC                                ; $AD56: A0 CC
-  JMP Loc_AD6E                            ; $AD58: 4C 6E AD
-Loc_AD5B:
+  JMP @update_pos                            ; $AD58: 4C 6E AD
+@setup_pos1:
   LDA #$C0                                ; $AD5B: A9 C0
   STA $0147                               ; $AD5D: 8D 47 01
   LDA #$7B                                ; $AD60: A9 7B
@@ -1867,7 +1903,7 @@ Loc_AD5B:
   STA $0146                               ; $AD67: 8D 46 01
   LDX #$02                                ; $AD6A: A2 02
   LDY #$C8                                ; $AD6C: A0 C8
-Loc_AD6E:
+@update_pos:
   STX $0141                               ; $AD6E: 8E 41 01
   TYA                                     ; $AD71: 98
   CLC                                     ; $AD72: 18
@@ -1880,7 +1916,7 @@ Loc_AD6E:
 ; --- Data Region: PointerTable_AD81 ---
   .byte $4C,$F3,$AD,$07,$6F,$0F,$6F,$17,$6F,$1F,$6F,$27,$6F,$2F,$6F,$37; $AD81: 4C F3 AD 07 6F 0F 6F 17 6F 1F 6F 27 6F 2F 6F 37
   .byte $6F                               ; $AD91: 6F
-Loc_AD92:
+@init_window:
   LDA #$22                                ; $AD92: A9 22
   STA $0142                               ; $AD94: 8D 42 01
   LDA #$03                                ; $AD97: A9 03
@@ -1890,22 +1926,22 @@ Loc_AD92:
   LDA #$00                                ; $ADA1: A9 00
   STA $037C                               ; $ADA3: 8D 7C 03
   LDA $0150                               ; $ADA6: AD 50 01
-  BPL Loc_ADBC                            ; $ADA9: 10 11
+  BPL @setup_pos2                            ; $ADA9: 10 11
   LDA #$E4                                ; $ADAB: A9 E4
   STA $0145                               ; $ADAD: 8D 45 01
   LDA #$EC                                ; $ADB0: A9 EC
   STA $0147                               ; $ADB2: 8D 47 01
   LDX #$90                                ; $ADB5: A2 90
   LDY #$10                                ; $ADB7: A0 10
-  JMP Loc_ADCA                            ; $ADB9: 4C CA AD
-Loc_ADBC:
+  JMP @update_pos2                            ; $ADB9: 4C CA AD
+@setup_pos2:
   LDA #$E0                                ; $ADBC: A9 E0
   STA $0145                               ; $ADBE: 8D 45 01
   LDA #$E8                                ; $ADC1: A9 E8
   STA $0147                               ; $ADC3: 8D 47 01
   LDX #$82                                ; $ADC6: A2 82
   LDY #$02                                ; $ADC8: A0 02
-Loc_ADCA:
+@update_pos2:
   STX $0141                               ; $ADCA: 8E 41 01
   LDA $0143                               ; $ADCD: AD 43 01
   CLC                                     ; $ADD0: 18
@@ -1921,8 +1957,8 @@ Loc_ADCA:
   LDA $0144                               ; $ADE8: AD 44 01
   ADC #$02                                ; $ADEB: 69 02
   STA $0144                               ; $ADED: 8D 44 01
-  JMP Loc_AEC9                            ; $ADF0: 4C C9 AE
-Loc_ADF3:
+  JMP @advance_draw                            ; $ADF0: 4C C9 AE
+@advance_state:
   DEC $0140                               ; $ADF3: CE 40 01
   LDY #$30                                ; $ADF6: A0 30
   JSR B1F_SwitchBank8_B                   ; $ADF8: 20 5F F2
@@ -1932,22 +1968,22 @@ Loc_ADF3:
   STA $0011                               ; $AE04: 8D 11 00
   LDY #$00                                ; $AE07: A0 00
   LDX #$00                                ; $AE09: A2 00
-Loc_AE0B:
+@copy_buf_loop:
   LDA ($10),Y                             ; $AE0B: B1 10
   CMP #$F0                                ; $AE0D: C9 F0
-  BCS Loc_AE19                            ; $AE0F: B0 08
+  BCS @handle_special                            ; $AE0F: B0 08
   STA $0160,X                             ; $AE11: 9D 60 01
   INY                                     ; $AE14: C8
   INX                                     ; $AE15: E8
-  JMP Loc_AE1C                            ; $AE16: 4C 1C AE
-Loc_AE19:
-  JSR Loc_AF77                            ; $AE19: 20 77 AF
-Loc_AE1C:
+  JMP @check_copy_done                            ; $AE16: 4C 1C AE
+@handle_special:
+  JSR @store_extra                            ; $AE19: 20 77 AF
+@check_copy_done:
   CPX #$38                                ; $AE1C: E0 38
-  BCC Loc_AE0B                            ; $AE1E: 90 EB
+  BCC @copy_buf_loop                            ; $AE1E: 90 EB
   TYA                                     ; $AE20: 98
   LDY #$09                                ; $AE21: A0 09
-  JSR Loc_AF66                            ; $AE23: 20 66 AF
+  JSR @add_offset                            ; $AE23: 20 66 AF
   LDA $0145                               ; $AE26: AD 45 01
   STA $0010                               ; $AE29: 8D 10 00
   LDA $0146                               ; $AE2C: AD 46 01
@@ -1962,67 +1998,67 @@ Loc_AE1C:
   ORA ($10),Y                             ; $AE44: 11 10
   STA $014B,Y                             ; $AE46: 99 4B 01
   INY                                     ; $AE49: C8
-Loc_AE4A:
+@copy_3bytes:
   LDA ($10),Y                             ; $AE4A: B1 10
   STA $014B,Y                             ; $AE4C: 99 4B 01
   INY                                     ; $AE4F: C8
   CPY #$03                                ; $AE50: C0 03
-  BCC Loc_AE4A                            ; $AE52: 90 F6
+  BCC @copy_3bytes                            ; $AE52: 90 F6
   LDA ($12),Y                             ; $AE54: B1 12
   AND #$CC                                ; $AE56: 29 CC
   ORA ($10),Y                             ; $AE58: 11 10
   STA $014B,Y                             ; $AE5A: 99 4B 01
   LDA #$08                                ; $AE5D: A9 08
   LDY #$07                                ; $AE5F: A0 07
-  JSR Loc_AF66                            ; $AE61: 20 66 AF
+  JSR @add_offset                            ; $AE61: 20 66 AF
   LDA #$08                                ; $AE64: A9 08
   LDY #$03                                ; $AE66: A0 03
-  JSR Loc_AF66                            ; $AE68: 20 66 AF
+  JSR @add_offset                            ; $AE68: 20 66 AF
   LDA #$80                                ; $AE6B: A9 80
   LDY #$01                                ; $AE6D: A0 01
-  JSR Loc_AF66                            ; $AE6F: 20 66 AF
+  JSR @add_offset                            ; $AE6F: 20 66 AF
   LDA $0150                               ; $AE72: AD 50 01
   AND #$0F                                ; $AE75: 29 0F
   CMP #$01                                ; $AE77: C9 01
-  BNE Loc_AEC0                            ; $AE79: D0 45
+  BNE @state_done                            ; $AE79: D0 45
   LDA $0140                               ; $AE7B: AD 40 01
   CMP #$04                                ; $AE7E: C9 04
-  BNE Loc_AE85                            ; $AE80: D0 03
+  BNE @check_province                            ; $AE80: D0 03
   JSR DrawOfficerName                     ; $AE82: 20 AB B0
-Loc_AE85:
+@check_province:
   LDA $0402                               ; $AE85: AD 02 04
   JSR B1F_GetProvinceRecordAddr           ; $AE88: 20 AF F2
   LDY #$00                                ; $AE8B: A0 00
   LDA ($00),Y                             ; $AE8D: B1 00
   CMP #$07                                ; $AE8F: C9 07
-  BEQ Loc_AEC0                            ; $AE91: F0 2D
+  BEQ @state_done                            ; $AE91: F0 2D
   LDA $0140                               ; $AE93: AD 40 01
   CMP #$04                                ; $AE96: C9 04
-  BEQ Loc_AEA5                            ; $AE98: F0 0B
+  BEQ @action_0                            ; $AE98: F0 0B
   CMP #$03                                ; $AE9A: C9 03
-  BEQ Loc_AEAD                            ; $AE9C: F0 0F
+  BEQ @action_1                            ; $AE9C: F0 0F
   CMP #$02                                ; $AE9E: C9 02
-  BEQ Loc_AEB8                            ; $AEA0: F0 16
-  JMP Loc_AEC0                            ; $AEA2: 4C C0 AE
-Loc_AEA5:
+  BEQ @action_2                            ; $AEA0: F0 16
+  JMP @state_done                            ; $AEA2: 4C C0 AE
+@action_0:
   LDA #$00                                ; $AEA5: A9 00
   JSR $B23A                               ; $AEA7: 20 3A B2
-  JMP Loc_AEC0                            ; $AEAA: 4C C0 AE
-Loc_AEAD:
+  JMP @state_done                            ; $AEAA: 4C C0 AE
+@action_1:
   LDA #$01                                ; $AEAD: A9 01
   JSR $B23A                               ; $AEAF: 20 3A B2
-  JSR Loc_B27A                            ; $AEB2: 20 7A B2
-  JMP Loc_AEC0                            ; $AEB5: 4C C0 AE
-Loc_AEB8:
+  JSR @draw_name_scaled                            ; $AEB2: 20 7A B2
+  JMP @state_done                            ; $AEB5: 4C C0 AE
+@action_2:
   LDA #$02                                ; $AEB8: A9 02
   STA $000F                               ; $AEBA: 8D 0F 00
-  JSR Loc_B27A                            ; $AEBD: 20 7A B2
-Loc_AEC0:
+  JSR @draw_name_scaled                            ; $AEBD: 20 7A B2
+@state_done:
   LDA $007E                               ; $AEC0: AD 7E 00
   ORA #$08                                ; $AEC3: 09 08
   STA $007E                               ; $AEC5: 8D 7E 00
   RTS                                     ; $AEC8: 60
-Loc_AEC9:
+@advance_draw:
   DEC $0140                               ; $AEC9: CE 40 01
   LDY #$30                                ; $AECC: A0 30
   JSR B1F_SwitchBank8_B                   ; $AECE: 20 5F F2
@@ -2031,15 +2067,15 @@ Loc_AEC9:
   LDA $0144                               ; $AED7: AD 44 01
   STA $0011                               ; $AEDA: 8D 11 00
   LDX #$00                                ; $AEDD: A2 00
-Loc_AEDF:
+@copy_row:
   LDY #$00                                ; $AEDF: A0 00
-Loc_AEE1:
+@copy_row_loop:
   LDA ($10),Y                             ; $AEE1: B1 10
   STA $0160,X                             ; $AEE3: 9D 60 01
   INY                                     ; $AEE6: C8
   INX                                     ; $AEE7: E8
   CPY #$0E                                ; $AEE8: C0 0E
-  BCC Loc_AEE1                            ; $AEEA: 90 F5
+  BCC @copy_row_loop                            ; $AEEA: 90 F5
   LDA $0010                               ; $AEEC: AD 10 00
   CLC                                     ; $AEEF: 18
   ADC #$20                                ; $AEF0: 69 20
@@ -2048,7 +2084,7 @@ Loc_AEE1:
   ADC #$00                                ; $AEF8: 69 00
   STA $0011                               ; $AEFA: 8D 11 00
   CPX #$38                                ; $AEFD: E0 38
-  BCC Loc_AEDF                            ; $AEFF: 90 DE
+  BCC @copy_row                            ; $AEFF: 90 DE
   LDA $0143                               ; $AF01: AD 43 01
   SEC                                     ; $AF04: 38
   SBC #$80                                ; $AF05: E9 80
@@ -2061,12 +2097,12 @@ Loc_AEE1:
   LDA $0146                               ; $AF18: AD 46 01
   STA $0011                               ; $AF1B: 8D 11 00
   LDY #$00                                ; $AF1E: A0 00
-Loc_AF20:
+@copy_4bytes:
   LDA ($10),Y                             ; $AF20: B1 10
   STA $014B,Y                             ; $AF22: 99 4B 01
   INY                                     ; $AF25: C8
   CPY #$04                                ; $AF26: C0 04
-  BCC Loc_AF20                            ; $AF28: 90 F6
+  BCC @copy_4bytes                            ; $AF28: 90 F6
   LDA $0145                               ; $AF2A: AD 45 01
   SEC                                     ; $AF2D: 38
   SBC #$08                                ; $AF2E: E9 08
@@ -2092,7 +2128,7 @@ Loc_AF20:
   ORA #$08                                ; $AF60: 09 08
   STA $007E                               ; $AF62: 8D 7E 00
   RTS                                     ; $AF65: 60
-Loc_AF66:
+@add_offset:
   CLC                                     ; $AF66: 18
   ADC $0140,Y                             ; $AF67: 79 40 01
   STA $0140,Y                             ; $AF6A: 99 40 01
@@ -2101,7 +2137,7 @@ Loc_AF66:
   ADC $0140,Y                             ; $AF70: 79 40 01
   STA $0140,Y                             ; $AF73: 99 40 01
   RTS                                     ; $AF76: 60
-Loc_AF77:
+@store_extra:
   STA $0012                               ; $AF77: 8D 12 00
   INY                                     ; $AF7A: C8
   LDA ($10),Y                             ; $AF7B: B1 10
@@ -2125,19 +2161,19 @@ Loc_AF77:
   PHA                                     ; $AF9E: 48
   LDA $0012                               ; $AF9F: AD 12 00
   CMP #$F0                                ; $AFA2: C9 F0
-  BEQ Loc_AFD3                            ; $AFA4: F0 2D
+  BEQ @init_ptrs2                            ; $AFA4: F0 2D
   CMP #$F1                                ; $AFA6: C9 F1
-  BEQ Loc_AFC0                            ; $AFA8: F0 16
+  BEQ @init_ptrs1                            ; $AFA8: F0 16
   CMP #$F3                                ; $AFAA: C9 F3
-  BEQ Loc_AFEF                            ; $AFAC: F0 41
+  BEQ @init_ptrs3                            ; $AFAC: F0 41
   LDY #$00                                ; $AFAE: A0 00
   LDA ($17),Y                             ; $AFB0: B1 17
   STA $0001                               ; $AFB2: 8D 01 00
   LDA #$00                                ; $AFB5: A9 00
   STA $0002                               ; $AFB7: 8D 02 00
   STA $0003                               ; $AFBA: 8D 03 00
-  JMP Loc_B032                            ; $AFBD: 4C 32 B0
-Loc_AFC0:
+  JMP @format_bcd                            ; $AFBD: 4C 32 B0
+@init_ptrs1:
   LDY #$00                                ; $AFC0: A0 00
   STY $0003                               ; $AFC2: 8C 03 00
   LDA ($17),Y                             ; $AFC5: B1 17
@@ -2145,31 +2181,31 @@ Loc_AFC0:
   INY                                     ; $AFCA: C8
   LDA ($17),Y                             ; $AFCB: B1 17
   STA $0002                               ; $AFCD: 8D 02 00
-  JMP Loc_B032                            ; $AFD0: 4C 32 B0
-Loc_AFD3:
+  JMP @format_bcd                            ; $AFD0: 4C 32 B0
+@init_ptrs2:
   LDY #$00                                ; $AFD3: A0 00
   STY $0003                               ; $AFD5: 8C 03 00
   STY $0002                               ; $AFD8: 8C 02 00
   STY $0001                               ; $AFDB: 8C 01 00
-Loc_AFDE:
+@scan_entries:
   LDA ($17),Y                             ; $AFDE: B1 17
   CMP #$FF                                ; $AFE0: C9 FF
-  BEQ Loc_AFE7                            ; $AFE2: F0 03
+  BEQ @scan_next                            ; $AFE2: F0 03
   INC $0001                               ; $AFE4: EE 01 00
-Loc_AFE7:
+@scan_next:
   INY                                     ; $AFE7: C8
   CPY #$0A                                ; $AFE8: C0 0A
-  BCC Loc_AFDE                            ; $AFEA: 90 F2
-  JMP Loc_B032                            ; $AFEC: 4C 32 B0
-Loc_AFEF:
+  BCC @scan_entries                            ; $AFEA: 90 F2
+  JMP @format_bcd                            ; $AFEC: 4C 32 B0
+@init_ptrs3:
   LDY #$00                                ; $AFEF: A0 00
   STY $0002                               ; $AFF1: 8C 02 00
   STY $0003                               ; $AFF4: 8C 03 00
   STY $0004                               ; $AFF7: 8C 04 00
-Loc_AFFA:
+@scan_officers:
   LDA ($17),Y                             ; $AFFA: B1 17
   CMP #$FF                                ; $AFFC: C9 FF
-  BEQ Loc_B021                            ; $AFFE: F0 21
+  BEQ @scan_done2                            ; $AFFE: F0 21
   JSR B1F_GetOfficerRecordAddr            ; $B000: 20 D7 F2
   LDY #$08                                ; $B003: A0 08
   LDA ($00),Y                             ; $B005: B1 00
@@ -2183,15 +2219,15 @@ Loc_AFFA:
   INC $0004                               ; $B017: EE 04 00
   LDY $0004                               ; $B01A: AC 04 00
   CPY #$0A                                ; $B01D: C0 0A
-  BCC Loc_AFFA                            ; $B01F: 90 D9
-Loc_B021:
+  BCC @scan_officers                            ; $B01F: 90 D9
+@scan_done2:
   LDA $0002                               ; $B021: AD 02 00
   STA $0001                               ; $B024: 8D 01 00
   LDA $0003                               ; $B027: AD 03 00
   STA $0002                               ; $B02A: 8D 02 00
   LDA #$00                                ; $B02D: A9 00
   STA $0003                               ; $B02F: 8D 03 00
-Loc_B032:
+@format_bcd:
   TXA                                     ; $B032: 8A
   PHA                                     ; $B033: 48
   JSR B1F_MathBinToBcd                    ; $B034: 20 BA E9
@@ -2201,62 +2237,62 @@ Loc_B032:
   TAY                                     ; $B03A: A8
   LDA #$B6                                ; $B03B: A9 B6
   STA $0017                               ; $B03D: 8D 17 00
-Loc_B040:
+@format_digits:
   LDA #$01                                ; $B040: A9 01
   STA $0016                               ; $B042: 8D 16 00
   LDA $0013                               ; $B045: AD 13 00
   CMP #$02                                ; $B048: C9 02
-  BEQ Loc_B07C                            ; $B04A: F0 30
+  BEQ @digit_thousands                            ; $B04A: F0 30
   CMP #$03                                ; $B04C: C9 03
-  BEQ Loc_B074                            ; $B04E: F0 24
+  BEQ @digit_lo                            ; $B04E: F0 24
   CMP #$04                                ; $B050: C9 04
-  BEQ Loc_B06A                            ; $B052: F0 16
+  BEQ @digit_hi                            ; $B052: F0 16
   CMP #$05                                ; $B054: C9 05
-  BEQ Loc_B062                            ; $B056: F0 0A
+  BEQ @digit_ones                            ; $B056: F0 0A
   LDA $0009                               ; $B058: AD 09 00
   LSR A                                   ; $B05B: 4A
   LSR A                                   ; $B05C: 4A
   LSR A                                   ; $B05D: 4A
   LSR A                                   ; $B05E: 4A
-  JSR Loc_B091                            ; $B05F: 20 91 B0
-Loc_B062:
+  JSR @write_digit                            ; $B05F: 20 91 B0
+@digit_ones:
   LDA $0009                               ; $B062: AD 09 00
   AND #$0F                                ; $B065: 29 0F
-  JSR Loc_B091                            ; $B067: 20 91 B0
-Loc_B06A:
+  JSR @write_digit                            ; $B067: 20 91 B0
+@digit_hi:
   LDA $0008                               ; $B06A: AD 08 00
   LSR A                                   ; $B06D: 4A
   LSR A                                   ; $B06E: 4A
   LSR A                                   ; $B06F: 4A
   LSR A                                   ; $B070: 4A
-  JSR Loc_B091                            ; $B071: 20 91 B0
-Loc_B074:
+  JSR @write_digit                            ; $B071: 20 91 B0
+@digit_lo:
   LDA $0008                               ; $B074: AD 08 00
   AND #$0F                                ; $B077: 29 0F
-  JSR Loc_B091                            ; $B079: 20 91 B0
-Loc_B07C:
+  JSR @write_digit                            ; $B079: 20 91 B0
+@digit_thousands:
   LDA $0007                               ; $B07C: AD 07 00
   LSR A                                   ; $B07F: 4A
   LSR A                                   ; $B080: 4A
   LSR A                                   ; $B081: 4A
   LSR A                                   ; $B082: 4A
-  JSR Loc_B091                            ; $B083: 20 91 B0
+  JSR @write_digit                            ; $B083: 20 91 B0
   LDA $0017                               ; $B086: AD 17 00
   STA $0016                               ; $B089: 8D 16 00
   LDA $0007                               ; $B08C: AD 07 00
   AND #$0F                                ; $B08F: 29 0F
-Loc_B091:
-  BNE Loc_B09C                            ; $B091: D0 09
+@write_digit:
+  BNE @write_offset_digit                            ; $B091: D0 09
   LDA $0016                               ; $B093: AD 16 00
   STA $0160,X                             ; $B096: 9D 60 01
-  JMP Loc_B0A9                            ; $B099: 4C A9 B0
-Loc_B09C:
+  JMP @inc_index                            ; $B099: 4C A9 B0
+@write_offset_digit:
   CLC                                     ; $B09C: 18
   ADC $0017                               ; $B09D: 6D 17 00
   STA $0160,X                             ; $B0A0: 9D 60 01
   LDA $0017                               ; $B0A3: AD 17 00
   STA $0016                               ; $B0A6: 8D 16 00
-Loc_B0A9:
+@inc_index:
   INX                                     ; $B0A9: E8
   RTS                                     ; $B0AA: 60
 DrawOfficerName:
@@ -2292,21 +2328,21 @@ DrawOfficerName:
   STA $00DA                               ; $B0F2: 8D DA 00
   INY                                     ; $B0F5: C8
   LDX #$00                                ; $B0F6: A2 00
-Loc_B0F8:
+@copy_name7:
   LDA ($00),Y                             ; $B0F8: B1 00
   STA $016F,X                             ; $B0FA: 9D 6F 01
   INY                                     ; $B0FD: C8
   INX                                     ; $B0FE: E8
   CPY #$07                                ; $B0FF: C0 07
-  BCC Loc_B0F8                            ; $B101: 90 F5
+  BCC @copy_name7                            ; $B101: 90 F5
   LDX #$00                                ; $B103: A2 00
-Loc_B105:
+@copy_name12:
   LDA ($00),Y                             ; $B105: B1 00
   STA $017D,X                             ; $B107: 9D 7D 01
   INY                                     ; $B10A: C8
   INX                                     ; $B10B: E8
   CPY #$0D                                ; $B10C: C0 0D
-  BCC Loc_B105                            ; $B10E: 90 F5
+  BCC @copy_name12                            ; $B10E: 90 F5
   LDY #$30                                ; $B110: A0 30
   JSR B1F_SwitchBank8_B                   ; $B112: 20 5F F2
   LDA $0402                               ; $B115: AD 02 04
@@ -2321,34 +2357,34 @@ Loc_B105:
   STA $0001                               ; $B125: 8D 01 00
   LDY #$00                                ; $B128: A0 00
   LDX #$00                                ; $B12A: A2 00
-Loc_B12C:
+@process_chars:
   LDA ($00),Y                             ; $B12C: B1 00
-  BEQ Loc_B14B                            ; $B12E: F0 1B
+  BEQ @char_done                            ; $B12E: F0 1B
   CLC                                     ; $B130: 18
   ADC #$80                                ; $B131: 69 80
   CMP #$B9                                ; $B133: C9 B9
-  BEQ Loc_B141                            ; $B135: F0 0A
+  BEQ @store_back                            ; $B135: F0 0A
   CMP #$BA                                ; $B137: C9 BA
-  BEQ Loc_B141                            ; $B139: F0 06
+  BEQ @store_back                            ; $B139: F0 06
   STA $0183,X                             ; $B13B: 9D 83 01
-  JMP Loc_B145                            ; $B13E: 4C 45 B1
-Loc_B141:
+  JMP @inc_char_idx                            ; $B13E: 4C 45 B1
+@store_back:
   DEX                                     ; $B141: CA
   STA $0175,X                             ; $B142: 9D 75 01
-Loc_B145:
+@inc_char_idx:
   INY                                     ; $B145: C8
   INX                                     ; $B146: E8
   CPY #$08                                ; $B147: C0 08
-  BCC Loc_B12C                            ; $B149: 90 E1
-Loc_B14B:
+  BCC @process_chars                            ; $B149: 90 E1
+@char_done:
   RTS                                     ; $B14B: 60
 RenderSubState:
   STA $0006                               ; $B14C: 8D 06 00
   LDX #$00                                ; $B14F: A2 00
   LDA $0150                               ; $B151: AD 50 01
-  BPL Loc_B158                            ; $B154: 10 02
+  BPL @setup_render                            ; $B154: 10 02
   LDX #$70                                ; $B156: A2 70
-Loc_B158:
+@setup_render:
   STX $0005                               ; $B158: 8E 05 00
   LDY $0006                               ; $B15B: AC 06 00
   LDX $0006                               ; $B15E: AE 06 00
@@ -2356,11 +2392,11 @@ Loc_B158:
   STA $0007                               ; $B163: 8D 07 00
   LDA #$00                                ; $B166: A9 00
   CPY #$01                                ; $B168: C0 01
-  BEQ Loc_B173                            ; $B16A: F0 07
+  BEQ @load_tile_addr                            ; $B16A: F0 07
   LDA #$80                                ; $B16C: A9 80
   STA $0007                               ; $B16E: 8D 07 00
   LDA #$20                                ; $B171: A9 20
-Loc_B173:
+@load_tile_addr:
   STA $0006                               ; $B173: 8D 06 00
   LDA $037C,Y                             ; $B176: B9 7C 03
   STA $0000                               ; $B179: 8D 00 00
@@ -2406,11 +2442,11 @@ Loc_B173:
   STA $00CE,X                             ; $B1DC: 9D CE 00
   STA $00D6,X                             ; $B1DF: 9D D6 00
   LDX $007C                               ; $B1E2: AE 7C 00
-Loc_B1E5:
+@copy_officer_data:
   INY                                     ; $B1E5: C8
   LDA ($00),Y                             ; $B1E6: B1 00
   CMP #$FF                                ; $B1E8: C9 FF
-  BEQ Loc_B21E                            ; $B1EA: F0 32
+  BEQ @officer_done                            ; $B1EA: F0 32
   CLC                                     ; $B1EC: 18
   ADC $0007                               ; $B1ED: 6D 07 00
   STA $0201,X                             ; $B1F0: 9D 01 02
@@ -2437,8 +2473,8 @@ Loc_B1E5:
   PLA                                     ; $B218: 68
   TAY                                     ; $B219: A8
   CPY #$0C                                ; $B21A: C0 0C
-  BCC Loc_B1E5                            ; $B21C: 90 C7
-Loc_B21E:
+  BCC @copy_officer_data                            ; $B21C: 90 C7
+@officer_done:
   STX $007C                               ; $B21E: 8E 7C 00
   RTS                                     ; $B221: 60
 
@@ -2450,63 +2486,62 @@ Loc_B21E:
   LDY #$00                                ; $B243: A0 00
   LDA ($00),Y                             ; $B245: B1 00
   CMP #$07                                ; $B247: C9 07
-  BEQ Loc_B279                            ; $B249: F0 2E
+  BEQ @name_rts                            ; $B249: F0 2E
   LDY #$01                                ; $B24B: A0 01
   LDA $000F                               ; $B24D: AD 0F 00
-  BEQ Loc_B254                            ; $B250: F0 02
+  BEQ @load_name_scale                            ; $B250: F0 02
   LDY #$02                                ; $B252: A0 02
-Loc_B254:
+@load_name_scale:
   LDA $037C,Y                             ; $B254: B9 7C 03
   JSR B1F_GetNameDisplayScale             ; $B257: 20 08 F3
   LDY #$00                                ; $B25A: A0 00
   LDX #$00                                ; $B25C: A2 00
-Loc_B25E:
+@name_scan2:
   LDA ($00),Y                             ; $B25E: B1 00
-  BEQ Loc_B279                            ; $B260: F0 17
+  BEQ @name_rts                            ; $B260: F0 17
   CMP #$39                                ; $B262: C9 39
-  BEQ Loc_B26D                            ; $B264: F0 07
+  BEQ @name_adjust                            ; $B264: F0 07
   CMP #$3A                                ; $B266: C9 3A
-  BEQ Loc_B26D                            ; $B268: F0 03
-  JMP Loc_B274                            ; $B26A: 4C 74 B2
-Loc_B26D:
+  BEQ @name_adjust                            ; $B268: F0 03
+  JMP @name_next                            ; $B26A: 4C 74 B2
+@name_adjust:
   DEX                                     ; $B26D: CA
   CLC                                     ; $B26E: 18
   ADC #$80                                ; $B26F: 69 80
   STA $0190,X                             ; $B271: 9D 90 01
-Loc_B274:
+@name_next:
   INX                                     ; $B274: E8
   INY                                     ; $B275: C8
-  JMP Loc_B25E                            ; $B276: 4C 5E B2
-Loc_B279:
+  JMP @name_scan2                            ; $B276: 4C 5E B2
+@name_rts:
   RTS                                     ; $B279: 60
-Loc_B27A:
+@draw_name_scaled:
   LDY $000F                               ; $B27A: AC 0F 00
   LDA $037C,Y                             ; $B27D: B9 7C 03
   JSR B1F_GetNameDisplayScale             ; $B280: 20 08 F3
   LDY #$00                                ; $B283: A0 00
   LDX #$00                                ; $B285: A2 00
-Loc_B287:
+@name_scan3:
   LDA ($00),Y                             ; $B287: B1 00
-  BEQ Loc_B29E                            ; $B289: F0 13
+  BEQ @name_rts2                            ; $B289: F0 13
   CMP #$39                                ; $B28B: C9 39
-  BEQ Loc_B29A                            ; $B28D: F0 0B
+  BEQ @name_next3                            ; $B28D: F0 0B
   CMP #$3A                                ; $B28F: C9 3A
-  BEQ Loc_B29A                            ; $B291: F0 07
+  BEQ @name_next3                            ; $B291: F0 07
   CLC                                     ; $B293: 18
   ADC #$80                                ; $B294: 69 80
   STA $0166,X                             ; $B296: 9D 66 01
   INX                                     ; $B299: E8
-Loc_B29A:
+@name_next3:
   INY                                     ; $B29A: C8
-  JMP Loc_B287                            ; $B29B: 4C 87 B2
-Loc_B29E:
+  JMP @name_scan3                            ; $B29B: 4C 87 B2
+@name_rts2:
   RTS                                     ; $B29E: 60
 
-;-----------------------------------------------------------------------------
-; Entry04: Entry04_MapDisplaySetup
-; Jump table entry 4 at $A00C
-;-----------------------------------------------------------------------------
-Entry04_MapDisplaySetup:
+.endproc
+
+.proc MapDisplaySetup
+MapDisplaySetup:
   LDA $008B                               ; $B29F: AD 8B 00
   AND #$FB                                ; $B2A2: 29 FB
   STA $2000                               ; $B2A4: 8D 00 20
@@ -2518,15 +2553,15 @@ Entry04_MapDisplaySetup:
   STA $2006                               ; $B2B6: 8D 06 20
   STA $0000                               ; $B2B9: 8D 00 00
   LDX #$00                                ; $B2BC: A2 00
-Loc_B2BE:
+@write_row:
   LDY #$00                                ; $B2BE: A0 00
-Loc_B2C0:
+@write_row_loop:
   LDA $0160,X                             ; $B2C0: BD 60 01
   STA $2007                               ; $B2C3: 8D 07 20
   INY                                     ; $B2C6: C8
   INX                                     ; $B2C7: E8
   CPY #$0E                                ; $B2C8: C0 0E
-  BCC Loc_B2C0                            ; $B2CA: 90 F4
+  BCC @write_row_loop                            ; $B2CA: 90 F4
   LDA $0000                               ; $B2CC: AD 00 00
   CLC                                     ; $B2CF: 18
   ADC #$20                                ; $B2D0: 69 20
@@ -2538,18 +2573,18 @@ Loc_B2C0:
   LDA $0000                               ; $B2E0: AD 00 00
   STA $2006                               ; $B2E3: 8D 06 20
   CPX $0154                               ; $B2E6: EC 54 01
-  BCC Loc_B2BE                            ; $B2E9: 90 D3
+  BCC @write_row                            ; $B2E9: 90 D3
   LDA $0148                               ; $B2EB: AD 48 01
   STA $2006                               ; $B2EE: 8D 06 20
   LDA $0147                               ; $B2F1: AD 47 01
   STA $2006                               ; $B2F4: 8D 06 20
   LDY #$00                                ; $B2F7: A0 00
-Loc_B2F9:
+@write_4bytes:
   LDA $014B,Y                             ; $B2F9: B9 4B 01
   STA $2007                               ; $B2FC: 8D 07 20
   INY                                     ; $B2FF: C8
   CPY #$04                                ; $B300: C0 04
-  BCC Loc_B2F9                            ; $B302: 90 F5
+  BCC @write_4bytes                            ; $B302: 90 F5
   RTS                                     ; $B304: 60
 
 ; --- Data Region: TileMapData_B305 ---
@@ -2659,32 +2694,31 @@ Loc_B2F9:
   .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B975: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
   .byte $01,$01,$01,$01                   ; $B985: 01 01 01 01
 
-;-----------------------------------------------------------------------------
-; Entry05: Entry05_OfficerListHandler
-; Jump table entry 5 at $A00F
-;-----------------------------------------------------------------------------
-Entry05_OfficerListHandler:
+.endproc
+
+.proc OfficerListHandler
+OfficerListHandler:
   LDA $0140                               ; $B989: AD 40 01
-  BNE Loc_B9CE                            ; $B98C: D0 40
+  BNE @officer_exit                            ; $B98C: D0 40
   LDA $007E                               ; $B98E: AD 7E 00
   AND #$02                                ; $B991: 29 02
-  BNE Loc_B9CE                            ; $B993: D0 39
+  BNE @officer_exit                            ; $B993: D0 39
   LDA $0478                               ; $B995: AD 78 04
-  BEQ Loc_B9CE                            ; $B998: F0 34
-  BPL Loc_B99F                            ; $B99A: 10 03
+  BEQ @officer_exit                            ; $B998: F0 34
+  BPL @check_sub_state                            ; $B99A: 10 03
   JMP ProcessOfficerListScroll            ; $B99C: 4C 0E BA
-Loc_B99F:
+@check_sub_state:
   CMP #$10                                ; $B99F: C9 10
   BEQ InitOfficerListState                ; $B9A1: F0 2C
   CMP #$02                                ; $B9A3: C9 02
-  BCC Loc_B9CB                            ; $B9A5: 90 24
+  BCC @goto_scroll                            ; $B9A5: 90 24
   CMP #$0C                                ; $B9A7: C9 0C
-  BCS Loc_B9CB                            ; $B9A9: B0 20
+  BCS @goto_scroll                            ; $B9A9: B0 20
   LDY $047A                               ; $B9AB: AC 7A 04
   INC $047A                               ; $B9AE: EE 7A 04
   LDA $0151,Y                             ; $B9B1: B9 51 01
   CMP #$FF                                ; $B9B4: C9 FF
-  BEQ Loc_B9CB                            ; $B9B6: F0 13
+  BEQ @goto_scroll                            ; $B9B6: F0 13
   TAX                                     ; $B9B8: AA
   JSR B1F_GetOfficerRecordAddr            ; $B9B9: 20 D7 F2
   LDA $0000                               ; $B9BC: AD 00 00
@@ -2692,9 +2726,9 @@ Loc_B99F:
   LDA $0001                               ; $B9C2: AD 01 00
   STA $001D                               ; $B9C5: 8D 1D 00
   JMP DrawOfficerRecord                   ; $B9C8: 4C 28 BB
-Loc_B9CB:
-  JMP Loc_BA9D                            ; $B9CB: 4C 9D BA
-Loc_B9CE:
+@goto_scroll:
+  JMP @list_dispatch                            ; $B9CB: 4C 9D BA
+@officer_exit:
   RTS                                     ; $B9CE: 60
 InitOfficerListState:
   LDA #$00                                ; $B9CF: A9 00
@@ -2705,9 +2739,9 @@ InitOfficerListState:
   STA $0425                               ; $B9DD: 8D 25 04
   LDA $047C                               ; $B9E0: AD 7C 04
   CMP #$0F                                ; $B9E3: C9 0F
-  BNE Loc_B9EA                            ; $B9E5: D0 03
+  BNE @scroll_update                            ; $B9E5: D0 03
   DEC $047B                               ; $B9E7: CE 7B 04
-Loc_B9EA:
+@scroll_update:
   LDA #$06                                ; $B9EA: A9 06
   STA $0061                               ; $B9EC: 8D 61 00
   LDA #$08                                ; $B9EF: A9 08
@@ -2719,11 +2753,11 @@ Loc_B9EA:
   LDY #$01                                ; $B9FE: A0 01
   STY $008F                               ; $BA00: 8C 8F 00
   LDA #$FF                                ; $BA03: A9 FF
-Loc_BA05:
+@fill_ff_loop:
   STA $0480,Y                             ; $BA05: 99 80 04
   INY                                     ; $BA08: C8
   CPY #$0B                                ; $BA09: C0 0B
-  BCC Loc_BA05                            ; $BA0B: 90 F8
+  BCC @fill_ff_loop                            ; $BA0B: 90 F8
   RTS                                     ; $BA0D: 60
 ProcessOfficerListScroll:
   LDA $0478                               ; $BA0E: AD 78 04
@@ -2742,81 +2776,81 @@ ProcessOfficerListScroll:
   JSR B1F_SwitchBank8_B                   ; $BA30: 20 5F F2
   LDA $047C                               ; $BA33: AD 7C 04
   CMP #$FF                                ; $BA36: C9 FF
-  BNE Loc_BA53                            ; $BA38: D0 19
+  BNE @check_selection                            ; $BA38: D0 19
   AND #$0F                                ; $BA3A: 29 0F
   STA $047C                               ; $BA3C: 8D 7C 04
   LDY #$00                                ; $BA3F: A0 00
-Loc_BA41:
+@count_officers:
   LDA $0151,Y                             ; $BA41: B9 51 01
   CMP #$FF                                ; $BA44: C9 FF
-  BEQ Loc_BA4B                            ; $BA46: F0 03
+  BEQ @count_next                            ; $BA46: F0 03
   INC $047B                               ; $BA48: EE 7B 04
-Loc_BA4B:
+@count_next:
   INY                                     ; $BA4B: C8
   CPY #$0A                                ; $BA4C: C0 0A
-  BCC Loc_BA41                            ; $BA4E: 90 F1
-  JMP Loc_BA7E                            ; $BA50: 4C 7E BA
-Loc_BA53:
+  BCC @count_officers                            ; $BA4E: 90 F1
+  JMP @update_display                            ; $BA50: 4C 7E BA
+@check_selection:
   LDA $0402                               ; $BA53: AD 02 04
   LDY $0479                               ; $BA56: AC 79 04
   CPY #$02                                ; $BA59: C0 02
-  BNE Loc_BA65                            ; $BA5B: D0 08
+  BNE @load_province                            ; $BA5B: D0 08
   LDA #$00                                ; $BA5D: A9 00
   STA $0479                               ; $BA5F: 8D 79 04
   LDA $040C                               ; $BA62: AD 0C 04
-Loc_BA65:
+@load_province:
   JSR B1F_GetProvinceRecordAddr           ; $BA65: 20 AF F2
   LDY #$11                                ; $BA68: A0 11
   LDX #$00                                ; $BA6A: A2 00
-Loc_BA6C:
+@copy_province:
   LDA ($00),Y                             ; $BA6C: B1 00
   STA $0151,X                             ; $BA6E: 9D 51 01
   CMP #$FF                                ; $BA71: C9 FF
-  BEQ Loc_BA78                            ; $BA73: F0 03
+  BEQ @copy_prov_next                            ; $BA73: F0 03
   INC $047B                               ; $BA75: EE 7B 04
-Loc_BA78:
+@copy_prov_next:
   INX                                     ; $BA78: E8
   INY                                     ; $BA79: C8
   CPX #$0A                                ; $BA7A: E0 0A
-  BCC Loc_BA6C                            ; $BA7C: 90 EE
-Loc_BA7E:
+  BCC @copy_province                            ; $BA7C: 90 EE
+@update_display:
   LDA $0479                               ; $BA7E: AD 79 04
-  BEQ Loc_BA90                            ; $BA81: F0 0D
+  BEQ @no_selection                            ; $BA81: F0 0D
   LDA #$09                                ; $BA83: A9 09
   STA $0482                               ; $BA85: 8D 82 04
   LDA #$B8                                ; $BA88: A9 B8
   STA $0483                               ; $BA8A: 8D 83 04
-  JMP Loc_BA9D                            ; $BA8D: 4C 9D BA
-Loc_BA90:
+  JMP @list_dispatch                            ; $BA8D: 4C 9D BA
+@no_selection:
   LDA #$C9                                ; $BA90: A9 C9
   STA $0482                               ; $BA92: 8D 82 04
   LDA #$B8                                ; $BA95: A9 B8
   STA $0483                               ; $BA97: 8D 83 04
-  JMP Loc_BA9D                            ; $BA9A: 4C 9D BA
-Loc_BA9D:
+  JMP @list_dispatch                            ; $BA9A: 4C 9D BA
+@list_dispatch:
   LDA $0478                               ; $BA9D: AD 78 04
   CMP #$0F                                ; $BAA0: C9 0F
-  BEQ Loc_BB03                            ; $BAA2: F0 5F
+  BEQ @fill_aa                            ; $BAA2: F0 5F
   CMP #$02                                ; $BAA4: C9 02
-  BCC Loc_BAB7                            ; $BAA6: 90 0F
+  BCC @copy_tile_data                            ; $BAA6: 90 0F
   LDA $0486                               ; $BAA8: AD 86 04
-  BNE Loc_BAE3                            ; $BAAB: D0 36
+  BNE @fill_ones                            ; $BAAB: D0 36
   INC $0486                               ; $BAAD: EE 86 04
   LDA $047C                               ; $BAB0: AD 7C 04
   CMP #$0F                                ; $BAB3: C9 0F
-  BEQ Loc_BAE3                            ; $BAB5: F0 2C
-Loc_BAB7:
+  BEQ @fill_ones                            ; $BAB5: F0 2C
+@copy_tile_data:
   LDA $0482                               ; $BAB7: AD 82 04
   STA $001A                               ; $BABA: 8D 1A 00
   LDA $0483                               ; $BABD: AD 83 04
   STA $001B                               ; $BAC0: 8D 1B 00
   LDY #$00                                ; $BAC3: A0 00
-Loc_BAC5:
+@copy_64bytes:
   LDA ($1A),Y                             ; $BAC5: B1 1A
   STA $0160,Y                             ; $BAC7: 99 60 01
   INY                                     ; $BACA: C8
   CPY #$40                                ; $BACB: C0 40
-  BCC Loc_BAC5                            ; $BACD: 90 F6
+  BCC @copy_64bytes                            ; $BACD: 90 F6
   LDA $0482                               ; $BACF: AD 82 04
   CLC                                     ; $BAD2: 18
   ADC #$40                                ; $BAD3: 69 40
@@ -2824,16 +2858,16 @@ Loc_BAC5:
   LDA $0483                               ; $BAD8: AD 83 04
   ADC #$00                                ; $BADB: 69 00
   STA $0483                               ; $BADD: 8D 83 04
-  JMP Loc_BAEF                            ; $BAE0: 4C EF BA
-Loc_BAE3:
+  JMP @advance_list                            ; $BAE0: 4C EF BA
+@fill_ones:
   LDA #$01                                ; $BAE3: A9 01
   LDY #$00                                ; $BAE5: A0 00
-Loc_BAE7:
+@fill_loop:
   STA $0160,Y                             ; $BAE7: 99 60 01
   INY                                     ; $BAEA: C8
   CPY #$40                                ; $BAEB: C0 40
-  BCC Loc_BAE7                            ; $BAED: 90 F8
-Loc_BAEF:
+  BCC @fill_loop                            ; $BAED: 90 F8
+@advance_list:
   LDA $0480                               ; $BAEF: AD 80 04
   CLC                                     ; $BAF2: 18
   ADC #$40                                ; $BAF3: 69 40
@@ -2841,21 +2875,21 @@ Loc_BAEF:
   LDA $0481                               ; $BAF8: AD 81 04
   ADC #$00                                ; $BAFB: 69 00
   STA $0481                               ; $BAFD: 8D 81 04
-  JMP Loc_BB1C                            ; $BB00: 4C 1C BB
-Loc_BB03:
+  JMP @finish_list                            ; $BB00: 4C 1C BB
+@fill_aa:
   LDY #$00                                ; $BB03: A0 00
   LDA #$AA                                ; $BB05: A9 AA
-Loc_BB07:
+@fill_aa_loop:
   STA $0160,Y                             ; $BB07: 99 60 01
   INY                                     ; $BB0A: C8
   CPY #$40                                ; $BB0B: C0 40
-  BCC Loc_BB07                            ; $BB0D: 90 F8
+  BCC @fill_aa_loop                            ; $BB0D: 90 F8
   LDA #$C0                                ; $BB0F: A9 C0
   STA $0480                               ; $BB11: 8D 80 04
   LDA #$27                                ; $BB14: A9 27
   STA $0481                               ; $BB16: 8D 81 04
-  JMP Loc_BB1C                            ; $BB19: 4C 1C BB
-Loc_BB1C:
+  JMP @finish_list                            ; $BB19: 4C 1C BB
+@finish_list:
   INC $0478                               ; $BB1C: EE 78 04
   LDA $007E                               ; $BB1F: AD 7E 00
   ORA #$02                                ; $BB22: 09 02
@@ -2864,32 +2898,32 @@ Loc_BB1C:
 DrawOfficerRecord:
   LDA #$01                                ; $BB28: A9 01
   LDY #$00                                ; $BB2A: A0 00
-Loc_BB2C:
+@fill_value_loop:
   STA $0160,Y                             ; $BB2C: 99 60 01
   INY                                     ; $BB2F: C8
   CPY #$40                                ; $BB30: C0 40
-  BCC Loc_BB2C                            ; $BB32: 90 F8
+  BCC @fill_value_loop                            ; $BB32: 90 F8
   TXA                                     ; $BB34: 8A
   JSR B1F_GetNameDisplayScale             ; $BB35: 20 08 F3
   LDY #$00                                ; $BB38: A0 00
   LDX #$00                                ; $BB3A: A2 00
-Loc_BB3C:
+@format_officer:
   LDA ($00),Y                             ; $BB3C: B1 00
-  BEQ Loc_BB57                            ; $BB3E: F0 17
+  BEQ @officer_setup                            ; $BB3E: F0 17
   CMP #$39                                ; $BB40: C9 39
-  BEQ Loc_BB4E                            ; $BB42: F0 0A
+  BEQ @officer_adjust                            ; $BB42: F0 0A
   CMP #$3A                                ; $BB44: C9 3A
-  BEQ Loc_BB4E                            ; $BB46: F0 06
+  BEQ @officer_adjust                            ; $BB46: F0 06
   STA $0183,X                             ; $BB48: 9D 83 01
-  JMP Loc_BB52                            ; $BB4B: 4C 52 BB
-Loc_BB4E:
+  JMP @officer_next                            ; $BB4B: 4C 52 BB
+@officer_adjust:
   DEX                                     ; $BB4E: CA
   STA $0163,X                             ; $BB4F: 9D 63 01
-Loc_BB52:
+@officer_next:
   INX                                     ; $BB52: E8
   INY                                     ; $BB53: C8
-  JMP Loc_BB3C                            ; $BB54: 4C 3C BB
-Loc_BB57:
+  JMP @format_officer                            ; $BB54: 4C 3C BB
+@officer_setup:
   LDA #$76                                ; $BB57: A9 76
   STA $0017                               ; $BB59: 8D 17 00
   LDA #$02                                ; $BB5C: A9 02
@@ -2897,31 +2931,31 @@ Loc_BB57:
   LDA #$2B                                ; $BB61: A9 2B
   STA $0014                               ; $BB63: 8D 14 00
   LDY #$00                                ; $BB66: A0 00
-Loc_BB68:
+@init_officer_ptr:
   LDA #$00                                ; $BB68: A9 00
   STA $0002                               ; $BB6A: 8D 02 00
   STA $0003                               ; $BB6D: 8D 03 00
   LDA ($1C),Y                             ; $BB70: B1 1C
   STA $0001                               ; $BB72: 8D 01 00
   CMP #$64                                ; $BB75: C9 64
-  BNE Loc_BB80                            ; $BB77: D0 07
+  BNE @format_and_draw                            ; $BB77: D0 07
   CPY #$03                                ; $BB79: C0 03
-  BNE Loc_BB80                            ; $BB7B: D0 03
-  JMP Loc_BC32                            ; $BB7D: 4C 32 BC
-Loc_BB80:
+  BNE @format_and_draw                            ; $BB7B: D0 03
+  JMP @write_terminator                            ; $BB7D: 4C 32 BC
+@format_and_draw:
   JSR B1F_MathBinToBcd                    ; $BB80: 20 BA E9
   LDX $0014                               ; $BB83: AE 14 00
-  JSR Loc_B040                            ; $BB86: 20 40 B0
-Loc_BB89:
+  JSR @format_digits                            ; $BB86: 20 40 B0
+@advance_offset:
   LDA $0014                               ; $BB89: AD 14 00
   CLC                                     ; $BB8C: 18
   ADC #$03                                ; $BB8D: 69 03
   STA $0014                               ; $BB8F: 8D 14 00
   INY                                     ; $BB92: C8
   CPY #$04                                ; $BB93: C0 04
-  BCC Loc_BB68                            ; $BB95: 90 D1
+  BCC @init_officer_ptr                            ; $BB95: 90 D1
   LDA $0479                               ; $BB97: AD 79 04
-  BNE Loc_BBB3                            ; $BB9A: D0 17
+  BNE @load_extra                            ; $BB9A: D0 17
   LDA #$00                                ; $BB9C: A9 00
   STA $0002                               ; $BB9E: 8D 02 00
   STA $0003                               ; $BBA1: 8D 03 00
@@ -2930,8 +2964,8 @@ Loc_BB89:
   STA $0001                               ; $BBA8: 8D 01 00
   JSR B1F_MathBinToBcd                    ; $BBAB: 20 BA E9
   LDX #$37                                ; $BBAE: A2 37
-  JSR Loc_B040                            ; $BBB0: 20 40 B0
-Loc_BBB3:
+  JSR @format_digits                            ; $BBB0: 20 40 B0
+@load_extra:
   LDY #$06                                ; $BBB3: A0 06
   LDA ($1C),Y                             ; $BBB5: B1 1C
   STA $0001                               ; $BBB7: 8D 01 00
@@ -2952,12 +2986,12 @@ Loc_BBB3:
   STA $0013                               ; $BBDF: 8D 13 00
   LDX #$37                                ; $BBE2: A2 37
   LDA $0479                               ; $BBE4: AD 79 04
-  BNE Loc_BBF1                            ; $BBE7: D0 08
+  BNE @format_extra                            ; $BBE7: D0 08
   LDX #$3A                                ; $BBE9: A2 3A
-  JSR Loc_B040                            ; $BBEB: 20 40 B0
-  JMP Loc_BC15                            ; $BBEE: 4C 15 BC
-Loc_BBF1:
-  JSR Loc_B040                            ; $BBF1: 20 40 B0
+  JSR @format_digits                            ; $BBEB: 20 40 B0
+  JMP @advance_list2                            ; $BBEE: 4C 15 BC
+@format_extra:
+  JSR @format_digits                            ; $BBF1: 20 40 B0
   LDY #$08                                ; $BBF4: A0 08
   LDA ($1C),Y                             ; $BBF6: B1 1C
   STA $0001                               ; $BBF8: 8D 01 00
@@ -2971,8 +3005,8 @@ Loc_BBF1:
   LDA #$04                                ; $BC0B: A9 04
   STA $0013                               ; $BC0D: 8D 13 00
   LDX #$3B                                ; $BC10: A2 3B
-  JSR Loc_B040                            ; $BC12: 20 40 B0
-Loc_BC15:
+  JSR @format_digits                            ; $BC12: 20 40 B0
+@advance_list2:
   LDA $0480                               ; $BC15: AD 80 04
   CLC                                     ; $BC18: 18
   ADC #$40                                ; $BC19: 69 40
@@ -2985,19 +3019,18 @@ Loc_BC15:
   ORA #$02                                ; $BC2C: 09 02
   STA $007E                               ; $BC2E: 8D 7E 00
   RTS                                     ; $BC31: 60
-Loc_BC32:
+@write_terminator:
   LDX $0014                               ; $BC32: AE 14 00
   LDA #$32                                ; $BC35: A9 32
   STA $0160,X                             ; $BC37: 9D 60 01
   INX                                     ; $BC3A: E8
   STA $0160,X                             ; $BC3B: 9D 60 01
-  JMP Loc_BB89                            ; $BC3E: 4C 89 BB
+  JMP @advance_offset                            ; $BC3E: 4C 89 BB
 
-;-----------------------------------------------------------------------------
-; Entry06: Entry06_Unknown
-; Jump table entry 6 at $A012
-;-----------------------------------------------------------------------------
-Entry06_Unknown:
+.endproc
+
+.proc Unknown
+Unknown:
   LDA $008B                               ; $BC41: AD 8B 00
   AND #$FB                                ; $BC44: 29 FB
   STA $2000                               ; $BC46: 8D 00 20
@@ -3007,32 +3040,30 @@ Entry06_Unknown:
   LDA $0480                               ; $BC52: AD 80 04
   STA $2006                               ; $BC55: 8D 06 20
   LDY #$00                                ; $BC58: A0 00
-Loc_BC5A:
+@vram_fill_loop:
   LDA $0160,Y                             ; $BC5A: B9 60 01
   STA $2007                               ; $BC5D: 8D 07 20
   INY                                     ; $BC60: C8
   CPY #$40                                ; $BC61: C0 40
-  BCC Loc_BC5A                            ; $BC63: 90 F5
+  BCC @vram_fill_loop                            ; $BC63: 90 F5
   RTS                                     ; $BC65: 60
 
-;-----------------------------------------------------------------------------
-; Entry18: Entry18_SmallRoutineA
-; Jump table entry 18 at $A036
-;-----------------------------------------------------------------------------
-Entry18_SmallRoutineA:
+.endproc
+
+.proc SmallRoutineA
+SmallRoutineA:
   LDY #$3F                                ; $BC66: A0 3F
   LDA #$00                                ; $BC68: A9 00
-Loc_BC6A:
+@clear_0140_loop:
   STA $0140,Y                             ; $BC6A: 99 40 01
   DEY                                     ; $BC6D: 88
-  BPL Loc_BC6A                            ; $BC6E: 10 FA
+  BPL @clear_0140_loop                            ; $BC6E: 10 FA
   RTS                                     ; $BC70: 60
 
-;-----------------------------------------------------------------------------
-; Entry19: Entry19_SmallRoutineB
-; Jump table entry 19 at $A039
-;-----------------------------------------------------------------------------
-Entry19_SmallRoutineB:
+.endproc
+
+.proc SmallRoutineB
+SmallRoutineB:
   LDA $0401                               ; $BC71: AD 01 04
   JSR B1F_CallbackDispatcher              ; $BC74: 20 DE EA
   .byte $83                               ; $BC77: 83
@@ -3064,12 +3095,12 @@ Entry19_SmallRoutineB:
   LDA $0471                               ; $BCB7: AD 71 04
   STA $0001                               ; $BCBA: 8D 01 00
   LDY #$00                                ; $BCBD: A0 00
-Loc_BCBF:
+@copy_page_loop:
   LDA ($00),Y                             ; $BCBF: B1 00
   STA $0383,Y                             ; $BCC1: 99 83 03
   INY                                     ; $BCC4: C8
   CPY #$40                                ; $BCC5: C0 40
-  BCC Loc_BCBF                            ; $BCC7: 90 F6
+  BCC @copy_page_loop                            ; $BCC7: 90 F6
   LDA #$FF                                ; $BCC9: A9 FF
   STA $0383,Y                             ; $BCCB: 99 83 03
   LDA $0470                               ; $BCCE: AD 70 04
@@ -3087,16 +3118,16 @@ Loc_BCBF:
   ADC #$00                                ; $BCEB: 69 00
   STA $0473                               ; $BCED: 8D 73 04
   CMP #$28                                ; $BCF0: C9 28
-  BNE Loc_BCFA                            ; $BCF2: D0 06
+  BNE @set_flag_exit                            ; $BCF2: D0 06
   INC $0401                               ; $BCF4: EE 01 04
-  JSR $ECEE                               ; $BCF7: 20 EE EC
-Loc_BCFA:
+  JSR B1F_PaletteCopyBuffer                  ; $BCF7: 20 EE EC
+@set_flag_exit:
   LDA $007E                               ; $BCFA: AD 7E 00
   ORA #$04                                ; $BCFD: 09 04
   STA $007E                               ; $BCFF: 8D 7E 00
   RTS                                     ; $BD02: 60
   LDA $0087                               ; $BD03: AD 87 00
-  BPL Loc_BD37                            ; $BD06: 10 2F
+  BPL @render_exit1                            ; $BD06: 10 2F
   LDA #$0A                                ; $BD08: A9 0A
   STA $00B3                               ; $BD0A: 8D B3 00
   LDA #$0B                                ; $BD0D: A9 0B
@@ -3113,33 +3144,33 @@ Loc_BCFA:
   STA $0000                               ; $BD28: 8D 00 00
   JSR $DBB1                               ; $BD2B: 20 B1 DB
   INC $0401                               ; $BD2E: EE 01 04
-  JSR Loc_BDFE                            ; $BD31: 20 FE BD
-  JMP $ECBF                               ; $BD34: 4C BF EC
-Loc_BD37:
+  JSR @init_timer                            ; $BD31: 20 FE BD
+  JMP B1F_PaletteFadeInit                   ; $BD34: 4C BF EC
+@render_exit1:
   RTS                                     ; $BD37: 60
   LDA #$F0                                ; $BD38: A9 F0
   STA $0200                               ; $BD3A: 8D 00 02
   STA $0204                               ; $BD3D: 8D 04 02
   LDA $0087                               ; $BD40: AD 87 00
-  BPL Loc_BD5F                            ; $BD43: 10 1A
+  BPL @render_exit2                            ; $BD43: 10 1A
   LDA $0081                               ; $BD45: AD 81 00
   ORA $0082                               ; $BD48: 0D 82 00
   AND #$04                                ; $BD4B: 29 04
-  BEQ Loc_BD5F                            ; $BD4D: F0 10
+  BEQ @render_exit2                            ; $BD4D: F0 10
   LDA $0083                               ; $BD4F: AD 83 00
   CMP #$1C                                ; $BD52: C9 1C
-  BNE Loc_BD59                            ; $BD54: D0 03
-  JSR Loc_BDF1                            ; $BD56: 20 F1 BD
-Loc_BD59:
+  BNE @inc_and_jmp                            ; $BD54: D0 03
+  JSR @check_game_state                            ; $BD56: 20 F1 BD
+@inc_and_jmp:
   INC $0401                               ; $BD59: EE 01 04
-  JMP $ECEE                               ; $BD5C: 4C EE EC
-Loc_BD5F:
+  JMP B1F_PaletteCopyBuffer                 ; $BD5C: 4C EE EC
+@render_exit2:
   RTS                                     ; $BD5F: 60
   LDA #$F0                                ; $BD60: A9 F0
   STA $0200                               ; $BD62: 8D 00 02
   STA $0204                               ; $BD65: 8D 04 02
   LDA $0087                               ; $BD68: AD 87 00
-  BPL Loc_BD91                            ; $BD6B: 10 24
+  BPL @render_exit3                            ; $BD6B: 10 24
   LDA #$01                                ; $BD6D: A9 01
   STA $00B3                               ; $BD6F: 8D B3 00
   STA $00C3                               ; $BD72: 8D C3 00
@@ -3152,11 +3183,11 @@ Loc_BD5F:
   STA $0000                               ; $BD85: 8D 00 00
   JSR $DBB1                               ; $BD88: 20 B1 DB
   INC $0401                               ; $BD8B: EE 01 04
-  JMP $ECBF                               ; $BD8E: 4C BF EC
-Loc_BD91:
+  JMP B1F_PaletteFadeInit                   ; $BD8E: 4C BF EC
+@render_exit3:
   RTS                                     ; $BD91: 60
   LDA $0087                               ; $BD92: AD 87 00
-  BPL Loc_BDF0                            ; $BD95: 10 59
+  BPL @sub_exit                            ; $BD95: 10 59
   LDA #$40                                ; $BD97: A9 40
   STA $0380                               ; $BD99: 8D 80 03
   LDA #$27                                ; $BD9C: A9 27
@@ -3165,10 +3196,10 @@ Loc_BD91:
   STA $0382                               ; $BDA3: 8D 82 03
   LDY #$39                                ; $BDA6: A0 39
   LDA #$AA                                ; $BDA8: A9 AA
-Loc_BDAA:
+@fill_aa_page:
   STA $0383,Y                             ; $BDAA: 99 83 03
   DEY                                     ; $BDAD: 88
-  BPL Loc_BDAA                            ; $BDAE: 10 FA
+  BPL @fill_aa_page                            ; $BDAE: 10 FA
   LDA #$FF                                ; $BDB0: A9 FF
   STA $03C3                               ; $BDB2: 8D C3 03
   LDA $007E                               ; $BDB5: AD 7E 00
@@ -3192,21 +3223,21 @@ Loc_BDAA:
   STA $0400                               ; $BDE2: 8D 00 04
   STA $0401                               ; $BDE5: 8D 01 04
   LDY #$03                                ; $BDE8: A0 03
-Loc_BDEA:
+@fill_0470:
   STA $0470,Y                             ; $BDEA: 99 70 04
   DEY                                     ; $BDED: 88
-  BPL Loc_BDEA                            ; $BDEE: 10 FA
-Loc_BDF0:
+  BPL @fill_0470                            ; $BDEE: 10 FA
+@sub_exit:
   RTS                                     ; $BDF0: 60
-Loc_BDF1:
+@check_game_state:
   LDA $6F05                               ; $BDF1: AD 05 6F
   CMP #$02                                ; $BDF4: C9 02
-  BCC Loc_BDFD                            ; $BDF6: 90 05
+  BCC @state_rts2                            ; $BDF6: 90 05
   LDA #$01                                ; $BDF8: A9 01
   STA $6F05                               ; $BDFA: 8D 05 6F
-Loc_BDFD:
+@state_rts2:
   RTS                                     ; $BDFD: 60
-Loc_BDFE:
+@init_timer:
   LDA #$03                                ; $BDFE: A9 03
   STA $0061                               ; $BE00: 8D 61 00
   LDA #$28                                ; $BE03: A9 28
@@ -3231,34 +3262,33 @@ Loc_BDFE:
   STA $0071                               ; $BE32: 8D 71 00
   RTS                                     ; $BE35: 60
 
-;-----------------------------------------------------------------------------
-; Entry21: Entry21_MenuRenderer
-; Jump table entry 21 at $A03F
-;-----------------------------------------------------------------------------
-Entry21_MenuRenderer:
+.endproc
+
+.proc MenuRenderer
+MenuRenderer:
   LDA $04A0                               ; $BE36: AD A0 04
-  BNE Loc_BE3C                            ; $BE39: D0 01
+  BNE @menu_dispatch                            ; $BE39: D0 01
   RTS                                     ; $BE3B: 60
-Loc_BE3C:
-  BMI Loc_BE5D                            ; $BE3C: 30 1F
+@menu_dispatch:
+  BMI @check_low                            ; $BE3C: 30 1F
   STA $04A2                               ; $BE3E: 8D A2 04
   DEC $04A2                               ; $BE41: CE A2 04
   LDA #$00                                ; $BE44: A9 00
   STA $04A1                               ; $BE46: 8D A1 04
   LDX #$40                                ; $BE49: A2 40
   LDA $0150                               ; $BE4B: AD 50 01
-  BMI Loc_BE52                            ; $BE4E: 30 02
+  BMI @setup_menu                            ; $BE4E: 30 02
   LDX #$80                                ; $BE50: A2 80
-Loc_BE52:
+@setup_menu:
   STX $0420                               ; $BE52: 8E 20 04
   LDA #$80                                ; $BE55: A9 80
   STA $04A0                               ; $BE57: 8D A0 04
   JMP $C9C2                               ; $BE5A: 4C C2 C9
-Loc_BE5D:
+@check_low:
   AND #$0F                                ; $BE5D: 29 0F
-  BNE Loc_BE64                            ; $BE5F: D0 03
+  BNE @render_menu                            ; $BE5F: D0 03
   JMP $C9C2                               ; $BE61: 4C C2 C9
-Loc_BE64:
+@render_menu:
   INC $04A3                               ; $BE64: EE A3 04
   INC $04D0                               ; $BE67: EE D0 04
   LDY #$36                                ; $BE6A: A0 36
@@ -3269,8 +3299,8 @@ Loc_BE64:
   LDX $BEEB,Y                             ; $BE76: BE EB BE
   .byte $2F                               ; $BE79: 2F
   .byte $BF                               ; $BE7A: BF
-Loc_BE7B:
-  BVS Loc_BE3C                            ; $BE7B: 70 BF
+@data_bytes2:
+  BVS @menu_dispatch                            ; $BE7B: 70 BF
   .byte $BF                               ; $BE7D: BF
   .byte $BF                               ; $BE7E: BF
   .byte $F3                               ; $BE7F: F3
@@ -3301,120 +3331,120 @@ Loc_BE7B:
   CMP ($C7),Y                             ; $BEAD: D1 C7
   BRK                                     ; $BEAF: 00
   INY                                     ; $BEB0: C8
-  BMI Loc_BE7B                            ; $BEB1: 30 C8
+  BMI @data_bytes2                            ; $BEB1: 30 C8
   ADC $B4C8,X                             ; $BEB3: 7D C8 B4
   INY                                     ; $BEB6: C8
   SBC ($C8),Y                             ; $BEB7: F1 C8
   ROL $C9                                 ; $BEB9: 26 C9
   LDA $04A1                               ; $BEBB: AD A1 04
-  BNE Loc_BEC9                            ; $BEBE: D0 09
+  BNE @load_row0                            ; $BEBE: D0 09
   LDA #$E8                                ; $BEC0: A9 E8
-  JSR $C96D                               ; $BEC2: 20 6D C9
+  JSR SetupDisplayPtrs                    ; $BEC2: 20 6D C9
   INC $04A1                               ; $BEC5: EE A1 04
   RTS                                     ; $BEC8: 60
-Loc_BEC9:
+@load_row0:
   LDA #$00                                ; $BEC9: A9 00
   STA $0010                               ; $BECB: 8D 10 00
   LDA #$80                                ; $BECE: A9 80
   STA $0011                               ; $BED0: 8D 11 00
   LDY $04A1                               ; $BED3: AC A1 04
-  JSR $C994                               ; $BED6: 20 94 C9
+  JSR DisplayTileData                     ; $BED6: 20 94 C9
   LDA $04A3                               ; $BED9: AD A3 04
   AND #$04                                ; $BEDC: 29 04
-  BEQ Loc_BEE2                            ; $BEDE: F0 02
+  BEQ @set_row                            ; $BEDE: F0 02
   LDA #$01                                ; $BEE0: A9 01
-Loc_BEE2:
+@set_row:
   STA $04A1                               ; $BEE2: 8D A1 04
   INC $04A1                               ; $BEE5: EE A1 04
-  JMP $C934                               ; $BEE8: 4C 34 C9
+  JMP CommonReturn                        ; $BEE8: 4C 34 C9
   LDA $04A1                               ; $BEEB: AD A1 04
-  BNE Loc_BEFE                            ; $BEEE: D0 0E
+  BNE @load_row1                            ; $BEEE: D0 0E
   LDA #$DC                                ; $BEF0: A9 DC
-  JSR $C96D                               ; $BEF2: 20 6D C9
+  JSR SetupDisplayPtrs                    ; $BEF2: 20 6D C9
   LDA #$DF                                ; $BEF5: A9 DF
-  JSR $C98A                               ; $BEF7: 20 8A C9
+  JSR ResetDispatchState                    ; $BEF7: 20 8A C9
   INC $04A1                               ; $BEFA: EE A1 04
   RTS                                     ; $BEFD: 60
-Loc_BEFE:
+@load_row1:
   LDA #$F6                                ; $BEFE: A9 F6
   STA $0010                               ; $BF00: 8D 10 00
   LDA #$80                                ; $BF03: A9 80
   STA $0011                               ; $BF05: 8D 11 00
   LDY $04A1                               ; $BF08: AC A1 04
-  JSR $C994                               ; $BF0B: 20 94 C9
+  JSR DisplayTileData                     ; $BF0B: 20 94 C9
   LDA $04A3                               ; $BF0E: AD A3 04
   LSR A                                   ; $BF11: 4A
   LSR A                                   ; $BF12: 4A
   LSR A                                   ; $BF13: 4A
   AND #$07                                ; $BF14: 29 07
   CMP #$06                                ; $BF16: C9 06
-  BNE Loc_BF1F                            ; $BF18: D0 05
+  BNE @load_table                            ; $BF18: D0 05
   LDA #$00                                ; $BF1A: A9 00
   STA $04A3                               ; $BF1C: 8D A3 04
-Loc_BF1F:
+@load_table:
   TAY                                     ; $BF1F: A8
   LDA $BF29,Y                             ; $BF20: B9 29 BF
   STA $04A1                               ; $BF23: 8D A1 04
-  JMP $C934                               ; $BF26: 4C 34 C9
+  JMP CommonReturn                        ; $BF26: 4C 34 C9
   ORA ($02,X)                             ; $BF29: 01 02
   .byte $03                               ; $BF2B: 03
   .byte $04                               ; $BF2C: 04
   .byte $03                               ; $BF2D: 03
   .byte $02                               ; $BF2E: 02
   LDA $04A1                               ; $BF2F: AD A1 04
-  BNE Loc_BF3D                            ; $BF32: D0 09
+  BNE @load_row2                            ; $BF32: D0 09
   LDA #$E1                                ; $BF34: A9 E1
-  JSR $C96D                               ; $BF36: 20 6D C9
+  JSR SetupDisplayPtrs                    ; $BF36: 20 6D C9
   INC $04A1                               ; $BF39: EE A1 04
   RTS                                     ; $BF3C: 60
-Loc_BF3D:
+@load_row2:
   LDA #$72                                ; $BF3D: A9 72
   STA $0010                               ; $BF3F: 8D 10 00
   LDA #$81                                ; $BF42: A9 81
   STA $0011                               ; $BF44: 8D 11 00
   LDY #$01                                ; $BF47: A0 01
-  JSR $C994                               ; $BF49: 20 94 C9
+  JSR DisplayTileData                     ; $BF49: 20 94 C9
   LDA $04A3                               ; $BF4C: AD A3 04
   LSR A                                   ; $BF4F: 4A
   LSR A                                   ; $BF50: 4A
   LSR A                                   ; $BF51: 4A
   AND #$1F                                ; $BF52: 29 1F
   CMP #$15                                ; $BF54: C9 15
-  BCS Loc_BF6D                            ; $BF56: B0 15
+  BCS @menu_return                            ; $BF56: B0 15
   ASL A                                   ; $BF58: 0A
   ASL A                                   ; $BF59: 0A
   STA $0000                               ; $BF5A: 8D 00 00
   LDY #$54                                ; $BF5D: A0 54
   LDA #$F0                                ; $BF5F: A9 F0
-Loc_BF61:
+@clear_sprites:
   STA $0200,Y                             ; $BF61: 99 00 02
   DEY                                     ; $BF64: 88
   DEY                                     ; $BF65: 88
   DEY                                     ; $BF66: 88
   DEY                                     ; $BF67: 88
   CPY $0000                               ; $BF68: CC 00 00
-  BNE Loc_BF61                            ; $BF6B: D0 F4
-Loc_BF6D:
-  JMP $C934                               ; $BF6D: 4C 34 C9
+  BNE @clear_sprites                            ; $BF6B: D0 F4
+@menu_return:
+  JMP CommonReturn                        ; $BF6D: 4C 34 C9
   LDA $04A1                               ; $BF70: AD A1 04
-  BNE Loc_BF88                            ; $BF73: D0 13
+  BNE @load_row3                            ; $BF73: D0 13
   LDA #$E9                                ; $BF75: A9 E9
-  JSR $C96D                               ; $BF77: 20 6D C9
+  JSR SetupDisplayPtrs                    ; $BF77: 20 6D C9
   LDA #$EA                                ; $BF7A: A9 EA
-  JSR $C98A                               ; $BF7C: 20 8A C9
+  JSR ResetDispatchState                    ; $BF7C: 20 8A C9
   INC $04A1                               ; $BF7F: EE A1 04
   LDA #$03                                ; $BF82: A9 03
   STA $04A4                               ; $BF84: 8D A4 04
   RTS                                     ; $BF87: 60
-Loc_BF88:
+@load_row3:
   LDA #$CD                                ; $BF88: A9 CD
   STA $0010                               ; $BF8A: 8D 10 00
   LDA #$81                                ; $BF8D: A9 81
   STA $0011                               ; $BF8F: 8D 11 00
   LDY $04A1                               ; $BF92: AC A1 04
-  JSR $C994                               ; $BF95: 20 94 C9
+  JSR DisplayTileData                     ; $BF95: 20 94 C9
   LDY $04A4                               ; $BF98: AC A4 04
-  JSR $C994                               ; $BF9B: 20 94 C9
+  JSR DisplayTileData                     ; $BF9B: 20 94 C9
   LDA $04A3                               ; $BF9E: AD A3 04
   LSR A                                   ; $BFA1: 4A
   LSR A                                   ; $BFA2: 4A
@@ -3431,22 +3461,22 @@ Loc_BF88:
   CLC                                     ; $BFB6: 18
   ADC #$03                                ; $BFB7: 69 03
   STA $04A4                               ; $BFB9: 8D A4 04
-  JMP $C934                               ; $BFBC: 4C 34 C9
+  JMP CommonReturn                        ; $BFBC: 4C 34 C9
   LDA $04A1                               ; $BFBF: AD A1 04
-  BNE Loc_BFD2                            ; $BFC2: D0 0E
+  BNE @load_row4                            ; $BFC2: D0 0E
   LDA #$D1                                ; $BFC4: A9 D1
-  JSR $C96D                               ; $BFC6: 20 6D C9
+  JSR SetupDisplayPtrs                    ; $BFC6: 20 6D C9
   INC $04A1                               ; $BFC9: EE A1 04
   LDA #$80                                ; $BFCC: A9 80
   STA $04CC                               ; $BFCE: 8D CC 04
   RTS                                     ; $BFD1: 60
-Loc_BFD2:
+@load_row4:
   LDA #$39                                ; $BFD2: A9 39
   STA $0010                               ; $BFD4: 8D 10 00
   LDA #$82                                ; $BFD7: A9 82
   STA $0011                               ; $BFD9: 8D 11 00
   LDY $04A1                               ; $BFDC: AC A1 04
-  JSR $C994                               ; $BFDF: 20 94 C9
+  JSR DisplayTileData                     ; $BFDF: 20 94 C9
   LDA $04A3                               ; $BFE2: AD A3 04
   LSR A                                   ; $BFE5: 4A
   LSR A                                   ; $BFE6: 4A
@@ -3454,14 +3484,16 @@ Loc_BFD2:
   AND #$01                                ; $BFE8: 29 01
   STA $04A1                               ; $BFEA: 8D A1 04
   INC $04A1                               ; $BFED: EE A1 04
-  JMP $C934                               ; $BFF0: 4C 34 C9
+  JMP CommonReturn                        ; $BFF0: 4C 34 C9
   LDA $04A1                               ; $BFF3: AD A1 04
   .byte $D0, $18 ; $BFF6: D0 18
   LDA #$C6                                ; $BFF8: A9 C6
-  JSR $C96D                               ; $BFFA: 20 6D C9
+  JSR SetupDisplayPtrs                    ; $BFFA: 20 6D C9
   LDA #$CF                                ; $BFFD: A9 CF
   .byte $20                               ; $BFFF: 20
 
+
+.endproc
 
 ;===============================================================================
 ; PRG Bank $1E - $C000-$DFFF
@@ -3498,9 +3530,9 @@ Loc_BFD2:
   L_DAC5 = $DAC5
   L_DD49 = $DD49
   L_DD57 = $DD57
-  Loc_AB69 = $AB69
-  Loc_ABFF = $ABFF
-  Loc_BE45 = $BE45
+  L_AB69 = $AB69
+  L_ABFF = $ABFF
+  L_BE45 = $BE45
 
 
 ;===============================================================================
@@ -4656,9 +4688,9 @@ CommonReturn:
   BEQ L_C951                                            ; $C943: F0 0C
   CMP #$08                                              ; $C945: C9 08
   BEQ L_C951                                            ; $C947: F0 08
-  JSR $E57F                                             ; $C949: 20 7F E5
+  JSR B1F_BankPpuInit                                         ; $C949: 20 7F E5
   LDA #$81                                              ; $C94C: A9 81
-  JSR $E673                                             ; $C94E: 20 73 E6
+  JSR B1F_SoundWrapperA                                       ; $C94E: 20 73 E6
 L_C951:
   LDA #$01                                              ; $C951: A9 01
   STA $007D                                             ; $C953: 8D 7D 00
@@ -4730,7 +4762,7 @@ L_C9B2:
   STA $000A                                             ; $C9B7: 8D 0A 00
   LDA #$03                                              ; $C9BA: A9 03
   STA $0002                                             ; $C9BC: 8D 02 00
-  JMP $F1AD                                             ; $C9BF: 4C AD F1
+  JMP B1F_SpriteOamWriterSimple                               ; $C9BF: 4C AD F1
   LDA $04A1                                             ; $C9C2: AD A1 04
   JSR B1F_CallbackDispatcher                            ; $C9C5: 20 DE EA
   INX                                                   ; $C9C8: E8
@@ -4997,7 +5029,7 @@ L_CB84:
   BEQ L_CBEB                                            ; $CBDF: F0 0A
   CMP #$05                                              ; $CBE1: C9 05
   BEQ L_CBEB                                            ; $CBE3: F0 06
-  JSR $E57F                                             ; $CBE5: 20 7F E5
+  JSR B1F_BankPpuInit                                         ; $CBE5: 20 7F E5
   JSR L_CC09                                            ; $CBE8: 20 09 CC
 L_CBEB:
   LDA #$81                                              ; $CBEB: A9 81
@@ -5039,13 +5071,13 @@ L_CC09:
   BEQ L_CC37                                            ; $CC2E: F0 07
   CMP #$9F                                              ; $CC30: C9 9F
   BEQ L_CC37                                            ; $CC32: F0 03
-  JMP $E683                                             ; $CC34: 4C 83 E6
+  JMP B1F_SoundWrapperC                                       ; $CC34: 4C 83 E6
 L_CC37:
-  JMP $E693                                             ; $CC37: 4C 93 E6
+  JMP B1F_SoundWrapperE                                       ; $CC37: 4C 93 E6
 L_CC3A:
-  JMP $E68B                                             ; $CC3A: 4C 8B E6
+  JMP B1F_SoundWrapperD                                       ; $CC3A: 4C 8B E6
 L_CC3D:
-  JMP $E67B                                             ; $CC3D: 4C 7B E6
+  JMP B1F_SoundWrapperB                                       ; $CC3D: 4C 7B E6
   .byte $04, $23                                        ; $CC40: 04 23
   INY                                                   ; $CC42: C8
   STA $FAFA,Y                                           ; $CC43: 99 FA FA
@@ -7678,7 +7710,7 @@ L_DD9A:
   PLA                                                   ; $DDA9: 68
   STA $6F43                                             ; $DDAA: 8D 43 6F
 L_DDAD:
-  JSR $E87A                                             ; $DDAD: 20 7A E8
+  JSR B1F_RandomByte                                          ; $DDAD: 20 7A E8
   AND #$07                                              ; $DDB0: 29 07
   CMP #$05                                              ; $DDB2: C9 05
   BCS L_DDAD                                            ; $DDB4: B0 F7

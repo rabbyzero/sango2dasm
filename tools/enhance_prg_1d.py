@@ -23,7 +23,7 @@ JUMP_TABLE = [
     (7,  None,        None),          # JMP $DBB1 (bank 1E)
     (8,  None,        None),          # JMP $DD8B (bank 1E)
     (9,  None,        None),          # JMP $DE7E (bank 1E)
-    (10, "Loc_A6B6", "Entry10_NumberDisplaySetup"),
+    (10, "Loc_A6B6", "Entry10_YearDisplaySetup"),
     (11, "Loc_A77F", "Entry11_FrameCounterCheck"),
     (12, "Loc_A7B2", "Entry12_BcdDisplayHandler"),
     (13, "Loc_A830", "Entry13_ProvinceDataHandler"),

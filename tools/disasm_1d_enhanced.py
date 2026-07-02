@@ -118,7 +118,7 @@ JUMP_TABLE_ENTRIES = [
     (7,  0xDBB1, None),  # bank $1E
     (8,  0xDD8B, None),  # bank $1E
     (9,  0xDE7E, None),  # bank $1E
-    (10, 0xA6B6, "Entry10_NumberDisplaySetup"),
+    (10, 0xA6B6, "Entry10_YearDisplaySetup"),
     (11, 0xA77F, "Entry11_FrameCounterCheck"),
     (12, 0xA7B2, "Entry12_BcdDisplayHandler"),
     (13, 0xA830, "Entry13_ProvinceDataHandler"),

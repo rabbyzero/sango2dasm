@@ -10,12 +10,13 @@
 - [prg_00.asm](file://asm/banks/prg_00.asm)
 - [prg_01.asm](file://asm/banks/prg_01.asm)
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
-- [prg_1e.asm](file://asm/banks/prg_1e.asm)
+- [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [bank_1f_plan.md](file://code/bank_1f_plan.md)
 - [Makefile](file://Makefile)
 - [main.lst](file://build/main.lst)
+- [assemble_prg_1d_1e.py](file://tools/assemble_prg_1d_1e.py)
 </cite>
 
 ## Update Summary
@@ -25,6 +26,7 @@
 - Updated practical distribution examples to show consolidated bank approach
 - Modified bank switching examples to demonstrate new consolidated mechanism
 - Updated dependency analysis to reflect structural changes
+- Added comprehensive documentation for the new combined PRG bank 1D/1E structure
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -38,10 +40,10 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $17 and $18 into a unified 16KB block at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size.
+This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $17/$18 and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size.
 
 ## Project Structure
-The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $17 and $18 are now consolidated into a single prg_17_18.asm file that occupies both $A000-$BFFF and $C000-$DFFF, providing 16KB of unified code space.
+The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $17/$18 and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces.
 
 ```mermaid
 graph TB
@@ -49,14 +51,14 @@ subgraph "ROM Banks"
 B00["rom/prg/prg_00.bin"]
 B01["rom/prg/prg_01.bin"]
 B17_18["rom/prg/prg_17_18.bin (consolidated)"]
-B1E["rom/prg/prg_1e.bin"]
+B1D_1E["rom/prg/prg_1d_1e.bin (consolidated)"]
 B1F["rom/prg/prg_1f.bin"]
 end
 subgraph "Assembler Stubs"
 S00["asm/banks/prg_00.asm"]
 S01["asm/banks/prg_01.asm"]
 S17_18["asm/banks/prg_17_18.asm (consolidated)"]
-S1E["asm/banks/prg_1e.asm"]
+S1D_1E["asm/banks/prg_1d_1e.asm (consolidated)"]
 S1F["asm/banks/prg_1f.asm"]
 end
 subgraph "Linker Configuration"
@@ -65,18 +67,19 @@ end
 B00 --> S00
 B01 --> S01
 B17_18 --> S17_18
-B1E --> S1E
+B1D_1E --> S1D_1E
 B1F --> S1F
 S00 -. includes .-> CFG
 S01 -. includes .-> CFG
 S17_18 -. includes .-> CFG
-S1E -. includes .-> CFG
+S1D_1E -. includes .-> CFG
 S1F -. includes .-> CFG
 ```
 
 **Diagram sources**
 - [all_banks.asm:28](file://asm/banks/all_banks.asm#L28)
 - [prg_17_18.asm:1-800](file://asm/banks/prg_17_18.asm#L1-L800)
+- [prg_1d_1e.asm:1-800](file://asm/banks/prg_1d_1e.asm#L1-L800)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 
 **Section sources**
@@ -93,12 +96,12 @@ S1F -. includes .-> CFG
   - Slot 3: $E000-$FFFF (8KB)
 - Fixed boot bank 0x1F mapped to $E000-$FFFF at reset
 - Bank switching controlled via mapper registers at $F800-$FE00
-- **Updated**: Consolidated bank switching mechanism for PRG banks $17 and $18 using unified 16KB block at $A000-$DFFF
+- **Updated**: Consolidated bank switching mechanism for PRG banks $17/$18 and $1D/$1E using unified 16KB blocks at $A000-$DFFF
 
 Key implementation references:
 - Memory map and slot definitions in linker.cfg
 - Bank indices and macros in include/namco163.h
-- Consolidated bank stubs for PRG banks $17/$18 in asm/banks/prg_17_18.asm
+- Consolidated bank stubs for PRG banks $17/$18 and $1D/$1E in asm/banks/prg_17_18.asm and asm/banks/prg_1d_1e.asm
 - Bank switching helpers in include/functions.h
 - Boot bank 0x1F and vector table in bank_1f_analysis.md
 
@@ -110,7 +113,7 @@ Key implementation references:
 - [prg_1f.asm:1-148](file://asm/banks/prg_1f.asm#L1-L148)
 
 ## Architecture Overview
-The system uses a 4-slot PRG mapping scheme with 8KB banks. At reset, bank 0x1F is fixed in slot 3 ($E000-$FFFF). The remaining three slots ($8000-$DFFF) are switchable via mapper registers. **Updated**: PRG banks $17 and $18 are now managed as a consolidated unit, sharing the $A000-$DFFF address space through unified bank switching routines. Bank switching is performed by writing the desired bank number to specific addresses.
+The system uses a 4-slot PRG mapping scheme with 8KB banks. At reset, bank 0x1F is fixed in slot 3 ($E000-$FFFF). The remaining three slots ($8000-$DFFF) are switchable via mapper registers. **Updated**: PRG banks $17/$18 and $1D/$1E are now managed as consolidated units, sharing the $A000-$DFFF address space through unified bank switching routines. Bank switching is performed by writing the desired bank number to specific addresses.
 
 ```mermaid
 graph TB
@@ -121,6 +124,7 @@ REGA000["$FA00<br/>Switch $A000-$BFFF"]
 REGC000["$FC00<br/>Switch $C000-$DFFF"]
 REGE000["$FE00<br/>Switch $E000-$FFFF"]
 SWITCHAC["B1F_SwitchBankAC ($F237)<br/>Switch $A000-$BFFF + $C000-$DFFF"]
+SWITCH1D1E["B1F_SwitchBank1D1E ($F237)<br/>Switch $A000-$DFFF (16KB)"]
 CPU --> REG8000
 CPU --> REGA000
 CPU --> REGC000
@@ -130,6 +134,7 @@ REGA000 --> MAPPER
 REGC000 --> MAPPER
 REGE000 --> MAPPER
 SWITCHAC --> MAPPER
+SWITCH1D1E --> MAPPER
 ```
 
 **Diagram sources**
@@ -153,7 +158,7 @@ SWITCHAC --> MAPPER
   - $C000-$DFFF: Slot 2 (switchable via $FC00)
   - $E000-$FFFF: Slot 3 (fixed boot bank 0x1F via $FE00)
 
-**Updated**: PRG banks $17 and $18 are now consolidated into a single 16KB block occupying both $A000-$BFFF and $C000-$DFFF. This consolidation allows the $A000-$BFFF and $C000-$DFFF slots to be switched as a unified pair using the SwitchBankAC routines.
+**Updated**: PRG banks $17/$18 and $1D/$1E are now consolidated into single 16KB blocks occupying both $A000-$BFFF and $C000-$DFFF. This consolidation allows the $A000-$BFFF and $C000-$DFFF slots to be switched as unified pairs using the SwitchBankAC routines.
 
 Memory mapping configuration in linker.cfg:
 - MEMORY regions define four PRG slots with fill and fillval
@@ -164,8 +169,8 @@ Memory mapping configuration in linker.cfg:
 Practical distribution examples:
 - Bank 0x00: $8000-$9FFF (mapped via slot 0)
 - Bank 0x01: $A000-$BFFF (mapped via slot 1)
-- **Updated**: Bank 0x17/$0x18: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
-- Bank 0x1E: $C000-$DFFF (mapped via slot 2)
+- **Updated**: Banks 0x17/$0x18: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
+- **Updated**: Banks 0x1D/$0x1E: $A000-$DFFF (consolidated 16KB block via B1F_SwitchBank1D1E)
 - Bank 0x1F: $E000-$FFFF (boot bank, fixed)
 
 **Section sources**
@@ -174,7 +179,7 @@ Practical distribution examples:
 - [prg_00.asm:1-13](file://asm/banks/prg_00.asm#L1-L13)
 - [prg_01.asm:1-13](file://asm/banks/prg_01.asm#L1-L13)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
-- [prg_1e.asm:1-13](file://asm/banks/prg_1e.asm#L1-L13)
+- [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [prg_1f.asm:1-13](file://asm/banks/prg_1f.asm#L1-L13)
 
 ### Fixed Boot Bank 0x1F at $E000-$FFFF
@@ -202,10 +207,11 @@ Boot sequence and dispatch:
 - Slot 2: $C000-$DFFF (switchable via $FC00)
 - Slot 3: $E000-$FFFF (fixed to bank 0x1F via $FE00)
 
-**Updated**: Consolidated bank switching for PRG banks $17/$18:
-- The $A000-$BFFF and $C000-$DFFF slots are now managed as a unified pair
+**Updated**: Consolidated bank switching for PRG banks $17/$18 and $1D/$1E:
+- The $A000-$BFFF and $C000-$DFFF slots are now managed as unified pairs
 - Bank switching uses B1F_SwitchBankAC routines (B1F_SwitchBankAC_A/B) instead of individual $FA00/$FC00 writes
 - Bank parameter Y determines both $A000-$BFFF and $C000-$DFFF banks simultaneously
+- **New**: B1F_SwitchBank1D1E routine specifically handles the $A000-$DFFF 16KB block for banks 0x1D/$0x1E
 
 Bank switching macros:
 - switch_bank_8000(BANK_XX)
@@ -237,13 +243,16 @@ Bank switching macros:
 **Updated**: Segment organization for consolidated banks:
 - CODE_BANK17_18: load = PRG_SLOT1, type = ro, optional = yes (maps to $A000-$BFFF)
 - CODE_BANK18: load = PRG_SLOT2, type = ro, optional = yes (maps to $C000-$DFFF)
-- Both segments share the same source file (prg_17_18.asm) but are loaded into different slots
+- **New**: CODE_BANK1D: load = PRG_SLOT1, type = ro, optional = yes (maps to $A000-$BFFF)
+- **New**: CODE_BANK1E: load = PRG_SLOT2, type = ro, optional = yes (maps to $C000-$DFFF)
+- Both segments share the same source file (prg_1d_1e.asm) but are loaded into different slots
 
 Segment organization strategy:
 - Place reset/NMI/IRQ vectors in CODE/VECTORS so they remain accessible from slot 0
 - Use CODE0/CODE1/CODE2/CODE3 to allocate additional code to slots 0/1/2/3
 - Use RODATA segments to place constants and tables in appropriate slots
 - **Updated**: Consolidated bank 17/18 code uses CODE_BANK17_18 segment for unified management
+- **New**: Consolidated bank 1D/1E code uses CODE_BANK1D and CODE_BANK1E segments for unified management
 
 **Section sources**
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
@@ -257,8 +266,10 @@ Segment organization strategy:
   - Stub: asm/banks/prg_17_18.asm includes rom/prg/prg_17_18.bin
   - Contains domestic/kingdom display functions at $A000-$A029
   - Provides unified 16KB code space for both $A000-$BFFF and $C000-$DFFF
-- Bank 0x1E: $C000-$DFFF
-  - Stub: asm/banks/prg_1e.asm includes rom/prg/prg_1e.bin
+- **Updated**: Banks 0x1D/$0x1E: $A000-$DFFF (consolidated)
+  - Stub: asm/banks/prg_1d_1e.asm includes rom/prg/prg_1d_1e.bin
+  - Contains jump table and menu handlers at $A000-$A047
+  - Provides unified 16KB code space for both $A000-$BFFF and $C000-$DFFF
 - Bank 0x1F: $E000-$FFFF
   - Stub: asm/banks/prg_1f.asm includes rom/prg/prg_1f.bin
   - Contains boot code and dispatch logic
@@ -266,13 +277,14 @@ Segment organization strategy:
 **Updated**: Consolidated bank switching in practice:
 - To call bank-switched functions in $A000-$A029, bank 0x1F writes a JMP instruction into RAM at $00A5 and also writes to mapper register $F800 to patch the mapper
 - **Updated**: For consolidated bank 0x17/$0x18, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
+- **New**: For consolidated bank 0x1D/$0x1E, bank 0x1F uses B1F_SwitchBank1D1E routine to switch the entire $A000-$DFFF 16KB block
 - Bank switching routine reads a configuration table and writes to mapper registers $C000/$C800/$D000/$D800
 
 **Section sources**
 - [prg_00.asm:1-13](file://asm/banks/prg_00.asm#L1-L13)
 - [prg_01.asm:1-13](file://asm/banks/prg_01.asm#L1-L13)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
-- [prg_1e.asm:1-13](file://asm/banks/prg_1e.asm#L1-L13)
+- [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [prg_1f.asm:1-13](file://asm/banks/prg_1f.asm#L1-L13)
 - [bank_1f_analysis.md:80-111](file://code/bank_1f_analysis.md#L80-L111)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
@@ -281,14 +293,18 @@ Segment organization strategy:
 - Bank 0x00 maps to $8000-$9FFF
 - Bank 0x01 maps to $A000-$BFFF
 - **Updated**: Banks 0x17/$0x18 map to $A000-$DFFF (consolidated 16KB block)
-- Bank 0x1E maps to $C000-$DFFF
+- **Updated**: Banks 0x1D/$0x1E map to $A000-$DFFF (consolidated 16KB block)
 - Bank 0x1F maps to $E000-$FFFF (fixed)
 
 **Updated**: Consolidated bank relationship:
 - Bank 0x17 provides code for $A000-$BFFF (slot 1)
 - Bank 0x18 provides code for $C000-$DFFF (slot 2)
 - Together they form a unified 16KB block at $A000-$DFFF
+- **New**: Bank 0x1D provides code for $A000-$BFFF (slot 1)
+- **New**: Bank 0x1E provides code for $C000-$DFFF (slot 2)
+- Together they form a unified 16KB block at $A000-$DFFF
 - Bank switching uses B1F_SwitchBankAC routines to manage both slots simultaneously
+- **New**: Bank switching uses B1F_SwitchBank1D1E routine to manage the 16KB block
 
 This mapping is enforced by the mapper registers:
 - $F800 selects bank for $8000-$9FFF
@@ -313,8 +329,8 @@ This mapping is enforced by the mapper registers:
   - $E000-$FFFF: Slot 3 (boot bank 0x1F)
 
 **Updated**: Consolidated bank utilization:
-- $A000-$BFFF: Slot 1 - Bank 0x17 (domestic/kingdom display)
-- $C000-$DFFF: Slot 2 - Bank 0x18 (paired with bank 0x17)
+- $A000-$BFFF: Slot 1 - Bank 0x17 (domestic/kingdom display) and Bank 0x1D (jump table/menu handlers)
+- $C000-$DFFF: Slot 2 - Bank 0x18 (paired with bank 0x17) and Bank 0x1E (paired with bank 0x1D)
 - **New**: Unified 16KB block at $A000-$DFFF managed by consolidated bank switching
 
 Bank switching occurs by writing to mapper registers at $F800-$FE00. The mapper decodes the bank number and maps it into the selected 8KB window. **Updated**: Consolidated banks use specialized switching routines for unified management.
@@ -335,7 +351,10 @@ Bank switching occurs by writing to mapper registers at $F800-$FE00. The mapper 
 - B1F_SwitchBankAC_A/B routines switch both $A000-$BFFF and $C000-$DFFF simultaneously
 - Uses bank parameter Y to set both slots to related bank numbers
 - Bank 0x17 at $A000-$BFFF paired with bank 0x18 at $C000-$DFFF
+- **New**: B1F_SwitchBank1D1E routine switches the entire $A000-$DFFF 16KB block
+- **New**: Bank 0x1D at $A000-$BFFF paired with bank 0x1E at $C000-$DFFF
 - Provides unified access to 16KB of code space for domestic/kingdom display functions
+- **New**: Provides unified access to 16KB of code space for menu handlers and display functions
 
 The bank switching routine in bank 0x1F demonstrates how configurations are applied:
 - Reads a table of 8-byte bank configurations
@@ -350,9 +369,9 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 ### Memory Overlap Considerations
 - Bank 0x1F is fixed in slot 3 ($E000-$FFFF) at boot
 - Other banks can be mapped into slots 0/1/2 at runtime
-- **Updated**: Consolidated banks $17/$18 overlap in the $A000-$DFFF region but are managed as a unified pair
+- **Updated**: Consolidated banks $17/$18 and $1D/$1E overlap in the $A000-$DFFF region but are managed as unified pairs
 - Care must be taken when bank-switching to avoid clobbering code or data currently resident in the target slot
-- **Updated**: Consolidated bank switching uses B1F_SwitchBankAC routines to prevent slot conflicts
+- **Updated**: Consolidated bank switching uses B1F_SwitchBankAC and B1F_SwitchBank1D1E routines to prevent slot conflicts
 - Bank 0x1F's bank-switching routine stores configuration in RAM ($00E6-$00ED) to preserve state across switches
 
 **Section sources**
@@ -364,7 +383,7 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - 8KB aligns with the mapper's granularity for PRG bank switching
 - Provides sufficient space for code and data while keeping the number of banks manageable (32 banks)
 - Allows efficient bank switching with minimal overhead
-- **Updated**: Consolidation of banks $17/$18 demonstrates the benefits of unified management for related functionality
+- **Updated**: Consolidation of banks $17/$18 and $1D/$1E demonstrates the benefits of unified management for related functionality
 - The linker.cfg and bank stubs reflect this constraint by organizing code into 8KB segments
 - **New**: Consolidated approach reduces complexity for related functions that benefit from shared memory space
 
@@ -372,14 +391,15 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - [linker.cfg:14-16](file://linker.cfg#L14-L16)
 - [PROJECT.md:8-12](file://PROJECT.md#L8-L12)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
+- [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 
 ## Dependency Analysis
 The bank organization depends on several components working together:
 - linker.cfg defines the memory layout and segment-to-slot mapping
 - include/namco163.h provides bank indices and macros for bank switching
-- **Updated**: include/functions.h provides consolidated bank switching helpers (B1F_SwitchBankAC_A/B)
+- **Updated**: include/functions.h provides consolidated bank switching helpers (B1F_SwitchBankAC_A/B and B1F_SwitchBank1D1E)
 - asm/banks/* stubs include the ROM binaries for each bank
-- **Updated**: Consolidated bank stubs for PRG banks $17/$18 in asm/banks/prg_17_18.asm
+- **Updated**: Consolidated bank stubs for PRG banks $17/$18 and $1D/$1E in asm/banks/prg_17_18.asm and asm/banks/prg_1d_1e.asm
 - bank_1f_analysis.md documents the boot bank's role and dispatch mechanism
 
 ```mermaid
@@ -387,7 +407,7 @@ graph TB
 LCFG["linker.cfg"]
 N163["include/namco163.h"]
 FUNCS["include/functions.h<br/>(Consolidated Bank Switching)"]
-STUBS["asm/banks/*.asm<br/>(Consolidated PRG 17/18)"]
+STUBS["asm/banks/*.asm<br/>(Consolidated PRG 17/18 & 1D/1E)"]
 ROM["rom/prg/*.bin"]
 BOOT["bank_1f_analysis.md"]
 LCFG --> STUBS
@@ -403,6 +423,7 @@ BOOT --> STUBS
 - [functions.h:187-188](file://include/functions.h#L187-L188)
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
+- [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [bank_1f_analysis.md:1-11](file://code/bank_1f_analysis.md#L1-L11)
 
 **Section sources**
@@ -411,23 +432,26 @@ BOOT --> STUBS
 - [functions.h:187-188](file://include/functions.h#L187-L188)
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
+- [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [bank_1f_analysis.md:1-11](file://code/bank_1f_analysis.md#L1-L11)
 
 ## Performance Considerations
 - Bank switching involves writing to mapper registers and potentially updating RAM copies of bank registers
 - **Updated**: Consolidated bank switching reduces switching overhead for related functions
+- **New**: B1F_SwitchBank1D1E routine eliminates the need for separate slot management for banks 0x1D/$0x1E
 - Frequent bank switching can introduce overhead; minimize unnecessary switches
 - **Updated**: Consolidated banks eliminate the need for separate slot management for paired functionality
 - Place frequently accessed data and code in the same bank to reduce switching frequency
 - Use the bank switching configuration table to batch changes when possible
 - **New**: Consolidated approach improves cache locality for related domestic/kingdom display functions
+- **New**: Unified 16KB blocks reduce memory fragmentation and improve code organization
 
 ## Troubleshooting Guide
 Common issues and resolutions:
 - Incorrect bank mapping at runtime:
   - Verify mapper register writes and bank indices
   - Ensure bank switching macros are used consistently
-  - **Updated**: For consolidated banks, use B1F_SwitchBankAC routines instead of individual slot writes
+  - **Updated**: For consolidated banks, use B1F_SwitchBankAC or B1F_SwitchBank1D1E routines instead of individual slot writes
 - Vector table misreads:
   - Confirm the state counter mask and indexing logic
   - Validate vector table entries and bounds
@@ -437,8 +461,10 @@ Common issues and resolutions:
   - **Updated**: Consolidated bank switching prevents slot conflicts through unified management
 - **New**: Consolidated bank switching issues:
   - Verify B1F_SwitchBankAC parameter Y contains correct bank number
+  - Verify B1F_SwitchBank1D1E routine is used for banks 0x1D/$0x1E
   - Ensure both $A000-$BFFF and $C000-$DFFF are intended for the same functional area
   - Check that bank 0x17 and 0x18 are properly paired in the switching routine
+  - **New**: Check that bank 0x1D and 0x1E are properly paired in the B1F_SwitchBank1D1E routine
 
 **Section sources**
 - [bank_1f_analysis.md:54-77](file://code/bank_1f_analysis.md#L54-L77)
@@ -446,4 +472,4 @@ Common issues and resolutions:
 - [functions.h:316-332](file://include/functions.h#L316-L332)
 
 ## Conclusion
-The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $17 and $18 have been consolidated into a unified 16KB block at $A000-$DFFF, managed through specialized bank switching routines. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.
+The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $17/$18 and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.

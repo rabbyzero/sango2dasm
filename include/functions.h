@@ -155,6 +155,7 @@ B1F_BankedCallbackReturn  = $EE4D   ; Return stub: restore bank, return
 ; 1K: NMI Sub-Dispatch
 ;-------------------------------------------------------------------------------
 B1F_NmiSubDispatch        = $EE53   ; NMI sub-dispatch by $007E flags
+B1F_NmiPaletteUpload      = $EE72   ; NMI palette upload trampoline
 B1F_NmiSubDispatchAlt     = $EEE6   ; NMI sub-dispatch alternate
 
 ;-------------------------------------------------------------------------------
@@ -577,7 +578,7 @@ B1D_1E_VRAMBufferWrite     = $A006   ; Entry02: VRAM buffer write
 B1D_1E_StateHandler        = $A009   ; Entry03: State handler
 B1D_1E_MapDisplaySetup     = $A00C   ; Entry04: Map display setup
 B1D_1E_OfficerListHandler  = $A00F   ; Entry05: Officer list handler
-B1D_1E_NumberDisplaySetup  = $A01E   ; Entry10: Number display setup
+B1D_1E_YearDisplaySetup    = $A01E   ; Entry10: Year display setup
 B1D_1E_FrameCounterCheck   = $A021   ; Entry11: Frame counter check
 B1D_1E_BcdDisplayHandler   = $A024   ; Entry12: BCD display handler
 B1D_1E_ProvinceDataHandler = $A027   ; Entry13: Province data handler

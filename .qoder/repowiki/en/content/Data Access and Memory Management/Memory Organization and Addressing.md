@@ -12,19 +12,22 @@
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
+- [asm/banks/prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [asm/banks/prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [tools/disasm_17_18.py](file://tools/disasm_17_18.py)
 - [tools/proc_scope_17_18.py](file://tools/proc_scope_17_18.py)
+- [tools/assemble_prg_1d_1e.py](file://tools/assemble_prg_1d_1e.py)
 - [rom/rom_info.h](file://rom/rom_info.h)
 - [tools/globalize_04xx.py](file://tools/globalize_04xx.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced documentation for PRG $17/$18 bank system including tile grid buffers ($06xx), battery SRAM ($6Fxx), OAM/sprite buffer ($03xx), and display/button confirm state ($0300-$0313) sections
-- Added detailed documentation for tile_index_grid ($0680-$06BF) structure and coordinate arrays (tile_grid_coord_x $0600-$0613, tile_grid_coord_y $0614-$0627)
-- Updated memory region organization to reflect combined 16KB bank system at $A000-$DFFF
-- Expanded memory addressing patterns documentation with PRG $17/$18 specific sections
+- Expanded documentation for the new combined PRG $1D/$1E memory system covering unified $A000-$DFFF address space
+- Added comprehensive coverage of specialized functions for menu systems, domestic affairs, and state management
+- Enhanced parameter systems documentation with integrated display/processing capabilities
+- Updated memory region organization to reflect the new combined 16KB bank system
+- Expanded memory addressing patterns documentation with PRG $1D/$1E specific sections
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -41,7 +44,7 @@
 ## Introduction
 This document explains the memory organization and addressing patterns used in the Sangokushi 2 disassembly targeting the NES. It covers how the 6502 accesses 256KB of PRG ROM across 32 banks despite only having 16-bit addresses, details the Namco-163 mapper's bank switching mechanism, and documents the memory map layout. It also describes multiply-by-power-of-two techniques using accumulator shifts to accelerate arithmetic, and how the mapper abstraction enables seamless cross-bank data access while preserving logical addressing.
 
-**Updated** The PRG $17/$18 bank system now operates as a combined 16KB memory region ($A000-$DFFF) with specialized memory regions for tile grid buffers, battery-backed SRAM, OAM/sprite management, and display state coordination.
+**Updated** The PRG $1D/$1E bank system now operates as a combined 16KB memory region ($A000-$DFFF) with specialized memory regions for menu systems, domestic affairs display functions, and integrated parameter processing systems.
 
 ## Project Structure
 The project organizes code around:
@@ -50,7 +53,7 @@ The project organizes code around:
 - Mapper and register definitions under include/
 - Linker configuration defining memory regions and segments
 - Centralized global RAM definitions with canonical naming in key banks
-- **Enhanced PRG $17/$18 system**: Combined 16KB bank pair at $A000-$DFFF with specialized memory regions
+- **Enhanced PRG $1D/$1E system**: Combined 16KB bank pair at $A000-$DFFF with specialized memory regions for menu systems and domestic affairs
 
 ```mermaid
 graph TB
@@ -64,12 +67,12 @@ PPU_REGS["$2000-$2007<br/>PPU registers"]
 IO["$4000-$401F<br/>APU/IO registers"]
 SRAM["$6000-$7FFF<br/>8KB SRAM (battery-backed)"]
 PRG_SLOTS["$8000-$FFFF<br/>4 PRG slots (8KB each)"]
-BANK17_18["$A000-$DFFF<br/>PRG $17/$18 Combined (16KB)"]
+BANK1D_1E["$A000-$DFFF<br/>PRG $1D/$1E Combined (16KB)"]
 end
 PRG --> PRG_SLOTS
 PRG --> SRAM
 PRG_SLOTS --> PRG
-BANK17_18 --> PRG
+BANK1D_1E --> PRG
 ```
 
 **Diagram sources**
@@ -89,18 +92,18 @@ BANK17_18 --> PRG
   - APU/IO registers at $4000–$401F
   - 8KB SRAM at $6000–$7FFF
   - Four 8KB PRG slots at $8000–$FFFF controlled by the mapper
-  - **Enhanced PRG $17/$18 combined region**: 16KB contiguous area at $A000–$DFFF for domestic/kingdom display functions
+  - **Enhanced PRG $1D/$1E combined region**: 16KB contiguous area at $A000–$DFFF for menu systems and domestic affairs display functions
 - Mapper and bank switching
   - Namco-163 (mapper 19) exposes write-only registers at $F800–$FE00 to select PRG banks for each slot
   - Macros and constants in include/ facilitate switching
-  - **PRG $17/$18 switching**: Specialized bank switching via SwitchBankAC_A/B with Y=$37 for combined 16KB access
+  - **PRG $1D/$1E switching**: Specialized bank switching via SwitchBankAC_A/B with Y=$37 for combined 16KB access
 - Centralized global RAM definitions
-  - Canonical naming system established in key banks (0x1F, 0x17-0x18)
+  - Canonical naming system established in key banks (0x1F, 0x17-0x18, 0x1D-0x1E)
   - Eliminates redundant local $04xx definitions
   - Standardized state variable naming across all banks
 - Linker configuration
   - Defines Zeropage, RAM, and four PRG slots; code segments map to specific slots
-  - **PRG $17/$18 testing**: Separate memory regions for individual bank testing
+  - **PRG $1D/$1E testing**: Separate memory regions for individual bank testing
 - Entry point and dispatch
   - Reset handler resides in bank 0x1F at $E000–$FFFF and uses a vector table to dispatch to game states
 
@@ -117,7 +120,7 @@ BANK17_18 --> PRG
 ## Architecture Overview
 The system uses a fixed boot bank (0x1F) mapped to PRG slot 3 ($E000–$FFFF) and dynamically switches three lower slots ($8000–$DFFF) via mapper writes. The reset handler initializes hardware, clears RAM, and dispatches to a state routine via an indirect vector table. Bank switching is performed through dedicated routines and macros.
 
-**Updated** The PRG $17/$18 combined system provides specialized memory regions for tile grid management, sprite handling, and display coordination within a unified 16KB address space.
+**Updated** The PRG $1D/$1E combined system provides specialized memory regions for menu systems, domestic affairs display functionality, and integrated parameter processing within a unified 16KB address space.
 
 ```mermaid
 sequenceDiagram
@@ -151,17 +154,17 @@ CPU->>State : Enter selected state
 - SRAM: $6000–$7FFF (8KB, battery-backed)
 - PRG slots:
   - $8000–$9FFF (slot 0)
-  - $A000–$BFFF (slot 1, PRG $17/$18 combined region)
-  - $C000–$DFFF (slot 2, PRG $17/$18 combined region)
+  - $A000–$BFFF (slot 1, PRG $1D/$1E combined region)
+  - $C000–$DFFF (slot 2, PRG $1D/$1E combined region)
   - $E000–$FFFF (slot 3, fixed to bank 0x1F at boot)
-- **Enhanced PRG $17/$18 regions**:
+- **Enhanced PRG $1D/$1E regions**:
   - $0300–$0313: Display/button confirm state and PPU queue pointers
   - $0380–$03FF: Sprite Y-position buffer (OAM shadow)
   - $0600–$0627: Tile coordinate arrays (20 entries each)
   - $0680–$06BF: Tile index grid (64 bytes for adjacency mapping)
   - $6F07–$6F44: Battery-backed SRAM for kingdom data and parameters
 
-**Updated** The PRG $17/$18 combined region provides specialized memory areas for domestic/kingdom display functionality, including tile grid management, sprite positioning, and persistent storage.
+**Updated** The PRG $1D/$1E combined region provides specialized memory areas for menu systems, domestic affairs display functionality, and integrated parameter processing, including tile grid management, sprite positioning, and persistent storage.
 
 **Section sources**
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
@@ -191,7 +194,7 @@ CPU->>State : Enter selected state
 - Macros and helpers:
   - switch_bank_8000, switch_bank_A000, switch_bank_C000, switch_bank_E000
   - switch_prg_bank macro supports dynamic selection of slot
-  - **PRG $17/$18 switching**: SwitchBankAC_A/B routines handle combined bank loading
+  - **PRG $1D/$1E switching**: SwitchBankAC_A/B routines handle combined bank loading
 - Initialization:
   - Mapper initialization sets up slot 0/1/2 and resets IRQ counter
 
@@ -226,7 +229,7 @@ Apply4 --> End(["Done"])
   - Setting a 16-bit pointer to $8000 and using it to call banked routines at $A003, $A015, etc.
   - Using Y-indexed window setup routines and banked display functions.
 - **Centralized $04xx addressing**: Now uses canonical names like `game_state` and `selected_officer_id` instead of scattered local aliases.
-- **PRG $17/$18 addressing**: Specialized addressing for tile grid coordinates and sprite buffers within the combined 16KB region.
+- **PRG $1D/$1E addressing**: Specialized addressing for menu systems and domestic affairs within the combined 16KB region.
 
 ```mermaid
 flowchart TD
@@ -250,7 +253,7 @@ E --> F["JMP indirect to state routine"]
 - Banked functions are invoked by calling addresses within the $A000–$AFFF range, which resolves to the currently loaded bank for that slot.
 - Examples:
   - Calling $A003, $A015, $A027, $A006, $A009, $A018, etc., from within bank 0x1F after bank switching.
-- **PRG $17/$18 combined access**: Functions in the $A000–$DFFF range can be accessed through either bank $17 or $18 depending on the current bank configuration.
+- **PRG $1D/$1E combined access**: Functions in the $A000–$DFFF range can be accessed through either bank $1D or $1E depending on the current bank configuration.
 - **Improved memory management**: Centralized canonical names ensure consistent addressing regardless of which bank contains the calling code.
 
 ```mermaid
@@ -304,7 +307,7 @@ Dec --> |No| End(["Return 32/40-bit product"])
 - Physical PRG banks are 8KB each; the mapper writes select which bank appears in each 8KB slot.
 - Logical addressing remains consistent within a bank; cross-bank access is achieved by writing to mapper registers before calling banked addresses.
 - The linker configuration defines four PRG slots and assigns code segments to them, ensuring correct placement during linking.
-- **PRG $17/$18 combined system**: Two physical banks (17 and 18) are mapped to adjacent 8KB windows ($A000-$BFFF and $C000-$DFFF) creating a unified 16KB logical address space.
+- **PRG $1D/$1E combined system**: Two physical banks (1D and 1E) are mapped to adjacent 8KB windows ($A000-$BFFF and $C000-$DFFF) creating a unified 16KB logical address space.
 - **Centralized RAM definitions**: Canonical naming ensures consistent logical addressing across all physical bank locations.
 
 **Section sources**
@@ -315,9 +318,9 @@ Dec --> |No| End(["Return 32/40-bit product"])
 
 ## Enhanced Memory Region Documentation
 
-### PRG $17/$18 Combined Memory Regions
+### PRG $1D/$1E Combined Memory Regions
 
-**New Section** The PRG $17/$18 bank system provides specialized memory regions within a unified 16KB address space:
+**New Section** The PRG $1D/$1E bank system provides specialized memory regions within a unified 16KB address space:
 
 #### Display and Button State Management ($0300-$0313)
 - **confirm_check_0** ($0300): Confirm check flag 0 (set by display, read by button check)
@@ -360,38 +363,65 @@ Dec --> |No| End(["Return 32/40-bit product"])
 - **sram_player_swap** ($6F44): Player 2/palette swap trigger
   - Non-zero value indicates swap is active
 
+### PRG $1D/$1E Jump Table and Function Organization
+
+**New Section** The PRG $1D/$1E combined system implements a comprehensive jump table structure:
+
+#### Jump Table Entries ($A000-$A047)
+The system provides 24 specialized entry points organized by function category:
+
+- **Entry00 ($A000)**: Entry00_PPUTileRender - PPU tile rendering engine
+- **Entry01 ($A003)**: Entry01_MenuUpdate - Menu system update and input processing
+- **Entry02 ($A006)**: Entry02_VRAMBufferWrite - VRAM buffer writing operations
+- **Entry03 ($A009)**: Entry03_StateHandler - General state management
+- **Entry04 ($A00C)**: Entry04_MapDisplaySetup - Map display initialization
+- **Entry05 ($A00F)**: Entry05_OfficerListHandler - Officer list management
+- **Entry10 ($A01E)**: Entry10_NumberDisplaySetup - Numeric display formatting
+- **Entry11 ($A021)**: Entry11_FrameCounterCheck - Frame timing verification
+- **Entry12 ($A024)**: Entry12_BcdDisplayHandler - Binary-coded decimal display
+- **Entry13 ($A027)**: Entry13_ProvinceDataHandler - Province data processing
+- **Entry14 ($A02A)**: Entry14_OfficerLookup - Officer record retrieval
+- **Entry16 ($A030)**: Entry16_NameDisplay - Name display formatting
+- **Entry17 ($A033)**: Entry17_RecordProcessor - Generic record processing
+
+#### Internal Functions ($C000-$DFFF)
+- **B1D_1E_CommonReturn** ($C934): Shared return handler for common operations
+- **B1D_1E_SetupDisplayPtrs** ($C96D): Display pointer initialization
+- **B1D_1E_ResetDispatchState** ($C98A): State reset and cleanup
+- **B1D_1E_DisplayTileData** ($C994): Integrated tile data display engine
+
 **Section sources**
-- [asm/banks/prg_17_18.asm:139-162](file://asm/banks/prg_17_18.asm#L139-L162)
-- [asm/banks/prg_17_18.asm:1484-1503](file://asm/banks/prg_17_18.asm#L1484-L1503)
-- [tools/proc_scope_17_18.py:34-45](file://tools/proc_scope_17_18.py#L34-L45)
+- [asm/banks/prg_1d_1e.asm:22-93](file://asm/banks/prg_1d_1e.asm#L22-L93)
+- [include/functions.h:574-591](file://include/functions.h#L574-L591)
+- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
 
-### Tile Grid Processing and Coordinate Systems
+### Menu Systems and Parameter Processing
 
-**New Section** The PRG $17/$18 system implements sophisticated tile grid processing for domestic/kingdom display:
+**New Section** The PRG $1D/$1E system implements sophisticated menu and parameter processing capabilities:
 
-#### Tile Grid Population Algorithm
-The system uses a two-phase algorithm to populate the tile index grid:
-1. **Horizontal Population**: Populates grid using tile_grid_coord_x values
-2. **Vertical Population**: Populates grid using tile_grid_coord_y values (with coordinate swapping)
+#### Menu Update System
+The Entry01_MenuUpdate function provides comprehensive menu management:
+- Input processing and button state detection
+- Data pointer calculation and validation
+- Tile buffer management for display operations
+- Callback dispatcher for specialized menu actions
 
-#### Adjacency-Based Rendering
-- **Primary Layer**: Uses left-right neighbor relationships for tile attribute patching
-- **Secondary Layer**: Uses up-down neighbor relationships for vertical adjacency
-- **Neighbor Column Mapping**: 
-  - Left neighbor: tile_index_grid+32
-  - Right neighbor: tile_index_grid+32
-  - Up neighbor: tile_index_grid+64  
-  - Down neighbor: tile_index_grid+64
+#### Parameter Enhancement System
+Integrated parameter processing includes:
+- Enhanced data formatting and display capabilities
+- Improved numeric display handling with BCD conversion
+- Advanced tile data processing with overflow protection
+- Unified memory management across menu and domestic systems
 
-#### Sub-tile Override System
-- **Override Logic**: Based on bit 0-1 of $0628[Y] values
-- **Coordinate Swapping**: Ensures proper X/Y coordinate mapping during grid population
-- **Grid Position Calculation**: Uses Y-indexed lookups to determine final grid positions
+#### Display Coordination
+- Synchronized display queue management
+- Coordinated PPU buffer operations
+- Integrated sprite and tile rendering
+- Battery-backed parameter persistence
 
 **Section sources**
-- [asm/banks/prg_17_18.asm:1566-1598](file://asm/banks/prg_17_18.asm#L1566-L1598)
-- [asm/banks/prg_17_18.asm:2033-2054](file://asm/banks/prg_17_18.asm#L2033-L2054)
-- [asm/banks/prg_17_18.asm:2533-2561](file://asm/banks/prg_17_18.asm#L2533-L2561)
+- [asm/banks/prg_1d_1e.asm:241-412](file://asm/banks/prg_1d_1e.asm#L241-L412)
+- [asm/banks/prg_1d_1e.asm:791-800](file://asm/banks/prg_1d_1e.asm#L791-L800)
 
 ## Dependency Analysis
 The following diagram shows how the entry point, mapper, and banked code depend on each other and on the mapper definitions.
@@ -407,6 +437,7 @@ PRG1F --> MAP
 PRG1F --> MAC
 PRG1F --> FUNC["include/functions.h"]
 FUNC --> BANK17_18["asm/banks/prg_17_18.asm"]
+FUNC --> BANK1D_1E["asm/banks/prg_1d_1e.asm"]
 ```
 
 **Diagram sources**
@@ -415,7 +446,7 @@ FUNC --> BANK17_18["asm/banks/prg_17_18.asm"]
 - [include/namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [include/macros.h:58-71](file://include/macros.h#L58-L71)
 - [asm/banks/prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
-- [include/functions.h:315-335](file://include/functions.h#L315-L335)
+- [include/functions.h:570-591](file://include/functions.h#L570-L591)
 
 **Section sources**
 - [asm/main.asm:6-7](file://asm/main.asm#L6-L7)
@@ -429,30 +460,30 @@ FUNC --> BANK17_18["asm/banks/prg_17_18.asm"]
 - Fast math: Shift-and-add routines replace slower multiplication routines, trading memory for speed.
 - Vector indexing: AND + ASL to compute word indices minimizes overhead in dispatch loops.
 - Clearing RAM: Efficient zero-page loops reduce startup time.
-- **PRG $17/$18 optimization**: Combined 16KB region eliminates cross-bank addressing overhead for domestic display functions.
+- **PRG $1D/$1E optimization**: Combined 16KB region eliminates cross-bank addressing overhead for menu and domestic display functions.
 - **Centralized RAM system**: Eliminates redundant memory definitions and improves code maintainability without performance impact.
 
 ## Troubleshooting Guide
 - Incorrect bank mapping
   - Symptom: Garbage code or crashes when calling $A0xx routines
   - Check: BankSwitch routine and mapper register writes at $C000–$D800
-  - **PRG $17/$18 specific**: Verify SwitchBankAC_A/B routines and Y=$37 bank selection
+  - **PRG $1D/$1E specific**: Verify SwitchBankAC_A/B routines and Y=$37 bank selection
 - Dispatch failure
   - Symptom: Stuck in idle or wrong state
   - Check: Vector table indexing at $E07C and AND + ASL scaling
 - SRAM not persisting
   - Symptom: Save data lost after power-off
   - Check: SRAM region $6000–$7FFF and battery presence
-  - **PRG $17/$18 SRAM**: Verify $6Fxx addresses are properly backed by battery
+  - **PRG $1D/$1E SRAM**: Verify $6Fxx addresses are properly backed by battery
 - Linker errors
   - Symptom: Segments not fitting or missing symbols
   - Check: PRG slot assignments and segment definitions in linker.cfg
-  - **PRG $17/$18 testing**: Verify separate memory regions in test_17_18.cfg
+  - **PRG $1D/$1E testing**: Verify separate memory regions in test_17_18.cfg
 - **Centralized RAM naming issues**
   - Symptom: Compilation errors for $04xx addresses
   - Check: Ensure all references use canonical names from the centralized definition system
-- **PRG $17/$18 memory conflicts**
-  - Symptom: Unexpected behavior in domestic/kingdom display
+- **PRG $1D/$1E memory conflicts**
+  - Symptom: Unexpected behavior in menu systems or domestic affairs
   - Check: Verify proper bank switching to Y=$37 and correct addressing within $A000-$DFFF
 
 **Section sources**
@@ -466,4 +497,4 @@ FUNC --> BANK17_18["asm/banks/prg_17_18.asm"]
 ## Conclusion
 The Sangokushi 2 disassembly employs a robust bank switching strategy via the Namco-163 mapper to access 256KB of PRG ROM from 16-bit addressing. The reset handler and vector table provide a clean dispatch mechanism, while macros and helper routines streamline bank switching and cross-bank calls. Efficient shift-and-add routines demonstrate practical optimizations for arithmetic on the 6502. Together, these patterns enable maintainable, modular code while preserving predictable logical addressing across the full ROM space.
 
-**Updated** The implementation of a centralized global RAM definition system with canonical naming conventions further enhances maintainability by eliminating redundant local definitions and establishing consistent memory addressing patterns across all 32 PRG banks. The enhanced PRG $17/$18 combined system provides specialized memory regions for domestic/kingdom display functionality, including tile grid management, sprite positioning, and persistent storage, demonstrating sophisticated memory organization patterns optimized for the game's specific display requirements. This organizational improvement provides better code clarity and reduces the likelihood of memory-related bugs while maintaining the performance characteristics of the original implementation.
+**Updated** The implementation of a centralized global RAM definition system with canonical naming conventions further enhances maintainability by eliminating redundant local definitions and establishing consistent memory addressing patterns across all 32 PRG banks. The enhanced PRG $1D/$1E combined system provides specialized memory regions for menu systems and domestic affairs display functionality, including integrated parameter processing, tile grid management, sprite positioning, and persistent storage, demonstrating sophisticated memory organization patterns optimized for the game's specific display requirements. This organizational improvement provides better code clarity and reduces the likelihood of memory-related bugs while maintaining the performance characteristics of the original implementation.
