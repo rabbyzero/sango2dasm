@@ -23,11 +23,11 @@
 
 ## Update Summary
 **Changes Made**
-- Expanded documentation for the new combined PRG $1D/$1E memory system covering unified $A000-$DFFF address space
-- Added comprehensive coverage of specialized functions for menu systems, domestic affairs, and state management
-- Enhanced parameter systems documentation with integrated display/processing capabilities
-- Updated memory region organization to reflect the new combined 16KB bank system
-- Expanded memory addressing patterns documentation with PRG $1D/$1E specific sections
+- Enhanced RAM variable definitions with comprehensive documentation for sophisticated tile rendering operations
+- Added detailed coverage of new variables including menu_status, overlay_flag, tile_col_idx, render_bitmask, vram_pos_hi/lo, input_flag, saved_pos_hi/lo/hi, indirect_flag, tile_base_offset, and circular position buffer (pos_buf_0 through pos_buf_3)
+- Updated PRG $1D/$1E memory region documentation to reflect advanced overlay modes and indirect addressing capabilities
+- Expanded tile rendering system documentation with support for sophisticated display operations
+- Enhanced memory organization patterns with new variable usage examples
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -36,15 +36,16 @@
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
 6. [Enhanced Memory Region Documentation](#enhanced-memory-region-documentation)
-7. [Dependency Analysis](#dependency-analysis)
-8. [Performance Considerations](#performance-considerations)
-9. [Troubleshooting Guide](#troubleshooting-guide)
-10. [Conclusion](#conclusion)
+7. [Advanced Tile Rendering System](#advanced-tile-rendering-system)
+8. [Dependency Analysis](#dependency-analysis)
+9. [Performance Considerations](#performance-considerations)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
 
 ## Introduction
 This document explains the memory organization and addressing patterns used in the Sangokushi 2 disassembly targeting the NES. It covers how the 6502 accesses 256KB of PRG ROM across 32 banks despite only having 16-bit addresses, details the Namco-163 mapper's bank switching mechanism, and documents the memory map layout. It also describes multiply-by-power-of-two techniques using accumulator shifts to accelerate arithmetic, and how the mapper abstraction enables seamless cross-bank data access while preserving logical addressing.
 
-**Updated** The PRG $1D/$1E bank system now operates as a combined 16KB memory region ($A000-$DFFF) with specialized memory regions for menu systems, domestic affairs display functions, and integrated parameter processing systems.
+**Updated** The PRG $1D/$1E bank system now operates as a combined 16KB memory region ($A000-$DFFF) with specialized memory regions for menu systems, domestic affairs display functions, and integrated parameter processing systems. Enhanced RAM variable definitions provide sophisticated tile rendering operations including overlay modes and indirect addressing capabilities.
 
 ## Project Structure
 The project organizes code around:
@@ -115,12 +116,12 @@ BANK1D_1E --> PRG
 - [asm/main.asm:30-60](file://asm/main.asm#L30-L60)
 - [asm/banks/prg_1f.asm:153-168](file://asm/banks/prg_1f.asm#L153-L168)
 - [tools/globalize_04xx.py:13-77](file://tools/globalize_04xx.py#L13-L77)
-- [include/functions.h:315-335](file://include/functions.h#L315-L335)
+- [include/functions.h:315-335](file://include/functions.h#L315-335)
 
 ## Architecture Overview
 The system uses a fixed boot bank (0x1F) mapped to PRG slot 3 ($E000–$FFFF) and dynamically switches three lower slots ($8000–$DFFF) via mapper writes. The reset handler initializes hardware, clears RAM, and dispatches to a state routine via an indirect vector table. Bank switching is performed through dedicated routines and macros.
 
-**Updated** The PRG $1D/$1E combined system provides specialized memory regions for menu systems, domestic affairs display functionality, and integrated parameter processing within a unified 16KB address space.
+**Updated** The PRG $1D/$1E combined system provides specialized memory regions for menu systems, domestic affairs display functionality, and integrated parameter processing within a unified 16KB address space, enhanced with sophisticated tile rendering capabilities.
 
 ```mermaid
 sequenceDiagram
@@ -164,7 +165,7 @@ CPU->>State : Enter selected state
   - $0680–$06BF: Tile index grid (64 bytes for adjacency mapping)
   - $6F07–$6F44: Battery-backed SRAM for kingdom data and parameters
 
-**Updated** The PRG $1D/$1E combined region provides specialized memory areas for menu systems, domestic affairs display functionality, and integrated parameter processing, including tile grid management, sprite positioning, and persistent storage.
+**Updated** The PRG $1D/$1E combined region provides specialized memory areas for menu systems, domestic affairs display functionality, and integrated parameter processing, including tile grid management, sprite positioning, and persistent storage, with enhanced support for sophisticated tile rendering operations.
 
 **Section sources**
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
@@ -312,9 +313,9 @@ Dec --> |No| End(["Return 32/40-bit product"])
 
 **Section sources**
 - [PROJECT.md:84-94](file://PROJECT.md#L84-L94)
-- [linker.cfg:25-30](file://linker.cfg#L25-L30)
+- [linker.cfg:25-30](file://linker.cfg#L25-30)
 - [linker.cfg:43-47](file://linker.cfg#L43-L47)
-- [include/functions.h:315-335](file://include/functions.h#L315-L335)
+- [include/functions.h:315-335](file://include/functions.h#L315-335)
 
 ## Enhanced Memory Region Documentation
 
@@ -323,12 +324,22 @@ Dec --> |No| End(["Return 32/40-bit product"])
 **New Section** The PRG $1D/$1E bank system provides specialized memory regions within a unified 16KB address space:
 
 #### Display and Button State Management ($0300-$0313)
-- **confirm_check_0** ($0300): Confirm check flag 0 (set by display, read by button check)
-- **confirm_check_1** ($0304): Confirm check flag 1 (set by display, read by button check)
-- **display_queue_ptr_lo** ($0310): PPU display queue pointer low byte (consumed by NMI)
-- **display_queue_ptr_hi** ($0311): PPU display queue pointer high byte
-- **display_queue_end_lo** ($0312): PPU display queue terminator low byte ($FF)
-- **display_queue_end_hi** ($0313): PPU display queue terminator high byte ($FF)
+- **menu_status** ($0300): Menu system status flag ($FF=done/inactive, $00=need init, $01=active)
+- **overlay_flag** ($0303): Overlay mode control ($00=direct render, $80=overlay mode)
+- **tile_col_idx** ($0304): Current tile column being rendered
+- **render_bitmask** ($0305): Bitmask checked against $005E for render skip control
+- **vram_pos_hi** ($0306): VRAM address high byte for current tile row
+- **vram_pos_lo** ($0307): VRAM address low byte for current tile row
+- **input_flag** ($0308): Input pending flag (set when $0081 bit 0 set)
+- **saved_pos_hi** ($0309): Saved VRAM position high byte (for push/pop position operations)
+- **saved_ptr_lo** ($030A): Saved data pointer low byte (for push/pop position operations)
+- **saved_ptr_hi** ($030B): Saved data pointer high byte (for push/pop position operations)
+- **indirect_flag** ($030C): Indirect addressing mode ($00=direct tiles, $01=indirect/overlay tiles)
+- **tile_base_offset** ($030F): Base offset added to tile values in StoreTileByte function
+- **pos_buf_0** ($0310): First entry in VRAM position buffer (4-entry circular buffer)
+- **pos_buf_1** ($0311): Second entry in VRAM position buffer
+- **pos_buf_2** ($0312): Third entry in VRAM position buffer
+- **pos_buf_3** ($0313): Fourth entry in VRAM position buffer
 
 #### Sprite and OAM Management ($0380-$03FF)
 - **sprite_y_buffer** ($0380): Sprite Y-position buffer (OAM shadow start)
@@ -423,6 +434,70 @@ Integrated parameter processing includes:
 - [asm/banks/prg_1d_1e.asm:241-412](file://asm/banks/prg_1d_1e.asm#L241-L412)
 - [asm/banks/prg_1d_1e.asm:791-800](file://asm/banks/prg_1d_1e.asm#L791-L800)
 
+## Advanced Tile Rendering System
+
+**New Section** The enhanced RAM variable definitions support sophisticated tile rendering operations with overlay modes and indirect addressing capabilities:
+
+### Core Rendering Variables
+The tile rendering system utilizes several key variables for managing complex display operations:
+
+- **tile_col_idx** ($0304): Tracks the current tile column being processed in the rendering pipeline
+- **render_bitmask** ($0305): Controls selective rendering by masking against $005E flags
+- **vram_pos_hi/lo** ($0306-$0307): Maintains current VRAM address for tile output positioning
+- **overlay_flag** ($0303): Switches between direct rendering ($00) and overlay mode ($80)
+- **indirect_flag** ($030C): Enables indirect addressing mode for flexible tile data sources
+
+### Position Buffer Management
+The circular position buffer system provides efficient VRAM address management:
+
+- **pos_buf_0 through pos_buf_3** ($0310-$0313): Four-entry circular buffer for VRAM positions
+- **saved_pos_hi** ($0309), **saved_ptr_lo/hi** ($030A-$030B): Save/restore mechanism for nested rendering contexts
+- Automatic buffer rotation during menu termination and position advancement operations
+
+### Indirect Addressing and Offset Support
+Advanced tile data manipulation capabilities:
+
+- **tile_base_offset** ($030F): Base offset applied to tile values during StoreTileByte operations
+- **indirect_flag** controls whether tile data comes from direct buffers or indirect overlays
+- Command-based system for enabling/disabling indirect mode and setting offsets
+
+### Event Overlay Integration
+Integration with the broader event system through shared overlay mechanisms:
+
+- **event_overlay_flag** ($04C3): Cross-bank overlay coordination for battle formations and events
+- Synchronization between PRG $1D/$1E overlay system and PRG $17/$18 event overlay system
+- Unified approach to layered rendering across different game systems
+
+```mermaid
+flowchart TD
+A["MenuUpdate Entry"] --> B["Check input_flag"]
+B --> C["Initialize rendering variables"]
+C --> D["Set overlay_flag and indirect_flag"]
+D --> E["Configure tile_base_offset"]
+E --> F["Clear tile buffers"]
+F --> G["Process command stream"]
+G --> H{"Command type?"}
+H --> |Direct tile| I["StoreTileByte with base offset"]
+H --> |Indirect tile| J["StoreTileByte with overlay mode"]
+H --> |Position change| K["Update vram_pos_hi/lo"]
+H --> |Overlay control| L["Set/clear overlay_flag"]
+I --> M["Advance tile_col_idx"]
+J --> M
+K --> N["Set frame_flags"]
+L --> N
+M --> O["Continue processing"]
+N --> O
+```
+
+**Diagram sources**
+- [asm/banks/prg_1d_1e.asm:270-500](file://asm/banks/prg_1d_1e.asm#L270-L500)
+- [asm/banks/prg_1d_1e.asm:340-356](file://asm/banks/prg_1d_1e.asm#L340-L356)
+
+**Section sources**
+- [asm/banks/prg_1d_1e.asm:22-50](file://asm/banks/prg_1d_1e.asm#L22-L50)
+- [asm/banks/prg_1d_1e.asm:270-500](file://asm/banks/prg_1d_1e.asm#L270-L500)
+- [asm/banks/prg_17_18.asm:122](file://asm/banks/prg_17_18.asm#L122)
+
 ## Dependency Analysis
 The following diagram shows how the entry point, mapper, and banked code depend on each other and on the mapper definitions.
 
@@ -462,6 +537,8 @@ FUNC --> BANK1D_1E["asm/banks/prg_1d_1e.asm"]
 - Clearing RAM: Efficient zero-page loops reduce startup time.
 - **PRG $1D/$1E optimization**: Combined 16KB region eliminates cross-bank addressing overhead for menu and domestic display functions.
 - **Centralized RAM system**: Eliminates redundant memory definitions and improves code maintainability without performance impact.
+- **Enhanced tile rendering**: Circular position buffer system reduces VRAM address calculation overhead through pre-computed position tracking.
+- **Indirect addressing efficiency**: Flag-based mode switching avoids expensive conditional branches in hot rendering paths.
 
 ## Troubleshooting Guide
 - Incorrect bank mapping
@@ -485,6 +562,13 @@ FUNC --> BANK1D_1E["asm/banks/prg_1d_1e.asm"]
 - **PRG $1D/$1E memory conflicts**
   - Symptom: Unexpected behavior in menu systems or domestic affairs
   - Check: Verify proper bank switching to Y=$37 and correct addressing within $A000-$DFFF
+- **Tile rendering issues**
+  - Symptom: Incorrect tile display or overlay problems
+  - Check: Verify overlay_flag and indirect_flag settings, tile_base_offset values
+  - **Circular buffer corruption**: Ensure pos_buf_0 through pos_buf_3 are properly rotated
+- **Event overlay synchronization**
+  - Symptom: Conflicts between menu overlays and event overlays
+  - Check: Verify event_overlay_flag coordination between PRG $1D/$1E and PRG $17/$18 systems
 
 **Section sources**
 - [asm/banks/prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
@@ -493,8 +577,12 @@ FUNC --> BANK1D_1E["asm/banks/prg_1d_1e.asm"]
 - [linker.cfg:43-47](file://linker.cfg#L43-L47)
 - [tools/globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
 - [test_17_18.cfg:1-8](file://test_17_18.cfg#L1-L8)
+- [asm/banks/prg_1d_1e.asm:270-500](file://asm/banks/prg_1d_1e.asm#L270-L500)
+- [asm/banks/prg_17_18.asm:122](file://asm/banks/prg_17_18.asm#L122)
 
 ## Conclusion
 The Sangokushi 2 disassembly employs a robust bank switching strategy via the Namco-163 mapper to access 256KB of PRG ROM from 16-bit addressing. The reset handler and vector table provide a clean dispatch mechanism, while macros and helper routines streamline bank switching and cross-bank calls. Efficient shift-and-add routines demonstrate practical optimizations for arithmetic on the 6502. Together, these patterns enable maintainable, modular code while preserving predictable logical addressing across the full ROM space.
 
-**Updated** The implementation of a centralized global RAM definition system with canonical naming conventions further enhances maintainability by eliminating redundant local definitions and establishing consistent memory addressing patterns across all 32 PRG banks. The enhanced PRG $1D/$1E combined system provides specialized memory regions for menu systems and domestic affairs display functionality, including integrated parameter processing, tile grid management, sprite positioning, and persistent storage, demonstrating sophisticated memory organization patterns optimized for the game's specific display requirements. This organizational improvement provides better code clarity and reduces the likelihood of memory-related bugs while maintaining the performance characteristics of the original implementation.
+**Updated** The implementation of a centralized global RAM definition system with canonical naming conventions further enhances maintainability by eliminating redundant local definitions and establishing consistent memory addressing patterns across all 32 PRG banks. The enhanced PRG $1D/$1E combined system provides specialized memory regions for menu systems and domestic affairs display functionality, including integrated parameter processing, tile grid management, sprite positioning, and persistent storage, demonstrating sophisticated memory organization patterns optimized for the game's specific display requirements. 
+
+The newly documented enhanced RAM variable definitions introduce advanced tile rendering capabilities with overlay modes, indirect addressing, and circular position buffering. These features support complex display operations including layered rendering, flexible tile data sources, and efficient VRAM address management. The integration with the broader event overlay system demonstrates cohesive design patterns across different game systems, providing a foundation for sophisticated visual presentation while maintaining optimal performance characteristics on the NES hardware. This organizational improvement provides better code clarity and reduces the likelihood of memory-related bugs while maintaining the performance characteristics of the original implementation.

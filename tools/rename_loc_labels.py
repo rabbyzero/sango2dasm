@@ -239,10 +239,10 @@ RENAME_MAP = {
     # --- Unknown ---
     'Loc_BC5A': '@vram_fill_loop',
 
-    # --- SmallRoutineA ---
+    # --- ClearWorkBuffer ---
     'Loc_BC6A': '@clear_0140_loop',
 
-    # --- SmallRoutineB ---
+    # --- SceneRenderer ---
     'Loc_BCBF': '@copy_page_loop',
     'Loc_BCFA': '@set_flag_exit',
     'Loc_BD37': '@render_exit1',

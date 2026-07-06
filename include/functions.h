@@ -582,9 +582,9 @@ B1D_1E_YearDisplaySetup    = $A01E   ; Entry10: Year display setup
 B1D_1E_FrameCounterCheck   = $A021   ; Entry11: Frame counter check
 B1D_1E_BcdDisplayHandler   = $A024   ; Entry12: BCD display handler
 B1D_1E_ProvinceDataHandler = $A027   ; Entry13: Province data handler
-B1D_1E_OfficerLookup       = $A02A   ; Entry14: Officer lookup
-B1D_1E_NameDisplay         = $A030   ; Entry16: Name display
-B1D_1E_RecordProcessor     = $A033   ; Entry17: Record processor
+B1D_1E_OfficerDisplay_Lookup = $A02A   ; Entry14: Officer display lookup
+B1D_1E_OfficerDisplay_Render = $A030   ; Entry16: Officer display render
+B1D_1E_OfficerNameDisplay   = $A033   ; Entry17: Officer name display
 ; Internal procs - Bank $1E ($C000-$DFFF)
 B1D_1E_CommonReturn        = $C934   ; Shared return handler
 B1D_1E_SetupDisplayPtrs    = $C96D   ; Setup display pointers

@@ -19,11 +19,11 @@
 
 ## Update Summary
 **Changes Made**
-- Updated documentation to reflect the new combined PRG bank 1D/1E system ($A000-$DFFF)
-- Added comprehensive coverage of the unified approach for $1D and $1E banks as a significant architectural improvement
-- Documented the new combined bank structure that merges previously separate bank management into a single 16KB implementation
-- Updated bank switching architecture to reflect the enhanced unified system
-- Enhanced display/rendering capabilities documentation with the new combined bank structure
+- Updated documentation to reflect the major refactoring of PRG $1D/$1E display system with extensive label renaming
+- Added comprehensive coverage of the new structured command dispatch system with MenuDispatchTable containing 32 entries for menu commands $80-$9F
+- Enhanced procedural boundaries documentation using .proc/.endproc directives throughout the codebase
+- Improved RAM variable organization with better naming conventions and structured memory addressing
+- Updated MenuUpdate procedure documentation to reflect the new jump table architecture and enhanced parameter system
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -75,6 +75,7 @@ end
 subgraph "Combined Bank 1D/1E - Unified Display System"
 COMBINED1D_1E["asm/banks/prg_1d_1e.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
 JUMPTABLE["$A000-$A047: Jump Table<br/>24 Entry Points"]
+MENUDISPATCH["$A208-$A246: MenuDispatchTable<br/>32-Entry Command Dispatch ($80-$9F)"]
 DOMESTIC["$A048-$BFFF: Domestic Operations<br/>Menu Handlers, Data Processing"]
 SRAM["$C000-$DFFF: SRAM Operations<br/>Save/Load, Data Storage"]
 BANK1D["Bank $1D Content<br/>Jump Table, Display Ops"]
@@ -108,6 +109,7 @@ COMBINED17_18 --> PARAMDECL
 COMBINED17_18 --> RLE
 COMBINED17_18 --> ENDPROC
 COMBINED1D_1E --> JUMPTABLE
+COMBINED1D_1E --> MENUDISPATCH
 COMBINED1D_1E --> DOMESTIC
 COMBINED1D_1E --> SRAM
 COMBINED1D_1E --> BANK1D
@@ -146,6 +148,7 @@ ALLB --> COMBINED1D_1E
 - Comprehensive function address constants defined in functions.h for both the combined bank 17/18 structure and the new combined bank 1D/1E system.
 - **Enhanced Parameter System**: Structured memory addressing system with named parameter declarations throughout PRG bank 17-18 assembly.
 - **Unified Bank Architecture**: The new combined PRG bank 1D/1E system provides integrated memory management and simplified bank switching for display and domestic operations.
+- **New Menu Dispatch System**: The MenuUpdate procedure now features a comprehensive 32-entry MenuDispatchTable for handling menu commands $80-$9F with structured command processing.
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
@@ -167,6 +170,7 @@ participant MAP as "Namco-163 Mapper"
 participant SLOTS as "PRG Slots ($8000-$DFFF)"
 participant COMBINED17_18 as "Combined Bank 17/18 ($A000-$DFFF)"
 participant COMBINED1D_1E as "Combined Bank 1D/1E ($A000-$DFFF)"
+participant MENU as "MenuDispatchTable ($A208-$A246)"
 participant PARAMSYS as "Enhanced Parameter System"
 participant STATE as "State Handler (Banked)"
 participant DEBUG as "Debug Tools"
@@ -182,6 +186,8 @@ STATE->>COMBINED1D_1E : Optional bank switch for unified display/domestic ops
 COMBINED17_18->>PARAMSYS : Use structured parameter declarations
 COMBINED17_18->>COMBINED17_18 : Execute specialized PPU routines
 COMBINED17_18->>COMBINED17_18 : RLE decompression & display processing
+COMBINED1D_1E->>MENU : Process menu commands via MenuDispatchTable
+MENU->>MENU : Handle 32 menu commands ($80-$9F)
 COMBINED1D_1E->>COMBINED1D_1E : Unified display and domestic operations
 COMBINED1D_1E->>COMBINED1D_1E : Menu handlers and SRAM operations
 STATE-->>BOOT : Return to StateDispatch
@@ -189,6 +195,7 @@ DEBUG->>BOOT : Analyze aligned formatted code
 DEBUG->>BOOT : Validate structured state handlers
 DEBUG->>COMBINED17_18 : Examine .proc/.endproc organization
 DEBUG->>COMBINED1D_1E : Analyze unified bank structure
+DEBUG->>MENU : Verify MenuDispatchTable structure
 DEBUG->>PARAMSYS : Verify parameter aliasing system
 ```
 
@@ -197,6 +204,7 @@ DEBUG->>PARAMSYS : Verify parameter aliasing system
 - [prg_1f.aligned.asm:467-694](file://asm/banks/prg_1f.aligned.asm#L467-L694)
 - [prg_17_18.asm:72-127](file://asm/banks/prg_17_18.asm#L72-L127)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 
@@ -376,6 +384,7 @@ ROUTINES --> SCROLLOPS
 ```mermaid
 flowchart TD
 COMBINED1D_1E["Combined Bank 1D/1E ($A000-$DFFF)"] --> JUMPTABLE["$A000-$A047<br/>24-Entry Jump Table"]
+COMBINED1D_1E --> MENUDISPATCH["$A208-$A246<br/>32-Entry MenuDispatchTable"]
 COMBINED1D_1E --> DOMESTIC["$A048-$BFFF<br/>Bank $1D Content"]
 COMBINED1D_1E --> SRAM["$C000-$DFFF<br/>Bank $1E Content"]
 JUMPTABLE --> ENTRY00["Entry00: PPUTileRender<br/>$A000"]
@@ -402,6 +411,22 @@ JUMPTABLE --> ENTRY20["Entry20: DataFormatter<br/>$A03C"]
 JUMPTABLE --> ENTRY21["Entry21: MenuRenderer<br/>$A03F"]
 JUMPTABLE --> ENTRY22["Entry22: BankedDataHandler<br/>$A042"]
 JUMPTABLE --> ENTRY23["Entry23: Bank $1E $DEB9<br/>$A045"]
+MENUDISPATCH --> CMD80["CmdEndMenu<br/>Command $80"]
+MENUDISPATCH --> CMD81["CmdAdvanceRow<br/>Command $81"]
+MENUDISPATCH --> CMD82["CmdPushPosition<br/>Command $82"]
+MENUDISPATCH --> CMD83["CmdPopPosition<br/>Command $83"]
+MENUDISPATCH --> CMD84["CmdSetOverlayMode<br/>Command $84"]
+MENUDISPATCH --> CMD85["CmdClearOverlayMode<br/>Command $85"]
+MENUDISPATCH --> CMD86["CmdSetVramPos<br/>Command $86"]
+MENUDISPATCH --> CMD87["CmdEnableIndirect<br/>Command $87"]
+MENUDISPATCH --> CMD88["CmdDisableIndirect<br/>Command $88"]
+MENUDISPATCH --> CMD89["CmdSetTileOffset<br/>Command $89"]
+MENUDISPATCH --> CMD90["CmdDrawName<br/>Commands $90-$97"]
+MENUDISPATCH --> CMD98["CmdDrawNumber<br/>Commands $98-$9B"]
+MENUDISPATCH --> CMD9C["CmdDrawNameFromData<br/>Command $9C"]
+MENUDISPATCH --> CMD9D["CmdDrawNameFixed7<br/>Command $9D"]
+MENUDISPATCH --> CMD9E["CmdDrawFormattedNumber<br/>Command $9E"]
+MENUDISPATCH --> CMD9F["CmdDrawNameFromParam<br/>Command $9F"]
 DOMESTIC --> MENUDISPLAY["Menu Display Ops<br/>Input Processing, Tile Buffering"]
 DOMESTIC --> DATAOPS["Data Operations<br/>Menu Data Ptr, Tile Byte Store"]
 DOMESTIC --> CALLBACKS["Callback Dispatchers<br/>B1F_CallbackDispatcher"]
@@ -414,6 +439,7 @@ SRAM --> DATASTORE["Data Storage<br/>Kingdom Records, Player Data"]
 - [prg_1d_1e.asm:104-197](file://asm/banks/prg_1d_1e.asm#L104-L197)
 - [prg_1d_1e.asm:241-358](file://asm/banks/prg_1d_1e.asm#L241-L358)
 - [prg_1d_1e.asm:359-475](file://asm/banks/prg_1d_1e.asm#L359-L475)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
 
 **Section sources**
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
@@ -421,6 +447,41 @@ SRAM --> DATASTORE["Data Storage<br/>Kingdom Records, Player Data"]
 - [prg_1d_1e.asm:104-197](file://asm/banks/prg_1d_1e.asm#L104-L197)
 - [prg_1d_1e.asm:241-358](file://asm/banks/prg_1d_1e.asm#L241-L358)
 - [prg_1d_1e.asm:359-475](file://asm/banks/prg_1d_1e.asm#L359-L475)
+
+### Enhanced Menu Update Procedure with Structured Command Dispatch
+- The MenuUpdate procedure has been completely refactored with a comprehensive 32-entry MenuDispatchTable for handling menu commands $80-$9F.
+- The new structured command dispatch system uses the B1F_CallbackDispatcher to route commands to specific handler functions.
+- Commands include menu control operations (end, advance row, push/pop position), display mode controls (overlay mode, VRAM positioning), and content rendering (names, numbers, formatted output).
+- The procedure maintains enhanced parameter system usage with named variables for better code clarity and maintainability.
+- All procedures are properly wrapped with .proc/.endproc directives for clear scope boundaries and improved debugging support.
+
+**Updated** Major refactoring of the MenuUpdate procedure with comprehensive command dispatch system and enhanced procedural boundaries.
+
+```mermaid
+flowchart TD
+MENUUPDATE["MenuUpdate Procedure<br/>$.proc/.endproc Boundaries"] --> CHECKINPUT["CheckInputAndProcess<br/>Input Flag Management"]
+CHECKINPUT --> STATUSCHECK["Menu Status Check<br/>$FF=done, $00=init, $01=active"]
+STATUSCHECK --> INITRENDER["Initialize Render State<br/>VRAM Position, Buffers, Flags"]
+INITRENDER --> DISPATCHLOOP["Main Dispatch Loop"]
+DISPATCHLOOP --> READCMD["Read Command Byte<br/>from Data Stream"]
+READCMD --> TYPEDIST["Type Distribution<br/>$00-$BF: Tile Data<br/>$C0-$DF: Reserved<br/>$80-$9F: Menu Commands"]
+TYPEDIST --> TILESTORE["StoreTileByte<br/>Direct Tile Rendering"]
+TYPEDIST --> MENUCMD["Menu Command Dispatch<br/>B1F_CallbackDispatcher"]
+MENUCMD --> MENUDISPATCH["MenuDispatchTable<br/>32 Entries ($80-$9F)"]
+MENUDISPATCH --> CMDHANDLERS["Individual Command Handlers<br/>CmdEndMenu, CmdAdvanceRow,<br/>CmdPushPosition, etc."]
+CMDHANDLERS --> DISPATCHLOOP
+TILESTORE --> DISPATCHLOOP
+```
+
+**Diagram sources**
+- [prg_1d_1e.asm:270-398](file://asm/banks/prg_1d_1e.asm#L270-L398)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+
+**Section sources**
+- [prg_1d_1e.asm:270-398](file://asm/banks/prg_1d_1e.asm#L270-L398)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 
 ### Bank Switching Implementation (Enhanced Macros)
 - The mapper exposes four write-only registers to select 8KB PRG banks for each slot.
@@ -737,6 +798,14 @@ The new combined PRG bank 1D/1E system provides debugging advantages:
 - **Reduced Bank Confusion**: Eliminates confusion between separate bank management
 - **Enhanced Testing**: Unified structure supports more comprehensive testing approaches
 
+### New Menu Dispatch System Benefits
+The new MenuDispatchTable provides additional debugging advantages:
+
+- **Structured Command Handling**: Clear separation of menu command processing logic
+- **Enhanced Traceability**: Individual command handlers can be debugged independently
+- **Improved Error Detection**: Command validation and error handling are more systematic
+- **Better Performance Analysis**: Command dispatch overhead can be measured and optimized
+
 **Section sources**
 - [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
@@ -754,8 +823,9 @@ The architecture exhibits clear separation of concerns with modern assembly form
 - Function address constants in functions.h provide centralized access to combined bank functionality.
 - **Enhanced Parameter System**: Structured memory addressing system provides improved dependency management and code clarity.
 - **Unified Bank Architecture**: The new combined PRG bank 1D/1E system provides architectural improvement over individual bank management with simplified dependencies.
+- **Menu Dispatch Dependencies**: The MenuUpdate procedure depends on the B1F_CallbackDispatcher and MenuDispatchTable for structured command processing.
 
-**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, and the enhanced parameter declaration system.
+**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, and the new menu dispatch architecture.
 
 ```mermaid
 graph TB
@@ -770,6 +840,7 @@ COMBINED1D_1E --> REGS
 COMBINED1D_1E --> MACROS
 COMBINED1D_1E --> FUNCTIONS["functions.h<br/>Function Address Constants"]
 COMBINED1D_1E --> PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
+COMBINED1D_1E --> MENUDISPATCH["MenuDispatchTable<br/>32-Entry Command System"]
 MAIN["main.asm"] --> ALIGNED
 MAIN --> NAMCO
 LCFG["linker.cfg"] --> ALIGNED
@@ -786,6 +857,8 @@ COMBINED17_18 --> PROC[".proc/.endproc<br/>Modular Functions"]
 COMBINED1D_1E --> PROC
 PARAMSYS --> PROC
 STRUCT --> PROC
+MENUDISPATCH --> CALLBACK["B1F_CallbackDispatcher"]
+CALLBACK --> ALIGNED
 ```
 
 **Diagram sources**
@@ -798,6 +871,8 @@ STRUCT --> PROC
 - [main.asm:6-7](file://asm/main.asm#L6-L7)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 
 **Section sources**
 - [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
@@ -823,6 +898,7 @@ STRUCT --> PROC
 - **Structured Functions**: The .proc/.endproc organization improves code modularity and reduces compilation times.
 - **Memory Efficiency**: Parameter aliases eliminate redundant addressing operations and improve instruction efficiency.
 - **Unified Bank Benefits**: The combined bank architecture reduces bank switching overhead and provides more efficient memory access patterns.
+- **Menu Dispatch Optimization**: The new MenuDispatchTable provides efficient command routing with minimal overhead compared to conditional branching.
 
 ## Troubleshooting Guide
 - If the game does not enter the intended state, verify the vector table indexing and ensure the state counter is properly masked.
@@ -839,6 +915,8 @@ STRUCT --> PROC
 - **Parameter System Issues**: For memory addressing problems, verify parameter alias correctness and scope boundaries.
 - **Unified Bank Problems**: For PRG bank 1D/1E issues, verify the unified bank switching and ensure proper memory mapping at $A000-$DFFF.
 - **Enhanced Parameter System**: Use the structured parameter declarations to identify memory conflicts and improve debugging efficiency.
+- **Menu Dispatch Issues**: For menu command problems, verify the MenuDispatchTable structure and B1F_CallbackDispatcher usage.
+- **Command Handler Errors**: For specific menu command failures, check individual command handlers in the MenuDispatchTable range.
 
 **Section sources**
 - [prg_1f.aligned.asm:739-750](file://asm/banks/prg_1f.aligned.asm#L739-L750)
@@ -847,6 +925,7 @@ STRUCT --> PROC
 - [prg_17_18.asm:112-127](file://asm/banks/prg_17_18.asm#L112-L127)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
 
 ## Conclusion
-The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, and implementing the unified bank architecture, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.
+The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, and adopting the new menu dispatch system, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.

@@ -59,6 +59,9 @@
 - [tools/verify_disasm.py](file://tools/verify_disasm.py)
 - [tools/analyze_1e.py](file://tools/analyze_1e.py)
 - [tools/analyze_1e_deep.py](file://tools/analyze_1e_deep.py)
+- [tools/analyze_loc_labels.py](file://tools/analyze_loc_labels.py)
+- [tools/rename_loc_labels.py](file://tools/rename_loc_labels.py)
+- [tools/enhance_prg_1d.py](file://tools/enhance_prg_1d.py)
 - [asm/main.asm](file://asm/main.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
@@ -70,12 +73,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for the new 20+ Python disassembly tools covering Bank $1D and $1E disassembly pipelines
-- Documented the enhanced unified disassembly system with specialized tools for different ROM regions
-- Updated transformation pipeline documentation with new semantic naming, enhanced code organization, and automated tooling
-- Added documentation for the new RAM centralization tool and automated parameter declaration system
-- Enhanced ROM analysis and verification toolkit with specialized tools for detailed byte-level inspection
-- Updated Makefile targets to include new disassembly and assembly pipeline targets for Bank $1D/$1E combination
+- Added comprehensive documentation for the new Loc_ label analysis and renaming tools (analyze_loc_labels.py and rename_loc_labels.py)
+- Updated Bank $1D/$1E disassembly pipeline documentation with enhanced tools and automated workflows
+- Added Makefile targets for the new analysis and renaming tools
+- Enhanced documentation for the complete Label-to-Meaningful-Name transformation workflow
+- Updated practical examples and troubleshooting sections with new tool usage patterns
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -88,14 +90,15 @@
 8. [Transformation Pipeline](#transformation-pipeline)
 9. [RAM Centralization and Standardization](#ram-centralization-and-standardization)
 10. [ROM Analysis and Verification Tools](#rom-analysis-and-verification-tools)
-11. [Dependency Analysis](#dependency-analysis)
-12. [Performance Considerations](#performance-considerations)
-13. [Troubleshooting Guide](#troubleshooting-guide)
-14. [Conclusion](#conclusion)
-15. [Appendices](#appendices)
+11. [Label Analysis and Renaming System](#label-analysis-and-renaming-system)
+12. [Dependency Analysis](#dependency-analysis)
+13. [Performance Considerations](#performance-considerations)
+14. [Troubleshooting Guide](#troubleshooting-guide)
+15. [Conclusion](#conclusion)
+16. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, and automated verification systems.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, and sophisticated label analysis and renaming capabilities for improved code organization.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -106,6 +109,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - Automated tools under tools/
 - **New**: Comprehensive transformation pipeline with sophisticated semantic naming, enhanced code organization, and automated tooling for PRG bank $17/$18 assembly code maintainability
 - **New**: Specialized disassembly tools for Bank $1D ($A000-$BFFF) and Bank $1E ($C000-$DFFF) with combined assembly pipeline
+- **New**: Advanced label analysis and renaming system for automated Loc_ label processing and meaningful name assignment
 
 ```mermaid
 graph TB
@@ -151,6 +155,11 @@ B1E["disasm_1e.py<br/>Two-pass disassembler"]
 B1ED["disasm_1e_definitive.py<br/>Definitive data region handling"]
 B1EF["disasm_1e_final.py<br/>Simple linear-sweep"]
 B1D1E["assemble_prg_1d_1e.py<br/>Combined assembly builder"]
+end
+subgraph "Label Analysis & Renaming"
+LA1["analyze_loc_labels.py<br/>Loc_ label analysis"]
+LA2["rename_loc_labels.py<br/>Automated label renaming"]
+LA3["enhance_prg_1d.py<br/>Enhanced Bank $1D processing"]
 end
 subgraph "ROM Analysis and Verification"
 RA1["check_addresses.py<br/>Address verification"]
@@ -212,6 +221,9 @@ MK --> B1E
 MK --> B1ED
 MK --> B1EF
 MK --> B1D1E
+MK --> LA1
+MK --> LA2
+MK --> LA3
 MK --> RA1
 MK --> RA2
 MK --> RA3
@@ -276,6 +288,9 @@ T_verify --> OUT
 - [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-L84)
+- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
+- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-L254)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -289,7 +304,8 @@ T_verify --> OUT
 - **New**: Automated parameter declaration tool provides systematic approach to maintaining consistent parameter naming conventions across assembly code.
 - **New**: RAM centralization tool provides systematic approach to standardizing $04xx memory region definitions with centralized global RAM definitions.
 - **New**: Comprehensive ROM analysis and verification toolkit provides dedicated tools for byte-level ROM inspection, pattern matching, and cross-referencing.
-- **New**: Specialized disassembly tools for Bank $1D ($A000-$BFFF) and Bank $1E ($C000-$DFFF) with combined assembly pipeline for 16KB mapping.
+- **New**: Specialized disassembly tools for Bank $1D ($A000-$BFFF) and Bank $1E ($C000-$DFFF) with combined assembly pipeline.
+- **New**: Advanced label analysis and renaming system provides automated Loc_ label processing and meaningful name assignment for improved code readability.
 
 Key capabilities:
 - Assemble and link to produce a raw PRG binary.
@@ -305,6 +321,8 @@ Key capabilities:
 - **New**: RAM centralization system that standardizes $04xx memory region definitions with globally defined canonical names.
 - **New**: Dedicated ROM analysis tools for address verification, bank validation, offset mapping, pattern searching, and disassembly verification.
 - **New**: Specialized disassembly pipeline for Bank $1D and $1E with multiple disassembler variants and combined assembly generation.
+- **New**: Advanced label analysis system that groups Loc_ labels by procedure and shows context around definitions and references.
+- **New**: Automated label renaming system that replaces generic Loc_ labels with meaningful names using comprehensive mapping tables.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -329,6 +347,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - **New**: Utilize RAM centralization tool for standardizing $04xx memory region definitions with centralized global RAM definitions.
 - **New**: Utilize dedicated ROM analysis tools for detailed byte-level verification and pattern matching.
 - **New**: Apply specialized disassembly pipeline for Bank $1D/$1E with multiple disassembler variants and combined assembly generation.
+- **New**: Apply advanced label analysis and renaming system for automated Loc_ label processing and meaningful name assignment.
 
 ```mermaid
 sequenceDiagram
@@ -343,6 +362,7 @@ participant TP as "Enhanced Transformation Pipeline"
 participant B1D1E as "Bank $1D/$1E Pipeline"
 participant GC as "Globalize 04xx Tool"
 participant RA as "ROM Analysis Tools"
+participant LA as "Label Analysis & Renaming"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm"
 CA-->>MK : "main.o"
@@ -364,9 +384,12 @@ TP-->>Dev : "Semantic naming, .proc/.endproc organization"
 Dev->>MK : "make disasm_1d"
 MK->>B1D1E : "Bank $1D disassembly pipeline"
 B1D1E-->>Dev : "Complete Bank $1D assembly"
-Dev->>MK : "make disasm_1e"
-MK->>B1D1E : "Bank $1E disassembly pipeline"
-B1D1E-->>Dev : "Complete Bank $1E assembly"
+Dev->>MK : "make analyze_loc_labels"
+MK->>LA : "Analyze Loc_ labels in prg_1d_1e.asm"
+LA-->>Dev : "Grouped label analysis with context"
+Dev->>MK : "make rename_loc_labels"
+MK->>LA : "Rename Loc_ labels with meaningful names"
+LA-->>Dev : "Automated label replacement"
 Dev->>MK : "make assemble_prg_1d_1e"
 MK->>B1D1E : "Combine Bank $1D/$1E assembly"
 B1D1E-->>Dev : "Final combined assembly"
@@ -418,6 +441,9 @@ RA-->>Dev : "Detailed byte-level inspection"
 - **New**: make disasm_1e_definitive: Definitive data region handling for Bank $1E.
 - **New**: make disasm_1e_final: Simple linear-sweep disassembler for Bank $1E.
 - **New**: make assemble_prg_1d_1e: Combine Bank $1D/$1E assembly into final 16KB mapping.
+- **New**: make analyze_loc_labels: Analyze Loc_ labels grouped by procedure with context display.
+- **New**: make rename_loc_labels: Automate replacement of Loc_ labels with meaningful names.
+- **New**: make enhance_prg_1d: Enhanced Bank $1D processing with .proc/.endproc organization.
 
 Usage patterns:
 - Start with make split to prepare ROM assets.
@@ -434,6 +460,8 @@ Usage patterns:
 - **New**: Utilize ROM analysis tools for detailed verification and debugging workflows.
 - **New**: Apply specialized disassembly pipeline for Bank $1D/$1E with multiple disassembler variants.
 - **New**: Use make assemble_prg_1d_1e to combine Bank $1D/$1E assembly into final mapping.
+- **New**: Use make analyze_loc_labels to analyze Loc_ label usage patterns and context.
+- **New**: Use make rename_loc_labels to automate meaningful label replacement.
 - Iterate assembly and linking, then verify with make verify.
 
 **Section sources**
@@ -1142,7 +1170,7 @@ The tool organizes $04xx addresses into five functional groups:
 
 **Section sources**
 - [tools/transform_17_18.py:30-168](file://tools/transform_17_18.py#L30-L168)
-- [tools/proc_scope_17_18.py:315-813](file://tools/proc_scope_17_18.py#L315-L813)
+- [tools/proc_scope_17_18.py:315-813](file://tools/proc_scope_17_18.py#L315-813)
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
 - [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
 - [tools/globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
@@ -1465,6 +1493,127 @@ The ROM analysis toolkit enables sophisticated verification workflows:
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
 
+## Label Analysis and Renaming System
+
+### Overview
+The label analysis and renaming system provides automated tools for processing Loc_ labels in Bank $1D/$1E assembly code. This system addresses the challenge of generic Loc_XXXX labels by providing comprehensive analysis capabilities and automated replacement with meaningful names. The system consists of three specialized tools that work together to analyze label usage patterns, provide contextual information, and perform intelligent label replacement.
+
+### System Architecture
+The label analysis and renaming system operates on Bank $1D/$1E assembly code with three specialized stages:
+
+```mermaid
+flowchart TD
+Stage1["analyze_loc_labels.py<br/>84 lines - Loc_ Label Analysis"] --> Stage2["rename_loc_labels.py<br/>339 lines - Automated Label Renaming"]
+Stage2 --> Stage3["enhance_prg_1d.py<br/>254 lines - Enhanced Processing"]
+Stage3 --> Output["Improved Assembly Code"]
+```
+
+**Diagram sources**
+- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-L84)
+- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
+- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-L254)
+
+### Stage-by-Stage Breakdown
+
+#### Stage 1: Loc_ Label Analysis (analyze_loc_labels.py)
+- **Procedure Grouping**: Automatically groups Loc_ labels by their containing .proc blocks
+- **Context Display**: Shows 2 lines before, the label definition line, and 5 lines after for each label
+- **Reference Tracking**: Counts and displays references to each label with sample reference locations
+- **Bank 1E Equates**: Specifically highlights Bank 1E equate definitions for cross-bank reference analysis
+- **Analysis Output**: Provides structured analysis report showing label usage patterns and relationships
+
+#### Stage 2: Automated Label Renaming (rename_loc_labels.py)
+- **Comprehensive Mapping**: Contains extensive mapping table of Loc_ addresses to meaningful names
+- **Scope-Aware Naming**: Supports both @-prefixed local labels and module-level cross-procedure labels
+- **Validation System**: Verifies that all Loc_ labels in the file are covered by the mapping table
+- **Safe Replacement**: Uses word boundary matching to prevent partial replacements
+- **Progress Reporting**: Provides detailed logging of replacement operations and completion status
+- **Coverage Verification**: Ensures no Loc_ labels remain after processing
+
+#### Stage 3: Enhanced Bank $1D Processing (enhance_prg_1d.py)
+- **Enhanced Disassembly**: Generates improved Bank $1D assembly with better organization
+- **Procedure Integration**: Adds .proc/.endproc blocks for entry-point procedures
+- **Meaningful Names**: Applies descriptive procedure names instead of generic EntryXX labels
+- **Jump Table Enhancement**: Improves jump table presentation with better comments and organization
+- **Code Structure**: Provides enhanced code organization with proper section headers and comments
+
+### Integration with Build System
+The label analysis and renaming system integrates seamlessly with the Makefile build system:
+- **New**: make analyze_loc_labels target executes the Loc_ label analysis workflow
+- **New**: make rename_loc_labels target performs automated label replacement
+- **New**: make enhance_prg_1d target generates enhanced Bank $1D assembly
+- **New**: Direct tool execution: python3 tools/analyze_loc_labels.py
+- **New**: Direct tool execution: python3 tools/rename_loc_labels.py
+- **New**: Direct tool execution: python3 tools/enhance_prg_1d.py
+
+The tools process the prg_1d_1e.asm file and provide detailed logging of their operations, including label counts, replacement statistics, and verification results.
+
+**Section sources**
+- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-L84)
+- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
+- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-L254)
+
+### Advanced Label Analysis Features
+The analyze_loc_labels.py tool provides sophisticated analysis capabilities for understanding label usage patterns:
+
+#### Procedure-Based Organization
+- **Proc Boundary Detection**: Automatically identifies .proc/.endproc block boundaries
+- **Label Association**: Associates each Loc_ label with its containing procedure
+- **Contextual Analysis**: Provides surrounding code context for better understanding
+- **Reference Tracking**: Monitors how labels are used within and across procedures
+
+#### Comprehensive Context Display
+- **Definition Context**: Shows 2 lines before and 5 lines after label definitions
+- **Reference Examples**: Displays first few references to each label with line numbers
+- **Summary Statistics**: Provides counts of definitions and references for each label
+- **Cross-Procedure Analysis**: Identifies labels used across multiple procedures
+
+#### Bank 1E Equate Analysis
+- **Special Handling**: Specifically identifies and highlights Bank 1E equate definitions
+- **Cross-Bank References**: Analyzes equates that bridge Bank $1D and Bank $1E
+- **Importance Indicators**: Marks critical cross-bank dependencies
+
+### Automated Label Renaming System
+The rename_loc_labels.py tool provides comprehensive automated label replacement capabilities:
+
+#### Extensive Mapping Database
+- **Comprehensive Coverage**: Maps over 150 Loc_ labels to meaningful names
+- **Context-Aware Naming**: Uses descriptive names based on function and usage context
+- **Scope Management**: Supports both local (@) and global label scoping
+- **Cross-Procedure Support**: Handles labels that span multiple procedures
+
+#### Intelligent Replacement Process
+- **Word Boundary Matching**: Prevents accidental partial replacements
+- **Order Processing**: Sorts labels by length to avoid substitution conflicts
+- **Validation System**: Verifies completeness of label coverage
+- **Progress Tracking**: Reports replacement statistics and completion status
+
+#### Safety and Verification
+- **Pre-flight Checks**: Validates that all Loc_ labels are covered by mapping
+- **Post-processing Verification**: Ensures no Loc_ labels remain after replacement
+- **Backup Support**: Can operate in dry-run mode for safety
+- **Error Reporting**: Provides detailed information about unmapped or extra labels
+
+### Enhanced Bank $1D Processing
+The enhance_prg_1d.py tool provides advanced processing for Bank $1D assembly code:
+
+#### Enhanced Disassembly Features
+- **Procedure Organization**: Automatically wraps entry-point procedures in .proc/.endproc blocks
+- **Meaningful Naming**: Replaces generic EntryXX labels with descriptive names
+- **Jump Table Enhancement**: Improves jump table presentation with better comments
+- **Code Structure**: Provides better organization with section headers and comments
+
+#### Integration with Label System
+- **Label Compatibility**: Works seamlessly with renamed Loc_ labels
+- **Procedure Boundaries**: Respects .proc/.endproc boundaries during processing
+- **Cross-Reference Handling**: Maintains proper cross-procedure references
+- **Output Quality**: Generates high-quality, well-organized assembly code
+
+**Section sources**
+- [tools/analyze_loc_labels.py:15-84](file://tools/analyze_loc_labels.py#L15-L84)
+- [tools/rename_loc_labels.py:11-274](file://tools/rename_loc_labels.py#L11-L274)
+- [tools/enhance_prg_1d.py:14-40](file://tools/enhance_prg_1d.py#L14-L40)
+
 ## Dependency Analysis
 The build system exhibits clear separation of concerns:
 - Makefile orchestrates tool invocations and manages dependencies between assembly, linking, and ROM packaging.
@@ -1474,9 +1623,10 @@ The build system exhibits clear separation of concerns:
 - **New**: RAM centralization tool provides systematic approach to standardizing $04xx memory region definitions with centralized global RAM definitions.
 - **New**: ROM analysis and verification toolkit provides dedicated tools for byte-level ROM inspection and pattern matching.
 - **New**: Specialized disassembly pipeline for Bank $1D/$1E with multiple disassembler variants and combined assembly generation.
+- **New**: Advanced label analysis and renaming system provides automated Loc_ label processing and meaningful name assignment.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, and Bank $1D/$1E disassembly pipeline for comprehensive ROM coverage.
+- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, and label analysis system for comprehensive ROM coverage.
 
 ```mermaid
 graph TB
@@ -1511,6 +1661,9 @@ MK --> B1E["disasm_1e.py"]
 MK --> B1ED["disasm_1e_definitive.py"]
 MK --> B1EF["disasm_1e_final.py"]
 MK --> B1D1E["assemble_prg_1d_1e.py"]
+MK --> LA1["analyze_loc_labels.py"]
+MK --> LA2["rename_loc_labels.py"]
+MK --> LA3["enhance_prg_1d.py"]
 MK --> RA1["check_addresses.py"]
 MK --> RA2["check_bank18.py"]
 MK --> RA3["check_rom_offset.py"]
@@ -1547,6 +1700,9 @@ B1ED --> B1EF
 B1DF --> B1D1E
 B1EF --> B1D1E
 B1D1E --> Output
+LA1 --> LA2
+LA2 --> LA3
+LA3 --> Output
 RA1 --> RA2
 RA2 --> RA3
 RA3 --> RA4
@@ -1590,6 +1746,9 @@ RA10 --> RA11
 - [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
 - [tools/disasm_1e_final.py:1-494](file://tools/disasm_1e_final.py#L1-L494)
 - [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
+- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-L84)
+- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
+- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-L254)
 - [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
 - [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
 - [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
@@ -1617,12 +1776,14 @@ RA10 --> RA11
 - **New**: RAM centralization tool processes entire assembly files with comprehensive alias detection and replacement; expect processing time proportional to code complexity and alias count.
 - **New**: ROM analysis toolkit provides specialized tools for detailed byte-level inspection; expect processing time proportional to ROM size and search scope.
 - **New**: Bank $1D/$1E disassembly pipeline provides multiple disassembler variants with different complexity levels; choose appropriate disassembler based on desired output quality and processing time.
-- **New**: Each disassembly, transformation, and analysis stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
+- **New**: Label analysis and renaming system processes entire assembly files with comprehensive label scanning and replacement; expect processing time proportional to code size and label count.
+- **New**: Each disassembly, transformation, analysis, and label processing stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
 - **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
 - **New**: Localized label conversion adds another processing stage but significantly improves code readability and maintainability.
 - **New**: Automated parameter declaration system requires comprehensive address analysis but provides systematic parameter naming improvements.
 - **New**: RAM centralization system requires comprehensive alias detection and replacement but provides standardized memory definitions across the codebase.
 - **New**: Pattern searching tools may require scanning entire ROM files; consider performance implications for large ROM images.
+- **New**: Label replacement operations use word boundary matching which may require additional processing time but ensures safe replacements.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -1652,6 +1813,10 @@ Common issues and resolutions:
 - **New**: CHR loader identification problems: Use multiple search tools (search_chr_loader.py, search_chr_loader2.py) for comprehensive pattern detection.
 - **New**: Bank $1D/$1E disassembly pipeline failures: Check individual disassembler logs and ensure proper file paths.
 - **New**: Combined assembly generation failures: Verify that Bank $1D disassembly has been generated before running assemble_prg_1d_1e.py.
+- **New**: Label analysis failures: Ensure prg_1d_1e.asm exists and contains proper .proc/.endproc blocks.
+- **New**: Label renaming conflicts: Check that rename_loc_labels.py mapping table covers all Loc_ labels in the target file.
+- **New**: Label replacement issues: Verify that rename_loc_labels.py uses word boundary matching to prevent partial replacements.
+- **New**: Enhanced Bank $1D processing failures: Ensure proper input file format and path configuration.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
@@ -1669,11 +1834,17 @@ Practical examples:
 - **New**: Localized label conversion: make localize_labels
 - **New**: Automated parameter declaration: make auto_add_local_params
 - **New**: RAM centralization: make globalize_04xx
+- **New**: Analyze Loc_ labels: make analyze_loc_labels
+- **New**: Rename Loc_ labels: make rename_loc_labels
+- **New**: Enhanced Bank $1D processing: make enhance_prg_1d
 - **New**: Transform specific stage: python3 tools/transform_17_18.py, python3 tools/add_procs.py, etc.
 - **New**: Advanced boundary analysis: python3 tools/proc_scope_17_18.py
 - **New**: Localized label conversion: python3 tools/localize_labels.py
 - **New**: Automated parameter declaration: python3 tools/auto_add_local_params.py
 - **New**: RAM centralization: python3 tools/globalize_04xx.py
+- **New**: Label analysis: python3 tools/analyze_loc_labels.py
+- **New**: Label renaming: python3 tools/rename_loc_labels.py
+- **New**: Enhanced processing: python3 tools/enhance_prg_1d.py
 - **New**: Address verification: make check_addresses
 - **New**: Bank validation: make check_bank18
 - **New**: Offset mapping: make check_rom_offset
@@ -1705,7 +1876,7 @@ Practical examples:
 - [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, and the improved verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, and comprehensive ROM analysis capabilities.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the advanced label analysis and renaming system with analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py, providing automated Loc_ label processing and meaningful name assignment for improved code organization. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, and the improved verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, and automated label management for improved code readability and maintainability.
 
 ## Appendices
 
@@ -1718,6 +1889,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: RAM centralization workflow: make globalize_04xx
 - **New**: ROM analysis workflow: make check_addresses, make check_bank18, make check_rom_offset, make dump_chr_table, make dump_correct_bytes, make search_0530, make search_chr_loader, make search_chr_loader2, make verify_disasm, make analyze_1e, make analyze_1e_deep
 - **New**: Bank $1D/$1E disassembly workflow: make disasm_1d, make disasm_1d_enhanced, make disasm_1d_final, make disasm_1e, make disasm_1e_definitive, make disasm_1e_final, make assemble_prg_1d_1e
+- **New**: Label analysis and renaming workflow: make analyze_loc_labels, make rename_loc_labels, make enhance_prg_1d
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
 
@@ -1738,6 +1910,9 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: make localize_labels
 - **New**: make auto_add_local_params
 - **New**: make globalize_04xx
+- **New**: make analyze_loc_labels
+- **New**: make rename_loc_labels
+- **New**: make enhance_prg_1d
 - **New**: make check_addresses
 - **New**: make check_bank18
 - **New**: make check_rom_offset
@@ -1757,6 +1932,9 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/localize_labels.py
 - **New**: python3 tools/auto_add_local_params.py
 - **New**: python3 tools/globalize_04xx.py
+- **New**: python3 tools/analyze_loc_labels.py
+- **New**: python3 tools/rename_loc_labels.py
+- **New**: python3 tools/enhance_prg_1d.py
 - **New**: python3 tools/check_addresses.py
 - **New**: python3 tools/check_bank18.py
 - **New**: python3 tools/check_rom_offset.py
@@ -1773,6 +1951,9 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/localize_labels.py --dry-run
 - **New**: python3 tools/auto_add_local_params.py --input asm/banks/prg_17_18.asm --output asm/banks/prg_17_18_auto.asm
 - **New**: python3 tools/globalize_04xx.py --input asm/banks/prg_17_18.asm --output asm/banks/prg_17_18_globalized.asm
+- **New**: python3 tools/analyze_loc_labels.py
+- **New**: python3 tools/rename_loc_labels.py
+- **New**: python3 tools/enhance_prg_1d.py
 - **New**: python3 tools/add_procs.py
 - **New**: python3 tools/analyze_17_18.py
 - **New**: python3 tools/debug_regions.py
