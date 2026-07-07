@@ -19,6 +19,211 @@
 ; RAM Variable Definitions (file-scope)
 ;===============================================================================
 
+;-------------------------------------------------------------------------------
+; Zero-page scratch / workspace ($0000-$001F)
+;-------------------------------------------------------------------------------
+zp_ptr_lo         = $0000  ; general-purpose ZP pointer lo (used by 28+ procs)
+zp_ptr_hi         = $0001  ; general-purpose ZP pointer hi (used by 17+ procs)
+work2_lo          = $0002  ; secondary workspace lo (OfficerRecCalc, StateHandler, etc.)
+work2_hi          = $0003  ; secondary workspace hi
+copy_bank_ctr     = $0004  ; bank copy counter (SramInit, StateHandler)
+state_tmp         = $0006  ; StateHandler temp / VerifyChecksum workspace
+bcd_digit2        = $0007  ; BCD result byte 2 (PeriodicOverlayRefresh, YearDisplaySetup)
+bcd_digit1        = $0008  ; BCD result byte 1 (YearDisplaySetup, MenuUpdate)
+bcd_digit0        = $0009  ; BCD result byte 0 (MenuUpdate)
+banked_work0      = $000A  ; BankedDataHandler / DisplayTileData workspace
+banked_work1      = $000B
+banked_work2      = $000C  ; (also used by DisplayTileData)
+tile_ptr_lo       = $0010  ; tilemap data pointer lo (DisplayTileData, StateHandler)
+tile_ptr_hi       = $0011  ; tilemap data pointer hi
+; cmd_byte         = $0012  ; (already defined) current command byte from data stream
+vram_tmp_lo       = $0013  ; VRAM position temp lo (StateHandler, OfficerListHandler)
+; 0014: OfficerListHandler local (officer list workspace)
+; cmd_byte         = $0012  ; (already defined) current command byte from data stream
+; 0015: not found in code
+; 0016: StateHandler local (officer record index temp)
+prov_data_ptr_lo  = $0017  ; province/officer data ptr lo (StateHandler, OfficerListHandler)
+; 0018: StateHandler local (province data ptr hi)
+; officer_list_tmp  = 0019  ; (OfficerListHandler local)
+; officer_src_lo    = 001A  ; (OfficerListHandler local)
+; officer_src_hi    = 001B  ; (OfficerListHandler local)
+; officer_dst_lo    = 001C  ; (OfficerListHandler local)
+; officer_dst_hi    = 001D  ; (OfficerListHandler local)
+; province_tmp      = 0020  ; (ProvinceDataHandler local)
+
+;-------------------------------------------------------------------------------
+; Zero-page display / render state ($005E-$0074)
+;-------------------------------------------------------------------------------
+frame_tick_ctr    = $005E  ; frame tick counter (PPUTileRender, PeriodicOverlayRefresh)
+disp_row_count    = $0061  ; display row count / visible rows (OfficerListHandler, SceneRenderer)
+scene_param0      = $0068  ; SceneRenderer / OfficerRecLookup param 0
+scene_param1      = $0069  ; SceneRenderer / OfficerRecLookup param 1
+scene_param2      = $006A  ; SceneRenderer / OfficerRecLookup param 2
+scene_param3      = $006B  ; SceneRenderer / OfficerRecLookup param 3
+scene_param4      = $006C  ; SceneRenderer / OfficerRecLookup param 4
+scene_param5      = $006D  ; SceneRenderer / OfficerRecLookup param 5
+scene_param6      = $006E  ; SceneRenderer / OfficerRecLookup param 6
+scene_param7      = $006F  ; SceneRenderer / OfficerRecLookup param 7
+scene_param8      = $0070  ; SceneRenderer / OfficerRecLookup param 8
+scene_param9      = $0071  ; SceneRenderer / OfficerRecLookup param 9
+; officer_lookup_x  = 0072  ; (OfficerRecLookup local)
+; officer_lookup_y  = 0073  ; (OfficerRecLookup local)
+; scene_file_ref    = 0074  ; (OfficerRecLookup local)
+
+;-------------------------------------------------------------------------------
+; Zero-page state handler workspace ($00AE-$00DC)
+;-------------------------------------------------------------------------------
+officer_param_ofs = $00AE  ; officer param data offset (OfficerParamDisp, StateHandler)
+state_row_ofs1    = $00B2  ; StateHandler row offset 1
+tile_row_count    = $00B3  ; tile row count (StateHandler, SceneRenderer)
+state_row_ofs2    = $00B4  ; StateHandler row offset 2
+; setup_disp_tmp    = 00B9  ; (SetupBankedData local)
+state_vram_cnt_lo = $00C1  ; StateHandler VRAM counter lo (paired with $00C2)
+state_vram_cnt_hi = $00C2  ; StateHandler VRAM counter hi
+state_row_cnt1_lo = $00C3  ; StateHandler row counter 1 lo (paired with $00C4)
+state_row_cnt1_hi = $00C4  ; StateHandler row counter 1 hi
+; setup_disp_b      = 00BF  ; (SetupDisplayPtrs local)
+; setup_disp_c      = 00C0  ; (ResetDispatchState local)
+; setup_disp_a      = 00C7  ; (SetupDisplayPtrs local)
+; setup_disp_d      = 00C8  ; (ResetDispatchState local)
+state_row_cnt2_lo = $00C9  ; StateHandler row counter 2 lo (paired with $00CA)
+state_row_cnt2_hi = $00CA  ; StateHandler row counter 2 hi
+; setup_disp_e      = 00CF  ; (SetupDisplayPtrs local)
+state_vram_cnt2_lo = $00CB ; StateHandler VRAM counter 2 lo
+state_vram_cnt2_hi = $00CC ; StateHandler VRAM counter 2 hi
+state_row_cnt3_lo = $00D1  ; StateHandler row counter 3 lo (paired with $00D2)
+state_row_cnt3_hi = $00D2  ; StateHandler row counter 3 hi
+state_row_cnt4_lo = $00D3  ; StateHandler row counter 4 lo
+state_row_cnt4_hi = $00D4  ; StateHandler row counter 4 hi
+; state_vram_cnt3_lo = 00D6 ; (StateHandler local)
+; state_vram_cnt3_hi = 00DA ; (StateHandler local)
+state_row_cnt5_lo = $00DB  ; StateHandler row counter 5 lo
+state_row_cnt5_hi = $00DC  ; StateHandler row counter 5 hi
+
+;-------------------------------------------------------------------------------
+; Page $01: State handler workspace / display buffers ($0100-$0190)
+;-------------------------------------------------------------------------------
+disp_ptr_table    = $0100  ; display pointer table (SetupDisplayPtrs, MenuRenderer_SecondaryDispatch, LoadScenarioData)
+disp_ptr_src_lo   = $0110  ; display ptr source lo (SetupDisplayPtrs copies to $0100)
+disp_ptr_src_hi   = $0120  ; display ptr source hi (SetupDisplayPtrs copies to $0110)
+tile_buf_base     = $0140  ; state dispatch control / tile buffer base
+state_scroll_x    = $0141  ; scroll X offset (StateHandler, MapDisplaySetup)
+state_vram_hi     = $0142  ; VRAM addr hi (StateHandler, MapDisplaySetup)
+state_vram_pos_lo = $0143  ; VRAM position lo (StateHandler scroll)
+state_vram_pos_hi = $0144  ; VRAM position hi (StateHandler scroll)
+state_disp_lo     = $0145  ; display VRAM addr lo (StateHandler)
+state_disp_hi     = $0146  ; display VRAM addr hi (StateHandler)
+state_attr_lo     = $0147  ; attr block addr lo (StateHandler)
+state_attr_hi     = $0148  ; attr block addr hi (StateHandler)
+tilemap_src_lo    = $0149  ; tilemap source ptr lo (StateHandler)
+tilemap_src_hi    = $014A  ; tilemap source ptr hi (StateHandler)
+state_scroll_y    = $014B  ; scroll Y / attr merge buffer (StateHandler)
+officer_idx_buf   = $0150  ; state mode flags / officer index buffer
+officer_list_idx  = $0151  ; OfficerListHandler index entry
+state_name_vram_lo = $0152 ; name VRAM pos lo (StateHandler)
+state_name_vram_hi = $0153 ; name VRAM pos hi (StateHandler)
+state_row_limit   = $0154  ; row limit / total rows (StateHandler, MapDisplaySetup)
+state_buf_end     = $0160  ; tile row buffer start (56 bytes, StateHandler)
+state_officer_tmp = $0183  ; StateHandler / OfficerListHandler shared temp
+; state_buf_extra   = 0166  ; (StateHandler local)
+; state_buf_ext2    = 016F  ; (StateHandler local)
+; state_buf_ext3    = 0175  ; (StateHandler local)
+; state_buf_ext4    = 017D  ; (StateHandler local)
+; state_work_area   = 0190  ; (StateHandler local)
+
+;-------------------------------------------------------------------------------
+; Page $02: OAM sprite data
+;-------------------------------------------------------------------------------
+oam_buf_lo        = $0200  ; OAM sprite buffer lo (SceneRenderer, SetupBankedData, StateHandler)
+oam_buf_hi        = $0201  ; OAM sprite buffer hi
+oam_buf_idx       = $0202  ; OAM sprite buffer index
+oam_buf_extra     = $0203  ; OAM sprite buffer extra
+; oam_extra         = 0204  ; (SceneRenderer local)
+
+;-------------------------------------------------------------------------------
+; Page $03: Display / render buffer ($037C-$03C3)
+;-------------------------------------------------------------------------------
+sub_state_main    = $037C  ; sub-state dispatch: main (StateHandler)
+sub_state_prov    = $037D  ; sub-state dispatch: province timer (StateHandler)
+sub_state_officer = $037E  ; sub-state dispatch: officer (StateHandler)
+disp_buf_base     = $0380  ; display/render buffer base (14+ procs)
+disp_buf_ofs1     = $0381  ; display buffer offset 1 (SceneRenderer, YearDisplaySetup, BankedDataHandler)
+disp_buf_ofs2     = $0382  ; display buffer offset 2 (SceneRenderer, YearDisplaySetup, BankedDataHandler)
+disp_buf_ofs3     = $0383  ; display buffer offset 3 (SceneRenderer, YearDisplaySetup)
+disp_buf_ofs4     = $0389  ; display buffer offset 4 (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofs5     = $038A  ; display buffer offset 5 (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofs6     = $038D  ; display buffer offset 6 (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofs7     = $038E  ; display buffer offset 7 (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofs8     = $038F  ; display buffer offset 8 (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofs9     = $0390  ; display buffer offset 9 (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofsA     = $0391  ; display buffer offset A (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofsB     = $0392  ; display buffer offset B (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofsC     = $0393  ; display buffer offset C (YearDisplaySetup, BankedDataHandler)
+disp_buf_ofsD     = $0394  ; display buffer offset D (YearDisplaySetup, BankedDataHandler)
+; scaled_name_tmp   = $03A5  ; (DisplayScaledName/BankedDataHandler local)
+; overlay_bcd_hi    = 03AA  ; (PeriodicOverlayRefresh local)
+; overlay_bcd_lo    = 03AB  ; (PeriodicOverlayRefresh local)
+; overlay_buf_end   = 03BA  ; (PeriodicOverlayRefresh local)
+; scene_render_flag = 03C3  ; (SceneRenderer local)
+
+;-------------------------------------------------------------------------------
+; Page $04: Menu system / officer data / scene state ($0400-$04D6)
+;-------------------------------------------------------------------------------
+scene_callback_id = $0400  ; scene callback ID (SramInit, SceneRenderer)
+scene_callback_st = $0401  ; scene callback state counter (SceneRenderer, StateHandler)
+province_idx      = $0402  ; current province index (StateHandler, OfficerListHandler)
+; officer_param_base = 040C ; (OfficerListHandler local)
+menu_scroll_state = $0420  ; menu scroll / render state (StateHandler, MenuRenderer)
+; officer_list_flag = 0424  ; (OfficerListHandler local)
+; officer_list_tmp2 = 0425  ; (OfficerListHandler local)
+; menu_fmt_data0    = 042C  ; (MenuUpdate local)
+; menu_fmt_data1    = 042D  ; (MenuUpdate local)
+; menu_fmt_data2    = 042E  ; (MenuUpdate local)
+; menu_fmt_num0     = 044C  ; (MenuUpdate local)
+; menu_fmt_num1     = 044D  ; (MenuUpdate local)
+; menu_fmt_num2     = 044E  ; (MenuUpdate local)
+; officer_list_st   = 0470  ; (SceneRenderer local)
+; officer_list_st1  = 0471  ; (SceneRenderer local)
+; officer_list_st2  = 0472  ; (SceneRenderer local)
+; officer_list_st3  = 0473  ; (SceneRenderer local)
+officer_list_ctrl = $0478  ; officer list control/state (OfficerListHandler)
+officer_list_cnt  = $0479  ; officer list scroll count (OfficerListHandler)
+officer_list_idx2 = $047A  ; officer list index counter (OfficerListHandler)
+officer_list_max  = $047B  ; officer list max entries (OfficerListHandler)
+; officer_list_col  = 047C  ; (OfficerListHandler local)
+; officer_list_row  = 047D  ; (not found)
+; officer_list_sel  = 047E  ; (not found)
+; officer_list_scr  = 047F  ; (not found)
+officer_name_buf  = $0480  ; officer name buffer ($0B bytes, OfficerListHandler, FlushTileBuffer)
+officer_name_len  = $0481  ; officer name length / data (OfficerListHandler, FlushTileBuffer)
+; officer_name_ext  = 0482  ; (OfficerListHandler local)
+; officer_name_ext2 = 0483  ; (OfficerListHandler local)
+; officer_name_ext3 = 0486  ; (OfficerListHandler local)
+menu_dispatch_flg = $04A0  ; menu dispatch flag (MenuRenderer, MenuAction procs)
+menu_row_step     = $04A1  ; menu row step counter (152 refs! core menu state)
+menu_dispatch_idx = $04A2  ; menu dispatch index / phase (MenuRenderer, OfficerRecCalc)
+menu_row_inc      = $04A3  ; menu row increment counter (MenuRenderer, OfficerRecCalc)
+menu_action_param = $04A4  ; menu action parameter (various MenuAction procs)
+menu_action_param2 = $04A5 ; menu action parameter 2 (various MenuAction procs)
+; officer_name_disp = 04AE  ; (OfficerNameDisplay local)
+menu_row_limit    = $04CC  ; menu row limit (MenuRenderer, OfficerRecCalc)
+menu_disp_row_ctr = $04D0  ; menu display row counter (MenuRenderer, DomesticMenu_Return)
+officer_rec_src_lo = $04D2 ; officer record source ptr lo (OfficerRecCalc)
+officer_rec_src_hi = $04D3 ; officer record source ptr hi (OfficerRecCalc)
+officer_rec_dst_lo = $04D4 ; officer record dest ptr lo (OfficerRecCalc)
+officer_rec_dst_hi = $04D5 ; officer record dest ptr hi (OfficerRecCalc)
+menu_action_extra = $04D6  ; menu action extra param (MenuAction08, ProvinceRecCalc)
+
+;-------------------------------------------------------------------------------
+; Page $05-$06: Province data (ProvinceDataHandler local)
+;-------------------------------------------------------------------------------
+; 0509: ProvinceDataHandler local (province data reference)
+; 0664: ProvinceDataHandler local (province data reference 2)
+
+;-------------------------------------------------------------------------------
+; Previously defined variables (file-scope)
+;-------------------------------------------------------------------------------
+
 ; $03xx menu/display state variables
 menu_status       = $0300  ; $FF=done/inactive, $00=need init, $01=active
 overlay_flag      = $0303  ; $00=direct render, $80=overlay mode
@@ -78,14 +283,14 @@ Entry06:
   ; FlushTileBuffer - upload 64-byte $0160 tile buffer to VRAM at $0480/$0481
   JMP FlushTileBuffer             ; $A012: 4C 41 BC
 Entry07:
-  ; Entry07 -> $DBB1 (bank $1E)
-  JMP $DBB1                               ; $A015: 4C B1 DB
+  ; LoadScenarioData
+  JMP LoadScenarioData                      ; $A015: 4C B1 DB
 Entry08:
   ; Entry08 -> $DD8B (bank $1E)
-  JMP $DD8B                               ; $A018: 4C 8B DD
+  JMP SramInit                                ; $A018: 4C 8B DD
 Entry09:
-  ; Entry09 -> $DE7E (bank $1E)
-  JMP $DE7E                               ; $A01B: 4C 7E DE
+  ; OfficerParamDisp
+  JMP OfficerParamDisp                        ; $A01B: 4C 7E DE
 Entry10:
   ; YearDisplaySetup
   JMP YearDisplaySetup          ; $A01E: 4C B6 A6
@@ -126,8 +331,8 @@ Entry22:
   ; BankedDataHandler
   JMP BankedDataHandler           ; $A042: 4C 37 AA
 Entry23:
-  ; Entry23 -> $DEB9 (bank $1E)
-  JMP $DEB9                               ; $A045: 4C B9 DE
+  ; OfficerRecLookup
+  JMP OfficerRecLookup                      ; $A045: 4C B9 DE
 
 ;===============================================================================
 ; Code Region ($A048-$B304)
@@ -268,6 +473,14 @@ VRAMBufferWrite:
 .endproc
 
 .proc MenuUpdate
+  ; Proc-local RAM variables
+  menu_fmt_data0    = $042C  ; formatted number data 0
+  menu_fmt_data1    = $042D  ; formatted number data 1
+  menu_fmt_data2    = $042E  ; formatted number data 2
+  menu_fmt_num0     = $044C  ; formatted number 0
+  menu_fmt_num1     = $044D  ; formatted number 1
+  menu_fmt_num2     = $044E  ; formatted number 2
+  menu_tile_tmp     = $034B  ; tile temp
 MenuUpdate_Exit:
   RTS                                     ; $A153: 60
 MenuUpdate:
@@ -947,6 +1160,14 @@ PosDataBankTable:
 .endproc
 
 .proc YearDisplaySetup
+  ; Proc-local RAM variables
+  year_disp_84      = $0384  ; year display buffer 84
+  year_disp_85      = $0385  ; year display buffer 85
+  year_disp_86      = $0386  ; year display buffer 86
+  year_disp_87      = $0387  ; year display buffer 87
+  year_disp_88      = $0388  ; year display buffer 88
+  year_disp_8B      = $038B  ; year display buffer 8B
+  year_disp_8C      = $038C  ; year display buffer 8C
 YearDisplaySetup:
   LDA $6F00                               ; $A6B6: AD 00 6F
   CLC                                     ; $A6B9: 18
@@ -1045,6 +1266,10 @@ YearDisplaySetup:
 .endproc
 
 .proc PeriodicOverlayRefresh
+  ; Proc-local RAM variables
+  overlay_bcd_hi    = $03AA  ; overlay BCD high digit tile
+  overlay_bcd_lo    = $03AB  ; overlay BCD low digit tile
+  overlay_buf_end   = $03BA  ; overlay buffer end
 ; Entry: fires every 16th tick (tick ≡ 11 mod 16), delegates to BCD overlay
 ::SlowPeriodic:
   LDA $005E                               ; $A77F: AD 5E 00
@@ -1126,6 +1351,10 @@ OverlayTemplate:
 .endproc
 
 .proc ProvinceDataHandler
+  ; Proc-local RAM variables
+  province_tmp      = $0020  ; province data temp
+  province_data_ref = $0509  ; province data reference
+  province_data_ref2 = $0664 ; province data reference 2
 ProvinceDataHandler:
   LDY #$3A                                ; $A830: A0 3A
 @prov_copy_loop:
@@ -1207,6 +1436,8 @@ OfficerDisplayTilemap:
 .endproc
 
 .proc OfficerNameDisplay
+  ; Proc-local RAM variable
+  officer_name_disp = $04AE  ; officer name display temp
 OfficerNameDisplay:
   LDY #$3A                                ; $A8FD: A0 3A
 @rec_copy_loop:
@@ -1239,6 +1470,8 @@ OfficerNameTilemap:
 .endproc
 
 .proc DisplayScaledName
+  ; Proc-local RAM variable
+  scaled_name_tmp   = $03A5  ; scaled name temp
 DisplayScaledName:
   JSR B1F_GetNameDisplayScale             ; $A957: 20 08 F3
   TAX                                     ; $A95A: AA
@@ -1263,6 +1496,8 @@ FormatNumberPair:
 .endproc
 
 .proc DisplayScaledNumber
+  ; Proc-local RAM variable
+  disp_scaled_num   = $03B1  ; scaled number temp
 DisplayScaledNumber:
   JSR B1F_GetNameDisplayScale             ; $A976: 20 08 F3
   TAX                                     ; $A979: AA
@@ -1341,6 +1576,18 @@ DataFormatter_Table2:
 .endproc
 
 .proc BankedDataHandler
+  ; Proc-local RAM variables
+  scaled_name_tmp   = $03A5  ; scaled name temp
+  banked_bd_lo      = $00BD  ; banked data temp lo
+  banked_395        = $0395  ; banked data temp
+  banked_39C        = $039C  ; banked data temp C
+  banked_39D        = $039D  ; banked data temp D
+  banked_3A0        = $03A0  ; banked data temp E0
+  banked_3A1        = $03A1  ; banked data temp E1
+  banked_3A2        = $03A2  ; banked data temp E2
+  banked_3A3        = $03A3  ; banked data temp E3
+  banked_3A4        = $03A4  ; banked data temp E4
+  banked_3A6        = $03A6  ; banked data temp E6
   LDA $000A                               ; $AA37: AD 0A 00
   PHA                                     ; $AA3A: 48
   LDA $000B                               ; $AA3B: AD 0B 00
@@ -1453,6 +1700,8 @@ DisplayData_Table:
 ; SetupBankedData - Switch bank and copy display/name data
 ;-------------------------------------------------------------------------------
 .proc SetupBankedData
+  ; Proc-local RAM variable
+  setup_disp_tmp    = $00B9  ; setup temp
   LDY #$31                                  ; $AB38: select bank $31
   JSR B1F_SwitchBank8_B                     ; $AB3A: 20 5F F2
   LDA $000B                                 ; $AB3D: AD 0B 00
@@ -1536,6 +1785,22 @@ SpriteY_Table:
 .endproc
 
 .proc StateHandler
+  ; Proc-local RAM variables
+  state_scale_mode  = $0015  ; scale mode flag for officer name rendering
+  officer_rec_idx   = $0016  ; officer record index temp
+  prov_data_ptr_hi  = $0018  ; province data pointer hi
+  state_vram_cnt3_lo = $00D6 ; VRAM counter 3 lo
+  state_vram_cnt3_hi = $00DA ; VRAM counter 3 hi
+  state_tmp2        = $0005  ; StateHandler temp 2
+  state_bcd_mode    = $000F  ; BCD/scale mode temp
+  state_be          = $00BE  ; StateHandler temp
+  state_c6          = $00C6  ; StateHandler temp
+  state_ce          = $00CE  ; StateHandler temp
+  state_buf_extra   = $0166  ; state buffer extra data
+  state_buf_ext2    = $016F  ; state buffer extension 2
+  state_buf_ext3    = $0175  ; state buffer extension 3
+  state_buf_ext4    = $017D  ; state buffer extension 4
+  state_work_area   = $0190  ; StateHandler work area
 StateHandler:
   LDA $037C                               ; $ABD2: AD 7C 03
   BEQ @check_main_state                            ; $ABD5: F0 1D
@@ -2528,6 +2793,20 @@ ProvinceDetailTilemap:                      ; $B305
 .endproc
 
 .proc OfficerListHandler
+  ; Proc-local RAM variables
+  officer_list_wrk  = $0014  ; officer list workspace
+  officer_src_lo    = $001A  ; officer record source ptr lo
+  officer_src_hi    = $001B  ; officer record source ptr hi
+  officer_dst_lo    = $001C  ; officer record dest ptr lo
+  officer_dst_hi    = $001D  ; officer record dest ptr hi
+  officer_flag_zp   = $008F  ; officer flag (zero-page)
+  officer_list_col  = $047C  ; officer list column count
+  officer_list_flag = $0424  ; officer list flag
+  officer_list_tmp2 = $0425  ; officer list temp 2
+  officer_param_base = $040C ; officer parameter base
+  officer_name_ext  = $0482  ; officer name extension data
+  officer_name_ext2 = $0483  ; officer name extension data 2
+  officer_name_ext3 = $0486  ; officer name extension data 3
 OfficerListHandler:
   LDA $0140                               ; $B989: AD 40 01
   BNE @officer_exit                            ; $B98C: D0 40
@@ -2899,15 +3178,35 @@ ClearWorkBuffer:
 .endproc
 
 .proc SceneRenderer
+  ; Proc-local RAM variables
+  officer_list_st   = $0470  ; officer list state 0
+  officer_list_st1  = $0471  ; officer list state 1
+  officer_list_st2  = $0472  ; officer list state 2
+  officer_list_st3  = $0473  ; officer list state 3
+  oam_extra         = $0204  ; OAM sprite data extra byte
+  scene_render_flag = $03C3  ; scene render flag
 SceneRenderer:
   LDA $0401                               ; $BC71: AD 01 04
   JSR B1F_CallbackDispatcher              ; $BC74: 20 DE EA
-  .byte $83                               ; $BC77: 83
-  LDY $BC9B,X                             ; $BC78: BC 9B BC
-  .byte $03                               ; $BC7B: 03
-  LDA $BD38,X                             ; $BC7C: BD 38 BD
-  RTS                                     ; $BC7F: 60
-  LDA $BD92,X                             ; $BC80: BD 92 BD
+;-------------------------------------------------------------------------------
+; Inline dispatch table (6 entries, 16-bit addresses)
+; CallbackDispatcher reads via return addr ($BC76) + idx*2 + 1
+; Index = $0401 value (0-5)
+;-------------------------------------------------------------------------------
+SceneRendererDispatch:
+  .word SceneOfficerListInit              ; $BC77: 83 BC -> callback 0
+  .word ScenePageCopy                     ; $BC79: 9B BC -> callback 1
+  .word SceneRenderSetup                  ; $BC7B: 03 BD -> callback 2
+  .word SceneSpriteSetup                  ; $BC7D: 38 BD -> callback 3
+  .word SceneRenderExit3                  ; $BC7F: 60 BD -> callback 4
+  .word SceneBufferFill                   ; $BC81: 92 BD -> callback 5
+.endproc
+
+;-------------------------------------------------------------------------------
+; SceneOfficerListInit ($BC83-$BC9A)
+; Callback 0: Initialize officer list state registers
+;-------------------------------------------------------------------------------
+.proc SceneOfficerListInit
   LDA #$00                                ; $BC83: A9 00
   STA $0470                               ; $BC85: 8D 70 04
   LDA #$88                                ; $BC88: A9 88
@@ -2918,6 +3217,13 @@ SceneRenderer:
   STA $0473                               ; $BC94: 8D 73 04
   INC $0401                               ; $BC97: EE 01 04
   RTS                                     ; $BC9A: 60
+.endproc
+
+;-------------------------------------------------------------------------------
+; ScenePageCopy ($BC9B-$BD02)
+; Callback 1: Copy scene page data with bank switch and palette update
+;-------------------------------------------------------------------------------
+.proc ScenePageCopy
   LDY #$30                                ; $BC9B: A0 30
   JSR B1F_SwitchBank8_B                   ; $BC9D: 20 5F F2
   LDA #$40                                ; $BCA0: A9 40
@@ -2962,6 +3268,13 @@ SceneRenderer:
   ORA #$04                                ; $BCFD: 09 04
   STA $007E                               ; $BCFF: 8D 7E 00
   RTS                                     ; $BD02: 60
+.endproc
+
+;-------------------------------------------------------------------------------
+; SceneRenderSetup ($BD03-$BD37)
+; Callback 2: Scenario render setup - load data, init timer, palette fade
+;-------------------------------------------------------------------------------
+.proc SceneRenderSetup
   LDA $0087                               ; $BD03: AD 87 00
   BPL @render_exit1                            ; $BD06: 10 2F
   LDA #$0A                                ; $BD08: A9 0A
@@ -2978,12 +3291,19 @@ SceneRenderer:
   STA $00E6                               ; $BD23: 8D E6 00
   LDA #$00                                ; $BD26: A9 00
   STA $0000                               ; $BD28: 8D 00 00
-  JSR $DBB1                               ; $BD2B: 20 B1 DB
+  JSR LoadScenarioData                      ; $BD2B: 20 B1 DB
   INC $0401                               ; $BD2E: EE 01 04
-  JSR @init_timer                            ; $BD31: 20 FE BD
+  JSR SceneInitTimer                            ; $BD31: 20 FE BD
   JMP B1F_PaletteFadeInit                   ; $BD34: 4C BF EC
 @render_exit1:
   RTS                                     ; $BD37: 60
+.endproc
+
+;-------------------------------------------------------------------------------
+; SceneSpriteSetup ($BD38-$BD5F)
+; Callback 3: Sprite OAM setup and input-driven palette copy
+;-------------------------------------------------------------------------------
+.proc SceneSpriteSetup
   LDA #$F0                                ; $BD38: A9 F0
   STA $0200                               ; $BD3A: 8D 00 02
   STA $0204                               ; $BD3D: 8D 04 02
@@ -2996,12 +3316,19 @@ SceneRenderer:
   LDA $0083                               ; $BD4F: AD 83 00
   CMP #$1C                                ; $BD52: C9 1C
   BNE @inc_and_jmp                            ; $BD54: D0 03
-  JSR @check_game_state                            ; $BD56: 20 F1 BD
+  JSR SceneCheckGameState                            ; $BD56: 20 F1 BD
 @inc_and_jmp:
   INC $0401                               ; $BD59: EE 01 04
   JMP B1F_PaletteCopyBuffer                 ; $BD5C: 4C EE EC
 @render_exit2:
   RTS                                     ; $BD5F: 60
+.endproc
+
+;-------------------------------------------------------------------------------
+; SceneRenderExit3 ($BD60-$BD91)
+; Callback 4: Alternate render exit - load scenario data, palette fade
+;-------------------------------------------------------------------------------
+.proc SceneRenderExit3
   LDA #$F0                                ; $BD60: A9 F0
   STA $0200                               ; $BD62: 8D 00 02
   STA $0204                               ; $BD65: 8D 04 02
@@ -3017,11 +3344,18 @@ SceneRenderer:
   STA $00E6                               ; $BD80: 8D E6 00
   LDA #$00                                ; $BD83: A9 00
   STA $0000                               ; $BD85: 8D 00 00
-  JSR $DBB1                               ; $BD88: 20 B1 DB
+  JSR LoadScenarioData                      ; $BD88: 20 B1 DB
   INC $0401                               ; $BD8B: EE 01 04
   JMP B1F_PaletteFadeInit                   ; $BD8E: 4C BF EC
 @render_exit3:
   RTS                                     ; $BD91: 60
+.endproc
+
+;-------------------------------------------------------------------------------
+; SceneBufferFill ($BD92-$BDF0)
+; Callback 5: Fill VRAM buffer page with $AA, set up data pointers, clear state
+;-------------------------------------------------------------------------------
+.proc SceneBufferFill
   LDA $0087                               ; $BD92: AD 87 00
   BPL @sub_exit                            ; $BD95: 10 59
   LDA #$40                                ; $BD97: A9 40
@@ -3065,7 +3399,13 @@ SceneRenderer:
   BPL @fill_0470                            ; $BDEE: 10 FA
 @sub_exit:
   RTS                                     ; $BDF0: 60
-@check_game_state:
+.endproc
+
+;-------------------------------------------------------------------------------
+; SceneCheckGameState ($BDF1-$BDFD)
+; Ensure SRAM game state flag is at least $01
+;-------------------------------------------------------------------------------
+.proc SceneCheckGameState
   LDA $6F05                               ; $BDF1: AD 05 6F
   CMP #$02                                ; $BDF4: C9 02
   BCC @rts2                            ; $BDF6: 90 05
@@ -3073,7 +3413,13 @@ SceneRenderer:
   STA $6F05                               ; $BDFA: 8D 05 6F
 @rts2:
   RTS                                     ; $BDFD: 60
-@init_timer:
+.endproc
+
+;-------------------------------------------------------------------------------
+; SceneInitTimer ($BDFE-$BE35)
+; Initialize timer data pointers for scene rendering
+;-------------------------------------------------------------------------------
+.proc SceneInitTimer
   LDA #$03                                ; $BDFE: A9 03
   STA $0061                               ; $BE00: 8D 61 00
   LDA #$28                                ; $BE03: A9 28
@@ -3097,7 +3443,6 @@ SceneRenderer:
   LDA #$F1                                ; $BE30: A9 F1
   STA $0071                               ; $BE32: 8D 71 00
   RTS                                     ; $BE35: 60
-
 .endproc
 
 .proc MenuRenderer
@@ -3132,42 +3477,45 @@ MenuRenderer:
   LDA $04A2                               ; $BE6F: AD A2 04
   JSR B1F_CallbackDispatcher              ; $BE72: 20 DE EA
 @menu_dispatch_table:
-  .word @row0_entry                         ; $BE75: -> $BEBB
-  .word @row1_entry                         ; $BE77: -> $BEEB
-  .word L_BF2F                              ; $BE79: -> $BF2F
-  .word L_BF70                              ; $BE7B: -> $BF70
-  .word L_BFBF                              ; $BE7D: -> $BFBF
-  .word L_BFF3                              ; $BE7F: -> $BFF3
-  .word L_C046                              ; $BE81: -> $C046
-  .word L_C090                              ; $BE83: -> $C090
-  .word L_C0C8                              ; $BE85: -> $C0C8
-  .word L_C123                              ; $BE87: -> $C123
-  .word L_C168                              ; $BE89: -> $C168
-  .word L_C1AC                              ; $BE8B: -> $C1AC
-  .word L_C1FA                              ; $BE8D: -> $C1FA
-  .word L_C25D                              ; $BE8F: -> $C25D
-  .word L_C2DD                              ; $BE91: -> $C2DD
-  .word L_C33D                              ; $BE93: -> $C33D
-  .word L_C3A2                              ; $BE95: -> $C3A2
-  .word L_C3F6                              ; $BE97: -> $C3F6
-  .word L_C43E                              ; $BE99: -> $C43E
-  .word L_C4E1                              ; $BE9B: -> $C4E1
-  .word L_C511                              ; $BE9D: -> $C511
-  .word L_C556                              ; $BE9F: -> $C556
-  .word L_C5B1                              ; $BEA1: -> $C5B1
-  .word L_C5F7                              ; $BEA3: -> $C5F7
-  .word L_C636                              ; $BEA5: -> $C636
-  .word L_C67D                              ; $BEA7: -> $C67D
-  .word L_C6C6                              ; $BEA9: -> $C6C6
-  .word L_C75F                              ; $BEAB: -> $C75F
-  .word L_C7D1                              ; $BEAD: -> $C7D1
-  .word L_C800                              ; $BEAF: -> $C800
-  .word L_C830                              ; $BEB1: -> $C830
-  .word L_C87D                              ; $BEB3: -> $C87D
-  .word L_C8B4                              ; $BEB5: -> $C8B4
-  .word L_C8F1                              ; $BEB7: -> $C8F1
-  .word L_C926                              ; $BEB9: -> $C926
-@row0_entry:
+  .word MenuAction00_InitialSetup         ; $BE75: -> $BEBB
+  .word MenuAction01_DisplaySetup         ; $BE77: -> $BEEB
+  .word MenuAction02_LandDevelop          ; $BE79: -> $BF2F
+  .word MenuAction03_FloodControlSetup     ; $BE7B: -> $BF70
+  .word MenuAction04_FloodControl          ; $BE7D: -> $BFBF
+  .word MenuAction05_CastleRepairSetup     ; $BE7F: -> $BFF3
+  .word MenuAction06_CastleRepair          ; $BE81: -> $C046
+  .word MenuAction07_TaxRate               ; $BE83: -> $C090
+  .word MenuAction08_GoldDistribution      ; $BE85: -> $C0C8
+  .word MenuAction09_FoodDistribution      ; $BE87: -> $C123
+  .word MenuAction0A_RecruitSoldiers       ; $BE89: -> $C168
+  .word MenuAction0B_HireOfficer           ; $BE8B: -> $C1AC
+  .word MenuAction0C_TransferOfficer       ; $BE8D: -> $C1FA
+  .word MenuAction0D_ExecuteOfficer        ; $BE8F: -> $C25D
+  .word MenuAction0E_ExileOfficer          ; $BE91: -> $C2DD
+  .word MenuAction0F_GiveItem              ; $BE93: -> $C33D
+  .word MenuAction10_MoveCapital           ; $BE95: -> $C3A2
+  .word MenuAction11_Diplomacy             ; $BE97: -> $C3F6
+  .word MenuAction12_War                   ; $BE99: -> $C43E
+  .word MenuAction13_Spy                   ; $BE9B: -> $C4E1
+  .word MenuAction14_Accounting            ; $BE9D: -> $C511
+  .word MenuAction15_Exchange              ; $BE9F: -> $C556
+  .word MenuAction16_Trade                 ; $BEA1: -> $C5B1
+  .word MenuAction17_SearchOfficer         ; $BEA3: -> $C5F7
+  .word MenuAction18_SearchItem            ; $BEA5: -> $C636
+  .word MenuAction19_InspectLand           ; $BEA7: -> $C67D
+  .word MenuAction1A_PersonalAffairs       ; $BEA9: -> $C6C6
+  .word MenuAction1B_DomesticDispatch      ; $BEAB: -> $C75F
+  .word MenuAction1C_CopyTileData          ; $BEAD: -> $C7D1
+  .word MenuAction1D_SetupActionDisplay    ; $BEAF: -> $C800
+  .word MenuAction1E_CalcParams            ; $BEB1: -> $C830
+  .word MenuAction1F_CalcParams2           ; $BEB3: -> $C87D
+  .word MenuAction20_CalcParams3           ; $BEB5: -> $C8B4
+  .word MenuAction21_Finalize              ; $BEB7: -> $C8F1
+  .word MenuAction22_Cleanup               ; $BEB9: -> $C926
+.endproc
+
+.proc MenuAction00_InitialSetup
+MenuAction00_InitialSetup:
   LDA $04A1                               ; $BEBB: AD A1 04
   BNE @load_row0                            ; $BEBE: D0 09
   LDA #$E8                                ; $BEC0: A9 E8
@@ -3188,8 +3536,11 @@ MenuRenderer:
 @set_row:
   STA $04A1                               ; $BEE2: 8D A1 04
   INC $04A1                               ; $BEE5: EE A1 04
-  JMP CommonReturn                        ; $BEE8: 4C 34 C9
-@row1_entry:
+  JMP DomesticMenu_Return                        ; $BEE8: 4C 34 C9
+.endproc
+
+.proc MenuAction01_DisplaySetup
+MenuAction01_DisplaySetup:
   LDA $04A1                               ; $BEEB: AD A1 04
   BNE @load_row1                            ; $BEEE: D0 0E
   LDA #$DC                                ; $BEF0: A9 DC
@@ -3218,13 +3569,17 @@ MenuRenderer:
   TAY                                     ; $BF1F: A8
   LDA $BF29,Y                             ; $BF20: B9 29 BF
   STA $04A1                               ; $BF23: 8D A1 04
-  JMP CommonReturn                        ; $BF26: 4C 34 C9
-  ORA ($02,X)                             ; $BF29: 01 02
+  JMP DomesticMenu_Return                        ; $BF26: 4C 34 C9
+@MenuAction01_RowTable:
+  .byte $01, $02                          ; $BF29: 01 02
   .byte $03                               ; $BF2B: 03
   .byte $04                               ; $BF2C: 04
   .byte $03                               ; $BF2D: 03
   .byte $02                               ; $BF2E: 02
-L_BF2F:
+.endproc
+
+.proc MenuAction02_LandDevelop
+MenuAction02_LandDevelop:
   LDA $04A1                               ; $BF2F: AD A1 04
   BNE @load_row2                            ; $BF32: D0 09
   LDA #$E1                                ; $BF34: A9 E1
@@ -3259,8 +3614,11 @@ L_BF2F:
   CPY $0000                               ; $BF68: CC 00 00
   BNE @clear_sprites                            ; $BF6B: D0 F4
 @menu_return:
-  JMP CommonReturn                        ; $BF6D: 4C 34 C9
-L_BF70:
+  JMP DomesticMenu_Return                        ; $BF6D: 4C 34 C9
+.endproc
+
+.proc MenuAction03_FloodControlSetup
+MenuAction03_FloodControlSetup:
   LDA $04A1                               ; $BF70: AD A1 04
   BNE @load_row3                            ; $BF73: D0 13
   LDA #$E9                                ; $BF75: A9 E9
@@ -3296,8 +3654,11 @@ L_BF70:
   CLC                                     ; $BFB6: 18
   ADC #$03                                ; $BFB7: 69 03
   STA $04A4                               ; $BFB9: 8D A4 04
-  JMP CommonReturn                        ; $BFBC: 4C 34 C9
-L_BFBF:
+  JMP DomesticMenu_Return                        ; $BFBC: 4C 34 C9
+.endproc
+
+.proc MenuAction04_FloodControl
+MenuAction04_FloodControl:
   LDA $04A1                               ; $BFBF: AD A1 04
   BNE @load_row4                            ; $BFC2: D0 0E
   LDA #$D1                                ; $BFC4: A9 D1
@@ -3320,73 +3681,29 @@ L_BFBF:
   AND #$01                                ; $BFE8: 29 01
   STA $04A1                               ; $BFEA: 8D A1 04
   INC $04A1                               ; $BFED: EE A1 04
-  JMP CommonReturn                        ; $BFF0: 4C 34 C9
-L_BFF3:
+  JMP DomesticMenu_Return                        ; $BFF0: 4C 34 C9
+.endproc
+
+.proc MenuAction05_CastleRepairSetup
+MenuAction05_CastleRepairSetup:
   LDA $04A1                               ; $BFF3: AD A1 04
-  .byte $D0, $18 ; $BFF6: D0 18
+  .byte $D0, $18                          ; $BFF6: D0 18 (BNE $C010 = MenuAction05_LoadRows)
   LDA #$C6                                ; $BFF8: A9 C6
   JSR SetupDisplayPtrs                    ; $BFFA: 20 6D C9
   LDA #$CF                                ; $BFFD: A9 CF
-  .byte $20                               ; $BFFF: 20
-
-
-.endproc
-
-;===============================================================================
-; PRG Bank $1E - $C000-$DFFF
-; Domestic affairs action dispatch, tile data, SRAM save/load.
-; Called from bank $1D via cross-bank JSR to $C000-$DFFF.
-;===============================================================================
-
-.segment "CODE_BANK1E"
-
-; Forward-referenced labels defined as equates
-  L_CBE4 = $CBE4
-  L_CF0A = $CF0A
-  L_CFD6 = $CFD6
-  L_D05A = $D05A
-  L_D0A7 = $D0A7
-  L_D151 = $D151
-  L_D17B = $D17B
-  L_D1EF = $D1EF
-  L_D3A4 = $D3A4
-  L_D416 = $D416
-  L_D488 = $D488
-  L_D4A0 = $D4A0
-  L_D5A7 = $D5A7
-  L_D606 = $D606
-  L_D6DE = $D6DE
-  L_D766 = $D766
-  L_D78D = $D78D
-  L_D7B3 = $D7B3
-  L_D86E = $D86E
-  L_D976 = $D976
-  L_D9AC = $D9AC
-  L_D9B0 = $D9B0
-  L_DA45 = $DA45
-  L_DAC5 = $DAC5
-  L_DD49 = $DD49
-  L_DD57 = $DD57
-  L_AB69 = $AB69
-  L_ABFF = $ABFF
-  L_BE45 = $BE45
-
-
-;===============================================================================
-; $C000: Bank1E_Init
-;===============================================================================
-  TXA                                                   ; $C000: 8A
-  CMP #$EE                                              ; $C001: C9 EE
-  LDA ($04,X)                                           ; $C003: A1 04
+  JSR ResetDispatchState                  ; $BFFF: 20 8A C9 JSR ResetDispatchState (opcode at $BFFF, operand at $C000-$C001)
+  INC $04A1                                             ; $C002: EE A1 04
   LDA #$03                                              ; $C005: A9 03
   STA $04A4                                             ; $C007: 8D A4 04
   LDA #$80                                              ; $C00A: A9 80
   STA $04CC                                             ; $C00C: 8D CC 04
   RTS                                                   ; $C00F: 60
+.endproc
 
 ;===============================================================================
-; $C010: Action01_DisplaySetup
+; $C010: MenuAction05 load-rows phase
 ;===============================================================================
+.proc MenuAction05_LoadRows
   LDA #$A7                                              ; $C010: A9 A7
   STA $0010                                             ; $C012: 8D 10 00
   LDA #$82                                              ; $C015: A9 82
@@ -3410,10 +3727,13 @@ L_BFF3:
   CLC                                                   ; $C03D: 18
   ADC #$03                                              ; $C03E: 69 03
   STA $04A4                                             ; $C040: 8D A4 04
-  JMP CommonReturn                                      ; $C043: 4C 34 C9
-L_C046:
+  JMP DomesticMenu_Return                                      ; $C043: 4C 34 C9
+.endproc
+
+.proc MenuAction06_CastleRepair
+MenuAction06_CastleRepair:
   LDA $04A1                                             ; $C046: AD A1 04
-  BNE L_C05E                                            ; $C049: D0 13
+  BNE MenuAction06_LoadRows                                 ; $C049: D0 13
   LDA #$EA                                              ; $C04B: A9 EA
   JSR SetupDisplayPtrs                                  ; $C04D: 20 6D C9
   LDA #$EB                                              ; $C050: A9 EB
@@ -3422,11 +3742,6 @@ L_C046:
   LDA #$78                                              ; $C058: A9 78
   STA $04A3                                             ; $C05A: 8D A3 04
   RTS                                                   ; $C05D: 60
-
-;===============================================================================
-L_C05E:
-; $C05E: Action02_LandDevelop
-;===============================================================================
   LDA #$83                                              ; $C05E: A9 83
   STA $0010                                             ; $C060: 8D 10 00
   LDA #$83                                              ; $C063: A9 83
@@ -3441,22 +3756,22 @@ L_C05E:
   TAY                                                   ; $C076: A8
   LDA $C080,Y                                           ; $C077: B9 80 C0
   STA $04A1                                             ; $C07A: 8D A1 04
-  JMP CommonReturn                                      ; $C07D: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C07D: 4C 34 C9
+@MenuAction06_RowTable:
   .byte $01, $02, $03, $03, $03, $03, $03, $02, $02, $02, $02, $01, $01, $01, $01, $01 ; $C080: 01 02 03 03 03 03 03 02 02 02 02 01 01 01 01 01
+.endproc
 
-;===============================================================================
-; $C090: Action03_Check
-;===============================================================================
-L_C090:
+.proc MenuAction07_TaxRate
+MenuAction07_TaxRate:
   LDA $04A1                                             ; $C090: AD A1 04
-  BNE L_C09E                                            ; $C093: D0 09
+  BNE MenuAction07_LoadRows                                 ; $C093: D0 09
   LDA #$B7                                              ; $C095: A9 B7
   JSR SetupDisplayPtrs                                  ; $C097: 20 6D C9
   INC $04A1                                             ; $C09A: EE A1 04
   RTS                                                   ; $C09D: 60
 
 ;===============================================================================
-L_C09E:
+MenuAction07_LoadRows:
 ; $C09E: Action04_FloodControl
 ;===============================================================================
   LDA #$54                                              ; $C09E: A9 54
@@ -3467,7 +3782,7 @@ L_C09E:
   JSR DisplayTileData                                   ; $C0AB: 20 94 C9
   LDA $04A1                                             ; $C0AE: AD A1 04
   CMP #$03                                              ; $C0B1: C9 03
-  BEQ L_C0C5                                            ; $C0B3: F0 10
+  BEQ @floodControlDone                                    ; $C0B3: F0 10
   LDA $04A3                                             ; $C0B5: AD A3 04
   LSR                                                   ; $C0B8: 4A
   LSR                                                   ; $C0B9: 4A
@@ -3478,11 +3793,14 @@ L_C09E:
   CLC                                                   ; $C0BF: 18
   ADC #$01                                              ; $C0C0: 69 01
   STA $04A1                                             ; $C0C2: 8D A1 04
-L_C0C5:
-  JMP CommonReturn                                      ; $C0C5: 4C 34 C9
-L_C0C8:
+@floodControlDone:
+  JMP DomesticMenu_Return                                      ; $C0C5: 4C 34 C9
+.endproc
+
+.proc MenuAction08_GoldDistribution
+MenuAction08_GoldDistribution:
   LDA $04A1                                             ; $C0C8: AD A1 04
-  BNE L_C0E7                                            ; $C0CB: D0 1A
+  BNE MenuAction08_LoadRows                                 ; $C0CB: D0 1A
   LDA #$CA                                              ; $C0CD: A9 CA
   JSR SetupDisplayPtrs                                  ; $C0CF: 20 6D C9
   INC $04A1                                             ; $C0D2: EE A1 04
@@ -3490,16 +3808,15 @@ L_C0C8:
   STA $04A4                                             ; $C0D7: 8D A4 04
   LDA $04D6                                             ; $C0DA: AD D6 04
   CMP #$47                                              ; $C0DD: C9 47
-  BEQ L_C0E6                                            ; $C0DF: F0 05
+  BEQ @skipPpuInit                                       ; $C0DF: F0 05
   LDA #$80                                              ; $C0E1: A9 80
   STA $04CC                                             ; $C0E3: 8D CC 04
-L_C0E6:
+@skipPpuInit:
   RTS                                                   ; $C0E6: 60
+.endproc
 
-;===============================================================================
-L_C0E7:
-; $C0E7: Action05_RoadBuild
-;===============================================================================
+.proc MenuAction08_LoadRows
+MenuAction08_LoadRows:
   LDA #$59                                              ; $C0E7: A9 59
   STA $0010                                             ; $C0E9: 8D 10 00
   LDA #$85                                              ; $C0EC: A9 85
@@ -3521,16 +3838,19 @@ L_C0E7:
   LDA $0000                                             ; $C10F: AD 00 00
   AND #$03                                              ; $C112: 29 03
   CMP #$03                                              ; $C114: C9 03
-  BNE L_C11A                                            ; $C116: D0 02
+  BNE @addThree                                          ; $C116: D0 02
   LDA #$01                                              ; $C118: A9 01
-L_C11A:
+@addThree:
   CLC                                                   ; $C11A: 18
   ADC #$03                                              ; $C11B: 69 03
   STA $04A4                                             ; $C11D: 8D A4 04
-  JMP CommonReturn                                      ; $C120: 4C 34 C9
-L_C123:
+  JMP DomesticMenu_Return                                      ; $C120: 4C 34 C9
+.endproc
+
+.proc MenuAction09_FoodDistribution
+MenuAction09_FoodDistribution:
   LDA $04A1                                             ; $C123: AD A1 04
-  BNE L_C136                                            ; $C126: D0 0E
+  BNE MenuAction09_LoadRows                                 ; $C126: D0 0E
   LDA #$F1                                              ; $C128: A9 F1
   JSR SetupDisplayPtrs                                  ; $C12A: 20 6D C9
   LDA #$F2                                              ; $C12D: A9 F2
@@ -3539,7 +3859,7 @@ L_C123:
   RTS                                                   ; $C135: 60
 
 ;===============================================================================
-L_C136:
+MenuAction09_LoadRows:
 ; $C136: Action06_CastleRepair
 ;===============================================================================
   LDA #$3C                                              ; $C136: A9 3C
@@ -3556,11 +3876,15 @@ L_C136:
   TAY                                                   ; $C14E: A8
   LDA $C158,Y                                           ; $C14F: B9 58 C1
   STA $04A1                                             ; $C152: 8D A1 04
-  JMP CommonReturn                                      ; $C155: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C155: 4C 34 C9
+@MenuAction09_RowTable:
   .byte $01, $02, $03, $03, $03, $04, $04, $04, $03, $03, $03, $04, $04, $04, $02, $01 ; $C158: 01 02 03 03 03 04 04 04 03 03 03 04 04 04 02 01
-L_C168:
+.endproc
+
+.proc MenuAction0A_RecruitSoldiers
+MenuAction0A_RecruitSoldiers:
   LDA $04A1                                             ; $C168: AD A1 04
-  BNE L_C17B                                            ; $C16B: D0 0E
+  BNE MenuAction0A_LoadRows                                 ; $C16B: D0 0E
   LDA #$F0                                              ; $C16D: A9 F0
   JSR SetupDisplayPtrs                                  ; $C16F: 20 6D C9
   INC $04A1                                             ; $C172: EE A1 04
@@ -3569,7 +3893,7 @@ L_C168:
   RTS                                                   ; $C17A: 60
 
 ;===============================================================================
-L_C17B:
+MenuAction0A_LoadRows:
 ; $C17B: Action07_TaxRate
 ;===============================================================================
   LDA #$60                                              ; $C17B: A9 60
@@ -3585,11 +3909,15 @@ L_C17B:
   TAY                                                   ; $C192: A8
   LDA $C19C,Y                                           ; $C193: B9 9C C1
   STA $04A1                                             ; $C196: 8D A1 04
-  JMP CommonReturn                                      ; $C199: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C199: 4C 34 C9
+@MenuAction0A_RowTable:
   .byte $01, $02, $03, $03, $03, $03, $03, $03, $02, $02, $02, $02, $01, $01, $01, $01 ; $C19C: 01 02 03 03 03 03 03 03 02 02 02 02 01 01 01 01
-L_C1AC:
+.endproc
+
+.proc MenuAction0B_HireOfficer
+MenuAction0B_HireOfficer:
   LDA $04A1                                             ; $C1AC: AD A1 04
-  BNE L_C1CA                                            ; $C1AF: D0 19
+  BNE MenuAction0B_LoadRows                                 ; $C1AF: D0 19
   LDA #$E9                                              ; $C1B1: A9 E9
   JSR SetupDisplayPtrs                                  ; $C1B3: 20 6D C9
   LDA #$EB                                              ; $C1B6: A9 EB
@@ -3602,7 +3930,7 @@ L_C1AC:
   RTS                                                   ; $C1C9: 60
 
 ;===============================================================================
-L_C1CA:
+MenuAction0B_LoadRows:
 ; $C1CA: Action08_GoldDist
 ;===============================================================================
   LDA #$D1                                              ; $C1CA: A9 D1
@@ -3622,11 +3950,15 @@ L_C1CA:
   TAY                                                   ; $C1E8: A8
   LDA $C1F2,Y                                           ; $C1E9: B9 F2 C1
   STA $04A1                                             ; $C1EC: 8D A1 04
-  JMP CommonReturn                                      ; $C1EF: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C1EF: 4C 34 C9
+@MenuAction0B_RowTable:
   .byte $02, $03, $02, $03, $01, $01, $01, $01          ; $C1F2: 02 03 02 03 01 01 01 01
-L_C1FA:
+.endproc
+
+.proc MenuAction0C_TransferOfficer
+MenuAction0C_TransferOfficer:
   LDA $04A1                                             ; $C1FA: AD A1 04
-  BNE L_C218                                            ; $C1FD: D0 19
+  BNE MenuAction0C_LoadRows                                 ; $C1FD: D0 19
   LDA #$F8                                              ; $C1FF: A9 F8
   JSR SetupDisplayPtrs                                  ; $C201: 20 6D C9
   LDA #$F9                                              ; $C204: A9 F9
@@ -3639,7 +3971,7 @@ L_C1FA:
   RTS                                                   ; $C217: 60
 
 ;===============================================================================
-L_C218:
+MenuAction0C_LoadRows:
 ; $C218: Action09_FoodDist
 ;===============================================================================
   LDA #$D5                                              ; $C218: A9 D5
@@ -3670,15 +4002,19 @@ L_C23A:
   ADC #$05                                              ; $C249: 69 05
   TAY                                                   ; $C24B: A8
   JSR DisplayTileData                                   ; $C24C: 20 94 C9
-  JMP CommonReturn                                      ; $C24F: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C24F: 4C 34 C9
 
 ;===============================================================================
 ; $C252: Action0A_Recruit
 ;===============================================================================
+@MenuAction0C_RowTable:
   .byte $01, $02, $03, $04, $04, $03, $04, $04, $03, $02, $01 ; $C252: 01 02 03 04 04 03 04 04 03 02 01
-L_C25D:
+.endproc
+
+.proc MenuAction0D_ExecuteOfficer
+MenuAction0D_ExecuteOfficer:
   LDA $04A1                                             ; $C25D: AD A1 04
-  BNE L_C28A                                            ; $C260: D0 28
+  BNE MenuAction0D_LoadRows                                 ; $C260: D0 28
   LDA #$F7                                              ; $C262: A9 F7
   JSR SetupDisplayPtrs                                  ; $C264: 20 6D C9
   INC $04A1                                             ; $C267: EE A1 04
@@ -3700,7 +4036,7 @@ L_C275:
   RTS                                                   ; $C289: 60
 
 ;===============================================================================
-L_C28A:
+MenuAction0D_LoadRows:
 ; $C28A: Action0B_HireOfficer
 ;===============================================================================
   LDA #$B7                                              ; $C28A: A9 B7
@@ -3729,12 +4065,16 @@ L_C2AC:
   LDY #$05                                              ; $C2BB: A0 05
 L_C2BD:
   JSR DisplayTileData                                   ; $C2BD: 20 94 C9
-  JMP CommonReturn                                      ; $C2C0: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C2C0: 4C 34 C9
+@MenuAction0D_SpriteData:
   .byte $03, $23, $D1, $0F, $0F, $8B, $03, $23, $D9, $00, $00, $88, $FF, $03, $23, $D4 ; $C2C3: 03 23 D1 0F 0F 8B 03 23 D9 00 00 88 FF 03 23 D4
   .byte $2E, $0F, $0F, $03, $23, $DC, $22, $00, $00, $FF ; $C2D3: 2E 0F 0F 03 23 DC 22 00 00 FF
-L_C2DD:
+.endproc
+
+.proc MenuAction0E_ExileOfficer
+MenuAction0E_ExileOfficer:
   LDA $04A1                                             ; $C2DD: AD A1 04
-  BNE L_C2F0                                            ; $C2E0: D0 0E
+  BNE MenuAction0E_LoadRows                                 ; $C2E0: D0 0E
   LDA #$F3                                              ; $C2E2: A9 F3
   JSR SetupDisplayPtrs                                  ; $C2E4: 20 6D C9
   LDA #$F4                                              ; $C2E7: A9 F4
@@ -3743,7 +4083,7 @@ L_C2DD:
   RTS                                                   ; $C2EF: 60
 
 ;===============================================================================
-L_C2F0:
+MenuAction0E_LoadRows:
 ; $C2F0: Action0C_TransferOfficer
 ;===============================================================================
   LDA #$52                                              ; $C2F0: A9 52
@@ -3776,11 +4116,15 @@ L_C315:
   LDY #$02                                              ; $C32A: A0 02
 L_C32C:
   JSR DisplayTileData                                   ; $C32C: 20 94 C9
-  JMP CommonReturn                                      ; $C32F: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C32F: 4C 34 C9
+@MenuAction0E_RowTable:
   .byte $03, $03, $03, $03, $03, $03, $04, $05, $05, $04, $03 ; $C332: 03 03 03 03 03 03 04 05 05 04 03
-L_C33D:
+.endproc
+
+.proc MenuAction0F_GiveItem
+MenuAction0F_GiveItem:
   LDA $04A1                                             ; $C33D: AD A1 04
-  BNE L_C350                                            ; $C340: D0 0E
+  BNE MenuAction0F_LoadRows                                 ; $C340: D0 0E
   LDA #$F0                                              ; $C342: A9 F0
   JSR SetupDisplayPtrs                                  ; $C344: 20 6D C9
   INC $04A1                                             ; $C347: EE A1 04
@@ -3789,7 +4133,7 @@ L_C33D:
   RTS                                                   ; $C34F: 60
 
 ;===============================================================================
-L_C350:
+MenuAction0F_LoadRows:
 ; $C350: Action0D_ExecuteOfficer
 ;===============================================================================
   INC $04A5                                             ; $C350: EE A5 04
@@ -3833,10 +4177,13 @@ L_C398:
   ADC #$04                                              ; $C399: 69 04
   TAY                                                   ; $C39B: A8
   JSR DisplayTileData                                   ; $C39C: 20 94 C9
-  JMP CommonReturn                                      ; $C39F: 4C 34 C9
-L_C3A2:
+  JMP DomesticMenu_Return                                      ; $C39F: 4C 34 C9
+.endproc
+
+.proc MenuAction10_MoveCapital
+MenuAction10_MoveCapital:
   LDA $04A1                                             ; $C3A2: AD A1 04
-  BNE L_C3BA                                            ; $C3A5: D0 13
+  BNE MenuAction10_LoadRows                                 ; $C3A5: D0 13
   LDA #$D0                                              ; $C3A7: A9 D0
   JSR SetupDisplayPtrs                                  ; $C3A9: 20 6D C9
   LDA #$D1                                              ; $C3AC: A9 D1
@@ -3847,7 +4194,7 @@ L_C3A2:
   RTS                                                   ; $C3B9: 60
 
 ;===============================================================================
-L_C3BA:
+MenuAction10_LoadRows:
 ; $C3BA: Action0E_ExileOfficer
 ;===============================================================================
   LDA #$03                                              ; $C3BA: A9 03
@@ -3876,10 +4223,13 @@ L_C3BA:
   BEQ L_C3F3                                            ; $C3EE: F0 03
   DEC $04A5                                             ; $C3F0: CE A5 04
 L_C3F3:
-  JMP CommonReturn                                      ; $C3F3: 4C 34 C9
-L_C3F6:
+  JMP DomesticMenu_Return                                      ; $C3F3: 4C 34 C9
+.endproc
+
+.proc MenuAction11_Diplomacy
+MenuAction11_Diplomacy:
   LDA $04A1                                             ; $C3F6: AD A1 04
-  BNE L_C414                                            ; $C3F9: D0 19
+  BNE MenuAction11_LoadRows                                 ; $C3F9: D0 19
   LDA #$F5                                              ; $C3FB: A9 F5
   JSR SetupDisplayPtrs                                  ; $C3FD: 20 6D C9
   LDA #$F7                                              ; $C400: A9 F7
@@ -3892,7 +4242,7 @@ L_C3F6:
   RTS                                                   ; $C413: 60
 
 ;===============================================================================
-L_C414:
+MenuAction11_LoadRows:
 ; $C414: Action0F_GiveItem
 ;===============================================================================
   LDA #$2E                                              ; $C414: A9 2E
@@ -3909,11 +4259,15 @@ L_C414:
   TAY                                                   ; $C42C: A8
   LDA $C436,Y                                           ; $C42D: B9 36 C4
   STA $04A1                                             ; $C430: 8D A1 04
-  JMP CommonReturn                                      ; $C433: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C433: 4C 34 C9
+@MenuAction11_RowTable:
   .byte $01, $02, $03, $03, $03, $03, $02, $01          ; $C436: 01 02 03 03 03 03 02 01
-L_C43E:
+.endproc
+
+.proc MenuAction12_War
+MenuAction12_War:
   LDA $04A1                                             ; $C43E: AD A1 04
-  BNE L_C47A                                            ; $C441: D0 37
+  BNE MenuAction12_LoadRows                                 ; $C441: D0 37
   LDA #$F8                                              ; $C443: A9 F8
   JSR SetupDisplayPtrs                                  ; $C445: 20 6D C9
   LDA #$FA                                              ; $C448: A9 FA
@@ -3941,7 +4295,7 @@ L_C465:
   RTS                                                   ; $C479: 60
 
 ;===============================================================================
-L_C47A:
+MenuAction12_LoadRows:
 ; $C47A: Action10_MoveCapital
 ;===============================================================================
   LDA #$37                                              ; $C47A: A9 37
@@ -3978,10 +4332,14 @@ L_C4AC:
   ADC #$03                                              ; $C4B8: 69 03
   TAY                                                   ; $C4BA: A8
   JSR DisplayTileData                                   ; $C4BB: 20 94 C9
-  JMP CommonReturn                                      ; $C4BE: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C4BE: 4C 34 C9
+@MenuAction12_SpriteData:
   .byte $02, $23, $C9, $AA, $FA, $02, $23, $D1, $AF, $FF, $02, $23, $D9, $AA, $FF, $FF ; $C4C1: 02 23 C9 AA FA 02 23 D1 AF FF 02 23 D9 AA FF FF
   .byte $02, $23, $CC, $AA, $EA, $02, $23, $D4, $AE, $EF, $02, $23, $DC, $AA, $EE, $FF ; $C4D1: 02 23 CC AA EA 02 23 D4 AE EF 02 23 DC AA EE FF
-L_C4E1:
+.endproc
+
+.proc MenuAction13_Spy
+MenuAction13_Spy:
   LDA $04A1                                             ; $C4E1: AD A1 04
   BNE L_C4EF                                            ; $C4E4: D0 09
   LDA #$E7                                              ; $C4E6: A9 E7
@@ -4008,10 +4366,13 @@ L_C4EF:
   CLC                                                   ; $C508: 18
   ADC #$01                                              ; $C509: 69 01
   STA $04A1                                             ; $C50B: 8D A1 04
-  JMP CommonReturn                                      ; $C50E: 4C 34 C9
-L_C511:
+  JMP DomesticMenu_Return                                      ; $C50E: 4C 34 C9
+.endproc
+
+.proc MenuAction14_Accounting
+MenuAction14_Accounting:
   LDA $04A1                                             ; $C511: AD A1 04
-  BNE L_C524                                            ; $C514: D0 0E
+    BNE MenuAction14_LoadRows                                 ; $C514: D0 0E
   LDA #$FB                                              ; $C516: A9 FB
   JSR SetupDisplayPtrs                                  ; $C518: 20 6D C9
   LDA #$FC                                              ; $C51B: A9 FC
@@ -4020,7 +4381,7 @@ L_C511:
   RTS                                                   ; $C523: 60
 
 ;===============================================================================
-L_C524:
+MenuAction14_LoadRows:
 ; $C524: Action12_War
 ;===============================================================================
   LDA #$6B                                              ; $C524: A9 6B
@@ -4037,11 +4398,15 @@ L_C524:
   TAY                                                   ; $C53C: A8
   LDA $C546,Y                                           ; $C53D: B9 46 C5
   STA $04A1                                             ; $C540: 8D A1 04
-  JMP CommonReturn                                      ; $C543: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C543: 4C 34 C9
+@MenuAction14_RowTable:
   .byte $01, $03, $01, $03, $02, $03, $01, $03, $02, $01, $01, $04, $04, $04, $04, $04 ; $C546: 01 03 01 03 02 03 01 03 02 01 01 04 04 04 04 04
-L_C556:
+.endproc
+
+.proc MenuAction15_Exchange
+MenuAction15_Exchange:
   LDA $04A1                                             ; $C556: AD A1 04
-  BNE L_C579                                            ; $C559: D0 1E
+  BNE MenuAction15_LoadRows                                 ; $C559: D0 1E
   LDA #$EA                                              ; $C55B: A9 EA
   JSR SetupDisplayPtrs                                  ; $C55D: 20 6D C9
   LDA #$EB                                              ; $C560: A9 EB
@@ -4056,7 +4421,7 @@ L_C556:
   RTS                                                   ; $C578: 60
 
 ;===============================================================================
-L_C579:
+MenuAction15_LoadRows:
 ; $C579: Action13_Spy
 ;===============================================================================
   LDA #$77                                              ; $C579: A9 77
@@ -4084,10 +4449,13 @@ L_C59D:
   STA $04A4                                             ; $C5A8: 8D A4 04
   DEC $04A5                                             ; $C5AB: CE A5 04
 L_C5AE:
-  JMP CommonReturn                                      ; $C5AE: 4C 34 C9
-L_C5B1:
+  JMP DomesticMenu_Return                                      ; $C5AE: 4C 34 C9
+.endproc
+
+.proc MenuAction16_Trade
+MenuAction16_Trade:
   LDA $04A1                                             ; $C5B1: AD A1 04
-  BNE L_C5C4                                            ; $C5B4: D0 0E
+  BNE MenuAction16_LoadRows                                 ; $C5B4: D0 0E
   LDA #$F6                                              ; $C5B6: A9 F6
   JSR SetupDisplayPtrs                                  ; $C5B8: 20 6D C9
   INC $04A1                                             ; $C5BB: EE A1 04
@@ -4096,7 +4464,7 @@ L_C5B1:
   RTS                                                   ; $C5C3: 60
 
 ;===============================================================================
-L_C5C4:
+MenuAction16_LoadRows:
 ; $C5C4: Action14_Accounting
 ;===============================================================================
   LDA #$40                                              ; $C5C4: A9 40
@@ -4121,10 +4489,13 @@ L_C5C4:
   LDA #$04                                              ; $C5EF: A9 04
   STA $04A4                                             ; $C5F1: 8D A4 04
 L_C5F4:
-  JMP CommonReturn                                      ; $C5F4: 4C 34 C9
-L_C5F7:
+  JMP DomesticMenu_Return                                      ; $C5F4: 4C 34 C9
+.endproc
+
+.proc MenuAction17_SearchOfficer
+MenuAction17_SearchOfficer:
   LDA $04A1                                             ; $C5F7: AD A1 04
-  BNE L_C60A                                            ; $C5FA: D0 0E
+  BNE MenuAction17_LoadRows                                 ; $C5FA: D0 0E
   LDA #$F7                                              ; $C5FC: A9 F7
   JSR SetupDisplayPtrs                                  ; $C5FE: 20 6D C9
   LDA #$DF                                              ; $C601: A9 DF
@@ -4133,7 +4504,7 @@ L_C5F7:
   RTS                                                   ; $C609: 60
 
 ;===============================================================================
-L_C60A:
+MenuAction17_LoadRows:
 ; $C60A: Action15_Exchange
 ;===============================================================================
   LDA #$DC                                              ; $C60A: A9 DC
@@ -4156,17 +4527,20 @@ L_C60A:
   CLC                                                   ; $C62D: 18
   ADC #$01                                              ; $C62E: 69 01
   STA $04A1                                             ; $C630: 8D A1 04
-  JMP CommonReturn                                      ; $C633: 4C 34 C9
-L_C636:
+  JMP DomesticMenu_Return                                      ; $C633: 4C 34 C9
+.endproc
+
+.proc MenuAction18_SearchItem
+MenuAction18_SearchItem:
   LDA $04A1                                             ; $C636: AD A1 04
-  BNE L_C644                                            ; $C639: D0 09
+  BNE MenuAction18_LoadRows                                 ; $C639: D0 09
   LDA #$C5                                              ; $C63B: A9 C5
   JSR SetupDisplayPtrs                                  ; $C63D: 20 6D C9
   INC $04A1                                             ; $C640: EE A1 04
   RTS                                                   ; $C643: 60
 
 ;===============================================================================
-L_C644:
+MenuAction18_LoadRows:
 ; $C644: Action16_Trade
 ;===============================================================================
   LDA #$A0                                              ; $C644: A9 A0
@@ -4200,10 +4574,13 @@ L_C644:
   INY                                                   ; $C676: C8
 L_C677:
   JSR DisplayTileData                                   ; $C677: 20 94 C9
-  JMP CommonReturn                                      ; $C67A: 4C 34 C9
-L_C67D:
+  JMP DomesticMenu_Return                                      ; $C67A: 4C 34 C9
+.endproc
+
+.proc MenuAction19_InspectLand
+MenuAction19_InspectLand:
   LDA $04A1                                             ; $C67D: AD A1 04
-  BNE L_C69B                                            ; $C680: D0 19
+  BNE MenuAction19_LoadRows                                 ; $C680: D0 19
   LDA #$F4                                              ; $C682: A9 F4
   JSR SetupDisplayPtrs                                  ; $C684: 20 6D C9
   LDA #$F5                                              ; $C687: A9 F5
@@ -4216,7 +4593,7 @@ L_C67D:
   RTS                                                   ; $C69A: 60
 
 ;===============================================================================
-L_C69B:
+MenuAction19_LoadRows:
 ; $C69B: Action18_SearchItem
 ;===============================================================================
   LDA #$42                                              ; $C69B: A9 42
@@ -4234,11 +4611,15 @@ L_C69B:
   TAY                                                   ; $C6B4: A8
   LDA $C6BE,Y                                           ; $C6B5: B9 BE C6
   STA $04A1                                             ; $C6B8: 8D A1 04
-  JMP CommonReturn                                      ; $C6BB: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C6BB: 4C 34 C9
+@MenuAction19_RowTable:
   .byte $01, $02, $01, $02, $01, $03, $03, $03          ; $C6BE: 01 02 01 02 01 03 03 03
-L_C6C6:
+.endproc
+
+.proc MenuAction1A_PersonalAffairs
+MenuAction1A_PersonalAffairs:
   LDA $04A1                                             ; $C6C6: AD A1 04
-  BNE L_C6FD                                            ; $C6C9: D0 32
+  BNE MenuAction1A_LoadRows                                 ; $C6C9: D0 32
   LDA #$C1                                              ; $C6CB: A9 C1
   JSR SetupDisplayPtrs                                  ; $C6CD: 20 6D C9
   INC $04A1                                             ; $C6D0: EE A1 04
@@ -4264,7 +4645,7 @@ L_C6E8:
   RTS                                                   ; $C6FC: 60
 
 ;===============================================================================
-L_C6FD:
+MenuAction1A_LoadRows:
 ; $C6FD: Action19_InspectLand
 ;===============================================================================
   LDA #$77                                              ; $C6FD: A9 77
@@ -4289,13 +4670,17 @@ L_C6FD:
   STA $04A4                                             ; $C728: 8D A4 04
   DEC $04A5                                             ; $C72B: CE A5 04
 L_C72E:
-  JMP CommonReturn                                      ; $C72E: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C72E: 4C 34 C9
+@MenuAction1A_RowAndSpriteData:
   .byte $01, $02, $03, $04, $01, $02, $05, $06, $03, $23, $C9, $FA, $FA, $BA, $03, $23 ; $C731: 01 02 03 04 01 02 05 06 03 23 C9 FA FA BA 03 23
   .byte $D1, $0F, $0F, $8B, $03, $23, $D9, $50, $50, $98, $FF, $03, $23, $CC, $EA, $FA ; $C741: D1 0F 0F 8B 03 23 D9 50 50 98 FF 03 23 CC EA FA
   .byte $FA, $03, $23, $D4, $2E, $0F, $0F, $03, $23, $DC, $62, $50, $50, $FF ; $C751: FA 03 23 D4 2E 0F 0F 03 23 DC 62 50 50 FF
-L_C75F:
+.endproc
+
+.proc MenuAction1B_DomesticDispatch
+MenuAction1B_DomesticDispatch:
   LDA $04A1                                             ; $C75F: AD A1 04
-  BNE L_C78C                                            ; $C762: D0 28
+  BNE MenuAction1B_LoadRows                                 ; $C762: D0 28
   LDA #$FC                                              ; $C764: A9 FC
   JSR SetupDisplayPtrs                                  ; $C766: 20 6D C9
   INC $04A1                                             ; $C769: EE A1 04
@@ -4317,7 +4702,7 @@ L_C777:
   RTS                                                   ; $C78B: 60
 
 ;===============================================================================
-L_C78C:
+MenuAction1B_LoadRows:
 ; $C78C: Action1A_PersonalAffairs
 ;===============================================================================
   LDA #$91                                              ; $C78C: A9 91
@@ -4340,19 +4725,23 @@ L_C7AE:
   CLC                                                   ; $C7AE: 18
   ADC #$01                                              ; $C7AF: 69 01
   STA $04A1                                             ; $C7B1: 8D A1 04
-  JMP CommonReturn                                      ; $C7B4: 4C 34 C9
+  JMP DomesticMenu_Return                                      ; $C7B4: 4C 34 C9
+@MenuAction1B_SpriteData:
   .byte $03, $23, $C9, $0A, $0A, $8A, $03, $23, $D1, $F0, $F0, $B8, $FF, $03, $23, $CC ; $C7B7: 03 23 C9 0A 0A 8A 03 23 D1 F0 F0 B8 FF 03 23 CC
   .byte $2A, $0A, $0A, $03, $23, $D4, $E2, $F0, $F0, $FF ; $C7C7: 2A 0A 0A 03 23 D4 E2 F0 F0 FF
-L_C7D1:
+.endproc
+
+.proc MenuAction1C_CopyTileData
+MenuAction1C_CopyTileData:
   LDA $04A1                                             ; $C7D1: AD A1 04
-  BNE L_C7DF                                            ; $C7D4: D0 09
+  BNE MenuAction1C_LoadRows                                 ; $C7D4: D0 09
   LDA #$C2                                              ; $C7D6: A9 C2
   JSR SetupDisplayPtrs                                  ; $C7D8: 20 6D C9
   INC $04A1                                             ; $C7DB: EE A1 04
   RTS                                                   ; $C7DE: 60
 
 ;===============================================================================
-L_C7DF:
+MenuAction1C_LoadRows:
 ; $C7DF: DomActionDispatch
 ;===============================================================================
   LDA #$33                                              ; $C7DF: A9 33
@@ -4369,17 +4758,20 @@ L_C7DF:
   CLC                                                   ; $C7F7: 18
   ADC #$01                                              ; $C7F8: 69 01
   STA $04A1                                             ; $C7FA: 8D A1 04
-  JMP CommonReturn                                      ; $C7FD: 4C 34 C9
-L_C800:
+  JMP DomesticMenu_Return                                      ; $C7FD: 4C 34 C9
+.endproc
+
+.proc MenuAction1D_SetupActionDisplay
+MenuAction1D_SetupActionDisplay:
   LDA $04A1                                             ; $C800: AD A1 04
-  BNE L_C80E                                            ; $C803: D0 09
+  BNE MenuAction1D_LoadRows                                 ; $C803: D0 09
   LDA #$D1                                              ; $C805: A9 D1
   JSR SetupDisplayPtrs                                  ; $C807: 20 6D C9
   INC $04A1                                             ; $C80A: EE A1 04
   RTS                                                   ; $C80D: 60
 
 ;===============================================================================
-L_C80E:
+MenuAction1D_LoadRows:
 ; $C80E: CopyTileDataRow
 ;===============================================================================
   LDA #$69                                              ; $C80E: A9 69
@@ -4396,10 +4788,13 @@ L_C80E:
   AND #$01                                              ; $C825: 29 01
   STA $04A1                                             ; $C827: 8D A1 04
   INC $04A1                                             ; $C82A: EE A1 04
-  JMP CommonReturn                                      ; $C82D: 4C 34 C9
-L_C830:
+  JMP DomesticMenu_Return                                      ; $C82D: 4C 34 C9
+.endproc
+
+.proc MenuAction1E_CalcParams
+MenuAction1E_CalcParams:
   LDA $04A1                                             ; $C830: AD A1 04
-  BNE L_C843                                            ; $C833: D0 0E
+  BNE MenuAction1E_LoadRows                                 ; $C833: D0 0E
   LDA #$C6                                              ; $C835: A9 C6
   JSR SetupDisplayPtrs                                  ; $C837: 20 6D C9
   INC $04A1                                             ; $C83A: EE A1 04
@@ -4408,7 +4803,7 @@ L_C830:
   RTS                                                   ; $C842: 60
 
 ;===============================================================================
-L_C843:
+MenuAction1E_LoadRows:
 ; $C843: SetupActionDisplay
 ;===============================================================================
   LDA #$1F                                              ; $C843: A9 1F
@@ -4435,17 +4830,20 @@ L_C843:
   LDY #$04                                              ; $C875: A0 04
 L_C877:
   STY $04A4                                             ; $C877: 8C A4 04
-  JMP CommonReturn                                      ; $C87A: 4C 34 C9
-L_C87D:
+  JMP DomesticMenu_Return                                      ; $C87A: 4C 34 C9
+.endproc
+
+.proc MenuAction1F_CalcParams2
+MenuAction1F_CalcParams2:
   LDA $04A1                                             ; $C87D: AD A1 04
-  BNE L_C88B                                            ; $C880: D0 09
+  BNE MenuAction1F_LoadRows                                 ; $C880: D0 09
   LDA #$BD                                              ; $C882: A9 BD
   JSR SetupDisplayPtrs                                  ; $C884: 20 6D C9
   INC $04A1                                             ; $C887: EE A1 04
   RTS                                                   ; $C88A: 60
 
 ;===============================================================================
-L_C88B:
+MenuAction1F_LoadRows:
 ; $C88B: ActionCalcParams
 ;===============================================================================
   LDA #$93                                              ; $C88B: A9 93
@@ -4467,10 +4865,13 @@ L_C88B:
   ADC #$01                                              ; $C8AC: 69 01
   STA $04A1                                             ; $C8AE: 8D A1 04
 L_C8B1:
-  JMP CommonReturn                                      ; $C8B1: 4C 34 C9
-L_C8B4:
+  JMP DomesticMenu_Return                                      ; $C8B1: 4C 34 C9
+.endproc
+
+.proc MenuAction20_CalcParams3
+MenuAction20_CalcParams3:
   LDA $04A1                                             ; $C8B4: AD A1 04
-  BNE L_C8C7                                            ; $C8B7: D0 0E
+  BNE MenuAction20_LoadRows                                 ; $C8B7: D0 0E
   LDA #$B7                                              ; $C8B9: A9 B7
   JSR SetupDisplayPtrs                                  ; $C8BB: 20 6D C9
   LDA #$B7                                              ; $C8BE: A9 B7
@@ -4479,7 +4880,7 @@ L_C8B4:
   RTS                                                   ; $C8C6: 60
 
 ;===============================================================================
-L_C8C7:
+MenuAction20_LoadRows:
 ; $C8C7: ActionCalcParams2
 ;===============================================================================
   LDA #$DF                                              ; $C8C7: A9 DF
@@ -4502,10 +4903,13 @@ L_C8C7:
   ADC #$01                                              ; $C8E9: 69 01
   STA $04A1                                             ; $C8EB: 8D A1 04
 L_C8EE:
-  JMP CommonReturn                                      ; $C8EE: 4C 34 C9
-L_C8F1:
+  JMP DomesticMenu_Return                                      ; $C8EE: 4C 34 C9
+.endproc
+
+.proc MenuAction21_Finalize
+MenuAction21_Finalize:
   LDA $04A1                                             ; $C8F1: AD A1 04
-  BNE L_C904                                            ; $C8F4: D0 0E
+  BNE MenuAction21_LoadRows                                 ; $C8F4: D0 0E
   LDA #$AA                                              ; $C8F6: A9 AA
   JSR SetupDisplayPtrs                                  ; $C8F8: 20 6D C9
   LDA #$AB                                              ; $C8FB: A9 AB
@@ -4514,7 +4918,7 @@ L_C8F1:
   RTS                                                   ; $C903: 60
 
 ;===============================================================================
-L_C904:
+MenuAction21_LoadRows:
 ; $C904: ActionCalcParams3
 ;===============================================================================
   LDA #$E4                                              ; $C904: A9 E4
@@ -4531,33 +4935,40 @@ L_C904:
   AND #$01                                              ; $C91B: 29 01
   STA $04A1                                             ; $C91D: 8D A1 04
   INC $04A1                                             ; $C920: EE A1 04
-  JMP CommonReturn                                      ; $C923: 4C 34 C9
-L_C926:
+  JMP DomesticMenu_Return                                      ; $C923: 4C 34 C9
+.endproc
+
+.proc MenuAction22_Cleanup
+MenuAction22_Cleanup:
   LDA $0140                                             ; $C926: AD 40 01
-  BNE L_C933                                            ; $C929: D0 08
+  BNE MenuAction22_Continue                                 ; $C929: D0 08
   LDA #$00                                              ; $C92B: A9 00
   STA $04A0                                             ; $C92D: 8D A0 04
   STA $04A2                                             ; $C930: 8D A2 04
-L_C933:
+MenuAction22_Continue:
   RTS                                                   ; $C933: 60
+.endproc
 
 ;===============================================================================
-; $C934: CommonReturn
+; $C934: DomesticMenu_Return
 ;===============================================================================
-CommonReturn:
+.proc DomesticMenu_Return
+  ; Proc-local RAM variable
+  domestic_trigger  = $007D  ; domestic menu trigger
+DomesticMenu_Return:
   LDA $04D0                                             ; $C934: AD D0 04
   CMP $04CC                                             ; $C937: CD CC 04
-  BCC L_C96C                                            ; $C93A: 90 30
+  BCC @EarlyReturn                                            ; $C93A: 90 30
   LDA $04A2                                             ; $C93C: AD A2 04
-  BEQ L_C951                                            ; $C93F: F0 10
+  BEQ @InitPpuAndSound                                            ; $C93F: F0 10
   CMP #$04                                              ; $C941: C9 04
-  BEQ L_C951                                            ; $C943: F0 0C
+  BEQ @InitPpuAndSound                                            ; $C943: F0 0C
   CMP #$08                                              ; $C945: C9 08
-  BEQ L_C951                                            ; $C947: F0 08
+  BEQ @InitPpuAndSound                                            ; $C947: F0 08
   JSR B1F_BankPpuInit                                         ; $C949: 20 7F E5
   LDA #$81                                              ; $C94C: A9 81
   JSR B1F_SoundWrapperA                                       ; $C94E: 20 73 E6
-L_C951:
+@InitPpuAndSound:
   LDA #$01                                              ; $C951: A9 01
   STA $007D                                             ; $C953: 8D 7D 00
   LDA #$00                                              ; $C956: A9 00
@@ -4570,42 +4981,58 @@ L_C951:
   STA $0140                                             ; $C964: 8D 40 01
   LDA #$22                                              ; $C967: A9 22
   STA $04A2                                             ; $C969: 8D A2 04
-L_C96C:
+@EarlyReturn:
   RTS                                                   ; $C96C: 60
+.endproc
 
 ;===============================================================================
 ; $C96D: SetupDisplayPtrs
 ;===============================================================================
+.proc SetupDisplayPtrs
+  ; Proc-local RAM variables
+  setup_disp_b      = $00BF  ; display ptr temp B
+  setup_disp_a      = $00C7  ; display ptr temp A
+  setup_disp_e      = $00CF  ; display ptr temp E
+  setup_disp_src    = $0130  ; display ptr source
 SetupDisplayPtrs:
   STA $00BF                                             ; $C96D: 8D BF 00
   STA $00C7                                             ; $C970: 8D C7 00
   STA $00CF                                             ; $C973: 8D CF 00
   LDY #$0C                                              ; $C976: A0 0C
-L_C978:
+@CopyPtrsLoop:
   LDA $0120,Y                                           ; $C978: B9 20 01
   STA $0100,Y                                           ; $C97B: 99 00 01
   LDA $0130,Y                                           ; $C97E: B9 30 01
   STA $0110,Y                                           ; $C981: 99 10 01
   INY                                                   ; $C984: C8
   CPY #$10                                              ; $C985: C0 10
-  BCC L_C978                                            ; $C987: 90 EF
+  BCC @CopyPtrsLoop                                            ; $C987: 90 EF
   RTS                                                   ; $C989: 60
+.endproc
 
 ;===============================================================================
 ; $C98A: ResetDispatchState
 ;===============================================================================
+.proc ResetDispatchState
+  ; Proc-local RAM variables
+  setup_disp_c      = $00C0  ; dispatch reset temp C
+  setup_disp_d      = $00C8  ; dispatch reset temp D
+  setup_disp_f      = $00D0  ; dispatch reset temp F
 ResetDispatchState:
   STA $00C0                                             ; $C98A: 8D C0 00
   STA $00C8                                             ; $C98D: 8D C8 00
   STA $00D0                                             ; $C990: 8D D0 00
   RTS                                                   ; $C993: 60
+.endproc
 
 ;===============================================================================
 ; $C994: DisplayTileData
 ;===============================================================================
+.proc DisplayTileData
 DisplayTileData:
   LDX #$20                                              ; $C994: A2 20
-L_C996:
+@DisplayTileDataWithX:
+@DisplayTileDataWithParams:
   DEY                                                   ; $C996: 88
   TYA                                                   ; $C997: 98
   ASL                                                   ; $C998: 0A
@@ -4618,18 +5045,21 @@ L_C996:
   SBC #$40                                              ; $C9A3: E9 40
   STA $0001                                             ; $C9A5: 8D 01 00
   LDA $0150                                             ; $C9A8: AD 50 01
-  BPL L_C9B2                                            ; $C9AB: 10 05
+  BPL @SkipXOffset                                            ; $C9AB: 10 05
   TXA                                                   ; $C9AD: 8A
   CLC                                                   ; $C9AE: 18
   ADC #$70                                              ; $C9AF: 69 70
   TAX                                                   ; $C9B1: AA
-L_C9B2:
+@SkipXOffset:
   STX $000C                                             ; $C9B2: 8E 0C 00
   LDA #$2F                                              ; $C9B5: A9 2F
   STA $000A                                             ; $C9B7: 8D 0A 00
   LDA #$03                                              ; $C9BA: A9 03
   STA $0002                                             ; $C9BC: 8D 02 00
   JMP B1F_SpriteOamWriterSimple                               ; $C9BF: 4C AD F1
+.endproc
+
+.proc MenuRenderer_SecondaryDispatch
   LDA $04A1                                             ; $C9C2: AD A1 04
   JSR B1F_CallbackDispatcher                            ; $C9C5: 20 DE EA
   INX                                                   ; $C9C8: E8
@@ -4637,29 +5067,32 @@ L_C9B2:
   CMP #$4E                                              ; $C9CB: C9 4E
   DEX                                                   ; $C9CD: CA
   .byte $52                                             ; $C9CE: 52
-  .byte $CB, $A9 ; $C9CF: CB A9
-  ORA ($8D,X)                                           ; $C9D1: 01 8D
-  ADC $A000,X                                           ; $C9D3: 7D 00 A0
+  .byte $CB, $A9                                        ; $C9CF: CB A9
+  .byte $01, $8D                                        ; $C9D1: 01 8D
+  .byte $7D, $00, $A0                                   ; $C9D3: 7D 00 A0
   .byte $0C                                             ; $C9D6: 0C
   LDA #$0F                                              ; $C9D7: A9 0F
-L_C9D9:
+@FillLoop:
   STA $0100,Y                                           ; $C9D9: 99 00 01
   STA $0110,Y                                           ; $C9DC: 99 10 01
   INY                                                   ; $C9DF: C8
   CPY #$10                                              ; $C9E0: C0 10
-  BCC L_C9D9                                            ; $C9E2: 90 F5
+  BCC @FillLoop                                            ; $C9E2: 90 F5
   INC $04A1                                             ; $C9E4: EE A1 04
   RTS                                                   ; $C9E7: 60
+.endproc
 
 ;===============================================================================
 ; $C9E8: SramSaveBlock
 ;===============================================================================
+.proc SramSaveBlock
+SramSaveBlock:
   LDA #$40                                              ; $C9E8: A9 40
   STA $0000                                             ; $C9EA: 8D 00 00
   LDA #$CC                                              ; $C9ED: A9 CC
   STA $0001                                             ; $C9EF: 8D 01 00
   LDA $0150                                             ; $C9F2: AD 50 01
-  BPL L_CA08                                            ; $C9F5: 10 11
+  BPL @SaveEntry                                            ; $C9F5: 10 11
   LDA $0000                                             ; $C9F7: AD 00 00
   CLC                                                   ; $C9FA: 18
   ADC #$1C                                              ; $C9FB: 69 1C
@@ -4667,14 +5100,14 @@ L_C9D9:
   LDA $0001                                             ; $CA00: AD 01 00
   ADC #$00                                              ; $CA03: 69 00
   STA $0001                                             ; $CA05: 8D 01 00
-L_CA08:
+@SaveEntry:
   LDY #$00                                              ; $CA08: A0 00
-L_CA0A:
+@CopySaveLoop:
   LDA ($00),Y                                           ; $CA0A: B1 00
   STA $0380,Y                                           ; $CA0C: 99 80 03
   INY                                                   ; $CA0F: C8
   CPY #$1C                                              ; $CA10: C0 1C
-  BCC L_CA0A                                            ; $CA12: 90 F6
+  BCC @CopySaveLoop                                            ; $CA12: 90 F6
   LDA #$FF                                              ; $CA14: A9 FF
   STA $0380,Y                                           ; $CA16: 99 80 03
   LDA $007E                                             ; $CA19: AD 7E 00
@@ -4686,9 +5119,9 @@ L_CA0A:
   STA $04D5                                             ; $CA28: 8D D5 04
   LDX #$02                                              ; $CA2B: A2 02
   LDA $0150                                             ; $CA2D: AD 50 01
-  BPL L_CA34                                            ; $CA30: 10 02
+  BPL @SetBlockOffset                                            ; $CA30: 10 02
   LDX #$10                                              ; $CA32: A2 10
-L_CA34:
+@SetBlockOffset:
   STX $04D2                                             ; $CA34: 8E D2 04
   LDA #$02                                              ; $CA37: A9 02
   STA $00C4                                             ; $CA39: 8D C4 00
@@ -4699,32 +5132,35 @@ L_CA34:
   STA $04A3                                             ; $CA47: 8D A3 04
   INC $04A1                                             ; $CA4A: EE A1 04
   RTS                                                   ; $CA4D: 60
+.endproc
 
 ;===============================================================================
 ; $CA4E: SramLoadBlock
 ;===============================================================================
+.proc SramLoadBlock
+SramLoadBlock:
   DEC $04A3                                             ; $CA4E: CE A3 04
   LDA $04A3                                             ; $CA51: AD A3 04
-  BPL L_CA59                                            ; $CA54: 10 03
-  JMP L_CAC5                                            ; $CA56: 4C C5 CA
-L_CA59:
+  BPL @LoadEntry                                            ; $CA54: 10 03
+  JMP VerifyChecksum                                            ; $CA56: 4C C5 CA
+@LoadEntry:
   LDA $04D4                                             ; $CA59: AD D4 04
   STA $0000                                             ; $CA5C: 8D 00 00
   LDA $04D5                                             ; $CA5F: AD D5 04
   STA $0001                                             ; $CA62: 8D 01 00
   LDY #$00                                              ; $CA65: A0 00
   LDX #$00                                              ; $CA67: A2 00
-L_CA69:
+@ProcessRecordLoop:
   LDA #$0E                                              ; $CA69: A9 0E
   STA $0380,X                                           ; $CA6B: 9D 80 03
   INX                                                   ; $CA6E: E8
   LDA ($00),Y                                           ; $CA6F: B1 00
   CMP #$FF                                              ; $CA71: C9 FF
-  BNE L_CA7C                                            ; $CA73: D0 07
+  BNE @NotTerminated                                            ; $CA73: D0 07
   DEX                                                   ; $CA75: CA
   STA $0380,X                                           ; $CA76: 9D 80 03
-  JMP L_CABC                                            ; $CA79: 4C BC CA
-L_CA7C:
+  JMP @FinalizeLoad                                            ; $CA79: 4C BC CA
+@NotTerminated:
   STA $0380,X                                           ; $CA7C: 9D 80 03
   INX                                                   ; $CA7F: E8
   INY                                                   ; $CA80: C8
@@ -4736,7 +5172,7 @@ L_CA7C:
   INY                                                   ; $CA8B: C8
   LDA #$00                                              ; $CA8C: A9 00
   STA $0002                                             ; $CA8E: 8D 02 00
-L_CA91:
+@CopyTileDataLoop:
   LDA ($00),Y                                           ; $CA91: B1 00
   STA $0380,X                                           ; $CA93: 9D 80 03
   INX                                                   ; $CA96: E8
@@ -4744,9 +5180,9 @@ L_CA91:
   INC $0002                                             ; $CA98: EE 02 00
   LDA $0002                                             ; $CA9B: AD 02 00
   CMP #$0E                                              ; $CA9E: C9 0E
-  BCC L_CA91                                            ; $CAA0: 90 EF
+  BCC @CopyTileDataLoop                                            ; $CAA0: 90 EF
   CPY #$50                                              ; $CAA2: C0 50
-  BCC L_CA69                                            ; $CAA4: 90 C3
+  BCC @ProcessRecordLoop                                            ; $CAA4: 90 C3
   LDA #$FF                                              ; $CAA6: A9 FF
   STA $0380,X                                           ; $CAA8: 9D 80 03
   LDA $0000                                             ; $CAAB: AD 00 00
@@ -4756,23 +5192,28 @@ L_CA91:
   LDA $0001                                             ; $CAB4: AD 01 00
   ADC #$00                                              ; $CAB7: 69 00
   STA $04D5                                             ; $CAB9: 8D D5 04
-L_CABC:
+@FinalizeLoad:
   LDA $007E                                             ; $CABC: AD 7E 00
   ORA #$04                                              ; $CABF: 09 04
   STA $007E                                             ; $CAC1: 8D 7E 00
   RTS                                                   ; $CAC4: 60
+.endproc
 
 ;===============================================================================
-L_CAC5:
 ; $CAC5: VerifyChecksum
 ;===============================================================================
+.proc VerifyChecksum
+  ; Proc-local RAM variables
+  vfy_chk_10C       = $010C  ; checksum temp 10C
+  vfy_chk_11C       = $011C  ; checksum temp 11C
+VerifyChecksum:
   LDA #$20                                              ; $CAC5: A9 20
   STA $04D3                                             ; $CAC7: 8D D3 04
   LDX #$C4                                              ; $CACA: A2 C4
   LDA $0150                                             ; $CACC: AD 50 01
-  BPL L_CAD3                                            ; $CACF: 10 02
+  BPL @SelectPlayerBlock                                            ; $CACF: 10 02
   LDX #$D2                                              ; $CAD1: A2 D2
-L_CAD3:
+@SelectPlayerBlock:
   STX $04D2                                             ; $CAD3: 8E D2 04
   LDX $04A2                                             ; $CAD6: AE A2 04
   STX $0003                                             ; $CAD9: 8E 03 00
@@ -4801,21 +5242,21 @@ L_CAD3:
   STA $00D2                                             ; $CB13: 8D D2 00
   INY                                                   ; $CB16: C8
   LDX #$0D                                              ; $CB17: A2 0D
-L_CB19:
+@LoadDisplayPtrsA:
   LDA ($00),Y                                           ; $CB19: B1 00
   STA $0120,X                                           ; $CB1B: 9D 20 01
   INX                                                   ; $CB1E: E8
   INY                                                   ; $CB1F: C8
   CPY #$05                                              ; $CB20: C0 05
-  BCC L_CB19                                            ; $CB22: 90 F5
+  BCC @LoadDisplayPtrsA                                            ; $CB22: 90 F5
   LDX #$1D                                              ; $CB24: A2 1D
-L_CB26:
+@LoadDisplayPtrsB:
   LDA ($00),Y                                           ; $CB26: B1 00
   STA $0120,X                                           ; $CB28: 9D 20 01
   INX                                                   ; $CB2B: E8
   INY                                                   ; $CB2C: C8
   CPY #$08                                              ; $CB2D: C0 08
-  BCC L_CB26                                            ; $CB2F: 90 F5
+  BCC @LoadDisplayPtrsB                                            ; $CB2F: 90 F5
   LDA #$0F                                              ; $CB31: A9 0F
   STA $010C                                             ; $CB33: 8D 0C 01
   STA $011C                                             ; $CB36: 8D 1C 01
@@ -4830,10 +5271,13 @@ L_CB26:
   STA $04A3                                             ; $CB4B: 8D A3 04
   INC $04A1                                             ; $CB4E: EE A1 04
   RTS                                                   ; $CB51: 60
+.endproc
 
 ;===============================================================================
 ; $CB52: OfficerRecCalc
 ;===============================================================================
+.proc OfficerRecCalc
+OfficerRecCalc:
   LDA $04D2                                             ; $CB52: AD D2 04
   STA $0002                                             ; $CB55: 8D 02 00
   LDA $04D3                                             ; $CB58: AD D3 04
@@ -4844,7 +5288,7 @@ L_CB26:
   STA $0001                                             ; $CB67: 8D 01 00
   LDX #$00                                              ; $CB6A: A2 00
   LDY #$00                                              ; $CB6C: A0 00
-L_CB6E:
+@ProcessRecLoop:
   LDA #$0A                                              ; $CB6E: A9 0A
   STA $0380,X                                           ; $CB70: 9D 80 03
   INX                                                   ; $CB73: E8
@@ -4855,13 +5299,13 @@ L_CB6E:
   STA $0380,X                                           ; $CB7E: 9D 80 03
   INX                                                   ; $CB81: E8
   LDY #$00                                              ; $CB82: A0 00
-L_CB84:
+@CopyRecDataLoop:
   LDA ($00),Y                                           ; $CB84: B1 00
   STA $0380,X                                           ; $CB86: 9D 80 03
   INX                                                   ; $CB89: E8
   INY                                                   ; $CB8A: C8
   CPY #$0A                                              ; $CB8B: C0 0A
-  BCC L_CB84                                            ; $CB8D: 90 F5
+  BCC @CopyRecDataLoop                                            ; $CB8D: 90 F5
   LDA $0000                                             ; $CB8F: AD 00 00
   CLC                                                   ; $CB92: 18
   ADC #$0A                                              ; $CB93: 69 0A
@@ -4877,7 +5321,7 @@ L_CB84:
   ADC #$00                                              ; $CBAC: 69 00
   STA $0003                                             ; $CBAE: 8D 03 00
   CPX #$41                                              ; $CBB1: E0 41
-  BCC L_CB6E                                            ; $CBB3: 90 B9
+  BCC @ProcessRecLoop                                            ; $CBB3: 90 B9
   LDA #$FF                                              ; $CBB5: A9 FF
   STA $0380,X                                           ; $CBB7: 9D 80 03
   LDA $0002                                             ; $CBBA: AD 02 00
@@ -4890,15 +5334,15 @@ L_CB84:
   STA $04D5                                             ; $CBCF: 8D D5 04
   DEC $04A3                                             ; $CBD2: CE A3 04
   LDA $04A3                                             ; $CBD5: AD A3 04
-  BPL L_CC00                                            ; $CBD8: 10 26
+  BPL @ExitFinalize                                            ; $CBD8: 10 26
   LDA $04A2                                             ; $CBDA: AD A2 04
   CMP #$04                                              ; $CBDD: C9 04
-  BEQ L_CBEB                                            ; $CBDF: F0 0A
+  BEQ @ExitResetState                                            ; $CBDF: F0 0A
   CMP #$05                                              ; $CBE1: C9 05
-  BEQ L_CBEB                                            ; $CBE3: F0 06
+  BEQ @ExitResetState                                            ; $CBE3: F0 06
   JSR B1F_BankPpuInit                                         ; $CBE5: 20 7F E5
-  JSR L_CC09                                            ; $CBE8: 20 09 CC
-L_CBEB:
+  JSR ProvinceRecCalc                                            ; $CBE8: 20 09 CC
+@ExitResetState:
   LDA #$81                                              ; $CBEB: A9 81
   STA $04A0                                             ; $CBED: 8D A0 04
   LDA #$FF                                              ; $CBF0: A9 FF
@@ -4907,2680 +5351,415 @@ L_CBEB:
   STA $04A1                                             ; $CBF7: 8D A1 04
   STA $04A3                                             ; $CBFA: 8D A3 04
   STA $04D0                                             ; $CBFD: 8D D0 04
-L_CC00:
+@ExitFinalize:
   LDA $007E                                             ; $CC00: AD 7E 00
   ORA #$04                                              ; $CC03: 09 04
   STA $007E                                             ; $CC05: 8D 7E 00
   RTS                                                   ; $CC08: 60
+.endproc
 
 ;===============================================================================
-L_CC09:
 ; $CC09: ProvinceRecCalc
 ;===============================================================================
+.proc ProvinceRecCalc
+ProvinceRecCalc:
   LDA $04D6                                             ; $CC09: AD D6 04
   CMP #$32                                              ; $CC0C: C9 32
-  BEQ L_CC3D                                            ; $CC0E: F0 2D
+  BEQ @SoundB                                            ; $CC0E: F0 2D
   CMP #$47                                              ; $CC10: C9 47
-  BEQ L_CC3D                                            ; $CC12: F0 29
+  BEQ @SoundB                                            ; $CC12: F0 29
   CMP #$2E                                              ; $CC14: C9 2E
-  BEQ L_CC3A                                            ; $CC16: F0 22
+  BEQ @SoundD                                            ; $CC16: F0 22
   CMP #$3E                                              ; $CC18: C9 3E
-  BEQ L_CC3A                                            ; $CC1A: F0 1E
+  BEQ @SoundD                                            ; $CC1A: F0 1E
   CMP #$52                                              ; $CC1C: C9 52
-  BEQ L_CC3A                                            ; $CC1E: F0 1A
+  BEQ @SoundD                                            ; $CC1E: F0 1A
   CMP #$A2                                              ; $CC20: C9 A2
-  BEQ L_CC3A                                            ; $CC22: F0 16
+  BEQ @SoundD                                            ; $CC22: F0 16
   CMP #$A6                                              ; $CC24: C9 A6
-  BEQ L_CC3A                                            ; $CC26: F0 12
+  BEQ @SoundD                                            ; $CC26: F0 12
   CMP #$38                                              ; $CC28: C9 38
-  BEQ L_CC37                                            ; $CC2A: F0 0B
+  BEQ @SoundE                                            ; $CC2A: F0 0B
   CMP #$3B                                              ; $CC2C: C9 3B
-  BEQ L_CC37                                            ; $CC2E: F0 07
+  BEQ @SoundE                                            ; $CC2E: F0 07
   CMP #$9F                                              ; $CC30: C9 9F
-  BEQ L_CC37                                            ; $CC32: F0 03
+  BEQ @SoundE                                            ; $CC32: F0 03
   JMP B1F_SoundWrapperC                                       ; $CC34: 4C 83 E6
-L_CC37:
+@SoundE:
   JMP B1F_SoundWrapperE                                       ; $CC37: 4C 93 E6
-L_CC3A:
+@SoundD:
   JMP B1F_SoundWrapperD                                       ; $CC3A: 4C 8B E6
-L_CC3D:
+@SoundB:
   JMP B1F_SoundWrapperB                                       ; $CC3D: 4C 7B E6
-  .byte $04, $23                                        ; $CC40: 04 23
-  INY                                                   ; $CC42: C8
-  STA $FAFA,Y                                           ; $CC43: 99 FA FA
-  TSX                                                   ; $CC46: BA
-  .byte $04, $23                                        ; $CC47: 04 23
-  .byte $D0, $99 ; $CC49: D0 99
-  .byte $FF, $FF, $BB ; $CC4B: FF FF BB
-  .byte $04, $23                                        ; $CC4E: 04 23
-  CLD                                                   ; $CC50: D8
-  STA $FFFF,Y                                           ; $CC51: 99 FF FF
-  .byte $BB, $04, $23 ; $CC54: BB 04 23
-  CPX #$59                                              ; $CC57: E0 59
-  NOP                                                   ; $CC59: 5A
-  NOP                                                   ; $CC5A: 5A
-  ASL                                                   ; $CC5B: 0A
-  .byte $04, $23                                        ; $CC5C: 04 23
-  CPY $FAEA                                             ; $CC5E: CC EA FA
-  NOP                                                   ; $CC61: FA
-  .byte $22, $04, $23, $D4                              ; $CC62: 22 04 23 D4
-  INC $FFFF                                             ; $CC66: EE FF FF
-  .byte $22, $04, $23, $DC                              ; $CC69: 22 04 23 DC
-  INC $FFFF                                             ; $CC6D: EE FF FF
-  .byte $22, $04, $23                                   ; $CC70: 22 04 23
-  CPX $0A                                               ; $CC73: E4 0A
-  ASL                                                   ; $CC75: 0A
-  ASL                                                   ; $CC76: 0A
-  .byte $02                                             ; $CC77: 02
-  JSR $9B80                                             ; $CC78: 20 80 9B
-  .byte $9C, $BE, $BF ; $CC7B: 9C BE BF
-  STY $84                                               ; $CC7E: 84 84
-  STY $84                                               ; $CC80: 84 84
-  STY $84                                               ; $CC82: 84 84
-  STA $86                                               ; $CC84: 85 86
-  .byte $87                                             ; $CC86: 87
-  DEY                                                   ; $CC87: 88
-  JSR $89A0                                             ; $CC88: 20 A0 89
-  TXA                                                   ; $CC8B: 8A
-  .byte $8B, $8C ; $CC8C: 8B 8C
-  STY $8C8C                                             ; $CC8E: 8C 8C 8C
-  STY $8C8C                                             ; $CC91: 8C 8C 8C
-  STY $8E8D                                             ; $CC94: 8C 8D 8E
-  .byte $8F                                             ; $CC97: 8F
-  JSR $90C0                                             ; $CC98: 20 C0 90
-  STA ($00),Y                                           ; $CC9B: 91 00
-  BRK                                                   ; $CC9D: 00
-  BRK                                                   ; $CC9E: 00
-  BRK                                                   ; $CC9F: 00
-  BRK                                                   ; $CCA0: 00
-  BRK                                                   ; $CCA1: 00
-  BRK                                                   ; $CCA2: 00
-  BRK                                                   ; $CCA3: 00
-  BRK                                                   ; $CCA4: 00
-  BRK                                                   ; $CCA5: 00
-  .byte $92, $93                                        ; $CCA6: 92 93
-  JSR $94E0                                             ; $CCA8: 20 E0 94
-  STA ($00),Y                                           ; $CCAB: 91 00
-  BRK                                                   ; $CCAD: 00
-  BRK                                                   ; $CCAE: 00
-  BRK                                                   ; $CCAF: 00
-  BRK                                                   ; $CCB0: 00
-  BRK                                                   ; $CCB1: 00
-  BRK                                                   ; $CCB2: 00
-  BRK                                                   ; $CCB3: 00
-  BRK                                                   ; $CCB4: 00
-  BRK                                                   ; $CCB5: 00
-  .byte $92                                             ; $CCB6: 92
-  STA $21,X                                             ; $CCB7: 95 21
-  BRK                                                   ; $CCB9: 00
-  STX $97,Y                                             ; $CCBA: 96 97
-  BRK                                                   ; $CCBC: 00
-  BRK                                                   ; $CCBD: 00
-  BRK                                                   ; $CCBE: 00
-  BRK                                                   ; $CCBF: 00
-  BRK                                                   ; $CCC0: 00
-  BRK                                                   ; $CCC1: 00
-  BRK                                                   ; $CCC2: 00
-  BRK                                                   ; $CCC3: 00
-  BRK                                                   ; $CCC4: 00
-  BRK                                                   ; $CCC5: 00
-  TYA                                                   ; $CCC6: 98
-  STA $2021,Y                                           ; $CCC7: 99 21 20
-  STX $97,Y                                             ; $CCCA: 96 97
-  BRK                                                   ; $CCCC: 00
-  BRK                                                   ; $CCCD: 00
-  BRK                                                   ; $CCCE: 00
-  BRK                                                   ; $CCCF: 00
-  BRK                                                   ; $CCD0: 00
-  BRK                                                   ; $CCD1: 00
-  BRK                                                   ; $CCD2: 00
-  BRK                                                   ; $CCD3: 00
-  BRK                                                   ; $CCD4: 00
-  BRK                                                   ; $CCD5: 00
-  TYA                                                   ; $CCD6: 98
-  STA $4021,Y                                           ; $CCD7: 99 21 40
-  STX $97,Y                                             ; $CCDA: 96 97
-  BRK                                                   ; $CCDC: 00
-  BRK                                                   ; $CCDD: 00
-  BRK                                                   ; $CCDE: 00
-  BRK                                                   ; $CCDF: 00
-  BRK                                                   ; $CCE0: 00
-  BRK                                                   ; $CCE1: 00
-  BRK                                                   ; $CCE2: 00
-  BRK                                                   ; $CCE3: 00
-  BRK                                                   ; $CCE4: 00
-  BRK                                                   ; $CCE5: 00
-  TYA                                                   ; $CCE6: 98
-  STA $6021,Y                                           ; $CCE7: 99 21 60
+
+.endproc
 
 ;===============================================================================
-; $CCEA: CopyBlockLoop
+; MenuTilemapStream ($CC40-$DBB0) - 3953 bytes
+;
+; PPU tilemap command stream read by PPUTileRender dispatch ($A1C8).
+; Accessed via bank-switching: bank $1E is loaded at $8000-$9FFF,
+; then CalcMenuDataPtr ($A61D) computes data_ptr ($A6/$A7) from
+; pos_buf_0 and BankPageOffsetTable.
+;
+; Stream format (parsed byte-by-byte):
+;   $00-$7F : tile index (direct, stored via StoreTileByte)
+;   $80-$9F : command byte (dispatched via MenuDispatchTable at $A208)
+;     $80 = EndMenu        - terminate rendering for this section
+;     $81 = AdvanceRow     - advance VRAM position by $40 (one nametable row)
+;     $82 = PushPosition   - save VRAM pos + data ptr, read 2 new pos bytes
+;     $83 = PopPosition    - restore saved VRAM pos + data ptr
+;     $84 = OverlayOn      - set overlay_flag = $80
+;     $85 = OverlayOff     - set overlay_flag = $00
+;     $86-$8F = SetVramPos - read 2 bytes, set VRAM address
+;     $90-$97 = DrawName   - draw character name (index = cmd - $90)
+;     $98-$9B = DrawNumber - draw BCD number (index = cmd - $98)
+;     $9C = DrawNameData   - read index, 6-char name from data
+;     $9D = DrawNameFixed7 - read index, 7-char name from data
+;     $9E = DrawFmtNumber  - read index, formatted number
+;     $9F = DrawNameParam  - read index, name lookup
+;   $C0-$FF : tile index (with high bit, for alternate tile page)
+;
+; Sections (separated by $80 EndMenu):
+;   $CC40-$CC79  : Section 0  - header/ornament tiles (54 tiles)
+;   $CC7A-$CCF9  : Section 1  - frame/border tiles (77 tiles)
+;   $CCFA-$D565  : Section 2  - main screen tilemap (2139 tiles, largest)
+;   $D566-$D589  : Sections 3-18 - small tile fragments (transitions)
+;   $D58A-$D956  : Section 19 - secondary screen tilemap (972 tiles)
+;   $D957-$D96B  : Sections 20-24 - small tile fragments
+;   $D96C-$DBB0  : Section 25 - final tilemap section (581 tiles)
 ;===============================================================================
-  .byte $96, $97                                        ; $CCEA: 96 97
-  BRK                                                   ; $CCEC: 00
-  BRK                                                   ; $CCED: 00
-  BRK                                                   ; $CCEE: 00
-  BRK                                                   ; $CCEF: 00
-  BRK                                                   ; $CCF0: 00
-  BRK                                                   ; $CCF1: 00
-  BRK                                                   ; $CCF2: 00
-  BRK                                                   ; $CCF3: 00
-  BRK                                                   ; $CCF4: 00
-  BRK                                                   ; $CCF5: 00
-  TYA                                                   ; $CCF6: 98
-  STA $8021,Y                                           ; $CCF7: 99 21 80
-  STX $97,Y                                             ; $CCFA: 96 97
-  BRK                                                   ; $CCFC: 00
-  BRK                                                   ; $CCFD: 00
-  BRK                                                   ; $CCFE: 00
-  BRK                                                   ; $CCFF: 00
-  BRK                                                   ; $CD00: 00
-  BRK                                                   ; $CD01: 00
-  BRK                                                   ; $CD02: 00
-  BRK                                                   ; $CD03: 00
-  BRK                                                   ; $CD04: 00
-  BRK                                                   ; $CD05: 00
-  TYA                                                   ; $CD06: 98
-  STA $A021,Y                                           ; $CD07: 99 21 A0
-  STX $97,Y                                             ; $CD0A: 96 97
-  BRK                                                   ; $CD0C: 00
-  BRK                                                   ; $CD0D: 00
-  BRK                                                   ; $CD0E: 00
-  BRK                                                   ; $CD0F: 00
-  BRK                                                   ; $CD10: 00
-  BRK                                                   ; $CD11: 00
-  BRK                                                   ; $CD12: 00
-  BRK                                                   ; $CD13: 00
-  BRK                                                   ; $CD14: 00
-  BRK                                                   ; $CD15: 00
-  TYA                                                   ; $CD16: 98
-  STA $C021,Y                                           ; $CD17: 99 21 C0
-  TXS                                                   ; $CD1A: 9A
-  .byte $97                                             ; $CD1B: 97
-  BRK                                                   ; $CD1C: 00
-  BRK                                                   ; $CD1D: 00
-  BRK                                                   ; $CD1E: 00
-  BRK                                                   ; $CD1F: 00
-  BRK                                                   ; $CD20: 00
-  BRK                                                   ; $CD21: 00
-  BRK                                                   ; $CD22: 00
-  BRK                                                   ; $CD23: 00
-  BRK                                                   ; $CD24: 00
-  BRK                                                   ; $CD25: 00
-  TYA                                                   ; $CD26: 98
-  STA $E021,X                                           ; $CD27: 9D 21 E0
-  .byte $9E, $97, $00 ; $CD2A: 9E 97 00
-  BRK                                                   ; $CD2D: 00
-  BRK                                                   ; $CD2E: 00
-  BRK                                                   ; $CD2F: 00
-  BRK                                                   ; $CD30: 00
-  BRK                                                   ; $CD31: 00
-  BRK                                                   ; $CD32: 00
-  BRK                                                   ; $CD33: 00
-  BRK                                                   ; $CD34: 00
-  BRK                                                   ; $CD35: 00
-  TYA                                                   ; $CD36: 98
-  .byte $9F, $22, $00 ; $CD37: 9F 22 00
-  LDY #$A1                                              ; $CD3A: A0 A1
-  LDX #$A3                                              ; $CD3C: A2 A3
-  .byte $A3, $A3, $A3, $A3, $A3, $A3, $A3               ; $CD3E: A3 A3 A3 A3 A3 A3 A3
-  LDY $A5                                               ; $CD45: A4 A5
-  LDX $22                                               ; $CD47: A6 22
-  JSR $A8A7                                             ; $CD49: 20 A7 A8
-  LDA #$AA                                              ; $CD4C: A9 AA
-  .byte $AB, $AB ; $CD4E: AB AB
-  .byte $AB, $AB ; $CD50: AB AB
-  .byte $AB, $AB ; $CD52: AB AB
-  LDY $AEAD                                             ; $CD54: AC AD AE
-  .byte $AF                                             ; $CD57: AF
-  .byte $FF, $C4, $00 ; $CD58: FF C4 00
-  ROL $26,X                                             ; $CD5B: 36 26
-  .byte $17                                             ; $CD5D: 17
-  ASL $07,X                                             ; $CD5E: 16 07
-  .byte $17                                             ; $CD60: 17
-  ROR $7E7E,X                                           ; $CD61: 7E 7E 7E
-  ROR $7E7E,X                                           ; $CD64: 7E 7E 7E
-  ROR $7E7E,X                                           ; $CD67: 7E 7E 7E
-  ROR $7E7E,X                                           ; $CD6A: 7E 7E 7E
-  ROR $4140,X                                           ; $CD6D: 7E 40 41
-  .byte $42                                             ; $CD70: 42
-  ROR $7E7E,X                                           ; $CD71: 7E 7E 7E
-  ROR $7E7E,X                                           ; $CD74: 7E 7E 7E
-  ROR $4443,X                                           ; $CD77: 7E 43 44
-  EOR $46                                               ; $CD7A: 45 46
-  .byte $47                                             ; $CD7C: 47
-  PHA                                                   ; $CD7D: 48
-  ROR $7E7E,X                                           ; $CD7E: 7E 7E 7E
-  ROR $4A49,X                                           ; $CD81: 7E 49 4A
-  .byte $4B, $4C ; $CD84: 4B 4C
-  EOR $7E4E                                             ; $CD86: 4D 4E 7E
-  ROR $504F,X                                           ; $CD89: 7E 4F 50
-  EOR ($52),Y                                           ; $CD8C: 51 52
-  .byte $53, $54                                        ; $CD8E: 53 54
-  EOR $56,X                                             ; $CD90: 55 56
-  ROR $587E,X                                           ; $CD92: 7E 7E 58
-  EOR $5B5A,Y                                           ; $CD95: 59 5A 5B
-  .byte $5C                                             ; $CD98: 5C
-  EOR $5F5E,X                                           ; $CD99: 5D 5E 5F
-  ROR $7E7E,X                                           ; $CD9C: 7E 7E 7E
-  RTS                                                   ; $CD9F: 60
+MenuTilemapStream:
+  .byte $04, $23, $C8, $99, $FA, $FA, $BA, $04, $23, $D0, $99, $FF, $FF, $BB, $04, $23 ; $CC40: 04 23 C8 99 FA FA BA 04 23 D0 99 FF FF BB 04 23
+  .byte $D8, $99, $FF, $FF, $BB, $04, $23, $E0, $59, $5A, $5A, $0A, $04, $23, $CC, $EA ; $CC50: D8 99 FF FF BB 04 23 E0 59 5A 5A 0A 04 23 CC EA
+  .byte $FA, $FA, $22, $04, $23, $D4, $EE, $FF, $FF, $22, $04, $23, $DC, $EE, $FF, $FF ; $CC60: FA FA 22 04 23 D4 EE FF FF 22 04 23 DC EE FF FF
+  .byte $22, $04, $23, $E4, $0A, $0A, $0A, $02, $20, $80, $9B, $9C, $BE, $BF, $84, $84 ; $CC70: 22 04 23 E4 0A 0A 0A 02 20 |80| 9B 9C BE BF 84 84  ; $80=EndMenu Section 0 ($CC40-$CC79)
+  .byte $84, $84, $84, $84, $85, $86, $87, $88, $20, $A0, $89, $8A, $8B, $8C, $8C, $8C ; $CC80: 84 84 84 84 85 86 87 88 20 A0 89 8A 8B 8C 8C 8C
+  .byte $8C, $8C, $8C, $8C, $8C, $8D, $8E, $8F, $20, $C0, $90, $91, $00, $00, $00, $00 ; $CC90: 8C 8C 8C 8C 8C 8D 8E 8F 20 C0 90 91 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $92, $93, $20, $E0, $94, $91, $00, $00, $00, $00 ; $CCA0: 00 00 00 00 00 00 92 93 20 E0 94 91 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $92, $95, $21, $00, $96, $97, $00, $00, $00, $00 ; $CCB0: 00 00 00 00 00 00 92 95 21 00 96 97 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $98, $99, $21, $20, $96, $97, $00, $00, $00, $00 ; $CCC0: 00 00 00 00 00 00 98 99 21 20 96 97 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $98, $99, $21, $40, $96, $97, $00, $00, $00, $00 ; $CCD0: 00 00 00 00 00 00 98 99 21 40 96 97 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $98, $99, $21, $60, $96, $97, $00, $00, $00, $00 ; $CCE0: 00 00 00 00 00 00 98 99 21 60 96 97 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $98, $99, $21, $80, $96, $97, $00, $00, $00, $00 ; $CCF0: 00 00 00 00 00 00 98 99 21 |80| 96 97 00 00 00 00  ; $80=EndMenu Section 1 ($CC7A-$CCF9)
+  ; Section 2 ($CCFA-$D565): Main screen tilemap - 2139 tile bytes, largest section
+  .byte $00, $00, $00, $00, $00, $00, $98, $99, $21, $A0, $96, $97, $00, $00, $00, $00 ; $CD00: 00 00 00 00 00 00 98 99 21 A0 96 97 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $98, $99, $21, $C0, $9A, $97, $00, $00, $00, $00 ; $CD10: 00 00 00 00 00 00 98 99 21 C0 9A 97 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $98, $9D, $21, $E0, $9E, $97, $00, $00, $00, $00 ; $CD20: 00 00 00 00 00 00 98 9D 21 E0 9E 97 00 00 00 00
+  .byte $00, $00, $00, $00, $00, $00, $98, $9F, $22, $00, $A0, $A1, $A2, $A3, $A3, $A3 ; $CD30: 00 00 00 00 00 00 98 9F 22 00 A0 A1 A2 A3 A3 A3
+  .byte $A3, $A3, $A3, $A3, $A3, $A4, $A5, $A6, $22, $20, $A7, $A8, $A9, $AA, $AB, $AB ; $CD40: A3 A3 A3 A3 A3 A4 A5 A6 22 20 A7 A8 A9 AA AB AB
+  .byte $AB, $AB, $AB, $AB, $AC, $AD, $AE, $AF, $FF, $C4, $00, $36, $26, $17, $16, $07 ; $CD50: AB AB AB AB AC AD AE AF FF C4 00 36 26 17 16 07
+  .byte $17, $7E, $7E, $7E, $7E, $7E, $7E, $7E, $7E, $7E, $7E, $7E, $7E, $7E, $40, $41 ; $CD60: 17 7E 7E 7E 7E 7E 7E 7E 7E 7E 7E 7E 7E 7E 40 41
+  .byte $42, $7E, $7E, $7E, $7E, $7E, $7E, $7E, $43, $44, $45, $46, $47, $48, $7E, $7E ; $CD70: 42 7E 7E 7E 7E 7E 7E 7E 43 44 45 46 47 48 7E 7E
+  .byte $7E, $7E, $49, $4A, $4B, $4C, $4D, $4E, $7E, $7E, $4F, $50, $51, $52, $53, $54 ; $CD80: 7E 7E 49 4A 4B 4C 4D 4E 7E 7E 4F 50 51 52 53 54
+  .byte $55, $56, $7E, $7E, $58, $59, $5A, $5B, $5C, $5D, $5E, $5F, $7E, $7E, $7E, $60 ; $CD90: 55 56 7E 7E 58 59 5A 5B 5C 5D 5E 5F 7E 7E 7E 60
+  .byte $61, $62, $63, $64, $65, $66, $7E, $7E, $7E, $67, $68, $69, $6A, $6B, $6C, $6D ; $CDA0: 61 62 63 64 65 66 7E 7E 7E 67 68 69 6A 6B 6C 6D
+  .byte $6E, $7E, $7E, $6F, $70, $71, $72, $73, $74, $75, $7E, $7E, $7E, $76, $77, $78 ; $CDB0: 6E 7E 7E 6F 70 71 72 73 74 75 7E 7E 7E 76 77 78
+  .byte $79, $7A, $7B, $7C, $7D, $C9, $00, $36, $16, $26, $36, $16, $26, $01, $01, $01 ; $CDC0: 79 7A 7B 7C 7D C9 00 36 16 26 36 16 26 01 01 01
+  .byte $01, $40, $41, $52, $53, $01, $01, $01, $01, $01, $01, $67, $6B, $00, $71, $01 ; $CDD0: 01 40 41 52 53 01 01 01 01 01 01 67 6B 00 71 01
+  .byte $01, $01, $01, $01, $01, $00, $00, $72, $73, $42, $01, $01, $01, $01, $43, $00 ; $CDE0: 01 01 01 01 01 00 00 72 73 42 01 01 01 01 43 00
+  .byte $00, $00, $44, $45, $46, $01, $47, $48, $49, $00, $00, $4A, $02, $02, $02, $4C ; $CDF0: 00 00 44 45 46 01 47 48 49 00 00 4A 02 02 02 4C
+  .byte $4D, $4E, $4F, $50, $02, $02, $02, $02, $54, $55, $56, $57, $58, $59, $4B, $02 ; $CE00: 4D 4E 4F 50 02 02 02 02 54 55 56 57 58 59 4B 02
+  .byte $5A, $5B, $5C, $5D, $5E, $5F, $60, $61, $62, $63, $64, $65, $66, $03, $5D, $68 ; $CE10: 5A 5B 5C 5D 5E 5F 60 61 62 63 64 65 66 03 5D 68
+  .byte $69, $6A, $03, $6C, $6D, $6E, $6F, $03, $03, $70, $03, $03, $03, $74, $51, $75 ; $CE20: 69 6A 03 6C 6D 6E 6F 03 03 70 03 03 03 74 51 75
+  .byte $76, $E0, $00, $30, $10, $17, $16, $10, $17, $40, $40, $40, $40, $40, $40, $40 ; $CE30: 76 E0 00 30 10 17 16 10 17 40 40 40 40 40 40 40
+  .byte $40, $40, $40, $41, $42, $40, $40, $40, $40, $40, $40, $40, $40, $43, $44, $45 ; $CE40: 40 40 40 41 42 40 40 40 40 40 40 40 40 43 44 45
+  .byte $75, $75, $46, $47, $48, $40, $40, $53, $49, $4A, $4B, $53, $53, $53, $4C, $4D ; $CE50: 75 75 46 47 48 40 40 53 49 4A 4B 53 53 53 4C 4D
+  .byte $4E, $53, $4F, $50, $51, $52, $53, $53, $53, $53, $53, $53, $53, $54, $55, $56 ; $CE60: 4E 53 4F 50 51 52 53 53 53 53 53 53 53 54 55 56
+  .byte $57, $58, $53, $53, $53, $53, $53, $59, $5A, $5B, $5C, $5D, $5E, $5F, $60, $53 ; $CE70: 57 58 53 53 53 53 53 59 5A 5B 5C 5D 5E 5F 60 53
+  .byte $53, $53, $61, $62, $63, $64, $65, $66, $67, $53, $53, $53, $68, $69, $6A, $6B ; $CE80: 53 53 61 62 63 64 65 66 67 53 53 53 68 69 6A 6B
+  .byte $6C, $6D, $6E, $53, $53, $53, $6F, $70, $71, $72, $73, $74, $75, $C7, $C5, $30 ; $CE90: 6C 6D 6E 53 53 53 6F 70 71 72 73 74 75 C7 C5 30
+  .byte $16, $36, $30, $16, $36, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41 ; $CEA0: 16 36 30 16 36 41 41 41 41 41 41 41 41 41 41 41
+  .byte $40, $40, $40, $41, $41, $42, $43, $44, $41, $41, $40, $40, $40, $41, $41, $45 ; $CEB0: 40 40 40 41 41 42 43 44 41 41 40 40 40 41 41 45
+  .byte $46, $47, $41, $41, $40, $40, $40, $48, $49, $40, $4A, $4B, $41, $4C, $4D, $40 ; $CEC0: 46 47 41 41 40 40 40 48 49 40 4A 4B 41 4C 4D 40
+  .byte $40, $4E, $4F, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5A, $5B, $5C ; $CED0: 40 4E 4F 50 51 52 53 54 55 56 57 58 59 5A 5B 5C
+  .byte $5D, $5E, $5F, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6A, $6B, $6C ; $CEE0: 5D 5E 5F 60 61 62 63 64 65 66 67 68 69 6A 6B 6C
+  .byte $6D, $6E, $6F, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $7A, $7B, $41 ; $CEF0: 6D 6E 6F 70 71 72 73 74 75 76 77 78 79 7A 7B 41
+  .byte $7C, $7D, $7E, $7F, $39, $3A, $3B, $3C, $3D, $B8, $00, $10, $36, $17, $10, $36 ; $CF00: 7C 7D 7E 7F 39 3A 3B 3C 3D B8 00 10 36 17 10 36
+  .byte $17, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40 ; $CF10: 17 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40
+  .byte $40, $42, $43, $40, $40, $40, $44, $40, $40, $40, $40, $45, $46, $47, $48, $00 ; $CF20: 40 42 43 40 40 40 44 40 40 40 40 45 46 47 48 00
+  .byte $49, $4A, $00, $00, $00, $4B, $4C, $00, $4D, $00, $4E, $00, $4F, $00, $00, $00 ; $CF30: 49 4A 00 00 00 4B 4C 00 4D 00 4E 00 4F 00 00 00
+  .byte $50, $51, $52, $00, $00, $00, $53, $54, $55, $56, $57, $58, $59, $5A, $5B, $5C ; $CF40: 50 51 52 00 00 00 53 54 55 56 57 58 59 5A 5B 5C
+  .byte $5D, $5E, $5F, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6A, $6B, $6C ; $CF50: 5D 5E 5F 60 61 62 63 64 65 66 67 68 69 6A 6B 6C
+  .byte $6D, $6E, $6F, $70, $71, $72, $73, $74, $75, $76, $77, $41, $41, $78, $79, $7A ; $CF60: 6D 6E 6F 70 71 72 73 74 75 76 77 41 41 78 79 7A
+  .byte $7B, $41, $7C, $7D, $7E, $C3, $00, $31, $36, $17, $31, $36, $17, $41, $41, $42 ; $CF70: 7B 41 7C 7D 7E C3 00 31 36 17 31 36 17 41 41 42
+  .byte $43, $44, $40, $40, $40, $40, $41, $41, $41, $45, $46, $40, $40, $40, $40, $40 ; $CF80: 43 44 40 40 40 40 41 41 41 45 46 40 40 40 40 40
+  .byte $41, $41, $47, $48, $49, $40, $40, $40, $40, $40, $41, $4A, $4B, $4C, $4D, $40 ; $CF90: 41 41 47 48 49 40 40 40 40 40 41 4A 4B 4C 4D 40
+  .byte $40, $40, $40, $40, $41, $4E, $4F, $50, $51, $52, $40, $40, $40, $40, $41, $53 ; $CFA0: 40 40 40 40 41 4E 4F 50 51 52 40 40 40 40 41 53
+  .byte $41, $54, $55, $56, $57, $58, $40, $40, $41, $41, $41, $59, $5A, $5B, $5C, $5D ; $CFB0: 41 54 55 56 57 58 40 40 41 41 41 59 5A 5B 5C 5D
+  .byte $5E, $41, $41, $41, $41, $5F, $60, $61, $62, $40, $63, $41, $41, $41, $41, $41 ; $CFC0: 5E 41 41 41 41 5F 60 61 62 40 63 41 41 41 41 41
+  .byte $64, $65, $66, $67, $68, $69, $41, $41, $41, $41, $6A, $6B, $6C, $6D, $6E, $6F ; $CFD0: 64 65 66 67 68 69 41 41 41 41 6A 6B 6C 6D 6E 6F
+  .byte $70, $CC, $00, $30, $21, $27, $16, $09, $36, $40, $40, $40, $41, $42, $43, $40 ; $CFE0: 70 CC 00 30 21 27 16 09 36 40 40 40 41 42 43 40
+  .byte $40, $44, $45, $46, $46, $46, $46, $46, $46, $46, $46, $47, $48, $49, $4A, $4B ; $CFF0: 40 44 45 46 46 46 46 46 46 46 46 47 48 49 4A 4B
+  .byte $4C, $4D, $4E, $4F, $40, $62, $40, $50, $51, $52, $53, $54, $62, $40, $55, $56 ; $D000: 4C 4D 4E 4F 40 62 40 50 51 52 53 54 62 40 55 56
+  .byte $40, $57, $58, $59, $5A, $62, $40, $5B, $40, $5C, $5D, $5E, $5F, $62, $40, $60 ; $D010: 40 57 58 59 5A 62 40 5B 40 5C 5D 5E 5F 62 40 60
+  .byte $40, $61, $62, $40, $63, $64, $65, $66, $6A, $67, $68, $69, $40, $40, $6A, $6B ; $D020: 40 61 62 40 63 64 65 66 6A 67 68 69 40 40 6A 6B
+  .byte $6C, $6D, $6E, $6F, $70, $71, $6A, $72, $72, $73, $74, $75, $76, $77, $78, $62 ; $D030: 6C 6D 6E 6F 70 71 6A 72 72 73 74 75 76 77 78 62
+  .byte $79, $7A, $7A, $7B, $7C, $6E, $6E, $62, $40, $40, $7D, $7E, $7F, $B6, $B7, $30 ; $D040: 79 7A 7A 7B 7C 6E 6E 62 40 40 7D 7E 7F B6 B7 30
+  .byte $36, $17, $30, $36, $17, $41, $42, $43, $44, $41, $41, $45, $46, $47, $48, $41 ; $D050: 36 17 30 36 17 41 42 43 44 41 41 45 46 47 48 41
+  .byte $49, $4A, $4B, $41, $41, $4C, $4D, $4E, $4F, $41, $50, $51, $52, $41, $41, $53 ; $D060: 49 4A 4B 41 41 4C 4D 4E 4F 41 50 51 52 41 41 53
+  .byte $54, $55, $56, $57, $58, $59, $5A, $5B, $5C, $5D, $5E, $5F, $60, $61, $62, $63 ; $D070: 54 55 56 57 58 59 5A 5B 5C 5D 5E 5F 60 61 62 63
+  .byte $64, $65, $40, $40, $40, $66, $67, $68, $69, $6A, $6B, $6C, $40, $40, $40, $6D ; $D080: 64 65 40 40 40 66 67 68 69 6A 6B 6C 40 40 40 6D
+  .byte $6E, $6F, $70, $71, $72, $40, $40, $40, $40, $41, $73, $74, $75, $76, $40, $40 ; $D090: 6E 6F 70 71 72 40 40 40 40 41 73 74 75 76 40 40
+  .byte $40, $40, $40, $77, $78, $79, $7A, $7B, $40, $40, $7C, $7D, $7E, $41, $40, $7F ; $D0A0: 40 40 40 77 78 79 7A 7B 40 40 7C 7D 7E 41 40 7F
+  .byte $00, $01, $40, $40, $02, $41, $41, $41, $40, $C8, $00, $16, $36, $17, $16, $36 ; $D0B0: 00 01 40 40 02 41 41 41 40 C8 00 16 36 17 16 36
+  .byte $17, $40, $40, $40, $41, $41, $41, $41, $41, $42, $43, $41, $40, $40, $41, $41 ; $D0C0: 17 40 40 40 41 41 41 41 41 42 43 41 40 40 41 41
+  .byte $44, $45, $46, $41, $41, $47, $48, $40, $40, $49, $4A, $4B, $4C, $4D, $41, $41 ; $D0D0: 44 45 46 41 41 47 48 40 40 49 4A 4B 4C 4D 41 41
+  .byte $4E, $4F, $40, $40, $50, $51, $52, $53, $54, $55, $56, $57, $41, $40, $58, $59 ; $D0E0: 4E 4F 40 40 50 51 52 53 54 55 56 57 41 40 58 59
+  .byte $5A, $5B, $41, $5C, $5D, $5E, $5F, $60, $61, $62, $63, $64, $41, $65, $66, $67 ; $D0F0: 5A 5B 41 5C 5D 5E 5F 60 61 62 63 64 41 65 66 67
+  .byte $68, $69, $6A, $6B, $6C, $6D, $6E, $6F, $70, $71, $72, $73, $74, $75, $76, $77 ; $D100: 68 69 6A 6B 6C 6D 6E 6F 70 71 72 73 74 75 76 77
+  .byte $78, $41, $40, $79, $40, $40, $7A, $40, $40, $40, $7B, $41, $40, $7C, $7D, $7E ; $D110: 78 41 40 79 40 40 7A 40 40 40 7B 41 40 7C 7D 7E
+  .byte $7F, $40, $40, $40, $40, $D2, $00, $2A, $21, $16, $30, $25, $27, $40, $40, $40 ; $D120: 7F 40 40 40 40 D2 00 2A 21 16 30 25 27 40 40 40
+  .byte $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $40, $42 ; $D130: 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 42
+  .byte $43, $44, $45, $46, $47, $46, $47, $48, $49, $4A, $4B, $4C, $4D, $41, $4E, $4F ; $D140: 43 44 45 46 47 46 47 48 49 4A 4B 4C 4D 41 4E 4F
+  .byte $50, $51, $52, $53, $54, $55, $56, $57, $41, $41, $41, $41, $41, $58, $59, $5A ; $D150: 50 51 52 53 54 55 56 57 41 41 41 41 41 58 59 5A
+  .byte $41, $5B, $41, $41, $5D, $5E, $5F, $60, $61, $62, $63, $64, $65, $66, $67, $68 ; $D160: 41 5B 41 41 5D 5E 5F 60 61 62 63 64 65 66 67 68
+  .byte $41, $69, $6A, $41, $41, $6B, $41, $41, $6C, $6D, $6E, $6E, $70, $71, $72, $73 ; $D170: 41 69 6A 41 41 6B 41 41 6C 6D 6E 6E 70 71 72 73
+  .byte $74, $75, $76, $41, $41, $77, $41, $41, $78, $79, $7A, $7B, $7C, $7D, $41, $7E ; $D180: 74 75 76 41 41 77 41 41 78 79 7A 7B 7C 7D 41 7E
+  .byte $7F, $CE, $00, $10, $18, $26, $10, $18, $26, $41, $42, $43, $44, $45, $46, $47 ; $D190: 7F CE 00 10 18 26 10 18 26 41 42 43 44 45 46 47
+  .byte $48, $49, $4A, $4B, $4C, $43, $4D, $4E, $40, $7D, $4F, $50, $51, $41, $42, $43 ; $D1A0: 48 49 4A 4B 4C 43 4D 4E 40 7D 4F 50 51 41 42 43
+  .byte $44, $40, $40, $40, $4F, $52, $53, $41, $4C, $43, $4D, $40, $40, $40, $54, $55 ; $D1B0: 44 40 40 40 4F 52 53 41 4C 43 4D 40 40 40 54 55
+  .byte $56, $41, $42, $58, $59, $40, $40, $40, $5A, $5B, $4A, $5C, $5D, $5E, $40, $40 ; $D1C0: 56 41 42 58 59 40 40 40 5A 5B 4A 5C 5D 5E 40 40
+  .byte $40, $40, $5F, $60, $56, $61, $62, $63, $64, $40, $40, $65, $66, $67, $4A, $40 ; $D1D0: 40 40 5F 60 56 61 62 63 64 40 40 65 66 67 4A 40
+  .byte $40, $40, $40, $40, $68, $69, $6A, $6B, $6C, $6D, $6E, $6F, $70, $40, $71, $72 ; $D1E0: 40 40 40 40 68 69 6A 6B 6C 6D 6E 6F 70 40 71 72
+  .byte $73, $74, $75, $76, $77, $78, $79, $40, $40, $40, $7A, $7B, $7C, $CD, $00, $30 ; $D1F0: 73 74 75 76 77 78 79 40 40 40 7A 7B 7C CD 00 30
+  .byte $17, $36, $30, $17, $36, $40, $41, $03, $03, $03, $03, $03, $03, $03, $03, $00 ; $D200: 17 36 30 17 36 40 41 03 03 03 03 03 03 03 03 00
+  .byte $42, $03, $03, $03, $00, $00, $00, $03, $03, $43, $44, $03, $03, $03, $00, $00 ; $D210: 42 03 03 03 00 00 00 03 03 43 44 03 03 03 00 00
+  .byte $00, $03, $03, $45, $46, $03, $03, $00, $00, $00, $00, $00, $03, $47, $48, $49 ; $D220: 00 03 03 45 46 03 03 00 00 00 00 00 03 47 48 49
+  .byte $03, $00, $00, $00, $00, $00, $4B, $00, $00, $4C, $4D, $4E, $4A, $00, $02, $02 ; $D230: 03 00 00 00 00 00 4B 00 00 4C 4D 4E 4A 00 02 02
+  .byte $4F, $00, $00, $4C, $50, $51, $52, $53, $02, $54, $55, $00, $00, $4C, $56, $57 ; $D240: 4F 00 00 4C 50 51 52 53 02 54 55 00 00 4C 56 57
+  .byte $58, $59, $02, $54, $55, $00, $00, $4C, $00, $00, $00, $5B, $5C, $5D, $5E, $00 ; $D250: 58 59 02 54 55 00 00 4C 00 00 00 5B 5C 5D 5E 00
+  .byte $00, $4C, $00, $00, $00, $00, $00, $5F, $02, $D9, $00, $30, $36, $17, $30, $36 ; $D260: 00 4C 00 00 00 00 00 5F 02 D9 00 30 36 17 30 36
+  .byte $17, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41 ; $D270: 17 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41
+  .byte $40, $40, $40, $41, $41, $42, $43, $44, $41, $41, $40, $40, $40, $41, $41, $45 ; $D280: 40 40 40 41 41 42 43 44 41 41 40 40 40 41 41 45
+  .byte $46, $47, $41, $41, $40, $40, $40, $48, $41, $49, $4A, $4B, $41, $41, $40, $40 ; $D290: 46 47 41 41 40 40 40 48 41 49 4A 4B 41 41 40 40
+  .byte $40, $4C, $4D, $4E, $40, $40, $4F, $41, $50, $51, $52, $53, $54, $55, $56, $57 ; $D2A0: 40 4C 4D 4E 40 40 4F 41 50 51 52 53 54 55 56 57
+  .byte $58, $59, $5A, $5B, $5C, $5D, $5E, $5F, $60, $61, $62, $63, $64, $65, $66, $67 ; $D2B0: 58 59 5A 5B 5C 5D 5E 5F 60 61 62 63 64 65 66 67
+  .byte $68, $69, $6A, $6B, $6C, $6D, $6E, $6F, $70, $71, $72, $73, $74, $75, $76, $77 ; $D2C0: 68 69 6A 6B 6C 6D 6E 6F 70 71 72 73 74 75 76 77
+  .byte $78, $79, $7A, $7B, $7C, $DC, $00, $31, $21, $11, $30, $36, $18, $56, $57, $58 ; $D2D0: 78 79 7A 7B 7C DC 00 31 21 11 30 36 18 56 57 58
+  .byte $59, $57, $59, $56, $57, $58, $59, $5A, $5B, $5C, $5D, $5B, $5D, $5A, $5B, $5C ; $D2E0: 59 57 59 56 57 58 59 5A 5B 5C 5D 5B 5D 5A 5B 5C
+  .byte $5D, $5E, $5F, $60, $61, $5F, $61, $5E, $5F, $60, $61, $62, $62, $62, $62, $62 ; $D2F0: 5D 5E 5F 60 61 5F 61 5E 5F 60 61 62 62 62 62 62
+  .byte $62, $62, $62, $62, $62, $63, $63, $63, $63, $63, $63, $63, $63, $63, $63, $64 ; $D300: 62 62 62 62 62 63 63 63 63 63 63 63 63 63 63 64
+  .byte $64, $64, $64, $64, $64, $64, $64, $64, $64, $65, $65, $65, $65, $65, $65, $65 ; $D310: 64 64 64 64 64 64 64 64 64 65 65 65 65 65 65 65
+  .byte $65, $65, $65, $66, $66, $66, $66, $66, $66, $66, $66, $66, $66, $67, $68, $67 ; $D320: 65 65 65 66 66 66 66 66 66 66 66 66 66 67 68 67
+  .byte $68, $67, $68, $67, $68, $67, $68, $69, $6A, $69, $6A, $69, $6A, $69, $6A, $69 ; $D330: 68 67 68 67 68 67 68 69 6A 69 6A 69 6A 69 6A 69
+  .byte $6A, $D4, $D5, $31, $36, $17, $31, $36, $17, $42, $40, $43, $44, $41, $41, $45 ; $D340: 6A D4 D5 31 36 17 31 36 17 42 40 43 44 41 41 45
+  .byte $46, $47, $48, $40, $40, $40, $49, $4A, $41, $4B, $4C, $4C, $4C, $40, $4D, $4E ; $D350: 46 47 48 40 40 40 49 4A 41 4B 4C 4C 4C 40 4D 4E
+  .byte $4F, $50, $41, $41, $41, $41, $41, $51, $40, $40, $40, $52, $53, $41, $00, $00 ; $D360: 4F 50 41 41 41 41 41 51 40 40 40 52 53 41 00 00
+  .byte $00, $54, $55, $40, $56, $57, $58, $00, $00, $00, $00, $40, $59, $40, $40, $5A ; $D370: 00 54 55 40 56 57 58 00 00 00 00 40 59 40 40 5A
+  .byte $5B, $00, $00, $00, $00, $5C, $5D, $5E, $5F, $60, $61, $00, $00, $00, $00, $62 ; $D380: 5B 00 00 00 00 5C 5D 5E 5F 60 61 00 00 00 00 62
+  .byte $63, $41, $41, $64, $65, $66, $00, $00, $67, $68, $69, $6A, $6B, $00, $00, $6C ; $D390: 63 41 41 64 65 66 00 00 67 68 69 6A 6B 00 00 6C
+  .byte $6D, $6E, $6F, $70, $71, $72, $73, $00, $00, $00, $74, $75, $76, $CF, $00, $30 ; $D3A0: 6D 6E 6F 70 71 72 73 00 00 00 74 75 76 CF 00 30
+  .byte $16, $27, $30, $16, $27, $41, $42, $43, $44, $45, $46, $47, $40, $40, $40, $48 ; $D3B0: 16 27 30 16 27 41 42 43 44 45 46 47 40 40 40 48
+  .byte $49, $4A, $4B, $4C, $4D, $4E, $40, $40, $40, $4F, $50, $51, $52, $53, $54, $55 ; $D3C0: 49 4A 4B 4C 4D 4E 40 40 40 4F 50 51 52 53 54 55
+  .byte $40, $56, $57, $58, $59, $5A, $40, $40, $40, $40, $40, $5B, $5C, $58, $59, $5A ; $D3D0: 40 56 57 58 59 5A 40 40 40 40 40 5B 5C 58 59 5A
+  .byte $5D, $5E, $5F, $60, $40, $40, $40, $58, $59, $5A, $61, $62, $63, $64, $40, $40 ; $D3E0: 5D 5E 5F 60 40 40 40 58 59 5A 61 62 63 64 40 40
+  .byte $40, $58, $59, $5A, $40, $40, $65, $66, $40, $40, $40, $58, $59, $67, $40, $40 ; $D3F0: 40 58 59 5A 40 40 65 66 40 40 40 58 59 67 40 40
+  .byte $40, $68, $69, $6A, $6B, $74, $75, $40, $40, $40, $40, $6C, $6D, $6E, $6F, $74 ; $D400: 40 68 69 6A 6B 74 75 40 40 40 40 6C 6D 6E 6F 74
+  .byte $75, $40, $40, $40, $40, $70, $71, $72, $73, $D0, $00, $16, $26, $17, $35, $07 ; $D410: 75 40 40 40 40 70 71 72 73 D0 00 16 26 17 35 07
+  .byte $06, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41 ; $D420: 06 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41
+  .byte $41, $41, $41, $41, $41, $42, $42, $42, $42, $42, $42, $42, $42, $42, $42, $43 ; $D430: 41 41 41 41 41 42 42 42 42 42 42 42 42 42 42 43
+  .byte $43, $43, $43, $43, $43, $43, $43, $43, $44, $45, $46, $47, $48, $49, $4A, $4B ; $D440: 43 43 43 43 43 43 43 43 44 45 46 47 48 49 4A 4B
+  .byte $4C, $4D, $4E, $55, $56, $57, $58, $59, $5A, $5B, $5C, $5D, $5E, $50, $54, $54 ; $D450: 4C 4D 4E 55 56 57 58 59 5A 5B 5C 5D 5E 50 54 54
+  .byte $54, $54, $54, $54, $54, $54, $54, $54, $54, $51, $52, $53, $54, $54, $54, $54 ; $D460: 54 54 54 54 54 54 54 54 54 51 52 53 54 54 54 54
+  .byte $54, $54, $54, $54, $54, $54, $54, $54, $54, $54, $54, $4F, $5F, $60, $54, $54 ; $D470: 54 54 54 54 54 54 54 54 54 54 54 4F 5F 60 54 54
+  .byte $54, $54, $54, $54, $54, $D6, $00, $10, $17, $07, $36, $17, $07, $41, $42, $43 ; $D480: 54 54 54 54 54 D6 00 10 17 07 36 17 07 41 42 43
+  .byte $44, $45, $46, $47, $48, $49, $4A, $51, $52, $53, $54, $55, $56, $57, $58, $59 ; $D490: 44 45 46 47 48 49 4A 51 52 53 54 55 56 57 58 59
+  .byte $5A, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6A, $78, $79, $40, $79, $79 ; $D4A0: 5A 61 62 63 64 65 66 67 68 69 6A 78 79 40 79 79
+  .byte $78, $7A, $4B, $4C, $4D, $40, $40, $40, $40, $40, $40, $78, $5B, $5C, $5D, $40 ; $D4B0: 78 7A 4B 4C 4D 40 40 40 40 40 40 78 5B 5C 5D 40
+  .byte $40, $40, $40, $40, $40, $60, $6B, $6C, $6D, $75, $76, $77, $40, $40, $40, $40 ; $D4C0: 40 40 40 40 40 60 6B 6C 6D 75 76 77 40 40 40 40
+  .byte $7B, $7C, $7D, $40, $40, $40, $40, $40, $40, $40, $4E, $4F, $6E, $70, $71, $40 ; $D4D0: 7B 7C 7D 40 40 40 40 40 40 40 4E 4F 6E 70 71 40
+  .byte $40, $40, $40, $40, $5E, $5F, $7E, $72, $73, $74, $40, $40, $40, $7B, $6F, $7F ; $D4E0: 40 40 40 40 5E 5F 7E 72 73 74 40 40 40 7B 6F 7F
+  .byte $50, $D8, $00, $30, $36, $26, $30, $36, $26, $00, $00, $00, $00, $02, $02, $02 ; $D4F0: 50 D8 00 30 36 26 30 36 26 00 00 00 00 02 02 02
+  .byte $02, $02, $02, $00, $00, $00, $00, $02, $02, $02, $02, $02, $02, $00, $00, $00 ; $D500: 02 02 02 00 00 00 00 02 02 02 02 02 02 00 00 00
+  .byte $02, $02, $02, $42, $43, $44, $02, $00, $00, $00, $02, $02, $02, $45, $46, $47 ; $D510: 02 02 02 42 43 44 02 00 00 00 02 02 02 45 46 47
+  .byte $02, $00, $00, $00, $01, $02, $02, $49, $4A, $4B, $02, $4C, $4C, $4D, $01, $02 ; $D520: 02 00 00 00 01 02 02 49 4A 4B 02 4C 4C 4D 01 02
+  .byte $4E, $4F, $00, $00, $50, $4C, $4C, $53, $01, $02, $54, $55, $00, $00, $56, $4C ; $D530: 4E 4F 00 00 50 4C 4C 53 01 02 54 55 00 00 56 4C
+  .byte $4C, $59, $01, $5A, $5B, $5C, $5D, $5E, $02, $4C, $4C, $62, $63, $64, $65, $66 ; $D540: 4C 59 01 5A 5B 5C 5D 5E 02 4C 4C 62 63 64 65 66
+  .byte $67, $68, $69, $4C, $4C, $72, $73, $74, $75, $76, $77, $78, $79, $E6, $E7, $36 ; $D550: 67 68 69 4C 4C 72 73 74 75 76 77 78 79 E6 E7 36
+  .byte $16, $10, $36, $16, $10, $80, $40, $41, $80, $80, $42, $80, $80, $43, $44, $80 ; $D560: 16 10 36 16 10 |80| 40 41 |80|80| 42 |80|80| 43 44 |80|  ; $80=End Sec2-5-6-8 (Sections 3-18: small fragments)
+  .byte $45, $46, $80, $80, $47, $80, $80, $48, $49, $4A, $4B, $4C, $80, $80, $80, $80 ; $D570: 45 46 80 80 47 80 80 48 49 4A 4B 4C 80 80 80 80
+  .byte $80, $4D, $4E, $4F, $50, $51, $52, $53, $80, $80, $54, $55, $56, $57, $58, $59 ; $D580: |80| 4D 4E 4F 50 51 52 53 |80|80| 54 55 56 57 58 59  ; $80=End Sec16-18; Sec19 starts $D58A
+  .byte $5A, $5B, $5C, $5D, $5E, $5F, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69 ; $D590: 5A 5B 5C 5D 5E 5F 60 61 62 63 64 65 66 67 68 69  ; Section 19 ($D58A-$D956): Secondary screen tilemap
+  .byte $6A, $6B, $6C, $6D, $6E, $6F, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79 ; $D5A0: 6A 6B 6C 6D 6E 6F 70 71 72 73 74 75 76 77 78 79
+  .byte $7A, $7B, $7C, $7D, $7E, $7F, $00, $01, $02, $03, $04, $05, $06, $07, $08, $09 ; $D5B0: 7A 7B 7C 7D 7E 7F 00 01 02 03 04 05 06 07 08 09
+  .byte $09, $09, $0A, $0B, $0C, $0D, $0E, $0F, $10, $DD, $00, $30, $36, $18, $30, $36 ; $D5C0: 09 09 0A 0B 0C 0D 0E 0F 10 DD 00 30 36 18 30 36
+  .byte $18, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $41, $42, $43 ; $D5D0: 18 00 00 00 00 00 00 00 00 00 00 00 00 41 42 43
+  .byte $44, $00, $00, $00, $00, $00, $45, $46, $47, $48, $49, $4A, $00, $00, $00, $4B ; $D5E0: 44 00 00 00 00 00 45 46 47 48 49 4A 00 00 00 4B
+  .byte $4C, $4D, $4E, $4F, $50, $51, $00, $00, $00, $52, $53, $54, $55, $56, $57, $58 ; $D5F0: 4C 4D 4E 4F 50 51 00 00 00 52 53 54 55 56 57 58
+  .byte $00, $00, $00, $00, $59, $5A, $5B, $5C, $5D, $5E, $5F, $00, $60, $40, $61, $62 ; $D600: 00 00 00 00 59 5A 5B 5C 5D 5E 5F 00 60 40 61 62
+  .byte $63, $64, $65, $66, $67, $68, $69, $75, $6A, $6B, $6C, $6D, $6E, $6F, $70, $71 ; $D610: 63 64 65 66 67 68 69 75 6A 6B 6C 6D 6E 6F 70 71
+  .byte $72, $00, $73, $74, $6C, $76, $77, $78, $79, $7A, $7B, $00, $73, $74, $6C, $76 ; $D620: 72 00 73 74 6C 76 77 78 79 7A 7B 00 73 74 6C 76
+  .byte $77, $7C, $7D, $7E, $7F, $E1, $E3, $36, $16, $31, $17, $07, $0F, $42, $43, $44 ; $D630: 77 7C 7D 7E 7F E1 E3 36 16 31 17 07 0F 42 43 44
+  .byte $44, $45, $42, $42, $42, $43, $44, $46, $47, $48, $48, $49, $4A, $4B, $46, $47 ; $D640: 44 45 42 42 42 43 44 46 47 48 48 49 4A 4B 46 47
+  .byte $48, $4C, $4D, $4E, $4F, $50, $51, $52, $4C, $4D, $4E, $53, $54, $55, $55, $56 ; $D650: 48 4C 4D 4E 4F 50 51 52 4C 4D 4E 53 54 55 55 56
+  .byte $57, $58, $59, $5A, $55, $5B, $5C, $41, $5D, $5E, $5F, $60, $61, $62, $63, $64 ; $D660: 57 58 59 5A 55 5B 5C 41 5D 5E 5F 60 61 62 63 64
+  .byte $65, $41, $41, $66, $67, $68, $41, $69, $6A, $41, $41, $41, $41, $41, $41, $41 ; $D670: 65 41 41 66 67 68 41 69 6A 41 41 41 41 41 41 41
+  .byte $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41, $41 ; $D680: 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41
+  .byte $41, $41, $41, $41, $41, $41, $41, $41, $6B, $13, $14, $41, $41, $15, $16, $17 ; $D690: 41 41 41 41 41 41 41 41 6B 13 14 41 41 15 16 17
+  .byte $18, $DE, $DC, $10, $36, $17, $10, $36, $17, $40, $40, $41, $41, $41, $41, $42 ; $D6A0: 18 DE DC 10 36 17 10 36 17 40 40 41 41 41 41 42
+  .byte $43, $44, $41, $40, $40, $40, $40, $41, $41, $45, $46, $47, $48, $40, $40, $40 ; $D6B0: 43 44 41 40 40 40 40 41 41 45 46 47 48 40 40 40
+  .byte $40, $41, $41, $49, $40, $4A, $4B, $40, $40, $40, $40, $41, $4C, $4D, $4E, $4F ; $D6C0: 40 41 41 49 40 4A 4B 40 40 40 40 41 4C 4D 4E 4F
+  .byte $50, $40, $40, $40, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5A, $5B, $5C ; $D6D0: 50 40 40 40 51 52 53 54 55 56 57 58 59 5A 5B 5C
+  .byte $5D, $5E, $5F, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6A, $6B, $6C ; $D6E0: 5D 5E 5F 60 61 62 63 64 65 66 67 68 69 6A 6B 6C
+  .byte $6D, $6E, $6F, $70, $71, $72, $73, $00, $01, $02, $03, $04, $05, $06, $07, $08 ; $D6F0: 6D 6E 6F 70 71 72 73 00 01 02 03 04 05 06 07 08
+  .byte $09, $0A, $0B, $0C, $0D, $0E, $0F, $10, $11, $12, $13, $14, $15, $DF, $00, $30 ; $D700: 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 DF 00 30
+  .byte $36, $17, $30, $36, $17, $02, $02, $02, $02, $02, $02, $02, $42, $43, $43, $02 ; $D710: 36 17 30 36 17 02 02 02 02 02 02 02 42 43 43 02
+  .byte $02, $42, $43, $43, $43, $44, $45, $46, $46, $02, $47, $45, $46, $46, $46, $48 ; $D720: 02 42 43 43 43 44 45 46 46 02 47 45 46 46 46 48
+  .byte $49, $4A, $4B, $4C, $4D, $49, $4A, $4E, $4A, $4F, $50, $51, $00, $52, $53, $50 ; $D730: 49 4A 4B 4C 4D 49 4A 4E 4A 4F 50 51 00 52 53 50
+  .byte $51, $00, $51, $54, $00, $00, $00, $00, $55, $00, $56, $57, $00, $58, $00, $00 ; $D740: 51 00 51 54 00 00 00 00 55 00 56 57 00 58 00 00
+  .byte $00, $59, $5A, $5B, $00, $00, $00, $5C, $00, $5D, $5E, $5F, $00, $60, $61, $62 ; $D750: 00 59 5A 5B 00 00 00 5C 00 5D 5E 5F 00 60 61 62
+  .byte $00, $00, $63, $00, $64, $65, $66, $67, $68, $00, $00, $00, $00, $00, $69, $6A ; $D760: 00 00 63 00 64 65 66 67 68 00 00 00 00 00 69 6A
+  .byte $6B, $6C, $00, $00, $00, $00, $00, $6D, $6E, $B5, $00, $30, $36, $17, $30, $36 ; $D770: 6B 6C 00 00 00 00 00 6D 6E B5 00 30 36 17 30 36
+  .byte $17, $00, $00, $00, $00, $00, $00, $00, $53, $54, $55, $40, $41, $00, $00, $00 ; $D780: 17 00 00 00 00 00 00 00 53 54 55 40 41 00 00 00
+  .byte $00, $00, $63, $64, $65, $50, $51, $52, $00, $00, $00, $00, $73, $74, $75, $60 ; $D790: 00 00 63 64 65 50 51 52 00 00 00 00 73 74 75 60
+  .byte $61, $62, $00, $00, $00, $00, $45, $00, $46, $70, $00, $72, $00, $00, $00, $00 ; $D7A0: 61 62 00 00 00 00 45 00 46 70 00 72 00 00 00 00
+  .byte $56, $66, $76, $42, $71, $43, $44, $00, $00, $48, $49, $4A, $4B, $00, $00, $00 ; $D7B0: 56 66 76 42 71 43 44 00 00 48 49 4A 4B 00 00 00
+  .byte $00, $00, $57, $58, $59, $5A, $5B, $00, $00, $00, $00, $00, $67, $68, $69, $6A ; $D7C0: 00 00 57 58 59 5A 5B 00 00 00 00 00 67 68 69 6A
+  .byte $6B, $00, $00, $00, $00, $00, $77, $78, $79, $7A, $7B, $00, $00, $00, $00, $00 ; $D7D0: 6B 00 00 00 00 00 77 78 79 7A 7B 00 00 00 00 00
+  .byte $4C, $4D, $4E, $4F, $47, $D5, $00, $10, $36, $17, $10, $36, $17, $41, $40, $40 ; $D7E0: 4C 4D 4E 4F 47 D5 00 10 36 17 10 36 17 41 40 40
+  .byte $41, $42, $43, $41, $41, $41, $41, $44, $40, $40, $40, $45, $46, $47, $48, $41 ; $D7F0: 41 42 43 41 41 41 41 44 40 40 40 45 46 47 48 41
+  .byte $41, $49, $41, $40, $40, $4A, $4B, $4C, $4D, $4E, $41, $4F, $50, $40, $40, $40 ; $D800: 41 49 41 40 40 4A 4B 4C 4D 4E 41 4F 50 40 40 40
+  .byte $40, $40, $51, $52, $53, $54, $55, $40, $40, $40, $40, $40, $56, $57, $58, $59 ; $D810: 40 40 51 52 53 54 55 40 40 40 40 40 56 57 58 59
+  .byte $5A, $40, $40, $40, $40, $40, $5B, $5C, $5D, $5E, $5F, $60, $40, $40, $40, $61 ; $D820: 5A 40 40 40 40 40 5B 5C 5D 5E 5F 60 40 40 40 61
+  .byte $62, $63, $64, $65, $66, $40, $67, $68, $69, $6A, $6B, $6C, $6D, $6E, $6F, $70 ; $D830: 62 63 64 65 66 40 67 68 69 6A 6B 6C 6D 6E 6F 70
+  .byte $71, $72, $73, $40, $74, $75, $76, $77, $78, $79, $7A, $7B, $7C, $40, $7D, $7E ; $D840: 71 72 73 40 74 75 76 77 78 79 7A 7B 7C 40 7D 7E
+  .byte $7F, $DC, $00, $30, $31, $21, $0F, $10, $15, $56, $57, $58, $59, $57, $59, $56 ; $D850: 7F DC 00 30 31 21 0F 10 15 56 57 58 59 57 59 56
+  .byte $57, $58, $59, $5A, $5B, $5C, $5D, $5B, $5D, $5A, $5B, $5C, $5D, $5E, $5F, $60 ; $D860: 57 58 59 5A 5B 5C 5D 5B 5D 5A 5B 5C 5D 5E 5F 60
+  .byte $61, $5F, $61, $5E, $5F, $60, $61, $62, $62, $62, $62, $62, $62, $62, $62, $62 ; $D870: 61 5F 61 5E 5F 60 61 62 62 62 62 62 62 62 62 62
+  .byte $62, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E ; $D880: 62 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E
+  .byte $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6F ; $D890: 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6F
+  .byte $70, $71, $6F, $70, $71, $6F, $70, $71, $6F, $6B, $6C, $6D, $6B, $6C, $6D, $6B ; $D8A0: 70 71 6F 70 71 6F 70 71 6F 6B 6C 6D 6B 6C 6D 6B
+  .byte $6C, $6D, $6B, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $E3, $00, $36 ; $D8B0: 6C 6D 6B 01 01 01 01 01 01 01 01 01 01 E3 00 36
+  .byte $27, $17, $36, $27, $17, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $D8C0: 27 17 36 27 17 01 01 01 01 01 01 01 01 01 01 01
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $D8D0: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $42, $42, $42 ; $D8E0: 01 01 01 01 01 01 01 01 01 01 01 01 01 42 42 42
+  .byte $42, $42, $42, $42, $42, $42, $42, $41, $61, $62, $63, $41, $41, $41, $41, $41 ; $D8F0: 42 42 42 42 42 42 42 41 61 62 63 41 41 41 41 41
+  .byte $41, $43, $71, $72, $73, $74, $43, $43, $43, $43, $43, $44, $00, $00, $00, $66 ; $D900: 41 43 71 72 73 74 43 43 43 43 43 44 00 00 00 66
+  .byte $67, $68, $45, $46, $47, $6A, $70, $00, $75, $76, $77, $48, $49, $4A, $4B, $79 ; $D910: 67 68 45 46 47 6A 70 00 75 76 77 48 49 4A 4B 79
+  .byte $7A, $7B, $7C, $7D, $7E, $4C, $4D, $51, $52, $BD, $BE, $20, $17, $36, $20, $17 ; $D920: 7A 7B 7C 7D 7E 4C 4D 51 52 BD BE 20 17 36 20 17
+  .byte $36, $70, $71, $72, $73, $74, $75, $76, $77, $78, $70, $70, $71, $72, $73, $74 ; $D930: 36 70 71 72 73 74 75 76 77 78 70 70 71 72 73 74
+  .byte $75, $76, $77, $78, $79, $70, $7A, $7B, $7C, $7D, $7E, $7F, $00, $01, $02, $03 ; $D940: 75 76 77 78 79 70 7A 7B 7C 7D 7E 7F 00 01 02 03
+  .byte $03, $04, $05, $06, $07, $08, $80, $80, $09, $39, $39, $0A, $0B, $0C, $0D, $0E ; $D950: 03 04 05 06 07 08 |80|80| 09 39 39 0A 0B 0C 0D 0E  ; $80=End Sec19-20
+  .byte $80, $80, $0F, $10, $11, $12, $13, $14, $15, $16, $80, $80, $17, $18, $19, $1A ; $D960: |80|80| 0F 10 11 12 13 14 15 16 |80|80| 17 18 19 1A  ; $80=End Sec21-24; Sec25 starts $D96C
+  .byte $1B, $1C, $1D, $1E, $1F, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $2A ; $D970: 1B 1C 1D 1E 1F 20 21 22 23 24 25 26 27 28 29 2A  ; Section 25 ($D96C-$DBB0): Final tilemap section
+  .byte $2B, $39, $2C, $2D, $2E, $2F, $30, $31, $32, $39, $39, $39, $33, $34, $35, $36 ; $D980: 2B 39 2C 2D 2E 2F 30 31 32 39 39 39 33 34 35 36
+  .byte $37, $38, $39, $39, $39, $D3, $00, $10, $17, $11, $10, $17, $11, $42, $43, $41 ; $D990: 37 38 39 39 39 D3 00 10 17 11 10 17 11 42 43 41
+  .byte $44, $45, $46, $47, $41, $41, $48, $49, $4A, $41, $4B, $4C, $4D, $4E, $4F, $50 ; $D9A0: 44 45 46 47 41 41 48 49 4A 41 4B 4C 4D 4E 4F 50
+  .byte $51, $52, $53, $54, $55, $56, $57, $40, $40, $58, $59, $5A, $5B, $40, $5C, $5D ; $D9B0: 51 52 53 54 55 56 57 40 40 58 59 5A 5B 40 5C 5D
+  .byte $40, $40, $40, $5E, $5F, $60, $61, $62, $63, $64, $40, $65, $66, $67, $68, $69 ; $D9C0: 40 40 40 5E 5F 60 61 62 63 64 40 65 66 67 68 69
+  .byte $6A, $6B, $6C, $40, $6E, $40, $40, $6F, $70, $40, $6E, $40, $6E, $71, $72, $73 ; $D9D0: 6A 6B 6C 40 6E 40 40 6F 70 40 6E 40 6E 71 72 73
+  .byte $40, $40, $40, $6E, $40, $6E, $40, $74, $75, $75, $76, $77, $78, $40, $6E, $40 ; $D9E0: 40 40 40 6E 40 6E 40 74 75 75 76 77 78 40 6E 40
+  .byte $6E, $40, $75, $75, $79, $7A, $7B, $6E, $40, $6E, $6E, $40, $6D, $7C, $7D, $7E ; $D9F0: 6E 40 75 75 79 7A 7B 6E 40 6E 6E 40 6D 7C 7D 7E
+  .byte $7F, $CA, $CB, $16, $36, $17, $16, $36, $17, $71, $72, $73, $74, $74, $74, $74 ; $DA00: 7F CA CB 16 36 17 16 36 17 71 72 73 74 74 74 74
+  .byte $75, $76, $74, $77, $78, $79, $74, $74, $74, $74, $7A, $7B, $7C, $7D, $7E, $74 ; $DA10: 75 76 74 77 78 79 74 74 74 74 7A 7B 7C 7D 7E 74
+  .byte $7F, $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0A, $0B, $0C, $0D, $74 ; $DA20: 7F 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 74
+  .byte $0E, $0F, $10, $11, $12, $3D, $3D, $13, $14, $15, $74, $16, $17, $18, $19, $3D ; $DA30: 0E 0F 10 11 12 3D 3D 13 14 15 74 16 17 18 19 3D
+  .byte $3D, $1A, $1B, $1C, $1D, $1E, $1F, $20, $21, $22, $23, $24, $25, $26, $27, $28 ; $DA40: 3D 1A 1B 1C 1D 1E 1F 20 21 22 23 24 25 26 27 28
+  .byte $29, $2A, $2B, $2C, $2D, $2E, $2F, $3D, $3D, $30, $3D, $3D, $31, $32, $33, $34 ; $DA50: 29 2A 2B 2C 2D 2E 2F 3D 3D 30 3D 3D 31 32 33 34
+  .byte $35, $3D, $3D, $3D, $3D, $3D, $36, $37, $38, $39, $3A, $3B, $3C, $BC, $00, $36 ; $DA60: 35 3D 3D 3D 3D 3D 36 37 38 39 3A 3B 3C BC 00 36
+  .byte $27, $17, $36, $27, $17, $44, $44, $44, $44, $44, $44, $44, $44, $44, $44, $00 ; $DA70: 27 17 36 27 17 44 44 44 44 44 44 44 44 44 44 00
+  .byte $00, $01, $00, $00, $00, $45, $01, $46, $47, $00, $00, $01, $00, $00, $00, $48 ; $DA80: 00 01 00 00 00 45 01 46 47 00 00 01 00 00 00 48
+  .byte $49, $4A, $4B, $00, $00, $00, $00, $00, $00, $4C, $4D, $4E, $4F, $50, $00, $00 ; $DA90: 49 4A 4B 00 00 00 00 00 00 4C 4D 4E 4F 50 00 00
+  .byte $00, $00, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5A, $5B, $5C, $5D, $5E ; $DAA0: 00 00 51 52 53 54 55 56 57 58 59 5A 5B 5C 5D 5E
+  .byte $5F, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6A, $6B, $6C, $6D, $01 ; $DAB0: 5F 60 61 62 63 64 65 66 67 68 69 6A 6B 6C 6D 01
+  .byte $6E, $6F, $70, $01, $71, $72, $73, $74, $75, $76, $77, $78, $79, $7A, $7B, $7C ; $DAC0: 6E 6F 70 01 71 72 73 74 75 76 77 78 79 7A 7B 7C
+  .byte $7D, $7C, $7D, $7E, $7F, $40, $41, $42, $43, $B6, $B7, $30, $36, $17, $30, $36 ; $DAD0: 7D 7C 7D 7E 7F 40 41 42 43 B6 B7 30 36 17 30 36
+  .byte $17, $41, $42, $43, $44, $41, $41, $41, $41, $41, $41, $41, $49, $4A, $4B, $41 ; $DAE0: 17 41 42 43 44 41 41 41 41 41 41 41 49 4A 4B 41
+  .byte $41, $41, $41, $41, $41, $41, $50, $51, $52, $41, $41, $41, $41, $41, $41, $57 ; $DAF0: 41 41 41 41 41 41 50 51 52 41 41 41 41 41 41 57
+  .byte $58, $59, $5A, $5B, $5C, $41, $41, $41, $41, $61, $62, $63, $64, $65, $40, $40 ; $DB00: 58 59 5A 5B 5C 41 41 41 41 61 62 63 64 65 40 40
+  .byte $40, $41, $41, $68, $69, $6A, $6B, $6C, $40, $40, $40, $41, $41, $6F, $70, $71 ; $DB10: 40 41 41 68 69 6A 6B 6C 40 40 40 41 41 6F 70 71
+  .byte $72, $40, $40, $40, $40, $41, $73, $74, $75, $76, $40, $40, $40, $40, $40, $77 ; $DB20: 72 40 40 40 40 41 73 74 75 76 40 40 40 40 40 77
+  .byte $78, $79, $7A, $7B, $40, $40, $7C, $7D, $7E, $41, $40, $7F, $00, $01, $40, $40 ; $DB30: 78 79 7A 7B 40 40 7C 7D 7E 41 40 7F 00 01 40 40
+  .byte $02, $41, $41, $41, $40, $AA, $00, $36, $10, $16, $10, $06, $17, $40, $41, $42 ; $DB40: 02 41 41 41 40 AA 00 36 10 16 10 06 17 40 41 42
+  .byte $43, $44, $45, $46, $47, $48, $49, $4A, $4B, $4C, $4D, $4E, $4F, $50, $51, $52 ; $DB50: 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F 50 51 52
+  .byte $53, $00, $54, $55, $56, $72, $72, $57, $58, $59, $5A, $5B, $5C, $5D, $5E, $72 ; $DB60: 53 00 54 55 56 72 72 57 58 59 5A 5B 5C 5D 5E 72
+  .byte $72, $5F, $60, $61, $62, $63, $64, $65, $72, $00, $00, $72, $66, $67, $68, $69 ; $DB70: 72 5F 60 61 62 63 64 65 72 00 00 72 66 67 68 69
+  .byte $6A, $72, $72, $00, $00, $72, $6B, $6C, $6D, $6E, $6F, $72, $00, $00, $00, $72 ; $DB80: 6A 72 72 00 00 72 6B 6C 6D 6E 6F 72 00 00 00 72
+  .byte $72, $72, $72, $70, $71, $72, $00, $00, $00, $00, $72, $72, $72, $72, $72, $72 ; $DB90: 72 72 72 70 71 72 00 00 00 00 72 72 72 72 72 72
+  .byte $00, $00, $00, $00, $72, $72, $72, $72, $72, $00, $00, $00, $00, $00, $00, $72 ; $DBA0: 00 00 00 00 72 72 72 72 72 00 00 00 00 00 00 72
+  .byte $72                                                              ; $DBB0: 72  ; End of MenuTilemapStream (last byte of Section 25)
 
 ;===============================================================================
-; $CDA0: MultiRecCalc
+; $DBB1: LoadScenarioData - copy 32 bytes from scenario table to $0100
 ;===============================================================================
-  .byte $61, $62, $63, $64, $65, $66, $7E, $7E, $7E, $67 ; $CDA0: 61 62 63 64 65 66 7E 7E 7E 67
-  PLA                                                   ; $CDAA: 68
-  ADC #$6A                                              ; $CDAB: 69 6A
-  .byte $6B, $6C ; $CDAD: 6B 6C
-  ADC $7E6E                                             ; $CDAF: 6D 6E 7E
-  ROR $706F,X                                           ; $CDB2: 7E 6F 70
-  ADC ($72),Y                                           ; $CDB5: 71 72
-  .byte $73, $74                                        ; $CDB7: 73 74
-  ADC $7E,X                                             ; $CDB9: 75 7E
-  ROR $767E,X                                           ; $CDBB: 7E 7E 76
-  .byte $77                                             ; $CDBE: 77
-  SEI                                                   ; $CDBF: 78
-  ADC $7B7A,Y                                           ; $CDC0: 79 7A 7B
-  .byte $7C                                             ; $CDC3: 7C
-  ADC $00C9,X                                           ; $CDC4: 7D C9 00
-  ROL $16,X                                             ; $CDC7: 36 16
-  ROL $36                                               ; $CDC9: 26 36
-  ASL $26,X                                             ; $CDCB: 16 26
-  ORA ($01,X)                                           ; $CDCD: 01 01
-  ORA ($01,X)                                           ; $CDCF: 01 01
-  RTI                                                   ; $CDD1: 40
-  EOR ($52,X)                                           ; $CDD2: 41 52
-  .byte $53                                             ; $CDD4: 53
-  ORA ($01,X)                                           ; $CDD5: 01 01
-  ORA ($01,X)                                           ; $CDD7: 01 01
-  ORA ($01,X)                                           ; $CDD9: 01 01
-  .byte $67                                             ; $CDDB: 67
-  .byte $6B, $00 ; $CDDC: 6B 00
-  ADC ($01),Y                                           ; $CDDE: 71 01
-  ORA ($01,X)                                           ; $CDE0: 01 01
-  ORA ($01,X)                                           ; $CDE2: 01 01
-  ORA ($00,X)                                           ; $CDE4: 01 00
-  BRK                                                   ; $CDE6: 00
-  .byte $72, $73, $42                                   ; $CDE7: 72 73 42
-  ORA ($01,X)                                           ; $CDEA: 01 01
-  ORA ($01,X)                                           ; $CDEC: 01 01
-  .byte $43                                             ; $CDEE: 43
-  BRK                                                   ; $CDEF: 00
-  BRK                                                   ; $CDF0: 00
-  BRK                                                   ; $CDF1: 00
-  .byte $44                                             ; $CDF2: 44
-  EOR $46                                               ; $CDF3: 45 46
-  ORA ($47,X)                                           ; $CDF5: 01 47
-  PHA                                                   ; $CDF7: 48
-  EOR #$00                                              ; $CDF8: 49 00
-  BRK                                                   ; $CDFA: 00
-  LSR                                                   ; $CDFB: 4A
-  .byte $02, $02, $02                                   ; $CDFC: 02 02 02
-  JMP $4E4D                                             ; $CDFF: 4C 4D 4E
-  .byte $4F                                             ; $CE02: 4F
-  BVC L_CE07                                            ; $CE03: 50 02
-  .byte $02, $02                                        ; $CE05: 02 02
-L_CE07:
-  .byte $02, $54                                        ; $CE07: 02 54
-  EOR $56,X                                             ; $CE09: 55 56
-  .byte $57                                             ; $CE0B: 57
-  CLI                                                   ; $CE0C: 58
-  EOR $024B,Y                                           ; $CE0D: 59 4B 02
-  NOP                                                   ; $CE10: 5A
-  .byte $5B, $5C                                        ; $CE11: 5B 5C
-  EOR $5F5E,X                                           ; $CE13: 5D 5E 5F
-  RTS                                                   ; $CE16: 60
-
-;===============================================================================
-; $CE17: BattleParamSetup
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $66, $03, $5D          ; $CE17: 61 62 63 64 65 66 03 5D
-  PLA                                                   ; $CE1F: 68
-  ADC #$6A                                              ; $CE20: 69 6A
-  .byte $03                                             ; $CE22: 03
-  JMP ($6E6D)                                           ; $CE23: 6C 6D 6E
-  .byte $6F, $03, $03                                   ; $CE26: 6F 03 03
-  BVS L_CE2E                                            ; $CE29: 70 03
-  .byte $03, $03, $74                                   ; $CE2B: 03 03 74
-L_CE2E:
-  EOR ($75),Y                                           ; $CE2E: 51 75
-  ROR $E0,X                                             ; $CE30: 76 E0
-  BRK                                                   ; $CE32: 00
-  BMI L_CE45                                            ; $CE33: 30 10
-  .byte $17                                             ; $CE35: 17
-  ASL $10,X                                             ; $CE36: 16 10
-  .byte $17                                             ; $CE38: 17
-  RTI                                                   ; $CE39: 40
-  RTI                                                   ; $CE3A: 40
-  RTI                                                   ; $CE3B: 40
-  RTI                                                   ; $CE3C: 40
-  RTI                                                   ; $CE3D: 40
-  RTI                                                   ; $CE3E: 40
-  RTI                                                   ; $CE3F: 40
-  RTI                                                   ; $CE40: 40
-  RTI                                                   ; $CE41: 40
-  RTI                                                   ; $CE42: 40
-  EOR ($42,X)                                           ; $CE43: 41 42
-L_CE45:
-  RTI                                                   ; $CE45: 40
-  RTI                                                   ; $CE46: 40
-  RTI                                                   ; $CE47: 40
-  RTI                                                   ; $CE48: 40
-  RTI                                                   ; $CE49: 40
-  RTI                                                   ; $CE4A: 40
-  RTI                                                   ; $CE4B: 40
-  RTI                                                   ; $CE4C: 40
-  .byte $43, $44                                        ; $CE4D: 43 44
-  EOR $75                                               ; $CE4F: 45 75
-  ADC $46,X                                             ; $CE51: 75 46
-  .byte $47                                             ; $CE53: 47
-  PHA                                                   ; $CE54: 48
-  RTI                                                   ; $CE55: 40
-  RTI                                                   ; $CE56: 40
-  .byte $53                                             ; $CE57: 53
-  EOR #$4A                                              ; $CE58: 49 4A
-  .byte $4B, $53 ; $CE5A: 4B 53
-  .byte $53, $53                                        ; $CE5C: 53 53
-  JMP $4E4D                                             ; $CE5E: 4C 4D 4E
-  .byte $53, $4F                                        ; $CE61: 53 4F
-  BVC L_CEB6                                            ; $CE63: 50 51
-  .byte $52, $53, $53, $53, $53, $53, $53, $53, $54     ; $CE65: 52 53 53 53 53 53 53 53 54
-  EOR $56,X                                             ; $CE6E: 55 56
-  .byte $57                                             ; $CE70: 57
-  CLI                                                   ; $CE71: 58
-  .byte $53, $53, $53, $53, $53                         ; $CE72: 53 53 53 53 53
-  EOR $5B5A,Y                                           ; $CE77: 59 5A 5B
-  .byte $5C                                             ; $CE7A: 5C
-  EOR $5F5E,X                                           ; $CE7B: 5D 5E 5F
-  RTS                                                   ; $CE7E: 60
-
-;===============================================================================
-; $CE7F: DiplomacyParamSetup
-;===============================================================================
-  .byte $53, $53, $53, $61, $62, $63, $64, $65, $66, $67, $53, $53, $53 ; $CE7F: 53 53 53 61 62 63 64 65 66 67 53 53 53
-  PLA                                                   ; $CE8C: 68
-  ADC #$6A                                              ; $CE8D: 69 6A
-  .byte $6B, $6C ; $CE8F: 6B 6C
-  ADC $536E                                             ; $CE91: 6D 6E 53
-  .byte $53, $53, $6F                                   ; $CE94: 53 53 6F
-  .byte $70, $71 ; $CE97: 70 71
-  .byte $72, $73, $74                                   ; $CE99: 72 73 74
-  ADC $C7,X                                             ; $CE9C: 75 C7
-  CMP $30                                               ; $CE9E: C5 30
-  ASL $36,X                                             ; $CEA0: 16 36
-  BMI L_CEBA                                            ; $CEA2: 30 16
-  ROL $41,X                                             ; $CEA4: 36 41
-  EOR ($41,X)                                           ; $CEA6: 41 41
-  EOR ($41,X)                                           ; $CEA8: 41 41
-  EOR ($41,X)                                           ; $CEAA: 41 41
-  EOR ($41,X)                                           ; $CEAC: 41 41
-  EOR ($41,X)                                           ; $CEAE: 41 41
-  RTI                                                   ; $CEB0: 40
-  RTI                                                   ; $CEB1: 40
-  RTI                                                   ; $CEB2: 40
-  EOR ($41,X)                                           ; $CEB3: 41 41
-  .byte $42                                             ; $CEB5: 42
-L_CEB6:
-  .byte $43, $44                                        ; $CEB6: 43 44
-  EOR ($41,X)                                           ; $CEB8: 41 41
-L_CEBA:
-  RTI                                                   ; $CEBA: 40
-  RTI                                                   ; $CEBB: 40
-  RTI                                                   ; $CEBC: 40
-  EOR ($41,X)                                           ; $CEBD: 41 41
-  EOR $46                                               ; $CEBF: 45 46
-  .byte $47                                             ; $CEC1: 47
-  EOR ($41,X)                                           ; $CEC2: 41 41
-  RTI                                                   ; $CEC4: 40
-  RTI                                                   ; $CEC5: 40
-  RTI                                                   ; $CEC6: 40
-  PHA                                                   ; $CEC7: 48
-  EOR #$40                                              ; $CEC8: 49 40
-  LSR                                                   ; $CECA: 4A
-  .byte $4B, $41 ; $CECB: 4B 41
-  JMP $404D                                             ; $CECD: 4C 4D 40
-  RTI                                                   ; $CED0: 40
-  LSR $504F                                             ; $CED1: 4E 4F 50
-  EOR ($52),Y                                           ; $CED4: 51 52
-  .byte $53, $54                                        ; $CED6: 53 54
-  EOR $56,X                                             ; $CED8: 55 56
-  .byte $57                                             ; $CEDA: 57
-  CLI                                                   ; $CEDB: 58
-  EOR $5B5A,Y                                           ; $CEDC: 59 5A 5B
-  .byte $5C                                             ; $CEDF: 5C
-  EOR $5F5E,X                                           ; $CEE0: 5D 5E 5F
-  RTS                                                   ; $CEE3: 60
-
-;===============================================================================
-; $CEE4: WarParamSetup
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $66, $67               ; $CEE4: 61 62 63 64 65 66 67
-  PLA                                                   ; $CEEB: 68
-  ADC #$6A                                              ; $CEEC: 69 6A
-  .byte $6B, $6C ; $CEEE: 6B 6C
-  ADC $6F6E                                             ; $CEF0: 6D 6E 6F
-  BVS L_CF66                                            ; $CEF3: 70 71
-  .byte $72, $73, $74                                   ; $CEF5: 72 73 74
-  ADC $76,X                                             ; $CEF8: 75 76
-  .byte $77                                             ; $CEFA: 77
-  SEI                                                   ; $CEFB: 78
-  ADC $7B7A,Y                                           ; $CEFC: 79 7A 7B
-  EOR ($7C,X)                                           ; $CEFF: 41 7C
-  ADC $7F7E,X                                           ; $CF01: 7D 7E 7F
-  AND $3B3A,Y                                           ; $CF04: 39 3A 3B
-  .byte $3C                                             ; $CF07: 3C
-  AND $00B8,X                                           ; $CF08: 3D B8 00
-  BPL L_CF43                                            ; $CF0B: 10 36
-  .byte $17                                             ; $CF0D: 17
-  BPL L_CF46                                            ; $CF0E: 10 36
-  .byte $17                                             ; $CF10: 17
-  RTI                                                   ; $CF11: 40
-  RTI                                                   ; $CF12: 40
-  RTI                                                   ; $CF13: 40
-  RTI                                                   ; $CF14: 40
-  RTI                                                   ; $CF15: 40
-  RTI                                                   ; $CF16: 40
-  RTI                                                   ; $CF17: 40
-  RTI                                                   ; $CF18: 40
-  RTI                                                   ; $CF19: 40
-  RTI                                                   ; $CF1A: 40
-  RTI                                                   ; $CF1B: 40
-  RTI                                                   ; $CF1C: 40
-  RTI                                                   ; $CF1D: 40
-  RTI                                                   ; $CF1E: 40
-  RTI                                                   ; $CF1F: 40
-  RTI                                                   ; $CF20: 40
-  .byte $42, $43                                        ; $CF21: 42 43
-  RTI                                                   ; $CF23: 40
-  RTI                                                   ; $CF24: 40
-  RTI                                                   ; $CF25: 40
-  .byte $44                                             ; $CF26: 44
-  RTI                                                   ; $CF27: 40
-  RTI                                                   ; $CF28: 40
-  RTI                                                   ; $CF29: 40
-  RTI                                                   ; $CF2A: 40
-  EOR $46                                               ; $CF2B: 45 46
-  .byte $47                                             ; $CF2D: 47
-  PHA                                                   ; $CF2E: 48
-  BRK                                                   ; $CF2F: 00
-  EOR #$4A                                              ; $CF30: 49 4A
-  BRK                                                   ; $CF32: 00
-  BRK                                                   ; $CF33: 00
-  BRK                                                   ; $CF34: 00
-  .byte $4B, $4C ; $CF35: 4B 4C
-  BRK                                                   ; $CF37: 00
-  EOR $4E00                                             ; $CF38: 4D 00 4E
-  BRK                                                   ; $CF3B: 00
-  .byte $4F                                             ; $CF3C: 4F
-  BRK                                                   ; $CF3D: 00
-  BRK                                                   ; $CF3E: 00
-  BRK                                                   ; $CF3F: 00
-  BVC L_CF93                                            ; $CF40: 50 51
-  .byte $52                                             ; $CF42: 52
-L_CF43:
-  BRK                                                   ; $CF43: 00
-  BRK                                                   ; $CF44: 00
-  BRK                                                   ; $CF45: 00
-L_CF46:
-  .byte $53, $54                                        ; $CF46: 53 54
-  EOR $56,X                                             ; $CF48: 55 56
-  .byte $57                                             ; $CF4A: 57
-  CLI                                                   ; $CF4B: 58
-  EOR $5B5A,Y                                           ; $CF4C: 59 5A 5B
-  .byte $5C                                             ; $CF4F: 5C
-  EOR $5F5E,X                                           ; $CF50: 5D 5E 5F
-  RTS                                                   ; $CF53: 60
-
-;===============================================================================
-; $CF54: SpyParamSetup
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $66, $67               ; $CF54: 61 62 63 64 65 66 67
-  PLA                                                   ; $CF5B: 68
-  ADC #$6A                                              ; $CF5C: 69 6A
-  .byte $6B, $6C ; $CF5E: 6B 6C
-  ADC $6F6E                                             ; $CF60: 6D 6E 6F
-  .byte $70, $71 ; $CF63: 70 71
-  .byte $72                                             ; $CF65: 72
-L_CF66:
-  .byte $73, $74                                        ; $CF66: 73 74
-  ADC $76,X                                             ; $CF68: 75 76
-  .byte $77                                             ; $CF6A: 77
-  EOR ($41,X)                                           ; $CF6B: 41 41
-  SEI                                                   ; $CF6D: 78
-  ADC $7B7A,Y                                           ; $CF6E: 79 7A 7B
-  EOR ($7C,X)                                           ; $CF71: 41 7C
-  ADC $C37E,X                                           ; $CF73: 7D 7E C3
-  BRK                                                   ; $CF76: 00
-  AND ($36),Y                                           ; $CF77: 31 36
-  .byte $17                                             ; $CF79: 17
-  AND ($36),Y                                           ; $CF7A: 31 36
-  .byte $17                                             ; $CF7C: 17
-  EOR ($41,X)                                           ; $CF7D: 41 41
-  .byte $42, $43, $44                                   ; $CF7F: 42 43 44
-  RTI                                                   ; $CF82: 40
-  RTI                                                   ; $CF83: 40
-  RTI                                                   ; $CF84: 40
-  RTI                                                   ; $CF85: 40
-  EOR ($41,X)                                           ; $CF86: 41 41
-  EOR ($45,X)                                           ; $CF88: 41 45
-  LSR $40                                               ; $CF8A: 46 40
-  RTI                                                   ; $CF8C: 40
-  RTI                                                   ; $CF8D: 40
-  RTI                                                   ; $CF8E: 40
-  RTI                                                   ; $CF8F: 40
-  EOR ($41,X)                                           ; $CF90: 41 41
-  .byte $47                                             ; $CF92: 47
-L_CF93:
-  PHA                                                   ; $CF93: 48
-  EOR #$40                                              ; $CF94: 49 40
-  RTI                                                   ; $CF96: 40
-  RTI                                                   ; $CF97: 40
-  RTI                                                   ; $CF98: 40
-  RTI                                                   ; $CF99: 40
-  EOR ($4A,X)                                           ; $CF9A: 41 4A
-  .byte $4B, $4C ; $CF9C: 4B 4C
-  EOR $4040                                             ; $CF9E: 4D 40 40
-  RTI                                                   ; $CFA1: 40
-  RTI                                                   ; $CFA2: 40
-  RTI                                                   ; $CFA3: 40
-  EOR ($4E,X)                                           ; $CFA4: 41 4E
-  .byte $4F                                             ; $CFA6: 4F
-  BVC L_CFFA                                            ; $CFA7: 50 51
-  .byte $52                                             ; $CFA9: 52
-  RTI                                                   ; $CFAA: 40
-  RTI                                                   ; $CFAB: 40
-  RTI                                                   ; $CFAC: 40
-  RTI                                                   ; $CFAD: 40
-L_CFAE:
-  EOR ($53,X)                                           ; $CFAE: 41 53
-  EOR ($54,X)                                           ; $CFB0: 41 54
-  EOR $56,X                                             ; $CFB2: 55 56
-  .byte $57                                             ; $CFB4: 57
-  CLI                                                   ; $CFB5: 58
-  RTI                                                   ; $CFB6: 40
-  RTI                                                   ; $CFB7: 40
-  EOR ($41,X)                                           ; $CFB8: 41 41
-  EOR ($59,X)                                           ; $CFBA: 41 59
-  NOP                                                   ; $CFBC: 5A
-  .byte $5B, $5C                                        ; $CFBD: 5B 5C
-  EOR $415E,X                                           ; $CFBF: 5D 5E 41
-  EOR ($41,X)                                           ; $CFC2: 41 41
-  EOR ($5F,X)                                           ; $CFC4: 41 5F
-  RTS                                                   ; $CFC6: 60
-
-;===============================================================================
-; $CFC7: TradeParamSetup
-;===============================================================================
-  .byte $61, $62                                        ; $CFC7: 61 62
-  RTI                                                   ; $CFC9: 40
-  .byte $63                                             ; $CFCA: 63
-  EOR ($41,X)                                           ; $CFCB: 41 41
-  EOR ($41,X)                                           ; $CFCD: 41 41
-  EOR ($64,X)                                           ; $CFCF: 41 64
-  ADC $66                                               ; $CFD1: 65 66
-  .byte $67                                             ; $CFD3: 67
-  PLA                                                   ; $CFD4: 68
-  ADC #$41                                              ; $CFD5: 69 41
-  EOR ($41,X)                                           ; $CFD7: 41 41
-  EOR ($6A,X)                                           ; $CFD9: 41 6A
-  .byte $6B, $6C ; $CFDB: 6B 6C
-  ADC $6F6E                                             ; $CFDD: 6D 6E 6F
-  BVS L_CFAE                                            ; $CFE0: 70 CC
-  BRK                                                   ; $CFE2: 00
-  BMI L_D006                                            ; $CFE3: 30 21
-  .byte $27                                             ; $CFE5: 27
-  ASL $09,X                                             ; $CFE6: 16 09
-  ROL $40,X                                             ; $CFE8: 36 40
-  RTI                                                   ; $CFEA: 40
-  RTI                                                   ; $CFEB: 40
-  EOR ($42,X)                                           ; $CFEC: 41 42
-  .byte $43                                             ; $CFEE: 43
-  RTI                                                   ; $CFEF: 40
-  RTI                                                   ; $CFF0: 40
-  .byte $44                                             ; $CFF1: 44
-  EOR $46                                               ; $CFF2: 45 46
-  LSR $46                                               ; $CFF4: 46 46
-  LSR $46                                               ; $CFF6: 46 46
-  LSR $46                                               ; $CFF8: 46 46
-L_CFFA:
-  LSR $47                                               ; $CFFA: 46 47
-  PHA                                                   ; $CFFC: 48
-  EOR #$4A                                              ; $CFFD: 49 4A
-  .byte $4B, $4C ; $CFFF: 4B 4C
-  EOR $4F4E                                             ; $D001: 4D 4E 4F
-  RTI                                                   ; $D004: 40
-  .byte $62                                             ; $D005: 62
-L_D006:
-  RTI                                                   ; $D006: 40
-  .byte $50, $51 ; $D007: 50 51
-  .byte $52, $53, $54, $62                              ; $D009: 52 53 54 62
-  RTI                                                   ; $D00D: 40
-  EOR $56,X                                             ; $D00E: 55 56
-  RTI                                                   ; $D010: 40
-  .byte $57                                             ; $D011: 57
-  CLI                                                   ; $D012: 58
-  EOR $625A,Y                                           ; $D013: 59 5A 62
-  RTI                                                   ; $D016: 40
-  .byte $5B                                             ; $D017: 5B
-  RTI                                                   ; $D018: 40
-  .byte $5C                                             ; $D019: 5C
-  EOR $5F5E,X                                           ; $D01A: 5D 5E 5F
-  .byte $62                                             ; $D01D: 62
-  RTI                                                   ; $D01E: 40
-  RTS                                                   ; $D01F: 60
-
-;===============================================================================
-; $D020: SearchParamSetup
-;===============================================================================
-  RTI                                                   ; $D020: 40
-  ADC ($62,X)                                           ; $D021: 61 62
-  RTI                                                   ; $D023: 40
-  .byte $63, $64                                        ; $D024: 63 64
-  ADC $66                                               ; $D026: 65 66
-  ROR                                                   ; $D028: 6A
-  .byte $67                                             ; $D029: 67
-  PLA                                                   ; $D02A: 68
-  ADC #$40                                              ; $D02B: 69 40
-  RTI                                                   ; $D02D: 40
-  ROR                                                   ; $D02E: 6A
-  .byte $6B, $6C ; $D02F: 6B 6C
-  ADC $6F6E                                             ; $D031: 6D 6E 6F
-  .byte $70, $71 ; $D034: 70 71
-  ROR                                                   ; $D036: 6A
-  .byte $72, $72, $73, $74                              ; $D037: 72 72 73 74
-  ADC $76,X                                             ; $D03B: 75 76
-  .byte $77                                             ; $D03D: 77
-  SEI                                                   ; $D03E: 78
-  .byte $62                                             ; $D03F: 62
-  ADC $7A7A,Y                                           ; $D040: 79 7A 7A
-  .byte $7B, $7C                                        ; $D043: 7B 7C
-  ROR $626E                                             ; $D045: 6E 6E 62
-  RTI                                                   ; $D048: 40
-  RTI                                                   ; $D049: 40
-  ADC $7F7E,X                                           ; $D04A: 7D 7E 7F
-  LDX $B7,Y                                             ; $D04D: B6 B7
-  BMI L_D087                                            ; $D04F: 30 36
-  .byte $17                                             ; $D051: 17
-  BMI L_D08A                                            ; $D052: 30 36
-  .byte $17                                             ; $D054: 17
-  EOR ($42,X)                                           ; $D055: 41 42
-  .byte $43, $44                                        ; $D057: 43 44
-  EOR ($41,X)                                           ; $D059: 41 41
-  EOR $46                                               ; $D05B: 45 46
-  .byte $47                                             ; $D05D: 47
-  PHA                                                   ; $D05E: 48
-  EOR ($49,X)                                           ; $D05F: 41 49
-  LSR                                                   ; $D061: 4A
-  .byte $4B, $41 ; $D062: 4B 41
-  EOR ($4C,X)                                           ; $D064: 41 4C
-  EOR $4F4E                                             ; $D066: 4D 4E 4F
-  EOR ($50,X)                                           ; $D069: 41 50
-  EOR ($52),Y                                           ; $D06B: 51 52
-  EOR ($41,X)                                           ; $D06D: 41 41
-  .byte $53, $54                                        ; $D06F: 53 54
-  EOR $56,X                                             ; $D071: 55 56
-  .byte $57                                             ; $D073: 57
-  CLI                                                   ; $D074: 58
-  EOR $5B5A,Y                                           ; $D075: 59 5A 5B
-  .byte $5C                                             ; $D078: 5C
-  EOR $5F5E,X                                           ; $D079: 5D 5E 5F
-  RTS                                                   ; $D07C: 60
-
-;===============================================================================
-; $D07D: ItemParamSetup
-;===============================================================================
-  .byte $61, $62, $63, $64, $65                         ; $D07D: 61 62 63 64 65
-  RTI                                                   ; $D082: 40
-  RTI                                                   ; $D083: 40
-  RTI                                                   ; $D084: 40
-  ROR $67                                               ; $D085: 66 67
-L_D087:
-  PLA                                                   ; $D087: 68
-  ADC #$6A                                              ; $D088: 69 6A
-L_D08A:
-  .byte $6B, $6C ; $D08A: 6B 6C
-  RTI                                                   ; $D08C: 40
-  RTI                                                   ; $D08D: 40
-  RTI                                                   ; $D08E: 40
-  ADC $6F6E                                             ; $D08F: 6D 6E 6F
-  BVS L_D105                                            ; $D092: 70 71
-  .byte $72                                             ; $D094: 72
-  RTI                                                   ; $D095: 40
-  RTI                                                   ; $D096: 40
-  RTI                                                   ; $D097: 40
-  RTI                                                   ; $D098: 40
-  EOR ($73,X)                                           ; $D099: 41 73
-  .byte $74                                             ; $D09B: 74
-  ADC $76,X                                             ; $D09C: 75 76
-  RTI                                                   ; $D09E: 40
-  RTI                                                   ; $D09F: 40
-  RTI                                                   ; $D0A0: 40
-  RTI                                                   ; $D0A1: 40
-  RTI                                                   ; $D0A2: 40
-  .byte $77                                             ; $D0A3: 77
-  SEI                                                   ; $D0A4: 78
-  ADC $7B7A,Y                                           ; $D0A5: 79 7A 7B
-  RTI                                                   ; $D0A8: 40
-  RTI                                                   ; $D0A9: 40
-  .byte $7C                                             ; $D0AA: 7C
-  ADC $417E,X                                           ; $D0AB: 7D 7E 41
-  RTI                                                   ; $D0AE: 40
-  .byte $7F                                             ; $D0AF: 7F
-  BRK                                                   ; $D0B0: 00
-  ORA ($40,X)                                           ; $D0B1: 01 40
-  RTI                                                   ; $D0B3: 40
-  .byte $02                                             ; $D0B4: 02
-  EOR ($41,X)                                           ; $D0B5: 41 41
-  EOR ($40,X)                                           ; $D0B7: 41 40
-  INY                                                   ; $D0B9: C8
-  BRK                                                   ; $D0BA: 00
-  ASL $36,X                                             ; $D0BB: 16 36
-  .byte $17                                             ; $D0BD: 17
-  ASL $36,X                                             ; $D0BE: 16 36
-  .byte $17                                             ; $D0C0: 17
-  RTI                                                   ; $D0C1: 40
-  RTI                                                   ; $D0C2: 40
-  RTI                                                   ; $D0C3: 40
-  EOR ($41,X)                                           ; $D0C4: 41 41
-  EOR ($41,X)                                           ; $D0C6: 41 41
-  EOR ($42,X)                                           ; $D0C8: 41 42
-  .byte $43                                             ; $D0CA: 43
-  EOR ($40,X)                                           ; $D0CB: 41 40
-  RTI                                                   ; $D0CD: 40
-  EOR ($41,X)                                           ; $D0CE: 41 41
-  .byte $44                                             ; $D0D0: 44
-  EOR $46                                               ; $D0D1: 45 46
-  EOR ($41,X)                                           ; $D0D3: 41 41
-  .byte $47                                             ; $D0D5: 47
-  PHA                                                   ; $D0D6: 48
-  RTI                                                   ; $D0D7: 40
-  RTI                                                   ; $D0D8: 40
-  EOR #$4A                                              ; $D0D9: 49 4A
-  .byte $4B, $4C ; $D0DB: 4B 4C
-  EOR $4141                                             ; $D0DD: 4D 41 41
-  LSR $404F                                             ; $D0E0: 4E 4F 40
-  RTI                                                   ; $D0E3: 40
-  BVC L_D137                                            ; $D0E4: 50 51
-  .byte $52, $53, $54                                   ; $D0E6: 52 53 54
-  EOR $56,X                                             ; $D0E9: 55 56
-  .byte $57                                             ; $D0EB: 57
-  EOR ($40,X)                                           ; $D0EC: 41 40
-  CLI                                                   ; $D0EE: 58
-  EOR $5B5A,Y                                           ; $D0EF: 59 5A 5B
-
-;===============================================================================
-; $D0F2: OfficerParamDispatch
-;===============================================================================
-  EOR ($5C,X)                                           ; $D0F2: 41 5C
-  EOR $5F5E,X                                           ; $D0F4: 5D 5E 5F
-  RTS                                                   ; $D0F7: 60
-  .byte $61, $62, $63, $64, $41, $65, $66, $67          ; $D0F8: 61 62 63 64 41 65 66 67
-  PLA                                                   ; $D100: 68
-  ADC #$6A                                              ; $D101: 69 6A
-  .byte $6B, $6C ; $D103: 6B 6C
-L_D105:
-  ADC $6F6E                                             ; $D105: 6D 6E 6F
-  .byte $70, $71 ; $D108: 70 71
-  .byte $72, $73, $74                                   ; $D10A: 72 73 74
-  ADC $76,X                                             ; $D10D: 75 76
-  .byte $77                                             ; $D10F: 77
-  SEI                                                   ; $D110: 78
-  EOR ($40,X)                                           ; $D111: 41 40
-  ADC $4040,Y                                           ; $D113: 79 40 40
-  NOP                                                   ; $D116: 7A
-  RTI                                                   ; $D117: 40
-  RTI                                                   ; $D118: 40
-  RTI                                                   ; $D119: 40
-  .byte $7B                                             ; $D11A: 7B
-  EOR ($40,X)                                           ; $D11B: 41 40
-  .byte $7C                                             ; $D11D: 7C
-  ADC $7F7E,X                                           ; $D11E: 7D 7E 7F
-  RTI                                                   ; $D121: 40
-  RTI                                                   ; $D122: 40
-  RTI                                                   ; $D123: 40
-  RTI                                                   ; $D124: 40
-  .byte $D2                                             ; $D125: D2
-  BRK                                                   ; $D126: 00
-  ROL                                                   ; $D127: 2A
-  AND ($16,X)                                           ; $D128: 21 16
-  .byte $30, $25 ; $D12A: 30 25
-  .byte $27                                             ; $D12C: 27
-  RTI                                                   ; $D12D: 40
-  RTI                                                   ; $D12E: 40
-  RTI                                                   ; $D12F: 40
-  RTI                                                   ; $D130: 40
-  RTI                                                   ; $D131: 40
-  RTI                                                   ; $D132: 40
-  RTI                                                   ; $D133: 40
-  RTI                                                   ; $D134: 40
-  RTI                                                   ; $D135: 40
-  RTI                                                   ; $D136: 40
-L_D137:
-  RTI                                                   ; $D137: 40
-  RTI                                                   ; $D138: 40
-  RTI                                                   ; $D139: 40
-  RTI                                                   ; $D13A: 40
-  RTI                                                   ; $D13B: 40
-  RTI                                                   ; $D13C: 40
-  RTI                                                   ; $D13D: 40
-  RTI                                                   ; $D13E: 40
-  .byte $42, $43, $44                                   ; $D13F: 42 43 44
-  EOR $46                                               ; $D142: 45 46
-  .byte $47                                             ; $D144: 47
-  LSR $47                                               ; $D145: 46 47
-  PHA                                                   ; $D147: 48
-  EOR #$4A                                              ; $D148: 49 4A
-  .byte $4B, $4C ; $D14A: 4B 4C
-  EOR $4E41                                             ; $D14C: 4D 41 4E
-  .byte $4F                                             ; $D14F: 4F
-  BVC L_D1A3                                            ; $D150: 50 51
-  .byte $52, $53, $54                                   ; $D152: 52 53 54
-  EOR $56,X                                             ; $D155: 55 56
-  .byte $57                                             ; $D157: 57
-  EOR ($41,X)                                           ; $D158: 41 41
-  EOR ($41,X)                                           ; $D15A: 41 41
-  EOR ($58,X)                                           ; $D15C: 41 58
-  EOR $415A,Y                                           ; $D15E: 59 5A 41
-  .byte $5B                                             ; $D161: 5B
-  EOR ($41,X)                                           ; $D162: 41 41
-  EOR $5F5E,X                                           ; $D164: 5D 5E 5F
-  RTS                                                   ; $D167: 60
-
-;===============================================================================
-; $D168: ProvinceParamTable
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $66, $67               ; $D168: 61 62 63 64 65 66 67
-  PLA                                                   ; $D16F: 68
-  EOR ($69,X)                                           ; $D170: 41 69
-  ROR                                                   ; $D172: 6A
-  EOR ($41,X)                                           ; $D173: 41 41
-  .byte $6B, $41 ; $D175: 6B 41
-  EOR ($6C,X)                                           ; $D177: 41 6C
-  ADC $6E6E                                             ; $D179: 6D 6E 6E
-  .byte $70, $71 ; $D17C: 70 71
-  .byte $72, $73, $74                                   ; $D17E: 72 73 74
-  ADC $76,X                                             ; $D181: 75 76
-  EOR ($41,X)                                           ; $D183: 41 41
-  .byte $77                                             ; $D185: 77
-  EOR ($41,X)                                           ; $D186: 41 41
-  SEI                                                   ; $D188: 78
-  ADC $7B7A,Y                                           ; $D189: 79 7A 7B
-  .byte $7C                                             ; $D18C: 7C
-  ADC $7E41,X                                           ; $D18D: 7D 41 7E
-  .byte $7F                                             ; $D190: 7F
-  DEC $1000                                             ; $D191: CE 00 10
-  CLC                                                   ; $D194: 18
-  ROL $10                                               ; $D195: 26 10
-  CLC                                                   ; $D197: 18
-  ROL $41                                               ; $D198: 26 41
-  .byte $42, $43, $44                                   ; $D19A: 42 43 44
-  EOR $46                                               ; $D19D: 45 46
-  .byte $47                                             ; $D19F: 47
-  PHA                                                   ; $D1A0: 48
-  EOR #$4A                                              ; $D1A1: 49 4A
-L_D1A3:
-  .byte $4B, $4C ; $D1A3: 4B 4C
-  .byte $43                                             ; $D1A5: 43
-  EOR $404E                                             ; $D1A6: 4D 4E 40
-  ADC $504F,X                                           ; $D1A9: 7D 4F 50
-  EOR ($41),Y                                           ; $D1AC: 51 41
-  .byte $42, $43, $44                                   ; $D1AE: 42 43 44
-  RTI                                                   ; $D1B1: 40
-  RTI                                                   ; $D1B2: 40
-  RTI                                                   ; $D1B3: 40
-  .byte $4F, $52, $53                                   ; $D1B4: 4F 52 53
-  EOR ($4C,X)                                           ; $D1B7: 41 4C
-  .byte $43                                             ; $D1B9: 43
-  EOR $4040                                             ; $D1BA: 4D 40 40
-  RTI                                                   ; $D1BD: 40
-  .byte $54                                             ; $D1BE: 54
-  EOR $56,X                                             ; $D1BF: 55 56
-  EOR ($42,X)                                           ; $D1C1: 41 42
-  CLI                                                   ; $D1C3: 58
-  EOR $4040,Y                                           ; $D1C4: 59 40 40
-  RTI                                                   ; $D1C7: 40
-  NOP                                                   ; $D1C8: 5A
-  .byte $5B                                             ; $D1C9: 5B
-  LSR                                                   ; $D1CA: 4A
-  .byte $5C                                             ; $D1CB: 5C
-  EOR $405E,X                                           ; $D1CC: 5D 5E 40
-  RTI                                                   ; $D1CF: 40
-  RTI                                                   ; $D1D0: 40
-  RTI                                                   ; $D1D1: 40
-  .byte $5F                                             ; $D1D2: 5F
-  RTS                                                   ; $D1D3: 60
-
-;===============================================================================
-; $D1D4: BattleParamTable
-;===============================================================================
-  .byte $56, $61, $62, $63, $64                         ; $D1D4: 56 61 62 63 64
-  RTI                                                   ; $D1D9: 40
-  RTI                                                   ; $D1DA: 40
-  ADC $66                                               ; $D1DB: 65 66
-  .byte $67                                             ; $D1DD: 67
-  LSR                                                   ; $D1DE: 4A
-  RTI                                                   ; $D1DF: 40
-  RTI                                                   ; $D1E0: 40
-  RTI                                                   ; $D1E1: 40
-  RTI                                                   ; $D1E2: 40
-  RTI                                                   ; $D1E3: 40
-  PLA                                                   ; $D1E4: 68
-  ADC #$6A                                              ; $D1E5: 69 6A
-  .byte $6B, $6C ; $D1E7: 6B 6C
-  ADC $6F6E                                             ; $D1E9: 6D 6E 6F
-  BVS L_D22E                                            ; $D1EC: 70 40
-  ADC ($72),Y                                           ; $D1EE: 71 72
-  .byte $73, $74                                        ; $D1F0: 73 74
-  ADC $76,X                                             ; $D1F2: 75 76
-  .byte $77                                             ; $D1F4: 77
-  SEI                                                   ; $D1F5: 78
-  ADC $4040,Y                                           ; $D1F6: 79 40 40
-  RTI                                                   ; $D1F9: 40
-  NOP                                                   ; $D1FA: 7A
-  .byte $7B, $7C                                        ; $D1FB: 7B 7C
-  CMP $3000                                             ; $D1FD: CD 00 30
-  .byte $17                                             ; $D200: 17
-  ROL $30,X                                             ; $D201: 36 30
-  .byte $17                                             ; $D203: 17
-  ROL $40,X                                             ; $D204: 36 40
-  EOR ($03,X)                                           ; $D206: 41 03
-  .byte $03, $03, $03, $03, $03, $03, $03               ; $D208: 03 03 03 03 03 03 03
-  BRK                                                   ; $D20F: 00
-  .byte $42, $03, $03, $03                              ; $D210: 42 03 03 03
-  BRK                                                   ; $D214: 00
-  BRK                                                   ; $D215: 00
-  BRK                                                   ; $D216: 00
-  .byte $03, $03, $43, $44, $03, $03, $03               ; $D217: 03 03 43 44 03 03 03
-  BRK                                                   ; $D21E: 00
-  BRK                                                   ; $D21F: 00
-  BRK                                                   ; $D220: 00
-  .byte $03, $03                                        ; $D221: 03 03
-  EOR $46                                               ; $D223: 45 46
-  .byte $03, $03                                        ; $D225: 03 03
-  BRK                                                   ; $D227: 00
-  BRK                                                   ; $D228: 00
-  BRK                                                   ; $D229: 00
-  BRK                                                   ; $D22A: 00
-  BRK                                                   ; $D22B: 00
-  .byte $03, $47                                        ; $D22C: 03 47
-L_D22E:
-  PHA                                                   ; $D22E: 48
-  EOR #$03                                              ; $D22F: 49 03
-  BRK                                                   ; $D231: 00
-  BRK                                                   ; $D232: 00
-  BRK                                                   ; $D233: 00
-  BRK                                                   ; $D234: 00
-  BRK                                                   ; $D235: 00
-  .byte $4B, $00 ; $D236: 4B 00
-  BRK                                                   ; $D238: 00
-  JMP $4E4D                                             ; $D239: 4C 4D 4E
-  LSR                                                   ; $D23C: 4A
-  BRK                                                   ; $D23D: 00
-  .byte $02, $02, $4F                                   ; $D23E: 02 02 4F
-  BRK                                                   ; $D241: 00
-  BRK                                                   ; $D242: 00
-  JMP $5150                                             ; $D243: 4C 50 51
-  .byte $52, $53, $02, $54                              ; $D246: 52 53 02 54
-  EOR $00,X                                             ; $D24A: 55 00
-  BRK                                                   ; $D24C: 00
-  JMP $5756                                             ; $D24D: 4C 56 57
-  CLI                                                   ; $D250: 58
-  EOR $5402,Y                                           ; $D251: 59 02 54
-  EOR $00,X                                             ; $D254: 55 00
-  BRK                                                   ; $D256: 00
-  JMP $0000                                             ; $D257: 4C 00 00
-  BRK                                                   ; $D25A: 00
-  .byte $5B, $5C                                        ; $D25B: 5B 5C
-  EOR $005E,X                                           ; $D25D: 5D 5E 00
-  BRK                                                   ; $D260: 00
-  JMP $0000                                             ; $D261: 4C 00 00
-  BRK                                                   ; $D264: 00
-  BRK                                                   ; $D265: 00
-  BRK                                                   ; $D266: 00
-  .byte $5F, $02                                        ; $D267: 5F 02
-  CMP $3000,Y                                           ; $D269: D9 00 30
-  ROL $17,X                                             ; $D26C: 36 17
-  BMI L_D2A6                                            ; $D26E: 30 36
-  .byte $17                                             ; $D270: 17
-  EOR ($41,X)                                           ; $D271: 41 41
-  EOR ($41,X)                                           ; $D273: 41 41
-  EOR ($41,X)                                           ; $D275: 41 41
-  EOR ($41,X)                                           ; $D277: 41 41
-  EOR ($41,X)                                           ; $D279: 41 41
-  EOR ($41,X)                                           ; $D27B: 41 41
-  EOR ($41,X)                                           ; $D27D: 41 41
-  EOR ($40,X)                                           ; $D27F: 41 40
-  RTI                                                   ; $D281: 40
-  RTI                                                   ; $D282: 40
-  EOR ($41,X)                                           ; $D283: 41 41
-  .byte $42, $43, $44                                   ; $D285: 42 43 44
-  EOR ($41,X)                                           ; $D288: 41 41
-  RTI                                                   ; $D28A: 40
-  RTI                                                   ; $D28B: 40
-  RTI                                                   ; $D28C: 40
-  EOR ($41,X)                                           ; $D28D: 41 41
-  EOR $46                                               ; $D28F: 45 46
-  .byte $47                                             ; $D291: 47
-  EOR ($41,X)                                           ; $D292: 41 41
-  RTI                                                   ; $D294: 40
-  RTI                                                   ; $D295: 40
-  RTI                                                   ; $D296: 40
-  PHA                                                   ; $D297: 48
-  EOR ($49,X)                                           ; $D298: 41 49
-  LSR                                                   ; $D29A: 4A
-  .byte $4B, $41 ; $D29B: 4B 41
-  EOR ($40,X)                                           ; $D29D: 41 40
-  RTI                                                   ; $D29F: 40
-  RTI                                                   ; $D2A0: 40
-  JMP $4E4D                                             ; $D2A1: 4C 4D 4E
-  RTI                                                   ; $D2A4: 40
-  RTI                                                   ; $D2A5: 40
-L_D2A6:
-  .byte $4F                                             ; $D2A6: 4F
-  EOR ($50,X)                                           ; $D2A7: 41 50
-  EOR ($52),Y                                           ; $D2A9: 51 52
-  .byte $53, $54                                        ; $D2AB: 53 54
-  EOR $56,X                                             ; $D2AD: 55 56
-  .byte $57                                             ; $D2AF: 57
-  CLI                                                   ; $D2B0: 58
-  EOR $5B5A,Y                                           ; $D2B1: 59 5A 5B
-  .byte $5C                                             ; $D2B4: 5C
-  EOR $5F5E,X                                           ; $D2B5: 5D 5E 5F
-  RTS                                                   ; $D2B8: 60
-
-;===============================================================================
-; $D2B9: ActionLookupData
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $66, $67               ; $D2B9: 61 62 63 64 65 66 67
-  PLA                                                   ; $D2C0: 68
-  ADC #$6A                                              ; $D2C1: 69 6A
-  .byte $6B, $6C ; $D2C3: 6B 6C
-  ADC $6F6E                                             ; $D2C5: 6D 6E 6F
-  BVS L_D33B                                            ; $D2C8: 70 71
-  .byte $72, $73, $74                                   ; $D2CA: 72 73 74
-  ADC $76,X                                             ; $D2CD: 75 76
-  .byte $77                                             ; $D2CF: 77
-  SEI                                                   ; $D2D0: 78
-  ADC $7B7A,Y                                           ; $D2D1: 79 7A 7B
-  .byte $7C, $DC                                        ; $D2D4: 7C DC
-  BRK                                                   ; $D2D6: 00
-  AND ($21),Y                                           ; $D2D7: 31 21
-  ORA ($30),Y                                           ; $D2D9: 11 30
-  ROL $18,X                                             ; $D2DB: 36 18
-  LSR $57,X                                             ; $D2DD: 56 57
-  CLI                                                   ; $D2DF: 58
-  EOR $5957,Y                                           ; $D2E0: 59 57 59
-  LSR $57,X                                             ; $D2E3: 56 57
-  CLI                                                   ; $D2E5: 58
-  EOR $5B5A,Y                                           ; $D2E6: 59 5A 5B
-  .byte $5C                                             ; $D2E9: 5C
-  EOR $5D5B,X                                           ; $D2EA: 5D 5B 5D
-  NOP                                                   ; $D2ED: 5A
-  .byte $5B, $5C                                        ; $D2EE: 5B 5C
-  EOR $5F5E,X                                           ; $D2F0: 5D 5E 5F
-  RTS                                                   ; $D2F3: 60
-
-;===============================================================================
-; $D2F4: StringLookupData
-;===============================================================================
-  .byte $61, $5F, $61, $5E, $5F                         ; $D2F4: 61 5F 61 5E 5F
-  RTS                                                   ; $D2F9: 60
-  .byte $61, $62, $62, $62, $62, $62, $62, $62, $62, $62, $62, $63, $63, $63, $63, $63 ; $D2FA: 61 62 62 62 62 62 62 62 62 62 62 63 63 63 63 63
-  .byte $63, $63, $63, $63, $63, $64, $64, $64, $64, $64, $64, $64, $64, $64, $64, $65 ; $D30A: 63 63 63 63 63 64 64 64 64 64 64 64 64 64 64 65
-  .byte $65, $65, $65, $65, $65, $65, $65, $65, $65, $66, $66, $66, $66, $66, $66, $66 ; $D31A: 65 65 65 65 65 65 65 65 65 66 66 66 66 66 66 66
-  .byte $66, $66, $66, $67                              ; $D32A: 66 66 66 67
-  PLA                                                   ; $D32E: 68
-  .byte $67                                             ; $D32F: 67
-  PLA                                                   ; $D330: 68
-  .byte $67                                             ; $D331: 67
-  PLA                                                   ; $D332: 68
-  .byte $67                                             ; $D333: 67
-  PLA                                                   ; $D334: 68
-  .byte $67                                             ; $D335: 67
-  PLA                                                   ; $D336: 68
-  ADC #$6A                                              ; $D337: 69 6A
-  ADC #$6A                                              ; $D339: 69 6A
-L_D33B:
-  ADC #$6A                                              ; $D33B: 69 6A
-  ADC #$6A                                              ; $D33D: 69 6A
-  ADC #$6A                                              ; $D33F: 69 6A
-  .byte $D4                                             ; $D341: D4
-  CMP $31,X                                             ; $D342: D5 31
-  ROL $17,X                                             ; $D344: 36 17
-  AND ($36),Y                                           ; $D346: 31 36
-  .byte $17, $42                                        ; $D348: 17 42
-  RTI                                                   ; $D34A: 40
-  .byte $43, $44                                        ; $D34B: 43 44
-  EOR ($41,X)                                           ; $D34D: 41 41
-  EOR $46                                               ; $D34F: 45 46
-  .byte $47                                             ; $D351: 47
-  PHA                                                   ; $D352: 48
-  RTI                                                   ; $D353: 40
-  RTI                                                   ; $D354: 40
-  RTI                                                   ; $D355: 40
-  EOR #$4A                                              ; $D356: 49 4A
-  EOR ($4B,X)                                           ; $D358: 41 4B
-  JMP $4C4C                                             ; $D35A: 4C 4C 4C
-  RTI                                                   ; $D35D: 40
-  EOR $4F4E                                             ; $D35E: 4D 4E 4F
-  .byte $50, $41 ; $D361: 50 41
-  EOR ($41,X)                                           ; $D363: 41 41
-  EOR ($41,X)                                           ; $D365: 41 41
-  EOR ($40),Y                                           ; $D367: 51 40
-  RTI                                                   ; $D369: 40
-  RTI                                                   ; $D36A: 40
-  .byte $52, $53                                        ; $D36B: 52 53
-  EOR ($00,X)                                           ; $D36D: 41 00
-  BRK                                                   ; $D36F: 00
-  BRK                                                   ; $D370: 00
-  .byte $54                                             ; $D371: 54
-  EOR $40,X                                             ; $D372: 55 40
-  LSR $57,X                                             ; $D374: 56 57
-  CLI                                                   ; $D376: 58
-  BRK                                                   ; $D377: 00
-  BRK                                                   ; $D378: 00
-  BRK                                                   ; $D379: 00
-  BRK                                                   ; $D37A: 00
-  RTI                                                   ; $D37B: 40
-  EOR $4040,Y                                           ; $D37C: 59 40 40
-  NOP                                                   ; $D37F: 5A
-  .byte $5B                                             ; $D380: 5B
-  BRK                                                   ; $D381: 00
-  BRK                                                   ; $D382: 00
-  BRK                                                   ; $D383: 00
-  BRK                                                   ; $D384: 00
-  .byte $5C                                             ; $D385: 5C
-  EOR $5F5E,X                                           ; $D386: 5D 5E 5F
-  RTS                                                   ; $D389: 60
-
-;===============================================================================
-; $D38A: OfficerNameLookup
-;===============================================================================
-  .byte $61                                             ; $D38A: 61
-  BRK                                                   ; $D38B: 00
-  BRK                                                   ; $D38C: 00
-  BRK                                                   ; $D38D: 00
-  BRK                                                   ; $D38E: 00
-  .byte $62, $63                                        ; $D38F: 62 63
-  EOR ($41,X)                                           ; $D391: 41 41
-  .byte $64                                             ; $D393: 64
-  ADC $66                                               ; $D394: 65 66
-  BRK                                                   ; $D396: 00
-  BRK                                                   ; $D397: 00
-  .byte $67                                             ; $D398: 67
-  PLA                                                   ; $D399: 68
-  ADC #$6A                                              ; $D39A: 69 6A
-  .byte $6B, $00 ; $D39C: 6B 00
-  BRK                                                   ; $D39E: 00
-  JMP ($6E6D)                                           ; $D39F: 6C 6D 6E
-  .byte $6F                                             ; $D3A2: 6F
-  .byte $70, $71 ; $D3A3: 70 71
-  .byte $72, $73                                        ; $D3A5: 72 73
-  BRK                                                   ; $D3A7: 00
-  BRK                                                   ; $D3A8: 00
-  BRK                                                   ; $D3A9: 00
-  .byte $74                                             ; $D3AA: 74
-  ADC $76,X                                             ; $D3AB: 75 76
-  .byte $CF                                             ; $D3AD: CF
-  BRK                                                   ; $D3AE: 00
-  BMI L_D3C7                                            ; $D3AF: 30 16
-  .byte $27                                             ; $D3B1: 27
-  BMI L_D3CA                                            ; $D3B2: 30 16
-  .byte $27                                             ; $D3B4: 27
-  EOR ($42,X)                                           ; $D3B5: 41 42
-  .byte $43, $44                                        ; $D3B7: 43 44
-  EOR $46                                               ; $D3B9: 45 46
-  .byte $47                                             ; $D3BB: 47
-  RTI                                                   ; $D3BC: 40
-  RTI                                                   ; $D3BD: 40
-  RTI                                                   ; $D3BE: 40
-  PHA                                                   ; $D3BF: 48
-  EOR #$4A                                              ; $D3C0: 49 4A
-  .byte $4B, $4C ; $D3C2: 4B 4C
-  EOR $404E                                             ; $D3C4: 4D 4E 40
-L_D3C7:
-  RTI                                                   ; $D3C7: 40
-  RTI                                                   ; $D3C8: 40
-  .byte $4F                                             ; $D3C9: 4F
-L_D3CA:
-  BVC L_D41D                                            ; $D3CA: 50 51
-  .byte $52, $53, $54                                   ; $D3CC: 52 53 54
-  EOR $40,X                                             ; $D3CF: 55 40
-  LSR $57,X                                             ; $D3D1: 56 57
-  CLI                                                   ; $D3D3: 58
-  EOR $405A,Y                                           ; $D3D4: 59 5A 40
-  RTI                                                   ; $D3D7: 40
-  RTI                                                   ; $D3D8: 40
-  RTI                                                   ; $D3D9: 40
-  RTI                                                   ; $D3DA: 40
-  .byte $5B, $5C                                        ; $D3DB: 5B 5C
-  CLI                                                   ; $D3DD: 58
-  EOR $5D5A,Y                                           ; $D3DE: 59 5A 5D
-  LSR $605F,X                                           ; $D3E1: 5E 5F 60
-
-;===============================================================================
-; $D3E4: NameLookupTable
-;===============================================================================
-  RTI                                                   ; $D3E4: 40
-  RTI                                                   ; $D3E5: 40
-  RTI                                                   ; $D3E6: 40
-  CLI                                                   ; $D3E7: 58
-  EOR $615A,Y                                           ; $D3E8: 59 5A 61
-  .byte $62, $63, $64                                   ; $D3EB: 62 63 64
-  RTI                                                   ; $D3EE: 40
-  RTI                                                   ; $D3EF: 40
-  RTI                                                   ; $D3F0: 40
-  CLI                                                   ; $D3F1: 58
-  EOR $405A,Y                                           ; $D3F2: 59 5A 40
-  RTI                                                   ; $D3F5: 40
-  ADC $66                                               ; $D3F6: 65 66
-  RTI                                                   ; $D3F8: 40
-  RTI                                                   ; $D3F9: 40
-  RTI                                                   ; $D3FA: 40
-  CLI                                                   ; $D3FB: 58
-  EOR $4067,Y                                           ; $D3FC: 59 67 40
-  RTI                                                   ; $D3FF: 40
-  RTI                                                   ; $D400: 40
-  PLA                                                   ; $D401: 68
-  ADC #$6A                                              ; $D402: 69 6A
-  .byte $6B, $74 ; $D404: 6B 74
-  ADC $40,X                                             ; $D406: 75 40
-  RTI                                                   ; $D408: 40
-  RTI                                                   ; $D409: 40
-  RTI                                                   ; $D40A: 40
-  JMP ($6E6D)                                           ; $D40B: 6C 6D 6E
-  .byte $6F, $74                                        ; $D40E: 6F 74
-  ADC $40,X                                             ; $D410: 75 40
-  RTI                                                   ; $D412: 40
-  RTI                                                   ; $D413: 40
-  RTI                                                   ; $D414: 40
-  .byte $70, $71 ; $D415: 70 71
-  .byte $72, $73                                        ; $D417: 72 73
-  BNE L_D41B                                            ; $D419: D0 00
-L_D41B:
-  ASL $26,X                                             ; $D41B: 16 26
-L_D41D:
-  .byte $17                                             ; $D41D: 17
-  AND $07,X                                             ; $D41E: 35 07
-  ASL $41                                               ; $D420: 06 41
-  EOR ($41,X)                                           ; $D422: 41 41
-  EOR ($41,X)                                           ; $D424: 41 41
-  EOR ($41,X)                                           ; $D426: 41 41
-  EOR ($41,X)                                           ; $D428: 41 41
-  EOR ($41,X)                                           ; $D42A: 41 41
-  EOR ($41,X)                                           ; $D42C: 41 41
-  EOR ($41,X)                                           ; $D42E: 41 41
-  EOR ($41,X)                                           ; $D430: 41 41
-  EOR ($41,X)                                           ; $D432: 41 41
-  EOR ($42,X)                                           ; $D434: 41 42
-  .byte $42, $42, $42, $42, $42, $42, $42, $42, $42, $43, $43, $43, $43, $43, $43, $43 ; $D436: 42 42 42 42 42 42 42 42 42 43 43 43 43 43 43 43
-  .byte $43, $43, $44                                   ; $D446: 43 43 44
-  EOR $46                                               ; $D449: 45 46
-  .byte $47                                             ; $D44B: 47
-  PHA                                                   ; $D44C: 48
-  EOR #$4A                                              ; $D44D: 49 4A
-  .byte $4B, $4C ; $D44F: 4B 4C
-  EOR $554E                                             ; $D451: 4D 4E 55
-  LSR $57,X                                             ; $D454: 56 57
-  CLI                                                   ; $D456: 58
-  EOR $5B5A,Y                                           ; $D457: 59 5A 5B
-  .byte $5C                                             ; $D45A: 5C
-  EOR $505E,X                                           ; $D45B: 5D 5E 50
-  .byte $54, $54, $54, $54, $54, $54, $54, $54, $54, $54, $54 ; $D45E: 54 54 54 54 54 54 54 54 54 54 54
-  EOR ($52),Y                                           ; $D469: 51 52
-  .byte $53, $54, $54, $54, $54, $54, $54, $54, $54, $54, $54, $54, $54, $54, $54, $54 ; $D46B: 53 54 54 54 54 54 54 54 54 54 54 54 54 54 54 54
-  .byte $4F, $5F                                        ; $D47B: 4F 5F
-  RTS                                                   ; $D47D: 60
-
-;===============================================================================
-; $D47E: MiscTable1
-;===============================================================================
-  .byte $54, $54, $54, $54, $54, $54, $54, $D6          ; $D47E: 54 54 54 54 54 54 54 D6
-  BRK                                                   ; $D486: 00
-  .byte $10, $17 ; $D487: 10 17
-  .byte $07                                             ; $D489: 07
-  ROL $17,X                                             ; $D48A: 36 17
-  .byte $07                                             ; $D48C: 07
-  EOR ($42,X)                                           ; $D48D: 41 42
-  .byte $43, $44                                        ; $D48F: 43 44
-  EOR $46                                               ; $D491: 45 46
-  .byte $47                                             ; $D493: 47
-  PHA                                                   ; $D494: 48
-  EOR #$4A                                              ; $D495: 49 4A
-  EOR ($52),Y                                           ; $D497: 51 52
-  .byte $53, $54                                        ; $D499: 53 54
-  EOR $56,X                                             ; $D49B: 55 56
-  .byte $57                                             ; $D49D: 57
-  CLI                                                   ; $D49E: 58
-  EOR $615A,Y                                           ; $D49F: 59 5A 61
-  .byte $62, $63, $64                                   ; $D4A2: 62 63 64
-  ADC $66                                               ; $D4A5: 65 66
-  .byte $67                                             ; $D4A7: 67
-  PLA                                                   ; $D4A8: 68
-  ADC #$6A                                              ; $D4A9: 69 6A
-  SEI                                                   ; $D4AB: 78
-  ADC $7940,Y                                           ; $D4AC: 79 40 79
-  ADC $7A78,Y                                           ; $D4AF: 79 78 7A
-  .byte $4B, $4C ; $D4B2: 4B 4C
-  EOR $4040                                             ; $D4B4: 4D 40 40
-  RTI                                                   ; $D4B7: 40
-  RTI                                                   ; $D4B8: 40
-  RTI                                                   ; $D4B9: 40
-  RTI                                                   ; $D4BA: 40
-  SEI                                                   ; $D4BB: 78
-  .byte $5B, $5C                                        ; $D4BC: 5B 5C
-  EOR $4040,X                                           ; $D4BE: 5D 40 40
-  RTI                                                   ; $D4C1: 40
-  RTI                                                   ; $D4C2: 40
-  RTI                                                   ; $D4C3: 40
-  RTI                                                   ; $D4C4: 40
-  RTS                                                   ; $D4C5: 60
-
-;===============================================================================
-; $D4C6: MiscTable2
-;===============================================================================
-  .byte $6B, $6C, $6D, $75                              ; $D4C6: 6B 6C 6D 75
-L_D4CA:
-  .byte $76, $77                                        ; $D4CA: 76 77
-  RTI                                                   ; $D4CC: 40
-  RTI                                                   ; $D4CD: 40
-  RTI                                                   ; $D4CE: 40
-  RTI                                                   ; $D4CF: 40
-  .byte $7B, $7C                                        ; $D4D0: 7B 7C
-  ADC $4040,X                                           ; $D4D2: 7D 40 40
-  RTI                                                   ; $D4D5: 40
-  RTI                                                   ; $D4D6: 40
-  RTI                                                   ; $D4D7: 40
-  RTI                                                   ; $D4D8: 40
-  RTI                                                   ; $D4D9: 40
-  LSR $6E4F                                             ; $D4DA: 4E 4F 6E
-  BVS L_D550                                            ; $D4DD: 70 71
-  RTI                                                   ; $D4DF: 40
-  RTI                                                   ; $D4E0: 40
-  RTI                                                   ; $D4E1: 40
-  RTI                                                   ; $D4E2: 40
-  RTI                                                   ; $D4E3: 40
-  LSR $7E5F,X                                           ; $D4E4: 5E 5F 7E
-  .byte $72, $73, $74                                   ; $D4E7: 72 73 74
-  RTI                                                   ; $D4EA: 40
-  RTI                                                   ; $D4EB: 40
-  RTI                                                   ; $D4EC: 40
-  .byte $7B, $6F, $7F                                   ; $D4ED: 7B 6F 7F
-  BVC L_D4CA                                            ; $D4F0: 50 D8
-  BRK                                                   ; $D4F2: 00
-  BMI L_D52B                                            ; $D4F3: 30 36
-  ROL $30                                               ; $D4F5: 26 30
-  ROL $26,X                                             ; $D4F7: 36 26
-  BRK                                                   ; $D4F9: 00
-  BRK                                                   ; $D4FA: 00
-  BRK                                                   ; $D4FB: 00
-  BRK                                                   ; $D4FC: 00
-  .byte $02, $02, $02, $02, $02, $02                    ; $D4FD: 02 02 02 02 02 02
-  BRK                                                   ; $D503: 00
-  BRK                                                   ; $D504: 00
-  BRK                                                   ; $D505: 00
-  BRK                                                   ; $D506: 00
-  .byte $02, $02, $02, $02, $02, $02                    ; $D507: 02 02 02 02 02 02
-  BRK                                                   ; $D50D: 00
-  BRK                                                   ; $D50E: 00
-  BRK                                                   ; $D50F: 00
-  .byte $02, $02, $02, $42, $43, $44, $02               ; $D510: 02 02 02 42 43 44 02
-  BRK                                                   ; $D517: 00
-  BRK                                                   ; $D518: 00
-  BRK                                                   ; $D519: 00
-  .byte $02, $02, $02                                   ; $D51A: 02 02 02
-  EOR $46                                               ; $D51D: 45 46
-  .byte $47, $02                                        ; $D51F: 47 02
-  BRK                                                   ; $D521: 00
-  BRK                                                   ; $D522: 00
-  BRK                                                   ; $D523: 00
-  ORA ($02,X)                                           ; $D524: 01 02
-  .byte $02                                             ; $D526: 02
-  EOR #$4A                                              ; $D527: 49 4A
-  .byte $4B, $02 ; $D529: 4B 02
-L_D52B:
-  JMP $4D4C                                             ; $D52B: 4C 4C 4D
-  ORA ($02,X)                                           ; $D52E: 01 02
-  LSR $004F                                             ; $D530: 4E 4F 00
-  BRK                                                   ; $D533: 00
-  BVC L_D582                                            ; $D534: 50 4C
-  JMP $0153                                             ; $D536: 4C 53 01
-  .byte $02, $54                                        ; $D539: 02 54
-  EOR $00,X                                             ; $D53B: 55 00
-  BRK                                                   ; $D53D: 00
-  LSR $4C,X                                             ; $D53E: 56 4C
-  JMP $0159                                             ; $D540: 4C 59 01
-  NOP                                                   ; $D543: 5A
-  .byte $5B, $5C                                        ; $D544: 5B 5C
-  EOR $025E,X                                           ; $D546: 5D 5E 02
-  JMP $624C                                             ; $D549: 4C 4C 62
-  .byte $63, $64                                        ; $D54C: 63 64
-  ADC $66                                               ; $D54E: 65 66
-L_D550:
-  .byte $67                                             ; $D550: 67
-  PLA                                                   ; $D551: 68
-  ADC #$4C                                              ; $D552: 69 4C
-  JMP $7372                                             ; $D554: 4C 72 73
-  .byte $74                                             ; $D557: 74
-  ADC $76,X                                             ; $D558: 75 76
-  .byte $77                                             ; $D55A: 77
-  SEI                                                   ; $D55B: 78
-  ADC $E7E6,Y                                           ; $D55C: 79 E6 E7
-  ROL $16,X                                             ; $D55F: 36 16
-  BPL L_D599                                            ; $D561: 10 36
-  ASL $10,X                                             ; $D563: 16 10
-  .byte $80, $40 ; $D565: 80 40
-  EOR ($80,X)                                           ; $D567: 41 80
-  .byte $80, $42 ; $D569: 80 42
-  .byte $80, $80 ; $D56B: 80 80
-  .byte $43, $44                                        ; $D56D: 43 44
-  .byte $80, $45 ; $D56F: 80 45
-  LSR $80                                               ; $D571: 46 80
-  .byte $80, $47 ; $D573: 80 47
-  .byte $80, $80 ; $D575: 80 80
-  PHA                                                   ; $D577: 48
-  EOR #$4A                                              ; $D578: 49 4A
-  .byte $4B, $4C ; $D57A: 4B 4C
-  .byte $80, $80 ; $D57C: 80 80
-  .byte $80, $80 ; $D57E: 80 80
-  .byte $80, $4D ; $D580: 80 4D
-L_D582:
-  LSR $504F                                             ; $D582: 4E 4F 50
-  EOR ($52),Y                                           ; $D585: 51 52
-  .byte $53                                             ; $D587: 53
-  .byte $80, $80 ; $D588: 80 80
-  .byte $54                                             ; $D58A: 54
-  EOR $56,X                                             ; $D58B: 55 56
-  .byte $57                                             ; $D58D: 57
-  CLI                                                   ; $D58E: 58
-  EOR $5B5A,Y                                           ; $D58F: 59 5A 5B
-  .byte $5C                                             ; $D592: 5C
-  EOR $5F5E,X                                           ; $D593: 5D 5E 5F
-  RTS                                                   ; $D596: 60
-
-;===============================================================================
-; $D597: MiscTable3
-;===============================================================================
-  .byte $61, $62                                        ; $D597: 61 62
-L_D599:
-  .byte $63, $64, $65, $66, $67                         ; $D599: 63 64 65 66 67
-  PLA                                                   ; $D59E: 68
-  ADC #$6A                                              ; $D59F: 69 6A
-  .byte $6B, $6C ; $D5A1: 6B 6C
-  ADC $6F6E                                             ; $D5A3: 6D 6E 6F
-  BVS L_D619                                            ; $D5A6: 70 71
-  .byte $72, $73, $74                                   ; $D5A8: 72 73 74
-  ADC $76,X                                             ; $D5AB: 75 76
-  .byte $77                                             ; $D5AD: 77
-  SEI                                                   ; $D5AE: 78
-  ADC $7B7A,Y                                           ; $D5AF: 79 7A 7B
-  .byte $7C                                             ; $D5B2: 7C
-  ADC $7F7E,X                                           ; $D5B3: 7D 7E 7F
-  BRK                                                   ; $D5B6: 00
-  ORA ($02,X)                                           ; $D5B7: 01 02
-  .byte $03, $04                                        ; $D5B9: 03 04
-  ORA $06                                               ; $D5BB: 05 06
-  .byte $07                                             ; $D5BD: 07
-  PHP                                                   ; $D5BE: 08
-  ORA #$09                                              ; $D5BF: 09 09
-  ORA #$0A                                              ; $D5C1: 09 0A
-  .byte $0B, $0C ; $D5C3: 0B 0C
-  ORA $0F0E                                             ; $D5C5: 0D 0E 0F
-  .byte $10, $DD ; $D5C8: 10 DD
-  BRK                                                   ; $D5CA: 00
-  BMI L_D603                                            ; $D5CB: 30 36
-  CLC                                                   ; $D5CD: 18
-  .byte $30, $36 ; $D5CE: 30 36
-  CLC                                                   ; $D5D0: 18
-  BRK                                                   ; $D5D1: 00
-  BRK                                                   ; $D5D2: 00
-  BRK                                                   ; $D5D3: 00
-  BRK                                                   ; $D5D4: 00
-  BRK                                                   ; $D5D5: 00
-  BRK                                                   ; $D5D6: 00
-  BRK                                                   ; $D5D7: 00
-  BRK                                                   ; $D5D8: 00
-  BRK                                                   ; $D5D9: 00
-  BRK                                                   ; $D5DA: 00
-  BRK                                                   ; $D5DB: 00
-  BRK                                                   ; $D5DC: 00
-  EOR ($42,X)                                           ; $D5DD: 41 42
-  .byte $43, $44                                        ; $D5DF: 43 44
-  BRK                                                   ; $D5E1: 00
-  BRK                                                   ; $D5E2: 00
-  BRK                                                   ; $D5E3: 00
-  BRK                                                   ; $D5E4: 00
-  BRK                                                   ; $D5E5: 00
-  EOR $46                                               ; $D5E6: 45 46
-  .byte $47                                             ; $D5E8: 47
-  PHA                                                   ; $D5E9: 48
-  EOR #$4A                                              ; $D5EA: 49 4A
-  BRK                                                   ; $D5EC: 00
-  BRK                                                   ; $D5ED: 00
-  BRK                                                   ; $D5EE: 00
-  .byte $4B, $4C ; $D5EF: 4B 4C
-  EOR $4F4E                                             ; $D5F1: 4D 4E 4F
-  BVC L_D647                                            ; $D5F4: 50 51
-  BRK                                                   ; $D5F6: 00
-  BRK                                                   ; $D5F7: 00
-  BRK                                                   ; $D5F8: 00
-  .byte $52, $53, $54                                   ; $D5F9: 52 53 54
-  EOR $56,X                                             ; $D5FC: 55 56
-  .byte $57                                             ; $D5FE: 57
-  CLI                                                   ; $D5FF: 58
-  BRK                                                   ; $D600: 00
-  BRK                                                   ; $D601: 00
-  BRK                                                   ; $D602: 00
-L_D603:
-  BRK                                                   ; $D603: 00
-  EOR $5B5A,Y                                           ; $D604: 59 5A 5B
-  .byte $5C                                             ; $D607: 5C
-  EOR $5F5E,X                                           ; $D608: 5D 5E 5F
-  BRK                                                   ; $D60B: 00
-  RTS                                                   ; $D60C: 60
-
-;===============================================================================
-; $D60D: MiscTable4
-;===============================================================================
-  RTI                                                   ; $D60D: 40
-  ADC ($62,X)                                           ; $D60E: 61 62
-  .byte $63, $64                                        ; $D610: 63 64
-  ADC $66                                               ; $D612: 65 66
-  .byte $67                                             ; $D614: 67
-  PLA                                                   ; $D615: 68
-  ADC #$75                                              ; $D616: 69 75
-  ROR                                                   ; $D618: 6A
-L_D619:
-  .byte $6B, $6C ; $D619: 6B 6C
-  ADC $6F6E                                             ; $D61B: 6D 6E 6F
-  BVS L_D691                                            ; $D61E: 70 71
-  .byte $72                                             ; $D620: 72
-  BRK                                                   ; $D621: 00
-  .byte $73, $74                                        ; $D622: 73 74
-  JMP ($7776)                                           ; $D624: 6C 76 77
-  SEI                                                   ; $D627: 78
-  ADC $7B7A,Y                                           ; $D628: 79 7A 7B
-  BRK                                                   ; $D62B: 00
-  .byte $73, $74                                        ; $D62C: 73 74
-  JMP ($7776)                                           ; $D62E: 6C 76 77
-  .byte $7C                                             ; $D631: 7C
-  ADC $7F7E,X                                           ; $D632: 7D 7E 7F
-  SBC ($E3,X)                                           ; $D635: E1 E3
-  ROL $16,X                                             ; $D637: 36 16
-  AND ($17),Y                                           ; $D639: 31 17
-  .byte $07, $0F, $42, $43, $44, $44                    ; $D63B: 07 0F 42 43 44 44
-  EOR $42                                               ; $D641: 45 42
-  .byte $42, $42, $43, $44                              ; $D643: 42 42 43 44
-L_D647:
-  LSR $47                                               ; $D647: 46 47
-  PHA                                                   ; $D649: 48
-  PHA                                                   ; $D64A: 48
-  EOR #$4A                                              ; $D64B: 49 4A
-  .byte $4B, $46 ; $D64D: 4B 46
-  .byte $47                                             ; $D64F: 47
-  PHA                                                   ; $D650: 48
-  JMP $4E4D                                             ; $D651: 4C 4D 4E
-  .byte $4F                                             ; $D654: 4F
-  BVC L_D6A8                                            ; $D655: 50 51
-  .byte $52                                             ; $D657: 52
-  JMP $4E4D                                             ; $D658: 4C 4D 4E
-  .byte $53, $54                                        ; $D65B: 53 54
-  EOR $55,X                                             ; $D65D: 55 55
-  LSR $57,X                                             ; $D65F: 56 57
-  CLI                                                   ; $D661: 58
-  EOR $555A,Y                                           ; $D662: 59 5A 55
-  .byte $5B, $5C                                        ; $D665: 5B 5C
-  EOR ($5D,X)                                           ; $D667: 41 5D
-  LSR $605F,X                                           ; $D669: 5E 5F 60
-
-;===============================================================================
-; $D66C: MiscTable5
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $41, $41, $66, $67     ; $D66C: 61 62 63 64 65 41 41 66 67
-  PLA                                                   ; $D675: 68
-  EOR ($69,X)                                           ; $D676: 41 69
-  ROR                                                   ; $D678: 6A
-  EOR ($41,X)                                           ; $D679: 41 41
-  EOR ($41,X)                                           ; $D67B: 41 41
-  EOR ($41,X)                                           ; $D67D: 41 41
-  EOR ($41,X)                                           ; $D67F: 41 41
-  EOR ($41,X)                                           ; $D681: 41 41
-  EOR ($41,X)                                           ; $D683: 41 41
-  EOR ($41,X)                                           ; $D685: 41 41
-  EOR ($41,X)                                           ; $D687: 41 41
-  EOR ($41,X)                                           ; $D689: 41 41
-  EOR ($41,X)                                           ; $D68B: 41 41
-  EOR ($41,X)                                           ; $D68D: 41 41
-  EOR ($41,X)                                           ; $D68F: 41 41
-L_D691:
-  EOR ($41,X)                                           ; $D691: 41 41
-  EOR ($41,X)                                           ; $D693: 41 41
-  EOR ($41,X)                                           ; $D695: 41 41
-  EOR ($6B,X)                                           ; $D697: 41 6B
-  .byte $13, $14                                        ; $D699: 13 14
-  EOR ($41,X)                                           ; $D69B: 41 41
-  ORA $16,X                                             ; $D69D: 15 16
-  .byte $17                                             ; $D69F: 17
-  CLC                                                   ; $D6A0: 18
-  DEC $10DC,X                                           ; $D6A1: DE DC 10
-  ROL $17,X                                             ; $D6A4: 36 17
-  .byte $10, $36 ; $D6A6: 10 36
-L_D6A8:
-  .byte $17                                             ; $D6A8: 17
-  RTI                                                   ; $D6A9: 40
-  RTI                                                   ; $D6AA: 40
-  EOR ($41,X)                                           ; $D6AB: 41 41
-  EOR ($41,X)                                           ; $D6AD: 41 41
-  .byte $42, $43, $44                                   ; $D6AF: 42 43 44
-  EOR ($40,X)                                           ; $D6B2: 41 40
-  RTI                                                   ; $D6B4: 40
-  RTI                                                   ; $D6B5: 40
-  RTI                                                   ; $D6B6: 40
-  EOR ($41,X)                                           ; $D6B7: 41 41
-  EOR $46                                               ; $D6B9: 45 46
-  .byte $47                                             ; $D6BB: 47
-  PHA                                                   ; $D6BC: 48
-  RTI                                                   ; $D6BD: 40
-  RTI                                                   ; $D6BE: 40
-  RTI                                                   ; $D6BF: 40
-  RTI                                                   ; $D6C0: 40
-  EOR ($41,X)                                           ; $D6C1: 41 41
-  EOR #$40                                              ; $D6C3: 49 40
-  LSR                                                   ; $D6C5: 4A
-  .byte $4B, $40 ; $D6C6: 4B 40
-  RTI                                                   ; $D6C8: 40
-  RTI                                                   ; $D6C9: 40
-  RTI                                                   ; $D6CA: 40
-  EOR ($4C,X)                                           ; $D6CB: 41 4C
-  EOR $4F4E                                             ; $D6CD: 4D 4E 4F
-  BVC L_D712                                            ; $D6D0: 50 40
-  RTI                                                   ; $D6D2: 40
-  RTI                                                   ; $D6D3: 40
-  EOR ($52),Y                                           ; $D6D4: 51 52
-  .byte $53, $54                                        ; $D6D6: 53 54
-  EOR $56,X                                             ; $D6D8: 55 56
-  .byte $57                                             ; $D6DA: 57
-  CLI                                                   ; $D6DB: 58
-  EOR $5B5A,Y                                           ; $D6DC: 59 5A 5B
-  .byte $5C                                             ; $D6DF: 5C
-  EOR $5F5E,X                                           ; $D6E0: 5D 5E 5F
-  RTS                                                   ; $D6E3: 60
-
-;===============================================================================
-; $D6E4: MiscTable6
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $66, $67               ; $D6E4: 61 62 63 64 65 66 67
-  PLA                                                   ; $D6EB: 68
-  ADC #$6A                                              ; $D6EC: 69 6A
-  .byte $6B, $6C ; $D6EE: 6B 6C
-  ADC $6F6E                                             ; $D6F0: 6D 6E 6F
-  .byte $70, $71 ; $D6F3: 70 71
-  .byte $72, $73                                        ; $D6F5: 72 73
-  BRK                                                   ; $D6F7: 00
-  ORA ($02,X)                                           ; $D6F8: 01 02
-  .byte $03, $04                                        ; $D6FA: 03 04
-  ORA $06                                               ; $D6FC: 05 06
-  .byte $07                                             ; $D6FE: 07
-  PHP                                                   ; $D6FF: 08
-  ORA #$0A                                              ; $D700: 09 0A
-  .byte $0B, $0C ; $D702: 0B 0C
-  ORA $0F0E                                             ; $D704: 0D 0E 0F
-  BPL L_D71A                                            ; $D707: 10 11
-  .byte $12, $13, $14                                   ; $D709: 12 13 14
-  ORA $DF,X                                             ; $D70C: 15 DF
-  BRK                                                   ; $D70E: 00
-  BMI L_D747                                            ; $D70F: 30 36
-  .byte $17                                             ; $D711: 17
-L_D712:
-  BMI L_D74A                                            ; $D712: 30 36
-  .byte $17, $02, $02, $02, $02, $02                    ; $D714: 17 02 02 02 02 02
-L_D71A:
-  .byte $02, $02, $42, $43, $43, $02, $02, $42, $43, $43, $43, $44 ; $D71A: 02 02 42 43 43 02 02 42 43 43 43 44
-  EOR $46                                               ; $D726: 45 46
-  LSR $02                                               ; $D728: 46 02
-  .byte $47                                             ; $D72A: 47
-  EOR $46                                               ; $D72B: 45 46
-  LSR $46                                               ; $D72D: 46 46
-  PHA                                                   ; $D72F: 48
-  EOR #$4A                                              ; $D730: 49 4A
-  .byte $4B, $4C ; $D732: 4B 4C
-  EOR $4A49                                             ; $D734: 4D 49 4A
-  LSR $4F4A                                             ; $D737: 4E 4A 4F
-  .byte $50, $51 ; $D73A: 50 51
-  BRK                                                   ; $D73C: 00
-  .byte $52, $53                                        ; $D73D: 52 53
-  BVC L_D792                                            ; $D73F: 50 51
-  BRK                                                   ; $D741: 00
-  EOR ($54),Y                                           ; $D742: 51 54
-  BRK                                                   ; $D744: 00
-  BRK                                                   ; $D745: 00
-  BRK                                                   ; $D746: 00
-L_D747:
-  BRK                                                   ; $D747: 00
-  EOR $00,X                                             ; $D748: 55 00
-L_D74A:
-  LSR $57,X                                             ; $D74A: 56 57
-  BRK                                                   ; $D74C: 00
-  CLI                                                   ; $D74D: 58
-  BRK                                                   ; $D74E: 00
-  BRK                                                   ; $D74F: 00
-  BRK                                                   ; $D750: 00
-  EOR $5B5A,Y                                           ; $D751: 59 5A 5B
-  BRK                                                   ; $D754: 00
-  BRK                                                   ; $D755: 00
-  BRK                                                   ; $D756: 00
-  .byte $5C                                             ; $D757: 5C
-  BRK                                                   ; $D758: 00
-  EOR $5F5E,X                                           ; $D759: 5D 5E 5F
-  BRK                                                   ; $D75C: 00
-  RTS                                                   ; $D75D: 60
-
-;===============================================================================
-; $D75E: MiscTable7
-;===============================================================================
-  .byte $61, $62                                        ; $D75E: 61 62
-  BRK                                                   ; $D760: 00
-  BRK                                                   ; $D761: 00
-  .byte $63                                             ; $D762: 63
-  BRK                                                   ; $D763: 00
-  .byte $64                                             ; $D764: 64
-  ADC $66                                               ; $D765: 65 66
-  .byte $67                                             ; $D767: 67
-  PLA                                                   ; $D768: 68
-  BRK                                                   ; $D769: 00
-  BRK                                                   ; $D76A: 00
-  BRK                                                   ; $D76B: 00
-  BRK                                                   ; $D76C: 00
-  BRK                                                   ; $D76D: 00
-  ADC #$6A                                              ; $D76E: 69 6A
-  .byte $6B, $6C ; $D770: 6B 6C
-  BRK                                                   ; $D772: 00
-  BRK                                                   ; $D773: 00
-  BRK                                                   ; $D774: 00
-  BRK                                                   ; $D775: 00
-  BRK                                                   ; $D776: 00
-  ADC $B56E                                             ; $D777: 6D 6E B5
-  BRK                                                   ; $D77A: 00
-  .byte $30, $36 ; $D77B: 30 36
-  .byte $17                                             ; $D77D: 17
-  BMI L_D7B6                                            ; $D77E: 30 36
-  .byte $17                                             ; $D780: 17
-  BRK                                                   ; $D781: 00
-  BRK                                                   ; $D782: 00
-  BRK                                                   ; $D783: 00
-  BRK                                                   ; $D784: 00
-  BRK                                                   ; $D785: 00
-  BRK                                                   ; $D786: 00
-  BRK                                                   ; $D787: 00
-  .byte $53, $54                                        ; $D788: 53 54
-  EOR $40,X                                             ; $D78A: 55 40
-  EOR ($00,X)                                           ; $D78C: 41 00
-  BRK                                                   ; $D78E: 00
-  BRK                                                   ; $D78F: 00
-  BRK                                                   ; $D790: 00
-  BRK                                                   ; $D791: 00
-L_D792:
-  .byte $63, $64                                        ; $D792: 63 64
-  ADC $50                                               ; $D794: 65 50
-  EOR ($52),Y                                           ; $D796: 51 52
-  BRK                                                   ; $D798: 00
-  BRK                                                   ; $D799: 00
-  BRK                                                   ; $D79A: 00
-  BRK                                                   ; $D79B: 00
-  .byte $73, $74                                        ; $D79C: 73 74
-  ADC $60,X                                             ; $D79E: 75 60
-
-;===============================================================================
-; $D7A0: MiscTable8
-;===============================================================================
-  .byte $61, $62                                        ; $D7A0: 61 62
-  BRK                                                   ; $D7A2: 00
-  BRK                                                   ; $D7A3: 00
-  BRK                                                   ; $D7A4: 00
-  BRK                                                   ; $D7A5: 00
-  EOR $00                                               ; $D7A6: 45 00
-  LSR $70                                               ; $D7A8: 46 70
-  BRK                                                   ; $D7AA: 00
-  .byte $72                                             ; $D7AB: 72
-  BRK                                                   ; $D7AC: 00
-  BRK                                                   ; $D7AD: 00
-  BRK                                                   ; $D7AE: 00
-  BRK                                                   ; $D7AF: 00
-  LSR $66,X                                             ; $D7B0: 56 66
-  ROR $42,X                                             ; $D7B2: 76 42
-  ADC ($43),Y                                           ; $D7B4: 71 43
-L_D7B6:
-  .byte $44                                             ; $D7B6: 44
-  BRK                                                   ; $D7B7: 00
-  BRK                                                   ; $D7B8: 00
-  PHA                                                   ; $D7B9: 48
-  EOR #$4A                                              ; $D7BA: 49 4A
-  .byte $4B, $00 ; $D7BC: 4B 00
-  BRK                                                   ; $D7BE: 00
-  BRK                                                   ; $D7BF: 00
-  BRK                                                   ; $D7C0: 00
-  BRK                                                   ; $D7C1: 00
-  .byte $57                                             ; $D7C2: 57
-  CLI                                                   ; $D7C3: 58
-  EOR $5B5A,Y                                           ; $D7C4: 59 5A 5B
-  BRK                                                   ; $D7C7: 00
-  BRK                                                   ; $D7C8: 00
-  BRK                                                   ; $D7C9: 00
-  BRK                                                   ; $D7CA: 00
-  BRK                                                   ; $D7CB: 00
-  .byte $67                                             ; $D7CC: 67
-  PLA                                                   ; $D7CD: 68
-  ADC #$6A                                              ; $D7CE: 69 6A
-  .byte $6B, $00 ; $D7D0: 6B 00
-  BRK                                                   ; $D7D2: 00
-  BRK                                                   ; $D7D3: 00
-  BRK                                                   ; $D7D4: 00
-  BRK                                                   ; $D7D5: 00
-  .byte $77                                             ; $D7D6: 77
-  SEI                                                   ; $D7D7: 78
-  ADC $7B7A,Y                                           ; $D7D8: 79 7A 7B
-  BRK                                                   ; $D7DB: 00
-  BRK                                                   ; $D7DC: 00
-  BRK                                                   ; $D7DD: 00
-  BRK                                                   ; $D7DE: 00
-  BRK                                                   ; $D7DF: 00
-  JMP $4E4D                                             ; $D7E0: 4C 4D 4E
-  .byte $4F, $47                                        ; $D7E3: 4F 47
-  CMP $00,X                                             ; $D7E5: D5 00
-  BPL L_D81F                                            ; $D7E7: 10 36
-  .byte $17                                             ; $D7E9: 17
-  BPL L_D822                                            ; $D7EA: 10 36
-  .byte $17                                             ; $D7EC: 17
-  EOR ($40,X)                                           ; $D7ED: 41 40
-  RTI                                                   ; $D7EF: 40
-  EOR ($42,X)                                           ; $D7F0: 41 42
-  .byte $43                                             ; $D7F2: 43
-  EOR ($41,X)                                           ; $D7F3: 41 41
-  EOR ($41,X)                                           ; $D7F5: 41 41
-  .byte $44                                             ; $D7F7: 44
-  RTI                                                   ; $D7F8: 40
-  RTI                                                   ; $D7F9: 40
-  RTI                                                   ; $D7FA: 40
-  EOR $46                                               ; $D7FB: 45 46
-  .byte $47                                             ; $D7FD: 47
-  PHA                                                   ; $D7FE: 48
-  EOR ($41,X)                                           ; $D7FF: 41 41
-  EOR #$41                                              ; $D801: 49 41
-  RTI                                                   ; $D803: 40
-  RTI                                                   ; $D804: 40
-  LSR                                                   ; $D805: 4A
-  .byte $4B, $4C ; $D806: 4B 4C
-  EOR $414E                                             ; $D808: 4D 4E 41
-  .byte $4F                                             ; $D80B: 4F
-  BVC L_D84E                                            ; $D80C: 50 40
-  RTI                                                   ; $D80E: 40
-  RTI                                                   ; $D80F: 40
-  RTI                                                   ; $D810: 40
-  RTI                                                   ; $D811: 40
-  EOR ($52),Y                                           ; $D812: 51 52
-  .byte $53, $54                                        ; $D814: 53 54
-  EOR $40,X                                             ; $D816: 55 40
-  RTI                                                   ; $D818: 40
-  RTI                                                   ; $D819: 40
-  RTI                                                   ; $D81A: 40
-  RTI                                                   ; $D81B: 40
-  LSR $57,X                                             ; $D81C: 56 57
-  CLI                                                   ; $D81E: 58
-L_D81F:
-  EOR $405A,Y                                           ; $D81F: 59 5A 40
-L_D822:
-  RTI                                                   ; $D822: 40
-  RTI                                                   ; $D823: 40
-  RTI                                                   ; $D824: 40
-  RTI                                                   ; $D825: 40
-  .byte $5B, $5C                                        ; $D826: 5B 5C
-  EOR $5F5E,X                                           ; $D828: 5D 5E 5F
-  RTS                                                   ; $D82B: 60
-
-;===============================================================================
-; $D82C: MiscTable9
-;===============================================================================
-  RTI                                                   ; $D82C: 40
-  RTI                                                   ; $D82D: 40
-  RTI                                                   ; $D82E: 40
-  ADC ($62,X)                                           ; $D82F: 61 62
-  .byte $63, $64                                        ; $D831: 63 64
-  ADC $66                                               ; $D833: 65 66
-  RTI                                                   ; $D835: 40
-  .byte $67                                             ; $D836: 67
-  PLA                                                   ; $D837: 68
-  ADC #$6A                                              ; $D838: 69 6A
-  .byte $6B, $6C ; $D83A: 6B 6C
-  ADC $6F6E                                             ; $D83C: 6D 6E 6F
-  BVS L_D8B2                                            ; $D83F: 70 71
-  .byte $72, $73                                        ; $D841: 72 73
-  RTI                                                   ; $D843: 40
-  .byte $74                                             ; $D844: 74
-  ADC $76,X                                             ; $D845: 75 76
-  .byte $77                                             ; $D847: 77
-  SEI                                                   ; $D848: 78
-  ADC $7B7A,Y                                           ; $D849: 79 7A 7B
-  .byte $7C                                             ; $D84C: 7C
-  RTI                                                   ; $D84D: 40
-L_D84E:
-  ADC $7F7E,X                                           ; $D84E: 7D 7E 7F
-  .byte $DC                                             ; $D851: DC
-  BRK                                                   ; $D852: 00
-  BMI L_D886                                            ; $D853: 30 31
-  AND ($0F,X)                                           ; $D855: 21 0F
-  .byte $10, $15 ; $D857: 10 15
-  LSR $57,X                                             ; $D859: 56 57
-  CLI                                                   ; $D85B: 58
-  EOR $5957,Y                                           ; $D85C: 59 57 59
-  LSR $57,X                                             ; $D85F: 56 57
-  CLI                                                   ; $D861: 58
-  EOR $5B5A,Y                                           ; $D862: 59 5A 5B
-  .byte $5C                                             ; $D865: 5C
-  EOR $5D5B,X                                           ; $D866: 5D 5B 5D
-  NOP                                                   ; $D869: 5A
-  .byte $5B, $5C                                        ; $D86A: 5B 5C
-  EOR $5F5E,X                                           ; $D86C: 5D 5E 5F
-  RTS                                                   ; $D86F: 60
-
-;===============================================================================
-; $D870: MiscTable10
-;===============================================================================
-  .byte $61, $5F, $61, $5E, $5F                         ; $D870: 61 5F 61 5E 5F
-  RTS                                                   ; $D875: 60
-
-;===============================================================================
-; $D876: SramReadWrite
-;===============================================================================
-  .byte $61, $62, $62, $62, $62, $62, $62, $62, $62, $62, $62, $6E, $6E, $6E, $6E, $6E ; $D876: 61 62 62 62 62 62 62 62 62 62 62 6E 6E 6E 6E 6E
-L_D886:
-  .byte $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E ; $D886: 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E 6E
-  .byte $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6E, $6F, $70, $71, $6F, $70, $71, $6F ; $D896: 6E 6E 6E 6E 6E 6E 6E 6E 6E 6F 70 71 6F 70 71 6F
-  .byte $70, $71, $6F, $6B, $6C, $6D, $6B, $6C, $6D, $6B, $6C, $6D ; $D8A6: 70 71 6F 6B 6C 6D 6B 6C 6D 6B 6C 6D
-L_D8B2:
-  .byte $6B, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $E3 ; $D8B2: 6B 01 01 01 01 01 01 01 01 01 01 E3
-  BRK                                                   ; $D8BE: 00
-  ROL $27,X                                             ; $D8BF: 36 27
-  .byte $17                                             ; $D8C1: 17
-  ROL $27,X                                             ; $D8C2: 36 27
-  .byte $17                                             ; $D8C4: 17
-  ORA ($01,X)                                           ; $D8C5: 01 01
-  ORA ($01,X)                                           ; $D8C7: 01 01
-  ORA ($01,X)                                           ; $D8C9: 01 01
-  ORA ($01,X)                                           ; $D8CB: 01 01
-  ORA ($01,X)                                           ; $D8CD: 01 01
-  ORA ($01,X)                                           ; $D8CF: 01 01
-  ORA ($01,X)                                           ; $D8D1: 01 01
-  ORA ($01,X)                                           ; $D8D3: 01 01
-  ORA ($01,X)                                           ; $D8D5: 01 01
-  ORA ($01,X)                                           ; $D8D7: 01 01
-  ORA ($01,X)                                           ; $D8D9: 01 01
-  ORA ($01,X)                                           ; $D8DB: 01 01
-  ORA ($01,X)                                           ; $D8DD: 01 01
-  ORA ($01,X)                                           ; $D8DF: 01 01
-  ORA ($01,X)                                           ; $D8E1: 01 01
-  ORA ($01,X)                                           ; $D8E3: 01 01
-  ORA ($01,X)                                           ; $D8E5: 01 01
-  ORA ($01,X)                                           ; $D8E7: 01 01
-  ORA ($01,X)                                           ; $D8E9: 01 01
-  ORA ($01,X)                                           ; $D8EB: 01 01
-  .byte $42, $42, $42, $42, $42, $42, $42, $42, $42, $42 ; $D8ED: 42 42 42 42 42 42 42 42 42 42
-  EOR ($61,X)                                           ; $D8F7: 41 61
-  .byte $62, $63                                        ; $D8F9: 62 63
-  EOR ($41,X)                                           ; $D8FB: 41 41
-  EOR ($41,X)                                           ; $D8FD: 41 41
-  EOR ($41,X)                                           ; $D8FF: 41 41
-  .byte $43                                             ; $D901: 43
-  ADC ($72),Y                                           ; $D902: 71 72
-  .byte $73, $74, $43, $43, $43, $43, $43, $44          ; $D904: 73 74 43 43 43 43 43 44
-  BRK                                                   ; $D90C: 00
-  BRK                                                   ; $D90D: 00
-  BRK                                                   ; $D90E: 00
-  ROR $67                                               ; $D90F: 66 67
-  PLA                                                   ; $D911: 68
-  EOR $46                                               ; $D912: 45 46
-  .byte $47                                             ; $D914: 47
-  ROR                                                   ; $D915: 6A
-  BVS L_D918                                            ; $D916: 70 00
-L_D918:
-  ADC $76,X                                             ; $D918: 75 76
-  .byte $77                                             ; $D91A: 77
-  PHA                                                   ; $D91B: 48
-  EOR #$4A                                              ; $D91C: 49 4A
-  .byte $4B, $79 ; $D91E: 4B 79
-  NOP                                                   ; $D920: 7A
-  .byte $7B, $7C                                        ; $D921: 7B 7C
-  ADC $4C7E,X                                           ; $D923: 7D 7E 4C
-  EOR $5251                                             ; $D926: 4D 51 52
-  LDA $20BE,X                                           ; $D929: BD BE 20
-  .byte $17                                             ; $D92C: 17
-  ROL $20,X                                             ; $D92D: 36 20
-  .byte $17                                             ; $D92F: 17
-  ROL $70,X                                             ; $D930: 36 70
-  ADC ($72),Y                                           ; $D932: 71 72
-  .byte $73, $74                                        ; $D934: 73 74
-  ADC $76,X                                             ; $D936: 75 76
-  .byte $77                                             ; $D938: 77
-  SEI                                                   ; $D939: 78
-  .byte $70, $70 ; $D93A: 70 70
-  ADC ($72),Y                                           ; $D93C: 71 72
-  .byte $73, $74                                        ; $D93E: 73 74
-  ADC $76,X                                             ; $D940: 75 76
-  .byte $77                                             ; $D942: 77
-  SEI                                                   ; $D943: 78
-  ADC $7A70,Y                                           ; $D944: 79 70 7A
-  .byte $7B, $7C                                        ; $D947: 7B 7C
-  ADC $7F7E,X                                           ; $D949: 7D 7E 7F
-  BRK                                                   ; $D94C: 00
-  ORA ($02,X)                                           ; $D94D: 01 02
-  .byte $03, $03, $04                                   ; $D94F: 03 03 04
-  ORA $06                                               ; $D952: 05 06
-  .byte $07                                             ; $D954: 07
-  PHP                                                   ; $D955: 08
-  .byte $80, $80 ; $D956: 80 80
-  ORA #$39                                              ; $D958: 09 39
-  AND $0B0A,Y                                           ; $D95A: 39 0A 0B
-  .byte $0C                                             ; $D95D: 0C
-  ORA $800E                                             ; $D95E: 0D 0E 80
-  .byte $80, $0F ; $D961: 80 0F
-  .byte $10, $11 ; $D963: 10 11
-  .byte $12, $13, $14                                   ; $D965: 12 13 14
-  ORA $16,X                                             ; $D968: 15 16
-  .byte $80, $80 ; $D96A: 80 80
-  .byte $17                                             ; $D96C: 17
-  CLC                                                   ; $D96D: 18
-  ORA $1B1A,Y                                           ; $D96E: 19 1A 1B
-  .byte $1C                                             ; $D971: 1C
-  ORA $1F1E,X                                           ; $D972: 1D 1E 1F
-  JSR $2221                                             ; $D975: 20 21 22
-  .byte $23                                             ; $D978: 23
-  BIT $25                                               ; $D979: 24 25
-  ROL $27                                               ; $D97B: 26 27
-  PLP                                                   ; $D97D: 28
-  AND #$2A                                              ; $D97E: 29 2A
-  .byte $2B, $39 ; $D980: 2B 39
-  BIT $2E2D                                             ; $D982: 2C 2D 2E
-  .byte $2F                                             ; $D985: 2F
-  BMI L_D9B9                                            ; $D986: 30 31
-  .byte $32                                             ; $D988: 32
-  AND $3939,Y                                           ; $D989: 39 39 39
-  .byte $33, $34                                        ; $D98C: 33 34
-  AND $36,X                                             ; $D98E: 35 36
-  .byte $37                                             ; $D990: 37
-  SEC                                                   ; $D991: 38
-  AND $3939,Y                                           ; $D992: 39 39 39
-  .byte $D3                                             ; $D995: D3
-  BRK                                                   ; $D996: 00
-  .byte $10, $17 ; $D997: 10 17
-  ORA ($10),Y                                           ; $D999: 11 10
-  .byte $17                                             ; $D99B: 17
-  ORA ($42),Y                                           ; $D99C: 11 42
-  .byte $43                                             ; $D99E: 43
-  EOR ($44,X)                                           ; $D99F: 41 44
-  EOR $46                                               ; $D9A1: 45 46
-  .byte $47                                             ; $D9A3: 47
-  EOR ($41,X)                                           ; $D9A4: 41 41
-  PHA                                                   ; $D9A6: 48
-  EOR #$4A                                              ; $D9A7: 49 4A
-  EOR ($4B,X)                                           ; $D9A9: 41 4B
-  JMP $4E4D                                             ; $D9AB: 4C 4D 4E
-  .byte $4F                                             ; $D9AE: 4F
-  BVC L_DA02                                            ; $D9AF: 50 51
-  .byte $52, $53, $54                                   ; $D9B1: 52 53 54
-  EOR $56,X                                             ; $D9B4: 55 56
-  .byte $57                                             ; $D9B6: 57
-  RTI                                                   ; $D9B7: 40
-  RTI                                                   ; $D9B8: 40
-L_D9B9:
-  CLI                                                   ; $D9B9: 58
-  EOR $5B5A,Y                                           ; $D9BA: 59 5A 5B
-  RTI                                                   ; $D9BD: 40
-  .byte $5C                                             ; $D9BE: 5C
-  EOR $4040,X                                           ; $D9BF: 5D 40 40
-  RTI                                                   ; $D9C2: 40
-  LSR $605F,X                                           ; $D9C3: 5E 5F 60
-
-;===============================================================================
-; $D9C6: SaveGameMain
-;===============================================================================
-  .byte $61, $62, $63, $64                              ; $D9C6: 61 62 63 64
-  RTI                                                   ; $D9CA: 40
-  ADC $66                                               ; $D9CB: 65 66
-  .byte $67                                             ; $D9CD: 67
-  PLA                                                   ; $D9CE: 68
-  ADC #$6A                                              ; $D9CF: 69 6A
-  .byte $6B, $6C ; $D9D1: 6B 6C
-  RTI                                                   ; $D9D3: 40
-  ROR $4040                                             ; $D9D4: 6E 40 40
-  .byte $6F                                             ; $D9D7: 6F
-  BVS L_DA1A                                            ; $D9D8: 70 40
-  ROR $6E40                                             ; $D9DA: 6E 40 6E
-  ADC ($72),Y                                           ; $D9DD: 71 72
-  .byte $73                                             ; $D9DF: 73
-  RTI                                                   ; $D9E0: 40
-  RTI                                                   ; $D9E1: 40
-  RTI                                                   ; $D9E2: 40
-  ROR $6E40                                             ; $D9E3: 6E 40 6E
-  RTI                                                   ; $D9E6: 40
-  .byte $74                                             ; $D9E7: 74
-  ADC $75,X                                             ; $D9E8: 75 75
-  ROR $77,X                                             ; $D9EA: 76 77
-  SEI                                                   ; $D9EC: 78
-  RTI                                                   ; $D9ED: 40
-  ROR $6E40                                             ; $D9EE: 6E 40 6E
-  RTI                                                   ; $D9F1: 40
-  ADC $75,X                                             ; $D9F2: 75 75
-  ADC $7B7A,Y                                           ; $D9F4: 79 7A 7B
-  ROR $6E40                                             ; $D9F7: 6E 40 6E
-  ROR $6D40                                             ; $D9FA: 6E 40 6D
-  .byte $7C                                             ; $D9FD: 7C
-  ADC $7F7E,X                                           ; $D9FE: 7D 7E 7F
-  DEX                                                   ; $DA01: CA
-L_DA02:
-  .byte $CB, $16 ; $DA02: CB 16
-  ROL $17,X                                             ; $DA04: 36 17
-  ASL $36,X                                             ; $DA06: 16 36
-  .byte $17                                             ; $DA08: 17
-  ADC ($72),Y                                           ; $DA09: 71 72
-  .byte $73, $74, $74, $74, $74                         ; $DA0B: 73 74 74 74 74
-  ADC $76,X                                             ; $DA10: 75 76
-  .byte $74, $77                                        ; $DA12: 74 77
-  SEI                                                   ; $DA14: 78
-  ADC $7474,Y                                           ; $DA15: 79 74 74
-  .byte $74, $74                                        ; $DA18: 74 74
-L_DA1A:
-  NOP                                                   ; $DA1A: 7A
-  .byte $7B, $7C                                        ; $DA1B: 7B 7C
-  ADC $747E,X                                           ; $DA1D: 7D 7E 74
-  .byte $7F                                             ; $DA20: 7F
-  BRK                                                   ; $DA21: 00
-  ORA ($02,X)                                           ; $DA22: 01 02
-  .byte $03, $04                                        ; $DA24: 03 04
-  ORA $06                                               ; $DA26: 05 06
-  .byte $07                                             ; $DA28: 07
-  PHP                                                   ; $DA29: 08
-  ORA #$0A                                              ; $DA2A: 09 0A
-  .byte $0B, $0C ; $DA2C: 0B 0C
-  ORA $0E74                                             ; $DA2E: 0D 74 0E
-  .byte $0F                                             ; $DA31: 0F
-  .byte $10, $11 ; $DA32: 10 11
-  .byte $12                                             ; $DA34: 12
-  AND $133D,X                                           ; $DA35: 3D 3D 13
-  .byte $14                                             ; $DA38: 14
-  ORA $74,X                                             ; $DA39: 15 74
-  ASL $17,X                                             ; $DA3B: 16 17
-  CLC                                                   ; $DA3D: 18
-  ORA $3D3D,Y                                           ; $DA3E: 19 3D 3D
-  NOP                                                   ; $DA41: 1A
-  .byte $1B, $1C                                        ; $DA42: 1B 1C
-  ORA $1F1E,X                                           ; $DA44: 1D 1E 1F
-  JSR $2221                                             ; $DA47: 20 21 22
-  .byte $23                                             ; $DA4A: 23
-  BIT $25                                               ; $DA4B: 24 25
-  ROL $27                                               ; $DA4D: 26 27
-  PLP                                                   ; $DA4F: 28
-  AND #$2A                                              ; $DA50: 29 2A
-  .byte $2B, $2C ; $DA52: 2B 2C
-  AND $2F2E                                             ; $DA54: 2D 2E 2F
-  AND $303D,X                                           ; $DA57: 3D 3D 30
-  AND $313D,X                                           ; $DA5A: 3D 3D 31
-  .byte $32, $33, $34                                   ; $DA5D: 32 33 34
-  AND $3D,X                                             ; $DA60: 35 3D
-  AND $3D3D,X                                           ; $DA62: 3D 3D 3D
-  AND $3736,X                                           ; $DA65: 3D 36 37
-  SEC                                                   ; $DA68: 38
-  AND $3B3A,Y                                           ; $DA69: 39 3A 3B
-  .byte $3C                                             ; $DA6C: 3C
-  LDY $3600,X                                           ; $DA6D: BC 00 36
-  .byte $27, $17                                        ; $DA70: 27 17
-  ROL $27,X                                             ; $DA72: 36 27
-  .byte $17, $44, $44, $44, $44, $44, $44, $44, $44, $44, $44 ; $DA74: 17 44 44 44 44 44 44 44 44 44 44
-  BRK                                                   ; $DA7F: 00
-  BRK                                                   ; $DA80: 00
-  ORA ($00,X)                                           ; $DA81: 01 00
-  BRK                                                   ; $DA83: 00
-  BRK                                                   ; $DA84: 00
-  EOR $01                                               ; $DA85: 45 01
-  LSR $47                                               ; $DA87: 46 47
-  BRK                                                   ; $DA89: 00
-  BRK                                                   ; $DA8A: 00
-  ORA ($00,X)                                           ; $DA8B: 01 00
-  BRK                                                   ; $DA8D: 00
-  BRK                                                   ; $DA8E: 00
-  PHA                                                   ; $DA8F: 48
-  EOR #$4A                                              ; $DA90: 49 4A
-  .byte $4B, $00 ; $DA92: 4B 00
-  BRK                                                   ; $DA94: 00
-  BRK                                                   ; $DA95: 00
-  BRK                                                   ; $DA96: 00
-  BRK                                                   ; $DA97: 00
-  BRK                                                   ; $DA98: 00
-  JMP $4E4D                                             ; $DA99: 4C 4D 4E
-  .byte $4F                                             ; $DA9C: 4F
-  BVC L_DA9F                                            ; $DA9D: 50 00
-L_DA9F:
-  BRK                                                   ; $DA9F: 00
-  BRK                                                   ; $DAA0: 00
-  BRK                                                   ; $DAA1: 00
-  EOR ($52),Y                                           ; $DAA2: 51 52
-  .byte $53, $54                                        ; $DAA4: 53 54
-  EOR $56,X                                             ; $DAA6: 55 56
-  .byte $57                                             ; $DAA8: 57
-  CLI                                                   ; $DAA9: 58
-  EOR $5B5A,Y                                           ; $DAAA: 59 5A 5B
-  .byte $5C                                             ; $DAAD: 5C
-  EOR $5F5E,X                                           ; $DAAE: 5D 5E 5F
-  RTS                                                   ; $DAB1: 60
-
-;===============================================================================
-; $DAB2: LoadGameMain
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $66, $67               ; $DAB2: 61 62 63 64 65 66 67
-  PLA                                                   ; $DAB9: 68
-  ADC #$6A                                              ; $DABA: 69 6A
-  .byte $6B, $6C ; $DABC: 6B 6C
-  ADC $6E01                                             ; $DABE: 6D 01 6E
-  .byte $6F                                             ; $DAC1: 6F
-  .byte $70, $01 ; $DAC2: 70 01
-  ADC ($72),Y                                           ; $DAC4: 71 72
-  .byte $73, $74                                        ; $DAC6: 73 74
-  ADC $76,X                                             ; $DAC8: 75 76
-  .byte $77                                             ; $DACA: 77
-  SEI                                                   ; $DACB: 78
-  ADC $7B7A,Y                                           ; $DACC: 79 7A 7B
-  .byte $7C                                             ; $DACF: 7C
-  ADC $7D7C,X                                           ; $DAD0: 7D 7C 7D
-  ROR $407F,X                                           ; $DAD3: 7E 7F 40
-  EOR ($42,X)                                           ; $DAD6: 41 42
-  .byte $43                                             ; $DAD8: 43
-  LDX $B7,Y                                             ; $DAD9: B6 B7
-  BMI L_DB13                                            ; $DADB: 30 36
-  .byte $17                                             ; $DADD: 17
-  BMI L_DB16                                            ; $DADE: 30 36
-  .byte $17                                             ; $DAE0: 17
-  EOR ($42,X)                                           ; $DAE1: 41 42
-  .byte $43, $44                                        ; $DAE3: 43 44
-  EOR ($41,X)                                           ; $DAE5: 41 41
-  EOR ($41,X)                                           ; $DAE7: 41 41
-  EOR ($41,X)                                           ; $DAE9: 41 41
-  EOR ($49,X)                                           ; $DAEB: 41 49
-  LSR                                                   ; $DAED: 4A
-  .byte $4B, $41 ; $DAEE: 4B 41
-  EOR ($41,X)                                           ; $DAF0: 41 41
-  EOR ($41,X)                                           ; $DAF2: 41 41
-  EOR ($41,X)                                           ; $DAF4: 41 41
-  BVC L_DB49                                            ; $DAF6: 50 51
-  .byte $52                                             ; $DAF8: 52
-  EOR ($41,X)                                           ; $DAF9: 41 41
-  EOR ($41,X)                                           ; $DAFB: 41 41
-  EOR ($41,X)                                           ; $DAFD: 41 41
-  .byte $57                                             ; $DAFF: 57
-  CLI                                                   ; $DB00: 58
-  EOR $5B5A,Y                                           ; $DB01: 59 5A 5B
-  .byte $5C                                             ; $DB04: 5C
-  EOR ($41,X)                                           ; $DB05: 41 41
-  EOR ($41,X)                                           ; $DB07: 41 41
-  ADC ($62,X)                                           ; $DB09: 61 62
-  .byte $63, $64                                        ; $DB0B: 63 64
-  ADC $40                                               ; $DB0D: 65 40
-  RTI                                                   ; $DB0F: 40
-  RTI                                                   ; $DB10: 40
-  EOR ($41,X)                                           ; $DB11: 41 41
-L_DB13:
-  PLA                                                   ; $DB13: 68
-  ADC #$6A                                              ; $DB14: 69 6A
-L_DB16:
-  .byte $6B, $6C ; $DB16: 6B 6C
-  RTI                                                   ; $DB18: 40
-  RTI                                                   ; $DB19: 40
-  RTI                                                   ; $DB1A: 40
-  EOR ($41,X)                                           ; $DB1B: 41 41
-  .byte $6F                                             ; $DB1D: 6F
-  BVS L_DB91                                            ; $DB1E: 70 71
-  .byte $72                                             ; $DB20: 72
-  RTI                                                   ; $DB21: 40
-  RTI                                                   ; $DB22: 40
-  RTI                                                   ; $DB23: 40
-  RTI                                                   ; $DB24: 40
-  EOR ($73,X)                                           ; $DB25: 41 73
-  .byte $74                                             ; $DB27: 74
-  ADC $76,X                                             ; $DB28: 75 76
-  RTI                                                   ; $DB2A: 40
-  RTI                                                   ; $DB2B: 40
-  RTI                                                   ; $DB2C: 40
-  RTI                                                   ; $DB2D: 40
-  RTI                                                   ; $DB2E: 40
-  .byte $77                                             ; $DB2F: 77
-  SEI                                                   ; $DB30: 78
-  ADC $7B7A,Y                                           ; $DB31: 79 7A 7B
-  RTI                                                   ; $DB34: 40
-  RTI                                                   ; $DB35: 40
-  .byte $7C                                             ; $DB36: 7C
-  ADC $417E,X                                           ; $DB37: 7D 7E 41
-  RTI                                                   ; $DB3A: 40
-  .byte $7F                                             ; $DB3B: 7F
-  BRK                                                   ; $DB3C: 00
-  ORA ($40,X)                                           ; $DB3D: 01 40
-  RTI                                                   ; $DB3F: 40
-  .byte $02                                             ; $DB40: 02
-  EOR ($41,X)                                           ; $DB41: 41 41
-  EOR ($40,X)                                           ; $DB43: 41 40
-  TAX                                                   ; $DB45: AA
-  BRK                                                   ; $DB46: 00
-  ROL $10,X                                             ; $DB47: 36 10
-L_DB49:
-  ASL $10,X                                             ; $DB49: 16 10
-  ASL $17                                               ; $DB4B: 06 17
-  RTI                                                   ; $DB4D: 40
-  EOR ($42,X)                                           ; $DB4E: 41 42
-  .byte $43, $44                                        ; $DB50: 43 44
-  EOR $46                                               ; $DB52: 45 46
-  .byte $47                                             ; $DB54: 47
-  PHA                                                   ; $DB55: 48
-  EOR #$4A                                              ; $DB56: 49 4A
-  .byte $4B, $4C ; $DB58: 4B 4C
-  EOR $4F4E                                             ; $DB5A: 4D 4E 4F
-  BVC L_DBB0                                            ; $DB5D: 50 51
-  .byte $52, $53                                        ; $DB5F: 52 53
-  BRK                                                   ; $DB61: 00
-  .byte $54                                             ; $DB62: 54
-  EOR $56,X                                             ; $DB63: 55 56
-  .byte $72, $72, $57                                   ; $DB65: 72 72 57
-  CLI                                                   ; $DB68: 58
-  EOR $5B5A,Y                                           ; $DB69: 59 5A 5B
-  .byte $5C                                             ; $DB6C: 5C
-  EOR $725E,X                                           ; $DB6D: 5D 5E 72
-  .byte $72, $5F                                        ; $DB70: 72 5F
-  RTS                                                   ; $DB72: 60
-
-;===============================================================================
-; $DB73: NewGameInit
-;===============================================================================
-  .byte $61, $62, $63, $64, $65, $72                    ; $DB73: 61 62 63 64 65 72
-  BRK                                                   ; $DB79: 00
-  BRK                                                   ; $DB7A: 00
-  .byte $72                                             ; $DB7B: 72
-  ROR $67                                               ; $DB7C: 66 67
-  PLA                                                   ; $DB7E: 68
-  ADC #$6A                                              ; $DB7F: 69 6A
-  .byte $72, $72                                        ; $DB81: 72 72
-  BRK                                                   ; $DB83: 00
-  BRK                                                   ; $DB84: 00
-  .byte $72                                             ; $DB85: 72
-  .byte $6B, $6C ; $DB86: 6B 6C
-  ADC $6F6E                                             ; $DB88: 6D 6E 6F
-  .byte $72                                             ; $DB8B: 72
-  BRK                                                   ; $DB8C: 00
-  BRK                                                   ; $DB8D: 00
-  BRK                                                   ; $DB8E: 00
-  .byte $72, $72                                        ; $DB8F: 72 72
-L_DB91:
-  .byte $72, $72                                        ; $DB91: 72 72
-  BVS L_DC06                                            ; $DB93: 70 71
-  .byte $72                                             ; $DB95: 72
-  BRK                                                   ; $DB96: 00
-  BRK                                                   ; $DB97: 00
-  BRK                                                   ; $DB98: 00
-  BRK                                                   ; $DB99: 00
-  .byte $72, $72, $72, $72, $72, $72                    ; $DB9A: 72 72 72 72 72 72
-  BRK                                                   ; $DBA0: 00
-  BRK                                                   ; $DBA1: 00
-  BRK                                                   ; $DBA2: 00
-  BRK                                                   ; $DBA3: 00
-  .byte $72, $72, $72, $72, $72                         ; $DBA4: 72 72 72 72 72
-  BRK                                                   ; $DBA9: 00
-  BRK                                                   ; $DBAA: 00
-  BRK                                                   ; $DBAB: 00
-  BRK                                                   ; $DBAC: 00
-  BRK                                                   ; $DBAD: 00
-  BRK                                                   ; $DBAE: 00
-  .byte $72                                             ; $DBAF: 72
-L_DBB0:
-  .byte $72                                             ; $DBB0: 72
+.proc LoadScenarioData
+LoadScenarioData:
   LDA $0000                                             ; $DBB1: AD 00 00
   ASL                                                   ; $DBB4: 0A
   TAY                                                   ; $DBB5: A8
-  LDA $DBCF,Y                                           ; $DBB6: B9 CF DB
+  LDA ScenarioDataTable,Y                                 ; $DBB6: B9 CF DB
   STA $000A                                             ; $DBB9: 8D 0A 00
-  LDA $DBD0,Y                                           ; $DBBC: B9 D0 DB
+  LDA ScenarioDataTable+1,Y                               ; $DBBC: B9 D0 DB
   STA $000B                                             ; $DBBF: 8D 0B 00
   LDY #$00                                              ; $DBC2: A0 00
-L_DBC4:
+@copy_loop:
   LDA ($0A),Y                                           ; $DBC4: B1 0A
   STA $0100,Y                                           ; $DBC6: 99 00 01
   INY                                                   ; $DBC9: C8
   CPY #$20                                              ; $DBCA: C0 20
-  BCC L_DBC4                                            ; $DBCC: 90 F6
+  BCC @copy_loop                                        ; $DBCC: 90 F6
   RTS                                                   ; $DBCE: 60
+.endproc
+
+; ScenarioDataTable - 16-bit pointer table for scenario data records
+ScenarioDataTable:
 
 ;===============================================================================
-; $DBCF: InitKingdomDefaults
+; $DBCF-$DD8A: Data block (ScenarioDataTable / kingdom defaults)
 ;===============================================================================
   .byte $EB, $DB, $0B, $DC, $2B, $DC, $4B, $DC, $6B, $DC, $8B, $DC, $AB, $DC, $CB, $DC ; $DBCF: EB DB 0B DC 2B DC 4B DC 6B DC 8B DC AB DC CB DC
   .byte $EB, $DC, $EB, $DC, $0B, $DD, $2B, $DD, $4B, $DD, $6B, $DD, $0F, $12, $1A, $2A ; $DBDF: EB DC EB DC 0B DD 2B DD 4B DD 6B DD 0F 12 1A 2A
-  .byte $0F, $27, $16, $2A, $0F, $36, $30, $16, $0F, $36, $30, $16, $0F, $0F ; $DBEF: 0F 27 16 2A 0F 36 30 16 0F 36 30 16 0F 0F
-  JSR $0F16                                             ; $DBFD: 20 16 0F
-  .byte $0F                                             ; $DC00: 0F
-  .byte $2B, $28 ; $DC01: 2B 28
-  .byte $0F                                             ; $DC03: 0F
-  ROL $30,X                                             ; $DC04: 36 30
-L_DC06:
-  ASL $0F,X                                             ; $DC06: 16 0F
-  JSR $1727                                             ; $DC08: 20 27 17
-  .byte $0F, $27                                        ; $DC0B: 0F 27
-  ORA $0F0A,Y                                           ; $DC0D: 19 0A 0F
-  ORA $0212,Y                                           ; $DC10: 19 12 02
-  .byte $0F                                             ; $DC13: 0F
-  ROL $20,X                                             ; $DC14: 36 20
-  ASL $0F,X                                             ; $DC16: 16 0F
-  JSR $2020                                             ; $DC18: 20 20 20
-  .byte $0F, $0F                                        ; $DC1B: 0F 0F
-  JSR $0F16                                             ; $DC1D: 20 16 0F
-  .byte $0F, $27, $17, $0F                              ; $DC20: 0F 27 17 0F
-  JSR $1727                                             ; $DC24: 20 27 17
-  .byte $0F                                             ; $DC27: 0F
-  JSR $1727                                             ; $DC28: 20 27 17
-  .byte $0F                                             ; $DC2B: 0F
-  AND #$1A                                              ; $DC2C: 29 1A
-  ORA #$0F                                              ; $DC2E: 09 0F
-  AND #$36                                              ; $DC30: 29 36
-  ASL $0F                                               ; $DC32: 06 0F
-  ROL $20,X                                             ; $DC34: 36 20
-  ASL $0F,X                                             ; $DC36: 16 0F
-  AND #$36                                              ; $DC38: 29 36
-  .byte $14, $0F, $0F                                   ; $DC3A: 14 0F 0F
-  ROL $06,X                                             ; $DC3D: 36 06
-  .byte $0F, $0F                                        ; $DC3F: 0F 0F
-  ROL $14,X                                             ; $DC41: 36 14
-  .byte $0F, $0F                                        ; $DC43: 0F 0F
-  JSR $0F16                                             ; $DC45: 20 16 0F
-  JSR $1727                                             ; $DC48: 20 27 17
-  .byte $0F, $27, $17                                   ; $DC4B: 0F 27 17
-  CLC                                                   ; $DC4E: 18
-  .byte $0F, $27                                        ; $DC4F: 0F 27
-  ROL $06,X                                             ; $DC51: 36 06
-  .byte $0F                                             ; $DC53: 0F
-  ROL $20,X                                             ; $DC54: 36 20
-  ASL $0F,X                                             ; $DC56: 16 0F
-  .byte $27                                             ; $DC58: 27
-  ROL $14,X                                             ; $DC59: 36 14
-  .byte $0F, $0F                                        ; $DC5B: 0F 0F
-  ROL $06,X                                             ; $DC5D: 36 06
-  .byte $0F, $0F                                        ; $DC5F: 0F 0F
-  ROL $14,X                                             ; $DC61: 36 14
-  .byte $0F, $0F                                        ; $DC63: 0F 0F
-  JSR $0F16                                             ; $DC65: 20 16 0F
-  JSR $1727                                             ; $DC68: 20 27 17
-  .byte $0F, $37                                        ; $DC6B: 0F 37
-  AND #$19                                              ; $DC6D: 29 19
-  .byte $0F, $37                                        ; $DC6F: 0F 37
-  ROL $06,X                                             ; $DC71: 36 06
-  .byte $0F                                             ; $DC73: 0F
-  ROL $20,X                                             ; $DC74: 36 20
-  ASL $0F,X                                             ; $DC76: 16 0F
-  .byte $37                                             ; $DC78: 37
-  ROL $14,X                                             ; $DC79: 36 14
-  .byte $0F, $0F                                        ; $DC7B: 0F 0F
-  ROL $06,X                                             ; $DC7D: 36 06
-  .byte $0F, $0F                                        ; $DC7F: 0F 0F
-  ROL $14,X                                             ; $DC81: 36 14
-  .byte $0F, $0F                                        ; $DC83: 0F 0F
-  JSR $0F16                                             ; $DC85: 20 16 0F
-  JSR $1727                                             ; $DC88: 20 27 17
-  .byte $0F                                             ; $DC8B: 0F
-  AND ($20,X)                                           ; $DC8C: 21 20
-  .byte $12, $0F                                        ; $DC8E: 12 0F
-  AND ($36,X)                                           ; $DC90: 21 36
-  ASL $0F                                               ; $DC92: 06 0F
-  ROL $20,X                                             ; $DC94: 36 20
-  ASL $0F,X                                             ; $DC96: 16 0F
-  AND ($36,X)                                           ; $DC98: 21 36
-  .byte $14, $0F, $0F                                   ; $DC9A: 14 0F 0F
-  ROL $06,X                                             ; $DC9D: 36 06
-  .byte $0F, $0F                                        ; $DC9F: 0F 0F
-  ROL $14,X                                             ; $DCA1: 36 14
-  .byte $0F, $0F                                        ; $DCA3: 0F 0F
-  JSR $0F16                                             ; $DCA5: 20 16 0F
-  JSR $1727                                             ; $DCA8: 20 27 17
-  .byte $0F                                             ; $DCAB: 0F
-  AND $1929,Y                                           ; $DCAC: 39 29 19
-  .byte $0F                                             ; $DCAF: 0F
-  AND $0636,Y                                           ; $DCB0: 39 36 06
-  .byte $0F                                             ; $DCB3: 0F
-  ROL $20,X                                             ; $DCB4: 36 20
-  ASL $0F,X                                             ; $DCB6: 16 0F
-  AND $1436,Y                                           ; $DCB8: 39 36 14
-  .byte $0F, $0F                                        ; $DCBB: 0F 0F
-  ROL $06,X                                             ; $DCBD: 36 06
-  .byte $0F, $0F                                        ; $DCBF: 0F 0F
-  ROL $14,X                                             ; $DCC1: 36 14
-  .byte $0F, $0F                                        ; $DCC3: 0F 0F
-  JSR $0F16                                             ; $DCC5: 20 16 0F
-  JSR $1727                                             ; $DCC8: 20 27 17
-  .byte $0F                                             ; $DCCB: 0F
-  BPL L_DCCE                                            ; $DCCC: 10 00
-L_DCCE:
-  JSR $100F                                             ; $DCCE: 20 0F 10
-  ROL $06,X                                             ; $DCD1: 36 06
-  .byte $0F                                             ; $DCD3: 0F
-  ROL $20,X                                             ; $DCD4: 36 20
-  ASL $0F,X                                             ; $DCD6: 16 0F
-  BPL L_DD10                                            ; $DCD8: 10 36
-  .byte $14, $0F, $0F                                   ; $DCDA: 14 0F 0F
-  ROL $06,X                                             ; $DCDD: 36 06
-  .byte $0F, $0F                                        ; $DCDF: 0F 0F
-  ROL $14,X                                             ; $DCE1: 36 14
-  .byte $0F, $0F                                        ; $DCE3: 0F 0F
-  JSR $0F16                                             ; $DCE5: 20 16 0F
-  JSR $1727                                             ; $DCE8: 20 27 17
-  .byte $0F                                             ; $DCEB: 0F
-  AND #$1A                                              ; $DCEC: 29 1A
-  ORA #$0F                                              ; $DCEE: 09 0F
-  AND #$36                                              ; $DCF0: 29 36
-  ASL $0F                                               ; $DCF2: 06 0F
-  ROL $20,X                                             ; $DCF4: 36 20
-  ASL $0F,X                                             ; $DCF6: 16 0F
-  AND #$36                                              ; $DCF8: 29 36
-  .byte $14, $0F, $0F                                   ; $DCFA: 14 0F 0F
-  ROL $06,X                                             ; $DCFD: 36 06
-  .byte $0F, $0F                                        ; $DCFF: 0F 0F
-  ROL $14,X                                             ; $DD01: 36 14
-  .byte $0F, $0F                                        ; $DD03: 0F 0F
-  JSR $0F16                                             ; $DD05: 20 16 0F
-  JSR $1727                                             ; $DD08: 20 27 17
-  .byte $0F, $17                                        ; $DD0B: 0F 17
-  CLC                                                   ; $DD0D: 18
-  ROL $0F,X                                             ; $DD0E: 36 0F
-L_DD10:
-  .byte $17                                             ; $DD10: 17
-  JSR $0F36                                             ; $DD11: 20 36 0F
-  ROL $20,X                                             ; $DD14: 36 20
-  ASL $0F,X                                             ; $DD16: 16 0F
-  .byte $17                                             ; $DD18: 17
-  ASL $36,X                                             ; $DD19: 16 36
-  .byte $0F, $17                                        ; $DD1B: 0F 17
-  CLC                                                   ; $DD1D: 18
-  ROL $0F,X                                             ; $DD1E: 36 0F
-  .byte $17                                             ; $DD20: 17
-  JSR $0F36                                             ; $DD21: 20 36 0F
-  .byte $17                                             ; $DD24: 17
-  ASL $36,X                                             ; $DD25: 16 36
-  .byte $0F                                             ; $DD27: 0F
-  JSR $1727                                             ; $DD28: 20 27 17
-  .byte $0F                                             ; $DD2B: 0F
-  BPL L_DD3D                                            ; $DD2C: 10 0F
-  BRK                                                   ; $DD2E: 00
-  .byte $0F                                             ; $DD2F: 0F
-  ASL $0F,X                                             ; $DD30: 16 0F
-  BMI L_DD43                                            ; $DD32: 30 0F
-  .byte $17, $07                                        ; $DD34: 17 07
-  AND ($0F,X)                                           ; $DD36: 21 0F
-  .byte $17                                             ; $DD38: 17
-  BPL L_DD5C                                            ; $DD39: 10 21
-  .byte $0F, $0F                                        ; $DD3B: 0F 0F
-L_DD3D:
-  .byte $30, $0A ; $DD3D: 30 0A
-  .byte $0F                                             ; $DD3F: 0F
-  ASL $28,X                                             ; $DD40: 16 28
-  .byte $0F                                             ; $DD42: 0F
-L_DD43:
-  .byte $0F                                             ; $DD43: 0F
-  BMI L_DD76                                            ; $DD44: 30 30
-  .byte $30, $0F ; $DD46: 30 0F
-  ASL $07                                               ; $DD48: 06 07
-  AND ($0F,X)                                           ; $DD4A: 21 0F
-  ROL $30,X                                             ; $DD4C: 36 30
-  ASL $0F,X                                             ; $DD4E: 16 0F
-  .byte $27                                             ; $DD50: 27
-  ASL $2A,X                                             ; $DD51: 16 2A
-  .byte $0F                                             ; $DD53: 0F
-  ROL $30,X                                             ; $DD54: 36 30
-  ASL $0F,X                                             ; $DD56: 16 0F
-  ROL $30,X                                             ; $DD58: 36 30
-  ASL $0F,X                                             ; $DD5A: 16 0F
-L_DD5C:
-  .byte $0F                                             ; $DD5C: 0F
-  JSR $0F16                                             ; $DD5D: 20 16 0F
-  .byte $0F                                             ; $DD60: 0F
-  .byte $2B, $28 ; $DD61: 2B 28
-  .byte $0F                                             ; $DD63: 0F
-  ROL $30,X                                             ; $DD64: 36 30
-  ASL $0F,X                                             ; $DD66: 16 0F
-  JSR $1727                                             ; $DD68: 20 27 17
-  .byte $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F ; $DD6B: 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F
-L_DD76:
-  .byte $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F ; $DD76: 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F
-  .byte $0F, $0F                                        ; $DD86: 0F 0F
+  .byte $0F, $27, $16, $2A, $0F, $36, $30, $16, $0F, $36, $30, $16, $0F, $0F, $20, $16 ; $DBEF: 0F 27 16 2A 0F 36 30 16 0F 36 30 16 0F 0F 20 16
+  .byte $0F, $0F, $2B, $28, $0F, $36, $30, $16, $0F, $20, $27, $17, $0F, $27, $19, $0A ; $DBFF: 0F 0F 2B 28 0F 36 30 16 0F 20 27 17 0F 27 19 0A
+  .byte $0F, $19, $12, $02, $0F, $36, $20, $16, $0F, $20, $20, $20, $0F, $0F, $20, $16 ; $DC0F: 0F 19 12 02 0F 36 20 16 0F 20 20 20 0F 0F 20 16
+  .byte $0F, $0F, $27, $17, $0F, $20, $27, $17, $0F, $20, $27, $17, $0F, $29, $1A, $09 ; $DC1F: 0F 0F 27 17 0F 20 27 17 0F 20 27 17 0F 29 1A 09
+  .byte $0F, $29, $36, $06, $0F, $36, $20, $16, $0F, $29, $36, $14, $0F, $0F, $36, $06 ; $DC2F: 0F 29 36 06 0F 36 20 16 0F 29 36 14 0F 0F 36 06
+  .byte $0F, $0F, $36, $14, $0F, $0F, $20, $16, $0F, $20, $27, $17, $0F, $27, $17, $18 ; $DC3F: 0F 0F 36 14 0F 0F 20 16 0F 20 27 17 0F 27 17 18
+  .byte $0F, $27, $36, $06, $0F, $36, $20, $16, $0F, $27, $36, $14, $0F, $0F, $36, $06 ; $DC4F: 0F 27 36 06 0F 36 20 16 0F 27 36 14 0F 0F 36 06
+  .byte $0F, $0F, $36, $14, $0F, $0F, $20, $16, $0F, $20, $27, $17, $0F, $37, $29, $19 ; $DC5F: 0F 0F 36 14 0F 0F 20 16 0F 20 27 17 0F 37 29 19
+  .byte $0F, $37, $36, $06, $0F, $36, $20, $16, $0F, $37, $36, $14, $0F, $0F, $36, $06 ; $DC6F: 0F 37 36 06 0F 36 20 16 0F 37 36 14 0F 0F 36 06
+  .byte $0F, $0F, $36, $14, $0F, $0F, $20, $16, $0F, $20, $27, $17, $0F, $21, $20, $12 ; $DC7F: 0F 0F 36 14 0F 0F 20 16 0F 20 27 17 0F 21 20 12
+  .byte $0F, $21, $36, $06, $0F, $36, $20, $16, $0F, $21, $36, $14, $0F, $0F, $36, $06 ; $DC8F: 0F 21 36 06 0F 36 20 16 0F 21 36 14 0F 0F 36 06
+  .byte $0F, $0F, $36, $14, $0F, $0F, $20, $16, $0F, $20, $27, $17, $0F, $39, $29, $19 ; $DC9F: 0F 0F 36 14 0F 0F 20 16 0F 20 27 17 0F 39 29 19
+  .byte $0F, $39, $36, $06, $0F, $36, $20, $16, $0F, $39, $36, $14, $0F, $0F, $36, $06 ; $DCAF: 0F 39 36 06 0F 36 20 16 0F 39 36 14 0F 0F 36 06
+  .byte $0F, $0F, $36, $14, $0F, $0F, $20, $16, $0F, $20, $27, $17, $0F, $10, $00, $20 ; $DCBF: 0F 0F 36 14 0F 0F 20 16 0F 20 27 17 0F 10 00 20
+  .byte $0F, $10, $36, $06, $0F, $36, $20, $16, $0F, $10, $36, $14, $0F, $0F, $36, $06 ; $DCCF: 0F 10 36 06 0F 36 20 16 0F 10 36 14 0F 0F 36 06
+  .byte $0F, $0F, $36, $14, $0F, $0F, $20, $16, $0F, $20, $27, $17, $0F, $29, $1A, $09 ; $DCDF: 0F 0F 36 14 0F 0F 20 16 0F 20 27 17 0F 29 1A 09
+  .byte $0F, $29, $36, $06, $0F, $36, $20, $16, $0F, $29, $36, $14, $0F, $0F, $36, $06 ; $DCEF: 0F 29 36 06 0F 36 20 16 0F 29 36 14 0F 0F 36 06
+  .byte $0F, $0F, $36, $14, $0F, $0F, $20, $16, $0F, $20, $27, $17, $0F, $17, $18, $36 ; $DCFF: 0F 0F 36 14 0F 0F 20 16 0F 20 27 17 0F 17 18 36
+  .byte $0F, $17, $20, $36, $0F, $36, $20, $16, $0F, $17, $16, $36, $0F, $17, $18, $36 ; $DD0F: 0F 17 20 36 0F 36 20 16 0F 17 16 36 0F 17 18 36
+  .byte $0F, $17, $20, $36, $0F, $17, $16, $36, $0F, $20, $27, $17, $0F, $10, $0F, $00 ; $DD1F: 0F 17 20 36 0F 17 16 36 0F 20 27 17 0F 10 0F 00
+  .byte $0F, $16, $0F, $30, $0F, $17, $07, $21, $0F, $17, $10, $21, $0F, $0F, $30, $0A ; $DD2F: 0F 16 0F 30 0F 17 07 21 0F 17 10 21 0F 0F 30 0A
+  .byte $0F, $16, $28, $0F, $0F, $30, $30, $30, $0F, $06, $07, $21, $0F, $36, $30, $16 ; $DD3F: 0F 16 28 0F 0F 30 30 30 0F 06 07 21 0F 36 30 16
+  .byte $0F, $27, $16, $2A, $0F, $36, $30, $16, $0F, $36, $30, $16, $0F, $0F, $20, $16 ; $DD4F: 0F 27 16 2A 0F 36 30 16 0F 36 30 16 0F 0F 20 16
+  .byte $0F, $0F, $2B, $28, $0F, $36, $30, $16, $0F, $20, $27, $17, $0F, $0F, $0F, $0F ; $DD5F: 0F 0F 2B 28 0F 36 30 16 0F 20 27 17 0F 0F 0F 0F
+  .byte $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F ; $DD6F: 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F
+  .byte $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F       ; $DD7F: 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F
 
-;===============================================================================
-; $DD88: SramStoreLoop
-;===============================================================================
-  .byte $0F, $0F, $0F                                   ; $DD88: 0F 0F 0F
+.proc SramInit
   LDA $6F43                                             ; $DD8B: AD 43 6F
   PHA                                                   ; $DD8E: 48
   LDA #$60                                              ; $DD8F: A9 60
-
-;===============================================================================
-; $DD91: SramInitMain
-;===============================================================================
   STA $0001                                             ; $DD91: 8D 01 00
   LDA #$00                                              ; $DD94: A9 00
   STA $0000                                             ; $DD96: 8D 00 00
   TAY                                                   ; $DD99: A8
-L_DD9A:
+@ClearLoop:
   STA ($00),Y                                           ; $DD9A: 91 00
   INY                                                   ; $DD9C: C8
-  BNE L_DD9A                                            ; $DD9D: D0 FB
+  BNE @ClearLoop                                        ; $DD9D: D0 FB
   INC $0001                                             ; $DD9F: EE 01 00
   LDX $0001                                             ; $DDA2: AE 01 00
   CPX #$70                                              ; $DDA5: E0 70
-  BCC L_DD9A                                            ; $DDA7: 90 F1
+  BCC @ClearLoop                                        ; $DDA7: 90 F1
   PLA                                                   ; $DDA9: 68
   STA $6F43                                             ; $DDAA: 8D 43 6F
-L_DDAD:
-  JSR B1F_RandomByte                                          ; $DDAD: 20 7A E8
+@RandLoop:
+  JSR B1F_RandomByte                                    ; $DDAD: 20 7A E8
   AND #$07                                              ; $DDB0: 29 07
   CMP #$05                                              ; $DDB2: C9 05
-  BCS L_DDAD                                            ; $DDB4: B0 F7
+  BCS @RandLoop                                         ; $DDB4: B0 F7
   STA $6F45                                             ; $DDB6: 8D 45 6F
   LDA #$FF                                              ; $DDB9: A9 FF
   STA $6F04                                             ; $DDBB: 8D 04 6F
@@ -7599,34 +5778,30 @@ L_DDAD:
   LDA #$00                                              ; $DDDC: A9 00
   STA $0002                                             ; $DDDE: 8D 02 00
   LDA #$60                                              ; $DDE1: A9 60
-
-;===============================================================================
-; $DDE3: SramCopyBlock
-;===============================================================================
   STA $0003                                             ; $DDE3: 8D 03 00
   LDY #$00                                              ; $DDE6: A0 00
   LDX #$00                                              ; $DDE8: A2 00
   STX $0004                                             ; $DDEA: 8E 04 00
-L_DDED:
+@Copy1Loop:
   LDA ($00),Y                                           ; $DDED: B1 00
   STA ($02),Y                                           ; $DDEF: 91 02
   INC $0000                                             ; $DDF1: EE 00 00
-  BNE L_DDF9                                            ; $DDF4: D0 03
+  BNE @Copy1PageOk                                      ; $DDF4: D0 03
   INC $0001                                             ; $DDF6: EE 01 00
-L_DDF9:
+@Copy1PageOk:
   INC $0002                                             ; $DDF9: EE 02 00
-  BNE L_DE01                                            ; $DDFC: D0 03
+  BNE @Copy1HiOk                                        ; $DDFC: D0 03
   INC $0003                                             ; $DDFE: EE 03 00
-L_DE01:
+@Copy1HiOk:
   INX                                                   ; $DE01: E8
-  BNE L_DE07                                            ; $DE02: D0 03
+  BNE @Copy1BankOk                                      ; $DE02: D0 03
   INC $0004                                             ; $DE04: EE 04 00
-L_DE07:
+@Copy1BankOk:
   LDA $0004                                             ; $DE07: AD 04 00
   CMP #$03                                              ; $DE0A: C9 03
-  BCC L_DDED                                            ; $DE0C: 90 DF
+  BCC @Copy1Loop                                        ; $DE0C: 90 DF
   CPX #$C0                                              ; $DE0E: E0 C0
-  BCC L_DDED                                            ; $DE10: 90 DB
+  BCC @Copy1Loop                                        ; $DE10: 90 DB
   LDY #$31                                              ; $DE12: A0 31
   JSR B1F_SwitchBank8_B                                 ; $DE14: 20 5F F2
   LDA #$00                                              ; $DE17: A9 00
@@ -7640,26 +5815,26 @@ L_DE07:
   LDY #$00                                              ; $DE2B: A0 00
   LDX #$00                                              ; $DE2D: A2 00
   STX $0004                                             ; $DE2F: 8E 04 00
-L_DE32:
+@Copy2Loop:
   LDA ($00),Y                                           ; $DE32: B1 00
   STA ($02),Y                                           ; $DE34: 91 02
   INC $0000                                             ; $DE36: EE 00 00
-  BNE L_DE3E                                            ; $DE39: D0 03
+  BNE @Copy2PageOk                                      ; $DE39: D0 03
   INC $0001                                             ; $DE3B: EE 01 00
-L_DE3E:
+@Copy2PageOk:
   INC $0002                                             ; $DE3E: EE 02 00
-  BNE L_DE46                                            ; $DE41: D0 03
+  BNE @Copy2HiOk                                        ; $DE41: D0 03
   INC $0003                                             ; $DE43: EE 03 00
-L_DE46:
+@Copy2HiOk:
   INX                                                   ; $DE46: E8
-  BNE L_DE4C                                            ; $DE47: D0 03
+  BNE @Copy2BankOk                                      ; $DE47: D0 03
   INC $0004                                             ; $DE49: EE 04 00
-L_DE4C:
+@Copy2BankOk:
   LDA $0004                                             ; $DE4C: AD 04 00
   CMP #$0B                                              ; $DE4F: C9 0B
-  BCC L_DE32                                            ; $DE51: 90 DF
+  BCC @Copy2Loop                                        ; $DE51: 90 DF
   CPX #$40                                              ; $DE53: E0 40
-  BCC L_DE32                                            ; $DE55: 90 DB
+  BCC @Copy2Loop                                        ; $DE55: 90 DB
   LDA #$59                                              ; $DE57: A9 59
   STA $6F00                                             ; $DE59: 8D 00 6F
   LDA #$00                                              ; $DE5C: A9 00
@@ -7675,10 +5850,14 @@ L_DE4C:
   LDA #$00                                              ; $DE78: A9 00
   STA $6F8A                                             ; $DE7A: 8D 8A 6F
   RTS                                                   ; $DE7D: 60
+.endproc
 
 ;===============================================================================
 ; $DE7E: OfficerParamDisp
+; Copies 48 bytes of officer parameter data from bank $21 table to $00AE.
+; Input: A = officer index
 ;===============================================================================
+.proc OfficerParamDisp
   LDY #$21                                              ; $DE7E: A0 21
   JSR B1F_SwitchBank8_B                                 ; $DE80: 20 5F F2
   LDY #$00                                              ; $DE83: A0 00
@@ -7701,17 +5880,25 @@ L_DE4C:
   LDA #$94                                              ; $DEA6: A9 94
   ADC $0001                                             ; $DEA8: 6D 01 00
   STA $0003                                             ; $DEAB: 8D 03 00
-L_DEAE:
+@CopyLoop:
   LDA ($02),Y                                           ; $DEAE: B1 02
   STA $00AE,Y                                           ; $DEB0: 99 AE 00
   INY                                                   ; $DEB3: C8
   CPY #$30                                              ; $DEB4: C0 30
-  BCC L_DEAE                                            ; $DEB6: 90 F6
+  BCC @CopyLoop                                         ; $DEB6: 90 F6
   RTS                                                   ; $DEB8: 60
+.endproc
 
 ;===============================================================================
 ; $DEB9: OfficerRecLookup
+; Assembles a 14-byte officer record from column-oriented tables into $0061-$0074.
+; Input: A = officer index
 ;===============================================================================
+.proc OfficerRecLookup
+  ; Proc-local RAM variables
+  officer_lookup_x  = $0072  ; officer lookup X coord
+  officer_lookup_y  = $0073  ; officer lookup Y coord
+  scene_file_ref    = $0074  ; scene file reference
   STA $0000                                             ; $DEB9: 8D 00 00
   TAX                                                   ; $DEBC: AA
   ASL                                                   ; $DEBD: 0A
@@ -7720,51 +5907,58 @@ L_DEAE:
   ADC $0000                                             ; $DEC0: 6D 00 00
   ASL                                                   ; $DEC3: 0A
   TAY                                                   ; $DEC4: A8
-  LDA $DF1A,Y                                           ; $DEC5: B9 1A DF
+  LDA OfficerRecordTable,Y                              ; $DEC5: B9 1A DF
   STA $0068                                             ; $DEC8: 8D 68 00
-  LDA $DF1B,Y                                           ; $DECB: B9 1B DF
+  LDA OfficerRecordTable+1,Y                            ; $DECB: B9 1B DF
   STA $0069                                             ; $DECE: 8D 69 00
-  LDA $DF1C,Y                                           ; $DED1: B9 1C DF
+  LDA OfficerRecordTable+2,Y                            ; $DED1: B9 1C DF
   STA $006A                                             ; $DED4: 8D 6A 00
-  LDA $DF1D,Y                                           ; $DED7: B9 1D DF
+  LDA OfficerRecordTable+3,Y                            ; $DED7: B9 1D DF
   STA $006B                                             ; $DEDA: 8D 6B 00
-  LDA $DF1E,Y                                           ; $DEDD: B9 1E DF
+  LDA OfficerRecordTable+4,Y                            ; $DEDD: B9 1E DF
   STA $006C                                             ; $DEE0: 8D 6C 00
-  LDA $DF1F,Y                                           ; $DEE3: B9 1F DF
+  LDA OfficerRecordTable+5,Y                            ; $DEE3: B9 1F DF
   STA $006D                                             ; $DEE6: 8D 6D 00
-  LDA $DF20,Y                                           ; $DEE9: B9 20 DF
+  LDA OfficerRecordTable+6,Y                            ; $DEE9: B9 20 DF
   STA $006E                                             ; $DEEC: 8D 6E 00
-  LDA $DF21,Y                                           ; $DEEF: B9 21 DF
+  LDA OfficerRecordTable+7,Y                            ; $DEEF: B9 21 DF
   STA $006F                                             ; $DEF2: 8D 6F 00
-  LDA $DF22,Y                                           ; $DEF5: B9 22 DF
+  LDA OfficerRecordTable+8,Y                            ; $DEF5: B9 22 DF
   STA $0070                                             ; $DEF8: 8D 70 00
-  LDA $DF23,Y                                           ; $DEFB: B9 23 DF
+  LDA OfficerRecordTable+9,Y                            ; $DEFB: B9 23 DF
   STA $0071                                             ; $DEFE: 8D 71 00
-  LDA $DF56,X                                           ; $DF01: BD 56 DF
+  LDA OfficerAttrTable,X                                ; $DF01: BD 56 DF
   STA $0072                                             ; $DF04: 8D 72 00
-  LDA $DF5C,X                                           ; $DF07: BD 5C DF
+  LDA OfficerAttrTable+6,X                              ; $DF07: BD 5C DF
   STA $0073                                             ; $DF0A: 8D 73 00
-  LDA $DF62,X                                           ; $DF0D: BD 62 DF
+  LDA OfficerAttrTable+12,X                             ; $DF0D: BD 62 DF
   STA $0074                                             ; $DF10: 8D 74 00
-  LDA $DF68,X                                           ; $DF13: BD 68 DF
+  LDA OfficerAttrTable+18,X                             ; $DF13: BD 68 DF
   STA $0061                                             ; $DF16: 8D 61 00
   RTS                                                   ; $DF19: 60
 
-;===============================================================================
-; $DF1A: PointerTable
-;===============================================================================
-  .byte $40, $E9, $14, $F2, $1E, $F2, $20, $F2, $FA, $F1, $6C, $B0, $20, $F2, $20, $F2 ; $DF1A: 40 E9 14 F2 1E F2 20 F2 FA F1 6C B0 20 F2 20 F2
-  .byte $20, $F2, $D0, $F1, $50, $E9, $40, $F2, $BA, $D5, $20, $F2, $80, $F1, $40, $E9 ; $DF2A: 20 F2 D0 F1 50 E9 40 F2 BA D5 20 F2 80 F1 40 E9
-  .byte $30, $F2, $A0, $F2, $F0, $F8, $20, $EA, $A0, $E9, $1E, $F2, $14, $F2, $20, $F2 ; $DF3A: 30 F2 A0 F2 F0 F8 20 EA A0 E9 1E F2 14 F2 20 F2
-  .byte $8B, $F1, $F0, $EF, $70, $F2, $20, $F2, $10, $F2, $D0, $EA, $2F, $0F, $0F, $0F ; $DF4A: 8B F1 F0 EF 70 F2 20 F2 10 F2 D0 EA 2F 0F 0F 0F
-  .byte $29, $0F, $0E, $14, $14, $14, $0E, $14, $0F, $14, $14, $14, $0F, $14, $03, $0A ; $DF5A: 29 0F 0E 14 14 14 0E 14 0F 14 14 14 0F 14 03 0A
-  .byte $0B, $08, $03, $03, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF6A: 0B 08 03 03 FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF7A: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF8A: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF9A: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFAA: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFBA: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFCA: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFDA: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFEA: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF, $FF, $FF, $FF, $FF, $FF                    ; $DFFA: FF FF FF FF FF FF
+;-------------------------------------------------------------------------------
+; Officer record data tables (10 bytes per officer, interleaved columns)
+;-------------------------------------------------------------------------------
+OfficerRecordTable:
+  .byte $40, $E9, $14, $F2, $1E, $F2, $20, $F2, $FA, $F1, $6C, $B0, $20, $F2, $20, $F2 ; $DF1A
+  .byte $20, $F2, $D0, $F1, $50, $E9, $40, $F2, $BA, $D5, $20, $F2, $80, $F1, $40, $E9 ; $DF2A
+  .byte $30, $F2, $A0, $F2, $F0, $F8, $20, $EA, $A0, $E9, $1E, $F2, $14, $F2, $20, $F2 ; $DF3A
+  .byte $8B, $F1, $F0, $EF, $70, $F2, $20, $F2, $10, $F2, $D0, $EA, $2F, $0F, $0F, $0F ; $DF4A
+  .byte $29, $0F, $0E, $14, $14, $14, $0E, $14, $0F, $14, $14, $14, $0F, $14, $03, $0A ; $DF5A
+
+;-------------------------------------------------------------------------------
+; Officer attribute tables (1 byte per officer, stride 6)
+;-------------------------------------------------------------------------------
+OfficerAttrTable:
+  .byte $0B, $08, $03, $03, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF6A
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF7A
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF8A
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DF9A
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFAA
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFBA
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFCA
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFDA
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $DFEA
+  .byte $FF, $FF, $FF, $FF, $FF, $FF                                    ; $DFFA
+.endproc

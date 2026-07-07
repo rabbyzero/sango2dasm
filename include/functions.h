@@ -570,26 +570,150 @@ B28_DomesticDisplay       = $A024   ; Domestic display (NMI context)
 
 ;-------------------------------------------------------------------------------
 ; Banks $1D+$1E - Combined 16KB ($A000-$DFFF)
-; Jump table entry points ($A000-$A047)
+; Jump table entry points ($A000-$A047) - 24 entries
 ;-------------------------------------------------------------------------------
 B1D_1E_PPUTileRender      = $A000   ; Entry00: PPU tile render
-B1D_1E_MenuUpdate          = $A003   ; Entry01: Menu update
-B1D_1E_VRAMBufferWrite     = $A006   ; Entry02: VRAM buffer write
-B1D_1E_StateHandler        = $A009   ; Entry03: State handler
-B1D_1E_MapDisplaySetup     = $A00C   ; Entry04: Map display setup
-B1D_1E_OfficerListHandler  = $A00F   ; Entry05: Officer list handler
-B1D_1E_YearDisplaySetup    = $A01E   ; Entry10: Year display setup
-B1D_1E_FrameCounterCheck   = $A021   ; Entry11: Frame counter check
-B1D_1E_BcdDisplayHandler   = $A024   ; Entry12: BCD display handler
-B1D_1E_ProvinceDataHandler = $A027   ; Entry13: Province data handler
-B1D_1E_OfficerDisplay_Lookup = $A02A   ; Entry14: Officer display lookup
-B1D_1E_OfficerDisplay_Render = $A030   ; Entry16: Officer display render
-B1D_1E_OfficerNameDisplay   = $A033   ; Entry17: Officer name display
+B1D_1E_MenuUpdate         = $A003   ; Entry01: Menu update
+B1D_1E_VRAMBufferWrite    = $A006   ; Entry02: VRAM buffer write
+B1D_1E_StateHandler       = $A009   ; Entry03: State handler
+B1D_1E_MapDisplaySetup    = $A00C   ; Entry04: Map display setup
+B1D_1E_OfficerListHandler = $A00F   ; Entry05: Officer list handler
+B1D_1E_FlushTileBuffer    = $A012   ; Entry06: Upload 64-byte tile buffer to VRAM
+B1D_1E_LoadScenarioData   = $A015   ; Entry07: Copy 32 bytes from scenario table
+B1D_1E_SramInit           = $A018   ; Entry08: SRAM initialization
+B1D_1E_OfficerParamDisp   = $A01B   ; Entry09: Officer parameter display
+B1D_1E_YearDisplaySetup   = $A01E   ; Entry10: Year display setup
+B1D_1E_SlowPeriodic       = $A021   ; Entry11: Slow periodic overlay refresh
+B1D_1E_ImmediateOverlay   = $A024   ; Entry12: Immediate overlay refresh
+B1D_1E_ProvinceDataHandler = $A027  ; Entry13: Province data handler
+B1D_1E_OfficerDisplay_Lookup = $A02A ; Entry14: Officer display lookup
+B1D_1E_FastPeriodic       = $A02D   ; Entry15: Fast periodic overlay refresh
+B1D_1E_OfficerDisplay_Render = $A030 ; Entry16: Officer display render
+B1D_1E_OfficerNameDisplay = $A033   ; Entry17: Officer name display
+B1D_1E_ClearWorkBuffer    = $A036   ; Entry18: Clear work buffer
+B1D_1E_SceneRenderer      = $A039   ; Entry19: Scene renderer
+B1D_1E_DataFormatter      = $A03C   ; Entry20: Data formatter
+B1D_1E_MenuRenderer       = $A03F   ; Entry21: Menu renderer
+B1D_1E_BankedDataHandler  = $A042   ; Entry22: Banked data handler
+B1D_1E_OfficerRecLookup   = $A045   ; Entry23: Officer record lookup
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $1D code ($A048-$BFFF)
+;-------------------------------------------------------------------------------
+B1D_1E_PPUTileRender_Proc = $A048   ; PPU tile render procedure
+B1D_1E_VRAMBufferWrite_Proc = $A11B ; VRAM buffer write procedure
+B1D_1E_MenuUpdate_Proc    = $A154   ; Menu update procedure
+B1D_1E_CheckInputAndProcess = $A158 ; Input check and process
+B1D_1E_MenuDispatchTable  = $A208   ; Menu command dispatch table
+B1D_1E_CmdEndMenu         = $A248   ; Cmd: end menu
+B1D_1E_CmdAdvanceRow      = $A281   ; Cmd: advance row
+B1D_1E_CmdPushPosition    = $A2A3   ; Cmd: push position
+B1D_1E_CmdPopPosition     = $A2C2   ; Cmd: pop position
+B1D_1E_CmdSetOverlayMode  = $A2DD   ; Cmd: set overlay mode
+B1D_1E_CmdClearOverlayMode = $A2E5  ; Cmd: clear overlay mode
+B1D_1E_CmdSetVramPos      = $A2ED   ; Cmd: set VRAM position
+B1D_1E_CmdEnableIndirect  = $A310   ; Cmd: enable indirect tiles
+B1D_1E_CmdDisableIndirect = $A318   ; Cmd: disable indirect tiles
+B1D_1E_CmdSetTileOffset   = $A320   ; Cmd: set tile offset
+B1D_1E_CmdDrawName        = $A32D   ; Cmd: draw name
+B1D_1E_CmdDrawNameFromParam = $A397 ; Cmd: draw name from param
+B1D_1E_CmdDrawNumber      = $A3B1   ; Cmd: draw number
+B1D_1E_CmdDrawNameFromData = $A426  ; Cmd: draw name from data
+B1D_1E_CmdDrawNameFixed7  = $A4B0   ; Cmd: draw name fixed 7
+B1D_1E_CmdDrawFormattedNumber = $A53E ; Cmd: draw formatted number
+B1D_1E_DigitTileOffsetTable = $A607 ; Digit tile offset table (8 bytes)
+B1D_1E_ClearTileBuffers   = $A60F   ; Clear tile row buffers
+B1D_1E_CalcMenuDataPtr    = $A61D   ; Calculate menu data pointer
+B1D_1E_BankPageOffsetTable = $A672  ; Bank page offset table (15 words)
+B1D_1E_SelectDataBankByPos = $A690  ; Select data bank by position
+B1D_1E_PosDataBankTable   = $A6A7   ; Position data bank table (15 bytes)
+B1D_1E_YearDisplaySetup_Proc = $A6B6 ; Year display setup procedure
+B1D_1E_ProvinceDataHandler_Proc = $A830 ; Province data handler procedure
+B1D_1E_ProvinceDisplayTilemap = $A856 ; Province display tilemap
+B1D_1E_OfficerDisplay_LookupProc = $A890 ; Officer display lookup procedure
+B1D_1E_OfficerDisplayTilemap = $A8C3 ; Officer display tilemap
+B1D_1E_OfficerNameDisplay_Proc = $A8FD ; Officer name display procedure
+B1D_1E_OfficerNameTilemap = $A91D   ; Officer name tilemap
+B1D_1E_DisplayScaledName  = $A957   ; Display scaled katakana name
+B1D_1E_FormatNumberPair   = $A96F   ; Format number pair
+B1D_1E_DisplayScaledNumber = $A976  ; Display scaled number
+B1D_1E_DataFormatter_Proc = $A991   ; Data formatter procedure
+B1D_1E_DisplayData_Table  = $AB08   ; Display data table
+B1D_1E_DataFormatter_Table1 = $AA37 ; Data formatter table 1
+B1D_1E_DataFormatter_Table2 = $AA88 ; Data formatter table 2
+B1D_1E_BankedDataHandler_Proc = $AA37 ; Banked data handler procedure
+B1D_1E_SetupBankedData    = $AB38   ; Setup banked data
+B1D_1E_StateHandler_Proc  = $ABD2   ; State handler procedure
+B1D_1E_KingdomTemplatePtrs = $AD84  ; Kingdom template pointers (4 entries)
+B1D_1E_DrawOfficerName    = $B0AB   ; Draw officer name
+B1D_1E_RenderSubState     = $B14C   ; Render sub-state
+B1D_1E_SubStateChrTiles   = $B222   ; Sub-state CHR tiles (4 bytes)
+B1D_1E_LoadOfficerNameInfo = $B23A  ; Load officer name info
+B1D_1E_MapDisplaySetup_Proc = $B29F ; Map display setup procedure
+B1D_1E_ProvinceDetailTilemap = $B305 ; Province detail tilemap
+B1D_1E_OfficerListHandler_Proc = $B989 ; Officer list handler procedure
+B1D_1E_InitOfficerListState = $B9CF ; Init officer list state
+B1D_1E_ProcessOfficerListScroll = $BA0E ; Process officer list scroll
+B1D_1E_DrawOfficerRecord  = $BB28   ; Draw officer record
+B1D_1E_FlushTileBuffer_Proc = $BC41 ; Flush tile buffer procedure
+B1D_1E_ClearWorkBuffer_Proc = $BC66 ; Clear work buffer procedure
+B1D_1E_SceneRenderer_Proc = $BC71   ; Scene renderer procedure
+B1D_1E_MenuRenderer_Proc  = $BE36   ; Menu renderer procedure
+B1D_1E_MenuAction00_InitialSetup = $BEBB ; Menu action 00: initial setup
+B1D_1E_MenuAction01_DisplaySetup = $BEEB ; Menu action 01: display setup
+B1D_1E_MenuAction02_LandDevelop = $BF2F ; Menu action 02: land development
+B1D_1E_MenuAction03_FloodControlSetup = $BF70 ; Menu action 03: flood control setup
+B1D_1E_MenuAction04_FloodControl = $BFBF ; Menu action 04: flood control
+B1D_1E_MenuAction05_CastleRepairSetup = $BFF3 ; Menu action 05: castle repair setup
+B1D_1E_MenuAction06_CastleRepair = $C046 ; Menu action 06: castle repair
+B1D_1E_MenuAction07_TaxRate = $C090 ; Menu action 07: tax rate
+B1D_1E_MenuAction08_GoldDistribution = $C0C8 ; Menu action 08: gold distribution
+B1D_1E_MenuAction09_FoodDistribution = $C123 ; Menu action 09: food distribution
+B1D_1E_MenuAction0A_RecruitSoldiers = $C168 ; Menu action 0A: recruit soldiers
+B1D_1E_MenuAction0B_HireOfficer = $C1AC ; Menu action 0B: hire officer
+B1D_1E_MenuAction0C_TransferOfficer = $C1FA ; Menu action 0C: transfer officer
+B1D_1E_MenuAction0D_ExecuteOfficer = $C25D ; Menu action 0D: execute officer
+B1D_1E_MenuAction0E_ExileOfficer = $C2DD ; Menu action 0E: exile officer
+B1D_1E_MenuAction0F_GiveItem = $C33D ; Menu action 0F: give item
+B1D_1E_MenuAction10_MoveCapital = $C3A2 ; Menu action 10: move capital
+B1D_1E_MenuAction11_Diplomacy = $C3F6 ; Menu action 11: diplomacy
+B1D_1E_MenuAction12_War   = $C43E   ; Menu action 12: war
+B1D_1E_MenuAction13_Spy   = $C4E1   ; Menu action 13: spy
+B1D_1E_MenuAction14_Accounting = $C511 ; Menu action 14: accounting
+B1D_1E_MenuAction15_Exchange = $C556 ; Menu action 15: exchange
+B1D_1E_MenuAction16_Trade = $C5B1   ; Menu action 16: trade
+B1D_1E_MenuAction17_SearchOfficer = $C5F7 ; Menu action 17: search officer
+B1D_1E_MenuAction18_SearchItem = $C636 ; Menu action 18: search item
+B1D_1E_MenuAction19_InspectLand = $C67D ; Menu action 19: inspect land
+B1D_1E_MenuAction1A_PersonalAffairs = $C6C6 ; Menu action 1A: personal affairs
+B1D_1E_MenuAction1B_DomesticDispatch = $C75F ; Menu action 1B: domestic dispatch
+B1D_1E_MenuAction1C_CopyTileData = $C7D1 ; Menu action 1C: copy tile data
+B1D_1E_MenuAction1D_SetupActionDisplay = $C800 ; Menu action 1D: setup action display
+B1D_1E_MenuAction1E_CalcParams = $C830 ; Menu action 1E: calc params
+B1D_1E_MenuAction1F_CalcParams2 = $C87D ; Menu action 1F: calc params 2
+B1D_1E_MenuAction20_CalcParams3 = $C8B4 ; Menu action 20: calc params 3
+B1D_1E_MenuAction21_Finalize = $C8F1 ; Menu action 21: finalize
+B1D_1E_MenuAction22_Cleanup = $C926 ; Menu action 22: cleanup
+
+;-------------------------------------------------------------------------------
 ; Internal procs - Bank $1E ($C000-$DFFF)
-B1D_1E_CommonReturn        = $C934   ; Shared return handler
-B1D_1E_SetupDisplayPtrs    = $C96D   ; Setup display pointers
-B1D_1E_ResetDispatchState  = $C98A   ; Reset dispatch state
-B1D_1E_DisplayTileData     = $C994   ; Tile data display engine
+;-------------------------------------------------------------------------------
+B1D_1E_DomesticMenu_Return = $C934  ; Domestic menu return / shared return
+B1D_1E_SetupDisplayPtrs   = $C96D   ; Setup display pointers
+B1D_1E_ResetDispatchState = $C98A   ; Reset dispatch state
+B1D_1E_DisplayTileData    = $C994   ; Tile data display engine
+B1D_1E_MenuRenderer_SecondaryDispatch = $C9C2 ; Menu renderer secondary dispatch
+B1D_1E_SramSaveBlock      = $C9E8   ; SRAM save block
+B1D_1E_SramLoadBlock      = $CA4E   ; SRAM load block
+B1D_1E_VerifyChecksum     = $CAC5   ; Verify SRAM checksum
+B1D_1E_OfficerRecCalc     = $CB52   ; Officer record address calculator
+B1D_1E_ProvinceRecCalc    = $CC09   ; Province record address calculator
+B1D_1E_MenuTilemapStream  = $CC40   ; Menu tilemap data stream (large)
+B1D_1E_LoadScenarioData_Proc = $DBB1 ; Load scenario data procedure
+B1D_1E_ScenarioDataTable  = $DBCF   ; Scenario data pointer table
+B1D_1E_SramInit_Proc      = $DD8B   ; SRAM init procedure
+B1D_1E_OfficerParamDisp_Proc = $DE7E ; Officer parameter display procedure
+B1D_1E_OfficerRecLookup_Proc = $DEB9 ; Officer record lookup procedure
 
 ;===============================================================================
 ; SECTION 3: Banked Code at $8000-$9FFF (Slot 0)
