@@ -19,11 +19,11 @@
 
 ## Update Summary
 **Changes Made**
-- Updated documentation to reflect the major refactoring of PRG $1D/$1E display system with extensive label renaming
-- Added comprehensive coverage of the new structured command dispatch system with MenuDispatchTable containing 32 entries for menu commands $80-$9F
-- Enhanced procedural boundaries documentation using .proc/.endproc directives throughout the codebase
-- Improved RAM variable organization with better naming conventions and structured memory addressing
-- Updated MenuUpdate procedure documentation to reflect the new jump table architecture and enhanced parameter system
+- Updated documentation to reflect the enhanced SceneRenderer system with proper callback table architecture replacing inline dispatch logic
+- Added comprehensive coverage of improved jump table using symbolic function names throughout the codebase
+- Enhanced local variable documentation across key procedures including MenuUpdate, YearDisplaySetup, PeriodicOverlayRefresh, ProvinceDataHandler, OfficerNameDisplay, DisplayScaledName, BankedDataHandler, SetupBankedData, StateHandler, and OfficerListHandler
+- Updated callback dispatcher implementation with structured parameter passing and return value handling
+- Improved procedural boundaries documentation using .proc/.endproc directives with comprehensive local variable scoping
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -34,14 +34,16 @@
 6. [Modern Assembly Formatting Standards](#modern-assembly-formatting-standard)
 7. [Enhanced Parameter Declaration System](#enhanced-parameter-declaration-system)
 8. [Enhanced Code Organization](#enhanced-code-organization)
-9. [Debugging and Verification Tools](#debugging-and-verification-tools)
-10. [Dependency Analysis](#dependency-analysis)
-11. [Performance Considerations](#performance-considerations)
-12. [Troubleshooting Guide](#troubleshooting-guide)
-13. [Conclusion](#conclusion)
+9. [Callback Table Architecture](#callback-table-architecture)
+10. [SceneRenderer System Implementation](#scenerenderer-system-implementation)
+11. [Debugging and Verification Tools](#debugging-and-verification-tools)
+12. [Dependency Analysis](#dependency-analysis)
+13. [Performance Considerations](#performance-considerations)
+14. [Troubleshooting Guide](#troubleshooting-guide)
+15. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with structured .proc/.endproc organization and enhanced code modularity. The PRG bank 17/18 combination provides specialized display and rendering functionality optimized for the game's strategic interface, while the new PRG bank 1D/1E combined system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations and enhanced bank switching capabilities.
+This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with structured .proc/.endproc organization and enhanced code modularity. The PRG bank 17/18 combination provides specialized display and rendering functionality optimized for the game's strategic interface, while the new PRG bank 1D/1E combined system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations and enhanced bank switching capabilities. The enhanced SceneRenderer system now implements a proper callback table architecture that replaces inline dispatch logic, providing improved maintainability and debugging support.
 
 ## Project Structure
 The project is organized around a modular bank-based approach with modern assembly formatting standards:
@@ -52,6 +54,7 @@ The project is organized around a modular bank-based approach with modern assemb
 - Modern assembly formatting standards provide improved readability and debugging support through structured .proc/.endproc organization.
 - The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly.
 - The new combined PRG bank 1D/1E system provides unified memory management and simplified bank switching for display and domestic operations.
+- **Enhanced Callback Architecture**: The SceneRenderer system now uses proper callback tables with symbolic function names instead of inline dispatch logic.
 
 ```mermaid
 graph TB
@@ -63,6 +66,7 @@ ALIGNED["asm/banks/prg_1f.aligned.asm<br/>Aligned Format with Structured Organiz
 BACKUP["asm/banks/prg_1f.asm.bak<br/>Backup of Legacy Format"]
 VTABLE["$E07C VectorTable<br/>$E000 Reset Handler<br/>Structured State Handlers"]
 PARAMSYS["Enhanced Parameter System<br/>Named Memory Aliases"]
+CALLBACKDISP["$EADE CallbackDispatcher<br/>Indirect Jump via Inline Table"]
 end
 subgraph "Combined Bank 17/18 - Specialized Display"
 COMBINED17_18["asm/banks/prg_17_18.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
@@ -76,6 +80,7 @@ subgraph "Combined Bank 1D/1E - Unified Display System"
 COMBINED1D_1E["asm/banks/prg_1d_1e.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
 JUMPTABLE["$A000-$A047: Jump Table<br/>24 Entry Points"]
 MENUDISPATCH["$A208-$A246: MenuDispatchTable<br/>32-Entry Command Dispatch ($80-$9F)"]
+SCENERENDERER["$BC71-$BD91: SceneRenderer<br/>Proper Callback Table Architecture"]
 DOMESTIC["$A048-$BFFF: Domestic Operations<br/>Menu Handlers, Data Processing"]
 SRAM["$C000-$DFFF: SRAM Operations<br/>Save/Load, Data Storage"]
 BANK1D["Bank $1D Content<br/>Jump Table, Display Ops"]
@@ -100,6 +105,7 @@ LCFG --> BACKUP
 MAIN --> ALIGNED
 ALIGNED --> VTABLE
 ALIGNED --> PARAMSYS
+ALIGNED --> CALLBACKDISP
 ALIGNED --> NAMCO
 ALIGNED --> REGS
 ALIGNED --> MACROS
@@ -110,6 +116,7 @@ COMBINED17_18 --> RLE
 COMBINED17_18 --> ENDPROC
 COMBINED1D_1E --> JUMPTABLE
 COMBINED1D_1E --> MENUDISPATCH
+COMBINED1D_1E --> SCENERENDERER
 COMBINED1D_1E --> DOMESTIC
 COMBINED1D_1E --> SRAM
 COMBINED1D_1E --> BANK1D
@@ -149,6 +156,7 @@ ALLB --> COMBINED1D_1E
 - **Enhanced Parameter System**: Structured memory addressing system with named parameter declarations throughout PRG bank 17-18 assembly.
 - **Unified Bank Architecture**: The new combined PRG bank 1D/1E system provides integrated memory management and simplified bank switching for display and domestic operations.
 - **New Menu Dispatch System**: The MenuUpdate procedure now features a comprehensive 32-entry MenuDispatchTable for handling menu commands $80-$9F with structured command processing.
+- **Enhanced Callback Architecture**: The SceneRenderer system implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability.
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
@@ -160,7 +168,7 @@ ALLB --> COMBINED1D_1E
 - [functions.h:315-335](file://include/functions.h#L315-L335)
 
 ## Architecture Overview
-The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern assembly format provides enhanced code organization with structured state handlers and improved debugging support. The combined PRG bank 17/18 structure optimizes display operations for the game's strategic interface, providing specialized PPU data writers, RLE decompression capabilities, and comprehensive display operation systems with an enhanced parameter declaration system that improves code readability and maintainability. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality.
+The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern assembly format provides enhanced code organization with structured state handlers and improved debugging support. The combined PRG bank 17/18 structure optimizes display operations for the game's strategic interface, providing specialized PPU data writers, RLE decompression capabilities, and comprehensive display operation systems with an enhanced parameter declaration system that improves code readability and maintainability. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, providing improved maintainability and debugging support compared to the previous inline dispatch logic approach.
 
 ```mermaid
 sequenceDiagram
@@ -171,6 +179,8 @@ participant SLOTS as "PRG Slots ($8000-$DFFF)"
 participant COMBINED17_18 as "Combined Bank 17/18 ($A000-$DFFF)"
 participant COMBINED1D_1E as "Combined Bank 1D/1E ($A000-$DFFF)"
 participant MENU as "MenuDispatchTable ($A208-$A246)"
+participant SCENE as "SceneRenderer ($BC71-$BD91)"
+participant CALLBACK as "CallbackDispatcher ($EADE)"
 participant PARAMSYS as "Enhanced Parameter System"
 participant STATE as "State Handler (Banked)"
 participant DEBUG as "Debug Tools"
@@ -188,6 +198,11 @@ COMBINED17_18->>COMBINED17_18 : Execute specialized PPU routines
 COMBINED17_18->>COMBINED17_18 : RLE decompression & display processing
 COMBINED1D_1E->>MENU : Process menu commands via MenuDispatchTable
 MENU->>MENU : Handle 32 menu commands ($80-$9F)
+COMBINED1D_1E->>SCENE : Invoke SceneRenderer
+SCENE->>CALLBACK : Use CallbackDispatcher with index
+CALLBACK->>CALLBACK : Read inline callback table
+CALLBACK->>SCENE : Jump to specific scene callback
+SCENE->>SCENE : Execute scene-specific operations
 COMBINED1D_1E->>COMBINED1D_1E : Unified display and domestic operations
 COMBINED1D_1E->>COMBINED1D_1E : Menu handlers and SRAM operations
 STATE-->>BOOT : Return to StateDispatch
@@ -196,6 +211,8 @@ DEBUG->>BOOT : Validate structured state handlers
 DEBUG->>COMBINED17_18 : Examine .proc/.endproc organization
 DEBUG->>COMBINED1D_1E : Analyze unified bank structure
 DEBUG->>MENU : Verify MenuDispatchTable structure
+DEBUG->>SCENE : Verify SceneRenderer callback architecture
+DEBUG->>CALLBACK : Validate CallbackDispatcher implementation
 DEBUG->>PARAMSYS : Verify parameter aliasing system
 ```
 
@@ -204,7 +221,9 @@ DEBUG->>PARAMSYS : Verify parameter aliasing system
 - [prg_1f.aligned.asm:467-694](file://asm/banks/prg_1f.aligned.asm#L467-L694)
 - [prg_17_18.asm:72-127](file://asm/banks/prg_17_18.asm#L72-L127)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
-- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-398)
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 
@@ -385,6 +404,7 @@ ROUTINES --> SCROLLOPS
 flowchart TD
 COMBINED1D_1E["Combined Bank 1D/1E ($A000-$DFFF)"] --> JUMPTABLE["$A000-$A047<br/>24-Entry Jump Table"]
 COMBINED1D_1E --> MENUDISPATCH["$A208-$A246<br/>32-Entry MenuDispatchTable"]
+COMBINED1D_1E --> SCENERENDERER["$BC71-$BD91<br/>SceneRenderer with Callback Table"]
 COMBINED1D_1E --> DOMESTIC["$A048-$BFFF<br/>Bank $1D Content"]
 COMBINED1D_1E --> SRAM["$C000-$DFFF<br/>Bank $1E Content"]
 JUMPTABLE --> ENTRY00["Entry00: PPUTileRender<br/>$A000"]
@@ -427,6 +447,7 @@ MENUDISPATCH --> CMD9C["CmdDrawNameFromData<br/>Command $9C"]
 MENUDISPATCH --> CMD9D["CmdDrawNameFixed7<br/>Command $9D"]
 MENUDISPATCH --> CMD9E["CmdDrawFormattedNumber<br/>Command $9E"]
 MENUDISPATCH --> CMD9F["CmdDrawNameFromParam<br/>Command $9F"]
+SCENERENDERER --> SCENECALLBACKS["Scene Renderer Callbacks<br/>6 Entries with Symbolic Names"]
 DOMESTIC --> MENUDISPLAY["Menu Display Ops<br/>Input Processing, Tile Buffering"]
 DOMESTIC --> DATAOPS["Data Operations<br/>Menu Data Ptr, Tile Byte Store"]
 DOMESTIC --> CALLBACKS["Callback Dispatchers<br/>B1F_CallbackDispatcher"]
@@ -440,6 +461,7 @@ SRAM --> DATASTORE["Data Storage<br/>Kingdom Records, Player Data"]
 - [prg_1d_1e.asm:241-358](file://asm/banks/prg_1d_1e.asm#L241-L358)
 - [prg_1d_1e.asm:359-475](file://asm/banks/prg_1d_1e.asm#L359-L475)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 
 **Section sources**
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
@@ -758,6 +780,141 @@ The new .proc/.endproc organization provides comprehensive function structuring:
 - [prg_1f.aligned.asm:1319-1372](file://asm/banks/prg_1f.aligned.asm#L1319-L1372)
 - [prg_17_18.asm:17-17](file://asm/banks/prg_17_18.asm#L17-L17)
 
+## Callback Table Architecture
+
+### Enhanced Callback Dispatcher Implementation
+The B1F_CallbackDispatcher provides a robust callback mechanism with proper parameter passing and return value handling:
+
+- **Parameter Passing**: Input parameter is passed via Y register and preserved across callback invocation
+- **Inline Table Structure**: Callback tables are defined immediately after the JSR instruction
+- **Indirect Jump Mechanism**: Uses return address calculation to access callback table entries
+- **Symbolic Function Names**: All callback targets use symbolic names for improved maintainability
+- **Structured Organization**: Proper .proc/.endproc boundaries ensure clean function scoping
+
+### Callback Table Structure and Usage
+The callback system follows a consistent pattern across the codebase:
+
+- **Table Definition**: Inline word tables containing 16-bit function addresses
+- **Index Calculation**: Index value multiplied by 2 for word-sized entries
+- **Return Address Handling**: Automatic stack manipulation to access following table
+- **Parameter Preservation**: Y register value saved and restored around callback invocation
+- **Flexible Architecture**: Supports any number of callbacks with simple table extension
+
+### SceneRenderer Callback Implementation
+The SceneRenderer system demonstrates the proper callback architecture:
+
+- **Six Entry Callback Table**: SceneOfficerListInit, ScenePageCopy, SceneRenderSetup, SceneSpriteSetup, SceneRenderExit3, SceneBufferFill
+- **State Management**: Uses $0401 as callback index with automatic incrementation
+- **Symbolic References**: All callback targets use descriptive function names
+- **Parameter Context**: Maintains scene-specific state in zero-page memory locations
+- **Integration Pattern**: Seamless integration with the broader callback system
+
+**Updated** Major enhancement implementing proper callback table architecture replacing inline dispatch logic with structured, maintainable callback mechanisms.
+
+```mermaid
+flowchart TD
+CALLER["Caller Code"] --> JSRCALL["JSR CallbackDispatcher"]
+JSRCALL --> STOREPARAM["Store Y parameter<br/>ASL index, INY"]
+STOREPARAM --> POPRET["Pop return address<br/>STA ret_addr_lo/hi"]
+POPRET --> CALCINDEX["Calculate table offset<br/>(ret_addr + INY)"]
+CALCINDEX --> LOADTARGET["Load target address<br/>LDA (ret_addr),Y"]
+LOADTARGET --> STOTARGET["Store target lo/hi<br/>STA target_lo/hi"]
+STOTARGET --> RESTOREPARAM["Restore Y parameter<br/>LDY param"]
+RESTOREPARAM --> INDIRECTJUMP["JMP (target_lo)<br/>Invoke callback"]
+CALLBACK["Callback Function"] --> RTS["RTS"]
+RTS --> RETURN["Return to caller"]
+```
+
+**Diagram sources**
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-L612)
+
+**Section sources**
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-L612)
+
+## SceneRenderer System Implementation
+
+### Comprehensive Local Variable Documentation
+The SceneRenderer system now features comprehensive local variable documentation across all key procedures:
+
+- **SceneRenderer Core**: officer_list_st, officer_list_st1, officer_list_st2, officer_list_st3, oam_extra, scene_render_flag
+- **MenuUpdate Variables**: menu_fmt_data0/1/2, menu_fmt_num0/1/2, menu_tile_tmp with detailed usage descriptions
+- **YearDisplaySetup**: Local variables for year display formatting and positioning
+- **PeriodicOverlayRefresh**: Variables for periodic refresh operations and timing control
+- **ProvinceDataHandler**: Province-specific data handling and display variables
+- **OfficerNameDisplay**: Officer name rendering and formatting variables
+- **DisplayScaledName**: Name scaling and positioning variables
+- **BankedDataHandler**: Bank switching and data management variables
+- **SetupBankedData**: Data setup and initialization variables
+- **StateHandler**: Game state management and transition variables
+- **OfficerListHandler**: Officer list display and interaction variables
+
+### SceneRenderer Callback Architecture
+The SceneRenderer implements a six-entry callback system with proper state management:
+
+- **SceneOfficerListInit**: Initializes officer list state registers with default values
+- **ScenePageCopy**: Copies scene page data with bank switching and palette updates
+- **SceneRenderSetup**: Handles scenario render setup, data loading, and timer initialization
+- **SceneSpriteSetup**: Manages sprite OAM setup and input-driven palette operations
+- **SceneRenderExit3**: Provides alternate render exit with scenario data loading
+- **SceneBufferFill**: Fills VRAM buffer pages and manages data pointers
+
+### Enhanced Procedural Boundaries
+All SceneRenderer procedures implement proper .proc/.endproc boundaries with comprehensive local variable scoping:
+
+- **Local Variable Isolation**: Each procedure defines its own parameter namespace
+- **Clear Function Boundaries**: .endproc markers define complete function scope
+- **Modular Design**: Independent procedures support better code organization
+- **Enhanced Debugging**: Scoped variables support better debugging and analysis
+- **Maintainability**: Clear boundaries facilitate easier code maintenance
+
+**Updated** Comprehensive documentation of local variables across all key procedures with enhanced procedural boundaries and proper callback table architecture.
+
+```mermaid
+flowchart TD
+SCENERENDERER["SceneRenderer ($BC71)"] --> CALLBACKDISP["B1F_CallbackDispatcher"]
+CALLBACKDISP --> SCENECALLBACKS["SceneRendererDispatch Table"]
+SCENECALLBACKS --> OFFICERLIST["SceneOfficerListInit<br/>Initialize officer list state"]
+SCENECALLBACKS --> PAGECOPY["ScenePageCopy<br/>Copy scene page data"]
+SCENECALLBACKS --> RENDERSETUP["SceneRenderSetup<br/>Scenario render setup"]
+SCENECALLBACKS --> SPRITES["SceneSpriteSetup<br/>Sprite OAM setup"]
+SCENECALLBACKS --> EXIT3["SceneRenderExit3<br/>Alternate render exit"]
+SCENECALLBACKS --> BUFFERFILL["SceneBufferFill<br/>Fill VRAM buffer"]
+OFFICERLIST --> LOCALVARS1["Local Variables:<br/>officer_list_st[0-3]"]
+PAGECOPY --> LOCALVARS2["Local Variables:<br/>oam_extra, scene_render_flag"]
+RENDERSETUP --> LOCALVARS3["Local Variables:<br/>display counters, timers"]
+SPRITES --> LOCALVARS4["Local Variables:<br/>sprite data, flags"]
+EXIT3 --> LOCALVARS5["Local Variables:<br/>scenario data pointers"]
+BUFFERFILL --> LOCALVARS6["Local Variables:<br/>buffer offsets, state"]
+LOCALVARS1 --> PROCBOUNDARY[".proc/.endproc Scope"]
+LOCALVARS2 --> PROCBOUNDARY
+LOCALVARS3 --> PROCBOUNDARY
+LOCALVARS4 --> PROCBOUNDARY
+LOCALVARS5 --> PROCBOUNDARY
+LOCALVARS6 --> PROCBOUNDARY
+```
+
+**Diagram sources**
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [prg_1d_1e.asm:3209-3220](file://asm/banks/prg_1d_1e.asm#L3209-L3220)
+- [prg_1d_1e.asm:3226-3271](file://asm/banks/prg_1d_1e.asm#L3226-L3271)
+- [prg_1d_1e.asm:3277-3300](file://asm/banks/prg_1d_1e.asm#L3277-L3300)
+- [prg_1d_1e.asm:3306-3325](file://asm/banks/prg_1d_1e.asm#L3306-L3325)
+- [prg_1d_1e.asm:3331-3352](file://asm/banks/prg_1d_1e.asm#L3331-L3352)
+- [prg_1d_1e.asm:3358-3400](file://asm/banks/prg_1d_1e.asm#L3358-L3400)
+
+**Section sources**
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [prg_1d_1e.asm:3209-3220](file://asm/banks/prg_1d_1e.asm#L3209-L3220)
+- [prg_1d_1e.asm:3226-3271](file://asm/banks/prg_1d_1e.asm#L3226-L3271)
+- [prg_1d_1e.asm:3277-3300](file://asm/banks/prg_1d_1e.asm#L3277-L3300)
+- [prg_1d_1e.asm:3306-3325](file://asm/banks/prg_1d_1e.asm#L3306-L3325)
+- [prg_1d_1e.asm:3331-3352](file://asm/banks/prg_1d_1e.asm#L3331-L3352)
+- [prg_1d_1e.asm:3358-3400](file://asm/banks/prg_1d_1e.asm#L3358-L3400)
+
 ## Debugging and Verification Tools
 
 ### Aligned Format Benefits
@@ -806,6 +963,15 @@ The new MenuDispatchTable provides additional debugging advantages:
 - **Improved Error Detection**: Command validation and error handling are more systematic
 - **Better Performance Analysis**: Command dispatch overhead can be measured and optimized
 
+### Enhanced Callback System Benefits
+The new callback table architecture provides debugging advantages:
+
+- **Structured Callback Management**: Clear separation of callback registration and invocation
+- **Enhanced Traceability**: Individual callbacks can be debugged independently
+- **Improved Error Detection**: Callback validation and error handling are more systematic
+- **Better Performance Analysis**: Callback dispatch overhead can be measured and optimized
+- **Symbolic References**: Symbolic function names improve debugging and analysis
+
 **Section sources**
 - [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
@@ -824,14 +990,16 @@ The architecture exhibits clear separation of concerns with modern assembly form
 - **Enhanced Parameter System**: Structured memory addressing system provides improved dependency management and code clarity.
 - **Unified Bank Architecture**: The new combined PRG bank 1D/1E system provides architectural improvement over individual bank management with simplified dependencies.
 - **Menu Dispatch Dependencies**: The MenuUpdate procedure depends on the B1F_CallbackDispatcher and MenuDispatchTable for structured command processing.
+- **Callback System Dependencies**: The SceneRenderer system depends on the B1F_CallbackDispatcher for structured callback invocation with proper parameter passing.
 
-**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, and the new menu dispatch architecture.
+**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, the new menu dispatch architecture, and the enhanced callback system.
 
 ```mermaid
 graph TB
 ALIGNED["prg_1f.aligned.asm<br/>Modern Assembly Format"] --> NAMCO["namco163.h"]
 ALIGNED --> REGS["6502_registers.h"]
 ALIGNED --> MACROS["macros.h"]
+ALIGNED --> CALLBACKDISP["CallbackDispatcher<br/>$EADE"]
 COMBINED17_18["prg_17_18.asm<br/>Combined 16KB Structure"] --> NAMCO
 COMBINED17_18 --> REGS
 COMBINED17_18 --> MACROS
@@ -841,6 +1009,8 @@ COMBINED1D_1E --> MACROS
 COMBINED1D_1E --> FUNCTIONS["functions.h<br/>Function Address Constants"]
 COMBINED1D_1E --> PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
 COMBINED1D_1E --> MENUDISPATCH["MenuDispatchTable<br/>32-Entry Command System"]
+COMBINED1D_1E --> SCENERENDERER["SceneRenderer<br/>Callback Table Architecture"]
+COMBINED1D_1E --> CALLBACKDISP
 MAIN["main.asm"] --> ALIGNED
 MAIN --> NAMCO
 LCFG["linker.cfg"] --> ALIGNED
@@ -857,8 +1027,9 @@ COMBINED17_18 --> PROC[".proc/.endproc<br/>Modular Functions"]
 COMBINED1D_1E --> PROC
 PARAMSYS --> PROC
 STRUCT --> PROC
-MENUDISPATCH --> CALLBACK["B1F_CallbackDispatcher"]
-CALLBACK --> ALIGNED
+MENUDISPATCH --> CALLBACKEVAL["B1F_CallbackDispatcher"]
+SCENERENDERER --> CALLBACKEVAL
+CALLBACKEVAL --> ALIGNED
 ```
 
 **Diagram sources**
@@ -873,6 +1044,7 @@ CALLBACK --> ALIGNED
 - [functions.h:315-335](file://include/functions.h#L315-L335)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
 - [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 
 **Section sources**
 - [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
@@ -899,6 +1071,8 @@ CALLBACK --> ALIGNED
 - **Memory Efficiency**: Parameter aliases eliminate redundant addressing operations and improve instruction efficiency.
 - **Unified Bank Benefits**: The combined bank architecture reduces bank switching overhead and provides more efficient memory access patterns.
 - **Menu Dispatch Optimization**: The new MenuDispatchTable provides efficient command routing with minimal overhead compared to conditional branching.
+- **Callback System Performance**: The callback table architecture provides efficient dispatch with minimal overhead compared to inline conditional logic.
+- **Symbolic References**: Symbolic function names improve code maintainability without performance impact.
 
 ## Troubleshooting Guide
 - If the game does not enter the intended state, verify the vector table indexing and ensure the state counter is properly masked.
@@ -917,6 +1091,9 @@ CALLBACK --> ALIGNED
 - **Enhanced Parameter System**: Use the structured parameter declarations to identify memory conflicts and improve debugging efficiency.
 - **Menu Dispatch Issues**: For menu command problems, verify the MenuDispatchTable structure and B1F_CallbackDispatcher usage.
 - **Command Handler Errors**: For specific menu command failures, check individual command handlers in the MenuDispatchTable range.
+- **Callback System Issues**: For callback-related problems, verify the callback table structure and B1F_CallbackDispatcher implementation.
+- **SceneRenderer Problems**: For scene rendering issues, check the SceneRenderer callback table and individual callback implementations.
+- **Local Variable Conflicts**: For variable-related issues, verify local variable scoping and .proc/.endproc boundaries.
 
 **Section sources**
 - [prg_1f.aligned.asm:739-750](file://asm/banks/prg_1f.aligned.asm#L739-L750)
@@ -926,6 +1103,8 @@ CALLBACK --> ALIGNED
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 
 ## Conclusion
-The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, and adopting the new menu dispatch system, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.
+The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability and debugging support. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, adopting the new menu dispatch system, and embracing the enhanced callback architecture, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.

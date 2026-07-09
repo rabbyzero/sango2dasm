@@ -341,85 +341,85 @@ Entry23:
 
 .proc PPUTileRender
 PPUTileRender:
-  LDA $007E                               ; $A048: AD 7E 00
+  LDA a:frame_flags                       ; $A048: AD 7E 00
   AND #$04                                ; $A04B: 29 04
   BEQ @check_flag2                            ; $A04D: F0 01
   RTS                                     ; $A04F: 60
 @check_flag2:
-  LDA $0303                               ; $A050: AD 03 03
+  LDA overlay_flag                        ; $A050: AD 03 03
   BEQ @check_flag3                            ; $A053: F0 03
   JMP @render_row1                            ; $A055: 4C C4 A0
 @check_flag3:
-  LDA $0308                               ; $A058: AD 08 03
+  LDA input_flag                          ; $A058: AD 08 03
   BEQ @check_mask                            ; $A05B: F0 03
   JMP @render_row1                            ; $A05D: 4C C4 A0
 @check_mask:
-  LDA $005E                               ; $A060: AD 5E 00
-  AND $0305                               ; $A063: 2D 05 03
+  LDA frame_tick_ctr                      ; $A060: AD 5E 00
+  AND render_bitmask                      ; $A063: 2D 05 03
   BEQ @render_single                            ; $A066: F0 03
   JMP B1F_NmiPaletteUpload                      ; $A068: 4C 72 EE
 @render_single:
-  LDY $0304                               ; $A06B: AC 04 03
-  LDA $034E,Y                             ; $A06E: B9 4E 03
+  LDY tile_col_idx                        ; $A06B: AC 04 03
+  LDA tile_row2_data,Y                    ; $A06E: B9 4E 03
   CMP #$80                                ; $A071: C9 80
   BEQ @reset_tile                            ; $A073: F0 41
   LDA $2002                               ; $A075: AD 02 20
-  LDA $031D                               ; $A078: AD 1D 03
+  LDA tile_row1_lo                        ; $A078: AD 1D 03
   STA $2006                               ; $A07B: 8D 06 20
-  LDA $031C                               ; $A07E: AD 1C 03
+  LDA tile_row1_hi                        ; $A07E: AD 1C 03
   CLC                                     ; $A081: 18
-  ADC $0304                               ; $A082: 6D 04 03
+  ADC tile_col_idx                        ; $A082: 6D 04 03
   STA $2006                               ; $A085: 8D 06 20
-  LDY $0304                               ; $A088: AC 04 03
-  LDA $031E,Y                             ; $A08B: B9 1E 03
+  LDY tile_col_idx                        ; $A088: AC 04 03
+  LDA tile_row1_data,Y                    ; $A08B: B9 1E 03
   STA $2007                               ; $A08E: 8D 07 20
-  LDA $030C                               ; $A091: AD 0C 03
+  LDA indirect_flag                       ; $A091: AD 0C 03
   BNE @inc_and_exit                            ; $A094: D0 1C
   LDA $2002                               ; $A096: AD 02 20
-  LDA $034D                               ; $A099: AD 4D 03
+  LDA tile_row2_lo                        ; $A099: AD 4D 03
   STA $2006                               ; $A09C: 8D 06 20
-  LDA $034C                               ; $A09F: AD 4C 03
+  LDA tile_row2_hi                        ; $A09F: AD 4C 03
   CLC                                     ; $A0A2: 18
-  ADC $0304                               ; $A0A3: 6D 04 03
+  ADC tile_col_idx                        ; $A0A3: 6D 04 03
   STA $2006                               ; $A0A6: 8D 06 20
-  LDY $0304                               ; $A0A9: AC 04 03
-  LDA $034E,Y                             ; $A0AC: B9 4E 03
+  LDY tile_col_idx                        ; $A0A9: AC 04 03
+  LDA tile_row2_data,Y                    ; $A0AC: B9 4E 03
   STA $2007                               ; $A0AF: 8D 07 20
 @inc_and_exit:
-  INC $0304                               ; $A0B2: EE 04 03
+  INC tile_col_idx                        ; $A0B2: EE 04 03
   RTS                                     ; $A0B5: 60
 @reset_tile:
   LDA #$FF                                ; $A0B6: A9 FF
-  STA $0304                               ; $A0B8: 8D 04 03
-  LDA $007E                               ; $A0BB: AD 7E 00
+  STA tile_col_idx                        ; $A0B8: 8D 04 03
+  LDA a:frame_flags                       ; $A0BB: AD 7E 00
   AND #$FE                                ; $A0BE: 29 FE
-  STA $007E                               ; $A0C0: 8D 7E 00
+  STA a:frame_flags                       ; $A0C0: 8D 7E 00
   RTS                                     ; $A0C3: 60
 @render_row1:
   LDA $2002                               ; $A0C4: AD 02 20
-  LDA $031D                               ; $A0C7: AD 1D 03
+  LDA tile_row1_lo                        ; $A0C7: AD 1D 03
   STA $2006                               ; $A0CA: 8D 06 20
-  LDA $031C                               ; $A0CD: AD 1C 03
+  LDA tile_row1_hi                        ; $A0CD: AD 1C 03
   STA $2006                               ; $A0D0: 8D 06 20
   LDY #$00                                ; $A0D3: A0 00
 @row1_loop:
-  LDA $031E,Y                             ; $A0D5: B9 1E 03
+  LDA tile_row1_data,Y                    ; $A0D5: B9 1E 03
   CMP #$80                                ; $A0D8: C9 80
   BEQ @check_row2                            ; $A0DA: F0 07
   STA $2007                               ; $A0DC: 8D 07 20
   INY                                     ; $A0DF: C8
   JMP @row1_loop                            ; $A0E0: 4C D5 A0
 @check_row2:
-  LDA $030C                               ; $A0E3: AD 0C 03
+  LDA indirect_flag                       ; $A0E3: AD 0C 03
   BNE @render_done                            ; $A0E6: D0 1F
   LDA $2002                               ; $A0E8: AD 02 20
-  LDA $034D                               ; $A0EB: AD 4D 03
+  LDA tile_row2_lo                        ; $A0EB: AD 4D 03
   STA $2006                               ; $A0EE: 8D 06 20
-  LDA $034C                               ; $A0F1: AD 4C 03
+  LDA tile_row2_hi                        ; $A0F1: AD 4C 03
   STA $2006                               ; $A0F4: 8D 06 20
   LDY #$00                                ; $A0F7: A0 00
 @row2_loop:
-  LDA $034E,Y                             ; $A0F9: B9 4E 03
+  LDA tile_row2_data,Y                    ; $A0F9: B9 4E 03
   CMP #$80                                ; $A0FC: C9 80
   BEQ @render_done                            ; $A0FE: F0 07
   STA $2007                               ; $A100: 8D 07 20
@@ -428,11 +428,11 @@ PPUTileRender:
 @render_done:
   JMP @reset_tile                            ; $A107: 4C B6 A0
   LDA #$FF                                ; $A10A: A9 FF
-  STA $0300                               ; $A10C: 8D 00 03
-  STA $0304                               ; $A10F: 8D 04 03
-  LDA $007E                               ; $A112: AD 7E 00
+  STA menu_status                         ; $A10C: 8D 00 03
+  STA tile_col_idx                        ; $A10F: 8D 04 03
+  LDA a:frame_flags                       ; $A112: AD 7E 00
   AND #$FE                                ; $A115: 29 FE
-  STA $007E                               ; $A117: 8D 7E 00
+  STA a:frame_flags                       ; $A117: 8D 7E 00
   RTS                                     ; $A11A: 60
 
 .endproc

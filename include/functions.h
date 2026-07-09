@@ -729,3 +729,17 @@ B1D_1E_OfficerRecLookup_Proc = $DEB9 ; Officer record lookup procedure
 ; (bank at $C000 is always Y+1 when $A000 is Y)
 ;===============================================================================
 ; (Bank $18 entries removed - now internal to combined prg_17_18.asm)
+
+;===============================================================================
+; SECTION 5: Combined Banks $0A+$0B ($A000-$DFFF)
+; Bank $0A at $A000-$BFFF paired with Bank $0B at $C000-$DFFF
+; Entry points via jump table at $A000-$A00E
+; Labels are defined in prg_0a_0b.asm and available globally.
+;===============================================================================
+; Jump Table Entry Points:
+;   B0A_Entry00 ($A000) -> B0A_MainDispatch
+;   B0A_Entry01 ($A003) -> B0B_SubStateDispatch
+;   B0A_Entry02 ($A006) -> B0B_ArmyValueCalc
+;   B0A_Entry03 ($A009) -> B0B_DataRecordLookup
+;   B0A_Entry04 ($A00C) -> B0B_DistanceClamp
+;
