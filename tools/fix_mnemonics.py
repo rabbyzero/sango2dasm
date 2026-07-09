@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fix mnemonic-opcode mismatches in prg_1f.aligned.asm.
+"""Fix mnemonic-opcode mismatches in prg_1f.asm.
 
 The mismatched lines have address-only comments ("; $XXXX" without opcode bytes).
 We look up the correct instruction from pbank31.cdl.asm reference, fix the mnemonic,
@@ -284,7 +284,7 @@ def fix_aligned_file(ref_map, aligned_path):
 def main():
     base_dir = Path(__file__).parent.parent
     ref_path = base_dir / 'asm' / 'banks' / 'pbank31.cdl.asm'
-    aligned_path = base_dir / 'asm' / 'banks' / 'prg_1f.aligned.asm'
+    aligned_path = base_dir / 'asm' / 'banks' / 'prg_1f.asm'
 
     print(f"Reading reference: {ref_path}")
     ref_map = parse_reference_file(ref_path)

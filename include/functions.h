@@ -319,20 +319,20 @@ B39_BattleEffects         = $A00F   ; Battle effects (NMI context)
 ;
 ; Jump table entry points ($A000-$A029)
 ;-------------------------------------------------------------------------------
-B17_18_PpuWriteRle        = $A000   ; Entry00: RLE-encoded PPU data writer
-B17_18_PpuCopyRaw         = $A003   ; Entry01: Raw 1KB PPU data copy
-B17_18_PpuWriteTileOffset = $A006   ; Entry02: PPU tile data write with offset
-B17_18_DisplayScrollLoop  = $A009   ; Entry03: Display scroll and render loop
-B17_18_DisplayAndChrSetup = $A00C   ; Entry04: Display coordinate check + CHR setup
-B17_18_BattleEffects      = $A00F   ; Entry05: Battle visual effects
-B17_18_BattleDispatch     = $A012   ; Entry06: Battle dispatch
-B17_18_OverlayWindow      = $A015   ; Entry07: Overlay/window rendering
-B17_18_SetupAdvisorTiles  = $A018   ; Entry08: Setup advisor/council tiles
-B17_18_MainGameDispatch   = $A01B   ; Entry09: Main game mode dispatcher
-B17_18_DomesticActionDispatch = $A01E ; Entry0A: Domestic action dispatcher
-B17_18_AnimationDispatch  = $A021   ; Entry0B: Animation dispatch
-B17_18_DomesticDisplay    = $A024   ; Entry0C: Domestic affairs display
-B17_18_DataRecordLoader   = $A027   ; Entry0D: Data record loader
+B17_18_PpuWriteRle        = $A000   ; PpuWriteRle_Entry: RLE-encoded PPU data writer
+B17_18_PpuCopyRaw         = $A003   ; PpuCopyRaw_Entry: Raw 1KB PPU data copy
+B17_18_PpuWriteTileOffset = $A006   ; PpuWriteTileOffset_Entry: PPU tile data write with offset
+B17_18_DisplayScrollLoop  = $A009   ; DisplayScrollLoop_Entry: Display scroll and render loop
+B17_18_DisplayAndChrSetup = $A00C   ; DisplayAndChrSetup_Entry: Display coordinate check + CHR setup
+B17_18_BattleEffects      = $A00F   ; BattleEffects_Entry: Battle visual effects
+B17_18_BattleDispatch     = $A012   ; BattleDispatch_Entry: Battle dispatch
+B17_18_OverlayWindow      = $A015   ; OverlayWindow_Entry: Overlay/window rendering
+B17_18_SetupAdvisorTiles  = $A018   ; SetupAdvisorTiles_Entry: Setup advisor/council tiles
+B17_18_MainGameDispatch   = $A01B   ; MainGameDispatch_Entry: Main game mode dispatcher
+B17_18_DomesticActionDispatch = $A01E ; DomesticActionDispatch_Entry: Domestic action dispatcher
+B17_18_AnimationDispatch  = $A021   ; AnimationDispatch_Entry: Animation dispatch
+B17_18_DomesticDisplay    = $A024   ; DomesticDisplay_Entry: Domestic affairs display
+B17_18_DataRecordLoader   = $A027   ; DataRecordLoader_Entry: Data record loader
 
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $17 ($A02A-$BFFF)
@@ -572,30 +572,30 @@ B28_DomesticDisplay       = $A024   ; Domestic display (NMI context)
 ; Banks $1D+$1E - Combined 16KB ($A000-$DFFF)
 ; Jump table entry points ($A000-$A047) - 24 entries
 ;-------------------------------------------------------------------------------
-B1D_1E_PPUTileRender      = $A000   ; Entry00: PPU tile render
-B1D_1E_MenuUpdate         = $A003   ; Entry01: Menu update
-B1D_1E_VRAMBufferWrite    = $A006   ; Entry02: VRAM buffer write
-B1D_1E_StateHandler       = $A009   ; Entry03: State handler
-B1D_1E_MapDisplaySetup    = $A00C   ; Entry04: Map display setup
-B1D_1E_OfficerListHandler = $A00F   ; Entry05: Officer list handler
-B1D_1E_FlushTileBuffer    = $A012   ; Entry06: Upload 64-byte tile buffer to VRAM
-B1D_1E_LoadScenarioData   = $A015   ; Entry07: Copy 32 bytes from scenario table
-B1D_1E_SramInit           = $A018   ; Entry08: SRAM initialization
-B1D_1E_OfficerParamDisp   = $A01B   ; Entry09: Officer parameter display
-B1D_1E_YearDisplaySetup   = $A01E   ; Entry10: Year display setup
-B1D_1E_SlowPeriodic       = $A021   ; Entry11: Slow periodic overlay refresh
-B1D_1E_ImmediateOverlay   = $A024   ; Entry12: Immediate overlay refresh
-B1D_1E_ProvinceDataHandler = $A027  ; Entry13: Province data handler
-B1D_1E_OfficerDisplay_Lookup = $A02A ; Entry14: Officer display lookup
-B1D_1E_FastPeriodic       = $A02D   ; Entry15: Fast periodic overlay refresh
-B1D_1E_OfficerDisplay_Render = $A030 ; Entry16: Officer display render
-B1D_1E_OfficerNameDisplay = $A033   ; Entry17: Officer name display
-B1D_1E_ClearWorkBuffer    = $A036   ; Entry18: Clear work buffer
-B1D_1E_SceneRenderer      = $A039   ; Entry19: Scene renderer
-B1D_1E_DataFormatter      = $A03C   ; Entry20: Data formatter
-B1D_1E_MenuRenderer       = $A03F   ; Entry21: Menu renderer
-B1D_1E_BankedDataHandler  = $A042   ; Entry22: Banked data handler
-B1D_1E_OfficerRecLookup   = $A045   ; Entry23: Officer record lookup
+B1D_1E_PPUTileRender      = $A000   ; PPUTileRender_Entry: PPU tile render
+B1D_1E_MenuUpdate         = $A003   ; MenuUpdate_Entry: Menu update
+B1D_1E_VRAMBufferWrite    = $A006   ; VRAMBufferWrite_Entry: VRAM buffer write
+B1D_1E_StateHandler       = $A009   ; StateHandler_Entry: State handler
+B1D_1E_MapDisplaySetup    = $A00C   ; MapDisplaySetup_Entry: Map display setup
+B1D_1E_OfficerListHandler = $A00F   ; OfficerListHandler_Entry: Officer list handler
+B1D_1E_FlushTileBuffer    = $A012   ; FlushTileBuffer_Entry: Upload 64-byte tile buffer to VRAM
+B1D_1E_LoadScenarioData   = $A015   ; LoadScenarioData_Entry: Copy 32 bytes from scenario table
+B1D_1E_SramInit           = $A018   ; SramInit_Entry: SRAM initialization
+B1D_1E_OfficerParamDisp   = $A01B   ; OfficerParamDisp_Entry: Officer parameter display
+B1D_1E_YearDisplaySetup   = $A01E   ; YearDisplaySetup_Entry: Year display setup
+B1D_1E_SlowPeriodic       = $A021   ; SlowPeriodic_Entry: Slow periodic overlay refresh
+B1D_1E_ImmediateOverlay   = $A024   ; ImmediateOverlay_Entry: Immediate overlay refresh
+B1D_1E_ProvinceDataHandler = $A027  ; ProvinceDataHandler_Entry: Province data handler
+B1D_1E_OfficerDisplay_Lookup = $A02A ; OfficerDisplay_Lookup_Entry: Officer display lookup
+B1D_1E_FastPeriodic       = $A02D   ; FastPeriodic_Entry: Fast periodic overlay refresh
+B1D_1E_OfficerDisplay_Render = $A030 ; OfficerDisplay_Render_Entry: Officer display render
+B1D_1E_OfficerNameDisplay = $A033   ; OfficerNameDisplay_Entry: Officer name display
+B1D_1E_ClearWorkBuffer    = $A036   ; ClearWorkBuffer_Entry: Clear work buffer
+B1D_1E_SceneRenderer      = $A039   ; SceneRenderer_Entry: Scene renderer
+B1D_1E_DataFormatter      = $A03C   ; DataFormatter_Entry: Data formatter
+B1D_1E_MenuRenderer       = $A03F   ; MenuRenderer_Entry: Menu renderer
+B1D_1E_BankedDataHandler  = $A042   ; BankedDataHandler_Entry: Banked data handler
+B1D_1E_OfficerRecLookup   = $A045   ; OfficerRecLookup_Entry: Officer record lookup
 
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $1D code ($A048-$BFFF)
@@ -737,9 +737,9 @@ B1D_1E_OfficerRecLookup_Proc = $DEB9 ; Officer record lookup procedure
 ; Labels are defined in prg_0a_0b.asm and available globally.
 ;===============================================================================
 ; Jump Table Entry Points:
-;   B0A_Entry00 ($A000) -> B0A_MainDispatch
-;   B0A_Entry01 ($A003) -> B0B_SubStateDispatch
-;   B0A_Entry02 ($A006) -> B0B_ArmyValueCalc
-;   B0A_Entry03 ($A009) -> B0B_DataRecordLookup
-;   B0A_Entry04 ($A00C) -> B0B_DistanceClamp
+;   CheckGameStart_Entry ($A000) -> CheckGameStart
+;   SubStateDispatch_Entry ($A003) -> SubStateDispatch
+;   ArmyValueCalc_Entry ($A006) -> ArmyValueCalc
+;   DataRecordLookup_Entry ($A009) -> DataRecordLookup
+;   DistanceClamp_Entry ($A00C) -> DistanceClamp
 ;

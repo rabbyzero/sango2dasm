@@ -68,6 +68,10 @@
 - [tools/dump_data_range.py](file://tools/dump_data_range.py)
 - [tools/mark_data_block.py](file://tools/mark_data_block.py)
 - [tools/verify_globals.py](file://tools/verify_globals.py)
+- [tools/disasm_0a_0b.py](file://tools/disasm_0a_0b.py)
+- [tools/disasm_prg.py](file://tools/disasm_prg.py)
+- [tools/link_0a_0b_test.cfg](file://tools/link_0a_0b_test.cfg)
+- [asm/banks/prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
 - [asm/main.asm](file://asm/main.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
@@ -79,11 +83,10 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for the new PRG banks $1D/$1E analysis tools including analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py
-- Updated Makefile targets section with new analysis tool integration points
-- Enhanced ROM Analysis and Verification Tools section with detailed coverage of the new specialized analysis tools
-- Added new subsection covering RAM usage analysis and global variable validation workflows
-- Updated practical examples and troubleshooting sections with new tool usage patterns
+- Added comprehensive documentation for new disassembly tools including tools/disasm_0a_0b.py (recursive descent disassembler for paired 16KB block at $A000-$DFFF) and tools/disasm_prg.py (general-purpose disassembler for combined PRG banks)
+- Updated Makefile targets section with new disassembly tool integration points
+- Enhanced ROM Analysis and Verification Tools section with detailed coverage of the new specialized disassembly tools
+- Added new subsection covering advanced paired bank disassembly capabilities and multi-pass code analysis
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -93,19 +96,20 @@
 5. [Detailed Component Analysis](#detailed-component-analysis)
 6. [Unified Disassembly Pipeline](#unified-disassembly-pipeline)
 7. [Enhanced Disassembly Tools](#enhanced-disassembly-tools)
-8. [Transformation Pipeline](#transformation-pipeline)
-9. [RAM Centralization and Standardization](#ram-centralization-and-standardization)
-10. [ROM Analysis and Verification Tools](#rom-analysis-and-verification-tools)
-11. [PRG Banks $1D/$1E Analysis Suite](#prg-banks-1d1e-analysis-suite)
-12. [Label Analysis and Renaming System](#label-analysis-and-renaming-system)
-13. [Dependency Analysis](#dependency-analysis)
-14. [Performance Considerations](#performance-considerations)
-15. [Troubleshooting Guide](#troubleshooting-guide)
-16. [Conclusion](#conclusion)
-17. [Appendices](#appendices)
+8. [Advanced Paired Bank Disassembly](#advanced-paired-bank-disassembly)
+9. [Transformation Pipeline](#transformation-pipeline)
+10. [RAM Centralization and Standardization](#ram-centralization-and-standardization)
+11. [ROM Analysis and Verification Tools](#rom-analysis-and-verification-tools)
+12. [PRG Banks $1D/$1E Analysis Suite](#prg-banks-1d1e-analysis-suite)
+13. [Label Analysis and Renaming System](#label-analysis-and-renaming-system)
+14. [Dependency Analysis](#dependency-analysis)
+15. [Performance Considerations](#performance-considerations)
+16. [Troubleshooting Guide](#troubleshooting-guide)
+17. [Conclusion](#conclusion)
+18. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -118,6 +122,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - **New**: Specialized disassembly tools for Bank $1D ($A000-$BFFF) and Bank $1E ($C000-$DFFF) with combined assembly pipeline
 - **New**: Advanced label analysis and renaming system for automated Loc_ label processing and meaningful name assignment
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite providing RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation
+- **New**: Advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms and callback dispatcher detection
 
 ```mermaid
 graph TB
@@ -163,6 +168,11 @@ B1E["disasm_1e.py<br/>Two-pass disassembler"]
 B1ED["disasm_1e_definitive.py<br/>Definitive data region handling"]
 B1EF["disasm_1e_final.py<br/>Simple linear-sweep"]
 B1D1E["assemble_prg_1d_1e.py<br/>Combined assembly builder"]
+end
+subgraph "Advanced Paired Bank Disassembly"
+APB1["disasm_0a_0b.py<br/>Recursive descent for banks $0A/$0B"]
+APB2["disasm_prg.py<br/>General-purpose combined PRG disassembler"]
+APB3["link_0a_0b_test.cfg<br/>Test linker configuration"]
 end
 subgraph "PRG Banks $1D/$1E Analysis Suite"
 AN1["analyze_ram_1d1e.py<br/>RAM usage analysis"]
@@ -237,6 +247,8 @@ MK --> B1E
 MK --> B1ED
 MK --> B1EF
 MK --> B1D1E
+MK --> APB1
+MK --> APB2
 MK --> AN1
 MK --> AN2
 MK --> AN3
@@ -291,6 +303,9 @@ T_verify --> OUT
 - [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
 - [tools/disasm_1e_final.py:1-494](file://tools/disasm_1e_final.py#L1-L494)
 - [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
+- [tools/disasm_0a_0b.py:1-1258](file://tools/disasm_0a_0b.py#L1-L1258)
+- [tools/disasm_prg.py:1-523](file://tools/disasm_prg.py#L1-L523)
+- [tools/link_0a_0b_test.cfg:1-10](file://tools/link_0a_0b_test.cfg#L1-L10)
 - [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
 - [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
 - [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
@@ -335,6 +350,7 @@ T_verify --> OUT
 - **New**: Specialized disassembly tools for Bank $1D ($A000-$BFFF) and Bank $1E ($C000-$DFFF) with combined assembly pipeline.
 - **New**: Advanced label analysis and renaming system provides automated Loc_ label processing and meaningful name assignment for improved code readability.
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite provides specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
+- **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection.
 
 Key capabilities:
 - Assemble and link to produce a raw PRG binary.
@@ -353,6 +369,7 @@ Key capabilities:
 - **New**: Advanced label analysis system that groups Loc_ labels by procedure and shows context around definitions and references.
 - **New**: Automated label renaming system that replaces generic Loc_ labels with meaningful names using comprehensive mapping tables.
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite with RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
+- **New**: Advanced paired bank disassembly with recursive descent algorithms, callback dispatcher detection, and inline table analysis for complex bank pairs.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -379,6 +396,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - **New**: Apply specialized disassembly pipeline for Bank $1D/$1E with multiple disassembler variants and combined assembly generation.
 - **New**: Apply advanced label analysis and renaming system for automated Loc_ label processing and meaningful name assignment.
 - **New**: Utilize comprehensive PRG banks $1D/$1E analysis suite for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
+- **New**: Apply advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms and callback dispatcher detection.
 
 ```mermaid
 sequenceDiagram
@@ -395,6 +413,7 @@ participant GC as "Globalize 04xx Tool"
 participant RA as "ROM Analysis Tools"
 participant LA as "Label Analysis & Renaming"
 participant P1D1E as "PRG Banks $1D/$1E Analysis Suite"
+participant APB as "Advanced Paired Bank Disassembly"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm"
 CA-->>MK : "main.o"
@@ -430,6 +449,8 @@ MK->>RA : "Address verification and ROM analysis"
 RA-->>Dev : "Detailed byte-level inspection"
 Dev->>P1D1E : "Run PRG banks $1D/$1E analysis"
 P1D1E-->>Dev : "RAM usage analysis, address validation, conflict detection"
+Dev->>APB : "Run advanced paired bank disassembly"
+APB-->>Dev : "Recursive descent disassembly with callback detection"
 ```
 
 **Diagram sources**
@@ -484,6 +505,8 @@ P1D1E-->>Dev : "RAM usage analysis, address validation, conflict detection"
 - **New**: make dump_data_range: Extract ROM data ranges for PRG banks $1D/$1E analysis.
 - **New**: make mark_data_block: Insert automated data blocks into PRG banks $1D/$1E assembly.
 - **New**: make verify_globals: Validate global variable definitions in PRG banks $1D/$1E assembly.
+- **New**: make disasm_0a_0b: Advanced recursive descent disassembly for paired banks $0A/$0B with callback dispatcher detection.
+- **New**: make disasm_prg: General-purpose combined PRG disassembler with multi-pass code analysis.
 
 Usage patterns:
 - Start with make split to prepare ROM assets.
@@ -503,6 +526,7 @@ Usage patterns:
 - **New**: Use make analyze_loc_labels to analyze Loc_ label usage patterns and context.
 - **New**: Use make rename_loc_labels to automate meaningful label replacement.
 - **New**: Utilize PRG banks $1D/$1E analysis suite for comprehensive RAM usage analysis, address validation, and symbol conflict detection.
+- **New**: Apply advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms.
 - Iterate assembly and linking, then verify with make verify.
 
 **Section sources**
@@ -570,6 +594,8 @@ Info --> Combined["Write prg_combined.bin"]
 - **New**: disasm_1e_definitive.py handles definitive data region detection between code routines for Bank $1E.
 - **New**: disasm_1e_final.py provides simple linear-sweep disassembler for Bank $1E with .byte data handling.
 - **New**: assemble_prg_1d_1e.py combines Bank $1D/$1E assembly into final 16KB mapping ($A000-$DFFF).
+- **New**: disasm_0a_0b.py provides advanced recursive descent disassembly for paired banks $0A/$0B with callback dispatcher detection and inline table analysis.
+- **New**: disasm_prg.py provides general-purpose combined PRG disassembler with multi-pass code analysis and callback table detection.
 - annotate_asm.py annotates existing assembly with ROM addresses and actual opcode bytes, using a symbol table and instruction size heuristics. It can optionally verify assembly with ca65.
 
 Enhanced with improved output format supporting inline binary comments and detailed address mapping for precise ROM analysis.
@@ -589,6 +615,8 @@ participant AS1D1E as "assemble_prg_1d_1e.py"
 participant GEN as "gen_f667_ffff.py"
 participant UPDATE as "update_jsr_labels.py"
 participant VERIFY as "verify_f3bd_f667.py"
+participant APB1 as "disasm_0a_0b.py"
+participant APB2 as "disasm_prg.py"
 participant AN as "annotate_asm.py"
 participant ASM as "Assembly Source"
 participant BIN as "Binary Bank"
@@ -606,6 +634,8 @@ AS1D1E-->>ASM : "Combined Bank $1D/$1E assembly"
 GEN-->>ASM : "Interrupt handler disassembly"
 UPDATE-->>ASM : "Address-to-symbol mapping"
 VERIFY-->>ASM : "Range verification"
+APB1-->>ASM : "Advanced paired bank disassembly"
+APB2-->>ASM : "Multi-pass combined PRG disassembly"
 ASM->>AN : "Assembly with placeholders"
 AN->>BIN : "Lookup opcode bytes"
 AN-->>ASM : "Annotated assembly with addresses and bytes"
@@ -625,6 +655,8 @@ AN-->>ASM : "Annotated assembly with addresses and bytes"
 - [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-L396)
 - [tools/update_jsr_labels.py:1-137](file://tools/update_jsr_labels.py#L1-L137)
 - [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-L45)
+- [tools/disasm_0a_0b.py:1-1258](file://tools/disasm_0a_0b.py#L1-L1258)
+- [tools/disasm_prg.py:1-523](file://tools/disasm_prg.py#L1-L523)
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
 
 **Section sources**
@@ -641,12 +673,14 @@ AN-->>ASM : "Annotated assembly with addresses and bytes"
 - [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-L396)
 - [tools/update_jsr_labels.py:1-137](file://tools/update_jsr_labels.py#L1-L137)
 - [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-L45)
+- [tools/disasm_0a_0b.py:1-1258](file://tools/disasm_0a_0b.py#L1-L1258)
+- [tools/disasm_prg.py:1-523](file://tools/disasm_prg.py#L1-L523)
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
 
 ### ROM Verification System
 - verify_rom.py performs a byte-by-byte comparison of two ROM files, reporting total mismatches, first mismatch address, and accuracy percentage. It exits with success when identical.
 - **New**: verify_f3bd_f667.py verifies Bank $1F range $F3BD-$F667 assembly against binary with detailed error reporting.
-- **New**: verify_range.py verifies disassembly bytes in prg_1f.aligned.asm against the binary for range $E843-$F2AE.
+- **New**: verify_range.py verifies disassembly bytes in prg_1f.asm against the binary for range $E843-$F2AE.
 - **New**: verify_disasm.py provides comprehensive disassembly verification by checking multiple known addresses for byte-level accuracy.
 
 ```mermaid
@@ -669,6 +703,7 @@ Report --> Exit(["Exit code 0 if identical, else 1"])
 - linker.cfg defines 4 PRG slots ($8000-$FFFF) and segments for code/data. As banks are disassembled, new segments are added to map code into the correct bank slots.
 - **New**: test_17_18.cfg provides a temporary configuration for standalone verification of paired Bank $17/$18 assembly code.
 - **New**: build/test_17_18.cfg provides a test linker configuration specifically for Bank $17/$18 disassembly pipeline.
+- **New**: tools/link_0a_0b_test.cfg provides a test linker configuration for paired banks $0A/$0B disassembly.
 
 ```mermaid
 classDiagram
@@ -689,8 +724,13 @@ class Test17_18BuildConfig {
 +Build-time validation
 +Separate PRG regions
 }
+class Test0A_0BConfig {
++Paired Bank $0A/$0B disassembly
++Callback dispatcher support
+}
 LinkerConfig --> Test17_18Config : "inspiration"
 Test17_18Config --> Test17_18BuildConfig : "build variant"
+Test17_18Config --> Test0A_0BConfig : "similar pattern"
 ```
 
 **Diagram sources**
@@ -698,12 +738,14 @@ Test17_18Config --> Test17_18BuildConfig : "build variant"
 - [test_linker.cfg:1-13](file://test_linker.cfg#L1-13)
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
+- [tools/link_0a_0b_test.cfg:1-10](file://tools/link_0a_0b_test.cfg#L1-L10)
 
 **Section sources**
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [test_linker.cfg:1-13](file://test_linker.cfg#L1-13)
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
+- [tools/link_0a_0b_test.cfg:1-10](file://tools/link_0a_0b_test.cfg#L1-L10)
 
 ### Assembly Entry Points and Mapper Integration
 - asm/main.asm sets up reset/NMI/IRQ handlers, initializes PPU/APU, and switches PRG banks via macros from include/namco163.h.
@@ -791,7 +833,7 @@ Stage5 --> Stage6["verify_range.py<br/>Aligned assembly verification"]
 - **Count Validation**: Ensures both byte content and count match the expected 683 bytes.
 
 #### Stage 6: Aligned Assembly Verification (verify_range.py)
-- **Range-Specific Validation**: Verifies disassembly bytes in prg_1f.aligned.asm against binary for range $E843-$F2AE.
+- **Range-Specific Validation**: Verifies disassembly bytes in prg_1f.asm against binary for range $E843-$F2AE.
 - **Pattern Validation**: Ensures all tokens are exactly 2 hex characters for reliable parsing.
 - **Comprehensive Coverage**: Validates the aligned Bank $1F assembly file for the specified address range.
 
@@ -959,6 +1001,75 @@ Format --> End(["Enhanced Assembly Listing"])
 
 **Section sources**
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
+
+## Advanced Paired Bank Disassembly
+
+### Overview
+The advanced paired bank disassembly system provides sophisticated tools for analyzing complex bank pairs with recursive descent algorithms, callback dispatcher detection, and inline table analysis. This system addresses the challenges of working with tightly coupled bank pairs that use callback dispatchers and inline pointer tables for dynamic code execution.
+
+### Advanced Disassembly Tools
+
+#### disasm_0a_0b.py - Recursive Descent Disassembler for Banks $0A/$0B
+- **Sophisticated Algorithm**: Implements recursive descent disassembly with iterative refinement to discover all code regions
+- **Callback Dispatcher Detection**: Automatically identifies CallbackDispatcher ($EADE) and BankedCallbackTrampoline ($EE07) patterns
+- **Inline Table Analysis**: Detects and processes inline pointer tables following dispatcher calls
+- **Cross-Bank Reference Handling**: Manages references between banks $0A ($A000-$BFFF) and $0B ($C000-$DFFF)
+- **Proc Boundary Detection**: Identifies procedure boundaries using RTS/JMP analysis and fallthrough detection
+- **RAM Address Aliasing**: Provides meaningful names for zero-page and RAM addresses used within procedures
+- **Comprehensive Output**: Generates ca65-compatible assembly with .proc/.endproc blocks and global RAM definitions
+
+#### disasm_prg.py - General-Purpose Combined PRG Disassembler
+- **Multi-Pass Analysis**: Performs three-pass analysis to distinguish code from data regions
+- **Pass 1 - Target Collection**: Linear scan to collect branch/jump/JSR targets and detect dispatcher patterns
+- **Pass 2 - Execution Tracing**: Trace execution from seed entry points, marking code until terminator instructions
+- **Pass 3 - Output Generation**: Generate ca65-compatible assembly with proper code/data region separation
+- **Dispatch Table Recognition**: Identifies inline .word tables after JSR to known dispatcher addresses
+- **Flexible Configuration**: Supports configurable bank combinations and output formats
+- **Statistical Reporting**: Provides detailed statistics about code vs data ratios and analysis progress
+
+### Advanced Features
+
+#### Callback Dispatcher Detection
+Both tools implement sophisticated callback dispatcher detection:
+- **CallbackDispatcher Pattern**: Recognizes JSR $EADE followed by inline .word pointer tables
+- **BankedCallbackTrampoline Pattern**: Identifies JSR $EE07 with single pointer arguments
+- **Table Size Calculation**: Automatically determines table boundaries based on valid pointer ranges
+- **Callback Target Analysis**: Treats table entries as additional code entry points for tracing
+
+#### Recursive Descent Algorithm
+The disasm_0a_0b.py tool implements an advanced recursive descent algorithm:
+- **Entry Point Discovery**: Starts with known entry points (jump table, bank starts)
+- **Instruction Tracing**: Follows execution paths through branches, jumps, and JSR calls
+- **Termination Detection**: Stops tracing at JMP, RTS, RTI, or unknown opcodes
+- **Iterative Refinement**: Repeatedly traces code and discovers new entry points until convergence
+- **Fallthrough Detection**: Identifies code that follows RTS/JMP instructions as potential new procedures
+
+#### Procedure Boundary Analysis
+Advanced procedure boundary detection includes:
+- **RTS/JMP Analysis**: Identifies procedure ends at return and jump instructions
+- **Branch Target Classification**: Distinguishes between branch targets (not proc starts) and JSR/JMP targets (proc starts)
+- **Mid-Instruction Protection**: Prevents procedure starts at mid-instruction addresses
+- **Cross-Bank Proc Boundaries**: Handles procedure boundaries that span bank divisions
+
+#### RAM Address Aliasing
+Comprehensive RAM address aliasing system:
+- **Zero-Page Aliases**: Provides meaningful names for frequently used zero-page addresses
+- **Work Area Definitions**: Defines work area variables with descriptive names
+- **Math Workspace Aliases**: Names mathematical computation workspace variables
+- **Game State Variables**: Provides aliases for game state and control variables
+- **SRAM Definitions**: Defines battery-backed SRAM address aliases
+
+### Integration with Build System
+The advanced paired bank disassembly tools integrate with the build system through:
+- **Direct Tool Execution**: python3 tools/disasm_0a_0b.py and python3 tools/disasm_prg.py
+- **Test Configuration**: tools/link_0a_0b_test.cfg provides linker configuration for testing
+- **Output Generation**: Creates assembly files in asm/banks/ directory
+- **Validation Support**: Enables verification of generated assembly against original ROM
+
+**Section sources**
+- [tools/disasm_0a_0b.py:1-1258](file://tools/disasm_0a_0b.py#L1-L1258)
+- [tools/disasm_prg.py:1-523](file://tools/disasm_prg.py#L1-L523)
+- [tools/link_0a_0b_test.cfg:1-10](file://tools/link_0a_0b_test.cfg#L1-L10)
 
 ## Transformation Pipeline
 
@@ -1373,17 +1484,17 @@ AT10 --> AT11["analyze_1e_deep.py<br/>Deep structure analysis"]
 ```
 
 **Diagram sources**
-- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
-- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
-- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
-- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
-- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
-- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
-- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
-- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
-- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
-- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
-- [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-43)
+- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-13)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-34)
+- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-36)
+- [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-53)
 
 ### Individual Tool Analysis
 
@@ -1482,17 +1593,17 @@ The ROM analysis toolkit integrates seamlessly with the Makefile build system:
 - Results support iterative assembly and linking workflows for accurate ROM reconstruction.
 
 **Section sources**
-- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
-- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
-- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
-- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
-- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
-- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
-- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
-- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
-- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
-- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
-- [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-43)
+- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-13)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-34)
+- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-36)
+- [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-53)
 
 ### Advanced Verification Workflows
 The ROM analysis toolkit enables sophisticated verification workflows:
@@ -1523,16 +1634,16 @@ The ROM analysis toolkit enables sophisticated verification workflows:
 4. **Padding Detection**: Locate $FF padding regions and analyze ROM structure
 
 **Section sources**
-- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
-- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
-- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
-- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
-- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
-- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
-- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
-- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
-- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
-- [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-43)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-34)
+- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-36)
+- [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-53)
 
 ## PRG Banks $1D/$1E Analysis Suite
 
@@ -1553,12 +1664,12 @@ AN6 --> Output["Validated Assembly Code"]
 ```
 
 **Diagram sources**
-- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-L102)
-- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-L56)
-- [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-L42)
-- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-L13)
-- [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-L56)
-- [tools/verify_globals.py:1-105](file://tools/verify_globals.py#L1-L105)
+- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-102)
+- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-56)
+- [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-42)
+- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-13)
+- [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-56)
+- [tools/verify_globals.py:1-105](file://tools/verify_globals.py#L1-105)
 
 ### Individual Tool Analysis
 
@@ -1623,12 +1734,12 @@ The PRG banks $1D/$1E analysis suite integrates seamlessly with the Makefile bui
 - Results support iterative development and maintenance workflows for PRG banks $1D/$1E
 
 **Section sources**
-- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-L102)
-- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-L56)
-- [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-L42)
-- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-L13)
-- [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-L56)
-- [tools/verify_globals.py:1-105](file://tools/verify_globals.py#L1-L105)
+- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-102)
+- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-56)
+- [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-42)
+- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-13)
+- [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-56)
+- [tools/verify_globals.py:1-105](file://tools/verify_globals.py#L1-105)
 
 ### Advanced Analysis Workflows
 The PRG banks $1D/$1E analysis suite enables sophisticated analysis workflows:
@@ -1652,12 +1763,12 @@ The PRG banks $1D/$1E analysis suite enables sophisticated analysis workflows:
 4. **Validation**: Re-run analysis tools to verify issue resolution
 
 **Section sources**
-- [tools/analyze_ram_1d1e.py:15-102](file://tools/analyze_ram_1d1e.py#L15-L102)
-- [tools/check_addrs.py:29-56](file://tools/check_addrs.py#L29-L56)
-- [tools/check_conflicts.py:28-42](file://tools/check_conflicts.py#L28-L42)
-- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-L13)
-- [tools/mark_data_block.py:14-56](file://tools/mark_data_block.py#L14-L56)
-- [tools/verify_globals.py:40-105](file://tools/verify_globals.py#L40-L105)
+- [tools/analyze_ram_1d1e.py:15-102](file://tools/analyze_ram_1d1e.py#L15-102)
+- [tools/check_addrs.py:29-56](file://tools/check_addrs.py#L29-56)
+- [tools/check_conflicts.py:28-42](file://tools/check_conflicts.py#L28-42)
+- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-13)
+- [tools/mark_data_block.py:14-56](file://tools/mark_data_block.py#L14-56)
+- [tools/verify_globals.py:40-105](file://tools/verify_globals.py#L40-105)
 
 ## Label Analysis and Renaming System
 
@@ -1675,9 +1786,9 @@ Stage3 --> Output["Improved Assembly Code"]
 ```
 
 **Diagram sources**
-- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-L84)
-- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
-- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-L254)
+- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-84)
+- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-339)
+- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-254)
 
 ### Stage-by-Stage Breakdown
 
@@ -1715,9 +1826,9 @@ The label analysis and renaming system integrates seamlessly with the Makefile b
 The tools process the prg_1d_1e.asm file and provide detailed logging of their operations, including label counts, replacement statistics, and verification results.
 
 **Section sources**
-- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-L84)
-- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
-- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-L254)
+- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-84)
+- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-339)
+- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-254)
 
 ### Advanced Label Analysis Features
 The analyze_loc_labels.py tool provides sophisticated analysis capabilities for understanding label usage patterns:
@@ -1776,9 +1887,9 @@ The enhance_prg_1d.py tool provides advanced processing for Bank $1D assembly co
 - **Output Quality**: Generates high-quality, well-organized assembly code
 
 **Section sources**
-- [tools/analyze_loc_labels.py:15-84](file://tools/analyze_loc_labels.py#L15-L84)
-- [tools/rename_loc_labels.py:11-274](file://tools/rename_loc_labels.py#L11-L274)
-- [tools/enhance_prg_1d.py:14-40](file://tools/enhance_prg_1d.py#L14-L40)
+- [tools/analyze_loc_labels.py:15-84](file://tools/analyze_loc_labels.py#L15-84)
+- [tools/rename_loc_labels.py:11-274](file://tools/rename_loc_labels.py#L11-274)
+- [tools/enhance_prg_1d.py:14-40](file://tools/enhance_prg_1d.py#L14-40)
 
 ## Dependency Analysis
 The build system exhibits clear separation of concerns:
@@ -1791,9 +1902,10 @@ The build system exhibits clear separation of concerns:
 - **New**: Specialized disassembly pipeline for Bank $1D/$1E with multiple disassembler variants and combined assembly generation.
 - **New**: Advanced label analysis and renaming system provides automated Loc_ label processing and meaningful name assignment.
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite provides specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
+- **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, and PRG banks $1D/$1E analysis suite for comprehensive ROM coverage.
+- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, and advanced paired bank disassembly tools for comprehensive ROM coverage.
 
 ```mermaid
 graph TB
@@ -1828,6 +1940,8 @@ MK --> B1E["disasm_1e.py"]
 MK --> B1ED["disasm_1e_definitive.py"]
 MK --> B1EF["disasm_1e_final.py"]
 MK --> B1D1E["assemble_prg_1d_1e.py"]
+MK --> APB1["disasm_0a_0b.py"]
+MK --> APB2["disasm_prg.py"]
 MK --> LA1["analyze_loc_labels.py"]
 MK --> LA2["rename_loc_labels.py"]
 MK --> LA3["enhance_prg_1d.py"]
@@ -1873,6 +1987,8 @@ B1ED --> B1EF
 B1DF --> B1D1E
 B1EF --> B1D1E
 B1D1E --> Output
+APB1 --> Output
+APB2 --> Output
 LA1 --> LA2
 LA2 --> LA3
 LA3 --> Output
@@ -1895,60 +2011,62 @@ P1D1E6 --> Output
 ```
 
 **Diagram sources**
-- [Makefile:31-101](file://Makefile#L31-L101)
-- [tools/build_nes.py:10-51](file://tools/build_nes.py#L10-L51)
-- [tools/verify_rom.py:10-69](file://tools/verify_rom.py#L10-L69)
-- [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
-- [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-L362)
-- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
-- [tools/generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46)
-- [tools/analyze_rom.py:10-128](file://tools/analyze_rom.py#L10-L128)
-- [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-L478)
-- [tools/disasm_17_18.py:1-710](file://tools/disasm_17_18.py#L1-L710)
-- [tools/fix_disasm.py:1-56](file://tools/fix_disasm.py#L1-L56)
-- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-L396)
-- [tools/update_jsr_labels.py:1-137](file://tools/update_jsr_labels.py#L1-L137)
-- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-L45)
-- [tools/verify_range.py:1-42](file://tools/verify_range.py#L1-L42)
-- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
-- [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
-- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
-- [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
-- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
-- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
-- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
-- [tools/globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
-- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-L214)
-- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-L443)
-- [tools/disasm_1d_final.py:1-210](file://tools/disasm_1d_final.py#L1-L210)
-- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-L512)
-- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
-- [tools/disasm_1e_final.py:1-494](file://tools/disasm_1e_final.py#L1-L494)
-- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
-- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-L84)
-- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
-- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-L254)
-- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
-- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
-- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
-- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
-- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
-- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
-- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
-- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
-- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
-- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
-- [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
-- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-L102)
-- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-L56)
-- [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-L42)
-- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-L13)
-- [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-L56)
-- [tools/verify_globals.py:1-105](file://tools/verify_globals.py#L1-L105)
+- [Makefile:31-101](file://Makefile#L31-101)
+- [tools/build_nes.py:10-51](file://tools/build_nes.py#L10-51)
+- [tools/verify_rom.py:10-69](file://tools/verify_rom.py#L10-69)
+- [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-122)
+- [tools/disasm_6502.py:286-362](file://tools/disasm_6502.py#L286-362)
+- [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-442)
+- [tools/generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-46)
+- [tools/analyze_rom.py:10-128](file://tools/analyze_rom.py#L10-128)
+- [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-478)
+- [tools/disasm_17_18.py:1-710](file://tools/disasm_17_18.py#L1-710)
+- [tools/fix_disasm.py:1-56](file://tools/fix_disasm.py#L1-56)
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
+- [tools/update_jsr_labels.py:1-137](file://tools/update_jsr_labels.py#L1-137)
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
+- [tools/verify_range.py:1-42](file://tools/verify_range.py#L1-42)
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-348)
+- [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-189)
+- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-118)
+- [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-98)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-813)
+- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-526)
+- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-416)
+- [tools/globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-205)
+- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-214)
+- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-443)
+- [tools/disasm_1d_final.py:1-210](file://tools/disasm_1d_final.py#L1-210)
+- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-512)
+- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-522)
+- [tools/disasm_1e_final.py:1-494](file://tools/disasm_1e_final.py#L1-494)
+- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-41)
+- [tools/disasm_0a_0b.py:1-1258](file://tools/disasm_0a_0b.py#L1-1258)
+- [tools/disasm_prg.py:1-523](file://tools/disasm_prg.py#L1-523)
+- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-84)
+- [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-339)
+- [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-254)
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-43)
+- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-13)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-34)
+- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-36)
+- [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-53)
+- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-102)
+- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-56)
+- [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-42)
+- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-13)
+- [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-56)
+- [tools/verify_globals.py:1-105](file://tools/verify_globals.py#L1-105)
 
 **Section sources**
-- [Makefile:31-101](file://Makefile#L31-L101)
-- [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
+- [Makefile:31-101](file://Makefile#L31-101)
+- [PROJECT.md:14-47](file://PROJECT.md#L14-47)
 
 ## Performance Considerations
 - Disassembly and annotation operate on 8KB banks; keep input binaries small and targeted for faster iteration.
@@ -1963,6 +2081,7 @@ P1D1E6 --> Output
 - **New**: Bank $1D/$1E disassembly pipeline provides multiple disassembler variants with different complexity levels; choose appropriate disassembler based on desired output quality and processing time.
 - **New**: Label analysis and renaming system processes entire assembly files with comprehensive label scanning and replacement; expect processing time proportional to code size and label count.
 - **New**: PRG banks $1D/$1E analysis suite provides comprehensive RAM usage analysis and validation; expect processing time proportional to code complexity and address count.
+- **New**: Advanced paired bank disassembly tools implement sophisticated recursive descent algorithms; expect significant processing time for complex bank pairs with callback dispatchers.
 - **New**: Each disassembly, transformation, analysis, and label processing stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
 - **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
 - **New**: Localized label conversion adds another processing stage but significantly improves code readability and maintainability.
@@ -1972,6 +2091,7 @@ P1D1E6 --> Output
 - **New**: Label replacement operations use word boundary matching which may require additional processing time but ensures safe replacements.
 - **New**: RAM usage analysis tools scan entire assembly files for address patterns; expect processing time proportional to code size and RAM address frequency.
 - **New**: Symbol conflict detection performs comprehensive symbol table analysis; expect processing time proportional to symbol count and scope complexity.
+- **New**: Callback dispatcher detection in paired bank disassembly requires extensive analysis of inline tables and pointer validation; expect processing time proportional to code complexity and dispatcher usage.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -2012,6 +2132,11 @@ Common issues and resolutions:
 - **New**: ROM data extraction failures: Check that dump_data_range.py can access prg_1e.bin and specified address ranges.
 - **New**: Automated data insertion failures: Verify that mark_data_block.py can locate data block boundaries and insert .byte directives correctly.
 - **New**: Global variable validation failures: Ensure verify_globals.py properly identifies global definitions and usage patterns.
+- **New**: Advanced paired bank disassembly failures: Verify ROM files exist for banks $0A/$0B and check callback dispatcher patterns.
+- **New**: Recursive descent algorithm issues: Check that disasm_0a_0b.py can properly trace code execution and identify procedure boundaries.
+- **New**: Callback dispatcher detection problems: Verify that known dispatcher addresses ($EADE, $EE07) are correctly configured.
+- **New**: Inline table analysis failures: Check that pointer table boundaries are correctly calculated and validated.
+- **New**: RAM aliasing issues: Verify that RAM address names are properly defined and don't conflict with existing definitions.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
@@ -2038,6 +2163,47 @@ Practical examples:
 - **New**: ROM data extraction: make dump_data_range
 - **New**: Automated data insertion: make mark_data_block
 - **New**: Global variable validation: make verify_globals
+- **New**: Advanced paired bank disassembly: python3 tools/disasm_0a_0b.py
+- **New**: General-purpose PRG disassembly: python3 tools/disasm_prg.py 0x1D 0x1E --output output/prg_1d_1e_raw.asm
+- **New**: Transform specific stage: python3 tools/transform_17_18.py, python3 tools/add_procs.py, etc.
+- **New**: Advanced boundary analysis: python3 tools/proc_scope_17_18.py
+- **New**: Localized label conversion: python3 tools/localize_labels.py
+- **New**: Automated parameter declaration: python3 tools/auto_add_local_params.py
+- **New**: RAM centralization: python3 tools/globalize_04xx.py
+- **New**: Label analysis: python3 tools/analyze_loc_labels.py
+- **New**: Label renaming: python3 tools/rename_loc_labels.py
+- **New**: Enhanced processing: python3 tools/enhance_prg_1d.py
+- **New**: Address verification: make check_addresses
+- **New**: Bank validation: make check_bank18
+- **New**: Offset mapping: make check_rom_offset
+- **New**: CHR table inspection: make dump_chr_table
+- **New**: Correct bytes verification: make dump_correct_bytes
+- **New**: $0530 pattern search: make search_0530
+- **New**: CHR loader pattern search: make search_chr_loader
+- **New**: Specific CHR loader search: make search_chr_loader2
+- **New**: Comprehensive disassembly verification: make verify_disasm
+- **New**: Bank $1E structure analysis: make analyze_1e
+- **New**: Deep Bank $1E analysis: make analyze_1e_deep
+- **New**: Direct tool execution: python3 tools/check_addresses.py, python3 tools/check_bank18.py, etc.
+- **New**: RAM centralization: python3 tools/globalize_04xx.py --input asm/banks/prg_17_18.asm --output asm/banks/prg_17_18_globalized.asm
+- **New**: Bank $1D disassembly: make disasm_1d
+- **New**: Enhanced Bank $1D disassembly: make disasm_1d_enhanced
+- **New**: Final Bank $1D assembly: make disasm_1d_final
+- **New**: Bank $1E disassembly: make disasm_1e
+- **New**: Definitive Bank $1E disassembly: make disasm_1e_definitive
+- **New**: Final Bank $1E assembly: make disasm_1e_final
+- **New**: Combined Bank $1D/$1E assembly: make assemble_prg_1d_1e
+- **New**: Generate enhanced Bank 0x1F disassembly: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
+- **New**: Clean build artifacts: make clean
+- **New**: Clean and remove ROM dumps: make distclean
+- **New**: RAM usage analysis: python3 tools/analyze_ram_1d1e.py
+- **New**: Address validation: python3 tools/check_addrs.py
+- **New**: Symbol conflict detection: python3 tools/check_conflicts.py
+- **New**: ROM data extraction: python3 tools/dump_data_range.py
+- **New**: Automated data insertion: python3 tools/mark_data_block.py
+- **New**: Global variable validation: python3 tools/verify_globals.py
+- **New**: Advanced paired bank disassembly: python3 tools/disasm_0a_0b.py
+- **New**: General-purpose PRG disassembly: python3 tools/disasm_prg.py 0x1D 0x1E --output output/prg_1d_1e_raw.asm
 - **New**: Transform specific stage: python3 tools/transform_17_18.py, python3 tools/add_procs.py, etc.
 - **New**: Advanced boundary analysis: python3 tools/proc_scope_17_18.py
 - **New**: Localized label conversion: python3 tools/localize_labels.py
@@ -2077,13 +2243,13 @@ Practical examples:
 - **New**: Global variable validation: python3 tools/verify_globals.py
 
 **Section sources**
-- [Makefile:51-101](file://Makefile#L51-L101)
-- [tools/verify_rom.py:22-51](file://tools/verify_rom.py#L22-L51)
-- [tools/annotate_asm.py:357-404](file://tools/annotate_asm.py#L357-L404)
-- [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
+- [Makefile:51-101](file://Makefile#L51-101)
+- [tools/verify_rom.py:22-51](file://tools/verify_rom.py#L22-51)
+- [tools/annotate_asm.py:357-404](file://tools/annotate_asm.py#L357-404)
+- [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-139)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the advanced label analysis and renaming system with analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py, providing automated Loc_ label processing and meaningful name assignment for improved code organization. The newest addition is the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, and the improved verification system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, and specialized PRG banks $1D/$1E analysis tools for improved code readability, maintainability, and code quality assurance.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the advanced label analysis and renaming system with analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py, providing automated Loc_ label processing and meaningful name assignment for improved code organization. The newest addition is the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, significantly expanding the project's disassembly capabilities for tightly coupled bank architectures. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, and the advanced paired bank disassembly tools enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, and advanced paired bank disassembly capabilities for improved code readability, maintainability, and code quality assurance.
 
 ## Appendices
 
@@ -2096,6 +2262,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: RAM centralization workflow: make globalize_04xx
 - **New**: ROM analysis workflow: make check_addresses, make check_bank18, make check_rom_offset, make dump_chr_table, make dump_correct_bytes, make search_0530, make search_chr_loader, make search_chr_loader2, make verify_disasm, make analyze_1e, make analyze_1e_deep
 - **New**: Bank $1D/$1E disassembly workflow: make disasm_1d, make disasm_1d_enhanced, make disasm_1d_final, make disasm_1e, make disasm_1e_definitive, make disasm_1e_final, make assemble_prg_1d_1e
+- **New**: Advanced paired bank disassembly workflow: python3 tools/disasm_0a_0b.py, python3 tools/disasm_prg.py 0x1D 0x1E --output output/prg_1d_1e_raw.asm
 - **New**: Label analysis and renaming workflow: make analyze_loc_labels, make rename_loc_labels, make enhance_prg_1d
 - **New**: PRG banks $1D/$1E analysis workflow: make analyze_ram_1d1e, make check_addrs, make check_conflicts, make dump_data_range, make mark_data_block, make verify_globals
 - Iterative assembly: make, make verify
@@ -2210,5 +2377,10 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/annotate_asm.py --in-place --verify
 - **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - **New**: python3 tools/annotate_asm.py --in-place --verify
+- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
+- **New**: python3 tools/annotate_asm.py --in-place --verify
+- **New**: python3 tools/disasm_0a_0b.py
+- **New**: python3 tools/disasm_prg.py 0x1D 0x1E --output output/prg_1d_1e_raw.asm
+- **New**: python3 tools/disasm_prg.py 0x0A 0x0B --output output/prg_0a_0b_raw.asm
 - **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - **New**: python3 tools/annotate_asm.py --in-place --verify

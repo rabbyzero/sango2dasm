@@ -2,7 +2,7 @@
 """update_jsr_labels.py - Update JSR/JMP operands using functions.h address map.
 
 Reads include/functions.h to build an address→symbol map for $E000-$FFFF,
-then rewrites JSR/JMP operands in asm/banks/prg_1f.aligned.asm to use the
+then rewrites JSR/JMP operands in asm/banks/prg_1f.asm to use the
 correct symbolic names based on the target address decoded from inline byte comments.
 
 Idempotent: running multiple times produces the same output.
@@ -16,7 +16,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
 FUNCTIONS_H = os.path.join(PROJECT_DIR, "include", "functions.h")
-ASM_FILE = os.path.join(PROJECT_DIR, "asm", "banks", "prg_1f.aligned.asm")
+ASM_FILE = os.path.join(PROJECT_DIR, "asm", "banks", "prg_1f.asm")
 
 # Column where ';' comment should be aligned (0-indexed)
 COMMENT_COLUMN = 48

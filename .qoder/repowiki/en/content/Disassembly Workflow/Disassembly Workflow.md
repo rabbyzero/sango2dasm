@@ -112,10 +112,10 @@ J --> K["asm/banks/prg_1d_1e.asm<br/>(Combined Banks)"]
 G --> L["transform_wrap.py<br/>transform_final.py"]
 L --> M["asm/banks/prg_1f.asm<br/>(Modernized)"]
 M --> N["tools/fix_mnemonics.py"]
-N --> O["asm/banks/prg_1f.aligned.asm<br/>(Cleaned)"]
+N --> O["asm/banks/prg_1f.asm<br/>(Cleaned)"]
 O --> P["asm/banks/pbank31.cdl.asm<br/>(Reference)"]
 P --> Q["tools/align_comments.py"]
-Q --> R["asm/banks/prg_1f.aligned.asm<br/>(Validated)"]
+Q --> R["asm/banks/prg_1f.asm<br/>(Validated)"]
 R --> S["asm/main.asm"]
 S --> T["linker.cfg"]
 T --> U["build/prg.bin"]
@@ -660,7 +660,7 @@ Comment alignment workflow:
 - Read prg_1f.asm file
 - Calculate current column position of inline comments
 - Adjust spacing to align comments to column 48
-- Write prg_1f.aligned.asm with consistent formatting
+- Write prg_1f.asm with consistent formatting
 
 **Section sources**
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
@@ -769,10 +769,10 @@ TRANS --> MOD["asm/banks/prg_1f.asm<br/>(Modernized)"]
 MOD --> FIX["fix_labels.py<br/>fix_syntax.py<br/>fix_scope.py"]
 FIX --> CLEAN["asm/banks/prg_1f.asm<br/>(Cleaned)"]
 CLEAN --> REF["tools/fix_mnemonics.py"]
-REF --> VALID["asm/banks/prg_1f.aligned.asm<br/>(Validated)"]
+REF --> VALID["asm/banks/prg_1f.asm<br/>(Validated)"]
 VALID --> CDL["asm/banks/pbank31.cdl.asm<br/>(Reference)"]
 CDL --> ALIGN["tools/align_comments.py"]
-ALIGN --> ALIGNED["asm/banks/prg_1f.aligned.asm"]
+ALIGN --> ALIGNED["asm/banks/prg_1f.asm"]
 ALIGNED --> BASE["check_baseline.py"]
 BASE --> DIFF["check_diff.py"]
 DIFF --> VERIFY["tools/verify_rom.py"]

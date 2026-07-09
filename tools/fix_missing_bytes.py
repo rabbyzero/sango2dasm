@@ -221,8 +221,8 @@ def main():
     )
     parser.add_argument(
         '--asm',
-        default='asm/banks/prg_1f.aligned.asm',
-        help='Path to assembly file (default: asm/banks/prg_1f.aligned.asm)'
+        default='asm/banks/prg_1f.asm',
+        help='Path to assembly file (default: asm/banks/prg_1f.asm)'
     )
     parser.add_argument(
         '--bin',

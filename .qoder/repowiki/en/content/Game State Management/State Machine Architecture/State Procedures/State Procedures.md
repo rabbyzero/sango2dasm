@@ -3,7 +3,7 @@
 <cite>
 **Referenced Files in This Document**
 - [functions.h](file://include/functions.h)
-- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
+- [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [disasm_bank_1f.py](file://tools/disasm_bank_1f.py)
 - [debug_regions.py](file://tools/debug_regions.py)
 - [transform_17_18.py](file://tools/transform_17_18.py)
@@ -61,22 +61,22 @@ Dispatch --> State14["State_IdleWait<br/>$E3EB"]
 
 **Diagram sources**
 - [functions.h:25-46](file://include/functions.h#L25-L46)
-- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
-- [prg_1f.aligned.asm:260-327](file://asm/banks/prg_1f.aligned.asm#L260-L327)
-- [prg_1f.aligned.asm:331-338](file://asm/banks/prg_1f.aligned.asm#L331-L338)
-- [prg_1f.aligned.asm:345-419](file://asm/banks/prg_1f.aligned.asm#L345-L419)
-- [prg_1f.aligned.asm:420-432](file://asm/banks/prg_1f.aligned.asm#L420-L432)
-- [prg_1f.aligned.asm:433-470](file://asm/banks/prg_1f.aligned.asm#L433-L470)
-- [prg_1f.aligned.asm:534-543](file://asm/banks/prg_1f.aligned.asm#L534-L543)
-- [prg_1f.aligned.asm:544-590](file://asm/banks/prg_1f.aligned.asm#L544-L590)
-- [prg_1f.aligned.asm:606-625](file://asm/banks/prg_1f.aligned.asm#L606-L625)
-- [prg_1f.aligned.asm:626-679](file://asm/banks/prg_1f.aligned.asm#L626-L679)
-- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
-- [prg_1f.aligned.asm:734-789](file://asm/banks/prg_1f.aligned.asm#L734-L789)
+- [prg_1f.asm:224-260](file://asm/banks/prg_1f.asm#L224-L260)
+- [prg_1f.asm:260-327](file://asm/banks/prg_1f.asm#L260-L327)
+- [prg_1f.asm:331-338](file://asm/banks/prg_1f.asm#L331-L338)
+- [prg_1f.asm:345-419](file://asm/banks/prg_1f.asm#L345-L419)
+- [prg_1f.asm:420-432](file://asm/banks/prg_1f.asm#L420-L432)
+- [prg_1f.asm:433-470](file://asm/banks/prg_1f.asm#L433-L470)
+- [prg_1f.asm:534-543](file://asm/banks/prg_1f.asm#L534-L543)
+- [prg_1f.asm:544-590](file://asm/banks/prg_1f.asm#L544-L590)
+- [prg_1f.asm:606-625](file://asm/banks/prg_1f.asm#L606-L625)
+- [prg_1f.asm:626-679](file://asm/banks/prg_1f.asm#L626-L679)
+- [prg_1f.asm:680-733](file://asm/banks/prg_1f.asm#L680-L733)
+- [prg_1f.asm:734-789](file://asm/banks/prg_1f.asm#L734-L789)
 
 **Section sources**
 - [functions.h:25-46](file://include/functions.h#L25-L46)
-- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
+- [prg_1f.asm:224-260](file://asm/banks/prg_1f.asm#L224-L260)
 
 ## Core Components
 - Vector Dispatch: Central dispatcher that selects the current state routine using a 15-entry table.
@@ -94,13 +94,13 @@ Key helper and utility locations:
 - PpuMaskHelper/PpuCtrlNmiHelpers: Control PPU mask and NMI enablement.
 
 **Section sources**
-- [prg_1f.aligned.asm:832-840](file://asm/banks/prg_1f.aligned.asm#L832-L840)
-- [prg_1f.aligned.asm:573-579](file://asm/banks/prg_1f.aligned.asm#L573-L579)
-- [prg_1f.aligned.asm:2302-2309](file://asm/banks/prg_1f.aligned.asm#L2302-L2309)
-- [prg_1f.aligned.asm:2315-2318](file://asm/banks/prg_1f.aligned.asm#L2315-L2318)
-- [prg_1f.aligned.asm:776-809](file://asm/banks/prg_1f.aligned.asm#L776-L809)
-- [prg_1f.aligned.asm:1049-1085](file://asm/banks/prg_1f.aligned.asm#L1049-L1085)
-- [prg_1f.aligned.asm:1118-1151](file://asm/banks/prg_1f.aligned.asm#L1118-L1151)
+- [prg_1f.asm:832-840](file://asm/banks/prg_1f.asm#L832-L840)
+- [prg_1f.asm:573-579](file://asm/banks/prg_1f.asm#L573-L579)
+- [prg_1f.asm:2302-2309](file://asm/banks/prg_1f.asm#L2302-L2309)
+- [prg_1f.asm:2315-2318](file://asm/banks/prg_1f.asm#L2315-L2318)
+- [prg_1f.asm:776-809](file://asm/banks/prg_1f.asm#L776-L809)
+- [prg_1f.asm:1049-1085](file://asm/banks/prg_1f.asm#L1049-L1085)
+- [prg_1f.asm:1118-1151](file://asm/banks/prg_1f.asm#L1118-L1151)
 
 ## Architecture Overview
 The state machine is driven by a single global variable (game state index) and a vector table. Each state routine:
@@ -133,11 +133,11 @@ State->>Dispatch : JMP StateDispatch
 
 **Diagram sources**
 - [functions.h:25-46](file://include/functions.h#L25-L46)
-- [prg_1f.aligned.asm:832-840](file://asm/banks/prg_1f.aligned.asm#L832-L840)
-- [prg_1f.aligned.asm:573-579](file://asm/banks/prg_1f.aligned.asm#L573-L579)
-- [prg_1f.aligned.asm:2302-2309](file://asm/banks/prg_1f.aligned.asm#L2302-L2309)
-- [prg_1f.aligned.asm:776-809](file://asm/banks/prg_1f.aligned.asm#L776-L809)
-- [prg_1f.aligned.asm:1049-1085](file://asm/banks/prg_1f.aligned.asm#L1049-L1085)
+- [prg_1f.asm:832-840](file://asm/banks/prg_1f.asm#L832-L840)
+- [prg_1f.asm:573-579](file://asm/banks/prg_1f.asm#L573-L579)
+- [prg_1f.asm:2302-2309](file://asm/banks/prg_1f.asm#L2302-L2309)
+- [prg_1f.asm:776-809](file://asm/banks/prg_1f.asm#L776-L809)
+- [prg_1f.asm:1049-1085](file://asm/banks/prg_1f.asm#L1049-L1085)
 
 ## Detailed Component Analysis
 
@@ -153,8 +153,8 @@ Parameters: None (internal initialization).
 Transition: addr_game_state = 9, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
-- [prg_1f.aligned.asm:832-840](file://asm/banks/prg_1f.aligned.asm#L832-L840)
+- [prg_1f.asm:224-260](file://asm/banks/prg_1f.asm#L224-L260)
+- [prg_1f.asm:832-840](file://asm/banks/prg_1f.asm#L832-L840)
 
 ### State_NewGameInit (index 1)
 Purpose: Initialize new game screen, set up display parameters, optionally initialize SRAM flags, and transition to next state.
@@ -172,7 +172,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:260-327](file://asm/banks/prg_1f.aligned.asm#L260-L327)
+- [prg_1f.asm:260-327](file://asm/banks/prg_1f.asm#L260-L327)
 
 ### State_RandomDisplay2A (index 2)
 Purpose: Draw a random display using window mode 0x2A and advance RNG.
@@ -184,8 +184,8 @@ Parameters: None (uses internal RNG).
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:331-338](file://asm/banks/prg_1f.aligned.asm#L331-L338)
-- [prg_1f.aligned.asm:1250-1260](file://asm/banks/prg_1f.aligned.asm#L1250-L1260)
+- [prg_1f.asm:331-338](file://asm/banks/prg_1f.asm#L331-L338)
+- [prg_1f.asm:1250-1260](file://asm/banks/prg_1f.asm#L1250-L1260)
 
 ### State_KingdomSelect (index 3)
 Purpose: Allow player to select a kingdom; supports scenario mode and normal mode.
@@ -203,7 +203,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:345-419](file://asm/banks/prg_1f.aligned.asm#L345-L419)
+- [prg_1f.asm:345-419](file://asm/banks/prg_1f.asm#L345-L419)
 
 ### State_RandomDisplay28 (index 4)
 Purpose: Draw a random display using window mode 0x28 and advance RNG.
@@ -215,8 +215,8 @@ Parameters: None (uses internal RNG).
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:420-432](file://asm/banks/prg_1f.aligned.asm#L420-L432)
-- [prg_1f.aligned.asm:1250-1260](file://asm/banks/prg_1f.aligned.asm#L1250-L1260)
+- [prg_1f.asm:420-432](file://asm/banks/prg_1f.asm#L420-L432)
+- [prg_1f.asm:1250-1260](file://asm/banks/prg_1f.asm#L1250-L1260)
 
 ### State_DomesticAffairs (index 5)
 Purpose: Present domestic action interface and handle sprite indicators.
@@ -233,8 +233,8 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:433-470](file://asm/banks/prg_1f.aligned.asm#L433-L470)
-- [prg_1f.aligned.asm:472-485](file://asm/banks/prg_1f.aligned.asm#L472-L485)
+- [prg_1f.asm:433-470](file://asm/banks/prg_1f.asm#L433-L470)
+- [prg_1f.asm:472-485](file://asm/banks/prg_1f.asm#L472-L485)
 
 ### State_RandomAdvance1 (index 6)
 Purpose: Advance random seed (RNG) without drawing.
@@ -246,8 +246,8 @@ Parameters: None (uses internal RNG).
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:534-543](file://asm/banks/prg_1f.aligned.asm#L534-L543)
-- [prg_1f.aligned.asm:1250-1260](file://asm/banks/prg_1f.aligned.asm#L1250-L1260)
+- [prg_1f.asm:534-543](file://asm/banks/prg_1f.asm#L534-L543)
+- [prg_1f.asm:1250-1260](file://asm/banks/prg_1f.asm#L1250-L1260)
 
 ### State_BattlePhase (index 7)
 Purpose: Render and manage battle interface; handle army status and transitions.
@@ -262,7 +262,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:544-590](file://asm/banks/prg_1f.aligned.asm#L544-L590)
+- [prg_1f.asm:544-590](file://asm/banks/prg_1f.asm#L544-L590)
 
 ### State_RandomAdvance2 (index 8)
 Purpose: Advance random seed (RNG) without drawing.
@@ -274,8 +274,8 @@ Parameters: None (uses internal RNG).
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:606-625](file://asm/banks/prg_1f.aligned.asm#L606-L625)
-- [prg_1f.aligned.asm:1250-1260](file://asm/banks/prg_1f.aligned.asm#L1250-L1260)
+- [prg_1f.asm:606-625](file://asm/banks/prg_1f.asm#L606-L625)
+- [prg_1f.asm:1250-1260](file://asm/banks/prg_1f.asm#L1250-L1260)
 
 ### State_TerritoryView (index 9)
 Purpose: Display the world map and handle scrolling/palettes.
@@ -287,7 +287,7 @@ Behavior:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:626-679](file://asm/banks/prg_1f.aligned.asm#L626-L679)
+- [prg_1f.asm:626-679](file://asm/banks/prg_1f.asm#L626-L679)
 
 ### State_IdleWait (indices 10, 12, 14)
 Purpose: No-op idle states that simply re-dispatch.
@@ -297,7 +297,7 @@ Behavior:
 Transition: StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
+- [prg_1f.asm:680-733](file://asm/banks/prg_1f.asm#L680-L733)
 
 ### State_AdvisorCouncil (index 11)
 Purpose: Show advisor/council dialogue and handle dual-player input with enhanced rendering system.
@@ -312,7 +312,7 @@ Behavior:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
+- [prg_1f.asm:680-733](file://asm/banks/prg_1f.asm#L680-L733)
 
 ### State_TurnSummary (index 13)
 Purpose: Display turn summary; play normal or victory music depending on completion flag.
@@ -327,7 +327,7 @@ Parameters:
 Transition: INC addr_game_state, then StateDispatch.
 
 **Section sources**
-- [prg_1f.aligned.asm:734-789](file://asm/banks/prg_1f.aligned.asm#L734-L789)
+- [prg_1f.asm:734-789](file://asm/banks/prg_1f.asm#L734-L789)
 
 ### StateDispatch
 Purpose: Central dispatcher that selects the next state routine.
@@ -345,27 +345,27 @@ Transition: JMP (vector)
 - Clears display working RAM, sets sentinel values, disables PPU, runs banked PPU init, fills nametables, resets counters, and initializes sprite buffers.
 
 **Section sources**
-- [prg_1f.aligned.asm:832-840](file://asm/banks/prg_1f.aligned.asm#L832-L840)
+- [prg_1f.asm:832-840](file://asm/banks/prg_1f.asm#L832-L840)
 
 #### DisplayInit
 - Clears window, invokes bank-switched display mode, and switches CHR banks.
 
 **Section sources**
-- [prg_1f.aligned.asm:573-579](file://asm/banks/prg_1f.aligned.asm#L573-L579)
+- [prg_1f.asm:573-579](file://asm/banks/prg_1f.asm#L573-L579)
 
 #### WindowDisplaySetup / WindowSetup2
 - Stores bank parameters to $00E2/$00E3 and writes to mapper registers for banked calls.
 
 **Section sources**
-- [prg_1f.aligned.asm:2302-2309](file://asm/banks/prg_1f.aligned.asm#L2302-L2309)
-- [prg_1f.aligned.asm:2315-2318](file://asm/banks/prg_1f.aligned.asm#L2315-L2318)
+- [prg_1f.asm:2302-2309](file://asm/banks/prg_1f.asm#L2302-L2309)
+- [prg_1f.asm:2315-2318](file://asm/banks/prg_1f.asm#L2315-L2318)
 
 #### BankSwitch
 - Applies PRG bank configuration from a table to mapper registers.
 
 **Section sources**
-- [prg_1f.aligned.asm:776-809](file://asm/banks/prg_1f.aligned.asm#L776-L809)
-- [prg_1f.aligned.asm:815-819](file://asm/banks/prg_1f.aligned.asm#L815-L819)
+- [prg_1f.asm:776-809](file://asm/banks/prg_1f.asm#L776-L809)
+- [prg_1f.asm:815-819](file://asm/banks/prg_1f.asm#L815-L819)
 
 #### ControllerRead (Enhanced Dual-Player Support)
 - Strobes both controller ports, reads 8-bit serial data for both players, computes raw, previous, and edge-triggered states for each player.
@@ -373,13 +373,13 @@ Transition: JMP (vector)
 - Player 2 addresses: addr_pad2_edge, addr_pad2_raw, addr_pad2_prev
 
 **Section sources**
-- [prg_1f.aligned.asm:1049-1085](file://asm/banks/prg_1f.aligned.asm#L1049-L1085)
+- [prg_1f.asm:1049-1085](file://asm/banks/prg_1f.asm#L1049-L1085)
 
 #### PpuMaskHelper / PpuCtrlNmiHelpers
 - Control PPU mask and enable NMI via PPU registers.
 
 **Section sources**
-- [prg_1f.aligned.asm:1118-1151](file://asm/banks/prg_1f.aligned.asm#L1118-L1151)
+- [prg_1f.asm:1118-1151](file://asm/banks/prg_1f.asm#L1118-L1151)
 
 ### Bank Switching Integration
 - The game uses the Namco-163 mapper to dynamically load code/data from other banks during state execution.
@@ -389,8 +389,8 @@ Transition: JMP (vector)
 
 **Section sources**
 - [functions.h:25-46](file://include/functions.h#L25-L46)
-- [prg_1f.aligned.asm:776-809](file://asm/banks/prg_1f.aligned.asm#L776-L809)
-- [prg_1f.aligned.asm:2302-2309](file://asm/banks/prg_1f.aligned.asm#L2302-L2309)
+- [prg_1f.asm:776-809](file://asm/banks/prg_1f.asm#L776-L809)
+- [prg_1f.asm:2302-2309](file://asm/banks/prg_1f.asm#L2302-L2309)
 
 ### Modular .proc Organization and Local Variables
 - Each state is implemented as a .proc with its own local variables in zero-page/working RAM (e.g., $0500–$0513 for kingdom select, $0544 for domestic action type, $0562/$0563 for sprite indices, $0541 for turn summary completion flag).
@@ -400,9 +400,9 @@ Transition: JMP (vector)
 - New semantic naming conventions improve code readability and maintainability across the state system.
 
 **Section sources**
-- [prg_1f.aligned.asm:345-353](file://asm/banks/prg_1f.aligned.asm#L345-L353)
-- [prg_1f.aligned.asm:433-440](file://asm/banks/prg_1f.aligned.asm#L433-L440)
-- [prg_1f.aligned.asm:734-740](file://asm/banks/prg_1f.aligned.asm#L734-L740)
+- [prg_1f.asm:345-353](file://asm/banks/prg_1f.asm#L345-L353)
+- [prg_1f.asm:433-440](file://asm/banks/prg_1f.asm#L433-L440)
+- [prg_1f.asm:734-740](file://asm/banks/prg_1f.asm#L734-L740)
 
 ## Dependency Analysis
 - State_SystemInit depends on PPU init, palette upload, and mapper patching.
@@ -444,25 +444,25 @@ StateDispatch --> AllStates["All States"]
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
-- [prg_1f.aligned.asm:260-327](file://asm/banks/prg_1f.aligned.asm#L260-L327)
-- [prg_1f.aligned.asm:345-419](file://asm/banks/prg_1f.aligned.asm#L345-L419)
-- [prg_1f.aligned.asm:433-470](file://asm/banks/prg_1f.aligned.asm#L433-L470)
-- [prg_1f.aligned.asm:544-590](file://asm/banks/prg_1f.aligned.asm#L544-L590)
-- [prg_1f.aligned.asm:626-679](file://asm/banks/prg_1f.aligned.asm#L626-L679)
-- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
-- [prg_1f.aligned.asm:734-789](file://asm/banks/prg_1f.aligned.asm#L734-L789)
+- [prg_1f.asm:224-260](file://asm/banks/prg_1f.asm#L224-L260)
+- [prg_1f.asm:260-327](file://asm/banks/prg_1f.asm#L260-L327)
+- [prg_1f.asm:345-419](file://asm/banks/prg_1f.asm#L345-L419)
+- [prg_1f.asm:433-470](file://asm/banks/prg_1f.asm#L433-L470)
+- [prg_1f.asm:544-590](file://asm/banks/prg_1f.asm#L544-L590)
+- [prg_1f.asm:626-679](file://asm/banks/prg_1f.asm#L626-L679)
+- [prg_1f.asm:680-733](file://asm/banks/prg_1f.asm#L680-L733)
+- [prg_1f.asm:734-789](file://asm/banks/prg_1f.asm#L734-L789)
 - [functions.h:25-46](file://include/functions.h#L25-L46)
 
 **Section sources**
-- [prg_1f.aligned.asm:224-260](file://asm/banks/prg_1f.aligned.asm#L224-L260)
-- [prg_1f.aligned.asm:260-327](file://asm/banks/prg_1f.aligned.asm#L260-L327)
-- [prg_1f.aligned.asm:345-419](file://asm/banks/prg_1f.aligned.asm#L345-L419)
-- [prg_1f.aligned.asm:433-470](file://asm/banks/prg_1f.aligned.asm#L433-L470)
-- [prg_1f.aligned.asm:544-590](file://asm/banks/prg_1f.aligned.asm#L544-L590)
-- [prg_1f.aligned.asm:626-679](file://asm/banks/prg_1f.aligned.asm#L626-L679)
-- [prg_1f.aligned.asm:680-733](file://asm/banks/prg_1f.aligned.asm#L680-L733)
-- [prg_1f.aligned.asm:734-789](file://asm/banks/prg_1f.aligned.asm#L734-L789)
+- [prg_1f.asm:224-260](file://asm/banks/prg_1f.asm#L224-L260)
+- [prg_1f.asm:260-327](file://asm/banks/prg_1f.asm#L260-L327)
+- [prg_1f.asm:345-419](file://asm/banks/prg_1f.asm#L345-L419)
+- [prg_1f.asm:433-470](file://asm/banks/prg_1f.asm#L433-L470)
+- [prg_1f.asm:544-590](file://asm/banks/prg_1f.asm#L544-L590)
+- [prg_1f.asm:626-679](file://asm/banks/prg_1f.asm#L626-L679)
+- [prg_1f.asm:680-733](file://asm/banks/prg_1f.asm#L680-L733)
+- [prg_1f.asm:734-789](file://asm/banks/prg_1f.asm#L734-L789)
 - [functions.h:25-46](file://include/functions.h#L25-L46)
 
 ## Performance Considerations
@@ -484,8 +484,8 @@ Common issues and checks:
 - Memory access errors in state transitions: Verify semantic naming conventions are consistently applied across all state procedures.
 
 **Section sources**
-- [prg_1f.aligned.asm:1118-1151](file://asm/banks/prg_1f.aligned.asm#L1118-L1151)
-- [prg_1f.aligned.asm:1049-1085](file://asm/banks/prg_1f.aligned.asm#L1049-L1085)
+- [prg_1f.asm:1118-1151](file://asm/banks/prg_1f.asm#L1118-L1151)
+- [prg_1f.asm:1049-1085](file://asm/banks/prg_1f.asm#L1049-L1085)
 - [functions.h:25-46](file://include/functions.h#L25-L46)
 
 ## Conclusion

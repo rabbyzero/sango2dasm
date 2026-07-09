@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Verify disassembly bytes in prg_1f.aligned.asm against the binary for range $E843-$F2AE."""
+"""Verify disassembly bytes in prg_1f.asm against the binary for range $E843-$F2AE."""
 
 import re
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIN_PATH = os.path.join(BASE_DIR, 'rom', 'prg', 'prg_1f.bin')
-ASM_PATH = os.path.join(BASE_DIR, 'asm', 'banks', 'prg_1f.aligned.asm')
+ASM_PATH = os.path.join(BASE_DIR, 'asm', 'banks', 'prg_1f.asm')
 
 # Read binary
 with open(BIN_PATH, 'rb') as f:

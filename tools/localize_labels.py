@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 localize_labels.py - Add .proc/.endproc and convert branch-only labels to @local
-in prg_17_18.asm, matching the convention from prg_1f.aligned.asm.
+in prg_17_18.asm, matching the convention from prg_1f.asm.
 
 Phase 1: Parse and build reference map
 Phase 2: Classify labels (proc-start, inner-global, @local)

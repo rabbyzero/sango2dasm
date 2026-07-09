@@ -776,7 +776,7 @@ The verification system depends on the build pipeline and ROM structure:
 graph TB
 VerifyFull["verify_rom.py"] --> Orig["Original ROM"]
 VerifyFull --> Rebuilt["Rebuilt ROM (sango2.nes)"]
-VerifyRange["verify_range.py"] --> ASMFile["Annotated Assembly<br/>prg_1f.aligned.asm"]
+VerifyRange["verify_range.py"] --> ASMFile["Annotated Assembly<br/>prg_1f.asm"]
 VerifyRange --> ROMBin["ROM Binary<br/>prg_1f.bin"]
 VerifyBank1D["verify_1d_bytes.py"] --> Bank1D["Bank $1D Binary<br/>prg_1d.bin"]
 VerifyBank1D --> FinalASM["Final Assembly<br/>(/tmp/prg_1d_final.asm)"]

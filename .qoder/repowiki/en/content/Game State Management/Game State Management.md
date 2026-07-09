@@ -2,7 +2,7 @@
 
 <cite>
 **Referenced Files in This Document**
-- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
+- [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [namco163.h](file://include/namco163.h)
@@ -61,12 +61,12 @@ Helpers --> BankSwitch
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:925-1085](file://asm/banks/prg_1f.aligned.asm#L925-L1085)
+- [prg_1f.asm:74-147](file://asm/banks/prg_1f.asm#L74-L147)
+- [prg_1f.asm:142-176](file://asm/banks/prg_1f.asm#L142-L176)
+- [prg_1f.asm:925-1085](file://asm/banks/prg_1f.asm#L925-L1085)
 
 **Section sources**
-- [prg_1f.aligned.asm:1-800](file://asm/banks/prg_1f.aligned.asm#L1-L800)
+- [prg_1f.asm:1-800](file://asm/banks/prg_1f.asm#L1-L800)
 - [bank_1f_function_table.md:1-98](file://code/bank_1f_function_table.md#L1-L98)
 
 ## Core Components
@@ -97,9 +97,9 @@ The system maintains two primary state variables in RAM:
 - **addr_sub_state ($0078)**: Sub-state within each major state, enabling fine-grained control
 
 **Section sources**
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:36-42](file://asm/banks/prg_1f.aligned.asm#L36-L42)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.asm:142-176](file://asm/banks/prg_1f.asm#L142-L176)
+- [prg_1f.asm:36-42](file://asm/banks/prg_1f.asm#L36-L42)
+- [prg_1f.asm:925-977](file://asm/banks/prg_1f.asm#L925-L977)
 
 ## Architecture Overview
 
@@ -123,8 +123,8 @@ StateDispatch --> LoadState
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
-- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
+- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.asm:158-176](file://asm/banks/prg_1f.asm#L158-L176)
 
 ### State Machine Design
 The system implements a classic finite state machine with 15 distinct states, each representing a specific game phase:
@@ -150,7 +150,7 @@ IdleWait --> IdleWait : State 14 -> State 14
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
+- [prg_1f.asm:158-176](file://asm/banks/prg_1f.asm#L158-L176)
 
 ### Enhanced Sound Processing Pipeline
 The new sound system provides centralized audio processing:
@@ -171,13 +171,13 @@ State->>State : Continue execution
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
-- [prg_1f.aligned.asm:997-1038](file://asm/banks/prg_1f.aligned.asm#L997-L1038)
+- [prg_1f.asm:925-977](file://asm/banks/prg_1f.asm#L925-L977)
+- [prg_1f.asm:997-1038](file://asm/banks/prg_1f.asm#L997-L1038)
 
 **Section sources**
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
-- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.asm:158-176](file://asm/banks/prg_1f.asm#L158-L176)
+- [prg_1f.asm:925-977](file://asm/banks/prg_1f.asm#L925-L977)
 
 ## Detailed Component Analysis
 
@@ -211,12 +211,12 @@ StateDispatch->>StateDispatch : Execute State 0
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.asm:74-147](file://asm/banks/prg_1f.asm#L74-L147)
+- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
 
 **Section sources**
-- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.asm:74-147](file://asm/banks/prg_1f.asm#L74-L147)
+- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
 
 ### State-Specific Implementation Patterns
 
@@ -248,13 +248,13 @@ Displays turn results with victory condition checking and appropriate music sele
 **Updated** All state handlers now consistently end with `JMP StateDispatch` instead of inline dispatch logic, providing uniform execution flow and improved maintainability.
 
 **Section sources**
-- [prg_1f.aligned.asm:179-210](file://asm/banks/prg_1f.aligned.asm#L179-L210)
-- [prg_1f.aligned.asm:213-284](file://asm/banks/prg_1f.aligned.asm#L213-L284)
-- [prg_1f.aligned.asm:287-373](file://asm/banks/prg_1f.aligned.asm#L287-L373)
-- [prg_1f.aligned.asm:497-559](file://asm/banks/prg_1f.aligned.asm#L497-L559)
-- [prg_1f.aligned.asm:569-627](file://asm/banks/prg_1f.aligned.asm#L569-L627)
-- [prg_1f.aligned.asm:635-686](file://asm/banks/prg_1f.aligned.asm#L635-L686)
-- [prg_1f.aligned.asm:688-740](file://asm/banks/prg_1f.aligned.asm#L688-L740)
+- [prg_1f.asm:179-210](file://asm/banks/prg_1f.asm#L179-L210)
+- [prg_1f.asm:213-284](file://asm/banks/prg_1f.asm#L213-L284)
+- [prg_1f.asm:287-373](file://asm/banks/prg_1f.asm#L287-L373)
+- [prg_1f.asm:497-559](file://asm/banks/prg_1f.asm#L497-L559)
+- [prg_1f.asm:569-627](file://asm/banks/prg_1f.asm#L569-L627)
+- [prg_1f.asm:635-686](file://asm/banks/prg_1f.asm#L635-L686)
+- [prg_1f.asm:688-740](file://asm/banks/prg_1f.asm#L688-L740)
 
 ### Enhanced Data Structure Management
 
@@ -278,10 +278,10 @@ State handlers store bank configuration in dedicated RAM locations:
 - **addr_trampoline_*$:** Temporary storage for bank switching operations
 
 **Section sources**
-- [prg_1f.aligned.asm:21-73](file://asm/banks/prg_1f.aligned.asm#L21-L73)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
-- [prg_1f.aligned.asm:983-984](file://asm/banks/prg_1f.aligned.asm#L983-L984)
-- [prg_1f.aligned.asm:815-818](file://asm/banks/prg_1f.aligned.asm#L815-L818)
+- [prg_1f.asm:21-73](file://asm/banks/prg_1f.asm#L21-L73)
+- [prg_1f.asm:925-977](file://asm/banks/prg_1f.asm#L925-L977)
+- [prg_1f.asm:983-984](file://asm/banks/prg_1f.asm#L983-L984)
+- [prg_1f.asm:815-818](file://asm/banks/prg_1f.asm#L815-L818)
 
 ### Modernized Inter-State Communication Mechanisms
 
@@ -299,9 +299,9 @@ State handlers store bank configuration in dedicated RAM locations:
 - **Sound processing**: Centralized SoundNotePlayer routine for audio effects
 
 **Section sources**
-- [prg_1f.aligned.asm:742-770](file://asm/banks/prg_1f.aligned.asm#L742-L770)
-- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.asm:742-770](file://asm/banks/prg_1f.asm#L742-L770)
+- [prg_1f.asm:1050-1085](file://asm/banks/prg_1f.asm#L1050-L1085)
+- [prg_1f.asm:925-977](file://asm/banks/prg_1f.asm#L925-L977)
 
 ## Dependency Analysis
 
@@ -360,10 +360,10 @@ State0 --> ControllerRAM
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:742-770](file://asm/banks/prg_1f.aligned.asm#L742-L770)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
-- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
+- [prg_1f.asm:142-176](file://asm/banks/prg_1f.asm#L142-L176)
+- [prg_1f.asm:742-770](file://asm/banks/prg_1f.asm#L742-L770)
+- [prg_1f.asm:925-977](file://asm/banks/prg_1f.asm#L925-L977)
+- [prg_1f.asm:1050-1085](file://asm/banks/prg_1f.asm#L1050-L1085)
 
 ### Enhanced Bank Switching Dependencies
 **Updated** The bank switching system creates dependencies between states and memory banks:
@@ -385,12 +385,12 @@ BattleLogic --> StateHandlers
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:772-809](file://asm/banks/prg_1f.aligned.asm#L772-L809)
+- [prg_1f.asm:142-176](file://asm/banks/prg_1f.asm#L142-L176)
+- [prg_1f.asm:772-809](file://asm/banks/prg_1f.asm#L772-L809)
 
 **Section sources**
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:772-809](file://asm/banks/prg_1f.aligned.asm#L772-L809)
+- [prg_1f.asm:142-176](file://asm/banks/prg_1f.asm#L142-L176)
+- [prg_1f.asm:772-809](file://asm/banks/prg_1f.asm#L772-L809)
 
 ## Performance Considerations
 
@@ -470,9 +470,9 @@ BattleLogic --> StateHandlers
 - Ensure SoundInit routine executes during reset
 
 **Section sources**
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
-- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.asm:1050-1085](file://asm/banks/prg_1f.asm#L1050-L1085)
+- [prg_1f.asm:925-977](file://asm/banks/prg_1f.asm#L925-L977)
 
 ## Conclusion
 

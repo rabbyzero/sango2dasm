@@ -6,7 +6,7 @@
 - [main.asm](file://asm/main.asm)
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
-- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
+- [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
 - [namco163.h](file://include/namco163.h)
 - [6502_registers.h](file://include/6502_registers.h)
@@ -62,7 +62,7 @@ subgraph "Linker Configuration"
 LCFG["linker.cfg"]
 end
 subgraph "Boot Bank (0x1F) - Modern Assembly Format"
-ALIGNED["asm/banks/prg_1f.aligned.asm<br/>Aligned Format with Structured Organization"]
+ALIGNED["asm/banks/prg_1f.asm<br/>Aligned Format with Structured Organization"]
 BACKUP["asm/banks/prg_1f.asm.bak<br/>Backup of Legacy Format"]
 VTABLE["$E07C VectorTable<br/>$E000 Reset Handler<br/>Structured State Handlers"]
 PARAMSYS["Enhanced Parameter System<br/>Named Memory Aliases"]
@@ -131,7 +131,7 @@ ALLB --> COMBINED1D_1E
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
-- [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
+- [prg_1f.asm:1-200](file://asm/banks/prg_1f.asm#L1-L200)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 - [namco163.h:65-87](file://include/namco163.h#L65-L87)
 - [6502_registers.h:1-88](file://include/6502_registers.h#L1-L88)
@@ -162,7 +162,7 @@ ALLB --> COMBINED1D_1E
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
-- [prg_1f.aligned.asm:400-466](file://asm/banks/prg_1f.aligned.asm#L400-L466)
+- [prg_1f.asm:400-466](file://asm/banks/prg_1f.asm#L400-L466)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
@@ -217,13 +217,13 @@ DEBUG->>PARAMSYS : Verify parameter aliasing system
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:406-459](file://asm/banks/prg_1f.aligned.asm#L406-L459)
-- [prg_1f.aligned.asm:467-694](file://asm/banks/prg_1f.aligned.asm#L467-L694)
+- [prg_1f.asm:406-459](file://asm/banks/prg_1f.asm#L406-L459)
+- [prg_1f.asm:467-694](file://asm/banks/prg_1f.asm#L467-L694)
 - [prg_17_18.asm:72-127](file://asm/banks/prg_17_18.asm#L72-L127)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-398)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 
@@ -296,14 +296,14 @@ DISPATCH --> LOOP["StateDispatch Loop"]
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:406-459](file://asm/banks/prg_1f.aligned.asm#L406-L459)
-- [prg_1f.aligned.asm:460-466](file://asm/banks/prg_1f.aligned.asm#L460-L466)
-- [prg_1f.aligned.asm:451-459](file://asm/banks/prg_1f.aligned.asm#L451-L459)
+- [prg_1f.asm:406-459](file://asm/banks/prg_1f.asm#L406-L459)
+- [prg_1f.asm:460-466](file://asm/banks/prg_1f.asm#L460-L466)
+- [prg_1f.asm:451-459](file://asm/banks/prg_1f.asm#L451-L459)
 
 **Section sources**
-- [prg_1f.aligned.asm:406-459](file://asm/banks/prg_1f.aligned.asm#L406-L459)
-- [prg_1f.aligned.asm:460-466](file://asm/banks/prg_1f.aligned.asm#L460-L466)
-- [prg_1f.aligned.asm:451-459](file://asm/banks/prg_1f.aligned.asm#L451-L459)
+- [prg_1f.asm:406-459](file://asm/banks/prg_1f.asm#L406-L459)
+- [prg_1f.asm:460-466](file://asm/banks/prg_1f.asm#L460-L466)
+- [prg_1f.asm:451-459](file://asm/banks/prg_1f.asm#L451-L459)
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
 
 ### State Machine and Vector Dispatch (Structured Organization)
@@ -332,14 +332,14 @@ DIS-->>SH : Continue loop
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:451-459](file://asm/banks/prg_1f.aligned.asm#L451-L459)
-- [prg_1f.aligned.asm:467-694](file://asm/banks/prg_1f.aligned.asm#L467-L694)
-- [prg_1f.aligned.asm:460-466](file://asm/banks/prg_1f.aligned.asm#L460-L466)
+- [prg_1f.asm:451-459](file://asm/banks/prg_1f.asm#L451-L459)
+- [prg_1f.asm:467-694](file://asm/banks/prg_1f.asm#L467-L694)
+- [prg_1f.asm:460-466](file://asm/banks/prg_1f.asm#L460-L466)
 
 **Section sources**
-- [prg_1f.aligned.asm:451-459](file://asm/banks/prg_1f.aligned.asm#L451-L459)
-- [prg_1f.aligned.asm:467-694](file://asm/banks/prg_1f.aligned.asm#L467-L694)
-- [prg_1f.aligned.asm:460-466](file://asm/banks/prg_1f.aligned.asm#L460-L466)
+- [prg_1f.asm:451-459](file://asm/banks/prg_1f.asm#L451-L459)
+- [prg_1f.asm:467-694](file://asm/banks/prg_1f.asm#L467-L694)
+- [prg_1f.asm:460-466](file://asm/banks/prg_1f.asm#L460-L466)
 
 ### Combined PRG Bank 17/18 Structure and Enhanced Display Operations
 - The PRG bank 17/18 structure provides a combined 16KB memory space at $A000-$DFFF, with bank $17 at $A000-$BFFF and bank $18 at $C000-$DFFF.
@@ -498,12 +498,12 @@ TILESTORE --> DISPATCHLOOP
 **Diagram sources**
 - [prg_1d_1e.asm:270-398](file://asm/banks/prg_1d_1e.asm#L270-L398)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
 
 **Section sources**
 - [prg_1d_1e.asm:270-398](file://asm/banks/prg_1d_1e.asm#L270-L398)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
 
 ### Bank Switching Implementation (Enhanced Macros)
 - The mapper exposes four write-only registers to select 8KB PRG banks for each slot.
@@ -544,16 +544,16 @@ COMBINED1D_1E --> PARAMSYS
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:785-818](file://asm/banks/prg_1f.aligned.asm#L785-L818)
-- [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-L828)
+- [prg_1f.asm:785-818](file://asm/banks/prg_1f.asm#L785-L818)
+- [prg_1f.asm:824-828](file://asm/banks/prg_1f.asm#L824-L828)
 - [prg_17_18.asm:112-127](file://asm/banks/prg_17_18.asm#L112-L127)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 
 **Section sources**
 - [namco163.h:65-87](file://include/namco163.h#L65-L87)
-- [prg_1f.aligned.asm:785-818](file://asm/banks/prg_1f.aligned.asm#L785-L818)
-- [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-L828)
+- [prg_1f.asm:785-818](file://asm/banks/prg_1f.asm#L785-L818)
+- [prg_1f.asm:824-828](file://asm/banks/prg_1f.asm#L824-L828)
 - [prg_17_18.asm:112-127](file://asm/banks/prg_17_18.asm#L112-L127)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
 
@@ -596,7 +596,7 @@ PARAMSYS --> UNIFIED["$A000: Jump Table<br/>Unified Entry Points"]
 
 **Diagram sources**
 - [main.asm:65-99](file://asm/main.asm#L65-L99)
-- [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-L1065)
+- [prg_1f.asm:1040-1065](file://asm/banks/prg_1f.asm#L1040-L1065)
 - [prg_17_18.asm:168-208](file://asm/banks/prg_17_18.asm#L168-L208)
 - [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-L768)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
@@ -604,7 +604,7 @@ PARAMSYS --> UNIFIED["$A000: Jump Table<br/>Unified Entry Points"]
 
 **Section sources**
 - [main.asm:65-99](file://asm/main.asm#L65-L99)
-- [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-L1065)
+- [prg_1f.asm:1040-1065](file://asm/banks/prg_1f.asm#L1040-L1065)
 - [prg_17_18.asm:168-208](file://asm/banks/prg_17_18.asm#L168-L208)
 - [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-L768)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
@@ -626,7 +626,7 @@ PARAMSYS --> UNIFIED["$A000: Jump Table<br/>Unified Entry Points"]
 graph LR
 ALLB["asm/banks/all_banks.asm"] --> COMBINED17_18["prg_17_18.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF"]
 ALLB --> COMBINED1D_1E["prg_1d_1e.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF"]
-ALLB --> ALIGNED["prg_1f.aligned.asm (Boot)<br/>Modern Assembly Format"]
+ALLB --> ALIGNED["prg_1f.asm (Boot)<br/>Modern Assembly Format"]
 LCFG["linker.cfg"] --> SEG0["CODE (PRG_SLOT0)"]
 LCFG --> SEG1["CODE1 (PRG_SLOT1)"]
 LCFG --> SEG2["CODE2 (PRG_SLOT2)"]
@@ -686,8 +686,8 @@ The modern assembly formatting provides numerous benefits for developers:
 - **Documentation Support**: Organized structure serves as implicit documentation of code functionality
 
 **Section sources**
-- [prg_1f.aligned.asm:12-80](file://asm/banks/prg_1f.aligned.asm#L12-L80)
-- [prg_1f.aligned.asm:800-1599](file://asm/banks/prg_1f.aligned.asm#L800-L1599)
+- [prg_1f.asm:12-80](file://asm/banks/prg_1f.asm#L12-L80)
+- [prg_1f.asm:800-1599](file://asm/banks/prg_1f.asm#L800-L1599)
 - [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-L71)
 - [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-L16)
 - [namco163.h:65-87](file://include/namco163.h#L65-L87)
@@ -773,11 +773,11 @@ The new .proc/.endproc organization provides comprehensive function structuring:
 - **Code Reusability**: Modular functions can be reused independently
 
 **Section sources**
-- [prg_1f.aligned.asm:80-399](file://asm/banks/prg_1f.aligned.asm#L80-L399)
+- [prg_1f.asm:80-399](file://asm/banks/prg_1f.asm#L80-L399)
 - [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-L71)
 - [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-L16)
-- [prg_1f.aligned.asm:1228-1256](file://asm/banks/prg_1f.aligned.asm#L1228-L1256)
-- [prg_1f.aligned.asm:1319-1372](file://asm/banks/prg_1f.aligned.asm#L1319-L1372)
+- [prg_1f.asm:1228-1256](file://asm/banks/prg_1f.asm#L1228-L1256)
+- [prg_1f.asm:1319-1372](file://asm/banks/prg_1f.asm#L1319-L1372)
 - [prg_17_18.asm:17-17](file://asm/banks/prg_17_18.asm#L17-L17)
 
 ## Callback Table Architecture
@@ -826,12 +826,12 @@ RTS --> RETURN["Return to caller"]
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-L612)
 
 **Section sources**
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-L612)
 
@@ -973,7 +973,7 @@ The new callback table architecture provides debugging advantages:
 - **Symbolic References**: Symbolic function names improve debugging and analysis
 
 **Section sources**
-- [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
+- [prg_1f.asm:1-200](file://asm/banks/prg_1f.asm#L1-L200)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 - [assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
 
@@ -996,7 +996,7 @@ The architecture exhibits clear separation of concerns with modern assembly form
 
 ```mermaid
 graph TB
-ALIGNED["prg_1f.aligned.asm<br/>Modern Assembly Format"] --> NAMCO["namco163.h"]
+ALIGNED["prg_1f.asm<br/>Modern Assembly Format"] --> NAMCO["namco163.h"]
 ALIGNED --> REGS["6502_registers.h"]
 ALIGNED --> MACROS["macros.h"]
 ALIGNED --> CALLBACKDISP["CallbackDispatcher<br/>$EADE"]
@@ -1033,7 +1033,7 @@ CALLBACKEVAL --> ALIGNED
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
+- [prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
 - [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-L12)
 - [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-L14)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
@@ -1043,11 +1043,11 @@ CALLBACKEVAL --> ALIGNED
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 
 **Section sources**
-- [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
+- [prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
 - [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-L12)
 - [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-L14)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
@@ -1096,14 +1096,14 @@ CALLBACKEVAL --> ALIGNED
 - **Local Variable Conflicts**: For variable-related issues, verify local variable scoping and .proc/.endproc boundaries.
 
 **Section sources**
-- [prg_1f.aligned.asm:739-750](file://asm/banks/prg_1f.aligned.asm#L739-L750)
-- [prg_1f.aligned.asm:1071-1085](file://asm/banks/prg_1f.aligned.asm#L1071-L1085)
-- [prg_1f.aligned.asm:1100-1113](file://asm/banks/prg_1f.aligned.asm#L1100-L1113)
+- [prg_1f.asm:739-750](file://asm/banks/prg_1f.asm#L739-L750)
+- [prg_1f.asm:1071-1085](file://asm/banks/prg_1f.asm#L1071-L1085)
+- [prg_1f.asm:1100-1113](file://asm/banks/prg_1f.asm#L1100-L1113)
 - [prg_17_18.asm:112-127](file://asm/banks/prg_17_18.asm#L112-L127)
 - [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 
 ## Conclusion

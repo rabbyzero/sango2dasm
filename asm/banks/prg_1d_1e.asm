@@ -261,76 +261,76 @@ cur_bank_8000     = $00E1  ; current PRG bank mapped at $8000-$9FFF
 ; Jump Table ($A000-$A047) - 24 entries dispatched by game state
 ;===============================================================================
 
-Entry00:
+PPUTileRender_Entry:
   ; PPUTileRender
   JMP PPUTileRender               ; $A000: 4C 48 A0
-Entry01:
+MenuUpdate_Entry:
   ; MenuUpdate
   JMP MenuUpdate                  ; $A003: 4C 54 A1
-Entry02:
+VRAMBufferWrite_Entry:
   ; VRAMBufferWrite
   JMP VRAMBufferWrite             ; $A006: 4C 1B A1
-Entry03:
+StateHandler_Entry:
   ; StateHandler
   JMP StateHandler                ; $A009: 4C D2 AB
-Entry04:
+MapDisplaySetup_Entry:
   ; MapDisplaySetup
   JMP MapDisplaySetup             ; $A00C: 4C 9F B2
-Entry05:
+OfficerListHandler_Entry:
   ; OfficerListHandler
   JMP OfficerListHandler          ; $A00F: 4C 89 B9
-Entry06:
+FlushTileBuffer_Entry:
   ; FlushTileBuffer - upload 64-byte $0160 tile buffer to VRAM at $0480/$0481
   JMP FlushTileBuffer             ; $A012: 4C 41 BC
-Entry07:
+LoadScenarioData_Entry:
   ; LoadScenarioData
   JMP LoadScenarioData                      ; $A015: 4C B1 DB
-Entry08:
-  ; Entry08 -> $DD8B (bank $1E)
+SramInit_Entry:
+  ; SramInit -> $DD8B (bank $1E)
   JMP SramInit                                ; $A018: 4C 8B DD
-Entry09:
+OfficerParamDisp_Entry:
   ; OfficerParamDisp
   JMP OfficerParamDisp                        ; $A01B: 4C 7E DE
-Entry10:
+YearDisplaySetup_Entry:
   ; YearDisplaySetup
   JMP YearDisplaySetup          ; $A01E: 4C B6 A6
-Entry11:
+SlowPeriodic_Entry:
   ; PeriodicOverlayRefresh
   JMP SlowPeriodic              ; $A021: 4C 7F A7
-Entry12:
+ImmediateOverlay_Entry:
   ; PeriodicOverlayRefresh
   JMP ImmediateOverlay            ; $A024: 4C B2 A7
-Entry13:
+ProvinceDataHandler_Entry:
   ; ProvinceDataHandler
   JMP ProvinceDataHandler         ; $A027: 4C 30 A8
-Entry14:
+OfficerDisplay_Lookup_Entry:
   ; OfficerDisplay_Lookup
   JMP OfficerDisplay_Lookup         ; $A02A: 4C 90 A8
-Entry15:
+FastPeriodic_Entry:
   ; PeriodicOverlayRefresh
   JMP FastPeriodic              ; $A02D: 4C 8A A7
-Entry16:
+OfficerDisplay_Render_Entry:
   ; OfficerDisplay_Render
   JMP OfficerDisplay_Render       ; $A030: 4C A4 A8
-Entry17:
+OfficerNameDisplay_Entry:
   ; OfficerNameDisplay
   JMP OfficerNameDisplay            ; $A033: 4C FD A8
-Entry18:
+ClearWorkBuffer_Entry:
   ; ClearWorkBuffer
   JMP ClearWorkBuffer             ; $A036: 4C 66 BC
-Entry19:
+SceneRenderer_Entry:
   ; SceneRenderer
   JMP SceneRenderer               ; $A039: 4C 71 BC
-Entry20:
+DataFormatter_Entry:
   ; DataFormatter
   JMP DataFormatter               ; $A03C: 4C 91 A9
-Entry21:
+MenuRenderer_Entry:
   ; MenuRenderer
   JMP MenuRenderer                ; $A03F: 4C 36 BE
-Entry22:
+BankedDataHandler_Entry:
   ; BankedDataHandler
   JMP BankedDataHandler           ; $A042: 4C 37 AA
-Entry23:
+OfficerRecLookup_Entry:
   ; OfficerRecLookup
   JMP OfficerRecLookup                      ; $A045: 4C B9 DE
 
@@ -1399,7 +1399,7 @@ OfficerDisplay_Lookup:
   LDY #$3D                                ; $A899: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $A89B: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A015                               ; $A89E: 15 A0  -> Entry07 ($DBB1)
+  .word $A015                               ; $A89E: 15 A0  -> LoadScenarioData_Entry ($DBB1)
   PLA                                       ; $A8A0: 68
   STA $0000                                 ; $A8A1: 8D 00 00
 ; Entry: copy name tilemap and render
@@ -4976,7 +4976,7 @@ DomesticMenu_Return:
   LDY #$3D                                              ; $C95B: A0 3D
   JSR B1F_BankedCallbackTrampoline                      ; $C95D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A015                                           ; $C960: 15 A0  -> Entry07 ($DBB1)
+  .word $A015                                           ; $C960: 15 A0  -> LoadScenarioData_Entry ($DBB1)
   LDA #$80                                              ; $C962: A9 80
   STA $0140                                             ; $C964: 8D 40 01
   LDA #$22                                              ; $C967: A9 22

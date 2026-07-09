@@ -14,7 +14,7 @@
 - [prg_01.asm](file://asm/banks/prg_01.asm)
 - [prg_02.asm](file://asm/banks/prg_02.asm)
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
-- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
+- [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
@@ -355,12 +355,12 @@ ReplaceAliases --> ImprovedMaintainability["Improved Code Organization<br/>and M
 
 **Diagram sources**
 - [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
-- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-L68)
+- [prg_1f.asm:56-68](file://asm/banks/prg_1f.asm#L56-L68)
 - [globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
 
 **Section sources**
 - [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
-- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-L68)
+- [prg_1f.asm:56-68](file://asm/banks/prg_1f.asm#L56-L68)
 - [globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
 
 ## Expanded Battery SRAM Organization
@@ -416,11 +416,11 @@ TerritoryEvents --> CaptureFlag["Capture Officer Flag"]
 
 **Diagram sources**
 - [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
-- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-L351)
+- [prg_1f.asm:346-351](file://asm/banks/prg_1f.asm#L346-L351)
 
 **Section sources**
 - [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
-- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-L351)
+- [prg_1f.asm:346-351](file://asm/banks/prg_1f.asm#L346-L351)
 
 ## OAM/Sprite Buffer System Reorganization
 

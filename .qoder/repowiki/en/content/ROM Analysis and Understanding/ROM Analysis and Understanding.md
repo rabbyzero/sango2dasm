@@ -31,7 +31,7 @@
 - [rom_info.h](file://rom/rom_info.h)
 - [namco163.h](file://include/namco163.h)
 - [main.asm](file://asm/main.asm)
-- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
+- [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [all_banks.asm](file://asm/banks/all_banks.asm)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [bank_1f_plan.md](file://code/bank_1f_plan.md)
@@ -371,7 +371,7 @@ participant ROM as "Original ROM"
 Dev->>Stubs : Generate bank stubs
 Stubs-->>Dev : asm/banks/*.asm with .incbin
 Dev->>Disasm : Produce labeled bank 0x1F assembly
-Disasm-->>Dev : prg_1f.aligned.asm
+Disasm-->>Dev : prg_1f.asm
 Dev->>Transform : Apply transformation pipeline
 Transform-->>Dev : Enhanced assembly with validation
 Dev->>Annot : Annotate assembly with ROM bytes

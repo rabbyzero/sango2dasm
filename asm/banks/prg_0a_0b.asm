@@ -11,63 +11,35 @@
 .include "functions.h"
 
 ; Global label declarations (ca65 .proc creates local scope)
-.global B0A_ArmyDispatch
-.global B0A_ArmyLoop
-.global B0A_AttrTable
-.global B0A_BitMaskLookup
-.global B0A_ColLoop
-.global B0A_CompareValues
-.global B0A_DisplaySetup
-.global B0A_Entry00
-.global B0A_Entry02
-.global B0A_Entry03
-.global B0A_Entry04
-.global B0A_InitWorkAreas
-.global B0A_MathHelper
-.global B0A_NameTable
-.global B0A_PaletteSetup
-.global B0A_CheckGameStart
-.global B0A_ProvinceSearch
-.global B0A_RowProcess
-.global B0A_ScanMatchData
-.global B0A_ScrollInit
-.global B0A_SumAndCompare
-.global B0A_TileAttr
-.global B0A_TileRender
-.global B0A_WindowSetup
-.global B0B_ArmyValueCalc
-.global B0B_CallDomesticDisplay
-.global B0B_ClearOverlay
-.global B0B_DataRecordLookup
-.global B0B_DistanceClamp
-.global B0B_FillStackLoop
-.global B0B_Init
-.global B0B_JumpToBEC7
-.global B0B_LoadRecord
-.global B0B_PaletteCheck
-.global B0B_RenderOverlay
-.global B0B_SoundDispatch
-.global B0B_SpriteSetup2
-.global B0B_StackFill
-.global B0B_StateMachine
-.global B0B_SubStateDispatch
-.global LA0A7
-.global LA0E3
-.global LA0EF
-.global LA106
-.global LA128
-.global LA1B9
-.global LA298
-.global LA2C3
-.global LA31A
-.global LA35B
-.global LA373
-.global LA390
-.global LA428
-.global LA6F3
-.global LA702
-.global LA705
-.global LA78C
+.global ArmyDispatch
+.global CheckGameStart_Entry
+.global SubStateDispatch_Entry
+.global ArmyValueCalc_Entry
+.global DataRecordLookup_Entry
+.global DistanceClamp_Entry
+.global InitWorkAreas
+.global NameTable
+.global CheckGameStart
+.global ProvinceSearch
+.global ScanMatchData
+.global SumAndCompare
+.global TileRender
+.global ArmyValueCalc
+.global CallDomesticDisplay
+.global ClearOverlay
+.global DataRecordLookup
+.global DistanceClamp
+.global FillStackLoop
+.global Init
+.global JumpToBEC7
+.global LoadRecord
+.global PaletteCheck
+.global RenderOverlay
+.global SoundDispatch
+.global SpriteSetup2
+.global StackFill
+.global SubStateDispatch
+.global SearchBestTarget
 .global LA7CA
 .global LA7DA
 .global LA8CC
@@ -328,24 +300,12 @@
 .global LDDC7
 .global LDF62
 .global LDF73
-.global Proc_A133
-.global Proc_A45C
-.global Proc_A6BC
-.global Proc_A6C0
-.global Proc_A6C9
-.global Proc_A79C
-.global Proc_A8D7
-.global Proc_A938
-.global Proc_A9BE
-.global Proc_A9CC
-.global Proc_AA2D
-.global Proc_AA80
-.global Proc_AADE
-.global Proc_AB10
-.global Proc_ABA3
-.global Proc_AC67
-.global Proc_AEBF
-.global Proc_B0BC
+.global IterateArmyFields
+.global KingdomActionDispatch
+.global CalcKingdomTier
+.global CalcKingdomTierWorkPtr
+.global ResolveKingdomAbsorb
+.global InitNewGameContext
 .global Proc_B10E
 .global Proc_B136
 .global Proc_B1F9
@@ -529,20 +489,21 @@ state_palette_mode     = $0547  ; Palette animation mode
 ;===============================================================================
 ; Jump Table - Public entry points ($A000-$A00E)
 ;===============================================================================
-B0A_Entry00:
-  JMP B0A_CheckGameStart                                ; $A000: 4C 0F A0
-  JMP B0B_SubStateDispatch                            ; $A003: 4C 17 D7
-B0A_Entry02:
-  JMP B0B_ArmyValueCalc                               ; $A006: 4C 3F CF
-B0A_Entry03:
-  JMP B0B_DataRecordLookup                            ; $A009: 4C 7C CF
-B0A_Entry04:
-  JMP B0B_DistanceClamp                               ; $A00C: 4C 0C D0
+CheckGameStart_Entry:
+  JMP CheckGameStart                                ; $A000: 4C 0F A0
+SubStateDispatch_Entry:
+  JMP SubStateDispatch                            ; $A003: 4C 17 D7
+ArmyValueCalc_Entry:
+  JMP ArmyValueCalc                               ; $A006: 4C 3F CF
+DataRecordLookup_Entry:
+  JMP DataRecordLookup                            ; $A009: 4C 7C CF
+DistanceClamp_Entry:
+  JMP DistanceClamp                               ; $A00C: 4C 0C D0
 ;===============================================================================
-; $A00F: B0A_CheckGameStart
+; $A00F: CheckGameStart
 ; Check game start flag ($6F8B) and dispatch start menu / main flow
 ;===============================================================================
-.proc B0A_CheckGameStart
+.proc CheckGameStart
   game_start_flag            = $6F8B
 
   LDA game_start_flag                               ; $A00F: AD 8B 6F
@@ -550,7 +511,7 @@ B0A_Entry04:
   CMP #$01                                            ; $A014: C9 01
   BNE @NotOne                                         ; $A016: D0 06  if != 1, skip new-game path
   JSR Proc_D4CB                                       ; $A018: 20 CB D4
-  JMP Proc_A8D7                                       ; $A01B: 4C D7 A8  new game: jump to start menu
+  JMP InitNewGameContext                              ; $A01B: 4C D7 A8  new game: jump to start menu
 @NotOne:
   JSR Proc_D4CB                                       ; $A01E: 20 CB D4
   JSR Proc_C50E                                       ; $A021: 20 0E C5
@@ -561,19 +522,19 @@ B0A_Entry04:
   JSR Proc_D249                                       ; $A030: 20 49 D2
   JSR $CC12                                           ; $A033: 20 12 CC
   LDA $6F5B                                           ; $A036: AD 5B 6F
-  JSR JumpDispatcher                                   ; $A039: 20 94 D4
+  JSR JumpDispatcher                                  ; $A039: 20 94 D4
   ; Jump table (3 entries):
-  .word B0A_InitWorkAreas                               ; $A03C: 43 A0 (entry 0)
-  .word B0A_SumAndCompare                               ; $A03E: 9C A1 (entry 1)
-  .word @Exit                                           ; $A040: 42 A0 (entry 2)
+  .word InitWorkAreas                                 ; $A03C: 43 A0 (entry 0)
+  .word SumAndCompare                                 ; $A03E: 9C A1 (entry 1)
+  .word @Exit                                         ; $A040: 42 A0 (entry 2)
 @Exit:
   RTS                                                 ; $A042: 60
 .endproc
 ;===============================================================================
-; $A043: B0A_InitWorkAreas
+; $A043: InitWorkAreas
 ; Initialize work areas and counters for province scanning
 ;===============================================================================
-.proc B0A_InitWorkAreas
+.proc InitWorkAreas
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -607,13 +568,13 @@ B0A_Entry04:
   ASL A                                               ; $A059: 0A
   ORA $6F03                                           ; $A05A: 0D 03 6F
   TAY                                                 ; $A05D: A8
-  LDA $A133,Y                                         ; $A05E: B9 33 A1
+  LDA ProvinceDataA,Y                                 ; $A05E: B9 33 A1
   STA $6F5F                                           ; $A061: 8D 5F 6F
-  LDA $A14B,Y                                         ; $A064: B9 4B A1
+  LDA ProvinceDataB,Y                                 ; $A064: B9 4B A1
   STA $6F60                                           ; $A067: 8D 60 6F
-  LDA $A163,Y                                         ; $A06A: B9 63 A1
+  LDA ProvinceDataC,Y                                 ; $A06A: B9 63 A1
   STA $6F61                                           ; $A06D: 8D 61 6F
-  JSR B0A_ScanMatchData                               ; $A070: 20 D3 A0
+  JSR ScanMatchData                               ; $A070: 20 D3 A0
   LDA a:$0038                                         ; $A073: AD 38 00
   STA $20                                             ; $A076: 85 20
   LDA #$00                                            ; $A078: A9 00
@@ -634,41 +595,40 @@ B0A_Entry04:
   LDA $21                                             ; $A099: A5 21
   LDY #$00                                            ; $A09B: A0 00
   CMP #$1F                                            ; $A09D: C9 1F
-  BCC LA0A7                                           ; $A09F: 90 06
+  BCC @ApplyTierAdjust                                ; $A09F: 90 06
   INY                                                 ; $A0A1: C8
   CMP #$47                                            ; $A0A2: C9 47
-  BCC LA0A7                                           ; $A0A4: 90 01
+  BCC @ApplyTierAdjust                                ; $A0A4: 90 01
   INY                                                 ; $A0A6: C8
-LA0A7:
+@ApplyTierAdjust:
   STY $20                                             ; $A0A7: 84 20
   LDA $6F02                                           ; $A0A9: AD 02 6F
   ASL A                                               ; $A0AC: 0A
   ASL A                                               ; $A0AD: 0A
   ORA $20                                             ; $A0AE: 05 20
   TAY                                                 ; $A0B0: A8
-  LDA $A17B,Y                                         ; $A0B1: B9 7B A1
+  LDA TierAdjustA,Y                                     ; $A0B1: B9 7B A1
   CLC                                                 ; $A0B4: 18
   ADC $6F5F                                           ; $A0B5: 6D 5F 6F
   STA $6F5F                                           ; $A0B8: 8D 5F 6F
-  LDA $A186,Y                                         ; $A0BB: B9 86 A1
+  LDA TierAdjustB,Y                                     ; $A0BB: B9 86 A1
   CLC                                                 ; $A0BE: 18
   ADC $6F60                                           ; $A0BF: 6D 60 6F
   STA $6F60                                           ; $A0C2: 8D 60 6F
-  LDA $A191,Y                                         ; $A0C5: B9 91 A1
+  LDA TierAdjustC,Y                                     ; $A0C5: B9 91 A1
   CLC                                                 ; $A0C8: 18
   ADC $6F61                                           ; $A0C9: 6D 61 6F
   STA $6F61                                           ; $A0CC: 8D 61 6F
   INC $6F5B                                           ; $A0CF: EE 5B 6F
   RTS                                                 ; $A0D2: 60
 .endproc
-LA0A7 = $A0A7
 
 
 ;===============================================================================
-; $A0D3: B0A_ScanMatchData
+; $A0D3: ScanMatchData
 ; Scan and match province data against search criteria
 ;===============================================================================
-.proc B0A_ScanMatchData
+.proc ScanMatchData
   math_acc_hi              = $0023
   math_ext                 = $0024
   work_outer_idx           = $0036
@@ -683,7 +643,7 @@ LA0A7 = $A0A7
   STA a:$0036                                         ; $A0DA: 8D 36 00
   STA a:$0037                                         ; $A0DD: 8D 37 00
   STA a:$0038                                         ; $A0E0: 8D 38 00
-LA0E3:
+@NextProvince:
   LDA #$00                                            ; $A0E3: A9 00
   STA a:$0039                                         ; $A0E5: 8D 39 00
   LDA a:$0036                                         ; $A0E8: AD 36 00
@@ -691,66 +651,95 @@ LA0E3:
   ASL A                                               ; $A0EC: 0A
   ASL A                                               ; $A0ED: 0A
   TAY                                                 ; $A0EE: A8
-LA0EF:
+@NextSubEntry:
   LDA $9D72,Y                                         ; $A0EF: B9 72 9D
-  BMI LA128                                           ; $A0F2: 30 34
+  BMI @AdvanceOuter                                   ; $A0F2: 30 34
   STA $23                                             ; $A0F4: 85 23
   STY $24                                             ; $A0F6: 84 24
   JSR Proc_D105                                       ; $A0F8: 20 05 D1
   AND #$07                                            ; $A0FB: 29 07
   CMP #$07                                            ; $A0FD: C9 07
-  BEQ LA106                                           ; $A0FF: F0 05
+  BEQ @AdvanceInner                                   ; $A0FF: F0 05
   CMP $6F03                                           ; $A101: CD 03 6F
   .byte $D0,$13                                       ; $A104: D0 13 (BNE mid-instruction target)
-LA106:
+@AdvanceInner:
   INC a:$0037                                         ; $A106: EE 37 00
   LDA a:$0036                                         ; $A109: AD 36 00
   JSR Proc_D304                                       ; $A10C: 20 04 D3
   CMP #$04                                            ; $A10F: C9 04
   .byte $B0,$06                                       ; $A111: B0 06 (BCS mid-instruction target)
   INC a:$0038                                         ; $A113: EE 38 00
-  JMP LA128                                           ; $A116: 4C 28 A1
+  JMP @AdvanceOuter                                   ; $A116: 4C 28 A1
   LDA $23                                             ; $A119: A5 23
   LDY $24                                             ; $A11B: A4 24
   INY                                                 ; $A11D: C8
   INC a:$0039                                         ; $A11E: EE 39 00
   LDX a:$0039                                         ; $A121: AE 39 00
   CPX #$08                                            ; $A124: E0 08
-  BCC LA0EF                                           ; $A126: 90 C7
-LA128:
+  BCC @NextSubEntry                                   ; $A126: 90 C7
+@AdvanceOuter:
   INC a:$0036                                         ; $A128: EE 36 00
   LDA a:$0036                                         ; $A12B: AD 36 00
   CMP #$1E                                            ; $A12E: C9 1E
-  BCC LA0E3                                           ; $A130: 90 B1
+  BCC @NextProvince                                   ; $A130: 90 B1
   RTS                                                 ; $A132: 60
 .endproc
-LA0E3 = $A0E3
-LA0EF = $A0EF
-LA106 = $A106
-LA128 = $A128
+
 
 
 ;===============================================================================
-; $A133: Proc_A133
+; $A133: ProvinceDataA (24 bytes)
+; Province match parameter table A, indexed by [kingdom*8 + player_id]
 ;===============================================================================
-.proc Proc_A133
-
-  ORA $0A08                                           ; $A133: 0D 08 0A
-  ASL A                                               ; $A136: 0A
-  .byte $04,$06,$07,$00,$0C,$07,$06,$08,$04,$02,$04,$00,$09,$08,$08,$08; $A137: 04 06 07 00 0C 07 06 08 04 02 04 00 09 08 08 08
-  .byte $05,$02,$06,$00,$03,$05,$04,$04,$04,$06,$05,$00,$04,$06,$08,$06; $A147: 05 02 06 00 03 05 04 04 04 06 05 00 04 06 08 06
-  .byte $06,$0A,$08,$00,$06,$06,$06,$07,$08,$0B,$08,$00,$04,$07,$06,$06; $A157: 06 0A 08 00 06 06 06 07 08 0B 08 00 04 07 06 06
-  .byte $0C,$08,$08,$00,$04,$07,$06,$06,$0A,$08,$08,$00,$05,$06,$06,$05; $A167: 0C 08 08 00 04 07 06 06 0A 08 08 00 05 06 06 05
-  .byte $07,$07,$06,$00,$02,$04,$05,$00,$00,$03,$05,$00,$01,$02,$04,$02; $A177: 07 07 06 00 02 04 05 00 00 03 05 00 01 02 04 02
-  .byte $02,$00,$00,$04,$03,$00,$00,$03,$02,$01,$02,$00,$01,$00,$02,$00; $A187: 02 00 00 04 03 00 00 03 02 01 02 00 01 00 02 00
-  .byte $01,$00,$02,$02,$01                           ; $A197: 01 00 02 02 01
-.endproc
+ProvinceDataA:
+  .byte $0D,$08,$0A,$0A,$04,$06,$07,$00  ; $A133
+  .byte $0C,$07,$06,$08,$04,$02,$04,$00  ; $A13B
+  .byte $09,$08,$08,$08,$05,$02,$06,$00  ; $A143
 
 ;===============================================================================
-; $A19C: B0A_SumAndCompare
+; $A14B: ProvinceDataB (24 bytes)
+; Province match parameter table B, indexed by [kingdom*8 + player_id]
+;===============================================================================
+ProvinceDataB:
+  .byte $03,$05,$04,$04,$04,$06,$05,$00  ; $A14B
+  .byte $04,$06,$08,$06,$06,$0A,$08,$00  ; $A153
+  .byte $06,$06,$06,$07,$08,$0B,$08,$00  ; $A15B
+
+;===============================================================================
+; $A163: ProvinceDataC (24 bytes)
+; Province match parameter table C, indexed by [kingdom*8 + player_id]
+;===============================================================================
+ProvinceDataC:
+  .byte $04,$07,$06,$06,$0C,$08,$08,$00  ; $A163
+  .byte $04,$07,$06,$06,$0A,$08,$08,$00  ; $A16B
+  .byte $05,$06,$06,$05,$07,$07,$06,$00  ; $A173
+
+;===============================================================================
+; $A17B: TierAdjustA (11 bytes)
+; Tier-based adjustment table A, indexed by [kingdom*4 + tier]
+;===============================================================================
+TierAdjustA:
+  .byte $02,$04,$05,$00,$00,$03,$05,$00,$01,$02,$04  ; $A17B
+
+;===============================================================================
+; $A186: TierAdjustB (11 bytes)
+; Tier-based adjustment table B, indexed by [kingdom*4 + tier]
+;===============================================================================
+TierAdjustB:
+  .byte $02,$02,$00,$00,$04,$03,$00,$00,$03,$02,$01  ; $A186
+
+;===============================================================================
+; $A191: TierAdjustC (11 bytes)
+; Tier-based adjustment table C, indexed by [kingdom*4 + tier]
+;===============================================================================
+TierAdjustC:
+  .byte $02,$00,$01,$00,$02,$00,$01,$00,$02,$02,$01  ; $A191
+
+;===============================================================================
+; $A19C: SumAndCompare
 ; Sum values and compare against thresholds
 ;===============================================================================
-.proc B0A_SumAndCompare
+.proc SumAndCompare
   math_acc_mlo             = $0021
   sram_work_0              = $6F5F
   sram_work_1              = $6F60
@@ -765,129 +754,191 @@ LA128 = $A128
   JSR Proc_D4AD                                       ; $A1A9: 20 AD D4
   LDY #$00                                            ; $A1AC: A0 00
   CMP $6F5F                                           ; $A1AE: CD 5F 6F
-  BCC LA1B9                                           ; $A1B1: 90 06
+  BCC @UseIndex                                       ; $A1B1: 90 06
   INY                                                 ; $A1B3: C8
   CMP $21                                             ; $A1B4: C5 21
-  BCC LA1B9                                           ; $A1B6: 90 01
+  BCC @UseIndex                                       ; $A1B6: 90 01
   INY                                                 ; $A1B8: C8
-LA1B9:
+@UseIndex:
   TYA                                                 ; $A1B9: 98
   AND #$03                                            ; $A1BA: 29 03
-  JSR JumpDispatcher                                   ; $A1BC: 20 94 D4
-  ; Big-endian jump table (4 entries, hi-byte first; index = A & $03):
-  CMP $A1                                             ; $A1BF: C5 A1
-B0B_StateMachine:
-  .byte $9C,$B4,$C7,$BE,$AD,$02,$6F,$C9,$02,$F0,$0C,$A9,$64,$20,$BB,$D4; $A1C1: 9C B4 C7 BE AD 02 6F C9 02 F0 0C A9 64 20 BB D4
-  .byte $C9,$14,$B0,$0F,$4C,$0E,$B1,$A9,$64,$20,$BB,$D4,$C9,$1E,$B0,$03; $A1D1: C9 14 B0 0F 4C 0E B1 A9 64 20 BB D4 C9 1E B0 03
-  .byte $4C,$0E,$B1,$AD,$02,$6F,$F0,$15,$C9,$02,$F0,$1B,$AD,$00,$6F,$C9; $A1E1: 4C 0E B1 AD 02 6F F0 15 C9 02 F0 1B AD 00 6F C9
-  .byte $5A,$B0,$14,$AD,$01,$6F,$C9,$06,$B0,$0D,$4C,$3D,$A2,$AD,$00,$6F; $A1F1: 5A B0 14 AD 01 6F C9 06 B0 0D 4C 3D A2 AD 00 6F
-  .byte $C9,$5A,$B0,$03,$4C,$3D,$A2,$A9,$00,$8D,$44,$00,$20,$40,$A2,$EE; $A201: C9 5A B0 03 4C 3D A2 A9 00 8D 44 00 20 40 A2 EE
-  .byte $37,$00,$EE,$37,$00,$EE,$37,$00,$AD,$37,$00,$C9,$0A,$90,$05,$A9; $A211: 37 00 EE 37 00 EE 37 00 AD 37 00 C9 0A 90 05 A9
-  .byte $0A,$8D,$37,$00,$AD,$3A,$00,$20,$04,$D3,$CD,$37,$00,$B0,$03,$20; $A221: 0A 8D 37 00 AD 3A 00 20 04 D3 CD 37 00 B0 03 20
-  .byte $03,$A3,$20,$5C,$A4,$20,$BC,$A6,$20,$9C,$A7,$60; $A231: 03 A3 20 5C A4 20 BC A6 20 9C A7 60
+  JSR JumpDispatcher                                  ; $A1BC: 20 94 D4
+  ; Jump table (3 entries):
+  .word StateThresholdCheck                           ; $A1BF: C5 A1 (entry 0)
+  .word Proc_B49C                                     ; $A1C1: 9C B4 (entry 1)
+  .word $BEC7                                         ; $A1C3: C7 BE (entry 2)
 .endproc
-LA1B9 = $A1B9
-B0B_StateMachine = $A1C1
 
 
 ;===============================================================================
-; $A23D: B0B_JumpToBEC7
+; $A1C5: StateThresholdCheck
+; Dispatch target 0: check state thresholds and update counter
 ;===============================================================================
-.proc B0B_JumpToBEC7
-  math_ext                 = $0024
-  math_temp1               = $0025
-  math_temp2               = $0026
-  work_outer_idx           = $0036
-  work_inner_idx           = $0037
-  work_inner_idx2          = $0038
-  work_sub_idx             = $0039
-  work_limit_a             = $003A
+.proc StateThresholdCheck
+  LDA $6F02                                           ; $A1C5: AD 02 6F
+  CMP #$02                                            ; $A1C8: C9 02
+  BEQ @check6F02                                      ; $A1CA: F0 0C
+  LDA #$64                                            ; $A1CC: A9 64
+  JSR Proc_D4BB                                       ; $A1CE: 20 BB D4
+  CMP #$14                                            ; $A1D1: C9 14
+  .byte $B0,$0F                                       ; $A1D3: B0 0F (BCS, dead code - follows JMP)
+  JMP Proc_B10E                                       ; $A1D5: 4C 0E B1
+@check6F02:
+  LDA #$64                                            ; $A1D8: A9 64
+  JSR Proc_D4BB                                       ; $A1DA: 20 BB D4
+  CMP #$1E                                            ; $A1DD: C9 1E
+  .byte $B0,$03                                       ; $A1DF: B0 03 (BCS, dead code - follows JMP)
+  JMP Proc_B10E                                       ; $A1E1: 4C 0E B1
+  LDA $6F02                                           ; $A1E4: AD 02 6F
+  BEQ @incrementCounter                               ; $A1E7: F0 15
+  CMP #$02                                            ; $A1E9: C9 02
+  BEQ @ge90                                           ; $A1EB: F0 1B
+  LDA $6F00                                           ; $A1ED: AD 00 6F
+  CMP #$5A                                            ; $A1F0: C9 5A
+  BCS @ge90                                           ; $A1F2: B0 14
+  LDA $6F01                                           ; $A1F4: AD 01 6F
+  CMP #$06                                            ; $A1F7: C9 06
+  BCS @ge90                                           ; $A1F9: B0 0D
+  JMP JumpToBEC7                                       ; $A1FB: 4C 3D A2
+@incrementCounter:
+  LDA $6F00                                           ; $A1FE: AD 00 6F
+  CMP #$5A                                            ; $A201: C9 5A
+  BCS @ge90                                           ; $A203: B0 03
+  JMP JumpToBEC7                                       ; $A205: 4C 3D A2
+@ge90:
+  LDA #$00                                            ; $A208: A9 00
+  STA a:$0044                                         ; $A20A: 8D 44 00
+  JSR SearchBestTarget                                ; $A20D: 20 40 A2
+  INC a:$0037                                         ; $A210: EE 37 00
+  INC a:$0037                                         ; $A213: EE 37 00
+  INC a:$0037                                         ; $A216: EE 37 00
+  LDA a:$0037                                         ; $A219: AD 37 00
+  CMP #$0A                                            ; $A21C: C9 0A
+  BCC @callUpdates                                    ; $A21E: 90 05
+  LDA #$0A                                            ; $A220: A9 0A
+  STA a:$0037                                         ; $A222: 8D 37 00
+@callUpdates:
+  LDA a:$003A                                         ; $A225: AD 3A 00
+  JSR Proc_D304                                       ; $A228: 20 04 D3
+  CMP a:$0037                                         ; $A22B: CD 37 00
+  BCS @skipSearch                                     ; $A22E: B0 03
+  JSR ProvinceSearch                                  ; $A230: 20 03 A3
+@skipSearch:
+  JSR IterateArmyFields                                   ; $A233: 20 5C A4
+  JSR KingdomActionDispatch                           ; $A236: 20 BC A6
+  JSR ResolveKingdomAbsorb                              ; $A239: 20 9C A7
+@done:
+  RTS                                                 ; $A23C: 60
+.endproc
+
+;===============================================================================
+; $A23D: JumpToBEC7
+;===============================================================================
+.proc JumpToBEC7
+  JMP $BEC7                                           ; $A23D: 4C C7 BE
+.endproc
+
+;===============================================================================
+; $A240: SearchBestTarget
+; Iterate entities 0-$1D, count active items via Proc_D304, filter by type
+; and bitmask (table at $9D72 in bank $30), and track the best candidate.
+;===============================================================================
+.proc SearchBestTarget
+  table_offset             = $0024
+  attr_value               = $0025
+  entity_score             = $0026
+  candidate_idx            = $0036
+  best_inner_idx           = $0037
+  best_idx                 = $0038
+  best_sub_idx             = $0039
+  best_outer_idx           = $003A
   sram_player_id           = $6F03
 
-  JMP $BEC7                                           ; $A23D: 4C C7 BE
+SearchBestTarget:
   LDY #$30                                            ; $A240: A0 30
   JSR B1F_SwitchBank8_A                               ; $A242: 20 66 F2
   LDA #$00                                            ; $A245: A9 00
-  STA a:$0036                                         ; $A247: 8D 36 00
+  STA a:candidate_idx                                 ; $A247: 8D 36 00
   LDA #$FF                                            ; $A24A: A9 FF
-  STA a:$0037                                         ; $A24C: 8D 37 00
-  STA a:$0038                                         ; $A24F: 8D 38 00
-  STA a:$003A                                         ; $A252: 8D 3A 00
+  STA a:best_inner_idx                                ; $A24C: 8D 37 00
+  STA a:best_idx                                      ; $A24F: 8D 38 00
+  STA a:best_outer_idx                                ; $A252: 8D 3A 00
   LDA #$00                                            ; $A255: A9 00
-  STA a:$0039                                         ; $A257: 8D 39 00
-  LDA a:$0036                                         ; $A25A: AD 36 00
+  STA a:best_sub_idx                                  ; $A257: 8D 39 00
+@loadAndCheckNext:
+  LDA a:candidate_idx                                 ; $A25A: AD 36 00
   JSR Proc_D105                                       ; $A25D: 20 05 D1
-  CMP $6F03                                           ; $A260: CD 03 6F
-  .byte $D0,$63                                       ; $A263: D0 63 (BNE mid-instruction target)
+  CMP sram_player_id                                  ; $A260: CD 03 6F
+  BNE @nextEntity                                     ; $A263: D0 63
   JSR $D307                                           ; $A265: 20 07 D3
-  STA $26                                             ; $A268: 85 26
-  LDA a:$0036                                         ; $A26A: AD 36 00
+  STA entity_score                                    ; $A268: 85 26
+  LDA a:candidate_idx                                 ; $A26A: AD 36 00
   ASL A                                               ; $A26D: 0A
   ASL A                                               ; $A26E: 0A
   ASL A                                               ; $A26F: 0A
-  STA $24                                             ; $A270: 85 24
-  LDY $24                                             ; $A272: A4 24
+  STA table_offset                                    ; $A270: 85 24
+@tableLookup:
+  LDY table_offset                                    ; $A272: A4 24
   LDA $9D72,Y                                         ; $A274: B9 72 9D
-  .byte $30,$4F                                       ; $A277: 30 4F (BMI mid-instruction target)
-  STA $25                                             ; $A279: 85 25
+  BMI @nextEntity                                     ; $A277: 30 4F
+  STA attr_value                                      ; $A279: 85 25
   JSR Proc_D105                                       ; $A27B: 20 05 D1
   AND #$07                                            ; $A27E: 29 07
   CMP #$07                                            ; $A280: C9 07
-  BEQ LA2C3                                           ; $A282: F0 3F
-  CMP $6F03                                           ; $A284: CD 03 6F
-  BEQ LA2C3                                           ; $A287: F0 3A
-  JSR B0A_BitMaskLookup                               ; $A289: 20 D3 A2
-  BNE LA2C3                                           ; $A28C: D0 35
+  BEQ @nextEntry                                      ; $A282: F0 3F
+  CMP sram_player_id                                  ; $A284: CD 03 6F
+  BEQ @nextEntry                                      ; $A287: F0 3A
+  JSR @BitMaskLookup                                ; $A289: 20 D3 A2
+  BNE @nextEntry                                      ; $A28C: D0 35
   JSR $D307                                           ; $A28E: 20 07 D3
-  CMP a:$0037                                         ; $A291: CD 37 00
-  BEQ LA298                                           ; $A294: F0 02
-  BCS LA2C3                                           ; $A296: B0 2B
-LA298:
-  STA a:$0037                                         ; $A298: 8D 37 00
-  LDA $25                                             ; $A29B: A5 25
-  CMP a:$0038                                         ; $A29D: CD 38 00
-  .byte $D0,$13                                       ; $A2A0: D0 13 (BNE mid-instruction target)
-  LDA $26                                             ; $A2A2: A5 26
-  CMP a:$0039                                         ; $A2A4: CD 39 00
-  BCC LA2C3                                           ; $A2A7: 90 1A
-  STA a:$0039                                         ; $A2A9: 8D 39 00
-  LDA a:$0036                                         ; $A2AC: AD 36 00
-  STA a:$003A                                         ; $A2AF: 8D 3A 00
-  JMP LA2C3                                           ; $A2B2: 4C C3 A2
-  STA a:$0038                                         ; $A2B5: 8D 38 00
-  LDA $26                                             ; $A2B8: A5 26
-  STA a:$0039                                         ; $A2BA: 8D 39 00
-  LDA a:$0036                                         ; $A2BD: AD 36 00
-  STA a:$003A                                         ; $A2C0: 8D 3A 00
-LA2C3:
-  INC $24                                             ; $A2C3: E6 24
-  JMP $A272                                           ; $A2C5: 4C 72 A2
-  INC a:$0036                                         ; $A2C8: EE 36 00
-  LDA a:$0036                                         ; $A2CB: AD 36 00
+  CMP a:best_inner_idx                                ; $A291: CD 37 00
+  BEQ @updateBestSubIdx                               ; $A294: F0 02
+  BCS @nextEntry                                      ; $A296: B0 2B
+@updateBestSubIdx:
+  STA a:best_inner_idx                                ; $A298: 8D 37 00
+  LDA attr_value                                      ; $A29B: A5 25
+  CMP a:best_idx                                      ; $A29D: CD 38 00
+  BNE @storeBestAndContinue                           ; $A2A0: D0 13
+  LDA entity_score                                    ; $A2A2: A5 26
+  CMP a:best_sub_idx                                  ; $A2A4: CD 39 00
+  BCC @nextEntry                                      ; $A2A7: 90 1A
+  STA a:best_sub_idx                                  ; $A2A9: 8D 39 00
+  LDA a:candidate_idx                                 ; $A2AC: AD 36 00
+  STA a:best_outer_idx                                ; $A2AF: 8D 3A 00
+  JMP @nextEntry                                      ; $A2B2: 4C C3 A2
+@storeBestAndContinue:
+  STA a:best_idx                                      ; $A2B5: 8D 38 00
+  LDA entity_score                                    ; $A2B8: A5 26
+  STA a:best_sub_idx                                  ; $A2BA: 8D 39 00
+  LDA a:candidate_idx                                 ; $A2BD: AD 36 00
+  STA a:best_outer_idx                                ; $A2C0: 8D 3A 00
+@nextEntry:
+  INC table_offset                                    ; $A2C3: E6 24
+  JMP @tableLookup                                    ; $A2C5: 4C 72 A2
+@nextEntity:
+  INC a:candidate_idx                                 ; $A2C8: EE 36 00
+  LDA a:candidate_idx                                 ; $A2CB: AD 36 00
   CMP #$1E                                            ; $A2CE: C9 1E
-  .byte $90,$88                                       ; $A2D0: 90 88 (BCC mid-instruction target)
+  BCC @loadAndCheckNext                               ; $A2D0: 90 88
   RTS                                                 ; $A2D2: 60
-.endproc
-LA298 = $A298
-LA2C3 = $A2C3
 
-
-;===============================================================================
-; $A2D3: B0A_BitMaskLookup
-;===============================================================================
-.proc B0A_BitMaskLookup
+;-------------------------------------------------------------------------------
+; @BitMaskLookup (nested in SearchBestTarget)
+; A = bit index; returns masked value from NibbleMaskTable.
+; Preserves $24-$25 across the call.
+;-------------------------------------------------------------------------------
+@BitMaskLookup:
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
   math_ext                 = $0024
   math_temp1               = $0025
-  sram_player_id           = $6F03
 
   PHA                                                 ; $A2D3: 48
   LDA $24                                             ; $A2D4: A5 24
   PHA                                                 ; $A2D6: 48
   LDA $25                                             ; $A2D7: A5 25
   PHA                                                 ; $A2D9: 48
-  LDA $6F03                                           ; $A2DA: AD 03 6F
+  LDA sram_player_id                                  ; $A2DA: AD 03 6F
   JSR Proc_D319                                       ; $A2DD: 20 19 D3
   LDA $24                                             ; $A2E0: A5 24
   STA $22                                             ; $A2E2: 85 22
@@ -904,236 +955,252 @@ LA2C3 = $A2C3
   ADC #$04                                            ; $A2F2: 69 04
   TAY                                                 ; $A2F4: A8
   LDA ($22),Y                                         ; $A2F5: B1 22
-  AND $A2FB,X                                         ; $A2F7: 3D FB A2
+  AND NibbleMaskTable,X                               ; $A2F7: 3D FB A2
   RTS                                                 ; $A2FA: 60
+NibbleMaskTable:                                      ; alternating low/high nibble masks
   .byte $0F,$F0,$0F,$F0,$0F,$F0,$0F,$F0               ; $A2FB: 0F F0 0F F0 0F F0 0F F0
 .endproc
 
 ;===============================================================================
-; $A303: B0A_ProvinceSearch
-; Search provinces by criteria (type, owner, conditions)
+; $A303: ProvinceSearch
+; Two-phase province search:
+;   Phase 1 - find best province owned by current player (with access check)
+;   Phase 2 - fallback: find best province among ALL (no owner/access filter)
+; CompareValues ($A3D6) is a nested helper that scores each candidate.
 ;===============================================================================
-.proc B0A_ProvinceSearch
-  work_outer_idx           = $0036
-  work_inner_idx           = $0037
-  work_limit_a             = $003A
-  work_search_result       = $0041
-  work_search_max          = $0045
+.proc ProvinceSearch
+  candidate_idx            = $0036   ; current province being evaluated
+  best_slot_idx            = $0037   ; best slot index (set by CompareValues)
+  source_province          = $003A   ; source/owner province ID (from caller)
+  work_best_value          = $0041   ; best province score found so far
+  search_max               = $0045   ; max provinces to scan
+  compare_mode             = $0044   ; inner comparison mode flag (used by CompareValues)
   sram_player_id           = $6F03
 
   JSR Proc_D249                                       ; $A303: 20 49 D2
-  STA a:$0045                                         ; $A306: 8D 45 00
-  JSR B0B_LoadRecord                                  ; $A309: 20 3A D0
-  LDY $6F03                                           ; $A30C: AC 03 6F
-  LDA $A3C6,Y                                         ; $A30F: B9 C6 A3
-  STA a:$0041                                         ; $A312: 8D 41 00
+  STA a:search_max                                    ; $A306: 8D 45 00
+  JSR LoadRecord                                      ; $A309: 20 3A D0
+  LDY sram_player_id                                  ; $A30C: AC 03 6F
+  LDA @PlayerThresholds,Y                             ; $A30F: B9 C6 A3
+  STA a:work_best_value                               ; $A312: 8D 41 00
   LDA #$00                                            ; $A315: A9 00
-  STA a:$0036                                         ; $A317: 8D 36 00
-LA31A:
-  LDA a:$0036                                         ; $A31A: AD 36 00
-  CMP a:$003A                                         ; $A31D: CD 3A 00
-  BEQ LA35B                                           ; $A320: F0 39
-  CMP a:$0045                                         ; $A322: CD 45 00
-  BEQ LA35B                                           ; $A325: F0 34
+  STA a:candidate_idx                                 ; $A317: 8D 36 00
+; --- Phase 1: search provinces owned by current player ---
+@phase1Loop:
+  LDA a:candidate_idx                                 ; $A31A: AD 36 00
+  CMP a:source_province                               ; $A31D: CD 3A 00
+  BEQ @phase1Next                                     ; $A320: F0 39
+  CMP a:search_max                                    ; $A322: CD 45 00
+  BEQ @phase1Next                                     ; $A325: F0 34
   JSR Proc_D105                                       ; $A327: 20 05 D1
-  CMP $6F03                                           ; $A32A: CD 03 6F
-  BNE LA35B                                           ; $A32D: D0 2C
+  CMP sram_player_id                                  ; $A32A: CD 03 6F
+  BNE @phase1Next                                     ; $A32D: D0 2C
   JSR Proc_D1A4                                       ; $A32F: 20 A4 D1
-  BNE LA35B                                           ; $A332: D0 27
-  LDX a:$003A                                         ; $A334: AE 3A 00
-  LDY a:$0036                                         ; $A337: AC 36 00
+  BNE @phase1Next                                     ; $A332: D0 27
+  LDX a:source_province                               ; $A334: AE 3A 00
+  LDY a:candidate_idx                                 ; $A337: AC 36 00
   JSR Proc_D583                                       ; $A33A: 20 83 D5
   CMP #$FF                                            ; $A33D: C9 FF
-  BNE LA35B                                           ; $A33F: D0 1A
-  LDA a:$0036                                         ; $A341: AD 36 00
+  BNE @phase1Next                                     ; $A33F: D0 1A
+  LDA a:candidate_idx                                 ; $A341: AD 36 00
   JSR Proc_D304                                       ; $A344: 20 04 D3
-  CMP a:$0041                                         ; $A347: CD 41 00
-  BCC LA35B                                           ; $A34A: 90 0F
-  JSR B0A_CompareValues                               ; $A34C: 20 D6 A3
-  LDA a:$003A                                         ; $A34F: AD 3A 00
+  CMP a:work_best_value                               ; $A347: CD 41 00
+  BCC @phase1Next                                     ; $A34A: 90 0F
+  JSR CompareValues                                   ; $A34C: 20 D6 A3
+  LDA a:source_province                               ; $A34F: AD 3A 00
   JSR Proc_D304                                       ; $A352: 20 04 D3
-  CMP a:$0037                                         ; $A355: CD 37 00
-  BCC LA31A                                           ; $A358: 90 C0
+  CMP a:best_slot_idx                                 ; $A355: CD 37 00
+  BCC @phase1Loop                                     ; $A358: 90 C0
   RTS                                                 ; $A35A: 60
-LA35B:
-  INC a:$0036                                         ; $A35B: EE 36 00
-  LDA a:$0036                                         ; $A35E: AD 36 00
+@phase1Next:
+  INC a:candidate_idx                                 ; $A35B: EE 36 00
+  LDA a:candidate_idx                                 ; $A35E: AD 36 00
   CMP #$1E                                            ; $A361: C9 1E
-  BCC LA31A                                           ; $A363: 90 B5
-  LDY $6F03                                           ; $A365: AC 03 6F
-  LDA $A3CE,Y                                         ; $A368: B9 CE A3
-  STA a:$0041                                         ; $A36B: 8D 41 00
+  BCC @phase1Loop                                     ; $A363: 90 B5
+; --- Phase 2: fallback search among all provinces ---
+  LDY sram_player_id                                  ; $A365: AC 03 6F
+  LDA @PlayerThresholds+8,Y                           ; $A368: B9 CE A3
+  STA a:work_best_value                               ; $A36B: 8D 41 00
   LDA #$00                                            ; $A36E: A9 00
-  STA a:$0036                                         ; $A370: 8D 36 00
-LA373:
-  LDA a:$0036                                         ; $A373: AD 36 00
-  CMP a:$003A                                         ; $A376: CD 3A 00
-  .byte $F0,$3C                                       ; $A379: F0 3C (BEQ mid-instruction target)
+  STA a:candidate_idx                                 ; $A370: 8D 36 00
+@phase2Loop:
+  LDA a:candidate_idx                                 ; $A373: AD 36 00
+  CMP a:source_province                               ; $A376: CD 3A 00
+  BEQ @phase2Next                                     ; $A379: F0 3C
   JSR Proc_D105                                       ; $A37B: 20 05 D1
-  CMP $6F03                                           ; $A37E: CD 03 6F
-  .byte $D0,$34                                       ; $A381: D0 34 (BNE mid-instruction target)
-  LDA a:$0036                                         ; $A383: AD 36 00
-  CMP a:$0045                                         ; $A386: CD 45 00
-  BEQ LA390                                           ; $A389: F0 05
+  CMP sram_player_id                                  ; $A37E: CD 03 6F
+  BNE @phase2Next                                     ; $A381: D0 34
+  LDA a:candidate_idx                                 ; $A383: AD 36 00
+  CMP a:search_max                                    ; $A386: CD 45 00
+  BEQ @phase2CheckAccess                              ; $A389: F0 05
   JSR Proc_D1A4                                       ; $A38B: 20 A4 D1
-  .byte $F0,$27                                       ; $A38E: F0 27 (BEQ mid-instruction target)
-LA390:
-  LDX a:$003A                                         ; $A390: AE 3A 00
-  LDY a:$0036                                         ; $A393: AC 36 00
+  BEQ @phase2Next                                     ; $A38E: F0 27
+@phase2CheckAccess:
+  LDX a:source_province                               ; $A390: AE 3A 00
+  LDY a:candidate_idx                                 ; $A393: AC 36 00
   JSR Proc_D583                                       ; $A396: 20 83 D5
   CMP #$FF                                            ; $A399: C9 FF
-  .byte $D0,$1A                                       ; $A39B: D0 1A (BNE mid-instruction target)
-  LDA a:$0036                                         ; $A39D: AD 36 00
+  BNE @phase2Next                                     ; $A39B: D0 1A
+  LDA a:candidate_idx                                 ; $A39D: AD 36 00
   JSR Proc_D304                                       ; $A3A0: 20 04 D3
-  CMP a:$0041                                         ; $A3A3: CD 41 00
-  .byte $90,$0F                                       ; $A3A6: 90 0F (BCC mid-instruction target)
-  JSR B0A_CompareValues                               ; $A3A8: 20 D6 A3
-  LDA a:$003A                                         ; $A3AB: AD 3A 00
+  CMP a:work_best_value                               ; $A3A3: CD 41 00
+  BCC @phase2Next                                     ; $A3A6: 90 0F
+  JSR CompareValues                                   ; $A3A8: 20 D6 A3
+  LDA a:source_province                               ; $A3AB: AD 3A 00
   JSR Proc_D304                                       ; $A3AE: 20 04 D3
-  CMP a:$0037                                         ; $A3B1: CD 37 00
-  BCC LA373                                           ; $A3B4: 90 BD
+  CMP a:best_slot_idx                                 ; $A3B1: CD 37 00
+  BCC @phase2Loop                                     ; $A3B4: 90 BD
   RTS                                                 ; $A3B6: 60
-  INC a:$0036                                         ; $A3B7: EE 36 00
-  LDA a:$0036                                         ; $A3BA: AD 36 00
+@phase2Next:
+  INC a:candidate_idx                                 ; $A3B7: EE 36 00
+  LDA a:candidate_idx                                 ; $A3BA: AD 36 00
   CMP #$1E                                            ; $A3BD: C9 1E
-  BCC LA373                                           ; $A3BF: 90 B2
+  BCC @phase2Loop                                     ; $A3BF: 90 B2
+; --- search exhausted: give up ---
   PLA                                                 ; $A3C1: 68
   PLA                                                 ; $A3C2: 68
-  JMP B0B_JumpToBEC7                                  ; $A3C3: 4C 3D A2
-  .byte $02,$03,$03,$02,$03,$03,$02,$02,$04,$05,$04,$03,$04,$05,$04,$04; $A3C6: 02 03 03 02 03 03 02 02 04 05 04 03 04 05 04 04
-.endproc
-LA31A = $A31A
-LA35B = $A35B
-LA373 = $A373
-LA390 = $A390
+  JMP JumpToBEC7                                      ; $A3C3: 4C 3D A2
+@PlayerThresholds:                                    ; per-player thresholds [0..7]
+  .byte $02,$03,$03,$02,$03,$03,$02,$02               ; $A3C6: 02 03 03 02 03 03 02 02
+              ; fallback thresholds [8..15]
+  .byte $04,$05,$04,$03,$04,$05,$04,$04               ; $A3CE: 04 05 04 03 04 05 04 04
 
+;-------------------------------------------------------------------------------
+; CompareValues (nested in ProvinceSearch)
+; Score a candidate province by finding its best-valued slot ($11-$1A).
+; Inputs:  candidate_idx ($0036) = province to evaluate
+;          source_province ($003A) = source province ID
+;          $0044 = inner comparison mode flag
+; Outputs: best_slot_idx ($0037) = index of best slot found
+;-------------------------------------------------------------------------------
+CompareValues:
+  record_ptr               = $0020   ; pointer to current record data
+  slot_index               = $0024   ; slot offset iterator ($11..$1A)
+  best_slot_val            = $0025   ; best slot value found
+  best_slot_pos            = $0026   ; Y-index of best slot
+  ref_value                = $0027   ; reference value for comparison
+  saved_candidate          = $003B   ; saved candidate province ID
+  best_result              = $003C   ; result value to write back
 
-;===============================================================================
-; $A3D6: B0A_CompareValues
-; Compare multiple values and set result flags
-;===============================================================================
-.proc B0A_CompareValues
-  math_acc_lo              = $0020
-  math_ext                 = $0024
-  math_temp1               = $0025
-  math_temp2               = $0026
-  math_temp3               = $0027
-  work_outer_idx           = $0036
-  work_limit_a             = $003A
-  work_limit_b             = $003B
-  work_temp_0              = $003C
-  sram_player_id           = $6F03
-
-  LDA a:$0036                                         ; $A3D6: AD 36 00
-  STA a:$003B                                         ; $A3D9: 8D 3B 00
-  LDA a:$003B                                         ; $A3DC: AD 3B 00
+  LDA a:candidate_idx                                 ; $A3D6: AD 36 00
+  STA a:saved_candidate                               ; $A3D9: 8D 3B 00
+  LDA a:saved_candidate                               ; $A3DC: AD 3B 00
   JSR Proc_D105                                       ; $A3DF: 20 05 D1
-  LDA $6F03                                           ; $A3E2: AD 03 6F
+  LDA sram_player_id                                  ; $A3E2: AD 03 6F
   JSR Proc_D319                                       ; $A3E5: 20 19 D3
   LDY #$00                                            ; $A3E8: A0 00
-  LDA ($24),Y                                         ; $A3EA: B1 24
-  STA $27                                             ; $A3EC: 85 27
+  LDA ($24),Y                                         ; $A3EA: B1 24  ; read from record ptr returned by Proc_D319
+  STA ref_value                                       ; $A3EC: 85 27
   LDA #$11                                            ; $A3EE: A9 11
-  STA $24                                             ; $A3F0: 85 24
+  STA slot_index                                      ; $A3F0: 85 24
   LDA #$00                                            ; $A3F2: A9 00
-  STA $25                                             ; $A3F4: 85 25
-  STA $26                                             ; $A3F6: 85 26
-  LDY $24                                             ; $A3F8: A4 24
-  LDA ($20),Y                                         ; $A3FA: B1 20
+  STA best_slot_val                                   ; $A3F4: 85 25
+  STA best_slot_pos                                   ; $A3F6: 85 26
+@slotLoop:
+  LDY slot_index                                      ; $A3F8: A4 24
+  LDA (record_ptr),Y                                  ; $A3FA: B1 20
   CMP #$FF                                            ; $A3FC: C9 FF
-  BEQ LA428                                           ; $A3FE: F0 28
-  CMP $27                                             ; $A400: C5 27
-  BEQ LA428                                           ; $A402: F0 24
-  LDX a:$0044                                         ; $A404: AE 44 00
-  .byte $F0,$0B                                       ; $A407: F0 0B (BEQ mid-instruction target)
-  LDX $24                                             ; $A409: A6 24
+  BEQ @slotDone                                       ; $A3FE: F0 28
+  CMP ref_value                                       ; $A400: C5 27
+  BEQ @slotDone                                       ; $A402: F0 24
+  LDX a:compare_mode                                  ; $A404: AE 44 00
+  BEQ @innerCheck                                     ; $A407: F0 0B
+  LDX slot_index                                      ; $A409: A6 24
   CPX #$11                                            ; $A40B: E0 11
-  BEQ LA428                                           ; $A40D: F0 19
+  BEQ @slotDone                                       ; $A40D: F0 19
   LDY #$03                                            ; $A40F: A0 03
-  JMP $A416                                           ; $A411: 4C 16 A4
+  JMP @callScoreHelper                                ; $A411: 4C 16 A4
+@innerCheck:
   LDY #$01                                            ; $A414: A0 01
+@callScoreHelper:
   JSR $D2AB                                           ; $A416: 20 AB D2
-  CMP $25                                             ; $A419: C5 25
-  BCC LA428                                           ; $A41B: 90 0B
-  STA $25                                             ; $A41D: 85 25
-  LDY $24                                             ; $A41F: A4 24
-  STY $26                                             ; $A421: 84 26
-  LDA ($20),Y                                         ; $A423: B1 20
-  STA a:$003C                                         ; $A425: 8D 3C 00
-LA428:
-  INC $24                                             ; $A428: E6 24
-  LDA $24                                             ; $A42A: A5 24
+  CMP best_slot_val                                   ; $A419: C5 25
+  BCC @slotDone                                       ; $A41B: 90 0B
+  STA best_slot_val                                   ; $A41D: 85 25
+  LDY slot_index                                      ; $A41F: A4 24
+  STY best_slot_pos                                   ; $A421: 84 26
+  LDA (record_ptr),Y                                  ; $A423: B1 20
+  STA a:best_result                                   ; $A425: 8D 3C 00
+@slotDone:
+  INC slot_index                                      ; $A428: E6 24
+  LDA slot_index                                      ; $A42A: A5 24
   CMP #$1B                                            ; $A42C: C9 1B
-  .byte $90,$C8                                       ; $A42E: 90 C8 (BCC mid-instruction target)
-  LDY $26                                             ; $A430: A4 26
+  BCC @slotLoop                                       ; $A42E: 90 C8
+; write back results
+  LDY best_slot_pos                                   ; $A430: A4 26
   LDA #$FF                                            ; $A432: A9 FF
-  STA ($20),Y                                         ; $A434: 91 20
-  LDA a:$003B                                         ; $A436: AD 3B 00
+  STA (record_ptr),Y                                  ; $A434: 91 20
+  LDA a:saved_candidate                               ; $A436: AD 3B 00
   JSR Proc_D3DD                                       ; $A439: 20 DD D3
-  LDA a:$003A                                         ; $A43C: AD 3A 00
+  LDA a:source_province                               ; $A43C: AD 3A 00
   JSR Proc_D105                                       ; $A43F: 20 05 D1
   LDY #$10                                            ; $A442: A0 10
+@scanResultSlot:
   INY                                                 ; $A444: C8
-  LDA ($20),Y                                         ; $A445: B1 20
+  LDA (record_ptr),Y                                  ; $A445: B1 20
   CMP #$FF                                            ; $A447: C9 FF
-  .byte $D0,$F9                                       ; $A449: D0 F9 (BNE mid-instruction target)
-  LDA a:$003C                                         ; $A44B: AD 3C 00
-  STA ($20),Y                                         ; $A44E: 91 20
+  BNE @scanResultSlot                                 ; $A449: D0 F9
+  LDA a:best_result                                   ; $A44B: AD 3C 00
+  STA (record_ptr),Y                                  ; $A44E: 91 20
   LDA #$02                                            ; $A450: A9 02
   JSR Proc_D165                                       ; $A452: 20 65 D1
-  LDA a:$003B                                         ; $A455: AD 3B 00
-  STA a:$0036                                         ; $A458: 8D 36 00
+  LDA a:saved_candidate                               ; $A455: AD 3B 00
+  STA a:candidate_idx                                 ; $A458: 8D 36 00
   RTS                                                 ; $A45B: 60
 .endproc
-LA428 = $A428
 
 
 ;===============================================================================
-; $A45C: Proc_A45C
+; $A45C: IterateArmyFields
+; Iterate entity record fields $11-$1A, dispatching ArmyDispatch for each
+; non-$FF value. Reads a byte from the entity's data record at each offset
+; and invokes army operation dispatch unless the sentinel $FF is found.
 ;===============================================================================
-.proc Proc_A45C
+.proc IterateArmyFields
   math_acc_lo              = $0020
-  work_limit_a             = $003A
-  work_limit_b             = $003B
-  work_temp_0              = $003C
+  entity_idx               = $003A
+  dispatch_val             = $003B
+  field_offset             = $003C
 
-  LDA #$11                                            ; $A45C: A9 11
-  STA a:$003C                                         ; $A45E: 8D 3C 00
-B0A_MathHelper:
-  LDA a:$003A                                         ; $A461: AD 3A 00
-  JSR Proc_D105                                       ; $A464: 20 05 D1
-  LDY a:$003C                                         ; $A467: AC 3C 00
-  LDA ($20),Y                                         ; $A46A: B1 20
-  CMP #$FF                                            ; $A46C: C9 FF
-  .byte $F0,$06                                       ; $A46E: F0 06 (BEQ mid-instruction target)
-  STA a:$003B                                         ; $A470: 8D 3B 00
-  JSR B0A_ArmyDispatch                                ; $A473: 20 81 A4
-  INC a:$003C                                         ; $A476: EE 3C 00
-  LDA a:$003C                                         ; $A479: AD 3C 00
-  CMP #$1B                                            ; $A47C: C9 1B
-  BCC B0A_MathHelper                                  ; $A47E: 90 E1
+  LDA #$11                                            ; $A45C: A9 11       ; start field offset = $11
+  STA a:field_offset                                  ; $A45E: 8D 3C 00
+@LoadEntityPtr:
+  LDA a:entity_idx                                    ; $A461: AD 3A 00    ; load entity index
+  JSR Proc_D105                                       ; $A464: 20 05 D1   ; get entity data pointer -> ($20)
+  LDY a:field_offset                                  ; $A467: AC 3C 00
+  LDA ($20),Y                                         ; $A46A: B1 20      ; read field byte
+  CMP #$FF                                            ; $A46C: C9 FF     ; $FF = sentinel (no more data)
+  BEQ @SkipDispatch                                   ; $A46E: F0 06      ; skip dispatch if sentinel
+  STA a:dispatch_val                                  ; $A470: 8D 3B 00   ; store value for ArmyDispatch
+  JSR ArmyDispatch                                    ; $A473: 20 81 A4
+@SkipDispatch:
+  INC a:field_offset                                  ; $A476: EE 3C 00    ; advance to next field offset
+  LDA a:field_offset                                  ; $A479: AD 3C 00
+  CMP #$1B                                            ; $A47C: C9 1B     ; done when offset reaches $1B
+  BCC @LoadEntityPtr                                  ; $A47E: 90 E1      ; loop for offsets $11-$1A
   RTS                                                 ; $A480: 60
 .endproc
-B0A_MathHelper = $A461
 
 
 ;===============================================================================
-; $A481: B0A_ArmyDispatch
+; $A481: ArmyDispatch
 ; Army dispatch: route army operations
 ;===============================================================================
-.proc B0A_ArmyDispatch
+.proc ArmyDispatch
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
   math_ext                 = $0024
-  work_limit_a             = $003A
-  work_limit_b             = $003B
-  work_record_val          = $0040
-  work_search_result       = $0041
+  entity_idx               = $003A
+  dispatch_val             = $003B
+  record_val               = $0040
+  search_result            = $0041
+  remainder_lo             = $0042
+  remainder_hi             = $0043
 
-  LDA a:$003A                                         ; $A481: AD 3A 00
+  LDA a:entity_idx                                    ; $A481: AD 3A 00
   JSR Proc_D105                                       ; $A484: 20 05 D1
-  LDA a:$003B                                         ; $A487: AD 3B 00
+  LDA a:dispatch_val                                  ; $A487: AD 3B 00
   LDY #$08                                            ; $A48A: A0 08
   JSR $D2AB                                           ; $A48C: 20 AB D2
   STA $2A                                             ; $A48F: 85 2A
@@ -1144,30 +1211,32 @@ B0A_MathHelper = $A461
   LDA #$E8                                            ; $A498: A9 E8
   SEC                                                 ; $A49A: 38
   SBC $2A                                             ; $A49B: E5 2A
-  STA a:$0040                                         ; $A49D: 8D 40 00
+  STA a:record_val                                    ; $A49D: 8D 40 00
   STA $2C                                             ; $A4A0: 85 2C
   LDA #$03                                            ; $A4A2: A9 03
   SBC $2B                                             ; $A4A4: E5 2B
-  STA a:$0041                                         ; $A4A6: 8D 41 00
+  STA a:search_result                                 ; $A4A6: 8D 41 00
   STA $2D                                             ; $A4A9: 85 2D
   LDA $2C                                             ; $A4AB: A5 2C
   ORA $2D                                             ; $A4AD: 05 2D
-  BNE B0A_ArmyLoop                                    ; $A4AF: D0 01
+  BNE @DivLoop                                        ; $A4AF: D0 01
   RTS                                                 ; $A4B1: 60
-B0A_ArmyLoop:
+@DivLoop:
   LDY #$0C                                            ; $A4B2: A0 0C
-  LDA a:$0040                                         ; $A4B4: AD 40 00
+  LDA a:record_val                                    ; $A4B4: AD 40 00
   SEC                                                 ; $A4B7: 38
   SBC ($20),Y                                         ; $A4B8: F1 20
-  STA a:$0042                                         ; $A4BA: 8D 42 00
+  STA a:remainder_lo                                  ; $A4BA: 8D 42 00
   INY                                                 ; $A4BD: C8
-  LDA a:$0041                                         ; $A4BE: AD 41 00
+  LDA a:search_result                                 ; $A4BE: AD 41 00
   SBC ($20),Y                                         ; $A4C1: F1 20
-  STA a:$0043                                         ; $A4C3: 8D 43 00
-  .byte $90,$66                                       ; $A4C6: 90 66 (BCC mid-instruction target)
+  STA a:remainder_hi                                  ; $A4C3: 8D 43 00
+  BCC @StoreQuotient                                  ; $A4C6: 90 66
+@StoreQuotient:
   LDY #$00                                            ; $A4C8: A0 00
   STY $28                                             ; $A4CA: 84 28
   STY $29                                             ; $A4CC: 84 29
+@SubtractLoop:
   TYA                                                 ; $A4CE: 98
   CLC                                                 ; $A4CF: 18
   ADC #$14                                            ; $A4D0: 69 14
@@ -1179,32 +1248,34 @@ B0A_ArmyLoop:
   LDA $29                                             ; $A4DA: A5 29
   ADC #$00                                            ; $A4DC: 69 00
   STA $29                                             ; $A4DE: 85 29
-  LDA a:$0042                                         ; $A4E0: AD 42 00
+@Subtract100:
+  LDA a:remainder_lo                                  ; $A4E0: AD 42 00
   SEC                                                 ; $A4E3: 38
   SBC #$64                                            ; $A4E4: E9 64
-  STA a:$0042                                         ; $A4E6: 8D 42 00
-  LDA a:$0043                                         ; $A4E9: AD 43 00
+  STA a:remainder_lo                                  ; $A4E6: 8D 42 00
+  LDA a:remainder_hi                                  ; $A4E9: AD 43 00
   SBC #$00                                            ; $A4EC: E9 00
-  STA a:$0043                                         ; $A4EE: 8D 43 00
-  .byte $B0,$DB                                       ; $A4F1: B0 DB (BCS mid-instruction target)
+  STA a:remainder_hi                                  ; $A4EE: 8D 43 00
+  BCS @SubtractLoop                                   ; $A4F1: B0 DA
   TYA                                                 ; $A4F3: 98
   STA $22                                             ; $A4F4: 85 22
   LDA #$00                                            ; $A4F6: A9 00
   STA $23                                             ; $A4F8: 85 23
   LDA #$00                                            ; $A4FA: A9 00
   STA $24                                             ; $A4FC: 85 24
-  LDA a:$003A                                         ; $A4FE: AD 3A 00
+  LDA a:entity_idx                                    ; $A4FE: AD 3A 00
   JSR Proc_D36F                                       ; $A501: 20 6F D3
-  .byte $B0,$0F                                       ; $A504: B0 0F (BCS mid-instruction target)
-  JSR B0A_TileRender                                  ; $A506: 20 5C A5
-  .byte $B0,$07                                       ; $A509: B0 07 (BCS mid-instruction target)
+  BCS @PostRender                                     ; $A504: B0 0F
+  JSR TileRender                                  ; $A506: 20 5C A5
+  BCS @PostRender                                     ; $A509: B0 0A
   PLA                                                 ; $A50B: 68
   PLA                                                 ; $A50C: 68
   PLA                                                 ; $A50D: 68
   PLA                                                 ; $A50E: 68
   JMP $BEC7                                           ; $A50F: 4C C7 BE
-  JMP B0A_ArmyDispatch                                ; $A512: 4C 81 A4
-  LDA a:$003A                                         ; $A515: AD 3A 00
+  JMP ArmyDispatch                                    ; $A512: 4C 81 A4
+@PostRender:
+  LDA a:entity_idx                                    ; $A515: AD 3A 00
   JSR Proc_D105                                       ; $A518: 20 05 D1
   LDY #$0C                                            ; $A51B: A0 0C
   LDA $28                                             ; $A51D: A5 28
@@ -1219,14 +1290,14 @@ B0A_ArmyLoop:
   LDY #$0C                                            ; $A52E: A0 0C
   LDA ($20),Y                                         ; $A530: B1 20
   SEC                                                 ; $A532: 38
-  SBC a:$0040                                         ; $A533: ED 40 00
+  SBC a:record_val                                    ; $A533: ED 40 00
   STA ($20),Y                                         ; $A536: 91 20
   INY                                                 ; $A538: C8
   LDA ($20),Y                                         ; $A539: B1 20
-  SBC a:$0041                                         ; $A53B: ED 41 00
+  SBC a:search_result                                 ; $A53B: ED 41 00
   STA ($20),Y                                         ; $A53E: 91 20
   JSR Proc_D69D                                       ; $A540: 20 9D D6
-  LDA a:$003B                                         ; $A543: AD 3B 00
+  LDA a:dispatch_val                                  ; $A543: AD 3B 00
   LDY #$08                                            ; $A546: A0 08
   JSR $D2AB                                           ; $A548: 20 AB D2
   LDY #$08                                            ; $A54B: A0 08
@@ -1239,14 +1310,13 @@ B0A_ArmyLoop:
   JSR Proc_D165                                       ; $A558: 20 65 D1
   RTS                                                 ; $A55B: 60
 .endproc
-B0A_ArmyLoop = $A4B2
 
 
 ;===============================================================================
-; $A55C: B0A_TileRender
+; $A55C: TileRender
 ; Render tile row to PPU
 ;===============================================================================
-.proc B0A_TileRender
+.proc TileRender
   math_acc_lo              = $0020
   work_outer_idx           = $0036
   work_limit_a             = $003A
@@ -1262,13 +1332,13 @@ B0A_ArmyLoop = $A4B2
   STA $2B                                             ; $A56B: 85 2B
   LDA #$FF                                            ; $A56D: A9 FF
   STA $2A                                             ; $A56F: 85 2A
-B0A_RowProcess:
+@RowIterate:
   LDA a:$0036                                         ; $A571: AD 36 00
   CMP a:$003A                                         ; $A574: CD 3A 00
-  BEQ B0A_ColLoop                                     ; $A577: F0 26
+  BEQ @NextEntry                                      ; $A577: F0 26
   JSR Proc_D105                                       ; $A579: 20 05 D1
   CMP $6F03                                           ; $A57C: CD 03 6F
-  BNE B0A_ColLoop                                     ; $A57F: D0 1E
+  BNE @NextEntry                                      ; $A57F: D0 1E
   LDY #$02                                            ; $A581: A0 02
   LDA $2B                                             ; $A583: A5 2B
   SEC                                                 ; $A585: 38
@@ -1276,7 +1346,7 @@ B0A_RowProcess:
   INY                                                 ; $A588: C8
   LDA $2C                                             ; $A589: A5 2C
   SBC ($20),Y                                         ; $A58B: F1 20
-  BCS B0A_ColLoop                                     ; $A58D: B0 10
+  BCS @NextEntry                                      ; $A58D: B0 10
   LDY #$02                                            ; $A58F: A0 02
   LDA ($20),Y                                         ; $A591: B1 20
   STA $2B                                             ; $A593: 85 2B
@@ -1285,25 +1355,25 @@ B0A_RowProcess:
   STA $2C                                             ; $A598: 85 2C
   LDA a:$0036                                         ; $A59A: AD 36 00
   STA $2A                                             ; $A59D: 85 2A
-B0A_ColLoop:
+@NextEntry:
   INC a:$0036                                         ; $A59F: EE 36 00
   LDA a:$0036                                         ; $A5A2: AD 36 00
   CMP #$1E                                            ; $A5A5: C9 1E
-  BCC B0A_RowProcess                                  ; $A5A7: 90 C8
+  BCC @RowIterate                                     ; $A5A7: 90 C8
   LDA $2A                                             ; $A5A9: A5 2A
   CMP #$FF                                            ; $A5AB: C9 FF
-  BNE B0A_TileAttr                                    ; $A5AD: D0 02
+  BNE @ClampAttr                                      ; $A5AD: D0 02
   CLC                                                 ; $A5AF: 18
   RTS                                                 ; $A5B0: 60
-B0A_TileAttr:
+@ClampAttr:
   JSR Proc_D105                                       ; $A5B1: 20 05 D1
   LDY #$03                                            ; $A5B4: A0 03
   LDA ($20),Y                                         ; $A5B6: B1 20
-  .byte $D0,$1B                                       ; $A5B8: D0 1B (BNE mid-instruction target)
+  BNE @SkipAttr                                       ; $A5B8: D0 1B
   LDY #$02                                            ; $A5BA: A0 02
   LDA ($20),Y                                         ; $A5BC: B1 20
   CMP #$C8                                            ; $A5BE: C9 C8
-  .byte $B0,$13                                       ; $A5C0: B0 13 (BCS mid-instruction target)
+  BCS @SkipSub                                        ; $A5C0: B0 13
   SEC                                                 ; $A5C2: 38
   SBC #$64                                            ; $A5C3: E9 64
   STA $2B                                             ; $A5C5: 85 2B
@@ -1313,7 +1383,8 @@ B0A_TileAttr:
   INY                                                 ; $A5CD: C8
   LDA #$00                                            ; $A5CE: A9 00
   STA ($20),Y                                         ; $A5D0: 91 20
-  JMP B0A_PaletteSetup                                ; $A5D2: 4C E9 A5
+  JMP @PaletteSetup                                   ; $A5D2: 4C E9 A5
+@SkipAttr:
   LDY #$02                                            ; $A5D5: A0 02
   LDA ($20),Y                                         ; $A5D7: B1 20
   SEC                                                 ; $A5D9: 38
@@ -1325,19 +1396,7 @@ B0A_TileAttr:
   STA ($20),Y                                         ; $A5E3: 91 20
   LDA #$64                                            ; $A5E5: A9 64
   STA $2B                                             ; $A5E7: 85 2B
-.endproc
-B0A_RowProcess = $A571
-B0A_ColLoop = $A59F
-B0A_TileAttr = $A5B1
-
-
-;===============================================================================
-; $A5E9: B0A_PaletteSetup
-;===============================================================================
-.proc B0A_PaletteSetup
-  math_acc_lo              = $0020
-  work_limit_a             = $003A
-
+@PaletteSetup:
   JSR Proc_D69D                                       ; $A5E9: 20 9D D6
   LDA a:$003A                                         ; $A5EC: AD 3A 00
   JSR Proc_D105                                       ; $A5EF: 20 05 D1
@@ -1358,9 +1417,10 @@ B0A_TileAttr = $A5B1
 .endproc
 
 ;===============================================================================
-; $A60C: B0A_NameTable
+; $A60C: NameTable
+; Find player entity, calculate screen position, setup scroll and display window
 ;===============================================================================
-.proc B0A_NameTable
+.proc NameTable
   math_acc_lo              = $0020
   work_outer_idx           = $0036
   work_limit_a             = $003A
@@ -1376,13 +1436,13 @@ B0A_TileAttr = $A5B1
   STA $2B                                             ; $A61B: 85 2B
   LDA #$FF                                            ; $A61D: A9 FF
   STA $2A                                             ; $A61F: 85 2A
-B0A_AttrTable:
+@FindPlayerLoop:
   LDA a:$0036                                         ; $A621: AD 36 00
   CMP a:$003A                                         ; $A624: CD 3A 00
-  BEQ B0A_ScrollInit                                  ; $A627: F0 26
+  BEQ @NextEntity                                     ; $A627: F0 26
   JSR Proc_D105                                       ; $A629: 20 05 D1
   CMP $6F03                                           ; $A62C: CD 03 6F
-  BNE B0A_ScrollInit                                  ; $A62F: D0 1E
+  BNE @NextEntity                                     ; $A62F: D0 1E
   LDY #$04                                            ; $A631: A0 04
   LDA $2B                                             ; $A633: A5 2B
   SEC                                                 ; $A635: 38
@@ -1390,7 +1450,7 @@ B0A_AttrTable:
   INY                                                 ; $A638: C8
   LDA $2C                                             ; $A639: A5 2C
   SBC ($20),Y                                         ; $A63B: F1 20
-  BCS B0A_ScrollInit                                  ; $A63D: B0 10
+  BCS @NextEntity                                     ; $A63D: B0 10
   LDY #$04                                            ; $A63F: A0 04
   LDA ($20),Y                                         ; $A641: B1 20
   STA $2B                                             ; $A643: 85 2B
@@ -1399,25 +1459,25 @@ B0A_AttrTable:
   STA $2C                                             ; $A648: 85 2C
   LDA a:$0036                                         ; $A64A: AD 36 00
   STA $2A                                             ; $A64D: 85 2A
-B0A_ScrollInit:
+@NextEntity:
   INC a:$0036                                         ; $A64F: EE 36 00
   LDA a:$0036                                         ; $A652: AD 36 00
   CMP #$1E                                            ; $A655: C9 1E
-  BCC B0A_AttrTable                                   ; $A657: 90 C8
+  BCC @FindPlayerLoop                                 ; $A657: 90 C8
   LDA $2A                                             ; $A659: A5 2A
   CMP #$FF                                            ; $A65B: C9 FF
-  BNE B0A_WindowSetup                                 ; $A65D: D0 02
+  BNE @AdjustWindow                                   ; $A65D: D0 02
   CLC                                                 ; $A65F: 18
   RTS                                                 ; $A660: 60
-B0A_WindowSetup:
+@AdjustWindow:
   JSR Proc_D105                                       ; $A661: 20 05 D1
   LDY #$05                                            ; $A664: A0 05
   LDA ($20),Y                                         ; $A666: B1 20
-  .byte $D0,$1B                                       ; $A668: D0 1B (BNE mid-instruction target)
+  BNE @ApplyScroll                                    ; $A668: D0 1B
   LDY #$04                                            ; $A66A: A0 04
   LDA ($20),Y                                         ; $A66C: B1 20
   CMP #$C8                                            ; $A66E: C9 C8
-  .byte $B0,$13                                       ; $A670: B0 13 (BCS mid-instruction target)
+  BCS @ApplyScroll                                    ; $A670: B0 13
   SEC                                                 ; $A672: 38
   SBC #$64                                            ; $A673: E9 64
   STA $2B                                             ; $A675: 85 2B
@@ -1427,32 +1487,7 @@ B0A_WindowSetup:
   INY                                                 ; $A67D: C8
   LDA #$00                                            ; $A67E: A9 00
   STA ($20),Y                                         ; $A680: 91 20
-  JMP B0A_DisplaySetup                                ; $A682: 4C 99 A6
-  LDY #$04                                            ; $A685: A0 04
-  LDA ($20),Y                                         ; $A687: B1 20
-  SEC                                                 ; $A689: 38
-  SBC #$64                                            ; $A68A: E9 64
-  STA ($20),Y                                         ; $A68C: 91 20
-  INY                                                 ; $A68E: C8
-  LDA ($20),Y                                         ; $A68F: B1 20
-  SBC #$00                                            ; $A691: E9 00
-  STA ($20),Y                                         ; $A693: 91 20
-  LDA #$64                                            ; $A695: A9 64
-  STA $2B                                             ; $A697: 85 2B
-.endproc
-B0A_AttrTable = $A621
-B0A_ScrollInit = $A64F
-B0A_WindowSetup = $A661
-
-
-;===============================================================================
-; $A699: B0A_DisplaySetup
-; Setup display windows and scrolling
-;===============================================================================
-.proc B0A_DisplaySetup
-  math_acc_lo              = $0020
-  work_limit_a             = $003A
-
+@ApplyScroll:
   JSR Proc_D69D                                       ; $A699: 20 9D D6
   LDA a:$003A                                         ; $A69C: AD 3A 00
   JSR Proc_D105                                       ; $A69F: 20 05 D1
@@ -1473,27 +1508,25 @@ B0A_WindowSetup = $A661
 .endproc
 
 ;===============================================================================
-; $A6BC: Proc_A6BC
+; $A6BC: KingdomActionDispatch
+; Dispatch wrapper that calls CalcKingdomTier
 ;===============================================================================
-.proc Proc_A6BC
+.proc KingdomActionDispatch
 
-  JSR Proc_A6C9                                       ; $A6BC: 20 C9 A6
+  JSR CalcKingdomTier                                 ; $A6BC: 20 C9 A6
   RTS                                                 ; $A6BF: 60
 .endproc
 
 ;===============================================================================
-; $A6C0: Proc_A6C0
+; $A6C9: CalcKingdomTier
+; Determine action tier (1-4) for current kingdom using threshold table,
+; then perform army strength calculations and rendering.
 ;===============================================================================
-.proc Proc_A6C0
-
-  ASL $0A14,X                                         ; $A6C0: 1E 14 0A
-  .byte $3C,$32,$28,$5A,$50,$46                       ; $A6C3: 3C 32 28 5A 50 46
-.endproc
-
-;===============================================================================
-; $A6C9: Proc_A6C9
-;===============================================================================
-.proc Proc_A6C9
+.proc CalcKingdomTier
+  ThresholdTable:                                      ; $A6C0: 9 bytes, 3 rows x 3 cols
+    .byte $1E,$14,$0A                                  ; $A6C0: tier thresholds col 0
+    .byte $3C,$32,$28                                  ; $A6C3: tier thresholds col 1
+    .byte $5A,$50,$46                                  ; $A6C6: tier thresholds col 2
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   work_inner_idx           = $0037
@@ -1514,26 +1547,26 @@ B0A_WindowSetup = $A661
   JSR Proc_D4BB                                       ; $A6D9: 20 BB D4
   LDY $6F02                                           ; $A6DC: AC 02 6F
   LDX #$04                                            ; $A6DF: A2 04
-  CMP $A6C0,Y                                         ; $A6E1: D9 C0 A6
-  BCC LA6F3                                           ; $A6E4: 90 0D
+  CMP ThresholdTable,Y                                ; $A6E1: D9 C0 A6
+  BCC @StoreTier                                      ; $A6E4: 90 0D
   DEX                                                 ; $A6E6: CA
-  CMP $A6C3,Y                                         ; $A6E7: D9 C3 A6
-  BCC LA6F3                                           ; $A6EA: 90 07
+  CMP ThresholdTable+3,Y                              ; $A6E7: D9 C3 A6
+  BCC @StoreTier                                      ; $A6EA: 90 07
   DEX                                                 ; $A6EC: CA
-  CMP $A6C6,Y                                         ; $A6ED: D9 C6 A6
-  BCC LA6F3                                           ; $A6F0: 90 01
+  CMP ThresholdTable+6,Y                              ; $A6ED: D9 C6 A6
+  BCC @StoreTier                                      ; $A6F0: 90 01
   DEX                                                 ; $A6F2: CA
-LA6F3:
+@StoreTier:
   STX $20                                             ; $A6F3: 86 20
   LDA a:$0039                                         ; $A6F5: AD 39 00
   SEC                                                 ; $A6F8: 38
   SBC $20                                             ; $A6F9: E5 20
-  BCC LA702                                           ; $A6FB: 90 05
-  BEQ LA702                                           ; $A6FD: F0 03
+  BCC @ClampResult                                    ; $A6FB: 90 05
+  BEQ @ClampResult                                    ; $A6FD: F0 03
   STA a:$0037                                         ; $A6FF: 8D 37 00
-LA702:
-  JSR $A74A                                           ; $A702: 20 4A A7
-LA705:
+@ClampResult:
+  JSR CalcKingdomTierWorkPtr                          ; $A702: 20 4A A7
+@RenderLoop:
   LDA a:$003A                                         ; $A705: AD 3A 00
   JSR Proc_D105                                       ; $A708: 20 05 D1
   LDY #$02                                            ; $A70B: A0 02
@@ -1543,14 +1576,15 @@ LA705:
   INY                                                 ; $A713: C8
   LDA ($20),Y                                         ; $A714: B1 20
   SBC a:$003E                                         ; $A716: ED 3E 00
-  .byte $B0,$0C                                       ; $A719: B0 0C (BCS mid-instruction target)
-  JSR B0A_TileRender                                  ; $A71B: 20 5C A5
-  BCS LA705                                           ; $A71E: B0 E5
+  BCS @SubtractLimitB                                 ; $A719: B0 0C
+  JSR TileRender                                      ; $A71B: 20 5C A5
+  BCS @RenderLoop                                     ; $A71E: B0 E5
   PLA                                                 ; $A720: 68
   PLA                                                 ; $A721: 68
   PLA                                                 ; $A722: 68
   PLA                                                 ; $A723: 68
-  JMP $BEC7                                           ; $A724: 4C C7 BE
+  JMP JumpToBEC7                                      ; $A724: 4C C7 BE
+@SubtractLimitB:
   LDA a:$003A                                         ; $A727: AD 3A 00
   JSR Proc_D105                                       ; $A72A: 20 05 D1
   LDY #$04                                            ; $A72D: A0 04
@@ -1560,15 +1594,30 @@ LA705:
   INY                                                 ; $A735: C8
   LDA ($20),Y                                         ; $A736: B1 20
   SBC a:$003C                                         ; $A738: ED 3C 00
-  .byte $B0,$0C                                       ; $A73B: B0 0C (BCS mid-instruction target)
-  JSR B0A_NameTable                                   ; $A73D: 20 0C A6
-  .byte $B0,$E5                                       ; $A740: B0 E5 (BCS mid-instruction target)
+  BCS @Exit                                           ; $A73B: B0 0C
+  JSR NameTable                                       ; $A73D: 20 0C A6
+  BCS @SubtractLimitB                                 ; $A740: B0 E5
   PLA                                                 ; $A742: 68
   PLA                                                 ; $A743: 68
   PLA                                                 ; $A744: 68
   PLA                                                 ; $A745: 68
-  JMP $BEC7                                           ; $A746: 4C C7 BE
+  JMP JumpToBEC7                                      ; $A746: 4C C7 BE
+@Exit:
   RTS                                                 ; $A749: 60
+.endproc
+
+;===============================================================================
+; $A74A: CalcKingdomTierWorkPtr
+; Compute two work pointers from limit values for kingdom tier processing
+;===============================================================================
+.proc CalcKingdomTierWorkPtr
+  work_inner_idx           = $0037
+  work_limit_a             = $003A
+  work_limit_b             = $003B
+  work_temp_0              = $003C
+  work_temp_1              = $003D
+  work_temp_2              = $003E
+
   LDA a:$0037                                         ; $A74A: AD 37 00
   STA $20                                             ; $A74D: 85 20
   LDA #$78                                            ; $A74F: A9 78
@@ -1588,7 +1637,7 @@ LA705:
   STA $21                                             ; $A771: 85 21
   JSR B1F_RandomByte2                                 ; $A773: 20 8A E8
   CMP #$80                                            ; $A776: C9 80
-  BPL LA78C                                           ; $A778: 10 12
+  BPL @PositiveDelta                                  ; $A778: 10 12
   LDA $2A                                             ; $A77A: A5 2A
   SEC                                                 ; $A77C: 38
   SBC $21                                             ; $A77D: E5 21
@@ -1596,8 +1645,8 @@ LA705:
   LDA $2B                                             ; $A782: A5 2B
   SBC #$00                                            ; $A784: E9 00
   STA a:$003E                                         ; $A786: 8D 3E 00
-  JMP $A79B                                           ; $A789: 4C 9B A7
-LA78C:
+  JMP @DeadTarget                                     ; $A789: 4C 9B A7
+@PositiveDelta:
   LDA $2A                                             ; $A78C: A5 2A
   CLC                                                 ; $A78E: 18
   ADC $21                                             ; $A78F: 65 21
@@ -1605,18 +1654,18 @@ LA78C:
   LDA $2B                                             ; $A794: A5 2B
   ADC #$00                                            ; $A796: 69 00
   STA a:$003E                                         ; $A798: 8D 3E 00
+@DeadTarget:
   RTS                                                 ; $A79B: 60
 .endproc
-LA6F3 = $A6F3
-LA702 = $A702
-LA705 = $A705
-LA78C = $A78C
 
 
 ;===============================================================================
-; $A79C: Proc_A79C
+; $A79C: ResolveKingdomAbsorb
+; Resolves a kingdom absorption between entity A ($003A) and entity B ($0038).
+; Subtracts costs from A's fields, extracts B's best-scoring entry and items,
+; sets up display/battle state, and updates game flags.
 ;===============================================================================
-.proc Proc_A79C
+.proc ResolveKingdomAbsorb
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_ext                 = $0024
@@ -1652,15 +1701,15 @@ LA78C = $A78C
   STA ($20),Y                                         ; $A7C4: 91 20
   LDY #$78                                            ; $A7C6: A0 78
   LDA #$FF                                            ; $A7C8: A9 FF
-LA7CA:
+@FillBuffer:
   STA $0600,Y                                         ; $A7CA: 99 00 06
   DEY                                                 ; $A7CD: 88
-  BPL LA7CA                                           ; $A7CE: 10 FA
+  BPL @FillBuffer                                     ; $A7CE: 10 FA
   LDA a:$003A                                         ; $A7D0: AD 3A 00
   JSR Proc_D105                                       ; $A7D3: 20 05 D1
   LDA #$00                                            ; $A7D6: A9 00
   STA $2A                                             ; $A7D8: 85 2A
-LA7DA:
+@SearchLoop:
   LDA #$11                                            ; $A7DA: A9 11
   STA $2B                                             ; $A7DC: 85 2B
   LDA #$00                                            ; $A7DE: A9 00
@@ -1670,11 +1719,11 @@ LA7DA:
   LDY $2B                                             ; $A7E6: A4 2B
   LDA ($20),Y                                         ; $A7E8: B1 20
   CMP #$FF                                            ; $A7EA: C9 FF
-  .byte $F0,$1D                                       ; $A7EC: F0 1D (BEQ mid-instruction target)
+  BEQ @ExtractEntries                                 ; $A7EC: F0 1D
   LDY #$03                                            ; $A7EE: A0 03
-  JSR $D2AB                                           ; $A7F0: 20 AB D2
+  JSR Proc_D283                                       ; $A7F0: 20 AB D2
   CMP #$64                                            ; $A7F3: C9 64
-  .byte $F0,$14                                       ; $A7F5: F0 14 (BEQ mid-instruction target)
+  BEQ @UpdateBest                                     ; $A7F5: F0 14
   LDY #$01                                            ; $A7F7: A0 01
   LDA ($22),Y                                         ; $A7F9: B1 22
   LSR A                                               ; $A7FB: 4A
@@ -1682,14 +1731,15 @@ LA7DA:
   CLC                                                 ; $A7FE: 18
   ADC ($22),Y                                         ; $A7FF: 71 22
   CMP $2C                                             ; $A801: C5 2C
-  .byte $90,$06                                       ; $A803: 90 06 (BCC mid-instruction target)
+  BCC @NextEntry                                      ; $A803: 90 06
   STA $2C                                             ; $A805: 85 2C
   LDA $2B                                             ; $A807: A5 2B
   STA $2D                                             ; $A809: 85 2D
+@NextEntry:
   INC $2B                                             ; $A80B: E6 2B
   LDA $2B                                             ; $A80D: A5 2B
   CMP #$1B                                            ; $A80F: C9 1B
-  .byte $90,$D3                                       ; $A811: 90 D3 (BCC mid-instruction target)
+  BCC @SearchLoop                                     ; $A811: 90 D3
   LDY $2D                                             ; $A813: A4 2D
   LDA ($20),Y                                         ; $A815: B1 20
   PHA                                                 ; $A817: 48
@@ -1701,7 +1751,8 @@ LA7DA:
   INC $2A                                             ; $A822: E6 2A
   LDY $2A                                             ; $A824: A4 2A
   CPY a:$0037                                         ; $A826: CC 37 00
-  BCC LA7DA                                           ; $A829: 90 AF
+  BCC @SearchLoop                                     ; $A829: 90 AF
+@ExtractEntries:
   LDA a:$003A                                         ; $A82B: AD 3A 00
   JSR Proc_D3DD                                       ; $A82E: 20 DD D3
   LDA a:$0038                                         ; $A831: AD 38 00
@@ -1710,14 +1761,15 @@ LA7DA:
   LDY #$11                                            ; $A839: A0 11
   LDA ($20),Y                                         ; $A83B: B1 20
   CMP #$FF                                            ; $A83D: C9 FF
-  .byte $F0,$0D                                       ; $A83F: F0 0D (BEQ mid-instruction target)
+  BEQ @CopyPosition                                  ; $A83F: F0 0D
   STA $0664,X                                         ; $A841: 9D 64 06
   LDA #$FF                                            ; $A844: A9 FF
   STA ($20),Y                                         ; $A846: 91 20
   INX                                                 ; $A848: E8
   INY                                                 ; $A849: C8
   CPY #$1B                                            ; $A84A: C0 1B
-  .byte $90,$ED                                       ; $A84C: 90 ED (BCC mid-instruction target)
+  BCC @ExtractEntries                                 ; $A84C: 90 ED
+@CopyPosition:
   LDY #$02                                            ; $A84E: A0 02
   LDA ($20),Y                                         ; $A850: B1 20
   STA $0526                                           ; $A852: 8D 26 05
@@ -1768,7 +1820,7 @@ LA7DA:
   LDY #$03                                            ; $A8B7: A0 03
   LDA ($24),Y                                         ; $A8B9: B1 24
   CMP #$03                                            ; $A8BB: C9 03
-  BEQ LA8CC                                           ; $A8BD: F0 0D
+  BEQ @Finalize                                       ; $A8BD: F0 0D
   PLA                                                 ; $A8BF: 68
   PLA                                                 ; $A8C0: 68
   LDA #$FE                                            ; $A8C1: A9 FE
@@ -1776,7 +1828,7 @@ LA7DA:
   LDA #$00                                            ; $A8C6: A9 00
   STA $6F8D                                           ; $A8C8: 8D 8D 6F
   RTS                                                 ; $A8CB: 60
-LA8CC:
+@Finalize:
   JSR $ACD5                                           ; $A8CC: 20 D5 AC
   PLA                                                 ; $A8CF: 68
   PLA                                                 ; $A8D0: 68
@@ -1784,32 +1836,43 @@ LA8CC:
   STA $6F8B                                           ; $A8D3: 8D 8B 6F
   RTS                                                 ; $A8D6: 60
 .endproc
-LA7CA = $A7CA
-LA7DA = $A7DA
-LA8CC = $A8CC
 
 
 ;===============================================================================
-; $A8D7: Proc_A8D7
+; $A8D7: InitNewGameContext
 ;===============================================================================
-.proc Proc_A8D7
+.proc InitNewGameContext
   math_acc_lo              = $0020
+  math_acc_mlo             = $0021
+  math_acc_mhi             = $0022
+  math_acc_hi              = $0023
+  math_ext                 = $0024
+  math_temp1               = $0025
+  math_temp2               = $0026
+  math_temp3               = $0027
+  work_outer_idx           = $0036
   work_inner_idx2          = $0038
+  work_temp_0              = $003C
+  work_temp_1              = $003D
   work_temp_2              = $003E
+  work_record_idx          = $003F
   work_record_val          = $0040
+  work_search_result       = $0041
   sram_player_id           = $6F03
 
-  LDA $6F8C                                           ; $A8D7: AD 8C 6F
-  .byte $D0,$03                                       ; $A8DA: D0 03 (BNE mid-instruction target)
+  LDA $6F8C                                           ; $A8D7: AD 8C 6F  new game flag (0=new)
+  BNE @SkipNewGamePrep                                ; $A8DA: D0 03
   JSR Proc_CD68                                       ; $A8DC: 20 68 CD
+@SkipNewGamePrep:                                     ; $A8DF
   LDA a:$0038                                         ; $A8DF: AD 38 00
   JSR Proc_D105                                       ; $A8E2: 20 05 D1
   STA a:$003E                                         ; $A8E5: 8D 3E 00
-  JSR $A91F                                           ; $A8E8: 20 1F A9
+  JSR @ClearGameStateVars                             ; $A8E8: 20 1F A9
   JSR Proc_A9CC                                       ; $A8EB: 20 CC A9
   JSR $AF9C                                           ; $A8EE: 20 9C AF
   LDA $6F8C                                           ; $A8F1: AD 8C 6F
-  .byte $D0,$1D                                       ; $A8F4: D0 1D (BNE mid-instruction target)
+  BNE @ContinueGamePath                               ; $A8F4: D0 1D
+  ; --- New game path ---
   JSR Proc_AA80                                       ; $A8F6: 20 80 AA
   JSR Proc_AC67                                       ; $A8F9: 20 67 AC
   LDA a:$0038                                         ; $A8FC: AD 38 00
@@ -1817,14 +1880,17 @@ LA8CC = $A8CC
   LDY #$00                                            ; $A902: A0 00
   LDA ($20),Y                                         ; $A904: B1 20
   AND #$F8                                            ; $A906: 29 F8
-  ORA $6F03                                           ; $A908: 0D 03 6F
+  ORA sram_player_id                                  ; $A908: 0D 03 6F
   STA ($20),Y                                         ; $A90B: 91 20
   JSR Proc_D249                                       ; $A90D: 20 49 D2
   JMP $CA19                                           ; $A910: 4C 19 CA
+  ; --- Continue existing game path ---
+@ContinueGamePath:                                    ; $A913
   JSR Proc_AB10                                       ; $A913: 20 10 AB
   JSR Proc_AC67                                       ; $A916: 20 67 AC
   JSR Proc_D249                                       ; $A919: 20 49 D2
   JMP $CA19                                           ; $A91C: 4C 19 CA
+@ClearGameStateVars:                                   ; $A91F
   LDA #$00                                            ; $A91F: A9 00
   STA $6F73                                           ; $A921: 8D 73 6F
   STA $6F74                                           ; $A924: 8D 74 6F
@@ -1834,20 +1900,6 @@ LA8CC = $A8CC
   STA $6F78                                           ; $A930: 8D 78 6F
   LDA #$00                                            ; $A933: A9 00
   STA a:$0040                                         ; $A935: 8D 40 00
-.endproc
-
-;===============================================================================
-; $A938: Proc_A938
-;===============================================================================
-.proc Proc_A938
-  math_acc_lo              = $0020
-  math_acc_mlo             = $0021
-  math_acc_mhi             = $0022
-  math_acc_hi              = $0023
-  math_ext                 = $0024
-  math_temp2               = $0026
-  math_temp3               = $0027
-  work_record_val          = $0040
 
   LDY a:$0040                                         ; $A938: AC 40 00
   LDA $0664,Y                                         ; $A93B: B9 64 06
@@ -1915,15 +1967,6 @@ LA9AD:
   LDA $31                                             ; $A9B6: A5 31
   ADC $6F74,Y                                         ; $A9B8: 79 74 6F
   STA $6F74,Y                                         ; $A9BB: 99 74 6F
-.endproc
-LA9AD = $A9AD
-
-
-;===============================================================================
-; $A9BE: Proc_A9BE
-;===============================================================================
-.proc Proc_A9BE
-  work_record_val          = $0040
 
   INC a:$0040                                         ; $A9BE: EE 40 00
   LDA a:$0040                                         ; $A9C1: AD 40 00
@@ -1931,14 +1974,6 @@ LA9AD = $A9AD
   .byte $B0,$03                                       ; $A9C6: B0 03 (BCS mid-instruction target)
   JMP Proc_A938                                       ; $A9C8: 4C 38 A9
   RTS                                                 ; $A9CB: 60
-.endproc
-
-;===============================================================================
-; $A9CC: Proc_A9CC
-;===============================================================================
-.proc Proc_A9CC
-  work_temp_0              = $003C
-  work_temp_1              = $003D
 
   LDY #$00                                            ; $A9CC: A0 00
   LDX #$00                                            ; $A9CE: A2 00
@@ -1999,26 +2034,6 @@ LAA20:
   BNE LAA20                                           ; $AA2A: D0 F4
 LAA2C:
   RTS                                                 ; $AA2C: 60
-.endproc
-LA9D0 = $A9D0
-LA9D8 = $A9D8
-LA9E4 = $A9E4
-LA9EC = $A9EC
-LAA04 = $AA04
-LAA10 = $AA10
-LAA20 = $AA20
-LAA2C = $AA2C
-
-
-;===============================================================================
-; $AA2D: Proc_AA2D
-;===============================================================================
-.proc Proc_AA2D
-  math_acc_mhi             = $0022
-  math_ext                 = $0024
-  math_temp1               = $0025
-  math_temp2               = $0026
-  math_temp3               = $0027
 
   STA $24                                             ; $AA2D: 85 24
   LDA #$FF                                            ; $AA2F: A9 FF
@@ -2062,22 +2077,6 @@ LAA39:
   ORA #$03                                            ; $AA7B: 09 03
   STA ($22),Y                                         ; $AA7D: 91 22
   RTS                                                 ; $AA7F: 60
-.endproc
-LAA39 = $AA39
-
-
-;===============================================================================
-; $AA80: Proc_AA80
-;===============================================================================
-.proc Proc_AA80
-  math_acc_lo              = $0020
-  math_ext                 = $0024
-  math_temp1               = $0025
-  math_temp2               = $0026
-  work_inner_idx2          = $0038
-  work_temp_2              = $003E
-  work_record_val          = $0040
-  work_search_result       = $0041
 
   LDA a:$0038                                         ; $AA80: AD 38 00
   JSR Proc_D105                                       ; $AA83: 20 05 D1
@@ -2123,21 +2122,6 @@ LAAD5:
   CMP #$0A                                            ; $AAD9: C9 0A
   .byte $90,$C0                                       ; $AADB: 90 C0 (BCC mid-instruction target)
   RTS                                                 ; $AADD: 60
-.endproc
-LAAC2 = $AAC2
-LAAD5 = $AAD5
-
-
-;===============================================================================
-; $AADE: Proc_AADE
-;===============================================================================
-.proc Proc_AADE
-  math_acc_lo              = $0020
-  math_temp2               = $0026
-  work_inner_idx2          = $0038
-  work_record_val          = $0040
-  work_search_result       = $0041
-  sram_player_id           = $6F03
 
   LDA a:$0038                                         ; $AADE: AD 38 00
   JSR Proc_D105                                       ; $AAE1: 20 05 D1
@@ -2160,25 +2144,8 @@ LAB04:
   STA ($20),Y                                         ; $AB06: 91 20
   LDA $26                                             ; $AB08: A5 26
   STA $20                                             ; $AB0A: 85 20
-  JSR B0B_DistanceClamp                               ; $AB0C: 20 0C D0
+  JSR DistanceClamp                               ; $AB0C: 20 0C D0
   RTS                                                 ; $AB0F: 60
-.endproc
-LAB04 = $AB04
-
-
-;===============================================================================
-; $AB10: Proc_AB10
-;===============================================================================
-.proc Proc_AB10
-  math_acc_lo              = $0020
-  math_ext                 = $0024
-  math_temp1               = $0025
-  math_temp2               = $0026
-  work_inner_idx2          = $0038
-  work_temp_2              = $003E
-  work_record_val          = $0040
-  work_search_result       = $0041
-  sram_player_id           = $6F03
 
   LDA a:$0038                                         ; $AB10: AD 38 00
   JSR Proc_D105                                       ; $AB13: 20 05 D1
@@ -2247,23 +2214,8 @@ LAB97:
   STA ($20),Y                                         ; $AB99: 91 20
   LDA $26                                             ; $AB9B: A5 26
   STA $20                                             ; $AB9D: 85 20
-  JSR B0B_DistanceClamp                               ; $AB9F: 20 0C D0
+  JSR DistanceClamp                               ; $AB9F: 20 0C D0
   RTS                                                 ; $ABA2: 60
-.endproc
-LAB55 = $AB55
-LAB68 = $AB68
-LAB97 = $AB97
-
-
-;===============================================================================
-; $ABA3: Proc_ABA3
-;===============================================================================
-.proc Proc_ABA3
-  math_acc_lo              = $0020
-  math_acc_mhi             = $0022
-  work_inner_idx2          = $0038
-  work_record_val          = $0040
-  work_search_result       = $0041
 
   LDY #$30                                            ; $ABA3: A0 30
   JSR B1F_SwitchBank8_A                               ; $ABA5: 20 66 F2
@@ -2322,7 +2274,7 @@ LABEE:
   .byte $D0,$08                                       ; $AC16: D0 08 (BNE mid-instruction target)
   LDA a:$0041                                         ; $AC18: AD 41 00
   STA $20                                             ; $AC1B: 85 20
-  JSR B0B_DistanceClamp                               ; $AC1D: 20 0C D0
+  JSR DistanceClamp                               ; $AC1D: 20 0C D0
   RTS                                                 ; $AC20: 60
 LAC21:
   LDA $2D                                             ; $AC21: A5 2D
@@ -2360,32 +2312,6 @@ LAC47:
   LDA #$FF                                            ; $AC61: A9 FF
   STA a:$002D                                         ; $AC63: 8D 2D 00
   RTS                                                 ; $AC66: 60
-.endproc
-LABD0 = $ABD0
-LABEE = $ABEE
-LAC21 = $AC21
-LAC33 = $AC33
-LAC47 = $AC47
-
-
-;===============================================================================
-; $AC67: Proc_AC67
-;===============================================================================
-.proc Proc_AC67
-  math_acc_lo              = $0020
-  math_acc_mlo             = $0021
-  math_acc_mhi             = $0022
-  math_acc_hi              = $0023
-  math_ext                 = $0024
-  math_temp2               = $0026
-  math_temp3               = $0027
-  work_inner_idx2          = $0038
-  work_temp_0              = $003C
-  work_temp_1              = $003D
-  work_temp_2              = $003E
-  work_record_idx          = $003F
-  work_record_val          = $0040
-  work_search_result       = $0041
 
   JSR Proc_AEBF                                       ; $AC67: 20 BF AE
   LDA $0522                                           ; $AC6A: AD 22 05
@@ -2649,29 +2575,6 @@ LAEB9:
   LDA #$01                                            ; $AEB9: A9 01
   STA $6F8C                                           ; $AEBB: 8D 8C 6F
   RTS                                                 ; $AEBE: 60
-.endproc
-LACF2 = $ACF2
-LAD30 = $AD30
-LADA7 = $ADA7
-LADE5 = $ADE5
-LAEB9 = $AEB9
-
-
-;===============================================================================
-; $AEBF: Proc_AEBF
-;===============================================================================
-.proc Proc_AEBF
-  math_acc_lo              = $0020
-  math_acc_mlo             = $0021
-  math_acc_mhi             = $0022
-  math_acc_hi              = $0023
-  math_ext                 = $0024
-  math_temp1               = $0025
-  math_temp2               = $0026
-  math_temp3               = $0027
-  work_outer_idx           = $0036
-  work_temp_0              = $003C
-  work_temp_1              = $003D
 
   LDA #$00                                            ; $AEBF: A9 00
   STA $24                                             ; $AEC1: 85 24
@@ -2915,18 +2818,6 @@ LB09F:
   .byte $B0,$0F                                       ; $B0B9: B0 0F (BCS cross-proc)
 LB0BB:
   RTS                                                 ; $B0BB: 60
-.endproc
-LB01B = $B01B
-LB043 = $B043
-LB09F = $B09F
-LB0BB = $B0BB
-
-
-;===============================================================================
-; $B0BC: Proc_B0BC
-;===============================================================================
-.proc Proc_B0BC
-  math_acc_mhi             = $0022
 
   INX                                                 ; $B0BC: E8
   .byte $03,$D0,$07,$AC,$0D,$88,$13,$4C,$1D,$10,$27,$98,$3A; $B0BD: 03 D0 07 AC 0D 88 13 4C 1D 10 27 98 3A
@@ -2973,9 +2864,6 @@ LB105:
 LB10D:
   RTS                                                 ; $B10D: 60
 .endproc
-LB0CA = $B0CA
-LB105 = $B105
-LB10D = $B10D
 
 
 ;===============================================================================
@@ -2993,7 +2881,7 @@ LB10D = $B10D
   JSR Proc_D0AA                                       ; $B113: 20 AA D0
   LDA $2B                                             ; $B116: A5 2B
   .byte $D0,$09                                       ; $B118: D0 09 (BNE mid-instruction target)
-  JSR B0B_LoadRecord                                  ; $B11A: 20 3A D0
+  JSR LoadRecord                                  ; $B11A: 20 3A D0
   LDA a:$0040                                         ; $B11D: AD 40 00
   JMP Proc_B136                                       ; $B120: 4C 36 B1
   LDA $2B                                             ; $B123: A5 2B
@@ -3051,7 +2939,7 @@ LB156:
   JSR Proc_D304                                       ; $B169: 20 04 D3
   CMP a:$0037                                         ; $B16C: CD 37 00
   BCS LB174                                           ; $B16F: B0 03
-  JSR B0A_ProvinceSearch                              ; $B171: 20 03 A3
+  JSR ProvinceSearch                              ; $B171: 20 03 A3
 LB174:
   JSR Proc_B1F9                                       ; $B174: 20 F9 B1
   JSR $B287                                           ; $B177: 20 87 B2
@@ -3140,7 +3028,7 @@ LB1E9 = $B1E9
   work_temp_2              = $003E
   sram_player_id           = $6F03
 
-  JSR $A74A                                           ; $B1FD: 20 4A A7
+  JSR CalcKingdomTierWorkPtr                          ; $B1FD: 20 4A A7
   LDA a:$0038                                         ; $B200: AD 38 00
   JSR Proc_D105                                       ; $B203: 20 05 D1
   LDA a:$003D                                         ; $B206: AD 3D 00
@@ -3180,7 +3068,7 @@ LB242:
   LDA ($20),Y                                         ; $B251: B1 20
   SBC a:$003E                                         ; $B253: ED 3E 00
   .byte $B0,$0C                                       ; $B256: B0 0C (BCS mid-instruction target)
-  JSR B0A_TileRender                                  ; $B258: 20 5C A5
+  JSR TileRender                                  ; $B258: 20 5C A5
   BCS LB242                                           ; $B25B: B0 E5
   PLA                                                 ; $B25D: 68
   PLA                                                 ; $B25E: 68
@@ -3197,7 +3085,7 @@ LB242:
   LDA ($20),Y                                         ; $B273: B1 20
   SBC a:$003C                                         ; $B275: ED 3C 00
   .byte $B0,$0C                                       ; $B278: B0 0C (BCS mid-instruction target)
-  JSR B0A_NameTable                                   ; $B27A: 20 0C A6
+  JSR NameTable                                   ; $B27A: 20 0C A6
   .byte $B0,$E5                                       ; $B27D: B0 E5 (BCS mid-instruction target)
   PLA                                                 ; $B27F: 68
   PLA                                                 ; $B280: 68
@@ -3511,7 +3399,7 @@ LB49B = $B49B
   JMP Proc_B5FC                                       ; $B4A9: 4C FC B5
   JSR Proc_D249                                       ; $B4AC: 20 49 D2
   STA a:$0045                                         ; $B4AF: 8D 45 00
-  JSR B0B_LoadRecord                                  ; $B4B2: 20 3A D0
+  JSR LoadRecord                                  ; $B4B2: 20 3A D0
   LDA #$03                                            ; $B4B5: A9 03
   STA a:$0041                                         ; $B4B7: 8D 41 00
   LDA #$00                                            ; $B4BA: A9 00
@@ -4407,7 +4295,7 @@ LBA8D:
   STA $30                                             ; $BAAB: 85 30
   LDA a:$003D                                         ; $BAAD: AD 3D 00
   STA $31                                             ; $BAB0: 85 31
-  JSR B0B_ArmyValueCalc                               ; $BAB2: 20 3F CF
+  JSR ArmyValueCalc                               ; $BAB2: 20 3F CF
   LDA a:$003F                                         ; $BAB5: AD 3F 00
   JSR Proc_D105                                       ; $BAB8: 20 05 D1
   STA a:$0042                                         ; $BABB: 8D 42 00
@@ -5150,10 +5038,10 @@ LBF41 = $BF41
 .segment "CODE_BANK0B"
 
 ;===============================================================================
-; $C000: B0B_Init
+; $C000: Init
 ; Bank 0B initialization: setup registers and jump to main loop
 ;===============================================================================
-.proc B0B_Init
+.proc Init
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -6199,7 +6087,7 @@ LC765:
   LDY #$00                                            ; $C789: A0 00
   LDA ($24),Y                                         ; $C78B: B1 24
   STA $30                                             ; $C78D: 85 30
-  JSR B0B_ArmyValueCalc                               ; $C78F: 20 3F CF
+  JSR ArmyValueCalc                               ; $C78F: 20 3F CF
   PLA                                                 ; $C792: 68
   PLA                                                 ; $C793: 68
   RTS                                                 ; $C794: 60
@@ -6983,7 +6871,7 @@ LCBA8:
   STA $31                                             ; $CBBB: 85 31
   LDA a:$0040                                         ; $CBBD: AD 40 00
   STA $32                                             ; $CBC0: 85 32
-  JSR B0B_DataRecordLookup                            ; $CBC2: 20 7C CF
+  JSR DataRecordLookup                            ; $CBC2: 20 7C CF
   LDA $31                                             ; $CBC5: A5 31
   LDY #$03                                            ; $CBC7: A0 03
   JSR $D2AB                                           ; $CBC9: 20 AB D2
@@ -7431,10 +7319,10 @@ LCDB7 = $CDB7
 .endproc
 
 ;===============================================================================
-; $CF3F: B0B_ArmyValueCalc
+; $CF3F: ArmyValueCalc
 ; Calculate total army value from officer/troop data
 ;===============================================================================
-.proc B0B_ArmyValueCalc
+.proc ArmyValueCalc
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -7480,10 +7368,10 @@ LCF74 = $CF74
 
 
 ;===============================================================================
-; $CF7C: B0B_DataRecordLookup
+; $CF7C: DataRecordLookup
 ; Lookup data records by index (province/officer info)
 ;===============================================================================
-.proc B0B_DataRecordLookup
+.proc DataRecordLookup
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -7589,10 +7477,10 @@ LD004 = $D004
 
 
 ;===============================================================================
-; $D00C: B0B_DistanceClamp
+; $D00C: DistanceClamp
 ; Clamp distance values to valid range
 ;===============================================================================
-.proc B0B_DistanceClamp
+.proc DistanceClamp
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
 
@@ -7628,10 +7516,10 @@ LD032 = $D032
 
 
 ;===============================================================================
-; $D03A: B0B_LoadRecord
+; $D03A: LoadRecord
 ; Load province/officer record into work buffer
 ;===============================================================================
-.proc B0B_LoadRecord
+.proc LoadRecord
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
@@ -7842,7 +7730,7 @@ LD0FE = $D0FE
   STA $6F5D                                           ; $D135: 8D 5D 6F
   .byte $90,$06                                       ; $D138: 90 06 (BCC mid-instruction target)
   INC $6F5E                                           ; $D13A: EE 5E 6F
-  JMP B0A_SumAndCompare                               ; $D13D: 4C 9C A1
+  JMP SumAndCompare                               ; $D13D: 4C 9C A1
   PLA                                                 ; $D140: 68
   PLA                                                 ; $D141: 68
   LDA #$02                                            ; $D142: A9 02
@@ -9035,27 +8923,27 @@ LD707 = $D707
 
 
 ;===============================================================================
-; $D717: B0B_SubStateDispatch
+; $D717: SubStateDispatch
 ; Sub-state dispatch: route to specific game phases
 ;===============================================================================
-.proc B0B_SubStateDispatch
+.proc SubStateDispatch
   state_sub_dispatch       = $0540
 
   JSR Proc_DD34                                       ; $D717: 20 34 DD
   LDA $0540                                           ; $D71A: AD 40 05
   JSR B1F_CallbackDispatcher                          ; $D71D: 20 DE EA
   ; --- Inline pointer table (5 entries) ---
-  .addr B0B_CallDomesticDisplay                       ; $D720: 2A D7
+  .addr CallDomesticDisplay                       ; $D720: 2A D7
   .addr $D74F                                         ; $D722: 4F D7
-  .addr B0B_RenderOverlay                             ; $D724: 9C D9
-  .addr B0B_ClearOverlay                              ; $D726: 7E DA
-  .addr B0B_StackFill                                 ; $D728: 32 D7
+  .addr RenderOverlay                             ; $D724: 9C D9
+  .addr ClearOverlay                              ; $D726: 7E DA
+  .addr StackFill                                 ; $D728: 32 D7
 .endproc
 
 ;===============================================================================
-; $D72A: B0B_CallDomesticDisplay
+; $D72A: CallDomesticDisplay
 ;===============================================================================
-.proc B0B_CallDomesticDisplay
+.proc CallDomesticDisplay
 
   LDY #$37                                            ; $D72A: A0 37
   JSR B1F_BankedCallbackTrampoline                    ; $D72C: 20 07 EE
@@ -9065,22 +8953,22 @@ LD707 = $D707
 .endproc
 
 ;===============================================================================
-; $D732: B0B_StackFill
+; $D732: StackFill
 ;===============================================================================
-.proc B0B_StackFill
+.proc StackFill
   state_display_idx        = $0541
 
   LDA $0541                                           ; $D732: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D735: 20 DE EA
   ; --- Inline pointer table (2 entries) ---
-  .addr B0B_FillStackLoop                             ; $D738: 3C D7
+  .addr FillStackLoop                             ; $D738: 3C D7
   .addr Proc_D74C                                     ; $D73A: 4C D7
 .endproc
 
 ;===============================================================================
-; $D73C: B0B_FillStackLoop
+; $D73C: FillStackLoop
 ;===============================================================================
-.proc B0B_FillStackLoop
+.proc FillStackLoop
   state_display_idx        = $0541
 
   LDY #$00                                            ; $D73C: A0 00
@@ -9443,10 +9331,10 @@ LD91E = $D91E
 
 
 ;===============================================================================
-; $D99C: B0B_RenderOverlay
+; $D99C: RenderOverlay
 ; Render overlay tiles to name table
 ;===============================================================================
-.proc B0B_RenderOverlay
+.proc RenderOverlay
   state_display_idx        = $0541
 
   LDA $0541                                           ; $D99C: AD 41 05
@@ -9581,10 +9469,10 @@ LD9AC = $D9AC
 .endproc
 
 ;===============================================================================
-; $DA7E: B0B_ClearOverlay
+; $DA7E: ClearOverlay
 ; Clear overlay region from name table
 ;===============================================================================
-.proc B0B_ClearOverlay
+.proc ClearOverlay
   state_display_idx        = $0541
 
   JSR B1F_PaletteAnimation                            ; $DA7E: 20 67 EC
@@ -9623,7 +9511,7 @@ LD9AC = $D9AC
   state_display_idx        = $0541
 
   JSR Proc_DD79                                       ; $DAA6: 20 79 DD
-  JSR B0B_PaletteCheck                                ; $DAA9: 20 4C DF
+  JSR PaletteCheck                                ; $DAA9: 20 4C DF
   LDA #$D4                                            ; $DAAC: A9 D4
   STA a:$0010                                         ; $DAAE: 8D 10 00
   LDA #$DB                                            ; $DAB1: A9 DB
@@ -10092,7 +9980,7 @@ LDDB7:
   INC $0546                                           ; $DDC3: EE 46 05
   RTS                                                 ; $DDC6: 60
 LDDC7:
-  JSR B0B_SpriteSetup2                                ; $DDC7: 20 AF DE
+  JSR SpriteSetup2                                ; $DDC7: 20 AF DE
   LDA a:$0081                                         ; $DDCA: AD 81 00
   AND #$03                                            ; $DDCD: 29 03
   .byte $F0,$66                                       ; $DDCF: F0 66 (BEQ mid-instruction target)
@@ -10103,7 +9991,7 @@ LDDC7:
   LDA $0545                                           ; $DDDB: AD 45 05
   ASL A                                               ; $DDDE: 0A
   TAY                                                 ; $DDDF: A8
-  LDA B0B_SoundDispatch,Y                             ; $DDE0: B9 5F DE
+  LDA SoundDispatch,Y                             ; $DDE0: B9 5F DE
   CMP #$02                                            ; $DDE3: C9 02
   .byte $F0,$1D                                       ; $DDE5: F0 1D (BEQ mid-instruction target)
   CMP #$03                                            ; $DDE7: C9 03
@@ -10161,10 +10049,10 @@ LDDC7 = $DDC7
 
 
 ;===============================================================================
-; $DE5F: B0B_SoundDispatch
+; $DE5F: SoundDispatch
 ; Sound dispatch: route to NMC sound routines
 ;===============================================================================
-.proc B0B_SoundDispatch
+.proc SoundDispatch
 
   ORA $08                                             ; $DE5F: 05 08
   ORA $0D                                             ; $DE61: 05 0D
@@ -10178,9 +10066,9 @@ LDDC7 = $DDC7
 .endproc
 
 ;===============================================================================
-; $DEAF: B0B_SpriteSetup2
+; $DEAF: SpriteSetup2
 ;===============================================================================
-.proc B0B_SpriteSetup2
+.proc SpriteSetup2
   state_overlay_param      = $0545
 
   LDA #$A2                                            ; $DEAF: A9 A2
@@ -10236,10 +10124,10 @@ LDDC7 = $DDC7
 .endproc
 
 ;===============================================================================
-; $DF4C: B0B_PaletteCheck
+; $DF4C: PaletteCheck
 ; Check and update palette animation state
 ;===============================================================================
-.proc B0B_PaletteCheck
+.proc PaletteCheck
   state_display_idx        = $0541
   state_palette_mode       = $0547
 

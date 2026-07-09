@@ -327,7 +327,7 @@ VectorTable:
   JSR SwitchBankAC_B                            ; $E118: 20 37 F2
   LDA #$00                                      ; $E11B: A9 00
   STA $0000                                     ; $E11D: 8D 00 00
-  JSR $A015                                     ; $E120: 20 15 A0  Overlay display
+  JSR B1D_1E_LoadScenarioData                   ; $E120: 20 15 A0  Overlay display
 
   JSR ScrollSet                                 ; $E123: 20 F7 EA
   LDA $0400                                     ; $E126: AD 00 04  Check input
@@ -338,7 +338,7 @@ VectorTable:
 @skip_sram_flag:
   LDY #$3D                                      ; $E132: A0 3D
   JSR SwitchBankAC_B                            ; $E134: 20 37 F2
-  JSR $A003                                     ; $E137: 20 36 A0
+  JSR B1D_1E_MenuUpdate                         ; $E137: 20 36 A0
   JSR PaletteFadeInit                           ; $E13A: 20 BF EC
   LDA #$A0                                      ; $E142: A9 00
   STA addr_display_mode                         ; $E149: 8D 98 00
@@ -369,7 +369,7 @@ VectorTable:
   JSR RandomByte                                ; $E17D: 20 7A E8
   LDY #$2A                                      ; $E180: A0 2A
   JSR SwitchBankAC_A                            ; $E182: 20 4B F2
-  JSR $A000                                     ; $E185: 20 00 A0  Display (bank-switched)
+  JSR B17_18_PpuWriteRle                        ; $E185: 20 00 A0  Display (bank-switched)
   JMP StateDispatch                             ; $E188: 4C 66 E0
 .endproc
 
@@ -402,12 +402,12 @@ territory_ptr_hi = $0069
   BNE @normal_mode                              ; $E1A5: D0 0B
   LDY #$2C                                      ; $E1A7: A0 2C
   JSR SwitchBankAC_B                            ; $E1A9: 20 37 F2
-  JSR $A006                                     ; $E1AC: 20 06 A0  Scenario function
+  JSR B17_18_PpuWriteTileOffset                 ; $E1AC: 20 06 A0  Scenario function
   JMP @after_mode_check                         ; $E1AF: 4C BA E1
 @normal_mode:
   LDY #$28                                      ; $E1B2: A0 28
   JSR SwitchBankAC_B                            ; $E1B4: 20 37 F2
-  JSR $A003                                     ; $E1B7: 20 03 A0  Normal function
+  JSR B17_18_PpuCopyRaw                         ; $E1B7: 20 03 A0  Normal function
 @after_mode_check:
   LDA kingdom_x                                 ; $E1BA: AD 10 05
   STA $0090                                     ; $E1BD: 8D 90 00
@@ -423,10 +423,10 @@ territory_ptr_hi = $0069
   ; Display + render
   LDY #$3D                                      ; $E1D7: A0 37
   JSR SwitchBankAC_B                            ; $E1D9: 20 37 F2
-  JSR $A009                                     ; $E1DC: 20 09 A0
+  JSR B1D_1E_StateHandler                       ; $E1DC: 20 09 A0
   LDA #$00                                      ; $E1E4: A9 01
   STA $0000                                     ; $E1E6: 8D 00 00
-  JSR $A015                                     ; $E1E9: 20 15 A0
+  JSR B1D_1E_LoadScenarioData                   ; $E1E9: 20 15 A0
   JSR ScrollSet                                 ; $E1EC: 20 F7 EA
 
   LDA #$00                                      ; $E1EF: A9 00
@@ -458,7 +458,7 @@ territory_ptr_hi = $0069
   JSR RandomByte                                ; $E221: 20 7A E8
   LDY #$28                                      ; $E224: A0 28
   JSR SwitchBankAC_A                            ; $E226: 20 4B F2
-  JSR $A000                                     ; $E229: 20 00 A0
+  JSR B17_18_PpuWriteRle                        ; $E229: 20 00 A0
   JMP StateDispatch                             ; $E22C: 4C 66 E0
 .endproc
 
@@ -603,7 +603,7 @@ army_status2    = $04AC
   JSR SwitchBankAC_B                            ; $E31D: 20 37 F2
   LDA #$0A                                      ; $E320: A9 0A
   STA $0000                                     ; $E322: 8D 00 00
-  JSR $A015                                     ; $E325: 20 15 A0
+  JSR B17_18_OverlayWindow                      ; $E325: 20 15 A0
 
   JSR ScrollSet                                 ; $E328: 20 F7 EA
 
@@ -649,7 +649,7 @@ army_status2    = $04AC
 .proc DisplayInit
   LDY #$3D                                      ; $E370: A0 3D
   JSR SwitchBankAC_B                            ; $E372: 20 37 F2  Window clear
-  JSR $A01B                                     ; $E375: 20 1B A0  Bank-switched display
+  JSR B1D_1E_OfficerParamDisp                   ; $E375: 20 1B A0  Bank-switched display
   JSR ChrBankSwitch                             ; $E378: 20 06 F2  Window/display helper
   RTS                                           ; $E37B: 60
 .endproc
@@ -685,7 +685,7 @@ army_status2    = $04AC
   JSR SwitchBankAC_B                            ; $E3BA: 20 37 F2
   LDA #$0B                                      ; $E3BD: A9 0B
   STA $0000                                     ; $E3BF: 8D 00 00
-  JSR $A015                                     ; $E3C2: 20 15 A0
+  JSR B1D_1E_LoadScenarioData                   ; $E3C2: 20 15 A0
   JSR ScrollSet                                 ; $E3C5: 20 F7 EA
   JSR PaletteFadeInit                           ; $E3C8: 20 BF EC
   LDY #$3D                                      ; $E3CB: A0 3D
@@ -738,12 +738,12 @@ army_status2    = $04AC
   JSR B17_18_PpuCopyRaw                         ; $E427: 20 03 A0
   LDY #$3D                                      ; $E42A: A0 3D
   JSR SwitchBankAC_B                            ; $E42C: 20 37 F2
-  JSR $A018                                     ; $E42F: 20 18 A0  Advisor dialogue
+  JSR B1D_1E_SramInit                           ; $E42F: 20 18 A0  Advisor dialogue
   LDY #$3D                                      ; $E432: A0 3D
   JSR SwitchBankAC_B                            ; $E434: 20 37 F2
   LDA #$0C                                      ; $E437: A9 0C
   STA $0000                                     ; $E439: 8D 00 00
-  JSR $A015                                     ; $E43C: 20 15 A0
+  JSR B1D_1E_LoadScenarioData                   ; $E43C: 20 15 A0
   JSR ScrollSet                                 ; $E43F: 20 F7 EA
   JSR PaletteFadeInit                           ; $E442: 20 BF EC
   LDY #$3D                                      ; $E445: A0 3D
@@ -791,12 +791,12 @@ completion_flag = $0541
   JSR SwitchBankAC_B                            ; $E49A: 20 37 F2
   LDA #$0D                                      ; $E49D: A9 0D
   STA $0000                                     ; $E49F: 8D 00 00
-  JSR $A015                                     ; $E4A2: 20 15 A0
+  JSR B1D_1E_LoadScenarioData                   ; $E4A2: 20 15 A0
   JSR ScrollSet                                 ; $E4A5: 20 F7 EA
   LDY #$3D                                      ; $E4A8: A0 3D
   JSR SwitchBankAC_B                            ; $E4AA: 20 37 F2
   LDA #$05                                      ; $E4AD: A9 05
-  JSR $A045                                     ; $E4AF: 20 45 A0
+  JSR B1D_1E_OfficerRecLookup                   ; $E4AF: 20 45 A0
   LDA #$A0                                      ; $E4B2: A9 A0
   STA addr_display_mode                         ; $E4B4: 8D 98 00
   LDA #$02                                      ; $E4B7: A9 02

@@ -4,7 +4,7 @@
 **Referenced Files in This Document**
 - [align_comments.py](file://tools/align_comments.py)
 - [prg_1f.asm](file://asm/banks/prg_1f.asm)
-- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
+- [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [PROJECT.md](file://PROJECT.md)
 - [Makefile](file://Makefile)
 - [linker.cfg](file://linker.cfg)
@@ -60,7 +60,7 @@ subgraph "Assembly"
 MAIN["main.asm"]
 BANKS["asm/banks/"]
 PRG1F["asm/banks/prg_1f.asm"]
-PRG1FAL["asm/banks/prg_1f.aligned.asm"]
+PRG1FAL["asm/banks/prg_1f.asm"]
 end
 subgraph "Includes"
 MACROS["include/macros.h"]
@@ -131,7 +131,7 @@ sequenceDiagram
 participant User as "Developer"
 participant AC as "align_comments.py"
 participant PRG1F as "prg_1f.asm"
-participant OUT as "prg_1f.aligned.asm"
+participant OUT as "prg_1f.asm"
 User->>AC : Execute alignment script
 AC->>PRG1F : Read assembly file
 AC->>AC : Parse lines and detect inline comments
@@ -257,7 +257,7 @@ The Comment Alignment Tool has minimal external dependencies and interacts prima
 ```mermaid
 graph TB
 AC["align_comments.py"] --> PRG1F["prg_1f.asm"]
-AC --> PRG1FAL["prg_1f.aligned.asm"]
+AC --> PRG1FAL["prg_1f.asm"]
 ```
 
 **Diagram sources**

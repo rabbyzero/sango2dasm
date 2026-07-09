@@ -190,38 +190,52 @@ dom_scroll_index             = $0544  ; Scroll index / wrap parameter
 ;===============================================================================
 ; Jump Table - Public entry points ($A000-$A029)
 ;===============================================================================
-; Entry00 ($A000):
+PpuWriteRle_Entry:
+; PpuWriteRle_Entry ($A000):
   JMP PpuWriteRle                                           ; $A000: 4C 87 A0
-; Entry01 ($A003):
+PpuCopyRaw_Entry:
+; PpuCopyRaw_Entry ($A003):
   JMP PpuCopyRaw                                           ; $A003: 4C 12 A2
-; Entry02 ($A006):
+PpuWriteTileOffset_Entry:
+; PpuWriteTileOffset_Entry ($A006):
   JMP PpuWriteTileOffset                                           ; $A006: 4C 4E A2
-; Entry03 ($A009):
+DisplayScrollLoop_Entry:
+; DisplayScrollLoop_Entry ($A009):
   JMP DisplayScrollLoop                                           ; $A009: 4C FF A2
-; Entry04 ($A00C):
+DisplayAndChrSetup_Entry:
+; DisplayAndChrSetup_Entry ($A00C):
   JMP DisplayAndChrSetup                                           ; $A00C: 4C 87 A3
-; Entry05 ($A00F):
+BattleEffects_Entry:
+; BattleEffects_Entry ($A00F):
   JMP BattleEffects                                           ; $A00F: 4C 53 AB
-; Entry06 ($A012):
+BattleDispatch_Entry:
+; BattleDispatch_Entry ($A012):
   JMP BattleDispatch                                           ; $A012: 4C 1C A6
-; Entry07 ($A015):
+OverlayWindow_Entry:
+; OverlayWindow_Entry ($A015):
   JMP OverlayWindow                                           ; $A015: 4C F0 AE
-; Entry08 ($A018):
+SetupAdvisorTiles_Entry:
+; SetupAdvisorTiles_Entry ($A018):
   JMP SetupAdvisorTiles                                           ; $A018: 4C 83 A9
-; Entry09 ($A01B):
+MainGameDispatch_Entry:
+; MainGameDispatch_Entry ($A01B):
   JMP MainGameDispatch                                           ; $A01B: 4C 00 B1
-; Entry0A ($A01E):
+DomesticActionDispatch_Entry:
+; DomesticActionDispatch_Entry ($A01E):
   JMP DomesticActionDispatch                                    ; $A01E: 4C 93 D6
-; Entry0B ($A021):
+AnimationDispatch_Entry:
+; AnimationDispatch_Entry ($A021):
   JMP AnimationDispatch                                    ; $A021: 4C 25 DE
-; Entry0C ($A024):
+DomesticDisplay_Entry:
+; DomesticDisplay_Entry ($A024):
   JMP DomesticDisplay                                           ; $A024: 4C 2A A0
-; Entry0D ($A027):
+DataRecordLoader_Entry:
+; DataRecordLoader_Entry ($A027):
   JMP DataRecordLoader                                    ; $A027: 4C 15 DF
 
 ;===============================================================================
 ; $A02A: DomesticDisplay
-; Entry0C: Domestic affairs display (switches bank $21)
+; DomesticDisplay_Entry: Domestic affairs display (switches bank $21)
 ;===============================================================================
 .proc DomesticDisplay
   param_byte1     = $0000
@@ -277,7 +291,7 @@ DomesticAttrPtrTable:
 
 ;===============================================================================
 ; $A087: PpuWriteRle
-; Entry00: RLE-encoded PPU data writer
+; PpuWriteRle_Entry: RLE-encoded PPU data writer
 ;===============================================================================
 .proc PpuWriteRle
   param_byte1     = $0000
@@ -537,7 +551,7 @@ AdvanceSrcPtr2:
 
 ;===============================================================================
 ; $A212: PpuCopyRaw
-; Entry01: Raw 1KB PPU data copy
+; PpuCopyRaw_Entry: Raw 1KB PPU data copy
 ;===============================================================================
 .proc PpuCopyRaw
   param_byte1     = $0000
@@ -577,7 +591,7 @@ PpuCopyRaw:
 
 ;===============================================================================
 ; $A24E: PpuWriteTileOffset
-; Entry02: PPU tile data write with offset calculation
+; PpuWriteTileOffset_Entry: PPU tile data write with offset calculation
 ;===============================================================================
 .proc PpuWriteTileOffset
   param_byte1     = $0000
@@ -697,7 +711,7 @@ RewindTilePtr16:
 
 ;===============================================================================
 ; $A2FF: DisplayScrollLoop
-; Entry03: Display scroll and render loop
+; DisplayScrollLoop_Entry: Display scroll and render loop
 ;===============================================================================
 .proc DisplayScrollLoop
   ptr_001e_lo     = $001E
@@ -780,7 +794,7 @@ DisplayScrollLoop:
 
 ;===============================================================================
 ; $A387: DisplayAndChrSetup
-; Entry04: Display coordinate check + CHR setup
+; DisplayAndChrSetup_Entry: Display coordinate check + CHR setup
 ;===============================================================================
 .proc DisplayAndChrSetup
   ptr_0092_lo     = $0092
@@ -1278,7 +1292,7 @@ BankPtrLookupAlt:
 
 ;===============================================================================
 ; $A61C: BattleDispatch
-; Entry06: Battle dispatch (bank switch + pointer lookup)
+; BattleDispatch_Entry: Battle dispatch (bank switch + pointer lookup)
 ;===============================================================================
 .proc BattleDispatch
   param_byte1     = $0000
@@ -1605,7 +1619,7 @@ ComputeAttributeByte:
 
 ;===============================================================================
 ; $A983: SetupAdvisorTiles
-; Entry08: Advisor/council dialogue tile setup system
+; SetupAdvisorTiles_Entry: Advisor/council dialogue tile setup system
 ; Takes a ruler index, fetches the ruler's dialogue type from SRAM, dispatches
 ; to one of three cases (type 0/1/2), and writes four CHR tile indices into the
 ; $01B0-$01B3 metatile buffer. Special overrides for ruler index 0 and 10.
@@ -1856,7 +1870,7 @@ CalcTileGridOrigin:
 
 ;===============================================================================
 ; $AB53: BattleEffects
-; Entry05: Battle visual effects (animations, palette, sprites)
+; BattleEffects_Entry: Battle visual effects (animations, palette, sprites)
 ;-------------------------------------------------------------------------------
 ; Checks if the battle scene column or palette row has changed. If the scene
 ; column changed, dispatches to overlay reload (DispatchOverlayMode). If only the palette
@@ -2873,7 +2887,7 @@ PrepareAdjacencyPtrs:
 
 ;===============================================================================
 ; $B100: MainGameDispatch
-; Entry09: Main game mode dispatcher (22-entry dispatch table)
+; MainGameDispatch_Entry: Main game mode dispatcher (22-entry dispatch table)
 ;===============================================================================
 .proc MainGameDispatch
 MainGameDispatch:
@@ -8140,7 +8154,7 @@ MapColumnTileGfx:
 
 ;===============================================================================
 ; $D693: DomesticActionDispatch
-; Entry0A: Domestic action dispatch (6-entry dispatch table)
+; DomesticActionDispatch_Entry: Domestic action dispatch (6-entry dispatch table)
 ;===============================================================================
 ; Target0A ($D693):
 .proc DomesticActionDispatch
@@ -9157,7 +9171,7 @@ ScrollPanel_RowTemplate_Plain:                                      ; $DE05: Gro
 
 ;===============================================================================
 ; $DE25: AnimationDispatch
-; Entry0B: Animation dispatch
+; AnimationDispatch_Entry: Animation dispatch
 ;===============================================================================
 ; Target0B ($DE25):
 .proc AnimationDispatch
@@ -9317,7 +9331,7 @@ SpriteFromTable:
 
 ;===============================================================================
 ; $DF15: DataRecordLoader
-; Entry0D: Data record loader (pointer table lookup)
+; DataRecordLoader_Entry: Data record loader (pointer table lookup)
 ;===============================================================================
 ; Target0C ($DF15):
 .proc DataRecordLoader
