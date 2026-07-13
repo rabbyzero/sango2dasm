@@ -2,9 +2,10 @@
 
 <cite>
 **Referenced Files in This Document**
-- [verify_range.py](file://tools/verify_range.py)
 - [verify_rom.py](file://tools/verify_rom.py)
+- [verify_range.py](file://tools/verify_range.py)
 - [verify_1d_bytes.py](file://tools/verify_1d_bytes.py)
+- [verify_0a_0b.py](file://tools/verify_0a_0b.py)
 - [check_continuity.py](file://tools/check_continuity.py)
 - [fix_asm_errors.py](file://tools/fix_asm_errors.py)
 - [assemble_prg_1d_1e.py](file://tools/assemble_prg_1d_1e.py)
@@ -15,18 +16,20 @@
 - [analyze_rom.py](file://tools/analyze_rom.py)
 - [generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
 - [linker.cfg](file://linker.cfg)
+- [link_0a_0b_test.cfg](file://tools/link_0a_0b_test.cfg)
 - [PROJECT.md](file://PROJECT.md)
 - [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [all_banks.asm](file://asm/banks/all_banks.asm)
+- [prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added documentation for new validation tools: check_continuity.py for gap detection, verify_1d_bytes.py for byte-level accuracy, and fix_asm_errors.py for assembly syntax correction
-- Enhanced verification system to support combined bank disassembly workflow with specialized validation for $1D/$1E integration
-- Updated architecture overview to reflect integrated validation approach for combined PRG banks
-- Expanded troubleshooting guide with gap detection and assembly error correction procedures
-- Added new section covering specialized validation for combined bank workflows
+- Added comprehensive documentation for the new verify_0a_0b.py tool that provides specialized byte-for-byte validation of PRG banks $0A+$0B against original ROM
+- Enhanced verification system architecture to include paired bank validation workflow for combined 16KB blocks
+- Updated verification pipeline diagrams to reflect the new paired bank validation capability
+- Expanded troubleshooting guide with specific procedures for paired bank validation issues
+- Added detailed analysis of the paired bank validation algorithm and its integration with the build system
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -37,24 +40,26 @@
 6. [Enhanced Verification Pipeline](#enhanced-verification-pipeline)
 7. [Range-Based Verification](#range-based-verification)
 8. [Specialized Bank Validation](#specialized-bank-validation)
-9. [Gap Detection and Continuity Validation](#gap-detection-and-continuity-validation)
-10. [Assembly Error Correction](#assembly-error-correction)
-11. [Dependency Analysis](#dependency-analysis)
-12. [Performance Considerations](#performance-considerations)
-13. [Troubleshooting Guide](#troubleshooting-guide)
-14. [Conclusion](#conclusion)
+9. [Paired Bank Validation](#paired-bank-validation)
+10. [Gap Detection and Continuity Validation](#gap-detection-and-continuity-validation)
+11. [Assembly Error Correction](#assembly-error-correction)
+12. [Dependency Analysis](#dependency-analysis)
+13. [Performance Considerations](#performance-considerations)
+14. [Troubleshooting Guide](#troubleshooting-guide)
+15. [Conclusion](#conclusion)
 
 ## Introduction
 This document explains the ROM verification system used to ensure byte-exact accuracy between rebuilt ROMs and the original. The verification mechanism performs both comprehensive ROM-level validation and targeted range-based validation to validate disassembly correctness and maintain project quality throughout the development lifecycle.
 
-The verification workflow integrates with the broader build pipeline: ROM splitting, assembly, linking, and final ROM construction. It reports mismatches with precise byte-level details and calculates accuracy metrics to guide iterative improvements. The system now includes specialized tools for validating specific memory ranges, particularly useful for targeted bank validation and integrity checking, including enhanced support for combined bank disassembly workflows.
+The verification workflow integrates with the broader build pipeline: ROM splitting, assembly, linking, and final ROM construction. It reports mismatches with precise byte-level details and calculates accuracy metrics to guide iterative improvements. The system now includes specialized tools for validating specific memory ranges, particularly useful for targeted bank validation and integrity checking, including enhanced support for combined bank disassembly workflows and specialized validation for paired bank combinations like $0A/$0B.
 
 ## Project Structure
-The verification system spans several tools and build targets, now enhanced with specialized validation capabilities for combined bank workflows:
+The verification system spans several tools and build targets, now enhanced with specialized validation capabilities for combined bank workflows and paired bank validation:
 
 - Full ROM verification tool: compares two ROM files byte-by-byte for complete validation
 - Range verification tool: validates specific memory ranges within disassembly files
 - Byte-level validation tool: performs precise byte-by-byte comparison for individual banks
+- Paired bank validation tool: verifies paired banks ($0A/$0B) as a unified 16KB block
 - Gap detection tool: identifies continuity issues and address gaps in combined bank files
 - Assembly error correction tool: fixes illegal addressing mode errors in assembly files
 - Combined bank assembly tool: creates unified bank files for $1D/$1E integration
@@ -71,16 +76,18 @@ D["Assembly + Linking<br/>Makefile targets"] --> E["Built ROM<br/>build/sango2.n
 F["verify_rom.py<br/>Full ROM comparison"] --> G["Full ROM Report<br/>Mismatches, Accuracy"]
 H["verify_range.py<br/>Range validation"] --> I["Range Report<br/>Targeted validation"]
 J["verify_1d_bytes.py<br/>Byte-level validation"] --> K["Bank $1D Validation<br/>Exact byte comparison"]
-L["check_continuity.py<br/>Gap detection"] --> M["Continuity Report<br/>Address gaps/overlaps"]
-N["fix_asm_errors.py<br/>Assembly correction"] --> O["Corrected Assembly<br/>Fixed syntax errors"]
-P["assemble_prg_1d_1e.py<br/>Combined bank assembly"] --> Q["prg_1d_1e.asm<br/>Unified bank file"]
+L["verify_0a_0b.py<br/>Paired bank validation"] --> M["$0A+$0B Validation<br/>16KB combined verification"]
+N["check_continuity.py<br/>Gap detection"] --> O["Continuity Report<br/>Address gaps/overlaps"]
+P["fix_asm_errors.py<br/>Assembly correction"] --> Q["Corrected Assembly<br/>Fixed syntax errors"]
+R["assemble_prg_1d_1e.py<br/>Combined bank assembly"] --> S["prg_1d_1e.asm<br/>Unified bank file"]
 E --> F
 A --> F
 E --> H
 Q --> J
 Q --> L
 O --> N
-P --> Q
+P --> P
+R --> S
 ```
 
 **Diagram sources**
@@ -89,6 +96,7 @@ P --> Q
 - [verify_rom.py:10-73](file://tools/verify_rom.py#L10-L73)
 - [verify_range.py:1-62](file://tools/verify_range.py#L1-62)
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-75)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-28)
 - [check_continuity.py:1-79](file://tools/check_continuity.py#L1-79)
 - [fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-35)
 - [assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-41)
@@ -124,6 +132,14 @@ The specialized byte-level validation tool provides precise comparison for indiv
 - Duplicate detection: identifies overlapping or repeated address assignments
 - Comprehensive reporting: detailed mismatch analysis with coverage statistics
 
+### Paired Bank Validation Tool
+The specialized paired bank validation tool provides precise comparison for bank pairs ($0A/$0B):
+
+- Paired bank extraction: reads consecutive 8KB banks as a unified 16KB block
+- Address mapping: maps local addresses to global ROM addresses correctly
+- Detailed mismatch reporting: shows first 10 mismatches with exact addresses and values
+- Build integrity validation: verifies test build output matches original ROM structure
+
 ### Gap Detection Tool
 The continuity validation tool identifies structural issues in combined bank files:
 
@@ -144,11 +160,12 @@ The syntax correction tool automates assembly error fixes:
 - [verify_rom.py:10-73](file://tools/verify_rom.py#L10-L73)
 - [verify_range.py:1-62](file://tools/verify_range.py#L1-62)
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-75)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-28)
 - [check_continuity.py:1-79](file://tools/check_continuity.py#L1-79)
 - [fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-35)
 
 ## Architecture Overview
-The verification process fits into the broader build and analysis pipeline with enhanced validation capabilities for combined bank workflows:
+The verification process fits into the broader build and analysis pipeline with enhanced validation capabilities for combined bank workflows and paired bank validation:
 
 ```mermaid
 sequenceDiagram
@@ -160,6 +177,7 @@ participant Build as "build_nes.py"
 participant VerifyFull as "verify_rom.py"
 participant VerifyRange as "verify_range.py"
 participant VerifyBank1D as "verify_1d_bytes.py"
+participant Verify0A0B as "verify_0a_0b.py"
 participant CheckCont as "check_continuity.py"
 participant FixErr as "fix_asm_errors.py"
 participant Assemble1D1E as "assemble_prg_1d_1e.py"
@@ -182,6 +200,10 @@ Make->>VerifyBank1D : validate bank $1D bytes
 VerifyBank1D->>VerifyBank1D : extract bytes from comments
 VerifyBank1D->>VerifyBank1D : compare against prg_1d.bin
 VerifyBank1D-->>Dev : report byte-level validation
+Make->>Verify0A0B : validate paired banks $0A+$0B
+Verify0A0B->>Verify0A0B : extract paired banks from ROM
+Verify0A0B->>Verify0A0B : compare against test build
+Verify0A0B-->>Dev : report paired bank validation
 Make->>CheckCont : detect continuity issues
 CheckCont->>CheckCont : analyze address gaps/overlaps
 CheckCont-->>Dev : report continuity problems
@@ -200,6 +222,7 @@ Assemble1D1E-->>Dev : generate prg_1d_1e.asm
 - [verify_rom.py:10-73](file://tools/verify_rom.py#L10-L73)
 - [verify_range.py:1-62](file://tools/verify_range.py#L1-62)
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-75)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-28)
 - [check_continuity.py:1-79](file://tools/check_continuity.py#L1-79)
 - [fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-35)
 - [assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-41)
@@ -298,10 +321,42 @@ ExitCode --> |No| Fail["Exit 1"]
 ```
 
 **Diagram sources**
-- [verify_1d_bytes.py:20-75](file://tools/verify_1d_bytes.py#L20-L75)
+- [verify_1d_bytes.py:20-75](file://tools/verify_1d_bytes.py#L20-75)
 
 **Section sources**
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-75)
+
+### Paired Bank Validation Algorithm
+The specialized paired bank validation tool implements precise comparison for bank pairs:
+
+```mermaid
+flowchart TD
+Start(["Start"]) --> LoadROM["Load original ROM"]
+LoadROM --> Extract0A["Extract bank $0A<br/>(offset 16+0x0A*0x2000)"]
+Extract0A --> Extract0B["Extract bank $0B<br/>(offset 16+0x0B*0x2000)"]
+Extract0B --> CombineBanks["Combine banks as 16KB block"]
+CombineBanks --> LoadTestBin["Load test build output<br/>(build/prg_0a_0b_test.bin)"]
+LoadTestBin --> CompareBytes["Compare bytes sequentially"]
+CompareBytes --> Mismatch{"Bytes differ?"}
+Mismatch --> |Yes| CountMismatch["Increment mismatch count"]
+Mismatch --> |No| NextByte["Advance index"]
+CountMismatch --> ShowDetails{"< 10 mismatches?"}
+ShowDetails --> |Yes| PrintDetail["Print mismatch details<br/>with address and values"]
+ShowDetails --> |No| NextByte
+PrintDetail --> NextByte
+NextByte --> EndCheck{"Reached end?"}
+EndCheck --> |Yes| FinalReport["Print total mismatches<br/>and pass/fail status"]
+EndCheck --> |No| CompareBytes
+FinalReport --> ExitCode{"Zero mismatches?"}
+ExitCode --> |Yes| Success["Exit 0"]
+ExitCode --> |No| Fail["Exit 1"]
+```
+
+**Diagram sources**
+- [verify_0a_0b.py:5-27](file://tools/verify_0a_0b.py#L5-27)
+
+**Section sources**
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-28)
 
 ### Gap Detection Algorithm
 The continuity validation tool implements address gap analysis:
@@ -362,7 +417,7 @@ WriteFile --> ReportResults["Print fixed count and exit"]
 ```
 
 **Diagram sources**
-- [fix_asm_errors.py:9-35](file://tools/fix_asm_errors.py#L9-L35)
+- [fix_asm_errors.py:9-35](file://tools/fix_asm_errors.py#L9-35)
 
 **Section sources**
 - [fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-35)
@@ -409,6 +464,12 @@ All verification tools employ deterministic methodologies:
 - Duplicate detection: identifies overlapping or repeated address assignments
 - Statistical reporting: provides comprehensive coverage metrics
 
+#### Paired Bank Validation
+- Sequential bank extraction: reads consecutive 8KB banks as unified 16KB block
+- Address mapping: correctly maps local addresses to global ROM addresses
+- Detailed mismatch reporting: shows first 10 mismatches with exact addresses and values
+- Build integrity validation: verifies test build output matches original ROM structure
+
 #### Gap Detection
 - Sequential address tracking: monitors address progression across assembly lines
 - Gap calculation: measures missing address ranges between segments
@@ -421,14 +482,15 @@ All verification tools employ deterministic methodologies:
 - Comment preservation: maintains original byte annotations during corrections
 - Batch processing: applies corrections efficiently across multiple errors
 
-This methodology ensures reproducible results and clear actionable feedback for developers working with combined bank disassembly workflows.
+This methodology ensures reproducible results and clear actionable feedback for developers working with combined bank disassembly workflows and paired bank validation.
 
 **Section sources**
 - [verify_rom.py:27-73](file://tools/verify_rom.py#L27-L73)
 - [verify_range.py:19-55](file://tools/verify_range.py#L19-55)
-- [verify_1d_bytes.py:20-75](file://tools/verify_1d_bytes.py#L20-L75)
+- [verify_1d_bytes.py:20-75](file://tools/verify_1d_bytes.py#L20-75)
+- [verify_0a_0b.py:14-27](file://tools/verify_0a_0b.py#L14-27)
 - [check_continuity.py:15-79](file://tools/check_continuity.py#L15-L79)
-- [fix_asm_errors.py:9-35](file://tools/fix_asm_errors.py#L9-L35)
+- [fix_asm_errors.py:9-35](file://tools/fix_asm_errors.py#L9-35)
 
 ### Reporting Mechanisms
 All verification tools produce structured output:
@@ -452,6 +514,12 @@ All verification tools produce structured output:
 - Duplicate address error reporting
 - Success/failure indication for bank validation
 
+#### Paired Bank Validation
+- Paired bank comparison summary
+- Mismatch details with global addresses and byte values
+- Total mismatches and pass/fail status
+- Build integrity confirmation
+
 #### Gap Detection
 - Gap count and details with addresses and line numbers
 - Overlap count and details with conflicting addresses
@@ -471,12 +539,13 @@ Exit codes:
 **Section sources**
 - [verify_rom.py:18-73](file://tools/verify_rom.py#L18-L73)
 - [verify_range.py:56-62](file://tools/verify_range.py#L56-L62)
-- [verify_1d_bytes.py:63-75](file://tools/verify_1d_bytes.py#L63-L75)
-- [check_continuity.py:69-79](file://tools/check_continuity.py#L69-L79)
-- [fix_asm_errors.py:31-35](file://tools/fix_asm_errors.py#L31-L35)
+- [verify_1d_bytes.py:63-75](file://tools/verify_1d_bytes.py#L63-75)
+- [verify_0a_0b.py:22-27](file://tools/verify_0a_0b.py#L22-27)
+- [check_continuity.py:69-79](file://tools/check_continuity.py#L69-79)
+- [fix_asm_errors.py:31-35](file://tools/fix_asm_errors.py#L31-35)
 
 ## Enhanced Verification Pipeline
-The verification system now supports a multi-layered validation approach with specialized tools for combined bank workflows:
+The verification system now supports a multi-layered validation approach with specialized tools for combined bank workflows and paired bank validation:
 
 ### Integrated Validation Workflow
 End-to-end workflow integrating multiple validation methods:
@@ -494,6 +563,7 @@ participant Build as "build_nes.py"
 participant VerifyFull as "verify_rom.py"
 participant VerifyRange as "verify_range.py"
 participant VerifyBank1D as "verify_1d_bytes.py"
+participant Verify0A0B as "verify_0a_0b.py"
 participant CheckCont as "check_continuity.py"
 participant FixErr as "fix_asm_errors.py"
 Dev->>Make : make split
@@ -518,6 +588,8 @@ Make->>VerifyRange : range-specific validation
 VerifyRange-->>Dev : targeted validation report
 Make->>VerifyBank1D : validate bank $1D bytes
 VerifyBank1D-->>Dev : byte-level validation report
+Make->>Verify0A0B : validate paired banks $0A+$0B
+Verify0A0B-->>Dev : paired bank validation report
 Make->>CheckCont : detect continuity issues
 CheckCont-->>Dev : gap/overlap analysis
 Make->>FixErr : correct assembly errors
@@ -533,6 +605,7 @@ FixErr-->>Dev : corrected assembly output
 - [verify_rom.py:10-73](file://tools/verify_rom.py#L10-L73)
 - [verify_range.py:1-62](file://tools/verify_range.py#L1-62)
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-75)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-28)
 - [check_continuity.py:1-79](file://tools/check_continuity.py#L1-79)
 - [fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-35)
 - [assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-41)
@@ -562,6 +635,12 @@ Common scenarios and how to interpret results:
 - Mismatched bytes: shows exact address and byte differences
 - Duplicate addresses: reports overlapping or repeated address assignments
 
+#### Paired Bank Validation
+- Paired bank success: confirms $0A+$0B banks are byte-for-byte identical to original
+- Mismatch details: shows first 10 mismatches with global addresses and byte values
+- Total mismatch count: indicates extent of discrepancies in the 16KB combined block
+- Build integrity: validates that test build output matches original ROM structure
+
 #### Gap Detection
 - Gap identification: reports missing address ranges between segments
 - Overlap detection: identifies conflicting address assignments
@@ -574,14 +653,15 @@ Common scenarios and how to interpret results:
 - Comment preservation: maintains original byte annotations
 - Batch processing: handles multiple error locations efficiently
 
-These outputs guide targeted fixes and iterative improvements across different validation scopes, particularly important for combined bank disassembly workflows.
+These outputs guide targeted fixes and iterative improvements across different validation scopes, particularly important for combined bank disassembly workflows and paired bank validation.
 
 **Section sources**
 - [verify_rom.py:22-73](file://tools/verify_rom.py#L22-L73)
 - [verify_range.py:22-62](file://tools/verify_range.py#L22-L62)
-- [verify_1d_bytes.py:41-75](file://tools/verify_1d_bytes.py#L41-L75)
-- [check_continuity.py:69-79](file://tools/check_continuity.py#L69-L79)
-- [fix_asm_errors.py:31-35](file://tools/fix_asm_errors.py#L31-L35)
+- [verify_1d_bytes.py:41-75](file://tools/verify_1d_bytes.py#L41-75)
+- [verify_0a_0b.py:22-27](file://tools/verify_0a_0b.py#L22-27)
+- [check_continuity.py:69-79](file://tools/check_continuity.py#L69-79)
+- [fix_asm_errors.py:31-35](file://tools/fix_asm_errors.py#L31-35)
 
 ### Common Verification Scenarios
 - Fresh rebuild: expect zero mismatches; any mismatch indicates incorrect assembly or linker configuration
@@ -590,6 +670,7 @@ These outputs guide targeted fixes and iterative improvements across different v
 - Post-disasm: mismatches indicate incorrect disassembly or missing bank segments in the linker configuration
 - Range validation failures: indicate specific memory corruption or annotation errors within targeted regions
 - Combined bank validation: ensures $1D/$1E integration maintains byte-exact accuracy
+- Paired bank validation: ensures $0A/$0B combination maintains byte-exact accuracy across 16KB boundary
 - Continuity issues: gaps or overlaps in combined bank files indicate structural problems
 - Assembly syntax errors: illegal addressing modes require correction before successful assembly
 
@@ -598,6 +679,7 @@ These outputs guide targeted fixes and iterative improvements across different v
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 - [verify_range.py:30-31](file://tools/verify_range.py#L30-L31)
 - [verify_1d_bytes.py:34-39](file://tools/verify_1d_bytes.py#L34-L39)
+- [verify_0a_0b.py:17-20](file://tools/verify_0a_0b.py#L17-L20)
 - [check_continuity.py:58-64](file://tools/check_continuity.py#L58-L64)
 
 ### Troubleshooting Approaches for Mismatches
@@ -610,6 +692,7 @@ These outputs guide targeted fixes and iterative improvements across different v
 - Validate range annotations: ensure assembly files contain proper byte annotations for range validation
 - Check memory mapping: verify that address calculations align with expected bank layouts
 - Validate combined bank integrity: use gap detection tools to ensure continuity in $1D/$1E files
+- Validate paired bank integrity: use paired bank validation tools to ensure $0A/$0B combination accuracy
 - Correct assembly syntax errors: use error correction tools to fix illegal addressing modes
 - Perform byte-level validation: use specialized tools to verify exact byte correspondence
 
@@ -619,9 +702,10 @@ These outputs guide targeted fixes and iterative improvements across different v
 - [generate_bank_stubs.py:24-32](file://tools/generate_bank_stubs.py#L24-L32)
 - [analyze_rom.py:10-122](file://tools/analyze_rom.py#L10-L122)
 - [verify_range.py:36-39](file://tools/verify_range.py#L36-L39)
+- [verify_0a_0b.py:17-20](file://tools/verify_0a_0b.py#L17-L20)
 - [check_continuity.py:58-64](file://tools/check_continuity.py#L58-L64)
 - [fix_asm_errors.py:18-29](file://tools/fix_asm_errors.py#L18-L29)
-- [verify_1d_bytes.py:54-61](file://tools/verify_1d_bytes.py#L54-L61)
+- [verify_1d_bytes.py:54-61](file://tools/verify_1d_bytes.py#L54-61)
 
 ## Range-Based Verification
 The new range validation capability provides targeted validation for specific memory regions:
@@ -696,10 +780,47 @@ ExitCode --> |No| Fail["Exit 1"]
 ```
 
 **Diagram sources**
-- [verify_1d_bytes.py:20-75](file://tools/verify_1d_bytes.py#L20-L75)
+- [verify_1d_bytes.py:20-75](file://tools/verify_1d_bytes.py#L20-75)
 
 **Section sources**
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-75)
+
+## Paired Bank Validation
+The new paired bank validation capability provides specialized verification for bank combinations like $0A/$0B:
+
+### Paired Bank Validation Methodology
+The verify_0a_0b.py tool implements specialized validation for paired banks:
+
+- **Sequential Bank Extraction**: Reads consecutive 8KB banks as a unified 16KB block
+- **Global Address Mapping**: Correctly maps local addresses to global ROM addresses
+- **Detailed Mismatch Reporting**: Shows first 10 mismatches with exact addresses and byte values
+- **Build Integrity Validation**: Verifies test build output matches original ROM structure
+
+### Key Features
+- **Paired Bank Support**: Validates consecutive banks as a single logical unit
+- **Accurate Address Mapping**: Handles address translation from local to global space
+- **Selective Mismatch Display**: Limits verbose output to first 10 mismatches
+- **Pass/Fail Status**: Clear indication of validation success or failure
+- **Integration Ready**: Designed to work with the paired bank disassembly workflow
+
+### Usage in Paired Bank Workflow
+The paired bank validation tool is crucial for ensuring paired bank integrity:
+
+- **Pre-Assembly Validation**: Identifies issues before attempting to build paired bank combinations
+- **Post-Assembly Verification**: Confirms paired bank file integrity after assembly
+- **Build Consistency**: Ensures test builds match original ROM structure
+- **Quality Assurance**: Validates byte-exact accuracy across 16KB bank boundaries
+
+### Integration with Existing Tools
+The paired bank validation integrates with the broader verification ecosystem:
+
+- **Complementary to Full ROM Verification**: Provides focused validation for specific bank pairs
+- **Supports Combined Bank Workflows**: Works alongside other validation tools for comprehensive coverage
+- **Build Pipeline Integration**: Can be added to automated build verification processes
+- **Development Workflow Support**: Helps identify issues early in the disassembly process
+
+**Section sources**
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-28)
 
 ## Gap Detection and Continuity Validation
 The check_continuity.py tool provides essential validation for combined bank files:
@@ -764,7 +885,7 @@ ReportResults --> ExitCode["Exit successfully"]
 ```
 
 **Diagram sources**
-- [fix_asm_errors.py:9-35](file://tools/fix_asm_errors.py#L9-L35)
+- [fix_asm_errors.py:9-35](file://tools/fix_asm_errors.py#L9-35)
 
 **Section sources**
 - [fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-35)
@@ -776,10 +897,12 @@ The verification system depends on the build pipeline and ROM structure:
 graph TB
 VerifyFull["verify_rom.py"] --> Orig["Original ROM"]
 VerifyFull --> Rebuilt["Rebuilt ROM (sango2.nes)"]
-VerifyRange["verify_range.py"] --> ASMFile["Annotated Assembly<br/>prg_1f.asm"]
+VerifyRange["verify_range.py"] --> ASMFile["Annotated Assembly<br/>prg_1f.aligned.asm"]
 VerifyRange --> ROMBin["ROM Binary<br/>prg_1f.bin"]
 VerifyBank1D["verify_1d_bytes.py"] --> Bank1D["Bank $1D Binary<br/>prg_1d.bin"]
 VerifyBank1D --> FinalASM["Final Assembly<br/>(/tmp/prg_1d_final.asm)"]
+Verify0A0B["verify_0a_0b.py"] --> OriginalROM["Original ROM"]
+Verify0A0B --> TestBin["Test Build<br/>build/prg_0a_0b_test.bin"]
 CheckCont["check_continuity.py"] --> CombinedASM["Combined Bank<br/>prg_1d_1e.asm"]
 FixErr["fix_asm_errors.py"] --> ErrorFile["Error Lines<br/>error_locations.txt"]
 FixErr --> ASMFile["Assembly File<br/>prg_1d_1e.asm"]
@@ -799,6 +922,7 @@ Split --> Banks
 - [verify_rom.py:10-73](file://tools/verify_rom.py#L10-L73)
 - [verify_range.py:7-9](file://tools/verify_range.py#L7-L9)
 - [verify_1d_bytes.py:9-15](file://tools/verify_1d_bytes.py#L9-L15)
+- [verify_0a_0b.py:5-12](file://tools/verify_0a_0b.py#L5-L12)
 - [check_continuity.py:5](file://tools/check_continuity.py#L5)
 - [fix_asm_errors.py:6-7](file://tools/fix_asm_errors.py#L6-L7)
 - [assemble_prg_1d_1e.py:8-26](file://tools/assemble_prg_1d_1e.py#L8-L26)
@@ -821,6 +945,7 @@ Split --> Banks
 - **File I/O efficiency**: All tools use buffered I/O for optimal performance
 - **Batch processing**: Multiple validation tools can run in parallel for improved throughput
 - **Specialized algorithms**: Byte-level validation uses optimized comparison loops for better performance
+- **Paired bank efficiency**: Sequential bank reading minimizes memory overhead for paired validation
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -844,6 +969,13 @@ Common issues and resolutions:
 - Mismatched bytes: requires investigation of assembly comment accuracy
 - Coverage gaps: indicates missing validation for certain address ranges
 
+### Paired Bank Validation Issues
+- Paired bank extraction errors: verify ROM structure and bank boundaries
+- Address mapping issues: check global address calculations for paired banks
+- Test build path errors: ensure test build output exists at expected location
+- Mismatch interpretation: use reported addresses to locate issues in paired bank source
+- Build configuration problems: verify linker configuration for paired bank combinations
+
 ### Gap Detection Issues
 - False gap reports: check for proper address comment formatting in assembly files
 - Missing overlaps: verify segment boundaries and address calculations
@@ -866,15 +998,16 @@ Common issues and resolutions:
 - [verify_rom.py:53-73](file://tools/verify_rom.py#L53-L73)
 - [verify_range.py:44-46](file://tools/verify_range.py#L44-L46)
 - [verify_1d_bytes.py:41-46](file://tools/verify_1d_bytes.py#L41-L46)
-- [check_continuity.py:69-79](file://tools/check_continuity.py#L69-L79)
-- [fix_asm_errors.py:31-35](file://tools/fix_asm_errors.py#L31-L35)
+- [verify_0a_0b.py:17-20](file://tools/verify_0a_0b.py#L17-L20)
+- [check_continuity.py:69-79](file://tools/check_continuity.py#L69-79)
+- [fix_asm_errors.py:31-35](file://tools/fix_asm_errors.py#L31-35)
 - [build_nes.py:15-20](file://tools/build_nes.py#L15-L20)
 
 ## Conclusion
-The ROM verification system provides a robust, deterministic mechanism to validate disassembly correctness through both comprehensive and targeted validation approaches. By performing byte-exact comparisons and delivering precise reporting, it anchors the development cycle with reliable quality checks. The addition of specialized tools for combined bank validation, gap detection, and assembly error correction significantly enhances the system's ability to validate complex disassembly workflows while maintaining the comprehensive coverage of full ROM validation.
+The ROM verification system provides a robust, deterministic mechanism to validate disassembly correctness through both comprehensive and targeted validation approaches. By performing byte-exact comparisons and delivering precise reporting, it anchors the development cycle with reliable quality checks. The addition of specialized tools for combined bank validation, paired bank validation, gap detection, and assembly error correction significantly enhances the system's ability to validate complex disassembly workflows while maintaining the comprehensive coverage of full ROM validation.
 
-The enhanced verification system now supports sophisticated validation scenarios including byte-level accuracy for individual banks, continuity validation for combined bank files, and automated error correction for assembly syntax issues. These capabilities are particularly valuable for projects involving complex memory layouts and combined bank disassembly workflows.
+The enhanced verification system now supports sophisticated validation scenarios including byte-level accuracy for individual banks, continuity validation for combined bank files, paired bank validation for bank combinations like $0A/$0B, and automated error correction for assembly syntax issues. These capabilities are particularly valuable for projects involving complex memory layouts and combined bank disassembly workflows.
 
-Proper use of verification output, combined with careful linker configuration and accurate disassembly, ensures high-fidelity ROM reconstruction and maintains project quality throughout development. The multi-layered validation approach provides both broad coverage and targeted precision, enabling developers to quickly identify and resolve issues across different scopes of the ROM structure, from full ROM validation down to individual byte-level accuracy in combined bank files.
+Proper use of verification output, combined with careful linker configuration and accurate disassembly, ensures high-fidelity ROM reconstruction and maintains project quality throughout development. The multi-layered validation approach provides both broad coverage and targeted precision, enabling developers to quickly identify and resolve issues across different scopes of the ROM structure, from full ROM validation down to individual byte-level accuracy in combined and paired bank files.
 
-The integration of gap detection, byte-level validation, and assembly error correction tools creates a comprehensive validation ecosystem that supports the evolving complexity of modern disassembly projects, particularly those involving sophisticated memory management and combined bank architectures.
+The integration of gap detection, byte-level validation, paired bank validation, and assembly error correction tools creates a comprehensive validation ecosystem that supports the evolving complexity of modern disassembly projects, particularly those involving sophisticated memory management and combined bank architectures.

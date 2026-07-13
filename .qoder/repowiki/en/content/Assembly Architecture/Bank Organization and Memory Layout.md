@@ -7,10 +7,6 @@
 - [namco163.h](file://include/namco163.h)
 - [functions.h](file://include/functions.h)
 - [all_banks.asm](file://asm/banks/all_banks.asm)
-- [prg_00.asm](file://asm/banks/prg_00.asm)
-- [prg_01.asm](file://asm/banks/prg_01.asm)
-- [prg_0a.asm](file://asm/banks/prg_0a.asm)
-- [prg_0b.asm](file://asm/banks/prg_0b.asm)
 - [prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
@@ -18,17 +14,16 @@
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [bank_1f_plan.md](file://code/bank_1f_plan.md)
 - [Makefile](file://Makefile)
-- [main.lst](file://build/main.lst)
-- [assemble_prg_1d_1e.py](file://tools/assemble_prg_1d_1e.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for new consolidated PRG banks $0A/$0B architecture with unified 16KB block management at $A000-$DFFF
-- Updated linker configuration sections to include CODE_BANK0A and CODE_BANK0B segments mapping to PRG_SLOT1 and PRG_SLOT2 respectively
-- Enhanced bank switching mechanisms documentation to include specialized routines for the $0A/$0B consolidated pair
-- Added detailed analysis of the $0A/$0B jump table entry points and their relationship to the existing consolidated bank framework
-- Updated practical examples to demonstrate the new consolidated architecture alongside existing $17/$18 and $1D/$1E pairs
+- Enhanced documentation of consolidated PRG Banks $0A/$0B Architecture with new descriptive naming conventions for functions like CheckGameStart, InitWorkAreas, ScanMatchData, SumAndCompare, ArmyDispatch, ProvinceSearch
+- Improved code organization with comprehensive work area definitions including Work Area ($0036-$0045), Math Workspace ($20-$27), Game State ($05xx), and SRAM Integration ($6Fxx)
+- Updated function naming from generic EntryXX format to descriptive names throughout consolidated banks for better maintainability
+- Enhanced data structure organization with separated tables (ProvinceDataA/B/C, TierAdjustA/B/C) for better maintainability
+- Refined SceneRenderer callback architecture with 6-stage rendering pipeline in bank $1D/$1E
+- Updated bank switching mechanisms to reflect consolidated architecture with unified 16KB blocks at $A000-$DFFF
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -83,16 +78,19 @@ S1F -. includes .-> CFG
 ```
 
 **Diagram sources**
-- [all_banks.asm:28](file://asm/banks/all_banks.asm#L28)
-- [prg_0a_0b.asm:1-800](file://asm/banks/prg_0a_0b.asm#L1-L800)
-- [prg_17_18.asm:1-800](file://asm/banks/prg_17_18.asm#L1-L800)
-- [prg_1d_1e.asm:1-800](file://asm/banks/prg_1d_1e.asm#L1-L800)
+- [all_banks.asm:15](file://asm/banks/all_banks.asm#L15)
+- [all_banks.asm:27](file://asm/banks/all_banks.asm#L27)
+- [all_banks.asm:32](file://asm/banks/all_banks.asm#L32)
+- [all_banks.asm:33](file://asm/banks/all_banks.asm#L33)
+- [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
+- [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
+- [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
-- [all_banks.asm:1-37](file://asm/banks/all_banks.asm#L1-L37)
+- [all_banks.asm:1-35](file://asm/banks/all_banks.asm#L1-L35)
 
 ## Core Components
 - 32 PRG banks × 8KB = 256KB total PRG ROM
@@ -152,11 +150,11 @@ SWITCH1D1E --> MAPPER
 ```
 
 **Diagram sources**
-- [PROJECT.md:84-94](file://PROJECT.md#L84-L94)
+- [PROJECT.md:84-94](file://PROJECT.md#L84-94)
 - [namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [functions.h:187-188](file://include/functions.h#L187-L188)
-- [prg_0a_0b.asm:1-800](file://asm/banks/prg_0a_0b.asm#L1-L800)
-- [prg_17_18.asm:1-800](file://asm/banks/prg_17_18.asm#L1-L800)
+- [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
+- [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
 
 **Section sources**
@@ -264,7 +262,7 @@ Bank switching macros:
 **Updated**: Segment organization for consolidated banks:
 - CODE_BANK0A: load = PRG_SLOT1, type = ro, optional = yes (maps to $A000-$BFFF)
 - CODE_BANK0B: load = PRG_SLOT2, type = ro, optional = yes (maps to $C000-$DFFF)
-- CODE_BANK17_18: load = PRG_SLOT1, type = ro, optional = yes (maps to $A000-$BFFF)
+- CODE_BANK17: load = PRG_SLOT1, type = ro, optional = yes (maps to $A000-$BFFF)
 - CODE_BANK18: load = PRG_SLOT2, type = ro, optional = yes (maps to $C000-$DFFF)
 - **New**: CODE_BANK1D: load = PRG_SLOT1, type = ro, optional = yes (maps to $A000-$BFFF)
 - **New**: CODE_BANK1E: load = PRG_SLOT2, type = ro, optional = yes (maps to $C000-$DFFF)
@@ -275,7 +273,7 @@ Segment organization strategy:
 - Use CODE0/CODE1/CODE2/CODE3 to allocate additional code to slots 0/1/2/3
 - Use RODATA segments to place constants and tables in appropriate slots
 - **Updated**: Consolidated bank 0A/0B code uses CODE_BANK0A and CODE_BANK0B segments for unified management
-- **Updated**: Consolidated bank 17/18 code uses CODE_BANK17_18 segment for unified management
+- **Updated**: Consolidated bank 17/18 code uses CODE_BANK17 and CODE_BANK18 segments for unified management
 - **New**: Consolidated bank 1D/1E code uses CODE_BANK1D and CODE_BANK1E segments for unified management with comprehensive zero-page variable organization
 
 **Section sources**
@@ -450,8 +448,48 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - [prg_0a_0b.asm:487-526](file://asm/banks/prg_0a_0b.asm#L487-L526)
 - [prg_0a_0b.asm:527-572](file://asm/banks/prg_0a_0b.asm#L527-L572)
 - [prg_0a_0b.asm:577-664](file://asm/banks/prg_0a_0b.asm#L577-L664)
-- [prg_0a_0b.asm:672-727](file://asm/banks/prg_0a_0b.asm#L672-L727)
-- [prg_0a_0b.asm:786-800](file://asm/banks/prg_0a_0b.asm#L786-L800)
+- [prg_0a_0b.asm:672-727](file://asm/banks/prg_0a_0b.asm#L672-727)
+- [prg_0a_0b.asm:786-800](file://asm/banks/prg_0a_0b.asm#L786-800)
+
+### Enhanced Display System in Banks $1D/$1E
+**New**: Major refactoring of banks $1D/$1E introduces comprehensive improvements to the display system:
+
+#### Comprehensive Zero-Page Variable Organization
+**New**: Extensive zero-page variable definitions organized for display and rendering:
+- **Zero-page scratch/workspace ($0000-$001F)**: General-purpose pointers, workspace variables, and temporary storage
+- **Display/render state ($005E-$0074)**: Frame counters, scene parameters, and render control variables
+- **State handler workspace ($00AE-$00DC)**: VRAM counters, row counters, and state management variables
+- **Page $01 workspace ($0100-$0190)**: Display pointer tables, scroll offsets, and buffer management
+- **OAM sprite data ($0200-$0203)**: Sprite buffer management for scene rendering
+- **Display/render buffers ($037C-$03C3)**: Tile buffers, display offsets, and rendering state
+
+#### SceneRenderer Callback Architecture
+**New**: Improved 6-stage rendering pipeline with dedicated callback functions:
+- **SceneOfficerListInit**: Initialize officer list state registers
+- **ScenePageCopy**: Copy scene page data with bank switch and palette update
+- **SceneRenderSetup**: Scenario render setup with data loading and palette fade
+- **SceneSpriteSetup**: Sprite OAM setup and input-driven palette copy
+- **SceneRenderExit3**: Alternate render exit with scenario data loading
+- **SceneBufferFill**: Fill VRAM buffer page with $AA and set up data pointers
+
+#### Enhanced Menu System
+**New**: Comprehensive menu system with advanced features:
+- **MenuUpdate**: Main menu update loop with input processing
+- **VRAMBufferWrite**: Efficient VRAM buffer writing with command processing
+- **PPUTileRender**: Advanced tile rendering with overlay support
+- **StateHandler**: Complex state machine for various display scenarios
+- **OfficerListHandler**: Officer list management with scrolling and selection
+
+#### Systematic Naming Conventions
+**New**: Improved function naming conventions throughout the codebase:
+- **Entry points**: Descriptive names like PPUTileRender_Entry, MenuUpdate_Entry, VRAMBufferWrite_Entry
+- **Internal functions**: Clear functional names like SceneRenderer, StateHandler, OfficerListHandler
+- **Helper functions**: Purposeful names like AdvanceReadPtr, StoreTileByte, ClearTileBuffers
+
+**Section sources**
+- [prg_1d_1e.asm:19-259](file://asm/banks/prg_1d_1e.asm#L19-L259)
+- [prg_1d_1e.asm:264-336](file://asm/banks/prg_1d_1e.asm#L264-L336)
+- [prg_1d_1e.asm:3180-3402](file://asm/banks/prg_1d_1e.asm#L3180-L3402)
 
 ### Memory Overlap Considerations
 - Bank 0x1F is fixed in slot 3 ($E000-$FFFF) at boot
@@ -523,7 +561,9 @@ BOOT --> STUBS
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [namco163.h:30-62](file://include/namco163.h#L30-L62)
 - [functions.h:187-188](file://include/functions.h#L187-L188)
-- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
+- [all_banks.asm:15](file://asm/banks/all_banks.asm#L15)
+- [all_banks.asm:27](file://asm/banks/all_banks.asm#L27)
+- [all_banks.asm:32](file://asm/banks/all_banks.asm#L32)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
@@ -534,7 +574,7 @@ BOOT --> STUBS
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [namco163.h:30-62](file://include/namco163.h#L30-L62)
 - [functions.h:187-188](file://include/functions.h#L187-L188)
-- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
+- [all_banks.asm:1-35](file://asm/banks/all_banks.asm#L1-L35)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)

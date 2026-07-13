@@ -10,7 +10,7 @@
 - [include/macros.h](file://include/macros.h)
 - [include/functions.h](file://include/functions.h)
 - [asm/main.asm](file://asm/main.asm)
-- [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [asm/banks/prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [asm/banks/prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [tools/globalize_04xx.py](file://tools/globalize_04xx.py)
@@ -115,7 +115,7 @@ BANK1D_1E --> PRG
 - [include/namco163.h:68-86](file://include/namco163.h#L68-L86)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [asm/main.asm:30-60](file://asm/main.asm#L30-L60)
-- [asm/banks/prg_1f.asm:153-168](file://asm/banks/prg_1f.asm#L153-L168)
+- [asm/banks/prg_1f.aligned.asm:153-168](file://asm/banks/prg_1f.aligned.asm#L153-L168)
 - [tools/globalize_04xx.py:13-77](file://tools/globalize_04xx.py#L13-L77)
 - [include/functions.h:315-335](file://include/functions.h#L315-335)
 
@@ -140,12 +140,12 @@ CPU->>State : Enter selected state
 
 **Diagram sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
-- [asm/banks/prg_1f.asm:138-147](file://asm/banks/prg_1f.asm#L138-L147)
-- [asm/banks/prg_1f.asm:153-168](file://asm/banks/prg_1f.asm#L153-L168)
+- [asm/banks/prg_1f.aligned.asm:138-147](file://asm/banks/prg_1f.aligned.asm#L138-L147)
+- [asm/banks/prg_1f.aligned.asm:153-168](file://asm/banks/prg_1f.aligned.asm#L153-L168)
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
-- [asm/banks/prg_1f.asm:74-147](file://asm/banks/prg_1f.asm#L74-L147)
+- [asm/banks/prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
 
 ## Detailed Component Analysis
 
@@ -186,7 +186,7 @@ CPU->>State : Enter selected state
 **Section sources**
 - [tools/globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
 - [asm/banks/prg_17_18.asm:14-30](file://asm/banks/prg_17_18.asm#L14-L30)
-- [asm/banks/prg_1f.asm:50-68](file://asm/banks/prg_1f.asm#L50-L68)
+- [asm/banks/prg_1f.aligned.asm:50-68](file://asm/banks/prg_1f.aligned.asm#L50-L68)
 
 ### Bank Switching Mechanism (Namco-163)
 - Mapper registers:
@@ -216,14 +216,14 @@ Apply4 --> End(["Done"])
 - [include/namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [include/namco163.h:68-86](file://include/namco163.h#L68-L86)
 - [include/macros.h:60-71](file://include/macros.h#L60-L71)
-- [asm/banks/prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
+- [asm/banks/prg_1f.aligned.asm:785-817](file://asm/banks/prg_1f.aligned.asm#L785-L817)
 
 **Section sources**
 - [include/namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [include/namco163.h:68-86](file://include/namco163.h#L68-L86)
 - [include/macros.h:58-71](file://include/macros.h#L58-L71)
 - [asm/main.asm:115-121](file://asm/main.asm#L115-L121)
-- [asm/banks/prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
+- [asm/banks/prg_1f.aligned.asm:785-817](file://asm/banks/prg_1f.aligned.asm#L785-L817)
 
 ### Address Calculation Patterns and Pointer Arithmetic
 - Vector table indexing uses AND + ASL to compute a 2-byte word index, then fetches low/high bytes to indirectly jump to a state routine.
@@ -244,12 +244,12 @@ E --> F["JMP indirect to state routine"]
 ```
 
 **Diagram sources**
-- [asm/banks/prg_1f.asm:138-147](file://asm/banks/prg_1f.asm#L138-L147)
-- [asm/banks/prg_1f.asm:740-749](file://asm/banks/prg_1f.asm#L740-L749)
+- [asm/banks/prg_1f.aligned.asm:138-147](file://asm/banks/prg_1f.aligned.asm#L138-L147)
+- [asm/banks/prg_1f.aligned.asm:740-749](file://asm/banks/prg_1f.aligned.asm#L740-L749)
 
 **Section sources**
-- [asm/banks/prg_1f.asm:138-147](file://asm/banks/prg_1f.asm#L138-L147)
-- [asm/banks/prg_1f.asm:740-749](file://asm/banks/prg_1f.asm#L740-L749)
+- [asm/banks/prg_1f.aligned.asm:138-147](file://asm/banks/prg_1f.aligned.asm#L138-L147)
+- [asm/banks/prg_1f.aligned.asm:740-749](file://asm/banks/prg_1f.aligned.asm#L740-L749)
 - [tools/globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
 
 ### Indirect Addressing and Banked Calls
@@ -272,13 +272,13 @@ Target-->>Caller : Return
 ```
 
 **Diagram sources**
-- [asm/banks/prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
-- [asm/banks/prg_1f.asm:236](file://asm/banks/prg_1f.asm#L236)
-- [asm/banks/prg_1f.asm:243](file://asm/banks/prg_1f.asm#L243)
+- [asm/banks/prg_1f.aligned.asm:785-817](file://asm/banks/prg_1f.aligned.asm#L785-L817)
+- [asm/banks/prg_1f.aligned.asm:236](file://asm/banks/prg_1f.aligned.asm#L236)
+- [asm/banks/prg_1f.aligned.asm:243](file://asm/banks/prg_1f.aligned.asm#L243)
 
 **Section sources**
-- [asm/banks/prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
-- [asm/banks/prg_1f.asm:236-255](file://asm/banks/prg_1f.asm#L236-L255)
+- [asm/banks/prg_1f.aligned.asm:785-817](file://asm/banks/prg_1f.aligned.asm#L785-L817)
+- [asm/banks/prg_1f.aligned.asm:236-255](file://asm/banks/prg_1f.aligned.asm#L236-L255)
 
 ### Fast Multiplication via Accumulator Shifts
 The codebase implements efficient multiplication routines using shift-and-add with LSR/ASL and ROL sequences:
@@ -299,12 +299,12 @@ Dec --> |No| End(["Return 32/40-bit product"])
 ```
 
 **Diagram sources**
-- [asm/banks/prg_1f.asm:1752-1794](file://asm/banks/prg_1f.asm#L1752-L1794)
-- [asm/banks/prg_1f.asm:1801-1852](file://asm/banks/prg_1f.asm#L1801-L1852)
+- [asm/banks/prg_1f.aligned.asm:1752-1794](file://asm/banks/prg_1f.aligned.asm#L1752-L1794)
+- [asm/banks/prg_1f.aligned.asm:1801-1852](file://asm/banks/prg_1f.aligned.asm#L1801-L1852)
 
 **Section sources**
-- [asm/banks/prg_1f.asm:1752-1794](file://asm/banks/prg_1f.asm#L1752-L1794)
-- [asm/banks/prg_1f.asm:1801-1852](file://asm/banks/prg_1f.asm#L1801-L1852)
+- [asm/banks/prg_1f.aligned.asm:1752-1794](file://asm/banks/prg_1f.aligned.asm#L1752-L1794)
+- [asm/banks/prg_1f.aligned.asm:1801-1852](file://asm/banks/prg_1f.aligned.asm#L1801-L1852)
 
 ### Relationship Between Physical ROM Layout and Logical Addressing
 - Physical PRG banks are 8KB each; the mapper writes select which bank appears in each 8KB slot.
@@ -625,7 +625,7 @@ graph LR
 MAIN["asm/main.asm"] --> REGS["include/6502_registers.h"]
 MAIN --> MAP["include/namco163.h"]
 MAIN --> MAC["include/macros.h"]
-MAIN --> PRG1F["asm/banks/prg_1f.asm"]
+MAIN --> PRG1F["asm/banks/prg_1f.aligned.asm"]
 PRG1F --> REGS
 PRG1F --> MAP
 PRG1F --> MAC
@@ -639,7 +639,7 @@ FUNC --> BANK1D_1E["asm/banks/prg_1d_1e.asm"]
 - [include/6502_registers.h:40-50](file://include/6502_registers.h#L40-50)
 - [include/namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [include/macros.h:58-71](file://include/macros.h#L58-L71)
-- [asm/banks/prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
+- [asm/banks/prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
 - [include/functions.h:570-591](file://include/functions.h#L570-L591)
 
 **Section sources**
@@ -647,7 +647,7 @@ FUNC --> BANK1D_1E["asm/banks/prg_1d_1e.asm"]
 - [include/6502_registers.h:40-50](file://include/6502_registers.h#L40-50)
 - [include/namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [include/macros.h:58-71](file://include/macros.h#L58-L71)
-- [asm/banks/prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
+- [asm/banks/prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
 
 ## Performance Considerations
 - Bank switching cost: Each bank switch requires writing to mapper registers; batching multiple switches reduces overhead.
@@ -700,8 +700,8 @@ FUNC --> BANK1D_1E["asm/banks/prg_1d_1e.asm"]
   - **VRAM counter overflow**: Ensure proper handling of 16-bit counter pairs
 
 **Section sources**
-- [asm/banks/prg_1f.asm:785-817](file://asm/banks/prg_1f.asm#L785-L817)
-- [asm/banks/prg_1f.asm:138-147](file://asm/banks/prg_1f.asm#L138-L147)
+- [asm/banks/prg_1f.aligned.asm:785-817](file://asm/banks/prg_1f.aligned.asm#L785-L817)
+- [asm/banks/prg_1f.aligned.asm:138-147](file://asm/banks/prg_1f.aligned.asm#L138-L147)
 - [PROJECT.md:78](file://PROJECT.md#L78)
 - [linker.cfg:43-47](file://linker.cfg#L43-L47)
 - [tools/globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)

@@ -6,7 +6,7 @@
 - [macros.h](file://include/macros.h)
 - [namco163.h](file://include/namco163.h)
 - [main.asm](file://asm/main.asm)
-- [prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [bank_1f_raw.asm](file://code/bank_1f_raw.asm)
 - [linker.cfg](file://linker.cfg)
 - [rom_info.h](file://rom/rom_info.h)
@@ -46,7 +46,7 @@ The hardware abstraction layer is organized around three primary header files an
 - include/macros.h: Provides reusable 6502 assembly macros for hardware operations (VBlank wait, PPU address setting, PPU writes, PPU block copy, DMA sprites, and bank switching).
 - include/namco163.h: Defines Namco-163 mapper constants, bank indices, and switch_bank_* macros.
 - asm/main.asm: Demonstrates usage of the hardware abstractions in initialization routines.
-- asm/banks/prg_1f.asm: Contains the refactored sound system implementation with SoundNotePlayer routine and NMI control procedures.
+- asm/banks/prg_1f.aligned.asm: Contains the refactored sound system implementation with SoundNotePlayer routine and NMI control procedures.
 - code/bank_1f_raw.asm: Raw disassembly of the sound system components including SoundNotePlayer and related functions.
 - linker.cfg: Describes the memory layout and banked PRG slots used by the mapper.
 - rom/rom_info.h: Auto-generated ROM metadata used by the build system.
@@ -96,7 +96,7 @@ END2 --> END
 
 **Diagram sources**
 - [main.asm:1-141](file://asm/main.asm#L1-L141)
-- [prg_1f.asm:837-1036](file://asm/banks/prg_1f.asm#L837-L1036)
+- [prg_1f.aligned.asm:837-1036](file://asm/banks/prg_1f.aligned.asm#L837-L1036)
 - [bank_1f_raw.asm:1316-1413](file://code/bank_1f_raw.asm#L1316-L1413)
 - [6502_registers.h:1-88](file://include/6502_registers.h#L1-L88)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
@@ -149,7 +149,7 @@ This section documents the core hardware abstraction components and their roles.
 - [6502_registers.h:5-88](file://include/6502_registers.h#L5-L88)
 - [namco163.h:10-87](file://include/namco163.h#L10-L87)
 - [macros.h:8-72](file://include/macros.h#L8-L72)
-- [prg_1f.asm:926-976](file://asm/banks/prg_1f.asm#L926-L976)
+- [prg_1f.aligned.asm:926-976](file://asm/banks/prg_1f.aligned.asm#L926-L976)
 - [functions.h:185-191](file://include/functions.h#L185-L191)
 
 ## Architecture Overview
@@ -165,7 +165,7 @@ graph TB
 GAME["Game Code<br/>asm/main.asm"] --> MACROS["Hardware Macros<br/>include/macros.h"]
 GAME --> REGDEF["Register Definitions<br/>include/6502_registers.h"]
 GAME --> MAPPER["Mapper Abstractions<br/>include/namco163.h"]
-GAME --> SOUND["Sound System<br/>prg_1f.asm"]
+GAME --> SOUND["Sound System<br/>prg_1f.aligned.asm"]
 GAME --> HELPERS["Bank Switching Helpers<br/>include/functions.h"]
 MACROS --> PPU["PPU I/O<br/>$2000-$2007"]
 MACROS --> APU["APU/IO I/O<br/>$4000-$4017"]
@@ -186,8 +186,8 @@ MEM --> BANKREG
 - [main.asm:104-121](file://asm/main.asm#L104-L121)
 - [6502_registers.h:6-38](file://include/6502_registers.h#L6-L38)
 - [namco163.h:11-62](file://include/namco163.h#L11-L62)
-- [prg_1f.asm:1136-1151](file://asm/banks/prg_1f.asm#L1136-L1151)
-- [prg_1f.asm:926-976](file://asm/banks/prg_1f.asm#L926-L976)
+- [prg_1f.aligned.asm:1136-1151](file://asm/banks/prg_1f.aligned.asm#L1136-L1151)
+- [prg_1f.aligned.asm:926-976](file://asm/banks/prg_1f.aligned.asm#L926-L976)
 - [linker.cfg:18-30](file://linker.cfg#L18-L30)
 - [functions.h:187-190](file://include/functions.h#L187-L190)
 
@@ -285,7 +285,7 @@ These functions encapsulate the new register addressing scheme and provide a cle
 **Section sources**
 - [functions.h:187-190](file://include/functions.h#L187-L190)
 - [bank_1f_analysis.md:499-523](file://code/bank_1f_analysis.md#L499-L523)
-- [prg_1f.asm:285](file://asm/banks/prg_1f.asm#L285)
+- [prg_1f.aligned.asm:285](file://asm/banks/prg_1f.aligned.asm#L285)
 
 ### Sound System Refactor
 **Updated** The sound system has been completely refactored with a new SoundNotePlayer routine that provides efficient handling of 4-byte note entries from banked ROM locations.
@@ -315,8 +315,8 @@ The PPU/NMI control system now features consistent NmiEnable and NmiDisable proc
 - Both procedures maintain proper PPU state and provide reliable NMI toggling for frame synchronization.
 
 **Section sources**
-- [prg_1f.asm:926-976](file://asm/banks/prg_1f.asm#L926-L976)
-- [prg_1f.asm:1136-1151](file://asm/banks/prg_1f.asm#L1136-L1151)
+- [prg_1f.aligned.asm:926-976](file://asm/banks/prg_1f.aligned.asm#L926-L976)
+- [prg_1f.aligned.asm:1136-1151](file://asm/banks/prg_1f.aligned.asm#L1136-L1151)
 - [bank_1f_raw.asm:1316-1413](file://code/bank_1f_raw.asm#L1316-L1413)
 
 ### Practical Usage Examples
@@ -381,7 +381,7 @@ MAIN["asm/main.asm"] --> REGDEF
 MAIN --> MACROS
 MAIN --> NAMCO
 MAIN --> LINKCFG
-SOUND["prg_1f.asm"] --> REGDEF
+SOUND["prg_1f.aligned.asm"] --> REGDEF
 SOUND --> MACROS
 SOUND --> NAMCO
 SOUND --> LINKCFG
@@ -396,7 +396,7 @@ ANALYSIS["code/bank_1f_analysis.md"] --> HELPERS
 - [namco163.h:1-87](file://include/namco163.h#L1-L87)
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [main.asm:6-7](file://asm/main.asm#L6-L7)
-- [prg_1f.asm:926-976](file://asm/banks/prg_1f.asm#L926-L976)
+- [prg_1f.aligned.asm:926-976](file://asm/banks/prg_1f.aligned.asm#L926-L976)
 - [functions.h:185-191](file://include/functions.h#L185-L191)
 - [bank_1f_analysis.md:499-523](file://code/bank_1f_analysis.md#L499-L523)
 
@@ -429,7 +429,7 @@ ANALYSIS["code/bank_1f_analysis.md"] --> HELPERS
 - [macros.h:37-47](file://include/macros.h#L37-L47)
 - [macros.h:52-55](file://include/macros.h#L52-L55)
 - [namco163.h:68-86](file://include/namco163.h#L68-L86)
-- [prg_1f.asm:1136-1151](file://asm/banks/prg_1f.asm#L1136-L1151)
+- [prg_1f.aligned.asm:1136-1151](file://asm/banks/prg_1f.aligned.asm#L1136-L1151)
 - [functions.h:187-190](file://include/functions.h#L187-L190)
 
 ## Conclusion
@@ -504,8 +504,8 @@ The hardware abstraction layer provides a clean separation between high-level ga
 - **NmiEnable/NmiDisable**: Consistent PPU/NMI control procedures for frame synchronization.
 
 **Section sources**
-- [prg_1f.asm:926-976](file://asm/banks/prg_1f.asm#L926-L976)
-- [prg_1f.asm:1136-1151](file://asm/banks/prg_1f.asm#L1136-L1151)
+- [prg_1f.aligned.asm:926-976](file://asm/banks/prg_1f.aligned.asm#L926-L976)
+- [prg_1f.aligned.asm:1136-1151](file://asm/banks/prg_1f.aligned.asm#L1136-L1151)
 
 ### Memory Layout Reference
 - Zero page and RAM: $0000-$07FF and mirrors.

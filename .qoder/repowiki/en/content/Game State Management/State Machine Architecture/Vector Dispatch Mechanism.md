@@ -4,7 +4,7 @@
 **Referenced Files in This Document**
 - [PROJECT.md](file://PROJECT.md)
 - [main.asm](file://asm/main.asm)
-- [prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 </cite>
 
 ## Update Summary
@@ -48,14 +48,14 @@ Vectors --> Reset
 ```
 
 **Diagram sources**
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
-- [prg_1f.asm:158-177](file://asm/banks/prg_1f.asm#L158-L177)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.aligned.asm:158-177](file://asm/banks/prg_1f.aligned.asm#L158-L177)
 - [main.asm:133-141](file://asm/main.asm#L133-L141)
 
 **Section sources**
 - [PROJECT.md:100-117](file://PROJECT.md#L100-L117)
 - [main.asm:133-141](file://asm/main.asm#L133-L141)
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 ## Core Components
 - **Centralized StateDispatch routine** at $E066 that serves as the main dispatch target for all state handlers
@@ -72,9 +72,9 @@ Key memory and addressing constants:
 - StateDispatch entry point = $E066
 
 **Section sources**
-- [prg_1f.asm:21](file://asm/banks/prg_1f.asm#L21-L25)
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
-- [prg_1f.asm:158-177](file://asm/banks/prg_1f.asm#L158-L177)
+- [prg_1f.aligned.asm:21](file://asm/banks/prg_1f.aligned.asm#L21-L25)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.aligned.asm:158-177](file://asm/banks/prg_1f.aligned.asm#L158-L177)
 
 ## Architecture Overview
 The centralized dispatch pipeline operates as follows:
@@ -111,8 +111,8 @@ SD->>Proc : "JMP (addr_dispatch_ptr)"
 ```
 
 **Diagram sources**
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
-- [prg_1f.asm:158-177](file://asm/banks/prg_1f.asm#L158-L177)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.aligned.asm:158-177](file://asm/banks/prg_1f.aligned.asm#L158-L177)
 
 ## Detailed Component Analysis
 
@@ -132,7 +132,7 @@ The routine performs:
 6. Perform indirect jump to state procedure
 
 **Section sources**
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 ### VectorTable Layout and Entries
 - VectorTable spans $E07C to $E09A (15 entries × 2 bytes each = 30 bytes total)
@@ -163,7 +163,7 @@ Notes:
 - **Centralized pattern** ensures consistent dispatch behavior across all states
 
 **Section sources**
-- [prg_1f.asm:158-177](file://asm/banks/prg_1f.asm#L158-L177)
+- [prg_1f.aligned.asm:158-177](file://asm/banks/prg_1f.aligned.asm#L158-L177)
 
 ### State Selection Algorithm
 The centralized algorithm transforms the raw state counter into a table index:
@@ -187,10 +187,10 @@ IndJump --> End(["Exit to state procedure"])
 ```
 
 **Diagram sources**
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 **Section sources**
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 ### Indirect Jump Mechanism
 - **addr_dispatch_ptr** is a 2-byte pointer used to store the resolved target address
@@ -214,11 +214,11 @@ SP->>SD : "JMP StateDispatch"
 ```
 
 **Diagram sources**
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
-- [prg_1f.asm:158-177](file://asm/banks/prg_1f.asm#L158-L177)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.aligned.asm:158-177](file://asm/banks/prg_1f.aligned.asm#L158-L177)
 
 **Section sources**
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 ### Modular .proc Organization
 Each state is implemented as a separate .proc block, enabling:
@@ -245,12 +245,12 @@ Examples of state procedures:
 **Updated** All state procedures now consistently end with `JMP StateDispatch` for centralized dispatch
 
 **Section sources**
-- [prg_1f.asm:182-210](file://asm/banks/prg_1f.asm#L182-L210)
-- [prg_1f.asm:218-284](file://asm/banks/prg_1f.asm#L218-L284)
-- [prg_1f.asm:289-295](file://asm/banks/prg_1f.asm#L289-L295)
-- [prg_1f.asm:303-373](file://asm/banks/prg_1f.asm#L303-L373)
-- [prg_1f.asm:378-384](file://asm/banks/prg_1f.asm#L378-L384)
-- [prg_1f.asm:391-440](file://asm/banks/prg_1f.asm#L391-L440)
+- [prg_1f.aligned.asm:182-210](file://asm/banks/prg_1f.aligned.asm#L182-L210)
+- [prg_1f.aligned.asm:218-284](file://asm/banks/prg_1f.aligned.asm#L218-L284)
+- [prg_1f.aligned.asm:289-295](file://asm/banks/prg_1f.aligned.asm#L289-L295)
+- [prg_1f.aligned.asm:303-373](file://asm/banks/prg_1f.aligned.asm#L303-L373)
+- [prg_1f.aligned.asm:378-384](file://asm/banks/prg_1f.aligned.asm#L378-L384)
+- [prg_1f.aligned.asm:391-440](file://asm/banks/prg_1f.aligned.asm#L391-L440)
 
 ### Supporting Sub-State Dispatch (NMI)
 While not part of the main vector dispatch, the NMI handler demonstrates a similar technique for sub-states:
@@ -260,8 +260,8 @@ While not part of the main vector dispatch, the NMI handler demonstrates a simil
 This reinforces the pattern of masking, scaling, and indirect resolution for efficient branching.
 
 **Section sources**
-- [prg_1f.asm:2585-2594](file://asm/banks/prg_1f.asm#L2585-L2594)
-- [prg_1f.asm:2596-2599](file://asm/banks/prg_1f.asm#L2596-L2599)
+- [prg_1f.aligned.asm:2585-2594](file://asm/banks/prg_1f.aligned.asm#L2585-L2594)
+- [prg_1f.aligned.asm:2596-2599](file://asm/banks/prg_1f.aligned.asm#L2596-L2599)
 
 ## Dependency Analysis
 The centralized dispatch mechanism depends on:
@@ -283,12 +283,12 @@ PROC --> SD
 ```
 
 **Diagram sources**
-- [prg_1f.asm:21](file://asm/banks/prg_1f.asm#L21-L25)
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.aligned.asm:21](file://asm/banks/prg_1f.aligned.asm#L21-L25)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 **Section sources**
-- [prg_1f.asm:21](file://asm/banks/prg_1f.asm#L21-L25)
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
+- [prg_1f.aligned.asm:21](file://asm/banks/prg_1f.aligned.asm#L21-L25)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
 
 ## Performance Considerations
 - **Centralized dispatch optimization**: The StateDispatch routine eliminates redundant inline dispatch logic
@@ -317,9 +317,9 @@ Common issues and checks:
   - Check that all state procedures follow the centralized dispatch pattern
 
 **Section sources**
-- [prg_1f.asm:142-156](file://asm/banks/prg_1f.asm#L142-L156)
-- [prg_1f.asm:182-210](file://asm/banks/prg_1f.asm#L182-L210)
-- [prg_1f.asm:218-284](file://asm/banks/prg_1f.asm#L218-L284)
+- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
+- [prg_1f.aligned.asm:182-210](file://asm/banks/prg_1f.aligned.asm#L182-L210)
+- [prg_1f.aligned.asm:218-284](file://asm/banks/prg_1f.aligned.asm#L218-L284)
 
 ## Conclusion
 The centralized vector dispatch mechanism leverages a compact, predictable table and simple arithmetic to achieve efficient state branching on 6502. By implementing StateDispatch at $E066 and replacing previous inline dispatch logic, the design provides a consistent entry point for all state handlers while minimizing branching overhead. The centralized approach maintains clean, modular state logic while supporting both direct execution and seamless transitions through the standardized dispatch pattern. This architecture forms the backbone of the game's state engine with improved maintainability and performance.

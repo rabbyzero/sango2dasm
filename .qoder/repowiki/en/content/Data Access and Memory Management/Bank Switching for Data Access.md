@@ -3,7 +3,7 @@
 <cite>
 **Referenced Files in This Document**
 - [namco163.h](file://include/namco163.h)
-- [prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [main.asm](file://asm/main.asm)
 - [PROJECT.md](file://PROJECT.md)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
@@ -71,13 +71,13 @@ BANK_SWITCH_TABLE --> CONFIG_2
 
 **Diagram sources**
 - [namco163.h:10-14](file://include/namco163.h#L10-L14)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
 
 **Section sources**
 - [PROJECT.md:70-117](file://PROJECT.md#L70-L117)
 - [namco163.h:1-87](file://include/namco163.h#L1-L87)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 
 ## Core Components
 - Namco-163 mapper registers and bank indices are defined in the include header.
@@ -95,8 +95,8 @@ Key elements:
 
 **Section sources**
 - [namco163.h:10-86](file://include/namco163.h#L10-L86)
-- [prg_1f.asm:780-818](file://asm/banks/prg_1f.asm#L780-L818)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:780-818](file://asm/banks/prg_1f.aligned.asm#L780-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 - [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
@@ -125,10 +125,10 @@ State-->>State : Continue gameplay
 ```
 
 **Diagram sources**
-- [prg_1f.asm:72-148](file://asm/banks/prg_1f.asm#L72-L148)
-- [prg_1f.asm:131-132](file://asm/banks/prg_1f.asm#L131-L132)
-- [prg_1f.asm:780-818](file://asm/banks/prg_1f.asm#L780-L818)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:72-148](file://asm/banks/prg_1f.aligned.asm#L72-L148)
+- [prg_1f.aligned.asm:131-132](file://asm/banks/prg_1f.aligned.asm#L131-L132)
+- [prg_1f.aligned.asm:780-818](file://asm/banks/prg_1f.aligned.asm#L780-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
 
 ## Detailed Component Analysis
@@ -195,13 +195,13 @@ StoreExt --> End(["Return"])
 ```
 
 **Diagram sources**
-- [prg_1f.asm:780-818](file://asm/banks/prg_1f.asm#L780-L818)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:780-818](file://asm/banks/prg_1f.aligned.asm#L780-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
 
 **Section sources**
-- [prg_1f.asm:780-818](file://asm/banks/prg_1f.asm#L780-L818)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:780-818](file://asm/banks/prg_1f.aligned.asm#L780-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
 
 ### Reset Handler and Mapper Initialization
@@ -224,13 +224,13 @@ Reset->>CPU : Jump to state entry
 ```
 
 **Diagram sources**
-- [prg_1f.asm:72-148](file://asm/banks/prg_1f.asm#L72-L148)
-- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+- [prg_1f.aligned.asm:72-148](file://asm/banks/prg_1f.aligned.asm#L72-L148)
+- [prg_1f.aligned.asm:2488-2506](file://asm/banks/prg_1f.aligned.asm#L2488-L2506)
 - [bank_1f_analysis.md:22-51](file://code/bank_1f_analysis.md#L22-L51)
 
 **Section sources**
-- [prg_1f.asm:72-148](file://asm/banks/prg_1f.asm#L72-L148)
-- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+- [prg_1f.aligned.asm:72-148](file://asm/banks/prg_1f.aligned.asm#L72-L148)
+- [prg_1f.aligned.asm:2488-2506](file://asm/banks/prg_1f.aligned.asm#L2488-L2506)
 - [bank_1f_analysis.md:22-51](file://code/bank_1f_analysis.md#L22-L51)
 
 ### Data Access Functions and Bank Coordination
@@ -287,12 +287,12 @@ State->>State : Proceed with data access
 ```
 
 **Diagram sources**
-- [prg_1f.asm:780-818](file://asm/banks/prg_1f.asm#L780-L818)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:780-818](file://asm/banks/prg_1f.aligned.asm#L780-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
 
 **Section sources**
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
 
 ## Dependency Analysis
@@ -314,16 +314,16 @@ MapperInit --> BankSwitch
 ```
 
 **Diagram sources**
-- [prg_1f.asm:780-818](file://asm/banks/prg_1f.asm#L780-L818)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:780-818](file://asm/banks/prg_1f.aligned.asm#L780-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
-- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+- [prg_1f.aligned.asm:2488-2506](file://asm/banks/prg_1f.aligned.asm#L2488-L2506)
 
 **Section sources**
-- [prg_1f.asm:780-818](file://asm/banks/prg_1f.asm#L780-L818)
-- [prg_1f.asm:811-818](file://asm/banks/prg_1f.asm#L811-L818)
+- [prg_1f.aligned.asm:780-818](file://asm/banks/prg_1f.aligned.asm#L780-L818)
+- [prg_1f.aligned.asm:811-818](file://asm/banks/prg_1f.aligned.asm#L811-L818)
 - [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
-- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+- [prg_1f.aligned.asm:2488-2506](file://asm/banks/prg_1f.aligned.asm#L2488-L2506)
 
 ## Performance Considerations
 - Bank switching involves multiple register writes and RAM storage operations; minimize unnecessary switches to reduce overhead.
@@ -341,7 +341,7 @@ Common issues and remedies:
 - Memory mapping issues: verify that the BankSwitchTable contains the expected configuration values for each profile.
 
 **Section sources**
-- [prg_1f.asm:2488-2506](file://asm/banks/prg_1f.asm#L2488-L2506)
+- [prg_1f.aligned.asm:2488-2506](file://asm/banks/prg_1f.aligned.asm#L2488-L2506)
 - [bank_1f_analysis.md:527-532](file://code/bank_1f_analysis.md#L527-L532)
 
 ## Conclusion

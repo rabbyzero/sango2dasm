@@ -6,7 +6,8 @@
 - [main.asm](file://asm/main.asm)
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
-- [prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
+- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
 - [namco163.h](file://include/namco163.h)
 - [6502_registers.h](file://include/6502_registers.h)
@@ -15,15 +16,17 @@
 - [functions.h](file://include/functions.h)
 - [PROJECT.md](file://PROJECT.md)
 - [assemble_prg_1d_1e.py](file://tools/assemble_prg_1d_1e.py)
+- [verify_0a_0b.py](file://tools/verify_0a_0b.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Updated documentation to reflect the enhanced SceneRenderer system with proper callback table architecture replacing inline dispatch logic
-- Added comprehensive coverage of improved jump table using symbolic function names throughout the codebase
-- Enhanced local variable documentation across key procedures including MenuUpdate, YearDisplaySetup, PeriodicOverlayRefresh, ProvinceDataHandler, OfficerNameDisplay, DisplayScaledName, BankedDataHandler, SetupBankedData, StateHandler, and OfficerListHandler
-- Updated callback dispatcher implementation with structured parameter passing and return value handling
-- Improved procedural boundaries documentation using .proc/.endproc directives with comprehensive local variable scoping
+- Updated documentation to reflect the completion of major refactoring of PRG bank $0A+$0B with comprehensive function renaming from cryptic prefixed format (e.g., B0A_CheckGameStart) to descriptive names (e.g., CheckGameStart)
+- Enhanced coverage of fully descriptive entry points replacing generic EntryXX patterns with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, PPUTileRender_Entry throughout all combined bank systems
+- Added detailed documentation of the new naming convention system and its impact on code organization, debugging support, and maintainability
+- Updated examples throughout to demonstrate the improved naming convention for better code clarity and development workflow
+- Enhanced section on callback system architecture with symbolic function references using the new naming patterns
+- Added verification tool documentation for PRG bank 0A+0B testing and validation
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -43,7 +46,7 @@
 15. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with structured .proc/.endproc organization and enhanced code modularity. The PRG bank 17/18 combination provides specialized display and rendering functionality optimized for the game's strategic interface, while the new PRG bank 1D/1E combined system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations and enhanced bank switching capabilities. The enhanced SceneRenderer system now implements a proper callback table architecture that replaces inline dispatch logic, providing improved maintainability and debugging support.
+This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with structured .proc/.endproc organization and enhanced code modularity. The PRG bank 17/18 combination provides specialized display and rendering functionality optimized for the game's strategic interface, while the new PRG bank 1D/1E combined system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations and enhanced bank switching capabilities. The enhanced SceneRenderer system now implements a proper callback table architecture that replaces inline dispatch logic, providing improved maintainability and debugging support. **Updated** The system now features comprehensive descriptive entry point naming conventions across all combined bank systems, with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry replacing generic EntryXX patterns, significantly improving code organization, debugging capabilities, and long-term maintainability through the adoption of a standardized naming convention system. The major refactoring of PRG bank $0A+$0B has been completed, transforming cryptic function names like B0A_CheckGameStart into descriptive names like CheckGameStart, establishing a consistent naming pattern across the entire codebase.
 
 ## Project Structure
 The project is organized around a modular bank-based approach with modern assembly formatting standards:
@@ -55,6 +58,8 @@ The project is organized around a modular bank-based approach with modern assemb
 - The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly.
 - The new combined PRG bank 1D/1E system provides unified memory management and simplified bank switching for display and domestic operations.
 - **Enhanced Callback Architecture**: The SceneRenderer system now uses proper callback tables with symbolic function names instead of inline dispatch logic.
+- **Comprehensive Descriptive Entry Points**: All combined bank systems now use meaningful entry point names following the standardized naming convention, replacing generic EntryXX patterns for improved code organization and debugging support.
+- **Completed Major Refactoring**: PRG bank $0A+$0B has been successfully refactored with descriptive function naming, eliminating cryptic prefixed formats.
 
 ```mermaid
 graph TB
@@ -62,15 +67,25 @@ subgraph "Linker Configuration"
 LCFG["linker.cfg"]
 end
 subgraph "Boot Bank (0x1F) - Modern Assembly Format"
-ALIGNED["asm/banks/prg_1f.asm<br/>Aligned Format with Structured Organization"]
+ALIGNED["asm/banks/prg_1f.aligned.asm<br/>Aligned Format with Structured Organization"]
 BACKUP["asm/banks/prg_1f.asm.bak<br/>Backup of Legacy Format"]
 VTABLE["$E07C VectorTable<br/>$E000 Reset Handler<br/>Structured State Handlers"]
 PARAMSYS["Enhanced Parameter System<br/>Named Memory Aliases"]
 CALLBACKDISP["$EADE CallbackDispatcher<br/>Indirect Jump via Inline Table"]
 end
+subgraph "Combined Bank 0A/0B - Fully Refactored with Descriptive Names"
+COMBINED0A_0B["asm/banks/prg_0a_0b.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
+ENTRYPOINTS["Fully Descriptive Entry Points<br/>CheckGameStart_Entry, SubStateDispatch_Entry,<br/>ArmyValueCalc_Entry, DataRecordLookup_Entry,<br/>DistanceClamp_Entry"]
+PROC[".proc/.endproc Blocks<br/>Modular Function Organization"]
+JUMPTABLE["$A000-$A00E: Jump Table<br/>5 Descriptive Entry Points"]
+ENDPROC[".endproc Terminators<br/>Complete Function Scope"]
+REFAC["Major Refactoring Complete<br/>B0A_* → CheckGameStart, etc."]
+VERIFY["verify_0a_0b.py<br/>ROM Validation Tool"]
+end
 subgraph "Combined Bank 17/18 - Specialized Display"
 COMBINED17_18["asm/banks/prg_17_18.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
 DISPLAY["$A000-$BFFF: Bank A<br/>$C000-$DFFF: Bank B"]
+PPUENTRIES["Descriptive PPU Entry Points<br/>PpuWriteRle_Entry, PpuCopyRaw_Entry,<br/>PpuWriteTileOffset_Entry, DisplayScrollLoop_Entry,<br/>DisplayAndChrSetup_Entry, BattleEffects_Entry,<br/>BattleDispatch_Entry, OverlayWindow_Entry,<br/>SetupAdvisorTiles_Entry, MainGameDispatch_Entry,<br/>DomesticActionDispatch_Entry, AnimationDispatch_Entry,<br/>DomesticDisplay_Entry, DataRecordLoader_Entry"]
 PROC[".proc/.endproc Blocks<br/>Modular Function Organization"]
 PARAMDECL["Parameter Declarations<br/>index_value, tile_ptr_lo/hi,<br/>attr_ptr_lo/hi, overlay_data_ptr,<br/>col_counter_lo/h, current_row/max_rows"]
 RLE["RLE Decompression<br/>Advanced PPU Operations"]
@@ -78,7 +93,8 @@ ENDPROC[".endproc Terminators<br/>Complete Function Scope"]
 end
 subgraph "Combined Bank 1D/1E - Unified Display System"
 COMBINED1D_1E["asm/banks/prg_1d_1e.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
-JUMPTABLE["$A000-$A047: Jump Table<br/>24 Entry Points"]
+JUMPTABLE["$A000-$A047: Jump Table<br/>24 Fully Descriptive Entry Points"]
+MENUENTRIES["Menu & Display Entries<br/>PPUTileRender_Entry, MenuUpdate_Entry,<br/>VRAMBufferWrite_Entry, StateHandler_Entry,<br/>MapDisplaySetup_Entry, OfficerListHandler_Entry,<br/>FlushTileBuffer_Entry, LoadScenarioData_Entry,<br/>SramInit_Entry, OfficerParamDisp_Entry,<br/>YearDisplaySetup_Entry, SlowPeriodic_Entry,<br/>ImmediateOverlay_Entry, ProvinceDataHandler_Entry,<br/>OfficerDisplay_Lookup_Entry, FastPeriodic_Entry,<br/>OfficerDisplay_Render_Entry, OfficerNameDisplay_Entry,<br/>ClearWorkBuffer_Entry, SceneRenderer_Entry,<br/>DataFormatter_Entry, MenuRenderer_Entry,<br/>BankedDataHandler_Entry, OfficerRecLookup_Entry"]
 MENUDISPATCH["$A208-$A246: MenuDispatchTable<br/>32-Entry Command Dispatch ($80-$9F)"]
 SCENERENDERER["$BC71-$BD91: SceneRenderer<br/>Proper Callback Table Architecture"]
 DOMESTIC["$A048-$BFFF: Domestic Operations<br/>Menu Handlers, Data Processing"]
@@ -99,6 +115,7 @@ subgraph "Other Banks"
 ALLB["asm/banks/all_banks.asm"]
 end
 LCFG --> ALIGNED
+LCFG --> COMBINED0A_0B
 LCFG --> COMBINED17_18
 LCFG --> COMBINED1D_1E
 LCFG --> BACKUP
@@ -109,35 +126,49 @@ ALIGNED --> CALLBACKDISP
 ALIGNED --> NAMCO
 ALIGNED --> REGS
 ALIGNED --> MACROS
+COMBINED0A_0B --> ENTRYPOINTS
+COMBINED0A_0B --> PROC
+COMBINED0A_0B --> JUMPTABLE
+COMBINED0A_0B --> ENDPROC
+COMBINED0A_0B --> REFAC
+COMBINED0A_0B --> VERIFY
 COMBINED17_18 --> DISPLAY
+COMBINED17_18 --> PPUENTRIES
 COMBINED17_18 --> PROC
 COMBINED17_18 --> PARAMDECL
 COMBINED17_18 --> RLE
 COMBINED17_18 --> ENDPROC
 COMBINED1D_1E --> JUMPTABLE
+COMBINED1D_1E --> MENUENTRIES
 COMBINED1D_1E --> MENUDISPATCH
 COMBINED1D_1E --> SCENERENDERER
 COMBINED1D_1E --> DOMESTIC
 COMBINED1D_1E --> SRAM
 COMBINED1D_1E --> BANK1D
 COMBINED1D_1E --> BANK1E
+FUNCTIONS --> COMBINED0A_0B
 FUNCTIONS --> COMBINED17_18
 FUNCTIONS --> COMBINED1D_1E
+ALLB --> COMBINED0A_0B
 ALLB --> COMBINED17_18
 ALLB --> COMBINED1D_1E
 ```
 
 **Diagram sources**
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
-- [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
-- [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
-- [prg_1f.asm:1-200](file://asm/banks/prg_1f.asm#L1-L200)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
+- [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 - [namco163.h:65-87](file://include/namco163.h#L65-L87)
 - [6502_registers.h:1-88](file://include/6502_registers.h#L1-L88)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
+- [functions.h:574-597](file://include/functions.h#L574-L597)
+- [functions.h:739-745](file://include/functions.h#L739-L745)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -157,18 +188,23 @@ ALLB --> COMBINED1D_1E
 - **Unified Bank Architecture**: The new combined PRG bank 1D/1E system provides integrated memory management and simplified bank switching for display and domestic operations.
 - **New Menu Dispatch System**: The MenuUpdate procedure now features a comprehensive 32-entry MenuDispatchTable for handling menu commands $80-$9F with structured command processing.
 - **Enhanced Callback Architecture**: The SceneRenderer system implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability.
+- **Comprehensive Descriptive Entry Points**: All combined bank systems now feature fully descriptive entry points following the standardized naming convention, replacing generic EntryXX patterns for superior code organization and debugging support.
+- **Completed Major Refactoring**: PRG bank $0A+$0B has been successfully refactored with descriptive function naming, eliminating cryptic prefixed formats like B0A_* and B0B_*.
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
-- [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
-- [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
-- [prg_1f.asm:400-466](file://asm/banks/prg_1f.asm#L400-L466)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
+- [prg_1f.aligned.asm:400-466](file://asm/banks/prg_1f.aligned.asm#L400-L466)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
+- [functions.h:574-597](file://include/functions.h#L574-L597)
+- [functions.h:739-745](file://include/functions.h#L739-L745)
 
 ## Architecture Overview
-The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern assembly format provides enhanced code organization with structured state handlers and improved debugging support. The combined PRG bank 17/18 structure optimizes display operations for the game's strategic interface, providing specialized PPU data writers, RLE decompression capabilities, and comprehensive display operation systems with an enhanced parameter declaration system that improves code readability and maintainability. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, providing improved maintainability and debugging support compared to the previous inline dispatch logic approach.
+The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern assembly format provides enhanced code organization with structured state handlers and improved debugging support. The combined PRG bank 17/18 structure optimizes display operations for the game's strategic interface, providing specialized PPU data writers, RLE decompression capabilities, and comprehensive display operation systems with an enhanced parameter declaration system that improves code readability and maintainability. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, providing improved maintainability and debugging support compared to the previous inline dispatch logic approach. **Updated** All combined bank systems now feature comprehensive descriptive entry point naming following the standardized naming convention with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry replacing generic EntryXX patterns, significantly improving code organization, debugging capabilities, and long-term maintainability across the entire codebase through consistent symbolic reference patterns. The major refactoring of PRG bank $0A+$0B has been completed, establishing a consistent naming pattern where cryptic prefixed formats like B0A_CheckGameStart have been transformed into descriptive names like CheckGameStart.
 
 ```mermaid
 sequenceDiagram
@@ -176,6 +212,7 @@ participant CPU as "CPU"
 participant BOOT as "Boot Bank 0x1F (Aligned Format)"
 participant MAP as "Namco-163 Mapper"
 participant SLOTS as "PRG Slots ($8000-$DFFF)"
+participant COMBINED0A_0B as "Combined Bank 0A/0B ($A000-$DFFF)"
 participant COMBINED17_18 as "Combined Bank 17/18 ($A000-$DFFF)"
 participant COMBINED1D_1E as "Combined Bank 1D/1E ($A000-$DFFF)"
 participant MENU as "MenuDispatchTable ($A208-$A246)"
@@ -184,6 +221,7 @@ participant CALLBACK as "CallbackDispatcher ($EADE)"
 participant PARAMSYS as "Enhanced Parameter System"
 participant STATE as "State Handler (Banked)"
 participant DEBUG as "Debug Tools"
+participant VERIFY as "Verification Tools"
 CPU->>BOOT : Reset
 BOOT->>BOOT : Initialize PPU/APU, clear RAM
 BOOT->>BOOT : Read addr_game_state & mask to 0-31
@@ -191,8 +229,15 @@ BOOT->>BOOT : Load VectorTable entry (indirect)
 BOOT->>MAP : Write bank numbers to mapper registers
 MAP-->>SLOTS : Switch 8KB PRG banks into slots
 BOOT->>STATE : Jump to state handler (banked)
+STATE->>COMBINED0A_0B : Optional bank switch for game logic
 STATE->>COMBINED17_18 : Optional bank switch for display ops
 STATE->>COMBINED1D_1E : Optional bank switch for unified display/domestic ops
+COMBINED0A_0B->>CHECKGAMESTART_ENTRY : CheckGameStart_Entry ($A000)
+CHECKGAMESTART_ENTRY->>CHECKGAMESTART : JMP CheckGameStart
+COMBINED17_18->>PPUWRITERLE_ENTRY : PpuWriteRle_Entry ($A000)
+PPUWRITERLE_ENTRY->>PPUWRITERLE : JMP PpuWriteRle
+COMBINED1D_1E->>PPUTILERENDER_ENTRY : PPUTileRender_Entry ($A000)
+PPUTILERENDER_ENTRY->>PPUTILERENDER : JMP PPUTileRender
 COMBINED17_18->>PARAMSYS : Use structured parameter declarations
 COMBINED17_18->>COMBINED17_18 : Execute specialized PPU routines
 COMBINED17_18->>COMBINED17_18 : RLE decompression & display processing
@@ -208,24 +253,29 @@ COMBINED1D_1E->>COMBINED1D_1E : Menu handlers and SRAM operations
 STATE-->>BOOT : Return to StateDispatch
 DEBUG->>BOOT : Analyze aligned formatted code
 DEBUG->>BOOT : Validate structured state handlers
+DEBUG->>COMBINED0A_0B : Examine descriptive entry points
 DEBUG->>COMBINED17_18 : Examine .proc/.endproc organization
 DEBUG->>COMBINED1D_1E : Analyze unified bank structure
 DEBUG->>MENU : Verify MenuDispatchTable structure
 DEBUG->>SCENE : Verify SceneRenderer callback architecture
 DEBUG->>CALLBACK : Validate CallbackDispatcher implementation
 DEBUG->>PARAMSYS : Verify parameter aliasing system
+VERIFY->>COMBINED0A_0B : ROM validation and byte comparison
+VERIFY->>COMBINED0A_0B : Verify refactoring completeness
 ```
 
 **Diagram sources**
-- [prg_1f.asm:406-459](file://asm/banks/prg_1f.asm#L406-L459)
-- [prg_1f.asm:467-694](file://asm/banks/prg_1f.asm#L467-L694)
-- [prg_17_18.asm:72-127](file://asm/banks/prg_17_18.asm#L72-L127)
-- [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
-- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-398)
+- [prg_1f.aligned.asm:406-459](file://asm/banks/prg_1f.aligned.asm#L406-L459)
+- [prg_1f.aligned.asm:467-694](file://asm/banks/prg_1f.aligned.asm#L467-L694)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
-- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 
 ## Detailed Component Analysis
 
@@ -237,6 +287,7 @@ The linker configuration defines:
 - The CODE segment starts at PRG_SLOT0 and includes the interrupt vectors at $9FFA.
 - Special handling for the combined PRG bank 17/18 structure at $A000-$DFFF with dual bank organization.
 - Special handling for the new combined PRG bank 1D/1E structure at $A000-$DFFF with unified bank organization.
+- Special handling for the combined PRG bank 0A/0B structure at $A000-$DFFF with enhanced entry points.
 
 ```mermaid
 flowchart TD
@@ -247,17 +298,22 @@ MEM --> EXPROM["$4800 Expansion (Namco-163)"]
 MEM --> SRAM["$6000-$7FFF SRAM"]
 MEM --> PRG["$8000-$FFFF PRG ROM (4 slots)"]
 PRG --> SLOT0["$8000-$9FFF"]
-PRG --> SLOT1["$A000-$BFFF (Bank 17/1D)"]
-PRG --> SLOT2["$C000-$DFFF (Bank 18/1E)"]
+PRG --> SLOT1["$A000-$BFFF (Bank 0A/17/1D)"]
+PRG --> SLOT2["$C000-$DFFF (Bank 0B/18/1E)"]
 PRG --> SLOT3["$E000-$FFFF (Boot Bank 0x1F)"]
+COMBINED0A_0B["Combined Bank 0A/0B<br/>$A000-$DFFF Structure<br/>Refactored with Descriptive Names"]
 COMBINED17_18["Combined Bank 17/18<br/>$A000-$DFFF Structure"]
 COMBINED1D_1E["Combined Bank 1D/1E<br/>$A000-$DFFF Structure"]
+SLOT1 -.-> COMBINED0A_0B
 SLOT1 -.-> COMBINED17_18
 SLOT1 -.-> COMBINED1D_1E
+SLOT2 -.-> COMBINED0A_0B
 SLOT2 -.-> COMBINED17_18
 SLOT2 -.-> COMBINED1D_1E
 PROC[".proc/.endproc Organization<br/>Modular Function Structure"]
 PARAMSYS["Enhanced Parameter System<br/>Named Memory Aliases"]
+COMBINED0A_0B --> PROC
+COMBINED0A_0B --> PARAMSYS
 COMBINED17_18 --> PROC
 COMBINED17_18 --> PARAMSYS
 COMBINED1D_1E --> PROC
@@ -268,11 +324,12 @@ COMBINED1D_1E --> PARAMSYS
 - [linker.cfg:4-12](file://linker.cfg#L4-L12)
 - [linker.cfg:18-30](file://linker.cfg#L18-L30)
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
+- [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
 
 **Section sources**
-- [linker.cfg:18-55](file://linker.cfg#L18-L55)
+- [linker.cfg:18-55](file://linker.cfg#L18-55)
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
 
 ### Fixed Boot Bank 0x1F and Reset Flow (Modern Assembly Format)
@@ -296,14 +353,14 @@ DISPATCH --> LOOP["StateDispatch Loop"]
 ```
 
 **Diagram sources**
-- [prg_1f.asm:406-459](file://asm/banks/prg_1f.asm#L406-L459)
-- [prg_1f.asm:460-466](file://asm/banks/prg_1f.asm#L460-L466)
-- [prg_1f.asm:451-459](file://asm/banks/prg_1f.asm#L451-L459)
+- [prg_1f.aligned.asm:406-459](file://asm/banks/prg_1f.aligned.asm#L406-L459)
+- [prg_1f.aligned.asm:460-466](file://asm/banks/prg_1f.aligned.asm#L460-L466)
+- [prg_1f.aligned.asm:451-459](file://asm/banks/prg_1f.aligned.asm#L451-L459)
 
 **Section sources**
-- [prg_1f.asm:406-459](file://asm/banks/prg_1f.asm#L406-L459)
-- [prg_1f.asm:460-466](file://asm/banks/prg_1f.asm#L460-L466)
-- [prg_1f.asm:451-459](file://asm/banks/prg_1f.asm#L451-L459)
+- [prg_1f.aligned.asm:406-459](file://asm/banks/prg_1f.aligned.asm#L406-L459)
+- [prg_1f.aligned.asm:460-466](file://asm/banks/prg_1f.aligned.asm#L460-L466)
+- [prg_1f.aligned.asm:451-459](file://asm/banks/prg_1f.aligned.asm#L451-L459)
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
 
 ### State Machine and Vector Dispatch (Structured Organization)
@@ -332,30 +389,82 @@ DIS-->>SH : Continue loop
 ```
 
 **Diagram sources**
-- [prg_1f.asm:451-459](file://asm/banks/prg_1f.asm#L451-L459)
-- [prg_1f.asm:467-694](file://asm/banks/prg_1f.asm#L467-L694)
-- [prg_1f.asm:460-466](file://asm/banks/prg_1f.asm#L460-L466)
+- [prg_1f.aligned.asm:451-459](file://asm/banks/prg_1f.aligned.asm#L451-L459)
+- [prg_1f.aligned.asm:467-694](file://asm/banks/prg_1f.aligned.asm#L467-L694)
+- [prg_1f.aligned.asm:460-466](file://asm/banks/prg_1f.aligned.asm#L460-L466)
 
 **Section sources**
-- [prg_1f.asm:451-459](file://asm/banks/prg_1f.asm#L451-L459)
-- [prg_1f.asm:467-694](file://asm/banks/prg_1f.asm#L467-L694)
-- [prg_1f.asm:460-466](file://asm/banks/prg_1f.asm#L460-L466)
+- [prg_1f.aligned.asm:451-459](file://asm/banks/prg_1f.aligned.asm#L451-L459)
+- [prg_1f.aligned.asm:467-694](file://asm/banks/prg_1f.aligned.asm#L467-L694)
+- [prg_1f.aligned.asm:460-466](file://asm/banks/prg_1f.aligned.asm#L460-L466)
+
+### Combined PRG Bank 0A/0B Structure with Fully Refactored Descriptive Entry Points
+- The PRG bank 0A/0B structure provides a combined 16KB memory space at $A000-$DFFF, with bank $0A at $A000-$BFFF and bank $0B at $C000-$DFFF.
+- **Major Refactoring Completed**: Successfully transformed from cryptic prefixed format (B0A_CheckGameStart, B0B_SubStateDispatch) to descriptive names (CheckGameStart, SubStateDispatch).
+- **Comprehensive Descriptive Entry Points**: Features fully descriptive entry points following the standardized naming convention like CheckGameStart_Entry, SubStateDispatch_Entry, ArmyValueCalc_Entry, DataRecordLookup_Entry, and DistanceClamp_Entry replacing generic EntryXX patterns.
+- The bank supports public entry points for game logic functions including game start checking, sub-state dispatch, army value calculations, data record lookups, and distance clamping.
+- Bank switching for this combined structure uses standard bank switching routines to load both banks simultaneously.
+- Modern .proc/.endproc organization provides modular function structure with clear scope boundaries and improved code maintainability.
+- **Enhanced Parameter System**: Structured memory addressing system with comprehensive parameter declarations throughout the assembly.
+- **Verification Tool Integration**: New verify_0a_0b.py tool ensures byte-for-byte accuracy against original ROM.
+
+**Updated** Major enhancement with completed refactoring from cryptic prefixed format to descriptive names, fully descriptive entry points following the standardized naming convention replacing generic EntryXX patterns, and comprehensive verification tool integration for maintaining ROM accuracy.
+
+```mermaid
+flowchart TD
+COMBINED0A_0B["Combined Bank 0A/0B ($A000-$DFFF)<br/>Major Refactoring Complete"] --> BANKA["$A000-$BFFF<br/>Bank $0A"]
+COMBINED0A_0B --> BANKB["$C000-$DFFF<br/>Bank $0B"]
+BANKA --> REFACTORED["Refactored Functions<br/>CheckGameStart, SubStateDispatch,<br/>ArmyValueCalc, DataRecordLookup,<br/>DistanceClamp"]
+BANKA --> ENHANCEDENTRIES["Descriptive Entry Points<br/>CheckGameStart_Entry, SubStateDispatch_Entry,<br/>ArmyValueCalc_Entry, DataRecordLookup_Entry,<br/>DistanceClamp_Entry"]
+BANKA --> GAMELOGIC["Game Logic Functions<br/>Province Search, Sum Compare,<br/>Tile Render, Army Value Calc"]
+BANKB --> DATAOPS["Data Operations<br/>Record Lookup, Distance Clamp,<br/>Stack Management"]
+BANKA --> PROC[".proc/.endproc<br/>Modular Organization"]
+BANKB --> PROC
+PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
+PROC --> PARAMSYS
+PARAMSYS --> CHECKGAMESTART["CheckGameStart<br/>$A00F"]
+PARAMSYS --> SUBSTATEDISPATCH["SubStateDispatch<br/>$A017"]
+PARAMSYS --> ARMYVALUECALC["ArmyValueCalc<br/>$A03F"]
+PARAMSYS --> DATARECORDLOOKUP["DataRecordLookup<br/>$A07C"]
+PARAMSYS --> DISTANCECLAMP["DistanceClamp<br/>$A00C"]
+ENHANCEDENTRIES --> ROUTINES["Descriptive Entry Points<br/>$A000-$A00E"]
+ROUTINES --> GAMELOGIC
+ROUTINES --> DATAOPS
+VERIFY["verify_0a_0b.py<br/>ROM Validation"] --> COMBINED0A_0B
+REFAC["B0A_* → CheckGameStart<br/>B0B_* → SubStateDispatch"] --> REFACTORED
+```
+
+**Diagram sources**
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0a_0b.asm:506-532](file://asm/banks/prg_0a_0b.asm#L506-L532)
+- [prg_0a_0b.asm:537-624](file://asm/banks/prg_0a_0b.asm#L537-L624)
+- [functions.h:739-745](file://include/functions.h#L739-L745)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+
+**Section sources**
+- [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0a_0b.asm:506-532](file://asm/banks/prg_0a_0b.asm#L506-L532)
+- [prg_0a_0b.asm:537-624](file://asm/banks/prg_0a_0b.asm#L537-L624)
+- [functions.h:739-745](file://include/functions.h#L739-L745)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 
 ### Combined PRG Bank 17/18 Structure and Enhanced Display Operations
 - The PRG bank 17/18 structure provides a combined 16KB memory space at $A000-$DFFF, with bank $17 at $A000-$BFFF and bank $18 at $C000-$DFFF.
+- **Comprehensive Descriptive Entry Points**: Features fully descriptive entry points following the standardized naming convention like PpuWriteRle_Entry, PpuCopyRaw_Entry, PpuWriteTileOffset_Entry, DisplayScrollLoop_Entry, DisplayAndChrSetup_Entry, BattleEffects_Entry, BattleDispatch_Entry, OverlayWindow_Entry, SetupAdvisorTiles_Entry, MainGameDispatch_Entry, DomesticActionDispatch_Entry, AnimationDispatch_Entry, DomesticDisplay_Entry, and DataRecordLoader_Entry replacing generic EntryXX patterns.
 - This structure enables efficient display operations and specialized PPU data handling routines with comprehensive function organization.
 - The bank supports public entry points for display functions including RLE compression, raw data copying, tile offset calculations, and advanced display operations.
 - Bank switching for this combined structure uses the SwitchBankAC_A/B routine with Y=$37 to load both banks simultaneously.
 - Modern .proc/.endproc organization provides modular function structure with clear scope boundaries and improved code maintainability.
 - **Enhanced Parameter System**: Structured memory addressing system with comprehensive parameter declarations throughout the assembly.
 
-**Updated** Enhanced with comprehensive coverage of the new combined bank structure, its specialized display capabilities, modernized code organization, and the enhanced parameter declaration system.
+**Updated** Enhanced with comprehensive coverage of the new combined bank structure, its specialized display capabilities, modernized code organization, fully descriptive entry points following the standardized naming convention replacing generic EntryXX patterns, and the enhanced parameter declaration system.
 
 ```mermaid
 flowchart TD
 COMBINED17_18["Combined Bank 17/18 ($A000-$DFFF)"] --> BANKA["$A000-$BFFF<br/>Bank $17"]
 COMBINED17_18 --> BANKB["$C000-$DFFF<br/>Bank $18"]
-BANKA --> JUMPTABLE["$A000: Jump Table<br/>Public Entry Points"]
+BANKA --> ENHANCEDENTRIES["Descriptive Entry Points<br/>PpuWriteRle_Entry, PpuCopyRaw_Entry,<br/>PpuWriteTileOffset_Entry, DisplayScrollLoop_Entry,<br/>DisplayAndChrSetup_Entry, BattleEffects_Entry,<br/>BattleDispatch_Entry, OverlayWindow_Entry,<br/>SetupAdvisorTiles_Entry, MainGameDispatch_Entry,<br/>DomesticActionDispatch_Entry, AnimationDispatch_Entry,<br/>DomesticDisplay_Entry, DataRecordLoader_Entry"]
 BANKA --> PPUWRITERS["PPU Data Writers<br/>RLE, Raw, Tile Offset"]
 BANKA --> DISPLAYOPS["Display Operations<br/>Scroll Loop, Setup"]
 BANKB --> RENDEROPS["Rendering Operations<br/>Scene Dispatch, Attributes"]
@@ -369,7 +478,7 @@ PARAMSYS --> SETUP["SetupDisplayPtrs<br/>$A027"]
 PARAMSYS --> RLE["RleDecompressHelper<br/>$A169"]
 PARAMSYS --> RAWROWS["PpuWriteRawRows<br/>$A100"]
 PARAMSYS --> TILEOFFSET["PpuWriteTileOffset<br/>$A1B0"]
-JUMPTABLE --> ROUTINES["Specialized Routines<br/>$A000-$A027"]
+ENHANCEDENTRIES --> ROUTINES["Descriptive Entry Points<br/>$A000-$A029"]
 ROUTINES --> PPUWRITERS
 ROUTINES --> DISPLAYOPS
 ROUTINES --> RENDEROPS
@@ -377,20 +486,27 @@ ROUTINES --> SCROLLOPS
 ```
 
 **Diagram sources**
-- [prg_17_18.asm:72-127](file://asm/banks/prg_17_18.asm#L72-L127)
-- [prg_17_18.asm:168-208](file://asm/banks/prg_17_18.asm#L168-L208)
-- [prg_17_18.asm:534-613](file://asm/banks/prg_17_18.asm#L534-L613)
-- [functions.h:315-335](file://include/functions.h#L315-L335)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_17_18.asm:240-257](file://asm/banks/prg_17_18.asm#L240-257)
+- [prg_17_18.asm:263-288](file://asm/banks/prg_17_18.asm#L263-288)
+- [prg_17_18.asm:296-336](file://asm/banks/prg_17_18.asm#L296-336)
+- [prg_17_18.asm:359-432](file://asm/banks/prg_17_18.asm#L359-432)
+- [prg_17_18.asm:596-675](file://asm/banks/prg_17_18.asm#L596-675)
+- [functions.h:322-335](file://include/functions.h#L322-L335)
 
 **Section sources**
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
-- [prg_17_18.asm:72-127](file://asm/banks/prg_17_18.asm#L72-L127)
-- [prg_17_18.asm:168-208](file://asm/banks/prg_17_18.asm#L168-L208)
-- [prg_17_18.asm:534-613](file://asm/banks/prg_17_18.asm#L534-L613)
-- [functions.h:315-335](file://include/functions.h#L315-L335)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_17_18.asm:240-257](file://asm/banks/prg_17_18.asm#L240-257)
+- [prg_17_18.asm:263-288](file://asm/banks/prg_17_18.asm#L263-288)
+- [prg_17_18.asm:296-336](file://asm/banks/prg_17_18.asm#L296-336)
+- [prg_17_18.asm:359-432](file://asm/banks/prg_17_18.asm#L359-432)
+- [prg_17_18.asm:596-675](file://asm/banks/prg_17_18.asm#L596-675)
+- [functions.h:322-335](file://include/functions.h#L322-L335)
 
 ### Combined PRG Bank 1D/1E Structure and Unified Display System
 - The PRG bank 1D/1E structure provides a unified 16KB memory space at $A000-$DFFF, combining the functionality of previously separate bank $1D and bank $1E.
+- **Comprehensive Descriptive Entry Points**: Features fully descriptive entry points following the standardized naming convention including PPUTileRender_Entry, MenuUpdate_Entry, VRAMBufferWrite_Entry, StateHandler_Entry, MapDisplaySetup_Entry, OfficerListHandler_Entry, FlushTileBuffer_Entry, LoadScenarioData_Entry, SramInit_Entry, OfficerParamDisp_Entry, YearDisplaySetup_Entry, SlowPeriodic_Entry, ImmediateOverlay_Entry, ProvinceDataHandler_Entry, OfficerDisplay_Lookup_Entry, FastPeriodic_Entry, OfficerDisplay_Render_Entry, OfficerNameDisplay_Entry, ClearWorkBuffer_Entry, SceneRenderer_Entry, DataFormatter_Entry, MenuRenderer_Entry, BankedDataHandler_Entry, and OfficerRecLookup_Entry replacing generic EntryXX patterns.
 - This structure offers significant architectural improvement over individual bank management with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality.
 - The bank $1D portion ($A000-$BFFF) contains a 24-entry jump table at $A000-$A047, display operations, tile data, and menu handlers.
 - The bank $1E portion ($C000-$DFFF) contains domestic affairs dispatch, tile data, and SRAM save/load operations.
@@ -398,39 +514,40 @@ ROUTINES --> SCROLLOPS
 - The unified approach simplifies memory management and provides seamless integration between display and domestic operations.
 - Modern .proc/.endproc organization provides modular function structure with clear scope boundaries and improved code maintainability.
 
-**Updated** Comprehensive documentation of the new combined PRG bank 1D/1E system that represents a significant architectural improvement over the previous individual bank management approach.
+**Updated** Comprehensive documentation of the new combined PRG bank 1D/1E system that represents a significant architectural improvement over the previous individual bank management approach, featuring fully descriptive entry points following the standardized naming convention replacing generic EntryXX patterns throughout.
 
 ```mermaid
 flowchart TD
-COMBINED1D_1E["Combined Bank 1D/1E ($A000-$DFFF)"] --> JUMPTABLE["$A000-$A047<br/>24-Entry Jump Table"]
+COMBINED1D_1E["Combined Bank 1D/1E ($A000-$DFFF)"] --> ENHANCEDENTRIES["Descriptive Entry Points<br/>PPUTileRender_Entry, MenuUpdate_Entry,<br/>VRAMBufferWrite_Entry, StateHandler_Entry,<br/>MapDisplaySetup_Entry, OfficerListHandler_Entry,<br/>FlushTileBuffer_Entry, LoadScenarioData_Entry,<br/>SramInit_Entry, OfficerParamDisp_Entry,<br/>YearDisplaySetup_Entry, SlowPeriodic_Entry,<br/>ImmediateOverlay_Entry, ProvinceDataHandler_Entry,<br/>OfficerDisplay_Lookup_Entry, FastPeriodic_Entry,<br/>OfficerDisplay_Render_Entry, OfficerNameDisplay_Entry,<br/>ClearWorkBuffer_Entry, SceneRenderer_Entry,<br/>DataFormatter_Entry, MenuRenderer_Entry,<br/>BankedDataHandler_Entry, OfficerRecLookup_Entry"]
+COMBINED1D_1E --> JUMPTABLE["$A000-$A047<br/>24-Entry Jump Table"]
 COMBINED1D_1E --> MENUDISPATCH["$A208-$A246<br/>32-Entry MenuDispatchTable"]
 COMBINED1D_1E --> SCENERENDERER["$BC71-$BD91<br/>SceneRenderer with Callback Table"]
 COMBINED1D_1E --> DOMESTIC["$A048-$BFFF<br/>Bank $1D Content"]
 COMBINED1D_1E --> SRAM["$C000-$DFFF<br/>Bank $1E Content"]
-JUMPTABLE --> ENTRY00["Entry00: PPUTileRender<br/>$A000"]
-JUMPTABLE --> ENTRY01["Entry01: MenuUpdate<br/>$A003"]
-JUMPTABLE --> ENTRY02["Entry02: VRAMBufferWrite<br/>$A006"]
-JUMPTABLE --> ENTRY03["Entry03: StateHandler<br/>$A009"]
-JUMPTABLE --> ENTRY04["Entry04: MapDisplaySetup<br/>$A00C"]
-JUMPTABLE --> ENTRY05["Entry05: OfficerListHandler<br/>$A00F"]
-JUMPTABLE --> ENTRY06["Entry06: Unknown<br/>$A012"]
-JUMPTABLE --> ENTRY07["Entry07: Bank $1E $DBB1<br/>$A015"]
-JUMPTABLE --> ENTRY08["Entry08: Bank $1E $DD8B<br/>$A018"]
-JUMPTABLE --> ENTRY09["Entry09: Bank $1E $DE7E<br/>$A01B"]
-JUMPTABLE --> ENTRY10["Entry10: NumberDisplaySetup<br/>$A01E"]
-JUMPTABLE --> ENTRY11["Entry11: FrameCounterCheck<br/>$A021"]
-JUMPTABLE --> ENTRY12["Entry12: BcdDisplayHandler<br/>$A024"]
-JUMPTABLE --> ENTRY13["Entry13: ProvinceDataHandler<br/>$A027"]
-JUMPTABLE --> ENTRY14["Entry14: OfficerLookup<br/>$A02A"]
-JUMPTABLE --> ENTRY15["Entry15: FrameCounterAlt<br/>$A02D"]
-JUMPTABLE --> ENTRY16["Entry16: NameDisplay<br/>$A030"]
-JUMPTABLE --> ENTRY17["Entry17: RecordProcessor<br/>$A033"]
-JUMPTABLE --> ENTRY18["Entry18: SmallRoutineA<br/>$A036"]
-JUMPTABLE --> ENTRY19["Entry19: SmallRoutineB<br/>$A039"]
-JUMPTABLE --> ENTRY20["Entry20: DataFormatter<br/>$A03C"]
-JUMPTABLE --> ENTRY21["Entry21: MenuRenderer<br/>$A03F"]
-JUMPTABLE --> ENTRY22["Entry22: BankedDataHandler<br/>$A042"]
-JUMPTABLE --> ENTRY23["Entry23: Bank $1E $DEB9<br/>$A045"]
+ENHANCEDENTRIES --> ENTRY00["Entry00: PPUTileRender<br/>$A000"]
+ENHANCEDENTRIES --> ENTRY01["Entry01: MenuUpdate<br/>$A003"]
+ENHANCEDENTRIES --> ENTRY02["Entry02: VRAMBufferWrite<br/>$A006"]
+ENHANCEDENTRIES --> ENTRY03["Entry03: StateHandler<br/>$A009"]
+ENHANCEDENTRIES --> ENTRY04["Entry04: MapDisplaySetup<br/>$A00C"]
+ENHANCEDENTRIES --> ENTRY05["Entry05: OfficerListHandler<br/>$A00F"]
+ENHANCEDENTRIES --> ENTRY06["Entry06: FlushTileBuffer<br/>$A012"]
+ENHANCEDENTRIES --> ENTRY07["Entry07: LoadScenarioData<br/>$A015"]
+ENHANCEDENTRIES --> ENTRY08["Entry08: SramInit<br/>$A018"]
+ENHANCEDENTRIES --> ENTRY09["Entry09: OfficerParamDisp<br/>$A01B"]
+ENHANCEDENTRIES --> ENTRY10["Entry10: YearDisplaySetup<br/>$A01E"]
+ENHANCEDENTRIES --> ENTRY11["Entry11: SlowPeriodic<br/>$A021"]
+ENHANCEDENTRIES --> ENTRY12["Entry12: ImmediateOverlay<br/>$A024"]
+ENHANCEDENTRIES --> ENTRY13["Entry13: ProvinceDataHandler<br/>$A027"]
+ENHANCEDENTRIES --> ENTRY14["Entry14: OfficerDisplay_Lookup<br/>$A02A"]
+ENHANCEDENTRIES --> ENTRY15["Entry15: FastPeriodic<br/>$A02D"]
+ENHANCEDENTRIES --> ENTRY16["Entry16: OfficerDisplay_Render<br/>$A030"]
+ENHANCEDENTRIES --> ENTRY17["Entry17: OfficerNameDisplay<br/>$A033"]
+ENHANCEDENTRIES --> ENTRY18["Entry18: ClearWorkBuffer<br/>$A036"]
+ENHANCEDENTRIES --> ENTRY19["Entry19: SceneRenderer<br/>$A039"]
+ENHANCEDENTRIES --> ENTRY20["Entry20: DataFormatter<br/>$A03C"]
+ENHANCEDENTRIES --> ENTRY21["Entry21: MenuRenderer<br/>$A03F"]
+ENHANCEDENTRIES --> ENTRY22["Entry22: BankedDataHandler<br/>$A042"]
+ENHANCEDENTRIES --> ENTRY23["Entry23: OfficerRecLookup<br/>$A045"]
 MENUDISPATCH --> CMD80["CmdEndMenu<br/>Command $80"]
 MENUDISPATCH --> CMD81["CmdAdvanceRow<br/>Command $81"]
 MENUDISPATCH --> CMD82["CmdPushPosition<br/>Command $82"]
@@ -456,19 +573,21 @@ SRAM --> DATASTORE["Data Storage<br/>Kingdom Records, Player Data"]
 ```
 
 **Diagram sources**
-- [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
-- [prg_1d_1e.asm:104-197](file://asm/banks/prg_1d_1e.asm#L104-L197)
-- [prg_1d_1e.asm:241-358](file://asm/banks/prg_1d_1e.asm#L241-L358)
-- [prg_1d_1e.asm:359-475](file://asm/banks/prg_1d_1e.asm#L359-L475)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
+- [prg_1d_1e.asm:342-438](file://asm/banks/prg_1d_1e.asm#L342-L438)
+- [prg_1d_1e.asm:475-612](file://asm/banks/prg_1d_1e.asm#L475-L612)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [functions.h:574-597](file://include/functions.h#L574-L597)
 
 **Section sources**
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
-- [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
-- [prg_1d_1e.asm:104-197](file://asm/banks/prg_1d_1e.asm#L104-L197)
-- [prg_1d_1e.asm:241-358](file://asm/banks/prg_1d_1e.asm#L241-L358)
-- [prg_1d_1e.asm:359-475](file://asm/banks/prg_1d_1e.asm#L359-L475)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
+- [prg_1d_1e.asm:342-438](file://asm/banks/prg_1d_1e.asm#L342-L438)
+- [prg_1d_1e.asm:475-612](file://asm/banks/prg_1d_1e.asm#L475-L612)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [functions.h:574-597](file://include/functions.h#L574-L597)
 
 ### Enhanced Menu Update Procedure with Structured Command Dispatch
 - The MenuUpdate procedure has been completely refactored with a comprehensive 32-entry MenuDispatchTable for handling menu commands $80-$9F.
@@ -496,14 +615,14 @@ TILESTORE --> DISPATCHLOOP
 ```
 
 **Diagram sources**
-- [prg_1d_1e.asm:270-398](file://asm/banks/prg_1d_1e.asm#L270-L398)
+- [prg_1d_1e.asm:475-612](file://asm/banks/prg_1d_1e.asm#L475-L612)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
-- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 
 **Section sources**
-- [prg_1d_1e.asm:270-398](file://asm/banks/prg_1d_1e.asm#L270-L398)
+- [prg_1d_1e.asm:475-612](file://asm/banks/prg_1d_1e.asm#L475-L612)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
-- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 
 ### Bank Switching Implementation (Enhanced Macros)
 - The mapper exposes four write-only registers to select 8KB PRG banks for each slot.
@@ -511,6 +630,7 @@ TILESTORE --> DISPATCHLOOP
 - A bank switching helper reads a configuration table and writes to the mapper registers for PRG slots and extended configuration.
 - The combined PRG bank 17/18 structure uses specialized bank switching routines for simultaneous loading of both banks.
 - The new combined PRG bank 1D/1E system uses standard bank switching to load both banks into the unified $A000-$DFFF range.
+- The combined PRG bank 0A/0B structure uses standard bank switching for unified access.
 - Modern assembly format provides structured organization with labeled bank switching routines and .proc/.endproc scope management.
 
 **Updated** Enhanced with modern assembly formatting standards and improved macro organization, including coverage of the new combined bank structure and structured function organization.
@@ -527,6 +647,11 @@ LOAD3 --> WRITE3["Write to $D000"]
 TABLEIDX --> LOAD4["Load PRG bank reg 4 ($D800)"]
 LOAD4 --> WRITE4["Write to $D800"]
 WRITE4 --> DONE["Return"]
+COMBINED0A_0B["Combined Bank Switch<br/>Standard Bank Switch"] --> BANK0A["Load Bank $0A<br/>$A000-$BFFF"]
+COMBINED0A_0B --> BANK0B["Load Bank $0B<br/>$C000-$DFFF"]
+BANK0A --> UNIFIED0A_0B["$A000: Descriptive Entry Points<br/>CheckGameStart_Entry, etc."]
+BANK0B --> UNIFIED0A_0B
+UNIFIED0A_0B --> GAMELOGIC["Game Logic Operations"]
 COMBINED17_18["Combined Bank Switch<br/>SwitchBankAC_A/B (Y=$37)"] --> BANKA["Load Bank $17<br/>$A000-$BFFF"]
 COMBINED17_18 --> BANKB["Load Bank $18<br/>$C000-$DFFF"]
 BANKA --> SIMULTANEOUS["Simultaneous Loading"]
@@ -534,28 +659,31 @@ BANKB --> SIMULTANEOUS
 SIMULTANEOUS --> OPTIMIZED["$A02A: DomesticDisplay<br/>Optimized Display Ops"]
 COMBINED1D_1E["Unified Bank Switch<br/>Standard Bank Switch"] --> BANK1D["Load Bank $1D<br/>$A000-$BFFF"]
 COMBINED1D_1E --> BANK1E["Load Bank $1E<br/>$C000-$DFFF"]
-BANK1D --> UNIFIED["$A000: Jump Table<br/>Unified Entry Points"]
+BANK1D --> UNIFIED["$A000: Descriptive Entry Points<br/>PPUTileRender_Entry, etc."]
 BANK1E --> UNIFIED
 UNIFIED --> DISPLAYOPS["Integrated Display Ops"]
 UNIFIED --> DOMESTICOPS["Unified Domestic Ops"]
 PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
+COMBINED0A_0B --> PARAMSYS
 COMBINED17_18 --> PARAMSYS
 COMBINED1D_1E --> PARAMSYS
 ```
 
 **Diagram sources**
-- [prg_1f.asm:785-818](file://asm/banks/prg_1f.asm#L785-L818)
-- [prg_1f.asm:824-828](file://asm/banks/prg_1f.asm#L824-L828)
-- [prg_17_18.asm:112-127](file://asm/banks/prg_17_18.asm#L112-L127)
-- [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
-- [namco163.h:10-17](file://include/namco163.h#L10-L17)
+- [prg_1f.aligned.asm:785-818](file://asm/banks/prg_1f.aligned.asm#L785-818)
+- [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-828)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-335)
+- [namco163.h:10-17](file://include/namco163.h#L10-17)
 
 **Section sources**
-- [namco163.h:65-87](file://include/namco163.h#L65-L87)
-- [prg_1f.asm:785-818](file://asm/banks/prg_1f.asm#L785-L818)
-- [prg_1f.asm:824-828](file://asm/banks/prg_1f.asm#L824-L828)
-- [prg_17_18.asm:112-127](file://asm/banks/prg_17_18.asm#L112-L127)
-- [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
+- [namco163.h:65-87](file://include/namco163.h#L65-87)
+- [prg_1f.aligned.asm:785-818](file://asm/banks/prg_1f.aligned.asm#L785-818)
+- [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-828)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-335)
 
 ### Interrupt Service Routines and Hardware Abstraction
 - The main module provides minimal NMI and IRQ stubs that preserve registers and return via RTI.
@@ -563,6 +691,7 @@ COMBINED1D_1E --> PARAMSYS
 - The mapper initialization routine sets up the initial bank configuration for the first three slots.
 - The combined PRG bank 17/18 structure provides specialized display and rendering routines optimized for the game's strategic interface.
 - The new combined PRG bank 1D/1E system provides unified display and domestic operations with integrated SRAM management.
+- The combined PRG bank 0A/0B structure provides game logic and data processing routines with descriptive entry points.
 - Modern assembly formatting provides structured organization with labeled interrupt handlers and hardware abstraction routines, including comprehensive .proc/.endproc scope management.
 
 **Updated** Enhanced with modern assembly formatting standards and improved hardware abstraction organization, including coverage of the new combined bank structure and structured function organization.
@@ -577,38 +706,43 @@ IRQ["IRQ Handler"] --> SAVE2["Push A/X/Y<br/>$E000: 78 D8 A9 00"]
 SAVE2 --> PROC2["Process IRQ (placeholder)"]
 PROC2 --> RESTORE2["Pop Y/X/A<br/>$E000: 78 D8 A9 00"]
 RESTORE2 --> RTI2["RTI<br/>$E000: 40"]
+COMBINED0A_0B["Combined Bank 0A/0B<br/>Refactored with Descriptive Names"] --> GAMELOGIC["Game Logic Ops<br/>CheckGameStart, SubStateDispatch,<br/>ArmyValueCalc, DataRecordLookup,<br/>DistanceClamp"]
 COMBINED17_18["Combined Bank 17/18<br/>Specialized Display Ops"] --> PPUOPS["PPU Operations<br/>RLE Compression, Raw Copy"]
 COMBINED17_18 --> RENDEROPS["Rendering Ops<br/>Scene Dispatch, Attributes"]
-COMBINED17_18 --> PROC[".proc/.endproc<br/>Structured Organization"]
 COMBINED1D_1E["Combined Bank 1D/1E<br/>Unified Display/Domestic Ops"] --> DISPLAYOPS["Display Operations<br/>Menu Handlers, Data Processing"]
 COMBINED1D_1E --> DOMESTICOPS["Domestic Operations<br/>Save/Load, SRAM Management"]
+COMBINED0A_0B --> PROC[".proc/.endproc<br/>Structured Organization"]
+COMBINED17_18 --> PROC
 COMBINED1D_1E --> PROC
 PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
+GAMELOGIC --> PARAMSYS
 PPUOPS --> PARAMSYS
 RENDEROPS --> PARAMSYS
 DISPLAYOPS --> PARAMSYS
 DOMESTICOPS --> PARAMSYS
 PROC --> PARAMSYS
-PARAMSYS --> OPTIMIZED["$A087: PpuWriteRle<br/>Optimized PPU Writes"]
+PARAMSYS --> OPTIMIZED["$A02A: DomesticDisplay<br/>Optimized PPU Writes"]
 PARAMSYS --> SPECIALIZED["$A3E1: RenderSceneHoriz<br/>Specialized Rendering"]
-PARAMSYS --> UNIFIED["$A000: Jump Table<br/>Unified Entry Points"]
+PARAMSYS --> UNIFIED["$A000: Descriptive Entry Points<br/>Meaningful Function Names"]
 ```
 
 **Diagram sources**
-- [main.asm:65-99](file://asm/main.asm#L65-L99)
-- [prg_1f.asm:1040-1065](file://asm/banks/prg_1f.asm#L1040-L1065)
-- [prg_17_18.asm:168-208](file://asm/banks/prg_17_18.asm#L168-L208)
-- [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-L768)
-- [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
-- [macros.h:8-12](file://include/macros.h#L8-L12)
+- [main.asm:65-99](file://asm/main.asm#L65-99)
+- [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-1065)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-768)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-335)
+- [macros.h:8-12](file://include/macros.h#L8-12)
 
 **Section sources**
-- [main.asm:65-99](file://asm/main.asm#L65-L99)
-- [prg_1f.asm:1040-1065](file://asm/banks/prg_1f.asm#L1040-L1065)
-- [prg_17_18.asm:168-208](file://asm/banks/prg_17_18.asm#L168-L208)
-- [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-L768)
-- [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
-- [macros.h:8-12](file://include/macros.h#L8-L12)
+- [main.asm:65-99](file://asm/main.asm#L65-99)
+- [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-1065)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-768)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-335)
+- [macros.h:8-12](file://include/macros.h#L8-12)
 
 ### Modular Assembly Approach and Bank Assignment
 - The project uses a modular approach: each bank is represented by a separate assembly stub that includes the corresponding binary.
@@ -616,43 +750,57 @@ PARAMSYS --> UNIFIED["$A000: Jump Table<br/>Unified Entry Points"]
 - The include files centralize register definitions and macros for consistent access patterns across banks.
 - The combined PRG bank 17/18 structure represents a specialized module providing enhanced display capabilities with modern .proc/.endproc organization.
 - The new combined PRG bank 1D/1E structure represents a unified module providing integrated display and domestic operations with simplified bank management.
+- The combined PRG bank 0A/0B structure represents a game logic module with descriptive entry points and structured function organization.
 - Modern assembly formatting provides improved organization and debugging support across all bank files, including comprehensive function scope management.
 - **Enhanced Parameter System**: Structured memory addressing system with comprehensive parameter declarations throughout the PRG bank 17-18 assembly.
 - **Unified Bank Architecture**: The new combined PRG bank 1D/1E system provides architectural improvement over individual bank management with integrated functionality.
+- **Comprehensive Descriptive Entry Points**: All combined bank systems now feature fully descriptive entry points following the standardized naming convention replacing generic EntryXX patterns for superior code organization.
+- **Completed Major Refactoring**: PRG bank $0A+$0B has been successfully refactored with descriptive function naming, eliminating cryptic prefixed formats.
 
-**Updated** Enhanced with modern assembly formatting standards and improved bank assignment organization, including coverage of the new combined bank structure and structured function organization.
+**Updated** Enhanced with modern assembly formatting standards and improved bank assignment organization, including coverage of the new combined bank structure, structured function organization, fully descriptive entry points following the standardized naming convention, and structured function organization.
 
 ```mermaid
 graph LR
-ALLB["asm/banks/all_banks.asm"] --> COMBINED17_18["prg_17_18.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF"]
+ALLB["asm/banks/all_banks.asm"] --> COMBINED0A_0B["prg_0a_0b.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF<br/>Refactored with Descriptive Names"]
+ALLB --> COMBINED17_18["prg_17_18.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF"]
 ALLB --> COMBINED1D_1E["prg_1d_1e.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF"]
-ALLB --> ALIGNED["prg_1f.asm (Boot)<br/>Modern Assembly Format"]
+ALLB --> ALIGNED["prg_1f.aligned.asm (Boot)<br/>Modern Assembly Format"]
 LCFG["linker.cfg"] --> SEG0["CODE (PRG_SLOT0)"]
 LCFG --> SEG1["CODE1 (PRG_SLOT1)"]
 LCFG --> SEG2["CODE2 (PRG_SLOT2)"]
 LCFG --> SEG3["CODE3 (PRG_SLOT3)"]
+COMBINED0A_0B --> BIN0A_0B["rom/prg/prg_0a_0b_combined.bin"]
 COMBINED17_18 --> BIN17_18["rom/prg/prg_17_18.bin"]
 COMBINED1D_1E --> BIN1D_1E["rom/prg/prg_1d_1e_combined.bin"]
 ALIGNED --> BIN1F["rom/prg/prg_1f.bin"]
-COMBINED17_18 --> STRUCT["Structured Assembly Organization"]
+COMBINED0A_0B --> STRUCT["Structured Assembly Organization"]
+COMBINED17_18 --> STRUCT
 COMBINED1D_1E --> STRUCT
-COMBINED17_18 --> PROC[".proc/.endproc<br/>Modular Functions"]
+COMBINED0A_0B --> PROC[".proc/.endproc<br/>Modular Functions"]
+COMBINED17_18 --> PROC
 COMBINED1D_1E --> PROC
 PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
 STRUCT --> PARAMSYS
 PROC --> PARAMSYS
 MODERN["Modern Assembly Format<br/>Enhanced Organization"]
 PARAMSYS --> MODERN
+DESCRIPTIVENAMING["Comprehensive Descriptive Naming<br/>Meaningful Entry Points"]
+COMBINED0A_0B --> DESCRIPTIVENAMING
+COMBINED17_18 --> DESCRIPTIVENAMING
+COMBINED1D_1E --> DESCRIPTIVENAMING
+REFAC["Major Refactoring<br/>B0A_* → CheckGameStart"] --> COMBINED0A_0B
 ```
 
 **Diagram sources**
-- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
+- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-38)
+- [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 
 **Section sources**
-- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
+- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-38)
+- [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
@@ -686,11 +834,11 @@ The modern assembly formatting provides numerous benefits for developers:
 - **Documentation Support**: Organized structure serves as implicit documentation of code functionality
 
 **Section sources**
-- [prg_1f.asm:12-80](file://asm/banks/prg_1f.asm#L12-L80)
-- [prg_1f.asm:800-1599](file://asm/banks/prg_1f.asm#L800-L1599)
-- [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-L71)
-- [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-L16)
-- [namco163.h:65-87](file://include/namco163.h#L65-L87)
+- [prg_1f.aligned.asm:12-80](file://asm/banks/prg_1f.aligned.asm#L12-80)
+- [prg_1f.aligned.asm:800-1599](file://asm/banks/prg_1f.aligned.asm#L800-1599)
+- [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-71)
+- [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-16)
+- [namco163.h:65-87](file://include/namco163.h#L65-87)
 
 ## Enhanced Parameter Declaration System
 
@@ -729,11 +877,11 @@ The parameter system dramatically improves code clarity:
 - **BattleOverlayRender**: Uses overlay_data_ptr, scene_coord_ptr, work_ptr_hi for overlay processing
 
 **Section sources**
-- [prg_17_18.asm:135-155](file://asm/banks/prg_17_18.asm#L135-L155)
-- [prg_17_18.asm:242-315](file://asm/banks/prg_17_18.asm#L242-L315)
-- [prg_17_18.asm:759-857](file://asm/banks/prg_17_18.asm#L759-L857)
-- [prg_17_18.asm:1288-1327](file://asm/banks/prg_17_18.asm#L1288-L1327)
-- [prg_17_18.asm:1850-2002](file://asm/banks/prg_17_18.asm#L1850-L2002)
+- [prg_17_18.asm:135-155](file://asm/banks/prg_17_18.asm#L135-155)
+- [prg_17_18.asm:242-315](file://asm/banks/prg_17_18.asm#L242-315)
+- [prg_17_18.asm:759-857](file://asm/banks/prg_17_18.asm#L759-857)
+- [prg_17_18.asm:1288-1327](file://asm/banks/prg_17_18.asm#L1288-1327)
+- [prg_17_18.asm:1850-2002](file://asm/banks/prg_17_18.asm#L1850-2002)
 
 ## Enhanced Code Organization
 
@@ -773,12 +921,12 @@ The new .proc/.endproc organization provides comprehensive function structuring:
 - **Code Reusability**: Modular functions can be reused independently
 
 **Section sources**
-- [prg_1f.asm:80-399](file://asm/banks/prg_1f.asm#L80-L399)
-- [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-L71)
-- [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-L16)
-- [prg_1f.asm:1228-1256](file://asm/banks/prg_1f.asm#L1228-L1256)
-- [prg_1f.asm:1319-1372](file://asm/banks/prg_1f.asm#L1319-L1372)
-- [prg_17_18.asm:17-17](file://asm/banks/prg_17_18.asm#L17-L17)
+- [prg_1f.aligned.asm:80-399](file://asm/banks/prg_1f.aligned.asm#L80-399)
+- [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-71)
+- [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-16)
+- [prg_1f.aligned.asm:1228-1256](file://asm/banks/prg_1f.aligned.asm#L1228-1256)
+- [prg_1f.aligned.asm:1319-1372](file://asm/banks/prg_1f.aligned.asm#L1319-1372)
+- [prg_17_18.asm:17-17](file://asm/banks/prg_17_18.asm#L17-17)
 
 ## Callback Table Architecture
 
@@ -826,14 +974,14 @@ RTS --> RETURN["Return to caller"]
 ```
 
 **Diagram sources**
-- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
-- [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-L612)
+- [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-612)
 
 **Section sources**
-- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
-- [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-L612)
+- [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-612)
 
 ## SceneRenderer System Implementation
 
@@ -899,21 +1047,21 @@ LOCALVARS6 --> PROCBOUNDARY
 
 **Diagram sources**
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
-- [prg_1d_1e.asm:3209-3220](file://asm/banks/prg_1d_1e.asm#L3209-L3220)
-- [prg_1d_1e.asm:3226-3271](file://asm/banks/prg_1d_1e.asm#L3226-L3271)
-- [prg_1d_1e.asm:3277-3300](file://asm/banks/prg_1d_1e.asm#L3277-L3300)
-- [prg_1d_1e.asm:3306-3325](file://asm/banks/prg_1d_1e.asm#L3306-L3325)
-- [prg_1d_1e.asm:3331-3352](file://asm/banks/prg_1d_1e.asm#L3331-L3352)
-- [prg_1d_1e.asm:3358-3400](file://asm/banks/prg_1d_1e.asm#L3358-L3400)
+- [prg_1d_1e.asm:3209-3220](file://asm/banks/prg_1d_1e.asm#L3209-3220)
+- [prg_1d_1e.asm:3226-3271](file://asm/banks/prg_1d_1e.asm#L3226-3271)
+- [prg_1d_1e.asm:3277-3300](file://asm/banks/prg_1d_1e.asm#L3277-3300)
+- [prg_1d_1e.asm:3306-3325](file://asm/banks/prg_1d_1e.asm#L3306-3325)
+- [prg_1d_1e.asm:3331-3352](file://asm/banks/prg_1d_1e.asm#L3331-3352)
+- [prg_1d_1e.asm:3358-3400](file://asm/banks/prg_1d_1e.asm#L3358-3400)
 
 **Section sources**
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
-- [prg_1d_1e.asm:3209-3220](file://asm/banks/prg_1d_1e.asm#L3209-L3220)
-- [prg_1d_1e.asm:3226-3271](file://asm/banks/prg_1d_1e.asm#L3226-L3271)
-- [prg_1d_1e.asm:3277-3300](file://asm/banks/prg_1d_1e.asm#L3277-L3300)
-- [prg_1d_1e.asm:3306-3325](file://asm/banks/prg_1d_1e.asm#L3306-L3325)
-- [prg_1d_1e.asm:3331-3352](file://asm/banks/prg_1d_1e.asm#L3331-L3352)
-- [prg_1d_1e.asm:3358-3400](file://asm/banks/prg_1d_1e.asm#L3358-L3400)
+- [prg_1d_1e.asm:3209-3220](file://asm/banks/prg_1d_1e.asm#L3209-3220)
+- [prg_1d_1e.asm:3226-3271](file://asm/banks/prg_1d_1e.asm#L3226-3271)
+- [prg_1d_1e.asm:3277-3300](file://asm/banks/prg_1d_1e.asm#L3277-3300)
+- [prg_1d_1e.asm:3306-3325](file://asm/banks/prg_1d_1e.asm#L3306-3325)
+- [prg_1d_1e.asm:3331-3352](file://asm/banks/prg_1d_1e.asm#L3331-3352)
+- [prg_1d_1e.asm:3358-3400](file://asm/banks/prg_1d_1e.asm#L3358-3400)
 
 ## Debugging and Verification Tools
 
@@ -972,10 +1120,35 @@ The new callback table architecture provides debugging advantages:
 - **Better Performance Analysis**: Callback dispatch overhead can be measured and optimized
 - **Symbolic References**: Symbolic function names improve debugging and analysis
 
+### Comprehensive Descriptive Entry Point Benefits
+The fully descriptive entry points following the standardized naming convention provide significant debugging advantages:
+
+- **Superior Code Navigation**: Meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry make it significantly easier to locate specific functionality
+- **Enhanced Symbol Resolution**: Descriptive names dramatically improve debugging tool output and symbol tables
+- **Built-in Documentation**: Entry point names serve as immediate inline documentation of function purpose
+- **Reduced Cognitive Load**: Developers no longer need to remember what Entry00, Entry01, etc. do
+- **Improved Maintenance**: Code changes are much easier to track when function names are descriptive
+- **Better Error Messages**: Compiler and debugger messages are far more informative with descriptive names
+- **Cross-Reference Clarity**: References in functions.h and other files become self-documenting
+- **Team Collaboration**: Multiple developers can work on the codebase more effectively with clear naming conventions
+
+### New Verification Tool Benefits
+The verify_0a_0b.py tool provides comprehensive ROM validation:
+
+- **Byte-for-Byte Accuracy**: Ensures rebuilt ROM matches original exactly
+- **Automated Testing**: Validates refactoring completeness and correctness
+- **Mismatch Detection**: Reports specific address mismatches with detailed information
+- **Build Verification**: Confirms that major refactoring maintains ROM integrity
+- **Development Confidence**: Provides assurance that code changes don't alter behavior
+
 **Section sources**
-- [prg_1f.asm:1-200](file://asm/banks/prg_1f.asm#L1-L200)
+- [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
-- [assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
+- [assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-41)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 
 ## Dependency Analysis
 The architecture exhibits clear separation of concerns with modern assembly formatting standards:
@@ -983,6 +1156,7 @@ The architecture exhibits clear separation of concerns with modern assembly form
 - State handlers depend on the dispatcher and bank switching helpers.
 - The combined PRG bank 17/18 structure depends on specialized display and rendering routines with structured function organization and enhanced parameter declarations.
 - The new combined PRG bank 1D/1E structure depends on unified display and domestic operations with integrated SRAM management.
+- The combined PRG bank 0A/0B structure depends on game logic and data processing routines with descriptive entry points.
 - The linker configuration ties together segments and memory regions.
 - The main module coordinates initialization and provides minimal ISR stubs.
 - Modern assembly formatting provides improved organization and debugging support.
@@ -991,15 +1165,20 @@ The architecture exhibits clear separation of concerns with modern assembly form
 - **Unified Bank Architecture**: The new combined PRG bank 1D/1E system provides architectural improvement over individual bank management with simplified dependencies.
 - **Menu Dispatch Dependencies**: The MenuUpdate procedure depends on the B1F_CallbackDispatcher and MenuDispatchTable for structured command processing.
 - **Callback System Dependencies**: The SceneRenderer system depends on the B1F_CallbackDispatcher for structured callback invocation with proper parameter passing.
+- **Comprehensive Descriptive Entry Point Dependencies**: All combined bank systems depend on fully descriptive entry points following the standardized naming convention for superior code organization and maintainability.
+- **Verification Tool Dependencies**: The verify_0a_0b.py tool depends on the original ROM file and build artifacts for validation.
 
-**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, the new menu dispatch architecture, and the enhanced callback system.
+**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, the new menu dispatch architecture, the enhanced callback system, the comprehensive descriptive entry point naming convention following the standardized naming pattern, and the new verification tool infrastructure.
 
 ```mermaid
 graph TB
-ALIGNED["prg_1f.asm<br/>Modern Assembly Format"] --> NAMCO["namco163.h"]
+ALIGNED["prg_1f.aligned.asm<br/>Modern Assembly Format"] --> NAMCO["namco163.h"]
 ALIGNED --> REGS["6502_registers.h"]
 ALIGNED --> MACROS["macros.h"]
 ALIGNED --> CALLBACKDISP["CallbackDispatcher<br/>$EADE"]
+COMBINED0A_0B["prg_0a_0b.asm<br/>Combined 16KB Structure<br/>Refactored with Descriptive Names"] --> NAMCO
+COMBINED0A_0B --> REGS
+COMBINED0A_0B --> MACROS
 COMBINED17_18["prg_17_18.asm<br/>Combined 16KB Structure"] --> NAMCO
 COMBINED17_18 --> REGS
 COMBINED17_18 --> MACROS
@@ -1007,55 +1186,85 @@ COMBINED1D_1E["prg_1d_1e.asm<br/>Combined 16KB Structure"] --> NAMCO
 COMBINED1D_1E --> REGS
 COMBINED1D_1E --> MACROS
 COMBINED1D_1E --> FUNCTIONS["functions.h<br/>Function Address Constants"]
+COMBINED0A_0B --> FUNCTIONS
+COMBINED17_18 --> FUNCTIONS
 COMBINED1D_1E --> PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
 COMBINED1D_1E --> MENUDISPATCH["MenuDispatchTable<br/>32-Entry Command System"]
 COMBINED1D_1E --> SCENERENDERER["SceneRenderer<br/>Callback Table Architecture"]
 COMBINED1D_1E --> CALLBACKDISP
+COMBINED0A_0B --> DESCENTRIES["Descriptive Entry Points<br/>CheckGameStart_Entry, etc."]
+COMBINED17_18 --> DESCENTRIES
+COMBINED1D_1E --> DESCENTRIES
 MAIN["main.asm"] --> ALIGNED
 MAIN --> NAMCO
 LCFG["linker.cfg"] --> ALIGNED
+LCFG --> COMBINED0A_0B
 LCFG --> COMBINED17_18
 LCFG --> COMBINED1D_1E
 LCFG --> MAIN
 ALIGNED --> STRUCT["Structured Organization"]
+COMBINED0A_0B --> STRUCT
 COMBINED17_18 --> STRUCT
 COMBINED1D_1E --> STRUCT
 ALIGNED --> DEBUG["Enhanced Debugging"]
+COMBINED0A_0B --> DEBUG
 COMBINED17_18 --> DEBUG
 COMBINED1D_1E --> DEBUG
-COMBINED17_18 --> PROC[".proc/.endproc<br/>Modular Functions"]
+COMBINED0A_0B --> PROC[".proc/.endproc<br/>Modular Functions"]
+COMBINED17_18 --> PROC
 COMBINED1D_1E --> PROC
 PARAMSYS --> PROC
 STRUCT --> PROC
 MENUDISPATCH --> CALLBACKEVAL["B1F_CallbackDispatcher"]
 SCENERENDERER --> CALLBACKEVAL
 CALLBACKEVAL --> ALIGNED
+DESCENTRIES --> IMPROVEDMAINT["Improved Maintainability<br/>Better Code Organization"]
+VERIFY["verify_0a_0b.py<br/>ROM Validation"] --> COMBINED0A_0B
+VERIFY --> ORIGINALROM["Original ROM File"]
+VERIFY --> BUILDARTIFACTS["Build Artifacts"]
 ```
 
 **Diagram sources**
-- [prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
-- [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-L12)
-- [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-L14)
-- [namco163.h:10-17](file://include/namco163.h#L10-L17)
-- [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
+- [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-11)
+- [prg_0a_0b.asm:10-12](file://asm/banks/prg_0a_0b.asm#L10-12)
+- [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-12)
+- [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-14)
+- [namco163.h:10-17](file://include/namco163.h#L10-17)
+- [6502_registers.h:6-39](file://include/6502_registers.h#L6-39)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
-- [main.asm:6-7](file://asm/main.asm#L6-L7)
-- [linker.cfg:18-55](file://linker.cfg#L18-L55)
+- [main.asm:6-7](file://asm/main.asm#L6-7)
+- [linker.cfg:18-55](file://linker.cfg#L18-55)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
+- [functions.h:574-597](file://include/functions.h#L574-L597)
+- [functions.h:739-745](file://include/functions.h#L739-L745)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
-- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 
 **Section sources**
-- [prg_1f.asm:10-11](file://asm/banks/prg_1f.asm#L10-L11)
-- [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-L12)
-- [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-L14)
-- [namco163.h:10-17](file://include/namco163.h#L10-L17)
-- [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
+- [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-11)
+- [prg_0a_0b.asm:10-12](file://asm/banks/prg_0a_0b.asm#L10-12)
+- [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-12)
+- [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-14)
+- [namco163.h:10-17](file://include/namco163.h#L10-17)
+- [6502_registers.h:6-39](file://include/6502_registers.h#L6-39)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
-- [main.asm:6-7](file://asm/main.asm#L6-L7)
-- [linker.cfg:18-55](file://linker.cfg#L18-L55)
+- [main.asm:6-7](file://asm/main.asm#L6-7)
+- [linker.cfg:18-55](file://linker.cfg#L18-55)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
+- [functions.h:574-597](file://include/functions.h#L574-L597)
+- [functions.h:739-745](file://include/functions.h#L739-L745)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
+- [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
+- [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 
 ## Performance Considerations
 - Bank switching involves writing to mapper registers; minimize unnecessary switches to reduce overhead.
@@ -1064,6 +1273,7 @@ CALLBACKEVAL --> ALIGNED
 - Keep PPU/APU operations synchronized with VBlank to prevent flicker and timing issues.
 - The combined PRG bank 17/18 structure provides optimized display operations for strategic interface rendering.
 - The new combined PRG bank 1D/1E system provides unified memory management and simplified bank switching for display and domestic operations.
+- The combined PRG bank 0A/0B structure provides optimized game logic operations with descriptive entry points.
 - **Enhanced Parameter System**: The structured parameter declaration system provides improved code organization for better performance analysis.
 - **Debugging Efficiency**: Structured organization improves debugging efficiency and performance optimization.
 - **Maintenance Overhead**: Modern formatting and parameter system add minimal overhead while providing significant development benefits.
@@ -1073,6 +1283,8 @@ CALLBACKEVAL --> ALIGNED
 - **Menu Dispatch Optimization**: The new MenuDispatchTable provides efficient command routing with minimal overhead compared to conditional branching.
 - **Callback System Performance**: The callback table architecture provides efficient dispatch with minimal overhead compared to inline conditional logic.
 - **Symbolic References**: Symbolic function names improve code maintainability without performance impact.
+- **Comprehensive Descriptive Entry Points**: Fully descriptive entry points following the standardized naming convention provide superior code organization with no performance penalty, significantly improving long-term maintainability and reducing debugging time across the entire codebase.
+- **Verification Tool Impact**: The verify_0a_0b.py tool runs during development builds but has no runtime performance impact.
 
 ## Troubleshooting Guide
 - If the game does not enter the intended state, verify the vector table indexing and ensure the state counter is properly masked.
@@ -1094,17 +1306,21 @@ CALLBACKEVAL --> ALIGNED
 - **Callback System Issues**: For callback-related problems, verify the callback table structure and B1F_CallbackDispatcher implementation.
 - **SceneRenderer Problems**: For scene rendering issues, check the SceneRenderer callback table and individual callback implementations.
 - **Local Variable Conflicts**: For variable-related issues, verify local variable scoping and .proc/.endproc boundaries.
+- **Comprehensive Descriptive Entry Point Issues**: For problems with fully descriptive entry points following the standardized naming convention like CheckGameStart_Entry, PpuWriteRle_Entry, or PPUTileRender_Entry, verify the jump table structure and ensure proper function name consistency across all combined bank systems. The descriptive naming convention eliminates confusion and makes debugging significantly more straightforward.
+- **Verification Tool Failures**: When verify_0a_0b.py reports mismatches, examine the specific addresses reported and compare with original ROM bytes to identify refactoring errors.
 
 **Section sources**
-- [prg_1f.asm:739-750](file://asm/banks/prg_1f.asm#L739-L750)
-- [prg_1f.asm:1071-1085](file://asm/banks/prg_1f.asm#L1071-L1085)
-- [prg_1f.asm:1100-1113](file://asm/banks/prg_1f.asm#L1100-L1113)
-- [prg_17_18.asm:112-127](file://asm/banks/prg_17_18.asm#L112-L127)
-- [prg_1d_1e.asm:18-94](file://asm/banks/prg_1d_1e.asm#L18-L94)
+- [prg_1f.aligned.asm:739-750](file://asm/banks/prg_1f.aligned.asm#L739-750)
+- [prg_1f.aligned.asm:1071-1085](file://asm/banks/prg_1f.aligned.asm#L1071-1085)
+- [prg_1f.aligned.asm:1100-1113](file://asm/banks/prg_1f.aligned.asm#L1100-1113)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
-- [prg_1f.asm:1757-1785](file://asm/banks/prg_1f.asm#L1757-L1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 
 ## Conclusion
-The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability and debugging support. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, adopting the new menu dispatch system, and embracing the enhanced callback architecture, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.
+The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability and debugging support. **Updated** The most significant recent enhancement is the completion of the major refactoring of PRG bank $0A+$0B, successfully transforming cryptic prefixed function names like B0A_CheckGameStart and B0B_SubStateDispatch into descriptive names like CheckGameStart and SubStateDispatch, while also updating all entry points from generic EntryXX patterns to meaningful descriptive names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry. This transformative change establishes a consistent naming convention across the entire codebase, significantly improving code organization, debugging capabilities, and long-term maintainability through consistent symbolic reference patterns. The addition of the verify_0a_0b.py verification tool ensures that the major refactoring maintains byte-for-byte accuracy with the original ROM, providing confidence in the code changes. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, adopting the new menu dispatch system, embracing the enhanced callback architecture, and incorporating the comprehensive descriptive entry point naming convention following the standardized naming pattern, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.
