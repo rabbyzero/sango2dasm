@@ -18,12 +18,10 @@
 
 ## Update Summary
 **Changes Made**
-- Enhanced documentation of consolidated PRG Banks $0A/$0B Architecture with new descriptive naming conventions for functions like CheckGameStart, InitWorkAreas, ScanMatchData, SumAndCompare, ArmyDispatch, ProvinceSearch
-- Improved code organization with comprehensive work area definitions including Work Area ($0036-$0045), Math Workspace ($20-$27), Game State ($05xx), and SRAM Integration ($6Fxx)
-- Updated function naming from generic EntryXX format to descriptive names throughout consolidated banks for better maintainability
-- Enhanced data structure organization with separated tables (ProvinceDataA/B/C, TierAdjustA/B/C) for better maintainability
-- Refined SceneRenderer callback architecture with 6-stage rendering pipeline in bank $1D/$1E
-- Updated bank switching mechanisms to reflect consolidated architecture with unified 16KB blocks at $A000-$DFFF
+- Enhanced AI turn processing system with major refactoring of PRG banks $0A/$0B including new function naming conventions (AiTurnDispatch, AiSearchPhase1, AiActionSelect), province evaluation enhancements with new global functions (CalcAvgProvinceVal, AbsorbPreview, TransferProvinceValues, FallbackMergeProvinces), and improved battle system logic with dedicated functions for army and enemy placement
+- Updated comprehensive work area organization with detailed SRAM integration ($6Fxx) for kingdom/player data management
+- Enhanced display system improvements with better SceneRenderer callback architecture and zero-page variable organization
+- Improved code structure through systematic reorganization while maintaining complete functional equivalence
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -37,10 +35,10 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $17/$18, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major refactoring includes comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
+This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $17/$18, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major refactoring includes enhanced AI turn processing system with comprehensive province evaluation logic, improved battle system functionality, and better code structure through systematic reorganization while maintaining complete functional equivalence. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
 
 ## Project Structure
-The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG bank $0A/$0B provides domestic affairs and army calculation functionality with comprehensive data processing capabilities.
+The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG bank $0A/$0B provides enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization.
 
 ```mermaid
 graph TB
@@ -102,7 +100,7 @@ S1F -. includes .-> CFG
 - Fixed boot bank 0x1F mapped to $E000-$FFFF at reset
 - Bank switching controlled via mapper registers at $F800-$FE00
 - **Updated**: Consolidated bank switching mechanism for PRG banks $0A/$0B, $17/$18, and $1D/$1E using unified 16KB blocks at $A000-$DFFF
-- **New**: Enhanced display system with comprehensive zero-page variable organization and improved SceneRenderer callback architecture
+- **New**: Enhanced AI turn processing system with comprehensive province evaluation and battle logic in consolidated banks $0A/$0B
 
 Key implementation references:
 - Memory map and slot definitions in linker.cfg
@@ -110,7 +108,7 @@ Key implementation references:
 - Consolidated bank stubs for PRG banks $0A/$0B, $17/$18, and $1D/$1E in asm/banks/prg_0a_0b.asm, asm/banks/prg_17_18.asm, and asm/banks/prg_1d_1e.asm
 - Bank switching helpers in include/functions.h
 - Boot bank 0x1F and vector table in bank_1f_analysis.md
-- **New**: Enhanced zero-page variable organization with comprehensive workspace definitions and improved SceneRenderer callback system
+- **New**: Enhanced AI system with comprehensive work area organization and SRAM integration
 
 **Section sources**
 - [linker.cfg:14-30](file://linker.cfg#L14-L30)
@@ -121,7 +119,7 @@ Key implementation references:
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
 
 ## Architecture Overview
-The system uses a 4-slot PRG mapping scheme with 8KB banks. At reset, bank 0x1F is fixed in slot 3 ($E000-$FFFF). The remaining three slots ($8000-$DFFF) are switchable via mapper registers. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E are now managed as consolidated units, sharing the $A000-$DFFF address space through unified bank switching routines. **New**: PRG banks $0A/$0B provide domestic affairs and army calculation functionality with comprehensive data processing capabilities. Bank switching is performed by writing the desired bank number to specific addresses.
+The system uses a 4-slot PRG mapping scheme with 8KB banks. At reset, bank 0x1F is fixed in slot 3 ($E000-$FFFF). The remaining three slots ($8000-$DFFF) are switchable via mapper registers. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E are now managed as consolidated units, sharing the $A000-$DFFF address space through unified bank switching routines. **New**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic. Bank switching is performed by writing the desired bank number to specific addresses.
 
 ```mermaid
 graph TB
@@ -132,7 +130,7 @@ REGA000["$FA00<br/>Switch $A000-$BFFF"]
 REGC000["$FC00<br/>Switch $C000-$DFFF"]
 REGE000["$FE00<br/>Switch $E000-$FFFF"]
 SWITCHAC["B1F_SwitchBankAC ($F237)<br/>Switch $A000-$BFFF + $C000-$DFFF"]
-SWITCH0A0B["Consolidated $0A/$0B<br/>Domestic Affairs & Army Calc"]
+SWITCH0A0B["Consolidated $0A/$0B<br/>AI Turn Processing & Province Evaluation"]
 SWITCH1718["Consolidated $17/$18<br/>Display & Battle Systems"]
 SWITCH1D1E["Enhanced $1D/$1E<br/>SceneRenderer System"]
 CPU --> REG8000
@@ -173,7 +171,7 @@ SWITCH1D1E --> MAPPER
   - $C000-$DFFF: Slot 2 (switchable via $FC00)
   - $E000-$FFFF: Slot 3 (fixed boot bank 0x1F via $FE00)
 
-**Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E are now consolidated into single 16KB blocks occupying both $A000-$BFFF and $C000-$DFFF. **New**: PRG banks $0A/$0B provide domestic affairs management, army calculations, and province data processing with comprehensive work area organization. This consolidation allows the $A000-$BFFF and $C000-$DFFF slots to be switched as unified pairs using the SwitchBankAC routines.
+**Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E are now consolidated into single 16KB blocks occupying both $A000-$BFFF and $C000-$DFFF. **New**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization. This consolidation allows the $A000-$BFFF and $C000-$DFFF slots to be switched as unified pairs using the SwitchBankAC routines.
 
 Memory mapping configuration in linker.cfg:
 - MEMORY regions define four PRG slots with fill and fillval
@@ -187,7 +185,7 @@ Practical distribution examples:
 - **Updated**: Banks 0x0A/$0x0B: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
 - **Updated**: Banks 0x17/$0x18: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
 - **Updated**: Banks 0x1D/$0x1E: $A000-$DFFF (consolidated 16KB block via B1F_SwitchBank1D1E)
-- **New**: Bank 0x0A/$0x0B includes comprehensive work area organization with SRAM integration for domestic affairs and army calculations
+- **New**: Bank 0x0A/$0x0B includes comprehensive AI turn processing with province evaluation and battle system logic
 - Bank 0x1F: $E000-$FFFF (boot bank, fixed)
 
 **Section sources**
@@ -229,7 +227,7 @@ Boot sequence and dispatch:
 - The $A000-$BFFF and $C000-$DFFF slots are now managed as unified pairs
 - Bank switching uses B1F_SwitchBankAC routines (B1F_SwitchBankAC_A/B) instead of individual $FA00/$FC00 writes
 - Bank parameter Y determines both $A000-$BFFF and $C000-$DFFF banks simultaneously
-- **New**: Specialized handling for banks $0A/$0B with domestic affairs and army calculation functionality
+- **New**: Specialized handling for banks $0A/$0B with enhanced AI turn processing and province evaluation
 - **New**: Enhanced display system in bank $1D/$1E provides comprehensive zero-page variable organization and improved SceneRenderer callback architecture
 
 Bank switching macros:
@@ -284,11 +282,11 @@ Segment organization strategy:
   - Stub: asm/banks/prg_00.asm includes rom/prg/prg_00.bin
 - Bank 0x01: $A000-$BFFF
   - Stub: asm/banks/prg_01.asm includes rom/prg/prg_01.bin
-- **Updated**: Banks 0x0A/$0x0B: $A000-$DFFF (consolidated with domestic affairs system)
+- **Updated**: Banks 0x0A/$0x0B: $A000-$DFFF (consolidated with enhanced AI system)
   - Stub: asm/banks/prg_0a_0b.asm includes rom/prg/prg_0a.bin and rom/prg/prg_0b.bin
   - Contains jump table and main dispatch at $A000-$A00E
-  - Provides unified 16KB code space for domestic affairs, army calculations, and province data processing
-  - **New**: Comprehensive work area organization with SRAM integration for kingdom/player data
+  - Provides unified 16KB code space for AI turn processing, province evaluation, and battle system logic
+  - **New**: Comprehensive work area organization with SRAM integration for kingdom/player data management
 - **Updated**: Banks 0x17/$0x18: $A000-$DFFF (consolidated)
   - Stub: asm/banks/prg_17_18.asm includes rom/prg/prg_17_18.bin
   - Contains domestic/kingdom display functions at $A000-$A029
@@ -330,14 +328,14 @@ Segment organization strategy:
 ### Relationship Between Bank Numbers and Memory Addresses
 - Bank 0x00 maps to $8000-$9FFF
 - Bank 0x01 maps to $A000-$BFFF
-- **Updated**: Banks 0x0A/$0x0B map to $A000-$DFFF (consolidated 16KB block with domestic affairs system)
+- **Updated**: Banks 0x0A/$0x0B map to $A000-$DFFF (consolidated 16KB block with enhanced AI system)
 - **Updated**: Banks 0x17/$0x18 map to $A000-$DFFF (consolidated 16KB block)
 - **Updated**: Banks 0x1D/$0x1E map to $A000-$DFFF (consolidated 16KB block with enhanced display system)
 - Bank 0x1F maps to $E000-$FFFF (fixed)
 
 **Updated**: Consolidated bank relationship:
-- Bank 0x0A provides code for $A000-$BFFF (slot 1) with domestic affairs and army calculation functionality
-- Bank 0x0B provides code for $C000-$DFFF (slot 2) with supporting data processing functions
+- Bank 0x0A provides code for $A000-$BFFF (slot 1) with enhanced AI turn processing and province evaluation
+- Bank 0x0B provides code for $C000-$DFFF (slot 2) with supporting battle system and data processing functions
 - Together they form a unified 16KB block at $A000-$DFFF with comprehensive work area organization
 - **New**: Bank 0x17 provides code for $A000-$BFFF (slot 1) with display and battle systems
 - **New**: Bank 0x18 provides code for $C000-$DFFF (slot 2) with supporting display functions
@@ -371,7 +369,7 @@ This mapping is enforced by the mapper registers:
   - $E000-$FFFF: Slot 3 (boot bank 0x1F)
 
 **Updated**: Consolidated bank utilization:
-- $A000-$BFFF: Slot 1 - Bank 0x0A (domestic affairs/army calc), Bank 0x17 (display systems), and Bank 0x1D (enhanced display system with comprehensive zero-page organization)
+- $A000-$BFFF: Slot 1 - Bank 0x0A (enhanced AI/province evaluation), Bank 0x17 (display systems), and Bank 0x1D (enhanced display system with comprehensive zero-page organization)
 - $C000-$DFFF: Slot 2 - Bank 0x0B (paired with bank 0x0A), Bank 0x18 (paired with bank 0x17), and Bank 0x1E (paired with bank 0x1D)
 - **New**: Unified 16KB block at $A000-$DFFF managed by consolidated bank switching with comprehensive work area organization and improved SceneRenderer callback architecture
 - **New**: Enhanced display system provides efficient rendering through comprehensive workspace definitions and improved callback system
@@ -393,7 +391,7 @@ Bank switching occurs by writing to mapper registers at $F800-$FE00. The mapper 
 **Updated**: Consolidated bank switching:
 - B1F_SwitchBankAC_A/B routines switch both $A000-$BFFF and $C000-$DFFF simultaneously
 - Uses bank parameter Y to set both slots to related bank numbers
-- Bank 0x0A at $A000-$BFFF paired with bank 0x0B at $C000-$DFFF (domestic affairs/army calc)
+- Bank 0x0A at $A000-$BFFF paired with bank 0x0B at $C000-$DFFF (enhanced AI/province evaluation)
 - Bank 0x17 at $A000-$BFFF paired with bank 0x18 at $C000-$DFFF (display systems)
 - **New**: B1F_SwitchBank1D1E routine switches the entire $A000-$DFFF 16KB block
 - **New**: Bank 0x1D at $A000-$BFFF paired with bank 0x1E at $C000-$DFFF
@@ -410,46 +408,48 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - [functions.h:187-188](file://include/functions.h#L187-L188)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 
-### Consolidated PRG Banks $0A/$0B Architecture
-**New**: Major addition of consolidated PRG banks $0A/$0B introduces significant improvements to domestic affairs and army calculation functionality:
+### Enhanced AI Turn Processing in PRG Banks $0A/$0B
+**New**: Major enhancement of consolidated PRG banks $0A/$0B introduces sophisticated AI turn processing with comprehensive province evaluation and battle system logic:
 
 #### Comprehensive Work Area Organization
-**New**: Extensive work area definitions organized for domestic affairs and army calculations:
-- **Work Area ($0036-$0045)**: Loop indices, comparison limits, temporary storage, and record management
-- **Math Workspace ($20-$27)**: Multi-precision arithmetic accumulators and temporary variables
-- **Game State ($05xx)**: Sub-state dispatch, display indices, overlay parameters, and palette modes
-- **SRAM Integration ($6Fxx)**: Kingdom index, player ID, game start flags, and computed work values
+**New**: Extensive work area definitions organized for AI processing and province evaluation:
+- **Work Area ($0036-$0045)**: Loop indices, comparison limits, temporary storage, and record management for AI decision making
+- **Math Workspace ($20-$27)**: Multi-precision arithmetic accumulators and temporary variables for province value calculations
+- **Game State ($05xx)**: Sub-state dispatch, display indices, overlay parameters, and palette modes for AI turn flow control
+- **SRAM Integration ($6Fxx)**: Kingdom index, player ID, game start flags, and computed work values for persistent AI state
 
-#### Domestic Affairs and Army Calculation Functions
-**New**: Specialized functions for domestic affairs management:
-- **CheckGameStart**: Game initialization and state dispatch based on game start flag
-- **InitWorkAreas**: Initialize work areas and counters for province scanning
-- **ScanMatchData**: Scan and match province data against search criteria
-- **SumAndCompare**: Sum values and compare against thresholds
-- **ArmyDispatch**: Route army operations and calculations
-- **ProvinceSearch**: Search provinces by criteria (type, owner, conditions)
+#### AI Turn Processing Functions
+**New**: Specialized functions for AI turn processing:
+- **AiTurnDispatch**: Main AI turn dispatcher with random action selection and phase-based processing
+- **AiSearchPhase1**: Initial province scanning and candidate identification for AI decisions
+- **AiActionSelect**: Action selection based on randomized criteria and strategic evaluation
+- **CalcAvgProvinceVal**: Average province value calculation per owned ruler with threshold-based decision making
+- **AbsorbPreview**: Preview absorption effects without applying changes for strategic planning
+- **TransferProvinceValues**: Compute deltas between province values and limit thresholds with underflow protection
+- **FallbackMergeProvinces**: Fallback merge logic when average province value is too low
 
-#### Data Processing and Display Integration
-**New**: Enhanced data processing capabilities:
-- **ProvinceDataA/B/C**: Province match parameter tables indexed by kingdom and player
-- **TierAdjustA/B/C**: Tier-based adjustment tables for army calculations
-- **BitMaskLookup**: Bit manipulation utilities for data processing
-- **CompareValues**: Multi-value comparison and result flag setting
-- **TableInterp**: Table data interpretation for display and calculation
+#### Province Evaluation and Battle Logic
+**New**: Enhanced province evaluation and battle system functions:
+- **ScanBestProvince**: Scan provinces for best slot-rich candidates owned by current player
+- **StateThresholdCheck**: Check state thresholds and update counters for AI decision flow
+- **ArmyDispatch**: Route army operations and calculations for AI strategic decisions
+- **ProvinceSearch**: Search provinces by criteria (type, owner, conditions) for AI targeting
+- **AdjustSwapPositions**: Dedicated function for army and enemy placement adjustments
 
 #### Systematic Code Organization
 **New**: Better code structure through systematic organization:
-- Clear separation between domestic affairs, army calculations, and data processing
-- Improved function naming conventions for better maintainability
-- Enhanced comment documentation for complex algorithms
-- Optimized memory access patterns for better performance
+- Clear separation between AI turn processing, province evaluation, and battle system logic
+- Improved function naming conventions for better maintainability (AiTurnDispatch, CalcAvgProvinceVal, etc.)
+- Enhanced comment documentation for complex AI algorithms and decision trees
+- Optimized memory access patterns for better performance in province scanning and evaluation
 
 **Section sources**
-- [prg_0a_0b.asm:487-526](file://asm/banks/prg_0a_0b.asm#L487-L526)
-- [prg_0a_0b.asm:527-572](file://asm/banks/prg_0a_0b.asm#L527-L572)
-- [prg_0a_0b.asm:577-664](file://asm/banks/prg_0a_0b.asm#L577-L664)
-- [prg_0a_0b.asm:672-727](file://asm/banks/prg_0a_0b.asm#L672-727)
-- [prg_0a_0b.asm:786-800](file://asm/banks/prg_0a_0b.asm#L786-800)
+- [prg_0a_0b.asm:2873-2972](file://asm/banks/prg_0a_0b.asm#L2873-L2972)
+- [prg_0a_0b.asm:3042-3135](file://asm/banks/prg_0a_0b.asm#L3042-L3135)
+- [prg_0a_0b.asm:3258-3457](file://asm/banks/prg_0a_0b.asm#L3258-L3457)
+- [prg_0a_0b.asm:3494-3693](file://asm/banks/prg_0a_0b.asm#L3494-L3693)
+- [prg_0a_0b.asm:3687-3886](file://asm/banks/prg_0a_0b.asm#L3687-L3886)
+- [prg_0a_0b.asm:4437-4636](file://asm/banks/prg_0a_0b.asm#L4437-L4636)
 
 ### Enhanced Display System in Banks $1D/$1E
 **New**: Major refactoring of banks $1D/$1E introduces comprehensive improvements to the display system:
@@ -495,12 +495,12 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - Bank 0x1F is fixed in slot 3 ($E000-$FFFF) at boot
 - Other banks can be mapped into slots 0/1/2 at runtime
 - **Updated**: Consolidated banks $0A/$0B, $17/$18, and $1D/$1E overlap in the $A000-$DFFF region but are managed as unified pairs
+- **New**: Enhanced AI system in banks $0A/$0B requires careful management of comprehensive work areas and SRAM integration for province evaluation
 - **New**: Enhanced display system in banks $1D/$1E requires careful management of comprehensive zero-page variables and display state
-- **New**: Domestic affairs system in banks $0A/$0B requires careful management of work areas and SRAM integration
 - Care must be taken when bank-switching to avoid clobbering code or data currently resident in the target slot
 - **Updated**: Consolidated bank switching uses B1F_SwitchBankAC and B1F_SwitchBank1D1E routines to prevent slot conflicts
 - **New**: Display system uses dedicated buffers at $0380-$03BF for tilemap data and temporary storage
-- **New**: Domestic affairs system uses comprehensive work areas at $0036-$0045 and math workspace at $20-$27
+- **New**: AI system uses comprehensive work areas at $0036-$0045 and math workspace at $20-$27 for province evaluation
 - Bank 0x1F's bank-switching routine stores configuration in RAM ($00E6-$00ED) to preserve state across switches
 
 **Section sources**
@@ -515,10 +515,10 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - Provides sufficient space for code and data while keeping the number of banks manageable (32 banks)
 - Allows efficient bank switching with minimal overhead
 - **Updated**: Consolidation of banks $0A/$0B, $17/$18, and $1D/$1E demonstrates the benefits of unified management for related functionality
-- **New**: Enhanced display system in banks $1D/$1E shows how larger functional areas benefit from consolidated 16KB blocks with comprehensive zero-page organization
-- **New**: Domestic affairs system in banks $0A/$0B demonstrates how complex data processing benefits from unified memory access patterns
+- **New**: Enhanced AI system in banks $0A/$0B shows how complex province evaluation and battle logic benefit from consolidated 16KB blocks with comprehensive work area organization
+- **New**: Enhanced display system in banks $1D/$1E demonstrates how larger functional areas benefit from consolidated 16KB blocks with comprehensive zero-page organization
 - The linker.cfg and bank stubs reflect this constraint by organizing code into 8KB segments
-- **New**: Consolidated approach reduces complexity for related functions that benefit from shared memory space while maintaining the flexibility of the underlying 8KB architecture
+- **New**: Consolidated approach reduces complexity for related AI/display functions that benefit from shared memory space while maintaining the flexibility of the underlying 8KB architecture
 
 **Section sources**
 - [linker.cfg:14-16](file://linker.cfg#L14-L16)
@@ -534,8 +534,8 @@ The bank organization depends on several components working together:
 - **Updated**: include/functions.h provides consolidated bank switching helpers (B1F_SwitchBankAC_A/B and B1F_SwitchBank1D1E)
 - asm/banks/* stubs include the ROM binaries for each bank
 - **Updated**: Consolidated bank stubs for PRG banks $0A/$0B, $17/$18, and $1D/$1E in asm/banks/prg_0a_0b.asm, asm/banks/prg_17_18.asm, and asm/banks/prg_1d_1e.asm
+- **New**: Enhanced AI system in prg_0a_0b.asm includes comprehensive work area organization and SRAM integration for province evaluation
 - **New**: Enhanced display system in prg_1d_1e.asm includes comprehensive zero-page variable organization and improved SceneRenderer callback architecture
-- **New**: Domestic affairs system in prg_0a_0b.asm includes comprehensive work area organization and SRAM integration
 - bank_1f_analysis.md documents the boot bank's role and dispatch mechanism
 
 ```mermaid
@@ -544,15 +544,15 @@ LCFG["linker.cfg"]
 N163["include/namco163.h"]
 FUNCS["include/functions.h<br/>(Consolidated Bank Switching)"]
 STUBS["asm/banks/*.asm<br/>(Consolidated PRG 0A/0B, 17/18 & 1D/1E)"]
-ENHANCED["PRG 1D/1E Enhanced System<br/>Zero-Page Variables & SceneRenderer"]
-DOMESTIC["PRG 0A/0B Domestic Affairs<br/>Work Areas & Army Calculations"]
+ENHANCED_AI["PRG 0A/0B Enhanced AI System<br/>Province Evaluation & Battle Logic"]
+ENHANCED_DISPLAY["PRG 1D/1E Enhanced System<br/>Zero-Page Variables & SceneRenderer"]
 ROM["rom/prg/*.bin"]
 BOOT["bank_1f_analysis.md"]
 LCFG --> STUBS
 N163 --> STUBS
 FUNCS --> STUBS
-ENHANCED --> STUBS
-DOMESTIC --> STUBS
+ENHANCED_AI --> STUBS
+ENHANCED_DISPLAY --> STUBS
 ROM --> STUBS
 BOOT --> STUBS
 ```
@@ -584,18 +584,18 @@ BOOT --> STUBS
 ## Performance Considerations
 - Bank switching involves writing to mapper registers and potentially updating RAM copies of bank registers
 - **Updated**: Consolidated bank switching reduces switching overhead for related functions
+- **New**: Enhanced AI system in banks $0A/$0B provides optimized province evaluation through comprehensive work area organization
 - **New**: Enhanced display system in banks $1D/$1E provides optimized rendering through comprehensive zero-page variable organization
-- **New**: Domestic affairs system in banks $0A/$0B provides optimized data processing through comprehensive work area organization
 - **New**: B1F_SwitchBank1D1E routine eliminates the need for separate slot management for banks 0x1D/$0x1E
 - Frequent bank switching can introduce overhead; minimize unnecessary switches
 - **Updated**: Consolidated banks eliminate the need for separate slot management for paired functionality
 - Place frequently accessed data and code in the same bank to reduce switching frequency
 - Use the bank switching configuration table to batch changes when possible
-- **New**: Enhanced display system improves performance through efficient zero-page variable access and optimized SceneRenderer callback system
+- **New**: Enhanced AI system improves performance through efficient province scanning and evaluation algorithms
 - **New**: Comprehensive workspace organization reduces memory access overhead and improves cache locality
-- **New**: Consolidated approach improves cache locality for related domestic/kingdom display functions
+- **New**: Consolidated approach improves cache locality for related AI/display functions
 - **New**: Unified 16KB blocks reduce memory fragmentation and improve code organization
-- **New**: Domestic affairs system benefits from unified work area access patterns for faster data processing
+- **New**: AI system benefits from unified work area access patterns for faster province evaluation and decision making
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -610,18 +610,18 @@ Common issues and resolutions:
   - Ensure bank-switched code does not overwrite active code in the target slot
   - Use RAM patches (e.g., $00A5) and mapper register writes carefully
   - **Updated**: Consolidated bank switching prevents slot conflicts through unified management
+- **New**: Enhanced AI system issues:
+  - Verify comprehensive work area organization is properly initialized ($0036-$0045, $20-$27, $6Fxx)
+  - Check SRAM integration for kingdom/player data access in province evaluation
+  - Ensure AI turn processing functions (AiTurnDispatch, CalcAvgProvinceVal) use proper work area organization
+  - Verify province evaluation logic correctly handles threshold calculations and fallback merging
+  - Check that battle system functions have proper army and enemy placement logic
 - **New**: Enhanced display system issues:
   - Verify comprehensive zero-page variable organization is properly initialized
   - Check SceneRenderer callback state machine progression through all 6 stages
   - Ensure proper memory allocation for display buffers and tilemap data
   - Verify OfficerDisplay_Lookup and OfficerNameDisplay functions use correct tilemap references
   - Check that DisplayScaledName and DisplayScaledNumber functions have proper data formatting
-- **New**: Domestic affairs system issues:
-  - Verify comprehensive work area organization is properly initialized
-  - Check SRAM integration for kingdom/player data access
-  - Ensure province data tables are correctly indexed by kingdom and player
-  - Verify army calculation functions use proper math workspace organization
-  - Check that domestic affairs dispatch functions route to correct sub-states
 - **Updated**: Consolidated bank switching issues:
   - Verify B1F_SwitchBankAC parameter Y contains correct bank number
   - Verify B1F_SwitchBank1D1E routine is used for banks 0x1D/$0x1E
@@ -644,4 +644,4 @@ Common issues and resolutions:
 - [prg_0a_0b.asm:527-572](file://asm/banks/prg_0a_0b.asm#L527-L572)
 
 ## Conclusion
-The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $0A/$0B provide comprehensive domestic affairs and army calculation functionality with extensive work area organization and SRAM integration. **New**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. The enhanced display system includes detailed workspace definitions, 6-stage rendering pipeline, and optimized data formatting capabilities. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **New**: Enhanced display system provides more efficient rendering through comprehensive zero-page variable organization and improved SceneRenderer callback architecture. **New**: Domestic affairs system provides optimized data processing through comprehensive work area organization and SRAM integration. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.
+The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **New**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. The enhanced display system includes detailed workspace definitions, 6-stage rendering pipeline, and optimized data formatting capabilities. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **New**: Enhanced AI system provides more efficient province evaluation through comprehensive work area organization and SRAM integration. **New**: Enhanced display system provides more efficient rendering through comprehensive zero-page variable organization and improved SceneRenderer callback architecture. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.

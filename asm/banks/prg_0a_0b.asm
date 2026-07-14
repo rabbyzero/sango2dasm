@@ -83,58 +83,6 @@
 .global ProvinceEvalExit
 .global LB1E9
 
-.global LB89F
-.global LB8AF
-.global LB8C6
-.global LB8E1
-.global LB8FE
-.global LB904
-.global LB943
-.global LB94C
-.global LB964
-.global LB97A
-.global LB97F
-.global LB99B
-.global LB9C1
-.global LB9E5
-.global LB9F3
-.global LBA47
-.global LBA70
-.global LBA8D
-.global LBB40
-.global LBB45
-.global LBB53
-.global LBB77
-.global LBB8D
-.global LBBE6
-.global LBC10
-.global LBC28
-.global LBC3E
-.global LBC5C
-.global LBC62
-.global LBC96
-.global LBCDE
-.global LBD36
-.global LBD4D
-.global LBF07
-.global LBF16
-.global LBF22
-.global LBF41
-.global LC1AE
-.global LC1BD
-.global LC1CE
-.global LC1DD
-.global LC1E4
-.global LC1F6
-.global LC202
-.global LC252
-.global LC27C
-.global LC297
-.global LC2F5
-.global LC31B
-.global LC336
-.global LC346
-.global LC37E
 .global LC446
 .global LC469
 .global LC4C7
@@ -293,10 +241,10 @@
 .global TransferProvinceValues
 .global FallbackMergeProvinces
 .global AiTurnDispatch
-.global Proc_C04E
-.global Proc_C298
-.global Proc_C337
-.global Proc_C3A4
+.global AiAction_BoostMorale
+.global AiAction_ManageOfficerLoyalty
+.global AiAction_EvaluateAndExecute
+.global DeductActionCost
 .global Proc_C3FF
 .global Proc_C498
 .global Proc_C4D0
@@ -3595,7 +3543,7 @@ AbsorbUpdateRecord:
   LDA a:$0036                                         ; $B534: AD 36 00
   CMP #$1E                                            ; $B537: C9 1E
   BCC @ScanEnemyProvinces                             ; $B539: 90 C9
-  JMP Proc_BD7A                                       ; $B53B: 4C 7A BD
+  JMP AiDev_Main                               ; $B53B: 4C 7A BD
   LDA a:$0036                                         ; $B53E: AD 36 00
   STA a:$003B                                         ; $B541: 8D 3B 00
   LDA #$00                                            ; $B544: A9 00
@@ -3692,13 +3640,13 @@ AbsorbUpdateRecord:
   CMP #$5A                                            ; $B601: C9 5A
   BCS @AiActionSelect                                 ; $B603: B0 F7
   CMP #$1E                                            ; $B605: C9 1E
-  BCC @DoActionBBB2                                   ; $B607: 90 07
+  BCC @DoAbsorbAction                                  ; $B607: 90 07
   CMP #$3C                                            ; $B609: C9 3C
   BCC @ActionDomestic                                 ; $B60B: 90 06
   JMP $B619                                           ; $B60D: 4C 19 B6
-  JMP Proc_BBB2                                       ; $B610: 4C B2 BB
+  JMP AiAbsorbEntityAction                             ; $B610: 4C B2 BB
 @ActionDomestic:
-  JMP Proc_B98B                                       ; $B613: 4C 8B B9
+  JMP AiDomesticAction                                ; $B613: 4C 8B B9
 @ExitToBEC7:
   JMP $BEC7                                           ; $B616: 4C C7 BE
   LDA $6F03                                           ; $B619: AD 03 6F
@@ -3748,7 +3696,7 @@ AbsorbUpdateRecord:
   ADC ($24),Y                                         ; $B672: 71 24
   CMP #$00                                            ; $B674: C9 00
   BNE @ActionExit                                     ; $B676: D0 DE
-  JSR Proc_B898                                       ; $B678: 20 98 B8
+  JSR ScanEntityOwnership                             ; $B678: 20 98 B8
   CPX #$02                                            ; $B67B: E0 02
   BCC @ActionExit                                     ; $B67D: 90 D7
   LDY #$00                                            ; $B67F: A0 00
@@ -3846,7 +3794,7 @@ AbsorbUpdateRecord:
   LDA ($24),Y                                         ; $B756: B1 24
   CMP #$03                                            ; $B758: C9 03
   BNE @SkipSwap                                       ; $B75A: D0 09
-  JSR Proc_B90A                                       ; $B75C: 20 0A B9
+  JSR MarkSwapArmyFlags                               ; $B75C: 20 0A B9
   JSR AdjustSwapPositions                             ; $B75F: 20 CE B7
   JMP @ExitToBEC7                                     ; $B762: 4C 16 B6
   LDA $6F03                                           ; $B765: AD 03 6F
@@ -3872,11 +3820,11 @@ AbsorbUpdateRecord:
   BEQ @DoSwap                                         ; $B794: F0 03
   JMP @ExitToBEC7                                     ; $B796: 4C 16 B6
 @DoSwap:
-  JSR Proc_B90A                                       ; $B799: 20 0A B9
+  JSR MarkSwapArmyFlags                               ; $B799: 20 0A B9
   JSR AdjustSwapPositions                             ; $B79C: 20 CE B7
   JMP @ExitToBEC7                                     ; $B79F: 4C 16 B6
   LDA $6F03                                           ; $B7A2: AD 03 6F
-  JSR Proc_B955                                       ; $B7A5: 20 55 B9
+  JSR FindEntityForChar                               ; $B7A5: 20 55 B9
   JSR Proc_D105                                       ; $B7A8: 20 05 D1
   LDA a:$0039                                         ; $B7AB: AD 39 00
   BNE @SubtractOffset                                 ; $B7AE: D0 0F
@@ -3910,7 +3858,7 @@ AbsorbUpdateRecord:
 AdjustSwapPositions:
   ; --- Phase 1: Subtract position delta from current character's slot ---
   LDA $6F03                                           ; $B7CE: AD 03 6F  ; slot type of current character
-  JSR Proc_B955                                       ; $B7D1: 20 55 B9  ; find matching slot index
+  JSR FindEntityForChar                               ; $B7D1: 20 55 B9  ; find matching slot index
   JSR Proc_D105                                       ; $B7D4: 20 05 D1  ; resolve slot data pointer -> ($20)
   LDA a:$0039                                         ; $B7D7: AD 39 00  ; field selector
   BNE @SubtractAltOffset                              ; $B7DA: D0 15    ; != 0 -> use offsets [4..5]
@@ -3939,7 +3887,7 @@ AdjustSwapPositions:
   ; --- Phase 2: Add position delta to target character's slot ---
 @Phase2_AddToTarget:
   LDA a:$0038                                         ; $B803: AD 38 00  ; slot type of swap target
-  JSR Proc_B955                                       ; $B806: 20 55 B9  ; find matching slot index
+  JSR FindEntityForChar                               ; $B806: 20 55 B9  ; find matching slot index
   JSR Proc_D105                                       ; $B809: 20 05 D1  ; resolve slot data pointer -> ($20)
   LDA a:$0039                                         ; $B80C: AD 39 00  ; field selector
   BNE @AddAltOffset                                   ; $B80F: D0 13    ; != 0 -> use offsets [4..5]
@@ -4021,107 +3969,142 @@ FindBestSubCharacter:
   RTS                                                 ; $B897: 60
 
 
-;===============================================================================
-; $B898: Proc_B898
-;===============================================================================
-Proc_B898:
+;-------------------------------------------------------------------------------
+; $B898: ScanEntityOwnership (nested in AiTurnDispatch)
+;-------------------------------------------------------------------------------
+; Scan all entities (0–$1D) and their slot-table entries ($9D72, 8 per entity)
+; to determine which players have no active type-7 entities outside their home
+; province.  Initializes $6F73[0..7] = $FF, then clears a player's slot to $00
+; whenever a qualifying entity is found.  Returns X = count of $00 slots
+; (players with active entities) among indices 0–6.
+;-------------------------------------------------------------------------------
+ScanEntityOwnership:
   LDY #$30                                            ; $B898: A0 30
-  JSR B1F_SwitchBank8_A                               ; $B89A: 20 66 F2
+  JSR B1F_SwitchBank8_A                               ; $B89A: 20 66 F2  ; switch to bank $30 for $9D72 table
+
+  ; --- Initialize $6F73[0..7] = $FF (all players default to "no entities") ---
   LDY #$07                                            ; $B89D: A0 07
-LB89F:
+@ClearLoop:
   LDA #$FF                                            ; $B89F: A9 FF
   STA $6F73,Y                                         ; $B8A1: 99 73 6F
   DEY                                                 ; $B8A4: 88
-  BPL LB89F                                           ; $B8A5: 10 F8
+  BPL @ClearLoop                                      ; $B8A5: 10 F8
+
+  ; --- Outer loop: iterate entity_idx from 0 to $1D ---
   LDA #$00                                            ; $B8A7: A9 00
-  STA a:$0036                                         ; $B8A9: 8D 36 00
+  STA a:work_outer_idx                                ; $B8A9: 8D 36 00
   STA a:$0037                                         ; $B8AC: 8D 37 00
-LB8AF:
+@EntityLoop:
   LDA #$00                                            ; $B8AF: A9 00
-  STA a:$0039                                         ; $B8B1: 8D 39 00
-  LDA a:$0036                                         ; $B8B4: AD 36 00
-  JSR Proc_D105                                       ; $B8B7: 20 05 D1
-  CMP $6F03                                           ; $B8BA: CD 03 6F
-  .byte $D0,$31                                       ; $B8BD: D0 31 (BNE mid-instruction target)
-  LDA a:$0036                                         ; $B8BF: AD 36 00
-  ASL A                                               ; $B8C2: 0A
-  ASL A                                               ; $B8C3: 0A
-  ASL A                                               ; $B8C4: 0A
+  STA a:work_sub_idx                                  ; $B8B1: 8D 39 00  ; reset slot counter
+  LDA a:work_outer_idx                                ; $B8B4: AD 36 00
+  JSR Proc_D105                                       ; $B8B7: 20 05 D1  ; A = entity owner, ($20) = record ptr
+  CMP sram_player_id                                  ; $B8BA: CD 03 6F  ; only process entities owned by current player
+  BNE @NextEntity                                     ; $B8BD: D0 31  ; skip if not current player's entity
+
+  ; --- Compute table offset: entity_idx * 8 → Y ---
+  LDA a:work_outer_idx                                ; $B8BF: AD 36 00
+  ASL A                                               ; $B8C2: 0A       ; ×2
+  ASL A                                               ; $B8C3: 0A       ; ×4
+  ASL A                                               ; $B8C4: 0A       ; ×8
   TAY                                                 ; $B8C5: A8
-LB8C6:
-  LDA $9D72,Y                                         ; $B8C6: B9 72 9D
-  .byte $30,$25                                       ; $B8C9: 30 25 (BMI mid-instruction target)
-  STA $23                                             ; $B8CB: 85 23
-  STY $24                                             ; $B8CD: 84 24
-  JSR Proc_D105                                       ; $B8CF: 20 05 D1
-  CMP #$07                                            ; $B8D2: C9 07
-  BEQ LB8E1                                           ; $B8D4: F0 0B
-  CMP $6F03                                           ; $B8D6: CD 03 6F
-  BEQ LB8E1                                           ; $B8D9: F0 06
-  TAY                                                 ; $B8DB: A8
+
+  ; --- Inner loop: iterate 8 slot entries per entity ---
+@SlotLoop:
+  LDA $9D72,Y                                         ; $B8C6: B9 72 9D  ; read slot-table byte
+  BMI @NextEntity                                     ; $B8C9: 30 25  ; negative = empty/invalid slot, skip
+  STA math_acc_hi                                     ; $B8CB: 85 23  ; save table value
+  STY math_ext                                        ; $B8CD: 84 24  ; save Y offset (Proc_D105 clobbers Y)
+  JSR Proc_D105                                       ; $B8CF: 20 05 D1  ; reload entity record ptr → ($20), A = owner
+  CMP #$07                                            ; $B8D2: C9 07  ; entity type in low 3 bits
+  BEQ @AdvanceSlot                                    ; $B8D4: F0 0B  ; type 7 → skip (home province marker)
+  CMP sram_player_id                                  ; $B8D6: CD 03 6F  ; check if entity belongs to current player
+  BEQ @AdvanceSlot                                    ; $B8D9: F0 06  ; skip if same player
+  TAY                                                 ; $B8DB: A8       ; Y = entity owner
   LDA #$00                                            ; $B8DC: A9 00
-  STA $6F73,Y                                         ; $B8DE: 99 73 6F
-LB8E1:
-  LDA $23                                             ; $B8E1: A5 23
-  LDY $24                                             ; $B8E3: A4 24
-  INY                                                 ; $B8E5: C8
-  INC a:$0039                                         ; $B8E6: EE 39 00
-  LDX a:$0039                                         ; $B8E9: AE 39 00
-  CPX #$08                                            ; $B8EC: E0 08
-  BCC LB8C6                                           ; $B8EE: 90 D6
-  INC a:$0036                                         ; $B8F0: EE 36 00
-  LDA a:$0036                                         ; $B8F3: AD 36 00
-  CMP #$1E                                            ; $B8F6: C9 1E
-  BCC LB8AF                                           ; $B8F8: 90 B5
+  STA $6F73,Y                                         ; $B8DE: 99 73 6F  ; mark owner as having active entities
+
+@AdvanceSlot:
+  LDA math_acc_hi                                     ; $B8E1: A5 23  ; restore table value
+  LDY math_ext                                        ; $B8E3: A4 24  ; restore Y offset
+  INY                                                 ; $B8E5: C8       ; next slot
+  INC a:work_sub_idx                                  ; $B8E6: EE 39 00
+  LDX a:work_sub_idx                                  ; $B8E9: AE 39 00
+  CPX #$08                                            ; $B8EC: E0 08  ; 8 slots per entity
+  BCC @SlotLoop                                       ; $B8EE: 90 D6
+
+@NextEntity:
+  INC a:work_outer_idx                                ; $B8F0: EE 36 00
+  LDA a:work_outer_idx                                ; $B8F3: AD 36 00
+  CMP #$1E                                            ; $B8F6: C9 1E  ; 30 entities total
+  BCC @EntityLoop                                     ; $B8F8: 90 B5
+
+  ; --- Count how many $6F73[0..6] == $00 → return in X ---
   LDY #$00                                            ; $B8FA: A0 00
   LDX #$00                                            ; $B8FC: A2 00
-LB8FE:
+@CountZeros:
   LDA $6F73,Y                                         ; $B8FE: B9 73 6F
-  BNE LB904                                           ; $B901: D0 01
-  INX                                                 ; $B903: E8
-LB904:
+  BNE @CountNext                                      ; $B901: D0 01  ; skip if non-zero ($FF = no entities)
+  INX                                                 ; $B903: E8       ; count this player
+@CountNext:
   INY                                                 ; $B904: C8
-  CPY #$07                                            ; $B905: C0 07
-  BCC LB8FE                                           ; $B907: 90 F5
+  CPY #$07                                            ; $B905: C0 07  ; scan indices 0–6 only
+  BCC @CountZeros                                     ; $B907: 90 F5
   RTS                                                 ; $B909: 60
 
 
 ;===============================================================================
-; $B90A: Proc_B90A
+; $B90A: MarkSwapArmyFlags
+; Marks swap flags in the army-data nibbles of two character records during
+; a character swap. For each record, one of offsets 4-7 is selected based on
+; the other character's index (0-5), and either the high or low nibble is
+; set to $A to indicate swap involvement.
+; Phase 1: Mark current player ($6F03) record using target ($0038) as key.
+; Phase 2: Mark target ($0038) record using current player ($6F03) as key.
+;-------------------------------------------------------------------------------
+; @ApplyNibbleMarker (nested, $B923):
+; Given a character index in A (0-5), select the appropriate nibble offset
+; (Y=4-7) in the record pointed to by ($24) and set either the high or low
+; nibble to $A. Even indices (0,2,4) -> high nibble; odd (1,3,5) -> low.
 ;===============================================================================
-Proc_B90A:
-  LDA $6F03                                           ; $B90A: AD 03 6F
-  JSR Proc_D319                                       ; $B90D: 20 19 D3
-  LDA a:$0038                                         ; $B910: AD 38 00
-  JSR $B923                                           ; $B913: 20 23 B9
+MarkSwapArmyFlags:
+  ; --- Phase 1: Mark current player's record with target's swap flag ---
+  LDA a:$6F03                                         ; $B90A: AD 03 6F  ; sram_player_id
+  JSR Proc_D319                                       ; $B90D: 20 19 D3  ; resolve current player -> ($24)
+  LDA a:$0038                                         ; $B910: AD 38 00  ; target character index
+  JSR @ApplyNibbleMarker                               ; $B913: 20 23 B9  ; mark nibble in current player record
+
+  ; --- Phase 2: Mark target's record with current player's swap flag ---
   LDA a:$0038                                         ; $B916: AD 38 00
-  JSR Proc_D319                                       ; $B919: 20 19 D3
-  LDA $6F03                                           ; $B91C: AD 03 6F
-  JSR $B923                                           ; $B91F: 20 23 B9
+  JSR Proc_D319                                       ; $B919: 20 19 D3  ; resolve target -> ($24)
+  LDA a:$6F03                                         ; $B91C: AD 03 6F  ; sram_player_id
+  JSR @ApplyNibbleMarker                               ; $B91F: 20 23 B9  ; mark nibble in target record
   RTS                                                 ; $B922: 60
-  LDY #$04                                            ; $B923: A0 04
+
+@ApplyNibbleMarker:
+  LDY #$04                                            ; $B923: A0 04  ; default offset for index 0
   CMP #$00                                            ; $B925: C9 00
-  BEQ LB943                                           ; $B927: F0 1A
+  BEQ @MarkHighNibble                                  ; $B927: F0 1A
   CMP #$01                                            ; $B929: C9 01
-  BEQ LB94C                                           ; $B92B: F0 1F
-  LDY #$05                                            ; $B92D: A0 05
+  BEQ @MarkLowNibble                                   ; $B92B: F0 1F
+  LDY #$05                                            ; $B92D: A0 05  ; offset for index 2/3
   CMP #$02                                            ; $B92F: C9 02
-  BEQ LB943                                           ; $B931: F0 10
+  BEQ @MarkHighNibble                                  ; $B931: F0 10
   CMP #$03                                            ; $B933: C9 03
-  BEQ LB94C                                           ; $B935: F0 15
-  LDY #$06                                            ; $B937: A0 06
+  BEQ @MarkLowNibble                                   ; $B935: F0 15
+  LDY #$06                                            ; $B937: A0 06  ; offset for index 4/5
   CMP #$04                                            ; $B939: C9 04
-  BEQ LB943                                           ; $B93B: F0 06
+  BEQ @MarkHighNibble                                  ; $B93B: F0 06
   CMP #$05                                            ; $B93D: C9 05
-  BEQ LB94C                                           ; $B93F: F0 0B
-  LDY #$07                                            ; $B941: A0 07
-LB943:
+  BEQ @MarkLowNibble                                   ; $B93F: F0 0B
+  LDY #$07                                            ; $B941: A0 07  ; fallback offset (index >= 6)
+@MarkHighNibble:                                       ; set high nibble to $A, preserve low nibble
   LDA ($24),Y                                         ; $B943: B1 24
   AND #$F0                                            ; $B945: 29 F0
   ORA #$0A                                            ; $B947: 09 0A
   STA ($24),Y                                         ; $B949: 91 24
   RTS                                                 ; $B94B: 60
-LB94C:
+@MarkLowNibble:                                        ; set low nibble to $A, preserve high nibble
   LDA ($24),Y                                         ; $B94C: B1 24
   AND #$0F                                            ; $B94E: 29 0F
   ORA #$A0                                            ; $B950: 09 A0
@@ -4130,111 +4113,128 @@ LB94C:
 
 
 ;===============================================================================
-; $B955: Proc_B955
+; $B955: FindEntityForChar
+; Searches entities 0-29 for one whose type (low 3 bits of Proc_D105 result)
+; matches the input character index (A), and whose army slots ($11-$1A)
+; contain the character ID from the input character's record.
+; Input:  A = character index (used as type key and to resolve SRAM record)
+; Output: A = matching entity index, or $FF with C=0 if not found
 ;===============================================================================
-Proc_B955:
-  STA $2C                                             ; $B955: 85 2C
+FindEntityForChar:
+  STA $2C                                             ; $B955: 85 2C  ; save type key
   LDY #$00                                            ; $B957: A0 00
-  STY $2B                                             ; $B959: 84 2B
-  JSR Proc_D319                                       ; $B95B: 20 19 D3
+  STY $2B                                             ; $B959: 84 2B  ; entity index = 0
+  JSR Proc_D319                                       ; $B95B: 20 19 D3  ; resolve char index -> ($24)
   LDY #$00                                            ; $B95E: A0 00
-  LDA ($24),Y                                         ; $B960: B1 24
-  STA $2A                                             ; $B962: 85 2A
-LB964:
+  LDA ($24),Y                                         ; $B960: B1 24  ; read character ID
+  STA $2A                                             ; $B962: 85 2A  ; $2A = target character ID
+@EntityLoop:                                                ; --- scan loop: entities 0..29 ---
   LDA $2B                                             ; $B964: A5 2B
-  JSR Proc_D105                                       ; $B966: 20 05 D1
-  AND #$07                                            ; $B969: 29 07
-  CMP $2C                                             ; $B96B: C5 2C
-  BNE LB97F                                           ; $B96D: D0 10
-  LDY #$11                                            ; $B96F: A0 11
+  JSR Proc_D105                                       ; $B966: 20 05 D1  ; get entity record
+  AND #$07                                            ; $B969: 29 07  ; entity type (low 3 bits)
+  CMP $2C                                             ; $B96B: C5 2C  ; matches input type?
+  BNE @NextEntity                                           ; $B96D: D0 10  ; no -> next entity
+  LDY #$11                                            ; $B96F: A0 11  ; yes -> scan army slots $11-$1A
+@SlotLoop:
   LDA ($20),Y                                         ; $B971: B1 20
-  CMP $2A                                             ; $B973: C5 2A
-  BNE LB97A                                           ; $B975: D0 03
-  LDA $2B                                             ; $B977: A5 2B
-  RTS                                                 ; $B979: 60
-LB97A:
+  CMP $2A                                             ; $B973: C5 2A  ; slot contains target char ID?
+  BEQ @Found                                           ; $B975: F0 02  ; yes -> found
   INY                                                 ; $B97A: C8
   CPY #$1B                                            ; $B97B: C0 1B
-  .byte $90,$F2                                       ; $B97D: 90 F2 (BCC mid-instruction target)
-LB97F:
+  BCC @SlotLoop                                           ; $B97D: 90 F2  ; continue scanning slots
+@Found:
+  LDA $2B                                             ; $B977: A5 2B  ; return entity index
+  RTS                                                 ; $B979: 60
+@NextEntity:                                                ; --- advance to next entity ---
   INC $2B                                             ; $B97F: E6 2B
   LDA $2B                                             ; $B981: A5 2B
-  CMP #$1E                                            ; $B983: C9 1E
-  BCC LB964                                           ; $B985: 90 DD
-  LDA #$FF                                            ; $B987: A9 FF
+  CMP #$1E                                            ; $B983: C9 1E  ; all 30 entities checked?
+  BCC @EntityLoop                                           ; $B985: 90 DD
+  LDA #$FF                                            ; $B987: A9 FF  ; not found
   CLC                                                 ; $B989: 18
   RTS                                                 ; $B98A: 60
 
 
 ;===============================================================================
-; $B98B: Proc_B98B
+; $B98B: AiDomesticAction
+; AI domestic action handler: evaluates whether to absorb/recruit a character,
+; computes a score based on army values and kingdom tier, performs a random
+; threshold check, then executes the action if approved.
+; Called from AiTurnDispatch when random value is $1E-$3B.
+;-------------------------------------------------------------------------------
+; $0036 = entity scan index,  $0037 = best army count (min)
+; $0038 = best entity index,  $0039 = field selector from search phase
+; $003D = best target char ID, $003E = best target army value
+; $003F = best target entity idx, $0042 = current player's char slot
 ;===============================================================================
-Proc_B98B:
+AiDomesticAction:
   LDA #$00                                            ; $B98B: A9 00
   STA a:$0036                                         ; $B98D: 8D 36 00
   STA a:$0039                                         ; $B990: 8D 39 00
   LDA #$FF                                            ; $B993: A9 FF
   STA a:$0037                                         ; $B995: 8D 37 00
   STA a:$0038                                         ; $B998: 8D 38 00
-LB99B:
+@Phase1Loop:                                                ; --- Phase 1: Find entity with fewest army members ---
   LDA a:$0036                                         ; $B99B: AD 36 00
-  JSR Proc_D105                                       ; $B99E: 20 05 D1
-  CMP $6F03                                           ; $B9A1: CD 03 6F
-  BNE LB9C1                                           ; $B9A4: D0 1B
-  JSR Proc_BB82                                       ; $B9A6: 20 82 BB
+  JSR Proc_D105                                       ; $B99E: 20 05 D1  ; resolve entity record
+  CMP $6F03                                           ; $B9A1: CD 03 6F  ; owned by current player?
+  BNE @Phase1Next                                           ; $B9A4: D0 1B  ; no -> skip
+  JSR UpdateMinArmyCount                              ; $B9A6: 20 82 BB  ; track min army count in $0039
   LDA a:$0036                                         ; $B9A9: AD 36 00
-  JSR Proc_D304                                       ; $B9AC: 20 04 D3
-  CMP #$0A                                            ; $B9AF: C9 0A
-  BCS LB9C1                                           ; $B9B1: B0 0E
-  CMP a:$0037                                         ; $B9B3: CD 37 00
-  BCS LB9C1                                           ; $B9B6: B0 09
-  STA a:$0037                                         ; $B9B8: 8D 37 00
+  JSR Proc_D304                                       ; $B9AC: 20 04 D3  ; count occupied army slots
+  CMP #$0A                                            ; $B9AF: C9 0A  ; army full (>= 10)?
+  BCS @Phase1Next                                           ; $B9B1: B0 0E  ; yes -> skip
+  CMP a:$0037                                         ; $B9B3: CD 37 00  ; fewer than current min?
+  BCS @Phase1Next                                           ; $B9B6: B0 09  ; no -> skip
+  STA a:$0037                                         ; $B9B8: 8D 37 00  ; new min army count
   LDA a:$0036                                         ; $B9BB: AD 36 00
-  STA a:$0038                                         ; $B9BE: 8D 38 00
-LB9C1:
+  STA a:$0038                                         ; $B9BE: 8D 38 00  ; new best entity index
+@Phase1Next:
   INC a:$0036                                         ; $B9C1: EE 36 00
   LDA a:$0036                                         ; $B9C4: AD 36 00
   CMP #$1E                                            ; $B9C7: C9 1E
-  BCC LB99B                                           ; $B9C9: 90 D0
+  BCC @Phase1Loop                                           ; $B9C9: 90 D0
   LDA a:$0038                                         ; $B9CB: AD 38 00
   CMP #$FF                                            ; $B9CE: C9 FF
   .byte $D0,$03                                       ; $B9D0: D0 03 (BNE mid-instruction target)
-  JMP @ExitToBEC7                                     ; $B9D2: 4C 16 B6
+  JMP JumpToBEC7                                      ; $B9D2: 4C 3D A2  ; no candidate -> exit
+  ; --- Phase 2: Find best non-player target to absorb ---
   LDA #$00                                            ; $B9D5: A9 00
-  STA a:$0036                                         ; $B9D7: 8D 36 00
+  STA a:$0036                                         ; $B9D7: 8D 36 00  ; reset entity index
   LDA #$FF                                            ; $B9DA: A9 FF
-  STA a:$003D                                         ; $B9DC: 8D 3D 00
-  STA a:$003E                                         ; $B9DF: 8D 3E 00
-  STA a:$003F                                         ; $B9E2: 8D 3F 00
-LB9E5:
+  STA a:$003D                                         ; $B9DC: 8D 3D 00  ; $003D = best char ID ($FF = none)
+  STA a:$003E                                         ; $B9DF: 8D 3E 00  ; $003E = lowest army value
+  STA a:$003F                                         ; $B9E2: 8D 3F 00  ; $003F = best entity index
+@Phase2Loop:                                                ; --- Phase 2 loop: scan entities 0..29 ---
   LDA a:$0036                                         ; $B9E5: AD 36 00
   JSR Proc_D105                                       ; $B9E8: 20 05 D1
-  CMP $6F03                                           ; $B9EB: CD 03 6F
-  BEQ LB9F3                                           ; $B9EE: F0 03
-  JSR $BB48                                           ; $B9F0: 20 48 BB
-LB9F3:
+  CMP $6F03                                           ; $B9EB: CD 03 6F  ; owned by current player?
+  BEQ @Phase2Next                                           ; $B9EE: F0 03  ; yes -> skip (don't absorb own)
+  JSR ScanBestTarget                                  ; $B9F0: 20 48 BB  ; evaluate as potential target
+@Phase2Next:
   INC a:$0036                                         ; $B9F3: EE 36 00
   LDA a:$0036                                         ; $B9F6: AD 36 00
   CMP #$1E                                            ; $B9F9: C9 1E
-  BCC LB9E5                                           ; $B9FB: 90 E8
-  LDA a:$003E                                         ; $B9FD: AD 3E 00
-  CMP #$46                                            ; $BA00: C9 46
+  BCC @Phase2Loop                                           ; $B9FB: 90 E8
+  LDA a:$003E                                         ; $B9FD: AD 3E 00  ; best army value
+  CMP #$46                                            ; $BA00: C9 46  ; >= 70? (very strong target)
   .byte $90,$03                                       ; $BA02: 90 03 (BCC mid-instruction target)
-  JMP Proc_BA7E                                       ; $BA04: 4C 7E BA
-  LDA a:$003D                                         ; $BA07: AD 3D 00
-  LDY #$04                                            ; $BA0A: A0 04
-  JSR $D2AB                                           ; $BA0C: 20 AB D2
-  STA $21                                             ; $BA0F: 85 21
-  LDY #$0B                                            ; $BA11: A0 0B
+  JMP ExecDomesticAction                              ; $BA04: 4C 7E BA  ; guaranteed success path
+  ; --- Phase 3: Compute action score from army values ---
+  LDA a:$003D                                         ; $BA07: AD 3D 00  ; best target char ID
+  LDY #$04                                            ; $BA0A: A0 04  ; offset 4 = army stat field
+  JSR $D2AB                                           ; $BA0C: 20 AB D2  ; read stat -> A
+  STA $21                                             ; $BA0F: 85 21  ; $21 = target army stat
+  LDY #$0B                                            ; $BA11: A0 0B  ; offset $0B = formation byte
   LDA ($22),Y                                         ; $BA13: B1 22
-  LSR A                                               ; $BA15: 4A
+  LSR A                                               ; $BA15: 4A  ; extract high nibble >> 4
   LSR A                                               ; $BA16: 4A
   LSR A                                               ; $BA17: 4A
   LSR A                                               ; $BA18: 4A
-  STA $20                                             ; $BA19: 85 20
-  LDA a:$0039                                         ; $BA1B: AD 39 00
+  STA $20                                             ; $BA19: 85 20  ; $20 = formation value
+  LDA a:$0039                                         ; $BA1B: AD 39 00  ; field selector from Phase 1
   SEC                                                 ; $BA1E: 38
-  SBC $20                                             ; $BA1F: E5 20
+  SBC $20                                             ; $BA1F: E5 20  ; adjust by formation
   STA a:$0039                                         ; $BA21: 8D 39 00
   LDY #$02                                            ; $BA24: A0 02
   LDA ($22),Y                                         ; $BA26: B1 22
@@ -4246,174 +4246,209 @@ LB9F3:
   STA $22                                             ; $BA31: 85 22
   STA $24                                             ; $BA33: 85 24
   JSR Proc_D40F                                       ; $BA35: 20 0F D4
-  LDA a:$003E                                         ; $BA38: AD 3E 00
-  LDY #$00                                            ; $BA3B: A0 00
-  CMP #$1F                                            ; $BA3D: C9 1F
-  BCC LBA47                                           ; $BA3F: 90 06
-  INY                                                 ; $BA41: C8
-  CMP #$33                                            ; $BA42: C9 33
-  BCC LBA47                                           ; $BA44: 90 01
-  INY                                                 ; $BA46: C8
-LBA47:
-  STY $20                                             ; $BA47: 84 20
-  LDA $6F02                                           ; $BA49: AD 02 6F
-  ASL A                                               ; $BA4C: 0A
+  ; --- Compute score based on kingdom tier ---
+  LDA a:$003E                                         ; $BA38: AD 3E 00  ; best target army value
+  LDY #$00                                            ; $BA3B: A0 00  ; Y = tier index (0)
+  CMP #$1F                                            ; $BA3D: C9 1F  ; < 31?
+  BCC @ApplyModifier                                           ; $BA3F: 90 06  ; yes -> use tier 0
+  INY                                                 ; $BA41: C8  ; Y = 1
+  CMP #$33                                            ; $BA42: C9 33  ; < 51?
+  BCC @ApplyModifier                                           ; $BA44: 90 01  ; yes -> use tier 1
+  INY                                                 ; $BA46: C8  ; Y = 2 (army >= 51)
+@ApplyModifier:
+  STY $20                                             ; $BA47: 84 20  ; $20 = kingdom tier (0-2)
+  LDA $6F02                                           ; $BA49: AD 02 6F  ; sram_kingdom_index
+  ASL A                                               ; $BA4C: 0A  ; *4 (4 entries per kingdom)
   ASL A                                               ; $BA4D: 0A
-  ORA $20                                             ; $BA4E: 05 20
+  ORA $20                                             ; $BA4E: 05 20  ; + tier offset
   TAY                                                 ; $BA50: A8
-  LDA $BA81,Y                                         ; $BA51: B9 81 BA
+  LDA KingdomTierModifiers,Y                          ; $BA51: B9 81 BA  ; lookup modifier from table
   CLC                                                 ; $BA54: 18
-  ADC $21                                             ; $BA55: 65 21
-  STA $2A                                             ; $BA57: 85 2A
-  LDA a:$0039                                         ; $BA59: AD 39 00
-  BPL LBA70                                           ; $BA5C: 10 12
-  EOR #$FF                                            ; $BA5E: 49 FF
+  ADC $21                                             ; $BA55: 65 21  ; score = modifier + army stat
+  STA $2A                                             ; $BA57: 85 2A  ; $2A = final score
+  LDA a:$0039                                         ; $BA59: AD 39 00  ; distance/adjustment value
+  BPL @AddDistance                                           ; $BA5C: 10 12  ; positive -> add to score
+  ; Negative distance: penalty = abs(value) * 2, subtracted from score
+  EOR #$FF                                            ; $BA5E: 49 FF  ; two's complement
   CLC                                                 ; $BA60: 18
   ADC #$01                                            ; $BA61: 69 01
-  ASL A                                               ; $BA63: 0A
+  ASL A                                               ; $BA63: 0A  ; penalty = abs * 2
   STA $20                                             ; $BA64: 85 20
   LDA $2A                                             ; $BA66: A5 2A
   SEC                                                 ; $BA68: 38
-  SBC $20                                             ; $BA69: E5 20
+  SBC $20                                             ; $BA69: E5 20  ; score -= penalty
   STA $2A                                             ; $BA6B: 85 2A
-  JMP Proc_BA75                                       ; $BA6D: 4C 75 BA
-LBA70:
+  JMP CheckActionThreshold                            ; $BA6D: 4C 75 BA
+@AddDistance:
   CLC                                                 ; $BA70: 18
-  ADC $2A                                             ; $BA71: 65 2A
+  ADC $2A                                             ; $BA71: 65 2A  ; score += distance
   STA $2A                                             ; $BA73: 85 2A
 
 
 ;===============================================================================
-; $BA75: Proc_BA75
+; $BA75: CheckActionThreshold
+; Random probability check against the computed action score.
+; Generates random 0-99; if random < score ($2A), action succeeds (falls through
+; to ExecDomesticAction). Otherwise exits.
+; Input:  $2A = action score (0-255, higher = more likely to succeed)
 ;===============================================================================
-Proc_BA75:
-  LDA #$64                                            ; $BA75: A9 64
-  JSR Proc_D4BB                                       ; $BA77: 20 BB D4
-  CMP $2A                                             ; $BA7A: C5 2A
-  .byte $90,$0F                                       ; $BA7C: 90 0F (BCC cross-proc)
+CheckActionThreshold:
+  LDA #$64                                            ; $BA75: A9 64  ; 100
+  JSR Proc_D4BB                                       ; $BA77: 20 BB D4  ; random 0..99
+  CMP $2A                                             ; $BA7A: C5 2A  ; random < score?
+  BCC @FindEmptySlot                                  ; $BA7C: 90 0F (BCC -> @FindEmptySlot on success)
 
 ;===============================================================================
-; $BA7E: Proc_BA7E
+; $BA7E: ExecDomesticAction
+; Executes the AI domestic action: transfers a character from another entity
+; into the current player's army. Updates all references and triggers the
+; game-start flag to signal the UI.
+;-------------------------------------------------------------------------------
+; KingdomTierModifiers: indexed by (kingdom_index * 4 + tier)
+;   tier 0 = army < 31, tier 1 = 31-50, tier 2 = >= 51
 ;===============================================================================
-Proc_BA7E:
-  JMP @ExitToBEC7                                     ; $BA7E: 4C 16 B6
-  PLP                                                 ; $BA81: 28
-  .byte $0F,$00,$00,$32,$14,$00,$00,$3C,$1E,$0A,$00   ; $BA82: 0F 00 00 32 14 00 00 3C 1E 0A 00
-LBA8D:
-  LDA a:$0038                                         ; $BA8D: AD 38 00
-  JSR Proc_D105                                       ; $BA90: 20 05 D1
+ExecDomesticAction:
+  JMP JumpToBEC7                                      ; $BA7E: 4C 3D A2  ; entry: skip past data table (unreachable path)
+KingdomTierModifiers:
+  .byte $28,$0F,$00,$00,$32,$14,$00,$00,$3C,$1E,$0A,$00   ; $BA81: modifier table (12 bytes)
+@FindEmptySlot:                                                ; --- Find empty army slot in best entity ---
+  LDA a:$0038                                         ; $BA8D: AD 38 00  ; best entity index
+  JSR Proc_D105                                       ; $BA90: 20 05 D1  ; resolve entity record -> ($20)
   LDY #$10                                            ; $BA93: A0 10
-  INY                                                 ; $BA95: C8
+@SlotScan:
+  INY                                                 ; $BA95: C8  ; scan slots $11-$1A
   LDA ($20),Y                                         ; $BA96: B1 20
-  CMP #$FF                                            ; $BA98: C9 FF
-  .byte $D0,$F9                                       ; $BA9A: D0 F9 (BNE mid-instruction target)
-  LDA a:$003D                                         ; $BA9C: AD 3D 00
-  STA ($20),Y                                         ; $BA9F: 91 20
-  LDA $6F03                                           ; $BAA1: AD 03 6F
-  JSR Proc_D319                                       ; $BAA4: 20 19 D3
+  CMP #$FF                                            ; $BA98: C9 FF  ; empty slot?
+  BNE @SlotScan                                           ; $BA9A: D0 F9  ; no -> keep scanning
+  LDA a:$003D                                         ; $BA9C: AD 3D 00  ; best target char ID
+  STA ($20),Y                                         ; $BA9F: 91 20  ; write char ID into empty slot
+  ; --- Update player's army reference ---
+  LDA $6F03                                           ; $BAA1: AD 03 6F  ; current player ID
+  JSR Proc_D319                                       ; $BAA4: 20 19 D3  ; resolve -> ($24)
   LDY #$00                                            ; $BAA7: A0 00
-  LDA ($24),Y                                         ; $BAA9: B1 24
+  LDA ($24),Y                                         ; $BAA9: B1 24  ; player's character ID
   STA $30                                             ; $BAAB: 85 30
-  LDA a:$003D                                         ; $BAAD: AD 3D 00
+  LDA a:$003D                                         ; $BAAD: AD 3D 00  ; new char ID
   STA $31                                             ; $BAB0: 85 31
-  JSR ArmyValueCalc                               ; $BAB2: 20 3F CF
-  LDA a:$003F                                         ; $BAB5: AD 3F 00
-  JSR Proc_D105                                       ; $BAB8: 20 05 D1
-  STA a:$0042                                         ; $BABB: 8D 42 00
+  JSR ArmyValueCalc                                   ; $BAB2: 20 3F CF  ; recalculate army value
+  ; --- Remove char from old owner's slot list ---
+  LDA a:$003F                                         ; $BAB5: AD 3F 00  ; old owner entity index
+  JSR Proc_D105                                       ; $BAB8: 20 05 D1  ; resolve -> ($20)
+  STA a:$0042                                         ; $BABB: 8D 42 00  ; save for later
   LDY #$10                                            ; $BABE: A0 10
-  INY                                                 ; $BAC0: C8
+@CharRemoveLoop:
+  INY                                                 ; $BAC0: C8  ; scan slots $11-$1A
   LDA ($20),Y                                         ; $BAC1: B1 20
-  CMP a:$003D                                         ; $BAC3: CD 3D 00
-  .byte $D0,$F8                                       ; $BAC6: D0 F8 (BNE mid-instruction target)
+  CMP a:$003D                                         ; $BAC3: CD 3D 00  ; found the transferred char?
+  BNE @CharRemoveLoop                                           ; $BAC6: D0 F8  ; no -> keep scanning
   LDA #$FF                                            ; $BAC8: A9 FF
-  STA ($20),Y                                         ; $BACA: 91 20
+  STA ($20),Y                                         ; $BACA: 91 20  ; clear slot (mark empty)
+  ; --- If old owner's status is 0 (dismissed), mark slot type 7 ---
   LDA a:$003F                                         ; $BACC: AD 3F 00
-  JSR Proc_D3DD                                       ; $BACF: 20 DD D3
+  JSR Proc_D3DD                                       ; $BACF: 20 DD D3  ; reset player-entity map
   LDA a:$003F                                         ; $BAD2: AD 3F 00
-  JSR Proc_D304                                       ; $BAD5: 20 04 D3
-  CMP #$00                                            ; $BAD8: C9 00
-  .byte $D0,$06                                       ; $BADA: D0 06 (BNE mid-instruction target)
+  JSR Proc_D304                                       ; $BAD5: 20 04 D3  ; count remaining slots
+  CMP #$00                                            ; $BAD8: C9 00  ; any slots left?
+  BNE @AfterDismiss                                           ; $BADA: D0 06  ; yes -> skip
   LDY #$00                                            ; $BADC: A0 00
-  LDA #$07                                            ; $BADE: A9 07
-  STA ($20),Y                                         ; $BAE0: 91 20
-  LDA a:$003D                                         ; $BAE2: AD 3D 00
+  LDA #$07                                            ; $BADE: A9 07  ; slot type 7 = dismissed
+  STA ($20),Y                                         ; $BAE0: 91 20  ; write type to old owner's record
+@AfterDismiss:
+  ; --- Swap army ownership between entities ---
+  LDA a:$003D                                         ; $BAE2: AD 3D 00  ; transferred char ID
   STA a:$0043                                         ; $BAE5: 8D 43 00
-  LDA a:$0038                                         ; $BAE8: AD 38 00
-  JSR Proc_D105                                       ; $BAEB: 20 05 D1
-  JSR Proc_D319                                       ; $BAEE: 20 19 D3
+  LDA a:$0038                                         ; $BAE8: AD 38 00  ; receiving entity index
+  JSR Proc_D105                                       ; $BAEB: 20 05 D1  ; resolve -> ($20)
+  JSR Proc_D319                                       ; $BAEE: 20 19 D3  ; resolve char record -> ($24)
   LDY #$00                                            ; $BAF1: A0 00
-  LDA ($24),Y                                         ; $BAF3: B1 24
+  LDA ($24),Y                                         ; $BAF3: B1 24  ; receiving char ID
   STA a:$0040                                         ; $BAF5: 8D 40 00
-  LDA a:$0042                                         ; $BAF8: AD 42 00
-  JSR Proc_D319                                       ; $BAFB: 20 19 D3
+  LDA a:$0042                                         ; $BAF8: AD 42 00  ; old owner entity index
+  JSR Proc_D319                                       ; $BAFB: 20 19 D3  ; resolve -> ($24)
   LDY #$00                                            ; $BAFE: A0 00
-  LDA ($24),Y                                         ; $BB00: B1 24
+  LDA ($24),Y                                         ; $BB00: B1 24  ; old owner char ID
   STA a:$0041                                         ; $BB02: 8D 41 00
-  LDY #$03                                            ; $BB05: A0 03
+  ; --- Check if new character is AI-controlled ---
+  LDY #$03                                            ; $BB05: A0 03  ; offset 3 = control/status
   LDA ($24),Y                                         ; $BB07: B1 24
-  CMP #$03                                            ; $BB09: C9 03
-  BEQ LBB45                                           ; $BB0B: F0 38
+  CMP #$03                                            ; $BB09: C9 03  ; status 3 = AI-controlled?
+  BEQ @Exit                                           ; $BB0B: F0 38  ; yes -> skip post-action update
+  ; --- Post-action: update all entities for new ownership ---
   LDA #$00                                            ; $BB0D: A9 00
-  STA a:$0036                                         ; $BB0F: 8D 36 00
+  STA a:$0036                                         ; $BB0F: 8D 36 00  ; entity index
   LDA #$FF                                            ; $BB12: A9 FF
   STA a:$003D                                         ; $BB14: 8D 3D 00
   LDA #$00                                            ; $BB17: A9 00
   STA a:$003E                                         ; $BB19: 8D 3E 00
+@PostUpdateLoop:                                                ; --- Post-action loop: entities 0..29 ---
   LDA a:$0036                                         ; $BB1C: AD 36 00
   JSR Proc_D105                                       ; $BB1F: 20 05 D1
-  CMP #$07                                            ; $BB22: C9 07
-  .byte $F0,$0B                                       ; $BB24: F0 0B (BEQ mid-instruction target)
-  CMP a:$0042                                         ; $BB26: CD 42 00
-  .byte $D0,$06                                       ; $BB29: D0 06 (BNE mid-instruction target)
-  LDA a:$0041                                         ; $BB2B: AD 41 00
-  JSR Proc_BD40                                       ; $BB2E: 20 40 BD
+  CMP #$07                                            ; $BB22: C9 07  ; dismissed entity?
+  BEQ @PostUpdateNext                                           ; $BB24: F0 0B  ; yes -> skip
+  CMP a:$0042                                         ; $BB26: CD 42 00  ; same as old owner?
+  BNE @PostUpdateNext                                           ; $BB29: D0 06  ; no -> skip
+  LDA a:$0041                                         ; $BB2B: AD 41 00  ; old owner char ID
+  JSR FindBestOfficerInEntity                          ; $BB2E: 20 40 BD  ; find best replacement officer in entity
+@PostUpdateNext:
   INC a:$0036                                         ; $BB31: EE 36 00
   LDA a:$0036                                         ; $BB34: AD 36 00
   CMP #$1E                                            ; $BB37: C9 1E
-  .byte $90,$E1                                       ; $BB39: 90 E1 (BCC mid-instruction target)
+  BCC @PostUpdateLoop                                           ; $BB39: 90 E1  ; loop over all entities
+  ; --- Signal game-start flag and wait for completion ---
   LDA #$FA                                            ; $BB3B: A9 FA
-  STA $6F8B                                           ; $BB3D: 8D 8B 6F
-LBB40:
+  STA $6F8B                                           ; $BB3D: 8D 8B 6F  ; game_start_flag = $FA
+@WaitLoop:
   LDA $6F8B                                           ; $BB40: AD 8B 6F
-  BNE LBB40                                           ; $BB43: D0 FB
-LBB45:
-  JMP @ExitToBEC7                                     ; $BB45: 4C 16 B6
+  BNE @WaitLoop                                           ; $BB43: D0 FB  ; busy-wait until flag cleared
+@Exit:
+  JMP JumpToBEC7                                      ; $BB45: 4C 3D A2  ; done -> exit
+;-------------------------------------------------------------------------------
+; $BB48: ScanBestTarget
+; Evaluates an entity as a potential absorption target. Scans army slots
+; $11-$1A, reads each character's stat (offset 3), and tracks the one with
+; the lowest value. Updates $003D (best char), $003E (best value), $003F (best entity).
+; Input:  $0036 = entity index
+;-------------------------------------------------------------------------------
+ScanBestTarget:
   LDA a:$0036                                         ; $BB48: AD 36 00
   JSR Proc_D105                                       ; $BB4B: 20 05 D1
   LDA #$11                                            ; $BB4E: A9 11
   STA a:$003C                                         ; $BB50: 8D 3C 00
-LBB53:
+@ScanLoop:
   LDY a:$003C                                         ; $BB53: AC 3C 00
   LDA ($20),Y                                         ; $BB56: B1 20
   CMP #$FF                                            ; $BB58: C9 FF
-  BEQ LBB77                                           ; $BB5A: F0 1B
+  BEQ @ScanNext                                           ; $BB5A: F0 1B
   LDY #$03                                            ; $BB5C: A0 03
   JSR $D2AB                                           ; $BB5E: 20 AB D2
   CMP a:$003E                                         ; $BB61: CD 3E 00
-  BCS LBB77                                           ; $BB64: B0 11
+  BCS @ScanNext                                           ; $BB64: B0 11
   STA a:$003E                                         ; $BB66: 8D 3E 00
   LDY a:$003C                                         ; $BB69: AC 3C 00
   LDA ($20),Y                                         ; $BB6C: B1 20
   STA a:$003D                                         ; $BB6E: 8D 3D 00
   LDA a:$0036                                         ; $BB71: AD 36 00
   STA a:$003F                                         ; $BB74: 8D 3F 00
-LBB77:
+@ScanNext:
   INC a:$003C                                         ; $BB77: EE 3C 00
   LDA a:$003C                                         ; $BB7A: AD 3C 00
   CMP #$1B                                            ; $BB7D: C9 1B
-  BCC LBB53                                           ; $BB7F: 90 D2
+  BCC @ScanLoop                                           ; $BB7F: 90 D2
   RTS                                                 ; $BB81: 60
 
 
 ;===============================================================================
-; $BB82: Proc_BB82
+; $BB82: UpdateMinArmyCount
+; Scans entity's army slots $11-$1A, reads each character's stat (offset $0B >> 4),
+; and updates $0039 if a lower value is found.
+; Input:  $0036 = entity index (already resolved via Proc_D105)
 ;===============================================================================
-Proc_BB82:
+UpdateMinArmyCount:
   LDA a:$0036                                         ; $BB82: AD 36 00
   JSR Proc_D105                                       ; $BB85: 20 05 D1
   LDA #$11                                            ; $BB88: A9 11
   STA a:$003C                                         ; $BB8A: 8D 3C 00
-LBB8D:
+@Loop:
   LDY a:$003C                                         ; $BB8D: AC 3C 00
   LDA ($20),Y                                         ; $BB90: B1 20
   CMP #$FF                                            ; $BB92: C9 FF
@@ -4430,125 +4465,142 @@ LBB8D:
   INC a:$003C                                         ; $BBA7: EE 3C 00
   LDA a:$003C                                         ; $BBAA: AD 3C 00
   CMP #$1B                                            ; $BBAD: C9 1B
-  BCC LBB8D                                           ; $BBAF: 90 DC
+  BCC @Loop                                           ; $BBAF: 90 DC
   RTS                                                 ; $BBB1: 60
 
 
-;===============================================================================
-; $BBB2: Proc_BBB2
-;===============================================================================
-Proc_BBB2:
-  LDA #$00                                            ; $BBB2: A9 00
+;-------------------------------------------------------------------------------
+; $BBB2: AiAbsorbEntityAction
+; AI action: attempt to absorb a rival entity by recruiting away their officers.
+; Phase 1: Iterate entities to validate AI's own holdings
+; Phase 2: Find non-AI entity with most officers (best absorption target)
+; Phase 3: Abort if target has fewer than 6 officers
+; Phase 4: Build list of recruitable officers (loyalty $32-$59)
+; Phase 5: Pick random candidate, probability check vs stat + kingdom tier
+; Phase 6: Transfer officer, reduce stat, sweep affected entities
+;-------------------------------------------------------------------------------
+AiAbsorbEntityAction:
+  LDA #$00                                            ; $BBB2: A9 00  ; entity index = 0
   STA a:$0036                                         ; $BBB4: 8D 36 00
   LDA #$FF                                            ; $BBB7: A9 FF
-  STA a:$003D                                         ; $BBB9: 8D 3D 00
+  STA a:$003D                                         ; $BBB9: 8D 3D 00  ; best char tracker = none
   LDA #$00                                            ; $BBBC: A9 00
-  STA a:$003E                                         ; $BBBE: 8D 3E 00
+  STA a:$003E                                         ; $BBBE: 8D 3E 00  ; best stat value = 0
+; --- Phase 1: validate AI's own entities ---
+@Phase1Loop:
   LDA a:$0036                                         ; $BBC1: AD 36 00
-  JSR Proc_D105                                       ; $BBC4: 20 05 D1
-  CMP $6F03                                           ; $BBC7: CD 03 6F
-  .byte $D0,$03                                       ; $BBCA: D0 03 (BNE mid-instruction target)
-  JSR $BD3E                                           ; $BBCC: 20 3E BD
+  JSR Proc_D105                                       ; $BBC4: 20 05 D1  ; resolve entity → record ptr
+  CMP $6F03                                           ; $BBC7: CD 03 6F  ; owned by current player?
+  BNE @Phase1Next                                      ; $BBCA: D0 03
+  JSR FindBestOfficerNoExclude                         ; $BBCC: 20 3E BD  ; init trackers (no exclusion)
+@Phase1Next:
   INC a:$0036                                         ; $BBCF: EE 36 00
   LDA a:$0036                                         ; $BBD2: AD 36 00
   CMP #$1E                                            ; $BBD5: C9 1E
-  .byte $90,$E8                                       ; $BBD7: 90 E8 (BCC mid-instruction target)
+  BCC @Phase1Loop                                      ; $BBD7: 90 E8
+; --- Phase 2: find non-AI entity with most officers ---
   LDA #$00                                            ; $BBD9: A9 00
-  STA a:$0036                                         ; $BBDB: 8D 36 00
-  STA a:$0037                                         ; $BBDE: 8D 37 00
+  STA a:$0036                                         ; $BBDB: 8D 36 00  ; entity index = 0
+  STA a:$0037                                         ; $BBDE: 8D 37 00  ; best army count = 0
   LDA #$FF                                            ; $BBE1: A9 FF
-  STA a:$0038                                         ; $BBE3: 8D 38 00
-LBBE6:
+  STA a:$0038                                         ; $BBE3: 8D 38 00  ; best entity ID = none
+@FindTargetLoop:
   LDA a:$0036                                         ; $BBE6: AD 36 00
-  JSR Proc_D105                                       ; $BBE9: 20 05 D1
-  CMP $6F03                                           ; $BBEC: CD 03 6F
-  BEQ LBC10                                           ; $BBEF: F0 1F
-  JSR Proc_D319                                       ; $BBF1: 20 19 D3
+  JSR Proc_D105                                       ; $BBE9: 20 05 D1  ; resolve entity → owner
+  CMP $6F03                                           ; $BBEC: CD 03 6F  ; owned by player?
+  BEQ @FindTargetNext                                 ; $BBEF: F0 1F  ; yes → skip (can't absorb own)
+  JSR Proc_D319                                       ; $BBF1: 20 19 D3  ; resolve owner's character record
   LDY #$03                                            ; $BBF4: A0 03
   LDA ($24),Y                                         ; $BBF6: B1 24
-  CMP #$03                                            ; $BBF8: C9 03
-  BEQ LBC10                                           ; $BBFA: F0 14
+  CMP #$03                                            ; $BBF8: C9 03  ; status $03 = dismissed/inactive?
+  BEQ @FindTargetNext                                 ; $BBFA: F0 14  ; yes → skip
   LDA a:$0036                                         ; $BBFC: AD 36 00
-  JSR Proc_D304                                       ; $BBFF: 20 04 D3
-  CMP a:$0037                                         ; $BC02: CD 37 00
-  BCC LBC10                                           ; $BC05: 90 09
-  STA a:$0037                                         ; $BC07: 8D 37 00
+  JSR Proc_D304                                       ; $BBFF: 20 04 D3  ; count filled army slots
+  CMP a:$0037                                         ; $BC02: CD 37 00  ; higher count than current best?
+  BCC @FindTargetNext                                 ; $BC05: 90 09  ; no → skip
+  STA a:$0037                                         ; $BC07: 8D 37 00  ; new best army count
   LDA a:$0036                                         ; $BC0A: AD 36 00
-  STA a:$0038                                         ; $BC0D: 8D 38 00
-LBC10:
+  STA a:$0038                                         ; $BC0D: 8D 38 00  ; new best entity ID
+@FindTargetNext:
   INC a:$0036                                         ; $BC10: EE 36 00
   LDA a:$0036                                         ; $BC13: AD 36 00
   CMP #$1E                                            ; $BC16: C9 1E
-  BCC LBBE6                                           ; $BC18: 90 CC
-  LDA a:$0037                                         ; $BC1A: AD 37 00
-  CMP #$06                                            ; $BC1D: C9 06
-  .byte $B0,$03                                       ; $BC1F: B0 03 (BCS mid-instruction target)
-  JMP @ExitToBEC7                                     ; $BC21: 4C 16 B6
+  BCC @FindTargetLoop                                 ; $BC18: 90 CC
+; --- Phase 3: abort if target has < 6 officers ---
+  LDA a:$0037                                         ; $BC1A: AD 37 00  ; best army count
+  CMP #$06                                            ; $BC1D: C9 06  ; need >= 6 to attempt absorption
+  BCS @Phase4Start                                     ; $BC1F: B0 03
+  JMP JumpToBEC7                                      ; $BC21: 4C 3D A2  ; abort → exit
+; --- Phase 4: build list of recruitable officers ---
+@Phase4Start:
   LDY #$0F                                            ; $BC24: A0 0F
   LDA #$FF                                            ; $BC26: A9 FF
-LBC28:
+@ClearCandidateBuf:                                    ; clear candidate buffer $6F73[0..$0F]
   STA $6F73,Y                                         ; $BC28: 99 73 6F
   DEY                                                 ; $BC2B: 88
-  BPL LBC28                                           ; $BC2C: 10 FA
-  LDA a:$0038                                         ; $BC2E: AD 38 00
-  JSR Proc_D105                                       ; $BC31: 20 05 D1
+  BPL @ClearCandidateBuf                               ; $BC2C: 10 FA
+  LDA a:$0038                                         ; $BC2E: AD 38 00  ; best entity ID
+  JSR Proc_D105                                       ; $BC31: 20 05 D1  ; resolve entity → record ptr
   LDA #$11                                            ; $BC34: A9 11
-  STA a:$0036                                         ; $BC36: 8D 36 00
+  STA a:$0036                                         ; $BC36: 8D 36 00  ; slot index = $11
   LDA #$00                                            ; $BC39: A9 00
-  STA a:$0037                                         ; $BC3B: 8D 37 00
-LBC3E:
+  STA a:$0037                                         ; $BC3B: 8D 37 00  ; candidate count = 0
+@FilterOfficerLoop:                                    ; scan army slots $11-$1A for recruitable officers
   LDY a:$0036                                         ; $BC3E: AC 36 00
-  LDA ($20),Y                                         ; $BC41: B1 20
-  CMP #$FF                                            ; $BC43: C9 FF
-  BEQ LBC62                                           ; $BC45: F0 1B
+  LDA ($20),Y                                         ; $BC41: B1 20  ; character ID in slot
+  CMP #$FF                                            ; $BC43: C9 FF  ; empty slot?
+  BEQ @FilterOfficerNext                               ; $BC45: F0 1B  ; yes → next
   LDY #$03                                            ; $BC47: A0 03
-  JSR $D2AB                                           ; $BC49: 20 AB D2
-  CMP #$32                                            ; $BC4C: C9 32
-  BCC LBC62                                           ; $BC4E: 90 12
-  CMP #$5A                                            ; $BC50: C9 5A
-  BCS LBC62                                           ; $BC52: B0 0E
+  JSR $D2AB                                           ; $BC49: 20 AB D2  ; read stat at offset 3 (loyalty)
+  CMP #$32                                            ; $BC4C: C9 32  ; loyalty < $32 → too disloyal
+  BCC @FilterOfficerNext                               ; $BC4E: 90 12
+  CMP #$5A                                            ; $BC50: C9 5A  ; loyalty >= $5A → too loyal
+  BCS @FilterOfficerNext                               ; $BC52: B0 0E
   LDY a:$0036                                         ; $BC54: AC 36 00
-  LDA ($20),Y                                         ; $BC57: B1 20
-  LDY a:$0037                                         ; $BC59: AC 37 00
-LBC5C:
-  STA $6F73,Y                                         ; $BC5C: 99 73 6F
-  INC a:$0037                                         ; $BC5F: EE 37 00
-LBC62:
+  LDA ($20),Y                                         ; $BC57: B1 20  ; re-read character ID
+  LDY a:$0037                                         ; $BC59: AC 37 00  ; candidate index
+@StoreCandidate:
+  STA $6F73,Y                                         ; $BC5C: 99 73 6F  ; store in candidate buffer
+  INC a:$0037                                         ; $BC5F: EE 37 00  ; increment candidate count
+@FilterOfficerNext:
   INC a:$0036                                         ; $BC62: EE 36 00
   LDA a:$0036                                         ; $BC65: AD 36 00
   CMP #$1B                                            ; $BC68: C9 1B
-  BCC LBC3E                                           ; $BC6A: 90 D2
-  LDA a:$0037                                         ; $BC6C: AD 37 00
-  .byte $F0,$37                                       ; $BC6F: F0 37 (BEQ mid-instruction target)
-  CMP #$01                                            ; $BC71: C9 01
-  .byte $F0,$06                                       ; $BC73: F0 06 (BEQ mid-instruction target)
-  JSR Proc_D4AD                                       ; $BC75: 20 AD D4
+  BCC @FilterOfficerLoop                               ; $BC6A: 90 D2
+; --- Phase 5: select random candidate and compute success probability ---
+  LDA a:$0037                                         ; $BC6C: AD 37 00  ; candidate count
+  BEQ JumpToBEC7                                       ; $BC6F: F0 37  ; no candidates → abort
+  CMP #$01                                            ; $BC71: C9 01  ; exactly 1 candidate?
+  BEQ @UseSingleCandidate                              ; $BC73: F0 06  ; exactly 1 → skip random
+  JSR Proc_D4AD                                       ; $BC75: 20 AD D4  ; random index < count
   CLC                                                 ; $BC78: 18
   ADC #$01                                            ; $BC79: 69 01
+@UseSingleCandidate:
   TAY                                                 ; $BC7B: A8
-  LDA $6F72,Y                                         ; $BC7C: B9 72 6F
-  STA a:$0037                                         ; $BC7F: 8D 37 00
+  LDA $6F72,Y                                         ; $BC7C: B9 72 6F  ; selected candidate char ID
+  STA a:$0037                                         ; $BC7F: 8D 37 00  ; store as chosen officer
   LDA a:$0037                                         ; $BC82: AD 37 00
   LDY #$02                                            ; $BC85: A0 02
-  JSR $D2AB                                           ; $BC87: 20 AB D2
+  JSR $D2AB                                           ; $BC87: 20 AB D2  ; read stat at offset 2
   STA $00                                             ; $BC8A: 85 00
-  LDA a:$003E                                         ; $BC8C: AD 3E 00
+  LDA a:$003E                                         ; $BC8C: AD 3E 00  ; best value from Phase 2
   SEC                                                 ; $BC8F: 38
-  SBC $00                                             ; $BC90: E5 00
-  BCS LBC96                                           ; $BC92: B0 02
-  LDA #$00                                            ; $BC94: A9 00
-LBC96:
-  LDY $6F02                                           ; $BC96: AC 02 6F
+  SBC $00                                             ; $BC90: E5 00  ; stat delta
+  BCS @ComputeThreshold                                ; $BC92: B0 02
+  LDA #$00                                            ; $BC94: A9 00  ; clamp to 0
+@ComputeThreshold:
+  LDY $6F02                                           ; $BC96: AC 02 6F  ; kingdom index
   CLC                                                 ; $BC99: 18
-  ADC $BCAB,Y                                         ; $BC9A: 79 AB BC
-  STA $2A                                             ; $BC9D: 85 2A
-  LDA #$64                                            ; $BC9F: A9 64
-  JSR Proc_D4BB                                       ; $BCA1: 20 BB D4
-  CMP $2A                                             ; $BCA4: C5 2A
+  ADC $BCAB,Y                                         ; $BC9A: 79 AB BC  ; + tier modifier
+  STA $2A                                             ; $BC9D: 85 2A  ; success threshold
+  LDA #$64                                            ; $BC9F: A9 64  ; max random = 100
+  JSR Proc_D4BB                                       ; $BCA1: 20 BB D4  ; random 0-99
+  CMP $2A                                             ; $BCA4: C5 2A  ; random >= threshold?
   .byte $90,$06                                       ; $BCA6: 90 06 (BCC mid-instruction target)
-  JMP @ExitToBEC7                                     ; $BCA8: 4C 16 B6
+  JMP JumpToBEC7                                      ; $BCA8: 4C 3D A2  ; probability check failed → abort
+; --- Phase 6: transfer officer, update stats, sweep affected entities ---
   .byte $10,$20                                       ; $BCAB: 10 20 (BPL mid-instruction target)
-  BMI LBC5C                                           ; $BCAD: 30 AD
+  BMI @StoreCandidate                                  ; $BCAD: 30 AD
   ROL $8500,X                                         ; $BCAF: 3E 00 85
   AND ($A9,X)                                         ; $BCB2: 21 A9
   .byte $14                                           ; $BCB4: 14
@@ -4556,329 +4608,433 @@ LBC96:
   LDA #$00                                            ; $BCB7: A9 00
   STA $22                                             ; $BCB9: 85 22
   STA $24                                             ; $BCBB: 85 24
-  JSR Proc_D40F                                       ; $BCBD: 20 0F D4
+  JSR Proc_D40F                                       ; $BCBD: 20 0F D4  ; 16-bit division helper
   LDA #$07                                            ; $BCC0: A9 07
-  JSR Proc_D4AD                                       ; $BCC2: 20 AD D4
+  JSR Proc_D4AD                                       ; $BCC2: 20 AD D4  ; random 0-7 for stat reduction
   CLC                                                 ; $BCC5: 18
   ADC #$01                                            ; $BCC6: 69 01
   CLC                                                 ; $BCC8: 18
   ADC $21                                             ; $BCC9: 65 21
-  STA a:$0039                                         ; $BCCB: 8D 39 00
-  LDA a:$0037                                         ; $BCCE: AD 37 00
+  STA a:$0039                                         ; $BCCB: 8D 39 00  ; total reduction amount
+  LDA a:$0037                                         ; $BCCE: AD 37 00  ; chosen officer char ID
   LDY #$03                                            ; $BCD1: A0 03
-  JSR $D2AB                                           ; $BCD3: 20 AB D2
+  JSR $D2AB                                           ; $BCD3: 20 AB D2  ; read officer stat[3]
   SEC                                                 ; $BCD6: 38
-  SBC a:$0039                                         ; $BCD7: ED 39 00
-  BCS LBCDE                                           ; $BCDA: B0 02
-  LDA #$00                                            ; $BCDC: A9 00
-LBCDE:
-  STA ($22),Y                                         ; $BCDE: 91 22
-  LDA $6F03                                           ; $BCE0: AD 03 6F
-  JSR Proc_D319                                       ; $BCE3: 20 19 D3
+  SBC a:$0039                                         ; $BCD7: ED 39 00  ; stat - reduction
+  BCS @ClampStatResult                                 ; $BCDA: B0 02
+  LDA #$00                                            ; $BCDC: A9 00  ; clamp to 0 minimum
+@ClampStatResult:
+  STA ($22),Y                                         ; $BCDE: 91 22  ; write reduced stat back
+  LDA $6F03                                           ; $BCE0: AD 03 6F  ; current player ID
+  JSR Proc_D319                                       ; $BCE3: 20 19 D3  ; resolve player's character record
   LDY #$00                                            ; $BCE6: A0 00
   LDA ($24),Y                                         ; $BCE8: B1 24
-  STA a:$0039                                         ; $BCEA: 8D 39 00
-  LDA a:$0038                                         ; $BCED: AD 38 00
-  JSR Proc_D105                                       ; $BCF0: 20 05 D1
-  STA a:$003B                                         ; $BCF3: 8D 3B 00
+  STA a:$0039                                         ; $BCEA: 8D 39 00  ; player's character ID
+  LDA a:$0038                                         ; $BCED: AD 38 00  ; absorbed entity ID
+  JSR Proc_D105                                       ; $BCF0: 20 05 D1  ; resolve entity → owner
+  STA a:$003B                                         ; $BCF3: 8D 3B 00  ; absorbed entity owner
   JSR Proc_D319                                       ; $BCF6: 20 19 D3
   LDY #$00                                            ; $BCF9: A0 00
   LDA ($24),Y                                         ; $BCFB: B1 24
-  STA a:$003A                                         ; $BCFD: 8D 3A 00
+  STA a:$003A                                         ; $BCFD: 8D 3A 00  ; target entity's primary char ID
   LDY #$03                                            ; $BD00: A0 03
   LDA ($24),Y                                         ; $BD02: B1 24
-  STA $6F44                                           ; $BD04: 8D 44 6F
+  STA $6F44                                           ; $BD04: 8D 44 6F  ; absorbed officer display flag
+; --- Final sweep: find best replacement in affected entities ---
   LDA #$00                                            ; $BD07: A9 00
-  STA a:$0036                                         ; $BD09: 8D 36 00
+  STA a:$0036                                         ; $BD09: 8D 36 00  ; entity index = 0
   LDA #$FF                                            ; $BD0C: A9 FF
-  STA a:$003D                                         ; $BD0E: 8D 3D 00
+  STA a:$003D                                         ; $BD0E: 8D 3D 00  ; best char tracker = none
   LDA #$00                                            ; $BD11: A9 00
-  STA a:$003E                                         ; $BD13: 8D 3E 00
+  STA a:$003E                                         ; $BD13: 8D 3E 00  ; best stat value = 0
+@SweepLoop:
   LDA a:$0036                                         ; $BD16: AD 36 00
-  JSR Proc_D105                                       ; $BD19: 20 05 D1
-  CMP a:$003B                                         ; $BD1C: CD 3B 00
-  .byte $D0,$06                                       ; $BD1F: D0 06 (BNE mid-instruction target)
-  LDA a:$003A                                         ; $BD21: AD 3A 00
-  JSR Proc_BD40                                       ; $BD24: 20 40 BD
+  JSR Proc_D105                                       ; $BD19: 20 05 D1  ; resolve entity → owner
+  CMP a:$003B                                         ; $BD1C: CD 3B 00  ; same owner as absorbed entity?
+  BNE @SweepNext                                       ; $BD1F: D0 06
+  LDA a:$003A                                         ; $BD21: AD 3A 00  ; target entity's primary char
+  JSR FindBestOfficerInEntity                          ; $BD24: 20 40 BD  ; find best replacement officer
+@SweepNext:
   INC a:$0036                                         ; $BD27: EE 36 00
   LDA a:$0036                                         ; $BD2A: AD 36 00
   CMP #$1E                                            ; $BD2D: C9 1E
-  .byte $90,$E5                                       ; $BD2F: 90 E5 (BCC mid-instruction target)
+  BCC @SweepLoop                                       ; $BD2F: 90 E5
   LDA #$F9                                            ; $BD31: A9 F9
-  STA $6F8B                                           ; $BD33: 8D 8B 6F
-LBD36:
+  STA $6F8B                                           ; $BD33: 8D 8B 6F  ; signal game action $F9
+@WaitForFlag:
   LDA $6F8B                                           ; $BD36: AD 8B 6F
-  BNE LBD36                                           ; $BD39: D0 FB
-  JMP @ExitToBEC7                                     ; $BD3B: 4C 16 B6
-  LDA #$FF                                            ; $BD3E: A9 FF
+  BNE @WaitForFlag                                     ; $BD39: D0 FB  ; busy-wait until flag cleared
+  JMP JumpToBEC7                                      ; $BD3B: 4C 3D A2  ; done → exit
+;-------------------------------------------------------------------------------
+; $BD3E: FindBestOfficerNoExclude
+; Alternate entry: exclude no character ($FF = none).
+; Falls through to FindBestOfficerInEntity at $BD40.
+;-------------------------------------------------------------------------------
+FindBestOfficerNoExclude:
+  LDA #$FF                                            ; $BD3E: A9 FF  ; sentinel = no exclusion
 
 
-;===============================================================================
-; $BD40: Proc_BD40
-;===============================================================================
-Proc_BD40:
-  STA $2A                                             ; $BD40: 85 2A
+;-------------------------------------------------------------------------------
+; $BD40: FindBestOfficerInEntity
+; Scans entity $0036's army slots ($11-$1A) for the officer with the
+; highest stat at record offset 2, excluding character in A.
+; Input:  A = character ID to exclude ($FF = none), $0036 = entity index
+; Output: $003D = best character ID, $003E = best stat value
+;-------------------------------------------------------------------------------
+FindBestOfficerInEntity:
+  STA $2A                                             ; $BD40: 85 2A  ; save excluded character ID
   LDA a:$0036                                         ; $BD42: AD 36 00
-  JSR Proc_D105                                       ; $BD45: 20 05 D1
+  JSR Proc_D105                                       ; $BD45: 20 05 D1  ; resolve entity → record ptr ($20/$21)
   LDA #$11                                            ; $BD48: A9 11
-  STA a:$003C                                         ; $BD4A: 8D 3C 00
-LBD4D:
+  STA a:$003C                                         ; $BD4A: 8D 3C 00  ; start at army slot offset $11
+@ScanOfficerLoop:
   LDY a:$003C                                         ; $BD4D: AC 3C 00
-  LDA ($20),Y                                         ; $BD50: B1 20
-  CMP #$FF                                            ; $BD52: C9 FF
-  .byte $F0,$19                                       ; $BD54: F0 19 (BEQ mid-instruction target)
-  CMP $2A                                             ; $BD56: C5 2A
-  .byte $F0,$15                                       ; $BD58: F0 15 (BEQ mid-instruction target)
+  LDA ($20),Y                                         ; $BD50: B1 20  ; character ID in slot
+  CMP #$FF                                            ; $BD52: C9 FF  ; empty slot → done
+  BEQ @ScanNext                                        ; $BD54: F0 19
+  CMP $2A                                             ; $BD56: C5 2A  ; same as excluded character?
+  BEQ @ScanNext                                        ; $BD58: F0 15
   LDY #$02                                            ; $BD5A: A0 02
-  JSR $D2AB                                           ; $BD5C: 20 AB D2
-  CMP a:$003E                                         ; $BD5F: CD 3E 00
-  .byte $90,$0B                                       ; $BD62: 90 0B (BCC mid-instruction target)
-  STA a:$003E                                         ; $BD64: 8D 3E 00
+  JSR $D2AB                                           ; $BD5C: 20 AB D2  ; read stat at offset 2
+  CMP a:$003E                                         ; $BD5F: CD 3E 00  ; higher than current best?
+  BCC @ScanNext                                        ; $BD62: 90 0B
+  STA a:$003E                                         ; $BD64: 8D 3E 00  ; update best stat value
   LDY a:$003C                                         ; $BD67: AC 3C 00
-  LDA ($20),Y                                         ; $BD6A: B1 20
-  STA a:$003D                                         ; $BD6C: 8D 3D 00
+  LDA ($20),Y                                         ; $BD6A: B1 20  ; re-read character ID
+  STA a:$003D                                         ; $BD6C: 8D 3D 00  ; update best character ID
+@ScanNext:
   INC a:$003C                                         ; $BD6F: EE 3C 00
   LDA a:$003C                                         ; $BD72: AD 3C 00
   CMP #$1B                                            ; $BD75: C9 1B
-  BCC LBD4D                                           ; $BD77: 90 D4
+  BCC @ScanOfficerLoop                                 ; $BD77: 90 D4
   RTS                                                 ; $BD79: 60
 
 
 ;===============================================================================
-; $BD7A: Proc_BD7A
+; AiDev_Main — AI officer development search (nested in AiTurnDispatch)
+; Scans owned provinces for trainable officers, selects the best candidate
+; by province score, trains the officer (sets ability to $03E8/1000),
+; deducts province resources, and loops until no candidates remain.
+; Called from AiTurnDispatch after enemy province scan completes.
+;
+; Variables:
+;   $0036 = candidate_idx  — entity scan index (0..$1D)
+;   $0037 = best_score     — best province score (low byte at offset 1)
+;   $0038 = best_slot_val  — best army-slot officer ID ($FF = none found)
+;   $0039 = best_entity    — best province entity index ($FF = none found)
+;   $24   = slot_offset    — army slot offset ($11..$1A)
 ;===============================================================================
-Proc_BD7A:
+AiDev_Main:
+
+  ; --- Initialize scan state ---
   LDA #$00                                            ; $BD7A: A9 00
-  STA a:$0036                                         ; $BD7C: 8D 36 00
-  STA a:$0037                                         ; $BD7F: 8D 37 00
+  STA a:$0036                                         ; $BD7C: 8D 36 00  ; candidate_idx = 0
+  STA a:$0037                                         ; $BD7F: 8D 37 00  ; best_score = 0
   LDA #$FF                                            ; $BD82: A9 FF
-  STA a:$0038                                         ; $BD84: 8D 38 00
-  STA a:$0039                                         ; $BD87: 8D 39 00
-  LDA a:$0036                                         ; $BD8A: AD 36 00
-  JSR Proc_D105                                       ; $BD8D: 20 05 D1
-  CMP $6F03                                           ; $BD90: CD 03 6F
-  .byte $D0,$59                                       ; $BD93: D0 59 (BNE cross-proc)
+  STA a:$0038                                         ; $BD84: 8D 38 00  ; best_slot_val = $FF (no target)
+  STA a:$0039                                         ; $BD87: 8D 39 00  ; best_entity = $FF
+
+AiDev_OuterLoop:                                                             ; scan entities 0..$1D
+  LDA a:$0036                                         ; $BD8A: AD 36 00  ; candidate_idx
+  JSR Proc_D105                                       ; $BD8D: 20 05 D1  ; resolve entity → record ptr ($20/$21)
+  CMP sram_player_id                                  ; $BD90: CD 03 6F  ; owned by current player?
+  BNE AiDev_OuterLoopNext                                   ; $BD93: D0 59      ; not ours → next entity
+
+  ; --- Check province score ≥ $012C (300) ---
   LDY #$01                                            ; $BD95: A0 01
-  LDA ($20),Y                                         ; $BD97: B1 20
+  LDA ($20),Y                                         ; $BD97: B1 20      ; score low byte
   SEC                                                 ; $BD99: 38
   SBC #$2C                                            ; $BD9A: E9 2C
   INY                                                 ; $BD9C: C8
-  LDA ($20),Y                                         ; $BD9D: B1 20
+  LDA ($20),Y                                         ; $BD9D: B1 20      ; score high byte
   SBC #$01                                            ; $BD9F: E9 01
-  .byte $90,$4B                                       ; $BDA1: 90 4B (BCC cross-proc)
-  LDY #$11                                            ; $BDA3: A0 11
+  BCC AiDev_OuterLoopNext                                   ; $BDA1: 90 4B      ; score < 300 → skip
+
+  ; --- Inner loop: scan army slots $11..$1A ---
+  LDY #$11                                            ; $BDA3: A0 11      ; first army-slot offset
   STY $24                                             ; $BDA5: 84 24
+AiDev_SlotLoop:                                                              ; iterate slot_offset $11..$1A
   LDY $24                                             ; $BDA7: A4 24
-  LDA ($20),Y                                         ; $BDA9: B1 20
-  CMP #$FF                                            ; $BDAB: C9 FF
-  .byte $F0,$37                                       ; $BDAD: F0 37 (BEQ cross-proc)
+  LDA ($20),Y                                         ; $BDA9: B1 20      ; officer ID in slot
+  CMP #$FF                                            ; $BDAB: C9 FF      ; empty slot?
+  BEQ AiDev_SlotAdvance                                     ; $BDAD: F0 37      ; empty → qualify w/ score 100
+
+  ; --- Officer eligibility: bits 0-1 of stat@9 must both be set ---
   LDY #$09                                            ; $BDAF: A0 09
-  JSR $D2AB                                           ; $BDB1: 20 AB D2
-  AND #$03                                            ; $BDB4: 29 03
-  CMP #$03                                            ; $BDB6: C9 03
-  .byte $D0,$08                                       ; $BDB8: D0 08 (BNE mid-instruction target)
+  JSR $D2AB                                           ; $BDB1: 20 AB D2  ; read officer stat at offset 9
+  AND #$03                                            ; $BDB4: 29 03      ; mask trainable flags
+  CMP #$03                                            ; $BDB6: C9 03      ; both bits set = eligible
+  BNE AiDev_NextSlot                                       ; $BDB8: D0 08      ; not eligible → next slot
+
+  ; --- Officer ability cap check: stat@8 must not equal $E8 (cap = $03E8) ---
   LDY #$08                                            ; $BDBA: A0 08
-  LDA ($22),Y                                         ; $BDBC: B1 22
-  CMP #$E8                                            ; $BDBE: C9 E8
-  .byte $F0,$24                                       ; $BDC0: F0 24 (BEQ cross-proc)
+  LDA ($22),Y                                         ; $BDBC: B1 22      ; officer ability low byte
+  CMP #$E8                                            ; $BDBE: C9 E8      ; at cap ($03E8 = 1000)?
+  BEQ AiDev_SlotAdvance                                     ; $BDC0: F0 24      ; at cap → qualify anyway
+
+AiDev_NextSlot:                                                                ; advance to next army slot
   LDY $24                                             ; $BDC2: A4 24
-  CPY #$11                                            ; $BDC4: C0 11
-  .byte $D0,$05                                       ; $BDC6: D0 05 (BNE mid-instruction target)
-  LDA #$64                                            ; $BDC8: A9 64
-  JMP Proc_BDD1                                       ; $BDCA: 4C D1 BD
+  CPY #$11                                            ; $BDC4: C0 11      ; first slot?
+  BNE AiDev_DeadCode                                        ; $BDC6: D0 05      ; dead code path
+  LDA #$64                                            ; $BDC8: A9 64      ; empty-slot default score = 100
+  JMP CompareAndUpdate                                 ; $BDCA: 4C D1 BD  ; → nested scoring proc
+AiDev_DeadCode:  ; Dead code: unreachable after unconditional JMP above
   LDY #$01                                            ; $BDCD: A0 01
   LDA ($22),Y                                         ; $BDCF: B1 22
 
 ;===============================================================================
-; $BDD1: Proc_BDD1
+; CompareAndUpdate — Compare score with best and update if better
+; Entry: A = province score (low byte), $24 = slot_offset
+; Updates: best_score ($0037), best_slot_val ($0038), best_entity ($0039)
+; Then continues the inner/outer scan loop or exits to processing.
 ;===============================================================================
-Proc_BDD1:
-  CMP a:$0037                                         ; $BDD1: CD 37 00
-  .byte $90,$10                                       ; $BDD4: 90 10 (BCC mid-instruction target)
-  STA a:$0037                                         ; $BDD6: 8D 37 00
+CompareAndUpdate:
+  CMP a:$0037                                         ; $BDD1: CD 37 00  ; compare with best score
+  BCC AiDev_SlotAdvance                                    ; $BDD4: 90 10      ; worse → next slot
+  STA a:$0037                                         ; $BDD6: 8D 37 00  ; new best score
   LDY $24                                             ; $BDD9: A4 24
-  LDA ($20),Y                                         ; $BDDB: B1 20
-  STA a:$0038                                         ; $BDDD: 8D 38 00
-  LDA a:$0036                                         ; $BDE0: AD 36 00
-  STA a:$0039                                         ; $BDE3: 8D 39 00
-  INC $24                                             ; $BDE6: E6 24
-  LDA $24                                             ; $BDE8: A5 24
-  CMP #$1B                                            ; $BDEA: C9 1B
-  .byte $90,$B9                                       ; $BDEC: 90 B9 (BCC cross-proc)
-  INC a:$0036                                         ; $BDEE: EE 36 00
-  LDA a:$0036                                         ; $BDF1: AD 36 00
-  CMP #$1E                                            ; $BDF4: C9 1E
-  .byte $90,$92                                       ; $BDF6: 90 92 (BCC cross-proc)
-  LDA a:$0038                                         ; $BDF8: AD 38 00
-  CMP #$FF                                            ; $BDFB: C9 FF
-  .byte $D0,$03                                       ; $BDFD: D0 03 (BNE mid-instruction target)
-  JMP $BEC7                                           ; $BDFF: 4C C7 BE
-  LDA a:$0039                                         ; $BE02: AD 39 00
-  JSR Proc_D105                                       ; $BE05: 20 05 D1
-  LDA a:$0038                                         ; $BE08: AD 38 00
-  LDY #$08                                            ; $BE0B: A0 08
-  JSR $D2AB                                           ; $BE0D: 20 AB D2
-  STA $2A                                             ; $BE10: 85 2A
-  INY                                                 ; $BE12: C8
-  LDA ($22),Y                                         ; $BE13: B1 22
-  AND #$03                                            ; $BE15: 29 03
-  STA $2B                                             ; $BE17: 85 2B
-  LDA #$E8                                            ; $BE19: A9 E8
-  SEC                                                 ; $BE1B: 38
-  SBC $2A                                             ; $BE1C: E5 2A
-  STA a:$003A                                         ; $BE1E: 8D 3A 00
-  STA $2C                                             ; $BE21: 85 2C
-  LDA #$03                                            ; $BE23: A9 03
-  SBC $2B                                             ; $BE25: E5 2B
-  STA a:$003B                                         ; $BE27: 8D 3B 00
-  STA $2D                                             ; $BE2A: 85 2D
-  LDY #$0C                                            ; $BE2C: A0 0C
-  LDA a:$003A                                         ; $BE2E: AD 3A 00
-  SEC                                                 ; $BE31: 38
-  SBC ($20),Y                                         ; $BE32: F1 20
-  STA a:$003C                                         ; $BE34: 8D 3C 00
-  INY                                                 ; $BE37: C8
-  LDA a:$003B                                         ; $BE38: AD 3B 00
-  SBC ($20),Y                                         ; $BE3B: F1 20
-  STA a:$003D                                         ; $BE3D: 8D 3D 00
-  .byte $90,$52                                       ; $BE40: 90 52 (BCC mid-instruction target)
-  LDY #$00                                            ; $BE42: A0 00
-  STY $28                                             ; $BE44: 84 28
-  STY $29                                             ; $BE46: 84 29
-  TYA                                                 ; $BE48: 98
-  CLC                                                 ; $BE49: 18
-  ADC #$14                                            ; $BE4A: 69 14
-  TAY                                                 ; $BE4C: A8
-  LDA $28                                             ; $BE4D: A5 28
-  CLC                                                 ; $BE4F: 18
-  ADC #$64                                            ; $BE50: 69 64
-  STA $28                                             ; $BE52: 85 28
-  LDA $29                                             ; $BE54: A5 29
-  ADC #$00                                            ; $BE56: 69 00
-  STA $29                                             ; $BE58: 85 29
-  LDA a:$003C                                         ; $BE5A: AD 3C 00
-  SEC                                                 ; $BE5D: 38
-  SBC #$64                                            ; $BE5E: E9 64
-  STA a:$003C                                         ; $BE60: 8D 3C 00
-  LDA a:$003D                                         ; $BE63: AD 3D 00
-  SBC #$00                                            ; $BE66: E9 00
-  STA a:$003D                                         ; $BE68: 8D 3D 00
-  .byte $B0,$DB                                       ; $BE6B: B0 DB (BCS mid-instruction target)
-  TYA                                                 ; $BE6D: 98
-  STA $22                                             ; $BE6E: 85 22
-  LDA #$00                                            ; $BE70: A9 00
-  STA $23                                             ; $BE72: 85 23
-  LDA #$00                                            ; $BE74: A9 00
-  STA $24                                             ; $BE76: 85 24
-  LDA a:$0039                                         ; $BE78: AD 39 00
-  JSR Proc_D36F                                       ; $BE7B: 20 6F D3
-  LDA a:$0039                                         ; $BE7E: AD 39 00
-  JSR Proc_D105                                       ; $BE81: 20 05 D1
-  LDY #$0C                                            ; $BE84: A0 0C
-  LDA $28                                             ; $BE86: A5 28
-  CLC                                                 ; $BE88: 18
-  ADC ($20),Y                                         ; $BE89: 71 20
-  STA ($20),Y                                         ; $BE8B: 91 20
-  INY                                                 ; $BE8D: C8
-  LDA $29                                             ; $BE8E: A5 29
-  ADC ($20),Y                                         ; $BE90: 71 20
-  STA ($20),Y                                         ; $BE92: 91 20
-  JSR Proc_D69D                                       ; $BE94: 20 9D D6
-  LDY #$0C                                            ; $BE97: A0 0C
-  LDA ($20),Y                                         ; $BE99: B1 20
-  SEC                                                 ; $BE9B: 38
-  SBC a:$003A                                         ; $BE9C: ED 3A 00
-  STA ($20),Y                                         ; $BE9F: 91 20
-  INY                                                 ; $BEA1: C8
-  LDA ($20),Y                                         ; $BEA2: B1 20
-  SBC a:$003B                                         ; $BEA4: ED 3B 00
-  STA ($20),Y                                         ; $BEA7: 91 20
-  JSR Proc_D69D                                       ; $BEA9: 20 9D D6
-  LDA a:$0038                                         ; $BEAC: AD 38 00
-  LDY #$08                                            ; $BEAF: A0 08
-  JSR $D2AB                                           ; $BEB1: 20 AB D2
-  LDY #$08                                            ; $BEB4: A0 08
-  LDA #$E8                                            ; $BEB6: A9 E8
-  STA ($22),Y                                         ; $BEB8: 91 22
-  INY                                                 ; $BEBA: C8
-  LDA #$03                                            ; $BEBB: A9 03
-  STA ($22),Y                                         ; $BEBD: 91 22
-  LDA #$02                                            ; $BEBF: A9 02
-  JSR Proc_D152                                       ; $BEC1: 20 52 D1
-  JMP Proc_BD7A                                       ; $BEC4: 4C 7A BD
-  JSR Proc_BEE6                                       ; $BEC7: 20 E6 BE
-  LDA #$50                                            ; $BECA: A9 50
-  JSR Proc_D4BB                                       ; $BECC: 20 BB D4
-  PHA                                                 ; $BECF: 48
-  LDA $6F03                                           ; $BED0: AD 03 6F
-  AND #$07                                            ; $BED3: 29 07
-  TAY                                                 ; $BED5: A8
-  PLA                                                 ; $BED6: 68
-  CMP $BEDF,Y                                         ; $BED7: D9 DF BE
-  .byte $90,$3A                                       ; $BEDA: 90 3A (BCC cross-proc)
-  JMP $C1E0                                           ; $BEDC: 4C E0 C1
-  .byte $14,$32,$28,$1E,$28,$3C,$32                   ; $BEDF: 14 32 28 1E 28 3C 32
+  LDA ($20),Y                                         ; $BDDB: B1 20      ; officer ID at slot offset
+  STA a:$0038                                         ; $BDDD: 8D 38 00  ; best_slot_val
+  LDA a:$0036                                         ; $BDE0: AD 36 00  ; candidate_idx
+  STA a:$0039                                         ; $BDE3: 8D 39 00  ; best_entity
+
+AiDev_SlotAdvance:                                                             ; advance inner loop (next army slot)
+  INC $24                                               ; $BDE6: E6 24      ; next slot offset
+  LDA $24                                               ; $BDE8: A5 24
+  CMP #$1B                                              ; $BDEA: C9 1B      ; end of slots?
+  BCC AiDev_SlotLoop                                        ; $BDEC: 90 B9      ; continue inner loop
+
+AiDev_OuterLoopNext:                                                           ; advance outer loop (next entity)
+  INC a:$0036                                           ; $BDEE: EE 36 00  ; candidate_idx++
+  LDA a:$0036                                           ; $BDF1: AD 36 00  ; candidate_idx
+  CMP #$1E                                              ; $BDF4: C9 1E      ; scanned all entities?
+  BCC AiDev_OuterLoop                                       ; $BDF6: 90 92      ; continue outer loop
+
+  ; --- Post-scan: check if any target was found ---
+  LDA a:$0038                                           ; $BDF8: AD 38 00  ; best_slot_val
+  CMP #$FF                                              ; $BDFB: C9 FF      ; still $FF = no target
+  BNE AiDev_ProcessBest                                      ; $BDFD: D0 03      ; found → process
+AiDev_ExitSearch:                                                              ; no target found
+  JMP AiDev_Terminate                                        ; $BDFF: 4C C7 BE  ; → termination phase
+
+AiDev_ProcessBest:                                                             ; === Train the best officer ===
+  LDA a:$0039                                           ; $BE02: AD 39 00  ; best entity index
+  JSR Proc_D105                                         ; $BE05: 20 05 D1  ; resolve → record ptr ($20)
+  LDA a:$0038                                           ; $BE08: AD 38 00  ; best officer ID
+  LDY #$08                                              ; $BE0B: A0 08
+  JSR $D2AB                                             ; $BE0D: 20 AB D2  ; read officer ability stat → ($22)
+  STA $2A                                               ; $BE10: 85 2A      ; ability low byte
+  INY                                                   ; $BE12: C8
+  LDA ($22),Y                                           ; $BE13: B1 22      ; ability high byte
+  AND #$03                                              ; $BE15: 29 03      ; mask (max $03)
+  STA $2B                                               ; $BE17: 85 2B
+
+  ; --- Compute remaining training capacity = $03E8 - ability ---
+  LDA #$E8                                              ; $BE19: A9 E8
+  SEC                                                   ; $BE1B: 38
+  SBC $2A                                               ; $BE1C: E5 2A      ; ($03E8 - ability) low
+  STA a:$003A                                           ; $BE1E: 8D 3A 00
+  STA $2C                                               ; $BE21: 85 2C
+  LDA #$03                                              ; $BE23: A9 03
+  SBC $2B                                               ; $BE25: E5 2B      ; ($03E8 - ability) high
+  STA a:$003B                                           ; $BE27: 8D 3B 00
+  STA $2D                                               ; $BE2A: 85 2D
+
+  ; --- Subtract prior investment: net = capacity - field[$0C/$0D] ---
+  LDY #$0C                                              ; $BE2C: A0 0C
+  LDA a:$003A                                           ; $BE2E: AD 3A 00
+  SEC                                                   ; $BE31: 38
+  SBC ($20),Y                                           ; $BE32: F1 20      ; net remaining low
+  STA a:$003C                                           ; $BE34: 8D 3C 00
+  INY                                                   ; $BE37: C8
+  LDA a:$003B                                           ; $BE38: AD 3B 00
+  SBC ($20),Y                                           ; $BE3B: F1 20      ; net remaining high
+  STA a:$003D                                           ; $BE3D: 8D 3D 00
+  BCC AiDev_AlreadyTrained                                  ; $BE40: 90 52      ; already trained → flush
+
+  ; --- Ceiling division by 100: cost = ceil(remainder/100)×100 ---
+  ; Determines training cost in batches of 100 resources.
+  LDY #$00                                              ; $BE42: A0 00
+  STY $28                                               ; $BE44: 84 28      ; cost accumulator = 0
+  STY $29                                               ; $BE46: 84 29
+AiDev_DivReset:                                                                ; A = 0 here, used as cost base
+  TYA                                                   ; $BE48: 98        ; A = 0
+  CLC                                                   ; $BE49: 18
+  ADC #$14                                              ; $BE4A: 69 14      ; A = 20 (loop counter)
+  TAY                                                   ; $BE4C: A8
+AiDev_DivLoop:                                                                 ; subtract 100 from remainder, add 100 to cost
+  LDA $28                                               ; $BE4D: A5 28
+  CLC                                                   ; $BE4F: 18
+  ADC #$64                                              ; $BE50: 69 64      ; cost += 100
+  STA $28                                               ; $BE52: 85 28
+  LDA $29                                               ; $BE54: A5 29
+  ADC #$00                                              ; $BE56: 69 00
+  STA $29                                               ; $BE58: 85 29
+  LDA a:$003C                                           ; $BE5A: AD 3C 00
+  SEC                                                   ; $BE5D: 38
+  SBC #$64                                              ; $BE5E: E9 64      ; remainder -= 100
+  STA a:$003C                                           ; $BE60: 8D 3C 00
+  LDA a:$003D                                           ; $BE63: AD 3D 00
+  SBC #$00                                              ; $BE66: E9 00
+  STA a:$003D                                           ; $BE68: 8D 3D 00
+  BCS AiDev_DivReset                                        ; $BE6B: B0 DB      ; remainder ≥ 0 → continue
+
+  ; --- Store final 16-bit cost ---
+  TYA                                                   ; $BE6D: 98
+  STA $22                                               ; $BE6E: 85 22
+  LDA #$00                                              ; $BE70: A9 00
+  STA $23                                               ; $BE72: 85 23      ; $22/$23 = cost (16-bit)
+
+  ; --- Consume province resources (deduct cost from field $02/$03) ---
+  LDA #$00                                              ; $BE74: A9 00
+  STA $24                                               ; $BE76: 85 24
+  LDA a:$0039                                           ; $BE78: AD 39 00  ; best entity
+  JSR Proc_D36F                                         ; $BE7B: 20 6F D3  ; deduct training cost
+
+  ; --- Add cost to development investment (field $0C/$0D += cost) ---
+  LDA a:$0039                                           ; $BE7E: AD 39 00  ; best entity
+  JSR Proc_D105                                         ; $BE81: 20 05 D1  ; re-resolve province → ($20)
+  LDY #$0C                                              ; $BE84: A0 0C
+  LDA $28                                               ; $BE86: A5 28
+  CLC                                                   ; $BE88: 18
+  ADC ($20),Y                                           ; $BE89: 71 20      ; field[$0C] += cost_low
+  STA ($20),Y                                           ; $BE8B: 91 20
+  INY                                                   ; $BE8D: C8
+  LDA $29                                               ; $BE8E: A5 29
+  ADC ($20),Y                                           ; $BE90: 71 20      ; field[$0D] += cost_high
+  STA ($20),Y                                           ; $BE92: 91 20
+AiDev_AlreadyTrained:                                                            ; skip division → flush and continue
+  JSR Proc_D69D                                         ; $BE94: 20 9D D6  ; flush pending updates
+
+  ; --- Subtract remaining capacity from investment (net effect) ---
+  LDY #$0C                                              ; $BE97: A0 0C
+  LDA ($20),Y                                           ; $BE99: B1 20
+  SEC                                                   ; $BE9B: 38
+  SBC a:$003A                                           ; $BE9C: ED 3A 00  ; field[$0C] -= capacity_low
+  STA ($20),Y                                           ; $BE9F: 91 20
+  INY                                                   ; $BEA1: C8
+  LDA ($20),Y                                           ; $BEA2: B1 20
+  SBC a:$003B                                           ; $BEA4: ED 3B 00  ; field[$0D] -= capacity_high
+  STA ($20),Y                                           ; $BEA7: 91 20
+  JSR Proc_D69D                                         ; $BEA9: 20 9D D6  ; flush pending updates
+
+  ; --- Mark officer as fully trained: set ability = $03E8 (1000) ---
+  LDA a:$0038                                           ; $BEAC: AD 38 00  ; officer ID
+  LDY #$08                                              ; $BEAF: A0 08
+  JSR $D2AB                                             ; $BEB1: 20 AB D2  ; resolve officer record → ($22)
+  LDY #$08                                              ; $BEB4: A0 08
+  LDA #$E8                                              ; $BEB6: A9 E8
+  STA ($22),Y                                           ; $BEB8: 91 22      ; ability_low = $E8
+  INY                                                   ; $BEBA: C8
+  LDA #$03                                              ; $BEBB: A9 03
+  STA ($22),Y                                           ; $BEBD: 91 22      ; ability_high = $03 → total $03E8
+
+  ; --- Signal action and loop for next trainable officer ---
+  LDA #$02                                              ; $BEBF: A9 02      ; action type 2 = officer training
+  JSR Proc_D152                                         ; $BEC1: 20 52 D1  ; signal game engine
+  JMP AiDev_Main                               ; $BEC4: 4C 7A BD  ; restart search for next officer
+
+; --- Termination phase: advance turn and random follow-up check ---
+; Reached via JMP from AiDev_ExitSearch when no trainable officers remain.
+AiDev_Terminate:
+  JSR AiTurn_AdvancePhase                               ; $BEC7: 20 E6 BE  ; advance turn phase counter
+  LDA #$50                                              ; $BECA: A9 50
+  JSR Proc_D4BB                                         ; $BECC: 20 BB D4  ; random(80)
+  PHA                                                   ; $BECF: 48
+  LDA $6F03                                             ; $BED0: AD 03 6F
+  AND #$07                                              ; $BED3: 29 07      ; player_id & 7
+  TAY                                                   ; $BED5: A8
+  PLA                                                   ; $BED6: 68
+  CMP AiDev_ActionThreshold,Y                           ; $BED7: D9 DF BE  ; compare with per-player threshold
+  BCC @RollAction                                         ; $BEDA: 90 3A      ; below threshold → alternate action
+  JMP AiAction_ContinueTurn                             ; $BEDC: 4C E0 C1  ; continue AI turn (70%/30% officer/eval)
+
+; Per-player aggression thresholds (indexed by player_id & 7)
+; Controls probability of continuing AI action after officer development:
+;   Player 0: $14 (75%), Player 1: $32 (37.5%), Player 2: $28 (50%),
+;   Player 3: $1E (62.5%), Player 4: $28 (50%), Player 5: $3C (25%),
+;   Player 6: $32 (37.5%)
+AiDev_ActionThreshold:
+  .byte $14,$32,$28,$1E,$28,$3C,$32                     ; $BEDF: 14 32 28 1E 28 3C 32
 
 ;===============================================================================
-; $BEE6: Proc_BEE6
+; $BEE6: AiTurn_AdvancePhase
+; Advances the AI turn phase counter. Each call increments the per-player
+; action counter ($6F83,X). After $1E actions, advances the global phase
+; ($6F62). At phase 3, transitions to next game state via $D140.
+; Otherwise, resets counter and resolves current entity.
 ;===============================================================================
-Proc_BEE6:
-  LDX $6F03                                           ; $BEE6: AE 03 6F
-  INC $6F83,X                                         ; $BEE9: FE 83 6F
+AiTurn_AdvancePhase:
+  LDX $6F03                                           ; $BEE6: AE 03 6F  ; current player
+  INC $6F83,X                                         ; $BEE9: FE 83 6F  ; increment action counter
   LDA $6F83,X                                         ; $BEEC: BD 83 6F
-  CMP #$1E                                            ; $BEEF: C9 1E
-  BCC LBF07                                           ; $BEF1: 90 14
-  INC $6F62                                           ; $BEF3: EE 62 6F
+  CMP #$1E                                            ; $BEEF: C9 1E      ; 30 actions per phase?
+  BCC @ResetCounter                                       ; $BEF1: 90 14      ; not yet → reset and continue
+  INC $6F62                                           ; $BEF3: EE 62 6F  ; advance global phase
   LDA $6F62                                           ; $BEF6: AD 62 6F
-  CMP #$03                                            ; $BEF9: C9 03
-  .byte $D0,$08                                       ; $BEFB: D0 08 (BNE mid-instruction target)
-  LDA #$00                                            ; $BEFD: A9 00
+  CMP #$03                                            ; $BEF9: C9 03      ; phase 3 = end of AI turn
+  .byte $D0,$08                                       ; $BEFB: D0 08 (BNE $BF05 — skip if phase ≠ 3)
+  LDA #$00                                            ; $BEFD: A9 00      ; phase 3: reset state
   STA $6F62                                           ; $BEFF: 8D 62 6F
-  JMP $D140                                           ; $BF02: 4C 40 D1
-  LDA #$00                                            ; $BF05: A9 00
-LBF07:
-  STA $6F83,X                                         ; $BF07: 9D 83 6F
-  STA $6F5E                                           ; $BF0A: 8D 5E 6F
-  JSR Proc_D105                                       ; $BF0D: 20 05 D1
-  CMP $6F03                                           ; $BF10: CD 03 6F
-  BNE Proc_BEE6                                       ; $BF13: D0 D1
+  JMP $D140                                           ; $BF02: 4C 40 D1  ; transition to next game state
+  LDA #$00                                            ; $BF05: A9 00      ; phase ≠ 3: zero counter
+@ResetCounter:
+  STA $6F83,X                                         ; $BF07: 9D 83 6F  ; store zeroed counter
+  STA $6F5E                                           ; $BF0A: 8D 5E 6F  ; reset entity index
+  JSR Proc_D105                                       ; $BF0D: 20 05 D1  ; resolve entity record
+  CMP $6F03                                           ; $BF10: CD 03 6F  ; entity owned by current player?
+  BNE AiTurn_AdvancePhase                             ; $BF13: D0 D1      ; no → try next entity
   RTS                                                 ; $BF15: 60
-LBF16:
-  LDA #$64                                            ; $BF16: A9 64
+;-------------------------------------------------------------------------------
+; $BF16: AiAction_RandomDispatch
+; 4-way random dispatch selecting AI action type. Rolls random(100):
+;   0–39  → game-state check → ReinforceTroops or ReinforceSupplies
+;   40–69 → AiAction_BoostMorale
+;   70–89 → AiAction_SmallStatBoost
+;   90–99 → AiAction_CompositeBoost
+;-------------------------------------------------------------------------------
+@RollAction:
+  LDA #$64                                            ; $BF16: A9 64      ; random(100)
   JSR Proc_D4BB                                       ; $BF18: 20 BB D4
-  CMP #$28                                            ; $BF1B: C9 28
-  BCS LBF22                                           ; $BF1D: B0 03
-  JMP $BF33                                           ; $BF1F: 4C 33 BF
-LBF22:
-  CMP #$46                                            ; $BF22: C9 46
-  .byte $B0,$03                                       ; $BF24: B0 03 (BCS mid-instruction target)
-  JMP Proc_C04E                                       ; $BF26: 4C 4E C0
-  CMP #$5A                                            ; $BF29: C9 5A
-  .byte $B0,$03                                       ; $BF2B: B0 03 (BCS mid-instruction target)
-  JMP $C0CF                                           ; $BF2D: 4C CF C0
-  JMP $C130                                           ; $BF30: 4C 30 C1
-  LDA $6F01                                           ; $BF33: AD 01 6F
-  CMP #$03                                            ; $BF36: C9 03
-  BCC LBF41                                           ; $BF38: 90 07
-  CMP #$08                                            ; $BF3A: C9 08
-  BCS LBF41                                           ; $BF3C: B0 03
-  JMP Proc_BF44                                       ; $BF3E: 4C 44 BF
-LBF41:
-  JMP $BFC3                                           ; $BF41: 4C C3 BF
+  CMP #$28                                            ; $BF1B: C9 28      ; < 40?
+  BCS @CheckMorale                                        ; $BF1D: B0 03      ; no → check next range
+  JMP AiAction_StatBranch                             ; $BF1F: 4C 33 BF  ; game-state dependent branch
+@CheckMorale:
+  CMP #$46                                            ; $BF22: C9 46      ; < 70?
+  .byte $B0,$03                                       ; $BF24: B0 03 (BCS $BF29 — skip if ≥ 70)
+  JMP AiAction_BoostMorale                            ; $BF26: 4C 4E C0  ; 40–69 → morale boost
+  CMP #$5A                                            ; $BF29: C9 5A      ; < 90?
+  .byte $B0,$03                                       ; $BF2B: B0 03 (BCS $BF30 — skip if ≥ 90)
+  JMP AiAction_SmallStatBoost                         ; $BF2D: 4C CF C0  ; 70–89 → small stat boost
+  JMP AiAction_CompositeBoost                         ; $BF30: 4C 30 C1  ; 90–99 → composite boost
+
+; --- Game-state dependent branch (random < 40) ---
+; If game state $6F01 is 3–7: reinforce troops; otherwise reinforce supplies.
+AiAction_StatBranch:
+  LDA $6F01                                           ; $BF33: AD 01 6F  ; game state
+  CMP #$03                                            ; $BF36: C9 03      ; state < 3?
+  BCC @GotoSupplies                                       ; $BF38: 90 07      ; yes → supplies
+  CMP #$08                                            ; $BF3A: C9 08      ; state ≥ 8?
+  BCS @GotoSupplies                                       ; $BF3C: B0 03      ; yes → supplies
+  JMP AiAction_ReinforceTroops                        ; $BF3E: 4C 44 BF  ; state 3–7 → troops
+@GotoSupplies:
+  JMP AiAction_ReinforceSupplies                      ; $BF41: 4C C3 BF  ; default → supplies
 
 
 ;===============================================================================
-; $BF44: Proc_BF44
+; $BF44: AiAction_ReinforceTroops
+; Computes troop reinforcement: (entity_idx × $0E × kingdom_mod) / $0A,
+; adds loyalty bonus, writes to entity record[$08/$09] (16-bit), capped at 999.
 ;===============================================================================
-Proc_BF44:
+AiAction_ReinforceTroops:
   LDA #$0A                                            ; $BF44: A9 0A
   STA $22                                             ; $BF46: 85 22
   LDA #$00                                            ; $BF48: A9 00
   STA $23                                             ; $BF4A: 85 23
   LDA #$0E                                            ; $BF4C: A9 0E
   STA $24                                             ; $BF4E: 85 24
-  LDA $6F5E                                           ; $BF50: AD 5E 6F
-  JSR Proc_D36F                                       ; $BF53: 20 6F D3
+  LDA $6F5E                                           ; $BF50: AD 5E 6F  ; entity index
+  JSR Proc_D36F                                       ; $BF53: 20 6F D3  ; multiply: entity_idx × $0E
   .byte $90,$68                                       ; $BF56: 90 68 (BCC mid-instruction target)
   LDA $22                                             ; $BF58: A5 22
   STA $20                                             ; $BF5A: 85 20
@@ -4886,10 +5042,10 @@ Proc_BF44:
   STA $21                                             ; $BF5E: 85 21
   LDA #$00                                            ; $BF60: A9 00
   STA $22                                             ; $BF62: 85 22
-  LDY $6F02                                           ; $BF64: AC 02 6F
-  LDA $C042,Y                                         ; $BF67: B9 42 C0
+  LDY $6F02                                           ; $BF64: AC 02 6F  ; kingdom index
+  LDA KingdomActionModifiers,Y                        ; $BF67: B9 42 C0  ; kingdom modifier
   STA $23                                             ; $BF6A: 85 23
-  JSR Proc_D438                                       ; $BF6C: 20 38 D4
+  JSR Proc_D438                                       ; $BF6C: 20 38 D4  ; multiply result × modifier
   LDA $26                                             ; $BF6F: A5 26
   STA $21                                             ; $BF71: 85 21
   LDA $27                                             ; $BF73: A5 27
@@ -4898,16 +5054,16 @@ Proc_BF44:
   STA $23                                             ; $BF79: 85 23
   LDA #$00                                            ; $BF7B: A9 00
   STA $24                                             ; $BF7D: 85 24
-  JSR Proc_D40F                                       ; $BF7F: 20 0F D4
+  JSR Proc_D40F                                       ; $BF7F: 20 0F D4  ; divide by $0A
   LDA $22                                             ; $BF82: A5 22
   STA $23                                             ; $BF84: 85 23
   LDA $21                                             ; $BF86: A5 21
   STA $22                                             ; $BF88: 85 22
   LDA $6F5E                                           ; $BF8A: AD 5E 6F
-  JSR Proc_D105                                       ; $BF8D: 20 05 D1
+  JSR Proc_D105                                       ; $BF8D: 20 05 D1  ; resolve entity → ($20)
   LDA $22                                             ; $BF90: A5 22
-  JSR $C1A7                                           ; $BF92: 20 A7 C1
-  LDY #$08                                            ; $BF95: A0 08
+  JSR AddLoyaltyBonus_Small                           ; $BF92: 20 A7 C1  ; add loyalty bonus to field[$0B]
+  LDY #$08                                            ; $BF95: A0 08      ; entity record offset $08 (troops lo)
   LDA ($20),Y                                         ; $BF97: B1 20
   CLC                                                 ; $BF99: 18
   ADC $22                                             ; $BF9A: 65 22
@@ -4915,22 +5071,30 @@ Proc_BF44:
   INY                                                 ; $BF9E: C8
   LDA ($20),Y                                         ; $BF9F: B1 20
   ADC $23                                             ; $BFA1: 65 23
-  AND #$03                                            ; $BFA3: 29 03
+  AND #$03                                            ; $BFA3: 29 03      ; cap hi-byte to 3
   STA ($20),Y                                         ; $BFA5: 91 20
-  CMP #$03                                            ; $BFA7: C9 03
-  .byte $90,$10                                       ; $BFA9: 90 10 (BCC mid-instruction target)
-  DEY                                                 ; $BFAB: 88
+  CMP #$03                                            ; $BFA7: C9 03      ; hi = 3?
+  .byte $90,$10                                       ; $BFA9: 90 10 (BCC $BFBB — skip cap if hi < 3)
+  DEY                                                 ; $BFAB: 88         ; offset $08 (troops lo)
   LDA ($20),Y                                         ; $BFAC: B1 20
-  CMP #$E7                                            ; $BFAE: C9 E7
-  .byte $90,$09                                       ; $BFB0: 90 09 (BCC mid-instruction target)
-  LDA #$E7                                            ; $BFB2: A9 E7
+  CMP #$E7                                            ; $BFAE: C9 E7      ; lo ≥ $E7?
+  .byte $90,$09                                       ; $BFB0: 90 09 (BCC $BFBB — skip cap if lo < $E7)
+  LDA #$E7                                            ; $BFB2: A9 E7      ; clamp to $03E7 = 999
   STA ($20),Y                                         ; $BFB4: 91 20
   INY                                                 ; $BFB6: C8
   LDA #$03                                            ; $BFB7: A9 03
   STA ($20),Y                                         ; $BFB9: 91 20
-  LDA #$05                                            ; $BFBB: A9 05
+  LDA #$05                                            ; $BFBB: A9 05      ; signal action type 5
   JSR Proc_D152                                       ; $BFBD: 20 52 D1
-  JMP $BEC7                                           ; $BFC0: 4C C7 BE
+  JMP $BEC7                                           ; $BFC0: 4C C7 BE  ; return to AI turn loop
+
+;===============================================================================
+; $BFC3: AiAction_ReinforceSupplies
+; Same algorithm as ReinforceTroops but writes to entity record[$0E/$0F]
+; (supply/provision field) instead of $08/$09. Same kingdom modifier table
+; (KingdomActionModifiers, offset 0). Same cap of 999.
+;===============================================================================
+AiAction_ReinforceSupplies:
   LDA #$0A                                            ; $BFC3: A9 0A
   STA $22                                             ; $BFC5: 85 22
   LDA #$00                                            ; $BFC7: A9 00
@@ -4946,8 +5110,8 @@ Proc_BF44:
   STA $21                                             ; $BFDD: 85 21
   LDA #$00                                            ; $BFDF: A9 00
   STA $22                                             ; $BFE1: 85 22
-  LDY $6F02                                           ; $BFE3: AC 02 6F
-  LDA $C042,Y                                         ; $BFE6: B9 42 C0
+  LDY $6F02                                           ; $BFE3: AC 02 6F  ; kingdom index
+  LDA KingdomActionModifiers,Y                        ; $BFE6: B9 42 C0  ; kingdom modifier
   STA $23                                             ; $BFE9: 85 23
   JSR Proc_D438                                       ; $BFEB: 20 38 D4
   LDA $26                                             ; $BFEE: A5 26
@@ -4958,37 +5122,17 @@ Proc_BF44:
   STA $23                                             ; $BFF8: 85 23
   LDA #$00                                            ; $BFFA: A9 00
   STA $24                                             ; $BFFC: 85 24
-  .byte $20                                           ; $BFFE: 20
-  .byte $0F                                           ; $BFFF: 0F
-.endproc
+  JSR Proc_D40F                                       ; $BFFE: 20 0F D4  (cross-bank: hi byte at $C000)
 
-
-;===============================================================================
-; Bank $0B - $C000-$DFFF
-;===============================================================================
-
-.segment "CODE_BANK0B"
-
-;===============================================================================
-; $C000: Init
-; Bank 0B initialization: setup registers and jump to main loop
-;===============================================================================
-.proc Init
-  math_acc_lo              = $0020
-  math_acc_mlo             = $0021
-  math_acc_mhi             = $0022
-  math_acc_hi              = $0023
-
-  .byte $D4                                           ; $C000: D4
   LDA $22                                             ; $C001: A5 22
   STA $23                                             ; $C003: 85 23
   LDA $21                                             ; $C005: A5 21
   STA $22                                             ; $C007: 85 22
   LDA $6F5E                                           ; $C009: AD 5E 6F
-  JSR Proc_D105                                       ; $C00C: 20 05 D1
+  JSR Proc_D105                                       ; $C00C: 20 05 D1  ; resolve entity → ($20)
   LDA $22                                             ; $C00F: A5 22
-  JSR $C1A7                                           ; $C011: 20 A7 C1
-  LDY #$0E                                            ; $C014: A0 0E
+  JSR AddLoyaltyBonus_Small                           ; $C011: 20 A7 C1  ; loyalty bonus to field[$0B]
+  LDY #$0E                                            ; $C014: A0 0E      ; offset $0E (supplies lo)
   LDA ($20),Y                                         ; $C016: B1 20
   CLC                                                 ; $C018: 18
   ADC $22                                             ; $C019: 65 22
@@ -5011,14 +5155,22 @@ Proc_BF44:
   STA ($20),Y                                         ; $C038: 91 20
   LDA #$05                                            ; $C03A: A9 05
   JSR Proc_D152                                       ; $C03C: 20 52 D1
-  JMP $BEC7                                           ; $C03F: 4C C7 BE
-  .byte $0C,$0F,$12,$06,$07,$08,$19,$14,$0F,$03,$05,$07; $C042: 0C 0F 12 06 07 08 19 14 0F 03 05 07
-.endproc
+  JMP $BEC7                                           ; $C03F: 4C C7 BE  ; return to AI turn loop
+
+; Per-kingdom action modifiers (circular 12-byte table, indexed by kingdom_index)
+; Accessed at different base offsets to select action type:
+;   +0 = troops/supplies, +3 = small stat, +6 = composite, +9 = officer loyalty
+KingdomActionModifiers:
+  .byte $0C,$0F,$12,$06,$07,$08,$19,$14,$0F,$03,$05,$07  ; 12,15,18,6,7,8,25,20,15,3,5,7
+
 
 ;===============================================================================
-; $C04E: Proc_C04E
+; $C04E: AiAction_BoostMorale
+; Computes morale boost at HALF strength: (entity_idx × $0E × mod) / $0A / 2.
+; Writes to entity record[$06/$07] (16-bit morale), capped at $270F.
+; Also adds a large loyalty bonus via AddLoyaltyBonus_Large.
 ;===============================================================================
-.proc Proc_C04E
+.proc AiAction_BoostMorale
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -5046,7 +5198,7 @@ Proc_BF44:
   LDA #$00                                            ; $C06A: A9 00
   STA $22                                             ; $C06C: 85 22
   LDY $6F02                                           ; $C06E: AC 02 6F
-  LDA $C042,Y                                         ; $C071: B9 42 C0
+  LDA KingdomActionModifiers,Y                        ; $C071: B9 42 C0  ; kingdom modifier (offset 0)
   STA $23                                             ; $C074: 85 23
   JSR Proc_D438                                       ; $C076: 20 38 D4
   LDA $26                                             ; $C079: A5 26
@@ -5062,12 +5214,12 @@ Proc_BF44:
   STA $23                                             ; $C08E: 85 23
   LDA $21                                             ; $C090: A5 21
   STA $22                                             ; $C092: 85 22
-  LSR $23                                             ; $C094: 46 23
+  LSR $23                                             ; $C094: 46 23      ; halve the 16-bit result (÷2)
   ROR $22                                             ; $C096: 66 22
   LDA $6F5E                                           ; $C098: AD 5E 6F
-  JSR Proc_D105                                       ; $C09B: 20 05 D1
-  JSR $C1C0                                           ; $C09E: 20 C0 C1
-  LDY #$06                                            ; $C0A1: A0 06
+  JSR Proc_D105                                       ; $C09B: 20 05 D1  ; resolve entity → ($20)
+  JSR AddLoyaltyBonus_Large                           ; $C09E: 20 C0 C1  ; bonus based on 3000 threshold
+  LDY #$06                                            ; $C0A1: A0 06      ; offset $06 (morale lo)
   LDA ($20),Y                                         ; $C0A3: B1 20
   CLC                                                 ; $C0A5: 18
   ADC $22                                             ; $C0A6: 65 22
@@ -5075,22 +5227,29 @@ Proc_BF44:
   INY                                                 ; $C0AA: C8
   LDA ($20),Y                                         ; $C0AB: B1 20
   ADC $23                                             ; $C0AD: 65 23
-  AND #$7F                                            ; $C0AF: 29 7F
+  AND #$7F                                            ; $C0AF: 29 7F      ; cap hi-byte to $7F
   STA ($20),Y                                         ; $C0B1: 91 20
-  CMP #$27                                            ; $C0B3: C9 27
-  .byte $90,$10                                       ; $C0B5: 90 10 (BCC mid-instruction target)
-  DEY                                                 ; $C0B7: 88
+  CMP #$27                                            ; $C0B3: C9 27      ; hi ≥ $27?
+  .byte $90,$10                                       ; $C0B5: 90 10 (BCC $C0C7 — skip cap if hi < $27)
+  DEY                                                 ; $C0B7: 88         ; offset $06 (morale lo)
   LDA ($20),Y                                         ; $C0B8: B1 20
-  CMP #$10                                            ; $C0BA: C9 10
-  .byte $90,$09                                       ; $C0BC: 90 09 (BCC mid-instruction target)
-  LDA #$0F                                            ; $C0BE: A9 0F
+  CMP #$10                                            ; $C0BA: C9 10      ; lo ≥ $10?
+  .byte $90,$09                                       ; $C0BC: 90 09 (BCC $C0C7 — skip cap if lo < $10)
+  LDA #$0F                                            ; $C0BE: A9 0F      ; clamp to $0F27 (morale cap)
   STA ($20),Y                                         ; $C0C0: 91 20
   INY                                                 ; $C0C2: C8
   LDA #$27                                            ; $C0C3: A9 27
   STA ($20),Y                                         ; $C0C5: 91 20
   LDA #$05                                            ; $C0C7: A9 05
   JSR Proc_D152                                       ; $C0C9: 20 52 D1
-  JMP $BEC7                                           ; $C0CC: 4C C7 BE
+  JMP $BEC7                                           ; $C0CC: 4C C7 BE  ; return to AI turn loop
+
+;-------------------------------------------------------------------------------
+; $C0CF: AiAction_SmallStatBoost
+; Single-byte stat boost: (entity_idx × $0A × mod[3]) / $0A.
+; Writes to entity record[$0A] (single byte), capped at 99 ($63).
+;-------------------------------------------------------------------------------
+AiAction_SmallStatBoost:
   LDA #$0A                                            ; $C0CF: A9 0A
   STA $22                                             ; $C0D1: 85 22
   LDA #$00                                            ; $C0D3: A9 00
@@ -5107,7 +5266,7 @@ Proc_BF44:
   LDA #$00                                            ; $C0EB: A9 00
   STA $22                                             ; $C0ED: 85 22
   LDY $6F02                                           ; $C0EF: AC 02 6F
-  LDA $C045,Y                                         ; $C0F2: B9 45 C0
+  LDA KingdomActionModifiers+3,Y                      ; $C0F2: B9 45 C0  ; modifier at offset 3
   STA $23                                             ; $C0F5: 85 23
   JSR Proc_D438                                       ; $C0F7: 20 38 D4
   LDA $26                                             ; $C0FA: A5 26
@@ -5134,7 +5293,17 @@ Proc_BF44:
   STA ($20),Y                                         ; $C126: 91 20
   LDA #$05                                            ; $C128: A9 05
   JSR Proc_D152                                       ; $C12A: 20 52 D1
-  JMP $BEC7                                           ; $C12D: 4C C7 BE
+  JMP $BEC7                                           ; $C12D: 4C C7 BE  ; return to AI turn loop
+
+;-------------------------------------------------------------------------------
+; $C130: AiAction_CompositeBoost
+; Composite boost combining TWO multiplication results:
+;   part1 = entity_idx × $1E (via Proc_D36F)
+;   part2 = entity_idx × $1E (via Proc_D3A9)
+;   result = (part1 + part2) / mod[6]
+; Writes to entity record[$0B] (single byte), capped at 99.
+;-------------------------------------------------------------------------------
+AiAction_CompositeBoost:
   LDA #$1E                                            ; $C130: A9 1E
   STA $22                                             ; $C132: 85 22
   LDA #$00                                            ; $C134: A9 00
@@ -5169,7 +5338,7 @@ Proc_BF44:
   LDA $2B                                             ; $C171: A5 2B
   STA $22                                             ; $C173: 85 22
   LDY $6F02                                           ; $C175: AC 02 6F
-  LDA $C048,Y                                         ; $C178: B9 48 C0
+  LDA KingdomActionModifiers+6,Y                      ; $C178: B9 48 C0  ; modifier at offset 6
   STA $23                                             ; $C17B: 85 23
   LDA #$00                                            ; $C17D: A9 00
   STA $24                                             ; $C17F: 85 24
@@ -5189,66 +5358,90 @@ Proc_BF44:
   STA ($20),Y                                         ; $C19D: 91 20
   LDA #$05                                            ; $C19F: A9 05
   JSR Proc_D152                                       ; $C1A1: 20 52 D1
-  JMP $BEC7                                           ; $C1A4: 4C C7 BE
-  LDY #$01                                            ; $C1A7: A0 01
+  JMP $BEC7                                           ; $C1A4: 4C C7 BE  ; return to AI turn loop
+
+;-------------------------------------------------------------------------------
+; $C1A7: AddLoyaltyBonus_Small
+; Adds loyalty bonus (1 or 2) to entity record[$0B], capped at 100.
+; Input A = value to compare: if A < $1F → bonus=1, else bonus=2.
+;-------------------------------------------------------------------------------
+AddLoyaltyBonus_Small:
+  LDY #$01                                            ; $C1A7: A0 01      ; default bonus = 1
   CMP #$1F                                            ; $C1A9: C9 1F
-  BCC LC1AE                                           ; $C1AB: 90 01
+  BCC @AssignBonus_S                                      ; $C1AB: 90 01
   INY                                                 ; $C1AD: C8
-LC1AE:
+@AssignBonus_S:
   STY $2A                                             ; $C1AE: 84 2A
   LDY #$0B                                            ; $C1B0: A0 0B
   LDA ($20),Y                                         ; $C1B2: B1 20
   CLC                                                 ; $C1B4: 18
   ADC $2A                                             ; $C1B5: 65 2A
   CMP #$64                                            ; $C1B7: C9 64
-  BCC LC1BD                                           ; $C1B9: 90 02
+  BCC @CapLoyalty_S                                       ; $C1B9: 90 02
   LDA #$64                                            ; $C1BB: A9 64
-LC1BD:
+@CapLoyalty_S:
   STA ($20),Y                                         ; $C1BD: 91 20
   RTS                                                 ; $C1BF: 60
-  LDY #$01                                            ; $C1C0: A0 01
+
+;-------------------------------------------------------------------------------
+; $C1C0: AddLoyaltyBonus_Large
+; Adds loyalty bonus (1 or 2) based on whether 16-bit value $22/$23 ≥ 3000.
+; Bonus is added to entity record[$0B], capped at 100.
+;-------------------------------------------------------------------------------
+AddLoyaltyBonus_Large:
+  LDY #$01                                            ; $C1C0: A0 01      ; default bonus = 1
   LDA $22                                             ; $C1C2: A5 22
   SEC                                                 ; $C1C4: 38
-  SBC #$B8                                            ; $C1C5: E9 B8
+  SBC #$B8                                            ; $C1C5: E9 B8      ; subtract $0BB8 (3000) lo
   LDA $23                                             ; $C1C7: A5 23
-  SBC #$0B                                            ; $C1C9: E9 0B
-  BCC LC1CE                                           ; $C1CB: 90 01
-  INY                                                 ; $C1CD: C8
-LC1CE:
+  SBC #$0B                                            ; $C1C9: E9 0B      ; subtract hi byte
+  BCC @AssignBonus_L                                      ; $C1CB: 90 01      ; value < 3000 → bonus=1
+  INY                                                 ; $C1CD: C8         ; value ≥ 3000 → bonus=2
+@AssignBonus_L:
   STY $2A                                             ; $C1CE: 84 2A
   LDY #$0B                                            ; $C1D0: A0 0B
   LDA ($20),Y                                         ; $C1D2: B1 20
   CLC                                                 ; $C1D4: 18
   ADC $2A                                             ; $C1D5: 65 2A
   CMP #$64                                            ; $C1D7: C9 64
-  BCC LC1DD                                           ; $C1D9: 90 02
+  BCC @CapLoyalty_L                                       ; $C1D9: 90 02
   LDA #$64                                            ; $C1DB: A9 64
-LC1DD:
+@CapLoyalty_L:
   STA ($20),Y                                         ; $C1DD: 91 20
   RTS                                                 ; $C1DF: 60
-  LDY #$0F                                            ; $C1E0: A0 0F
+
+;-------------------------------------------------------------------------------
+; $C1E0: AiAction_ContinueTurn
+; Clears AI work area ($6F73-$6F82), then randomly picks between:
+;   70% → AiAction_ManageOfficerLoyalty (field[$02] management)
+;   30% → FindWeakestLoyaltyOfficer → boost officer field[$03]
+; If officer field[$03] ≥ 70, retries. Falls through to AiAction_EvaluateAndExecute
+; if no valid officer found.
+;-------------------------------------------------------------------------------
+AiAction_ContinueTurn:
+  LDY #$0F                                            ; $C1E0: A0 0F      ; clear 16 bytes of AI work area
   LDA #$FF                                            ; $C1E2: A9 FF
-LC1E4:
+@ClearLoop:
   STA $6F73,Y                                         ; $C1E4: 99 73 6F
   DEY                                                 ; $C1E7: 88
-  BPL LC1E4                                           ; $C1E8: 10 FA
+  BPL @ClearLoop                                           ; $C1E8: 10 FA
   LDA #$64                                            ; $C1EA: A9 64
   JSR Proc_D4BB                                       ; $C1EC: 20 BB D4
   CMP #$1E                                            ; $C1EF: C9 1E
-  BCC LC1F6                                           ; $C1F1: 90 03
-  JMP Proc_C298                                       ; $C1F3: 4C 98 C2
-LC1F6:
-  JSR $C248                                           ; $C1F6: 20 48 C2
+  BCC @BranchRandom                                           ; $C1F1: 90 03
+  JMP AiAction_ManageOfficerLoyalty                   ; $C1F3: 4C 98 C2  ; 70% → officer management
+@BranchRandom:
+  JSR FindWeakestLoyaltyOfficer                       ; $C1F6: 20 48 C2  ; find officer w/ lowest field[$03]
   LDA $23                                             ; $C1F9: A5 23
   CMP #$FF                                            ; $C1FB: C9 FF
-  BNE LC202                                           ; $C1FD: D0 03
-  JMP Proc_C337                                       ; $C1FF: 4C 37 C3
-LC202:
+  BNE @ValidOfficer                                           ; $C1FD: D0 03
+  JMP AiAction_EvaluateAndExecute                     ; $C1FF: 4C 37 C3  ; no officer → strategic eval
+@ValidOfficer:
   STA a:$0036                                         ; $C202: 8D 36 00
   LDY #$03                                            ; $C205: A0 03
   JSR Proc_D283                                       ; $C207: 20 83 D2
   CMP #$46                                            ; $C20A: C9 46
-  BCS LC1F6                                           ; $C20C: B0 E8
+  BCS @BranchRandom                                           ; $C20C: B0 E8
   LDA #$14                                            ; $C20E: A9 14
   STA $22                                             ; $C210: 85 22
   LDA #$00                                            ; $C212: A9 00
@@ -5262,7 +5455,7 @@ LC202:
   JSR Proc_D4AD                                       ; $C224: 20 AD D4
   CLC                                                 ; $C227: 18
   LDY $6F02                                           ; $C228: AC 02 6F
-  ADC $C04B,Y                                         ; $C22B: 79 4B C0
+  ADC KingdomActionModifiers+9,Y                      ; $C22B: 79 4B C0  ; modifier at offset 9
   STA $22                                             ; $C22E: 85 22
   LDA a:$0036                                         ; $C230: AD 36 00
   LDY #$03                                            ; $C233: A0 03
@@ -5273,64 +5466,66 @@ LC202:
   JSR Proc_D5E7                                       ; $C23D: 20 E7 D5
   LDA #$05                                            ; $C240: A9 05
   JSR Proc_D152                                       ; $C242: 20 52 D1
-  JMP $BEC7                                           ; $C245: 4C C7 BE
-  LDA #$11                                            ; $C248: A9 11
+  JMP $BEC7                                           ; $C245: 4C C7 BE  ; return to AI turn loop
+
+;-------------------------------------------------------------------------------
+; $C248: FindWeakestLoyaltyOfficer
+; Scans officer slots $11–$1A for the officer with lowest field[$03]
+; (loyalty). Skips empty ($FF), inactive ($6F62=0), and maxed (100) officers.
+; Returns: officer ID in $23 ($FF if none found).
+;-------------------------------------------------------------------------------
+FindWeakestLoyaltyOfficer:
+  LDA #$11                                            ; $C248: A9 11      ; start slot = $11
   STA $24                                             ; $C24A: 85 24
-  LDA #$FF                                            ; $C24C: A9 FF
+  LDA #$FF                                            ; $C24C: A9 FF      ; init best = $FF (none)
   STA $22                                             ; $C24E: 85 22
   STA $23                                             ; $C250: 85 23
-LC252:
+@ScanNext_Weak:
   LDA $6F5E                                           ; $C252: AD 5E 6F
   JSR Proc_D105                                       ; $C255: 20 05 D1
   LDY $24                                             ; $C258: A4 24
   LDA ($20),Y                                         ; $C25A: B1 20
   STA $25                                             ; $C25C: 85 25
   CMP #$FF                                            ; $C25E: C9 FF
-  BEQ LC27C                                           ; $C260: F0 1A
+  BEQ @NextSlot_Weak                                           ; $C260: F0 1A
   LDA $6F62,Y                                         ; $C262: B9 62 6F
-  BEQ LC27C                                           ; $C265: F0 15
+  BEQ @NextSlot_Weak                                           ; $C265: F0 15
   LDY #$03                                            ; $C267: A0 03
   LDA $25                                             ; $C269: A5 25
   JSR Proc_D283                                       ; $C26B: 20 83 D2
   CMP #$64                                            ; $C26E: C9 64
-  BEQ LC27C                                           ; $C270: F0 0A
+  BEQ @NextSlot_Weak                                           ; $C270: F0 0A
   CMP $22                                             ; $C272: C5 22
-  BCS LC27C                                           ; $C274: B0 06
+  BCS @NextSlot_Weak                                           ; $C274: B0 06
   STA $22                                             ; $C276: 85 22
   LDA $24                                             ; $C278: A5 24
   STA $23                                             ; $C27A: 85 23
-LC27C:
+@NextSlot_Weak:
   INC $24                                             ; $C27C: E6 24
   LDY $24                                             ; $C27E: A4 24
   CPY #$1B                                            ; $C280: C0 1B
-  BCC LC252                                           ; $C282: 90 CE
+  BCC @ScanNext_Weak                                           ; $C282: 90 CE
   LDA $6F5E                                           ; $C284: AD 5E 6F
   JSR Proc_D105                                       ; $C287: 20 05 D1
   LDY $23                                             ; $C28A: A4 23
-  BMI LC297                                           ; $C28C: 30 09
+  BMI @Done_Weak                                           ; $C28C: 30 09
   LDA #$00                                            ; $C28E: A9 00
   STA $6F62,Y                                         ; $C290: 99 62 6F
   LDA ($20),Y                                         ; $C293: B1 20
   STA $23                                             ; $C295: 85 23
-LC297:
+@Done_Weak:
   RTS                                                 ; $C297: 60
 .endproc
-LC1AE = $C1AE
-LC1BD = $C1BD
-LC1CE = $C1CE
-LC1DD = $C1DD
-LC1E4 = $C1E4
-LC1F6 = $C1F6
-LC202 = $C202
-LC252 = $C252
-LC27C = $C27C
-LC297 = $C297
+
 
 
 ;===============================================================================
-; $C298: Proc_C298
+; $C298: AiAction_ManageOfficerLoyalty
+; Finds officer with lowest field[$02], boosts it if in range [50, 80).
+; Uses FindLowestAttributeOfficer, then adds computed bonus to field[$02].
+; Retries if value is outside [50, 80) range.
 ;===============================================================================
-.proc Proc_C298
+.proc AiAction_ManageOfficerLoyalty
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
@@ -5339,7 +5534,7 @@ LC297 = $C297
   work_outer_idx           = $0036
   sram_kingdom_index       = $6F02
 
-  JSR $C2EB                                           ; $C298: 20 EB C2
+  JSR FindLowestAttributeOfficer                      ; $C298: 20 EB C2  ; find officer w/ lowest field[$02]
   LDA $23                                             ; $C29B: A5 23
   CMP #$FF                                            ; $C29D: C9 FF
   .byte $F0,$47                                       ; $C29F: F0 47 (BEQ mid-instruction target)
@@ -5347,9 +5542,9 @@ LC297 = $C297
   LDY #$02                                            ; $C2A4: A0 02
   JSR Proc_D283                                       ; $C2A6: 20 83 D2
   CMP #$32                                            ; $C2A9: C9 32
-  BCC Proc_C298                                       ; $C2AB: 90 EB
+  BCC AiAction_ManageOfficerLoyalty                   ; $C2AB: 90 EB      ; below 50 → retry
   CMP #$50                                            ; $C2AD: C9 50
-  BCS Proc_C298                                       ; $C2AF: B0 E7
+  BCS AiAction_ManageOfficerLoyalty                   ; $C2AF: B0 E7      ; above 80 → retry
   LDA #$14                                            ; $C2B1: A9 14
   STA $22                                             ; $C2B3: 85 22
   LDA #$00                                            ; $C2B5: A9 00
@@ -5363,7 +5558,7 @@ LC297 = $C297
   JSR Proc_D4AD                                       ; $C2C7: 20 AD D4
   CLC                                                 ; $C2CA: 18
   LDY $6F02                                           ; $C2CB: AC 02 6F
-  ADC $C04B,Y                                         ; $C2CE: 79 4B C0
+  ADC KingdomActionModifiers+9,Y                      ; $C2CE: 79 4B C0  ; modifier at offset 9
   STA $22                                             ; $C2D1: 85 22
   LDA a:$0036                                         ; $C2D3: AD 36 00
   LDY #$02                                            ; $C2D6: A0 02
@@ -5374,55 +5569,64 @@ LC297 = $C297
   JSR Proc_D5E7                                       ; $C2E0: 20 E7 D5
   LDA #$05                                            ; $C2E3: A9 05
   JSR Proc_D152                                       ; $C2E5: 20 52 D1
-  JMP $BEC7                                           ; $C2E8: 4C C7 BE
-  LDA #$11                                            ; $C2EB: A9 11
+  JMP $BEC7                                           ; $C2E8: 4C C7 BE  ; return to AI turn loop
+
+;-------------------------------------------------------------------------------
+; $C2EB: FindLowestAttributeOfficer
+; Like FindWeakestLoyaltyOfficer but scans field[$02] instead of $03.
+; Does NOT skip officers at value=100.
+; Returns: officer ID in $23 ($FF if none found).
+;-------------------------------------------------------------------------------
+FindLowestAttributeOfficer:
+  LDA #$11                                            ; $C2EB: A9 11      ; start slot = $11
   STA $24                                             ; $C2ED: 85 24
-  LDA #$FF                                            ; $C2EF: A9 FF
+  LDA #$FF                                            ; $C2EF: A9 FF      ; init best = $FF (none)
   STA $22                                             ; $C2F1: 85 22
   STA $23                                             ; $C2F3: 85 23
-LC2F5:
+@ScanNext_Low:
   LDA $6F5E                                           ; $C2F5: AD 5E 6F
   JSR Proc_D105                                       ; $C2F8: 20 05 D1
   LDY $24                                             ; $C2FB: A4 24
   LDA ($20),Y                                         ; $C2FD: B1 20
   STA $25                                             ; $C2FF: 85 25
   CMP #$FF                                            ; $C301: C9 FF
-  BEQ LC31B                                           ; $C303: F0 16
+  BEQ @NextSlot_Low                                           ; $C303: F0 16
   LDA $6F62,Y                                         ; $C305: B9 62 6F
-  BEQ LC31B                                           ; $C308: F0 11
+  BEQ @NextSlot_Low                                           ; $C308: F0 11
   LDY #$02                                            ; $C30A: A0 02
   LDA $25                                             ; $C30C: A5 25
   JSR Proc_D283                                       ; $C30E: 20 83 D2
   CMP $22                                             ; $C311: C5 22
-  BCS LC31B                                           ; $C313: B0 06
+  BCS @NextSlot_Low                                           ; $C313: B0 06
   STA $22                                             ; $C315: 85 22
   LDA $24                                             ; $C317: A5 24
   STA $23                                             ; $C319: 85 23
-LC31B:
+@NextSlot_Low:
   INC $24                                             ; $C31B: E6 24
   LDY $24                                             ; $C31D: A4 24
   CPY #$1B                                            ; $C31F: C0 1B
-  BCC LC2F5                                           ; $C321: 90 D2
+  BCC @ScanNext_Low                                           ; $C321: 90 D2
   LDA $6F5E                                           ; $C323: AD 5E 6F
   JSR Proc_D105                                       ; $C326: 20 05 D1
   LDY $23                                             ; $C329: A4 23
-  BMI LC336                                           ; $C32B: 30 09
+  BMI @Done_Low                                           ; $C32B: 30 09
   LDA #$00                                            ; $C32D: A9 00
   STA $6F62,Y                                         ; $C32F: 99 62 6F
   LDA ($20),Y                                         ; $C332: B1 20
   STA $23                                             ; $C334: 85 23
-LC336:
+@Done_Low:
   RTS                                                 ; $C336: 60
 .endproc
-LC2F5 = $C2F5
-LC31B = $C31B
-LC336 = $C336
 
 
 ;===============================================================================
-; $C337: Proc_C337
+; $C337: AiAction_EvaluateAndExecute
+; Switches to bank 1F, evaluates entity strategic state, and executes actions.
+; Loops: evaluate → deduct cost → write result → re-evaluate until done.
+; Two paths based on $3A bit fields: lower 5 bits (domestic/military actions)
+; and upper 3 bits (diplomacy/special actions), using different cost tables.
 ;===============================================================================
-.proc Proc_C337
+.proc AiAction_EvaluateAndExecute
   math_acc_mhi             = $0022
   work_inner_idx2          = $0038
   work_limit_a             = $003A
@@ -5433,21 +5637,21 @@ LC336 = $C336
   LDA $8FFC,Y                                         ; $C33F: B9 FC 8F
   AND #$01                                            ; $C342: 29 01
   .byte $D0,$03                                       ; $C344: D0 03 (BNE mid-instruction target)
-LC346:
+@BailOut:
   JMP $BEC7                                           ; $C346: 4C C7 BE
   JSR Proc_C3FF                                       ; $C349: 20 FF C3
   LDA a:$0038                                         ; $C34C: AD 38 00
   CMP #$FF                                            ; $C34F: C9 FF
-  BEQ LC346                                           ; $C351: F0 F3
+  BEQ @BailOut                                           ; $C351: F0 F3
   LDA $6F5E                                           ; $C353: AD 5E 6F
   JSR Proc_D105                                       ; $C356: 20 05 D1
   LDA a:$003A                                         ; $C359: AD 3A 00
   AND #$1F                                            ; $C35C: 29 1F
-  BEQ LC37E                                           ; $C35E: F0 1E
+  BEQ @DiplomacyPath                                           ; $C35E: F0 1E
   ASL A                                               ; $C360: 0A
   TAX                                                 ; $C361: AA
-  JSR Proc_C3A4                                       ; $C362: 20 A4 C3
-  BCC LC346                                           ; $C365: 90 DF
+  JSR DeductActionCost                                ; $C362: 20 A4 C3  ; deduct from cost table 1/2
+  BCC @BailOut                                           ; $C365: 90 DF      ; underflow → bail out
   LDA a:$0038                                         ; $C367: AD 38 00
   LDY #$0A                                            ; $C36A: A0 0A
   JSR $D2AB                                           ; $C36C: 20 AB D2
@@ -5457,7 +5661,7 @@ LC346:
   LDA #$05                                            ; $C376: A9 05
   JSR Proc_D152                                       ; $C378: 20 52 D1
   JMP $C349                                           ; $C37B: 4C 49 C3
-LC37E:
+@DiplomacyPath:
   LSR A                                               ; $C37E: 4A
   LSR A                                               ; $C37F: 4A
   LSR A                                               ; $C380: 4A
@@ -5467,8 +5671,8 @@ LC37E:
   ADC #$0C                                            ; $C384: 69 0C
   ASL A                                               ; $C386: 0A
   TAX                                                 ; $C387: AA
-  JSR Proc_C3A4                                       ; $C388: 20 A4 C3
-  BCC LC346                                           ; $C38B: 90 B9
+  JSR DeductActionCost                                ; $C388: 20 A4 C3  ; deduct from cost table 3/4
+  BCC @BailOut                                           ; $C38B: 90 B9      ; underflow → bail out
   LDA a:$0038                                         ; $C38D: AD 38 00
   LDY #$0A                                            ; $C390: A0 0A
   JSR $D2AB                                           ; $C392: 20 AB D2
@@ -5479,25 +5683,26 @@ LC37E:
   JSR Proc_D152                                       ; $C39E: 20 52 D1
   JMP $C349                                           ; $C3A1: 4C 49 C3
 .endproc
-LC346 = $C346
-LC37E = $C37E
 
 
 ;===============================================================================
-; $C3A4: Proc_C3A4
+; $C3A4: DeductActionCost
+; Subtracts a 16-bit cost from entity record[$02/$03] using cost tables.
+; X = table index (0,2,4,...14). Returns with C=1 on success, C=0 on underflow.
+; Cost tables: $C3BF (domestic), $C3CF (military), $C3DF (diplomacy-A), $C3EF (diplomacy-B)
 ;===============================================================================
-.proc Proc_C3A4
+.proc DeductActionCost
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
 
   LDY #$02                                            ; $C3A4: A0 02
   LDA ($20),Y                                         ; $C3A6: B1 20
   SEC                                                 ; $C3A8: 38
-  SBC $C3BF,X                                         ; $C3A9: FD BF C3
+  SBC ActionCostTable_Domestic,X                      ; $C3A9: FD BF C3  ; subtract cost lo byte
   STA $22                                             ; $C3AC: 85 22
   INY                                                 ; $C3AE: C8
   LDA ($20),Y                                         ; $C3AF: B1 20
-  SBC $C3C0,X                                         ; $C3B1: FD C0 C3
+  SBC ActionCostTable_Domestic+1,X                    ; $C3B1: FD C0 C3  ; subtract cost hi byte
   .byte $90,$08                                       ; $C3B4: 90 08 (BCC mid-instruction target)
   STA ($20),Y                                         ; $C3B6: 91 20
   LDA $22                                             ; $C3B8: A5 22
@@ -5505,11 +5710,27 @@ LC37E = $C37E
   STA ($20),Y                                         ; $C3BB: 91 20
   SEC                                                 ; $C3BD: 38
   RTS                                                 ; $C3BE: 60
-  .byte $32,$00,$46,$00,$78,$00,$B4,$00,$FA,$00,$00,$00,$00,$00,$00,$00; $C3BF: 32 00 46 00 78 00 B4 00 FA 00 00 00 00 00 00 00
-  .byte $3C,$00,$64,$00,$96,$00,$C8,$00,$F0,$00,$04,$01,$00,$00,$90,$01; $C3CF: 3C 00 64 00 96 00 C8 00 F0 00 04 01 00 00 90 01
-  .byte $50,$00,$64,$00,$78,$00,$C8,$00,$FA,$00,$2C,$01,$5E,$01,$90,$01; $C3DF: 50 00 64 00 78 00 C8 00 FA 00 2C 01 5E 01 90 01
-  .byte $32,$00,$50,$00,$64,$00,$96,$00,$C8,$00,$FA,$00,$5E,$01,$90,$01; $C3EF: 32 00 50 00 64 00 96 00 C8 00 FA 00 5E 01 90 01
+
+; Action cost tables (16-bit LE, indexed by X = 0,2,4,...14)
+; Each entry is a 16-bit cost value (lo,hi).
+; Domestic: used by lower-5-bit path (indices 0–4, rest zero-padded)
+ActionCostTable_Domestic:
+  .word $0032,$0046,$0078,$00B4,$00FA              ; 50, 70, 120, 180, 250
+  .word $0000,$0000,$0000                            ; padding (unused entries)
+; Military: used by lower-5-bit path (indices 0–5)
+ActionCostTable_Military:
+  .word $003C,$0064,$0096,$00C8,$00F0,$0104         ; 60, 100, 150, 200, 240, 260
+  .word $0000,$0090                                  ; padding
+; Diplomacy-A: used by upper-3-bit path (indices 0–6)
+ActionCostTable_DiplomacyA:
+  .word $0050,$0064,$0078,$00C8,$00FA,$012C,$015E   ; 80, 100, 120, 200, 250, 300, 350
+  .word $0190                                        ; padding
+; Diplomacy-B: used by upper-3-bit path (indices 0–7)
+ActionCostTable_DiplomacyB:
+  .word $0032,$0050,$0064,$0096,$00C8,$00FA,$015E,$0190; 50, 80, 100, 150, 200, 250, 350, 400
 .endproc
+.endproc
+
 
 ;===============================================================================
 ; $C3FF: Proc_C3FF
