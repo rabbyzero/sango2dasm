@@ -135,7 +135,7 @@ PROC_NAMESS = {
     0xA0D3: "B0A_ScanMatchData",
     0xA19C: "B0A_SumAndCompare",
     0xA1C1: "B0B_StateMachine",
-    0xA23D: "B0B_JumpToBEC7",
+    0xA23D: "B0B_EndTurn",
     0xA240: "B0A_FindMinMax",
     0xA2D3: "B0A_BitMaskLookup",
     0xA303: "B0A_ProvinceSearch",

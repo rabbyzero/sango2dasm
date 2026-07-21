@@ -31,7 +31,7 @@
 .global DistanceClamp
 .global FillStackLoop
 .global Init
-.global JumpToBEC7
+.global EndTurn
 .global LoadRecord
 .global PaletteCheck
 .global RenderOverlay
@@ -86,26 +86,6 @@
 .global LC446
 .global LC469
 .global LC4C7
-.global LC520
-.global LC5BE
-.global LC5EE
-.global LC616
-.global LC646
-.global LC68D
-.global LC690
-.global LC6DA
-.global LC6FF
-.global LC70E
-.global LC724
-.global LC732
-.global LC748
-.global LC765
-.global LC79F
-.global LC7AA
-.global LC7BB
-.global LC7C1
-.global LC7FE
-.global LC7FF
 .global LC80E
 .global LC840
 .global LC865
@@ -116,33 +96,7 @@
 .global LC8B4
 .global LC8B6
 .global LC8E5
-.global LC92B
-.global LC949
-.global LC997
-.global LC9A4
-.global LC9C1
-.global LC9EF
-.global LCA1E
-.global LCA52
-.global LCA7F
-.global LCAAC
-.global LCAB1
-.global LCAD1
-.global LCB0F
-.global LCB36
-.global LCB3E
-.global LCB51
-.global LCB79
-.global LCB8A
-.global LCB98
-.global LCBA8
-.global LCBEB
-.global LCC17
-.global LCC22
-.global LCC82
 .global LCDB7
-.global LCF6E
-.global LCF74
 .global LCF8C
 .global LCF98
 .global LCFDC
@@ -241,39 +195,17 @@
 .global TransferProvinceValues
 .global FallbackMergeProvinces
 .global AiTurnDispatch
-.global AiAction_BoostMorale
-.global AiAction_ManageOfficerLoyalty
-.global AiAction_EvaluateAndExecute
-.global DeductActionCost
-.global Proc_C3FF
-.global Proc_C498
-.global Proc_C4D0
-.global Proc_C50E
-.global Proc_C5B9
-.global Proc_C5D2
-.global Proc_C68A
-.global Proc_C795
-.global Proc_C79A
-.global Proc_C80A
-.global Proc_C84D
-.global Proc_C86A
-.global Proc_C885
-.global Proc_C8C3
-.global Proc_C8E6
-.global Proc_C917
-.global Proc_C97A
-.global Proc_C98F
-.global Proc_C9A5
-.global Proc_C9F9
-.global Proc_CAAD
-.global Proc_CAD8
-.global Proc_CB05
-.global Proc_CB52
-.global Proc_CBA3
-.global Proc_CD68
-.global Proc_CDB9
-.global Proc_CEDD
-.global Proc_CFF1
+.global FindBestOfficerAssign
+.global ProcessAllOfficers
+.global EvaluateAndMarkOfficer
+.global CalcActionProb
+.global OfficerSearchAndEvaluate
+.global FindBestOfficerByCategory
+.global ApplyScenarioDeductions
+.global BracketDeductGold
+.global ArmyDeductionTable
+.global ArmyResultTable
+.global BracketDeductArmy
 .global Proc_D05D
 .global Proc_D080
 .global Proc_D0AA
@@ -425,13 +357,13 @@ DistanceClamp_Entry:
   JMP InitNewGameContext                              ; $A01B: 4C D7 A8  new game: jump to start menu
 @NotOne:
   JSR Proc_D4CB                                       ; $A01E: 20 CB D4
-  JSR Proc_C50E                                       ; $A021: 20 0E C5
-  JSR Proc_C5B9                                       ; $A024: 20 B9 C5
-  JSR Proc_C79A                                       ; $A027: 20 9A C7
+  JSR FindBestOfficerAssign                           ; $A021: 20 0E C5
+  JSR ProcessAllOfficers                             ; $A024: 20 B9 C5
+  JSR OfficerSearchAndEvaluate                        ; $A027: 20 9A C7
   LDA $6F03                                           ; $A02A: AD 03 6F
-  JSR Proc_C98F                                       ; $A02D: 20 8F C9
+  JSR FindBestOfficerByCategory                       ; $A02D: 20 8F C9
   JSR Proc_D249                                       ; $A030: 20 49 D2
-  JSR $CC12                                           ; $A033: 20 12 CC
+  JSR FindBestOfficerByCategory::@FinalizeOfficers   ; $A033: 20 12 CC
   LDA $6F5B                                           ; $A036: AD 5B 6F
   JSR JumpDispatcher                                  ; $A039: 20 94 D4
   ; Jump table (3 entries):
@@ -677,7 +609,7 @@ TierAdjustC:
   ; Jump table (3 entries):
   .word StateThresholdCheck                           ; $A1BF: C5 A1 (entry 0)
   .word AiTurnDispatch                                ; $A1C1: 9C B4 (entry 1)
-  .word $BEC7                                         ; $A1C3: C7 BE (entry 2)
+  .word @AiAction_EndTurn                                ; $A1C3: C7 BE (entry 2)
 .endproc
 
 
@@ -710,12 +642,12 @@ TierAdjustC:
   LDA $6F01                                           ; $A1F4: AD 01 6F
   CMP #$06                                            ; $A1F7: C9 06
   BCS @ge90                                           ; $A1F9: B0 0D
-  JMP JumpToBEC7                                       ; $A1FB: 4C 3D A2
+  JMP EndTurn                                          ; $A1FB: 4C 3D A2
 @incrementCounter:
   LDA $6F00                                           ; $A1FE: AD 00 6F
   CMP #$5A                                            ; $A201: C9 5A
   BCS @ge90                                           ; $A203: B0 03
-  JMP JumpToBEC7                                       ; $A205: 4C 3D A2
+  JMP EndTurn                                          ; $A205: 4C 3D A2
 @ge90:
   LDA #$00                                            ; $A208: A9 00
   STA a:$0044                                         ; $A20A: 8D 44 00
@@ -743,10 +675,10 @@ TierAdjustC:
 .endproc
 
 ;===============================================================================
-; $A23D: JumpToBEC7
+; $A23D: EndTurn
 ;===============================================================================
-.proc JumpToBEC7
-  JMP $BEC7                                           ; $A23D: 4C C7 BE
+.proc EndTurn
+  JMP @AiAction_EndTurn                                ; $A23D: 4C C7 BE
 .endproc
 
 ;===============================================================================
@@ -970,7 +902,7 @@ NibbleMaskTable:                                      ; alternating low/high nib
 ; --- search exhausted: give up ---
   PLA                                                 ; $A3C1: 68
   PLA                                                 ; $A3C2: 68
-  JMP JumpToBEC7                                      ; $A3C3: 4C 3D A2
+  JMP EndTurn                                         ; $A3C3: 4C 3D A2
 @PlayerThresholds:                                    ; per-player thresholds [0..7]
   .byte $02,$03,$03,$02,$03,$03,$02,$02               ; $A3C6: 02 03 03 02 03 03 02 02
               ; fallback thresholds [8..15]
@@ -1183,7 +1115,7 @@ CompareValues:
   PLA                                                 ; $A50C: 68
   PLA                                                 ; $A50D: 68
   PLA                                                 ; $A50E: 68
-  JMP $BEC7                                           ; $A50F: 4C C7 BE
+  JMP @AiAction_EndTurn                                ; $A50F: 4C C7 BE
   JMP ArmyDispatch                                    ; $A512: 4C 81 A4
 @PostRender:
   LDA a:entity_idx                                    ; $A515: AD 3A 00
@@ -1494,7 +1426,7 @@ CompareValues:
   PLA                                                 ; $A721: 68
   PLA                                                 ; $A722: 68
   PLA                                                 ; $A723: 68
-  JMP JumpToBEC7                                      ; $A724: 4C C7 BE
+  JMP EndTurn                                         ; $A724: 4C C7 BE
 @SubtractLimitB:
   LDA a:$003A                                         ; $A727: AD 3A 00
   JSR Proc_D105                                       ; $A72A: 20 05 D1
@@ -1512,7 +1444,7 @@ CompareValues:
   PLA                                                 ; $A743: 68
   PLA                                                 ; $A744: 68
   PLA                                                 ; $A745: 68
-  JMP JumpToBEC7                                      ; $A746: 4C C7 BE
+  JMP EndTurn                                         ; $A746: 4C C7 BE
 @Exit:
   RTS                                                 ; $A749: 60
 .endproc
@@ -1773,7 +1705,7 @@ CompareValues:
 
   LDA $6F8C                                           ; $A8D7: AD 8C 6F  new game flag (0=new)
   BNE @SkipNewGamePrep                                ; $A8DA: D0 03
-  JSR Proc_CD68                                       ; $A8DC: 20 68 CD
+  JSR ApplyScenarioDeductions                         ; $A8DC: 20 68 CD
 @SkipNewGamePrep:                                     ; $A8DF
   LDA a:$0038                                         ; $A8DF: AD 38 00
   JSR Proc_D105                                       ; $A8E2: 20 05 D1
@@ -2272,8 +2204,8 @@ CompareValues:
   STA $0524                                           ; $AC9A: 8D 24 05
   STA $0525                                           ; $AC9D: 8D 25 05
 @NoGoldUnderflow2:
-  JSR $CE67                                           ; $ACA0: 20 67 CE
-  JSR Proc_CEDD                                       ; $ACA3: 20 DD CE
+  JSR BracketDeductGold                               ; $ACA0: 20 67 CE
+  JSR BracketDeductArmy                               ; $ACA3: 20 DD CE
   LDA a:$0038                                         ; $ACA6: AD 38 00
   JSR Proc_D105                                       ; $ACA9: 20 05 D1
   LDY #$04                                            ; $ACAC: A0 04
@@ -2917,7 +2849,7 @@ ComputeThreshold:
   JMP @exit                                           ; $B17A: 4C 7D B1
 @exit:
 ProvinceEvalExit:
-  JMP $BEC7                                           ; $B17D: 4C C7 BE  ; common exit → BEC7 (end turn)
+  JMP EndTurn                                         ; $B17D: 4C C7 BE  ; common exit → EndTurn (advance turn phase)
   ; =====================================================================
   ; ScanBestProvince ($B180-$B1F8): inline subroutine
   ; Iterates provinces 0-29, finds the player-owned province with the
@@ -2984,7 +2916,7 @@ ScanBestProvince:
   BCC @outerLoop                                      ; $B1F6: 90 9F       ; idx < 30 → continue
   RTS                                                 ; $B1F8: 60
 .endproc
-ProvinceEvalExit = $B17D
+ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_EndTurn
 
 
 ;===============================================================================
@@ -3060,7 +2992,7 @@ ProvinceEvalExit = $B17D
   PLA                                                 ; $B25E: 68
   PLA                                                 ; $B25F: 68
   PLA                                                 ; $B260: 68
-  JMP $BEC7                                           ; $B261: 4C C7 BE
+  JMP @AiAction_EndTurn                                ; $B261: 4C C7 BE
 @RenderNameLoop:
   LDA a:$003A                                         ; $B264: AD 3A 00
   JSR Proc_D105                                       ; $B267: 20 05 D1
@@ -3078,7 +3010,7 @@ ProvinceEvalExit = $B17D
   PLA                                                 ; $B280: 68
   PLA                                                 ; $B281: 68
   PLA                                                 ; $B282: 68
-  JMP $BEC7                                           ; $B283: 4C C7 BE
+  JMP @AiAction_EndTurn                                ; $B283: 4C C7 BE
   RTS                                                 ; $B286: 60
 .endproc
 
@@ -3259,7 +3191,7 @@ AbsorbUpdateRecord:
   CMP #$FF                                            ; $B384: C9 FF
   BNE @merge_phase                                    ; $B386: D0 03  ; owned → do merge
 @skip_or_exit:
-  JMP ProvinceEvalExit                                ; $B388: 4C 7D B1  ; common exit → BEC7 (end turn)
+  JMP ProvinceEvalExit                                ; $B388: 4C 7D B1  ; common exit → EndTurn (advance turn phase)
 
   ; -- Merge phase: second+ owned province found
 @merge_phase:
@@ -3365,7 +3297,7 @@ AbsorbUpdateRecord:
   STA ($20),Y                                         ; $B429: 91 20
   LDA math_temp2                                      ; $B42B: A5 26    ; A = relocated_count
   JSR Proc_D152                                       ; $B42D: 20 52 D1 ; decrement game counter
-  JMP ProvinceEvalExit                                ; $B430: 4C 7D B1 ; common exit → BEC7 (end turn)
+  JMP ProvinceEvalExit                                ; $B430: 4C 7D B1 ; common exit → EndTurn (advance turn phase)
 
   ; =========================================================================
   ; Nested: @eval_single_owned ($B433)
@@ -3543,7 +3475,7 @@ AbsorbUpdateRecord:
   LDA a:$0036                                         ; $B534: AD 36 00
   CMP #$1E                                            ; $B537: C9 1E
   BCC @ScanEnemyProvinces                             ; $B539: 90 C9
-  JMP AiDev_Main                               ; $B53B: 4C 7A BD
+  JMP @AiDev_Main                               ; $B53B: 4C 7A BD
   LDA a:$0036                                         ; $B53E: AD 36 00
   STA a:$003B                                         ; $B541: 8D 3B 00
   LDA #$00                                            ; $B544: A9 00
@@ -3644,11 +3576,11 @@ AbsorbUpdateRecord:
   CMP #$3C                                            ; $B609: C9 3C
   BCC @ActionDomestic                                 ; $B60B: 90 06
   JMP $B619                                           ; $B60D: 4C 19 B6
-  JMP AiAbsorbEntityAction                             ; $B610: 4C B2 BB
+  JMP @AiAbsorbEntityAction                             ; $B610: 4C B2 BB
 @ActionDomestic:
-  JMP AiDomesticAction                                ; $B613: 4C 8B B9
-@ExitToBEC7:
-  JMP $BEC7                                           ; $B616: 4C C7 BE
+  JMP @AiDomesticAction                                ; $B613: 4C 8B B9
+@ExitToEndTurn:
+  JMP @AiAction_EndTurn                                ; $B616: 4C C7 BE
   LDA $6F03                                           ; $B619: AD 03 6F
   JSR Proc_D319                                       ; $B61C: 20 19 D3
   LDY #$00                                            ; $B61F: A0 00
@@ -3679,7 +3611,7 @@ AbsorbUpdateRecord:
   CMP #$03                                            ; $B652: C9 03
   BCS @SkipCountExit                                  ; $B654: B0 03
 @ActionExit:
-  JMP @ExitToBEC7                                     ; $B656: 4C 16 B6
+  JMP @ExitToEndTurn                                  ; $B656: 4C 16 B6
   LDA $6F03                                           ; $B659: AD 03 6F
   JSR Proc_D319                                       ; $B65C: 20 19 D3
   LDX #$00                                            ; $B65F: A2 00
@@ -3696,7 +3628,7 @@ AbsorbUpdateRecord:
   ADC ($24),Y                                         ; $B672: 71 24
   CMP #$00                                            ; $B674: C9 00
   BNE @ActionExit                                     ; $B676: D0 DE
-  JSR ScanEntityOwnership                             ; $B678: 20 98 B8
+  JSR @ScanEntityOwnership                             ; $B678: 20 98 B8
   CPX #$02                                            ; $B67B: E0 02
   BCC @ActionExit                                     ; $B67D: 90 D7
   LDY #$00                                            ; $B67F: A0 00
@@ -3794,9 +3726,9 @@ AbsorbUpdateRecord:
   LDA ($24),Y                                         ; $B756: B1 24
   CMP #$03                                            ; $B758: C9 03
   BNE @SkipSwap                                       ; $B75A: D0 09
-  JSR MarkSwapArmyFlags                               ; $B75C: 20 0A B9
-  JSR AdjustSwapPositions                             ; $B75F: 20 CE B7
-  JMP @ExitToBEC7                                     ; $B762: 4C 16 B6
+  JSR @MarkSwapArmyFlags                               ; $B75C: 20 0A B9
+  JSR @AdjustSwapPositions                             ; $B75F: 20 CE B7
+  JMP @ExitToEndTurn                                  ; $B762: 4C 16 B6
   LDA $6F03                                           ; $B765: AD 03 6F
   JSR Proc_D319                                       ; $B768: 20 19 D3
   LDY #$00                                            ; $B76B: A0 00
@@ -3818,13 +3750,13 @@ AbsorbUpdateRecord:
   BEQ @WaitForFlag                                    ; $B790: F0 F9
   CMP #$00                                            ; $B792: C9 00
   BEQ @DoSwap                                         ; $B794: F0 03
-  JMP @ExitToBEC7                                     ; $B796: 4C 16 B6
+  JMP @ExitToEndTurn                                  ; $B796: 4C 16 B6
 @DoSwap:
-  JSR MarkSwapArmyFlags                               ; $B799: 20 0A B9
-  JSR AdjustSwapPositions                             ; $B79C: 20 CE B7
-  JMP @ExitToBEC7                                     ; $B79F: 4C 16 B6
+  JSR @MarkSwapArmyFlags                               ; $B799: 20 0A B9
+  JSR @AdjustSwapPositions                             ; $B79C: 20 CE B7
+  JMP @ExitToEndTurn                                  ; $B79F: 4C 16 B6
   LDA $6F03                                           ; $B7A2: AD 03 6F
-  JSR FindEntityForChar                               ; $B7A5: 20 55 B9
+  JSR @FindEntityForChar                               ; $B7A5: 20 55 B9
   JSR Proc_D105                                       ; $B7A8: 20 05 D1
   LDA a:$0039                                         ; $B7AB: AD 39 00
   BNE @SubtractOffset                                 ; $B7AE: D0 0F
@@ -3848,17 +3780,17 @@ AbsorbUpdateRecord:
 
 
 ;===============================================================================
-; $B7CE: AdjustSwapPositions
+; $B7CE: @AdjustSwapPositions
 ; Adjusts 16-bit position offsets in slot data during a character swap.
 ; Phase 1: Subtract delta ($003A/$003B) from current character ($6F03) slot.
 ; Phase 2: Add delta to target character ($0038) slot.
 ; Phase 3: Refresh sub-character info for all slots matching $6F03.
 ; $0039 selects field: 0 = offsets at [2..3], else offsets at [4..5].
 ;===============================================================================
-AdjustSwapPositions:
+@AdjustSwapPositions:
   ; --- Phase 1: Subtract position delta from current character's slot ---
   LDA $6F03                                           ; $B7CE: AD 03 6F  ; slot type of current character
-  JSR FindEntityForChar                               ; $B7D1: 20 55 B9  ; find matching slot index
+  JSR @FindEntityForChar                               ; $B7D1: 20 55 B9  ; find matching slot index
   JSR Proc_D105                                       ; $B7D4: 20 05 D1  ; resolve slot data pointer -> ($20)
   LDA a:$0039                                         ; $B7D7: AD 39 00  ; field selector
   BNE @SubtractAltOffset                              ; $B7DA: D0 15    ; != 0 -> use offsets [4..5]
@@ -3887,7 +3819,7 @@ AdjustSwapPositions:
   ; --- Phase 2: Add position delta to target character's slot ---
 @Phase2_AddToTarget:
   LDA a:$0038                                         ; $B803: AD 38 00  ; slot type of swap target
-  JSR FindEntityForChar                               ; $B806: 20 55 B9  ; find matching slot index
+  JSR @FindEntityForChar                               ; $B806: 20 55 B9  ; find matching slot index
   JSR Proc_D105                                       ; $B809: 20 05 D1  ; resolve slot data pointer -> ($20)
   LDA a:$0039                                         ; $B80C: AD 39 00  ; field selector
   BNE @AddAltOffset                                   ; $B80F: D0 13    ; != 0 -> use offsets [4..5]
@@ -3926,7 +3858,7 @@ AdjustSwapPositions:
   JSR Proc_D105                                       ; $B849: 20 05 D1  ; resolve slot data
   CMP $6F03                                           ; $B84C: CD 03 6F  ; does slot match current character?
   BNE @NextSlot                                       ; $B84F: D0 03
-  JSR FindBestSubCharacter                              ; $B851: 20 5F B8  ; find best sub-character in slot
+  JSR @FindBestSubCharacter                              ; $B851: 20 5F B8  ; find best sub-character in slot
 @NextSlot:
   INC a:$0036                                         ; $B854: EE 36 00
   LDA a:$0036                                         ; $B857: AD 36 00
@@ -3936,12 +3868,12 @@ AdjustSwapPositions:
 
 
 ;===============================================================================
-; $B85F: FindBestSubCharacter
+; $B85F: @FindBestSubCharacter
 ; Scan sub-character list (offsets $11-$1A) in the current character's slot
 ; and find the sub-character with the highest score (byte 3 of sub-char record).
 ; Results: $003D = best sub-character ID ($FF if none), $003E = best score.
 ;===============================================================================
-FindBestSubCharacter:
+@FindBestSubCharacter:
   LDA a:$0036                                         ; $B85F: AD 36 00  ; slot index
   JSR Proc_D105                                       ; $B862: 20 05 D1  ; resolve entity data pointer -> ($20)
   LDA #$11                                            ; $B865: A9 11    ; start at offset $11 (sub-char list)
@@ -3970,7 +3902,7 @@ FindBestSubCharacter:
 
 
 ;-------------------------------------------------------------------------------
-; $B898: ScanEntityOwnership (nested in AiTurnDispatch)
+; $B898: @ScanEntityOwnership (nested in AiTurnDispatch)
 ;-------------------------------------------------------------------------------
 ; Scan all entities (0–$1D) and their slot-table entries ($9D72, 8 per entity)
 ; to determine which players have no active type-7 entities outside their home
@@ -3978,7 +3910,7 @@ FindBestSubCharacter:
 ; whenever a qualifying entity is found.  Returns X = count of $00 slots
 ; (players with active entities) among indices 0–6.
 ;-------------------------------------------------------------------------------
-ScanEntityOwnership:
+@ScanEntityOwnership:
   LDY #$30                                            ; $B898: A0 30
   JSR B1F_SwitchBank8_A                               ; $B89A: 20 66 F2  ; switch to bank $30 for $9D72 table
 
@@ -4054,7 +3986,7 @@ ScanEntityOwnership:
 
 
 ;===============================================================================
-; $B90A: MarkSwapArmyFlags
+; $B90A: @MarkSwapArmyFlags
 ; Marks swap flags in the army-data nibbles of two character records during
 ; a character swap. For each record, one of offsets 4-7 is selected based on
 ; the other character's index (0-5), and either the high or low nibble is
@@ -4067,7 +3999,7 @@ ScanEntityOwnership:
 ; (Y=4-7) in the record pointed to by ($24) and set either the high or low
 ; nibble to $A. Even indices (0,2,4) -> high nibble; odd (1,3,5) -> low.
 ;===============================================================================
-MarkSwapArmyFlags:
+@MarkSwapArmyFlags:
   ; --- Phase 1: Mark current player's record with target's swap flag ---
   LDA a:$6F03                                         ; $B90A: AD 03 6F  ; sram_player_id
   JSR Proc_D319                                       ; $B90D: 20 19 D3  ; resolve current player -> ($24)
@@ -4113,14 +4045,14 @@ MarkSwapArmyFlags:
 
 
 ;===============================================================================
-; $B955: FindEntityForChar
+; $B955: @FindEntityForChar
 ; Searches entities 0-29 for one whose type (low 3 bits of Proc_D105 result)
 ; matches the input character index (A), and whose army slots ($11-$1A)
 ; contain the character ID from the input character's record.
 ; Input:  A = character index (used as type key and to resolve SRAM record)
 ; Output: A = matching entity index, or $FF with C=0 if not found
 ;===============================================================================
-FindEntityForChar:
+@FindEntityForChar:
   STA $2C                                             ; $B955: 85 2C  ; save type key
   LDY #$00                                            ; $B957: A0 00
   STY $2B                                             ; $B959: 84 2B  ; entity index = 0
@@ -4156,7 +4088,7 @@ FindEntityForChar:
 
 
 ;===============================================================================
-; $B98B: AiDomesticAction
+; $B98B: @AiDomesticAction
 ; AI domestic action handler: evaluates whether to absorb/recruit a character,
 ; computes a score based on army values and kingdom tier, performs a random
 ; threshold check, then executes the action if approved.
@@ -4167,7 +4099,7 @@ FindEntityForChar:
 ; $003D = best target char ID, $003E = best target army value
 ; $003F = best target entity idx, $0042 = current player's char slot
 ;===============================================================================
-AiDomesticAction:
+@AiDomesticAction:
   LDA #$00                                            ; $B98B: A9 00
   STA a:$0036                                         ; $B98D: 8D 36 00
   STA a:$0039                                         ; $B990: 8D 39 00
@@ -4179,7 +4111,7 @@ AiDomesticAction:
   JSR Proc_D105                                       ; $B99E: 20 05 D1  ; resolve entity record
   CMP $6F03                                           ; $B9A1: CD 03 6F  ; owned by current player?
   BNE @Phase1Next                                           ; $B9A4: D0 1B  ; no -> skip
-  JSR UpdateMinArmyCount                              ; $B9A6: 20 82 BB  ; track min army count in $0039
+  JSR @UpdateMinArmyCount                              ; $B9A6: 20 82 BB  ; track min army count in $0039
   LDA a:$0036                                         ; $B9A9: AD 36 00
   JSR Proc_D304                                       ; $B9AC: 20 04 D3  ; count occupied army slots
   CMP #$0A                                            ; $B9AF: C9 0A  ; army full (>= 10)?
@@ -4197,7 +4129,7 @@ AiDomesticAction:
   LDA a:$0038                                         ; $B9CB: AD 38 00
   CMP #$FF                                            ; $B9CE: C9 FF
   .byte $D0,$03                                       ; $B9D0: D0 03 (BNE mid-instruction target)
-  JMP JumpToBEC7                                      ; $B9D2: 4C 3D A2  ; no candidate -> exit
+  JMP EndTurn                                         ; $B9D2: 4C 3D A2  ; no candidate -> exit
   ; --- Phase 2: Find best non-player target to absorb ---
   LDA #$00                                            ; $B9D5: A9 00
   STA a:$0036                                         ; $B9D7: 8D 36 00  ; reset entity index
@@ -4210,7 +4142,7 @@ AiDomesticAction:
   JSR Proc_D105                                       ; $B9E8: 20 05 D1
   CMP $6F03                                           ; $B9EB: CD 03 6F  ; owned by current player?
   BEQ @Phase2Next                                           ; $B9EE: F0 03  ; yes -> skip (don't absorb own)
-  JSR ScanBestTarget                                  ; $B9F0: 20 48 BB  ; evaluate as potential target
+  JSR @ScanBestTarget                                  ; $B9F0: 20 48 BB  ; evaluate as potential target
 @Phase2Next:
   INC a:$0036                                         ; $B9F3: EE 36 00
   LDA a:$0036                                         ; $B9F6: AD 36 00
@@ -4219,7 +4151,7 @@ AiDomesticAction:
   LDA a:$003E                                         ; $B9FD: AD 3E 00  ; best army value
   CMP #$46                                            ; $BA00: C9 46  ; >= 70? (very strong target)
   .byte $90,$03                                       ; $BA02: 90 03 (BCC mid-instruction target)
-  JMP ExecDomesticAction                              ; $BA04: 4C 7E BA  ; guaranteed success path
+  JMP @ExecDomesticAction                              ; $BA04: 4C 7E BA  ; guaranteed success path
   ; --- Phase 3: Compute action score from army values ---
   LDA a:$003D                                         ; $BA07: AD 3D 00  ; best target char ID
   LDY #$04                                            ; $BA0A: A0 04  ; offset 4 = army stat field
@@ -4262,7 +4194,7 @@ AiDomesticAction:
   ASL A                                               ; $BA4D: 0A
   ORA $20                                             ; $BA4E: 05 20  ; + tier offset
   TAY                                                 ; $BA50: A8
-  LDA KingdomTierModifiers,Y                          ; $BA51: B9 81 BA  ; lookup modifier from table
+  LDA @KingdomTierModifiers,Y                          ; $BA51: B9 81 BA  ; lookup modifier from table
   CLC                                                 ; $BA54: 18
   ADC $21                                             ; $BA55: 65 21  ; score = modifier + army stat
   STA $2A                                             ; $BA57: 85 2A  ; $2A = final score
@@ -4278,7 +4210,7 @@ AiDomesticAction:
   SEC                                                 ; $BA68: 38
   SBC $20                                             ; $BA69: E5 20  ; score -= penalty
   STA $2A                                             ; $BA6B: 85 2A
-  JMP CheckActionThreshold                            ; $BA6D: 4C 75 BA
+  JMP @CheckActionThreshold                            ; $BA6D: 4C 75 BA
 @AddDistance:
   CLC                                                 ; $BA70: 18
   ADC $2A                                             ; $BA71: 65 2A  ; score += distance
@@ -4286,30 +4218,30 @@ AiDomesticAction:
 
 
 ;===============================================================================
-; $BA75: CheckActionThreshold
+; $BA75: @CheckActionThreshold
 ; Random probability check against the computed action score.
 ; Generates random 0-99; if random < score ($2A), action succeeds (falls through
-; to ExecDomesticAction). Otherwise exits.
+; to @ExecDomesticAction). Otherwise exits.
 ; Input:  $2A = action score (0-255, higher = more likely to succeed)
 ;===============================================================================
-CheckActionThreshold:
+@CheckActionThreshold:
   LDA #$64                                            ; $BA75: A9 64  ; 100
   JSR Proc_D4BB                                       ; $BA77: 20 BB D4  ; random 0..99
   CMP $2A                                             ; $BA7A: C5 2A  ; random < score?
   BCC @FindEmptySlot                                  ; $BA7C: 90 0F (BCC -> @FindEmptySlot on success)
 
 ;===============================================================================
-; $BA7E: ExecDomesticAction
+; $BA7E: @ExecDomesticAction
 ; Executes the AI domestic action: transfers a character from another entity
 ; into the current player's army. Updates all references and triggers the
 ; game-start flag to signal the UI.
 ;-------------------------------------------------------------------------------
-; KingdomTierModifiers: indexed by (kingdom_index * 4 + tier)
+; @KingdomTierModifiers: indexed by (kingdom_index * 4 + tier)
 ;   tier 0 = army < 31, tier 1 = 31-50, tier 2 = >= 51
 ;===============================================================================
-ExecDomesticAction:
-  JMP JumpToBEC7                                      ; $BA7E: 4C 3D A2  ; entry: skip past data table (unreachable path)
-KingdomTierModifiers:
+@ExecDomesticAction:
+  JMP EndTurn                                         ; $BA7E: 4C 3D A2  ; entry: skip past data table (unreachable path)
+@KingdomTierModifiers:
   .byte $28,$0F,$00,$00,$32,$14,$00,$00,$3C,$1E,$0A,$00   ; $BA81: modifier table (12 bytes)
 @FindEmptySlot:                                                ; --- Find empty army slot in best entity ---
   LDA a:$0038                                         ; $BA8D: AD 38 00  ; best entity index
@@ -4388,7 +4320,7 @@ KingdomTierModifiers:
   CMP a:$0042                                         ; $BB26: CD 42 00  ; same as old owner?
   BNE @PostUpdateNext                                           ; $BB29: D0 06  ; no -> skip
   LDA a:$0041                                         ; $BB2B: AD 41 00  ; old owner char ID
-  JSR FindBestOfficerInEntity                          ; $BB2E: 20 40 BD  ; find best replacement officer in entity
+  JSR @FindBestOfficerInEntity                          ; $BB2E: 20 40 BD  ; find best replacement officer in entity
 @PostUpdateNext:
   INC a:$0036                                         ; $BB31: EE 36 00
   LDA a:$0036                                         ; $BB34: AD 36 00
@@ -4401,15 +4333,15 @@ KingdomTierModifiers:
   LDA $6F8B                                           ; $BB40: AD 8B 6F
   BNE @WaitLoop                                           ; $BB43: D0 FB  ; busy-wait until flag cleared
 @Exit:
-  JMP JumpToBEC7                                      ; $BB45: 4C 3D A2  ; done -> exit
+  JMP EndTurn                                         ; $BB45: 4C 3D A2  ; done -> exit
 ;-------------------------------------------------------------------------------
-; $BB48: ScanBestTarget
+; $BB48: @ScanBestTarget
 ; Evaluates an entity as a potential absorption target. Scans army slots
 ; $11-$1A, reads each character's stat (offset 3), and tracks the one with
 ; the lowest value. Updates $003D (best char), $003E (best value), $003F (best entity).
 ; Input:  $0036 = entity index
 ;-------------------------------------------------------------------------------
-ScanBestTarget:
+@ScanBestTarget:
   LDA a:$0036                                         ; $BB48: AD 36 00
   JSR Proc_D105                                       ; $BB4B: 20 05 D1
   LDA #$11                                            ; $BB4E: A9 11
@@ -4438,12 +4370,12 @@ ScanBestTarget:
 
 
 ;===============================================================================
-; $BB82: UpdateMinArmyCount
+; $BB82: @UpdateMinArmyCount
 ; Scans entity's army slots $11-$1A, reads each character's stat (offset $0B >> 4),
 ; and updates $0039 if a lower value is found.
 ; Input:  $0036 = entity index (already resolved via Proc_D105)
 ;===============================================================================
-UpdateMinArmyCount:
+@UpdateMinArmyCount:
   LDA a:$0036                                         ; $BB82: AD 36 00
   JSR Proc_D105                                       ; $BB85: 20 05 D1
   LDA #$11                                            ; $BB88: A9 11
@@ -4470,7 +4402,7 @@ UpdateMinArmyCount:
 
 
 ;-------------------------------------------------------------------------------
-; $BBB2: AiAbsorbEntityAction
+; $BBB2: @AiAbsorbEntityAction
 ; AI action: attempt to absorb a rival entity by recruiting away their officers.
 ; Phase 1: Iterate entities to validate AI's own holdings
 ; Phase 2: Find non-AI entity with most officers (best absorption target)
@@ -4479,7 +4411,7 @@ UpdateMinArmyCount:
 ; Phase 5: Pick random candidate, probability check vs stat + kingdom tier
 ; Phase 6: Transfer officer, reduce stat, sweep affected entities
 ;-------------------------------------------------------------------------------
-AiAbsorbEntityAction:
+@AiAbsorbEntityAction:
   LDA #$00                                            ; $BBB2: A9 00  ; entity index = 0
   STA a:$0036                                         ; $BBB4: 8D 36 00
   LDA #$FF                                            ; $BBB7: A9 FF
@@ -4492,7 +4424,7 @@ AiAbsorbEntityAction:
   JSR Proc_D105                                       ; $BBC4: 20 05 D1  ; resolve entity → record ptr
   CMP $6F03                                           ; $BBC7: CD 03 6F  ; owned by current player?
   BNE @Phase1Next                                      ; $BBCA: D0 03
-  JSR FindBestOfficerNoExclude                         ; $BBCC: 20 3E BD  ; init trackers (no exclusion)
+  JSR @FindBestOfficerNoExclude                         ; $BBCC: 20 3E BD  ; init trackers (no exclusion)
 @Phase1Next:
   INC a:$0036                                         ; $BBCF: EE 36 00
   LDA a:$0036                                         ; $BBD2: AD 36 00
@@ -4530,7 +4462,7 @@ AiAbsorbEntityAction:
   LDA a:$0037                                         ; $BC1A: AD 37 00  ; best army count
   CMP #$06                                            ; $BC1D: C9 06  ; need >= 6 to attempt absorption
   BCS @Phase4Start                                     ; $BC1F: B0 03
-  JMP JumpToBEC7                                      ; $BC21: 4C 3D A2  ; abort → exit
+  JMP EndTurn                                         ; $BC21: 4C 3D A2  ; abort → exit
 ; --- Phase 4: build list of recruitable officers ---
 @Phase4Start:
   LDY #$0F                                            ; $BC24: A0 0F
@@ -4569,7 +4501,7 @@ AiAbsorbEntityAction:
   BCC @FilterOfficerLoop                               ; $BC6A: 90 D2
 ; --- Phase 5: select random candidate and compute success probability ---
   LDA a:$0037                                         ; $BC6C: AD 37 00  ; candidate count
-  BEQ JumpToBEC7                                       ; $BC6F: F0 37  ; no candidates → abort
+  BEQ EndTurn                                         ; $BC6F: F0 37  ; no candidates → abort
   CMP #$01                                            ; $BC71: C9 01  ; exactly 1 candidate?
   BEQ @UseSingleCandidate                              ; $BC73: F0 06  ; exactly 1 → skip random
   JSR Proc_D4AD                                       ; $BC75: 20 AD D4  ; random index < count
@@ -4597,7 +4529,7 @@ AiAbsorbEntityAction:
   JSR Proc_D4BB                                       ; $BCA1: 20 BB D4  ; random 0-99
   CMP $2A                                             ; $BCA4: C5 2A  ; random >= threshold?
   .byte $90,$06                                       ; $BCA6: 90 06 (BCC mid-instruction target)
-  JMP JumpToBEC7                                      ; $BCA8: 4C 3D A2  ; probability check failed → abort
+  JMP EndTurn                                         ; $BCA8: 4C 3D A2  ; probability check failed → abort
 ; --- Phase 6: transfer officer, update stats, sweep affected entities ---
   .byte $10,$20                                       ; $BCAB: 10 20 (BPL mid-instruction target)
   BMI @StoreCandidate                                  ; $BCAD: 30 AD
@@ -4653,7 +4585,7 @@ AiAbsorbEntityAction:
   CMP a:$003B                                         ; $BD1C: CD 3B 00  ; same owner as absorbed entity?
   BNE @SweepNext                                       ; $BD1F: D0 06
   LDA a:$003A                                         ; $BD21: AD 3A 00  ; target entity's primary char
-  JSR FindBestOfficerInEntity                          ; $BD24: 20 40 BD  ; find best replacement officer
+  JSR @FindBestOfficerInEntity                          ; $BD24: 20 40 BD  ; find best replacement officer
 @SweepNext:
   INC a:$0036                                         ; $BD27: EE 36 00
   LDA a:$0036                                         ; $BD2A: AD 36 00
@@ -4664,24 +4596,24 @@ AiAbsorbEntityAction:
 @WaitForFlag:
   LDA $6F8B                                           ; $BD36: AD 8B 6F
   BNE @WaitForFlag                                     ; $BD39: D0 FB  ; busy-wait until flag cleared
-  JMP JumpToBEC7                                      ; $BD3B: 4C 3D A2  ; done → exit
+  JMP EndTurn                                         ; $BD3B: 4C 3D A2  ; done → exit
 ;-------------------------------------------------------------------------------
-; $BD3E: FindBestOfficerNoExclude
+; $BD3E: @FindBestOfficerNoExclude
 ; Alternate entry: exclude no character ($FF = none).
-; Falls through to FindBestOfficerInEntity at $BD40.
+; Falls through to @FindBestOfficerInEntity at $BD40.
 ;-------------------------------------------------------------------------------
-FindBestOfficerNoExclude:
+@FindBestOfficerNoExclude:
   LDA #$FF                                            ; $BD3E: A9 FF  ; sentinel = no exclusion
 
 
 ;-------------------------------------------------------------------------------
-; $BD40: FindBestOfficerInEntity
+; $BD40: @FindBestOfficerInEntity
 ; Scans entity $0036's army slots ($11-$1A) for the officer with the
 ; highest stat at record offset 2, excluding character in A.
 ; Input:  A = character ID to exclude ($FF = none), $0036 = entity index
 ; Output: $003D = best character ID, $003E = best stat value
 ;-------------------------------------------------------------------------------
-FindBestOfficerInEntity:
+@FindBestOfficerInEntity:
   STA $2A                                             ; $BD40: 85 2A  ; save excluded character ID
   LDA a:$0036                                         ; $BD42: AD 36 00
   JSR Proc_D105                                       ; $BD45: 20 05 D1  ; resolve entity → record ptr ($20/$21)
@@ -4711,7 +4643,7 @@ FindBestOfficerInEntity:
 
 
 ;===============================================================================
-; AiDev_Main — AI officer development search (nested in AiTurnDispatch)
+; @AiDev_Main — AI officer development search (nested in AiTurnDispatch)
 ; Scans owned provinces for trainable officers, selects the best candidate
 ; by province score, trains the officer (sets ability to $03E8/1000),
 ; deducts province resources, and loops until no candidates remain.
@@ -4724,7 +4656,7 @@ FindBestOfficerInEntity:
 ;   $0039 = best_entity    — best province entity index ($FF = none found)
 ;   $24   = slot_offset    — army slot offset ($11..$1A)
 ;===============================================================================
-AiDev_Main:
+@AiDev_Main:
 
   ; --- Initialize scan state ---
   LDA #$00                                            ; $BD7A: A9 00
@@ -4734,11 +4666,11 @@ AiDev_Main:
   STA a:$0038                                         ; $BD84: 8D 38 00  ; best_slot_val = $FF (no target)
   STA a:$0039                                         ; $BD87: 8D 39 00  ; best_entity = $FF
 
-AiDev_OuterLoop:                                                             ; scan entities 0..$1D
+@AiDev_OuterLoop:                                                             ; scan entities 0..$1D
   LDA a:$0036                                         ; $BD8A: AD 36 00  ; candidate_idx
   JSR Proc_D105                                       ; $BD8D: 20 05 D1  ; resolve entity → record ptr ($20/$21)
   CMP sram_player_id                                  ; $BD90: CD 03 6F  ; owned by current player?
-  BNE AiDev_OuterLoopNext                                   ; $BD93: D0 59      ; not ours → next entity
+  BNE @AiDev_OuterLoopNext                                   ; $BD93: D0 59      ; not ours → next entity
 
   ; --- Check province score ≥ $012C (300) ---
   LDY #$01                                            ; $BD95: A0 01
@@ -4748,49 +4680,49 @@ AiDev_OuterLoop:                                                             ; s
   INY                                                 ; $BD9C: C8
   LDA ($20),Y                                         ; $BD9D: B1 20      ; score high byte
   SBC #$01                                            ; $BD9F: E9 01
-  BCC AiDev_OuterLoopNext                                   ; $BDA1: 90 4B      ; score < 300 → skip
+  BCC @AiDev_OuterLoopNext                                   ; $BDA1: 90 4B      ; score < 300 → skip
 
   ; --- Inner loop: scan army slots $11..$1A ---
   LDY #$11                                            ; $BDA3: A0 11      ; first army-slot offset
   STY $24                                             ; $BDA5: 84 24
-AiDev_SlotLoop:                                                              ; iterate slot_offset $11..$1A
+@AiDev_SlotLoop:                                                              ; iterate slot_offset $11..$1A
   LDY $24                                             ; $BDA7: A4 24
   LDA ($20),Y                                         ; $BDA9: B1 20      ; officer ID in slot
   CMP #$FF                                            ; $BDAB: C9 FF      ; empty slot?
-  BEQ AiDev_SlotAdvance                                     ; $BDAD: F0 37      ; empty → qualify w/ score 100
+  BEQ @AiDev_SlotAdvance                                     ; $BDAD: F0 37      ; empty → qualify w/ score 100
 
   ; --- Officer eligibility: bits 0-1 of stat@9 must both be set ---
   LDY #$09                                            ; $BDAF: A0 09
   JSR $D2AB                                           ; $BDB1: 20 AB D2  ; read officer stat at offset 9
   AND #$03                                            ; $BDB4: 29 03      ; mask trainable flags
   CMP #$03                                            ; $BDB6: C9 03      ; both bits set = eligible
-  BNE AiDev_NextSlot                                       ; $BDB8: D0 08      ; not eligible → next slot
+  BNE @AiDev_NextSlot                                       ; $BDB8: D0 08      ; not eligible → next slot
 
   ; --- Officer ability cap check: stat@8 must not equal $E8 (cap = $03E8) ---
   LDY #$08                                            ; $BDBA: A0 08
   LDA ($22),Y                                         ; $BDBC: B1 22      ; officer ability low byte
   CMP #$E8                                            ; $BDBE: C9 E8      ; at cap ($03E8 = 1000)?
-  BEQ AiDev_SlotAdvance                                     ; $BDC0: F0 24      ; at cap → qualify anyway
+  BEQ @AiDev_SlotAdvance                                     ; $BDC0: F0 24      ; at cap → qualify anyway
 
-AiDev_NextSlot:                                                                ; advance to next army slot
+@AiDev_NextSlot:                                                                ; advance to next army slot
   LDY $24                                             ; $BDC2: A4 24
   CPY #$11                                            ; $BDC4: C0 11      ; first slot?
-  BNE AiDev_DeadCode                                        ; $BDC6: D0 05      ; dead code path
+  BNE @AiDev_DeadCode                                        ; $BDC6: D0 05      ; dead code path
   LDA #$64                                            ; $BDC8: A9 64      ; empty-slot default score = 100
-  JMP CompareAndUpdate                                 ; $BDCA: 4C D1 BD  ; → nested scoring proc
-AiDev_DeadCode:  ; Dead code: unreachable after unconditional JMP above
+  JMP @CompareAndUpdate                                 ; $BDCA: 4C D1 BD  ; → nested scoring proc
+@AiDev_DeadCode:  ; Dead code: unreachable after unconditional JMP above
   LDY #$01                                            ; $BDCD: A0 01
   LDA ($22),Y                                         ; $BDCF: B1 22
 
 ;===============================================================================
-; CompareAndUpdate — Compare score with best and update if better
+; @CompareAndUpdate — Compare score with best and update if better
 ; Entry: A = province score (low byte), $24 = slot_offset
 ; Updates: best_score ($0037), best_slot_val ($0038), best_entity ($0039)
 ; Then continues the inner/outer scan loop or exits to processing.
 ;===============================================================================
-CompareAndUpdate:
+@CompareAndUpdate:
   CMP a:$0037                                         ; $BDD1: CD 37 00  ; compare with best score
-  BCC AiDev_SlotAdvance                                    ; $BDD4: 90 10      ; worse → next slot
+  BCC @AiDev_SlotAdvance                                    ; $BDD4: 90 10      ; worse → next slot
   STA a:$0037                                         ; $BDD6: 8D 37 00  ; new best score
   LDY $24                                             ; $BDD9: A4 24
   LDA ($20),Y                                         ; $BDDB: B1 20      ; officer ID at slot offset
@@ -4798,26 +4730,26 @@ CompareAndUpdate:
   LDA a:$0036                                         ; $BDE0: AD 36 00  ; candidate_idx
   STA a:$0039                                         ; $BDE3: 8D 39 00  ; best_entity
 
-AiDev_SlotAdvance:                                                             ; advance inner loop (next army slot)
+@AiDev_SlotAdvance:                                                             ; advance inner loop (next army slot)
   INC $24                                               ; $BDE6: E6 24      ; next slot offset
   LDA $24                                               ; $BDE8: A5 24
   CMP #$1B                                              ; $BDEA: C9 1B      ; end of slots?
-  BCC AiDev_SlotLoop                                        ; $BDEC: 90 B9      ; continue inner loop
+  BCC @AiDev_SlotLoop                                        ; $BDEC: 90 B9      ; continue inner loop
 
-AiDev_OuterLoopNext:                                                           ; advance outer loop (next entity)
+@AiDev_OuterLoopNext:                                                           ; advance outer loop (next entity)
   INC a:$0036                                           ; $BDEE: EE 36 00  ; candidate_idx++
   LDA a:$0036                                           ; $BDF1: AD 36 00  ; candidate_idx
   CMP #$1E                                              ; $BDF4: C9 1E      ; scanned all entities?
-  BCC AiDev_OuterLoop                                       ; $BDF6: 90 92      ; continue outer loop
+  BCC @AiDev_OuterLoop                                       ; $BDF6: 90 92      ; continue outer loop
 
   ; --- Post-scan: check if any target was found ---
   LDA a:$0038                                           ; $BDF8: AD 38 00  ; best_slot_val
   CMP #$FF                                              ; $BDFB: C9 FF      ; still $FF = no target
-  BNE AiDev_ProcessBest                                      ; $BDFD: D0 03      ; found → process
-AiDev_ExitSearch:                                                              ; no target found
-  JMP AiDev_Terminate                                        ; $BDFF: 4C C7 BE  ; → termination phase
+  BNE @AiDev_ProcessBest                                      ; $BDFD: D0 03      ; found → process
+@AiDev_ExitSearch:                                                              ; no target found
+  JMP @AiAction_EndTurn                                   ; $BDFF: 4C C7 BE  ; → end turn phase
 
-AiDev_ProcessBest:                                                             ; === Train the best officer ===
+@AiDev_ProcessBest:                                                             ; === Train the best officer ===
   LDA a:$0039                                           ; $BE02: AD 39 00  ; best entity index
   JSR Proc_D105                                         ; $BE05: 20 05 D1  ; resolve → record ptr ($20)
   LDA a:$0038                                           ; $BE08: AD 38 00  ; best officer ID
@@ -4850,19 +4782,19 @@ AiDev_ProcessBest:                                                             ;
   LDA a:$003B                                           ; $BE38: AD 3B 00
   SBC ($20),Y                                           ; $BE3B: F1 20      ; net remaining high
   STA a:$003D                                           ; $BE3D: 8D 3D 00
-  BCC AiDev_AlreadyTrained                                  ; $BE40: 90 52      ; already trained → flush
+  BCC @AiDev_AlreadyTrained                                  ; $BE40: 90 52      ; already trained → flush
 
   ; --- Ceiling division by 100: cost = ceil(remainder/100)×100 ---
   ; Determines training cost in batches of 100 resources.
   LDY #$00                                              ; $BE42: A0 00
   STY $28                                               ; $BE44: 84 28      ; cost accumulator = 0
   STY $29                                               ; $BE46: 84 29
-AiDev_DivReset:                                                                ; A = 0 here, used as cost base
+@AiDev_DivReset:                                                                ; A = 0 here, used as cost base
   TYA                                                   ; $BE48: 98        ; A = 0
   CLC                                                   ; $BE49: 18
   ADC #$14                                              ; $BE4A: 69 14      ; A = 20 (loop counter)
   TAY                                                   ; $BE4C: A8
-AiDev_DivLoop:                                                                 ; subtract 100 from remainder, add 100 to cost
+@AiDev_DivLoop:                                                                 ; subtract 100 from remainder, add 100 to cost
   LDA $28                                               ; $BE4D: A5 28
   CLC                                                   ; $BE4F: 18
   ADC #$64                                              ; $BE50: 69 64      ; cost += 100
@@ -4877,7 +4809,7 @@ AiDev_DivLoop:                                                                 ;
   LDA a:$003D                                           ; $BE63: AD 3D 00
   SBC #$00                                              ; $BE66: E9 00
   STA a:$003D                                           ; $BE68: 8D 3D 00
-  BCS AiDev_DivReset                                        ; $BE6B: B0 DB      ; remainder ≥ 0 → continue
+  BCS @AiDev_DivReset                                        ; $BE6B: B0 DB      ; remainder ≥ 0 → continue
 
   ; --- Store final 16-bit cost ---
   TYA                                                   ; $BE6D: 98
@@ -4903,7 +4835,7 @@ AiDev_DivLoop:                                                                 ;
   LDA $29                                               ; $BE8E: A5 29
   ADC ($20),Y                                           ; $BE90: 71 20      ; field[$0D] += cost_high
   STA ($20),Y                                           ; $BE92: 91 20
-AiDev_AlreadyTrained:                                                            ; skip division → flush and continue
+@AiDev_AlreadyTrained:                                                            ; skip division → flush and continue
   JSR Proc_D69D                                         ; $BE94: 20 9D D6  ; flush pending updates
 
   ; --- Subtract remaining capacity from investment (net effect) ---
@@ -4932,12 +4864,12 @@ AiDev_AlreadyTrained:                                                           
   ; --- Signal action and loop for next trainable officer ---
   LDA #$02                                              ; $BEBF: A9 02      ; action type 2 = officer training
   JSR Proc_D152                                         ; $BEC1: 20 52 D1  ; signal game engine
-  JMP AiDev_Main                               ; $BEC4: 4C 7A BD  ; restart search for next officer
+  JMP @AiDev_Main                               ; $BEC4: 4C 7A BD  ; restart search for next officer
 
-; --- Termination phase: advance turn and random follow-up check ---
-; Reached via JMP from AiDev_ExitSearch when no trainable officers remain.
-AiDev_Terminate:
-  JSR AiTurn_AdvancePhase                               ; $BEC7: 20 E6 BE  ; advance turn phase counter
+; --- Common exit: advance turn phase and decide next action ---
+; Reached via JMP from many AI action routines when action is complete.
+@AiAction_EndTurn:
+  JSR @AiTurn_AdvancePhase                               ; $BEC7: 20 E6 BE  ; advance turn phase counter
   LDA #$50                                              ; $BECA: A9 50
   JSR Proc_D4BB                                         ; $BECC: 20 BB D4  ; random(80)
   PHA                                                   ; $BECF: 48
@@ -4945,26 +4877,26 @@ AiDev_Terminate:
   AND #$07                                              ; $BED3: 29 07      ; player_id & 7
   TAY                                                   ; $BED5: A8
   PLA                                                   ; $BED6: 68
-  CMP AiDev_ActionThreshold,Y                           ; $BED7: D9 DF BE  ; compare with per-player threshold
+  CMP @AiDev_ActionThreshold,Y                           ; $BED7: D9 DF BE  ; compare with per-player threshold
   BCC @RollAction                                         ; $BEDA: 90 3A      ; below threshold → alternate action
-  JMP AiAction_ContinueTurn                             ; $BEDC: 4C E0 C1  ; continue AI turn (70%/30% officer/eval)
+  JMP @AiAction_ContinueTurn                             ; $BEDC: 4C E0 C1  ; continue AI turn (70%/30% officer/eval)
 
 ; Per-player aggression thresholds (indexed by player_id & 7)
 ; Controls probability of continuing AI action after officer development:
 ;   Player 0: $14 (75%), Player 1: $32 (37.5%), Player 2: $28 (50%),
 ;   Player 3: $1E (62.5%), Player 4: $28 (50%), Player 5: $3C (25%),
 ;   Player 6: $32 (37.5%)
-AiDev_ActionThreshold:
+@AiDev_ActionThreshold:
   .byte $14,$32,$28,$1E,$28,$3C,$32                     ; $BEDF: 14 32 28 1E 28 3C 32
 
 ;===============================================================================
-; $BEE6: AiTurn_AdvancePhase
+; $BEE6: @AiTurn_AdvancePhase
 ; Advances the AI turn phase counter. Each call increments the per-player
 ; action counter ($6F83,X). After $1E actions, advances the global phase
 ; ($6F62). At phase 3, transitions to next game state via $D140.
 ; Otherwise, resets counter and resolves current entity.
 ;===============================================================================
-AiTurn_AdvancePhase:
+@AiTurn_AdvancePhase:
   LDX $6F03                                           ; $BEE6: AE 03 6F  ; current player
   INC $6F83,X                                         ; $BEE9: FE 83 6F  ; increment action counter
   LDA $6F83,X                                         ; $BEEC: BD 83 6F
@@ -4973,60 +4905,63 @@ AiTurn_AdvancePhase:
   INC $6F62                                           ; $BEF3: EE 62 6F  ; advance global phase
   LDA $6F62                                           ; $BEF6: AD 62 6F
   CMP #$03                                            ; $BEF9: C9 03      ; phase 3 = end of AI turn
-  .byte $D0,$08                                       ; $BEFB: D0 08 (BNE $BF05 — skip if phase ≠ 3)
+  BNE @NotPhase3                                        ; $BEFB: D0 08 (BNE @NotPhase3)
   LDA #$00                                            ; $BEFD: A9 00      ; phase 3: reset state
   STA $6F62                                           ; $BEFF: 8D 62 6F
   JMP $D140                                           ; $BF02: 4C 40 D1  ; transition to next game state
+@NotPhase3:
   LDA #$00                                            ; $BF05: A9 00      ; phase ≠ 3: zero counter
 @ResetCounter:
   STA $6F83,X                                         ; $BF07: 9D 83 6F  ; store zeroed counter
   STA $6F5E                                           ; $BF0A: 8D 5E 6F  ; reset entity index
   JSR Proc_D105                                       ; $BF0D: 20 05 D1  ; resolve entity record
   CMP $6F03                                           ; $BF10: CD 03 6F  ; entity owned by current player?
-  BNE AiTurn_AdvancePhase                             ; $BF13: D0 D1      ; no → try next entity
+  BNE @AiTurn_AdvancePhase                             ; $BF13: D0 D1      ; no → try next entity
   RTS                                                 ; $BF15: 60
 ;-------------------------------------------------------------------------------
 ; $BF16: AiAction_RandomDispatch
 ; 4-way random dispatch selecting AI action type. Rolls random(100):
 ;   0–39  → game-state check → ReinforceTroops or ReinforceSupplies
-;   40–69 → AiAction_BoostMorale
-;   70–89 → AiAction_SmallStatBoost
-;   90–99 → AiAction_CompositeBoost
+;   40–69 → @AiAction_BoostMorale
+;   70–89 → @AiAction_SmallStatBoost
+;   90–99 → @AiAction_CompositeBoost
 ;-------------------------------------------------------------------------------
 @RollAction:
   LDA #$64                                            ; $BF16: A9 64      ; random(100)
   JSR Proc_D4BB                                       ; $BF18: 20 BB D4
   CMP #$28                                            ; $BF1B: C9 28      ; < 40?
   BCS @CheckMorale                                        ; $BF1D: B0 03      ; no → check next range
-  JMP AiAction_StatBranch                             ; $BF1F: 4C 33 BF  ; game-state dependent branch
+  JMP @AiAction_StatBranch                             ; $BF1F: 4C 33 BF  ; game-state dependent branch
 @CheckMorale:
   CMP #$46                                            ; $BF22: C9 46      ; < 70?
-  .byte $B0,$03                                       ; $BF24: B0 03 (BCS $BF29 — skip if ≥ 70)
-  JMP AiAction_BoostMorale                            ; $BF26: 4C 4E C0  ; 40–69 → morale boost
+  BCS @SkipBoost                                      ; $BF24: B0 03 (BCS @SkipBoost)
+  JMP @AiAction_BoostMorale                            ; $BF26: 4C 4E C0  ; 40–69 → morale boost
+@SkipBoost:
   CMP #$5A                                            ; $BF29: C9 5A      ; < 90?
-  .byte $B0,$03                                       ; $BF2B: B0 03 (BCS $BF30 — skip if ≥ 90)
-  JMP AiAction_SmallStatBoost                         ; $BF2D: 4C CF C0  ; 70–89 → small stat boost
-  JMP AiAction_CompositeBoost                         ; $BF30: 4C 30 C1  ; 90–99 → composite boost
+  BCS @SkipSmall                                     ; $BF2B: B0 03 (BCS @SkipSmall)
+  JMP @AiAction_SmallStatBoost                         ; $BF2D: 4C CF C0  ; 70–89 → small stat boost
+@SkipSmall:
+  JMP @AiAction_CompositeBoost                         ; $BF30: 4C 30 C1  ; 90–99 → composite boost
 
 ; --- Game-state dependent branch (random < 40) ---
 ; If game state $6F01 is 3–7: reinforce troops; otherwise reinforce supplies.
-AiAction_StatBranch:
+@AiAction_StatBranch:
   LDA $6F01                                           ; $BF33: AD 01 6F  ; game state
   CMP #$03                                            ; $BF36: C9 03      ; state < 3?
   BCC @GotoSupplies                                       ; $BF38: 90 07      ; yes → supplies
   CMP #$08                                            ; $BF3A: C9 08      ; state ≥ 8?
   BCS @GotoSupplies                                       ; $BF3C: B0 03      ; yes → supplies
-  JMP AiAction_ReinforceTroops                        ; $BF3E: 4C 44 BF  ; state 3–7 → troops
+  JMP @AiAction_ReinforceTroops                        ; $BF3E: 4C 44 BF  ; state 3–7 → troops
 @GotoSupplies:
-  JMP AiAction_ReinforceSupplies                      ; $BF41: 4C C3 BF  ; default → supplies
+  JMP @AiAction_ReinforceSupplies                      ; $BF41: 4C C3 BF  ; default → supplies
 
 
 ;===============================================================================
-; $BF44: AiAction_ReinforceTroops
+; $BF44: @AiAction_ReinforceTroops
 ; Computes troop reinforcement: (entity_idx × $0E × kingdom_mod) / $0A,
 ; adds loyalty bonus, writes to entity record[$08/$09] (16-bit), capped at 999.
 ;===============================================================================
-AiAction_ReinforceTroops:
+@AiAction_ReinforceTroops:
   LDA #$0A                                            ; $BF44: A9 0A
   STA $22                                             ; $BF46: 85 22
   LDA #$00                                            ; $BF48: A9 00
@@ -5035,7 +4970,7 @@ AiAction_ReinforceTroops:
   STA $24                                             ; $BF4E: 85 24
   LDA $6F5E                                           ; $BF50: AD 5E 6F  ; entity index
   JSR Proc_D36F                                       ; $BF53: 20 6F D3  ; multiply: entity_idx × $0E
-  .byte $90,$68                                       ; $BF56: 90 68 (BCC mid-instruction target)
+  BCC @CalcOverflow                                        ; $BF56: 90 68 (BCC @CalcOverflow)
   LDA $22                                             ; $BF58: A5 22
   STA $20                                             ; $BF5A: 85 20
   LDA $23                                             ; $BF5C: A5 23
@@ -5043,7 +4978,7 @@ AiAction_ReinforceTroops:
   LDA #$00                                            ; $BF60: A9 00
   STA $22                                             ; $BF62: 85 22
   LDY $6F02                                           ; $BF64: AC 02 6F  ; kingdom index
-  LDA KingdomActionModifiers,Y                        ; $BF67: B9 42 C0  ; kingdom modifier
+  LDA @KingdomActionModifiers,Y                        ; $BF67: B9 42 C0  ; kingdom modifier
   STA $23                                             ; $BF6A: 85 23
   JSR Proc_D438                                       ; $BF6C: 20 38 D4  ; multiply result × modifier
   LDA $26                                             ; $BF6F: A5 26
@@ -5062,7 +4997,7 @@ AiAction_ReinforceTroops:
   LDA $6F5E                                           ; $BF8A: AD 5E 6F
   JSR Proc_D105                                       ; $BF8D: 20 05 D1  ; resolve entity → ($20)
   LDA $22                                             ; $BF90: A5 22
-  JSR AddLoyaltyBonus_Small                           ; $BF92: 20 A7 C1  ; add loyalty bonus to field[$0B]
+  JSR @AddLoyaltyBonus_Small                           ; $BF92: 20 A7 C1  ; add loyalty bonus to field[$0B]
   LDY #$08                                            ; $BF95: A0 08      ; entity record offset $08 (troops lo)
   LDA ($20),Y                                         ; $BF97: B1 20
   CLC                                                 ; $BF99: 18
@@ -5074,27 +5009,29 @@ AiAction_ReinforceTroops:
   AND #$03                                            ; $BFA3: 29 03      ; cap hi-byte to 3
   STA ($20),Y                                         ; $BFA5: 91 20
   CMP #$03                                            ; $BFA7: C9 03      ; hi = 3?
-  .byte $90,$10                                       ; $BFA9: 90 10 (BCC $BFBB — skip cap if hi < 3)
+  BCC @UnderCap                                   ; $BFA9: 90 10 (BCC @UnderCap)
   DEY                                                 ; $BFAB: 88         ; offset $08 (troops lo)
   LDA ($20),Y                                         ; $BFAC: B1 20
   CMP #$E7                                            ; $BFAE: C9 E7      ; lo ≥ $E7?
-  .byte $90,$09                                       ; $BFB0: 90 09 (BCC $BFBB — skip cap if lo < $E7)
+  BCC @UnderCap                                   ; $BFB0: 90 09 (BCC @UnderCap)
   LDA #$E7                                            ; $BFB2: A9 E7      ; clamp to $03E7 = 999
   STA ($20),Y                                         ; $BFB4: 91 20
   INY                                                 ; $BFB6: C8
   LDA #$03                                            ; $BFB7: A9 03
   STA ($20),Y                                         ; $BFB9: 91 20
+@UnderCap:
   LDA #$05                                            ; $BFBB: A9 05      ; signal action type 5
   JSR Proc_D152                                       ; $BFBD: 20 52 D1
-  JMP $BEC7                                           ; $BFC0: 4C C7 BE  ; return to AI turn loop
+@CalcOverflow:
+  JMP @AiAction_EndTurn                                ; $BFC0: 4C C7 BE  ; return to AI turn loop
 
 ;===============================================================================
-; $BFC3: AiAction_ReinforceSupplies
+; $BFC3: @AiAction_ReinforceSupplies
 ; Same algorithm as ReinforceTroops but writes to entity record[$0E/$0F]
 ; (supply/provision field) instead of $08/$09. Same kingdom modifier table
-; (KingdomActionModifiers, offset 0). Same cap of 999.
+; (@KingdomActionModifiers, offset 0). Same cap of 999.
 ;===============================================================================
-AiAction_ReinforceSupplies:
+@AiAction_ReinforceSupplies:
   LDA #$0A                                            ; $BFC3: A9 0A
   STA $22                                             ; $BFC5: 85 22
   LDA #$00                                            ; $BFC7: A9 00
@@ -5103,7 +5040,7 @@ AiAction_ReinforceSupplies:
   STA $24                                             ; $BFCD: 85 24
   LDA $6F5E                                           ; $BFCF: AD 5E 6F
   JSR Proc_D36F                                       ; $BFD2: 20 6F D3
-  .byte $90,$68                                       ; $BFD5: 90 68 (BCC cross-bank)
+  BCC @CalcOverflow                                        ; $BFD5: 90 68 (BCC @CalcOverflow)
   LDA $22                                             ; $BFD7: A5 22
   STA $20                                             ; $BFD9: 85 20
   LDA $23                                             ; $BFDB: A5 23
@@ -5111,7 +5048,7 @@ AiAction_ReinforceSupplies:
   LDA #$00                                            ; $BFDF: A9 00
   STA $22                                             ; $BFE1: 85 22
   LDY $6F02                                           ; $BFE3: AC 02 6F  ; kingdom index
-  LDA KingdomActionModifiers,Y                        ; $BFE6: B9 42 C0  ; kingdom modifier
+  LDA @KingdomActionModifiers,Y                        ; $BFE6: B9 42 C0  ; kingdom modifier
   STA $23                                             ; $BFE9: 85 23
   JSR Proc_D438                                       ; $BFEB: 20 38 D4
   LDA $26                                             ; $BFEE: A5 26
@@ -5131,7 +5068,7 @@ AiAction_ReinforceSupplies:
   LDA $6F5E                                           ; $C009: AD 5E 6F
   JSR Proc_D105                                       ; $C00C: 20 05 D1  ; resolve entity → ($20)
   LDA $22                                             ; $C00F: A5 22
-  JSR AddLoyaltyBonus_Small                           ; $C011: 20 A7 C1  ; loyalty bonus to field[$0B]
+  JSR @AddLoyaltyBonus_Small                           ; $C011: 20 A7 C1  ; loyalty bonus to field[$0B]
   LDY #$0E                                            ; $C014: A0 0E      ; offset $0E (supplies lo)
   LDA ($20),Y                                         ; $C016: B1 20
   CLC                                                 ; $C018: 18
@@ -5143,34 +5080,36 @@ AiAction_ReinforceSupplies:
   AND #$03                                            ; $C022: 29 03
   STA ($20),Y                                         ; $C024: 91 20
   CMP #$03                                            ; $C026: C9 03
-  .byte $90,$10                                       ; $C028: 90 10 (BCC mid-instruction target)
+  BCC @UnderCap                                   ; $C028: 90 10 (BCC @UnderCap)
   DEY                                                 ; $C02A: 88
   LDA ($20),Y                                         ; $C02B: B1 20
   CMP #$E7                                            ; $C02D: C9 E7
-  .byte $90,$09                                       ; $C02F: 90 09 (BCC mid-instruction target)
+  BCC @UnderCap                                   ; $C02F: 90 09 (BCC @UnderCap)
   LDA #$E7                                            ; $C031: A9 E7
   STA ($20),Y                                         ; $C033: 91 20
   INY                                                 ; $C035: C8
   LDA #$03                                            ; $C036: A9 03
   STA ($20),Y                                         ; $C038: 91 20
+@UnderCap:
   LDA #$05                                            ; $C03A: A9 05
   JSR Proc_D152                                       ; $C03C: 20 52 D1
-  JMP $BEC7                                           ; $C03F: 4C C7 BE  ; return to AI turn loop
+@CalcOverflow:
+  JMP @AiAction_EndTurn                                ; $C03F: 4C C7 BE  ; return to AI turn loop
 
 ; Per-kingdom action modifiers (circular 12-byte table, indexed by kingdom_index)
 ; Accessed at different base offsets to select action type:
 ;   +0 = troops/supplies, +3 = small stat, +6 = composite, +9 = officer loyalty
-KingdomActionModifiers:
+@KingdomActionModifiers:
   .byte $0C,$0F,$12,$06,$07,$08,$19,$14,$0F,$03,$05,$07  ; 12,15,18,6,7,8,25,20,15,3,5,7
 
 
 ;===============================================================================
-; $C04E: AiAction_BoostMorale
+; $C04E: @AiAction_BoostMorale
 ; Computes morale boost at HALF strength: (entity_idx × $0E × mod) / $0A / 2.
 ; Writes to entity record[$06/$07] (16-bit morale), capped at $270F.
-; Also adds a large loyalty bonus via AddLoyaltyBonus_Large.
+; Also adds a large loyalty bonus via @AddLoyaltyBonus_Large.
 ;===============================================================================
-.proc AiAction_BoostMorale
+@AiAction_BoostMorale:
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -5190,7 +5129,7 @@ KingdomActionModifiers:
   STA $24                                             ; $C058: 85 24
   LDA $6F5E                                           ; $C05A: AD 5E 6F
   JSR Proc_D36F                                       ; $C05D: 20 6F D3
-  .byte $90,$6A                                       ; $C060: 90 6A (BCC mid-instruction target)
+  BCC @CalcOverflow                                        ; $C060: 90 6A (BCC @CalcOverflow)
   LDA $22                                             ; $C062: A5 22
   STA $20                                             ; $C064: 85 20
   LDA $23                                             ; $C066: A5 23
@@ -5198,7 +5137,7 @@ KingdomActionModifiers:
   LDA #$00                                            ; $C06A: A9 00
   STA $22                                             ; $C06C: 85 22
   LDY $6F02                                           ; $C06E: AC 02 6F
-  LDA KingdomActionModifiers,Y                        ; $C071: B9 42 C0  ; kingdom modifier (offset 0)
+  LDA @KingdomActionModifiers,Y                        ; $C071: B9 42 C0  ; kingdom modifier (offset 0)
   STA $23                                             ; $C074: 85 23
   JSR Proc_D438                                       ; $C076: 20 38 D4
   LDA $26                                             ; $C079: A5 26
@@ -5218,7 +5157,7 @@ KingdomActionModifiers:
   ROR $22                                             ; $C096: 66 22
   LDA $6F5E                                           ; $C098: AD 5E 6F
   JSR Proc_D105                                       ; $C09B: 20 05 D1  ; resolve entity → ($20)
-  JSR AddLoyaltyBonus_Large                           ; $C09E: 20 C0 C1  ; bonus based on 3000 threshold
+  JSR @AddLoyaltyBonus_Large                           ; $C09E: 20 C0 C1  ; bonus based on 3000 threshold
   LDY #$06                                            ; $C0A1: A0 06      ; offset $06 (morale lo)
   LDA ($20),Y                                         ; $C0A3: B1 20
   CLC                                                 ; $C0A5: 18
@@ -5230,26 +5169,28 @@ KingdomActionModifiers:
   AND #$7F                                            ; $C0AF: 29 7F      ; cap hi-byte to $7F
   STA ($20),Y                                         ; $C0B1: 91 20
   CMP #$27                                            ; $C0B3: C9 27      ; hi ≥ $27?
-  .byte $90,$10                                       ; $C0B5: 90 10 (BCC $C0C7 — skip cap if hi < $27)
+  BCC @UnderCap                                   ; $C0B5: 90 10 (BCC @UnderCap)
   DEY                                                 ; $C0B7: 88         ; offset $06 (morale lo)
   LDA ($20),Y                                         ; $C0B8: B1 20
   CMP #$10                                            ; $C0BA: C9 10      ; lo ≥ $10?
-  .byte $90,$09                                       ; $C0BC: 90 09 (BCC $C0C7 — skip cap if lo < $10)
+  BCC @UnderCap                                   ; $C0BC: 90 09 (BCC @UnderCap)
   LDA #$0F                                            ; $C0BE: A9 0F      ; clamp to $0F27 (morale cap)
   STA ($20),Y                                         ; $C0C0: 91 20
   INY                                                 ; $C0C2: C8
   LDA #$27                                            ; $C0C3: A9 27
   STA ($20),Y                                         ; $C0C5: 91 20
+@UnderCap:
   LDA #$05                                            ; $C0C7: A9 05
   JSR Proc_D152                                       ; $C0C9: 20 52 D1
-  JMP $BEC7                                           ; $C0CC: 4C C7 BE  ; return to AI turn loop
+@CalcOverflow:
+  JMP @AiAction_EndTurn                                ; $C0CC: 4C C7 BE  ; return to AI turn loop
 
 ;-------------------------------------------------------------------------------
-; $C0CF: AiAction_SmallStatBoost
+; $C0CF: @AiAction_SmallStatBoost
 ; Single-byte stat boost: (entity_idx × $0A × mod[3]) / $0A.
 ; Writes to entity record[$0A] (single byte), capped at 99 ($63).
 ;-------------------------------------------------------------------------------
-AiAction_SmallStatBoost:
+@AiAction_SmallStatBoost:
   LDA #$0A                                            ; $C0CF: A9 0A
   STA $22                                             ; $C0D1: 85 22
   LDA #$00                                            ; $C0D3: A9 00
@@ -5258,7 +5199,7 @@ AiAction_SmallStatBoost:
   STA $24                                             ; $C0D9: 85 24
   LDA $6F5E                                           ; $C0DB: AD 5E 6F
   JSR Proc_D36F                                       ; $C0DE: 20 6F D3
-  .byte $90,$4A                                       ; $C0E1: 90 4A (BCC mid-instruction target)
+  BCC @ActionDone                                        ; $C0E1: 90 4A (BCC @ActionDone)
   LDA $22                                             ; $C0E3: A5 22
   STA $20                                             ; $C0E5: 85 20
   LDA $23                                             ; $C0E7: A5 23
@@ -5266,7 +5207,7 @@ AiAction_SmallStatBoost:
   LDA #$00                                            ; $C0EB: A9 00
   STA $22                                             ; $C0ED: 85 22
   LDY $6F02                                           ; $C0EF: AC 02 6F
-  LDA KingdomActionModifiers+3,Y                      ; $C0F2: B9 45 C0  ; modifier at offset 3
+  LDA @KingdomActionModifiers+3,Y                      ; $C0F2: B9 45 C0  ; modifier at offset 3
   STA $23                                             ; $C0F5: 85 23
   JSR Proc_D438                                       ; $C0F7: 20 38 D4
   LDA $26                                             ; $C0FA: A5 26
@@ -5288,22 +5229,24 @@ AiAction_SmallStatBoost:
   ADC $23                                             ; $C11C: 65 23
   STA ($20),Y                                         ; $C11E: 91 20
   CMP #$63                                            ; $C120: C9 63
-  .byte $90,$04                                       ; $C122: 90 04 (BCC mid-instruction target)
+  BCC @UnderCap                                        ; $C122: 90 04 (BCC @UnderCap)
   LDA #$63                                            ; $C124: A9 63
   STA ($20),Y                                         ; $C126: 91 20
+@UnderCap:
   LDA #$05                                            ; $C128: A9 05
   JSR Proc_D152                                       ; $C12A: 20 52 D1
-  JMP $BEC7                                           ; $C12D: 4C C7 BE  ; return to AI turn loop
+@ActionDone:
+  JMP @AiAction_EndTurn                                ; $C12D: 4C C7 BE  ; return to AI turn loop
 
 ;-------------------------------------------------------------------------------
-; $C130: AiAction_CompositeBoost
+; $C130: @AiAction_CompositeBoost
 ; Composite boost combining TWO multiplication results:
 ;   part1 = entity_idx × $1E (via Proc_D36F)
 ;   part2 = entity_idx × $1E (via Proc_D3A9)
 ;   result = (part1 + part2) / mod[6]
 ; Writes to entity record[$0B] (single byte), capped at 99.
 ;-------------------------------------------------------------------------------
-AiAction_CompositeBoost:
+@AiAction_CompositeBoost:
   LDA #$1E                                            ; $C130: A9 1E
   STA $22                                             ; $C132: 85 22
   LDA #$00                                            ; $C134: A9 00
@@ -5312,7 +5255,7 @@ AiAction_CompositeBoost:
   STA $24                                             ; $C13A: 85 24
   LDA $6F5E                                           ; $C13C: AD 5E 6F
   JSR Proc_D36F                                       ; $C13F: 20 6F D3
-  .byte $90,$60                                       ; $C142: 90 60 (BCC mid-instruction target)
+  BCC @ActionDone                                   ; $C142: 90 60 (BCC @ActionDone)
   LDA $22                                             ; $C144: A5 22
   STA $2A                                             ; $C146: 85 2A
   LDA $23                                             ; $C148: A5 23
@@ -5325,7 +5268,7 @@ AiAction_CompositeBoost:
   STA $24                                             ; $C156: 85 24
   LDA $6F5E                                           ; $C158: AD 5E 6F
   JSR Proc_D3A9                                       ; $C15B: 20 A9 D3
-  .byte $90,$44                                       ; $C15E: 90 44 (BCC mid-instruction target)
+  BCC @ActionDone                                   ; $C15E: 90 44 (BCC @ActionDone)
   LDA $22                                             ; $C160: A5 22
   CLC                                                 ; $C162: 18
   ADC $2A                                             ; $C163: 65 2A
@@ -5338,7 +5281,7 @@ AiAction_CompositeBoost:
   LDA $2B                                             ; $C171: A5 2B
   STA $22                                             ; $C173: 85 22
   LDY $6F02                                           ; $C175: AC 02 6F
-  LDA KingdomActionModifiers+6,Y                      ; $C178: B9 48 C0  ; modifier at offset 6
+  LDA @KingdomActionModifiers+6,Y                      ; $C178: B9 48 C0  ; modifier at offset 6
   STA $23                                             ; $C17B: 85 23
   LDA #$00                                            ; $C17D: A9 00
   STA $24                                             ; $C17F: 85 24
@@ -5353,19 +5296,21 @@ AiAction_CompositeBoost:
   ADC $23                                             ; $C193: 65 23
   STA ($20),Y                                         ; $C195: 91 20
   CMP #$63                                            ; $C197: C9 63
-  .byte $90,$04                                       ; $C199: 90 04 (BCC mid-instruction target)
+  BCC @UnderCap                                        ; $C199: 90 04 (BCC @UnderCap)
   LDA #$63                                            ; $C19B: A9 63
   STA ($20),Y                                         ; $C19D: 91 20
+@UnderCap:
   LDA #$05                                            ; $C19F: A9 05
   JSR Proc_D152                                       ; $C1A1: 20 52 D1
-  JMP $BEC7                                           ; $C1A4: 4C C7 BE  ; return to AI turn loop
+@ActionDone:
+  JMP @AiAction_EndTurn                                ; $C1A4: 4C C7 BE  ; return to AI turn loop
 
 ;-------------------------------------------------------------------------------
-; $C1A7: AddLoyaltyBonus_Small
+; $C1A7: @AddLoyaltyBonus_Small
 ; Adds loyalty bonus (1 or 2) to entity record[$0B], capped at 100.
 ; Input A = value to compare: if A < $1F → bonus=1, else bonus=2.
 ;-------------------------------------------------------------------------------
-AddLoyaltyBonus_Small:
+@AddLoyaltyBonus_Small:
   LDY #$01                                            ; $C1A7: A0 01      ; default bonus = 1
   CMP #$1F                                            ; $C1A9: C9 1F
   BCC @AssignBonus_S                                      ; $C1AB: 90 01
@@ -5384,11 +5329,11 @@ AddLoyaltyBonus_Small:
   RTS                                                 ; $C1BF: 60
 
 ;-------------------------------------------------------------------------------
-; $C1C0: AddLoyaltyBonus_Large
+; $C1C0: @AddLoyaltyBonus_Large
 ; Adds loyalty bonus (1 or 2) based on whether 16-bit value $22/$23 ≥ 3000.
 ; Bonus is added to entity record[$0B], capped at 100.
 ;-------------------------------------------------------------------------------
-AddLoyaltyBonus_Large:
+@AddLoyaltyBonus_Large:
   LDY #$01                                            ; $C1C0: A0 01      ; default bonus = 1
   LDA $22                                             ; $C1C2: A5 22
   SEC                                                 ; $C1C4: 38
@@ -5411,14 +5356,14 @@ AddLoyaltyBonus_Large:
   RTS                                                 ; $C1DF: 60
 
 ;-------------------------------------------------------------------------------
-; $C1E0: AiAction_ContinueTurn
+; $C1E0: @AiAction_ContinueTurn
 ; Clears AI work area ($6F73-$6F82), then randomly picks between:
-;   70% → AiAction_ManageOfficerLoyalty (field[$02] management)
-;   30% → FindWeakestLoyaltyOfficer → boost officer field[$03]
-; If officer field[$03] ≥ 70, retries. Falls through to AiAction_EvaluateAndExecute
+;   70% → @AiAction_ManageOfficerLoyalty (field[$02] management)
+;   30% → @FindWeakestLoyaltyOfficer → boost officer field[$03]
+; If officer field[$03] ≥ 70, retries. Falls through to @AiAction_EvaluateAndExecute
 ; if no valid officer found.
 ;-------------------------------------------------------------------------------
-AiAction_ContinueTurn:
+@AiAction_ContinueTurn:
   LDY #$0F                                            ; $C1E0: A0 0F      ; clear 16 bytes of AI work area
   LDA #$FF                                            ; $C1E2: A9 FF
 @ClearLoop:
@@ -5429,13 +5374,13 @@ AiAction_ContinueTurn:
   JSR Proc_D4BB                                       ; $C1EC: 20 BB D4
   CMP #$1E                                            ; $C1EF: C9 1E
   BCC @BranchRandom                                           ; $C1F1: 90 03
-  JMP AiAction_ManageOfficerLoyalty                   ; $C1F3: 4C 98 C2  ; 70% → officer management
+  JMP @AiAction_ManageOfficerLoyalty                   ; $C1F3: 4C 98 C2  ; 70% → officer management
 @BranchRandom:
-  JSR FindWeakestLoyaltyOfficer                       ; $C1F6: 20 48 C2  ; find officer w/ lowest field[$03]
+  JSR @FindWeakestLoyaltyOfficer                       ; $C1F6: 20 48 C2  ; find officer w/ lowest field[$03]
   LDA $23                                             ; $C1F9: A5 23
   CMP #$FF                                            ; $C1FB: C9 FF
   BNE @ValidOfficer                                           ; $C1FD: D0 03
-  JMP AiAction_EvaluateAndExecute                     ; $C1FF: 4C 37 C3  ; no officer → strategic eval
+  JMP @AiAction_EvaluateAndExecute                     ; $C1FF: 4C 37 C3  ; no officer → strategic eval
 @ValidOfficer:
   STA a:$0036                                         ; $C202: 8D 36 00
   LDY #$03                                            ; $C205: A0 03
@@ -5450,12 +5395,12 @@ AiAction_ContinueTurn:
   STA $24                                             ; $C218: 85 24
   LDA $6F5E                                           ; $C21A: AD 5E 6F
   JSR Proc_D36F                                       ; $C21D: 20 6F D3
-  .byte $90,$23                                       ; $C220: 90 23 (BCC mid-instruction target)
+  BCC @ActionDone                                        ; $C220: 90 23 (BCC @ActionDone)
   LDA #$05                                            ; $C222: A9 05
   JSR Proc_D4AD                                       ; $C224: 20 AD D4
   CLC                                                 ; $C227: 18
   LDY $6F02                                           ; $C228: AC 02 6F
-  ADC KingdomActionModifiers+9,Y                      ; $C22B: 79 4B C0  ; modifier at offset 9
+  ADC @KingdomActionModifiers+9,Y                      ; $C22B: 79 4B C0  ; modifier at offset 9
   STA $22                                             ; $C22E: 85 22
   LDA a:$0036                                         ; $C230: AD 36 00
   LDY #$03                                            ; $C233: A0 03
@@ -5466,15 +5411,16 @@ AiAction_ContinueTurn:
   JSR Proc_D5E7                                       ; $C23D: 20 E7 D5
   LDA #$05                                            ; $C240: A9 05
   JSR Proc_D152                                       ; $C242: 20 52 D1
-  JMP $BEC7                                           ; $C245: 4C C7 BE  ; return to AI turn loop
+@ActionDone:
+  JMP @AiAction_EndTurn                                ; $C245: 4C C7 BE  ; return to AI turn loop
 
 ;-------------------------------------------------------------------------------
-; $C248: FindWeakestLoyaltyOfficer
+; $C248: @FindWeakestLoyaltyOfficer
 ; Scans officer slots $11–$1A for the officer with lowest field[$03]
 ; (loyalty). Skips empty ($FF), inactive ($6F62=0), and maxed (100) officers.
 ; Returns: officer ID in $23 ($FF if none found).
 ;-------------------------------------------------------------------------------
-FindWeakestLoyaltyOfficer:
+@FindWeakestLoyaltyOfficer:
   LDA #$11                                            ; $C248: A9 11      ; start slot = $11
   STA $24                                             ; $C24A: 85 24
   LDA #$FF                                            ; $C24C: A9 FF      ; init best = $FF (none)
@@ -5515,17 +5461,16 @@ FindWeakestLoyaltyOfficer:
   STA $23                                             ; $C295: 85 23
 @Done_Weak:
   RTS                                                 ; $C297: 60
-.endproc
 
 
 
 ;===============================================================================
-; $C298: AiAction_ManageOfficerLoyalty
+; $C298: @AiAction_ManageOfficerLoyalty
 ; Finds officer with lowest field[$02], boosts it if in range [50, 80).
-; Uses FindLowestAttributeOfficer, then adds computed bonus to field[$02].
+; Uses @FindLowestAttributeOfficer, then adds computed bonus to field[$02].
 ; Retries if value is outside [50, 80) range.
 ;===============================================================================
-.proc AiAction_ManageOfficerLoyalty
+@AiAction_ManageOfficerLoyalty:
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
@@ -5534,17 +5479,17 @@ FindWeakestLoyaltyOfficer:
   work_outer_idx           = $0036
   sram_kingdom_index       = $6F02
 
-  JSR FindLowestAttributeOfficer                      ; $C298: 20 EB C2  ; find officer w/ lowest field[$02]
+  JSR @FindLowestAttributeOfficer                      ; $C298: 20 EB C2  ; find officer w/ lowest field[$02]
   LDA $23                                             ; $C29B: A5 23
   CMP #$FF                                            ; $C29D: C9 FF
-  .byte $F0,$47                                       ; $C29F: F0 47 (BEQ mid-instruction target)
+  BEQ @ActionDone                                   ; $C29F: F0 47 (BEQ @ActionDone)
   STA a:$0036                                         ; $C2A1: 8D 36 00
   LDY #$02                                            ; $C2A4: A0 02
   JSR Proc_D283                                       ; $C2A6: 20 83 D2
   CMP #$32                                            ; $C2A9: C9 32
-  BCC AiAction_ManageOfficerLoyalty                   ; $C2AB: 90 EB      ; below 50 → retry
+  BCC @AiAction_ManageOfficerLoyalty                   ; $C2AB: 90 EB      ; below 50 → retry
   CMP #$50                                            ; $C2AD: C9 50
-  BCS AiAction_ManageOfficerLoyalty                   ; $C2AF: B0 E7      ; above 80 → retry
+  BCS @AiAction_ManageOfficerLoyalty                   ; $C2AF: B0 E7      ; above 80 → retry
   LDA #$14                                            ; $C2B1: A9 14
   STA $22                                             ; $C2B3: 85 22
   LDA #$00                                            ; $C2B5: A9 00
@@ -5553,12 +5498,12 @@ FindWeakestLoyaltyOfficer:
   STA $24                                             ; $C2BB: 85 24
   LDA $6F5E                                           ; $C2BD: AD 5E 6F
   JSR Proc_D36F                                       ; $C2C0: 20 6F D3
-  .byte $90,$23                                       ; $C2C3: 90 23 (BCC mid-instruction target)
+  BCC @ActionDone                                   ; $C2C3: 90 23 (BCC @ActionDone)
   LDA #$05                                            ; $C2C5: A9 05
   JSR Proc_D4AD                                       ; $C2C7: 20 AD D4
   CLC                                                 ; $C2CA: 18
   LDY $6F02                                           ; $C2CB: AC 02 6F
-  ADC KingdomActionModifiers+9,Y                      ; $C2CE: 79 4B C0  ; modifier at offset 9
+  ADC @KingdomActionModifiers+9,Y                      ; $C2CE: 79 4B C0  ; modifier at offset 9
   STA $22                                             ; $C2D1: 85 22
   LDA a:$0036                                         ; $C2D3: AD 36 00
   LDY #$02                                            ; $C2D6: A0 02
@@ -5569,15 +5514,16 @@ FindWeakestLoyaltyOfficer:
   JSR Proc_D5E7                                       ; $C2E0: 20 E7 D5
   LDA #$05                                            ; $C2E3: A9 05
   JSR Proc_D152                                       ; $C2E5: 20 52 D1
-  JMP $BEC7                                           ; $C2E8: 4C C7 BE  ; return to AI turn loop
+@ActionDone:
+  JMP @AiAction_EndTurn                                ; $C2E8: 4C C7 BE  ; return to AI turn loop
 
 ;-------------------------------------------------------------------------------
-; $C2EB: FindLowestAttributeOfficer
-; Like FindWeakestLoyaltyOfficer but scans field[$02] instead of $03.
+; $C2EB: @FindLowestAttributeOfficer
+; Like @FindWeakestLoyaltyOfficer but scans field[$02] instead of $03.
 ; Does NOT skip officers at value=100.
 ; Returns: officer ID in $23 ($FF if none found).
 ;-------------------------------------------------------------------------------
-FindLowestAttributeOfficer:
+@FindLowestAttributeOfficer:
   LDA #$11                                            ; $C2EB: A9 11      ; start slot = $11
   STA $24                                             ; $C2ED: 85 24
   LDA #$FF                                            ; $C2EF: A9 FF      ; init best = $FF (none)
@@ -5616,17 +5562,16 @@ FindLowestAttributeOfficer:
   STA $23                                             ; $C334: 85 23
 @Done_Low:
   RTS                                                 ; $C336: 60
-.endproc
 
 
 ;===============================================================================
-; $C337: AiAction_EvaluateAndExecute
+; $C337: @AiAction_EvaluateAndExecute
 ; Switches to bank 1F, evaluates entity strategic state, and executes actions.
 ; Loops: evaluate → deduct cost → write result → re-evaluate until done.
 ; Two paths based on $3A bit fields: lower 5 bits (domestic/military actions)
 ; and upper 3 bits (diplomacy/special actions), using different cost tables.
 ;===============================================================================
-.proc AiAction_EvaluateAndExecute
+@AiAction_EvaluateAndExecute:
   math_acc_mhi             = $0022
   work_inner_idx2          = $0038
   work_limit_a             = $003A
@@ -5636,10 +5581,11 @@ FindLowestAttributeOfficer:
   LDY $6F5E                                           ; $C33C: AC 5E 6F
   LDA $8FFC,Y                                         ; $C33F: B9 FC 8F
   AND #$01                                            ; $C342: 29 01
-  .byte $D0,$03                                       ; $C344: D0 03 (BNE mid-instruction target)
+  BNE @ContinueEval                                        ; $C344: D0 03 (BNE @ContinueEval)
 @BailOut:
-  JMP $BEC7                                           ; $C346: 4C C7 BE
-  JSR Proc_C3FF                                       ; $C349: 20 FF C3
+  JMP @AiAction_EndTurn                                ; $C346: 4C C7 BE
+@ContinueEval:
+  JSR @FindBestActionField                               ; $C349: 20 FF C3
   LDA a:$0038                                         ; $C34C: AD 38 00
   CMP #$FF                                            ; $C34F: C9 FF
   BEQ @BailOut                                           ; $C351: F0 F3
@@ -5650,7 +5596,7 @@ FindLowestAttributeOfficer:
   BEQ @DiplomacyPath                                           ; $C35E: F0 1E
   ASL A                                               ; $C360: 0A
   TAX                                                 ; $C361: AA
-  JSR DeductActionCost                                ; $C362: 20 A4 C3  ; deduct from cost table 1/2
+  JSR @DeductActionCost                                ; $C362: 20 A4 C3  ; deduct from cost table 1/2
   BCC @BailOut                                           ; $C365: 90 DF      ; underflow → bail out
   LDA a:$0038                                         ; $C367: AD 38 00
   LDY #$0A                                            ; $C36A: A0 0A
@@ -5671,7 +5617,7 @@ FindLowestAttributeOfficer:
   ADC #$0C                                            ; $C384: 69 0C
   ASL A                                               ; $C386: 0A
   TAX                                                 ; $C387: AA
-  JSR DeductActionCost                                ; $C388: 20 A4 C3  ; deduct from cost table 3/4
+  JSR @DeductActionCost                                ; $C388: 20 A4 C3  ; deduct from cost table 3/4
   BCC @BailOut                                           ; $C38B: 90 B9      ; underflow → bail out
   LDA a:$0038                                         ; $C38D: AD 38 00
   LDY #$0A                                            ; $C390: A0 0A
@@ -5682,60 +5628,61 @@ FindLowestAttributeOfficer:
   LDA #$05                                            ; $C39C: A9 05
   JSR Proc_D152                                       ; $C39E: 20 52 D1
   JMP $C349                                           ; $C3A1: 4C 49 C3
-.endproc
 
 
 ;===============================================================================
-; $C3A4: DeductActionCost
+; $C3A4: @DeductActionCost
 ; Subtracts a 16-bit cost from entity record[$02/$03] using cost tables.
 ; X = table index (0,2,4,...14). Returns with C=1 on success, C=0 on underflow.
 ; Cost tables: $C3BF (domestic), $C3CF (military), $C3DF (diplomacy-A), $C3EF (diplomacy-B)
 ;===============================================================================
-.proc DeductActionCost
+@DeductActionCost:
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
 
   LDY #$02                                            ; $C3A4: A0 02
   LDA ($20),Y                                         ; $C3A6: B1 20
   SEC                                                 ; $C3A8: 38
-  SBC ActionCostTable_Domestic,X                      ; $C3A9: FD BF C3  ; subtract cost lo byte
+  SBC @ActionCostTable_Domestic,X                      ; $C3A9: FD BF C3  ; subtract cost lo byte
   STA $22                                             ; $C3AC: 85 22
   INY                                                 ; $C3AE: C8
   LDA ($20),Y                                         ; $C3AF: B1 20
-  SBC ActionCostTable_Domestic+1,X                    ; $C3B1: FD C0 C3  ; subtract cost hi byte
-  .byte $90,$08                                       ; $C3B4: 90 08 (BCC mid-instruction target)
+  SBC @ActionCostTable_Domestic+1,X                    ; $C3B1: FD C0 C3  ; subtract cost hi byte
+  BCC @Underflow                                        ; $C3B4: 90 08 (BCC @Underflow)
   STA ($20),Y                                         ; $C3B6: 91 20
   LDA $22                                             ; $C3B8: A5 22
   DEY                                                 ; $C3BA: 88
   STA ($20),Y                                         ; $C3BB: 91 20
   SEC                                                 ; $C3BD: 38
+@Underflow:
   RTS                                                 ; $C3BE: 60
 
 ; Action cost tables (16-bit LE, indexed by X = 0,2,4,...14)
 ; Each entry is a 16-bit cost value (lo,hi).
 ; Domestic: used by lower-5-bit path (indices 0–4, rest zero-padded)
-ActionCostTable_Domestic:
+@ActionCostTable_Domestic:
   .word $0032,$0046,$0078,$00B4,$00FA              ; 50, 70, 120, 180, 250
   .word $0000,$0000,$0000                            ; padding (unused entries)
 ; Military: used by lower-5-bit path (indices 0–5)
-ActionCostTable_Military:
+@ActionCostTable_Military:
   .word $003C,$0064,$0096,$00C8,$00F0,$0104         ; 60, 100, 150, 200, 240, 260
   .word $0000,$0090                                  ; padding
 ; Diplomacy-A: used by upper-3-bit path (indices 0–6)
-ActionCostTable_DiplomacyA:
+@ActionCostTable_DiplomacyA:
   .word $0050,$0064,$0078,$00C8,$00FA,$012C,$015E   ; 80, 100, 120, 200, 250, 300, 350
   .word $0190                                        ; padding
 ; Diplomacy-B: used by upper-3-bit path (indices 0–7)
-ActionCostTable_DiplomacyB:
+@ActionCostTable_DiplomacyB:
   .word $0032,$0050,$0064,$0096,$00C8,$00FA,$015E,$0190; 50, 80, 100, 150, 200, 250, 350, 400
-.endproc
-.endproc
 
 
 ;===============================================================================
-; $C3FF: Proc_C3FF
+; $C3FF: @FindBestActionField (nested in AiTurnDispatch)
+; Scans entity fields $11–$1A to find the highest-scoring action.
+; Uses @AiActionParamTable for action group lookup and threshold comparison.
+; Returns: $38 = best field index ($FF if none), $3A = best field value.
 ;===============================================================================
-.proc Proc_C3FF
+@FindBestActionField:
   math_acc_lo              = $0020
   work_inner_idx           = $0037
   work_inner_idx2          = $0038
@@ -5755,28 +5702,30 @@ ActionCostTable_DiplomacyB:
   LDY a:$0037                                         ; $C414: AC 37 00
   LDA ($20),Y                                         ; $C417: B1 20
   CMP #$FF                                            ; $C419: C9 FF
-  BEQ LC446                                           ; $C41B: F0 29
+  BEQ @NextField                                      ; $C41B: F0 29
   STA a:$003B                                         ; $C41D: 8D 3B 00
-  JSR $C451                                           ; $C420: 20 51 C4
+  JSR @GetActionGroup                                 ; $C420: 20 51 C4
   CMP #$FF                                            ; $C423: C9 FF
-  BEQ LC446                                           ; $C425: F0 1F
+  BEQ @NextField                                      ; $C425: F0 1F
   STA a:$003C                                         ; $C427: 8D 3C 00
   LDA a:$003B                                         ; $C42A: AD 3B 00
   LDY #$01                                            ; $C42D: A0 01
   JSR $D2AB                                           ; $C42F: 20 AB D2
   CMP a:$0039                                         ; $C432: CD 39 00
-  BCC LC446                                           ; $C435: 90 0F
+  BCC @NextField                                      ; $C435: 90 0F
   STA a:$0039                                         ; $C437: 8D 39 00
   LDA a:$003B                                         ; $C43A: AD 3B 00
   STA a:$0038                                         ; $C43D: 8D 38 00
   LDA a:$003C                                         ; $C440: AD 3C 00
   STA a:$003A                                         ; $C443: 8D 3A 00
-LC446:
+@NextField:
   INC a:$0037                                         ; $C446: EE 37 00
   LDA a:$0037                                         ; $C449: AD 37 00
   CMP #$1B                                            ; $C44C: C9 1B
-  .byte $90,$BE                                       ; $C44E: 90 BE (BCC mid-instruction target)
+  BCC @NextField                                      ; $C44E: 90 BE
   RTS                                                 ; $C450: 60
+;--- GetActionGroup: classify entity into action group (0–3) ---
+@GetActionGroup:
   LDY #$0A                                            ; $C451: A0 0A
   JSR $D2AB                                           ; $C453: 20 AB D2
   STA $2A                                             ; $C456: 85 2A
@@ -5784,15 +5733,15 @@ LC446:
   PHA                                                 ; $C45A: 48
   LDY #$00                                            ; $C45B: A0 00
   CMP #$08                                            ; $C45D: C9 08
-  BCC LC469                                           ; $C45F: 90 08
+  BCC @LookupThreshold                                ; $C45F: 90 08
   LDY #$04                                            ; $C461: A0 04
   CMP #$10                                            ; $C463: C9 10
-  BCC LC469                                           ; $C465: 90 02
+  BCC @LookupThreshold                                ; $C465: 90 02
   LDY #$08                                            ; $C467: A0 08
-LC469:
+@LookupThreshold:
   STY $2B                                             ; $C469: 84 2B
   LDY $6F5E                                           ; $C46B: AC 5E 6F
-  LDA $C4D0,Y                                         ; $C46E: B9 D0 C4
+  LDA @AiActionParamTable,Y                            ; $C46E: B9 D0 C4
   ASL A                                               ; $C471: 0A
   ASL A                                               ; $C472: 0A
   ASL A                                               ; $C473: 0A
@@ -5801,32 +5750,33 @@ LC469:
   ADC $2B                                             ; $C476: 65 2B
   TAY                                                 ; $C478: A8
   PLA                                                 ; $C479: 68
-  CMP $C4EE,Y                                         ; $C47A: D9 EE C4
-  .byte $90,$15                                       ; $C47D: 90 15 (BCC mid-instruction target)
+  CMP @AiActionParamTable,Y                            ; $C47A: D9 EE C4
+  BCC @Found                                          ; $C47D: 90 15
   INY                                                 ; $C47F: C8
-  CMP $C4EE,Y                                         ; $C480: D9 EE C4
-  .byte $90,$0F                                       ; $C483: 90 0F (BCC mid-instruction target)
+  CMP @AiActionParamTable,Y                            ; $C480: D9 EE C4
+  BCC @Found                                          ; $C483: 90 0F
   INY                                                 ; $C485: C8
-  CMP $C4EE,Y                                         ; $C486: D9 EE C4
-  .byte $90,$09                                       ; $C489: 90 09 (BCC mid-instruction target)
+  CMP @AiActionParamTable,Y                            ; $C486: D9 EE C4
+  BCC @Found                                          ; $C489: 90 09
   INY                                                 ; $C48B: C8
-  CMP $C4EE,Y                                         ; $C48C: D9 EE C4
-  .byte $90,$03                                       ; $C48F: 90 03 (BCC mid-instruction target)
-  JMP Proc_C498                                       ; $C491: 4C 98 C4
-  LDA $C4EE,Y                                         ; $C494: B9 EE C4
+  CMP @AiActionParamTable,Y                            ; $C48C: D9 EE C4
+  BCC @Found                                          ; $C48F: 90 03
+  JMP @ComputeActionScore                              ; $C491: 4C 98 C4
+@Found:
+  LDA @AiActionParamTable,Y                            ; $C494: B9 EE C4
   RTS                                                 ; $C497: 60
-.endproc
-LC446 = $C446
-LC469 = $C469
 
 
 ;===============================================================================
-; $C498: Proc_C498
+; $C498: @ComputeActionScore (nested in AiTurnDispatch)
+; Computes final action score from entity action group and field value.
+; Action group (upper 4 bits of @AiActionParamTable) × 32 + threshold × 32.
+; Returns: A = score (or $FF if no match).
 ;===============================================================================
-.proc Proc_C498
+@ComputeActionScore:
 
   LDY $6F5E                                           ; $C498: AC 5E 6F
-  LDA $C4D0,Y                                         ; $C49B: B9 D0 C4
+  LDA @AiActionParamTable,Y                            ; $C49B: B9 D0 C4
   ASL A                                               ; $C49E: 0A
   ASL A                                               ; $C49F: 0A
   ASL A                                               ; $C4A0: 0A
@@ -5840,47 +5790,49 @@ LC469 = $C469
   LSR A                                               ; $C4AA: 4A
   LSR A                                               ; $C4AB: 4A
   LSR A                                               ; $C4AC: 4A
-  CMP $C4EE,Y                                         ; $C4AD: D9 EE C4
-  BCC LC4C7                                           ; $C4B0: 90 15
+  CMP @AiActionParamTable,Y                            ; $C4AD: D9 EE C4
+  BCC @Match                                          ; $C4B0: 90 15
   INY                                                 ; $C4B2: C8
-  CMP $C4EE,Y                                         ; $C4B3: D9 EE C4
-  BCC LC4C7                                           ; $C4B6: 90 0F
+  CMP @AiActionParamTable,Y                            ; $C4B3: D9 EE C4
+  BCC @Match                                          ; $C4B6: 90 0F
   INY                                                 ; $C4B8: C8
-  CMP $C4EE,Y                                         ; $C4B9: D9 EE C4
-  BCC LC4C7                                           ; $C4BC: 90 09
+  CMP @AiActionParamTable,Y                            ; $C4B9: D9 EE C4
+  BCC @Match                                          ; $C4BC: 90 09
   INY                                                 ; $C4BE: C8
-  CMP $C4EE,Y                                         ; $C4BF: D9 EE C4
-  BCC LC4C7                                           ; $C4C2: 90 03
+  CMP @AiActionParamTable,Y                            ; $C4BF: D9 EE C4
+  BCC @Match                                          ; $C4C2: 90 03
   LDA #$FF                                            ; $C4C4: A9 FF
   RTS                                                 ; $C4C6: 60
-LC4C7:
-  LDA $C4EE,Y                                         ; $C4C7: B9 EE C4
+@Match:
+  LDA @AiActionParamTable,Y                            ; $C4C7: B9 EE C4
   ASL A                                               ; $C4CA: 0A
   ASL A                                               ; $C4CB: 0A
   ASL A                                               ; $C4CC: 0A
   ASL A                                               ; $C4CD: 0A
   ASL A                                               ; $C4CE: 0A
   RTS                                                 ; $C4CF: 60
+
+
+;===============================================================================
+; $C4D0: @AiActionParamTable (data, nested in AiTurnDispatch)
+; 30-byte action group table: maps entity index → action group (0–3).
+; 30-byte threshold table ($C4EE): upper-5-bit thresholds for action scoring.
+;===============================================================================
+@AiActionParamTable:
+  .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $C4D0
+  .byte $00,$00,$00,$01,$00,$00,$00,$01,$00,$00,$00,$01,$00,$00,$00,$00; $C4E0
+  .byte $00,$00,$00,$01,$00,$00,$00,$00,$01,$01,$00,$00,$01,$00,$01,$02; $C4F0
+  .byte $03,$08,$09,$0A,$0B,$10,$11,$12,$13,$00,$01,$02,$03,$01,$02,$03; $C500
+  .byte $04,$0A,$0B,$0C,$0D,$12,$13,$14,$15,$02,$03,$04,$05             ; $C510
 .endproc
-LC4C7 = $C4C7
 
 
 ;===============================================================================
-; $C4D0: Proc_C4D0
+; $C50E: FindBestOfficerAssign
+; Search entities 0-29 for the best-scoring officer owned by the current player,
+; then move it: remove from source list ($FF-terminate) and insert into target list.
 ;===============================================================================
-.proc Proc_C4D0
-
-  BRK                                                 ; $C4D0: 00
-  .byte $00,$00,$00,$01,$00,$00,$00,$01,$00,$00,$00,$01,$00,$00,$00,$00; $C4D1: 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 00
-  .byte $00,$00,$00,$01,$00,$00,$00,$00,$01,$01,$00,$00,$01,$00,$01,$02; $C4E1: 00 00 00 01 00 00 00 00 01 01 00 00 01 00 01 02
-  .byte $03,$08,$09,$0A,$0B,$10,$11,$12,$13,$00,$01,$02,$03,$01,$02,$03; $C4F1: 03 08 09 0A 0B 10 11 12 13 00 01 02 03 01 02 03
-  .byte $04,$0A,$0B,$0C,$0D,$12,$13,$14,$15,$02,$03,$04,$05; $C501: 04 0A 0B 0C 0D 12 13 14 15 02 03 04 05
-.endproc
-
-;===============================================================================
-; $C50E: Proc_C50E
-;===============================================================================
-.proc Proc_C50E
+.proc FindBestOfficerAssign
   math_acc_lo              = $0020
   work_outer_idx           = $0036
   work_limit_b             = $003B
@@ -5889,106 +5841,112 @@ LC4C7 = $C4C7
   work_search_max          = $0045
   sram_player_id           = $6F03
 
-  JSR Proc_D249                                       ; $C50E: 20 49 D2
-  STA a:$0045                                         ; $C511: 8D 45 00
+  JSR Proc_D249                                       ; $C50E: 20 49 D2  ; get search count
+  STA a:$0045                                         ; $C511: 8D 45 00  ; work_search_max
   LDA a:$0045                                         ; $C514: AD 45 00
-  STA a:$0036                                         ; $C517: 8D 36 00
-  JSR Proc_D1A4                                       ; $C51A: 20 A4 D1
-  BNE LC520                                           ; $C51D: D0 01
-  RTS                                                 ; $C51F: 60
-LC520:
+  STA a:$0036                                         ; $C517: 8D 36 00  ; work_outer_idx = count
+  JSR Proc_D1A4                                       ; $C51A: 20 A4 D1  ; check if any candidates
+  BNE @InitSearch                                     ; $C51D: D0 01  ; yes → proceed
+  RTS                                                 ; $C51F: 60     ; no candidates, exit
+@InitSearch:                                                ; --- init search state ---
   LDA #$00                                            ; $C520: A9 00
-  STA a:$003B                                         ; $C522: 8D 3B 00
-  STA a:$003C                                         ; $C525: 8D 3C 00
+  STA a:$003B                                         ; $C522: 8D 3B 00  ; loop_idx = 0
+  STA a:$003C                                         ; $C525: 8D 3C 00  ; best_score = 0
   LDA #$FF                                            ; $C528: A9 FF
-  STA a:$003D                                         ; $C52A: 8D 3D 00
+  STA a:$003D                                         ; $C52A: 8D 3D 00  ; best_idx = none
+@NextEntity:                                          ; --- loop: evaluate entity $003B ---
   LDA a:$003B                                         ; $C52D: AD 3B 00
   STA a:$0036                                         ; $C530: 8D 36 00
-  JSR Proc_D105                                       ; $C533: 20 05 D1
+  JSR Proc_D105                                       ; $C533: 20 05 D1  ; resolve entity ptr
   AND #$07                                            ; $C536: 29 07
-  CMP $6F03                                           ; $C538: CD 03 6F
-  .byte $D0,$2A                                       ; $C53B: D0 2A (BNE mid-instruction target)
-  JSR Proc_D1A4                                       ; $C53D: 20 A4 D1
-  .byte $D0,$25                                       ; $C540: D0 25 (BNE mid-instruction target)
-  LDX a:$0045                                         ; $C542: AE 45 00
-  LDY a:$0036                                         ; $C545: AC 36 00
-  JSR Proc_D583                                       ; $C548: 20 83 D5
+  CMP $6F03                                           ; $C538: CD 03 6F  ; belongs to current player?
+  BNE @AdvanceIdx                                     ; $C53B: D0 2A  ; no → next
+  JSR Proc_D1A4                                       ; $C53D: 20 A4 D1  ; check eligibility
+  BNE @AdvanceIdx                                     ; $C540: D0 25  ; not eligible → next
+  LDX a:$0045                                         ; $C542: AE 45 00  ; search_max
+  LDY a:$0036                                         ; $C545: AC 36 00  ; entity_idx
+  JSR Proc_D583                                       ; $C548: 20 83 D5  ; search → A=result
   CMP #$FF                                            ; $C54B: C9 FF
-  .byte $D0,$18                                       ; $C54D: D0 18 (BNE mid-instruction target)
+  BNE @AdvanceIdx                                     ; $C54D: D0 18  ; not $FF → skip
   LDA a:$003B                                         ; $C54F: AD 3B 00
-  JSR Proc_D304                                       ; $C552: 20 04 D3
-  CMP a:$003C                                         ; $C555: CD 3C 00
-  .byte $90,$0D                                       ; $C558: 90 0D (BCC mid-instruction target)
+  JSR Proc_D304                                       ; $C552: 20 04 D3  ; get score for entity
+  CMP a:$003C                                         ; $C555: CD 3C 00  ; better than best?
+  BCC @AdvanceIdx                                     ; $C558: 90 0D  ; no → skip
   CMP #$0A                                            ; $C55A: C9 0A
-  .byte $F0,$09                                       ; $C55C: F0 09 (BEQ mid-instruction target)
-  STA a:$003C                                         ; $C55E: 8D 3C 00
+  BEQ @AdvanceIdx                                     ; $C55C: F0 09  ; score=$0A → skip
+  STA a:$003C                                         ; $C55E: 8D 3C 00  ; best_score = score
   LDA a:$003B                                         ; $C561: AD 3B 00
-  STA a:$003D                                         ; $C564: 8D 3D 00
+  STA a:$003D                                         ; $C564: 8D 3D 00  ; best_idx = entity
+@AdvanceIdx:                                                ; --- next entity ---
   INC a:$003B                                         ; $C567: EE 3B 00
   LDA a:$003B                                         ; $C56A: AD 3B 00
-  CMP #$1E                                            ; $C56D: C9 1E
-  .byte $90,$BC                                       ; $C56F: 90 BC (BCC mid-instruction target)
+  CMP #$1E                                            ; $C56D: C9 1E  ; idx < 30?
+  BCC @NextEntity                                     ; $C56F: 90 BC  ; yes → continue loop
   LDA a:$003D                                         ; $C571: AD 3D 00
   CMP #$FF                                            ; $C574: C9 FF
-  .byte $F0,$3D                                       ; $C576: F0 3D (BEQ mid-instruction target)
-  LDA a:$0045                                         ; $C578: AD 45 00
-  JSR Proc_D105                                       ; $C57B: 20 05 D1
+  BEQ @Exit                                           ; $C576: F0 3D  ; no best found → exit
+  ; --- Move officer: remove from source, insert into target ---
+  LDA a:$0045                                         ; $C578: AD 45 00  ; source entity
+  JSR Proc_D105                                       ; $C57B: 20 05 D1  ; resolve ptr → ($20)
   LDY #$00                                            ; $C57E: A0 00
-  LDA ($EE),Y                                         ; $C580: B1 EE
-  STA $2A                                             ; $C582: 85 2A
-  LDY #$11                                            ; $C584: A0 11
+  LDA ($EE),Y                                         ; $C580: B1 EE  ; read value from ($EE)
+  STA $2A                                             ; $C582: 85 2A     ; save as transfer_value
+  LDY #$11                                            ; $C584: A0 11  ; scan offset $11 in source
+@ScanSourceLoop:
   LDA ($20),Y                                         ; $C586: B1 20
-  CMP $2A                                             ; $C588: C5 2A
-  .byte $F0,$04                                       ; $C58A: F0 04 (BEQ mid-instruction target)
+  CMP $2A                                             ; $C588: C5 2A  ; found transfer_value?
+  BEQ @EraseFromSource                                ; $C58A: F0 04  ; yes → overwrite
   INY                                                 ; $C58C: C8
-  JMP $C586                                           ; $C58D: 4C 86 C5
+  JMP @ScanSourceLoop                                 ; $C58D: 4C 86 C5  ; continue scan
+@EraseFromSource:                                                ; --- $FF-terminate source slot ---
   LDA #$FF                                            ; $C590: A9 FF
-  STA ($20),Y                                         ; $C592: 91 20
-  LDA a:$003D                                         ; $C594: AD 3D 00
-  JSR Proc_D105                                       ; $C597: 20 05 D1
+  STA ($20),Y                                         ; $C592: 91 20  ; erase from source
+  LDA a:$003D                                         ; $C594: AD 3D 00  ; best entity index
+  JSR Proc_D105                                       ; $C597: 20 05 D1  ; resolve ptr → ($20)
   LDY #$11                                            ; $C59A: A0 11
-  LDA ($20),Y                                         ; $C59C: B1 20
+@ScanTargetLoop:
+  LDA ($20),Y                                         ; $C59C: B1 20  ; scan for $FF slot
   CMP #$FF                                            ; $C59E: C9 FF
-  .byte $F0,$04                                       ; $C5A0: F0 04 (BEQ mid-instruction target)
+  BEQ @InsertIntoTarget                               ; $C5A0: F0 04  ; found empty slot
   INY                                                 ; $C5A2: C8
-  JMP $C59C                                           ; $C5A3: 4C 9C C5
+  JMP @ScanTargetLoop                                 ; $C5A3: 4C 9C C5  ; continue scan
+@InsertIntoTarget:                                                ; --- insert transfer_value into target ---
   LDA $2A                                             ; $C5A6: A5 2A
-  STA ($20),Y                                         ; $C5A8: 91 20
+  STA ($20),Y                                         ; $C5A8: 91 20  ; write to target slot
   LDA a:$0045                                         ; $C5AA: AD 45 00
   JSR Proc_D3DD                                       ; $C5AD: 20 DD D3
   LDA #$02                                            ; $C5B0: A9 02
   JSR Proc_D165                                       ; $C5B2: 20 65 D1
+@Exit:
   JSR Proc_D249                                       ; $C5B5: 20 49 D2
   RTS                                                 ; $C5B8: 60
 .endproc
-LC520 = $C520
 
 
 ;===============================================================================
-; $C5B9: Proc_C5B9
+; $C5B9: ProcessAllOfficers
+; Iterate entities 0-29: evaluate each officer and attempt kingdom assignment.
+; Contains nested EvaluateAndMarkOfficer ($C5D2).
 ;===============================================================================
-.proc Proc_C5B9
+.proc ProcessAllOfficers
   work_outer_idx           = $0036
 
   LDA #$00                                            ; $C5B9: A9 00
-  STA a:$0036                                         ; $C5BB: 8D 36 00
-LC5BE:
-  JSR Proc_C5D2                                       ; $C5BE: 20 D2 C5
-  JSR $C6CC                                           ; $C5C1: 20 CC C6
+  STA a:$0036                                         ; $C5BB: 8D 36 00  ; idx = 0
+@PerEntityLoop:                                       ; --- per-entity loop (0..29) ---
+  JSR EvaluateAndMarkOfficer                          ; $C5BE: 20 D2 C5  ; evaluate & mark officer
+  JSR CalcActionProb_Entry                            ; $C5C1: 20 CC C6  ; attempt kingdom assign
   INC a:$0036                                         ; $C5C4: EE 36 00
   LDA a:$0036                                         ; $C5C7: AD 36 00
   CMP #$1E                                            ; $C5CA: C9 1E
-  BCC LC5BE                                           ; $C5CC: 90 F0
+  BCC @PerEntityLoop                                  ; $C5CC: 90 F0
   JSR Proc_D249                                       ; $C5CE: 20 49 D2
   RTS                                                 ; $C5D1: 60
-.endproc
-LC5BE = $C5BE
 
-
-;===============================================================================
-; $C5D2: Proc_C5D2
-;===============================================================================
-.proc Proc_C5D2
+  ;===============================================================================
+  ; $C5D2: EvaluateAndMarkOfficer (nested in ProcessAllOfficers)
+  ;===============================================================================
+  .proc EvaluateAndMarkOfficer
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -6004,17 +5962,19 @@ LC5BE = $C5BE
   JSR Proc_D105                                       ; $C5DA: 20 05 D1
   AND #$07                                            ; $C5DD: 29 07
   CMP $6F03                                           ; $C5DF: CD 03 6F
-  .byte $D0,$09                                       ; $C5E2: D0 09 (BNE mid-instruction target)
+  BNE @EarlyExit                                      ; $C5E2: D0 09
   LDA #$64                                            ; $C5E4: A9 64
   JSR Proc_D4BB                                       ; $C5E6: 20 BB D4
   CMP #$0A                                            ; $C5E9: C9 0A
-  BCC LC5EE                                           ; $C5EB: 90 01
+  BCC @CheckScore                                     ; $C5EB: 90 01
   RTS                                                 ; $C5ED: 60
-LC5EE:
+@EarlyExit:
+  RTS                                                 ; $C5ED: 60
+@CheckScore:
   LDA a:$0036                                         ; $C5EE: AD 36 00
   JSR Proc_D304                                       ; $C5F1: 20 04 D3
   CMP #$0A                                            ; $C5F4: C9 0A
-  .byte $B0,$F5                                       ; $C5F6: B0 F5 (BCS mid-instruction target)
+  BCS @EarlyExit                                      ; $C5F6: B0 F5
   LDA a:$0036                                         ; $C5F8: AD 36 00
   STA $20                                             ; $C5FB: 85 20
   LDA #$14                                            ; $C5FD: A9 14
@@ -6029,7 +5989,7 @@ LC5EE:
   LDA $2B                                             ; $C610: A5 2B
   ADC #$8B                                            ; $C612: 69 8B
   STA $23                                             ; $C614: 85 23
-LC616:
+@EntryLoop:
   LDY a:$0037                                         ; $C616: AC 37 00
   INC a:$0037                                         ; $C619: EE 37 00
   INC a:$0037                                         ; $C61C: EE 37 00
@@ -6042,22 +6002,22 @@ LC616:
   STA $20                                             ; $C629: 85 20
   LDA $6F00                                           ; $C62B: AD 00 6F
   CMP $20                                             ; $C62E: C5 20
-  .byte $90,$3C                                       ; $C630: 90 3C (BCC mid-instruction target)
+  BCC @Exit                                           ; $C630: 90 3C
   LDA $24                                             ; $C632: A5 24
   LDY #$0B                                            ; $C634: A0 0B
   JSR Proc_D283                                       ; $C636: 20 83 D2
   AND #$03                                            ; $C639: 29 03
   CMP #$01                                            ; $C63B: C9 01
-  BNE LC616                                           ; $C63D: D0 D7
+  BNE @EntryLoop                                      ; $C63D: D0 D7
   LDA $24                                             ; $C63F: A5 24
-  JSR $C66F                                           ; $C641: 20 6F C6
+  JSR CalcActionProb_GetThreshold                     ; $C641: 20 6F C6
   STA $2A                                             ; $C644: 85 2A
-LC646:
+@RandomLoop:
   JSR B1F_RandomByte3                                 ; $C646: 20 9A E8
   CMP #$64                                            ; $C649: C9 64
-  BCS LC646                                           ; $C64B: B0 F9
+  BCS @RandomLoop                                     ; $C64B: B0 F9
   CMP $2A                                             ; $C64D: C5 2A
-  BCS LC616                                           ; $C64F: B0 C5
+  BCS @EntryLoop                                      ; $C64F: B0 C5
   LDY #$0B                                            ; $C651: A0 0B
   LDA ($20),Y                                         ; $C653: B1 20
   AND #$FC                                            ; $C655: 29 FC
@@ -6069,33 +6029,28 @@ LC646:
   INY                                                 ; $C663: C8
   LDA ($20),Y                                         ; $C664: B1 20
   CMP #$FF                                            ; $C666: C9 FF
-  .byte $D0,$F9                                       ; $C668: D0 F9 (BNE mid-instruction target)
+  BNE @FindSlot                                       ; $C668: D0 F9
   LDA $24                                             ; $C66A: A5 24
   STA ($20),Y                                         ; $C66C: 91 20
+@Exit:
   RTS                                                 ; $C66E: 60
-  LDY $6F03                                           ; $C66F: AC 03 6F
-  CPY #$04                                            ; $C672: C0 04
-  .byte $D0,$1A                                       ; $C674: D0 1A (BNE cross-proc)
-  CMP #$6D                                            ; $C676: C9 6D
-  .byte $F0,$13                                       ; $C678: F0 13 (BEQ cross-proc)
-  CMP #$70                                            ; $C67A: C9 70
-  .byte $F0,$0F                                       ; $C67C: F0 0F (BEQ cross-proc)
-  CMP #$37                                            ; $C67E: C9 37
-  .byte $F0,$0B                                       ; $C680: F0 0B (BEQ cross-proc)
-  CMP #$B7                                            ; $C682: C9 B7
-  .byte $F0,$07                                       ; $C684: F0 07 (BEQ cross-proc)
-  CMP #$90                                            ; $C686: C9 90
-  .byte $F0,$03                                       ; $C688: F0 03 (BEQ cross-proc)
+  .endproc
 .endproc
-LC5EE = $C5EE
-LC616 = $C616
-LC646 = $C646
 
 
 ;===============================================================================
-; $C68A: Proc_C68A
+; $C66F: CalcActionProb
+; Calculate action probability for the current player's officer.
+; GetThreshold ($C66F): return probability threshold ($5A or $0A) for action ID.
+; DefaultReturn ($C68A): return $0A (low ~10% chance).
+; ReturnValid ($C68D): return $5A (high ~89% chance).
+; CheckOtherPlayer ($C690): player 2/3 action ID lookup.
+; Entry ($C6CC): check entity ownership, copy kingdom data from bank $30,
+; iterate kingdom entries, roll random vs threshold, assign officers on success.
 ;===============================================================================
-.proc Proc_C68A
+.proc CalcActionProb
+  .global CalcActionProb_Entry
+  .global CalcActionProb_GetThreshold
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
@@ -6105,109 +6060,128 @@ LC646 = $C646
   sram_kingdom_index       = $6F02
   sram_player_id           = $6F03
 
+CalcActionProb_GetThreshold:
+  LDY $6F03                                           ; $C66F: AC 03 6F  ; player ID
+  CPY #$04                                            ; $C672: C0 04
+  BNE @CheckOtherPlayer                               ; $C674: D0 1A  ; not player 4 → other set
+  CMP #$6D                                            ; $C676: C9 6D  ; --- player 4 action IDs ---
+  BEQ @ReturnValid                                    ; $C678: F0 13  ; match → return $5A
+  CMP #$70                                            ; $C67A: C9 70
+  BEQ @ReturnValid                                    ; $C67C: F0 0F
+  CMP #$37                                            ; $C67E: C9 37
+  BEQ @ReturnValid                                    ; $C680: F0 0B
+  CMP #$B7                                            ; $C682: C9 B7
+  BEQ @ReturnValid                                    ; $C684: F0 07
+  CMP #$90                                            ; $C686: C9 90
+  BEQ @ReturnValid                                    ; $C688: F0 03
+
   LDA #$0A                                            ; $C68A: A9 0A
   RTS                                                 ; $C68C: 60
-LC68D:
+@ReturnValid:
   LDA #$5A                                            ; $C68D: A9 5A
   RTS                                                 ; $C68F: 60
-LC690:
+@CheckOtherPlayer:
   LDY $6F03                                           ; $C690: AC 03 6F
   CPY #$02                                            ; $C693: C0 02
-  .byte $D0,$17                                       ; $C695: D0 17 (BNE mid-instruction target)
+  BNE @CheckPlayer3                                   ; $C695: D0 17
   CMP #$56                                            ; $C697: C9 56
-  BEQ LC68D                                           ; $C699: F0 F2
+  BEQ @ReturnValid                                    ; $C699: F0 F2
   CMP #$63                                            ; $C69B: C9 63
-  BEQ LC68D                                           ; $C69D: F0 EE
+  BEQ @ReturnValid                                    ; $C69D: F0 EE
   CMP #$39                                            ; $C69F: C9 39
-  BEQ LC68D                                           ; $C6A1: F0 EA
+  BEQ @ReturnValid                                    ; $C6A1: F0 EA
   CMP #$A5                                            ; $C6A3: C9 A5
-  BEQ LC68D                                           ; $C6A5: F0 E6
+  BEQ @ReturnValid                                    ; $C6A5: F0 E6
   CMP #$9C                                            ; $C6A7: C9 9C
-  BEQ LC68D                                           ; $C6A9: F0 E2
-  JMP Proc_C68A                                       ; $C6AB: 4C 8A C6
+  BEQ @ReturnValid                                    ; $C6A9: F0 E2
+  JMP CalcActionProb                                  ; $C6AB: 4C 8A C6  ; not valid → $0A
+@CheckPlayer3:
   LDY $6F03                                           ; $C6AE: AC 03 6F
   CPY #$03                                            ; $C6B1: C0 03
-  BNE Proc_C68A                                       ; $C6B3: D0 D5
+  BNE CalcActionProb                                  ; $C6B3: D0 D5  ; not player 3 → $0A
   CMP #$6B                                            ; $C6B5: C9 6B
-  BEQ LC68D                                           ; $C6B7: F0 D4
+  BEQ @ReturnValid                                    ; $C6B7: F0 D4
   CMP #$EA                                            ; $C6B9: C9 EA
-  BEQ LC68D                                           ; $C6BB: F0 D0
+  BEQ @ReturnValid                                    ; $C6BB: F0 D0
   CMP #$EB                                            ; $C6BD: C9 EB
-  BEQ LC68D                                           ; $C6BF: F0 CC
+  BEQ @ReturnValid                                    ; $C6BF: F0 CC
   CMP #$D5                                            ; $C6C1: C9 D5
-  BEQ LC68D                                           ; $C6C3: F0 C8
+  BEQ @ReturnValid                                    ; $C6C3: F0 C8
   CMP #$2F                                            ; $C6C5: C9 2F
-  BEQ LC68D                                           ; $C6C7: F0 C4
-  JMP Proc_C68A                                       ; $C6C9: 4C 8A C6
+  BEQ @ReturnValid                                    ; $C6C7: F0 C4
+  JMP CalcActionProb                                  ; $C6C9: 4C 8A C6  ; not valid → $0A
+CalcActionProb_Entry:
   LDA a:$0036                                         ; $C6CC: AD 36 00
   JSR Proc_D105                                       ; $C6CF: 20 05 D1
   AND #$07                                            ; $C6D2: 29 07
   CMP $6F03                                           ; $C6D4: CD 03 6F
-  BEQ LC6DA                                           ; $C6D7: F0 01
+  BEQ @ValidateThreshold                              ; $C6D7: F0 01
+@Fail:
   RTS                                                 ; $C6D9: 60
-LC6DA:
+@ValidateThreshold:                                   ; A = threshold from GetThreshold
   LDA #$64                                            ; $C6DA: A9 64
   JSR Proc_D4BB                                       ; $C6DC: 20 BB D4
   LDY $6F02                                           ; $C6DF: AC 02 6F
-  CMP $C795,Y                                         ; $C6E2: D9 95 C7
-  .byte $B0,$F2                                       ; $C6E5: B0 F2 (BCS mid-instruction target)
+  CMP @Thresholds,Y                                   ; $C6E2: D9 95 C7
+  BCS @Fail                                           ; $C6E5: B0 F2  ; random >= threshold → exit
   LDA a:$0036                                         ; $C6E7: AD 36 00
   JSR Proc_D304                                       ; $C6EA: 20 04 D3
   CMP #$0A                                            ; $C6ED: C9 0A
-  .byte $B0,$E8                                       ; $C6EF: B0 E8 (BCS mid-instruction target)
+  BCS @Fail                                           ; $C6EF: B0 E8  ; score >= $0A → exit
   LDA #$00                                            ; $C6F1: A9 00
   STA a:$0037                                         ; $C6F3: 8D 37 00
   LDY #$30                                            ; $C6F6: A0 30
   JSR B1F_SwitchBank8_A                               ; $C6F8: 20 66 F2
   LDY #$0F                                            ; $C6FB: A0 0F
   LDA #$FF                                            ; $C6FD: A9 FF
-LC6FF:
+@InitBuffer:
   STA $6F73,Y                                         ; $C6FF: 99 73 6F
   DEY                                                 ; $C702: 88
-  BPL LC6FF                                           ; $C703: 10 FA
+  BPL @InitBuffer                                     ; $C703: 10 FA
   LDA a:$0036                                         ; $C705: AD 36 00
   ASL A                                               ; $C708: 0A
   ASL A                                               ; $C709: 0A
   ASL A                                               ; $C70A: 0A
   TAY                                                 ; $C70B: A8
   LDX #$00                                            ; $C70C: A2 00
-LC70E:
+@CopyKingdom:
   LDA $9D72,Y                                         ; $C70E: B9 72 9D
   STA $6F73,X                                         ; $C711: 9D 73 6F
   INY                                                 ; $C714: C8
   INX                                                 ; $C715: E8
   CPX #$08                                            ; $C716: E0 08
-  BCC LC70E                                           ; $C718: 90 F4
+  BCC @CopyKingdom                                    ; $C718: 90 F4
   LDA #$C0                                            ; $C71A: A9 C0
   STA $22                                             ; $C71C: 85 22
   LDA #$63                                            ; $C71E: A9 63
   STA $23                                             ; $C720: 85 23
   LDX #$00                                            ; $C722: A2 00
-LC724:
+@EntryLoop:                                           ; --- iterate kingdom entries ---
   LDY #$0B                                            ; $C724: A0 0B
   LDA ($22),Y                                         ; $C726: B1 22
   AND #$03                                            ; $C728: 29 03
-  .byte $D0,$26                                       ; $C72A: D0 26 (BNE mid-instruction target)
+  BNE @AdvanceEntry                                   ; $C72A: D0 26  ; type != 0 → skip
   TXA                                                 ; $C72C: 8A
-  JSR $C66F                                           ; $C72D: 20 6F C6
+  JSR CalcActionProb_GetThreshold                     ; $C72D: 20 6F C6
   STA $2A                                             ; $C730: 85 2A
-LC732:
+@RollChance:                                          ; --- roll random 0..99 vs threshold ---
   JSR B1F_RandomByte3                                 ; $C732: 20 9A E8
   CMP #$64                                            ; $C735: C9 64
-  BCS LC732                                           ; $C737: B0 F9
+  BCS @RollChance                                     ; $C737: B0 F9  ; re-roll if >= 100
   CMP $2A                                             ; $C739: C5 2A
-  .byte $B0,$15                                       ; $C73B: B0 15 (BCS mid-instruction target)
+  BCS @AdvanceEntry                                   ; $C73B: B0 15  ; random >= threshold → skip
   LDY #$05                                            ; $C73D: A0 05
   LDA ($22),Y                                         ; $C73F: B1 22
   CMP a:$0036                                         ; $C741: CD 36 00
-  BEQ LC765                                           ; $C744: F0 1F
+  BEQ @MarkAssigned                                   ; $C744: F0 1F
   LDY #$00                                            ; $C746: A0 00
-LC748:
+@ScanOfficers:
   CMP $6F73,Y                                         ; $C748: D9 73 6F
-  BEQ LC765                                           ; $C74B: F0 18
+  BEQ @MarkAssigned                                   ; $C74B: F0 18
   INY                                                 ; $C74D: C8
   CPY #$08                                            ; $C74E: C0 08
-  BCC LC748                                           ; $C750: 90 F6
+  BCC @ScanOfficers                                   ; $C750: 90 F6
+@AdvanceEntry:
   LDA $22                                             ; $C752: A5 22
   CLC                                                 ; $C754: 18
   ADC #$0C                                            ; $C755: 69 0C
@@ -6217,9 +6191,9 @@ LC748:
   STA $23                                             ; $C75D: 85 23
   INX                                                 ; $C75F: E8
   CPX #$ED                                            ; $C760: E0 ED
-  BCC LC724                                           ; $C762: 90 C0
+  BCC @EntryLoop                                      ; $C762: 90 C0
   RTS                                                 ; $C764: 60
-LC765:
+@MarkAssigned:
   LDY #$0B                                            ; $C765: A0 0B
   LDA ($22),Y                                         ; $C767: B1 22
   AND #$FC                                            ; $C769: 29 FC
@@ -6228,10 +6202,11 @@ LC765:
   LDA a:$0036                                         ; $C76F: AD 36 00
   JSR Proc_D105                                       ; $C772: 20 05 D1
   LDY #$10                                            ; $C775: A0 10
+@FindSlot:
   INY                                                 ; $C777: C8
   LDA ($20),Y                                         ; $C778: B1 20
   CMP #$FF                                            ; $C77A: C9 FF
-  .byte $D0,$F9                                       ; $C77C: D0 F9 (BNE mid-instruction target)
+  BNE @FindSlot                                       ; $C77C: D0 F9
   TXA                                                 ; $C77E: 8A
   STA ($20),Y                                         ; $C77F: 91 20
   STA $31                                             ; $C781: 85 31
@@ -6244,72 +6219,145 @@ LC765:
   PLA                                                 ; $C792: 68
   PLA                                                 ; $C793: 68
   RTS                                                 ; $C794: 60
-.endproc
-LC68D = $C68D
-LC690 = $C690
-LC6DA = $C6DA
-LC6FF = $C6FF
-LC70E = $C70E
-LC724 = $C724
-LC732 = $C732
-LC748 = $C748
-LC765 = $C765
 
-
-;===============================================================================
-; $C795: Proc_C795
-;===============================================================================
-.proc Proc_C795
-
-  ASL A                                               ; $C795: 0A
-  ASL A                                               ; $C796: 0A
-  ASL A                                               ; $C797: 0A
-  ASL A                                               ; $C798: 0A
-  ASL A                                               ; $C799: 0A
+; $C795: kingdom-specific probability thresholds (indexed by $6F02)
+@Thresholds:
+  .byte $0A, $0A, $0A, $0A, $0A                       ; $C795: 0A 0A 0A 0A 0A
 .endproc
 
 ;===============================================================================
-; $C79A: Proc_C79A
+; $C79A: OfficerSearchAndEvaluate
+;
+; AI officer recruitment/transfer pipeline for the current player ($6F03).
+; Scans entities 0–29 and, for each entity owned by the current player,
+; attempts to recruit or transfer subordinate officers.
+;
+; OVERALL FLOW (outer loop over entities):
+;   1. Iterate entity IDs 0..$1D in work_outer_idx ($0036).
+;   2. Skip entities not owned by current player (Proc_D105 ownership check).
+;   3. Clear dispatch buffer $0540[0..$0F] = $FF.
+;   4. Run @FindBestSubordinate evaluation loop: find best subordinate candidate.
+;      - If no candidate ($22 != 0 or $2B < 2), advance to next entity.
+;      - Roll random threshold (B1F_RandomByte2); retry if below $21.
+;   5. Compute record via Proc_D36F; if carry clear → @EarlyExit (RTS).
+;   6. Switch to bank $30, read flag byte $8FFC[entity_id].
+;      - Bit 3 set → @Dispatch97A: call @WriteSubordinateValue post-processing + Proc_D165,
+;        then loop back to @EvalLoop.
+;      - Bit 3 clear → JMP @FillSlots (recruitment path).
+;
+; INTERNAL SECTIONS (all reached via JMP, no nested stack frames):
+;
+; @FillSlots ($C80A) — Recruit fill phase:
+;   Init $6F73[0..$0F] = $FF (unclaimed). Switch to bank $30. Compute
+;   subordinate base offset (entity_idx * 8). Randomly pick slot 0..7;
+;   if unclaimed, mark it and read subordinate record ID from $9D72 table.
+;   If valid (not $80+), JMP @ValidateAndMark. Scan all 8 slots; if any
+;   remain unclaimed, retry. When all 8 claimed → RTS (return to caller).
+;
+; @ValidateAndMark ($C84D) — Recruit validate phase:
+;   Save subordinate record ID in $0037. Check ownership via Proc_D105.
+;   If not owned by current player → @RecruitSkip (RTS).
+;   If owned, call @CheckEligibility:
+;     - Eligible → JMP @TransferFillSlots (proceed to transfer phase).
+;     - Not eligible → JMP @SwapSlots (perform officer swap instead).
+;
+; @CheckEligibility ($C86A) — Shared eligibility subroutine:
+;   Switch to bank $30. Check officer flag byte $8FFC[officer_id] bit 3.
+;   If set, count active subordinates via Proc_D304 (offsets $11–$19).
+;   Eligible if bit 3 set AND subordinate count < $0A.
+;   Returns: carry SET = eligible, carry CLEAR = not eligible.
+;
+; @TransferFillSlots ($C885) — Transfer fill phase:
+;   Init $6F7B[0..7] = $FF (unclaimed). Compute subordinate base offset
+;   for entity $0037 (idx * 8). Randomly pick slot 0..7; if unclaimed,
+;   mark and read subordinate record ID. If valid, JMP @TransferValidate.
+;   Scan all 8 slots; retry until all claimed → RTS.
+;
+; @TransferValidate ($C8C3) — Transfer validate phase:
+;   Save subordinate record ID in $0038. Check ownership via Proc_D105.
+;   If not owned → @TransferSkip (RTS).
+;   If owned, call @CheckEligibility:
+;     - Eligible → copy $0038 to $0037, JMP @SwapSlots.
+;     - Not eligible → @TransferSkip (RTS).
+;
+; @SwapSlots ($C8E6) — Officer swap phase:
+;   Load entity $0036's record pointer (Proc_D105). Scan record offset
+;   $11+ for the subordinate matching $0039; replace with $FF (empty).
+;   Load entity $0037's record pointer. Scan offset $11+ for an empty
+;   ($FF) slot; write $0039's old subordinate there.
+;   Compact entity $0036's subordinate list via Proc_D3DD.
+;   JMP @Dispatch97A → @WriteSubordinateValue post-processing, then back to @EvalLoop.
+;
+; EXIT PATHS:
+;   RTS at $C7A9 — entity loop exhausted (all 30 checked).
+;   RTS at $C7FE — Proc_D36F carry clear (early exit).
+;   RTS at $C84C — @FillSlots completed all 8 recruit slots.
+;   RTS at $C869 — @ValidateAndMark: officer not owned by current player.
+;   RTS at $C882/$C884 — @CheckEligibility result (carry set/clear).
+;   RTS at $C8C2 — @TransferFillSlots completed all 8 transfer slots.
+;   RTS at $C8E5 — @TransferValidate: officer not owned or not eligible.
+;
+; RAM USAGE:
+;   $0020  math_acc_lo       SwapSlots indirect pointer lo
+;   $0021  math_acc_mlo      EvalLoop random threshold / accumulator
+;   $0022  math_acc_mhi      EvalLoop result flag ($00 = candidate found)
+;   $0023  math_acc_hi       Proc_D36F parameter
+;   $0024  math_ext          Proc_D36F parameter / FillSlots base offset
+;   $0028  sub_table_lo      TransferFillSlots subordinate base offset
+;   $0036  work_outer_idx    Outer entity ID loop counter
+;   $0037  work_inner_idx    RecruitValidate subordinate record ID
+;                           TransferValidate target for swap
+;   $0038  work_inner_idx2   TransferValidate subordinate record ID
+;   $0039  work_sub_idx      SwapSlots: subordinate to match/swap
+;   $0540  state_sub_dispatch Dispatch buffer (16 bytes, cleared per entity)
+;   $6F03  sram_player_id    Current player ID
+;   $6F73  recruit buffer    Recruit slot claims (16 bytes)
+;   $6F7B  transfer buffer   Transfer slot claims (8 bytes)
 ;===============================================================================
-.proc Proc_C79A
+.proc OfficerSearchAndEvaluate
+  math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
   math_ext                 = $0024
+  sub_table_lo             = $0028
   work_outer_idx           = $0036
+  work_inner_idx           = $0037
+  work_inner_idx2          = $0038
+  work_sub_idx             = $0039
   state_sub_dispatch       = $0540
   sram_player_id           = $6F03
 
   LDY #$FF                                            ; $C79A: A0 FF
   STY a:$0036                                         ; $C79C: 8C 36 00
-LC79F:
+@EntityLoop:
   INC a:$0036                                         ; $C79F: EE 36 00
   LDA a:$0036                                         ; $C7A2: AD 36 00
   CMP #$1E                                            ; $C7A5: C9 1E
-  BCC LC7AA                                           ; $C7A7: 90 01
+  BCC @OwnedEntity                                    ; $C7A7: 90 01
   RTS                                                 ; $C7A9: 60
-LC7AA:
+@OwnedEntity:
   LDA a:$0036                                         ; $C7AA: AD 36 00
   JSR Proc_D105                                       ; $C7AD: 20 05 D1
   AND #$07                                            ; $C7B0: 29 07
   CMP $6F03                                           ; $C7B2: CD 03 6F
-  BNE LC79F                                           ; $C7B5: D0 E8
+  BNE @EntityLoop                                     ; $C7B5: D0 E8
   LDY #$0F                                            ; $C7B7: A0 0F
   LDA #$FF                                            ; $C7B9: A9 FF
-LC7BB:
+@ClearBuffer:
   STA $0540,Y                                         ; $C7BB: 99 40 05
   DEY                                                 ; $C7BE: 88
-  BPL LC7BB                                           ; $C7BF: 10 FA
-LC7C1:
-  JSR Proc_C917                                       ; $C7C1: 20 17 C9
+  BPL @ClearBuffer                                    ; $C7BF: 10 FA
+@EvalLoop:
+  JSR @FindBestSubordinate                            ; $C7C1: 20 17 C9
   LDA $22                                             ; $C7C4: A5 22
-  BNE LC79F                                           ; $C7C6: D0 D7
+  BNE @EntityLoop                                     ; $C7C6: D0 D7
   LDA $2B                                             ; $C7C8: A5 2B
   CMP #$02                                            ; $C7CA: C9 02
-  BCC LC79F                                           ; $C7CC: 90 D1
+  BCC @EntityLoop                                     ; $C7CC: 90 D1
   JSR B1F_RandomByte2                                 ; $C7CE: 20 8A E8
   CMP $21                                             ; $C7D1: C5 21
-  BCC LC7C1                                           ; $C7D3: 90 EC
+  BCC @EvalLoop                                       ; $C7D3: 90 EC
   LDA #$14                                            ; $C7D5: A9 14
   STA $22                                             ; $C7D7: 85 22
   LDA #$00                                            ; $C7D9: A9 00
@@ -6318,254 +6366,210 @@ LC7C1:
   STA $24                                             ; $C7DF: 85 24
   LDA a:$0036                                         ; $C7E1: AD 36 00
   JSR Proc_D36F                                       ; $C7E4: 20 6F D3
-  BCC LC7FE                                           ; $C7E7: 90 15
+  BCC @EarlyExit                                      ; $C7E7: 90 15
   LDY #$30                                            ; $C7E9: A0 30
   JSR B1F_SwitchBank8_A                               ; $C7EB: 20 66 F2
   LDY a:$0036                                         ; $C7EE: AC 36 00
   LDA $8FFC,Y                                         ; $C7F1: B9 FC 8F
   AND #$08                                            ; $C7F4: 29 08
-  BNE LC7FF                                           ; $C7F6: D0 07
-  JSR Proc_C80A                                       ; $C7F8: 20 0A C8
-  JMP LC7C1                                           ; $C7FB: 4C C1 C7
-LC7FE:
+  BNE @Dispatch97A                                    ; $C7F6: D0 07
+  JMP @FillSlots                                      ; $C7F8: 4C 0A C8
+  JMP @EvalLoop                                       ; $C7FB: 4C C1 C7
+@EarlyExit:
   RTS                                                 ; $C7FE: 60
-LC7FF:
-  JSR Proc_C97A                                       ; $C7FF: 20 7A C9
+@Dispatch97A:
+  JSR @WriteSubordinateValue                          ; $C7FF: 20 7A C9
   LDA #$05                                            ; $C802: A9 05
   JSR Proc_D165                                       ; $C804: 20 65 D1
-  JMP LC7C1                                           ; $C807: 4C C1 C7
-.endproc
-LC79F = $C79F
-LC7AA = $C7AA
-LC7BB = $C7BB
-LC7C1 = $C7C1
-LC7FE = $C7FE
-LC7FF = $C7FF
+  JMP @EvalLoop                                       ; $C807: 4C C1 C7
 
-
-;===============================================================================
-; $C80A: Proc_C80A
-;===============================================================================
-.proc Proc_C80A
-  math_ext                 = $0024
-  work_outer_idx           = $0036
-
+@FillSlots: ; AiRecruit_FillSlots ($C80A)
+  ; --- Initialize dispatch buffer $6F73[0..15] = $FF (unclaimed) ---
   LDY #$0F                                            ; $C80A: A0 0F
   LDA #$FF                                            ; $C80C: A9 FF
-LC80E:
+@RecruitInitLoop:
   STA $6F73,Y                                         ; $C80E: 99 73 6F
   DEY                                                 ; $C811: 88
-  BPL LC80E                                           ; $C812: 10 FA
+  BPL @RecruitInitLoop                                ; $C812: 10 FA
+  ; --- Switch to bank $30 for entity data access ---
   LDY #$30                                            ; $C814: A0 30
   JSR B1F_SwitchBank8_A                               ; $C816: 20 66 F2
+  ; --- Compute base offset for entity's subordinate table (idx * 8) ---
   LDA a:$0036                                         ; $C819: AD 36 00
   ASL A                                               ; $C81C: 0A
   ASL A                                               ; $C81D: 0A
   ASL A                                               ; $C81E: 0A
   STA $24                                             ; $C81F: 85 24
+  ; --- Pick random subordinate slot (0..7) and try to claim it ---
+@RecruitPickRetry:
   LDA #$08                                            ; $C821: A9 08
-  JSR Proc_D4AD                                       ; $C823: 20 AD D4
+  JSR Proc_D4AD                                       ; $C823: 20 AD D4  ; random 0..7
   TAY                                                 ; $C826: A8
   LDA $6F73,Y                                         ; $C827: B9 73 6F
-  .byte $F0,$12                                       ; $C82A: F0 12 (BEQ mid-instruction target)
+  BEQ @RecruitScanSlots                               ; $C82A: F0 12  ; already claimed → check all
+  ; --- Mark slot as claimed ---
   LDA #$00                                            ; $C82C: A9 00
   STA $6F73,Y                                         ; $C82E: 99 73 6F
+  ; --- Compute subordinate record offset and validate ---
   TYA                                                 ; $C831: 98
   CLC                                                 ; $C832: 18
-  ADC $24                                             ; $C833: 65 24
+  ADC $24                                             ; $C833: 65 24  ; subordinate table offset
   TAY                                                 ; $C835: A8
-  LDA $9D72,Y                                         ; $C836: B9 72 9D
-  .byte $30,$03                                       ; $C839: 30 03 (BMI mid-instruction target)
-  JSR Proc_C84D                                       ; $C83B: 20 4D C8
+  LDA $9D72,Y                                         ; $C836: B9 72 9D  ; subordinate officer record ID
+  BMI @RecruitScanSlots                               ; $C839: 30 03  ; invalid ID → skip validate
+  JMP @ValidateAndMark                                 ; $C83B: 4C 4D C8
+  ; --- Check if all 8 slots are claimed; if not, pick another ---
+@RecruitScanSlots:
   LDX #$00                                            ; $C83E: A2 00
-LC840:
+@RecruitScanLoop:
   LDA $6F73,X                                         ; $C840: BD 73 6F
   CMP #$FF                                            ; $C843: C9 FF
-  .byte $F0,$DA                                       ; $C845: F0 DA (BEQ mid-instruction target)
+  BEQ @RecruitPickRetry                               ; $C845: F0 DA  ; unclaimed → pick another
   INX                                                 ; $C847: E8
   CPX #$08                                            ; $C848: E0 08
-  BCC LC840                                           ; $C84A: 90 F4
+  BCC @RecruitScanLoop                                ; $C84A: 90 F4
   RTS                                                 ; $C84C: 60
-.endproc
-LC80E = $C80E
-LC840 = $C840
 
-
-;===============================================================================
-; $C84D: Proc_C84D
-;===============================================================================
-.proc Proc_C84D
-  work_inner_idx           = $0037
-  sram_player_id           = $6F03
-
+@ValidateAndMark: ; AiRecruit_ValidateAndMark ($C84D)
+  ; --- Save subordinate record ID, look up its owner ---
   STA a:$0037                                         ; $C84D: 8D 37 00
-  JSR Proc_D105                                       ; $C850: 20 05 D1
-  CMP $6F03                                           ; $C853: CD 03 6F
-  BNE LC869                                           ; $C856: D0 11
+  JSR Proc_D105                                       ; $C850: 20 05 D1  ; A = owner of record
+  CMP $6F03                                           ; $C853: CD 03 6F  ; current player?
+  BNE @RecruitSkip                                    ; $C856: D0 11     ; no → skip
+  ; --- Check eligibility (flag bit + subordinate count) ---
   LDA a:$0037                                         ; $C858: AD 37 00
-  JSR Proc_C86A                                       ; $C85B: 20 6A C8
-  BCC LC865                                           ; $C85E: 90 05
-  PLA                                                 ; $C860: 68
-  PLA                                                 ; $C861: 68
-  JMP Proc_C8E6                                       ; $C862: 4C E6 C8
-LC865:
-  JSR Proc_C885                                       ; $C865: 20 85 C8
-  RTS                                                 ; $C868: 60
-LC869:
+  JSR @CheckEligibility                               ; $C85B: 20 6A C8
+  BCC @RecruitAssign                                  ; $C85E: 90 05     ; eligible → assign
+  ; --- Not eligible: jump to swap ---
+  JMP @SwapSlots                                      ; $C862: 4C E6 C8
+@RecruitAssign:
+  JMP @TransferFillSlots                               ; $C865: 4C 85 C8  ; fill $6F7B buffer
+@RecruitSkip:
   RTS                                                 ; $C869: 60
-.endproc
-LC865 = $C865
-LC869 = $C869
 
-
-;===============================================================================
-; $C86A: Proc_C86A
-;===============================================================================
-.proc Proc_C86A
-
+@CheckEligibility: ; CheckOfficerEligibility ($C86A)
   PHA                                                 ; $C86A: 48
+  ; --- Check flag bit 3 at $8FFC[officer_id] ---
   LDY #$30                                            ; $C86B: A0 30
   JSR B1F_SwitchBank8_A                               ; $C86D: 20 66 F2
   PLA                                                 ; $C870: 68
   TAY                                                 ; $C871: A8
-  LDA $8FFC,Y                                         ; $C872: B9 FC 8F
-  AND #$08                                            ; $C875: 29 08
-  BEQ LC883                                           ; $C877: F0 0A
+  LDA $8FFC,Y                                         ; $C872: B9 FC 8F  ; officer flag byte
+  AND #$08                                            ; $C875: 29 08     ; bit 3 = recruitable?
+  BEQ @Ineligible                                     ; $C877: F0 0A     ; no → not eligible
+  ; --- Count active subordinate slots (offsets $11-$19 in record) ---
   TYA                                                 ; $C879: 98
-  JSR Proc_D304                                       ; $C87A: 20 04 D3
-  CMP #$0A                                            ; $C87D: C9 0A
-  BCS LC883                                           ; $C87F: B0 02
-  SEC                                                 ; $C881: 38
+  JSR Proc_D304                                       ; $C87A: 20 04 D3  ; A = subordinate count
+  CMP #$0A                                            ; $C87D: C9 0A     ; < 10 subordinates?
+  BCS @Ineligible                                     ; $C87F: B0 02     ; no → not eligible
+  SEC                                                 ; $C881: 38       ; eligible: carry SET
   RTS                                                 ; $C882: 60
-LC883:
-  CLC                                                 ; $C883: 18
+@Ineligible:
+  CLC                                                 ; $C883: 18       ; not eligible: carry CLEAR
   RTS                                                 ; $C884: 60
-.endproc
-LC883 = $C883
 
-
-;===============================================================================
-; $C885: Proc_C885
-;===============================================================================
-.proc Proc_C885
-  work_inner_idx           = $0037
-
+@TransferFillSlots: ; AiTransfer_FillSlots ($C885)
+  ; --- Initialize transfer buffer $6F7B[0..7] = $FF (unclaimed) ---
   LDY #$08                                            ; $C885: A0 08
   LDA #$FF                                            ; $C887: A9 FF
-LC889:
+@TransferInitLoop:
   STA $6F7B,Y                                         ; $C889: 99 7B 6F
   DEY                                                 ; $C88C: 88
-  BPL LC889                                           ; $C88D: 10 FA
+  BPL @TransferInitLoop                               ; $C88D: 10 FA
+  ; --- Compute base offset for subordinate table (idx * 8) ---
   LDA a:$0037                                         ; $C88F: AD 37 00
   ASL A                                               ; $C892: 0A
   ASL A                                               ; $C893: 0A
   ASL A                                               ; $C894: 0A
   STA $28                                             ; $C895: 85 28
-LC897:
+  ; --- Pick random subordinate slot (0..7) and try to claim it ---
+@TransferPickLoop:
   LDA #$08                                            ; $C897: A9 08
-  JSR Proc_D4AD                                       ; $C899: 20 AD D4
+  JSR Proc_D4AD                                       ; $C899: 20 AD D4  ; random 0..7
   TAY                                                 ; $C89C: A8
   LDA $6F7B,Y                                         ; $C89D: B9 7B 6F
-  BEQ LC897                                           ; $C8A0: F0 F5
+  BEQ @TransferPickLoop                               ; $C8A0: F0 F5     ; already claimed → retry
+  ; --- Mark slot as claimed ---
   LDA #$00                                            ; $C8A2: A9 00
   STA $6F7B,Y                                         ; $C8A4: 99 7B 6F
+  ; --- Compute subordinate record offset and validate ---
   TYA                                                 ; $C8A7: 98
   CLC                                                 ; $C8A8: 18
-  ADC $28                                             ; $C8A9: 65 28
+  ADC $28                                             ; $C8A9: 65 28  ; subordinate table offset
   TAY                                                 ; $C8AB: A8
-  LDA $9D72,Y                                         ; $C8AC: B9 72 9D
-  BMI LC8B4                                           ; $C8AF: 30 03
-  JSR Proc_C8C3                                       ; $C8B1: 20 C3 C8
-LC8B4:
+  LDA $9D72,Y                                         ; $C8AC: B9 72 9D  ; subordinate officer record ID
+  BMI @TransferCheckNext                              ; $C8AF: 30 03     ; negative → invalid
+  JMP @TransferValidate                                ; $C8B1: 4C C3 C8
+@TransferCheckNext:
+  ; --- Check if all 8 slots are claimed; if not, pick another ---
   LDX #$00                                            ; $C8B4: A2 00
-LC8B6:
+@TransferScanLoop:
   LDA $6F7B,X                                         ; $C8B6: BD 7B 6F
   CMP #$FF                                            ; $C8B9: C9 FF
-  BEQ LC897                                           ; $C8BB: F0 DA
+  BEQ @TransferPickLoop                               ; $C8BB: F0 DA     ; unclaimed slot → pick more
   INX                                                 ; $C8BD: E8
   CPX #$08                                            ; $C8BE: E0 08
-  BCC LC8B6                                           ; $C8C0: 90 F4
+  BCC @TransferScanLoop                               ; $C8C0: 90 F4
   RTS                                                 ; $C8C2: 60
-.endproc
-LC889 = $C889
-LC897 = $C897
-LC8B4 = $C8B4
-LC8B6 = $C8B6
 
-
-;===============================================================================
-; $C8C3: Proc_C8C3
-;===============================================================================
-.proc Proc_C8C3
-  work_inner_idx           = $0037
-  work_inner_idx2          = $0038
-  sram_player_id           = $6F03
-
+@TransferValidate: ; AiTransfer_ValidateAndMark ($C8C3)
+  ; --- Save subordinate record ID, look up its owner ---
   STA a:$0038                                         ; $C8C3: 8D 38 00
-  JSR Proc_D105                                       ; $C8C6: 20 05 D1
-  CMP $6F03                                           ; $C8C9: CD 03 6F
-  BNE LC8E5                                           ; $C8CC: D0 17
+  JSR Proc_D105                                       ; $C8C6: 20 05 D1  ; A = owner of record
+  CMP $6F03                                           ; $C8C9: CD 03 6F  ; current player?
+  BNE @TransferSkip                                   ; $C8CC: D0 17     ; no → skip
+  ; --- Check eligibility (flag bit + subordinate count) ---
   LDA a:$0038                                         ; $C8CE: AD 38 00
-  JSR Proc_C86A                                       ; $C8D1: 20 6A C8
-  BCC LC8E5                                           ; $C8D4: 90 0F
-  PLA                                                 ; $C8D6: 68
-  PLA                                                 ; $C8D7: 68
-  PLA                                                 ; $C8D8: 68
-  PLA                                                 ; $C8D9: 68
-  PLA                                                 ; $C8DA: 68
-  PLA                                                 ; $C8DB: 68
+  JSR @CheckEligibility                               ; $C8D1: 20 6A C8
+  BCC @TransferSkip                                   ; $C8D4: 90 0F     ; not eligible → skip
+  ; --- Transfer record ID to work_inner_idx and swap ---
   LDA a:$0038                                         ; $C8DC: AD 38 00
   STA a:$0037                                         ; $C8DF: 8D 37 00
-  JMP Proc_C8E6                                       ; $C8E2: 4C E6 C8
-LC8E5:
+  JMP @SwapSlots                                      ; $C8E2: 4C E6 C8
+@TransferSkip:
   RTS                                                 ; $C8E5: 60
-.endproc
-LC8E5 = $C8E5
 
-
-;===============================================================================
-; $C8E6: Proc_C8E6
-;===============================================================================
-.proc Proc_C8E6
-  math_acc_lo              = $0020
-  work_outer_idx           = $0036
-  work_inner_idx           = $0037
-  work_sub_idx             = $0039
-
+@SwapSlots: ; SwapOfficerSlots ($C8E6)
+  ; --- Load entity $0036's record pointer ---
   LDA a:$0036                                         ; $C8E6: AD 36 00
-  JSR Proc_D105                                       ; $C8E9: 20 05 D1
+  JSR Proc_D105                                       ; $C8E9: 20 05 D1  ; ($20) = record ptr
+  ; --- Read and save entity $0036's subtype at offset $11 ---
   LDY #$10                                            ; $C8EC: A0 10
-  INY                                                 ; $C8EE: C8
+@SwapAdvanceY1:
+  INY                                                 ; $C8EE: C8       ; Y = $11
   LDA ($20),Y                                         ; $C8EF: B1 20
   CMP a:$0039                                         ; $C8F1: CD 39 00
-  .byte $D0,$F8                                       ; $C8F4: D0 F8 (BNE mid-instruction target)
+  BNE @SwapAdvanceY1                                  ; $C8F4: D0 F8
+  ; --- Write $FF (empty) into entity $0036's subtype slot ---
   LDA #$FF                                            ; $C8F6: A9 FF
   STA ($20),Y                                         ; $C8F8: 91 20
+  ; --- Load entity $0037's record pointer ---
   LDA a:$0037                                         ; $C8FA: AD 37 00
-  JSR Proc_D105                                       ; $C8FD: 20 05 D1
+  JSR Proc_D105                                       ; $C8FD: 20 05 D1  ; ($20) = record ptr
+  ; --- Read and validate entity $0037's subtype at offset $11 ---
   LDY #$10                                            ; $C900: A0 10
-  INY                                                 ; $C902: C8
+@SwapAdvanceY2:
+  INY                                                 ; $C902: C8       ; Y = $11
   LDA ($20),Y                                         ; $C903: B1 20
   CMP #$FF                                            ; $C905: C9 FF
-  .byte $D0,$F9                                       ; $C907: D0 F9 (BNE mid-instruction target)
+  BNE @SwapAdvanceY2                                  ; $C907: D0 F9
+  ; --- Write entity $0036's old subtype into entity $0037's slot ---
   LDA a:$0039                                         ; $C909: AD 39 00
   STA ($20),Y                                         ; $C90C: 91 20
+  ; --- Compact subordinate lists for entity $0036 ---
   LDA a:$0036                                         ; $C90E: AD 36 00
   JSR Proc_D3DD                                       ; $C911: 20 DD D3
-  JMP LC7FF                                           ; $C914: 4C FF C7
-.endproc
+  ; --- Fall through to @WriteSubordinateValue for post-processing ---
+  JMP @Dispatch97A                                    ; $C914: 4C FF C7  ; → @WriteSubordinateValue
 
-;===============================================================================
-; $C917: Proc_C917
-;===============================================================================
-.proc Proc_C917
-  math_acc_lo              = $0020
-  math_acc_mlo             = $0021
-  math_acc_mhi             = $0022
-  math_acc_hi              = $0023
-  math_ext                 = $0024
-  work_outer_idx           = $0036
-  work_sub_idx             = $0039
+;-------------------------------------------------------------------------------
+; @FindBestSubordinate ($C917)
+; Scan subordinate slots $11–$1B of entity $0036's record, find the slot with
+; the lowest stat value (via $D2AB). Clear that slot's marker in $052F[],
+; store the subordinate ID in $0039, and compute the result in $22/$23.
+; Also calls Proc_D40F for additional post-processing.
+;-------------------------------------------------------------------------------
+@FindBestSubordinate:
 
   LDA a:$0036                                         ; $C917: AD 36 00
   JSR Proc_D105                                       ; $C91A: 20 05 D1
@@ -6576,26 +6580,26 @@ LC8E5 = $C8E5
   STA $2A                                             ; $C925: 85 2A
   LDA #$00                                            ; $C927: A9 00
   STA $2B                                             ; $C929: 85 2B
-LC92B:
+@Loop:
   LDY $28                                             ; $C92B: A4 28
   LDA $052F,Y                                         ; $C92D: B9 2F 05
-  BEQ LC949                                           ; $C930: F0 17
+  BEQ @Skip                                           ; $C930: F0 17
   LDA ($20),Y                                         ; $C932: B1 20
   CMP #$FF                                            ; $C934: C9 FF
-  BEQ LC949                                           ; $C936: F0 11
+  BEQ @Skip                                           ; $C936: F0 11
   INC $2B                                             ; $C938: E6 2B
   LDY #$00                                            ; $C93A: A0 00
   JSR $D2AB                                           ; $C93C: 20 AB D2
   CMP $29                                             ; $C93F: C5 29
-  BCS LC949                                           ; $C941: B0 06
+  BCS @Skip                                           ; $C941: B0 06
   STA $29                                             ; $C943: 85 29
   LDA $28                                             ; $C945: A5 28
   STA $2A                                             ; $C947: 85 2A
-LC949:
+@Skip:
   INC $28                                             ; $C949: E6 28
   LDY $28                                             ; $C94B: A4 28
   CPY #$1B                                            ; $C94D: C0 1B
-  BCC LC92B                                           ; $C94F: 90 DA
+  BCC @Loop                                           ; $C94F: 90 DA
   LDY $2A                                             ; $C951: A4 2A
   LDA #$00                                            ; $C953: A9 00
   STA $052F,Y                                         ; $C955: 99 2F 05
@@ -6615,17 +6619,14 @@ LC949:
   STA $24                                             ; $C974: 85 24
   JSR Proc_D40F                                       ; $C976: 20 0F D4
   RTS                                                 ; $C979: 60
-.endproc
-LC92B = $C92B
-LC949 = $C949
 
-
-;===============================================================================
-; $C97A: Proc_C97A
-;===============================================================================
-.proc Proc_C97A
-  math_acc_mhi             = $0022
-  work_sub_idx             = $0039
+;-------------------------------------------------------------------------------
+; @WriteSubordinateValue ($C97A)
+; Read subordinate $0039's stat value via Proc_D2D3 and $D2AB, then write
+; the result byte through the pointer at ($22),Y (set by Proc_D40F in
+; @FindBestSubordinate).
+;-------------------------------------------------------------------------------
+@WriteSubordinateValue:
 
   LDA a:$0039                                         ; $C97A: AD 39 00
   LDY #$00                                            ; $C97D: A0 00
@@ -6640,257 +6641,238 @@ LC949 = $C949
 .endproc
 
 ;===============================================================================
-; $C98F: Proc_C98F
+; $C98F: FindBestOfficerByCategory
+;   A = category index; iterates 30 officer slots, scanning each for the best
+;   candidate matching the category, swaps it into priority slot $11, then
+;   processes all 7 categories applying officer changes.
+;   Contains nested: ScanOfficerRecordForBest ($C9A5), swap/promote ($C9F9).
 ;===============================================================================
-.proc Proc_C98F
-  work_outer_idx           = $0036
-  work_inner_idx           = $0037
-
-  STA a:$0037                                         ; $C98F: 8D 37 00
-  LDA #$00                                            ; $C992: A9 00
-  STA a:$0036                                         ; $C994: 8D 36 00
-LC997:
-  JSR Proc_C9A5                                       ; $C997: 20 A5 C9
-  INC a:$0036                                         ; $C99A: EE 36 00
-  LDA a:$0036                                         ; $C99D: AD 36 00
-  CMP #$1E                                            ; $C9A0: C9 1E
-  BCC LC997                                           ; $C9A2: 90 F3
-LC9A4:
-  RTS                                                 ; $C9A4: 60
-.endproc
-LC997 = $C997
-LC9A4 = $C9A4
-
-
-;===============================================================================
-; $C9A5: Proc_C9A5
-;===============================================================================
-.proc Proc_C9A5
-  math_acc_lo              = $0020
-  math_acc_mhi             = $0022
-  work_outer_idx           = $0036
-  work_inner_idx           = $0037
-  work_limit_a             = $003A
-  work_limit_b             = $003B
-  work_temp_0              = $003C
-
-  LDA a:$0036                                         ; $C9A5: AD 36 00
-  JSR Proc_D105                                       ; $C9A8: 20 05 D1
-  AND #$07                                            ; $C9AB: 29 07
-  CMP a:$0037                                         ; $C9AD: CD 37 00
-  .byte $D0,$F2                                       ; $C9B0: D0 F2 (BNE cross-proc)
-  LDA #$11                                            ; $C9B2: A9 11
-  STA a:$003A                                         ; $C9B4: 8D 3A 00
-  LDA #$00                                            ; $C9B7: A9 00
-  STA a:$003B                                         ; $C9B9: 8D 3B 00
-  LDA #$FF                                            ; $C9BC: A9 FF
-  STA a:$003C                                         ; $C9BE: 8D 3C 00
-LC9C1:
-  LDY a:$003A                                         ; $C9C1: AC 3A 00
-  LDA ($20),Y                                         ; $C9C4: B1 20
-  CMP #$FF                                            ; $C9C6: C9 FF
-  BEQ LC9EF                                           ; $C9C8: F0 25
-  LDY #$03                                            ; $C9CA: A0 03
-  JSR $D2AB                                           ; $C9CC: 20 AB D2
-  CMP #$64                                            ; $C9CF: C9 64
-  .byte $D0,$09                                       ; $C9D1: D0 09 (BNE mid-instruction target)
-  LDA a:$003A                                         ; $C9D3: AD 3A 00
-  STA a:$003C                                         ; $C9D6: 8D 3C 00
-  JMP Proc_C9F9                                       ; $C9D9: 4C F9 C9
-  LDY #$04                                            ; $C9DC: A0 04
-  CLC                                                 ; $C9DE: 18
-  ADC ($22),Y                                         ; $C9DF: 71 22
-  CMP a:$003B                                         ; $C9E1: CD 3B 00
-  BCC LC9EF                                           ; $C9E4: 90 09
-  STA a:$003B                                         ; $C9E6: 8D 3B 00
-  LDA a:$003A                                         ; $C9E9: AD 3A 00
-  STA a:$003C                                         ; $C9EC: 8D 3C 00
-LC9EF:
-  INC a:$003A                                         ; $C9EF: EE 3A 00
-  LDA a:$003A                                         ; $C9F2: AD 3A 00
-  CMP #$1B                                            ; $C9F5: C9 1B
-  BCC LC9C1                                           ; $C9F7: 90 C8
-.endproc
-LC9C1 = $C9C1
-LC9EF = $C9EF
-
-
-;===============================================================================
-; $C9F9: Proc_C9F9
-;===============================================================================
-.proc Proc_C9F9
+.proc FindBestOfficerByCategory
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_ext                 = $0024
   math_temp1               = $0025
   math_temp2               = $0026
   math_temp3               = $0027
+  work_outer_idx           = $0036
+  work_inner_idx           = $0037
   work_inner_idx2          = $0038
+  work_limit_a             = $003A
+  work_limit_b             = $003B
   work_temp_0              = $003C
   work_record_val          = $0040
   sram_game_start_flag     = $6F8B
 
-  LDA a:$003C                                         ; $C9F9: AD 3C 00
-  CMP #$FF                                            ; $C9FC: C9 FF
-  .byte $F0,$18                                       ; $C9FE: F0 18 (BEQ mid-instruction target)
-  CMP #$11                                            ; $CA00: C9 11
-  .byte $F0,$14                                       ; $CA02: F0 14 (BEQ mid-instruction target)
-  LDY #$11                                            ; $CA04: A0 11
-  LDA ($20),Y                                         ; $CA06: B1 20
+; --- Outer loop: iterate 30 officer slots ---
+  STA a:work_inner_idx                                ; $C98F: 8D 37 00  category index
+  LDA #$00                                            ; $C992: A9 00
+  STA a:work_outer_idx                                ; $C994: 8D 36 00  start at slot 0
+@SlotLoop:
+  JSR @ScanOfficerRecord                              ; $C997: 20 A5 C9
+  INC a:work_outer_idx                                ; $C99A: EE 36 00
+  LDA a:work_outer_idx                                ; $C99D: AD 36 00
+  CMP #$1E                                            ; $C9A0: C9 1E  loop 30 slots
+  BCC @SlotLoop                                       ; $C9A2: 90 F3
+@Done:
+  RTS                                                 ; $C9A4: 60
+
+; --- ScanOfficerRecordForBest ($C9A5) ---
+; Scans one officer record for the best candidate matching the category.
+@ScanOfficer:
+
+  LDA a:work_outer_idx                                ; $C9A5: AD 36 00
+  JSR Proc_D105                                       ; $C9A8: 20 05 D1  slot * 32 + $6000
+  AND #$07                                            ; $C9AB: 29 07  category bits
+  CMP a:work_inner_idx                                ; $C9AD: CD 37 00  matches target?
+  BNE @Done                                           ; $C9B0: D0 F2  skip if category mismatch
+  LDA #$11                                            ; $C9B2: A9 11
+  STA a:work_limit_a                                  ; $C9B4: 8D 3A 00  scan from slot 17
+  LDA #$00                                            ; $C9B7: A9 00
+  STA a:work_limit_b                                  ; $C9B9: 8D 3B 00  best score = 0
+  LDA #$FF                                            ; $C9BC: A9 FF
+  STA a:work_temp_0                                   ; $C9BE: 8D 3C 00  best slot = none
+@CheckNext:
+  LDY a:work_limit_a                                  ; $C9C1: AC 3A 00
+  LDA (math_acc_lo),Y                                 ; $C9C4: B1 20  slot ID byte
+  CMP #$FF                                            ; $C9C6: C9 FF  terminator?
+  BEQ @NoBestSlot                                     ; $C9C8: F0 25
+  LDY #$03                                            ; $C9CA: A0 03
+  JSR $D2AB                                           ; $C9CC: 20 AB D2  score at byte+3
+  CMP #$64                                            ; $C9CF: C9 64  score == 100?
+  BNE @CheckBetter                                    ; $C9D1: D0 09
+  LDA a:work_limit_a                                  ; $C9D3: AD 3A 00  perfect score
+  STA a:work_temp_0                                   ; $C9D6: 8D 3C 00
+  JMP @SwapBest                                       ; $C9D9: 4C F9 C9
+@CheckBetter:
+  LDY #$04                                            ; $C9DC: A0 04
+  CLC                                                 ; $C9DE: 18
+  ADC (math_acc_mhi),Y                                ; $C9DF: 71 22  score at byte+4
+  CMP a:work_limit_b                                  ; $C9E1: CD 3B 00  better than best?
+  BCC @NoBestSlot                                     ; $C9E4: 90 09
+  STA a:work_limit_b                                  ; $C9E6: 8D 3B 00  update best score
+  LDA a:work_limit_a                                  ; $C9E9: AD 3A 00
+  STA a:work_temp_0                                   ; $C9EC: 8D 3C 00  update best slot
+@NoBestSlot:
+  INC a:work_limit_a                                  ; $C9EF: EE 3A 00
+  LDA a:work_limit_a                                  ; $C9F2: AD 3A 00
+  CMP #$1B                                            ; $C9F5: C9 1B  scan through slot 26
+  BCC @CheckNext                                      ; $C9F7: 90 C8
+
+; --- SwapBestToPrioritySlot + ProcessAllCategories ($C9F9) ---
+; Swaps best sub-entry (slot in $3C) into priority slot $11,
+; then processes categories 0-6 applying officer changes.
+@SwapBest:
+
+  LDA a:work_temp_0                                   ; $C9F9: AD 3C 00  best slot index
+  CMP #$FF                                            ; $C9FC: C9 FF  no match found?
+  BEQ @AlreadyPriority                                ; $C9FE: F0 18
+  CMP #$11                                            ; $CA00: C9 11  already priority slot?
+  BEQ @AlreadyPriority                                ; $CA02: F0 14
+  LDY #$11                                            ; $CA04: A0 11  swap slot $11 <-> best
+  LDA (math_acc_lo),Y                                 ; $CA06: B1 20
   PHA                                                 ; $CA08: 48
-  LDY a:$003C                                         ; $CA09: AC 3C 00
-  LDA ($20),Y                                         ; $CA0C: B1 20
+  LDY a:work_temp_0                                   ; $CA09: AC 3C 00
+  LDA (math_acc_lo),Y                                 ; $CA0C: B1 20
   LDY #$11                                            ; $CA0E: A0 11
-  STA ($20),Y                                         ; $CA10: 91 20
+  STA (math_acc_lo),Y                                 ; $CA10: 91 20
   PLA                                                 ; $CA12: 68
-  LDY a:$003C                                         ; $CA13: AC 3C 00
-  STA ($20),Y                                         ; $CA16: 91 20
+  LDY a:work_temp_0                                   ; $CA13: AC 3C 00
+  STA (math_acc_lo),Y                                 ; $CA16: 91 20
+@AlreadyPriority:
   RTS                                                 ; $CA18: 60
+; --- Category processing loop (categories 0-6) ---
   LDA #$00                                            ; $CA19: A9 00
-  STA a:$0040                                         ; $CA1B: 8D 40 00
-LCA1E:
-  LDA a:$0040                                         ; $CA1E: AD 40 00
-  JSR Proc_D319                                       ; $CA21: 20 19 D3
+  STA a:work_record_val                               ; $CA1B: 8D 40 00  category = 0
+@CategoryLoop:
+  LDA a:work_record_val                               ; $CA1E: AD 40 00
+  JSR Proc_D319                                       ; $CA21: 20 19 D3  get record ptr
   LDY #$00                                            ; $CA24: A0 00
-  LDA ($24),Y                                         ; $CA26: B1 24
-  CMP #$FF                                            ; $CA28: C9 FF
-  .byte $F0,$2C                                       ; $CA2A: F0 2C (BEQ mid-instruction target)
-  STA a:$0038                                         ; $CA2C: 8D 38 00
+  LDA (math_ext),Y                                    ; $CA26: B1 24  first byte
+  CMP #$FF                                            ; $CA28: C9 FF  empty record?
+  BEQ @NextCategory                                   ; $CA2A: F0 2C
+  STA a:work_inner_idx2                               ; $CA2C: 8D 38 00  save officer ID
   LDY #$03                                            ; $CA2F: A0 03
-  LDA ($24),Y                                         ; $CA31: B1 24
-  CMP #$03                                            ; $CA33: C9 03
-  .byte $D0,$21                                       ; $CA35: D0 21 (BNE mid-instruction target)
-  LDA a:$0038                                         ; $CA37: AD 38 00
+  LDA (math_ext),Y                                    ; $CA31: B1 24  status byte
+  CMP #$03                                            ; $CA33: C9 03  status == 3?
+  BNE @NextCategory                                   ; $CA35: D0 21
+  LDA a:work_inner_idx2                               ; $CA37: AD 38 00
   LDY #$0B                                            ; $CA3A: A0 0B
-  JSR $D2AB                                           ; $CA3C: 20 AB D2
+  JSR $D2AB                                           ; $CA3C: 20 AB D2  lookup score
   AND #$03                                            ; $CA3F: 29 03
   CMP #$02                                            ; $CA41: C9 02
-  BEQ LCA52                                           ; $CA43: F0 0D
+  BEQ @SkipMarkDeleted                                ; $CA43: F0 0D
   LDY #$0B                                            ; $CA45: A0 0B
-  LDA ($22),Y                                         ; $CA47: B1 22
+  LDA (math_acc_mhi),Y                                ; $CA47: B1 22
   AND #$FC                                            ; $CA49: 29 FC
-  ORA #$03                                            ; $CA4B: 09 03
-  STA ($22),Y                                         ; $CA4D: 91 22
-  JSR $CA68                                           ; $CA4F: 20 68 CA
-LCA52:
-  LDA a:$0040                                         ; $CA52: AD 40 00
-  JSR Proc_C98F                                       ; $CA55: 20 8F C9
-  INC a:$0040                                         ; $CA58: EE 40 00
-  LDA a:$0040                                         ; $CA5B: AD 40 00
-  CMP #$07                                            ; $CA5E: C9 07
-  BCC LCA1E                                           ; $CA60: 90 BC
+  ORA #$03                                            ; $CA4B: 09 03  set bits 0-1
+  STA (math_acc_mhi),Y                                ; $CA4D: 91 22
+  JSR $CA68                                           ; $CA4F: 20 68 CA  apply changes
+@SkipMarkDeleted:
+  LDA a:work_record_val                               ; $CA52: AD 40 00
+  JSR FindBestOfficerByCategory                       ; $CA55: 20 8F C9  promote best for category
+@NextCategory:
+  INC a:work_record_val                               ; $CA58: EE 40 00
+  LDA a:work_record_val                               ; $CA5B: AD 40 00
+  CMP #$07                                            ; $CA5E: C9 07  7 categories done?
+  BCC @CategoryLoop                                   ; $CA60: 90 BC
   JSR Proc_D249                                       ; $CA62: 20 49 D2
-  JMP $BEC7                                           ; $CA65: 4C C7 BE
-  JSR $CA87                                           ; $CA68: 20 87 CA
-  JSR Proc_CB05                                       ; $CA6B: 20 05 CB
-  LDA a:$0040                                         ; $CA6E: AD 40 00
+  JMP @AiAction_EndTurn                                ; $CA65: 4C C7 BE
+; --- Helper subroutine (outside proc boundary) ---
+  JSR $CA87                                           ; $CA68: 20 87 CA  load record ptr
+  JSR @FindBestInCategory                             ; $CA6B: 20 05 CB
+  LDA a:work_record_val                               ; $CA6E: AD 40 00
   JSR Proc_D319                                       ; $CA71: 20 19 D3
   LDY #$00                                            ; $CA74: A0 00
   LDA #$FF                                            ; $CA76: A9 FF
-  STA ($24),Y                                         ; $CA78: 91 24
+  STA (math_ext),Y                                    ; $CA78: 91 24  mark as deleted
   LDA #$FB                                            ; $CA7A: A9 FB
-  STA $6F8B                                           ; $CA7C: 8D 8B 6F
-LCA7F:
-  LDA $6F8B                                           ; $CA7F: AD 8B 6F
+  STA sram_game_start_flag                            ; $CA7C: 8D 8B 6F
+@WaitDone:
+  LDA sram_game_start_flag                            ; $CA7F: AD 8B 6F
   CMP #$01                                            ; $CA82: C9 01
-  BNE LCA7F                                           ; $CA84: D0 F9
+  BNE @WaitDone                                       ; $CA84: D0 F9  busy-wait
   RTS                                                 ; $CA86: 60
-  LDA a:$0040                                         ; $CA87: AD 40 00
-  ASL A                                               ; $CA8A: 0A
+; --- Helper: load record pointer for category ---
+  LDA a:work_record_val                               ; $CA87: AD 40 00
+  ASL A                                               ; $CA8A: 0A  category * 2
   TAY                                                 ; $CA8B: A8
-  LDA $CAD8,Y                                         ; $CA8C: B9 D8 CA
+  LDA CategoryRecordPtrs,Y                            ; $CA8C: B9 D8 CA
   STA $24                                             ; $CA8F: 85 24
-  LDA $CAD9,Y                                         ; $CA91: B9 D9 CA
+  LDA CategoryRecordPtrs+1,Y                          ; $CA91: B9 D9 CA
   STA $25                                             ; $CA94: 85 25
   LDA #$00                                            ; $CA96: A9 00
   STA $26                                             ; $CA98: 85 26
+@CheckNextRecord:
   LDY $26                                             ; $CA9A: A4 26
   LDA ($24),Y                                         ; $CA9C: B1 24
   CMP #$FF                                            ; $CA9E: C9 FF
-  BEQ LCAAC                                           ; $CAA0: F0 0A
+  BEQ @HelperDone                                     ; $CAA0: F0 0A
   STA $27                                             ; $CAA2: 85 27
-  JSR Proc_CAAD                                       ; $CAA4: 20 AD CA
+  JSR @SearchForCategoryMatch                         ; $CAA4: 20 AD CA
   INC $26                                             ; $CAA7: E6 26
-  JMP $CA9A                                           ; $CAA9: 4C 9A CA
-LCAAC:
+  JMP @CheckNextRecord                                ; $CAA9: 4C 9A CA
+@HelperDone:
   RTS                                                 ; $CAAC: 60
-.endproc
-LCA1E = $CA1E
-LCA52 = $CA52
-LCA7F = $CA7F
-LCAAC = $CAAC
 
-
-;===============================================================================
-; $CAAD: Proc_CAAD
-;===============================================================================
-.proc Proc_CAAD
-  math_acc_lo              = $0020
-  math_temp3               = $0027
-  work_record_val          = $0040
-
+; --- SearchForCategoryMatch ($CAAD) ---
+; Scans 30 officers for category match at slot $11.
+; On match, pops 4 return addresses and jumps to @SwapAndProcess.
+@SearchForCategoryMatch:
   LDA #$00                                            ; $CAAD: A9 00
   STA $2A                                             ; $CAAF: 85 2A
-LCAB1:
+@SearchNext:
   LDA $2A                                             ; $CAB1: A5 2A
   JSR Proc_D105                                       ; $CAB3: 20 05 D1
   CMP a:$0040                                         ; $CAB6: CD 40 00
-  .byte $D0,$0D                                       ; $CAB9: D0 0D (BNE mid-instruction target)
+  BNE @SearchNext                                     ; $CAB9: D0 0D  skip if not matching category
   LDY #$11                                            ; $CABB: A0 11
   LDA ($20),Y                                         ; $CABD: B1 20
   CMP $27                                             ; $CABF: C5 27
-  BEQ LCAD1                                           ; $CAC1: F0 0E
-  INY                                                 ; $CAC3: C8
-  CPY #$1B                                            ; $CAC4: C0 1B
-  .byte $90,$F5                                       ; $CAC6: 90 F5 (BCC mid-instruction target)
+  BEQ @FoundMatch                                     ; $CAC1: F0 0E
+@CheckSlotId:
+  BCC @CheckSlotId                                    ; $CAC6: 90 F5  check slots $11-$1A
   INC $2A                                             ; $CAC8: E6 2A
   LDA $2A                                             ; $CACA: A5 2A
   CMP #$1E                                            ; $CACC: C9 1E
-  BCC LCAB1                                           ; $CACE: 90 E1
+  BCC @SearchNext                                     ; $CACE: 90 E1
   RTS                                                 ; $CAD0: 60
-LCAD1:
+@FoundMatch:
   PLA                                                 ; $CAD1: 68
   PLA                                                 ; $CAD2: 68
   PLA                                                 ; $CAD3: 68
   PLA                                                 ; $CAD4: 68
-  JMP Proc_CB52                                       ; $CAD5: 4C 52 CB
-.endproc
-LCAB1 = $CAB1
-LCAD1 = $CAD1
+  JMP @SwapAndProcess                                 ; $CAD5: 4C 52 CB
 
+; --- Category Record Pointer Table ($CAD8-$CB04) ---
+; Part 1: 7 word pointers (category → byte-list address).
+; Part 2: Byte lists terminated by $FF.
+; Accessed via LDA CategoryRecordPtrs,Y where Y = category*2.
+CategoryRecordPtrs:
+  .word $CAE6                                           ; $CAD8: category 0
+  .word $CAEA                                           ; $CADA: category 1
+  .word $CAED                                           ; $CADC: category 2
+  .word $CAF4                                           ; $CADE: category 3
+  .word $CAF8                                           ; $CAE0: category 4
+  .word $CAFD                                           ; $CAE2: category 5
+  .word $CB00                                           ; $CAE4: category 6
+  .byte $DA, $DB, $D3, $FF                              ; $CAE6: list 0
+  .byte $09, $07, $FF                                   ; $CAEA: list 1
+  .byte $84, $7B, $7F, $80, $85, $82, $FF              ; $CAED: list 2
+  .byte $89, $8B, $5D, $FF                              ; $CAF4: list 3
+  .byte $E0, $6D, $26, $99, $FF                         ; $CAF8: list 4
+  .byte $42, $97, $FF                                   ; $CAFD: list 5
+  .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: list 6
 
-;===============================================================================
-; $CAD8: Proc_CAD8
-;===============================================================================
-.proc Proc_CAD8
-
-  INC $CA                                             ; $CAD8: E6 CA
-  NOP                                                 ; $CADA: EA
-  DEX                                                 ; $CADB: CA
-  SBC $F4CA                                           ; $CADC: ED CA F4
-  DEX                                                 ; $CADF: CA
-  SED                                                 ; $CAE0: F8
-  DEX                                                 ; $CAE1: CA
-  SBC a:$00CA,X                                       ; $CAE2: FD CA 00
-  .byte $CB,$DA,$DB,$D3,$FF,$09,$07,$FF,$84,$7B,$7F,$80,$85,$82,$FF,$89; $CAE5: CB DA DB D3 FF 09 07 FF 84 7B 7F 80 85 82 FF 89
-  .byte $8B,$5D,$FF,$E0,$6D,$26,$99,$FF,$42,$97,$FF,$B4,$B0,$B5,$B3,$FF; $CAF5: 8B 5D FF E0 6D 26 99 FF 42 97 FF B4 B0 B5 B3 FF
-.endproc
-
-;===============================================================================
-; $CB05: Proc_CB05
-;===============================================================================
-.proc Proc_CB05
-  math_acc_lo              = $0020
-  math_ext                 = $0024
-  math_temp3               = $0027
-  work_record_val          = $0040
-
+; --- FindBestInCategory ($CB05) ---
+; Scans 30 officers' sub-entries for best score at byte+4.
+; Pops 2 return addresses and jumps to @SwapAndProcess on success.
+@FindBestInCategory:
   LDA #$00                                            ; $CB05: A9 00
   STA $2A                                             ; $CB07: 85 2A
   STA $2B                                             ; $CB09: 85 2B
   LDA #$FF                                            ; $CB0B: A9 FF
   STA $27                                             ; $CB0D: 85 27
-LCB0F:
+@FindNext:
   LDA $2A                                             ; $CB0F: A5 2A
   JSR Proc_D105                                       ; $CB11: 20 05 D1
   CMP a:$0040                                         ; $CB14: CD 40 00
@@ -6909,12 +6891,12 @@ LCB0F:
   LDY $24                                             ; $CB30: A4 24
   LDA ($20),Y                                         ; $CB32: B1 20
   STA $27                                             ; $CB34: 85 27
-LCB36:
+@CheckNextSub:
   INC $24                                             ; $CB36: E6 24
   LDA $24                                             ; $CB38: A5 24
   CMP #$1B                                            ; $CB3A: C9 1B
-  .byte $90,$DF                                       ; $CB3C: 90 DF (BCC mid-instruction target)
-LCB3E:
+  BCC @FindNext                                       ; $CB3C: 90 DF
+@AdvanceOfficer:
   INC $2A                                             ; $CB3E: E6 2A
   LDA $2A                                             ; $CB40: A5 2A
   CMP #$1E                                            ; $CB42: C9 1E
@@ -6924,27 +6906,13 @@ LCB3E:
   BEQ LCB51                                           ; $CB4A: F0 05
   PLA                                                 ; $CB4C: 68
   PLA                                                 ; $CB4D: 68
-  JMP Proc_CB52                                       ; $CB4E: 4C 52 CB
-LCB51:
+  JMP @SwapAndProcess                                 ; $CB4E: 4C 52 CB
+@NoBestFound:
   RTS                                                 ; $CB51: 60
-.endproc
-LCB0F = $CB0F
-LCB36 = $CB36
-LCB3E = $CB3E
-LCB51 = $CB51
 
-
-;===============================================================================
-; $CB52: Proc_CB52
-;===============================================================================
-.proc Proc_CB52
-  math_acc_mhi             = $0022
-  math_ext                 = $0024
-  math_temp3               = $0027
-  work_record_val          = $0040
-  work_search_max          = $0045
-  sram_game_start_flag     = $6F8B
-
+; --- SwapAndProcess ($CB52) ---
+; Swaps officer into record, sets byte+3=$64, processes all 30 officers.
+@SwapAndProcess:
   LDA a:$0040                                         ; $CB52: AD 40 00
   JSR Proc_D319                                       ; $CB55: 20 19 D3
   LDY #$00                                            ; $CB58: A0 00
@@ -6963,77 +6931,55 @@ LCB51 = $CB51
   STA $27                                             ; $CB72: 85 27
   LDA #$FC                                            ; $CB74: A9 FC
   STA $6F8B                                           ; $CB76: 8D 8B 6F
-LCB79:
-  LDA $6F8B                                           ; $CB79: AD 8B 6F
+@WaitGameFlag:
+  LDA sram_game_start_flag                            ; $CB79: AD 8B 6F
   CMP #$01                                            ; $CB7C: C9 01
-  BNE LCB79                                           ; $CB7E: D0 F9
+  BNE @WaitGameFlag                                   ; $CB7E: D0 F9
   RTS                                                 ; $CB80: 60
   LDA $27                                             ; $CB81: A5 27
   STA $30                                             ; $CB83: 85 30
   LDA #$00                                            ; $CB85: A9 00
   STA a:$0045                                         ; $CB87: 8D 45 00
-LCB8A:
+@ProcessAllSlots:
   LDA a:$0045                                         ; $CB8A: AD 45 00
   JSR Proc_D105                                       ; $CB8D: 20 05 D1
   CMP a:$0040                                         ; $CB90: CD 40 00
-  BNE LCB98                                           ; $CB93: D0 03
-  JSR Proc_CBA3                                       ; $CB95: 20 A3 CB
-LCB98:
+  BNE @SkipScoreCall                                  ; $CB93: D0 03
+  JSR @ScoreAndAdjust                                 ; $CB95: 20 A3 CB
+@SkipScoreCall:
   INC a:$0045                                         ; $CB98: EE 45 00
   LDA a:$0045                                         ; $CB9B: AD 45 00
   CMP #$1E                                            ; $CB9E: C9 1E
-  BCC LCB8A                                           ; $CBA0: 90 E8
+  BCC @ProcessAllSlots                                ; $CBA0: 90 E8
   RTS                                                 ; $CBA2: 60
-.endproc
-LCB79 = $CB79
-LCB8A = $CB8A
-LCB98 = $CB98
 
-
-;===============================================================================
-; $CBA3: Proc_CBA3
-;===============================================================================
-.proc Proc_CBA3
-  math_acc_lo              = $0020
-  math_acc_mlo             = $0021
-  math_acc_mhi             = $0022
-  math_acc_hi              = $0023
-  math_ext                 = $0024
-  math_temp2               = $0026
-  math_temp3               = $0027
-  work_outer_idx           = $0036
-  work_inner_idx           = $0037
-  work_inner_idx2          = $0038
-  work_sub_idx             = $0039
-  work_limit_a             = $003A
-  work_record_val          = $0040
-  work_search_max          = $0045
-  sram_player_id           = $6F03
-
+; --- ScoreAndAdjust ($CBA3) ---
+; Scores sub-entries $11-$1A, adjusts attributes via DataRecordLookup.
+@ScoreAndAdjust:
   LDA #$11                                            ; $CBA3: A9 11
   STA a:$0044                                         ; $CBA5: 8D 44 00
-LCBA8:
+@SubLoop:
   LDA a:$0045                                         ; $CBA8: AD 45 00
   JSR Proc_D105                                       ; $CBAB: 20 05 D1
   LDY a:$0044                                         ; $CBAE: AC 44 00
   LDA ($20),Y                                         ; $CBB1: B1 20
   CMP #$FF                                            ; $CBB3: C9 FF
-  .byte $F0,$E1                                       ; $CBB5: F0 E1 (BEQ cross-proc)
+  BEQ @ReturnEarly                                    ; $CBB5: F0 E1  skip if slot empty
   CMP $30                                             ; $CBB7: C5 30
-  .byte $F0,$DD                                       ; $CBB9: F0 DD (BEQ cross-proc)
+  BEQ @ReturnEarly                                    ; $CBB9: F0 DD  skip if same officer
   STA $31                                             ; $CBBB: 85 31
   LDA a:$0040                                         ; $CBBD: AD 40 00
   STA $32                                             ; $CBC0: 85 32
-  JSR DataRecordLookup                            ; $CBC2: 20 7C CF
+  JSR DataRecordLookup                                ; $CBC2: 20 7C CF
   LDA $31                                             ; $CBC5: A5 31
   LDY #$03                                            ; $CBC7: A0 03
   JSR $D2AB                                           ; $CBC9: 20 AB D2
   CMP #$1F                                            ; $CBCC: C9 1F
-  BCS LCBEB                                           ; $CBCE: B0 1B
+  BCS @SkipSub                                          ; $CBCE: B0 1B
   LDA #$64                                            ; $CBD0: A9 64
   JSR Proc_D4BB                                       ; $CBD2: 20 BB D4
   CMP #$14                                            ; $CBD5: C9 14
-  BCS LCBEB                                           ; $CBD7: B0 12
+  BCS @SkipSub                                          ; $CBD7: B0 12
   LDA $31                                             ; $CBD9: A5 31
   LDY #$0B                                            ; $CBDB: A0 0B
   JSR $D2AB                                           ; $CBDD: 20 AB D2
@@ -7042,7 +6988,7 @@ LCBA8:
   LDY #$05                                            ; $CBE4: A0 05
   LDA a:$0045                                         ; $CBE6: AD 45 00
   STA ($22),Y                                         ; $CBE9: 91 22
-LCBEB:
+@SkipSub:
   INC a:$0044                                         ; $CBEB: EE 44 00
   LDA a:$0044                                         ; $CBEE: AD 44 00
   CMP #$1B                                            ; $CBF1: C9 1B
@@ -7052,27 +6998,28 @@ LCBEB:
   LDA a:$0045                                         ; $CBFB: AD 45 00
   JSR Proc_D304                                       ; $CBFE: 20 04 D3
   CMP #$00                                            ; $CC01: C9 00
-  .byte $D0,$0C                                       ; $CC03: D0 0C (BNE mid-instruction target)
+  BNE @AdjustGold                                     ; $CC03: D0 0C
   LDA a:$0045                                         ; $CC05: AD 45 00
   JSR Proc_D105                                       ; $CC08: 20 05 D1
   LDY #$00                                            ; $CC0B: A0 00
   LDA #$07                                            ; $CC0D: A9 07
   STA ($20),Y                                         ; $CC0F: 91 20
   RTS                                                 ; $CC11: 60
+@FinalizeOfficers:
   LDY #$FF                                            ; $CC12: A0 FF
   STY a:$0036                                         ; $CC14: 8C 36 00
-LCC17:
+@FindOfficer:
   INC a:$0036                                         ; $CC17: EE 36 00
   LDA a:$0036                                         ; $CC1A: AD 36 00
   CMP #$1E                                            ; $CC1D: C9 1E
-  BCC LCC22                                           ; $CC1F: 90 01
+  BCC @CheckCategory                                  ; $CC1F: 90 01
   RTS                                                 ; $CC21: 60
-LCC22:
+@CheckCategory:
   LDA a:$0036                                         ; $CC22: AD 36 00
   JSR Proc_D105                                       ; $CC25: 20 05 D1
   AND #$07                                            ; $CC28: 29 07
   CMP $6F03                                           ; $CC2A: CD 03 6F
-  BNE LCC17                                           ; $CC2D: D0 E8
+  BNE @FindOfficer                                    ; $CC2D: D0 E8
   LDY #$02                                            ; $CC2F: A0 02
   LDA ($20),Y                                         ; $CC31: B1 20
   SEC                                                 ; $CC33: 38
@@ -7080,14 +7027,14 @@ LCC22:
   INY                                                 ; $CC36: C8
   LDA ($20),Y                                         ; $CC37: B1 20
   SBC #$00                                            ; $CC39: E9 00
-  BCS LCC17                                           ; $CC3B: B0 DA
+  BCS @FindOfficer                                    ; $CC3B: B0 DA
   LDY #$30                                            ; $CC3D: A0 30
   JSR B1F_SwitchBank8_A                               ; $CC3F: 20 66 F2
   LDY a:$0036                                         ; $CC42: AC 36 00
   LDA $8FFC,Y                                         ; $CC45: B9 FC 8F
   AND #$04                                            ; $CC48: 29 04
-  BEQ LCC17                                           ; $CC4A: F0 CB
-  JSR $CCF8                                           ; $CC4C: 20 F8 CC
+  BEQ @FindOfficer                                    ; $CC4A: F0 CB
+  JSR @CalcOfficerTotal                               ; $CC4C: 20 F8 CC
   LDA a:$0036                                         ; $CC4F: AD 36 00
   JSR Proc_D105                                       ; $CC52: 20 05 D1
   LDY #$04                                            ; $CC55: A0 04
@@ -7105,12 +7052,12 @@ LCC22:
   SBC #$2C                                            ; $CC6F: E9 2C
   LDA a:$003A                                         ; $CC71: AD 3A 00
   SBC #$01                                            ; $CC74: E9 01
-  BCC LCC82                                           ; $CC76: 90 0A
+  BCC @FoundOfficer                                   ; $CC76: 90 0A
   LDA #$2C                                            ; $CC78: A9 2C
   STA a:$0039                                         ; $CC7A: 8D 39 00
   LDA #$01                                            ; $CC7D: A9 01
   STA a:$003A                                         ; $CC7F: 8D 3A 00
-LCC82:
+@FoundOfficer:
   LDY #$04                                            ; $CC82: A0 04
   LDA ($20),Y                                         ; $CC84: B1 20
   SEC                                                 ; $CC86: 38
@@ -7163,7 +7110,8 @@ LCC82:
   JSR Proc_D69D                                       ; $CCED: 20 9D D6
   LDA #$02                                            ; $CCF0: A9 02
   JSR Proc_D165                                       ; $CCF2: 20 65 D1
-  JMP LCC17                                           ; $CCF5: 4C 17 CC
+  JMP @FindOfficer                                    ; $CCF5: 4C 17 CC
+@CalcOfficerTotal:
   LDA a:$0036                                         ; $CCF8: AD 36 00
   JSR Proc_D105                                       ; $CCFB: 20 05 D1
   LDA #$11                                            ; $CCFE: A9 11
@@ -7174,7 +7122,7 @@ LCC82:
   LDY a:$0037                                         ; $CD0B: AC 37 00
   LDA ($20),Y                                         ; $CD0E: B1 20
   CMP #$FF                                            ; $CD10: C9 FF
-  .byte $F0,$15                                       ; $CD12: F0 15 (BEQ mid-instruction target)
+  BEQ @CalcDone                                       ; $CD12: F0 15
   LDY #$08                                            ; $CD14: A0 08
   JSR $D2AB                                           ; $CD16: 20 AB D2
   CLC                                                 ; $CD19: 18
@@ -7187,7 +7135,7 @@ LCC82:
   INC a:$0037                                         ; $CD29: EE 37 00
   LDA a:$0037                                         ; $CD2C: AD 37 00
   CMP #$1B                                            ; $CD2F: C9 1B
-  .byte $90,$D8                                       ; $CD31: 90 D8 (BCC mid-instruction target)
+  BCC @SumLoop                                        ; $CD31: 90 D8
   LDA a:$0038                                         ; $CD33: AD 38 00
   STA $21                                             ; $CD36: 85 21
   LDA a:$0039                                         ; $CD38: AD 39 00
@@ -7212,64 +7160,21 @@ LCC82:
   STA a:$003A                                         ; $CD64: 8D 3A 00
   RTS                                                 ; $CD67: 60
 .endproc
-LCBA8 = $CBA8
-LCBEB = $CBEB
-LCC17 = $CC17
-LCC22 = $CC22
-LCC82 = $CC82
 
 
 ;===============================================================================
-; $CD68: Proc_CD68
+; $CD68: ApplyScenarioDeductions
+;   New-game initialization: applies difficulty-scaled deductions to multiple
+;   resource fields based on $6F8D (scenario/difficulty parameter).
+;   Nested subroutines:
+;     @CalcMultiplier ($CD9A) - compute multiplier from $6F8D threshold
+;     @MultiplyAndSubtract ($CDB9) - multiply value then subtract from field
+;     @DirectAssign ($CE1B) - direct assign scaled value to field
+;     BracketDeductGold ($CE67) - table-driven deduction for gold field $0522
+;     ArmyDeductionTable ($CEC9) - 16-bit threshold table (shared with BracketDeductArmy)
+;     ArmyResultTable ($CED3) - 8-bit result table (shared with BracketDeductArmy)
 ;===============================================================================
-.proc Proc_CD68
-  work_outer_idx           = $0036
-
-  LDA #$0A                                            ; $CD68: A9 0A
-  JSR Proc_D4AD                                       ; $CD6A: 20 AD D4
-  CLC                                                 ; $CD6D: 18
-  ADC #$0A                                            ; $CD6E: 69 0A
-  LDY #$06                                            ; $CD70: A0 06
-  STY a:$0036                                         ; $CD72: 8C 36 00
-  JSR Proc_CDB9                                       ; $CD75: 20 B9 CD
-  JSR $CD9A                                           ; $CD78: 20 9A CD
-  LDY #$08                                            ; $CD7B: A0 08
-  STY a:$0036                                         ; $CD7D: 8C 36 00
-  JSR Proc_CDB9                                       ; $CD80: 20 B9 CD
-  JSR $CD9A                                           ; $CD83: 20 9A CD
-  LDY #$0E                                            ; $CD86: A0 0E
-  STY a:$0036                                         ; $CD88: 8C 36 00
-  JSR Proc_CDB9                                       ; $CD8B: 20 B9 CD
-  JSR $CD9A                                           ; $CD8E: 20 9A CD
-  LDY #$0B                                            ; $CD91: A0 0B
-  STY a:$0036                                         ; $CD93: 8C 36 00
-  JSR $CE1B                                           ; $CD96: 20 1B CE
-  RTS                                                 ; $CD99: 60
-  LDY #$0A                                            ; $CD9A: A0 0A
-  LDA $6F8D                                           ; $CD9C: AD 8D 6F
-  CMP #$05                                            ; $CD9F: C9 05
-  BCC LCDB7                                           ; $CDA1: 90 14
-  LDY #$14                                            ; $CDA3: A0 14
-  CMP #$0A                                            ; $CDA5: C9 0A
-  BCC LCDB7                                           ; $CDA7: 90 0E
-  LDY #$1E                                            ; $CDA9: A0 1E
-  CMP #$0F                                            ; $CDAB: C9 0F
-  BCC LCDB7                                           ; $CDAD: 90 08
-  LDY #$28                                            ; $CDAF: A0 28
-  CMP #$14                                            ; $CDB1: C9 14
-  BCC LCDB7                                           ; $CDB3: 90 02
-  LDY #$3C                                            ; $CDB5: A0 3C
-LCDB7:
-  TYA                                                 ; $CDB7: 98
-  RTS                                                 ; $CDB8: 60
-.endproc
-LCDB7 = $CDB7
-
-
-;===============================================================================
-; $CDB9: Proc_CDB9
-;===============================================================================
-.proc Proc_CDB9
+.proc ApplyScenarioDeductions
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -7277,9 +7182,59 @@ LCDB7 = $CDB7
   math_ext                 = $0024
   math_temp2               = $0026
   math_temp3               = $0027
+  work_temp                = $002A
   work_outer_idx           = $0036
   work_inner_idx2          = $0038
 
+  LDA #$0A                                            ; $CD68: A9 0A
+  JSR Proc_D4AD                                       ; $CD6A: 20 AD D4
+  CLC                                                 ; $CD6D: 18
+  ADC #$0A                                            ; $CD6E: 69 0A
+  LDY #$06                                            ; $CD70: A0 06
+  STY a:$0036                                         ; $CD72: 8C 36 00
+  JSR @MultiplyAndSubtract                            ; $CD75: 20 B9 CD
+  JSR @CalcMultiplier                                 ; $CD78: 20 9A CD
+  LDY #$08                                            ; $CD7B: A0 08
+  STY a:$0036                                         ; $CD7D: 8C 36 00
+  JSR @MultiplyAndSubtract                            ; $CD80: 20 B9 CD
+  JSR @CalcMultiplier                                 ; $CD83: 20 9A CD
+  LDY #$0E                                            ; $CD86: A0 0E
+  STY a:$0036                                         ; $CD88: 8C 36 00
+  JSR @MultiplyAndSubtract                            ; $CD8B: 20 B9 CD
+  JSR @CalcMultiplier                                 ; $CD8E: 20 9A CD
+  LDY #$0B                                            ; $CD91: A0 0B
+  STY a:$0036                                         ; $CD93: 8C 36 00
+  JSR @DirectAssign                                   ; $CD96: 20 1B CE
+  RTS                                                 ; $CD99: 60
+
+;-------------------------------------------------------------------------------
+; @CalcMultiplier ($CD9A): compute Y multiplier based on $6F8D thresholds
+;   Returns multiplier in A (10/20/30/40/60)
+;-------------------------------------------------------------------------------
+@CalcMultiplier:                                      ; $CD9A
+  LDY #$0A                                            ; $CD9A: A0 0A
+  LDA $6F8D                                           ; $CD9C: AD 8D 6F
+  CMP #$05                                            ; $CD9F: C9 05
+  BCC @MultDone                                       ; $CDA1: 90 14
+  LDY #$14                                            ; $CDA3: A0 14
+  CMP #$0A                                            ; $CDA5: C9 0A
+  BCC @MultDone                                       ; $CDA7: 90 0E
+  LDY #$1E                                            ; $CDA9: A0 1E
+  CMP #$0F                                            ; $CDAB: C9 0F
+  BCC @MultDone                                       ; $CDAD: 90 08
+  LDY #$28                                            ; $CDAF: A0 28
+  CMP #$14                                            ; $CDB1: C9 14
+  BCC @MultDone                                       ; $CDB3: 90 02
+  LDY #$3C                                            ; $CDB5: A0 3C
+@MultDone:                                            ; $CDB7
+  TYA                                                 ; $CDB7: 98
+  RTS                                                 ; $CDB8: 60
+
+;-------------------------------------------------------------------------------
+; @MultiplyAndSubtract ($CDB9): multiply field[idx] by $23:scaled, subtract result
+;   Reads 16-bit value at (ptr+$36), multiplies via D438*D336, subtracts back
+;-------------------------------------------------------------------------------
+@MultiplyAndSubtract:                                 ; $CDB9
   PHA                                                 ; $CDB9: 48
   LDA a:$0038                                         ; $CDBA: AD 38 00
   JSR Proc_D105                                       ; $CDBD: 20 05 D1
@@ -7322,13 +7277,19 @@ LCDB7 = $CDB7
   LDA ($20),Y                                         ; $CE08: B1 20
   SBC $2B                                             ; $CE0A: E5 2B
   STA ($20),Y                                         ; $CE0C: 91 20
-  .byte $B0,$0A                                       ; $CE0E: B0 0A (BCS mid-instruction target)
+  BCS @SubDone                                        ; $CE0E: B0 0A
   LDY a:$0036                                         ; $CE10: AC 36 00
   LDA #$00                                            ; $CE13: A9 00
   STA ($20),Y                                         ; $CE15: 91 20
   INY                                                 ; $CE17: C8
   STA ($20),Y                                         ; $CE18: 91 20
+@SubDone:                                             ; $CE1A
   RTS                                                 ; $CE1A: 60
+
+;-------------------------------------------------------------------------------
+; @DirectAssign ($CE1B): assign scaled value directly to field (no subtract)
+;-------------------------------------------------------------------------------
+@DirectAssign:                                        ; $CE1B
   PHA                                                 ; $CE1B: 48
   LDA a:$0038                                         ; $CE1C: AD 38 00
   JSR Proc_D105                                       ; $CE1F: 20 05 D1
@@ -7361,23 +7322,32 @@ LCDB7 = $CDB7
   SEC                                                 ; $CE5B: 38
   SBC $2A                                             ; $CE5C: E5 2A
   STA ($20),Y                                         ; $CE5E: 91 20
-  .byte $B0,$04                                       ; $CE60: B0 04 (BCS mid-instruction target)
+  BCS @AssignDone                                     ; $CE60: B0 04
   LDA #$00                                            ; $CE62: A9 00
   STA ($20),Y                                         ; $CE64: 91 20
+@AssignDone:                                          ; $CE66
   RTS                                                 ; $CE66: 60
+
+;-------------------------------------------------------------------------------
+; Proc_CE67 ($CE67): table-driven deduction for gold at $0522/$0523
+;   Iterates ArmyDeductionTable to find threshold bracket,
+;   multiplies via D438*D336, subtracts result from $0522/$0523
+;-------------------------------------------------------------------------------
+BracketDeductGold:                                    ; $CE67
   LDY #$FE                                            ; $CE67: A0 FE
+@TableLoop:                                           ; $CE69
   INY                                                 ; $CE69: C8
   INY                                                 ; $CE6A: C8
   LDA $0522                                           ; $CE6B: AD 22 05
   SEC                                                 ; $CE6E: 38
-  SBC $CEC9,Y                                         ; $CE6F: F9 C9 CE
+  SBC ArmyDeductionTable,Y                            ; $CE6F: F9 C9 CE
   LDA $0523                                           ; $CE72: AD 23 05
-  SBC $CECA,Y                                         ; $CE75: F9 CA CE
-  .byte $B0,$EF                                       ; $CE78: B0 EF (BCS mid-instruction target)
+  SBC ArmyDeductionTable+1,Y                          ; $CE75: F9 CA CE
+  BCS @TableLoop                                      ; $CE78: B0 EF
   TYA                                                 ; $CE7A: 98
   LSR A                                               ; $CE7B: 4A
   TAY                                                 ; $CE7C: A8
-  LDA $CED3,Y                                         ; $CE7D: B9 D3 CE
+  LDA ArmyResultTable,Y                               ; $CE7D: B9 D3 CE
   STA a:$0023                                         ; $CE80: 8D 23 00
   LDA $0522                                           ; $CE83: AD 22 05
   STA $20                                             ; $CE86: 85 20
@@ -7404,19 +7374,34 @@ LCDB7 = $CDB7
   LDA $0523                                           ; $CEB5: AD 23 05
   SBC a:$0021                                         ; $CEB8: ED 21 00
   STA $0523                                           ; $CEBB: 8D 23 05
-  .byte $B0,$08                                       ; $CEBE: B0 08 (BCS mid-instruction target)
+  BCS @NoUnderflow                                    ; $CEBE: B0 08
   LDA #$00                                            ; $CEC0: A9 00
   STA $0522                                           ; $CEC2: 8D 22 05
   STA $0523                                           ; $CEC5: 8D 23 05
+@NoUnderflow:                                         ; $CEC8
   RTS                                                 ; $CEC8: 60
-  .byte $F4,$01,$E8,$03,$B8,$0B,$88,$13,$20,$4E,$32,$00,$3C,$00,$46,$00; $CEC9: F4 01 E8 03 B8 0B 88 13 20 4E 32 00 3C 00 46 00
-  .byte $50,$00,$5A,$00                               ; $CED9: 50 00 5A 00
 .endproc
 
+;-------------------------------------------------------------------------------
+; ArmyDeductionTable ($CEC9): 5 x 16-bit threshold values (LE)
+;   500, 1000, 3000, 5000, 20000
+; ArmyResultTable ($CED3): 5 result bytes interleaved with zero bytes
+;   50, 0, 60, 0, 70, 0, 80, 0, 90, 0
+; Shared by BracketDeductGold and BracketDeductArmy
+;-------------------------------------------------------------------------------
+ArmyDeductionTable:                                   ; $CEC9
+  .byte $F4,$01,$E8,$03,$B8,$0B,$88,$13,$20,$4E       ; $CEC9: F4 01 E8 03 B8 0B 88 13 20 4E
+ArmyResultTable:                                      ; $CED3
+  .byte $32,$00,$3C,$00,$46,$00,$50,$00,$5A,$00       ; $CED3: 32 00 3C 00 46 00 50 00 5A 00
+
 ;===============================================================================
-; $CEDD: Proc_CEDD
+; $CEDD: BracketDeductArmy
+; Table-driven bracket deduction for soldiers at $0526/$0527
+;   Identical algorithm to BracketDeductGold but targets soldiers field.
+;   Iterates ArmyDeductionTable to find threshold bracket for $0526/$0527,
+;   multiplies via D438*D336, subtracts result from $0526/$0527.
 ;===============================================================================
-.proc Proc_CEDD
+.proc BracketDeductArmy
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -7426,18 +7411,19 @@ LCDB7 = $CDB7
   math_temp3               = $0027
 
   LDY #$FE                                            ; $CEDD: A0 FE
+@TableLoop:                                           ; $CEDF
   INY                                                 ; $CEDF: C8
   INY                                                 ; $CEE0: C8
   LDA $0526                                           ; $CEE1: AD 26 05
   SEC                                                 ; $CEE4: 38
-  SBC $CEC9,Y                                         ; $CEE5: F9 C9 CE
+  SBC ArmyDeductionTable,Y                            ; $CEE5: F9 C9 CE
   LDA $0527                                           ; $CEE8: AD 27 05
-  SBC $CECA,Y                                         ; $CEEB: F9 CA CE
-  .byte $B0,$EF                                       ; $CEEE: B0 EF (BCS mid-instruction target)
+  SBC ArmyDeductionTable+1,Y                          ; $CEEB: F9 CA CE
+  BCS @TableLoop                                      ; $CEEE: B0 EF
   TYA                                                 ; $CEF0: 98
   LSR A                                               ; $CEF1: 4A
   TAY                                                 ; $CEF2: A8
-  LDA $CED3,Y                                         ; $CEF3: B9 D3 CE
+  LDA ArmyResultTable,Y                               ; $CEF3: B9 D3 CE
   STA a:$0023                                         ; $CEF6: 8D 23 00
   LDA $0526                                           ; $CEF9: AD 26 05
   STA $20                                             ; $CEFC: 85 20
@@ -7464,65 +7450,72 @@ LCDB7 = $CDB7
   LDA $0527                                           ; $CF2B: AD 27 05
   SBC a:$0021                                         ; $CF2E: ED 21 00
   STA $0527                                           ; $CF31: 8D 27 05
-  .byte $B0,$08                                       ; $CF34: B0 08 (BCS mid-instruction target)
+  BCS @NoUnderflow                                    ; $CF34: B0 08
   LDA #$00                                            ; $CF36: A9 00
   STA $0526                                           ; $CF38: 8D 26 05
   STA $0527                                           ; $CF3B: 8D 27 05
+@NoUnderflow:                                         ; $CF3E
   RTS                                                 ; $CF3E: 60
 .endproc
 
 ;===============================================================================
 ; $CF3F: ArmyValueCalc
-; Calculate total army value from officer/troop data
+; Calculate army strength rating for officer $31 relative to officer $30
+;   Formula: clamp((officer[$30].field4 + 70 - officer[$31].field3), 10, 90)
+;   Result stored into officer[$31].field3
+;   Calls $D61E to apply the updated value.
 ;===============================================================================
 .proc ArmyValueCalc
-  math_acc_lo              = $0020
+  work_result              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
   math_ext                 = $0024
+  work_ptr_lo              = $0022
+  work_ptr_hi              = $0023
 
-  LDA $30                                             ; $CF3F: A5 30
-  LDY #$04                                            ; $CF41: A0 04
-  JSR $D2AB                                           ; $CF43: 20 AB D2
-  STA $21                                             ; $CF46: 85 21
-  LDA #$0A                                            ; $CF48: A9 0A
-  STA $23                                             ; $CF4A: 85 23
+  LDA $30                                             ; $CF3F: A5 30  ; source officer index
+  LDY #$04                                            ; $CF41: A0 04  ; record field 4
+  JSR $D2AB                                           ; $CF43: 20 AB D2  ; fetch field value
+  STA $21                                             ; $CF46: 85 21  ; work_result = field4
+  LDA #$0A                                            ; $CF48: A9 0A  ; constant 10
+  STA $23                                             ; $CF4A: 85 23  ; math_acc_hi = 10
   LDA #$00                                            ; $CF4C: A9 00
   STA $22                                             ; $CF4E: 85 22
   STA $24                                             ; $CF50: 85 24
-  JSR Proc_D40F                                       ; $CF52: 20 0F D4
+  JSR Proc_D40F                                       ; $CF52: 20 0F D4  ; multiply: work_result * 10
   LDA $21                                             ; $CF55: A5 21
   CLC                                                 ; $CF57: 18
-  ADC #$46                                            ; $CF58: 69 46
-  PHA                                                 ; $CF5A: 48
-  LDA $31                                             ; $CF5B: A5 31
-  LDY #$03                                            ; $CF5D: A0 03
-  JSR $D2AB                                           ; $CF5F: 20 AB D2
+  ADC #$46                                            ; $CF58: 69 46  ; +70 (offset)
+  PHA                                                 ; $CF5A: 48  ; save base+70
+  LDA $31                                             ; $CF5B: A5 31  ; target officer index
+  LDY #$03                                            ; $CF5D: A0 03  ; record field 3
+  JSR $D2AB                                           ; $CF5F: 20 AB D2  ; fetch field value
   STA $20                                             ; $CF62: 85 20
-  PLA                                                 ; $CF64: 68
+  PLA                                                 ; $CF64: 68  ; restore base+70
   SEC                                                 ; $CF65: 38
-  SBC $20                                             ; $CF66: E5 20
-  CMP #$5A                                            ; $CF68: C9 5A
-  BCC LCF6E                                           ; $CF6A: 90 02
+  SBC $20                                             ; $CF66: E5 20  ; (base+70) - target_field3
+  CMP #$5A                                            ; $CF68: C9 5A  ; max clamp: 90
+  BCC @ClampMax                                       ; $CF6A: 90 02
   LDA #$5A                                            ; $CF6C: A9 5A
-LCF6E:
-  CMP #$0A                                            ; $CF6E: C9 0A
-  BCS LCF74                                           ; $CF70: B0 02
+@ClampMax:                                            ; $CF6E
+  CMP #$0A                                            ; $CF6E: C9 0A  ; min clamp: 10
+  BCS @ClampMin                                       ; $CF70: B0 02
   LDA #$0A                                            ; $CF72: A9 0A
-LCF74:
-  LDY #$03                                            ; $CF74: A0 03
-  STA ($22),Y                                         ; $CF76: 91 22
-  JSR Proc_D61E                                       ; $CF78: 20 1E D6
+@ClampMin:                                            ; $CF74
+  LDY #$03                                            ; $CF74: A0 03  ; record field 3
+  STA ($22),Y                                         ; $CF76: 91 22  ; store clamped result
+  JSR Proc_D61E                                       ; $CF78: 20 1E D6  ; apply updated value
   RTS                                                 ; $CF7B: 60
 .endproc
-LCF6E = $CF6E
-LCF74 = $CF74
 
 
 ;===============================================================================
 ; $CF7C: DataRecordLookup
-; Lookup data records by index (province/officer info)
+; Lookup data records by category index ($32) and record ID ($30).
+; Scans the category's byte list for a match. If found, returns immediately.
+; If not found, computes a signed difference from two lookups ($33, $31)
+; and continues to @ClampResult for clamping to range [$0A, $63].
 ;===============================================================================
 .proc DataRecordLookup
   math_acc_lo              = $0020
@@ -7533,22 +7526,22 @@ LCF74 = $CF74
   math_temp1               = $0025
 
   LDA $32                                             ; $CF7C: A5 32
-  ASL A                                               ; $CF7E: 0A
+  ASL A                                               ; $CF7E: 0A  category * 2
   TAY                                                 ; $CF7F: A8
-  LDA $CAD8,Y                                         ; $CF80: B9 D8 CA
+  LDA CategoryRecordPtrs,Y                            ; $CF80: B9 D8 CA
   STA $24                                             ; $CF83: 85 24
-  LDA $CAD9,Y                                         ; $CF85: B9 D9 CA
+  LDA CategoryRecordPtrs+1,Y                          ; $CF85: B9 D9 CA
   STA $25                                             ; $CF88: 85 25
   LDY #$FF                                            ; $CF8A: A0 FF
-LCF8C:
+@ScanNext:
   INY                                                 ; $CF8C: C8
   LDA ($24),Y                                         ; $CF8D: B1 24
-  CMP #$FF                                            ; $CF8F: C9 FF
-  BEQ LCF98                                           ; $CF91: F0 05
-  CMP $30                                             ; $CF93: C5 30
-  BNE LCF8C                                           ; $CF95: D0 F5
-  RTS                                                 ; $CF97: 60
-LCF98:
+  CMP #$FF                                            ; $CF8F: C9 FF  end-of-list terminator
+  BEQ @RecordNotFound                                 ; $CF91: F0 05
+  CMP $30                                             ; $CF93: C5 30  compare with target record ID
+  BNE @ScanNext                                       ; $CF95: D0 F5  keep scanning
+  RTS                                                 ; $CF97: 60     match found, return
+@RecordNotFound:
   LDA $30                                             ; $CF98: A5 30
   LDY #$04                                            ; $CF9A: A0 04
   JSR $D2AB                                           ; $CF9C: 20 AB D2
@@ -7558,9 +7551,9 @@ LCF98:
   LDA #$00                                            ; $CFA5: A9 00
   STA $22                                             ; $CFA7: 85 22
   STA $24                                             ; $CFA9: 85 24
-  JSR Proc_D40F                                       ; $CFAB: 20 0F D4
+  JSR Proc_D40F                                       ; $CFAB: 20 0F D4  divide $30[4] by 5
   LDA $21                                             ; $CFAE: A5 21
-  PHA                                                 ; $CFB0: 48
+  PHA                                                 ; $CFB0: 48     save quotient A
   LDA $33                                             ; $CFB1: A5 33
   LDY #$04                                            ; $CFB3: A0 04
   JSR $D2AB                                           ; $CFB5: 20 AB D2
@@ -7570,102 +7563,95 @@ LCF98:
   LDA #$00                                            ; $CFBE: A9 00
   STA $22                                             ; $CFC0: 85 22
   STA $24                                             ; $CFC2: 85 24
-  JSR Proc_D40F                                       ; $CFC4: 20 0F D4
-  PLA                                                 ; $CFC7: 68
+  JSR Proc_D40F                                       ; $CFC4: 20 0F D4  divide $33[4] by 5
+  PLA                                                 ; $CFC7: 68     restore quotient A
   SEC                                                 ; $CFC8: 38
-  SBC $21                                             ; $CFC9: E5 21
-  BCC LCFDC                                           ; $CFCB: 90 0F
-  STA $20                                             ; $CFCD: 85 20
+  SBC $21                                             ; $CFC9: E5 21  diff = A - B
+  BCC @NegateDifference                               ; $CFCB: 90 0F  if A < B, negate
+  STA $20                                             ; $CFCD: 85 20  store positive diff
   LDA $31                                             ; $CFCF: A5 31
   LDY #$03                                            ; $CFD1: A0 03
   JSR $D2AB                                           ; $CFD3: 20 AB D2
   CLC                                                 ; $CFD6: 18
-  ADC $20                                             ; $CFD7: 65 20
-  JMP Proc_CFF1                                       ; $CFD9: 4C F1 CF
-LCFDC:
-  EOR #$FF                                            ; $CFDC: 49 FF
+  ADC $20                                             ; $CFD7: 65 20  result = $31[3] + diff
+  JMP @ClampResult                                    ; $CFD9: 4C F1 CF  clamp to [$0A,$63]
+@NegateDifference:
+  EOR #$FF                                            ; $CFDC: 49 FF  negate: ~A + 1
   CLC                                                 ; $CFDE: 18
   ADC #$01                                            ; $CFDF: 69 01
-  STA $20                                             ; $CFE1: 85 20
+  STA $20                                             ; $CFE1: 85 20  store |diff|
   LDA $31                                             ; $CFE3: A5 31
   LDY #$03                                            ; $CFE5: A0 03
   JSR $D2AB                                           ; $CFE7: 20 AB D2
   SEC                                                 ; $CFEA: 38
-  SBC $20                                             ; $CFEB: E5 20
-  .byte $B0,$02                                       ; $CFED: B0 02 (BCS cross-proc)
-  LDA #$00                                            ; $CFEF: A9 00
-.endproc
-LCF8C = $CF8C
-LCF98 = $CF98
-LCFDC = $CFDC
-
-
-;===============================================================================
-; $CFF1: Proc_CFF1
-;===============================================================================
-.proc Proc_CFF1
-  math_acc_mhi             = $0022
-
+  SBC $20                                             ; $CFEB: E5 20  result = $31[3] - |diff|
+  BCS @ClampResult                                    ; $CFED: B0 02  if no borrow, clamp directly
+  LDA #$00                                            ; $CFEF: A9 00  else floor to 0, then clamp
+@ClampResult:
   SEC                                                 ; $CFF1: 38
   SBC #$0A                                            ; $CFF2: E9 0A
-  BCS LCFF8                                           ; $CFF4: B0 02
+  BCS @AboveMin                                       ; $CFF4: B0 02
   LDA #$00                                            ; $CFF6: A9 00
-LCFF8:
+@AboveMin:
   CMP #$63                                            ; $CFF8: C9 63
-  BCC LCFFE                                           ; $CFFA: 90 02
+  BCC @BelowMax                                       ; $CFFA: 90 02
   LDA #$63                                            ; $CFFC: A9 63
-LCFFE:
+@BelowMax:
   CMP #$0A                                            ; $CFFE: C9 0A
-  BCS LD004                                           ; $D000: B0 02
+  BCS @StoreResult                                    ; $D000: B0 02
   LDA #$0A                                            ; $D002: A9 0A
-LD004:
+@StoreResult:
   LDY #$03                                            ; $D004: A0 03
   STA ($22),Y                                         ; $D006: 91 22
   JSR Proc_D61E                                       ; $D008: 20 1E D6
   RTS                                                 ; $D00B: 60
 .endproc
-LCFF8 = $CFF8
-LCFFE = $CFFE
-LD004 = $D004
 
 
 ;===============================================================================
 ; $D00C: DistanceClamp
-; Clamp distance values to valid range
+; Compute normalized distance score for a battle slot and write it back.
+;
+; Input:  A = record ID (army/enemy slot index)
+;         $22/$23 = record pointer (set by caller via ResolveRecordPtr)
+; Effect: Reads distance field at record offset 3, computes abs(50 - distance),
+;         clamps result to [10..50], writes back to record offset 3.
+;         This normalizes distance so that both very near and very far targets
+;         get higher scores; minimum score is 10.
 ;===============================================================================
 .proc DistanceClamp
-  math_acc_lo              = $0020
-  math_acc_mhi             = $0022
+  slot_id                  = $0020                     ; Input: record ID (also used as scratch)
+  record_ptr_lo            = $0022                     ; Record pointer lo (set by ResolveRecordPtr)
+  record_ptr_hi            = $0023                     ; Record pointer hi
 
-  LDA $20                                             ; $D00C: A5 20
-  LDY #$03                                            ; $D00E: A0 03
-  JSR $D2AB                                           ; $D010: 20 AB D2
-  STA $20                                             ; $D013: 85 20
-  LDA #$32                                            ; $D015: A9 32
+  LDA slot_id                                           ; $D00C: A5 20
+  LDY #$03                                            ; $D00E: A0 03  ; offset 3 = distance field
+  JSR $D2AB                                           ; $D010: 20 AB D2  ; resolve record ptr ($22/$23), read distance
+  STA slot_id                                           ; $D013: 85 20  ; slot_id = raw distance
+  LDA #$32                                            ; $D015: A9 32  ; 50
   SEC                                                 ; $D017: 38
-  SBC $20                                             ; $D018: E5 20
-  .byte $B0,$05                                       ; $D01A: B0 05 (BCS mid-instruction target)
-  EOR #$FF                                            ; $D01C: 49 FF
+  SBC slot_id                                           ; $D018: E5 20  ; 50 - distance
+  BCS @StoreAbsDiff                                   ; $D01A: B0 05  ; if distance <= 50, result is positive
+  EOR #$FF                                            ; $D01C: 49 FF  ; negate: abs(50 - distance)
   CLC                                                 ; $D01E: 18
   ADC #$01                                            ; $D01F: 69 01
-  STA $20                                             ; $D021: 85 20
-  LDA #$33                                            ; $D023: A9 33
+@StoreAbsDiff:
+  STA slot_id                                           ; $D021: 85 20  ; slot_id = abs(50 - distance)
+  LDA #$33                                            ; $D023: A9 33  ; 51 (one past max)
   SEC                                                 ; $D025: 38
-  SBC $20                                             ; $D026: E5 20
-  BCS LD02C                                           ; $D028: B0 02
-  LDA #$00                                            ; $D02A: A9 00
-LD02C:
-  CMP #$0A                                            ; $D02C: C9 0A
-  BCS LD032                                           ; $D02E: B0 02
-  LDA #$0A                                            ; $D030: A9 0A
-LD032:
-  LDY #$03                                            ; $D032: A0 03
-  STA ($22),Y                                         ; $D034: 91 22
-  JSR Proc_D61E                                       ; $D036: 20 1E D6
+  SBC slot_id                                           ; $D026: E5 20  ; 51 - abs_diff
+  BCS @ClampMin                                       ; $D028: B0 02  ; if abs_diff <= 50, keep it
+  LDA #$00                                            ; $D02A: A9 00  ; cap at 0 (unused, abs_diff always <= 50)
+@ClampMin:
+  CMP #$0A                                            ; $D02C: C9 0A  ; minimum clamp: 10
+  BCS @WriteBack                                      ; $D02E: B0 02  ; if >= 10, keep value
+  LDA #$0A                                            ; $D030: A9 0A  ; floor to 10
+@WriteBack:
+  LDY #$03                                            ; $D032: A0 03  ; offset 3 = distance field
+  STA (record_ptr_lo),Y                               ; $D034: 91 22  ; write clamped distance back
+  JSR Proc_D61E                                       ; $D036: 20 1E D6  ; stub (RTS only)
   RTS                                                 ; $D039: 60
 .endproc
-LD02C = $D02C
-LD032 = $D032
 
 
 ;===============================================================================

@@ -86,11 +86,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for new AI code modernization tools - analyze_b49c.py and nest_b49c.py
-- Updated Makefile targets section with new AI analysis tool integration points
-- Enhanced AI Turn Dispatch Analysis section with detailed coverage of automated branch instruction fixing and semantic renaming
-- Added new subsection covering AI code structure optimization through nested procedure reorganization
-- Updated advanced paired bank disassembly section to include AI-specific analysis workflows
+- Updated AI code modernization tools section to reflect new modular AI architecture with Ai* prefix naming convention
+- Enhanced analyze_b49c.py documentation to support improved control flow with labeled targets replacing raw address jumps
+- Updated nest_b49c.py documentation for better semantic understanding of restructured AI turn dispatch system
+- Added examples showing new AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, and AiActionSelect function names
+- Updated AI code structure diagrams to reflect the new modular architecture patterns
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -114,7 +114,7 @@
 19. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation. **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation. **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities using the new modular Ai* architecture.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -128,7 +128,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - **New**: Advanced label analysis and renaming system for automated Loc_ label processing and meaningful name assignment
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite providing RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation
 - **New**: Advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms and callback dispatcher detection, plus specialized verification tools for byte-exact accuracy validation
-- **New**: AI code modernization tools for automated analysis and structural optimization of the AI turn dispatch system
+- **New**: AI code modernization tools for automated analysis and structural optimization of the AI turn dispatch system with new modular Ai* architecture
 
 ```mermaid
 graph TB
@@ -181,8 +181,8 @@ APB2["disasm_prg.py<br/>General-purpose combined PRG disassembler"]
 APB3["link_0a_0b_test.cfg<br/>Test linker configuration"]
 APB4["verify_0a_0b.py<br/>Byte-exact verification tool"]
 end
-subgraph "AI Code Modernization Tools"
-AI1["analyze_b49c.py<br/>AI turn dispatch analysis"]
+subgraph "AI Code Modernization Tools - Modular Ai* Architecture"
+AI1["analyze_b49c.py<br/>AI turn dispatch analysis with Ai* naming"]
 AI2["nest_b49c.py<br/>Nested procedure restructuring"]
 end
 subgraph "PRG Banks $1D/$1E Analysis Suite"
@@ -368,7 +368,7 @@ T_verify --> OUT
 - **New**: Advanced label analysis and renaming system provides automated Loc_ label processing and meaningful name assignment for improved code readability.
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite provides specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation.
-- **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities.
+- **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing, semantic renaming, and support for the new modular Ai* architecture with improved control flow.
 
 Key capabilities:
 - Assemble and link to produce a raw PRG binary.
@@ -388,7 +388,7 @@ Key capabilities:
 - **New**: Automated label renaming system that replaces generic Loc_ labels with meaningful names using comprehensive mapping tables.
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite with RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Advanced paired bank disassembly with recursive descent algorithms, callback dispatcher detection, and inline table analysis for complex bank pairs, plus specialized verification tools for byte-exact accuracy validation.
-- **New**: AI code modernization tools with automated branch instruction fixing, semantic renaming, and nested procedure restructuring for the AI turn dispatch system.
+- **New**: AI code modernization tools with automated branch instruction fixing, semantic renaming using Ai* prefix convention, nested procedure restructuring, and improved control flow with labeled targets replacing raw address jumps.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -416,7 +416,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - **New**: Apply advanced label analysis and renaming system for automated Loc_ label processing and meaningful name assignment.
 - **New**: Utilize comprehensive PRG banks $1D/$1E analysis suite for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Apply advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms and callback dispatcher detection, followed by specialized verification for byte-exact accuracy.
-- **New**: Apply AI code modernization tools for automated analysis and structural optimization of the AI turn dispatch system.
+- **New**: Apply AI code modernization tools for automated analysis and structural optimization of the AI turn dispatch system with new modular Ai* architecture and improved control flow.
 
 ```mermaid
 sequenceDiagram
@@ -451,8 +451,8 @@ Dev->>MK : "make verify_0a_0b"
 MK->>V0AB : "Verify paired banks $0A/$0B"
 V0AB-->>Dev : "16KB block byte-exact validation"
 Dev->>MK : "make analyze_ai_turn_dispatch"
-MK->>AI1 : "Analyze AI turn dispatch code"
-AI1-->>Dev : "Branch instruction fixes and semantic renaming"
+MK->>AI1 : "Analyze AI turn dispatch with Ai* architecture"
+AI1-->>Dev : "Branch fixes, semantic renaming, labeled targets"
 Dev->>MK : "make optimize_ai_structure"
 MK->>AI2 : "Restructure nested AI procedures"
 AI2-->>Dev : "Optimized nested procedure structure"
@@ -505,8 +505,8 @@ APB-->>Dev : "Recursive descent disassembly with callback detection"
 - make clean: Removes build artifacts.
 - make distclean: Removes build artifacts plus ROM dump directories.
 - **New**: make verify_0a_0b: Verifies paired banks $0A/$0B test build matches original ROM with byte-exact accuracy.
-- **New**: make analyze_ai_turn_dispatch: Analyzes and improves AI turn dispatch code with branch instruction fixing and semantic renaming.
-- **New**: make optimize_ai_structure: Restructures nested AI procedures for optimized code organization.
+- **New**: make analyze_ai_turn_dispatch: Analyzes and improves AI turn dispatch code with branch instruction fixing and semantic renaming using Ai* architecture.
+- **New**: make optimize_ai_structure: Restructures nested AI procedures for optimized code organization with modular Ai* functions.
 - **New**: make disasm_17_18: Unified disassembly for paired Bank $17/$18 region with cross-bank references.
 - **New**: make gen_f667_ffff: Specialized disassembly for Bank $1F range $F667-$FFFF.
 - **New**: make update_jsr_labels: Update JSR/JMP operands using functions.h address map.
@@ -551,8 +551,8 @@ Usage patterns:
 - Use make banks to bootstrap disassembly.
 - Disassemble and annotate code with make disasm and tools/annotate_asm.py.
 - **New**: Use make verify_0a_0b to validate paired banks $0A/$0B with byte-exact accuracy.
-- **New**: Use make analyze_ai_turn_dispatch to analyze and improve AI turn dispatch code with automated branch instruction fixing and semantic renaming.
-- **New**: Use make optimize_ai_structure to restructure nested AI procedures for optimized code organization.
+- **New**: Use make analyze_ai_turn_dispatch to analyze and improve AI turn dispatch code with automated branch instruction fixing, semantic renaming using Ai* convention, and labeled target improvements.
+- **New**: Use make optimize_ai_structure to restructure nested AI procedures for optimized code organization with modular Ai* functions.
 - **New**: Apply unified disassembly pipeline with make disasm_17_18 for paired bank processing.
 - **New**: Use make gen_f667_ffff for specialized Bank $1F range disassembly.
 - **New**: Use make update_jsr_labels to map addresses to symbols in Bank $1F assembly.
@@ -577,35 +577,37 @@ Usage patterns:
 ### AI Code Modernization Tools
 
 #### Overview
-The AI code modernization tools provide automated analysis and structural optimization capabilities specifically designed for the AI turn dispatch system in prg_0a_0b.asm. These tools focus on Proc_B49C (AiTurnDispatch) and its 18 nested procedures, offering intelligent branch instruction fixing, semantic renaming, and code structure optimization.
+The AI code modernization tools provide automated analysis and structural optimization capabilities specifically designed for the AI turn dispatch system in prg_0a_0b.asm. These tools focus on the new modular Ai* architecture instead of the old Proc_B49C structure, offering intelligent branch instruction fixing, semantic renaming with Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and code structure optimization.
 
-#### analyze_b49c.py - AI Turn Dispatch Analysis Tool
-- **Purpose**: Analyzes and improves Proc_B49C in prg_0a_0b.asm with automated enhancements
-- **Branch Instruction Fixing**: Converts .byte branch instructions to proper mnemonics with target labels
-- **Semantic Renaming**: Renames Proc_Bxxx and LBxxxx labels to meaningful descriptive names
-- **Inline Comment Generation**: Adds detailed comments for non-trivial logic sections
+#### analyze_b49c.py - AI Turn Dispatch Analysis Tool with Modular Ai* Architecture
+- **Purpose**: Analyzes and improves the AI turn dispatch system with automated enhancements supporting the new modular Ai* architecture
+- **Modular Architecture Support**: Works with new AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect functions instead of old Proc_B49C structure
+- **Branch Instruction Fixing**: Converts .byte branch instructions to proper mnemonics with target labels using improved control flow
+- **Semantic Renaming**: Renames labels to meaningful descriptive names following Ai* prefix convention for better semantic understanding
+- **Improved Control Flow**: Replaces raw address jumps with labeled targets for better code readability and maintainability
+- **Inline Comment Generation**: Adds detailed comments for non-trivial logic sections with enhanced semantic understanding
 - **Missing Label Detection**: Automatically generates labels for branch targets that lack proper labels
-- **Raw Address Resolution**: Converts JMP/JSR references from raw addresses to symbolic labels
-- **Comprehensive Coverage**: Processes the entire AI turn dispatch range ($B49C-$BF44)
+- **Raw Address Resolution**: Converts JMP/JSR references from raw addresses to symbolic labels with improved targeting
+- **Comprehensive Coverage**: Processes the entire AI turn dispatch range ($B49C-$BF44) with modular function awareness
 
-#### nest_b49c.py - Nested Procedure Restructuring Tool
-- **Purpose**: Restructures Proc_B49C by merging 18 nested procedures into a single scope
-- **Procedure Merging**: Removes premature .endproc directives and merges nested procs into B49C's scope
-- **Variable Consolidation**: Replaces individual variable definitions with unified set at top of procedure
+#### nest_b49c.py - Nested Procedure Restructuring Tool for Modular Architecture
+- **Purpose**: Restructures the AI turn dispatch system by optimizing the new modular Ai* function architecture
+- **Procedure Merging**: Removes premature .endproc directives and merges nested procs into unified scope with modular function support
+- **Variable Consolidation**: Replaces individual variable definitions with unified set at top of procedure for better organization
 - **Equate Removal**: Eliminates redundant equate label definitions since code labels provide them
-- **Global Declaration Cleanup**: Removes .global declarations for nested procedures
-- **Code Optimization**: Reduces code complexity while maintaining functionality
+- **Global Declaration Cleanup**: Removes .global declarations for nested procedures with modular function awareness
+- **Code Optimization**: Reduces code complexity while maintaining functionality with improved control flow patterns
 
-#### AI Turn Dispatch System Architecture
-The AI turn dispatch system consists of:
-- **Main Entry Point**: AiTurnDispatch ($B49C) - AI turn entry point with jump table
-- **Search Phases**: AiSearchPhase1 ($B4BF) and AiSearchPhase2 ($B504) for province scanning
-- **Action Selection**: AiActionSelect ($B5FC) for determining AI actions
-- **Support Functions**: Various helper functions for province management, resource calculation, and state updates
+#### AI Turn Dispatch System Architecture with Modular Ai* Functions
+The AI turn dispatch system now uses a modular architecture with clear function separation:
+- **Main Entry Point**: AiTurnDispatch ($B49C) - AI turn entry point with jump table using modular design
+- **Search Phases**: AiSearchPhase1 ($B4BF) and AiSearchPhase2 ($B504) for province scanning with improved control flow
+- **Action Selection**: AiActionSelect ($B5FC) for determining AI actions with labeled targets
+- **Support Functions**: Various helper functions for province management, resource calculation, and state updates with modular organization
 
 ```mermaid
 flowchart TD
-Start(["AI Turn Dispatch"]) --> CheckRandom["Generate random number <50"]
+Start(["AiTurnDispatch"]) --> CheckRandom["Generate random number <50"]
 CheckRandom --> Branch1{"< 10?"}
 Branch1 --> |Yes| SearchPhase1["AiSearchPhase1"]
 Branch1 --> |No| Branch2{"< 26?"}
@@ -623,7 +625,7 @@ DomesticAction --> EndTurn["End turn processing"]
 
 **Diagram sources**
 - [tools/analyze_b49c.py:19-39](file://tools/analyze_b49c.py#L19-L39)
-- [asm/banks/prg_0a_0b.asm:3494-3527](file://asm/banks/prg_0a_0b.asm#L3494-L3527)
+- [asm/banks/prg_0a_0b.asm:3471-3649](file://asm/banks/prg_0a_0b.asm#L3471-L3649)
 
 #### Integration with Build System
 The AI code modernization tools integrate seamlessly with the development workflow:
@@ -631,11 +633,12 @@ The AI code modernization tools integrate seamlessly with the development workfl
 - **Sequential Processing**: analyze_b49c.py should run before nest_b49c.py for optimal results
 - **Backup Support**: Tools operate on prg_0a_0b.asm with comprehensive logging
 - **Validation Output**: Provides detailed statistics about changes made and improvements achieved
+- **Modular Architecture Support**: Enhanced support for Ai* prefix naming convention and improved control flow patterns
 
 **Section sources**
 - [tools/analyze_b49c.py:1-281](file://tools/analyze_b49c.py#L1-L281)
 - [tools/nest_b49c.py:1-149](file://tools/nest_b49c.py#L1-L149)
-- [asm/banks/prg_0a_0b.asm:3494-3527](file://asm/banks/prg_0a_0b.asm#L3494-L3527)
+- [asm/banks/prg_0a_0b.asm:3471-3649](file://asm/banks/prg_0a_0b.asm#L3471-L3649)
 
 ### ROM Generation Pipeline (Assembly to Final NES ROM)
 The pipeline converts assembly into a playable ROM with:
@@ -701,8 +704,8 @@ Info --> Combined["Write prg_combined.bin"]
 - **New**: disasm_0a_0b.py provides advanced recursive descent disassembly for paired banks $0A/$0B with callback dispatcher detection and inline table analysis.
 - **New**: disasm_prg.py provides general-purpose combined PRG disassembler with multi-pass code analysis and callback table detection.
 - **New**: verify_0a_0b.py provides specialized verification for paired banks $0A/$0B with byte-exact accuracy validation against original ROM.
-- **New**: analyze_b49c.py provides AI turn dispatch analysis with branch instruction fixing and semantic renaming.
-- **New**: nest_b49c.py provides nested procedure restructuring for AI code optimization.
+- **New**: analyze_b49c.py provides AI turn dispatch analysis with branch instruction fixing, semantic renaming using Ai* convention, and improved control flow with labeled targets.
+- **New**: nest_b49c.py provides nested procedure restructuring for AI code optimization with modular architecture support.
 - annotate_asm.py annotates existing assembly with ROM addresses and actual opcode bytes, using a symbol table and instruction size heuristics. It can optionally verify assembly with ca65.
 
 Enhanced with improved output format supporting inline binary comments and detailed address mapping for precise ROM analysis.
@@ -747,7 +750,7 @@ VERIFY-->>ASM : "Range verification"
 APB1-->>ASM : "Advanced paired bank disassembly"
 APB2-->>ASM : "Multi-pass combined PRG disassembly"
 V0AB-->>ASM : "Paired bank verification"
-AI1-->>ASM : "AI turn dispatch analysis"
+AI1-->>ASM : "AI turn dispatch analysis with Ai* architecture"
 AI2-->>ASM : "Nested procedure restructuring"
 ASM->>AN : "Assembly with placeholders"
 AN->>BIN : "Lookup opcode bytes"
@@ -1211,35 +1214,37 @@ The advanced paired bank disassembly tools integrate with the build system throu
 ## AI Code Modernization Tools
 
 ### Overview
-The AI code modernization tools provide automated analysis and structural optimization capabilities specifically designed for the AI turn dispatch system in prg_0a_0b.asm. These tools focus on Proc_B49C (AiTurnDispatch) and its 18 nested procedures, offering intelligent branch instruction fixing, semantic renaming, and code structure optimization.
+The AI code modernization tools provide automated analysis and structural optimization capabilities specifically designed for the AI turn dispatch system in prg_0a_0b.asm. These tools focus on the new modular Ai* architecture instead of the old Proc_B49C structure, offering intelligent branch instruction fixing, semantic renaming with Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and code structure optimization.
 
 ### AI Analysis Tools
 
-#### analyze_b49c.py - AI Turn Dispatch Analysis Tool
-- **Branch Instruction Fixing**: Converts .byte branch instructions to proper mnemonics with target labels
-- **Semantic Renaming**: Renames Proc_Bxxx and LBxxxx labels to meaningful descriptive names
-- **Inline Comment Generation**: Adds detailed comments for non-trivial logic sections
+#### analyze_b49c.py - AI Turn Dispatch Analysis Tool with Modular Ai* Architecture
+- **Modular Architecture Support**: Works with new AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect functions
+- **Branch Instruction Fixing**: Converts .byte branch instructions to proper mnemonics with target labels using improved control flow
+- **Semantic Renaming**: Renames labels to meaningful descriptive names following Ai* prefix convention for better semantic understanding
+- **Improved Control Flow**: Replaces raw address jumps with labeled targets for better code readability and maintainability
+- **Inline Comment Generation**: Adds detailed comments for non-trivial logic sections with enhanced semantic understanding
 - **Missing Label Detection**: Automatically generates labels for branch targets that lack proper labels
-- **Raw Address Resolution**: Converts JMP/JSR references from raw addresses to symbolic labels
-- **Comprehensive Coverage**: Processes the entire AI turn dispatch range ($B49C-$BF44)
+- **Raw Address Resolution**: Converts JMP/JSR references from raw addresses to symbolic labels with improved targeting
+- **Comprehensive Coverage**: Processes the entire AI turn dispatch range ($B49C-$BF44) with modular function awareness
 
-#### nest_b49c.py - Nested Procedure Restructuring Tool
-- **Procedure Merging**: Removes premature .endproc directives and merges nested procs into B49C's scope
-- **Variable Consolidation**: Replaces individual variable definitions with unified set at top of procedure
+#### nest_b49c.py - Nested Procedure Restructuring Tool for Modular Architecture
+- **Procedure Merging**: Removes premature .endproc directives and merges nested procs into unified scope with modular function support
+- **Variable Consolidation**: Replaces individual variable definitions with unified set at top of procedure for better organization
 - **Equate Removal**: Eliminates redundant equate label definitions since code labels provide them
-- **Global Declaration Cleanup**: Removes .global declarations for nested procedures
-- **Code Optimization**: Reduces code complexity while maintaining functionality
+- **Global Declaration Cleanup**: Removes .global declarations for nested procedures with modular function awareness
+- **Code Optimization**: Reduces code complexity while maintaining functionality with improved control flow patterns
 
-### AI Turn Dispatch System Architecture
-The AI turn dispatch system consists of:
-- **Main Entry Point**: AiTurnDispatch ($B49C) - AI turn entry point with jump table
-- **Search Phases**: AiSearchPhase1 ($B4BF) and AiSearchPhase2 ($B504) for province scanning
-- **Action Selection**: AiActionSelect ($B5FC) for determining AI actions
-- **Support Functions**: Various helper functions for province management, resource calculation, and state updates
+### AI Turn Dispatch System Architecture with Modular Ai* Functions
+The AI turn dispatch system now uses a modular architecture with clear function separation:
+- **Main Entry Point**: AiTurnDispatch ($B49C) - AI turn entry point with jump table using modular design
+- **Search Phases**: AiSearchPhase1 ($B4BF) and AiSearchPhase2 ($B504) for province scanning with improved control flow
+- **Action Selection**: AiActionSelect ($B5FC) for determining AI actions with labeled targets
+- **Support Functions**: Various helper functions for province management, resource calculation, and state updates with modular organization
 
 ```mermaid
 flowchart TD
-Start(["AI Turn Dispatch"]) --> CheckRandom["Generate random number <50"]
+Start(["AiTurnDispatch"]) --> CheckRandom["Generate random number <50"]
 CheckRandom --> Branch1{"< 10?"}
 Branch1 --> |Yes| SearchPhase1["AiSearchPhase1"]
 Branch1 --> |No| Branch2{"< 26?"}
@@ -1257,7 +1262,7 @@ DomesticAction --> EndTurn["End turn processing"]
 
 **Diagram sources**
 - [tools/analyze_b49c.py:19-39](file://tools/analyze_b49c.py#L19-L39)
-- [asm/banks/prg_0a_0b.asm:3494-3527](file://asm/banks/prg_0a_0b.asm#L3494-L3527)
+- [asm/banks/prg_0a_0b.asm:3471-3649](file://asm/banks/prg_0a_0b.asm#L3471-L3649)
 
 ### Integration with Build System
 The AI code modernization tools integrate seamlessly with the development workflow:
@@ -1265,11 +1270,12 @@ The AI code modernization tools integrate seamlessly with the development workfl
 - **Sequential Processing**: analyze_b49c.py should run before nest_b49c.py for optimal results
 - **Backup Support**: Tools operate on prg_0a_0b.asm with comprehensive logging
 - **Validation Output**: Provides detailed statistics about changes made and improvements achieved
+- **Modular Architecture Support**: Enhanced support for Ai* prefix naming convention and improved control flow patterns
 
 **Section sources**
 - [tools/analyze_b49c.py:1-281](file://tools/analyze_b49c.py#L1-L281)
 - [tools/nest_b49c.py:1-149](file://tools/nest_b49c.py#L1-L149)
-- [asm/banks/prg_0a_0b.asm:3494-3527](file://asm/banks/prg_0a_0b.asm#L3494-L3527)
+- [asm/banks/prg_0a_0b.asm:3471-3649](file://asm/banks/prg_0a_0b.asm#L3471-L3649)
 
 ## Transformation Pipeline
 
@@ -1989,7 +1995,7 @@ The PRG banks $1D/$1E analysis suite enables sophisticated analysis workflows:
 - [tools/check_conflicts.py:28-42](file://tools/check_conflicts.py#L28-42)
 - [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-13)
 - [tools/mark_data_block.py:14-56](file://tools/mark_data_block.py#L14-56)
-- [tools/verify_globals.py:40-105](file://tools/verify_globals.py#L40-105)
+- [tools/verify_globals.py:40-105](file://tools/verify_globals.py#L40-L105)
 
 ## Label Analysis and Renaming System
 
@@ -2124,10 +2130,10 @@ The build system exhibits clear separation of concerns:
 - **New**: Advanced label analysis and renaming system provides automated Loc_ label processing and meaningful name assignment.
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite provides specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation.
-- **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities.
+- **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing, semantic renaming using Ai* convention, and improved control flow with labeled targets.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, advanced paired bank disassembly tools, AI code modernization tools, and specialized verification tools for comprehensive ROM coverage.
+- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, advanced paired bank disassembly tools, AI code modernization tools with modular Ai* architecture, and specialized verification tools for comprehensive ROM coverage.
 
 ```mermaid
 graph TB
@@ -2250,49 +2256,49 @@ P1D1E6 --> Output
 - [tools/annotate_asm.py:315-478](file://tools/annotate_asm.py#L315-478)
 - [tools/disasm_17_18.py:1-710](file://tools/disasm_17_18.py#L1-710)
 - [tools/fix_disasm.py:1-56](file://tools/fix_disasm.py#L1-56)
-- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-396)
-- [tools/update_jsr_labels.py:1-137](file://tools/update_jsr_labels.py#L1-137)
-- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-45)
-- [tools/verify_range.py:1-42](file://tools/verify_range.py#L1-42)
-- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-348)
-- [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-189)
-- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-118)
-- [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-98)
-- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-813)
-- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-526)
-- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-416)
-- [tools/globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-205)
-- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-214)
-- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-443)
-- [tools/disasm_1d_final.py:1-210](file://tools/disasm_1d_final.py#L1-210)
-- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-512)
-- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-522)
-- [tools/disasm_1e_final.py:1-494](file://tools/disasm_1e_final.py#L1-494)
-- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-41)
-- [tools/disasm_0a_0b.py:1-1258](file://tools/disasm_0a_0b.py#L1-1258)
-- [tools/disasm_prg.py:1-523](file://tools/disasm_prg.py#L1-523)
-- [tools/verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-28)
-- [tools/analyze_b49c.py:1-281](file://tools/analyze_b49c.py#L1-281)
-- [tools/nest_b49c.py:1-149](file://tools/nest_b49c.py#L1-149)
-- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-84)
+- [tools/gen_f667_ffff.py:1-396](file://tools/gen_f667_ffff.py#L1-L396)
+- [tools/update_jsr_labels.py:1-137](file://tools/update_jsr_labels.py#L1-L137)
+- [tools/verify_f3bd_f667.py:1-45](file://tools/verify_f3bd_f667.py#L1-L45)
+- [tools/verify_range.py:1-42](file://tools/verify_range.py#L1-L42)
+- [tools/transform_17_18.py:1-348](file://tools/transform_17_18.py#L1-L348)
+- [tools/add_procs.py:1-189](file://tools/add_procs.py#L1-L189)
+- [tools/analyze_17_18.py:1-118](file://tools/analyze_17_18.py#L1-L118)
+- [tools/debug_regions.py:1-98](file://tools/debug_regions.py#L1-L98)
+- [tools/proc_scope_17_18.py:1-813](file://tools/proc_scope_17_18.py#L1-L813)
+- [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
+- [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
+- [tools/globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
+- [tools/disasm_1d.py:1-214](file://tools/disasm_1d.py#L1-L214)
+- [tools/disasm_1d_enhanced.py:1-443](file://tools/disasm_1d_enhanced.py#L1-L443)
+- [tools/disasm_1d_final.py:1-210](file://tools/disasm_1d_final.py#L1-L210)
+- [tools/disasm_1e.py:1-512](file://tools/disasm_1e.py#L1-L512)
+- [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
+- [tools/disasm_1e_final.py:1-494](file://tools/disasm_1e_final.py#L1-L494)
+- [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
+- [tools/disasm_0a_0b.py:1-1258](file://tools/disasm_0a_0b.py#L1-L1258)
+- [tools/disasm_prg.py:1-523](file://tools/disasm_prg.py#L1-L523)
+- [tools/verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [tools/analyze_b49c.py:1-281](file://tools/analyze_b49c.py#L1-L281)
+- [tools/nest_b49c.py:1-149](file://tools/nest_b49c.py#L1-L149)
+- [tools/analyze_loc_labels.py:1-84](file://tools/analyze_loc_labels.py#L1-L84)
 - [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
 - [tools/enhance_prg_1d.py:1-254](file://tools/enhance_prg_1d.py#L1-L254)
-- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-33)
-- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-50)
-- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-43)
-- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-13)
-- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-35)
-- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-23)
-- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-15)
-- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-21)
-- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-34)
-- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-36)
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
+- [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
+- [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
+- [tools/dump_correct_bytes.py:1-35](file://tools/dump_correct_bytes.py#L1-L35)
+- [tools/search_0530.py:1-23](file://tools/search_0530.py#L1-L23)
+- [tools/search_chr_loader.py:1-15](file://tools/search_chr_loader.py#L1-L15)
+- [tools/search_chr_loader2.py:1-21](file://tools/search_chr_loader2.py#L1-L21)
+- [tools/verify_disasm.py:1-34](file://tools/verify_disasm.py#L1-L34)
+- [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
-- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-102)
-- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-56)
-- [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-42)
-- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-13)
-- [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-56)
+- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-L102)
+- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-L56)
+- [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-L42)
+- [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-L13)
+- [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-L56)
 - [tools/verify_globals.py:1-105](file://tools/verify_globals.py#L1-L105)
 
 **Section sources**
@@ -2313,7 +2319,7 @@ P1D1E6 --> Output
 - **New**: Label analysis and renaming system processes entire assembly files with comprehensive label scanning and replacement; expect processing time proportional to code size and label count.
 - **New**: PRG banks $1D/$1E analysis suite provides comprehensive RAM usage analysis and validation; expect processing time proportional to code complexity and address count.
 - **New**: Advanced paired bank disassembly tools implement sophisticated recursive descent algorithms; expect significant processing time for complex bank pairs with callback dispatchers.
-- **New**: AI code modernization tools analyze complex AI turn dispatch system with 18 nested procedures; expect processing time proportional to code complexity and nesting depth.
+- **New**: AI code modernization tools analyze complex AI turn dispatch system with modular Ai* architecture and improved control flow; expect processing time proportional to code complexity and function nesting depth.
 - **New**: Specialized verification tools like verify_0a_0b.py perform byte-exact comparisons of large ROM regions; expect processing time proportional to ROM size being validated.
 - **New**: Each disassembly, transformation, analysis, and label processing stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
 - **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
@@ -2325,8 +2331,8 @@ P1D1E6 --> Output
 - **New**: RAM usage analysis tools scan entire assembly files for address patterns; expect processing time proportional to code size and RAM address frequency.
 - **New**: Symbol conflict detection performs comprehensive symbol table analysis; expect processing time proportional to symbol count and scope complexity.
 - **New**: Callback dispatcher detection in paired bank disassembly requires extensive analysis of inline tables and pointer validation; expect processing time proportional to code complexity and dispatcher usage.
-- **New**: AI branch instruction fixing and semantic renaming requires comprehensive code analysis; expect processing time proportional to AI system complexity.
-- **New**: Nested procedure restructuring involves complex scope analysis and variable consolidation; expect processing time proportional to nesting depth and variable count.
+- **New**: AI branch instruction fixing and semantic renaming with Ai* architecture requires comprehensive code analysis; expect processing time proportional to AI system complexity and modular function interactions.
+- **New**: Nested procedure restructuring with modular architecture involves complex scope analysis and variable consolidation; expect processing time proportional to nesting depth and variable count.
 - **New**: Byte-exact verification tools compare entire ROM regions; expect processing time proportional to the size of the ROM region being validated.
 
 ## Troubleshooting Guide
@@ -2376,20 +2382,20 @@ Common issues and resolutions:
 - **New**: Paired bank verification failures: Ensure verify_0a_0b.py can access both the original ROM and the test build output file.
 - **New**: Test build configuration issues: Verify that link_0a_0b_test.cfg is properly configured for paired banks $0A/$0B.
 - **New**: Byte-exact verification mismatches: Review detailed mismatch reports from verify_0a_0b.py to identify specific address discrepancies.
-- **New**: AI code modernization failures: Verify that analyze_b49c.py and nest_b49c.py can access prg_0a_0b.asm and process AI turn dispatch code correctly.
-- **New**: Branch instruction fixing issues: Check that analyze_b49c.py properly identifies .byte branch instructions and generates correct mnemonics.
-- **New**: Semantic renaming conflicts: Ensure that analyze_b49c.py rename mappings don't conflict with existing labels.
-- **New**: Nested procedure restructuring failures: Verify that nest_b49c.py properly identifies procedure boundaries and variable definitions.
-- **New**: AI variable consolidation issues: Check that nest_b49c.py correctly consolidates variables from nested procedures into unified scope.
-- **New**: AI global declaration removal problems: Verify that nest_b49c.py properly removes .global declarations for nested procedures.
+- **New**: AI code modernization failures: Verify that analyze_b49c.py and nest_b49c.py can access prg_0a_0b.asm and process AI turn dispatch code with modular Ai* architecture correctly.
+- **New**: Branch instruction fixing issues: Check that analyze_b49c.py properly identifies .byte branch instructions and generates correct mnemonics with improved control flow.
+- **New**: Semantic renaming conflicts with Ai* architecture: Ensure that analyze_b49c.py rename mappings don't conflict with existing labels and follow Ai* prefix convention.
+- **New**: Nested procedure restructuring failures with modular architecture: Verify that nest_b49c.py properly identifies procedure boundaries and variable definitions in modular Ai* functions.
+- **New**: AI variable consolidation issues: Check that nest_b49c.py correctly consolidates variables from nested procedures into unified scope with modular function support.
+- **New**: AI global declaration removal problems: Verify that nest_b49c.py properly removes .global declarations for nested procedures with modular architecture awareness.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
 - Analyze ROM structure: make analyze
 - Verify rebuilt ROM: make verify
 - **New**: Verify paired banks $0A/$0B: make verify_0a_0b
-- **New**: Analyze AI turn dispatch: python3 tools/analyze_b49c.py
-- **New**: Optimize AI structure: python3 tools/nest_b49c.py
+- **New**: Analyze AI turn dispatch with modular architecture: python3 tools/analyze_b49c.py
+- **New**: Optimize AI structure with Ai* functions: python3 tools/nest_b49c.py
 - **New**: Apply unified disassembly: make disasm_17_18
 - **New**: Generate Bank $1F range disassembly: make gen_f667_ffff
 - **New**: Update JSR labels: make update_jsr_labels
@@ -2502,7 +2508,7 @@ Practical examples:
 - [tools/nest_b49c.py:1-149](file://tools/nest_b49c.py#L1-L149)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the advanced label analysis and renaming system with analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py, providing automated Loc_ label processing and meaningful name assignment for improved code organization. The newest addition is the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by the specialized verify_0a_0b.py verification tool that ensures byte-exact accuracy validation for paired banks $0A/$0B. **New**: The AI code modernization tools with analyze_b49c.py and nest_b49c.py provide automated analysis and structural optimization for the AI turn dispatch system, offering intelligent branch instruction fixing, semantic renaming, and nested procedure restructuring capabilities. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, the advanced paired bank disassembly tools, the AI code modernization tools, and the specialized verification tools enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, advanced paired bank disassembly capabilities, AI code modernization features, and specialized verification tools for byte-exact accuracy validation, significantly improving code readability, maintainability, and code quality assurance.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the advanced label analysis and renaming system with analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py, providing automated Loc_ label processing and meaningful name assignment for improved code organization. The newest addition is the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by the specialized verify_0a_0b.py verification tool that ensures byte-exact accuracy validation for paired banks $0A/$0B. **New**: The AI code modernization tools with analyze_b49c.py and nest_b49c.py provide automated analysis and structural optimization for the AI turn dispatch system with new modular Ai* architecture, offering intelligent branch instruction fixing, semantic renaming using Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and nested procedure restructuring capabilities. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, the advanced paired bank disassembly tools, the AI code modernization tools with modular Ai* architecture, and the specialized verification tools enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, advanced paired bank disassembly capabilities, AI code modernization features with modular Ai* architecture and improved control flow, and specialized verification tools for byte-exact accuracy validation, significantly improving code readability, maintainability, and code quality assurance.
 
 ## Appendices
 
@@ -2515,7 +2521,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: RAM centralization workflow: make globalize_04xx
 - **New**: ROM analysis workflow: make check_addresses, make check_bank18, make check_rom_offset, make dump_chr_table, make dump_correct_bytes, make search_0530, make search_chr_loader, make search_chr_loader2, make verify_disasm, make analyze_1e, make analyze_1e_deep
 - **New**: Paired bank verification workflow: make verify_0a_0b
-- **New**: AI code modernization workflow: python3 tools/analyze_b49c.py, python3 tools/nest_b49c.py
+- **New**: AI code modernization workflow with modular Ai* architecture: python3 tools/analyze_b49c.py, python3 tools/nest_b49c.py
 - **New**: Bank $1D/$1E disassembly workflow: make disasm_1d, make disasm_1d_enhanced, make disasm_1d_final, make disasm_1e, make disasm_1e_definitive, make disasm_1e_final, make assemble_prg_1d_1e
 - **New**: Advanced paired bank disassembly workflow: python3 tools/disasm_0a_0b.py, python3 tools/disasm_prg.py 0x1D 0x1E --output output/prg_1d_1e_raw.asm, python3 tools/verify_0a_0b.py
 - **New**: Label analysis and renaming workflow: make analyze_loc_labels, make rename_loc_labels, make enhance_prg_1d
@@ -2647,5 +2653,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/annotate_asm.py --in-place --verify
 - **New**: python3 tools/analyze_b49c.py
 - **New**: python3 tools/nest_b49c.py
+- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
+- **New**: python3 tools/annotate_asm.py --in-place --verify
 - **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - **New**: python3 tools/annotate_asm.py --in-place --verify

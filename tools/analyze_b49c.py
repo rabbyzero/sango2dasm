@@ -204,7 +204,7 @@ for i in range(len(lines)):
 # Also rename raw address jumps to labeled targets
 raw_addr_labels = {
     0xB616: '@exit_to_turn',   # JMP $B616 → common exit
-    0xBEC7: '@end_turn_process',  # JMP $BEC7 → shared end-turn
+    0xBEC7: '@end_turn_process',  # JMP AiAction_EndTurn → shared end-turn
     0xBFC3: '@apply_domestic_b',  # JMP $BFC3 → domestic apply path B
     0xC1E0: 'Proc_C1E0',       # JMP $C1E0 → external (bank 0B)
     0xBF33: '@check_kingdom_count',  # JMP $BF33

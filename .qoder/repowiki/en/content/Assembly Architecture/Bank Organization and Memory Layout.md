@@ -18,10 +18,11 @@
 
 ## Update Summary
 **Changes Made**
-- Enhanced AI turn processing system with major refactoring of PRG banks $0A/$0B including new function naming conventions (AiTurnDispatch, AiSearchPhase1, AiActionSelect), province evaluation enhancements with new global functions (CalcAvgProvinceVal, AbsorbPreview, TransferProvinceValues, FallbackMergeProvinces), and improved battle system logic with dedicated functions for army and enemy placement
-- Updated comprehensive work area organization with detailed SRAM integration ($6Fxx) for kingdom/player data management
-- Enhanced display system improvements with better SceneRenderer callback architecture and zero-page variable organization
-- Improved code structure through systematic reorganization while maintaining complete functional equivalence
+- Enhanced AI subsystem organization in PRG banks $0A/$0B with new modular function structure including AiTurnDispatch, CalcAvgProvinceVal, AbsorbPreview, TransferProvinceValues, and FallbackMergeProvinces functions
+- Updated comprehensive work area definitions for new AI processing functions including character management, entity absorption, and officer development systems
+- Improved memory layout optimizations for SRAM player ID ($6F03) and kingdom index ($6F02) references throughout AI logic
+- Added detailed province evaluation algorithms with threshold-based decision making and fallback merge logic
+- Enhanced battle system functionality with dedicated functions for army and enemy placement adjustments
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -35,7 +36,7 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $17/$18, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major refactoring includes enhanced AI turn processing system with comprehensive province evaluation logic, improved battle system functionality, and better code structure through systematic reorganization while maintaining complete functional equivalence. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
+This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $17/$18, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major enhancements include sophisticated AI turn processing system with comprehensive province evaluation logic, improved battle system functionality, and better code structure through systematic reorganization while maintaining complete functional equivalence. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
 
 ## Project Structure
 The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG bank $0A/$0B provides enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization.
@@ -416,13 +417,11 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - **Work Area ($0036-$0045)**: Loop indices, comparison limits, temporary storage, and record management for AI decision making
 - **Math Workspace ($20-$27)**: Multi-precision arithmetic accumulators and temporary variables for province value calculations
 - **Game State ($05xx)**: Sub-state dispatch, display indices, overlay parameters, and palette modes for AI turn flow control
-- **SRAM Integration ($6Fxx)**: Kingdom index, player ID, game start flags, and computed work values for persistent AI state
+- **SRAM Integration ($6Fxx)**: Kingdom index ($6F02), player ID ($6F03), game start flags, and computed work values for persistent AI state
 
 #### AI Turn Processing Functions
 **New**: Specialized functions for AI turn processing:
 - **AiTurnDispatch**: Main AI turn dispatcher with random action selection and phase-based processing
-- **AiSearchPhase1**: Initial province scanning and candidate identification for AI decisions
-- **AiActionSelect**: Action selection based on randomized criteria and strategic evaluation
 - **CalcAvgProvinceVal**: Average province value calculation per owned ruler with threshold-based decision making
 - **AbsorbPreview**: Preview absorption effects without applying changes for strategic planning
 - **TransferProvinceValues**: Compute deltas between province values and limit thresholds with underflow protection
