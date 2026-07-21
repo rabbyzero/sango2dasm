@@ -206,81 +206,74 @@
 .global ArmyDeductionTable
 .global ArmyResultTable
 .global BracketDeductArmy
-.global Proc_D05D
-.global Proc_D080
-.global Proc_D0AA
-.global Proc_D0E1
-.global Proc_D0E9
-.global Proc_D105
-.global Proc_D12D
+.global CalcPlayerTerritoryValue
+.global CountPlayerProvinces
+.global CountValidPlayerProvinces
+.global GetProvinceOwner
+.global DeductCounterMultiEntry
 .global Proc_D152
 .global Proc_D165
 .global Proc_D178
 .global Proc_D18D
-.global Proc_D1A4
-.global Proc_D1F4
-.global Proc_D249
-.global Proc_D283
-.global Proc_D2D3
-.global Proc_D304
-.global Proc_D319
-.global Proc_D336
-.global Proc_D36F
-.global Proc_D3A9
-.global Proc_D3DD
-.global Proc_D40F
-.global Proc_D438
-.global Proc_D471
+.global CollectEnemyProvinces
+.global CollectEnemyProvincesX
+.global FindPlayerProvinceByValue
+.global ReadRecordField
+.global ReadBankedRecordField
+.global CountRecordSlots
+.global GetPlayerRecordPtr
+.global Divide24
+.global DeductRecordStat2
+.global DeductRecordStat4
+.global CompactRecordSlots
+.global Divide16
+.global Multiply32
+.global Multiply8x8
 .global JumpDispatcher
-.global Proc_D4AD
+.global RandomBelow
 .global Proc_D4BB
-.global Proc_D4CB
-.global Proc_D53E
-.global Proc_D583
-.global Proc_D5BF
-.global Proc_D5E7
-.global Proc_D5E8
-.global Proc_D61E
-.global Proc_D61F
-.global Proc_D655
-.global Proc_D688
-.global Proc_D69D
-.global Proc_D6E5
-.global Proc_D6E6
+.global BuildAdjacencyBitmap
+.global MergeAdjacencyBits
+.global CheckPathExists
+.global AdjRowOffsets
+.global DebugStub_E7
+.global ValidateRecordStats
+.global DebugStub_1E
+.global ValidateRecordStatsAlt
+.global ClampRecordStatPairs
+.global ValidateRecordGold
+.global ClampRecordStatPairsAlt
+.global DebugStub_E5
+.global ValidateProvinceSlots
 .global Proc_D74C
-.global Proc_D799
-.global Proc_D7BD
-.global Proc_D7EC
-.global Proc_D83B
-.global Proc_D856
-.global Proc_D890
-.global Proc_D8AD
-.global Proc_D8B7
-.global Proc_D8D9
-.global Proc_D8DB
-.global Proc_D8F8
+.global StateWait64Frames
+.global StateScrollDown
+.global StateSpriteAnim
+.global StateSetupParams
+.global StatePaletteUpdate
+.global StateSetupMenu
+.global StateTileScroll
+.global StateWriteText
+.global StateWaitInput
 .global Proc_D90D
-.global Proc_D9A8
-.global Proc_D9D0
-.global Proc_DA1B
-.global Proc_DA1D
-.global Proc_DA3F
-.global Proc_DA95
-.global Proc_DAA6
-.global Proc_DAFD
-.global Proc_DB2B
-.global Proc_DB2D
-.global Proc_DB7B
-.global Proc_DBBB
-.global Proc_DBC1
-.global Proc_DBD4
-.global Proc_DBF1
-.global Proc_DC2F
-.global Proc_DC97
-.global Proc_DD0F
-.global Proc_DD34
-.global Proc_DD53
-.global Proc_DD79
+.global OverlayInit
+.global OverlayFillRows
+.global OverlayCommit
+.global OverlayTileData
+.global ClearOverlayInit
+.global ClearOverlayMenu
+.global ClearOverlayWait
+.global ClearOverlayCopyText
+.global ClearOverlayConfirm
+.global ClearOverlayExit
+.global PlayerPtrTable
+.global ClearOverlayCancel
+.global VerifySramChecksum
+.global CopySramToWork
+.global ScrollDigitWriter
+.global DrawSelectionSprites
+.global WriteSingleSprite
+.global MenuInputHandler
 
 ;===============================================================================
 ; Global RAM Address Definitions
@@ -353,17 +346,17 @@ DistanceClamp_Entry:
   BMI @Exit                                           ; $A012: 30 2E  if negative, no game start
   CMP #$01                                            ; $A014: C9 01
   BNE @NotOne                                         ; $A016: D0 06  if != 1, skip new-game path
-  JSR Proc_D4CB                                       ; $A018: 20 CB D4
+  JSR BuildAdjacencyBitmap                                       ; $A018: 20 CB D4
   JMP InitNewGameContext                              ; $A01B: 4C D7 A8  new game: jump to start menu
 @NotOne:
-  JSR Proc_D4CB                                       ; $A01E: 20 CB D4
+  JSR BuildAdjacencyBitmap                                       ; $A01E: 20 CB D4
   JSR FindBestOfficerAssign                           ; $A021: 20 0E C5
   JSR ProcessAllOfficers                             ; $A024: 20 B9 C5
   JSR OfficerSearchAndEvaluate                        ; $A027: 20 9A C7
   LDA $6F03                                           ; $A02A: AD 03 6F
   JSR FindBestOfficerByCategory                       ; $A02D: 20 8F C9
-  JSR Proc_D249                                       ; $A030: 20 49 D2
-  JSR FindBestOfficerByCategory::@FinalizeOfficers   ; $A033: 20 12 CC
+  JSR FindPlayerProvinceByValue                                       ; $A030: 20 49 D2
+  JSR FindBestOfficerByCategory::FinalizeOfficers   ; $A033: 20 12 CC
   LDA $6F5B                                           ; $A036: AD 5B 6F
   JSR JumpDispatcher                                  ; $A039: 20 94 D4
   ; Jump table (3 entries):
@@ -425,7 +418,7 @@ DistanceClamp_Entry:
   STA $22                                             ; $A07C: 85 22
   LDA #$64                                            ; $A07E: A9 64
   STA $23                                             ; $A080: 85 23
-  JSR Proc_D438                                       ; $A082: 20 38 D4
+  JSR Multiply32                                       ; $A082: 20 38 D4
   LDA $26                                             ; $A085: A5 26
   STA $21                                             ; $A087: 85 21
   LDA $27                                             ; $A089: A5 27
@@ -434,7 +427,7 @@ DistanceClamp_Entry:
   STA $23                                             ; $A090: 85 23
   LDA #$00                                            ; $A092: A9 00
   STA $24                                             ; $A094: 85 24
-  JSR Proc_D40F                                       ; $A096: 20 0F D4
+  JSR Divide16                                       ; $A096: 20 0F D4
   LDA $21                                             ; $A099: A5 21
   LDY #$00                                            ; $A09B: A0 00
   CMP #$1F                                            ; $A09D: C9 1F
@@ -499,7 +492,7 @@ DistanceClamp_Entry:
   BMI @AdvanceOuter                                   ; $A0F2: 30 34
   STA $23                                             ; $A0F4: 85 23
   STY $24                                             ; $A0F6: 84 24
-  JSR Proc_D105                                       ; $A0F8: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A0F8: 20 05 D1
   AND #$07                                            ; $A0FB: 29 07
   CMP #$07                                            ; $A0FD: C9 07
   BEQ @AdvanceInner                                   ; $A0FF: F0 05
@@ -508,7 +501,7 @@ DistanceClamp_Entry:
 @AdvanceInner:
   INC a:$0037                                         ; $A106: EE 37 00
   LDA a:$0036                                         ; $A109: AD 36 00
-  JSR Proc_D304                                       ; $A10C: 20 04 D3
+  JSR CountRecordSlots                                       ; $A10C: 20 04 D3
   CMP #$04                                            ; $A10F: C9 04
   .byte $B0,$06                                       ; $A111: B0 06 (BCS mid-instruction target)
   INC a:$0038                                         ; $A113: EE 38 00
@@ -594,7 +587,7 @@ TierAdjustC:
   STA $21                                             ; $A1A3: 85 21
   CLC                                                 ; $A1A5: 18
   ADC $6F61                                           ; $A1A6: 6D 61 6F
-  JSR Proc_D4AD                                       ; $A1A9: 20 AD D4
+  JSR RandomBelow                                       ; $A1A9: 20 AD D4
   LDY #$00                                            ; $A1AC: A0 00
   CMP $6F5F                                           ; $A1AE: CD 5F 6F
   BCC @UseIndex                                       ; $A1B1: 90 06
@@ -662,7 +655,7 @@ TierAdjustC:
   STA a:$0037                                         ; $A222: 8D 37 00
 @callUpdates:
   LDA a:$003A                                         ; $A225: AD 3A 00
-  JSR Proc_D304                                       ; $A228: 20 04 D3
+  JSR CountRecordSlots                                       ; $A228: 20 04 D3
   CMP a:$0037                                         ; $A22B: CD 37 00
   BCS @skipSearch                                     ; $A22E: B0 03
   JSR ProvinceSearch                                  ; $A230: 20 03 A3
@@ -710,7 +703,7 @@ SearchBestTarget:
   STA a:best_sub_idx                                  ; $A257: 8D 39 00
 @loadAndCheckNext:
   LDA a:candidate_idx                                 ; $A25A: AD 36 00
-  JSR Proc_D105                                       ; $A25D: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A25D: 20 05 D1
   CMP sram_player_id                                  ; $A260: CD 03 6F
   BNE @nextEntity                                     ; $A263: D0 63
   JSR $D307                                           ; $A265: 20 07 D3
@@ -725,7 +718,7 @@ SearchBestTarget:
   LDA $9D72,Y                                         ; $A274: B9 72 9D
   BMI @nextEntity                                     ; $A277: 30 4F
   STA attr_value                                      ; $A279: 85 25
-  JSR Proc_D105                                       ; $A27B: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A27B: 20 05 D1
   AND #$07                                            ; $A27E: 29 07
   CMP #$07                                            ; $A280: C9 07
   BEQ @nextEntry                                      ; $A282: F0 3F
@@ -782,7 +775,7 @@ SearchBestTarget:
   LDA $25                                             ; $A2D7: A5 25
   PHA                                                 ; $A2D9: 48
   LDA sram_player_id                                  ; $A2DA: AD 03 6F
-  JSR Proc_D319                                       ; $A2DD: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $A2DD: 20 19 D3
   LDA $24                                             ; $A2E0: A5 24
   STA $22                                             ; $A2E2: 85 22
   LDA $25                                             ; $A2E4: A5 25
@@ -820,7 +813,7 @@ NibbleMaskTable:                                      ; alternating low/high nib
   compare_mode             = $0044   ; inner comparison mode flag (used by CompareValues)
   sram_player_id           = $6F03
 
-  JSR Proc_D249                                       ; $A303: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $A303: 20 49 D2
   STA a:search_max                                    ; $A306: 8D 45 00
   JSR LoadRecord                                      ; $A309: 20 3A D0
   LDY sram_player_id                                  ; $A30C: AC 03 6F
@@ -835,23 +828,23 @@ NibbleMaskTable:                                      ; alternating low/high nib
   BEQ @phase1Next                                     ; $A320: F0 39
   CMP a:search_max                                    ; $A322: CD 45 00
   BEQ @phase1Next                                     ; $A325: F0 34
-  JSR Proc_D105                                       ; $A327: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A327: 20 05 D1
   CMP sram_player_id                                  ; $A32A: CD 03 6F
   BNE @phase1Next                                     ; $A32D: D0 2C
-  JSR Proc_D1A4                                       ; $A32F: 20 A4 D1
+  JSR CollectEnemyProvinces                                       ; $A32F: 20 A4 D1
   BNE @phase1Next                                     ; $A332: D0 27
   LDX a:source_province                               ; $A334: AE 3A 00
   LDY a:candidate_idx                                 ; $A337: AC 36 00
-  JSR Proc_D583                                       ; $A33A: 20 83 D5
+  JSR CheckPathExists                                       ; $A33A: 20 83 D5
   CMP #$FF                                            ; $A33D: C9 FF
   BNE @phase1Next                                     ; $A33F: D0 1A
   LDA a:candidate_idx                                 ; $A341: AD 36 00
-  JSR Proc_D304                                       ; $A344: 20 04 D3
+  JSR CountRecordSlots                                       ; $A344: 20 04 D3
   CMP a:work_best_value                               ; $A347: CD 41 00
   BCC @phase1Next                                     ; $A34A: 90 0F
   JSR CompareValues                                   ; $A34C: 20 D6 A3
   LDA a:source_province                               ; $A34F: AD 3A 00
-  JSR Proc_D304                                       ; $A352: 20 04 D3
+  JSR CountRecordSlots                                       ; $A352: 20 04 D3
   CMP a:best_slot_idx                                 ; $A355: CD 37 00
   BCC @phase1Loop                                     ; $A358: 90 C0
   RTS                                                 ; $A35A: 60
@@ -870,27 +863,27 @@ NibbleMaskTable:                                      ; alternating low/high nib
   LDA a:candidate_idx                                 ; $A373: AD 36 00
   CMP a:source_province                               ; $A376: CD 3A 00
   BEQ @phase2Next                                     ; $A379: F0 3C
-  JSR Proc_D105                                       ; $A37B: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A37B: 20 05 D1
   CMP sram_player_id                                  ; $A37E: CD 03 6F
   BNE @phase2Next                                     ; $A381: D0 34
   LDA a:candidate_idx                                 ; $A383: AD 36 00
   CMP a:search_max                                    ; $A386: CD 45 00
   BEQ @phase2CheckAccess                              ; $A389: F0 05
-  JSR Proc_D1A4                                       ; $A38B: 20 A4 D1
+  JSR CollectEnemyProvinces                                       ; $A38B: 20 A4 D1
   BEQ @phase2Next                                     ; $A38E: F0 27
 @phase2CheckAccess:
   LDX a:source_province                               ; $A390: AE 3A 00
   LDY a:candidate_idx                                 ; $A393: AC 36 00
-  JSR Proc_D583                                       ; $A396: 20 83 D5
+  JSR CheckPathExists                                       ; $A396: 20 83 D5
   CMP #$FF                                            ; $A399: C9 FF
   BNE @phase2Next                                     ; $A39B: D0 1A
   LDA a:candidate_idx                                 ; $A39D: AD 36 00
-  JSR Proc_D304                                       ; $A3A0: 20 04 D3
+  JSR CountRecordSlots                                       ; $A3A0: 20 04 D3
   CMP a:work_best_value                               ; $A3A3: CD 41 00
   BCC @phase2Next                                     ; $A3A6: 90 0F
   JSR CompareValues                                   ; $A3A8: 20 D6 A3
   LDA a:source_province                               ; $A3AB: AD 3A 00
-  JSR Proc_D304                                       ; $A3AE: 20 04 D3
+  JSR CountRecordSlots                                       ; $A3AE: 20 04 D3
   CMP a:best_slot_idx                                 ; $A3B1: CD 37 00
   BCC @phase2Loop                                     ; $A3B4: 90 BD
   RTS                                                 ; $A3B6: 60
@@ -928,9 +921,9 @@ CompareValues:
   LDA a:candidate_idx                                 ; $A3D6: AD 36 00
   STA a:saved_candidate                               ; $A3D9: 8D 3B 00
   LDA a:saved_candidate                               ; $A3DC: AD 3B 00
-  JSR Proc_D105                                       ; $A3DF: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A3DF: 20 05 D1
   LDA sram_player_id                                  ; $A3E2: AD 03 6F
-  JSR Proc_D319                                       ; $A3E5: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $A3E5: 20 19 D3
   LDY #$00                                            ; $A3E8: A0 00
   LDA ($24),Y                                         ; $A3EA: B1 24  ; read from record ptr returned by Proc_D319
   STA ref_value                                       ; $A3EC: 85 27
@@ -974,9 +967,9 @@ CompareValues:
   LDA #$FF                                            ; $A432: A9 FF
   STA (record_ptr),Y                                  ; $A434: 91 20
   LDA a:saved_candidate                               ; $A436: AD 3B 00
-  JSR Proc_D3DD                                       ; $A439: 20 DD D3
+  JSR CompactRecordSlots                                       ; $A439: 20 DD D3
   LDA a:source_province                               ; $A43C: AD 3A 00
-  JSR Proc_D105                                       ; $A43F: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A43F: 20 05 D1
   LDY #$10                                            ; $A442: A0 10
 @scanResultSlot:
   INY                                                 ; $A444: C8
@@ -1009,7 +1002,7 @@ CompareValues:
   STA a:field_offset                                  ; $A45E: 8D 3C 00
 @LoadEntityPtr:
   LDA a:entity_idx                                    ; $A461: AD 3A 00    ; load entity index
-  JSR Proc_D105                                       ; $A464: 20 05 D1   ; get entity data pointer -> ($20)
+  JSR GetProvinceOwner                                       ; $A464: 20 05 D1   ; get entity data pointer -> ($20)
   LDY a:field_offset                                  ; $A467: AC 3C 00
   LDA ($20),Y                                         ; $A46A: B1 20      ; read field byte
   CMP #$FF                                            ; $A46C: C9 FF     ; $FF = sentinel (no more data)
@@ -1042,7 +1035,7 @@ CompareValues:
   remainder_hi             = $0043
 
   LDA a:entity_idx                                    ; $A481: AD 3A 00
-  JSR Proc_D105                                       ; $A484: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A484: 20 05 D1
   LDA a:dispatch_val                                  ; $A487: AD 3B 00
   LDY #$08                                            ; $A48A: A0 08
   JSR $D2AB                                           ; $A48C: 20 AB D2
@@ -1107,7 +1100,7 @@ CompareValues:
   LDA #$00                                            ; $A4FA: A9 00
   STA $24                                             ; $A4FC: 85 24
   LDA a:entity_idx                                    ; $A4FE: AD 3A 00
-  JSR Proc_D36F                                       ; $A501: 20 6F D3
+  JSR DeductRecordStat2                                       ; $A501: 20 6F D3
   BCS @PostRender                                     ; $A504: B0 0F
   JSR TileRender                                  ; $A506: 20 5C A5
   BCS @PostRender                                     ; $A509: B0 0A
@@ -1119,7 +1112,7 @@ CompareValues:
   JMP ArmyDispatch                                    ; $A512: 4C 81 A4
 @PostRender:
   LDA a:entity_idx                                    ; $A515: AD 3A 00
-  JSR Proc_D105                                       ; $A518: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A518: 20 05 D1
   LDY #$0C                                            ; $A51B: A0 0C
   LDA $28                                             ; $A51D: A5 28
   CLC                                                 ; $A51F: 18
@@ -1129,7 +1122,7 @@ CompareValues:
   LDA $29                                             ; $A525: A5 29
   ADC ($20),Y                                         ; $A527: 71 20
   STA ($20),Y                                         ; $A529: 91 20
-  JSR Proc_D69D                                       ; $A52B: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $A52B: 20 9D D6
   LDY #$0C                                            ; $A52E: A0 0C
   LDA ($20),Y                                         ; $A530: B1 20
   SEC                                                 ; $A532: 38
@@ -1139,7 +1132,7 @@ CompareValues:
   LDA ($20),Y                                         ; $A539: B1 20
   SBC a:search_result                                 ; $A53B: ED 41 00
   STA ($20),Y                                         ; $A53E: 91 20
-  JSR Proc_D69D                                       ; $A540: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $A540: 20 9D D6
   LDA a:dispatch_val                                  ; $A543: AD 3B 00
   LDY #$08                                            ; $A546: A0 08
   JSR $D2AB                                           ; $A548: 20 AB D2
@@ -1166,7 +1159,7 @@ CompareValues:
   work_search_max          = $0045
   sram_player_id           = $6F03
 
-  JSR Proc_D249                                       ; $A55C: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $A55C: 20 49 D2
   STA a:$0045                                         ; $A55F: 8D 45 00
   LDA #$00                                            ; $A562: A9 00
   STA a:$0036                                         ; $A564: 8D 36 00
@@ -1179,7 +1172,7 @@ CompareValues:
   LDA a:$0036                                         ; $A571: AD 36 00
   CMP a:$003A                                         ; $A574: CD 3A 00
   BEQ @NextEntry                                      ; $A577: F0 26
-  JSR Proc_D105                                       ; $A579: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A579: 20 05 D1
   CMP $6F03                                           ; $A57C: CD 03 6F
   BNE @NextEntry                                      ; $A57F: D0 1E
   LDY #$02                                            ; $A581: A0 02
@@ -1209,7 +1202,7 @@ CompareValues:
   CLC                                                 ; $A5AF: 18
   RTS                                                 ; $A5B0: 60
 @ClampAttr:
-  JSR Proc_D105                                       ; $A5B1: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A5B1: 20 05 D1
   LDY #$03                                            ; $A5B4: A0 03
   LDA ($20),Y                                         ; $A5B6: B1 20
   BNE @SkipAttr                                       ; $A5B8: D0 1B
@@ -1240,9 +1233,9 @@ CompareValues:
   LDA #$64                                            ; $A5E5: A9 64
   STA $2B                                             ; $A5E7: 85 2B
 @PaletteSetup:
-  JSR Proc_D69D                                       ; $A5E9: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $A5E9: 20 9D D6
   LDA a:$003A                                         ; $A5EC: AD 3A 00
-  JSR Proc_D105                                       ; $A5EF: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A5EF: 20 05 D1
   LDY #$02                                            ; $A5F2: A0 02
   LDA ($20),Y                                         ; $A5F4: B1 20
   CLC                                                 ; $A5F6: 18
@@ -1252,7 +1245,7 @@ CompareValues:
   LDA ($20),Y                                         ; $A5FC: B1 20
   ADC #$00                                            ; $A5FE: 69 00
   STA ($20),Y                                         ; $A600: 91 20
-  JSR Proc_D69D                                       ; $A602: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $A602: 20 9D D6
   LDA #$02                                            ; $A605: A9 02
   JSR Proc_D18D                                       ; $A607: 20 8D D1
   SEC                                                 ; $A60A: 38
@@ -1270,7 +1263,7 @@ CompareValues:
   work_search_max          = $0045
   sram_player_id           = $6F03
 
-  JSR Proc_D249                                       ; $A60C: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $A60C: 20 49 D2
   STA a:$0045                                         ; $A60F: 8D 45 00
   LDA #$00                                            ; $A612: A9 00
   STA a:$0036                                         ; $A614: 8D 36 00
@@ -1283,7 +1276,7 @@ CompareValues:
   LDA a:$0036                                         ; $A621: AD 36 00
   CMP a:$003A                                         ; $A624: CD 3A 00
   BEQ @NextEntity                                     ; $A627: F0 26
-  JSR Proc_D105                                       ; $A629: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A629: 20 05 D1
   CMP $6F03                                           ; $A62C: CD 03 6F
   BNE @NextEntity                                     ; $A62F: D0 1E
   LDY #$04                                            ; $A631: A0 04
@@ -1313,7 +1306,7 @@ CompareValues:
   CLC                                                 ; $A65F: 18
   RTS                                                 ; $A660: 60
 @AdjustWindow:
-  JSR Proc_D105                                       ; $A661: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A661: 20 05 D1
   LDY #$05                                            ; $A664: A0 05
   LDA ($20),Y                                         ; $A666: B1 20
   BNE @ApplyScroll                                    ; $A668: D0 1B
@@ -1331,9 +1324,9 @@ CompareValues:
   LDA #$00                                            ; $A67E: A9 00
   STA ($20),Y                                         ; $A680: 91 20
 @ApplyScroll:
-  JSR Proc_D69D                                       ; $A699: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $A699: 20 9D D6
   LDA a:$003A                                         ; $A69C: AD 3A 00
-  JSR Proc_D105                                       ; $A69F: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A69F: 20 05 D1
   LDY #$04                                            ; $A6A2: A0 04
   LDA ($20),Y                                         ; $A6A4: B1 20
   CLC                                                 ; $A6A6: 18
@@ -1343,7 +1336,7 @@ CompareValues:
   LDA ($20),Y                                         ; $A6AC: B1 20
   ADC #$00                                            ; $A6AE: 69 00
   STA ($20),Y                                         ; $A6B0: 91 20
-  JSR Proc_D69D                                       ; $A6B2: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $A6B2: 20 9D D6
   LDA #$02                                            ; $A6B5: A9 02
   JSR Proc_D18D                                       ; $A6B7: 20 8D D1
   SEC                                                 ; $A6BA: 38
@@ -1382,7 +1375,7 @@ CompareValues:
   sram_kingdom_index       = $6F02
 
   LDA a:$003A                                         ; $A6C9: AD 3A 00
-  JSR Proc_D304                                       ; $A6CC: 20 04 D3
+  JSR CountRecordSlots                                       ; $A6CC: 20 04 D3
   STA a:$0039                                         ; $A6CF: 8D 39 00
   LDA #$01                                            ; $A6D2: A9 01
   STA a:$0037                                         ; $A6D4: 8D 37 00
@@ -1411,7 +1404,7 @@ CompareValues:
   JSR CalcKingdomTierWorkPtr                          ; $A702: 20 4A A7
 @RenderLoop:
   LDA a:$003A                                         ; $A705: AD 3A 00
-  JSR Proc_D105                                       ; $A708: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A708: 20 05 D1
   LDY #$02                                            ; $A70B: A0 02
   LDA ($20),Y                                         ; $A70D: B1 20
   SEC                                                 ; $A70F: 38
@@ -1429,7 +1422,7 @@ CompareValues:
   JMP EndTurn                                         ; $A724: 4C C7 BE
 @SubtractLimitB:
   LDA a:$003A                                         ; $A727: AD 3A 00
-  JSR Proc_D105                                       ; $A72A: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A72A: 20 05 D1
   LDY #$04                                            ; $A72D: A0 04
   LDA ($20),Y                                         ; $A72F: B1 20
   SEC                                                 ; $A731: 38
@@ -1465,7 +1458,7 @@ CompareValues:
   STA $20                                             ; $A74D: 85 20
   LDA #$78                                            ; $A74F: A9 78
   STA $21                                             ; $A751: 85 21
-  JSR Proc_D471                                       ; $A753: 20 71 D4
+  JSR Multiply8x8                                       ; $A753: 20 71 D4
   LDA $2A                                             ; $A756: A5 2A
   STA a:$003B                                         ; $A758: 8D 3B 00
   LDA $2B                                             ; $A75B: A5 2B
@@ -1474,7 +1467,7 @@ CompareValues:
   STA $20                                             ; $A763: 85 20
   LDA #$64                                            ; $A765: A9 64
   STA $21                                             ; $A767: 85 21
-  JSR Proc_D471                                       ; $A769: 20 71 D4
+  JSR Multiply8x8                                       ; $A769: 20 71 D4
   LDA #$64                                            ; $A76C: A9 64
   JSR Proc_D4BB                                       ; $A76E: 20 BB D4
   STA $21                                             ; $A771: 85 21
@@ -1523,7 +1516,7 @@ CompareValues:
   sram_game_start_flag     = $6F8B
 
   LDA a:$003A                                         ; $A79C: AD 3A 00
-  JSR Proc_D105                                       ; $A79F: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A79F: 20 05 D1
   LDY #$02                                            ; $A7A2: A0 02
   LDA ($20),Y                                         ; $A7A4: B1 20
   SEC                                                 ; $A7A6: 38
@@ -1549,7 +1542,7 @@ CompareValues:
   DEY                                                 ; $A7CD: 88
   BPL @FillBuffer                                     ; $A7CE: 10 FA
   LDA a:$003A                                         ; $A7D0: AD 3A 00
-  JSR Proc_D105                                       ; $A7D3: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A7D3: 20 05 D1
   LDA #$00                                            ; $A7D6: A9 00
   STA $2A                                             ; $A7D8: 85 2A
 @SearchLoop:
@@ -1564,7 +1557,7 @@ CompareValues:
   CMP #$FF                                            ; $A7EA: C9 FF
   BEQ @ExtractEntries                                 ; $A7EC: F0 1D
   LDY #$03                                            ; $A7EE: A0 03
-  JSR Proc_D283                                       ; $A7F0: 20 AB D2
+  JSR ReadRecordField                                       ; $A7F0: 20 AB D2
   CMP #$64                                            ; $A7F3: C9 64
   BEQ @UpdateBest                                     ; $A7F5: F0 14
   LDY #$01                                            ; $A7F7: A0 01
@@ -1597,9 +1590,9 @@ CompareValues:
   BCC @SearchLoop                                     ; $A829: 90 AF
 @ExtractEntries:
   LDA a:$003A                                         ; $A82B: AD 3A 00
-  JSR Proc_D3DD                                       ; $A82E: 20 DD D3
+  JSR CompactRecordSlots                                       ; $A82E: 20 DD D3
   LDA a:$0038                                         ; $A831: AD 38 00
-  JSR Proc_D105                                       ; $A834: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A834: 20 05 D1
   LDX #$00                                            ; $A837: A2 00
   LDY #$11                                            ; $A839: A0 11
   LDA ($20),Y                                         ; $A83B: B1 20
@@ -1658,8 +1651,8 @@ CompareValues:
   LDA a:$003E                                         ; $A8A8: AD 3E 00
   STA $0529                                           ; $A8AB: 8D 29 05
   LDA a:$0038                                         ; $A8AE: AD 38 00
-  JSR Proc_D105                                       ; $A8B1: 20 05 D1
-  JSR Proc_D319                                       ; $A8B4: 20 19 D3
+  JSR GetProvinceOwner                                       ; $A8B1: 20 05 D1
+  JSR GetPlayerRecordPtr                                       ; $A8B4: 20 19 D3
   LDY #$03                                            ; $A8B7: A0 03
   LDA ($24),Y                                         ; $A8B9: B1 24
   CMP #$03                                            ; $A8BB: C9 03
@@ -1708,7 +1701,7 @@ CompareValues:
   JSR ApplyScenarioDeductions                         ; $A8DC: 20 68 CD
 @SkipNewGamePrep:                                     ; $A8DF
   LDA a:$0038                                         ; $A8DF: AD 38 00
-  JSR Proc_D105                                       ; $A8E2: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A8E2: 20 05 D1
   STA a:$003E                                         ; $A8E5: 8D 3E 00
   JSR @ClearGameStateVars                             ; $A8E8: 20 1F A9
   JSR @CountRecords                                       ; $A8EB: 20 CC A9
@@ -1719,19 +1712,19 @@ CompareValues:
   JSR @PlaceNewArmies                                       ; $A8F6: 20 80 AA
   JSR @SubtractBattleCosts                                       ; $A8F9: 20 67 AC
   LDA a:$0038                                         ; $A8FC: AD 38 00
-  JSR Proc_D105                                       ; $A8FF: 20 05 D1
+  JSR GetProvinceOwner                                       ; $A8FF: 20 05 D1
   LDY #$00                                            ; $A902: A0 00
   LDA ($20),Y                                         ; $A904: B1 20
   AND #$F8                                            ; $A906: 29 F8
   ORA sram_player_id                                  ; $A908: 0D 03 6F
   STA ($20),Y                                         ; $A90B: 91 20
-  JSR Proc_D249                                       ; $A90D: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $A90D: 20 49 D2
   JMP $CA19                                           ; $A910: 4C 19 CA
   ; --- Continue existing game path ---
 @ContinueGamePath:                                    ; $A913
   JSR @PlaceNewEnemies                                       ; $A913: 20 10 AB
   JSR @SubtractBattleCosts                                       ; $A916: 20 67 AC
-  JSR Proc_D249                                       ; $A919: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $A919: 20 49 D2
   JMP $CA19                                           ; $A91C: 4C 19 CA
 @ClearGameStateVars:                                   ; $A91F
   LDA #$00                                            ; $A91F: A9 00
@@ -1767,7 +1760,7 @@ CompareValues:
   STA $23                                             ; $A95E: 85 23
   LDA #$00                                            ; $A960: A9 00
   STA $22                                             ; $A962: 85 22
-  JSR Proc_D438                                       ; $A964: 20 38 D4
+  JSR Multiply32                                       ; $A964: 20 38 D4
   LDA $26                                             ; $A967: A5 26
   STA $20                                             ; $A969: 85 20
   LDA $27                                             ; $A96B: A5 27
@@ -1778,7 +1771,7 @@ CompareValues:
   STA $23                                             ; $A975: 85 23
   LDA #$00                                            ; $A977: A9 00
   STA $24                                             ; $A979: 85 24
-  JSR Proc_D336                                       ; $A97B: 20 36 D3
+  JSR Divide24                                       ; $A97B: 20 36 D3
   PLA                                                 ; $A97E: 68
   LDY #$00                                            ; $A97F: A0 00
   JSR $D2AB                                           ; $A981: 20 AB D2
@@ -1929,7 +1922,7 @@ CompareValues:
 
 @PlaceNewArmies:
   LDA a:$0038                                         ; $AA80: AD 38 00
-  JSR Proc_D105                                       ; $AA83: 20 05 D1
+  JSR GetProvinceOwner                                       ; $AA83: 20 05 D1
   LDX #$00                                            ; $AA86: A2 00
   LDY #$11                                            ; $AA88: A0 11
   LDA $066E,X                                         ; $AA8A: BD 6E 06
@@ -1977,7 +1970,7 @@ CompareValues:
 
 @InsertBattleSlot:
   LDA a:$0038                                         ; $AADE: AD 38 00
-  JSR Proc_D105                                       ; $AAE1: 20 05 D1
+  JSR GetProvinceOwner                                       ; $AAE1: 20 05 D1
   LDY #$11                                            ; $AAE4: A0 11
 @BattleSlotLoop:
   LDA ($20),Y                                         ; $AAE6: B1 20
@@ -2003,7 +1996,7 @@ CompareValues:
 
 @PlaceNewEnemies:
   LDA a:$0038                                         ; $AB10: AD 38 00
-  JSR Proc_D105                                       ; $AB13: 20 05 D1
+  JSR GetProvinceOwner                                       ; $AB13: 20 05 D1
   LDX #$00                                            ; $AB16: A2 00
   LDY #$11                                            ; $AB18: A0 11
   LDA $0664,X                                         ; $AB1A: BD 64 06
@@ -2052,7 +2045,7 @@ CompareValues:
   RTS                                                 ; $AB70: 60
 @InsertEnemySlot:
   LDA a:$0038                                         ; $AB71: AD 38 00
-  JSR Proc_D105                                       ; $AB74: 20 05 D1
+  JSR GetProvinceOwner                                       ; $AB74: 20 05 D1
   LDY #$11                                            ; $AB77: A0 11
 @EnemySlotLoop:
   LDA ($20),Y                                         ; $AB79: B1 20
@@ -2092,7 +2085,7 @@ CompareValues:
   LDY $2A                                             ; $ABB8: A4 2A
   LDA $9D72,Y                                         ; $ABBA: B9 72 9D
   BMI @CheckBestResult                                           ; $ABBD: 30 2F
-  JSR Proc_D105                                       ; $ABBF: 20 05 D1
+  JSR GetProvinceOwner                                       ; $ABBF: 20 05 D1
   CMP #$07                                            ; $ABC2: C9 07
   BNE @BestTargetCheck                                           ; $ABC4: D0 0A
   LDY $2A                                             ; $ABC6: A4 2A
@@ -2119,7 +2112,7 @@ CompareValues:
   CMP #$FF                                            ; $ABF0: C9 FF
   BEQ @ApplyBestResult                                           ; $ABF2: F0 2D
 @RandomValue:
-  JSR Proc_D105                                       ; $ABF4: 20 05 D1
+  JSR GetProvinceOwner                                       ; $ABF4: 20 05 D1
   LDY #$11                                            ; $ABF7: A0 11
 @FindSlotLoop:
   LDA ($20),Y                                         ; $ABF9: B1 20
@@ -2207,7 +2200,7 @@ CompareValues:
   JSR BracketDeductGold                               ; $ACA0: 20 67 CE
   JSR BracketDeductArmy                               ; $ACA3: 20 DD CE
   LDA a:$0038                                         ; $ACA6: AD 38 00
-  JSR Proc_D105                                       ; $ACA9: 20 05 D1
+  JSR GetProvinceOwner                                       ; $ACA9: 20 05 D1
   LDY #$04                                            ; $ACAC: A0 04
   LDA $0522                                           ; $ACAE: AD 22 05
   CLC                                                 ; $ACB1: 18
@@ -2273,7 +2266,7 @@ CompareValues:
   STA $23                                             ; $AD3C: 85 23
   LDA #$00                                            ; $AD3E: A9 00
   STA $24                                             ; $AD40: 85 24
-  JSR Proc_D40F                                       ; $AD42: 20 0F D4
+  JSR Divide16                                       ; $AD42: 20 0F D4
   LDA $21                                             ; $AD45: A5 21
   STA a:$003C                                         ; $AD47: 8D 3C 00
   LDA a:$0043                                         ; $AD4A: AD 43 00
@@ -2284,7 +2277,7 @@ CompareValues:
   STA $23                                             ; $AD56: 85 23
   LDA #$00                                            ; $AD58: A9 00
   STA $24                                             ; $AD5A: 85 24
-  JSR Proc_D40F                                       ; $AD5C: 20 0F D4
+  JSR Divide16                                       ; $AD5C: 20 0F D4
   LDA a:$003C                                         ; $AD5F: AD 3C 00
   CLC                                                 ; $AD62: 18
   ADC $21                                             ; $AD63: 65 21
@@ -2302,7 +2295,7 @@ CompareValues:
   STA $20                                             ; $AD7C: 85 20
   LDA #$0A                                            ; $AD7E: A9 0A
   STA $21                                             ; $AD80: 85 21
-  JSR Proc_D471                                       ; $AD82: 20 71 D4
+  JSR Multiply8x8                                       ; $AD82: 20 71 D4
   LDA a:$003C                                         ; $AD85: AD 3C 00
   CLC                                                 ; $AD88: 18
   ADC $2A                                             ; $AD89: 65 2A
@@ -2352,7 +2345,7 @@ CompareValues:
   STA $23                                             ; $ADF1: 85 23
   LDA #$00                                            ; $ADF3: A9 00
   STA $24                                             ; $ADF5: 85 24
-  JSR Proc_D40F                                       ; $ADF7: 20 0F D4
+  JSR Divide16                                       ; $ADF7: 20 0F D4
   LDA $21                                             ; $ADFA: A5 21
   STA a:$003E                                         ; $ADFC: 8D 3E 00
   LDA a:$0043                                         ; $ADFF: AD 43 00
@@ -2363,7 +2356,7 @@ CompareValues:
   STA $23                                             ; $AE0B: 85 23
   LDA #$00                                            ; $AE0D: A9 00
   STA $24                                             ; $AE0F: 85 24
-  JSR Proc_D40F                                       ; $AE11: 20 0F D4
+  JSR Divide16                                       ; $AE11: 20 0F D4
   LDA a:$003E                                         ; $AE14: AD 3E 00
   CLC                                                 ; $AE17: 18
   ADC $21                                             ; $AE18: 65 21
@@ -2381,7 +2374,7 @@ CompareValues:
   STA $20                                             ; $AE31: 85 20
   LDA #$0A                                            ; $AE33: A9 0A
   STA $21                                             ; $AE35: 85 21
-  JSR Proc_D471                                       ; $AE37: 20 71 D4
+  JSR Multiply8x8                                       ; $AE37: 20 71 D4
   LDA a:$003E                                         ; $AE3A: AD 3E 00
   CLC                                                 ; $AE3D: 18
   ADC $2A                                             ; $AE3E: 65 2A
@@ -2397,7 +2390,7 @@ CompareValues:
   STA $22                                             ; $AE57: 85 22
   LDA #$64                                            ; $AE59: A9 64
   STA $23                                             ; $AE5B: 85 23
-  JSR Proc_D438                                       ; $AE5D: 20 38 D4
+  JSR Multiply32                                       ; $AE5D: 20 38 D4
   LDA $26                                             ; $AE60: A5 26
   STA $21                                             ; $AE62: 85 21
   LDA $27                                             ; $AE64: A5 27
@@ -2409,7 +2402,7 @@ CompareValues:
   LDA a:$003D                                         ; $AE71: AD 3D 00
   ADC a:$003F                                         ; $AE74: 6D 3F 00
   STA $24                                             ; $AE77: 85 24
-  JSR Proc_D40F                                       ; $AE79: 20 0F D4
+  JSR Divide16                                       ; $AE79: 20 0F D4
   LDA $21                                             ; $AE7C: A5 21
   STA a:$003C                                         ; $AE7E: 8D 3C 00
   LDA a:$003C                                         ; $AE81: AD 3C 00
@@ -2478,7 +2471,7 @@ CompareValues:
   STA $23                                             ; $AEF3: 85 23
   LDA #$00                                            ; $AEF5: A9 00
   STA $24                                             ; $AEF7: 85 24
-  JSR Proc_D40F                                       ; $AEF9: 20 0F D4
+  JSR Divide16                                       ; $AEF9: 20 0F D4
   LDA $21                                             ; $AEFC: A5 21
   STA $20                                             ; $AEFE: 85 20
   LDA $22                                             ; $AF00: A5 22
@@ -2489,7 +2482,7 @@ CompareValues:
   ASL A                                               ; $AF0B: 0A
   ASL A                                               ; $AF0C: 0A
   STA $23                                             ; $AF0D: 85 23
-  JSR Proc_D438                                       ; $AF0F: 20 38 D4
+  JSR Multiply32                                       ; $AF0F: 20 38 D4
   LDA $26                                             ; $AF12: A5 26
   STA $21                                             ; $AF14: 85 21
   LDA $27                                             ; $AF16: A5 27
@@ -2498,7 +2491,7 @@ CompareValues:
   STA $23                                             ; $AF1C: 85 23
   LDA #$00                                            ; $AF1E: A9 00
   STA $24                                             ; $AF20: 85 24
-  JSR Proc_D40F                                       ; $AF22: 20 0F D4
+  JSR Divide16                                       ; $AF22: 20 0F D4
   LDA $21                                             ; $AF25: A5 21
   STA $2A                                             ; $AF27: 85 2A
   LDA $22                                             ; $AF29: A5 22
@@ -2534,7 +2527,7 @@ CompareValues:
   STA $23                                             ; $AF61: 85 23
   LDA #$00                                            ; $AF63: A9 00
   STA $24                                             ; $AF65: 85 24
-  JSR Proc_D40F                                       ; $AF67: 20 0F D4
+  JSR Divide16                                       ; $AF67: 20 0F D4
   LDA $21                                             ; $AF6A: A5 21
   STA $20                                             ; $AF6C: 85 20
   LDA $22                                             ; $AF6E: A5 22
@@ -2545,7 +2538,7 @@ CompareValues:
   ASL A                                               ; $AF79: 0A
   ASL A                                               ; $AF7A: 0A
   STA $23                                             ; $AF7B: 85 23
-  JSR Proc_D438                                       ; $AF7D: 20 38 D4
+  JSR Multiply32                                       ; $AF7D: 20 38 D4
   LDA $26                                             ; $AF80: A5 26
   STA $21                                             ; $AF82: 85 21
   LDA $27                                             ; $AF84: A5 27
@@ -2554,7 +2547,7 @@ CompareValues:
   STA $23                                             ; $AF8A: 85 23
   LDA #$00                                            ; $AF8C: A9 00
   STA $24                                             ; $AF8E: 85 24
-  JSR Proc_D40F                                       ; $AF90: 20 0F D4
+  JSR Divide16                                       ; $AF90: 20 0F D4
   LDA $21                                             ; $AF93: A5 21
   STA $2C                                             ; $AF95: 85 2C
   LDA $22                                             ; $AF97: A5 22
@@ -2565,7 +2558,7 @@ CompareValues:
   STA $20                                             ; $AF9F: 85 20
   LDA #$78                                            ; $AFA1: A9 78
   STA $21                                             ; $AFA3: 85 21
-  JSR Proc_D471                                       ; $AFA5: 20 71 D4
+  JSR Multiply8x8                                       ; $AFA5: 20 71 D4
   LDA $2A                                             ; $AFA8: A5 2A
   CLC                                                 ; $AFAA: 18
   ADC $6F73                                           ; $AFAB: 6D 73 6F
@@ -2577,7 +2570,7 @@ CompareValues:
   STA $20                                             ; $AFBC: 85 20
   LDA #$78                                            ; $AFBE: A9 78
   STA $21                                             ; $AFC0: 85 21
-  JSR Proc_D471                                       ; $AFC2: 20 71 D4
+  JSR Multiply8x8                                       ; $AFC2: 20 71 D4
   LDA $2A                                             ; $AFC5: A5 2A
   CLC                                                 ; $AFC7: 18
   ADC $6F75                                           ; $AFC8: 6D 75 6F
@@ -2593,7 +2586,7 @@ CompareValues:
   STA $23                                             ; $AFE3: 85 23
   LDA #$00                                            ; $AFE5: A9 00
   STA $24                                             ; $AFE7: 85 24
-  JSR Proc_D40F                                       ; $AFE9: 20 0F D4
+  JSR Divide16                                       ; $AFE9: 20 0F D4
   LDA $21                                             ; $AFEC: A5 21
   STA $6F75                                           ; $AFEE: 8D 75 6F
   LDA $22                                             ; $AFF1: A5 22
@@ -2606,7 +2599,7 @@ CompareValues:
   STA $23                                             ; $B003: 85 23
   LDA #$00                                            ; $B005: A9 00
   STA $24                                             ; $B007: 85 24
-  JSR Proc_D40F                                       ; $B009: 20 0F D4
+  JSR Divide16                                       ; $B009: 20 0F D4
   LDA $21                                             ; $B00C: A5 21
   STA $6F73                                           ; $B00E: 8D 73 6F
   LDA $22                                             ; $B011: A5 22
@@ -2786,7 +2779,7 @@ DistribLevelThresholds:                               ; $B0BC
   ; -- Phase 1: count owned rulers and sum their province values
   LDA #$01                                            ; $B10E: A9 01
   STA a:$0044                                         ; $B110: 8D 44 00  ; work_flag = 1 (enable province counting)
-  JSR Proc_D0AA                                       ; $B113: 20 AA D0  ; → $2B = owned ruler count, $2C = province value sum
+  JSR CountValidPlayerProvinces                                       ; $B113: 20 AA D0  ; → $2B = owned ruler count, $2C = province value sum
   LDA $2B                                             ; $B116: A5 2B    ; A = ruler_count
   BNE @hasRulers                                       ; $B118: D0 09  ; branch if at least one ruler owned
   ; Dead code ($B11A-$B122): unreachable — BNE above always branches when $2B=0 path taken
@@ -2804,7 +2797,7 @@ DistribLevelThresholds:                               ; $B0BC
   STA $24                                             ; $B12F: 85 24    ; divisor_lo = 0
   ; Dividend = province_sum << 8, Divisor = ruler_count << 8
   ; Proc_D40F: 16-bit restoring division → quotient in $21(lo)/$22(hi)
-  JSR Proc_D40F                                       ; $B131: 20 0F D4  ; avg = province_sum / ruler_count
+  JSR Divide16                                       ; $B131: 20 0F D4  ; avg = province_sum / ruler_count
   LDA $22                                             ; $B134: A5 22    ; A = avg (hi-byte of quotient)
   ; -- Phase 2: clamp average into threshold value [6..18]
   ;   avg >= 4 → threshold = clamp(avg - 2, 2, 16) + 2  (range [6, 18])
@@ -2839,7 +2832,7 @@ ComputeThreshold:
   BEQ @exit                                           ; $B164: F0 17       ; no candidate → exit
   ; -- Phase 4: compare candidate value vs threshold, optionally search & absorb
   LDA a:$003A                                         ; $B166: AD 3A 00  ; best province idx
-  JSR Proc_D304                                       ; $B169: 20 04 D3  ; A = settlement slot count of best province
+  JSR CountRecordSlots                                       ; $B169: 20 04 D3  ; A = settlement slot count of best province
   CMP a:$0037                                         ; $B16C: CD 37 00  ; compare vs threshold
   BCS @skipSearch                                     ; $B16F: B0 03  ; if value >= threshold, skip search
   JSR ProvinceSearch                                  ; $B171: 20 03 A3  ; find absorption target
@@ -2870,7 +2863,7 @@ ScanBestProvince:
   STA a:$0039                                         ; $B194: 8D 39 00  ; best_slot_count = 0
 @outerLoop:                                           ; --- iterate provinces 0..$1D ---
   LDA a:$0036                                         ; $B197: AD 36 00  ; province idx
-  JSR Proc_D105                                       ; $B19A: 20 05 D1  ; → ($20)=record ptr, A=owner byte
+  JSR GetProvinceOwner                                       ; $B19A: 20 05 D1  ; → ($20)=record ptr, A=owner byte
   CMP $6F03                                           ; $B19D: CD 03 6F  ; owned by current player?
   BNE @nextProvince                                   ; $B1A0: D0 4C       ; not owned → next province
   JSR $D307                                           ; $B1A2: 20 07 D3  ; Proc_D304 inline: count occupied slots
@@ -2885,7 +2878,7 @@ ScanBestProvince:
   LDA $9D72,Y                                         ; $B1B1: B9 72 9D  ; slot entry byte
   BMI @nextProvince                                   ; $B1B4: 30 38       ; negative → empty slot, skip
   STA $25                                             ; $B1B6: 85 25  ; $25 = owner/type byte from $9D72
-  JSR Proc_D105                                       ; $B1B8: 20 05 D1  ; reload record ptr
+  JSR GetProvinceOwner                                       ; $B1B8: 20 05 D1  ; reload record ptr
   AND #$07                                            ; $B1BB: 29 07  ; settlement type (low 3 bits)
   CMP #$07                                            ; $B1BD: C9 07  ; type 7 = active settlement?
   BNE @nextSlot                                       ; $B1BF: D0 28  ; skip if not type 7
@@ -2948,7 +2941,7 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
 
   JSR CalcKingdomTierWorkPtr                          ; $B1FD: 20 4A A7
   LDA a:$0038                                         ; $B200: AD 38 00
-  JSR Proc_D105                                       ; $B203: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B203: 20 05 D1
   LDA a:$003D                                         ; $B206: AD 3D 00
   LDY #$02                                            ; $B209: A0 02
   SEC                                                 ; $B20B: 38
@@ -2977,7 +2970,7 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
   STA a:$003C                                         ; $B23F: 8D 3C 00
 @RenderTileLoop:
   LDA a:$003A                                         ; $B242: AD 3A 00
-  JSR Proc_D105                                       ; $B245: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B245: 20 05 D1
   LDY #$02                                            ; $B248: A0 02
   LDA ($20),Y                                         ; $B24A: B1 20
   SEC                                                 ; $B24C: 38
@@ -2995,7 +2988,7 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
   JMP @AiAction_EndTurn                                ; $B261: 4C C7 BE
 @RenderNameLoop:
   LDA a:$003A                                         ; $B264: AD 3A 00
-  JSR Proc_D105                                       ; $B267: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B267: 20 05 D1
   LDY #$04                                            ; $B26A: A0 04
   LDA ($20),Y                                         ; $B26C: B1 20
   SEC                                                 ; $B26E: 38
@@ -3033,7 +3026,7 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
 
 AbsorbUpdateRecord:
   LDA a:$003A                                         ; $B287: AD 3A 00
-  JSR Proc_D105                                       ; $B28A: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B28A: 20 05 D1
   LDY #$02                                            ; $B28D: A0 02
   LDA ($20),Y                                         ; $B28F: B1 20
   SEC                                                 ; $B291: 38
@@ -3043,7 +3036,7 @@ AbsorbUpdateRecord:
   LDA ($20),Y                                         ; $B298: B1 20
   SBC a:$003E                                         ; $B29A: ED 3E 00
   STA ($20),Y                                         ; $B29D: 91 20
-  JSR Proc_D69D                                       ; $B29F: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $B29F: 20 9D D6
   LDY #$04                                            ; $B2A2: A0 04
   LDA ($20),Y                                         ; $B2A4: B1 20
   SEC                                                 ; $B2A6: 38
@@ -3053,9 +3046,9 @@ AbsorbUpdateRecord:
   LDA ($20),Y                                         ; $B2AD: B1 20
   SBC a:$003C                                         ; $B2AF: ED 3C 00
   STA ($20),Y                                         ; $B2B2: 91 20
-  JSR Proc_D69D                                       ; $B2B4: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $B2B4: 20 9D D6
   LDA a:$0038                                         ; $B2B7: AD 38 00
-  JSR Proc_D105                                       ; $B2BA: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B2BA: 20 05 D1
   LDY #$02                                            ; $B2BD: A0 02
   LDA ($20),Y                                         ; $B2BF: B1 20
   CLC                                                 ; $B2C1: 18
@@ -3075,13 +3068,13 @@ AbsorbUpdateRecord:
   ADC a:$003C                                         ; $B2DC: 6D 3C 00
   STA ($20),Y                                         ; $B2DF: 91 20
   LDA a:$0038                                         ; $B2E1: AD 38 00
-  JSR Proc_D105                                       ; $B2E4: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B2E4: 20 05 D1
   LDA $20                                             ; $B2E7: A5 20
   STA $28                                             ; $B2E9: 85 28
   LDA $21                                             ; $B2EB: A5 21
   STA $29                                             ; $B2ED: 85 29
   LDA a:$003A                                         ; $B2EF: AD 3A 00
-  JSR Proc_D105                                       ; $B2F2: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B2F2: 20 05 D1
   DEC a:$0037                                         ; $B2F5: CE 37 00
   DEC a:$0037                                         ; $B2F8: CE 37 00
   LDA #$00                                            ; $B2FB: A9 00
@@ -3125,7 +3118,7 @@ AbsorbUpdateRecord:
   CPY a:$0037                                         ; $B340: CC 37 00
   BCC @TransferLoop                                     ; $B343: 90 BA
   LDA a:$003A                                         ; $B345: AD 3A 00
-  JSR Proc_D3DD                                       ; $B348: 20 DD D3
+  JSR CompactRecordSlots                                       ; $B348: 20 DD D3
   LDY #$00                                            ; $B34B: A0 00
   LDA ($28),Y                                         ; $B34D: B1 28
   AND #$F8                                            ; $B34F: 29 F8
@@ -3176,7 +3169,7 @@ AbsorbUpdateRecord:
   ; -- Scan loop: iterate provinces 0–$1D
 @scan_loop:
   LDA a:province_idx                                  ; $B367: AD 36 00
-  JSR Proc_D105                                       ; $B36A: 20 05 D1  ; → A = owner, ($20) = record ptr
+  JSR GetProvinceOwner                                       ; $B36A: 20 05 D1  ; → A = owner, ($20) = record ptr
   AND #$07                                            ; $B36D: 29 07
   CMP sram_player_id                                  ; $B36F: CD 03 6F
   BNE @merge_phase                                    ; $B372: D0 03  ; not owned → skip eval
@@ -3205,7 +3198,7 @@ AbsorbUpdateRecord:
   LDY math_ext                                        ; $B393: A4 24
   LDA $9D72,Y                                         ; $B395: B9 72 9D ; province table entry
   BMI @skip_or_exit                                   ; $B398: 30 EE    ; negative → invalid, exit
-  JSR Proc_D105                                       ; $B39A: 20 05 D1 ; get owner of this entry
+  JSR GetProvinceOwner                                       ; $B39A: 20 05 D1 ; get owner of this entry
   AND #$07                                            ; $B39D: 29 07
   CMP sram_player_id                                  ; $B39F: CD 03 6F
   BEQ @found_owned                                    ; $B3A2: F0 05    ; owned → proceed
@@ -3217,7 +3210,7 @@ AbsorbUpdateRecord:
   LDY math_ext                                        ; $B3A9: A4 24
   LDA $9D72,Y                                         ; $B3AB: B9 72 9D
   STA a:best_weak_idx                                 ; $B3AE: 8D 38 00 ; store dest province idx
-  JSR Proc_D105                                       ; $B3B1: 20 05 D1 ; → ($20) = dest record ptr
+  JSR GetProvinceOwner                                       ; $B3B1: 20 05 D1 ; → ($20) = dest record ptr
   LDA math_acc_lo                                     ; $B3B4: A5 20
   STA math_acc_mhi                                    ; $B3B6: 85 22    ; ($22) = dest ptr
   LDA math_acc_mlo                                    ; $B3B8: A5 21
@@ -3225,7 +3218,7 @@ AbsorbUpdateRecord:
 
   ; ($20) = current (source) province record pointer
   LDA a:province_idx                                  ; $B3BC: AD 36 00
-  JSR Proc_D105                                       ; $B3BF: 20 05 D1 ; → ($20) = source record ptr
+  JSR GetProvinceOwner                                       ; $B3BF: 20 05 D1 ; → ($20) = source record ptr
 
   ; -- Merge 16-bit values: dest[2..3] += src[2..3], dest[4..5] += src[4..5]
   LDY #$02                                            ; $B3C2: A0 02
@@ -3316,7 +3309,7 @@ AbsorbUpdateRecord:
   LDY math_ext                                        ; $B43F: A4 24
   LDA $9D72,Y                                         ; $B441: B9 72 9D
   BMI @count_done                                     ; $B444: 30 11  ; negative → invalid, skip eval
-  JSR Proc_D105                                       ; $B446: 20 05 D1 ; get owner
+  JSR GetProvinceOwner                                       ; $B446: 20 05 D1 ; get owner
   AND #$07                                            ; $B449: 29 07
   CMP sram_player_id                                  ; $B44B: CD 03 6F
   BNE @count_next                                     ; $B44E: D0 02  ; not owned → skip count++
@@ -3334,7 +3327,7 @@ AbsorbUpdateRecord:
   ; Compute weakness metric:
   ;   metric = Proc_D304(slot_count) + record[8..9] + record[14..15]
   LDA a:province_idx                                  ; $B45D: AD 36 00
-  JSR Proc_D304                                       ; $B460: 20 04 D3 ; → A = active slot count
+  JSR CountRecordSlots                                       ; $B460: 20 04 D3 ; → A = active slot count
   LDY #$08                                            ; $B463: A0 08
   LDA ($20),Y                                         ; $B465: B1 20    ; record[8] lo
   STA math_temp2                                      ; $B467: 85 26
@@ -3408,7 +3401,7 @@ AbsorbUpdateRecord:
   BCS @BeginSearch                                    ; $B4A7: B0 03
   JMP @AiActionSelect                                 ; $B4A9: 4C FC B5
 @BeginSearch:
-  JSR Proc_D249                                       ; $B4AC: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $B4AC: 20 49 D2
   STA a:$0045                                         ; $B4AF: 8D 45 00
   JSR LoadRecord                                  ; $B4B2: 20 3A D0
   LDA #$03                                            ; $B4B5: A9 03
@@ -3423,13 +3416,13 @@ AbsorbUpdateRecord:
   LDA a:$0036                                         ; $B4BF: AD 36 00
   CMP a:$0045                                         ; $B4C2: CD 45 00
   BEQ @SkipToNext                                     ; $B4C5: F0 25
-  JSR Proc_D105                                       ; $B4C7: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B4C7: 20 05 D1
   CMP $6F03                                           ; $B4CA: CD 03 6F
   BNE @SkipToNext                                     ; $B4CD: D0 1D
-  JSR Proc_D1A4                                       ; $B4CF: 20 A4 D1
+  JSR CollectEnemyProvinces                                       ; $B4CF: 20 A4 D1
   BNE @SkipToNext                                     ; $B4D2: D0 18
   LDA a:$0036                                         ; $B4D4: AD 36 00
-  JSR Proc_D304                                       ; $B4D7: 20 04 D3
+  JSR CountRecordSlots                                       ; $B4D7: 20 04 D3
   CMP a:$0041                                         ; $B4DA: CD 41 00
   BCC @SkipToNext                                     ; $B4DD: 90 0D
   JSR $B53E                                           ; $B4DF: 20 3E B5
@@ -3456,13 +3449,13 @@ AbsorbUpdateRecord:
   LDA a:$0036                                         ; $B504: AD 36 00
   CMP a:$0045                                         ; $B507: CD 45 00
   BEQ @SkipEnemyNext                                  ; $B50A: F0 25
-  JSR Proc_D105                                       ; $B50C: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B50C: 20 05 D1
   CMP $6F03                                           ; $B50F: CD 03 6F
   BNE @SkipEnemyNext                                  ; $B512: D0 1D
-  JSR Proc_D1A4                                       ; $B514: 20 A4 D1
+  JSR CollectEnemyProvinces                                       ; $B514: 20 A4 D1
   BEQ @SkipEnemyNext                                  ; $B517: F0 18
   LDA a:$0036                                         ; $B519: AD 36 00
-  JSR Proc_D304                                       ; $B51C: 20 04 D3
+  JSR CountRecordSlots                                       ; $B51C: 20 04 D3
   CMP a:$0041                                         ; $B51F: CD 41 00
   BCC @SkipEnemyNext                                  ; $B522: 90 0D
   JSR $B53E                                           ; $B524: 20 3E B5
@@ -3487,18 +3480,18 @@ AbsorbUpdateRecord:
   LDA a:$0036                                         ; $B551: AD 36 00
   CMP a:$0045                                         ; $B554: CD 45 00
   BEQ @SkipToInner                                    ; $B557: F0 0D
-  JSR Proc_D105                                       ; $B559: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B559: 20 05 D1
   CMP $6F03                                           ; $B55C: CD 03 6F
   BNE @SkipToInner                                    ; $B55F: D0 2A
-  JSR Proc_D1A4                                       ; $B561: 20 A4 D1
+  JSR CollectEnemyProvinces                                       ; $B561: 20 A4 D1
   BEQ @SkipToInner                                    ; $B564: F0 25
   LDX a:$003B                                         ; $B566: AE 3B 00
   LDY a:$0036                                         ; $B569: AC 36 00
-  JSR Proc_D583                                       ; $B56C: 20 83 D5
+  JSR CheckPathExists                                       ; $B56C: 20 83 D5
   CMP #$FF                                            ; $B56F: C9 FF
   BNE @SkipToInner                                    ; $B571: D0 18
   LDA a:$0036                                         ; $B573: AD 36 00
-  JSR Proc_D304                                       ; $B576: 20 04 D3
+  JSR CountRecordSlots                                       ; $B576: 20 04 D3
   CMP a:$003C                                         ; $B579: CD 3C 00
   BCS @SkipToInner                                    ; $B57C: B0 0D
   CMP #$0A                                            ; $B57E: C9 0A
@@ -3515,7 +3508,7 @@ AbsorbUpdateRecord:
   CMP #$FF                                            ; $B598: C9 FF
   BEQ @NoMatchExit                                    ; $B59A: F0 59
   LDA a:$003B                                         ; $B59C: AD 3B 00
-  JSR Proc_D105                                       ; $B59F: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B59F: 20 05 D1
   LDA #$11                                            ; $B5A2: A9 11
   STA $24                                             ; $B5A4: 85 24
   LDA #$00                                            ; $B5A6: A9 00
@@ -3544,9 +3537,9 @@ AbsorbUpdateRecord:
   LDA #$FF                                            ; $B5D2: A9 FF
   STA ($20),Y                                         ; $B5D4: 91 20
   LDA a:$003B                                         ; $B5D6: AD 3B 00
-  JSR Proc_D3DD                                       ; $B5D9: 20 DD D3
+  JSR CompactRecordSlots                                       ; $B5D9: 20 DD D3
   LDA a:$003D                                         ; $B5DC: AD 3D 00
-  JSR Proc_D105                                       ; $B5DF: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B5DF: 20 05 D1
   LDY #$10                                            ; $B5E2: A0 10
 @FindBestSlot:
   INY                                                 ; $B5E4: C8
@@ -3582,7 +3575,7 @@ AbsorbUpdateRecord:
 @ExitToEndTurn:
   JMP @AiAction_EndTurn                                ; $B616: 4C C7 BE
   LDA $6F03                                           ; $B619: AD 03 6F
-  JSR Proc_D319                                       ; $B61C: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $B61C: 20 19 D3
   LDY #$00                                            ; $B61F: A0 00
   LDA ($24),Y                                         ; $B621: B1 24
   STA a:$0040                                         ; $B623: 8D 40 00
@@ -3596,7 +3589,7 @@ AbsorbUpdateRecord:
   STA $2B                                             ; $B637: 85 2B
 @CountOwnedLoop:
   LDA $2A                                             ; $B639: A5 2A
-  JSR Proc_D319                                       ; $B63B: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $B63B: 20 19 D3
   LDY #$00                                            ; $B63E: A0 00
   LDA ($24),Y                                         ; $B640: B1 24
   CMP #$FF                                            ; $B642: C9 FF
@@ -3613,7 +3606,7 @@ AbsorbUpdateRecord:
 @ActionExit:
   JMP @ExitToEndTurn                                  ; $B656: 4C 16 B6
   LDA $6F03                                           ; $B659: AD 03 6F
-  JSR Proc_D319                                       ; $B65C: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $B65C: 20 19 D3
   LDX #$00                                            ; $B65F: A2 00
   LDY #$04                                            ; $B661: A0 04
   LDA ($24),Y                                         ; $B663: B1 24
@@ -3640,7 +3633,7 @@ AbsorbUpdateRecord:
   LDA $6F73,Y                                         ; $B68D: B9 73 6F
   BNE @FindStrongestNext                              ; $B690: D0 16
   LDA a:$0036                                         ; $B692: AD 36 00
-  JSR Proc_D080                                       ; $B695: 20 80 D0
+  JSR CountPlayerProvinces                                       ; $B695: 20 80 D0
   LDA $2B                                             ; $B698: A5 2B
   CMP a:$0037                                         ; $B69A: CD 37 00
   BCC @FindStrongestNext                              ; $B69D: 90 09
@@ -3653,7 +3646,7 @@ AbsorbUpdateRecord:
   CMP #$07                                            ; $B6AE: C9 07
   BCC @FindStrongestLoop                              ; $B6B0: 90 D8
   LDA $6F03                                           ; $B6B2: AD 03 6F
-  JSR Proc_D080                                       ; $B6B5: 20 80 D0
+  JSR CountPlayerProvinces                                       ; $B6B5: 20 80 D0
   LDA $2B                                             ; $B6B8: A5 2B
   CLC                                                 ; $B6BA: 18
   ADC #$02                                            ; $B6BB: 69 02
@@ -3665,7 +3658,7 @@ AbsorbUpdateRecord:
   STA $20                                             ; $B6C8: 85 20
   LDA #$1E                                            ; $B6CA: A9 1E
   STA $21                                             ; $B6CC: 85 21
-  JSR Proc_D471                                       ; $B6CE: 20 71 D4
+  JSR Multiply8x8                                       ; $B6CE: 20 71 D4
   LDA $2A                                             ; $B6D1: A5 2A
   CLC                                                 ; $B6D3: 18
   ADC #$46                                            ; $B6D4: 69 46
@@ -3677,7 +3670,7 @@ AbsorbUpdateRecord:
   STA $23                                             ; $B6E0: 85 23
   LDA #$00                                            ; $B6E2: A9 00
   STA $24                                             ; $B6E4: 85 24
-  JSR Proc_D40F                                       ; $B6E6: 20 0F D4
+  JSR Divide16                                       ; $B6E6: 20 0F D4
   LDA $21                                             ; $B6E9: A5 21
   STA $042F                                           ; $B6EB: 8D 2F 04
   LDA $22                                             ; $B6EE: A5 22
@@ -3704,7 +3697,7 @@ AbsorbUpdateRecord:
   STA $22                                             ; $B721: 85 22
   LDA #$06                                            ; $B723: A9 06
   STA $23                                             ; $B725: 85 23
-  JSR Proc_D438                                       ; $B727: 20 38 D4
+  JSR Multiply32                                       ; $B727: 20 38 D4
   LDA a:$0026                                         ; $B72A: AD 26 00
   STA $042F                                           ; $B72D: 8D 2F 04
   LDA $27                                             ; $B730: A5 27
@@ -3721,7 +3714,7 @@ AbsorbUpdateRecord:
   JMP @ActionExit                                     ; $B74B: 4C 56 B6
 @SkipTransfer:
   LDA a:$0038                                         ; $B74E: AD 38 00
-  JSR Proc_D319                                       ; $B751: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $B751: 20 19 D3
   LDY #$03                                            ; $B754: A0 03
   LDA ($24),Y                                         ; $B756: B1 24
   CMP #$03                                            ; $B758: C9 03
@@ -3730,12 +3723,12 @@ AbsorbUpdateRecord:
   JSR @AdjustSwapPositions                             ; $B75F: 20 CE B7
   JMP @ExitToEndTurn                                  ; $B762: 4C 16 B6
   LDA $6F03                                           ; $B765: AD 03 6F
-  JSR Proc_D319                                       ; $B768: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $B768: 20 19 D3
   LDY #$00                                            ; $B76B: A0 00
   LDA ($24),Y                                         ; $B76D: B1 24
   STA a:$0040                                         ; $B76F: 8D 40 00
   LDA a:$0038                                         ; $B772: AD 38 00
-  JSR Proc_D319                                       ; $B775: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $B775: 20 19 D3
   LDY #$00                                            ; $B778: A0 00
   LDA ($24),Y                                         ; $B77A: B1 24
   STA a:$0041                                         ; $B77C: 8D 41 00
@@ -3757,7 +3750,7 @@ AbsorbUpdateRecord:
   JMP @ExitToEndTurn                                  ; $B79F: 4C 16 B6
   LDA $6F03                                           ; $B7A2: AD 03 6F
   JSR @FindEntityForChar                               ; $B7A5: 20 55 B9
-  JSR Proc_D105                                       ; $B7A8: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B7A8: 20 05 D1
   LDA a:$0039                                         ; $B7AB: AD 39 00
   BNE @SubtractOffset                                 ; $B7AE: D0 0F
   LDY #$02                                            ; $B7B0: A0 02
@@ -3791,7 +3784,7 @@ AbsorbUpdateRecord:
   ; --- Phase 1: Subtract position delta from current character's slot ---
   LDA $6F03                                           ; $B7CE: AD 03 6F  ; slot type of current character
   JSR @FindEntityForChar                               ; $B7D1: 20 55 B9  ; find matching slot index
-  JSR Proc_D105                                       ; $B7D4: 20 05 D1  ; resolve slot data pointer -> ($20)
+  JSR GetProvinceOwner                                       ; $B7D4: 20 05 D1  ; resolve slot data pointer -> ($20)
   LDA a:$0039                                         ; $B7D7: AD 39 00  ; field selector
   BNE @SubtractAltOffset                              ; $B7DA: D0 15    ; != 0 -> use offsets [4..5]
   ; Subtract 16-bit delta from offsets [2..3]
@@ -3820,7 +3813,7 @@ AbsorbUpdateRecord:
 @Phase2_AddToTarget:
   LDA a:$0038                                         ; $B803: AD 38 00  ; slot type of swap target
   JSR @FindEntityForChar                               ; $B806: 20 55 B9  ; find matching slot index
-  JSR Proc_D105                                       ; $B809: 20 05 D1  ; resolve slot data pointer -> ($20)
+  JSR GetProvinceOwner                                       ; $B809: 20 05 D1  ; resolve slot data pointer -> ($20)
   LDA a:$0039                                         ; $B80C: AD 39 00  ; field selector
   BNE @AddAltOffset                                   ; $B80F: D0 13    ; != 0 -> use offsets [4..5]
   ; Add 16-bit delta to offsets [2..3]
@@ -3855,7 +3848,7 @@ AbsorbUpdateRecord:
   STA a:$003E                                         ; $B843: 8D 3E 00  ; best distance = 0
 @Loop:
   LDA a:$0036                                         ; $B846: AD 36 00  ; current slot index
-  JSR Proc_D105                                       ; $B849: 20 05 D1  ; resolve slot data
+  JSR GetProvinceOwner                                       ; $B849: 20 05 D1  ; resolve slot data
   CMP $6F03                                           ; $B84C: CD 03 6F  ; does slot match current character?
   BNE @NextSlot                                       ; $B84F: D0 03
   JSR @FindBestSubCharacter                              ; $B851: 20 5F B8  ; find best sub-character in slot
@@ -3875,7 +3868,7 @@ AbsorbUpdateRecord:
 ;===============================================================================
 @FindBestSubCharacter:
   LDA a:$0036                                         ; $B85F: AD 36 00  ; slot index
-  JSR Proc_D105                                       ; $B862: 20 05 D1  ; resolve entity data pointer -> ($20)
+  JSR GetProvinceOwner                                       ; $B862: 20 05 D1  ; resolve entity data pointer -> ($20)
   LDA #$11                                            ; $B865: A9 11    ; start at offset $11 (sub-char list)
   STA a:$003C                                         ; $B867: 8D 3C 00  ; scan offset = $11
 @ScanLoop:
@@ -3930,7 +3923,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $B8AF: A9 00
   STA a:work_sub_idx                                  ; $B8B1: 8D 39 00  ; reset slot counter
   LDA a:work_outer_idx                                ; $B8B4: AD 36 00
-  JSR Proc_D105                                       ; $B8B7: 20 05 D1  ; A = entity owner, ($20) = record ptr
+  JSR GetProvinceOwner                                       ; $B8B7: 20 05 D1  ; A = entity owner, ($20) = record ptr
   CMP sram_player_id                                  ; $B8BA: CD 03 6F  ; only process entities owned by current player
   BNE @NextEntity                                     ; $B8BD: D0 31  ; skip if not current player's entity
 
@@ -3947,7 +3940,7 @@ AbsorbUpdateRecord:
   BMI @NextEntity                                     ; $B8C9: 30 25  ; negative = empty/invalid slot, skip
   STA math_acc_hi                                     ; $B8CB: 85 23  ; save table value
   STY math_ext                                        ; $B8CD: 84 24  ; save Y offset (Proc_D105 clobbers Y)
-  JSR Proc_D105                                       ; $B8CF: 20 05 D1  ; reload entity record ptr → ($20), A = owner
+  JSR GetProvinceOwner                                       ; $B8CF: 20 05 D1  ; reload entity record ptr → ($20), A = owner
   CMP #$07                                            ; $B8D2: C9 07  ; entity type in low 3 bits
   BEQ @AdvanceSlot                                    ; $B8D4: F0 0B  ; type 7 → skip (home province marker)
   CMP sram_player_id                                  ; $B8D6: CD 03 6F  ; check if entity belongs to current player
@@ -4002,13 +3995,13 @@ AbsorbUpdateRecord:
 @MarkSwapArmyFlags:
   ; --- Phase 1: Mark current player's record with target's swap flag ---
   LDA a:$6F03                                         ; $B90A: AD 03 6F  ; sram_player_id
-  JSR Proc_D319                                       ; $B90D: 20 19 D3  ; resolve current player -> ($24)
+  JSR GetPlayerRecordPtr                                       ; $B90D: 20 19 D3  ; resolve current player -> ($24)
   LDA a:$0038                                         ; $B910: AD 38 00  ; target character index
   JSR @ApplyNibbleMarker                               ; $B913: 20 23 B9  ; mark nibble in current player record
 
   ; --- Phase 2: Mark target's record with current player's swap flag ---
   LDA a:$0038                                         ; $B916: AD 38 00
-  JSR Proc_D319                                       ; $B919: 20 19 D3  ; resolve target -> ($24)
+  JSR GetPlayerRecordPtr                                       ; $B919: 20 19 D3  ; resolve target -> ($24)
   LDA a:$6F03                                         ; $B91C: AD 03 6F  ; sram_player_id
   JSR @ApplyNibbleMarker                               ; $B91F: 20 23 B9  ; mark nibble in target record
   RTS                                                 ; $B922: 60
@@ -4056,13 +4049,13 @@ AbsorbUpdateRecord:
   STA $2C                                             ; $B955: 85 2C  ; save type key
   LDY #$00                                            ; $B957: A0 00
   STY $2B                                             ; $B959: 84 2B  ; entity index = 0
-  JSR Proc_D319                                       ; $B95B: 20 19 D3  ; resolve char index -> ($24)
+  JSR GetPlayerRecordPtr                                       ; $B95B: 20 19 D3  ; resolve char index -> ($24)
   LDY #$00                                            ; $B95E: A0 00
   LDA ($24),Y                                         ; $B960: B1 24  ; read character ID
   STA $2A                                             ; $B962: 85 2A  ; $2A = target character ID
 @EntityLoop:                                                ; --- scan loop: entities 0..29 ---
   LDA $2B                                             ; $B964: A5 2B
-  JSR Proc_D105                                       ; $B966: 20 05 D1  ; get entity record
+  JSR GetProvinceOwner                                       ; $B966: 20 05 D1  ; get entity record
   AND #$07                                            ; $B969: 29 07  ; entity type (low 3 bits)
   CMP $2C                                             ; $B96B: C5 2C  ; matches input type?
   BNE @NextEntity                                           ; $B96D: D0 10  ; no -> next entity
@@ -4108,12 +4101,12 @@ AbsorbUpdateRecord:
   STA a:$0038                                         ; $B998: 8D 38 00
 @Phase1Loop:                                                ; --- Phase 1: Find entity with fewest army members ---
   LDA a:$0036                                         ; $B99B: AD 36 00
-  JSR Proc_D105                                       ; $B99E: 20 05 D1  ; resolve entity record
+  JSR GetProvinceOwner                                       ; $B99E: 20 05 D1  ; resolve entity record
   CMP $6F03                                           ; $B9A1: CD 03 6F  ; owned by current player?
   BNE @Phase1Next                                           ; $B9A4: D0 1B  ; no -> skip
   JSR @UpdateMinArmyCount                              ; $B9A6: 20 82 BB  ; track min army count in $0039
   LDA a:$0036                                         ; $B9A9: AD 36 00
-  JSR Proc_D304                                       ; $B9AC: 20 04 D3  ; count occupied army slots
+  JSR CountRecordSlots                                       ; $B9AC: 20 04 D3  ; count occupied army slots
   CMP #$0A                                            ; $B9AF: C9 0A  ; army full (>= 10)?
   BCS @Phase1Next                                           ; $B9B1: B0 0E  ; yes -> skip
   CMP a:$0037                                         ; $B9B3: CD 37 00  ; fewer than current min?
@@ -4139,7 +4132,7 @@ AbsorbUpdateRecord:
   STA a:$003F                                         ; $B9E2: 8D 3F 00  ; $003F = best entity index
 @Phase2Loop:                                                ; --- Phase 2 loop: scan entities 0..29 ---
   LDA a:$0036                                         ; $B9E5: AD 36 00
-  JSR Proc_D105                                       ; $B9E8: 20 05 D1
+  JSR GetProvinceOwner                                       ; $B9E8: 20 05 D1
   CMP $6F03                                           ; $B9EB: CD 03 6F  ; owned by current player?
   BEQ @Phase2Next                                           ; $B9EE: F0 03  ; yes -> skip (don't absorb own)
   JSR @ScanBestTarget                                  ; $B9F0: 20 48 BB  ; evaluate as potential target
@@ -4177,7 +4170,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $BA2F: A9 00
   STA $22                                             ; $BA31: 85 22
   STA $24                                             ; $BA33: 85 24
-  JSR Proc_D40F                                       ; $BA35: 20 0F D4
+  JSR Divide16                                       ; $BA35: 20 0F D4
   ; --- Compute score based on kingdom tier ---
   LDA a:$003E                                         ; $BA38: AD 3E 00  ; best target army value
   LDY #$00                                            ; $BA3B: A0 00  ; Y = tier index (0)
@@ -4245,7 +4238,7 @@ AbsorbUpdateRecord:
   .byte $28,$0F,$00,$00,$32,$14,$00,$00,$3C,$1E,$0A,$00   ; $BA81: modifier table (12 bytes)
 @FindEmptySlot:                                                ; --- Find empty army slot in best entity ---
   LDA a:$0038                                         ; $BA8D: AD 38 00  ; best entity index
-  JSR Proc_D105                                       ; $BA90: 20 05 D1  ; resolve entity record -> ($20)
+  JSR GetProvinceOwner                                       ; $BA90: 20 05 D1  ; resolve entity record -> ($20)
   LDY #$10                                            ; $BA93: A0 10
 @SlotScan:
   INY                                                 ; $BA95: C8  ; scan slots $11-$1A
@@ -4256,7 +4249,7 @@ AbsorbUpdateRecord:
   STA ($20),Y                                         ; $BA9F: 91 20  ; write char ID into empty slot
   ; --- Update player's army reference ---
   LDA $6F03                                           ; $BAA1: AD 03 6F  ; current player ID
-  JSR Proc_D319                                       ; $BAA4: 20 19 D3  ; resolve -> ($24)
+  JSR GetPlayerRecordPtr                                       ; $BAA4: 20 19 D3  ; resolve -> ($24)
   LDY #$00                                            ; $BAA7: A0 00
   LDA ($24),Y                                         ; $BAA9: B1 24  ; player's character ID
   STA $30                                             ; $BAAB: 85 30
@@ -4265,7 +4258,7 @@ AbsorbUpdateRecord:
   JSR ArmyValueCalc                                   ; $BAB2: 20 3F CF  ; recalculate army value
   ; --- Remove char from old owner's slot list ---
   LDA a:$003F                                         ; $BAB5: AD 3F 00  ; old owner entity index
-  JSR Proc_D105                                       ; $BAB8: 20 05 D1  ; resolve -> ($20)
+  JSR GetProvinceOwner                                       ; $BAB8: 20 05 D1  ; resolve -> ($20)
   STA a:$0042                                         ; $BABB: 8D 42 00  ; save for later
   LDY #$10                                            ; $BABE: A0 10
 @CharRemoveLoop:
@@ -4277,9 +4270,9 @@ AbsorbUpdateRecord:
   STA ($20),Y                                         ; $BACA: 91 20  ; clear slot (mark empty)
   ; --- If old owner's status is 0 (dismissed), mark slot type 7 ---
   LDA a:$003F                                         ; $BACC: AD 3F 00
-  JSR Proc_D3DD                                       ; $BACF: 20 DD D3  ; reset player-entity map
+  JSR CompactRecordSlots                                       ; $BACF: 20 DD D3  ; reset player-entity map
   LDA a:$003F                                         ; $BAD2: AD 3F 00
-  JSR Proc_D304                                       ; $BAD5: 20 04 D3  ; count remaining slots
+  JSR CountRecordSlots                                       ; $BAD5: 20 04 D3  ; count remaining slots
   CMP #$00                                            ; $BAD8: C9 00  ; any slots left?
   BNE @AfterDismiss                                           ; $BADA: D0 06  ; yes -> skip
   LDY #$00                                            ; $BADC: A0 00
@@ -4290,13 +4283,13 @@ AbsorbUpdateRecord:
   LDA a:$003D                                         ; $BAE2: AD 3D 00  ; transferred char ID
   STA a:$0043                                         ; $BAE5: 8D 43 00
   LDA a:$0038                                         ; $BAE8: AD 38 00  ; receiving entity index
-  JSR Proc_D105                                       ; $BAEB: 20 05 D1  ; resolve -> ($20)
-  JSR Proc_D319                                       ; $BAEE: 20 19 D3  ; resolve char record -> ($24)
+  JSR GetProvinceOwner                                       ; $BAEB: 20 05 D1  ; resolve -> ($20)
+  JSR GetPlayerRecordPtr                                       ; $BAEE: 20 19 D3  ; resolve char record -> ($24)
   LDY #$00                                            ; $BAF1: A0 00
   LDA ($24),Y                                         ; $BAF3: B1 24  ; receiving char ID
   STA a:$0040                                         ; $BAF5: 8D 40 00
   LDA a:$0042                                         ; $BAF8: AD 42 00  ; old owner entity index
-  JSR Proc_D319                                       ; $BAFB: 20 19 D3  ; resolve -> ($24)
+  JSR GetPlayerRecordPtr                                       ; $BAFB: 20 19 D3  ; resolve -> ($24)
   LDY #$00                                            ; $BAFE: A0 00
   LDA ($24),Y                                         ; $BB00: B1 24  ; old owner char ID
   STA a:$0041                                         ; $BB02: 8D 41 00
@@ -4314,7 +4307,7 @@ AbsorbUpdateRecord:
   STA a:$003E                                         ; $BB19: 8D 3E 00
 @PostUpdateLoop:                                                ; --- Post-action loop: entities 0..29 ---
   LDA a:$0036                                         ; $BB1C: AD 36 00
-  JSR Proc_D105                                       ; $BB1F: 20 05 D1
+  JSR GetProvinceOwner                                       ; $BB1F: 20 05 D1
   CMP #$07                                            ; $BB22: C9 07  ; dismissed entity?
   BEQ @PostUpdateNext                                           ; $BB24: F0 0B  ; yes -> skip
   CMP a:$0042                                         ; $BB26: CD 42 00  ; same as old owner?
@@ -4343,7 +4336,7 @@ AbsorbUpdateRecord:
 ;-------------------------------------------------------------------------------
 @ScanBestTarget:
   LDA a:$0036                                         ; $BB48: AD 36 00
-  JSR Proc_D105                                       ; $BB4B: 20 05 D1
+  JSR GetProvinceOwner                                       ; $BB4B: 20 05 D1
   LDA #$11                                            ; $BB4E: A9 11
   STA a:$003C                                         ; $BB50: 8D 3C 00
 @ScanLoop:
@@ -4377,7 +4370,7 @@ AbsorbUpdateRecord:
 ;===============================================================================
 @UpdateMinArmyCount:
   LDA a:$0036                                         ; $BB82: AD 36 00
-  JSR Proc_D105                                       ; $BB85: 20 05 D1
+  JSR GetProvinceOwner                                       ; $BB85: 20 05 D1
   LDA #$11                                            ; $BB88: A9 11
   STA a:$003C                                         ; $BB8A: 8D 3C 00
 @Loop:
@@ -4421,7 +4414,7 @@ AbsorbUpdateRecord:
 ; --- Phase 1: validate AI's own entities ---
 @Phase1Loop:
   LDA a:$0036                                         ; $BBC1: AD 36 00
-  JSR Proc_D105                                       ; $BBC4: 20 05 D1  ; resolve entity → record ptr
+  JSR GetProvinceOwner                                       ; $BBC4: 20 05 D1  ; resolve entity → record ptr
   CMP $6F03                                           ; $BBC7: CD 03 6F  ; owned by current player?
   BNE @Phase1Next                                      ; $BBCA: D0 03
   JSR @FindBestOfficerNoExclude                         ; $BBCC: 20 3E BD  ; init trackers (no exclusion)
@@ -4438,16 +4431,16 @@ AbsorbUpdateRecord:
   STA a:$0038                                         ; $BBE3: 8D 38 00  ; best entity ID = none
 @FindTargetLoop:
   LDA a:$0036                                         ; $BBE6: AD 36 00
-  JSR Proc_D105                                       ; $BBE9: 20 05 D1  ; resolve entity → owner
+  JSR GetProvinceOwner                                       ; $BBE9: 20 05 D1  ; resolve entity → owner
   CMP $6F03                                           ; $BBEC: CD 03 6F  ; owned by player?
   BEQ @FindTargetNext                                 ; $BBEF: F0 1F  ; yes → skip (can't absorb own)
-  JSR Proc_D319                                       ; $BBF1: 20 19 D3  ; resolve owner's character record
+  JSR GetPlayerRecordPtr                                       ; $BBF1: 20 19 D3  ; resolve owner's character record
   LDY #$03                                            ; $BBF4: A0 03
   LDA ($24),Y                                         ; $BBF6: B1 24
   CMP #$03                                            ; $BBF8: C9 03  ; status $03 = dismissed/inactive?
   BEQ @FindTargetNext                                 ; $BBFA: F0 14  ; yes → skip
   LDA a:$0036                                         ; $BBFC: AD 36 00
-  JSR Proc_D304                                       ; $BBFF: 20 04 D3  ; count filled army slots
+  JSR CountRecordSlots                                       ; $BBFF: 20 04 D3  ; count filled army slots
   CMP a:$0037                                         ; $BC02: CD 37 00  ; higher count than current best?
   BCC @FindTargetNext                                 ; $BC05: 90 09  ; no → skip
   STA a:$0037                                         ; $BC07: 8D 37 00  ; new best army count
@@ -4472,7 +4465,7 @@ AbsorbUpdateRecord:
   DEY                                                 ; $BC2B: 88
   BPL @ClearCandidateBuf                               ; $BC2C: 10 FA
   LDA a:$0038                                         ; $BC2E: AD 38 00  ; best entity ID
-  JSR Proc_D105                                       ; $BC31: 20 05 D1  ; resolve entity → record ptr
+  JSR GetProvinceOwner                                       ; $BC31: 20 05 D1  ; resolve entity → record ptr
   LDA #$11                                            ; $BC34: A9 11
   STA a:$0036                                         ; $BC36: 8D 36 00  ; slot index = $11
   LDA #$00                                            ; $BC39: A9 00
@@ -4504,7 +4497,7 @@ AbsorbUpdateRecord:
   BEQ EndTurn                                         ; $BC6F: F0 37  ; no candidates → abort
   CMP #$01                                            ; $BC71: C9 01  ; exactly 1 candidate?
   BEQ @UseSingleCandidate                              ; $BC73: F0 06  ; exactly 1 → skip random
-  JSR Proc_D4AD                                       ; $BC75: 20 AD D4  ; random index < count
+  JSR RandomBelow                                       ; $BC75: 20 AD D4  ; random index < count
   CLC                                                 ; $BC78: 18
   ADC #$01                                            ; $BC79: 69 01
 @UseSingleCandidate:
@@ -4540,9 +4533,9 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $BCB7: A9 00
   STA $22                                             ; $BCB9: 85 22
   STA $24                                             ; $BCBB: 85 24
-  JSR Proc_D40F                                       ; $BCBD: 20 0F D4  ; 16-bit division helper
+  JSR Divide16                                       ; $BCBD: 20 0F D4  ; 16-bit division helper
   LDA #$07                                            ; $BCC0: A9 07
-  JSR Proc_D4AD                                       ; $BCC2: 20 AD D4  ; random 0-7 for stat reduction
+  JSR RandomBelow                                       ; $BCC2: 20 AD D4  ; random 0-7 for stat reduction
   CLC                                                 ; $BCC5: 18
   ADC #$01                                            ; $BCC6: 69 01
   CLC                                                 ; $BCC8: 18
@@ -4558,14 +4551,14 @@ AbsorbUpdateRecord:
 @ClampStatResult:
   STA ($22),Y                                         ; $BCDE: 91 22  ; write reduced stat back
   LDA $6F03                                           ; $BCE0: AD 03 6F  ; current player ID
-  JSR Proc_D319                                       ; $BCE3: 20 19 D3  ; resolve player's character record
+  JSR GetPlayerRecordPtr                                       ; $BCE3: 20 19 D3  ; resolve player's character record
   LDY #$00                                            ; $BCE6: A0 00
   LDA ($24),Y                                         ; $BCE8: B1 24
   STA a:$0039                                         ; $BCEA: 8D 39 00  ; player's character ID
   LDA a:$0038                                         ; $BCED: AD 38 00  ; absorbed entity ID
-  JSR Proc_D105                                       ; $BCF0: 20 05 D1  ; resolve entity → owner
+  JSR GetProvinceOwner                                       ; $BCF0: 20 05 D1  ; resolve entity → owner
   STA a:$003B                                         ; $BCF3: 8D 3B 00  ; absorbed entity owner
-  JSR Proc_D319                                       ; $BCF6: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $BCF6: 20 19 D3
   LDY #$00                                            ; $BCF9: A0 00
   LDA ($24),Y                                         ; $BCFB: B1 24
   STA a:$003A                                         ; $BCFD: 8D 3A 00  ; target entity's primary char ID
@@ -4581,7 +4574,7 @@ AbsorbUpdateRecord:
   STA a:$003E                                         ; $BD13: 8D 3E 00  ; best stat value = 0
 @SweepLoop:
   LDA a:$0036                                         ; $BD16: AD 36 00
-  JSR Proc_D105                                       ; $BD19: 20 05 D1  ; resolve entity → owner
+  JSR GetProvinceOwner                                       ; $BD19: 20 05 D1  ; resolve entity → owner
   CMP a:$003B                                         ; $BD1C: CD 3B 00  ; same owner as absorbed entity?
   BNE @SweepNext                                       ; $BD1F: D0 06
   LDA a:$003A                                         ; $BD21: AD 3A 00  ; target entity's primary char
@@ -4616,7 +4609,7 @@ AbsorbUpdateRecord:
 @FindBestOfficerInEntity:
   STA $2A                                             ; $BD40: 85 2A  ; save excluded character ID
   LDA a:$0036                                         ; $BD42: AD 36 00
-  JSR Proc_D105                                       ; $BD45: 20 05 D1  ; resolve entity → record ptr ($20/$21)
+  JSR GetProvinceOwner                                       ; $BD45: 20 05 D1  ; resolve entity → record ptr ($20/$21)
   LDA #$11                                            ; $BD48: A9 11
   STA a:$003C                                         ; $BD4A: 8D 3C 00  ; start at army slot offset $11
 @ScanOfficerLoop:
@@ -4668,7 +4661,7 @@ AbsorbUpdateRecord:
 
 @AiDev_OuterLoop:                                                             ; scan entities 0..$1D
   LDA a:$0036                                         ; $BD8A: AD 36 00  ; candidate_idx
-  JSR Proc_D105                                       ; $BD8D: 20 05 D1  ; resolve entity → record ptr ($20/$21)
+  JSR GetProvinceOwner                                       ; $BD8D: 20 05 D1  ; resolve entity → record ptr ($20/$21)
   CMP sram_player_id                                  ; $BD90: CD 03 6F  ; owned by current player?
   BNE @AiDev_OuterLoopNext                                   ; $BD93: D0 59      ; not ours → next entity
 
@@ -4751,7 +4744,7 @@ AbsorbUpdateRecord:
 
 @AiDev_ProcessBest:                                                             ; === Train the best officer ===
   LDA a:$0039                                           ; $BE02: AD 39 00  ; best entity index
-  JSR Proc_D105                                         ; $BE05: 20 05 D1  ; resolve → record ptr ($20)
+  JSR GetProvinceOwner                                         ; $BE05: 20 05 D1  ; resolve → record ptr ($20)
   LDA a:$0038                                           ; $BE08: AD 38 00  ; best officer ID
   LDY #$08                                              ; $BE0B: A0 08
   JSR $D2AB                                             ; $BE0D: 20 AB D2  ; read officer ability stat → ($22)
@@ -4821,11 +4814,11 @@ AbsorbUpdateRecord:
   LDA #$00                                              ; $BE74: A9 00
   STA $24                                               ; $BE76: 85 24
   LDA a:$0039                                           ; $BE78: AD 39 00  ; best entity
-  JSR Proc_D36F                                         ; $BE7B: 20 6F D3  ; deduct training cost
+  JSR DeductRecordStat2                                         ; $BE7B: 20 6F D3  ; deduct training cost
 
   ; --- Add cost to development investment (field $0C/$0D += cost) ---
   LDA a:$0039                                           ; $BE7E: AD 39 00  ; best entity
-  JSR Proc_D105                                         ; $BE81: 20 05 D1  ; re-resolve province → ($20)
+  JSR GetProvinceOwner                                         ; $BE81: 20 05 D1  ; re-resolve province → ($20)
   LDY #$0C                                              ; $BE84: A0 0C
   LDA $28                                               ; $BE86: A5 28
   CLC                                                   ; $BE88: 18
@@ -4836,7 +4829,7 @@ AbsorbUpdateRecord:
   ADC ($20),Y                                           ; $BE90: 71 20      ; field[$0D] += cost_high
   STA ($20),Y                                           ; $BE92: 91 20
 @AiDev_AlreadyTrained:                                                            ; skip division → flush and continue
-  JSR Proc_D69D                                         ; $BE94: 20 9D D6  ; flush pending updates
+  JSR ClampRecordStatPairsAlt                                         ; $BE94: 20 9D D6  ; flush pending updates
 
   ; --- Subtract remaining capacity from investment (net effect) ---
   LDY #$0C                                              ; $BE97: A0 0C
@@ -4848,7 +4841,7 @@ AbsorbUpdateRecord:
   LDA ($20),Y                                           ; $BEA2: B1 20
   SBC a:$003B                                           ; $BEA4: ED 3B 00  ; field[$0D] -= capacity_high
   STA ($20),Y                                           ; $BEA7: 91 20
-  JSR Proc_D69D                                         ; $BEA9: 20 9D D6  ; flush pending updates
+  JSR ClampRecordStatPairsAlt                                         ; $BEA9: 20 9D D6  ; flush pending updates
 
   ; --- Mark officer as fully trained: set ability = $03E8 (1000) ---
   LDA a:$0038                                           ; $BEAC: AD 38 00  ; officer ID
@@ -4914,7 +4907,7 @@ AbsorbUpdateRecord:
 @ResetCounter:
   STA $6F83,X                                         ; $BF07: 9D 83 6F  ; store zeroed counter
   STA $6F5E                                           ; $BF0A: 8D 5E 6F  ; reset entity index
-  JSR Proc_D105                                       ; $BF0D: 20 05 D1  ; resolve entity record
+  JSR GetProvinceOwner                                       ; $BF0D: 20 05 D1  ; resolve entity record
   CMP $6F03                                           ; $BF10: CD 03 6F  ; entity owned by current player?
   BNE @AiTurn_AdvancePhase                             ; $BF13: D0 D1      ; no → try next entity
   RTS                                                 ; $BF15: 60
@@ -4969,7 +4962,7 @@ AbsorbUpdateRecord:
   LDA #$0E                                            ; $BF4C: A9 0E
   STA $24                                             ; $BF4E: 85 24
   LDA $6F5E                                           ; $BF50: AD 5E 6F  ; entity index
-  JSR Proc_D36F                                       ; $BF53: 20 6F D3  ; multiply: entity_idx × $0E
+  JSR DeductRecordStat2                                       ; $BF53: 20 6F D3  ; multiply: entity_idx × $0E
   BCC @CalcOverflow                                        ; $BF56: 90 68 (BCC @CalcOverflow)
   LDA $22                                             ; $BF58: A5 22
   STA $20                                             ; $BF5A: 85 20
@@ -4980,7 +4973,7 @@ AbsorbUpdateRecord:
   LDY $6F02                                           ; $BF64: AC 02 6F  ; kingdom index
   LDA @KingdomActionModifiers,Y                        ; $BF67: B9 42 C0  ; kingdom modifier
   STA $23                                             ; $BF6A: 85 23
-  JSR Proc_D438                                       ; $BF6C: 20 38 D4  ; multiply result × modifier
+  JSR Multiply32                                       ; $BF6C: 20 38 D4  ; multiply result × modifier
   LDA $26                                             ; $BF6F: A5 26
   STA $21                                             ; $BF71: 85 21
   LDA $27                                             ; $BF73: A5 27
@@ -4989,13 +4982,13 @@ AbsorbUpdateRecord:
   STA $23                                             ; $BF79: 85 23
   LDA #$00                                            ; $BF7B: A9 00
   STA $24                                             ; $BF7D: 85 24
-  JSR Proc_D40F                                       ; $BF7F: 20 0F D4  ; divide by $0A
+  JSR Divide16                                       ; $BF7F: 20 0F D4  ; divide by $0A
   LDA $22                                             ; $BF82: A5 22
   STA $23                                             ; $BF84: 85 23
   LDA $21                                             ; $BF86: A5 21
   STA $22                                             ; $BF88: 85 22
   LDA $6F5E                                           ; $BF8A: AD 5E 6F
-  JSR Proc_D105                                       ; $BF8D: 20 05 D1  ; resolve entity → ($20)
+  JSR GetProvinceOwner                                       ; $BF8D: 20 05 D1  ; resolve entity → ($20)
   LDA $22                                             ; $BF90: A5 22
   JSR @AddLoyaltyBonus_Small                           ; $BF92: 20 A7 C1  ; add loyalty bonus to field[$0B]
   LDY #$08                                            ; $BF95: A0 08      ; entity record offset $08 (troops lo)
@@ -5039,7 +5032,7 @@ AbsorbUpdateRecord:
   LDA #$0E                                            ; $BFCB: A9 0E
   STA $24                                             ; $BFCD: 85 24
   LDA $6F5E                                           ; $BFCF: AD 5E 6F
-  JSR Proc_D36F                                       ; $BFD2: 20 6F D3
+  JSR DeductRecordStat2                                       ; $BFD2: 20 6F D3
   BCC @CalcOverflow                                        ; $BFD5: 90 68 (BCC @CalcOverflow)
   LDA $22                                             ; $BFD7: A5 22
   STA $20                                             ; $BFD9: 85 20
@@ -5050,7 +5043,7 @@ AbsorbUpdateRecord:
   LDY $6F02                                           ; $BFE3: AC 02 6F  ; kingdom index
   LDA @KingdomActionModifiers,Y                        ; $BFE6: B9 42 C0  ; kingdom modifier
   STA $23                                             ; $BFE9: 85 23
-  JSR Proc_D438                                       ; $BFEB: 20 38 D4
+  JSR Multiply32                                       ; $BFEB: 20 38 D4
   LDA $26                                             ; $BFEE: A5 26
   STA $21                                             ; $BFF0: 85 21
   LDA $27                                             ; $BFF2: A5 27
@@ -5059,14 +5052,14 @@ AbsorbUpdateRecord:
   STA $23                                             ; $BFF8: 85 23
   LDA #$00                                            ; $BFFA: A9 00
   STA $24                                             ; $BFFC: 85 24
-  JSR Proc_D40F                                       ; $BFFE: 20 0F D4  (cross-bank: hi byte at $C000)
+  JSR Divide16                                       ; $BFFE: 20 0F D4  (cross-bank: hi byte at $C000)
 
   LDA $22                                             ; $C001: A5 22
   STA $23                                             ; $C003: 85 23
   LDA $21                                             ; $C005: A5 21
   STA $22                                             ; $C007: 85 22
   LDA $6F5E                                           ; $C009: AD 5E 6F
-  JSR Proc_D105                                       ; $C00C: 20 05 D1  ; resolve entity → ($20)
+  JSR GetProvinceOwner                                       ; $C00C: 20 05 D1  ; resolve entity → ($20)
   LDA $22                                             ; $C00F: A5 22
   JSR @AddLoyaltyBonus_Small                           ; $C011: 20 A7 C1  ; loyalty bonus to field[$0B]
   LDY #$0E                                            ; $C014: A0 0E      ; offset $0E (supplies lo)
@@ -5128,7 +5121,7 @@ AbsorbUpdateRecord:
   LDA #$0E                                            ; $C056: A9 0E
   STA $24                                             ; $C058: 85 24
   LDA $6F5E                                           ; $C05A: AD 5E 6F
-  JSR Proc_D36F                                       ; $C05D: 20 6F D3
+  JSR DeductRecordStat2                                       ; $C05D: 20 6F D3
   BCC @CalcOverflow                                        ; $C060: 90 6A (BCC @CalcOverflow)
   LDA $22                                             ; $C062: A5 22
   STA $20                                             ; $C064: 85 20
@@ -5139,7 +5132,7 @@ AbsorbUpdateRecord:
   LDY $6F02                                           ; $C06E: AC 02 6F
   LDA @KingdomActionModifiers,Y                        ; $C071: B9 42 C0  ; kingdom modifier (offset 0)
   STA $23                                             ; $C074: 85 23
-  JSR Proc_D438                                       ; $C076: 20 38 D4
+  JSR Multiply32                                       ; $C076: 20 38 D4
   LDA $26                                             ; $C079: A5 26
   STA $21                                             ; $C07B: 85 21
   LDA $27                                             ; $C07D: A5 27
@@ -5148,7 +5141,7 @@ AbsorbUpdateRecord:
   STA $23                                             ; $C083: 85 23
   LDA #$00                                            ; $C085: A9 00
   STA $24                                             ; $C087: 85 24
-  JSR Proc_D40F                                       ; $C089: 20 0F D4
+  JSR Divide16                                       ; $C089: 20 0F D4
   LDA $22                                             ; $C08C: A5 22
   STA $23                                             ; $C08E: 85 23
   LDA $21                                             ; $C090: A5 21
@@ -5156,7 +5149,7 @@ AbsorbUpdateRecord:
   LSR $23                                             ; $C094: 46 23      ; halve the 16-bit result (÷2)
   ROR $22                                             ; $C096: 66 22
   LDA $6F5E                                           ; $C098: AD 5E 6F
-  JSR Proc_D105                                       ; $C09B: 20 05 D1  ; resolve entity → ($20)
+  JSR GetProvinceOwner                                       ; $C09B: 20 05 D1  ; resolve entity → ($20)
   JSR @AddLoyaltyBonus_Large                           ; $C09E: 20 C0 C1  ; bonus based on 3000 threshold
   LDY #$06                                            ; $C0A1: A0 06      ; offset $06 (morale lo)
   LDA ($20),Y                                         ; $C0A3: B1 20
@@ -5198,7 +5191,7 @@ AbsorbUpdateRecord:
   LDA #$0A                                            ; $C0D7: A9 0A
   STA $24                                             ; $C0D9: 85 24
   LDA $6F5E                                           ; $C0DB: AD 5E 6F
-  JSR Proc_D36F                                       ; $C0DE: 20 6F D3
+  JSR DeductRecordStat2                                       ; $C0DE: 20 6F D3
   BCC @ActionDone                                        ; $C0E1: 90 4A (BCC @ActionDone)
   LDA $22                                             ; $C0E3: A5 22
   STA $20                                             ; $C0E5: 85 20
@@ -5209,7 +5202,7 @@ AbsorbUpdateRecord:
   LDY $6F02                                           ; $C0EF: AC 02 6F
   LDA @KingdomActionModifiers+3,Y                      ; $C0F2: B9 45 C0  ; modifier at offset 3
   STA $23                                             ; $C0F5: 85 23
-  JSR Proc_D438                                       ; $C0F7: 20 38 D4
+  JSR Multiply32                                       ; $C0F7: 20 38 D4
   LDA $26                                             ; $C0FA: A5 26
   STA $21                                             ; $C0FC: 85 21
   LDA $27                                             ; $C0FE: A5 27
@@ -5218,11 +5211,11 @@ AbsorbUpdateRecord:
   STA $23                                             ; $C104: 85 23
   LDA #$00                                            ; $C106: A9 00
   STA $24                                             ; $C108: 85 24
-  JSR Proc_D40F                                       ; $C10A: 20 0F D4
+  JSR Divide16                                       ; $C10A: 20 0F D4
   LDA $21                                             ; $C10D: A5 21
   STA $23                                             ; $C10F: 85 23
   LDA $6F5E                                           ; $C111: AD 5E 6F
-  JSR Proc_D105                                       ; $C114: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C114: 20 05 D1
   LDY #$0A                                            ; $C117: A0 0A
   LDA ($20),Y                                         ; $C119: B1 20
   CLC                                                 ; $C11B: 18
@@ -5254,7 +5247,7 @@ AbsorbUpdateRecord:
   LDA #$1E                                            ; $C138: A9 1E
   STA $24                                             ; $C13A: 85 24
   LDA $6F5E                                           ; $C13C: AD 5E 6F
-  JSR Proc_D36F                                       ; $C13F: 20 6F D3
+  JSR DeductRecordStat2                                       ; $C13F: 20 6F D3
   BCC @ActionDone                                   ; $C142: 90 60 (BCC @ActionDone)
   LDA $22                                             ; $C144: A5 22
   STA $2A                                             ; $C146: 85 2A
@@ -5267,7 +5260,7 @@ AbsorbUpdateRecord:
   LDA #$1E                                            ; $C154: A9 1E
   STA $24                                             ; $C156: 85 24
   LDA $6F5E                                           ; $C158: AD 5E 6F
-  JSR Proc_D3A9                                       ; $C15B: 20 A9 D3
+  JSR DeductRecordStat4                                       ; $C15B: 20 A9 D3
   BCC @ActionDone                                   ; $C15E: 90 44 (BCC @ActionDone)
   LDA $22                                             ; $C160: A5 22
   CLC                                                 ; $C162: 18
@@ -5285,11 +5278,11 @@ AbsorbUpdateRecord:
   STA $23                                             ; $C17B: 85 23
   LDA #$00                                            ; $C17D: A9 00
   STA $24                                             ; $C17F: 85 24
-  JSR Proc_D40F                                       ; $C181: 20 0F D4
+  JSR Divide16                                       ; $C181: 20 0F D4
   LDA $21                                             ; $C184: A5 21
   STA $23                                             ; $C186: 85 23
   LDA $6F5E                                           ; $C188: AD 5E 6F
-  JSR Proc_D105                                       ; $C18B: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C18B: 20 05 D1
   LDY #$0B                                            ; $C18E: A0 0B
   LDA ($20),Y                                         ; $C190: B1 20
   CLC                                                 ; $C192: 18
@@ -5384,7 +5377,7 @@ AbsorbUpdateRecord:
 @ValidOfficer:
   STA a:$0036                                         ; $C202: 8D 36 00
   LDY #$03                                            ; $C205: A0 03
-  JSR Proc_D283                                       ; $C207: 20 83 D2
+  JSR ReadRecordField                                       ; $C207: 20 83 D2
   CMP #$46                                            ; $C20A: C9 46
   BCS @BranchRandom                                           ; $C20C: B0 E8
   LDA #$14                                            ; $C20E: A9 14
@@ -5394,21 +5387,21 @@ AbsorbUpdateRecord:
   LDA #$0A                                            ; $C216: A9 0A
   STA $24                                             ; $C218: 85 24
   LDA $6F5E                                           ; $C21A: AD 5E 6F
-  JSR Proc_D36F                                       ; $C21D: 20 6F D3
+  JSR DeductRecordStat2                                       ; $C21D: 20 6F D3
   BCC @ActionDone                                        ; $C220: 90 23 (BCC @ActionDone)
   LDA #$05                                            ; $C222: A9 05
-  JSR Proc_D4AD                                       ; $C224: 20 AD D4
+  JSR RandomBelow                                       ; $C224: 20 AD D4
   CLC                                                 ; $C227: 18
   LDY $6F02                                           ; $C228: AC 02 6F
   ADC @KingdomActionModifiers+9,Y                      ; $C22B: 79 4B C0  ; modifier at offset 9
   STA $22                                             ; $C22E: 85 22
   LDA a:$0036                                         ; $C230: AD 36 00
   LDY #$03                                            ; $C233: A0 03
-  JSR Proc_D283                                       ; $C235: 20 83 D2
+  JSR ReadRecordField                                       ; $C235: 20 83 D2
   CLC                                                 ; $C238: 18
   ADC $22                                             ; $C239: 65 22
   STA ($20),Y                                         ; $C23B: 91 20
-  JSR Proc_D5E7                                       ; $C23D: 20 E7 D5
+  JSR DebugStub_E7                                       ; $C23D: 20 E7 D5
   LDA #$05                                            ; $C240: A9 05
   JSR Proc_D152                                       ; $C242: 20 52 D1
 @ActionDone:
@@ -5428,7 +5421,7 @@ AbsorbUpdateRecord:
   STA $23                                             ; $C250: 85 23
 @ScanNext_Weak:
   LDA $6F5E                                           ; $C252: AD 5E 6F
-  JSR Proc_D105                                       ; $C255: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C255: 20 05 D1
   LDY $24                                             ; $C258: A4 24
   LDA ($20),Y                                         ; $C25A: B1 20
   STA $25                                             ; $C25C: 85 25
@@ -5438,7 +5431,7 @@ AbsorbUpdateRecord:
   BEQ @NextSlot_Weak                                           ; $C265: F0 15
   LDY #$03                                            ; $C267: A0 03
   LDA $25                                             ; $C269: A5 25
-  JSR Proc_D283                                       ; $C26B: 20 83 D2
+  JSR ReadRecordField                                       ; $C26B: 20 83 D2
   CMP #$64                                            ; $C26E: C9 64
   BEQ @NextSlot_Weak                                           ; $C270: F0 0A
   CMP $22                                             ; $C272: C5 22
@@ -5452,7 +5445,7 @@ AbsorbUpdateRecord:
   CPY #$1B                                            ; $C280: C0 1B
   BCC @ScanNext_Weak                                           ; $C282: 90 CE
   LDA $6F5E                                           ; $C284: AD 5E 6F
-  JSR Proc_D105                                       ; $C287: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C287: 20 05 D1
   LDY $23                                             ; $C28A: A4 23
   BMI @Done_Weak                                           ; $C28C: 30 09
   LDA #$00                                            ; $C28E: A9 00
@@ -5485,7 +5478,7 @@ AbsorbUpdateRecord:
   BEQ @ActionDone                                   ; $C29F: F0 47 (BEQ @ActionDone)
   STA a:$0036                                         ; $C2A1: 8D 36 00
   LDY #$02                                            ; $C2A4: A0 02
-  JSR Proc_D283                                       ; $C2A6: 20 83 D2
+  JSR ReadRecordField                                       ; $C2A6: 20 83 D2
   CMP #$32                                            ; $C2A9: C9 32
   BCC @AiAction_ManageOfficerLoyalty                   ; $C2AB: 90 EB      ; below 50 → retry
   CMP #$50                                            ; $C2AD: C9 50
@@ -5497,21 +5490,21 @@ AbsorbUpdateRecord:
   LDA #$0A                                            ; $C2B9: A9 0A
   STA $24                                             ; $C2BB: 85 24
   LDA $6F5E                                           ; $C2BD: AD 5E 6F
-  JSR Proc_D36F                                       ; $C2C0: 20 6F D3
+  JSR DeductRecordStat2                                       ; $C2C0: 20 6F D3
   BCC @ActionDone                                   ; $C2C3: 90 23 (BCC @ActionDone)
   LDA #$05                                            ; $C2C5: A9 05
-  JSR Proc_D4AD                                       ; $C2C7: 20 AD D4
+  JSR RandomBelow                                       ; $C2C7: 20 AD D4
   CLC                                                 ; $C2CA: 18
   LDY $6F02                                           ; $C2CB: AC 02 6F
   ADC @KingdomActionModifiers+9,Y                      ; $C2CE: 79 4B C0  ; modifier at offset 9
   STA $22                                             ; $C2D1: 85 22
   LDA a:$0036                                         ; $C2D3: AD 36 00
   LDY #$02                                            ; $C2D6: A0 02
-  JSR Proc_D283                                       ; $C2D8: 20 83 D2
+  JSR ReadRecordField                                       ; $C2D8: 20 83 D2
   CLC                                                 ; $C2DB: 18
   ADC $22                                             ; $C2DC: 65 22
   STA ($20),Y                                         ; $C2DE: 91 20
-  JSR Proc_D5E7                                       ; $C2E0: 20 E7 D5
+  JSR DebugStub_E7                                       ; $C2E0: 20 E7 D5
   LDA #$05                                            ; $C2E3: A9 05
   JSR Proc_D152                                       ; $C2E5: 20 52 D1
 @ActionDone:
@@ -5531,7 +5524,7 @@ AbsorbUpdateRecord:
   STA $23                                             ; $C2F3: 85 23
 @ScanNext_Low:
   LDA $6F5E                                           ; $C2F5: AD 5E 6F
-  JSR Proc_D105                                       ; $C2F8: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C2F8: 20 05 D1
   LDY $24                                             ; $C2FB: A4 24
   LDA ($20),Y                                         ; $C2FD: B1 20
   STA $25                                             ; $C2FF: 85 25
@@ -5541,7 +5534,7 @@ AbsorbUpdateRecord:
   BEQ @NextSlot_Low                                           ; $C308: F0 11
   LDY #$02                                            ; $C30A: A0 02
   LDA $25                                             ; $C30C: A5 25
-  JSR Proc_D283                                       ; $C30E: 20 83 D2
+  JSR ReadRecordField                                       ; $C30E: 20 83 D2
   CMP $22                                             ; $C311: C5 22
   BCS @NextSlot_Low                                           ; $C313: B0 06
   STA $22                                             ; $C315: 85 22
@@ -5553,7 +5546,7 @@ AbsorbUpdateRecord:
   CPY #$1B                                            ; $C31F: C0 1B
   BCC @ScanNext_Low                                           ; $C321: 90 D2
   LDA $6F5E                                           ; $C323: AD 5E 6F
-  JSR Proc_D105                                       ; $C326: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C326: 20 05 D1
   LDY $23                                             ; $C329: A4 23
   BMI @Done_Low                                           ; $C32B: 30 09
   LDA #$00                                            ; $C32D: A9 00
@@ -5590,7 +5583,7 @@ AbsorbUpdateRecord:
   CMP #$FF                                            ; $C34F: C9 FF
   BEQ @BailOut                                           ; $C351: F0 F3
   LDA $6F5E                                           ; $C353: AD 5E 6F
-  JSR Proc_D105                                       ; $C356: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C356: 20 05 D1
   LDA a:$003A                                         ; $C359: AD 3A 00
   AND #$1F                                            ; $C35C: 29 1F
   BEQ @DiplomacyPath                                           ; $C35E: F0 1E
@@ -5698,7 +5691,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $C409: A9 00
   STA a:$0039                                         ; $C40B: 8D 39 00
   LDA $6F5E                                           ; $C40E: AD 5E 6F
-  JSR Proc_D105                                       ; $C411: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C411: 20 05 D1
   LDY a:$0037                                         ; $C414: AC 37 00
   LDA ($20),Y                                         ; $C417: B1 20
   CMP #$FF                                            ; $C419: C9 FF
@@ -5841,11 +5834,11 @@ AbsorbUpdateRecord:
   work_search_max          = $0045
   sram_player_id           = $6F03
 
-  JSR Proc_D249                                       ; $C50E: 20 49 D2  ; get search count
+  JSR FindPlayerProvinceByValue                                       ; $C50E: 20 49 D2  ; get search count
   STA a:$0045                                         ; $C511: 8D 45 00  ; work_search_max
   LDA a:$0045                                         ; $C514: AD 45 00
   STA a:$0036                                         ; $C517: 8D 36 00  ; work_outer_idx = count
-  JSR Proc_D1A4                                       ; $C51A: 20 A4 D1  ; check if any candidates
+  JSR CollectEnemyProvinces                                       ; $C51A: 20 A4 D1  ; check if any candidates
   BNE @InitSearch                                     ; $C51D: D0 01  ; yes → proceed
   RTS                                                 ; $C51F: 60     ; no candidates, exit
 @InitSearch:                                                ; --- init search state ---
@@ -5857,19 +5850,19 @@ AbsorbUpdateRecord:
 @NextEntity:                                          ; --- loop: evaluate entity $003B ---
   LDA a:$003B                                         ; $C52D: AD 3B 00
   STA a:$0036                                         ; $C530: 8D 36 00
-  JSR Proc_D105                                       ; $C533: 20 05 D1  ; resolve entity ptr
+  JSR GetProvinceOwner                                       ; $C533: 20 05 D1  ; resolve entity ptr
   AND #$07                                            ; $C536: 29 07
   CMP $6F03                                           ; $C538: CD 03 6F  ; belongs to current player?
   BNE @AdvanceIdx                                     ; $C53B: D0 2A  ; no → next
-  JSR Proc_D1A4                                       ; $C53D: 20 A4 D1  ; check eligibility
+  JSR CollectEnemyProvinces                                       ; $C53D: 20 A4 D1  ; check eligibility
   BNE @AdvanceIdx                                     ; $C540: D0 25  ; not eligible → next
   LDX a:$0045                                         ; $C542: AE 45 00  ; search_max
   LDY a:$0036                                         ; $C545: AC 36 00  ; entity_idx
-  JSR Proc_D583                                       ; $C548: 20 83 D5  ; search → A=result
+  JSR CheckPathExists                                       ; $C548: 20 83 D5  ; search → A=result
   CMP #$FF                                            ; $C54B: C9 FF
   BNE @AdvanceIdx                                     ; $C54D: D0 18  ; not $FF → skip
   LDA a:$003B                                         ; $C54F: AD 3B 00
-  JSR Proc_D304                                       ; $C552: 20 04 D3  ; get score for entity
+  JSR CountRecordSlots                                       ; $C552: 20 04 D3  ; get score for entity
   CMP a:$003C                                         ; $C555: CD 3C 00  ; better than best?
   BCC @AdvanceIdx                                     ; $C558: 90 0D  ; no → skip
   CMP #$0A                                            ; $C55A: C9 0A
@@ -5887,7 +5880,7 @@ AbsorbUpdateRecord:
   BEQ @Exit                                           ; $C576: F0 3D  ; no best found → exit
   ; --- Move officer: remove from source, insert into target ---
   LDA a:$0045                                         ; $C578: AD 45 00  ; source entity
-  JSR Proc_D105                                       ; $C57B: 20 05 D1  ; resolve ptr → ($20)
+  JSR GetProvinceOwner                                       ; $C57B: 20 05 D1  ; resolve ptr → ($20)
   LDY #$00                                            ; $C57E: A0 00
   LDA ($EE),Y                                         ; $C580: B1 EE  ; read value from ($EE)
   STA $2A                                             ; $C582: 85 2A     ; save as transfer_value
@@ -5902,7 +5895,7 @@ AbsorbUpdateRecord:
   LDA #$FF                                            ; $C590: A9 FF
   STA ($20),Y                                         ; $C592: 91 20  ; erase from source
   LDA a:$003D                                         ; $C594: AD 3D 00  ; best entity index
-  JSR Proc_D105                                       ; $C597: 20 05 D1  ; resolve ptr → ($20)
+  JSR GetProvinceOwner                                       ; $C597: 20 05 D1  ; resolve ptr → ($20)
   LDY #$11                                            ; $C59A: A0 11
 @ScanTargetLoop:
   LDA ($20),Y                                         ; $C59C: B1 20  ; scan for $FF slot
@@ -5914,11 +5907,11 @@ AbsorbUpdateRecord:
   LDA $2A                                             ; $C5A6: A5 2A
   STA ($20),Y                                         ; $C5A8: 91 20  ; write to target slot
   LDA a:$0045                                         ; $C5AA: AD 45 00
-  JSR Proc_D3DD                                       ; $C5AD: 20 DD D3
+  JSR CompactRecordSlots                                       ; $C5AD: 20 DD D3
   LDA #$02                                            ; $C5B0: A9 02
   JSR Proc_D165                                       ; $C5B2: 20 65 D1
 @Exit:
-  JSR Proc_D249                                       ; $C5B5: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $C5B5: 20 49 D2
   RTS                                                 ; $C5B8: 60
 .endproc
 
@@ -5940,7 +5933,7 @@ AbsorbUpdateRecord:
   LDA a:$0036                                         ; $C5C7: AD 36 00
   CMP #$1E                                            ; $C5CA: C9 1E
   BCC @PerEntityLoop                                  ; $C5CC: 90 F0
-  JSR Proc_D249                                       ; $C5CE: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $C5CE: 20 49 D2
   RTS                                                 ; $C5D1: 60
 
   ;===============================================================================
@@ -5959,7 +5952,7 @@ AbsorbUpdateRecord:
   LDY #$31                                            ; $C5D2: A0 31
   JSR B1F_SwitchBank8_A                               ; $C5D4: 20 66 F2
   LDA a:$0036                                         ; $C5D7: AD 36 00
-  JSR Proc_D105                                       ; $C5DA: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C5DA: 20 05 D1
   AND #$07                                            ; $C5DD: 29 07
   CMP $6F03                                           ; $C5DF: CD 03 6F
   BNE @EarlyExit                                      ; $C5E2: D0 09
@@ -5972,14 +5965,14 @@ AbsorbUpdateRecord:
   RTS                                                 ; $C5ED: 60
 @CheckScore:
   LDA a:$0036                                         ; $C5EE: AD 36 00
-  JSR Proc_D304                                       ; $C5F1: 20 04 D3
+  JSR CountRecordSlots                                       ; $C5F1: 20 04 D3
   CMP #$0A                                            ; $C5F4: C9 0A
   BCS @EarlyExit                                      ; $C5F6: B0 F5
   LDA a:$0036                                         ; $C5F8: AD 36 00
   STA $20                                             ; $C5FB: 85 20
   LDA #$14                                            ; $C5FD: A9 14
   STA $21                                             ; $C5FF: 85 21
-  JSR Proc_D471                                       ; $C601: 20 71 D4
+  JSR Multiply8x8                                       ; $C601: 20 71 D4
   LDA #$00                                            ; $C604: A9 00
   STA a:$0037                                         ; $C606: 8D 37 00
   LDA $2A                                             ; $C609: A5 2A
@@ -6005,7 +5998,7 @@ AbsorbUpdateRecord:
   BCC @Exit                                           ; $C630: 90 3C
   LDA $24                                             ; $C632: A5 24
   LDY #$0B                                            ; $C634: A0 0B
-  JSR Proc_D283                                       ; $C636: 20 83 D2
+  JSR ReadRecordField                                       ; $C636: 20 83 D2
   AND #$03                                            ; $C639: 29 03
   CMP #$01                                            ; $C63B: C9 01
   BNE @EntryLoop                                      ; $C63D: D0 D7
@@ -6024,7 +6017,7 @@ AbsorbUpdateRecord:
   ORA #$02                                            ; $C657: 09 02
   STA ($20),Y                                         ; $C659: 91 20
   LDA a:$0036                                         ; $C65B: AD 36 00
-  JSR Proc_D105                                       ; $C65E: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C65E: 20 05 D1
   LDY #$10                                            ; $C661: A0 10
   INY                                                 ; $C663: C8
   LDA ($20),Y                                         ; $C664: B1 20
@@ -6112,7 +6105,7 @@ CalcActionProb_GetThreshold:
   JMP CalcActionProb                                  ; $C6C9: 4C 8A C6  ; not valid → $0A
 CalcActionProb_Entry:
   LDA a:$0036                                         ; $C6CC: AD 36 00
-  JSR Proc_D105                                       ; $C6CF: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C6CF: 20 05 D1
   AND #$07                                            ; $C6D2: 29 07
   CMP $6F03                                           ; $C6D4: CD 03 6F
   BEQ @ValidateThreshold                              ; $C6D7: F0 01
@@ -6125,7 +6118,7 @@ CalcActionProb_Entry:
   CMP @Thresholds,Y                                   ; $C6E2: D9 95 C7
   BCS @Fail                                           ; $C6E5: B0 F2  ; random >= threshold → exit
   LDA a:$0036                                         ; $C6E7: AD 36 00
-  JSR Proc_D304                                       ; $C6EA: 20 04 D3
+  JSR CountRecordSlots                                       ; $C6EA: 20 04 D3
   CMP #$0A                                            ; $C6ED: C9 0A
   BCS @Fail                                           ; $C6EF: B0 E8  ; score >= $0A → exit
   LDA #$00                                            ; $C6F1: A9 00
@@ -6200,7 +6193,7 @@ CalcActionProb_Entry:
   ORA #$02                                            ; $C76B: 09 02
   STA ($22),Y                                         ; $C76D: 91 22
   LDA a:$0036                                         ; $C76F: AD 36 00
-  JSR Proc_D105                                       ; $C772: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C772: 20 05 D1
   LDY #$10                                            ; $C775: A0 10
 @FindSlot:
   INY                                                 ; $C777: C8
@@ -6211,7 +6204,7 @@ CalcActionProb_Entry:
   STA ($20),Y                                         ; $C77F: 91 20
   STA $31                                             ; $C781: 85 31
   LDA $6F03                                           ; $C783: AD 03 6F
-  JSR Proc_D319                                       ; $C786: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $C786: 20 19 D3
   LDY #$00                                            ; $C789: A0 00
   LDA ($24),Y                                         ; $C78B: B1 24
   STA $30                                             ; $C78D: 85 30
@@ -6338,7 +6331,7 @@ CalcActionProb_Entry:
   RTS                                                 ; $C7A9: 60
 @OwnedEntity:
   LDA a:$0036                                         ; $C7AA: AD 36 00
-  JSR Proc_D105                                       ; $C7AD: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C7AD: 20 05 D1
   AND #$07                                            ; $C7B0: 29 07
   CMP $6F03                                           ; $C7B2: CD 03 6F
   BNE @EntityLoop                                     ; $C7B5: D0 E8
@@ -6365,7 +6358,7 @@ CalcActionProb_Entry:
   LDA #$00                                            ; $C7DD: A9 00
   STA $24                                             ; $C7DF: 85 24
   LDA a:$0036                                         ; $C7E1: AD 36 00
-  JSR Proc_D36F                                       ; $C7E4: 20 6F D3
+  JSR DeductRecordStat2                                       ; $C7E4: 20 6F D3
   BCC @EarlyExit                                      ; $C7E7: 90 15
   LDY #$30                                            ; $C7E9: A0 30
   JSR B1F_SwitchBank8_A                               ; $C7EB: 20 66 F2
@@ -6403,7 +6396,7 @@ CalcActionProb_Entry:
   ; --- Pick random subordinate slot (0..7) and try to claim it ---
 @RecruitPickRetry:
   LDA #$08                                            ; $C821: A9 08
-  JSR Proc_D4AD                                       ; $C823: 20 AD D4  ; random 0..7
+  JSR RandomBelow                                       ; $C823: 20 AD D4  ; random 0..7
   TAY                                                 ; $C826: A8
   LDA $6F73,Y                                         ; $C827: B9 73 6F
   BEQ @RecruitScanSlots                               ; $C82A: F0 12  ; already claimed → check all
@@ -6433,7 +6426,7 @@ CalcActionProb_Entry:
 @ValidateAndMark: ; AiRecruit_ValidateAndMark ($C84D)
   ; --- Save subordinate record ID, look up its owner ---
   STA a:$0037                                         ; $C84D: 8D 37 00
-  JSR Proc_D105                                       ; $C850: 20 05 D1  ; A = owner of record
+  JSR GetProvinceOwner                                       ; $C850: 20 05 D1  ; A = owner of record
   CMP $6F03                                           ; $C853: CD 03 6F  ; current player?
   BNE @RecruitSkip                                    ; $C856: D0 11     ; no → skip
   ; --- Check eligibility (flag bit + subordinate count) ---
@@ -6459,7 +6452,7 @@ CalcActionProb_Entry:
   BEQ @Ineligible                                     ; $C877: F0 0A     ; no → not eligible
   ; --- Count active subordinate slots (offsets $11-$19 in record) ---
   TYA                                                 ; $C879: 98
-  JSR Proc_D304                                       ; $C87A: 20 04 D3  ; A = subordinate count
+  JSR CountRecordSlots                                       ; $C87A: 20 04 D3  ; A = subordinate count
   CMP #$0A                                            ; $C87D: C9 0A     ; < 10 subordinates?
   BCS @Ineligible                                     ; $C87F: B0 02     ; no → not eligible
   SEC                                                 ; $C881: 38       ; eligible: carry SET
@@ -6485,7 +6478,7 @@ CalcActionProb_Entry:
   ; --- Pick random subordinate slot (0..7) and try to claim it ---
 @TransferPickLoop:
   LDA #$08                                            ; $C897: A9 08
-  JSR Proc_D4AD                                       ; $C899: 20 AD D4  ; random 0..7
+  JSR RandomBelow                                       ; $C899: 20 AD D4  ; random 0..7
   TAY                                                 ; $C89C: A8
   LDA $6F7B,Y                                         ; $C89D: B9 7B 6F
   BEQ @TransferPickLoop                               ; $C8A0: F0 F5     ; already claimed → retry
@@ -6515,7 +6508,7 @@ CalcActionProb_Entry:
 @TransferValidate: ; AiTransfer_ValidateAndMark ($C8C3)
   ; --- Save subordinate record ID, look up its owner ---
   STA a:$0038                                         ; $C8C3: 8D 38 00
-  JSR Proc_D105                                       ; $C8C6: 20 05 D1  ; A = owner of record
+  JSR GetProvinceOwner                                       ; $C8C6: 20 05 D1  ; A = owner of record
   CMP $6F03                                           ; $C8C9: CD 03 6F  ; current player?
   BNE @TransferSkip                                   ; $C8CC: D0 17     ; no → skip
   ; --- Check eligibility (flag bit + subordinate count) ---
@@ -6532,7 +6525,7 @@ CalcActionProb_Entry:
 @SwapSlots: ; SwapOfficerSlots ($C8E6)
   ; --- Load entity $0036's record pointer ---
   LDA a:$0036                                         ; $C8E6: AD 36 00
-  JSR Proc_D105                                       ; $C8E9: 20 05 D1  ; ($20) = record ptr
+  JSR GetProvinceOwner                                       ; $C8E9: 20 05 D1  ; ($20) = record ptr
   ; --- Read and save entity $0036's subtype at offset $11 ---
   LDY #$10                                            ; $C8EC: A0 10
 @SwapAdvanceY1:
@@ -6545,7 +6538,7 @@ CalcActionProb_Entry:
   STA ($20),Y                                         ; $C8F8: 91 20
   ; --- Load entity $0037's record pointer ---
   LDA a:$0037                                         ; $C8FA: AD 37 00
-  JSR Proc_D105                                       ; $C8FD: 20 05 D1  ; ($20) = record ptr
+  JSR GetProvinceOwner                                       ; $C8FD: 20 05 D1  ; ($20) = record ptr
   ; --- Read and validate entity $0037's subtype at offset $11 ---
   LDY #$10                                            ; $C900: A0 10
 @SwapAdvanceY2:
@@ -6558,7 +6551,7 @@ CalcActionProb_Entry:
   STA ($20),Y                                         ; $C90C: 91 20
   ; --- Compact subordinate lists for entity $0036 ---
   LDA a:$0036                                         ; $C90E: AD 36 00
-  JSR Proc_D3DD                                       ; $C911: 20 DD D3
+  JSR CompactRecordSlots                                       ; $C911: 20 DD D3
   ; --- Fall through to @WriteSubordinateValue for post-processing ---
   JMP @Dispatch97A                                    ; $C914: 4C FF C7  ; → @WriteSubordinateValue
 
@@ -6572,7 +6565,7 @@ CalcActionProb_Entry:
 @FindBestSubordinate:
 
   LDA a:$0036                                         ; $C917: AD 36 00
-  JSR Proc_D105                                       ; $C91A: 20 05 D1
+  JSR GetProvinceOwner                                       ; $C91A: 20 05 D1
   LDA #$11                                            ; $C91D: A9 11
   STA $28                                             ; $C91F: 85 28
   LDA #$FF                                            ; $C921: A9 FF
@@ -6606,7 +6599,7 @@ CalcActionProb_Entry:
   LDA ($20),Y                                         ; $C958: B1 20
   STA a:$0039                                         ; $C95A: 8D 39 00
   LDY #$00                                            ; $C95D: A0 00
-  JSR Proc_D2D3                                       ; $C95F: 20 D3 D2
+  JSR ReadBankedRecordField                                       ; $C95F: 20 D3 D2
   PHA                                                 ; $C962: 48
   LDA a:$0039                                         ; $C963: AD 39 00
   LDY #$00                                            ; $C966: A0 00
@@ -6617,7 +6610,7 @@ CalcActionProb_Entry:
   LDA #$00                                            ; $C970: A9 00
   STA $21                                             ; $C972: 85 21
   STA $24                                             ; $C974: 85 24
-  JSR Proc_D40F                                       ; $C976: 20 0F D4
+  JSR Divide16                                       ; $C976: 20 0F D4
   RTS                                                 ; $C979: 60
 
 ;-------------------------------------------------------------------------------
@@ -6630,7 +6623,7 @@ CalcActionProb_Entry:
 
   LDA a:$0039                                         ; $C97A: AD 39 00
   LDY #$00                                            ; $C97D: A0 00
-  JSR Proc_D2D3                                       ; $C97F: 20 D3 D2
+  JSR ReadBankedRecordField                                       ; $C97F: 20 D3 D2
   PHA                                                 ; $C982: 48
   LDA a:$0039                                         ; $C983: AD 39 00
   LDY #$00                                            ; $C986: A0 00
@@ -6681,7 +6674,7 @@ CalcActionProb_Entry:
 @ScanOfficer:
 
   LDA a:work_outer_idx                                ; $C9A5: AD 36 00
-  JSR Proc_D105                                       ; $C9A8: 20 05 D1  slot * 32 + $6000
+  JSR GetProvinceOwner                                       ; $C9A8: 20 05 D1  slot * 32 + $6000
   AND #$07                                            ; $C9AB: 29 07  category bits
   CMP a:work_inner_idx                                ; $C9AD: CD 37 00  matches target?
   BNE @Done                                           ; $C9B0: D0 F2  skip if category mismatch
@@ -6745,7 +6738,7 @@ CalcActionProb_Entry:
   STA a:work_record_val                               ; $CA1B: 8D 40 00  category = 0
 @CategoryLoop:
   LDA a:work_record_val                               ; $CA1E: AD 40 00
-  JSR Proc_D319                                       ; $CA21: 20 19 D3  get record ptr
+  JSR GetPlayerRecordPtr                                       ; $CA21: 20 19 D3  get record ptr
   LDY #$00                                            ; $CA24: A0 00
   LDA (math_ext),Y                                    ; $CA26: B1 24  first byte
   CMP #$FF                                            ; $CA28: C9 FF  empty record?
@@ -6775,13 +6768,13 @@ CalcActionProb_Entry:
   LDA a:work_record_val                               ; $CA5B: AD 40 00
   CMP #$07                                            ; $CA5E: C9 07  7 categories done?
   BCC @CategoryLoop                                   ; $CA60: 90 BC
-  JSR Proc_D249                                       ; $CA62: 20 49 D2
+  JSR FindPlayerProvinceByValue                                       ; $CA62: 20 49 D2
   JMP @AiAction_EndTurn                                ; $CA65: 4C C7 BE
 ; --- Helper subroutine (outside proc boundary) ---
   JSR $CA87                                           ; $CA68: 20 87 CA  load record ptr
   JSR @FindBestInCategory                             ; $CA6B: 20 05 CB
   LDA a:work_record_val                               ; $CA6E: AD 40 00
-  JSR Proc_D319                                       ; $CA71: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $CA71: 20 19 D3
   LDY #$00                                            ; $CA74: A0 00
   LDA #$FF                                            ; $CA76: A9 FF
   STA (math_ext),Y                                    ; $CA78: 91 24  mark as deleted
@@ -6822,7 +6815,7 @@ CalcActionProb_Entry:
   STA $2A                                             ; $CAAF: 85 2A
 @SearchNext:
   LDA $2A                                             ; $CAB1: A5 2A
-  JSR Proc_D105                                       ; $CAB3: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CAB3: 20 05 D1
   CMP a:$0040                                         ; $CAB6: CD 40 00
   BNE @SearchNext                                     ; $CAB9: D0 0D  skip if not matching category
   LDY #$11                                            ; $CABB: A0 11
@@ -6874,7 +6867,7 @@ CategoryRecordPtrs:
   STA $27                                             ; $CB0D: 85 27
 @FindNext:
   LDA $2A                                             ; $CB0F: A5 2A
-  JSR Proc_D105                                       ; $CB11: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CB11: 20 05 D1
   CMP a:$0040                                         ; $CB14: CD 40 00
   BNE LCB3E                                           ; $CB17: D0 25
   LDY #$11                                            ; $CB19: A0 11
@@ -6914,7 +6907,7 @@ CategoryRecordPtrs:
 ; Swaps officer into record, sets byte+3=$64, processes all 30 officers.
 @SwapAndProcess:
   LDA a:$0040                                         ; $CB52: AD 40 00
-  JSR Proc_D319                                       ; $CB55: 20 19 D3
+  JSR GetPlayerRecordPtr                                       ; $CB55: 20 19 D3
   LDY #$00                                            ; $CB58: A0 00
   LDA ($24),Y                                         ; $CB5A: B1 24
   STA $33                                             ; $CB5C: 85 33
@@ -6942,7 +6935,7 @@ CategoryRecordPtrs:
   STA a:$0045                                         ; $CB87: 8D 45 00
 @ProcessAllSlots:
   LDA a:$0045                                         ; $CB8A: AD 45 00
-  JSR Proc_D105                                       ; $CB8D: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CB8D: 20 05 D1
   CMP a:$0040                                         ; $CB90: CD 40 00
   BNE @SkipScoreCall                                  ; $CB93: D0 03
   JSR @ScoreAndAdjust                                 ; $CB95: 20 A3 CB
@@ -6960,7 +6953,7 @@ CategoryRecordPtrs:
   STA a:$0044                                         ; $CBA5: 8D 44 00
 @SubLoop:
   LDA a:$0045                                         ; $CBA8: AD 45 00
-  JSR Proc_D105                                       ; $CBAB: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CBAB: 20 05 D1
   LDY a:$0044                                         ; $CBAE: AC 44 00
   LDA ($20),Y                                         ; $CBB1: B1 20
   CMP #$FF                                            ; $CBB3: C9 FF
@@ -6994,13 +6987,13 @@ CategoryRecordPtrs:
   CMP #$1B                                            ; $CBF1: C9 1B
   BCC LCBA8                                           ; $CBF3: 90 B3
   LDA a:$0045                                         ; $CBF5: AD 45 00
-  JSR Proc_D3DD                                       ; $CBF8: 20 DD D3
+  JSR CompactRecordSlots                                       ; $CBF8: 20 DD D3
   LDA a:$0045                                         ; $CBFB: AD 45 00
-  JSR Proc_D304                                       ; $CBFE: 20 04 D3
+  JSR CountRecordSlots                                       ; $CBFE: 20 04 D3
   CMP #$00                                            ; $CC01: C9 00
   BNE @AdjustGold                                     ; $CC03: D0 0C
   LDA a:$0045                                         ; $CC05: AD 45 00
-  JSR Proc_D105                                       ; $CC08: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CC08: 20 05 D1
   LDY #$00                                            ; $CC0B: A0 00
   LDA #$07                                            ; $CC0D: A9 07
   STA ($20),Y                                         ; $CC0F: 91 20
@@ -7016,7 +7009,7 @@ CategoryRecordPtrs:
   RTS                                                 ; $CC21: 60
 @CheckCategory:
   LDA a:$0036                                         ; $CC22: AD 36 00
-  JSR Proc_D105                                       ; $CC25: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CC25: 20 05 D1
   AND #$07                                            ; $CC28: 29 07
   CMP $6F03                                           ; $CC2A: CD 03 6F
   BNE @FindOfficer                                    ; $CC2D: D0 E8
@@ -7036,7 +7029,7 @@ CategoryRecordPtrs:
   BEQ @FindOfficer                                    ; $CC4A: F0 CB
   JSR @CalcOfficerTotal                               ; $CC4C: 20 F8 CC
   LDA a:$0036                                         ; $CC4F: AD 36 00
-  JSR Proc_D105                                       ; $CC52: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CC52: 20 05 D1
   LDY #$04                                            ; $CC55: A0 04
   LDA ($20),Y                                         ; $CC57: B1 20
   SEC                                                 ; $CC59: 38
@@ -7080,7 +7073,7 @@ CategoryRecordPtrs:
   STA $21                                             ; $CCAB: 85 21
   LDA #$00                                            ; $CCAD: A9 00
   STA $22                                             ; $CCAF: 85 22
-  JSR Proc_D438                                       ; $CCB1: 20 38 D4
+  JSR Multiply32                                       ; $CCB1: 20 38 D4
   LDA $26                                             ; $CCB4: A5 26
   STA $20                                             ; $CCB6: 85 20
   LDA $27                                             ; $CCB8: A5 27
@@ -7091,13 +7084,13 @@ CategoryRecordPtrs:
   STA $23                                             ; $CCC2: 85 23
   LDA #$00                                            ; $CCC4: A9 00
   STA $24                                             ; $CCC6: 85 24
-  JSR Proc_D336                                       ; $CCC8: 20 36 D3
+  JSR Divide24                                       ; $CCC8: 20 36 D3
   LDA $20                                             ; $CCCB: A5 20
   STA a:$0039                                         ; $CCCD: 8D 39 00
   LDA $21                                             ; $CCD0: A5 21
   STA a:$003A                                         ; $CCD2: 8D 3A 00
   LDA a:$0036                                         ; $CCD5: AD 36 00
-  JSR Proc_D105                                       ; $CCD8: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CCD8: 20 05 D1
   LDY #$02                                            ; $CCDB: A0 02
   LDA ($20),Y                                         ; $CCDD: B1 20
   CLC                                                 ; $CCDF: 18
@@ -7107,13 +7100,13 @@ CategoryRecordPtrs:
   LDA ($20),Y                                         ; $CCE6: B1 20
   ADC a:$003A                                         ; $CCE8: 6D 3A 00
   STA ($20),Y                                         ; $CCEB: 91 20
-  JSR Proc_D69D                                       ; $CCED: 20 9D D6
+  JSR ClampRecordStatPairsAlt                                       ; $CCED: 20 9D D6
   LDA #$02                                            ; $CCF0: A9 02
   JSR Proc_D165                                       ; $CCF2: 20 65 D1
   JMP @FindOfficer                                    ; $CCF5: 4C 17 CC
 @CalcOfficerTotal:
   LDA a:$0036                                         ; $CCF8: AD 36 00
-  JSR Proc_D105                                       ; $CCFB: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CCFB: 20 05 D1
   LDA #$11                                            ; $CCFE: A9 11
   STA a:$0037                                         ; $CD00: 8D 37 00
   LDA #$00                                            ; $CD03: A9 00
@@ -7153,7 +7146,7 @@ CategoryRecordPtrs:
   STA $23                                             ; $CD54: 85 23
   LDA #$00                                            ; $CD56: A9 00
   STA $24                                             ; $CD58: 85 24
-  JSR Proc_D40F                                       ; $CD5A: 20 0F D4
+  JSR Divide16                                       ; $CD5A: 20 0F D4
   LDA $21                                             ; $CD5D: A5 21
   STA a:$0039                                         ; $CD5F: 8D 39 00
   LDA $22                                             ; $CD62: A5 22
@@ -7187,7 +7180,7 @@ CategoryRecordPtrs:
   work_inner_idx2          = $0038
 
   LDA #$0A                                            ; $CD68: A9 0A
-  JSR Proc_D4AD                                       ; $CD6A: 20 AD D4
+  JSR RandomBelow                                       ; $CD6A: 20 AD D4
   CLC                                                 ; $CD6D: 18
   ADC #$0A                                            ; $CD6E: 69 0A
   LDY #$06                                            ; $CD70: A0 06
@@ -7237,7 +7230,7 @@ CategoryRecordPtrs:
 @MultiplyAndSubtract:                                 ; $CDB9
   PHA                                                 ; $CDB9: 48
   LDA a:$0038                                         ; $CDBA: AD 38 00
-  JSR Proc_D105                                       ; $CDBD: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CDBD: 20 05 D1
   LDY a:$0036                                         ; $CDC0: AC 36 00
   LDA ($20),Y                                         ; $CDC3: B1 20
   PHA                                                 ; $CDC5: 48
@@ -7250,7 +7243,7 @@ CategoryRecordPtrs:
   STA $23                                             ; $CDCF: 85 23
   LDA #$00                                            ; $CDD1: A9 00
   STA $22                                             ; $CDD3: 85 22
-  JSR Proc_D438                                       ; $CDD5: 20 38 D4
+  JSR Multiply32                                       ; $CDD5: 20 38 D4
   LDA $26                                             ; $CDD8: A5 26
   STA $20                                             ; $CDDA: 85 20
   LDA $27                                             ; $CDDC: A5 27
@@ -7261,13 +7254,13 @@ CategoryRecordPtrs:
   STA $23                                             ; $CDE6: 85 23
   LDA #$00                                            ; $CDE8: A9 00
   STA $24                                             ; $CDEA: 85 24
-  JSR Proc_D336                                       ; $CDEC: 20 36 D3
+  JSR Divide24                                       ; $CDEC: 20 36 D3
   LDA $20                                             ; $CDEF: A5 20
   STA $2A                                             ; $CDF1: 85 2A
   LDA $21                                             ; $CDF3: A5 21
   STA $2B                                             ; $CDF5: 85 2B
   LDA a:$0038                                         ; $CDF7: AD 38 00
-  JSR Proc_D105                                       ; $CDFA: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CDFA: 20 05 D1
   LDY a:$0036                                         ; $CDFD: AC 36 00
   LDA ($20),Y                                         ; $CE00: B1 20
   SEC                                                 ; $CE02: 38
@@ -7292,7 +7285,7 @@ CategoryRecordPtrs:
 @DirectAssign:                                        ; $CE1B
   PHA                                                 ; $CE1B: 48
   LDA a:$0038                                         ; $CE1C: AD 38 00
-  JSR Proc_D105                                       ; $CE1F: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CE1F: 20 05 D1
   LDY a:$0036                                         ; $CE22: AC 36 00
   LDA ($20),Y                                         ; $CE25: B1 20
   STA $20                                             ; $CE27: 85 20
@@ -7301,7 +7294,7 @@ CategoryRecordPtrs:
   LDA #$00                                            ; $CE2C: A9 00
   STA $21                                             ; $CE2E: 85 21
   STA $22                                             ; $CE30: 85 22
-  JSR Proc_D438                                       ; $CE32: 20 38 D4
+  JSR Multiply32                                       ; $CE32: 20 38 D4
   LDA $26                                             ; $CE35: A5 26
   STA $20                                             ; $CE37: 85 20
   LDA $27                                             ; $CE39: A5 27
@@ -7312,11 +7305,11 @@ CategoryRecordPtrs:
   STA $23                                             ; $CE43: 85 23
   LDA #$00                                            ; $CE45: A9 00
   STA $24                                             ; $CE47: 85 24
-  JSR Proc_D336                                       ; $CE49: 20 36 D3
+  JSR Divide24                                       ; $CE49: 20 36 D3
   LDA $20                                             ; $CE4C: A5 20
   STA $2A                                             ; $CE4E: 85 2A
   LDA a:$0038                                         ; $CE50: AD 38 00
-  JSR Proc_D105                                       ; $CE53: 20 05 D1
+  JSR GetProvinceOwner                                       ; $CE53: 20 05 D1
   LDY a:$0036                                         ; $CE56: AC 36 00
   LDA ($20),Y                                         ; $CE59: B1 20
   SEC                                                 ; $CE5B: 38
@@ -7355,7 +7348,7 @@ BracketDeductGold:                                    ; $CE67
   STA $21                                             ; $CE8B: 85 21
   LDA #$00                                            ; $CE8D: A9 00
   STA $22                                             ; $CE8F: 85 22
-  JSR Proc_D438                                       ; $CE91: 20 38 D4
+  JSR Multiply32                                       ; $CE91: 20 38 D4
   LDA $26                                             ; $CE94: A5 26
   STA $20                                             ; $CE96: 85 20
   LDA $27                                             ; $CE98: A5 27
@@ -7366,7 +7359,7 @@ BracketDeductGold:                                    ; $CE67
   STA $23                                             ; $CEA2: 85 23
   LDA #$00                                            ; $CEA4: A9 00
   STA $24                                             ; $CEA6: 85 24
-  JSR Proc_D336                                       ; $CEA8: 20 36 D3
+  JSR Divide24                                       ; $CEA8: 20 36 D3
   LDA $0522                                           ; $CEAB: AD 22 05
   SEC                                                 ; $CEAE: 38
   SBC a:$0020                                         ; $CEAF: ED 20 00
@@ -7431,7 +7424,7 @@ ArmyResultTable:                                      ; $CED3
   STA $21                                             ; $CF01: 85 21
   LDA #$00                                            ; $CF03: A9 00
   STA $22                                             ; $CF05: 85 22
-  JSR Proc_D438                                       ; $CF07: 20 38 D4
+  JSR Multiply32                                       ; $CF07: 20 38 D4
   LDA $26                                             ; $CF0A: A5 26
   STA $20                                             ; $CF0C: 85 20
   LDA $27                                             ; $CF0E: A5 27
@@ -7442,7 +7435,7 @@ ArmyResultTable:                                      ; $CED3
   STA $23                                             ; $CF18: 85 23
   LDA #$00                                            ; $CF1A: A9 00
   STA $24                                             ; $CF1C: 85 24
-  JSR Proc_D336                                       ; $CF1E: 20 36 D3
+  JSR Divide24                                       ; $CF1E: 20 36 D3
   LDA $0526                                           ; $CF21: AD 26 05
   SEC                                                 ; $CF24: 38
   SBC a:$0020                                         ; $CF25: ED 20 00
@@ -7483,7 +7476,7 @@ ArmyResultTable:                                      ; $CED3
   LDA #$00                                            ; $CF4C: A9 00
   STA $22                                             ; $CF4E: 85 22
   STA $24                                             ; $CF50: 85 24
-  JSR Proc_D40F                                       ; $CF52: 20 0F D4  ; multiply: work_result * 10
+  JSR Divide16                                       ; $CF52: 20 0F D4  ; multiply: work_result * 10
   LDA $21                                             ; $CF55: A5 21
   CLC                                                 ; $CF57: 18
   ADC #$46                                            ; $CF58: 69 46  ; +70 (offset)
@@ -7505,7 +7498,7 @@ ArmyResultTable:                                      ; $CED3
 @ClampMin:                                            ; $CF74
   LDY #$03                                            ; $CF74: A0 03  ; record field 3
   STA ($22),Y                                         ; $CF76: 91 22  ; store clamped result
-  JSR Proc_D61E                                       ; $CF78: 20 1E D6  ; apply updated value
+  JSR DebugStub_1E                                       ; $CF78: 20 1E D6  ; apply updated value
   RTS                                                 ; $CF7B: 60
 .endproc
 
@@ -7551,7 +7544,7 @@ ArmyResultTable:                                      ; $CED3
   LDA #$00                                            ; $CFA5: A9 00
   STA $22                                             ; $CFA7: 85 22
   STA $24                                             ; $CFA9: 85 24
-  JSR Proc_D40F                                       ; $CFAB: 20 0F D4  divide $30[4] by 5
+  JSR Divide16                                       ; $CFAB: 20 0F D4  divide $30[4] by 5
   LDA $21                                             ; $CFAE: A5 21
   PHA                                                 ; $CFB0: 48     save quotient A
   LDA $33                                             ; $CFB1: A5 33
@@ -7563,7 +7556,7 @@ ArmyResultTable:                                      ; $CED3
   LDA #$00                                            ; $CFBE: A9 00
   STA $22                                             ; $CFC0: 85 22
   STA $24                                             ; $CFC2: 85 24
-  JSR Proc_D40F                                       ; $CFC4: 20 0F D4  divide $33[4] by 5
+  JSR Divide16                                       ; $CFC4: 20 0F D4  divide $33[4] by 5
   PLA                                                 ; $CFC7: 68     restore quotient A
   SEC                                                 ; $CFC8: 38
   SBC $21                                             ; $CFC9: E5 21  diff = A - B
@@ -7603,7 +7596,7 @@ ArmyResultTable:                                      ; $CED3
 @StoreResult:
   LDY #$03                                            ; $D004: A0 03
   STA ($22),Y                                         ; $D006: 91 22
-  JSR Proc_D61E                                       ; $D008: 20 1E D6
+  JSR DebugStub_1E                                       ; $D008: 20 1E D6
   RTS                                                 ; $D00B: 60
 .endproc
 
@@ -7649,7 +7642,7 @@ ArmyResultTable:                                      ; $CED3
 @WriteBack:
   LDY #$03                                            ; $D032: A0 03  ; offset 3 = distance field
   STA (record_ptr_lo),Y                               ; $D034: 91 22  ; write clamped distance back
-  JSR Proc_D61E                                       ; $D036: 20 1E D6  ; stub (RTS only)
+  JSR DebugStub_1E                                       ; $D036: 20 1E D6  ; stub (RTS only)
   RTS                                                 ; $D039: 60
 .endproc
 
@@ -7669,7 +7662,7 @@ ArmyResultTable:                                      ; $CED3
   sram_player_id           = $6F03
 
   LDA $6F03                                           ; $D03A: AD 03 6F
-  JSR Proc_D080                                       ; $D03D: 20 80 D0
+  JSR CountPlayerProvinces                                       ; $D03D: 20 80 D0
   LDA $2B                                             ; $D040: A5 2B
   STA a:$003E                                         ; $D042: 8D 3E 00
   STA $23                                             ; $D045: 85 23
@@ -7679,16 +7672,18 @@ ArmyResultTable:                                      ; $CED3
   LDA #$00                                            ; $D04E: A9 00
   STA $21                                             ; $D050: 85 21
   STA $24                                             ; $D052: 85 24
-  JSR Proc_D40F                                       ; $D054: 20 0F D4
+  JSR Divide16                                       ; $D054: 20 0F D4
   LDA $22                                             ; $D057: A5 22
   STA a:$0040                                         ; $D059: 8D 40 00
   RTS                                                 ; $D05C: 60
 .endproc
 
 ;===============================================================================
-; $D05D: Proc_D05D
+; $D05D: CalcPlayerTerritoryValue
+; Compute player's total territory value: count owned provinces, then
+; divide accumulated value by province count.
 ;===============================================================================
-.proc Proc_D05D
+.proc CalcPlayerTerritoryValue
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
@@ -7699,7 +7694,7 @@ ArmyResultTable:                                      ; $CED3
   sram_player_id           = $6F03
 
   LDA $6F03                                           ; $D05D: AD 03 6F
-  JSR Proc_D080                                       ; $D060: 20 80 D0
+  JSR CountPlayerProvinces                            ; $D060: 20 80 D0
   LDA $2B                                             ; $D063: A5 2B
   STA a:$003E                                         ; $D065: 8D 3E 00
   STA $23                                             ; $D068: 85 23
@@ -7709,47 +7704,52 @@ ArmyResultTable:                                      ; $CED3
   LDA #$00                                            ; $D071: A9 00
   STA $21                                             ; $D073: 85 21
   STA $24                                             ; $D075: 85 24
-  JSR Proc_D40F                                       ; $D077: 20 0F D4
+  JSR Divide16                                        ; $D077: 20 0F D4
   LDA $22                                             ; $D07A: A5 22
   STA a:$0040                                         ; $D07C: 8D 40 00
   RTS                                                 ; $D07F: 60
 .endproc
 
 ;===============================================================================
-; $D080: Proc_D080
+; $D080: CountPlayerProvinces
+; Loop all 30 provinces; count those owned by player (A) and sum their values.
+; Returns: $2B = owned count, $2C = total value.
 ;===============================================================================
-.proc Proc_D080
+.proc CountPlayerProvinces
 
   STA $2F                                             ; $D080: 85 2F
   LDA #$00                                            ; $D082: A9 00
   STA $2A                                             ; $D084: 85 2A
   STA $2B                                             ; $D086: 85 2B
   STA $2C                                             ; $D088: 85 2C
+@Loop:
   LDA $2A                                             ; $D08A: A5 2A
-  JSR Proc_D105                                       ; $D08C: 20 05 D1
+  JSR GetProvinceOwner                                ; $D08C: 20 05 D1
   AND #$07                                            ; $D08F: 29 07
   CMP $2F                                             ; $D091: C5 2F
-  BNE LD09F                                           ; $D093: D0 0A
-  JSR $D307                                           ; $D095: 20 07 D3
+  BNE @Skip                                           ; $D093: D0 0A
+  JSR CountRecordSlots                                ; $D095: 20 07 D3
   CLC                                                 ; $D098: 18
   ADC $2C                                             ; $D099: 65 2C
   STA $2C                                             ; $D09B: 85 2C
   INC $2B                                             ; $D09D: E6 2B
-LD09F:
+@Skip:
   INC $2A                                             ; $D09F: E6 2A
   LDA $2A                                             ; $D0A1: A5 2A
   CMP #$1E                                            ; $D0A3: C9 1E
-  .byte $90,$E3                                       ; $D0A5: 90 E3 (BCC mid-instruction target)
+  BCC @Loop                                           ; $D0A5: 90 E3
   LDA $2B                                             ; $D0A7: A5 2B
   RTS                                                 ; $D0A9: 60
 .endproc
-LD09F = $D09F
 
 
 ;===============================================================================
-; $D0AA: Proc_D0AA
+; $D0AA: CountValidPlayerProvinces
+; Loop all 30 provinces; count those owned by current player that also have
+; at least one non-empty officer slot and pass adjacency validation.
+; Returns: $2B = valid province count, $2C = total slot count.
 ;===============================================================================
-.proc Proc_D0AA
+.proc CountValidPlayerProvinces
   sram_player_id           = $6F03
 
   LDY #$30                                            ; $D0AA: A0 30
@@ -7758,74 +7758,62 @@ LD09F = $D09F
   STA $2A                                             ; $D0B1: 85 2A
   STA $2B                                             ; $D0B3: 85 2B
   STA $2C                                             ; $D0B5: 85 2C
+@Loop:
   LDA $2A                                             ; $D0B7: A5 2A
-  JSR Proc_D105                                       ; $D0B9: 20 05 D1
+  JSR GetProvinceOwner                                ; $D0B9: 20 05 D1
   AND #$07                                            ; $D0BC: 29 07
   CMP $6F03                                           ; $D0BE: CD 03 6F
-  BNE LD0D6                                           ; $D0C1: D0 13
+  BNE @Skip                                           ; $D0C1: D0 13
   LDA $2A                                             ; $D0C3: A5 2A
-  JSR Proc_D0E1                                       ; $D0C5: 20 E1 D0
-  BEQ LD0D6                                           ; $D0C8: F0 0C
+  JSR @CountEnemyNeighbors                            ; $D0C5: 20 E1 D0
+  BEQ @Skip                                           ; $D0C8: F0 0C
   LDA $2A                                             ; $D0CA: A5 2A
-  JSR Proc_D304                                       ; $D0CC: 20 04 D3
+  JSR CountRecordSlots                                ; $D0CC: 20 04 D3
   CLC                                                 ; $D0CF: 18
   ADC $2C                                             ; $D0D0: 65 2C
   STA $2C                                             ; $D0D2: 85 2C
   INC $2B                                             ; $D0D4: E6 2B
-LD0D6:
+@Skip:
   INC $2A                                             ; $D0D6: E6 2A
   LDA $2A                                             ; $D0D8: A5 2A
   CMP #$1E                                            ; $D0DA: C9 1E
-  .byte $90,$D9                                       ; $D0DC: 90 D9 (BCC mid-instruction target)
+  BCC @Loop                                           ; $D0DC: 90 D9
   LDA $2B                                             ; $D0DE: A5 2B
   RTS                                                 ; $D0E0: 60
-.endproc
-LD0D6 = $D0D6
 
-
-;===============================================================================
-; $D0E1: Proc_D0E1
-;===============================================================================
-.proc Proc_D0E1
-  math_acc_mhi             = $0022
-
+  ; --- Nested: count enemy neighbors of province (A*8 table at $9D72) ---
+@CountEnemyNeighbors:
   ASL A                                               ; $D0E1: 0A
   ASL A                                               ; $D0E2: 0A
   ASL A                                               ; $D0E3: 0A
   TAX                                                 ; $D0E4: AA
   LDA #$00                                            ; $D0E5: A9 00
   STA $22                                             ; $D0E7: 85 22
-.endproc
-
-;===============================================================================
-; $D0E9: Proc_D0E9
-;===============================================================================
-.proc Proc_D0E9
-  math_acc_mhi             = $0022
-  sram_player_id           = $6F03
-
+@NeighborLoop:
   LDA $9D72,X                                         ; $D0E9: BD 72 9D
-  .byte $30,$14                                       ; $D0EC: 30 14 (BMI mid-instruction target)
-  JSR Proc_D105                                       ; $D0EE: 20 05 D1
+  BMI @NeighborDone                                   ; $D0EC: 30 14
+  JSR GetProvinceOwner                                ; $D0EE: 20 05 D1
   AND #$07                                            ; $D0F1: 29 07
   CMP #$07                                            ; $D0F3: C9 07
-  BEQ LD0FE                                           ; $D0F5: F0 07
+  BEQ @NeighborNext                                   ; $D0F5: F0 07
   CMP $6F03                                           ; $D0F7: CD 03 6F
-  BEQ LD0FE                                           ; $D0FA: F0 02
+  BEQ @NeighborNext                                   ; $D0FA: F0 02
   INC $22                                             ; $D0FC: E6 22
-LD0FE:
+@NeighborNext:
   INX                                                 ; $D0FE: E8
-  JMP Proc_D0E9                                       ; $D0FF: 4C E9 D0
+  JMP @NeighborLoop                                   ; $D0FF: 4C E9 D0
+@NeighborDone:
   LDA $22                                             ; $D102: A5 22
   RTS                                                 ; $D104: 60
 .endproc
-LD0FE = $D0FE
 
 
 ;===============================================================================
-; $D105: Proc_D105
+; $D105: GetProvinceOwner
+; Compute province record address from index (A), read owner byte.
+; Record address = A * 32 + $6000. Returns owner in A (bits 0-2).
 ;===============================================================================
-.proc Proc_D105
+.proc GetProvinceOwner
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
 
@@ -7847,7 +7835,7 @@ LD0FE = $D0FE
   LDA $21                                             ; $D11D: A5 21
   ADC #$60                                            ; $D11F: 69 60
   STA $21                                             ; $D121: 85 21
-  JSR Proc_D69D                                       ; $D123: 20 9D D6
+  JSR ClampRecordStats                                ; $D123: 20 9D D6
   LDY #$00                                            ; $D126: A0 00
   LDA ($20),Y                                         ; $D128: B1 20
   AND #$07                                            ; $D12A: 29 07
@@ -7855,9 +7843,18 @@ LD0FE = $D0FE
 .endproc
 
 ;===============================================================================
-; $D12D: Proc_D12D
+; $D12D: DeductCounterMultiEntry
+; Subtract A from counter $6F5D. Multiple entry points determine how many
+; caller stack frames to unwind on underflow before reaching the shared
+; game-over exit at @GameOver ($D140).
+;   Entry $D12D: underflow on BCC -> direct fall-through (0 extra PLA)
+;   Entry $D152 (@Entry1): underflow on BEQ or BCC -> JMP @GameOver (0 PLA)
+;   Entry $D165 (@Entry2): 2 PLA then JMP @GameOver
+;   Entry $D178 (@Entry4): 4 PLA then JMP @GameOver
+;   Entry $D18D (@Entry6): 6 PLA then JMP @GameOver
+; @GameOver: sets sram_counter=2, game_start_flag=$FF, clears $6F8D.
 ;===============================================================================
-.proc Proc_D12D
+.proc DeductCounterMultiEntry
   math_acc_lo              = $0020
   sram_counter             = $6F5B
   sram_game_start_flag     = $6F8B
@@ -7867,9 +7864,10 @@ LD0FE = $D0FE
   SEC                                                 ; $D132: 38
   SBC $20                                             ; $D133: E5 20
   STA $6F5D                                           ; $D135: 8D 5D 6F
-  .byte $90,$06                                       ; $D138: 90 06 (BCC mid-instruction target)
+  BCC @GameOver                                       ; $D138: 90 06
   INC $6F5E                                           ; $D13A: EE 5E 6F
-  JMP SumAndCompare                               ; $D13D: 4C 9C A1
+  JMP SumAndCompare                                   ; $D13D: 4C 9C A1
+@GameOver:
   PLA                                                 ; $D140: 68
   PLA                                                 ; $D141: 68
   LDA #$02                                            ; $D142: A9 02
@@ -7879,92 +7877,81 @@ LD0FE = $D0FE
   LDA #$00                                            ; $D14C: A9 00
   STA $6F8D                                           ; $D14E: 8D 8D 6F
   RTS                                                 ; $D151: 60
-.endproc
 
-;===============================================================================
-; $D152: Proc_D152
-;===============================================================================
-.proc Proc_D152
-  math_acc_lo              = $0020
-
+@Entry1:
   STA $20                                             ; $D152: 85 20
   LDA $6F5D                                           ; $D154: AD 5D 6F
   SEC                                                 ; $D157: 38
   SBC $20                                             ; $D158: E5 20
   STA $6F5D                                           ; $D15A: 8D 5D 6F
-  BEQ LD161                                           ; $D15D: F0 02
-  .byte $B0,$03                                       ; $D15F: B0 03 (BCS mid-instruction target)
-LD161:
-  JMP $D140                                           ; $D161: 4C 40 D1
+  BEQ @Entry1_Exit                                    ; $D15D: F0 02
+  BCS @Entry1_RTS                                     ; $D15F: B0 03
+@Entry1_Exit:
+  JMP @GameOver                                       ; $D161: 4C 40 D1
+@Entry1_RTS:
   RTS                                                 ; $D164: 60
-.endproc
-LD161 = $D161
 
-
-;===============================================================================
-; $D165: Proc_D165
-;===============================================================================
-.proc Proc_D165
-  math_acc_lo              = $0020
-
+@Entry2:
   STA $20                                             ; $D165: 85 20
   LDA $6F5D                                           ; $D167: AD 5D 6F
   SEC                                                 ; $D16A: 38
   SBC $20                                             ; $D16B: E5 20
   STA $6F5D                                           ; $D16D: 8D 5D 6F
-  .byte $B0,$05                                       ; $D170: B0 05 (BCS mid-instruction target)
+  BCS @Entry2_RTS                                     ; $D170: B0 05
   PLA                                                 ; $D172: 68
   PLA                                                 ; $D173: 68
-  JMP $D140                                           ; $D174: 4C 40 D1
+  JMP @GameOver                                       ; $D174: 4C 40 D1
+@Entry2_RTS:
   RTS                                                 ; $D177: 60
-.endproc
 
-;===============================================================================
-; $D178: Proc_D178
-;===============================================================================
-.proc Proc_D178
-  math_acc_lo              = $0020
-
+@Entry4:
   STA $20                                             ; $D178: 85 20
   LDA $6F5D                                           ; $D17A: AD 5D 6F
   SEC                                                 ; $D17D: 38
   SBC $20                                             ; $D17E: E5 20
   STA $6F5D                                           ; $D180: 8D 5D 6F
-  .byte $B0,$07                                       ; $D183: B0 07 (BCS mid-instruction target)
+  BCS @Entry4_RTS                                     ; $D183: B0 07
   PLA                                                 ; $D185: 68
   PLA                                                 ; $D186: 68
   PLA                                                 ; $D187: 68
   PLA                                                 ; $D188: 68
-  JMP $D140                                           ; $D189: 4C 40 D1
+  JMP @GameOver                                       ; $D189: 4C 40 D1
+@Entry4_RTS:
   RTS                                                 ; $D18C: 60
-.endproc
 
-;===============================================================================
-; $D18D: Proc_D18D
-;===============================================================================
-.proc Proc_D18D
-  math_acc_lo              = $0020
-
+@Entry6:
   STA $20                                             ; $D18D: 85 20
   LDA $6F5D                                           ; $D18F: AD 5D 6F
   SEC                                                 ; $D192: 38
   SBC $20                                             ; $D193: E5 20
   STA $6F5D                                           ; $D195: 8D 5D 6F
-  .byte $B0,$09                                       ; $D198: B0 09 (BCS mid-instruction target)
+  BCS @Entry6_RTS                                     ; $D198: B0 09
   PLA                                                 ; $D19A: 68
   PLA                                                 ; $D19B: 68
   PLA                                                 ; $D19C: 68
   PLA                                                 ; $D19D: 68
   PLA                                                 ; $D19E: 68
   PLA                                                 ; $D19F: 68
-  JMP $D140                                           ; $D1A0: 4C 40 D1
+  JMP @GameOver                                       ; $D1A0: 4C 40 D1
+@Entry6_RTS:
   RTS                                                 ; $D1A3: 60
 .endproc
+; External entry points
+Proc_D152 = DeductCounterMultiEntry::Entry1
+Proc_D165 = DeductCounterMultiEntry::Entry2
+Proc_D178 = DeductCounterMultiEntry::Entry4
+Proc_D18D = DeductCounterMultiEntry::Entry6
 
 ;===============================================================================
 ; $D1A4: Proc_D1A4
 ;===============================================================================
-.proc Proc_D1A4
+;===============================================================================
+; $D1A4: CollectEnemyProvinces
+; Collect non-player, non-neutral province IDs from group $36's adjacency
+; table (8 entries at $9D72 + group*8). Stores into $6F73 buffer.
+; Returns: A = count of enemy provinces found.
+;===============================================================================
+.proc CollectEnemyProvinces
   math_acc_hi              = $0023
   math_ext                 = $0024
   work_outer_idx           = $0036
@@ -7976,10 +7963,10 @@ LD161 = $D161
   JSR B1F_SwitchBank8_A                               ; $D1AB: 20 66 F2
   LDY #$0F                                            ; $D1AE: A0 0F
   LDA #$FF                                            ; $D1B0: A9 FF
-LD1B2:
+@Clear:
   STA $6F73,Y                                         ; $D1B2: 99 73 6F
   DEY                                                 ; $D1B5: 88
-  BPL LD1B2                                           ; $D1B6: 10 FA
+  BPL @Clear                                          ; $D1B6: 10 FA
   LDA #$00                                            ; $D1B8: A9 00
   STA $2B                                             ; $D1BA: 85 2B
   STA $2C                                             ; $D1BC: 85 2C
@@ -7988,43 +7975,41 @@ LD1B2:
   ASL A                                               ; $D1C2: 0A
   ASL A                                               ; $D1C3: 0A
   TAY                                                 ; $D1C4: A8
-LD1C5:
+@Loop:
   LDA $9D72,Y                                         ; $D1C5: B9 72 9D
-  BMI LD1F1                                           ; $D1C8: 30 27
+  BMI @Done                                           ; $D1C8: 30 27
   STA $23                                             ; $D1CA: 85 23
   STY $24                                             ; $D1CC: 84 24
-  JSR Proc_D105                                       ; $D1CE: 20 05 D1
+  JSR GetProvinceOwner                                ; $D1CE: 20 05 D1
   AND #$07                                            ; $D1D1: 29 07
   CMP #$07                                            ; $D1D3: C9 07
-  BEQ LD1E4                                           ; $D1D5: F0 0D
+  BEQ @Next                                           ; $D1D5: F0 0D
   CMP $2A                                             ; $D1D7: C5 2A
-  BEQ LD1E4                                           ; $D1D9: F0 09
+  BEQ @Next                                           ; $D1D9: F0 09
   LDY $2B                                             ; $D1DB: A4 2B
   LDA $23                                             ; $D1DD: A5 23
   STA $6F73,Y                                         ; $D1DF: 99 73 6F
   INC $2B                                             ; $D1E2: E6 2B
-LD1E4:
+@Next:
   LDA $23                                             ; $D1E4: A5 23
   LDY $24                                             ; $D1E6: A4 24
   INY                                                 ; $D1E8: C8
   INC $2C                                             ; $D1E9: E6 2C
   LDX $2C                                             ; $D1EB: A6 2C
   CPX #$08                                            ; $D1ED: E0 08
-  BCC LD1C5                                           ; $D1EF: 90 D4
-LD1F1:
+  BCC @Loop                                           ; $D1EF: 90 D4
+@Done:
   LDA $2B                                             ; $D1F1: A5 2B
   RTS                                                 ; $D1F3: 60
 .endproc
-LD1B2 = $D1B2
-LD1C5 = $D1C5
-LD1E4 = $D1E4
-LD1F1 = $D1F1
 
 
 ;===============================================================================
-; $D1F4: Proc_D1F4
+; $D1F4: CollectEnemyProvincesX
+; Same as CollectEnemyProvinces but uses X register for inner loop counter
+; and stores count in $0037. Returns A = count.
 ;===============================================================================
-.proc Proc_D1F4
+.proc CollectEnemyProvincesX
   math_acc_hi              = $0023
   math_ext                 = $0024
   math_temp1               = $0025
@@ -8038,10 +8023,10 @@ LD1F1 = $D1F1
   JSR B1F_SwitchBank8_A                               ; $D1FB: 20 66 F2
   LDY #$0F                                            ; $D1FE: A0 0F
   LDA #$FF                                            ; $D200: A9 FF
-LD202:
+@Clear:
   STA $6F73,Y                                         ; $D202: 99 73 6F
   DEY                                                 ; $D205: 88
-  BPL LD202                                           ; $D206: 10 FA
+  BPL @Clear                                          ; $D206: 10 FA
   LDA #$00                                            ; $D208: A9 00
   STA a:$0037                                         ; $D20A: 8D 37 00
   LDA a:$0036                                         ; $D20D: AD 36 00
@@ -8050,84 +8035,89 @@ LD202:
   ASL A                                               ; $D212: 0A
   TAY                                                 ; $D213: A8
   LDX #$00                                            ; $D214: A2 00
-LD216:
+@Loop:
   LDA $9D72,Y                                         ; $D216: B9 72 9D
-  .byte $30,$2A                                       ; $D219: 30 2A (BMI mid-instruction target)
+  BMI @Done                                           ; $D219: 30 2A
   STA $23                                             ; $D21B: 85 23
   STY $24                                             ; $D21D: 84 24
   STX $25                                             ; $D21F: 86 25
-  JSR Proc_D105                                       ; $D221: 20 05 D1
+  JSR GetProvinceOwner                                ; $D221: 20 05 D1
   AND #$07                                            ; $D224: 29 07
   CMP #$07                                            ; $D226: C9 07
-  BEQ LD239                                           ; $D228: F0 0F
+  BEQ @Next                                           ; $D228: F0 0F
   CMP $2A                                             ; $D22A: C5 2A
-  BEQ LD239                                           ; $D22C: F0 0B
+  BEQ @Next                                           ; $D22C: F0 0B
   LDY a:$0037                                         ; $D22E: AC 37 00
   LDA $23                                             ; $D231: A5 23
   STA $6F73,Y                                         ; $D233: 99 73 6F
   INC a:$0037                                         ; $D236: EE 37 00
-LD239:
+@Next:
   LDA $23                                             ; $D239: A5 23
   LDY $24                                             ; $D23B: A4 24
   LDX $25                                             ; $D23D: A6 25
   INY                                                 ; $D23F: C8
   INX                                                 ; $D240: E8
   CPX #$08                                            ; $D241: E0 08
-  BCC LD216                                           ; $D243: 90 D1
+  BCC @Loop                                           ; $D243: 90 D1
+@Done:
   LDA a:$0037                                         ; $D245: AD 37 00
   RTS                                                 ; $D248: 60
 .endproc
-LD202 = $D202
-LD216 = $D216
-LD239 = $D239
 
 
 ;===============================================================================
-; $D249: Proc_D249
+; $D249: FindPlayerProvinceByValue
+; Search all 30 provinces for one owned by current player whose record
+; field at offset $11 matches the value at ($EE). Returns province index
+; in A, or $FF (with CLC) if not found.
 ;===============================================================================
-.proc Proc_D249
+.proc FindPlayerProvinceByValue
   math_acc_lo              = $0020
   work_outer_idx           = $0036
   sram_player_id           = $6F03
 
-  JSR Proc_D6E5                                       ; $D249: 20 E5 D6
+  JSR DebugStub_E5                                       ; $D249: 20 E5 D6
   LDA #$00                                            ; $D24C: A9 00
   STA a:$0036                                         ; $D24E: 8D 36 00
   LDY #$00                                            ; $D251: A0 00
   LDA ($EE),Y                                         ; $D253: B1 EE
   STA $2A                                             ; $D255: 85 2A
-LD257:
+@Loop:
   LDA a:$0036                                         ; $D257: AD 36 00
-  JSR Proc_D105                                       ; $D25A: 20 05 D1
+  JSR GetProvinceOwner                                ; $D25A: 20 05 D1
   AND #$07                                            ; $D25D: 29 07
   CMP $6F03                                           ; $D25F: CD 03 6F
-  .byte $D0,$11                                       ; $D262: D0 11 (BNE mid-instruction target)
+  BNE @NextProvince                                   ; $D262: D0 11
   LDY #$11                                            ; $D264: A0 11
   LDA ($20),Y                                         ; $D266: B1 20
   CMP $2A                                             ; $D268: C5 2A
-  BNE LD270                                           ; $D26A: D0 04
+  BNE @ScanSlots                                      ; $D26A: D0 04
   LDA a:$0036                                         ; $D26C: AD 36 00
   RTS                                                 ; $D26F: 60
-LD270:
+@ScanSlots:
   INY                                                 ; $D270: C8
   CPY #$1B                                            ; $D271: C0 1B
-  .byte $90,$F1                                       ; $D273: 90 F1 (BCC mid-instruction target)
+  BCC @ScanSlots                                      ; $D273: 90 F1
+@NextProvince:
   INC a:$0036                                         ; $D275: EE 36 00
   LDA a:$0036                                         ; $D278: AD 36 00
   CMP #$1E                                            ; $D27B: C9 1E
-  BCC LD257                                           ; $D27D: 90 D8
+  BCC @Loop                                           ; $D27D: 90 D8
   LDA #$FF                                            ; $D27F: A9 FF
   CLC                                                 ; $D281: 18
   RTS                                                 ; $D282: 60
 .endproc
-LD257 = $D257
-LD270 = $D270
 
 
 ;===============================================================================
-; $D283: Proc_D283
+; $D283: ReadRecordField
+; Read a byte from province record. Two entry points use different zero-page
+; pointer pairs:
+;   Entry $D283: uses $20/$21 (clobbers $20/$21)
+;   Entry $D2AB (@Alt): uses $22/$23 (clobbers $22/$23), preserves $20/$21
+; Record address = A * 24 + $63C0. Y = field offset within record.
 ;===============================================================================
-.proc Proc_D283
+.proc ReadRecordField
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -8157,6 +8147,8 @@ LD270 = $D270
   STA $21                                             ; $D2A6: 85 21
   LDA ($20),Y                                         ; $D2A8: B1 20
   RTS                                                 ; $D2AA: 60
+
+@Alt:
   LDX #$00                                            ; $D2AB: A2 00
   STX $23                                             ; $D2AD: 86 23
   STA $22                                             ; $D2AF: 85 22
@@ -8184,9 +8176,11 @@ LD270 = $D270
 .endproc
 
 ;===============================================================================
-; $D2D3: Proc_D2D3
+; $D2D3: ReadBankedRecordField
+; Switch to bank $31, then read byte from record at $8000 + A*24 + Y.
+; Preserves Y (saved/restored via $26).
 ;===============================================================================
-.proc Proc_D2D3
+.proc ReadBankedRecordField
   math_ext                 = $0024
   math_temp1               = $0025
   math_temp2               = $0026
@@ -8222,50 +8216,61 @@ LD270 = $D270
 .endproc
 
 ;===============================================================================
-; $D304: Proc_D304
+; $D304: CountRecordSlots
+; Count non-$FF officer slots in province record (offsets $11-$1A).
+; Two entry points:
+;   Entry $D304: calls GetProvinceOwner first (A = province index)
+;   Entry $D307 (@Direct): assumes $20/$21 already points to record
+; Returns: X = count of occupied slots.
 ;===============================================================================
-.proc Proc_D304
+.proc CountRecordSlots
   math_acc_lo              = $0020
 
-  JSR Proc_D105                                       ; $D304: 20 05 D1
+  JSR GetProvinceOwner                                ; $D304: 20 05 D1
+@Direct:
   LDX #$00                                            ; $D307: A2 00
   LDY #$11                                            ; $D309: A0 11
+@Loop:
   LDA ($20),Y                                         ; $D30B: B1 20
   CMP #$FF                                            ; $D30D: C9 FF
-  BEQ LD317                                           ; $D30F: F0 06
+  BEQ @Done                                           ; $D30F: F0 06
   INX                                                 ; $D311: E8
   INY                                                 ; $D312: C8
   CPY #$1B                                            ; $D313: C0 1B
-  .byte $90,$F4                                       ; $D315: 90 F4 (BCC mid-instruction target)
-LD317:
+  BCC @Loop                                           ; $D315: 90 F4
+@Done:
   TXA                                                 ; $D317: 8A
   RTS                                                 ; $D318: 60
 .endproc
-LD317 = $D317
 
 
 ;===============================================================================
-; $D319: Proc_D319
+; $D319: GetPlayerRecordPtr
+; Lookup player SRAM record pointer from inline table.
+; A = player ID (masked to 4 bits). Returns pointer in $24/$25.
 ;===============================================================================
-.proc Proc_D319
+.proc GetPlayerRecordPtr
   math_ext                 = $0024
   math_temp1               = $0025
 
   AND #$0F                                            ; $D319: 29 0F
   ASL A                                               ; $D31B: 0A
   TAY                                                 ; $D31C: A8
-  LDA $D328,Y                                         ; $D31D: B9 28 D3
+  LDA @Table,Y                                        ; $D31D: B9 28 D3
   STA $24                                             ; $D320: 85 24
-  LDA $D329,Y                                         ; $D322: B9 29 D3
+  LDA @Table+1,Y                                      ; $D322: B9 29 D3
   STA $25                                             ; $D325: 85 25
   RTS                                                 ; $D327: 60
-  .byte $07,$6F,$0F,$6F,$17,$6F,$1F,$6F,$27,$6F,$2F,$6F,$37,$6F; $D328: 07 6F 0F 6F 17 6F 1F 6F 27 6F 2F 6F 37 6F
+@Table:
+  .word $6F07,$6F0F,$6F17,$6F1F,$6F27,$6F2F,$6F37   ; $D328
 .endproc
 
 ;===============================================================================
-; $D336: Proc_D336
+; $D336: Divide24
+; 24-bit division: $20/$21/$22 (dividend, 24-bit) / $23/$24 (divisor, 16-bit).
+; Quotient stored in $20/$21/$22, remainder in $25/$26/$27.
 ;===============================================================================
-.proc Proc_D336
+.proc Divide24
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -8280,7 +8285,7 @@ LD317 = $D317
   STA $26                                             ; $D33A: 85 26
   STA $27                                             ; $D33C: 85 27
   LDY #$17                                            ; $D33E: A0 17
-LD340:
+@Loop:
   ASL $20                                             ; $D340: 06 20
   ROL $21                                             ; $D342: 26 21
   ROL $22                                             ; $D344: 26 22
@@ -8296,44 +8301,46 @@ LD340:
   STA $29                                             ; $D357: 85 29
   LDA $27                                             ; $D359: A5 27
   SBC #$00                                            ; $D35B: E9 00
-  .byte $90,$0C                                       ; $D35D: 90 0C (BCC mid-instruction target)
+  BCC @Skip                                           ; $D35D: 90 0C
   STA $27                                             ; $D35F: 85 27
   LDA $28                                             ; $D361: A5 28
   STA $25                                             ; $D363: 85 25
   LDA $29                                             ; $D365: A5 29
   STA $26                                             ; $D367: 85 26
   INC $20                                             ; $D369: E6 20
+@Skip:
   DEY                                                 ; $D36B: 88
-  BPL LD340                                           ; $D36C: 10 D2
+  BPL @Loop                                           ; $D36C: 10 D2
   RTS                                                 ; $D36E: 60
 .endproc
-LD340 = $D340
 
 
 ;===============================================================================
-; $D36F: Proc_D36F
+; $D36F: DeductRecordStat2
+; Subtract random amount from province record field at offset $02/$03.
+; A = province index. $24 = max random bound. Returns C=1 if deducted.
 ;===============================================================================
-.proc Proc_D36F
+.proc DeductRecordStat2
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
   math_ext                 = $0024
 
   PHA                                                 ; $D36F: 48
-  JSR Proc_D105                                       ; $D370: 20 05 D1
+  JSR GetProvinceOwner                                ; $D370: 20 05 D1
   LDA $24                                             ; $D373: A5 24
-  BEQ LD385                                           ; $D375: F0 0E
-  JSR Proc_D4BB                                       ; $D377: 20 BB D4
+  BEQ @DoDeduct                                       ; $D375: F0 0E
+  JSR RandomBelow                                     ; $D377: 20 BB D4
   CLC                                                 ; $D37A: 18
   ADC $22                                             ; $D37B: 65 22
   STA $22                                             ; $D37D: 85 22
   LDA $23                                             ; $D37F: A5 23
   ADC #$00                                            ; $D381: 69 00
   STA $23                                             ; $D383: 85 23
-LD385:
+@DoDeduct:
   PLA                                                 ; $D385: 68
-  JSR Proc_D105                                       ; $D386: 20 05 D1
-  JSR Proc_D69D                                       ; $D389: 20 9D D6
+  JSR GetProvinceOwner                                ; $D386: 20 05 D1
+  JSR ClampRecordStats                                ; $D389: 20 9D D6
   LDY #$02                                            ; $D38C: A0 02
   LDA ($20),Y                                         ; $D38E: B1 20
   SEC                                                 ; $D390: 38
@@ -8342,46 +8349,45 @@ LD385:
   INY                                                 ; $D394: C8
   LDA ($20),Y                                         ; $D395: B1 20
   SBC $23                                             ; $D397: E5 23
-  BCS LD39E                                           ; $D399: B0 03
+  BCS @Commit                                         ; $D399: B0 03
   PLA                                                 ; $D39B: 68
   CLC                                                 ; $D39C: 18
   RTS                                                 ; $D39D: 60
-LD39E:
+@Commit:
   STA ($20),Y                                         ; $D39E: 91 20
   DEY                                                 ; $D3A0: 88
   PLA                                                 ; $D3A1: 68
   STA ($20),Y                                         ; $D3A2: 91 20
-  JSR Proc_D69D                                       ; $D3A4: 20 9D D6
+  JSR ClampRecordStats                                ; $D3A4: 20 9D D6
   SEC                                                 ; $D3A7: 38
   RTS                                                 ; $D3A8: 60
 .endproc
-LD385 = $D385
-LD39E = $D39E
 
 
 ;===============================================================================
-; $D3A9: Proc_D3A9
+; $D3A9: DeductRecordStat4
+; Same as DeductRecordStat2 but operates on record field at offset $04/$05.
 ;===============================================================================
-.proc Proc_D3A9
+.proc DeductRecordStat4
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
   math_ext                 = $0024
 
   PHA                                                 ; $D3A9: 48
-  JSR Proc_D105                                       ; $D3AA: 20 05 D1
+  JSR GetProvinceOwner                                ; $D3AA: 20 05 D1
   LDA $24                                             ; $D3AD: A5 24
-  BEQ LD3BF                                           ; $D3AF: F0 0E
-  JSR Proc_D4BB                                       ; $D3B1: 20 BB D4
+  BEQ @DoDeduct                                       ; $D3AF: F0 0E
+  JSR RandomBelow                                     ; $D3B1: 20 BB D4
   CLC                                                 ; $D3B4: 18
   ADC $22                                             ; $D3B5: 65 22
   STA $22                                             ; $D3B7: 85 22
   LDA $23                                             ; $D3B9: A5 23
   ADC #$00                                            ; $D3BB: 69 00
   STA $23                                             ; $D3BD: 85 23
-LD3BF:
+@DoDeduct:
   PLA                                                 ; $D3BF: 68
-  JSR Proc_D105                                       ; $D3C0: 20 05 D1
+  JSR GetProvinceOwner                                ; $D3C0: 20 05 D1
   LDY #$04                                            ; $D3C3: A0 04
   LDA ($20),Y                                         ; $D3C5: B1 20
   SEC                                                 ; $D3C7: 38
@@ -8390,11 +8396,11 @@ LD3BF:
   INY                                                 ; $D3CB: C8
   LDA ($20),Y                                         ; $D3CC: B1 20
   SBC $23                                             ; $D3CE: E5 23
-  BCS LD3D5                                           ; $D3D0: B0 03
+  BCS @Commit                                         ; $D3D0: B0 03
   PLA                                                 ; $D3D2: 68
   CLC                                                 ; $D3D3: 18
   RTS                                                 ; $D3D4: 60
-LD3D5:
+@Commit:
   STA ($20),Y                                         ; $D3D5: 91 20
   DEY                                                 ; $D3D7: 88
   PLA                                                 ; $D3D8: 68
@@ -8402,57 +8408,55 @@ LD3D5:
   SEC                                                 ; $D3DB: 38
   RTS                                                 ; $D3DC: 60
 .endproc
-LD3BF = $D3BF
-LD3D5 = $D3D5
 
 
 ;===============================================================================
-; $D3DD: Proc_D3DD
+; $D3DD: CompactRecordSlots
+; Compact officer slots in province record: remove $FF gaps from offsets
+; $11-$1A by collecting non-FF entries into $6F73 buffer then writing back.
 ;===============================================================================
-.proc Proc_D3DD
+.proc CompactRecordSlots
   math_acc_lo              = $0020
 
-  JSR Proc_D105                                       ; $D3DD: 20 05 D1
+  JSR GetProvinceOwner                                ; $D3DD: 20 05 D1
   LDX #$00                                            ; $D3E0: A2 00
   LDA #$FF                                            ; $D3E2: A9 FF
-LD3E4:
+@ClearBuf:
   STA $6F73,X                                         ; $D3E4: 9D 73 6F
   INX                                                 ; $D3E7: E8
   CPX #$10                                            ; $D3E8: E0 10
-  BCC LD3E4                                           ; $D3EA: 90 F8
+  BCC @ClearBuf                                       ; $D3EA: 90 F8
   LDY #$11                                            ; $D3EC: A0 11
   LDX #$00                                            ; $D3EE: A2 00
-LD3F0:
+@Collect:
   LDA ($20),Y                                         ; $D3F0: B1 20
   CMP #$FF                                            ; $D3F2: C9 FF
-  BEQ LD3FA                                           ; $D3F4: F0 04
+  BEQ @Skip                                           ; $D3F4: F0 04
   STA $6F73,X                                         ; $D3F6: 9D 73 6F
   INX                                                 ; $D3F9: E8
-LD3FA:
+@Skip:
   INY                                                 ; $D3FA: C8
   CPY #$1B                                            ; $D3FB: C0 1B
-  BCC LD3F0                                           ; $D3FD: 90 F1
+  BCC @Collect                                        ; $D3FD: 90 F1
   LDY #$11                                            ; $D3FF: A0 11
   LDX #$00                                            ; $D401: A2 00
-LD403:
+@WriteBack:
   LDA $6F73,X                                         ; $D403: BD 73 6F
   STA ($20),Y                                         ; $D406: 91 20
   INY                                                 ; $D408: C8
   INX                                                 ; $D409: E8
   CPY #$1B                                            ; $D40A: C0 1B
-  BCC LD403                                           ; $D40C: 90 F5
+  BCC @WriteBack                                      ; $D40C: 90 F5
   RTS                                                 ; $D40E: 60
 .endproc
-LD3E4 = $D3E4
-LD3F0 = $D3F0
-LD3FA = $D3FA
-LD403 = $D403
 
 
 ;===============================================================================
-; $D40F: Proc_D40F
+; $D40F: Divide16
+; 16-bit division: $21/$22 (dividend) / $23/$24 (divisor).
+; Quotient in $21/$22, remainder in $25/$26.
 ;===============================================================================
-.proc Proc_D40F
+.proc Divide16
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
@@ -8465,7 +8469,7 @@ LD403 = $D403
   STA $25                                             ; $D411: 85 25
   STA $26                                             ; $D413: 85 26
   LDY #$0F                                            ; $D415: A0 0F
-LD417:
+@Loop:
   ASL $21                                             ; $D417: 06 21
   ROL $22                                             ; $D419: 26 22
   ROL $25                                             ; $D41B: 26 25
@@ -8476,22 +8480,24 @@ LD417:
   STA $27                                             ; $D424: 85 27
   LDA $26                                             ; $D426: A5 26
   SBC $24                                             ; $D428: E5 24
-  .byte $90,$08                                       ; $D42A: 90 08 (BCC mid-instruction target)
+  BCC @Skip                                           ; $D42A: 90 08
   STA $26                                             ; $D42C: 85 26
   LDA $27                                             ; $D42E: A5 27
   STA $25                                             ; $D430: 85 25
   INC $21                                             ; $D432: E6 21
+@Skip:
   DEY                                                 ; $D434: 88
-  BPL LD417                                           ; $D435: 10 E0
+  BPL @Loop                                           ; $D435: 10 E0
   RTS                                                 ; $D437: 60
 .endproc
-LD417 = $D417
 
 
 ;===============================================================================
-; $D438: Proc_D438
+; $D438: Multiply32
+; Multiply 3-byte value ($20/$21/$22) by byte ($23).
+; Result: 4 bytes in $26/$27/$28/$29.
 ;===============================================================================
-.proc Proc_D438
+.proc Multiply32
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -8509,8 +8515,9 @@ LD417 = $D417
   STA $27                                             ; $D442: 85 27
   STA $28                                             ; $D444: 85 28
   STA $29                                             ; $D446: 85 29
+@Loop:
   LSR $23                                             ; $D448: 46 23
-  .byte $90,$19                                       ; $D44A: 90 19 (BCC mid-instruction target)
+  BCC @Shift                                          ; $D44A: 90 19
   LDA $20                                             ; $D44C: A5 20
   CLC                                                 ; $D44E: 18
   ADC $26                                             ; $D44F: 65 26
@@ -8524,19 +8531,21 @@ LD417 = $D417
   LDA $24                                             ; $D45F: A5 24
   ADC $29                                             ; $D461: 65 29
   STA $29                                             ; $D463: 85 29
+@Shift:
   ASL $20                                             ; $D465: 06 20
   ROL $21                                             ; $D467: 26 21
   ROL $22                                             ; $D469: 26 22
   ROL $24                                             ; $D46B: 26 24
   DEY                                                 ; $D46D: 88
-  .byte $10,$D8                                       ; $D46E: 10 D8 (BPL mid-instruction target)
+  BPL @Loop                                           ; $D46E: 10 D8
   RTS                                                 ; $D470: 60
 .endproc
 
 ;===============================================================================
-; $D471: Proc_D471
+; $D471: Multiply8x8
+; Multiply byte $20 by byte $21. Result: 16-bit in $2A/$2B (with $2C carry).
 ;===============================================================================
-.proc Proc_D471
+.proc Multiply8x8
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
 
@@ -8545,9 +8554,9 @@ LD417 = $D417
   STA $2C                                             ; $D475: 85 2C
   STA $2A                                             ; $D477: 85 2A
   STA $2B                                             ; $D479: 85 2B
-LD47B:
+@Loop:
   LSR $21                                             ; $D47B: 46 21
-  BCC LD48C                                           ; $D47D: 90 0D
+  BCC @Shift                                          ; $D47D: 90 0D
   LDA $20                                             ; $D47F: A5 20
   CLC                                                 ; $D481: 18
   ADC $2A                                             ; $D482: 65 2A
@@ -8555,15 +8564,13 @@ LD47B:
   LDA $2C                                             ; $D486: A5 2C
   ADC $2B                                             ; $D488: 65 2B
   STA $2B                                             ; $D48A: 85 2B
-LD48C:
+@Shift:
   ASL $20                                             ; $D48C: 06 20
   ROL $2C                                             ; $D48E: 26 2C
   DEY                                                 ; $D490: 88
-  BPL LD47B                                           ; $D491: 10 E8
+  BPL @Loop                                           ; $D491: 10 E8
   RTS                                                 ; $D493: 60
 .endproc
-LD47B = $D47B
-LD48C = $D48C
 
 
 ;===============================================================================
@@ -8598,42 +8605,45 @@ LD48C = $D48C
 .endproc
 
 ;===============================================================================
-; $D4AD: Proc_D4AD
+; $D4AD: RandomBelow
+; Generate random number below a bound.
+;   Entry $D4AD: A = max bound (0-15), generates random 4-bit value < A.
+;   Entry $D4BB (@Full): A = max bound (full byte). If A >= 15, falls back
+;     to masked 4-bit mode. Otherwise generates random byte < A.
 ;===============================================================================
-.proc Proc_D4AD
+.proc RandomBelow
+  work_bound             = $0056
 
-  STA a:$0056                                         ; $D4AD: 8D 56 00
-LD4B0:
+  STA work_bound                                      ; $D4AD: 8D 56 00
+@Retry:
   JSR B1F_RandomByte2                                 ; $D4B0: 20 8A E8
   AND #$0F                                            ; $D4B3: 29 0F
-  CMP a:$0056                                         ; $D4B5: CD 56 00
-  BCS LD4B0                                           ; $D4B8: B0 F6
+  CMP work_bound                                      ; $D4B5: CD 56 00
+  BCS @Retry                                          ; $D4B8: B0 F6
   RTS                                                 ; $D4BA: 60
-.endproc
-LD4B0 = $D4B0
 
-
-;===============================================================================
-; $D4BB: Proc_D4BB
-;===============================================================================
-.proc Proc_D4BB
-
+@Full:
   CMP #$0F                                            ; $D4BB: C9 0F
-  .byte $90,$EE                                       ; $D4BD: 90 EE (BCC cross-proc)
-  STA a:$0056                                         ; $D4BF: 8D 56 00
-LD4C2:
+  BCC RandomBelow                                     ; $D4BD: 90 EE
+  STA work_bound                                      ; $D4BF: 8D 56 00
+@RetryFull:
   JSR B1F_RandomByte2                                 ; $D4C2: 20 8A E8
-  CMP a:$0056                                         ; $D4C5: CD 56 00
-  BCS LD4C2                                           ; $D4C8: B0 F8
+  CMP work_bound                                      ; $D4C5: CD 56 00
+  BCS @RetryFull                                      ; $D4C8: B0 F8
   RTS                                                 ; $D4CA: 60
 .endproc
-LD4C2 = $D4C2
+; External entry point
+Proc_D4BB = RandomBelow::Full
 
 
 ;===============================================================================
-; $D4CB: Proc_D4CB
+; $D4CB: BuildAdjacencyBitmap
+; Build a bitmap of player-owned province adjacencies into $0580 buffer.
+; For each player province (0-$1D), walk its adjacency table at $9D72 and
+; set directional bits using row-offset table $D5BF and bitmask table $D5DF.
+; Then merge symmetric adjacency bits via MergeAdjacencyBits.
 ;===============================================================================
-.proc Proc_D4CB
+.proc BuildAdjacencyBitmap
   math_ext                 = $0024
   math_temp1               = $0025
   work_outer_idx           = $0036
@@ -8641,265 +8651,278 @@ LD4C2 = $D4C2
 
   LDY #$7F                                            ; $D4CB: A0 7F
   LDA #$00                                            ; $D4CD: A9 00
-LD4CF:
+@Clear:
   STA $0580,Y                                         ; $D4CF: 99 80 05
   DEY                                                 ; $D4D2: 88
-  BPL LD4CF                                           ; $D4D3: 10 FA
+  BPL @Clear                                          ; $D4D3: 10 FA
   LDY #$30                                            ; $D4D5: A0 30
   JSR B1F_SwitchBank8_A                               ; $D4D7: 20 66 F2
   LDA #$1D                                            ; $D4DA: A9 1D
-  STA a:$0036                                         ; $D4DC: 8D 36 00
-LD4DF:
-  LDA a:$0036                                         ; $D4DF: AD 36 00
-  JSR Proc_D105                                       ; $D4E2: 20 05 D1
+  STA work_outer_idx                                  ; $D4DC: 8D 36 00
+@ProvLoop:
+  LDA work_outer_idx                                  ; $D4DF: AD 36 00
+  JSR GetProvinceOwner                                ; $D4E2: 20 05 D1
   AND #$07                                            ; $D4E5: 29 07
-  CMP $6F03                                           ; $D4E7: CD 03 6F
-  BNE LD524                                           ; $D4EA: D0 38
-  LDA a:$0036                                         ; $D4EC: AD 36 00
+  CMP sram_player_id                                  ; $D4E7: CD 03 6F
+  BNE @NextProv                                       ; $D4EA: D0 38
+  LDA work_outer_idx                                  ; $D4EC: AD 36 00
   ASL A                                               ; $D4EF: 0A
   ASL A                                               ; $D4F0: 0A
   ASL A                                               ; $D4F1: 0A
-  STA $24                                             ; $D4F2: 85 24
-  LDY $24                                             ; $D4F4: A4 24
+  STA math_ext                                        ; $D4F2: 85 24
+@NeighborLoop:
+  LDY math_ext                                        ; $D4F4: A4 24
   LDA $9D72,Y                                         ; $D4F6: B9 72 9D
-  BMI LD524                                           ; $D4F9: 30 29
-  STA $25                                             ; $D4FB: 85 25
-  JSR Proc_D105                                       ; $D4FD: 20 05 D1
+  BMI @NextProv                                       ; $D4F9: 30 29
+  STA math_temp1                                      ; $D4FB: 85 25
+  JSR GetProvinceOwner                                ; $D4FD: 20 05 D1
   AND #$07                                            ; $D500: 29 07
-  CMP $6F03                                           ; $D502: CD 03 6F
-  .byte $D0,$18                                       ; $D505: D0 18 (BNE mid-instruction target)
-  LDX $25                                             ; $D507: A6 25
-  LDA a:$0036                                         ; $D509: AD 36 00
+  CMP sram_player_id                                  ; $D502: CD 03 6F
+  BNE @NextNeighbor                                   ; $D505: D0 18
+  LDX math_temp1                                      ; $D507: A6 25
+  LDA work_outer_idx                                  ; $D509: AD 36 00
   CLC                                                 ; $D50C: 18
-  ADC $D5BF,X                                         ; $D50D: 7D BF D5
+  ADC AdjRowOffsets,X                                 ; $D50D: 7D BF D5
   TAY                                                 ; $D510: A8
-  LDA $25                                             ; $D511: A5 25
+  LDA math_temp1                                      ; $D511: A5 25
   AND #$07                                            ; $D513: 29 07
   TAX                                                 ; $D515: AA
-  LDA $D5DF,X                                         ; $D516: BD DF D5
+  LDA AdjBitMasks,X                                   ; $D516: BD DF D5
   ORA $0580,Y                                         ; $D519: 19 80 05
   STA $0580,Y                                         ; $D51C: 99 80 05
-  INC $24                                             ; $D51F: E6 24
-  JMP $D4F4                                           ; $D521: 4C F4 D4
-LD524:
-  DEC a:$0036                                         ; $D524: CE 36 00
-  BPL LD4DF                                           ; $D527: 10 B6
+@NextNeighbor:
+  INC math_ext                                        ; $D51F: E6 24
+  JMP @NeighborLoop                                   ; $D521: 4C F4 D4
+@NextProv:
+  DEC work_outer_idx                                  ; $D524: CE 36 00
+  BPL @ProvLoop                                       ; $D527: 10 B6
+  ; --- Merge symmetric adjacency bits ---
   LDY #$01                                            ; $D529: A0 01
   LDX #$00                                            ; $D52B: A2 00
-LD52D:
-  JSR Proc_D53E                                       ; $D52D: 20 3E D5
+@MergeLoop:
+  JSR MergeAdjacencyBits                              ; $D52D: 20 3E D5
   INY                                                 ; $D530: C8
   CPY #$1E                                            ; $D531: C0 1E
-  BCC LD52D                                           ; $D533: 90 F8
+  BCC @MergeLoop                                      ; $D533: 90 F8
   INX                                                 ; $D535: E8
   TXA                                                 ; $D536: 8A
   TAY                                                 ; $D537: A8
   INX                                                 ; $D538: E8
   CPX #$1D                                            ; $D539: E0 1D
-  BCC LD52D                                           ; $D53B: 90 F0
+  BCC @MergeLoop                                      ; $D53B: 90 F0
   RTS                                                 ; $D53D: 60
 .endproc
-LD4CF = $D4CF
-LD4DF = $D4DF
-LD524 = $D524
-LD52D = $D52D
 
 
 ;===============================================================================
-; $D53E: Proc_D53E
+; $D53E: MergeAdjacencyBits
+; For provinces X and Y: if they share a common adjacency bit in any of the
+; 4 bitmap planes ($0580, $05A0, $05C0, $05E0), merge (OR) X's bits into Y.
 ;===============================================================================
-.proc Proc_D53E
+.proc MergeAdjacencyBits
 
   LDA $0580,X                                         ; $D53E: BD 80 05
   AND $0580,Y                                         ; $D541: 39 80 05
-  .byte $F0,$09                                       ; $D544: F0 09 (BEQ mid-instruction target)
+  BEQ @Skip1                                          ; $D544: F0 09
   LDA $0580,X                                         ; $D546: BD 80 05
   ORA $0580,Y                                         ; $D549: 19 80 05
   STA $0580,Y                                         ; $D54C: 99 80 05
+@Skip1:
   LDA $05A0,X                                         ; $D54F: BD A0 05
   AND $05A0,Y                                         ; $D552: 39 A0 05
-  .byte $F0,$09                                       ; $D555: F0 09 (BEQ mid-instruction target)
+  BEQ @Skip2                                          ; $D555: F0 09
   LDA $05A0,X                                         ; $D557: BD A0 05
   ORA $05A0,Y                                         ; $D55A: 19 A0 05
   STA $05A0,Y                                         ; $D55D: 99 A0 05
+@Skip2:
   LDA $05C0,X                                         ; $D560: BD C0 05
   AND $05C0,Y                                         ; $D563: 39 C0 05
-  .byte $F0,$09                                       ; $D566: F0 09 (BEQ mid-instruction target)
+  BEQ @Skip3                                          ; $D566: F0 09
   LDA $05C0,X                                         ; $D568: BD C0 05
   ORA $05C0,Y                                         ; $D56B: 19 C0 05
   STA $05C0,Y                                         ; $D56E: 99 C0 05
+@Skip3:
   LDA $05E0,X                                         ; $D571: BD E0 05
   AND $05E0,Y                                         ; $D574: 39 E0 05
-  .byte $F0,$09                                       ; $D577: F0 09 (BEQ mid-instruction target)
+  BEQ @Skip4                                          ; $D577: F0 09
   LDA $05E0,X                                         ; $D579: BD E0 05
   ORA $05E0,Y                                         ; $D57C: 19 E0 05
   STA $05E0,Y                                         ; $D57F: 99 E0 05
+@Skip4:
   RTS                                                 ; $D582: 60
 .endproc
 
 ;===============================================================================
-; $D583: Proc_D583
+; $D583: CheckPathExists
+; Check if a path exists between provinces Y and X through player territory.
+; Scans adjacency bitmap planes from row $1D down to $00.
+; Returns: A = $FF if path exists, A = $00 otherwise.
 ;===============================================================================
-.proc Proc_D583
+.proc CheckPathExists
+  work_row                 = $0030
+  work_src                 = $0031
+  work_dst                 = $0032
 
-  STY $31                                             ; $D583: 84 31
-  STX $32                                             ; $D585: 86 32
+  STY work_src                                        ; $D583: 84 31
+  STX work_dst                                        ; $D585: 86 32
   LDX #$1D                                            ; $D587: A2 1D
-  STX $30                                             ; $D589: 86 30
-  LDY $31                                             ; $D58B: A4 31
-  LDA $30                                             ; $D58D: A5 30
-  ORA $D5BF,Y                                         ; $D58F: 19 BF D5
+  STX work_row                                        ; $D589: 86 30
+@Loop:
+  LDY work_src                                        ; $D58B: A4 31
+  LDA work_row                                        ; $D58D: A5 30
+  ORA AdjRowOffsets,Y                                 ; $D58F: 19 BF D5
   TAX                                                 ; $D592: AA
-  LDA $31                                             ; $D593: A5 31
+  LDA work_src                                        ; $D593: A5 31
   AND #$07                                            ; $D595: 29 07
   TAY                                                 ; $D597: A8
   LDA $0580,X                                         ; $D598: BD 80 05
-  AND $D5DF,Y                                         ; $D59B: 39 DF D5
-  BEQ LD5B8                                           ; $D59E: F0 18
-  LDY $32                                             ; $D5A0: A4 32
-  LDA $30                                             ; $D5A2: A5 30
-  ORA $D5BF,Y                                         ; $D5A4: 19 BF D5
+  AND AdjBitMasks,Y                                   ; $D59B: 39 DF D5
+  BEQ @Next                                           ; $D59E: F0 18
+  LDY work_dst                                        ; $D5A0: A4 32
+  LDA work_row                                        ; $D5A2: A5 30
+  ORA AdjRowOffsets,Y                                 ; $D5A4: 19 BF D5
   TAX                                                 ; $D5A7: AA
-  LDA $32                                             ; $D5A8: A5 32
+  LDA work_dst                                        ; $D5A8: A5 32
   AND #$07                                            ; $D5AA: 29 07
   TAY                                                 ; $D5AC: A8
   LDA $0580,X                                         ; $D5AD: BD 80 05
-  AND $D5DF,Y                                         ; $D5B0: 39 DF D5
-  BEQ LD5B8                                           ; $D5B3: F0 03
+  AND AdjBitMasks,Y                                   ; $D5B0: 39 DF D5
+  BEQ @Next                                           ; $D5B3: F0 03
   LDA #$FF                                            ; $D5B5: A9 FF
   RTS                                                 ; $D5B7: 60
-LD5B8:
-  DEC $30                                             ; $D5B8: C6 30
-  .byte $10,$CF                                       ; $D5BA: 10 CF (BPL mid-instruction target)
+@Next:
+  DEC work_row                                        ; $D5B8: C6 30
+  BPL @Loop                                           ; $D5BA: 10 CF
   LDA #$00                                            ; $D5BC: A9 00
   RTS                                                 ; $D5BE: 60
 .endproc
-LD5B8 = $D5B8
 
 
 ;===============================================================================
-; $D5BF: Proc_D5BF
+; $D5BF: Adjacency lookup tables
+; AdjRowOffsets: row base offsets for 8-column adjacency bitmap (province/8)
+; AdjBitMasks: bit masks for column within bitmap (province & 7)
 ;===============================================================================
-.proc Proc_D5BF
+AdjRowOffsets:
+  .byte $00,$00,$00,$00,$00,$00,$00,$20               ; $D5BF
+  .byte $20,$20,$20,$20,$20,$20,$20,$40               ; $D5C7
+  .byte $40,$40,$40,$40,$40,$40,$40,$60               ; $D5CF
+  .byte $60,$60,$60,$60,$60,$60,$60                   ; $D5D7
+AdjBitMasks:
+  .byte $01,$02,$04,$08,$10,$20,$40,$80               ; $D5DF
 
-  BRK                                                 ; $D5BF: 00
-  .byte $00,$00,$00,$00,$00,$00,$00,$20,$20,$20,$20,$20,$20,$20,$20,$40; $D5C0: 00 00 00 00 00 00 00 20 20 20 20 20 20 20 20 40
-  .byte $40,$40,$40,$40,$40,$40,$40,$60,$60,$60,$60,$60,$60,$60,$60,$01; $D5D0: 40 40 40 40 40 40 40 60 60 60 60 60 60 60 60 01
-  .byte $02,$04,$08,$10,$20,$40,$80                   ; $D5E0: 02 04 08 10 20 40 80
-.endproc
-
 ;===============================================================================
-; $D5E7: Proc_D5E7
+; $D5E7: DebugStub_E7
+; Empty debug hook (RTS only).
 ;===============================================================================
-.proc Proc_D5E7
+.proc DebugStub_E7
 
   RTS                                                 ; $D5E7: 60
 .endproc
 
 ;===============================================================================
-; $D5E8: Proc_D5E8
+; $D5E8: ValidateRecordStats
+; Debug validation: check first 4 bytes of province record at ($20) are < 100.
+; Triggers BRK with error code $14-$17 on violation.
 ;===============================================================================
-.proc Proc_D5E8
+.proc ValidateRecordStats
   math_acc_lo              = $0020
 
   LDY #$00                                            ; $D5E8: A0 00
   LDA ($20),Y                                         ; $D5EA: B1 20
   CMP #$65                                            ; $D5EC: C9 65
-  BCC LD5F6                                           ; $D5EE: 90 06
+  BCC @Check1                                         ; $D5EE: 90 06
   LDA #$14                                            ; $D5F0: A9 14
   STA $6FFF                                           ; $D5F2: 8D FF 6F
   BRK                                                 ; $D5F5: 00
-LD5F6:
+@Check1:
   INY                                                 ; $D5F6: C8
   LDA ($20),Y                                         ; $D5F7: B1 20
   CMP #$65                                            ; $D5F9: C9 65
-  BCC LD603                                           ; $D5FB: 90 06
+  BCC @Check2                                         ; $D5FB: 90 06
   LDA #$15                                            ; $D5FD: A9 15
   STA $6FFF                                           ; $D5FF: 8D FF 6F
   BRK                                                 ; $D602: 00
-LD603:
+@Check2:
   INY                                                 ; $D603: C8
   LDA ($20),Y                                         ; $D604: B1 20
   CMP #$65                                            ; $D606: C9 65
-  BCC LD610                                           ; $D608: 90 06
+  BCC @Check3                                         ; $D608: 90 06
   LDA #$16                                            ; $D60A: A9 16
   STA $6FFF                                           ; $D60C: 8D FF 6F
   BRK                                                 ; $D60F: 00
-LD610:
+@Check3:
   INY                                                 ; $D610: C8
   LDA ($20),Y                                         ; $D611: B1 20
   CMP #$65                                            ; $D613: C9 65
-  BCC LD61D                                           ; $D615: 90 06
+  BCC @Done                                           ; $D615: 90 06
   LDA #$17                                            ; $D617: A9 17
   STA $6FFF                                           ; $D619: 8D FF 6F
   BRK                                                 ; $D61C: 00
-LD61D:
+@Done:
   RTS                                                 ; $D61D: 60
 .endproc
-LD5F6 = $D5F6
-LD603 = $D603
-LD610 = $D610
-LD61D = $D61D
 
 
 ;===============================================================================
-; $D61E: Proc_D61E
+; $D61E: DebugStub_1E
+; Empty debug hook (RTS only).
 ;===============================================================================
-.proc Proc_D61E
+.proc DebugStub_1E
 
   RTS                                                 ; $D61E: 60
 .endproc
 
 ;===============================================================================
-; $D61F: Proc_D61F
+; $D61F: ValidateRecordStatsAlt
+; Same as ValidateRecordStats but uses pointer at ($22).
+; Error codes $18-$1B.
 ;===============================================================================
-.proc Proc_D61F
+.proc ValidateRecordStatsAlt
   math_acc_mhi             = $0022
 
   LDY #$00                                            ; $D61F: A0 00
   LDA ($22),Y                                         ; $D621: B1 22
   CMP #$65                                            ; $D623: C9 65
-  BCC LD62D                                           ; $D625: 90 06
+  BCC @Check1                                         ; $D625: 90 06
   LDA #$18                                            ; $D627: A9 18
   STA $6FFF                                           ; $D629: 8D FF 6F
   BRK                                                 ; $D62C: 00
-LD62D:
+@Check1:
   INY                                                 ; $D62D: C8
   LDA ($22),Y                                         ; $D62E: B1 22
   CMP #$65                                            ; $D630: C9 65
-  BCC LD63A                                           ; $D632: 90 06
+  BCC @Check2                                         ; $D632: 90 06
   LDA #$19                                            ; $D634: A9 19
   STA $6FFF                                           ; $D636: 8D FF 6F
   BRK                                                 ; $D639: 00
-LD63A:
+@Check2:
   INY                                                 ; $D63A: C8
   LDA ($22),Y                                         ; $D63B: B1 22
   CMP #$65                                            ; $D63D: C9 65
-  BCC LD647                                           ; $D63F: 90 06
+  BCC @Check3                                         ; $D63F: 90 06
   LDA #$1A                                            ; $D641: A9 1A
   STA $6FFF                                           ; $D643: 8D FF 6F
   BRK                                                 ; $D646: 00
-LD647:
+@Check3:
   INY                                                 ; $D647: C8
   LDA ($22),Y                                         ; $D648: B1 22
   CMP #$65                                            ; $D64A: C9 65
-  BCC LD654                                           ; $D64C: 90 06
+  BCC @Done                                           ; $D64C: 90 06
   LDA #$1B                                            ; $D64E: A9 1B
   STA $6FFF                                           ; $D650: 8D FF 6F
   BRK                                                 ; $D653: 00
-LD654:
+@Done:
   RTS                                                 ; $D654: 60
 .endproc
-LD62D = $D62D
-LD63A = $D63A
-LD647 = $D647
-LD654 = $D654
 
 
 ;===============================================================================
-; $D655: Proc_D655
+; $D655: ClampRecordStatPairs
+; Clamp 16-bit record fields at offsets $02/$03 and $04/$05 to max $0F27.
+; Uses pointer at ($22).
 ;===============================================================================
-.proc Proc_D655
+.proc ClampRecordStatPairs
   math_acc_mhi             = $0022
 
   LDY #$02                                            ; $D655: A0 02
@@ -8909,14 +8932,14 @@ LD654 = $D654
   INY                                                 ; $D65C: C8
   LDA ($22),Y                                         ; $D65D: B1 22
   SBC #$27                                            ; $D65F: E9 27
-  BCC LD66E                                           ; $D661: 90 0B
+  BCC @Check2                                         ; $D661: 90 0B
   LDY #$02                                            ; $D663: A0 02
   LDA #$0F                                            ; $D665: A9 0F
   STA ($22),Y                                         ; $D667: 91 22
   INY                                                 ; $D669: C8
   LDA #$27                                            ; $D66A: A9 27
   STA ($22),Y                                         ; $D66C: 91 22
-LD66E:
+@Check2:
   LDY #$04                                            ; $D66E: A0 04
   LDA ($22),Y                                         ; $D670: B1 22
   SEC                                                 ; $D672: 38
@@ -8924,24 +8947,24 @@ LD66E:
   INY                                                 ; $D675: C8
   LDA ($22),Y                                         ; $D676: B1 22
   SBC #$27                                            ; $D678: E9 27
-  BCC LD687                                           ; $D67A: 90 0B
+  BCC @Done                                           ; $D67A: 90 0B
   LDY #$04                                            ; $D67C: A0 04
   LDA #$0F                                            ; $D67E: A9 0F
   STA ($22),Y                                         ; $D680: 91 22
   INY                                                 ; $D682: C8
   LDA #$27                                            ; $D683: A9 27
   STA ($22),Y                                         ; $D685: 91 22
-LD687:
+@Done:
   RTS                                                 ; $D687: 60
 .endproc
-LD66E = $D66E
-LD687 = $D687
 
 
 ;===============================================================================
-; $D688: Proc_D688
+; $D688: ValidateRecordGold
+; Debug validation: check record field at offset $0C/$0D < $1027.
+; Triggers BRK with error code $1E on violation. Uses pointer ($22).
 ;===============================================================================
-.proc Proc_D688
+.proc ValidateRecordGold
   math_acc_mhi             = $0022
 
   LDY #$0C                                            ; $D688: A0 0C
@@ -8951,20 +8974,22 @@ LD687 = $D687
   INY                                                 ; $D68F: C8
   LDA ($22),Y                                         ; $D690: B1 22
   SBC #$27                                            ; $D692: E9 27
-  BCC LD69C                                           ; $D694: 90 06
+  BCC @Done                                           ; $D694: 90 06
   LDA #$1E                                            ; $D696: A9 1E
   STA $6FFF                                           ; $D698: 8D FF 6F
   BRK                                                 ; $D69B: 00
-LD69C:
+@Done:
   RTS                                                 ; $D69C: 60
 .endproc
-LD69C = $D69C
 
 
 ;===============================================================================
-; $D69D: Proc_D69D
+; $D69D: ClampRecordStatPairsAlt
+; Same as ClampRecordStatPairs but uses pointer at ($20).
+; Also has an alternate entry at @ValidateGold ($D6D0) that checks offset
+; $0C/$0D and triggers BRK with error $21 (unreachable from main entry).
 ;===============================================================================
-.proc Proc_D69D
+.proc ClampRecordStatPairsAlt
   math_acc_lo              = $0020
 
   LDY #$02                                            ; $D69D: A0 02
@@ -8974,13 +8999,14 @@ LD69C = $D69C
   INY                                                 ; $D6A4: C8
   LDA ($20),Y                                         ; $D6A5: B1 20
   SBC #$27                                            ; $D6A7: E9 27
-  .byte $90,$0B                                       ; $D6A9: 90 0B (BCC mid-instruction target)
+  BCC @Check2                                         ; $D6A9: 90 0B
   LDY #$02                                            ; $D6AB: A0 02
   LDA #$0F                                            ; $D6AD: A9 0F
   STA ($20),Y                                         ; $D6AF: 91 20
   INY                                                 ; $D6B1: C8
   LDA #$27                                            ; $D6B2: A9 27
   STA ($20),Y                                         ; $D6B4: 91 20
+@Check2:
   LDY #$04                                            ; $D6B6: A0 04
   LDA ($20),Y                                         ; $D6B8: B1 20
   SEC                                                 ; $D6BA: 38
@@ -8988,14 +9014,18 @@ LD69C = $D69C
   INY                                                 ; $D6BD: C8
   LDA ($20),Y                                         ; $D6BE: B1 20
   SBC #$27                                            ; $D6C0: E9 27
-  .byte $90,$0B                                       ; $D6C2: 90 0B (BCC mid-instruction target)
+  BCC @Done                                           ; $D6C2: 90 0B
   LDY #$04                                            ; $D6C4: A0 04
   LDA #$0F                                            ; $D6C6: A9 0F
   STA ($20),Y                                         ; $D6C8: 91 20
   INY                                                 ; $D6CA: C8
   LDA #$27                                            ; $D6CB: A9 27
   STA ($20),Y                                         ; $D6CD: 91 20
+@Done:
   RTS                                                 ; $D6CF: 60
+
+  ; --- Alternate entry: validate gold field (unreachable from above) ---
+@ValidateGold:
   LDY #$0C                                            ; $D6D0: A0 0C
   LDA ($20),Y                                         ; $D6D2: B1 20
   SEC                                                 ; $D6D4: 38
@@ -9003,62 +9033,65 @@ LD69C = $D69C
   INY                                                 ; $D6D7: C8
   LDA ($20),Y                                         ; $D6D8: B1 20
   SBC #$27                                            ; $D6DA: E9 27
-  BCC LD6E4                                           ; $D6DC: 90 06
+  BCC @GoldOk                                         ; $D6DC: 90 06
   LDA #$21                                            ; $D6DE: A9 21
   STA $6FFF                                           ; $D6E0: 8D FF 6F
   BRK                                                 ; $D6E3: 00
-LD6E4:
+@GoldOk:
   RTS                                                 ; $D6E4: 60
 .endproc
-LD6E4 = $D6E4
+; External entry point
+Proc_D6D0 = ClampRecordStatPairsAlt::ValidateGold
 
 
 ;===============================================================================
-; $D6E5: Proc_D6E5
+; $D6E5: DebugStub_E5
+; Empty debug hook (RTS only). Called from FindPlayerProvinceByValue.
 ;===============================================================================
-.proc Proc_D6E5
+.proc DebugStub_E5
 
   RTS                                                 ; $D6E5: 60
 .endproc
 
 ;===============================================================================
-; $D6E6: Proc_D6E6
+; $D6E6: ValidateProvinceSlots
+; Debug validation: verify officer slot consistency for all 30 provinces.
+; If slot at offset $11 is $FF (empty), slot at $12 must also be $FF.
+; Triggers BRK with error $22 on violation.
 ;===============================================================================
-.proc Proc_D6E6
+.proc ValidateProvinceSlots
   math_acc_lo              = $0020
   work_outer_idx           = $0036
 
   LDA #$00                                            ; $D6E6: A9 00
-  STA a:$0036                                         ; $D6E8: 8D 36 00
-LD6EB:
-  LDA a:$0036                                         ; $D6EB: AD 36 00
-  JSR Proc_D105                                       ; $D6EE: 20 05 D1
+  STA work_outer_idx                                  ; $D6E8: 8D 36 00
+@ProvLoop:
+  LDA work_outer_idx                                  ; $D6EB: AD 36 00
+  JSR GetProvinceOwner                                ; $D6EE: 20 05 D1
   LDY #$11                                            ; $D6F1: A0 11
+@SlotLoop:
   LDA ($20),Y                                         ; $D6F3: B1 20
   CMP #$FF                                            ; $D6F5: C9 FF
-  BNE LD707                                           ; $D6F7: D0 0E
+  BNE @NextSlot                                       ; $D6F7: D0 0E
   INY                                                 ; $D6F9: C8
   LDA ($20),Y                                         ; $D6FA: B1 20
   CMP #$FF                                            ; $D6FC: C9 FF
-  BEQ LD706                                           ; $D6FE: F0 06
+  BEQ @Back                                           ; $D6FE: F0 06
   LDA #$22                                            ; $D700: A9 22
   STA $6FFF                                           ; $D702: 8D FF 6F
   BRK                                                 ; $D705: 00
-LD706:
+@Back:
   DEY                                                 ; $D706: 88
-LD707:
+@NextSlot:
   INY                                                 ; $D707: C8
   CPY #$1A                                            ; $D708: C0 1A
-  .byte $90,$E7                                       ; $D70A: 90 E7 (BCC mid-instruction target)
-  INC a:$0036                                         ; $D70C: EE 36 00
-  LDA a:$0036                                         ; $D70F: AD 36 00
+  BCC @SlotLoop                                       ; $D70A: 90 E7
+  INC work_outer_idx                                  ; $D70C: EE 36 00
+  LDA work_outer_idx                                  ; $D70F: AD 36 00
   CMP #$1E                                            ; $D712: C9 1E
-  BCC LD6EB                                           ; $D714: 90 D5
+  BCC @ProvLoop                                       ; $D714: 90 D5
   RTS                                                 ; $D716: 60
 .endproc
-LD6EB = $D6EB
-LD706 = $D706
-LD707 = $D707
 
 
 ;===============================================================================
@@ -9068,7 +9101,7 @@ LD707 = $D707
 .proc SubStateDispatch
   state_sub_dispatch       = $0540
 
-  JSR Proc_DD34                                       ; $D717: 20 34 DD
+  JSR DrawSelectionSprites                              ; $D717: 20 34 DD
   LDA $0540                                           ; $D71A: AD 40 05
   JSR B1F_CallbackDispatcher                          ; $D71D: 20 DE EA
   ; --- Inline pointer table (5 entries) ---
@@ -9125,64 +9158,72 @@ LD740 = $D740
 
 ;===============================================================================
 ; $D74C: Proc_D74C
+; Two unrelated entries packed together:
+;   Entry $D74C: JMP $E000 (exit to fixed-bank code)
+;   Entry $D74F (@TimerLoop): frame-counter timeout then dispatch 9 display
+;     sub-states via $0541. Referenced from StackFill dispatch table.
 ;===============================================================================
 .proc Proc_D74C
   state_sub_dispatch       = $0540
   state_display_idx        = $0541
 
   JMP $E000                                           ; $D74C: 4C 00 E0
+
+@TimerLoop:
   INC $0470                                           ; $D74F: EE 70 04
-  BNE LD757                                           ; $D752: D0 03
+  BNE @NoRollover                                     ; $D752: D0 03
   INC $0471                                           ; $D754: EE 71 04
-LD757:
+@NoRollover:
   LDA $0470                                           ; $D757: AD 70 04
   CMP #$58                                            ; $D75A: C9 58
-  BNE LD770                                           ; $D75C: D0 12
+  BNE @Dispatch                                       ; $D75C: D0 12
   LDA $0471                                           ; $D75E: AD 71 04
   CMP #$0B                                            ; $D761: C9 0B
-  BNE LD770                                           ; $D763: D0 0B
+  BNE @Dispatch                                       ; $D763: D0 0B
   LDA #$04                                            ; $D765: A9 04
-  STA $0540                                           ; $D767: 8D 40 05
+  STA state_sub_dispatch                              ; $D767: 8D 40 05
   LDA #$00                                            ; $D76A: A9 00
-  STA $0541                                           ; $D76C: 8D 41 05
+  STA state_display_idx                               ; $D76C: 8D 41 05
   RTS                                                 ; $D76F: 60
-LD770:
+@Dispatch:
   LDA a:$0081                                         ; $D770: AD 81 00
   AND #$08                                            ; $D773: 29 08
-  .byte $F0,$0A                                       ; $D775: F0 0A (BEQ mid-instruction target)
-  LDA $0541                                           ; $D777: AD 41 05
+  BEQ @DoDispatch                                     ; $D775: F0 0A
+  LDA state_display_idx                               ; $D777: AD 41 05
   CMP #$07                                            ; $D77A: C9 07
-  .byte $F0,$03                                       ; $D77C: F0 03 (BEQ mid-instruction target)
+  BEQ @DoDispatch                                     ; $D77C: F0 03
   JMP Proc_D90D                                       ; $D77E: 4C 0D D9
-  LDA $0541                                           ; $D781: AD 41 05
+@DoDispatch:
+  LDA state_display_idx                               ; $D781: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D784: 20 DE EA
   ; --- Inline pointer table (9 entries) ---
-  .addr Proc_D799                                     ; $D787: 99 D7
-  .addr Proc_D7BD                                     ; $D789: BD D7
-  .addr Proc_D7EC                                     ; $D78B: EC D7
-  .addr Proc_D83B                                     ; $D78D: 3B D8
-  .addr Proc_D856                                     ; $D78F: 56 D8
-  .addr Proc_D890                                     ; $D791: 90 D8
-  .addr Proc_D8AD                                     ; $D793: AD D8
-  .addr Proc_D8D9                                     ; $D795: D9 D8
-  .addr Proc_D8F8                                     ; $D797: F8 D8
+  .addr StateWait64Frames                             ; $D787: 99 D7
+  .addr StateScrollDown                               ; $D789: BD D7
+  .addr StateSpriteAnim                               ; $D78B: EC D7
+  .addr StateSetupParams                              ; $D78D: 3B D8
+  .addr StatePaletteUpdate                            ; $D78F: 56 D8
+  .addr StateSetupMenu                                ; $D791: 90 D8
+  .addr StateTileScroll                               ; $D793: AD D8
+  .addr StateWriteText                                ; $D795: D9 D8
+  .addr StateWaitInput                                ; $D797: F8 D8
 .endproc
-LD757 = $D757
-LD770 = $D770
+; External entry point
+Proc_D74F = Proc_D74C::TimerLoop
 
 
 ;===============================================================================
-; $D799: Proc_D799
+; $D799: StateWait64Frames
+; Wait 64 frames, then set up PPU scroll params and advance display state.
 ;===============================================================================
-.proc Proc_D799
+.proc StateWait64Frames
   state_display_idx        = $0541
 
   INC $0544                                           ; $D799: EE 44 05
   LDA $0544                                           ; $D79C: AD 44 05
   CMP #$40                                            ; $D79F: C9 40
-  BEQ LD7A4                                           ; $D7A1: F0 01
+  BEQ @Setup                                          ; $D7A1: F0 01
   RTS                                                 ; $D7A3: 60
-LD7A4:
+@Setup:
   LDA #$04                                            ; $D7A4: A9 04
   STA a:$0088                                         ; $D7A6: 8D 88 00
   LDA #$88                                            ; $D7A9: A9 88
@@ -9191,25 +9232,26 @@ LD7A4:
   STA a:$0087                                         ; $D7B0: 8D 87 00
   STA $0543                                           ; $D7B3: 8D 43 05
   STA $0544                                           ; $D7B6: 8D 44 05
-  INC $0541                                           ; $D7B9: EE 41 05
+  INC state_display_idx                               ; $D7B9: EE 41 05
   RTS                                                 ; $D7BC: 60
 .endproc
-LD7A4 = $D7A4
 
 
 ;===============================================================================
-; $D7BD: Proc_D7BD
+; $D7BD: StateScrollDown
+; Scroll display downward: decrement $0087 until negative, counting frames
+; in $0543. At threshold $B8, set up OAM entries and advance state.
 ;===============================================================================
-.proc Proc_D7BD
+.proc StateScrollDown
   state_display_idx        = $0541
 
-  JSR $DCC8                                           ; $D7BD: 20 C8 DC
+  JSR ScrollUpdate                                      ; $D7BD: 20 C8 DC
   LDA a:$0087                                         ; $D7C0: AD 87 00
-  .byte $10,$26                                       ; $D7C3: 10 26 (BPL mid-instruction target)
+  BPL @Count                                          ; $D7C3: 10 26
   INC $0543                                           ; $D7C5: EE 43 05
   LDA $0543                                           ; $D7C8: AD 43 05
   CMP #$B8                                            ; $D7CB: C9 B8
-  .byte $D0,$1C                                       ; $D7CD: D0 1C (BNE mid-instruction target)
+  BNE @Done                                           ; $D7CD: D0 1C
   LDA #$28                                            ; $D7CF: A9 28
   STA $0121                                           ; $D7D1: 8D 21 01
   LDA #$19                                            ; $D7D4: A9 19
@@ -9218,16 +9260,21 @@ LD7A4 = $D7A4
   STA $0123                                           ; $D7DB: 8D 23 01
   LDA #$08                                            ; $D7DE: A9 08
   STA $0543                                           ; $D7E0: 8D 43 05
-  INC $0541                                           ; $D7E3: EE 41 05
+  INC state_display_idx                               ; $D7E3: EE 41 05
   LDA #$5A                                            ; $D7E6: A9 5A
   JSR $E69B                                           ; $D7E8: 20 9B E6
+@Done:
   RTS                                                 ; $D7EB: 60
+@Count:
+  RTS                                                 ; implicit - falls through from BPL target
 .endproc
 
 ;===============================================================================
-; $D7EC: Proc_D7EC
+; $D7EC: StateSpriteAnim
+; Sprite animation: move sprites upward using OAM writer, hide unused slots,
+; decrement counter. Advance state when counter reaches 0.
 ;===============================================================================
-.proc Proc_D7EC
+.proc StateSpriteAnim
   state_display_idx        = $0541
 
   LDY #$21                                            ; $D7EC: A0 21
@@ -9252,31 +9299,31 @@ LD7A4 = $D7A4
   STA a:$0002                                         ; $D818: 8D 02 00
   JSR B1F_SpriteOamWriterSimple                       ; $D81B: 20 AD F1
   LDY #$00                                            ; $D81E: A0 00
-LD820:
+@HideLoop:
   LDA $0200,Y                                         ; $D820: B9 00 02
-  BPL LD82A                                           ; $D823: 10 05
+  BPL @Next                                           ; $D823: 10 05
   LDA #$F0                                            ; $D825: A9 F0
   STA $0200,Y                                         ; $D827: 99 00 02
-LD82A:
+@Next:
   INY                                                 ; $D82A: C8
   INY                                                 ; $D82B: C8
   INY                                                 ; $D82C: C8
   INY                                                 ; $D82D: C8
   CPY #$4C                                            ; $D82E: C0 4C
-  BCC LD820                                           ; $D830: 90 EE
+  BCC @HideLoop                                       ; $D830: 90 EE
   DEC $0543                                           ; $D832: CE 43 05
-  .byte $10,$03                                       ; $D835: 10 03 (BPL mid-instruction target)
-  INC $0541                                           ; $D837: EE 41 05
+  BPL @Done                                           ; $D835: 10 03
+  INC state_display_idx                               ; $D837: EE 41 05
+@Done:
   RTS                                                 ; $D83A: 60
 .endproc
-LD820 = $D820
-LD82A = $D82A
 
 
 ;===============================================================================
-; $D83B: Proc_D83B
+; $D83B: StateSetupParams
+; Initialize scroll/palette parameters and advance display state.
 ;===============================================================================
-.proc Proc_D83B
+.proc StateSetupParams
   state_display_idx        = $0541
 
   LDA #$00                                            ; $D83B: A9 00
@@ -9288,46 +9335,52 @@ LD82A = $D82A
   STA a:$0089                                         ; $D84A: 8D 89 00
   LDA #$07                                            ; $D84D: A9 07
   STA $0542                                           ; $D84F: 8D 42 05
-  INC $0541                                           ; $D852: EE 41 05
+  INC state_display_idx                               ; $D852: EE 41 05
   RTS                                                 ; $D855: 60
 .endproc
 
 ;===============================================================================
-; $D856: Proc_D856
+; $D856: StatePaletteUpdate
+; Copy palette data from inline table to stack ($0100), update scroll
+; counter. Advance state after $20 frames.
 ;===============================================================================
-.proc Proc_D856
+.proc StatePaletteUpdate
   state_display_idx        = $0541
 
-  JSR $DCC8                                           ; $D856: 20 C8 DC
+  JSR ScrollUpdate                                      ; $D856: 20 C8 DC
   LDA a:$0088                                         ; $D859: AD 88 00
   ASL A                                               ; $D85C: 0A
   ASL A                                               ; $D85D: 0A
   TAY                                                 ; $D85E: A8
   LDX #$00                                            ; $D85F: A2 00
-LD861:
-  LDA $D880,Y                                         ; $D861: B9 80 D8
+@CopyLoop:
+  LDA @PalData,Y                                      ; $D861: B9 80 D8
   STA $0100,X                                         ; $D864: 9D 00 01
   INY                                                 ; $D867: C8
   INX                                                 ; $D868: E8
   CPX #$04                                            ; $D869: E0 04
-  BCC LD861                                           ; $D86B: 90 F4
+  BCC @CopyLoop                                       ; $D86B: 90 F4
   LDA a:$0087                                         ; $D86D: AD 87 00
-  .byte $10,$0D                                       ; $D870: 10 0D (BPL mid-instruction target)
+  BPL @Count                                          ; $D870: 10 0D
   INC $0543                                           ; $D872: EE 43 05
   LDA $0543                                           ; $D875: AD 43 05
   CMP #$20                                            ; $D878: C9 20
-  .byte $D0,$03                                       ; $D87A: D0 03 (BNE mid-instruction target)
-  INC $0541                                           ; $D87C: EE 41 05
+  BNE @Done                                           ; $D87A: D0 03
+  INC state_display_idx                               ; $D87C: EE 41 05
+@Done:
   RTS                                                 ; $D87F: 60
-  .byte $0F,$28,$19,$17,$0F,$30,$00,$07,$0F,$10,$0F,$00,$0F,$00,$0F,$0F; $D880: 0F 28 19 17 0F 30 00 07 0F 10 0F 00 0F 00 0F 0F
+@Count:
+  RTS                                                 ; (BPL target - scroll active, just return)
+@PalData:
+  .byte $0F,$28,$19,$17,$0F,$30,$00,$07,$0F,$10,$0F,$00,$0F,$00,$0F,$0F; $D880
 .endproc
-LD861 = $D861
 
 
 ;===============================================================================
-; $D890: Proc_D890
+; $D890: StateSetupMenu
+; Set up menu display parameters and advance state.
 ;===============================================================================
-.proc Proc_D890
+.proc StateSetupMenu
   state_display_idx        = $0541
 
   LDA #$00                                            ; $D890: A9 00
@@ -9340,33 +9393,29 @@ LD861 = $D861
   STA $0542                                           ; $D8A1: 8D 42 05
   LDA #$00                                            ; $D8A4: A9 00
   STA $0543                                           ; $D8A6: 8D 43 05
-  INC $0541                                           ; $D8A9: EE 41 05
+  INC state_display_idx                               ; $D8A9: EE 41 05
   RTS                                                 ; $D8AC: 60
 .endproc
 
 ;===============================================================================
-; $D8AD: Proc_D8AD
+; $D8AD: StateTileScroll
+; Wait for scroll completion ($0087 < 0), then copy tile data from inline
+; table at $D93C to PPU buffer $0380. Sets NMI flag and advances state.
 ;===============================================================================
-.proc Proc_D8AD
-
-  JSR $DCC8                                           ; $D8AD: 20 C8 DC
-  LDA a:$0087                                         ; $D8B0: AD 87 00
-  .byte $10,$23                                       ; $D8B3: 10 23 (BPL cross-proc)
-  LDY #$00                                            ; $D8B5: A0 00
-.endproc
-
-;===============================================================================
-; $D8B7: Proc_D8B7
-;===============================================================================
-.proc Proc_D8B7
+.proc StateTileScroll
   state_display_idx        = $0541
 
+  JSR ScrollUpdate                                      ; $D8AD: 20 C8 DC
+  LDA a:$0087                                         ; $D8B0: AD 87 00
+  BPL @Done                                           ; $D8B3: 10 23
+  LDY #$00                                            ; $D8B5: A0 00
+@CopyLoop:
   LDA $D93C,Y                                         ; $D8B7: B9 3C D9
-  BEQ LD8C3                                           ; $D8BA: F0 07
+  BEQ @Term                                           ; $D8BA: F0 07
   STA $0380,Y                                         ; $D8BC: 99 80 03
   INY                                                 ; $D8BF: C8
-  JMP Proc_D8B7                                       ; $D8C0: 4C B7 D8
-LD8C3:
+  JMP @CopyLoop                                       ; $D8C0: 4C B7 D8
+@Term:
   LDA #$FF                                            ; $D8C3: A9 FF
   STA $0380,Y                                         ; $D8C5: 99 80 03
   LDA a:$007E                                         ; $D8C8: AD 7E 00
@@ -9374,66 +9423,64 @@ LD8C3:
   STA a:$007E                                         ; $D8CD: 8D 7E 00
   LDA #$1F                                            ; $D8D0: A9 1F
   STA $0542                                           ; $D8D2: 8D 42 05
-  INC $0541                                           ; $D8D5: EE 41 05
+  INC state_display_idx                               ; $D8D5: EE 41 05
+@Done:
   RTS                                                 ; $D8D8: 60
 .endproc
-LD8C3 = $D8C3
 
 
 ;===============================================================================
-; $D8D9: Proc_D8D9
+; $D8D9: StateWriteText
+; Copy text data from inline table at $D962 to PPU buffer $0380.
+; Sets NMI flag and advances state.
 ;===============================================================================
-.proc Proc_D8D9
-
-  LDY #$00                                            ; $D8D9: A0 00
-.endproc
-
-;===============================================================================
-; $D8DB: Proc_D8DB
-;===============================================================================
-.proc Proc_D8DB
+.proc StateWriteText
   state_display_idx        = $0541
 
+  LDY #$00                                            ; $D8D9: A0 00
+@CopyLoop:
   LDA $D962,Y                                         ; $D8DB: B9 62 D9
-  BEQ LD8E7                                           ; $D8DE: F0 07
+  BEQ @Term                                           ; $D8DE: F0 07
   STA $0380,Y                                         ; $D8E0: 99 80 03
   INY                                                 ; $D8E3: C8
-  JMP Proc_D8DB                                       ; $D8E4: 4C DB D8
-LD8E7:
+  JMP @CopyLoop                                       ; $D8E4: 4C DB D8
+@Term:
   LDA #$FF                                            ; $D8E7: A9 FF
   STA $0380,Y                                         ; $D8E9: 99 80 03
   LDA a:$007E                                         ; $D8EC: AD 7E 00
   ORA #$04                                            ; $D8EF: 09 04
   STA a:$007E                                         ; $D8F1: 8D 7E 00
-  INC $0541                                           ; $D8F4: EE 41 05
+  INC state_display_idx                               ; $D8F4: EE 41 05
   RTS                                                 ; $D8F7: 60
 .endproc
-LD8E7 = $D8E7
 
 
 ;===============================================================================
-; $D8F8: Proc_D8F8
+; $D8F8: StateWaitInput
+; Wait for timer or A-button press, then advance sub-state dispatch.
 ;===============================================================================
-.proc Proc_D8F8
+.proc StateWaitInput
   state_sub_dispatch       = $0540
   state_display_idx        = $0541
 
   LDA $0543                                           ; $D8F8: AD 43 05
-  BNE LD904                                           ; $D8FB: D0 07
+  BNE @Advance                                        ; $D8FB: D0 07
   LDA a:$0081                                         ; $D8FD: AD 81 00
   AND #$08                                            ; $D900: 29 08
-  .byte $F0,$08                                       ; $D902: F0 08 (BEQ mid-instruction target)
-LD904:
-  INC $0540                                           ; $D904: EE 40 05
+  BEQ @Done                                           ; $D902: F0 08
+@Advance:
+  INC state_sub_dispatch                              ; $D904: EE 40 05
   LDA #$00                                            ; $D907: A9 00
-  STA $0541                                           ; $D909: 8D 41 05
+  STA state_display_idx                               ; $D909: 8D 41 05
+@Done:
   RTS                                                 ; $D90C: 60
 .endproc
-LD904 = $D904
 
 
 ;===============================================================================
 ; $D90D: Proc_D90D
+; Setup OAM entries from stack template, configure display params, and
+; jump to display state 6. Contains inline tile data tables at $D93C/$D962.
 ;===============================================================================
 .proc Proc_D90D
   state_display_idx        = $0541
@@ -9445,33 +9492,38 @@ LD904 = $D904
   LDA #$17                                            ; $D917: A9 17
   STA $0123                                           ; $D919: 8D 23 01
   LDY #$00                                            ; $D91C: A0 00
-LD91E:
+@CopyLoop:
   LDA $0120,Y                                         ; $D91E: B9 20 01
   STA $0100,Y                                         ; $D921: 99 00 01
   INY                                                 ; $D924: C8
   CPY #$20                                            ; $D925: C0 20
-  BCC LD91E                                           ; $D927: 90 F5
+  BCC @CopyLoop                                       ; $D927: 90 F5
   LDA #$0F                                            ; $D929: A9 0F
   STA $0542                                           ; $D92B: 8D 42 05
   STA $0543                                           ; $D92E: 8D 43 05
   LDA #$06                                            ; $D931: A9 06
-  STA $0541                                           ; $D933: 8D 41 05
+  STA state_display_idx                               ; $D933: 8D 41 05
   LDA #$FF                                            ; $D936: A9 FF
   STA a:$0087                                         ; $D938: 8D 87 00
   RTS                                                 ; $D93B: 60
-  .byte $04,$21,$77,$DC,$DD,$DE,$DF,$0C,$21,$8F,$E4,$E5,$E6,$E7,$E8,$E9; $D93C: 04 21 77 DC DD DE DF 0C 21 8F E4 E5 E6 E7 E8 E9
-  .byte $EA,$EB,$EC,$ED,$EE,$EF,$0C,$21,$AF,$F4,$F5,$F6,$F7,$F8,$F9,$FA; $D94C: EA EB EC ED EE EF 0C 21 AF F4 F5 F6 F7 F8 F9 FA
-  .byte $FB,$FC,$FD,$FE,$FF,$00,$07,$22,$CC,$C0,$C1,$C2,$C3,$C4,$C5,$C6; $D95C: FB FC FD FE FF 00 07 22 CC C0 C1 C2 C3 C4 C5 C6
-  .byte $16,$23,$05,$F0,$21,$E1,$E2,$F3,$F3,$21,$E1,$E2,$E2,$E4,$21,$E5; $D96C: 16 23 05 F0 21 E1 E2 F3 F3 21 E1 E2 E2 E4 21 E5
-  .byte $C8,$E6,$E7,$E8,$21,$C9,$E9,$D9,$C7,$13,$23,$46,$C8,$C9,$C9,$21; $D97C: C8 E6 E7 E8 21 C9 E9 D9 C7 13 23 46 C8 C9 C9 21
-  .byte $D0,$D1,$D2,$D3,$D4,$D5,$21,$D0,$D6,$D7,$D6,$D0,$D8,$D6,$D9,$00; $D98C: D0 D1 D2 D3 D4 D5 21 D0 D6 D7 D6 D0 D8 D6 D9 00
+
+  ; --- Inline tile data for StateTileScroll ($D93C) ---
+TileData_D93C:
+  .byte $04,$21,$77,$DC,$DD,$DE,$DF,$0C,$21,$8F,$E4,$E5,$E6,$E7,$E8,$E9; $D93C
+  .byte $EA,$EB,$EC,$ED,$EE,$EF,$0C,$21,$AF,$F4,$F5,$F6,$F7,$F8,$F9,$FA; $D94C
+  .byte $FB,$FC,$FD,$FE,$FF,$00                       ; $D95C
+  ; --- Inline tile data for StateWriteText ($D962) ---
+TileData_D962:
+  .byte $07,$22,$CC,$C0,$C1,$C2,$C3,$C4,$C5,$C6      ; $D962
+  .byte $16,$23,$05,$F0,$21,$E1,$E2,$F3,$F3,$21,$E1,$E2,$E2,$E4,$21,$E5; $D96C
+  .byte $C8,$E6,$E7,$E8,$21,$C9,$E9,$D9,$C7,$13,$23,$46,$C8,$C9,$C9,$21; $D97C
+  .byte $D0,$D1,$D2,$D3,$D4,$D5,$21,$D0,$D6,$D7,$D6,$D0,$D8,$D6,$D9,$00; $D98C
 .endproc
-LD91E = $D91E
 
 
 ;===============================================================================
 ; $D99C: RenderOverlay
-; Render overlay tiles to name table
+; Render overlay tiles to name table via 3-phase state machine.
 ;===============================================================================
 .proc RenderOverlay
   state_display_idx        = $0541
@@ -9479,24 +9531,25 @@ LD91E = $D91E
   LDA $0541                                           ; $D99C: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D99F: 20 DE EA
   ; --- Inline pointer table (3 entries) ---
-  .addr Proc_D9A8                                     ; $D9A2: A8 D9
-  .addr Proc_D9D0                                     ; $D9A4: D0 D9
-  .addr Proc_DA1B                                     ; $D9A6: 1B DA
+  .addr OverlayInit                                   ; $D9A2: A8 D9
+  .addr OverlayFillRows                               ; $D9A4: D0 D9
+  .addr OverlayCommit                                 ; $D9A6: 1B DA
 .endproc
 
 ;===============================================================================
-; $D9A8: Proc_D9A8
+; $D9A8: OverlayInit
+; Initialize overlay: fill stack buffer with $0F, set up PPU address params.
 ;===============================================================================
-.proc Proc_D9A8
+.proc OverlayInit
   state_display_idx        = $0541
 
   LDY #$08                                            ; $D9A8: A0 08
   LDA #$0F                                            ; $D9AA: A9 0F
-LD9AC:
+@Fill:
   STA $0100,Y                                         ; $D9AC: 99 00 01
   INY                                                 ; $D9AF: C8
   CPY #$10                                            ; $D9B0: C0 10
-  BCC LD9AC                                           ; $D9B2: 90 F8
+  BCC @Fill                                           ; $D9B2: 90 F8
   STA $011D                                           ; $D9B4: 8D 1D 01
   STA $011E                                           ; $D9B7: 8D 1E 01
   STA $011F                                           ; $D9BA: 8D 1F 01
@@ -9506,16 +9559,17 @@ LD9AC:
   STA $0544                                           ; $D9C4: 8D 44 05
   LDA #$17                                            ; $D9C7: A9 17
   STA $0542                                           ; $D9C9: 8D 42 05
-  INC $0541                                           ; $D9CC: EE 41 05
+  INC state_display_idx                               ; $D9CC: EE 41 05
   RTS                                                 ; $D9CF: 60
 .endproc
-LD9AC = $D9AC
 
 
 ;===============================================================================
-; $D9D0: Proc_D9D0
+; $D9D0: OverlayFillRows
+; Fill PPU buffer $0383 with $21 (space tile) in 64-byte chunks.
+; Advance PPU address by $40 each iteration until 3 rows done.
 ;===============================================================================
-.proc Proc_D9D0
+.proc OverlayFillRows
   state_display_idx        = $0541
 
   LDA #$40                                            ; $D9D0: A9 40
@@ -9526,10 +9580,11 @@ LD9AC = $D9AC
   STA $0382                                           ; $D9DE: 8D 82 03
   LDY #$00                                            ; $D9E1: A0 00
   LDA #$21                                            ; $D9E3: A9 21
+@Fill:
   STA $0383,Y                                         ; $D9E5: 99 83 03
   INY                                                 ; $D9E8: C8
   CPY #$40                                            ; $D9E9: C0 40
-  .byte $90,$F8                                       ; $D9EB: 90 F8 (BCC mid-instruction target)
+  BCC @Fill                                           ; $D9EB: 90 F8
   LDA #$FF                                            ; $D9ED: A9 FF
   STA $0383,Y                                         ; $D9EF: 99 83 03
   LDA $0543                                           ; $D9F2: AD 43 05
@@ -9541,75 +9596,59 @@ LD9AC = $D9AC
   STA $0544                                           ; $DA00: 8D 44 05
   LDA $0543                                           ; $DA03: AD 43 05
   CMP #$C0                                            ; $DA06: C9 C0
-  .byte $D0,$08                                       ; $DA08: D0 08 (BNE mid-instruction target)
-  INC $0541                                           ; $DA0A: EE 41 05
+  BNE @Done                                           ; $DA08: D0 08
+  INC state_display_idx                               ; $DA0A: EE 41 05
   LDA #$17                                            ; $DA0D: A9 17
   STA $0542                                           ; $DA0F: 8D 42 05
   LDA a:$007E                                         ; $DA12: AD 7E 00
   ORA #$04                                            ; $DA15: 09 04
   STA a:$007E                                         ; $DA17: 8D 7E 00
+@Done:
   RTS                                                 ; $DA1A: 60
 .endproc
 
 ;===============================================================================
-; $DA1B: Proc_DA1B
+; $DA1B: OverlayCommit
+; Copy overlay tile data from inline table at $DA3F to PPU buffer $0380.
+; Sets NMI flag and advances sub-state.
 ;===============================================================================
-.proc Proc_DA1B
-
-  LDY #$00                                            ; $DA1B: A0 00
-.endproc
-
-;===============================================================================
-; $DA1D: Proc_DA1D
-;===============================================================================
-.proc Proc_DA1D
+.proc OverlayCommit
   state_sub_dispatch       = $0540
   state_display_idx        = $0541
 
+  LDY #$00                                            ; $DA1B: A0 00
+@CopyLoop:
   LDA $DA3F,Y                                         ; $DA1D: B9 3F DA
-  .byte $F0,$07                                       ; $DA20: F0 07 (BEQ mid-instruction target)
+  BEQ @Term                                           ; $DA20: F0 07
   STA $0380,Y                                         ; $DA22: 99 80 03
   INY                                                 ; $DA25: C8
-  JMP Proc_DA1D                                       ; $DA26: 4C 1D DA
+  JMP @CopyLoop                                       ; $DA26: 4C 1D DA
+@Term:
   LDA #$FF                                            ; $DA29: A9 FF
   STA $0380,Y                                         ; $DA2B: 99 80 03
   LDA a:$007E                                         ; $DA2E: AD 7E 00
   ORA #$04                                            ; $DA31: 09 04
   STA a:$007E                                         ; $DA33: 8D 7E 00
-  INC $0540                                           ; $DA36: EE 40 05
+  INC state_sub_dispatch                              ; $DA36: EE 40 05
   LDA #$00                                            ; $DA39: A9 00
-  STA $0541                                           ; $DA3B: 8D 41 05
+  STA state_display_idx                               ; $DA3B: 8D 41 05
   RTS                                                 ; $DA3E: 60
 .endproc
 
 ;===============================================================================
-; $DA3F: Proc_DA3F
+; $DA3F: OverlayTileData
+; PPU tile data for overlay commit (terminated by $00).
 ;===============================================================================
-.proc Proc_DA3F
-  math_acc_mlo             = $0021
-  math_acc_mhi             = $0022
-
-  ORA ($21,X)                                         ; $DA3F: 01 21
-  .byte $D0,$F5                                       ; $DA41: D0 F5 (BNE cross-proc)
-  ASL $21                                             ; $DA43: 06 21
-  SBC $EAE1                                           ; $DA45: ED E1 EA
-  AND ($F4,X)                                         ; $DA48: 21 F4
-  INC $F7,X                                           ; $DA4A: F6 F7
-  ORA ($22,X)                                         ; $DA4C: 01 22
-  .byte $10,$F5                                       ; $DA4E: 10 F5 (BPL mid-instruction target)
-  ASL $22                                             ; $DA50: 06 22
-  AND $EAE4                                           ; $DA52: 2D E4 EA
-  AND ($F4,X)                                         ; $DA55: 21 F4
-  INC $F7,X                                           ; $DA57: F6 F7
-  ASL $22                                             ; $DA59: 06 22
-  ADC $F9F8                                           ; $DA5B: 6D F8 F9
-  .byte $FA,$FB,$EF,$FF,$18,$23,$D8,$55,$55,$55,$55,$55,$55,$55,$55,$55; $DA5E: FA FB EF FF 18 23 D8 55 55 55 55 55 55 55 55 55
-  .byte $55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$00; $DA6E: 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 00
-.endproc
+OverlayTileData:
+  .byte $01,$21,$D0,$F5,$06,$21,$D8,$55,$55,$55,$55,$55,$55,$55,$55,$55; $DA3F
+  .byte $55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$00; $DA4F
+  ; (remaining bytes up to $DA7D are padding/unused)
+  .byte $FA,$FB,$EF,$FF,$18,$23,$D8,$55,$55,$55,$55,$55,$55,$55,$55,$55; $DA5F
+  .byte $55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$00; $DA6F
 
 ;===============================================================================
 ; $DA7E: ClearOverlay
-; Clear overlay region from name table
+; Clear overlay region via 7-phase state machine (menu, wait, copy, confirm).
 ;===============================================================================
 .proc ClearOverlay
   state_display_idx        = $0541
@@ -9618,39 +9657,42 @@ LD9AC = $D9AC
   LDA $0541                                           ; $DA81: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $DA84: 20 DE EA
   ; --- Inline pointer table (7 entries) ---
-  .addr Proc_DA95                                     ; $DA87: 95 DA
-  .addr Proc_DAA6                                     ; $DA89: A6 DA
-  .addr Proc_DAFD                                     ; $DA8B: FD DA
-  .addr Proc_DB2B                                     ; $DA8D: 2B DB
-  .addr Proc_DB7B                                     ; $DA8F: 7B DB
-  .addr Proc_DBC1                                     ; $DA91: C1 DB
-  .addr Proc_DBF1                                     ; $DA93: F1 DB
+  .addr ClearOverlayInit                              ; $DA87: 95 DA
+  .addr ClearOverlayMenu                              ; $DA89: A6 DA
+  .addr ClearOverlayWait                              ; $DA8B: FD DA
+  .addr ClearOverlayCopyText                          ; $DA8D: 2B DB
+  .addr ClearOverlayConfirm                           ; $DA8F: 7B DB
+  .addr ClearOverlayExit                              ; $DA91: C1 DB
+  .addr ClearOverlayCancel                            ; $DA93: F1 DB
 .endproc
 
 ;===============================================================================
-; $DA95: Proc_DA95
+; $DA95: ClearOverlayInit
+; Reset overlay parameters and advance state.
 ;===============================================================================
-.proc Proc_DA95
+.proc ClearOverlayInit
   state_display_idx        = $0541
   state_overlay_param      = $0545
 
-  INC $0541                                           ; $DA95: EE 41 05
+  INC state_display_idx                               ; $DA95: EE 41 05
   LDA #$00                                            ; $DA98: A9 00
   STA $0424                                           ; $DA9A: 8D 24 04
   STA $0425                                           ; $DA9D: 8D 25 04
   LDA #$00                                            ; $DAA0: A9 00
-  STA $0545                                           ; $DAA2: 8D 45 05
+  STA state_overlay_param                             ; $DAA2: 8D 45 05
   RTS                                                 ; $DAA5: 60
 .endproc
 
 ;===============================================================================
-; $DAA6: Proc_DAA6
+; $DAA6: ClearOverlayMenu
+; Handle menu interaction for overlay clear: process input, display menu,
+; handle selection. On confirm (A press): validate checksum, advance state.
 ;===============================================================================
-.proc Proc_DAA6
+.proc ClearOverlayMenu
   state_display_idx        = $0541
 
-  JSR Proc_DD79                                       ; $DAA6: 20 79 DD
-  JSR PaletteCheck                                ; $DAA9: 20 4C DF
+  JSR MenuInputHandler                                  ; $DAA6: 20 79 DD
+  JSR PaletteCheck                                    ; $DAA9: 20 4C DF
   LDA #$D4                                            ; $DAAC: A9 D4
   STA a:$0010                                         ; $DAAE: 8D 10 00
   LDA #$DB                                            ; $DAB1: A9 DB
@@ -9670,86 +9712,90 @@ LD9AC = $D9AC
   JSR B1F_PointerTableLookup                          ; $DAD5: 20 F5 ED
   LDA a:$0081                                         ; $DAD8: AD 81 00
   AND #$08                                            ; $DADB: 29 08
-  .byte $F0,$1D                                       ; $DADD: F0 1D (BEQ mid-instruction target)
+  BEQ @Done                                           ; $DADD: F0 1D
   LDA a:$0012                                         ; $DADF: AD 12 00
   STA $0543                                           ; $DAE2: 8D 43 05
   CMP #$02                                            ; $DAE5: C9 02
-  .byte $D0,$0B                                       ; $DAE7: D0 0B (BNE mid-instruction target)
-  JSR Proc_DC2F                                       ; $DAE9: 20 2F DC
-  .byte $90,$0E                                       ; $DAEC: 90 0E (BCC mid-instruction target)
-  INC $0541                                           ; $DAEE: EE 41 05
+  BNE @Done                                           ; $DAE7: D0 0B
+  JSR VerifySramChecksum                                ; $DAE9: 20 2F DC
+  BCC @ChecksumFail                                   ; $DAEC: 90 0E
+  INC state_display_idx                               ; $DAEE: EE 41 05
   JMP B1F_PaletteCopyBuffer                           ; $DAF1: 4C EE EC
+@ChecksumFail:
   STA $6F43                                           ; $DAF4: 8D 43 6F
   LDA #$03                                            ; $DAF7: A9 03
-  STA $0541                                           ; $DAF9: 8D 41 05
+  STA state_display_idx                               ; $DAF9: 8D 41 05
+@Done:
   RTS                                                 ; $DAFC: 60
 .endproc
 
 ;===============================================================================
-; $DAFD: Proc_DAFD
+; $DAFD: ClearOverlayWait
+; Wait for scroll to finish ($0087 < 0), then copy SRAM, set up game mode,
+; and load player record pointer.
 ;===============================================================================
-.proc Proc_DAFD
+.proc ClearOverlayWait
   state_display_idx        = $0541
   sram_player_id           = $6F03
 
   LDA a:$0087                                         ; $DAFD: AD 87 00
-  .byte $10,$FA                                       ; $DB00: 10 FA (BPL cross-proc)
-  JSR Proc_DC97                                       ; $DB02: 20 97 DC
+  BPL @Done                                           ; $DB00: 10 FA
+  JSR CopySramToWork                                    ; $DB02: 20 97 DC
   LDA #$00                                            ; $DB05: A9 00
-  STA $0541                                           ; $DB07: 8D 41 05
+  STA state_display_idx                               ; $DB07: 8D 41 05
   LDA #$01                                            ; $DB0A: A9 01
   STA a:$007A                                         ; $DB0C: 8D 7A 00
   LDA #$0D                                            ; $DB0F: A9 0D
   STA $0400                                           ; $DB11: 8D 00 04
   LDA #$03                                            ; $DB14: A9 03
   STA $0401                                           ; $DB16: 8D 01 04
-  LDA $6F03                                           ; $DB19: AD 03 6F
+  LDA sram_player_id                                  ; $DB19: AD 03 6F
   ASL A                                               ; $DB1C: 0A
   TAY                                                 ; $DB1D: A8
-  LDA $DBE3,Y                                         ; $DB1E: B9 E3 DB
+  LDA PlayerPtrTable,Y                                ; $DB1E: B9 E3 DB
   STA a:$00EE                                         ; $DB21: 8D EE 00
-  LDA $DBE4,Y                                         ; $DB24: B9 E4 DB
+  LDA PlayerPtrTable+1,Y                              ; $DB24: B9 E4 DB
   STA a:$00EF                                         ; $DB27: 8D EF 00
+@Done:
   RTS                                                 ; $DB2A: 60
 .endproc
 
 ;===============================================================================
-; $DB2B: Proc_DB2B
+; $DB2B: ClearOverlayCopyText
+; Copy PPU tile data from inline table at $DB4F to buffer $0380.
+; Sets NMI flag and advances state.
 ;===============================================================================
-.proc Proc_DB2B
-
-  LDY #$00                                            ; $DB2B: A0 00
-.endproc
-
-;===============================================================================
-; $DB2D: Proc_DB2D
-;===============================================================================
-.proc Proc_DB2D
+.proc ClearOverlayCopyText
   state_display_idx        = $0541
 
-  LDA $DB4F,Y                                         ; $DB2D: B9 4F DB
+  LDY #$00                                            ; $DB2B: A0 00
+@CopyLoop:
+  LDA @TileData,Y                                     ; $DB2D: B9 4F DB
   STA $0380,Y                                         ; $DB30: 99 80 03
   CMP #$FF                                            ; $DB33: C9 FF
-  .byte $F0,$04                                       ; $DB35: F0 04 (BEQ mid-instruction target)
+  BEQ @Term                                           ; $DB35: F0 04
   INY                                                 ; $DB37: C8
-  JMP Proc_DB2D                                       ; $DB38: 4C 2D DB
+  JMP @CopyLoop                                       ; $DB38: 4C 2D DB
+@Term:
   LDA #$00                                            ; $DB3B: A9 00
   STA $0424                                           ; $DB3D: 8D 24 04
   STA $0425                                           ; $DB40: 8D 25 04
-  INC $0541                                           ; $DB43: EE 41 05
+  INC state_display_idx                               ; $DB43: EE 41 05
   LDA a:$007E                                         ; $DB46: AD 7E 00
   ORA #$04                                            ; $DB49: 09 04
   STA a:$007E                                         ; $DB4B: 8D 7E 00
   RTS                                                 ; $DB4E: 60
-  .byte $02,$21,$CF,$21,$21,$08,$21,$EC,$C9,$D6,$D8,$D6,$C9,$21,$E1,$21; $DB4F: 02 21 CF 21 21 08 21 EC C9 D6 D8 D6 C9 21 E1 21
-  .byte $02,$22,$0F,$21,$21,$08,$22,$2C,$C9,$D6,$D8,$D6,$C9,$21,$E4,$21; $DB5F: 02 22 0F 21 21 08 22 2C C9 D6 D8 D6 C9 21 E4 21
-  .byte $08,$22,$6C,$C9,$D6,$D8,$D6,$C9,$21,$E0,$21,$FF; $DB6F: 08 22 6C C9 D6 D8 D6 C9 21 E0 21 FF
+@TileData:
+  .byte $02,$21,$CF,$21,$21,$08,$21,$EC,$C9,$D6,$D8,$D6,$C9,$21,$E1,$21; $DB4F
+  .byte $02,$22,$0F,$21,$21,$08,$22,$2C,$C9,$D6,$D8,$D6,$C9,$21,$E4,$21; $DB5F
+  .byte $08,$22,$6C,$C9,$D6,$D8,$D6,$C9,$21,$E0,$21,$FF                   ; $DB6F
 .endproc
 
 ;===============================================================================
-; $DB7B: Proc_DB7B
+; $DB7B: ClearOverlayConfirm
+; Display confirmation menu, wait for A press, then copy palette and advance.
 ;===============================================================================
-.proc Proc_DB7B
+.proc ClearOverlayConfirm
   state_display_idx        = $0541
 
   LDA #$D4                                            ; $DB7B: A9 D4
@@ -9771,76 +9817,70 @@ LD9AC = $D9AC
   JSR B1F_PointerTableLookup                          ; $DBA4: 20 F5 ED
   LDA a:$0081                                         ; $DBA7: AD 81 00
   AND #$08                                            ; $DBAA: 29 08
-  .byte $F0,$0C                                       ; $DBAC: F0 0C (BEQ mid-instruction target)
+  BEQ @Done                                           ; $DBAC: F0 0C
   LDA a:$0012                                         ; $DBAE: AD 12 00
   STA $0544                                           ; $DBB1: 8D 44 05
   JSR B1F_PaletteCopyBuffer                           ; $DBB4: 20 EE EC
-  INC $0541                                           ; $DBB7: EE 41 05
+  INC state_display_idx                               ; $DBB7: EE 41 05
+@Done:
   RTS                                                 ; $DBBA: 60
 .endproc
 
-;===============================================================================
-; $DBBB: Proc_DBBB
-;===============================================================================
-.proc Proc_DBBB
-
-  SEI                                                 ; $DBBB: 78
-  CLI                                                 ; $DBBC: 58
-  DEY                                                 ; $DBBD: 88
-  CLI                                                 ; $DBBE: 58
-  TYA                                                 ; $DBBF: 98
-  CLI                                                 ; $DBC0: 58
-.endproc
+; $DBBB-$DBC0: padding bytes (not code)
+  .byte $78,$58,$88,$58,$98,$58                       ; $DBBB
 
 ;===============================================================================
-; $DBC1: Proc_DBC1
+; $DBC1: ClearOverlayExit
+; Wait for scroll done, then reset state machine to sub-state 0.
 ;===============================================================================
-.proc Proc_DBC1
+.proc ClearOverlayExit
   state_sub_dispatch       = $0540
   state_display_idx        = $0541
 
   LDA a:$0087                                         ; $DBC1: AD 87 00
-  .byte $10,$F4                                       ; $DBC4: 10 F4 (BPL cross-proc)
+  BPL @Done                                           ; $DBC4: 10 F4
   LDA #$00                                            ; $DBC6: A9 00
-  STA $0540                                           ; $DBC8: 8D 40 05
-  STA $0541                                           ; $DBCB: 8D 41 05
+  STA state_sub_dispatch                              ; $DBC8: 8D 40 05
+  STA state_display_idx                               ; $DBCB: 8D 41 05
   LDA #$0B                                            ; $DBCE: A9 0B
   STA a:$007A                                         ; $DBD0: 8D 7A 00
+@Done:
   RTS                                                 ; $DBD3: 60
 .endproc
 
 ;===============================================================================
-; $DBD4: Proc_DBD4
+; $DBD4: PlayerPtrTable
+; SRAM player record pointers (8 entries, indexed by player_id * 2).
 ;===============================================================================
-.proc Proc_DBD4
+PlayerPtrTable:
+  .byte $00                                           ; $DBD4 (padding)
+  .word $6F07,$6F0F,$6F17,$6F1F,$6F27,$6F2F,$6F37   ; $DBD5
+  .byte $6F                                           ; $DBE3 high byte continuation
 
-  BRK                                                 ; $DBD4: 00
-  .byte $01,$02,$FF,$78,$60,$88,$60,$98,$60,$00,$07,$00,$00,$80,$07,$6F; $DBD5: 01 02 FF 78 60 88 60 98 60 00 07 00 00 80 07 6F
-  .byte $0F,$6F,$17,$6F,$1F,$6F,$27,$6F,$2F,$6F,$37,$6F; $DBE5: 0F 6F 17 6F 1F 6F 27 6F 2F 6F 37 6F
-.endproc
-
 ;===============================================================================
-; $DBF1: Proc_DBF1
+; $DBF1: ClearOverlayCancel
+; Wait for scroll done, then set up cancel display (sub-state 0, display 1).
+; Initializes $042C buffer with pattern data.
 ;===============================================================================
-.proc Proc_DBF1
+.proc ClearOverlayCancel
   state_sub_dispatch       = $0540
   state_display_idx        = $0541
 
   LDA a:$0087                                         ; $DBF1: AD 87 00
-  BPL LDC2E                                           ; $DBF4: 10 38
+  BPL @Done                                           ; $DBF4: 10 38
   LDA #$00                                            ; $DBF6: A9 00
-  STA $0540                                           ; $DBF8: 8D 40 05
+  STA state_sub_dispatch                              ; $DBF8: 8D 40 05
   LDA #$01                                            ; $DBFB: A9 01
-  STA $0541                                           ; $DBFD: 8D 41 05
+  STA state_display_idx                               ; $DBFD: 8D 41 05
   LDA #$0D                                            ; $DC00: A9 0D
   STA a:$007A                                         ; $DC02: 8D 7A 00
   LDA #$00                                            ; $DC05: A9 00
   TAY                                                 ; $DC07: A8
-LDC08:
+@Clear:
   STA $042C,Y                                         ; $DC08: 99 2C 04
   INY                                                 ; $DC0B: C8
   CPY #$40                                            ; $DC0C: C0 40
-  BCC LDC08                                           ; $DC0E: 90 F8
+  BCC @Clear                                          ; $DC0E: 90 F8
   LDA #$DE                                            ; $DC10: A9 DE
   STA $042C                                           ; $DC12: 8D 2C 04
   LDA #$C8                                            ; $DC15: A9 C8
@@ -9853,24 +9893,25 @@ LDC08:
   STA $044C                                           ; $DC26: 8D 4C 04
   LDA #$03                                            ; $DC29: A9 03
   STA $044F                                           ; $DC2B: 8D 4F 04
-LDC2E:
+@Done:
   RTS                                                 ; $DC2E: 60
 .endproc
-LDC08 = $DC08
-LDC2E = $DC2E
 
 
 ;===============================================================================
-; $DC2F: Proc_DC2F
+; $DC2F: VerifySramChecksum
+; Verify SRAM integrity: check magic bytes at $7FFC/$7FFD ("ID"), then
+; sum all bytes $7000-$7FFE and compare with stored checksum at $7FFE/$7FFF.
+; Returns: C=1 if valid, C=0 if corrupt.
 ;===============================================================================
-.proc Proc_DC2F
+.proc VerifySramChecksum
 
   LDA $7FFC                                           ; $DC2F: AD FC 7F
   CMP #$49                                            ; $DC32: C9 49
-  BNE LDC95                                           ; $DC34: D0 5F
+  BNE @Fail                                           ; $DC34: D0 5F
   LDA $7FFD                                           ; $DC36: AD FD 7F
   CMP #$44                                            ; $DC39: C9 44
-  BNE LDC95                                           ; $DC3B: D0 58
+  BNE @Fail                                           ; $DC3B: D0 58
   LDA #$00                                            ; $DC3D: A9 00
   STA a:$0000                                         ; $DC3F: 8D 00 00
   STA a:$0002                                         ; $DC42: 8D 02 00
@@ -9878,7 +9919,7 @@ LDC2E = $DC2E
   LDA #$70                                            ; $DC48: A9 70
   STA a:$0001                                         ; $DC4A: 8D 01 00
   LDY #$00                                            ; $DC4D: A0 00
-LDC4F:
+@SumPages:
   LDA ($00),Y                                         ; $DC4F: B1 00
   CLC                                                 ; $DC51: 18
   ADC a:$0002                                         ; $DC52: 6D 02 00
@@ -9887,12 +9928,12 @@ LDC4F:
   ADC #$00                                            ; $DC5B: 69 00
   STA a:$0003                                         ; $DC5D: 8D 03 00
   INY                                                 ; $DC60: C8
-  BNE LDC4F                                           ; $DC61: D0 EC
+  BNE @SumPages                                       ; $DC61: D0 EC
   INC a:$0001                                         ; $DC63: EE 01 00
   LDA a:$0001                                         ; $DC66: AD 01 00
   CMP #$7F                                            ; $DC69: C9 7F
-  BCC LDC4F                                           ; $DC6B: 90 E2
-LDC6D:
+  BCC @SumPages                                       ; $DC6B: 90 E2
+@SumLast:
   LDA ($00),Y                                         ; $DC6D: B1 00
   CLC                                                 ; $DC6F: 18
   ADC a:$0002                                         ; $DC70: 6D 02 00
@@ -9902,28 +9943,26 @@ LDC6D:
   STA a:$0003                                         ; $DC7B: 8D 03 00
   INY                                                 ; $DC7E: C8
   CPY #$FE                                            ; $DC7F: C0 FE
-  BCC LDC6D                                           ; $DC81: 90 EA
+  BCC @SumLast                                        ; $DC81: 90 EA
   LDA $7FFE                                           ; $DC83: AD FE 7F
   CMP a:$0002                                         ; $DC86: CD 02 00
-  BNE LDC95                                           ; $DC89: D0 0A
+  BNE @Fail                                           ; $DC89: D0 0A
   LDA $7FFF                                           ; $DC8B: AD FF 7F
   CMP a:$0003                                         ; $DC8E: CD 03 00
-  BNE LDC95                                           ; $DC91: D0 02
+  BNE @Fail                                           ; $DC91: D0 02
   SEC                                                 ; $DC93: 38
   RTS                                                 ; $DC94: 60
-LDC95:
+@Fail:
   CLC                                                 ; $DC95: 18
   RTS                                                 ; $DC96: 60
 .endproc
-LDC4F = $DC4F
-LDC6D = $DC6D
-LDC95 = $DC95
 
 
 ;===============================================================================
-; $DC97: Proc_DC97
+; $DC97: CopySramToWork
+; Patch NMI handler, then copy 16 pages from $7000 to $6000 (SRAM backup).
 ;===============================================================================
-.proc Proc_DC97
+.proc CopySramToWork
 
   LDA #$4C                                            ; $DC97: A9 4C
   STA a:$00A5                                         ; $DC99: 8D A5 00
@@ -9936,28 +9975,37 @@ LDC95 = $DC95
   LDA #$60                                            ; $DCAC: A9 60
   STA a:$0003                                         ; $DCAE: 8D 03 00
   LDY #$00                                            ; $DCB1: A0 00
-LDCB3:
+@PageLoop:
   LDA ($00),Y                                         ; $DCB3: B1 00
   STA ($02),Y                                         ; $DCB5: 91 02
   INY                                                 ; $DCB7: C8
-  BNE LDCB3                                           ; $DCB8: D0 F9
+  BNE @PageLoop                                       ; $DCB8: D0 F9
   INC a:$0003                                         ; $DCBA: EE 03 00
   INC a:$0001                                         ; $DCBD: EE 01 00
   LDA a:$0001                                         ; $DCC0: AD 01 00
   CMP #$80                                            ; $DCC3: C9 80
-  BCC LDCB3                                           ; $DCC5: 90 EC
+  BCC @PageLoop                                       ; $DCC5: 90 EC
   RTS                                                 ; $DCC7: 60
+.endproc
+
+;===============================================================================
+; $DCC8: ScrollUpdate
+; Update PPU scroll: decrement row counter every 4 frames, write digit
+; data to name table via Proc_DD0F. Called from multiple state procs.
+;===============================================================================
+.proc ScrollUpdate
+
   LDA a:$0087                                         ; $DCC8: AD 87 00
-  BMI LDD0E                                           ; $DCCB: 30 41
+  BMI @Done                                           ; $DCCB: 30 41
   DEC a:$008A                                         ; $DCCD: CE 8A 00
-  BPL LDD0E                                           ; $DCD0: 10 3C
+  BPL @Done                                           ; $DCD0: 10 3C
   LDA #$04                                            ; $DCD2: A9 04
   STA a:$008A                                         ; $DCD4: 8D 8A 00
   DEC a:$0088                                         ; $DCD7: CE 88 00
-  BNE LDCE1                                           ; $DCDA: D0 05
+  BNE @WriteDigits                                    ; $DCDA: D0 05
   LDA #$FF                                            ; $DCDC: A9 FF
   STA a:$0087                                         ; $DCDE: 8D 87 00
-LDCE1:
+@WriteDigits:
   LDA #$00                                            ; $DCE1: A9 00
   STA a:$0000                                         ; $DCE3: 8D 00 00
   LDA #$01                                            ; $DCE6: A9 01
@@ -9969,28 +10017,27 @@ LDCE1:
   LDA a:$0089                                         ; $DCF5: AD 89 00
   STA a:$0010                                         ; $DCF8: 8D 10 00
   LDY #$00                                            ; $DCFB: A0 00
-LDCFD:
+@DigitLoop:
   LDA a:$0010                                         ; $DCFD: AD 10 00
   ASL A                                               ; $DD00: 0A
   STA a:$0010                                         ; $DD01: 8D 10 00
-  .byte $90,$03                                       ; $DD04: 90 03 (BCC mid-instruction target)
-  JSR Proc_DD0F                                       ; $DD06: 20 0F DD
+  BCC @SkipDigit                                      ; $DD04: 90 03
+  JSR ScrollDigitWriter                               ; $DD06: 20 0F DD
+@SkipDigit:
   INY                                                 ; $DD09: C8
   CPY #$08                                            ; $DD0A: C0 08
-  BCC LDCFD                                           ; $DD0C: 90 EF
-LDD0E:
+  BCC @DigitLoop                                      ; $DD0C: 90 EF
+@Done:
   RTS                                                 ; $DD0E: 60
 .endproc
-LDCB3 = $DCB3
-LDCE1 = $DCE1
-LDCFD = $DCFD
-LDD0E = $DD0E
 
 
 ;===============================================================================
-; $DD0F: Proc_DD0F
+; $DD0F: ScrollDigitWriter
+; Write one digit row to name table: read 4 bytes from source ($02),Y,
+; clamp each nibble to scroll digit count ($0088), write to dest ($00),Y.
 ;===============================================================================
-.proc Proc_DD0F
+.proc ScrollDigitWriter
 
   TYA                                                 ; $DD0F: 98
   PHA                                                 ; $DD10: 48
@@ -10000,58 +10047,59 @@ LDD0E = $DD0E
   CLC                                                 ; $DD14: 18
   ADC #$04                                            ; $DD15: 69 04
   STA a:$0011                                         ; $DD17: 8D 11 00
-LDD1A:
+@RowLoop:
   LDX a:$0088                                         ; $DD1A: AE 88 00
   LDA ($02),Y                                         ; $DD1D: B1 02
-LDD1F:
+@ClampLoop:
   DEX                                                 ; $DD1F: CA
-  BMI LDD29                                           ; $DD20: 30 07
+  BMI @Write                                          ; $DD20: 30 07
   SEC                                                 ; $DD22: 38
   SBC #$10                                            ; $DD23: E9 10
-  BPL LDD1F                                           ; $DD25: 10 F8
+  BPL @ClampLoop                                      ; $DD25: 10 F8
   LDA #$0F                                            ; $DD27: A9 0F
-LDD29:
+@Write:
   STA ($00),Y                                         ; $DD29: 91 00
   INY                                                 ; $DD2B: C8
   CPY a:$0011                                         ; $DD2C: CC 11 00
-  BCC LDD1A                                           ; $DD2F: 90 E9
+  BCC @RowLoop                                        ; $DD2F: 90 E9
   PLA                                                 ; $DD31: 68
   TAY                                                 ; $DD32: A8
   RTS                                                 ; $DD33: 60
 .endproc
-LDD1A = $DD1A
-LDD1F = $DD1F
-LDD29 = $DD29
 
 
 ;===============================================================================
-; $DD34: Proc_DD34
+; $DD34: DrawSelectionSprites
+; Switch to bank $21, then draw up to 5 sprites based on set bits in $0542.
+; Each set bit draws one sprite via WriteSingleSprite.
 ;===============================================================================
-.proc Proc_DD34
+.proc DrawSelectionSprites
 
   LDY #$21                                            ; $DD34: A0 21
   JSR B1F_SwitchBank8_B                               ; $DD36: 20 5F F2
   LDY #$00                                            ; $DD39: A0 00
   LDA $0542                                           ; $DD3B: AD 42 05
   STA a:$0012                                         ; $DD3E: 8D 12 00
-LDD41:
+@Loop:
   LDA a:$0012                                         ; $DD41: AD 12 00
   LSR A                                               ; $DD44: 4A
   STA a:$0012                                         ; $DD45: 8D 12 00
-  .byte $90,$03                                       ; $DD48: 90 03 (BCC mid-instruction target)
-  JSR Proc_DD53                                       ; $DD4A: 20 53 DD
+  BCC @Skip                                           ; $DD48: 90 03
+  JSR WriteSingleSprite                               ; $DD4A: 20 53 DD
+@Skip:
   INY                                                 ; $DD4D: C8
   CPY #$05                                            ; $DD4E: C0 05
-  BCC LDD41                                           ; $DD50: 90 EF
+  BCC @Loop                                           ; $DD50: 90 EF
   RTS                                                 ; $DD52: 60
 .endproc
-LDD41 = $DD41
 
 
 ;===============================================================================
-; $DD53: Proc_DD53
+; $DD53: WriteSingleSprite
+; Write one sprite to OAM: read 16-bit position from table at $970C,Y,
+; set tile=0, attr=0, size=0, then call B1F_SpriteOamWriterSimple.
 ;===============================================================================
-.proc Proc_DD53
+.proc WriteSingleSprite
 
   TYA                                                 ; $DD53: 98
   PHA                                                 ; $DD54: 48
@@ -10075,137 +10123,153 @@ LDD41 = $DD41
 .endproc
 
 ;===============================================================================
-; $DD79: Proc_DD79
+; $DD79: MenuInputHandler
+; Handle controller input for sound-test/menu overlay.
+; Phase 1 ($0546 >= 0): handle A/B/Select/Start button presses.
+; Phase 2 ($0546 < 0): handle D-pad with sound feedback, cycling
+; through indices 0-39 with wraparound.
 ;===============================================================================
-.proc Proc_DD79
+.proc MenuInputHandler
   state_overlay_param      = $0545
 
   LDA $0546                                           ; $DD79: AD 46 05
-  BMI LDDC7                                           ; $DD7C: 30 49
+  BMI @DpadHandler                                    ; $DD7C: 30 49
   LDA a:$0083                                         ; $DD7E: AD 83 00
   AND #$01                                            ; $DD81: 29 01
-  BNE LDD8B                                           ; $DD83: D0 06
+  BNE @Active                                         ; $DD83: D0 06
   LDA #$00                                            ; $DD85: A9 00
   STA $0546                                           ; $DD87: 8D 46 05
   RTS                                                 ; $DD8A: 60
-LDD8B:
+@Active:
   LDA $0546                                           ; $DD8B: AD 46 05
-  BEQ LDD9C                                           ; $DD8E: F0 0C
+  BEQ @CheckInput                                     ; $DD8E: F0 0C
   CMP #$01                                            ; $DD90: C9 01
-  .byte $F0,$11                                       ; $DD92: F0 11 (BEQ mid-instruction target)
+  BEQ @ButtonSelect                                   ; $DD92: F0 11
   CMP #$02                                            ; $DD94: C9 02
-  .byte $F0,$16                                       ; $DD96: F0 16 (BEQ mid-instruction target)
+  BEQ @ButtonStart                                    ; $DD96: F0 16
   CMP #$03                                            ; $DD98: C9 03
-  BEQ LDDB7                                           ; $DD9A: F0 1B
-LDD9C:
+  BEQ @Button80Handler                                ; $DD9A: F0 1B
+@CheckInput:
   LDA a:$0081                                         ; $DD9C: AD 81 00
   AND #$10                                            ; $DD9F: 29 10
-  .byte $F0,$23                                       ; $DDA1: F0 23 (BEQ mid-instruction target)
-  .byte $D0,$1E                                       ; $DDA3: D0 1E (BNE mid-instruction target)
+  BEQ @Done                                           ; $DDA1: F0 23
+  BNE @ButtonA                                        ; $DDA3: D0 1E
   LDA a:$0081                                         ; $DDA5: AD 81 00
   AND #$20                                            ; $DDA8: 29 20
-  .byte $F0,$1A                                       ; $DDAA: F0 1A (BEQ mid-instruction target)
-  .byte $D0,$15                                       ; $DDAC: D0 15 (BNE mid-instruction target)
+  BEQ @Done                                           ; $DDAA: F0 1A
+  BNE @ButtonB                                        ; $DDAC: D0 15
   LDA a:$0081                                         ; $DDAE: AD 81 00
   AND #$40                                            ; $DDB1: 29 40
-  .byte $F0,$11                                       ; $DDB3: F0 11 (BEQ mid-instruction target)
-  .byte $D0,$0C                                       ; $DDB5: D0 0C (BNE mid-instruction target)
-LDDB7:
+  BEQ @Done                                           ; $DDB3: F0 11
+  BNE @ButtonSelect                                   ; $DDB5: D0 0C
+@Button80Handler:
   LDA a:$0081                                         ; $DDB7: AD 81 00
   AND #$80                                            ; $DDBA: 29 80
-  .byte $F0,$08                                       ; $DDBC: F0 08 (BEQ mid-instruction target)
+  BEQ @Done                                           ; $DDBC: F0 08
   LDA #$80                                            ; $DDBE: A9 80
+@ButtonB:
   STA $0546                                           ; $DDC0: 8D 46 05
+@ButtonA:
   INC $0546                                           ; $DDC3: EE 46 05
+@Done:
   RTS                                                 ; $DDC6: 60
-LDDC7:
-  JSR SpriteSetup2                                ; $DDC7: 20 AF DE
+@DpadHandler:
+  JSR SpriteSetup2                                    ; $DDC7: 20 AF DE
   LDA a:$0081                                         ; $DDCA: AD 81 00
   AND #$03                                            ; $DDCD: 29 03
-  .byte $F0,$66                                       ; $DDCF: F0 66 (BEQ mid-instruction target)
+  BEQ @Advance                                        ; $DDCF: F0 66
   LDA a:$0083                                         ; $DDD1: AD 83 00
   AND #$01                                            ; $DDD4: 29 01
-  .byte $F0,$03                                       ; $DDD6: F0 03 (BEQ mid-instruction target)
+  BEQ @SkipPpu                                        ; $DDD6: F0 03
   JSR B1F_BankPpuInit                                 ; $DDD8: 20 7F E5
+@SkipPpu:
   LDA $0545                                           ; $DDDB: AD 45 05
   ASL A                                               ; $DDDE: 0A
   TAY                                                 ; $DDDF: A8
-  LDA SoundDispatch,Y                             ; $DDE0: B9 5F DE
+  LDA SoundDispatch,Y                                 ; $DDE0: B9 5F DE
   CMP #$02                                            ; $DDE3: C9 02
-  .byte $F0,$1D                                       ; $DDE5: F0 1D (BEQ mid-instruction target)
+  BEQ @Sound2                                         ; $DDE5: F0 1D
   CMP #$03                                            ; $DDE7: C9 03
-  .byte $F0,$22                                       ; $DDE9: F0 22 (BEQ mid-instruction target)
+  BEQ @Sound3                                         ; $DDE9: F0 22
   CMP #$04                                            ; $DDEB: C9 04
-  .byte $F0,$27                                       ; $DDED: F0 27 (BEQ mid-instruction target)
+  BEQ @Sound4                                         ; $DDED: F0 27
   CMP #$05                                            ; $DDEF: C9 05
-  .byte $F0,$2C                                       ; $DDF1: F0 2C (BEQ mid-instruction target)
+  BEQ @Sound5                                         ; $DDF1: F0 2C
   CMP #$06                                            ; $DDF3: C9 06
-  .byte $F0,$31                                       ; $DDF5: F0 31 (BEQ mid-instruction target)
+  BEQ @Sound6                                         ; $DDF5: F0 31
   CMP #$07                                            ; $DDF7: C9 07
-  .byte $F0,$36                                       ; $DDF9: F0 36 (BEQ mid-instruction target)
+  BEQ @Sound7                                         ; $DDF9: F0 36
   LDA $DE60,Y                                         ; $DDFB: B9 60 DE
   JSR B1F_SoundNotePlayer                             ; $DDFE: 20 09 E6
-  JMP $DE37                                           ; $DE01: 4C 37 DE
+  JMP @Advance                                        ; $DE01: 4C 37 DE
+@Sound2:
   LDA $DE60,Y                                         ; $DE04: B9 60 DE
   JSR $E69B                                           ; $DE07: 20 9B E6
-  JMP $DE37                                           ; $DE0A: 4C 37 DE
+  JMP @Advance                                        ; $DE0A: 4C 37 DE
+@Sound3:
   LDA $DE60,Y                                         ; $DE0D: B9 60 DE
   JSR B1F_SoundWrapperE                               ; $DE10: 20 93 E6
-  JMP $DE37                                           ; $DE13: 4C 37 DE
+  JMP @Advance                                        ; $DE13: 4C 37 DE
+@Sound4:
   LDA $DE60,Y                                         ; $DE16: B9 60 DE
   JSR $E68B                                           ; $DE19: 20 8B E6
-  JMP $DE37                                           ; $DE1C: 4C 37 DE
+  JMP @Advance                                        ; $DE1C: 4C 37 DE
+@Sound5:
   LDA $DE60,Y                                         ; $DE1F: B9 60 DE
   JSR B1F_SoundWrapperC                               ; $DE22: 20 83 E6
-  JMP $DE37                                           ; $DE25: 4C 37 DE
+  JMP @Advance                                        ; $DE25: 4C 37 DE
+@Sound6:
   LDA $DE60,Y                                         ; $DE28: B9 60 DE
   JSR $E67B                                           ; $DE2B: 20 7B E6
-  JMP $DE37                                           ; $DE2E: 4C 37 DE
+  JMP @Advance                                        ; $DE2E: 4C 37 DE
+@Sound7:
   LDA $DE60,Y                                         ; $DE31: B9 60 DE
   JSR $E673                                           ; $DE34: 20 73 E6
+@Advance:
   LDA a:$0081                                         ; $DE37: AD 81 00
   AND #$80                                            ; $DE3A: 29 80
-  .byte $F0,$0F                                       ; $DE3C: F0 0F (BEQ mid-instruction target)
+  BEQ @CheckLeft                                      ; $DE3C: F0 0F
   INC $0545                                           ; $DE3E: EE 45 05
   LDA $0545                                           ; $DE41: AD 45 05
   CMP #$28                                            ; $DE44: C9 28
-  .byte $90,$05                                       ; $DE46: 90 05 (BCC mid-instruction target)
+  BCC @Exit                                           ; $DE46: 90 05
   LDA #$00                                            ; $DE48: A9 00
   STA $0545                                           ; $DE4A: 8D 45 05
+@CheckLeft:
   LDA a:$0081                                         ; $DE4D: AD 81 00
   AND #$40                                            ; $DE50: 29 40
-  .byte $F0,$0A                                       ; $DE52: F0 0A (BEQ mid-instruction target)
+  BEQ @Exit                                           ; $DE52: F0 0A
   DEC $0545                                           ; $DE54: CE 45 05
-  .byte $10,$05                                       ; $DE57: 10 05 (BPL mid-instruction target)
+  BPL @Exit                                           ; $DE57: 10 05
   LDA #$27                                            ; $DE59: A9 27
   STA $0545                                           ; $DE5B: 8D 45 05
+@Exit:
   RTS                                                 ; $DE5E: 60
 .endproc
-LDD8B = $DD8B
-LDD9C = $DD9C
-LDDB7 = $DDB7
-LDDC7 = $DDC7
 
 
 ;===============================================================================
 ; $DE5F: SoundDispatch
-; Sound dispatch: route to NMC sound routines
+; Sound parameter table for menu selections (40 entries, interleaved).
+; Access: Y = menu_index * 2
+;   SoundDispatch,Y = handler ID (even offsets from $DE5F)
+;   $DE60,Y = note parameter lo-byte (odd offsets)
+;   $DE61,Y = note parameter hi-byte
+; Handler IDs: 1=B1F_SoundNotePlayer, 2=$E69B, 3=B1F_SoundWrapperE,
+; 4=$E68B, 5=B1F_SoundWrapperC, 6=$E67B, 7=$E673.
 ;===============================================================================
-.proc SoundDispatch
-
-  ORA $08                                             ; $DE5F: 05 08
-  ORA $0D                                             ; $DE61: 05 0D
-  ASL $12                                             ; $DE63: 06 12
-  ORA $18                                             ; $DE65: 05 18
-  .byte $07,$1D,$05,$24,$05,$29,$04,$2E,$06,$32,$04,$3E,$05,$42,$06,$47; $DE67: 07 1D 05 24 05 29 04 2E 06 32 04 3E 05 42 06 47
-  .byte $05,$4D,$04,$52,$01,$57,$02,$5A,$01,$5C,$01,$5D,$01,$5E,$01,$60; $DE77: 05 4D 04 52 01 57 02 5A 01 5C 01 5D 01 5E 01 60
-  .byte $01,$61,$03,$62,$02,$65,$01,$68,$01,$69,$05,$6C,$05,$71,$05,$76; $DE87: 01 61 03 62 02 65 01 68 01 69 05 6C 05 71 05 76
-  .byte $04,$7B,$06,$82,$05,$88,$04,$8D,$04,$91,$03,$95,$07,$98,$03,$9F; $DE97: 04 7B 06 82 05 88 04 8D 04 91 03 95 07 98 03 9F
-  .byte $04,$A2,$04,$A6,$06,$AA,$07,$B0               ; $DEA7: 04 A2 04 A6 06 AA 07 B0
-.endproc
+SoundDispatch:
+  .byte $05,$08,$05,$0D,$06,$12,$05,$18,$07,$1D,$05,$24,$05,$29,$04,$2E; $DE5F
+  .byte $06,$32,$04,$3E,$05,$42,$06,$47,$05,$4D,$04,$52,$01,$57,$02,$5A; $DE6F
+  .byte $01,$5C,$01,$5D,$01,$5E,$01,$60,$01,$61,$03,$62,$02,$65,$01,$68; $DE7F
+  .byte $01,$69,$05,$6C,$05,$71,$05,$76,$04,$7B,$06,$82,$05,$88,$04,$8D; $DE8F
+  .byte $04,$91,$03,$95,$07,$98,$03,$9F,$04,$A2,$04,$A6,$06,$AA,$07,$B0; $DE9F
 
 ;===============================================================================
 ; $DEAF: SpriteSetup2
+; Setup cursor sprites for sound-test menu: write two 8x8 sprites to OAM
+; showing the current sound index ($0545) as two hex digits using
+; DigitTileTable, then call B1F_SpriteOamWriterSimple with cursor data.
 ;===============================================================================
 .proc SpriteSetup2
   state_overlay_param      = $0545
@@ -10233,12 +10297,12 @@ LDDC7 = $DDC7
   LSR A                                               ; $DEDF: 4A
   LSR A                                               ; $DEE0: 4A
   TAY                                                 ; $DEE1: A8
-  LDA $DF3C,Y                                         ; $DEE2: B9 3C DF
+  LDA DigitTileTable,Y                                ; $DEE2: B9 3C DF
   STA $0201,X                                         ; $DEE5: 9D 01 02
   LDA $0545                                           ; $DEE8: AD 45 05
   AND #$0F                                            ; $DEEB: 29 0F
   TAY                                                 ; $DEED: A8
-  LDA $DF3C,Y                                         ; $DEEE: B9 3C DF
+  LDA DigitTileTable,Y                                ; $DEEE: B9 3C DF
   STA $0205,X                                         ; $DEF1: 9D 05 02
   TXA                                                 ; $DEF4: 8A
   CLC                                                 ; $DEF5: 18
@@ -10255,55 +10319,67 @@ LDDC7 = $DDC7
   LDA #$00                                            ; $DF0F: A9 00
   STA a:$0002                                         ; $DF11: 8D 02 00
   JMP B1F_SpriteOamWriterSimple                       ; $DF14: 4C AD F1
-  BRK                                                 ; $DF17: 00
-  .byte $9F,$02,$00,$00,$BA,$02,$08,$00,$BB,$02,$10,$00,$BC,$02,$18,$00; $DF18: 9F 02 00 00 BA 02 08 00 BB 02 10 00 BC 02 18 00
-  .byte $BD,$02,$20,$0C,$BE,$02,$04,$0C,$BF,$02,$0C,$0C,$9F,$02,$14,$0C; $DF28: BD 02 20 0C BE 02 04 0C BF 02 0C 0C 9F 02 14 0C
-  .byte $BE,$02,$1C,$80,$EB,$EC,$ED,$EE,$EF,$FB,$FC,$FD,$FE,$FF,$A3,$A4; $DF38: BE 02 1C 80 EB EC ED EE EF FB FC FD FE FF A3 A4
-  .byte $B4,$BD,$BF,$9E                               ; $DF48: B4 BD BF 9E
 .endproc
+
+; $DF17: Cursor sprite OAM data (read by B1F_SpriteOamWriterSimple)
+CursorSpriteData:
+  .byte $00                                           ; $DF17: terminator
+  .byte $9F,$02,$00,$00,$BA,$02,$08,$00,$BB,$02,$10,$00,$BC,$02,$18,$00; $DF18
+  .byte $BD,$02,$20,$0C,$BE,$02,$04,$0C,$BF,$02,$0C,$0C,$9F,$02,$14,$0C; $DF28
+  .byte $BE,$02,$1C,$80                               ; $DF38
+
+; $DF3C: Digit tile lookup (hex digits 0-F for cursor display)
+DigitTileTable:
+  .byte $EB,$EC,$ED,$EE,$EF,$FB,$FC,$FD,$FE,$FF,$A3,$A4,$B4,$BD,$BF,$9E; $DF3C
 
 ;===============================================================================
 ; $DF4C: PaletteCheck
-; Check and update palette animation state
+; Check palette animation state ($0547): if condition table entry is
+; negative, finalize animation (copy buffer, set display state 6, play
+; sound $62). Otherwise check frame counter and button input to advance.
 ;===============================================================================
 .proc PaletteCheck
   state_display_idx        = $0541
   state_palette_mode       = $0547
 
   LDY $0547                                           ; $DF4C: AC 47 05
-  LDA $DF7F,Y                                         ; $DF4F: B9 7F DF
-  BPL LDF62                                           ; $DF52: 10 0E
+  LDA PaletteCondTable,Y                              ; $DF4F: B9 7F DF
+  BPL @CheckFrame                                     ; $DF52: 10 0E
   JSR B1F_PaletteCopyBuffer                           ; $DF54: 20 EE EC
   LDA #$06                                            ; $DF57: A9 06
   STA $0541                                           ; $DF59: 8D 41 05
   LDA #$62                                            ; $DF5C: A9 62
   JSR B1F_SoundWrapperE                               ; $DF5E: 20 93 E6
   RTS                                                 ; $DF61: 60
-LDF62:
+@CheckFrame:
   LDA a:$0083                                         ; $DF62: AD 83 00
   LDY $0547                                           ; $DF65: AC 47 05
-  AND $DF7F,Y                                         ; $DF68: 39 7F DF
-  BNE LDF73                                           ; $DF6B: D0 06
+  AND PaletteCondTable,Y                              ; $DF68: 39 7F DF
+  BNE @CheckInput                                     ; $DF6B: D0 06
   LDA #$00                                            ; $DF6D: A9 00
   STA $0547                                           ; $DF6F: 8D 47 05
   RTS                                                 ; $DF72: 60
-LDF73:
+@CheckInput:
   LDA a:$0081                                         ; $DF73: AD 81 00
-  AND $DF88,Y                                         ; $DF76: 39 88 DF
-  .byte $F0,$03                                       ; $DF79: F0 03 (BEQ mid-instruction target)
+  AND PaletteInputMask,Y                              ; $DF76: 39 88 DF
+  BEQ @Done                                           ; $DF79: F0 03
   INC $0547                                           ; $DF7B: EE 47 05
+@Done:
   RTS                                                 ; $DF7E: 60
-  .byte $02,$02,$02,$02,$02,$02,$02,$02,$80,$40,$80,$80,$40,$20,$10,$10; $DF7F: 02 02 02 02 02 02 02 02 80 40 80 80 40 20 10 10
-  .byte $20,$80,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DF8F: 20 80 FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DF9F: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFAF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFBF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFCF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFDF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFEF: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
-  .byte $FF                                           ; $DFFF: FF
 .endproc
-LDF62 = $DF62
-LDF73 = $DF73
+
+; $DF7F: Palette animation condition table (bit masks per animation step)
+; $DF88 (PaletteInputMask = PaletteCondTable+9): input button mask per step
+PaletteCondTable:
+  .byte $02,$02,$02,$02,$02,$02,$02,$02,$80,$40,$80,$80,$40,$20,$10,$10; $DF7F
+  .byte $20,$80,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DF8F
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DF9F
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFAF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFBF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFCF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFDF
+  .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFEF
+  .byte $FF                                           ; $DFFF
+PaletteInputMask = PaletteCondTable + 9               ; $DF88
 
 

@@ -22,13 +22,11 @@
 
 ## Update Summary
 **Changes Made**
-- Major AI turn dispatch system refactoring with comprehensive modular function organization including AiDomesticAction ($B98B), AiAbsorbEntityAction ($BBB2), AiDev_Main ($BD7A), ScanEntityOwnership ($B898), MarkSwapArmyFlags ($B90A), and FindEntityForChar ($B955)
-- Enhanced three-phase domestic action system with improved entity evaluation and scoring algorithms
-- Six-phase entity absorption strategy with sophisticated officer recruitment and loyalty management
-- Intelligent officer training algorithm with province-based resource allocation and capability tracking
-- Old procedural structure replaced with well-documented modular functions featuring consistent Ai* prefix naming pattern
-- Improved internal control flow with labeled targets replacing raw address jumps throughout the AI subsystem
-- Better loop structure with properly named loop bodies for enhanced readability and maintainability
+- Major AI turn processing system refactoring with new modular functions including FindBestOfficerAssign, ProcessAllOfficers, ApplyScenarioDeductions, and bracket-based deduction systems
+- Enhanced officer management algorithms with comprehensive evaluation and assignment logic
+- New bracket-based resource deduction system for scenario difficulty scaling
+- Improved code organization with well-documented modular functions and clear algorithm separation
+- Enhanced AI pipeline with structured recruitment, transfer, and evaluation phases
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -50,7 +48,7 @@
 17. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with structured .proc/.endproc organization and enhanced code modularity. The PRG bank 17/18 combination provides specialized display and rendering functionality optimized for the game's strategic interface, while the new PRG bank 1D/1E combined system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations and enhanced bank switching capabilities. The enhanced SceneRenderer system now implements a proper callback table architecture that replaces inline dispatch logic, providing improved maintainability and debugging support. **Updated** The system now features comprehensive descriptive entry point naming conventions across all combined bank systems, with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry replacing generic EntryXX patterns, significantly improving code organization, debugging capabilities, and long-term maintainability through the adoption of a standardized naming convention system. The major refactoring of PRG bank $0A+$0B has been completed, transforming cryptic function names like B0A_CheckGameStart into descriptive names like CheckGameStart, establishing a consistent naming pattern across the entire codebase. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern, improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies, and enhanced battle system logic with specialized functions for army and enemy management. **Latest Update** The AI turn dispatch system has been completely refactored with new modular functions including AiDomesticAction, AiAbsorbEntityAction, AiDev_Main, ScanEntityOwnership, MarkSwapArmyFlags, and FindEntityForChar, implementing enhanced three-phase domestic action system, six-phase entity absorption strategy, and intelligent officer training algorithm.
+This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with structured .proc/.endproc organization and enhanced code modularity. The PRG bank 17/18 combination provides specialized display and rendering functionality optimized for the game's strategic interface, while the new PRG bank 1D/1E combined system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations and enhanced bank switching capabilities. The enhanced SceneRenderer system now implements a proper callback table architecture that replaces inline dispatch logic, providing improved maintainability and debugging support. **Updated** The system now features comprehensive descriptive entry point naming conventions across all combined bank systems, with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry replacing generic EntryXX patterns, significantly improving code organization, debugging capabilities, and long-term maintainability through the adoption of a standardized naming convention system. The major refactoring of PRG bank $0A+$0B has been completed, transforming cryptic function names like B0A_CheckGameStart into descriptive names like CheckGameStart, establishing a consistent naming pattern across the entire codebase. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern, improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies for enhanced readability and maintainability. **Latest Update** The AI turn dispatch system has been completely refactored with new modular functions including FindBestOfficerAssign, ProcessAllOfficers, ApplyScenarioDeductions, and bracket-based deduction systems, implementing enhanced officer management algorithms and improved code organization.
 
 ## Project Structure
 The project is organized around a modular bank-based approach with modern assembly formatting standards:
@@ -65,7 +63,7 @@ The project is organized around a modular bank-based approach with modern assemb
 - **Comprehensive Descriptive Entry Points**: All combined bank systems now use meaningful entry point names following the standardized naming convention, replacing generic EntryXX patterns for improved code organization and debugging support.
 - **Completed Major Refactoring**: PRG bank $0A+$0B has been successfully refactored with descriptive function naming, eliminating cryptic prefixed formats.
 - **Enhanced AI Subsystem**: Comprehensive function reorganization with consistent Ai* prefix pattern and improved control flow structure.
-- **Latest AI Refactoring**: Complete modularization of AI turn dispatch system with well-documented functions and enhanced algorithms.
+- **Latest AI Refactoring**: Complete modularization of AI turn processing system with new functions FindBestOfficerAssign, ProcessAllOfficers, ApplyScenarioDeductions, and bracket-based deduction systems.
 
 ```mermaid
 graph TB
@@ -88,12 +86,12 @@ ENDPROC[".endproc Terminators<br/>Complete Function Scope"]
 REFAC["Major Refactoring Complete<br/>B0A_* → CheckGameStart, etc."]
 VERIFY["verify_0a_0b.py<br/>ROM Validation Tool"]
 AI_SUBSYSTEM["Enhanced AI Subsystem<br/>Ai* Prefix Pattern<br/>Improved Control Flow<br/>New Modular Functions"]
-AI_DOMESTIC["AiDomesticAction ($B98B)<br/>Three-Phase Domestic Action System"]
-AI_ABSORB["AiAbsorbEntityAction ($BBB2)<br/>Six-Phase Entity Absorption Strategy"]
-AI_DEV_MAIN["AiDev_Main ($BD7A)<br/>Intelligent Officer Training Algorithm"]
-AI_SCAN["ScanEntityOwnership ($B898)<br/>Entity Ownership Analysis"]
-AI_MARK["MarkSwapArmyFlags ($B90A)<br/>Army Flag Management"]
-AI_FIND["FindEntityForChar ($B955)<br/>Character Entity Resolution"]
+AI_FIND_OFFICER["FindBestOfficerAssign ($C50E)<br/>Best Officer Assignment Algorithm"]
+AI_PROCESS_ALL["ProcessAllOfficers ($C5B9)<br/>Officer Processing Pipeline"]
+AI_SCENARIO_DEDUCTIONS["ApplyScenarioDeductions ($CD68)<br/>Scenario Difficulty Scaling"]
+AI_BRACKET_DEDUCT["BracketDeductGold/Army<br/>Table-Based Resource Deduction"]
+AI_SEARCH_EVALUATE["OfficerSearchAndEvaluate ($C79A)<br/>Officer Recruitment Pipeline"]
+AI_CATEGORY_FIND["FindBestOfficerByCategory ($C98F)<br/>Category-Based Officer Selection"]
 end
 subgraph "Combined Bank 17/18 - Specialized Display"
 COMBINED17_18["asm/banks/prg_17_18.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
@@ -146,12 +144,12 @@ COMBINED0A_0B --> ENDPROC
 COMBINED0A_0B --> REFAC
 COMBINED0A_0B --> VERIFY
 COMBINED0A_0B --> AI_SUBSYSTEM
-AI_SUBSYSTEM --> AI_DOMESTIC
-AI_SUBSYSTEM --> AI_ABSORB
-AI_SUBSYSTEM --> AI_DEV_MAIN
-AI_SUBSYSTEM --> AI_SCAN
-AI_SUBSYSTEM --> AI_MARK
-AI_SUBSYSTEM --> AI_FIND
+AI_SUBSYSTEM --> AI_FIND_OFFICER
+AI_SUBSYSTEM --> AI_PROCESS_ALL
+AI_SUBSYSTEM --> AI_SCENARIO_DEDUCTIONS
+AI_SUBSYSTEM --> AI_BRACKET_DEDUCT
+AI_SUBSYSTEM --> AI_SEARCH_EVALUATE
+AI_SUBSYSTEM --> AI_CATEGORY_FIND
 COMBINED17_18 --> DISPLAY
 COMBINED17_18 --> PPUENTRIES
 COMBINED17_18 --> PROC
@@ -211,7 +209,7 @@ ALLB --> COMBINED1D_1E
 - **Comprehensive Descriptive Entry Points**: All combined bank systems now feature fully descriptive entry points following the standardized naming convention, replacing generic EntryXX patterns for superior code organization and debugging support.
 - **Completed Major Refactoring**: PRG bank $0A+$0B has been successfully refactored with descriptive function naming, eliminating cryptic prefixed formats like B0A_* and B0B_*.
 - **Enhanced AI Subsystem**: Comprehensive function reorganization with consistent Ai* prefix pattern, improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies, and enhanced battle system logic with specialized functions for army and enemy management.
-- **Latest AI Refactoring**: Complete modularization with new functions AiDomesticAction ($B98B), AiAbsorbEntityAction ($BBB2), AiDev_Main ($BD7A), ScanEntityOwnership ($B898), MarkSwapArmyFlags ($B90A), and FindEntityForChar ($B955).
+- **Latest AI Refactoring**: Complete modularization with new functions FindBestOfficerAssign ($C50E), ProcessAllOfficers ($C5B9), ApplyScenarioDeductions ($CD68), BracketDeductGold/Army ($CE67/$CEDD), OfficerSearchAndEvaluate ($C79A), and FindBestOfficerByCategory ($C98F).
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
@@ -226,7 +224,7 @@ ALLB --> COMBINED1D_1E
 - [functions.h:739-745](file://include/functions.h#L739-L745)
 
 ## Architecture Overview
-The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern assembly format provides enhanced code organization with structured state handlers and improved debugging support. The combined PRG bank 17/18 structure optimizes display operations for the game's strategic interface, providing specialized PPU data writers, RLE decompression capabilities, and comprehensive display operation systems with an enhanced parameter declaration system that improves code readability and maintainability. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, providing improved maintainability and debugging support compared to the previous inline dispatch logic approach. **Updated** All combined bank systems now feature comprehensive descriptive entry point naming following the standardized naming convention with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry replacing generic EntryXX patterns, significantly improving code organization, debugging capabilities, and long-term maintainability across the entire codebase through consistent symbolic reference patterns. The major refactoring of PRG bank $0A+$0B has been completed, establishing a consistent naming pattern where cryptic prefixed formats like B0A_CheckGameStart have been transformed into descriptive names like CheckGameStart. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern (AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect), improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies (@ScanOwnedProvinces, @ScanEnemyProvinces, @InnerLoop, @FindBestLoop), and enhanced battle system logic with specialized functions for army and enemy management (@PlaceNewArmies, @PlaceNewEnemies, @InsertBattleSlot, @InsertEnemySlot). **Latest Update** The AI turn dispatch system has been completely refactored with new modular functions including AiDomesticAction ($B98B) implementing a three-phase domestic action system, AiAbsorbEntityAction ($BBB2) with six-phase entity absorption strategy, AiDev_Main ($BD7A) providing intelligent officer training algorithm, ScanEntityOwnership ($B898) for entity ownership analysis, MarkSwapArmyFlags ($B90A) for army flag management, and FindEntityForChar ($B955) for character entity resolution.
+The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern assembly format provides enhanced code organization with structured state handlers and improved debugging support. The combined PRG bank 17/18 structure optimizes display operations for the game's strategic interface, providing specialized PPU data writers, RLE decompression capabilities, and comprehensive display operation systems with an enhanced parameter declaration system that improves code readability and maintainability. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, providing improved maintainability and debugging support compared to the previous inline dispatch logic approach. **Updated** All combined bank systems now feature comprehensive descriptive entry point naming following the standardized naming convention with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry replacing generic EntryXX patterns, significantly improving code organization, debugging capabilities, and long-term maintainability across the entire codebase through consistent symbolic reference patterns. The major refactoring of PRG bank $0A+$0B has been completed, establishing a consistent naming pattern where cryptic prefixed formats like B0A_CheckGameStart have been transformed into descriptive names like CheckGameStart. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern (AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect), improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies (@ScanOwnedProvinces, @ScanEnemyProvinces, @InnerLoop, @FindBestLoop), and enhanced battle system logic with specialized functions for army and enemy management (@PlaceNewArmies, @PlaceNewEnemies, @InsertBattleSlot, @InsertEnemySlot). **Latest Update** The AI turn processing system has been completely refactored with new modular functions including FindBestOfficerAssign ($C50E) for best officer assignment, ProcessAllOfficers ($C5B9) for officer processing pipeline, ApplyScenarioDeductions ($CD68) for scenario difficulty scaling, and bracket-based deduction systems for resource management.
 
 ```mermaid
 sequenceDiagram
@@ -281,12 +279,12 @@ AI->>AI : @InnerLoop/@FindBestLoop processing
 AI->>AI : @PlaceNewArmies/@PlaceNewEnemies
 AI->>AI : @InsertBattleSlot/@InsertEnemySlot
 AI->>AI_NEW : Call new modular AI functions
-AI_NEW->>AI_DOMESTIC : AiDomesticAction ($B98B)<br/>Three-Phase Domestic Action System
-AI_NEW->>AI_ABSORB : AiAbsorbEntityAction ($BBB2)<br/>Six-Phase Entity Absorption Strategy
-AI_NEW->>AI_DEV_MAIN : AiDev_Main ($BD7A)<br/>Intelligent Officer Training Algorithm
-AI_NEW->>AI_SCAN : ScanEntityOwnership ($B898)<br/>Entity Ownership Analysis
-AI_NEW->>AI_MARK : MarkSwapArmyFlags ($B90A)<br/>Army Flag Management
-AI_NEW->>AI_FIND : FindEntityForChar ($B955)<br/>Character Entity Resolution
+AI_NEW->>AI_FIND_OFFICER : FindBestOfficerAssign ($C50E)<br/>Best Officer Assignment
+AI_NEW->>AI_PROCESS_ALL : ProcessAllOfficers ($C5B9)<br/>Officer Processing Pipeline
+AI_NEW->>AI_SCENARIO_DEDUCTIONS : ApplyScenarioDeductions ($CD68)<br/>Scenario Difficulty Scaling
+AI_NEW->>AI_BRACKET_DEDUCT : BracketDeductGold/Army ($CE67/$CEDD)<br/>Resource Deduction Tables
+AI_NEW->>AI_SEARCH_EVALUATE : OfficerSearchAndEvaluate ($C79A)<br/>Officer Recruitment Pipeline
+AI_NEW->>AI_CATEGORY_FIND : FindBestOfficerByCategory ($C98F)<br/>Category-Based Selection
 AI_NEW-->>AI : Return to AI Turn Dispatch
 AI-->>STATE : Return to StateDispatch
 DEBUG->>BOOT : Analyze aligned formatted code
@@ -301,7 +299,7 @@ DEBUG->>PARAMSYS : Verify parameter aliasing system
 DEBUG->>AI : Examine Ai* function organization
 DEBUG->>AI : Verify labeled targets and loop structures
 DEBUG->>AI_NEW : Analyze new modular AI functions
-DEBUG->>AI_NEW : Verify three-phase/six-phase algorithms
+DEBUG->>AI_NEW : Verify officer management algorithms
 VERIFY->>COMBINED0A_0B : ROM validation and byte comparison
 VERIFY->>COMBINED0A_0B : Verify refactoring completeness
 ```
@@ -449,13 +447,13 @@ DIS-->>SH : Continue loop
 - **Improved Internal Control Flow**: Labeled targets replacing raw address jumps throughout the AI subsystem (@exit_to_turn, @end_turn_process, @apply_domestic_b, @check_kingdom_count).
 - **Better Loop Structure**: Properly named loop bodies (@ScanOwnedProvinces, @ScanEnemyProvinces, @InnerLoop, @FindBestLoop, @FindBestSlot, @CountOwnedLoop, @FindStrongestLoop, @FindBestSubCharacter).
 - **Enhanced Battle System Logic**: Specialized functions for army and enemy management (@PlaceNewArmies, @PlaceNewEnemies, @InsertBattleSlot, @InsertEnemySlot, @FindBestTarget).
-- **Latest AI Refactoring**: Complete modularization with new functions including AiDomesticAction ($B98B) implementing three-phase domestic action system, AiAbsorbEntityAction ($BBB2) with six-phase entity absorption strategy, AiDev_Main ($BD7A) providing intelligent officer training algorithm, ScanEntityOwnership ($B898) for entity ownership analysis, MarkSwapArmyFlags ($B90A) for army flag management, and FindEntityForChar ($B955) for character entity resolution.
+- **Latest AI Refactoring**: Complete modularization with new functions including FindBestOfficerAssign ($C50E) for best officer assignment, ProcessAllOfficers ($C5B9) for officer processing pipeline, ApplyScenarioDeductions ($CD68) for scenario difficulty scaling, BracketDeductGold/Army ($CE67/$CEDD) for table-based resource deduction, OfficerSearchAndEvaluate ($C79A) for officer recruitment pipeline, and FindBestOfficerByCategory ($C98F) for category-based officer selection.
 - Bank switching for this combined structure uses standard bank switching routines to load both banks simultaneously.
 - Modern .proc/.endproc organization provides modular function structure with clear scope boundaries and improved code maintainability.
 - **Enhanced Parameter System**: Structured memory addressing system with comprehensive parameter declarations throughout the assembly.
 - **Verification Tool Integration**: New verify_0a_0b.py tool ensures byte-for-byte accuracy against original ROM.
 
-**Updated** Major enhancement with completed refactoring from cryptic prefixed format to descriptive names, fully descriptive entry points following the standardized naming convention replacing generic EntryXX patterns, comprehensive AI subsystem reorganization with Ai* prefix pattern, improved control flow with labeled targets, better loop structure with named loop bodies, enhanced battle system logic with specialized army/enemy management functions, latest AI refactoring with new modular functions, and verification tool integration for maintaining ROM accuracy.
+**Updated** Major enhancement with completed refactoring from cryptic prefixed format to descriptive names, fully descriptive entry points following the standardized naming convention replacing generic EntryXX patterns, comprehensive AI subsystem reorganization with Ai* prefix pattern, improved control flow with labeled targets, better loop structure with named loop bodies, enhanced battle system logic with specialized army/enemy management functions, latest AI refactoring with new modular functions including officer management algorithms and bracket-based deduction systems, and verification tool integration for maintaining ROM accuracy.
 
 ```mermaid
 flowchart TD
@@ -474,7 +472,7 @@ AI_SUBSYSTEM --> AI_FIND_STRONGEST["AiFindStrongestAdjacent<br/>Find Strongest A
 AI_SUBSYSTEM --> AI_COUNT_KINGDOMS["AiCountActiveKingdoms<br/>Count Active Kingdoms"]
 AI_SUBSYSTEM --> AI_SWAP_OWNER["AiSwapProvinceOwner<br/>Swap Province Ownership"]
 AI_SUBSYSTEM --> AI_FIND_PROVINCE["AiFindProvinceByOwner<br/>Find Province by Owner"]
-AI_SUBSYSTEM --> AI_DOMESTIC["AiDomesticAction ($B98B)<br/>Three-Phase Domestic Action System"]
+AI_SUBSYSTEM --> AI_DOMESTIC["AiDomesticAction<br/>Three-Phase Domestic Action System"]
 AI_SUBSYSTEM --> AI_RANDOM_CHECK["AiRandomCheck<br/>Random Number Generation"]
 AI_SUBSYSTEM --> AI_END_TURN["AiEndTurn<br/>End Turn Processing"]
 AI_SUBSYSTEM --> AI_SCAN_RESOURCE["AiScanMaxResource<br/>Scan Maximum Resources"]
@@ -484,11 +482,12 @@ AI_SUBSYSTEM --> AI_TURN_LOOP["AiTurnLoop<br/>Main Turn Loop"]
 AI_SUBSYSTEM --> AI_EVALUATE["AiEvaluateProvince<br/>Evaluate Province Value"]
 AI_SUBSYSTEM --> AI_INCREMENT["AiIncrementTurn<br/>Increment Turn Counter"]
 AI_SUBSYSTEM --> AI_APPLY["AiApplyDomesticChanges<br/>Apply Domestic Changes"]
-AI_SUBSYSTEM --> AI_ABSORB["AiAbsorbEntityAction ($BBB2)<br/>Six-Phase Entity Absorption Strategy"]
-AI_SUBSYSTEM --> AI_DEV_MAIN["AiDev_Main ($BD7A)<br/>Intelligent Officer Training Algorithm"]
-AI_SUBSYSTEM --> AI_SCAN_OWNERSHIP["ScanEntityOwnership ($B898)<br/>Entity Ownership Analysis"]
-AI_SUBSYSTEM --> AI_MARK_FLAGS["MarkSwapArmyFlags ($B90A)<br/>Army Flag Management"]
-AI_SUBSYSTEM --> AI_FIND_CHAR["FindEntityForChar ($B955)<br/>Character Entity Resolution"]
+AI_SUBSYSTEM --> AI_FIND_OFFICER["FindBestOfficerAssign ($C50E)<br/>Best Officer Assignment Algorithm"]
+AI_SUBSYSTEM --> AI_PROCESS_ALL["ProcessAllOfficers ($C5B9)<br/>Officer Processing Pipeline"]
+AI_SUBSYSTEM --> AI_SCENARIO_DEDUCTIONS["ApplyScenarioDeductions ($CD68)<br/>Scenario Difficulty Scaling"]
+AI_SUBSYSTEM --> AI_BRACKET_DEDUCT["BracketDeductGold/Army ($CE67/$CEDD)<br/>Table-Based Resource Deduction"]
+AI_SUBSYSTEM --> AI_SEARCH_EVALUATE["OfficerSearchAndEvaluate ($C79A)<br/>Officer Recruitment Pipeline"]
+AI_SUBSYSTEM --> AI_CATEGORY_FIND["FindBestOfficerByCategory ($C98F)<br/>Category-Based Officer Selection"]
 BANKA --> PROC[".proc/.endproc<br/>Modular Organization"]
 BANKB --> PROC
 PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
@@ -505,9 +504,12 @@ ROUTINES --> AI_SUBSYSTEM
 AI_SUBSYSTEM --> LABELED_TARGETS["Labeled Targets<br/>@exit_to_turn, @end_turn_process,<br/>@apply_domestic_b, @check_kingdom_count"]
 AI_SUBSYSTEM --> NAMED_LOOPS["@ScanOwnedProvinces, @ScanEnemyProvinces,<br/>@InnerLoop, @FindBestLoop,<br/>@FindBestSlot, @CountOwnedLoop,<br/>@FindStrongestLoop, @FindBestSubCharacter"]
 AI_SUBSYSTEM --> BATTLE_FUNCTIONS["@PlaceNewArmies, @PlaceNewEnemies,<br/>@InsertBattleSlot, @InsertEnemySlot,<br/>@FindBestTarget"]
-AI_DOMESTIC --> THREE_PHASE["Three-Phase System:<br/>Phase 1: Find weak entities<br/>Phase 2: Find best targets<br/>Phase 3: Compute action score"]
-AI_ABSORB --> SIX_PHASE["Six-Phase System:<br/>Phase 1: Validate holdings<br/>Phase 2: Find target entity<br/>Phase 3: Check officer count<br/>Phase 4: Build candidate list<br/>Phase 5: Select random candidate<br/>Phase 6: Transfer officer"]
-AI_DEV_MAIN --> TRAINING_ALGO["Intelligent Training Algorithm:<br/>Province score ≥ 300<br/>Officer eligibility checks<br/>Training cost calculation<br/>Resource allocation"]
+AI_FIND_OFFICER --> OFFICER_ASSIGNMENT["Officer Assignment:<br/>Entity scanning, scoring,<br/>source/target list management"]
+AI_PROCESS_ALL --> OFFICER_PIPELINE["Officer Pipeline:<br/>Per-entity evaluation,<br/>kingdom assignment attempts"]
+AI_SCENARIO_DEDUCTIONS --> DIFFICULTY_SCALING["Difficulty Scaling:<br/>Multiplier calculation,<br/>resource field adjustments"]
+AI_BRACKET_DEDUCT --> TABLE_BASED_DEDUCTION["Table-Based Deduction:<br/>Threshold bracket lookup,<br/>multiplied result subtraction"]
+AI_SEARCH_EVALUATE --> RECRUITMENT_PIPELINE["Recruitment Pipeline:<br/>Entity scanning, eligibility checks,<br/>slot filling and validation"]
+AI_CATEGORY_FIND --> CATEGORY_SELECTION["Category Selection:<br/>Officer scanning, score evaluation,<br/>priority slot swapping"]
 VERIFY["verify_0a_0b.py<br/>ROM Validation"] --> COMBINED0A_0B
 REFAC["B0A_* → CheckGameStart<br/>B0B_* → SubStateDispatch"] --> REFACTORED
 ```
@@ -522,6 +524,11 @@ REFAC["B0A_* → CheckGameStart<br/>B0B_* → SubStateDispatch"] --> REFACTORED
 - [prg_0a_0b.asm:4472-4671](file://asm/banks/prg_0a_0b.asm#L4472-L4671)
 - [prg_0a_0b.asm:4726-4925](file://asm/banks/prg_0a_0b.asm#L4726-L4925)
 - [prg_0a_0b.asm:3972-4171](file://asm/banks/prg_0a_0b.asm#L3972-L4171)
+- [prg_0a_0b.asm:5830-6029](file://asm/banks/prg_0a_0b.asm#L5830-L6029)
+- [prg_0a_0b.asm:6228-6500](file://asm/banks/prg_0a_0b.asm#L6228-L6500)
+- [prg_0a_0b.asm:6643-6842](file://asm/banks/prg_0a_0b.asm#L6643-L6842)
+- [prg_0a_0b.asm:7165-7400](file://asm/banks/prg_0a_0b.asm#L7165-L7400)
+- [prg_0a_0b.asm:7398-7597](file://asm/banks/prg_0a_0b.asm#L7398-L7597)
 - [functions.h:739-745](file://include/functions.h#L739-L745)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 - [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
@@ -537,6 +544,11 @@ REFAC["B0A_* → CheckGameStart<br/>B0B_* → SubStateDispatch"] --> REFACTORED
 - [prg_0a_0b.asm:4472-4671](file://asm/banks/prg_0a_0b.asm#L4472-L4671)
 - [prg_0a_0b.asm:4726-4925](file://asm/banks/prg_0a_0b.asm#L4726-L4925)
 - [prg_0a_0b.asm:3972-4171](file://asm/banks/prg_0a_0b.asm#L3972-L4171)
+- [prg_0a_0b.asm:5830-6029](file://asm/banks/prg_0a_0b.asm#L5830-L6029)
+- [prg_0a_0b.asm:6228-6500](file://asm/banks/prg_0a_0b.asm#L6228-L6500)
+- [prg_0a_0b.asm:6643-6842](file://asm/banks/prg_0a_0b.asm#L6643-L6842)
+- [prg_0a_0b.asm:7165-7400](file://asm/banks/prg_0a_0b.asm#L7165-L7400)
+- [prg_0a_0b.asm:7398-7597](file://asm/banks/prg_0a_0b.asm#L7398-L7597)
 - [functions.h:739-745](file://include/functions.h#L739-L745)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 - [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
@@ -665,7 +677,7 @@ SRAM --> DATASTORE["Data Storage<br/>Kingdom Records, Player Data"]
 ```
 
 **Diagram sources**
-- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
+- [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-335)
 - [prg_1d_1e.asm:342-438](file://asm/banks/prg_1d_1e.asm#L342-L438)
 - [prg_1d_1e.asm:475-612](file://asm/banks/prg_1d_1e.asm#L475-L612)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
@@ -762,18 +774,18 @@ COMBINED1D_1E --> PARAMSYS
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:785-818](file://asm/banks/prg_1f.aligned.asm#L785-818)
-- [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-828)
-- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-501)
+- [prg_1f.aligned.asm:785-818](file://asm/banks/prg_1f.aligned.asm#L785-L818)
+- [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-L828)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
-- [namco163.h:10-17](file://include/namco163.h#L10-17)
+- [namco163.h:10-17](file://include/namco163.h#L10-L17)
 
 **Section sources**
-- [namco163.h:65-87](file://include/namco163.h#L65-87)
-- [prg_1f.aligned.asm:785-818](file://asm/banks/prg_1f.aligned.asm#L785-818)
-- [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-828)
-- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-501)
+- [namco163.h:65-87](file://include/namco163.h#L65-L87)
+- [prg_1f.aligned.asm:785-818](file://asm/banks/prg_1f.aligned.asm#L785-L818)
+- [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-L828)
+- [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 
@@ -820,22 +832,22 @@ PARAMSYS --> UNIFIED["$A000: Descriptive Entry Points<br/>Meaningful Function Na
 ```
 
 **Diagram sources**
-- [main.asm:65-99](file://asm/main.asm#L65-99)
-- [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-1065)
+- [main.asm:65-99](file://asm/main.asm#L65-L99)
+- [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-L1065)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
-- [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-768)
+- [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-L768)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
-- [macros.h:8-12](file://include/macros.h#L8-12)
+- [macros.h:8-12](file://include/macros.h#L8-L12)
 
 **Section sources**
-- [main.asm:65-99](file://asm/main.asm#L65-99)
-- [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-1065)
+- [main.asm:65-99](file://asm/main.asm#L65-L99)
+- [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-L1065)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
-- [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-768)
+- [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-L768)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
-- [macros.h:8-12](file://include/macros.h#L8-12)
+- [macros.h:8-12](file://include/macros.h#L8-L12)
 
 ### Modular Assembly Approach and Bank Assignment
 - The project uses a modular approach: each bank is represented by a separate assembly stub that includes the corresponding binary.
@@ -850,9 +862,9 @@ PARAMSYS --> UNIFIED["$A000: Descriptive Entry Points<br/>Meaningful Function Na
 - **Comprehensive Descriptive Entry Points**: All combined bank systems now feature fully descriptive entry points following the standardized naming convention replacing generic EntryXX patterns for superior code organization.
 - **Completed Major Refactoring**: PRG bank $0A+$0B has been successfully refactored with descriptive function naming, eliminating cryptic prefixed formats.
 - **Enhanced AI Subsystem**: Comprehensive function reorganization with consistent Ai* prefix pattern, improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies, and enhanced battle system logic with specialized functions for army and enemy management.
-- **Latest AI Refactoring**: Complete modularization with new functions providing enhanced three-phase domestic action system, six-phase entity absorption strategy, and intelligent officer training algorithm.
+- **Latest AI Refactoring**: Complete modularization with new functions providing enhanced officer management algorithms, bracket-based deduction systems, and improved code organization.
 
-**Updated** Enhanced with modern assembly formatting standards and improved bank assignment organization, including coverage of the new combined bank structure, structured function organization, fully descriptive entry points following the standardized naming convention, structured function organization, enhanced AI subsystem with comprehensive function reorganization, and latest AI refactoring with new modular functions.
+**Updated** Enhanced with modern assembly formatting standards and improved bank assignment organization, including coverage of the new combined bank structure, structured function organization, fully descriptive entry points following the standardized naming convention, structured function organization, enhanced AI subsystem with comprehensive function reorganization, and latest AI refactoring with new modular functions including officer management algorithms and bracket-based deduction systems.
 
 ```mermaid
 graph LR
@@ -885,20 +897,21 @@ COMBINED17_18 --> DESCRIPTIVENAMING
 COMBINED1D_1E --> DESCRIPTIVENAMING
 REFAC["Major Refactoring<br/>B0A_* → CheckGameStart"] --> COMBINED0A_0B
 AI_ENHANCEMENT["Enhanced AI Subsystem<br/>Ai* Prefix Pattern<br/>Improved Control Flow<br/>+ New Modular Functions"] --> COMBINED0A_0B
-AI_DOMESTIC["AiDomesticAction<br/>Three-Phase System"] --> COMBINED0A_0B
-AI_ABSORB["AiAbsorbEntityAction<br/>Six-Phase Strategy"] --> COMBINED0A_0B
-AI_DEV["AiDev_Main<br/>Intelligent Training"] --> COMBINED0A_0B
+AI_FIND_OFFICER["FindBestOfficerAssign<br/>Best Officer Assignment"] --> COMBINED0A_0B
+AI_PROCESS_ALL["ProcessAllOfficers<br/>Officer Processing Pipeline"] --> COMBINED0A_0B
+AI_SCENARIO_DEDUCTIONS["ApplyScenarioDeductions<br/>Scenario Difficulty Scaling"] --> COMBINED0A_0B
+AI_BRACKET_DEDUCT["BracketDeductGold/Army<br/>Table-Based Deduction"] --> COMBINED0A_0B
 ```
 
 **Diagram sources**
-- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-38)
+- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 - [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 
 **Section sources**
-- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-38)
+- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 - [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
@@ -933,11 +946,11 @@ The modern assembly formatting provides numerous benefits for developers:
 - **Documentation Support**: Organized structure serves as implicit documentation of code functionality
 
 **Section sources**
-- [prg_1f.aligned.asm:12-80](file://asm/banks/prg_1f.aligned.asm#L12-80)
-- [prg_1f.aligned.asm:800-1599](file://asm/banks/prg_1f.aligned.asm#L800-1599)
-- [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-71)
-- [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-16)
-- [namco163.h:65-87](file://include/namco163.h#L65-87)
+- [prg_1f.aligned.asm:12-80](file://asm/banks/prg_1f.aligned.asm#L12-L80)
+- [prg_1f.aligned.asm:800-1599](file://asm/banks/prg_1f.aligned.asm#L800-L1599)
+- [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-L71)
+- [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-L16)
+- [namco163.h:65-87](file://include/namco163.h#L65-L87)
 
 ## Enhanced Parameter Declaration System
 
@@ -1020,9 +1033,9 @@ The new .proc/.endproc organization provides comprehensive function structuring:
 - **Code Reusability**: Modular functions can be reused independently
 
 **Section sources**
-- [prg_1f.aligned.asm:80-399](file://asm/banks/prg_1f.aligned.asm#L80-399)
-- [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-71)
-- [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-16)
+- [prg_1f.aligned.asm:80-399](file://asm/banks/prg_1f.aligned.asm#L80-L399)
+- [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-L71)
+- [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-L16)
 - [prg_1f.aligned.asm:1228-1256](file://asm/banks/prg_1f.aligned.asm#L1228-L1256)
 - [prg_1f.aligned.asm:1319-1372](file://asm/banks/prg_1f.aligned.asm#L1319-L1372)
 - [prg_17_18.asm:17-17](file://asm/banks/prg_17_18.asm#L17-L17)
@@ -1073,12 +1086,12 @@ RTS --> RETURN["Return to caller"]
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-L612)
 
 **Section sources**
-- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-1785)
+- [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [prg_1d_1e.asm:570-612](file://asm/banks/prg_1d_1e.asm#L570-L612)
 
@@ -1187,35 +1200,38 @@ The AI subsystem has undergone comprehensive reorganization with consistent Ai* 
 - **AiApplyDomesticChanges**: Applies changes resulting from domestic actions
 
 ### Latest AI Refactoring - New Modular Functions
-The AI turn dispatch system has been completely refactored with new well-documented modular functions:
+The AI turn processing system has been completely refactored with new well-documented modular functions:
 
-- **AiDomesticAction ($B98B)**: Implements three-phase domestic action system for character absorption/recruitment
-  - Phase 1: Find entity with fewest army members
-  - Phase 2: Find best non-player target to absorb
-  - Phase 3: Compute action score from army values and kingdom tier
-- **AiAbsorbEntityAction ($BBB2)**: Implements six-phase entity absorption strategy for recruiting rival officers
-  - Phase 1: Iterate entities to validate AI's own holdings
-  - Phase 2: Find non-AI entity with most officers (best absorption target)
-  - Phase 3: Abort if target has fewer than 6 officers
-  - Phase 4: Build list of recruitable officers (loyalty $32-$59)
-  - Phase 5: Pick random candidate, probability check vs stat + kingdom tier
-  - Phase 6: Transfer officer, reduce stat, sweep affected entities
-- **AiDev_Main ($BD7A)**: Provides intelligent officer training algorithm with province-based resource allocation
-  - Province score threshold ≥ 300 requirement
-  - Officer eligibility checks (trainable flags, ability cap)
-  - Training cost calculation using ceiling division by 100
-  - Resource deduction and investment tracking
-- **ScanEntityOwnership ($B898)**: Analyzes entity ownership patterns across all entities
-  - Scans all entities (0–$1D) and their slot-table entries
-  - Determines which players have no active type-7 entities outside home province
-  - Returns count of players with active entities
-- **MarkSwapArmyFlags ($B90A)**: Manages swap flags in army-data nibbles during character swaps
-  - Marks current player record using target as key
-  - Marks target record using current player as key
-  - Sets appropriate high/low nibble to $A for swap involvement
-- **FindEntityForChar ($B955)**: Resolves character-to-entity relationships
-  - Searches entities 0-29 for matching type and character ID
-  - Returns matching entity index or $FF if not found
+- **FindBestOfficerAssign ($C50E)**: Searches entities 0-29 for the best-scoring officer owned by the current player, then moves it from source to target list
+  - Entity scanning with ownership validation
+  - Score evaluation and best candidate selection
+  - Source list removal and target list insertion
+  - Post-processing with army value recalculation
+- **ProcessAllOfficers ($C5B9)**: Iterates entities 0-29 to evaluate each officer and attempt kingdom assignment
+  - Per-entity evaluation loop with nested EvaluateAndMarkOfficer subroutine
+  - Kingdom assignment probability calculation
+  - Random threshold validation and officer marking
+- **ApplyScenarioDeductions ($CD68)**: New-game initialization applying difficulty-scaled deductions to multiple resource fields
+  - Multiplier calculation based on scenario/difficulty parameter ($6F8D)
+  - Field-specific deduction strategies (multiply/subtract vs direct assign)
+  - Nested subroutines for multiplier calculation and arithmetic operations
+- **BracketDeductGold ($CE67)**: Table-driven deduction system for gold field ($0522/$0523)
+  - Threshold bracket lookup using ArmyDeductionTable
+  - Multiplied result calculation and subtraction
+  - Underflow protection and boundary handling
+- **BracketDeductArmy ($CEDD)**: Identical algorithm to BracketDeductGold but targets soldiers field ($0526/$0527)
+  - Shared deduction tables for consistency
+  - Table-driven bracket-based resource reduction
+- **OfficerSearchAndEvaluate ($C79A)**: AI officer recruitment/transfer pipeline for the current player
+  - Entity scanning with ownership validation
+  - Subordinate candidate evaluation and selection
+  - Recruitment and transfer phase management
+  - Eligibility checking and slot allocation
+- **FindBestOfficerByCategory ($C98F)**: Category-based officer selection and priority slot management
+  - Officer record scanning for category matching
+  - Score evaluation and best candidate determination
+  - Priority slot swapping and category processing
+  - Officer change application and status updates
 
 ### Improved Internal Control Flow
 The AI subsystem now features improved internal control flow with labeled targets replacing raw address jumps:
@@ -1253,16 +1269,16 @@ The AI turn processing follows a structured pipeline:
 2. **AiSearchPhase1/AiSearchPhase2** perform province searches with different criteria
 3. **AiActionSelect** chooses appropriate action based on random selection
 4. **New Modular AI Functions** execute specific strategic decisions:
-   - **AiDomesticAction** handles three-phase domestic action system
-   - **AiAbsorbEntityAction** implements six-phase entity absorption strategy
-   - **AiDev_Main** provides intelligent officer training algorithm
-   - **ScanEntityOwnership** analyzes entity ownership patterns
-   - **MarkSwapArmyFlags** manages army swap flags
-   - **FindEntityForChar** resolves character-entity relationships
+   - **FindBestOfficerAssign** handles best officer assignment with scoring and list management
+   - **ProcessAllOfficers** manages per-officer evaluation and kingdom assignment
+   - **ApplyScenarioDeductions** applies difficulty-scaled resource deductions
+   - **BracketDeductGold/Army** implements table-based resource reduction systems
+   - **OfficerSearchAndEvaluate** executes officer recruitment and transfer pipeline
+   - **FindBestOfficerByCategory** performs category-based officer selection and promotion
 5. **Battle system functions** handle combat scenarios and unit placement
 6. **Cleanup and transition** to next game state
 
-**Updated** Major enhancement with comprehensive AI subsystem reorganization featuring consistent Ai* prefix naming pattern, improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies, enhanced battle system logic with specialized functions for army and enemy management, and latest AI refactoring with new modular functions implementing three-phase domestic action system, six-phase entity absorption strategy, and intelligent officer training algorithm.
+**Updated** Major enhancement with comprehensive AI subsystem reorganization featuring consistent Ai* prefix naming pattern, improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies, enhanced battle system logic with specialized functions for army and enemy management, and latest AI refactoring with new modular functions including officer management algorithms, bracket-based deduction systems, and improved code organization.
 
 ```mermaid
 flowchart TD
@@ -1276,29 +1292,30 @@ STRATEGIC_ACTIONS --> FIND_STRONGEST["AiFindStrongestAdjacent<br/>Find Target Pr
 STRATEGIC_ACTIONS --> COUNT_KINGDOMS["AiCountActiveKingdoms<br/>Assess Strategic Situation"]
 DOMESTIC_ACTIONS --> SCAN_RESOURCE["AiScanMaxResource<br/>Resource Evaluation"]
 DOMESTIC_ACTIONS --> RECRUIT["AiRecruitAction<br/>Unit Management"]
-DOMESTIC_ACTIONS --> AI_DOMESTIC["AiDomesticAction ($B98B)<br/>Three-Phase Domestic Action System"]
+DOMESTIC_ACTIONS --> AI_DOMESTIC["AiDomesticAction<br/>Three-Phase Domestic Action System"]
 AI_DOMESTIC --> PHASE1["Phase 1: Find weak entities"]
 AI_DOMESTIC --> PHASE2["Phase 2: Find best targets"]
 AI_DOMESTIC --> PHASE3["Phase 3: Compute action score"]
-ABSORB_ACTION["AiAbsorbEntityAction ($BBB2)<br/>Six-Phase Entity Absorption Strategy"] --> ABSORB_PHASE1["Phase 1: Validate holdings"]
-ABSORB_ACTION --> ABSORB_PHASE2["Phase 2: Find target entity"]
-ABSORB_ACTION --> ABSORB_PHASE3["Phase 3: Check officer count"]
-ABSORB_ACTION --> ABSORB_PHASE4["Phase 4: Build candidate list"]
-ABSORB_ACTION --> ABSORB_PHASE5["Phase 5: Select random candidate"]
-ABSORB_ACTION --> ABSORB_PHASE6["Phase 6: Transfer officer"]
-DEV_MAIN["AiDev_Main ($BD7A)<br/>Intelligent Officer Training Algorithm"] --> TRAIN_CHECK["Province Score ≥ 300"]
-DEV_MAIN --> OFFICER_ELIG["Officer Eligibility Checks"]
-DEV_MAIN --> COST_CALC["Training Cost Calculation"]
-DEV_MAIN --> RESOURCE_ALLOC["Resource Allocation"]
-SCAN_OWNERSHIP["ScanEntityOwnership ($B898)<br/>Entity Ownership Analysis"] --> ENTITY_SCAN["Scan All Entities (0-$1D)"]
-SCAN_OWNERSHIP --> SLOT_ANALYSIS["Analyze Slot-Table Entries"]
-SCAN_OWNERSHIP --> PLAYER_COUNT["Count Players with Active Entities"]
-MARK_FLAGS["MarkSwapArmyFlags ($B90A)<br/>Army Flag Management"] --> MARK_CURRENT["Mark Current Player Record"]
-MARK_FLAGS --> MARK_TARGET["Mark Target Record"]
-MARK_FLAGS --> SET_NIBBLE["Set High/Low Nibble to $A"]
-FIND_CHAR["FindEntityForChar ($B955)<br/>Character Entity Resolution"] --> TYPE_MATCH["Match Entity Type"]
-FIND_CHAR --> CHAR_ID_CHECK["Verify Character ID in Slots"]
-FIND_CHAR --> RETURN_ENTITY["Return Matching Entity Index"]
+AI_FIND_OFFICER["FindBestOfficerAssign ($C50E)<br/>Best Officer Assignment"] --> ENTITY_SCAN["Entity Scanning<br/>Ownership Validation"]
+AI_FIND_OFFICER --> SCORE_EVAL["Score Evaluation<br/>Best Candidate Selection"]
+AI_FIND_OFFICER --> LIST_MANAGEMENT["Source/Target List<br/>Management"]
+AI_PROCESS_ALL["ProcessAllOfficers ($C5B9)<br/>Officer Processing Pipeline"] --> PER_ENTITY["Per-Entity Evaluation<br/>Kingdom Assignment"]
+AI_PROCESS_ALL --> EVALUATE_MARK["EvaluateAndMarkOfficer<br/>Nested Subroutine"]
+AI_PROCESS_ALL --> PROBABILITY_CALC["Probability Calculation<br/>Random Threshold Validation"]
+AI_SCENARIO_DEDUCTIONS["ApplyScenarioDeductions ($CD68)<br/>Scenario Difficulty Scaling"] --> MULTIPLIER_CALC["Multiplier Calculation<br/>Based on $6F8D"]
+AI_SCENARIO_DEDUCTIONS --> FIELD_DEDUCTIONS["Field-Specific Deductions<br/>Multiply/Subtract vs Direct Assign"]
+AI_SCENARIO_DEDUCTIONS --> NESTED_SUBS["Nested Subroutines<br/>@CalcMultiplier, @MultiplyAndSubtract"]
+AI_BRACKET_DEDUCT["BracketDeductGold/Army ($CE67/$CEDD)<br/>Table-Based Resource Deduction"] --> THRESHOLD_LOOKUP["Threshold Bracket Lookup<br/>ArmyDeductionTable"]
+AI_BRACKET_DEDUCT --> MULTIPLIED_RESULT["Multiplied Result<br/>Calculation and Subtraction"]
+AI_BRACKET_DEDUCT --> UNDERFLOW_PROTECT["Underflow Protection<br/>Boundary Handling"]
+AI_SEARCH_EVALUATE["OfficerSearchAndEvaluate ($C79A)<br/>Officer Recruitment Pipeline"] --> ENTITY_LOOP["Entity Scanning<br/>Ownership Validation"]
+AI_SEARCH_EVALUATE --> CANDIDATE_EVAL["Candidate Evaluation<br/>Selection Logic"]
+AI_SEARCH_EVALUATE --> RECRUIT_TRANSFER["Recruitment/Transfer<br/>Phase Management"]
+AI_SEARCH_EVALUATE --> ELIGIBILITY_CHECK["Eligibility Checking<br/>Slot Allocation"]
+AI_CATEGORY_FIND["FindBestOfficerByCategory ($C98F)<br/>Category-Based Selection"] --> CATEGORY_SCAN["Officer Record Scanning<br/>Category Matching"]
+AI_CATEGORY_FIND --> BEST_SELECTION["Score Evaluation<br/>Best Candidate Determination"]
+AI_CATEGORY_FIND --> PRIORITY_SWAP["Priority Slot Swapping<br/>Category Processing"]
+AI_CATEGORY_FIND --> CHANGE_APPLICATION["Officer Change Application<br/>Status Updates"]
 FIND_STRONGEST --> BATTLE_PLACEMENT["@PlaceNewArmies<br/>@PlaceNewEnemies"]
 COUNT_KINGDOMS --> EVALUATE_PROVINCE["AiEvaluateProvince<br/>Strategic Assessment"]
 SCAN_RESOURCE --> APPLY_DOMESTIC["AiApplyDomesticChanges<br/>Resource Updates"]
@@ -1322,6 +1339,11 @@ INCREMENT --> NEXT_TURN["Continue Game Loop"]
 - [prg_0a_0b.asm:4726-4925](file://asm/banks/prg_0a_0b.asm#L4726-L4925)
 - [prg_0a_0b.asm:3972-4171](file://asm/banks/prg_0a_0b.asm#L3972-L4171)
 - [prg_0a_0b.asm:2050-2249](file://asm/banks/prg_0a_0b.asm#L2050-L2249)
+- [prg_0a_0b.asm:5830-6029](file://asm/banks/prg_0a_0b.asm#L5830-L6029)
+- [prg_0a_0b.asm:6228-6500](file://asm/banks/prg_0a_0b.asm#L6228-L6500)
+- [prg_0a_0b.asm:6643-6842](file://asm/banks/prg_0a_0b.asm#L6643-L6842)
+- [prg_0a_0b.asm:7165-7400](file://asm/banks/prg_0a_0b.asm#L7165-L7400)
+- [prg_0a_0b.asm:7398-7597](file://asm/banks/prg_0a_0b.asm#L7398-L7597)
 - [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
 
 **Section sources**
@@ -1331,6 +1353,11 @@ INCREMENT --> NEXT_TURN["Continue Game Loop"]
 - [prg_0a_0b.asm:4726-4925](file://asm/banks/prg_0a_0b.asm#L4726-L4925)
 - [prg_0a_0b.asm:3972-4171](file://asm/banks/prg_0a_0b.asm#L3972-L4171)
 - [prg_0a_0b.asm:2050-2249](file://asm/banks/prg_0a_0b.asm#L2050-L2249)
+- [prg_0a_0b.asm:5830-6029](file://asm/banks/prg_0a_0b.asm#L5830-L6029)
+- [prg_0a_0b.asm:6228-6500](file://asm/banks/prg_0a_0b.asm#L6228-L6500)
+- [prg_0a_0b.asm:6643-6842](file://asm/banks/prg_0a_0b.asm#L6643-L6842)
+- [prg_0a_0b.asm:7165-7400](file://asm/banks/prg_0a_0b.asm#L7165-L7400)
+- [prg_0a_0b.asm:7398-7597](file://asm/banks/prg_0a_0b.asm#L7398-L7597)
 - [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
 
 ## Battle System Logic Enhancement
@@ -1491,10 +1518,10 @@ The AI subsystem reorganization provides significant debugging advantages:
 ### Latest AI Refactoring Debugging Benefits
 The new modular AI functions provide additional debugging advantages:
 
-- **Well-Documented Functions**: Each new function includes comprehensive comments explaining phases and algorithms
+- **Well-Documented Functions**: Each new function includes comprehensive comments explaining algorithms and phases
 - **Modular Design**: Individual functions can be tested and debugged independently
-- **Clear Algorithm Implementation**: Three-phase domestic action system, six-phase entity absorption strategy, and intelligent training algorithm are clearly separated
-- **Enhanced Traceability**: New functions like AiDomesticAction ($B98B), AiAbsorbEntityAction ($BBB2), and AiDev_Main ($BD7A) provide clear entry points for debugging
+- **Clear Algorithm Implementation**: Officer management algorithms, bracket-based deduction systems, and recruitment pipelines are clearly separated
+- **Enhanced Traceability**: New functions like FindBestOfficerAssign ($C50E), ProcessAllOfficers ($C5B9), and ApplyScenarioDeductions ($CD68) provide clear entry points for debugging
 - **Improved Analysis**: Tools like analyze_b49c.py provide automated analysis and improvement of AI function structure
 
 **Updated** Enhanced debugging capabilities with comprehensive AI subsystem reorganization benefits, including consistent Ai* prefix naming pattern, improved control flow with labeled targets, properly named loop structures, specialized battle system functions for enhanced traceability and debugging support, and latest AI refactoring with new modular functions providing well-documented algorithms and clear debugging paths.
@@ -1502,7 +1529,7 @@ The new modular AI functions provide additional debugging advantages:
 **Section sources**
 - [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
-- [assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-41)
+- [assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
@@ -1528,7 +1555,7 @@ The architecture exhibits clear separation of concerns with modern assembly form
 - **AI Subsystem Dependencies**: The enhanced AI subsystem depends on consistent Ai* prefix naming pattern, improved control flow with labeled targets, properly named loop structures, and specialized battle system functions for army and enemy management.
 - **Latest AI Refactoring Dependencies**: New modular AI functions depend on well-documented interfaces, clear algorithm separation, and comprehensive comment documentation for maintainability.
 
-**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, the new menu dispatch architecture, the enhanced callback system, the comprehensive descriptive entry point naming convention following the standardized naming pattern, the new verification tool infrastructure, the enhanced AI subsystem with consistent Ai* prefix pattern, improved control flow, and specialized battle system functions, plus latest AI refactoring with new modular functions and comprehensive documentation.
+**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, the new menu dispatch architecture, the enhanced callback system, the comprehensive descriptive entry point naming convention following the standardized naming pattern, the new verification tool infrastructure, the enhanced AI subsystem with consistent Ai* prefix pattern, improved control flow, and specialized battle system functions, plus latest AI refactoring with new modular functions including officer management algorithms, bracket-based deduction systems, and comprehensive documentation.
 
 ```mermaid
 graph TB
@@ -1560,12 +1587,12 @@ AI_SUBSYSTEM --> AI_FUNCTIONS["AiTurnDispatch, AiSearchPhase1,<br/>AiSearchPhase
 AI_SUBSYSTEM --> LABELED_TARGETS["@exit_to_turn, @end_turn_process,<br/>@apply_domestic_b, @check_kingdom_count"]
 AI_SUBSYSTEM --> NAMED_LOOPS["@ScanOwnedProvinces, @ScanEnemyProvinces,<br/>@InnerLoop, @FindBestLoop, etc."]
 AI_SUBSYSTEM --> BATTLE_FUNCTIONS["@PlaceNewArmies, @PlaceNewEnemies,<br/>@InsertBattleSlot, @InsertEnemySlot,<br/>@FindBestTarget"]
-AI_SUBSYSTEM --> AI_DOMESTIC["AiDomesticAction ($B98B)<br/>Three-Phase System"]
-AI_SUBSYSTEM --> AI_ABSORB["AiAbsorbEntityAction ($BBB2)<br/>Six-Phase Strategy"]
-AI_SUBSYSTEM --> AI_DEV_MAIN["AiDev_Main ($BD7A)<br/>Intelligent Training"]
-AI_SUBSYSTEM --> AI_SCAN["ScanEntityOwnership ($B898)<br/>Entity Analysis"]
-AI_SUBSYSTEM --> AI_MARK["MarkSwapArmyFlags ($B90A)<br/>Flag Management"]
-AI_SUBSYSTEM --> AI_FIND["FindEntityForChar ($B955)<br/>Character Resolution"]
+AI_SUBSYSTEM --> AI_FIND_OFFICER["FindBestOfficerAssign ($C50E)<br/>Best Officer Assignment"]
+AI_SUBSYSTEM --> AI_PROCESS_ALL["ProcessAllOfficers ($C5B9)<br/>Officer Processing Pipeline"]
+AI_SUBSYSTEM --> AI_SCENARIO_DEDUCTIONS["ApplyScenarioDeductions ($CD68)<br/>Scenario Difficulty Scaling"]
+AI_SUBSYSTEM --> AI_BRACKET_DEDUCT["BracketDeductGold/Army ($CE67/$CEDD)<br/>Table-Based Deduction"]
+AI_SUBSYSTEM --> AI_SEARCH_EVALUATE["OfficerSearchAndEvaluate ($C79A)<br/>Officer Recruitment Pipeline"]
+AI_SUBSYSTEM --> AI_CATEGORY_FIND["FindBestOfficerByCategory ($C98F)<br/>Category-Based Selection"]
 MAIN["main.asm"] --> ALIGNED
 MAIN --> NAMCO
 LCFG["linker.cfg"] --> ALIGNED
@@ -1594,20 +1621,23 @@ VERIFY["verify_0a_0b.py<br/>ROM Validation"] --> COMBINED0A_0B
 VERIFY --> ORIGINALROM["Original ROM File"]
 VERIFY --> BUILDARTIFACTS["Build Artifacts"]
 AI_SUBSYSTEM --> ANALYZE["analyze_b49c.py<br/>AI Function Analysis"]
-AI_DOMESTIC --> DOCUMENTATION["Well-Documented Algorithms<br/>Clear Phase Separation"]
-AI_ABSORB --> DOCUMENTATION
-AI_DEV_MAIN --> DOCUMENTATION
+AI_FIND_OFFICER --> DOCUMENTATION["Well-Documented Algorithms<br/>Clear Function Separation"]
+AI_PROCESS_ALL --> DOCUMENTATION
+AI_SCENARIO_DEDUCTIONS --> DOCUMENTATION
+AI_BRACKET_DEDUCT --> DOCUMENTATION
+AI_SEARCH_EVALUATE --> DOCUMENTATION
+AI_CATEGORY_FIND --> DOCUMENTATION
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-11)
-- [prg_0a_0b.asm:10-12](file://asm/banks/prg_0a_0b.asm#L10-12)
-- [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-12)
-- [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-14)
+- [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
+- [prg_0a_0b.asm:10-12](file://asm/banks/prg_0a_0b.asm#L10-L12)
+- [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-L12)
+- [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-L14)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
-- [main.asm:6-7](file://asm/main.asm#L6-7)
+- [main.asm:6-7](file://asm/main.asm#L6-L7)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
 - [functions.h:574-597](file://include/functions.h#L574-L597)
@@ -1622,14 +1652,14 @@ AI_DEV_MAIN --> DOCUMENTATION
 - [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
 
 **Section sources**
-- [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-11)
-- [prg_0a_0b.asm:10-12](file://asm/banks/prg_0a_0b.asm#L10-12)
-- [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-12)
-- [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-14)
+- [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
+- [prg_0a_0b.asm:10-12](file://asm/banks/prg_0a_0b.asm#L10-L12)
+- [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-L12)
+- [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-L14)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [6502_registers.h:6-39](file://include/6502_registers.h#L6-L39)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
-- [main.asm:6-7](file://asm/main.asm#L6-7)
+- [main.asm:6-7](file://asm/main.asm#L6-L7)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [functions.h:315-335](file://include/functions.h#L315-L335)
 - [functions.h:574-597](file://include/functions.h#L574-L597)
@@ -1663,7 +1693,7 @@ AI_DEV_MAIN --> DOCUMENTATION
 - **Comprehensive Descriptive Entry Points**: Fully descriptive entry points following the standardized naming convention provide superior code organization with no performance penalty, significantly improving long-term maintainability and reducing debugging time across the entire codebase.
 - **Verification Tool Impact**: The verify_0a_0b.py tool runs during development builds but has no runtime performance impact.
 - **AI Subsystem Performance**: The enhanced AI subsystem with consistent Ai* prefix pattern and improved control flow provides better performance through optimized function organization and reduced overhead from labeled targets replacing raw address jumps.
-- **Latest AI Refactoring Performance**: New modular AI functions provide optimized performance through well-structured algorithms, clear phase separation, and efficient resource management in three-phase domestic action system, six-phase entity absorption strategy, and intelligent officer training algorithm.
+- **Latest AI Refactoring Performance**: New modular AI functions provide optimized performance through well-structured algorithms, clear function separation, and efficient resource management in officer management algorithms, bracket-based deduction systems, and recruitment pipelines.
 
 **Updated** Enhanced performance considerations with AI subsystem optimization benefits, including consistent Ai* prefix pattern for better function organization, improved control flow with labeled targets reducing overhead, specialized battle system functions providing optimized army and enemy management performance, and latest AI refactoring with new modular functions providing efficient algorithm implementation and optimized resource management.
 
@@ -1690,9 +1720,9 @@ AI_DEV_MAIN --> DOCUMENTATION
 - **Comprehensive Descriptive Entry Point Issues**: For problems with fully descriptive entry points following the standardized naming convention like CheckGameStart_Entry, PpuWriteRle_Entry, or PPUTileRender_Entry, verify the jump table structure and ensure proper function name consistency across all combined bank systems. The descriptive naming convention eliminates confusion and makes debugging significantly more straightforward.
 - **Verification Tool Failures**: When verify_0a_0b.py reports mismatches, examine the specific addresses reported and compare with original ROM bytes to identify refactoring errors.
 - **AI Subsystem Issues**: For AI-related problems, verify the consistent Ai* prefix naming pattern, check labeled targets replacing raw address jumps, examine properly named loop bodies, and validate specialized battle system functions for army and enemy management. The enhanced AI subsystem organization should provide clearer debugging paths and better traceability through the AiTurnDispatch pipeline.
-- **Latest AI Refactoring Issues**: For problems with new modular AI functions, verify the well-documented algorithm phases, check function entry points (AiDomesticAction $B98B, AiAbsorbEntityAction $BBB2, AiDev_Main $BD7A), examine phase transitions in three-phase domestic action system and six-phase entity absorption strategy, and validate the intelligent officer training algorithm implementation.
+- **Latest AI Refactoring Issues**: For problems with new modular AI functions, verify the well-documented algorithm phases, check function entry points (FindBestOfficerAssign $C50E, ProcessAllOfficers $C5B9, ApplyScenarioDeductions $CD68), examine officer management algorithms, validate bracket-based deduction systems, and review recruitment pipeline implementation.
 
-**Updated** Enhanced troubleshooting guidance with AI subsystem debugging support, including verification of consistent Ai* prefix naming pattern, labeled targets replacing raw address jumps, properly named loop bodies, and specialized battle system functions for army and enemy management, plus latest AI refactoring debugging support for new modular functions with well-documented algorithms and clear phase separation.
+**Updated** Enhanced troubleshooting guidance with AI subsystem debugging support, including verification of consistent Ai* prefix naming pattern, labeled targets replacing raw address jumps, properly named loop bodies, and specialized battle system functions for army and enemy management, plus latest AI refactoring debugging support for new modular functions with well-documented algorithms and clear function separation.
 
 **Section sources**
 - [prg_1f.aligned.asm:739-750](file://asm/banks/prg_1f.aligned.asm#L739-L750)
@@ -1708,4 +1738,4 @@ AI_DEV_MAIN --> DOCUMENTATION
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 
 ## Conclusion
-The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability and debugging support. **Updated** The most significant recent enhancement is the completion of the major refactoring of PRG bank $0A+$0B, successfully transforming cryptic prefixed function names like B0A_CheckGameStart and B0B_SubStateDispatch into descriptive names like CheckGameStart and SubStateDispatch, while also updating all entry points from generic EntryXX patterns to meaningful descriptive names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern (AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect, AiFindStrongestAdjacent, AiCountActiveKingdoms, AiSwapProvinceOwner, AiFindProvinceByOwner, AiDomesticAction, AiRandomCheck, AiEndTurn, AiScanMaxResource, AiRecruitAction, AiFindBestProvince, AiTurnLoop, AiEvaluateProvince, AiIncrementTurn, AiApplyDomesticChanges), improved internal control flow with labeled targets replacing raw address jumps (@exit_to_turn, @end_turn_process, @apply_domestic_b, @check_kingdom_count), better loop structure with properly named loop bodies (@ScanOwnedProvinces, @ScanEnemyProvinces, @InnerLoop, @FindBestLoop, @FindBestSlot, @CountOwnedLoop, @FindStrongestLoop, @FindBestSubCharacter), and enhanced battle system logic with specialized functions for army and enemy management (@PlaceNewArmies, @PlaceNewEnemies, @InsertBattleSlot, @InsertEnemySlot, @FindBestTarget). **Latest Major Enhancement** The AI turn dispatch system has been completely refactored with new modular functions including AiDomesticAction ($B98B) implementing a three-phase domestic action system for character absorption/recruitment, AiAbsorbEntityAction ($BBB2) with six-phase entity absorption strategy for recruiting rival officers, AiDev_Main ($BD7A) providing intelligent officer training algorithm with province-based resource allocation, ScanEntityOwnership ($B898) for entity ownership analysis, MarkSwapArmyFlags ($B90A) for army flag management, and FindEntityForChar ($B955) for character entity resolution. This transformative change establishes a consistent naming convention across the entire codebase, significantly improving code organization, debugging capabilities, and long-term maintainability through consistent symbolic reference patterns. The addition of the verify_0a_0b.py verification tool ensures that the major refactoring maintains byte-for-byte accuracy with the original ROM, providing confidence in the code changes. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, adopting the new menu dispatch system, embracing the enhanced callback architecture, incorporating the comprehensive descriptive entry point naming convention following the standardized naming pattern, integrating the enhanced AI subsystem with consistent Ai* prefix pattern, improved control flow, and specialized battle system functions, and implementing the latest AI refactoring with new modular functions providing well-documented algorithms and clear phase separation, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.
+The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability and debugging support. **Updated** The most significant recent enhancement is the completion of the major refactoring of PRG bank $0A+$0B, successfully transforming cryptic prefixed function names like B0A_CheckGameStart and B0B_SubStateDispatch into descriptive names like CheckGameStart and SubStateDispatch, while also updating all entry points from generic EntryXX patterns to meaningful descriptive names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern (AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect, AiFindStrongestAdjacent, AiCountActiveKingdoms, AiSwapProvinceOwner, AiFindProvinceByOwner, AiDomesticAction, AiRandomCheck, AiEndTurn, AiScanMaxResource, AiRecruitAction, AiFindBestProvince, AiTurnLoop, AiEvaluateProvince, AiIncrementTurn, AiApplyDomesticChanges), improved internal control flow with labeled targets replacing raw address jumps (@exit_to_turn, @end_turn_process, @apply_domestic_b, @check_kingdom_count), better loop structure with properly named loop bodies (@ScanOwnedProvinces, @ScanEnemyProvinces, @InnerLoop, @FindBestLoop, @FindBestSlot, @CountOwnedLoop, @FindStrongestLoop, @FindBestSubCharacter), and enhanced battle system logic with specialized functions for army and enemy management (@PlaceNewArmies, @PlaceNewEnemies, @InsertBattleSlot, @InsertEnemySlot, @FindBestTarget). **Latest Major Enhancement** The AI turn processing system has been completely refactored with new modular functions including FindBestOfficerAssign ($C50E) for best officer assignment with entity scanning and scoring, ProcessAllOfficers ($C5B9) for officer processing pipeline with kingdom assignment, ApplyScenarioDeductions ($CD68) for scenario difficulty scaling with multiplier calculation, BracketDeductGold/Army ($CE67/$CEDD) for table-based resource deduction systems, OfficerSearchAndEvaluate ($C79A) for officer recruitment and transfer pipeline, and FindBestOfficerByCategory ($C98F) for category-based officer selection and priority slot management. This transformative change establishes a consistent naming convention across the entire codebase, significantly improving code organization, debugging capabilities, and long-term maintainability through consistent symbolic reference patterns. The addition of the verify_0a_0b.py verification tool ensures that the major refactoring maintains byte-for-byte accuracy with the original ROM, providing confidence in the code changes. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, adopting the new menu dispatch system, embracing the enhanced callback architecture, incorporating the comprehensive descriptive entry point naming convention following the standardized naming pattern, integrating the enhanced AI subsystem with consistent Ai* prefix pattern, improved control flow, and specialized battle system functions, and implementing the latest AI refactoring with new modular functions providing well-documented algorithms and clear function separation, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.

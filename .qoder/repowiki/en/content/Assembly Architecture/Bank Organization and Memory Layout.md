@@ -18,11 +18,10 @@
 
 ## Update Summary
 **Changes Made**
-- Enhanced AI subsystem organization in PRG banks $0A/$0B with new modular function structure including AiTurnDispatch, CalcAvgProvinceVal, AbsorbPreview, TransferProvinceValues, and FallbackMergeProvinces functions
-- Updated comprehensive work area definitions for new AI processing functions including character management, entity absorption, and officer development systems
-- Improved memory layout optimizations for SRAM player ID ($6F03) and kingdom index ($6F02) references throughout AI logic
-- Added detailed province evaluation algorithms with threshold-based decision making and fallback merge logic
-- Enhanced battle system functionality with dedicated functions for army and enemy placement adjustments
+- Enhanced PRG banks $0A/$0B with comprehensive officer assignment algorithms, scenario-based deduction systems, and bracket-based resource calculations
+- Added new specialized functions for officer evaluation and kingdom assignment logic including FindBestOfficerAssign, ProcessAllOfficers, EvaluateAndMarkOfficer, CalcActionProb, OfficerSearchAndEvaluate, and FindBestOfficerByCategory
+- Implemented ApplyScenarioDeductions with table-driven deduction systems for gold and army resources using ArmyDeductionTable and ArmyResultTable
+- Updated AI turn processing system with sophisticated province evaluation logic, battle system functionality, and better code structure through systematic reorganization while maintaining complete functional equivalence
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -444,11 +443,51 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 
 **Section sources**
 - [prg_0a_0b.asm:2873-2972](file://asm/banks/prg_0a_0b.asm#L2873-L2972)
-- [prg_0a_0b.asm:3042-3135](file://asm/banks/prg_0a_0b.asm#L3042-L3135)
-- [prg_0a_0b.asm:3258-3457](file://asm/banks/prg_0a_0b.asm#L3258-L3457)
-- [prg_0a_0b.asm:3494-3693](file://asm/banks/prg_0a_0b.asm#L3494-L3693)
-- [prg_0a_0b.asm:3687-3886](file://asm/banks/prg_0a_0b.asm#L3687-L3886)
-- [prg_0a_0b.asm:4437-4636](file://asm/banks/prg_0a_0b.asm#L4437-L4636)
+- [prg_0a_0b.asm:3042-3135](file://asm/banks/prg_0a_0b.asm#L3042-3135)
+- [prg_0a_0b.asm:3258-3457](file://asm/banks/prg_0a_0b.asm#L3258-3457)
+- [prg_0a_0b.asm:3494-3693](file://asm/banks/prg_0a_0b.asm#L3494-3693)
+- [prg_0a_0b.asm:3687-3886](file://asm/banks/prg_0a_0b.asm#L3687-3886)
+- [prg_0a_0b.asm:4437-4636](file://asm/banks/prg_0a_0b.asm#L4437-4636)
+
+### Enhanced Officer Assignment and Kingdom Logic in PRG Banks $0A/$0B
+**New**: Comprehensive officer assignment algorithms and kingdom assignment logic implemented in consolidated PRG banks $0A/$0B:
+
+#### Officer Assignment Algorithms
+**New**: Advanced officer management system with sophisticated evaluation and assignment logic:
+- **FindBestOfficerAssign**: Searches entities 0-29 for best-scoring officer owned by current player, then performs transfer operations
+- **ProcessAllOfficers**: Iterates all entities to evaluate officers and attempt kingdom assignment with nested EvaluateAndMarkOfficer
+- **EvaluateAndMarkOfficer**: Evaluates individual officers based on score thresholds and marks them for potential assignment
+- **CalcActionProb**: Calculates action probability for current player's officer with threshold validation and kingdom data copying
+- **OfficerSearchAndEvaluate**: AI officer recruitment/transfer pipeline with comprehensive evaluation and slot management
+
+#### Scenario-Based Deduction Systems
+**New**: Table-driven deduction systems for resource management:
+- **ApplyScenarioDeductions**: New-game initialization applying difficulty-scaled deductions to multiple resource fields based on $6F8D
+- **BracketDeductGold**: Table-driven deduction for gold field $0522 using ArmyDeductionTable and ArmyResultTable
+- **BracketDeductArmy**: Identical algorithm to BracketDeductGold but targets soldiers field at $0526/$0527
+- **ArmyDeductionTable**: 5×16-bit threshold values (500, 1000, 3000, 5000, 20000) for bracket calculations
+- **ArmyResultTable**: 5 result bytes interleaved with zeros (50, 0, 60, 0, 70, 0, 80, 0, 90, 0)
+
+#### Category-Based Officer Management
+**New**: Sophisticated category-based officer evaluation and promotion system:
+- **FindBestOfficerByCategory**: Scans 30 officer slots for best candidate matching category, swaps into priority slot $11
+- **FindBestInCategory**: Scans 30 officers' sub-entries for best score at byte+4 with category-specific matching
+- **CategoryRecordPtrs**: Pointer table linking categories to byte-list addresses with officer ID lists
+- **@SwapAndProcess**: Swaps officer into record, sets status byte, processes all 30 officers with scoring adjustments
+
+#### Resource Calculation and Management
+**New**: Advanced resource calculation and bracket-based resource management:
+- **ArmyValueCalc**: Calculates army strength rating for officer relative to another with clamping to range [10, 90]
+- **DataRecordLookup**: Lookup data records by category index and record ID with signed difference computation
+- **DistanceClamp**: Computes normalized distance score for battle slots with absolute value calculation and clamping
+- **CalcPlayerTerritoryValue**: Computes player's total territory value by counting owned provinces and averaging values
+
+**Section sources**
+- [prg_0a_0b.asm:5830-6200](file://asm/banks/prg_0a_0b.asm#L5830-6200)
+- [prg_0a_0b.asm:6200-6600](file://asm/banks/prg_0a_0b.asm#L6200-6600)
+- [prg_0a_0b.asm:6643-6842](file://asm/banks/prg_0a_0b.asm#L6643-6842)
+- [prg_0a_0b.asm:7165-7600](file://asm/banks/prg_0a_0b.asm#L7165-7600)
+- [prg_0a_0b.asm:7600-8000](file://asm/banks/prg_0a_0b.asm#L7600-8000)
 
 ### Enhanced Display System in Banks $1D/$1E
 **New**: Major refactoring of banks $1D/$1E introduces comprehensive improvements to the display system:
@@ -488,7 +527,7 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 **Section sources**
 - [prg_1d_1e.asm:19-259](file://asm/banks/prg_1d_1e.asm#L19-L259)
 - [prg_1d_1e.asm:264-336](file://asm/banks/prg_1d_1e.asm#L264-L336)
-- [prg_1d_1e.asm:3180-3402](file://asm/banks/prg_1d_1e.asm#L3180-L3402)
+- [prg_1d_1e.asm:3180-3402](file://asm/banks/prg_1d_1e.asm#L3180-3402)
 
 ### Memory Overlap Considerations
 - Bank 0x1F is fixed in slot 3 ($E000-$FFFF) at boot
@@ -544,6 +583,7 @@ N163["include/namco163.h"]
 FUNCS["include/functions.h<br/>(Consolidated Bank Switching)"]
 STUBS["asm/banks/*.asm<br/>(Consolidated PRG 0A/0B, 17/18 & 1D/1E)"]
 ENHANCED_AI["PRG 0A/0B Enhanced AI System<br/>Province Evaluation & Battle Logic"]
+OFFICER_SYSTEM["Officer Assignment & Kingdom Logic<br/>Scenario Deductions & Resource Management"]
 ENHANCED_DISPLAY["PRG 1D/1E Enhanced System<br/>Zero-Page Variables & SceneRenderer"]
 ROM["rom/prg/*.bin"]
 BOOT["bank_1f_analysis.md"]
@@ -551,6 +591,7 @@ LCFG --> STUBS
 N163 --> STUBS
 FUNCS --> STUBS
 ENHANCED_AI --> STUBS
+OFFICER_SYSTEM --> STUBS
 ENHANCED_DISPLAY --> STUBS
 ROM --> STUBS
 BOOT --> STUBS
@@ -595,6 +636,7 @@ BOOT --> STUBS
 - **New**: Consolidated approach improves cache locality for related AI/display functions
 - **New**: Unified 16KB blocks reduce memory fragmentation and improve code organization
 - **New**: AI system benefits from unified work area access patterns for faster province evaluation and decision making
+- **New**: Officer assignment algorithms optimize search operations through efficient entity scanning and score comparison
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -615,6 +657,13 @@ Common issues and resolutions:
   - Ensure AI turn processing functions (AiTurnDispatch, CalcAvgProvinceVal) use proper work area organization
   - Verify province evaluation logic correctly handles threshold calculations and fallback merging
   - Check that battle system functions have proper army and enemy placement logic
+- **New**: Officer assignment and kingdom logic issues:
+  - Verify FindBestOfficerAssign properly searches entities and performs transfer operations
+  - Check ProcessAllOfficers iteration logic and EvaluateAndMarkOfficer evaluation thresholds
+  - Ensure CalcActionProb threshold validation works correctly with kingdom data copying
+  - Verify OfficerSearchAndEvaluate recruitment/transfer pipeline with slot management
+  - Check ApplyScenarioDeductions table-driven calculations with ArmyDeductionTable and ArmyResultTable
+  - Verify FindBestOfficerByCategory category matching and swap operations
 - **New**: Enhanced display system issues:
   - Verify comprehensive zero-page variable organization is properly initialized
   - Check SceneRenderer callback state machine progression through all 6 stages
@@ -638,9 +687,9 @@ Common issues and resolutions:
 - [functions.h:316-332](file://include/functions.h#L316-L332)
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
 - [prg_1d_1e.asm:19-259](file://asm/banks/prg_1d_1e.asm#L19-L259)
-- [prg_1d_1e.asm:3179-3402](file://asm/banks/prg_1d_1e.asm#L3179-L3402)
+- [prg_1d_1e.asm:3179-3402](file://asm/banks/prg_1d_1e.asm#L3179-3402)
 - [prg_0a_0b.asm:487-526](file://asm/banks/prg_0a_0b.asm#L487-L526)
 - [prg_0a_0b.asm:527-572](file://asm/banks/prg_0a_0b.asm#L527-L572)
 
 ## Conclusion
-The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **New**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. The enhanced display system includes detailed workspace definitions, 6-stage rendering pipeline, and optimized data formatting capabilities. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **New**: Enhanced AI system provides more efficient province evaluation through comprehensive work area organization and SRAM integration. **New**: Enhanced display system provides more efficient rendering through comprehensive zero-page variable organization and improved SceneRenderer callback architecture. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.
+The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $0A/$0B, $17/$18, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **New**: PRG banks $0A/$0B also implement sophisticated officer assignment algorithms, scenario-based deduction systems, and bracket-based resource calculations with specialized functions for officer evaluation and kingdom assignment logic. **New**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. The enhanced display system includes detailed workspace definitions, 6-stage rendering pipeline, and optimized data formatting capabilities. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **New**: Enhanced AI system provides more efficient province evaluation through comprehensive work area organization and SRAM integration. **New**: Officer assignment and kingdom logic provide sophisticated evaluation algorithms with table-driven deduction systems. **New**: Enhanced display system provides more efficient rendering through comprehensive zero-page variable organization and improved SceneRenderer callback architecture. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.
