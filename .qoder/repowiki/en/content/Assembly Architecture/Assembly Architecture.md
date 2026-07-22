@@ -531,7 +531,7 @@ REFAC["B0A_* → CheckGameStart<br/>B0B_* → SubStateDispatch"] --> REFACTORED
 - [prg_0a_0b.asm:7398-7597](file://asm/banks/prg_0a_0b.asm#L7398-L7597)
 - [functions.h:739-745](file://include/functions.h#L739-L745)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
-- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
+- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-37)
 
 **Section sources**
 - [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
@@ -551,7 +551,7 @@ REFAC["B0A_* → CheckGameStart<br/>B0B_* → SubStateDispatch"] --> REFACTORED
 - [prg_0a_0b.asm:7398-7597](file://asm/banks/prg_0a_0b.asm#L7398-L7597)
 - [functions.h:739-745](file://include/functions.h#L739-L745)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
-- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
+- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-37)
 
 ### Combined PRG Bank 17/18 Structure and Enhanced Display Operations
 - The PRG bank 17/18 structure provides a combined 16KB memory space at $A000-$DFFF, with bank $17 at $A000-$BFFF and bank $18 at $C000-$DFFF.
@@ -1344,7 +1344,7 @@ INCREMENT --> NEXT_TURN["Continue Game Loop"]
 - [prg_0a_0b.asm:6643-6842](file://asm/banks/prg_0a_0b.asm#L6643-L6842)
 - [prg_0a_0b.asm:7165-7400](file://asm/banks/prg_0a_0b.asm#L7165-L7400)
 - [prg_0a_0b.asm:7398-7597](file://asm/banks/prg_0a_0b.asm#L7398-L7597)
-- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
+- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-37)
 
 **Section sources**
 - [prg_0a_0b.asm:3442-3700](file://asm/banks/prg_0a_0b.asm#L3442-L3700)
@@ -1358,7 +1358,7 @@ INCREMENT --> NEXT_TURN["Continue Game Loop"]
 - [prg_0a_0b.asm:6643-6842](file://asm/banks/prg_0a_0b.asm#L6643-L6842)
 - [prg_0a_0b.asm:7165-7400](file://asm/banks/prg_0a_0b.asm#L7165-L7400)
 - [prg_0a_0b.asm:7398-7597](file://asm/banks/prg_0a_0b.asm#L7398-L7597)
-- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
+- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-37)
 
 ## Battle System Logic Enhancement
 
@@ -1649,7 +1649,7 @@ AI_CATEGORY_FIND --> DOCUMENTATION
 - [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
-- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
+- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-37)
 
 **Section sources**
 - [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
@@ -1671,7 +1671,7 @@ AI_CATEGORY_FIND --> DOCUMENTATION
 - [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
-- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-L37)
+- [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-37)
 
 ## Performance Considerations
 - Bank switching involves writing to mapper registers; minimize unnecessary switches to reduce overhead.

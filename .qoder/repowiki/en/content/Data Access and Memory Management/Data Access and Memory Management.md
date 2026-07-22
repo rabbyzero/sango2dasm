@@ -16,6 +16,8 @@
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
+- [prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
+- [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
@@ -24,11 +26,11 @@
 
 ## Update Summary
 **Changes Made**
-- Updated SRAM organization section to reflect expanded persistent storage definitions for kingdom data, player settings, and game state flags
-- Enhanced OAM/sprite buffer system documentation with sprite_y_buffer ($0380) as primary OAM shadow buffer
-- Added new section documenting the $03xx memory region organization and sprite buffer system reorganization
-- Updated memory access patterns to include new SRAM definitions and sprite buffer management
-- Revised detailed component analysis to incorporate expanded SRAM usage and OAM buffer system
+- Added comprehensive documentation for enhanced data structure validation functions including ValidateRecordStats, ClampRecordStatPairs, ValidateRecordGold, CompactRecordSlots, and ValidateProvinceSlots
+- Expanded SRAM management section with VerifySramChecksum and CopySramToWork functions for improved data integrity checking
+- Updated memory management utilities section to include new validation and manipulation routines
+- Enhanced SRAM organization documentation with checksum verification and backup mechanisms
+- Added detailed analysis of data integrity checking patterns and memory safety measures
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -39,15 +41,18 @@
 6. [Centralized Global RAM Definition System](#centralized-global-ram-definition-system)
 7. [Expanded Battery SRAM Organization](#expanded-battery-sram-organization)
 8. [OAM/Sprite Buffer System Reorganization](#oamsprite-buffer-system-reorganization)
-9. [Dependency Analysis](#dependency-analysis)
-10. [Performance Considerations](#performance-considerations)
-11. [Troubleshooting Guide](#troubleshooting-guide)
-12. [Conclusion](#conclusion)
+9. [Data Structure Validation and Integrity Checking](#data-structure-validation-and-integrity-checking)
+10. [SRAM Management and Backup Systems](#sram-management-and-backup-systems)
+11. [Memory Management Utilities](#memory-management-utilities)
+12. [Dependency Analysis](#dependency-analysis)
+13. [Performance Considerations](#performance-considerations)
+14. [Troubleshooting Guide](#troubleshooting-guide)
+15. [Conclusion](#conclusion)
 
 ## Introduction
 This document focuses on the data access and memory management patterns in the Sango2DASM project. It explains how the system organizes memory across the 6502 address space, how data structures are laid out and accessed, and how bank switching enables cross-bank data access via the Namco-163 mapper. The project has recently implemented a centralized global RAM definition system for the $04xx memory region, establishing canonical names for shared state variables across multiple game subsystems. It also documents SRAM usage for save data, RAM layout, and the macro utilities that simplify memory operations. Practical examples demonstrate memory optimization techniques and the relationship between code organization and memory efficiency.
 
-**Updated** Enhanced with expanded SRAM organization for persistent storage and reorganized OAM/sprite buffer system under $03xx memory region.
+**Updated** Enhanced with expanded SRAM organization for persistent storage, reorganized OAM/sprite buffer system under $03xx memory region, and comprehensive data structure validation and integrity checking systems.
 
 ## Project Structure
 The project is organized around a 6502-based NES game using the Namco-163 (mapper 19) with 32 PRG banks of 8 KB each. The linker configuration defines four PRG slots ($8000–$FFFF) that are switchable via mapper registers. Bank 0x1F is fixed at $E000–$FFFF at boot and contains the reset handler and state dispatch logic. The include directory centralizes register and macro definitions, while asm/banks contains stub files for each PRG bank. The $04xx RAM region now features centralized global definitions with canonical names for shared state variables.
@@ -96,6 +101,7 @@ OAM_BUFFER --- MAP_PTRS
 - Centralized global RAM definitions: The $04xx memory region now features canonical names for shared state variables across multiple game subsystems.
 - Expanded SRAM organization: Battery-backed SRAM now includes dedicated persistent storage for kingdom data, player settings, and game state flags.
 - Reorganized OAM buffer system: $03xx memory region provides sprite buffer management with sprite_y_buffer as primary OAM shadow buffer.
+- Enhanced data validation: Comprehensive validation functions ensure data integrity across all memory regions.
 - Register and mapper definitions: The 6502 registers and Namco-163 mapper registers are defined centrally for consistent access.
 - Macros: Common macros encapsulate PPU operations, DMA, and bank switching to reduce repetitive code and errors.
 - Bank stubs: Each PRG bank is represented by a stub file that includes the corresponding 8 KB binary until disassembly is complete.
@@ -109,7 +115,7 @@ OAM_BUFFER --- MAP_PTRS
 - [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-L170)
 
 ## Architecture Overview
-The system uses a banked PRG model with a fixed boot bank (0x1F) and switchable PRG slots. Data tables and save data are located in bank-switched PRG and SRAM respectively. The mapper abstraction exposes simple macros to switch banks and configure registers. The reset handler initializes PPU/APU, clears RAM, and dispatches to state-specific handlers using a vector table in the boot bank. The centralized $04xx RAM system provides canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides dedicated persistent storage for game state, while the reorganized OAM buffer system manages sprite rendering efficiently.
+The system uses a banked PRG model with a fixed boot bank (0x1F) and switchable PRG slots. Data tables and save data are located in bank-switched PRG and SRAM respectively. The mapper abstraction exposes simple macros to switch banks and configure registers. The reset handler initializes PPU/APU, clears RAM, and dispatches to state-specific handlers using a vector table in the boot bank. The centralized $04xx RAM system provides canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides dedicated persistent storage for game state, while the reorganized OAM buffer system manages sprite rendering efficiently. Enhanced data validation ensures integrity across all memory operations.
 
 ```mermaid
 graph TB
@@ -126,6 +132,8 @@ GLOBAL_RAM["$0400-$04FF<br/>Centralized Global RAM"]
 OAM_BUFFER["$0380-$03FF<br/>Sprite Y-Position Buffer"]
 DISPLAY_QUEUE["$0300-$0313<br/>Display Queue & Confirm Flags"]
 CANONICAL_NAMES["Canonical Names<br/>for Shared State"]
+VALIDATION["Data Validation<br/>& Integrity Checking"]
+CHECKSUM["SRAM Checksum<br/>Verification"]
 CPU --> PRG0
 CPU --> PRGA
 CPU --> PRGC
@@ -141,8 +149,10 @@ PRGE --> |"Vector Table + State Handlers"| CPU
 PRGE --> |"Centralized RAM Definitions"| GLOBAL_RAM
 PRGE --> |"OAM Buffer System"| OAM_BUFFER
 GLOBAL_RAM --> |"Shared State Variables"| CANONICAL_NAMES
+GLOBAL_RAM --> |"Validation Functions"| VALIDATION
 OAM_BUFFER --> |"Sprite Rendering"| PPU
 DISPLAY_QUEUE --> |"Display Management"| PPU
+SRAM --> |"Checksum Verification"| CHECKSUM
 ```
 
 **Diagram sources**
@@ -172,11 +182,11 @@ Practical implications:
 - The $03xx region provides efficient sprite buffer management with dedicated OAM shadow buffer at $0380.
 
 **Section sources**
-- [linker.cfg:18-30](file://linker.cfg#L18-L30)
-- [linker.cfg:32-54](file://linker.cfg#L32-L54)
-- [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
-- [main.asm:13-20](file://asm/main.asm#L13-L20)
-- [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-L170)
+- [linker.cfg:18-30](file://linker.cfg#L18-30)
+- [linker.cfg:32-54](file://linker.cfg#L32-54)
+- [PROJECT.md:70-83](file://PROJECT.md#L70-83)
+- [main.asm:13-20](file://asm/main.asm#L13-20)
+- [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-170)
 
 ### Address Calculation Patterns and Data Structure Layouts
 The game computes pointers into bank-switched data using efficient 6502 arithmetic patterns. The key functions demonstrate multiply-by-constants using shifts and rotates, and pointer-table lookups for SRAM data.
@@ -211,16 +221,16 @@ Indirect --> End(["Use Indirect Access"])
 ```
 
 **Diagram sources**
-- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
-- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-L190)
-- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-L45)
-- [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-L149)
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-100)
+- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-190)
+- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-45)
+- [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-149)
 
 **Section sources**
-- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
-- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-L190)
-- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-L45)
-- [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-L149)
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-100)
+- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-190)
+- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-45)
+- [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-149)
 
 ### Bank Switching and the Mapper Abstraction
 The mapper abstraction simplifies cross-bank access by exposing macros to switch PRG banks into four 8 KB slots. The reset handler initializes the mapper and switches to a default bank configuration. Bank switching is also performed dynamically during gameplay to access different data tables.
@@ -247,13 +257,13 @@ PRG-->>CPU : Code/data now accessible via selected banks
 ```
 
 **Diagram sources**
-- [namco163.h:68-86](file://include/namco163.h#L68-L86)
-- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [namco163.h:68-86](file://include/namco163.h#L68-86)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
 
 **Section sources**
-- [namco163.h:10-14](file://include/namco163.h#L10-L14)
-- [namco163.h:68-86](file://include/namco163.h#L68-L86)
-- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [namco163.h:10-14](file://include/namco163.h#L10-14)
+- [namco163.h:68-86](file://include/namco163.h#L68-86)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
 
 ### SRAM Usage for Save Data
 SRAM is used for persistent save data, notably kingdom parameters and flags. The reset handler demonstrates SRAM initialization and flag setting during new game initialization. The expanded organization now includes dedicated regions for different types of persistent data.
@@ -278,15 +288,15 @@ Save --> End(["Persistent Data"])
 ```
 
 **Diagram sources**
-- [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-L156)
-- [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-L189)
-- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
+- [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-156)
+- [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-189)
+- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-150)
 
 **Section sources**
 - [PROJECT.md:12](file://PROJECT.md#L12)
-- [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-L156)
-- [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-L189)
-- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
+- [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-156)
+- [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-189)
+- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-150)
 
 ### Macro Utilities for Memory Access
 The macro library provides reusable constructs for common operations:
@@ -299,16 +309,16 @@ The macro library provides reusable constructs for common operations:
 These macros reduce boilerplate and improve maintainability.
 
 **Section sources**
-- [macros.h:8-72](file://include/macros.h#L8-L72)
+- [macros.h:8-72](file://include/macros.h#L8-72)
 
 ### Bank Stub Files and Disassembly Workflow
 Each PRG bank is represented by a stub file that includes the corresponding 8 KB binary. The workflow involves replacing stubs with disassembled code and updating linker segments accordingly.
 
 **Section sources**
-- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
-- [prg_00.asm:1-13](file://asm/banks/prg_00.asm#L1-L13)
-- [prg_01.asm:1-13](file://asm/banks/prg_01.asm#L1-L13)
-- [prg_02.asm:1-13](file://asm/banks/prg_02.asm#L1-L13)
+- [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-38)
+- [prg_00.asm:1-13](file://asm/banks/prg_00.asm#L1-13)
+- [prg_01.asm:1-13](file://asm/banks/prg_01.asm#L1-13)
+- [prg_02.asm:1-13](file://asm/banks/prg_02.asm#L1-13)
 
 ## Centralized Global RAM Definition System
 
@@ -354,14 +364,14 @@ ReplaceAliases --> ImprovedMaintainability["Improved Code Organization<br/>and M
 ```
 
 **Diagram sources**
-- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
-- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-L68)
-- [globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-136)
+- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-68)
+- [globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-77)
 
 **Section sources**
-- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
-- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-L68)
-- [globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-136)
+- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-68)
+- [globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-205)
 
 ## Expanded Battery SRAM Organization
 
@@ -415,12 +425,12 @@ TerritoryEvents --> CaptureFlag["Capture Officer Flag"]
 ```
 
 **Diagram sources**
-- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
-- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-L351)
+- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-150)
+- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-351)
 
 **Section sources**
-- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
-- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-L351)
+- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-150)
+- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-351)
 
 ## OAM/Sprite Buffer System Reorganization
 
@@ -471,13 +481,174 @@ MapPointers --> BackgroundScroll["Background Scrolling"]
 ```
 
 **Diagram sources**
-- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-L170)
+- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-170)
 
 **Section sources**
-- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-L170)
+- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-170)
+
+## Data Structure Validation and Integrity Checking
+
+### Overview
+The system implements comprehensive data structure validation functions to ensure data integrity across all memory regions. These validation routines provide robust error checking and data sanitization for critical game data structures.
+
+### Core Validation Functions
+
+#### Record Statistics Validation
+- **ValidateRecordStats**: Validates officer record statistics for consistency and bounds checking
+- **ValidateRecordStatsAlt**: Alternative validation routine with different constraint checking
+- **ClampRecordStatPairs**: Ensures paired statistic values remain within valid ranges
+- **ClampRecordStatPairsAlt**: Alternative clamping routine for different data formats
+- **ValidateRecordGold**: Validates gold amount values and prevents overflow conditions
+
+#### Province Data Validation
+- **ValidateProvinceSlots**: Validates province slot assignments and ownership data
+- **CompactRecordSlots**: Removes gaps and compacts officer slot arrays for efficient storage
+
+### Validation Implementation Details
+
+#### SRAM Integrity Verification
+- **VerifySramChecksum**: Comprehensive SRAM integrity checking with magic byte validation
+- **CopySramToWork**: Safe SRAM backup copying with NMI handler patching
+- **Magic Byte Detection**: Checks for "ID" signature at $7FFC/$7FFD
+- **Checksum Calculation**: Sums all bytes from $7000-$7FFE and compares with stored checksum
+
+#### Data Compaction and Cleanup
+- **Gap Removal**: Eliminates $FF gap entries from officer slot arrays
+- **Buffer Management**: Uses $6F73 workspace for temporary storage during compaction
+- **Write-back Operations**: Efficiently copies compacted data back to original locations
+
+```mermaid
+flowchart TD
+DataInput["Raw Game Data"] --> ValidateStats["ValidateRecordStats"]
+ValidateStats --> ClampValues["ClampRecordStatPairs"]
+ClampValues --> ValidateGold["ValidateRecordGold"]
+ValidateGold --> ValidateProvince["ValidateProvinceSlots"]
+ValidateProvince --> CompactSlots["CompactRecordSlots"]
+CompactSlots --> VerifyChecksum["VerifySramChecksum"]
+VerifyChecksum --> CopyBackup["CopySramToWork"]
+CopyBackup --> ValidatedData["Validated & Backed Up Data"]
+```
+
+**Diagram sources**
+- [prg_0a_0b.asm:239-247](file://asm/banks/prg_0a_0b.asm#L239-247)
+- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-9989)
+
+**Section sources**
+- [prg_0a_0b.asm:239-247](file://asm/banks/prg_0a_0b.asm#L239-247)
+- [prg_0a_0b.asm:8413-8451](file://asm/banks/prg_0a_0b.asm#L8413-8451)
+- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-9989)
+
+## SRAM Management and Backup Systems
+
+### Overview
+The SRAM management system provides comprehensive data integrity checking and backup capabilities to ensure persistent save data reliability. The system includes checksum verification, magic byte detection, and safe data copying mechanisms.
+
+### SRAM Checksum Verification
+
+#### Magic Byte Validation
+- **Signature Check**: Verifies "ID" magic bytes at $7FFC/$7FFD
+- **Failure Handling**: Returns carry flag cleared on invalid signatures
+- **Early Exit**: Prevents unnecessary processing when data is corrupted
+
+#### Checksum Calculation Algorithm
+- **Range Coverage**: Sums all bytes from $7000 to $7FFE (excluding checksum itself)
+- **Accumulator Management**: Uses 16-bit accumulator for sum calculation
+- **Page-by-Page Processing**: Iterates through 16 pages of SRAM data
+- **Final Comparison**: Compares calculated sum with stored checksum at $7FFE/$7FFF
+
+### SRAM Backup and Recovery
+
+#### Safe Copy Operations
+- **NMI Handler Patching**: Temporarily patches NMI handler during copy operations
+- **Page-by-Page Transfer**: Copies 16 pages from $7000 to $6000 (SRAM backup)
+- **Interrupt Safety**: Prevents NMI interrupts during critical copy operations
+- **Completion Detection**: Monitors copy progress and handles completion
+
+#### Error Handling and Recovery
+- **Integrity Testing**: Comprehensive testing of SRAM data validity
+- **Recovery Procedures**: Graceful handling of corrupted or missing save data
+- **Fallback Mechanisms**: Default data initialization when corruption is detected
+
+```mermaid
+sequenceDiagram
+participant Game as "Game Logic"
+participant Verify as "VerifySramChecksum"
+participant Copy as "CopySramToWork"
+participant SRAM as "SRAM ($6000-$7FFF)"
+participant Work as "Work Area ($6000-$7FFF)"
+Game->>Verify : Request SRAM validation
+Verify->>SRAM : Check magic bytes ($7FFC-$7FFD)
+Verify->>SRAM : Calculate checksum ($7000-$7FFE)
+Verify->>Verify : Compare with stored checksum ($7FFE-$7FFF)
+alt Checksum Valid
+Verify-->>Game : Return success (carry set)
+Game->>Copy : Request backup copy
+Copy->>SRAM : Copy page by page
+Copy->>Work : Store in work area
+Copy-->>Game : Copy complete
+else Checksum Invalid
+Verify-->>Game : Return failure (carry clear)
+Game->>Game : Handle corruption/error
+end
+```
+
+**Diagram sources**
+- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-9989)
+
+**Section sources**
+- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-9989)
+
+## Memory Management Utilities
+
+### Overview
+The memory management utility system provides essential functions for data manipulation, mathematical operations, and system-level memory operations. These utilities form the foundation for higher-level game logic and data processing.
+
+### Mathematical Operations
+
+#### Division and Multiplication Routines
+- **Divide16**: 16-bit division algorithm with quotient and remainder calculation
+- **Multiply32**: 32-bit multiplication supporting large number arithmetic
+- **Multiply8x8**: Standard 8-bit multiplication with 16-bit results
+
+#### Jump Dispatch and Random Number Generation
+- **JumpDispatcher**: Big-endian inline jump table dispatcher for dynamic function calls
+- **RandomBelow**: Random number generation with upper bound constraints
+
+### Data Manipulation Utilities
+
+#### Array and Buffer Operations
+- **CompactRecordSlots**: Efficient array compaction removing gap entries
+- **CopyBlockLoop**: High-performance block copying routines
+- **MultiRecCalc**: Multi-record calculation and processing
+
+#### Memory Safety Features
+- **Bounds Checking**: Comprehensive range validation for array accesses
+- **Null Pointer Detection**: Prevention of null pointer dereferences
+- **Overflow Protection**: Arithmetic overflow detection and handling
+
+```mermaid
+flowchart TD
+MathOps["Mathematical Operations"] --> Divide16["Divide16<br/>16-bit Division"]
+MathOps --> Multiply32["Multiply32<br/>32-bit Multiplication"]
+MathOps --> Multiply8x8["Multiply8x8<br/>8-bit Multiplication"]
+Dispatch["Dispatch Systems"] --> JumpDispatcher["JumpDispatcher<br/>Dynamic Function Calls"]
+Dispatch --> RandomBelow["RandomBelow<br/>Bounded Random Numbers"]
+DataManip["Data Manipulation"] --> CompactSlots["CompactRecordSlots<br/>Array Compaction"]
+DataManip --> CopyBlock["CopyBlockLoop<br/>High-Speed Copying"]
+DataManip --> MultiRec["MultiRecCalc<br/>Multi-Record Processing"]
+```
+
+**Diagram sources**
+- [prg_0a_0b.asm:8455-8573](file://asm/banks/prg_0a_0b.asm#L8455-8573)
+- [prg_0a_0b.asm:8577-8605](file://asm/banks/prg_0a_0b.asm#L8577-8605)
+
+**Section sources**
+- [prg_0a_0b.asm:8455-8573](file://asm/banks/prg_0a_0b.asm#L8455-8573)
+- [prg_0a_0b.asm:8577-8605](file://asm/banks/prg_0a_0b.asm#L8577-8605)
+- [prg_0a_0b.asm:8413-8451](file://asm/banks/prg_0a_0b.asm#L8413-8451)
 
 ## Dependency Analysis
-The boot process depends on the mapper initialization and vector dispatch to reach state-specific handlers. Bank switching is orchestrated by a configuration routine that writes to mapper registers and stores a shadow copy in RAM. Data access functions rely on banked PRG tables and SRAM for persistence. The centralized $04xx RAM system provides canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides structured persistent storage, while the reorganized OAM buffer system manages sprite rendering efficiently.
+The boot process depends on the mapper initialization and vector dispatch to reach state-specific handlers. Bank switching is orchestrated by a configuration routine that writes to mapper registers and stores a shadow copy in RAM. Data access functions rely on banked PRG tables and SRAM for persistence. The centralized $04xx RAM system provides canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides structured persistent storage, while the reorganized OAM buffer system manages sprite rendering efficiently. Enhanced validation functions ensure data integrity throughout the system lifecycle.
 
 ```mermaid
 graph LR
@@ -489,23 +660,26 @@ BankSwitch --> PRGTables["Banked Data Tables"]
 State0 --> SRAM["$6000-$7FFF Save Data"]
 State0 --> GlobalRAM["$0400-$04FF Centralized RAM"]
 State0 --> OAMBuffer["$0380-$03FF Sprite Buffer"]
+State0 --> Validation["Data Validation System"]
 GlobalRAM --> CanonicalNames["Canonical State Names"]
 SRAM --> KingdomData["Kingdom Data Storage"]
 SRAM --> PlayerSettings["Player Settings"]
 SRAM --> GameStateFlags["Game State Flags"]
+SRAM --> ChecksumVerify["Checksum Verification"]
 OAMBuffer --> SpriteRendering["Sprite Rendering"]
+Validation --> IntegrityCheck["Data Integrity Assurance"]
 ```
 
 **Diagram sources**
-- [main.asm:115-121](file://asm/main.asm#L115-L121)
-- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
-- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
-- [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-L170)
+- [main.asm:115-121](file://asm/main.asm#L115-121)
+- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
+- [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-170)
 
 **Section sources**
-- [main.asm:115-121](file://asm/main.asm#L115-L121)
-- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
-- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
+- [main.asm:115-121](file://asm/main.asm#L115-121)
+- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
 
 ## Performance Considerations
 - Prefer ZEROPAGE for hot-loop variables and temporary pointers to minimize addressing overhead.
@@ -517,6 +691,9 @@ OAMBuffer --> SpriteRendering["Sprite Rendering"]
 - The reorganized $03xx buffer system provides efficient sprite buffer access with minimal page crossing overhead.
 - Dedicated SRAM regions enable faster persistent data access compared to banked PRG storage.
 - Structured SRAM organization reduces the overhead of pointer table lookups for kingdom data.
+- **Enhanced**: Validation functions are optimized for minimal performance impact while ensuring data integrity.
+- **Enhanced**: Checksum verification uses efficient page-by-page processing to minimize CPU overhead.
+- **Enhanced**: Data compaction algorithms use direct memory access patterns for optimal performance.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -528,13 +705,16 @@ Common issues and remedies:
 - $03xx buffer issues: Verify sprite_y_buffer is properly initialized and updated. Check that display queue pointers are correctly managed.
 - SRAM corruption: Monitor SRAM write operations carefully, especially for persistent data. Ensure proper initialization sequences are followed.
 - Sprite rendering problems: Verify OAM buffer management and ensure sprite count is properly tracked.
+- **Enhanced**: Data validation failures: Check that validation functions are called at appropriate times in the game flow. Verify data structure layouts match expected formats.
+- **Enhanced**: Checksum verification errors: Ensure magic bytes are properly written during save operations. Verify checksum calculation covers the correct memory range.
+- **Enhanced**: Memory overflow issues: Monitor stack usage and heap allocation patterns. Use bounds checking utilities to prevent buffer overflows.
 
 **Section sources**
-- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
+- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
 - [PROJECT.md:12](file://PROJECT.md#L12)
-- [macros.h:17-47](file://include/macros.h#L17-L47)
-- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
-- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-L170)
+- [macros.h:17-47](file://include/macros.h#L17-47)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-136)
+- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-170)
 
 ## Conclusion
-The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. The recent implementation of a centralized global RAM definition system for the $04xx memory region significantly improves code organization and maintainability by establishing canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides structured persistent storage for kingdom data, player settings, and game state flags, while the reorganized OAM buffer system under $03xx memory region enables efficient sprite rendering with dedicated buffer management. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. The centralized $04xx RAM system eliminates redundant local memory address aliases and provides a single source of truth for shared state variables. The reorganized memory layout optimizes performance for both persistent data access and real-time sprite rendering. Following the outlined practices ensures optimal memory usage and maintainable code organization.
+The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. The recent implementation of a centralized global RAM definition system for the $04xx memory region significantly improves code organization and maintainability by establishing canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides structured persistent storage for kingdom data, player settings, and game state flags, while the reorganized OAM buffer system under $03xx memory region enables efficient sprite rendering with dedicated buffer management. Enhanced data validation and integrity checking systems ensure robust data protection across all memory operations. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. The centralized $04xx RAM system eliminates redundant local memory address aliases and provides a single source of truth for shared state variables. The reorganized memory layout optimizes performance for both persistent data access and real-time sprite rendering. Enhanced validation functions provide comprehensive data integrity assurance, while SRAM management utilities ensure reliable save data persistence. Following the outlined practices ensures optimal memory usage and maintainable code organization.
