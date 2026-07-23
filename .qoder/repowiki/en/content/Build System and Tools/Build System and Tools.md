@@ -75,6 +75,7 @@
 - [tools/analyze_b49c.py](file://tools/analyze_b49c.py)
 - [tools/nest_b49c.py](file://tools/nest_b49c.py)
 - [asm/banks/prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
+- [asm/banks/prg_0c_0d.asm](file://asm/banks/prg_0c_0d.asm)
 - [asm/main.asm](file://asm/main.asm)
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
@@ -86,11 +87,10 @@
 
 ## Update Summary
 **Changes Made**
-- Updated AI code modernization tools section to reflect new modular Ai* architecture with improved function structure support
-- Enhanced analyze_b49c.py documentation to support better control flow with labeled targets replacing raw address jumps
-- Updated nest_b49c.py documentation for improved semantic understanding of restructured AI turn dispatch system
-- Added examples showing new AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, and AiActionSelect function names with proper scoping
-- Updated AI code structure diagrams to reflect the new modular architecture patterns with nested procedure support
+- Updated bank stub generation and assembly process documentation to reflect support for consolidated prg_0c_0d.asm module
+- Enhanced unified bank management section to document compilation overhead reduction through consolidated bank pairs
+- Updated linker configuration documentation to show CODE_BANK0C and CODE_BANK0D segment mappings
+- Added examples showing the new consolidated bank architecture pattern alongside existing prg_0a_0b.asm, prg_17_18.asm, and prg_1d_1e.asm patterns
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -114,7 +114,7 @@
 19. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation. **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities using the new modular Ai* architecture with improved nested procedure support.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation. **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities using the new modular Ai* architecture with improved nested procedure support. **Updated**: Bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining compatibility with individual bank files.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -129,12 +129,14 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite providing RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation
 - **New**: Advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms and callback dispatcher detection, plus specialized verification tools for byte-exact accuracy validation
 - **New**: AI code modernization tools for automated analysis and structural optimization of the AI turn dispatch system with new modular Ai* architecture and improved nested procedure support
+- **Updated**: Consolidated bank management supporting unified bank modules like prg_0c_0d.asm for reduced compilation overhead
 
 ```mermaid
 graph TB
 subgraph "Source"
 A_main["asm/main.asm"]
 A_banks["asm/banks/*.asm"]
+A_consolidated["asm/banks/prg_0c_0d.asm<br/>Consolidated Module"]
 H_regs["include/6502_registers.h"]
 H_namco["include/namco163.h"]
 H_macros["include/macros.h"]
@@ -228,6 +230,7 @@ R_combined["rom/prg_combined.bin"]
 end
 A_main --> MK
 A_banks --> MK
+A_consolidated --> MK
 H_regs --> A_main
 H_namco --> A_main
 H_macros --> A_main
@@ -300,7 +303,7 @@ T_verify --> OUT
 
 **Diagram sources**
 - [Makefile:1-102](file://Makefile#L1-L102)
-- [linker.cfg:1-58](file://linker.cfg#L1-L58)
+- [linker.cfg:1-66](file://linker.cfg#L1-L66)
 - [test_linker.cfg:1-13](file://test_linker.cfg#L1-L13)
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
@@ -369,6 +372,7 @@ T_verify --> OUT
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite provides specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation.
 - **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing, semantic renaming, and support for the new modular Ai* architecture with improved nested procedure support and better control flow.
+- **Updated**: Consolidated bank management reduces compilation overhead through unified bank modules like prg_0c_0d.asm while maintaining compatibility with individual bank files.
 
 Key capabilities:
 - Assemble and link to produce a raw PRG binary.
@@ -389,6 +393,7 @@ Key capabilities:
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite with RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Advanced paired bank disassembly with recursive descent algorithms, callback dispatcher detection, and inline table analysis for complex bank pairs, plus specialized verification tools for byte-exact accuracy validation.
 - **New**: AI code modernization tools with automated branch instruction fixing, semantic renaming using Ai* prefix convention, nested procedure restructuring, and improved control flow with labeled targets replacing raw address jumps and better nested procedure support.
+- **Updated**: Consolidated bank management supporting unified bank modules for reduced compilation overhead while maintaining full compatibility with existing individual bank files.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -417,6 +422,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - **New**: Utilize comprehensive PRG banks $1D/$1E analysis suite for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Apply advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms and callback dispatcher detection, followed by specialized verification for byte-exact accuracy.
 - **New**: Apply AI code modernization tools for automated analysis and structural optimization of the AI turn dispatch system with new modular Ai* architecture, improved nested procedure support, and better control flow.
+- **Updated**: Process consolidated bank modules like prg_0c_0d.asm for reduced compilation overhead while maintaining compatibility with individual bank files.
 
 ```mermaid
 sequenceDiagram
@@ -438,9 +444,9 @@ participant LA as "Label Analysis & Renaming"
 participant P1D1E as "PRG Banks $1D/$1E Analysis Suite"
 participant APB as "Advanced Paired Bank Disassembly"
 Dev->>MK : "make"
-MK->>CA : "Assemble main.asm"
+MK->>CA : "Assemble main.asm + consolidated banks"
 CA-->>MK : "main.o"
-MK->>LD : "Link with linker.cfg"
+MK->>LD : "Link with linker.cfg (CODE_BANK0C/0D)"
 LD-->>MK : "prg.bin"
 MK->>BN : "Add iNES header"
 BN-->>Dev : "sango2.nes"
@@ -573,6 +579,46 @@ Usage patterns:
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
 - [PROJECT.md:58-69](file://PROJECT.md#L58-L69)
+
+### Bank Stub Generation and Consolidated Bank Management
+
+#### Overview
+The bank stub generation system has been updated to support consolidated bank modules that reduce compilation overhead while maintaining full compatibility with individual bank files. The system now supports both traditional individual bank files and unified consolidated modules like prg_0c_0d.asm, following the established pattern of prg_0a_0b.asm, prg_17_18.asm, and prg_1d_1e.asm.
+
+#### Consolidated Bank Architecture
+Consolidated bank modules combine two adjacent 8KB banks into a single 16KB assembly file, providing several benefits:
+- **Reduced Compilation Overhead**: Fewer separate compilation units reduce overall build time
+- **Improved Cross-Bank Optimization**: Better compiler optimization across bank boundaries
+- **Simplified Linking**: Reduced number of segments to manage during linking
+- **Maintained Compatibility**: Individual bank files remain available for backward compatibility
+
+#### prg_0c_0d.asm Implementation
+The prg_0c_0d.asm module demonstrates the consolidated bank pattern:
+- **Combined Address Space**: Covers $A000-$DFFF (16KB) with Bank $0C at $A000-$BFFF and Bank $0D at $C000-$DFFF
+- **Unified Segments**: Uses separate CODE_BANK0C and CODE_BANK0D segments within the same file
+- **Cross-Bank References**: Automatic handling of references between the two banks
+- **Include Integration**: Seamlessly integrated into all_banks.asm alongside individual bank files
+
+#### Linker Configuration Updates
+The linker.cfg has been updated to support consolidated bank segments:
+- **CODE_BANK0C**: Maps to PRG_SLOT1 ($A000-$BFFF)
+- **CODE_BANK0D**: Maps to PRG_SLOT2 ($C000-$DFFF)
+- **Optional Segments**: Both segments are marked as optional for flexible linking
+
+#### Build System Integration
+The build system automatically handles consolidated bank modules:
+- **Generation**: generate_bank_stubs.py creates both individual and consolidated bank files
+- **Assembly**: ca65 processes consolidated modules as single compilation units
+- **Linking**: ld65 manages multiple segments within consolidated files
+- **Verification**: Byte-exact output maintained despite consolidation
+
+**Updated** The bank stub generation process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining full compatibility with existing individual bank files.
+
+**Section sources**
+- [asm/banks/prg_0c_0d.asm:1-7600](file://asm/banks/prg_0c_0d.asm#L1-L7600)
+- [asm/banks/all_banks.asm:15-16](file://asm/banks/all_banks.asm#L15-L16)
+- [linker.cfg:55-56](file://linker.cfg#L55-L56)
+- [tools/generate_bank_stubs.py:12-52](file://tools/generate_bank_stubs.py#L12-L52)
 
 ### AI Code Modernization Tools
 
@@ -838,6 +884,7 @@ Report0AB --> Exit0AB(["Exit code 0 if identical, else 1"])
 - **New**: test_17_18.cfg provides a temporary configuration for standalone verification of paired Bank $17/$18 assembly code.
 - **New**: build/test_17_18.cfg provides a test linker configuration specifically for Bank $17/$18 disassembly pipeline.
 - **New**: tools/link_0a_0b_test.cfg provides a test linker configuration for paired banks $0A/$0B disassembly.
+- **Updated**: Consolidated bank support with CODE_BANK0C and CODE_BANK0D segments for prg_0c_0d.asm module.
 
 ```mermaid
 classDiagram
@@ -845,6 +892,7 @@ class LinkerConfig {
 +MEMORY PRG slots
 +SEGMENTS CODE/VECTORS/RODATA
 +Optional banked segments
++CODE_BANK0C/0D for consolidated banks
 }
 class TestLinkerConfig {
 +Standalone Bank $1F verification
@@ -868,14 +916,14 @@ Test17_18Config --> Test0A_0BConfig : "similar pattern"
 ```
 
 **Diagram sources**
-- [linker.cfg:18-54](file://linker.cfg#L18-L54)
+- [linker.cfg:18-66](file://linker.cfg#L18-L66)
 - [test_linker.cfg:1-13](file://test_linker.cfg#L1-L13)
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
 - [tools/link_0a_0b_test.cfg:1-10](file://tools/link_0a_0b_test.cfg#L1-L10)
 
 **Section sources**
-- [linker.cfg:18-54](file://linker.cfg#L18-L54)
+- [linker.cfg:18-66](file://linker.cfg#L18-L66)
 - [test_linker.cfg:1-13](file://test_linker.cfg#L1-L13)
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
@@ -1898,7 +1946,7 @@ AN6 --> Output["Validated Assembly Code"]
 
 **Diagram sources**
 - [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-102)
-- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-56)
+- [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-L56)
 - [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-L42)
 - [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-L13)
 - [tools/mark_data_block.py:1-56](file://tools/mark_data_block.py#L1-L56)
@@ -1967,7 +2015,7 @@ The PRG banks $1D/$1E analysis suite integrates seamlessly with the Makefile bui
 - Results support iterative development and maintenance workflows for PRG banks $1D/$1E
 
 **Section sources**
-- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-102)
+- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-L102)
 - [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-L56)
 - [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-L42)
 - [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-L13)
@@ -2137,9 +2185,10 @@ The build system exhibits clear separation of concerns:
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite provides specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation.
 - **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing, semantic renaming using Ai* convention, improved control flow with labeled targets, and enhanced nested procedure support.
+- **Updated**: Consolidated bank management reduces compilation overhead through unified bank modules like prg_0c_0d.asm while maintaining compatibility with individual bank files.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, advanced paired bank disassembly tools, AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, and specialized verification tools for comprehensive ROM coverage.
+- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, advanced paired bank disassembly tools, AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, specialized verification tools for comprehensive ROM coverage, and consolidated bank management for reduced compilation overhead.
 
 ```mermaid
 graph TB
@@ -2204,6 +2253,7 @@ M_main --> H_macros["include/macros.h"]
 M_main --> H_functions["include/functions.h"]
 M_main --> L_cfg["linker.cfg"]
 AB["asm/banks/all_banks.asm"] --> M_main
+ACD["asm/banks/prg_0c_0d.asm"] --> AB
 UD1 --> UD2
 UD2 --> UD3
 UD3 --> UD4
@@ -2327,6 +2377,7 @@ P1D1E6 --> Output
 - **New**: Advanced paired bank disassembly tools implement sophisticated recursive descent algorithms; expect significant processing time for complex bank pairs with callback dispatchers.
 - **New**: AI code modernization tools analyze complex AI turn dispatch system with modular Ai* architecture and improved nested procedure support; expect processing time proportional to code complexity and function nesting depth.
 - **New**: Specialized verification tools like verify_0a_0b.py perform byte-exact comparisons of large ROM regions; expect processing time proportional to ROM size being validated.
+- **Updated**: Consolidated bank management reduces compilation overhead by processing fewer compilation units; expect faster build times with prg_0c_0d.asm compared to separate prg_0c.asm and prg_0d.asm files.
 - **New**: Each disassembly, transformation, analysis, and label processing stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
 - **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
 - **New**: Localized label conversion adds another processing stage but significantly improves code readability and maintainability.
@@ -2394,6 +2445,8 @@ Common issues and resolutions:
 - **New**: Nested procedure restructuring failures with modular architecture: Verify that nest_b49c.py properly identifies procedure boundaries and variable definitions in modular Ai* functions with enhanced nested procedure support.
 - **New**: AI variable consolidation issues: Check that nest_b49c.py correctly consolidates variables from nested procedures into unified scope with modular function support.
 - **New**: AI global declaration removal problems: Verify that nest_b49c.py properly removes .global declarations for nested procedures with modular architecture awareness.
+- **Updated**: Consolidated bank compilation issues: Verify that prg_0c_0d.asm is properly included in all_banks.asm and that CODE_BANK0C/CODE_BANK0D segments are correctly mapped in linker.cfg.
+- **Updated**: Bank stub generation conflicts: Ensure generate_bank_stubs.py doesn't create duplicate files when consolidated modules exist.
 
 Practical examples:
 - Disassemble a specific bank region: make disasm FILE=rom/prg/prg_1f.bin ADDR=E000 LEN=256
@@ -2514,7 +2567,7 @@ Practical examples:
 - [tools/nest_b49c.py:1-149](file://tools/nest_b49c.py#L1-L149)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the advanced label analysis and renaming system with analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py, providing automated Loc_ label processing and meaningful name assignment for improved code organization. The newest addition is the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by the specialized verify_0a_0b.py verification tool that ensures byte-exact accuracy validation for paired banks $0A/$0B. **New**: The AI code modernization tools with analyze_b49c.py and nest_b49c.py provide automated analysis and structural optimization for the AI turn dispatch system with new modular Ai* architecture, enhanced nested procedure support, intelligent branch instruction fixing, semantic renaming using Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and nested procedure restructuring capabilities. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, the advanced paired bank disassembly tools, the AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, and the specialized verification tools enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, advanced paired bank disassembly capabilities, AI code modernization features with modular Ai* architecture and enhanced nested procedure support, improved control flow with labeled targets, and specialized verification tools for byte-exact accuracy validation, significantly improving code readability, maintainability, and code quality assurance.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the advanced label analysis and renaming system with analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py, providing automated Loc_ label processing and meaningful name assignment for improved code organization. The newest addition is the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by the specialized verify_0a_0b.py verification tool that ensures byte-exact accuracy validation for paired banks $0A/$0B. **New**: The AI code modernization tools with analyze_b49c.py and nest_b49c.py provide automated analysis and structural optimization for the AI turn dispatch system with new modular Ai* architecture, enhanced nested procedure support, intelligent branch instruction fixing, semantic renaming using Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and nested procedure restructuring capabilities. **Updated**: The bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining full compatibility with existing individual bank files. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, the advanced paired bank disassembly tools, the AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, the specialized verification tools for byte-exact accuracy validation, and the consolidated bank management system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, advanced paired bank disassembly capabilities, AI code modernization features with modular Ai* architecture and enhanced nested procedure support, improved control flow with labeled targets, specialized verification tools for byte-exact accuracy validation, and consolidated bank management for reduced compilation overhead, significantly improving code readability, maintainability, and build performance.
 
 ## Appendices
 
@@ -2532,6 +2585,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: Advanced paired bank disassembly workflow: python3 tools/disasm_0a_0b.py, python3 tools/disasm_prg.py 0x1D 0x1E --output output/prg_1d_1e_raw.asm, python3 tools/verify_0a_0b.py
 - **New**: Label analysis and renaming workflow: make analyze_loc_labels, make rename_loc_labels, make enhance_prg_1d
 - **New**: PRG banks $1D/$1E analysis workflow: make analyze_ram_1d1e, make check_addrs, make check_conflicts, make dump_data_range, make mark_data_block, make verify_globals
+- **Updated**: Consolidated bank workflow: make banks (generates both individual and consolidated bank files), make (uses prg_0c_0d.asm for reduced compilation overhead)
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
 
