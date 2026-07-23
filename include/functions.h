@@ -736,10 +736,145 @@ B1D_1E_OfficerRecLookup_Proc = $DEB9 ; Officer record lookup procedure
 ; Entry points via jump table at $A000-$A00E
 ; Labels are defined in prg_0a_0b.asm and available globally.
 ;===============================================================================
-; Jump Table Entry Points:
-;   CheckGameStart_Entry ($A000) -> CheckGameStart
-;   SubStateDispatch_Entry ($A003) -> SubStateDispatch
-;   ArmyValueCalc_Entry ($A006) -> ArmyValueCalc
-;   DataRecordLookup_Entry ($A009) -> DataRecordLookup
-;   DistanceClamp_Entry ($A00C) -> DistanceClamp
+
+;-------------------------------------------------------------------------------
+; Jump Table Entry Points ($A000-$A00E)
+;-------------------------------------------------------------------------------
+B0A_0B_CheckGameStart_Entry = $A000 ; CheckGameStart_Entry: Game start check
+B0A_0B_SubStateDispatch_Entry = $A003 ; SubStateDispatch_Entry: Sub-state dispatch
+B0A_0B_ArmyValueCalc_Entry = $A006 ; ArmyValueCalc_Entry: Army value calculation
+B0A_0B_DataRecordLookup_Entry = $A009 ; DataRecordLookup_Entry: Data record lookup
+B0A_0B_DistanceClamp_Entry = $A00C ; DistanceClamp_Entry: Distance clamp
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $0A ($A00F-$BFFF)
+;-------------------------------------------------------------------------------
+B0A_0B_CheckGameStart     = $A00F   ; Check game start flag and dispatch
+B0A_0B_InitWorkAreas      = $A043   ; Initialize work areas and tier adjust
+B0A_0B_ScanMatchData      = $A0D3   ; Scan province match data
+B0A_0B_AiActionWeightedDispatch = $A19C ; AI action weighted dispatch
+B0A_0B_KingdomExpansionCheck = $A1C5 ; Kingdom expansion check
+B0A_0B_EndTurn            = $A23D   ; End turn advance
+B0A_0B_FindBestEnemyProvince = $A240 ; Find best enemy province to attack
+B0A_0B_FindAbsorptionSource = $A303 ; Find absorption source province
+B0A_0B_DispatchOfficerArmies = $A45C ; Dispatch officer armies
+B0A_0B_ArmyDispatch       = $A481   ; Army dispatch (main army handler)
+B0A_0B_TileRender         = $A55C   ; Tile render
+B0A_0B_NameTable          = $A60C   ; Name table operations
+B0A_0B_KingdomTierDispatch = $A6BC  ; Kingdom tier dispatch
+B0A_0B_CalcArmyTierAndRender = $A6C0 ; Calc army tier and render
+B0A_0B_CalcTierWorkPtr    = $A74A   ; Calc tier work pointer
+B0A_0B_ResolveKingdomAbsorb = $A79C ; Resolve kingdom absorption
+B0A_0B_InitNewGameContext = $A8D7   ; Initialize new game context
+B0A_0B_EvalProvinceAbsorption = $B10E ; Evaluate province absorption
+B0A_0B_AbsorbPreview      = $B1F9   ; Absorb preview
+B0A_0B_TransferProvinceValues = $B1FD ; Transfer province values
+B0A_0B_AbsorbUpdateRecord = $B287   ; Absorb update record
+B0A_0B_FallbackMergeProvinces = $B357 ; Fallback merge provinces
+B0A_0B_AiTurnDispatch     = $B49C   ; AI turn dispatch (large state machine)
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $0B ($C000-$DFFF)
+;-------------------------------------------------------------------------------
+B0A_0B_FindBestOfficerAssign = $C50E ; Find best officer assignment
+B0A_0B_ProcessAllOfficers = $C5B9   ; Process all officers
+B0A_0B_EvaluateAndMarkOfficer = $C5D2 ; Evaluate and mark officer (nested)
+B0A_0B_CalcActionProb     = $C66F   ; Calculate action probability
+B0A_0B_OfficerSearchAndEvaluate = $C79A ; Officer search and evaluate (merged)
+B0A_0B_FindBestOfficerByCategory = $C98F ; Find best officer by category
+B0A_0B_ApplyScenarioDeductions = $CD68 ; Apply scenario deductions
+B0A_0B_BracketDeductArmy  = $CEDD   ; Bracket deduct army
+B0A_0B_ArmyValueCalc      = $CF3F   ; Army value calculation
+B0A_0B_DataRecordLookup   = $CF7C   ; Data record lookup
+B0A_0B_DistanceClamp      = $D00C   ; Distance clamp
+B0A_0B_LoadRecord         = $D03A   ; Load record
+B0A_0B_CalcPlayerTerritoryValue = $D05D ; Calc player territory value
+B0A_0B_CountPlayerProvinces = $D080 ; Count player provinces
+B0A_0B_CountValidPlayerProvinces = $D0AA ; Count valid player provinces
+B0A_0B_GetProvinceOwner   = $D105   ; Get province owner
+B0A_0B_DeductCounterMultiEntry = $D12D ; Deduct counter (multi-entry)
+B0A_0B_CollectEnemyProvinces = $D1A4 ; Collect enemy provinces
+B0A_0B_CollectEnemyProvincesX = $D1F4 ; Collect enemy provinces (X variant)
+B0A_0B_FindPlayerProvinceByValue = $D249 ; Find player province by value
+B0A_0B_ReadRecordField    = $D283   ; Read record field
+B0A_0B_ReadBankedRecordField = $D2D3 ; Read banked record field
+B0A_0B_CountRecordSlots   = $D304   ; Count record slots
+B0A_0B_GetPlayerRecordPtr = $D319   ; Get player record pointer
+B0A_0B_Divide24           = $D336   ; 24-bit division
+B0A_0B_DeductRecordStat2  = $D36F   ; Deduct record stat (2-byte)
+B0A_0B_DeductRecordStat4  = $D3A9   ; Deduct record stat (4-byte)
+B0A_0B_CompactRecordSlots = $D3DD   ; Compact record slots
+B0A_0B_Divide16           = $D40F   ; 16-bit division
+B0A_0B_Multiply32         = $D438   ; 32-bit multiply
+B0A_0B_Multiply8x8        = $D471   ; 8x8 multiply
+B0A_0B_JumpDispatcher     = $D494   ; Jump dispatcher (indexed JMP)
+B0A_0B_RandomBelow        = $D4AD   ; Random below threshold
+B0A_0B_BuildAdjacencyBitmap = $D4CB ; Build adjacency bitmap
+B0A_0B_MergeAdjacencyBits = $D53E   ; Merge adjacency bits
+B0A_0B_CheckPathExists    = $D583   ; Check path exists
+B0A_0B_DebugStub_E7       = $D5E7   ; Debug stub (RTS)
+B0A_0B_ValidateRecordStats = $D5E8  ; Validate record stats
+B0A_0B_DebugStub_1E       = $D61E   ; Debug stub (RTS)
+B0A_0B_ValidateRecordStatsAlt = $D61F ; Validate record stats (alt)
+B0A_0B_ClampRecordStatPairs = $D655 ; Clamp record stat pairs
+B0A_0B_ValidateRecordGold = $D688   ; Validate record gold
+B0A_0B_ClampRecordStatPairsAlt = $D69D ; Clamp record stat pairs (alt)
+B0A_0B_DebugStub_E5       = $D6E5   ; Debug stub (RTS)
+B0A_0B_ValidateProvinceSlots = $D6E6 ; Validate province slots
+B0A_0B_SubStateDispatch   = $D717   ; Sub-state dispatch
+B0A_0B_CallDomesticDisplay = $D72A  ; Call domestic display
+B0A_0B_StackFill          = $D732   ; Stack fill
+B0A_0B_FillStackLoop      = $D73C   ; Fill stack loop
+B0A_0B_ActionResultDisplay = $D74C  ; Action result display
+B0A_0B_StateWait64Frames  = $D799   ; State: wait 64 frames
+B0A_0B_StateScrollDown    = $D7BD   ; State: scroll down
+B0A_0B_StateSpriteAnim    = $D7EC   ; State: sprite animation
+B0A_0B_StateSetupParams   = $D83B   ; State: setup params
+B0A_0B_StatePaletteUpdate = $D856   ; State: palette update
+B0A_0B_StateSetupMenu     = $D890   ; State: setup menu
+B0A_0B_StateTileScroll    = $D8AD   ; State: tile scroll
+B0A_0B_StateWriteText     = $D8D9   ; State: write text
+B0A_0B_StateWaitInput     = $D8F8   ; State: wait input
+B0A_0B_SkipToTileScroll   = $D90D   ; Skip to tile scroll
+B0A_0B_RenderOverlay      = $D99C   ; Render overlay
+B0A_0B_OverlayInit        = $D9A8   ; Overlay init
+B0A_0B_OverlayFillRows    = $D9D0   ; Overlay fill rows
+B0A_0B_OverlayCommit      = $DA1B   ; Overlay commit
+B0A_0B_ClearOverlay       = $DA7E   ; Clear overlay (7-phase state machine)
+B0A_0B_ClearOverlayInit   = $DA95   ; Clear overlay init
+B0A_0B_ClearOverlayMenu   = $DAA6   ; Clear overlay menu
+B0A_0B_ClearOverlayWait   = $DAFD   ; Clear overlay wait
+B0A_0B_ClearOverlayCopyText = $DB2B ; Clear overlay copy text
+B0A_0B_ClearOverlayConfirm = $DB7B  ; Clear overlay confirm
+B0A_0B_ClearOverlayExit   = $DBC1   ; Clear overlay exit
+B0A_0B_ClearOverlayCancel = $DBF1   ; Clear overlay cancel
+B0A_0B_VerifySramChecksum = $DC2F   ; Verify SRAM checksum
+B0A_0B_CopySramToWork     = $DC97   ; Copy SRAM to work area
+B0A_0B_ScrollUpdate       = $DCC8   ; Scroll update
+B0A_0B_ScrollDigitWriter  = $DD0F   ; Scroll digit writer
+B0A_0B_DrawSelectionSprites = $DD34 ; Draw selection sprites
+B0A_0B_WriteSingleSprite  = $DD53   ; Write single sprite
+B0A_0B_MenuInputHandler   = $DD79   ; Menu input handler
+B0A_0B_SpriteSetup2       = $DEAF   ; Sprite setup (sound-test cursor)
+B0A_0B_PaletteCheck       = $DF4C   ; Palette check
+
+;-------------------------------------------------------------------------------
+; Data tables - Bank $0A/$0B
+;-------------------------------------------------------------------------------
+B0A_0B_ArmyDeductionTable = $CEC9   ; Army deduction table
+B0A_0B_ArmyResultTable    = $CED3   ; Army result table
+B0A_0B_AdjRowOffsets      = $D5BF   ; Adjacency row offsets (31 bytes)
+B0A_0B_OverlayTileData    = $DA3F   ; Overlay PPU tile data
+B0A_0B_PlayerPtrTable     = $DBD4   ; SRAM player record pointers
+B0A_0B_SoundDispatch      = $DE5F   ; Sound dispatch table
+
+;-------------------------------------------------------------------------------
+; Aliases (multi-entry proc sub-labels)
+;-------------------------------------------------------------------------------
+B0A_0B_DeductCounter_ZeroEnd = $D12D ; DeductCounter: game-over at <=0, no unwind
+B0A_0B_DeductCounter_Unwind1 = $D12F ; DeductCounter: unwind 1 frame
+B0A_0B_DeductCounter_Unwind2 = $D131 ; DeductCounter: unwind 2 frames
+B0A_0B_DeductCounter_Unwind3 = $D133 ; DeductCounter: unwind 3 frames
+B0A_0B_RandomBelowFull    = $D4AF   ; RandomBelow: full-range entry
+B0A_0B_ProvinceEvalExit   = $B17D   ; Common exit -> EndTurn
 ;

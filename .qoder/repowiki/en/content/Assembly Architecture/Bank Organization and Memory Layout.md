@@ -724,7 +724,7 @@ Common issues and resolutions:
 - [functions.h:316-332](file://include/functions.h#L316-L332)
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
 - [prg_1d_1e.asm:19-259](file://asm/banks/prg_1d_1e.asm#L19-L259)
-- [prg_1d_1e.asm:3179-3402](file://asm/banks/prg_1d_1e.asm#L3179-3402)
+- [prg_1d_1e.asm:3179-3402](file://asm/banks/prg_1d_1e.asm#L3179-L3402)
 - [prg_0a_0b.asm:487-526](file://asm/banks/prg_0a_0b.asm#L487-L526)
 - [prg_0a_0b.asm:527-572](file://asm/banks/prg_0a_0b.asm#L527-L572)
 - [prg_0a_0b.asm:8500-8542](file://asm/banks/prg_0a_0b.asm#L8500-8542)
