@@ -46,8 +46,8 @@ Loc_A022:
   .word OfficerDetailView                    ; $A030: 1B A2
   .word OfficerTransferExecute                ; $A032: 93 A2
   .word OfficerTransferExecute                ; $A034: 93 A2
-  .word $A44D                               ; $A036: 4D A4
-  .word $A87C                               ; $A038: 7C A8
+  .word OfficerMovePhase                    ; $A036: 4D A4
+  .word OfficerCommandPhase                 ; $A038: 7C A8
   .word $B94A                               ; $A03A: 4A B9
   .word $BC93                               ; $A03C: 93 BC
   .word $BE7E                               ; $A03E: 7E BE
@@ -617,11 +617,11 @@ PhaseExit:
   ; (dispatch callback target)
   LDA $0501                             ; $A44D: AD 01 05
   CMP #$02                              ; $A450: C9 02
-  BCS @A45C                             ; $A452: B0 08
+  BCS @SkipReset                        ; $A452: B0 08
   LDA #$00                              ; $A454: A9 00
   STA $00A4                             ; $A456: 8D A4 00
   JSR $DC33                             ; $A459: 20 33 DC
-@A45C:
+@SkipReset:
   LDA $0501                             ; $A45C: AD 01 05
   JSR B1F_CallbackDispatcher            ; $A45F: 20 DE EA
 ; --- CallbackDispatcher table (7 entries) ---
@@ -663,9 +663,9 @@ PhaseExit:
   JSR $D5EE                             ; $A4A8: 20 EE D5
   LDA $81                               ; $A4AB: A5 81
   AND #$01                              ; $A4AD: 29 01
-  BEQ @A4B4                             ; $A4AF: F0 03
+  BEQ @Done                             ; $A4AF: F0 03
   INC $0501                             ; $A4B1: EE 01 05
-@A4B4:
+@Done:
   RTS                                   ; $A4B4: 60
 .endproc
 
@@ -687,7 +687,7 @@ PhaseExit:
   RTS                                         ; $A4D5: 60
   LDA $050F                                   ; $A4D6: AD 0F 05
   CMP #$03                                    ; $A4D9: C9 03
-  BEQ @A504                                   ; $A4DB: F0 27
+  BEQ @AdvanceState                     ; $A4DB: F0 27
   LDY #$31                                    ; $A4DD: A0 31
   JSR $F25F                                   ; $A4DF: 20 5F F2
   LDA $050E                                   ; $A4E2: AD 0E 05
@@ -698,21 +698,20 @@ PhaseExit:
   ADC $00                                     ; $A4EA: 65 00
   TAY                                         ; $A4EC: A8
   LDX #$00                                    ; $A4ED: A2 00
-@A4EF:
-; --- Code Region ---
+@ScanLoop:
   LDA $9BA4,Y                           ; $A4EF: B9 A4 9B
   CMP $10                               ; $A4F2: C5 10
-  BNE @A4FD                             ; $A4F4: D0 07
+  BNE @NextEntry                        ; $A4F4: D0 07
   LDA $9BA5,Y                           ; $A4F6: B9 A5 9B
   CMP $11                               ; $A4F9: C5 11
   BEQ MoveState_CheckDest_Found          ; $A4FB: F0 0B
-@A4FD:
+@NextEntry:
   INY                                   ; $A4FD: C8
   INY                                   ; $A4FE: C8
   INX                                   ; $A4FF: E8
   CPX #$03                              ; $A500: E0 03
-  BCC @A4EF                             ; $A502: 90 EB
-@A504:
+  BCC @ScanLoop                         ; $A502: 90 EB
+@AdvanceState:
   INC $0501                             ; $A504: EE 01 05
   RTS                                   ; $A507: 60
 .endproc
@@ -732,26 +731,26 @@ PhaseExit:
 .proc MoveState_CheckStart
   LDA $6F8B                             ; $A51F: AD 8B 6F
   CMP #$FF                              ; $A522: C9 FF
-  BNE @A534                             ; $A524: D0 0E
+  BNE @Done                             ; $A524: D0 0E
   LDA #$01                              ; $A526: A9 01
   STA $6F8B                             ; $A528: 8D 8B 6F
   LDA $0509                             ; $A52B: AD 09 05
   STA $6F8C                             ; $A52E: 8D 8C 6F
   INC $0501                             ; $A531: EE 01 05
-@A534:
+@Done:
   RTS                                   ; $A534: 60
 .endproc
 
 .proc MoveState_Select
   LDA $6F8B                             ; $A535: AD 8B 6F
   CMP #$FF                              ; $A538: C9 FF
-  BEQ @A53D                             ; $A53A: F0 01
+  BEQ @CheckPhase                       ; $A53A: F0 01
   RTS                                   ; $A53C: 60
-@A53D:
+@CheckPhase:
   LDA $6F8F                             ; $A53D: AD 8F 6F
-  BEQ @A545                             ; $A540: F0 03
+  BEQ @InitSelection                    ; $A540: F0 03
   JMP MovePhase_Exit                    ; $A542: 4C 34 A6
-@A545:
+@InitSelection:
   INC $0501                             ; $A545: EE 01 05
   LDA $042C                             ; $A548: AD 2C 04
   STA $0B                               ; $A54B: 85 0B
@@ -759,9 +758,9 @@ PhaseExit:
   STA $0C                               ; $A550: 85 0C
   LDY #$04                              ; $A552: A0 04
   LDA $0504                             ; $A554: AD 04 05
-  BPL @A55B                             ; $A557: 10 02
+  BPL @LoadOfficer                      ; $A557: 10 02
   LDY #$00                              ; $A559: A0 00
-@A55B:
+@LoadOfficer:
   LDA $04D8,Y                           ; $A55B: B9 D8 04
   TAY                                   ; $A55E: A8
   LDA $0664,Y                           ; $A55F: B9 64 06
@@ -784,26 +783,25 @@ PhaseExit:
   LDY $6F8C                                   ; $A587: AC 8C 6F
   LDA $6FA1,Y                                 ; $A58A: B9 A1 6F
   CMP #$FF                                    ; $A58D: C9 FF
-  BEQ @A5AA                                   ; $A58F: F0 19
+  BEQ @NoAlly                           ; $A58F: F0 19
   LDY #$04                                    ; $A591: A0 04
   LDA $0504                                   ; $A593: AD 04 05
-  BPL @A59A                                   ; $A596: 10 02
+  BPL @RestoreSlot                            ; $A596: 10 02
   LDY #$00                                    ; $A598: A0 00
-@A59A:
-; --- Code Region ---
+@RestoreSlot:
   LDA $04D8,Y                           ; $A59A: B9 D8 04
   STA $0509                             ; $A59D: 8D 09 05
   LDA #$04                              ; $A5A0: A9 04
   STA $00A4                             ; $A5A2: 8D A4 00
   LDA #$B9                              ; $A5A5: A9 B9
-  JMP @A5B6                             ; $A5A7: 4C B6 A5
-@A5AA:
+  JMP @ShowUI                           ; $A5A7: 4C B6 A5
+@NoAlly:
   LDA #$03                              ; $A5AA: A9 03
   STA $00A4                             ; $A5AC: 8D A4 00
   LDA #$00                              ; $A5AF: A9 00
   STA $052E                             ; $A5B1: 8D 2E 05
   LDA #$B8                              ; $A5B4: A9 B8
-@A5B6:
+@ShowUI:
   JSR B1F_SetUI2                        ; $A5B6: 20 83 F2
   LDY #$3D                              ; $A5B9: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $A5BB: 20 07 EE
@@ -824,20 +822,20 @@ PhaseExit:
   JSR $DC36                             ; $A5D6: 20 36 DC
   JSR TryAutoAdvance                       ; $A5D9: 20 DE A1
   JSR $DF27                             ; $A5DC: 20 27 DF
-  BCC @A616                             ; $A5DF: 90 35
+  BCC @Done                             ; $A5DF: 90 35
   JSR $DC63                             ; $A5E1: 20 63 DC
   LDA $81                               ; $A5E4: A5 81
   AND #$03                              ; $A5E6: 29 03
-  BEQ @A616                             ; $A5E8: F0 2C
+  BEQ @Done                             ; $A5E8: F0 2C
   LDY #$04                              ; $A5EA: A0 04
   LDA $0504                             ; $A5EC: AD 04 05
-  BPL @A5F3                             ; $A5EF: 10 02
+  BPL @ClearSlot                        ; $A5EF: 10 02
   LDY #$00                              ; $A5F1: A0 00
-@A5F3:
+@ClearSlot:
   LDA #$FF                              ; $A5F3: A9 FF
   STA $04D8,Y                           ; $A5F5: 99 D8 04
   LDA $052E                             ; $A5F8: AD 2E 05
-  BEQ @A634                             ; $A5FB: F0 37
+  BEQ MovePhase_Exit                    ; $A5FB: F0 37
   LDY $050A                             ; $A5FD: AC 0A 05
   LDA $0664,Y                           ; $A600: B9 64 06
   STA $042C                             ; $A603: 8D 2C 04
@@ -849,27 +847,27 @@ PhaseExit:
   JSR B1F_BankPpuInit                   ; $A60E: 20 7F E5
   LDA #$7B                              ; $A611: A9 7B
   JSR B1F_SoundWrapperD                 ; $A613: 20 8B E6
-@A616:
+@Done:
   RTS                                   ; $A616: 60
 .endproc
 
 .proc MoveState_Cancel
   JSR $DF27                             ; $A617: 20 27 DF
-  BCC @A63F                             ; $A61A: 90 23
+  BCC @Done                             ; $A61A: 90 23
   JSR $DC63                             ; $A61C: 20 63 DC
   LDA $81                               ; $A61F: A5 81
   AND #$03                              ; $A621: 29 03
-  BEQ @A63F                             ; $A623: F0 1A
+  BEQ @Done                             ; $A623: F0 1A
   LDA $042D                             ; $A625: AD 2D 04
   CMP #$FF                              ; $A628: C9 FF
-  BNE @A640                             ; $A62A: D0 14
+  BNE @ShowCancelUI                     ; $A62A: D0 14
   JSR B1F_BankPpuInit                   ; $A62C: 20 7F E5
   LDA #$1D                              ; $A62F: A9 1D
   JSR B1F_SoundWrapperA                 ; $A631: 20 73 E6
   JSR MovePhase_Exit                    ; (was fall-through to @A634)
-@A63F:
+@Done:
   RTS                                   ; $A63F: 60
-@A640:
+@ShowCancelUI:
   LDA #$FF                              ; $A640: A9 FF
   STA $042D                             ; $A642: 8D 2D 04
   LDA #$4B                              ; $A645: A9 4B
@@ -887,9 +885,9 @@ PhaseExit:
 .proc MovePhase_UndoStep
   LDA $81                               ; $A64A: A5 81
   AND #$02                              ; $A64C: 29 02
-  BEQ @A682                             ; $A64E: F0 32
+  BEQ @CheckLeft                        ; $A64E: F0 32
   LDY $050A                             ; $A650: AC 0A 05
-  BEQ @A682                             ; $A653: F0 2D
+  BEQ @CheckLeft                        ; $A653: F0 2D
   LDA #$00                              ; $A655: A9 00
   STA $12                               ; $A657: 85 12
   JSR $D6CC                             ; $A659: 20 CC D6
@@ -907,21 +905,21 @@ PhaseExit:
   DEC $050A                             ; $A67B: CE 0A 05
   DEC $050A                             ; $A67E: CE 0A 05
   RTS                                   ; $A681: 60
-@A682:
+@CheckLeft:
   LDA $81                               ; $A682: A5 81
   ASL                                   ; $A684: 0A
-  BPL @A6CE                             ; $A685: 10 47
+  BPL @CheckRight                       ; $A685: 10 47
   LDY $0509                             ; $A687: AC 09 05
   LDA $0600,Y                           ; $A68A: B9 00 06
   SEC                                   ; $A68D: 38
   SBC #$01                              ; $A68E: E9 01
-  BCC @A6CE                             ; $A690: 90 3C
+  BCC @CheckRight                       ; $A690: 90 3C
   STA $00                               ; $A692: 85 00
   LDA $0614,Y                           ; $A694: B9 14 06
   STA $01                               ; $A697: 85 01
   JSR $D6B6                             ; $A699: 20 B6 D6
   TYA                                   ; $A69C: 98
-  BPL @A6CE                             ; $A69D: 10 2F
+  BPL @CheckRight                       ; $A69D: 10 2F
   LDY $0509                             ; $A69F: AC 09 05
   LDA $0600,Y                           ; $A6A2: B9 00 06
   SEC                                   ; $A6A5: 38
@@ -931,7 +929,7 @@ PhaseExit:
   STA $11                               ; $A6AD: 85 11
   JSR $DB46                             ; $A6AF: 20 46 DB
   JSR MovePhase_CalcCost                ; $A6B2: 20 E7 A7
-  BCC @A6CE                             ; $A6B5: 90 17
+  BCC @CheckRight                       ; $A6B5: 90 17
   STA $0505                             ; $A6B7: 8D 05 05
   TXA                                   ; $A6BA: 8A
   PHA                                   ; $A6BB: 48
@@ -943,21 +941,21 @@ PhaseExit:
   LDX $0509                             ; $A6C7: AE 09 05
   DEC $0600,X                           ; $A6CA: DE 00 06
   RTS                                   ; $A6CD: 60
-@A6CE:
+@CheckRight:
   LDA $81                               ; $A6CE: A5 81
-  BPL @A71B                             ; $A6D0: 10 49
+  BPL @CheckUp                          ; $A6D0: 10 49
   LDY $0509                             ; $A6D2: AC 09 05
   LDA $0600,Y                           ; $A6D5: B9 00 06
   CLC                                   ; $A6D8: 18
   ADC #$01                              ; $A6D9: 69 01
   CMP #$20                              ; $A6DB: C9 20
-  BCS @A71B                             ; $A6DD: B0 3C
+  BCS @CheckUp                          ; $A6DD: B0 3C
   STA $00                               ; $A6DF: 85 00
   LDA $0614,Y                           ; $A6E1: B9 14 06
   STA $01                               ; $A6E4: 85 01
   JSR $D6B6                             ; $A6E6: 20 B6 D6
   TYA                                   ; $A6E9: 98
-  BPL @A71B                             ; $A6EA: 10 2F
+  BPL @CheckUp                          ; $A6EA: 10 2F
   LDY $0509                             ; $A6EC: AC 09 05
   LDA $0600,Y                           ; $A6EF: B9 00 06
   CLC                                   ; $A6F2: 18
@@ -967,7 +965,7 @@ PhaseExit:
   STA $11                               ; $A6FA: 85 11
   JSR $DB46                             ; $A6FC: 20 46 DB
   JSR MovePhase_CalcCost                ; $A6FF: 20 E7 A7
-  BCC @A71B                             ; $A702: 90 17
+  BCC @CheckUp                          ; $A702: 90 17
   STA $0505                             ; $A704: 8D 05 05
   TXA                                   ; $A707: 8A
   PHA                                   ; $A708: 48
@@ -979,28 +977,28 @@ PhaseExit:
   LDX $0509                             ; $A714: AE 09 05
   INC $0600,X                           ; $A717: FE 00 06
   RTS                                   ; $A71A: 60
-@A71B:
+@CheckUp:
   LDA $81                               ; $A71B: A5 81
   ASL                                   ; $A71D: 0A
   ASL                                   ; $A71E: 0A
   ASL                                   ; $A71F: 0A
-  BPL @A780                             ; $A720: 10 5E
+  BPL @CheckDown                        ; $A720: 10 5E
   LDY $0509                             ; $A722: AC 09 05
   LDA $0600,Y                           ; $A725: B9 00 06
   STA $00                               ; $A728: 85 00
   LDA $0614,Y                           ; $A72A: B9 14 06
   SEC                                   ; $A72D: 38
   SBC #$01                              ; $A72E: E9 01
-  BMI @A780                             ; $A730: 30 4E
+  BMI @CheckDown                        ; $A730: 30 4E
   CMP #$0F                              ; $A732: C9 0F
-  BNE @A739                             ; $A734: D0 03
+  BNE @SkipRowAdj1                      ; $A734: D0 03
   SEC                                   ; $A736: 38
   SBC #$01                              ; $A737: E9 01
-@A739:
+@SkipRowAdj1:
   STA $01                               ; $A739: 85 01
   JSR $D6B6                             ; $A73B: 20 B6 D6
   TYA                                   ; $A73E: 98
-  BPL @A780                             ; $A73F: 10 3F
+  BPL @CheckDown                        ; $A73F: 10 3F
   LDY $0509                             ; $A741: AC 09 05
   LDA $0600,Y                           ; $A744: B9 00 06
   STA $10                               ; $A747: 85 10
@@ -1008,14 +1006,14 @@ PhaseExit:
   SEC                                   ; $A74C: 38
   SBC #$01                              ; $A74D: E9 01
   CMP #$0F                              ; $A74F: C9 0F
-  BNE @A756                             ; $A751: D0 03
+  BNE @SkipRowAdj2                      ; $A751: D0 03
   SEC                                   ; $A753: 38
   SBC #$01                              ; $A754: E9 01
-@A756:
+@SkipRowAdj2:
   STA $11                               ; $A756: 85 11
   JSR $DB46                             ; $A758: 20 46 DB
   JSR MovePhase_CalcCost                ; $A75B: 20 E7 A7
-  BCC @A780                             ; $A75E: 90 20
+  BCC @CheckDown                        ; $A75E: 90 20
   STA $0505                             ; $A760: 8D 05 05
   TXA                                   ; $A763: 8A
   PHA                                   ; $A764: 48
@@ -1028,13 +1026,13 @@ PhaseExit:
   DEC $0614,X                           ; $A773: DE 14 06
   LDA $0614,X                           ; $A776: BD 14 06
   CMP #$0F                              ; $A779: C9 0F
-  BNE @A780                             ; $A77B: D0 03
+  BNE @CheckDown                        ; $A77B: D0 03
   DEC $0614,X                           ; $A77D: DE 14 06
-@A780:
+@CheckDown:
   LDA $81                               ; $A780: A5 81
   ASL                                   ; $A782: 0A
   ASL                                   ; $A783: 0A
-  BPL @A7E6                             ; $A784: 10 60
+  BPL @Done                             ; $A784: 10 60
   LDY $0509                             ; $A786: AC 09 05
   LDA $0600,Y                           ; $A789: B9 00 06
   STA $00                               ; $A78C: 85 00
@@ -1042,32 +1040,32 @@ PhaseExit:
   CLC                                   ; $A791: 18
   ADC #$01                              ; $A792: 69 01
   CMP #$14                              ; $A794: C9 14
-  BCS @A7E6                             ; $A796: B0 4E
+  BCS @Done                             ; $A796: B0 4E
   CMP #$0F                              ; $A798: C9 0F
-  BNE @A79F                             ; $A79A: D0 03
+  BNE @SkipRowAdj3                      ; $A79A: D0 03
   CLC                                   ; $A79C: 18
   ADC #$01                              ; $A79D: 69 01
-@A79F:
+@SkipRowAdj3:
   STA $01                               ; $A79F: 85 01
   JSR $D6B6                             ; $A7A1: 20 B6 D6
   TYA                                   ; $A7A4: 98
-  BPL @A7E6                             ; $A7A5: 10 3F
+  BPL @Done                             ; $A7A5: 10 3F
   LDY $0509                             ; $A7A7: AC 09 05
-@A7AA:
+@LoadPos:
   LDA $0600,Y                           ; $A7AA: B9 00 06
   STA $10                               ; $A7AD: 85 10
   LDA $0614,Y                           ; $A7AF: B9 14 06
   CLC                                   ; $A7B2: 18
   ADC #$01                              ; $A7B3: 69 01
   CMP #$0F                              ; $A7B5: C9 0F
-  BNE @A7BC                             ; $A7B7: D0 03
+  BNE @SkipRowAdj4                      ; $A7B7: D0 03
   CLC                                   ; $A7B9: 18
   ADC #$01                              ; $A7BA: 69 01
-@A7BC:
+@SkipRowAdj4:
   STA $11                               ; $A7BC: 85 11
   JSR $DB46                             ; $A7BE: 20 46 DB
   JSR MovePhase_CalcCost                ; $A7C1: 20 E7 A7
-  BCC @A7E6                             ; $A7C4: 90 20
+  BCC @Done                             ; $A7C4: 90 20
   STA $0505                             ; $A7C6: 8D 05 05
   TXA                                   ; $A7C9: 8A
   PHA                                   ; $A7CA: 48
@@ -1080,9 +1078,9 @@ PhaseExit:
   INC $0614,X                           ; $A7D9: FE 14 06
   LDA $0614,X                           ; $A7DC: BD 14 06
   CMP #$0F                              ; $A7DF: C9 0F
-  BNE @A7E6                             ; $A7E1: D0 03
+  BNE @Done                             ; $A7E1: D0 03
   INC $0614,X                           ; $A7E3: FE 14 06
-@A7E6:
+@Done:
   RTS                                   ; $A7E6: 60
 .endproc
 
@@ -1105,23 +1103,27 @@ PhaseExit:
   LDX $0509                             ; $A801: AE 09 05
   LDA $063C,X                           ; $A804: BD 3C 06
   CMP #$06                              ; $A807: C9 06
-  BCC @A817                             ; $A809: 90 0C
-  LDA $A823,Y                           ; $A80B: B9 23 A8
+  BCC @UseLowRank                       ; $A809: 90 0C
+  LDA @MoveCost_HighRank,Y              ; $A80B: B9 23 A8
   TAX                                   ; $A80E: AA
   LDA $0505                             ; $A80F: AD 05 05
   SEC                                   ; $A812: 38
-  SBC $A823,Y                           ; $A813: F9 23 A8
+  SBC @MoveCost_HighRank,Y              ; $A813: F9 23 A8
   RTS                                   ; $A816: 60
-@A817:
-  LDA $A83F,Y                           ; $A817: B9 3F A8
+@UseLowRank:
+  LDA @MoveCost_LowRank,Y               ; $A817: B9 3F A8
   TAX                                   ; $A81A: AA
   LDA $0505                             ; $A81B: AD 05 05
   SEC                                   ; $A81E: 38
-  SBC $A83F,Y                           ; $A81F: F9 3F A8
+  SBC @MoveCost_LowRank,Y               ; $A81F: F9 3F A8
   RTS                                   ; $A822: 60
-; --- Data Region ---
+; Movement cost table for high-rank officers (rank >= 6)
+; Indexed by (direction × 4 + rank), 4 bytes per direction (3 costs + padding)
+@MoveCost_HighRank:
   .byte $03,$05,$05,$00,$04,$04,$04,$00,$02,$03,$03,$00,$05,$06,$03,$00; $A823: 03 05 05 00 04 04 04 00 02 03 03 00 05 06 03 00
   .byte $05,$03,$06,$00,$06,$06,$06,$00,$06,$06,$06,$00,$02,$03,$03,$00; $A833: 05 03 06 00 06 06 06 00 06 06 06 00 02 03 03 00
+; Movement cost table for low-rank officers (rank < 6)
+@MoveCost_LowRank:
   .byte $03,$03,$03,$00,$01,$02,$02,$00,$03,$05,$02,$00,$03,$02,$04,$00; $A843: 03 03 03 00 01 02 02 00 03 05 02 00 03 02 04 00
   .byte $04,$04,$04,$00,$04,$04,$04,$00   ; $A853: 04 04 04 00 04 04 04 00
 .endproc
@@ -1132,7 +1134,6 @@ PhaseExit:
   LDX $0509                             ; $A85F: AE 09 05
   LDA $0600,X                           ; $A862: BD 00 06
   STA $0540,Y                           ; $A865: 99 40 05
-@A868:
   LDA $0614,X                           ; $A868: BD 14 06
   STA $0541,Y                           ; $A86B: 99 41 05
   PLA                                   ; $A86E: 68
@@ -1143,38 +1144,38 @@ PhaseExit:
   RTS                                   ; $A87B: 60
 .endproc
 
-.proc OfficerActionPhase
+.proc OfficerCommandPhase
   ; (dispatch callback target)
   LDY $050A                             ; $A87C: AC 0A 05
   JSR $DC36                             ; $A87F: 20 36 DC
   LDA $0501                             ; $A882: AD 01 05
   JSR B1F_CallbackDispatcher            ; $A885: 20 DE EA
 ; --- CallbackDispatcher table (11 entries) ---
-  .word ActionState_Init                    ; $A888: $9E A8
-  .word ActionState_Animate                 ; $A88A: $C1 A8
-  .word ActionState_MenuSetup               ; $A88C: $D8 A8
-  .word ActionState_Menu                    ; $A88E: $17 A9
-  .word ActionState_SelectTarget            ; $A890: $DD A9
-  .word ActionState_Confirm                 ; $A892: $2E AA
-  .word ActionState_ShowResult              ; $A894: $6C AA
-  .word ActionState_Cancel                  ; $A896: $A7 AA
-  .word ActionState_Confirm2                ; $A898: $2A AB
-  .word ActionState_CancelConfirm           ; $A89A: $52 AB
-  .word ActionState_Reset                   ; $A89C: $90 AB
+  .word CommandState_Init                    ; $A888: $9E A8
+  .word CommandState_Animate                 ; $A88A: $C1 A8
+  .word CommandState_MenuSetup               ; $A88C: $D8 A8
+  .word CommandState_Menu                    ; $A88E: $17 A9
+  .word CommandState_SelectTarget            ; $A890: $DD A9
+  .word CommandState_Confirm                 ; $A892: $2E AA
+  .word CommandState_ShowResult              ; $A894: $6C AA
+  .word CommandState_Cancel                  ; $A896: $A7 AA
+  .word CommandState_Confirm2                ; $A898: $2A AB
+  .word CommandState_CancelConfirm           ; $A89A: $52 AB
+  .word CommandState_Reset                   ; $A89C: $90 AB
 .endproc
 
-.proc ActionState_Init
+.proc CommandState_Init
   LDA #$F3                              ; $A89E: A9 F3
   STA $0310                             ; $A8A0: 8D 10 03
   LDA #$00                              ; $A8A3: A9 00
   STA $0300                             ; $A8A5: 8D 00 03
   STA $050B                             ; $A8A8: 8D 0B 05
   LDY #$03                              ; $A8AB: A0 03
-@A8AD:
+@CopyLoop:
   LDA $6F3F,Y                           ; $A8AD: B9 3F 6F
   STA $046C,Y                           ; $A8B0: 99 6C 04
   DEY                                   ; $A8B3: 88
-  BPL @A8AD                             ; $A8B4: 10 F7
+  BPL @CopyLoop                         ; $A8B4: 10 F7
   INC $0501                             ; $A8B6: EE 01 05
   LDY #$28                              ; $A8B9: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $A8BB: 20 07 EE
@@ -1183,20 +1184,20 @@ PhaseExit:
   RTS                                         ; $A8C0: 60
 .endproc
 
-.proc ActionState_Animate
+.proc CommandState_Animate
   JSR $DF27                             ; $A8C1: 20 27 DF
-  BCC @A8D7                             ; $A8C4: 90 11
-  JSR ActionPhase_BuildMsg              ; $A8C6: 20 D9 AB
+  BCC @Done                             ; $A8C4: 90 11
+  JSR CommandPhase_BuildMsg              ; $A8C6: 20 D9 AB
   LDA $050B                             ; $A8C9: AD 0B 05
   INC $050B                             ; $A8CC: EE 0B 05
   CMP $0542                             ; $A8CF: CD 42 05
-  BCC @A8D7                             ; $A8D2: 90 03
+  BCC @Done                             ; $A8D2: 90 03
   INC $0501                             ; $A8D4: EE 01 05
-@A8D7:
+@Done:
   RTS                                   ; $A8D7: 60
 .endproc
 
-.proc ActionState_MenuSetup
+.proc CommandState_MenuSetup
   LDA #$C7                              ; $A8D8: A9 C7
   JSR B1F_SetUI2                        ; $A8DA: 20 83 F2
   INC $0501                             ; $A8DD: EE 01 05
@@ -1228,15 +1229,15 @@ PhaseExit:
   RTS                                   ; $A916: 60
 .endproc
 
-.proc ActionState_Menu
+.proc CommandState_Menu
   LDA #$5B                              ; $A917: A9 5B
   STA $B2                               ; $A919: 85 B2
   LDA $0542                             ; $A91B: AD 42 05
   ASL                                   ; $A91E: 0A
   TAY                                   ; $A91F: A8
-  LDA $BA9F,Y                           ; $A920: B9 9F BA
+  LDA MenuTypeItemListPtrs,Y            ; $A920: B9 9F BA
   STA $10                               ; $A923: 85 10
-  LDA $BAA0,Y                           ; $A925: B9 A0 BA
+  LDA MenuTypeItemListPtrs+1,Y          ; $A925: B9 A0 BA
   STA $11                               ; $A928: 85 11
   LDA #$00                              ; $A92A: A9 00
   STA $12                               ; $A92C: 85 12
@@ -1252,24 +1253,24 @@ PhaseExit:
   LDA $12                               ; $A941: A5 12
   JSR B1F_PointerTableLookup            ; $A943: 20 F5 ED
   JSR $DF27                             ; $A946: 20 27 DF
-  BCC @A99F                             ; $A949: 90 54
+  BCC @Done                             ; $A949: 90 54
   LDA $81                               ; $A94B: A5 81
   AND #$01                              ; $A94D: 29 01
-  BEQ @A968                             ; $A94F: F0 17
+  BEQ @CheckCancel                      ; $A94F: F0 17
   LDY $12                               ; $A951: A4 12
   LDA $0580,Y                           ; $A953: B9 80 05
   STA $0543                             ; $A956: 8D 43 05
   LDA $0505                             ; $A959: AD 05 05
   LDY $12                               ; $A95C: A4 12
-  CMP $ABC9,Y                           ; $A95E: D9 C9 AB
-  BCC @A966                             ; $A961: 90 03
-  JMP @A9A0                             ; $A963: 4C A0 A9
-@A966:
+  CMP @ActionParamTable+5,Y             ; $A95E: D9 C9 AB
+  BCC @NotEnough                        ; $A961: 90 03
+  JMP CommandState_Menu_Enough           ; $A963: 4C A0 A9
+@NotEnough:
   LDA #$00                              ; $A966: A9 00
-@A968:
+@CheckCancel:
   LDA $81                               ; $A968: A5 81
   AND #$02                              ; $A96A: 29 02
-  BEQ @A99F                             ; $A96C: F0 31
+  BEQ @Done                             ; $A96C: F0 31
   LDA #$E0                              ; $A96E: A9 E0
   STA $E7                               ; $A970: 85 E7
   LDA #$E0                              ; $A972: A9 E0
@@ -1292,9 +1293,11 @@ PhaseExit:
   LDA #$00                              ; $A997: A9 00
   STA $0500                             ; $A999: 8D 00 05
   JMP FinishSequence                       ; $A99C: 4C F7 A1
-@A99F:
+@Done:
   RTS                                   ; $A99F: 60
-@A9A0:
+.endproc
+
+.proc CommandState_Menu_Enough
   LDA #$89                              ; $A9A0: A9 89
   STA $B3                               ; $A9A2: 85 B3
   LDA #$8A                              ; $A9A4: A9 8A
@@ -1314,71 +1317,78 @@ PhaseExit:
   STA $E9                               ; $A9C2: 85 E9
   LDA $0543                             ; $A9C4: AD 43 05
   CMP #$0B                              ; $A9C7: C9 0B
-  BNE @A9D4                             ; $A9C9: D0 09
+  BNE @ShowMenuUI                       ; $A9C9: D0 09
   LDY $050A                             ; $A9CB: AC 0A 05
   INC $0501                             ; $A9CE: EE 01 05
-  JMP ActionState_SelectTarget_Proceed  ; $A9D1: 4C 03 AA
-@A9D4:
+  JMP CommandState_SelectTarget_Proceed  ; $A9D1: 4C 03 AA
+@ShowMenuUI:
   LDA #$F4                              ; $A9D4: A9 F4
   JSR B1F_SetUI2                        ; $A9D6: 20 83 F2
   INC $0501                             ; $A9D9: EE 01 05
   RTS                                   ; $A9DC: 60
 .endproc
 
-.proc ActionState_SelectTarget
+.proc CommandState_SelectTarget
   JSR $D4FB                             ; $A9DD: 20 FB D4
   JSR $D5EE                             ; $A9E0: 20 EE D5
   JSR $D657                             ; $A9E3: 20 57 D6
   JSR $DF27                             ; $A9E6: 20 27 DF
-  BCC @AA28                             ; $A9E9: 90 3D
+  BCC CommandState_SelectTarget_Done     ; $A9E9: 90 3D
   LDA $81                               ; $A9EB: A5 81
   LSR                                   ; $A9ED: 4A
-  BCS @A9F6                             ; $A9EE: B0 06
+  BCS @HandleConfirm                    ; $A9EE: B0 06
   LSR                                   ; $A9F0: 4A
-  BCS @AA23                             ; $A9F1: B0 30
-  JMP @AA28                             ; $A9F3: 4C 28 AA
-@A9F6:
+  BCS CommandState_SelectTarget_Reset    ; $A9F1: B0 30
+  JMP CommandState_SelectTarget_Done     ; $A9F3: 4C 28 AA
+@HandleConfirm:
   JSR $D68A                             ; $A9F6: 20 8A D6
   TYA                                   ; $A9F9: 98
-  BMI @AA28                             ; $A9FA: 30 2C
+  BMI CommandState_SelectTarget_Done     ; $A9FA: 30 2C
   JSR $DC4B                             ; $A9FC: 20 4B DC
   CMP #$FF                              ; $A9FF: C9 FF
-  BNE @AA28                             ; $AA01: D0 25
+  BNE CommandState_SelectTarget_Done     ; $AA01: D0 25
 .endproc
 
-.proc ActionState_SelectTarget_Proceed
+.proc CommandState_SelectTarget_Proceed
   STY $0509                             ; $AA03: 8C 09 05
   JSR CalcDistance                      ; $AA06: 20 60 B8
   CMP #$06                              ; $AA09: C9 06
-  BCS @AA29                             ; $AA0B: B0 1C
+  BCS @ShowFullUI                       ; $AA0B: B0 1C
   JSR ValidateActionTarget              ; $AA0D: 20 80 AD
-  BCS @AA1D                             ; $AA10: B0 0B
+  BCS @ValidTarget                      ; $AA10: B0 0B
   LDA #$0A                              ; $AA12: A9 0A
   STA $0501                             ; $AA14: 8D 01 05
   LDA #$F7                              ; $AA17: A9 F7
   JSR B1F_SetUI2                        ; $AA19: 20 83 F2
   RTS                                   ; $AA1C: 60
-@AA1D:
+@ValidTarget:
   INC $0501                             ; $AA1D: EE 01 05
-  JMP @AD63                             ; $AA20: 4C 63 AD
-@AA23:
+  JMP CommandPhase_ShowResultMsg         ; $AA20: 4C 63 AD
+.endproc
+
+.proc CommandState_SelectTarget_Reset
   LDA #$00                              ; $AA23: A9 00
   STA $0501                             ; $AA25: 8D 01 05
-@AA28:
+.endproc
+
+.proc CommandState_SelectTarget_Done
   RTS                                   ; $AA28: 60
-@AA29:
+.endproc
+
+.proc CommandState_SelectTarget_ShowFull
+@ShowFullUI:
   LDA #$4C                              ; $AA29: A9 4C
   JMP B1F_SetUI2                        ; $AA2B: 4C 83 F2
 .endproc
 
-.proc ActionState_Confirm
+.proc CommandState_Confirm
   JSR $DC63                             ; $AA2E: 20 63 DC
   JSR $D657                             ; $AA31: 20 57 D6
   JSR $DF27                             ; $AA34: 20 27 DF
-  BCC @AA6B                             ; $AA37: 90 32
+  BCC @Done                             ; $AA37: 90 32
   LDA $81                               ; $AA39: A5 81
   AND #$01                              ; $AA3B: 29 01
-  BEQ @AA6B                             ; $AA3D: F0 2C
+  BEQ @Done                             ; $AA3D: F0 2C
   INC $0501                             ; $AA3F: EE 01 05
   LDA #$89                              ; $AA42: A9 89
   STA $C3                               ; $AA44: 85 C3
@@ -1398,13 +1408,13 @@ PhaseExit:
   STA $0310                             ; $AA63: 8D 10 03
   LDA #$00                              ; $AA66: A9 00
   STA $0300                             ; $AA68: 8D 00 03
-@AA6B:
+@Done:
   RTS                                   ; $AA6B: 60
 .endproc
 
-.proc ActionState_ShowResult
+.proc CommandState_ShowResult
   LDA $04C8                             ; $AA6C: AD C8 04
-  BNE @AAA6                             ; $AA6F: D0 35
+  BNE @Done                             ; $AA6F: D0 35
   LDY $050A                             ; $AA71: AC 0A 05
   LDA $0664,Y                           ; $AA74: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $AA77: 20 D7 F2
@@ -1416,7 +1426,7 @@ PhaseExit:
   LDA ($00),Y                           ; $AA85: B1 00
   STA $052E                             ; $AA87: 8D 2E 05
   LDY $0543                             ; $AA8A: AC 43 05
-  LDA $ABC9,Y                           ; $AA8D: B9 C9 AB
+  LDA @ActionParamTable+5,Y             ; $AA8D: B9 C9 AB
   STA $00                               ; $AA90: 85 00
   LDA $0505                             ; $AA92: AD 05 05
   SEC                                   ; $AA95: 38
@@ -1426,11 +1436,11 @@ PhaseExit:
   JSR $DB03                             ; $AA9E: 20 03 DB
   LDA #$00                              ; $AAA1: A9 00
   STA $050B                             ; $AAA3: 8D 0B 05
-@AAA6:
+@Done:
   RTS                                   ; $AAA6: 60
 .endproc
 
-.proc ActionState_Cancel
+.proc CommandState_Cancel
   LDA $007E                             ; $AAA7: AD 7E 00
   BNE $AAE2                             ; $AAAA: D0 36
   LDA $050B                             ; $AAAC: AD 0B 05
@@ -1441,136 +1451,141 @@ PhaseExit:
   INC $050B                             ; $AAB9: EE 0B 05
   LDA $050B                             ; $AABC: AD 0B 05
   CMP #$14                              ; $AABF: C9 14
-  BCC $AAE2                             ; $AAC1: 90 1F
+  BCC @Done                             ; $AAC1: 90 1F
   INC $0501                             ; $AAC3: EE 01 05
   LDA $0544                             ; $AAC6: AD 44 05
-  BEQ $AAE3                             ; $AAC9: F0 18
+  BEQ @CheckActionType                  ; $AAC9: F0 18
   LDA #$04                              ; $AACB: A9 04
   STA $00A4                             ; $AACD: 8D A4 00
   LDA #$73                              ; $AAD0: A9 73
   JSR B1F_SetUI2                        ; $AAD2: 20 83 F2
-@AAD5:
+@FinishAndExit:
   LDA $050A                             ; $AAD5: AD 0A 05
   STA $0509                             ; $AAD8: 8D 09 05
   LDY #$3D                              ; $AADB: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $AADD: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A027                               ; $AAE0: $27 A0
+  .word B1D_1E_ProvinceDataHandler          ; $AAE0: $27 A0
+@Done:
   RTS                                         ; $AAE2: 60
+@CheckActionType:
   LDA #$03                                    ; $AAE3: A9 03
   STA $00A4                                   ; $AAE5: 8D A4 00
   LDA $0543                                   ; $AAE8: AD 43 05
   AND #$0F                                    ; $AAEB: 29 0F
   TAY                                         ; $AAED: A8
   CPY #$01                                    ; $AAEE: C0 01
-  BEQ @AB02                                   ; $AAF0: F0 10
+  BEQ @CheckPendingOfficer                    ; $AAF0: F0 10
   CPY #$09                                    ; $AAF2: C0 09
-  BNE @AB11                                   ; $AAF4: D0 1B
+  BNE @ShowCancelMsg                          ; $AAF4: D0 1B
   LDA $042C                                   ; $AAF6: AD 2C 04
-  BNE @AB02                                   ; $AAF9: D0 07
+  BNE @CheckPendingOfficer                    ; $AAF9: D0 07
   LDA $042D                                   ; $AAFB: AD 2D 04
-  BNE @AB02                                   ; $AAFE: D0 02
+  BNE @CheckPendingOfficer                    ; $AAFE: D0 02
   LDY #$01                                    ; $AB00: A0 01
-@AB02:
-; --- Code Region ---
+@CheckPendingOfficer:
   LDA $0432                             ; $AB02: AD 32 04
   CMP #$FF                              ; $AB05: C9 FF
-  BEQ @AB11                             ; $AB07: F0 08
+  BEQ @ShowCancelMsg                    ; $AB07: F0 08
   STA $042C                             ; $AB09: 8D 2C 04
   LDA #$4E                              ; $AB0C: A9 4E
   JMP B1F_SetUI5                        ; $AB0E: 4C 93 F2
-@AB11:
-  LDA $AB1A,Y                           ; $AB11: B9 1A AB
+@ShowCancelMsg:
+  LDA @CancelMsgTable,Y                 ; $AB11: B9 1A AB
   JSR B1F_SetUI2                        ; $AB14: 20 83 F2
-  JMP @AAD5                             ; $AB17: 4C D5 AA
-; --- Data Region ---
+  JMP @FinishAndExit                    ; $AB17: 4C D5 AA
+; Cancel message IDs indexed by action type
+@CancelMsgTable:
   .byte $6C,$6D,$6E,$6C,$6C,$6F,$6C,$6C,$70,$BB,$71,$BA,$6C,$6C,$6C,$72; $AB1A: 6C 6D 6E 6C 6C 6F 6C 6C 70 BB 71 BA 6C 6C 6C 72
 .endproc
 
-.proc ActionState_Confirm2
+.proc CommandState_Confirm2
   JSR $DF27                             ; $AB2A: 20 27 DF
-  BCC @AB51                             ; $AB2D: 90 22
+  BCC @Done                             ; $AB2D: 90 22
   JSR $DC63                             ; $AB2F: 20 63 DC
   LDA $81                               ; $AB32: A5 81
   AND #$01                              ; $AB34: 29 01
-  BEQ @AB51                             ; $AB36: F0 19
+  BEQ @Done                             ; $AB36: F0 19
   LDY $050A                             ; $AB38: AC 0A 05
   LDA $0664,Y                           ; $AB3B: B9 64 06
   STA $042C                             ; $AB3E: 8D 2C 04
   JSR $DEE9                             ; $AB41: 20 E9 DE
   BCS @Skip2                            ; $AB44: 90 29 (inverted)
-  JMP ActionPhase_RestorePosition       ; (was fall-through to @AB6F)
+  JMP CommandPhase_RestorePosition       ; (was fall-through to @AB6F)
 @Skip2:
   INC $0501                             ; $AB46: EE 01 05
   JSR B1F_BankPpuInit                   ; $AB49: 20 7F E5
   LDA #$7B                              ; $AB4C: A9 7B
   JSR B1F_SoundWrapperD                 ; $AB4E: 20 8B E6
-@AB51:
+@Done:
   RTS                                   ; $AB51: 60
 .endproc
 
-.proc ActionState_CancelConfirm
+.proc CommandState_CancelConfirm
   JSR $DF27                             ; $AB52: 20 27 DF
-  BCC @AB85                             ; $AB55: 90 2E
+  BCC @Done                             ; $AB55: 90 2E
   JSR $DC63                             ; $AB57: 20 63 DC
   LDA $81                               ; $AB5A: A5 81
   AND #$01                              ; $AB5C: 29 01
-  BEQ @AB85                             ; $AB5E: F0 25
+  BEQ @Done                             ; $AB5E: F0 25
   LDA $042D                             ; $AB60: AD 2D 04
   CMP #$FF                              ; $AB63: C9 FF
-  BNE @AB86                             ; $AB65: D0 1F
+  BNE @ShowCancelUI                     ; $AB65: D0 1F
   JSR B1F_BankPpuInit                   ; $AB67: 20 7F E5
   LDA #$1D                              ; $AB6A: A9 1D
   JSR B1F_SoundWrapperA                 ; $AB6C: 20 73 E6
-  JSR ActionPhase_RestorePosition       ; (was fall-through to @AB6F)
-@AB85:
+  JSR CommandPhase_RestorePosition       ; (was fall-through to @AB6F)
+@Done:
   RTS                                   ; $AB85: 60
-@AB86:
+@ShowCancelUI:
   LDA #$FF                              ; $AB86: A9 FF
   STA $042D                             ; $AB88: 8D 2D 04
   LDA #$4B                              ; $AB8B: A9 4B
   JMP B1F_SetUI5                        ; $AB8D: 4C 93 F2
 .endproc
 
-.proc ActionPhase_RestorePosition
+.proc CommandPhase_RestorePosition
   LDY #$03                              ; $AB6F: A0 03
-@AB71:
+@CopyLoop:
   LDA $046C,Y                           ; $AB71: B9 6C 04
   STA $6F3F,Y                           ; $AB74: 99 3F 6F
   DEY                                   ; $AB77: 88
-  BPL @AB71                             ; $AB78: 10 F7
+  BPL @CopyLoop                         ; $AB78: 10 F7
   LDA #$00                              ; $AB7A: A9 00
   STA $0501                             ; $AB7C: 8D 01 05
   STA $0500                             ; $AB7F: 8D 00 05
   JMP FinishSequence                    ; $AB82: 4C F7 A1
 .endproc
 
-.proc ActionState_Reset
+.proc CommandState_Reset
   JSR $DF27                             ; $AB90: 20 27 DF
-  BCC @ABA3                             ; $AB93: 90 0E
+  BCC @Done                             ; $AB93: 90 0E
   JSR $DC63                             ; $AB95: 20 63 DC
   LDA $81                               ; $AB98: A5 81
   AND #$01                              ; $AB9A: 29 01
-  BEQ @ABA3                             ; $AB9C: F0 05
+  BEQ @Done                             ; $AB9C: F0 05
   LDA #$00                              ; $AB9E: A9 00
   STA $0501                             ; $ABA0: 8D 01 05
-@ABA3:
+@Done:
   RTS                                   ; $ABA3: 60
-; --- Data Region ---
+; PPU nametable/attribute data for action state reset
+@ResetPpuData:
   .byte $1E,$18,$1E,$98,$2E,$18,$2E,$98,$3E,$18,$3E,$98,$4E,$18,$4E,$98; $ABA4: 1E 18 1E 98 2E 18 2E 98 3E 18 3E 98 4E 18 4E 98
   .byte $5E,$18,$5E,$98,$6E,$18,$6E,$98,$7E,$18,$7E,$98,$8E,$18,$8E,$98; $ABB4: 5E 18 5E 98 6E 18 6E 98 7E 18 7E 98 8E 18 8E 98
+; Action cost/parameter table
+@ActionParamTable:
   .byte $00,$07,$00,$00,$80,$06,$05,$04,$06,$07,$08,$08,$08,$0A,$09,$09; $ABC4: 00 07 00 00 80 06 05 04 06 07 08 08 08 0A 09 09
   .byte $0A,$0A,$08,$0C,$0A               ; $ABD4: 0A 0A 08 0C 0A
 .endproc
 
-.proc ActionPhase_BuildMsg
+.proc CommandPhase_BuildMsg
   LDY $050B                             ; $ABD9: AC 0B 05
   LDA $0580,Y                           ; $ABDC: B9 80 05
   ASL                                   ; $ABDF: 0A
   TAY                                   ; $ABE0: A8
-  LDA $AC91,Y                           ; $ABE1: B9 91 AC
+  LDA @MsgPointerTable,Y                ; $ABE1: B9 91 AC
   STA $00                               ; $ABE4: 85 00
-  LDA $AC92,Y                           ; $ABE6: B9 92 AC
+  LDA @MsgPointerTable+1,Y              ; $ABE6: B9 92 AC
   STA $01                               ; $ABE9: 85 01
   LDA $050B                             ; $ABEB: AD 0B 05
   ASL                                   ; $ABEE: 0A
@@ -1583,20 +1598,20 @@ PhaseExit:
   STA $03                               ; $ABFB: 85 03
   INX                                   ; $ABFD: E8
   LDY $02                               ; $ABFE: A4 02
-  LDA $AC52,Y                           ; $AC00: B9 52 AC
+  LDA @MsgTileAddrTable+1,Y             ; $AC00: B9 52 AC
   STA $0380,X                           ; $AC03: 9D 80 03
   INX                                   ; $AC06: E8
-  LDA $AC51,Y                           ; $AC07: B9 51 AC
+  LDA @MsgTileAddrTable,Y               ; $AC07: B9 51 AC
   STA $0380,X                           ; $AC0A: 9D 80 03
   INX                                   ; $AC0D: E8
   LDY #$01                              ; $AC0E: A0 01
-@AC10:
+@CopyMsgLoop:
   LDA ($00),Y                           ; $AC10: B1 00
   STA $0380,X                           ; $AC12: 9D 80 03
   INX                                   ; $AC15: E8
   INY                                   ; $AC16: C8
   DEC $03                               ; $AC17: C6 03
-  BNE @AC10                             ; $AC19: D0 F5
+  BNE @CopyMsgLoop                      ; $AC19: D0 F5
   LDA ($00),Y                           ; $AC1B: B1 00
   STA $0380,X                           ; $AC1D: 9D 80 03
   STA $03                               ; $AC20: 85 03
@@ -1613,26 +1628,31 @@ PhaseExit:
   INX                                   ; $AC35: E8
   PLA                                   ; $AC36: 68
   TAY                                   ; $AC37: A8
-@AC38:
+@CopyMsgLoop2:
   LDA ($00),Y                           ; $AC38: B1 00
   STA $0380,X                           ; $AC3A: 9D 80 03
   INX                                   ; $AC3D: E8
   INY                                   ; $AC3E: C8
   DEC $03                               ; $AC3F: C6 03
-  BNE @AC38                             ; $AC41: D0 F5
+  BNE @CopyMsgLoop2                     ; $AC41: D0 F5
   LDA #$FF                              ; $AC43: A9 FF
   STA $0380,X                           ; $AC45: 9D 80 03
   LDA $007E                             ; $AC48: AD 7E 00
   ORA #$04                              ; $AC4B: 09 04
   STA $007E                             ; $AC4D: 8D 7E 00
   RTS                                   ; $AC50: 60
-; --- Data Region ---
+; Tile address table for message building (16-bit pointers)
+@MsgTileAddrTable:
   .byte $A4,$25,$C4,$25,$B4,$25,$D4,$25,$E4,$25,$04,$26,$F4,$25,$14,$26; $AC51: A4 25 C4 25 B4 25 D4 25 E4 25 04 26 F4 25 14 26
   .byte $24,$26,$44,$26,$34,$26,$54,$26,$64,$26,$84,$26,$74,$26,$94,$26; $AC61: 24 26 44 26 34 26 54 26 64 26 84 26 74 26 94 26
   .byte $A4,$26,$C4,$26,$B4,$26,$D4,$26,$E4,$26,$04,$27,$F4,$26,$14,$27; $AC71: A4 26 C4 26 B4 26 D4 26 E4 26 04 27 F4 26 14 27
   .byte $24,$27,$44,$27,$34,$27,$54,$27,$64,$27,$84,$27,$74,$27,$94,$27; $AC81: 24 27 44 27 34 27 54 27 64 27 84 27 74 27 94 27
+; Message pointer table (16-bit pointers to message content)
+@MsgPointerTable:
   .byte $B1,$AC,$BB,$AC,$C5,$AC,$CF,$AC,$D9,$AC,$E3,$AC,$ED,$AC,$FD,$AC; $AC91: B1 AC BB AC C5 AC CF AC D9 AC E3 AC ED AC FD AC
   .byte $07,$AD,$11,$AD,$1B,$AD,$25,$AD,$35,$AD,$3F,$AD,$49,$AD,$53,$AD; $ACA1: 07 AD 11 AD 1B AD 25 AD 35 AD 3F AD 49 AD 53 AD
+; Message content data (tile indices for action messages)
+@MsgContentData:
   .byte $04,$40,$41,$42,$43,$04,$50,$51,$52,$53,$04,$44,$45,$46,$47,$04; $ACB1: 04 40 41 42 43 04 50 51 52 53 04 44 45 46 47 04
   .byte $54,$55,$56,$57,$04,$48,$49,$4A,$4B,$04,$58,$59,$5A,$5B,$04,$4C; $ACC1: 54 55 56 57 04 48 49 4A 4B 04 58 59 5A 5B 04 4C
   .byte $4D,$4E,$4F,$04,$5C,$5D,$5E,$5F,$04,$60,$61,$62,$63,$04,$70,$71; $ACD1: 4D 4E 4F 04 5C 5D 5E 5F 04 60 61 62 63 04 70 71
@@ -1648,14 +1668,15 @@ PhaseExit:
   .byte $30,$07,$FA,$FB,$FC,$FD,$FE,$FF,$31; $AD5A: 30 07 FA FB FC FD FE FF 31
 .endproc
 
-.proc ActionPhase_ShowResultMsg
+.proc CommandPhase_ShowResultMsg
   LDA $0543                             ; $AD63: AD 43 05
   AND #$0F                              ; $AD66: 29 0F
   TAY                                   ; $AD68: A8
-  LDA $AD70,Y                           ; $AD69: B9 70 AD
+  LDA @ResultMsgTable,Y                 ; $AD69: B9 70 AD
   JSR B1F_SetUI2                        ; $AD6C: 20 83 F2
   RTS                                   ; $AD6F: 60
-; --- Data Region ---
+; Result message IDs indexed by action type
+@ResultMsgTable:
   .byte $FB,$FC,$FD,$FE,$60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$6A,$6B; $AD70: FB FC FD FE 60 61 62 63 64 65 66 67 68 69 6A 6B
 .endproc
 
@@ -1678,95 +1699,95 @@ PhaseExit:
   AND #$0F                              ; $ADA7: 29 0F
   JSR B1F_CallbackDispatcher            ; $ADA9: 20 DE EA
 ; --- CallbackDispatcher table (16 entries) ---
-  .word CheckAction_0                       ; $ADAC: $CC AD
-  .word CheckAction_1_2_3                   ; $ADAE: $D8 AD
-  .word CheckAction_1_2_3                   ; $ADB0: $D8 AD
-  .word CheckAction_1_2_3                   ; $ADB2: $D8 AD
-  .word CheckAction_4                       ; $ADB4: $E4 AD
-  .word CheckAction_5                       ; $ADB6: $EE AD
-  .word CheckAction_6                       ; $ADB8: $FB AD
-  .word CheckAction_7                       ; $ADBA: $68 AE
-  .word CheckAction_8                       ; $ADBC: $C4 AE
-  .word CheckAction_9                       ; $ADBE: $CE AE
-  .word CheckAction_10_12                   ; $ADC0: $0A AF
-  .word CheckAction_11                      ; $ADC2: $73 AF
-  .word CheckAction_10_12                   ; $ADC4: $0A AF
-  .word CheckAction_13                      ; $ADC6: $A1 AF
-  .word CheckAction_14                      ; $ADC8: $D3 AF
-  .word CheckAction_15                      ; $ADCA: $1D B0
+  .word ValidAction_CalcGold                  ; $ADAC: $CC AD
+  .word ValidAction_DomesticOps              ; $ADAE: $D8 AD
+  .word ValidAction_DomesticOps              ; $ADB0: $D8 AD
+  .word ValidAction_DomesticOps              ; $ADB2: $D8 AD
+  .word ValidAction_IncreaseStats            ; $ADB4: $E4 AD
+  .word ValidAction_ExpandTerritory          ; $ADB6: $EE AD
+  .word ValidAction_Pillage                  ; $ADB8: $FB AD
+  .word ValidAction_ToggleAllegiance         ; $ADBA: $68 AE
+  .word ValidAction_CombinedAttack           ; $ADBC: $C4 AE
+  .word ValidAction_SpreadRumor              ; $ADBE: $CE AE
+  .word ValidAction_RumorRecruit             ; $ADC0: $0A AF
+  .word ValidAction_DeductSoldiers           ; $ADC2: $73 AF
+  .word ValidAction_RumorRecruit             ; $ADC4: $0A AF
+  .word ValidAction_GiftItem                 ; $ADC6: $A1 AF
+  .word ValidAction_GiveGold                 ; $ADC8: $D3 AF
+  .word ValidAction_AssignSoldier            ; $ADCA: $1D B0
 .endproc
 
-.proc CheckAction_0
+.proc ValidAction_CalcGold
   LDA $0A                               ; $ADCC: A5 0A
-  BEQ @ADD6                             ; $ADCE: F0 06
+  BEQ @Success                          ; $ADCE: F0 06
   CMP #$02                              ; $ADD0: C9 02
-  BEQ @ADD6                             ; $ADD2: F0 02
+  BEQ @Success                          ; $ADD2: F0 02
   CLC                                   ; $ADD4: 18
   RTS                                   ; $ADD5: 60
-@ADD6:
+@Success:
   SEC                                   ; $ADD6: 38
   RTS                                   ; $ADD7: 60
 .endproc
 
-.proc CheckAction_1_2_3
+.proc ValidAction_DomesticOps
   LDA $0A                               ; $ADD8: A5 0A
-  BEQ @ADE2                             ; $ADDA: F0 06
+  BEQ @Success                          ; $ADDA: F0 06
   CMP #$04                              ; $ADDC: C9 04
-  BEQ @ADE2                             ; $ADDE: F0 02
+  BEQ @Success                          ; $ADDE: F0 02
   CLC                                   ; $ADE0: 18
   RTS                                   ; $ADE1: 60
-@ADE2:
+@Success:
   SEC                                   ; $ADE2: 38
   RTS                                   ; $ADE3: 60
 .endproc
 
-.proc CheckAction_4
+.proc ValidAction_IncreaseStats
   LDA $0A                               ; $ADE4: A5 0A
   CMP #$03                              ; $ADE6: C9 03
-  BEQ @ADEC                             ; $ADE8: F0 02
+  BEQ @Success                          ; $ADE8: F0 02
   CLC                                   ; $ADEA: 18
   RTS                                   ; $ADEB: 60
-@ADEC:
+@Success:
   SEC                                   ; $ADEC: 38
   RTS                                   ; $ADED: 60
 .endproc
 
-.proc CheckAction_5
+.proc ValidAction_ExpandTerritory
   LDY $0509                             ; $ADEE: AC 09 05
-  BEQ @ADF9                             ; $ADF1: F0 06
+  BEQ @Success                          ; $ADF1: F0 06
   CPY #$0A                              ; $ADF3: C0 0A
-  BEQ @ADF9                             ; $ADF5: F0 02
+  BEQ @Success                          ; $ADF5: F0 02
   CLC                                   ; $ADF7: 18
   RTS                                   ; $ADF8: 60
-@ADF9:
+@Success:
   SEC                                   ; $ADF9: 38
   RTS                                   ; $ADFA: 60
 .endproc
 
-.proc CheckAction_6
+.proc ValidAction_Pillage
   LDY $0A                               ; $ADFB: A4 0A
   CPY #$05                              ; $ADFD: C0 05
-  BNE @AE29                             ; $ADFF: D0 28
+  BNE @Fail                             ; $ADFF: D0 28
   JSR GetOfficerPosition                ; $AE01: 20 2D AE
   INC $00                               ; $AE04: E6 00
   JSR CheckAdjacentAlly                 ; $AE06: 20 42 AE
-  BCS @AE2B                             ; $AE09: B0 20
+  BCS @Success                          ; $AE09: B0 20
   JSR GetOfficerPosition                ; $AE0B: 20 2D AE
   DEC $00                               ; $AE0E: C6 00
   JSR CheckAdjacentAlly                 ; $AE10: 20 42 AE
-  BCS @AE2B                             ; $AE13: B0 16
+  BCS @Success                          ; $AE13: B0 16
   JSR GetOfficerPosition                ; $AE15: 20 2D AE
   INC $01                               ; $AE18: E6 01
   JSR CheckAdjacentAlly                 ; $AE1A: 20 42 AE
-  BCS @AE2B                             ; $AE1D: B0 0C
+  BCS @Success                          ; $AE1D: B0 0C
   JSR GetOfficerPosition                ; $AE1F: 20 2D AE
   DEC $01                               ; $AE22: C6 01
   JSR CheckAdjacentAlly                 ; $AE24: 20 42 AE
-  BCS @AE2B                             ; $AE27: B0 02
-@AE29:
+  BCS @Success                          ; $AE27: B0 02
+@Fail:
   CLC                                   ; $AE29: 18
   RTS                                   ; $AE2A: 60
-@AE2B:
+@Success:
   SEC                                   ; $AE2B: 38
   RTS                                   ; $AE2C: 60
 .endproc
@@ -1777,10 +1798,10 @@ PhaseExit:
   STA $00                               ; $AE33: 85 00
   LDA $0614,Y                           ; $AE35: B9 14 06
   CMP #$10                              ; $AE38: C9 10
-  BCC @AE3F                             ; $AE3A: 90 03
+  BCC @SkipRowAdj                       ; $AE3A: 90 03
   SEC                                   ; $AE3C: 38
   SBC #$01                              ; $AE3D: E9 01
-@AE3F:
+@SkipRowAdj:
   STA $01                               ; $AE3F: 85 01
   RTS                                   ; $AE41: 60
 .endproc
@@ -1788,56 +1809,59 @@ PhaseExit:
 .proc CheckAdjacentAlly
   LDA $00                               ; $AE42: A5 00
   CMP #$20                              ; $AE44: C9 20
-  BCS @AE29                             ; $AE46: B0 E1
+  BCS @Fail                             ; $AE46: B0 E1
   LDA $01                               ; $AE48: A5 01
   CMP #$14                              ; $AE4A: C9 14
-  BCS @AE29                             ; $AE4C: B0 DB
+  BCS @Fail                             ; $AE4C: B0 DB
   LDY $050A                             ; $AE4E: AC 0A 05
   LDA $0600,Y                           ; $AE51: B9 00 06
   CMP $00                               ; $AE54: C5 00
-  BNE @AE29                             ; $AE56: D0 D1
+  BNE @Fail                             ; $AE56: D0 D1
   LDA $0614,Y                           ; $AE58: B9 14 06
   CMP #$10                              ; $AE5B: C9 10
-  BCC @AE62                             ; $AE5D: 90 03
+  BCC @SkipRowAdj                       ; $AE5D: 90 03
   SEC                                   ; $AE5F: 38
   SBC #$01                              ; $AE60: E9 01
-@AE62:
+@SkipRowAdj:
   CMP $01                               ; $AE62: C5 01
-  BNE @AE29                             ; $AE64: D0 C3
+  BNE @Fail                             ; $AE64: D0 C3
   SEC                                   ; $AE66: 38
   RTS                                   ; $AE67: 60
+@Fail:
+  CLC                                   ; (shared exit with ValidAction_Pillage)
+  RTS
 .endproc
 
-.proc CheckAction_7
+.proc ValidAction_ToggleAllegiance
   LDY $0A                               ; $AE68: A4 0A
-  BEQ @AE70                             ; $AE6A: F0 04
+  BEQ @CheckAdjacent                    ; $AE6A: F0 04
   CPY #$04                              ; $AE6C: C0 04
-  BNE @AEA2                             ; $AE6E: D0 32
-@AE70:
+  BNE @Fail                             ; $AE6E: D0 32
+@CheckAdjacent:
   JSR GetOfficerPosition                ; $AE70: 20 2D AE
   INC $00                               ; $AE73: E6 00
   JSR CheckTileOccupied                 ; $AE75: 20 A4 AE
   CMP #$FF                              ; $AE78: C9 FF
-  BEQ @AEA0                             ; $AE7A: F0 24
+  BEQ @Success                          ; $AE7A: F0 24
   JSR GetOfficerPosition                ; $AE7C: 20 2D AE
   DEC $00                               ; $AE7F: C6 00
   JSR CheckTileOccupied                 ; $AE81: 20 A4 AE
   CMP #$FF                              ; $AE84: C9 FF
-  BEQ @AEA0                             ; $AE86: F0 18
+  BEQ @Success                          ; $AE86: F0 18
   JSR GetOfficerPosition                ; $AE88: 20 2D AE
   INC $01                               ; $AE8B: E6 01
   JSR CheckTileOccupied                 ; $AE8D: 20 A4 AE
   CMP #$FF                              ; $AE90: C9 FF
-  BEQ @AEA0                             ; $AE92: F0 0C
+  BEQ @Success                          ; $AE92: F0 0C
   JSR GetOfficerPosition                ; $AE94: 20 2D AE
   DEC $01                               ; $AE97: C6 01
   JSR CheckTileOccupied                 ; $AE99: 20 A4 AE
   CMP #$FF                              ; $AE9C: C9 FF
-  BNE @AEA2                             ; $AE9E: D0 02
-@AEA0:
+  BNE @Fail                             ; $AE9E: D0 02
+@Success:
   SEC                                   ; $AEA0: 38
   RTS                                   ; $AEA1: 60
-@AEA2:
+@Fail:
   CLC                                   ; $AEA2: 18
   RTS                                   ; $AEA3: 60
 .endproc
@@ -1845,97 +1869,97 @@ PhaseExit:
 .proc CheckTileOccupied
   LDA $00                               ; $AEA4: A5 00
   CMP #$20                              ; $AEA6: C9 20
-  BCS @AEC1                             ; $AEA8: B0 17
+  BCS @ReturnEmpty                      ; $AEA8: B0 17
   LDA $01                               ; $AEAA: A5 01
   CMP #$14                              ; $AEAC: C9 14
-  BCS @AEC1                             ; $AEAE: B0 11
+  BCS @ReturnEmpty                      ; $AEAE: B0 11
   CMP #$0F                              ; $AEB0: C9 0F
-  BNE @AEB7                             ; $AEB2: D0 03
+  BNE @SkipRowAdj                       ; $AEB2: D0 03
   INC $0001                             ; $AEB4: EE 01 00
-@AEB7:
+@SkipRowAdj:
   JSR $D6B6                             ; $AEB7: 20 B6 D6
   TYA                                   ; $AEBA: 98
-  BMI @AEC1                             ; $AEBB: 30 04
+  BMI @ReturnEmpty                      ; $AEBB: 30 04
   JSR $DC4B                             ; $AEBD: 20 4B DC
   RTS                                   ; $AEC0: 60
-@AEC1:
+@ReturnEmpty:
   LDA #$00                              ; $AEC1: A9 00
   RTS                                   ; $AEC3: 60
 .endproc
 
-.proc CheckAction_8
+.proc ValidAction_CombinedAttack
   LDA $0A                               ; $AEC4: A5 0A
   CMP #$05                              ; $AEC6: C9 05
-  BNE @AECC                             ; $AEC8: D0 02
+  BNE @Success                          ; $AEC8: D0 02
   CLC                                   ; $AECA: 18
   RTS                                   ; $AECB: 60
-@AECC:
+@Success:
   SEC                                   ; $AECC: 38
   RTS                                   ; $AECD: 60
 .endproc
 
-.proc CheckAction_9
+.proc ValidAction_SpreadRumor
   LDA $0B                               ; $AECE: A5 0B
   CMP #$04                              ; $AED0: C9 04
-  BEQ @AED8                             ; $AED2: F0 04
+  BEQ @CheckAdjacent                    ; $AED2: F0 04
   CMP #$05                              ; $AED4: C9 05
-  BNE @AF08                             ; $AED6: D0 30
-@AED8:
+  BNE @Fail                             ; $AED6: D0 30
+@CheckAdjacent:
   JSR GetOfficerPosition                ; $AED8: 20 2D AE
   INC $00                               ; $AEDB: E6 00
   JSR CheckAdjacentAlly                 ; $AEDD: 20 42 AE
-  BCS @AF00                             ; $AEE0: B0 1E
+  BCS @CheckActionType                  ; $AEE0: B0 1E
   JSR GetOfficerPosition                ; $AEE2: 20 2D AE
   DEC $00                               ; $AEE5: C6 00
   JSR CheckAdjacentAlly                 ; $AEE7: 20 42 AE
-  BCS @AF00                             ; $AEEA: B0 14
+  BCS @CheckActionType                  ; $AEEA: B0 14
   JSR GetOfficerPosition                ; $AEEC: 20 2D AE
   INC $01                               ; $AEEF: E6 01
   JSR CheckAdjacentAlly                 ; $AEF1: 20 42 AE
-  BCS @AF00                             ; $AEF4: B0 0A
+  BCS @CheckActionType                  ; $AEF4: B0 0A
   JSR GetOfficerPosition                ; $AEF6: 20 2D AE
   DEC $01                               ; $AEF9: C6 01
   JSR CheckAdjacentAlly                 ; $AEFB: 20 42 AE
-  BCC @AF08                             ; $AEFE: 90 08
-@AF00:
+  BCC @Fail                             ; $AEFE: 90 08
+@CheckActionType:
   LDA $0A                               ; $AF00: A5 0A
   CMP #$05                              ; $AF02: C9 05
-  BEQ @AF08                             ; $AF04: F0 02
+  BEQ @Fail                             ; $AF04: F0 02
   SEC                                   ; $AF06: 38
   RTS                                   ; $AF07: 60
-@AF08:
+@Fail:
   CLC                                   ; $AF08: 18
   RTS                                   ; $AF09: 60
 .endproc
 
-.proc CheckAction_10_12
+.proc ValidAction_RumorRecruit
   LDY $0A                               ; $AF0A: A4 0A
   CPY #$03                              ; $AF0C: C0 03
-  BNE @AF42                             ; $AF0E: D0 32
+  BNE @Fail                             ; $AF0E: D0 32
   JSR GetOfficerPosition                ; $AF10: 20 2D AE
   INC $00                               ; $AF13: E6 00
   JSR CheckAdjacentEnemy                ; $AF15: 20 44 AF
   CMP #$03                              ; $AF18: C9 03
-  BEQ @AF40                             ; $AF1A: F0 24
+  BEQ @Success                          ; $AF1A: F0 24
   JSR GetOfficerPosition                ; $AF1C: 20 2D AE
   DEC $00                               ; $AF1F: C6 00
   JSR CheckAdjacentEnemy                ; $AF21: 20 44 AF
   CMP #$03                              ; $AF24: C9 03
-  BEQ @AF40                             ; $AF26: F0 18
+  BEQ @Success                          ; $AF26: F0 18
   JSR GetOfficerPosition                ; $AF28: 20 2D AE
   INC $01                               ; $AF2B: E6 01
   JSR CheckAdjacentEnemy                ; $AF2D: 20 44 AF
   CMP #$03                              ; $AF30: C9 03
-  BEQ @AF40                             ; $AF32: F0 0C
+  BEQ @Success                          ; $AF32: F0 0C
   JSR GetOfficerPosition                ; $AF34: 20 2D AE
   DEC $01                               ; $AF37: C6 01
   JSR CheckAdjacentEnemy                ; $AF39: 20 44 AF
   CMP #$03                              ; $AF3C: C9 03
-  BNE @AF42                             ; $AF3E: D0 02
-@AF40:
+  BNE @Fail                             ; $AF3E: D0 02
+@Success:
   SEC                                   ; $AF40: 38
   RTS                                   ; $AF41: 60
-@AF42:
+@Fail:
   CLC                                   ; $AF42: 18
   RTS                                   ; $AF43: 60
 .endproc
@@ -1943,151 +1967,154 @@ PhaseExit:
 .proc CheckAdjacentEnemy
   LDA $00                               ; $AF44: A5 00
   CMP #$20                              ; $AF46: C9 20
-  BCS @AF70                             ; $AF48: B0 26
+  BCS @ReturnInvalid                    ; $AF48: B0 26
   LDA $01                               ; $AF4A: A5 01
   CMP #$14                              ; $AF4C: C9 14
-  BCS @AF70                             ; $AF4E: B0 20
+  BCS @ReturnInvalid                    ; $AF4E: B0 20
   CMP #$0F                              ; $AF50: C9 0F
-  BNE @AF57                             ; $AF52: D0 03
+  BNE @SkipRowAdj                       ; $AF52: D0 03
   INC $0001                             ; $AF54: EE 01 00
-@AF57:
+@SkipRowAdj:
   JSR $D6B6                             ; $AF57: 20 B6 D6
   TYA                                   ; $AF5A: 98
-  BMI @AF70                             ; $AF5B: 30 13
+  BMI @ReturnInvalid                    ; $AF5B: 30 13
   JSR $DC4B                             ; $AF5D: 20 4B DC
   CMP #$FF                              ; $AF60: C9 FF
-  BNE @AF70                             ; $AF62: D0 0C
+  BNE @ReturnInvalid                    ; $AF62: D0 0C
   LDA $00                               ; $AF64: A5 00
   STA $10                               ; $AF66: 85 10
   LDA $01                               ; $AF68: A5 01
   STA $11                               ; $AF6A: 85 11
   JSR $DB46                             ; $AF6C: 20 46 DB
   RTS                                   ; $AF6F: 60
-@AF70:
+@ReturnInvalid:
   LDA #$FF                              ; $AF70: A9 FF
   RTS                                   ; $AF72: 60
 .endproc
 
-.proc CheckAction_11
+.proc ValidAction_DeductSoldiers
   LDA $0B                               ; $AF73: A5 0B
-  BNE @AF9D                             ; $AF75: D0 26
+  BNE @Fail                             ; $AF75: D0 26
   LDY $050A                             ; $AF77: AC 0A 05
   LDA $0664,Y                           ; $AF7A: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $AF7D: 20 D7 F2
   LDY #$09                              ; $AF80: A0 09
   LDA ($00),Y                           ; $AF82: B1 00
-  BNE @AF8D                             ; $AF84: D0 07
+  BNE @CheckSlot                        ; $AF84: D0 07
   DEY                                   ; $AF86: 88
   LDA ($00),Y                           ; $AF87: B1 00
   CMP #$64                              ; $AF89: C9 64
-  BCC @AF9D                             ; $AF8B: 90 10
-@AF8D:
+  BCC @Fail                             ; $AF8B: 90 10
+@CheckSlot:
   LDY #$00                              ; $AF8D: A0 00
   LDA $0504                             ; $AF8F: AD 04 05
-  BPL @AF96                             ; $AF92: 10 02
+  BPL @LoadSlot                         ; $AF92: 10 02
   LDY #$04                              ; $AF94: A0 04
-@AF96:
+@LoadSlot:
   LDA $04D8,Y                           ; $AF96: B9 D8 04
   CMP #$FF                              ; $AF99: C9 FF
-  BEQ @AF9F                             ; $AF9B: F0 02
-@AF9D:
+  BEQ @Success                          ; $AF9B: F0 02
+@Fail:
   CLC                                   ; $AF9D: 18
   RTS                                   ; $AF9E: 60
-@AF9F:
+@Success:
   SEC                                   ; $AF9F: 38
   RTS                                   ; $AFA0: 60
 .endproc
 
-.proc CheckAction_13
+.proc ValidAction_GiftItem
   LDY $0B                               ; $AFA1: A4 0B
   CPY #$05                              ; $AFA3: C0 05
-  BNE @AFD1                             ; $AFA5: D0 2A
+  BNE @Fail                             ; $AFA5: D0 2A
   JSR GetOfficerPosition                ; $AFA7: 20 2D AE
   INC $00                               ; $AFAA: E6 00
   JSR CheckAdjacentAlly                 ; $AFAC: 20 42 AE
-  BCS @AFCF                             ; $AFAF: B0 1E
+  BCS @Success                          ; $AFAF: B0 1E
   JSR GetOfficerPosition                ; $AFB1: 20 2D AE
   DEC $00                               ; $AFB4: C6 00
   JSR CheckAdjacentAlly                 ; $AFB6: 20 42 AE
-  BCS @AFCF                             ; $AFB9: B0 14
+  BCS @Success                          ; $AFB9: B0 14
   JSR GetOfficerPosition                ; $AFBB: 20 2D AE
   INC $01                               ; $AFBE: E6 01
   JSR CheckAdjacentAlly                 ; $AFC0: 20 42 AE
-  BCS @AFCF                             ; $AFC3: B0 0A
+  BCS @Success                          ; $AFC3: B0 0A
   JSR GetOfficerPosition                ; $AFC5: 20 2D AE
   DEC $01                               ; $AFC8: C6 01
   JSR CheckAdjacentAlly                 ; $AFCA: 20 42 AE
-  BCC @AFD1                             ; $AFCD: 90 02
-@AFCF:
+  BCC @Fail                             ; $AFCD: 90 02
+@Success:
   SEC                                   ; $AFCF: 38
   RTS                                   ; $AFD0: 60
-@AFD1:
+@Fail:
   CLC                                   ; $AFD1: 18
   RTS                                   ; $AFD2: 60
 .endproc
 
-.proc CheckAction_14
+.proc ValidAction_GiveGold
   LDY $0A                               ; $AFD3: A4 0A
   CPY #$05                              ; $AFD5: C0 05
-  BEQ @B01B                             ; $AFD7: F0 42
+  BEQ @Fail                             ; $AFD7: F0 42
   JSR GetOfficerPosition                ; $AFD9: 20 2D AE
   INC $00                               ; $AFDC: E6 00
   JSR CheckAdjacentEnemy                ; $AFDE: 20 44 AF
   CMP #$FF                              ; $AFE1: C9 FF
-  BEQ @AFE9                             ; $AFE3: F0 04
+  BEQ @CheckNext1                       ; $AFE3: F0 04
   CMP #$05                              ; $AFE5: C9 05
-  BNE @B019                             ; $AFE7: D0 30
-@AFE9:
+  BNE @Success                          ; $AFE7: D0 30
+@CheckNext1:
   JSR GetOfficerPosition                ; $AFE9: 20 2D AE
   DEC $00                               ; $AFEC: C6 00
   JSR CheckAdjacentEnemy                ; $AFEE: 20 44 AF
   CMP #$FF                              ; $AFF1: C9 FF
-  BEQ @AFF9                             ; $AFF3: F0 04
+  BEQ @CheckNext2                       ; $AFF3: F0 04
   CMP #$05                              ; $AFF5: C9 05
-  BNE @B019                             ; $AFF7: D0 20
-@AFF9:
+  BNE @Success                          ; $AFF7: D0 20
+@CheckNext2:
   JSR GetOfficerPosition                ; $AFF9: 20 2D AE
   INC $01                               ; $AFFC: E6 01
   JSR CheckAdjacentEnemy                ; $AFFE: 20 44 AF
   CMP #$FF                              ; $B001: C9 FF
-  BEQ @B009                             ; $B003: F0 04
+  BEQ @CheckNext3                       ; $B003: F0 04
   CMP #$05                              ; $B005: C9 05
-  BNE @B019                             ; $B007: D0 10
-@B009:
+  BNE @Success                          ; $B007: D0 10
+@CheckNext3:
   JSR GetOfficerPosition                ; $B009: 20 2D AE
   DEC $01                               ; $B00C: C6 01
   JSR CheckAdjacentEnemy                ; $B00E: 20 44 AF
   CMP #$FF                              ; $B011: C9 FF
-  BEQ @B01B                             ; $B013: F0 06
+  BEQ @Fail                             ; $B013: F0 06
   CMP #$05                              ; $B015: C9 05
-  BEQ @B01B                             ; $B017: F0 02
-@B019:
+  BEQ @Fail                             ; $B017: F0 02
+@Success:
   SEC                                   ; $B019: 38
   RTS                                   ; $B01A: 60
-@B01B:
+@Fail:
   CLC                                   ; $B01B: 18
   RTS                                   ; $B01C: 60
 .endproc
 
-.proc CheckAction_15
+.proc ValidAction_AssignSoldier
   LDY $0A                               ; $B01D: A4 0A
   CPY #$03                              ; $B01F: C0 03
-  BEQ @B029                             ; $B021: F0 06
+  BEQ @Fail                             ; $B021: F0 06
   CPY #$05                              ; $B023: C0 05
-  BEQ @B029                             ; $B025: F0 02
+  BEQ @Fail                             ; $B025: F0 02
   SEC                                   ; $B027: 38
   RTS                                   ; $B028: 60
-@B029:
+@Fail:
   CLC                                   ; $B029: 18
   RTS                                   ; $B02A: 60
-@B02B:
+.endproc
+
+.proc ExecuteAction
+@Entry:
   LDY #$00                              ; $B02B: A0 00
   LDA #$00                              ; $B02D: A9 00
-@B02F:
+@ClearLoop:
   STA $042C,Y                           ; $B02F: 99 2C 04
   INY                                   ; $B032: C8
   CPY #$09                              ; $B033: C0 09
-  BCC @B02F                             ; $B035: 90 F8
+  BCC @ClearLoop                        ; $B035: 90 F8
   STA $0544                             ; $B037: 8D 44 05
   LDA $0543                             ; $B03A: AD 43 05
   AND #$0F                              ; $B03D: 29 0F
@@ -2111,16 +2138,24 @@ PhaseExit:
   .word ExecAction_AssignSoldier            ; $B060: $A6 B5
 .endproc
 
+;===============================================================================
+; ExecAction_CalcGold ($B062)
+;
+; Calculate and award gold for the acting officer.
+;   Entry 1 (ExecAction_CalcGold): dispatch entry - check success by stats;
+;           on failure set error flag $0544=$FF and return.
+;   Entry 2 (CommandPhase_CalcGold, $B070): gold calculation only (no success
+;           check); also called directly from ExecAction_Pillage and
+;           ExecAction_PillageNeighbor.
+;===============================================================================
 .proc ExecAction_CalcGold
   JSR CheckSuccessByStats               ; $B062: 20 BE B7
-  BCS @B070                             ; $B065: B0 09
+  BCS CommandPhase_CalcGold             ; $B065: B0 09
   INC $0501                             ; $B067: EE 01 05
   LDA #$FF                              ; $B06A: A9 FF
   STA $0544                             ; $B06C: 8D 44 05
   RTS                                   ; $B06F: 60
-.endproc
-
-.proc ActionPhase_CalcGold
+CommandPhase_CalcGold:
   LDY $050A                             ; $B070: AC 0A 05
   LDA $0664,Y                           ; $B073: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B076: 20 D7 F2
@@ -2146,14 +2181,13 @@ PhaseExit:
   LDA #$05                              ; $B096: A9 05
   JSR B1F_RandomBelowThreshold          ; $B098: 20 62 E8
   CLC                                   ; $B09B: 18
-@B09C:
+@AddBase:
   ADC #$09                              ; $B09C: 69 09
   STA $03                               ; $B09E: 85 03
   JSR B1F_MathMul24x8                   ; $B0A0: 20 E9 EB
   LDA $06                               ; $B0A3: A5 06
   STA $01                               ; $B0A5: 85 01
   LDA $07                               ; $B0A7: A5 07
-@B0A9:  ; (dispatch callback target)
   STA $02                               ; $B0A9: 85 02
   LDA #$0A                              ; $B0AB: A9 0A
   STA $03                               ; $B0AD: 85 03
@@ -2161,7 +2195,6 @@ PhaseExit:
   STA $04                               ; $B0B1: 85 04
   JSR B1F_MathDiv16                     ; $B0B3: 20 7C EA
   PLA                                   ; $B0B6: 68
-@B0B7:  ; (dispatch callback target)
   CLC                                   ; $B0B7: 18
   ADC $01                               ; $B0B8: 65 01
   STA $02                               ; $B0BA: 85 02
@@ -2191,7 +2224,7 @@ PhaseExit:
   RTS                                   ; $B0EA: 60
 .endproc
 
-.proc ActionPhase_RecruitContinue
+.proc CommandPhase_RecruitContinue
   LDY $050A                             ; $B0EB: AC 0A 05
   LDA $0664,Y                           ; $B0EE: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B0F1: 20 D7 F2
@@ -2248,18 +2281,18 @@ PhaseExit:
 
 .proc ExecAction_Train
   JSR CheckSuccessByStats               ; $B155: 20 BE B7
-  BCS @B163                             ; $B158: B0 09
+  BCS @Success                          ; $B158: B0 09
   INC $0501                             ; $B15A: EE 01 05
   LDA #$FF                              ; $B15D: A9 FF
   STA $0544                             ; $B15F: 8D 44 05
   RTS                                   ; $B162: 60
-@B163:
+@Success:
   LDA #$02                              ; $B163: A9 02
   STA $00                               ; $B165: 85 00
   LDA $0504                             ; $B167: AD 04 05
-  BPL @B16E                             ; $B16A: 10 02
+  BPL @StoreResult                      ; $B16A: 10 02
   INC $00                               ; $B16C: E6 00
-@B16E:
+@StoreResult:
   LDY $0509                             ; $B16E: AC 09 05
   LDA $00                               ; $B171: A5 00
   STA $0650,Y                           ; $B173: 99 50 06
@@ -2276,7 +2309,7 @@ PhaseExit:
   RTS                                   ; $B187: 60
 .endproc
 
-.proc ActionPhase_BoostMoraleCalc
+.proc CommandPhase_BoostMoraleCalc
   LDY $050A                             ; $B188: AC 0A 05
   LDA $0664,Y                           ; $B18B: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B18E: 20 D7 F2
@@ -2322,7 +2355,7 @@ PhaseExit:
   RTS                                   ; $B1E2: 60
 .endproc
 
-.proc ActionPhase_IncreaseStatsCalc
+.proc CommandPhase_IncreaseStatsCalc
   LDY $050A                             ; $B1E3: AC 0A 05
   LDA $0664,Y                           ; $B1E6: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B1E9: 20 D7 F2
@@ -2374,12 +2407,12 @@ PhaseExit:
 
 .proc ExecAction_ExpandTerritory
   JSR CheckSuccessByStats               ; $B243: 20 BE B7
-  BCS @B251                             ; $B246: B0 09
+  BCS @Success                          ; $B246: B0 09
   INC $0501                             ; $B248: EE 01 05
   LDA #$FF                              ; $B24B: A9 FF
   STA $0544                             ; $B24D: 8D 44 05
   RTS                                   ; $B250: 60
-@B251:
+@Success:
   LDA #$05                              ; $B251: A9 05
   JSR B1F_RandomBelowThreshold          ; $B253: 20 62 E8
   CLC                                   ; $B256: 18
@@ -2387,9 +2420,9 @@ PhaseExit:
   STA $03                               ; $B259: 85 03
   LDY #$00                              ; $B25B: A0 00
   LDA $0504                             ; $B25D: AD 04 05
-  BMI @B264                             ; $B260: 30 02
+  BMI @LoadProvince                     ; $B260: 30 02
   LDY #$02                              ; $B262: A0 02
-@B264:
+@LoadProvince:
   LDA $0522,Y                           ; $B264: B9 22 05
   STA $00                               ; $B267: 85 00
   LDA $0523,Y                           ; $B269: B9 23 05
@@ -2433,9 +2466,9 @@ PhaseExit:
   STA $11                               ; $B2BB: 85 11
   LDY #$00                              ; $B2BD: A0 00
   LDA $0504                             ; $B2BF: AD 04 05
-  BMI @B2C6                             ; $B2C2: 30 02
+  BMI @LoadSlot                         ; $B2C2: 30 02
   LDY #$02                              ; $B2C4: A0 02
-@B2C6:
+@LoadSlot:
   JSR ApplyGoldChangeAlt                ; $B2C6: 20 F0 B6
   INC $0501                             ; $B2C9: EE 01 05
   RTS                                   ; $B2CC: 60
@@ -2443,13 +2476,13 @@ PhaseExit:
 
 .proc ExecAction_Pillage
   JSR CheckSuccessByStats               ; $B2CD: 20 BE B7
-  BCS @B2DB                             ; $B2D0: B0 09
+  BCS @Success                          ; $B2D0: B0 09
   INC $0501                             ; $B2D2: EE 01 05
   LDA #$FF                              ; $B2D5: A9 FF
   STA $0544                             ; $B2D7: 8D 44 05
   RTS                                   ; $B2DA: 60
-@B2DB:
-  JSR ActionPhase_CalcGold              ; $B2DB: 20 70 B0
+@Success:
+  JSR CommandPhase_CalcGold              ; $B2DB: 20 70 B0
   JSR GetOfficerPos                     ; $B2DE: 20 7B B6
   DEC $10                               ; $B2E1: C6 10
   JSR ExecAction_PillageNeighbor        ; $B2E3: 20 04 B3
@@ -2469,27 +2502,27 @@ PhaseExit:
 
 .proc ExecAction_PillageNeighbor
   JSR CheckTileAccess                   ; $B304: 20 43 B6
-  BEQ @B31B                             ; $B307: F0 12
+  BEQ @Done                             ; $B307: F0 12
   CMP #$FE                              ; $B309: C9 FE
-  BEQ @B31B                             ; $B30B: F0 0E
+  BEQ @Done                             ; $B30B: F0 0E
   LDA $0509                             ; $B30D: AD 09 05
   PHA                                   ; $B310: 48
   STY $0509                             ; $B311: 8C 09 05
-  JSR ActionPhase_CalcGold              ; $B314: 20 70 B0
+  JSR CommandPhase_CalcGold              ; $B314: 20 70 B0
   PLA                                   ; $B317: 68
   STA $0509                             ; $B318: 8D 09 05
-@B31B:
+@Done:
   RTS                                   ; $B31B: 60
 .endproc
 
 .proc ExecAction_ToggleAllegiance
   JSR CheckActionSuccess                ; $B31C: 20 2B B7
-  BCS @B32A                             ; $B31F: B0 09
+  BCS @Success                          ; $B31F: B0 09
   INC $0501                             ; $B321: EE 01 05
   LDA #$FF                              ; $B324: A9 FF
   STA $0544                             ; $B326: 8D 44 05
   RTS                                   ; $B329: 60
-@B32A:
+@Success:
   LDY $0509                             ; $B32A: AC 09 05
   JSR $C886                             ; $B32D: 20 86 C8
   LDY $0509                             ; $B330: AC 09 05
@@ -2500,23 +2533,23 @@ PhaseExit:
   STA $042C                             ; $B33E: 8D 2C 04
   LDA #$FF                              ; $B341: A9 FF
   CPY $04D8                             ; $B343: CC D8 04
-  BNE @B34B                             ; $B346: D0 03
+  BNE @CheckSlot2                       ; $B346: D0 03
   STA $04D8                             ; $B348: 8D D8 04
-@B34B:
+@CheckSlot2:
   CPY $04DC                             ; $B34B: CC DC 04
-  BNE @B353                             ; $B34E: D0 03
+  BNE @CheckAlly                        ; $B34E: D0 03
   STA $04DC                             ; $B350: 8D DC 04
-@B353:
+@CheckAlly:
   LDA $6FA1,Y                           ; $B353: B9 A1 6F
   CMP #$FF                              ; $B356: C9 FF
-  BNE @B362                             ; $B358: D0 08
+  BNE @ClearAlly                        ; $B358: D0 08
   LDA #$04                              ; $B35A: A9 04
   STA $6FA1,Y                           ; $B35C: 99 A1 6F
-  JMP @B367                             ; $B35F: 4C 67 B3
-@B362:
+  JMP @Continue                         ; $B35F: 4C 67 B3
+@ClearAlly:
   LDA #$FF                              ; $B362: A9 FF
   STA $6FA1,Y                           ; $B364: 99 A1 6F
-@B367:
+@Continue:
   LDA $0507                             ; $B367: AD 07 05
   AND #$0F                              ; $B36A: 29 0F
   STA $10                               ; $B36C: 85 10
@@ -2529,9 +2562,9 @@ PhaseExit:
   LDX $10                               ; $B377: A6 10
   LDY $0509                             ; $B379: AC 09 05
   LDA $0628,Y                           ; $B37C: B9 28 06
-  BPL @B383                             ; $B37F: 10 02
+  BPL @GetNewRuler                      ; $B37F: 10 02
   LDX $11                               ; $B381: A6 11
-@B383:
+@GetNewRuler:
   TXA                                   ; $B383: 8A
   JSR B1F_GetRulerDataPtr               ; $B384: 20 68 F3
   LDY #$00                              ; $B387: A0 00
@@ -2540,9 +2573,9 @@ PhaseExit:
   LDX $11                               ; $B38D: A6 11
   LDY $0509                             ; $B38F: AC 09 05
   LDA $0628,Y                           ; $B392: B9 28 06
-  BPL @B399                             ; $B395: 10 02
+  BPL @GetOldRuler                      ; $B395: 10 02
   LDX $10                               ; $B397: A6 10
-@B399:
+@GetOldRuler:
   TXA                                   ; $B399: 8A
   JSR B1F_GetRulerDataPtr               ; $B39A: 20 68 F3
   LDY #$00                              ; $B39D: A0 00
@@ -2561,14 +2594,14 @@ PhaseExit:
 
 .proc ExecAction_CombinedAttack
   JSR CheckSuccessByStats               ; $B3B6: 20 BE B7
-  BCS @B3C4                             ; $B3B9: B0 09
+  BCS @Success                          ; $B3B9: B0 09
   INC $0501                             ; $B3BB: EE 01 05
   LDA #$FF                              ; $B3BE: A9 FF
   STA $0544                             ; $B3C0: 8D 44 05
   RTS                                   ; $B3C3: 60
-@B3C4:
-  JSR ActionPhase_RecruitContinue       ; $B3C4: 20 EB B0
-  JSR ActionPhase_BoostMoraleCalc       ; $B3C7: 20 88 B1
+@Success:
+  JSR CommandPhase_RecruitContinue       ; $B3C4: 20 EB B0
+  JSR CommandPhase_BoostMoraleCalc       ; $B3C7: 20 88 B1
   LDA #$07                              ; $B3CA: A9 07
   STA $0501                             ; $B3CC: 8D 01 05
   RTS                                   ; $B3CF: 60
@@ -2576,28 +2609,28 @@ PhaseExit:
 
 .proc ExecAction_SpreadRumor
   JSR CheckSuccessByStats               ; $B3D0: 20 BE B7
-  BCS @B3DE                             ; $B3D3: B0 09
+  BCS @Success                          ; $B3D3: B0 09
   INC $0501                             ; $B3D5: EE 01 05
   LDA #$FF                              ; $B3D8: A9 FF
   STA $0544                             ; $B3DA: 8D 44 05
   RTS                                   ; $B3DD: 60
-@B3DE:
+@Success:
   JSR BuildNeighborList                 ; $B3DE: 20 A1 B8
   LDY #$00                              ; $B3E1: A0 00
-@B3E3:
+@ScanLoop:
   LDA $6FC9,Y                           ; $B3E3: B9 C9 6F
   CMP #$FF                              ; $B3E6: C9 FF
-  BEQ @B3F3                             ; $B3E8: F0 09
+  BEQ @NextNeighbor                     ; $B3E8: F0 09
   STA $12                               ; $B3EA: 85 12
   TYA                                   ; $B3EC: 98
   PHA                                   ; $B3ED: 48
   JSR ExecAction_SpreadRumorProcess     ; $B3EE: 20 FE B3
   PLA                                   ; $B3F1: 68
   TAY                                   ; $B3F2: A8
-@B3F3:
+@NextNeighbor:
   INY                                   ; $B3F3: C8
   CPY #$14                              ; $B3F4: C0 14
-  BCC @B3E3                             ; $B3F6: 90 EB
+  BCC @ScanLoop                         ; $B3F6: 90 EB
   LDA #$07                              ; $B3F8: A9 07
   STA $0501                             ; $B3FA: 8D 01 05
   RTS                                   ; $B3FD: 60
@@ -2618,22 +2651,22 @@ PhaseExit:
   ADC #$03                              ; $B417: 69 03
   STA $00                               ; $B419: 85 00
   LDA $0504                             ; $B41B: AD 04 05
-  BPL @B422                             ; $B41E: 10 02
+  BPL @StoreResult                      ; $B41E: 10 02
   INC $00                               ; $B420: E6 00
-@B422:
+@StoreResult:
   LDY $12                               ; $B422: A4 12
   LDA $00                               ; $B424: A5 00
   STA $0650,Y                           ; $B426: 99 50 06
-@B429:
+@Done:
   RTS                                   ; $B429: 60
 .endproc
 
 .proc ExecAction_DeductSoldiers
   LDX #$00                              ; $B42A: A2 00
   LDA $0504                             ; $B42C: AD 04 05
-  BPL @B433                             ; $B42F: 10 02
+  BPL @LoadSlot                         ; $B42F: 10 02
   LDX #$04                              ; $B431: A2 04
-@B433:
+@LoadSlot:
   LDY $050A                             ; $B433: AC 0A 05
   LDA $0600,Y                           ; $B436: B9 00 06
   STA $04D9,X                           ; $B439: 9D D9 04
@@ -2661,28 +2694,28 @@ PhaseExit:
 
 .proc ExecAction_RecruitNearby
   JSR CheckSuccessByStats               ; $B466: 20 BE B7
-  BCS @B474                             ; $B469: B0 09
+  BCS @Success                          ; $B469: B0 09
   INC $0501                             ; $B46B: EE 01 05
   LDA #$FF                              ; $B46E: A9 FF
   STA $0544                             ; $B470: 8D 44 05
   RTS                                   ; $B473: 60
-@B474:
+@Success:
   JSR BuildNeighborList                 ; $B474: 20 A1 B8
   LDY #$00                              ; $B477: A0 00
-@B479:
+@ScanLoop:
   LDA $6FC9,Y                           ; $B479: B9 C9 6F
   CMP #$FF                              ; $B47C: C9 FF
-  BEQ @B489                             ; $B47E: F0 09
+  BEQ @NextNeighbor                     ; $B47E: F0 09
   STA $12                               ; $B480: 85 12
   TYA                                   ; $B482: 98
   PHA                                   ; $B483: 48
   JSR ExecAction_RecruitNearbyProcess   ; $B484: 20 94 B4
   PLA                                   ; $B487: 68
   TAY                                   ; $B488: A8
-@B489:
+@NextNeighbor:
   INY                                   ; $B489: C8
   CPY #$14                              ; $B48A: C0 14
-  BCC @B479                             ; $B48C: 90 EB
+  BCC @ScanLoop                         ; $B48C: 90 EB
   LDA #$07                              ; $B48E: A9 07
   STA $0501                             ; $B490: 8D 01 05
   RTS                                   ; $B493: 60
@@ -2701,31 +2734,31 @@ PhaseExit:
   LDA $0509                             ; $B4A9: AD 09 05
   PHA                                   ; $B4AC: 48
   STY $0509                             ; $B4AD: 8C 09 05
-  JSR ActionPhase_IncreaseStatsCalc     ; $B4B0: 20 E3 B1
+  JSR CommandPhase_IncreaseStatsCalc     ; $B4B0: 20 E3 B1
   PLA                                   ; $B4B3: 68
   STA $0509                             ; $B4B4: 8D 09 05
-@B4B7:
+@Done:
   RTS                                   ; $B4B7: 60
 .endproc
 
 .proc ExecAction_GiftItem
   JSR CheckSuccessByStats               ; $B4B8: 20 BE B7
-  BCS @B4C6                             ; $B4BB: B0 09
+  BCS @Success                          ; $B4BB: B0 09
   INC $0501                             ; $B4BD: EE 01 05
   LDA #$FF                              ; $B4C0: A9 FF
   STA $0544                             ; $B4C2: 8D 44 05
   RTS                                   ; $B4C5: 60
-@B4C6:
+@Success:
   LDY $050A                             ; $B4C6: AC 0A 05
   LDA $0664,Y                           ; $B4C9: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B4CC: 20 D7 F2
   LDA #$00                              ; $B4CF: A9 00
   STA $02                               ; $B4D1: 85 02
   STA $03                               ; $B4D3: 85 03
-@B4D5:
+@RandomLoop:
   JSR B1F_RandomByte                    ; $B4D5: 20 7A E8
   CMP #$C8                              ; $B4D8: C9 C8
-  BCS @B4D5                             ; $B4DA: B0 F9
+  BCS @RandomLoop                       ; $B4DA: B0 F9
   CLC                                   ; $B4DC: 18
   ADC #$96                              ; $B4DD: 69 96
   STA $02                               ; $B4DF: 85 02
@@ -2754,28 +2787,28 @@ PhaseExit:
 
 .proc ExecAction_GiveGold
   JSR CheckSuccessByStats               ; $B50C: 20 BE B7
-  BCS @B51A                             ; $B50F: B0 09
+  BCS @Success                          ; $B50F: B0 09
   INC $0501                             ; $B511: EE 01 05
   LDA #$FF                              ; $B514: A9 FF
   STA $0544                             ; $B516: 8D 44 05
   RTS                                   ; $B519: 60
-@B51A:
+@Success:
   JSR BuildNeighborList                 ; $B51A: 20 A1 B8
   LDY #$00                              ; $B51D: A0 00
-@B51F:
+@ScanLoop:
   LDA $6FC9,Y                           ; $B51F: B9 C9 6F
   CMP #$FF                              ; $B522: C9 FF
-  BEQ @B52F                             ; $B524: F0 09
+  BEQ @NextNeighbor                     ; $B524: F0 09
   STA $12                               ; $B526: 85 12
   TYA                                   ; $B528: 98
   PHA                                   ; $B529: 48
   JSR ExecAction_GiveGoldCheck          ; $B52A: 20 38 B5
   PLA                                   ; $B52D: 68
   TAY                                   ; $B52E: A8
-@B52F:
+@NextNeighbor:
   INY                                   ; $B52F: C8
   CPY #$14                              ; $B530: C0 14
-  BCC @B51F                             ; $B532: 90 EB
+  BCC @ScanLoop                         ; $B532: 90 EB
   INC $0501                             ; $B534: EE 01 05
   RTS                                   ; $B537: 60
 .endproc
@@ -2796,7 +2829,7 @@ PhaseExit:
   JSR ExecAction_GiveGoldCalc           ; $B554: 20 5C B5
   PLA                                   ; $B557: 68
   STA $0509                             ; $B558: 8D 09 05
-@B55B:
+@Done:
   RTS                                   ; $B55B: 60
 .endproc
 
@@ -2838,12 +2871,12 @@ PhaseExit:
 
 .proc ExecAction_AssignSoldier
   JSR CheckSuccessByStats               ; $B5A6: 20 BE B7
-  BCS @B5B4                             ; $B5A9: B0 09
+  BCS @Success                          ; $B5A9: B0 09
   INC $0501                             ; $B5AB: EE 01 05
   LDA #$FF                              ; $B5AE: A9 FF
   STA $0544                             ; $B5B0: 8D 44 05
   RTS                                   ; $B5B3: 60
-@B5B4:
+@Success:
   JSR B1F_RandomMod4                    ; $B5B4: 20 50 E8
   CLC                                   ; $B5B7: 18
   ADC #$05                              ; $B5B8: 69 05
@@ -2853,12 +2886,12 @@ PhaseExit:
   ASL                                   ; $B5BD: 0A
   STA $00                               ; $B5BE: 85 00
   LDA $0504                             ; $B5C0: AD 04 05
-  BPL @B5CC                             ; $B5C3: 10 07
+  BPL @StoreResult                      ; $B5C3: 10 07
   LDA $00                               ; $B5C5: A5 00
   CLC                                   ; $B5C7: 18
   ADC #$10                              ; $B5C8: 69 10
   STA $00                               ; $B5CA: 85 00
-@B5CC:
+@StoreResult:
   LDY $0509                             ; $B5CC: AC 09 05
   LDA $00                               ; $B5CF: A5 00
   STA $0650,Y                           ; $B5D1: 99 50 06
@@ -2873,12 +2906,12 @@ PhaseExit:
   SEC                                   ; $B5DE: 38
   SBC $02                               ; $B5DF: E5 02
   STA $06                               ; $B5E1: 85 06
-  BCS @B5ED                             ; $B5E3: B0 08
+  BCS @StoreResult                      ; $B5E3: B0 08
   LDA $04                               ; $B5E5: A5 04
   STA $02                               ; $B5E7: 85 02
   LDA #$00                              ; $B5E9: A9 00
   STA $06                               ; $B5EB: 85 06
-@B5ED:
+@StoreResult:
   LDY #$00                              ; $B5ED: A0 00
   LDA $06                               ; $B5EF: A5 06
   STA ($00),Y                           ; $B5F1: 91 00
@@ -2921,34 +2954,33 @@ PhaseExit:
 .proc CheckTileAccess
   LDA $11                                     ; $B643: A5 11
   CMP #$0F                                    ; $B645: C9 0F
-  BNE @B65A                                   ; $B647: D0 11
+  BNE @CheckBounds                      ; $B647: D0 11
   LDA $01                                     ; $B649: A5 01
   CMP #$0E                                    ; $B64B: C9 0E
-  BEQ @B656                                   ; $B64D: F0 07
+  BEQ @AdjustCol                          ; $B64D: F0 07
   LDA #$0E                                    ; $B64F: A9 0E
   STA $11                                     ; $B651: 85 11
-  JMP @B65A                                   ; $B653: 4C 5A B6
-@B656:
-; --- Code Region ---
+  JMP @CheckBounds                        ; $B653: 4C 5A B6
+@AdjustCol:
   LDA #$10                              ; $B656: A9 10
   STA $11                               ; $B658: 85 11
-@B65A:
+@CheckBounds:
   LDA $10                               ; $B65A: A5 10
   STA $00                               ; $B65C: 85 00
   LDA $11                               ; $B65E: A5 11
   STA $01                               ; $B660: 85 01
   LDA $00                               ; $B662: A5 00
   CMP #$20                              ; $B664: C9 20
-  BCS @B678                             ; $B666: B0 10
+  BCS @ReturnInvalid                    ; $B666: B0 10
   LDA $01                               ; $B668: A5 01
   CMP #$14                              ; $B66A: C9 14
-  BCS @B678                             ; $B66C: B0 0A
+  BCS @ReturnInvalid                    ; $B66C: B0 0A
   JSR $D6B6                             ; $B66E: 20 B6 D6
   TYA                                   ; $B671: 98
-  BMI @B678                             ; $B672: 30 04
+  BMI @ReturnInvalid                    ; $B672: 30 04
   JSR $DC4B                             ; $B674: 20 4B DC
   RTS                                   ; $B677: 60
-@B678:
+@ReturnInvalid:
   LDA #$FE                              ; $B678: A9 FE
   RTS                                   ; $B67A: 60
 .endproc
@@ -2978,7 +3010,7 @@ PhaseExit:
   LDA $05                               ; $B69F: A5 05
   SBC $03                               ; $B6A1: E5 03
   STA $07                               ; $B6A3: 85 07
-  BCS @B6B5                             ; $B6A5: B0 0E
+  BCS @StoreResult                      ; $B6A5: B0 0E
   LDA $04                               ; $B6A7: A5 04
   STA $02                               ; $B6A9: 85 02
   LDA $05                               ; $B6AB: A5 05
@@ -2986,7 +3018,7 @@ PhaseExit:
   LDA #$00                              ; $B6AF: A9 00
   STA $06                               ; $B6B1: 85 06
   STA $07                               ; $B6B3: 85 07
-@B6B5:
+@StoreResult:
   LDY #$08                              ; $B6B5: A0 08
   LDA $06                               ; $B6B7: A5 06
   STA ($00),Y                           ; $B6B9: 91 00
@@ -3032,8 +3064,7 @@ PhaseExit:
   LDA #$00                                    ; $B70B: A9 00
   STA $12                                     ; $B70D: 85 12
   STA $13                                     ; $B70F: 85 13
-@B711:
-; --- Code Region ---
+@StoreResult:
   LDA $12                               ; $B711: A5 12
   STA $0522,Y                           ; $B713: 99 22 05
   LDA $13                               ; $B716: A5 13
@@ -3050,9 +3081,9 @@ PhaseExit:
 .proc CheckActionSuccess
   JSR CalcDistance                      ; $B72B: 20 60 B8
   CMP #$06                              ; $B72E: C9 06
-  BCC @B735                             ; $B730: 90 03
-  JMP @B7B6                             ; $B732: 4C B6 B7
-@B735:
+  BCC @CheckStats                       ; $B730: 90 03
+  JMP @Fail                             ; $B732: 4C B6 B7
+@CheckStats:
   LDY $0509                             ; $B735: AC 09 05
   LDA $0664,Y                           ; $B738: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B73B: 20 D7 F2
@@ -3067,17 +3098,17 @@ PhaseExit:
   LDY #$03                              ; $B74A: A0 03
   LDA ($00),Y                           ; $B74C: B1 00
   CMP #$1F                              ; $B74E: C9 1F
-  BCC @B75E                             ; $B750: 90 0C
+  BCC @ApplyThreshold                   ; $B750: 90 0C
   INX                                   ; $B752: E8
   CMP #$33                              ; $B753: C9 33
-  BCC @B75E                             ; $B755: 90 07
+  BCC @ApplyThreshold                   ; $B755: 90 07
   INX                                   ; $B757: E8
   CMP #$47                              ; $B758: C9 47
-  BCC @B75E                             ; $B75A: 90 02
+  BCC @ApplyThreshold                   ; $B75A: 90 02
   CLC                                   ; $B75C: 18
   RTS                                   ; $B75D: 60
-@B75E:
-  LDA $B7BA,X                           ; $B75E: BD BA B7
+@ApplyThreshold:
+  LDA @SuccessThresholdTable,X          ; $B75E: BD BA B7
   STA $10                               ; $B761: 85 10
   LDY $050A                             ; $B763: AC 0A 05
   LDA $0664,Y                           ; $B766: B9 64 06
@@ -3094,9 +3125,9 @@ PhaseExit:
   LSR                                   ; $B77B: 4A
   SEC                                   ; $B77C: 38
   SBC $11                               ; $B77D: E5 11
-  BPL @B783                             ; $B77F: 10 02
+  BPL @CalcBonus                        ; $B77F: 10 02
   LDA #$00                              ; $B781: A9 00
-@B783:
+@CalcBonus:
   ASL                                   ; $B783: 0A
   STA $11                               ; $B784: 85 11
   LDY #$02                              ; $B786: A0 02
@@ -3118,19 +3149,20 @@ PhaseExit:
   ADC $10                               ; $B7A5: 65 10
   ADC $11                               ; $B7A7: 65 11
   STA $00                               ; $B7A9: 85 00
-@B7AB:
+@RandomLoop:
   JSR B1F_RandomByte                    ; $B7AB: 20 7A E8
   CMP #$64                              ; $B7AE: C9 64
-  BCS @B7AB                             ; $B7B0: B0 F9
+  BCS @RandomLoop                       ; $B7B0: B0 F9
   CMP $00                               ; $B7B2: C5 00
-  BCC @B7B8                             ; $B7B4: 90 02
-@B7B6:
+  BCC @Success                          ; $B7B4: 90 02
+@Fail:
   CLC                                   ; $B7B6: 18
   RTS                                   ; $B7B7: 60
-@B7B8:
+@Success:
   SEC                                   ; $B7B8: 38
   RTS                                   ; $B7B9: 60
-; --- Data Region ---
+; Success threshold table indexed by officer rank tier
+@SuccessThresholdTable:
   .byte $3C,$1E,$0A,$05                   ; $B7BA: 3C 1E 0A 05
 .endproc
 
@@ -3164,36 +3196,36 @@ PhaseExit:
   LDA $12                               ; $B7F0: A5 12
   SEC                                   ; $B7F2: 38
   SBC $10                               ; $B7F3: E5 10
-  BCS @B7F9                             ; $B7F5: B0 02
+  BCS @ClampLow1                        ; $B7F5: B0 02
   LDA #$00                              ; $B7F7: A9 00
-@B7F9:
+@ClampLow1:
   STA $10                               ; $B7F9: 85 10
   LDA $13                               ; $B7FB: A5 13
   SEC                                   ; $B7FD: 38
   SBC $11                               ; $B7FE: E5 11
-  BCS @B804                             ; $B800: B0 02
+  BCS @ClampLow2                        ; $B800: B0 02
   LDA #$00                              ; $B802: A9 00
-@B804:
+@ClampLow2:
   ASL                                   ; $B804: 0A
   STA $11                               ; $B805: 85 11
   JSR CalcDistance                      ; $B807: 20 60 B8
   TAY                                   ; $B80A: A8
   CPY #$06                              ; $B80B: C0 06
-  BCS @B856                             ; $B80D: B0 47
-  LDA $B85A,Y                           ; $B80F: B9 5A B8
+  BCS @Fail                             ; $B80D: B0 47
+  LDA @SuccessModifierTable,Y           ; $B80F: B9 5A B8
   STA $12                               ; $B812: 85 12
   LDX #$0A                              ; $B814: A2 0A
   LDA $050F                             ; $B816: AD 0F 05
   CMP #$03                              ; $B819: C9 03
-  BNE @B82C                             ; $B81B: D0 0F
+  BNE @StoreModifier                    ; $B81B: D0 0F
   LDA $6F02                             ; $B81D: AD 02 6F
   CMP #$01                              ; $B820: C9 01
-  BEQ @B82C                             ; $B822: F0 08
+  BEQ @StoreModifier                    ; $B822: F0 08
   LDX #$14                              ; $B824: A2 14
   CMP #$02                              ; $B826: C9 02
-  BEQ @B82C                             ; $B828: F0 02
+  BEQ @StoreModifier                    ; $B828: F0 02
   LDX #$05                              ; $B82A: A2 05
-@B82C:
+@StoreModifier:
   STX $14                               ; $B82C: 86 14
   LDA $12                               ; $B82E: A5 12
   CLC                                   ; $B830: 18
@@ -3202,31 +3234,32 @@ PhaseExit:
   ADC $11                               ; $B834: 65 11
   CLC                                   ; $B836: 18
   ADC $14                               ; $B837: 65 14
-  BPL @B83D                             ; $B839: 10 02
+  BPL @ClampHigh                        ; $B839: 10 02
   LDA #$00                              ; $B83B: A9 00
-@B83D:
+@ClampHigh:
   CMP #$5F                              ; $B83D: C9 5F
-  BCC @B843                             ; $B83F: 90 02
+  BCC @ClampMin                         ; $B83F: 90 02
   LDA #$5F                              ; $B841: A9 5F
-@B843:
+@ClampMin:
   CMP #$05                              ; $B843: C9 05
-  BCS @B849                             ; $B845: B0 02
+  BCS @StoreThreshold                   ; $B845: B0 02
   LDA #$05                              ; $B847: A9 05
-@B849:
+@StoreThreshold:
   STA $00                               ; $B849: 85 00
-@B84B:
+@RandomLoop:
   JSR B1F_RandomByte                    ; $B84B: 20 7A E8
   CMP #$64                              ; $B84E: C9 64
-  BCS @B84B                             ; $B850: B0 F9
+  BCS @RandomLoop                       ; $B850: B0 F9
   CMP $00                               ; $B852: C5 00
-  BCC @B858                             ; $B854: 90 02
-@B856:
+  BCC @Success                          ; $B854: 90 02
+@Fail:
   CLC                                   ; $B856: 18
   RTS                                   ; $B857: 60
-@B858:
+@Success:
   SEC                                   ; $B858: 38
   RTS                                   ; $B859: 60
-; --- Data Region ---
+; Success modifier table for stat-based checks
+@SuccessModifierTable:
   .byte $0F,$0A,$05,$00,$FB,$F6           ; $B85A: 0F 0A 05 00 FB F6
 .endproc
 
@@ -3234,58 +3267,58 @@ PhaseExit:
   LDY $0509                             ; $B860: AC 09 05
   LDA $0614,Y                           ; $B863: B9 14 06
   CMP #$10                              ; $B866: C9 10
-  BCC @B86C                             ; $B868: 90 02
+  BCC @SkipRowAdj1                      ; $B868: 90 02
   SBC #$01                              ; $B86A: E9 01
-@B86C:
+@SkipRowAdj1:
   STA $00                               ; $B86C: 85 00
   LDY $050A                             ; $B86E: AC 0A 05
   LDA $0614,Y                           ; $B871: B9 14 06
   CMP #$10                              ; $B874: C9 10
-  BCC @B87A                             ; $B876: 90 02
+  BCC @SkipRowAdj2                      ; $B876: 90 02
   SBC #$01                              ; $B878: E9 01
-@B87A:
+@SkipRowAdj2:
   SEC                                   ; $B87A: 38
   SBC $00                               ; $B87B: E5 00
-  BCS @B884                             ; $B87D: B0 05
+  BCS @AbsRow                           ; $B87D: B0 05
   EOR #$FF                              ; $B87F: 49 FF
   CLC                                   ; $B881: 18
   ADC #$01                              ; $B882: 69 01
-@B884:
+@AbsRow:
   STA $00                               ; $B884: 85 00
   LDY $050A                             ; $B886: AC 0A 05
   LDA $0600,Y                           ; $B889: B9 00 06
   SEC                                   ; $B88C: 38
   LDY $0509                             ; $B88D: AC 09 05
   SBC $0600,Y                           ; $B890: F9 00 06
-  BCS @B89A                             ; $B893: B0 05
+  BCS @AbsCol                           ; $B893: B0 05
   EOR #$FF                              ; $B895: 49 FF
   CLC                                   ; $B897: 18
   ADC #$01                              ; $B898: 69 01
-@B89A:
+@AbsCol:
   CMP $00                               ; $B89A: C5 00
-  BCS @B8A0                             ; $B89C: B0 02
+  BCS @ReturnMax                        ; $B89C: B0 02
   LDA $00                               ; $B89E: A5 00
-@B8A0:
+@ReturnMax:
   RTS                                   ; $B8A0: 60
 .endproc
 
 .proc BuildNeighborList
   LDY #$00                              ; $B8A1: A0 00
   LDA #$FF                              ; $B8A3: A9 FF
-@B8A5:
+@ClearLoop:
   STA $6FC9,Y                           ; $B8A5: 99 C9 6F
   INY                                   ; $B8A8: C8
   CPY #$14                              ; $B8A9: C0 14
-  BCC @B8A5                             ; $B8AB: 90 F8
+  BCC @ClearLoop                        ; $B8AB: 90 F8
   LDA $0509                             ; $B8AD: AD 09 05
   STA $6FC9                             ; $B8B0: 8D C9 6F
   TAY                                   ; $B8B3: A8
   JSR ExpandNeighbors                   ; $B8B4: 20 CE B8
   LDX #$01                              ; $B8B7: A2 01
-@B8B9:
+@ScanLoop:
   LDA $6FC9,X                           ; $B8B9: BD C9 6F
   CMP #$FF                              ; $B8BC: C9 FF
-  BEQ @B8CD                             ; $B8BE: F0 0D
+  BEQ @Done                             ; $B8BE: F0 0D
   TAY                                   ; $B8C0: A8
   TXA                                   ; $B8C1: 8A
   PHA                                   ; $B8C2: 48
@@ -3294,8 +3327,8 @@ PhaseExit:
   TAX                                   ; $B8C7: AA
   INX                                   ; $B8C8: E8
   CPX #$14                              ; $B8C9: E0 14
-  BCC @B8B9                             ; $B8CB: 90 EC
-@B8CD:
+  BCC @ScanLoop                         ; $B8CB: 90 EC
+@Done:
   RTS                                   ; $B8CD: 60
 .endproc
 
@@ -3304,10 +3337,10 @@ PhaseExit:
   STA $12                               ; $B8D1: 85 12
   LDA $0614,Y                           ; $B8D3: B9 14 06
   CMP #$10                              ; $B8D6: C9 10
-  BCC @B8DD                             ; $B8D8: 90 03
+  BCC @SkipRowAdj                       ; $B8D8: 90 03
   SEC                                   ; $B8DA: 38
   SBC #$01                              ; $B8DB: E9 01
-@B8DD:
+@SkipRowAdj:
   STA $13                               ; $B8DD: 85 13
   INC $12                               ; $B8DF: E6 12
   JSR ScanAdjacentTile                  ; $B8E1: 20 FA B8
@@ -3325,25 +3358,25 @@ PhaseExit:
 
 .proc ScanAdjacentTile
   LDY #$00                              ; $B8FA: A0 00
-@B8FC:
+@ScanLoop:
   LDA $0600,Y                           ; $B8FC: B9 00 06
   CMP $12                               ; $B8FF: C5 12
-  BNE @B918                             ; $B901: D0 15
+  BNE @NextSlot                         ; $B901: D0 15
   LDA $0614,Y                           ; $B903: B9 14 06
   CMP #$10                              ; $B906: C9 10
-  BCC @B90D                             ; $B908: 90 03
+  BCC @SkipRowAdj                       ; $B908: 90 03
   SEC                                   ; $B90A: 38
   SBC #$01                              ; $B90B: E9 01
-@B90D:
+@SkipRowAdj:
   CMP $13                               ; $B90D: C5 13
-  BNE @B918                             ; $B90F: D0 07
+  BNE @NextSlot                         ; $B90F: D0 07
   JSR $DC4B                             ; $B911: 20 4B DC
   CMP #$FF                              ; $B914: C9 FF
-  BEQ @B91E                             ; $B916: F0 06
-@B918:
+  BEQ @Done                             ; $B916: F0 06
+@NextSlot:
   INY                                   ; $B918: C8
   CPY #$14                              ; $B919: C0 14
-  BCC @B8FC                             ; $B91B: 90 DF
+  BCC @ScanLoop                         ; $B91B: 90 DF
   RTS                                   ; $B91D: 60
 .endproc
 
@@ -3355,23 +3388,23 @@ PhaseExit:
   STA $11                               ; $B928: 85 11
   JSR $DB46                             ; $B92A: 20 46 DB
   CMP #$05                              ; $B92D: C9 05
-  BEQ @B949                             ; $B92F: F0 18
+  BEQ @Done                             ; $B92F: F0 18
   LDY #$00                              ; $B931: A0 00
-@B933:
+@ScanLoop:
   LDA $6FC9,Y                           ; $B933: B9 C9 6F
   CMP #$FF                              ; $B936: C9 FF
-  BNE @B940                             ; $B938: D0 06
+  BNE @CheckDuplicate                   ; $B938: D0 06
   LDA $14                               ; $B93A: A5 14
   STA $6FC9,Y                           ; $B93C: 99 C9 6F
   RTS                                   ; $B93F: 60
-@B940:
+@CheckDuplicate:
   CMP $14                               ; $B940: C5 14
-  BNE @B945                             ; $B942: D0 01
+  BNE @NextSlot                         ; $B942: D0 01
   RTS                                   ; $B944: 60
-@B945:
+@NextSlot:
   INY                                   ; $B945: C8
-  JMP @B933                             ; $B946: 4C 33 B9
-@B949:
+  JMP @ScanLoop                         ; $B946: 4C 33 B9
+@Done:
   RTS                                   ; $B949: 60
 .endproc
 
@@ -3383,203 +3416,271 @@ PhaseExit:
   LDA $0501                             ; $B952: AD 01 05
   JSR B1F_CallbackDispatcher            ; $B955: 20 DE EA
 ; --- CallbackDispatcher table (6 entries) ---
-  .word $B964                               ; $B958: $64 B9
-  .word @B96D                               ; $B95A: $6D B9
-  .word @B9B6                               ; $B95C: $B6 B9
-  .word @BA30                               ; $B95E: $30 BA
-  .word @BA64                               ; $B960: $64 BA
-  .word @BA83                               ; $B962: $83 BA
+  .word ProvinceState_Init                  ; $B958: $64 B9
+  .word ProvinceState_Select                ; $B95A: $6D B9
+  .word ProvinceState_Menu                  ; $B95C: $B6 B9
+  .word ProvinceState_Confirm               ; $B95E: $30 BA
+  .word ProvinceState_Cancel                ; $B960: $64 BA
+  .word ProvinceState_Reset                 ; $B962: $83 BA
+.endproc
+
+.proc ProvinceState_Init
   LDA #$D6                                    ; $B964: A9 D6
   JSR B1F_SetUI5                              ; $B966: 20 83 F2
   INC $0501                                   ; $B969: EE 01 05
   RTS                                         ; $B96C: 60
-@B96D:  ; (dispatch callback target)
-; --- Code Region ---
+.endproc
+
+.proc ProvinceState_Select
   JSR $DC70                             ; $B96D: 20 70 DC
   JSR TryAutoAdvance                       ; $B970: 20 DE A1
   JSR $DF27                             ; $B973: 20 27 DF
-  BCC @B9B5                             ; $B976: 90 3D
+  BCC @Done                             ; $B976: 90 3D
   LDA $81                               ; $B978: A5 81
   AND #$02                              ; $B97A: 29 02
-  BEQ @B98B                             ; $B97C: F0 0D
+  BEQ @CheckConfirm                     ; $B97C: F0 0D
   LDA #$00                              ; $B97E: A9 00
   STA $0501                             ; $B980: 8D 01 05
   LDA #$00                              ; $B983: A9 00
   STA $0500                             ; $B985: 8D 00 05
   JMP FinishSequence                       ; $B988: 4C F7 A1
-@B98B:
+@CheckConfirm:
   LDA $81                               ; $B98B: A5 81
   AND #$01                              ; $B98D: 29 01
-  BEQ @B9B5                             ; $B98F: F0 24
+  BEQ @Done                             ; $B98F: F0 24
   INC $0501                             ; $B991: EE 01 05
   LDA #$D7                              ; $B994: A9 D7
   JSR B1F_SetUI2                        ; $B996: 20 83 F2
   LDA #$00                              ; $B999: A9 00
   STA $0424                             ; $B99B: 8D 24 04
   STA $0425                             ; $B99E: 8D 25 04
-  JSR @BB84                             ; $B9A1: 20 84 BB
+  JSR ProvinceSelect_InitList            ; $B9A1: 20 84 BB
   LDA $050A                             ; $B9A4: AD 0A 05
   CMP #$FF                              ; $B9A7: C9 FF
-  BNE @B9B5                             ; $B9A9: D0 0A
+  BNE @Done                             ; $B9A9: D0 0A
   LDA #$05                              ; $B9AB: A9 05
   STA $0501                             ; $B9AD: 8D 01 05
   LDA #$D9                              ; $B9B0: A9 D9
   JSR B1F_SetUI2                        ; $B9B2: 20 83 F2
-@B9B5:
+@Done:
   RTS                                   ; $B9B5: 60
-@B9B6:  ; (dispatch callback target)
+.endproc
+
+.proc ProvinceState_Menu
   JSR TryAutoAdvance                       ; $B9B6: 20 DE A1
   LDA $050A                             ; $B9B9: AD 0A 05
   ASL                                   ; $B9BC: 0A
   TAY                                   ; $B9BD: A8
-  LDA $BA9F,Y                           ; $B9BE: B9 9F BA
+  LDA MenuTypeItemListPtrs,Y            ; $B9BE: B9 9F BA
   STA $10                               ; $B9C1: 85 10
-  LDA $BAA0,Y                           ; $B9C3: B9 A0 BA
+  LDA MenuTypeItemListPtrs+1,Y          ; $B9C3: B9 A0 BA
   STA $11                               ; $B9C6: 85 11
   LDA #$00                              ; $B9C8: A9 00
   STA $12                               ; $B9CA: 85 12
   JSR B1F_MenuStep2                     ; $B9CC: 20 1E ED
-  LDA #$6F                              ; $B9CF: A9 6F
+  LDA #<MenuSlotPPUAddrs                ; $B9CF: A9 6F
   STA $10                               ; $B9D1: 85 10
-  LDA #$BB                              ; $B9D3: A9 BB
+  LDA #>MenuSlotPPUAddrs                ; $B9D3: A9 BB
   STA $11                               ; $B9D5: 85 11
-  LDA #$7F                              ; $B9D7: A9 7F
+  LDA #<MenuSlotConfig                  ; $B9D7: A9 7F
   STA $00                               ; $B9D9: 85 00
-  LDA #$BB                              ; $B9DB: A9 BB
+  LDA #>MenuSlotConfig                  ; $B9DB: A9 BB
   STA $01                               ; $B9DD: 85 01
   LDA $12                               ; $B9DF: A5 12
   JSR B1F_PointerTableLookup            ; $B9E1: 20 F5 ED
   JSR $DF27                             ; $B9E4: 20 27 DF
-  BCC @B9B5                             ; $B9E7: 90 CC
+  BCC @Done                             ; $B9E7: 90 CC
   LDA $81                               ; $B9E9: A5 81
   AND #$02                              ; $B9EB: 29 02
-  BEQ @B9FC                             ; $B9ED: F0 0D
+  BEQ @CheckConfirm                     ; $B9ED: F0 0D
   LDA #$00                              ; $B9EF: A9 00
   STA $0501                             ; $B9F1: 8D 01 05
   LDA #$00                              ; $B9F4: A9 00
   STA $0500                             ; $B9F6: 8D 00 05
   JMP FinishSequence                       ; $B9F9: 4C F7 A1
-@B9FC:
+@CheckConfirm:
   LDA $81                               ; $B9FC: A5 81
   AND #$01                              ; $B9FE: 29 01
-  BEQ @BA19                             ; $BA00: F0 17
+  BEQ @Done                             ; $BA00: F0 17
   LDY $12                               ; $BA02: A4 12
   LDA $042C,Y                           ; $BA04: B9 2C 04
   STA $050B                             ; $BA07: 8D 0B 05
-  JSR @BC11                             ; $BA0A: 20 11 BC
-  BCC @BA1A                             ; $BA0D: 90 0B
+  JSR ProvinceSelect_CheckSlot           ; $BA0A: 20 11 BC
+  BCC @AdvanceState                     ; $BA0D: 90 0B
   LDA #$01                              ; $BA0F: A9 01
   STA $0501                             ; $BA11: 8D 01 05
   LDA #$DA                              ; $BA14: A9 DA
   JSR B1F_SetUI2                        ; $BA16: 20 83 F2
-@BA19:
+@Done:
   RTS                                   ; $BA19: 60
-@BA1A:
+@AdvanceState:
   INC $0501                             ; $BA1A: EE 01 05
   LDA $0509                             ; $BA1D: AD 09 05
-  BEQ @BA26                             ; $BA20: F0 04
+  BEQ @ShowFullUI                       ; $BA20: F0 04
   CMP #$0A                              ; $BA22: C9 0A
-  BNE @BA2B                             ; $BA24: D0 05
-@BA26:
+  BNE @ShowMenuUI                       ; $BA24: D0 05
+@ShowFullUI:
   LDA #$52                              ; $BA26: A9 52
   JMP B1F_SetUI2                        ; $BA28: 4C 83 F2
-@BA2B:
+@ShowMenuUI:
   LDA #$C8                              ; $BA2B: A9 C8
   JMP B1F_SetUI2                        ; $BA2D: 4C 83 F2
-@BA30:  ; (dispatch callback target)
+.endproc
+
+.proc ProvinceState_Confirm
   JSR $DC70                             ; $BA30: 20 70 DC
   JSR TryAutoAdvance                       ; $BA33: 20 DE A1
   JSR $DF27                             ; $BA36: 20 27 DF
-  BCC @BA63                             ; $BA39: 90 28
+  BCC @Done                             ; $BA39: 90 28
   LDA $81                               ; $BA3B: A5 81
   AND #$02                              ; $BA3D: 29 02
-  BEQ @BA4E                             ; $BA3F: F0 0D
+  BEQ @CheckConfirm                     ; $BA3F: F0 0D
   LDA #$00                              ; $BA41: A9 00
   STA $0501                             ; $BA43: 8D 01 05
   LDA #$00                              ; $BA46: A9 00
   STA $0500                             ; $BA48: 8D 00 05
   JMP FinishSequence                       ; $BA4B: 4C F7 A1
-@BA4E:
+@CheckConfirm:
   LDA $81                               ; $BA4E: A5 81
   AND #$01                              ; $BA50: 29 01
-  BEQ @BA63                             ; $BA52: F0 0F
+  BEQ @Done                             ; $BA52: F0 0F
   INC $0501                             ; $BA54: EE 01 05
   LDA #$00                              ; $BA57: A9 00
   STA $12                               ; $BA59: 85 12
   JSR $D6CC                             ; $BA5B: 20 CC D6
   LDA #$D8                              ; $BA5E: A9 D8
   JSR B1F_SetUI5                        ; $BA60: 20 93 F2
-@BA63:
+@Done:
   RTS                                   ; $BA63: 60
-@BA64:  ; (dispatch callback target)
+.endproc
+
+.proc ProvinceState_Cancel
   JSR $DF27                             ; $BA64: 20 27 DF
-  BCC @BA82                             ; $BA67: 90 19
+  BCC @Done                             ; $BA67: 90 19
   JSR $DC70                             ; $BA69: 20 70 DC
   LDA $81                               ; $BA6C: A5 81
   AND #$01                              ; $BA6E: 29 01
-  BEQ @BA82                             ; $BA70: F0 10
-  JSR @BC2A                             ; $BA72: 20 2A BC
+  BEQ @Done                             ; $BA70: F0 10
+  JSR ProvinceSelect_RemoveOfficer       ; $BA72: 20 2A BC
   LDA #$00                              ; $BA75: A9 00
   STA $0501                             ; $BA77: 8D 01 05
   LDA #$00                              ; $BA7A: A9 00
   STA $0500                             ; $BA7C: 8D 00 05
   JMP FinishSequence                       ; $BA7F: 4C F7 A1
-@BA82:
+@Done:
   RTS                                   ; $BA82: 60
-@BA83:  ; (dispatch callback target)
+.endproc
+
+.proc ProvinceState_Reset
   JSR $DF27                             ; $BA83: 20 27 DF
-  BCC @BA9E                             ; $BA86: 90 16
+  BCC @Done                             ; $BA86: 90 16
   JSR $DC70                             ; $BA88: 20 70 DC
   LDA $81                               ; $BA8B: A5 81
   AND #$01                              ; $BA8D: 29 01
-  BEQ @BA9E                             ; $BA8F: F0 0D
+  BEQ @Done                             ; $BA8F: F0 0D
   LDA #$00                              ; $BA91: A9 00
   STA $0501                             ; $BA93: 8D 01 05
   LDA #$00                              ; $BA96: A9 00
   STA $0500                             ; $BA98: 8D 00 05
   JMP FinishSequence                       ; $BA9B: 4C F7 A1
-@BA9E:
+@Done:
   RTS                                   ; $BA9E: 60
-; --- Data Region ---
-  .byte $6B,$BB,$13,$BB,$65,$BB,$0D,$BB,$5D,$BB,$05,$BB,$53,$BB,$FB,$BA; $BA9F: 6B BB 13 BB 65 BB 0D BB 5D BB 05 BB 53 BB FB BA
-  .byte $47,$BB,$EF,$BA,$39,$BB,$E1,$BA,$29,$BB,$D1,$BA,$17,$BB,$BF,$BA; $BAAF: 47 BB EF BA 39 BB E1 BA 29 BB D1 BA 17 BB BF BA
+.endproc
+; --- Menu System Data ---
+
+; Pointer table: maps menu type index (0-15) to its item index list.
+; Type N has (16-N) valid item indices, padded with $FF terminators.
+; Used by CommandState_Menu ($0542), ProvinceState_Menu ($050A), and
+; province select callbacks at $CDFA and $D353.
+MenuTypeItemListPtrs:                     ; $BA9F
+  .word MenuItemIndexPool00               ; type  0:  1 item
+  .word MenuItemIndexPool01               ; type  1:  2 items
+  .word MenuItemIndexPool02               ; type  2:  3 items
+  .word MenuItemIndexPool03               ; type  3:  4 items
+  .word MenuItemIndexPool04               ; type  4:  5 items
+  .word MenuItemIndexPool05               ; type  5:  6 items
+  .word MenuItemIndexPool06               ; type  6:  7 items
+  .word MenuItemIndexPool07               ; type  7:  8 items
+  .word MenuItemIndexPool08               ; type  8:  9 items
+  .word MenuItemIndexPool09               ; type  9: 10 items
+  .word MenuItemIndexPool0A               ; type 10: 11 items
+  .word MenuItemIndexPool0B               ; type 11: 12 items
+  .word MenuItemIndexPool0C               ; type 12: 13 items
+  .word MenuItemIndexPool0D               ; type 13: 14 items
+  .word MenuItemIndexPool0E               ; type 14: 15 items
+  .word MenuItemIndexPool0F               ; type 15: 16 items
+
+; Menu item index lists: each contains sequential indices 0..N-1 followed
+; by $FF padding. Pieces are laid out in ascending address order.
+MenuItemIndexPool0F:                      ; $BABF: 16 items
   .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F; $BABF: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
-  .byte $FF,$FF,$00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D; $BACF: FF FF 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D
-  .byte $FF,$FF,$00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$FF,$FF; $BADF: FF FF 00 01 02 03 04 05 06 07 08 09 0A 0B FF FF
-  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$FF,$FF,$00,$01,$02,$03; $BAEF: 00 01 02 03 04 05 06 07 08 09 FF FF 00 01 02 03
-  .byte $04,$05,$06,$07,$FF,$FF,$00,$01,$02,$03,$04,$05,$FF,$FF,$00,$01; $BAFF: 04 05 06 07 FF FF 00 01 02 03 04 05 FF FF 00 01
-  .byte $02,$03,$FF,$FF,$00,$01,$FF,$FF,$00,$01,$02,$03,$04,$05,$06,$07; $BB0F: 02 03 FF FF 00 01 FF FF 00 01 02 03 04 05 06 07
-  .byte $08,$09,$0A,$0B,$0C,$0D,$0E,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05; $BB1F: 08 09 0A 0B 0C 0D 0E FF FF FF 00 01 02 03 04 05
-  .byte $06,$07,$08,$09,$0A,$0B,$0C,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05; $BB2F: 06 07 08 09 0A 0B 0C FF FF FF 00 01 02 03 04 05
-  .byte $06,$07,$08,$09,$0A,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05,$06,$07; $BB3F: 06 07 08 09 0A FF FF FF 00 01 02 03 04 05 06 07
-  .byte $08,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05,$06,$FF,$FF,$FF,$00,$01; $BB4F: 08 FF FF FF 00 01 02 03 04 05 06 FF FF FF 00 01
-  .byte $02,$03,$04,$FF,$FF,$FF,$00,$01,$02,$FF,$FF,$FF,$00,$FF,$FF,$FF; $BB5F: 02 03 04 FF FF FF 00 01 02 FF FF FF 00 FF FF FF
-  .byte $A6,$48,$A6,$98,$B6,$48,$B6,$98,$C6,$48,$C6,$98,$D6,$48,$D6,$98; $BB6F: A6 48 A6 98 B6 48 B6 98 C6 48 C6 98 D6 48 D6 98
-  .byte $00,$07,$00,$00,$80               ; $BB7F: 00 07 00 00 80
-@BB84:
-; --- Code Region ---
+MenuItemIndexPool0D:                      ; $BAD1: 14 items + 2 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$FF,$FF; $BAD1: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D FF FF
+MenuItemIndexPool0B:                      ; $BAE1: 12 items + 2 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$FF,$FF; $BAE1: 00 01 02 03 04 05 06 07 08 09 0A 0B FF FF
+MenuItemIndexPool09:                      ; $BAEF: 10 items + 2 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$FF,$FF; $BAEF: 00 01 02 03 04 05 06 07 08 09 FF FF
+MenuItemIndexPool07:                      ; $BAFB: 8 items + 4 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$FF,$FF; $BAFB: 00 01 02 03 04 05 06 07 FF FF
+MenuItemIndexPool05:                      ; $BB05: 6 items + 2 pad
+  .byte $00,$01,$02,$03,$04,$05,$FF,$FF; $BB05: 00 01 02 03 04 05 FF FF
+MenuItemIndexPool03:                      ; $BB0D: 4 items + 2 pad
+  .byte $00,$01,$02,$03,$FF,$FF; $BB0D: 00 01 02 03 FF FF
+MenuItemIndexPool01:                      ; $BB13: 2 items + 2 pad
+  .byte $00,$01,$FF,$FF; $BB13: 00 01 FF FF
+MenuItemIndexPool0E:                      ; $BB17: 15 items + 3 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$FF; $BB17: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E FF
+  .byte $FF,$FF; $BB27: FF FF
+MenuItemIndexPool0C:                      ; $BB29: 13 items + 3 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$FF,$FF,$FF; $BB29: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C FF FF FF
+MenuItemIndexPool0A:                      ; $BB39: 11 items + 3 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$FF,$FF,$FF; $BB39: 00 01 02 03 04 05 06 07 08 09 0A FF FF FF
+MenuItemIndexPool08:                      ; $BB47: 9 items + 3 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$FF,$FF,$FF; $BB47: 00 01 02 03 04 05 06 07 08 FF FF FF
+MenuItemIndexPool06:                      ; $BB53: 7 items + 3 pad
+  .byte $00,$01,$02,$03,$04,$05,$06,$FF,$FF,$FF; $BB53: 00 01 02 03 04 05 06 FF FF FF
+MenuItemIndexPool04:                      ; $BB5D: 5 items + 3 pad
+  .byte $00,$01,$02,$03,$04,$FF,$FF,$FF; $BB5D: 00 01 02 03 04 FF FF FF
+MenuItemIndexPool02:                      ; $BB65: 3 items + 3 pad
+  .byte $00,$01,$02,$FF,$FF,$FF; $BB65: 00 01 02 FF FF FF
+MenuItemIndexPool00:                      ; $BB6B: 1 item + 3 pad
+  .byte $00,$FF,$FF,$FF; $BB6B: 00 FF FF FF
+
+; PPU nametable addresses for menu cursor slot positions (4 rows x 2 cols).
+; Row stride = $10, column stride = $50.
+MenuSlotPPUAddrs:                         ; $BB6F
+  .word $48A6, $98A6                      ; row 0: col 0, col 1
+  .word $48B6, $98B6                      ; row 1: col 0, col 1
+  .word $48C6, $98C6                      ; row 2: col 0, col 1
+  .word $48D6, $98D6                      ; row 3: col 0, col 1
+
+; Menu slot rendering configuration parameters
+MenuSlotConfig:                           ; $BB7F
+  .byte $00,$07,$00,$00,$80
+
+.proc ProvinceSelect_InitList
   LDA #$FF                              ; $BB84: A9 FF
   STA $050A                             ; $BB86: 8D 0A 05
   LDY #$3F                              ; $BB89: A0 3F
   LDA #$FF                              ; $BB8B: A9 FF
-@BB8D:
+@ClearLoop1:
   STA $042C,Y                           ; $BB8D: 99 2C 04
   DEY                                   ; $BB90: 88
-  BPL @BB8D                             ; $BB91: 10 FA
+  BPL @ClearLoop1                       ; $BB91: 10 FA
   LDY #$0F                              ; $BB93: A0 0F
   LDA #$FF                              ; $BB95: A9 FF
-@BB97:
+@ClearLoop2:
   STA $0550,Y                           ; $BB97: 99 50 05
   DEY                                   ; $BB9A: 88
-  BPL @BB97                             ; $BB9B: 10 FA
+  BPL @ClearLoop2                       ; $BB9B: 10 FA
   LDA $0507                             ; $BB9D: AD 07 05
   LDY $0504                             ; $BBA0: AC 04 05
-  BPL @BBA9                             ; $BBA3: 10 04
+  BPL @GetRuler                         ; $BBA3: 10 04
   LSR                                   ; $BBA5: 4A
   LSR                                   ; $BBA6: 4A
   LSR                                   ; $BBA7: 4A
   LSR                                   ; $BBA8: 4A
-@BBA9:
+@GetRuler:
   AND #$0F                              ; $BBA9: 29 0F
   STA $02                               ; $BBAB: 85 02
   LDY #$30                              ; $BBAD: A0 30
@@ -3590,9 +3691,9 @@ PhaseExit:
   ASL                                   ; $BBB7: 0A
   TAY                                   ; $BBB8: A8
   LDX #$00                              ; $BBB9: A2 00
-@BBBB:
+@ScanLoop:
   LDA $9D72,Y                           ; $BBBB: B9 72 9D
-  BMI @BC08                             ; $BBBE: 30 48
+  BMI @Done                             ; $BBBE: 30 48
   STA $03                               ; $BBC0: 85 03
   STY $04                               ; $BBC2: 84 04
   JSR B1F_GetProvinceRecordAddr         ; $BBC4: 20 AF F2
@@ -3600,19 +3701,19 @@ PhaseExit:
   LDA ($00),Y                           ; $BBC9: B1 00
   AND #$07                              ; $BBCB: 29 07
   CMP #$07                              ; $BBCD: C9 07
-  BEQ @BBD5                             ; $BBCF: F0 04
+  BEQ @AddProvince                      ; $BBCF: F0 04
   CMP $02                               ; $BBD1: C5 02
-  BNE @BC00                             ; $BBD3: D0 2B
-@BBD5:
+  BNE @NextProvince                     ; $BBD3: D0 2B
+@AddProvince:
   TXA                                   ; $BBD5: 8A
   PHA                                   ; $BBD6: 48
   INC $050A                             ; $BBD7: EE 0A 05
   LDY $050A                             ; $BBDA: AC 0A 05
   LDA $03                               ; $BBDD: A5 03
   STA $042C,Y                           ; $BBDF: 99 2C 04
-  JSR @BC14                             ; $BBE2: 20 14 BC
+  JSR ProvinceSelect_GetRecord           ; $BBE2: 20 14 BC
   LDY $050A                             ; $BBE5: AC 0A 05
-  LDA $BC09,Y                           ; $BBE8: B9 09 BC
+  LDA ProvinceSelect_SlotRecordOffsets,Y   ; $BBE8: B9 09 BC
   TAY                                   ; $BBEB: A8
   LDA #$00                              ; $BBEC: A9 00
   STA $042D,Y                           ; $BBEE: 99 2D 04
@@ -3623,48 +3724,52 @@ PhaseExit:
   STA $0550,Y                           ; $BBFB: 99 50 05
   PLA                                   ; $BBFE: 68
   TAX                                   ; $BBFF: AA
-@BC00:
+@NextProvince:
   LDY $04                               ; $BC00: A4 04
   INY                                   ; $BC02: C8
   INX                                   ; $BC03: E8
   CPX #$08                              ; $BC04: E0 08
-  BCC @BBBB                             ; $BC06: 90 B3
-@BC08:
+  BCC @ScanLoop                         ; $BC06: 90 B3
+@Done:
   RTS                                   ; $BC08: 60
-; --- Data Region ---
+.endproc
+; Province slot-to-record offset table (stride 3, indexed by slot 0-7)
+ProvinceSelect_SlotRecordOffsets:
   .byte $20,$23,$26,$29,$2C,$2F,$32,$35   ; $BC09: 20 23 26 29 2C 2F 32 35
-@BC11:
-; --- Code Region ---
+
+.proc ProvinceSelect_CheckSlot
   LDA $050B                             ; $BC11: AD 0B 05
-@BC14:
+ProvinceSelect_GetRecord:
   JSR B1F_GetProvinceRecordAddr         ; $BC14: 20 AF F2
   LDY #$11                              ; $BC17: A0 11
   LDX #$00                              ; $BC19: A2 00
-@BC1B:
+@ScanLoop:
   LDA ($00),Y                           ; $BC1B: B1 00
   CMP #$FF                              ; $BC1D: C9 FF
-  BEQ @BC28                             ; $BC1F: F0 07
+  BEQ @Success                          ; $BC1F: F0 07
   INX                                   ; $BC21: E8
   INY                                   ; $BC22: C8
   CPY #$1B                              ; $BC23: C0 1B
-  BCC @BC1B                             ; $BC25: 90 F4
+  BCC @ScanLoop                         ; $BC25: 90 F4
   RTS                                   ; $BC27: 60
-@BC28:
+@Success:
   CLC                                   ; $BC28: 18
   RTS                                   ; $BC29: 60
-@BC2A:
+.endproc
+
+.proc ProvinceSelect_RemoveOfficer
   JSR $C91E                             ; $BC2A: 20 1E C9
-  JSR @BC11                             ; $BC2D: 20 11 BC
+  JSR ProvinceSelect_CheckSlot           ; $BC2D: 20 11 BC
   LDX $0509                             ; $BC30: AE 09 05
-  BEQ @BC39                             ; $BC33: F0 04
+  BEQ @StoreOfficer                     ; $BC33: F0 04
   CPX #$0A                              ; $BC35: E0 0A
-  BNE @BC45                             ; $BC37: D0 0C
-@BC39:
+  BNE @SkipStore                        ; $BC37: D0 0C
+@StoreOfficer:
   LDA $0664,X                           ; $BC39: BD 64 06
   STA $052B                             ; $BC3C: 8D 2B 05
   LDA $050B                             ; $BC3F: AD 0B 05
   STA $052C                             ; $BC42: 8D 2C 05
-@BC45:
+@SkipStore:
   LDA $0664,X                           ; $BC45: BD 64 06
   STA ($00),Y                           ; $BC48: 91 00
   LDA #$FF                              ; $BC4A: A9 FF
@@ -3675,26 +3780,26 @@ PhaseExit:
   STA $0650,X                           ; $BC58: 9D 50 06
   STA $0664,X                           ; $BC5B: 9D 64 06
   CPX $04D8                             ; $BC5E: EC D8 04
-  BNE @BC66                             ; $BC61: D0 03
+  BNE @CheckSlot2                       ; $BC61: D0 03
   STA $04D8                             ; $BC63: 8D D8 04
-@BC66:
+@CheckSlot2:
   CPX $04DC                             ; $BC66: EC DC 04
-  BNE @BC6E                             ; $BC69: D0 03
+  BNE @CheckProvince                    ; $BC69: D0 03
   STA $04DC                             ; $BC6B: 8D DC 04
-@BC6E:
+@CheckProvince:
   LDY #$00                              ; $BC6E: A0 00
   LDA ($00),Y                           ; $BC70: B1 00
   AND #$07                              ; $BC72: 29 07
   CMP #$07                              ; $BC74: C9 07
-  BNE @BC92                             ; $BC76: D0 1A
+  BNE @Done                             ; $BC76: D0 1A
   LDA $0507                             ; $BC78: AD 07 05
   LDY $0504                             ; $BC7B: AC 04 05
-  BPL @BC84                             ; $BC7E: 10 04
+  BPL @GetRuler                         ; $BC7E: 10 04
   LSR                                   ; $BC80: 4A
   LSR                                   ; $BC81: 4A
   LSR                                   ; $BC82: 4A
   LSR                                   ; $BC83: 4A
-@BC84:
+@GetRuler:
   AND #$0F                              ; $BC84: 29 0F
   STA $02                               ; $BC86: 85 02
   LDY #$00                              ; $BC88: A0 00
@@ -3702,7 +3807,7 @@ PhaseExit:
   AND #$F0                              ; $BC8C: 29 F0
   ORA $02                               ; $BC8E: 05 02
   STA ($00),Y                           ; $BC90: 91 00
-@BC92:
+@Done:
   RTS                                   ; $BC92: 60
 .endproc
 
@@ -3710,57 +3815,64 @@ PhaseExit:
   ; (dispatch callback target)
   LDA $0501                             ; $BC93: AD 01 05
   CMP #$04                              ; $BC96: C9 04
-  BCS @BC9D                             ; $BC98: B0 03
+  BCS @SkipReset                        ; $BC98: B0 03
   JSR $DC33                             ; $BC9A: 20 33 DC
-@BC9D:
+@SkipReset:
   LDA $0501                             ; $BC9D: AD 01 05
   JSR B1F_CallbackDispatcher            ; $BCA0: 20 DE EA
 ; --- CallbackDispatcher table (8 entries) ---
-  .word @BCB3                               ; $BCA3: $B3 BC
-  .word @BCC1                               ; $BCA5: $C1 BC
-  .word @BCF6                               ; $BCA7: $F6 BC
-  .word @BD13                               ; $BCA9: $13 BD
-  .word @BD2C                               ; $BCAB: $2C BD
-  .word @BD41                               ; $BCAD: $41 BD
-  .word @BD6F                               ; $BCAF: $6F BD
-  .word @BCED                               ; $BCB1: $ED BC
-@BCB3:  ; (dispatch callback target)
-; --- Code Region ---
+  .word OfficerTurnState_Init               ; $BCA3: $B3 BC
+  .word OfficerTurnState_Select             ; $BCA5: $C1 BC
+  .word OfficerTurnState_Confirm            ; $BCA7: $F6 BC
+  .word OfficerTurnState_Reset              ; $BCA9: $13 BD
+  .word OfficerTurnState_Next               ; $BCAB: $2C BD
+  .word OfficerTurnState_Execute            ; $BCAD: $41 BD
+  .word OfficerTurnState_Cancel             ; $BCAF: $6F BD
+  .word OfficerTurnState_EndTurn            ; $BCB1: $ED BC
+.endproc
+
+.proc OfficerTurnState_Init
   LDA #$00                              ; $BCB3: A9 00
   STA $00A4                             ; $BCB5: 8D A4 00
   LDA #$CA                              ; $BCB8: A9 CA
   JSR B1F_SetUI2                        ; $BCBA: 20 83 F2
   INC $0501                             ; $BCBD: EE 01 05
   RTS                                   ; $BCC0: 60
-@BCC1:  ; (dispatch callback target)
+.endproc
+
+.proc OfficerTurnState_Select
   JSR $DF27                             ; $BCC1: 20 27 DF
-  BCC @BCEC                             ; $BCC4: 90 26
+  BCC @Done                             ; $BCC4: 90 26
   JSR $DC63                             ; $BCC6: 20 63 DC
   LDA $81                               ; $BCC9: A5 81
   AND #$02                              ; $BCCB: 29 02
-  BEQ @BCDC                             ; $BCCD: F0 0D
+  BEQ @CheckConfirm                     ; $BCCD: F0 0D
   LDA #$00                              ; $BCCF: A9 00
   STA $0501                             ; $BCD1: 8D 01 05
   LDA #$00                              ; $BCD4: A9 00
   STA $0500                             ; $BCD6: 8D 00 05
   JMP FinishSequence                       ; $BCD9: 4C F7 A1
-@BCDC:
+@CheckConfirm:
   LDA $81                               ; $BCDC: A5 81
   AND #$01                              ; $BCDE: 29 01
-  BEQ @BCEC                             ; $BCE0: F0 0A
+  BEQ @Done                             ; $BCE0: F0 0A
   LDA #$07                              ; $BCE2: A9 07
   STA $0501                             ; $BCE4: 8D 01 05
   LDA #$05                              ; $BCE7: A9 05
   JSR B1F_SetUI5                        ; $BCE9: 20 93 F2
-@BCEC:
+@Done:
   RTS                                   ; $BCEC: 60
-@BCED:  ; (dispatch callback target)
+.endproc
+
+.proc OfficerTurnState_EndTurn
   JSR $DF27                             ; $BCED: 20 27 DF
-  BCC @BCF5                             ; $BCF0: 90 03
-  JMP @BDC0                             ; $BCF2: 4C C0 BD
-@BCF5:
+  BCC @Done                             ; $BCF0: 90 03
+  JMP OfficerTurn_EndTurn               ; $BCF2: 4C C0 BD
+@Done:
   RTS                                   ; $BCF5: 60
-@BCF6:  ; (dispatch callback target)
+.endproc
+
+.proc OfficerTurnState_Confirm
   LDY #$3D                              ; $BCF6: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $BCF8: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -3773,74 +3885,88 @@ PhaseExit:
   INC $0501                                   ; $BD0A: EE 01 05
   LDA $050A                                   ; $BD0D: AD 0A 05
   JMP B1F_SetUI5                              ; $BD10: 4C 83 F2
-@BD13:  ; (dispatch callback target)
-; --- Code Region ---
+.endproc
+
+.proc OfficerTurnState_Reset
   JSR $DF27                             ; $BD13: 20 27 DF
-  BCC @BD2B                             ; $BD16: 90 13
+  BCC @Done                             ; $BD16: 90 13
   JSR $DC63                             ; $BD18: 20 63 DC
   LDA $81                               ; $BD1B: A5 81
   AND #$03                              ; $BD1D: 29 03
-  BEQ @BD2B                             ; $BD1F: F0 0A
+  BEQ @Done                             ; $BD1F: F0 0A
   LDA #$0C                              ; $BD21: A9 0C
   STA $0500                             ; $BD23: 8D 00 05
   LDA #$00                              ; $BD26: A9 00
   STA $0501                             ; $BD28: 8D 01 05
-@BD2B:
+@Done:
   RTS                                   ; $BD2B: 60
-@BD2C:  ; (dispatch callback target)
+.endproc
+
+.proc OfficerTurnState_Next
   LDA #$01                              ; $BD2C: A9 01
   STA $12                               ; $BD2E: 85 12
   JSR $D6CC                             ; $BD30: 20 CC D6
   INC $0509                             ; $BD33: EE 09 05
   LDA $0509                             ; $BD36: AD 09 05
   CMP #$14                              ; $BD39: C9 14
-  BCC @BD40                             ; $BD3B: 90 03
+  BCC @Done                             ; $BD3B: 90 03
   INC $0501                             ; $BD3D: EE 01 05
-@BD40:
+@Done:
   RTS                                   ; $BD40: 60
-@BD41:  ; (dispatch callback target)
+.endproc
+
+.proc OfficerTurnState_Execute
   LDA $052E                             ; $BD41: AD 2E 05
-  BNE @BD49                             ; $BD44: D0 03
-  JMP @BD97                             ; $BD46: 4C 97 BD
-@BD49:
+  BNE @CheckAlly                        ; $BD44: D0 03
+  JSR OfficerTurn_RestoreAndExit        ; $BD46: 4C 97 BD
+  RTS
+@CheckAlly:
   LDY $052F                             ; $BD49: AC 2F 05
   LDA $6FA1,Y                           ; $BD4C: B9 A1 6F
   CMP #$FF                              ; $BD4F: C9 FF
-  BEQ @BD56                             ; $BD51: F0 03
-  JMP @BD97                             ; $BD53: 4C 97 BD
-@BD56:
+  BEQ @SetupConfirm                     ; $BD51: F0 03
+  JSR OfficerTurn_RestoreAndExit        ; $BD53: 4C 97 BD
+  RTS
+@SetupConfirm:
   LDA #$6D                              ; $BD56: A9 6D
   STA $042C                             ; $BD58: 8D 2C 04
   JSR $DEE9                             ; $BD5B: 20 E9 DE
-  BCS @BD63                             ; $BD5E: B0 03
-  JMP @BD97                             ; $BD60: 4C 97 BD
-@BD63:
+  BCS @ConfirmOk                        ; $BD5E: B0 03
+  JSR OfficerTurn_RestoreAndExit        ; $BD60: 4C 97 BD
+  RTS
+@ConfirmOk:
   INC $0501                             ; $BD63: EE 01 05
   JSR B1F_BankPpuInit                   ; $BD66: 20 7F E5
   LDA #$7B                              ; $BD69: A9 7B
   JSR B1F_SoundWrapperD                 ; $BD6B: 20 8B E6
   RTS                                   ; $BD6E: 60
-@BD6F:  ; (dispatch callback target)
+.endproc
+
+.proc OfficerTurnState_Cancel
   JSR $DF27                             ; $BD6F: 20 27 DF
-  BCC @BD8E                             ; $BD72: 90 1A
+  BCC @Done                             ; $BD72: 90 1A
   JSR $DC63                             ; $BD74: 20 63 DC
   LDA $81                               ; $BD77: A5 81
   AND #$03                              ; $BD79: 29 03
-  BEQ @BD8E                             ; $BD7B: F0 11
+  BEQ @Done                             ; $BD7B: F0 11
   LDA $042D                             ; $BD7D: AD 2D 04
   CMP #$FF                              ; $BD80: C9 FF
-  BEQ @BD8F                             ; $BD82: F0 0B
+  BEQ @ExitToIdle                       ; $BD82: F0 0B
   LDA #$FF                              ; $BD84: A9 FF
   STA $042D                             ; $BD86: 8D 2D 04
   LDA #$4B                              ; $BD89: A9 4B
   JMP B1F_SetUI5                        ; $BD8B: 4C 93 F2
-@BD8E:
+@Done:
   RTS                                   ; $BD8E: 60
-@BD8F:
+@ExitToIdle:
   JSR B1F_BankPpuInit                   ; $BD8F: 20 7F E5
   LDA #$1D                              ; $BD92: A9 1D
   JSR B1F_SoundWrapperA                 ; $BD94: 20 73 E6
-@BD97:
+  JSR OfficerTurn_RestoreAndExit        ; $BD97: AD 70 04
+  RTS
+.endproc
+
+.proc OfficerTurn_RestoreAndExit
   LDA $0470                             ; $BD97: AD 70 04
   STA $00                               ; $BD9A: 85 00
   LDA $0471                             ; $BD9C: AD 71 04
@@ -3857,12 +3983,14 @@ PhaseExit:
   LDA #$05                              ; $BDB8: A9 05
   JSR B1F_SetUI5                        ; $BDBA: 20 93 F2
   JMP ResetToIdle                          ; $BDBD: 4C 0C A2
-@BDC0:
+.endproc
+
+.proc OfficerTurn_EndTurn
   LDA $0505                             ; $BDC0: AD 05 05
-  BPL @BDCA                             ; $BDC3: 10 05
+  BPL @ClearState                       ; $BDC3: 10 05
   LDA #$00                              ; $BDC5: A9 00
   STA $0505                             ; $BDC7: 8D 05 05
-@BDCA:
+@ClearState:
   LDA #$00                              ; $BDCA: A9 00
   STA $6F94                             ; $BDCC: 8D 94 6F
   STA $6F95                             ; $BDCF: 8D 95 6F
@@ -3873,7 +4001,7 @@ PhaseExit:
   EOR #$80                              ; $BDDE: 49 80
   STA $0504                             ; $BDE0: 8D 04 05
   AND #$80                              ; $BDE3: 29 80
-  BEQ @BE33                             ; $BDE5: F0 4C
+  BEQ OfficerTurn_SwitchRuler           ; $BDE5: F0 4C
   LDA $0507                             ; $BDE7: AD 07 05
   LSR                                   ; $BDEA: 4A
   LSR                                   ; $BDEB: 4A
@@ -3894,19 +4022,23 @@ PhaseExit:
 ; --- BankedCallbackTrampoline target ---
   .word $A00F                               ; $BE0F: $0F A0
   LDA $050A                                   ; $BE11: AD 0A 05
-  BEQ $BE21                                   ; $BE14: F0 0B
+  BEQ @SkipRestore                            ; $BE14: F0 0B
   LDA #$07                                    ; $BE16: A9 07
   STA $0500                                   ; $BE18: 8D 00 05
   LDA #$02                                    ; $BE1B: A9 02
   STA $0501                                   ; $BE1D: 8D 01 05
-@BE20:  ; (dispatch callback target)
-; --- Code Region ---
+@Done:
   RTS                                   ; $BE20: 60
-; --- Data Region ---
-  .byte $20,$03,$DB,$AD,$0A,$06,$8D,$70,$04,$AD,$1E,$06,$8D,$71,$04,$4C; $BE21: 20 03 DB AD 0A 06 8D 70 04 AD 1E 06 8D 71 04 4C
-  .byte $5A,$BE                           ; $BE31: 5A BE
-@BE33:
-; --- Code Region ---
+@SkipRestore:
+  JSR $DB03                             ; $BE21: 20 03 DB
+  LDA $060A                             ; $BE24: AD 0A 06
+  STA $0470                             ; $BE27: 8D 70 04
+  LDA $061E                             ; $BE2A: AD 1E 06
+  STA $0471                             ; $BE2D: 8D 71 04
+  JMP OfficerTurn_SwitchRuler_CheckPhase ; $BE30: 4C 5A BE
+.endproc
+
+.proc OfficerTurn_SwitchRuler
   LDA $0507                             ; $BE33: AD 07 05
   AND #$0F                              ; $BE36: 29 0F
   JSR B1F_GetRulerDataPtr               ; $BE38: 20 68 F3
@@ -3921,19 +4053,18 @@ PhaseExit:
   STA $0470                             ; $BE51: 8D 70 04
   LDA $0614                             ; $BE54: AD 14 06
   STA $0471                             ; $BE57: 8D 71 04
-@BE5A:
+OfficerTurn_SwitchRuler_CheckPhase:
   LDA $050F                             ; $BE5A: AD 0F 05
   CMP #$03                              ; $BE5D: C9 03
-  BEQ @BE67                             ; $BE5F: F0 06
+  BEQ @CallTrampoline                   ; $BE5F: F0 06
   STA $6F44                             ; $BE61: 8D 44 6F
-  JMP @BE6E                             ; $BE64: 4C 6E BE
-@BE67:
+  JMP @Continue                         ; $BE64: 4C 6E BE
+@CallTrampoline:
   LDY #$28                              ; $BE67: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $BE69: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word $A00C                               ; $BE6C: $0C A0
-@BE6E:
-; --- Code Region ---
+@Continue:
   LDA #$04                              ; $BE6E: A9 04
   STA $0501                             ; $BE70: 8D 01 05
   LDA #$07                              ; $BE73: A9 07
@@ -3965,24 +4096,23 @@ PhaseExit:
   .word @C178                               ; $BEA0: $78 C1
   .word @C1D1                               ; $BEA2: $D1 C1
   .word @C1EB                               ; $BEA4: $EB C1
-@BEA6:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Init (dispatch callback target)
   LDA $0087                             ; $BEA6: AD 87 00
-  BPL @BEB9                             ; $BEA9: 10 0E
+  BPL @Done                             ; $BEA9: 10 0E
   LDA #$00                              ; $BEAB: A9 00
   STA $6F8B                             ; $BEAD: 8D 8B 6F
   STA $6F8D                             ; $BEB0: 8D 8D 6F
   STA $6F8E                             ; $BEB3: 8D 8E 6F
   INC $0501                             ; $BEB6: EE 01 05
-@BEB9:
+@Done:
   RTS                                   ; $BEB9: 60
-@BEBA:  ; (dispatch callback target)
+; State_Select (dispatch callback target)
   LDA $6F8B                             ; $BEBA: AD 8B 6F
   CMP #$FF                              ; $BEBD: C9 FF
-  BNE @BF00                             ; $BEBF: D0 3F
+  BNE @Done                             ; $BEBF: D0 3F
   LDA $6F8F                             ; $BEC1: AD 8F 6F
   CMP #$03                              ; $BEC4: C9 03
-  BEQ @BEFD                             ; $BEC6: F0 35
+  BEQ @AdvanceState                     ; $BEC6: F0 35
   LDA $6F8C                             ; $BEC8: AD 8C 6F
   STA $0509                             ; $BECB: 8D 09 05
   TAY                                   ; $BECE: A8
@@ -4001,35 +4131,34 @@ PhaseExit:
   STA $6F42                             ; $BEED: 8D 42 6F
   JSR $D5EE                             ; $BEF0: 20 EE D5
   LDA $0508                             ; $BEF3: AD 08 05
-  BNE @BF00                             ; $BEF6: D0 08
+  BNE @Done                             ; $BEF6: D0 08
   LDA $007E                             ; $BEF8: AD 7E 00
-  BNE @BF00                             ; $BEFB: D0 03
-@BEFD:
+  BNE @Done                             ; $BEFB: D0 03
+@AdvanceState:
   INC $0501                             ; $BEFD: EE 01 05
 @BF00:
   RTS                                   ; $BF00: 60
-@BF01:  ; (dispatch callback target)
+; State_Dispatch (dispatch callback target)
   LDY $6F8F                             ; $BF01: AC 8F 6F
-  LDA $BF14,Y                           ; $BF04: B9 14 BF
+  LDA @DispatchTable,Y                  ; $BF04: B9 14 BF
   STA $0501                             ; $BF07: 8D 01 05
   CMP #$0C                              ; $BF0A: C9 0C
-  BNE @BF13                             ; $BF0C: D0 05
+  BNE @BF00                             ; $BF0C: D0 05
   LDA #$05                              ; $BF0E: A9 05
   JSR B1F_SetUI5                        ; $BF10: 20 93 F2
 @BF13:
   RTS                                   ; $BF13: 60
-; --- Data Region ---
+; Dispatch table for phase transitions
+@DispatchTable:
   .byte $03,$05,$08,$0C,$0D               ; $BF14: 03 05 08 0C 0D
-@BF19:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Execute (dispatch callback target)
   LDA $007E                             ; $BF19: AD 7E 00
   BEQ $BF1F                             ; $BF1C: F0 01
   RTS                                   ; $BF1E: 60
 ; --- Data Region ---
   .byte $A9,$00,$85,$12,$20,$CC,$D6,$A9,$00,$85,$00,$85,$01,$A9,$01,$85; $BF1F: A9 00 85 12 20 CC D6 A9 00 85 00 85 01 A9 01 85
   .byte $02,$AD,$8D,$6F,$29,$01,$D0,$04,$A9,$FF,$85,$02; $BF2F: 02 AD 8D 6F 29 01 D0 04 A9 FF 85 02
-@BF3B:
-; --- Code Region ---
+@ApplyMove:
   LDA $6F8D                             ; $BF3B: AD 8D 6F
   LSR                                   ; $BF3E: 4A
   AND #$01                              ; $BF3F: 29 01
@@ -4047,23 +4176,23 @@ PhaseExit:
   ADC $01                               ; $BF59: 65 01
   STA $0614,Y                           ; $BF5B: 99 14 06
   CMP #$0F                              ; $BF5E: C9 0F
-  BNE @BF78                             ; $BF60: D0 16
+  BNE @AdvanceState                     ; $BF60: D0 16
   LDA $01                               ; $BF62: A5 01
-  BMI @BF6F                             ; $BF64: 30 09
+  BMI @MoveUp                           ; $BF64: 30 09
   LDA $0614,Y                           ; $BF66: B9 14 06
   CLC                                   ; $BF69: 18
   ADC #$01                              ; $BF6A: 69 01
-  JMP @BF75                             ; $BF6C: 4C 75 BF
-@BF6F:
+  JMP @StoreCol                         ; $BF6C: 4C 75 BF
+@MoveUp:
   LDA $0614,Y                           ; $BF6F: B9 14 06
   SEC                                   ; $BF72: 38
   SBC #$01                              ; $BF73: E9 01
-@BF75:
+@StoreCol:
   STA $0614,Y                           ; $BF75: 99 14 06
 @BF78:
   INC $0501                             ; $BF78: EE 01 05
   RTS                                   ; $BF7B: 60
-@BF7C:  ; (dispatch callback target)
+; State_Confirm (dispatch callback target)
   LDA #$01                              ; $BF7C: A9 01
   STA $12                               ; $BF7E: 85 12
   JSR $D6CC                             ; $BF80: 20 CC D6
@@ -4076,7 +4205,7 @@ PhaseExit:
   LDA #$02                              ; $BF92: A9 02
   STA $0501                             ; $BF94: 8D 01 05
   RTS                                   ; $BF97: 60
-@BF98:  ; (dispatch callback target)
+; State_Animate (dispatch callback target)
   LDA $6F8D                             ; $BF98: AD 8D 6F
   STA $0509                             ; $BF9B: 8D 09 05
   LDY #$3D                              ; $BF9E: A0 3D
@@ -4090,28 +4219,27 @@ PhaseExit:
   INC $0501                                   ; $BFB0: EE 01 05
   LDA #$A0                                    ; $BFB3: A9 A0
   JMP B1F_SetUI5                              ; $BFB5: 4C 83 F2
-@BFB8:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Confirm (dispatch callback target)
   LDY $6F8D                             ; $BFB8: AC 8D 6F
   JSR $DC36                             ; $BFBB: 20 36 DC
   LDA $6F8C                             ; $BFBE: AD 8C 6F
   STA $0509                             ; $BFC1: 8D 09 05
   JSR TryAutoAdvance                       ; $BFC4: 20 DE A1
   JSR $DF27                             ; $BFC7: 20 27 DF
-  BCC @BFDB                             ; $BFCA: 90 0F
+  BCC @BF13                             ; $BFCA: 90 0F
   JSR $DC63                             ; $BFCC: 20 63 DC
   LDA $81                               ; $BFCF: A5 81
   AND #$01                              ; $BFD1: 29 01
-  BEQ @BFDB                             ; $BFD3: F0 06
+  BEQ @BF13                             ; $BFD3: F0 06
   INC $0501                             ; $BFD5: EE 01 05
   JSR B1F_PaletteCopyBuffer             ; $BFD8: 20 EE EC
 @BFDB:
   RTS                                   ; $BFDB: 60
-@BFDC:  ; (dispatch callback target)
+; State_Execute (dispatch callback target)
   LDY $6F8D                             ; $BFDC: AC 8D 6F
   JSR $DC36                             ; $BFDF: 20 36 DC
   LDA $0087                             ; $BFE2: AD 87 00
-  BPL @C003                             ; $BFE5: 10 1C
+  BPL @BFDB                             ; $BFE5: 10 1C
   LDA $6F8D                             ; $BFE7: AD 8D 6F
   STA $0509                             ; $BFEA: 8D 09 05
   LDA $6F8C                             ; $BFED: AD 8C 6F
@@ -4124,12 +4252,13 @@ PhaseExit:
   JMP $A3D2                             ; $C000: 4C D2 A3
 @C003:
   RTS                                   ; $C003: 60
-@C004:  ; (dispatch callback target)
+; State_Result (dispatch callback target)
+@C004:
   LDA $6F8D                             ; $C004: AD 8D 6F
   CMP #$0B                              ; $C007: C9 0B
-  BNE @C00E                             ; $C009: D0 03
+  BNE @ProcessResult                    ; $C009: D0 03
   JMP @C1AF                             ; $C00B: 4C AF C1
-@C00E:
+@ProcessResult:
   LDA $6F8E                             ; $C00E: AD 8E 6F
   STA $0509                             ; $C011: 8D 09 05
   LDY #$3D                              ; $C014: A0 3D
@@ -4163,8 +4292,7 @@ PhaseExit:
   .byte $0F                                  ; $C04F: 0F
   ASL $190F                                   ; $C050: 0E 0F 19
   .byte $14                                  ; $C053: 14
-@C054:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Next (dispatch callback target)
   INC $042D                             ; $C054: EE 2D 04
   LDA #$00                              ; $C057: A9 00
   STA $00A4                             ; $C059: 8D A4 00
@@ -4174,15 +4302,15 @@ PhaseExit:
   STA $0509                             ; $C065: 8D 09 05
   JSR TryAutoAdvance                       ; $C068: 20 DE A1
   JSR $DF27                             ; $C06B: 20 27 DF
-  BCC @C07C                             ; $C06E: 90 0C
+  BCC @C003                             ; $C06E: 90 0C
   JSR $DC63                             ; $C070: 20 63 DC
   LDA $81                               ; $C073: A5 81
   AND #$03                              ; $C075: 29 03
-  BEQ @C07C                             ; $C077: F0 03
+  BEQ @C003                             ; $C077: F0 03
   INC $0501                             ; $C079: EE 01 05
 @C07C:
   RTS                                   ; $C07C: 60
-@C07D:  ; (dispatch callback target)
+; State_ShowResult (dispatch callback target)
   LDY $6F8E                             ; $C07D: AC 8E 6F
   JSR $DC36                             ; $C080: 20 36 DC
   LDA $6F8D                             ; $C083: AD 8D 6F
@@ -4202,47 +4330,47 @@ PhaseExit:
   LDA #$0B                              ; $C0AA: A9 0B
   STA $0501                             ; $C0AC: 8D 01 05
   LDA $0544                             ; $C0AF: AD 44 05
-  BEQ @C0BE                             ; $C0B2: F0 0A
+  BEQ @ShowMsg                          ; $C0B2: F0 0A
   LDA #$03                              ; $C0B4: A9 03
   STA $00A4                             ; $C0B6: 8D A4 00
   LDA #$A2                              ; $C0B9: A9 A2
   JMP B1F_SetUI2                        ; $C0BB: 4C 83 F2
-@C0BE:
+@ShowMsg:
   LDA #$04                              ; $C0BE: A9 04
   STA $00A4                             ; $C0C0: 8D A4 00
   LDA $0543                             ; $C0C3: AD 43 05
   AND #$0F                              ; $C0C6: 29 0F
   TAY                                   ; $C0C8: A8
   CPY #$08                              ; $C0C9: C0 08
-  BEQ @C0FB                             ; $C0CB: F0 2E
+  BEQ @ShowFullMsg                      ; $C0CB: F0 2E
   CPY #$01                              ; $C0CD: C0 01
-  BEQ @C0E1                             ; $C0CF: F0 10
+  BEQ @CheckPending                     ; $C0CF: F0 10
   CPY #$09                              ; $C0D1: C0 09
-  BNE @C0F5                             ; $C0D3: D0 20
+  BNE @ShowCancelMsg                    ; $C0D3: D0 20
   LDA $042C                             ; $C0D5: AD 2C 04
-  BNE @C0E1                             ; $C0D8: D0 07
+  BNE @CheckPending                     ; $C0D8: D0 07
   LDA $042D                             ; $C0DA: AD 2D 04
-  BNE @C0E1                             ; $C0DD: D0 02
+  BNE @CheckPending                     ; $C0DD: D0 02
   LDY #$01                              ; $C0DF: A0 01
-@C0E1:
+@CheckPending:
   LDA $0432                             ; $C0E1: AD 32 04
   CMP #$FF                              ; $C0E4: C9 FF
-  BEQ @C0F5                             ; $C0E6: F0 0D
+  BEQ @ShowCancelMsg                    ; $C0E6: F0 0D
   STA $042C                             ; $C0E8: 8D 2C 04
   LDA #$0F                              ; $C0EB: A9 0F
   STA $0501                             ; $C0ED: 8D 01 05
   LDA #$4E                              ; $C0F0: A9 4E
   JMP B1F_SetUI5                        ; $C0F2: 4C 93 F2
-@C0F5:
-  LDA $C100,Y                           ; $C0F5: B9 00 C1
+@ShowCancelMsg:
+  LDA @CancelMsgTable,Y                 ; $C0F5: B9 00 C1
   JMP B1F_SetUI2                        ; $C0F8: 4C 83 F2
-@C0FB:
+@ShowFullMsg:
   LDA #$B7                              ; $C0FB: A9 B7
   JMP B1F_SetUI5                        ; $C0FD: 4C 93 F2
-; --- Data Region ---
+; Cancel message IDs indexed by action type
+@CancelMsgTable:
   .byte $A3,$A4,$A5,$A3,$A3,$A6,$A3,$A3,$B7,$4F,$A5,$A3,$A3,$A3,$A3,$B6; $C100: A3 A4 A5 A3 A3 A6 A3 A3 B7 4F A5 A3 A3 A3 A3 B6
-@C110:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Cancel (dispatch callback target)
   LDY $6F8E                             ; $C110: AC 8E 6F
   JSR $DC36                             ; $C113: 20 36 DC
   LDA $6F8C                             ; $C116: AD 8C 6F
@@ -4253,7 +4381,7 @@ PhaseExit:
   JSR $DC63                             ; $C124: 20 63 DC
   LDA $81                               ; $C127: A5 81
   AND #$03                              ; $C129: 29 03
-  BEQ @C13A                             ; $C12B: F0 0D
+  BEQ @C07C                             ; $C12B: F0 0D
   JSR FinishSequence                       ; $C12D: 20 F7 A1
   LDA #$05                              ; $C130: A9 05
   JSR B1F_SetUI5                        ; $C132: 20 93 F2
@@ -4261,18 +4389,18 @@ PhaseExit:
   STA $0501                             ; $C137: 8D 01 05
 @C13A:
   RTS                                   ; $C13A: 60
-@C13B:  ; (dispatch callback target)
+; State_Reset (dispatch callback target)
   JSR $DF27                             ; $C13B: 20 27 DF
   BCC @C13A                             ; $C13E: 90 FA
   LDA $6F8C                             ; $C140: AD 8C 6F
   STA $0509                             ; $C143: 8D 09 05
   JMP $BDC0                             ; $C146: 4C C0 BD
-@C149:  ; (dispatch callback target)
+; State_Select (dispatch callback target)
   LDY #$00                              ; $C149: A0 00
   LDA $0504                             ; $C14B: AD 04 05
-  BMI @C152                             ; $C14E: 30 02
+  BMI @StoreSlot                        ; $C14E: 30 02
   LDY #$0A                              ; $C150: A0 0A
-@C152:
+@StoreSlot:
   TYA                                   ; $C152: 98
   STA $0509                             ; $C153: 8D 09 05
   LDY #$3D                              ; $C156: A0 3D
@@ -4289,8 +4417,7 @@ PhaseExit:
   INC $0501                                   ; $C170: EE 01 05
   LDA #$BD                                    ; $C173: A9 BD
   JMP B1F_SetUI5                              ; $C175: 4C 83 F2
-@C178:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Confirm (dispatch callback target)
   LDA #$00                              ; $C178: A9 00
   STA $00A4                             ; $C17A: 8D A4 00
   LDY $050A                             ; $C17D: AC 0A 05
@@ -4301,7 +4428,7 @@ PhaseExit:
   JSR $DC63                             ; $C18B: 20 63 DC
   LDA $81                               ; $C18E: A5 81
   AND #$03                              ; $C190: 29 03
-  BEQ @C1AE                             ; $C192: F0 1A
+  BEQ @C13A                             ; $C192: F0 1A
   LDA #$00                              ; $C194: A9 00
   STA $12                               ; $C196: 85 12
   JSR $D6CC                             ; $C198: 20 CC D6
@@ -4310,12 +4437,12 @@ PhaseExit:
   JSR $BC2A                             ; $C1A1: 20 2A BC
   LDA #$05                              ; $C1A4: A9 05
   JSR B1F_SetUI5                        ; $C1A6: 20 93 F2
-@C1A9:  ; (dispatch callback target)
+; State_Advance (dispatch callback target)
   LDA #$10                              ; $C1A9: A9 10
   STA $0501                             ; $C1AB: 8D 01 05
 @C1AE:
   RTS                                   ; $C1AE: 60
-@C1AF:
+@ExecuteAction:
   LDA $6F8D                             ; $C1AF: AD 8D 6F
   STA $0543                             ; $C1B2: 8D 43 05
   LDA $6F8C                             ; $C1B5: AD 8C 6F
@@ -4327,24 +4454,24 @@ PhaseExit:
   STA $12                               ; $C1C6: 85 12
   JSR $D6CC                             ; $C1C8: 20 CC D6
   JSR FinishSequence                       ; $C1CB: 20 F7 A1
-  JMP @C1F0                             ; $C1CE: 4C F0 C1
-@C1D1:  ; (dispatch callback target)
+  JMP @ClearState                       ; $C1CE: 4C F0 C1
+; State_Cancel (dispatch callback target)
   JSR $DF27                             ; $C1D1: 20 27 DF
-  BCC @C1EA                             ; $C1D4: 90 14
+  BCC @C1AE                             ; $C1D4: 90 14
   JSR $DC63                             ; $C1D6: 20 63 DC
   LDA $81                               ; $C1D9: A5 81
   AND #$03                              ; $C1DB: 29 03
-  BEQ @C1EA                             ; $C1DD: F0 0B
+  BEQ @C1AE                             ; $C1DD: F0 0B
   JSR FinishSequence                       ; $C1DF: 20 F7 A1
   LDA #$05                              ; $C1E2: A9 05
   JSR B1F_SetUI5                        ; $C1E4: 20 93 F2
   INC $0501                             ; $C1E7: EE 01 05
 @C1EA:
   RTS                                   ; $C1EA: 60
-@C1EB:  ; (dispatch callback target)
+; State_Exit (dispatch callback target)
   JSR $DF27                             ; $C1EB: 20 27 DF
-  BCC @C1FB                             ; $C1EE: 90 0B
-@C1F0:
+  BCC @C1EA                             ; $C1EE: 90 0B
+@ClearState:
   LDA #$00                              ; $C1F0: A9 00
   STA $0500                             ; $C1F2: 8D 00 05
   STA $0501                             ; $C1F5: 8D 01 05
@@ -4877,8 +5004,9 @@ Loc_C605:
   .byte $0A,$10,$14,$18,$1C,$20,$23,$25,$28,$2A,$2A,$2A,$2A,$14,$1A,$20; $C606: 0A 10 14 18 1C 20 23 25 28 2A 2A 2A 2A 14 1A 20
   .byte $24,$2A,$2E,$33,$35,$3A,$3C       ; $C616: 24 2A 2E 33 35 3A 3C
 Loc_C61D:
+; --- Data Region ---
+  .byte $3C,$3C,$3C                       ; $C61D: 3C 3C 3C
 ; --- Code Region ---
-  NOP $3C3C,X                           ; $C61D: 3C 3C 3C
   LDA #$00                              ; $C620: A9 00
   STA $051A                             ; $C622: 8D 1A 05
   STA $051B                             ; $C625: 8D 1B 05
@@ -4947,74 +5075,73 @@ Loc_C688:
   .word @C6AC                               ; $C699: $AC C6
   .word @C6B9                               ; $C69B: $B9 C6
   .word @C6BC                               ; $C69D: $BC C6
-@C69F:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Init (dispatch callback target)
   LDA $0514                             ; $C69F: AD 14 05
   STA $10                               ; $C6A2: 85 10
   LDA #$01                              ; $C6A4: A9 01
   STA $0470                             ; $C6A6: 8D 70 04
-@C6A9:  ; (dispatch callback target)
-  JMP @C6EA                             ; $C6A9: 4C EA C6
-@C6AC:  ; (dispatch callback target)
+; State_Select (dispatch callback target)
+  JMP @SetupTransfer                    ; $C6A9: 4C EA C6
+@State_Menu:  ; (dispatch callback target)
   LDA $0516                             ; $C6AC: AD 16 05
   STA $10                               ; $C6AF: 85 10
   LDA #$02                              ; $C6B1: A9 02
   STA $0470                             ; $C6B3: 8D 70 04
-  JMP @C6EA                             ; $C6B6: 4C EA C6
-@C6B9:  ; (dispatch callback target)
+  JMP @SetupTransfer                    ; $C6B6: 4C EA C6
+; State_Exit (dispatch callback target)
   JMP ResetToIdle                          ; $C6B9: 4C 0C A2
-@C6BC:  ; (dispatch callback target)
+; State_Cancel (dispatch callback target)
   JSR $DF27                             ; $C6BC: 20 27 DF
-  BCC @C6DF                             ; $C6BF: 90 1E
+  BCC @Done                             ; $C6BF: 90 1E
   JSR $DC63                             ; $C6C1: 20 63 DC
   LDA $81                               ; $C6C4: A5 81
   AND #$01                              ; $C6C6: 29 01
-  BEQ @C6DF                             ; $C6C8: F0 15
+  BEQ @Done                             ; $C6C8: F0 15
   LDA $042D                             ; $C6CA: AD 2D 04
   CMP #$FF                              ; $C6CD: C9 FF
-  BNE @C6E0                             ; $C6CF: D0 0F
+  BNE @ShowCancelUI                     ; $C6CF: D0 0F
   JSR B1F_BankPpuInit                   ; $C6D1: 20 7F E5
   LDA #$1D                              ; $C6D4: A9 1D
   JSR B1F_SoundWrapperA                 ; $C6D6: 20 73 E6
   LDA $0470                             ; $C6D9: AD 70 04
   STA $0501                             ; $C6DC: 8D 01 05
-@C6DF:
+@Done:
   RTS                                   ; $C6DF: 60
-@C6E0:
+@ShowCancelUI:
   LDA #$FF                              ; $C6E0: A9 FF
   STA $042D                             ; $C6E2: 8D 2D 04
   LDA #$4B                              ; $C6E5: A9 4B
   JMP B1F_SetUI5                        ; $C6E7: 4C 93 F2
-@C6EA:
+@SetupTransfer:
   LDY #$00                              ; $C6EA: A0 00
   LDA $10                               ; $C6EC: A5 10
   CMP $0560                             ; $C6EE: CD 60 05
-  BEQ @C6F5                             ; $C6F1: F0 02
+  BEQ @LoadSlot                         ; $C6F1: F0 02
   LDY #$01                              ; $C6F3: A0 01
-@C6F5:
+@LoadSlot:
   LDA $052E,Y                           ; $C6F5: B9 2E 05
   STA $11                               ; $C6F8: 85 11
   LDA $052C,Y                           ; $C6FA: B9 2C 05
   STA $12                               ; $C6FD: 85 12
   LDA $10                               ; $C6FF: A5 10
   STA $042C                             ; $C701: 8D 2C 04
-  JSR @C75B                             ; $C704: 20 5B C7
+  JSR @FindOfficer                      ; $C704: 20 5B C7
   CPY #$FF                              ; $C707: C0 FF
-  BEQ @C712                             ; $C709: F0 07
+  BEQ @AdvanceState                     ; $C709: F0 07
   LDA $6FA1,Y                           ; $C70B: B9 A1 6F
   CMP #$FF                              ; $C70E: C9 FF
-  BEQ @C716                             ; $C710: F0 04
-@C712:
+  BEQ @ProcessTransfer                  ; $C710: F0 04
+@AdvanceState:
   INC $0501                             ; $C712: EE 01 05
   RTS                                   ; $C715: 60
-@C716:
+@ProcessTransfer:
   LDA $042C                             ; $C716: AD 2C 04
   JSR B1F_GetOfficerRecordAddr          ; $C719: 20 D7 F2
   LDY #$0B                              ; $C71C: A0 0B
   LDA ($00),Y                           ; $C71E: B1 00
   AND #$F0                              ; $C720: 29 F0
   CMP $12                               ; $C722: C5 12
-  BEQ @C712                             ; $C724: F0 EC
+  BEQ @AdvanceState                     ; $C724: F0 EC
   LDY #$01                              ; $C726: A0 01
   LDA ($00),Y                           ; $C728: B1 00
   SEC                                   ; $C72A: 38
@@ -5035,32 +5162,31 @@ Loc_C688:
   JSR $E68B                                   ; $C74C: 20 8B E6
   LDA #$4A                                    ; $C74F: A9 4A
   LDY $042F                                   ; $C751: AC 2F 04
-  BNE @C758                                   ; $C754: D0 02
+  BNE @ShowUI                           ; $C754: D0 02
   LDA #$4D                                    ; $C756: A9 4D
-@C758:
-; --- Code Region ---
+@ShowUI:
   JMP B1F_SetUI5                        ; $C758: 4C 93 F2
-@C75B:
+@FindOfficer:
   LDY #$13                              ; $C75B: A0 13
-@C75D:
+@ScanLoop:
   CMP $0664,Y                           ; $C75D: D9 64 06
-  BEQ @C765                             ; $C760: F0 03
+  BEQ @Done                             ; $C760: F0 03
   DEY                                   ; $C762: 88
-  BPL @C75D                             ; $C763: 10 F8
+  BPL @ScanLoop                         ; $C763: 10 F8
 @C765:
   RTS                                   ; $C765: 60
-@C766:
+@TransferBoth:
   JSR $DB03                             ; $C766: 20 03 DB
   LDA $0514                             ; $C769: AD 14 05
-  JSR @C75B                             ; $C76C: 20 5B C7
+  JSR @FindOfficer                      ; $C76C: 20 5B C7
   LDA $0515                             ; $C76F: AD 15 05
-  JSR @C782                             ; $C772: 20 82 C7
+  JSR @DispatchAction                   ; $C772: 20 82 C7
   LDA $0516                             ; $C775: AD 16 05
-  JSR @C75B                             ; $C778: 20 5B C7
+  JSR @FindOfficer                      ; $C778: 20 5B C7
   LDA $0517                             ; $C77B: AD 17 05
-  JSR @C782                             ; $C77E: 20 82 C7
+  JSR @DispatchAction                   ; $C77E: 20 82 C7
   RTS                                   ; $C781: 60
-@C782:
+@DispatchAction:
   AND #$07                              ; $C782: 29 07
   JSR B1F_CallbackDispatcher            ; $C784: 20 DE EA
 ; --- CallbackDispatcher table (8 entries) ---
@@ -5071,22 +5197,21 @@ Loc_C688:
   .word @C81F                               ; $C78F: $1F C8
   .word @C81F                               ; $C791: $1F C8
   .word @C81F                               ; $C793: $1F C8
-  .word @C81F                               ; $C795: $1F C8
-@C797:  ; (dispatch callback target)
-; --- Code Region ---
+  .word @Action_Toggle                      ; $C795: $1F C8
+@Action_Nop:  ; (dispatch callback target)
   RTS                                   ; $C797: 60
-@C798:  ; (dispatch callback target)
+@Action_Nop2:  ; (dispatch callback target)
   RTS                                   ; $C798: 60
-@C799:  ; (dispatch callback target)
+@Action_Transfer:  ; (dispatch callback target)
   TYA                                   ; $C799: 98
   PHA                                   ; $C79A: 48
   LDA $0664,Y                           ; $C79B: B9 64 06
   STA $0B                               ; $C79E: 85 0B
   LDA $0514                             ; $C7A0: AD 14 05
   CMP $0664,Y                           ; $C7A3: D9 64 06
-  BNE @C7AB                             ; $C7A6: D0 03
+  BNE @StoreTarget                      ; $C7A6: D0 03
   LDA $0516                             ; $C7A8: AD 16 05
-@C7AB:
+@StoreTarget:
   STA $0A                               ; $C7AB: 85 0A
   LDY #$2E                              ; $C7AD: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $C7AF: 20 07 EE
@@ -5105,10 +5230,9 @@ Loc_C688:
   PLA                                         ; $C7C6: 68
   TAY                                         ; $C7C7: A8
   LDA $0628,Y                                 ; $C7C8: B9 28 06
-  BPL @C7D0                                   ; $C7CB: 10 03
-  JMP @C7D0                                   ; $C7CD: 4C D0 C7
-@C7D0:
-; --- Code Region ---
+  BPL @CallTrampoline                   ; $C7CB: 10 03
+  JMP @CallTrampoline                   ; $C7CD: 4C D0 C7
+@CallTrampoline:
   STY $0000                             ; $C7D0: 8C 00 00
   LDY #$28                              ; $C7D3: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $C7D5: 20 07 EE
@@ -5116,33 +5240,32 @@ Loc_C688:
   .word $A02A                               ; $C7D8: $2A A0
   RTS                                         ; $C7DA: 60
   LDA $0628,Y                                 ; $C7DB: B9 28 06
-  BPL @C7F9                                   ; $C7DE: 10 19
+  BPL @ScanList2                        ; $C7DE: 10 19
   LDX #$00                                    ; $C7E0: A2 00
-@C7E2:
-; --- Code Region ---
+@ScanLoop1:
   LDA $6F47,X                           ; $C7E2: BD 47 6F
   CMP #$FF                              ; $C7E5: C9 FF
-  BEQ @C7ED                             ; $C7E7: F0 04
+  BEQ @AddToList1                       ; $C7E7: F0 04
   INX                                   ; $C7E9: E8
-  JMP @C7E2                             ; $C7EA: 4C E2 C7
-@C7ED:
+  JMP @ScanLoop1                        ; $C7EA: 4C E2 C7
+@AddToList1:
   LDA $0664,Y                           ; $C7ED: B9 64 06
   STA $6F47,X                           ; $C7F0: 9D 47 6F
   INC $0520                             ; $C7F3: EE 20 05
-  JMP @C80F                             ; $C7F6: 4C 0F C8
-@C7F9:
+  JMP @Continue                         ; $C7F6: 4C 0F C8
+@ScanList2:
   LDX #$00                              ; $C7F9: A2 00
-@C7FB:
+@ScanLoop2:
   LDA $6F5B,X                           ; $C7FB: BD 5B 6F
   CMP #$FF                              ; $C7FE: C9 FF
-  BEQ @C806                             ; $C800: F0 04
+  BEQ @AddToList2                       ; $C800: F0 04
   INX                                   ; $C802: E8
-  JMP @C7FB                             ; $C803: 4C FB C7
-@C806:
+  JMP @ScanLoop2                        ; $C803: 4C FB C7
+@AddToList2:
   LDA $0664,Y                           ; $C806: B9 64 06
   STA $6F5B,X                           ; $C809: 9D 5B 6F
   INC $0521                             ; $C80C: EE 21 05
-@C80F:
+@Continue:
   STA $20                               ; $C80F: 85 20
   STY $12                               ; $C811: 84 12
   LDY #$2A                              ; $C813: A0 2A
@@ -5150,29 +5273,28 @@ Loc_C688:
 ; --- BankedCallbackTrampoline target ---
   .word $A00C                               ; $C818: $0C A0
   LDY $12                                     ; $C81A: A4 12
-  JMP @C7D0                                   ; $C81C: 4C D0 C7
-@C81F:  ; (dispatch callback target)
-; --- Code Region ---
+  JMP @CallTrampoline                   ; $C81C: 4C D0 C7
+@Action_Toggle:  ; (dispatch callback target)
   JSR @C886                             ; $C81F: 20 86 C8
   LDA $0628,Y                           ; $C822: B9 28 06
   EOR #$80                              ; $C825: 49 80
   STA $0628,Y                           ; $C827: 99 28 06
   LDA #$FF                              ; $C82A: A9 FF
   CPY $04D8                             ; $C82C: CC D8 04
-  BNE @C834                             ; $C82F: D0 03
+  BNE @CheckSlot2                       ; $C82F: D0 03
   STA $04D8                             ; $C831: 8D D8 04
-@C834:
+@CheckSlot2:
   CPY $04DC                             ; $C834: CC DC 04
-  BNE @C83C                             ; $C837: D0 03
+  BNE @CheckAlly                        ; $C837: D0 03
   STA $04DC                             ; $C839: 8D DC 04
-@C83C:
+@CheckAlly:
   LDA $6FA1,Y                           ; $C83C: B9 A1 6F
   CMP #$FF                              ; $C83F: C9 FF
-  BNE @C84B                             ; $C841: D0 08
+  BNE @ClearAlly                        ; $C841: D0 08
   LDA #$04                              ; $C843: A9 04
   STA $6FA1,Y                           ; $C845: 99 A1 6F
-  JMP @C850                             ; $C848: 4C 50 C8
-@C84B:
+  JMP @Continue                         ; $C848: 4C 50 C8
+@ClearAlly:
   LDA #$FF                              ; $C84B: A9 FF
   STA $6FA1,Y                           ; $C84D: 99 A1 6F
 @C850:
@@ -5189,9 +5311,9 @@ Loc_C688:
   LDX $10                               ; $C862: A6 10
   LDY $12                               ; $C864: A4 12
   LDA $0628,Y                           ; $C866: B9 28 06
-  BPL @C86D                             ; $C869: 10 02
+  BPL @GetRuler                         ; $C869: 10 02
   LDX $11                               ; $C86B: A6 11
-@C86D:
+@GetRuler:
   TXA                                   ; $C86D: 8A
   JSR B1F_GetRulerDataPtr               ; $C86E: 20 68 F3
   LDY #$00                              ; $C871: A0 00
@@ -5205,13 +5327,12 @@ Loc_C688:
 ; --- BankedCallbackTrampoline target ---
   .word $A006                               ; $C883: $06 A0
   RTS                                         ; $C885: 60
-@C886:
-; --- Code Region ---
+@UpdateStats:
   TYA                                   ; $C886: 98
   TAX                                   ; $C887: AA
   PHA                                   ; $C888: 48
   LDA $0628,X                           ; $C889: BD 28 06
-  BMI @C8D6                             ; $C88C: 30 48
+  BMI @SubtractStats                    ; $C88C: 30 48
   DEC $051E                             ; $C88E: CE 1E 05
   LDA $0664,X                           ; $C891: BD 64 06
   JSR B1F_GetOfficerRecordAddr          ; $C894: 20 D7 F2
@@ -5229,11 +5350,11 @@ Loc_C688:
   LDA $051B                             ; $C8AD: AD 1B 05
   SBC $03                               ; $C8B0: E5 03
   STA $051B                             ; $C8B2: 8D 1B 05
-  BCS @C8BF                             ; $C8B5: B0 08
+  BCS @AddStats                         ; $C8B5: B0 08
   LDA #$00                              ; $C8B7: A9 00
   STA $051A                             ; $C8B9: 8D 1A 05
   STA $051B                             ; $C8BC: 8D 1B 05
-@C8BF:
+@AddStats:
   INC $051F                             ; $C8BF: EE 1F 05
   LDA $051C                             ; $C8C2: AD 1C 05
   CLC                                   ; $C8C5: 18
@@ -5242,8 +5363,8 @@ Loc_C688:
   LDA $051D                             ; $C8CB: AD 1D 05
   ADC $03                               ; $C8CE: 65 03
   STA $051D                             ; $C8D0: 8D 1D 05
-  JMP @C91B                             ; $C8D3: 4C 1B C9
-@C8D6:
+  JMP @C765                             ; $C8D3: 4C 1B C9
+@SubtractStats:
   DEC $051F                             ; $C8D6: CE 1F 05
   LDA $0664,X                           ; $C8D9: BD 64 06
   JSR B1F_GetOfficerRecordAddr          ; $C8DC: 20 D7 F2
@@ -5261,12 +5382,12 @@ Loc_C688:
   LDA $051D                             ; $C8F5: AD 1D 05
   SBC $03                               ; $C8F8: E5 03
   STA $051D                             ; $C8FA: 8D 1D 05
-  BCS @C907                             ; $C8FD: B0 08
+  BCS @AddStats2                        ; $C8FD: B0 08
   LDA #$00                              ; $C8FF: A9 00
-@C901:  ; (dispatch callback target)
+@ClampZero:  ; (dispatch callback target)
   STA $051C                             ; $C901: 8D 1C 05
   STA $051D                             ; $C904: 8D 1D 05
-@C907:
+@AddStats2:
   INC $051E                             ; $C907: EE 1E 05
   LDA $051A                             ; $C90A: AD 1A 05
   CLC                                   ; $C90D: 18
@@ -5279,10 +5400,10 @@ Loc_C688:
   PLA                                   ; $C91B: 68
   TAY                                   ; $C91C: A8
   RTS                                   ; $C91D: 60
-@C91E:
+@UpdateStats2:
   LDX $0509                             ; $C91E: AE 09 05
   LDA $0628,X                           ; $C921: BD 28 06
-  BMI @C95A                             ; $C924: 30 34
+  BMI @SubtractStats2                   ; $C924: 30 34
   DEC $051E                             ; $C926: CE 1E 05
   LDA $0664,X                           ; $C929: BD 64 06
   JSR B1F_GetOfficerRecordAddr          ; $C92C: 20 D7 F2
@@ -5300,12 +5421,12 @@ Loc_C688:
   LDA $051B                             ; $C945: AD 1B 05
   SBC $03                               ; $C948: E5 03
   STA $051B                             ; $C94A: 8D 1B 05
-  BCS @C98B                             ; $C94D: B0 3C
+  BCS @C91B                             ; $C94D: B0 3C
   LDA #$00                              ; $C94F: A9 00
   STA $051A                             ; $C951: 8D 1A 05
   STA $051B                             ; $C954: 8D 1B 05
-  JMP @C98B                             ; $C957: 4C 8B C9
-@C95A:
+  JMP @C91B                             ; $C957: 4C 8B C9
+@SubtractStats2:
   DEC $051F                             ; $C95A: CE 1F 05
   LDA $0664,X                           ; $C95D: BD 64 06
   JSR B1F_GetOfficerRecordAddr          ; $C960: 20 D7 F2
@@ -5323,7 +5444,7 @@ Loc_C688:
   LDA $051D                             ; $C979: AD 1D 05
   SBC $03                               ; $C97C: E5 03
   STA $051D                             ; $C97E: 8D 1D 05
-  BCS @C98B                             ; $C981: B0 08
+  BCS @C91B                             ; $C981: B0 08
   LDA #$00                              ; $C983: A9 00
   STA $051C                             ; $C985: 8D 1C 05
   STA $051D                             ; $C988: 8D 1D 05
@@ -5342,15 +5463,14 @@ Loc_C688:
   .word @C9FE                               ; $C998: $FE C9
   .word @CA13                               ; $C99A: $13 CA
   .word @CA2F                               ; $C99C: $2F CA
-@C99E:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Init (dispatch callback target)
   JSR B1F_BankPpuInit                   ; $C99E: 20 7F E5
   LDA #$D5                              ; $C9A1: A9 D5
   JSR B1F_SetUI5                        ; $C9A3: 20 93 F2
   JSR $CAF8                             ; $C9A6: 20 F8 CA
   INC $0501                             ; $C9A9: EE 01 05
   RTS                                   ; $C9AC: 60
-@C9AD:  ; (dispatch callback target)
+; State_Select (dispatch callback target)
   JSR $DF27                             ; $C9AD: 20 27 DF
   BCC @C9C2                             ; $C9B0: 90 10
   LDA $007E                             ; $C9B2: AD 7E 00
@@ -5359,11 +5479,11 @@ Loc_C688:
   JSR @CA53                             ; $C9BA: 20 53 CA
   LDA #$04                              ; $C9BD: A9 04
   JSR B1F_SetUI4                        ; $C9BF: 20 8B F2
-@C9C2:
+@Done:
   RTS                                   ; $C9C2: 60
-@C9C3:  ; (dispatch callback target)
+@State_Menu:  ; (dispatch callback target)
   LDA $007E                             ; $C9C3: AD 7E 00
-  BNE @C9C2                             ; $C9C6: D0 FA
+  BNE @Done                             ; $C9C6: D0 FA
   LDA #$E1                              ; $C9C8: A9 E1
   STA $E6                               ; $C9CA: 85 E6
   LDA #$E1                              ; $C9CC: A9 E1
@@ -5378,55 +5498,55 @@ Loc_C688:
   STA $B5                               ; $C9DE: 85 B5
   LDA #$00                              ; $C9E0: A9 00
   LDX #$1F                              ; $C9E2: A2 1F
-@C9E4:
+@ClearLoop:
   STA $044C,X                           ; $C9E4: 9D 4C 04
   DEX                                   ; $C9E7: CA
-  BPL @C9E4                             ; $C9E8: 10 FA
+  BPL @ClearLoop                        ; $C9E8: 10 FA
   LDA #$00                              ; $C9EA: A9 00
   STA $8E                               ; $C9EC: 85 8E
   LDA #$50                              ; $C9EE: A9 50
   STA $90                               ; $C9F0: 85 90
   INC $0501                             ; $C9F2: EE 01 05
-  JSR @CA41                             ; $C9F5: 20 41 CA
+  JSR @SetupPpu                         ; $C9F5: 20 41 CA
   LDA #$18                              ; $C9F8: A9 18
   JSR B1F_SoundWrapperC                 ; $C9FA: 20 83 E6
   RTS                                   ; $C9FD: 60
-@C9FE:  ; (dispatch callback target)
+; State_Confirm (dispatch callback target)
   JSR @CC29                             ; $C9FE: 20 29 CC
   JSR $DF27                             ; $CA01: 20 27 DF
-  BCC @CA12                             ; $CA04: 90 0C
+  BCC @Done                             ; $CA04: 90 0C
   JSR $DC63                             ; $CA06: 20 63 DC
   LDA $81                               ; $CA09: A5 81
   AND #$01                              ; $CA0B: 29 01
-  BEQ @CA12                             ; $CA0D: F0 03
+  BEQ @Done                             ; $CA0D: F0 03
   INC $0501                             ; $CA0F: EE 01 05
 @CA12:
   RTS                                   ; $CA12: 60
-@CA13:  ; (dispatch callback target)
+; State_Execute (dispatch callback target)
   JSR @CC29                             ; $CA13: 20 29 CC
-  JSR @CA51                             ; $CA16: 20 51 CA
-  BCC @CA26                             ; $CA19: 90 0B
+  JSR @ReturnSuccess                    ; $CA16: 20 51 CA
+  BCC @AdvanceState                     ; $CA19: 90 0B
   LDA #$0F                              ; $CA1B: A9 0F
   STA $0500                             ; $CA1D: 8D 00 05
   LDA #$00                              ; $CA20: A9 00
   STA $0501                             ; $CA22: 8D 01 05
   RTS                                   ; $CA25: 60
-@CA26:
+@AdvanceState:
   INC $0501                             ; $CA26: EE 01 05
   LDA #$D5                              ; $CA29: A9 D5
   JSR B1F_SetUI5                        ; $CA2B: 20 93 F2
   RTS                                   ; $CA2E: 60
-@CA2F:  ; (dispatch callback target)
+; State_Cancel (dispatch callback target)
   JSR @CC29                             ; $CA2F: 20 29 CC
   JSR $DF27                             ; $CA32: 20 27 DF
-  BCC @CA40                             ; $CA35: 90 09
+  BCC @CA12                             ; $CA35: 90 09
   LDA $81                               ; $CA37: A5 81
   AND #$01                              ; $CA39: 29 01
-  BEQ @CA40                             ; $CA3B: F0 03
+  BEQ @CA12                             ; $CA3B: F0 03
   DEC $0501                             ; $CA3D: CE 01 05
 @CA40:
   RTS                                   ; $CA40: 60
-@CA41:
+@SetupPpu:
   LDA #$E0                              ; $CA41: A9 E0
   STA $0310                             ; $CA43: 8D 10 03
   LDA #$DB                              ; $CA46: A9 DB
@@ -5434,10 +5554,10 @@ Loc_C688:
   LDA #$00                              ; $CA4B: A9 00
   STA $0300                             ; $CA4D: 8D 00 03
   RTS                                   ; $CA50: 60
-@CA51:
+@ReturnSuccess:
   SEC                                   ; $CA51: 38
   RTS                                   ; $CA52: 60
-@CA53:
+@BuildMsg:
   LDX #$00                              ; $CA53: A2 00
   LDA $0514                             ; $CA55: AD 14 05
   ASL                                   ; $CA58: 0A
@@ -5451,82 +5571,35 @@ Loc_C688:
   LDA $CA9A,Y                           ; $CA69: B9 9A CA
   STA $03                               ; $CA6C: 85 03
   LDY #$00                              ; $CA6E: A0 00
-@CA70:
+@CopyLoop1:
   LDA ($00),Y                           ; $CA70: B1 00
   STA $0380,X                           ; $CA72: 9D 80 03
   INX                                   ; $CA75: E8
   INY                                   ; $CA76: C8
   CPY #$0E                              ; $CA77: C0 0E
-  BCC @CA70                             ; $CA79: 90 F5
+  BCC @CopyLoop1                        ; $CA79: 90 F5
   LDY #$00                              ; $CA7B: A0 00
-@CA7D:
+@CopyLoop2:
   LDA ($02),Y                           ; $CA7D: B1 02
   STA $0380,X                           ; $CA7F: 9D 80 03
   INX                                   ; $CA82: E8
   INY                                   ; $CA83: C8
   CPY #$0F                              ; $CA84: C0 0F
-  BCC @CA7D                             ; $CA86: 90 F5
+  BCC @CopyLoop2                        ; $CA86: 90 F5
   LDA $007E                             ; $CA88: AD 7E 00
   ORA #$04                              ; $CA8B: 09 04
   STA $007E                             ; $CA8D: 8D 7E 00
   RTS                                   ; $CA90: 60
 ; --- Data Region ---
   .byte $A1,$CA,$AF,$CA,$BD,$CA,$BD,$CA,$DA,$CA,$CB,$CA,$E9; $CA91: A1 CA AF CA BD CA BD CA DA CA CB CA E9
-@CA9E:
-; --- Code Region ---
-  DEX                                   ; $CA9E: CA
-  SBC #$CA                              ; $CA9F: E9 CA
-  NOP $25                               ; $CAA1: 04 25
-  NOP                                   ; $CAA3: EA
-  CPX #$E1                              ; $CAA4: E0 E1
-  NOP #$E3                              ; $CAA6: E2 E3
-  NOP $26                               ; $CAA8: 04 26
-  ASL                                   ; $CAAA: 0A
-  BEQ @CA9E                             ; $CAAB: F0 F1
-  JAM                                   ; $CAAD: F2
-  ISB ($04),Y                           ; $CAAE: F3 04
-  AND $EA                               ; $CAB0: 25 EA
-  CPX $E5                               ; $CAB2: E4 E5
-  INC $E7                               ; $CAB4: E6 E7
-  NOP $26                               ; $CAB6: 04 26
-  ASL                                   ; $CAB8: 0A
-  NOP $F5,X                             ; $CAB9: F4 F5
-  INC $F7,X                             ; $CABB: F6 F7
-  NOP $25                               ; $CABD: 04 25
-  NOP                                   ; $CABF: EA
-  CPX $EEED                             ; $CAC0: EC ED EE
-  ISB $2604                             ; $CAC3: EF 04 26
-  ASL                                   ; $CAC6: 0A
-  NOP $FEFD,X                           ; $CAC7: FC FD FE
-  INC $2504,X                           ; $CACA: FE 04 25
-  SED                                   ; $CACD: F8
-  INX                                   ; $CACE: E8
-  SBC #$EA                              ; $CACF: E9 EA
-  SBC #$04                              ; $CAD1: EB 04
-  ROL $18                               ; $CAD3: 26 18
-  SED                                   ; $CAD5: F8
-  SBC $FBFA,Y                           ; $CAD6: F9 FA FB
-  ISB $2504,X                           ; $CAD9: FF 04 25
-  SED                                   ; $CADC: F8
-  CPX $E5                               ; $CADD: E4 E5
-  INC $E7                               ; $CADF: E6 E7
-  NOP $26                               ; $CAE1: 04 26
-  CLC                                   ; $CAE3: 18
-  NOP $F5,X                             ; $CAE4: F4 F5
-  INC $F7,X                             ; $CAE6: F6 F7
-  ISB $2504,X                           ; $CAE8: FF 04 25
-  SED                                   ; $CAEB: F8
-  CPX $EEED                             ; $CAEC: EC ED EE
-  ISB $2604                             ; $CAEF: EF 04 26
-  CLC                                   ; $CAF2: 18
-  NOP $FEFD,X                           ; $CAF3: FC FD FE
-  INC $20FF,X                           ; $CAF6: FE FF 20
-  ROR $ADCB                             ; $CAF9: 6E CB AD
-  NOP                                   ; $CAFC: 1A
-  ORA $8D                               ; $CAFD: 05 8D
-  SRE $AD04                             ; $CAFF: 4F 04 AD
-  SLO $8D05,Y                           ; $CB02: 1B 05 8D
-  BVC $CB0B                             ; $CB05: 50 04
+; Misdisassembled data region - should be .byte directives
+  .byte $CA,$E9,$CA,$04,$25,$EA,$E0,$E1,$E2,$E3,$04,$26,$0A,$F0,$F1,$F2; $CA9E: CA E9 CA 04 25 EA E0 E1 E2 E3 04 26 0A F0 F1 F2
+  .byte $04,$EA,$E4,$E5,$E6,$E7,$04,$26,$0A,$F4,$F5,$F6,$F7,$04,$25,$EA; $CAAE: 04 EA E4 E5 E6 E7 04 26 0A F4 F5 F6 F7 04 25 EA
+  .byte $EC,$ED,$EE,$EF,$04,$26,$0A,$FC,$FD,$FE,$FE,$04,$25,$F8,$E8,$E9; $CABE: EC ED EE EF 04 26 0A FC FD FE FE 04 25 F8 E8 E9
+  .byte $EA,$EB,$04,$26,$18,$F8,$F9,$FA,$FB,$FF,$04,$25,$F8,$E4,$E5,$E6; $CACE: EA EB 04 26 18 F8 F9 FA FB FF 04 25 F8 E4 E5 E6
+  .byte $E7,$04,$26,$18,$F4,$F5,$F6,$F7,$FF,$04,$25,$F8,$EC,$ED,$EE,$EF; $CADE: E7 04 26 18 F4 F5 F6 F7 FF 04 25 F8 EC ED EE EF
+  .byte $04,$26,$18,$FC,$FD,$FE,$FE,$FF,$20,$6E,$CB,$AD,$1A,$05,$8D,$4F; $CAEE: 04 26 18 FC FD FE FE FF 20 6E CB AD 1A 05 8D 4F
+  .byte $04,$AD,$1B,$05,$8D,$50,$04,$50,$04; $CAFE: 04 AD 1B 05 8D 50 04 50 04
   LDA #$00                              ; $CB07: A9 00
   STA $044E                             ; $CB09: 8D 4E 04
   STA $0451                             ; $CB0C: 8D 51 04
@@ -5545,30 +5618,30 @@ Loc_C688:
   STA $0457                             ; $CB32: 8D 57 04
   LDY #$00                              ; $CB35: A0 00
   LDX #$00                              ; $CB37: A2 00
-@CB39:
+@CountLoop1:
   LDA $6F47,Y                           ; $CB39: B9 47 6F
   CMP #$FF                              ; $CB3C: C9 FF
-  BEQ @CB41                             ; $CB3E: F0 01
+  BEQ @NextSlot1                        ; $CB3E: F0 01
   INX                                   ; $CB40: E8
-@CB41:
+@NextSlot1:
   INY                                   ; $CB41: C8
   CPY #$14                              ; $CB42: C0 14
-  BCC @CB39                             ; $CB44: 90 F3
+  BCC @CountLoop1                       ; $CB44: 90 F3
   STX $045B                             ; $CB46: 8E 5B 04
   LDX #$00                              ; $CB49: A2 00
   STX $045C                             ; $CB4B: 8E 5C 04
   STX $045D                             ; $CB4E: 8E 5D 04
   LDY #$00                              ; $CB51: A0 00
   LDX #$00                              ; $CB53: A2 00
-@CB55:
+@CountLoop2:
   LDA $6F5B,Y                           ; $CB55: B9 5B 6F
   CMP #$FF                              ; $CB58: C9 FF
-  BEQ @CB5D                             ; $CB5A: F0 01
+  BEQ @NextSlot2                        ; $CB5A: F0 01
   INX                                   ; $CB5C: E8
-@CB5D:
+@NextSlot2:
   INY                                   ; $CB5D: C8
   CPY #$14                              ; $CB5E: C0 14
-  BCC @CB55                             ; $CB60: 90 F3
+  BCC @CountLoop2                       ; $CB60: 90 F3
   STX $0458                             ; $CB62: 8E 58 04
   LDX #$00                              ; $CB65: A2 00
   STX $0459                             ; $CB67: 8E 59 04
@@ -5576,15 +5649,14 @@ Loc_C688:
   RTS                                   ; $CB6D: 60
 ; --- Data Region ---
   .byte $A9,$00,$85,$0A,$85,$0B,$85,$0C   ; $CB6E: A9 00 85 0A 85 0B 85 0C
-@CB76:
-; --- Code Region ---
+@ScanLoop1:
   TAY                                   ; $CB76: A8
   PHA                                   ; $CB77: 48
   LDA $0628,Y                           ; $CB78: B9 28 06
-  BMI @CB9B                             ; $CB7B: 30 1E
+  BMI @NextOfficer1                     ; $CB7B: 30 1E
   LDA $0664,Y                           ; $CB7D: B9 64 06
   CMP #$FF                              ; $CB80: C9 FF
-  BEQ @CB9B                             ; $CB82: F0 17
+  BEQ @NextOfficer1                     ; $CB82: F0 17
   JSR B1F_GetOfficerRecordAddr          ; $CB84: 20 D7 F2
   LDY #$08                              ; $CB87: A0 08
   LDA ($00),Y                           ; $CB89: B1 00
@@ -5597,12 +5669,12 @@ Loc_C688:
   ADC $0B                               ; $CB95: 65 0B
   STA $0B                               ; $CB97: 85 0B
   INC $0C                               ; $CB99: E6 0C
-@CB9B:
+@NextOfficer1:
   PLA                                   ; $CB9B: 68
   CLC                                   ; $CB9C: 18
   ADC #$01                              ; $CB9D: 69 01
   CMP #$14                              ; $CB9F: C9 14
-  BCC @CB76                             ; $CBA1: 90 D3
+  BCC @ScanLoop1                        ; $CBA1: 90 D3
   LDA $051A                             ; $CBA3: AD 1A 05
   SEC                                   ; $CBA6: 38
   SBC $0A                               ; $CBA7: E5 0A
@@ -5610,30 +5682,30 @@ Loc_C688:
   LDA $051B                             ; $CBAC: AD 1B 05
   SBC $0B                               ; $CBAF: E5 0B
   STA $051B                             ; $CBB1: 8D 1B 05
-  BCS @CBBE                             ; $CBB4: B0 08
+  BCS @ClampCount1                      ; $CBB4: B0 08
   LDA #$00                              ; $CBB6: A9 00
   STA $051A                             ; $CBB8: 8D 1A 05
   STA $051B                             ; $CBBB: 8D 1B 05
-@CBBE:
+@ClampCount1:
   LDA $051E                             ; $CBBE: AD 1E 05
   SEC                                   ; $CBC1: 38
   SBC $0C                               ; $CBC2: E5 0C
-  BCS @CBC8                             ; $CBC4: B0 02
+  BCS @StoreCount1                      ; $CBC4: B0 02
   LDA #$00                              ; $CBC6: A9 00
-@CBC8:
+@StoreCount1:
   STA $051E                             ; $CBC8: 8D 1E 05
   LDA #$00                              ; $CBCB: A9 00
   STA $0A                               ; $CBCD: 85 0A
   STA $0B                               ; $CBCF: 85 0B
   STA $0C                               ; $CBD1: 85 0C
-@CBD3:
+@ScanLoop2:
   TAY                                   ; $CBD3: A8
   PHA                                   ; $CBD4: 48
   LDA $0628,Y                           ; $CBD5: B9 28 06
-  BPL @CBF8                             ; $CBD8: 10 1E
+  BPL @NextOfficer2                     ; $CBD8: 10 1E
   LDA $0664,Y                           ; $CBDA: B9 64 06
   CMP #$FF                              ; $CBDD: C9 FF
-  BEQ @CBF8                             ; $CBDF: F0 17
+  BEQ @NextOfficer2                     ; $CBDF: F0 17
   JSR B1F_GetOfficerRecordAddr          ; $CBE1: 20 D7 F2
   LDY #$08                              ; $CBE4: A0 08
   LDA ($00),Y                           ; $CBE6: B1 00
@@ -5646,12 +5718,12 @@ Loc_C688:
   ADC $0B                               ; $CBF2: 65 0B
   STA $0B                               ; $CBF4: 85 0B
   INC $0C                               ; $CBF6: E6 0C
-@CBF8:
+@NextOfficer2:
   PLA                                   ; $CBF8: 68
   CLC                                   ; $CBF9: 18
   ADC #$01                              ; $CBFA: 69 01
   CMP #$14                              ; $CBFC: C9 14
-  BCC @CBD3                             ; $CBFE: 90 D3
+  BCC @ScanLoop2                        ; $CBFE: 90 D3
   LDA $051C                             ; $CC00: AD 1C 05
   SEC                                   ; $CC03: 38
   SBC $0A                               ; $CC04: E5 0A
@@ -5659,33 +5731,33 @@ Loc_C688:
   LDA $051D                             ; $CC09: AD 1D 05
   SBC $0B                               ; $CC0C: E5 0B
   STA $051D                             ; $CC0E: 8D 1D 05
-  BCS @CC1B                             ; $CC11: B0 08
+  BCS @ClampCount2                      ; $CC11: B0 08
   LDA #$00                              ; $CC13: A9 00
   STA $051C                             ; $CC15: 8D 1C 05
   STA $051D                             ; $CC18: 8D 1D 05
-@CC1B:
+@ClampCount2:
   LDA $051F                             ; $CC1B: AD 1F 05
   SEC                                   ; $CC1E: 38
   SBC $0C                               ; $CC1F: E5 0C
-  BCS @CC25                             ; $CC21: B0 02
+  BCS @StoreCount2                      ; $CC21: B0 02
   LDA #$00                              ; $CC23: A9 00
-@CC25:
+@StoreCount2:
   STA $051F                             ; $CC25: 8D 1F 05
   RTS                                   ; $CC28: 60
-@CC29:
+@CalcStats:
   LDY #$31                              ; $CC29: A0 31
   JSR B1F_SwitchBank8_B                 ; $CC2B: 20 5F F2
   LDA #$00                              ; $CC2E: A9 00
   STA $0A                               ; $CC30: 85 0A
   LDA $005E                             ; $CC32: AD 5E 00
   AND #$01                              ; $CC35: 29 01
-  BNE @CC3F                             ; $CC37: D0 06
+  BNE @SwapOrder                        ; $CC37: D0 06
   JSR @CC45                             ; $CC39: 20 45 CC
-  JMP @CC5A                             ; $CC3C: 4C 5A CC
-@CC3F:
-  JSR @CC5A                             ; $CC3F: 20 5A CC
-  JMP @CC45                             ; $CC42: 4C 45 CC
-@CC45:
+  JMP @CalcLowNibble                    ; $CC3C: 4C 5A CC
+@SwapOrder:
+  JSR @CalcLowNibble                    ; $CC3F: 20 5A CC
+  JMP @CalcHighNibble                   ; $CC42: 4C 45 CC
+@CalcHighNibble:
   LDA #$40                              ; $CC45: A9 40
   STA $0B                               ; $CC47: 85 0B
   LDA #$00                              ; $CC49: A9 00
@@ -5695,20 +5767,20 @@ Loc_C688:
   LSR                                   ; $CC51: 4A
   LSR                                   ; $CC52: 4A
   LSR                                   ; $CC53: 4A
-  JSR @CC6D                             ; $CC54: 20 6D CC
+  JSR @GetRulerValue                    ; $CC54: 20 6D CC
   STA $AF                               ; $CC57: 85 AF
   RTS                                   ; $CC59: 60
-@CC5A:
+@CalcLowNibble:
   LDA #$80                              ; $CC5A: A9 80
   STA $0B                               ; $CC5C: 85 0B
   LDA #$70                              ; $CC5E: A9 70
   STA $0C                               ; $CC60: 85 0C
   LDA $0507                             ; $CC62: AD 07 05
   AND #$0F                              ; $CC65: 29 0F
-  JSR @CC6D                             ; $CC67: 20 6D CC
+  JSR @GetRulerValue                    ; $CC67: 20 6D CC
   STA $B0                               ; $CC6A: 85 B0
   RTS                                   ; $CC6C: 60
-@CC6D:
+@GetRulerValue:
   JSR B1F_GetRulerDataPtr               ; $CC6D: 20 68 F3
   LDY #$00                              ; $CC70: A0 00
   LDA ($00),Y                           ; $CC72: B1 00
@@ -5729,25 +5801,25 @@ Loc_C688:
   LDY #$00                              ; $CC90: A0 00
   LDA ($06),Y                           ; $CC92: B1 06
   PHA                                   ; $CC94: 48
-  JSR @CCDF                             ; $CC95: 20 DF CC
+  JSR @IncPtr                           ; $CC95: 20 DF CC
   LDA #$00                              ; $CC98: A9 00
-@CC9A:
+@DigitLoop:
   PHA                                   ; $CC9A: 48
-  JSR @CCAA                             ; $CC9B: 20 AA CC
+  JSR @ProcessDigit                     ; $CC9B: 20 AA CC
   PLA                                   ; $CC9E: 68
   INC $0A                               ; $CC9F: E6 0A
   CLC                                   ; $CCA1: 18
   ADC #$01                              ; $CCA2: 69 01
   CMP #$0C                              ; $CCA4: C9 0C
-  BCC @CC9A                             ; $CCA6: 90 F2
+  BCC @DigitLoop                        ; $CCA6: 90 F2
   PLA                                   ; $CCA8: 68
   RTS                                   ; $CCA9: 60
-@CCAA:
+@ProcessDigit:
   LDY #$00                              ; $CCAA: A0 00
   LDA ($06),Y                           ; $CCAC: B1 06
-  JSR @CCDF                             ; $CCAE: 20 DF CC
+  JSR @IncPtr                           ; $CCAE: 20 DF CC
   CMP #$FF                              ; $CCB1: C9 FF
-  BEQ @CCDE                             ; $CCB3: F0 29
+  BEQ @CA40                             ; $CCB3: F0 29
   LDY $0A                               ; $CCB5: A4 0A
   LDX $007C                             ; $CCB7: AE 7C 00
   CLC                                   ; $CCBA: 18
@@ -5755,7 +5827,7 @@ Loc_C688:
   STA $0201,X                           ; $CCBD: 9D 01 02
   LDA $CCE6,Y                           ; $CCC0: B9 E6 CC
   SEC                                   ; $CCC3: 38
-@CCC4:
+@SubtractLoop:
   SBC #$01                              ; $CCC4: E9 01
   STA $0200,X                           ; $CCC6: 9D 00 02
   LDA $CCFE,Y                           ; $CCC9: B9 FE CC
@@ -5767,46 +5839,23 @@ Loc_C688:
   INX                                   ; $CCD7: E8
   INX                                   ; $CCD8: E8
   INX                                   ; $CCD9: E8
-@CCDA:
+@SkipDigit:
   INX                                   ; $CCDA: E8
   STX $007C                             ; $CCDB: 8E 7C 00
 @CCDE:
   RTS                                   ; $CCDE: 60
-@CCDF:
+@IncPtr:
   INC $06                               ; $CCDF: E6 06
-  BNE @CCE5                             ; $CCE1: D0 02
+  BNE @CCDE                             ; $CCE1: D0 02
   INC $07                               ; $CCE3: E6 07
 @CCE5:
   RTS                                   ; $CCE5: 60
 ; --- Data Region ---
   .byte $10,$10,$18,$18,$10,$10,$18,$18,$10,$10,$18,$18,$10,$10,$18,$18; $CCE6: 10 10 18 18 10 10 18 18 10 10 18 18 10 10 18 18
   .byte $10,$10                           ; $CCF6: 10 10
-@CCF8:
-; --- Code Region ---
-  CLC                                   ; $CCF8: 18
-  CLC                                   ; $CCF9: 18
-  BPL $CD0C                             ; $CCFA: 10 10
-@CCFC:
-  CLC                                   ; $CCFC: 18
-  CLC                                   ; $CCFD: 18
-  PLP                                   ; $CCFE: 28
-  BMI $CD29                             ; $CCFF: 30 28
-  BMI $CD3B                             ; $CD01: 30 38
-  RTI                                   ; $CD03: 40
-@CD04:
-  SEC                                   ; $CD04: 38
-  RTI                                   ; $CD05: 40
-; --- Data Region ---
-  .byte $48,$50                           ; $CD06: 48 50
-@CD08:
-; --- Code Region ---
-  PHA                                   ; $CD08: 48
-  BVC $CD33                             ; $CD09: 50 28
-  BMI $CD35                             ; $CD0B: 30 28
-  BMI $CD47                             ; $CD0D: 30 38
-  RTI                                   ; $CD0F: 40
-; --- Data Region ---
-  .byte $38,$40,$48,$50,$48,$50           ; $CD10: 38 40 48 50 48 50
+; Misdisassembled data region - should be .byte directives
+  .byte $18,$18,$10,$10,$18,$28,$30,$28,$30,$38,$40,$38,$40,$48,$50,$48; $CCF8: 18 18 10 10 18 28 30 28 30 38 40 38 40 48 50 48
+  .byte $50,$48,$50,$38,$40,$48,$50,$48,$50; $CD08: 50 48 50 38 40 48 50 48 50
 .endproc
 
 .proc Loc_CD16
@@ -5822,42 +5871,41 @@ Loc_C688:
   .word @CE76                               ; $CD24: $76 CE
   .word @CE9E                               ; $CD26: $9E CE
   .word $CF09                               ; $CD28: $09 CF
-@CD2A:  ; (dispatch callback target)
-; --- Code Region ---
+; State_Init (dispatch callback target)
   JSR $CC29                             ; $CD2A: 20 29 CC
   JSR @D0E1                             ; $CD2D: 20 E1 D0
   LDA #$FF                              ; $CD30: A9 FF
   STA $042C,X                           ; $CD32: 9D 2C 04
-@CD35:
+@CheckSlot:
   TXA                                   ; $CD35: 8A
-  BNE @CD46                             ; $CD36: D0 0E
-@CD38:
+  BNE @ShowUI                           ; $CD36: D0 0E
+@ExitToMenu:
   LDA $050B                             ; $CD38: AD 0B 05
-@CD3B:
+@SetPhase:
   AND #$0F                              ; $CD3B: 29 0F
   STA $0501                             ; $CD3D: 8D 01 05
   LDA #$0F                              ; $CD40: A9 0F
   STA $0500                             ; $CD42: 8D 00 05
   RTS                                   ; $CD45: 60
-@CD46:
+@ShowUI:
   LDA #$DC                              ; $CD46: A9 DC
   JSR B1F_SetUI5                        ; $CD48: 20 93 F2
   JSR $D0C3                             ; $CD4B: 20 C3 D0
   INC $0501                             ; $CD4E: EE 01 05
-@CD51:
+@Done:
   RTS                                   ; $CD51: 60
-@CD52:  ; (dispatch callback target)
+; State_Select (dispatch callback target)
   JSR $CC29                             ; $CD52: 20 29 CC
   JSR $DF27                             ; $CD55: 20 27 DF
-  BCC @CD63                             ; $CD58: 90 09
+  BCC @Done                             ; $CD58: 90 09
   JSR $DC63                             ; $CD5A: 20 63 DC
-@CD5D:
+@CheckConfirm:
   LDA $81                               ; $CD5D: A5 81
   AND #$01                              ; $CD5F: 29 01
-  BNE @CD64                             ; $CD61: D0 01
+  BNE @AdvanceState                     ; $CD61: D0 01
 @CD63:
   RTS                                   ; $CD63: 60
-@CD64:
+@AdvanceState:
   INC $0501                             ; $CD64: EE 01 05
   LDA #$00                              ; $CD67: A9 00
   STA $0424                             ; $CD69: 8D 24 04
@@ -5871,31 +5919,31 @@ Loc_C688:
   JSR $BB84                             ; $CD7A: 20 84 BB
   INC $050A                             ; $CD7D: EE 0A 05
   LDA $050A                             ; $CD80: AD 0A 05
-  BEQ @CD9C                             ; $CD83: F0 17
+  BEQ @GetRuler                         ; $CD83: F0 17
   TAY                                   ; $CD85: A8
   LDA #$1E                              ; $CD86: A9 1E
   STA $042C,Y                           ; $CD88: 99 2C 04
   DEY                                   ; $CD8B: 88
-@CD8C:
+@ScanLoop:
   LDA $0550,Y                           ; $CD8C: B9 50 05
   CMP #$0A                              ; $CD8F: C9 0A
-  BCS @CD99                             ; $CD91: B0 06
+  BCS @NextSlot                         ; $CD91: B0 06
   LDA #$D7                              ; $CD93: A9 D7
   JSR B1F_SetUI2                        ; $CD95: 20 83 F2
   RTS                                   ; $CD98: 60
-@CD99:
+@NextSlot:
   DEY                                   ; $CD99: 88
-  BPL @CD8C                             ; $CD9A: 10 F0
-@CD9C:
+  BPL @ScanLoop                         ; $CD9A: 10 F0
+@GetRuler:
   LDA $0507                             ; $CD9C: AD 07 05
   LDY $050B                             ; $CD9F: AC 0B 05
   CPY #$02                              ; $CDA2: C0 02
-  BEQ @CDAA                             ; $CDA4: F0 04
+  BEQ @GetRulerValue                    ; $CDA4: F0 04
   LSR                                   ; $CDA6: 4A
   LSR                                   ; $CDA7: 4A
   LSR                                   ; $CDA8: 4A
   LSR                                   ; $CDA9: 4A
-@CDAA:
+@GetRulerValue:
   AND #$0F                              ; $CDAA: 29 0F
   JSR B1F_GetRulerDataPtr               ; $CDAC: 20 68 F3
   LDY #$00                              ; $CDAF: A0 00
@@ -5906,7 +5954,7 @@ Loc_C688:
 @CDBA:
   LDA $042C,X                           ; $CDBA: BD 2C 04
   CMP #$FE                              ; $CDBD: C9 FE
-  BCS @CDDB                             ; $CDBF: B0 1A
+  BCS @ResetState                       ; $CDBF: B0 1A
   CMP $03                               ; $CDC1: C5 03
   BEQ @CDE3                             ; $CDC3: F0 1E
   JSR B1F_GetOfficerRecordAddr          ; $CDC5: 20 D7 F2
@@ -5918,75 +5966,75 @@ Loc_C688:
   LDA $050E                             ; $CDD2: AD 0E 05
   STA ($00),Y                           ; $CDD5: 91 00
   INX                                   ; $CDD7: E8
-  JMP @CDBA                             ; $CDD8: 4C BA CD
-@CDDB:
+  JMP @CDBA                         ; $CDD8: 4C BA CD
+@ResetState:
   LDA #$00                              ; $CDDB: A9 00
   STA $0501                             ; $CDDD: 8D 01 05
-  JMP @CD38                             ; $CDE0: 4C 38 CD
-@CDE3:
+  JMP @ExitToMenu                       ; $CDE0: 4C 38 CD
+@MarkOfficer:
   JSR B1F_GetOfficerRecordAddr          ; $CDE3: 20 D7 F2
   LDY #$0B                              ; $CDE6: A0 0B
   LDA ($00),Y                           ; $CDE8: B1 00
   ORA #$03                              ; $CDEA: 09 03
   STA ($00),Y                           ; $CDEC: 91 00
   INX                                   ; $CDEE: E8
-  JMP @CDBA                             ; $CDEF: 4C BA CD
-@CDF2:  ; (dispatch callback target)
+  JMP @CDBA                         ; $CDEF: 4C BA CD
+@State_Menu:  ; (dispatch callback target)
   JSR $CC29                             ; $CDF2: 20 29 CC
   LDA $050A                             ; $CDF5: AD 0A 05
   ASL                                   ; $CDF8: 0A
   TAY                                   ; $CDF9: A8
-  LDA $BA9F,Y                           ; $CDFA: B9 9F BA
+  LDA MenuTypeItemListPtrs,Y            ; $CDFA: B9 9F BA
   STA $10                               ; $CDFD: 85 10
-  LDA $BAA0,Y                           ; $CDFF: B9 A0 BA
+  LDA MenuTypeItemListPtrs+1,Y          ; $CDFF: B9 A0 BA
   STA $11                               ; $CE02: 85 11
   LDA #$00                              ; $CE04: A9 00
   STA $12                               ; $CE06: 85 12
   JSR B1F_MenuStep2                     ; $CE08: 20 1E ED
-  LDA #$6F                              ; $CE0B: A9 6F
+  LDA #<MenuSlotPPUAddrs                ; $CE0B: A9 6F
   STA $10                               ; $CE0D: 85 10
-  LDA #$BB                              ; $CE0F: A9 BB
+  LDA #>MenuSlotPPUAddrs                ; $CE0F: A9 BB
   STA $11                               ; $CE11: 85 11
-  LDA #$7F                              ; $CE13: A9 7F
+  LDA #<MenuSlotConfig                  ; $CE13: A9 7F
   STA $00                               ; $CE15: 85 00
-  LDA #$BB                              ; $CE17: A9 BB
+  LDA #>MenuSlotConfig                  ; $CE17: A9 BB
   STA $01                               ; $CE19: 85 01
   LDA $12                               ; $CE1B: A5 12
   JSR B1F_PointerTableLookup            ; $CE1D: 20 F5 ED
   JSR $DF27                             ; $CE20: 20 27 DF
-  BCC @CE55                             ; $CE23: 90 30
+  BCC @CD63                             ; $CE23: 90 30
   LDA $81                               ; $CE25: A5 81
   AND #$01                              ; $CE27: 29 01
-  BEQ @CE55                             ; $CE29: F0 2A
+  BEQ @CD63                             ; $CE29: F0 2A
   LDY $12                               ; $CE2B: A4 12
   LDA $042C,Y                           ; $CE2D: B9 2C 04
   STA $0540                             ; $CE30: 8D 40 05
   STY $0541                             ; $CE33: 8C 41 05
   CMP #$1E                              ; $CE36: C9 1E
-  BEQ @CE41                             ; $CE38: F0 07
+  BEQ @AdvanceState                     ; $CE38: F0 07
   LDA $0550,Y                           ; $CE3A: B9 50 05
   CMP #$0A                              ; $CE3D: C9 0A
-  BCS @CE55                             ; $CE3F: B0 14
+  BCS @CD63                             ; $CE3F: B0 14
 @CE41:
   INC $0501                             ; $CE41: EE 01 05
   LDA #$DD                              ; $CE44: A9 DD
   LDY $0540                             ; $CE46: AC 40 05
   CPY #$1E                              ; $CE49: C0 1E
-  BNE @CE4F                             ; $CE4B: D0 02
+  BNE @ShowUI                           ; $CE4B: D0 02
   LDA #$E5                              ; $CE4D: A9 E5
 @CE4F:
   JSR B1F_SetUI2                        ; $CE4F: 20 83 F2
   JSR $D0C3                             ; $CE52: 20 C3 D0
 @CE55:
   RTS                                   ; $CE55: 60
-@CE56:  ; (dispatch callback target)
+; State_Confirm (dispatch callback target)
   JSR $CC29                             ; $CE56: 20 29 CC
   JSR $DF27                             ; $CE59: 20 27 DF
-  BCC @CE75                             ; $CE5C: 90 17
+  BCC @CE55                             ; $CE5C: 90 17
   JSR $DC63                             ; $CE5E: 20 63 DC
   LDA $81                               ; $CE61: A5 81
   AND #$01                              ; $CE63: 29 01
-  BEQ @CE75                             ; $CE65: F0 0E
+  BEQ @CE55                             ; $CE65: F0 0E
   JSR @D0E1                             ; $CE67: 20 E1 D0
   STX $050A                             ; $CE6A: 8E 0A 05
   LDA #$DE                              ; $CE6D: A9 DE
@@ -5994,10 +6042,10 @@ Loc_C688:
   INC $0501                             ; $CE72: EE 01 05
 @CE75:
   RTS                                   ; $CE75: 60
-@CE76:  ; (dispatch callback target)
+; State_Execute (dispatch callback target)
   JSR $CC29                             ; $CE76: 20 29 CC
   JSR $DF27                             ; $CE79: 20 27 DF
-  BCC @CE9D                             ; $CE7C: 90 1F
+  BCC @CE75                             ; $CE7C: 90 1F
   LDX $050A                             ; $CE7E: AE 0A 05
   LDA #$FF                              ; $CE81: A9 FF
   STA $042C,X                           ; $CE83: 9D 2C 04
@@ -6013,7 +6061,7 @@ Loc_C688:
   STA $0425                             ; $CE9A: 8D 25 04
 @CE9D:
   RTS                                   ; $CE9D: 60
-@CE9E:  ; (dispatch callback target)
+; State_Cancel (dispatch callback target)
   LDA $050A                             ; $CE9E: AD 0A 05
   ASL                                   ; $CEA1: 0A
   TAY                                   ; $CEA2: A8
@@ -6039,26 +6087,26 @@ Loc_C688:
   JSR @D1BC                             ; $CECF: 20 BC D1
   LDA $81                               ; $CED2: A5 81
   AND #$01                              ; $CED4: 29 01
-  BEQ @CF03                             ; $CED6: F0 2B
+  BEQ @CE9D                             ; $CED6: F0 2B
   LDA $050A                             ; $CED8: AD 0A 05
   CMP $0508                             ; $CEDB: CD 08 05
-  BNE @CF03                             ; $CEDE: D0 23
+  BNE @CE9D                             ; $CEDE: D0 23
   LDY #$00                              ; $CEE0: A0 00
   LDX #$00                              ; $CEE2: A2 00
-@CEE4:
+@CountLoop:
   LDA $0580,Y                           ; $CEE4: B9 80 05
-  BMI @CEEA                             ; $CEE7: 30 01
+  BMI @NextSlot                         ; $CEE7: 30 01
   INX                                   ; $CEE9: E8
 @CEEA:
   INY                                   ; $CEEA: C8
   CPY #$14                              ; $CEEB: C0 14
-  BCC @CEE4                             ; $CEED: 90 F5
+  BCC @CountLoop                        ; $CEED: 90 F5
   TXA                                   ; $CEEF: 8A
   BEQ @CF1A                             ; $CEF0: F0 28
   LDA #$D8                              ; $CEF2: A9 D8
   LDY $0540                             ; $CEF4: AC 40 05
   CPY #$1E                              ; $CEF7: C0 1E
-  BNE @CEFD                             ; $CEF9: D0 02
+  BNE @CE4F                           ; $CEF9: D0 02
   LDA #$E6                              ; $CEFB: A9 E6
 @CEFD:
   JSR B1F_SetUI2                        ; $CEFD: 20 83 F2
@@ -6067,20 +6115,18 @@ Loc_C688:
   RTS                                   ; $CF03: 60
 ; --- Data Region ---
   .byte $00,$07                           ; $CF04: 00 07
-@CF06:
+; Misdisassembled data region - should be .byte directives
+  .byte $00,$F8,$80,$20,$BC,$D1,$20; $CF06: 00 F8 80 20 BC D1 20
+@CheckInput:
+; --- Data Region ---
+  .byte $27,$DF                           ; $CF0D: 27 DF
 ; --- Code Region ---
-  BRK                                   ; $CF06: 00
-  SED                                   ; $CF07: F8
-  NOP #$20                              ; $CF08: 80 20
-  LDY $20D1,X                           ; $CF0A: BC D1 20
-@CF0D:
-  RLA $DF                               ; $CF0D: 27 DF
-  BCC @CF33                             ; $CF0F: 90 22
+  BCC @CF03                             ; $CF0F: 90 22
   JSR $DC63                             ; $CF11: 20 63 DC
 @CF14:
   LDA $81                               ; $CF14: A5 81
   AND #$01                              ; $CF16: 29 01
-  BEQ @CF33                             ; $CF18: F0 19
+  BEQ @CF03                             ; $CF18: F0 19
 @CF1A:
   LDA #$E1                              ; $CF1A: A9 E1
   STA $E6                               ; $CF1C: 85 E6
@@ -6092,194 +6138,39 @@ Loc_C688:
   LDA #$00                              ; $CF28: A9 00
   STA $0501                             ; $CF2A: 8D 01 05
   JSR @D1F9                             ; $CF2D: 20 F9 D1
-  JMP @CD2A                             ; $CF30: 4C 2A CD
+  JMP @State_Init                       ; $CF30: 4C 2A CD
 @CF33:
   RTS                                   ; $CF33: 60
 ; --- Data Region ---
   .byte $16,$20,$16,$68,$16,$B0,$26,$20,$26,$68,$26,$B0,$36,$20,$36,$68; $CF34: 16 20 16 68 16 B0 26 20 26 68 26 B0 36 20 36 68
   .byte $36,$B0,$46,$20,$46,$68,$46,$B0,$56,$20,$56,$68,$56; $CF44: 36 B0 46 20 46 68 46 B0 56 20 56 68 56
-@CF51:
+; Misdisassembled data region - should be .byte directives
+  .byte $B0,$66,$20,$66,$68,$66,$B0,$76,$20,$76,$68,$76,$B0,$BD,$D0,$B7; $CF51: B0 66 20 66 68 66 B0 76 20 76 68 76 B0 BD D0 B7
+  .byte $D0,$B1,$D0,$A8,$D0,$9F,$D0,$96,$D0,$8A,$D0,$7E,$D0,$72,$D0,$63; $CF61: D0 B1 D0 A8 D0 9F D0 96 D0 8A D0 7E D0 72 D0 63
+  .byte $D0,$54,$D0,$45,$D0,$33,$D0,$21,$D0,$0F,$D0,$FA,$CF,$E5,$CF,$D0; $CF71: D0 54 D0 45 D0 33 D0 21 D0 0F D0 FA CF E5 CF D0
+  .byte $CF,$B8,$CF,$A0,$CF,$88,$CF,$00,$01,$02,$03,$04,$05,$06,$07,$08; $CF81: CF B8 CF A0 CF 88 CF 00 01 02 03 04 05 06 07 08
+  .byte $09,$0A,$0B,$0C,$0D,$0E,$0F,$10,$11,$12,$13,$14,$FF,$FF,$FF,$00; $CF91: 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 FF FF FF 00
+  .byte $01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F,$10; $CFA1: 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10
+  .byte $11,$12,$13,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05,$06,$07,$08,$09; $CFB1: 11 12 13 FF FF FF 00 01 02 03 04 05 06 07 08 09
+  .byte $0A,$0B,$0C,$0D,$0E,$0F,$10,$11,$12,$FF,$FF,$00,$FF,$01,$02,$03; $CFC1: 0A 0B 0C 0D 0E 0F 10 11 12 FF FF 00 FF 01 02 03
+  .byte $04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F,$10,$11,$FF,$FF; $CFD1: 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 FF FF
+  .byte $FF; $CFE1: FF
+; --- Data Region (misdisassembled) ---
+  .byte $01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$0E,$0F,$10; $CFE6: 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10
+  .byte $FF,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B; $CFF6: FF FF FF FF 00 01 02 03 04 05 06 07 08 09 0A 0B
+  .byte $0C,$0D,$0E,$0F,$FF,$FF,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05,$06; $D006: 0C 0D 0E 0F FF FF FF FF FF 00 01 02 03 04 05 06
+  .byte $07,$08,$09,$0A,$0B,$0C,$0D,$0E,$FF,$FF,$FF,$00,$01,$02,$03,$04; $D016: 07 08 09 0A 0B 0C 0D 0E FF FF FF 00 01 02 03 04
+  .byte $05,$06,$07,$08,$09,$0A,$0B,$0C,$0D,$FF,$FF,$FF,$FF,$00,$01,$02; $D026: 05 06 07 08 09 0A 0B 0C 0D FF FF FF FF 00 01 02
+  .byte $03,$04,$05,$06,$07,$08,$09,$0A,$0B,$0C,$FF,$FF,$FF,$FF,$FF,$00; $D036: 03 04 05 06 07 08 09 0A 0B 0C FF FF FF FF FF 00
+  .byte $01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$0B,$FF,$FF,$FF,$00,$01; $D046: 01 02 03 04 05 06 07 08 09 0A 0B FF FF FF 00 01
+  .byte $02,$03,$04,$05,$06,$07,$08,$09,$0A,$FF,$FF,$FF,$FF,$00,$01,$02; $D056: 02 03 04 05 06 07 08 09 0A FF FF FF FF 00 01 02
+  .byte $03,$04,$05,$06,$07,$08,$09,$FF,$FF,$FF,$FF,$FF,$00,$01,$02,$03; $D066: 03 04 05 06 07 08 09 FF FF FF FF FF 00 01 02 03
+  .byte $04,$05,$06,$07,$08,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05,$06,$07; $D076: 04 05 06 07 08 FF FF FF 00 01 02 03 04 05 06 07
+  .byte $FF,$FF,$FF,$FF,$00,$01,$02,$03,$04,$05,$06,$FF,$FF,$FF,$FF,$FF; $D086: FF FF FF FF 00 01 02 03 04 05 06 FF FF FF FF FF
+  .byte $00,$01,$02,$03,$04,$05,$FF,$FF,$FF,$00,$01,$02,$03,$04,$FF,$FF; $D096: 00 01 02 03 04 05 FF FF FF 00 01 02 03 04 FF FF
+  .byte $FF,$FF,$00,$01,$02,$03,$FF,$FF,$FF,$FF,$FF,$00,$01,$02,$FF,$FF; $D0A6: FF FF 00 01 02 03 FF FF FF FF FF 00 01 02 FF FF
+  .byte $FF,$00,$01,$FF,$FF,$FF,$FF,$00,$FF,$FF,$FF,$FF,$FF,$AC,$07,$05; $D0B6: FF 00 01 FF FF FF FF 00 FF FF FF FF FF AC 07 05
 ; --- Code Region ---
-  BCS $CFB9                             ; $CF51: B0 66
-  JSR $6866                             ; $CF53: 20 66 68
-  ROR $B0                               ; $CF56: 66 B0
-  ROR $20,X                             ; $CF58: 76 20
-  ROR $68,X                             ; $CF5A: 76 68
-  ROR $B0,X                             ; $CF5C: 76 B0
-  LDA $B7D0,X                           ; $CF5E: BD D0 B7
-  BNE @CF14                             ; $CF61: D0 B1
-  BNE @CF0D                             ; $CF63: D0 A8
-  BNE @CF06                             ; $CF65: D0 9F
-  BNE $CEFF                             ; $CF67: D0 96
-  BNE $CEF5                             ; $CF69: D0 8A
-  BNE $CFEB                             ; $CF6B: D0 7E
-  BNE $CFE1                             ; $CF6D: D0 72
-  BNE $CFD4                             ; $CF6F: D0 63
-  BNE $CFC7                             ; $CF71: D0 54
-  BNE $CFBA                             ; $CF73: D0 45
-  BNE $CFAA                             ; $CF75: D0 33
-@CF77:
-  BNE @CF9A                             ; $CF77: D0 21
-  BNE @CF8A                             ; $CF79: D0 0F
-  BNE @CF77                             ; $CF7B: D0 FA
-  DCP $CFE5                             ; $CF7D: CF E5 CF
-  BNE @CF51                             ; $CF80: D0 CF
-  CLV                                   ; $CF82: B8
-  DCP $CFA0                             ; $CF83: CF A0 CF
-  DEY                                   ; $CF86: 88
-  DCP $0100                             ; $CF87: CF 00 01
-@CF8A:
-  JAM                                   ; $CF8A: 02
-  SLO ($04,X)                           ; $CF8B: 03 04
-  ORA $06                               ; $CF8D: 05 06
-  SLO $08                               ; $CF8F: 07 08
-  ORA #$0A                              ; $CF91: 09 0A
-  ANC #$0C                              ; $CF93: 0B 0C
-  ORA $0F0E                             ; $CF95: 0D 0E 0F
-  BPL @CFAB                             ; $CF98: 10 11
-@CF9A:
-  JAM                                   ; $CF9A: 12
-  SLO ($14),Y                           ; $CF9B: 13 14
-  ISB $FFFF,X                           ; $CF9D: FF FF FF
-  BRK                                   ; $CFA0: 00
-  ORA ($02,X)                           ; $CFA1: 01 02
-  SLO ($04,X)                           ; $CFA3: 03 04
-  ORA $06                               ; $CFA5: 05 06
-  SLO $08                               ; $CFA7: 07 08
-  ORA #$0A                              ; $CFA9: 09 0A
-@CFAB:
-  ANC #$0C                              ; $CFAB: 0B 0C
-  ORA $0F0E                             ; $CFAD: 0D 0E 0F
-  BPL @CFC3                             ; $CFB0: 10 11
-  JAM                                   ; $CFB2: 12
-  SLO ($FF),Y                           ; $CFB3: 13 FF
-  ISB $FFFF,X                           ; $CFB5: FF FF FF
-  BRK                                   ; $CFB8: 00
-  ORA ($02,X)                           ; $CFB9: 01 02
-  SLO ($04,X)                           ; $CFBB: 03 04
-  ORA $06                               ; $CFBD: 05 06
-  SLO $08                               ; $CFBF: 07 08
-  ORA #$0A                              ; $CFC1: 09 0A
-@CFC3:
-  ANC #$0C                              ; $CFC3: 0B 0C
-  ORA $0F0E                             ; $CFC5: 0D 0E 0F
-  BPL @CFDB                             ; $CFC8: 10 11
-  JAM                                   ; $CFCA: 12
-  ISB $FFFF,X                           ; $CFCB: FF FF FF
-  ISB $00FF,X                           ; $CFCE: FF FF 00
-  ORA ($02,X)                           ; $CFD1: 01 02
-  SLO ($04,X)                           ; $CFD3: 03 04
-  ORA $06                               ; $CFD5: 05 06
-  SLO $08                               ; $CFD7: 07 08
-  ORA #$0A                              ; $CFD9: 09 0A
-@CFDB:
-  ANC #$0C                              ; $CFDB: 0B 0C
-  ORA $0F0E                             ; $CFDD: 0D 0E 0F
-  BPL $CFF3                             ; $CFE0: 10 11
-  ISB $FFFF,X                           ; $CFE2: FF FF FF
-  BRK                                   ; $CFE5: 00
-  ORA ($02,X)                           ; $CFE6: 01 02
-  SLO ($04,X)                           ; $CFE8: 03 04
-  ORA $06                               ; $CFEA: 05 06
-  SLO $08                               ; $CFEC: 07 08
-  ORA #$0A                              ; $CFEE: 09 0A
-  ANC #$0C                              ; $CFF0: 0B 0C
-  ORA $0F0E                             ; $CFF2: 0D 0E 0F
-  BPL $CFF6                             ; $CFF5: 10 FF
-  ISB $FFFF,X                           ; $CFF7: FF FF FF
-  BRK                                   ; $CFFA: 00
-  ORA ($02,X)                           ; $CFFB: 01 02
-  SLO ($04,X)                           ; $CFFD: 03 04
-  ORA $06                               ; $CFFF: 05 06
-  SLO $08                               ; $D001: 07 08
-  ORA #$0A                              ; $D003: 09 0A
-  ANC #$0C                              ; $D005: 0B 0C
-  ORA $0F0E                             ; $D007: 0D 0E 0F
-  ISB $FFFF,X                           ; $D00A: FF FF FF
-  ISB $00FF,X                           ; $D00D: FF FF 00
-  ORA ($02,X)                           ; $D010: 01 02
-  SLO ($04,X)                           ; $D012: 03 04
-  ORA $06                               ; $D014: 05 06
-  SLO $08                               ; $D016: 07 08
-  ORA #$0A                              ; $D018: 09 0A
-  ANC #$0C                              ; $D01A: 0B 0C
-  ORA $FF0E                             ; $D01C: 0D 0E FF
-  ISB $00FF,X                           ; $D01F: FF FF 00
-  ORA ($02,X)                           ; $D022: 01 02
-  SLO ($04,X)                           ; $D024: 03 04
-  ORA $06                               ; $D026: 05 06
-  SLO $08                               ; $D028: 07 08
-  ORA #$0A                              ; $D02A: 09 0A
-  ANC #$0C                              ; $D02C: 0B 0C
-  ORA $FFFF                             ; $D02E: 0D FF FF
-  ISB $00FF,X                           ; $D031: FF FF 00
-  ORA ($02,X)                           ; $D034: 01 02
-  SLO ($04,X)                           ; $D036: 03 04
-  ORA $06                               ; $D038: 05 06
-  SLO $08                               ; $D03A: 07 08
-  ORA #$0A                              ; $D03C: 09 0A
-  ANC #$0C                              ; $D03E: 0B 0C
-  ISB $FFFF,X                           ; $D040: FF FF FF
-  ISB $00FF,X                           ; $D043: FF FF 00
-  ORA ($02,X)                           ; $D046: 01 02
-  SLO ($04,X)                           ; $D048: 03 04
-  ORA $06                               ; $D04A: 05 06
-  SLO $08                               ; $D04C: 07 08
-  ORA #$0A                              ; $D04E: 09 0A
-  ANC #$FF                              ; $D050: 0B FF
-  ISB $00FF,X                           ; $D052: FF FF 00
-  ORA ($02,X)                           ; $D055: 01 02
-  SLO ($04,X)                           ; $D057: 03 04
-  ORA $06                               ; $D059: 05 06
-  SLO $08                               ; $D05B: 07 08
-  ORA #$0A                              ; $D05D: 09 0A
-  ISB $FFFF,X                           ; $D05F: FF FF FF
-  ISB $0100,X                           ; $D062: FF 00 01
-  JAM                                   ; $D065: 02
-  SLO ($04,X)                           ; $D066: 03 04
-  ORA $06                               ; $D068: 05 06
-  SLO $08                               ; $D06A: 07 08
-  ORA #$FF                              ; $D06C: 09 FF
-  ISB $FFFF,X                           ; $D06E: FF FF FF
-  ISB $0100,X                           ; $D071: FF 00 01
-  JAM                                   ; $D074: 02
-  SLO ($04,X)                           ; $D075: 03 04
-  ORA $06                               ; $D077: 05 06
-  SLO $08                               ; $D079: 07 08
-  ISB $FFFF,X                           ; $D07B: FF FF FF
-  BRK                                   ; $D07E: 00
-  ORA ($02,X)                           ; $D07F: 01 02
-  SLO ($04,X)                           ; $D081: 03 04
-  ORA $06                               ; $D083: 05 06
-  SLO $FF                               ; $D085: 07 FF
-  ISB $FFFF,X                           ; $D087: FF FF FF
-  BRK                                   ; $D08A: 00
-  ORA ($02,X)                           ; $D08B: 01 02
-  SLO ($04,X)                           ; $D08D: 03 04
-  ORA $06                               ; $D08F: 05 06
-  ISB $FFFF,X                           ; $D091: FF FF FF
-  ISB $00FF,X                           ; $D094: FF FF 00
-  ORA ($02,X)                           ; $D097: 01 02
-  SLO ($04,X)                           ; $D099: 03 04
-  ORA $FF                               ; $D09B: 05 FF
-  ISB $00FF,X                           ; $D09D: FF FF 00
-  ORA ($02,X)                           ; $D0A0: 01 02
-  SLO ($04,X)                           ; $D0A2: 03 04
-  ISB $FFFF,X                           ; $D0A4: FF FF FF
-  ISB $0100,X                           ; $D0A7: FF 00 01
-  JAM                                   ; $D0AA: 02
-  SLO ($FF,X)                           ; $D0AB: 03 FF
-  ISB $FFFF,X                           ; $D0AD: FF FF FF
-  ISB $0100,X                           ; $D0B0: FF 00 01
-  JAM                                   ; $D0B3: 02
-  ISB $FFFF,X                           ; $D0B4: FF FF FF
-  BRK                                   ; $D0B7: 00
-  ORA ($FF,X)                           ; $D0B8: 01 FF
-  ISB $FFFF,X                           ; $D0BA: FF FF FF
-  BRK                                   ; $D0BD: 00
-  ISB $FFFF,X                           ; $D0BE: FF FF FF
-  ISB $ACFF,X                           ; $D0C1: FF FF AC
-  SLO $05                               ; $D0C4: 07 05
   LDA $050B                             ; $D0C6: AD 0B 05
   AND #$F0                              ; $D0C9: 29 F0
   BEQ @D0D3                             ; $D0CB: F0 06
@@ -6644,20 +6535,20 @@ Loc_C688:
   LDA $050A                             ; $D34E: AD 0A 05
   ASL                                   ; $D351: 0A
   TAY                                   ; $D352: A8
-  LDA $BA9F,Y                           ; $D353: B9 9F BA
+  LDA MenuTypeItemListPtrs,Y            ; $D353: B9 9F BA
   STA $10                               ; $D356: 85 10
-  LDA $BAA0,Y                           ; $D358: B9 A0 BA
+  LDA MenuTypeItemListPtrs+1,Y          ; $D358: B9 A0 BA
   STA $11                               ; $D35B: 85 11
   LDA #$00                              ; $D35D: A9 00
   STA $12                               ; $D35F: 85 12
   JSR B1F_MenuStep2                     ; $D361: 20 1E ED
-  LDA #$6F                              ; $D364: A9 6F
+  LDA #<MenuSlotPPUAddrs                ; $D364: A9 6F
   STA $10                               ; $D366: 85 10
-  LDA #$BB                              ; $D368: A9 BB
+  LDA #>MenuSlotPPUAddrs                ; $D368: A9 BB
   STA $11                               ; $D36A: 85 11
-  LDA #$7F                              ; $D36C: A9 7F
+  LDA #<MenuSlotConfig                  ; $D36C: A9 7F
   STA $00                               ; $D36E: 85 00
-  LDA #$BB                              ; $D370: A9 BB
+  LDA #>MenuSlotConfig                  ; $D370: A9 BB
   STA $01                               ; $D372: 85 01
   LDA $12                               ; $D374: A5 12
   JSR B1F_PointerTableLookup            ; $D376: 20 F5 ED

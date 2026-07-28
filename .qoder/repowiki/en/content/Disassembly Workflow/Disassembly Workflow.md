@@ -30,6 +30,14 @@
 - [tools/transform_17_18.py](file://tools/transform_17_18.py)
 - [tools/localize_labels.py](file://tools/localize_labels.py)
 - [tools/proc_scope_17_18.py](file://tools/proc_scope_17_18.py)
+- [tools/transform_0c_0d_inline.py](file://tools/transform_0c_0d_inline.py)
+- [tools/fix_0c_0d_inline.py](file://tools/fix_0c_0d_inline.py)
+- [tools/verify_0c_0d_directives.py](file://tools/verify_0c_0d_directives.py)
+- [tools/fix_asm_errors.py](file://tools/fix_asm_errors.py)
+- [tools/fix_missing_bytes.py](file://tools/fix_missing_bytes.py)
+- [tools/fix_range_errors.py](file://tools/fix_range_errors.py)
+- [tools/verify_1d_bytes.py](file://tools/verify_1d_bytes.py)
+- [tools/fix_disasm.py](file://tools/fix_disasm.py)
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
@@ -56,15 +64,12 @@
 
 ## Update Summary
 **Changes Made**
-- Enhanced PRG bank 17/18 disassembly process with new transformation pipeline tools
-- Added systematic section headers and semantic naming conventions for improved code organization
-- Integrated comprehensive automated tooling for paired bank disassembly and validation
-- Updated workflow to include 11-stage transformation pipeline for Bank $1F assembly modernization
-- Added enhanced disassembly tools with improved output formats and inline machine code documentation
-- Integrated new verification utilities for baseline validation and differential analysis
-- **Enhanced** Improved PRG bank 1D/1E combined disassembly methodology with advanced labeling system and specialized analysis tools
-- **Enhanced** Implemented sophisticated cross-reference detection and label usage pattern analysis for better refactoring support
-- **Enhanced** Added comprehensive data region detection algorithms and tile data block identification for PRG banks $1D/$1E
+- Enhanced disassembly workflow with new transformation tools for converting inline .byte data to proper .word directives
+- Added automated verification and fixing capabilities for callback patterns in prg_0c_0d.asm
+- Implemented sophisticated inline data transformation pipeline for BankedCallbackTrampoline and CallbackDispatcher patterns
+- Integrated comprehensive error correction tools for assembly syntax and range errors
+- Added specialized verification utilities for byte-for-byte accuracy validation
+- Enhanced procedural structure detection and label management systems
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -81,7 +86,7 @@
 ## Introduction
 This document describes a systematic disassembly workflow for the Namco-163 (Mapper 19) ROM of Sangokushi 2 - Haou no Tairiku (J). It focuses on extracting and documenting game code from the PRG banks, starting with Bank 0x1F that contains the reset handler and vector dispatch table. The guide covers bank prioritization, stub replacement, modular organization, cross-references, label management, incremental development, and verification.
 
-**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format. The pipeline now includes an 11-stage process for Bank $1F assembly code modernization with systematic code organization, mnemonic correction, and validation utilities. **Enhanced** Advanced PRG bank 1D/1E disassembly system with sophisticated labeling algorithms, improved cross-reference detection, and specialized analysis tools providing better understanding of label usage patterns and facilitating further refactoring efforts.
+**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format. The pipeline now includes an 11-stage process for Bank $1F assembly code modernization with systematic code organization, mnemonic correction, and validation utilities. **Enhanced** Advanced PRG bank 1D/1E disassembly system with sophisticated labeling algorithms, improved cross-reference detection, and specialized analysis tools providing better understanding of label usage patterns and facilitating further refactoring efforts. **New** Sophisticated inline data transformation system for converting .byte directives to proper .word directives with automated callback pattern recognition and verification.
 
 ## Project Structure
 The repository organizes assets around a cc65 toolchain and a modular bank structure with advanced transformation capabilities:
@@ -94,6 +99,7 @@ The repository organizes assets around a cc65 toolchain and a modular bank struc
 - Planning and analysis documents for Bank 0x1F
 - Automated comment alignment for consistent formatting
 - Enhanced verification utilities for baseline validation and differential analysis
+- **New** Inline data transformation tools for callback patterns and procedural structures
 - **Enhanced** Paired bank disassembly tools for PRG banks $17/$18 with systematic section headers and semantic naming
 - **Enhanced** Combined bank disassembly tools for PRG banks $1D/$1E with sophisticated labeling system and cross-reference handling
 
@@ -126,6 +132,10 @@ X --> Y["Validation Reports"]
 K --> Z["tools/analyze_1e.py<br/>tools/analyze_1e_deep.py"]
 Z --> AA["Label Usage Pattern Analysis"]
 AA --> BB["Refactoring Support"]
+E --> CC["tools/transform_0c_0d_inline.py<br/>tools/fix_0c_0d_inline.py"]
+CC --> DD["asm/banks/prg_0c_0d.asm<br/>(Transformed)"]
+DD --> EE["tools/verify_0c_0d_directives.py"]
+EE --> FF["Verification Reports"]
 ```
 
 **Diagram sources**
@@ -149,6 +159,9 @@ AA --> BB["Refactoring Support"]
 - [check_diff.py:1-35](file://check_diff.py#L1-L35)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -174,8 +187,11 @@ AA --> BB["Refactoring Support"]
 - **Enhanced** Baseline validation: Systematic verification of address alignment and continuity using check_baseline.py.
 - **Enhanced** Differential analysis: Byte-by-byte comparison for transformation pipeline effectiveness using check_diff.py.
 - **Enhanced** 11-stage transformation pipeline: Complete modernization workflow for Bank $1F assembly code.
+- **New** Inline data transformation: Automated conversion of .byte directives to .word directives for callback patterns.
+- **New** Callback pattern recognition: Sophisticated detection of BankedCallbackTrampoline and CallbackDispatcher patterns.
+- **New** Error correction tools: Automated fixing of assembly syntax, range errors, and missing bytes.
 
-**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction. The pipeline now consists of 11 systematic stages for complete code modernization. **Enhanced** Advanced PRG bank 1D/1E disassembly methodology with sophisticated labeling algorithms, improved cross-reference detection, and specialized analysis tools providing better understanding of label usage patterns and facilitating further refactoring efforts.
+**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction. The pipeline now consists of 11 systematic stages for complete code modernization. **Enhanced** Advanced PRG bank 1D/1E disassembly methodology with sophisticated labeling algorithms, improved cross-reference detection, and specialized analysis tools providing better understanding of label usage patterns and facilitating further refactoring efforts. **New** Sophisticated inline data transformation system automatically converts .byte directives to proper .word directives for callback patterns, with comprehensive verification and error correction capabilities.
 
 **Section sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
@@ -199,11 +215,17 @@ AA --> BB["Refactoring Support"]
 - [tools/build_nes.py:10-57](file://tools/build_nes.py#L10-L57)
 - [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
 - [check_diff.py:1-35](file://check_diff.py#L1-L35)
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
+- [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
+- [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
 
 ## Architecture Overview
 The disassembly architecture centers on Bank 0x1F as the boot bank. At startup, the reset handler initializes PPU/APU, clears RAM, and dispatches to a state handler via an indirect vector table. Bank 0x1F also contains NMI/IRQ handlers, sound engine, PPU utilities, math routines, and data access functions. Other banks are accessed via bank switching controlled by the Namco-163 mapper.
 
-**Enhanced** With sophisticated paired bank architecture for PRG banks $17/$18, which work together as a 16KB unit ($A000-$DFFF) with shared cross-bank references and coordinated loading via SwitchBankAC_A/B macros. **Enhanced** Advanced combined bank architecture for PRG banks $1D/$1E, which work together as a 16KB unit ($A000-$DFFF) with specialized disassembly tools, sophisticated labeling system, and enhanced cross-reference mapping.
+**Enhanced** With sophisticated paired bank architecture for PRG banks $17/$18, which work together as a 16KB unit ($A000-$DFFF) with shared cross-bank references and coordinated loading via SwitchBankAC_A/B macros. **Enhanced** Advanced combined bank architecture for PRG banks $1D/$1E, which work together as a 16KB unit ($A000-$DFFF) with specialized disassembly tools, sophisticated labeling system, and enhanced cross-reference mapping. **New** Sophisticated inline data transformation system for callback patterns with automatic .byte to .word directive conversion and comprehensive verification.
 
 ```mermaid
 graph TB
@@ -228,7 +250,7 @@ end
 subgraph "Bank Switching"
 SD --> BS["BankSwitch"]
 BS --> MAP["Namco-163 Mapper<br/>($F800-$FFFF)"]
-MAP --> PRG["PRG Banks $8000-$FFFF"]
+MAP --> PRG["PRG Banks $A000-$FFFF"]
 end
 subgraph "Paired Banks $17/$18"
 PRG --> B17["$A000-$BFFF<br/>Display/Rendering"]
@@ -239,6 +261,12 @@ subgraph "Combined Banks $1D/$1E"
 PRG --> B1D["$A000-$BFFF<br/>Menu/Display"]
 PRG --> B1E["$C000-$DFFF<br/>Domestic Affairs"]
 B1D -.-> B1E
+end
+subgraph "Inline Data Transformation"
+PRG --> B0C0D["$A000-$BFFF<br/>prg_0c_0d.asm"]
+B0C0D --> TRANS["transform_0c_0d_inline.py"]
+TRANS --> VERIFY["verify_0c_0d_directives.py"]
+VERIFY --> FIXED["Fixed Directives"]
 end
 subgraph "Other Banks"
 PRG --> B0["$A000-$A045<br/>Display/Dialog"]
@@ -252,6 +280,8 @@ end
 - [asm/banks/prg_1f.asm:153-169](file://asm/banks/prg_1f.asm#L153-L169)
 - [asm/banks/prg_1f.asm:740-749](file://asm/banks/prg_1f.asm#L740-L749)
 - [include/namco163.h:10-14](file://include/namco163.h#L10-L14)
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
@@ -319,11 +349,11 @@ DIS-->>OUT : Write disassembly with ROM addresses
 ```
 
 **Diagram sources**
-- [tools/disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-L561)
+- [tools/disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-561)
 
 **Section sources**
 - [tools/disasm_bank_1f.py:136-324](file://tools/disasm_bank_1f.py#L136-L324)
-- [tools/disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-L561)
+- [tools/disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-561)
 - [tools/disasm_6502.py:336-362](file://tools/disasm_6502.py#L336-L362)
 
 ### Step 4: Disassemble Paired Banks $17/$18 (Enhanced Pipeline)
@@ -626,11 +656,11 @@ Examples:
 **Section sources**
 - [tools/analyze_bank_1f.py:1-157](file://tools/analyze_bank_1f.py#L1-L157)
 - [tools/analyze_17_18.py:74-115](file://tools/analyze_17_18.py#L74-L115)
-- [code/key_functions_analysis.md:9-31](file://code/key_functions_analysis.md#L9-L31)
-- [code/key_functions_analysis.md:66-100](file://code/key_functions_analysis.md#L66-L100)
-- [code/key_functions_analysis.md:159-189](file://code/key_functions_analysis.md#L159-L189)
-- [tools/disasm_1d_enhanced.py:108-135](file://tools/disasm_1d_enhanced.py#L108-L135)
-- [tools/disasm_1e_definitive.py:86-278](file://tools/disasm_1e_definitive.py#L86-L278)
+- [code/key_functions_analysis.md:9-31](file://code/key_functions_analysis.md#L9-31)
+- [code/key_functions_analysis.md:66-100](file://code/key_functions_analysis.md#L66-100)
+- [code/key_functions_analysis.md:159-189](file://code/key_functions_analysis.md#L159-189)
+- [tools/disasm_1d_enhanced.py:108-135](file://tools/disasm_1d_enhanced.py#L108-135)
+- [tools/disasm_1e_definitive.py:86-278](file://tools/disasm_1e_definitive.py#L86-278)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
 
@@ -729,10 +759,54 @@ Differential analysis workflow:
 
 **Section sources**
 - [tools/disasm_1d_enhanced.py:246-264](file://tools/disasm_1d_enhanced.py#L246-264)
-- [tools/disasm_1e_definitive.py:423-433](file://tools/disasm_1e_definitive.py#L423-433)
+- [tools/disasm_1e_definitive.py:423-433](file://tools/disasm_1e_definitive.py#L423-L433)
 - [asm/banks/prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+
+### Step 21: Inline Data Transformation for Callback Patterns (New)
+- Use transform_0c_0d_inline.py to convert .byte directives to proper .word directives for callback patterns
+- Automatically detects BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) patterns
+- Validates transformations against original binary data
+- Provides comprehensive verification and error correction
+
+**New** Sophisticated inline data transformation pipeline:
+
+**Stage 1: tools/transform_0c_0d_inline.py** - Detects callback patterns and converts .byte to .word directives
+**Stage 2: tools/fix_0c_0d_inline.py** - Fixes inline data following callback patterns with proper disassembly
+**Stage 3: tools/verify_0c_0d_directives.py** - Verifies .word directives match original binary exactly
+**Stage 4: tools/fix_asm_errors.py** - Fixes illegal addressing mode errors by converting to .byte directives
+**Stage 5: tools/fix_missing_bytes.py** - Adds missing byte opcodes to assembly comment annotations
+**Stage 6: tools/fix_range_errors.py** - Fixes range errors by converting branch instructions to raw .byte directives
+
+```mermaid
+flowchart TD
+A["prg_0c_0d.asm<br/>with .byte directives"] --> B["transform_0c_0d_inline.py<br/>Pattern Detection"]
+B --> C["Callback Pattern Recognition<br/>BankedCallbackTrampoline ($EE07)<br/>CallbackDispatcher ($EADE)"]
+C --> D[".byte to .word Conversion<br/>Automatic Directive Transformation"]
+D --> E["fix_0c_0d_inline.py<br/>Inline Data Fixing"]
+E --> F["verify_0c_0d_directives.py<br/>Binary Verification"]
+F --> G["fix_asm_errors.py<br/>Addressing Mode Fixes"]
+G --> H["fix_missing_bytes.py<br/>Missing Bytes Detection"]
+H --> I["fix_range_errors.py<br/>Range Error Correction"]
+I --> J["Fixed prg_0c_0d.asm<br/>Proper .word Directives"]
+```
+
+**Diagram sources**
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
+- [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
+- [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
+
+**Section sources**
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
+- [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
+- [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
 
 ## Dependency Analysis
 The disassembly pipeline depends on:
@@ -749,6 +823,8 @@ The disassembly pipeline depends on:
 - **Enhanced** Baseline validation tools for systematic verification
 - **Enhanced** Differential analysis tools for transformation pipeline validation
 - **Enhanced** Label usage pattern analysis tools for refactoring support
+- **New** Inline data transformation tools for callback patterns and procedural structures
+- **New** Comprehensive error correction tools for assembly syntax and range errors
 
 ```mermaid
 graph TB
@@ -781,6 +857,11 @@ ASM --> LINK["linker.cfg"]
 LINK --> OBJ["build/prg.bin"]
 OBJ --> NES["tools/build_nes.py"]
 ANNO["tools/annotate_asm.py"] --> VERIFY
+ASM --> INLINE["tools/transform_0c_0d_inline.py<br/>tools/fix_0c_0d_inline.py"]
+INLINE --> FIXED0C0D["asm/banks/prg_0c_0d.asm<br/>(Transformed)"]
+FIXED0C0D --> VERIFY0C0D["tools/verify_0c_0d_directives.py"]
+VERIFY0C0D --> ERRORS["tools/fix_asm_errors.py<br/>tools/fix_missing_bytes.py<br/>tools/fix_range_errors.py"]
+ERRORS --> FINAL0C0D["Fixed prg_0c_0d.asm"]
 ```
 
 **Diagram sources**
@@ -793,8 +874,8 @@ ANNO["tools/annotate_asm.py"] --> VERIFY
 - [tools/disasm_1e_definitive.py:1-522](file://tools/disasm_1e_definitive.py#L1-L522)
 - [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
 - [tools/transform_17_18.py:320-348](file://tools/transform_17_18.py#L320-L348)
-- [transform_wrap.py:286-303](file://transform_wrap.py#L286-L303)
-- [transform_final.py:222-235](file://transform_final.py#L222-L235)
+- [transform_wrap.py:286-303](file://transform_wrap.py#L286-303)
+- [transform_final.py:222-235](file://transform_final.py#L222-235)
 - [fix_labels.py:13-68](file://fix_labels.py#L13-L68)
 - [fix_syntax.py:11-72](file://fix_syntax.py#L11-L72)
 - [fix_scope.py:13-149](file://fix_scope.py#L13-L149)
@@ -810,6 +891,12 @@ ANNO["tools/annotate_asm.py"] --> VERIFY
 - [tools/proc_scope_17_18.py:581-684](file://tools/proc_scope_17_18.py#L581-L684)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
+- [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
+- [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
 
 **Section sources**
 - [Makefile:38-61](file://Makefile#L38-L61)
@@ -825,6 +912,8 @@ ANNO["tools/annotate_asm.py"] --> VERIFY
 - **Enhanced** Paired bank disassembly benefits from recursive descent analysis that efficiently traces code paths and identifies cross-references automatically.
 - **Enhanced** Combined bank disassembly benefits from sophisticated tools that provide enhanced data region detection, tile data block identification, and cross-reference mapping.
 - **Enhanced** Label usage pattern analysis tools provide efficient refactoring support and better understanding of code structure.
+- **New** Inline data transformation tools significantly reduce manual effort in converting .byte directives to .word directives with automated pattern recognition.
+- **New** Comprehensive error correction tools minimize manual intervention and improve overall workflow efficiency.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -845,6 +934,11 @@ Common issues and remedies:
 - **Enhanced** Pipeline stage failures: Each of the 11 transformation stages provides specific error points for targeted debugging.
 - **Enhanced** Label usage pattern issues: Use tools/localize_labels.py and tools/proc_scope_17_18.py for sophisticated label analysis and refactoring support.
 - **Enhanced** Refactoring difficulties: Use tools/analyze_1e.py and tools/analyze_1e_deep.py for detailed structure analysis and refactoring guidance.
+- **New** Inline data transformation issues: Use tools/transform_0c_0d_inline.py and tools/fix_0c_0d_inline.py for callback pattern recognition and .byte to .word conversion.
+- **New** Callback pattern verification failures: Use tools/verify_0c_0d_directives.py to ensure .word directives match original binary.
+- **New** Assembly syntax errors: Use tools/fix_asm_errors.py to automatically convert problematic instructions to .byte directives.
+- **New** Missing byte annotations: Use tools/fix_missing_bytes.py to add missing opcode bytes to assembly comments.
+- **New** Range error issues: Use tools/fix_range_errors.py to handle branch instruction range problems.
 
 **Section sources**
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
@@ -866,11 +960,17 @@ Common issues and remedies:
 - [tools/proc_scope_17_18.py:581-684](file://tools/proc_scope_17_18.py#L581-L684)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
+- [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
+- [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
 
 ## Conclusion
 This workflow establishes a repeatable, incremental approach to disassembling Sangokushi 2's PRG banks with comprehensive transformation capabilities. Starting with Bank 0x1F ensures you understand the reset handler and dispatch mechanism, after which you can systematically replace stubs with real disassembly, manage cross-references, and verify accuracy through byte-exact comparisons. The modular bank structure, transformation pipeline, and reference format validation support continuous refinement and expansion while ensuring code quality and consistency.
 
-**Enhanced** Sophisticated transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project. The new 11-stage pipeline provides systematic validation and error detection at each phase, ensuring reliable and accurate disassembly results. The addition of paired bank disassembly tools for PRG banks $17/$18 and combined bank disassembly tools for PRG banks $1D/$1E further enhances the workflow with systematic section headers, semantic naming conventions, and automated cross-reference handling. These new tools provide specialized analysis and validation capabilities that streamline the disassembly process and improve code organization. **Enhanced** Advanced labeling system with sophisticated label usage pattern analysis provides better understanding of code structure and facilitates further refactoring efforts, making the disassembly process more efficient and maintainable.
+**Enhanced** Sophisticated transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project. The new 11-stage pipeline provides systematic validation and error detection at each phase, ensuring reliable and accurate disassembly results. The addition of paired bank disassembly tools for PRG banks $17/$18 and combined bank disassembly tools for PRG banks $1D/$1E further enhances the workflow with systematic section headers, semantic naming conventions, and automated cross-reference handling. These new tools provide specialized analysis and validation capabilities that streamline the disassembly process and improve code organization. **Enhanced** Advanced labeling system with sophisticated label usage pattern analysis provides better understanding of code structure and facilitates further refactoring efforts, making the disassembly process more efficient and maintainable. **New** Sophisticated inline data transformation system automatically converts .byte directives to proper .word directives for callback patterns, with comprehensive verification and error correction capabilities that significantly reduce manual effort and improve accuracy.
 
 ## Appendices
 
@@ -911,6 +1011,13 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
   - python3 tools/verify_rom.py
 - **Enhanced** Align comments for consistent formatting:
   - python3 tools/align_comments.py
+- **New** Transform inline data for callback patterns:
+  - python3 tools/transform_0c_0d_inline.py
+  - python3 tools/fix_0c_0d_inline.py
+  - python3 tools/verify_0c_0d_directives.py
+  - python3 tools/fix_asm_errors.py
+  - python3 tools/fix_missing_bytes.py
+  - python3 tools/fix_range_errors.py
 
 **Section sources**
 - [Makefile:64-69](file://Makefile#L64-L69)
@@ -939,6 +1046,12 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
 - [check_baseline.py:1-104](file://check_baseline.py#L1-L104)
 - [check_diff.py:1-35](file://check_diff.py#L1-L35)
 - [tools/verify_rom.py:10-72](file://tools/verify_rom.py#L10-L72)
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
+- [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
+- [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
 
 ### Enhanced Disassembly Features
 **Enhanced Section** Highlighting the improvements to PRG bank 1F, paired bank, and combined bank disassembly processes.
@@ -964,6 +1077,10 @@ Key enhancements:
 - **Enhanced Meaningful Subroutine Names**: Systematic naming conventions for improved code organization and readability
 - **Enhanced Label Usage Pattern Analysis**: Sophisticated algorithms for understanding label reference patterns and supporting refactoring efforts
 - **Enhanced Refactoring Support**: Advanced tools for analyzing code structure and facilitating code improvements
+- **New Inline Data Transformation**: Automated conversion of .byte directives to .word directives for callback patterns
+- **New Callback Pattern Recognition**: Sophisticated detection of BankedCallbackTrampoline and CallbackDispatcher patterns
+- **New Comprehensive Error Correction**: Automated fixing of assembly syntax, range errors, and missing bytes
+- **New Binary Verification**: Byte-for-byte validation of transformed directives against original ROM data
 
 Example of enhanced paired bank output format:
 ```asm
@@ -1010,11 +1127,35 @@ Entry01:
   JMP Entry01_MenuUpdate                                          ; $A003: 4C 54 A1
 ```
 
+Example of new inline data transformation output:
+```asm
+; --- BankedCallbackTrampoline target ---
+.word $A02B                               ; $A02E: 2B A0
+; --- CallbackDispatcher table (16 entries) ---
+.word $A02B                               ; $A02E: 2B A0
+.word $A051                               ; $A030: 51 A0
+.word $A21E                               ; $A032: 1E A2
+.word $A29C                               ; $A034: 9C A2
+.word $A45F                               ; $A036: 5F A4
+.word $A885                               ; $A038: 85 A8
+.word $ADA9                               ; $A03A: A9 AD
+.word $B03F                               ; $A03C: 3F B0
+.word $B955                               ; $A03E: 55 B9
+.word $BCA0                               ; $A040: A0 BC
+.word $BE81                               ; $A042: 81 BE
+.word $C207                               ; $A044: 07 C2
+.word $C694                               ; $A046: 94 C6
+.word $C784                               ; $A048: 84 C7
+.word $C98F                               ; $A04A: 8F C9
+.word $CD19                               ; $A04C: 19 CD
+.word $D2D0                               ; $A04E: D0 D2
+```
+
 **Section sources**
 - [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/disasm_17_18.py:322-405](file://tools/disasm_17_18.py#L322-L405)
 - [tools/disasm_1d_enhanced.py:246-264](file://tools/disasm_1d_enhanced.py#L246-264)
-- [tools/disasm_1e_definitive.py:423-433](file://tools/disasm_1e_definitive.py#L423-433)
+- [tools/disasm_1e_definitive.py:423-433](file://tools/disasm_1e_definitive.py#L423-L433)
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 - [code/bank_1f_analysis.md:1-800](file://code/bank_1f_analysis.md#L1-L800)
 - [tools/transform_17_18.py:206-223](file://tools/transform_17_18.py#L206-L223)
@@ -1027,3 +1168,6 @@ Entry01:
 - [tools/proc_scope_17_18.py:581-684](file://tools/proc_scope_17_18.py#L581-L684)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
+- [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
+- [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
+- [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)

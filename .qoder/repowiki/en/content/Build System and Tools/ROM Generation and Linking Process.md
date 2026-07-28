@@ -14,6 +14,10 @@
 - [asm/banks/prg_1e.asm](file://asm/banks/prg_1e.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [asm/banks/prg_0c_0d.asm](file://asm/banks/prg_0c_0d.asm)
+- [asm/banks/prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
+- [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
+- [asm/banks/prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
+- [test_0c_0d.cfg](file://test_0c_0d.cfg)
 - [tools/generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
 - [tools/split_rom.py](file://tools/split_rom.py)
 - [build/main.lst](file://build/main.lst)
@@ -21,10 +25,10 @@
 
 ## Update Summary
 **Changes Made**
-- Updated linker configuration section to reflect new CODE_BANK0C and CODE_BANK0D segments
-- Modified banked code and segment strategy section to document the combined bank architecture
-- Updated build system description to show streamlined include structure
-- Enhanced memory layout documentation to explain the 16KB combined bank approach
+- Enhanced linker configuration with specialized CODE_BANK0C and CODE_BANK0D segments for unified 16KB block management
+- Updated combined bank architecture documentation to reflect streamlined include structure
+- Added detailed coverage of hybrid bank approach combining individual 8KB banks with selected 16KB combined banks
+- Enhanced memory layout documentation explaining the 16KB combined bank approach and its benefits
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -181,7 +185,7 @@ Memory mapping highlights:
 - VECTORS segment starts at a fixed offset in PRG slot 0
 - Optional CODE segments for additional banks as disassembly progresses
 
-**Updated** The linker configuration now includes specialized segments for combined bank pairs, particularly CODE_BANK0C and CODE_BANK0D which map to PRG_SLOT1 and PRG_SLOT2 respectively, supporting the new combined 16KB bank architecture.
+**Updated** The linker configuration now includes specialized segments for combined bank pairs, particularly CODE_BANK0C and CODE_BANK0D which map to PRG_SLOT1 and PRG_SLOT2 respectively, supporting the new combined 16KB bank architecture. These segments work alongside CODE_BANK0A, CODE_BANK0B, CODE_BANK17, and CODE_BANK18 to provide flexible bank management.
 
 **Section sources**
 - [linker.cfg:18-66](file://linker.cfg#L18-L66)
@@ -192,12 +196,13 @@ Memory mapping highlights:
 - Each bank stub uses a dedicated segment name and includes the original 8KB binary
 - During linking, additional segments can be added to map code into the appropriate PRG slot
 
-**Updated** The build system has been streamlined by replacing separate prg_0c.asm and prg_0d.asm includes with a single prg_0c_0d.asm include in all_banks.asm. This combined bank approach treats banks 0C and 0D as a unified 16KB block spanning $A000-$DFFF, improving code organization and reducing build complexity.
+**Updated** The build system has been significantly enhanced with a hybrid approach that combines individual 8KB banks with selected 16KB combined banks. The all_banks.asm file now includes prg_0a_0b.asm, prg_0c_0d.asm, prg_17_18.asm, and prg_1d_1e.asm instead of separate bank files. This combined bank approach treats paired banks as unified 16KB blocks spanning $A000-$DFFF, improving code organization and reducing build complexity.
 
 Practical implications:
 - Bank 0x1F is special: it contains the reset handler and dispatch table at $E000–$FFFF
 - Bank switching is performed via mapper registers at $F800–$FE00
-- Combined banks (0C+0D, 0A+0B, 17+18, 1D+1E) provide larger contiguous code sections when needed
+- Combined banks (0A+0B, 0C+0D, 17+18, 1D+1E) provide larger contiguous code sections when needed
+- Each combined bank file contains both CODE_BANKxx and CODE_BANKyy segments for proper linking
 
 **Section sources**
 - [tools/generate_bank_stubs.py:12-53](file://tools/generate_bank_stubs.py#L12-L53)
@@ -206,6 +211,9 @@ Practical implications:
 - [asm/banks/prg_1e.asm:1-13](file://asm/banks/prg_1e.asm#L1-L13)
 - [asm/banks/prg_1f.asm:1-800](file://asm/banks/prg_1f.asm#L1-L800)
 - [asm/banks/prg_0c_0d.asm:1-800](file://asm/banks/prg_0c_0d.asm#L1-L800)
+- [asm/banks/prg_0a_0b.asm:1-200](file://asm/banks/prg_0a_0b.asm#L1-L200)
+- [asm/banks/prg_17_18.asm:1-200](file://asm/banks/prg_17_18.asm#L1-L200)
+- [asm/banks/prg_1d_1e.asm:1-200](file://asm/banks/prg_1d_1e.asm#L1-L200)
 
 ### Bank Switching and Reset Handler
 - The mapper header defines bank switching registers and bank indices
@@ -285,6 +293,7 @@ STUB["tools/generate_bank_stubs.py"] --> ALLB["asm/banks/all_banks.asm"]
 - Use bank stubs to isolate work on individual banks; avoid rebuilding unrelated sections
 - Ensure bank switching macros are used consistently to prevent accidental cross-slot jumps
 - Combined bank architecture reduces include overhead and simplifies build dependencies
+- Hybrid approach allows selective use of 16KB combined banks where beneficial while maintaining flexibility
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -293,6 +302,7 @@ Common issues and remedies:
 - Linker symbol errors: Confirm that all referenced symbols are defined within the mapped PRG slots
 - ROM mismatch after rebuild: Use the verification tool to compare against the original ROM and iterate on disassembly accuracy
 - Combined bank issues: When working with combined banks like 0C+0D, ensure both segments are properly linked and address calculations account for the 16KB boundary
+- Segmentation conflicts: Verify that CODE_BANK0C and CODE_BANK0D segments don't overlap with other bank assignments
 
 **Section sources**
 - [tools/generate_bank_stubs.py:12-53](file://tools/generate_bank_stubs.py#L12-L53)
@@ -300,7 +310,7 @@ Common issues and remedies:
 - [PROJECT.md:165-181](file://PROJECT.md#L165-L181)
 
 ## Conclusion
-The ROM generation pipeline integrates cc65 assembly, ld65 linking with a carefully designed memory model, and a Python-based ROM builder to reconstruct a complete NES ROM. By leveraging banked segments, consistent bank switching macros, and modular bank stubs, the project supports scalable disassembly and precise ROM reconstruction for Mapper 19. The recent adoption of combined bank architecture further optimizes the build process and provides more flexible code organization options.
+The ROM generation pipeline integrates cc65 assembly, ld65 linking with a carefully designed memory model, and a Python-based ROM builder to reconstruct a complete NES ROM. By leveraging banked segments, consistent bank switching macros, and modular bank stubs, the project supports scalable disassembly and precise ROM reconstruction for Mapper 19. The recent adoption of combined bank architecture with specialized linker configuration further optimizes the build process and provides more flexible code organization options through a hybrid approach that combines individual 8KB banks with selected 16KB combined banks.
 
 ## Appendices
 
@@ -326,9 +336,9 @@ Verify --> End(["End"])
 - Bank switching: Writes to $F800–$FE00 select banks for each slot
 - Reset handler: Located at $E000–$FFFF in bank 0x1F at boot
 - Bank stubs: Each stub maps to an 8KB window based on its bank index
-- Combined banks: Special handling for paired banks (0C+0D, 0A+0B, etc.) providing 16KB contiguous sections
+- Combined banks: Special handling for paired banks (0A+0B, 0C+0D, 17+18, 1D+1E) providing 16KB contiguous sections
 
-**Updated** The memory layout now supports combined bank pairs where two adjacent 8KB banks are treated as a single 16KB unit. For example, banks 0C and 0D together occupy $A000-$DFFF, with CODE_BANK0C mapping to PRG_SLOT1 ($A000-$BFFF) and CODE_BANK0D mapping to PRG_SLOT2 ($C000-$DFFF).
+**Updated** The memory layout now supports combined bank pairs where two adjacent 8KB banks are treated as a single 16KB unit. For example, banks 0C and 0D together occupy $A000-$DFFF, with CODE_BANK0C mapping to PRG_SLOT1 ($A000-$BFFF) and CODE_BANK0D mapping to PRG_SLOT2 ($C000-$DFFF). This pattern applies to all combined bank pairs (0A+0B, 17+18, 1D+1E).
 
 **Section sources**
 - [linker.cfg:4-16](file://linker.cfg#L4-L16)
@@ -340,23 +350,57 @@ Verify --> End(["End"])
 The project now implements a hybrid approach combining individual 8KB banks with selected 16KB combined banks:
 
 **Combined Bank Pairs:**
-- Banks 0A+0B: Map to PRG_SLOT1 and PRG_SLOT2
-- Banks 0C+0D: Map to PRG_SLOT1 and PRG_SLOT2  
-- Banks 17+18: Map to PRG_SLOT1 and PRG_SLOT2
-- Banks 1D+1E: Map to PRG_SLOT1 and PRG_SLOT2
+- Banks 0A+0B: Map to PRG_SLOT1 and PRG_SLOT2 with CODE_BANK0A and CODE_BANK0B segments
+- Banks 0C+0D: Map to PRG_SLOT1 and PRG_SLOT2 with CODE_BANK0C and CODE_BANK0D segments  
+- Banks 17+18: Map to PRG_SLOT1 and PRG_SLOT2 with CODE_BANK17 and CODE_BANK18 segments
+- Banks 1D+1E: Map to PRG_SLOT1 and PRG_SLOT2 with CODE_BANK1D and CODE_BANK1E segments
 
 **Benefits:**
-- Reduced include overhead in all_banks.asm
-- Simplified build dependencies
-- Better code locality for related functionality
-- Easier management of large code sections
+- Reduced include overhead in all_banks.asm (from 32 individual includes to 24 combined includes)
+- Simplified build dependencies and faster compilation
+- Better code locality for related functionality within combined banks
+- Easier management of large code sections that span multiple 8KB boundaries
+- Flexible approach allowing selective use of combined banks where beneficial
 
 **Implementation:**
-- Single include files like prg_0c_0d.asm handle both banks
-- Separate CODE_BANK0C and CODE_BANK0D segments in linker.cfg
-- Maintains compatibility with existing 8KB bank structure
+- Single include files like prg_0c_0d.asm handle both banks with dual segment declarations
+- Separate CODE_BANK0C and CODE_BANK0D segments in linker.cfg maintain compatibility
+- Each combined bank file contains proper segment directives (.segment "CODE_BANK0C" and .segment "CODE_BANK0D")
+- Maintains full compatibility with existing 8KB bank structure and bank switching mechanisms
+
+**Verification:**
+- Standalone test configuration (test_0c_0d.cfg) enables isolated verification of combined bank functionality
+- Test configuration maps CODE_BANK0C to a single 16KB PRG_SLOT1 for validation
 
 **Section sources**
 - [asm/banks/all_banks.asm:15-16](file://asm/banks/all_banks.asm#L15-L16)
 - [linker.cfg:52-59](file://linker.cfg#L52-L59)
 - [asm/banks/prg_0c_0d.asm:1-7](file://asm/banks/prg_0c_0d.asm#L1-L7)
+- [asm/banks/prg_0a_0b.asm:171](file://asm/banks/prg_0a_0b.asm#L171)
+- [asm/banks/prg_17_18.asm:186](file://asm/banks/prg_17_18.asm#L186)
+- [asm/banks/prg_1d_1e.asm:16](file://asm/banks/prg_1d_1e.asm#L16)
+- [test_0c_0d.cfg:1-13](file://test_0c_0d.cfg#L1-L13)
+
+### Specialized Linker Configuration for Combined Banks
+The enhanced linker configuration provides specialized support for combined bank architecture:
+
+**Memory Regions:**
+- PRG_SLOT0: $8000-$9FFF (standard bank)
+- PRG_SLOT1: $A000-$BFFF (combined bank first half)
+- PRG_SLOT2: $C000-$DFFF (combined bank second half)
+- PRG_SLOT3: $E000-$FFFF (boot bank)
+
+**Segment Assignments:**
+- CODE_BANK0C: load = PRG_SLOT1 (first 8KB of combined bank)
+- CODE_BANK0D: load = PRG_SLOT2 (second 8KB of combined bank)
+- Similar pattern for CODE_BANK0A/CODE_BANK0B and CODE_BANK17/CODE_BANK18
+
+**Flexibility Features:**
+- All combined bank segments marked as optional = yes for incremental development
+- Maintains backward compatibility with existing single-bank segments (CODE0-CODE3)
+- Supports both individual 8KB banks and combined 16KB blocks simultaneously
+
+**Section sources**
+- [linker.cfg:25-30](file://linker.cfg#L25-L30)
+- [linker.cfg:49-59](file://linker.cfg#L49-L59)
+- [test_0c_0d.cfg:2-6](file://test_0c_0d.cfg#L2-L6)
