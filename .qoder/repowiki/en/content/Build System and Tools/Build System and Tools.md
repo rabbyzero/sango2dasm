@@ -80,6 +80,9 @@
 - [tools/transform_0c_0d_inline.py](file://tools/transform_0c_0d_inline.py)
 - [tools/fix_0c_0d_inline.py](file://tools/fix_0c_0d_inline.py)
 - [tools/verify_0c_0d_directives.py](file://tools/verify_0c_0d_directives.py)
+- [tools/add_missing_labels.py](file://tools/add_missing_labels.py)
+- [tools/dump_bytes.py](file://tools/dump_bytes.py)
+- [tools/fix_dup_labels2.py](file://tools/fix_dup_labels2.py)
 - [asm/banks/prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
 - [asm/banks/prg_0c_0d.asm](file://asm/banks/prg_0c_0d.asm)
 - [asm/main.asm](file://asm/main.asm)
@@ -93,11 +96,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for new PRG bank $0C/$0D callback system analysis tools including analyze_0c_0d_callbacks.py, check_trampoline_pattern.py, transform_0c_0d_inline.py, fix_0c_0d_inline.py, and verify_0c_0d_directives.py
-- Enhanced build pipeline documentation with new test configuration file test_0c_0d.cfg for standalone verification of consolidated prg_0c_0d.asm module
-- Updated Makefile targets section to include new specialized analysis and transformation tools for callback system handling
-- Added detailed coverage of BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) patterns with inline data transformation capabilities
-- Integrated new trampoline pattern validation and inline data transformation workflows into the existing build system architecture
+- Added comprehensive documentation for three new Python utility tools for reverse engineering workflow: add_missing_labels.py for automatic label generation, dump_bytes.py for ROM byte extraction, and fix_dup_labels2.py for duplicate label resolution
+- Enhanced the Label Analysis and Renaming System section with new automated label management capabilities
+- Updated the Toolchain Integration section to include the new utility tools
+- Added practical examples of using the new tools for maintaining large-scale assembly codebases
+- Documented the relationship between these tools and existing label processing workflows
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -114,15 +117,16 @@
 12. [ROM Analysis and Verification Tools](#rom-analysis-and-verification-tools)
 13. [PRG Banks $1D/$1E Analysis Suite](#prg-banks-1d1e-analysis-suite)
 14. [Label Analysis and Renaming System](#label-analysis-and-renaming-system)
-15. [PRG Bank $0C/$0D Callback System Analysis](#prg-bank-0c0d-callback-system-analysis)
-16. [Dependency Analysis](#dependency-analysis)
-17. [Performance Considerations](#performance-considerations)
-18. [Troubleshooting Guide](#troubleshooting-guide)
-19. [Conclusion](#conclusion)
-20. [Appendices](#appendices)
+15. [New Utility Tools for Label Management](#new-utility-tools-for-label-management)
+16. [PRG Bank $0C/$0D Callback System Analysis](#prg-bank-0c0d-callback-system-analysis)
+17. [Dependency Analysis](#dependency-analysis)
+18. [Performance Considerations](#performance-considerations)
+19. [Troubleshooting Guide](#troubleshooting-guide)
+20. [Conclusion](#conclusion)
+21. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation. **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities using the new modular Ai* architecture with improved nested procedure support. **Updated**: Bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining compatibility with individual bank files. **New**: Specialized PRG bank $0C/$0D callback system analysis tools provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. The enhanced toolchain now includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation. **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities using the new modular Ai* architecture with improved nested procedure support. **Updated**: Bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining compatibility with individual bank files. **New**: Specialized PRG bank $0C/$0D callback system analysis tools provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support. **New**: Three new Python utility tools enhance the reverse engineering workflow with automatic label generation, ROM byte extraction, and duplicate label resolution capabilities.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -139,6 +143,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - **New**: AI code modernization tools for automated analysis and structural optimization of the AI turn dispatch system with new modular Ai* architecture and improved nested procedure support
 - **Updated**: Consolidated bank management supporting unified bank modules like prg_0c_0d.asm for reduced compilation overhead
 - **New**: Specialized PRG bank $0C/$0D callback system analysis tools with standalone verification configuration
+- **New**: Three new utility tools for automated label management and ROM data extraction
 
 ```mermaid
 graph TB
@@ -209,6 +214,11 @@ subgraph "Label Analysis & Renaming"
 LA1["analyze_loc_labels.py<br/>Loc_ label analysis"]
 LA2["rename_loc_labels.py<br/>Automated label renaming"]
 LA3["enhance_prg_1d.py<br/>Enhanced Bank $1D processing"]
+end
+subgraph "New Utility Tools for Label Management"
+NU1["add_missing_labels.py<br/>Automatic label generation"]
+NU2["dump_bytes.py<br/>ROM byte extraction"]
+NU3["fix_dup_labels2.py<br/>Duplicate label resolution"]
 end
 subgraph "ROM Analysis and Verification"
 RA1["check_addresses.py<br/>Address verification"]
@@ -293,6 +303,9 @@ MK --> AN6
 MK --> LA1
 MK --> LA2
 MK --> LA3
+MK --> NU1
+MK --> NU2
+MK --> NU3
 MK --> RA1
 MK --> RA2
 MK --> RA3
@@ -356,7 +369,7 @@ T_verify --> OUT
 - [tools/localize_labels.py:1-526](file://tools/localize_labels.py#L1-L526)
 - [tools/auto_add_local_params.py:1-416](file://tools/auto_add_local_params.py#L1-L416)
 - [tools/globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
-- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-L33)
+- [tools/check_addresses.py:1-33](file://tools/check_addresses.py#L1-33)
 - [tools/check_bank18.py:1-50](file://tools/check_bank18.py#L1-L50)
 - [tools/check_rom_offset.py:1-43](file://tools/check_rom_offset.py#L1-L43)
 - [tools/dump_chr_table.py:1-13](file://tools/dump_chr_table.py#L1-L13)
@@ -383,6 +396,9 @@ T_verify --> OUT
 - [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
 - [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
 - [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/add_missing_labels.py:1-58](file://tools/add_missing_labels.py#L1-L58)
+- [tools/dump_bytes.py:1-19](file://tools/dump_bytes.py#L1-L19)
+- [tools/fix_dup_labels2.py:1-99](file://tools/fix_dup_labels2.py#L1-L99)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -400,8 +416,9 @@ T_verify --> OUT
 - **New**: Advanced label analysis and renaming system provides automated Loc_ label processing and meaningful name assignment for improved code readability.
 - **New**: Comprehensive PRG banks $1D/$1E analysis suite provides specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation.
 - **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation.
-- **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing, semantic renaming, and support for the new modular Ai* architecture with improved nested procedure support and better control flow.
+- **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing, semantic renaming, and support for the new modular Ai* architecture with improved nested procedure support.
 - **New**: Specialized PRG bank $0C/$0D callback system analysis tools provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support.
+- **New**: Three new utility tools enhance the reverse engineering workflow with automatic label generation, ROM byte extraction, and duplicate label resolution capabilities.
 - **Updated**: Consolidated bank management reduces compilation overhead through unified bank modules like prg_0c_0d.asm while maintaining compatibility with individual bank files.
 
 Key capabilities:
@@ -424,6 +441,7 @@ Key capabilities:
 - **New**: Advanced paired bank disassembly with recursive descent algorithms, callback dispatcher detection, and inline table analysis for complex bank pairs, plus specialized verification tools for byte-exact accuracy validation.
 - **New**: AI code modernization tools with automated branch instruction fixing, semantic renaming using Ai* prefix convention, nested procedure restructuring, and improved control flow with labeled targets replacing raw address jumps and better nested procedure support.
 - **New**: Specialized PRG bank $0C/$0D callback system analysis with BankedCallbackTrampoline and CallbackDispatcher pattern detection, inline data transformation, and standalone verification support.
+- **New**: Three new utility tools for automated label management including automatic label generation, ROM byte extraction, and duplicate label resolution.
 - **Updated**: Consolidated bank management supporting unified bank modules for reduced compilation overhead while maintaining full compatibility with existing individual bank files.
 
 **Section sources**
@@ -454,6 +472,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - **New**: Apply advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms and callback dispatcher detection, followed by specialized verification for byte-exact accuracy.
 - **New**: Apply AI code modernization tools for automated analysis and structural optimization of the AI turn dispatch system with new modular Ai* architecture, improved nested procedure support, and better control flow.
 - **New**: Apply specialized PRG bank $0C/$0D callback system analysis tools for BankedCallbackTrampoline and CallbackDispatcher pattern detection with inline data transformation.
+- **New**: Utilize new utility tools for automated label management including automatic label generation, ROM byte extraction, and duplicate label resolution.
 - **Updated**: Process consolidated bank modules like prg_0c_0d.asm for reduced compilation overhead while maintaining compatibility with individual bank files.
 
 ```mermaid
@@ -480,6 +499,7 @@ participant RA as "ROM Analysis Tools"
 participant LA as "Label Analysis & Renaming"
 participant P1D1E as "PRG Banks $1D/$1E Analysis Suite"
 participant APB as "Advanced Paired Bank Disassembly"
+participant NU as "New Utility Tools"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm + consolidated banks"
 CA-->>MK : "main.o"
@@ -541,6 +561,8 @@ Dev->>P1D1E : "Run PRG banks $1D/$1E analysis"
 P1D1E-->>Dev : "RAM usage analysis, address validation, conflict detection"
 Dev->>APB : "Run advanced paired bank disassembly"
 APB-->>Dev : "Recursive descent disassembly with callback detection"
+Dev->>NU : "Run new utility tools"
+NU-->>Dev : "Automatic label generation, ROM byte extraction, duplicate label resolution"
 ```
 
 **Diagram sources**
@@ -613,6 +635,7 @@ APB-->>Dev : "Recursive descent disassembly with callback detection"
 - **New**: make verify_globals: Validate global variable definitions in PRG banks $1D/$1E assembly.
 - **New**: make disasm_0a_0b: Advanced recursive descent disassembly for paired banks $0A/$0B with callback dispatcher detection.
 - **New**: make disasm_prg: General-purpose combined PRG disassembler with multi-pass code analysis.
+- **New**: Direct tool execution for new utility tools: python3 tools/add_missing_labels.py, python3 tools/dump_bytes.py, python3 tools/fix_dup_labels2.py
 
 Usage patterns:
 - Start with make split to prepare ROM assets.
@@ -641,11 +664,83 @@ Usage patterns:
 - **New**: Use make rename_loc_labels to automate meaningful label replacement.
 - **New**: Utilize PRG banks $1D/$1E analysis suite for comprehensive RAM usage analysis, address validation, and symbol conflict detection.
 - **New**: Apply advanced paired bank disassembly tools for complex bank pairs with recursive descent algorithms.
+- **New**: Execute new utility tools directly for automated label management tasks.
 - Iterate assembly and linking, then verify with make verify or make verify_0a_0b for paired banks.
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
 - [PROJECT.md:58-69](file://PROJECT.md#L58-L69)
+
+### New Utility Tools for Label Management
+
+#### Overview
+The new utility tools provide specialized capabilities for automated label management in large-scale assembly codebases. These tools address common challenges in reverse engineering workflows where labels become inconsistent, missing, or duplicated during the disassembly and modification process. The tools work together to maintain label integrity and consistency across the codebase.
+
+#### add_missing_labels.py - Automatic Label Generation Tool
+- **Purpose**: Automatically adds missing @ADDR labels for dispatch table entries and undefined symbols in assembly code
+- **Functionality**: Scans assembly files for undefined @ADDR symbols in .word directives and branch instructions
+- **Pattern Recognition**: Identifies both dispatch table entries (.word @XXXX) and branch/jump references (JMP/JSR/BEQ/BNE etc.)
+- **Automatic Label Creation**: Finds corresponding address comments and inserts appropriate labels at the correct locations
+- **Context Preservation**: Maintains proper indentation and formatting when inserting new labels
+- **Validation Output**: Reports statistics on undefined symbols, defined labels, and missing labels found
+
+#### dump_bytes.py - ROM Byte Extraction Tool
+- **Purpose**: Extracts specific byte sequences from ROM files for data region conversion and analysis
+- **Functionality**: Reads binary data from combined ROM files and dumps specified byte ranges with formatted output
+- **Address Calculation**: Handles bank-specific address calculations for different ROM memory layouts
+- **Formatted Output**: Generates ca65-compatible .byte directives with inline comments showing addresses and hex values
+- **Data Region Support**: Specifically designed for extracting data regions that need to be converted to assembly directives
+- **Flexible Configuration**: Supports configurable start addresses and data lengths for various extraction scenarios
+
+#### fix_dup_labels2.py - Duplicate Label Resolution Tool
+- **Purpose**: Fixes duplicate @labels within .proc blocks by renaming them back to @ADDR format
+- **Functionality**: Scans assembly code for duplicate labels within procedure scopes and resolves conflicts
+- **Scope-Aware Processing**: Only processes labels within .proc/.endproc blocks to avoid unintended changes
+- **Address-Based Resolution**: Attempts to extract addresses from inline comments to create meaningful @ADDR labels
+- **Reference Updating**: Updates both label definitions and references within the same procedure scope
+- **Progress Reporting**: Provides detailed logging of renames performed and completion status
+
+#### Integration with Existing Label System
+The new utility tools integrate seamlessly with the existing label analysis and renaming system:
+- **Complementary Functionality**: Works alongside analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py
+- **Workflow Enhancement**: Provides automated solutions for common label management issues
+- **Quality Assurance**: Helps maintain label consistency and prevents duplicate label conflicts
+- **Large-Scale Support**: Designed to handle the complexity of large assembly codebases with thousands of labels
+
+#### Practical Usage Examples
+- **Automatic Label Generation**: `python3 tools/add_missing_labels.py` - Scans prg_0c_0d.asm for missing labels
+- **ROM Data Extraction**: `python3 tools/dump_bytes.py` - Extracts byte data from specific ROM regions
+- **Duplicate Label Fixing**: `python3 tools/fix_dup_labels2.py` - Resolves label conflicts in assembly code
+- **Batch Processing**: Can be integrated into larger automation scripts for continuous label maintenance
+
+```mermaid
+flowchart TD
+Start(["Assembly File"]) --> Scan["Scan for Undefined Labels"]
+Scan --> Identify["Identify Missing @ADDR Symbols"]
+Identify --> Locate["Find Corresponding Address Comments"]
+Locate --> Insert["Insert Labels at Correct Locations"]
+Insert --> Validate["Validate Label Placement"]
+Validate --> Output["Updated Assembly File"]
+Start2(["ROM File"]) --> Calculate["Calculate Memory Offsets"]
+Calculate --> Extract["Extract Specified Byte Range"]
+Extract --> Format["Format as .byte Directives"]
+Format --> Output2["Formatted Data Output"]
+Start3(["Assembly with Duplicates"]) --> ProcScan["Scan .proc Blocks"]
+ProcScan --> Detect["Detect Duplicate Labels"]
+Detect --> Resolve["Resolve Conflicts with @ADDR Format"]
+Resolve --> UpdateRefs["Update References Within Scope"]
+UpdateRefs --> Output3["Fixed Assembly File"]
+```
+
+**Diagram sources**
+- [tools/add_missing_labels.py:1-58](file://tools/add_missing_labels.py#L1-L58)
+- [tools/dump_bytes.py:1-19](file://tools/dump_bytes.py#L1-L19)
+- [tools/fix_dup_labels2.py:1-99](file://tools/fix_dup_labels2.py#L1-L99)
+
+**Section sources**
+- [tools/add_missing_labels.py:1-58](file://tools/add_missing_labels.py#L1-L58)
+- [tools/dump_bytes.py:1-19](file://tools/dump_bytes.py#L1-L19)
+- [tools/fix_dup_labels2.py:1-99](file://tools/fix_dup_labels2.py#L1-L99)
 
 ### Bank Stub Generation and Consolidated Bank Management
 
@@ -2368,10 +2463,11 @@ The build system exhibits clear separation of concerns:
 - **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation.
 - **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing, semantic renaming using Ai* convention, improved control flow with labeled targets, and enhanced nested procedure support.
 - **New**: Specialized PRG bank $0C/$0D callback system analysis tools provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support.
+- **New**: Three new utility tools for automated label management provide complementary capabilities for maintaining label consistency and resolving common label-related issues.
 - **Updated**: Consolidated bank management reduces compilation overhead through unified bank modules like prg_0c_0d.asm while maintaining compatibility with individual bank files.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, advanced paired bank disassembly tools, AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, specialized verification tools for comprehensive ROM coverage, PRG bank $0C/$0D callback system analysis tools with standalone verification support, and consolidated bank management for reduced compilation overhead.
+- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, advanced paired bank disassembly tools, AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, specialized verification tools for comprehensive ROM coverage, PRG bank $0C/$0D callback system analysis tools with standalone verification support, consolidated bank management for reduced compilation overhead, and new utility tools for automated label management.
 
 ```mermaid
 graph TB
@@ -2414,6 +2510,9 @@ MK --> AI2["nest_b49c.py"]
 MK --> LA1["analyze_loc_labels.py"]
 MK --> LA2["rename_loc_labels.py"]
 MK --> LA3["enhance_prg_1d.py"]
+MK --> NU1["add_missing_labels.py"]
+MK --> NU2["dump_bytes.py"]
+MK --> NU3["fix_dup_labels2.py"]
 MK --> RA1["check_addresses.py"]
 MK --> RA2["check_bank18.py"]
 MK --> RA3["check_rom_offset.py"]
@@ -2470,6 +2569,9 @@ AI2 --> Output
 LA1 --> LA2
 LA2 --> LA3
 LA3 --> Output
+NU1 --> NU2
+NU2 --> NU3
+NU3 --> Output
 RA1 --> RA2
 RA2 --> RA3
 RA3 --> RA4
@@ -2554,6 +2656,9 @@ CS5 --> Output
 - [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
 - [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
 - [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/add_missing_labels.py:1-58](file://tools/add_missing_labels.py#L1-L58)
+- [tools/dump_bytes.py:1-19](file://tools/dump_bytes.py#L1-L19)
+- [tools/fix_dup_labels2.py:1-99](file://tools/fix_dup_labels2.py#L1-L99)
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -2577,6 +2682,7 @@ CS5 --> Output
 - **New**: Specialized verification tools like verify_0a_0b.py perform byte-exact comparisons of large ROM regions; expect processing time proportional to ROM size being validated.
 - **New**: PRG bank $0C/$0D callback system analysis tools perform comprehensive binary scanning and pattern matching; expect processing time proportional to ROM size and callback pattern density.
 - **New**: Inline data transformation tools process entire assembly files with binary correlation; expect processing time proportional to code size and inline data complexity.
+- **New**: New utility tools provide efficient automated label management with minimal processing overhead; expect fast execution for typical assembly file sizes.
 - **Updated**: Consolidated bank management reduces compilation overhead by processing fewer compilation units; expect faster build times with prg_0c_0d.asm compared to separate prg_0c.asm and prg_0d.asm files.
 - **New**: Each disassembly, transformation, analysis, and label processing stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
 - **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
@@ -2593,6 +2699,7 @@ CS5 --> Output
 - **New**: Byte-exact verification tools compare entire ROM regions; expect processing time proportional to the size of the ROM region being validated.
 - **New**: Callback pattern analysis tools scan entire binary data for JSR patterns; expect processing time proportional to ROM size and callback pattern frequency.
 - **New**: Inline data transformation requires binary correlation with assembly files; expect processing time proportional to code size and inline data complexity.
+- **New**: New utility tools are optimized for efficiency with minimal overhead; add_missing_labels.py uses regex patterns for fast label detection, dump_bytes.py provides direct binary access for quick data extraction, and fix_dup_labels2.py uses efficient string replacement algorithms.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -2654,6 +2761,10 @@ Common issues and resolutions:
 - **New**: Inline data fixing issues: Ensure fix_0c_0d_inline.py correctly matches inline addresses with labeled addresses in assembly file.
 - **New**: Directive verification failures: Check that verify_0c_0d_directives.py can properly parse .word directives and compare with binary data.
 - **New**: Standalone verification configuration issues: Verify that test_0c_0d.cfg is properly configured for consolidated prg_0c_0d.asm module testing.
+- **New**: New utility tool failures: Ensure proper file paths and permissions for add_missing_labels.py, dump_bytes.py, and fix_dup_labels2.py.
+- **New**: Label generation issues: Verify that add_missing_labels.py can find corresponding address comments for undefined labels.
+- **New**: ROM byte extraction problems: Check that dump_bytes.py has correct ROM file paths and bank offset calculations.
+- **New**: Duplicate label resolution failures: Ensure fix_dup_labels2.py can properly identify duplicate labels and extract addresses from inline comments.
 - **Updated**: Consolidated bank compilation issues: Verify that prg_0c_0d.asm is properly included in all_banks.asm and that CODE_BANK0C/CODE_BANK0D segments are correctly mapped in linker.cfg.
 - **Updated**: Bank stub generation conflicts: Ensure generate_bank_stubs.py doesn't create duplicate files when consolidated modules exist.
 
@@ -2730,52 +2841,18 @@ Practical examples:
 - **New**: ROM data extraction: python3 tools/dump_data_range.py
 - **New**: Automated data insertion: python3 tools/mark_data_block.py
 - **New**: Global variable validation: python3 tools/verify_globals.py
-- **New**: Advanced paired bank disassembly: python3 tools/disasm_0a_0b.py
-- **New**: General-purpose PRG disassembly: python3 tools/disasm_prg.py 0x1D 0x1E --output output/prg_1d_1e_raw.asm
-- **New**: Paired bank verification: python3 tools/verify_0a_0b.py
-- **New**: Transform specific stage: python3 tools/transform_17_18.py, python3 tools/add_procs.py, etc.
-- **New**: Advanced boundary analysis: python3 tools/proc_scope_17_18.py
-- **New**: Localized label conversion: python3 tools/localize_labels.py
-- **New**: Automated parameter declaration: python3 tools/auto_add_local_params.py
-- **New**: RAM centralization: python3 tools/globalize_04xx.py
-- **New**: Label analysis: python3 tools/analyze_loc_labels.py
-- **New**: Label renaming: python3 tools/rename_loc_labels.py
-- **New**: Enhanced processing: python3 tools/enhance_prg_1d.py
-- **New**: Address verification: make check_addresses
-- **New**: Bank validation: make check_bank18
-- **New**: Offset mapping: make check_rom_offset
-- **New**: CHR table inspection: make dump_chr_table
-- **New**: Correct bytes verification: make dump_correct_bytes
-- **New**: $0530 pattern search: make search_0530
-- **New**: CHR loader pattern search: make search_chr_loader
-- **New**: Specific CHR loader search: make search_chr_loader2
-- **New**: Comprehensive disassembly verification: make verify_disasm
-- **New**: Bank $1E structure analysis: make analyze_1e
-- **New**: Deep Bank $1E analysis: make analyze_1e_deep
-- **New**: Direct tool execution: python3 tools/check_addresses.py, python3 tools/check_bank18.py, etc.
-- **New**: RAM centralization: python3 tools/globalize_04xx.py --input asm/banks/prg_17_18.asm --output asm/banks/prg_17_18_globalized.asm
-- **New**: Bank $1D disassembly: make disasm_1d
-- **New**: Enhanced Bank $1D disassembly: make disasm_1d_enhanced
-- **New**: Final Bank $1D assembly: make disasm_1d_final
-- **New**: Bank $1E disassembly: make disasm_1e
-- **New**: Definitive Bank $1E disassembly: make disasm_1e_definitive
-- **New**: Final Bank $1E assembly: make disasm_1e_final
-- **New**: Combined Bank $1D/$1E assembly: make assemble_prg_1d_1e
-- **New**: Generate enhanced Bank 0x1F disassembly: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: Clean build artifacts: make clean
-- **New**: Clean and remove ROM dumps: make distclean
-- **New**: RAM usage analysis: python3 tools/analyze_ram_1d1e.py
-- **New**: Address validation: python3 tools/check_addrs.py
-- **New**: Symbol conflict detection: python3 tools/check_conflicts.py
-- **New**: ROM data extraction: python3 tools/dump_data_range.py
-- **New**: Automated data insertion: python3 tools/mark_data_block.py
-- **New**: Global variable validation: python3 tools/verify_globals.py
 - **New**: Callback system analysis: python3 tools/analyze_0c_0d_callbacks.py
 - **New**: Trampoline pattern validation: python3 tools/check_trampoline_pattern.py
 - **New**: Inline data transformation: python3 tools/transform_0c_0d_inline.py
 - **New**: Inline data fixing: python3 tools/fix_0c_0d_inline.py
 - **New**: Directive verification: python3 tools/verify_0c_0d_directives.py
 - **New**: Standalone verification config: python3 tools/test_0c_0d.cfg
+- **New**: Automatic label generation: python3 tools/add_missing_labels.py
+- **New**: ROM byte extraction: python3 tools/dump_bytes.py
+- **New**: Duplicate label resolution: python3 tools/fix_dup_labels2.py
+- **Updated**: Consolidated bank workflow: make banks (generates both individual and consolidated bank files), make (uses prg_0c_0d.asm for reduced compilation overhead)
+- Iterative assembly: make, make verify
+- Cleanup: make clean, make distclean
 
 **Section sources**
 - [Makefile:51-101](file://Makefile#L51-L101)
@@ -2792,7 +2869,7 @@ Practical examples:
 - [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the advanced label analysis and renaming system with analyze_loc_labels.py, rename_loc_labels.py, and enhance_prg_1d.py, providing automated Loc_ label processing and meaningful name assignment for improved code organization. The newest addition is the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by the specialized verify_0a_0b.py verification tool that ensures byte-exact accuracy validation for paired banks $0A/$0B. **New**: The AI code modernization tools with analyze_b49c.py and nest_b49c.py provide automated analysis and structural optimization for the AI turn dispatch system with new modular Ai* architecture, enhanced nested procedure support, intelligent branch instruction fixing, semantic renaming using Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and nested procedure restructuring capabilities. **New**: The specialized PRG bank $0C/$0D callback system analysis tools with analyze_0c_0d_callbacks.py, check_trampoline_pattern.py, transform_0c_0d_inline.py, fix_0c_0d_inline.py, and verify_0c_0d_directives.py provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support through test_0c_0d.cfg configuration. **Updated**: The bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining full compatibility with existing individual bank files. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, the advanced paired bank disassembly tools, the AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, the specialized PRG bank $0C/$0D callback system analysis tools with standalone verification support, the specialized verification tools for byte-exact accuracy validation, and the consolidated bank management system enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, advanced paired bank disassembly capabilities, AI code modernization features with modular Ai* architecture and enhanced nested procedure support, improved control flow with labeled targets, specialized PRG bank $0C/$0D callback system analysis with standalone verification support, specialized verification tools for byte-exact accuracy validation, and consolidated bank management for reduced compilation overhead, significantly improving code readability, maintainability, and build performance.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by the specialized verify_0a_0b.py verification tool that ensures byte-exact accuracy validation for paired banks $0A/$0B. **New**: The AI code modernization tools with analyze_b49c.py and nest_b49c.py provide automated analysis and structural optimization for the AI turn dispatch system with new modular Ai* architecture, enhanced nested procedure support, intelligent branch instruction fixing, semantic renaming using Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and nested procedure restructuring capabilities. **New**: The specialized PRG bank $0C/$0D callback system analysis tools with analyze_0c_0d_callbacks.py, check_trampoline_pattern.py, transform_0c_0d_inline.py, fix_0c_0d_inline.py, and verify_0c_0d_directives.py provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support through test_0c_0d.cfg configuration. **New**: Three new utility tools enhance the reverse engineering workflow with add_missing_labels.py for automatic label generation, dump_bytes.py for ROM byte extraction, and fix_dup_labels2.py for duplicate label resolution, providing essential capabilities for maintaining large-scale assembly codebases with consistent label management. **Updated**: The bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining full compatibility with existing individual bank files. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, the advanced paired bank disassembly tools, the AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, the specialized PRG bank $0C/$0D callback system analysis tools with standalone verification support, the specialized verification tools for byte-exact accuracy validation, the consolidated bank management system, and the new utility tools for automated label management enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, advanced paired bank disassembly capabilities, AI code modernization features with modular Ai* architecture and enhanced nested procedure support, improved control flow with labeled targets, specialized PRG bank $0C/$0D callback system analysis with standalone verification support, specialized verification tools for byte-exact accuracy validation, consolidated bank management for reduced compilation overhead, and new utility tools for automated label management, significantly improving code readability, maintainability, and build performance.
 
 ## Appendices
 
@@ -2811,6 +2888,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: Label analysis and renaming workflow: make analyze_loc_labels, make rename_loc_labels, make enhance_prg_1d
 - **New**: PRG banks $1D/$1E analysis workflow: make analyze_ram_1d1e, make check_addrs, make check_conflicts, make dump_data_range, make mark_data_block, make verify_globals
 - **New**: PRG bank $0C/$0D callback system analysis workflow: make analyze_callback_system, make check_trampoline_patterns, make transform_inline_data, make fix_inline_data, make verify_0c_0d_directives
+- **New**: New utility tools workflow: python3 tools/add_missing_labels.py, python3 tools/dump_bytes.py, python3 tools/fix_dup_labels2.py
 - **Updated**: Consolidated bank workflow: make banks (generates both individual and consolidated bank files), make (uses prg_0c_0d.asm for reduced compilation overhead)
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
@@ -2953,6 +3031,13 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/transform_0c_0d_inline.py
 - **New**: python3 tools/fix_0c_0d_inline.py
 - **New**: python3 tools/verify_0c_0d_directives.py
+- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
+- **New**: python3 tools/annotate_asm.py --in-place --verify
+- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
+- **New**: python3 tools/annotate_asm.py --in-place --verify
+- **New**: python3 tools/add_missing_labels.py
+- **New**: python3 tools/dump_bytes.py
+- **New**: python3 tools/fix_dup_labels2.py
 - **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
 - **New**: python3 tools/annotate_asm.py --in-place --verify
 - **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin

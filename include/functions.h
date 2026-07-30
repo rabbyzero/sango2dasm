@@ -877,4 +877,55 @@ B0A_0B_DeductCounter_Unwind2 = $D131 ; DeductCounter: unwind 2 frames
 B0A_0B_DeductCounter_Unwind3 = $D133 ; DeductCounter: unwind 3 frames
 B0A_0B_RandomBelowFull    = $D4AF   ; RandomBelow: full-range entry
 B0A_0B_ProvinceEvalExit   = $B17D   ; Common exit -> EndTurn
+
+;===============================================================================
+; SECTION 6: Combined Banks $0C+$0D ($A000-$DFFF)
+; Bank $0C at $A000-$BFFF paired with Bank $0D at $C000-$DFFF
+; Officer Exchange / Strategic Command system
+; Loaded via SwitchBankAC with Y=$28
+; Entry points via jump table at $A000-$A006
+;===============================================================================
+
+;-------------------------------------------------------------------------------
+; Jump Table Entry Points ($A000-$A006)
+;-------------------------------------------------------------------------------
+B0C_0D_ExchangeFrameUpdate_Entry = $A000 ; ExchangeFrameUpdate_Entry: Main frame update
+B0C_0D_ExchangeSceneInit_Entry = $A003 ; ExchangeSceneInit_Entry: Exchange scene init
+B0C_0D_OfficerTransferCalc_Entry = $A006 ; OfficerTransferCalc_Entry: Transfer calc
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $0C ($A009-$BFFF)
+;-------------------------------------------------------------------------------
+B0C_0D_ExchangeFrameUpdate = $A009  ; Main frame update loop
+B0C_0D_PhaseDispatch      = $A04E   ; 5-phase exchange flow dispatcher
+B0C_0D_OfficerDetailView  = $A21B   ; Officer detail panel display
+B0C_0D_OfficerTransferExecute = $A293 ; Officer transfer animation + result
+B0C_0D_OfficerMovePhase   = $A44D   ; Officer movement on strategic map
+B0C_0D_OfficerCommandPhase = $A87C  ; Command menu, target select, confirm
+B0C_0D_ValidateActionTarget = $AD80 ; Per-action validation (14 action types)
+B0C_0D_ExecuteAction      = $B02B   ; Per-action execution engine
+B0C_0D_CheckActionSuccess = $B72B   ; Action success check (distance + stats)
+B0C_0D_CalcDistance       = $B860   ; Hex distance calculation
+B0C_0D_BuildNeighborList  = $B8A1   ; Build adjacent tile neighbor list
+B0C_0D_ProvinceSelectDispatch = $B94A ; Province selection UI (6 states)
+B0C_0D_OfficerTurnDispatch = $BC93  ; Officer turn cycle (8 states)
+B0C_0D_OfficerMarchDispatch = $BE7E ; Army march dispatch (17 states)
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $0D ($C000-$DFFF)
+;-------------------------------------------------------------------------------
+B0C_0D_MainLoopDispatch   = $C1FC   ; Trampoline back to frame update
+B0C_0D_ArmyDeployDispatch = $C204   ; Army deployment (7 states)
+B0C_0D_OfficerExchangeDispatch = $C691 ; Exchange init/select/exit (4 states)
+B0C_0D_OfficerTransferCalc = $C766 ; Transfer merit calc + action dispatch
+B0C_0D_OfficerExchangeConfirmDispatch = $C98C ; Exchange confirmation (6 states)
+B0C_0D_RecalcExchangeStats = $CC29 ; Ruler stat recalculation for exchange
+B0C_0D_OfficerExchangeSelectDispatch = $CD16 ; Officer selection (7 states)
+B0C_0D_OfficerReserveAssignDispatch = $D2CD ; Reserve assignment (7 states)
+B0C_0D_ExchangeScene      = $D4F0   ; Exchange scene: map, cursor, rosters, SFX
+B0C_0D_ExchangeScene_Init = $DC99   ; Exchange scene initialization
+B0C_0D_CenterMapOnOfficer = $DC33   ; Center map viewport on officer
+B0C_0D_CheckExchangePossible = $DF27 ; Check if exchange is possible
+B0C_0D_SetupExchangeSfx   = $DF39   ; Setup exchange SFX tone
+B0C_0D_UpdateExchangeSfx  = $DF88   ; Update exchange SFX by scroll position
 ;

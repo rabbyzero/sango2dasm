@@ -36,24 +36,43 @@ This document explains the organizational layout of the sango2dasm repository, f
 ## Project Structure
 The repository follows a clear, modular layout centered on a 32-bank PRG ROM architecture and a reusable disassembly pipeline:
 
-- asm/: Top-level assembly entry point and bank stubs
+- asm/: Top-level assembly entry point and bank sources
   - asm/main.asm: Entry point (reset/NMI/IRQ vectors) and global code
-  - asm/banks/: 32 bank stub files (prg_00.asm through prg_1f.asm) forming the “bank stubs” system
-- include/: Hardware abstractions and shared macros
+  - asm/banks/: Bank assembly files — a mix of stub files (prg_00.asm … prg_1f.asm) and fully disassembled combined-pair files:
+    - prg_0a_0b.asm: Banks $0A+$0B combined 16KB ($A000-$DFFF) — AI turn processing, province evaluation
+    - prg_0c_0d.asm: Banks $0C+$0D combined 16KB ($A000-$DFFF) — officer exchange, strategic command
+    - prg_17_18.asm: Banks $17+$18 combined 16KB ($A000-$DFFF) — display and battle systems
+    - prg_1d_1e.asm: Banks $1D+$1E combined 16KB ($A000-$DFFF) — domestic affairs, scene renderer
+    - prg_1f.asm: Boot bank ($E000-$FFFF) — reset handler, state dispatch, sound engine, math, RNG
+- include/: Hardware abstractions, shared macros, and symbolic labels
   - include/6502_registers.h: PPU/APU register definitions
   - include/namco163.h: Mapper constants and bank switching macros
   - include/macros.h: Common 6502 helper macros
+  - include/functions.h: Symbolic function and data label definitions (BXX_Name convention, 932 lines)
 - rom/: ROM binaries and auto-generated info
   - rom/prg/: 32 x 8KB PRG bank binaries
   - rom/chr/: 32 x 8KB CHR bank binaries
   - rom/rom_info.h: Auto-generated ROM metadata
 - tools/: Python scripts implementing the automated analysis pipeline
-  - Tools for splitting ROM, generating bank stubs, disassembling, analyzing, building, verifying
+  - Core pipeline: split_rom.py, generate_bank_stubs.py, disasm_6502.py, analyze_rom.py, build_nes.py, verify_rom.py
+  - Bank-specific disassemblers: disasm_prg.py (general), disasm_0a_0b.py, disasm_17_18.py, disasm_1d*.py, disasm_1e*.py, disasm_bank_1f.py
+  - Analysis and verification: analyze_*.py, verify_*.py, check_*.py
+  - Code transformation: transform_*.py, proc_wrap_general.py, add_procs.py, localize_labels.py, rename_loc_labels.py
 - code/: Disassembly and analysis artifacts (markdown reports, function tables)
 - build/: Generated outputs from the build system
   - sango2.nes: Final ROM
   - prg.bin: Raw PRG output from the linker
   - main.o, main.lst, map.txt: Object, listing, and map files
+
+### Current Disassembly State
+| Bank(s) | File | Status |
+|---|---|---|
+| $0A+$0B | prg_0a_0b.asm | Fully disassembled (10,427 lines) |
+| $0C+$0D | prg_0c_0d.asm | Fully disassembled (8,533 lines) |
+| $17+$18 | prg_17_18.asm | Fully disassembled (9,402 lines) |
+| $1D+$1E | prg_1d_1e.asm | Fully disassembled (5,965 lines) |
+| $1F | prg_1f.asm | Fully disassembled (4,562 lines) |
+| $00–$09, $0E–$16, $19–$1C | prg_XX.asm | Stubs (.incbin placeholders) |
 
 ```mermaid
 graph TB

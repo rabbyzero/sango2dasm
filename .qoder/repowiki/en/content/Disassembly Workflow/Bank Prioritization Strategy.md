@@ -31,6 +31,15 @@
 ## Introduction
 This document presents a systematic bank prioritization strategy for disassembling the Namco-163 (Mapper 19) ROM of Sangokushi 2 - Haou no Tairiku (J). The approach focuses on execution flow importance, interrupt vectors, and code pattern recognition to determine which ROM banks to disassemble first. The methodology emphasizes the boot bank (0x1F) as the primary starting point due to its role as the fixed boot bank at reset and its dispatch table that controls game state transitions. The strategy also covers how to iteratively prioritize subsequent banks based on observed call frequencies, interrupt handlers, and shared infrastructure functions.
 
+**Current Progress**: The following bank groups have been fully disassembled:
+- Bank $1F (boot bank, $E000-$FFFF) — reset handler, state dispatch, sound engine, math, RNG
+- Banks $0A+$0B (combined 16KB, $A000-$DFFF) — AI turn processing, province evaluation
+- Banks $0C+$0D (combined 16KB, $A000-$DFFF) — officer exchange, strategic command
+- Banks $17+$18 (combined 16KB, $A000-$DFFF) — display and battle systems
+- Banks $1D+$1E (combined 16KB, $A000-$DFFF) — domestic affairs, scene renderer
+
+Remaining stub banks awaiting disassembly: $00–$09, $0E–$16, $19–$1C.
+
 ## Project Structure
 The repository organizes the ROM into 32 PRG banks (8KB each) and 32 CHR banks, with tools to split the ROM, generate bank stubs, and analyze structure. The build system integrates with cc65 to assemble and link the project.
 
@@ -277,13 +286,14 @@ The bank prioritization strategy centers on the fixed boot bank (0x1F) and its d
 ## Appendices
 
 ### Appendix A: Bank Prioritization Checklist
-- Confirm bank 0x1F is the fixed boot bank.
-- Analyze the reset handler and vector table.
-- Identify state handlers and their call sites.
-- Locate bank switching routines and PRG slot mappings.
-- Prioritize interrupt handlers (NMI/IRQ).
-- Focus on shared utilities (PPU/Sound/RNG/data access).
-- Iterate and refine priorities as more banks are disassembled.
+- Confirm bank 0x1F is the fixed boot bank. ✔ Done
+- Analyze the reset handler and vector table. ✔ Done
+- Identify state handlers and their call sites. ✔ Done
+- Locate bank switching routines and PRG slot mappings. ✔ Done
+- Prioritize interrupt handlers (NMI/IRQ). ✔ Done
+- Focus on shared utilities (PPU/Sound/RNG/data access). ✔ Done
+- Disassemble high-priority bank pairs ($0A/$0B, $0C/$0D, $17/$18, $1D/$1E). ✔ Done
+- Iterate and refine priorities for remaining stub banks ($00–$09, $0E–$16, $19–$1C).
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)

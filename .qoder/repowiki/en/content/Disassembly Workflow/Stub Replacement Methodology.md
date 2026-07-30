@@ -39,11 +39,21 @@ This document describes a robust, incremental stub replacement methodology for r
 - Cross-bank reference handling, shared subroutines, and mixed data/code regions
 - Maintaining code organization and continuity during replacement
 
+**Current State**: Five bank groups have been fully disassembled and no longer use .incbin stubs:
+- prg_1f.asm (boot bank, $E000-$FFFF)
+- prg_0a_0b.asm (combined 16KB, $A000-$DFFF)
+- prg_0c_0d.asm (combined 16KB, $A000-$DFFF)
+- prg_17_18.asm (combined 16KB, $A000-$DFFF)
+- prg_1d_1e.asm (combined 16KB, $A000-$DFFF)
+
+Remaining stub banks ($00–$09, $0E–$16, $19–$1C) still use .incbin and await disassembly.
+
 ## Project Structure
 The repository organizes the disassembly pipeline around three pillars:
-- Bank stubs and inclusion: Assembly stubs per PRG bank with .incbin placeholders
-- Disassembly tools: Bank-specific and generic 6502 disassemblers
+- Bank stubs and inclusion: Assembly stubs per PRG bank with .incbin placeholders (remaining banks), plus fully disassembled combined-pair files
+- Disassembly tools: Bank-specific and generic 6502 disassemblers (disasm_prg.py for new banks, disasm_0a_0b.py, disasm_17_18.py, disasm_1d*.py, disasm_1e*.py for completed pairs)
 - Build and integration: Makefile-driven assembly, linking, and ROM creation
+- Symbolic labels: include/functions.h provides cross-bank symbolic function names (BXX_Name convention)
 
 ```mermaid
 graph TB
@@ -53,16 +63,19 @@ LD["linker.cfg"]
 BNK["asm/banks/all_banks.asm"]
 MAIN["asm/main.asm"]
 end
-subgraph "Bank Stubs"
+subgraph "Bank Files"
 GEN["tools/generate_bank_stubs.py"]
-STUBS["asm/banks/*.asm"]
+STUBS["asm/banks/prg_XX.asm (stubs)"]
+DISASMED["asm/banks/prg_0a_0b.asm, prg_0c_0d.asm,\nprg_17_18.asm, prg_1d_1e.asm, prg_1f.asm"]
 BIN["rom/prg/*.bin"]
 end
 subgraph "Disassembly Tools"
-DIS1F["tools/disasm_bank_1f.py"]
+DISPRG["tools/disasm_prg.py (general)"]
 DIS65["tools/disasm_6502.py"]
-ANA1F["tools/analyze_bank_1f.py"]
 SPL["tools/split_rom.py"]
+end
+subgraph "Labels"
+FUNCS["include/functions.h"]
 end
 MK --> LD
 MK --> BNK
@@ -70,9 +83,11 @@ MK --> MAIN
 GEN --> STUBS
 STUBS --> BIN
 SPL --> BIN
-DIS1F --> STUBS
+DISPRG --> STUBS
+DISPRG --> DISASMED
 DIS65 --> STUBS
-ANA1F --> STUBS
+FUNCS --> DISASMED
+FUNCS --> STUBS
 ```
 
 **Diagram sources**
@@ -93,12 +108,12 @@ ANA1F --> STUBS
 
 ## Core Components
 - Bank stub generator: Creates per-bank assembly stubs with .incbin directives pointing to original ROM banks. See [generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46).
-- Bank inclusion aggregator: Includes all bank stubs into a single assembly file for unified assembly. See [all_banks.asm:5-36](file://asm/banks/all_banks.asm#L5-L36).
-- Bank-specific disassembler: Produces ca65-compatible assembly for a specific boot bank with labeled functions and tables. See [disasm_bank_1f.py:361-433](file://tools/disasm_bank_1f.py#L361-L433).
+- Bank inclusion aggregator: Includes all bank files (stubs and disassembled) into a single assembly file for unified assembly. See [all_banks.asm:5-33](file://asm/banks/all_banks.asm#L5-L33).
+- General PRG disassembler: Produces ca65-compatible assembly for any PRG bank with labeled functions and tables. Use tools/disasm_prg.py for new bank disassembly.
 - Generic 6502 disassembler: Provides quick, basic disassembly for arbitrary regions. See [disasm_6502.py:286-334](file://tools/disasm_6502.py#L286-L334).
 - ROM splitter: Splits an iNES ROM into individual PRG/CHR banks and generates a combined PRG for cross-bank analysis. See [split_rom.py:38-122](file://tools/split_rom.py#L38-L122).
 - Build pipeline: Assembles and links to produce a PRG and NES ROM. See [Makefile:38-48](file://Makefile#L38-L48) and [build_nes.py:10-51](file://tools/build_nes.py#L10-L51).
-- Bank 1F analysis: Comprehensive analysis and annotated disassembly for the boot bank. See [bank_1f_analysis.md:1-800](file://code/bank_1f_analysis.md#L1-L800).
+- Symbolic labels: include/functions.h defines cross-bank function names using the BXX_Name convention (e.g., B1F_Reset, B0A_ArmyDispatch).
 
 **Section sources**
 - [generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46)
@@ -170,23 +185,25 @@ WriteAggregator --> Done(["Stubs ready"])
 - [all_banks.asm:5-36](file://asm/banks/all_banks.asm#L5-L36)
 
 ### Bank-Specific Disassembly for Replacement Targets
-- Purpose: Produce accurate, labeled assembly for specific banks (e.g., boot bank 0x1F) to guide replacement.
-- Behavior: Reads the original bank binary, identifies function and table regions, and emits ca65 assembly with labels and comments. It also writes a function table for cross-reference.
+- Purpose: Produce accurate, labeled assembly for specific banks or bank pairs to guide replacement.
+- Behavior: Reads the original bank binary (or combined pair), identifies function and table regions, and emits ca65 assembly with labels and comments.
+- Tools: Use tools/disasm_prg.py for new single-bank disassembly. Completed bank pairs used specialized tools (disasm_0a_0b.py, disasm_17_18.py, disasm_1d*.py, disasm_1e*.py).
 - Usage: The emitted assembly serves as the authoritative source for replacing stubbed regions in the corresponding bank file.
+- Combined-pair approach: Banks that share the $A000-$DFFF address space are disassembled together as 16KB units (e.g., prg_0a_0b.asm covers both $0A at $A000-$BFFF and $0B at $C000-$DFFF).
 
 ```mermaid
 sequenceDiagram
 participant Dev as "Developer"
-participant DIS as "disasm_bank_1f.py"
-participant BIN as "rom/prg/prg_1f.bin"
-participant ASM as "code/bank_1f_raw.asm"
-participant TAB as "code/bank_1f_function_table.md"
+participant DIS as "tools/disasm_prg.py"
+participant BIN as "rom/prg/prg_XX.bin"
+participant ASM as "asm/banks/prg_XX.asm"
+participant FUNCS as "include/functions.h"
 Dev->>DIS : Run with bank binary path
 DIS->>BIN : Read original bank
 DIS->>DIS : Parse function/table regions
 DIS->>ASM : Write labeled assembly
-DIS->>TAB : Write function table
-DIS-->>Dev : Files generated
+Dev->>FUNCS : Add new symbolic labels
+FUNCS-->>Dev : Cross-bank references resolved
 ```
 
 **Diagram sources**
@@ -356,18 +373,22 @@ The stub replacement methodology provides a structured, incremental path from pl
 ### Practical Workflow: From Stubs to Integrated Code
 1. Prepare ROM banks
    - Split the original ROM into per-bank PRG/CHR and a combined PRG. See [split_rom.py:38-122](file://tools/split_rom.py#L38-L122).
-2. Generate bank stubs
+2. Generate bank stubs (if not already present)
    - Create per-bank stubs with .incbin placeholders. See [generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46).
 3. Assemble and link
    - Build the project to include all stubs. See [Makefile:38-48](file://Makefile#L38-L48).
-4. Analyze target bank
-   - Use bank-specific disassembler to produce labeled assembly and function tables. See [disasm_bank_1f.py:545-561](file://tools/disasm_bank_1f.py#L545-L561).
+4. Disassemble target bank
+   - Use tools/disasm_prg.py to produce labeled assembly for the target bank.
+   - For bank pairs sharing $A000-$DFFF, disassemble both banks together as a 16KB unit.
 5. Plan replacement regions
-   - Review the annotated analysis and function table to identify regions to replace. See [bank_1f_analysis.md:1-800](file://code/bank_1f_analysis.md#L1-L800).
+   - Review the disassembly output and identify code vs. data regions.
 6. Replace stubs incrementally
-   - Edit the corresponding bank file (e.g., [prg_1f.asm](file://asm/banks/prg_1f.asm)) to replace .incbin regions with labeled assembly blocks.
-   - Maintain consistent naming and labels; preserve cross-references to external symbols.
-7. Validate and iterate
+   - Edit the corresponding bank file (e.g., [prg_0e.asm](file://asm/banks/prg_0e.asm)) to replace .incbin regions with labeled assembly blocks.
+   - Maintain consistent naming and labels; add cross-references to include/functions.h.
+   - Use .proc/.endproc blocks for procedures and @-prefixed labels for local scope.
+7. Update linker.cfg
+   - Add new MEMORY regions and SEGMENTS as needed for the disassembled bank.
+8. Validate and iterate
    - Rebuild and compare against the original ROM as needed. See [build_nes.py:10-51](file://tools/build_nes.py#L10-L51) and [Makefile:58-61](file://Makefile#L58-L61).
 
 **Section sources**
@@ -380,10 +401,10 @@ The stub replacement methodology provides a structured, incremental path from pl
 - [Makefile:58-61](file://Makefile#L58-L61)
 
 ### Naming Conventions and Label Management
-- Bank files: Use lowercase with leading zeros (e.g., prg_00.asm, prg_1f.asm). See [all_banks.asm:5-36](file://asm/banks/all_banks.asm#L5-L36).
-- Segment naming: Use descriptive segment names aligned with bank roles (e.g., CODE_BANK1F). See [prg_1f.asm:13](file://asm/banks/prg_1f.asm#L13).
-- Labels: Prefix global RAM addresses with meaningful names (e.g., addr_game_state). See [prg_1f.asm:22-70](file://asm/banks/prg_1f.asm#L22-L70).
-- Procedures: Enclose functions in .proc/.endproc blocks with clear names. See [prg_1f.asm:74-148](file://asm/banks/prg_1f.asm#L74-L148).
+- Bank files: Use lowercase with leading zeros (e.g., prg_00.asm, prg_1f.asm). Combined pairs use prg_XX_YY.asm (e.g., prg_0a_0b.asm). See [all_banks.asm:5-33](file://asm/banks/all_banks.asm#L5-L33).
+- Segment naming: Use descriptive segment names aligned with bank roles (e.g., CODE_BANK1F, CODE_BANK0A). See [linker.cfg:32-65](file://linker.cfg#L32-L65).
+- Symbolic labels: Use include/functions.h with BXX_FunctionName convention for cross-bank references. Bank-local labels use bare names.
+- Procedures: Enclose functions in .proc/.endproc blocks with clear names. Use @-prefixed labels for local scope within procs.
 - Cross-references: Use .addr and direct calls to maintain linkage across banks. See [prg_1f.asm:153-168](file://asm/banks/prg_1f.asm#L153-L168).
 
 **Section sources**
