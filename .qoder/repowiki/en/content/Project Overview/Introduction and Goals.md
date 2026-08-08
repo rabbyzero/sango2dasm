@@ -38,15 +38,9 @@ Why this project matters:
 
 Scope and Objectives:
 - Complete 32-bank PRG ROM disassembly (256KB) with accurate bank switching and mapper abstraction.
-- Document and analyze the game's vector dispatch system, reset handler, and interrupt vectors.
+- Document and analyze the game’s vector dispatch system, reset handler, and interrupt vectors.
 - Provide a reproducible build pipeline using cc65 toolchain and Python-based utilities.
 - Enable incremental disassembly by replacing bank stubs with real code and verifying byte-for-byte accuracy against the original ROM.
-
-Current Progress:
-- 5 bank groups fully disassembled: $1F (boot), $0A/$0B, $0C/$0D, $17/$18, $1D/$1E
-- Combined-pair approach used for banks sharing $A000-$DFFF (16KB units)
-- include/functions.h provides 932 lines of symbolic cross-bank label definitions
-- Remaining stub banks: $00–$09, $0E–$16, $19–$1C
 
 Educational Value:
 - For beginners: Learn classic NES memory layout, bank switching, and mapper abstraction through hands-on analysis of a real game.
@@ -62,11 +56,10 @@ Practical Contributions:
 
 ## Project Structure
 The repository is organized around a complete disassembly workflow for the Namco-163 mapper-based game. The structure supports:
-- Assembly sources with bank stubs and fully disassembled combined-pair files
+- Assembly sources with bank stubs and main entry points
 - ROM splitting and analysis tools
-- Linker configuration for 4 PRG slots with dedicated segments for disassembled banks
+- Linker configuration for 4 PRG slots
 - Build automation via Makefile and Python scripts
-- Symbolic function labels in include/functions.h (BXX_Name convention)
 - Documentation and analysis artifacts for key banks
 
 ```mermaid
@@ -97,7 +90,6 @@ ASM --> BANKS
 Root --> INCLUDE
 INCLUDE --> NAMCO163_H
 INCLUDE --> MACROS_H
-INCLUDE --> FUNCTIONS_H["include/functions.h"]
 Root --> ROM
 ROM --> PRG
 ROM --> CHR
@@ -132,9 +124,6 @@ This section outlines the essential building blocks of the project and their rol
 
 - Mapper Abstraction and Bank Switching
   - The project defines mapper-specific constants and macros for the Namco-163 mapper, including bank switching registers and helper macros. These abstractions encapsulate the complexity of switching PRG banks at runtime and are central to understanding how the game organizes its 256KB of code across 32 banks.
-
-- Symbolic Function Labels (include/functions.h)
-  - A 932-line header defining symbolic names for all known functions and data labels using the BXX_FunctionName convention (e.g., B1F_Reset, B0A_ArmyDispatch). This enables cross-bank references without hardcoding addresses and is included by all disassembled bank files.
 
 - Linker Configuration
   - The linker configuration establishes 4 PRG slots ($8000–$FFFF) and assigns segments to these slots. This enables the assembly code to be organized by bank while maintaining a coherent memory map for the final ROM.

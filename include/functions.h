@@ -14,6 +14,9 @@
 ;   B04_Init = $A000 and B08_Init = $A000 are both valid
 ;===============================================================================
 
+.ifndef GUARD_FUNCTIONS_H
+GUARD_FUNCTIONS_H = 1
+
 ;===============================================================================
 ; SECTION 1: Bank $1F - Fixed Code ($E000-$FFFF)
 ; Always mapped to $E000-$FFFF (PRG slot 3)
@@ -929,3 +932,5 @@ B0C_0D_CheckExchangePossible = $DF27 ; Check if exchange is possible
 B0C_0D_SetupExchangeSfx   = $DF39   ; Setup exchange SFX tone
 B0C_0D_UpdateExchangeSfx  = $DF88   ; Update exchange SFX by scroll position
 ;
+
+.endif ; GUARD_FUNCTIONS_H

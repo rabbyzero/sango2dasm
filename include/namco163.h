@@ -3,6 +3,9 @@
 ; Sangokushi 2 - Haou no Tairiku uses Namco-163 (Mapper 19)
 ;===============================================================================
 
+.ifndef GUARD_NAMCO163_H
+GUARD_NAMCO163_H = 1
+
 ; Namco-163 PRG ROM Configuration
 ; Total PRG ROM: 32 banks x 8KB = 256KB
 ; Banks are 8KB each, mapped to $8000-$FFFF
@@ -104,4 +107,6 @@ BANK_1F           = $1F
     LDA #bank
     STA NAMCO_PRG_C000
 .endmacro
+
+.endif ; GUARD_NAMCO163_H
 

@@ -17,6 +17,7 @@ ROM_DIR := rom
 
 # Source files
 ASM_SOURCES := $(ASM_DIR)/main.asm
+BANK_SOURCES := $(wildcard $(ASM_DIR)/banks/*.asm)
 ASM_INCLUDE := $(INC_DIR)/6502_registers.h $(INC_DIR)/namco163.h $(INC_DIR)/macros.h $(INC_DIR)/functions.h
 
 # Output
@@ -24,7 +25,7 @@ PRG_BIN := $(BUILD_DIR)/prg.bin
 OUTPUT := $(BUILD_DIR)/sango2.nes
 
 # Flags
-CA65_FLAGS := -I $(INC_DIR) -l $(BUILD_DIR)/main.lst
+CA65_FLAGS := -I $(INC_DIR) -I $(ASM_DIR)/banks -l $(BUILD_DIR)/main.lst
 LD65_FLAGS := -C linker.cfg -m $(BUILD_DIR)/map.txt
 
 # Default target
@@ -35,12 +36,25 @@ all: $(OUTPUT)
 	@xxd -l 16 $(OUTPUT)
 
 # Build PRG binary from assembly
-$(PRG_BIN): $(ASM_SOURCES) $(ASM_INCLUDE) linker.cfg
+$(PRG_BIN): $(ASM_SOURCES) $(BANK_SOURCES) $(ASM_INCLUDE) linker.cfg
 	@mkdir -p $(BUILD_DIR)
 	@echo "Assembling..."
 	$(CA65) $(CA65_FLAGS) $(ASM_SOURCES) -o $(BUILD_DIR)/main.o
 	@echo "Linking..."
-	$(LD65) $(LD65_FLAGS) $(BUILD_DIR)/main.o -o $(PRG_BIN)
+	$(LD65) $(LD65_FLAGS) $(BUILD_DIR)/main.o -o $(BUILD_DIR)/prg_link.out
+	@echo "Concatenating banks..."
+	@cat $(BUILD_DIR)/bank00.bin $(BUILD_DIR)/bank01.bin $(BUILD_DIR)/bank02.bin \
+	    $(BUILD_DIR)/bank03.bin $(BUILD_DIR)/bank04.bin $(BUILD_DIR)/bank05.bin \
+	    $(BUILD_DIR)/bank06.bin $(BUILD_DIR)/bank07.bin $(BUILD_DIR)/bank08.bin \
+	    $(BUILD_DIR)/bank09.bin $(BUILD_DIR)/bank0a.bin $(BUILD_DIR)/bank0b.bin \
+	    $(BUILD_DIR)/bank0c.bin $(BUILD_DIR)/bank0d.bin $(BUILD_DIR)/bank0e.bin \
+	    $(BUILD_DIR)/bank0f.bin $(BUILD_DIR)/bank10.bin $(BUILD_DIR)/bank11.bin \
+	    $(BUILD_DIR)/bank12.bin $(BUILD_DIR)/bank13.bin $(BUILD_DIR)/bank14.bin \
+	    $(BUILD_DIR)/bank15.bin $(BUILD_DIR)/bank16.bin $(BUILD_DIR)/bank17.bin \
+	    $(BUILD_DIR)/bank18.bin $(BUILD_DIR)/bank19.bin $(BUILD_DIR)/bank1a.bin \
+	    $(BUILD_DIR)/bank1b.bin $(BUILD_DIR)/bank1c.bin $(BUILD_DIR)/bank1d.bin \
+	    $(BUILD_DIR)/bank1e.bin $(BUILD_DIR)/bank1f.bin > $(PRG_BIN)
+	@echo "PRG size: $$(wc -c < $(PRG_BIN)) bytes (expected 262144)"
 
 # Create NES ROM with header and CHR
 $(OUTPUT): $(PRG_BIN)
@@ -70,7 +84,7 @@ analyze:
 
 # Clean build artifacts
 clean:
-	@rm -rf $(BUILD_DIR)/*.o $(BUILD_DIR)/*.lst $(BUILD_DIR)/*.txt
+	@rm -rf $(BUILD_DIR)/*.o $(BUILD_DIR)/*.lst $(BUILD_DIR)/*.txt $(BUILD_DIR)/*.bin $(BUILD_DIR)/*.out
 	@rm -f $(PRG_BIN) $(OUTPUT)
 	@echo "Cleaned build directory"
 

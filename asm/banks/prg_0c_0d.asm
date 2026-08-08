@@ -18,8 +18,8 @@
 ;   $A293-$A44C  OfficerTransferExecute - transfer animation + result
 ;   $A44D-$A87B  OfficerMovePhase - officer movement on strategic map
 ;   $A87C-$AD7F  OfficerCommandPhase - command menu, target select, confirm
-;   $AD80-$B02A  ValidateActionTarget - per-action validation (14 types)
-;   $B02B-$B72A  ExecuteAction - per-action execution (recruit, train, etc.)
+;   $AD80-$B02A  ValidateActionTarget - per-stratagem validation (16 stratagems)
+;   $B02B-$B72A  ExecuteAction - per-stratagem execution (16 stratagems)
 ;   $B72B-$B949  CheckActionSuccess / CalcDistance / BuildNeighborList
 ;   $B94A-$BC92  ProvinceSelectDispatch - province selection UI
 ;   $BC93-$BE7D  OfficerTurnDispatch - officer turn cycle
@@ -118,7 +118,7 @@ officer_rec_dst_hi  = $04D5  ; officer record dest ptr hi
 ; --- Army group slot array ($04D8-$04DF, 8 bytes) ---
 ; Two groups of 4 slots: group A at $04D8-$04DB, group B at $04DC-$04DF.
 ; Each slot: officer index into $06xx tables; $FF = empty.
-; Populated by ExecAction_DeductSoldiers; checked in move validation.
+; Populated by ExecStratagem_AmbushAllSides; checked in move validation.
 army_slot_base      = $04D8  ; army group slot array base (8 bytes)
 ; $04D8-$04DB - group A slots (selected by $0504 >= 0)
 ; $04DC-$04DF - group B slots (selected by $0504 < 0)
@@ -708,10 +708,10 @@ PhaseExit:
   INC $0501                             ; $A318: EE 01 05
   DEC $0505                             ; $A31B: CE 05 05
   DEC $0505                             ; $A31E: CE 05 05
-  JSR @SetupTransferResult              ; $A321: 20 D2 A3
+  JSR OfficerTransfer_SetupResult                          ; $A321: 20 D2 A3
 @Done:
   RTS                                   ; $A324: 60
-@SetupTransferResult:
+OfficerTransfer_SetupResult:
   ; Load both officers' data and resolve ruler associations for result display
   ; $0560/$0561 = officer IDs, $052C/$052D = status, $052E/$052F = power
   ; $0562/$0563 = ruler byte-3 values for source/target rulers
@@ -1689,7 +1689,7 @@ PhaseExit:
   LDA @CancelMsgTable,Y                 ; $AB11: B9 1A AB
   JSR B1F_SetUI2                        ; $AB14: 20 83 F2
   JMP @FinishAndExit                    ; $AB17: 4C D5 AA
-; Cancel message IDs indexed by action type
+; Cancel message IDs indexed by stratagem code
 @CancelMsgTable:
   .byte $6C,$6D,$6E,$6C,$6C,$6F,$6C,$6C,$70,$BB,$71,$BA,$6C,$6C,$6C,$72; $AB1A: 6C 6D 6E 6C 6C 6F 6C 6C 70 BB 71 BA 6C 6C 6C 72
 .endproc
@@ -1870,7 +1870,7 @@ PhaseExit:
   LDA @ResultMsgTable,Y                 ; $AD69: B9 70 AD
   JSR B1F_SetUI2                        ; $AD6C: 20 83 F2
   RTS                                   ; $AD6F: 60
-; Result message IDs indexed by action type
+; Result message IDs indexed by stratagem code
 @ResultMsgTable:
   .byte $FB,$FC,$FD,$FE,$60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$6A,$6B; $AD70: FB FC FD FE 60 61 62 63 64 65 66 67 68 69 6A 6B
 .endproc
@@ -1893,26 +1893,33 @@ PhaseExit:
   LDA $0543                             ; $ADA4: AD 43 05
   AND #$0F                              ; $ADA7: 29 0F
   JSR B1F_CallbackDispatcher            ; $ADA9: 20 DE EA
-; --- CallbackDispatcher table (16 entries) ---
-  .word ValidAction_CalcGold                  ; $ADAC: $CC AD
-  .word ValidAction_DomesticOps              ; $ADAE: $D8 AD
-  .word ValidAction_DomesticOps              ; $ADB0: $D8 AD
-  .word ValidAction_DomesticOps              ; $ADB2: $D8 AD
-  .word ValidAction_IncreaseStats            ; $ADB4: $E4 AD
-  .word ValidAction_ExpandTerritory          ; $ADB6: $EE AD
-  .word ValidAction_Pillage                  ; $ADB8: $FB AD
-  .word ValidAction_ToggleAllegiance         ; $ADBA: $68 AE
-  .word ValidAction_CombinedAttack           ; $ADBC: $C4 AE
-  .word ValidAction_SpreadRumor              ; $ADBE: $CE AE
-  .word ValidAction_RumorRecruit             ; $ADC0: $0A AF
-  .word ValidAction_DeductSoldiers           ; $ADC2: $73 AF
-  .word ValidAction_RumorRecruit             ; $ADC4: $0A AF
-  .word ValidAction_GiftItem                 ; $ADC6: $A1 AF
-  .word ValidAction_GiveGold                 ; $ADC8: $D3 AF
-  .word ValidAction_AssignSoldier            ; $ADCA: $1D B0
+; --- CallbackDispatcher table (16 entries): stratagem validation handlers ---
+; Stratagem codes: 0=FireAttack (火攻), 1=Trap (陷阱), 2=FeintTroops (虚兵),
+; 3=AmbushStrike (要击), 4=MuddyWater (乱水), 5=FireArrows (火箭),
+; 6=FeintCounter (伪击转杀), 7=CoordinatedStrike (共杀), 8=WinOver (笼络),
+; 9=FallingRocks (落石), 10=ChainStratagem (连环), 11=AmbushAllSides (十面埋伏),
+; 12=WaterAttack (水攻), 13=RepeatingCrossbow (连弩), 14=PillageFire (劫火),
+; 15=QimenDunjia (奇门遁甲). Terrain: 0=woods, 2=plains, 3=water, 4=mountain,
+; 5=castle.
+  .word ValidStratagem_FireAttack             ; $ADAC: $CC AD   ; stratagem 0
+  .word ValidStratagem_Trap                   ; $ADAE: $D8 AD   ; stratagem 1
+  .word ValidStratagem_FeintTroops            ; $ADB0: $D8 AD   ; stratagem 2
+  .word ValidStratagem_AmbushStrike           ; $ADB2: $D8 AD   ; stratagem 3
+  .word ValidStratagem_MuddyWater             ; $ADB4: $E4 AD   ; stratagem 4
+  .word ValidStratagem_FireArrows             ; $ADB6: $EE AD   ; stratagem 5
+  .word ValidStratagem_FeintCounter           ; $ADB8: $FB AD   ; stratagem 6
+  .word ValidStratagem_CoordinatedStrike      ; $ADBA: $68 AE   ; stratagem 7
+  .word ValidStratagem_WinOver                ; $ADBC: $C4 AE   ; stratagem 8
+  .word ValidStratagem_FallingRocks           ; $ADBE: $CE AE   ; stratagem 9
+  .word ValidStratagem_ChainStratagem         ; $ADC0: $0A AF   ; stratagem 10
+  .word ValidStratagem_AmbushAllSides         ; $ADC2: $73 AF   ; stratagem 11
+  .word ValidStratagem_WaterAttack            ; $ADC4: $0A AF   ; stratagem 12
+  .word ValidStratagem_RepeatingCrossbow      ; $ADC6: $A1 AF   ; stratagem 13
+  .word ValidStratagem_PillageFire            ; $ADC8: $D3 AF   ; stratagem 14
+  .word ValidStratagem_QimenDunjia            ; $ADCA: $1D B0   ; stratagem 15
 .endproc
 
-.proc ValidAction_CalcGold
+.proc ValidStratagem_FireAttack
   LDA $0A                               ; $ADCC: A5 0A
   BEQ @Success                          ; $ADCE: F0 06
   CMP #$02                              ; $ADD0: C9 02
@@ -1924,7 +1931,7 @@ PhaseExit:
   RTS                                   ; $ADD7: 60
 .endproc
 
-.proc ValidAction_DomesticOps
+.proc ValidStratagem_Trap
   LDA $0A                               ; $ADD8: A5 0A
   BEQ @Success                          ; $ADDA: F0 06
   CMP #$04                              ; $ADDC: C9 04
@@ -1935,8 +1942,12 @@ PhaseExit:
   SEC                                   ; $ADE2: 38
   RTS                                   ; $ADE3: 60
 .endproc
+; FeintTroops (虚兵, stratagem 2) and AmbushStrike (要击, stratagem 3) share
+; the Trap validation body at $ADD8.
+ValidStratagem_FeintTroops = ValidStratagem_Trap
+ValidStratagem_AmbushStrike = ValidStratagem_Trap
 
-.proc ValidAction_IncreaseStats
+.proc ValidStratagem_MuddyWater
   LDA $0A                               ; $ADE4: A5 0A
   CMP #$03                              ; $ADE6: C9 03
   BEQ @Success                          ; $ADE8: F0 02
@@ -1947,7 +1958,7 @@ PhaseExit:
   RTS                                   ; $ADED: 60
 .endproc
 
-.proc ValidAction_ExpandTerritory
+.proc ValidStratagem_FireArrows
   LDY $0509                             ; $ADEE: AC 09 05
   BEQ @Success                          ; $ADF1: F0 06
   CPY #$0A                              ; $ADF3: C0 0A
@@ -1959,7 +1970,7 @@ PhaseExit:
   RTS                                   ; $ADFA: 60
 .endproc
 
-.proc ValidAction_Pillage
+.proc ValidStratagem_FeintCounter
   LDY $0A                               ; $ADFB: A4 0A
   CPY #$05                              ; $ADFD: C0 05
   BNE @Fail                             ; $ADFF: D0 28
@@ -2023,11 +2034,11 @@ PhaseExit:
   SEC                                   ; $AE66: 38
   RTS                                   ; $AE67: 60
 @Fail:
-  CLC                                   ; (shared exit with ValidAction_Pillage)
+  CLC                                   ; (shared exit with ValidStratagem_FeintCounter)
   RTS
 .endproc
 
-.proc ValidAction_ToggleAllegiance
+.proc ValidStratagem_CoordinatedStrike
   LDY $0A                               ; $AE68: A4 0A
   BEQ @CheckAdjacent                    ; $AE6A: F0 04
   CPY #$04                              ; $AE6C: C0 04
@@ -2082,7 +2093,7 @@ PhaseExit:
   RTS                                   ; $AEC3: 60
 .endproc
 
-.proc ValidAction_CombinedAttack
+.proc ValidStratagem_WinOver
   LDA $0A                               ; $AEC4: A5 0A
   CMP #$05                              ; $AEC6: C9 05
   BNE @Success                          ; $AEC8: D0 02
@@ -2093,7 +2104,7 @@ PhaseExit:
   RTS                                   ; $AECD: 60
 .endproc
 
-.proc ValidAction_SpreadRumor
+.proc ValidStratagem_FallingRocks
   LDA $0B                               ; $AECE: A5 0B
   CMP #$04                              ; $AED0: C9 04
   BEQ @CheckAdjacent                    ; $AED2: F0 04
@@ -2127,7 +2138,7 @@ PhaseExit:
   RTS                                   ; $AF09: 60
 .endproc
 
-.proc ValidAction_RumorRecruit
+.proc ValidStratagem_ChainStratagem
   LDY $0A                               ; $AF0A: A4 0A
   CPY #$03                              ; $AF0C: C0 03
   BNE @Fail                             ; $AF0E: D0 32
@@ -2186,8 +2197,11 @@ PhaseExit:
   LDA #$FF                              ; $AF70: A9 FF
   RTS                                   ; $AF72: 60
 .endproc
+; WaterAttack (水攻, stratagem 12) shares the ChainStratagem validation body
+; at $AF0A.
+ValidStratagem_WaterAttack = ValidStratagem_ChainStratagem
 
-.proc ValidAction_DeductSoldiers
+.proc ValidStratagem_AmbushAllSides
   LDA $0B                               ; $AF73: A5 0B
   BNE @Fail                             ; $AF75: D0 26
   LDY $050A                             ; $AF77: AC 0A 05
@@ -2217,7 +2231,7 @@ PhaseExit:
   RTS                                   ; $AFA0: 60
 .endproc
 
-.proc ValidAction_GiftItem
+.proc ValidStratagem_RepeatingCrossbow
   LDY $0B                               ; $AFA1: A4 0B
   CPY #$05                              ; $AFA3: C0 05
   BNE @Fail                             ; $AFA5: D0 2A
@@ -2245,7 +2259,7 @@ PhaseExit:
   RTS                                   ; $AFD2: 60
 .endproc
 
-.proc ValidAction_GiveGold
+.proc ValidStratagem_PillageFire
   LDY $0A                               ; $AFD3: A4 0A
   CPY #$05                              ; $AFD5: C0 05
   BEQ @Fail                             ; $AFD7: F0 42
@@ -2288,7 +2302,7 @@ PhaseExit:
   RTS                                   ; $B01C: 60
 .endproc
 
-.proc ValidAction_AssignSoldier
+.proc ValidStratagem_QimenDunjia
   LDY $0A                               ; $B01D: A4 0A
   CPY #$03                              ; $B01F: C0 03
   BEQ @Fail                             ; $B021: F0 06
@@ -2314,43 +2328,45 @@ PhaseExit:
   LDA $0543                             ; $B03A: AD 43 05
   AND #$0F                              ; $B03D: 29 0F
   JSR B1F_CallbackDispatcher            ; $B03F: 20 DE EA
-; --- CallbackDispatcher table (16 entries) ---
-  .word ExecAction_CalcGold                 ; $B042: $62 B0
-  .word ExecAction_Recruit                  ; $B044: $DD B0
-  .word ExecAction_Train                    ; $B046: $55 B1
-  .word ExecAction_BoostMorale              ; $B048: $7A B1
-  .word ExecAction_IncreaseStats            ; $B04A: $D5 B1
-  .word ExecAction_ExpandTerritory          ; $B04C: $43 B2
-  .word ExecAction_CalcGold                 ; $B04E: $62 B0
-  .word ExecAction_Pillage                  ; $B050: $CD B2
-  .word ExecAction_ToggleAllegiance         ; $B052: $1C B3
-  .word ExecAction_CombinedAttack           ; $B054: $B6 B3
-  .word ExecAction_SpreadRumor              ; $B056: $D0 B3
-  .word ExecAction_DeductSoldiers           ; $B058: $2A B4
-  .word ExecAction_RecruitNearby            ; $B05A: $66 B4
-  .word ExecAction_GiftItem                 ; $B05C: $B8 B4
-  .word ExecAction_GiveGold                 ; $B05E: $0C B5
-  .word ExecAction_AssignSoldier            ; $B060: $A6 B5
+; --- CallbackDispatcher table (16 entries): stratagem execution handlers ---
+  .word ExecStratagem_FireAttack              ; $B042: $62 B0   ; stratagem 0
+  .word ExecStratagem_Trap                    ; $B044: $DD B0   ; stratagem 1
+  .word ExecStratagem_FeintTroops             ; $B046: $55 B1   ; stratagem 2
+  .word ExecStratagem_AmbushStrike            ; $B048: $7A B1   ; stratagem 3
+  .word ExecStratagem_MuddyWater              ; $B04A: $D5 B1   ; stratagem 4
+  .word ExecStratagem_FireArrows              ; $B04C: $43 B2   ; stratagem 5
+  .word ExecStratagem_FeintCounter            ; $B04E: $62 B0   ; stratagem 6
+  .word ExecStratagem_CoordinatedStrike       ; $B050: $CD B2   ; stratagem 7
+  .word ExecStratagem_WinOver                 ; $B052: $1C B3   ; stratagem 8
+  .word ExecStratagem_FallingRocks            ; $B054: $B6 B3   ; stratagem 9
+  .word ExecStratagem_ChainStratagem          ; $B056: $D0 B3   ; stratagem 10
+  .word ExecStratagem_AmbushAllSides          ; $B058: $2A B4   ; stratagem 11
+  .word ExecStratagem_WaterAttack             ; $B05A: $66 B4   ; stratagem 12
+  .word ExecStratagem_RepeatingCrossbow       ; $B05C: $B8 B4   ; stratagem 13
+  .word ExecStratagem_PillageFire             ; $B05E: $0C B5   ; stratagem 14
+  .word ExecStratagem_QimenDunjia             ; $B060: $A6 B5   ; stratagem 15
 .endproc
 
 ;===============================================================================
-; ExecAction_CalcGold ($B062)
+; ExecStratagem_FireAttack ($B062)
 ;
-; Calculate and award gold for the acting officer.
-;   Entry 1 (ExecAction_CalcGold): dispatch entry - check success by stats;
+; FireAttack (火攻, stratagem 0); the exec table entry for FeintCounter
+; (伪击转杀, stratagem 6) resolves here via the ExecStratagem_FeintCounter
+; alias. Drains resources from the target officer to the acting side.
+;   Entry 1 (ExecStratagem_FireAttack): dispatch entry - check success by stats;
 ;           on failure set error flag $0544=$FF and return.
-;   Entry 2 (CommandPhase_CalcGold, $B070): gold calculation only (no success
-;           check); also called directly from ExecAction_Pillage and
-;           ExecAction_PillageNeighbor.
+;   Entry 2 (CommandPhase_DrainCalc, $B070): drain calculation only (no success
+;           check); also called directly from ExecStratagem_CoordinatedStrike
+;           and ExecStratagem_CoordinatedStrikeNeighbor.
 ;===============================================================================
-.proc ExecAction_CalcGold
+.proc ExecStratagem_FireAttack
   JSR CheckSuccessByStats               ; $B062: 20 BE B7
-  BCS CommandPhase_CalcGold             ; $B065: B0 09
+  BCS CommandPhase_DrainCalc             ; $B065: B0 09
   INC $0501                             ; $B067: EE 01 05
   LDA #$FF                              ; $B06A: A9 FF
   STA $0544                             ; $B06C: 8D 44 05
   RTS                                   ; $B06F: 60
-CommandPhase_CalcGold:
+CommandPhase_DrainCalc:
   LDY $050A                             ; $B070: AC 0A 05
   LDA $0664,Y                           ; $B073: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B076: 20 D7 F2
@@ -2409,8 +2425,11 @@ CommandPhase_CalcGold:
   INC $0501                             ; $B0D9: EE 01 05
   RTS                                   ; $B0DC: 60
 .endproc
+; FeintCounter (伪击转杀, stratagem 6) shares the FireAttack execution body
+; at $B062.
+ExecStratagem_FeintCounter = ExecStratagem_FireAttack
 
-.proc ExecAction_Recruit
+.proc ExecStratagem_Trap
   JSR CheckSuccessByStats               ; $B0DD: 20 BE B7
   BCS @B0EB                             ; $B0E0: B0 09
   INC $0501                             ; $B0E2: EE 01 05
@@ -2419,7 +2438,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B0EA: 60
 .endproc
 
-.proc CommandPhase_RecruitContinue
+.proc CommandPhase_LoyaltyDrainCalc
   LDY $050A                             ; $B0EB: AC 0A 05
   LDA $0664,Y                           ; $B0EE: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B0F1: 20 D7 F2
@@ -2474,7 +2493,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B154: 60
 .endproc
 
-.proc ExecAction_Train
+.proc ExecStratagem_FeintTroops
   JSR CheckSuccessByStats               ; $B155: 20 BE B7
   BCS @Success                          ; $B158: B0 09
   INC $0501                             ; $B15A: EE 01 05
@@ -2495,7 +2514,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B179: 60
 .endproc
 
-.proc ExecAction_BoostMorale
+.proc ExecStratagem_AmbushStrike
   JSR CheckSuccessByStats               ; $B17A: 20 BE B7
   BCS @B188                             ; $B17D: B0 09
   INC $0501                             ; $B17F: EE 01 05
@@ -2504,7 +2523,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B187: 60
 .endproc
 
-.proc CommandPhase_BoostMoraleCalc
+.proc CommandPhase_StatDrainCalcA
   LDY $050A                             ; $B188: AC 0A 05
   LDA $0664,Y                           ; $B18B: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B18E: 20 D7 F2
@@ -2541,7 +2560,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B1D4: 60
 .endproc
 
-.proc ExecAction_IncreaseStats
+.proc ExecStratagem_MuddyWater
   JSR CheckSuccessByStats               ; $B1D5: 20 BE B7
   BCS @B1E3                             ; $B1D8: B0 09
   INC $0501                             ; $B1DA: EE 01 05
@@ -2550,7 +2569,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B1E2: 60
 .endproc
 
-.proc CommandPhase_IncreaseStatsCalc
+.proc CommandPhase_StatDrainCalcB
   LDY $050A                             ; $B1E3: AC 0A 05
   LDA $0664,Y                           ; $B1E6: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B1E9: 20 D7 F2
@@ -2600,7 +2619,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B242: 60
 .endproc
 
-.proc ExecAction_ExpandTerritory
+.proc ExecStratagem_FireArrows
   JSR CheckSuccessByStats               ; $B243: 20 BE B7
   BCS @Success                          ; $B246: B0 09
   INC $0501                             ; $B248: EE 01 05
@@ -2669,7 +2688,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B2CC: 60
 .endproc
 
-.proc ExecAction_Pillage
+.proc ExecStratagem_CoordinatedStrike
   JSR CheckSuccessByStats               ; $B2CD: 20 BE B7
   BCS @Success                          ; $B2D0: B0 09
   INC $0501                             ; $B2D2: EE 01 05
@@ -2677,25 +2696,25 @@ CommandPhase_CalcGold:
   STA $0544                             ; $B2D7: 8D 44 05
   RTS                                   ; $B2DA: 60
 @Success:
-  JSR CommandPhase_CalcGold              ; $B2DB: 20 70 B0
+  JSR CommandPhase_DrainCalc              ; $B2DB: 20 70 B0
   JSR GetOfficerPos                     ; $B2DE: 20 7B B6
   DEC $10                               ; $B2E1: C6 10
-  JSR ExecAction_PillageNeighbor        ; $B2E3: 20 04 B3
+  JSR ExecStratagem_CoordinatedStrikeNeighbor ; $B2E3: 20 04 B3
   JSR GetOfficerPos                     ; $B2E6: 20 7B B6
   INC $10                               ; $B2E9: E6 10
-  JSR ExecAction_PillageNeighbor        ; $B2EB: 20 04 B3
+  JSR ExecStratagem_CoordinatedStrikeNeighbor ; $B2EB: 20 04 B3
   JSR GetOfficerPos                     ; $B2EE: 20 7B B6
   DEC $11                               ; $B2F1: C6 11
-  JSR ExecAction_PillageNeighbor        ; $B2F3: 20 04 B3
+  JSR ExecStratagem_CoordinatedStrikeNeighbor ; $B2F3: 20 04 B3
   JSR GetOfficerPos                     ; $B2F6: 20 7B B6
   INC $11                               ; $B2F9: E6 11
-  JSR ExecAction_PillageNeighbor        ; $B2FB: 20 04 B3
+  JSR ExecStratagem_CoordinatedStrikeNeighbor ; $B2FB: 20 04 B3
   LDA #$07                              ; $B2FE: A9 07
   STA $0501                             ; $B300: 8D 01 05
   RTS                                   ; $B303: 60
 .endproc
 
-.proc ExecAction_PillageNeighbor
+.proc ExecStratagem_CoordinatedStrikeNeighbor
   JSR CheckTileAccess                   ; $B304: 20 43 B6
   BEQ @Done                             ; $B307: F0 12
   CMP #$FE                              ; $B309: C9 FE
@@ -2703,14 +2722,14 @@ CommandPhase_CalcGold:
   LDA $0509                             ; $B30D: AD 09 05
   PHA                                   ; $B310: 48
   STY $0509                             ; $B311: 8C 09 05
-  JSR CommandPhase_CalcGold              ; $B314: 20 70 B0
+  JSR CommandPhase_DrainCalc              ; $B314: 20 70 B0
   PLA                                   ; $B317: 68
   STA $0509                             ; $B318: 8D 09 05
 @Done:
   RTS                                   ; $B31B: 60
 .endproc
 
-.proc ExecAction_ToggleAllegiance
+.proc ExecStratagem_WinOver
   JSR CheckActionSuccess                ; $B31C: 20 2B B7
   BCS @Success                          ; $B31F: B0 09
   INC $0501                             ; $B321: EE 01 05
@@ -2787,7 +2806,7 @@ CommandPhase_CalcGold:
   RTS                                         ; $B3B5: 60
 .endproc
 
-.proc ExecAction_CombinedAttack
+.proc ExecStratagem_FallingRocks
   JSR CheckSuccessByStats               ; $B3B6: 20 BE B7
   BCS @Success                          ; $B3B9: B0 09
   INC $0501                             ; $B3BB: EE 01 05
@@ -2795,14 +2814,14 @@ CommandPhase_CalcGold:
   STA $0544                             ; $B3C0: 8D 44 05
   RTS                                   ; $B3C3: 60
 @Success:
-  JSR CommandPhase_RecruitContinue       ; $B3C4: 20 EB B0
-  JSR CommandPhase_BoostMoraleCalc       ; $B3C7: 20 88 B1
+  JSR CommandPhase_LoyaltyDrainCalc     ; $B3C4: 20 EB B0
+  JSR CommandPhase_StatDrainCalcA       ; $B3C7: 20 88 B1
   LDA #$07                              ; $B3CA: A9 07
   STA $0501                             ; $B3CC: 8D 01 05
   RTS                                   ; $B3CF: 60
 .endproc
 
-.proc ExecAction_SpreadRumor
+.proc ExecStratagem_ChainStratagem
   JSR CheckSuccessByStats               ; $B3D0: 20 BE B7
   BCS @Success                          ; $B3D3: B0 09
   INC $0501                             ; $B3D5: EE 01 05
@@ -2819,7 +2838,7 @@ CommandPhase_CalcGold:
   STA $12                               ; $B3EA: 85 12
   TYA                                   ; $B3EC: 98
   PHA                                   ; $B3ED: 48
-  JSR ExecAction_SpreadRumorProcess     ; $B3EE: 20 FE B3
+  JSR ExecStratagem_ChainStratagemProcess   ; $B3EE: 20 FE B3
   PLA                                   ; $B3F1: 68
   TAY                                   ; $B3F2: A8
 @NextNeighbor:
@@ -2831,7 +2850,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B3FD: 60
 .endproc
 
-.proc ExecAction_SpreadRumorProcess
+.proc ExecStratagem_ChainStratagemProcess
   LDY $12                               ; $B3FE: A4 12
   LDA $0600,Y                           ; $B400: B9 00 06
   STA $10                               ; $B403: 85 10
@@ -2856,7 +2875,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B429: 60
 .endproc
 
-.proc ExecAction_DeductSoldiers
+.proc ExecStratagem_AmbushAllSides
   LDX #$00                              ; $B42A: A2 00
   LDA $0504                             ; $B42C: AD 04 05
   BPL @LoadSlot                         ; $B42F: 10 02
@@ -2887,7 +2906,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B465: 60
 .endproc
 
-.proc ExecAction_RecruitNearby
+.proc ExecStratagem_WaterAttack
   JSR CheckSuccessByStats               ; $B466: 20 BE B7
   BCS @Success                          ; $B469: B0 09
   INC $0501                             ; $B46B: EE 01 05
@@ -2904,7 +2923,7 @@ CommandPhase_CalcGold:
   STA $12                               ; $B480: 85 12
   TYA                                   ; $B482: 98
   PHA                                   ; $B483: 48
-  JSR ExecAction_RecruitNearbyProcess   ; $B484: 20 94 B4
+  JSR ExecStratagem_WaterAttackProcess      ; $B484: 20 94 B4
   PLA                                   ; $B487: 68
   TAY                                   ; $B488: A8
 @NextNeighbor:
@@ -2916,7 +2935,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B493: 60
 .endproc
 
-.proc ExecAction_RecruitNearbyProcess
+.proc ExecStratagem_WaterAttackProcess
   LDY $12                               ; $B494: A4 12
   LDA $0600,Y                           ; $B496: B9 00 06
   STA $10                               ; $B499: 85 10
@@ -2929,14 +2948,14 @@ CommandPhase_CalcGold:
   LDA $0509                             ; $B4A9: AD 09 05
   PHA                                   ; $B4AC: 48
   STY $0509                             ; $B4AD: 8C 09 05
-  JSR CommandPhase_IncreaseStatsCalc     ; $B4B0: 20 E3 B1
+  JSR CommandPhase_StatDrainCalcB       ; $B4B0: 20 E3 B1
   PLA                                   ; $B4B3: 68
   STA $0509                             ; $B4B4: 8D 09 05
 @Done:
   RTS                                   ; $B4B7: 60
 .endproc
 
-.proc ExecAction_GiftItem
+.proc ExecStratagem_RepeatingCrossbow
   JSR CheckSuccessByStats               ; $B4B8: 20 BE B7
   BCS @Success                          ; $B4BB: B0 09
   INC $0501                             ; $B4BD: EE 01 05
@@ -2980,7 +2999,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B50B: 60
 .endproc
 
-.proc ExecAction_GiveGold
+.proc ExecStratagem_PillageFire
   JSR CheckSuccessByStats               ; $B50C: 20 BE B7
   BCS @Success                          ; $B50F: B0 09
   INC $0501                             ; $B511: EE 01 05
@@ -2997,7 +3016,7 @@ CommandPhase_CalcGold:
   STA $12                               ; $B526: 85 12
   TYA                                   ; $B528: 98
   PHA                                   ; $B529: 48
-  JSR ExecAction_GiveGoldCheck          ; $B52A: 20 38 B5
+  JSR ExecStratagem_PillageFireCheck        ; $B52A: 20 38 B5
   PLA                                   ; $B52D: 68
   TAY                                   ; $B52E: A8
 @NextNeighbor:
@@ -3008,7 +3027,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B537: 60
 .endproc
 
-.proc ExecAction_GiveGoldCheck
+.proc ExecStratagem_PillageFireCheck
   LDY $12                               ; $B538: A4 12
   LDA $0600,Y                           ; $B53A: B9 00 06
   STA $10                               ; $B53D: 85 10
@@ -3021,14 +3040,14 @@ CommandPhase_CalcGold:
   LDA $0509                             ; $B54D: AD 09 05
   PHA                                   ; $B550: 48
   STY $0509                             ; $B551: 8C 09 05
-  JSR ExecAction_GiveGoldCalc           ; $B554: 20 5C B5
+  JSR ExecStratagem_PillageFireCalc         ; $B554: 20 5C B5
   PLA                                   ; $B557: 68
   STA $0509                             ; $B558: 8D 09 05
 @Done:
   RTS                                   ; $B55B: 60
 .endproc
 
-.proc ExecAction_GiveGoldCalc
+.proc ExecStratagem_PillageFireCalc
   LDY $050A                             ; $B55C: AC 0A 05
   LDA $0664,Y                           ; $B55F: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B562: 20 D7 F2
@@ -3064,7 +3083,7 @@ CommandPhase_CalcGold:
   RTS                                   ; $B5A5: 60
 .endproc
 
-.proc ExecAction_AssignSoldier
+.proc ExecStratagem_QimenDunjia
   JSR CheckSuccessByStats               ; $B5A6: 20 BE B7
   BCS @Success                          ; $B5A9: B0 09
   INC $0501                             ; $B5AB: EE 01 05
@@ -4455,7 +4474,8 @@ OfficerTurn_SwitchRuler_CheckPhase:
   STA $0501                             ; $BFF8: 8D 01 05
   LDA #$00                              ; $BFFB: A9 00
   STA $00A4                             ; $BFFD: 8D A4 00
-  JMP $A3D2                             ; $C000: 4C D2 A3
+.segment "CODE_BANK0D"
+  JMP OfficerTransfer_SetupResult                          ; $C000: 4C D2 A3
 @NextDone:
   RTS                                   ; $C003: 60
 @ShowCost:
@@ -4486,7 +4506,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   JSR $E69B                             ; $C03D: 20 9B E6
   INC $0501                                   ; $C040: EE 01 05
   RTS                                         ; $C043: 60
-; Action point cost table indexed by action type ($6F8D)
+; Action point cost table indexed by stratagem code ($6F8D)
 @ActionCostTable:
   .byte $06,$05,$04,$06,$07,$08,$08,$0C,$0A,$09,$09,$0F,$0E,$0F,$19,$14; $C044: 06 05 04 06 07 08 08 0C 0A 09 09 0F 0E 0F 19 14
 @NextOfficer:
@@ -4564,7 +4584,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
 @ShowFullMsg:
   LDA #$B7                              ; $C0FB: A9 B7
   JMP B1F_SetUI5                        ; $C0FD: 4C 93 F2
-; Cancel message IDs indexed by action type
+; Cancel message IDs indexed by stratagem code
 @CancelMsgTable:
   .byte $A3,$A4,$A5,$A3,$A3,$A6,$A3,$A3,$B7,$4F,$A5,$A3,$A3,$A3,$A3,$B6; $C100: A3 A4 A5 A3 A3 A6 A3 A3 B7 4F A5 A3 A3 A3 A3 B6
 @CancelAction:

@@ -2,6 +2,9 @@
 ; 6502 CPU Registers and Zero Page Definitions
 ;===============================================================================
 
+.ifndef GUARD_6502_REGISTERS_H
+GUARD_6502_REGISTERS_H = 1
+
 ; PPU Registers
 PPU_CTRL        = $2000
 PPU_MASK        = $2001
@@ -83,3 +86,5 @@ PPU_STATUS_VBLANK     = %10000000
 PPU_STATUS_SPRITE0    = %01000000
 PPU_STATUS_OVERFLOW   = %00100000
 PPU_STATUS_VRAM_WRITE = %00010000
+
+.endif ; GUARD_6502_REGISTERS_H

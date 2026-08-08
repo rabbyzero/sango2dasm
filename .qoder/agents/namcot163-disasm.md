@@ -39,7 +39,7 @@ Raw byte values written to mapper registers encode the PRG bank in the low 5 bit
 - Raw binaries: `rom/prg/prg_XX.bin`
 - Include files: `include/6502_registers.h`, `include/namco163.h`, `include/macros.h`
 - Tools: `tools/` directory (Python scripts for splitting, disassembly, verification)
-- CDL reference (bank $1F): `asm/banks/pbank31.cdl.asm`
+- Disassembly tool: `tools/disasm_prg.py` (multi-pass code/data analysis, use for new banks)
 
 # Output Format Rules
 
@@ -80,7 +80,7 @@ When disassembling a bank:
    - Banks mapped at $8000: base = $8000
    - Banks mapped at $A000: base = $A000
    - Bank $1F: base = $E000
-3. If CDL (Code/Data Log) hints are available, use them to distinguish code from data regions
+3. If an existing disassembly exists for the bank, use it as the authoritative code/data classification reference
 4. Decode instructions using standard 6502 opcode tables
 5. Identify all branch/jump targets and create labels for them
 6. Identify data tables (sequences of .byte/.word that are not valid instruction flows)
@@ -93,8 +93,9 @@ When disassembling a bank:
 - Every opcode byte in the output MUST exactly match the corresponding byte in the binary file
 - Never guess or infer byte values -- always read them from the actual binary
 - Use `tools/verify_rom.py` to validate that reassembly produces a byte-identical ROM
-- When CDL `.asm` files exist (e.g., `pbank31.cdl.asm`), trust them as the authoritative reference for code/data classification
-- If a conflict exists between the binary and CDL annotation, trust the CDL and report the binary discrepancy
+- The existing disassembled bank files (`asm/banks/prg_*.asm`) are the authoritative reference for code/data classification in their respective banks
+- For new banks, use `tools/disasm_prg.py` to perform initial code/data identification
+- If a conflict exists between the binary and existing disassembly annotations, trust the disassembly and report the binary discrepancy
 
 # 6502 Instruction Reference
 

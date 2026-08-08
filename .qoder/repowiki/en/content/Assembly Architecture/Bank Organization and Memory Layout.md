@@ -22,9 +22,9 @@
 
 ## Update Summary
 **Changes Made**
-- Updated documentation for the major refactoring of PRG bank $0C/$0D assembly code with comprehensive label renaming from generic hexadecimal addresses to semantic names (e.g., @SkipReset, @Done, @CheckPhase), procedure renaming from OfficerActionPhase to OfficerCommandPhase with CommandState_* naming convention, and enhanced movement cost calculation system with separate tables for high-rank and low-rank officers
+- Updated documentation for the major completion of PRG bank $0C/$0D officer exchange system with comprehensive symbolic labeling, 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management
+- Added detailed coverage of the new BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) systems for dynamic function dispatching and state-based routing
 - Enhanced analysis tools suite documentation including comprehensive callback analysis and verification utilities
-- Added detailed coverage of procedural organization improvements and testing infrastructure
 - Updated practical examples to reflect the new consolidated bank switching mechanisms and callback patterns
 
 ## Table of Contents
@@ -39,10 +39,10 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major enhancements include sophisticated AI turn processing system with comprehensive province evaluation logic, improved battle system functionality, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The PRG bank $0C/$0D has undergone major refactoring with comprehensive label renaming from generic hexadecimal addresses to semantic names, procedure renaming from OfficerActionPhase to OfficerCommandPhase with CommandState_* naming convention, and enhanced movement cost calculation system with separate tables for high-rank and low-rank officers. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
+This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major enhancements include sophisticated AI turn processing system with comprehensive province evaluation logic, improved battle system functionality, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The PRG bank $0C/$0D has undergone major completion with comprehensive symbolic labeling, 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
 
 ## Project Structure
-The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG bank $0C/$0D provides a new consolidated module following the established pattern of previous consolidations, featuring advanced callback systems and comprehensive analysis tools.
+The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG bank $0C/$0D provides a comprehensive officer exchange system following the established pattern of previous consolidations, featuring advanced callback systems and comprehensive analysis tools.
 
 ```mermaid
 graph TB
@@ -153,7 +153,7 @@ SWITCHAC["B1F_SwitchBankAC ($F237)<br/>Switch $A000-$BFFF + $C000-$DFFF"]
 TRAMPOLINE["BankedCallbackTrampoline ($EE07)<br/>Dynamic function dispatch"]
 DISPATCHER["CallbackDispatcher ($EADE)<br/>State-based routing"]
 SWITCH0A0B["Consolidated $0A/$0B<br/>AI Turn Processing & Province Evaluation"]
-SWITCH0C0D["Consolidated $0C/$0D<br/>Enhanced Callback System"]
+SWITCH0C0D["Consolidated $0C/$0D<br/>Officer Exchange System"]
 SWITCH1718["Consolidated $17/$18<br/>Display & Battle Systems"]
 SWITCH1D1E["Enhanced $1D/$1E<br/>SceneRenderer System"]
 CPU --> REG8000
@@ -211,7 +211,7 @@ Practical distribution examples:
 - Bank 0x00: $8000-$9FFF (mapped via slot 0)
 - Bank 0x01: $A000-$BFFF (mapped via slot 1)
 - **Updated**: Banks 0x0A/$0x0B: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
-- **Updated**: Banks 0x0C/$0x0D: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with enhanced callback systems)
+- **Updated**: Banks 0x0C/$0x0D: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with advanced callback systems)
 - **Updated**: Banks 0x17/$0x18: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
 - **Updated**: Banks 0x1D/$0x1E: $A000-$DFFF (consolidated 16KB block via B1F_SwitchBank1D1E)
 - Bank 0x1F: $E000-$FFFF (boot bank, fixed)
@@ -256,7 +256,7 @@ Boot sequence and dispatch:
 - The $A000-$BFFF and $C000-$DFFF slots are now managed as unified pairs
 - Bank switching uses B1F_SwitchBankAC routines (B1F_SwitchBankAC_A/B) instead of individual $FA00/$FC00 writes
 - Bank parameter Y determines both $A000-$BFFF and $C000-$DFFF banks simultaneously
-- **New**: Specialized handling for banks $0C/$0D with enhanced callback systems following the established consolidation pattern
+- **New**: Specialized handling for banks $0C/$0D with advanced callback systems following the established consolidation pattern
 
 Bank switching macros:
 - switch_bank_8000(BANK_XX)
@@ -299,7 +299,7 @@ Segment organization strategy:
 - Use CODE0/CODE1/CODE2/CODE3 to allocate additional code to slots 0/1/2/3
 - Use RODATA segments to place constants and tables in appropriate slots
 - **Updated**: Consolidated bank 0A/0B code uses CODE_BANK0A and CODE_BANK0B segments for unified management
-- **Updated**: Consolidated bank 0C/0D code uses CODE_BANK0C and CODE_BANK0D segments for unified management with enhanced callback systems
+- **Updated**: Consolidated bank 0C/0D code uses CODE_BANK0C and CODE_BANK0D segments for unified management with advanced callback systems
 - **Updated**: Consolidated bank 17/18 code uses CODE_BANK17 and CODE_BANK18 segments for unified management
 - **Updated**: Consolidated bank 1D/1E code uses CODE_BANK1D and CODE_BANK1E segments for unified management
 
@@ -438,45 +438,49 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 - [prg_1f.asm:2376-2397](file://asm/banks/prg_1f.asm#L2376-L2397)
 
-### Enhanced Display System in Banks $1D/$1E
-**New**: Major refactoring of banks $1D/$1E introduces comprehensive improvements to the display system:
+### Officer Exchange System in Banks $0C/$0D
+**New**: Major completion of PRG banks $0C/$0D introduces a comprehensive officer exchange and strategic command system:
 
-#### Comprehensive Zero-Page Variable Organization
-**New**: Extensive zero-page variable definitions organized for display and rendering:
-- **Zero-page scratch/workspace ($0000-$001F)**: General-purpose pointers, workspace variables, and temporary storage
-- **Display/render state ($005E-$0074)**: Frame counters, scene parameters, and render control variables
-- **State handler workspace ($00AE-$00DC)**: VRAM counters, row counters, and state management variables
-- **Page $01 workspace ($0100-$0190)**: Display pointer tables, scroll offsets, and buffer management
-- **OAM sprite data ($0200-$0203)**: Sprite buffer management for scene rendering
-- **Display/render buffers ($037C-$03C3)**: Tile buffers, display offsets, and rendering state
+#### Complete State Machine Implementation
+**New**: 5-phase exchange flow with comprehensive state management:
+- **Phase_Check**: Validates exchange conditions and ruler status
+- **Phase_Wait**: Renders and waits for timer; loads ruler data then advances
+- **Phase_Input**: Processes input; B-button resets, A-button/direction advances
+- **Phase_Menu**: Displays command menu; handles selection and navigation
+- **Phase_Confirm**: Validates and confirms; advances phase on valid input
 
-#### SceneRenderer Callback Architecture
-**New**: Improved 6-stage rendering pipeline with dedicated callback functions:
-- **SceneOfficerListInit**: Initialize officer list state registers
-- **ScenePageCopy**: Copy scene page data with bank switch and palette update
-- **SceneRenderSetup**: Scenario render setup with data loading and palette fade
-- **SceneSpriteSetup**: Sprite OAM setup and input-driven palette copy
-- **SceneRenderExit3**: Alternate render exit with scenario data loading
-- **SceneBufferFill**: Fill VRAM buffer page with $AA and set up data pointers
+#### Comprehensive Officer Management Systems
+**New**: Extensive officer data structures and manipulation:
+- Officer selection arrays ($042C-$044B, 32 bytes) with ID tracking and terminator markers
+- Exchange display stats ($044C-$046B, 32 bytes) for ruler statistics comparison
+- Army group slot arrays ($04D8-$04DF, 8 bytes) for group A and B management
+- Move path recording ($0540-$0544) with undo buffer support
 
-#### Enhanced Menu System
-**New**: Comprehensive menu system with advanced features:
-- **MenuUpdate**: Main menu update loop with input processing
-- **VRAMBufferWrite**: Efficient VRAM buffer writing with command processing
-- **PPUTileRender**: Advanced tile rendering with overlay support
-- **StateHandler**: Complex state machine for various display scenarios
-- **OfficerListHandler**: Officer list management with scrolling and selection
+#### Advanced Command Validation System
+**New**: 14 action types with comprehensive validation:
+- ValidAction_CalcGold, ValidAction_DomesticOps, ValidAction_IncreaseStats
+- ValidAction_ExpandTerritory, ValidAction_Pillage, ValidAction_ToggleAllegiance
+- ValidAction_CombinedAttack, ValidAction_SpreadRumor, ValidAction_RumorRecruit
+- ValidAction_DeductSoldiers, ValidAction_GiftItem, ValidAction_GiveGold
+- ValidAction_AssignSoldier with terrain and adjacency checks
 
-#### Systematic Naming Conventions
-**New**: Improved function naming conventions throughout the codebase:
-- **Entry points**: Descriptive names like PPUTileRender_Entry, MenuUpdate_Entry, VRAMBufferWrite_Entry
-- **Internal functions**: Clear functional names like SceneRenderer, StateHandler, OfficerListHandler
-- **Helper functions**: Purposeful names like AdvanceReadPtr, StoreTileByte, ClearTileBuffers
+#### Sophisticated Movement Cost Calculation
+**New**: Separate movement cost tables for high-rank and low-rank officers:
+- High-rank officers (rank >= 6): @MoveCost_HighRank with direction-specific costs
+- Low-rank officers (rank < 6): @MoveCost_LowRank with optimized cost calculations
+- Terrain-aware movement with proper boundary handling and wrap-around logic
+
+#### Enhanced UI Scene Management
+**New**: Complete exchange scene implementation with map scrolling, cursor control, and sound effects:
+- MapScroll_Update for viewport management
+- RenderExchangeSprites for officer visualization
+- SetupExchangeSfx and UpdateExchangeSfx for audio feedback
+- CenterMapOnOfficer for focus management
 
 **Section sources**
-- [prg_1d_1e.asm:19-259](file://asm/banks/prg_1d_1e.asm#L19-L259)
-- [prg_1d_1e.asm:264-336](file://asm/banks/prg_1d_1e.asm#L264-L336)
-- [prg_1d_1e.asm:3180-3402](file://asm/banks/prg_1d_1e.asm#L3180-L3402)
+- [prg_0c_0d.asm:1-800](file://asm/banks/prg_0c_0d.asm#L1-L800)
+- [prg_0c_0d.asm:800-1599](file://asm/banks/prg_0c_0d.asm#L800-L1599)
+- [prg_0c_0d.asm:1600-2399](file://asm/banks/prg_0c_0d.asm#L1600-L2399)
 
 ### Memory Overlap Considerations
 - Bank 0x1F is fixed in slot 3 ($E000-$FFFF) at boot
@@ -525,7 +529,7 @@ N163["include/namco163.h"]
 FUNCS["include/functions.h<br/>(Consolidated Bank Switching)"]
 STUBS["asm/banks/*.asm<br/>(Consolidated PRG 0A/0B, 0C/0D, 17/18 & 1D/1E)"]
 ENHANCED_AI["PRG 0A/0B Enhanced AI System<br/>Province Evaluation & Battle Logic"]
-NEW_CONSOLIDATED["PRG 0C/0D New Consolidated Module<br/>with Callback Systems"]
+NEW_OFFICER_EXCHANGE["PRG 0C/0D New Officer Exchange System<br/>with Callback Systems"]
 ENHANCED_DISPLAY["PRG 1D/1E Enhanced System<br/>Zero-Page Variables & SceneRenderer"]
 ROM["rom/prg/*.bin"]
 BOOT["bank_1f_analysis.md"]
@@ -534,11 +538,11 @@ LCFG --> STUBS
 N163 --> STUBS
 FUNCS --> STUBS
 ENHANCED_AI --> STUBS
-NEW_CONSOLIDATED --> STUBS
+NEW_OFFICER_EXCHANGE --> STUBS
 ENHANCED_DISPLAY --> STUBS
 ROM --> STUBS
 BOOT --> STUBS
-ANALYSIS_TOOLS --> NEW_CONSOLIDATED
+ANALYSIS_TOOLS --> NEW_OFFICER_EXCHANGE
 ```
 
 **Diagram sources**
@@ -606,6 +610,12 @@ Common issues and resolutions:
   - **New**: Check that bank 0x1D and 0x1E are properly paired in the B1F_SwitchBank1D1E routine
   - **New**: Verify CODE_BANK0C and CODE_BANK0D segments are properly configured in linker.cfg
   - **New**: Ensure prg_0c_0d.asm follows the same consolidation pattern as other consolidated bank modules
+- **New**: Officer exchange system issues:
+  - Verify 5-phase state machine progression ($0500/$0501)
+  - Check officer selection arrays ($042C-$044B) for proper initialization
+  - Validate movement cost calculations for high-rank vs low-rank officers
+  - Ensure terrain validation and adjacency checks work correctly
+  - Verify command validation tables for all 14 action types
 - **New**: Callback system issues:
   - Verify BankedCallbackTrampoline calls follow the pattern: LDY #bank; JSR $EE07; .word target
   - Ensure CallbackDispatcher tables have correct length based on maximum index values
@@ -624,4 +634,4 @@ Common issues and resolutions:
 - [check_trampoline_pattern.py:1-20](file://tools/check_trampoline_pattern.py#L1-L20)
 
 ## Conclusion
-The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $0C/$0D provide a new consolidated module following the established pattern of previous consolidations, offering unified 16KB code space management with advanced BankedCallbackTrampoline and CallbackDispatcher systems for dynamic function dispatching and state-based routing. **Updated**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **Updated**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. The enhanced display system includes detailed workspace definitions, 6-stage rendering pipeline, and optimized data formatting capabilities. **New**: Comprehensive analysis tools suite enables verification of callback patterns, directive validation, and trampoline consistency checking. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **Updated**: Consolidated bank switching reduces overhead and improves code organization through unified 16KB block management. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.
+The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $0C/$0D provide a comprehensive officer exchange system with 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management. **Updated**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **Updated**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) systems enable sophisticated dynamic function dispatching and state-based routing throughout the codebase. **New**: Comprehensive analysis tools suite enables verification of callback patterns, directive validation, and trampoline consistency checking. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **Updated**: Consolidated bank switching reduces overhead and improves code organization through unified 16KB block management. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.

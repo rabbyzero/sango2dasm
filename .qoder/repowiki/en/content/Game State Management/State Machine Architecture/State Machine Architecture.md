@@ -12,10 +12,11 @@
 
 ## Update Summary
 **Changes Made**
-- Updated state machine architecture documentation to reflect the new CommandState_* naming convention that replaced ActionState_* states
-- Enhanced documentation for officer command processing system in PRG bank $0C/$0D
-- Added detailed explanation of the 11-entry callback dispatcher table and its relationship to the main 15-state system
-- Improved semantic clarity documentation for the command processing state machine
+- Updated state machine architecture documentation to reflect the comprehensive officer command processing system with enhanced state machine architecture
+- Added detailed documentation for PhaseDispatch (5 phases), OfficerDetailView, OfficerTransferExecute, OfficerMovePhase, OfficerCommandPhase, and ValidateActionTarget (14 action types)
+- Documented ArmyDeployDispatch (7 sub-states), OfficerTurnDispatch (8 states), and OfficerMarchDispatch (17 sub-states)
+- Added complete hexagonal map grid movement system with pathfinding and distance calculations
+- Enhanced documentation of the dual-layer state machine system with 15-state primary system and expanded command processing subsystem
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -24,21 +25,24 @@
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
 6. [Officer Command Processing System](#officer-command-processing-system)
-7. [Dependency Analysis](#dependency-analysis)
-8. [Performance Considerations](#performance-considerations)
-9. [Troubleshooting Guide](#troubleshooting-guide)
-10. [Conclusion](#conclusion)
+7. [Hexagonal Map Grid Movement System](#hexagonal-map-grid-movement-system)
+8. [Dependency Analysis](#dependency-analysis)
+9. [Performance Considerations](#performance-considerations)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the dual-layer state machine architecture used by the game's runtime control flow. The primary system consists of a 15-state system with vector dispatch mechanism, while the secondary system handles officer command processing through an 11-state command state machine. It focuses on how the state counter at a fixed zero-page address selects one of 15 logical states, how the vector table at a fixed address serves as the central dispatch, and how each state corresponds to a distinct game phase. The document also covers the enhanced CommandState_* naming convention that provides improved semantic clarity for officer command processing within PRG bank $0C/$0D.
+This document explains the dual-layer state machine architecture used by the game's runtime control flow. The primary system consists of a 15-state system with vector dispatch mechanism, while the secondary system handles officer command processing through an enhanced command state machine with 11+ states. The system now includes comprehensive hexagonal map grid movement with pathfinding capabilities, supporting complex officer management operations including transfers, commands, and strategic movements across the game world.
+
+The architecture features sophisticated state management with multiple dispatch mechanisms: PhaseDispatch for 5-phase exchange flows, OfficerTurnDispatch for 8-state turn cycles, OfficerMarchDispatch for 17-state army movements, and ArmyDeployDispatch for 7-state deployment operations. Each component uses efficient vector-based dispatching with minimal branching overhead.
 
 ## Project Structure
-The state machines reside across multiple PRG banks:
-- **Primary State Machine**: Located in boot bank (PRG bank 0x1F) mapped to $E000–$FFFF
-- **Command State Machine**: Located in PRG bank $0C/$0D for officer command processing
+The state machines reside across multiple PRG banks with specialized functionality:
+- **Primary State Machine**: Located in boot bank (PRG bank 0x1F) mapped to $E000–$FFFF with 15 main game states
+- **Command State Machine**: Located in PRG bank $0C/$0D for comprehensive officer command processing
 - **Support Systems**: Various utility functions and helper routines distributed across other banks
 
-The reset handler initializes global state and performs the initial dispatch via the vector table. Both state machines use similar patterns but serve different purposes in the game's overall architecture.
+The reset handler initializes global state and performs the initial dispatch via the vector table. Both state machines use similar patterns but serve different purposes in the game's overall architecture, with the command system providing deep interaction capabilities for officer management.
 
 ```mermaid
 graph TB
@@ -62,37 +66,35 @@ VT --> S13["State_TurnSummary"]
 VT --> S14["State_IdleWait (alias)"]
 end
 subgraph "Command State Machine (Bank $0C/$0D)"
-CmdDispatch["CallbackDispatcher<br/>at $EADE"] --> CmdVT["CommandState Table<br/>11 entries at $A888"]
-CmdVT --> CS0["CommandState_Init"]
-CmdVT --> CS1["CommandState_Animate"]
-CmdVT --> CS2["CommandState_MenuSetup"]
-CmdVT --> CS3["CommandState_Menu"]
-CmdVT --> CS4["CommandState_SelectTarget"]
-CmdVT --> CS5["CommandState_Confirm"]
-CmdVT --> CS6["CommandState_ShowResult"]
-CmdVT --> CS7["CommandState_Cancel"]
-CmdVT --> CS8["CommandState_Confirm2"]
-CmdVT --> CS9["CommandState_CancelConfirm"]
-CmdVT --> CS10["CommandState_Reset"]
+CmdDispatch["CallbackDispatcher<br/>at $EADE"] --> CmdVT["CommandState Table<br/>11+ entries at $A888"]
+CmdVT --> CS0["PhaseDispatch (5 phases)"]
+CmdVT --> CS1["OfficerDetailView"]
+CmdVT --> CS2["OfficerTransferExecute"]
+CmdVT --> CS3["OfficerMovePhase"]
+CmdVT --> CS4["OfficerCommandPhase"]
+CmdVT --> CS5["ValidateActionTarget (14 types)"]
+CmdVT --> CS6["ArmyDeployDispatch (7 states)"]
+CmdVT --> CS7["OfficerTurnDispatch (8 states)"]
+CmdVT --> CS8["OfficerMarchDispatch (17 states)"]
 end
 ```
 
 **Diagram sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [prg_0c_0d.asm:239-255](file://asm/banks/prg_0c_0d.asm#L239-L255)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
 **Section sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [prg_0c_0d.asm:239-255](file://asm/banks/prg_0c_0d.asm#L239-L255)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
 ## Core Components
-- **Primary State Counter**: A single byte at a fixed zero-page address holds the current state index (0–14) for the main game loop
-- **Primary Vector Table**: A fixed-size table at $E07C containing 15 word-sized pointers for main game states
-- **Command State Counter**: Separate counter ($0501) for officer command processing states
-- **Command Vector Table**: Fixed-size table at $A888 containing 11 word-sized pointers for command states
-- **Dispatch Routines**: Two separate dispatch mechanisms - B1F_StateDispatch for primary states and B1F_CallbackDispatcher for command states
+- **Primary State Counter**: A single byte at fixed zero-page address holds the current state index (0–14) for the main game loop
+- **Primary Vector Table**: Fixed-size table at $E07C containing 15 word-sized pointers for main game states
+- **Command State Counter**: Separate counter ($0501) for officer command processing states with expanded functionality
+- **Command Vector Table**: Fixed-size table at $A888 containing 11+ word-sized pointers for command states
+- **Multiple Dispatch Routines**: B1F_StateDispatch for primary states, B1F_CallbackDispatcher for command states, plus specialized dispatchers for each major subsystem
 - **Modular State Routines**: Each state is implemented as a separate .proc block with consistent entry/exit patterns
 
 Key memory and addressing constants:
@@ -102,14 +104,16 @@ Key memory and addressing constants:
 - Command vector table: $A888
 - B1F_StateDispatch: $E066
 - B1F_CallbackDispatcher: $EADE
+- Exchange state counter: $0500
+- Exchange phase counter: $0501
 
 **Section sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [prg_0c_0d.asm:239-255](file://asm/banks/prg_0c_0d.asm#L239-L255)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
 ## Architecture Overview
-The runtime follows two parallel but coordinated cycles:
+The runtime follows two parallel but coordinated cycles with enhanced complexity:
 
 ### Primary Game Loop Cycle:
 1. Reset handler initializes the primary state counter to 0 and dispatches to the first state
@@ -117,11 +121,11 @@ The runtime follows two parallel but coordinated cycles:
 3. After completing per-frame initialization, states call the shared dispatch routine to jump to the next state
 4. The vector table ensures O(1) dispatch with minimal overhead
 
-### Command Processing Cycle:
-1. Command states are invoked through the CallbackDispatcher mechanism
-2. Each command state processes specific aspects of officer commands (menu selection, target validation, confirmation dialogs)
-3. States increment the command state counter ($0501) to progress through the command workflow
-4. The command vector table provides efficient dispatch between command states
+### Enhanced Command Processing Cycle:
+1. Command states are invoked through the CallbackDispatcher mechanism with support for multiple subsystems
+2. Each command state processes specific aspects of officer commands with sophisticated validation and execution
+3. States increment the command state counter ($0501) to progress through complex workflows
+4. Multiple specialized dispatchers handle different aspects: PhaseDispatch, OfficerTurnDispatch, OfficerMarchDispatch, etc.
 
 ```mermaid
 sequenceDiagram
@@ -131,6 +135,9 @@ participant StateDisp as "StateDispatch ($E066)"
 participant CmdDisp as "CallbackDispatcher ($EADE)"
 participant StateVT as "VectorTable ($E07C)"
 participant CmdVT as "CommandTable ($A888)"
+participant PhaseDisp as "PhaseDispatch ($A04E)"
+participant TurnDisp as "OfficerTurnDispatch ($BC93)"
+participant MarchDisp as "OfficerMarchDispatch ($BE7E)"
 participant State as "Selected State Routine"
 participant CmdState as "Selected Command State"
 CPU->>Reset : Start
@@ -147,6 +154,12 @@ Note over CmdState : Command state execution
 CmdDisp->>CmdVT : Load command state pointer
 CmdVT-->>CmdDisp : Pointer to Command State
 CmdDisp->>CmdState : Execute command state
+CmdState->>PhaseDisp : Call PhaseDispatch for 5-phase workflow
+PhaseDisp->>PhaseDisp : Process check/wait/input/menu/confirm phases
+CmdState->>TurnDisp : Call OfficerTurnDispatch for 8-state cycle
+TurnDisp->>TurnDisp : Process init/select/confirm/reset/next/execute/cancel/end
+CmdState->>MarchDisp : Call OfficerMarchDispatch for 17-state march
+MarchDisp->>MarchDisp : Process select/dispatch/move/confirm/animate/etc
 CmdState->>CmdState : Process command logic
 CmdState->>CmdState : Increment command state counter ($0501)
 CmdState->>CmdDisp : Return to dispatcher
@@ -154,8 +167,10 @@ CmdState->>CmdDisp : Return to dispatcher
 
 **Diagram sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
+- [prg_0c_0d.asm:4009-4027](file://asm/banks/prg_0c_0d.asm#L4009-L4027)
+- [prg_0c_0d.asm:4272-4293](file://asm/banks/prg_0c_0d.asm#L4272-L4293)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
 ## Detailed Component Analysis
 
@@ -184,21 +199,25 @@ Jump --> End(["Exit"])
 
 **Section sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
-### Command State Counter and Selection
-- The command state counter ($0501) manages the 11 command states for officer processing
+### Enhanced Command State Counter and Selection
+- The command state counter ($0501) manages the expanded command states for officer processing with support for multiple subsystems
 - Uses the same mathematical operations as the primary state machine for efficiency
-- Integrated with the broader game state management system through shared utilities
+- Integrated with the broader game state management system through shared utilities and specialized dispatchers
+- Supports complex workflows with 5-phase exchange flows, 8-state turn cycles, and 17-state army movements
 
 **Section sources**
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
+- [prg_0c_0d.asm:4009-4027](file://asm/banks/prg_0c_0d.asm#L4009-L4027)
+- [prg_0c_0d.asm:4272-4293](file://asm/banks/prg_0c_0d.asm#L4272-L4293)
 
 ### Vector Tables and Dispatch Mechanisms
 - **Primary Vector Table**: Fixed-size array of 15 word-sized pointers at $E07C, each corresponding to a game state routine
-- **Command Vector Table**: Fixed-size array of 11 word-sized pointers at $A888, each corresponding to a command state routine
+- **Command Vector Table**: Fixed-size array of 11+ word-sized pointers at $A888, each corresponding to a command state routine
 - **Primary Dispatch**: B1F_StateDispatch at $E066 handles main game state transitions
 - **Command Dispatch**: B1F_CallbackDispatcher at $EADE handles command state transitions
+- **Specialized Dispatchers**: PhaseDispatch ($A04E), OfficerTurnDispatch ($BC93), OfficerMarchDispatch ($BE7E), ArmyDeployDispatch ($C204)
 
 ```mermaid
 classDiagram
@@ -207,7 +226,7 @@ class PrimaryVectorTable {
 +base_address : $E07C
 }
 class CommandVectorTable {
-+entries[11] : word pointers
++entries[11+] : word pointers
 +base_address : $A888
 }
 class StateDispatch {
@@ -222,6 +241,14 @@ class CallbackDispatcher {
 +execute_command_state()
 +address : $EADE
 }
+class PhaseDispatch {
++phase_check()
++phase_wait()
++phase_input()
++phase_menu()
++phase_confirm()
++address : $A04E
+}
 class GameState {
 +state_counter : byte
 +sub_state : byte
@@ -232,23 +259,24 @@ class CommandState {
 }
 StateDispatch --> PrimaryVectorTable : "reads entries"
 CallbackDispatcher --> CommandVectorTable : "reads entries"
+PhaseDispatch --> CommandVectorTable : "dispatches phases"
 GameState --> StateDispatch : "controls"
 CommandState --> CallbackDispatcher : "controls"
 ```
 
 **Diagram sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
 **Section sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
 ### State Numbering Scheme and Phases
 - **Primary States**: Numbered 0–14 with clear game phase progression
-- **Command States**: Numbered 0–10 with specific command processing phases
+- **Command States**: Numbered 0–10+ with specific command processing phases and expanded subsystems
 - Some primary states alias to the same routine (e.g., idle wait states at indices 10, 12, 14), reducing code duplication
 
 Examples of primary state-specific behaviors:
@@ -264,7 +292,7 @@ Examples of primary state-specific behaviors:
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
 
 ### Major States vs Sub-states
-- **Major State**: The primary phase represented by the state counter (0–14 for main game, 0–10 for commands)
+- **Major State**: The primary phase represented by the state counter (0–14 for main game, 0–10+ for commands)
 - **Sub-state**: Secondary index within a state used to manage internal sub-phases or modes
 - Example: many states set the sub-state to a constant at entry, then branch internally based on sub-state for different actions
 
@@ -279,7 +307,7 @@ Examples of primary state-specific behaviors:
 
 **Section sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
 
 ### Modular .proc Organization and Clean Separation
 - Each state is implemented as a separate .proc block with consistent entry and exit patterns
@@ -288,71 +316,123 @@ Examples of primary state-specific behaviors:
 
 **Section sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
 
 ## Officer Command Processing System
 
-### CommandState_* Naming Convention
-The officer command processing system uses the enhanced CommandState_* naming convention that provides improved semantic clarity compared to the previous ActionState_* naming scheme. This change reflects better understanding of the command processing workflow and makes the code more maintainable.
+### Enhanced Command State Functions
+The command processing system has been significantly expanded with comprehensive state management:
 
-### Command State Functions
-The 11 command states handle different aspects of officer command processing:
-
-1. **CommandState_Init**: Initializes command processing context and copies data buffers
-2. **CommandState_Animate**: Handles animation sequences during command execution
-3. **CommandState_MenuSetup**: Sets up menu interfaces for command selection
-4. **CommandState_Menu**: Processes menu interactions and item selection
-5. **CommandState_SelectTarget**: Validates and selects targets for commands
-6. **CommandState_Confirm**: Handles confirmation dialogs for command execution
-7. **CommandState_ShowResult**: Displays results of command execution
-8. **CommandState_Cancel**: Manages command cancellation workflows
-9. **CommandState_Confirm2**: Secondary confirmation for complex commands
-10. **CommandState_CancelConfirm**: Confirmation for cancel operations
-11. **CommandState_Reset**: Resets command processing state
+1. **PhaseDispatch** ($A04E): 5-phase exchange flow dispatcher handling check, wait, input, menu, and confirm phases
+2. **OfficerDetailView** ($A21B): Officer detail panel display with 3 sub-states for initialization, rendering, and completion
+3. **OfficerTransferExecute** ($A293): Officer transfer animation and result display with 4 phases
+4. **OfficerMovePhase** ($A44D): Officer movement on strategic map with pathfinding capabilities
+5. **OfficerCommandPhase** ($A87C): Command menu, target selection, and confirmation with 11+ command states
+6. **ValidateActionTarget** ($AD80): Per-action validation supporting 14 different action types
+7. **ArmyDeployDispatch** ($C204): Army deployment system with 7 sub-states for initialization, ruler checks, and rendering
+8. **OfficerTurnDispatch** ($BC93): Officer turn cycle with 8 states for init, select, confirm, reset, next, execute, cancel, and end turn
+9. **OfficerMarchDispatch** ($BE7E): Army march system with 17 sub-states for comprehensive movement management
 
 ### Command State Workflow
-Each command state follows a consistent pattern:
-1. Process input and UI updates
-2. Validate command parameters and targets
-3. Execute command logic or transition to next state
+Each command state follows a consistent pattern with enhanced validation and execution:
+1. Process input and UI updates with sophisticated menu systems
+2. Validate command parameters and targets using terrain and adjacency checks
+3. Execute command logic or transition to next state with proper error handling
 4. Increment command state counter ($0501) for progression
-5. Call CallbackDispatcher for next command state
+5. Call appropriate dispatcher for next command state or subsystem
 
 ```mermaid
 flowchart TD
-CmdStart["CommandState_Init"] --> CmdAnimate["CommandState_Animate"]
-CmdAnimate --> MenuSetup["CommandState_MenuSetup"]
-MenuSetup --> Menu["CommandState_Menu"]
-Menu --> SelectTarget["CommandState_SelectTarget"]
-SelectTarget --> Confirm["CommandState_Confirm"]
-Confirm --> ShowResult["CommandState_ShowResult"]
-ShowResult --> Cancel["CommandState_Cancel"]
-Cancel --> Confirm2["CommandState_Confirm2"]
-Confirm2 --> CancelConfirm["CommandState_CancelConfirm"]
-CancelConfirm --> Reset["CommandState_Reset"]
-Cancel -.->|Alternative path| ShowResult
-Confirm2 -.->|Alternative path| ShowResult
+CmdStart["PhaseDispatch"] --> PhaseCheck["Phase_Check"]
+PhaseCheck --> PhaseWait["Phase_Wait"]
+PhaseWait --> PhaseInput["Phase_Input"]
+PhaseInput --> PhaseMenu["Phase_Menu"]
+PhaseMenu --> PhaseConfirm["Phase_Confirm"]
+PhaseConfirm --> OfficerDetailView["OfficerDetailView"]
+OfficerDetailView --> OfficerTransferExecute["OfficerTransferExecute"]
+OfficerTransferExecute --> OfficerMovePhase["OfficerMovePhase"]
+OfficerMovePhase --> OfficerCommandPhase["OfficerCommandPhase"]
+OfficerCommandPhase --> ValidateActionTarget["ValidateActionTarget"]
+ValidateActionTarget --> ArmyDeployDispatch["ArmyDeployDispatch"]
+ArmyDeployDispatch --> OfficerTurnDispatch["OfficerTurnDispatch"]
+OfficerTurnDispatch --> OfficerMarchDispatch["OfficerMarchDispatch"]
+OfficerMarchDispatch --> CmdEnd["Complete"]
 ```
 
 **Diagram sources**
-- [prg_0c_0d.asm:1167-1579](file://asm/banks/prg_0c_0d.asm#L1167-L1579)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
+- [prg_0c_0d.asm:499-508](file://asm/banks/prg_0c_0d.asm#L499-L508)
+- [prg_0c_0d.asm:572-584](file://asm/banks/prg_0c_0d.asm#L572-L584)
+- [prg_0c_0d.asm:4009-4027](file://asm/banks/prg_0c_0d.asm#L4009-L4027)
+- [prg_0c_0d.asm:4272-4293](file://asm/banks/prg_0c_0d.asm#L4272-L4293)
 
 **Section sources**
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [prg_0c_0d.asm:1167-1579](file://asm/banks/prg_0c_0d.asm#L1167-L1579)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
+- [prg_0c_0d.asm:499-508](file://asm/banks/prg_0c_0d.asm#L499-L508)
+- [prg_0c_0d.asm:572-584](file://asm/banks/prg_0c_0d.asm#L572-L584)
+- [prg_0c_0d.asm:4009-4027](file://asm/banks/prg_0c_0d.asm#L4009-L4027)
+- [prg_0c_0d.asm:4272-4293](file://asm/banks/prg_0c_0d.asm#L4272-L4293)
+
+## Hexagonal Map Grid Movement System
+
+### Complete Pathfinding Implementation
+The hexagonal map grid movement system provides sophisticated pathfinding and distance calculations for officer and army movements across the strategic map:
+
+- **Distance Calculation** ($B860): Computes hexagonal distances between positions with row/column adjustments for hex grid topology
+- **Neighbor List Building** ($B8A1): Generates adjacent tile neighbor lists for pathfinding algorithms
+- **Grid Adjacency Checking**: Validates whether source and target officers are on adjacent grid cells using position tables
+- **Terrain Cost Calculation**: Determines movement costs based on terrain types and unit capabilities
+- **Path Recording**: Maintains move paths with province coordinates and accumulated costs
+
+### Movement Validation and Execution
+The movement system includes comprehensive validation and execution capabilities:
+
+- **Tile Access Checking**: Validates tile boundaries and occupancy before movement
+- **Army Group Integration**: Checks officer army group assignments and slot availability
+- **Morale and Stat Calculations**: Computes morale changes and stat modifications during movements
+- **Animation Support**: Provides smooth animations for officer and army movements
+- **Battle Integration**: Supports entering battles from strategic map positions
+
+```mermaid
+flowchart TD
+MoveStart["Movement Request"] --> CheckAdj["Check Grid Adjacency"]
+CheckAdj --> ValidAdj{"Adjacent?"}
+ValidAdj --> |No| Invalid["Invalid Movement"]
+ValidAdj --> |Yes| CalcCost["Calculate Movement Cost"]
+CalcCost --> TerrainCheck["Check Terrain Type"]
+TerrainCheck --> CostValid{"Cost Valid?"}
+CostValid --> |No| Invalid
+CostValid --> |Yes| RecordPath["Record Move Path"]
+RecordPath --> UpdatePosition["Update Officer Position"]
+UpdatePosition --> ApplyEffects["Apply Movement Effects"]
+ApplyEffects --> CheckBattle{"Enter Battle?"}
+CheckBattle --> |Yes| EnterBattle["Enter Battle Mode"]
+CheckBattle --> |No| Complete["Movement Complete"]
+```
+
+**Diagram sources**
+- [prg_0c_0d.asm:3461-3498](file://asm/banks/prg_0c_0d.asm#L3461-L3498)
+- [prg_0c_0d.asm:3500-3528](file://asm/banks/prg_0c_0d.asm#L3500-L3528)
+- [prg_0c_0d.asm:3149-3181](file://asm/banks/prg_0c_0d.asm#L3149-L3181)
+
+**Section sources**
+- [prg_0c_0d.asm:3461-3498](file://asm/banks/prg_0c_0d.asm#L3461-L3498)
+- [prg_0c_0d.asm:3500-3528](file://asm/banks/prg_0c_0d.asm#L3500-L3528)
+- [prg_0c_0d.asm:3149-3181](file://asm/banks/prg_0c_0d.asm#L3149-L3181)
 
 ## Dependency Analysis
-The dual-layer state machine architecture exhibits low coupling and high cohesion:
+The dual-layer state machine architecture exhibits low coupling and high cohesion with enhanced subsystem integration:
 
 ### Primary State Machine Dependencies
 - Low coupling: The primary dispatch routine depends only on the vector table and fixed zero-page addresses
 - High cohesion: Each primary state encapsulates a single logical game phase
 - Fixed addresses: Using fixed addresses for the state counter, vector table, and dispatch pointer simplifies the dispatch logic
 
-### Command State Machine Dependencies  
-- Independent operation: Command states operate independently of the primary state machine
+### Enhanced Command State Machine Dependencies  
+- Independent operation: Command states operate independently of the primary state machine with dedicated counters
 - Shared utilities: Both systems share common helper functions for PPU, sound, and memory operations
 - Coordinated timing: Command states integrate with the primary game loop through careful timing coordination
+- Specialized dispatchers: Multiple dispatch mechanisms provide focused functionality for different subsystems
 
 ```mermaid
 graph LR
@@ -361,23 +441,29 @@ PrimaryDispatch --> PrimaryVT["VectorTable ($E07C)"]
 PrimaryVT --> PrimaryStates["15 Primary States"]
 CmdCounter["$0501 (command state counter)"] --> CmdDispatch["CallbackDispatcher ($EADE)"]
 CmdDispatch --> CmdVT["CommandTable ($A888)"]
-CmdVT --> CmdStates["11 Command States"]
+CmdVT --> CmdStates["11+ Command States"]
+PhaseCounter["$0501 (phase counter)"] --> PhaseDispatch["PhaseDispatch ($A04E)"]
+TurnCounter["$0501 (turn counter)"] --> TurnDispatch["OfficerTurnDispatch ($BC93)"]
+MarchCounter["$0501 (march counter)"] --> MarchDispatch["OfficerMarchDispatch ($BE7E)"]
 SharedHelpers["Shared Utilities"] --> PrimaryStates
 SharedHelpers --> CmdStates
+SharedHelpers --> PhaseDispatch
+SharedHelpers --> TurnDispatch
+SharedHelpers --> MarchDispatch
 ```
 
 **Diagram sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
 **Section sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
-- [functions.h:25-45](file://include/functions.h#L25-L45)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
+- [functions.h:896-932](file://include/functions.h#L896-L932)
 
 ## Performance Considerations
-Both state machines are optimized for 6502 performance:
+Both state machines are optimized for 6502 performance with enhanced efficiency:
 
 ### Primary State Machine Optimization
 - O(1) dispatch: The vector table lookup avoids loops or branches, minimizing overhead
@@ -385,18 +471,20 @@ Both state machines are optimized for 6502 performance:
 - Indirect jump: The shared dispatch routine centralizes the jump logic
 - Zero-page addressing: Fixed zero-page addresses reduce instruction length and improve speed
 
-### Command State Machine Optimization
+### Enhanced Command State Machine Optimization
 - Efficient dispatcher: CallbackDispatcher uses return address calculation for fast dispatch
-- Compact tables: 11-entry command table fits efficiently in available memory
+- Compact tables: 11+ entry command table fits efficiently in available memory
 - Consistent patterns: Command states follow predictable execution patterns for optimization
+- Specialized dispatchers: Focused dispatchers reduce overhead for specific subsystems
 
 ### Shared Optimizations
 - Modularity: Reusing helpers reduces code size and improves maintainability
 - Predictable timing: Both systems use deterministic state progression for reliable timing
 - Memory efficiency: Careful memory layout minimizes access overhead
+- Hex grid optimizations: Efficient distance calculations and neighbor lookups for pathfinding
 
 ## Troubleshooting Guide
-Common issues and checks for both state machines:
+Common issues and checks for both state machines with enhanced subsystem support:
 
 ### Primary State Machine Issues
 - Incorrect state transitions: Verify that each state increments the state counter before dispatching
@@ -404,25 +492,30 @@ Common issues and checks for both state machines:
 - Dispatch pointer corruption: Confirm that the dispatch routine writes both low and high bytes of the target pointer
 - Sub-state misuse: Ensure sub-state is initialized at the start of a state and updated only as needed
 
-### Command State Machine Issues
-- Command counter problems: Verify command state counter ($0501) increments correctly
+### Enhanced Command State Machine Issues
+- Command counter problems: Verify command state counter ($0501) increments correctly across all subsystems
 - Command table alignment: Ensure command table entries are properly aligned and ordered
-- Dispatcher integration: Check that command states properly interact with CallbackDispatcher
-- State progression: Verify command states follow the expected workflow sequence
+- Dispatcher integration: Check that command states properly interact with CallbackDispatcher and specialized dispatchers
+- State progression: Verify command states follow the expected workflow sequence across all subsystems
+- Phase management: Ensure PhaseDispatch properly manages the 5-phase exchange workflow
+- Turn cycle integrity: Verify OfficerTurnDispatch maintains proper 8-state turn cycle progression
+- March state consistency: Check OfficerMarchDispatch handles all 17 sub-states correctly
 
 ### Common Debugging Techniques
 - Use memory breakpoints on state counters to verify progression
 - Trace dispatch calls to ensure correct state transitions
 - Monitor command state counter for proper increment behavior
 - Verify vector table contents match expected state mappings
+- Test hex grid movement validation with known positions
+- Validate pathfinding calculations against expected distances
 
 **Section sources**
 - [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
-- [prg_0c_0d.asm:1153-1164](file://asm/banks/prg_0c_0d.asm#L1153-L1164)
+- [prg_0c_0d.asm:256-266](file://asm/banks/prg_0c_0d.asm#L256-L266)
 
 ## Conclusion
-The dual-layer state machine architecture provides a robust, efficient, and maintainable control flow system for the game. The primary 15-state system handles core game phases with predictable O(1) dispatch, while the secondary 11-state command system manages officer command processing with the enhanced CommandState_* naming convention for improved semantic clarity. 
+The dual-layer state machine architecture provides a robust, efficient, and maintainable control flow system for the game with significantly enhanced commander capabilities. The primary 15-state system handles core game phases with predictable O(1) dispatch, while the secondary command system manages officer interactions through comprehensive state management with 11+ command states and multiple specialized dispatchers.
 
-By storing state counters at fixed zero-page addresses and using fixed vector tables, both systems achieve predictable dispatch with minimal branching overhead. The modular .proc organization cleanly separates state logic, while shared helpers keep code reuse high. Together, these patterns enable reliable progression across game phases and simplify future development and verification of the complex interaction between game states and command processing.
+The enhanced system now includes sophisticated hexagonal map grid movement with complete pathfinding capabilities, supporting complex officer management operations including transfers, strategic commands, and army movements. The architectural separation between primary game states and command states allows for independent development and debugging, while the consistent patterns across both systems provide familiarity and maintainability for developers working on either layer of the state machine architecture.
 
-The architectural separation between primary game states and command states allows for independent development and debugging, while the consistent patterns across both systems provide familiarity and maintainability for developers working on either layer of the state machine architecture.
+Key improvements include the addition of PhaseDispatch for 5-phase exchange workflows, OfficerTurnDispatch for 8-state turn cycles, OfficerMarchDispatch for 17-state army movements, and ArmyDeployDispatch for 7-state deployment operations. The hexagonal movement system provides realistic strategic gameplay with terrain-based movement costs, adjacency validation, and integrated battle mechanics. Together, these patterns enable reliable progression across game phases and simplify future development and verification of the complex interactions between game states and command processing systems.

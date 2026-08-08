@@ -1,0 +1,179 @@
+{
+  "summary": {
+    "projectName": "sango2dasm",
+    "locale": "en",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 25,
+    "overview": "The disassembly project has strong craft in its hand-annotated 6502 bank files, but the build pipeline does not integrate them — assembled output is decoupled from the disassembly work, and no automated verification catches regressions.",
+    "aiAgentPractice": {
+      "inspectedSurfaces": [
+        "Custom Agents",
+        "Memories"
+      ],
+      "coverageRows": [
+        {
+          "surface": "Custom Agents",
+          "scopes": [
+            "Project"
+          ],
+          "count": 1,
+          "paths": [
+            ".qoder/agents/namcot163-disasm.md"
+          ]
+        },
+        {
+          "surface": "Memories",
+          "scopes": [
+            "Project"
+          ],
+          "count": 40
+        }
+      ]
+    },
+    "assignmentSummaries": [],
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "Task Understanding",
+        "score": 70,
+        "summary": "Forty project memories and a detailed custom agent provide strong domain context for the disassembly task.",
+        "findingRefs": [
+          "broken-cdl-file-reference-in-agent"
+        ]
+      },
+      {
+        "id": "controlled-execution",
+        "label": "Controlled Execution",
+        "score": 55,
+        "summary": "A Makefile drives assembly and a verify target exists, but most bank files are not included in the build.",
+        "findingRefs": [
+          "disassembled-banks-orphaned-from-build",
+          "main-asm-placeholder-handlers-conflict",
+          "build-directory-mixed-with-source-tooling"
+        ]
+      },
+      {
+        "id": "change-validation",
+        "label": "Change Validation",
+        "score": 45,
+        "summary": "Byte-accuracy verification via verify_rom.py is the right strategy, but it depends on a working build that is currently incomplete.",
+        "findingRefs": [
+          "disassembled-banks-orphaned-from-build",
+          "main-asm-placeholder-handlers-conflict",
+          "no-automated-build-verification"
+        ]
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "Reliable Delivery",
+        "score": 30,
+        "summary": "No CI pipeline exists; verification is manual-only and source ROM binaries are excluded from version control.",
+        "findingRefs": [
+          "source-rom-binaries-excluded-from-vcs",
+          "no-automated-build-verification"
+        ]
+      },
+      {
+        "id": "learning-capture",
+        "label": "Learning Capture",
+        "score": 35,
+        "summary": "Zero eligible sessions in the observation window provide no basis for learning assessment.",
+        "findingRefs": []
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "disassembled-banks-orphaned-from-build",
+      "title": "Disassembled bank files are not included in the build",
+      "severity": "High",
+      "reason": "main.asm does not .include any bank files and linker.cfg defines segments for only a subset of banks. The five fully-disassembled bank files (~25,000 lines of annotated 6502 code) are never assembled, so the core assemble-verify feedback loop is broken for the majority of bank work.",
+      "expectedOutput": [
+        "All disassembled bank files are included in the build and assemble successfully",
+        "make verify confirms byte-accuracy for all integrated banks"
+      ],
+      "expectedArtifact": "asm/main.asm + linker.cfg",
+      "aiFixPrompt": "/better-harness fix this issue\n\nUpdate asm/main.asm to .include the disassembled bank files and add missing CODE_BANK segments to linker.cfg so that all disassembled banks participate in the build.\n\n## Validation\n\n- Run `make` and confirm all included bank files assemble without errors\n- Run `make verify` and confirm byte-accuracy against the original ROM",
+      "dimensionRefs": [
+        "controlled-execution",
+        "change-validation"
+      ]
+    },
+    {
+      "id": "main-asm-placeholder-handlers-conflict",
+      "title": "main.asm placeholder handlers conflict with disassembled bank 1F",
+      "severity": "High",
+      "reason": "main.asm defines its own Reset, NMI, IRQ, PPU_Init, Mapper_Init, and Main symbols with placeholder implementations. These duplicate the fully-disassembled equivalents in prg_1f.asm (B1F_Reset at $E000, B1F_NmiHandler at $F800, B1F_IrqHandler at $FB2D). When both files are included in the build, the assembler will report duplicate symbol errors or route vectors to the wrong handlers.",
+      "expectedOutput": [
+        "No duplicate symbol definitions between main.asm and prg_1f.asm",
+        "Vector table references the disassembled bank 1F entry points"
+      ],
+      "expectedArtifact": "asm/main.asm",
+      "aiFixPrompt": "/better-harness fix this issue\n\nRemove the placeholder Reset/NMI/IRQ/PPU_Init/Mapper_Init/Main definitions from asm/main.asm and update the VECTORS segment to reference the disassembled bank 1F symbols.\n\n## Validation\n\n- Run `make` and confirm no duplicate symbol errors\n- Verify the VECTORS segment points to B1F_Reset, B1F_NmiHandler, B1F_IrqHandler",
+      "dimensionRefs": [
+        "controlled-execution",
+        "change-validation"
+      ]
+    },
+    {
+      "id": "broken-cdl-file-reference-in-agent",
+      "title": "Custom agent references a CDL file that does not exist",
+      "severity": "Medium",
+      "reason": "The namcot163-disasm agent instructs to trust asm/banks/pbank31.cdl.asm as the authoritative code/data classification reference, but this file does not exist in the project. An agent invocation following these instructions will encounter a missing file, wasting turns or causing incorrect trust decisions.",
+      "expectedOutput": [
+        "All file references in the agent instructions resolve to existing project files"
+      ],
+      "expectedArtifact": ".qoder/agents/namcot163-disasm.md",
+      "aiFixPrompt": "/better-harness fix this issue\n\nUpdate .qoder/agents/namcot163-disasm.md to remove or replace the reference to asm/banks/pbank31.cdl.asm with the current authoritative code/data classification source.\n\n## Validation\n\n- Confirm the referenced file path exists or the instruction is updated\n- Invoke the agent and verify it does not search for the missing file",
+      "dimensionRefs": [
+        "task-understanding"
+      ]
+    },
+    {
+      "id": "source-rom-binaries-excluded-from-vcs",
+      "title": "Source ROM binaries are excluded from version control",
+      "severity": "Medium",
+      "reason": "The .gitignore patterns *.bin and *.nes exclude the original ROM file and all split PRG/CHR binaries. A fresh clone cannot build or verify anything because the .incbin directives reference rom/prg/prg_XX.bin paths that will not exist after checkout. No mechanism provides the source binaries.",
+      "expectedOutput": [
+        "A fresh checkout can obtain or place the required source binaries",
+        "make verify succeeds after following the documented setup"
+      ],
+      "expectedArtifact": ".gitignore + Makefile or setup script",
+      "aiFixPrompt": "/better-harness fix this issue\n\nAdd a mechanism to provide source ROM binaries for a fresh checkout — either track them via Git LFS, add a Makefile fetch target, or document the required ROM source and provide a split script.\n\n## Validation\n\n- Clone to a fresh directory and confirm the build can proceed after following the setup steps\n- Run `make verify` successfully",
+      "dimensionRefs": [
+        "reliable-delivery"
+      ]
+    },
+    {
+      "id": "no-automated-build-verification",
+      "title": "No automated build verification pipeline",
+      "severity": "Medium",
+      "reason": "No CI/CD configuration exists to automatically assemble the project and run make verify on changes. Regressions in already-disassembled banks can be introduced without detection. The verify target is manual-only and depends on a working build that is currently incomplete.",
+      "expectedOutput": [
+        "Every push and pull request triggers an automated make + make verify",
+        "Byte-accuracy regression causes a visible CI failure"
+      ],
+      "expectedArtifact": "CI workflow configuration",
+      "aiFixPrompt": "/better-harness fix this issue\n\nAdd a CI workflow (e.g., .github/workflows/build.yml) that runs `make` and `make verify` on every push and pull request.\n\n## Validation\n\n- Push a change and confirm the CI workflow triggers\n- Confirm the workflow fails if byte-accuracy is broken",
+      "dimensionRefs": [
+        "reliable-delivery",
+        "change-validation"
+      ]
+    },
+    {
+      "id": "build-directory-mixed-with-source-tooling",
+      "title": "Build directory mixes generated artifacts with committed source scripts",
+      "severity": "Low",
+      "reason": "The build/ directory contains both tracked Python utility scripts and untracked build outputs (.o, .bin, .nes, .lst, error logs). This makes git status noisy and risks accidental commits of stale binaries. The Makefile clean target could delete committed scripts if they match cleanup patterns.",
+      "expectedOutput": [
+        "Build outputs and source scripts occupy separate directories",
+        "make clean removes only generated artifacts"
+      ],
+      "expectedArtifact": ".gitignore + project structure",
+      "aiFixPrompt": "/better-harness fix this issue\n\nSeparate build outputs from source tooling: move utility scripts out of build/ or add build/ to .gitignore and relocate scripts to tools/.\n\n## Validation\n\n- Run `make clean` and confirm no committed files are deleted\n- Run `git status` after a build and confirm only build/ artifacts appear as untracked",
+      "dimensionRefs": [
+        "controlled-execution"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "summary": {},
+  "dimensions": [
+    {
+      "id": "task-understanding"
+    },
+    {
+      "id": "controlled-execution"
+    },
+    {
+      "id": "change-validation"
+    },
+    {
+      "id": "reliable-delivery"
+    },
+    {
+      "id": "learning-capture"
+    }
+  ],
+  "findings": [
+    {
+      "id": "disassembled-banks-orphaned-from-build"
+    },
+    {
+      "id": "main-asm-placeholder-handlers-conflict"
+    },
+    {
+      "id": "broken-cdl-file-reference-in-agent"
+    },
+    {
+      "id": "source-rom-binaries-excluded-from-vcs"
+    },
+    {
+      "id": "no-automated-build-verification"
+    },
+    {
+      "id": "build-directory-mixed-with-source-tooling"
+    }
+  ]
+}

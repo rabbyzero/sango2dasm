@@ -402,7 +402,7 @@ territory_ptr_hi = $0069
   BNE @normal_mode                              ; $E1A5: D0 0B
   LDY #$2C                                      ; $E1A7: A0 2C
   JSR SwitchBankAC_B                            ; $E1A9: 20 37 F2
-  JSR B17_18_PpuWriteTileOffset                 ; $E1AC: 20 06 A0  Scenario function
+  JSR B0C_0D_OfficerTransferCalc_Entry          ; $E1AC: 20 06 A0  Scenario function
   JMP @after_mode_check                         ; $E1AF: 4C BA E1
 @normal_mode:
   LDY #$28                                      ; $E1B2: A0 28
@@ -3078,7 +3078,7 @@ nmi_ctrl = $007E
 .proc SetUI0
   STA $0311                                     ; $F26D: 8D 11 03
   LDA #$00                                      ; $F270: A9 00
-@common:
+common:
   STA $0310                                     ; $F272: 8D 10 03
   LDA #$FF                                      ; $F275: A9 FF
   STA $0312                                     ; $F277: 8D 12 03
@@ -3095,7 +3095,7 @@ nmi_ctrl = $007E
 .proc SetUI2
   STA $0311                                     ; $F283: 8D 11 03
   LDA #$02                                      ; $F286: A9 02
-  JMP SetUI0::@common                           ; $F288: 4C 72 F2
+  JMP SetUI0::common                            ; $F288: 4C 72 F2
 .endproc
 
 ;===============================================================================
@@ -3105,7 +3105,7 @@ nmi_ctrl = $007E
 .proc SetUI4
   STA $0311                                     ; $F28B: 8D 11 03
   LDA #$04                                      ; $F28E: A9 04
-  JMP SetUI0::@common                           ; $F290: 4C 72 F2
+  JMP SetUI0::common                            ; $F290: 4C 72 F2
 .endproc
 
 ;===============================================================================
@@ -3115,7 +3115,7 @@ nmi_ctrl = $007E
 .proc SetUI5
   STA $0311                                     ; $F293: 8D 11 03
   LDA #$05                                      ; $F296: A9 05
-  JMP SetUI0::@common                           ; $F298: 4C 72 F2
+  JMP SetUI0::common                            ; $F298: 4C 72 F2
 .endproc
 
 ;===============================================================================

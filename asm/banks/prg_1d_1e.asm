@@ -3691,7 +3691,9 @@ MenuAction05_CastleRepairSetup:
   LDA #$C6                                ; $BFF8: A9 C6
   JSR SetupDisplayPtrs                    ; $BFFA: 20 6D C9
   LDA #$CF                                ; $BFFD: A9 CF
-  JSR ResetDispatchState                  ; $BFFF: 20 8A C9 JSR ResetDispatchState (opcode at $BFFF, operand at $C000-$C001)
+  .byte $20                               ; $BFFF: 20 (JSR opcode, spans bank boundary)
+.segment "CODE_BANK1E"
+  .word ResetDispatchState                ; $C000: 8A C9 (operand)
   INC $04A1                                             ; $C002: EE A1 04
   LDA #$03                                              ; $C005: A9 03
   STA $04A4                                             ; $C007: 8D A4 04

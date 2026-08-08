@@ -79,22 +79,18 @@ Prepare the project for development:
 ## Workflow Progression
 Follow this recommended workflow to make steady progress:
 
-1. Start with Bank 0x1F (already fully disassembled)
+1. Start with Bank 0x1F
    - It contains the reset handler and dispatch logic
-   - Review asm/banks/prg_1f.asm to understand the state machine and bank switching
-   - Use include/functions.h for symbolic label references
+   - Use the dedicated disassembler to produce a structured assembly file
+   - Replace the bank stub with the generated code
 
-2. Study the already-disassembled bank pairs
-   - prg_0a_0b.asm: AI turn processing, province evaluation
-   - prg_0c_0d.asm: Officer exchange, strategic command
-   - prg_17_18.asm: Display and battle systems
-   - prg_1d_1e.asm: Domestic affairs, scene renderer
-   - These combined-pair files occupy $A000-$DFFF (16KB)
+2. Identify bank switching routines
+   - Locate how the game switches PRG banks using the Namco-163 registers
+   - Update the linker configuration to reflect new segments
 
-3. Identify remaining stub banks to disassemble
-   - Banks $00–$09, $0E–$16, $19–$1C are still stubs
-   - Use tools/disasm_prg.py for new bank disassembly
+3. Disassemble other banks
    - Follow the dispatch targets from Bank 0x1F
+   - Replace stubs incrementally with real disassembled code
 
 4. Verify accuracy
    - Build a ROM and compare it with the original using the verification script
@@ -109,10 +105,10 @@ Follow this recommended workflow to make steady progress:
 ## Project Structure Overview
 The project organizes files into logical groups:
 
-- asm/: Assembly sources and bank files (stubs + fully disassembled combined-pair files)
-- include/: 6502 and mapper register definitions, macros, and symbolic function labels (functions.h)
+- asm/: Assembly sources and bank stubs
+- include/: 6502 and mapper register definitions plus macros
 - rom/: Split PRG/CHR banks and combined binaries
-- tools/: Python scripts for ROM splitting, analysis, disassembly, verification, and code transformation
+- tools/: Python scripts for ROM splitting, analysis, disassembly, and verification
 - build/: Output artifacts from the build process
 - code/: Disassembly outputs and analysis notes
 - Makefile and linker.cfg: Build orchestration and memory layout
@@ -123,21 +119,20 @@ A["Makefile"] --> B["asm/main.asm"]
 A --> C["linker.cfg"]
 B --> D["include/macros.h"]
 B --> E["include/namco163.h"]
-B --> E2["include/functions.h"]
 A --> F["tools/split_rom.py"]
 A --> G["tools/analyze_rom.py"]
 A --> H["tools/generate_bank_stubs.py"]
 A --> I["tools/disasm_6502.py"]
+A --> J["tools/disasm_bank_1f.py"]
 A --> K["tools/build_nes.py"]
 A --> L["tools/verify_rom.py"]
-DIRECT["Direct python3"] --> M["tools/disasm_prg.py"]
-DIRECT --> N["tools/disasm_0a_0b.py"]
-DIRECT --> O["tools/disasm_17_18.py"]
-F --> P["rom/prg/*.bin"]
-G --> Q["rom_info.h"]
-H --> R["asm/banks/*.asm"]
-K --> S["build/sango2.nes"]
-L --> T["build/sango2.nes vs original"]
+F --> M["rom/prg/*.bin"]
+G --> N["rom_info.h"]
+H --> O["asm/banks/*.asm"]
+I --> P["rom/prg/prg_XX.bin"]
+J --> Q["code/bank_1f_raw.asm"]
+K --> R["build/sango2.nes"]
+L --> S["build/sango2.nes vs original"]
 ```
 
 **Diagram sources**
@@ -263,7 +258,7 @@ Interpretation:
 
 ## Troubleshooting Guide
 - Build fails due to missing include files
-  - Ensure include/6502_registers.h, include/namco163.h, include/macros.h, and include/functions.h exist and are readable
+  - Ensure include/6502_registers.h, include/namco163.h, and include/macros.h exist and are readable
 
 - Bank stubs not generated
   - Verify the output directory exists or allow the script to create it
@@ -283,4 +278,4 @@ Interpretation:
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 
 ## Conclusion
-You now have the essential steps to set up the sango2dasm environment, prepare the ROM, generate bank stubs, analyze the structure, and begin disassembling remaining stub banks. Five bank groups are already fully disassembled ($0A/$0B, $0C/$0D, $17/$18, $1D/$1E, $1F). Follow the incremental workflow, keep the linker configuration updated, and use verification to track your progress. Use tools/disasm_prg.py for new bank disassembly and include/functions.h for symbolic label references.
+You now have the essential steps to set up the sango2dasm environment, prepare the ROM, generate bank stubs, analyze the structure, and begin disassembling Bank 0x1F. Follow the incremental workflow, keep the linker configuration updated, and use verification to track your progress. As you become comfortable, expand to other banks using the dispatch targets identified during analysis.

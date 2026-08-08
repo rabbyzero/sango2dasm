@@ -96,11 +96,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for three new Python utility tools for reverse engineering workflow: add_missing_labels.py for automatic label generation, dump_bytes.py for ROM byte extraction, and fix_dup_labels2.py for duplicate label resolution
-- Enhanced the Label Analysis and Renaming System section with new automated label management capabilities
-- Updated the Toolchain Integration section to include the new utility tools
-- Added practical examples of using the new tools for maintaining large-scale assembly codebases
-- Documented the relationship between these tools and existing label processing workflows
+- Enhanced the PRG Bank $0C/$0D Callback System Analysis section with comprehensive documentation of the specialized analysis tools suite for officer exchange system
+- Added detailed coverage of analyze_0c_0d_callbacks.py, verify_0c_0d_directives.py, check_trampoline_pattern.py, transform_0c_0d_inline.py, and fix_0c_0d_inline.py tools
+- Updated the Makefile targets to include new callback system analysis commands
+- Enhanced the build system integration section with callback system workflow examples
+- Added practical usage examples for the complete callback system analysis pipeline
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -2185,7 +2185,7 @@ The PRG banks $1D/$1E analysis suite integrates seamlessly with the Makefile bui
 - Results support iterative development and maintenance workflows for PRG banks $1D/$1E
 
 **Section sources**
-- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-L102)
+- [tools/analyze_ram_1d1e.py:1-102](file://tools/analyze_ram_1d1e.py#L1-102)
 - [tools/check_addrs.py:1-56](file://tools/check_addrs.py#L1-L56)
 - [tools/check_conflicts.py:1-42](file://tools/check_conflicts.py#L1-L42)
 - [tools/dump_data_range.py:1-13](file://tools/dump_data_range.py#L1-L13)
@@ -2857,7 +2857,7 @@ Practical examples:
 **Section sources**
 - [Makefile:51-101](file://Makefile#L51-L101)
 - [tools/verify_rom.py:22-51](file://tools/verify_rom.py#L22-L51)
-- [tools/annotate_asm.py:357-404](file://tools/annotate_asm.py#L357-404)
+- [tools/annotate_asm.py:357-404](file://tools/annotate_asm.py#L357-L404)
 - [tools/split_rom.py:124-139](file://tools/split_rom.py#L124-L139)
 - [tools/verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
 - [tools/analyze_b49c.py:1-281](file://tools/analyze_b49c.py#L1-L281)
