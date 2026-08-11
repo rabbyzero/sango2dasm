@@ -2773,12 +2773,15 @@ nmi_ctrl = $007E
 ; Input: $00/$01 = sprite data ptr, $02 = flip flags
 ;        $0A/$0B = X offset, $0C/$0D = Y offset
 ;        $007C = starting OAM slot index
+; Mid-entry $F09C (B1F_SpriteOamWriterScroll_NoInit): skips the $0003/$0004
+; init; caller must preset $0003 (tile bias) and $0004 (Y clamp).
 ;===============================================================================
 .proc SpriteOamWriterScroll
   LDA #$00                                      ; $F092: A9 00
   STA $0003                                     ; $F094: 8D 03 00
   LDA #$F0                                      ; $F097: A9 F0
   STA $0004                                     ; $F099: 8D 04 00
+SpriteOamWriterScroll_NoInit:
   BIT $0002                                     ; $F09C: 2C 02 00
   BPL @skip_x_flip                              ; $F09F: 10 12
   LDA $000A                                     ; $F0A1: AD 0A 00

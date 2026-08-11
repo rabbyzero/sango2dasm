@@ -178,6 +178,7 @@ B1F_NamcoSoundRegRead     = $F077   ; Namco-163 sound register read
 ; 1N: Sprite OAM Writers
 ;-------------------------------------------------------------------------------
 B1F_SpriteOamWriterScroll = $F092   ; Sprite OAM writer with scroll offset
+B1F_SpriteOamWriterScroll_NoInit = $F09C ; mid-entry: caller preset $0003/$0004
 B1F_SpriteOamWriterSimple = $F1AD   ; Sprite OAM writer direct placement
 
 ;-------------------------------------------------------------------------------
@@ -285,36 +286,6 @@ B1F_CalcScrollAddrAlt     = $FF9B   ; Scroll calc variant B
 ; Bank numbers below are the Y register values passed to SwitchBankAC_B
 ; before each call.
 ;===============================================================================
-
-;-------------------------------------------------------------------------------
-; Bank $3D - Primary display/gameplay bank
-; Called from state handlers (default) and NMI sub-dispatch
-;-------------------------------------------------------------------------------
-B3D_RenderScene           = $A000   ; Scene rendering (generic display)
-B3D_RenderMap             = $A003   ; Map/battle/UI rendering (most common)
-B3D_ScenarioAction        = $A006   ; Scenario/action display
-B3D_InputAndRender        = $A009   ; Input handling + render pass
-B3D_WeatherEffects        = $A00C   ; Weather/battle effects (NMI dispatch)
-B3D_BattleEffects         = $A00F   ; Battle effects processing (NMI dispatch)
-B3D_BattleDispatch        = $A012   ; Battle dispatch (NMI dispatch)
-B3D_OverlayDisplay        = $A015   ; Overlay/window display
-B3D_AdvisorDialogue       = $A018   ; Advisor dialogue rendering
-B3D_DisplayAndChrSetup    = $A01B   ; Display + CHR setup (from DisplayInit)
-B3D_OfficerManagement     = $A01E   ; Officer management display
-B3D_DomesticDisplay       = $A024   ; Domestic affairs display
-B3D_KingdomDisplay        = $A027   ; Kingdom select display
-B3D_TurnSummaryExtra      = $A03F   ; Turn summary extra rendering
-B3D_BankedPaletteUpload   = $A045   ; Banked palette upload variant
-
-;-------------------------------------------------------------------------------
-; Bank $3B - NMI rendering
-;-------------------------------------------------------------------------------
-B3B_RenderScene           = $A000   ; Scene rendering (NMI context)
-
-;-------------------------------------------------------------------------------
-; Bank $39 - NMI battle
-;-------------------------------------------------------------------------------
-B39_BattleEffects         = $A00F   ; Battle effects (NMI context)
 
 ;-------------------------------------------------------------------------------
 ; Banks $17+$18 - Domestic/Kingdom display (combined 16KB $A000-$DFFF)
@@ -549,27 +520,6 @@ B17_18_AnimSeq_HoldFinalFrame = $DEB9
 B17_18_AnimSeq_PrepareTransition = $DEC7
 B17_18_AnimSeq_ResetScene = $DED6
 B17_18_SpriteFromTable    = $DEFA
-
-;-------------------------------------------------------------------------------
-; Bank $2E - NMI rendering
-;-------------------------------------------------------------------------------
-B2E_RenderScene           = $A000   ; Scene rendering (NMI context)
-B2E_RenderMap             = $A003   ; Map rendering (NMI context)
-
-;-------------------------------------------------------------------------------
-; Bank $2C - NMI rendering
-;-------------------------------------------------------------------------------
-B2C_RenderScene           = $A000   ; Scene rendering (NMI context)
-
-;-------------------------------------------------------------------------------
-; Bank $2A - NMI rendering
-;-------------------------------------------------------------------------------
-B2A_RenderMap             = $A003   ; Map rendering (NMI context)
-
-;-------------------------------------------------------------------------------
-; Bank $28 - NMI domestic
-;-------------------------------------------------------------------------------
-B28_DomesticDisplay       = $A024   ; Domestic display (NMI context)
 
 ;-------------------------------------------------------------------------------
 ; Banks $1D+$1E - Combined 16KB ($A000-$DFFF)
@@ -932,5 +882,189 @@ B0C_0D_CheckExchangePossible = $DF27 ; Check if exchange is possible
 B0C_0D_SetupExchangeSfx   = $DF39   ; Setup exchange SFX tone
 B0C_0D_UpdateExchangeSfx  = $DF88   ; Update exchange SFX by scroll position
 ;
+
+;===============================================================================
+; SECTION 7: Combined Banks $08+$09 ($A000-$DFFF)
+; Bank $08 at $A000-$BFFF paired with Bank $09 at $C000-$DFFF
+; AI turn processing / battle system
+; Loaded via SwitchBankAC with Y=$28 ($28 & $1F = $08)
+; Entry points via jump table at $A000-$A02A
+;===============================================================================
+
+;-------------------------------------------------------------------------------
+; Jump Table Entry Points ($A000-$A02A)
+;-------------------------------------------------------------------------------
+B08_09_AiTurnProcess_Entry = $A000 ; AiTurnProcess_Entry: AI turn processing
+B08_09_BattleSetup_Entry  = $A003  ; BattleSetup_Entry: Battle setup
+B08_09_BattlePhaseProcess_Entry = $A006 ; BattlePhaseProcess_Entry: Battle phase process
+B08_09_AiOfficerActionDispatch_Entry = $A009 ; AiOfficerActionDispatch_Entry: AI officer action dispatch
+B08_09_BattleCasualtyResolution_Entry = $A00C ; BattleCasualtyResolution_Entry: Casualty/morale resolution
+B08_09_BattleAttritionRound_Entry = $A00F ; BattleAttritionRound_Entry: Attrition round
+B08_09_BattleStatusPanelDraw_Entry = $A012 ; BattleStatusPanelDraw_Entry: Status panel draw
+B08_09_StratagemTargetMarker_Entry = $A015 ; StratagemTargetMarker_Entry: Stratagem target markers
+B08_09_ValidateSpecialOfficer_Entry = $A018 ; ValidateSpecialOfficer_Entry: Special officer validation
+B08_09_BuildCommandList_Entry = $A01B ; BuildCommandList_Entry: Command list build
+B08_09_ExpandFormationSlots_Entry = $A01E ; ExpandFormationSlots_Entry: Formation slot expansion
+B08_09_BattleMapScrollUpdate_Entry = $A021 ; BattleMapScrollUpdate_Entry: Battle map scroll update
+B08_09_BattleResultDispatch_Entry = $A024 ; BattleResultDispatch_Entry: Battle result dispatch
+B08_09_BattleResultSceneInit_Entry = $A027 ; BattleResultSceneInit_Entry: Battle result scene init
+B08_09_BattleSlotClear_Entry = $A02A ; BattleSlotClear_Entry: Battle slot clear
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $08 ($A02D-$BFFF)
+;-------------------------------------------------------------------------------
+B08_09_AiTurnProcess      = $A02D   ; AI turn process (single proc to $B12F)
+B08_09_Action_DefaultDecision = $A0B1 ; Action 0: flee/recruit/attack/move chain
+B08_09_Action_Regroup     = $A105   ; Action 1: regroup with main force
+B08_09_Action_AttackNearest = $A166 ; Action 2: attack nearest enemy
+B08_09_GetOrderedDestination = $A1E5 ; Get ordered destination
+B08_09_Action_DefendBase  = $A210   ; Action 3: defend capital
+B08_09_Action_SweepRange3 = $A2AD   ; Action 4: sweep range 3
+B08_09_Action_CaptureProvince = $A329 ; Action 5: capture province
+B08_09_Action_RestoreHP   = $A507   ; Action 6: restore HP
+B08_09_Action_Idle        = $A606   ; Action 7: idle
+B08_09_AiExecuteMove      = $A60C   ; AI movement engine
+B08_09_AiScanAdjacentOfficers = $A837 ; Scan adjacent officers
+B08_09_AiCheckAttackNearby = $A8A8  ; Check attack nearby
+B08_09_AiFindNearbyOfficers = $A8D3 ; Find nearby officers
+B08_09_AiFindNearbyOfficers_ScanLoop = $A8E8 ; Multi-entry: scan loop (target in $20/$21)
+B08_09_AiCheckFaction     = $A944   ; Check faction (also called from $CB74)
+B08_09_AiCheckMove        = $A95C   ; Check move feasibility
+B08_09_AiCheckAttackFeasible = $A9CF ; Check attack feasibility
+B08_09_AiCheckRecruit     = $AAF8   ; Check recruit feasibility
+B08_09_AiRecruitClassTable = $AC65  ; Recruit class table
+B08_09_AiCheckActionFeasible = $AC7B ; Stratagem feasibility dispatcher
+B08_09_AiFeasible_FireAttack = $ACCE ; Feasible: fire attack
+B08_09_AiFeasible_Trap    = $ACDB   ; Feasible: trap
+B08_09_AiFeasible_MuddyWater = $ACE8 ; Feasible: muddy water
+B08_09_AiFeasible_FireArrows = $ACF3 ; Feasible: fire arrows
+B08_09_AiFeasible_FeintCounter = $AD00 ; Feasible: feint counter
+B08_09_AiFeasible_CoordinatedStrike = $AD22 ; Feasible: coordinated strike
+B08_09_AiFeasible_WinOver = $AD45   ; Feasible: win over
+B08_09_AiFeasible_FallingRocks = $AD65 ; Feasible: falling rocks
+B08_09_AiFeasible_ChainStratagem = $AD92 ; Feasible: chain stratagem
+B08_09_AiFeasible_AmbushAllSides = $ADCF ; Feasible: ambush all sides
+B08_09_AiFeasible_RepeatingCrossbow = $ADFE ; Feasible: repeating crossbow
+B08_09_AiFeasible_PillageFire = $AE20 ; Feasible: pillage fire
+B08_09_AiFeasible_QimenDunjia = $AE5D ; Feasible: Qimen Dunjia
+B08_09_AiSortNearbyOfficers = $AE93 ; Sort nearby officers
+B08_09_AiCheckFlee        = $AF0D   ; Check flee feasibility
+B08_09_AiComputeArmyStats = $B067   ; Compute army stats
+B08_09_AiComputeBattleStats = $B0B8 ; Compute battle stats
+B08_09_BattleSetup        = $B130   ; Battle setup
+B08_09_GetProvinceRuntimePtr = $B469 ; Get province runtime pointer
+B08_09_GetOfficerRecordPtr = $B491  ; Get officer record pointer
+B08_09_GetFactionRecordPtr = $B4C2  ; Get faction record pointer
+B08_09_FactionRecordPtrTable = $B4D3 ; Faction record pointer table (7 x 8 bytes)
+B08_09_GetOfficerRecordPtrBanked = $B4E1 ; Get officer record pointer (banked)
+B08_09_CallbackDispatcher = $B517   ; Inline callback dispatcher + math helpers
+B08_09_Div24Bit           = $B536   ; 24-bit division
+B08_09_Mul24x8            = $B585   ; 24x8 multiply
+B08_09_NextRandomByte     = $B5D5   ; Next random byte ($6F92 indexed)
+B08_09_RandomTable        = $B5E5   ; 256-byte random permutation table
+B08_09_GetTileTerrainClamped = $B6E5 ; Tile terrain lookup (clamped)
+B08_09_TileTerrainTable   = $B74B   ; Tile id -> terrain type table
+B08_09_TerrainMapPtrTable = $B7CB   ; Zone id -> 16x16 detail map pointer
+B08_09_TileBankTable      = $B8BB   ; Zone id -> PRG bank ($8000 window)
+B08_09_BattleResultProcess = $B933  ; Battle result process (phase 1 handler)
+B08_09_BattlePhaseProcess = $BAB3   ; Battle phase process dispatcher
+B08_09_BattleAttackerSetup = $BAC1  ; Attacker setup
+B08_09_BattleDefenderSetup = $BB3D  ; Defender setup
+B08_09_BattleExecute      = $BB93   ; Battle execute
+B08_09_BattlePostProcess  = $BBA0   ; Battle post-process
+B08_09_SetupPostBattleState = $BBB8 ; Setup post-battle state
+B08_09_SwapFirstUnitToFront = $BC00 ; Swap first unit to front
+B08_09_DoDispatch         = $BC46   ; Post-battle dispatch
+B08_09_BattleUnitMatcher  = $BC6D   ; Battle unit matcher
+B08_09_FindDefenderMatch  = $BD96   ; Find defender match
+B08_09_CollectUnitsBySide = $BDCD   ; Collect units by side
+B08_09_FrontloadFactionUnit = $BE55 ; Frontload faction unit
+B08_09_PopulateOfficerArrays = $BE90 ; Populate officer arrays
+B08_09_UpdateOfficerCoords = $BF0A  ; Update officer coordinates
+B08_09_LoadCoordPair      = $BF9E   ; Load coordinate pair
+B08_09_FindNearestThreshold = $BFEC ; Find nearest threshold
+B08_09_TurnThresholds     = $C015   ; Turn threshold table
+B08_09_SearchThresholdTable = $C01A ; Search threshold table
+B08_09_ThresholdResultTable = $C022 ; Threshold result table
+B08_09_ApplyCoordDeltas   = $C027   ; Apply coordinate deltas
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $09 ($C000-$DFFF)
+;-------------------------------------------------------------------------------
+B08_09_AiOfficerActionDispatch = $C0BB ; AI officer action state machine ($C0BB-$C982)
+B08_09_State0_ShowActionPanel = $C0D5 ; State 0: show action panel
+B08_09_State0PanelLayout  = $C1DE   ; State 0 panel layout
+B08_09_State1_GrowStatA   = $C1EB   ; State 1: grow stat A
+B08_09_State2_GrowStatB   = $C2C0   ; State 2: grow stat B
+B08_09_State3_CheckOfficerStat = $C392 ; State 3: check officer stat
+B08_09_State4_ConsumeAndRestore = $C3E9 ; State 4: consume and restore
+B08_09_State4PanelLayout  = $C4AB   ; State 4 panel layout
+B08_09_State5_SetupFormation = $C4B8 ; State 5: setup formation
+B08_09_State5PanelLayout  = $C512   ; State 5 panel layout
+B08_09_FormationIdTable   = $C525   ; Formation id table
+B08_09_State6_RenderFormationSprites = $C543 ; State 6: render formation sprites
+B08_09_SlotParamTable     = $C61E   ; Slot parameter table
+B08_09_State7_ApplyTileEffect = $C62E ; State 7: apply tile effect
+B08_09_State7PanelLayout  = $C728   ; State 7 panel layout
+B08_09_CheckSpecialTiles  = $C73B   ; Check special tiles
+B08_09_State8_WaitForNextCommand = $C7B0 ; State 8: wait for next command
+B08_09_State9_RouteNextAction = $C7C8 ; State 9: route next action
+B08_09_State9PanelLayout  = $C844   ; State 9 panel layout
+B08_09_ExpandFormationSlots = $C851 ; Expand formation slots
+B08_09_TileOffsetTable    = $C89E   ; Tile offset table
+B08_09_FormationTileLayouts = $C8DE ; Formation tile layouts
+B08_09_GetBattleSideOffset = $C93E  ; Get battle side offset
+B08_09_CheckAnimQueueDone = $C948   ; Check animation queue done
+B08_09_DrawActionMarker   = $C95A   ; Draw action marker
+B08_09_ActionMarkerSprite = $C97E   ; Action marker sprite layout
+B08_09_BattleCasualtyResolution = $C983 ; Battle casualty/morale resolution
+B08_09_SetScaleFactor     = $CD06   ; Set scale factor
+B08_09_BattleAttritionRound = $CD78 ; Battle attrition round
+B08_09_BattleStatusPanelDraw = $CFA2 ; Battle status panel draw ($CFA2-$D1EC)
+B08_09_DrawStratagemTargetMarkers = $D1ED ; Draw stratagem target markers
+B08_09_ValidateSpecialOfficer = $D390 ; Validate special officer
+B08_09_BuildCommandList   = $D3EE   ; Build command list
+B08_09_SlotTierPtrs       = $D509   ; Slot tier pointers
+B08_09_SlotList_2         = $D51B   ; Slot list (2 slots)
+B08_09_SlotList_4         = $D51E   ; Slot list (4 slots)
+B08_09_SlotList_6         = $D523   ; Slot list (6 slots)
+B08_09_SlotList_8         = $D52A   ; Slot list (8 slots)
+B08_09_SlotList_10        = $D533   ; Slot list (10 slots)
+B08_09_SlotList_12        = $D53E   ; Slot list (12 slots)
+B08_09_SlotList_14        = $D54B   ; Slot list (14 slots)
+B08_09_SlotList_15        = $D55A   ; Slot list (15 slots)
+B08_09_SlotList_16        = $D56A   ; Slot list (16 slots)
+B08_09_BattleMapScrollUpdate = $D57B ; Battle map scroll update
+B08_09_BattleResultSceneInit = $D66E ; Battle result scene init
+B08_09_BattleSlotClear    = $D6CD   ; Battle slot clear
+B08_09_BattleResultDispatch = $D70F ; Battle result dispatch
+B08_09_BattleResult_SceneTick = $D723 ; Battle result scene tick
+B08_09_BattleResult_InitRecords = $D73A ; Phase: init records
+B08_09_BattleResult_OpenMenuWait = $D778 ; Phase: open menu wait
+B08_09_BattleResult_SelectMenuEntry = $D7B0 ; Phase: select menu entry
+B08_09_BattleResult_ConfirmMenuWait = $D80C ; Phase: confirm menu wait
+B08_09_BattleResult_PickEntry = $D844 ; Phase: pick entry
+B08_09_BattleResult_InspectEntry = $D8A0 ; Phase: inspect entry
+B08_09_BattleResult_Finalize = $D8E4 ; Phase: finalize
+B08_09_BattleResultMenuPoll = $D906 ; Battle result menu poll
+B08_09_BattleResultEntryInit = $D97A ; Battle result entry init
+B08_09_BattleResult_RowToRecordMap = $DA07 ; Menu row -> record index
+B08_09_BattleResult_RecordInitTable = $DA0F ; 7 x 4-byte entry records
+B08_09_BattleResult_EntryOrderList = $DA2B ; Entry order + $FF sentinels
+B08_09_BattleResult_CursorPosTable = $DA35 ; Cursor (Y,X) base per row
+B08_09_BattleResult_CursorSpriteLayout = $DA43 ; Single-tile cursor layout
+B08_09_BattleResultSceneFrameDraw = $DA48 ; Battle result scene frame draw
+B08_09_BattleResult_FrameSpriteLayout = $DA68 ; 28 OAM records + terminator
+B08_09_BattleResultCursorSpriteDraw = $DAD9 ; Battle result cursor sprite draw
+B08_09_BattleResult_MarkerSpriteLayout = $DAF9 ; Single marker sprite layout
+B08_09_BattleResultReadyCheck = $DAFE ; Battle result ready check
+B08_09_BattleResultDirRepeat0 = $DB10 ; Direction repeat state 0
+B08_09_BattleResultDirRepeat1 = $DB62 ; Direction repeat state 1
+B08_09_BattleResultDirRepeat2 = $DBB4 ; Direction repeat state 2
+B08_09_BattleResultDirRepeat3 = $DBFF ; Direction repeat state 3
+B08_09_BattleResultSlotReset = $DC4A ; Battle result slot reset
+B08_09_BattleResultSlotTemplateApply = $DC9C ; Battle result slot template apply
+B08_09_BattleResult_SlotRecordPtrs = $DCB7 ; Slot -> record pointers
+B08_09_BattleResult_SlotRecordTemplate = $DCC5 ; Template values for offsets 2-$10
 
 .endif ; GUARD_FUNCTIONS_H
