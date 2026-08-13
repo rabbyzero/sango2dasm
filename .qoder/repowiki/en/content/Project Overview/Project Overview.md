@@ -8,6 +8,7 @@
 - [include/namco163.h](file://include/namco163.h)
 - [include/macros.h](file://include/macros.h)
 - [include/6502_registers.h](file://include/6502_registers.h)
+- [include/functions.h](file://include/functions.h)
 - [tools/split_rom.py](file://tools/split_rom.py)
 - [tools/analyze_rom.py](file://tools/analyze_rom.py)
 - [tools/generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
@@ -16,9 +17,17 @@
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [asm/banks/prg_00.asm](file://asm/banks/prg_00.asm)
+- [asm/banks/prg_08_09.asm](file://asm/banks/prg_08_09.asm)
 - [code/bank_1f_plan.md](file://code/bank_1f_plan.md)
 - [code/key_functions_analysis.md](file://code/key_functions_analysis.md)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Enhanced Section 7 coverage in functions.h with comprehensive B08_09_* function declarations for combined banks 08+09
+- Updated bank organization documentation to reflect the complete AI turn processing and battle system implementation
+- Removed references to stale bank entries (B3D, B3B, B39, B2E, B2C, B2A, B28) that are no longer relevant
+- Expanded technical details for the battle system architecture and AI decision-making processes
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -33,7 +42,7 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-This project is a complete reverse engineering and disassembly effort for the Namco-163 (Mapper 19) strategy game Sangokushi 2 - Haou no Tairiku (J) for the Nintendo Entertainment System (NES). The goal is to produce a faithful, byte-accurate recreation of the original ROM using modern tooling and a modular, bank-based organization. The project covers 32 programmable PRG banks (256KB) and mirrors the game’s mapper abstraction to support 8KB bank switching across four PRG slots ($8000–$FFFF). It also documents the reset handler, vector dispatch mechanism, and the bank-switched code that implements gameplay states, display, audio, and I/O.
+This project is a complete reverse engineering and disassembly effort for the Namco-163 (Mapper 19) strategy game Sangokushi 2 - Haou no Tairiku (J) for the Nintendo Entertainment System (NES). The goal is to produce a faithful, byte-accurate recreation of the original ROM using modern tooling and a modular, bank-based organization. The project covers 32 programmable PRG banks (256KB) and mirrors the game's mapper abstraction to support 8KB bank switching across four PRG slots ($8000–$FFFF). It also documents the reset handler, vector dispatch mechanism, and the bank-switched code that implements gameplay states, display, audio, and I/O.
 
 Beyond technical reconstruction, this project serves as an educational resource for retro gaming preservation. It demonstrates how to split, analyze, and rebuild a complex mapper-based ROM while maintaining byte-for-byte fidelity, and it provides a reusable framework applicable to other games using similar mappers.
 
@@ -171,6 +180,39 @@ RST->>ST1 : Jump to State 1
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
 - [asm/banks/prg_1f.asm:74-148](file://asm/banks/prg_1f.asm#L74-L148)
 - [code/bank_1f_plan.md:8-18](file://code/bank_1f_plan.md#L8-L18)
+
+### Enhanced Section 7: Combined Banks 08+09 - AI Turn Processing and Battle System
+**Updated** Enhanced Section 7 coverage now includes comprehensive jump-table entries and internal procedures for combined banks 08+09 with B08_09_* prefixed function declarations. This section implements the core AI turn processing and battle system functionality.
+
+The combined banks 08+09 provide a 16KB memory space ($A000-$DFFF) containing:
+- **Jump Table Entry Points**: 14 entry points at $A000-$A02A handling AI turn processing, battle setup, casualty resolution, and result scenes
+- **AI Decision Engine**: Complete AI officer action system with strategic decision-making, movement planning, and combat evaluation
+- **Battle System**: Full battle phase processing including unit positioning, combat calculations, and result scene management
+- **Strategic Elements**: Formation management, terrain effects, and special officer validation
+
+```mermaid
+flowchart TD
+AITP[AiTurnProcess_Entry] --> AILOOP[Officer Loop]
+AILOOP --> DECIDE[AiOfficerActionDecide]
+DECIDE --> ACTION[Action Handler]
+ACTION --> MOVE[AiExecuteMove]
+ACTION --> ATTACK[Battle Setup]
+MOVE --> EVAL[Evaluate Options]
+ATTACK --> PHASE[BattlePhaseProcess]
+PHASE --> RESOLVE[Casualty Resolution]
+RESOLVE --> RESULT[BattleResultDispatch]
+RESULT --> SCENE[BattleResultSceneInit]
+SCENE --> MENU[Menu Interaction]
+MENU --> FINALIZE[Finalize Results]
+```
+
+**Diagram sources**
+- [include/functions.h:897-911](file://include/functions.h#L897-L911)
+- [asm/banks/prg_08_09.asm:84-113](file://asm/banks/prg_08_09.asm#L84-L113)
+
+**Section sources**
+- [include/functions.h:887-1071](file://include/functions.h#L887-L1071)
+- [asm/banks/prg_08_09.asm:1-200](file://asm/banks/prg_08_09.asm#L1-L200)
 
 ### Mapper Abstraction and Bank Switching
 The project encapsulates mapper behavior behind include/namco163.h, which defines:
@@ -352,11 +394,10 @@ MK --> TOOLS
 - [Makefile:19-28](file://Makefile#L19-L28)
 
 ## Performance Considerations
-- Bank switching overhead: Frequent bank switches incur extra cycles and must be minimized in tight loops. The project’s vector dispatch and state handlers are designed to reduce unnecessary switches.
+- Bank switching overhead: Frequent bank switches incur extra cycles and must be minimized in tight loops. The project's vector dispatch and state handlers are designed to reduce unnecessary switches.
 - PPU/APU initialization: Warmup sequences and register writes are batched to avoid flicker and ensure deterministic timing.
 - Disassembly accuracy: Using a dedicated disassembler with correct addressing modes and base addresses prevents misinterpretation of data as code, reducing rework during verification.
-
-[No sources needed since this section provides general guidance]
+- AI processing efficiency: The enhanced Section 7 implementation optimizes AI turn processing through efficient officer scanning and decision trees.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -364,6 +405,7 @@ Common issues and remedies:
 - Vector table misreads: Verify the vector table at $E07C and the state index at $007A. Off-by-one errors here cause jumps to invalid addresses.
 - Disassembler base address errors: When disassembling banked code, use the correct base address so that CPU addresses map to file offsets accurately.
 - Verification failures: Use tools/verify_rom.py to pinpoint mismatch locations and iterate until byte-identical matches are achieved.
+- Section 7 integration: When working with combined banks 08+09, ensure proper bank switching between $A000-$BFFF and $C000-$DFFF ranges.
 
 **Section sources**
 - [include/namco163.h:10-87](file://include/namco163.h#L10-L87)
@@ -371,16 +413,15 @@ Common issues and remedies:
 - [tools/verify_rom.py:10-51](file://tools/verify_rom.py#L10-L51)
 
 ## Conclusion
-This project demonstrates a robust, modular approach to reverse engineering a mapper-based NES game. By combining a mapper abstraction, bank-stubbed assembly, and an automated analysis pipeline, it achieves both educational clarity and technical fidelity. The workflow from ROM splitting to verified disassembly provides a template applicable to other classic games, contributing to the preservation and understanding of NES architecture.
-
-[No sources needed since this section summarizes without analyzing specific files]
+This project demonstrates a robust, modular approach to reverse engineering a mapper-based NES game. By combining a mapper abstraction, bank-stubbed assembly, and an automated analysis pipeline, it achieves both educational clarity and technical fidelity. The enhanced Section 7 coverage for combined banks 08+09 provides comprehensive documentation of the AI turn processing and battle system, contributing significantly to understanding the game's strategic mechanics. The workflow from ROM splitting to verified disassembly provides a template applicable to other classic games, contributing to the preservation and understanding of NES architecture.
 
 ## Appendices
 
 ### Beginner-Friendly Concepts
-- Bank switching: The act of replacing the contents of an 8KB window in the $8000–$FFFF range by writing to special addresses. This lets a cartridge fit more code than the console’s fixed window allows.
+- Bank switching: The act of replacing the contents of an 8KB window in the $8000–$FFFF range by writing to special addresses. This lets a cartridge fit more code than the console's fixed window allows.
 - Vector dispatch: A table of addresses that the reset handler consults to decide where to jump next. It enables a compact dispatch mechanism across many states.
 - Mapper abstraction: Encapsulating mapper-specific details (register addresses, bank indices, macros) in a single header file simplifies code reuse and reduces errors.
+- Combined banks: Multiple 8KB banks can be logically combined to create larger functional units, such as the 16KB AI and battle system in banks 08+09.
 
 **Section sources**
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
@@ -390,8 +431,10 @@ This project demonstrates a robust, modular approach to reverse engineering a ma
 - Segment management: As new banks are disassembled, add corresponding segments in linker.cfg and assign code to the correct PRG slots.
 - Interrupt vectors: Ensure the reset vector points to the boot bank and that NMI/IRQ vectors are correctly placed in the vector area.
 - Data vs code: Use tools/disasm_6502.py with accurate base addresses to distinguish data from code. Replace stubs with proper segments and labels.
+- Section 7 development: When extending the AI system, maintain consistency with existing B08_09_* naming conventions and follow the established jump table pattern.
 
 **Section sources**
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 - [PROJECT.md:134-151](file://PROJECT.md#L134-L151)
 - [tools/disasm_6502.py:286-334](file://tools/disasm_6502.py#L286-L334)
+- [include/functions.h:887-1071](file://include/functions.h#L887-L1071)

@@ -92,15 +92,16 @@
 - [asm/banks/all_banks.asm](file://asm/banks/all_banks.asm)
 - [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [asm/banks/prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
+- [rom/rom_info.h](file://rom/rom_info.h)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced the PRG Bank $0C/$0D Callback System Analysis section with comprehensive documentation of the specialized analysis tools suite for officer exchange system
-- Added detailed coverage of analyze_0c_0d_callbacks.py, verify_0c_0d_directives.py, check_trampoline_pattern.py, transform_0c_0d_inline.py, and fix_0c_0d_inline.py tools
-- Updated the Makefile targets to include new callback system analysis commands
-- Enhanced the build system integration section with callback system workflow examples
-- Added practical usage examples for the complete callback system analysis pipeline
+- Updated Makefile to reflect automatic bank discovery using wildcard patterns (BANK_SOURCES := $(wildcard $(ASM_DIR)/banks/*.asm))
+- Enhanced multi-stage build process documentation showing individual bank file assembly and concatenation into final PRG binary
+- Added support for new banks $08-$09 in linker configuration with combined disassembly addressing ($A000-$DFFF)
+- Updated bank stub generation workflow to include prg_08_09.asm consolidated module alongside individual bank files
+- Enhanced build system orchestration section to document the new automatic bank discovery mechanism
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -149,8 +150,9 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 graph TB
 subgraph "Source"
 A_main["asm/main.asm"]
-A_banks["asm/banks/*.asm"]
+A_banks["asm/banks/*.asm<br/>Automatic Discovery"]
 A_consolidated["asm/banks/prg_0c_0d.asm<br/>Consolidated Module"]
+A_combined["asm/banks/prg_08_09.asm<br/>Combined $08/$09"]
 H_regs["include/6502_registers.h"]
 H_namco["include/namco163.h"]
 H_macros["include/macros.h"]
@@ -258,6 +260,7 @@ end
 A_main --> MK
 A_banks --> MK
 A_consolidated --> MK
+A_combined --> MK
 H_regs --> A_main
 H_namco --> A_main
 H_macros --> A_main
@@ -338,8 +341,8 @@ T_verify --> OUT
 ```
 
 **Diagram sources**
-- [Makefile:1-102](file://Makefile#L1-L102)
-- [linker.cfg:1-66](file://linker.cfg#L1-L66)
+- [Makefile:18-21](file://Makefile#L18-L21)
+- [linker.cfg:18-66](file://linker.cfg#L18-L66)
 - [test_linker.cfg:1-13](file://test_linker.cfg#L1-L13)
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
@@ -402,7 +405,7 @@ T_verify --> OUT
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
-- [Makefile:12-31](file://Makefile#L12-L31)
+- [Makefile:18-21](file://Makefile#L18-L21)
 
 ## Core Components
 - Makefile targets orchestrate the entire pipeline: assembling, linking, building the final ROM, splitting ROMs, disassembling, analyzing, verifying, cleaning, and the new unified disassembly pipeline with transformation tools.
@@ -501,9 +504,9 @@ participant P1D1E as "PRG Banks $1D/$1E Analysis Suite"
 participant APB as "Advanced Paired Bank Disassembly"
 participant NU as "New Utility Tools"
 Dev->>MK : "make"
-MK->>CA : "Assemble main.asm + consolidated banks"
+MK->>CA : "Assemble main.asm + discovered banks"
 CA-->>MK : "main.o"
-MK->>LD : "Link with linker.cfg (CODE_BANK0C/0D)"
+MK->>LD : "Link with linker.cfg (CODE_BANK08/09)"
 LD-->>MK : "prg.bin"
 MK->>BN : "Add iNES header"
 BN-->>Dev : "sango2.nes"
@@ -671,6 +674,46 @@ Usage patterns:
 - [Makefile:31-101](file://Makefile#L31-L101)
 - [PROJECT.md:58-69](file://PROJECT.md#L58-L69)
 
+### Enhanced Build System with Automatic Bank Discovery
+
+#### Overview
+The build system has been enhanced with automatic bank discovery using wildcard patterns, eliminating the need for manual bank file enumeration. The Makefile now uses `BANK_SOURCES := $(wildcard $(ASM_DIR)/banks/*.asm)` to automatically discover all assembly files in the banks directory, supporting both individual bank files and consolidated modules like prg_08_09.asm and prg_0c_0d.asm.
+
+#### Automatic Bank Discovery Implementation
+- **Wildcard Pattern**: `$(wildcard $(ASM_DIR)/banks/*.asm)` automatically finds all .asm files in the banks directory
+- **Dynamic Inclusion**: No manual maintenance required when adding new bank files
+- **Consolidated Support**: Works seamlessly with both individual bank files and consolidated modules
+- **Build Efficiency**: Only processes files that actually exist in the directory
+
+#### Multi-Stage Build Process
+The enhanced build process now performs multi-stage assembly and linking:
+1. **Individual Bank Assembly**: Each discovered bank file is assembled separately by ca65
+2. **Object File Generation**: Individual .o files are created for each bank
+3. **Linking Phase**: ld65 links all objects according to linker.cfg segments
+4. **Binary Concatenation**: Individual bank binaries are concatenated into final PRG
+5. **ROM Creation**: Final PRG is packaged with iNES header to create NES ROM
+
+#### New Bank Support ($08-$09)
+The linker configuration has been updated to support new banks $08-$09 with combined disassembly addressing:
+- **BANK08**: Maps to $A000-$BFFF (lower 8KB of 16KB combined region)
+- **BANK09**: Maps to $C000-$DFFF (upper 8KB of 16KB combined region)
+- **Combined Address Space**: Provides 16KB contiguous address space for complex bank pairs
+- **Consistent Pattern**: Follows same pattern as other combined bank pairs (0A-0B, 0C-0D, etc.)
+
+#### Integration with Existing Workflow
+- **Bank Stub Generation**: generate_bank_stubs.py creates both individual and consolidated bank files
+- **All Banks Include**: all_banks.asm includes prg_08_09.asm alongside individual bank files
+- **Linker Configuration**: CODE_BANK08 and CODE_BANK09 segments properly mapped
+- **Build Output**: Individual bank binaries (bank08.bin, bank09.bin) generated during build
+
+**Updated** The build system now uses automatic bank discovery with wildcard patterns, supporting both individual bank files and consolidated modules like prg_08_09.asm, while maintaining backward compatibility with existing workflows.
+
+**Section sources**
+- [Makefile:18-21](file://Makefile#L18-L21)
+- [Makefile:38-57](file://Makefile#L38-L57)
+- [linker.cfg:41-43](file://linker.cfg#L41-L43)
+- [asm/banks/all_banks.asm:13](file://asm/banks/all_banks.asm#L13)
+
 ### New Utility Tools for Label Management
 
 #### Overview
@@ -754,31 +797,32 @@ Consolidated bank modules combine two adjacent 8KB banks into a single 16KB asse
 - **Simplified Linking**: Reduced number of segments to manage during linking
 - **Maintained Compatibility**: Individual bank files remain available for backward compatibility
 
-#### prg_0c_0d.asm Implementation
-The prg_0c_0d.asm module demonstrates the consolidated bank pattern:
-- **Combined Address Space**: Covers $A000-$DFFF (16KB) with Bank $0C at $A000-$BFFF and Bank $0D at $C000-$DFFF
-- **Unified Segments**: Uses separate CODE_BANK0C and CODE_BANK0D segments within the same file
+#### prg_08_09.asm Implementation
+The prg_08_09.asm module demonstrates the consolidated bank pattern for the newly supported banks:
+- **Combined Address Space**: Covers $A000-$DFFF (16KB) with Bank $08 at $A000-$BFFF and Bank $09 at $C000-$DFFF
+- **Unified Segments**: Uses separate CODE_BANK08 and CODE_BANK09 segments within the same file
 - **Cross-Bank References**: Automatic handling of references between the two banks
 - **Include Integration**: Seamlessly integrated into all_banks.asm alongside individual bank files
 
 #### Linker Configuration Updates
-The linker.cfg has been updated to support consolidated bank segments:
-- **CODE_BANK0C**: Maps to PRG_SLOT1 ($A000-$BFFF)
-- **CODE_BANK0D**: Maps to PRG_SLOT2 ($C000-$DFFF)
-- **Optional Segments**: Both segments are marked as optional for flexible linking
+The linker.cfg has been updated to support the new banks $08-$09:
+- **BANK08**: Maps to $A000-$BFFF with 8KB size for lower half of combined region
+- **BANK09**: Maps to $C000-$DFFF with 8KB size for upper half of combined region
+- **Combined Pattern**: Follows same addressing pattern as other combined bank pairs
+- **Segment Mapping**: CODE_BANK08 and CODE_BANK09 segments properly configured
 
 #### Standalone Verification Configuration
-A new test configuration file test_0c_0d.cfg provides standalone verification support for the consolidated prg_0c_0d.asm module:
+The existing test configurations continue to support standalone verification for consolidated modules:
 - **Memory Layout**: Defines ZEROPAGE, RAM, and PRG_SLOT1 memory regions
 - **Segment Mapping**: Maps CODE_BANK0C segment to PRG_SLOT1 for testing
-- **Standalone Testing**: Enables independent verification of the consolidated bank module
+- **Standalone Testing**: Enables independent verification of consolidated bank modules
 
-**Updated** The bank stub generation process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining full compatibility with existing individual bank files.
+**Updated** The bank stub generation process now supports consolidated bank modules like prg_08_09.asm and prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining full compatibility with existing individual bank files.
 
 **Section sources**
-- [asm/banks/prg_0c_0d.asm:1-7600](file://asm/banks/prg_0c_0d.asm#L1-L7600)
-- [asm/banks/all_banks.asm:15-16](file://asm/banks/all_banks.asm#L15-L16)
-- [linker.cfg:55-56](file://linker.cfg#L55-L56)
+- [asm/banks/prg_08_09.asm:1-800](file://asm/banks/prg_08_09.asm#L1-L800)
+- [asm/banks/all_banks.asm:13](file://asm/banks/all_banks.asm#L13)
+- [linker.cfg:41-43](file://linker.cfg#L41-L43)
 - [tools/generate_bank_stubs.py:12-52](file://tools/generate_bank_stubs.py#L12-L52)
 - [test_0c_0d.cfg:1-13](file://test_0c_0d.cfg#L1-L13)
 
@@ -1055,6 +1099,7 @@ class LinkerConfig {
 +MEMORY PRG slots
 +SEGMENTS CODE/VECTORS/RODATA
 +Optional banked segments
++CODE_BANK08/09 for new banks
 +CODE_BANK0C/0D for consolidated banks
 }
 class TestLinkerConfig {
@@ -1722,7 +1767,7 @@ The globalize_04xx.py tool provides systematic approach to standardizing $04xx m
 - **Comprehensive Address Coverage**: Maps all $04xx addresses to globally standardized canonical names
 - **Functional Grouping**: Organizes addresses into logical functional groups for better code organization
 - **Descriptive Naming**: Uses meaningful names that describe the purpose and usage of each memory location
-- **Comment Integration**: Adds descriptive comments to explain the function and context of each canonical name
+- **Comment Integration**: Adds descriptive comments explaining the function and context of each canonical name
 
 #### Global Definition Generation
 - **Centralized Block Creation**: Generates a centralized global RAM definition block outside .proc scopes
@@ -2541,6 +2586,7 @@ M_main --> H_functions["include/functions.h"]
 M_main --> L_cfg["linker.cfg"]
 AB["asm/banks/all_banks.asm"] --> M_main
 ACD["asm/banks/prg_0c_0d.asm"] --> AB
+ACD2["asm/banks/prg_08_09.asm"] --> AB
 UD1 --> UD2
 UD2 --> UD3
 UD3 --> UD4

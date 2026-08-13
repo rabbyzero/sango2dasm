@@ -5,8 +5,16 @@
 - [6502_registers.h](file://include/6502_registers.h)
 - [macros.h](file://include/macros.h)
 - [prg_1f.asm](file://asm/banks/prg_1f.asm)
+- [functions.h](file://include/functions.h)
 - [PROJECT.md](file://PROJECT.md)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added documentation for the new `SpriteOamWriterScroll_NoInit` mid-entry point in the sprite rendering system
+- Updated sprite OAM writer section with detailed explanation of the optimization technique
+- Enhanced sprite rendering interface documentation with practical usage examples
+- Added performance considerations for sprite OAM writing operations
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -23,13 +31,14 @@
 This document provides comprehensive register definitions for the Picture Processing Unit (PPU) and Audio Processing Unit (APU) of the Nintendo Entertainment System (NES). It focuses on the complete hardware register mapping used by the PPU and APU, including all PPU registers ($2000–$2007) and APU registers ($4000–$4017). Practical examples demonstrate how these registers are configured and used in the target project, including enabling background rendering, setting scroll positions, configuring sound channels, and handling controller input. The document also covers bit manipulation techniques and timing considerations essential for proper hardware communication.
 
 ## Project Structure
-The register definitions and usage patterns are primarily defined in the include files and demonstrated in the assembly code. The project’s memory map and register ranges are documented in the project overview.
+The register definitions and usage patterns are primarily defined in the include files and demonstrated in the assembly code. The project's memory map and register ranges are documented in the project overview.
 
 ```mermaid
 graph TB
 subgraph "Project Includes"
 REG["include/6502_registers.h"]
 MAC["include/macros.h"]
+FUNC["include/functions.h"]
 end
 subgraph "Assembly Implementation"
 ASM["asm/banks/prg_1f.asm"]
@@ -39,13 +48,15 @@ DOC["PROJECT.md"]
 end
 REG --> ASM
 MAC --> ASM
+FUNC --> ASM
 DOC --> ASM
 ```
 
 **Diagram sources**
 - [6502_registers.h:1-88](file://include/6502_registers.h#L1-L88)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
-- [prg_1f.asm:1-2870](file://asm/banks/prg_1f.asm#L1-L2870)
+- [functions.h:177-183](file://include/functions.h#L177-L183)
+- [prg_1f.asm:1-4565](file://asm/banks/prg_1f.asm#L1-L4565)
 - [PROJECT.md:70-83](file://PROJECT.md#L70-L83)
 
 **Section sources**
@@ -224,6 +235,34 @@ Practical examples from the assembly code:
 - [prg_1f.asm:1035-1065](file://asm/banks/prg_1f.asm#L1035-L1065)
 - [prg_1f.asm:90-111](file://asm/banks/prg_1f.asm#L90-L111)
 
+### Sprite OAM Writer Interface and Optimization
+The sprite rendering system includes optimized OAM writing functions with multiple entry points for different use cases:
+
+- **SpriteOamWriterScroll** ($F092): Full-featured sprite OAM writer with scroll offset handling
+  - Input: $00/$01 = sprite data ptr, $02 = flip flags, $0A/$0B = X offset, $0C/$0D = Y offset, $007C = starting OAM slot index
+  - Handles sprite flipping, scroll calculations, and off-screen detection
+  - Initializes tile bias ($0003) and Y clamp ($0004) automatically
+
+- **SpriteOamWriterScroll_NoInit** ($F09C): Optimized mid-entry point
+  - Skips initialization of $0003 and $0004 registers
+  - Requires caller to preset tile bias and Y clamp values
+  - Used when multiple sprite batches share common configuration
+  - Provides significant performance improvement for repeated sprite rendering
+
+- **SpriteOamWriterSimple** ($F1AD): Basic sprite OAM writer without scroll handling
+  - Direct sprite placement without scroll calculations
+  - Simpler interface for static sprite positioning
+
+Usage patterns in the codebase:
+- Battle scenes use `SpriteOamWriterScroll_NoInit` for efficient city marker rendering
+- Game states typically call the full `SpriteOamWriterScroll` for general sprite management
+- Mid-entry point allows reusing pre-calculated tile offsets across multiple sprite batches
+
+**Section sources**
+- [prg_1f.asm:2770-2925](file://asm/banks/prg_1f.asm#L2770-L2925)
+- [functions.h:177-183](file://include/functions.h#L177-L183)
+- [prg_08_09.asm:6970-7065](file://asm/banks/prg_08_09.asm#L6970-L7065)
+
 ### PPU Initialization and Control Flow
 ```mermaid
 sequenceDiagram
@@ -283,15 +322,18 @@ The assembly code depends on the register definitions in the include files. Macr
 graph TB
 REG["6502_registers.h"]
 MAC["macros.h"]
+FUNC["functions.h"]
 ASM["prg_1f.asm"]
 REG --> ASM
 MAC --> ASM
+FUNC --> ASM
 ```
 
 **Diagram sources**
 - [6502_registers.h:1-88](file://include/6502_registers.h#L1-L88)
 - [macros.h:1-72](file://include/macros.h#L1-L72)
-- [prg_1f.asm:1-2870](file://asm/banks/prg_1f.asm#L1-L2870)
+- [functions.h:177-183](file://include/functions.h#L177-L183)
+- [prg_1f.asm:1-4565](file://asm/banks/prg_1f.asm#L1-L4565)
 
 **Section sources**
 - [macros.h:8-55](file://include/macros.h#L8-L55)
@@ -306,6 +348,10 @@ MAC --> ASM
 - APU frame sequencing:
   - Configure frame counter appropriately for desired audio behavior.
   - Initialize APU registers early to avoid audible glitches.
+- Sprite rendering optimization:
+  - Use `SpriteOamWriterScroll_NoInit` mid-entry point when reusing tile bias and Y clamp values.
+  - Pre-calculate sprite positions and flip flags to minimize per-sprite processing.
+  - Group sprites by similar properties to maximize reuse of common parameters.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -321,11 +367,18 @@ Common issues and remedies:
 - Controller input not responding:
   - Ensure proper strobe sequence on APU_JOY1 before reading APU_JOY2.
   - Validate edge-triggered detection logic for button presses.
+- Sprite rendering issues:
+  - Verify sprite data format matches expected structure (X, tile, attribute, Y).
+  - Check that $0003 and $0004 are properly initialized when using `SpriteOamWriterScroll_NoInit`.
+  - Ensure sprite lists are properly terminated with $80 byte.
 
 **Section sources**
 - [prg_1f.asm:1035-1065](file://asm/banks/prg_1f.asm#L1035-L1065)
 - [prg_1f.asm:1067-1121](file://asm/banks/prg_1f.asm#L1067-L1121)
 - [prg_1f.asm:1562-1583](file://asm/banks/prg_1f.asm#L1562-L1583)
+- [prg_1f.asm:2770-2925](file://asm/banks/prg_1f.asm#L2770-L2925)
 
 ## Conclusion
-The PPU and APU register definitions and usage patterns documented here provide a solid foundation for developing NES graphics and audio functionality. By following the initialization sequences, bit manipulation techniques, and timing considerations outlined in this document, developers can reliably configure the PPU for background rendering and scrolling, manage sprite data via OAM, and set up APU channels for sound synthesis and DMC playback. The included examples from the assembly code serve as practical references for integrating these registers into real applications.
+The PPU and APU register definitions and usage patterns documented here provide a solid foundation for developing NES graphics and audio functionality. By following the initialization sequences, bit manipulation techniques, and timing considerations outlined in this document, developers can reliably configure the PPU for background rendering and scrolling, manage sprite data via OAM, and set up APU channels for sound synthesis and DMC playback. 
+
+The addition of the `SpriteOamWriterScroll_NoInit` mid-entry point enhances the sprite rendering system's efficiency by allowing callers to reuse pre-initialized parameters, reducing redundant setup operations. This optimization technique demonstrates the importance of understanding both hardware capabilities and software architecture when developing performant NES applications. The included examples from the assembly code serve as practical references for integrating these registers into real applications.
