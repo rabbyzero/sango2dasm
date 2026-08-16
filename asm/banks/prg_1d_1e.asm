@@ -3494,7 +3494,7 @@ MenuRenderer:
   .word MenuAction0E_ExileOfficer          ; $BE91: -> $C2DD
   .word MenuAction0F_GiveItem              ; $BE93: -> $C33D
   .word MenuAction10_MoveCapital           ; $BE95: -> $C3A2
-  .word MenuAction11_Diplomacy             ; $BE97: -> $C3F6
+  .word MenuAction11_Intrigue             ; $BE97: -> $C3F6
   .word MenuAction12_War                   ; $BE99: -> $C43E
   .word MenuAction13_Spy                   ; $BE9B: -> $C4E1
   .word MenuAction14_Accounting            ; $BE9D: -> $C511
@@ -4228,8 +4228,8 @@ L_C3F3:
   JMP DomesticMenu_Return                                      ; $C3F3: 4C 34 C9
 .endproc
 
-.proc MenuAction11_Diplomacy
-MenuAction11_Diplomacy:
+.proc MenuAction11_Intrigue
+MenuAction11_Intrigue:
   LDA $04A1                                             ; $C3F6: AD A1 04
   BNE MenuAction11_LoadRows                                 ; $C3F9: D0 19
   LDA #$F5                                              ; $C3FB: A9 F5
@@ -4349,7 +4349,7 @@ MenuAction13_Spy:
   INC $04A1                                             ; $C4EB: EE A1 04
 
 ;===============================================================================
-; $C4EE: Action11_Diplomacy
+; $C4EE: Action11_Intrigue
 ;===============================================================================
   RTS                                                   ; $C4EE: 60
 L_C4EF:

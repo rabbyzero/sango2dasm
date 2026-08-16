@@ -3325,7 +3325,7 @@ AbsorbUpdateRecord:
 ;
 ;   8. Strategic Eval (@AiAction_EvaluateAndExecute, $C337):
 ;      - Switch to bank 1F, evaluate entity strategic state
-;      - Two paths: domestic/military (lower 5 bits) or diplomacy (upper 3 bits)
+;      - Two paths: domestic/military (lower 5 bits) or intrigue (upper 3 bits)
 ;      - Deduct cost from entity record, write action result, loop until done
 ;
 ; NESTED SUBROUTINES:
@@ -3369,8 +3369,8 @@ AbsorbUpdateRecord:
 ;   @KingdomActionModifiers ($C042) - Kingdom action modifiers (12 bytes)
 ;   @ActionCostTable_Domestic ($C3BF) - Domestic action costs (16 bytes)
 ;   @ActionCostTable_Military ($C3CF) - Military action costs (16 bytes)
-;   @ActionCostTable_DiplomacyA ($C3DF) - Diplomacy costs A (16 bytes)
-;   @ActionCostTable_DiplomacyB ($C3EF) - Diplomacy costs B (16 bytes)
+;   @ActionCostTable_IntrigueA ($C3DF) - Intrigue costs A (16 bytes)
+;   @ActionCostTable_IntrigueB ($C3EF) - Intrigue costs B (16 bytes)
 ;   @AiActionParamTable ($C4D0)     - Action group table (60 bytes)
 ;===============================================================================
 .proc AiTurnDispatch
@@ -5595,7 +5595,7 @@ AbsorbUpdateRecord:
 ; Switches to bank 1F, evaluates entity strategic state, and executes actions.
 ; Loops: evaluate → deduct cost → write result → re-evaluate until done.
 ; Two paths based on $3A bit fields: lower 5 bits (domestic/military actions)
-; and upper 3 bits (diplomacy/special actions), using different cost tables.
+; and upper 3 bits (intrigue/special actions), using different cost tables.
 ;===============================================================================
 @AiAction_EvaluateAndExecute:
   math_acc_mhi             = $0022
@@ -5619,7 +5619,7 @@ AbsorbUpdateRecord:
   JSR GetProvinceOwner                                       ; $C356: 20 05 D1
   LDA a:$003A                                         ; $C359: AD 3A 00
   AND #$1F                                            ; $C35C: 29 1F
-  BEQ @DiplomacyPath                                           ; $C35E: F0 1E
+  BEQ @IntriguePath                                           ; $C35E: F0 1E
   ASL A                                               ; $C360: 0A
   TAX                                                 ; $C361: AA
   JSR @DeductActionCost                                ; $C362: 20 A4 C3  ; deduct from cost table 1/2
@@ -5633,7 +5633,7 @@ AbsorbUpdateRecord:
   LDA #$05                                            ; $C376: A9 05
   JSR DeductCounter_ZeroEnd                            ; $C378: 20 52 D1
   JMP $C349                                           ; $C37B: 4C 49 C3
-@DiplomacyPath:
+@IntriguePath:
   LSR A                                               ; $C37E: 4A
   LSR A                                               ; $C37F: 4A
   LSR A                                               ; $C380: 4A
@@ -5660,7 +5660,7 @@ AbsorbUpdateRecord:
 ; $C3A4: @DeductActionCost
 ; Subtracts a 16-bit cost from entity record[$02/$03] using cost tables.
 ; X = table index (0,2,4,...14). Returns with C=1 on success, C=0 on underflow.
-; Cost tables: $C3BF (domestic), $C3CF (military), $C3DF (diplomacy-A), $C3EF (diplomacy-B)
+; Cost tables: $C3BF (domestic), $C3CF (military), $C3DF (intrigue-A), $C3EF (intrigue-B)
 ;===============================================================================
 @DeductActionCost:
   math_acc_lo              = $0020
@@ -5693,12 +5693,12 @@ AbsorbUpdateRecord:
 @ActionCostTable_Military:
   .word $003C,$0064,$0096,$00C8,$00F0,$0104         ; 60, 100, 150, 200, 240, 260
   .word $0000,$0090                                  ; padding
-; Diplomacy-A: used by upper-3-bit path (indices 0–6)
-@ActionCostTable_DiplomacyA:
+; Intrigue-A: used by upper-3-bit path (indices 0–6)
+@ActionCostTable_IntrigueA:
   .word $0050,$0064,$0078,$00C8,$00FA,$012C,$015E   ; 80, 100, 120, 200, 250, 300, 350
   .word $0190                                        ; padding
-; Diplomacy-B: used by upper-3-bit path (indices 0–7)
-@ActionCostTable_DiplomacyB:
+; Intrigue-B: used by upper-3-bit path (indices 0–7)
+@ActionCostTable_IntrigueB:
   .word $0032,$0050,$0064,$0096,$00C8,$00FA,$015E,$0190; 50, 80, 100, 150, 200, 250, 350, 400
 
 

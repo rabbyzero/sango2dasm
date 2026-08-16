@@ -257,9 +257,9 @@ KNOWN_17_18_FUNCS = {
     0xA015: "B17_18_OverlayWindow",
     0xA018: "B17_18_SetupAdvisorTiles",
     0xA01B: "B17_18_MainGameDispatch",
-    0xA01E: "B17_18_DomesticActionDispatch",
+    0xA01E: "B17_18_StrategyCommandDispatch",
     0xA021: "B17_18_AnimationDispatch",
-    0xA024: "B17_18_DomesticDisplay",
+    0xA024: "B17_18_StrategyModeDisplay",
     0xA027: "B17_18_DataRecordLoader",
 }
 

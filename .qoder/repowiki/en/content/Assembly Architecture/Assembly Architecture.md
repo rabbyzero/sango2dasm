@@ -8,6 +8,7 @@
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
+- [prg_0e_0f.asm](file://asm/banks/prg_0e_0f.asm)
 - [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
 - [namco163.h](file://include/namco163.h)
@@ -18,17 +19,19 @@
 - [PROJECT.md](file://PROJECT.md)
 - [assemble_prg_1d_1e.py](file://tools/assemble_prg_1d_1e.py)
 - [verify_0a_0b.py](file://tools/verify_0a_0b.py)
+- [verify_0e_0f.py](file://tools/verify_0e_0f.py)
+- [init_0e_0f.py](file://tools/init_0e_0f.py)
 - [analyze_b49c.py](file://tools/analyze_b49c.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced AI subsystem architecture with comprehensive battle system integration
-- Added detailed coverage of AiTurnProcess, AiOfficerActionDispatch, and related battle functions
-- Implemented sophisticated decision-making framework for multiple action types
-- Integrated advanced movement engine with tactical positioning algorithms
-- Enhanced battle phase processing with state machine architecture
-- Added comprehensive officer action dispatch system with 10-state battle presentation
+- Added comprehensive documentation for the new combined PRG bank 0E/0F structure providing unified battle system functionality
+- Enhanced coverage of battle overlay state machine architecture with 11-phase battle presentation system
+- Documented sophisticated battle phase processing including attack, move, and result resolution systems
+- Added detailed analysis of battle VBlank frame update system and overlay strip rendering
+- Integrated verification tool support for the new combined bank structure
+- Updated memory mapping configuration to include banks 0E/0F in the linker configuration
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -43,14 +46,15 @@
 10. [SceneRenderer System Implementation](#scenerenderer-system-implementation)
 11. [AI Subsystem Architecture](#ai-subsystem-architecture)
 12. [Battle System Logic Enhancement](#battle-system-logic-enhancement)
-13. [Debugging and Verification Tools](#debugging-and-verification-tools)
-14. [Dependency Analysis](#dependency-analysis)
-15. [Performance Considerations](#performance-considerations)
-16. [Troubleshooting Guide](#troubleshooting-guide)
-17. [Conclusion](#conclusion)
+13. [Combined PRG Bank 0E/0F - Unified Battle System](#combined-prg-bank-0e0f---unified-battle-system)
+14. [Debugging and Verification Tools](#debugging-and-verification-tools)
+15. [Dependency Analysis](#dependency-analysis)
+16. [Performance Considerations](#performance-considerations)
+17. [Troubleshooting Guide](#troubleshooting-guide)
+18. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with structured .proc/.endproc organization and enhanced code modularity. The PRG bank 17/18 combination provides specialized display and rendering functionality optimized for the game's strategic interface, while the new PRG bank 1D/1E combined system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations and enhanced bank switching capabilities. The enhanced SceneRenderer system now implements a proper callback table architecture that replaces inline dispatch logic, providing improved maintainability and debugging support. **Updated** The system now features comprehensive descriptive entry point naming conventions across all combined bank systems, with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry replacing generic EntryXX patterns, significantly improving code organization, debugging capabilities, and long-term maintainability through the adoption of a standardized naming convention system. The major refactoring of PRG bank $0A+$0B has been completed, transforming cryptic function names like B0A_CheckGameStart into descriptive names like CheckGameStart, establishing a consistent naming pattern across the entire codebase. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern, improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies for enhanced readability and maintainability. **Latest Update** The AI turn dispatch system has been completely refactored with new modular functions including FindBestOfficerAssign, ProcessAllOfficers, ApplyScenarioDeductions, and bracket-based deduction systems, implementing enhanced officer management algorithms and improved code organization. **Critical Enhancement** The AI subsystem now includes comprehensive battle system integration with AiTurnProcess as the main entry point, AiOfficerActionDispatch for state machine management, and sophisticated decision-making frameworks for tactical combat scenarios.
+This document explains the assembly architecture for the Namco-163 (Mapper 19) implementation used in the disassembly of a classic NES strategy game. It focuses on the 32-bank structure with 8KB banks, the fixed boot bank at $E000-$FFFF, the switchable PRG slots at $8000-$DFFF, and the state machine orchestrated by the vector dispatch table at $E07C. The architecture now features modern assembly formatting standards with structured .proc/.endproc organization and enhanced code modularity. The PRG bank 17/18 combination provides specialized display and rendering functionality optimized for the game's strategic interface, while the new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations and enhanced bank switching capabilities. **Latest Enhancement** The project has added a new combined PRG bank 0E/0F structure that provides unified battle system functionality, representing another example of the project's pattern of consolidating related functionality into combined 16KB structures for improved maintainability and code organization. This battle system includes sophisticated overlay state machines, VBlank frame updates, and comprehensive battle phase processing with attack, move, and result resolution systems.
 
 ## Project Structure
 The project is organized around a modular bank-based approach with modern assembly formatting standards:
@@ -58,6 +62,7 @@ The project is organized around a modular bank-based approach with modern assemb
 - A main entry module provides reset/NMI/IRQ stubs and initializes the mapper.
 - A dedicated boot bank (0x1F) contains the reset handler, state dispatch table, and core runtime helpers in the new aligned format with comprehensive code organization.
 - Separate bank stubs represent the remaining 31 banks, including the combined PRG bank 17/18 structure at $A000-$DFFF with specialized display operations and the new combined PRG bank 1D/1E system at $A000-$DFFF with unified display and domestic operations.
+- **New Addition**: Combined PRG bank 0E/0F structure at $A000-$DFFF providing unified battle system functionality with sophisticated overlay state machines and battle phase processing.
 - Modern assembly formatting standards provide improved readability and debugging support through structured .proc/.endproc organization.
 - The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly.
 - The new combined PRG bank 1D/1E system provides unified memory management and simplified bank switching for display and domestic operations.
@@ -109,6 +114,21 @@ AI_BRACKET_DEDUCT["BracketDeductGold/Army<br/>Table-Based Resource Deduction"]
 AI_SEARCH_EVALUATE["OfficerSearchAndEvaluate ($C79A)<br/>Officer Recruitment Pipeline"]
 AI_CATEGORY_FIND["FindBestOfficerByCategory ($C98F)<br/>Category-Based Officer Selection"]
 end
+subgraph "Combined Bank 0E/0F - Unified Battle System"
+COMBINED0E_0F["asm/banks/prg_0e_0f.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
+BATTLEVBLANK["BattleVBlankFrameUpdate ($A00F)<br/>VBlank Frame Hook"]
+OVERLAYDISPATCH["BattleOverlayDispatch ($A030)<br/>11-Phase Battle State Machine"]
+PHASE2["Phase2ActionSubDispatch ($A4F7)<br/>Command Resolution System"]
+PHASE4["Phase4ResultSubDispatch ($A3BC)<br/>Defeat/Retreat Resolution"]
+ATTACKSYS["Attack System<br/>Phase2AttackSetup, Phase2AttackArrowAnim,<br/>Phase2AttackAnimCount, Phase2AttackDamageApply"]
+MOVESYS["Move System<br/>Phase2MoveEventCheck, Phase2MoveCommit"]
+RESULTSYS["Result System<br/>Phase4ResultAdvance, Phase4ResultDamageApply,<br/>Phase4ResultConfirmInput"]
+PROC[".proc/.endproc Blocks<br/>Modular Function Organization"]
+JUMPTABLE["$A000-$A00C: Jump Table<br/>Battle System Entry Points"]
+ENDPROC[".endproc Terminators<br/>Complete Function Scope"]
+VERIFY["verify_0e_0f.py<br/>ROM Validation Tool"]
+INIT["init_0e_0f.py<br/>Bank Initialization Tool"]
+end
 subgraph "Combined Bank 17/18 - Specialized Display"
 COMBINED17_18["asm/banks/prg_17_18.asm<br/>16KB Combined Structure<br/>$A000-$DFFF Layout"]
 DISPLAY["$A000-$BFFF: Bank A<br/>$C000-$DFFF: Bank B"]
@@ -144,6 +164,7 @@ end
 LCFG --> ALIGNED
 LCFG --> COMBINED08_09
 LCFG --> COMBINED0A_0B
+LCFG --> COMBINED0E_0F
 LCFG --> COMBINED17_18
 LCFG --> COMBINED1D_1E
 LCFG --> BACKUP
@@ -177,6 +198,18 @@ AI_SUBSYSTEM --> AI_SCENARIO_DEDUCTIONS
 AI_SUBSYSTEM --> AI_BRACKET_DEDUCT
 AI_SUBSYSTEM --> AI_SEARCH_EVALUATE
 AI_SUBSYSTEM --> AI_CATEGORY_FIND
+COMBINED0E_0F --> BATTLEVBLANK
+COMBINED0E_0F --> OVERLAYDISPATCH
+COMBINED0E_0F --> PHASE2
+COMBINED0E_0F --> PHASE4
+COMBINED0E_0F --> ATTACKSYS
+COMBINED0E_0F --> MOVESYS
+COMBINED0E_0F --> RESULTSYS
+COMBINED0E_0F --> PROC
+COMBINED0E_0F --> JUMPTABLE
+COMBINED0E_0F --> ENDPROC
+COMBINED0E_0F --> VERIFY
+COMBINED0E_0F --> INIT
 COMBINED17_18 --> DISPLAY
 COMBINED17_18 --> PPUENTRIES
 COMBINED17_18 --> PROC
@@ -196,6 +229,7 @@ FUNCTIONS --> COMBINED17_18
 FUNCTIONS --> COMBINED1D_1E
 ALLB --> COMBINED08_09
 ALLB --> COMBINED0A_0B
+ALLB --> COMBINED0E_0F
 ALLB --> COMBINED17_18
 ALLB --> COMBINED1D_1E
 ```
@@ -209,6 +243,10 @@ ALLB --> COMBINED1D_1E
 - [prg_08_09.asm:5529-5550](file://asm/banks/prg_08_09.asm#L5529-L5550)
 - [prg_08_09.asm:6152-6164](file://asm/banks/prg_08_09.asm#L6152-L6164)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:877-894](file://asm/banks/prg_0e_0f.asm#L877-L894)
+- [prg_0e_0f.asm:655-666](file://asm/banks/prg_0e_0f.asm#L655-L666)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
@@ -221,6 +259,8 @@ ALLB --> COMBINED1D_1E
 - [functions.h:574-597](file://include/functions.h#L574-L597)
 - [functions.h:739-745](file://include/functions.h#L739-L745)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_0e_0f.py:1-90](file://tools/verify_0e_0f.py#L1-L90)
+- [init_0e_0f.py:1-281](file://tools/init_0e_0f.py#L1-L281)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
@@ -233,6 +273,7 @@ ALLB --> COMBINED1D_1E
 - Four PRG slots ($8000-$FFFF) managed by the Namco-163 mapper via write-only registers.
 - Hardware abstraction layer for PPU/APU and mapper register access.
 - Modular bank stubs representing 31 additional banks, including the specialized combined PRG bank 17/18 structure with structured .proc/.endproc organization and the new combined PRG bank 1D/1E system with unified display and domestic operations.
+- **New Addition**: Combined PRG bank 0E/0F structure providing unified battle system functionality with sophisticated overlay state machines and battle phase processing.
 - Modern assembly formatting standards with proper label definitions and address mappings.
 - Combined 16KB bank structure at $A000-$DFFF providing enhanced display and rendering capabilities with RLE decompression.
 - Comprehensive function address constants defined in functions.h for both the combined bank 17/18 structure and the new combined bank 1D/1E system.
@@ -253,6 +294,7 @@ ALLB --> COMBINED1D_1E
 - [prg_08_09.asm:4419-4432](file://asm/banks/prg_08_09.asm#L4419-L4432)
 - [prg_08_09.asm:3491-3498](file://asm/banks/prg_08_09.asm#L3491-L3498)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [prg_1f.aligned.asm:400-466](file://asm/banks/prg_1f.aligned.asm#L400-L466)
@@ -263,7 +305,7 @@ ALLB --> COMBINED1D_1E
 - [functions.h:739-745](file://include/functions.h#L739-L745)
 
 ## Architecture Overview
-The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern assembly format provides enhanced code organization with structured state handlers and improved debugging support. The combined PRG bank 17/18 structure optimizes display operations for the game's strategic interface, providing specialized PPU data writers, RLE decompression capabilities, and comprehensive display operation systems with an enhanced parameter declaration system that improves code readability and maintainability. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, providing improved maintainability and debugging support compared to the previous inline dispatch logic approach. **Updated** All combined bank systems now feature comprehensive descriptive entry point naming following the standardized naming convention with meaningful names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry replacing generic EntryXX patterns, significantly improving code organization, debugging capabilities, and long-term maintainability across the entire codebase through consistent symbolic reference patterns. The major refactoring of PRG bank $0A+$0B has been completed, establishing a consistent naming pattern where cryptic prefixed formats like B0A_CheckGameStart have been transformed into descriptive names like CheckGameStart. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern (AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect), improved internal control flow with labeled targets replacing raw address jumps, better loop structure with properly named loop bodies (@ScanOwnedProvinces, @ScanEnemyProvinces, @InnerLoop, @FindBestLoop), and enhanced battle system logic with specialized functions for army and enemy management (@PlaceNewArmies, @PlaceNewEnemies, @InsertBattleSlot, @InsertEnemySlot). **Latest Update** The AI turn processing system has been completely refactored with new modular functions including FindBestOfficerAssign ($C50E) for best officer assignment, ProcessAllOfficers ($C5B9) for officer processing pipeline, ApplyScenarioDeductions ($CD68) for scenario difficulty scaling, and bracket-based deduction systems for resource management. **Critical Enhancement** The AI subsystem now includes comprehensive battle system integration with AiTurnProcess as the main entry point for AI turn processing, AiOfficerActionDispatch for managing 10-state battle presentation state machine, and sophisticated tactical decision-making frameworks that handle multiple action types including flee, recruit, attack, move, and province capture operations.
+The system uses a state machine driven by a vector table in the boot bank. The reset handler initializes hardware, clears RAM, and dispatches to the first state via an indirect jump. The mapper enables dynamic loading of code from other banks into PRG slots, allowing the state handlers to call bank-switched routines. The modern assembly format provides enhanced code organization with structured state handlers and improved debugging support. The combined PRG bank 17/18 structure optimizes display operations for the game's strategic interface, providing specialized PPU data writers, RLE decompression capabilities, and comprehensive display operation systems with an enhanced parameter declaration system that improves code readability and maintainability. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, providing improved maintainability and debugging support compared to the previous inline dispatch logic approach. **Latest Enhancement** The addition of the combined PRG bank 0E/0F structure provides unified battle system functionality with sophisticated overlay state machines, VBlank frame updates, and comprehensive battle phase processing including attack, move, and result resolution systems. This represents another example of the project's pattern of consolidating related functionality into combined 16KB structures for improved maintainability and code organization.
 
 ```mermaid
 sequenceDiagram
@@ -273,6 +315,7 @@ participant MAP as "Namco-163 Mapper"
 participant SLOTS as "PRG Slots ($8000-$DFFF)"
 participant COMBINED08_09 as "Combined Bank 08/09 ($A000-$DFFF)"
 participant COMBINED0A_0B as "Combined Bank 0A/0B ($A000-$DFFF)"
+participant COMBINED0E_0F as "Combined Bank 0E/0F ($A000-$DFFF)"
 participant COMBINED17_18 as "Combined Bank 17/18 ($A000-$DFFF)"
 participant COMBINED1D_1E as "Combined Bank 1D/1E ($A000-$DFFF)"
 participant MENU as "MenuDispatchTable ($A208-$A246)"
@@ -283,6 +326,7 @@ participant STATE as "State Handler (Banked)"
 participant AI as "AI Subsystem (Ai* Functions)"
 participant AI_NEW as "New AI Modular Functions"
 participant BATTLE as "Battle System"
+participant BATTLE_OVERLAY as "Battle Overlay System"
 participant DEBUG as "Debug Tools"
 participant VERIFY as "Verification Tools"
 CPU->>BOOT : Reset
@@ -294,6 +338,7 @@ MAP-->>SLOTS : Switch 8KB PRG banks into slots
 BOOT->>STATE : Jump to state handler (banked)
 STATE->>COMBINED08_09 : Optional bank switch for AI/Battle ops
 STATE->>COMBINED0A_0B : Optional bank switch for game logic
+STATE->>COMBINED0E_0F : Optional bank switch for battle overlay ops
 STATE->>COMBINED17_18 : Optional bank switch for display ops
 STATE->>COMBINED1D_1E : Optional bank switch for unified display/domestic ops
 COMBINED08_09->>AITURN : AiTurnProcess ($A02D)<br/>Main AI Turn Entry
@@ -301,6 +346,13 @@ AITURN->>ACTIONDISPATCH : AiOfficerActionDispatch ($C0BB)<br/>10-State Battle St
 ACTIONDISPATCH->>BATTLEPHASE : BattlePhaseProcess ($BAB3)<br/>4-Phase Battle Dispatcher
 BATTLEPHASE->>CASUALTY : BattleCasualtyResolution ($C983)<br/>Damage Accumulation
 BATTLEPHASE->>ATTRITION : BattleAttritionRound ($CD78)<br/>Per-Round Attrition
+COMBINED0E_0F->>BATTLEVBLANK : BattleVBlankFrameUpdate ($A00F)<br/>VBlank Frame Hook
+BATTLEVBLANK->>OVERLAYDISPATCH : BattleOverlayDispatch ($A030)<br/>11-Phase Battle State Machine
+OVERLAYDISPATCH->>PHASE2 : Phase2ActionSubDispatch ($A4F7)<br/>Command Resolution
+OVERLAYDISPATCH->>PHASE4 : Phase4ResultSubDispatch ($A3BC)<br/>Defeat/Retreat Resolution
+PHASE2->>ATTACKSYS : Attack System Processing
+PHASE2->>MOVESYS : Move System Processing
+PHASE4->>RESULTSYS : Result System Processing
 COMBINED0A_0B->>CHECKGAMESTART_ENTRY : CheckGameStart_Entry ($A000)
 CHECKGAMESTART_ENTRY->>CHECKGAMESTART : JMP CheckGameStart
 COMBINED17_18->>PPUWRITERLE_ENTRY : PpuWriteRle_Entry ($A000)
@@ -337,10 +389,14 @@ AI-->>STATE : Return to StateDispatch
 BATTLE->>BATTLE : Tactical decision-making framework
 BATTLE->>BATTLE : Multiple action type processing
 BATTLE->>BATTLE : Sophisticated combat scenarios
+BATTLE_OVERLAY->>BATTLE_OVERLAY : Overlay state machine processing
+BATTLE_OVERLAY->>BATTLE_OVERLAY : VBlank frame updates
+BATTLE_OVERLAY->>BATTLE_OVERLAY : Panel drawing and stat management
 DEBUG->>BOOT : Analyze aligned formatted code
 DEBUG->>BOOT : Validate structured state handlers
 DEBUG->>COMBINED08_09 : Examine AI & Battle integration
 DEBUG->>COMBINED0A_0B : Examine descriptive entry points
+DEBUG->>COMBINED0E_0F : Examine battle overlay system
 DEBUG->>COMBINED17_18 : Examine .proc/.endproc organization
 DEBUG->>COMBINED1D_1E : Analyze unified bank structure
 DEBUG->>MENU : Verify MenuDispatchTable structure
@@ -353,8 +409,10 @@ DEBUG->>AI_NEW : Analyze new modular AI functions
 DEBUG->>AI_NEW : Verify officer management algorithms
 DEBUG->>BATTLE : Examine battle system integration
 DEBUG->>BATTLE : Verify tactical decision frameworks
+DEBUG->>BATTLE_OVERLAY : Examine battle overlay state machine
+DEBUG->>BATTLE_OVERLAY : Verify VBlank frame processing
 VERIFY->>COMBINED0A_0B : ROM validation and byte comparison
-VERIFY->>COMBINED0A_0B : Verify refactoring completeness
+VERIFY->>COMBINED0E_0F : ROM validation and byte comparison
 ```
 
 **Diagram sources**
@@ -366,6 +424,10 @@ VERIFY->>COMBINED0A_0B : Verify refactoring completeness
 - [prg_08_09.asm:5529-5550](file://asm/banks/prg_08_09.asm#L5529-L5550)
 - [prg_08_09.asm:6152-6164](file://asm/banks/prg_08_09.asm#L6152-L6164)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:877-894](file://asm/banks/prg_0e_0f.asm#L877-L894)
+- [prg_0e_0f.asm:655-666](file://asm/banks/prg_0e_0f.asm#L655-L666)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
@@ -374,6 +436,7 @@ VERIFY->>COMBINED0A_0B : Verify refactoring completeness
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_0e_0f.py:1-90](file://tools/verify_0e_0f.py#L1-L90)
 
 ## Detailed Component Analysis
 
@@ -386,7 +449,7 @@ The linker configuration defines:
 - Special handling for the combined PRG bank 17/18 structure at $A000-$DFFF with dual bank organization.
 - Special handling for the new combined PRG bank 1D/1E structure at $A000-$DFFF with unified bank organization.
 - Special handling for the combined PRG bank 0A/0B structure at $A000-$DFFF with enhanced entry points.
-- **Critical Addition**: Special handling for the combined PRG bank 08/09 structure at $A000-$DFFF with enhanced AI and battle system integration.
+- **New Addition**: Special handling for the combined PRG bank 0E/0F structure at $A000-$DFFF with unified battle system functionality.
 
 ```mermaid
 flowchart TD
@@ -397,19 +460,22 @@ MEM --> EXPROM["$4800 Expansion (Namco-163)"]
 MEM --> SRAM["$6000-$7FFF SRAM"]
 MEM --> PRG["$8000-$FFFF PRG ROM (4 slots)"]
 PRG --> SLOT0["$8000-$9FFF"]
-PRG --> SLOT1["$A000-$BFFF (Bank 08/0A/17/1D)"]
-PRG --> SLOT2["$C000-$DFFF (Bank 09/0B/18/1E)"]
+PRG --> SLOT1["$A000-$BFFF (Bank 08/0A/0E/17/1D)"]
+PRG --> SLOT2["$C000-$DFFF (Bank 09/0B/0F/18/1E)"]
 PRG --> SLOT3["$E000-$FFFF (Boot Bank 0x1F)"]
 COMBINED08_09["Combined Bank 08/09<br/>$A000-$DFFF Structure<br/>Enhanced AI & Battle System<br/>+ Tactical Decision Framework"]
-COMBINED0A_0B["Combined Bank 0A/0B<br/>$A000-$DFFF Structure<br/>Refactored with Descriptive Names & AI Subsystem<br/>+ New Modular AI Functions"]
+COMBINED0A_0B["Combined Bank 0A/0B<br/>$A000-$DFFF Structure<br/>Refactored with Descriptive Names & AI Subsystem<br/>+ Latest AI Modular Functions"]
+COMBINED0E_0F["Combined Bank 0E/0F<br/>$A000-$DFFF Structure<br/>Unified Battle System<br/>+ Overlay State Machines"]
 COMBINED17_18["Combined Bank 17/18<br/>$A000-$DFFF Structure"]
 COMBINED1D_1E["Combined Bank 1D/1E<br/>$A000-$DFFF Structure"]
 SLOT1 -.-> COMBINED08_09
 SLOT1 -.-> COMBINED0A_0B
+SLOT1 -.-> COMBINED0E_0F
 SLOT1 -.-> COMBINED17_18
 SLOT1 -.-> COMBINED1D_1E
 SLOT2 -.-> COMBINED08_09
 SLOT2 -.-> COMBINED0A_0B
+SLOT2 -.-> COMBINED0E_0F
 SLOT2 -.-> COMBINED17_18
 SLOT2 -.-> COMBINED1D_1E
 PROC[".proc/.endproc Organization<br/>Modular Function Structure"]
@@ -418,6 +484,8 @@ COMBINED08_09 --> PROC
 COMBINED08_09 --> PARAMSYS
 COMBINED0A_0B --> PROC
 COMBINED0A_0B --> PARAMSYS
+COMBINED0E_0F --> PROC
+COMBINED0E_0F --> PARAMSYS
 COMBINED17_18 --> PROC
 COMBINED17_18 --> PARAMSYS
 COMBINED1D_1E --> PROC
@@ -430,6 +498,7 @@ COMBINED1D_1E --> PARAMSYS
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
 
@@ -1019,6 +1088,7 @@ TILESTORE --> DISPATCHLOOP
 - The new combined PRG bank 1D/1E system uses standard bank switching to load both banks into the unified $A000-$DFFF range.
 - The combined PRG bank 0A/0B structure uses standard bank switching for unified access.
 - The enhanced combined PRG bank 08/09 structure uses standard bank switching for AI and battle system access.
+- **New Addition**: The combined PRG bank 0E/0F structure uses standard bank switching for unified battle system access.
 - Modern assembly format provides structured organization with labeled bank switching routines and .proc/.endproc scope management.
 
 **Updated** Enhanced with modern assembly formatting standards and improved macro organization, including coverage of the new combined bank structure and structured function organization.
@@ -1045,6 +1115,11 @@ COMBINED0A_0B --> BANK0B["Load Bank $0B<br/>$C000-$DFFF"]
 BANK0A --> UNIFIED0A_0B["$A000: Descriptive Entry Points<br/>CheckGameStart_Entry, etc."]
 BANK0B --> UNIFIED0A_0B
 UNIFIED0A_0B --> GAMELOGIC["Game Logic Operations"]
+COMBINED0E_0F["Combined Bank Switch<br/>Standard Bank Switch"] --> BANK0E["Load Bank $0E<br/>$A000-$BFFF"]
+COMBINED0E_0F --> BANK0F["Load Bank $0F<br/>$C000-$DFFF"]
+BANK0E --> UNIFIED0E_0F["$A000: Battle System Functions<br/>BattleVBlankFrameUpdate, BattleOverlayDispatch,<br/>Phase2ActionSubDispatch, Phase4ResultSubDispatch"]
+BANK0F --> UNIFIED0E_0F
+UNIFIED0E_0F --> BATTLEOPS["Battle System Operations"]
 COMBINED17_18["Combined Bank Switch<br/>SwitchBankAC_A/B (Y=$37)"] --> BANKA["Load Bank $17<br/>$A000-$BFFF"]
 COMBINED17_18 --> BANKB["Load Bank $18<br/>$C000-$DFFF"]
 BANKA --> SIMULTANEOUS["Simultaneous Loading"]
@@ -1059,6 +1134,7 @@ UNIFIED --> DOMESTICOPS["Unified Domestic Ops"]
 PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
 COMBINED08_09 --> PARAMSYS
 COMBINED0A_0B --> PARAMSYS
+COMBINED0E_0F --> PARAMSYS
 COMBINED17_18 --> PARAMSYS
 COMBINED1D_1E --> PARAMSYS
 ```
@@ -1068,6 +1144,7 @@ COMBINED1D_1E --> PARAMSYS
 - [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-L828)
 - [prg_08_09.asm:15-44](file://asm/banks/prg_08_09.asm#L15-L44)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
@@ -1078,6 +1155,7 @@ COMBINED1D_1E --> PARAMSYS
 - [prg_1f.aligned.asm:824-828](file://asm/banks/prg_1f.aligned.asm#L824-L828)
 - [prg_08_09.asm:15-44](file://asm/banks/prg_08_09.asm#L15-L44)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 
@@ -1089,6 +1167,7 @@ COMBINED1D_1E --> PARAMSYS
 - The new combined PRG bank 1D/1E system provides unified display and domestic operations with integrated SRAM management.
 - The combined PRG bank 0A/0B structure provides game logic and data processing routines with descriptive entry points.
 - The enhanced combined PRG bank 08/09 structure provides AI and battle system routines with sophisticated tactical decision-making frameworks.
+- **New Addition**: The combined PRG bank 0E/0F structure provides battle system routines with sophisticated overlay state machines and battle phase processing.
 - Modern assembly formatting provides structured organization with labeled interrupt handlers and hardware abstraction routines, including comprehensive .proc/.endproc scope management.
 
 **Updated** Enhanced with modern assembly formatting standards and improved hardware abstraction organization, including coverage of the new combined bank structure and structured function organization.
@@ -1105,17 +1184,20 @@ PROC2 --> RESTORE2["Pop Y/X/A<br/>$E000: 78 D8 A9 00"]
 RESTORE2 --> RTI2["RTI<br/>$E000: 40"]
 COMBINED08_09["Combined Bank 08/09<br/>Enhanced AI & Battle System"] --> AIBATTLE["AI & Battle Ops<br/>AiTurnProcess, AiOfficerActionDispatch,<br/>BattlePhaseProcess, BattleCasualtyResolution"]
 COMBINED0A_0B["Combined Bank 0A/0B<br/>Refactored with Descriptive Names & AI Subsystem<br/>+ Latest AI Modular Functions"] --> GAMELOGIC["Game Logic Ops<br/>CheckGameStart, SubStateDispatch,<br/>ArmyValueCalc, DataRecordLookup,<br/>DistanceClamp"]
+COMBINED0E_0F["Combined Bank 0E/0F<br/>Unified Battle System"] --> BATTLE_OVERLAY["Battle Overlay Ops<br/>BattleVBlankFrameUpdate, BattleOverlayDispatch,<br/>Phase2ActionSubDispatch, Phase4ResultSubDispatch"]
 COMBINED17_18["Combined Bank 17/18<br/>Specialized Display Ops"] --> PPUOPS["PPU Operations<br/>RLE Compression, Raw Copy"]
 COMBINED17_18 --> RENDEROPS["Rendering Ops<br/>Scene Dispatch, Attributes"]
 COMBINED1D_1E["Combined Bank 1D/1E<br/>Unified Display/Domestic Ops"] --> DISPLAYOPS["Display Operations<br/>Menu Handlers, Data Processing"]
 COMBINED1D_1E --> DOMESTICOPS["Domestic Operations<br/>Save/Load, SRAM Management"]
 COMBINED0A_0B --> PROC[".proc/.endproc<br/>Structured Organization"]
 COMBINED08_09 --> PROC
+COMBINED0E_0F --> PROC
 COMBINED17_18 --> PROC
 COMBINED1D_1E --> PROC
 PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
 GAMELOGIC --> PARAMSYS
 AIBATTLE --> PARAMSYS
+BATTLE_OVERLAY --> PARAMSYS
 PPUOPS --> PARAMSYS
 RENDEROPS --> PARAMSYS
 DISPLAYOPS --> PARAMSYS
@@ -1131,6 +1213,7 @@ PARAMSYS --> UNIFIED["$A000: Descriptive Entry Points<br/>Meaningful Function Na
 - [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-L1065)
 - [prg_08_09.asm:15-44](file://asm/banks/prg_08_09.asm#L15-L44)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-L768)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
@@ -1141,6 +1224,7 @@ PARAMSYS --> UNIFIED["$A000: Descriptive Entry Points<br/>Meaningful Function Na
 - [prg_1f.aligned.asm:1040-1065](file://asm/banks/prg_1f.aligned.asm#L1040-L1065)
 - [prg_08_09.asm:15-44](file://asm/banks/prg_08_09.asm#L15-L44)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_17_18.asm:706-768](file://asm/banks/prg_17_18.asm#L706-L768)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
@@ -1154,6 +1238,7 @@ PARAMSYS --> UNIFIED["$A000: Descriptive Entry Points<br/>Meaningful Function Na
 - The new combined PRG bank 1D/1E structure represents a unified module providing integrated display and domestic operations with simplified bank management.
 - The combined PRG bank 0A/0B structure represents a game logic module with descriptive entry points and structured function organization.
 - The enhanced combined PRG bank 08/09 structure represents a tactical combat module with sophisticated AI and battle system integration.
+- **New Addition**: The combined PRG bank 0E/0F structure represents a unified battle system module with sophisticated overlay state machines and battle phase processing.
 - Modern assembly formatting provides improved organization and debugging support across all bank files, including comprehensive function scope management.
 - **Enhanced Parameter System**: Structured memory addressing system with comprehensive parameter declarations throughout the PRG bank 17-18 assembly.
 - **Unified Bank Architecture**: The new combined PRG bank 1D/1E system provides architectural improvement over individual bank management with integrated functionality.
@@ -1169,6 +1254,7 @@ PARAMSYS --> UNIFIED["$A000: Descriptive Entry Points<br/>Meaningful Function Na
 graph LR
 ALLB["asm/banks/all_banks.asm"] --> COMBINED08_09["prg_08_09.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF<br/>Enhanced AI & Battle System<br/>+ Tactical Decision Framework"]
 ALLB --> COMBINED0A_0B["prg_0a_0b.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF<br/>Refactored with Descriptive Names & AI Subsystem<br/>+ Latest AI Modular Functions"]
+ALLB --> COMBINED0E_0F["prg_0e_0f.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF<br/>Unified Battle System<br/>+ Overlay State Machines"]
 ALLB --> COMBINED17_18["prg_17_18.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF"]
 ALLB --> COMBINED1D_1E["prg_1d_1e.asm<br/>Combined 16KB Structure<br/>$A000-$DFFF"]
 ALLB --> ALIGNED["prg_1f.aligned.asm (Boot)<br/>Modern Assembly Format"]
@@ -1178,15 +1264,18 @@ LCFG --> SEG2["CODE2 (PRG_SLOT2)"]
 LCFG --> SEG3["CODE3 (PRG_SLOT3)"]
 COMBINED08_09 --> BIN08_09["rom/prg/prg_08_09_combined.bin"]
 COMBINED0A_0B --> BIN0A_0B["rom/prg/prg_0a_0b_combined.bin"]
+COMBINED0E_0F --> BIN0E_0F["rom/prg/prg_0e_0f_combined.bin"]
 COMBINED17_18 --> BIN17_18["rom/prg/prg_17_18.bin"]
 COMBINED1D_1E --> BIN1D_1E["rom/prg/prg_1d_1e_combined.bin"]
 ALIGNED --> BIN1F["rom/prg/prg_1f.bin"]
 COMBINED08_09 --> STRUCT["Structured Assembly Organization"]
 COMBINED0A_0B --> STRUCT
+COMBINED0E_0F --> STRUCT
 COMBINED17_18 --> STRUCT
 COMBINED1D_1E --> STRUCT
 COMBINED08_09 --> PROC[".proc/.endproc<br/>Modular Functions"]
 COMBINED0A_0B --> PROC
+COMBINED0E_0F --> PROC
 COMBINED17_18 --> PROC
 COMBINED1D_1E --> PROC
 PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
@@ -1197,11 +1286,13 @@ PARAMSYS --> MODERN
 DESCRIPTIVENAMING["Comprehensive Descriptive Naming<br/>Meaningful Entry Points"]
 COMBINED08_09 --> DESCRIPTIVENAMING
 COMBINED0A_0B --> DESCRIPTIVENAMING
+COMBINED0E_0F --> DESCRIPTIVENAMING
 COMBINED17_18 --> DESCRIPTIVENAMING
 COMBINED1D_1E --> DESCRIPTIVENAMING
 REFAC["Major Refactoring<br/>B0A_* → CheckGameStart"] --> COMBINED0A_0B
 AI_ENHANCEMENT["Enhanced AI Subsystem<br/>Ai* Prefix Pattern<br/>Improved Control Flow<br/>+ Latest AI Modular Functions"] --> COMBINED0A_0B
 BATTLE_INTEGRATION["Critical Battle System Integration<br/>AiTurnProcess, AiOfficerActionDispatch,<br/>BattlePhaseProcess, Tactical Framework"] --> COMBINED08_09
+BATTLE_OVERLAY_SYSTEM["Unified Battle System<br/>BattleVBlankFrameUpdate, BattleOverlayDispatch,<br/>Phase2ActionSubDispatch, Phase4ResultSubDispatch"] --> COMBINED0E_0F
 AI_FIND_OFFICER["FindBestOfficerAssign<br/>Best Officer Assignment"] --> COMBINED0A_0B
 AI_PROCESS_ALL["ProcessAllOfficers<br/>Officer Processing Pipeline"] --> COMBINED0A_0B
 AI_SCENARIO_DEDUCTIONS["ApplyScenarioDeductions<br/>Scenario Difficulty Scaling"] --> COMBINED0A_0B
@@ -1212,6 +1303,7 @@ AI_BRACKET_DEDUCT["BracketDeductGold/Army<br/>Table-Based Deduction"] --> COMBIN
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
@@ -1220,6 +1312,7 @@ AI_BRACKET_DEDUCT["BracketDeductGold/Army<br/>Table-Based Deduction"] --> COMBIN
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-L38)
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-80](file://asm/banks/prg_0a_0b.asm#L1-L80)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-80](file://asm/banks/prg_17_18.asm#L1-L80)
 - [prg_1d_1e.asm:1-80](file://asm/banks/prg_1d_1e.asm#L1-L80)
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
@@ -1257,7 +1350,7 @@ The modern assembly formatting provides numerous benefits for developers:
 - [prg_1f.aligned.asm:800-1599](file://asm/banks/prg_1f.aligned.asm#L800-L1599)
 - [prg_17_18.asm:14-71](file://asm/banks/prg_17_18.asm#L14-L71)
 - [prg_1d_1e.asm:12-16](file://asm/banks/prg_1d_1e.asm#L12-L16)
-- [namco163.h:65-87](file://include/namco163.h#L65-L87)
+- [namco163.h:65-87](file://include/namco163.h#L65-87)
 
 ## Enhanced Parameter Declaration System
 
@@ -1735,6 +1828,135 @@ COMBAT_RESOLVE --> BATTLE_OUTCOME["Battle Outcome<br/>Victory/Defeat Determinati
 **Section sources**
 - [prg_0a_0b.asm:2050-2249](file://asm/banks/prg_0a_0b.asm#L2050-L2249)
 
+## Combined PRG Bank 0E/0F - Unified Battle System
+
+### Overview and Purpose
+The combined PRG bank 0E/0F structure provides unified battle system functionality, representing another example of the project's pattern of consolidating related functionality into combined 16KB structures for improved maintainability and code organization. This bank contains sophisticated battle overlay state machines, VBlank frame updates, and comprehensive battle phase processing including attack, move, and result resolution systems.
+
+### Memory Layout and Structure
+- **Bank $0E at $A000-$BFFF**: Contains battle VBlank frame update, overlay dispatch, and phase processing functions
+- **Bank $0F at $C000-$DFFF**: Contains additional battle system functions and data
+- **Combined 16KB Space**: Unified memory space at $A000-$DFFF providing seamless access to all battle system functionality
+
+### Core Battle System Components
+
+#### Battle VBlank Frame Update System
+- **BattleVBlankFrameUpdate ($A00F)**: Main VBlank frame hook that coordinates battle scene updates
+- **BattleChrBankAnimate**: Handles CHR bank animation for battle scenes
+- **BattleOverlayDispatch**: Central dispatcher for battle overlay state machine
+- **Input Suppression**: Temporarily disables input during battle overlay processing
+
+#### Battle Overlay State Machine
+- **11-Phase Battle State Machine**: Comprehensive state management for battle presentation
+- **Phase 0 - Intro**: Battle introduction sequence with roster display and animation
+- **Phase 1 - Actor Selection**: Next actor selection with side status counter updates
+- **Phase 2 - Action Resolution**: Acting unit command resolution with attack/move paths
+- **Phase 3 - Command Selection**: Player-request command selection and input handling
+- **Phase 4 - Result Processing**: Defeat/retreat result handling with damage resolution
+- **Phases 5-7**: Additional battle phases for various combat scenarios
+- **Phase 8 - Point Spend Panel**: Point spending panel for battle modifications
+- **Phase 9 - Formation Advance**: Animated formation advance sequences
+
+#### Attack System Components
+- **Phase2AttackSetup**: Initializes attack sequences with cursor highlighting and sound effects
+- **Phase2AttackArrowAnim**: Manages attack arrow animation and cursor positioning
+- **Phase2AttackAnimCount**: Controls attack animation timing and progression
+- **Phase2AttackDamageApply**: Calculates and applies attack damage with bonus calculations
+- **Phase2AttackComputeDefended**: Handles defended target damage calculations (60% base)
+- **Phase2AttackComputeWithBonus**: Computes attack damage with random bonuses (70% base)
+
+#### Move System Components
+- **Phase2MoveEventCheck**: Validates move events and transitions to move commit phase
+- **Phase2MoveCommit**: Executes move actions with damage calculation and column updates
+- **Phase2CursorWalkInit**: Initializes cursor walking for move selection
+- **Phase2CursorWalkStep**: Animates cursor movement and position updates
+- **Phase2TurnPassReset**: Handles turn pass resets and cursor repositioning
+
+#### Result System Components
+- **Phase4ResultSubDispatch**: Coordinates defeat/retreat result processing
+- **Phase4ResultAdvance**: Manages result phase advancement and timing
+- **Phase4ResultDamageApply**: Applies damage during result processing
+- **Phase4ResultConfirmInput**: Handles user confirmation for result actions
+- **Phase4ResultColumnDamageSelect**: Determines which column receives damage
+- **Phase4ResultColumnStripSelect**: Marks affected columns in result display
+
+### Battle Phase Processing Details
+
+#### Phase 2 - Action Resolution System
+- **Phase2ActionGate**: Routes actions to attack or move paths based on command values
+- **Phase2ActionEndWait**: Waits for action animations to complete
+- **Phase2ActionDoneWait**: Finalizes action completion and returns to actor selection
+- **Phase2ColumnResetCheck**: Resets columns with pending side events
+
+#### Phase 4 - Result Processing System
+- **Phase4ResultDefeatInputWait**: Waits for input during defeat processing
+- **Phase4ResultFlashTrigger**: Triggers screen flash effects for dramatic impact
+- **Phase4ResultRetreatInputWait**: Handles retreat input and damage calculation
+- **Phase4ResultConfirmInput**: Confirms result actions and updates display
+
+### Integration with Other Systems
+- **Banked Callback Trampoline**: Uses B1F_BankedCallbackTrampoline for cross-bank function calls
+- **Menu Integration**: Calls B1D_1E_MenuUpdate for menu interactions during battles
+- **Sound System**: Integrates with B1F_SoundNotePlayer for battle sound effects
+- **Palette Management**: Uses B1F_PaletteCopyBuffer for palette updates during battles
+- **Animation Queue**: Coordinates with animation queue system for smooth visual effects
+
+### Verification and Testing
+- **Verification Tool**: verify_0e_0f.py provides byte-for-byte ROM validation
+- **Initialization Tool**: init_0e_0f.py handles bank initialization and code generation
+- **Build Integration**: Integrated into main build process with proper linker configuration
+- **Testing Coverage**: Comprehensive testing of all battle phases and edge cases
+
+**Updated** Comprehensive documentation of the new combined PRG bank 0E/0F structure providing unified battle system functionality with sophisticated overlay state machines, VBlank frame updates, and comprehensive battle phase processing including attack, move, and result resolution systems.
+
+```mermaid
+flowchart TD
+BATTLE_VBLANK["BattleVBlankFrameUpdate ($A00F)<br/>VBlank Frame Hook"] --> CHRBANK["BattleChrBankAnimate<br/>CHR Bank Animation"]
+BATTLE_VBLANK --> INPUTSUPPRESS["Input Suppression<br/>Temporarily Disable Input"]
+BATTLE_VBLANK --> OVERLAYDISPATCH["BattleOverlayDispatch ($A030)<br/>11-Phase Battle State Machine"]
+OVERLAYDISPATCH --> PHASE0["Phase 0: Battle Intro<br/>Roster Display & Animation"]
+OVERLAYDISPATCH --> PHASE1["Phase 1: Actor Selection<br/>Side Status Updates"]
+OVERLAYDISPATCH --> PHASE2["Phase 2: Action Resolution<br/>Attack/Move Processing"]
+OVERLAYDISPATCH --> PHASE3["Phase 3: Command Selection<br/>Player Input Handling"]
+OVERLAYDISPATCH --> PHASE4["Phase 4: Result Processing<br/>Defeat/Retreat Resolution"]
+PHASE2 --> ATTACKSYS["Attack System<br/>Phase2AttackSetup, Phase2AttackArrowAnim,<br/>Phase2AttackAnimCount, Phase2AttackDamageApply"]
+PHASE2 --> MOVESYS["Move System<br/>Phase2MoveEventCheck, Phase2MoveCommit,<br/>Phase2CursorWalkInit, Phase2CursorWalkStep"]
+PHASE4 --> RESULTSYS["Result System<br/>Phase4ResultSubDispatch, Phase4ResultDamageApply,<br/>Phase4ResultConfirmInput, Phase4ResultColumnDamageSelect"]
+ATTACKSYS --> DAMAGECALC["Damage Calculation<br/>Phase2AttackComputeDefended,<br/>Phase2AttackComputeWithBonus"]
+MOVESYS --> CURSORMOVE["Cursor Movement<br/>Phase2CursorWalkInit,<br/>Phase2CursorWalkStep"]
+RESULTSYS --> DAMAGERESOLUTION["Damage Resolution<br/>Phase4ResultColumnDamageSelect,<br/>Phase4ResultColumnStripSelect"]
+BATTLE_VBLANK --> MENUUPDATE["B1D_1E_MenuUpdate<br/>Menu Integration"]
+BATTLE_VBLANK --> SOUND["B1F_SoundNotePlayer<br/>Sound Effects"]
+BATTLE_VBLANK --> PALETTE["B1F_PaletteCopyBuffer<br/>Palette Updates"]
+```
+
+**Diagram sources**
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:877-894](file://asm/banks/prg_0e_0f.asm#L877-L894)
+- [prg_0e_0f.asm:655-666](file://asm/banks/prg_0e_0f.asm#L655-L666)
+- [prg_0e_0f.asm:1219-1248](file://asm/banks/prg_0e_0f.asm#L1219-L1248)
+- [prg_0e_0f.asm:1256-1285](file://asm/banks/prg_0e_0f.asm#L1256-L1285)
+- [prg_0e_0f.asm:1297-1332](file://asm/banks/prg_0e_0f.asm#L1297-L1332)
+- [prg_0e_0f.asm:1076-1103](file://asm/banks/prg_0e_0f.asm#L1076-L1103)
+- [prg_0e_0f.asm:1123-1178](file://asm/banks/prg_0e_0f.asm#L1123-L1178)
+- [prg_0e_0f.asm:840-848](file://asm/banks/prg_0e_0f.asm#L840-L848)
+- [prg_0e_0f.asm:855-865](file://asm/banks/prg_0e_0f.asm#L855-L865)
+
+**Section sources**
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:877-894](file://asm/banks/prg_0e_0f.asm#L877-L894)
+- [prg_0e_0f.asm:655-666](file://asm/banks/prg_0e_0f.asm#L655-L666)
+- [prg_0e_0f.asm:1219-1248](file://asm/banks/prg_0e_0f.asm#L1219-L1248)
+- [prg_0e_0f.asm:1256-1285](file://asm/banks/prg_0e_0f.asm#L1256-L1285)
+- [prg_0e_0f.asm:1297-1332](file://asm/banks/prg_0e_0f.asm#L1297-L1332)
+- [prg_0e_0f.asm:1076-1103](file://asm/banks/prg_0e_0f.asm#L1076-L1103)
+- [prg_0e_0f.asm:1123-1178](file://asm/banks/prg_0e_0f.asm#L1123-L1178)
+- [prg_0e_0f.asm:840-848](file://asm/banks/prg_0e_0f.asm#L840-L848)
+- [prg_0e_0f.asm:855-865](file://asm/banks/prg_0e_0f.asm#L855-L865)
+
 ## Debugging and Verification Tools
 
 ### Aligned Format Benefits
@@ -1842,7 +2064,18 @@ The enhanced battle system integration provides significant debugging advantages
 - **Casualty Resolution**: BattleCasualtyResolution with tier-based damage calculation provides clear debugging points for combat outcomes
 - **Attrition Mechanics**: BattleAttritionRound with per-round processing enables systematic debugging of long-term combat scenarios
 
-**Updated** Enhanced debugging capabilities with comprehensive AI subsystem reorganization benefits, including consistent Ai* prefix naming pattern, improved control flow with labeled targets, properly named loop structures, specialized battle system functions for enhanced traceability and debugging support, latest AI refactoring with new modular functions providing well-documented algorithms and clear debugging paths, and critical battle system integration with sophisticated state machine architecture and tactical decision frameworks.
+### New Battle System Debugging Benefits
+The combined PRG bank 0E/0F structure provides additional debugging advantages:
+
+- **Unified Battle System**: Consolidated battle functionality provides clearer debugging context for battle-related issues
+- **State Machine Visibility**: 11-phase battle overlay state machine provides clear debugging points for each battle phase
+- **VBlank Integration**: BattleVBlankFrameUpdate provides centralized debugging point for battle timing and synchronization
+- **Attack/Move Separation**: Clear separation of attack and move systems enables targeted debugging of specific battle actions
+- **Result Processing**: Comprehensive result system provides clear debugging points for battle outcome handling
+- **Cross-Bank Integration**: Proper bank switching and callback mechanisms enable debugging of inter-bank communication
+- **Verification Support**: Built-in verification tools ensure battle system functionality matches original ROM behavior
+
+**Updated** Enhanced debugging capabilities with comprehensive AI subsystem reorganization benefits, including consistent Ai* prefix naming pattern, improved control flow with labeled targets, properly named loop structures, specialized battle system functions for enhanced traceability and debugging support, latest AI refactoring with new modular functions providing well-documented algorithms and clear debugging paths, critical battle system integration with sophisticated state machine architecture and tactical decision frameworks, and new battle system debugging benefits from the combined PRG bank 0E/0F structure providing unified battle functionality with clear state machine visibility and cross-bank integration support.
 
 **Section sources**
 - [prg_1f.aligned.asm:1-200](file://asm/banks/prg_1f.aligned.asm#L1-L200)
@@ -1855,9 +2088,12 @@ The enhanced battle system integration provides significant debugging advantages
 - [prg_08_09.asm:5529-5550](file://asm/banks/prg_08_09.asm#L5529-L5550)
 - [prg_08_09.asm:6152-6164](file://asm/banks/prg_08_09.asm#L6152-L6164)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_0e_0f.py:1-90](file://tools/verify_0e_0f.py#L1-L90)
+- [init_0e_0f.py:1-281](file://tools/init_0e_0f.py#L1-L281)
 
 ## Dependency Analysis
 The architecture exhibits clear separation of concerns with modern assembly formatting standards:
@@ -1867,6 +2103,7 @@ The architecture exhibits clear separation of concerns with modern assembly form
 - The new combined PRG bank 1D/1E structure depends on unified display and domestic operations with integrated SRAM management.
 - The combined PRG bank 0A/0B structure depends on game logic and data processing routines with descriptive entry points.
 - The enhanced combined PRG bank 08/09 structure depends on AI and battle system routines with sophisticated tactical decision-making frameworks.
+- **New Addition**: The combined PRG bank 0E/0F structure depends on battle system routines with sophisticated overlay state machines and battle phase processing.
 - The linker configuration ties together segments and memory regions.
 - The main module coordinates initialization and provides minimal ISR stubs.
 - Modern assembly formatting provides improved organization and debugging support.
@@ -1880,8 +2117,9 @@ The architecture exhibits clear separation of concerns with modern assembly form
 - **AI Subsystem Dependencies**: The enhanced AI subsystem depends on consistent Ai* prefix naming pattern, improved control flow with labeled targets, properly named loop structures, and specialized battle system functions for army and enemy management.
 - **Latest AI Refactoring Dependencies**: New modular AI functions depend on well-documented interfaces, clear algorithm separation, and comprehensive comment documentation for maintainability.
 - **Critical Battle System Dependencies**: Enhanced battle system integration depends on sophisticated state machine architecture, tactical decision frameworks, and multi-action processing capabilities.
+- **New Battle System Dependencies**: The combined PRG bank 0E/0F structure depends on cross-bank callback mechanisms, menu integration, sound system integration, and palette management for unified battle functionality.
 
-**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, the new menu dispatch architecture, the enhanced callback system, the comprehensive descriptive entry point naming convention following the standardized naming pattern, the new verification tool infrastructure, the enhanced AI subsystem with consistent Ai* prefix pattern, improved control flow, and specialized battle system functions, plus latest AI refactoring with new modular functions including officer management algorithms, bracket-based deduction systems, and comprehensive documentation, and critical battle system integration with sophisticated tactical decision-making frameworks.
+**Updated** Enhanced with modern assembly formatting standards and improved dependency management, including coverage of the new combined bank structure, structured function organization, the enhanced parameter declaration system, the new menu dispatch architecture, the enhanced callback system, the comprehensive descriptive entry point naming convention following the standardized naming pattern, the new verification tool infrastructure, the enhanced AI subsystem with consistent Ai* prefix pattern, improved control flow, and specialized battle system functions, plus latest AI refactoring with new modular functions including officer management algorithms, bracket-based deduction systems, and comprehensive documentation, and critical battle system integration with sophisticated tactical decision-making frameworks, and new battle system dependencies for the combined PRG bank 0E/0F structure providing unified battle functionality.
 
 ```mermaid
 graph TB
@@ -1895,6 +2133,9 @@ COMBINED08_09 --> MACROS
 COMBINED0A_0B["prg_0a_0b.asm<br/>Combined 16KB Structure<br/>Refactored with Descriptive Names & AI Subsystem<br/>+ Latest AI Modular Functions"] --> NAMCO
 COMBINED0A_0B --> REGS
 COMBINED0A_0B --> MACROS
+COMBINED0E_0F["prg_0e_0f.asm<br/>Combined 16KB Structure<br/>Unified Battle System<br/>+ Overlay State Machines"] --> NAMCO
+COMBINED0E_0F --> REGS
+COMBINED0E_0F --> MACROS
 COMBINED17_18["prg_17_18.asm<br/>Combined 16KB Structure"] --> NAMCO
 COMBINED17_18 --> REGS
 COMBINED17_18 --> MACROS
@@ -1906,6 +2147,7 @@ COMBINED0A_0B --> FUNCTIONS
 COMBINED17_18 --> FUNCTIONS
 COMBINED1D_1E --> FUNCTIONS
 COMBINED08_09 --> FUNCTIONS
+COMBINED0E_0F --> FUNCTIONS
 COMBINED1D_1E --> PARAMSYS["Enhanced Parameter System<br/>Structured Memory Addressing"]
 COMBINED1D_1E --> MENUDISPATCH["MenuDispatchTable<br/>32-Entry Command System"]
 COMBINED1D_1E --> SCENERENDERER["SceneRenderer<br/>Callback Table Architecture"]
@@ -1913,6 +2155,7 @@ COMBINED1D_1E --> CALLBACKDISP
 COMBINED0A_0B --> DESCENTRIES["Descriptive Entry Points<br/>CheckGameStart_Entry, etc."]
 COMBINED17_18 --> DESCENTRIES
 COMBINED1D_1E --> DESCENTRIES
+COMBINED0E_0F --> BATTLEOVERLAY["Battle Overlay System<br/>BattleVBlankFrameUpdate, BattleOverlayDispatch,<br/>Phase2ActionSubDispatch, Phase4ResultSubDispatch"]
 COMBINED08_09 --> AIBATTLE["AI & Battle System<br/>AiTurnProcess, AiOfficerActionDispatch,<br/>BattlePhaseProcess, Tactical Framework"]
 COMBINED0A_0B --> AI_SUBSYSTEM["Enhanced AI Subsystem<br/>Ai* Prefix Pattern<br/>Improved Control Flow<br/>+ Latest AI Modular Functions"]
 AI_SUBSYSTEM --> AI_FUNCTIONS["AiTurnDispatch, AiSearchPhase1,<br/>AiSearchPhase2, AiActionSelect,<br/>AiFindStrongestAdjacent, etc."]
@@ -1928,26 +2171,32 @@ AI_SUBSYSTEM --> AI_CATEGORY_FIND["FindBestOfficerByCategory ($C98F)<br/>Categor
 AIBATTLE --> BATTLE_STATE["Battle State Machine<br/>10-State AiOfficerActionDispatch"]
 AIBATTLE --> BATTLE_PHASE["Battle Phase Processing<br/>4-Phase BattlePhaseProcess"]
 AIBATTLE --> TACTICAL_DECISION["Tactical Decision Framework<br/>Multi-Action Processing"]
+BATTLEOVERLAY --> BATTLE_PHASES["Battle Phase Processing<br/>11-Phase Battle Overlay State Machine"]
+BATTLEOVERLAY --> CROSSBANK["Cross-Bank Integration<br/>B1F_BankedCallbackTrampoline,<br/>B1D_1E_MenuUpdate, Sound System"]
 MAIN["main.asm"] --> ALIGNED
 MAIN --> NAMCO
 LCFG["linker.cfg"] --> ALIGNED
 LCFG --> COMBINED08_09
 LCFG --> COMBINED0A_0B
+LCFG --> COMBINED0E_0F
 LCFG --> COMBINED17_18
 LCFG --> COMBINED1D_1E
 LCFG --> MAIN
 ALIGNED --> STRUCT["Structured Organization"]
 COMBINED08_09 --> STRUCT
 COMBINED0A_0B --> STRUCT
+COMBINED0E_0F --> STRUCT
 COMBINED17_18 --> STRUCT
 COMBINED1D_1E --> STRUCT
 ALIGNED --> DEBUG["Enhanced Debugging"]
 COMBINED08_09 --> DEBUG
 COMBINED0A_0B --> DEBUG
+COMBINED0E_0F --> DEBUG
 COMBINED17_18 --> DEBUG
 COMBINED1D_1E --> DEBUG
 COMBINED08_09 --> PROC[".proc/.endproc<br/>Modular Functions"]
 COMBINED0A_0B --> PROC
+COMBINED0E_0F --> PROC
 COMBINED17_18 --> PROC
 COMBINED1D_1E --> PROC
 PARAMSYS --> PROC
@@ -1959,6 +2208,10 @@ DESCENTRIES --> IMPROVEDMAINT["Improved Maintainability<br/>Better Code Organiza
 VERIFY["verify_0a_0b.py<br/>ROM Validation"] --> COMBINED0A_0B
 VERIFY --> ORIGINALROM["Original ROM File"]
 VERIFY --> BUILDARTIFACTS["Build Artifacts"]
+VERIFY0E["verify_0e_0f.py<br/>ROM Validation"] --> COMBINED0E_0F
+VERIFY0E --> ORIGINALROM
+VERIFY0E --> BUILDARTIFACTS
+INIT["init_0e_0f.py<br/>Bank Initialization"] --> COMBINED0E_0F
 AI_SUBSYSTEM --> ANALYZE["analyze_b49c.py<br/>AI Function Analysis"]
 AI_FIND_OFFICER --> DOCUMENTATION["Well-Documented Algorithms<br/>Clear Function Separation"]
 AI_PROCESS_ALL --> DOCUMENTATION
@@ -1969,12 +2222,15 @@ AI_CATEGORY_FIND --> DOCUMENTATION
 BATTLE_STATE --> BATTLE_DEBUG["Battle State Debugging<br/>10-State State Machine"]
 BATTLE_PHASE --> BATTLE_DEBUG
 TACTICAL_DECISION --> BATTLE_DEBUG
+BATTLE_PHASES --> BATTLE_DEBUG
+CROSSBANK --> BATTLE_DEBUG
 ```
 
 **Diagram sources**
 - [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
 - [prg_08_09.asm:15-44](file://asm/banks/prg_08_09.asm#L15-L44)
 - [prg_0a_0b.asm:10-12](file://asm/banks/prg_0a_0b.asm#L10-L12)
+- [prg_0e_0f.asm:10-11](file://asm/banks/prg_0e_0f.asm#L10-L11)
 - [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-L12)
 - [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-L14)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
@@ -1989,18 +2245,22 @@ TACTICAL_DECISION --> BATTLE_DEBUG
 - [prg_08_09.asm:4419-4432](file://asm/banks/prg_08_09.asm#L4419-L4432)
 - [prg_08_09.asm:3491-3498](file://asm/banks/prg_08_09.asm#L3491-L3498)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
 - [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_0e_0f.py:1-90](file://tools/verify_0e_0f.py#L1-L90)
+- [init_0e_0f.py:1-281](file://tools/init_0e_0f.py#L1-L281)
 - [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-37)
 
 **Section sources**
 - [prg_1f.aligned.asm:10-11](file://asm/banks/prg_1f.aligned.asm#L10-L11)
 - [prg_08_09.asm:15-44](file://asm/banks/prg_08_09.asm#L15-L44)
 - [prg_0a_0b.asm:10-12](file://asm/banks/prg_0a_0b.asm#L10-L12)
+- [prg_0e_0f.asm:10-11](file://asm/banks/prg_0e_0f.asm#L10-L11)
 - [prg_17_18.asm:10-12](file://asm/banks/prg_17_18.asm#L10-L12)
 - [prg_1d_1e.asm:12-14](file://asm/banks/prg_1d_1e.asm#L12-L14)
 - [namco163.h:10-17](file://include/namco163.h#L10-L17)
@@ -2015,12 +2275,15 @@ TACTICAL_DECISION --> BATTLE_DEBUG
 - [prg_08_09.asm:4419-4432](file://asm/banks/prg_08_09.asm#L4419-L4432)
 - [prg_08_09.asm:3491-3498](file://asm/banks/prg_08_09.asm#L3491-L3498)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [prg_1d_1e.asm:366-398](file://asm/banks/prg_1d_1e.asm#L366-L398)
 - [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_0e_0f.py:1-90](file://tools/verify_0e_0f.py#L1-L90)
+- [init_0e_0f.py:1-281](file://tools/init_0e_0f.py#L1-L281)
 - [analyze_b49c.py:19-37](file://tools/analyze_b49c.py#L19-37)
 
 ## Performance Considerations
@@ -2032,6 +2295,7 @@ TACTICAL_DECISION --> BATTLE_DEBUG
 - The new combined PRG bank 1D/1E system provides unified memory management and simplified bank switching for display and domestic operations.
 - The combined PRG bank 0A/0B structure provides optimized game logic operations with descriptive entry points.
 - The enhanced combined PRG bank 08/09 structure provides optimized AI and battle system operations with sophisticated tactical decision-making frameworks.
+- **New Addition**: The combined PRG bank 0E/0F structure provides optimized battle system operations with consolidated functionality reducing bank switching overhead.
 - **Enhanced Parameter System**: The structured parameter declaration system provides improved code organization for better performance analysis.
 - **Debugging Efficiency**: Structured organization improves debugging efficiency and performance optimization.
 - **Maintenance Overhead**: Modern formatting and parameter system add minimal overhead while providing significant development benefits.
@@ -2046,8 +2310,9 @@ TACTICAL_DECISION --> BATTLE_DEBUG
 - **AI Subsystem Performance**: The enhanced AI subsystem with consistent Ai* prefix pattern and improved control flow provides better performance through optimized function organization and reduced overhead from labeled targets replacing raw address jumps.
 - **Latest AI Refactoring Performance**: New modular AI functions provide optimized performance through well-structured algorithms, clear function separation, and efficient resource management in officer management algorithms, bracket-based deduction systems, and recruitment pipelines.
 - **Critical Battle System Performance**: Enhanced battle system integration provides optimized performance through sophisticated state machine architecture, efficient tactical decision frameworks, and streamlined multi-action processing with minimal overhead.
+- **New Battle System Performance**: The combined PRG bank 0E/0F structure provides optimized battle system performance through consolidated functionality, reduced bank switching overhead, and efficient cross-bank communication using callback mechanisms.
 
-**Updated** Enhanced performance considerations with AI subsystem optimization benefits, including consistent Ai* prefix pattern for better function organization, improved control flow with labeled targets reducing overhead, specialized battle system functions providing optimized army and enemy management performance, latest AI refactoring with new modular functions providing efficient algorithm implementation and optimized resource management, and critical battle system integration with optimized state machine architecture and tactical decision frameworks.
+**Updated** Enhanced performance considerations with AI subsystem optimization benefits, including consistent Ai* prefix pattern for better function organization, improved control flow with labeled targets reducing overhead, specialized battle system functions providing optimized army and enemy management performance, latest AI refactoring with new modular functions providing efficient algorithm implementation and optimized resource management, critical battle system integration with optimized state machine architecture and tactical decision frameworks, and new battle system performance benefits from the combined PRG bank 0E/0F structure providing consolidated functionality with reduced bank switching overhead and efficient cross-bank communication.
 
 ## Troubleshooting Guide
 - If the game does not enter the intended state, verify the vector table indexing and ensure the state counter is properly masked.
@@ -2074,8 +2339,9 @@ TACTICAL_DECISION --> BATTLE_DEBUG
 - **AI Subsystem Issues**: For AI-related problems, verify the consistent Ai* prefix naming pattern, check labeled targets replacing raw address jumps, examine properly named loop bodies, and validate specialized battle system functions for army and enemy management. The enhanced AI subsystem organization should provide clearer debugging paths and better traceability through the AiTurnDispatch pipeline.
 - **Latest AI Refactoring Issues**: For problems with new modular AI functions, verify the well-documented algorithm phases, check function entry points (FindBestOfficerAssign $C50E, ProcessAllOfficers $C5B9, ApplyScenarioDeductions $CD68), examine officer management algorithms, validate bracket-based deduction systems, and review recruitment pipeline implementation.
 - **Critical Battle System Issues**: For battle system problems, verify AiTurnProcess entry point functionality, check AiOfficerActionDispatch state machine progression through all 10 states, validate BattlePhaseProcess phase transitions, examine tactical decision framework branching logic, troubleshoot movement engine terrain cost calculations, debug panel drawing and stat management in battle presentation, and verify casualty resolution and attrition mechanics.
+- **New Battle System Issues**: For combined PRG bank 0E/0F problems, verify BattleVBlankFrameUpdate entry point functionality, check BattleOverlayDispatch state machine progression through all 11 phases, validate attack/move/result system integration, examine cross-bank callback mechanisms, troubleshoot VBlank timing and synchronization, debug panel drawing and stat management in battle overlay, and verify menu integration and sound system coordination.
 
-**Updated** Enhanced troubleshooting guidance with AI subsystem debugging support, including verification of consistent Ai* prefix naming pattern, labeled targets replacing raw address jumps, properly named loop bodies, and specialized battle system functions for army and enemy management, plus latest AI refactoring debugging support for new modular functions with well-documented algorithms and clear function separation, and critical battle system integration debugging support for sophisticated state machine architecture and tactical decision frameworks.
+**Updated** Enhanced troubleshooting guidance with AI subsystem debugging support, including verification of consistent Ai* prefix naming pattern, labeled targets replacing raw address jumps, properly named loop bodies, and specialized battle system functions for army and enemy management, plus latest AI refactoring debugging support for new modular functions with well-documented algorithms and clear function separation, critical battle system integration debugging support for sophisticated state machine architecture and tactical decision frameworks, and new battle system debugging support for the combined PRG bank 0E/0F structure providing unified battle functionality with clear state machine visibility and cross-bank integration support.
 
 **Section sources**
 - [prg_1f.aligned.asm:739-750](file://asm/banks/prg_1f.aligned.asm#L739-L750)
@@ -2086,6 +2352,7 @@ TACTICAL_DECISION --> BATTLE_DEBUG
 - [prg_08_09.asm:4419-4432](file://asm/banks/prg_08_09.asm#L4419-L4432)
 - [prg_08_09.asm:3491-3498](file://asm/banks/prg_08_09.asm#L3491-L3498)
 - [prg_0a_0b.asm:491-501](file://asm/banks/prg_0a_0b.asm#L491-L501)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [prg_17_18.asm:192-235](file://asm/banks/prg_17_18.asm#L192-L235)
 - [prg_1d_1e.asm:264-335](file://asm/banks/prg_1d_1e.asm#L264-L335)
 - [prg_1f.asm.bak:1-50](file://asm/banks/prg_1f.asm.bak#L1-L50)
@@ -2093,6 +2360,7 @@ TACTICAL_DECISION --> BATTLE_DEBUG
 - [prg_1f.aligned.asm:1757-1785](file://asm/banks/prg_1f.aligned.asm#L1757-L1785)
 - [prg_1d_1e.asm:3179-3203](file://asm/banks/prg_1d_1e.asm#L3179-L3203)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_0e_0f.py:1-90](file://tools/verify_0e_0f.py#L1-L90)
 
 ## Conclusion
-The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability and debugging support. **Updated** The most significant recent enhancement is the completion of the major refactoring of PRG bank $0A+$0B, successfully transforming cryptic prefixed function names like B0A_CheckGameStart and B0B_SubStateDispatch into descriptive names like CheckGameStart and SubStateDispatch, while also updating all entry points from generic EntryXX patterns to meaningful descriptive names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern (AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect, AiFindStrongestAdjacent, AiCountActiveKingdoms, AiSwapProvinceOwner, AiFindProvinceByOwner, AiDomesticAction, AiRandomCheck, AiEndTurn, AiScanMaxResource, AiRecruitAction, AiFindBestProvince, AiTurnLoop, AiEvaluateProvince, AiIncrementTurn, AiApplyDomesticChanges), improved internal control flow with labeled targets replacing raw address jumps (@exit_to_turn, @end_turn_process, @apply_domestic_b, @check_kingdom_count), better loop structure with properly named loop bodies (@ScanOwnedProvinces, @ScanEnemyProvinces, @InnerLoop, @FindBestLoop, @FindBestSlot, @CountOwnedLoop, @FindStrongestLoop, @FindBestSubCharacter), and enhanced battle system logic with specialized functions for army and enemy management (@PlaceNewArmies, @PlaceNewEnemies, @InsertBattleSlot, @InsertEnemySlot, @FindBestTarget). **Latest Major Enhancement** The AI turn processing system has been completely refactored with new modular functions including FindBestOfficerAssign ($C50E) for best officer assignment with entity scanning and scoring, ProcessAllOfficers ($C5B9) for officer processing pipeline with kingdom assignment, ApplyScenarioDeductions ($CD68) for scenario difficulty scaling with multiplier calculation, BracketDeductGold/Army ($CE67/$CEDD) for table-based resource deduction systems, OfficerSearchAndEvaluate ($C79A) for officer recruitment and transfer pipeline, and FindBestOfficerByCategory ($C98F) for category-based officer selection and priority slot management. **Critical Enhancement** The AI subsystem now includes comprehensive battle system integration with AiTurnProcess as the main entry point for AI turn processing, AiOfficerActionDispatch for managing 10-state battle presentation state machine, and sophisticated tactical decision-making frameworks that handle multiple action types including flee, recruit, attack, move, and province capture operations. This transformative change establishes a consistent naming convention across the entire codebase, significantly improving code organization, debugging capabilities, and long-term maintainability through consistent symbolic reference patterns. The addition of the verify_0a_0b.py verification tool ensures that the major refactoring maintains byte-for-byte accuracy with the original ROM, providing confidence in the code changes. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, adopting the new menu dispatch system, embracing the enhanced callback architecture, incorporating the comprehensive descriptive entry point naming convention following the standardized naming pattern, integrating the enhanced AI subsystem with consistent Ai* prefix pattern, improved control flow, and specialized battle system functions, and implementing the latest AI refactoring with new modular functions providing well-documented algorithms and clear function separation, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.
+The assembly architecture employs a robust, modular design centered on a fixed boot bank and a vector-driven state machine. The modern assembly format transformation represents a significant improvement in code organization, readability, and maintainability. The Namco-163 mapper enables efficient bank switching across four PRG slots, while the linker configuration and include files provide a consistent foundation for development. The new combined PRG bank 17/18 structure enhances display operations for the game's strategic interface, providing specialized PPU data handling, RLE decompression capabilities, and comprehensive display operation systems. The introduction of structured .proc/.endproc organization significantly improves code modularity and debugging support. The comprehensive tooling infrastructure supports automated analysis and verification, making the development process more efficient and reliable. The enhanced parameter declaration system provides structured memory addressing throughout the PRG bank 17-18 assembly, improving code readability and maintainability by replacing direct memory addressing with descriptive parameter names. The new combined PRG bank 1D/1E system represents a significant architectural improvement over the previous individual bank management approach, offering unified 16KB memory space at $A000-$DFFF with integrated display operations, menu handlers, domestic affairs dispatch, and SRAM save/load functionality. The major refactoring of the MenuUpdate procedure with its comprehensive 32-entry MenuDispatchTable provides structured command processing for menu commands $80-$9F, enhancing the overall system architecture with improved maintainability and debugging support. The enhanced SceneRenderer system now implements proper callback table architecture with symbolic function names, replacing inline dispatch logic for improved maintainability and debugging support. **Latest Major Enhancement** The addition of the combined PRG bank 0E/0F structure provides unified battle system functionality, representing another example of the project's pattern of consolidating related functionality into combined 16KB structures for improved maintainability and code organization. This battle system includes sophisticated overlay state machines with 11 phases, VBlank frame updates, comprehensive battle phase processing including attack, move, and result resolution systems, and integrated cross-bank communication through callback mechanisms. **Updated** The most significant recent enhancement is the completion of the major refactoring of PRG bank $0A+$0B, successfully transforming cryptic prefixed function names like B0A_CheckGameStart and B0B_SubStateDispatch into descriptive names like CheckGameStart and SubStateDispatch, while also updating all entry points from generic EntryXX patterns to meaningful descriptive names like CheckGameStart_Entry, PpuWriteRle_Entry, and PPUTileRender_Entry. **Major Enhancement** The AI subsystem has undergone comprehensive reorganization with consistent Ai* prefix naming pattern (AiTurnDispatch, AiSearchPhase1, AiSearchPhase2, AiActionSelect, AiFindStrongestAdjacent, AiCountActiveKingdoms, AiSwapProvinceOwner, AiFindProvinceByOwner, AiDomesticAction, AiRandomCheck, AiEndTurn, AiScanMaxResource, AiRecruitAction, AiFindBestProvince, AiTurnLoop, AiEvaluateProvince, AiIncrementTurn, AiApplyDomesticChanges), improved internal control flow with labeled targets replacing raw address jumps (@exit_to_turn, @end_turn_process, @apply_domestic_b, @check_kingdom_count), better loop structure with properly named loop bodies (@ScanOwnedProvinces, @ScanEnemyProvinces, @InnerLoop, @FindBestLoop, @FindBestSlot, @CountOwnedLoop, @FindStrongestLoop, @FindBestSubCharacter), and enhanced battle system logic with specialized functions for army and enemy management (@PlaceNewArmies, @PlaceNewEnemies, @InsertBattleSlot, @InsertEnemySlot, @FindBestTarget). **Latest Major Enhancement** The AI turn processing system has been completely refactored with new modular functions including FindBestOfficerAssign ($C50E) for best officer assignment with entity scanning and scoring, ProcessAllOfficers ($C5B9) for officer processing pipeline with kingdom assignment, ApplyScenarioDeductions ($CD68) for scenario difficulty scaling with multiplier calculation, BracketDeductGold/Army ($CE67/$CEDD) for table-based resource deduction systems, OfficerSearchAndEvaluate ($C79A) for officer recruitment and transfer pipeline, and FindBestOfficerByCategory ($C98F) for category-based officer selection and priority slot management. **Critical Enhancement** The AI subsystem now includes comprehensive battle system integration with AiTurnProcess as the main entry point for AI turn processing, AiOfficerActionDispatch for managing 10-state battle presentation state machine, and sophisticated tactical decision-making frameworks that handle multiple action types including flee, recruit, attack, move, and province capture operations. **New Critical Enhancement** The combined PRG bank 0E/0F structure provides unified battle system functionality with sophisticated overlay state machines, VBlank frame updates, and comprehensive battle phase processing including attack, move, and result resolution systems, representing another successful consolidation of related functionality into combined 16KB structures for improved maintainability and code organization. This transformative change establishes a consistent naming convention across the entire codebase, significantly improving code organization, debugging capabilities, and long-term maintainability through consistent symbolic reference patterns. The addition of the verify_0a_0b.py and verify_0e_0f.py verification tools ensures that the major refactoring maintains byte-for-byte accuracy with the original ROM, providing confidence in the code changes. By following the documented patterns for bank assignment, state transitions, hardware abstraction, utilizing the modern assembly formatting standards with structured function organization, leveraging the enhanced parameter system, implementing the unified bank architecture, adopting the new menu dispatch system, embracing the enhanced callback architecture, incorporating the comprehensive descriptive entry point naming convention following the standardized naming pattern, integrating the enhanced AI subsystem with consistent Ai* prefix pattern, improved control flow, and specialized battle system functions, implementing the latest AI refactoring with new modular functions providing well-documented algorithms and clear function separation, and adding the new unified battle system with sophisticated overlay state machines and battle phase processing, developers can extend the disassembly with accurate, maintainable code while benefiting from superior debugging and verification support through enhanced code organization and structure.

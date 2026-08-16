@@ -12,8 +12,8 @@
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [prg_08_09.asm](file://asm/banks/prg_08_09.asm)
-- [prg_08.asm](file://asm/banks/prg_08.asm)
-- [prg_09.asm](file://asm/banks/prg_09.asm)
+- [prg_0e_0f.asm](file://asm/banks/prg_0e_0f.asm)
+- [main.asm](file://asm/main.asm)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [bank_1f_plan.md](file://code/bank_1f_plan.md)
 - [Makefile](file://Makefile)
@@ -24,11 +24,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for the new combined PRG banks $08/$09 containing battle and AI systems
-- Updated all_banks.asm to reflect the new bank structure with prg_08_09.asm inclusion
-- Enhanced coverage of the sophisticated AI turn processing system with province evaluation logic
-- Documented the complete battle system implementation including BattleSetup, BattlePhaseProcess, and BattleCasualtyResolution
-- Updated practical examples to include the new battle and AI functionality in the consolidated bank structure
+- Updated documentation to reflect the consolidation of PRG banks $0E and $0F into a single combined file `prg_0e_0f.asm`
+- Added comprehensive coverage of the battle system implementation in the consolidated $0E/$0F banks
+- Updated linker configuration details showing banks 0E/0F placement at $A000/$C000 instead of previous $8000 stubs
+- Enhanced documentation of the main assembly file structure with the new combined bank inclusion
+- Updated practical examples to include the battle system functionality in the consolidated bank structure
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -42,10 +42,10 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major enhancements include the addition of combined PRG banks $08/$09 containing sophisticated battle and AI systems, providing comprehensive province evaluation logic, army calculations, and battle resolution mechanics. **New**: The PRG banks $08/$09 implement a complete AI turn processing system with officer action decision-making, movement engines, and strategic command validation, alongside a full battle system with phase-based execution and casualty resolution. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
+This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major enhancements include the addition of combined PRG banks $08/$09, $0E/$0F containing sophisticated battle systems and AI components, providing comprehensive province evaluation logic, army calculations, and battle resolution mechanics. **New**: The PRG banks $0E/$0F implement a complete battle overlay system with VBlank frame processing, state-based phase management, and player input handling for battle scenarios. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
 
 ## Project Structure
-The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG banks $08/$09 provide a comprehensive battle and AI system following the established consolidation pattern, featuring advanced AI turn processing, officer action dispatching, and complete battle phase management.
+The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG banks $0E/$0F provide a comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios.
 
 ```mermaid
 graph TB
@@ -55,6 +55,7 @@ B01["rom/prg/prg_01.bin"]
 B08_09["rom/prg/prg_08.bin + prg_09.bin (consolidated)"]
 B0A_0B["rom/prg/prg_0a.bin + prg_0b.bin (consolidated)"]
 B0C_0D["rom/prg/prg_0c.bin + prg_0d.bin (consolidated)"]
+B0E_0F["rom/prg/prg_0e.bin + prg_0f.bin (consolidated)"]
 B17_18["rom/prg/prg_17_18.bin (consolidated)"]
 B1D_1E["rom/prg/prg_1d_1e.bin (refactored)"]
 B1F["rom/prg/prg_1f.bin"]
@@ -65,9 +66,14 @@ S01["asm/banks/prg_01.asm"]
 S08_09["asm/banks/prg_08_09.asm (consolidated)"]
 S0A_0B["asm/banks/prg_0a_0b.asm (consolidated)"]
 S0C_0D["asm/banks/prg_0c_0d.asm (consolidated)"]
+S0E_0F["asm/banks/prg_0e_0f.asm (consolidated)"]
 S17_18["asm/banks/prg_17_18.asm (consolidated)"]
 S1D_1E["asm/banks/prg_1d_1e.asm (refactored)"]
 S1F["asm/banks/prg_1f.asm"]
+end
+subgraph "Main Assembly"
+MAIN["asm/main.asm<br/>includes all_banks.asm"]
+ALL_BANKS["asm/banks/all_banks.asm<br/>includes prg_0e_0f.asm"]
 end
 subgraph "Analysis Tools"
 AT01["analyze_0c_0d_callbacks.py"]
@@ -82,14 +88,18 @@ B01 --> S01
 B08_09 --> S08_09
 B0A_0B --> S0A_0B
 B0C_0D --> S0C_0D
+B0E_0F --> S0E_0F
 B17_18 --> S17_18
 B1D_1E --> S1D_1E
 B1F --> S1F
+MAIN --> ALL_BANKS
+ALL_BANKS -. includes .-> CFG
 S00 -. includes .-> CFG
 S01 -. includes .-> CFG
 S08_09 -. includes .-> CFG
 S0A_0B -. includes .-> CFG
 S0C_0D -. includes .-> CFG
+S0E_0F -. includes .-> CFG
 S17_18 -. includes .-> CFG
 S1D_1E -. includes .-> CFG
 S1F -. includes .-> CFG
@@ -102,16 +112,19 @@ AT03 -. checks .-> S0C_0D
 - [all_banks.asm:13](file://asm/banks/all_banks.asm#L13)
 - [all_banks.asm:14](file://asm/banks/all_banks.asm#L14)
 - [all_banks.asm:16](file://asm/banks/all_banks.asm#L16)
+- [all_banks.asm:17](file://asm/banks/all_banks.asm#L17)
 - [all_banks.asm:27](file://asm/banks/all_banks.asm#L27)
 - [all_banks.asm:32](file://asm/banks/all_banks.asm#L32)
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [linker.cfg:41-43](file://linker.cfg#L41-L43)
 - [linker.cfg:45-47](file://linker.cfg#L45-L47)
 - [linker.cfg:49-51](file://linker.cfg#L49-L51)
+- [linker.cfg:53-55](file://linker.cfg#L53-L55)
 - [linker.cfg:64-66](file://linker.cfg#L64-L66)
 - [linker.cfg:74-76](file://linker.cfg#L74-L76)
 
@@ -119,6 +132,7 @@ AT03 -. checks .-> S0C_0D
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
 - [all_banks.asm:1-34](file://asm/banks/all_banks.asm#L1-L34)
+- [main.asm:1-18](file://asm/main.asm#L1-L18)
 
 ## Core Components
 - 32 PRG banks × 8KB = 256KB total PRG ROM
@@ -129,16 +143,16 @@ AT03 -. checks .-> S0C_0D
   - Slot 3: $E000-$FFFF (8KB)
 - Fixed boot bank 0x1F mapped to $E000-$FFFF at reset
 - Bank switching controlled via mapper registers at $F800-$FE00
-- **Updated**: Consolidated bank switching mechanism for PRG banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E using unified 16KB blocks at $A000-$DFFF
-- **New**: PRG banks $08/$09 feature comprehensive AI turn processing with officer action decision-making, movement engines, and strategic command validation, alongside complete battle system with phase-based execution and casualty resolution
+- **Updated**: Consolidated bank switching mechanism for PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E using unified 16KB blocks at $A000-$DFFF
+- **New**: PRG banks $0E/$0F feature comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios
 
 Key implementation references:
 - Memory map and slot definitions in linker.cfg
 - Bank indices and macros in include/namco163.h
-- Consolidated bank stubs for PRG banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E in asm/banks/prg_08_09.asm, asm/banks/prg_0a_0b.asm, asm/banks/prg_0c_0d.asm, asm/banks/prg_17_18.asm, and asm/banks/prg_1d_1e.asm
+- Consolidated bank stubs for PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E in asm/banks/prg_08_09.asm, asm/banks/prg_0a_0b.asm, asm/banks/prg_0c_0d.asm, asm/banks/prg_0e_0f.asm, asm/banks/prg_17_18.asm, and asm/banks/prg_1d_1e.asm
 - Bank switching helpers in include/functions.h
 - Boot bank 0x1F and vector table in bank_1f_analysis.md
-- **New**: Comprehensive AI and battle system implementation in prg_08_09.asm
+- **New**: Comprehensive battle overlay system implementation in prg_0e_0f.asm
 
 **Section sources**
 - [linker.cfg:14-30](file://linker.cfg#L14-L30)
@@ -148,9 +162,10 @@ Key implementation references:
 - [prg_1f.asm:1-148](file://asm/banks/prg_1f.asm#L1-L148)
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
 - [prg_08_09.asm:46-109](file://asm/banks/prg_08_09.asm#L46-L109)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 
 ## Architecture Overview
-The system uses a 4-slot PRG mapping scheme with 8KB banks. At reset, bank 0x1F is fixed in slot 3 ($E000-$FFFF). The remaining three slots ($8000-$DFFF) are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E are now managed as consolidated units, sharing the $A000-$DFFF address space through unified bank switching routines. Bank switching is performed by writing the desired bank number to specific addresses. **New**: The $08/$09 banks implement sophisticated AI turn processing with officer action decision-making, movement engines, and strategic command validation, alongside complete battle system with phase-based execution and casualty resolution.
+The system uses a 4-slot PRG mapping scheme with 8KB banks. At reset, bank 0x1F is fixed in slot 3 ($E000-$FFFF). The remaining three slots ($8000-$DFFF) are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E are now managed as consolidated units, sharing the $A000-$DFFF address space through unified bank switching routines. Bank switching is performed by writing the desired bank number to specific addresses. **New**: The $0E/$0F banks implement comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios.
 
 ```mermaid
 graph TB
@@ -166,6 +181,7 @@ DISPATCHER["CallbackDispatcher ($EADE)<br/>State-based routing"]
 SWITCH0809["Consolidated $08/$09<br/>Battle & AI Systems"]
 SWITCH0A0B["Consolidated $0A/$0B<br/>AI Turn Processing & Province Evaluation"]
 SWITCH0C0D["Consolidated $0C/$0D<br/>Officer Exchange System"]
+SWITCH0E0F["Consolidated $0E/$0F<br/>Battle Overlay System"]
 SWITCH1718["Consolidated $17/$18<br/>Display & Battle Systems"]
 SWITCH1D1E["Enhanced $1D/$1E<br/>SceneRenderer System"]
 CPU --> REG8000
@@ -182,6 +198,7 @@ DISPATCHER --> SWITCH0C0D
 SWITCH0809 --> MAPPER
 SWITCH0A0B --> MAPPER
 SWITCH0C0D --> MAPPER
+SWITCH0E0F --> MAPPER
 SWITCH1718 --> MAPPER
 SWITCH1D1E --> MAPPER
 ```
@@ -193,6 +210,7 @@ SWITCH1D1E --> MAPPER
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
 - [prg_1f.asm:2376-2397](file://asm/banks/prg_1f.asm#L2376-L2397)
@@ -213,7 +231,7 @@ SWITCH1D1E --> MAPPER
   - $C000-$DFFF: Slot 2 (switchable via $FC00)
   - $E000-$FFFF: Slot 3 (fixed boot bank 0x1F via $FE00)
 
-**Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E are now consolidated into single 16KB blocks occupying both $A000-$BFFF and $C000-$DFFF. This consolidation allows the $A000-$BFFF and $C000-$DFFF slots to be switched as unified pairs using the SwitchBankAC routines. **New**: The $08/$09 banks implement comprehensive AI turn processing with officer action decision-making, movement engines, and strategic command validation, alongside complete battle system with phase-based execution and casualty resolution.
+**Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E are now consolidated into single 16KB blocks occupying both $A000-$BFFF and $C000-$DFFF. This consolidation allows the $A000-$BFFF and $C000-$DFFF slots to be switched as unified pairs using the SwitchBankAC routines. **New**: The $0E/$0F banks implement comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios.
 
 Memory mapping configuration in linker.cfg:
 - MEMORY regions define four PRG slots with fill and fillval
@@ -227,6 +245,7 @@ Practical distribution examples:
 - **Updated**: Banks 0x08/$0x09: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with battle and AI systems)
 - **Updated**: Banks 0x0A/$0x0B: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
 - **Updated**: Banks 0x0C/$0x0D: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with advanced callback systems)
+- **Updated**: Banks 0x0E/$0x0F: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with battle overlay system)
 - **Updated**: Banks 0x17/$0x18: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
 - **Updated**: Banks 0x1D/$0x1E: $A000-$DFFF (consolidated 16KB block via B1F_SwitchBank1D1E)
 - Bank 0x1F: $E000-$FFFF (boot bank, fixed)
@@ -239,6 +258,7 @@ Practical distribution examples:
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [prg_1f.asm:1-13](file://asm/banks/prg_1f.asm#L1-L13)
@@ -268,11 +288,11 @@ Boot sequence and dispatch:
 - Slot 2: $C000-$DFFF (switchable via $FC00)
 - Slot 3: $E000-$FFFF (fixed to bank 0x1F via $FE00)
 
-**Updated**: Consolidated bank switching for PRG banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E:
+**Updated**: Consolidated bank switching for PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E:
 - The $A000-$BFFF and $C000-$DFFF slots are now managed as unified pairs
 - Bank switching uses B1F_SwitchBankAC routines (B1F_SwitchBankAC_A/B) instead of individual $FA00/$FC00 writes
 - Bank parameter Y determines both $A000-$BFFF and $C000-$DFFF banks simultaneously
-- **New**: Specialized handling for banks $08/$09 with comprehensive battle and AI systems following the established consolidation pattern
+- **New**: Specialized handling for banks $0E/$0F with comprehensive battle overlay system following the established consolidation pattern
 
 Bank switching macros:
 - switch_bank_8000(BANK_XX)
@@ -308,6 +328,8 @@ Bank switching macros:
 - CODE_BANK0B: load = PRG_SLOT2, type = ro, optional = yes (maps to $C000-$DFFF)
 - CODE_BANK0C: load = PRG_SLOT1, type = ro, optional = yes (maps to $A000-$BFFF)
 - CODE_BANK0D: load = PRG_SLOT2, type = ro, optional = yes (maps to $C000-$DFFF)
+- **Updated**: CODE_BANK0E: load = BANK0E, type = ro, optional = yes (maps to $A000-$BFFF)
+- **Updated**: CODE_BANK0F: load = BANK0F, type = ro, optional = yes (maps to $C000-$DFFF)
 - CODE_BANK17: load = PRG_SLOT1, type = ro, optional = yes (maps to $A000-$BFFF)
 - CODE_BANK18: load = PRG_SLOT2, type = ro, optional = yes (maps to $C000-$DFFF)
 - All segments share source files but are loaded into different slots for unified management
@@ -319,6 +341,7 @@ Segment organization strategy:
 - **Updated**: Consolidated bank 08/09 code uses CODE_BANK08 and CODE_BANK09 segments for unified management with battle and AI systems
 - **Updated**: Consolidated bank 0A/0B code uses CODE_BANK0A and CODE_BANK0B segments for unified management
 - **Updated**: Consolidated bank 0C/0D code uses CODE_BANK0C and CODE_BANK0D segments for unified management with advanced callback systems
+- **Updated**: Consolidated bank 0E/0F code uses CODE_BANK0E and CODE_BANK0F segments for unified management with battle overlay system
 - **Updated**: Consolidated bank 17/18 code uses CODE_BANK17 and CODE_BANK18 segments for unified management
 - **Updated**: Consolidated bank 1D/1E code uses CODE_BANK1D and CODE_BANK1E segments for unified management
 
@@ -345,6 +368,11 @@ Segment organization strategy:
   - **New**: Implements BankedCallbackTrampoline ($EE07) for dynamic function dispatching with inline target specifications
   - **New**: Features CallbackDispatcher ($EADE) for state-based routing with variable-length dispatch tables
   - **New**: Provides unified 16KB code space following the same consolidation pattern as other bank pairs
+- **Updated**: Banks 0x0E/$0x0F: $A000-$DFFF (consolidated with comprehensive battle overlay system)
+  - Stub: asm/banks/prg_0e_0f.asm includes rom/prg/prg_0e.bin and rom/prg/prg_0f.bin
+  - Contains BattleVBlankFrameUpdate_Entry at $A000 with battle scene VBlank frame hook
+  - Provides unified 16KB code space for battle overlay processing, phase-based state management, and player input handling
+  - Implements comprehensive battle overlay system with VBlank frame processing, overlay strip rendering, and phase dispatch
 - **Updated**: Banks 0x17/$0x18: $A000-$DFFF (consolidated)
   - Stub: asm/banks/prg_17_18.asm includes rom/prg/prg_17_18.bin
   - Contains domestic/kingdom display functions at $A000-$A029
@@ -362,6 +390,7 @@ Segment organization strategy:
 - **Updated**: For consolidated bank 0x08/$0x09, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
 - **Updated**: For consolidated bank 0x0A/$0x0B, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
 - **Updated**: For consolidated bank 0x0C/$0x0D, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
+- **Updated**: For consolidated bank 0x0E/$0x0F, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
 - **Updated**: For consolidated bank 0x17/$0x18, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
 - **Updated**: For consolidated bank 0x1D/$0x1E, bank 0x1F uses B1F_SwitchBank1D1E routine to switch the entire $A000-$DFFF 16KB block
 - Bank switching routine reads a configuration table and writes to mapper registers $C000/$C800/$D000/$D800
@@ -372,6 +401,7 @@ Segment organization strategy:
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [prg_1f.asm:1-13](file://asm/banks/prg_1f.asm#L1-L13)
@@ -384,6 +414,7 @@ Segment organization strategy:
 - **Updated**: Banks 0x08/$0x09 map to $A000-$DFFF (consolidated 16KB block with battle and AI systems)
 - **Updated**: Banks 0x0A/$0x0B map to $A000-$DFFF (consolidated 16KB block)
 - **Updated**: Banks 0x0C/$0x0D map to $A000-$DFFF (consolidated 16KB block with advanced callback systems)
+- **Updated**: Banks 0x0E/$0x0F map to $A000-$DFFF (consolidated 16KB block with battle overlay system)
 - **Updated**: Banks 0x17/$0x18 map to $A000-$DFFF (consolidated 16KB block)
 - **Updated**: Banks 0x1D/$0x1E map to $A000-$DFFF (consolidated 16KB block)
 - Bank 0x1F maps to $E000-$FFFF (fixed)
@@ -392,6 +423,7 @@ Segment organization strategy:
 - Bank 0x08 provides code for $A000-$BFFF (slot 1) paired with bank 0x09 at $C000-$DFFF (slot 2)
 - Bank 0x0A provides code for $A000-$BFFF (slot 1) paired with bank 0x0B at $C000-$DFFF (slot 2)
 - **New**: Bank 0x0C provides code for $A000-$BFFF (slot 1) paired with bank 0x0D at $C000-$DFFF (slot 2)
+- **New**: Bank 0x0E provides code for $A000-$BFFF (slot 1) paired with bank 0x0F at $C000-$DFFF (slot 2)
 - Together they form unified 16KB blocks at $A000-$DFFF managed by consolidated bank switching
 - Bank switching uses B1F_SwitchBankAC routines to manage both slots simultaneously
 
@@ -418,8 +450,8 @@ This mapping is enforced by the mapper registers:
   - $E000-$FFFF: Slot 3 (boot bank 0x1F)
 
 **Updated**: Consolidated bank utilization:
-- $A000-$BFFF: Slot 1 - Bank 0x08 (battle and AI systems), Bank 0x0A (enhanced AI/province evaluation), Bank 0x0C (new consolidated module with callback systems), Bank 0x17 (display systems), and Bank 0x1D (enhanced display system)
-- $C000-$DFFF: Slot 2 - Bank 0x09 (paired with bank 0x08), Bank 0x0B (paired with bank 0x0A), Bank 0x0D (paired with bank 0x0C), Bank 0x18 (paired with bank 0x17), and Bank 0x1E (paired with bank 0x1D)
+- $A000-$BFFF: Slot 1 - Bank 0x08 (battle and AI systems), Bank 0x0A (enhanced AI/province evaluation), Bank 0x0C (new consolidated module with callback systems), Bank 0x0E (battle overlay system), Bank 0x17 (display systems), and Bank 0x1D (enhanced display system)
+- $C000-$DFFF: Slot 2 - Bank 0x09 (paired with bank 0x08), Bank 0x0B (paired with bank 0x0A), Bank 0x0D (paired with bank 0x0C), Bank 0x0F (paired with bank 0x0E), Bank 0x18 (paired with bank 0x17), and Bank 0x1E (paired with bank 0x1D)
 - Unified 16KB blocks at $A000-$DFFF managed by consolidated bank switching
 - Bank switching occurs by writing to mapper registers at $F800-$FE00. The mapper decodes the bank number and maps it into the selected 8KB window. **Updated**: Consolidated banks use specialized switching routines for unified management.
 
@@ -441,6 +473,7 @@ This mapping is enforced by the mapper registers:
 - Bank 0x08 at $A000-$BFFF paired with bank 0x09 at $C000-$DFFF (comprehensive battle and AI systems)
 - Bank 0x0A at $A000-$BFFF paired with bank 0x0B at $C000-$DFFF (enhanced AI/province evaluation)
 - **New**: Bank 0x0C at $A000-$BFFF paired with bank 0x0D at $C000-$DFFF (new consolidated module with advanced callback systems)
+- **New**: Bank 0x0E at $A000-$BFFF paired with bank 0x0F at $C000-$DFFF (battle overlay system)
 - Bank 0x17 at $A000-$BFFF paired with bank 0x18 at $C000-$DFFF (display systems)
 - Bank 0x1D at $A000-$BFFF paired with bank 0x1E at $C000-$DFFF (enhanced display system)
 - B1F_SwitchBank1D1E routine switches the entire $A000-$DFFF 16KB block for banks 0x1D/$0x1E
@@ -467,62 +500,47 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 - [prg_1f.asm:2376-2397](file://asm/banks/prg_1f.asm#L2376-L2397)
 
-### Battle and AI Systems in Banks $08/$09
-**New**: Major expansion of PRG banks $08/$09 introduces comprehensive battle and AI systems:
+### Battle Overlay System in Banks $0E/$0F
+**New**: Major expansion of PRG banks $0E/$0F introduces comprehensive battle overlay system:
 
-#### Complete AI Turn Processing System
-**New**: Sophisticated AI turn processing with officer action decision-making:
-- **AiTurnProcess**: Main AI turn processing entry point that iterates through AI officers and processes their actions
-- **AiOfficerActionDecide**: Decides actions for current AI officer using callback dispatcher with 8 action types
-- **Action_DefaultDecision**: Priority chain handling flee/recruit/attack/move/random actions
-- **Action_Regroup**: Rejoin main force or march to capital/ordered target
-- **Action_AttackNearest**: Attack nearest enemy within range 2 of self
-- **Action_DefendBase**: Intercept enemy near base within range 2
-- **Action_SweepRange3**: Sweep enemies within range 3
-- **Action_CaptureProvince**: Occupy province and transfer resources
-- **Action_RestoreHP**: Spend gold to restore HP at provinces
-- **Action_Idle**: No action taken
+#### Complete VBlank Frame Processing
+**New**: Sophisticated battle scene VBlank frame processing:
+- **BattleVBlankFrameUpdate**: Main VBlank frame hook that applies CHR bank animation, runs battle overlay state machine, and handles input suppression
+- **BattleOverlayDispatch**: Battle overlay state-machine dispatcher with 10 phases (intro, next-actor selection, action resolution, command selection, result handling, etc.)
+- **Phase0IntroSubDispatch**: Battle intro sub-dispatch with 5 sub-states covering roster walk, animation queue, and data formatting
+- **Phase1NextActorSubDispatch**: Next actor selection with side status counter drawing and roster scanning
+- **Phase2ActionSubDispatch**: Action resolution with 11 sub-states for various battle actions
+- **Phase3CommandSubDispatch**: Player command selection with 5 sub-states for command panel interaction
+- **Phase4ResultSubDispatch**: Battle result handling with 7 sub-states for defeat/retreat resolution
 
-#### Advanced Movement Engine
-**New**: Sophisticated officer movement system:
-- **AiExecuteMove**: Execute movement for current officer with terrain cost calculation
-- **AiScanAdjacentOfficers**: Scan 4 adjacent positions for officers (N/S/W/E)
-- **AiFindNearbyOfficers**: Scan all officers within Manhattan-distance range
-- **AiCheckAttackNearby**: Check for enemy officer on adjacent tile
-- **AiCheckFlee**: Decide whether officer should retreat based on strength thresholds
-- Terrain-aware movement with proper boundary handling and wrap-around logic
+#### Advanced State Management
+**New**: Comprehensive battle overlay state management:
+- **BattleSideStatusCounterDraw**: Draws per-side status counters for battle participants
+- **BattlePlayerRequestPoll**: Polls player input for battle commands with mode filtering
+- **BattleDefeatEventCheck**: Checks for defeat events and triggers result processing
+- **BattleRetreatEventCheck**: Checks for retreat events and handles retreat scenarios
+- **Phase4ResultAdvance**: Result advancement with frame timing and input waiting
+- **Phase4ResultDamageApply**: Damage application with random roll calculation and strength reduction
 
-#### Complete Battle System
-**New**: Full battle system implementation:
-- **BattleSetup**: Initialize battle parameters and faction setup
-- **BattlePhaseProcess**: Battle turn phase dispatcher with 4 phases (attacker setup, defender setup, execute, post-process)
-- **BattleAttackerSetup**: Configure attacker faction and war status
-- **BattleDefenderSetup**: Configure defender faction and battle conditions
-- **BattleExecute**: Populate unit lists and resolve strikes
-- **BattlePostProcess**: Post-battle updates and state management
-- **BattleCasualtyResolution**: Calculate casualties and apply battle results
-- **BattleAttritionRound**: Per-round mutual attrition resolver for field battles
-
-#### Strategic Command Validation
-**New**: Comprehensive action feasibility checking:
-- **AiCheckActionFeasible**: Per-stratagem precondition check with 16 different stratagems
-- **AiCheckAttackFeasible**: Choose feasible action against candidate officer
-- **AiCheckRecruit**: Try to recruit nearby officers with class table validation
-- **AiSortNearbyOfficers**: Compact and sort nearby-officer table by troop strength
-- Terrain-specific stratagem validation (fire attacks, traps, ambushes, etc.)
+#### Player Input Handling
+**New**: Sophisticated player input processing:
+- **BattlePadStateFetch**: Fetches pad state with mode filtering for battle context
+- **BattleBothPadsStateFetch**: Merges input from both controllers for dual-player support
+- **Input edge detection**: Handles A/B button edges for command confirmation and cancellation
+- **Animation queue integration**: Coordinates input processing with animation system
 
 **Section sources**
-- [prg_08_09.asm:46-109](file://asm/banks/prg_08_09.asm#L46-L109)
-- [prg_08_09.asm:806-1094](file://asm/banks/prg_08_09.asm#L806-L1094)
-- [prg_08_09.asm:1158-1538](file://asm/banks/prg_08_09.asm#L1158-L1538)
-- [prg_08_09.asm:1540-2399](file://asm/banks/prg_08_09.asm#L1540-L2399)
-- [prg_08_09.asm:3482-3638](file://asm/banks/prg_08_09.asm#L3482-L3638)
-- [prg_08_09.asm:5529-6164](file://asm/banks/prg_08_09.asm#L5529-L6164)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:136-145](file://asm/banks/prg_0e_0f.asm#L136-L145)
+- [prg_0e_0f.asm:279-295](file://asm/banks/prg_0e_0f.asm#L279-L295)
+- [prg_0e_0f.asm:636-666](file://asm/banks/prg_0e_0f.asm#L636-L666)
+- [prg_0e_0f.asm:608-634](file://asm/banks/prg_0e_0f.asm#L608-L634)
 
 ### Memory Overlap Considerations
 - Bank 0x1F is fixed in slot 3 ($E000-$FFFF) at boot
 - Other banks can be mapped into slots 0/1/2 at runtime
-- **Updated**: Consolidated banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E overlap in the $A000-$DFFF region but are managed as unified pairs
+- **Updated**: Consolidated banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E overlap in the $A000-$DFFF region but are managed as unified pairs
 - Care must be taken when bank-switching to avoid clobbering code or data currently resident in the target slot
 - **Updated**: Consolidated bank switching uses B1F_SwitchBankAC and B1F_SwitchBank1D1E routines to prevent slot conflicts
 - Bank 0x1F's bank-switching routine stores configuration in RAM ($00E6-$00ED) to preserve state across switches
@@ -537,7 +555,7 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - 8KB aligns with the mapper's granularity for PRG bank switching
 - Provides sufficient space for code and data while keeping the number of banks manageable (32 banks)
 - Allows efficient bank switching with minimal overhead
-- **Updated**: Consolidation of banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E demonstrates the benefits of unified management for related functionality
+- **Updated**: Consolidation of banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E demonstrates the benefits of unified management for related functionality
 - The linker.cfg and bank stubs reflect this constraint by organizing code into 8KB segments
 - **Updated**: Consolidated approach reduces complexity for related functions that benefit from shared memory space while maintaining the flexibility of the underlying 8KB architecture
 
@@ -547,6 +565,7 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 
@@ -556,19 +575,20 @@ The bank organization depends on several components working together:
 - include/namco163.h provides bank indices and macros for bank switching
 - **Updated**: include/functions.h provides consolidated bank switching helpers (B1F_SwitchBankAC_A/B and B1F_SwitchBank1D1E)
 - asm/banks/* stubs include the ROM binaries for each bank
-- **Updated**: Consolidated bank stubs for PRG banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E in asm/banks/prg_08_09.asm, asm/banks/prg_0a_0b.asm, asm/banks/prg_0c_0d.asm, asm/banks/prg_17_18.asm, and asm/banks/prg_1d_1e.asm
+- **Updated**: Consolidated bank stubs for PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E in asm/banks/prg_08_09.asm, asm/banks/prg_0a_0b.asm, asm/banks/prg_0c_0d.asm, asm/banks/prg_0e_0f.asm, asm/banks/prg_17_18.asm, and asm/banks/prg_1d_1e.asm
 - bank_1f_analysis.md documents the boot bank's role and dispatch mechanism
-- **New**: Comprehensive battle and AI system implementation in prg_08_09.asm
+- **New**: Comprehensive battle overlay system implementation in prg_0e_0f.asm
 
 ```mermaid
 graph TB
 LCFG["linker.cfg"]
 N163["include/namco163.h"]
 FUNCS["include/functions.h<br/>(Consolidated Bank Switching)"]
-STUBS["asm/banks/*.asm<br/>(Consolidated PRG 08/09, 0A/0B, 0C/0D, 17/18 & 1D/1E)"]
+STUBS["asm/banks/*.asm<br/>(Consolidated PRG 08/09, 0A/0B, 0C/0D, 0E/0F, 17/18 & 1D/1E)"]
 ENHANCED_AI["PRG 08/09 Battle & AI Systems<br/>Comprehensive Turn Processing & Battle Resolution"]
 ENHANCED_AI2["PRG 0A/0B Enhanced AI System<br/>Province Evaluation & Battle Logic"]
 NEW_OFFICER_EXCHANGE["PRG 0C/0D New Officer Exchange System<br/>with Callback Systems"]
+BATTLE_OVERLAY["PRG 0E/0F Battle Overlay System<br/>VBlank Processing & Phase Management"]
 ENHANCED_DISPLAY["PRG 1D/1E Enhanced System<br/>Zero-Page Variables & SceneRenderer"]
 ROM["rom/prg/*.bin"]
 BOOT["bank_1f_analysis.md"]
@@ -579,6 +599,7 @@ FUNCS --> STUBS
 ENHANCED_AI --> STUBS
 ENHANCED_AI2 --> STUBS
 NEW_OFFICER_EXCHANGE --> STUBS
+BATTLE_OVERLAY --> STUBS
 ENHANCED_DISPLAY --> STUBS
 ROM --> STUBS
 BOOT --> STUBS
@@ -592,11 +613,13 @@ ANALYSIS_TOOLS --> NEW_OFFICER_EXCHANGE
 - [all_banks.asm:13](file://asm/banks/all_banks.asm#L13)
 - [all_banks.asm:14](file://asm/banks/all_banks.asm#L14)
 - [all_banks.asm:16](file://asm/banks/all_banks.asm#L16)
+- [all_banks.asm:17](file://asm/banks/all_banks.asm#L17)
 - [all_banks.asm:27](file://asm/banks/all_banks.asm#L27)
 - [all_banks.asm:32](file://asm/banks/all_banks.asm#L32)
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
@@ -613,6 +636,7 @@ ANALYSIS_TOOLS --> NEW_OFFICER_EXCHANGE
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
+- [prg_0e_0f.asm:1-7](file://asm/banks/prg_0e_0f.asm#L1-L7)
 - [prg_17_18.asm:1-8](file://asm/banks/prg_17_18.asm#L1-L8)
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
@@ -627,7 +651,7 @@ ANALYSIS_TOOLS --> NEW_OFFICER_EXCHANGE
 - Use the bank switching configuration table to batch changes when possible
 - **Updated**: Consolidated approach improves cache locality for related functions
 - **Updated**: Unified 16KB blocks reduce memory fragmentation and improve code organization
-- **New**: Battle and AI systems in banks $08/$09 provide efficient turn processing with optimized officer scanning and action decision-making
+- **New**: Battle overlay system in banks $0E/$0F provides efficient VBlank processing with optimized phase management and input handling
 - **New**: Callback systems minimize overhead for dynamic function dispatching and state-based routing
 
 ## Troubleshooting Guide
@@ -650,17 +674,18 @@ Common issues and resolutions:
   - Check that bank 0x08 and 0x09 are properly paired in the switching routine
   - Check that bank 0x0A and 0x0B are properly paired in the switching routine
   - **New**: Check that bank 0x0C and 0x0D are properly paired in the switching routine
+  - **New**: Check that bank 0x0E and 0x0F are properly paired in the switching routine
   - Check that bank 0x17 and 0x18 are properly paired in the switching routine
   - **New**: Check that bank 0x1D and 0x1E are properly paired in the B1F_SwitchBank1D1E routine
   - **New**: Verify CODE_BANK08 and CODE_BANK09 segments are properly configured in linker.cfg
   - **New**: Ensure prg_08_09.asm follows the same consolidation pattern as other consolidated bank modules
-- **New**: Battle and AI system issues:
-  - Verify AI turn processing flow through AiTurnProcess and officer action decision-making
-  - Check battle phase progression through BattlePhaseProcess (phases 0-3)
-  - Validate officer movement calculations in AiExecuteMove with terrain costs
-  - Ensure strategic command validation works correctly for all 16 stratagem types
-  - Verify battle casualty resolution calculations and result application
-  - Check officer recruitment logic with class table validation
+- **New**: Battle overlay system issues:
+  - Verify VBlank frame processing flow through BattleVBlankFrameUpdate and BattleOverlayDispatch
+  - Check battle phase progression through all 10 phases (0-9)
+  - Validate player input handling in BattlePlayerRequestPoll with proper mode filtering
+  - Ensure defeat/retreat event checking works correctly for both sides
+  - Verify damage application calculations and strength reduction logic
+  - Check animation queue integration with battle overlay processing
 - **New**: Callback system issues:
   - Verify BankedCallbackTrampoline calls follow the pattern: LDY #bank; JSR $EE07; .word target
   - Ensure CallbackDispatcher tables have correct length based on maximum index values
@@ -675,9 +700,10 @@ Common issues and resolutions:
 - [prg_1d_1e.asm:1287-1341](file://asm/banks/prg_1d_1e.asm#L1287-L1341)
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
 - [analyze_0c_0d_callbacks.py:1-20](file://tools/analyze_0c_0d_callbacks.py#L1-L20)
 - [verify_0c_0d_directives.py:1-20](file://tools/verify_0c_0d_directives.py#L1-L20)
 - [check_trampoline_pattern.py:1-20](file://tools/check_trampoline_pattern.py#L1-L20)
 
 ## Conclusion
-The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $17/$18, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $08/$09 provide a comprehensive battle and AI system with sophisticated turn processing, officer action decision-making, movement engines, strategic command validation, and complete battle phase management with casualty resolution. **Updated**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **Updated**: PRG banks $0C/$0D provide a comprehensive officer exchange system with 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management. **Updated**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) systems enable sophisticated dynamic function dispatching and state-based routing throughout the codebase. **New**: Comprehensive analysis tools suite enables verification of callback patterns, directive validation, and trampoline consistency checking. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **Updated**: Consolidated bank switching reduces overhead and improves code organization through unified 16KB block management. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.
+The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $0E/$0F provide a comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios. **Updated**: PRG banks $08/$09 provide a comprehensive battle and AI system with sophisticated turn processing, officer action decision-making, movement engines, strategic command validation, and complete battle phase management with casualty resolution. **Updated**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **Updated**: PRG banks $0C/$0D provide a comprehensive officer exchange system with 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management. **Updated**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) systems enable sophisticated dynamic function dispatching and state-based routing throughout the codebase. **New**: Comprehensive analysis tools suite enables verification of callback patterns, directive validation, and trampoline consistency checking. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **Updated**: Consolidated bank switching reduces overhead and improves code organization through unified 16KB block management. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.

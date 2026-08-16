@@ -31,18 +31,18 @@ B1F_VectorTable           = $E07C   ; State dispatch table (15 entries, 2 bytes 
 B1F_State_SystemInit      = $E09A   ; State 0: System init, PPU setup, -> state 9
 B1F_State_NewGameInit     = $E0DA   ; State 1: New game init, SRAM, music $81
 B1F_State_RandomDisplay2A = $E17D   ; State 2: Random + display (Y=$2A)
-B1F_State_KingdomSelect   = $E18B   ; State 3: Kingdom select, scenario/normal
+B1F_State_RulerSelect     = $E18B   ; State 3: Ruler select, scenario/normal
 B1F_State_RandomDisplay28 = $E221   ; State 4: Random + display (Y=$28)
-B1F_State_DomesticAffairs = $E22F   ; State 5: Domestic affairs, action select
-B1F_DomesticActionLookup  = $E29C   ; Domestic action display by $0544
-B1F_DomesticGraphicPtrs   = $E2C2   ; 7 graphic pointers for domestic actions
-B1F_DomesticBaseDataPtrs  = $E2D0   ; Base data pointers for domestic display
-B1F_DomesticSpriteYPos    = $E2DE   ; Sprite Y position table (4 bytes)
+B1F_State_StrategyMode    = $E22F   ; State 5: Strategy mode, command select
+B1F_StrategyCommandLookup = $E29C   ; Strategy command display by $0544
+B1F_StrategyCommandGraphicPtrs = $E2C2 ; 7 graphic pointers for strategy commands
+B1F_StrategyCommandBaseDataPtrs = $E2D0 ; Base data pointers for strategy display
+B1F_StrategyCommandSpriteYPos = $E2DE ; Sprite Y position table (4 bytes)
 B1F_State_RandomAdvance1  = $E2E2   ; State 6: Pure RNG advance
-B1F_State_BattlePhase     = $E2E8   ; State 7: Battle phase, army status
+B1F_State_TacticalMode    = $E2E8   ; State 7: Tactical mode, army status
 B1F_State_RandomAdvance2  = $E36A   ; State 8: Pure RNG advance
 B1F_DisplayInit           = $E370   ; Display init: window clear + bank display
-B1F_State_TerritoryView   = $E37C   ; State 9: Territory/map view
+B1F_State_CountryMapView  = $E37C   ; State 9: Country map view
 B1F_State_IdleWait        = $E3EB   ; State 10/12/14: Idle wait, JMP dispatch
 B1F_State_AdvisorCouncil  = $E3EE   ; State 11: Advisor/council dialogue
 B1F_State_TurnSummary     = $E46A   ; State 13: Turn summary/report
@@ -208,10 +208,10 @@ B1F_ClearUI               = $F29B   ; Clear UI state
 ;-------------------------------------------------------------------------------
 B1F_GetProvinceRecordAddr = $F2AF   ; Province: id*32+$6000
 B1F_GetOfficerRecordAddr  = $F2D7   ; Officer: id*12+$63C0
-B1F_GetNameDisplayScale   = $F308   ; Hero kata name: id*10+$901A + width
+B1F_GetNameDisplayScale   = $F308   ; Officer kata name: id*10+$901A + width
 B1F_NameScaleTable        = $F35F   ; Kata name character width table
-B1F_GetRulerDataPtr       = $F368   ; Ruler data from pointer table
-B1F_RulerDataPtrTable     = $F379   ; 7 kingdom SRAM pointers
+B1F_GetCountryDataPtr     = $F368   ; Country base addr from pointer table
+B1F_CountryDataPtrTable   = $F379   ; 7 country SRAM base pointers
 B1F_GetOfficerRomRecordAddr = $F387 ; Officer ROM: id*12+$8000
 
 ;-------------------------------------------------------------------------------
@@ -237,7 +237,7 @@ B1F_NmiEpilogue           = $F88D   ; Restore PRG banks, tick counters, RTI
 B1F_NmiState2_MapScreen   = $F8B5   ; NMI state 2: Map screen rendering
 B1F_NmiState3_Battle      = $F8FE   ; NMI state 3: Battle rendering
 B1F_NmiState4_Menu        = $F96A   ; NMI state 4: Menu rendering
-B1F_NmiState5_Diplomacy   = $F9A0   ; NMI state 5: Diplomacy rendering
+B1F_NmiState5_Intrigue    = $F9A0   ; NMI state 5: Intrigue (策略) rendering
 B1F_NmiState6_Event       = $F9E4   ; NMI state 6: Event rendering
 B1F_NmiState7_Strategy    = $FA13   ; NMI state 7: Strategy rendering
 B1F_NmiState8_Officer     = $FA53   ; NMI state 8: Officer rendering
@@ -288,7 +288,7 @@ B1F_CalcScrollAddrAlt     = $FF9B   ; Scroll calc variant B
 ;===============================================================================
 
 ;-------------------------------------------------------------------------------
-; Banks $17+$18 - Domestic/Kingdom display (combined 16KB $A000-$DFFF)
+; Banks $17+$18 - Strategy Mode display (combined 16KB $A000-$DFFF)
 ; Loaded via SwitchBankAC with Y=$37
 ;
 ; Jump table entry points ($A000-$A029)
@@ -303,9 +303,9 @@ B17_18_BattleDispatch     = $A012   ; BattleDispatch_Entry: Battle dispatch
 B17_18_OverlayWindow      = $A015   ; OverlayWindow_Entry: Overlay/window rendering
 B17_18_SetupAdvisorTiles  = $A018   ; SetupAdvisorTiles_Entry: Setup advisor/council tiles
 B17_18_MainGameDispatch   = $A01B   ; MainGameDispatch_Entry: Main game mode dispatcher
-B17_18_DomesticActionDispatch = $A01E ; DomesticActionDispatch_Entry: Domestic action dispatcher
+B17_18_StrategyCommandDispatch = $A01E ; StrategyCommandDispatch_Entry: Strategy command dispatcher
 B17_18_AnimationDispatch  = $A021   ; AnimationDispatch_Entry: Animation dispatch
-B17_18_DomesticDisplay    = $A024   ; DomesticDisplay_Entry: Domestic affairs display
+B17_18_StrategyModeDisplay = $A024   ; StrategyModeDisplay_Entry: Strategy Mode display
 B17_18_DataRecordLoader   = $A027   ; DataRecordLoader_Entry: Data record loader
 
 ;-------------------------------------------------------------------------------
@@ -350,16 +350,16 @@ B17_18_PopulateAdjacencyEntries = $B00F
 B17_18_BuildAdjacencyMapSmall = $B055
 B17_18_PopulateAdjacencyEntriesSmall = $B06B
 B17_18_PrepareAdjacencyPtrs = $B08F
-B17_18_DomesticAffairsDispatch = $B144
-B17_18_DomesticAffairs_InitOfficers = $B15A
-B17_18_DomesticAffairs_StoreOfficerSlot = $B1A2
-B17_18_DomesticAffairs_ShowMessage = $B1A6
-B17_18_DomesticAffairs_ShowDialog = $B1BB
-B17_18_DomesticAffairs_LoadPortrait = $B1D4
-B17_18_DomesticAffairs_BuildSpriteData = $B1EE
-B17_18_DomesticAffairs_FinalizeSprites = $B21C
-B17_18_DomesticAffairs_CalcTroopStats = $B230
-B17_18_DomesticAffairs_SetupDisplay = $B2E0
+B17_18_StrategyModeDispatch = $B144
+B17_18_StrategyMode_InitOfficers = $B15A
+B17_18_StrategyMode_StoreOfficerSlot = $B1A2
+B17_18_StrategyMode_ShowMessage = $B1A6
+B17_18_StrategyMode_ShowDialog = $B1BB
+B17_18_StrategyMode_LoadPortrait = $B1D4
+B17_18_StrategyMode_BuildSpriteData = $B1EE
+B17_18_StrategyMode_FinalizeSprites = $B21C
+B17_18_StrategyMode_CalcTroopStats = $B230
+B17_18_StrategyMode_SetupDisplay = $B2E0
 B17_18_TroopAssignmentDispatch = $B34F
 B17_18_TroopAssign_SelectTarget = $B361
 B17_18_TroopAssign_Execute = $B3F0
@@ -385,22 +385,22 @@ B17_18_BattleResult_ApplyTroopLoss = $B96D
 B17_18_BattleResult_ShowVictory = $B9A0
 B17_18_BattleResult_CheckContinue = $B9A5
 B17_18_BattleResult_Finalize = $B9C8
-B17_18_SingleCombatDispatch = $BA6D
-B17_18_SingleCombat_Init  = $BA87
-B17_18_SingleCombat_CheckContinue = $BAA5
-B17_18_SingleCombat_ShowMenu = $BAC0
-B17_18_SingleCombat_PlayerAction = $BADA
-B17_18_SingleCombat_RandomEvent = $BB03
-B17_18_SingleCombat_ShowMenu2 = $BB41
-B17_18_SingleCombat_ApplyDamage = $BB5B
-B17_18_SingleCombat_CheckFlee = $BB93
-B17_18_SingleCombat_NextRound = $BBC0
-B17_18_SingleCombat_CheckEnd = $BC00
-B17_18_SingleCombat_SwapActive = $BC16
-B17_18_DiplomacyDispatch  = $BC3B
-B17_18_Diplomacy_Init     = $BC47
-B17_18_Diplomacy_ShowMenu = $BC5C
-B17_18_Diplomacy_HandleAction = $BC8C
+B17_18_DuelDispatch = $BA6D
+B17_18_Duel_Init  = $BA87
+B17_18_Duel_CheckContinue = $BAA5
+B17_18_Duel_ShowMenu = $BAC0
+B17_18_Duel_PlayerAction = $BADA
+B17_18_Duel_RandomEvent = $BB03
+B17_18_Duel_ShowMenu2 = $BB41
+B17_18_Duel_ApplyDamage = $BB5B
+B17_18_Duel_CheckFlee = $BB93
+B17_18_Duel_NextRound = $BBC0
+B17_18_Duel_CheckEnd = $BC00
+B17_18_Duel_SwapActive = $BC16
+B17_18_IntrigueDispatch   = $BC3B
+B17_18_Intrigue_Init      = $BC47
+B17_18_Intrigue_ShowMenu  = $BC5C
+B17_18_Intrigue_HandleAction = $BC8C
 B17_18_EventCutsceneDispatch = $BCE9
 B17_18_EventCutscene_Init = $BCFB
 B17_18_EventCutscene_ShowText = $BD1E
@@ -629,7 +629,7 @@ B1D_1E_MenuAction0D_ExecuteOfficer = $C25D ; Menu action 0D: execute officer
 B1D_1E_MenuAction0E_ExileOfficer = $C2DD ; Menu action 0E: exile officer
 B1D_1E_MenuAction0F_GiveItem = $C33D ; Menu action 0F: give item
 B1D_1E_MenuAction10_MoveCapital = $C3A2 ; Menu action 10: move capital
-B1D_1E_MenuAction11_Diplomacy = $C3F6 ; Menu action 11: diplomacy
+B1D_1E_MenuAction11_Intrigue = $C3F6 ; Menu action 11: intrigue (策略)
 B1D_1E_MenuAction12_War   = $C43E   ; Menu action 12: war
 B1D_1E_MenuAction13_Spy   = $C4E1   ; Menu action 13: spy
 B1D_1E_MenuAction14_Accounting = $C511 ; Menu action 14: accounting

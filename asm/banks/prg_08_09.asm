@@ -3602,7 +3602,7 @@ reserve_units          = $6F47  ; reserve unit id lists (2 x $14)
   LSR                                   ; $BAE7: 4A
   LSR                                   ; $BAE8: 4A
   LSR                                   ; $BAE9: 4A
-  JSR B1F_GetRulerDataPtr               ; $BAEA: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $BAEA: 20 68 F3
   LDY #$03                              ; $BAED: A0 03
   LDA ($00),Y                           ; $BAEF: B1 00
   CMP #$03                              ; $BAF1: C9 03
@@ -3651,7 +3651,7 @@ reserve_units          = $6F47  ; reserve unit id lists (2 x $14)
 .proc BattleDefenderSetup
   LDA battle_faction_pair                             ; $BB3D: AD 07 05
   AND #$0F                              ; $BB40: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $BB42: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $BB42: 20 68 F3
   LDY #$03                              ; $BB45: A0 03
   LDA ($00),Y                           ; $BB47: B1 00
   CMP #$03                              ; $BB49: C9 03
@@ -3787,7 +3787,7 @@ SwapFirstUnitToFront:
   BNE @SwapSearch                       ; $BC14: D0 01
   RTS                                   ; $BC16: 60
 @SwapSearch:
-  JSR B1F_GetRulerDataPtr                             ; $BC17: 20 68 F3
+  JSR B1F_GetCountryDataPtr                             ; $BC17: 20 68 F3
   LDY #$00                              ; $BC1A: A0 00
   LDA ($00),Y                           ; $BC1C: B1 00
   STA $0002                             ; $BC1E: 8D 02 00
@@ -3925,7 +3925,7 @@ BattleUnitMatcher:
   LSR                                   ; $BCF3: 4A
 @GetFactionIdx2:
   AND #$0F                              ; $BCF4: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $BCF6: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $BCF6: 20 68 F3
   LDY #$00                              ; $BCF9: A0 00
   LDA ($00),Y                           ; $BCFB: B1 00
   STA $0002                             ; $BCFD: 8D 02 00
@@ -6535,7 +6535,7 @@ special_officer_idx    = $052F  ; special officer roster index
   STA battle_target_officer                             ; $CF09: 8D 2B 05
   LDA battle_faction_pair                             ; $CF0C: AD 07 05
   AND #$0F                              ; $CF0F: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $CF11: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $CF11: 20 68 F3
   LDY #$03                              ; $CF14: A0 03
   LDA ($00),Y                           ; $CF16: B1 00
   CMP #$03                              ; $CF18: C9 03
@@ -6611,11 +6611,11 @@ special_officer_idx    = $052F  ; special officer roster index
   RTS                                   ; $CF91: 60
 ;=== Helper: StoreRulerResultFlag ($CF92-$CFA1) ===
 ; Copies ruler-B ($0507 low nibble) record byte 3 into the SRAM battle
-; result flag at $6F44 via B1F_GetRulerDataPtr.
+; result flag at $6F44 via B1F_GetCountryDataPtr.
 @StoreRulerResultFlag:
   LDA battle_faction_pair                             ; $CF92: AD 07 05
   AND #$0F                              ; $CF95: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $CF97: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $CF97: 20 68 F3
   LDY #$03                              ; $CF9A: A0 03
   LDA ($00),Y                           ; $CF9C: B1 00
   STA battle_outcome_flag                             ; $CF9E: 8D 44 6F
@@ -7583,8 +7583,8 @@ scroll_dir_bits        = $0508  ; pending scroll direction bits (7=E,6=W,5=N,4=S
 ; B1F_BankedCallbackTrampoline with Y=$28).
 ; Prepares the battle result scene from the attacker code in $050F:
 ;   attacker == 3 (ally side): ruler outcome flag $6F44 is taken from
-;     byte 3 of the ally ruler's record (low nibble of $0507 resolved via
-;     B1F_GetRulerDataPtr), variant $0509 cleared, ruler id $042C = low
+;     byte 3 of the ally country's record (low nibble of $0507 resolved via
+;     B1F_GetCountryDataPtr), variant $0509 cleared, ruler id $042C = low
 ;     nibble, event index $00A4 = 4, scene id $050A = $51 (victory).
 ;   otherwise (enemy side): $6F44 = attacker code, ruler id $042C = high
 ;     nibble of $0507, event index $00A4 = 3, scene id $050A = $50 (defeat).
@@ -7616,7 +7616,7 @@ scroll_dir_bits        = $0508  ; pending scroll direction bits (7=E,6=W,5=N,4=S
 @AllyVictory:
   LDA battle_faction_pair                             ; $D69C: AD 07 05  ; packed ruler pair
   AND #$0F                              ; $D69F: 29 0F     ; low nibble
-  JSR B1F_GetRulerDataPtr               ; $D6A1: 20 68 F3  ; ($00) = ruler data
+  JSR B1F_GetCountryDataPtr               ; $D6A1: 20 68 F3  ; ($00) = country data
   LDY #$03                              ; $D6A4: A0 03
   LDA ($00),Y                           ; $D6A6: B1 00     ; ruler outcome flag
   STA battle_outcome_flag                             ; $D6A8: 8D 44 6F
@@ -8410,8 +8410,8 @@ BattleResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
 .endproc  ; BattleResultDirRepeat3
 ;-------------------------------------------------------------------------------
 ; BattleResultSlotReset - post-result slot record refresh ($DC4A-$DC9B)
-; Reached from BattleResult_Finalize (JMP $DC4A). Scans the seven ruler/slot
-; records via B1F_GetRulerDataPtr (slot index in A, record to ($00)) and
+; Reached from BattleResult_Finalize (JMP $DC4A). Scans the seven country
+; records via B1F_GetCountryDataPtr (country index in A, record to ($00)) and
 ; applies BattleResultSlotTemplateApply to the first slot whose record byte 3
 ; matches the outcome class selected by the $6FEA latch bits:
 ;   bit 0 set: byte 3 == 0 -> apply template, then fall through to bit 1
@@ -8424,7 +8424,7 @@ BattleResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   LDA #$00                              ; $DC51: A9 00
   STA $0002                             ; $DC53: 8D 02 00  ; slot index = 0
 @ScanClass0:
-  JSR B1F_GetRulerDataPtr               ; $DC56: 20 68 F3  ; ($00) = slot record
+  JSR B1F_GetCountryDataPtr               ; $DC56: 20 68 F3  ; ($00) = country record
   LDY #$03                              ; $DC59: A0 03
   LDA ($00),Y                           ; $DC5B: B1 00     ; record byte 3
   CMP #$00                              ; $DC5D: C9 00     ; class 0
@@ -8444,7 +8444,7 @@ BattleResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   LDA #$00                              ; $DC7B: A9 00
   STA $0002                             ; $DC7D: 8D 02 00  ; slot index = 0
 @ScanClass1:
-  JSR B1F_GetRulerDataPtr               ; $DC80: 20 68 F3  ; ($00) = slot record
+  JSR B1F_GetCountryDataPtr               ; $DC80: 20 68 F3  ; ($00) = country record
   LDY #$03                              ; $DC83: A0 03
   LDA ($00),Y                           ; $DC85: B1 00     ; record byte 3
   CMP #$01                              ; $DC87: C9 01     ; class 1

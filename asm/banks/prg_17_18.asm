@@ -71,25 +71,25 @@ addr_trampoline_saved_bank = $0058              ; Trampoline saved bank
 
 ; --- Game State RAM ($04xx) ---
 ; Shared state variables used across main game dispatch procs.
-; Domestic dispatch work ($0400-$0411)
-domestic_work_ptr_lo         = $0400  ; Domestic dispatch work pointer lo
-domestic_work_ptr_hi         = $0401  ; Domestic dispatch work pointer hi
-; $0402 - local to DomAction_InitOfficerScroll (work_offset)
+; Strategy command dispatch work ($0400-$0411)
+strategy_work_ptr_lo         = $0400  ; Strategy command dispatch work pointer lo
+strategy_work_ptr_hi         = $0401  ; Strategy command dispatch work pointer hi
+; $0402 - local to StrategyCommand_InitOfficerScroll (work_offset)
 scroll_ptr_lo                = $0408  ; Scroll position index into officer list
 scroll_ptr_hi                = $0409  ; Scroll vertical position
-; $040A - local to DomAction_RenderOfficerEntry (scroll_done_flag)
-domestic_cursor_lo           = $040C  ; Domestic dispatch cursor/index lo
-domestic_cursor_hi           = $040D  ; Domestic dispatch cursor/index hi
-; $040E-$040F - local to DomAction_ScrollOfficerList (scroll_src_ptr)
-domestic_officer_list_lo     = $0410  ; Officer ID list for domestic dispatch
-domestic_officer_list_hi     = $0411  ; Officer ID list hi (usually unused)
+; $040A - local to StrategyCommand_RenderOfficerEntry (scroll_done_flag)
+strategy_cursor_lo           = $040C  ; Strategy command dispatch cursor/index lo
+strategy_cursor_hi           = $040D  ; Strategy command dispatch cursor/index hi
+; $040E-$040F - local to StrategyCommand_ScrollOfficerList (scroll_src_ptr)
+strategy_officer_list_lo     = $0410  ; Officer ID list for strategy command dispatch
+strategy_officer_list_hi     = $0411  ; Officer ID list hi (usually unused)
 ; Officer/Selection ($0424-$0435)
 troop_assign_counter_lo      = $0424  ; Troop assignment progress counter lo
 troop_assign_counter_hi      = $0425  ; Troop assignment progress counter hi
 selected_officer_id          = $042C  ; Active/selected officer ID
 ; $042D - local to BattleResult_ApplyTroopLoss (officer_id_ext)
-battle_result_phase          = $042E  ; Battle result phase (shared with domestic dispatch)
-; $042F-$0431 - local to SingleCombat_ApplyDamage (damage_amount, damage_applied)
+battle_result_phase          = $042E  ; Battle result phase (shared with strategy command dispatch)
+; $042F-$0431 - local to Duel_ApplyDamage (damage_amount, damage_applied)
 dispatch_timer               = $0435  ; Dispatch timer / countdown
 menu_blink_timer             = $046C  ; Menu selection blink timer
 ; Map/Scroll pointers ($0470-$0473)
@@ -105,7 +105,7 @@ player_flag_0                = $04AB  ; Player 0 flag/status byte
 player_officer_id_0          = $04AD  ; Officer ID for player 0
 player_officer_id_1          = $04AE  ; Officer ID for player 1
 name_tile_index              = $04AF  ; Name tile / scroll tile data index
-domestic_action_index        = $04B0  ; Domestic affairs action type index
+strategy_action_index        = $04B0  ; Strategy Mode action type index
 player_army_value_0          = $04B1  ; Army value for player 0
 player_army_value_1          = $04B2  ; Army value for player 1
 player_random_offset_0       = $04B3  ; Random offset for player 0
@@ -124,7 +124,7 @@ event_overlay_flag           = $04C3  ; Event overlay / battle formation flag
 ui_state                     = $04C4  ; UI state flag
 name_tile_ptr_lo             = $04C5  ; Name tile pointer lo
 name_tile_ptr_hi             = $04C6  ; Name tile pointer hi
-; Domestic dispatch state ($04C9-$04D5)
+; Strategy command dispatch state ($04C9-$04D5)
 dispatch_step                = $04C9  ; Dispatch step / phase counter
 dispatch_src_ptr_lo          = $04CA  ; Dispatch source pointer lo
 dispatch_src_ptr_hi          = $04CB  ; Dispatch source pointer hi
@@ -143,10 +143,10 @@ tile_index_grid              = $0680  ; Tile index grid (64 bytes, $0680-$06BF);
 
 ; --- Battery SRAM ($6Fxx) ---
 ; Persistent SRAM variables in the $6F00-$6FFF battery-backed region.
-sram_kingdom_data            = $6F07  ; Kingdom records (7 kingdoms × 8 bytes, $6F07-$6F3E)
-sram_kingdom_param_0         = $6F3F  ; Kingdom init param 0 (set to $80 on new game)
-sram_kingdom_param_1         = $6F41  ; Kingdom init param 1 (set to $F0 on new game)
-sram_scroll_pending          = $6F43  ; Scroll update pending flag (cleared after copy to domestic work ptr)
+sram_country_data            = $6F07  ; Country records (7 countries × 8 bytes, $6F07-$6F3E)
+sram_country_param_0         = $6F3F  ; Country init param 0 (set to $80 on new game)
+sram_country_param_1         = $6F41  ; Country init param 1 (set to $F0 on new game)
+sram_scroll_pending          = $6F43  ; Scroll update pending flag (cleared after copy to strategy work ptr)
 sram_player_swap             = $6F44  ; Player 2 / palette swap trigger (non-zero = swap active)
 sram_game_start_flag         = $6F8B  ; Game start flag (set to $FF on new game)
 sram_territory_event         = $6FE1  ; Territory event flag (bit 0 = capture officer)
@@ -177,11 +177,11 @@ player0_officer_hi           = $0515  ; Player 0 officer ID hi / battle side arr
 player1_officer_lo           = $0516  ; Player 1 officer ID / pointer lo
 player1_officer_hi           = $0517  ; Player 1 officer ID hi / battle config
 
-; --- Domestic Display / Scroll Work ($0541-$0544) ---
-dom_scroll_param             = $0541  ; Domestic scroll / display parameter
-dom_display_ptr_lo           = $0542  ; Display buffer pointer lo
-dom_display_ptr_hi           = $0543  ; Display buffer pointer hi
-dom_scroll_index             = $0544  ; Scroll index / wrap parameter
+; --- Strategy Display / Scroll Work ($0541-$0544) ---
+strat_scroll_param             = $0541  ; Strategy scroll / display parameter
+strat_display_ptr_lo           = $0542  ; Display buffer pointer lo
+strat_display_ptr_hi           = $0543  ; Display buffer pointer hi
+strat_scroll_index             = $0544  ; Scroll index / wrap parameter
 
 .segment "CODE_BANK17"
 
@@ -220,27 +220,27 @@ SetupAdvisorTiles_Entry:
 MainGameDispatch_Entry:
 ; MainGameDispatch_Entry ($A01B):
   JMP MainGameDispatch                                           ; $A01B: 4C 00 B1
-DomesticActionDispatch_Entry:
-; DomesticActionDispatch_Entry ($A01E):
-  JMP DomesticActionDispatch                                    ; $A01E: 4C 93 D6
+StrategyCommandDispatch_Entry:
+; StrategyCommandDispatch_Entry ($A01E):
+  JMP StrategyCommandDispatch                                    ; $A01E: 4C 93 D6
 AnimationDispatch_Entry:
 ; AnimationDispatch_Entry ($A021):
   JMP AnimationDispatch                                    ; $A021: 4C 25 DE
-DomesticDisplay_Entry:
-; DomesticDisplay_Entry ($A024):
-  JMP DomesticDisplay                                           ; $A024: 4C 2A A0
+StrategyModeDisplay_Entry:
+; StrategyModeDisplay_Entry ($A024):
+  JMP StrategyModeDisplay                                           ; $A024: 4C 2A A0
 DataRecordLoader_Entry:
 ; DataRecordLoader_Entry ($A027):
   JMP DataRecordLoader                                    ; $A027: 4C 15 DF
 
 ;===============================================================================
-; $A02A: DomesticDisplay
-; DomesticDisplay_Entry: Domestic affairs display (switches bank $21)
+; $A02A: StrategyModeDisplay
+; StrategyModeDisplay_Entry: Strategy Mode display (switches bank $21)
 ;===============================================================================
-.proc DomesticDisplay
+.proc StrategyModeDisplay
   param_byte1     = $0000
   ppu_addr_hi     = $0001
-DomesticDisplay:
+StrategyModeDisplay:
   LDY #$21                                            ; $A02A: A0 21
   JSR B1F_SwitchBank8_B                               ; $A02C: 20 5F F2
   LDA #$00                                            ; $A02F: A9 00
@@ -266,24 +266,24 @@ DomesticDisplay:
   attr_ptr_lo   = $000C
   attr_ptr_hi   = $000D
 SetupDisplayPtrs:
-  LDA dom_scroll_index                                     ; $A04A: AD 44 05
+  LDA strat_scroll_index                                     ; $A04A: AD 44 05
   ASL A                                               ; $A04D: 0A
   TAY                                                 ; $A04E: A8
-  LDA DomesticTilePtrTable,Y                          ; $A04F: B9 6B A0
+  LDA StrategyModeTilePtrTable,Y                          ; $A04F: B9 6B A0
   STA tile_ptr_lo                                     ; $A052: 8D 0A 00
-  LDA DomesticTilePtrTable+1,Y                        ; $A055: B9 6C A0
+  LDA StrategyModeTilePtrTable+1,Y                        ; $A055: B9 6C A0
   STA tile_ptr_hi                                     ; $A058: 8D 0B 00
-  LDA DomesticAttrPtrTable,Y                          ; $A05B: B9 79 A0
+  LDA StrategyModeAttrPtrTable,Y                          ; $A05B: B9 79 A0
   STA attr_ptr_lo                                     ; $A05E: 8D 0C 00
-  LDA DomesticAttrPtrTable+1,Y                        ; $A061: B9 7A A0
+  LDA StrategyModeAttrPtrTable+1,Y                        ; $A061: B9 7A A0
   STA attr_ptr_hi                                     ; $A064: 8D 0D 00
   JSR PpuWriteTileOffset                                           ; $A067: 20 4E A2
   RTS                                                 ; $A06A: 60
 
-DomesticTilePtrTable:
+StrategyModeTilePtrTable:
   .word $8440,$8570,$86A0,$87D0,$8900,$8A30,$8B60  ; $A06B: 40 84 70 85 A0 86 D0 87 00 89 30 8A 60 8B
 
-DomesticAttrPtrTable:
+StrategyModeAttrPtrTable:
   .word $8000,$8000,$8000,$8000,$8000,$8000,$8000  ; $A079: 00 80 00 80 00 80 00 80 00 80 00 80 00 80
 .endproc
 
@@ -1667,7 +1667,7 @@ SetupAdvisorTiles:
   LDA param_byte2                                         ; $A9AD: AD 01 00
   PHA                                                 ; $A9B0: 48
   TYA                                                 ; $A9B1: 98
-  JSR B1F_GetRulerDataPtr                             ; $A9B2: 20 68 F3
+  JSR B1F_GetCountryDataPtr                             ; $A9B2: 20 68 F3
   LDY #$03                                            ; $A9B5: A0 03
   LDA (param_byte1),Y                                         ; $A9B7: B1 00
   TAY                                                 ; $A9B9: A8
@@ -2903,19 +2903,19 @@ MainGameDispatch:
   LDA game_state                                           ; $B112: AD A8 04
   JSR B1F_CallbackDispatcher                          ; $B115: 20 DE EA
 ; --- Inline pointer table (22 entries) ---
-  .word DomesticAffairsDispatch                                         ; $B118: 44 B1
+  .word StrategyModeDispatch                                         ; $B118: 44 B1
   .word TroopAssignmentDispatch                                         ; $B11A: 4F B3
   .word CombatCalcDispatch                                         ; $B11C: C8 B5
   .word BattleResultDispatch                                         ; $B11E: C7 B8
-  .word SingleCombatDispatch                                         ; $B120: 6D BA
-  .word DiplomacyDispatch                                         ; $B122: 3B BC
+  .word DuelDispatch                                         ; $B120: 6D BA
+  .word IntrigueDispatch                                        ; $B122: 3B BC
   .word EventCutsceneDispatch                                         ; $B124: E9 BC
   .word BattleInitDispatch                                         ; $B126: 78 BE
   .word BattleSetup_Exec                                         ; $B128: 8A C0
   .word EventCutsceneDispatch2                                         ; $B12A: 16 C1
-  .word DomesticAffairsDispatch                                         ; $B12C: 44 B1
-  .word DomesticAffairsDispatch                                         ; $B12E: 44 B1
-  .word DomesticAffairsDispatch                                         ; $B130: 44 B1
+  .word StrategyModeDispatch                                         ; $B12C: 44 B1
+  .word StrategyModeDispatch                                         ; $B12E: 44 B1
+  .word StrategyModeDispatch                                         ; $B130: 44 B1
   .word MapFadeDispatch                                         ; $B132: 1C C2
   .word TerritoryEventDispatch                                         ; $B134: F6 C2
   .word PaletteTransitionDispatch                                         ; $B136: 64 C4
@@ -2928,29 +2928,29 @@ MainGameDispatch:
 .endproc
 
 ;===============================================================================
-; $B144: DomesticAffairsDispatch
+; $B144: StrategyModeDispatch
 ; Sub-dispatcher: mode 09 (8-entry dispatch table)
 ;===============================================================================
-.proc DomesticAffairsDispatch
-DomesticAffairsDispatch:
+.proc StrategyModeDispatch
+StrategyModeDispatch:
   LDA sub_state                                           ; $B144: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B147: 20 DE EA
 ; --- Inline pointer table (8 entries) ---
-  .word DomesticAffairs_InitOfficers                                         ; $B14A: 5A B1
-  .word DomesticAffairs_ShowMessage                                         ; $B14C: A6 B1
-  .word DomesticAffairs_ShowDialog                                         ; $B14E: BB B1
-  .word DomesticAffairs_LoadPortrait                                         ; $B150: D4 B1
-  .word DomesticAffairs_BuildSpriteData                                         ; $B152: EE B1
-  .word DomesticAffairs_FinalizeSprites                                         ; $B154: 1C B2
-  .word DomesticAffairs_CalcTroopStats                                         ; $B156: 30 B2
-  .word DomesticAffairs_SetupDisplay                                         ; $B158: E0 B2
+  .word StrategyMode_InitOfficers                                         ; $B14A: 5A B1
+  .word StrategyMode_ShowMessage                                         ; $B14C: A6 B1
+  .word StrategyMode_ShowDialog                                         ; $B14E: BB B1
+  .word StrategyMode_LoadPortrait                                         ; $B150: D4 B1
+  .word StrategyMode_BuildSpriteData                                         ; $B152: EE B1
+  .word StrategyMode_FinalizeSprites                                         ; $B154: 1C B2
+  .word StrategyMode_CalcTroopStats                                         ; $B156: 30 B2
+  .word StrategyMode_SetupDisplay                                         ; $B158: E0 B2
 .endproc
 ;===============================================================================
-; $B15A: DomesticAffairs_InitOfficers
+; $B15A: StrategyMode_InitOfficers
 ;===============================================================================
-.proc DomesticAffairs_InitOfficers
+.proc StrategyMode_InitOfficers
   officer_data_ptr     = $0000
-DomesticAffairs_InitOfficers:
+StrategyMode_InitOfficers:
   LDA a:$0087                                         ; $B15A: AD 87 00
   BMI @skip                                           ; $B15D: 30 01
   RTS                                                 ; $B15F: 60
@@ -2980,29 +2980,29 @@ LB188:
   CMP #$10                                            ; $B18E: C9 10
   BCC @skip_2                                           ; $B190: 90 05
   LDA #$01                                            ; $B192: A9 01
-  JMP DomesticAffairs_StoreOfficerSlot                                           ; $B194: 4C A2 B1
+  JMP StrategyMode_StoreOfficerSlot                                           ; $B194: 4C A2 B1
 @skip_2:
   CMP #$08                                            ; $B197: C9 08
   BCC @skip_3                                           ; $B199: 90 05
   LDA #$00                                            ; $B19B: A9 00
-  JMP DomesticAffairs_StoreOfficerSlot                                           ; $B19D: 4C A2 B1
+  JMP StrategyMode_StoreOfficerSlot                                           ; $B19D: 4C A2 B1
 @skip_3:
   LDA #$02                                            ; $B1A0: A9 02
 .endproc
 ;===============================================================================
-; $B1A2: DomesticAffairs_StoreOfficerSlot
+; $B1A2: StrategyMode_StoreOfficerSlot
 ;===============================================================================
-.proc DomesticAffairs_StoreOfficerSlot
-DomesticAffairs_StoreOfficerSlot:
+.proc StrategyMode_StoreOfficerSlot
+StrategyMode_StoreOfficerSlot:
   STA name_tile_index,X                                         ; $B1A2: 9D AF 04
   RTS                                                 ; $B1A5: 60
 .endproc
 ;===============================================================================
-; $B1A6: DomesticAffairs_ShowMessage
+; $B1A6: StrategyMode_ShowMessage
 ;===============================================================================
-.proc DomesticAffairs_ShowMessage
+.proc StrategyMode_ShowMessage
   officer_data_ptr     = $0000
-DomesticAffairs_ShowMessage:
+StrategyMode_ShowMessage:
   LDA a:$007E                                         ; $B1A6: AD 7E 00
   AND #$04                                            ; $B1A9: 29 04
   BNE @skip                                           ; $B1AB: D0 0D
@@ -3015,17 +3015,17 @@ DomesticAffairs_ShowMessage:
   RTS                                                 ; $B1BA: 60
 .endproc
 ;===============================================================================
-; $B1BB: DomesticAffairs_ShowDialog
+; $B1BB: StrategyMode_ShowDialog
 ;===============================================================================
-.proc DomesticAffairs_ShowDialog
+.proc StrategyMode_ShowDialog
   officer_data_ptr     = $0000
-DomesticAffairs_ShowDialog:
+StrategyMode_ShowDialog:
   LDA a:$007E                                         ; $B1BB: AD 7E 00
   AND #$04                                            ; $B1BE: 29 04
   BNE @skip                                           ; $B1C0: D0 11
   LDA #$55                                            ; $B1C2: A9 55
   STA officer_data_ptr                                         ; $B1C4: 8D 00 00
-  LDA domestic_action_index                                           ; $B1C7: AD B0 04
+  LDA strategy_action_index                                           ; $B1C7: AD B0 04
   CLC                                                 ; $B1CA: 18
   ADC #$05                                            ; $B1CB: 69 05
   JSR BuildPPUTileBuffer                                           ; $B1CD: 20 FD CD
@@ -3034,11 +3034,11 @@ DomesticAffairs_ShowDialog:
   RTS                                                 ; $B1D3: 60
 .endproc
 ;===============================================================================
-; $B1D4: DomesticAffairs_LoadPortrait
+; $B1D4: StrategyMode_LoadPortrait
 ;===============================================================================
-.proc DomesticAffairs_LoadPortrait
+.proc StrategyMode_LoadPortrait
   officer_data_ptr     = $0000
-DomesticAffairs_LoadPortrait:
+StrategyMode_LoadPortrait:
   LDA a:$007E                                         ; $B1D4: AD 7E 00
   AND #$04                                            ; $B1D7: 29 04
   BNE @skip                                           ; $B1D9: D0 12
@@ -3053,11 +3053,11 @@ DomesticAffairs_LoadPortrait:
   RTS                                                 ; $B1ED: 60
 .endproc
 ;===============================================================================
-; $B1EE: DomesticAffairs_BuildSpriteData
+; $B1EE: StrategyMode_BuildSpriteData
 ;===============================================================================
-.proc DomesticAffairs_BuildSpriteData
+.proc StrategyMode_BuildSpriteData
   sprite_row_count      = $0003
-DomesticAffairs_BuildSpriteData:
+StrategyMode_BuildSpriteData:
   LDY #$31                                            ; $B1EE: A0 31
   JSR B1F_SwitchBank8_B                               ; $B1F0: 20 5F F2
   LDX #$00                                            ; $B1F3: A2 00
@@ -3078,10 +3078,10 @@ DomesticAffairs_BuildSpriteData:
   RTS                                                 ; $B21B: 60
 .endproc
 ;===============================================================================
-; $B21C: DomesticAffairs_FinalizeSprites
+; $B21C: StrategyMode_FinalizeSprites
 ;===============================================================================
-.proc DomesticAffairs_FinalizeSprites
-DomesticAffairs_FinalizeSprites:
+.proc StrategyMode_FinalizeSprites
+StrategyMode_FinalizeSprites:
   JSR FinalizeSpriteBuffer                                           ; $B21C: 20 60 D0
   LDA #$FF                                            ; $B21F: A9 FF
   STA sprite_y_buffer,X                                         ; $B221: 9D 80 03
@@ -3092,9 +3092,9 @@ DomesticAffairs_FinalizeSprites:
   RTS                                                 ; $B22F: 60
 .endproc
 ;===============================================================================
-; $B230: DomesticAffairs_CalcTroopStats
+; $B230: StrategyMode_CalcTroopStats
 ;===============================================================================
-.proc DomesticAffairs_CalcTroopStats
+.proc StrategyMode_CalcTroopStats
   officer_data_ptr     = $0000
   stat_shifted     = $0001
   tile_attr      = $0002
@@ -3102,7 +3102,7 @@ DomesticAffairs_FinalizeSprites:
   col_counter_lo  = $0004
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-DomesticAffairs_CalcTroopStats:
+StrategyMode_CalcTroopStats:
   LDX #$00                                            ; $B230: A2 00
 @loop:
   LDA player_officer_id_0,X                                         ; $B232: BD AD 04
@@ -3122,10 +3122,10 @@ DomesticAffairs_CalcTroopStats:
   AND #$1F                                            ; $B24D: 29 1F
   STA ptr_0010_lo                                         ; $B24F: 8D 10 00
   TAY                                                 ; $B252: A8
-  LDA DomesticAffairs_TroopStatAdjTable,Y                                         ; $B253: B9 C0 B2
+  LDA StrategyMode_TroopStatAdjTable,Y                                         ; $B253: B9 C0 B2
   STA ptr_0010_lo                                         ; $B256: 8D 10 00
   LDY ptr_0010_hi                                         ; $B259: AC 11 00
-  LDA DomesticAffairs_TroopStatAdjTable,Y                                         ; $B25C: B9 C0 B2
+  LDA StrategyMode_TroopStatAdjTable,Y                                         ; $B25C: B9 C0 B2
   CLC                                                 ; $B25F: 18
   ADC ptr_0010_lo                                         ; $B260: 6D 10 00
   STA ptr_0010_lo                                         ; $B263: 8D 10 00
@@ -3170,22 +3170,22 @@ DomesticAffairs_CalcTroopStats:
   STA frame_counter                                           ; $B2B9: 8D C0 04
   INC sub_state                                           ; $B2BC: EE A9 04
   RTS                                                 ; $B2BF: 60
-DomesticAffairs_TroopStatAdjTable:
+StrategyMode_TroopStatAdjTable:
   .byte $04,$03,$05,$08,$09,$06,$07,$04,$04,$06,$07,$08,$07,$06,$08,$0A; $B2C0: 04 03 05 08 09 06 07 04 04 06 07 08 07 06 08 0A
   .byte $04,$05,$06,$08,$07,$08,$06,$0A,$01,$02,$04,$06,$05,$0A,$03,$07; $B2D0: 04 05 06 08 07 08 06 0A 01 02 04 06 05 0A 03 07
 .endproc
 ;===============================================================================
-; $B2E0: DomesticAffairs_SetupDisplay
+; $B2E0: StrategyMode_SetupDisplay
 ;===============================================================================
-.proc DomesticAffairs_SetupDisplay
+.proc StrategyMode_SetupDisplay
   officer_data_ptr     = $0000
   ppu_tile_lo     = $0001
-DomesticAffairs_SetupDisplay:
+StrategyMode_SetupDisplay:
   LDY name_tile_index                                           ; $B2E0: AC AF 04
-  LDA DomesticAffairs_NameTileLookup+9,Y                                         ; $B2E3: B9 4C B3
+  LDA StrategyMode_NameTileLookup+9,Y                                         ; $B2E3: B9 4C B3
   STA officer_data_ptr                                         ; $B2E6: 8D 00 00
-  LDY domestic_action_index                                           ; $B2E9: AC B0 04
-  LDA DomesticAffairs_NameTileLookup+9,Y                                         ; $B2EC: B9 4C B3
+  LDY strategy_action_index                                           ; $B2E9: AC B0 04
+  LDA StrategyMode_NameTileLookup+9,Y                                         ; $B2EC: B9 4C B3
   STA ppu_tile_lo                                         ; $B2EF: 8D 01 00
   LDA officer_data_ptr                                         ; $B2F2: AD 00 00
   ASL A                                               ; $B2F5: 0A
@@ -3194,7 +3194,7 @@ DomesticAffairs_SetupDisplay:
   CLC                                                 ; $B2FA: 18
   ADC ppu_tile_lo                                         ; $B2FB: 6D 01 00
   TAY                                                 ; $B2FE: A8
-  LDA DomesticAffairs_NameTileLookup,Y                                         ; $B2FF: B9 43 B3
+  LDA StrategyMode_NameTileLookup,Y                                         ; $B2FF: B9 43 B3
   STA name_tile_ptr_lo                                           ; $B302: 8D C5 04
   LDA ppu_tile_lo                                         ; $B305: AD 01 00
   ASL A                                               ; $B308: 0A
@@ -3203,7 +3203,7 @@ DomesticAffairs_SetupDisplay:
   CLC                                                 ; $B30D: 18
   ADC officer_data_ptr                                         ; $B30E: 6D 00 00
   TAY                                                 ; $B311: A8
-  LDA DomesticAffairs_NameTileLookup,Y                                         ; $B312: B9 43 B3
+  LDA StrategyMode_NameTileLookup,Y                                         ; $B312: B9 43 B3
   STA name_tile_ptr_hi                                           ; $B315: 8D C6 04
   LDA #$02                                            ; $B318: A9 02
   STA event_overlay_flag                                           ; $B31A: 8D C3 04
@@ -3222,7 +3222,7 @@ DomesticAffairs_SetupDisplay:
   LDA #$00                                            ; $B33D: A9 00
   STA sub_state                                           ; $B33F: 8D A9 04
   RTS                                                 ; $B342: 60
-DomesticAffairs_NameTileLookup:
+StrategyMode_NameTileLookup:
   .byte $46,$4B,$3C,$37,$3C,$46,$50,$32,$3C,$01,$02,$00; $B343: 46 4B 3C 37 3C 46 50 32 3C 01 02 00
 .endproc
 
@@ -4236,30 +4236,30 @@ BattleResult_ComputeDifferential:
   RTS                                                 ; $BA6C: 60
 .endproc
 ;===============================================================================
-; $BA6D: SingleCombatDispatch
+; $BA6D: DuelDispatch
 ;===============================================================================
-.proc SingleCombatDispatch
-SingleCombatDispatch:
+.proc DuelDispatch
+DuelDispatch:
   LDA sub_state                                           ; $BA6D: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BA70: 20 DE EA
 ; --- Inline pointer table (10 entries) ---
-  .word SingleCombat_Init                                         ; $BA73: 87 BA
-  .word SingleCombat_CheckContinue                                         ; $BA75: A5 BA
-  .word SingleCombat_ShowMenu                                         ; $BA77: C0 BA
-  .word SingleCombat_PlayerAction                                         ; $BA79: DA BA
-  .word SingleCombat_RandomEvent                                         ; $BA7B: 03 BB
-  .word SingleCombat_ShowMenu2                                         ; $BA7D: 41 BB
-  .word SingleCombat_ApplyDamage                                         ; $BA7F: 5B BB
-  .word SingleCombat_CheckFlee                                         ; $BA81: 93 BB
-  .word SingleCombat_NextRound                                         ; $BA83: C0 BB
-  .word SingleCombat_CheckEnd                                         ; $BA85: 00 BC
+  .word Duel_Init                                         ; $BA73: 87 BA
+  .word Duel_CheckContinue                                         ; $BA75: A5 BA
+  .word Duel_ShowMenu                                         ; $BA77: C0 BA
+  .word Duel_PlayerAction                                         ; $BA79: DA BA
+  .word Duel_RandomEvent                                         ; $BA7B: 03 BB
+  .word Duel_ShowMenu2                                         ; $BA7D: 41 BB
+  .word Duel_ApplyDamage                                         ; $BA7F: 5B BB
+  .word Duel_CheckFlee                                         ; $BA81: 93 BB
+  .word Duel_NextRound                                         ; $BA83: C0 BB
+  .word Duel_CheckEnd                                         ; $BA85: 00 BC
 .endproc
 ;===============================================================================
-; $BA87: SingleCombat_Init
+; $BA87: Duel_Init
 ;===============================================================================
-.proc SingleCombat_Init
+.proc Duel_Init
   officer_data_ptr     = $0000
-SingleCombat_Init:
+Duel_Init:
   JSR CheckButtonConfirm                                           ; $BA87: 20 99 D2
   BCC @skip                                           ; $BA8A: 90 18
   INC sub_state                                           ; $BA8C: EE A9 04
@@ -4276,10 +4276,10 @@ SingleCombat_Init:
   RTS                                                 ; $BAA4: 60
 .endproc
 ;===============================================================================
-; $BAA5: SingleCombat_CheckContinue
+; $BAA5: Duel_CheckContinue
 ;===============================================================================
-.proc SingleCombat_CheckContinue
-SingleCombat_CheckContinue:
+.proc Duel_CheckContinue
+Duel_CheckContinue:
   JSR SetupMenuPtr                                           ; $BAA5: 20 66 D1
   JSR CheckButtonConfirm                                           ; $BAA8: 20 99 D2
   BCC @skip                                           ; $BAAB: 90 12
@@ -4294,10 +4294,10 @@ SingleCombat_CheckContinue:
   RTS                                                 ; $BABF: 60
 .endproc
 ;===============================================================================
-; $BAC0: SingleCombat_ShowMenu
+; $BAC0: Duel_ShowMenu
 ;===============================================================================
-.proc SingleCombat_ShowMenu
-SingleCombat_ShowMenu:
+.proc Duel_ShowMenu
+Duel_ShowMenu:
   JSR CheckButtonConfirm                                           ; $BAC0: 20 99 D2
   BCC @skip                                           ; $BAC3: 90 14
   LDA #$04                                            ; $BAC5: A9 04
@@ -4312,12 +4312,12 @@ SingleCombat_ShowMenu:
   RTS                                                 ; $BAD9: 60
 .endproc
 ;===============================================================================
-; $BADA: SingleCombat_PlayerAction
+; $BADA: Duel_PlayerAction
 ;===============================================================================
-.proc SingleCombat_PlayerAction
+.proc Duel_PlayerAction
   officer_data_ptr     = $0000
   callback_result       = $00A4
-SingleCombat_PlayerAction:
+Duel_PlayerAction:
   JSR CheckButtonConfirm                                           ; $BADA: 20 99 D2
   BCC @skip                                           ; $BADD: 90 23
   LDA active_player_slot                                           ; $BADF: AD AA 04
@@ -4339,11 +4339,11 @@ SingleCombat_PlayerAction:
   RTS                                                 ; $BB02: 60
 .endproc
 ;===============================================================================
-; $BB03: SingleCombat_RandomEvent
+; $BB03: Duel_RandomEvent
 ;===============================================================================
-.proc SingleCombat_RandomEvent
+.proc Duel_RandomEvent
   work_0011       = $0011
-SingleCombat_RandomEvent:
+Duel_RandomEvent:
   LDA active_player_slot                                           ; $BB03: AD AA 04
   JSR SetupMenuPtr                                           ; $BB06: 20 66 D1
   JSR CheckButtonConfirm                                           ; $BB09: 20 99 D2
@@ -4374,10 +4374,10 @@ SingleCombat_RandomEvent:
   RTS                                                 ; $BB40: 60
 .endproc
 ;===============================================================================
-; $BB41: SingleCombat_ShowMenu2
+; $BB41: Duel_ShowMenu2
 ;===============================================================================
-.proc SingleCombat_ShowMenu2
-SingleCombat_ShowMenu2:
+.proc Duel_ShowMenu2
+Duel_ShowMenu2:
   JSR CheckButtonConfirm                                           ; $BB41: 20 99 D2
   BCC @skip                                           ; $BB44: 90 14
   LDA #$04                                            ; $BB46: A9 04
@@ -4392,14 +4392,14 @@ SingleCombat_ShowMenu2:
   RTS                                                 ; $BB5A: 60
 .endproc
 ;===============================================================================
-; $BB5B: SingleCombat_ApplyDamage
+; $BB5B: Duel_ApplyDamage
 ;===============================================================================
-.proc SingleCombat_ApplyDamage
+.proc Duel_ApplyDamage
   damage_amount_lo     = $042F
   damage_amount_hi     = $0430
   damage_applied       = $0431
   officer_data_ptr     = $0000
-SingleCombat_ApplyDamage:
+Duel_ApplyDamage:
   LDA #$0A                                            ; $BB5B: A9 0A
   JSR B1F_RandomBelowThreshold                        ; $BB5D: 20 62 E8
   CLC                                                 ; $BB60: 18
@@ -4427,11 +4427,11 @@ SingleCombat_ApplyDamage:
   JMP B1F_SetUI4                                      ; $BB90: 4C 8B F2
 .endproc
 ;===============================================================================
-; $BB93: SingleCombat_CheckFlee
+; $BB93: Duel_CheckFlee
 ;===============================================================================
-.proc SingleCombat_CheckFlee
+.proc Duel_CheckFlee
   officer_data_ptr     = $0000
-SingleCombat_CheckFlee:
+Duel_CheckFlee:
   JSR CheckButtonConfirm                                           ; $BB93: 20 99 D2
   BCC @skip_2                                           ; $BB96: 90 27
   JSR ReadMenuSelection                                           ; $BB98: 20 3D D1
@@ -4446,7 +4446,7 @@ SingleCombat_CheckFlee:
   LDY #$00                                            ; $BBAE: A0 00
   LDA (officer_data_ptr),Y                                         ; $BBB0: B1 00
   BEQ @skip                                           ; $BBB2: F0 03
-  JMP SingleCombat_SwapActive                                           ; $BBB4: 4C 16 BC
+  JMP Duel_SwapActive                                           ; $BBB4: 4C 16 BC
 @skip:
   INC sub_state                                           ; $BBB7: EE A9 04
   LDA #$26                                            ; $BBBA: A9 26
@@ -4455,10 +4455,10 @@ SingleCombat_CheckFlee:
   RTS                                                 ; $BBBF: 60
 .endproc
 ;===============================================================================
-; $BBC0: SingleCombat_NextRound
+; $BBC0: Duel_NextRound
 ;===============================================================================
-.proc SingleCombat_NextRound
-SingleCombat_NextRound:
+.proc Duel_NextRound
+Duel_NextRound:
   JSR CheckButtonConfirm                                           ; $BBC0: 20 99 D2
   BCC @skip                                           ; $BBC3: 90 0A
   JSR ReadMenuSelection                                           ; $BBC5: 20 3D D1
@@ -4493,10 +4493,10 @@ SingleCombat_NextRound:
   RTS                                                 ; $BBFF: 60
 .endproc
 ;===============================================================================
-; $BC00: SingleCombat_CheckEnd
+; $BC00: Duel_CheckEnd
 ;===============================================================================
-.proc SingleCombat_CheckEnd
-SingleCombat_CheckEnd:
+.proc Duel_CheckEnd
+Duel_CheckEnd:
   LDA active_player_slot                                           ; $BC00: AD AA 04
   JSR SetupMenuPtr                                           ; $BC03: 20 66 D1
   JSR CheckButtonConfirm                                           ; $BC06: 20 99 D2
@@ -4504,15 +4504,15 @@ SingleCombat_CheckEnd:
   JSR ReadMenuSelection                                           ; $BC0B: 20 3D D1
   LDA a:$0081                                         ; $BC0E: AD 81 00
   AND #$03                                            ; $BC11: 29 03
-  BNE SingleCombat_SwapActive                                           ; $BC13: D0 01
+  BNE Duel_SwapActive                                           ; $BC13: D0 01
 @skip:
   RTS                                                 ; $BC15: 60
 .endproc
 ;===============================================================================
-; $BC16: SingleCombat_SwapActive
+; $BC16: Duel_SwapActive
 ;===============================================================================
-.proc SingleCombat_SwapActive
-SingleCombat_SwapActive:
+.proc Duel_SwapActive
+Duel_SwapActive:
   LDA active_player_slot                                           ; $BC16: AD AA 04
   EOR #$01                                            ; $BC19: 49 01
   STA active_player_slot                                           ; $BC1B: 8D AA 04
@@ -4533,38 +4533,38 @@ SingleCombat_SwapActive:
   RTS                                                 ; $BC3A: 60
 .endproc
 ;===============================================================================
-; $BC3B: DiplomacyDispatch
+; $BC3B: IntrigueDispatch (策略: alliance/discord/poach command group)
 ;===============================================================================
-.proc DiplomacyDispatch
-DiplomacyDispatch:
+.proc IntrigueDispatch
+IntrigueDispatch:
   LDA sub_state                                           ; $BC3B: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BC3E: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word Diplomacy_Init                                         ; $BC41: 47 BC
-  .word Diplomacy_ShowMenu                                         ; $BC43: 5C BC
-  .word Diplomacy_HandleAction                                         ; $BC45: 8C BC
+  .word Intrigue_Init                                         ; $BC41: 47 BC
+  .word Intrigue_ShowMenu                                         ; $BC43: 5C BC
+  .word Intrigue_HandleAction                                         ; $BC45: 8C BC
 .endproc
 ;===============================================================================
-; $BC47: Diplomacy_Init
+; $BC47: Intrigue_Init
 ;===============================================================================
-.proc Diplomacy_Init
-Diplomacy_Init:
+.proc Intrigue_Init
+Intrigue_Init:
   INC sub_state                                           ; $BC47: EE A9 04
   LDA #$00                                            ; $BC4A: A9 00
-  STA domestic_cursor_lo                                           ; $BC4C: 8D 0C 04
-  STA domestic_cursor_hi                                           ; $BC4F: 8D 0D 04
+  STA strategy_cursor_lo                                           ; $BC4C: 8D 0C 04
+  STA strategy_cursor_hi                                           ; $BC4F: 8D 0D 04
   LDY display_ptr_hi                                           ; $BC52: AC BE 04
   LDA player_officer_id_0,Y                                         ; $BC55: B9 AD 04
-  STA domestic_officer_list_lo                                           ; $BC58: 8D 10 04
+  STA strategy_officer_list_lo                                           ; $BC58: 8D 10 04
   RTS                                                 ; $BC5B: 60
 .endproc
 ;===============================================================================
-; $BC5C: Diplomacy_ShowMenu
+; $BC5C: Intrigue_ShowMenu
 ;===============================================================================
-.proc Diplomacy_ShowMenu
+.proc Intrigue_ShowMenu
   temp_0097       = $0097
   temp_00bb       = $00BB
-Diplomacy_ShowMenu:
+Intrigue_ShowMenu:
   LDA display_ptr_hi                                           ; $BC5C: AD BE 04
   STA active_player_slot                                           ; $BC5F: 8D AA 04
   JSR SetupMenuPtr                                           ; $BC62: 20 66 D1
@@ -4574,7 +4574,7 @@ Diplomacy_ShowMenu:
   JSR B1F_BankedCallbackTrampoline                    ; $BC6D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word $A012                                         ; $BC70: 12 A0
-  LDA domestic_cursor_hi                                           ; $BC72: AD 0D 04
+  LDA strategy_cursor_hi                                           ; $BC72: AD 0D 04
   CMP #$FF                                            ; $BC75: C9 FF
   BNE @skip                                           ; $BC77: D0 12
   LDA #$06                                            ; $BC79: A9 06
@@ -4588,27 +4588,27 @@ Diplomacy_ShowMenu:
   RTS                                                 ; $BC8B: 60
 .endproc
 ;===============================================================================
-; $BC8C: Diplomacy_HandleAction
+; $BC8C: Intrigue_HandleAction
 ;===============================================================================
-.proc Diplomacy_HandleAction
-  diplomacy_flags       = $0010
+.proc Intrigue_HandleAction
+  intrigue_flags       = $0010
   temp_0097       = $0097
   ptr_00bb_lo     = $00BB
   ptr_00bb_hi     = $00BC
   temp_00bd       = $00BD
-Diplomacy_HandleAction:
+Intrigue_HandleAction:
   LDA display_ptr_hi                                           ; $BC8C: AD BE 04
   STA active_player_slot                                           ; $BC8F: 8D AA 04
   JSR SetupMenuPtr                                           ; $BC92: 20 66 D1
   LDA sub_action_type                                           ; $BC95: AD BF 04
   STA active_player_slot                                           ; $BC98: 8D AA 04
-  LDA domestic_cursor_hi                                           ; $BC9B: AD 0D 04
+  LDA strategy_cursor_hi                                           ; $BC9B: AD 0D 04
   BPL @skip                                           ; $BC9E: 10 1E
   LDA a:$0081                                         ; $BCA0: AD 81 00
-  STA diplomacy_flags                                         ; $BCA3: 8D 10 00
+  STA intrigue_flags                                         ; $BCA3: 8D 10 00
   AND #$02                                            ; $BCA6: 29 02
   BNE @skip_2                                           ; $BCA8: D0 15
-  LDA diplomacy_flags                                         ; $BCAA: AD 10 00
+  LDA intrigue_flags                                         ; $BCAA: AD 10 00
   AND #$30                                            ; $BCAD: 29 30
   BEQ @skip                                           ; $BCAF: F0 0D
   LDA display_ptr_hi                                           ; $BCB1: AD BE 04
@@ -5562,7 +5562,7 @@ TerritoryEvent_Execute:
   LDA #$00                                            ; $C386: A9 00
   STA ptr_0010_lo                                         ; $C388: 8D 10 00
 @loop:
-  JSR B1F_GetRulerDataPtr                             ; $C38B: 20 68 F3
+  JSR B1F_GetCountryDataPtr                             ; $C38B: 20 68 F3
   LDY #$00                                            ; $C38E: A0 00
   LDA (officer_data_ptr),Y                                         ; $C390: B1 00
   CMP player0_officer_lo,X                                         ; $C392: DD 14 05
@@ -7920,7 +7920,7 @@ CheckPlayerIsRuler:
   LDX #$00                                            ; $D26B: A2 00
 @loop:
   TXA                                                 ; $D26D: 8A
-  JSR B1F_GetRulerDataPtr                             ; $D26E: 20 68 F3
+  JSR B1F_GetCountryDataPtr                             ; $D26E: 20 68 F3
   LDY #$00                                            ; $D271: A0 00
   LDA (param_byte1),Y                                         ; $D273: B1 00
   CMP work_0010                                         ; $D275: CD 10 00
@@ -8150,37 +8150,37 @@ MapColumnTileGfx:
   .byte $00,$47,$48,$00,$00,$00,$00,$00        ; $D683: 00 47 48 00 00 00 00 00
   .byte $4C,$4D,$4E,$00,$00,$00,$00,$00        ; $D68B: 4C 4D 4E 00 00 00 00 00
 
-;--- $D693: Domestic Action System ---
+;--- $D693: Strategy Command System ---
 
 ;===============================================================================
-; $D693: DomesticActionDispatch
-; DomesticActionDispatch_Entry: Domestic action dispatch (6-entry dispatch table)
+; $D693: StrategyCommandDispatch
+; StrategyCommandDispatch_Entry: Strategy command dispatch (6-entry dispatch table)
 ;===============================================================================
 ; Target0A ($D693):
-.proc DomesticActionDispatch
-DomesticActionDispatch:
+.proc StrategyCommandDispatch
+StrategyCommandDispatch:
   LDY #$26                                            ; $D693: A0 26
   JSR B1F_SwitchBank8_B                               ; $D695: 20 5F F2
-  LDA dom_scroll_param                                           ; $D698: AD 41 05
+  LDA strat_scroll_param                                           ; $D698: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D69B: 20 DE EA
 
 ;===============================================================================
-; $D69E: DomesticAction dispatch table
+; $D69E: StrategyCommand dispatch table
 ; --- Inline pointer table (6 entries) ---
-  .word DomAction_InitOfficerScroll                                         ; $D69E: AA D6
-  .word DomAction_ScrollIntroPanel                                          ; $D6A0: 9B D7
-  .word DomAction_ScrollTextPhase2                                         ; $D6A2: 3A D8
-  .word DomAction_ScrollAndWait                                         ; $D6A4: C9 D8
-  .word DomAction_MainInteractive                                         ; $D6A6: CA D9
-  .word DomAction_FinalizeCleanup                                         ; $D6A8: 20 D9
+  .word StrategyCommand_InitOfficerScroll                                         ; $D69E: AA D6
+  .word StrategyCommand_ScrollIntroPanel                                          ; $D6A0: 9B D7
+  .word StrategyCommand_ScrollTextPhase2                                         ; $D6A2: 3A D8
+  .word StrategyCommand_ScrollAndWait                                         ; $D6A4: C9 D8
+  .word StrategyCommand_MainInteractive                                         ; $D6A6: CA D9
+  .word StrategyCommand_FinalizeCleanup                                         ; $D6A8: 20 D9
 .endproc
 ;===============================================================================
-; $D6AA: DomAction_InitOfficerScroll
-; Domestic action state 0: Initialize officer list and scroll display
+; $D6AA: StrategyCommand_InitOfficerScroll
+; Strategy command state 0: Initialize officer list and scroll display
 ;===============================================================================
-.proc DomAction_InitOfficerScroll
+.proc StrategyCommand_InitOfficerScroll
   work_offset     = $0402
-DomAction_InitOfficerScroll:
+StrategyCommand_InitOfficerScroll:
   LDA dispatch_src_ptr_lo                                           ; $D6AA: AD CA 04
   BNE @skip_2                                           ; $D6AD: D0 25
   LDA #$00                                            ; $D6AF: A9 00
@@ -8251,9 +8251,9 @@ DomAction_InitOfficerScroll:
   LDA #$00                                            ; $D736: A9 00
   STA sram_scroll_pending                                           ; $D738: 8D 43 6F
   LDA map_scroll_ptr_lo                                           ; $D73B: AD 72 04
-  STA domestic_work_ptr_lo                                           ; $D73E: 8D 00 04
+  STA strategy_work_ptr_lo                                           ; $D73E: 8D 00 04
   LDA map_scroll_ptr_hi                                           ; $D741: AD 73 04
-  STA domestic_work_ptr_hi                                           ; $D744: 8D 01 04
+  STA strategy_work_ptr_hi                                           ; $D744: 8D 01 04
   LDA #$00                                            ; $D747: A9 00
   STA work_offset                                           ; $D749: 8D 02 04
   LDA #$01                                            ; $D74C: A9 01
@@ -8279,14 +8279,14 @@ OfficerScrollPalette:
   .byte $0F,$30,$10,$00,$0F,$0F,$1B,$28,$0F,$36,$30,$16,$0F,$20,$27,$17; $D78B
 .endproc
 ;===============================================================================
-; $D79B: DomAction_ScrollIntroPanel
-; Domestic action state 1: Scroll intro panel with fade transition
+; $D79B: StrategyCommand_ScrollIntroPanel
+; Strategy command state 1: Scroll intro panel with fade transition
 ;===============================================================================
-.proc DomAction_ScrollIntroPanel
+.proc StrategyCommand_ScrollIntroPanel
   temp_006a       = $006A
   ptr_006c_lo     = $006C
   ptr_006c_hi     = $006D
-DomAction_ScrollIntroPanel:
+StrategyCommand_ScrollIntroPanel:
   LDA dispatch_src_ptr_lo                                           ; $D79B: AD CA 04
   BNE @skip_3                                           ; $D79E: D0 37
   LDA dispatch_step                                           ; $D7A0: AD C9 04
@@ -8357,18 +8357,18 @@ DomAction_ScrollIntroPanel:
   LDA #$00                                            ; $D829: A9 00
   STA dispatch_step                                           ; $D82B: 8D C9 04
   STA dispatch_src_ptr_lo                                           ; $D82E: 8D CA 04
-  INC dom_scroll_param                                           ; $D831: EE 41 05
+  INC strat_scroll_param                                           ; $D831: EE 41 05
   LDA #$00                                            ; $D834: A9 00
   JSR B1F_SetUI4                                      ; $D836: 20 8B F2
 @skip_8:
   RTS                                                 ; $D839: 60
 .endproc
 ;===============================================================================
-; $D83A: DomAction_ScrollTextPhase2
-; Domestic action state 2: Scroll second text panel with fade transition
+; $D83A: StrategyCommand_ScrollTextPhase2
+; Strategy command state 2: Scroll second text panel with fade transition
 ;===============================================================================
-.proc DomAction_ScrollTextPhase2
-DomAction_ScrollTextPhase2:
+.proc StrategyCommand_ScrollTextPhase2
+StrategyCommand_ScrollTextPhase2:
   LDA dispatch_src_ptr_lo                                           ; $D83A: AD CA 04
   BNE @skip_3                                           ; $D83D: D0 28
   LDA dispatch_step                                           ; $D83F: AD C9 04
@@ -8432,7 +8432,7 @@ DomAction_ScrollTextPhase2:
 @skip_8:
   LDA a:$0087                                         ; $D8B3: AD 87 00
   BPL @skip_9                                           ; $D8B6: 10 10
-  INC dom_scroll_param                                           ; $D8B8: EE 41 05
+  INC strat_scroll_param                                           ; $D8B8: EE 41 05
   LDA #$00                                            ; $D8BB: A9 00
   STA dispatch_step                                           ; $D8BD: 8D C9 04
   STA dispatch_src_ptr_lo                                           ; $D8C0: 8D CA 04
@@ -8442,11 +8442,11 @@ DomAction_ScrollTextPhase2:
   RTS                                                 ; $D8C8: 60
 .endproc
 ;===============================================================================
-; $D8C9: DomAction_ScrollAndWait
-; Domestic action state 3: Scroll final panel, wait for timer, then branch
+; $D8C9: StrategyCommand_ScrollAndWait
+; Strategy command state 3: Scroll final panel, wait for timer, then branch
 ;===============================================================================
-.proc DomAction_ScrollAndWait
-DomAction_ScrollAndWait:
+.proc StrategyCommand_ScrollAndWait
+StrategyCommand_ScrollAndWait:
   LDA dispatch_src_ptr_lo                                           ; $D8C9: AD CA 04
   BNE @skip_3                                           ; $D8CC: D0 28
   LDA dispatch_step                                           ; $D8CE: AD C9 04
@@ -8478,25 +8478,25 @@ DomAction_ScrollAndWait:
   LDA dispatch_timer                                           ; $D905: AD 35 04
   CMP #$46                                            ; $D908: C9 46
   BCC @skip_6                                           ; $D90A: 90 09
-  INC dom_scroll_param                                           ; $D90C: EE 41 05
+  INC strat_scroll_param                                           ; $D90C: EE 41 05
   LDA #$00                                            ; $D90F: A9 00
-  STA dom_display_ptr_lo                                           ; $D911: 8D 42 05
+  STA strat_display_ptr_lo                                           ; $D911: 8D 42 05
 @skip_5:
   RTS                                                 ; $D914: 60
 @skip_6:
   LDA #$05                                            ; $D915: A9 05
-  STA dom_scroll_param                                           ; $D917: 8D 41 05
+  STA strat_scroll_param                                           ; $D917: 8D 41 05
   LDA #$04                                            ; $D91A: A9 04
-  STA dom_display_ptr_lo                                           ; $D91C: 8D 42 05
+  STA strat_display_ptr_lo                                           ; $D91C: 8D 42 05
   RTS                                                 ; $D91F: 60
 .endproc
 ;===============================================================================
-; $D920: DomAction_FinalizeCleanup
-; Domestic action state 5: Finalization sub-dispatcher (6 sub-states)
+; $D920: StrategyCommand_FinalizeCleanup
+; Strategy command state 5: Finalization sub-dispatcher (6 sub-states)
 ;===============================================================================
-.proc DomAction_FinalizeCleanup
-DomAction_FinalizeCleanup:
-  LDA dom_display_ptr_lo                                           ; $D920: AD 42 05
+.proc StrategyCommand_FinalizeCleanup
+StrategyCommand_FinalizeCleanup:
+  LDA strat_display_ptr_lo                                           ; $D920: AD 42 05
   JSR B1F_CallbackDispatcher                          ; $D923: 20 DE EA
 ; --- Inline pointer table (6 entries) ---
   .word Finalize_Init                                                      ; $D926: 32 D9
@@ -8520,10 +8520,10 @@ Finalize_Init:
   LDA #$A7                                            ; $D93E: A9 A7
   STA $BD                                             ; $D940: 85 BD
   LDA #$F2                                            ; $D942: A9 F2
-  STA dom_display_ptr_hi                                           ; $D944: 8D 43 05
-  INC dom_display_ptr_lo                                           ; $D947: EE 42 05
+  STA strat_display_ptr_hi                                           ; $D944: 8D 43 05
+  INC strat_display_ptr_lo                                           ; $D947: EE 42 05
   LDA #$01                                            ; $D94A: A9 01
-  STA dom_scroll_index                                           ; $D94C: 8D 44 05
+  STA strat_scroll_index                                           ; $D94C: 8D 44 05
   RTS                                                 ; $D94F: 60
 .endproc
 ;===============================================================================
@@ -8531,9 +8531,9 @@ Finalize_Init:
 ;===============================================================================
 .proc Finalize_SetupUI
 Finalize_SetupUI:
-  LDA dom_display_ptr_hi                                           ; $D950: AD 43 05
+  LDA strat_display_ptr_hi                                           ; $D950: AD 43 05
   JSR B1F_SetUI4                                      ; $D953: 20 8B F2
-  INC dom_display_ptr_lo                                           ; $D956: EE 42 05
+  INC strat_display_ptr_lo                                           ; $D956: EE 42 05
   RTS                                                 ; $D959: 60
 .endproc
 ;===============================================================================
@@ -8547,11 +8547,11 @@ Finalize_WaitConfirm:
   LDA confirm_check_1                                           ; $D961: AD 04 03
   CMP #$FF                                            ; $D964: C9 FF
   BNE @skip                                           ; $D966: D0 0D
-  DEC dom_scroll_index                                           ; $D968: CE 44 05
+  DEC strat_scroll_index                                           ; $D968: CE 44 05
   BNE @skip                                           ; $D96B: D0 08
   LDA #$00                                            ; $D96D: A9 00
   STA scroll_ptr_hi                                           ; $D96F: 8D 09 04
-  INC dom_display_ptr_lo                                           ; $D972: EE 42 05
+  INC strat_display_ptr_lo                                           ; $D972: EE 42 05
 @skip:
   RTS                                                 ; $D975: 60
 .endproc
@@ -8571,22 +8571,22 @@ Finalize_ScrollTimer:
   LDA scroll_ptr_hi                                           ; $D988: AD 09 04
   CMP #$50                                            ; $D98B: C9 50
   BCC @skip_3                                           ; $D98D: 90 24
-  DEC dom_display_ptr_lo                                           ; $D98F: CE 42 05
-  DEC dom_display_ptr_lo                                           ; $D992: CE 42 05
+  DEC strat_display_ptr_lo                                           ; $D98F: CE 42 05
+  DEC strat_display_ptr_lo                                           ; $D992: CE 42 05
   LDA #$60                                            ; $D995: A9 60
-  STA dom_scroll_index                                           ; $D997: 8D 44 05
-  INC dom_display_ptr_hi                                           ; $D99A: EE 43 05
-  LDA dom_display_ptr_hi                                           ; $D99D: AD 43 05
+  STA strat_scroll_index                                           ; $D997: 8D 44 05
+  INC strat_display_ptr_hi                                           ; $D99A: EE 43 05
+  LDA strat_display_ptr_hi                                           ; $D99D: AD 43 05
   CMP #$F9                                            ; $D9A0: C9 F9
   BNE @skip_2                                           ; $D9A2: D0 06
   LDA #$01                                            ; $D9A4: A9 01
-  STA dom_scroll_index                                           ; $D9A6: 8D 44 05
+  STA strat_scroll_index                                           ; $D9A6: 8D 44 05
   RTS                                                 ; $D9A9: 60
 @skip_2:
   CMP #$FA                                            ; $D9AA: C9 FA
   BNE @skip_3                                           ; $D9AC: D0 05
   LDA #$04                                            ; $D9AE: A9 04
-  STA dom_display_ptr_lo                                           ; $D9B0: 8D 42 05
+  STA strat_display_ptr_lo                                           ; $D9B0: 8D 42 05
 @skip_3:
   RTS                                                 ; $D9B3: 60
 .endproc
@@ -8599,7 +8599,7 @@ Finalize_PaletteCopy:
   AND #$08                                            ; $D9B7: 29 08
   BEQ Finalize_NoOp                                          ; $D9B9: F0 06
   JSR B1F_PaletteCopyBuffer                           ; $D9BB: 20 EE EC
-  INC dom_display_ptr_lo                                           ; $D9BE: EE 42 05
+  INC strat_display_ptr_lo                                           ; $D9BE: EE 42 05
 .endproc
 ;===============================================================================
 ; $D9C1: Finalize_NoOp
@@ -8618,34 +8618,34 @@ Finalize_ExitTransition:
   JMP $E000                                           ; $D9C7: 4C 00 E0
 .endproc
 ;===============================================================================
-; $D9CA: DomAction_MainInteractive
-; Domestic action state 4: Main interactive sub-dispatcher (7 sub-states)
+; $D9CA: StrategyCommand_MainInteractive
+; Strategy command state 4: Main interactive sub-dispatcher (7 sub-states)
 ;===============================================================================
-.proc DomAction_MainInteractive
-DomAction_MainInteractive:
-  LDA dom_display_ptr_lo                                           ; $D9CA: AD 42 05
+.proc StrategyCommand_MainInteractive
+StrategyCommand_MainInteractive:
+  LDA strat_display_ptr_lo                                           ; $D9CA: AD 42 05
   JSR B1F_CallbackDispatcher                          ; $D9CD: 20 DE EA
 ; --- Inline pointer table (7 entries) ---
-  .word DomAction_BuildOfficerList                                           ; $D9D0: DE D9
-  .word DomAction_InitOfficerDisplay                                         ; $D9D2: 41 DA
-  .word DomAction_RenderOfficerEntry                                         ; $D9D4: 87 DA
-  .word DomAction_UpdateOfficerDisplay                                       ; $D9D6: B6 DA
-  .word DomAction_ScrollOfficerList                                          ; $D9D8: E0 DA
-  .word DomAction_FinalizeDisplayBuffer                                      ; $D9DA: 90 DB
-  .word DomAction_CheckConfirmInput                                          ; $D9DC: DA DB
+  .word StrategyCommand_BuildOfficerList                                           ; $D9D0: DE D9
+  .word StrategyCommand_InitOfficerDisplay                                         ; $D9D2: 41 DA
+  .word StrategyCommand_RenderOfficerEntry                                         ; $D9D4: 87 DA
+  .word StrategyCommand_UpdateOfficerDisplay                                       ; $D9D6: B6 DA
+  .word StrategyCommand_ScrollOfficerList                                          ; $D9D8: E0 DA
+  .word StrategyCommand_FinalizeDisplayBuffer                                      ; $D9DA: 90 DB
+  .word StrategyCommand_CheckConfirmInput                                          ; $D9DC: DA DB
 .endproc
 ;===============================================================================
-; $D9DE: DomAction_BuildOfficerList
+; $D9DE: StrategyCommand_BuildOfficerList
 ;===============================================================================
-.proc DomAction_BuildOfficerList
+.proc StrategyCommand_BuildOfficerList
   param_byte1     = $0000
-DomAction_BuildOfficerList:
+StrategyCommand_BuildOfficerList:
   LDY #$30                                            ; $D9DE: A0 30
   JSR B1F_SwitchBank8_B                               ; $D9E0: 20 5F F2
   LDA #$FE                                            ; $D9E3: A9 FE
-  STA domestic_officer_list_lo                                           ; $D9E5: 8D 10 04
+  STA strategy_officer_list_lo                                           ; $D9E5: 8D 10 04
   LDA selected_officer_id                                           ; $D9E8: AD 2C 04
-  STA domestic_officer_list_hi                                           ; $D9EB: 8D 11 04
+  STA strategy_officer_list_hi                                           ; $D9EB: 8D 11 04
   LDX #$00                                            ; $D9EE: A2 00
   LDA #$02                                            ; $D9F0: A9 02
   STA $02                                             ; $D9F2: 85 02
@@ -8658,10 +8658,10 @@ DomAction_BuildOfficerList:
   LDA (param_byte1),Y                                         ; $D9FB: B1 00
   CMP #$FF                                            ; $D9FD: C9 FF
   BEQ @skip                                           ; $D9FF: F0 0C
-  CMP domestic_officer_list_hi                                           ; $DA01: CD 11 04
+  CMP strategy_officer_list_hi                                           ; $DA01: CD 11 04
   BEQ @skip                                           ; $DA04: F0 07
   LDX $02                                             ; $DA06: A6 02
-  STA domestic_officer_list_lo,X                                         ; $DA08: 9D 10 04
+  STA strategy_officer_list_lo,X                                         ; $DA08: 9D 10 04
   INC $02                                             ; $DA0B: E6 02
 @skip:
   INY                                                 ; $DA0D: C8
@@ -8674,32 +8674,32 @@ DomAction_BuildOfficerList:
   BCC @loop                                           ; $DA17: 90 DB
   LDA #$FE                                            ; $DA19: A9 FE
   LDX $02                                             ; $DA1B: A6 02
-  STA domestic_officer_list_lo,X                                         ; $DA1D: 9D 10 04
+  STA strategy_officer_list_lo,X                                         ; $DA1D: 9D 10 04
   INX                                                 ; $DA20: E8
   LDA #$FF                                            ; $DA21: A9 FF
-  STA domestic_officer_list_lo,X                                         ; $DA23: 9D 10 04
+  STA strategy_officer_list_lo,X                                         ; $DA23: 9D 10 04
   LDA #$00                                            ; $DA26: A9 00
-  STA domestic_cursor_lo                                           ; $DA28: 8D 0C 04
-  STA domestic_cursor_hi                                           ; $DA2B: 8D 0D 04
-  STA domestic_work_ptr_hi                                           ; $DA2E: 8D 01 04
+  STA strategy_cursor_lo                                           ; $DA28: 8D 0C 04
+  STA strategy_cursor_hi                                           ; $DA2B: 8D 0D 04
+  STA strategy_work_ptr_hi                                           ; $DA2E: 8D 01 04
   LDA #$C0                                            ; $DA31: A9 C0
-  STA dom_display_ptr_hi                                           ; $DA33: 8D 43 05
+  STA strat_display_ptr_hi                                           ; $DA33: 8D 43 05
   LDA #$06                                            ; $DA36: A9 06
-  STA dom_display_ptr_lo                                           ; $DA38: 8D 42 05
+  STA strat_display_ptr_lo                                           ; $DA38: 8D 42 05
   LDA #$F1                                            ; $DA3B: A9 F1
   JSR B1F_SetUI4                                      ; $DA3D: 20 8B F2
   RTS                                                 ; $DA40: 60
 .endproc
 ;===============================================================================
-; $DA41: DomAction_InitOfficerDisplay
+; $DA41: StrategyCommand_InitOfficerDisplay
 ;===============================================================================
-.proc DomAction_InitOfficerDisplay
-DomAction_InitOfficerDisplay:
+.proc StrategyCommand_InitOfficerDisplay
+StrategyCommand_InitOfficerDisplay:
   LDY #$39                                            ; $DA41: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DA43: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word $A012                                         ; $DA46: 12 A0
-  LDA domestic_cursor_hi                                           ; $DA48: AD 0D 04
+  LDA strategy_cursor_hi                                           ; $DA48: AD 0D 04
   CMP #$FF                                            ; $DA4B: C9 FF
   BEQ @skip                                           ; $DA4D: F0 01
   RTS                                                 ; $DA4F: 60
@@ -8722,48 +8722,48 @@ DomAction_InitOfficerDisplay:
   STA $70                                             ; $DA6E: 85 70
   LDA #$E1                                            ; $DA70: A9 E1
   STA $E8                                             ; $DA72: 85 E8
-  INC dom_display_ptr_lo                                           ; $DA74: EE 42 05
+  INC strat_display_ptr_lo                                           ; $DA74: EE 42 05
   LDA #$03                                            ; $DA77: A9 03
-  STA domestic_work_ptr_hi                                           ; $DA79: 8D 01 04
+  STA strategy_work_ptr_hi                                           ; $DA79: 8D 01 04
   LDA #$20                                            ; $DA7C: A9 20
-  STA dom_display_ptr_hi                                           ; $DA7E: 8D 43 05
+  STA strat_display_ptr_hi                                           ; $DA7E: 8D 43 05
   LDA #$00                                            ; $DA81: A9 00
   STA scroll_ptr_lo                                           ; $DA83: 8D 08 04
   RTS                                                 ; $DA86: 60
 .endproc
 ;===============================================================================
-; $DA87: DomAction_RenderOfficerEntry
+; $DA87: StrategyCommand_RenderOfficerEntry
 ;===============================================================================
-.proc DomAction_RenderOfficerEntry
+.proc StrategyCommand_RenderOfficerEntry
   scroll_done_flag     = $040A
-DomAction_RenderOfficerEntry:
+StrategyCommand_RenderOfficerEntry:
   LDA #$AE                                            ; $DA87: A9 AE
   STA $0A                                             ; $DA89: 85 0A
   LDX scroll_ptr_lo                                           ; $DA8B: AE 08 04
-  LDA domestic_officer_list_lo,X                                         ; $DA8E: BD 10 04
+  LDA strategy_officer_list_lo,X                                         ; $DA8E: BD 10 04
   STA $00                                             ; $DA91: 85 00
   LDY #$39                                            ; $DA93: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DA95: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word $A000                                         ; $DA98: 00 A0
-  INC dom_display_ptr_lo                                           ; $DA9A: EE 42 05
+  INC strat_display_ptr_lo                                           ; $DA9A: EE 42 05
   LDA #$00                                            ; $DA9D: A9 00
   STA scroll_ptr_hi                                           ; $DA9F: 8D 09 04
   STA scroll_done_flag                                           ; $DAA2: 8D 0A 04
   LDA #$00                                            ; $DAA5: A9 00
-  STA domestic_cursor_hi                                           ; $DAA7: 8D 0D 04
+  STA strategy_cursor_hi                                           ; $DAA7: 8D 0D 04
   LDY scroll_ptr_lo                                           ; $DAAA: AC 08 04
   INY                                                 ; $DAAD: C8
-  LDA domestic_officer_list_lo,Y                                         ; $DAAE: B9 10 04
+  LDA strategy_officer_list_lo,Y                                         ; $DAAE: B9 10 04
   TYA                                                 ; $DAB1: 98
-  STA domestic_cursor_lo                                           ; $DAB2: 8D 0C 04
+  STA strategy_cursor_lo                                           ; $DAB2: 8D 0C 04
   RTS                                                 ; $DAB5: 60
 .endproc
 ;===============================================================================
-; $DAB6: DomAction_UpdateOfficerDisplay
+; $DAB6: StrategyCommand_UpdateOfficerDisplay
 ;===============================================================================
-.proc DomAction_UpdateOfficerDisplay
-DomAction_UpdateOfficerDisplay:
+.proc StrategyCommand_UpdateOfficerDisplay
+StrategyCommand_UpdateOfficerDisplay:
   LDY #$39                                            ; $DAB6: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DAB8: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -8771,28 +8771,28 @@ DomAction_UpdateOfficerDisplay:
   LDA #$AE                                            ; $DABD: A9 AE
   STA $0A                                             ; $DABF: 85 0A
   LDX scroll_ptr_lo                                           ; $DAC1: AE 08 04
-  LDA domestic_officer_list_lo,X                                         ; $DAC4: BD 10 04
+  LDA strategy_officer_list_lo,X                                         ; $DAC4: BD 10 04
   STA $00                                             ; $DAC7: 85 00
   LDY #$39                                            ; $DAC9: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DACB: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word $A000                                         ; $DACE: 00 A0
-  LDA domestic_cursor_hi                                           ; $DAD0: AD 0D 04
+  LDA strategy_cursor_hi                                           ; $DAD0: AD 0D 04
   CMP #$FF                                            ; $DAD3: C9 FF
   BNE @skip                                           ; $DAD5: D0 08
-  DEC dom_display_ptr_hi                                           ; $DAD7: CE 43 05
+  DEC strat_display_ptr_hi                                           ; $DAD7: CE 43 05
   BNE @skip                                           ; $DADA: D0 03
-  INC dom_display_ptr_lo                                           ; $DADC: EE 42 05
+  INC strat_display_ptr_lo                                           ; $DADC: EE 42 05
 @skip:
   RTS                                                 ; $DADF: 60
 .endproc
 ;===============================================================================
-; $DAE0: DomAction_ScrollOfficerList
+; $DAE0: StrategyCommand_ScrollOfficerList
 ;===============================================================================
-.proc DomAction_ScrollOfficerList
+.proc StrategyCommand_ScrollOfficerList
   scroll_src_ptr_lo     = $040E
   scroll_src_ptr_hi     = $040F
-DomAction_ScrollOfficerList:
+StrategyCommand_ScrollOfficerList:
   LDA scroll_ptr_hi                                           ; $DAE0: AD 09 04
   CMP #$40                                            ; $DAE3: C9 40
   BNE @skip                                           ; $DAE5: D0 0A
@@ -8816,7 +8816,7 @@ DomAction_ScrollOfficerList:
   SBC scroll_ptr_hi                                           ; $DB07: ED 09 04
   STA $0A                                             ; $DB0A: 85 0A
   LDX scroll_ptr_lo                                           ; $DB0C: AE 08 04
-  JSR DomAction_RenderOfficerName                              ; $DB0F: 20 50 DB
+  JSR StrategyCommand_RenderOfficerName                              ; $DB0F: 20 50 DB
   LDA #$FC                                            ; $DB12: A9 FC
   SEC                                                 ; $DB14: 38
   SBC scroll_ptr_hi                                           ; $DB15: ED 09 04
@@ -8827,8 +8827,8 @@ DomAction_ScrollOfficerList:
   STA $0A                                             ; $DB1E: 85 0A
   LDX scroll_ptr_lo                                           ; $DB20: AE 08 04
   INX                                                 ; $DB23: E8
-  JSR DomAction_RenderOfficerName                              ; $DB24: 20 50 DB
-  JMP DomAction_AdvanceScrollPosition                         ; $DB27: 4C 5D DB
+  JSR StrategyCommand_RenderOfficerName                              ; $DB24: 20 50 DB
+  JMP StrategyCommand_AdvanceScrollPosition                         ; $DB27: 4C 5D DB
 @skip_4:
   LDA #$FC                                            ; $DB2A: A9 FC
   SEC                                                 ; $DB2C: 38
@@ -8840,24 +8840,24 @@ DomAction_ScrollOfficerList:
   STA $0A                                             ; $DB36: 85 0A
   LDX scroll_ptr_lo                                           ; $DB38: AE 08 04
   INX                                                 ; $DB3B: E8
-  JSR DomAction_RenderOfficerName                              ; $DB3C: 20 50 DB
+  JSR StrategyCommand_RenderOfficerName                              ; $DB3C: 20 50 DB
   LDA #$AC                                            ; $DB3F: A9 AC
   SEC                                                 ; $DB41: 38
   SBC scroll_ptr_hi                                           ; $DB42: ED 09 04
   STA $0A                                             ; $DB45: 85 0A
   LDX scroll_ptr_lo                                           ; $DB47: AE 08 04
-  JSR DomAction_RenderOfficerName                              ; $DB4A: 20 50 DB
-  JMP DomAction_AdvanceScrollPosition                         ; $DB4D: 4C 5D DB
+  JSR StrategyCommand_RenderOfficerName                              ; $DB4A: 20 50 DB
+  JMP StrategyCommand_AdvanceScrollPosition                         ; $DB4D: 4C 5D DB
 ;-------------------------------------------------------------------------------
-; DomAction_RenderOfficerName
-;   Renders the name tile for the officer at index X in domestic_officer_list.
+; StrategyCommand_RenderOfficerName
+;   Renders the name tile for the officer at index X in strategy_officer_list.
 ;   Loads the officer ID from the list, stores it as parameter, and invokes
 ;   the banked rendering routine at $A000 via BankedCallbackTrampoline.
 ;   In:  X = officer list index
 ;   Uses: $00 (officer ID), Y = $39 (render parameter)
 ;-------------------------------------------------------------------------------
-DomAction_RenderOfficerName:
-  LDA domestic_officer_list_lo,X                                         ; $DB50: BD 10 04
+StrategyCommand_RenderOfficerName:
+  LDA strategy_officer_list_lo,X                                         ; $DB50: BD 10 04
   STA $00                                             ; $DB53: 85 00
   LDY #$39                                            ; $DB55: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DB57: 20 07 EE
@@ -8865,7 +8865,7 @@ DomAction_RenderOfficerName:
   .word $A000                                         ; $DB5A: 00 A0
   RTS                                                 ; $DB5C: 60
 ;-------------------------------------------------------------------------------
-; DomAction_AdvanceScrollPosition
+; StrategyCommand_AdvanceScrollPosition
 ;   Advances the scroll pointer after rendering officer entries. Increments
 ;   scroll_ptr_hi; when it reaches $50, shifts the display buffer pointer
 ;   ($0542-$0543) back by 2 and advances scroll_ptr_lo. If the next officer
@@ -8873,44 +8873,44 @@ DomAction_RenderOfficerName:
 ;   and sets the wrap parameter ($0544 = $27).
 ;   Uses: $0542-$0543 (display buffer ptr), $0544 (wrap parameter)
 ;-------------------------------------------------------------------------------
-DomAction_AdvanceScrollPosition:
+StrategyCommand_AdvanceScrollPosition:
   INC scroll_ptr_hi                                           ; $DB5D: EE 09 04
   LDA scroll_ptr_hi                                           ; $DB60: AD 09 04
   CMP #$50                                            ; $DB63: C9 50
   BCC @adv_skip                                           ; $DB65: 90 28
-  DEC dom_display_ptr_lo                                           ; $DB67: CE 42 05
-  DEC dom_display_ptr_lo                                           ; $DB6A: CE 42 05
+  DEC strat_display_ptr_lo                                           ; $DB67: CE 42 05
+  DEC strat_display_ptr_lo                                           ; $DB6A: CE 42 05
   INC scroll_ptr_lo                                           ; $DB6D: EE 08 04
   LDA #$20                                            ; $DB70: A9 20
-  STA dom_display_ptr_hi                                           ; $DB72: 8D 43 05
+  STA strat_display_ptr_hi                                           ; $DB72: 8D 43 05
   LDY scroll_ptr_lo                                           ; $DB75: AC 08 04
   INY                                                 ; $DB78: C8
-  LDA domestic_officer_list_lo,Y                                         ; $DB79: B9 10 04
+  LDA strategy_officer_list_lo,Y                                         ; $DB79: B9 10 04
   CMP #$FF                                            ; $DB7C: C9 FF
   BNE @adv_skip                                           ; $DB7E: D0 0F
   LDA #$05                                            ; $DB80: A9 05
-  STA dom_display_ptr_lo                                           ; $DB82: 8D 42 05
+  STA strat_display_ptr_lo                                           ; $DB82: 8D 42 05
   LDA #$80                                            ; $DB85: A9 80
-  STA dom_display_ptr_hi                                           ; $DB87: 8D 43 05
+  STA strat_display_ptr_hi                                           ; $DB87: 8D 43 05
   LDA #$27                                            ; $DB8A: A9 27
-  STA dom_scroll_index                                           ; $DB8C: 8D 44 05
+  STA strat_scroll_index                                           ; $DB8C: 8D 44 05
 @adv_skip:
   RTS                                                 ; $DB8F: 60
 .endproc
 ;===============================================================================
-; $DB90: DomAction_FinalizeDisplayBuffer
+; $DB90: StrategyCommand_FinalizeDisplayBuffer
 ;===============================================================================
-.proc DomAction_FinalizeDisplayBuffer
+.proc StrategyCommand_FinalizeDisplayBuffer
   ptr_0380_lo     = $0380
   ptr_0380_hi     = $0381
   ptr_0382_lo     = $0382
   ptr_0382_hi     = $0383
-DomAction_FinalizeDisplayBuffer:
+StrategyCommand_FinalizeDisplayBuffer:
   LDA #$40                                            ; $DB90: A9 40
   STA ptr_0380_lo                                           ; $DB92: 8D 80 03
-  LDA dom_scroll_index                                           ; $DB95: AD 44 05
+  LDA strat_scroll_index                                           ; $DB95: AD 44 05
   STA ptr_0380_hi                                           ; $DB98: 8D 81 03
-  LDA dom_display_ptr_hi                                           ; $DB9B: AD 43 05
+  LDA strat_display_ptr_hi                                           ; $DB9B: AD 43 05
   STA ptr_0382_lo                                           ; $DB9E: 8D 82 03
   LDY #$00                                            ; $DBA1: A0 00
   LDA #$01                                            ; $DBA3: A9 01
@@ -8921,19 +8921,19 @@ DomAction_FinalizeDisplayBuffer:
   BCC @loop                                           ; $DBAB: 90 F8
   LDA #$FF                                            ; $DBAD: A9 FF
   STA ptr_0382_hi,Y                                         ; $DBAF: 99 83 03
-  LDA dom_display_ptr_hi                                           ; $DBB2: AD 43 05
+  LDA strat_display_ptr_hi                                           ; $DBB2: AD 43 05
   SEC                                                 ; $DBB5: 38
   SBC #$40                                            ; $DBB6: E9 40
-  STA dom_display_ptr_hi                                           ; $DBB8: 8D 43 05
-  LDA dom_scroll_index                                           ; $DBBB: AD 44 05
+  STA strat_display_ptr_hi                                           ; $DBB8: 8D 43 05
+  LDA strat_scroll_index                                           ; $DBBB: AD 44 05
   SBC #$00                                            ; $DBBE: E9 00
-  STA dom_scroll_index                                           ; $DBC0: 8D 44 05
+  STA strat_scroll_index                                           ; $DBC0: 8D 44 05
   CMP #$23                                            ; $DBC3: C9 23
   BNE @skip                                           ; $DBC5: D0 0A
   LDA #$05                                            ; $DBC7: A9 05
-  STA dom_scroll_param                                           ; $DBC9: 8D 41 05
+  STA strat_scroll_param                                           ; $DBC9: 8D 41 05
   LDA #$00                                            ; $DBCC: A9 00
-  STA dom_display_ptr_lo                                           ; $DBCE: 8D 42 05
+  STA strat_display_ptr_lo                                           ; $DBCE: 8D 42 05
 @skip:
   LDA a:$007E                                         ; $DBD1: AD 7E 00
   ORA #$04                                            ; $DBD4: 09 04
@@ -8941,20 +8941,20 @@ DomAction_FinalizeDisplayBuffer:
   RTS                                                 ; $DBD9: 60
 .endproc
 ;===============================================================================
-; $DBDA: DomAction_CheckConfirmInput
+; $DBDA: StrategyCommand_CheckConfirmInput
 ;===============================================================================
-.proc DomAction_CheckConfirmInput
-DomAction_CheckConfirmInput:
+.proc StrategyCommand_CheckConfirmInput
+StrategyCommand_CheckConfirmInput:
   LDA confirm_check_0                                           ; $DBDA: AD 00 03
   CMP #$FF                                            ; $DBDD: C9 FF
   BNE @skip                                           ; $DBDF: D0 11
   LDA confirm_check_1                                           ; $DBE1: AD 04 03
   CMP #$FF                                            ; $DBE4: C9 FF
   BNE @skip                                           ; $DBE6: D0 0A
-  DEC dom_display_ptr_hi                                           ; $DBE8: CE 43 05
+  DEC strat_display_ptr_hi                                           ; $DBE8: CE 43 05
   BNE @skip                                           ; $DBEB: D0 05
   LDA #$01                                            ; $DBED: A9 01
-  STA dom_display_ptr_lo                                           ; $DBEF: 8D 42 05
+  STA strat_display_ptr_lo                                           ; $DBEF: 8D 42 05
 @skip:
   RTS                                                 ; $DBF2: 60
 .endproc
@@ -9049,7 +9049,7 @@ ScrollPanel_LoadRow:
   STA ptr_0380_hi                                           ; $DC85: 8D 81 03
   LDA #$C8                                            ; $DC88: A9 C8
   STA ptr_0382_lo                                           ; $DC8A: 8D 82 03
-  LDA dom_scroll_param                                           ; $DC8D: AD 41 05
+  LDA strat_scroll_param                                           ; $DC8D: AD 41 05
   SEC                                                 ; $DC90: 38
   SBC #$01                                            ; $DC91: E9 01
   ASL A                                               ; $DC93: 0A
@@ -9068,7 +9068,7 @@ ScrollPanel_LoadRow:
   BCC @loop_3                                           ; $DCAC: 90 F6
   LDA #$FF                                            ; $DCAE: A9 FF
   STA ptr_0382_hi,Y                                         ; $DCB0: 99 83 03
-  LDA dom_scroll_param                                           ; $DCB3: AD 41 05
+  LDA strat_scroll_param                                           ; $DCB3: AD 41 05
   SEC                                                 ; $DCB6: 38
   SBC #$01                                            ; $DCB7: E9 01
   ASL A                                               ; $DCB9: 0A
@@ -9083,7 +9083,7 @@ ScrollPanel_LoadRow:
   LDA #$20                                            ; $DCCD: A9 20
   STA dispatch_offset_ptr_hi                                           ; $DCCF: 8D D5 04
   JMP @loop_2                                           ; $DCD2: 4C 72 DC
-; --- Pointer tables for initial scroll panel setup (3 entries each, indexed by dom_scroll_param - 1) ---
+; --- Pointer tables for initial scroll panel setup (3 entries each, indexed by strat_scroll_param - 1) ---
 ScrollPanel_DataPtrTable:
   .word $95E6                                           ; $DCD5: Entry 1 tile data pointer
   .word $976E                                           ; $DCD7: Entry 2 tile data pointer
@@ -9101,8 +9101,8 @@ ScrollPanel_OffsetPtrTable:
   tile_buf        = $00BE
   attr_buf        = $0100
 ScrollPanel_PrepareRowData:
-  ; Y = (dom_scroll_param - 1) * $20  → row index into tile/attr tables
-  LDA dom_scroll_param                                           ; $DCE1: AD 41 05
+  ; Y = (strat_scroll_param - 1) * $20  → row index into tile/attr tables
+  LDA strat_scroll_param                                           ; $DCE1: AD 41 05
   SEC                                                 ; $DCE4: 38
   SBC #$01                                            ; $DCE5: E9 01
   ASL A                                               ; $DCE7: 0A  ; ×2
@@ -9125,7 +9125,7 @@ ScrollPanel_PrepareRowData:
   ; Advance to next dispatch step
   INC dispatch_step                                           ; $DD01: EE C9 04
   RTS                                                 ; $DD04: 60
-  ; -- ScrollPanel tile data table (6 entries × $20 bytes, indexed by dom_scroll_param-1 × $20)
+  ; -- ScrollPanel tile data table (6 entries × $20 bytes, indexed by strat_scroll_param-1 × $20)
   ;    Entries: $DD05, $DD25, $DD45, $DD65, $DD85, $DDA5
   ;    NOTE: entries 3–5 overlap with ScrollPanel_AttrTable entries 0–2
 ScrollPanel_TileTable:                                            ; $DD05
@@ -9180,10 +9180,10 @@ AnimationDispatch:
   AND #$08                                            ; $DE28: 29 08
   BEQ @skip                                           ; $DE2A: F0 08
   LDA #$03                                            ; $DE2C: A9 03
-  STA dom_scroll_param                                           ; $DE2E: 8D 41 05
+  STA strat_scroll_param                                           ; $DE2E: 8D 41 05
   JMP AnimSeq_PrepareTransition                                           ; $DE31: 4C C7 DE
 @skip:
-  LDA dom_scroll_param                                           ; $DE34: AD 41 05
+  LDA strat_scroll_param                                           ; $DE34: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $DE37: 20 DE EA
 ; --- Inline pointer table (5 entries) ---
   .word AnimSeq_Init                                         ; $DE3A: 44 DE
@@ -9199,8 +9199,8 @@ AnimationDispatch:
   ptr_0115_lo     = $0115
   ptr_0115_hi     = $0116
 AnimSeq_Init:
-  INC dom_scroll_index                                           ; $DE44: EE 44 05
-  LDA dom_scroll_index                                           ; $DE47: AD 44 05
+  INC strat_scroll_index                                           ; $DE44: EE 44 05
+  LDA strat_scroll_index                                           ; $DE47: AD 44 05
   CMP #$20                                            ; $DE4A: C9 20
   BCC @skip                                           ; $DE4C: 90 17
   LDA #$16                                            ; $DE4E: A9 16
@@ -9208,10 +9208,10 @@ AnimSeq_Init:
   LDA #$30                                            ; $DE53: A9 30
   STA ptr_0115_hi                                           ; $DE55: 8D 16 01
   LDA #$00                                            ; $DE58: A9 00
-  STA dom_display_ptr_hi                                           ; $DE5A: 8D 43 05
+  STA strat_display_ptr_hi                                           ; $DE5A: 8D 43 05
   LDA #$02                                            ; $DE5D: A9 02
-  STA dom_scroll_index                                           ; $DE5F: 8D 44 05
-  INC dom_scroll_param                                           ; $DE62: EE 41 05
+  STA strat_scroll_index                                           ; $DE5F: 8D 44 05
+  INC strat_scroll_param                                           ; $DE62: EE 41 05
 @skip:
   RTS                                                 ; $DE65: 60
 .endproc
@@ -9220,7 +9220,7 @@ AnimSeq_Init:
 ;===============================================================================
 .proc AnimSeq_PlayFrames
 AnimSeq_PlayFrames:
-  LDY dom_display_ptr_hi                                           ; $DE66: AC 43 05
+  LDY strat_display_ptr_hi                                           ; $DE66: AC 43 05
   CPY #$14                                            ; $DE69: C0 14
   BNE @skip                                           ; $DE6B: D0 05
   LDA #$62                                            ; $DE6D: A9 62
@@ -9228,29 +9228,29 @@ AnimSeq_PlayFrames:
 @skip:
   LDY #$21                                            ; $DE72: A0 21
   JSR B1F_SwitchBank8_B                               ; $DE74: 20 5F F2
-  LDY dom_display_ptr_hi                                           ; $DE77: AC 43 05
-  LDA DomAnim_FrameTable,Y                                 ; $DE7A: B9 A0 DE
+  LDY strat_display_ptr_hi                                           ; $DE77: AC 43 05
+  LDA StratAnim_FrameTable,Y                                 ; $DE7A: B9 A0 DE
   JSR SpriteFromTable                                           ; $DE7D: 20 FA DE
-  DEC dom_scroll_index                                           ; $DE80: CE 44 05
+  DEC strat_scroll_index                                           ; $DE80: CE 44 05
   BNE @skip_2                                           ; $DE83: D0 1A
   LDA #$02                                            ; $DE85: A9 02
-  STA dom_scroll_index                                           ; $DE87: 8D 44 05
-  INC dom_display_ptr_hi                                           ; $DE8A: EE 43 05
-  LDY dom_display_ptr_hi                                           ; $DE8D: AC 43 05
-  LDA DomAnim_FrameTable,Y                                 ; $DE90: B9 A0 DE
+  STA strat_scroll_index                                           ; $DE87: 8D 44 05
+  INC strat_display_ptr_hi                                           ; $DE8A: EE 43 05
+  LDY strat_display_ptr_hi                                           ; $DE8D: AC 43 05
+  LDA StratAnim_FrameTable,Y                                 ; $DE90: B9 A0 DE
   CMP #$FF                                            ; $DE93: C9 FF
   BNE @skip_2                                           ; $DE95: D0 08
-  INC dom_scroll_param                                           ; $DE97: EE 41 05
+  INC strat_scroll_param                                           ; $DE97: EE 41 05
   LDA #$40                                            ; $DE9A: A9 40
-  STA dom_scroll_index                                           ; $DE9C: 8D 44 05
+  STA strat_scroll_index                                           ; $DE9C: 8D 44 05
 @skip_2:
   RTS                                                 ; $DE9F: 60
 
 ;===============================================================================
-; $DEA0: DomAnim_FrameTable – sprite frame indices for domestic animation
-; Indexed by dom_display_ptr_hi; $FF = end of sequence
+; $DEA0: StratAnim_FrameTable – sprite frame indices for strategy animation
+; Indexed by strat_display_ptr_hi; $FF = end of sequence
 ;===============================================================================
-DomAnim_FrameTable:
+StratAnim_FrameTable:
   .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$08,$08,$08,$08,$08,$08,$08; $DEA0: 00 01 02 03 04 05 06 07 08 08 08 08 08 08 08 08
   .byte $09,$0A,$0B,$0C,$0D,$0E,$0D,$08,$FF           ; $DEB0: 09 0A 0B 0C 0D 0E 0D 08 FF
 .endproc
@@ -9260,12 +9260,12 @@ DomAnim_FrameTable:
 ;===============================================================================
 .proc AnimSeq_HoldFinalFrame
 AnimSeq_HoldFinalFrame:
-  DEC dom_scroll_index                                           ; $DEB9: CE 44 05
+  DEC strat_scroll_index                                           ; $DEB9: CE 44 05
   BEQ @skip                                           ; $DEBC: F0 05
   LDA #$08                                            ; $DEBE: A9 08
   JMP SpriteFromTable                                           ; $DEC0: 4C FA DE
 @skip:
-  INC dom_scroll_param                                           ; $DEC3: EE 41 05
+  INC strat_scroll_param                                           ; $DEC3: EE 41 05
   RTS                                                 ; $DEC6: 60
 .endproc
 ;===============================================================================
@@ -9276,7 +9276,7 @@ AnimSeq_HoldFinalFrame:
   ptr_0115_hi     = $0116
   var_0117        = $0117
 AnimSeq_PrepareTransition:
-  INC dom_scroll_param                                           ; $DEC7: EE 41 05
+  INC strat_scroll_param                                           ; $DEC7: EE 41 05
   LDA #$0F                                            ; $DECA: A9 0F
   STA ptr_0115_lo                                           ; $DECC: 8D 15 01
   STA ptr_0115_hi                                           ; $DECF: 8D 16 01
@@ -9297,7 +9297,7 @@ AnimSeq_ResetScene:
   LDA #$04                                            ; $DEE2: A9 04
   STA $D6                                             ; $DEE4: 85 D6
   LDA #$00                                            ; $DEE6: A9 00
-  STA dom_scroll_index                                           ; $DEE8: 8D 44 05
+  STA strat_scroll_index                                           ; $DEE8: 8D 44 05
   STA anim_ppu_ptr_lo                                           ; $DEEB: 8D 70 04
   STA anim_ppu_ptr_hi                                           ; $DEEE: 8D 71 04
   JSR B1F_BankPpuInit                                 ; $DEF1: 20 7F E5

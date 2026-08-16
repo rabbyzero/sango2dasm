@@ -3,17 +3,19 @@
 <cite>
 **Referenced Files in This Document**
 - [prg_08_09.asm](file://asm/banks/prg_08_09.asm)
+- [prg_0e_0f.asm](file://asm/banks/prg_0e_0f.asm)
 - [functions.h](file://include/functions.h)
 - [PROJECT.md](file://PROJECT.md)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Updated RAM map documentation with comprehensive semantic variable names replacing cryptic memory addresses
-- Added detailed battle context memory layout documentation for WRAM $0400-$06FF work area and SRAM $6F00-$6FFF
-- Updated function entry points to use descriptive labels (AiTurnProcess_Entry, BattleSetup_Entry, etc.)
-- Replaced generic jump table entries (Loc_A000/Loc_A003 patterns) with meaningful semantic labels
-- Enhanced all address-based references throughout battle AI logic with semantic labels for improved maintainability
+- Updated architecture overview to reflect the consolidated PRG banks $0E/$0F structure
+- Added comprehensive documentation for the unified battle overlay system in prg_0e_0f.asm
+- Enhanced memory layout documentation showing the combined 16KB structure at $A000-$DFFF
+- Updated component analysis to include battle VBlank processing, overlay state machine, and CHR bank animation
+- Added detailed coverage of the battle phase system with 10 distinct phases (0-9)
+- Enhanced dependency analysis to show relationships between the consolidated battle system components
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -31,12 +33,17 @@ This document explains the battle and artificial intelligence system implemented
 
 The system operates on a per-turn basis: it iterates through officers, decides actions (flee, recruit, attack, move, regroup, capture province, restore HP, idle), executes movement toward targets, and resolves combat outcomes with time-scaled army statistics.
 
+**Updated** The battle system has been significantly enhanced with the consolidation of PRG banks $0E and $0F into a unified 16KB structure, providing comprehensive battle overlay management, VBlank processing, and animated battle sequences.
+
 **Section sources**
 - [prg_08_09.asm:15-38](file://asm/banks/prg_08_09.asm#L15-L38)
+- [prg_0e_0f.asm:1-14](file://asm/banks/prg_0e_0f.asm#L1-L14)
 - [PROJECT.md:70-99](file://PROJECT.md#L70-L99)
 
 ## Project Structure
 Banks $08 and $09 are combined into a single 16KB segment covering $A000–$DFFF. Bank $08 occupies $A000–$BFFF and bank $09 occupies $C000–$DFFF. A jump table at $A000–$A029 provides entry points for various subsystems including AI turn processing, battle setup, casualty resolution, and attrition rounds.
+
+**Updated** Additionally, PRG banks $0E and $0F have been consolidated into a single unified file (prg_0e_0f.asm) containing the complete battle overlay system, VBlank frame processing, and animated battle sequences, also occupying the $A000-$DFFF address range.
 
 ```mermaid
 graph TB
@@ -46,14 +53,23 @@ J --> D["AiTurnProcess_Entry ($A000)"]
 J --> E["BattleSetup_Entry ($A003)"]
 J --> F["BattleCasualtyResolution_Entry ($A00C)"]
 J --> G["BattleAttritionRound_Entry ($A00F)"]
+H["PRG Slot $A000-$BFFF (Bank $0E)"] --> I["Battle Overlay System"]
+I --> J1["BattleVBlankFrameUpdate ($A00F)"]
+I --> J2["BattleOverlayDispatch ($A030)"]
+I --> J3["Phase0-9 Handlers"]
+K["PRG Slot $C000-$DFFF (Bank $0F)"] --> L["CHR Bank Animation"]
+L --> M["BattleChrBankAnimate ($C01B)"]
 ```
 
 **Diagram sources**
 - [prg_08_09.asm:84-113](file://asm/banks/prg_08_09.asm#L84-L113)
+- [prg_0e_0f.asm:16-35](file://asm/banks/prg_0e_0f.asm#L16-L35)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
 - [functions.h:894-911](file://include/functions.h#L894-L911)
 
 **Section sources**
 - [prg_08_09.asm:1-12](file://asm/banks/prg_08_09.asm#L1-L12)
+- [prg_0e_0f.asm:1-14](file://asm/banks/prg_0e_0f.asm#L1-L14)
 - [PROJECT.md:70-99](file://PROJECT.md#L70-L99)
 
 ## Core Components
@@ -64,6 +80,13 @@ J --> G["BattleAttritionRound_Entry ($A00F)"]
 - Decision helpers: AiCheckFaction, AiCheckAttackNearby, AiCheckMove, AiCheckAttackFeasible, AiCheckRecruit, AiCheckFlee.
 - Battle lifecycle: BattleSetup_Entry, BattleCasualtyResolution_Entry, BattleAttritionRound_Entry.
 
+**Updated** Enhanced with unified battle overlay system:
+- BattleVBlankFrameUpdate: VBlank frame hook that manages battle scene animations and overlay rendering
+- BattleOverlayDispatch: Central state machine managing 10 battle phases (intro, actor selection, command resolution, etc.)
+- Phase handlers: Comprehensive phase-specific sub-dispatchers for each battle state
+- BattleChrBankAnimate: Animated CHR bank switching for battle graphics
+- Player request polling: Controller input handling for player takeover during battles
+
 **Section sources**
 - [prg_08_09.asm:84-113](file://asm/banks/prg_08_09.asm#L84-L113)
 - [prg_08_09.asm:127-184](file://asm/banks/prg_08_09.asm#L127-L184)
@@ -71,9 +94,13 @@ J --> G["BattleAttritionRound_Entry ($A00F)"]
 - [prg_08_09.asm:1178-1272](file://asm/banks/prg_08_09.asm#L1178-L1272)
 - [prg_08_09.asm:1384-1440](file://asm/banks/prg_08_09.asm#L1384-L1440)
 - [prg_08_09.asm:2620-2684](file://asm/banks/prg_08_09.asm#L2620-L2684)
+- [prg_0e_0f.asm:16-130](file://asm/banks/prg_0e_0f.asm#L16-L130)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
 
 ## Architecture Overview
 The AI turn flow begins at the dispatch table and proceeds through AiTurnProcess_Entry, which iterates all officers and calls AiOfficerActionDecide. Each action handler may call movement or combat checks. Movement uses AiExecuteMove to compute feasible steps within the AI action budget. Combat-related decisions use proximity scanning and feasibility checks before committing to an action.
+
+**Updated** The battle system architecture now features a unified 16KB structure combining banks $0E and $0F, with a sophisticated overlay state machine managing the complete battle experience from intro sequences through combat resolution.
 
 ```mermaid
 sequenceDiagram
@@ -83,6 +110,8 @@ participant DEC as "AiOfficerActionDecide"
 participant ACT as "Action_* Handlers"
 participant MOV as "AiExecuteMove"
 participant CMP as "AiCheckAttackNearby / Feasibility"
+participant BO as "BattleOverlayDispatch"
+participant PH as "Phase Handlers"
 DT->>AI : Call via $A000
 AI->>AI : Scan officers, check faction
 AI->>DEC : Decide action for current officer
@@ -92,12 +121,16 @@ ACT->>MOV : Move toward target (if applicable)
 MOV-->>ACT : Result (moved, blocked/engage, no action)
 ACT-->>AI : Set result in ai_action_result
 AI->>AI : Update counters, continue loop
+Note over BO,PH : Battle overlay system runs independently
+BO->>PH : Phase 0-9 state machine
+PH->>PH : Sub-state processing and transitions
 ```
 
 **Diagram sources**
 - [prg_08_09.asm:84-113](file://asm/banks/prg_08_09.asm#L84-L113)
 - [prg_08_09.asm:127-184](file://asm/banks/prg_08_09.asm#L127-L184)
 - [prg_08_09.asm:186-212](file://asm/banks/prg_08_09.asm#L186-L212)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
 
 ## Detailed Component Analysis
 
@@ -300,12 +333,21 @@ FLEE-->>AI : Destination province or none
 - BattleCasualtyResolution_Entry: Post-action damage and morale resolver; integrates with battle state.
 - BattleAttritionRound_Entry: Per-round mutual attrition resolver for field battles; coordinates with casualty resolution.
 
+**Updated** Enhanced with unified battle overlay system:
+- BattleVBlankFrameUpdate: VBlank hook managing battle scene animations and overlay rendering
+- BattleOverlayDispatch: Central state machine with 10 phases (intro, actor selection, command resolution, etc.)
+- Phase handlers: Comprehensive sub-dispatchers for each battle state with detailed sub-state management
+- BattleChrBankAnimate: Animated CHR bank switching for dynamic battle graphics
+- Player request polling: Controller input handling for player takeover during battles
+
 ```mermaid
 sequenceDiagram
 participant DT as "Dispatch Table"
 participant BS as "BattleSetup_Entry"
 participant CR as "BattleCasualtyResolution_Entry"
 participant AR as "BattleAttritionRound_Entry"
+participant BO as "BattleOverlayDispatch"
+participant PH as "Phase Handlers"
 DT->>BS : Initialize battle
 BS->>BS : Clear states, build rosters
 BS-->>DT : Ready for turns
@@ -313,23 +355,76 @@ DT->>AR : Run attrition round
 AR->>CR : Resolve casualties
 CR-->>AR : Apply results
 AR-->>DT : Round complete
+Note over BO,PH : Battle overlay system runs concurrently
+BO->>PH : Phase 0-9 state machine
+PH->>PH : Sub-state processing and transitions
 ```
 
 **Diagram sources**
 - [prg_08_09.asm:2620-2684](file://asm/banks/prg_08_09.asm#L2620-L2684)
 - [prg_08_09.asm:6152-6251](file://asm/banks/prg_08_09.asm#L6152-L6251)
 - [prg_08_09.asm:6290-6407](file://asm/banks/prg_08_09.asm#L6290-L6407)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
 
 **Section sources**
 - [prg_08_09.asm:2620-2684](file://asm/banks/prg_08_09.asm#L2620-L2684)
 - [prg_08_09.asm:6152-6251](file://asm/banks/prg_08_09.asm#L6152-L6251)
 - [prg_08_09.asm:6290-6407](file://asm/banks/prg_08_09.asm#L6290-L6407)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
+
+### Unified Battle Overlay System
+**New Section** The consolidated PRG banks $0E/$0F provide a comprehensive battle overlay system with sophisticated state management:
+
+- **BattleVBlankFrameUpdate** ($A00F): VBlank frame hook that applies CHR bank animations, runs battle overlay state machine, and handles menu updates with input suppression
+- **BattleOverlayDispatch** ($A030): Central state machine managing 10 battle phases with sub-phase dispatching
+- **Phase Handlers**: 
+  - Phase 0: Battle intro sequence with roster display and data formatting
+  - Phase 1: Next actor selection with priority-based scanning
+  - Phase 2: Acting unit command resolution with attack/move paths
+  - Phase 3: Command selection with player input handling
+  - Phase 4: Defeat/retreat result processing with damage application
+  - Phase 8: Point-spend panel for strategic resource allocation
+  - Phase 9: Formation advance with animated sweep effects
+- **BattleChrBankAnimate** ($C01B): Dynamic CHR bank switching for battle graphics based on frame timing and battle phase
+- **Player Request Polling**: Controller input handling for player takeover during automatic battle phases
+
+```mermaid
+flowchart TD
+Start(["BattleVBlankFrameUpdate"]) --> ChrAnim["BattleChrBankAnimate"]
+ChrAnim --> InputSupp["Input Suppression"]
+InputSupp --> OverlayDisp["BattleOverlayDispatch"]
+OverlayDisp --> PhaseCheck{"Phase 0-2?"}
+PhaseCheck --> |Yes| RedrawStrips["Redraw Overlay Strips"]
+PhaseCheck --> |No| PhaseDispatch["Phase Dispatch"]
+RedrawStrips --> PhaseDispatch
+PhaseDispatch --> PhaseHandlers["Phase 0-9 Handlers"]
+PhaseHandlers --> SubDispatch["Sub-phase Dispatch"]
+SubDispatch --> PhaseLogic["Phase-Specific Logic"]
+PhaseLogic --> End(["Return"])
+```
+
+**Diagram sources**
+- [prg_0e_0f.asm:16-52](file://asm/banks/prg_0e_0f.asm#L16-L52)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
+
+**Section sources**
+- [prg_0e_0f.asm:16-130](file://asm/banks/prg_0e_0f.asm#L16-L130)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
 
 ## Dependency Analysis
 - AiTurnProcess depends on AiOfficerActionDecide and action handlers; these rely on movement and feasibility checks.
 - Movement engine depends on terrain lookup, officer records, and budget checks.
 - Proximity functions depend on officer arrays and faction flags.
 - Battle lifecycle depends on roster data in banked memory and utility functions for math and bank switching.
+
+**Updated** Enhanced dependencies now include the unified battle overlay system:
+- Battle overlay system depends on VBlank timing, CHR bank management, and phase state variables
+- Phase handlers depend on player input polling, animation queue management, and panel rendering
+- Battle graphics depend on dynamic CHR bank switching and palette management
+- Cross-bank communication between $08/$09 (battle engine) and $0E/$0F (overlay system)
 
 ```mermaid
 graph LR
@@ -345,6 +440,9 @@ MOV --> FIND["AiFindNearbyOfficers"]
 FEAS --> SORT["AiSortNearbyOfficers"]
 BS["BattleSetup_Entry"] --> RO["Roster Data"]
 CR["BattleCasualtyResolution_Entry"] --> AR["BattleAttritionRound_Entry"]
+BO["BattleOverlayDispatch"] --> PH["Phase Handlers"]
+PH --> CHR["BattleChrBankAnimate"]
+PH --> INPUT["Player Request Polling"]
 ```
 
 **Diagram sources**
@@ -355,6 +453,8 @@ CR["BattleCasualtyResolution_Entry"] --> AR["BattleAttritionRound_Entry"]
 - [prg_08_09.asm:2620-2684](file://asm/banks/prg_08_09.asm#L2620-L2684)
 - [prg_08_09.asm:6152-6251](file://asm/banks/prg_08_09.asm#L6152-L6251)
 - [prg_08_09.asm:6290-6407](file://asm/banks/prg_08_09.asm#L6290-L6407)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
 
 **Section sources**
 - [prg_08_09.asm:127-184](file://asm/banks/prg_08_09.asm#L127-L184)
@@ -364,6 +464,8 @@ CR["BattleCasualtyResolution_Entry"] --> AR["BattleAttritionRound_Entry"]
 - [prg_08_09.asm:2620-2684](file://asm/banks/prg_08_09.asm#L2620-L2684)
 - [prg_08_09.asm:6152-6251](file://asm/banks/prg_08_09.asm#L6152-L6251)
 - [prg_08_09.asm:6290-6407](file://asm/banks/prg_08_09.asm#L6290-L6407)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
 
 ## Performance Considerations
 - Officer iteration is bounded by 20 slots; proximity scans iterate all officers but use early exits for inactive slots.
@@ -371,7 +473,12 @@ CR["BattleCasualtyResolution_Entry"] --> AR["BattleAttritionRound_Entry"]
 - Movement evaluation considers only two axis candidates; terrain cost lookup is constant-time per step.
 - Battle setup clears fixed-size arrays; roster building scales with unit count per side.
 
-[No sources needed since this section provides general guidance]
+**Updated** Enhanced performance considerations for the unified battle system:
+- Battle overlay state machine runs every VBlank with efficient phase/sub-phase dispatching
+- CHR bank animation updates occur every 8 frames based on frame tick counter optimization
+- Player request polling minimizes controller input processing overhead
+- Phase handlers use early exits and conditional processing to reduce unnecessary computations
+- Memory access patterns optimized for sequential overlay strip rendering
 
 ## Troubleshooting Guide
 - If officers do not act, verify ai_action_result values from action handlers and ensure budget battle_action_points permits actions.
@@ -379,13 +486,22 @@ CR["BattleCasualtyResolution_Entry"] --> AR["BattleAttritionRound_Entry"]
 - For incorrect recruit/flee behavior, validate rating/rank gates and threshold comparisons; inspect random gates and province availability.
 - In battle setup, ensure faction war status byte equals $03 and rosters are correctly loaded from banked memory.
 
+**Updated** Enhanced troubleshooting for unified battle system:
+- If battle overlay doesn't render, verify VBlank hook execution and phase state variables ($0540/$0541)
+- If CHR bank animation appears corrupted, check frame tick counter and battle phase selection logic
+- If player input doesn't trigger takeover, verify BattlePlayerRequestPoll execution and handoff flags ($0568/$0569)
+- If battle phases don't transition properly, inspect sub-phase counters and animation queue status
+- For overlay rendering issues, check buffer pointers ($0560/$0561) and panel parameter blocks
+
 **Section sources**
 - [prg_08_09.asm:213-879](file://asm/banks/prg_08_09.asm#L213-L879)
 - [prg_08_09.asm:892-1169](file://asm/banks/prg_08_09.asm#L892-L1169)
 - [prg_08_09.asm:1629-1845](file://asm/banks/prg_08_09.asm#L1629-L1845)
 - [prg_08_09.asm:2620-2684](file://asm/banks/prg_08_09.asm#L2620-L2684)
+- [prg_0e_0f.asm:84-130](file://asm/banks/prg_0e_0f.asm#L84-L130)
+- [prg_0e_0f.asm:4280-4314](file://asm/banks/prg_0e_0f.asm#L4280-L4314)
 
 ## Conclusion
 The PRG banks $08/$09 implement a comprehensive battle and AI system centered on structured officer decision-making, robust movement logic, and scalable combat resolution. The design separates concerns between turn orchestration, action selection, movement execution, and battle lifecycle management, enabling modular analysis and future enhancements.
 
-[No sources needed since this section summarizes without analyzing specific files]
+**Updated** The architectural consolidation of PRG banks $0E and $0F into a unified 16KB structure has significantly enhanced the battle system's capabilities, providing sophisticated overlay management, animated battle sequences, and seamless integration between AI-driven battles and player interaction. This consolidation improves maintainability while delivering a more cohesive and feature-rich battle experience.

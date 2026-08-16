@@ -38,6 +38,10 @@ sango2dasm/
 │   ├── verify_rom.py                        # Verify rebuilt ROM matches original
 │   └── build_nes.py                         # Add iNES header to PRG binary
 ├── code/                                    # Place for disassembled code
+├── docs/
+│   └── manual_kb/                           # Knowledge base transcribed from the original Japanese manual
+├── res/
+│   └── manual_jpn/                          # Scanned pages of the original user manual (37 JPGs)
 └── build/                                   # Build output
     ├── sango2.nes                           # Built ROM
     ├── prg.bin                              # Raw PRG output from linker
@@ -161,6 +165,16 @@ Banks with `[CODE]` marker have high JSR counts and are likely code-heavy.
 - **6502_registers.h** - PPU ($2000-$2007), APU ($4000-$4017) register addresses and bit definitions
 - **namco163.h** - Bank switch addresses, bank indices (BANK_00-BANK_1F), `switch_bank_*` macros
 - **macros.h** - Common macros: `wait_vblank`, `set_ppu_addr`, `ppu_write`, `dma_sprites`
+
+## Game Manual Knowledge Base
+
+`docs/manual_kb/` contains a structured knowledge base transcribed from the
+scanned original Japanese manual in `res/manual_jpn/` (see
+`docs/manual_kb/README.md` for the index and scan-to-page map). It documents
+the canonical Japanese terminology — mode names (戦略/戦術/戦闘/一騎討ち),
+strategy-mode commands, tactical commands, 計略/戦術 lists, formations,
+duel commands, stats, events, rulers, and the 30-country map. Use it as the
+authoritative vocabulary source when naming labels/procs during disassembly.
 
 ## Current Status
 

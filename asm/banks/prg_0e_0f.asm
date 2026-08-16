@@ -177,13 +177,13 @@ Loc_A00C:
 .endproc
 ;===============================================================================
 ; $A0D3: BattleOverlayIntroRosterWalk
-; Intro sub-state 1. Waits for the animation queue to idle ($B870, C=1 idle),
+; Intro sub-state 1. Waits for the animation queue to idle (BattleAnimQueueIdleCheck, C=1 idle),
 ; then draws one roster entry per frame: entry $0548 of the 22-slot list at
-; $0580 is passed to $B882 (skipping $FF slots) with zp $12/$13 params. When
+; $0580 is passed to BattleCellRedraw (skipping $FF slots) with zp $12/$13 params. When
 ; all $16 entries are walked, advances to sub-state 2.
 ;===============================================================================
 .proc BattleOverlayIntroRosterWalk
-  JSR $B870                               ; $A0D3: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $A0D3: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A0D6: 90 20 ; still busy: wait
   LDA #$10                                ; $A0D8: A9 10
   STA $12                                 ; $A0DA: 85 12
@@ -192,7 +192,7 @@ Loc_A00C:
   LDA $0580,Y                             ; $A0E1: B9 80 05
   CMP #$FF                                ; $A0E4: C9 FF
   BEQ @Advance                            ; $A0E6: F0 03 ; empty slot: skip draw
-  JSR $B882                               ; $A0E8: 20 82 B8 ; draw roster entry
+  JSR BattleCellRedraw                         ; $A0E8: 20 82 B8 ; draw roster entry
 @Advance:
   INC $0548                               ; $A0EB: EE 48 05
   LDA $0548                               ; $A0EE: AD 48 05
@@ -209,7 +209,7 @@ Loc_A00C:
 ; $00BC=5, submits via $CBF1 and advances to sub-state 3.
 ;===============================================================================
 .proc BattleOverlayIntroAnimQueue
-  JSR $B870                               ; $A0F9: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $A0F9: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A0FC: 90 1A ; still busy: wait
   LDA #$E8                                ; $A0FE: A9 E8
   STA $0310                               ; $A100: 8D 10 03
@@ -231,7 +231,7 @@ Loc_A00C:
 ; and param $00BB=9 to format the top panel. Advances to sub-state 4.
 ;===============================================================================
 .proc BattleOverlayIntroDataFormatTop
-  JSR $B870                               ; $A119: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $A119: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A11C: 90 18 ; still busy: wait
   LDA #$09                                ; $A11E: A9 09
   STA a:$00BB                             ; $A120: 8D BB 00
@@ -410,7 +410,7 @@ Phase1SidePriorityOrder:
 ; $A235: Phase1RoundPass
 ; Sub-phase 2, entered when a full roster scan found no acting unit. Re-arms
 ; sub-phase 1 (the cycle resumes with another scan next frame) and, once the
-; animation queue idles ($B870, C=1 idle), enqueues the $E9 tile animation
+; animation queue idles (BattleAnimQueueIdleCheck, C=1 idle), enqueues the $E9 tile animation
 ; ($0310=$E9, slot $0300=0) via $CBF1. Then walks the same 22x4 roster grid
 ; as Phase1NextActorSelect but only for side groups 0 and 1: cells of side
 ; groups 2/3 advance immediately, while the first side-0/1 cell stalls one
@@ -423,7 +423,7 @@ Phase1SidePriorityOrder:
 .proc Phase1RoundPass
   LDA #$01                                ; $A235: A9 01
   STA $0541                               ; $A237: 8D 41 05 ; sub-phase <- 1 (resume scan next frame)
-  JSR $B870                               ; $A23A: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $A23A: 20 70 B8 ; anim queue idle check
   BCC @ScanGrid                           ; $A23D: 90 0D ; still busy: skip enqueue
   LDA #$E9                                ; $A23F: A9 E9
   STA $0310                               ; $A241: 8D 10 03 ; anim id
@@ -674,13 +674,13 @@ Phase1SidePriorityOrder:
 .endproc
 ;===============================================================================
 ; $A3D4: Phase4ResultDefeatInputWait
-; Sub 1: waits for the animation queue to idle ($B870 carry set) and an
+; Sub 1: waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set) and an
 ; A/B button edge on either pad ($CCA8 -> $CD22, bits 0-1 of merged $0001),
 ; then advances to sub 2 via B1F_PaletteCopyBuffer + BattleOverlayTotalRefresh.
 ;===============================================================================
 .proc Phase4ResultDefeatInputWait
   JSR BattleBothPadsStateFetch            ; $A3D4: 20 22 CD ; merge both pads -> $0000/$0001
-  JSR $B870                               ; $A3D7: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $A3D7: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A3DA: 90 15 ; busy: wait
   JSR $CCA8                               ; $A3DC: 20 A8 CC ; panel input check setup
   JSR BattleBothPadsStateFetch            ; $A3DF: 20 22 CD ; re-fetch merged pad state
@@ -722,7 +722,7 @@ Phase1SidePriorityOrder:
 ;===============================================================================
 .proc Phase4ResultRetreatInputWait
   JSR BattleBothPadsStateFetch            ; $A407: 20 22 CD ; merge both pads
-  JSR $B870                               ; $A40A: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $A40A: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A40D: 90 5D ; busy: wait
   JSR $CCA8                               ; $A40F: 20 A8 CC ; panel input check setup
   JSR BattleBothPadsStateFetch            ; $A412: 20 22 CD ; re-fetch merged pad state
@@ -788,7 +788,7 @@ Phase1SidePriorityOrder:
 ;===============================================================================
 .proc Phase4ResultDamageApply
   JSR BattleBothPadsStateFetch            ; $A488: 20 22 CD ; merge both pads
-  JSR $B870                               ; $A48B: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $A48B: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A48E: 90 24 ; busy: wait
   JSR $CCA8                               ; $A490: 20 A8 CC ; panel input check setup
   JSR BattleBothPadsStateFetch            ; $A493: 20 22 CD ; re-fetch merged pad state
@@ -816,7 +816,7 @@ Phase1SidePriorityOrder:
 ;===============================================================================
 .proc Phase4ResultConfirmInput
   JSR BattleBothPadsStateFetch            ; $A4B5: 20 22 CD ; merge both pads
-  JSR $B870                               ; $A4B8: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $A4B8: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A4BB: 90 1A ; busy: wait
   JSR $CCA8                               ; $A4BD: 20 A8 CC ; panel input check setup
   JSR BattleBothPadsStateFetch            ; $A4C0: 20 22 CD ; re-fetch merged pad state
@@ -906,8 +906,8 @@ Phase1SidePriorityOrder:
 ; status counter $0574 nybble for the scanned board half (low for columns
 ; 0-$A, high for columns $B-$15) must be clear to select - non-zero passes
 ; the turn. Selection clears $FE/$FF markers via Phase2ColumnResetCheck,
-; runs $C064, encodes the actor into the column status and advances to the
-; cursor walk (sub 1).
+; runs Phase2WalkDirectionResolve, encodes the resolved direction into the
+; column status and advances to the cursor walk (sub 1).
 ;===============================================================================
 .proc Phase2ActionGate
   LDA #$00                                ; $A519: A9 00
@@ -922,7 +922,7 @@ Phase1SidePriorityOrder:
   AND #$0F                                ; $A530: 29 0F ; action bits
   CMP #$02                                ; $A532: C9 02
   BNE @MoveRoute                          ; $A534: D0 2B
-  JSR $C30F                               ; $A536: 20 0F C3 ; attack-route setup
+  JSR Phase2AttackRouteResolve            ; $A536: 20 0F C3 ; attack-route setup
   LDA $0549                               ; $A539: AD 49 05 ; acting unit id
   BMI @MoveRoute                          ; $A53C: 30 23 ; no actor: move route
   LDA $054F                               ; $A53E: AD 4F 05
@@ -941,7 +941,7 @@ Phase1SidePriorityOrder:
   STA $0541                               ; $A55D: 8D 41 05 ; sub-phase <- 6 (attack)
   RTS                                     ; $A560: 60
 @MoveRoute:
-  JSR $C20F                               ; $A561: 20 0F C2 ; move-route setup
+  JSR Phase2MoveRouteResolve              ; $A561: 20 0F C2 ; move-route setup
   LDA $0549                               ; $A564: AD 49 05
   BMI @SelectGate                         ; $A567: 30 23 ; no actor: selection gate
   LDA $054F                               ; $A569: AD 4F 05
@@ -977,9 +977,9 @@ Phase1SidePriorityOrder:
   BNE @PassTurn                           ; $A5AA: D0 15
 @Select:
   JSR Phase2ColumnResetCheck              ; $A5AC: 20 FE A7 ; clear $FE/$FF markers
-  JSR $C064                               ; $A5AF: 20 64 C0
-  LDA $0549                               ; $A5B2: AD 49 05 ; acting unit id
-  BMI @PassTurn                           ; $A5B5: 30 0A ; no actor: pass turn
+  JSR Phase2WalkDirectionResolve          ; $A5AF: 20 64 C0 ; resolve walk direction
+  LDA $0549                               ; $A5B2: AD 49 05 ; direction ($FF = none)
+  BMI @PassTurn                           ; $A5B5: 30 0A ; no direction: pass turn
   INC $0541                               ; $A5B7: EE 41 05 ; sub-phase <- 1 (walk)
   LDA $0549                               ; $A5BA: AD 49 05
   JSR Phase2ColumnStatusEncode            ; $A5BD: 20 0F AA ; encode actor
@@ -990,17 +990,17 @@ Phase1SidePriorityOrder:
 .endproc
 ;===============================================================================
 ; $A5C4: Phase2CursorWalkInit
-; Sub 1: un-highlights the cursor column ($12=0/$13=column -> $B882),
+; Sub 1: un-highlights the cursor column ($12=0/$13=column -> BattleCellRedraw),
 ; advances to sub 2, clears the frame counter $0548 and latches the acting
 ; column's row markers: $054A <- $0580[$0545]<<4, $054B <- $0596[$0545]<<4.
-; Draws the first cursor-arrow frame via $BB8F.
+; Draws the first cursor-arrow frame via Phase2CursorArrowDraw.
 ;===============================================================================
 .proc Phase2CursorWalkInit
   LDA #$00                                ; $A5C4: A9 00
   STA $12                                 ; $A5C6: 85 12 ; un-highlight
   LDA $0545                               ; $A5C8: AD 45 05 ; cursor column
   STA $13                                 ; $A5CB: 85 13
-  JSR $B882                               ; $A5CD: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A5CD: 20 82 B8 ; column tile update
   INC $0541                               ; $A5D0: EE 41 05 ; sub-phase <- 2
   LDA #$00                                ; $A5D3: A9 00
   STA $0548                               ; $A5D5: 8D 48 05 ; frame counter <- 0
@@ -1017,19 +1017,20 @@ Phase1SidePriorityOrder:
   ASL                                     ; $A5EA: 0A
   ASL                                     ; $A5EB: 0A
   STA $054B                               ; $A5EC: 8D 4B 05 ; walk column << 4
-  JSR $BB8F                               ; $A5EF: 20 8F BB ; cursor arrow draw
+  JSR Phase2CursorArrowDraw               ; $A5EF: 20 8F BB ; cursor arrow draw
   RTS                                     ; $A5F2: 60
 .endproc
 ;===============================================================================
 ; $A5F3: Phase2CursorWalkStep
-; Sub 2: animates the cursor walk - redraws the arrow ($BB8F) and steps the
+; Sub 2: animates the cursor walk - redraws the arrow (Phase2CursorArrowDraw)
+; and steps the
 ; walk position one cell per frame in the direction for acting side $0549
 ; (Phase2CursorStep). After $10 frames calls Phase2CommitMarkerAdjust, whose
 ; RTS lands in Phase2TurnPassReset; while walking, the wait loop branches to
 ; Phase2TurnPassReset's shared Phase2WalkExit RTS.
 ;===============================================================================
 .proc Phase2CursorWalkStep
-  JSR $BB8F                               ; $A5F3: 20 8F BB ; cursor arrow draw
+  JSR Phase2CursorArrowDraw               ; $A5F3: 20 8F BB ; cursor arrow draw
   JSR Phase2CursorStep                    ; $A5F6: 20 A0 A9 ; step walk position
   INC $0548                               ; $A5F9: EE 48 05 ; frame counter++
   LDA $0548                               ; $A5FC: AD 48 05
@@ -1041,7 +1042,7 @@ Phase1SidePriorityOrder:
 ; $A606: Phase2TurnPassReset
 ; Turn-pass reset, entered two ways: fall-through from Phase2CursorWalkStep
 ; (after the walk completes) and via JMP from Phase2ActionGate's pass-turn
-; paths. Re-highlights the cursor column ($12=$10/$13=column -> $B882) and
+; paths. Re-highlights the cursor column ($12=$10/$13=column -> BattleCellRedraw) and
 ; returns to phase 1 sub 2 (Phase1RoundPass).
 ;===============================================================================
 .proc Phase2TurnPassReset
@@ -1049,7 +1050,7 @@ Phase1SidePriorityOrder:
   STA $12                                 ; $A608: 85 12 ; highlight
   LDA $0545                               ; $A60A: AD 45 05 ; cursor column
   STA $13                                 ; $A60D: 85 13
-  JSR $B882                               ; $A60F: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A60F: 20 82 B8 ; column tile update
   LDA #$01                                ; $A612: A9 01
   STA $0540                               ; $A614: 8D 40 05 ; phase <- 1
   LDA #$02                                ; $A617: A9 02
@@ -1094,7 +1095,7 @@ Phase2WalkExit:
   STA $12                                 ; $A63C: 85 12 ; highlight
   LDA $0545                               ; $A63E: AD 45 05 ; cursor column
   STA $13                                 ; $A641: 85 13
-  JSR $B882                               ; $A643: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A643: 20 82 B8 ; column tile update
   INC $0541                               ; $A646: EE 41 05 ; sub-phase <- 4
   LDA #$00                                ; $A649: A9 00
   STA $0548                               ; $A64B: 8D 48 05 ; frame counter <- 0
@@ -1156,7 +1157,7 @@ Phase2AnimWaitExit:
   STA $12                                 ; $A69E: 85 12 ; un-highlight
   LDA $054A                               ; $A6A0: AD 4A 05 ; target column
   STA $13                                 ; $A6A3: 85 13
-  JSR $B882                               ; $A6A5: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A6A5: 20 82 B8 ; column tile update
   LDY $054A                               ; $A6A8: AC 4A 05
   LDA #$FF                                ; $A6AB: A9 FF
   STA $0580,Y                             ; $A6AD: 99 80 05 ; empty slot
@@ -1171,7 +1172,7 @@ Phase2AnimWaitExit:
   STA $12                                 ; $A6C2: 85 12 ; highlight
   LDA $054A                               ; $A6C4: AD 4A 05 ; target column
   STA $13                                 ; $A6C7: 85 13
-  JSR $B882                               ; $A6C9: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A6C9: 20 82 B8 ; column tile update
   INC $0541                               ; $A6CC: EE 41 05 ; sub-phase <- 5
 @Done:
   RTS                                     ; $A6CF: 60
@@ -1180,7 +1181,7 @@ Phase2AnimWaitExit:
 ; $A6D0: Phase2CursorBlinkIfActive
 ; Conditional column blink: when $005E bits 0-1 are set (frame phase),
 ; bit 3 selects the highlight mode into $12 and the column index (Y) into
-; $13, then updates the column tile via $B882.
+; $13, then updates the column tile via BattleCellRedraw.
 ;===============================================================================
 .proc Phase2CursorBlinkIfActive
   LDA a:$005E                             ; $A6D0: AD 5E 00 ; frame phase flags
@@ -1190,7 +1191,7 @@ Phase2AnimWaitExit:
   AND #$08                                ; $A6DA: 29 08 ; highlight mode
   STA $12                                 ; $A6DC: 85 12
   STY $13                                 ; $A6DE: 84 13 ; column index
-  JSR $B882                               ; $A6E0: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A6E0: 20 82 B8 ; column tile update
 @Done:
   RTS                                     ; $A6E3: 60
 .endproc
@@ -1207,7 +1208,7 @@ Phase2AnimWaitExit:
   STA $12                                 ; $A6ED: 85 12 ; highlight
   LDA $0545                               ; $A6EF: AD 45 05 ; cursor column
   STA $13                                 ; $A6F2: 85 13
-  JSR $B882                               ; $A6F4: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A6F4: 20 82 B8 ; column tile update
   LDA #$01                                ; $A6F7: A9 01
   STA $0540                               ; $A6F9: 8D 40 05 ; phase <- 1
   LDA #$02                                ; $A6FC: A9 02
@@ -1226,7 +1227,7 @@ Phase2AnimWaitExit:
   STA $12                                 ; $A704: 85 12 ; highlight
   LDA $0545                               ; $A706: AD 45 05 ; cursor column
   STA $13                                 ; $A709: 85 13
-  JSR $B882                               ; $A70B: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A70B: 20 82 B8 ; column tile update
   INC $0541                               ; $A70E: EE 41 05 ; sub-phase <- 7
   LDY $0545                               ; $A711: AC 45 05
   LDA $0580,Y                             ; $A714: B9 80 05 ; row marker
@@ -1248,13 +1249,13 @@ Phase2AnimWaitExit:
 .endproc
 ;===============================================================================
 ; $A72E: Phase2AttackArrowAnim
-; Sub 7: submits the attack arrow ($BE76) and fast-steps the cursor position
-; (Phase2CursorStepFast) each frame, decrementing the frame counter $0548
-; by 2; when it goes negative, resets it to 8, advances to sub 8 and plays
-; SFX $5D.
+; Sub 7: submits the attack arrow (Phase2AttackArrowSprSubmit) and fast-steps
+; the cursor position (Phase2CursorStepFast) each frame, decrementing the
+; frame counter $0548 by 2; when it goes negative, resets it to 8, advances
+; to sub 8 and plays SFX $5D.
 ;===============================================================================
 .proc Phase2AttackArrowAnim
-  JSR $BE76                               ; $A72E: 20 76 BE ; attack arrow draw
+  JSR Phase2AttackArrowSprSubmit          ; $A72E: 20 76 BE ; attack arrow draw
   JSR Phase2CursorStepFast                ; $A731: 20 E6 A9 ; step x2
   DEC $0548                               ; $A734: CE 48 05 ; frame counter -= 2
   DEC $0548                               ; $A737: CE 48 05
@@ -1269,12 +1270,12 @@ Phase2AnimWaitExit:
 .endproc
 ;===============================================================================
 ; $A74A: Phase2AttackAnimCount
-; Sub 8: submits the attack arrow ($BF15) each frame, decrementing the frame
-; counter $0548; when it goes negative, resets it to $18 and advances to
-; sub 9 (damage apply delay).
+; Sub 8: submits the attack marker (Phase2AttackMarkerSprSubmit) each frame,
+; decrementing the frame counter $0548; when it goes negative, resets it to
+; $18 and advances to sub 9 (damage apply delay).
 ;===============================================================================
 .proc Phase2AttackAnimCount
-  JSR $BF15                               ; $A74A: 20 15 BF ; attack arrow draw
+  JSR Phase2AttackMarkerSprSubmit         ; $A74A: 20 15 BF ; attack marker draw
   DEC $0548                               ; $A74D: CE 48 05 ; frame counter--
   BPL @Done                               ; $A750: 10 08 ; still animating
   LDA #$18                                ; $A752: A9 18
@@ -1321,7 +1322,7 @@ Phase2AnimWaitExit:
   STA $12                                 ; $A793: 85 12 ; un-highlight
   LDA $054D                               ; $A795: AD 4D 05 ; target column
   STA $13                                 ; $A798: 85 13
-  JSR $B882                               ; $A79A: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A79A: 20 82 B8 ; column tile update
   LDY $054D                               ; $A79D: AC 4D 05
   LDA #$FF                                ; $A7A0: A9 FF
   STA $0580,Y                             ; $A7A2: 99 80 05 ; empty slot
@@ -1349,7 +1350,7 @@ Phase2DamageAnimExit:
   STA $12                                 ; $A7B7: 85 12 ; highlight
   LDA $054D                               ; $A7B9: AD 4D 05 ; target column
   STA $13                                 ; $A7BC: 85 13
-  JSR $B882                               ; $A7BE: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A7BE: 20 82 B8 ; column tile update
   INC $0541                               ; $A7C1: EE 41 05 ; sub-phase <- $A
   RTS                                     ; $A7C4: 60
 .endproc
@@ -1388,7 +1389,7 @@ Phase2DamageAnimExit:
   STA $12                                 ; $A7E9: 85 12 ; highlight
   LDA $0545                               ; $A7EB: AD 45 05 ; cursor column
   STA $13                                 ; $A7EE: 85 13
-  JSR $B882                               ; $A7F0: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A7F0: 20 82 B8 ; column tile update
   LDA #$01                                ; $A7F3: A9 01
   STA $0540                               ; $A7F5: 8D 40 05 ; phase <- 1
   LDA #$02                                ; $A7F8: A9 02
@@ -1428,7 +1429,7 @@ Phase2DamageAnimExit:
   STA $12                                 ; $A826: 85 12 ; un-highlight
   LDA $0545                               ; $A828: AD 45 05 ; cursor column
   STA $13                                 ; $A82B: 85 13
-  JSR $B882                               ; $A82D: 20 82 B8 ; column tile update
+  JSR BattleCellRedraw                         ; $A82D: 20 82 B8 ; column tile update
   LDA #$01                                ; $A830: A9 01
   STA $0540                               ; $A832: 8D 40 05 ; phase <- 1
   LDA #$02                                ; $A835: A9 02
@@ -1863,7 +1864,7 @@ Phase2DamageAnimExit:
 .endproc
 ;===============================================================================
 ; $AABD: Phase3CommandAnimStep
-; Sub 1. Waits while the animation queue is busy ($B870 carry clear) or
+; Sub 1. Waits while the animation queue is busy (BattleAnimQueueIdleCheck carry clear) or
 ; input flag $007E bit2 is set (both wait paths exit at the trailing RTS).
 ; Otherwise, per frame, refreshes the target marker
 ; (Phase3CommandMarkerUpdate) and counts the menu step $0548 up to 4;
@@ -1872,7 +1873,7 @@ Phase2DamageAnimExit:
 ; $0560[$0549] to re-render the officer display.
 ;===============================================================================
 .proc Phase3CommandAnimStep
-  JSR $B870                               ; $AABD: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $AABD: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $AAC0: 90 2D ; still busy: wait
   LDA a:$007E                             ; $AAC2: AD 7E 00
   AND #$04                                ; $AAC5: 29 04
@@ -1977,14 +1978,14 @@ Phase2DamageAnimExit:
 ;===============================================================================
 ; $AB75: Phase3CommandConfirmWait
 ; Sub 3. Sets panel param $00BD <- 6 and waits for the animation queue to
-; idle ($B870 carry clear); then sets panel param $00BB <- 9 and
+; idle (BattleAnimQueueIdleCheck carry clear); then sets panel param $00BB <- 9 and
 ; banked-calls B1D_1E_DataFormatter (Y=$3D) with buffer ptr ($0000) <-
 ; $0560/0 to reformat the confirm panel, advancing to sub 4.
 ;===============================================================================
 .proc Phase3CommandConfirmWait
   LDA #$06                                ; $AB75: A9 06
   STA a:$00BD                             ; $AB77: 8D BD 00 ; panel param
-  JSR $B870                               ; $AB7A: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $AB7A: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $AB7D: 90 1A ; still busy: wait
   LDA #$09                                ; $AB7F: A9 09
   STA a:$00BB                             ; $AB81: 8D BB 00 ; panel param
@@ -2168,7 +2169,7 @@ Phase3CommandArrowTiles:
 ; $ACA8: Phase3CommandMarkerUpdate
 ; Refreshes the command-menu target marker: menu step $0548 into $0000 and
 ; the current action slot value $0550[$0549*4+$0548] into $0001/$0002,
-; then updates via $C839.
+; then updates via Phase3CommandMarkerRender.
 ;===============================================================================
 .proc Phase3CommandMarkerUpdate
   LDA $0548                               ; $ACA8: AD 48 05 ; menu step
@@ -2182,7 +2183,7 @@ Phase3CommandArrowTiles:
   LDA $0550,Y                             ; $ACB8: B9 50 05 ; action slot value
   STA a:$0001                             ; $ACBB: 8D 01 00
   STA a:$0002                             ; $ACBE: 8D 02 00
-  JSR $C839                               ; $ACC1: 20 39 C8 ; marker update
+  JSR Phase3CommandMarkerRender           ; $ACC1: 20 39 C8 ; marker update
   RTS                                     ; $ACC4: 60
 .endproc
 ;===============================================================================
@@ -2269,7 +2270,7 @@ Phase3CommandArrowTiles:
 ; counts $0548 up to the point tier $054A; then advances to sub 2.
 ;===============================================================================
 .proc Phase8PanelScriptStep
-  JSR $B870                               ; $AD3C: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $AD3C: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $AD3F: 90 1B ; still busy: wait
   LDA a:$007E                             ; $AD41: AD 7E 00 ; script busy flag
   BNE @Done                               ; $AD44: D0 16 ; script pending: wait
@@ -2292,7 +2293,7 @@ Phase3CommandArrowTiles:
 ; FF-terminated row list (Phase8TierRowPtrTable[$054A]) via B1F_MenuStep2
 ; and draws the selection cursor sprite through B1F_PointerTableLookup
 ; (coords Phase8RowCursorCoords, params Phase8RowCursorParams). When the
-; animation queue idles ($B870 carry set):
+; animation queue idles (BattleAnimQueueIdleCheck carry set):
 ;   A: if the budget $0572[$0549] covers the row cost
 ;      (@RowCostTable[$0012] = 3/5/7/8/$A/$C), deducts it and applies the
 ;      row effect via Phase8RowEffectDispatch (Phase8RowCoinFlip..
@@ -2336,7 +2337,7 @@ Phase3CommandArrowTiles:
   STA a:$0081                             ; $ADAB: 8D 81 00 ; restore pad latch lo
   PLA                                     ; $ADAE: 68
   STA a:$0083                             ; $ADAF: 8D 83 00 ; restore pad latch hi
-  JSR $B870                               ; $ADB2: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $ADB2: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $ADB5: 90 59 ; still busy: wait
   LDA $0549                               ; $ADB7: AD 49 05
   JSR BattlePadStateFetch                 ; $ADBA: 20 DE CC
@@ -2378,7 +2379,7 @@ Phase3CommandArrowTiles:
 .endproc
 ;===============================================================================
 ; $AE11: Phase8PanelConfirmWait
-; Sub 3. Waits for the animation queue to idle ($B870 carry set) and an A
+; Sub 3. Waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set) and an A
 ; button edge, then returns to phase 3 sub 3 (queueing the $E8/$E9 tile
 ; animation slot 0 via $CBF1). If the side control flag $0562[$0549] == 3
 ; (player-request entry), both pads are merged via
@@ -2397,7 +2398,7 @@ Phase3CommandArrowTiles:
   LDA $0549                               ; $AE24: AD 49 05
   JSR BattlePadStateFetch                 ; $AE27: 20 DE CC
 @InputCheck:
-  JSR $B870                               ; $AE2A: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $AE2A: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $AE2D: 90 3C ; still busy: wait
   LDA a:$0001                             ; $AE2F: AD 01 00
   AND #$01                                ; $AE32: 29 01 ; A button
@@ -2449,14 +2450,14 @@ Phase3CommandArrowTiles:
 .endproc
 ;===============================================================================
 ; $AE8E: Phase8PanelAdvanceWait
-; Sub 4. Waits for the animation queue to idle ($B870 carry set) and an A
+; Sub 4. Waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set) and an A
 ; button edge, then advances to phase 5 sub 0 (battle resolution).
 ;===============================================================================
 .proc Phase8PanelAdvanceWait
   JSR $CCA8                               ; $AE8E: 20 A8 CC ; panel input check setup
   LDA $0549                               ; $AE91: AD 49 05 ; acting side
   JSR BattlePadStateFetch                 ; $AE94: 20 DE CC
-  JSR $B870                               ; $AE97: 20 70 B8 ; anim queue idle check
+  JSR BattleAnimQueueIdleCheck                 ; $AE97: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $AE9A: 90 11 ; still busy: wait
   LDA a:$0001                             ; $AE9C: AD 01 00
   AND #$01                                ; $AE9F: 29 01 ; A button
@@ -3172,7 +3173,7 @@ Phase9AdvanceFramePtrTable:
 ;===============================================================================
 ; $B3EF: Phase9AdvanceRosterSweep
 ; Sub 3. Sweeps the acting side's 11 roster slots ($0558+$0548, slot index
-; $0548 = 0..$0A): dead units ($05AC == 0) are cleared from the OAM via $B882
+; $0548 = 0..$0A): dead units ($05AC == 0) are cleared from the OAM via BattleCellRedraw
 ; ($0012=0) and removed from the event/row/column/roster arrays ($FF);
 ; living units get their strip sprite refreshed ($0012=1). When all slots
 ; are processed the advance finishes via Phase9AdvanceFinish.
@@ -3196,7 +3197,7 @@ Phase9AdvanceFramePtrTable:
   STY a:$0013                             ; $B40E: 8C 13 00 ; slot param
   TYA                                     ; $B411: 98
   PHA                                     ; $B412: 48
-  JSR $B882                               ; $B413: 20 82 B8 ; strip sprite clear
+  JSR BattleCellRedraw                         ; $B413: 20 82 B8 ; strip sprite clear
   PLA                                     ; $B416: 68
   TAY                                     ; $B417: A8
   LDA #$FF                                ; $B418: A9 FF
@@ -3210,7 +3211,7 @@ Phase9AdvanceFramePtrTable:
   LDA #$01                                ; $B42B: A9 01
   STA a:$0012                             ; $B42D: 8D 12 00 ; refresh-sprite flag
   STY a:$0013                             ; $B430: 8C 13 00 ; slot param
-  JSR $B882                               ; $B433: 20 82 B8 ; strip sprite update
+  JSR BattleCellRedraw                         ; $B433: 20 82 B8 ; strip sprite update
 @NextSlot:
   INC $0548                               ; $B436: EE 48 05 ; slot cursor +1
   LDA $0548                               ; $B439: AD 48 05
@@ -3390,556 +3391,697 @@ Phase9AdvanceReturn:
 @DamageDone:
   RTS                                     ; $B547: 60
 .endproc
-Loc_B548:
-  LDY #$57                                ; $B548: A0 57
-  LDA #$FF                                ; $B54A: A9 FF
-Loc_B54C:
+;===============================================================================
+; $B548: BattleRosterSetup
+; Builds the battle rosters of both sides from the side officer ids $0560
+; (side A) and $0561 (side B); called from Loc_D054 at battle start. First
+; clears the $58-byte roster block $0580-$05D7 with $FF (unit columns
+; $0580/$058B, unit rows $0596/$05A1, roster codes $05C2/$05CD, column HP
+; $05AD/$05B8, side strengths $05AC/$05B7).
+; Per side, with the officer record via B1F_GetOfficerRecordAddr:
+;   - record field [0] -> side strength ($05AC/$05B7);
+;   - troop total = record fields [9]:[8]: column count = ceil(troops/100)
+;     ($0566/$0567), then the troop total is split into per-column HP
+;     ($05AD/$05B8): the first (troops mod count) columns get the ceil
+;     share, the rest the floor share;
+;   - unit-class composition from the grade of record field [1]
+;     (>= $50 -> grade 0, >= $32 -> grade 1, else grade 2) and the
+;     rank/aptitude record field [$B]>>4 via BattleUnitGradeLimitTable:
+;     slot 0 is the commander (roster code $30/$20), slots below bound 1
+;     are class 3 ($33/$23), below bound 2 class 2 ($32/$22), the rest
+;     class 1 ($31/$21); roster codes go to $05C2/$05CD (high nibble =
+;     side: 3 = A, 2 = B);
+;   - unit placement from BattleFormationPtrTable: side A uses layout
+;     index i = $056C & 3 (columns entry i -> $0580, rows entry i+6 ->
+;     $0596); side B uses i = $056D & 3 and mirrors the columns
+;     ($058B <- $0F - col, rows -> $05A1). In battle scene phase 5
+;     ($0544 == 5) side B uses the fixed index 4 with dedicated layouts:
+;     class-2 slots take entries 4/10, all other slots entries 5/11, and
+;     the class-3 bound is zeroed (no $23 units).
+;===============================================================================
+.proc BattleRosterSetup
+  LDY #$57                                ; $B548: A0 57 ; roster block size-1
+  LDA #$FF                                ; $B54A: A9 FF ; empty marker
+@ClearLoop:
   STA $0580,Y                             ; $B54C: 99 80 05
   DEY                                     ; $B54F: 88
-  BPL $B54C                               ; $B550: 10 FA
-  LDA $0560                               ; $B552: AD 60 05
-  JSR $F2D7                               ; $B555: 20 D7 F2
+  BPL @ClearLoop                          ; $B550: 10 FA
+; --- Side A: officer record, strength and column count ---
+  LDA $0560                               ; $B552: AD 60 05 ; side A officer id
+  JSR B1F_GetOfficerRecordAddr            ; $B555: 20 D7 F2 ; record ptr -> ($00)
   LDY #$00                                ; $B558: A0 00
-  LDA ($00),Y                             ; $B55A: B1 00
-  STA $05AC                               ; $B55C: 8D AC 05
+  LDA ($00),Y                             ; $B55A: B1 00 ; record field [0]
+  STA $05AC                               ; $B55C: 8D AC 05 ; side A strength
   LDY #$0B                                ; $B55F: A0 0B
-  LDA ($00),Y                             ; $B561: B1 00
-  PHA                                     ; $B563: 48
+  LDA ($00),Y                             ; $B561: B1 00 ; field [$B] rank/aptitude
+  PHA                                     ; $B563: 48 ; save for class lookup
   LDY #$01                                ; $B564: A0 01
-  LDA ($00),Y                             ; $B566: B1 00
-  PHA                                     ; $B568: 48
+  LDA ($00),Y                             ; $B566: B1 00 ; field [1] grade stat
+  PHA                                     ; $B568: 48 ; save for grade check
   LDY #$09                                ; $B569: A0 09
-  LDA ($00),Y                             ; $B56B: B1 00
+  LDA ($00),Y                             ; $B56B: B1 00 ; troops hi
   PHA                                     ; $B56D: 48
-  STA a:$0002                             ; $B56E: 8D 02 00
+  STA a:$0002                             ; $B56E: 8D 02 00 ; dividend hi
   DEY                                     ; $B571: 88
-  LDA ($00),Y                             ; $B572: B1 00
+  LDA ($00),Y                             ; $B572: B1 00 ; troops lo
   PHA                                     ; $B574: 48
-  STA a:$0001                             ; $B575: 8D 01 00
-  LDA #$64                                ; $B578: A9 64
+  STA a:$0001                             ; $B575: 8D 01 00 ; dividend lo
+  LDA #$64                                ; $B578: A9 64 ; divisor <- 100
   STA a:$0003                             ; $B57A: 8D 03 00
   LDA #$00                                ; $B57D: A9 00
   STA a:$0004                             ; $B57F: 8D 04 00
-  JSR $EA7C                               ; $B582: 20 7C EA
-  LDA a:$0005                             ; $B585: AD 05 00
-  BEQ $B58D                               ; $B588: F0 03
-  INC a:$0001                             ; $B58A: EE 01 00
-Loc_B58D:
-  LDA a:$0001                             ; $B58D: AD 01 00
-  STA $0566                               ; $B590: 8D 66 05
-  STA a:$0003                             ; $B593: 8D 03 00
-  PLA                                     ; $B596: 68
-  STA a:$0001                             ; $B597: 8D 01 00
-  PLA                                     ; $B59A: 68
-  STA a:$0002                             ; $B59B: 8D 02 00
+  JSR B1F_MathDiv16                       ; $B582: 20 7C EA ; troops / 100
+  LDA a:$0005                             ; $B585: AD 05 00 ; remainder
+  BEQ @SideAColsDone                      ; $B588: F0 03
+  INC a:$0001                             ; $B58A: EE 01 00 ; round up
+@SideAColsDone:
+  LDA a:$0001                             ; $B58D: AD 01 00 ; column count
+  STA $0566                               ; $B590: 8D 66 05 ; side A column count
+  STA a:$0003                             ; $B593: 8D 03 00 ; divisor <- count
+  PLA                                     ; $B596: 68 ; troops lo
+  STA a:$0001                             ; $B597: 8D 01 00 ; dividend lo
+  PLA                                     ; $B59A: 68 ; troops hi
+  STA a:$0002                             ; $B59B: 8D 02 00 ; dividend hi
   LDA #$00                                ; $B59E: A9 00
   STA a:$0004                             ; $B5A0: 8D 04 00
-  JSR $EA7C                               ; $B5A3: 20 7C EA
+  JSR B1F_MathDiv16                       ; $B5A3: 20 7C EA ; troops / count
   LDY #$00                                ; $B5A6: A0 00
-  INC a:$0001                             ; $B5A8: EE 01 00
-  LDA a:$0001                             ; $B5AB: AD 01 00
-Loc_B5AE:
-  CPY a:$0005                             ; $B5AE: CC 05 00
-  BCS $B5BE                               ; $B5B1: B0 0B
-  STA $05AD,Y                             ; $B5B3: 99 AD 05
+  INC a:$0001                             ; $B5A8: EE 01 00 ; ceil share
+  LDA a:$0001                             ; $B5AB: AD 01 00 ; HP share
+@SideAHpFill:
+  CPY a:$0005                             ; $B5AE: CC 05 00 ; remainder
+  BCS @SideAHpTail                        ; $B5B1: B0 0B ; Y >= r: floor share
+  STA $05AD,Y                             ; $B5B3: 99 AD 05 ; ceil share
   INY                                     ; $B5B6: C8
-  CPY $0566                               ; $B5B7: CC 66 05
-  BCC $B5AE                               ; $B5BA: 90 F2
-  BCS $B5CA                               ; $B5BC: B0 0C
-Loc_B5BE:
+  CPY $0566                               ; $B5B7: CC 66 05 ; column count
+  BCC @SideAHpFill                        ; $B5BA: 90 F2
+  BCS @SideAFormation                     ; $B5BC: B0 0C ; always: columns done
+@SideAHpTail:
   SEC                                     ; $B5BE: 38
-  SBC #$01                                ; $B5BF: E9 01
-Loc_B5C1:
+  SBC #$01                                ; $B5BF: E9 01 ; floor share
+@SideAHpTailLoop:
   STA $05AD,Y                             ; $B5C1: 99 AD 05
   INY                                     ; $B5C4: C8
   CPY $0566                               ; $B5C5: CC 66 05
-  BCC $B5C1                               ; $B5C8: 90 F7
-Loc_B5CA:
-  LDA $056C                               ; $B5CA: AD 6C 05
-  AND #$03                                ; $B5CD: 29 03
-  ASL                                     ; $B5CF: 0A
+  BCC @SideAHpTailLoop                    ; $B5C8: 90 F7
+; --- Side A: formation layout and unit-class bounds ---
+@SideAFormation:
+  LDA $056C                               ; $B5CA: AD 6C 05 ; formation random
+  AND #$03                                ; $B5CD: 29 03 ; layout index 0-3
+  ASL                                     ; $B5CF: 0A ; -> word offset
   TAY                                     ; $B5D0: A8
-  LDA $B794,Y                             ; $B5D1: B9 94 B7
+  LDA BattleFormationPtrTable,Y           ; $B5D1: B9 94 B7 ; col layout ptr lo
   STA a:$000A                             ; $B5D4: 8D 0A 00
-  LDA $B795,Y                             ; $B5D7: B9 95 B7
+  LDA BattleFormationPtrTable+1,Y         ; $B5D7: B9 95 B7 ; col layout ptr hi
   STA a:$000B                             ; $B5DA: 8D 0B 00
-  LDA $B7A0,Y                             ; $B5DD: B9 A0 B7
+  LDA BattleFormationPtrTable+$0C,Y       ; $B5DD: B9 A0 B7 ; row layout ptr lo
   STA a:$000C                             ; $B5E0: 8D 0C 00
-  LDA $B7A1,Y                             ; $B5E3: B9 A1 B7
+  LDA BattleFormationPtrTable+$0D,Y       ; $B5E3: B9 A1 B7 ; row layout ptr hi
   STA a:$000D                             ; $B5E6: 8D 0D 00
   LDY #$00                                ; $B5E9: A0 00
-  PLA                                     ; $B5EB: 68
-  CMP #$50                                ; $B5EC: C9 50
-  BCS $B5F6                               ; $B5EE: B0 06
-  INY                                     ; $B5F0: C8
-  CMP #$32                                ; $B5F1: C9 32
-  BCS $B5F6                               ; $B5F3: B0 01
-  INY                                     ; $B5F5: C8
-Loc_B5F6:
-  STY a:$0000                             ; $B5F6: 8C 00 00
-  PLA                                     ; $B5F9: 68
+  PLA                                     ; $B5EB: 68 ; record field [1]
+  CMP #$50                                ; $B5EC: C9 50 ; >= $50: grade 0
+  BCS @SideAGradeDone                     ; $B5EE: B0 06
+  INY                                     ; $B5F0: C8 ; grade 1
+  CMP #$32                                ; $B5F1: C9 32 ; >= $32: grade 1
+  BCS @SideAGradeDone                     ; $B5F3: B0 01
+  INY                                     ; $B5F5: C8 ; grade 2
+@SideAGradeDone:
+  STY a:$0000                             ; $B5F6: 8C 00 00 ; grade g
+  PLA                                     ; $B5F9: 68 ; record field [$B]
   LSR                                     ; $B5FA: 4A
   LSR                                     ; $B5FB: 4A
   LSR                                     ; $B5FC: 4A
-  LSR                                     ; $B5FD: 4A
+  LSR                                     ; $B5FD: 4A ; >>4: rank/aptitude n
   ASL                                     ; $B5FE: 0A
-  ASL                                     ; $B5FF: 0A
-  ORA a:$0000                             ; $B600: 0D 00 00
-  ASL                                     ; $B603: 0A
+  ASL                                     ; $B5FF: 0A ; n * 4
+  ORA a:$0000                             ; $B600: 0D 00 00 ; n*4 + g
+  ASL                                     ; $B603: 0A ; -> word offset
   TAY                                     ; $B604: A8
-  LDA $B7AC,Y                             ; $B605: B9 AC B7
+  LDA BattleUnitGradeLimitTable,Y         ; $B605: B9 AC B7 ; class-3 bound
   STA a:$0001                             ; $B608: 8D 01 00
-  LDA $B7AD,Y                             ; $B60B: B9 AD B7
+  LDA BattleUnitGradeLimitTable+1,Y       ; $B60B: B9 AD B7 ; class-2 bound
   STA a:$0002                             ; $B60E: 8D 02 00
-  LDA $0566                               ; $B611: AD 66 05
+; --- Side A: roster codes and unit placement ---
+  LDA $0566                               ; $B611: AD 66 05 ; column count
   STA a:$0000                             ; $B614: 8D 00 00
-  INC a:$0000                             ; $B617: EE 00 00
+  INC a:$0000                             ; $B617: EE 00 00 ; + commander slot
   LDY #$00                                ; $B61A: A0 00
-Loc_B61C:
-  LDA #$30                                ; $B61C: A9 30
+@SideARosterLoop:
+  LDA #$30                                ; $B61C: A9 30 ; commander (side A)
   CPY #$00                                ; $B61E: C0 00
-  BEQ $B632                               ; $B620: F0 10
-  LDA #$33                                ; $B622: A9 33
-  CPY a:$0001                             ; $B624: CC 01 00
-  BCC $B632                               ; $B627: 90 09
-  LDA #$32                                ; $B629: A9 32
-  CPY a:$0002                             ; $B62B: CC 02 00
-  BCC $B632                               ; $B62E: 90 02
-  LDA #$31                                ; $B630: A9 31
-Loc_B632:
-  STA $05C2,Y                             ; $B632: 99 C2 05
-  LDA ($0A),Y                             ; $B635: B1 0A
-  STA $0580,Y                             ; $B637: 99 80 05
-  LDA ($0C),Y                             ; $B63A: B1 0C
-  STA $0596,Y                             ; $B63C: 99 96 05
+  BEQ @SideARosterStore                   ; $B620: F0 10 ; slot 0
+  LDA #$33                                ; $B622: A9 33 ; class 3
+  CPY a:$0001                             ; $B624: CC 01 00 ; class-3 bound
+  BCC @SideARosterStore                   ; $B627: 90 09
+  LDA #$32                                ; $B629: A9 32 ; class 2
+  CPY a:$0002                             ; $B62B: CC 02 00 ; class-2 bound
+  BCC @SideARosterStore                   ; $B62E: 90 02
+  LDA #$31                                ; $B630: A9 31 ; class 1
+@SideARosterStore:
+  STA $05C2,Y                             ; $B632: 99 C2 05 ; roster code
+  LDA ($0A),Y                             ; $B635: B1 0A ; col layout entry
+  STA $0580,Y                             ; $B637: 99 80 05 ; unit column
+  LDA ($0C),Y                             ; $B63A: B1 0C ; row layout entry
+  STA $0596,Y                             ; $B63C: 99 96 05 ; unit row
   INY                                     ; $B63F: C8
-  CPY a:$0000                             ; $B640: CC 00 00
-  BCC $B61C                               ; $B643: 90 D7
-  LDA $0561                               ; $B645: AD 61 05
-  JSR $F2D7                               ; $B648: 20 D7 F2
+  CPY a:$0000                             ; $B640: CC 00 00 ; slot count
+  BCC @SideARosterLoop                    ; $B643: 90 D7
+; --- Side B: officer record, strength and column count ---
+  LDA $0561                               ; $B645: AD 61 05 ; side B officer id
+  JSR B1F_GetOfficerRecordAddr            ; $B648: 20 D7 F2 ; record ptr -> ($00)
   LDY #$00                                ; $B64B: A0 00
-  LDA ($00),Y                             ; $B64D: B1 00
-  STA $05B7                               ; $B64F: 8D B7 05
+  LDA ($00),Y                             ; $B64D: B1 00 ; record field [0]
+  STA $05B7                               ; $B64F: 8D B7 05 ; side B strength
   LDY #$0B                                ; $B652: A0 0B
-  LDA ($00),Y                             ; $B654: B1 00
-  PHA                                     ; $B656: 48
+  LDA ($00),Y                             ; $B654: B1 00 ; field [$B] rank/aptitude
+  PHA                                     ; $B656: 48 ; save for class lookup
   LDY #$01                                ; $B657: A0 01
-  LDA ($00),Y                             ; $B659: B1 00
-  PHA                                     ; $B65B: 48
+  LDA ($00),Y                             ; $B659: B1 00 ; field [1] grade stat
+  PHA                                     ; $B65B: 48 ; save for grade check
   LDY #$09                                ; $B65C: A0 09
-  LDA ($00),Y                             ; $B65E: B1 00
+  LDA ($00),Y                             ; $B65E: B1 00 ; troops hi
   PHA                                     ; $B660: 48
-  STA a:$0002                             ; $B661: 8D 02 00
+  STA a:$0002                             ; $B661: 8D 02 00 ; dividend hi
   DEY                                     ; $B664: 88
-  LDA ($00),Y                             ; $B665: B1 00
+  LDA ($00),Y                             ; $B665: B1 00 ; troops lo
   PHA                                     ; $B667: 48
-  STA a:$0001                             ; $B668: 8D 01 00
-  LDA #$64                                ; $B66B: A9 64
+  STA a:$0001                             ; $B668: 8D 01 00 ; dividend lo
+  LDA #$64                                ; $B66B: A9 64 ; divisor <- 100
   STA a:$0003                             ; $B66D: 8D 03 00
   LDA #$00                                ; $B670: A9 00
   STA a:$0004                             ; $B672: 8D 04 00
-  JSR $EA7C                               ; $B675: 20 7C EA
-  LDA a:$0005                             ; $B678: AD 05 00
-  BEQ $B680                               ; $B67B: F0 03
-  INC a:$0001                             ; $B67D: EE 01 00
-Loc_B680:
-  LDA a:$0001                             ; $B680: AD 01 00
-  STA $0567                               ; $B683: 8D 67 05
-  STA a:$0003                             ; $B686: 8D 03 00
-  PLA                                     ; $B689: 68
-  STA a:$0001                             ; $B68A: 8D 01 00
-  PLA                                     ; $B68D: 68
-  STA a:$0002                             ; $B68E: 8D 02 00
+  JSR B1F_MathDiv16                       ; $B675: 20 7C EA ; troops / 100
+  LDA a:$0005                             ; $B678: AD 05 00 ; remainder
+  BEQ @SideBColsDone                      ; $B67B: F0 03
+  INC a:$0001                             ; $B67D: EE 01 00 ; round up
+@SideBColsDone:
+  LDA a:$0001                             ; $B680: AD 01 00 ; column count
+  STA $0567                               ; $B683: 8D 67 05 ; side B column count
+  STA a:$0003                             ; $B686: 8D 03 00 ; divisor <- count
+  PLA                                     ; $B689: 68 ; troops lo
+  STA a:$0001                             ; $B68A: 8D 01 00 ; dividend lo
+  PLA                                     ; $B68D: 68 ; troops hi
+  STA a:$0002                             ; $B68E: 8D 02 00 ; dividend hi
   LDA #$00                                ; $B691: A9 00
   STA a:$0004                             ; $B693: 8D 04 00
-  JSR $EA7C                               ; $B696: 20 7C EA
+  JSR B1F_MathDiv16                       ; $B696: 20 7C EA ; troops / count
   LDY #$00                                ; $B699: A0 00
-  INC a:$0001                             ; $B69B: EE 01 00
-  LDA a:$0001                             ; $B69E: AD 01 00
-Loc_B6A1:
-  CPY a:$0005                             ; $B6A1: CC 05 00
-  BCS $B6B1                               ; $B6A4: B0 0B
-  STA $05B8,Y                             ; $B6A6: 99 B8 05
+  INC a:$0001                             ; $B69B: EE 01 00 ; ceil share
+  LDA a:$0001                             ; $B69E: AD 01 00 ; HP share
+@SideBHpFill:
+  CPY a:$0005                             ; $B6A1: CC 05 00 ; remainder
+  BCS @SideBHpTail                        ; $B6A4: B0 0B ; Y >= r: floor share
+  STA $05B8,Y                             ; $B6A6: 99 B8 05 ; ceil share
   INY                                     ; $B6A9: C8
-  CPY $0567                               ; $B6AA: CC 67 05
-  BCC $B6A1                               ; $B6AD: 90 F2
-  BCS $B6BD                               ; $B6AF: B0 0C
-Loc_B6B1:
+  CPY $0567                               ; $B6AA: CC 67 05 ; column count
+  BCC @SideBHpFill                        ; $B6AD: 90 F2
+  BCS @SideBFormation                     ; $B6AF: B0 0C ; always: columns done
+@SideBHpTail:
   SEC                                     ; $B6B1: 38
-  SBC #$01                                ; $B6B2: E9 01
-Loc_B6B4:
+  SBC #$01                                ; $B6B2: E9 01 ; floor share
+@SideBHpTailLoop:
   STA $05B8,Y                             ; $B6B4: 99 B8 05
   INY                                     ; $B6B7: C8
   CPY $0567                               ; $B6B8: CC 67 05
-  BCC $B6B4                               ; $B6BB: 90 F7
-Loc_B6BD:
-  LDA #$04                                ; $B6BD: A9 04
-  LDY $0544                               ; $B6BF: AC 44 05
+  BCC @SideBHpTailLoop                    ; $B6BB: 90 F7
+; --- Side B: formation layouts and unit-class bounds ---
+@SideBFormation:
+  LDA #$04                                ; $B6BD: A9 04 ; siege layout index
+  LDY $0544                               ; $B6BF: AC 44 05 ; battle scene phase
   CPY #$05                                ; $B6C2: C0 05
-  BEQ $B6CB                               ; $B6C4: F0 05
-  LDA $056D                               ; $B6C6: AD 6D 05
-  AND #$03                                ; $B6C9: 29 03
-Loc_B6CB:
-  ASL                                     ; $B6CB: 0A
+  BEQ @SideBLayoutLoad                    ; $B6C4: F0 05 ; phase 5: fixed index 4
+  LDA $056D                               ; $B6C6: AD 6D 05 ; formation random
+  AND #$03                                ; $B6C9: 29 03 ; layout index 0-3
+@SideBLayoutLoad:
+  ASL                                     ; $B6CB: 0A ; -> word offset
   TAY                                     ; $B6CC: A8
-  LDA $B794,Y                             ; $B6CD: B9 94 B7
+  LDA BattleFormationPtrTable,Y           ; $B6CD: B9 94 B7 ; col layout ptr lo
   STA a:$000A                             ; $B6D0: 8D 0A 00
-  LDA $B795,Y                             ; $B6D3: B9 95 B7
+  LDA BattleFormationPtrTable+1,Y         ; $B6D3: B9 95 B7 ; col layout ptr hi
   STA a:$000B                             ; $B6D6: 8D 0B 00
-  LDA $B7A0,Y                             ; $B6D9: B9 A0 B7
+  LDA BattleFormationPtrTable+$0C,Y       ; $B6D9: B9 A0 B7 ; row layout ptr lo
   STA a:$000C                             ; $B6DC: 8D 0C 00
-  LDA $B7A1,Y                             ; $B6DF: B9 A1 B7
+  LDA BattleFormationPtrTable+$0D,Y       ; $B6DF: B9 A1 B7 ; row layout ptr hi
   STA a:$000D                             ; $B6E2: 8D 0D 00
-  LDA $B796,Y                             ; $B6E5: B9 96 B7
+  LDA BattleFormationPtrTable+2,Y         ; $B6E5: B9 96 B7 ; siege col ptr lo (i+1)
   STA a:$001A                             ; $B6E8: 8D 1A 00
-  LDA $B797,Y                             ; $B6EB: B9 97 B7
+  LDA BattleFormationPtrTable+3,Y         ; $B6EB: B9 97 B7 ; siege col ptr hi (i+1)
   STA a:$001B                             ; $B6EE: 8D 1B 00
-  LDA $B7A2,Y                             ; $B6F1: B9 A2 B7
+  LDA BattleFormationPtrTable+$0E,Y       ; $B6F1: B9 A2 B7 ; siege row ptr lo (i+7)
   STA a:$001C                             ; $B6F4: 8D 1C 00
-  LDA $B7A3,Y                             ; $B6F7: B9 A3 B7
+  LDA BattleFormationPtrTable+$0F,Y       ; $B6F7: B9 A3 B7 ; siege row ptr hi (i+7)
   STA a:$001D                             ; $B6FA: 8D 1D 00
   LDY #$00                                ; $B6FD: A0 00
-  PLA                                     ; $B6FF: 68
-  CMP #$50                                ; $B700: C9 50
-  BCS $B70A                               ; $B702: B0 06
-  INY                                     ; $B704: C8
-  CMP #$32                                ; $B705: C9 32
-  BCS $B70A                               ; $B707: B0 01
-  INY                                     ; $B709: C8
-Loc_B70A:
-  STY a:$0000                             ; $B70A: 8C 00 00
-  PLA                                     ; $B70D: 68
+  PLA                                     ; $B6FF: 68 ; record field [1]
+  CMP #$50                                ; $B700: C9 50 ; >= $50: grade 0
+  BCS @SideBGradeDone                     ; $B702: B0 06
+  INY                                     ; $B704: C8 ; grade 1
+  CMP #$32                                ; $B705: C9 32 ; >= $32: grade 1
+  BCS @SideBGradeDone                     ; $B707: B0 01
+  INY                                     ; $B709: C8 ; grade 2
+@SideBGradeDone:
+  STY a:$0000                             ; $B70A: 8C 00 00 ; grade g
+  PLA                                     ; $B70D: 68 ; record field [$B]
   LSR                                     ; $B70E: 4A
   LSR                                     ; $B70F: 4A
   LSR                                     ; $B710: 4A
-  LSR                                     ; $B711: 4A
+  LSR                                     ; $B711: 4A ; >>4: rank/aptitude n
   ASL                                     ; $B712: 0A
-  ASL                                     ; $B713: 0A
-  ORA a:$0000                             ; $B714: 0D 00 00
-  ASL                                     ; $B717: 0A
+  ASL                                     ; $B713: 0A ; n * 4
+  ORA a:$0000                             ; $B714: 0D 00 00 ; n*4 + g
+  ASL                                     ; $B717: 0A ; -> word offset
   TAY                                     ; $B718: A8
-  LDA $B7AC,Y                             ; $B719: B9 AC B7
+  LDA BattleUnitGradeLimitTable,Y         ; $B719: B9 AC B7 ; class-3 bound
   STA a:$0001                             ; $B71C: 8D 01 00
-  LDA $B7AD,Y                             ; $B71F: B9 AD B7
+  LDA BattleUnitGradeLimitTable+1,Y       ; $B71F: B9 AD B7 ; class-2 bound
   STA a:$0002                             ; $B722: 8D 02 00
-  LDA $0544                               ; $B725: AD 44 05
+  LDA $0544                               ; $B725: AD 44 05 ; battle scene phase
   CMP #$05                                ; $B728: C9 05
-  BNE $B731                               ; $B72A: D0 05
-  LDA #$00                                ; $B72C: A9 00
+  BNE @SideBBoundsDone                    ; $B72A: D0 05
+  LDA #$00                                ; $B72C: A9 00 ; phase 5: no class 3
   STA a:$0001                             ; $B72E: 8D 01 00
-Loc_B731:
-  LDA $0567                               ; $B731: AD 67 05
+; --- Side B: roster codes and unit placement ---
+@SideBBoundsDone:
+  LDA $0567                               ; $B731: AD 67 05 ; column count
   STA a:$0000                             ; $B734: 8D 00 00
-  INC a:$0000                             ; $B737: EE 00 00
+  INC a:$0000                             ; $B737: EE 00 00 ; + commander slot
   LDY #$00                                ; $B73A: A0 00
-Loc_B73C:
-  LDA #$20                                ; $B73C: A9 20
+@SideBRosterLoop:
+  LDA #$20                                ; $B73C: A9 20 ; commander (side B)
   CPY #$00                                ; $B73E: C0 00
-  BEQ $B752                               ; $B740: F0 10
-  LDA #$23                                ; $B742: A9 23
-  CPY a:$0001                             ; $B744: CC 01 00
-  BCC $B752                               ; $B747: 90 09
-  LDA #$22                                ; $B749: A9 22
-  CPY a:$0002                             ; $B74B: CC 02 00
-  BCC $B752                               ; $B74E: 90 02
-  LDA #$21                                ; $B750: A9 21
-Loc_B752:
-  STA $05CD,Y                             ; $B752: 99 CD 05
-  CMP #$22                                ; $B755: C9 22
-  BEQ $B77A                               ; $B757: F0 21
-  LDA $0544                               ; $B759: AD 44 05
+  BEQ @SideBRosterStore                   ; $B740: F0 10 ; slot 0
+  LDA #$23                                ; $B742: A9 23 ; class 3
+  CPY a:$0001                             ; $B744: CC 01 00 ; class-3 bound
+  BCC @SideBRosterStore                   ; $B747: 90 09
+  LDA #$22                                ; $B749: A9 22 ; class 2
+  CPY a:$0002                             ; $B74B: CC 02 00 ; class-2 bound
+  BCC @SideBRosterStore                   ; $B74E: 90 02
+  LDA #$21                                ; $B750: A9 21 ; class 1
+@SideBRosterStore:
+  STA $05CD,Y                             ; $B752: 99 CD 05 ; roster code
+  CMP #$22                                ; $B755: C9 22 ; class 2 code?
+  BEQ @SideBPlaceShared                   ; $B757: F0 21 ; -> index-i layouts
+  LDA $0544                               ; $B759: AD 44 05 ; battle scene phase
   CMP #$05                                ; $B75C: C9 05
-  BNE $B77A                               ; $B75E: D0 1A
-  LDA ($1A),Y                             ; $B760: B1 1A
+  BNE @SideBPlaceShared                   ; $B75E: D0 1A ; not phase 5: shared
+  LDA ($1A),Y                             ; $B760: B1 1A ; siege col layout entry
   STA a:$0003                             ; $B762: 8D 03 00
   LDA #$0F                                ; $B765: A9 0F
   SEC                                     ; $B767: 38
-  SBC a:$0003                             ; $B768: ED 03 00
-  STA $058B,Y                             ; $B76B: 99 8B 05
-  LDA ($1C),Y                             ; $B76E: B1 1C
-  STA $05A1,Y                             ; $B770: 99 A1 05
+  SBC a:$0003                             ; $B768: ED 03 00 ; mirror column
+  STA $058B,Y                             ; $B76B: 99 8B 05 ; unit column
+  LDA ($1C),Y                             ; $B76E: B1 1C ; siege row layout entry
+  STA $05A1,Y                             ; $B770: 99 A1 05 ; unit row
   INY                                     ; $B773: C8
-  CPY a:$0000                             ; $B774: CC 00 00
-  BCC $B73C                               ; $B777: 90 C3
+  CPY a:$0000                             ; $B774: CC 00 00 ; slot count
+  BCC @SideBRosterLoop                    ; $B777: 90 C3
   RTS                                     ; $B779: 60
-Loc_B77A:
-  LDA ($0A),Y                             ; $B77A: B1 0A
+@SideBPlaceShared:
+  LDA ($0A),Y                             ; $B77A: B1 0A ; col layout entry
   STA a:$0003                             ; $B77C: 8D 03 00
   LDA #$0F                                ; $B77F: A9 0F
   SEC                                     ; $B781: 38
-  SBC a:$0003                             ; $B782: ED 03 00
-  STA $058B,Y                             ; $B785: 99 8B 05
-  LDA ($0C),Y                             ; $B788: B1 0C
-  STA $05A1,Y                             ; $B78A: 99 A1 05
+  SBC a:$0003                             ; $B782: ED 03 00 ; mirror column
+  STA $058B,Y                             ; $B785: 99 8B 05 ; unit column
+  LDA ($0C),Y                             ; $B788: B1 0C ; row layout entry
+  STA $05A1,Y                             ; $B78A: 99 A1 05 ; unit row
   INY                                     ; $B78D: C8
-  CPY a:$0000                             ; $B78E: CC 00 00
-  BCC $B73C                               ; $B791: 90 A9
+  CPY a:$0000                             ; $B78E: CC 00 00 ; slot count
+  BCC @SideBRosterLoop                    ; $B791: 90 A9
   RTS                                     ; $B793: 60
-; --- Data Region ---
-  .byte $EC,$B7,$F7,$B7,$02,$B8,$0D,$B8,$18,$B8,$23,$B8,$2E,$B8,$39,$B8; $B794: EC B7 F7 B7 02 B8 0D B8 18 B8 23 B8 2E B8 39 B8
-  .byte $44,$B8,$4F,$B8,$5A,$B8,$65,$B8,$06,$09,$08,$0A,$08,$0B,$00,$00; $B7A4: 44 B8 4F B8 5A B8 65 B8 06 09 08 0A 08 0B 00 00
-  .byte $05,$09,$07,$0A,$07,$0B,$00,$00,$05,$08,$06,$09,$06,$0A,$00,$00; $B7B4: 05 09 07 0A 07 0B 00 00 05 08 06 09 06 0A 00 00
-  .byte $04,$07,$05,$08,$06,$09,$00,$00,$03,$06,$04,$08,$05,$09,$00,$00; $B7C4: 04 07 05 08 06 09 00 00 03 06 04 08 05 09 00 00
-  .byte $02,$06,$04,$07,$04,$08,$00,$00,$02,$05,$03,$06,$04,$07,$00,$00; $B7D4: 02 06 04 07 04 08 00 00 02 05 03 06 04 07 00 00
-  .byte $01,$05,$02,$06,$03,$07,$00,$00,$01,$02,$02,$02,$03,$03,$03,$04; $B7E4: 01 05 02 06 03 07 00 00 01 02 02 02 03 03 03 04
-  .byte $04,$05,$03,$01,$04,$04,$02,$02,$03,$03,$04,$04,$05,$05,$01,$03; $B7F4: 04 05 03 01 04 04 02 02 03 03 04 04 05 05 01 03
-  .byte $02,$02,$02,$02,$03,$03,$04,$04,$05,$01,$02,$02,$03,$03,$03,$04; $B804: 02 02 02 02 03 03 04 04 05 01 02 02 03 03 03 04
-  .byte $04,$05,$05,$05,$01,$03,$03,$08,$08,$06,$06,$07,$07,$07,$07,$01; $B814: 04 05 05 05 01 03 03 08 08 06 06 07 07 07 07 01
-  .byte $03,$03,$08,$08,$01,$01,$03,$03,$02,$02,$05,$01,$02,$03,$04,$05; $B824: 03 03 08 08 01 01 03 03 02 02 05 01 02 03 04 05
-  .byte $06,$07,$08,$09,$09,$05,$04,$06,$04,$06,$03,$07,$02,$08,$01,$09; $B834: 06 07 08 09 09 05 04 06 04 06 03 07 02 08 01 09
-  .byte $05,$05,$04,$06,$02,$08,$03,$07,$04,$06,$05,$05,$04,$06,$03,$05; $B844: 05 05 04 06 02 08 03 07 04 06 05 05 04 06 03 05
-  .byte $07,$04,$06,$03,$05,$07,$05,$04,$06,$02,$08,$02,$08,$01,$09,$02; $B854: 07 04 06 03 05 07 05 04 06 02 08 02 08 01 09 02
-  .byte $08,$05,$04,$06,$02,$08,$03,$07,$02,$08,$01,$09; $B864: 08 05 04 06 02 08 03 07 02 08 01 09
-Loc_B870:
-; --- Code Region ---
-  LDA $0304                               ; $B870: AD 04 03
+.endproc
+;===============================================================================
+; Battle roster data tables ($B794-$B86F), used by BattleRosterSetup
+;===============================================================================
+; --- Formation placement pointer table ----------------------------------------
+; 12 pointers to the 11-byte placement layouts below: entries 0-5 select
+; column layouts ($0580/$058B), entries 6-11 row layouts ($0596/$05A1).
+; Side A uses entries i / i+6 with i = $056C & 3; side B entries i / i+6
+; with i = $056D & 3 (columns mirrored); battle scene phase 5 forces side B
+; to index 4, where class-2 slots use entries 4/10 and all other slots
+; entries 5/11.
+BattleFormationPtrTable:
+  .word BattleFormationCols_0             ; $B794: EC B7 ; entry 0 -> $B7EC
+  .word BattleFormationCols_1             ; $B796: F7 B7 ; entry 1 -> $B7F7
+  .word BattleFormationCols_2             ; $B798: 02 B8 ; entry 2 -> $B802
+  .word BattleFormationCols_3             ; $B79A: 0D B8 ; entry 3 -> $B80D
+  .word BattleFormationCols_4             ; $B79C: 18 B8 ; entry 4 -> $B818 (phase 5, class 2)
+  .word BattleFormationCols_5             ; $B79E: 23 B8 ; entry 5 -> $B823 (phase 5, other)
+  .word BattleFormationRows_0             ; $B7A0: 2E B8 ; entry 6 -> $B82E
+  .word BattleFormationRows_1             ; $B7A2: 39 B8 ; entry 7 -> $B839
+  .word BattleFormationRows_2             ; $B7A4: 44 B8 ; entry 8 -> $B844
+  .word BattleFormationRows_3             ; $B7A6: 4F B8 ; entry 9 -> $B84F
+  .word BattleFormationRows_4             ; $B7A8: 5A B8 ; entry 10 -> $B85A (phase 5, class 2)
+  .word BattleFormationRows_5             ; $B7AA: 65 B8 ; entry 11 -> $B865 (phase 5, other)
+; --- Unit-class composition bounds ---------------------------------------------
+; Byte pairs (class-3 bound, class-2 bound), exclusive roster-slot bounds,
+; indexed by ((rank << 2) | grade) * 2 with rank = record field [$B]>>4 and
+; grade from record field [1] (>= $50 -> 0, >= $32 -> 1, else 2). Slot 0 is
+; always the commander; slots below bound 1 are class 3, below bound 2
+; class 2, the rest class 1. Every fourth pair (grade 3) is zero padding.
+BattleUnitGradeLimitTable:
+  .byte $06,$09,$08,$0A,$08,$0B,$00,$00 ; $B7AC: rank 0, grades 0-2 + pad
+  .byte $05,$09,$07,$0A,$07,$0B,$00,$00 ; $B7B4: rank 1, grades 0-2 + pad
+  .byte $05,$08,$06,$09,$06,$0A,$00,$00 ; $B7BC: rank 2, grades 0-2 + pad
+  .byte $04,$07,$05,$08,$06,$09,$00,$00 ; $B7C4: rank 3, grades 0-2 + pad
+  .byte $03,$06,$04,$08,$05,$09,$00,$00 ; $B7CC: rank 4, grades 0-2 + pad
+  .byte $02,$06,$04,$07,$04,$08,$00,$00 ; $B7D4: rank 5, grades 0-2 + pad
+  .byte $02,$05,$03,$06,$04,$07,$00,$00 ; $B7DC: rank 6, grades 0-2 + pad
+  .byte $01,$05,$02,$06,$03,$07,$00,$00 ; $B7E4: rank 7, grades 0-2 + pad
+; --- Column placement layouts (one tile column per roster slot, 11 bytes) -----
+BattleFormationCols_0:
+  .byte $01,$02,$02,$02,$03,$03,$03,$04,$04,$05,$03 ; $B7EC
+BattleFormationCols_1:
+  .byte $01,$04,$04,$02,$02,$03,$03,$04,$04,$05,$05 ; $B7F7
+BattleFormationCols_2:
+  .byte $01,$03,$02,$02,$02,$02,$03,$03,$04,$04,$05 ; $B802
+BattleFormationCols_3:
+  .byte $01,$02,$02,$03,$03,$03,$04,$04,$05,$05,$05 ; $B80D
+BattleFormationCols_4:
+  .byte $01,$03,$03,$08,$08,$06,$06,$07,$07,$07,$07 ; $B818
+BattleFormationCols_5:
+  .byte $01,$03,$03,$08,$08,$01,$01,$03,$03,$02,$02 ; $B823
+; --- Row placement layouts (one tile row per roster slot, 11 bytes) -----------
+BattleFormationRows_0:
+  .byte $05,$01,$02,$03,$04,$05,$06,$07,$08,$09,$09 ; $B82E
+BattleFormationRows_1:
+  .byte $05,$04,$06,$04,$06,$03,$07,$02,$08,$01,$09 ; $B839
+BattleFormationRows_2:
+  .byte $05,$05,$04,$06,$02,$08,$03,$07,$04,$06,$05 ; $B844
+BattleFormationRows_3:
+  .byte $05,$04,$06,$03,$05,$07,$04,$06,$03,$05,$07 ; $B84F
+BattleFormationRows_4:
+  .byte $05,$04,$06,$02,$08,$02,$08,$01,$09,$02,$08 ; $B85A
+BattleFormationRows_5:
+  .byte $05,$04,$06,$02,$08,$03,$07,$02,$08,$01,$09 ; $B865
+;===============================================================================
+; $B870: BattleAnimQueueIdleCheck
+; Returns the battle animation queue status in the carry: C=1 when both
+; queue slot headers $0300 (slot 0) and $0304 (slot 1) hold $FF (empty),
+; C=0 while either slot still runs an animation. Callers poll this before
+; enqueuing new tile/panel work (intro roster walk, phase 2-4 handlers).
+;===============================================================================
+.proc BattleAnimQueueIdleCheck
+  LDA $0304                               ; $B870: AD 04 03 ; queue slot 1 header
   CMP #$FF                                ; $B873: C9 FF
-  BNE $B880                               ; $B875: D0 09
-  LDA $0300                               ; $B877: AD 00 03
+  BNE @Busy                               ; $B875: D0 09 ; slot 1 active
+  LDA $0300                               ; $B877: AD 00 03 ; queue slot 0 header
   CMP #$FF                                ; $B87A: C9 FF
-  BNE $B880                               ; $B87C: D0 02
-  SEC                                     ; $B87E: 38
+  BNE @Busy                               ; $B87C: D0 02 ; slot 0 active
+  SEC                                     ; $B87E: 38 ; both empty
   RTS                                     ; $B87F: 60
-Loc_B880:
-  CLC                                     ; $B880: 18
+@Busy:
+  CLC                                     ; $B880: 18 ; queue running
   RTS                                     ; $B881: 60
-Loc_B882:
-  LDY a:$0013                             ; $B882: AC 13 00
-  LDA $0580,Y                             ; $B885: B9 80 05
+.endproc
+;===============================================================================
+; $B882: BattleCellRedraw
+; Rebuilds the battlefield cell of roster slot $0013 as a queued dual-
+; nametable PPU update record ($0380-$039C, $FF-terminated) and raises
+; $007E bit 2 so the NMI handler transfers it. Parameters: $0012 mode
+; (0 = plain terrain redraw, skipping the target slot's own occupancy
+; bit; nonzero = highlight render with status tiles + HP digit overlay),
+; $0013 roster slot (0-$15; column $0580[Y], row $0596[Y]).
+; Flow: switch the $8000 map bank for battle scene phase $0544, fetch the
+; map tile at (row,col) from the phase map table, expand it to a 2x2 tile
+; pattern via the phase pattern table, compute the nametable addresses of
+; the 2x2 cell on both screens, optionally overlay status highlight tiles
+; (BattleCellHighlightTiles) and HP digits (BattleCellHpDigitOverlay),
+; merge the adjacency occupancy bits (BattleCellAdjacencyScan) into the
+; attribute bytes, and terminate the record.
+;===============================================================================
+.proc BattleCellRedraw
+  LDY a:$0013                             ; $B882: AC 13 00 ; roster slot
+  LDA $0580,Y                             ; $B885: B9 80 05 ; unit column
   STA a:$0010                             ; $B888: 8D 10 00
-  LDA $0596,Y                             ; $B88B: B9 96 05
+  LDA $0596,Y                             ; $B88B: B9 96 05 ; unit row
   STA a:$0011                             ; $B88E: 8D 11 00
-  LDA $0544                               ; $B891: AD 44 05
-  PHA                                     ; $B894: 48
-  PHA                                     ; $B895: 48
+  LDA $0544                               ; $B891: AD 44 05 ; battle scene phase
+  PHA                                     ; $B894: 48 ; (copy 2: attribute pass)
+  PHA                                     ; $B895: 48 ; (copy 1: pattern pass)
   TAY                                     ; $B896: A8
-  LDA $BB48,Y                             ; $B897: B9 48 BB
+  LDA BattleCellMapBankTable,Y            ; $B897: B9 48 BB ; $8000 bank for phase
   TAY                                     ; $B89A: A8
-  JSR $F25F                               ; $B89B: 20 5F F2
-  PLA                                     ; $B89E: 68
-  ASL                                     ; $B89F: 0A
+  JSR B1F_SwitchBank8_B                   ; $B89B: 20 5F F2 ; switch $8000 slot B
+  PLA                                     ; $B89E: 68 ; phase (copy 1)
+  ASL                                     ; $B89F: 0A ; phase * 2 (word index)
   TAY                                     ; $B8A0: A8
-  LDA $BB1E,Y                             ; $B8A1: B9 1E BB
+  LDA BattleCellMapPtrTable,Y             ; $B8A1: B9 1E BB ; phase map table lo
   STA a:$0000                             ; $B8A4: 8D 00 00
-  LDA $BB1F,Y                             ; $B8A7: B9 1F BB
+  LDA BattleCellMapPtrTable+1,Y           ; $B8A7: B9 1F BB ; phase map table hi
   STA a:$0001                             ; $B8AA: 8D 01 00
-  LDA $BB2C,Y                             ; $B8AD: B9 2C BB
+  LDA BattleCellPatternPtrTable,Y         ; $B8AD: B9 2C BB ; pattern base lo
   STA a:$0002                             ; $B8B0: 8D 02 00
-  LDA $BB2D,Y                             ; $B8B3: B9 2D BB
+  LDA BattleCellPatternPtrTable+1,Y       ; $B8B3: B9 2D BB ; pattern base hi
   STA a:$0003                             ; $B8B6: 8D 03 00
-  LDA a:$0010                             ; $B8B9: AD 10 00
-  STA a:$0008                             ; $B8BC: 8D 08 00
-  LDX #$00                                ; $B8BF: A2 00
-  LDA a:$0011                             ; $B8C1: AD 11 00
-  ASL                                     ; $B8C4: 0A
+  LDA a:$0010                             ; $B8B9: AD 10 00 ; unit column
+  STA a:$0008                             ; $B8BC: 8D 08 00 ; (kept for HP pass)
+  LDX #$00                                ; $B8BF: A2 00 ; unused
+  LDA a:$0011                             ; $B8C1: AD 11 00 ; unit row
+  ASL                                     ; $B8C4: 0A ; row * 16 (map stride)
   ASL                                     ; $B8C5: 0A
   ASL                                     ; $B8C6: 0A
   ASL                                     ; $B8C7: 0A
-  PHA                                     ; $B8C8: 48
-  ORA a:$0010                             ; $B8C9: 0D 10 00
+  PHA                                     ; $B8C8: 48 ; row * 16 (attribute pass)
+  ORA a:$0010                             ; $B8C9: 0D 10 00 ; map offset = row*16 + col
   TAY                                     ; $B8CC: A8
   LDA #$00                                ; $B8CD: A9 00
-  STA a:$0004                             ; $B8CF: 8D 04 00
-  LDA ($00),Y                             ; $B8D2: B1 00
-  ASL                                     ; $B8D4: 0A
+  STA a:$0004                             ; $B8CF: 8D 04 00 ; tile offset high byte
+  LDA ($00),Y                             ; $B8D2: B1 00 ; map tile id at (row,col)
+  ASL                                     ; $B8D4: 0A ; tile * 4 (pattern entry size)
   ROL a:$0004                             ; $B8D5: 2E 04 00
   ASL                                     ; $B8D8: 0A
   ROL a:$0004                             ; $B8D9: 2E 04 00
   CLC                                     ; $B8DC: 18
-  ADC a:$0002                             ; $B8DD: 6D 02 00
+  ADC a:$0002                             ; $B8DD: 6D 02 00 ; pattern base + tile*4
   STA a:$0002                             ; $B8E0: 8D 02 00
   LDA a:$0003                             ; $B8E3: AD 03 00
   ADC a:$0004                             ; $B8E6: 6D 04 00
-  STA a:$0003                             ; $B8E9: 8D 03 00
+  STA a:$0003                             ; $B8E9: 8D 03 00 ; ($0002) -> 2x2 pattern
   LDY #$00                                ; $B8EC: A0 00
-  LDA ($02),Y                             ; $B8EE: B1 02
-  STA $0383                               ; $B8F0: 8D 83 03
-  STA $0391                               ; $B8F3: 8D 91 03
+  LDA ($02),Y                             ; $B8EE: B1 02 ; pattern tile: top-left
+  STA $0383                               ; $B8F0: 8D 83 03 ; record 1 tile 0
+  STA $0391                               ; $B8F3: 8D 91 03 ; record 2 tile 0
   INY                                     ; $B8F6: C8
-  LDA ($02),Y                             ; $B8F7: B1 02
+  LDA ($02),Y                             ; $B8F7: B1 02 ; top-right
   STA $0384                               ; $B8F9: 8D 84 03
   STA $0392                               ; $B8FC: 8D 92 03
   INY                                     ; $B8FF: C8
-  LDA ($02),Y                             ; $B900: B1 02
+  LDA ($02),Y                             ; $B900: B1 02 ; bottom-left
   STA $0388                               ; $B902: 8D 88 03
   STA $0396                               ; $B905: 8D 96 03
   INY                                     ; $B908: C8
-  LDA ($02),Y                             ; $B909: B1 02
+  LDA ($02),Y                             ; $B909: B1 02 ; bottom-right
   STA $0389                               ; $B90B: 8D 89 03
   STA $0397                               ; $B90E: 8D 97 03
-  ASL a:$0008                             ; $B911: 0E 08 00
+; --- Nametable addresses of the 2x2 cell (both screens) ---------------------
+; Grid coordinates are 2x2-tile cells, so the nametable offset is
+; (row*2)*32 + (col*2) = row*64 + col*2 below $2000.
+  ASL a:$0008                             ; $B911: 0E 08 00 ; column * 2
   LDA #$00                                ; $B914: A9 00
-  STA a:$000B                             ; $B916: 8D 0B 00
-  PLA                                     ; $B919: 68
-  ASL                                     ; $B91A: 0A
+  STA a:$000B                             ; $B916: 8D 0B 00 ; address high part
+  PLA                                     ; $B919: 68 ; row * 16
+  ASL                                     ; $B91A: 0A ; row * 64
   ROL a:$000B                             ; $B91B: 2E 0B 00
   ASL                                     ; $B91E: 0A
   ROL a:$000B                             ; $B91F: 2E 0B 00
   CLC                                     ; $B922: 18
-  ADC a:$0008                             ; $B923: 6D 08 00
-  STA $0382                               ; $B926: 8D 82 03
-  STA $0390                               ; $B929: 8D 90 03
+  ADC a:$0008                             ; $B923: 6D 08 00 ; + column * 2
+  STA $0382                               ; $B926: 8D 82 03 ; record 1 addr lo
+  STA $0390                               ; $B929: 8D 90 03 ; record 2 addr lo
   LDA a:$000B                             ; $B92C: AD 0B 00
-  ORA #$20                                ; $B92F: 09 20
-  STA $0381                               ; $B931: 8D 81 03
-  ORA #$04                                ; $B934: 09 04
-  STA $038F                               ; $B936: 8D 8F 03
-  LDA $0382                               ; $B939: AD 82 03
+  ORA #$20                                ; $B92F: 09 20 ; nametable 0 ($2000)
+  STA $0381                               ; $B931: 8D 81 03 ; record 1 addr hi
+  ORA #$04                                ; $B934: 09 04 ; nametable 1 ($2400)
+  STA $038F                               ; $B936: 8D 8F 03 ; record 2 addr hi
+  LDA $0382                               ; $B939: AD 82 03 ; addr lo + one row
   CLC                                     ; $B93C: 18
-  ADC #$20                                ; $B93D: 69 20
-  STA $0387                               ; $B93F: 8D 87 03
-  STA $0395                               ; $B942: 8D 95 03
+  ADC #$20                                ; $B93D: 69 20 ; bottom tile pair
+  STA $0387                               ; $B93F: 8D 87 03 ; record 1 seg 2 addr lo
+  STA $0395                               ; $B942: 8D 95 03 ; record 2 seg 2 addr lo
   LDA $0381                               ; $B945: AD 81 03
-  ADC #$00                                ; $B948: 69 00
-  STA $0386                               ; $B94A: 8D 86 03
-  ORA #$04                                ; $B94D: 09 04
-  STA $0394                               ; $B94F: 8D 94 03
-  LDA #$02                                ; $B952: A9 02
-  STA $0380                               ; $B954: 8D 80 03
-  STA $0385                               ; $B957: 8D 85 03
-  STA $038E                               ; $B95A: 8D 8E 03
-  STA $0393                               ; $B95D: 8D 93 03
-  LDA a:$0012                             ; $B960: AD 12 00
-  BEQ $B9A9                               ; $B963: F0 44
-  LDY a:$0013                             ; $B965: AC 13 00
-  LDA $05C2,Y                             ; $B968: B9 C2 05
-  AND #$03                                ; $B96B: 29 03
+  ADC #$00                                ; $B948: 69 00 ; carry across the row
+  STA $0386                               ; $B94A: 8D 86 03 ; record 1 seg 2 addr hi
+  ORA #$04                                ; $B94D: 09 04 ; nametable 1
+  STA $0394                               ; $B94F: 8D 94 03 ; record 2 seg 2 addr hi
+  LDA #$02                                ; $B952: A9 02 ; segment count: 2 tiles
+  STA $0380                               ; $B954: 8D 80 03 ; record 1 header
+  STA $0385                               ; $B957: 8D 85 03 ; record 1 seg 2 header
+  STA $038E                               ; $B95A: 8D 8E 03 ; record 2 header
+  STA $0393                               ; $B95D: 8D 93 03 ; record 2 seg 2 header
+; --- Highlight pass ($0012 nonzero): status tiles + HP digits ---------------
+  LDA a:$0012                             ; $B960: AD 12 00 ; highlight flag
+  BEQ @AttributePass                      ; $B963: F0 44 ; plain redraw
+  LDY a:$0013                             ; $B965: AC 13 00 ; roster slot
+  LDA $05C2,Y                             ; $B968: B9 C2 05 ; unit status byte
+  AND #$03                                ; $B96B: 29 03 ; low bits (facing)
   STA a:$0000                             ; $B96D: 8D 00 00
   LDA $05C2,Y                             ; $B970: B9 C2 05
-  AND #$F0                                ; $B973: 29 F0
-  LSR                                     ; $B975: 4A
+  AND #$F0                                ; $B973: 29 F0 ; high nibble (direction)
+  LSR                                     ; $B975: 4A ; >> 2
   LSR                                     ; $B976: 4A
-  ORA a:$0000                             ; $B977: 0D 00 00
-  CMP #$10                                ; $B97A: C9 10
-  BCC $B97F                               ; $B97C: 90 01
-  NOP                                     ; $B97E: EA
-Loc_B97F:
-  ASL                                     ; $B97F: 0A
+  ORA a:$0000                             ; $B977: 0D 00 00 ; status index
+  CMP #$10                                ; $B97A: C9 10 ; range guard
+  BCC @IndexOk                            ; $B97C: 90 01
+  NOP                                     ; $B97E: EA ; ROM artifact (unreached)
+@IndexOk:
+  ASL                                     ; $B97F: 0A ; status index * 4
   ASL                                     ; $B980: 0A
   TAY                                     ; $B981: A8
-  LDA $BB4F,Y                             ; $B982: B9 4F BB
+  LDA BattleCellHighlightTiles,Y          ; $B982: B9 4F BB ; highlight top-left
   STA $0383                               ; $B985: 8D 83 03
   STA $0391                               ; $B988: 8D 91 03
-  LDA $BB50,Y                             ; $B98B: B9 50 BB
+  LDA BattleCellHighlightTiles+1,Y        ; $B98B: B9 50 BB ; top-right
   STA $0384                               ; $B98E: 8D 84 03
   STA $0392                               ; $B991: 8D 92 03
-  LDA $BB51,Y                             ; $B994: B9 51 BB
+  LDA BattleCellHighlightTiles+2,Y        ; $B994: B9 51 BB ; bottom-left
   STA $0388                               ; $B997: 8D 88 03
   STA $0396                               ; $B99A: 8D 96 03
-  LDA $BB52,Y                             ; $B99D: B9 52 BB
+  LDA BattleCellHighlightTiles+3,Y        ; $B99D: B9 52 BB ; bottom-right
   STA $0389                               ; $B9A0: 8D 89 03
   STA $0397                               ; $B9A3: 8D 97 03
-  JSR $BA18                               ; $B9A6: 20 18 BA
-Loc_B9A9:
-  PLA                                     ; $B9A9: 68
-  ASL                                     ; $B9AA: 0A
+  JSR BattleCellHpDigitOverlay            ; $B9A6: 20 18 BA ; HP digits on bottom row
+; --- Attribute pass: base attribute + adjacency occupancy bits --------------
+@AttributePass:
+  PLA                                     ; $B9A9: 68 ; phase (copy 2)
+  ASL                                     ; $B9AA: 0A ; phase * 2
   TAY                                     ; $B9AB: A8
-  LDA $BB3A,Y                             ; $B9AC: B9 3A BB
+  LDA BattleCellAttrPtrTable,Y            ; $B9AC: B9 3A BB ; attribute base lo
   STA a:$0000                             ; $B9AF: 8D 00 00
-  LDA $BB3B,Y                             ; $B9B2: B9 3B BB
+  LDA BattleCellAttrPtrTable+1,Y          ; $B9B2: B9 3B BB ; attribute base hi
   STA a:$0001                             ; $B9B5: 8D 01 00
-  LDA a:$0010                             ; $B9B8: AD 10 00
-  AND #$0E                                ; $B9BB: 29 0E
-  LSR                                     ; $B9BD: 4A
+  LDA a:$0010                             ; $B9B8: AD 10 00 ; column
+  AND #$0E                                ; $B9BB: 29 0E ; even-aligned cell column
+  LSR                                     ; $B9BD: 4A ; col / 2
   STA a:$0008                             ; $B9BE: 8D 08 00
-  LDA a:$0011                             ; $B9C1: AD 11 00
-  AND #$0E                                ; $B9C4: 29 0E
-  ASL                                     ; $B9C6: 0A
+  LDA a:$0011                             ; $B9C1: AD 11 00 ; row
+  AND #$0E                                ; $B9C4: 29 0E ; even-aligned cell row
+  ASL                                     ; $B9C6: 0A ; row * 8 (attribute stride)
   ASL                                     ; $B9C7: 0A
-  ORA a:$0008                             ; $B9C8: 0D 08 00
+  ORA a:$0008                             ; $B9C8: 0D 08 00 ; attribute cell offset
   TAY                                     ; $B9CB: A8
-  LDA ($00),Y                             ; $B9CC: B1 00
+  LDA ($00),Y                             ; $B9CC: B1 00 ; base attribute byte
   STA a:$0000                             ; $B9CE: 8D 00 00
-  JSR $BA56                               ; $B9D1: 20 56 BA
-  LDA a:$0000                             ; $B9D4: AD 00 00
-  STA $038D                               ; $B9D7: 8D 8D 03
-  STA $039B                               ; $B9DA: 8D 9B 03
-  LDA a:$0010                             ; $B9DD: AD 10 00
+  JSR BattleCellAdjacencyScan             ; $B9D1: 20 56 BA ; merge occupancy bits
+  LDA a:$0000                             ; $B9D4: AD 00 00 ; final attribute
+  STA $038D                               ; $B9D7: 8D 8D 03 ; record 1 attribute
+  STA $039B                               ; $B9DA: 8D 9B 03 ; record 2 attribute
+  LDA a:$0010                             ; $B9DD: AD 10 00 ; column
   AND #$0E                                ; $B9E0: 29 0E
-  LSR                                     ; $B9E2: 4A
+  LSR                                     ; $B9E2: 4A ; col / 2
   STA a:$0000                             ; $B9E3: 8D 00 00
-  LDA a:$0011                             ; $B9E6: AD 11 00
+  LDA a:$0011                             ; $B9E6: AD 11 00 ; row
   AND #$0E                                ; $B9E9: 29 0E
-  ASL                                     ; $B9EB: 0A
+  ASL                                     ; $B9EB: 0A ; row * 8
   ASL                                     ; $B9EC: 0A
-  ORA a:$0000                             ; $B9ED: 0D 00 00
-  ORA #$C0                                ; $B9F0: 09 C0
-  STA $038C                               ; $B9F2: 8D 8C 03
-  STA $039A                               ; $B9F5: 8D 9A 03
-  LDA #$23                                ; $B9F8: A9 23
+  ORA a:$0000                             ; $B9ED: 0D 00 00 ; attribute offset
+  ORA #$C0                                ; $B9F0: 09 C0 ; attribute table at +$3C0
+  STA $038C                               ; $B9F2: 8D 8C 03 ; record 1 attr addr lo
+  STA $039A                               ; $B9F5: 8D 9A 03 ; record 2 attr addr lo
+  LDA #$23                                ; $B9F8: A9 23 ; nametable 0 attribute
   STA $038B                               ; $B9FA: 8D 8B 03
-  LDA #$27                                ; $B9FD: A9 27
+  LDA #$27                                ; $B9FD: A9 27 ; nametable 1 attribute
   STA $0399                               ; $B9FF: 8D 99 03
-  LDA #$01                                ; $BA02: A9 01
+  LDA #$01                                ; $BA02: A9 01 ; attribute segment: 1 byte
   STA $038A                               ; $BA04: 8D 8A 03
   STA $0398                               ; $BA07: 8D 98 03
-  LDA #$FF                                ; $BA0A: A9 FF
+  LDA #$FF                                ; $BA0A: A9 FF ; record terminator
   STA $039C                               ; $BA0C: 8D 9C 03
-  LDA a:$007E                             ; $BA0F: AD 7E 00
-  ORA #$04                                ; $BA12: 09 04
+  LDA a:$007E                             ; $BA0F: AD 7E 00 ; PPU queue flags
+  ORA #$04                                ; $BA12: 09 04 ; cell update pending
   STA a:$007E                             ; $BA14: 8D 7E 00
   RTS                                     ; $BA17: 60
-Loc_BA18:
-  LDY a:$0013                             ; $BA18: AC 13 00
-  LDA $05AC,Y                             ; $BA1B: B9 AC 05
-  STA a:$0001                             ; $BA1E: 8D 01 00
+.endproc
+;===============================================================================
+; $BA18: BattleCellHpDigitOverlay
+; Highlight-pass helper: overlays the unit's HP as two digit tiles on the
+; cell's bottom row of record 2 ($0396/$0397). HP $05AC[$0013] is packed
+; to BCD via B1F_MathBinToBcd; the tens and ones digits map to tiles
+; $B4+d. When the BCD high byte $0008 has a nonzero low nibble (HP in the
+; thousands), the digits are replaced by the $BE/$BF overflow marker pair.
+;===============================================================================
+.proc BattleCellHpDigitOverlay
+  LDY a:$0013                             ; $BA18: AC 13 00 ; roster slot
+  LDA $05AC,Y                             ; $BA1B: B9 AC 05 ; unit HP
+  STA a:$0001                             ; $BA1E: 8D 01 00 ; BCD input lo
   LDA #$00                                ; $BA21: A9 00
-  STA a:$0002                             ; $BA23: 8D 02 00
-  STA a:$0003                             ; $BA26: 8D 03 00
-  JSR $E9BA                               ; $BA29: 20 BA E9
-  LDA a:$0007                             ; $BA2C: AD 07 00
-  LSR                                     ; $BA2F: 4A
+  STA a:$0002                             ; $BA23: 8D 02 00 ; BCD input mid
+  STA a:$0003                             ; $BA26: 8D 03 00 ; BCD input hi
+  JSR B1F_MathBinToBcd                    ; $BA29: 20 BA E9 ; HP -> packed BCD
+  LDA a:$0007                             ; $BA2C: AD 07 00 ; tens+ones BCD byte
+  LSR                                     ; $BA2F: 4A ; tens digit
   LSR                                     ; $BA30: 4A
   LSR                                     ; $BA31: 4A
   LSR                                     ; $BA32: 4A
   CLC                                     ; $BA33: 18
-  ADC #$B4                                ; $BA34: 69 B4
-  STA $0396                               ; $BA36: 8D 96 03
+  ADC #$B4                                ; $BA34: 69 B4 ; digit tile base
+  STA $0396                               ; $BA36: 8D 96 03 ; bottom-left tile
   LDA a:$0007                             ; $BA39: AD 07 00
-  AND #$0F                                ; $BA3C: 29 0F
+  AND #$0F                                ; $BA3C: 29 0F ; ones digit
   CLC                                     ; $BA3E: 18
   ADC #$B4                                ; $BA3F: 69 B4
-  STA $0397                               ; $BA41: 8D 97 03
-  LDA a:$0008                             ; $BA44: AD 08 00
-  AND #$0F                                ; $BA47: 29 0F
-  BEQ $BA55                               ; $BA49: F0 0A
-  LDA #$BE                                ; $BA4B: A9 BE
+  STA $0397                               ; $BA41: 8D 97 03 ; bottom-right tile
+  LDA a:$0008                             ; $BA44: AD 08 00 ; thousands+hundreds
+  AND #$0F                                ; $BA47: 29 0F ; hundreds digit
+  BEQ @Done                               ; $BA49: F0 0A ; below 1000: keep digits
+  LDA #$BE                                ; $BA4B: A9 BE ; overflow marker left
   STA $0396                               ; $BA4D: 8D 96 03
-  LDA #$BF                                ; $BA50: A9 BF
+  LDA #$BF                                ; $BA50: A9 BF ; overflow marker right
   STA $0397                               ; $BA52: 8D 97 03
-Loc_BA55:
+@Done:
   RTS                                     ; $BA55: 60
-Loc_BA56:
-  LDA a:$0010                             ; $BA56: AD 10 00
-  AND #$0E                                ; $BA59: 29 0E
-  STA a:$0002                             ; $BA5B: 8D 02 00
-  LDA a:$0011                             ; $BA5E: AD 11 00
-  AND #$0E                                ; $BA61: 29 0E
-  STA a:$0003                             ; $BA63: 8D 03 00
-  LDY #$15                                ; $BA66: A0 15
-Loc_BA68:
-  LDA a:$0012                             ; $BA68: AD 12 00
-  BNE $BA72                               ; $BA6B: D0 05
-  CPY a:$0013                             ; $BA6D: CC 13 00
-  BEQ $BA75                               ; $BA70: F0 03
-Loc_BA72:
-  JSR $BA79                               ; $BA72: 20 79 BA
-Loc_BA75:
+.endproc
+;===============================================================================
+; $BA56: BattleCellAdjacencyScan
+; Merges occupancy bits into the attribute byte $0000 for the target cell
+; ($0010 col / $0011 row): scans all 22 roster slots $15 -> 0 and, for each
+; occupied slot, merges the side-specific mask bits when that unit sits in
+; one of the four sub-cells of the target 2x2 block. In plain mode
+; ($0012 == 0) the target slot $0013 itself is skipped.
+;===============================================================================
+.proc BattleCellAdjacencyScan
+  LDA a:$0010                             ; $BA56: AD 10 00 ; column
+  AND #$0E                                ; $BA59: 29 0E ; even-aligned
+  STA a:$0002                             ; $BA5B: 8D 02 00 ; probe column
+  LDA a:$0011                             ; $BA5E: AD 11 00 ; row
+  AND #$0E                                ; $BA61: 29 0E ; even-aligned
+  STA a:$0003                             ; $BA63: 8D 03 00 ; probe row
+  LDY #$15                                ; $BA66: A0 15 ; 22 roster slots
+@SlotLoop:
+  LDA a:$0012                             ; $BA68: AD 12 00 ; highlight flag
+  BNE @MergeSlot                          ; $BA6B: D0 05 ; highlight: include self
+  CPY a:$0013                             ; $BA6D: CC 13 00 ; target slot?
+  BEQ @NextSlot                           ; $BA70: F0 03 ; plain: skip self
+@MergeSlot:
+  JSR BattleCellSlotAdjacencyMerge        ; $BA72: 20 79 BA
+@NextSlot:
   DEY                                     ; $BA75: 88
-  BPL $BA68                               ; $BA76: 10 F0
+  BPL @SlotLoop                           ; $BA76: 10 F0
   RTS                                     ; $BA78: 60
-Loc_BA79:
-  LDA #$01                                ; $BA79: A9 01
-  STA a:$000A                             ; $BA7B: 8D 0A 00
+.endproc
+;===============================================================================
+; $BA79: BattleCellSlotAdjacencyMerge
+; Merges the occupancy mask for roster slot Y into attribute byte $0000.
+; Probes the four sub-cells of the target 2x2 block - (col,row),
+; (col+1,row), (col+1,row+1), (col,row+1) - against the slot's position
+; ($0580[Y],$0596[Y]) and ORs the matching mask into $0000 (bits are
+; cleared first so the last writer wins). Side A (slots 0-$0A) uses the
+; double masks $03/$0C/$30/$C0, side B (slots $0B-$15) the single masks
+; $01/$04/$10/$40.
+;===============================================================================
+.proc BattleCellSlotAdjacencyMerge
+  LDA #$01                                ; $BA79: A9 01 ; side B masks
+  STA a:$000A                             ; $BA7B: 8D 0A 00 ; sub-cell 0 mask
   LDA #$04                                ; $BA7E: A9 04
-  STA a:$000B                             ; $BA80: 8D 0B 00
+  STA a:$000B                             ; $BA80: 8D 0B 00 ; sub-cell 1 mask
   LDA #$10                                ; $BA83: A9 10
-  STA a:$000C                             ; $BA85: 8D 0C 00
+  STA a:$000C                             ; $BA85: 8D 0C 00 ; sub-cell 3 mask
   LDA #$40                                ; $BA88: A9 40
-  STA a:$000D                             ; $BA8A: 8D 0D 00
-  CPY #$0B                                ; $BA8D: C0 0B
-  BCS $BAA5                               ; $BA8F: B0 14
-  LDA #$03                                ; $BA91: A9 03
+  STA a:$000D                             ; $BA8A: 8D 0D 00 ; sub-cell 2 mask
+  CPY #$0B                                ; $BA8D: C0 0B ; side boundary
+  BCS @MaskReady                          ; $BA8F: B0 14 ; side B: keep singles
+  LDA #$03                                ; $BA91: A9 03 ; side A masks
   STA a:$000A                             ; $BA93: 8D 0A 00
   LDA #$0C                                ; $BA96: A9 0C
   STA a:$000B                             ; $BA98: 8D 0B 00
@@ -3947,253 +4089,411 @@ Loc_BA79:
   STA a:$000C                             ; $BA9D: 8D 0C 00
   LDA #$C0                                ; $BAA0: A9 C0
   STA a:$000D                             ; $BAA2: 8D 0D 00
-Loc_BAA5:
-  LDA a:$0002                             ; $BAA5: AD 02 00
-  CMP $0580,Y                             ; $BAA8: D9 80 05
-  BNE $BAC0                               ; $BAAB: D0 13
-  LDA a:$0003                             ; $BAAD: AD 03 00
-  CMP $0596,Y                             ; $BAB0: D9 96 05
-  BNE $BAC0                               ; $BAB3: D0 0B
-  LDA a:$0000                             ; $BAB5: AD 00 00
+@MaskReady:
+  LDA a:$0002                             ; $BAA5: AD 02 00 ; probe column
+  CMP $0580,Y                             ; $BAA8: D9 80 05 ; slot column
+  BNE @SubCell1                           ; $BAAB: D0 13
+  LDA a:$0003                             ; $BAAD: AD 03 00 ; probe row
+  CMP $0596,Y                             ; $BAB0: D9 96 05 ; slot row
+  BNE @SubCell1                           ; $BAB3: D0 0B
+  LDA a:$0000                             ; $BAB5: AD 00 00 ; (col,row) hit
   AND #$FC                                ; $BAB8: 29 FC
   ORA a:$000A                             ; $BABA: 0D 0A 00
   STA a:$0000                             ; $BABD: 8D 00 00
-Loc_BAC0:
-  INC a:$0002                             ; $BAC0: EE 02 00
+@SubCell1:
+  INC a:$0002                             ; $BAC0: EE 02 00 ; column + 1
   LDA a:$0002                             ; $BAC3: AD 02 00
   CMP $0580,Y                             ; $BAC6: D9 80 05
-  BNE $BADE                               ; $BAC9: D0 13
+  BNE @SubCell2                           ; $BAC9: D0 13
   LDA a:$0003                             ; $BACB: AD 03 00
   CMP $0596,Y                             ; $BACE: D9 96 05
-  BNE $BADE                               ; $BAD1: D0 0B
-  LDA a:$0000                             ; $BAD3: AD 00 00
+  BNE @SubCell2                           ; $BAD1: D0 0B
+  LDA a:$0000                             ; $BAD3: AD 00 00 ; (col+1,row) hit
   AND #$F3                                ; $BAD6: 29 F3
   ORA a:$000B                             ; $BAD8: 0D 0B 00
   STA a:$0000                             ; $BADB: 8D 00 00
-Loc_BADE:
-  INC a:$0003                             ; $BADE: EE 03 00
+@SubCell2:
+  INC a:$0003                             ; $BADE: EE 03 00 ; row + 1
   LDA a:$0002                             ; $BAE1: AD 02 00
   CMP $0580,Y                             ; $BAE4: D9 80 05
-  BNE $BAFC                               ; $BAE7: D0 13
+  BNE @SubCell3                           ; $BAE7: D0 13
   LDA a:$0003                             ; $BAE9: AD 03 00
   CMP $0596,Y                             ; $BAEC: D9 96 05
-  BNE $BAFC                               ; $BAEF: D0 0B
-  LDA a:$0000                             ; $BAF1: AD 00 00
+  BNE @SubCell3                           ; $BAEF: D0 0B
+  LDA a:$0000                             ; $BAF1: AD 00 00 ; (col+1,row+1) hit
   AND #$3F                                ; $BAF4: 29 3F
   ORA a:$000D                             ; $BAF6: 0D 0D 00
   STA a:$0000                             ; $BAF9: 8D 00 00
-Loc_BAFC:
-  DEC a:$0002                             ; $BAFC: CE 02 00
+@SubCell3:
+  DEC a:$0002                             ; $BAFC: CE 02 00 ; column back
   LDA a:$0002                             ; $BAFF: AD 02 00
   CMP $0580,Y                             ; $BB02: D9 80 05
-  BNE $BB1A                               ; $BB05: D0 13
+  BNE @Restore                            ; $BB05: D0 13
   LDA a:$0003                             ; $BB07: AD 03 00
   CMP $0596,Y                             ; $BB0A: D9 96 05
-  BNE $BB1A                               ; $BB0D: D0 0B
-  LDA a:$0000                             ; $BB0F: AD 00 00
+  BNE @Restore                            ; $BB0D: D0 0B
+  LDA a:$0000                             ; $BB0F: AD 00 00 ; (col,row+1) hit
   AND #$CF                                ; $BB12: 29 CF
   ORA a:$000C                             ; $BB14: 0D 0C 00
   STA a:$0000                             ; $BB17: 8D 00 00
-Loc_BB1A:
-  DEC a:$0003                             ; $BB1A: CE 03 00
+@Restore:
+  DEC a:$0003                             ; $BB1A: CE 03 00 ; row back
   RTS                                     ; $BB1D: 60
-; --- Data Region ---
-  .byte $40,$84,$70,$85,$A0,$86,$D0,$87,$00,$89,$30,$8A,$60,$8B,$00,$80; $BB1E: 40 84 70 85 A0 86 D0 87 00 89 30 8A 60 8B 00 80
-  .byte $00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$80,$00,$84,$30,$85; $BB2E: 00 80 00 80 00 80 00 80 00 80 00 80 00 84 30 85
-  .byte $60,$86,$90,$87,$C0,$88,$F0,$89,$20,$8B,$21,$21,$21,$21,$21,$21; $BB3E: 60 86 90 87 C0 88 F0 89 20 8B 21 21 21 21 21 21
-  .byte $21,$FD,$63,$72,$73,$62,$63,$72,$73,$48,$49,$58,$59,$4E,$4F,$5E; $BB4E: 21 FD 63 72 73 62 63 72 73 48 49 58 59 4E 4F 5E
-  .byte $5F,$60,$FC,$70,$71,$60,$61,$70,$71,$4A,$4B,$5A,$5B,$4C,$4D,$5C; $BB5E: 5F 60 FC 70 71 60 61 70 71 4A 4B 5A 5B 4C 4D 5C
-  .byte $5D,$46,$47,$54,$55,$44,$45,$54,$55,$40,$41,$50,$51,$42,$43,$52; $BB6E: 5D 46 47 54 55 44 45 54 55 40 41 50 51 42 43 52
-  .byte $53,$56,$57,$66,$67,$64,$65,$66,$67,$6C,$6D,$6E,$6F,$68,$69,$6A; $BB7E: 53 56 57 66 67 64 65 66 67 6C 6D 6E 6F 68 69 6A
-  .byte $6B                               ; $BB8E: 6B
-Loc_BB8F:
-; --- Code Region ---
-  LDA a:$005E                             ; $BB8F: AD 5E 00
+.endproc
+;===============================================================================
+; Battle cell rendering tables ($BB1E-$BB8E), used by BattleCellRedraw.
+; All pointers reference the map data in the bank switched via
+; BattleCellMapBankTable (currently bank $21 for every phase).
+;===============================================================================
+; --- Phase map table pointers ($BB1E, 7 words) --------------------------------
+; 16x16 tile-id maps, one per battle scene phase (16-byte rows).
+BattleCellMapPtrTable:
+  .word $8440,$8570,$86A0,$87D0           ; $BB1E: phases 0-3
+  .word $8900,$8A30,$8B60                 ; $BB26: phases 4-6
+; --- Phase unit pattern table pointers ($BB2C, 7 words) ------------------------
+; 4-byte 2x2 tile patterns indexed by the map tile id; every phase keeps
+; the pattern data at $8000 of the switched map bank.
+BattleCellPatternPtrTable:
+  .word $8000,$8000,$8000,$8000           ; $BB2C: phases 0-3
+  .word $8000,$8000,$8000                 ; $BB34: phases 4-6
+; --- Phase attribute table pointers ($BB3A, 7 words) ---------------------------
+; Attribute bytes indexed by (row/2)*8 + col/2 within the even-aligned cell.
+BattleCellAttrPtrTable:
+  .word $8400,$8530,$8660,$8790           ; $BB3A: phases 0-3
+  .word $88C0,$89F0,$8B20                 ; $BB42: phases 4-6
+; --- Phase $8000 map bank table ($BB48, 7 bytes) -------------------------------
+; Bank argument for B1F_SwitchBank8_B, indexed by battle scene phase.
+BattleCellMapBankTable:
+  .byte $21,$21,$21,$21,$21,$21,$21       ; $BB48: bank $21 for all phases
+; --- Highlight cell tiles ($BB4F, 16 x 4 bytes) ---------------------------------
+; 2x2 tile sets for the highlight render, indexed by
+; ((($05C2[high nibble]>>2) | ($05C2 & 3)) * 4). One 4-byte 2x2 tile set
+; per unit status index (entry 0 = $FD marker variant).
+BattleCellHighlightTiles:
+  .byte $FD,$63,$72,$73,$62,$63,$72,$73,$48,$49,$58,$59,$4E,$4F,$5E,$5F; $BB4F
+  .byte $60,$FC,$70,$71,$60,$61,$70,$71,$4A,$4B,$5A,$5B,$4C,$4D,$5C,$5D; $BB5F
+  .byte $46,$47,$54,$55,$44,$45,$54,$55,$40,$41,$50,$51,$42,$43,$52,$53; $BB6F
+  .byte $56,$57,$66,$67,$64,$65,$66,$67,$6C,$6D,$6E,$6F,$68,$69,$6A,$6B; $BB7F
+;===============================================================================
+; $BB8F: Phase2CursorArrowDraw
+; Draws the walk-cursor arrow sprite at the walk position ($054A row / $054B
+; column, pixel coords latched by Phase2CursorWalkInit). The sprite stream is
+; picked from BattleCursorArrowSpritePtrs indexed by the cursor column's
+; status $05C2[$0545] (high nibble = unit status, bits 1:0 = action bits)
+; and the 2-bit animation frame from bits 3:2 of the frame tick counter
+; $005E: word index = (((status<<2) | (action&3)) << 2 | frame). Flip flags
+; $0002: bit 6 (vertical flip, XORed into the per-sprite attributes by
+; B1F_SpriteOamWriterScroll) when the status nibble is 3, plus bit 0 for
+; unit columns ($0545 < $0B). Position: X = $054B, Y = $054A + 8. Tail JMP
+; into B1F_SpriteOamWriterScroll.
+;===============================================================================
+.proc Phase2CursorArrowDraw
+  LDA a:$005E                             ; $BB8F: AD 5E 00 ; frame tick counter
   LSR                                     ; $BB92: 4A
   LSR                                     ; $BB93: 4A
-  AND #$03                                ; $BB94: 29 03
+  AND #$03                                ; $BB94: 29 03 ; animation frame (bits 3:2)
   STA a:$0001                             ; $BB96: 8D 01 00
-  LDY $0545                               ; $BB99: AC 45 05
-  LDA $05C2,Y                             ; $BB9C: B9 C2 05
-  AND #$03                                ; $BB9F: 29 03
+  LDY $0545                               ; $BB99: AC 45 05 ; cursor column
+  LDA $05C2,Y                             ; $BB9C: B9 C2 05 ; column status
+  AND #$03                                ; $BB9F: 29 03 ; action bits 1:0
   STA a:$0000                             ; $BBA1: 8D 00 00
   LDA $05C2,Y                             ; $BBA4: B9 C2 05
-  AND #$F0                                ; $BBA7: 29 F0
+  AND #$F0                                ; $BBA7: 29 F0 ; status nibble
   LSR                                     ; $BBA9: 4A
-  LSR                                     ; $BBAA: 4A
-  ORA a:$0000                             ; $BBAB: 0D 00 00
+  LSR                                     ; $BBAA: 4A ; status << 2
+  ORA a:$0000                             ; $BBAB: 0D 00 00 ; | action bits
   ASL                                     ; $BBAE: 0A
-  ASL                                     ; $BBAF: 0A
-  ORA a:$0001                             ; $BBB0: 0D 01 00
-  ASL                                     ; $BBB3: 0A
+  ASL                                     ; $BBAF: 0A ; variant * 4
+  ORA a:$0001                             ; $BBB0: 0D 01 00 ; | animation frame
+  ASL                                     ; $BBB3: 0A ; word index
   TAY                                     ; $BBB4: A8
-  LDA $BBFD,Y                             ; $BBB5: B9 FD BB
+  LDA BattleCursorArrowSpritePtrs,Y       ; $BBB5: B9 FD BB ; stream ptr lo
   STA a:$0000                             ; $BBB8: 8D 00 00
-  LDA $BBFE,Y                             ; $BBBB: B9 FE BB
+  LDA BattleCursorArrowSpritePtrs+1,Y     ; $BBBB: B9 FE BB ; stream ptr hi
   STA a:$0001                             ; $BBBE: 8D 01 00
-  LDA $054A                               ; $BBC1: AD 4A 05
+  LDA $054A                               ; $BBC1: AD 4A 05 ; walk row << 4
   CLC                                     ; $BBC4: 18
   ADC #$08                                ; $BBC5: 69 08
-  STA a:$000C                             ; $BBC7: 8D 0C 00
-  LDA $054B                               ; $BBCA: AD 4B 05
-  STA a:$000A                             ; $BBCD: 8D 0A 00
+  STA a:$000C                             ; $BBC7: 8D 0C 00 ; Y offset = row + 8
+  LDA $054B                               ; $BBCA: AD 4B 05 ; walk column << 4
+  STA a:$000A                             ; $BBCD: 8D 0A 00 ; X offset
   LDA #$00                                ; $BBD0: A9 00
-  STA a:$000B                             ; $BBD2: 8D 0B 00
-  STA a:$000D                             ; $BBD5: 8D 0D 00
+  STA a:$000B                             ; $BBD2: 8D 0B 00 ; X offset hi
+  STA a:$000D                             ; $BBD5: 8D 0D 00 ; Y offset hi
   LDA #$00                                ; $BBD8: A9 00
-  STA a:$0002                             ; $BBDA: 8D 02 00
+  STA a:$0002                             ; $BBDA: 8D 02 00 ; flip flags <- 0
   LDY $0545                               ; $BBDD: AC 45 05
-  LDA $05C2,Y                             ; $BBE0: B9 C2 05
+  LDA $05C2,Y                             ; $BBE0: B9 C2 05 ; column status
   LSR                                     ; $BBE3: 4A
   LSR                                     ; $BBE4: 4A
   LSR                                     ; $BBE5: 4A
-  LSR                                     ; $BBE6: 4A
+  LSR                                     ; $BBE6: 4A ; status nibble
   CMP #$03                                ; $BBE7: C9 03
-  BNE $BBF0                               ; $BBE9: D0 05
+  BNE @ColumnCheck                        ; $BBE9: D0 05
   LDA #$40                                ; $BBEB: A9 40
-  STA a:$0002                             ; $BBED: 8D 02 00
-Loc_BBF0:
-  LDY $0545                               ; $BBF0: AC 45 05
-  CPY #$0B                                ; $BBF3: C0 0B
-  BCS $BBFA                               ; $BBF5: B0 03
-  INC a:$0002                             ; $BBF7: EE 02 00
-Loc_BBFA:
-  JMP $F092                               ; $BBFA: 4C 92 F0
-; --- Data Region ---
-  .byte $05,$BD,$16,$BD,$05,$BD,$16,$BD,$27,$BD,$38,$BD,$27,$BD,$38,$BD; $BBFD: 05 BD 16 BD 05 BD 16 BD 27 BD 38 BD 27 BD 38 BD
-  .byte $49,$BD,$5A,$BD,$49,$BD,$5A,$BD,$6B,$BD,$7C,$BD,$6B,$BD,$7C,$BD; $BC0D: 49 BD 5A BD 49 BD 5A BD 6B BD 7C BD 6B BD 7C BD
-  .byte $7D,$BC,$8E,$BC,$7D,$BC,$8E,$BC,$9F,$BC,$B0,$BC,$9F,$BC,$B0,$BC; $BC1D: 7D BC 8E BC 7D BC 8E BC 9F BC B0 BC 9F BC B0 BC
-  .byte $C1,$BC,$D2,$BC,$C1,$BC,$D2,$BC,$E3,$BC,$F4,$BC,$E3,$BC,$F4,$BC; $BC2D: C1 BC D2 BC C1 BC D2 BC E3 BC F4 BC E3 BC F4 BC
-  .byte $8D,$BD,$9E,$BD,$8D,$BD,$9E,$BD,$AF,$BD,$C0,$BD,$AF,$BD,$C0,$BD; $BC3D: 8D BD 9E BD 8D BD 9E BD AF BD C0 BD AF BD C0 BD
-  .byte $D1,$BD,$E2,$BD,$D1,$BD,$E2,$BD,$F3,$BD,$04,$BE,$F3,$BD,$04,$BE; $BC4D: D1 BD E2 BD D1 BD E2 BD F3 BD 04 BE F3 BD 04 BE
-  .byte $8D,$BD,$9E,$BD,$8D,$BD,$9E,$BD,$AF,$BD,$C0,$BD,$AF,$BD,$C0,$BD; $BC5D: 8D BD 9E BD 8D BD 9E BD AF BD C0 BD AF BD C0 BD
-  .byte $D1,$BD,$E2,$BD,$D1,$BD,$E2,$BD,$F3,$BD,$04,$BE,$F3,$BD,$04,$BE; $BC6D: D1 BD E2 BD D1 BD E2 BD F3 BD 04 BE F3 BD 04 BE
-  .byte $00,$40,$00,$F8,$00,$41,$00,$00,$08,$50,$00; $BC7D: 00 40 00 F8 00 41 00 00 08 50 00
-Loc_BC88:
-; --- Code Region ---
-  SED                                     ; $BC88: F8
-  PHP                                     ; $BC89: 08
-  EOR ($00),Y                             ; $BC8A: 51 00
-  BRK                                     ; $BC8C: 00
-Loc_BC8D:  ; (dispatch callback target)
-; --- Data Region ---
-  .byte $80,$00,$60                       ; $BC8D: 80 00 60
-  .byte $00,$F8,$00,$61,$00,$00,$08,$70,$00; $BC90: 00 F8 00 61 00 00 08 70 00
-Loc_BC99:
-  .byte $F8,$08,$71,$00,$00,$80,$00,$40   ; $BC99: F8 08 71 00 00 80 00 40
-  .byte $00,$F8,$00,$41,$00,$00,$08,$50,$00; $BCA1: 00 F8 00 41 00 00 08 50 00
-Loc_BCAA:
-  .byte $F8,$08,$51,$00,$00,$80,$00,$60   ; $BCAA: F8 08 51 00 00 80 00 60
-  .byte $00,$F8,$00,$61,$00,$00,$08,$70,$00; $BCB2: 00 F8 00 61 00 00 08 70 00
-Loc_BCBB:
-  .byte $F8,$08,$71,$00,$00,$80,$00,$08,$00,$F8,$00,$09,$00,$00,$08,$18; $BCBB: F8 08 71 00 00 80 00 08 00 F8 00 09 00 00 08 18
-  .byte $00,$F8,$08,$19,$00,$00,$80,$00,$08,$00,$F8,$00,$09,$00,$00,$08; $BCCB: 00 F8 08 19 00 00 80 00 08 00 F8 00 09 00 00 08
-  .byte $38,$00,$F8,$08,$39,$00,$00,$80,$00,$0C,$00,$F8,$00,$0D,$00,$00; $BCDB: 38 00 F8 08 39 00 00 80 00 0C 00 F8 00 0D 00 00
-  .byte $08,$1C,$00,$F8,$08,$1D,$00,$00,$80,$00,$2C,$00,$F8,$00,$2D,$00; $BCEB: 08 1C 00 F8 08 1D 00 00 80 00 2C 00 F8 00 2D 00
-  .byte $00,$08,$3C,$00,$F8,$08,$3D,$00,$00,$80,$00,$42,$00,$F8,$00,$43; $BCFB: 00 08 3C 00 F8 08 3D 00 00 80 00 42 00 F8 00 43
-  .byte $00,$00,$08,$52,$00,$F8,$08,$53,$00,$00,$80,$00,$62,$00,$F8,$00; $BD0B: 00 00 08 52 00 F8 08 53 00 00 80 00 62 00 F8 00
-  .byte $63,$00,$00,$08,$72,$00,$F8,$08,$73,$00,$00,$80,$00,$42,$00,$F8; $BD1B: 63 00 00 08 72 00 F8 08 73 00 00 80 00 42 00 F8
-  .byte $00,$43,$00,$00,$08,$52,$00,$F8,$08,$53,$00,$00,$80,$00,$62,$00; $BD2B: 00 43 00 00 08 52 00 F8 08 53 00 00 80 00 62 00
-  .byte $F8,$00,$63,$00,$00,$08,$72,$00,$F8,$08,$73,$00,$00,$80,$00,$0A; $BD3B: F8 00 63 00 00 08 72 00 F8 08 73 00 00 80 00 0A
-  .byte $00,$F8,$00,$0B,$00,$00,$08,$1A,$00,$F8,$08,$1B,$00,$00,$80,$00; $BD4B: 00 F8 00 0B 00 00 08 1A 00 F8 08 1B 00 00 80 00
-  .byte $0A,$00,$F8,$00,$0B,$00,$00,$08,$3A,$00,$F8,$08,$3B,$00,$00,$80; $BD5B: 0A 00 F8 00 0B 00 00 08 3A 00 F8 08 3B 00 00 80
+  STA a:$0002                             ; $BBED: 8D 02 00 ; vertical-flip flag
+@ColumnCheck:
+  LDY $0545                               ; $BBF0: AC 45 05 ; cursor column
+  CPY #$0B                                ; $BBF3: C0 0B ; unit columns only
+  BCS @Submit                             ; $BBF5: B0 03
+  INC a:$0002                             ; $BBF7: EE 02 00 ; palette bit 0
+@Submit:
+  JMP B1F_SpriteOamWriterScroll           ; $BBFA: 4C 92 F0
+.endproc
+;===============================================================================
+; Cursor arrow sprite pointer table ($BBFD, 64 words) and sprite streams
+; ($BC7D-$BE75). Word index = (((status_nibble << 2) | (action_bits & 3))
+; << 2 | frame); the 2-bit frame alternates between the pair of streams
+; every 4 ticks (frames 0/2 = first stream, frames 1/3 = second), giving a
+; two-tile animation per column-status variant. Stream record format per
+; B1F_SpriteOamWriterScroll: [X, tile, attr, Y] bytes, $80 terminator; flip
+; flags $0002 are XORed into each attr byte (bit 6 flips the sprites
+; vertically, bit 0 toggles palette bit 0).
+;===============================================================================
+BattleCursorArrowSpritePtrs:
+  .word BattleCursorArrowSprBox42,BattleCursorArrowSprBox62 ; $BBFD: 05 BD 16 BD ; variant 0
+  .word BattleCursorArrowSprBox42,BattleCursorArrowSprBox62 ; $BC01: 05 BD 16 BD
+  .word BattleCursorArrowSprBox42b,BattleCursorArrowSprBox62b ; $BC05: 27 BD 38 BD ; variant 1
+  .word BattleCursorArrowSprBox42b,BattleCursorArrowSprBox62b ; $BC09: 27 BD 38 BD
+  .word BattleCursorArrowSprBox0A,BattleCursorArrowSprBox0AHi ; $BC0D: 49 BD 5A BD ; variant 2
+  .word BattleCursorArrowSprBox0A,BattleCursorArrowSprBox0AHi ; $BC11: 49 BD 5A BD
+  .word BattleCursorArrowSprBox0E,BattleCursorArrowSprBox2E ; $BC15: 6B BD 7C BD ; variant 3
+  .word BattleCursorArrowSprBox0E,BattleCursorArrowSprBox2E ; $BC19: 6B BD 7C BD
+  .word BattleCursorArrowSprTiles40,BattleCursorArrowSprTiles60 ; $BC1D: 7D BC 8E BC ; variant 4 (arrow glyph)
+  .word BattleCursorArrowSprTiles40,BattleCursorArrowSprTiles60 ; $BC21: 7D BC 8E BC
+  .word BattleCursorArrowSprTiles40Dup,BattleCursorArrowSprTiles60Dup ; $BC25: 9F BC B0 BC ; variant 5
+  .word BattleCursorArrowSprTiles40Dup,BattleCursorArrowSprTiles60Dup ; $BC29: 9F BC B0 BC
+  .word BattleCursorArrowSprBox08,BattleCursorArrowSprBox38 ; $BC2D: C1 BC D2 BC ; variant 6
+  .word BattleCursorArrowSprBox08,BattleCursorArrowSprBox38 ; $BC31: C1 BC D2 BC
+  .word BattleCursorArrowSprBox0C,BattleCursorArrowSprBox2C ; $BC35: E3 BC F4 BC ; variant 7
+  .word BattleCursorArrowSprBox0C,BattleCursorArrowSprBox2C ; $BC39: E3 BC F4 BC
+  .word BattleCursorArrowSprBox06,BattleCursorArrowSprBox26 ; $BC3D: 8D BD 9E BD ; variant 8
+  .word BattleCursorArrowSprBox06,BattleCursorArrowSprBox26 ; $BC41: 8D BD 9E BD
+  .word BattleCursorArrowSprBox04,BattleCursorArrowSprBox24 ; $BC45: AF BD C0 BD ; variant 9
+  .word BattleCursorArrowSprBox04,BattleCursorArrowSprBox24 ; $BC49: AF BD C0 BD
+  .word BattleCursorArrowSprBox00,BattleCursorArrowSprBox20 ; $BC4D: D1 BD E2 BD ; variant 10
+  .word BattleCursorArrowSprBox00,BattleCursorArrowSprBox20 ; $BC51: D1 BD E2 BD
+  .word BattleCursorArrowSprBox02,BattleCursorArrowSprBox22 ; $BC55: F3 BD 04 BE ; variant 11
+  .word BattleCursorArrowSprBox02,BattleCursorArrowSprBox22 ; $BC59: F3 BD 04 BE
+  .word BattleCursorArrowSprBox06,BattleCursorArrowSprBox26 ; $BC5D: 8D BD 9E BD ; variant 12 (dup of 8)
+  .word BattleCursorArrowSprBox06,BattleCursorArrowSprBox26 ; $BC61: 8D BD 9E BD
+  .word BattleCursorArrowSprBox04,BattleCursorArrowSprBox24 ; $BC65: AF BD C0 BD ; variant 13 (dup of 9)
+  .word BattleCursorArrowSprBox04,BattleCursorArrowSprBox24 ; $BC69: AF BD C0 BD
+  .word BattleCursorArrowSprBox00,BattleCursorArrowSprBox20 ; $BC6D: D1 BD E2 BD ; variant 14 (dup of 10)
+  .word BattleCursorArrowSprBox00,BattleCursorArrowSprBox20 ; $BC71: D1 BD E2 BD
+  .word BattleCursorArrowSprBox02,BattleCursorArrowSprBox22 ; $BC75: F3 BD 04 BE ; variant 15 (dup of 11)
+  .word BattleCursorArrowSprBox02,BattleCursorArrowSprBox22 ; $BC79: F3 BD 04 BE
+; --- Arrow glyph streams -------------------------------------------------------
+BattleCursorArrowSprTiles40:  ; 2x2 arrow, tiles $40/$41/$50/$51
+  .byte $00,$40,$00,$F8,$00,$41,$00,$00,$08,$50,$00,$F8,$08,$51,$00,$00; $BC7D: 00 40 00 F8 00 41 00 00 08 50 00 F8 08 51 00 00
+  .byte $80                               ; $BC8D: 80
+BattleCursorArrowSprTiles60:  ; 2x2 arrow, tiles $60/$61/$70/$71
+  .byte $00,$60,$00,$F8,$00,$61,$00,$00,$08,$70,$00,$F8,$08,$71,$00,$00; $BC8E: 00 60 00 F8 00 61 00 00 08 70 00 F8 08 71 00 00
+  .byte $80                               ; $BC9E: 80
+BattleCursorArrowSprTiles40Dup: ; duplicate of BattleCursorArrowSprTiles40
+  .byte $00,$40,$00,$F8,$00,$41,$00,$00,$08,$50,$00,$F8,$08,$51,$00,$00; $BC9F: 00 40 00 F8 00 41 00 00 08 50 00 F8 08 51 00 00
+  .byte $80                               ; $BCAF: 80
+BattleCursorArrowSprTiles60Dup: ; duplicate of BattleCursorArrowSprTiles60
+  .byte $00,$60,$00,$F8,$00,$61,$00,$00,$08,$70,$00,$F8,$08,$71,$00,$00; $BCB0: 00 60 00 F8 00 61 00 00 08 70 00 F8 08 71 00 00
+  .byte $80                               ; $BCC0: 80
+; --- 4x4 bracket box streams ----------------------------------------------------
+BattleCursorArrowSprBox08:    ; tiles $08/$09/$18/$19
+  .byte $00,$08,$00,$F8,$00,$09,$00,$00,$08,$18,$00,$F8,$08,$19,$00,$00; $BCC1: 00 08 00 F8 00 09 00 00 08 18 00 F8 08 19 00 00
+  .byte $80                               ; $BCD1: 80
+BattleCursorArrowSprBox38:    ; tiles $08/$09/$38/$39
+  .byte $00,$08,$00,$F8,$00,$09,$00,$00,$08,$38,$00,$F8,$08,$39,$00,$00; $BCD2: 00 08 00 F8 00 09 00 00 08 38 00 F8 08 39 00 00
+  .byte $80                               ; $BCE2: 80
+BattleCursorArrowSprBox0C:    ; tiles $0C/$0D/$1C/$1D
+  .byte $00,$0C,$00,$F8,$00,$0D,$00,$00,$08,$1C,$00,$F8,$08,$1D,$00,$00; $BCE3: 00 0C 00 F8 00 0D 00 00 08 1C 00 F8 08 1D 00 00
+  .byte $80                               ; $BCF3: 80
+BattleCursorArrowSprBox2C:    ; tiles $2C/$2D/$3C/$3D
+  .byte $00,$2C,$00,$F8,$00,$2D,$00,$00,$08,$3C,$00,$F8,$08,$3D,$00,$00; $BCF4: 00 2C 00 F8 00 2D 00 00 08 3C 00 F8 08 3D 00 00
+  .byte $80                               ; $BD04: 80
+BattleCursorArrowSprBox42:    ; tiles $42/$43/$52/$53
+  .byte $00,$42,$00,$F8,$00,$43,$00,$00,$08,$52,$00,$F8,$08,$53,$00,$00; $BD05: 00 42 00 F8 00 43 00 00 08 52 00 F8 08 53 00 00
+  .byte $80                               ; $BD15: 80
+BattleCursorArrowSprBox62:    ; tiles $62/$63/$72/$73
+  .byte $00,$62,$00,$F8,$00,$63,$00,$00,$08,$72,$00,$F8,$08,$73,$00,$00; $BD16: 00 62 00 F8 00 63 00 00 08 72 00 F8 08 73 00 00
+  .byte $80                               ; $BD26: 80
+BattleCursorArrowSprBox42b:   ; duplicate of BattleCursorArrowSprBox42
+  .byte $00,$42,$00,$F8,$00,$43,$00,$00,$08,$52,$00,$F8,$08,$53,$00,$00; $BD27: 00 42 00 F8 00 43 00 00 08 52 00 F8 08 53 00 00
+  .byte $80                               ; $BD37: 80
+BattleCursorArrowSprBox62b:   ; duplicate of BattleCursorArrowSprBox62
+  .byte $00,$62,$00,$F8,$00,$63,$00,$00,$08,$72,$00,$F8,$08,$73,$00,$00; $BD38: 00 62 00 F8 00 63 00 00 08 72 00 F8 08 73 00 00
+  .byte $80                               ; $BD48: 80
+BattleCursorArrowSprBox0A:    ; tiles $0A/$0B/$1A/$1B
+  .byte $00,$0A,$00,$F8,$00,$0B,$00,$00,$08,$1A,$00,$F8,$08,$1B,$00,$00; $BD49: 00 0A 00 F8 00 0B 00 00 08 1A 00 F8 08 1B 00 00
+  .byte $80                               ; $BD59: 80
+BattleCursorArrowSprBox0AHi:  ; tiles $0A/$0B/$3A/$3B
+  .byte $00,$0A,$00,$F8,$00,$0B,$00,$00,$08,$3A,$00,$F8,$08,$3B,$00,$00; $BD5A: 00 0A 00 F8 00 0B 00 00 08 3A 00 F8 08 3B 00 00
+  .byte $80                               ; $BD6A: 80
+BattleCursorArrowSprBox0E:    ; tiles $0E/$0F/$1E/$1F
   .byte $00,$0E,$00,$F8,$00,$0F,$00,$00,$08,$1E,$00,$F8,$08,$1F,$00,$00; $BD6B: 00 0E 00 F8 00 0F 00 00 08 1E 00 F8 08 1F 00 00
-  .byte $80,$00,$2E,$00,$F8,$00,$2F,$00,$00,$08,$3E,$00,$F8,$08,$3F,$00; $BD7B: 80 00 2E 00 F8 00 2F 00 00 08 3E 00 F8 08 3F 00
-  .byte $00,$80,$00,$06,$00,$F8,$00,$07,$00,$00,$08,$14,$00,$F8,$08,$15; $BD8B: 00 80 00 06 00 F8 00 07 00 00 08 14 00 F8 08 15
-  .byte $00,$00,$80,$00,$26,$00,$F8,$00,$27,$00,$00,$08,$34,$00,$F8,$08; $BD9B: 00 00 80 00 26 00 F8 00 27 00 00 08 34 00 F8 08
-  .byte $35,$00,$00,$80,$00,$04,$00,$F8,$00,$05,$00,$00,$08,$14,$00,$F8; $BDAB: 35 00 00 80 00 04 00 F8 00 05 00 00 08 14 00 F8
-  .byte $08,$15,$00,$00,$80,$00,$24,$00,$F8,$00,$05,$00,$00,$08,$34,$00; $BDBB: 08 15 00 00 80 00 24 00 F8 00 05 00 00 08 34 00
-  .byte $F8,$08,$35,$00,$00,$80,$00,$00,$00,$F8,$00,$01,$00,$00,$08,$10; $BDCB: F8 08 35 00 00 80 00 00 00 F8 00 01 00 00 08 10
-  .byte $00                               ; $BDDB: 00
-Loc_BDDC:
-  .byte $F8,$08,$11,$00,$00,$80,$00,$20,$00,$F8,$00,$21,$00,$00,$08,$30; $BDDC: F8 08 11 00 00 80 00 20 00 F8 00 21 00 00 08 30
-  .byte $00                               ; $BDEC: 00
-Loc_BDED:
-  .byte $F8,$08,$31,$00,$00,$80,$00,$02,$00,$F8,$00,$03,$00,$00,$08,$12; $BDED: F8 08 31 00 00 80 00 02 00 F8 00 03 00 00 08 12
-  .byte $00,$F8,$08,$13,$00,$00,$80,$00,$22,$00,$F8,$00,$23,$00,$00,$08; $BDFD: 00 F8 08 13 00 00 80 00 22 00 F8 00 23 00 00 08
-  .byte $32,$00,$F8,$08,$33,$00,$00,$80,$AC,$45,$05,$B9,$80,$05,$0A,$0A; $BE0D: 32 00 F8 08 33 00 00 80 AC 45 05 B9 80 05 0A 0A
+  .byte $80                               ; $BD7B: 80
+BattleCursorArrowSprBox2E:    ; tiles $2E/$2F/$3E/$3F
+  .byte $00,$2E,$00,$F8,$00,$2F,$00,$00,$08,$3E,$00,$F8,$08,$3F,$00,$00; $BD7C: 00 2E 00 F8 00 2F 00 00 08 3E 00 F8 08 3F 00 00
+  .byte $80                               ; $BD8C: 80
+BattleCursorArrowSprBox06:    ; tiles $06/$07/$14/$15
+  .byte $00,$06,$00,$F8,$00,$07,$00,$00,$08,$14,$00,$F8,$08,$15,$00,$00; $BD8D: 00 06 00 F8 00 07 00 00 08 14 00 F8 08 15 00 00
+  .byte $80                               ; $BD9D: 80
+BattleCursorArrowSprBox26:    ; tiles $26/$27/$34/$35
+  .byte $00,$26,$00,$F8,$00,$27,$00,$00,$08,$34,$00,$F8,$08,$35,$00,$00; $BD9E: 00 26 00 F8 00 27 00 00 08 34 00 F8 08 35 00 00
+  .byte $80                               ; $BDAE: 80
+BattleCursorArrowSprBox04:    ; tiles $04/$05/$14/$15
+  .byte $00,$04,$00,$F8,$00,$05,$00,$00,$08,$14,$00,$F8,$08,$15,$00,$00; $BDAF: 00 04 00 F8 00 05 00 00 08 14 00 F8 08 15 00 00
+  .byte $80                               ; $BDBF: 80
+BattleCursorArrowSprBox24:    ; tiles $24/$05/$34/$35
+  .byte $00,$24,$00,$F8,$00,$05,$00,$00,$08,$34,$00,$F8,$08,$35,$00,$00; $BDC0: 00 24 00 F8 00 05 00 00 08 34 00 F8 08 35 00 00
+  .byte $80                               ; $BDD0: 80
+BattleCursorArrowSprBox00:    ; tiles $00/$01/$10/$11
+  .byte $00,$00,$00,$F8,$00,$01,$00,$00,$08,$10,$00,$F8,$08,$11,$00,$00; $BDD1: 00 00 00 F8 00 01 00 00 08 10 00 F8 08 11 00 00
+  .byte $80                               ; $BDE1: 80
+BattleCursorArrowSprBox20:    ; tiles $20/$21/$30/$31
+  .byte $00,$20,$00,$F8,$00,$21,$00,$00,$08,$30,$00,$F8,$08,$31,$00,$00; $BDE2: 00 20 00 F8 00 21 00 00 08 30 00 F8 08 31 00 00
+  .byte $80                               ; $BDF2: 80
+BattleCursorArrowSprBox02:    ; tiles $02/$03/$12/$13
+  .byte $00,$02,$00,$F8,$00,$03,$00,$00,$08,$12,$00,$F8,$08,$13,$00,$00; $BDF3: 00 02 00 F8 00 03 00 00 08 12 00 F8 08 13 00 00
+  .byte $80                               ; $BE03: 80
+BattleCursorArrowSprBox22:    ; tiles $22/$23/$32/$33
+  .byte $00,$22,$00,$F8,$00,$23,$00,$00,$08,$32,$00,$F8,$08,$33,$00,$00; $BE04: 00 22 00 F8 00 23 00 00 08 32 00 F8 08 33 00 00
+  .byte $80                               ; $BE14: 80
+; --- Dead code ($BE15-$BE5C) --------------------------------------------------
+; Unreferenced duplicate of an earlier cursor-marker sprite draw: Y offset
+; <- $0580[$0545]<<4, X offset <- $0596[$0545]<<4, stream ptr <-
+; BattleCursorArrowSprMarker, offsets Phase2AttackArrowRowOffsetTable/
+; Phase2AttackArrowColOffsetTable + $0549, then JMP $F092.
+; No JSR/JMP/table targets it; kept as bytes for byte-exact assembly.
+  .byte $AC,$45,$05,$B9,$80,$05,$0A,$0A; $BE15: AC 45 05 B9 80 05 0A 0A
   .byte $0A,$0A,$8D,$0C,$00,$B9,$96,$05,$0A,$0A,$0A,$0A,$8D,$0A,$00,$A9; $BE1D: 0A 0A 8D 0C 00 B9 96 05 0A 0A 0A 0A 8D 0A 00 A9
   .byte $65,$8D,$00,$00,$A9,$BE,$8D,$01,$00,$AC,$49,$05,$AD,$0C,$00,$18; $BE2D: 65 8D 00 00 A9 BE 8D 01 00 AC 49 05 AD 0C 00 18
   .byte $79,$5D,$BE,$8D,$0C,$00,$AD,$0A,$00,$18,$79,$61,$BE,$8D,$0A,$00; $BE3D: 79 5D BE 8D 0C 00 AD 0A 00 18 79 61 BE 8D 0A 00
   .byte $A9,$00,$8D,$0B,$00,$8D,$0D,$00,$A9,$00,$8D,$02,$00,$4C,$92,$F0; $BE4D: A9 00 8D 0B 00 8D 0D 00 A9 00 8D 02 00 4C 92 F0
-  .byte $00,$00,$F8,$08,$F8,$08,$00,$00,$00,$86,$02,$00,$00,$87,$02,$08; $BE5D: 00 00 F8 08 F8 08 00 00 00 86 02 00 00 87 02 08
+; --- Marker stream -------------------------------------------------------------
+; Unreferenced leading bytes $BE5D-$BE64 (stale sprite-record prefix).
+  .byte $00,$00,$F8,$08,$F8,$08,$00,$00; $BE5D: 00 00 F8 08 F8 08 00 00
+BattleCursorArrowSprMarker:   ; 2x2 marker, tiles $86/$87/$96/$97 (attr $02)
+  .byte $00,$86,$02,$00,$00,$87,$02,$08; $BE65: 00 86 02 00 00 87 02 08
   .byte $08,$96,$02,$00,$08,$97,$02,$08,$80; $BE6D: 08 96 02 00 08 97 02 08 80
-Loc_BE76:
-; --- Code Region ---
-  LDA $0545                               ; $BE76: AD 45 05
-  CMP #$0B                                ; $BE79: C9 0B
-  BCC $BE8D                               ; $BE7B: 90 10
-  LDA $0577                               ; $BE7D: AD 77 05
-  AND #$F0                                ; $BE80: 29 F0
-  BEQ $BE9D                               ; $BE82: F0 19
-  LDA $0549                               ; $BE84: AD 49 05
+;===============================================================================
+; $BE76: Phase2AttackArrowSprSubmit
+; Submits the attack arrow sprite for phase 2 sub 7 (Phase2AttackArrowAnim).
+; Stream select: index = acting side $0549 (0-3), plus +4 when the acting
+; slot's side action counter is pending ($0545 >= $0B -> side B, check high
+; nibble of $0577; else side A, check low nibble). The stream pointer comes
+; from Phase2AttackArrowStreamPtrTable[index*2]. Sprite position = arrow
+; walk position ($054A row / $054B column) plus per-side pixel offsets
+; (Phase2AttackArrowRowOffsetTable/ColOffsetTable). Tail-calls
+; B1F_SpriteOamWriterScroll (JMP, no return).
+;===============================================================================
+.proc Phase2AttackArrowSprSubmit
+  LDA $0545                               ; $BE76: AD 45 05 ; acting roster slot
+  CMP #$0B                                ; $BE79: C9 0B ; side B starts at slot $0B
+  BCC @SideA                              ; $BE7B: 90 10
+  LDA $0577                               ; $BE7D: AD 77 05 ; side action counters
+  AND #$F0                                ; $BE80: 29 F0 ; side B nibble
+  BEQ @LookupStream                       ; $BE82: F0 19 ; no counter pending
+  LDA $0549                               ; $BE84: AD 49 05 ; acting side
   CLC                                     ; $BE87: 18
-  ADC #$04                                ; $BE88: 69 04
-  JMP $BEA0                               ; $BE8A: 4C A0 BE
-Loc_BE8D:
-  LDA $0577                               ; $BE8D: AD 77 05
-  AND #$0F                                ; $BE90: 29 0F
-  BEQ $BE9D                               ; $BE92: F0 09
-  LDA $0549                               ; $BE94: AD 49 05
+  ADC #$04                                ; $BE88: 69 04 ; engaged arrow variant
+  JMP @Submit                             ; $BE8A: 4C A0 BE
+@SideA:
+  LDA $0577                               ; $BE8D: AD 77 05 ; side action counters
+  AND #$0F                                ; $BE90: 29 0F ; side A nibble
+  BEQ @LookupStream                       ; $BE92: F0 09 ; no counter pending
+  LDA $0549                               ; $BE94: AD 49 05 ; acting side
   CLC                                     ; $BE97: 18
-  ADC #$04                                ; $BE98: 69 04
-  JMP $BEA0                               ; $BE9A: 4C A0 BE
-Loc_BE9D:
-  LDA $0549                               ; $BE9D: AD 49 05
-Loc_BEA0:
-  ASL                                     ; $BEA0: 0A
+  ADC #$04                                ; $BE98: 69 04 ; engaged arrow variant
+  JMP @Submit                             ; $BE9A: 4C A0 BE
+@LookupStream:
+  LDA $0549                               ; $BE9D: AD 49 05 ; acting side 0-3
+@Submit:
+  ASL                                     ; $BEA0: 0A ; index * 2
   TAY                                     ; $BEA1: A8
-  LDA $BEDD,Y                             ; $BEA2: B9 DD BE
+  LDA Phase2AttackArrowStreamPtrTable,Y   ; $BEA2: B9 DD BE ; stream ptr lo
   STA a:$0000                             ; $BEA5: 8D 00 00
-  LDA $BEDE,Y                             ; $BEA8: B9 DE BE
+  LDA Phase2AttackArrowStreamPtrTable+1,Y ; $BEA8: B9 DE BE ; stream ptr hi
   STA a:$0001                             ; $BEAB: 8D 01 00
-  LDY $0549                               ; $BEAE: AC 49 05
-  LDA $054A                               ; $BEB1: AD 4A 05
+  LDY $0549                               ; $BEAE: AC 49 05 ; acting side
+  LDA $054A                               ; $BEB1: AD 4A 05 ; arrow row
   CLC                                     ; $BEB4: 18
-  ADC $BED5,Y                             ; $BEB5: 79 D5 BE
-  STA a:$000C                             ; $BEB8: 8D 0C 00
-  LDA $054B                               ; $BEBB: AD 4B 05
+  ADC Phase2AttackArrowRowOffsetTable,Y   ; $BEB5: 79 D5 BE ; + side row offset
+  STA a:$000C                             ; $BEB8: 8D 0C 00 ; sprite Y
+  LDA $054B                               ; $BEBB: AD 4B 05 ; arrow column
   CLC                                     ; $BEBE: 18
-  ADC $BED9,Y                             ; $BEBF: 79 D9 BE
-  STA a:$000A                             ; $BEC2: 8D 0A 00
+  ADC Phase2AttackArrowColOffsetTable,Y   ; $BEBF: 79 D9 BE ; + side column offset
+  STA a:$000A                             ; $BEC2: 8D 0A 00 ; sprite X
   LDA #$00                                ; $BEC5: A9 00
-  STA a:$000B                             ; $BEC7: 8D 0B 00
-  STA a:$000D                             ; $BECA: 8D 0D 00
+  STA a:$000B                             ; $BEC7: 8D 0B 00 ; X hi <- 0
+  STA a:$000D                             ; $BECA: 8D 0D 00 ; Y hi <- 0
   LDA #$00                                ; $BECD: A9 00
-  STA a:$0002                             ; $BECF: 8D 02 00
-  JMP $F092                               ; $BED2: 4C 92 F0
-; --- Data Region ---
-  .byte $00,$00,$F8,$08,$F8,$08,$00,$00,$ED,$BE,$F2,$BE,$F7,$BE,$FC,$BE; $BED5: 00 00 F8 08 F8 08 00 00 ED BE F2 BE F7 BE FC BE
-  .byte $01,$BF,$06,$BF,$0B,$BF,$10,$BF,$04,$84,$02,$04,$80,$04,$94,$02; $BEE5: 01 BF 06 BF 0B BF 10 BF 04 84 02 04 80 04 94 02
-  .byte $04,$80,$04,$A4,$42,$04,$80,$04,$A4,$02,$04,$80,$04,$85,$02,$04; $BEF5: 04 80 04 A4 42 04 80 04 A4 02 04 80 04 85 02 04
-  .byte $80,$04,$95,$02,$04,$80,$04,$A5,$42,$04,$80,$04,$A5,$02,$04,$80; $BF05: 80 04 95 02 04 80 04 A5 42 04 80 04 A5 02 04 80
-Loc_BF15:
-; --- Code Region ---
-  LDA #$3B                                ; $BF15: A9 3B
+  STA a:$0002                             ; $BECF: 8D 02 00 ; no flip
+  JMP B1F_SpriteOamWriterScroll           ; $BED2: 4C 92 F0 ; submit OAM stream
+.endproc
+; --- Per-side sprite pixel offsets, indexed by acting side ($BE76) ---
+Phase2AttackArrowRowOffsetTable:  ; row (Y) offset per side 0-3
+  .byte $00,$00,$F8,$08           ; $BED5: 00 00 F8 08
+Phase2AttackArrowColOffsetTable:  ; column (X) offset per side 0-3
+  .byte $F8,$08,$00,$00           ; $BED9: F8 08 00 00
+; --- Arrow stream pointers, indexed (side + engaged*4) * 2 ($BE76) ---
+Phase2AttackArrowStreamPtrTable:
+  .word Phase2AttackArrowSprUp            ; $BEDD: ED BE ; side 0 (row--)
+  .word Phase2AttackArrowSprDown          ; $BEDF: F2 BE ; side 1 (row++)
+  .word Phase2AttackArrowSprLeft          ; $BEE1: F7 BE ; side 2 (col--)
+  .word Phase2AttackArrowSprRight         ; $BEE3: FC BE ; side 3 (col++)
+  .word Phase2AttackArrowSprUpEngaged     ; $BEE5: 01 BF ; side 0, counter pending
+  .word Phase2AttackArrowSprDownEngaged   ; $BEE7: 06 BF ; side 1, counter pending
+  .word Phase2AttackArrowSprLeftEngaged   ; $BEE9: 0B BF ; side 2, counter pending
+  .word Phase2AttackArrowSprRightEngaged  ; $BEEB: 10 BF ; side 3, counter pending
+; --- Arrow sprite streams: one [relY,tile,attr,relX] record + $80 terminator ---
+Phase2AttackArrowSprUp:
+  .byte $04,$84,$02,$04,$80       ; $BEED: 04 84 02 04 80
+Phase2AttackArrowSprDown:
+  .byte $04,$94,$02,$04,$80       ; $BEF2: 04 94 02 04 80
+Phase2AttackArrowSprLeft:
+  .byte $04,$A4,$42,$04,$80       ; $BEF7: 04 A4 42 04 80 ; tile h-flipped
+Phase2AttackArrowSprRight:
+  .byte $04,$A4,$02,$04,$80       ; $BEFC: 04 A4 02 04 80
+Phase2AttackArrowSprUpEngaged:
+  .byte $04,$85,$02,$04,$80       ; $BF01: 04 85 02 04 80
+Phase2AttackArrowSprDownEngaged:
+  .byte $04,$95,$02,$04,$80       ; $BF06: 04 95 02 04 80
+Phase2AttackArrowSprLeftEngaged:
+  .byte $04,$A5,$42,$04,$80       ; $BF0B: 04 A5 42 04 80 ; tile h-flipped
+Phase2AttackArrowSprRightEngaged:
+  .byte $04,$A5,$02,$04,$80       ; $BF10: 04 A5 02 04 80
+;===============================================================================
+; $BF15: Phase2AttackMarkerSprSubmit
+; Submits the 2x2 attack-marker sprite (tiles $86/$87/$96/$97) at the final
+; arrow position ($054A row / $054B column) during phase 2 sub 8
+; (Phase2AttackAnimCount). Tail-calls B1F_SpriteOamWriterScroll.
+;===============================================================================
+.proc Phase2AttackMarkerSprSubmit
+  LDA #$3B                                ; $BF15: A9 3B ; stream ptr lo ($BF3B)
   STA a:$0000                             ; $BF17: 8D 00 00
-  LDA #$BF                                ; $BF1A: A9 BF
+  LDA #$BF                                ; $BF1A: A9 BF ; stream ptr hi
   STA a:$0001                             ; $BF1C: 8D 01 00
-  LDA $054A                               ; $BF1F: AD 4A 05
-  STA a:$000C                             ; $BF22: 8D 0C 00
-  LDA $054B                               ; $BF25: AD 4B 05
-  STA a:$000A                             ; $BF28: 8D 0A 00
+  LDA $054A                               ; $BF1F: AD 4A 05 ; arrow row
+  STA a:$000C                             ; $BF22: 8D 0C 00 ; sprite Y
+  LDA $054B                               ; $BF25: AD 4B 05 ; arrow column
+  STA a:$000A                             ; $BF28: 8D 0A 00 ; sprite X
   LDA #$00                                ; $BF2B: A9 00
-  STA a:$000B                             ; $BF2D: 8D 0B 00
-  STA a:$000D                             ; $BF30: 8D 0D 00
+  STA a:$000B                             ; $BF2D: 8D 0B 00 ; X hi <- 0
+  STA a:$000D                             ; $BF30: 8D 0D 00 ; Y hi <- 0
   LDA #$00                                ; $BF33: A9 00
-  STA a:$0002                             ; $BF35: 8D 02 00
-  JMP $F092                               ; $BF38: 4C 92 F0
-; --- Data Region ---
+  STA a:$0002                             ; $BF35: 8D 02 00 ; no flip
+  JMP B1F_SpriteOamWriterScroll           ; $BF38: 4C 92 F0 ; submit OAM stream
+.endproc
+Phase2AttackMarkerSprites:      ; 2x2 marker, tiles $86/$87/$96/$97 (attr $02)
   .byte $00,$86,$02,$00,$00,$87,$02,$08,$08,$96,$02,$00,$08,$97,$02,$08; $BF3B: 00 86 02 00 00 87 02 08 08 96 02 00 08 97 02 08
-  .byte $80                               ; $BF4B: 80
+  .byte $80                               ; $BF4B: 80 ; stream terminator
 ;===============================================================================
 ; $BF4C: BattleSideStatusCounterDraw
 ; Redraws the four packed per-side status counter bytes $0574-$0577 (two
 ; one-digit counters per byte). For each counter, the high nibble is drawn
 ; in row X=$80 and the low nibble in row X=$70; the per-counter PPU stream
-; pointer comes from the $BFCF table (Y = counter index * 2) and the digit
-; tile base is $D0. Submission goes through $F092 with $00B7=$91. Zero
-; nibbles are skipped. Called every frame by Phase1NextActorSubDispatch.
+; pointer comes from @PerCounterStreamPtrTable (Y = counter index * 2) and
+; the digit tile base is $D0. Submission goes through $F092 with $00B7=$91.
+; Zero nibbles are skipped. Called every frame by Phase1NextActorSubDispatch.
 ;===============================================================================
 .proc BattleSideStatusCounterDraw
   LDY #$00                                ; $BF4C: A0 00 ; counter 0 ($0574)
@@ -4238,9 +4538,9 @@ Loc_BF15:
   AND #$0F                                ; $BFA1: 29 0F
   BEQ @Done                               ; $BFA3: F0 29 ; zero: nothing to draw
   STX a:$000C                             ; $BFA5: 8E 0C 00 ; row parameter
-  LDA $BFCF,Y                             ; $BFA8: B9 CF BF ; PPU stream ptr lo
+  LDA @PerCounterStreamPtrTable,Y         ; $BFA8: B9 CF BF ; PPU stream ptr lo
   STA a:$0000                             ; $BFAB: 8D 00 00
-  LDA $BFD0,Y                             ; $BFAE: B9 D0 BF ; PPU stream ptr hi
+  LDA @PerCounterStreamPtrTable+1,Y       ; $BFAE: B9 D0 BF ; PPU stream ptr hi
   STA a:$0001                             ; $BFB1: 8D 01 00
   LDA #$D0                                ; $BFB4: A9 D0
   STA a:$000A                             ; $BFB6: 8D 0A 00 ; digit tile base
@@ -4254,19 +4554,30 @@ Loc_BF15:
   STA a:$00B7                             ; $BFCB: 8D B7 00
 @Done:
   RTS                                     ; $BFCE: 60
+@PerCounterStreamPtrTable:  ; PPU stream ptr per counter, indexed Y = counter * 2
+  .word BattleSideStatusCounterStream0    ; $BFCF: D7 BF ; counter 0 ($0574)
+  .word BattleSideStatusCounterStream1    ; $BFD1: E8 BF ; counter 1 ($0575)
+  .word BattleSideStatusCounterStream2    ; $BFD3: F9 BF ; counter 2 ($0576)
+  .word BattleSideStatusCounterStream3    ; $BFD5: 0A C0 ; counter 3 ($0577)
 .endproc
-; --- Per-counter PPU stream pointers, indexed Y = counter * 2 ($BF4C) ---
-  .byte $D7,$BF,$E8,$BF,$F9,$BF,$0A,$C0,$00,$69,$00,$00,$00,$6A,$00,$08; $BFCF: D7 BF E8 BF F9 BF 0A C0 00 69 00 00 00 6A 00 08
-  .byte $08,$79,$00,$00,$08,$7A,$00,$08,$80,$00,$70,$00; $BFDF: 08 79 00 00 08 7A 00 08 80 00 70 00
-Loc_BFEB:
-  .byte $00,$00,$71,$00,$08,$08,$72,$00,$00,$08,$73,$00,$08,$80,$00,$6B; $BFEB: 00 00 71 00 08 08 72 00 00 08 73 00 08 80 00 6B
-  .byte $00,$00,$00,$6C,$00               ; $BFFB: 00 00 00 6C 00
+; --- Counter digit PPU streams (targets of @PerCounterStreamPtrTable) ---
+; Four [relY,tile,attr,relX] records (2x2 digit pair) + $80 terminator each.
+BattleSideStatusCounterStream0:  ; counter 0, tiles $69/$6A/$79/$7A
+  .byte $00,$69,$00,$00,$00,$6A,$00,$08; $BFD7: 00 69 00 00 00 6A 00 08
+  .byte $08,$79,$00,$00,$08,$7A,$00,$08,$80; $BFDF: 08 79 00 00 08 7A 00 08 80
+BattleSideStatusCounterStream1:  ; counter 1, tiles $70-$73
+  .byte $00,$70,$00,$00,$00,$71,$00,$08; $BFE8: 00 70 00 00 00 71 00 08
+  .byte $08,$72,$00,$00,$08,$73,$00,$08,$80; $BFF0: 08 72 00 00 08 73 00 08 80
+BattleSideStatusCounterStream2:  ; counter 2, tiles $6B/$6C/$7B/$7C; spans $BFFF/$C000
+  .byte $00,$6B,$00,$00,$00,$6C,$00  ; $BFF9: 00 6B 00 00 00 6C 00
 
 .segment "CODE_BANK0F"
 
-  .byte $08                               ; $C000: 08
-  .byte $08,$7B,$00,$00,$08,$7C,$00,$08,$80,$00,$6D,$02,$00,$00,$6E,$02; $C001: 08 7B 00 00 08 7C 00 08 80 00 6D 02 00 00 6E 02
-  .byte $08,$08,$7D,$02,$00,$08,$7E,$02,$08,$80; $C011: 08 08 7D 02 00 08 7E 02 08 80
+  .byte $08                               ; $C000: 08 ; BattleSideStatusCounterStream2 tail
+  .byte $08,$7B,$00,$00,$08,$7C,$00,$08,$80; $C001: 08 7B 00 00 08 7C 00 08 80
+BattleSideStatusCounterStream3:  ; counter 3, tiles $6D/$6E/$7D/$7E (attr $02)
+  .byte $00,$6D,$02,$00,$00,$6E,$02,$08; $C00A: 00 6D 02 00 00 6E 02 08
+  .byte $08,$7D,$02,$00,$08,$7E,$02,$08,$80; $C012: 08 7D 02 00 08 7E 02 08 80
 ;===============================================================================
 ; $C01B: BattleChrBankAnimate
 ; Animates the battle CHR banks once per VBlank. Row index = bits 3-4 of the
@@ -4312,1045 +4623,1167 @@ battle_phase   = $0544  ; battle scene phase
 BattleChrBankAnimTable:
   .byte $78,$79,$78,$79,$7A,$7B,$7A,$7B,$18,$19,$18,$19,$18,$19,$18,$19; $C054: 78 79 78 79 7A 7B 7A 7B 18 19 18 19 18 19 18 19
 .endproc
-Loc_C064:
-; --- Code Region ---
+;===============================================================================
+; $C064: Phase2WalkDirectionResolve
+; Walk-direction resolver for the phase-2 selection gate, called by
+; Phase2ActionGate @Select ($A5AF) with Y = acting slot $0545. Picks a
+; single step direction toward the objective and stores it in $0549
+; (0=row-/up, 1=row+/down, 2=col-/left, 3=col+/right; $FF = none), after
+; which the gate encodes $0549 into the column status and starts the cursor
+; walk (sub 1). Objective: command 1 aims past the enemy edge (column $FF
+; for side-A slots, $20 for side-B slots, on the enemy commander's row),
+; other commands aim at the enemy commander (slot $0B for side-A actors,
+; slot 0 for side-B actors). The column status low nibble ($05C2[$0545])
+; selects the preferred axis: 0/3 step along the larger distance axis
+; (random bit0 tiebreak via B1F_RandomByte), 2 biases to row steps, others
+; bias to column steps; an already-aligned axis (< 2 tiles apart) switches
+; to the other one. The preferred axis steps one tile toward the objective
+; when that tile is empty (Phase2StepTileProbe carry) and terrain-passable
+; (BattleTerrainPassabilityCheck returns 0); on failure the other axis
+; gets one retry via the zero-page flag $0012, then $0549 <- $FF (the gate
+; passes the turn).
+;===============================================================================
+.proc Phase2WalkDirectionResolve
   LDA #$00                                ; $C064: A9 00
-  STA a:$0012                             ; $C066: 8D 12 00
-  LDA $054F                               ; $C069: AD 4F 05
+  STA a:$0012                             ; $C066: 8D 12 00 ; axis retry flag <- 0
+  LDA $054F                               ; $C069: AD 4F 05 ; command value
   CMP #$01                                ; $C06C: C9 01
-  BEQ $C095                               ; $C06E: F0 25
-  LDA $0545                               ; $C070: AD 45 05
+  BEQ @AdvanceCommand                     ; $C06E: F0 25 ; command 1: edge objective
+  LDA $0545                               ; $C070: AD 45 05 ; acting slot
   CMP #$0B                                ; $C073: C9 0B
-  BCS $C086                               ; $C075: B0 0F
-  LDA $058B                               ; $C077: AD 8B 05
+  BCS @SideBActor                         ; $C075: B0 0F ; slot >= $0B: side B
+  LDA $058B                               ; $C077: AD 8B 05 ; enemy commander column
   STA a:$0010                             ; $C07A: 8D 10 00
-  LDA $05A1                               ; $C07D: AD A1 05
+  LDA $05A1                               ; $C07D: AD A1 05 ; enemy commander row
   STA a:$0011                             ; $C080: 8D 11 00
-  JMP $C0B8                               ; $C083: 4C B8 C0
-Loc_C086:
-  LDA $0580                               ; $C086: AD 80 05
+  JMP @ComputeDeltas                      ; $C083: 4C B8 C0
+@SideBActor:
+  LDA $0580                               ; $C086: AD 80 05 ; enemy commander column
   STA a:$0010                             ; $C089: 8D 10 00
-  LDA $0596                               ; $C08C: AD 96 05
+  LDA $0596                               ; $C08C: AD 96 05 ; enemy commander row
   STA a:$0011                             ; $C08F: 8D 11 00
-  JMP $C0B8                               ; $C092: 4C B8 C0
-Loc_C095:
-  LDA $0545                               ; $C095: AD 45 05
+  JMP @ComputeDeltas                      ; $C092: 4C B8 C0
+@AdvanceCommand:
+  LDA $0545                               ; $C095: AD 45 05 ; acting slot
   CMP #$0B                                ; $C098: C9 0B
-  BCS $C0AA                               ; $C09A: B0 0E
-  LDA #$FF                                ; $C09C: A9 FF
+  BCS @SideBAdvance                       ; $C09A: B0 0E
+  LDA #$FF                                ; $C09C: A9 FF ; past the left edge
   STA a:$0010                             ; $C09E: 8D 10 00
-  LDA $05A1                               ; $C0A1: AD A1 05
+  LDA $05A1                               ; $C0A1: AD A1 05 ; enemy commander row
   STA a:$0011                             ; $C0A4: 8D 11 00
-  JMP $C0B8                               ; $C0A7: 4C B8 C0
-Loc_C0AA:
-  LDA #$20                                ; $C0AA: A9 20
+  JMP @ComputeDeltas                      ; $C0A7: 4C B8 C0
+@SideBAdvance:
+  LDA #$20                                ; $C0AA: A9 20 ; past the right edge
   STA a:$0010                             ; $C0AC: 8D 10 00
-  LDA $0596                               ; $C0AF: AD 96 05
+  LDA $0596                               ; $C0AF: AD 96 05 ; enemy commander row
   STA a:$0011                             ; $C0B2: 8D 11 00
-  JMP $C0B8                               ; $C0B5: 4C B8 C0
-Loc_C0B8:
-  LDA $0580,Y                             ; $C0B8: B9 80 05
+  JMP @ComputeDeltas                      ; $C0B5: 4C B8 C0
+@ComputeDeltas:
+  LDA $0580,Y                             ; $C0B8: B9 80 05 ; actor column
   SEC                                     ; $C0BB: 38
-  SBC a:$0010                             ; $C0BC: ED 10 00
-  STA a:$0010                             ; $C0BF: 8D 10 00
-  BCS $C0C9                               ; $C0C2: B0 05
-  EOR #$FF                                ; $C0C4: 49 FF
+  SBC a:$0010                             ; $C0BC: ED 10 00 ; actor - objective
+  STA a:$0010                             ; $C0BF: 8D 10 00 ; signed column delta
+  BCS @ColumnAbsDone                      ; $C0C2: B0 05
+  EOR #$FF                                ; $C0C4: 49 FF ; absolute value
   CLC                                     ; $C0C6: 18
   ADC #$01                                ; $C0C7: 69 01
-Loc_C0C9:
-  STA a:$0000                             ; $C0C9: 8D 00 00
-  LDA $0596,Y                             ; $C0CC: B9 96 05
+@ColumnAbsDone:
+  STA a:$0000                             ; $C0C9: 8D 00 00 ; column distance
+  LDA $0596,Y                             ; $C0CC: B9 96 05 ; actor row
   SEC                                     ; $C0CF: 38
-  SBC a:$0011                             ; $C0D0: ED 11 00
-  STA a:$0011                             ; $C0D3: 8D 11 00
-  BCS $C0DD                               ; $C0D6: B0 05
-  EOR #$FF                                ; $C0D8: 49 FF
+  SBC a:$0011                             ; $C0D0: ED 11 00 ; actor - objective
+  STA a:$0011                             ; $C0D3: 8D 11 00 ; signed row delta
+  BCS @AxisPriority                       ; $C0D6: B0 05
+  EOR #$FF                                ; $C0D8: 49 FF ; absolute value
   CLC                                     ; $C0DA: 18
   ADC #$01                                ; $C0DB: 69 01
-Loc_C0DD:
-  STA a:$0001                             ; $C0DD: 8D 01 00
-  LDA $05C2,Y                             ; $C0E0: B9 C2 05
-  AND #$0F                                ; $C0E3: 29 0F
-  BEQ $C109                               ; $C0E5: F0 22
+@AxisPriority:
+  STA a:$0001                             ; $C0DD: 8D 01 00 ; row distance
+  LDA $05C2,Y                             ; $C0E0: B9 C2 05 ; column status
+  AND #$0F                                ; $C0E3: 29 0F ; action bits
+  BEQ @BalanceCompare                     ; $C0E5: F0 22 ; code 0: balanced
   CMP #$03                                ; $C0E7: C9 03
-  BEQ $C109                               ; $C0E9: F0 1E
+  BEQ @BalanceCompare                     ; $C0E9: F0 1E ; code 3: balanced
   CMP #$02                                ; $C0EB: C9 02
-  BEQ $C0FC                               ; $C0ED: F0 0D
-  LDA a:$0000                             ; $C0EF: AD 00 00
+  BEQ @RowBias                            ; $C0ED: F0 0D ; code 2: row steps bias
+  LDA a:$0000                             ; $C0EF: AD 00 00 ; column distance
   CMP #$02                                ; $C0F2: C9 02
-  BCC $C0F9                               ; $C0F4: 90 03
-  JMP $C123                               ; $C0F6: 4C 23 C1
-Loc_C0F9:
-  JMP $C178                               ; $C0F9: 4C 78 C1
-Loc_C0FC:
-  LDA a:$0001                             ; $C0FC: AD 01 00
+  BCC @ColumnAligned                      ; $C0F4: 90 03 ; on column: row step
+  JMP @HorizontalStep                     ; $C0F6: 4C 23 C1
+@ColumnAligned:
+  JMP @VerticalFirst                      ; $C0F9: 4C 78 C1
+@RowBias:
+  LDA a:$0001                             ; $C0FC: AD 01 00 ; row distance
   CMP #$02                                ; $C0FF: C9 02
-  BCC $C106                               ; $C101: 90 03
-  JMP $C178                               ; $C103: 4C 78 C1
-Loc_C106:
-  JMP $C123                               ; $C106: 4C 23 C1
-Loc_C109:
-  LDA a:$0001                             ; $C109: AD 01 00
-  CMP a:$0000                             ; $C10C: CD 00 00
-  BEQ $C116                               ; $C10F: F0 05
-  BCC $C120                               ; $C111: 90 0D
-  JMP $C178                               ; $C113: 4C 78 C1
-Loc_C116:
-  JSR $E87A                               ; $C116: 20 7A E8
+  BCC @RowAligned                         ; $C101: 90 03 ; on row: column step
+  JMP @VerticalFirst                      ; $C103: 4C 78 C1
+@RowAligned:
+  JMP @HorizontalStep                     ; $C106: 4C 23 C1
+@BalanceCompare:
+  LDA a:$0001                             ; $C109: AD 01 00 ; row distance
+  CMP a:$0000                             ; $C10C: CD 00 00 ; vs column distance
+  BEQ @BalanceTieRandom                   ; $C10F: F0 05 ; equal: random axis
+  BCC @HorizontalFirst                    ; $C111: 90 0D ; column farther
+  JMP @VerticalFirst                      ; $C113: 4C 78 C1 ; row farther
+@BalanceTieRandom:
+  JSR B1F_RandomByte                      ; $C116: 20 7A E8
   AND #$01                                ; $C119: 29 01
-  BEQ $C120                               ; $C11B: F0 03
-  JMP $C178                               ; $C11D: 4C 78 C1
-Loc_C120:
-  JMP $C123                               ; $C120: 4C 23 C1
-Loc_C123:
-  LDA a:$0010                             ; $C123: AD 10 00
-  BEQ $C12C                               ; $C126: F0 04
-  BMI $C14D                               ; $C128: 30 23
-  BPL $C133                               ; $C12A: 10 07
-Loc_C12C:
-  JSR $E87A                               ; $C12C: 20 7A E8
+  BEQ @HorizontalFirst                    ; $C11B: F0 03
+  JMP @VerticalFirst                      ; $C11D: 4C 78 C1
+@HorizontalFirst:
+  JMP @HorizontalStep                     ; $C120: 4C 23 C1
+@HorizontalStep:
+  LDA a:$0010                             ; $C123: AD 10 00 ; signed column delta
+  BEQ @HorizontalTieRandom                ; $C126: F0 04 ; aligned: random side
+  BMI @StepRight                          ; $C128: 30 23 ; objective right of actor
+  BPL @StepLeft                           ; $C12A: 10 07 ; objective left of actor
+@HorizontalTieRandom:
+  JSR B1F_RandomByte                      ; $C12C: 20 7A E8
   AND #$80                                ; $C12F: 29 80
-  BNE $C14D                               ; $C131: D0 1A
-Loc_C133:
-  LDA #$FF                                ; $C133: A9 FF
+  BNE @StepRight                          ; $C131: D0 1A
+@StepLeft:
+  LDA #$FF                                ; $C133: A9 FF ; step delta (-1, 0)
   STA a:$0000                             ; $C135: 8D 00 00
   LDA #$00                                ; $C138: A9 00
   STA a:$0001                             ; $C13A: 8D 01 00
-  JSR $C1CD                               ; $C13D: 20 CD C1
-  BCC $C167                               ; $C140: 90 25
-  JSR $CAF9                               ; $C142: 20 F9 CA
-  BNE $C167                               ; $C145: D0 20
-  LDA #$02                                ; $C147: A9 02
+  JSR Phase2StepTileProbe                 ; $C13D: 20 CD C1 ; probe left tile
+  BCC @HorizontalRetry                    ; $C140: 90 25 ; occupied: blocked
+  JSR BattleTerrainPassabilityCheck       ; $C142: 20 F9 CA ; terrain passability
+  BNE @HorizontalRetry                    ; $C145: D0 20 ; impassable terrain
+  LDA #$02                                ; $C147: A9 02 ; direction: left
   STA $0549                               ; $C149: 8D 49 05
   RTS                                     ; $C14C: 60
-Loc_C14D:
-  LDA #$01                                ; $C14D: A9 01
+@StepRight:
+  LDA #$01                                ; $C14D: A9 01 ; step delta (+1, 0)
   STA a:$0000                             ; $C14F: 8D 00 00
   LDA #$00                                ; $C152: A9 00
   STA a:$0001                             ; $C154: 8D 01 00
-  JSR $C1CD                               ; $C157: 20 CD C1
-  BCC $C167                               ; $C15A: 90 0B
-  JSR $CAF9                               ; $C15C: 20 F9 CA
-  BNE $C167                               ; $C15F: D0 06
-  LDA #$03                                ; $C161: A9 03
+  JSR Phase2StepTileProbe                 ; $C157: 20 CD C1 ; probe right tile
+  BCC @HorizontalRetry                    ; $C15A: 90 0B ; occupied: blocked
+  JSR BattleTerrainPassabilityCheck       ; $C15C: 20 F9 CA ; terrain passability
+  BNE @HorizontalRetry                    ; $C15F: D0 06 ; impassable terrain
+  LDA #$03                                ; $C161: A9 03 ; direction: right
   STA $0549                               ; $C163: 8D 49 05
   RTS                                     ; $C166: 60
-Loc_C167:
-  LDA a:$0012                             ; $C167: AD 12 00
-  BNE $C172                               ; $C16A: D0 06
+@HorizontalRetry:
+  LDA a:$0012                             ; $C167: AD 12 00 ; axis retry flag
+  BNE @HorizontalGiveUp                   ; $C16A: D0 06 ; already retried
   INC a:$0012                             ; $C16C: EE 12 00
-  JMP $C178                               ; $C16F: 4C 78 C1
-Loc_C172:
-  LDA #$FF                                ; $C172: A9 FF
+  JMP @VerticalFirst                      ; $C16F: 4C 78 C1 ; try the row axis
+@HorizontalGiveUp:
+  LDA #$FF                                ; $C172: A9 FF ; no direction
   STA $0549                               ; $C174: 8D 49 05
   RTS                                     ; $C177: 60
-Loc_C178:
-  LDA a:$0011                             ; $C178: AD 11 00
-  BEQ $C181                               ; $C17B: F0 04
-  BMI $C1A2                               ; $C17D: 30 23
-  BPL $C188                               ; $C17F: 10 07
-Loc_C181:
-  JSR $E87A                               ; $C181: 20 7A E8
+@VerticalFirst:
+  LDA a:$0011                             ; $C178: AD 11 00 ; signed row delta
+  BEQ @VerticalTieRandom                  ; $C17B: F0 04 ; aligned: random side
+  BMI @StepDown                           ; $C17D: 30 23 ; objective below actor
+  BPL @StepUp                             ; $C17F: 10 07 ; objective above actor
+@VerticalTieRandom:
+  JSR B1F_RandomByte                      ; $C181: 20 7A E8
   AND #$80                                ; $C184: 29 80
-  BNE $C1A2                               ; $C186: D0 1A
-Loc_C188:
-  LDA #$00                                ; $C188: A9 00
+  BNE @StepDown                           ; $C186: D0 1A
+@StepUp:
+  LDA #$00                                ; $C188: A9 00 ; step delta (0, -1)
   STA a:$0000                             ; $C18A: 8D 00 00
   LDA #$FF                                ; $C18D: A9 FF
   STA a:$0001                             ; $C18F: 8D 01 00
-  JSR $C1CD                               ; $C192: 20 CD C1
-  BCC $C1BC                               ; $C195: 90 25
-  JSR $CAF9                               ; $C197: 20 F9 CA
-  BNE $C1BC                               ; $C19A: D0 20
-  LDA #$00                                ; $C19C: A9 00
+  JSR Phase2StepTileProbe                 ; $C192: 20 CD C1 ; probe upper tile
+  BCC @VerticalRetry                      ; $C195: 90 25 ; occupied: blocked
+  JSR BattleTerrainPassabilityCheck       ; $C197: 20 F9 CA ; terrain passability
+  BNE @VerticalRetry                      ; $C19A: D0 20 ; impassable terrain
+  LDA #$00                                ; $C19C: A9 00 ; direction: up
   STA $0549                               ; $C19E: 8D 49 05
   RTS                                     ; $C1A1: 60
-Loc_C1A2:
-  LDA #$00                                ; $C1A2: A9 00
+@StepDown:
+  LDA #$00                                ; $C1A2: A9 00 ; step delta (0, +1)
   STA a:$0000                             ; $C1A4: 8D 00 00
   LDA #$01                                ; $C1A7: A9 01
   STA a:$0001                             ; $C1A9: 8D 01 00
-  JSR $C1CD                               ; $C1AC: 20 CD C1
-  BCC $C1BC                               ; $C1AF: 90 0B
-  JSR $CAF9                               ; $C1B1: 20 F9 CA
-  BNE $C1BC                               ; $C1B4: D0 06
-  LDA #$01                                ; $C1B6: A9 01
+  JSR Phase2StepTileProbe                 ; $C1AC: 20 CD C1 ; probe lower tile
+  BCC @VerticalRetry                      ; $C1AF: 90 0B ; occupied: blocked
+  JSR BattleTerrainPassabilityCheck       ; $C1B1: 20 F9 CA ; terrain passability
+  BNE @VerticalRetry                      ; $C1B4: D0 06 ; impassable terrain
+  LDA #$01                                ; $C1B6: A9 01 ; direction: down
   STA $0549                               ; $C1B8: 8D 49 05
   RTS                                     ; $C1BB: 60
-Loc_C1BC:
-  LDA a:$0012                             ; $C1BC: AD 12 00
-  BNE $C1C7                               ; $C1BF: D0 06
+@VerticalRetry:
+  LDA a:$0012                             ; $C1BC: AD 12 00 ; axis retry flag
+  BNE @VerticalGiveUp                     ; $C1BF: D0 06 ; already retried
   INC a:$0012                             ; $C1C1: EE 12 00
-  JMP $C123                               ; $C1C4: 4C 23 C1
-Loc_C1C7:
-  LDA #$FF                                ; $C1C7: A9 FF
+  JMP @HorizontalStep                     ; $C1C4: 4C 23 C1 ; try the column axis
+@VerticalGiveUp:
+  LDA #$FF                                ; $C1C7: A9 FF ; no direction
   STA $0549                               ; $C1C9: 8D 49 05
   RTS                                     ; $C1CC: 60
-Loc_C1CD:
-  LDY $0545                               ; $C1CD: AC 45 05
-  LDA $0580,Y                             ; $C1D0: B9 80 05
+.endproc
+;-------------------------------------------------------------------------------
+; $C1CD: Phase2StepTileProbe
+; Step-tile probe shared by the direction resolvers (Phase2WalkDirectionResolve
+; selection gate, Phase2MoveRouteResolve move route, Phase2AttackRouteResolve
+; attack route and later routines). Applies the step delta
+; ($0000 = column, $0001 = row,
+; signed) to the acting slot $0545's position ($0580/$0596), writing the
+; candidate tile back into $0000/$0001. Bounds: column < $10, row < $0A;
+; then scans all 22 slots
+; ($15 down to 0) for an occupant of the candidate tile.
+; Returns:
+;   carry set              - tile empty (all 22 slots scanned);
+;   carry clear, A = $01   - occupied by an opposing-side unit
+;                            (BattleSlotSideCompare), X = occupant slot;
+;   carry clear, A = $00   - occupied by a same-side unit, or out of
+;                            bounds.
+;-------------------------------------------------------------------------------
+.proc Phase2StepTileProbe
+  LDY $0545                               ; $C1CD: AC 45 05 ; acting slot
+  LDA $0580,Y                             ; $C1D0: B9 80 05 ; actor column
   CLC                                     ; $C1D3: 18
-  ADC a:$0000                             ; $C1D4: 6D 00 00
-  STA a:$0000                             ; $C1D7: 8D 00 00
+  ADC a:$0000                             ; $C1D4: 6D 00 00 ; + column delta
+  STA a:$0000                             ; $C1D7: 8D 00 00 ; candidate column
   CMP #$10                                ; $C1DA: C9 10
-  BCS $C206                               ; $C1DC: B0 28
-  LDA $0596,Y                             ; $C1DE: B9 96 05
+  BCS @OutOfBounds                        ; $C1DC: B0 28 ; off board: blocked
+  LDA $0596,Y                             ; $C1DE: B9 96 05 ; actor row
   CLC                                     ; $C1E1: 18
-  ADC a:$0001                             ; $C1E2: 6D 01 00
-  STA a:$0001                             ; $C1E5: 8D 01 00
+  ADC a:$0001                             ; $C1E2: 6D 01 00 ; + row delta
+  STA a:$0001                             ; $C1E5: 8D 01 00 ; candidate row
   CMP #$0A                                ; $C1E8: C9 0A
-  BCS $C206                               ; $C1EA: B0 1A
-  LDX #$15                                ; $C1EC: A2 15
-Loc_C1EE:
-  LDA $0580,X                             ; $C1EE: BD 80 05
+  BCS @OutOfBounds                        ; $C1EA: B0 1A ; off board: blocked
+  LDX #$15                                ; $C1EC: A2 15 ; last roster slot
+@ScanSlots:
+  LDA $0580,X                             ; $C1EE: BD 80 05 ; slot column
   CMP a:$0000                             ; $C1F1: CD 00 00
-  BNE $C20A                               ; $C1F4: D0 14
-  LDA $0596,X                             ; $C1F6: BD 96 05
+  BNE @NextSlot                           ; $C1F4: D0 14
+  LDA $0596,X                             ; $C1F6: BD 96 05 ; slot row
   CMP a:$0001                             ; $C1F9: CD 01 00
-  BNE $C20A                               ; $C1FC: D0 0C
-  LDA $0545                               ; $C1FE: AD 45 05
-  JSR $C827                               ; $C201: 20 27 C8
-  CLC                                     ; $C204: 18
+  BNE @NextSlot                           ; $C1FC: D0 0C
+  LDA $0545                               ; $C1FE: AD 45 05 ; actor slot
+  JSR BattleSlotSideCompare               ; $C201: 20 27 C8 ; A=1 if enemy
+  CLC                                     ; $C204: 18 ; occupied: blocked
   RTS                                     ; $C205: 60
-Loc_C206:
-  LDA #$00                                ; $C206: A9 00
+@OutOfBounds:
+  LDA #$00                                ; $C206: A9 00 ; blocked, not a target
   CLC                                     ; $C208: 18
   RTS                                     ; $C209: 60
-Loc_C20A:
+@NextSlot:
   DEX                                     ; $C20A: CA
-  BPL $C1EE                               ; $C20B: 10 E1
-  SEC                                     ; $C20D: 38
+  BPL @ScanSlots                          ; $C20B: 10 E1
+  SEC                                     ; $C20D: 38 ; no occupant: empty tile
   RTS                                     ; $C20E: 60
-Loc_C20F:
+.endproc
+;===============================================================================
+; $C20F: Phase2MoveRouteResolve
+; Move-route direction resolver called from Phase2ActionGate (@MoveRoute) when
+; the acting unit's command takes the move path. Probes the four orthogonal
+; neighbours of acting slot $0545 via Phase2StepTileProbe looking for an
+; adjacent enemy unit, in randomized axis order (bit 0 of B1F_RandomByte) and
+; randomized side order per axis (sign bit). An enemy hit commits: direction
+; code (0 = up, 1 = down, 2 = left, 3 = right) <- $0549, enemy slot <- $054A
+; (becomes Phase2MoveCommit's damage target). Empty or same-side tiles bounce
+; off the zero-page probe counter $0010: retry value 3 gives up with
+; $0549 <- $FF (all four neighbours blocked; the caller drops to the
+; selection gate), value 1 switches to the other axis (both sides of the
+; current axis failed), anything else probes the flip side. $0011 is cleared
+; alongside $0010 but unused here. Every neighbour is probed at most once, so
+; the retry chain always terminates within four probes.
+;===============================================================================
+.proc Phase2MoveRouteResolve
   LDA #$00                                ; $C20F: A9 00
-  STA a:$0010                             ; $C211: 8D 10 00
-  STA a:$0011                             ; $C214: 8D 11 00
-  JSR $E87A                               ; $C217: 20 7A E8
-  AND #$01                                ; $C21A: 29 01
-  BEQ $C221                               ; $C21C: F0 03
-  JMP $C298                               ; $C21E: 4C 98 C2
-Loc_C221:
-  JSR $E87A                               ; $C221: 20 7A E8
+  STA a:$0010                             ; $C211: 8D 10 00 ; probe counter <- 0
+  STA a:$0011                             ; $C214: 8D 11 00 ; spare clear (unused)
+  JSR B1F_RandomByte                      ; $C217: 20 7A E8
+  AND #$01                                ; $C21A: 29 01 ; axis pick
+  BEQ @HorizontalAxis                     ; $C21C: F0 03 ; bit0 = 0: columns first
+  JMP @VerticalAxis                       ; $C21E: 4C 98 C2 ; bit0 = 1: rows first
+@HorizontalAxis:
+  JSR B1F_RandomByte                      ; $C221: 20 7A E8 ; side pick
   AND #$80                                ; $C224: 29 80
-  BNE $C260                               ; $C226: D0 38
-Loc_C228:
-  LDA #$FF                                ; $C228: A9 FF
+  BNE @ProbeRight                         ; $C226: D0 38 ; sign set: right first
+@ProbeLeft:
+  LDA #$FF                                ; $C228: A9 FF ; step delta (-1, 0)
   STA a:$0000                             ; $C22A: 8D 00 00
   LDA #$00                                ; $C22D: A9 00
   STA a:$0001                             ; $C22F: 8D 01 00
-  JSR $C1CD                               ; $C232: 20 CD C1
-  BCS $C243                               ; $C235: B0 0C
+  JSR Phase2StepTileProbe                 ; $C232: 20 CD C1 ; probe left tile
+  BCS @LeftRetry                          ; $C235: B0 0C ; empty: blocked
   TAY                                     ; $C237: A8
-  BEQ $C243                               ; $C238: F0 09
-  STX $054A                               ; $C23A: 8E 4A 05
-  LDA #$02                                ; $C23D: A9 02
+  BEQ @LeftRetry                          ; $C238: F0 09 ; same side: blocked
+  STX $054A                               ; $C23A: 8E 4A 05 ; enemy slot -> target
+  LDA #$02                                ; $C23D: A9 02 ; direction: left
   STA $0549                               ; $C23F: 8D 49 05
   RTS                                     ; $C242: 60
-Loc_C243:
-  LDA a:$0010                             ; $C243: AD 10 00
+@LeftRetry:
+  LDA a:$0010                             ; $C243: AD 10 00 ; probe counter
   CMP #$03                                ; $C246: C9 03
-  BNE $C250                               ; $C248: D0 06
-  LDA #$FF                                ; $C24A: A9 FF
+  BNE @LeftSwitchCheck                    ; $C248: D0 06
+  LDA #$FF                                ; $C24A: A9 FF ; no direction
   STA $0549                               ; $C24C: 8D 49 05
   RTS                                     ; $C24F: 60
-Loc_C250:
+@LeftSwitchCheck:
   CMP #$01                                ; $C250: C9 01
-  BNE $C25A                               ; $C252: D0 06
+  BNE @LeftFlipSide                       ; $C252: D0 06
   INC a:$0010                             ; $C254: EE 10 00
-  JMP $C298                               ; $C257: 4C 98 C2
-Loc_C25A:
+  JMP @VerticalAxis                       ; $C257: 4C 98 C2 ; axis exhausted: rows
+@LeftFlipSide:
   INC a:$0010                             ; $C25A: EE 10 00
-  JMP $C260                               ; $C25D: 4C 60 C2
-Loc_C260:
-  LDA #$01                                ; $C260: A9 01
+  JMP @ProbeRight                         ; $C25D: 4C 60 C2 ; try the other side
+@ProbeRight:
+  LDA #$01                                ; $C260: A9 01 ; step delta (+1, 0)
   STA a:$0000                             ; $C262: 8D 00 00
   LDA #$00                                ; $C265: A9 00
   STA a:$0001                             ; $C267: 8D 01 00
-  JSR $C1CD                               ; $C26A: 20 CD C1
-  BCS $C27B                               ; $C26D: B0 0C
+  JSR Phase2StepTileProbe                 ; $C26A: 20 CD C1 ; probe right tile
+  BCS @RightRetry                         ; $C26D: B0 0C ; empty: blocked
   TAY                                     ; $C26F: A8
-  BEQ $C27B                               ; $C270: F0 09
-  STX $054A                               ; $C272: 8E 4A 05
-  LDA #$03                                ; $C275: A9 03
+  BEQ @RightRetry                         ; $C270: F0 09 ; same side: blocked
+  STX $054A                               ; $C272: 8E 4A 05 ; enemy slot -> target
+  LDA #$03                                ; $C275: A9 03 ; direction: right
   STA $0549                               ; $C277: 8D 49 05
   RTS                                     ; $C27A: 60
-Loc_C27B:
-  LDA a:$0010                             ; $C27B: AD 10 00
+@RightRetry:
+  LDA a:$0010                             ; $C27B: AD 10 00 ; probe counter
   CMP #$03                                ; $C27E: C9 03
-  BNE $C288                               ; $C280: D0 06
-  LDA #$FF                                ; $C282: A9 FF
+  BNE @RightSwitchCheck                   ; $C280: D0 06
+  LDA #$FF                                ; $C282: A9 FF ; no direction
   STA $0549                               ; $C284: 8D 49 05
   RTS                                     ; $C287: 60
-Loc_C288:
+@RightSwitchCheck:
   CMP #$01                                ; $C288: C9 01
-  BNE $C292                               ; $C28A: D0 06
+  BNE @RightFlipSide                      ; $C28A: D0 06
   INC a:$0010                             ; $C28C: EE 10 00
-  JMP $C298                               ; $C28F: 4C 98 C2
-Loc_C292:
+  JMP @VerticalAxis                       ; $C28F: 4C 98 C2 ; axis exhausted: rows
+@RightFlipSide:
   INC a:$0010                             ; $C292: EE 10 00
-  JMP $C228                               ; $C295: 4C 28 C2
-Loc_C298:
-  JSR $E87A                               ; $C298: 20 7A E8
+  JMP @ProbeLeft                          ; $C295: 4C 28 C2 ; try the other side
+@VerticalAxis:
+  JSR B1F_RandomByte                      ; $C298: 20 7A E8 ; side pick
   AND #$80                                ; $C29B: 29 80
-  BNE $C2D7                               ; $C29D: D0 38
-Loc_C29F:
-  LDA #$00                                ; $C29F: A9 00
+  BNE @ProbeDown                          ; $C29D: D0 38 ; sign set: down first
+@ProbeUp:
+  LDA #$00                                ; $C29F: A9 00 ; step delta (0, -1)
   STA a:$0000                             ; $C2A1: 8D 00 00
   LDA #$FF                                ; $C2A4: A9 FF
   STA a:$0001                             ; $C2A6: 8D 01 00
-  JSR $C1CD                               ; $C2A9: 20 CD C1
-  BCS $C2BA                               ; $C2AC: B0 0C
+  JSR Phase2StepTileProbe                 ; $C2A9: 20 CD C1 ; probe upper tile
+  BCS @UpRetry                            ; $C2AC: B0 0C ; empty: blocked
   TAY                                     ; $C2AE: A8
-  BEQ $C2BA                               ; $C2AF: F0 09
-  STX $054A                               ; $C2B1: 8E 4A 05
-  LDA #$00                                ; $C2B4: A9 00
+  BEQ @UpRetry                            ; $C2AF: F0 09 ; same side: blocked
+  STX $054A                               ; $C2B1: 8E 4A 05 ; enemy slot -> target
+  LDA #$00                                ; $C2B4: A9 00 ; direction: up
   STA $0549                               ; $C2B6: 8D 49 05
   RTS                                     ; $C2B9: 60
-Loc_C2BA:
-  LDA a:$0010                             ; $C2BA: AD 10 00
+@UpRetry:
+  LDA a:$0010                             ; $C2BA: AD 10 00 ; probe counter
   CMP #$03                                ; $C2BD: C9 03
-  BNE $C2C7                               ; $C2BF: D0 06
-  LDA #$FF                                ; $C2C1: A9 FF
+  BNE @UpSwitchCheck                      ; $C2BF: D0 06
+  LDA #$FF                                ; $C2C1: A9 FF ; no direction
   STA $0549                               ; $C2C3: 8D 49 05
   RTS                                     ; $C2C6: 60
-Loc_C2C7:
+@UpSwitchCheck:
   CMP #$01                                ; $C2C7: C9 01
-  BNE $C2D1                               ; $C2C9: D0 06
+  BNE @UpFlipSide                         ; $C2C9: D0 06
   INC a:$0010                             ; $C2CB: EE 10 00
-  JMP $C221                               ; $C2CE: 4C 21 C2
-Loc_C2D1:
+  JMP @HorizontalAxis                     ; $C2CE: 4C 21 C2 ; axis exhausted: columns
+@UpFlipSide:
   INC a:$0010                             ; $C2D1: EE 10 00
-  JMP $C2D7                               ; $C2D4: 4C D7 C2
-Loc_C2D7:
-  LDA #$00                                ; $C2D7: A9 00
+  JMP @ProbeDown                          ; $C2D4: 4C D7 C2 ; try the other side
+@ProbeDown:
+  LDA #$00                                ; $C2D7: A9 00 ; step delta (0, +1)
   STA a:$0000                             ; $C2D9: 8D 00 00
   LDA #$01                                ; $C2DC: A9 01
   STA a:$0001                             ; $C2DE: 8D 01 00
-  JSR $C1CD                               ; $C2E1: 20 CD C1
-  BCS $C2F2                               ; $C2E4: B0 0C
+  JSR Phase2StepTileProbe                 ; $C2E1: 20 CD C1 ; probe lower tile
+  BCS @DownRetry                          ; $C2E4: B0 0C ; empty: blocked
   TAY                                     ; $C2E6: A8
-  BEQ $C2F2                               ; $C2E7: F0 09
-  STX $054A                               ; $C2E9: 8E 4A 05
-  LDA #$01                                ; $C2EC: A9 01
+  BEQ @DownRetry                          ; $C2E7: F0 09 ; same side: blocked
+  STX $054A                               ; $C2E9: 8E 4A 05 ; enemy slot -> target
+  LDA #$01                                ; $C2EC: A9 01 ; direction: down
   STA $0549                               ; $C2EE: 8D 49 05
   RTS                                     ; $C2F1: 60
-Loc_C2F2:
-  LDA a:$0010                             ; $C2F2: AD 10 00
+@DownRetry:
+  LDA a:$0010                             ; $C2F2: AD 10 00 ; probe counter
   CMP #$03                                ; $C2F5: C9 03
-  BNE $C2FF                               ; $C2F7: D0 06
-  LDA #$FF                                ; $C2F9: A9 FF
+  BNE @DownSwitchCheck                    ; $C2F7: D0 06
+  LDA #$FF                                ; $C2F9: A9 FF ; no direction
   STA $0549                               ; $C2FB: 8D 49 05
   RTS                                     ; $C2FE: 60
-Loc_C2FF:
+@DownSwitchCheck:
   CMP #$01                                ; $C2FF: C9 01
-  BNE $C309                               ; $C301: D0 06
+  BNE @DownFlipSide                       ; $C301: D0 06
   INC a:$0010                             ; $C303: EE 10 00
-  JMP $C221                               ; $C306: 4C 21 C2
-Loc_C309:
+  JMP @HorizontalAxis                     ; $C306: 4C 21 C2 ; axis exhausted: columns
+@DownFlipSide:
   INC a:$0010                             ; $C309: EE 10 00
-  JMP $C29F                               ; $C30C: 4C 9F C2
-Loc_C30F:
+  JMP @ProbeUp                            ; $C30C: 4C 9F C2 ; try the other side
+.endproc
+;===============================================================================
+; $C30F: Phase2AttackRouteResolve
+; Attack-route resolver called from Phase2ActionGate ($A536) when the cursor
+; column's action bits == 2. Scans outward along one orthogonal axis from
+; the acting slot $0545 looking for an enemy column to shoot at. Axis order
+; (bit 0 of B1F_RandomByte) and side per axis (sign bit) are randomized.
+; Each side walks tiles 1-6 away in order, testing every tile with
+; Phase2ArrowPathTileCheck (bounds + terrain; blocking terrain aborts the
+; side) and Phase2StepTileProbe: an enemy at distance 1 aborts the side
+; (point-blank combat is the move route's job), empty and same-side tiles
+; are shot over, and the first enemy column commits: target column <- $054D,
+; arrow flight counter $0548 <- $1C/$2C/$3C/$4C/$5C for distances 2-6
+; (Phase2AttackArrowAnim decrements it by 2 per frame), direction $0549 <-
+; 0 up / 1 down / 2 left / 3 right. Distances 5-6 additionally require the
+; acting side's nibble of $0575 (loaded to 3 by Phase8RowCounter575, ticked
+; down by BattleSideStatusCountersDecrement) to be non-zero.
+; Side failures dispatch through the probe counter $0010 like
+; Phase2MoveRouteResolve: 3 = give up ($0549 <- $FF, the gate falls back to
+; the move route), 1 = switch axis, otherwise flip side - except @LeftFail
+; re-enters itself, so a fresh failure on the left side double-increments
+; and switches axis without probing the right side. $0011 is cleared
+; alongside $0010 but unused here.
+;===============================================================================
+.proc Phase2AttackRouteResolve
   LDA #$00                                ; $C30F: A9 00
-  STA a:$0010                             ; $C311: 8D 10 00
-  STA a:$0011                             ; $C314: 8D 11 00
-  JSR $E87A                               ; $C317: 20 7A E8
-  AND #$01                                ; $C31A: 29 01
-  BEQ $C321                               ; $C31C: F0 03
-  JMP $C5A4                               ; $C31E: 4C A4 C5
-Loc_C321:
-  JSR $E87A                               ; $C321: 20 7A E8
+  STA a:$0010                             ; $C311: 8D 10 00 ; probe counter <- 0
+  STA a:$0011                             ; $C314: 8D 11 00 ; spare clear (unused)
+  JSR B1F_RandomByte                      ; $C317: 20 7A E8
+  AND #$01                                ; $C31A: 29 01 ; axis pick
+  BEQ @HorizontalAxis                     ; $C31C: F0 03 ; bit0 = 0: columns first
+  JMP @VerticalAxis                       ; $C31E: 4C A4 C5 ; bit0 = 1: rows first
+@HorizontalAxis:
+  JSR B1F_RandomByte                      ; $C321: 20 7A E8 ; side pick
   AND #$80                                ; $C324: 29 80
-  BNE $C32B                               ; $C326: D0 03
-  JMP $C469                               ; $C328: 4C 69 C4
-Loc_C32B:
-  LDA #$FF                                ; $C32B: A9 FF
+  BNE @LeftAdjTerrain                     ; $C326: D0 03 ; sign set: left first
+  JMP @RightAdjTerrain                    ; $C328: 4C 69 C4 ; clear: right first
+@LeftAdjTerrain:
+  LDA #$FF                                ; $C32B: A9 FF ; step delta (-1, 0)
   STA a:$0000                             ; $C32D: 8D 00 00
   LDA #$00                                ; $C330: A9 00
   STA a:$0001                             ; $C332: 8D 01 00
-  JSR $CAC8                               ; $C335: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C335: 20 C8 CA ; range-1 terrain
   TAY                                     ; $C338: A8
-  BEQ $C33E                               ; $C339: F0 03
-  JMP $C44C                               ; $C33B: 4C 4C C4
-Loc_C33E:
-  LDA #$FF                                ; $C33E: A9 FF
+  BEQ @LeftAdjProbe                       ; $C339: F0 03 ; passable
+  JMP @LeftFail                           ; $C33B: 4C 4C C4 ; blocked terrain
+@LeftAdjProbe:
+  LDA #$FF                                ; $C33E: A9 FF ; step delta (-1, 0)
   STA a:$0000                             ; $C340: 8D 00 00
   LDA #$00                                ; $C343: A9 00
   STA a:$0001                             ; $C345: 8D 01 00
-  JSR $C1CD                               ; $C348: 20 CD C1
-  BCS $C353                               ; $C34B: B0 06
+  JSR Phase2StepTileProbe                 ; $C348: 20 CD C1 ; probe adjacent tile
+  BCS @LeftRange2Terrain                  ; $C34B: B0 06 ; empty: keep scanning
   TAY                                     ; $C34D: A8
-  BEQ $C353                               ; $C34E: F0 03
-  JMP $C44C                               ; $C350: 4C 4C C4
-Loc_C353:
-  LDA #$FE                                ; $C353: A9 FE
+  BEQ @LeftRange2Terrain                  ; $C34E: F0 03 ; ally: shoot over
+  JMP @LeftFail                           ; $C350: 4C 4C C4 ; enemy: melee route's job
+@LeftRange2Terrain:
+  LDA #$FE                                ; $C353: A9 FE ; step delta (-2, 0)
   STA a:$0000                             ; $C355: 8D 00 00
   LDA #$00                                ; $C358: A9 00
   STA a:$0001                             ; $C35A: 8D 01 00
-  JSR $CAC8                               ; $C35D: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C35D: 20 C8 CA
   TAY                                     ; $C360: A8
-  BEQ $C366                               ; $C361: F0 03
-  JMP $C44C                               ; $C363: 4C 4C C4
-Loc_C366:
-  LDA #$FE                                ; $C366: A9 FE
+  BEQ @LeftRange2Probe                    ; $C361: F0 03
+  JMP @LeftFail                           ; $C363: 4C 4C C4
+@LeftRange2Probe:
+  LDA #$FE                                ; $C366: A9 FE ; step delta (-2, 0)
   STA a:$0000                             ; $C368: 8D 00 00
   LDA #$00                                ; $C36B: A9 00
   STA a:$0001                             ; $C36D: 8D 01 00
-  JSR $C1CD                               ; $C370: 20 CD C1
-  BCS $C37D                               ; $C373: B0 08
+  JSR Phase2StepTileProbe                 ; $C370: 20 CD C1
+  BCS @LeftRange3Terrain                  ; $C373: B0 08 ; empty: keep scanning
   TAY                                     ; $C375: A8
-  BEQ $C37D                               ; $C376: F0 05
-  LDA #$1C                                ; $C378: A9 1C
-  JMP $C440                               ; $C37A: 4C 40 C4
-Loc_C37D:
-  LDA #$FD                                ; $C37D: A9 FD
+  BEQ @LeftRange3Terrain                  ; $C376: F0 05 ; ally: shoot over
+  LDA #$1C                                ; $C378: A9 1C ; flight counter, dist 2
+  JMP @CommitLeft                         ; $C37A: 4C 40 C4
+@LeftRange3Terrain:
+  LDA #$FD                                ; $C37D: A9 FD ; step delta (-3, 0)
   STA a:$0000                             ; $C37F: 8D 00 00
   LDA #$00                                ; $C382: A9 00
   STA a:$0001                             ; $C384: 8D 01 00
-  JSR $CAC8                               ; $C387: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C387: 20 C8 CA
   TAY                                     ; $C38A: A8
-  BEQ $C390                               ; $C38B: F0 03
-  JMP $C44C                               ; $C38D: 4C 4C C4
-Loc_C390:
-  LDA #$FD                                ; $C390: A9 FD
+  BEQ @LeftRange3Probe                    ; $C38B: F0 03
+  JMP @LeftFail                           ; $C38D: 4C 4C C4
+@LeftRange3Probe:
+  LDA #$FD                                ; $C390: A9 FD ; step delta (-3, 0)
   STA a:$0000                             ; $C392: 8D 00 00
   LDA #$00                                ; $C395: A9 00
   STA a:$0001                             ; $C397: 8D 01 00
-  JSR $C1CD                               ; $C39A: 20 CD C1
-  BCS $C3A7                               ; $C39D: B0 08
+  JSR Phase2StepTileProbe                 ; $C39A: 20 CD C1
+  BCS @LeftRange4Terrain                  ; $C39D: B0 08 ; empty: keep scanning
   TAY                                     ; $C39F: A8
-  BEQ $C3A7                               ; $C3A0: F0 05
-  LDA #$2C                                ; $C3A2: A9 2C
-  JMP $C440                               ; $C3A4: 4C 40 C4
-Loc_C3A7:
-  LDA #$FC                                ; $C3A7: A9 FC
+  BEQ @LeftRange4Terrain                  ; $C3A0: F0 05 ; ally: shoot over
+  LDA #$2C                                ; $C3A2: A9 2C ; flight counter, dist 3
+  JMP @CommitLeft                         ; $C3A4: 4C 40 C4
+@LeftRange4Terrain:
+  LDA #$FC                                ; $C3A7: A9 FC ; step delta (-4, 0)
   STA a:$0000                             ; $C3A9: 8D 00 00
   LDA #$00                                ; $C3AC: A9 00
   STA a:$0001                             ; $C3AE: 8D 01 00
-  JSR $CAC8                               ; $C3B1: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C3B1: 20 C8 CA
   TAY                                     ; $C3B4: A8
-  BEQ $C3BA                               ; $C3B5: F0 03
-  JMP $C44C                               ; $C3B7: 4C 4C C4
-Loc_C3BA:
-  LDA #$FC                                ; $C3BA: A9 FC
+  BEQ @LeftRange4Probe                    ; $C3B5: F0 03
+  JMP @LeftFail                           ; $C3B7: 4C 4C C4
+@LeftRange4Probe:
+  LDA #$FC                                ; $C3BA: A9 FC ; step delta (-4, 0)
   STA a:$0000                             ; $C3BC: 8D 00 00
   LDA #$00                                ; $C3BF: A9 00
   STA a:$0001                             ; $C3C1: 8D 01 00
-  JSR $C1CD                               ; $C3C4: 20 CD C1
-  BCS $C3D1                               ; $C3C7: B0 08
+  JSR Phase2StepTileProbe                 ; $C3C4: 20 CD C1
+  BCS @LeftRangeGate                      ; $C3C7: B0 08 ; empty: keep scanning
   TAY                                     ; $C3C9: A8
-  BEQ $C3D1                               ; $C3CA: F0 05
-  LDA #$3C                                ; $C3CC: A9 3C
-  JMP $C440                               ; $C3CE: 4C 40 C4
-Loc_C3D1:
-  LDA $0545                               ; $C3D1: AD 45 05
+  BEQ @LeftRangeGate                      ; $C3CA: F0 05 ; ally: shoot over
+  LDA #$3C                                ; $C3CC: A9 3C ; flight counter, dist 4
+  JMP @CommitLeft                         ; $C3CE: 4C 40 C4
+@LeftRangeGate:
+  LDA $0545                               ; $C3D1: AD 45 05 ; acting slot
   CMP #$0B                                ; $C3D4: C9 0B
-  BCC $C3E2                               ; $C3D6: 90 0A
-  LDA $0575                               ; $C3D8: AD 75 05
-  AND #$F0                                ; $C3DB: 29 F0
-  BNE $C3EC                               ; $C3DD: D0 0D
-  JMP $C44C                               ; $C3DF: 4C 4C C4
-Loc_C3E2:
+  BCC @LeftGateSideA                      ; $C3D6: 90 0A ; side A actor
+  LDA $0575                               ; $C3D8: AD 75 05 ; side range counters
+  AND #$F0                                ; $C3DB: 29 F0 ; side B nibble
+  BNE @LeftRange5Terrain                  ; $C3DD: D0 0D ; long range granted
+  JMP @LeftFail                           ; $C3DF: 4C 4C C4 ; no long range
+@LeftGateSideA:
   LDA $0575                               ; $C3E2: AD 75 05
-  AND #$0F                                ; $C3E5: 29 0F
-  BNE $C3EC                               ; $C3E7: D0 03
-  JMP $C44C                               ; $C3E9: 4C 4C C4
-Loc_C3EC:
-  LDA #$FB                                ; $C3EC: A9 FB
+  AND #$0F                                ; $C3E5: 29 0F ; side A nibble
+  BNE @LeftRange5Terrain                  ; $C3E7: D0 03 ; long range granted
+  JMP @LeftFail                           ; $C3E9: 4C 4C C4 ; no long range
+@LeftRange5Terrain:
+  LDA #$FB                                ; $C3EC: A9 FB ; step delta (-5, 0)
   STA a:$0000                             ; $C3EE: 8D 00 00
   LDA #$00                                ; $C3F1: A9 00
   STA a:$0001                             ; $C3F3: 8D 01 00
-  JSR $CAC8                               ; $C3F6: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C3F6: 20 C8 CA
   TAY                                     ; $C3F9: A8
-  BEQ $C3FF                               ; $C3FA: F0 03
-  JMP $C44C                               ; $C3FC: 4C 4C C4
-Loc_C3FF:
-  LDA #$FB                                ; $C3FF: A9 FB
+  BEQ @LeftRange5Probe                    ; $C3FA: F0 03
+  JMP @LeftFail                           ; $C3FC: 4C 4C C4
+@LeftRange5Probe:
+  LDA #$FB                                ; $C3FF: A9 FB ; step delta (-5, 0)
   STA a:$0000                             ; $C401: 8D 00 00
   LDA #$00                                ; $C404: A9 00
   STA a:$0001                             ; $C406: 8D 01 00
-  JSR $C1CD                               ; $C409: 20 CD C1
-  BCS $C416                               ; $C40C: B0 08
+  JSR Phase2StepTileProbe                 ; $C409: 20 CD C1
+  BCS @LeftRange6Terrain                  ; $C40C: B0 08 ; empty: keep scanning
   TAY                                     ; $C40E: A8
-  BEQ $C416                               ; $C40F: F0 05
-  LDA #$4C                                ; $C411: A9 4C
-  JMP $C440                               ; $C413: 4C 40 C4
-Loc_C416:
-  LDA #$FA                                ; $C416: A9 FA
+  BEQ @LeftRange6Terrain                  ; $C40F: F0 05 ; ally: shoot over
+  LDA #$4C                                ; $C411: A9 4C ; flight counter, dist 5
+  JMP @CommitLeft                         ; $C413: 4C 40 C4
+@LeftRange6Terrain:
+  LDA #$FA                                ; $C416: A9 FA ; step delta (-6, 0)
   STA a:$0000                             ; $C418: 8D 00 00
   LDA #$00                                ; $C41B: A9 00
   STA a:$0001                             ; $C41D: 8D 01 00
-  JSR $CAC8                               ; $C420: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C420: 20 C8 CA
   TAY                                     ; $C423: A8
-  BEQ $C429                               ; $C424: F0 03
-  JMP $C44C                               ; $C426: 4C 4C C4
-Loc_C429:
-  LDA #$FA                                ; $C429: A9 FA
+  BEQ @LeftRange6Probe                    ; $C424: F0 03
+  JMP @LeftFail                           ; $C426: 4C 4C C4
+@LeftRange6Probe:
+  LDA #$FA                                ; $C429: A9 FA ; step delta (-6, 0)
   STA a:$0000                             ; $C42B: 8D 00 00
   LDA #$00                                ; $C42E: A9 00
   STA a:$0001                             ; $C430: 8D 01 00
-  JSR $C1CD                               ; $C433: 20 CD C1
-  BCS $C44C                               ; $C436: B0 14
+  JSR Phase2StepTileProbe                 ; $C433: 20 CD C1
+  BCS @LeftFail                           ; $C436: B0 14 ; empty: out of range
   TAY                                     ; $C438: A8
-  BEQ $C44C                               ; $C439: F0 11
-  LDA #$5C                                ; $C43B: A9 5C
-  JMP $C440                               ; $C43D: 4C 40 C4
-Loc_C440:
-  STX $054D                               ; $C440: 8E 4D 05
-  STA $0548                               ; $C443: 8D 48 05
+  BEQ @LeftFail                           ; $C439: F0 11 ; ally: out of range
+  LDA #$5C                                ; $C43B: A9 5C ; flight counter, dist 6
+  JMP @CommitLeft                         ; $C43D: 4C 40 C4
+@CommitLeft:
+  STX $054D                               ; $C440: 8E 4D 05 ; target column
+  STA $0548                               ; $C443: 8D 48 05 ; arrow flight counter
   LDA #$02                                ; $C446: A9 02
-  STA $0549                               ; $C448: 8D 49 05
+  STA $0549                               ; $C448: 8D 49 05 ; direction: left
   RTS                                     ; $C44B: 60
-Loc_C44C:
-  LDA a:$0010                             ; $C44C: AD 10 00
+@LeftFail:
+  LDA a:$0010                             ; $C44C: AD 10 00 ; probe counter
   CMP #$03                                ; $C44F: C9 03
-  BNE $C459                               ; $C451: D0 06
-  LDA #$FF                                ; $C453: A9 FF
+  BNE @LeftFailSwitch                     ; $C451: D0 06
+  LDA #$FF                                ; $C453: A9 FF ; no direction
   STA $0549                               ; $C455: 8D 49 05
   RTS                                     ; $C458: 60
-Loc_C459:
+@LeftFailSwitch:
   CMP #$01                                ; $C459: C9 01
-  BNE $C463                               ; $C45B: D0 06
+  BNE @LeftFailFlip                       ; $C45B: D0 06
   INC a:$0010                             ; $C45D: EE 10 00
-  JMP $C5A4                               ; $C460: 4C A4 C5
-Loc_C463:
+  JMP @VerticalAxis                       ; $C460: 4C A4 C5 ; axis exhausted: rows
+@LeftFailFlip:
   INC a:$0010                             ; $C463: EE 10 00
-  JMP $C44C                               ; $C466: 4C 4C C4
-Loc_C469:
-  LDA #$01                                ; $C469: A9 01
+  JMP @LeftFail                           ; $C466: 4C 4C C4 ; re-dispatch, count++
+@RightAdjTerrain:
+  LDA #$01                                ; $C469: A9 01 ; step delta (+1, 0)
   STA a:$0000                             ; $C46B: 8D 00 00
   LDA #$00                                ; $C46E: A9 00
   STA a:$0001                             ; $C470: 8D 01 00
-  JSR $CAC8                               ; $C473: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C473: 20 C8 CA ; range-1 terrain
   TAY                                     ; $C476: A8
-  BEQ $C47C                               ; $C477: F0 03
-  JMP $C587                               ; $C479: 4C 87 C5
-Loc_C47C:
-  LDA #$01                                ; $C47C: A9 01
+  BEQ @RightAdjProbe                      ; $C477: F0 03 ; passable
+  JMP @RightFail                          ; $C479: 4C 87 C5 ; blocked terrain
+@RightAdjProbe:
+  LDA #$01                                ; $C47C: A9 01 ; step delta (+1, 0)
   STA a:$0000                             ; $C47E: 8D 00 00
   LDA #$00                                ; $C481: A9 00
   STA a:$0001                             ; $C483: 8D 01 00
-  JSR $C1CD                               ; $C486: 20 CD C1
-  BCS $C491                               ; $C489: B0 06
+  JSR Phase2StepTileProbe                 ; $C486: 20 CD C1 ; probe adjacent tile
+  BCS @RightRange2Terrain                 ; $C489: B0 06 ; empty: keep scanning
   TAY                                     ; $C48B: A8
-  BEQ $C491                               ; $C48C: F0 03
-  JMP $C587                               ; $C48E: 4C 87 C5
-Loc_C491:
-  LDA #$02                                ; $C491: A9 02
+  BEQ @RightRange2Terrain                 ; $C48C: F0 03 ; ally: shoot over
+  JMP @RightFail                          ; $C48E: 4C 87 C5 ; enemy: melee route's job
+@RightRange2Terrain:
+  LDA #$02                                ; $C491: A9 02 ; step delta (+2, 0)
   STA a:$0000                             ; $C493: 8D 00 00
   LDA #$00                                ; $C496: A9 00
   STA a:$0001                             ; $C498: 8D 01 00
-  JSR $CAC8                               ; $C49B: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C49B: 20 C8 CA
   TAY                                     ; $C49E: A8
-  BEQ $C4A4                               ; $C49F: F0 03
-  JMP $C587                               ; $C4A1: 4C 87 C5
-Loc_C4A4:
-  LDA #$02                                ; $C4A4: A9 02
+  BEQ @RightRange2Probe                   ; $C49F: F0 03
+  JMP @RightFail                          ; $C4A1: 4C 87 C5
+@RightRange2Probe:
+  LDA #$02                                ; $C4A4: A9 02 ; step delta (+2, 0)
   STA a:$0000                             ; $C4A6: 8D 00 00
   LDA #$00                                ; $C4A9: A9 00
   STA a:$0001                             ; $C4AB: 8D 01 00
-  JSR $C1CD                               ; $C4AE: 20 CD C1
-  BCS $C4BB                               ; $C4B1: B0 08
+  JSR Phase2StepTileProbe                 ; $C4AE: 20 CD C1
+  BCS @RightRange3Terrain                 ; $C4B1: B0 08 ; empty: keep scanning
   TAY                                     ; $C4B3: A8
-  BEQ $C4BB                               ; $C4B4: F0 05
-  LDA #$1C                                ; $C4B6: A9 1C
-  JMP $C57B                               ; $C4B8: 4C 7B C5
-Loc_C4BB:
-  LDA #$03                                ; $C4BB: A9 03
+  BEQ @RightRange3Terrain                 ; $C4B4: F0 05 ; ally: shoot over
+  LDA #$1C                                ; $C4B6: A9 1C ; flight counter, dist 2
+  JMP @CommitRight                        ; $C4B8: 4C 7B C5
+@RightRange3Terrain:
+  LDA #$03                                ; $C4BB: A9 03 ; step delta (+3, 0)
   STA a:$0000                             ; $C4BD: 8D 00 00
   LDA #$00                                ; $C4C0: A9 00
   STA a:$0001                             ; $C4C2: 8D 01 00
-  JSR $CAC8                               ; $C4C5: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C4C5: 20 C8 CA
   TAY                                     ; $C4C8: A8
-  BEQ $C4CE                               ; $C4C9: F0 03
-  JMP $C587                               ; $C4CB: 4C 87 C5
-Loc_C4CE:
-  LDA #$03                                ; $C4CE: A9 03
+  BEQ @RightRange3Probe                   ; $C4C9: F0 03
+  JMP @RightFail                          ; $C4CB: 4C 87 C5
+@RightRange3Probe:
+  LDA #$03                                ; $C4CE: A9 03 ; step delta (+3, 0)
   STA a:$0000                             ; $C4D0: 8D 00 00
   LDA #$00                                ; $C4D3: A9 00
   STA a:$0001                             ; $C4D5: 8D 01 00
-  JSR $C1CD                               ; $C4D8: 20 CD C1
-  BCS $C4E5                               ; $C4DB: B0 08
+  JSR Phase2StepTileProbe                 ; $C4D8: 20 CD C1
+  BCS @RightRange4Terrain                 ; $C4DB: B0 08 ; empty: keep scanning
   TAY                                     ; $C4DD: A8
-  BEQ $C4E5                               ; $C4DE: F0 05
-  LDA #$2C                                ; $C4E0: A9 2C
-  JMP $C57B                               ; $C4E2: 4C 7B C5
-Loc_C4E5:
-  LDA #$04                                ; $C4E5: A9 04
+  BEQ @RightRange4Terrain                 ; $C4DE: F0 05 ; ally: shoot over
+  LDA #$2C                                ; $C4E0: A9 2C ; flight counter, dist 3
+  JMP @CommitRight                        ; $C4E2: 4C 7B C5
+@RightRange4Terrain:
+  LDA #$04                                ; $C4E5: A9 04 ; step delta (+4, 0)
   STA a:$0000                             ; $C4E7: 8D 00 00
   LDA #$00                                ; $C4EA: A9 00
   STA a:$0001                             ; $C4EC: 8D 01 00
-  JSR $CAC8                               ; $C4EF: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C4EF: 20 C8 CA
   TAY                                     ; $C4F2: A8
-  BEQ $C4F8                               ; $C4F3: F0 03
-  JMP $C587                               ; $C4F5: 4C 87 C5
-Loc_C4F8:
-  LDA #$04                                ; $C4F8: A9 04
+  BEQ @RightRange4Probe                   ; $C4F3: F0 03
+  JMP @RightFail                          ; $C4F5: 4C 87 C5
+@RightRange4Probe:
+  LDA #$04                                ; $C4F8: A9 04 ; step delta (+4, 0)
   STA a:$0000                             ; $C4FA: 8D 00 00
   LDA #$00                                ; $C4FD: A9 00
   STA a:$0001                             ; $C4FF: 8D 01 00
-  JSR $C1CD                               ; $C502: 20 CD C1
-  BCS $C50F                               ; $C505: B0 08
+  JSR Phase2StepTileProbe                 ; $C502: 20 CD C1
+  BCS @RightRangeGate                     ; $C505: B0 08 ; empty: keep scanning
   TAY                                     ; $C507: A8
-  BEQ $C50F                               ; $C508: F0 05
-  LDA #$3C                                ; $C50A: A9 3C
-  JMP $C57B                               ; $C50C: 4C 7B C5
-Loc_C50F:
-  LDA $0545                               ; $C50F: AD 45 05
+  BEQ @RightRangeGate                     ; $C508: F0 05 ; ally: shoot over
+  LDA #$3C                                ; $C50A: A9 3C ; flight counter, dist 4
+  JMP @CommitRight                        ; $C50C: 4C 7B C5
+@RightRangeGate:
+  LDA $0545                               ; $C50F: AD 45 05 ; acting slot
   CMP #$0B                                ; $C512: C9 0B
-  BCC $C520                               ; $C514: 90 0A
-  LDA $0575                               ; $C516: AD 75 05
-  AND #$F0                                ; $C519: 29 F0
-  BNE $C52A                               ; $C51B: D0 0D
-  JMP $C587                               ; $C51D: 4C 87 C5
-Loc_C520:
+  BCC @RightGateSideA                     ; $C514: 90 0A ; side A actor
+  LDA $0575                               ; $C516: AD 75 05 ; side range counters
+  AND #$F0                                ; $C519: 29 F0 ; side B nibble
+  BNE @RightRange5Terrain                 ; $C51B: D0 0D ; long range granted
+  JMP @RightFail                          ; $C51D: 4C 87 C5 ; no long range
+@RightGateSideA:
   LDA $0575                               ; $C520: AD 75 05
-  AND #$0F                                ; $C523: 29 0F
-  BNE $C52A                               ; $C525: D0 03
-  JMP $C587                               ; $C527: 4C 87 C5
-Loc_C52A:
-  LDA #$05                                ; $C52A: A9 05
+  AND #$0F                                ; $C523: 29 0F ; side A nibble
+  BNE @RightRange5Terrain                 ; $C525: D0 03 ; long range granted
+  JMP @RightFail                          ; $C527: 4C 87 C5 ; no long range
+@RightRange5Terrain:
+  LDA #$05                                ; $C52A: A9 05 ; step delta (+5, 0)
   STA a:$0000                             ; $C52C: 8D 00 00
   LDA #$00                                ; $C52F: A9 00
   STA a:$0001                             ; $C531: 8D 01 00
-  JSR $CAC8                               ; $C534: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C534: 20 C8 CA
   TAY                                     ; $C537: A8
-  BEQ $C53D                               ; $C538: F0 03
-  JMP $C587                               ; $C53A: 4C 87 C5
-Loc_C53D:
-  LDA #$05                                ; $C53D: A9 05
+  BEQ @RightRange5Probe                   ; $C538: F0 03
+  JMP @RightFail                          ; $C53A: 4C 87 C5
+@RightRange5Probe:
+  LDA #$05                                ; $C53D: A9 05 ; step delta (+5, 0)
   STA a:$0000                             ; $C53F: 8D 00 00
   LDA #$00                                ; $C542: A9 00
   STA a:$0001                             ; $C544: 8D 01 00
-  JSR $C1CD                               ; $C547: 20 CD C1
-  BCS $C554                               ; $C54A: B0 08
+  JSR Phase2StepTileProbe                 ; $C547: 20 CD C1
+  BCS @RightRange6Terrain                 ; $C54A: B0 08 ; empty: keep scanning
   TAY                                     ; $C54C: A8
-  BEQ $C554                               ; $C54D: F0 05
-  LDA #$4C                                ; $C54F: A9 4C
-  JMP $C57B                               ; $C551: 4C 7B C5
-Loc_C554:
-  LDA #$06                                ; $C554: A9 06
+  BEQ @RightRange6Terrain                 ; $C54D: F0 05 ; ally: shoot over
+  LDA #$4C                                ; $C54F: A9 4C ; flight counter, dist 5
+  JMP @CommitRight                        ; $C551: 4C 7B C5
+@RightRange6Terrain:
+  LDA #$06                                ; $C554: A9 06 ; step delta (+6, 0)
   STA a:$0000                             ; $C556: 8D 00 00
   LDA #$00                                ; $C559: A9 00
   STA a:$0001                             ; $C55B: 8D 01 00
-  JSR $CAC8                               ; $C55E: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C55E: 20 C8 CA
   TAY                                     ; $C561: A8
-  BEQ $C567                               ; $C562: F0 03
-  JMP $C587                               ; $C564: 4C 87 C5
-Loc_C567:
-  LDA #$06                                ; $C567: A9 06
+  BEQ @RightRange6Probe                   ; $C562: F0 03
+  JMP @RightFail                          ; $C564: 4C 87 C5
+@RightRange6Probe:
+  LDA #$06                                ; $C567: A9 06 ; step delta (+6, 0)
   STA a:$0000                             ; $C569: 8D 00 00
   LDA #$00                                ; $C56C: A9 00
   STA a:$0001                             ; $C56E: 8D 01 00
-  JSR $C1CD                               ; $C571: 20 CD C1
-  BCS $C587                               ; $C574: B0 11
+  JSR Phase2StepTileProbe                 ; $C571: 20 CD C1
+  BCS @RightFail                          ; $C574: B0 11 ; empty: out of range
   TAY                                     ; $C576: A8
-  BEQ $C587                               ; $C577: F0 0E
-  LDA #$5C                                ; $C579: A9 5C
-Loc_C57B:
-  STX $054D                               ; $C57B: 8E 4D 05
-  STA $0548                               ; $C57E: 8D 48 05
+  BEQ @RightFail                          ; $C577: F0 0E ; ally: out of range
+  LDA #$5C                                ; $C579: A9 5C ; flight counter, dist 6
+@CommitRight:
+  STX $054D                               ; $C57B: 8E 4D 05 ; target column
+  STA $0548                               ; $C57E: 8D 48 05 ; arrow flight counter
   LDA #$03                                ; $C581: A9 03
-  STA $0549                               ; $C583: 8D 49 05
+  STA $0549                               ; $C583: 8D 49 05 ; direction: right
   RTS                                     ; $C586: 60
-Loc_C587:
-  LDA a:$0010                             ; $C587: AD 10 00
+@RightFail:
+  LDA a:$0010                             ; $C587: AD 10 00 ; probe counter
   CMP #$03                                ; $C58A: C9 03
-  BNE $C594                               ; $C58C: D0 06
-  LDA #$FF                                ; $C58E: A9 FF
+  BNE @RightFailSwitch                    ; $C58C: D0 06
+  LDA #$FF                                ; $C58E: A9 FF ; no direction
   STA $0549                               ; $C590: 8D 49 05
   RTS                                     ; $C593: 60
-Loc_C594:
+@RightFailSwitch:
   CMP #$01                                ; $C594: C9 01
-  BNE $C59E                               ; $C596: D0 06
+  BNE @RightFailFlip                      ; $C596: D0 06
   INC a:$0010                             ; $C598: EE 10 00
-  JMP $C5A4                               ; $C59B: 4C A4 C5
-Loc_C59E:
+  JMP @VerticalAxis                       ; $C59B: 4C A4 C5 ; axis exhausted: rows
+@RightFailFlip:
   INC a:$0010                             ; $C59E: EE 10 00
-  JMP $C32B                               ; $C5A1: 4C 2B C3
-Loc_C5A4:
-  JSR $E87A                               ; $C5A4: 20 7A E8
+  JMP @LeftAdjTerrain                     ; $C5A1: 4C 2B C3 ; try the other side
+@VerticalAxis:
+  JSR B1F_RandomByte                      ; $C5A4: 20 7A E8 ; side pick
   AND #$80                                ; $C5A7: 29 80
-  BNE $C5AE                               ; $C5A9: D0 03
-  JMP $C6EC                               ; $C5AB: 4C EC C6
-Loc_C5AE:
-  LDA #$00                                ; $C5AE: A9 00
+  BNE @UpAdjTerrain                       ; $C5A9: D0 03 ; sign set: up first
+  JMP @DownAdjTerrain                     ; $C5AB: 4C EC C6 ; clear: down first
+@UpAdjTerrain:
+  LDA #$00                                ; $C5AE: A9 00 ; step delta (0, -1)
   STA a:$0000                             ; $C5B0: 8D 00 00
   LDA #$FF                                ; $C5B3: A9 FF
   STA a:$0001                             ; $C5B5: 8D 01 00
-  JSR $CAC8                               ; $C5B8: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C5B8: 20 C8 CA ; range-1 terrain
   TAY                                     ; $C5BB: A8
-  BEQ $C5C1                               ; $C5BC: F0 03
-  JMP $C6CF                               ; $C5BE: 4C CF C6
-Loc_C5C1:
-  LDA #$00                                ; $C5C1: A9 00
+  BEQ @UpAdjProbe                         ; $C5BC: F0 03 ; passable
+  JMP @UpFail                             ; $C5BE: 4C CF C6 ; blocked terrain
+@UpAdjProbe:
+  LDA #$00                                ; $C5C1: A9 00 ; step delta (0, -1)
   STA a:$0000                             ; $C5C3: 8D 00 00
   LDA #$FF                                ; $C5C6: A9 FF
   STA a:$0001                             ; $C5C8: 8D 01 00
-  JSR $C1CD                               ; $C5CB: 20 CD C1
-  BCS $C5D6                               ; $C5CE: B0 06
+  JSR Phase2StepTileProbe                 ; $C5CB: 20 CD C1 ; probe adjacent tile
+  BCS @UpRange2Terrain                    ; $C5CE: B0 06 ; empty: keep scanning
   TAY                                     ; $C5D0: A8
-  BEQ $C5D6                               ; $C5D1: F0 03
-  JMP $C6CF                               ; $C5D3: 4C CF C6
-Loc_C5D6:
-  LDA #$00                                ; $C5D6: A9 00
+  BEQ @UpRange2Terrain                    ; $C5D1: F0 03 ; ally: shoot over
+  JMP @UpFail                             ; $C5D3: 4C CF C6 ; enemy: melee route's job
+@UpRange2Terrain:
+  LDA #$00                                ; $C5D6: A9 00 ; step delta (0, -2)
   STA a:$0000                             ; $C5D8: 8D 00 00
   LDA #$FE                                ; $C5DB: A9 FE
   STA a:$0001                             ; $C5DD: 8D 01 00
-  JSR $CAC8                               ; $C5E0: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C5E0: 20 C8 CA
   TAY                                     ; $C5E3: A8
-  BEQ $C5E9                               ; $C5E4: F0 03
-  JMP $C6CF                               ; $C5E6: 4C CF C6
-Loc_C5E9:
-  LDA #$00                                ; $C5E9: A9 00
+  BEQ @UpRange2Probe                      ; $C5E4: F0 03
+  JMP @UpFail                             ; $C5E6: 4C CF C6
+@UpRange2Probe:
+  LDA #$00                                ; $C5E9: A9 00 ; step delta (0, -2)
   STA a:$0000                             ; $C5EB: 8D 00 00
   LDA #$FE                                ; $C5EE: A9 FE
   STA a:$0001                             ; $C5F0: 8D 01 00
-  JSR $C1CD                               ; $C5F3: 20 CD C1
-  BCS $C600                               ; $C5F6: B0 08
+  JSR Phase2StepTileProbe                 ; $C5F3: 20 CD C1
+  BCS @UpRange3Terrain                    ; $C5F6: B0 08 ; empty: keep scanning
   TAY                                     ; $C5F8: A8
-  BEQ $C600                               ; $C5F9: F0 05
-  LDA #$1C                                ; $C5FB: A9 1C
-  JMP $C6C3                               ; $C5FD: 4C C3 C6
-Loc_C600:
-  LDA #$00                                ; $C600: A9 00
+  BEQ @UpRange3Terrain                    ; $C5F9: F0 05 ; ally: shoot over
+  LDA #$1C                                ; $C5FB: A9 1C ; flight counter, dist 2
+  JMP @CommitUp                           ; $C5FD: 4C C3 C6
+@UpRange3Terrain:
+  LDA #$00                                ; $C600: A9 00 ; step delta (0, -3)
   STA a:$0000                             ; $C602: 8D 00 00
   LDA #$FD                                ; $C605: A9 FD
   STA a:$0001                             ; $C607: 8D 01 00
-  JSR $CAC8                               ; $C60A: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C60A: 20 C8 CA
   TAY                                     ; $C60D: A8
-  BEQ $C613                               ; $C60E: F0 03
-  JMP $C6CF                               ; $C610: 4C CF C6
-Loc_C613:
-  LDA #$00                                ; $C613: A9 00
+  BEQ @UpRange3Probe                      ; $C60E: F0 03
+  JMP @UpFail                             ; $C610: 4C CF C6
+@UpRange3Probe:
+  LDA #$00                                ; $C613: A9 00 ; step delta (0, -3)
   STA a:$0000                             ; $C615: 8D 00 00
   LDA #$FD                                ; $C618: A9 FD
   STA a:$0001                             ; $C61A: 8D 01 00
-  JSR $C1CD                               ; $C61D: 20 CD C1
-  BCS $C62A                               ; $C620: B0 08
+  JSR Phase2StepTileProbe                 ; $C61D: 20 CD C1
+  BCS @UpRange4Terrain                    ; $C620: B0 08 ; empty: keep scanning
   TAY                                     ; $C622: A8
-  BEQ $C62A                               ; $C623: F0 05
-  LDA #$2C                                ; $C625: A9 2C
-  JMP $C6C3                               ; $C627: 4C C3 C6
-Loc_C62A:
-  LDA #$00                                ; $C62A: A9 00
+  BEQ @UpRange4Terrain                    ; $C623: F0 05 ; ally: shoot over
+  LDA #$2C                                ; $C625: A9 2C ; flight counter, dist 3
+  JMP @CommitUp                           ; $C627: 4C C3 C6
+@UpRange4Terrain:
+  LDA #$00                                ; $C62A: A9 00 ; step delta (0, -4)
   STA a:$0000                             ; $C62C: 8D 00 00
   LDA #$FC                                ; $C62F: A9 FC
   STA a:$0001                             ; $C631: 8D 01 00
-  JSR $CAC8                               ; $C634: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C634: 20 C8 CA
   TAY                                     ; $C637: A8
-  BEQ $C63D                               ; $C638: F0 03
-  JMP $C6CF                               ; $C63A: 4C CF C6
-Loc_C63D:
-  LDA #$00                                ; $C63D: A9 00
+  BEQ @UpRange4Probe                      ; $C638: F0 03
+  JMP @UpFail                             ; $C63A: 4C CF C6
+@UpRange4Probe:
+  LDA #$00                                ; $C63D: A9 00 ; step delta (0, -4)
   STA a:$0000                             ; $C63F: 8D 00 00
   LDA #$FC                                ; $C642: A9 FC
   STA a:$0001                             ; $C644: 8D 01 00
-  JSR $C1CD                               ; $C647: 20 CD C1
-  BCS $C654                               ; $C64A: B0 08
+  JSR Phase2StepTileProbe                 ; $C647: 20 CD C1
+  BCS @UpRangeGate                        ; $C64A: B0 08 ; empty: keep scanning
   TAY                                     ; $C64C: A8
-  BEQ $C654                               ; $C64D: F0 05
-  LDA #$3C                                ; $C64F: A9 3C
-  JMP $C6C3                               ; $C651: 4C C3 C6
-Loc_C654:
-  LDA $0545                               ; $C654: AD 45 05
+  BEQ @UpRangeGate                        ; $C64D: F0 05 ; ally: shoot over
+  LDA #$3C                                ; $C64F: A9 3C ; flight counter, dist 4
+  JMP @CommitUp                           ; $C651: 4C C3 C6
+@UpRangeGate:
+  LDA $0545                               ; $C654: AD 45 05 ; acting slot
   CMP #$0B                                ; $C657: C9 0B
-  BCC $C665                               ; $C659: 90 0A
-  LDA $0575                               ; $C65B: AD 75 05
-  AND #$F0                                ; $C65E: 29 F0
-  BNE $C66F                               ; $C660: D0 0D
-  JMP $C6CF                               ; $C662: 4C CF C6
-Loc_C665:
+  BCC @UpGateSideA                        ; $C659: 90 0A ; side A actor
+  LDA $0575                               ; $C65B: AD 75 05 ; side range counters
+  AND #$F0                                ; $C65E: 29 F0 ; side B nibble
+  BNE @UpRange5Terrain                    ; $C660: D0 0D ; long range granted
+  JMP @UpFail                             ; $C662: 4C CF C6 ; no long range
+@UpGateSideA:
   LDA $0575                               ; $C665: AD 75 05
-  AND #$0F                                ; $C668: 29 0F
-  BNE $C66F                               ; $C66A: D0 03
-  JMP $C6CF                               ; $C66C: 4C CF C6
-Loc_C66F:
-  LDA #$00                                ; $C66F: A9 00
+  AND #$0F                                ; $C668: 29 0F ; side A nibble
+  BNE @UpRange5Terrain                    ; $C66A: D0 03 ; long range granted
+  JMP @UpFail                             ; $C66C: 4C CF C6 ; no long range
+@UpRange5Terrain:
+  LDA #$00                                ; $C66F: A9 00 ; step delta (0, -5)
   STA a:$0000                             ; $C671: 8D 00 00
   LDA #$FB                                ; $C674: A9 FB
   STA a:$0001                             ; $C676: 8D 01 00
-  JSR $CAC8                               ; $C679: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C679: 20 C8 CA
   TAY                                     ; $C67C: A8
-  BEQ $C682                               ; $C67D: F0 03
-  JMP $C6CF                               ; $C67F: 4C CF C6
-Loc_C682:
-  LDA #$00                                ; $C682: A9 00
+  BEQ @UpRange5Probe                      ; $C67D: F0 03
+  JMP @UpFail                             ; $C67F: 4C CF C6
+@UpRange5Probe:
+  LDA #$00                                ; $C682: A9 00 ; step delta (0, -5)
   STA a:$0000                             ; $C684: 8D 00 00
   LDA #$FB                                ; $C687: A9 FB
   STA a:$0001                             ; $C689: 8D 01 00
-  JSR $C1CD                               ; $C68C: 20 CD C1
-  BCS $C699                               ; $C68F: B0 08
+  JSR Phase2StepTileProbe                 ; $C68C: 20 CD C1
+  BCS @UpRange6Terrain                    ; $C68F: B0 08 ; empty: keep scanning
   TAY                                     ; $C691: A8
-  BEQ $C699                               ; $C692: F0 05
-  LDA #$4C                                ; $C694: A9 4C
-  JMP $C6C3                               ; $C696: 4C C3 C6
-Loc_C699:
-  LDA #$00                                ; $C699: A9 00
+  BEQ @UpRange6Terrain                    ; $C692: F0 05 ; ally: shoot over
+  LDA #$4C                                ; $C694: A9 4C ; flight counter, dist 5
+  JMP @CommitUp                           ; $C696: 4C C3 C6
+@UpRange6Terrain:
+  LDA #$00                                ; $C699: A9 00 ; step delta (0, -6)
   STA a:$0000                             ; $C69B: 8D 00 00
   LDA #$FA                                ; $C69E: A9 FA
   STA a:$0001                             ; $C6A0: 8D 01 00
-  JSR $CAC8                               ; $C6A3: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C6A3: 20 C8 CA
   TAY                                     ; $C6A6: A8
-  BEQ $C6AC                               ; $C6A7: F0 03
-  JMP $C6CF                               ; $C6A9: 4C CF C6
-Loc_C6AC:
-  LDA #$00                                ; $C6AC: A9 00
+  BEQ @UpRange6Probe                      ; $C6A7: F0 03
+  JMP @UpFail                             ; $C6A9: 4C CF C6
+@UpRange6Probe:
+  LDA #$00                                ; $C6AC: A9 00 ; step delta (0, -6)
   STA a:$0000                             ; $C6AE: 8D 00 00
   LDA #$FA                                ; $C6B1: A9 FA
   STA a:$0001                             ; $C6B3: 8D 01 00
-  JSR $C1CD                               ; $C6B6: 20 CD C1
-  BCS $C6CF                               ; $C6B9: B0 14
+  JSR Phase2StepTileProbe                 ; $C6B6: 20 CD C1
+  BCS @UpFail                             ; $C6B9: B0 14 ; empty: out of range
   TAY                                     ; $C6BB: A8
-  BEQ $C6CF                               ; $C6BC: F0 11
-  LDA #$5C                                ; $C6BE: A9 5C
-  JMP $C6C3                               ; $C6C0: 4C C3 C6
-Loc_C6C3:
-  STX $054D                               ; $C6C3: 8E 4D 05
-  STA $0548                               ; $C6C6: 8D 48 05
+  BEQ @UpFail                             ; $C6BC: F0 11 ; ally: out of range
+  LDA #$5C                                ; $C6BE: A9 5C ; flight counter, dist 6
+  JMP @CommitUp                           ; $C6C0: 4C C3 C6
+@CommitUp:
+  STX $054D                               ; $C6C3: 8E 4D 05 ; target column
+  STA $0548                               ; $C6C6: 8D 48 05 ; arrow flight counter
   LDA #$00                                ; $C6C9: A9 00
-  STA $0549                               ; $C6CB: 8D 49 05
+  STA $0549                               ; $C6CB: 8D 49 05 ; direction: up
   RTS                                     ; $C6CE: 60
-Loc_C6CF:
-  LDA a:$0010                             ; $C6CF: AD 10 00
+@UpFail:
+  LDA a:$0010                             ; $C6CF: AD 10 00 ; probe counter
   CMP #$03                                ; $C6D2: C9 03
-  BNE $C6DC                               ; $C6D4: D0 06
-  LDA #$FF                                ; $C6D6: A9 FF
+  BNE @UpFailSwitch                       ; $C6D4: D0 06
+  LDA #$FF                                ; $C6D6: A9 FF ; no direction
   STA $0549                               ; $C6D8: 8D 49 05
   RTS                                     ; $C6DB: 60
-Loc_C6DC:
+@UpFailSwitch:
   CMP #$01                                ; $C6DC: C9 01
-  BNE $C6E6                               ; $C6DE: D0 06
+  BNE @UpFailFlip                         ; $C6DE: D0 06
   INC a:$0010                             ; $C6E0: EE 10 00
-  JMP $C321                               ; $C6E3: 4C 21 C3
-Loc_C6E6:
+  JMP @HorizontalAxis                     ; $C6E3: 4C 21 C3 ; axis exhausted: columns
+@UpFailFlip:
   INC a:$0010                             ; $C6E6: EE 10 00
-  JMP $C6EC                               ; $C6E9: 4C EC C6
-Loc_C6EC:
-  LDA #$00                                ; $C6EC: A9 00
+  JMP @DownAdjTerrain                     ; $C6E9: 4C EC C6 ; try the other side
+@DownAdjTerrain:
+  LDA #$00                                ; $C6EC: A9 00 ; step delta (0, +1)
   STA a:$0000                             ; $C6EE: 8D 00 00
   LDA #$01                                ; $C6F1: A9 01
   STA a:$0001                             ; $C6F3: 8D 01 00
-  JSR $CAC8                               ; $C6F6: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C6F6: 20 C8 CA ; range-1 terrain
   TAY                                     ; $C6F9: A8
-  BEQ $C6FF                               ; $C6FA: F0 03
-  JMP $C80A                               ; $C6FC: 4C 0A C8
-Loc_C6FF:
-  LDA #$00                                ; $C6FF: A9 00
+  BEQ @DownAdjProbe                       ; $C6FA: F0 03 ; passable
+  JMP @DownFail                           ; $C6FC: 4C 0A C8 ; blocked terrain
+@DownAdjProbe:
+  LDA #$00                                ; $C6FF: A9 00 ; step delta (0, +1)
   STA a:$0000                             ; $C701: 8D 00 00
   LDA #$01                                ; $C704: A9 01
   STA a:$0001                             ; $C706: 8D 01 00
-  JSR $C1CD                               ; $C709: 20 CD C1
-  BCS $C714                               ; $C70C: B0 06
+  JSR Phase2StepTileProbe                 ; $C709: 20 CD C1 ; probe adjacent tile
+  BCS @DownRange2Terrain                  ; $C70C: B0 06 ; empty: keep scanning
   TAY                                     ; $C70E: A8
-  BEQ $C714                               ; $C70F: F0 03
-  JMP $C80A                               ; $C711: 4C 0A C8
-Loc_C714:
-  LDA #$00                                ; $C714: A9 00
+  BEQ @DownRange2Terrain                  ; $C70F: F0 03 ; ally: shoot over
+  JMP @DownFail                           ; $C711: 4C 0A C8 ; enemy: melee route's job
+@DownRange2Terrain:
+  LDA #$00                                ; $C714: A9 00 ; step delta (0, +2)
   STA a:$0000                             ; $C716: 8D 00 00
   LDA #$02                                ; $C719: A9 02
   STA a:$0001                             ; $C71B: 8D 01 00
-  JSR $CAC8                               ; $C71E: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C71E: 20 C8 CA
   TAY                                     ; $C721: A8
-  BEQ $C727                               ; $C722: F0 03
-  JMP $C80A                               ; $C724: 4C 0A C8
-Loc_C727:
-  LDA #$00                                ; $C727: A9 00
+  BEQ @DownRange2Probe                    ; $C722: F0 03
+  JMP @DownFail                           ; $C724: 4C 0A C8
+@DownRange2Probe:
+  LDA #$00                                ; $C727: A9 00 ; step delta (0, +2)
   STA a:$0000                             ; $C729: 8D 00 00
   LDA #$02                                ; $C72C: A9 02
   STA a:$0001                             ; $C72E: 8D 01 00
-  JSR $C1CD                               ; $C731: 20 CD C1
-  BCS $C73E                               ; $C734: B0 08
+  JSR Phase2StepTileProbe                 ; $C731: 20 CD C1
+  BCS @DownRange3Terrain                  ; $C734: B0 08 ; empty: keep scanning
   TAY                                     ; $C736: A8
-  BEQ $C73E                               ; $C737: F0 05
-  LDA #$1C                                ; $C739: A9 1C
-  JMP $C7FE                               ; $C73B: 4C FE C7
-Loc_C73E:
-  LDA #$00                                ; $C73E: A9 00
+  BEQ @DownRange3Terrain                  ; $C737: F0 05 ; ally: shoot over
+  LDA #$1C                                ; $C739: A9 1C ; flight counter, dist 2
+  JMP @CommitDown                         ; $C73B: 4C FE C7
+@DownRange3Terrain:
+  LDA #$00                                ; $C73E: A9 00 ; step delta (0, +3)
   STA a:$0000                             ; $C740: 8D 00 00
   LDA #$03                                ; $C743: A9 03
   STA a:$0001                             ; $C745: 8D 01 00
-  JSR $CAC8                               ; $C748: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C748: 20 C8 CA
   TAY                                     ; $C74B: A8
-  BEQ $C751                               ; $C74C: F0 03
-  JMP $C80A                               ; $C74E: 4C 0A C8
-Loc_C751:
-  LDA #$00                                ; $C751: A9 00
+  BEQ @DownRange3Probe                    ; $C74C: F0 03
+  JMP @DownFail                           ; $C74E: 4C 0A C8
+@DownRange3Probe:
+  LDA #$00                                ; $C751: A9 00 ; step delta (0, +3)
   STA a:$0000                             ; $C753: 8D 00 00
   LDA #$03                                ; $C756: A9 03
   STA a:$0001                             ; $C758: 8D 01 00
-  JSR $C1CD                               ; $C75B: 20 CD C1
-  BCS $C768                               ; $C75E: B0 08
+  JSR Phase2StepTileProbe                 ; $C75B: 20 CD C1
+  BCS @DownRange4Terrain                  ; $C75E: B0 08 ; empty: keep scanning
   TAY                                     ; $C760: A8
-  BEQ $C768                               ; $C761: F0 05
-  LDA #$2C                                ; $C763: A9 2C
-  JMP $C7FE                               ; $C765: 4C FE C7
-Loc_C768:
-  LDA #$00                                ; $C768: A9 00
+  BEQ @DownRange4Terrain                  ; $C761: F0 05 ; ally: shoot over
+  LDA #$2C                                ; $C763: A9 2C ; flight counter, dist 3
+  JMP @CommitDown                         ; $C765: 4C FE C7
+@DownRange4Terrain:
+  LDA #$00                                ; $C768: A9 00 ; step delta (0, +4)
   STA a:$0000                             ; $C76A: 8D 00 00
   LDA #$04                                ; $C76D: A9 04
   STA a:$0001                             ; $C76F: 8D 01 00
-  JSR $CAC8                               ; $C772: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C772: 20 C8 CA
   TAY                                     ; $C775: A8
-  BEQ $C77B                               ; $C776: F0 03
-  JMP $C80A                               ; $C778: 4C 0A C8
-Loc_C77B:
-  LDA #$00                                ; $C77B: A9 00
+  BEQ @DownRange4Probe                    ; $C776: F0 03
+  JMP @DownFail                           ; $C778: 4C 0A C8
+@DownRange4Probe:
+  LDA #$00                                ; $C77B: A9 00 ; step delta (0, +4)
   STA a:$0000                             ; $C77D: 8D 00 00
   LDA #$04                                ; $C780: A9 04
   STA a:$0001                             ; $C782: 8D 01 00
-  JSR $C1CD                               ; $C785: 20 CD C1
-  BCS $C792                               ; $C788: B0 08
+  JSR Phase2StepTileProbe                 ; $C785: 20 CD C1
+  BCS @DownRangeGate                      ; $C788: B0 08 ; empty: keep scanning
   TAY                                     ; $C78A: A8
-  BEQ $C792                               ; $C78B: F0 05
-  LDA #$3C                                ; $C78D: A9 3C
-  JMP $C7FE                               ; $C78F: 4C FE C7
-Loc_C792:
-  LDA $0545                               ; $C792: AD 45 05
+  BEQ @DownRangeGate                      ; $C78B: F0 05 ; ally: shoot over
+  LDA #$3C                                ; $C78D: A9 3C ; flight counter, dist 4
+  JMP @CommitDown                         ; $C78F: 4C FE C7
+@DownRangeGate:
+  LDA $0545                               ; $C792: AD 45 05 ; acting slot
   CMP #$0B                                ; $C795: C9 0B
-  BCC $C7A3                               ; $C797: 90 0A
-  LDA $0575                               ; $C799: AD 75 05
-  AND #$F0                                ; $C79C: 29 F0
-  BNE $C7AD                               ; $C79E: D0 0D
-  JMP $C80A                               ; $C7A0: 4C 0A C8
-Loc_C7A3:
+  BCC @DownGateSideA                      ; $C797: 90 0A ; side A actor
+  LDA $0575                               ; $C799: AD 75 05 ; side range counters
+  AND #$F0                                ; $C79C: 29 F0 ; side B nibble
+  BNE @DownRange5Terrain                  ; $C79E: D0 0D ; long range granted
+  JMP @DownFail                           ; $C7A0: 4C 0A C8 ; no long range
+@DownGateSideA:
   LDA $0575                               ; $C7A3: AD 75 05
-  AND #$0F                                ; $C7A6: 29 0F
-  BNE $C7AD                               ; $C7A8: D0 03
-  JMP $C80A                               ; $C7AA: 4C 0A C8
-Loc_C7AD:
-  LDA #$00                                ; $C7AD: A9 00
+  AND #$0F                                ; $C7A6: 29 0F ; side A nibble
+  BNE @DownRange5Terrain                  ; $C7A8: D0 03 ; long range granted
+  JMP @DownFail                           ; $C7AA: 4C 0A C8 ; no long range
+@DownRange5Terrain:
+  LDA #$00                                ; $C7AD: A9 00 ; step delta (0, +5)
   STA a:$0000                             ; $C7AF: 8D 00 00
   LDA #$05                                ; $C7B2: A9 05
   STA a:$0001                             ; $C7B4: 8D 01 00
-  JSR $CAC8                               ; $C7B7: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C7B7: 20 C8 CA
   TAY                                     ; $C7BA: A8
-  BEQ $C7C0                               ; $C7BB: F0 03
-  JMP $C80A                               ; $C7BD: 4C 0A C8
-Loc_C7C0:
-  LDA #$00                                ; $C7C0: A9 00
+  BEQ @DownRange5Probe                    ; $C7BB: F0 03
+  JMP @DownFail                           ; $C7BD: 4C 0A C8
+@DownRange5Probe:
+  LDA #$00                                ; $C7C0: A9 00 ; step delta (0, +5)
   STA a:$0000                             ; $C7C2: 8D 00 00
   LDA #$05                                ; $C7C5: A9 05
   STA a:$0001                             ; $C7C7: 8D 01 00
-  JSR $C1CD                               ; $C7CA: 20 CD C1
-  BCS $C7D7                               ; $C7CD: B0 08
+  JSR Phase2StepTileProbe                 ; $C7CA: 20 CD C1
+  BCS @DownRange6Terrain                  ; $C7CD: B0 08 ; empty: keep scanning
   TAY                                     ; $C7CF: A8
-  BEQ $C7D7                               ; $C7D0: F0 05
-  LDA #$4C                                ; $C7D2: A9 4C
-  JMP $C7FE                               ; $C7D4: 4C FE C7
-Loc_C7D7:
-  LDA #$00                                ; $C7D7: A9 00
+  BEQ @DownRange6Terrain                  ; $C7D0: F0 05 ; ally: shoot over
+  LDA #$4C                                ; $C7D2: A9 4C ; flight counter, dist 5
+  JMP @CommitDown                         ; $C7D4: 4C FE C7
+@DownRange6Terrain:
+  LDA #$00                                ; $C7D7: A9 00 ; step delta (0, +6)
   STA a:$0000                             ; $C7D9: 8D 00 00
   LDA #$06                                ; $C7DC: A9 06
   STA a:$0001                             ; $C7DE: 8D 01 00
-  JSR $CAC8                               ; $C7E1: 20 C8 CA
+  JSR Phase2ArrowPathTileCheck            ; $C7E1: 20 C8 CA
   TAY                                     ; $C7E4: A8
-  BEQ $C7EA                               ; $C7E5: F0 03
-  JMP $C80A                               ; $C7E7: 4C 0A C8
-Loc_C7EA:
-  LDA #$00                                ; $C7EA: A9 00
+  BEQ @DownRange6Probe                    ; $C7E5: F0 03
+  JMP @DownFail                           ; $C7E7: 4C 0A C8
+@DownRange6Probe:
+  LDA #$00                                ; $C7EA: A9 00 ; step delta (0, +6)
   STA a:$0000                             ; $C7EC: 8D 00 00
   LDA #$06                                ; $C7EF: A9 06
   STA a:$0001                             ; $C7F1: 8D 01 00
-  JSR $C1CD                               ; $C7F4: 20 CD C1
-  BCS $C80A                               ; $C7F7: B0 11
+  JSR Phase2StepTileProbe                 ; $C7F4: 20 CD C1
+  BCS @DownFail                           ; $C7F7: B0 11 ; empty: out of range
   TAY                                     ; $C7F9: A8
-  BEQ $C80A                               ; $C7FA: F0 0E
-  LDA #$5C                                ; $C7FC: A9 5C
-Loc_C7FE:
-  STX $054D                               ; $C7FE: 8E 4D 05
-  STA $0548                               ; $C801: 8D 48 05
+  BEQ @DownFail                           ; $C7FA: F0 0E ; ally: out of range
+  LDA #$5C                                ; $C7FC: A9 5C ; flight counter, dist 6
+@CommitDown:
+  STX $054D                               ; $C7FE: 8E 4D 05 ; target column
+  STA $0548                               ; $C801: 8D 48 05 ; arrow flight counter
   LDA #$01                                ; $C804: A9 01
-  STA $0549                               ; $C806: 8D 49 05
+  STA $0549                               ; $C806: 8D 49 05 ; direction: down
   RTS                                     ; $C809: 60
-Loc_C80A:
-  LDA a:$0010                             ; $C80A: AD 10 00
+@DownFail:
+  LDA a:$0010                             ; $C80A: AD 10 00 ; probe counter
   CMP #$03                                ; $C80D: C9 03
-  BNE $C817                               ; $C80F: D0 06
-  LDA #$FF                                ; $C811: A9 FF
+  BNE @DownFailSwitch                     ; $C80F: D0 06
+  LDA #$FF                                ; $C811: A9 FF ; no direction
   STA $0549                               ; $C813: 8D 49 05
   RTS                                     ; $C816: 60
-Loc_C817:
+@DownFailSwitch:
   CMP #$01                                ; $C817: C9 01
-  BNE $C821                               ; $C819: D0 06
+  BNE @DownFailFlip                       ; $C819: D0 06
   INC a:$0010                             ; $C81B: EE 10 00
-  JMP $C321                               ; $C81E: 4C 21 C3
-Loc_C821:
+  JMP @HorizontalAxis                     ; $C81E: 4C 21 C3 ; axis exhausted: columns
+@DownFailFlip:
   INC a:$0010                             ; $C821: EE 10 00
-  JMP $C5AE                               ; $C824: 4C AE C5
-Loc_C827:
-  CPX #$0B                                ; $C827: E0 0B
-  BCS $C832                               ; $C829: B0 07
-  CMP #$0B                                ; $C82B: C9 0B
-  BCS $C836                               ; $C82D: B0 07
-Loc_C82F:
-  LDA #$00                                ; $C82F: A9 00
+  JMP @UpAdjTerrain                       ; $C824: 4C AE C5 ; try the other side
+.endproc
+;-------------------------------------------------------------------------------
+; $C827: BattleSlotSideCompare
+; Side-relation compare for roster slots: A = actor slot, X = other slot.
+; Slots 0-$0A belong to side A, $0B-$15 to side B. Returns A = 1 when the
+; two slots sit on opposing sides, A = 0 when on the same side.
+;-------------------------------------------------------------------------------
+.proc BattleSlotSideCompare
+  CPX #$0B                                ; $C827: E0 0B ; other slot side
+  BCS @OtherSideB                         ; $C829: B0 07
+  CMP #$0B                                ; $C82B: C9 0B ; actor slot side
+  BCS @Opposing                           ; $C82D: B0 07 ; A side, B actor
+@SameSide:
+  LDA #$00                                ; $C82F: A9 00 ; same side
   RTS                                     ; $C831: 60
-Loc_C832:
-  CMP #$0B                                ; $C832: C9 0B
-  BCS $C82F                               ; $C834: B0 F9
-Loc_C836:
-  LDA #$01                                ; $C836: A9 01
+@OtherSideB:
+  CMP #$0B                                ; $C832: C9 0B ; actor slot side
+  BCS @SameSide                           ; $C834: B0 F9 ; both side B
+@Opposing:
+  LDA #$01                                ; $C836: A9 01 ; opposing sides
   RTS                                     ; $C838: 60
-Loc_C839:
-  LDA a:$0000                             ; $C839: AD 00 00
-  ASL                                     ; $C83C: 0A
-  ASL                                     ; $C83D: 0A
+.endproc
+;===============================================================================
+; $C839: Phase3CommandMarkerRender
+; Draws the phase-3 command-menu value marker: a 4x2-tile command icon for
+; action slot value $0001 (0-4) at the PPU position of menu step $0000
+; (0-3). Builds a two-segment, FF-terminated VRAM script in the $0380
+; buffer: segment 1 = icon top row (4 tiles + blank $01) at
+; Phase3CommandMarkerAddrTable[2*step] (nametable page $22/$23, panel row
+; 20+2*step, column 20), segment 2 = icon bottom row at
+; Phase3CommandMarkerAddrTable[2*step+1] ORA #$04 (page + $0400, row
+; 21+2*step). Raises $007E bit 2 so the NMI sub-dispatch banked-jumps to
+; B1D_1E_VRAMBufferWrite, which streams the script to the PPU; sets script
+; param $00BB <- $77. Called by Phase3CommandMarkerUpdate.
+;===============================================================================
+.proc Phase3CommandMarkerRender
+  LDA a:$0000                             ; $C839: AD 00 00 ; menu step
+  ASL                                     ; $C83C: 0A ; step * 4
+  ASL                                     ; $C83D: 0A ; (word pair index)
   TAY                                     ; $C83E: A8
-  LDA $C8BC,Y                             ; $C83F: B9 BC C8
+  LDA $C8BC,Y                             ; $C83F: B9 BC C8 ; seg 1 addr hi
   STA $0381                               ; $C842: 8D 81 03
-  LDA $C8BB,Y                             ; $C845: B9 BB C8
+  LDA $C8BB,Y                             ; $C845: B9 BB C8 ; seg 1 addr lo
   STA $0382                               ; $C848: 8D 82 03
-  LDA $C8BE,Y                             ; $C84B: B9 BE C8
+  LDA $C8BE,Y                             ; $C84B: B9 BE C8 ; seg 2 addr hi
   STA $0389                               ; $C84E: 8D 89 03
-  LDA $C8BD,Y                             ; $C851: B9 BD C8
+  LDA $C8BD,Y                             ; $C851: B9 BD C8 ; seg 2 addr lo
   STA $038A                               ; $C854: 8D 8A 03
-  LDA a:$0001                             ; $C857: AD 01 00
-  ASL                                     ; $C85A: 0A
-  ASL                                     ; $C85B: 0A
+  LDA a:$0001                             ; $C857: AD 01 00 ; action slot value
+  ASL                                     ; $C85A: 0A ; value * 10
+  ASL                                     ; $C85B: 0A ; (icon row index)
   CLC                                     ; $C85C: 18
-  ADC a:$0001                             ; $C85D: 6D 01 00
-  ASL                                     ; $C860: 0A
+  ADC a:$0001                             ; $C85D: 6D 01 00 ; * 5
+  ASL                                     ; $C860: 0A ; * 10
   TAY                                     ; $C861: A8
-  LDA $C8CB,Y                             ; $C862: B9 CB C8
+  LDA $C8CB,Y                             ; $C862: B9 CB C8 ; icon top tile 0
   STA $0383                               ; $C865: 8D 83 03
-  LDA $C8CC,Y                             ; $C868: B9 CC C8
+  LDA $C8CC,Y                             ; $C868: B9 CC C8 ; top tile 1
   STA $0384                               ; $C86B: 8D 84 03
-  LDA $C8CD,Y                             ; $C86E: B9 CD C8
+  LDA $C8CD,Y                             ; $C86E: B9 CD C8 ; top tile 2
   STA $0385                               ; $C871: 8D 85 03
-  LDA $C8CE,Y                             ; $C874: B9 CE C8
+  LDA $C8CE,Y                             ; $C874: B9 CE C8 ; top tile 3
   STA $0386                               ; $C877: 8D 86 03
-  LDA $C8CF,Y                             ; $C87A: B9 CF C8
+  LDA $C8CF,Y                             ; $C87A: B9 CF C8 ; blank tail
   STA $0387                               ; $C87D: 8D 87 03
-  LDA $C8D0,Y                             ; $C880: B9 D0 C8
+  LDA $C8D0,Y                             ; $C880: B9 D0 C8 ; icon bottom tile 0
   STA $038B                               ; $C883: 8D 8B 03
-  LDA $C8D1,Y                             ; $C886: B9 D1 C8
+  LDA $C8D1,Y                             ; $C886: B9 D1 C8 ; bottom tile 1
   STA $038C                               ; $C889: 8D 8C 03
-  LDA $C8D2,Y                             ; $C88C: B9 D2 C8
+  LDA $C8D2,Y                             ; $C88C: B9 D2 C8 ; bottom tile 2
   STA $038D                               ; $C88F: 8D 8D 03
-  LDA $C8D3,Y                             ; $C892: B9 D3 C8
+  LDA $C8D3,Y                             ; $C892: B9 D3 C8 ; bottom tile 3
   STA $038E                               ; $C895: 8D 8E 03
-  LDA $C8D4,Y                             ; $C898: B9 D4 C8
+  LDA $C8D4,Y                             ; $C898: B9 D4 C8 ; blank tail
   STA $038F                               ; $C89B: 8D 8F 03
   LDA #$05                                ; $C89E: A9 05
-  STA $0380                               ; $C8A0: 8D 80 03
+  STA $0380                               ; $C8A0: 8D 80 03 ; seg 1 length: 5 tiles
   LDA #$05                                ; $C8A3: A9 05
-  STA $0388                               ; $C8A5: 8D 88 03
+  STA $0388                               ; $C8A5: 8D 88 03 ; seg 2 length: 5 tiles
   LDA #$FF                                ; $C8A8: A9 FF
-  STA $0390                               ; $C8AA: 8D 90 03
-  LDA a:$007E                             ; $C8AD: AD 7E 00
-  ORA #$04                                ; $C8B0: 09 04
+  STA $0390                               ; $C8AA: 8D 90 03 ; script terminator
+  LDA a:$007E                             ; $C8AD: AD 7E 00 ; NMI sub-dispatch ctrl
+  ORA #$04                                ; $C8B0: 09 04 ; VRAM script pending bit
   STA a:$007E                             ; $C8B2: 8D 7E 00
   LDA #$77                                ; $C8B5: A9 77
-  STA a:$00BB                             ; $C8B7: 8D BB 00
+  STA a:$00BB                             ; $C8B7: 8D BB 00 ; script param
   RTS                                     ; $C8BA: 60
-; --- Data Region ---
-  .byte $94,$22,$B4,$22,$D4,$22,$F4,$22,$14,$23,$34,$23,$54,$23,$74,$23; $C8BB: 94 22 B4 22 D4 22 F4 22 14 23 34 23 54 23 74 23
-  .byte $40,$41,$42,$43,$01,$50,$51,$52   ; $C8CB: 40 41 42 43 01 50 51 52
-Loc_C8D3:
-  .byte $53,$01,$60                       ; $C8D3: 53 01 60
-  .byte $61,$62,$63,$01,$70,$71,$72,$73,$01,$64,$65,$66,$67,$01,$74,$75; $C8D6: 61 62 63 01 70 71 72 73 01 64 65 66 67 01 74 75
-  .byte $68,$69,$01,$48,$49,$4A,$4B,$01,$58,$59,$5A,$5B,$01,$44,$45,$46; $C8E6: 68 69 01 48 49 4A 4B 01 58 59 5A 5B 01 44 45 46
-  .byte $47,$01,$54,$55,$56,$57,$01       ; $C8F6: 47 01 54 55 56 57 01
+.endproc
+;===============================================================================
+; $C8BB: Phase3CommandMarkerAddrTable
+; PPU addresses of the command-menu value marker, two words per menu step:
+; word 2*s = segment 1 (icon top row, nametable page $22/$23), word 2*s+1
+; = segment 2 base (icon bottom row; the render ORs $04 into the high
+; byte). Row 20+2*s, column 20 -> step 0 $2294/$22B4, step 1 $22D4/$22F4,
+; step 2 $2314/$2334, step 3 $2354/$2374.
+;===============================================================================
+Phase3CommandMarkerAddrTable:
+  .word $2294                             ; $C8BB: 94 22 ; step 0, seg 1 (top row)
+  .word $22B4                             ; $C8BD: B4 22 ; step 0, seg 2 (bottom row)
+  .word $22D4                             ; $C8BF: D4 22 ; step 1, seg 1
+  .word $22F4                             ; $C8C1: F4 22 ; step 1, seg 2
+  .word $2314                             ; $C8C3: 14 23 ; step 2, seg 1
+  .word $2334                             ; $C8C5: 34 23 ; step 2, seg 2
+  .word $2354                             ; $C8C7: 54 23 ; step 3, seg 1
+  .word $2374                             ; $C8C9: 74 23 ; step 3, seg 2
+;===============================================================================
+; $C8CB: Phase3CommandMarkerTiles
+; Command icon tiles per action slot value (5 rows of 10 bytes, row index =
+; slot value): bytes 0-3 = icon top row, byte 4 = blank tile $01, bytes 5-8
+; = icon bottom row, byte 9 = blank tile $01. Each icon is two 2x2-tile
+; blocks side by side; tile ids are not monotonic across values.
+;===============================================================================
+Phase3CommandMarkerTiles:
+  .byte $40,$41,$42,$43,$01,$50,$51,$52,$53,$01 ; $C8CB: 40 41 42 43 01 50 51 52 53 01 ; value 0
+  .byte $60,$61,$62,$63,$01,$70,$71,$72,$73,$01 ; $C8D5: 60 61 62 63 01 70 71 72 73 01 ; value 1
+  .byte $64,$65,$66,$67,$01,$74,$75,$68,$69,$01 ; $C8DF: 64 65 66 67 01 74 75 68 69 01 ; value 2
+  .byte $48,$49,$4A,$4B,$01,$58,$59,$5A,$5B,$01 ; $C8E9: 48 49 4A 4B 01 58 59 5A 5B 01 ; value 3
+  .byte $44,$45,$46,$47,$01,$54,$55,$56,$57,$01 ; $C8F3: 44 45 46 47 01 54 55 56 57 01 ; value 4
 Loc_C8FD:
 ; --- Code Region ---
   LDA a:$005E                             ; $C8FD: AD 5E 00
@@ -5541,90 +5974,121 @@ Loc_CAB1:
   ORA a:$0003                             ; $CAC2: 0D 03 00
   STA ($00),Y                             ; $CAC5: 91 00
   RTS                                     ; $CAC7: 60
-Loc_CAC8:
-  LDY $0545                               ; $CAC8: AC 45 05
-  LDA $0580,Y                             ; $CACB: B9 80 05
+;-------------------------------------------------------------------------------
+; $CAC8: Phase2ArrowPathTileCheck
+; Line-of-fire tile check used by Phase2AttackRouteResolve for every tile
+; along a scan direction. Applies the step delta ($0000 = column,
+; $0001 = row, signed) to the acting slot $0545's position ($0580/$0596)
+; and rejects out-of-bounds tiles (A = 1; negative wraps land >= $10),
+; then asks BattleTerrainPassabilityCheck whether the tile's terrain
+; blocks the shot. Terrain classes 4 and 5 are forced passable here
+; (arrows fly over them), so the scan is aborted (A = terrain class,
+; non-zero) by class 1 always and by classes 2/3 when the acting troop
+; type cannot traverse them. A = 0: the arrow can cross this tile.
+;-------------------------------------------------------------------------------
+.proc Phase2ArrowPathTileCheck
+  LDY $0545                               ; $CAC8: AC 45 05 ; acting slot
+  LDA $0580,Y                             ; $CACB: B9 80 05 ; actor column
   CLC                                     ; $CACE: 18
-  ADC a:$0000                             ; $CACF: 6D 00 00
-  STA a:$0000                             ; $CAD2: 8D 00 00
+  ADC a:$0000                             ; $CACF: 6D 00 00 ; + column delta
+  STA a:$0000                             ; $CAD2: 8D 00 00 ; candidate column
   CMP #$10                                ; $CAD5: C9 10
-  BCS $CAE7                               ; $CAD7: B0 0E
-  LDA $0596,Y                             ; $CAD9: B9 96 05
+  BCS @Blocked                            ; $CAD7: B0 0E ; col out of bounds
+  LDA $0596,Y                             ; $CAD9: B9 96 05 ; actor row
   CLC                                     ; $CADC: 18
-  ADC a:$0001                             ; $CADD: 6D 01 00
-  STA a:$0001                             ; $CAE0: 8D 01 00
+  ADC a:$0001                             ; $CADD: 6D 01 00 ; + row delta
+  STA a:$0001                             ; $CAE0: 8D 01 00 ; candidate row
   CMP #$0A                                ; $CAE3: C9 0A
-  BCC $CAEA                               ; $CAE5: 90 03
-Loc_CAE7:
-  LDA #$01                                ; $CAE7: A9 01
+  BCC @TerrainCheck                       ; $CAE5: 90 03 ; row in bounds
+@Blocked:
+  LDA #$01                                ; $CAE7: A9 01 ; tile rejected
   RTS                                     ; $CAE9: 60
-Loc_CAEA:
-  JSR $CAF9                               ; $CAEA: 20 F9 CA
-  CMP #$04                                ; $CAED: C9 04
-  BEQ $CAF5                               ; $CAEF: F0 04
-  CMP #$05                                ; $CAF1: C9 05
-  BNE $CAF7                               ; $CAF3: D0 02
-Loc_CAF5:
-  LDA #$00                                ; $CAF5: A9 00
-Loc_CAF7:
-  TAY                                     ; $CAF7: A8
+@TerrainCheck:
+  JSR BattleTerrainPassabilityCheck       ; $CAEA: 20 F9 CA
+  CMP #$04                                ; $CAED: C9 04 ; class 4
+  BEQ @Passable                           ; $CAEF: F0 04 ; arrows fly over
+  CMP #$05                                ; $CAF1: C9 05 ; class 5
+  BNE @KeepClass                          ; $CAF3: D0 02 ; (never returned)
+@Passable:
+  LDA #$00                                ; $CAF5: A9 00 ; tile passable
+@KeepClass:
+  TAY                                     ; $CAF7: A8 ; Z flag = passable
   RTS                                     ; $CAF8: 60
-Loc_CAF9:
-  LDA $0544                               ; $CAF9: AD 44 05
+.endproc
+;-------------------------------------------------------------------------------
+; $CAF9: BattleTerrainPassabilityCheck
+; Terrain passability check for the acting slot $0545's troop type against
+; the candidate tile at absolute coordinates $0000/$0001. Reads the tile id
+; from the current battle map's terrain grid ($0544 = map index; per-map
+; pointers at $BB1E, the $8000 window bank from $BB48), maps the tile id
+; through BattleTerrainClassTable and returns:
+;   A = 0              - class 0 passes for every troop type, as does any
+;                        class matching one of the troop type's two entries
+;                        in BattleTroopTerrainTableA/B;
+;   A = terrain class  - blocked: classes 1/5 always (no troop-type
+;                        override), and classes 2/3/4 the troop cannot
+;                        traverse.
+; Troop type = bits 2-3 of officer-record byte $0B of the acting side's
+; lead officer ($0560 for side A slots, $0561 for side B slots).
+;-------------------------------------------------------------------------------
+.proc BattleTerrainPassabilityCheck
+  LDA $0544                               ; $CAF9: AD 44 05 ; battle map index
   PHA                                     ; $CAFC: 48
   TAY                                     ; $CAFD: A8
-  LDA $BB48,Y                             ; $CAFE: B9 48 BB
+  LDA $BB48,Y                             ; $CAFE: B9 48 BB ; map data bank
   TAY                                     ; $CB01: A8
-  JSR $F25F                               ; $CB02: 20 5F F2
+  JSR B1F_SwitchBank8_B                   ; $CB02: 20 5F F2 ; switch $8000 window
   PLA                                     ; $CB05: 68
-  ASL                                     ; $CB06: 0A
+  ASL                                     ; $CB06: 0A ; map index * 2
   TAY                                     ; $CB07: A8
-  LDA $BB1E,Y                             ; $CB08: B9 1E BB
+  LDA $BB1E,Y                             ; $CB08: B9 1E BB ; terrain map ptr lo
   STA a:$0002                             ; $CB0B: 8D 02 00
-  LDA $BB1F,Y                             ; $CB0E: B9 1F BB
+  LDA $BB1F,Y                             ; $CB0E: B9 1F BB ; terrain map ptr hi
   STA a:$0003                             ; $CB11: 8D 03 00
-  LDA a:$0001                             ; $CB14: AD 01 00
+  LDA a:$0001                             ; $CB14: AD 01 00 ; candidate row
   ASL                                     ; $CB17: 0A
   ASL                                     ; $CB18: 0A
   ASL                                     ; $CB19: 0A
-  ASL                                     ; $CB1A: 0A
-  ORA a:$0000                             ; $CB1B: 0D 00 00
+  ASL                                     ; $CB1A: 0A ; row * 16
+  ORA a:$0000                             ; $CB1B: 0D 00 00 ; + column
   TAY                                     ; $CB1E: A8
-  LDA ($02),Y                             ; $CB1F: B1 02
+  LDA ($02),Y                             ; $CB1F: B1 02 ; terrain tile id
   TAY                                     ; $CB21: A8
-  LDA $CB59,Y                             ; $CB22: B9 59 CB
-  BEQ $CB57                               ; $CB25: F0 30
+  LDA BattleTerrainClassTable,Y           ; $CB22: B9 59 CB ; tile id -> class
+  BEQ @Exit                               ; $CB25: F0 30 ; class 0: open, A = 0
   CMP #$01                                ; $CB27: C9 01
-  BEQ $CB57                               ; $CB29: F0 2C
+  BEQ @Exit                               ; $CB29: F0 2C ; class 1: blocked, no override
   CMP #$05                                ; $CB2B: C9 05
-  BEQ $CB57                               ; $CB2D: F0 28
-  PHA                                     ; $CB2F: 48
-  LDY #$00                                ; $CB30: A0 00
-  LDA $0545                               ; $CB32: AD 45 05
+  BEQ @Exit                               ; $CB2D: F0 28 ; class 5: blocked, no override
+  PHA                                     ; $CB2F: 48 ; keep class
+  LDY #$00                                ; $CB30: A0 00 ; side A lead
+  LDA $0545                               ; $CB32: AD 45 05 ; acting slot
   CMP #$0B                                ; $CB35: C9 0B
-  BCC $CB3A                               ; $CB37: 90 01
-  INY                                     ; $CB39: C8
-Loc_CB3A:
-  LDA $0560,Y                             ; $CB3A: B9 60 05
-  JSR $F2D7                               ; $CB3D: 20 D7 F2
+  BCC @SideLead                           ; $CB37: 90 01
+  INY                                     ; $CB39: C8 ; side B lead
+@SideLead:
+  LDA $0560,Y                             ; $CB3A: B9 60 05 ; lead officer id
+  JSR B1F_GetOfficerRecordAddr            ; $CB3D: 20 D7 F2 ; record -> ($00)
   LDY #$0B                                ; $CB40: A0 0B
-  LDA ($00),Y                             ; $CB42: B1 00
+  LDA ($00),Y                             ; $CB42: B1 00 ; officer byte $0B
   LSR                                     ; $CB44: 4A
   LSR                                     ; $CB45: 4A
-  AND #$03                                ; $CB46: 29 03
+  AND #$03                                ; $CB46: 29 03 ; troop type (bits 2-3)
   TAY                                     ; $CB48: A8
-  PLA                                     ; $CB49: 68
-  TAX                                     ; $CB4A: AA
-  CMP $CBE9,Y                             ; $CB4B: D9 E9 CB
-  BEQ $CB55                               ; $CB4E: F0 05
-  CMP $CBED,Y                             ; $CB50: D9 ED CB
-  BNE $CB57                               ; $CB53: D0 02
-Loc_CB55:
-  LDA #$00                                ; $CB55: A9 00
-Loc_CB57:
-  TAY                                     ; $CB57: A8
+  PLA                                     ; $CB49: 68 ; terrain class
+  TAX                                     ; $CB4A: AA ; kept in X (unused)
+  CMP BattleTroopTerrainTableA,Y          ; $CB4B: D9 E9 CB ; allowed class A
+  BEQ @Passable                           ; $CB4E: F0 05
+  CMP BattleTroopTerrainTableB,Y          ; $CB50: D9 ED CB ; allowed class B
+  BNE @Exit                               ; $CB53: D0 02 ; blocked: A = class
+@Passable:
+  LDA #$00                                ; $CB55: A9 00 ; passable
+@Exit:
+  TAY                                     ; $CB57: A8 ; Z flag = passable
   RTS                                     ; $CB58: 60
-; --- Data Region ---
+.endproc
+; --- Terrain tile id -> class map for BattleTerrainPassabilityCheck ($CB59, 144 entries) ---
+BattleTerrainClassTable:
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $CB59: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $CB69: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
   .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $CB79: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -5634,7 +6098,11 @@ Loc_CB57:
   .byte $05,$05,$05,$05,$05,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $CBB9: 05 05 05 05 05 00 00 00 00 00 00 00 00 00 00 00
   .byte $00,$00,$00,$00,$00,$03,$04,$02,$00,$00,$00,$00,$00,$00,$00,$01; $CBC9: 00 00 00 00 00 03 04 02 00 00 00 00 00 00 00 01
   .byte $01,$01,$01,$01,$01,$01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00; $CBD9: 01 01 01 01 01 01 01 00 00 00 00 00 00 00 00 00
-  .byte $00,$02,$03,$00,$00,$02,$04,$00   ; $CBE9: 00 02 03 00 00 02 04 00
+; --- Allowed terrain classes per troop type (class A / class B) ---
+BattleTroopTerrainTableA:
+  .byte $00,$02,$03,$00                   ; $CBE9: 00 02 03 00
+BattleTroopTerrainTableB:
+  .byte $00,$02,$04,$00                   ; $CBED: 00 02 04 00
 Loc_CBF1:
 ; --- Code Region ---
   LDY #$20                                ; $CBF1: A0 20
@@ -6030,7 +6498,7 @@ Loc_CF89:
   STA $0425                               ; $CF99: 8D 25 04
   RTS                                     ; $CF9C: 60
 Loc_CF9D:  ; (dispatch callback target)
-  JSR $B870                               ; $CF9D: 20 70 B8
+  JSR BattleAnimQueueIdleCheck                 ; $CF9D: 20 70 B8
   BCC $CFC1                               ; $CFA0: 90 1F
   LDA #$D4                                ; $CFA2: A9 D4
   JSR $F26D                               ; $CFA4: 20 6D F2
@@ -6078,13 +6546,15 @@ Loc_D053:
 ; --- Code Region ---
   RTS                                     ; $D053: 60
 Loc_D054:  ; (dispatch callback target)
+; Battle scene start: reset phase/sub-phase, clear the damage counter $0548
+; and build both sides' rosters via BattleRosterSetup.
   LDA #$00                                ; $D054: A9 00
   STA $0540                               ; $D056: 8D 40 05
   LDA #$01                                ; $D059: A9 01
   STA $0541                               ; $D05B: 8D 41 05
   LDA #$00                                ; $D05E: A9 00
   STA $0548                               ; $D060: 8D 48 05
-  JSR $B548                               ; $D063: 20 48 B5
+  JSR BattleRosterSetup                   ; $D063: 20 48 B5
   RTS                                     ; $D066: 60
 Loc_D067:
   JSR $D0CB                               ; $D067: 20 CB D0
@@ -6270,7 +6740,7 @@ Loc_D1ED:
   STA a:$0000                             ; $D1F4: 8D 00 00
   LDA #$00                                ; $D1F7: A9 00
   STA a:$0001                             ; $D1F9: 8D 01 00
-  JSR $C1CD                               ; $D1FC: 20 CD C1
+  JSR Phase2StepTileProbe                 ; $D1FC: 20 CD C1
   BCS $D207                               ; $D1FF: B0 06
   TAY                                     ; $D201: A8
   BEQ $D207                               ; $D202: F0 03
@@ -6280,7 +6750,7 @@ Loc_D207:
   STA a:$0000                             ; $D209: 8D 00 00
   LDA #$00                                ; $D20C: A9 00
   STA a:$0001                             ; $D20E: 8D 01 00
-  JSR $C1CD                               ; $D211: 20 CD C1
+  JSR Phase2StepTileProbe                 ; $D211: 20 CD C1
   BCS $D21C                               ; $D214: B0 06
   TAY                                     ; $D216: A8
   BEQ $D21C                               ; $D217: F0 03
@@ -6290,7 +6760,7 @@ Loc_D21C:
   STA a:$0000                             ; $D21E: 8D 00 00
   LDA #$FF                                ; $D221: A9 FF
   STA a:$0001                             ; $D223: 8D 01 00
-  JSR $C1CD                               ; $D226: 20 CD C1
+  JSR Phase2StepTileProbe                 ; $D226: 20 CD C1
   BCS $D231                               ; $D229: B0 06
   TAY                                     ; $D22B: A8
   BEQ $D231                               ; $D22C: F0 03
@@ -6300,7 +6770,7 @@ Loc_D231:
   STA a:$0000                             ; $D233: 8D 00 00
   LDA #$01                                ; $D236: A9 01
   STA a:$0001                             ; $D238: 8D 01 00
-  JSR $C1CD                               ; $D23B: 20 CD C1
+  JSR Phase2StepTileProbe                 ; $D23B: 20 CD C1
   BCS $D246                               ; $D23E: B0 06
   TAY                                     ; $D240: A8
   BEQ $D246                               ; $D241: F0 03
@@ -6568,7 +7038,7 @@ Loc_D441:
   TAY                                     ; $D45D: A8
   LDA ($0A),Y                             ; $D45E: B1 0A
   STA a:$0001                             ; $D460: 8D 01 00
-  JSR $C1CD                               ; $D463: 20 CD C1
+  JSR Phase2StepTileProbe                 ; $D463: 20 CD C1
   BCS $D46E                               ; $D466: B0 06
   TAY                                     ; $D468: A8
   BEQ $D46E                               ; $D469: F0 03
@@ -6663,7 +7133,7 @@ Loc_D55A:
   STA a:$0000                             ; $D55F: 8D 00 00
   LDA $D588,Y                             ; $D562: B9 88 D5
   STA a:$0001                             ; $D565: 8D 01 00
-  JSR $C1CD                               ; $D568: 20 CD C1
+  JSR Phase2StepTileProbe                 ; $D568: 20 CD C1
   BCS $D573                               ; $D56B: B0 06
   TAY                                     ; $D56D: A8
   BEQ $D573                               ; $D56E: F0 03
@@ -6840,7 +7310,7 @@ Loc_D6DD:  ; (dispatch callback target)
   PLA                                     ; $D6E9: 68
   STA $057C                               ; $D6EA: 8D 7C 05
   JSR $CD22                               ; $D6ED: 20 22 CD
-  JSR $B870                               ; $D6F0: 20 70 B8
+  JSR BattleAnimQueueIdleCheck                 ; $D6F0: 20 70 B8
   BCC $D72A                               ; $D6F3: 90 35
   LDA a:$0001                             ; $D6F5: AD 01 00
   AND #$01                                ; $D6F8: 29 01
@@ -6933,7 +7403,7 @@ Loc_D77F:  ; (dispatch callback target)
   STA a:$0001                             ; $D7C3: 8D 01 00
   LDA a:$0012                             ; $D7C6: AD 12 00
   JSR $EDF5                               ; $D7C9: 20 F5 ED
-  JSR $B870                               ; $D7CC: 20 70 B8
+  JSR BattleAnimQueueIdleCheck                 ; $D7CC: 20 70 B8
   BCC $D7ED                               ; $D7CF: 90 1C
   JSR $CD22                               ; $D7D1: 20 22 CD
   LDA a:$0001                             ; $D7D4: AD 01 00

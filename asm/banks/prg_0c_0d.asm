@@ -312,7 +312,7 @@ ExchangeFrameUpdate:
   LSR                                   ; $A0AD: 4A
 @GetNibble:
   AND #$0F                              ; $A0AE: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $A0B0: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $A0B0: 20 68 F3
   LDY #$00                              ; $A0B3: A0 00
   LDA ($00),Y                           ; $A0B5: B1 00
   STA officer_sel_list                             ; $A0B7: 8D 2C 04
@@ -751,12 +751,12 @@ OfficerTransfer_SetupResult:
 @LoadRulerData:
   ; Fetch ruler data byte 3 for both source and target rulers
   LDA $0564                             ; $A418: AD 64 05
-  JSR B1F_GetRulerDataPtr               ; $A41B: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $A41B: 20 68 F3
   LDY #$03                              ; $A41E: A0 03
   LDA ($00),Y                           ; $A420: B1 00
   STA $0562                             ; $A422: 8D 62 05
   LDA $0565                             ; $A425: AD 65 05
-  JSR B1F_GetRulerDataPtr               ; $A428: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $A428: 20 68 F3
   LDY #$03                              ; $A42B: A0 03
   LDA ($00),Y                           ; $A42D: B1 00
   STA $0563                             ; $A42F: 8D 63 05
@@ -2780,7 +2780,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   LDX $11                               ; $B381: A6 11
 @GetNewRuler:
   TXA                                   ; $B383: 8A
-  JSR B1F_GetRulerDataPtr               ; $B384: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $B384: 20 68 F3
   LDY #$00                              ; $B387: A0 00
   LDA ($00),Y                           ; $B389: B1 00
   STA $30                               ; $B38B: 85 30
@@ -2791,7 +2791,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   LDX $10                               ; $B397: A6 10
 @GetOldRuler:
   TXA                                   ; $B399: 8A
-  JSR B1F_GetRulerDataPtr               ; $B39A: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $B39A: 20 68 F3
   LDY #$00                              ; $B39D: A0 00
   LDA ($00),Y                           ; $B39F: B1 00
   STA $32                               ; $B3A1: 85 32
@@ -4092,7 +4092,7 @@ ProvinceSelect_GetRecord:
 ; --- BankedCallbackTrampoline target ---
   .word $A027                               ; $BCFB: $27 A0
   LDA officer_sel_list                                   ; $BCFD: AD 2C 04
-  JSR B1F_GetRulerDataPtr                     ; $BD00: 20 68 F3
+  JSR B1F_GetCountryDataPtr                     ; $BD00: 20 68 F3
   LDY #$00                                    ; $BD03: A0 00
   LDA ($00),Y                                 ; $BD05: B1 00
   STA officer_sel_list                                   ; $BD07: 8D 2C 04
@@ -4221,7 +4221,7 @@ ProvinceSelect_GetRecord:
   LSR                                   ; $BDEB: 4A
   LSR                                   ; $BDEC: 4A
   LSR                                   ; $BDED: 4A
-  JSR B1F_GetRulerDataPtr               ; $BDEE: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $BDEE: 20 68 F3
   LDY #$03                              ; $BDF1: A0 03
   LDA ($00),Y                           ; $BDF3: B1 00
   STA $050F                             ; $BDF5: 8D 0F 05
@@ -4255,7 +4255,7 @@ ProvinceSelect_GetRecord:
 .proc OfficerTurn_SwitchRuler
   LDA $0507                             ; $BE33: AD 07 05
   AND #$0F                              ; $BE36: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $BE38: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $BE38: 20 68 F3
   LDY #$03                              ; $BE3B: A0 03
   LDA ($00),Y                           ; $BE3D: B1 00
   STA $050F                             ; $BE3F: 8D 0F 05
@@ -4743,7 +4743,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
 @State_CheckSrcRuler:
   LDA $0507                             ; $C24F: AD 07 05
   AND #$0F                              ; $C252: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $C254: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $C254: 20 68 F3
   LDY #$03                              ; $C257: A0 03
   LDA ($00),Y                           ; $C259: B1 00
   CMP #$03                              ; $C25B: C9 03
@@ -4759,7 +4759,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   JSR B1F_SetUI5                        ; $C273: 20 93 F2
   LDA $0507                             ; $C276: AD 07 05
   AND #$0F                              ; $C279: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $C27B: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $C27B: 20 68 F3
   LDY #$00                              ; $C27E: A0 00
   LDA ($00),Y                           ; $C280: B1 00
   STA officer_sel_list                             ; $C282: 8D 2C 04
@@ -4774,7 +4774,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LSR                                   ; $C28F: 4A
   LSR                                   ; $C290: 4A
   AND #$0F                              ; $C291: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $C293: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $C293: 20 68 F3
   LDY #$03                              ; $C296: A0 03
   LDA ($00),Y                           ; $C298: B1 00
   CMP #$03                              ; $C29A: C9 03
@@ -4794,7 +4794,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LSR                                   ; $C2BA: 4A
   LSR                                   ; $C2BB: 4A
   AND #$0F                              ; $C2BC: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $C2BE: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $C2BE: 20 68 F3
   LDY #$00                              ; $C2C1: A0 00
   LDA ($00),Y                           ; $C2C3: B1 00
   STA officer_sel_list                             ; $C2C5: 8D 2C 04
@@ -4817,7 +4817,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LSR                                   ; $C2E8: 4A
   LSR                                   ; $C2E9: 4A
   AND #$0F                              ; $C2EA: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $C2EC: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $C2EC: 20 68 F3
   LDY #$03                              ; $C2EF: A0 03
   LDA ($00),Y                           ; $C2F1: B1 00
   STA $050F                             ; $C2F3: 8D 0F 05
@@ -5553,7 +5553,7 @@ FindOfficerInRoster:
   LDX $11                               ; $C86B: A6 11
 @GetRuler:
   TXA                                   ; $C86D: 8A
-  JSR B1F_GetRulerDataPtr               ; $C86E: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $C86E: 20 68 F3
   LDY #$00                              ; $C871: A0 00
   LDA ($00),Y                           ; $C873: B1 00
   STA $30                               ; $C875: 85 30
@@ -6060,7 +6060,7 @@ FindOfficerInRoster:
 @GetRulerValue:
   ; Get ruler base value, multiply by 13, index into stat table at $8DB4
   ; Then render 12 digits to OAM buffer
-  JSR B1F_GetRulerDataPtr               ; $CC6D: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $CC6D: 20 68 F3
   LDY #$00                              ; $CC70: A0 00
   LDA ($00),Y                           ; $CC72: B1 00
   STA $00                               ; $CC74: 85 00
@@ -6228,7 +6228,7 @@ FindOfficerInRoster:
   LSR                                   ; $CDA9: 4A
 @GetRulerValue:
   AND #$0F                              ; $CDAA: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $CDAC: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $CDAC: 20 68 F3
   LDY #$00                              ; $CDAF: A0 00
   LDA ($00),Y                           ; $CDB1: B1 00
   STA $03                               ; $CDB3: 85 03
@@ -6526,7 +6526,7 @@ FindOfficerInRoster:
 @GetRulerNibble:
   TYA                                   ; $D0D3: 98
   AND #$0F                              ; $D0D4: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $D0D6: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $D0D6: 20 68 F3
   LDY #$00                              ; $D0D9: A0 00
   LDA ($00),Y                           ; $D0DB: B1 00
   STA exchange_ruler_id                             ; $D0DD: 8D 4C 04
@@ -8287,7 +8287,7 @@ CheckExchangeGroupStatus:
   LSR                                   ; $DDDE: 4A
   LSR                                   ; $DDDF: 4A
   LSR                                   ; $DDE0: 4A
-  JSR B1F_GetRulerDataPtr               ; $DDE1: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $DDE1: 20 68 F3
   LDY #$03                              ; $DDE4: A0 03
   LDA ($00),Y                           ; $DDE6: B1 00
   CMP #$03                              ; $DDE8: C9 03
@@ -8335,7 +8335,7 @@ CheckExchangeGroupStatus:
   STY $0509                             ; $DE34: 8C 09 05
   LDA $0507                             ; $DE37: AD 07 05
   AND #$0F                              ; $DE3A: 29 0F
-  JSR B1F_GetRulerDataPtr               ; $DE3C: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $DE3C: 20 68 F3
   LDY #$03                              ; $DE3F: A0 03
   LDA ($00),Y                           ; $DE41: B1 00
   CMP #$03                              ; $DE43: C9 03
@@ -8359,7 +8359,7 @@ CheckExchangeGroupStatus:
   RTS                                   ; $DE6C: 60
 @NextRuler:
   LDA officer_sel_list                             ; $DE6D: AD 2C 04
-  JSR B1F_GetRulerDataPtr               ; $DE70: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $DE70: 20 68 F3
   LDY #$00                              ; $DE73: A0 00
   LDA ($00),Y                           ; $DE75: B1 00
   STA officer_sel_list                             ; $DE77: 8D 2C 04

@@ -13,8 +13,8 @@
 ;-------------------------------------------------------------------------------
 ; $E000-$E079  Reset Handler        PPU/APU init, RAM clear, mapper init
 ; $E07C-$E099  Vector Dispatch      15 state entry points indexed by $007A
-; $E09A-$E4D8  Game State Handlers  System init, new game, kingdom select,
-;                                   domestic affairs, battle, territory,
+; $E09A-$E4D8  Game State Handlers  System init, new game, ruler select,
+;                                   strategy mode, tactical mode, country map,
 ;                                   advisor, turn summary, idle waits
 ; $E4DA-$E566  Core Helpers         FrameInit, BankSwitch (8-byte config)
 ; $E57F-$E6C5  Sound Engine         Init, wavetable, note player, 8 wrappers
@@ -29,7 +29,7 @@
 ; $EE53-$F076  NMI Sub-Dispatch     BG/sprite/attribute tile writers
 ; $F077-$F2AE  OAM/CHR/Window       Sprite OAM writers, CHR bank switch,
 ;                                   display setup helpers
-; $F2AF-$F3BC  Data Access          Hero/city/kingdom/kata-name address calcs
+; $F2AF-$F3BC  Data Access          Province/officer/name/country address calcs
 ; $F3BD-$F476  Mapper Init + Test   Controller validation, RAM integrity
 ; $F477-$F676  Sound/Music Data     Instrument definitions (512B)
 ; $F677-$F7FF  Padding              Unused ROM ($FF)
@@ -149,8 +149,8 @@ addr_menu_column    = $0424                     ; Cursor column (0-based within 
 addr_menu_page      = $0425                     ; Cursor page (0-based)
 
 ; --- SRAM ---
-sram_kingdom_param_0 = $6F3F                    ; Kingdom init param 0 (set to $80 on new game)
-sram_kingdom_param_1 = $6F41                    ; Kingdom init param 1 (set to $F0 on new game)
+sram_map_cam_y       = $6F3F                    ; Map camera Y pos low (set to $80 on new game; high at $6F40)
+sram_map_cam_x       = $6F41                    ; Map camera X pos low (set to $F0 on new game; high at $6F42)
 sram_game_start_flag = $6F8B                    ; Game start flag (set to $FF on new game)
 
 ;===============================================================================
@@ -166,9 +166,9 @@ sram_game_start_flag = $6F8B                    ; Game start flag (set to $FF on
 @vblank1:
   LDA PPU_STATUS                                ; $E00C: AD 02 20  Wait for VBlank
   BPL @vblank1                                  ; $E00F: 10 FB
-  LDA PPU_STATUS                                ; $E011: AD 02 20
-  BMI @vblank1_nego                             ; $E014: 30 FB  Wait for VBlank end
 @vblank1_nego:
+  LDA PPU_STATUS                                ; $E011: AD 02 20  Wait for VBlank end
+  BMI @vblank1_nego                             ; $E014: 30 FB
   DEY                                           ; $E016: 88
   BPL @vblank1                                  ; $E017: 10 F3
 
@@ -188,9 +188,9 @@ sram_game_start_flag = $6F8B                    ; Game start flag (set to $FF on
 @vblank2:
   LDA PPU_STATUS                                ; $E032: AD 02 20
   BPL @vblank2                                  ; $E035: 10 FB
+@vblank2_nego:
   LDA PPU_STATUS                                ; $E037: AD 02 20
   BMI @vblank2_nego                             ; $E03A: 30 FB
-@vblank2_nego:
   DEY                                           ; $E03C: 88
   BPL @vblank2                                  ; $E03D: 10 F3
 
@@ -200,16 +200,16 @@ sram_game_start_flag = $6F8B                    ; Game start flag (set to $FF on
 
   ; Clear RAM $0000-$07FF
   LDA #$04                                      ; $E042: A9 04
-  STA $01                                       ; $E044: 8D 01 00
+  STA a:$0001                                   ; $E044: 8D 01 00
   LDY #$00                                      ; $E047: A0 00
-  STY $02                                       ; $E049: 8C 02 00
-  TYA                                           ; $E04C: 98
+  STY a:$0002                                   ; $E049: 8C 02 00
 @clear_loop:
+  TYA                                           ; $E04C: 98
   STA ($01),Y                                   ; $E04D: 91 01
-  INC $01                                       ; $E04F: EE 01 00
+  INC a:$0001                                   ; $E04F: EE 01 00
   BNE @clear_loop                               ; $E052: D0 F8
-  INC $02                                       ; $E054: EE 02 00
-  LDA $02                                       ; $E057: AD 02 00
+  INC a:$0002                                   ; $E054: EE 02 00
+  LDA a:$0002                                   ; $E057: AD 02 00
   CMP #$08                                      ; $E05A: C9 08
   BCC @clear_loop                               ; $E05C: 90 EE
 
@@ -240,13 +240,13 @@ VectorTable:
   .addr State_SystemInit                        ; $E07C: 9A E0 | 0:  $E09A
   .addr State_NewGameInit                       ; $E07E: DA E0 | 1:  $E0DA
   .addr State_RandomDisplay2A                   ; $E080: 7D E1 | 2:  $E17D
-  .addr State_KingdomSelect                     ; $E082: 8B E1 | 3:  $E18B
+  .addr State_RulerSelect                       ; $E082: 8B E1 | 3:  $E18B
   .addr State_RandomDisplay28                   ; $E084: 21 E2 | 4:  $E221
-  .addr State_DomesticAffairs                   ; $E086: 2F E2 | 5:  $E22F
+  .addr State_StrategyMode                      ; $E086: 2F E2 | 5:  $E22F
   .addr State_RandomAdvance1                    ; $E088: E2 E2 | 6:  $E2E2
-  .addr State_BattlePhase                       ; $E08A: E8 E2 | 7:  $E2E8
+  .addr State_TacticalMode                      ; $E08A: E8 E2 | 7:  $E2E8
   .addr State_RandomAdvance2                    ; $E08C: 6A E3 | 8:  $E36A
-  .addr State_TerritoryView                     ; $E08E: 7C E3 | 9:  $E37C
+  .addr State_CountryMapView                    ; $E08E: 7C E3 | 9:  $E37C
   .addr State_IdleWait                          ; $E090: EB E3 | 10: $E3EB
   .addr State_AdvisorCouncil                    ; $E092: EE E3 | 11: $E3EE
   .addr State_IdleWait                          ; $E094: EB E3 | 12: $E3EB (same as 10)
@@ -292,7 +292,7 @@ VectorTable:
 ; $E0DA: Entry 1 - New Game Init
 ; Params: $0400 = controller input result
 ;         $0098 = display param
-;         SRAM: $6F41, $6F3F, $6F8B = kingdom init
+;         SRAM: $6F41, $6F3F = map camera pos, $6F8B = game start flag
 ;===============================================================================
 .proc State_NewGameInit
   JSR FrameInit                                 ; $E0DA: 20 DA E4
@@ -327,7 +327,7 @@ VectorTable:
   JSR SwitchBankAC_B                            ; $E118: 20 37 F2
   LDA #$00                                      ; $E11B: A9 00
   STA $0000                                     ; $E11D: 8D 00 00
-  JSR B1D_1E_LoadScenarioData                   ; $E120: 20 15 A0  Overlay display
+  JSR B1D_1E_LoadScenarioData                   ; $E120: 20 15 A0  Load scenario data (bank-switched)
 
   JSR ScrollSet                                 ; $E123: 20 F7 EA
   LDA $0400                                     ; $E126: AD 00 04  Check input
@@ -338,7 +338,7 @@ VectorTable:
 @skip_sram_flag:
   LDY #$3D                                      ; $E132: A0 3D
   JSR SwitchBankAC_B                            ; $E134: 20 37 F2
-  JSR B1D_1E_MenuUpdate                         ; $E137: 20 36 A0
+  JSR B1D_1E_ClearWorkBuffer                    ; $E137: 20 36 A0  Clear work buffer (bank-switched)
   JSR PaletteFadeInit                           ; $E13A: 20 BF EC
   LDA #$A0                                      ; $E142: A9 00
   STA addr_display_mode                         ; $E149: 8D 98 00
@@ -349,9 +349,9 @@ VectorTable:
   STA $04E2                                     ; $E157: 8D E2 04
   STA $04E3                                     ; $E15A: 8D E3 04
   LDA #$F0                                      ; $E15D: A9 F0
-  STA sram_kingdom_param_1                      ; $E15F: 8D 41 6F  SRAM: kingdom param
+  STA sram_map_cam_x                            ; $E15F: 8D 41 6F  SRAM: map camera X
   LDA #$80                                      ; $E162: A9 80
-  STA sram_kingdom_param_0                      ; $E164: 8D 3F 6F  SRAM: kingdom param
+  STA sram_map_cam_y                            ; $E164: 8D 3F 6F  SRAM: map camera Y
   LDA #$00                                      ; $E167: A9 00
   JSR BankSwitch                                ; $E169: 20 1F E5
   INC addr_game_state                           ; $E16C: EE 7A 00  Next state
@@ -369,24 +369,24 @@ VectorTable:
   JSR RandomByte                                ; $E17D: 20 7A E8
   LDY #$2A                                      ; $E180: A0 2A
   JSR SwitchBankAC_A                            ; $E182: 20 4B F2
-  JSR B17_18_PpuWriteRle                        ; $E185: 20 00 A0  Display (bank-switched)
+  JSR B0A_0B_CheckGameStart_Entry               ; $E185: 20 00 A0  Check game start (bank $0A)
   JMP StateDispatch                             ; $E188: 4C 66 E0
 .endproc
 
 ;===============================================================================
-; $E18B: Entry 3 - Kingdom Select
-; Params: $0500 = kingdom mode ($0B=scenario)
-;         $0510-$0513 = kingdom coordinate data
-;         $0068/$0069 = territory data pointer
+; $E18B: Entry 3 - Ruler Select
+; Params: $0500 = select mode ($0B=scenario)
+;         $0510-$0513 = map scroll target data
+;         $0068/$0069 = map data pointer
 ;===============================================================================
-.proc State_KingdomSelect
-kingdom_mode    = $0500
-kingdom_x       = $0510
-kingdom_y       = $0511
-kingdom_x2      = $0512
-kingdom_y2      = $0513
-territory_ptr_lo = $0068
-territory_ptr_hi = $0069
+.proc State_RulerSelect
+select_mode     = $0500
+map_scroll_y    = $0510
+map_scroll_y_hi = $0511
+map_scroll_x    = $0512
+map_scroll_x_hi = $0513
+map_data_ptr_lo = $0068
+map_data_ptr_hi = $0069
 
   JSR FrameInit                                 ; $E18B: 20 DA E4
   LDA #$03                                      ; $E18E: A9 03
@@ -395,35 +395,35 @@ territory_ptr_hi = $0069
   JSR DisplayInit                               ; $E195: 20 70 E3
   LDY #$37                                      ; $E198: A0 37
   JSR SwitchBankAC_B                            ; $E19A: 20 37 F2
-  JSR B17_18_DataRecordLoader                   ; $E19D: 20 27 A0  Kingdom display (bank-switched)
+  JSR B17_18_DataRecordLoader                   ; $E19D: 20 27 A0  Data record loader (bank-switched)
 
-  LDA kingdom_mode                              ; $E1A0: AD 00 05
+  LDA select_mode                               ; $E1A0: AD 00 05
   CMP #$0B                                      ; $E1A3: C9 0B  Scenario mode?
   BNE @normal_mode                              ; $E1A5: D0 0B
   LDY #$2C                                      ; $E1A7: A0 2C
   JSR SwitchBankAC_B                            ; $E1A9: 20 37 F2
-  JSR B0C_0D_OfficerTransferCalc_Entry          ; $E1AC: 20 06 A0  Scenario function
+  JSR B0C_0D_OfficerTransferCalc_Entry          ; $E1AC: 20 06 A0  Scenario path (bank $0C)
   JMP @after_mode_check                         ; $E1AF: 4C BA E1
 @normal_mode:
   LDY #$28                                      ; $E1B2: A0 28
   JSR SwitchBankAC_B                            ; $E1B4: 20 37 F2
-  JSR B17_18_PpuCopyRaw                         ; $E1B7: 20 03 A0  Normal function
+  JSR B08_09_BattleSetup_Entry                  ; $E1B7: 20 03 A0  Normal path (bank $08)
 @after_mode_check:
-  LDA kingdom_x                                 ; $E1BA: AD 10 05
+  LDA map_scroll_y                              ; $E1BA: AD 10 05
   STA $0090                                     ; $E1BD: 8D 90 00
-  LDA kingdom_y                                 ; $E1C0: AD 11 05
+  LDA map_scroll_y_hi                           ; $E1C0: AD 11 05
   STA $0091                                     ; $E1C3: 8D 91 00
-  LDA kingdom_x2                                ; $E1C6: AD 12 05
+  LDA map_scroll_x                              ; $E1C6: AD 12 05
   STA $008E                                     ; $E1C9: 8D 8E 00
-  LDA kingdom_y2                                ; $E1CC: AD 13 05
+  LDA map_scroll_x_hi                           ; $E1CC: AD 13 05
   STA $008F                                     ; $E1CF: 8D 8F 00
   LDA #$FF                                      ; $E1D2: A9 FF
-  STA $0518                                     ; $E1D4: 8D 18 05  Kingdom flag
+  STA $0518                                     ; $E1D4: 8D 18 05  Ruler select flag
 
   ; Display + render
   LDY #$3D                                      ; $E1D7: A0 37
   JSR SwitchBankAC_B                            ; $E1D9: 20 37 F2
-  JSR B1D_1E_StateHandler                       ; $E1DC: 20 09 A0
+  JSR B1D_1E_StateHandler                       ; $E1DC: 20 09 A0  State handler (bank-switched)
   LDA #$00                                      ; $E1E4: A9 01
   STA $0000                                     ; $E1E6: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E1E9: 20 15 A0
@@ -432,9 +432,9 @@ territory_ptr_hi = $0069
   LDA #$00                                      ; $E1EF: A9 00
   STA $0508                                     ; $E1F1: 8D 08 05
   LDA #$70                                      ; $E1F4: A9 70
-  STA territory_ptr_lo                          ; $E1F6: 8D 68 00
+  STA map_data_ptr_lo                           ; $E1F6: 8D 68 00
   LDA #$AF                                      ; $E1F9: A9 AF
-  STA territory_ptr_hi                          ; $E1FB: 8D 69 00  Ptr = $AF70
+  STA map_data_ptr_hi                           ; $E1FB: 8D 69 00  Ptr = $AF70
 
   LDA #$01                                      ; $E1FE: A9 01
   JSR BankSwitch                                ; $E200: 20 1F E5
@@ -458,16 +458,16 @@ territory_ptr_hi = $0069
   JSR RandomByte                                ; $E221: 20 7A E8
   LDY #$28                                      ; $E224: A0 28
   JSR SwitchBankAC_A                            ; $E226: 20 4B F2
-  JSR B17_18_PpuWriteRle                        ; $E229: 20 00 A0
+  JSR B08_09_AiTurnProcess_Entry                ; $E229: 20 00 A0  AI turn process (bank $08)
   JMP StateDispatch                             ; $E22C: 4C 66 E0
 .endproc
 
 ;===============================================================================
-; $E22F: Entry 5 - Domestic Affairs
-; Params: $0544 = domestic action type (0-6)
+; $E22F: Entry 5 - Strategy Mode (domestic command select)
+; Params: $0544 = command type (0-6)
 ;         $0562/$0563 = sprite position indices
 ;===============================================================================
-.proc State_DomesticAffairs
+.proc State_StrategyMode
 action_type     = $0544
 sprite_idx1     = $0563
 sprite_idx2     = $0562
@@ -483,7 +483,7 @@ sprite_idx2     = $0562
   JSR BankSwitch                                ; $E242: 20 1F E5
   LDY #$37                                      ; $E245: A0 37
   JSR SwitchBankAC_B                            ; $E247: 20 37 F2
-  JSR B17_18_DomesticDisplay                    ; $E24A: 20 24 A0  Domestic display
+  JSR B17_18_StrategyModeDisplay                ; $E24A: 20 24 A0  Strategy display (bank-switched)
   LDY #$3D                                      ; $E24D: A0 3D
   JSR SwitchBankAC_B                            ; $E24F: 20 37 F2
 
@@ -492,15 +492,15 @@ sprite_idx2     = $0562
   CLC                                           ; $E255: 18
   ADC #$02                                      ; $E256: 69 02
   STA $0000                                     ; $E258: 8D 00 00
-  JSR DomesticActionDisplay                     ; $E25B: 20 15 A0
+  JSR B1D_1E_LoadScenarioData                   ; $E25B: 20 15 A0  Load scenario data (bank-switched)
 
   ; Sprite positions from table
   LDY sprite_idx1                               ; $E25E: AC 63 05
-  LDA DomesticSpriteYPos,Y                      ; $E261: B9 DE E2
+  LDA StrategyCommandSpriteYPos,Y               ; $E261: B9 DE E2
   STA $0107                                     ; $E264: 8D 07 01  Sprite position indicator
   STA $0113                                     ; $E267: 8D 13 01  Mirror
   LDY sprite_idx2                               ; $E26A: AC 62 05
-  LDA DomesticSpriteYPos,Y                      ; $E26D: B9 DE E2
+  LDA StrategyCommandSpriteYPos,Y               ; $E26D: B9 DE E2
   STA $010F                                     ; $E270: 8D 0F 01
   STA $0117                                     ; $E273: 8D 17 01
 
@@ -517,17 +517,17 @@ sprite_idx2     = $0562
   JSR NmiEnable                                 ; $E296: 20 53 E7
   JMP StateDispatch                             ; $E299: 4C 66 E0
 
-DomesticSpriteYPos:
+StrategyCommandSpriteYPos:
   .byte $10, $0F, $00, $16                      ; $E2DE: 10 0F 00 16
 .endproc
 
 ;===============================================================================
-; $E29C: Domestic Action Display Lookup
-; Params: $0544 = action type (0-6)
+; $E29C: Strategy Command Display Lookup
+; Params: $0544 = command type (0-6)
 ;         $000A/$000B = graphic pointer
 ;         $000C/$000D = base data pointer
 ;===============================================================================
-.proc DomesticActionLookup
+.proc StrategyCommandLookup
 action_type     = $0544
 graphic_ptr_lo  = $000A
 graphic_ptr_hi  = $000B
@@ -537,30 +537,27 @@ base_ptr_hi     = $000D
   LDA action_type                               ; $E29C: AD 44 05
   ASL                                           ; $E29F: 0A  * 2 for table index
   TAY                                           ; $E2A0: A8
-  LDA DomesticGraphicPtrs,Y                     ; $E2A1: B9 C2 E2
+  LDA StrategyCommandGraphicPtrs,Y              ; $E2A1: B9 C2 E2
   STA graphic_ptr_lo                            ; $E2A4: 8D 0A 00
-  LDA DomesticGraphicPtrs+1,Y                   ; $E2A7: B9 C3 E2
+  LDA StrategyCommandGraphicPtrs+1,Y            ; $E2A7: B9 C3 E2
   STA graphic_ptr_hi                            ; $E2AA: 8D 0B 00
-  LDA DomesticBaseDataPtrs,Y                    ; $E2AD: B9 D0 E2
+  LDA StrategyCommandBaseDataPtrs,Y             ; $E2AD: B9 D0 E2
   STA base_ptr_lo                               ; $E2B0: 8D 0C 00
-  LDA DomesticBaseDataPtrs+1,Y                  ; $E2B3: B9 D1 E2
+  LDA StrategyCommandBaseDataPtrs+1,Y           ; $E2B3: B9 D1 E2
   STA base_ptr_hi                               ; $E2B6: 8D 0D 00
   LDY #$37                                      ; $E2B9: A0 37
   JSR SwitchBankAC_B                            ; $E2BB: 20 37 F2
-  JSR B17_18_PpuWriteTileOffset                 ; $E2BE: 20 06 A0  Action display (bank-switched)
+  JSR B17_18_PpuWriteTileOffset                 ; $E2BE: 20 06 A0  Tile write with offset (bank-switched)
   RTS                                           ; $E2C1: 60
 
-DomesticGraphicPtrs:
+StrategyCommandGraphicPtrs:
   .addr $8440, $8570, $86A0, $87D0              ; $E2C2: 40 84 70 85 A0 86 D0 87
   .addr $8900, $8A30, $8B60                     ; $E2CA: 00 89 30 8A 60 8B
 
-DomesticBaseDataPtrs:
+StrategyCommandBaseDataPtrs:
   .addr $8000, $8000, $8000, $8000              ; $E2D0: 00 80 00 80 00 80 00 80
   .addr $8000, $8000, $8000                     ; $E2D8: 00 80 00 80 00 80
 .endproc
-
-; Domestic action display (wraps lookup)
-DomesticActionDisplay = DomesticActionLookup
 
 ;===============================================================================
 ; $E2E2: Entry 6 - Random Seed Advance
@@ -571,18 +568,18 @@ DomesticActionDisplay = DomesticActionLookup
 .endproc
 
 ;===============================================================================
-; $E2E8: Entry 7 - Battle Phase
+; $E2E8: Entry 7 - Tactical Mode (battle setup; Battle Mode is its sub-scenario)
 ; Params: $04AB/$04AC = army status flags
 ;         $0098 = display param ($A0)
 ;===============================================================================
-.proc State_BattlePhase
+.proc State_TacticalMode
 army_status1    = $04AB
 army_status2    = $04AC
 
   JSR FrameInit                                 ; $E2E8: 20 DA E4
   LDA #$05                                      ; $E2EB: A9 05
   STA addr_sub_state                            ; $E2ED: 8D 78 00
-  LDA #$0A                                      ; $E2F0: A9 0A  Battle display mode
+  LDA #$0A                                      ; $E2F0: A9 0A  Tactical display mode
   JSR DisplayInit                               ; $E2F2: 20 70 E3
   LDA #$A0                                      ; $E2F5: A9 A0
   STA addr_display_mode                         ; $E2F7: 8D 98 00
@@ -598,12 +595,12 @@ army_status2    = $04AC
   STA $0001                                     ; $E310: 8D 01 00
   LDY #$37                                      ; $E313: A0 37
   JSR SwitchBankAC_B                            ; $E315: 20 37 F2
-  JSR B17_18_PpuCopyRaw                         ; $E318: 20 03 A0  Battle display
+  JSR B17_18_PpuCopyRaw                         ; $E318: 20 03 A0  Tactical display (bank-switched)
   LDY #$3D                                      ; $E31B: A0 3D
   JSR SwitchBankAC_B                            ; $E31D: 20 37 F2
   LDA #$0A                                      ; $E320: A9 0A
   STA $0000                                     ; $E322: 8D 00 00
-  JSR B17_18_OverlayWindow                      ; $E325: 20 15 A0
+  JSR B1D_1E_LoadScenarioData                   ; $E325: 20 15 A0  Load scenario data (bank-switched)
 
   JSR ScrollSet                                 ; $E328: 20 F7 EA
 
@@ -625,10 +622,10 @@ army_status2    = $04AC
   LDY #$3D                                      ; $E34A: A0 3D
   JSR SwitchBankAC_B                            ; $E34C: 20 37 F2
   LDA #$02                                      ; $E34F: A9 02
-  JSR BankSwitch                                ; $E351: 20 45 A0
+  JSR B1D_1E_OfficerRecLookup                   ; $E351: 20 45 A0  Officer record lookup (bank-switched)
   INC addr_game_state                           ; $E359: EE 7A 00
   LDA #$12                                      ; $E35C: A9 12
-  JSR SoundWrapperB                             ; $E35E: 20 7B E6  Battle music $12
+  JSR SoundWrapperB                             ; $E35E: 20 7B E6  Tactical music $12
   JSR PpuMaskEnable                             ; $E361: 20 49 E7
   JSR NmiEnable                                 ; $E364: 20 53 E7
   JMP StateDispatch                             ; $E367: 4C 66 E0
@@ -649,19 +646,19 @@ army_status2    = $04AC
 .proc DisplayInit
   LDY #$3D                                      ; $E370: A0 3D
   JSR SwitchBankAC_B                            ; $E372: 20 37 F2  Window clear
-  JSR B1D_1E_OfficerParamDisp                   ; $E375: 20 1B A0  Bank-switched display
-  JSR ChrBankSwitch                             ; $E378: 20 06 F2  Window/display helper
+  JSR B1D_1E_OfficerParamDisp                   ; $E375: 20 1B A0  Officer param display (bank-switched)
+  JSR ChrBankSwitch                             ; $E378: 20 06 F2  CHR bank switch
   RTS                                           ; $E37B: 60
 .endproc
 
 ;===============================================================================
-; $E37C: Entry 9 - Territory / Map View
+; $E37C: Entry 9 - Country Map View
 ;===============================================================================
-.proc State_TerritoryView
+.proc State_CountryMapView
   JSR FrameInit                                 ; $E37C: 20 DA E4
   LDA #$06                                      ; $E37F: A9 06
   STA addr_sub_state                            ; $E381: 8D 78 00
-  LDA #$0B                                      ; $E384: A9 0B  Territory display mode
+  LDA #$0B                                      ; $E384: A9 0B  Country map display mode
   JSR DisplayInit                               ; $E386: 20 70 E3
   LDY #$35                                      ; $E389: A0 35
   JSR SwitchBank8_B                             ; $E38B: 20 5F F2
@@ -691,7 +688,7 @@ army_status2    = $04AC
   LDY #$3D                                      ; $E3CB: A0 3D
   JSR SwitchBankAC_B                            ; $E3CD: 20 37 F2
   LDA #$03                                      ; $E3D0: A9 03
-  JSR PaletteUpload                             ; $E3D2: 20 45 A0
+  JSR B1D_1E_OfficerRecLookup                   ; $E3D2: 20 45 A0  Officer record lookup (bank-switched)
   LDA #$A0                                      ; $E3D5: A9 A0
   STA addr_display_mode                         ; $E3D7: 8D 98 00
   LDA #$02                                      ; $E3DA: A9 02
@@ -738,7 +735,7 @@ army_status2    = $04AC
   JSR B17_18_PpuCopyRaw                         ; $E427: 20 03 A0
   LDY #$3D                                      ; $E42A: A0 3D
   JSR SwitchBankAC_B                            ; $E42C: 20 37 F2
-  JSR B1D_1E_SramInit                           ; $E42F: 20 18 A0  Advisor dialogue
+  JSR B1D_1E_SramInit                           ; $E42F: 20 18 A0  SRAM init (bank-switched)
   LDY #$3D                                      ; $E432: A0 3D
   JSR SwitchBankAC_B                            ; $E434: 20 37 F2
   LDA #$0C                                      ; $E437: A9 0C
@@ -749,7 +746,7 @@ army_status2    = $04AC
   LDY #$3D                                      ; $E445: A0 3D
   JSR SwitchBankAC_B                            ; $E447: 20 37 F2
   LDA #$04                                      ; $E44A: A9 04
-  JSR PaletteUpload                             ; $E44C: 20 45 A0
+  JSR B1D_1E_OfficerRecLookup                   ; $E44C: 20 45 A0  Officer record lookup (bank-switched)
   LDA #$A0                                      ; $E44F: A9 A0
   STA addr_display_mode                         ; $E451: 8D 98 00
   LDA #$02                                      ; $E454: A9 02
@@ -764,7 +761,7 @@ army_status2    = $04AC
 
 ;===============================================================================
 ; $E46A: Entry 13 - Turn Summary
-; Params: $0541 = completion flag (0=normal, nonzero=victory)
+; Params: $0541 = completion flag (0=normal music, nonzero=victory music)
 ;===============================================================================
 .proc State_TurnSummary
 completion_flag = $0541
@@ -965,17 +962,13 @@ sound_ram_ptr  = $07F2
   JSR WavetableWriteDelay                       ; $E5EC: 20 FA E5
   LDX #$7F                                      ; $E5EF: A2 7F
   LDA #$30                                      ; $E5F1: A9 30
+.endproc
+
+;--- $E5F3: Wavetable write entry (shared tail of SoundInit, also called from WavetableWriteDelay) ---
 WavetableWriteEntry:
   STX NAMCO_CTRL                                ; $E5F3: 8E 00 F8
   STA NAMCO_SOUND                               ; $E5F6: 8D 00 48
   RTS                                           ; $E5F9: 60
-
-WavetableInitData:
-  .byte $FF, $00, $00, $00, $00, $00, $00, $00  ; $E6A6: FF 00 00 00 00 00 00 00
-  .byte $FF, $FF, $00, $00, $00, $00, $00, $00  ; $E6AE: FF FF 00 00 00 00 00 00
-  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF  ; $E6B6: FF FF FF FF FF FF FF FF
-  .byte $FF, $00, $FF, $00, $FF, $00, $FF, $00  ; $E6BE: FF 00 FF 00 FF 00 FF 00
-.endproc
 
 ;===============================================================================
 ; $E5FA: Wavetable Write Delay
@@ -1111,6 +1104,16 @@ SoundWrapperF:
   CLC                                           ; $E6A0: 18
   ADC #$01                                      ; $E6A1: 69 01
   JMP SoundNotePlayer                           ; $E6A3: 4C 09 E6
+
+;===============================================================================
+; $E6A6: Wavetable Init Data (32 bytes)
+; Namco-163 waveform init values uploaded by SoundInit
+;===============================================================================
+WavetableInitData:
+  .byte $FF, $00, $00, $00, $00, $00, $00, $00  ; $E6A6: FF 00 00 00 00 00 00 00
+  .byte $FF, $FF, $00, $00, $00, $00, $00, $00  ; $E6AE: FF FF 00 00 00 00 00 00
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF  ; $E6B6: FF FF FF FF FF FF FF FF
+  .byte $FF, $00, $FF, $00, $FF, $00, $FF, $00  ; $E6BE: FF 00 FF 00 FF 00 FF 00
 
 ;===============================================================================
 ; $E6C6: Controller Read (Both Pads)
@@ -1340,7 +1343,10 @@ fill_attr     = $03
 ;===============================================================================
 .proc SpriteBufferInit
   LDY #$04                                      ; $E823: A0 04
-SpriteBufferInitAll:
+.endproc
+
+;--- $E825: fill all of $0200-$02FF (fall-through from SpriteBufferInit) ---
+.proc SpriteBufferInitAll
   LDY #$00                                      ; $E825: A0 00
   LDA #$F0                                      ; $E827: A9 F0
 @fill_loop:
@@ -1356,7 +1362,7 @@ SpriteBufferInitAll:
 ; If $007C == $FF, does nothing
 ;===============================================================================
 .proc SpriteClearFromIndex
-  LDX $7C                                       ; $E830: AE 7C 00
+  LDX a:$7C                                     ; $E830: AE 7C 00
   CPX #$FF                                      ; $E833: E0 FF
   BEQ @done                                     ; $E835: F0 0B
 @clear_loop:
@@ -2432,92 +2438,111 @@ ptr_hi   = $0C
 ; bit5 -> PpuAttrTileWrite, bit4 -> PpuAttrTileWriteAlt
 ;===============================================================================
 .proc NmiSubDispatch
-nmi_flag = $007D
-nmi_ctrl = $007E
-
-  LDA nmi_flag                                  ; $EE53: AD 7D 00
+  LDA addr_nmi_flag                             ; $EE53: AD 7D 00
   BNE NmiPaletteUpload                          ; $EE56: D0 1A
-  LDA nmi_ctrl                                  ; $EE58: AD 7E 00
-  BMI @do_bg                                    ; $EE5B: 30 18
+  LDA addr_nmi_ctrl                             ; $EE58: AD 7E 00
+  BMI NmiDoBgWrite                              ; $EE5B: 30 18
   ASL                                           ; $EE5D: 0A
-  BMI @do_sprite                                ; $EE5E: 30 27
-@test_attr:
-  ASL                                           ; $EE60: 0A
-  BMI @do_attr                                  ; $EE61: 30 35
-  ASL                                           ; $EE63: 0A
-  BMI @do_attr_alt                              ; $EE64: 30 3D
-  ASL                                           ; $EE66: 0A
-  BMI @do_bank_3d_a                             ; $EE67: 30 45
-  ASL                                           ; $EE69: 0A
-  BMI @do_bank_3d_b                             ; $EE6A: 30 52
-  ASL                                           ; $EE6C: 0A
-  BMI @do_bank_3d_c                             ; $EE6D: 30 5F
-  ASL                                           ; $EE6F: 0A
-  BMI @do_bank_3d_d                             ; $EE70: 30 6C
-NmiPaletteUpload:
-  JMP PaletteUpload                             ; $EE72: 4C 0E E7
+  BMI NmiDoSpriteWrite                          ; $EE5E: 30 27
+.endproc
 
-@do_bg:
+;--- $EE60: attribute/bank-bit test chain (fall-through from NmiSubDispatch) ---
+.proc NmiAttrTest
+  ASL                                           ; $EE60: 0A
+  BMI NmiDoAttrWrite                            ; $EE61: 30 35
+  ASL                                           ; $EE63: 0A
+  BMI NmiDoAttrWriteAlt                         ; $EE64: 30 3D
+  ASL                                           ; $EE66: 0A
+  BMI NmiDoBank3D_MapDisplay                    ; $EE67: 30 45
+  ASL                                           ; $EE69: 0A
+  BMI NmiDoBank3D_VramWrite                     ; $EE6A: 30 52
+  ASL                                           ; $EE6C: 0A
+  BMI NmiDoBank3D_FlushTiles                    ; $EE6D: 30 5F
+  ASL                                           ; $EE6F: 0A
+  BMI NmiDoBank3D_TileRender                    ; $EE70: 30 6C
+.endproc
+
+;--- $EE72: palette upload fall-through (also taken when $007D flag set) ---
+.proc NmiPaletteUpload
+  JMP PaletteUpload                             ; $EE72: 4C 0E E7
+.endproc
+
+;--- $EE75: BG tile write dispatch handler ($007E bit 7) ---
+.proc NmiDoBgWrite
   PHA                                           ; $EE75: 48
-  LDA nmi_ctrl                                  ; $EE76: AD 7E 00
+  LDA addr_nmi_ctrl                             ; $EE76: AD 7E 00
   AND #$7F                                      ; $EE79: 29 7F
-  STA nmi_ctrl                                  ; $EE7B: 8D 7E 00
+  STA addr_nmi_ctrl                             ; $EE7B: 8D 7E 00
   JSR PpuBgTileWrite                            ; $EE7E: 20 0B EF
   PLA                                           ; $EE81: 68
   RTS                                           ; $EE82: 60
-  ASL                                           ; $EE83: 0A
-  JMP @test_attr                                ; $EE84: 4C 60 EE
+  ASL                                           ; $EE83: 0A  (unreachable)
+  JMP NmiAttrTest                               ; $EE84: 4C 60 EE
+.endproc
 
-@do_sprite:
+;--- $EE87: sprite tile write dispatch handler ($007E bit 6) ---
+.proc NmiDoSpriteWrite
   PHA                                           ; $EE87: 48
-  LDA nmi_ctrl                                  ; $EE88: AD 7E 00
+  LDA addr_nmi_ctrl                             ; $EE88: AD 7E 00
   AND #$BF                                      ; $EE8B: 29 BF
-  STA nmi_ctrl                                  ; $EE8D: 8D 7E 00
+  STA addr_nmi_ctrl                             ; $EE8D: 8D 7E 00
   JSR PpuSpriteTileWrite                        ; $EE90: 20 71 EF
   PLA                                           ; $EE93: 68
   RTS                                           ; $EE94: 60
-  JMP @test_attr                                ; $EE95: 4C 60 EE
+  JMP NmiAttrTest                               ; $EE95: 4C 60 EE  (unreachable)
+.endproc
 
-@do_attr:
-  LDA nmi_ctrl                                  ; $EE98: AD 7E 00
+;--- $EE98: attribute tile write dispatch handler ($007E bit 5) ---
+.proc NmiDoAttrWrite
+  LDA addr_nmi_ctrl                             ; $EE98: AD 7E 00
   AND #$DF                                      ; $EE9B: 29 DF
-  STA nmi_ctrl                                  ; $EE9D: 8D 7E 00
+  STA addr_nmi_ctrl                             ; $EE9D: 8D 7E 00
   JMP PpuAttrTileWrite                          ; $EEA0: 4C C0 EF
+.endproc
 
-@do_attr_alt:
-  LDA nmi_ctrl                                  ; $EEA3: AD 7E 00
+;--- $EEA3: attribute tile write alt dispatch handler ($007E bit 4) ---
+.proc NmiDoAttrWriteAlt
+  LDA addr_nmi_ctrl                             ; $EEA3: AD 7E 00
   AND #$EF                                      ; $EEA6: 29 EF
-  STA nmi_ctrl                                  ; $EEA8: 8D 7E 00
+  STA addr_nmi_ctrl                             ; $EEA8: 8D 7E 00
   JMP PpuAttrTileWriteAlt                       ; $EEAB: 4C 28 F0
+.endproc
 
-@do_bank_3d_a:
+;--- $EEAE: bank $1D dispatch handler ($007E bit 3): map display setup ---
+.proc NmiDoBank3D_MapDisplay
   LDY #$3D                                      ; $EEAE: A0 3D
   JSR SwitchBankAC_B                            ; $EEB0: 20 37 F2
-  LDA nmi_ctrl                                  ; $EEB3: AD 7E 00
+  LDA addr_nmi_ctrl                             ; $EEB3: AD 7E 00
   AND #$F7                                      ; $EEB6: 29 F7
-  STA nmi_ctrl                                  ; $EEB8: 8D 7E 00
-  JMP $A00C                                     ; $EEBB: 4C 0C A0
+  STA addr_nmi_ctrl                             ; $EEB8: 8D 7E 00
+  JMP B1D_1E_MapDisplaySetup                    ; $EEBB: 4C 0C A0  Map display setup (bank $1D)
+.endproc
 
-@do_bank_3d_b:
-  LDA nmi_ctrl                                  ; $EEBE: AD 7E 00
+;--- $EEBE: bank $1D dispatch handler ($007E bit 2): VRAM buffer write ---
+.proc NmiDoBank3D_VramWrite
+  LDA addr_nmi_ctrl                             ; $EEBE: AD 7E 00
   AND #$FB                                      ; $EEC1: 29 FB
-  STA nmi_ctrl                                  ; $EEC3: 8D 7E 00
+  STA addr_nmi_ctrl                             ; $EEC3: 8D 7E 00
   LDY #$3D                                      ; $EEC6: A0 3D
   JSR SwitchBankAC_B                            ; $EEC8: 20 37 F2
-  JMP $A006                                     ; $EECB: 4C 06 A0
+  JMP B1D_1E_VRAMBufferWrite                    ; $EECB: 4C 06 A0  VRAM buffer write (bank $1D)
+.endproc
 
-@do_bank_3d_c:
-  LDA nmi_ctrl                                  ; $EECE: AD 7E 00
+;--- $EECE: bank $1D dispatch handler ($007E bit 1): flush tile buffer ---
+.proc NmiDoBank3D_FlushTiles
+  LDA addr_nmi_ctrl                             ; $EECE: AD 7E 00
   AND #$FD                                      ; $EED1: 29 FD
-  STA nmi_ctrl                                  ; $EED3: 8D 7E 00
+  STA addr_nmi_ctrl                             ; $EED3: 8D 7E 00
   LDY #$3D                                      ; $EED6: A0 3D
   JSR SwitchBankAC_B                            ; $EED8: 20 37 F2
-  JMP $A012                                     ; $EEDB: 4C 12 A0
+  JMP B1D_1E_FlushTileBuffer                    ; $EEDB: 4C 12 A0  Flush tile buffer (bank $1D)
+.endproc
 
-@do_bank_3d_d:
+;--- $EEDE: bank $1D dispatch handler ($007E bit 0): PPU tile render ---
+.proc NmiDoBank3D_TileRender
   LDY #$3D                                      ; $EEDE: A0 3D
   JSR SwitchBankAC_B                            ; $EEE0: 20 37 F2
-  JMP $A000                                     ; $EEE3: 4C 00 A0
+  JMP B1D_1E_PPUTileRender                      ; $EEE3: 4C 00 A0  PPU tile render (bank $1D)
 .endproc
 
 ;===============================================================================
@@ -2525,28 +2550,26 @@ NmiPaletteUpload:
 ; Simplified variant checking fewer bits of $007E
 ;===============================================================================
 .proc NmiSubDispatchAlt
-nmi_ctrl = $007E
-
-  LDA nmi_ctrl                                  ; $EEE6: AD 7E 00
+  LDA addr_nmi_ctrl                             ; $EEE6: AD 7E 00
   BMI @do_bg                                    ; $EEE9: 30 0A
   ASL                                           ; $EEEB: 0A
   BMI @do_sprite                                ; $EEEC: 30 12
   ASL                                           ; $EEEE: 0A
-  BMI @do_attr                                  ; $EEEF: 30 A7
+  BMI NmiDoAttrWrite                            ; $EEEF: 30 A7
   ASL                                           ; $EEF1: 0A
-  BMI @do_attr_alt                              ; $EEF2: 30 AF
+  BMI NmiDoAttrWriteAlt                         ; $EEF2: 30 AF
   RTS                                           ; $EEF4: 60
 
 @do_bg:
-  LDA nmi_ctrl                                  ; $EEF5: AD 7E 00
+  LDA addr_nmi_ctrl                             ; $EEF5: AD 7E 00
   AND #$7F                                      ; $EEF8: 29 7F
-  STA nmi_ctrl                                  ; $EEFA: 8D 7E 00
+  STA addr_nmi_ctrl                             ; $EEFA: 8D 7E 00
   JMP PpuBgTileWrite                            ; $EEFD: 4C 0B EF
 
 @do_sprite:
-  LDA nmi_ctrl                                  ; $EF00: AD 7E 00
+  LDA addr_nmi_ctrl                             ; $EF00: AD 7E 00
   AND #$BF                                      ; $EF03: 29 BF
-  STA nmi_ctrl                                  ; $EF05: 8D 7E 00
+  STA addr_nmi_ctrl                             ; $EF05: 8D 7E 00
   JMP PpuSpriteTileWrite                        ; $EF08: 4C 71 EF
 .endproc
 
@@ -3255,22 +3278,22 @@ NameScaleTable:
 .endproc
 
 ;===============================================================================
-; $F368: GetRulerDataPtr
-; Masks A to low 4 bits (ruler index 0-6), looks up SRAM pointer.
-; Input: A = value (low nibble = ruler index, 0-6 valid)
-; Output: $0000/$0001 = 16-bit pointer to ruler's 8-byte data block
+; $F368: GetCountryDataPtr
+; Masks A to low 4 bits (country index 0-6), looks up SRAM base pointer.
+; Input: A = value (low nibble = country index, 0-6 valid)
+; Output: $0000/$0001 = 16-bit pointer to country's 8-byte data block
 ;===============================================================================
-.proc GetRulerDataPtr
+.proc GetCountryDataPtr
   AND #$0F                                      ; $F368: 29 0F
   ASL A                                         ; $F36A: 0A
   TAY                                           ; $F36B: A8
-  LDA RulerDataPtrTable,Y                       ; $F36C: B9 79 F3
+  LDA CountryDataPtrTable,Y                     ; $F36C: B9 79 F3
   STA $0000                                     ; $F36F: 8D 00 00
-  LDA RulerDataPtrTable+1,Y                     ; $F372: B9 7A F3
+  LDA CountryDataPtrTable+1,Y                   ; $F372: B9 7A F3
   STA $0001                                     ; $F375: 8D 01 00
   RTS                                           ; $F378: 60
 
-RulerDataPtrTable:
+CountryDataPtrTable:
   .word $6F07                                   ; $F379: 07 6F
   .word $6F0F                                   ; $F37B: 0F 6F
   .word $6F17                                   ; $F37D: 17 6F
@@ -3595,7 +3618,7 @@ MetaTileData:
 NmiDispatchTable:
   .word NmiState0_Idle, NmiState0_Idle          ; $F87B: states 0,1
   .word NmiState2_MapScreen, NmiState3_Battle   ; $F87F: states 2,3
-  .word NmiState4_Menu, NmiState5_Diplomacy     ; $F883: states 4,5
+  .word NmiState4_Menu, NmiState5_Intrigue     ; $F883: states 4,5
   .word NmiState6_Event, NmiState7_Strategy     ; $F887: states 6,7
   .word NmiState8_Officer                       ; $F88B: state 8
 .endproc
@@ -3618,9 +3641,12 @@ NmiDispatchTable:
   INC $54                                       ; $F8A5: E6 54
   INC $55                                       ; $F8A7: E6 55
   INC $5E                                       ; $F8A9: E6 5E
-  BNE @restore_regs                             ; $F8AB: D0 02
+  BNE NmiEpilogueRestoreRegs                    ; $F8AB: D0 02
   INC $5F                                       ; $F8AD: E6 5F
-@restore_regs:
+.endproc
+
+;--- $F8AF: register restore tail (shared with NmiHandler_Busy) ---
+.proc NmiEpilogueRestoreRegs
   PLA                                           ; $F8AF: 68
   TAY                                           ; $F8B0: A8
   PLA                                           ; $F8B1: 68
@@ -3638,7 +3664,7 @@ NmiDispatchTable:
   JSR ControllerRead                            ; $F8C1: 20 C6 E6
   LDY #$2E                                      ; $F8C4: A0 2E
   JSR SwitchBankAC_B                            ; $F8C6: 20 37 F2
-  JSR $A003                                     ; $F8C9: 20 03 A0
+  JSR BattleVBlankFrameUpdate_Entry             ; $F8C9: 20 03 A0  Frame update (bank $0E)
   LDA #$4C                                      ; $F8CC: A9 4C
   STA $A5                                       ; $F8CE: 85 A5
   STA NAMCO_PRG_8000_ALT                        ; $F8D0: 8D 00 F8
@@ -3646,10 +3672,10 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                        ; $F8D6: 20 A9 FA
   LDY #$3D                                      ; $F8D9: A0 3D
   JSR SwitchBankAC_B                            ; $F8DB: 20 37 F2
-  JSR $A003                                     ; $F8DE: 20 03 A0
-  JSR $A009                                     ; $F8E1: 20 09 A0
-  JSR $A00F                                     ; $F8E4: 20 0F A0
-  JSR $A03F                                     ; $F8E7: 20 3F A0
+  JSR B1D_1E_MenuUpdate                         ; $F8DE: 20 03 A0  Menu update (bank $1D)
+  JSR B1D_1E_StateHandler                       ; $F8E1: 20 09 A0  State handler (bank $1D)
+  JSR B1D_1E_OfficerListHandler                 ; $F8E4: 20 0F A0  Officer list handler (bank $1D)
+  JSR B1D_1E_MenuRenderer                       ; $F8E7: 20 3F A0  Menu renderer (bank $1D)
   LDY #$3B                                      ; $F8EA: A0 3B
   JSR SwitchBankAC_B                            ; $F8EC: 20 37 F2
   JSR $A000                                     ; $F8EF: 20 00 A0
@@ -3692,10 +3718,10 @@ NmiDispatchTable:
   JSR $A00F                                     ; $F945: 20 0F A0
   LDY #$2C                                      ; $F948: A0 2C
   JSR SwitchBankAC_B                            ; $F94A: 20 37 F2
-  JSR $A000                                     ; $F94D: 20 00 A0
+  JSR B0C_0D_ExchangeFrameUpdate_Entry          ; $F94D: 20 00 A0  Exchange frame update (bank $0C)
   LDY #$3D                                      ; $F950: A0 3D
   JSR SwitchBankAC_B                            ; $F952: 20 37 F2
-  JSR $A003                                     ; $F955: 20 03 A0
+  JSR B1D_1E_MenuUpdate                         ; $F955: 20 03 A0  Menu update (bank $1D)
   JSR RestorePlayerPointers                     ; $F958: 20 BF FA
   JSR SpriteClearFromIndex                      ; $F95B: 20 30 E8
   LDA $009C                                     ; $F95E: AD 9C 00
@@ -3728,8 +3754,8 @@ NmiDispatchTable:
   JMP NmiEpilogue                               ; $F99D: 4C 8D F8
 .endproc
 
-;--- $F9A0: VBlank handler - diplomacy ---
-.proc NmiState5_Diplomacy
+;--- $F9A0: VBlank handler - intrigue (策略) ---
+.proc NmiState5_Intrigue
   JSR NmiSubDispatch                            ; $F9A0: 20 53 EE
   JSR ChrBankSwitch                             ; $F9A3: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $F9A6: 20 0B FB
@@ -3747,10 +3773,10 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                        ; $F9C5: 20 A9 FA
   LDY #$37                                      ; $F9C8: A0 37
   JSR SwitchBankAC_B                            ; $F9CA: 20 37 F2
-  JSR B17_18_MainGameDispatch                   ; $F9CD: 20 1B A0
+  JSR B17_18_MainGameDispatch                   ; $F9CD: 20 1B A0  Main game dispatch (bank $17)
   LDY #$3D                                      ; $F9D0: A0 3D
   JSR SwitchBankAC_B                            ; $F9D2: 20 37 F2
-  JSR $A003                                     ; $F9D5: 20 03 A0
+  JSR B1D_1E_MenuUpdate                         ; $F9D5: 20 03 A0  Menu update (bank $1D)
   JSR RestorePlayerPointers                     ; $F9D8: 20 BF FA
   JSR SpriteClearFromIndex                      ; $F9DB: 20 30 E8
   JSR WaitVBlank                                ; $F9DE: 20 28 FB
@@ -3771,7 +3797,7 @@ NmiDispatchTable:
   STA NAMCO_PRG_8000_ALT                        ; $F9FC: 8D 00 F8
   LDY #$2A                                      ; $F9FF: A0 2A
   JSR SwitchBankAC_B                            ; $FA01: 20 37 F2
-  JSR $A003                                     ; $FA04: 20 03 A0
+  JSR B0A_0B_SubStateDispatch_Entry             ; $FA04: 20 03 A0  Sub-state dispatch (bank $0A)
   JSR CalcScrollAddr                            ; $FA07: 20 62 FF
   JSR SpriteClearFromIndex                      ; $FA0A: 20 30 E8
   JSR WaitVBlank                                ; $FA0D: 20 28 FB
@@ -3795,10 +3821,10 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                        ; $FA34: 20 A9 FA
   LDY #$3D                                      ; $FA37: A0 3D
   JSR SwitchBankAC_B                            ; $FA39: 20 37 F2
-  JSR $A003                                     ; $FA3C: 20 03 A0
+  JSR B1D_1E_MenuUpdate                         ; $FA3C: 20 03 A0  Menu update (bank $1D)
   LDY #$28                                      ; $FA3F: A0 28
   JSR SwitchBankAC_B                            ; $FA41: 20 37 F2
-  JSR $A024                                     ; $FA44: 20 24 A0
+  JSR B08_09_BattleResultDispatch_Entry         ; $FA44: 20 24 A0  Battle result dispatch (bank $08)
   JSR RestorePlayerPointers                     ; $FA47: 20 BF FA
   JSR SpriteClearFromIndex                      ; $FA4A: 20 30 E8
   JSR WaitVBlank                                ; $FA4D: 20 28 FB
@@ -3818,7 +3844,7 @@ NmiDispatchTable:
   STA $81                                       ; $FA69: 85 81
   LDY #$3D                                      ; $FA6B: A0 3D
   JSR SwitchBankAC_B                            ; $FA6D: 20 37 F2
-  JSR $A003                                     ; $FA70: 20 03 A0
+  JSR B1D_1E_MenuUpdate                         ; $FA70: 20 03 A0  Menu update (bank $1D)
   LDA #$4C                                      ; $FA73: A9 4C
   STA $A5                                       ; $FA75: 85 A5
   STA NAMCO_PRG_8000_ALT                        ; $FA77: 8D 00 F8
@@ -3826,7 +3852,7 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                        ; $FA7D: 20 A9 FA
   LDY #$37                                      ; $FA80: A0 37
   JSR SwitchBankAC_B                            ; $FA82: 20 37 F2
-  JSR B17_18_DomesticActionDispatch             ; $FA85: 20 1E A0
+  JSR B17_18_StrategyCommandDispatch            ; $FA85: 20 1E A0  Strategy command dispatch (bank $17)
   JSR RestorePlayerPointers                     ; $FA88: 20 BF FA
   JSR CalcScrollAddr                            ; $FA8B: 20 62 FF
   JSR SpriteClearFromIndex                      ; $FA8E: 20 30 E8
@@ -3902,7 +3928,7 @@ NmiDispatchTable:
   STA $E3                                       ; $FB00: 85 E3
   STA NAMCO_PRG_C000                            ; $FB02: 8D 00 F0
   JSR WaitVBlank                                ; $FB05: 20 28 FB
-  JMP @restore_regs                             ; $FB08: 4C AF F8
+  JMP NmiEpilogueRestoreRegs                    ; $FB08: 4C AF F8
 .endproc
 
 ;--- $FB0B: Setup CHR banks and wait for sprite-0 ---
@@ -4352,6 +4378,7 @@ ScanlineDelayTable:
   JMP IrqChrUpdate_Block2                       ; $FE5B: 4C FC FB
 @jmp_block4:
   JMP IrqChrUpdate_Block3                       ; $FE5E: 4C 2A FC
+IrqMode7_Exit:
   LDA #$00                                      ; $FE61: A9 00
   STA $0063                                     ; $FE63: 8D 63 00
   JMP IrqMode5_PpuAddrChr                       ; $FE66: 4C 95 FD
