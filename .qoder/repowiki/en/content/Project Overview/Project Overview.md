@@ -20,40 +20,50 @@
 - [asm/banks/prg_08_09.asm](file://asm/banks/prg_08_09.asm)
 - [code/bank_1f_plan.md](file://code/bank_1f_plan.md)
 - [code/key_functions_analysis.md](file://code/key_functions_analysis.md)
+- [docs/manual_kb/README.md](file://docs/manual_kb/README.md)
+- [docs/manual_kb/terminology.md](file://docs/manual_kb/terminology.md)
+- [docs/manual_kb/01-overview.md](file://docs/manual_kb/01-overview.md)
+- [docs/manual_kb/04-strategy-commands.md](file://docs/manual_kb/04-strategy-commands.md)
+- [docs/manual_kb/07-war-rules.md](file://docs/manual_kb/07-war-rules.md)
+- [docs/manual_kb/09-battle-mode.md](file://docs/manual_kb/09-battle-mode.md)
+- [docs/manual_kb/14-map.md](file://docs/manual_kb/14-map.md)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced Section 7 coverage in functions.h with comprehensive B08_09_* function declarations for combined banks 08+09
-- Updated bank organization documentation to reflect the complete AI turn processing and battle system implementation
-- Removed references to stale bank entries (B3D, B3B, B39, B2E, B2C, B2A, B28) that are no longer relevant
-- Expanded technical details for the battle system architecture and AI decision-making processes
+- Added comprehensive documentation of the new knowledge base structure covering 15 structured documents transcribed from original Japanese manual scans
+- Enhanced terminology standardization section with detailed coverage of the semantic English glossary system
+- Updated project structure documentation to include the knowledge base as a core component
+- Expanded educational value section to highlight the knowledge base's role in preserving game terminology and mechanics
+- Added new sections covering knowledge base integration and terminology-driven development workflow
 
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
-5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+5. [Knowledge Base Framework](#knowledge-base-framework)
+6. [Detailed Component Analysis](#detailed-component-analysis)
+7. [Dependency Analysis](#dependency-analysis)
+8. [Performance Considerations](#performance-considerations)
+9. [Troubleshooting Guide](#troubleshooting-guide)
+10. [Conclusion](#conclusion)
+11. [Appendices](#appendices)
 
 ## Introduction
 This project is a complete reverse engineering and disassembly effort for the Namco-163 (Mapper 19) strategy game Sangokushi 2 - Haou no Tairiku (J) for the Nintendo Entertainment System (NES). The goal is to produce a faithful, byte-accurate recreation of the original ROM using modern tooling and a modular, bank-based organization. The project covers 32 programmable PRG banks (256KB) and mirrors the game's mapper abstraction to support 8KB bank switching across four PRG slots ($8000–$FFFF). It also documents the reset handler, vector dispatch mechanism, and the bank-switched code that implements gameplay states, display, audio, and I/O.
 
-Beyond technical reconstruction, this project serves as an educational resource for retro gaming preservation. It demonstrates how to split, analyze, and rebuild a complex mapper-based ROM while maintaining byte-for-byte fidelity, and it provides a reusable framework applicable to other games using similar mappers.
+Beyond technical reconstruction, this project serves as an educational resource for retro gaming preservation. It demonstrates how to split, analyze, and rebuild a complex mapper-based ROM while maintaining byte-for-byte fidelity, and it provides a reusable framework applicable to other games using similar mappers. **The project now includes a comprehensive knowledge base structure containing 15 structured documents transcribed from the original Japanese manual scans**, establishing a canonical reference framework for terminology standardization and game mechanics understanding throughout the disassembly process.
 
 ## Project Structure
-The repository is organized around a modular bank-based approach and a cc65 toolchain integration. The structure supports incremental disassembly and verification:
+The repository is organized around a modular bank-based approach and a cc65 toolchain integration, enhanced by a structured knowledge base system. The structure supports incremental disassembly and verification:
 
 - asm/: Assembly entry point and per-bank stubs
 - include/: 6502/PPU/APU/Namco-163 register and macro definitions
 - rom/: Split PRG/CHR banks and combined binaries
 - tools/: Python scripts for ROM splitting, analysis, disassembly, bank stub generation, and verification
 - code/: Disassembly plans and analyses for key banks and functions
+- docs/manual_kb/: **New** Comprehensive knowledge base with 15 structured documents from original Japanese manual
 - build/: Build outputs (object files, listings, map, and final ROM)
 - Top-level configuration: Makefile and linker.cfg
 
@@ -69,19 +79,22 @@ F["asm/banks/*.asm"]
 G["rom/*"]
 H["tools/*"]
 I["code/*"]
+J["docs/manual_kb/*"]
 end
 subgraph "Build System"
-J["ca65/ld65"]
-K["build/"]
+K["ca65/ld65"]
+L["build/"]
 end
-A --> B --> J
-C --> J
-D --> J
-E --> J
-F --> J
-H --> J
+A --> B --> K
+C --> K
+D --> K
+E --> K
+F --> K
+H --> K
+I --> K
 J --> K
-K --> G
+K --> L
+L --> G
 ```
 
 **Diagram sources**
@@ -99,11 +112,13 @@ K --> G
 - Automated analysis pipeline: Python tools split the ROM, analyze structure, generate bank stubs, disassemble binaries, and verify byte-identical rebuilds.
 - Mapper abstraction: include/namco163.h defines register addresses, bank indices, and macros for bank switching, enabling consistent mapper usage across code.
 - Reset handler and vector dispatch: asm/main.asm and asm/banks/prg_1f.asm implement the reset routine and a vector table-driven state machine that dispatches to game logic across banks.
+- **Knowledge base framework**: Structured documentation system providing canonical terminology and game mechanics reference for consistent disassembly naming and understanding.
 
 Practical outcomes:
 - Byte-accurate ROM verification against the original
 - Incremental disassembly workflow from the boot bank to other banks
 - Reusable bank stubs and linker segments for ongoing analysis
+- **Standardized terminology framework for consistent label naming across all disassembled code**
 
 **Section sources**
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
@@ -126,10 +141,12 @@ RST["Reset Handler<br/>Bank 0x1F $E000"]
 VEC["Vector Dispatch<br/>Bank 0x1F $E07C"]
 STATE["State Handlers<br/>Bank 0x1F + Others"]
 MAP["Mapper Abstraction<br/>include/namco163.h"]
+KB["Knowledge Base<br/>docs/manual_kb/*"]
 end
 RST --> VEC
 VEC --> STATE
 STATE --> MAP
+STATE --> KB
 MAP --> CART
 CART --> PPU
 CART --> APU
@@ -143,6 +160,49 @@ CART --> APU
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
 - [include/namco163.h:10-87](file://include/namco163.h#L10-L87)
+
+## Knowledge Base Framework
+**Updated** The project now includes a comprehensive knowledge base structure consisting of 15 structured documents transcribed from the original Japanese manual scans. This framework establishes a canonical reference system for terminology standardization and game mechanics understanding throughout the disassembly process.
+
+### Knowledge Base Structure
+The knowledge base is organized into thematic categories covering all aspects of the game:
+
+| Category | Documents | Purpose |
+|----------|-----------|---------|
+| **Overview & Setup** | 01-overview.md | Game premise, modes, victory rules, setup flow |
+| **Statistics & Data** | 02-general-stats.md, 03-country-stats.md | Officer attributes, country statistics |
+| **Gameplay Mechanics** | 04-strategy-commands.md, 05-events.md | Strategy mode commands, monthly events |
+| **Reference Tables** | 06-reference-tables.md | Quick reference tables for operations |
+| **War System** | 07-war-rules.md | War rules, victory conditions, processing |
+| **Tactical Systems** | 08-tactical-mode.md, 09-battle-mode.md, 10-duel-mode.md | Tactical, battle, and duel mode mechanics |
+| **Progression** | 11-levelup.md | Officer level-up system |
+| **Strategy & Guidance** | 12-strategy-advice.md, 13-ruler-guide.md | Strategic advice and ruler-specific guides |
+| **World Map** | 14-map.md | Complete 30-country faction map |
+
+### Terminology Standardization System
+The consolidated semantic English glossary ([terminology.md](file://docs/manual_kb/terminology.md)) serves as the authoritative vocabulary source for naming labels, procedures, and RAM symbols throughout the disassembly. Key features include:
+
+- **PascalCase Convention**: All identifiers follow established PascalCase semantic-English convention (e.g., `StratagemExecute`, `FormationSelect`)
+- **Domain-Specific Naming**: Dispatch/handler routines follow patterns like `<Domain>ActionDispatch`, `<Domain>CommandSelect`
+- **Mode Hierarchy**: Clear distinction between Strategy Mode, Tactical Mode, Battle Mode, and Duel Mode
+- **Statistical Terminology**: Canonical names for officer stats, country data, and game variables
+
+```mermaid
+flowchart TD
+KB[Knowledge Base] --> TERM[Terminology Glossary]
+TERM --> NAMING[Disassembly Naming]
+NAMING --> CODE[Consistent Code Labels]
+CODE --> UNDERSTANDING[Enhanced Understanding]
+UNDERSTANDING --> MAINTENANCE[Easier Maintenance]
+```
+
+**Diagram sources**
+- [docs/manual_kb/README.md:1-15](file://docs/manual_kb/README.md#L1-L15)
+- [docs/manual_kb/terminology.md:1-16](file://docs/manual_kb/terminology.md#L1-L16)
+
+**Section sources**
+- [docs/manual_kb/README.md:16-97](file://docs/manual_kb/README.md#L16-L97)
+- [docs/manual_kb/terminology.md:17-293](file://docs/manual_kb/terminology.md#L17-L293)
 
 ## Detailed Component Analysis
 
@@ -299,10 +359,10 @@ PRG2 --> PRG3
 ```
 
 **Diagram sources**
-- [linker.cfg:18-54](file://linker.cfg#L18-L54)
+- [linker.cfg:18-54](file://linker.cfg#L18-54)
 
 **Section sources**
-- [linker.cfg:18-54](file://linker.cfg#L18-L54)
+- [linker.cfg:18-54](file://linker.cfg#L18-54)
 - [PROJECT.md:152-158](file://PROJECT.md#L152-L158)
 
 ### Practical Workflow: From ROM to Verified Disassembly
@@ -312,6 +372,7 @@ PRG2 --> PRG3
 - Disassemble the boot bank (0x1F) first to understand the reset handler and vector dispatch
 - Replace stubs with real disassembly and update linker.cfg segments accordingly
 - Build with cc65 and verify byte-for-byte against the original
+- **Use knowledge base terminology for consistent labeling throughout the process**
 
 ```mermaid
 sequenceDiagram
@@ -320,6 +381,7 @@ participant Split as "split_rom.py"
 participant Analyze as "analyze_rom.py"
 participant Stubs as "generate_bank_stubs.py"
 participant Disasm as "disasm_6502.py"
+participant KB as "Knowledge Base"
 participant Build as "Makefile + ld65"
 participant Verify as "verify_rom.py"
 Dev->>Split : Split original ROM
@@ -328,6 +390,8 @@ Dev->>Analyze : Analyze ROM structure
 Analyze-->>Dev : Vector/table candidates
 Dev->>Stubs : Generate bank stubs
 Stubs-->>Dev : .asm stubs for all banks
+Dev->>KB : Consult terminology guide
+KB-->>Dev : Canonical naming conventions
 Dev->>Disasm : Disassemble boot bank (0x1F)
 Disasm-->>Dev : Listing with addresses
 Dev->>Build : Assemble and link
@@ -359,6 +423,7 @@ The project exhibits strong cohesion within its modular bank structure and clean
 - asm/main.asm depends on include/namco163.h and include/6502_registers.h for mapper and register definitions
 - Bank stubs in asm/banks/ depend on rom/prg/ for original binary inclusion and on linker.cfg for segment placement
 - Tools are decoupled and invoked via Makefile targets, enabling reproducible builds
+- **Knowledge base documents provide cross-references between game mechanics and implementation details**
 
 ```mermaid
 graph TB
@@ -370,6 +435,7 @@ STUBS["asm/banks/*.asm"]
 ROM["rom/prg/*.bin"]
 MK["Makefile"]
 TOOLS["tools/*"]
+KB["docs/manual_kb/*"]
 MAIN --> REG
 MAIN --> MAP
 STUBS --> ROM
@@ -377,20 +443,22 @@ STUBS --> LCFG
 MK --> MAIN
 MK --> LCFG
 MK --> TOOLS
+KB --> STUBS
+KB --> TOOLS
 ```
 
 **Diagram sources**
 - [asm/main.asm:6-7](file://asm/main.asm#L6-L7)
 - [include/namco163.h:10-87](file://include/namco163.h#L10-L87)
 - [include/6502_registers.h:5-43](file://include/6502_registers.h#L5-L43)
-- [linker.cfg:18-54](file://linker.cfg#L18-L54)
+- [linker.cfg:18-54](file://linker.cfg#L18-54)
 - [Makefile:19-28](file://Makefile#L19-L28)
 
 **Section sources**
 - [asm/main.asm:6-7](file://asm/main.asm#L6-L7)
 - [include/namco163.h:10-87](file://include/namco163.h#L10-L87)
 - [include/6502_registers.h:5-43](file://include/6502_registers.h#L5-L43)
-- [linker.cfg:18-54](file://linker.cfg#L18-L54)
+- [linker.cfg:18-54](file://linker.cfg#L18-54)
 - [Makefile:19-28](file://Makefile#L19-L28)
 
 ## Performance Considerations
@@ -398,6 +466,7 @@ MK --> TOOLS
 - PPU/APU initialization: Warmup sequences and register writes are batched to avoid flicker and ensure deterministic timing.
 - Disassembly accuracy: Using a dedicated disassembler with correct addressing modes and base addresses prevents misinterpretation of data as code, reducing rework during verification.
 - AI processing efficiency: The enhanced Section 7 implementation optimizes AI turn processing through efficient officer scanning and decision trees.
+- **Knowledge base integration**: Terminology consistency reduces cognitive load during development and maintenance, improving overall productivity.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -406,14 +475,15 @@ Common issues and remedies:
 - Disassembler base address errors: When disassembling banked code, use the correct base address so that CPU addresses map to file offsets accurately.
 - Verification failures: Use tools/verify_rom.py to pinpoint mismatch locations and iterate until byte-identical matches are achieved.
 - Section 7 integration: When working with combined banks 08+09, ensure proper bank switching between $A000-$BFFF and $C000-$DFFF ranges.
+- **Terminology inconsistencies**: Refer to docs/manual_kb/terminology.md for canonical naming conventions when creating new labels or procedures.
 
 **Section sources**
 - [include/namco163.h:10-87](file://include/namco163.h#L10-L87)
-- [linker.cfg:18-54](file://linker.cfg#L18-L54)
+- [linker.cfg:18-54](file://linker.cfg#L18-54)
 - [tools/verify_rom.py:10-51](file://tools/verify_rom.py#L10-L51)
 
 ## Conclusion
-This project demonstrates a robust, modular approach to reverse engineering a mapper-based NES game. By combining a mapper abstraction, bank-stubbed assembly, and an automated analysis pipeline, it achieves both educational clarity and technical fidelity. The enhanced Section 7 coverage for combined banks 08+09 provides comprehensive documentation of the AI turn processing and battle system, contributing significantly to understanding the game's strategic mechanics. The workflow from ROM splitting to verified disassembly provides a template applicable to other classic games, contributing to the preservation and understanding of NES architecture.
+This project demonstrates a robust, modular approach to reverse engineering a mapper-based NES game. By combining a mapper abstraction, bank-stubbed assembly, an automated analysis pipeline, and a comprehensive knowledge base framework, it achieves both educational clarity and technical fidelity. The enhanced Section 7 coverage for combined banks 08+09 provides comprehensive documentation of the AI turn processing and battle system, contributing significantly to understanding the game's strategic mechanics. **The addition of the knowledge base structure represents a major advancement in the project's ability to preserve and communicate game terminology and mechanics.** The workflow from ROM splitting to verified disassembly provides a template applicable to other classic games, contributing to the preservation and understanding of NES architecture.
 
 ## Appendices
 
@@ -422,6 +492,7 @@ This project demonstrates a robust, modular approach to reverse engineering a ma
 - Vector dispatch: A table of addresses that the reset handler consults to decide where to jump next. It enables a compact dispatch mechanism across many states.
 - Mapper abstraction: Encapsulating mapper-specific details (register addresses, bank indices, macros) in a single header file simplifies code reuse and reduces errors.
 - Combined banks: Multiple 8KB banks can be logically combined to create larger functional units, such as the 16KB AI and battle system in banks 08+09.
+- **Knowledge base utilization**: The structured documentation system provides authoritative references for game terminology, mechanics, and implementation guidance throughout the disassembly process.
 
 **Section sources**
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
@@ -432,9 +503,28 @@ This project demonstrates a robust, modular approach to reverse engineering a ma
 - Interrupt vectors: Ensure the reset vector points to the boot bank and that NMI/IRQ vectors are correctly placed in the vector area.
 - Data vs code: Use tools/disasm_6502.py with accurate base addresses to distinguish data from code. Replace stubs with proper segments and labels.
 - Section 7 development: When extending the AI system, maintain consistency with existing B08_09_* naming conventions and follow the established jump table pattern.
+- **Knowledge base integration**: Leverage the terminology glossary and game mechanics documentation to ensure consistent naming and understanding across all disassembled components.
 
 **Section sources**
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 - [PROJECT.md:134-151](file://PROJECT.md#L134-L151)
 - [tools/disasm_6502.py:286-334](file://tools/disasm_6502.py#L286-L334)
 - [include/functions.h:887-1071](file://include/functions.h#L887-L1071)
+
+### Knowledge Base Integration Guide
+**New** The knowledge base serves as a central reference for understanding game mechanics and ensuring consistent terminology throughout the disassembly process.
+
+#### Key Resources
+- **Primary Reference**: [docs/manual_kb/README.md](file://docs/manual_kb/README.md) - Complete index and scan-to-page mapping
+- **Terminology Authority**: [docs/manual_kb/terminology.md](file://docs/manual_kb/terminology.md) - Consolidated semantic English glossary
+- **Game Mechanics**: Individual documents covering specific aspects of gameplay (strategy commands, battle systems, etc.)
+
+#### Usage Patterns
+1. **Before implementing new features**: Consult relevant knowledge base documents for canonical terminology
+2. **When naming labels/procedures**: Follow PascalCase semantic-English conventions from terminology.md
+3. **For understanding game logic**: Reference specific mechanic documents for accurate implementation
+4. **During code review**: Verify terminology consistency against the knowledge base
+
+**Section sources**
+- [docs/manual_kb/README.md:1-97](file://docs/manual_kb/README.md#L1-L97)
+- [docs/manual_kb/terminology.md:1-293](file://docs/manual_kb/terminology.md#L1-L293)

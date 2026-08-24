@@ -1,0 +1,12 @@
+chr_0b ptable 3 ($1800): digits76-7F px=[18, 19, 18, 18, 19, 10, 24, 18, 19, 18] tile0=0 kana-like($20-75)=85 sym76=2
+chr_0c ptable 0 ($0000): digits76-7F px=[17, 17, 26, 18, 13, 17, 26, 22, 17, 16] tile0=21 kana-like($20-75)=84 sym76=1
+chr_0c ptable 1 ($0800): digits76-7F px=[20, 23, 11, 11, 15, 14, 30, 23, 18, 23] tile0=12 kana-like($20-75)=86 sym76=1
+chr_0c ptable 2 ($1000): digits76-7F px=[19, 25, 24, 23, 18, 28, 22, 19, 13, 15] tile0=21 kana-like($20-75)=85 sym76=1
+chr_0c ptable 3 ($1800): digits76-7F px=[20, 18, 22, 17, 20, 23, 30, 23, 23, 20] tile0=25 kana-like($20-75)=83 sym76=1
+chr_0d ptable 0 ($0000): digits76-7F px=[13, 17, 23, 16, 19, 23, 21, 15, 16, 22] tile0=22 kana-like($20-75)=85 sym76=2
+chr_0d ptable 2 ($1000): digits76-7F px=[27, 19, 16, 11, 12, 17, 13, 15, 10, 15] tile0=17 kana-like($20-75)=84 sym76=1
+chr_0e ptable 0 ($0000): digits76-7F px=[24, 24, 17, 23, 24, 17, 18, 22, 26, 26] tile0=22 kana-like($20-75)=86 sym76=2
+chr_0e ptable 1 ($0800): digits76-7F px=[24, 19, 20, 19, 21, 25, 16, 24, 22, 22] tile0=16 kana-like($20-75)=86 sym76=1
+chr_14 ptable 2 ($1000): digits76-7F px=[30, 31, 19, 35, 23, 27, 27, 21, 27, 27] tile0=0 kana-like($20-75)=79 sym76=6
+chr_16 ptable 1 ($0800): digits76-7F px=[13, 12, 20, 24, 15, 23, 35, 26, 15, 21] tile0=63 kana-like($20-75)=80 sym76=1
+chr_1c ptable 0 ($0000): digits76-7F px=[34, 37, 32, 39, 35, 31, 31, 32, 21, 35] tile0=0 kana-like($20-75)=85 sym76=0

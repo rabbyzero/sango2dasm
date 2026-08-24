@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""Find remaining command-list strings (army/town/warehouse) in all banks."""
+data = open('rom/prg_combined.bin', 'rb').read()
+
+patterns = {
+    'チョウヘイ': bytes([0x14, 0x37, 0x06, 0x20, 0x05]),
+    'シュツジン': bytes([0x0F, 0x36, 0x15, 0x0F, 0x39, 0x31]),
+    'テイサツ(軍)': bytes([0x16, 0x05, 0x0E, 0x15]),  # テイサツ katakana
+    'ニンメイ': bytes([0x19, 0x31, 0x25, 0x05]),
+    'ブキヤ': bytes([0x1F, 0x39, 0x0A, 0x27]),
+    'ガクモンジョ': bytes([0x09, 0x39, 0x0B, 0x26, 0x31, 0x0F, 0x39, 0x37]),
+    'ビョウイン': bytes([0x1E, 0x3A, 0x37, 0x06, 0x05, 0x31]),
+    'ショウテン': bytes([0x0F, 0x37, 0x06, 0x16, 0x31]),
+    'あたえる': bytes([0x44, 0x53, 0x47, 0x6C]),
+}
+for name, pat in patterns.items():
+    print(name)
+    i = 0
+    n = 0
+    while n < 6:
+        i = data.find(pat, i)
+        if i < 0:
+            break
+        print(f'  bank {i // 0x2000:02X} @{0x8000 + i % 0x2000:04X}')
+        i += 1
+        n += 1
+    if not n:
+        print('  (not found)')

@@ -78,7 +78,7 @@ Columns: stratagem, required 知力 (?), condition, effect.
 | 連環 | Renkan | multiple enemies adjacent across 川 | Immobilize the linked enemies |
 | 十面埋伏 | Juumen Maifuku | enemies in forest within 5 tiles left/right | Ambush: reduce invading enemy troops |
 | 水攻 | Suikou | multiple enemies adjacent across water | Water attack: enemies fight each other |
-| (雲梯?) | (?) | enemy adjacent to own castle | Rain arrows: reduce enemy troops |
+| 連弩 | Rendou | enemy adjacent to own castle | Rain arrows: reduce enemy troops |
 | 劫火 | Gouka | enemies adjacent outside 城/砂地 | Surround multiple enemies with fire |
 | 奇門遁甲 | Kimon Tonkou | not 城/川 | Halt enemies and reduce troops (effective 5–8 days) |
 

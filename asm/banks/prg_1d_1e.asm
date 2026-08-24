@@ -6,7 +6,7 @@
 ; Bank $1D at $A000-$BFFF, Bank $1E at $C000-$DFFF
 ;
 ; Bank $1D: Jump table ($A000-$A047), code, tile data, menu handlers
-; Bank $1E: Domestic affairs dispatch, tile data, SRAM save/load
+; Bank $1E: Strategy Mode command dispatch, tile data, SRAM save/load
 ;===============================================================================
 
 .include "6502_registers.h"
@@ -207,7 +207,7 @@ menu_action_param = $04A4  ; menu action parameter (various MenuAction procs)
 menu_action_param2 = $04A5 ; menu action parameter 2 (various MenuAction procs)
 ; officer_name_disp = 04AE  ; (OfficerNameDisplay local)
 menu_row_limit    = $04CC  ; menu row limit (MenuRenderer, OfficerRecCalc)
-menu_disp_row_ctr = $04D0  ; menu display row counter (MenuRenderer, DomesticMenu_Return)
+menu_disp_row_ctr = $04D0  ; menu display row counter (MenuRenderer, StrategyMenu_Return)
 officer_rec_src_lo = $04D2 ; officer record source ptr lo (OfficerRecCalc)
 officer_rec_src_hi = $04D3 ; officer record source ptr hi (OfficerRecCalc)
 officer_rec_dst_lo = $04D4 ; officer record dest ptr lo (OfficerRecCalc)
@@ -1931,15 +1931,15 @@ StateHandler:
   LDY #$00                                ; $ACE4: A0 00
   LDA ($00),Y                             ; $ACE6: B1 00
   CMP #$07                                ; $ACE8: C9 07
-  BNE @load_kingdom_template                            ; $ACEA: D0 05
+  BNE @load_country_template                            ; $ACEA: D0 05
   LDA #$FF                                ; $ACEC: A9 FF
   JMP @init_province_timer                            ; $ACEE: 4C 03 AD
-@load_kingdom_template:
+@load_country_template:
   ASL A                                   ; $ACF1: 0A
   TAY                                     ; $ACF2: A8
-  LDA KingdomTemplatePtrs,Y                  ; $ACF3: B9 84 AD
+  LDA CountryTemplatePtrs,Y                  ; $ACF3: B9 84 AD
   STA $0000                               ; $ACF6: 8D 00 00
-  LDA KingdomTemplatePtrs+1,Y                ; $ACF9: B9 85 AD
+  LDA CountryTemplatePtrs+1,Y                ; $ACF9: B9 85 AD
   STA $0001                               ; $ACFC: 8D 01 00
   LDY #$00                                ; $ACFF: A0 00
   LDA ($00),Y                             ; $AD01: B1 00
@@ -1998,10 +1998,10 @@ StateHandler:
   ADC $0144                               ; $AD7B: 6D 44 01
   STA $0144                               ; $AD7E: 8D 44 01
   JMP @advance_state                          ; $AD81: 4C F3 AD
-; --- Data Region: KingdomTemplatePtrs ---
-KingdomTemplatePtrs:
-  .word $6F07, $6F0F, $6F17, $6F1F          ; $AD84: template pointers by kingdom type (0-3)
-  .word $6F27, $6F2F, $6F37                   ; $AD8C: template pointers by kingdom type (4-6)
+; --- Data Region: CountryTemplatePtrs ---
+CountryTemplatePtrs:
+  .word $6F07, $6F0F, $6F17, $6F1F          ; $AD84: template pointers by country type (0-3)
+  .word $6F27, $6F2F, $6F37                   ; $AD8C: template pointers by country type (4-6)
 @init_window_mode:
   LDA #$22                                ; $AD92: A9 22
   STA $0142                               ; $AD94: 8D 42 01
@@ -3451,6 +3451,20 @@ MenuRenderer:
   BNE @menu_dispatch                            ; $BE39: D0 01
   RTS                                     ; $BE3B: 60
 @menu_dispatch:
+; Menu screen dispatch table ($BE75-$BEBA), indexed by menu id $04A2.
+; These are Strategy Mode UI screens (docs/manual_kb/04-strategy-commands.md).
+; In-game menu vocabulary (decoded from the PRG bank $33 text streams with the
+; kana char map, see tools/charmap_kana.py HIRAGANA_MENU):
+;   Castle (城): クニづくり{トチのカイコン,サンギョウのハッテン,マチのカイハツ},
+;                ブショウのいどう, ジョウホウあつめ, ボウサイ,
+;                サクリャク{ドウメイ,リカン,ヒキヌキ}, キロクする
+;   Army (軍隊): シュツジン / チョウヘイ / テイサツ / ニンメイ
+;   Warehouse (倉): ブッシをはこぶ / あたえる
+;   Town (町): ブキヤ / ガクモンジョ / ビョウイン / ショウテン
+; There is NO castle-repair/tax/capital-move/execute/exile command in that
+; vocabulary; handlers whose names match the catalog are confirmed, the rest
+; (05/06, 08, 0D, 0E, 19 ...) remain unresolved; 07/10/1A are event screens
+; (country end / successor selection / officer death), 14 is the 商店 (Market).
   BMI @check_low                            ; $BE3C: 30 1F
   STA $04A2                               ; $BE3E: 8D A2 04
   DEC $04A2                               ; $BE41: CE A2 04
@@ -3479,32 +3493,32 @@ MenuRenderer:
 @menu_dispatch_table:
   .word MenuAction00_InitialSetup         ; $BE75: -> $BEBB
   .word MenuAction01_DisplaySetup         ; $BE77: -> $BEEB
-  .word MenuAction02_LandDevelop          ; $BE79: -> $BF2F
-  .word MenuAction03_FloodControlSetup     ; $BE7B: -> $BF70
-  .word MenuAction04_FloodControl          ; $BE7D: -> $BFBF
-  .word MenuAction05_CastleRepairSetup     ; $BE7F: -> $BFF3
-  .word MenuAction06_CastleRepair          ; $BE81: -> $C046
-  .word MenuAction07_TaxRate               ; $BE83: -> $C090
+  .word MenuAction02_LandReclamation       ; $BE79: -> $BF2F
+  .word MenuAction03_DisasterPreventionSetup ; $BE7B: -> $BF70
+  .word MenuAction04_DisasterPrevention    ; $BE7D: -> $BFBF
+  .word MenuAction05_UnidentifiedCmdSetup  ; $BE7F: -> $BFF3
+  .word MenuAction06_UnidentifiedCmd       ; $BE81: -> $C046
+  .word MenuAction07_CountryEnd            ; $BE83: -> $C090
   .word MenuAction08_GoldDistribution      ; $BE85: -> $C0C8
-  .word MenuAction09_FoodDistribution      ; $BE87: -> $C123
-  .word MenuAction0A_RecruitSoldiers       ; $BE89: -> $C168
+  .word MenuAction09_RiceDistribution      ; $BE87: -> $C123
+  .word MenuAction0A_Conscription          ; $BE89: -> $C168
   .word MenuAction0B_HireOfficer           ; $BE8B: -> $C1AC
   .word MenuAction0C_TransferOfficer       ; $BE8D: -> $C1FA
-  .word MenuAction0D_ExecuteOfficer        ; $BE8F: -> $C25D
-  .word MenuAction0E_ExileOfficer          ; $BE91: -> $C2DD
+  .word MenuAction0D_UnidentifiedCmd       ; $BE8F: -> $C25D
+  .word MenuAction0E_UnidentifiedCmd       ; $BE91: -> $C2DD
   .word MenuAction0F_GiveItem              ; $BE93: -> $C33D
-  .word MenuAction10_MoveCapital           ; $BE95: -> $C3A2
+  .word MenuAction10_SuccessorSelection    ; $BE95: -> $C3A2
   .word MenuAction11_Intrigue             ; $BE97: -> $C3F6
-  .word MenuAction12_War                   ; $BE99: -> $C43E
-  .word MenuAction13_Spy                   ; $BE9B: -> $C4E1
-  .word MenuAction14_Accounting            ; $BE9D: -> $C511
+  .word MenuAction12_Sortie                ; $BE99: -> $C43E
+  .word MenuAction13_Reconnaissance        ; $BE9B: -> $C4E1
+  .word MenuAction14_Market                ; $BE9D: -> $C511
   .word MenuAction15_Exchange              ; $BE9F: -> $C556
   .word MenuAction16_Trade                 ; $BEA1: -> $C5B1
   .word MenuAction17_SearchOfficer         ; $BEA3: -> $C5F7
   .word MenuAction18_SearchItem            ; $BEA5: -> $C636
-  .word MenuAction19_InspectLand           ; $BEA7: -> $C67D
-  .word MenuAction1A_PersonalAffairs       ; $BEA9: -> $C6C6
-  .word MenuAction1B_DomesticDispatch      ; $BEAB: -> $C75F
+  .word MenuAction19_UnidentifiedCmd       ; $BEA7: -> $C67D
+  .word MenuAction1A_OfficerDeath          ; $BEA9: -> $C6C6
+  .word MenuAction1B_StrategyCommandDispatch ; $BEAB: -> $C75F
   .word MenuAction1C_CopyTileData          ; $BEAD: -> $C7D1
   .word MenuAction1D_SetupActionDisplay    ; $BEAF: -> $C800
   .word MenuAction1E_CalcParams            ; $BEB1: -> $C830
@@ -3536,7 +3550,7 @@ MenuAction00_InitialSetup:
 @set_row:
   STA $04A1                               ; $BEE2: 8D A1 04
   INC $04A1                               ; $BEE5: EE A1 04
-  JMP DomesticMenu_Return                        ; $BEE8: 4C 34 C9
+  JMP StrategyMenu_Return                        ; $BEE8: 4C 34 C9
 .endproc
 
 .proc MenuAction01_DisplaySetup
@@ -3569,7 +3583,7 @@ MenuAction01_DisplaySetup:
   TAY                                     ; $BF1F: A8
   LDA $BF29,Y                             ; $BF20: B9 29 BF
   STA $04A1                               ; $BF23: 8D A1 04
-  JMP DomesticMenu_Return                        ; $BF26: 4C 34 C9
+  JMP StrategyMenu_Return                        ; $BF26: 4C 34 C9
 @MenuAction01_RowTable:
   .byte $01, $02                          ; $BF29: 01 02
   .byte $03                               ; $BF2B: 03
@@ -3578,8 +3592,8 @@ MenuAction01_DisplaySetup:
   .byte $02                               ; $BF2E: 02
 .endproc
 
-.proc MenuAction02_LandDevelop
-MenuAction02_LandDevelop:
+.proc MenuAction02_LandReclamation
+MenuAction02_LandReclamation:
   LDA $04A1                               ; $BF2F: AD A1 04
   BNE @load_row2                            ; $BF32: D0 09
   LDA #$E1                                ; $BF34: A9 E1
@@ -3614,11 +3628,11 @@ MenuAction02_LandDevelop:
   CPY $0000                               ; $BF68: CC 00 00
   BNE @clear_sprites                            ; $BF6B: D0 F4
 @menu_return:
-  JMP DomesticMenu_Return                        ; $BF6D: 4C 34 C9
+  JMP StrategyMenu_Return                        ; $BF6D: 4C 34 C9
 .endproc
 
-.proc MenuAction03_FloodControlSetup
-MenuAction03_FloodControlSetup:
+.proc MenuAction03_DisasterPreventionSetup
+MenuAction03_DisasterPreventionSetup:
   LDA $04A1                               ; $BF70: AD A1 04
   BNE @load_row3                            ; $BF73: D0 13
   LDA #$E9                                ; $BF75: A9 E9
@@ -3654,11 +3668,11 @@ MenuAction03_FloodControlSetup:
   CLC                                     ; $BFB6: 18
   ADC #$03                                ; $BFB7: 69 03
   STA $04A4                               ; $BFB9: 8D A4 04
-  JMP DomesticMenu_Return                        ; $BFBC: 4C 34 C9
+  JMP StrategyMenu_Return                        ; $BFBC: 4C 34 C9
 .endproc
 
-.proc MenuAction04_FloodControl
-MenuAction04_FloodControl:
+.proc MenuAction04_DisasterPrevention
+MenuAction04_DisasterPrevention:
   LDA $04A1                               ; $BFBF: AD A1 04
   BNE @load_row4                            ; $BFC2: D0 0E
   LDA #$D1                                ; $BFC4: A9 D1
@@ -3681,11 +3695,15 @@ MenuAction04_FloodControl:
   AND #$01                                ; $BFE8: 29 01
   STA $04A1                               ; $BFEA: 8D A1 04
   INC $04A1                               ; $BFED: EE A1 04
-  JMP DomesticMenu_Return                        ; $BFF0: 4C 34 C9
+  JMP StrategyMenu_Return                        ; $BFF0: 4C 34 C9
 .endproc
 
-.proc MenuAction05_CastleRepairSetup
-MenuAction05_CastleRepairSetup:
+.proc MenuAction05_UnidentifiedCmdSetup
+MenuAction05_UnidentifiedCmdSetup:
+  ; NOT castle repair: no such command exists in the decoded in-game menu
+  ; vocabulary. Setup/exec pair (05/06) sharing the province-panel streams
+  ; with 03/04; menu IDs $05/$06 are assigned in PRG bank $1A together with
+  ; $09 (candidate: ブッシをはこぶ SupplyTransport setup/exec).
   LDA $04A1                               ; $BFF3: AD A1 04
   .byte $D0, $18                          ; $BFF6: D0 18 (BNE $C010 = MenuAction05_LoadRows)
   LDA #$C6                                ; $BFF8: A9 C6
@@ -3729,11 +3747,11 @@ MenuAction05_CastleRepairSetup:
   CLC                                                   ; $C03D: 18
   ADC #$03                                              ; $C03E: 69 03
   STA $04A4                                             ; $C040: 8D A4 04
-  JMP DomesticMenu_Return                                      ; $C043: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C043: 4C 34 C9
 .endproc
 
-.proc MenuAction06_CastleRepair
-MenuAction06_CastleRepair:
+.proc MenuAction06_UnidentifiedCmd
+MenuAction06_UnidentifiedCmd:
   LDA $04A1                                             ; $C046: AD A1 04
   BNE MenuAction06_LoadRows                                 ; $C049: D0 13
   LDA #$EA                                              ; $C04B: A9 EA
@@ -3744,6 +3762,7 @@ MenuAction06_CastleRepair:
   LDA #$78                                              ; $C058: A9 78
   STA $04A3                                             ; $C05A: 8D A3 04
   RTS                                                   ; $C05D: 60
+MenuAction06_LoadRows:
   LDA #$83                                              ; $C05E: A9 83
   STA $0010                                             ; $C060: 8D 10 00
   LDA #$83                                              ; $C063: A9 83
@@ -3758,13 +3777,16 @@ MenuAction06_CastleRepair:
   TAY                                                   ; $C076: A8
   LDA $C080,Y                                           ; $C077: B9 80 C0
   STA $04A1                                             ; $C07A: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C07D: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C07D: 4C 34 C9
 @MenuAction06_RowTable:
   .byte $01, $02, $03, $03, $03, $03, $03, $02, $02, $02, $02, $01, $01, $01, $01, $01 ; $C080: 01 02 03 03 03 03 03 02 02 02 02 01 01 01 01 01
 .endproc
 
-.proc MenuAction07_TaxRate
-MenuAction07_TaxRate:
+.proc MenuAction07_CountryEnd
+MenuAction07_CountryEnd:
+  ; NOT a tax-rate screen: "このクニにフショウはいません" (this country has no
+  ; officers) sentences the end of a country — country-end event screen; the
+  ; row loader is shared with Action04.
   LDA $04A1                                             ; $C090: AD A1 04
   BNE MenuAction07_LoadRows                                 ; $C093: D0 09
   LDA #$B7                                              ; $C095: A9 B7
@@ -3774,7 +3796,7 @@ MenuAction07_TaxRate:
 
 ;===============================================================================
 MenuAction07_LoadRows:
-; $C09E: Action04_FloodControl
+; $C09E: Action04_DisasterPrevention
 ;===============================================================================
   LDA #$54                                              ; $C09E: A9 54
   STA $0010                                             ; $C0A0: 8D 10 00
@@ -3784,7 +3806,7 @@ MenuAction07_LoadRows:
   JSR DisplayTileData                                   ; $C0AB: 20 94 C9
   LDA $04A1                                             ; $C0AE: AD A1 04
   CMP #$03                                              ; $C0B1: C9 03
-  BEQ @floodControlDone                                    ; $C0B3: F0 10
+  BEQ @disasterPreventionDone                                    ; $C0B3: F0 10
   LDA $04A3                                             ; $C0B5: AD A3 04
   LSR                                                   ; $C0B8: 4A
   LSR                                                   ; $C0B9: 4A
@@ -3795,8 +3817,8 @@ MenuAction07_LoadRows:
   CLC                                                   ; $C0BF: 18
   ADC #$01                                              ; $C0C0: 69 01
   STA $04A1                                             ; $C0C2: 8D A1 04
-@floodControlDone:
-  JMP DomesticMenu_Return                                      ; $C0C5: 4C 34 C9
+@disasterPreventionDone:
+  JMP StrategyMenu_Return                                      ; $C0C5: 4C 34 C9
 .endproc
 
 .proc MenuAction08_GoldDistribution
@@ -3846,11 +3868,11 @@ MenuAction08_LoadRows:
   CLC                                                   ; $C11A: 18
   ADC #$03                                              ; $C11B: 69 03
   STA $04A4                                             ; $C11D: 8D A4 04
-  JMP DomesticMenu_Return                                      ; $C120: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C120: 4C 34 C9
 .endproc
 
-.proc MenuAction09_FoodDistribution
-MenuAction09_FoodDistribution:
+.proc MenuAction09_RiceDistribution
+MenuAction09_RiceDistribution:
   LDA $04A1                                             ; $C123: AD A1 04
   BNE MenuAction09_LoadRows                                 ; $C126: D0 0E
   LDA #$F1                                              ; $C128: A9 F1
@@ -3862,7 +3884,7 @@ MenuAction09_FoodDistribution:
 
 ;===============================================================================
 MenuAction09_LoadRows:
-; $C136: Action06_CastleRepair
+; $C136: Action06 (unidentified cmd, exec phase; shares rows with 09)
 ;===============================================================================
   LDA #$3C                                              ; $C136: A9 3C
   STA $0010                                             ; $C138: 8D 10 00
@@ -3878,13 +3900,13 @@ MenuAction09_LoadRows:
   TAY                                                   ; $C14E: A8
   LDA $C158,Y                                           ; $C14F: B9 58 C1
   STA $04A1                                             ; $C152: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C155: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C155: 4C 34 C9
 @MenuAction09_RowTable:
   .byte $01, $02, $03, $03, $03, $04, $04, $04, $03, $03, $03, $04, $04, $04, $02, $01 ; $C158: 01 02 03 03 03 04 04 04 03 03 03 04 04 04 02 01
 .endproc
 
-.proc MenuAction0A_RecruitSoldiers
-MenuAction0A_RecruitSoldiers:
+.proc MenuAction0A_Conscription
+MenuAction0A_Conscription:
   LDA $04A1                                             ; $C168: AD A1 04
   BNE MenuAction0A_LoadRows                                 ; $C16B: D0 0E
   LDA #$F0                                              ; $C16D: A9 F0
@@ -3896,7 +3918,7 @@ MenuAction0A_RecruitSoldiers:
 
 ;===============================================================================
 MenuAction0A_LoadRows:
-; $C17B: Action07_TaxRate
+; $C17B: Action07 row loader (country-end screen; shared with 0A)
 ;===============================================================================
   LDA #$60                                              ; $C17B: A9 60
   STA $0010                                             ; $C17D: 8D 10 00
@@ -3911,7 +3933,7 @@ MenuAction0A_LoadRows:
   TAY                                                   ; $C192: A8
   LDA $C19C,Y                                           ; $C193: B9 9C C1
   STA $04A1                                             ; $C196: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C199: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C199: 4C 34 C9
 @MenuAction0A_RowTable:
   .byte $01, $02, $03, $03, $03, $03, $03, $03, $02, $02, $02, $02, $01, $01, $01, $01 ; $C19C: 01 02 03 03 03 03 03 03 02 02 02 02 01 01 01 01
 .endproc
@@ -3952,7 +3974,7 @@ MenuAction0B_LoadRows:
   TAY                                                   ; $C1E8: A8
   LDA $C1F2,Y                                           ; $C1E9: B9 F2 C1
   STA $04A1                                             ; $C1EC: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C1EF: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C1EF: 4C 34 C9
 @MenuAction0B_RowTable:
   .byte $02, $03, $02, $03, $01, $01, $01, $01          ; $C1F2: 02 03 02 03 01 01 01 01
 .endproc
@@ -4004,7 +4026,7 @@ L_C23A:
   ADC #$05                                              ; $C249: 69 05
   TAY                                                   ; $C24B: A8
   JSR DisplayTileData                                   ; $C24C: 20 94 C9
-  JMP DomesticMenu_Return                                      ; $C24F: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C24F: 4C 34 C9
 
 ;===============================================================================
 ; $C252: Action0A_Recruit
@@ -4013,8 +4035,10 @@ L_C23A:
   .byte $01, $02, $03, $04, $04, $03, $04, $04, $03, $02, $01 ; $C252: 01 02 03 04 04 03 04 04 03 02 01
 .endproc
 
-.proc MenuAction0D_ExecuteOfficer
-MenuAction0D_ExecuteOfficer:
+.proc MenuAction0D_UnidentifiedCmd
+MenuAction0D_UnidentifiedCmd:
+  ; NOT officer execution: no such command in the decoded vocabulary; stream
+  ; shows the stratagem guard "ここではほかのケイリャクをもちいたほうが…".
   LDA $04A1                                             ; $C25D: AD A1 04
   BNE MenuAction0D_LoadRows                                 ; $C260: D0 28
   LDA #$F7                                              ; $C262: A9 F7
@@ -4067,14 +4091,15 @@ L_C2AC:
   LDY #$05                                              ; $C2BB: A0 05
 L_C2BD:
   JSR DisplayTileData                                   ; $C2BD: 20 94 C9
-  JMP DomesticMenu_Return                                      ; $C2C0: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C2C0: 4C 34 C9
 @MenuAction0D_SpriteData:
   .byte $03, $23, $D1, $0F, $0F, $8B, $03, $23, $D9, $00, $00, $88, $FF, $03, $23, $D4 ; $C2C3: 03 23 D1 0F 0F 8B 03 23 D9 00 00 88 FF 03 23 D4
   .byte $2E, $0F, $0F, $03, $23, $DC, $22, $00, $00, $FF ; $C2D3: 2E 0F 0F 03 23 DC 22 00 00 FF
 .endproc
 
-.proc MenuAction0E_ExileOfficer
-MenuAction0E_ExileOfficer:
+.proc MenuAction0E_UnidentifiedCmd
+MenuAction0E_UnidentifiedCmd:
+  ; NOT officer exile: no such command in the decoded vocabulary; unresolved.
   LDA $04A1                                             ; $C2DD: AD A1 04
   BNE MenuAction0E_LoadRows                                 ; $C2E0: D0 0E
   LDA #$F3                                              ; $C2E2: A9 F3
@@ -4118,7 +4143,7 @@ L_C315:
   LDY #$02                                              ; $C32A: A0 02
 L_C32C:
   JSR DisplayTileData                                   ; $C32C: 20 94 C9
-  JMP DomesticMenu_Return                                      ; $C32F: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C32F: 4C 34 C9
 @MenuAction0E_RowTable:
   .byte $03, $03, $03, $03, $03, $03, $04, $05, $05, $04, $03 ; $C332: 03 03 03 03 03 03 04 05 05 04 03
 .endproc
@@ -4136,7 +4161,7 @@ MenuAction0F_GiveItem:
 
 ;===============================================================================
 MenuAction0F_LoadRows:
-; $C350: Action0D_ExecuteOfficer
+; $C350: Action0D_UnidentifiedCmd
 ;===============================================================================
   INC $04A5                                             ; $C350: EE A5 04
   LDA #$55                                              ; $C353: A9 55
@@ -4179,11 +4204,14 @@ L_C398:
   ADC #$04                                              ; $C399: 69 04
   TAY                                                   ; $C39B: A8
   JSR DisplayTileData                                   ; $C39C: 20 94 C9
-  JMP DomesticMenu_Return                                      ; $C39F: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C39F: 4C 34 C9
 .endproc
 
-.proc MenuAction10_MoveCapital
-MenuAction10_MoveCapital:
+.proc MenuAction10_SuccessorSelection
+MenuAction10_SuccessorSelection:
+  ; Selecting the country's successor, NOT capital move: "あらたなクンシュを
+  ; きめます / アトツキのいるシロをえらんでください" (decide a new ruler /
+  ; choose a castle that has an heir).
   LDA $04A1                                             ; $C3A2: AD A1 04
   BNE MenuAction10_LoadRows                                 ; $C3A5: D0 13
   LDA #$D0                                              ; $C3A7: A9 D0
@@ -4197,7 +4225,7 @@ MenuAction10_MoveCapital:
 
 ;===============================================================================
 MenuAction10_LoadRows:
-; $C3BA: Action0E_ExileOfficer
+; $C3BA: Action0E_UnidentifiedCmd
 ;===============================================================================
   LDA #$03                                              ; $C3BA: A9 03
   STA $0010                                             ; $C3BC: 8D 10 00
@@ -4225,7 +4253,7 @@ MenuAction10_LoadRows:
   BEQ L_C3F3                                            ; $C3EE: F0 03
   DEC $04A5                                             ; $C3F0: CE A5 04
 L_C3F3:
-  JMP DomesticMenu_Return                                      ; $C3F3: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C3F3: 4C 34 C9
 .endproc
 
 .proc MenuAction11_Intrigue
@@ -4261,13 +4289,13 @@ MenuAction11_LoadRows:
   TAY                                                   ; $C42C: A8
   LDA $C436,Y                                           ; $C42D: B9 36 C4
   STA $04A1                                             ; $C430: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C433: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C433: 4C 34 C9
 @MenuAction11_RowTable:
   .byte $01, $02, $03, $03, $03, $03, $02, $01          ; $C436: 01 02 03 03 03 03 02 01
 .endproc
 
-.proc MenuAction12_War
-MenuAction12_War:
+.proc MenuAction12_Sortie
+MenuAction12_Sortie:
   LDA $04A1                                             ; $C43E: AD A1 04
   BNE MenuAction12_LoadRows                                 ; $C441: D0 37
   LDA #$F8                                              ; $C443: A9 F8
@@ -4298,7 +4326,7 @@ L_C465:
 
 ;===============================================================================
 MenuAction12_LoadRows:
-; $C47A: Action10_MoveCapital
+; $C47A: Action10_SuccessorSelection
 ;===============================================================================
   LDA #$37                                              ; $C47A: A9 37
   STA $0010                                             ; $C47C: 8D 10 00
@@ -4334,14 +4362,14 @@ L_C4AC:
   ADC #$03                                              ; $C4B8: 69 03
   TAY                                                   ; $C4BA: A8
   JSR DisplayTileData                                   ; $C4BB: 20 94 C9
-  JMP DomesticMenu_Return                                      ; $C4BE: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C4BE: 4C 34 C9
 @MenuAction12_SpriteData:
   .byte $02, $23, $C9, $AA, $FA, $02, $23, $D1, $AF, $FF, $02, $23, $D9, $AA, $FF, $FF ; $C4C1: 02 23 C9 AA FA 02 23 D1 AF FF 02 23 D9 AA FF FF
   .byte $02, $23, $CC, $AA, $EA, $02, $23, $D4, $AE, $EF, $02, $23, $DC, $AA, $EE, $FF ; $C4D1: 02 23 CC AA EA 02 23 D4 AE EF 02 23 DC AA EE FF
 .endproc
 
-.proc MenuAction13_Spy
-MenuAction13_Spy:
+.proc MenuAction13_Reconnaissance
+MenuAction13_Reconnaissance:
   LDA $04A1                                             ; $C4E1: AD A1 04
   BNE L_C4EF                                            ; $C4E4: D0 09
   LDA #$E7                                              ; $C4E6: A9 E7
@@ -4368,11 +4396,13 @@ L_C4EF:
   CLC                                                   ; $C508: 18
   ADC #$01                                              ; $C509: 69 01
   STA $04A1                                             ; $C50B: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C50E: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C50E: 4C 34 C9
 .endproc
 
-.proc MenuAction14_Accounting
-MenuAction14_Accounting:
+.proc MenuAction14_Market
+MenuAction14_Market:
+  ; 商店 (Market) screen, NOT accounting: "タカラなら1つにつきキン100で
+  ; ひきとりましょう" = the shop buys treasures at 100 gold each.
   LDA $04A1                                             ; $C511: AD A1 04
     BNE MenuAction14_LoadRows                                 ; $C514: D0 0E
   LDA #$FB                                              ; $C516: A9 FB
@@ -4384,7 +4414,7 @@ MenuAction14_Accounting:
 
 ;===============================================================================
 MenuAction14_LoadRows:
-; $C524: Action12_War
+; $C524: Action12_Sortie
 ;===============================================================================
   LDA #$6B                                              ; $C524: A9 6B
   STA $0010                                             ; $C526: 8D 10 00
@@ -4400,7 +4430,7 @@ MenuAction14_LoadRows:
   TAY                                                   ; $C53C: A8
   LDA $C546,Y                                           ; $C53D: B9 46 C5
   STA $04A1                                             ; $C540: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C543: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C543: 4C 34 C9
 @MenuAction14_RowTable:
   .byte $01, $03, $01, $03, $02, $03, $01, $03, $02, $01, $01, $04, $04, $04, $04, $04 ; $C546: 01 03 01 03 02 03 01 03 02 01 01 04 04 04 04 04
 .endproc
@@ -4451,7 +4481,7 @@ L_C59D:
   STA $04A4                                             ; $C5A8: 8D A4 04
   DEC $04A5                                             ; $C5AB: CE A5 04
 L_C5AE:
-  JMP DomesticMenu_Return                                      ; $C5AE: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C5AE: 4C 34 C9
 .endproc
 
 .proc MenuAction16_Trade
@@ -4467,7 +4497,7 @@ MenuAction16_Trade:
 
 ;===============================================================================
 MenuAction16_LoadRows:
-; $C5C4: Action14_Accounting
+; $C5C4: Action14_Market
 ;===============================================================================
   LDA #$40                                              ; $C5C4: A9 40
   STA $0010                                             ; $C5C6: 8D 10 00
@@ -4491,7 +4521,7 @@ MenuAction16_LoadRows:
   LDA #$04                                              ; $C5EF: A9 04
   STA $04A4                                             ; $C5F1: 8D A4 04
 L_C5F4:
-  JMP DomesticMenu_Return                                      ; $C5F4: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C5F4: 4C 34 C9
 .endproc
 
 .proc MenuAction17_SearchOfficer
@@ -4529,7 +4559,7 @@ MenuAction17_LoadRows:
   CLC                                                   ; $C62D: 18
   ADC #$01                                              ; $C62E: 69 01
   STA $04A1                                             ; $C630: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C633: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C633: 4C 34 C9
 .endproc
 
 .proc MenuAction18_SearchItem
@@ -4576,11 +4606,12 @@ MenuAction18_LoadRows:
   INY                                                   ; $C676: C8
 L_C677:
   JSR DisplayTileData                                   ; $C677: 20 94 C9
-  JMP DomesticMenu_Return                                      ; $C67A: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C67A: 4C 34 C9
 .endproc
 
-.proc MenuAction19_InspectLand
-MenuAction19_InspectLand:
+.proc MenuAction19_UnidentifiedCmd
+MenuAction19_UnidentifiedCmd:
+  ; NOT land inspection: no such command in the decoded vocabulary; unresolved.
   LDA $04A1                                             ; $C67D: AD A1 04
   BNE MenuAction19_LoadRows                                 ; $C680: D0 19
   LDA #$F4                                              ; $C682: A9 F4
@@ -4613,13 +4644,15 @@ MenuAction19_LoadRows:
   TAY                                                   ; $C6B4: A8
   LDA $C6BE,Y                                           ; $C6B5: B9 BE C6
   STA $04A1                                             ; $C6B8: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C6BB: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C6BB: 4C 34 C9
 @MenuAction19_RowTable:
   .byte $01, $02, $01, $02, $01, $03, $03, $03          ; $C6BE: 01 02 01 02 01 03 03 03
 .endproc
 
-.proc MenuAction1A_PersonalAffairs
-MenuAction1A_PersonalAffairs:
+.proc MenuAction1A_OfficerDeath
+MenuAction1A_OfficerDeath:
+  ; An officer dies — event screen, NOT personal affairs: the stream says
+  ; "[NAME]がシホウしました" ([NAME] has died).
   LDA $04A1                                             ; $C6C6: AD A1 04
   BNE MenuAction1A_LoadRows                                 ; $C6C9: D0 32
   LDA #$C1                                              ; $C6CB: A9 C1
@@ -4648,7 +4681,7 @@ L_C6E8:
 
 ;===============================================================================
 MenuAction1A_LoadRows:
-; $C6FD: Action19_InspectLand
+; $C6FD: Action19_UnidentifiedCmd
 ;===============================================================================
   LDA #$77                                              ; $C6FD: A9 77
   STA $0010                                             ; $C6FF: 8D 10 00
@@ -4672,15 +4705,15 @@ MenuAction1A_LoadRows:
   STA $04A4                                             ; $C728: 8D A4 04
   DEC $04A5                                             ; $C72B: CE A5 04
 L_C72E:
-  JMP DomesticMenu_Return                                      ; $C72E: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C72E: 4C 34 C9
 @MenuAction1A_RowAndSpriteData:
   .byte $01, $02, $03, $04, $01, $02, $05, $06, $03, $23, $C9, $FA, $FA, $BA, $03, $23 ; $C731: 01 02 03 04 01 02 05 06 03 23 C9 FA FA BA 03 23
   .byte $D1, $0F, $0F, $8B, $03, $23, $D9, $50, $50, $98, $FF, $03, $23, $CC, $EA, $FA ; $C741: D1 0F 0F 8B 03 23 D9 50 50 98 FF 03 23 CC EA FA
   .byte $FA, $03, $23, $D4, $2E, $0F, $0F, $03, $23, $DC, $62, $50, $50, $FF ; $C751: FA 03 23 D4 2E 0F 0F 03 23 DC 62 50 50 FF
 .endproc
 
-.proc MenuAction1B_DomesticDispatch
-MenuAction1B_DomesticDispatch:
+.proc MenuAction1B_StrategyCommandDispatch
+MenuAction1B_StrategyCommandDispatch:
   LDA $04A1                                             ; $C75F: AD A1 04
   BNE MenuAction1B_LoadRows                                 ; $C762: D0 28
   LDA #$FC                                              ; $C764: A9 FC
@@ -4705,7 +4738,7 @@ L_C777:
 
 ;===============================================================================
 MenuAction1B_LoadRows:
-; $C78C: Action1A_PersonalAffairs
+; $C78C: Action1A_OfficerDeath
 ;===============================================================================
   LDA #$91                                              ; $C78C: A9 91
   STA $0010                                             ; $C78E: 8D 10 00
@@ -4727,7 +4760,7 @@ L_C7AE:
   CLC                                                   ; $C7AE: 18
   ADC #$01                                              ; $C7AF: 69 01
   STA $04A1                                             ; $C7B1: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C7B4: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C7B4: 4C 34 C9
 @MenuAction1B_SpriteData:
   .byte $03, $23, $C9, $0A, $0A, $8A, $03, $23, $D1, $F0, $F0, $B8, $FF, $03, $23, $CC ; $C7B7: 03 23 C9 0A 0A 8A 03 23 D1 F0 F0 B8 FF 03 23 CC
   .byte $2A, $0A, $0A, $03, $23, $D4, $E2, $F0, $F0, $FF ; $C7C7: 2A 0A 0A 03 23 D4 E2 F0 F0 FF
@@ -4744,7 +4777,7 @@ MenuAction1C_CopyTileData:
 
 ;===============================================================================
 MenuAction1C_LoadRows:
-; $C7DF: DomActionDispatch
+; $C7DF: StrategyCommandDispatch
 ;===============================================================================
   LDA #$33                                              ; $C7DF: A9 33
   STA $0010                                             ; $C7E1: 8D 10 00
@@ -4760,7 +4793,7 @@ MenuAction1C_LoadRows:
   CLC                                                   ; $C7F7: 18
   ADC #$01                                              ; $C7F8: 69 01
   STA $04A1                                             ; $C7FA: 8D A1 04
-  JMP DomesticMenu_Return                                      ; $C7FD: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C7FD: 4C 34 C9
 .endproc
 
 .proc MenuAction1D_SetupActionDisplay
@@ -4790,7 +4823,7 @@ MenuAction1D_LoadRows:
   AND #$01                                              ; $C825: 29 01
   STA $04A1                                             ; $C827: 8D A1 04
   INC $04A1                                             ; $C82A: EE A1 04
-  JMP DomesticMenu_Return                                      ; $C82D: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C82D: 4C 34 C9
 .endproc
 
 .proc MenuAction1E_CalcParams
@@ -4832,7 +4865,7 @@ MenuAction1E_LoadRows:
   LDY #$04                                              ; $C875: A0 04
 L_C877:
   STY $04A4                                             ; $C877: 8C A4 04
-  JMP DomesticMenu_Return                                      ; $C87A: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C87A: 4C 34 C9
 .endproc
 
 .proc MenuAction1F_CalcParams2
@@ -4867,7 +4900,7 @@ MenuAction1F_LoadRows:
   ADC #$01                                              ; $C8AC: 69 01
   STA $04A1                                             ; $C8AE: 8D A1 04
 L_C8B1:
-  JMP DomesticMenu_Return                                      ; $C8B1: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C8B1: 4C 34 C9
 .endproc
 
 .proc MenuAction20_CalcParams3
@@ -4905,7 +4938,7 @@ MenuAction20_LoadRows:
   ADC #$01                                              ; $C8E9: 69 01
   STA $04A1                                             ; $C8EB: 8D A1 04
 L_C8EE:
-  JMP DomesticMenu_Return                                      ; $C8EE: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C8EE: 4C 34 C9
 .endproc
 
 .proc MenuAction21_Finalize
@@ -4937,7 +4970,7 @@ MenuAction21_LoadRows:
   AND #$01                                              ; $C91B: 29 01
   STA $04A1                                             ; $C91D: 8D A1 04
   INC $04A1                                             ; $C920: EE A1 04
-  JMP DomesticMenu_Return                                      ; $C923: 4C 34 C9
+  JMP StrategyMenu_Return                                      ; $C923: 4C 34 C9
 .endproc
 
 .proc MenuAction22_Cleanup
@@ -4952,12 +4985,12 @@ MenuAction22_Continue:
 .endproc
 
 ;===============================================================================
-; $C934: DomesticMenu_Return
+; $C934: StrategyMenu_Return
 ;===============================================================================
-.proc DomesticMenu_Return
+.proc StrategyMenu_Return
   ; Proc-local RAM variable
-  domestic_trigger  = $007D  ; domestic menu trigger
-DomesticMenu_Return:
+  strategy_trigger  = $007D  ; strategy menu trigger
+StrategyMenu_Return:
   LDA $04D0                                             ; $C934: AD D0 04
   CMP $04CC                                             ; $C937: CD CC 04
   BCC @EarlyReturn                                            ; $C93A: 90 30
@@ -5708,7 +5741,7 @@ LoadScenarioData:
 ScenarioDataTable:
 
 ;===============================================================================
-; $DBCF-$DD8A: Data block (ScenarioDataTable / kingdom defaults)
+; $DBCF-$DD8A: Data block (ScenarioDataTable / country defaults)
 ;===============================================================================
   .byte $EB, $DB, $0B, $DC, $2B, $DC, $4B, $DC, $6B, $DC, $8B, $DC, $AB, $DC, $CB, $DC ; $DBCF: EB DB 0B DC 2B DC 4B DC 6B DC 8B DC AB DC CB DC
   .byte $EB, $DC, $EB, $DC, $0B, $DD, $2B, $DD, $4B, $DD, $6B, $DD, $0F, $12, $1A, $2A ; $DBDF: EB DC EB DC 0B DD 2B DD 4B DD 6B DD 0F 12 1A 2A

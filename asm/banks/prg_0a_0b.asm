@@ -25,7 +25,7 @@
 .global AiActionWeightedDispatch
 .global TileRender
 .global ArmyValueCalc
-.global CallDomesticDisplay
+.global CallStrategyModeDisplay
 .global ClearOverlay
 .global DataRecordLookup
 .global DistanceClamp
@@ -43,10 +43,10 @@
 .global ProvinceEvalExit
 
 .global DispatchOfficerArmies
-.global KingdomTierDispatch
+.global LevelTierDispatch
 .global CalcArmyTierAndRender
 .global CalcTierWorkPtr
-.global ResolveKingdomAbsorb
+.global ResolveCountryAbsorb
 .global InitNewGameContext
 .global EvalProvinceAbsorption
 .global AbsorbPreview
@@ -129,7 +129,7 @@
 ; These addresses have consistent meaning across the bank pair.
 
 ; --- Battery SRAM ($6Fxx) ---
-sram_kingdom_index     = $6F02  ; Kingdom/region index
+sram_game_level        = $6F02  ; Game level (0-2), selected at new game start
 sram_player_id         = $6F03  ; Current player ID / slot
 sram_game_start_flag   = $6F8B  ; Game start flag ($FF = new game)
 sram_work_0            = $6F5F  ; Computed work value 0
@@ -233,7 +233,7 @@ OfficerAssignEntry: JSR FindBestOfficerAssign                           ; $A021:
   work_limit_b             = $003B
   work_temp_0              = $003C
   work_temp_1              = $003D
-  sram_kingdom_index       = $6F02
+  sram_game_level          = $6F02
   sram_player_id           = $6F03
   sram_counter             = $6F5B
   sram_work_0              = $6F5F
@@ -374,7 +374,7 @@ OfficerAssignEntry: JSR FindBestOfficerAssign                           ; $A021:
 
 ;===============================================================================
 ; $A133: ProvinceDataA (24 bytes)
-; Province match parameter table A, indexed by [kingdom*8 + player_id]
+; Province match parameter table A, indexed by [level*8 + player_id]
 ;===============================================================================
 ProvinceDataA:
   .byte $0D,$08,$0A,$0A,$04,$06,$07,$00  ; $A133
@@ -383,7 +383,7 @@ ProvinceDataA:
 
 ;===============================================================================
 ; $A14B: ProvinceDataB (24 bytes)
-; Province match parameter table B, indexed by [kingdom*8 + player_id]
+; Province match parameter table B, indexed by [level*8 + player_id]
 ;===============================================================================
 ProvinceDataB:
   .byte $03,$05,$04,$04,$04,$06,$05,$00  ; $A14B
@@ -392,7 +392,7 @@ ProvinceDataB:
 
 ;===============================================================================
 ; $A163: ProvinceDataC (24 bytes)
-; Province match parameter table C, indexed by [kingdom*8 + player_id]
+; Province match parameter table C, indexed by [level*8 + player_id]
 ;===============================================================================
 ProvinceDataC:
   .byte $04,$07,$06,$06,$0C,$08,$08,$00  ; $A163
@@ -401,21 +401,21 @@ ProvinceDataC:
 
 ;===============================================================================
 ; $A17B: TierAdjustA (11 bytes)
-; Tier-based adjustment table A, indexed by [kingdom*4 + tier]
+; Tier-based adjustment table A, indexed by [level*4 + tier]
 ;===============================================================================
 TierAdjustA:
   .byte $02,$04,$05,$00,$00,$03,$05,$00,$01,$02,$04  ; $A17B
 
 ;===============================================================================
 ; $A186: TierAdjustB (11 bytes)
-; Tier-based adjustment table B, indexed by [kingdom*4 + tier]
+; Tier-based adjustment table B, indexed by [level*4 + tier]
 ;===============================================================================
 TierAdjustB:
   .byte $02,$02,$00,$00,$04,$03,$00,$00,$03,$02,$01  ; $A186
 
 ;===============================================================================
 ; $A191: TierAdjustC (11 bytes)
-; Tier-based adjustment table C, indexed by [kingdom*4 + tier]
+; Tier-based adjustment table C, indexed by [level*4 + tier]
 ;===============================================================================
 TierAdjustC:
   .byte $02,$00,$01,$00,$02,$00,$01,$00,$02,$02,$01  ; $A191
@@ -424,7 +424,7 @@ TierAdjustC:
 ; $A19C: AiActionWeightedDispatch
 ; Weighted random dispatch using three SRAM weights ($6F5F/$6F60/$6F61).
 ; Sums the weights, rolls random(sum), and selects one of 3 AI action paths:
-;   Entry 0: KingdomExpansionCheck - province absorption / kingdom action
+;   Entry 0: CountryExpansionCheck - province absorption / country action
 ;   Entry 1: AiTurnDispatch        - main AI turn actions
 ;   Entry 2: @AiAction_EndTurn     - skip directly to end-turn
 ;===============================================================================
@@ -453,47 +453,47 @@ TierAdjustC:
   AND #$03                                            ; $A1BA: 29 03
   JSR JumpDispatcher                                  ; $A1BC: 20 94 D4
   ; Jump table (3 entries):
-  .word KingdomExpansionCheck                         ; $A1BF: C5 A1 (entry 0)
+  .word CountryExpansionCheck                         ; $A1BF: C5 A1 (entry 0)
   .word AiTurnDispatch                                ; $A1C1: 9C B4 (entry 1)
   .word @AiAction_EndTurn                                ; $A1C3: C7 BE (entry 2)
 .endproc
 
 
 ;===============================================================================
-; $A1C5: KingdomExpansionCheck
+; $A1C5: CountryExpansionCheck
 ; Dispatch target 0 from AiActionWeightedDispatch: decides whether the AI
-; kingdom is ready to attempt province expansion/conquest.
+; country is ready to attempt province expansion/conquest.
 ;
 ; Workflow:
 ;   1. Random probability gate:
-;      - Phase 0/1: 20% chance → EvalProvinceAbsorption (value-based absorption)
-;      - Phase 2:   30% chance → EvalProvinceAbsorption
+;      - Level 0/1: 20% chance → EvalProvinceAbsorption (value-based absorption)
+;      - Level 2:   30% chance → EvalProvinceAbsorption
 ;      - Otherwise falls through to readiness check.
 ;   2. State readiness thresholds (@checkReadiness):
-;      - Phase 0: ready if $6F00 >= 90 (development counter)
-;      - Phase 1: ready if $6F00 >= 90 AND $6F01 >= 6 (sub-phase)
-;      - Phase 2: always ready (no checks)
+;      - Level 0: ready if $6F00 >= 90 (development counter)
+;      - Level 1: ready if $6F00 >= 90 AND $6F01 >= 6
+;      - Level 2: always ready (no checks)
 ;      - Not ready → EndTurn (abort, do nothing)
 ;   3. Expansion sequence (@expansionReady):
 ;      a. FindBestEnemyProvince  - scan 30 provinces for best enemy target
 ;      b. Inflate slot counter (+3, cap 10)
 ;      c. FindAbsorptionSource   - if source province lacks slots
 ;      d. DispatchOfficerArmies  - process officer army fields
-;      e. KingdomTierDispatch    - calc army tier & render
-;      f. ResolveKingdomAbsorb   - execute conquest
+;      e. LevelTierDispatch    - calc army tier & render
+;      f. ResolveCountryAbsorb   - execute conquest
 ;===============================================================================
-.proc KingdomExpansionCheck
-  LDA $6F02                                           ; $A1C5: AD 02 6F  ; kingdom phase
+.proc CountryExpansionCheck
+  LDA $6F02                                           ; $A1C5: AD 02 6F  ; game level
   CMP #$02                                            ; $A1C8: C9 02
-  BEQ @phase2Gate                                     ; $A1CA: F0 0C
-  ; Phase 0/1: 20% chance to take value-based absorption path
+  BEQ @level2Gate                                     ; $A1CA: F0 0C
+  ; Level 0/1: 20% chance to take value-based absorption path
   LDA #$64                                            ; $A1CC: A9 64
   JSR RandomBelowFull                                   ; $A1CE: 20 BB D4  ; random(100)
   CMP #$14                                            ; $A1D1: C9 14     ; < 20?
   BCS @checkReadiness                                 ; $A1D3: B0 0F (dead code - follows JMP)
   JMP EvalProvinceAbsorption                          ; $A1D5: 4C 0E B1  ; 20% → absorption
-@phase2Gate:
-  ; Phase 2: 30% chance (more aggressive late-game)
+@level2Gate:
+  ; Level 2: 30% chance (more aggressive at highest level)
   LDA #$64                                            ; $A1D8: A9 64
   JSR RandomBelowFull                                   ; $A1DA: 20 BB D4  ; random(100)
   CMP #$1E                                            ; $A1DD: C9 1E     ; < 30?
@@ -501,11 +501,11 @@ TierAdjustC:
   JMP EvalProvinceAbsorption                          ; $A1E1: 4C 0E B1  ; 30% → absorption
 @checkReadiness:
   ; Check state-dependent thresholds for expansion readiness
-  LDA $6F02                                           ; $A1E4: AD 02 6F  ; kingdom phase
-  BEQ @phase0Check                                    ; $A1E7: F0 15     ; phase 0
+  LDA $6F02                                           ; $A1E4: AD 02 6F  ; game level
+  BEQ @level0Check                                    ; $A1E7: F0 15     ; level 0
   CMP #$02                                            ; $A1E9: C9 02
-  BEQ @expansionReady                                 ; $A1EB: F0 1B     ; phase 2: always ready
-  ; Phase 1: need $6F00 >= 90 AND $6F01 >= 6
+  BEQ @expansionReady                                 ; $A1EB: F0 1B     ; level 2: always ready
+  ; Level 1: need $6F00 >= 90 AND $6F01 >= 6
   LDA $6F00                                           ; $A1ED: AD 00 6F  ; development counter
   CMP #$5A                                            ; $A1F0: C9 5A     ; >= 90?
   BCS @expansionReady                                 ; $A1F2: B0 14
@@ -513,14 +513,14 @@ TierAdjustC:
   CMP #$06                                            ; $A1F7: C9 06     ; >= 6?
   BCS @expansionReady                                 ; $A1F9: B0 0D
   JMP EndTurn                                          ; $A1FB: 4C 3D A2  ; not ready → abort
-@phase0Check:
-  ; Phase 0: need $6F00 >= 90
+@level0Check:
+  ; Level 0: need $6F00 >= 90
   LDA $6F00                                           ; $A1FE: AD 00 6F  ; development counter
   CMP #$5A                                            ; $A201: C9 5A     ; >= 90?
   BCS @expansionReady                                 ; $A203: B0 03
   JMP EndTurn                                          ; $A205: 4C 3D A2  ; not ready → abort
 @expansionReady:
-  ; Thresholds met — execute kingdom expansion sequence
+  ; Thresholds met — execute country expansion sequence
   LDA #$00                                            ; $A208: A9 00
   STA a:$0044                                         ; $A20A: 8D 44 00  ; work_flag = 0
   JSR FindBestEnemyProvince                           ; $A20D: 20 40 A2  ; find best enemy target
@@ -542,8 +542,8 @@ TierAdjustC:
   JSR FindAbsorptionSource                            ; $A230: 20 03 A3  ; find better source
 @skipSearch:
   JSR DispatchOfficerArmies                           ; $A233: 20 5C A4  ; process officer armies
-  JSR KingdomTierDispatch                             ; $A236: 20 BC A6  ; calc army tier & render
-  JSR ResolveKingdomAbsorb                              ; $A239: 20 9C A7  ; execute conquest
+  JSR LevelTierDispatch                             ; $A236: 20 BC A6  ; calc army tier & render
+  JSR ResolveCountryAbsorb                              ; $A239: 20 9C A7  ; execute conquest
 @done:
   RTS                                                 ; $A23C: 60
 .endproc
@@ -569,7 +569,7 @@ TierAdjustC:
 .proc FindBestEnemyProvince
   table_offset             = $0024
   attr_value               = $0025
-  entity_score             = $0026
+  province_score           = $0026
   candidate_idx            = $0036
   best_inner_idx           = $0037
   best_idx                 = $0038
@@ -592,9 +592,9 @@ FindBestEnemyProvince:
   LDA a:candidate_idx                                 ; $A25A: AD 36 00
   JSR GetProvinceOwner                                       ; $A25D: 20 05 D1
   CMP sram_player_id                                  ; $A260: CD 03 6F
-  BNE @nextEntity                                     ; $A263: D0 63
+  BNE @nextProvince                                     ; $A263: D0 63
   JSR CountRecordSlots::Direct                         ; $A265: 20 07 D3
-  STA entity_score                                    ; $A268: 85 26
+  STA province_score                                    ; $A268: 85 26
   LDA a:candidate_idx                                 ; $A26A: AD 36 00
   ASL A                                               ; $A26D: 0A
   ASL A                                               ; $A26E: 0A
@@ -603,7 +603,7 @@ FindBestEnemyProvince:
 @tableLookup:
   LDY table_offset                                    ; $A272: A4 24
   LDA $9D72,Y                                         ; $A274: B9 72 9D
-  BMI @nextEntity                                     ; $A277: 30 4F
+  BMI @nextProvince                                     ; $A277: 30 4F
   STA attr_value                                      ; $A279: 85 25
   JSR GetProvinceOwner                                       ; $A27B: 20 05 D1
   AND #$07                                            ; $A27E: 29 07
@@ -622,7 +622,7 @@ FindBestEnemyProvince:
   LDA attr_value                                      ; $A29B: A5 25
   CMP a:best_idx                                      ; $A29D: CD 38 00
   BNE @storeBestAndContinue                           ; $A2A0: D0 13
-  LDA entity_score                                    ; $A2A2: A5 26
+  LDA province_score                                    ; $A2A2: A5 26
   CMP a:best_sub_idx                                  ; $A2A4: CD 39 00
   BCC @nextEntry                                      ; $A2A7: 90 1A
   STA a:best_sub_idx                                  ; $A2A9: 8D 39 00
@@ -631,14 +631,14 @@ FindBestEnemyProvince:
   JMP @nextEntry                                      ; $A2B2: 4C C3 A2
 @storeBestAndContinue:
   STA a:best_idx                                      ; $A2B5: 8D 38 00
-  LDA entity_score                                    ; $A2B8: A5 26
+  LDA province_score                                    ; $A2B8: A5 26
   STA a:best_sub_idx                                  ; $A2BA: 8D 39 00
   LDA a:candidate_idx                                 ; $A2BD: AD 36 00
   STA a:best_outer_idx                                ; $A2C0: 8D 3A 00
 @nextEntry:
   INC table_offset                                    ; $A2C3: E6 24
   JMP @tableLookup                                    ; $A2C5: 4C 72 A2
-@nextEntity:
+@nextProvince:
   INC a:candidate_idx                                 ; $A2C8: EE 36 00
   LDA a:candidate_idx                                 ; $A2CB: AD 36 00
   CMP #$1E                                            ; $A2CE: C9 1E
@@ -877,21 +877,21 @@ CompareValues:
 
 ;===============================================================================
 ; $A45C: DispatchOfficerArmies
-; Iterates officer slots $11-$1A of entity $003A, dispatching ArmyDispatch for
+; Iterates officer slots $11-$1A of province $003A, dispatching ArmyDispatch for
 ; each non-$FF value. Deducts army stats and renders tiles for each officer.
 ; If an army operation fails (carry set), unwinds stack and JMPs EndTurn.
 ;===============================================================================
 .proc DispatchOfficerArmies
   math_acc_lo              = $0020
-  entity_idx               = $003A
+  province_idx             = $003A
   dispatch_val             = $003B
   field_offset             = $003C
 
   LDA #$11                                            ; $A45C: A9 11       ; start field offset = $11
   STA a:field_offset                                  ; $A45E: 8D 3C 00
-@LoadEntityPtr:
-  LDA a:entity_idx                                    ; $A461: AD 3A 00    ; load entity index
-  JSR GetProvinceOwner                                       ; $A464: 20 05 D1   ; get entity data pointer -> ($20)
+@LoadProvincePtr:
+  LDA a:province_idx                                    ; $A461: AD 3A 00    ; load province index
+  JSR GetProvinceOwner                                       ; $A464: 20 05 D1   ; get province data pointer -> ($20)
   LDY a:field_offset                                  ; $A467: AC 3C 00
   LDA ($20),Y                                         ; $A46A: B1 20      ; read field byte
   CMP #$FF                                            ; $A46C: C9 FF     ; $FF = sentinel (no more data)
@@ -902,7 +902,7 @@ CompareValues:
   INC a:field_offset                                  ; $A476: EE 3C 00    ; advance to next field offset
   LDA a:field_offset                                  ; $A479: AD 3C 00
   CMP #$1B                                            ; $A47C: C9 1B     ; done when offset reaches $1B
-  BCC @LoadEntityPtr                                  ; $A47E: 90 E1      ; loop for offsets $11-$1A
+  BCC @LoadProvincePtr                                  ; $A47E: 90 E1      ; loop for offsets $11-$1A
   RTS                                                 ; $A480: 60
 .endproc
 
@@ -916,14 +916,14 @@ CompareValues:
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
   math_ext                 = $0024
-  entity_idx               = $003A
+  province_idx             = $003A
   dispatch_val             = $003B
   record_val               = $0040
   search_result            = $0041
   remainder_lo             = $0042
   remainder_hi             = $0043
 
-  LDA a:entity_idx                                    ; $A481: AD 3A 00
+  LDA a:province_idx                                    ; $A481: AD 3A 00
   JSR GetProvinceOwner                                       ; $A484: 20 05 D1
   LDA a:dispatch_val                                  ; $A487: AD 3B 00
   LDY #$08                                            ; $A48A: A0 08
@@ -988,7 +988,7 @@ CompareValues:
   STA $23                                             ; $A4F8: 85 23
   LDA #$00                                            ; $A4FA: A9 00
   STA $24                                             ; $A4FC: 85 24
-  LDA a:entity_idx                                    ; $A4FE: AD 3A 00
+  LDA a:province_idx                                    ; $A4FE: AD 3A 00
   JSR DeductRecordStat2                                       ; $A501: 20 6F D3
   BCS @PostRender                                     ; $A504: B0 0F
   JSR TileRender                                  ; $A506: 20 5C A5
@@ -1000,7 +1000,7 @@ CompareValues:
   JMP @AiAction_EndTurn                                ; $A50F: 4C C7 BE
   JMP ArmyDispatch                                    ; $A512: 4C 81 A4
 @PostRender:
-  LDA a:entity_idx                                    ; $A515: AD 3A 00
+  LDA a:province_idx                                    ; $A515: AD 3A 00
   JSR GetProvinceOwner                                       ; $A518: 20 05 D1
   LDY #$0C                                            ; $A51B: A0 0C
   LDA $28                                             ; $A51D: A5 28
@@ -1143,7 +1143,7 @@ CompareValues:
 
 ;===============================================================================
 ; $A60C: NameTable
-; Find player entity, calculate screen position, setup scroll and display window
+; Find player province, calculate screen position, setup scroll and display window
 ;===============================================================================
 .proc NameTable
   math_acc_lo              = $0020
@@ -1164,10 +1164,10 @@ CompareValues:
 @FindPlayerLoop:
   LDA a:$0036                                         ; $A621: AD 36 00
   CMP a:$003A                                         ; $A624: CD 3A 00
-  BEQ @NextEntity                                     ; $A627: F0 26
+  BEQ @NextProvince                                     ; $A627: F0 26
   JSR GetProvinceOwner                                       ; $A629: 20 05 D1
   CMP $6F03                                           ; $A62C: CD 03 6F
-  BNE @NextEntity                                     ; $A62F: D0 1E
+  BNE @NextProvince                                     ; $A62F: D0 1E
   LDY #$04                                            ; $A631: A0 04
   LDA $2B                                             ; $A633: A5 2B
   SEC                                                 ; $A635: 38
@@ -1175,7 +1175,7 @@ CompareValues:
   INY                                                 ; $A638: C8
   LDA $2C                                             ; $A639: A5 2C
   SBC ($20),Y                                         ; $A63B: F1 20
-  BCS @NextEntity                                     ; $A63D: B0 10
+  BCS @NextProvince                                     ; $A63D: B0 10
   LDY #$04                                            ; $A63F: A0 04
   LDA ($20),Y                                         ; $A641: B1 20
   STA $2B                                             ; $A643: 85 2B
@@ -1184,7 +1184,7 @@ CompareValues:
   STA $2C                                             ; $A648: 85 2C
   LDA a:$0036                                         ; $A64A: AD 36 00
   STA $2A                                             ; $A64D: 85 2A
-@NextEntity:
+@NextProvince:
   INC a:$0036                                         ; $A64F: EE 36 00
   LDA a:$0036                                         ; $A652: AD 36 00
   CMP #$1E                                            ; $A655: C9 1E
@@ -1233,11 +1233,11 @@ CompareValues:
 .endproc
 
 ;===============================================================================
-; $A6BC: KingdomTierDispatch
+; $A6BC: LevelTierDispatch
 ; Thin wrapper that calls CalcArmyTierAndRender to determine army tier
-; and process army strength costs/rendering for the current kingdom.
+; and process army strength costs/rendering based on the game level.
 ;===============================================================================
-.proc KingdomTierDispatch
+.proc LevelTierDispatch
 
   JSR CalcArmyTierAndRender                           ; $A6BC: 20 C9 A6
   RTS                                                 ; $A6BF: 60
@@ -1245,7 +1245,7 @@ CompareValues:
 
 ;===============================================================================
 ; $A6C9: CalcArmyTierAndRender
-; Determines action tier (1-4) for current kingdom using a per-phase threshold
+; Determines action tier (1-4) using a per-level threshold
 ; table, computes army cost values (tier * 120, tier * 100 ± random delta),
 ; then loops subtracting costs from province records and rendering tiles.
 ; If rendering fails (carry set), unwinds stack and JMPs EndTurn.
@@ -1264,7 +1264,7 @@ CompareValues:
   work_temp_0              = $003C
   work_temp_1              = $003D
   work_temp_2              = $003E
-  sram_kingdom_index       = $6F02
+  sram_game_level          = $6F02
 
   LDA a:$003A                                         ; $A6C9: AD 3A 00
   JSR CountRecordSlots                                       ; $A6CC: 20 04 D3
@@ -1392,8 +1392,8 @@ CompareValues:
 
 
 ;===============================================================================
-; $A79C: ResolveKingdomAbsorb
-; Executes a kingdom absorption (conquest) between attacker A ($003A) and
+; $A79C: ResolveCountryAbsorb
+; Executes a country absorption (conquest) between attacker A ($003A) and
 ; defender B ($0038). Workflow:
 ;   1. Subtract army/gold costs ($003B-$003E) from A's province record
 ;   2. Fill buffer $0600-$0678 with $FF (clear staging area)
@@ -1404,7 +1404,7 @@ CompareValues:
 ;      - $FE if defender has remaining forces (battle pending)
 ;      - $FD if fully absorbed (call SumEnemyRecords)
 ;===============================================================================
-.proc ResolveKingdomAbsorb
+.proc ResolveCountryAbsorb
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_ext                 = $0024
@@ -2663,7 +2663,7 @@ DistribLevelThresholds:                               ; $B0BC
 ;         the threshold; optionally call FindAbsorptionSource, then absorb via
 ;         AbsorbPreview and $B287 (AbsorbUpdateRecord).
 ;
-; Called via JMP from KingdomExpansionCheck ($A1D5/$A1E1).
+; Called via JMP from CountryExpansionCheck ($A1D5/$A1E1).
 ;===============================================================================
 .proc EvalProvinceAbsorption
   dividend_lo              = $0021   ; Divide16 dividend byte 0 (init 0)
@@ -3290,9 +3290,9 @@ AbsorbUpdateRecord:
 ;
 ;   3. Action Select ($B5FC):
 ;      - Random(90): retry if >= 90, else dispatch:
-;      - 0-29:  @AiAbsorbEntityAction (recruit rival entity's officers)
-;      - 30-59: @AiDomesticAction (domestic development/recruitment)
-;      - 60-89: @AiAction_CharacterSwap (swap characters between entities)
+;      - 0-29:  @AiAbsorbProvinceAction (recruit rival province's officers)
+;      - 30-59: @AiStrategyAction (strategy development/recruitment)
+;      - 60-89: @AiAction_OfficerSwap (swap officers between provinces)
 ;
 ;   4. Officer Development (@AiDev_Main, $BD7A):
 ;      - Scan owned provinces for trainable officers (province score >= 300)
@@ -3324,24 +3324,24 @@ AbsorbUpdateRecord:
 ;        * 90-99: @AiAction_CompositeBoost (combined stat boost)
 ;
 ;   8. Strategic Eval (@AiAction_EvaluateAndExecute, $C337):
-;      - Switch to bank 1F, evaluate entity strategic state
-;      - Two paths: domestic/military (lower 5 bits) or intrigue (upper 3 bits)
-;      - Deduct cost from entity record, write action result, loop until done
+;      - Switch to bank 1F, evaluate province strategic state
+;      - Two paths: strategy/military (lower 5 bits) or intrigue (upper 3 bits)
+;      - Deduct cost from province record, write action result, loop until done
 ;
 ; NESTED SUBROUTINES:
 ;   @FindTransferCandidate ($B53E)  - Find weakest transfer target
-;   @AiAction_CharacterSwap ($B619) - Character swap action
+;   @AiAction_OfficerSwap ($B619) - Officer swap action
 ;   @AdjustSwapPositions ($B7CE)    - Adjust position offsets during swap
-;   @RefreshSubCharacterInfo ($B837)- Refresh sub-character assignments
-;   @FindBestSubCharacter ($B85F)   - Find best sub-character in slot
-;   @ScanEntityOwnership ($B898)    - Scan entity ownership per player
+;   @RefreshSubOfficerInfo ($B837)- Refresh sub-officer assignments
+;   @FindBestSubOfficer ($B85F)   - Find best sub-officer in slot
+;   @ScanProvinceOwnership ($B898)    - Scan province ownership per player
 ;   @MarkSwapArmyFlags ($B90A)      - Mark swap flags in army nibbles
-;   @FindEntityForChar ($B955)      - Find entity matching character
-;   @AiDomesticAction ($B98B)       - Domestic action handler
+;   @FindProvinceForOfficer ($B955)      - Find province matching officer
+;   @AiStrategyAction ($B98B)       - Strategy action handler
 ;   @ScanBestTarget ($BB48)         - Scan best absorption target
 ;   @UpdateMinArmyCount ($BB82)     - Track minimum army count
-;   @AiAbsorbEntityAction ($BBB2)   - Absorb rival entity action
-;   @FindBestOfficerInEntity ($BD40)- Find best officer in entity
+;   @AiAbsorbProvinceAction ($BBB2)   - Absorb rival province action
+;   @FindBestOfficerInProvince ($BD40)- Find best officer in province
 ;   @AiDev_Main ($BD7A)             - Officer development main loop
 ;   @AiAction_EndTurn ($BEC7)       - End turn handler
 ;   @AiTurn_AdvancePhase ($BEE6)    - Advance turn phase counter
@@ -3364,10 +3364,10 @@ AbsorbUpdateRecord:
 ;   @ComputeActionScore ($C498)         - Compute action score
 ;
 ; DATA TABLES:
-;   @KingdomTierModifiers ($BA81)   - Kingdom tier modifiers (12 bytes)
+;   @LevelTierModifiers ($BA81)   - Level tier modifiers (level*4 + tier, 12 bytes)
 ;   @AiDev_ActionThreshold ($BEDF)  - Per-player aggression thresholds (7 bytes)
-;   @KingdomActionModifiers ($C042) - Kingdom action modifiers (12 bytes)
-;   @ActionCostTable_Domestic ($C3BF) - Domestic action costs (16 bytes)
+;   @LevelActionModifiers ($C042) - Level action modifiers (one per level, 12 bytes)
+;   @ActionCostTable_Strategy ($C3BF) - Strategy action costs (16 bytes)
 ;   @ActionCostTable_Military ($C3CF) - Military action costs (16 bytes)
 ;   @ActionCostTable_IntrigueA ($C3DF) - Intrigue costs A (16 bytes)
 ;   @ActionCostTable_IntrigueB ($C3EF) - Intrigue costs B (16 bytes)
@@ -3395,7 +3395,7 @@ AbsorbUpdateRecord:
   work_record_val          = $0040
   work_search_result       = $0041
   work_search_max          = $0045
-  sram_kingdom_index       = $6F02
+  sram_game_level          = $6F02
   sram_player_id           = $6F03
   sram_game_start_flag     = $6F8B
 
@@ -3582,28 +3582,28 @@ AbsorbUpdateRecord:
   CMP #$1E                                            ; $B605: C9 1E
   BCC @DoAbsorbAction                                  ; $B607: 90 07
   CMP #$3C                                            ; $B609: C9 3C
-  BCC @ActionDomestic                                 ; $B60B: 90 06
-  JMP @AiAction_CharacterSwap                         ; $B60D: 4C 19 B6
+  BCC @ActionStrategy                                 ; $B60B: 90 06
+  JMP @AiAction_OfficerSwap                         ; $B60D: 4C 19 B6
 @DoAbsorbAction:
-  JMP @AiAbsorbEntityAction                             ; $B610: 4C B2 BB
-@ActionDomestic:
-  JMP @AiDomesticAction                                ; $B613: 4C 8B B9
+  JMP @AiAbsorbProvinceAction                             ; $B610: 4C B2 BB
+@ActionStrategy:
+  JMP @AiStrategyAction                                ; $B613: 4C 8B B9
 @ExitToEndTurn:
   JMP @AiAction_EndTurn                               ; $B616: 4C C7 BE
 
 ;===============================================================================
-; $B619: @AiAction_CharacterSwap
-; AI character swap/transfer action. Evaluates whether to swap characters
-; between entities based on province count and strength comparison.
+; $B619: @AiAction_OfficerSwap
+; AI officer swap/transfer action. Evaluates whether to swap officers
+; between provinces based on province count and strength comparison.
 ; Called from @AiActionSelect when random value is $3C-$59.
 ;===============================================================================
-@AiAction_CharacterSwap:
+@AiAction_OfficerSwap:
   LDA $6F03                                           ; $B619: AD 03 6F
   JSR GetPlayerRecordPtr                                       ; $B61C: 20 19 D3
   LDY #$00                                            ; $B61F: A0 00
   LDA ($24),Y                                         ; $B621: B1 24
   STA a:$0040                                         ; $B623: 8D 40 00
-  JSR @RefreshSubCharacterInfo                        ; $B626: 20 37 B8
+  JSR @RefreshSubOfficerInfo                        ; $B626: 20 37 B8
   LDA a:$003D                                         ; $B629: AD 3D 00
   CMP #$FF                                            ; $B62C: C9 FF
   BEQ @ActionExit                                     ; $B62E: F0 26
@@ -3646,7 +3646,7 @@ AbsorbUpdateRecord:
   ADC ($24),Y                                         ; $B672: 71 24
   CMP #$00                                            ; $B674: C9 00
   BNE @ActionExit                                     ; $B676: D0 DE
-  JSR @ScanEntityOwnership                             ; $B678: 20 98 B8
+  JSR @ScanProvinceOwnership                             ; $B678: 20 98 B8
   CPX #$02                                            ; $B67B: E0 02
   BCC @ActionExit                                     ; $B67D: 90 D7
   LDY #$00                                            ; $B67F: A0 00
@@ -3775,7 +3775,7 @@ AbsorbUpdateRecord:
   JSR @AdjustSwapPositions                             ; $B79C: 20 CE B7
   JMP @ExitToEndTurn                                  ; $B79F: 4C 16 B6
   LDA $6F03                                           ; $B7A2: AD 03 6F
-  JSR @FindEntityForChar                               ; $B7A5: 20 55 B9
+  JSR @FindProvinceForOfficer                               ; $B7A5: 20 55 B9
   JSR GetProvinceOwner                                       ; $B7A8: 20 05 D1
   LDA a:$0039                                         ; $B7AB: AD 39 00
   BNE @SubtractOffset                                 ; $B7AE: D0 0F
@@ -3800,16 +3800,16 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $B7CE: @AdjustSwapPositions
-; Adjusts 16-bit position offsets in slot data during a character swap.
-; Phase 1: Subtract delta ($003A/$003B) from current character ($6F03) slot.
-; Phase 2: Add delta to target character ($0038) slot.
-; Phase 3: Refresh sub-character info for all slots matching $6F03.
+; Adjusts 16-bit position offsets in slot data during a officer swap.
+; Phase 1: Subtract delta ($003A/$003B) from current officer ($6F03) slot.
+; Phase 2: Add delta to target officer ($0038) slot.
+; Phase 3: Refresh sub-officer info for all slots matching $6F03.
 ; $0039 selects field: 0 = offsets at [2..3], else offsets at [4..5].
 ;===============================================================================
 @AdjustSwapPositions:
-  ; --- Phase 1: Subtract position delta from current character's slot ---
-  LDA $6F03                                           ; $B7CE: AD 03 6F  ; slot type of current character
-  JSR @FindEntityForChar                               ; $B7D1: 20 55 B9  ; find matching slot index
+  ; --- Phase 1: Subtract position delta from current officer's slot ---
+  LDA $6F03                                           ; $B7CE: AD 03 6F  ; slot type of current officer
+  JSR @FindProvinceForOfficer                               ; $B7D1: 20 55 B9  ; find matching slot index
   JSR GetProvinceOwner                                       ; $B7D4: 20 05 D1  ; resolve slot data pointer -> ($20)
   LDA a:$0039                                         ; $B7D7: AD 39 00  ; field selector
   BNE @SubtractAltOffset                              ; $B7DA: D0 15    ; != 0 -> use offsets [4..5]
@@ -3835,10 +3835,10 @@ AbsorbUpdateRecord:
   LDA ($20),Y                                         ; $B7FC: B1 20
   SBC a:$003B                                         ; $B7FE: ED 3B 00  ; high byte
   STA ($20),Y                                         ; $B801: 91 20
-  ; --- Phase 2: Add position delta to target character's slot ---
+  ; --- Phase 2: Add position delta to target officer's slot ---
 @Phase2_AddToTarget:
   LDA a:$0038                                         ; $B803: AD 38 00  ; slot type of swap target
-  JSR @FindEntityForChar                               ; $B806: 20 55 B9  ; find matching slot index
+  JSR @FindProvinceForOfficer                               ; $B806: 20 55 B9  ; find matching slot index
   JSR GetProvinceOwner                                       ; $B809: 20 05 D1  ; resolve slot data pointer -> ($20)
   LDA a:$0039                                         ; $B80C: AD 39 00  ; field selector
   BNE @AddAltOffset                                   ; $B80F: D0 13    ; != 0 -> use offsets [4..5]
@@ -3867,12 +3867,12 @@ AbsorbUpdateRecord:
   RTS                                                 ; $B836: 60
 
 ;===============================================================================
-; $B837: @RefreshSubCharacterInfo
-; Phase 3: Refresh sub-character info for all slots matching current player.
-; Scans all entities and updates sub-character assignments for owned slots.
+; $B837: @RefreshSubOfficerInfo
+; Phase 3: Refresh sub-officer info for all slots matching current player.
+; Scans all provinces and updates sub-officer assignments for owned slots.
 ;===============================================================================
-@RefreshSubCharacterInfo:
-  ; --- Refresh sub-character info for matching slots ---
+@RefreshSubOfficerInfo:
+  ; --- Refresh sub-officer info for matching slots ---
   LDA #$00                                            ; $B837: A9 00
   STA a:$0036                                         ; $B839: 8D 36 00  ; slot index = 0
   LDA #$FF                                            ; $B83C: A9 FF
@@ -3882,9 +3882,9 @@ AbsorbUpdateRecord:
 @Loop:
   LDA a:$0036                                         ; $B846: AD 36 00  ; current slot index
   JSR GetProvinceOwner                                       ; $B849: 20 05 D1  ; resolve slot data
-  CMP $6F03                                           ; $B84C: CD 03 6F  ; does slot match current character?
+  CMP $6F03                                           ; $B84C: CD 03 6F  ; does slot match current officer?
   BNE @NextSlot                                       ; $B84F: D0 03
-  JSR @FindBestSubCharacter                              ; $B851: 20 5F B8  ; find best sub-character in slot
+  JSR @FindBestSubOfficer                              ; $B851: 20 5F B8  ; find best sub-officer in slot
 @NextSlot:
   INC a:$0036                                         ; $B854: EE 36 00
   LDA a:$0036                                         ; $B857: AD 36 00
@@ -3894,31 +3894,31 @@ AbsorbUpdateRecord:
 
 
 ;===============================================================================
-; $B85F: @FindBestSubCharacter
-; Scan sub-character list (offsets $11-$1A) in the current character's slot
-; and find the sub-character with the highest score (byte 3 of sub-char record).
-; Results: $003D = best sub-character ID ($FF if none), $003E = best score.
+; $B85F: @FindBestSubOfficer
+; Scan sub-officer list (offsets $11-$1A) in the current officer's slot
+; and find the sub-officer with the highest score (byte 3 of sub-char record).
+; Results: $003D = best sub-officer ID ($FF if none), $003E = best score.
 ;===============================================================================
-@FindBestSubCharacter:
+@FindBestSubOfficer:
   LDA a:$0036                                         ; $B85F: AD 36 00  ; slot index
-  JSR GetProvinceOwner                                       ; $B862: 20 05 D1  ; resolve entity data pointer -> ($20)
+  JSR GetProvinceOwner                                       ; $B862: 20 05 D1  ; resolve province data pointer -> ($20)
   LDA #$11                                            ; $B865: A9 11    ; start at offset $11 (sub-char list)
   STA a:$003C                                         ; $B867: 8D 3C 00  ; scan offset = $11
 @ScanLoop:
-  LDY a:$003C                                         ; $B86A: AC 3C 00  ; current offset in entity record
-  LDA ($20),Y                                         ; $B86D: B1 20    ; sub-character ID at this slot
+  LDY a:$003C                                         ; $B86A: AC 3C 00  ; current offset in province record
+  LDA ($20),Y                                         ; $B86D: B1 20    ; sub-officer ID at this slot
   CMP #$FF                                            ; $B86F: C9 FF    ; empty slot marker?
   BEQ @NextEntry                                      ; $B871: F0 0A    ; yes, skip
-  CMP a:$0040                                         ; $B873: CD 40 00  ; same as current character?
+  CMP a:$0040                                         ; $B873: CD 40 00  ; same as current officer?
   BEQ @NextEntry                                      ; $B876: F0 05    ; yes, skip self
-  LDY #$03                                            ; $B878: A0 03    ; byte 3 = sub-character score
+  LDY #$03                                            ; $B878: A0 03    ; byte 3 = sub-officer score
   JSR ReadRecordField::Alt                                           ; $B87A: 20 AB D2  ; read score from sub-char record
   CMP a:$003E                                         ; $B87D: CD 3E 00  ; better than current best?
   BCC @NextEntry                                      ; $B880: 90 0B    ; no, skip update
   STA a:$003E                                         ; $B882: 8D 3E 00  ; new best score
   LDY a:$003C                                         ; $B885: AC 3C 00  ; reload offset
-  LDA ($20),Y                                         ; $B888: B1 20    ; re-read sub-character ID
-  STA a:$003D                                         ; $B88A: 8D 3D 00  ; new best sub-character
+  LDA ($20),Y                                         ; $B888: B1 20    ; re-read sub-officer ID
+  STA a:$003D                                         ; $B88A: 8D 3D 00  ; new best sub-officer
 @NextEntry:
   INC a:$003C                                         ; $B88D: EE 3C 00  ; advance to next sub-char slot
   LDA a:$003C                                         ; $B890: AD 3C 00
@@ -3928,19 +3928,19 @@ AbsorbUpdateRecord:
 
 
 ;-------------------------------------------------------------------------------
-; $B898: @ScanEntityOwnership (nested in AiTurnDispatch)
+; $B898: @ScanProvinceOwnership (nested in AiTurnDispatch)
 ;-------------------------------------------------------------------------------
-; Scan all entities (0–$1D) and their slot-table entries ($9D72, 8 per entity)
-; to determine which players have no active type-7 entities outside their home
+; Scan all provinces (0–$1D) and their slot-table entries ($9D72, 8 per province)
+; to determine which players have no active type-7 provinces outside their home
 ; province.  Initializes $6F73[0..7] = $FF, then clears a player's slot to $00
-; whenever a qualifying entity is found.  Returns X = count of $00 slots
-; (players with active entities) among indices 0–6.
+; whenever a qualifying province is found.  Returns X = count of $00 slots
+; (players with active provinces) among indices 0–6.
 ;-------------------------------------------------------------------------------
-@ScanEntityOwnership:
+@ScanProvinceOwnership:
   LDY #$30                                            ; $B898: A0 30
   JSR B1F_SwitchBank8_A                               ; $B89A: 20 66 F2  ; switch to bank $30 for $9D72 table
 
-  ; --- Initialize $6F73[0..7] = $FF (all players default to "no entities") ---
+  ; --- Initialize $6F73[0..7] = $FF (all players default to "no provinces") ---
   LDY #$07                                            ; $B89D: A0 07
 @ClearLoop:
   LDA #$FF                                            ; $B89F: A9 FF
@@ -3948,39 +3948,39 @@ AbsorbUpdateRecord:
   DEY                                                 ; $B8A4: 88
   BPL @ClearLoop                                      ; $B8A5: 10 F8
 
-  ; --- Outer loop: iterate entity_idx from 0 to $1D ---
+  ; --- Outer loop: iterate province_idx from 0 to $1D ---
   LDA #$00                                            ; $B8A7: A9 00
   STA a:work_outer_idx                                ; $B8A9: 8D 36 00
   STA a:$0037                                         ; $B8AC: 8D 37 00
-@EntityLoop:
+@ProvinceLoop:
   LDA #$00                                            ; $B8AF: A9 00
   STA a:work_sub_idx                                  ; $B8B1: 8D 39 00  ; reset slot counter
   LDA a:work_outer_idx                                ; $B8B4: AD 36 00
-  JSR GetProvinceOwner                                       ; $B8B7: 20 05 D1  ; A = entity owner, ($20) = record ptr
-  CMP sram_player_id                                  ; $B8BA: CD 03 6F  ; only process entities owned by current player
-  BNE @NextEntity                                     ; $B8BD: D0 31  ; skip if not current player's entity
+  JSR GetProvinceOwner                                       ; $B8B7: 20 05 D1  ; A = province owner, ($20) = record ptr
+  CMP sram_player_id                                  ; $B8BA: CD 03 6F  ; only process provinces owned by current player
+  BNE @NextProvince                                     ; $B8BD: D0 31  ; skip if not current player's province
 
-  ; --- Compute table offset: entity_idx * 8 → Y ---
+  ; --- Compute table offset: province_idx * 8 → Y ---
   LDA a:work_outer_idx                                ; $B8BF: AD 36 00
   ASL A                                               ; $B8C2: 0A       ; ×2
   ASL A                                               ; $B8C3: 0A       ; ×4
   ASL A                                               ; $B8C4: 0A       ; ×8
   TAY                                                 ; $B8C5: A8
 
-  ; --- Inner loop: iterate 8 slot entries per entity ---
+  ; --- Inner loop: iterate 8 slot entries per province ---
 @SlotLoop:
   LDA $9D72,Y                                         ; $B8C6: B9 72 9D  ; read slot-table byte
-  BMI @NextEntity                                     ; $B8C9: 30 25  ; negative = empty/invalid slot, skip
+  BMI @NextProvince                                     ; $B8C9: 30 25  ; negative = empty/invalid slot, skip
   STA math_acc_hi                                     ; $B8CB: 85 23  ; save table value
   STY math_ext                                        ; $B8CD: 84 24  ; save Y offset (GetProvinceOwner clobbers Y)
-  JSR GetProvinceOwner                                       ; $B8CF: 20 05 D1  ; reload entity record ptr → ($20), A = owner
-  CMP #$07                                            ; $B8D2: C9 07  ; entity type in low 3 bits
+  JSR GetProvinceOwner                                       ; $B8CF: 20 05 D1  ; reload province record ptr → ($20), A = owner
+  CMP #$07                                            ; $B8D2: C9 07  ; province type in low 3 bits
   BEQ @AdvanceSlot                                    ; $B8D4: F0 0B  ; type 7 → skip (home province marker)
-  CMP sram_player_id                                  ; $B8D6: CD 03 6F  ; check if entity belongs to current player
+  CMP sram_player_id                                  ; $B8D6: CD 03 6F  ; check if province belongs to current player
   BEQ @AdvanceSlot                                    ; $B8D9: F0 06  ; skip if same player
-  TAY                                                 ; $B8DB: A8       ; Y = entity owner
+  TAY                                                 ; $B8DB: A8       ; Y = province owner
   LDA #$00                                            ; $B8DC: A9 00
-  STA $6F73,Y                                         ; $B8DE: 99 73 6F  ; mark owner as having active entities
+  STA $6F73,Y                                         ; $B8DE: 99 73 6F  ; mark owner as having active provinces
 
 @AdvanceSlot:
   LDA math_acc_hi                                     ; $B8E1: A5 23  ; restore table value
@@ -3988,21 +3988,21 @@ AbsorbUpdateRecord:
   INY                                                 ; $B8E5: C8       ; next slot
   INC a:work_sub_idx                                  ; $B8E6: EE 39 00
   LDX a:work_sub_idx                                  ; $B8E9: AE 39 00
-  CPX #$08                                            ; $B8EC: E0 08  ; 8 slots per entity
+  CPX #$08                                            ; $B8EC: E0 08  ; 8 slots per province
   BCC @SlotLoop                                       ; $B8EE: 90 D6
 
-@NextEntity:
+@NextProvince:
   INC a:work_outer_idx                                ; $B8F0: EE 36 00
   LDA a:work_outer_idx                                ; $B8F3: AD 36 00
-  CMP #$1E                                            ; $B8F6: C9 1E  ; 30 entities total
-  BCC @EntityLoop                                     ; $B8F8: 90 B5
+  CMP #$1E                                            ; $B8F6: C9 1E  ; 30 provinces total
+  BCC @ProvinceLoop                                     ; $B8F8: 90 B5
 
   ; --- Count how many $6F73[0..6] == $00 → return in X ---
   LDY #$00                                            ; $B8FA: A0 00
   LDX #$00                                            ; $B8FC: A2 00
 @CountZeros:
   LDA $6F73,Y                                         ; $B8FE: B9 73 6F
-  BNE @CountNext                                      ; $B901: D0 01  ; skip if non-zero ($FF = no entities)
+  BNE @CountNext                                      ; $B901: D0 01  ; skip if non-zero ($FF = no provinces)
   INX                                                 ; $B903: E8       ; count this player
 @CountNext:
   INY                                                 ; $B904: C8
@@ -4013,15 +4013,15 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $B90A: @MarkSwapArmyFlags
-; Marks swap flags in the army-data nibbles of two character records during
-; a character swap. For each record, one of offsets 4-7 is selected based on
-; the other character's index (0-5), and either the high or low nibble is
+; Marks swap flags in the army-data nibbles of two officer records during
+; a officer swap. For each record, one of offsets 4-7 is selected based on
+; the other officer's index (0-5), and either the high or low nibble is
 ; set to $A to indicate swap involvement.
 ; Phase 1: Mark current player ($6F03) record using target ($0038) as key.
 ; Phase 2: Mark target ($0038) record using current player ($6F03) as key.
 ;-------------------------------------------------------------------------------
 ; @ApplyNibbleMarker (nested, $B923):
-; Given a character index in A (0-5), select the appropriate nibble offset
+; Given a officer index in A (0-5), select the appropriate nibble offset
 ; (Y=4-7) in the record pointed to by ($24) and set either the high or low
 ; nibble to $A. Even indices (0,2,4) -> high nibble; odd (1,3,5) -> low.
 ;===============================================================================
@@ -4029,7 +4029,7 @@ AbsorbUpdateRecord:
   ; --- Phase 1: Mark current player's record with target's swap flag ---
   LDA a:$6F03                                         ; $B90A: AD 03 6F  ; sram_player_id
   JSR GetPlayerRecordPtr                                       ; $B90D: 20 19 D3  ; resolve current player -> ($24)
-  LDA a:$0038                                         ; $B910: AD 38 00  ; target character index
+  LDA a:$0038                                         ; $B910: AD 38 00  ; target officer index
   JSR @ApplyNibbleMarker                               ; $B913: 20 23 B9  ; mark nibble in current player record
 
   ; --- Phase 2: Mark target's record with current player's swap flag ---
@@ -4071,70 +4071,70 @@ AbsorbUpdateRecord:
 
 
 ;===============================================================================
-; $B955: @FindEntityForChar
-; Searches entities 0-29 for one whose type (low 3 bits of GetProvinceOwner result)
-; matches the input character index (A), and whose army slots ($11-$1A)
-; contain the character ID from the input character's record.
-; Input:  A = character index (used as type key and to resolve SRAM record)
-; Output: A = matching entity index, or $FF with C=0 if not found
+; $B955: @FindProvinceForOfficer
+; Searches provinces 0-29 for one whose type (low 3 bits of GetProvinceOwner result)
+; matches the input officer index (A), and whose army slots ($11-$1A)
+; contain the officer ID from the input officer's record.
+; Input:  A = officer index (used as type key and to resolve SRAM record)
+; Output: A = matching province index, or $FF with C=0 if not found
 ;===============================================================================
-@FindEntityForChar:
+@FindProvinceForOfficer:
   STA $2C                                             ; $B955: 85 2C  ; save type key
   LDY #$00                                            ; $B957: A0 00
-  STY $2B                                             ; $B959: 84 2B  ; entity index = 0
+  STY $2B                                             ; $B959: 84 2B  ; province index = 0
   JSR GetPlayerRecordPtr                                       ; $B95B: 20 19 D3  ; resolve char index -> ($24)
   LDY #$00                                            ; $B95E: A0 00
-  LDA ($24),Y                                         ; $B960: B1 24  ; read character ID
-  STA $2A                                             ; $B962: 85 2A  ; $2A = target character ID
-@EntityLoop:                                                ; --- scan loop: entities 0..29 ---
+  LDA ($24),Y                                         ; $B960: B1 24  ; read officer ID
+  STA $2A                                             ; $B962: 85 2A  ; $2A = target officer ID
+@ProvinceLoop:                                                ; --- scan loop: provinces 0..29 ---
   LDA $2B                                             ; $B964: A5 2B
-  JSR GetProvinceOwner                                       ; $B966: 20 05 D1  ; get entity record
-  AND #$07                                            ; $B969: 29 07  ; entity type (low 3 bits)
+  JSR GetProvinceOwner                                       ; $B966: 20 05 D1  ; get province record
+  AND #$07                                            ; $B969: 29 07  ; province type (low 3 bits)
   CMP $2C                                             ; $B96B: C5 2C  ; matches input type?
-  BNE @NextEntity                                           ; $B96D: D0 10  ; no -> next entity
+  BNE @NextProvince                                           ; $B96D: D0 10  ; no -> next province
   LDY #$11                                            ; $B96F: A0 11  ; yes -> scan army slots $11-$1A
 @SlotLoop:
   LDA ($20),Y                                         ; $B971: B1 20
   CMP $2A                                             ; $B973: C5 2A  ; slot contains target char ID?
-  BEQ @FoundEntity                                           ; $B975: F0 02  ; yes -> found
+  BEQ @FoundProvince                                           ; $B975: F0 02  ; yes -> found
   INY                                                 ; $B97A: C8
   CPY #$1B                                            ; $B97B: C0 1B
   BCC @SlotLoop                                           ; $B97D: 90 F2  ; continue scanning slots
-@FoundEntity:
-  LDA $2B                                             ; $B977: A5 2B  ; return entity index
+@FoundProvince:
+  LDA $2B                                             ; $B977: A5 2B  ; return province index
   RTS                                                 ; $B979: 60
-@NextEntity:                                                ; --- advance to next entity ---
+@NextProvince:                                                ; --- advance to next province ---
   INC $2B                                             ; $B97F: E6 2B
   LDA $2B                                             ; $B981: A5 2B
-  CMP #$1E                                            ; $B983: C9 1E  ; all 30 entities checked?
-  BCC @EntityLoop                                           ; $B985: 90 DD
+  CMP #$1E                                            ; $B983: C9 1E  ; all 30 provinces checked?
+  BCC @ProvinceLoop                                           ; $B985: 90 DD
   LDA #$FF                                            ; $B987: A9 FF  ; not found
   CLC                                                 ; $B989: 18
   RTS                                                 ; $B98A: 60
 
 
 ;===============================================================================
-; $B98B: @AiDomesticAction
-; AI domestic action handler: evaluates whether to absorb/recruit a character,
-; computes a score based on army values and kingdom tier, performs a random
+; $B98B: @AiStrategyAction
+; AI strategy action handler: evaluates whether to absorb/recruit a officer,
+; computes a score based on army values and level tier modifiers, performs a random
 ; threshold check, then executes the action if approved.
 ; Called from AiTurnDispatch when random value is $1E-$3B.
 ;-------------------------------------------------------------------------------
-; $0036 = entity scan index,  $0037 = best army count (min)
-; $0038 = best entity index,  $0039 = field selector from search phase
+; $0036 = province scan index,  $0037 = best army count (min)
+; $0038 = best province index,  $0039 = field selector from search phase
 ; $003D = best target char ID, $003E = best target army value
-; $003F = best target entity idx, $0042 = current player's char slot
+; $003F = best target province idx, $0042 = current player's char slot
 ;===============================================================================
-@AiDomesticAction:
+@AiStrategyAction:
   LDA #$00                                            ; $B98B: A9 00
   STA a:$0036                                         ; $B98D: 8D 36 00
   STA a:$0039                                         ; $B990: 8D 39 00
   LDA #$FF                                            ; $B993: A9 FF
   STA a:$0037                                         ; $B995: 8D 37 00
   STA a:$0038                                         ; $B998: 8D 38 00
-@Phase1Loop:                                                ; --- Phase 1: Find entity with fewest army members ---
+@Phase1Loop:                                                ; --- Phase 1: Find province with fewest army members ---
   LDA a:$0036                                         ; $B99B: AD 36 00
-  JSR GetProvinceOwner                                       ; $B99E: 20 05 D1  ; resolve entity record
+  JSR GetProvinceOwner                                       ; $B99E: 20 05 D1  ; resolve province record
   CMP $6F03                                           ; $B9A1: CD 03 6F  ; owned by current player?
   BNE @Phase1Next                                           ; $B9A4: D0 1B  ; no -> skip
   JSR @UpdateMinArmyCount                              ; $B9A6: 20 82 BB  ; track min army count in $0039
@@ -4146,7 +4146,7 @@ AbsorbUpdateRecord:
   BCS @Phase1Next                                           ; $B9B6: B0 09  ; no -> skip
   STA a:$0037                                         ; $B9B8: 8D 37 00  ; new min army count
   LDA a:$0036                                         ; $B9BB: AD 36 00
-  STA a:$0038                                         ; $B9BE: 8D 38 00  ; new best entity index
+  STA a:$0038                                         ; $B9BE: 8D 38 00  ; new best province index
 @Phase1Next:
   INC a:$0036                                         ; $B9C1: EE 36 00
   LDA a:$0036                                         ; $B9C4: AD 36 00
@@ -4158,12 +4158,12 @@ AbsorbUpdateRecord:
   JMP EndTurn                                         ; $B9D2: 4C 3D A2  ; no candidate -> exit
   ; --- Phase 2: Find best non-player target to absorb ---
   LDA #$00                                            ; $B9D5: A9 00
-  STA a:$0036                                         ; $B9D7: 8D 36 00  ; reset entity index
+  STA a:$0036                                         ; $B9D7: 8D 36 00  ; reset province index
   LDA #$FF                                            ; $B9DA: A9 FF
   STA a:$003D                                         ; $B9DC: 8D 3D 00  ; $003D = best char ID ($FF = none)
   STA a:$003E                                         ; $B9DF: 8D 3E 00  ; $003E = lowest army value
-  STA a:$003F                                         ; $B9E2: 8D 3F 00  ; $003F = best entity index
-@Phase2Loop:                                                ; --- Phase 2 loop: scan entities 0..29 ---
+  STA a:$003F                                         ; $B9E2: 8D 3F 00  ; $003F = best province index
+@Phase2Loop:                                                ; --- Phase 2 loop: scan provinces 0..29 ---
   LDA a:$0036                                         ; $B9E5: AD 36 00
   JSR GetProvinceOwner                                       ; $B9E8: 20 05 D1
   CMP $6F03                                           ; $B9EB: CD 03 6F  ; owned by current player?
@@ -4177,7 +4177,7 @@ AbsorbUpdateRecord:
   LDA a:$003E                                         ; $B9FD: AD 3E 00  ; best army value
   CMP #$46                                            ; $BA00: C9 46  ; >= 70? (very strong target)
   .byte $90,$03                                       ; $BA02: 90 03 (BCC mid-instruction target)
-  JMP @ExecDomesticAction                              ; $BA04: 4C 7E BA  ; guaranteed success path
+  JMP @ExecStrategyAction                              ; $BA04: 4C 7E BA  ; guaranteed success path
   ; --- Phase 3: Compute action score from army values ---
   LDA a:$003D                                         ; $BA07: AD 3D 00  ; best target char ID
   LDY #$04                                            ; $BA0A: A0 04  ; offset 4 = army stat field
@@ -4204,7 +4204,7 @@ AbsorbUpdateRecord:
   STA $22                                             ; $BA31: 85 22
   STA $24                                             ; $BA33: 85 24
   JSR Divide16                                       ; $BA35: 20 0F D4
-  ; --- Compute score based on kingdom tier ---
+  ; --- Compute score based on level tier modifiers ---
   LDA a:$003E                                         ; $BA38: AD 3E 00  ; best target army value
   LDY #$00                                            ; $BA3B: A0 00  ; Y = tier index (0)
   CMP #$1F                                            ; $BA3D: C9 1F  ; < 31?
@@ -4214,13 +4214,13 @@ AbsorbUpdateRecord:
   BCC @ApplyModifier                                           ; $BA44: 90 01  ; yes -> use tier 1
   INY                                                 ; $BA46: C8  ; Y = 2 (army >= 51)
 @ApplyModifier:
-  STY $20                                             ; $BA47: 84 20  ; $20 = kingdom tier (0-2)
-  LDA $6F02                                           ; $BA49: AD 02 6F  ; sram_kingdom_index
-  ASL A                                               ; $BA4C: 0A  ; *4 (4 entries per kingdom)
+  STY $20                                             ; $BA47: 84 20  ; $20 = tier (0-2)
+  LDA $6F02                                           ; $BA49: AD 02 6F  ; sram_game_level
+  ASL A                                               ; $BA4C: 0A  ; *4 (4 entries per level)
   ASL A                                               ; $BA4D: 0A
   ORA $20                                             ; $BA4E: 05 20  ; + tier offset
   TAY                                                 ; $BA50: A8
-  LDA @KingdomTierModifiers,Y                          ; $BA51: B9 81 BA  ; lookup modifier from table
+  LDA @LevelTierModifiers,Y                          ; $BA51: B9 81 BA  ; lookup modifier from table
   CLC                                                 ; $BA54: 18
   ADC $21                                             ; $BA55: 65 21  ; score = modifier + army stat
   STA $2A                                             ; $BA57: 85 2A  ; $2A = final score
@@ -4247,7 +4247,7 @@ AbsorbUpdateRecord:
 ; $BA75: @CheckActionThreshold
 ; Random probability check against the computed action score.
 ; Generates random 0-99; if random < score ($2A), action succeeds (falls through
-; to @ExecDomesticAction). Otherwise exits.
+; to @ExecStrategyAction). Otherwise exits.
 ; Input:  $2A = action score (0-255, higher = more likely to succeed)
 ;===============================================================================
 @CheckActionThreshold:
@@ -4257,21 +4257,21 @@ AbsorbUpdateRecord:
   BCC @FindEmptySlot                                  ; $BA7C: 90 0F (BCC -> @FindEmptySlot on success)
 
 ;===============================================================================
-; $BA7E: @ExecDomesticAction
-; Executes the AI domestic action: transfers a character from another entity
+; $BA7E: @ExecStrategyAction
+; Executes the AI strategy action: transfers a officer from another province
 ; into the current player's army. Updates all references and triggers the
 ; game-start flag to signal the UI.
 ;-------------------------------------------------------------------------------
-; @KingdomTierModifiers: indexed by (kingdom_index * 4 + tier)
+; @LevelTierModifiers: indexed by (game_level * 4 + tier)
 ;   tier 0 = army < 31, tier 1 = 31-50, tier 2 = >= 51
 ;===============================================================================
-@ExecDomesticAction:
+@ExecStrategyAction:
   JMP EndTurn                                         ; $BA7E: 4C 3D A2  ; entry: skip past data table (unreachable path)
-@KingdomTierModifiers:
+@LevelTierModifiers:
   .byte $28,$0F,$00,$00,$32,$14,$00,$00,$3C,$1E,$0A,$00   ; $BA81: modifier table (12 bytes)
-@FindEmptySlot:                                                ; --- Find empty army slot in best entity ---
-  LDA a:$0038                                         ; $BA8D: AD 38 00  ; best entity index
-  JSR GetProvinceOwner                                       ; $BA90: 20 05 D1  ; resolve entity record -> ($20)
+@FindEmptySlot:                                                ; --- Find empty army slot in best province ---
+  LDA a:$0038                                         ; $BA8D: AD 38 00  ; best province index
+  JSR GetProvinceOwner                                       ; $BA90: 20 05 D1  ; resolve province record -> ($20)
   LDY #$10                                            ; $BA93: A0 10
 @SlotScan:
   INY                                                 ; $BA95: C8  ; scan slots $11-$1A
@@ -4284,13 +4284,13 @@ AbsorbUpdateRecord:
   LDA $6F03                                           ; $BAA1: AD 03 6F  ; current player ID
   JSR GetPlayerRecordPtr                                       ; $BAA4: 20 19 D3  ; resolve -> ($24)
   LDY #$00                                            ; $BAA7: A0 00
-  LDA ($24),Y                                         ; $BAA9: B1 24  ; player's character ID
+  LDA ($24),Y                                         ; $BAA9: B1 24  ; player's officer ID
   STA $30                                             ; $BAAB: 85 30
   LDA a:$003D                                         ; $BAAD: AD 3D 00  ; new char ID
   STA $31                                             ; $BAB0: 85 31
   JSR ArmyValueCalc                                   ; $BAB2: 20 3F CF  ; recalculate army value
   ; --- Remove char from old owner's slot list ---
-  LDA a:$003F                                         ; $BAB5: AD 3F 00  ; old owner entity index
+  LDA a:$003F                                         ; $BAB5: AD 3F 00  ; old owner province index
   JSR GetProvinceOwner                                       ; $BAB8: 20 05 D1  ; resolve -> ($20)
   STA a:$0042                                         ; $BABB: 8D 42 00  ; save for later
   LDY #$10                                            ; $BABE: A0 10
@@ -4303,7 +4303,7 @@ AbsorbUpdateRecord:
   STA ($20),Y                                         ; $BACA: 91 20  ; clear slot (mark empty)
   ; --- If old owner's status is 0 (dismissed), mark slot type 7 ---
   LDA a:$003F                                         ; $BACC: AD 3F 00
-  JSR CompactRecordSlots                                       ; $BACF: 20 DD D3  ; reset player-entity map
+  JSR CompactRecordSlots                                       ; $BACF: 20 DD D3  ; reset player-province map
   LDA a:$003F                                         ; $BAD2: AD 3F 00
   JSR CountRecordSlots                                       ; $BAD5: 20 04 D3  ; count remaining slots
   CMP #$00                                            ; $BAD8: C9 00  ; any slots left?
@@ -4312,46 +4312,46 @@ AbsorbUpdateRecord:
   LDA #$07                                            ; $BADE: A9 07  ; slot type 7 = dismissed
   STA ($20),Y                                         ; $BAE0: 91 20  ; write type to old owner's record
 @AfterDismiss:
-  ; --- Swap army ownership between entities ---
+  ; --- Swap army ownership between provinces ---
   LDA a:$003D                                         ; $BAE2: AD 3D 00  ; transferred char ID
   STA a:$0043                                         ; $BAE5: 8D 43 00
-  LDA a:$0038                                         ; $BAE8: AD 38 00  ; receiving entity index
+  LDA a:$0038                                         ; $BAE8: AD 38 00  ; receiving province index
   JSR GetProvinceOwner                                       ; $BAEB: 20 05 D1  ; resolve -> ($20)
   JSR GetPlayerRecordPtr                                       ; $BAEE: 20 19 D3  ; resolve char record -> ($24)
   LDY #$00                                            ; $BAF1: A0 00
   LDA ($24),Y                                         ; $BAF3: B1 24  ; receiving char ID
   STA a:$0040                                         ; $BAF5: 8D 40 00
-  LDA a:$0042                                         ; $BAF8: AD 42 00  ; old owner entity index
+  LDA a:$0042                                         ; $BAF8: AD 42 00  ; old owner province index
   JSR GetPlayerRecordPtr                                       ; $BAFB: 20 19 D3  ; resolve -> ($24)
   LDY #$00                                            ; $BAFE: A0 00
   LDA ($24),Y                                         ; $BB00: B1 24  ; old owner char ID
   STA a:$0041                                         ; $BB02: 8D 41 00
-  ; --- Check if new character is AI-controlled ---
+  ; --- Check if new officer is AI-controlled ---
   LDY #$03                                            ; $BB05: A0 03  ; offset 3 = control/status
   LDA ($24),Y                                         ; $BB07: B1 24
   CMP #$03                                            ; $BB09: C9 03  ; status 3 = AI-controlled?
   BEQ @Exit                                           ; $BB0B: F0 38  ; yes -> skip post-action update
-  ; --- Post-action: update all entities for new ownership ---
+  ; --- Post-action: update all provinces for new ownership ---
   LDA #$00                                            ; $BB0D: A9 00
-  STA a:$0036                                         ; $BB0F: 8D 36 00  ; entity index
+  STA a:$0036                                         ; $BB0F: 8D 36 00  ; province index
   LDA #$FF                                            ; $BB12: A9 FF
   STA a:$003D                                         ; $BB14: 8D 3D 00
   LDA #$00                                            ; $BB17: A9 00
   STA a:$003E                                         ; $BB19: 8D 3E 00
-@PostUpdateLoop:                                                ; --- Post-action loop: entities 0..29 ---
+@PostUpdateLoop:                                                ; --- Post-action loop: provinces 0..29 ---
   LDA a:$0036                                         ; $BB1C: AD 36 00
   JSR GetProvinceOwner                                       ; $BB1F: 20 05 D1
-  CMP #$07                                            ; $BB22: C9 07  ; dismissed entity?
+  CMP #$07                                            ; $BB22: C9 07  ; dismissed province?
   BEQ @PostUpdateNext                                           ; $BB24: F0 0B  ; yes -> skip
   CMP a:$0042                                         ; $BB26: CD 42 00  ; same as old owner?
   BNE @PostUpdateNext                                           ; $BB29: D0 06  ; no -> skip
   LDA a:$0041                                         ; $BB2B: AD 41 00  ; old owner char ID
-  JSR @FindBestOfficerInEntity                          ; $BB2E: 20 40 BD  ; find best replacement officer in entity
+  JSR @FindBestOfficerInProvince                          ; $BB2E: 20 40 BD  ; find best replacement officer in province
 @PostUpdateNext:
   INC a:$0036                                         ; $BB31: EE 36 00
   LDA a:$0036                                         ; $BB34: AD 36 00
   CMP #$1E                                            ; $BB37: C9 1E
-  BCC @PostUpdateLoop                                           ; $BB39: 90 E1  ; loop over all entities
+  BCC @PostUpdateLoop                                           ; $BB39: 90 E1  ; loop over all provinces
   ; --- Signal game-start flag and wait for completion ---
   LDA #$FA                                            ; $BB3B: A9 FA
   STA $6F8B                                           ; $BB3D: 8D 8B 6F  ; game_start_flag = $FA
@@ -4362,10 +4362,10 @@ AbsorbUpdateRecord:
   JMP EndTurn                                         ; $BB45: 4C 3D A2  ; done -> exit
 ;-------------------------------------------------------------------------------
 ; $BB48: @ScanBestTarget
-; Evaluates an entity as a potential absorption target. Scans army slots
-; $11-$1A, reads each character's stat (offset 3), and tracks the one with
-; the lowest value. Updates $003D (best char), $003E (best value), $003F (best entity).
-; Input:  $0036 = entity index
+; Evaluates an province as a potential absorption target. Scans army slots
+; $11-$1A, reads each officer's stat (offset 3), and tracks the one with
+; the lowest value. Updates $003D (best char), $003E (best value), $003F (best province).
+; Input:  $0036 = province index
 ;-------------------------------------------------------------------------------
 @ScanBestTarget:
   LDA a:$0036                                         ; $BB48: AD 36 00
@@ -4397,9 +4397,9 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $BB82: @UpdateMinArmyCount
-; Scans entity's army slots $11-$1A, reads each character's stat (offset $0B >> 4),
+; Scans province's army slots $11-$1A, reads each officer's stat (offset $0B >> 4),
 ; and updates $0039 if a lower value is found.
-; Input:  $0036 = entity index (already resolved via GetProvinceOwner)
+; Input:  $0036 = province index (already resolved via GetProvinceOwner)
 ;===============================================================================
 @UpdateMinArmyCount:
   LDA a:$0036                                         ; $BB82: AD 36 00
@@ -4428,26 +4428,26 @@ AbsorbUpdateRecord:
 
 
 ;-------------------------------------------------------------------------------
-; $BBB2: @AiAbsorbEntityAction
-; AI action: attempt to absorb a rival entity by recruiting away their officers.
-; Phase 1: Iterate entities to validate AI's own holdings
-; Phase 2: Find non-AI entity with most officers (best absorption target)
+; $BBB2: @AiAbsorbProvinceAction
+; AI action: attempt to absorb a rival province by recruiting away their officers.
+; Phase 1: Iterate provinces to validate AI's own holdings
+; Phase 2: Find non-AI province with most officers (best absorption target)
 ; Phase 3: Abort if target has fewer than 6 officers
 ; Phase 4: Build list of recruitable officers (loyalty $32-$59)
-; Phase 5: Pick random candidate, probability check vs stat + kingdom tier
-; Phase 6: Transfer officer, reduce stat, sweep affected entities
+; Phase 5: Pick random candidate, probability check vs stat + tier modifier
+; Phase 6: Transfer officer, reduce stat, sweep affected provinces
 ;-------------------------------------------------------------------------------
-@AiAbsorbEntityAction:
-  LDA #$00                                            ; $BBB2: A9 00  ; entity index = 0
+@AiAbsorbProvinceAction:
+  LDA #$00                                            ; $BBB2: A9 00  ; province index = 0
   STA a:$0036                                         ; $BBB4: 8D 36 00
   LDA #$FF                                            ; $BBB7: A9 FF
   STA a:$003D                                         ; $BBB9: 8D 3D 00  ; best char tracker = none
   LDA #$00                                            ; $BBBC: A9 00
   STA a:$003E                                         ; $BBBE: 8D 3E 00  ; best stat value = 0
-; --- Phase 1: validate AI's own entities ---
+; --- Phase 1: validate AI's own provinces ---
 @Phase1Loop:
   LDA a:$0036                                         ; $BBC1: AD 36 00
-  JSR GetProvinceOwner                                       ; $BBC4: 20 05 D1  ; resolve entity → record ptr
+  JSR GetProvinceOwner                                       ; $BBC4: 20 05 D1  ; resolve province → record ptr
   CMP $6F03                                           ; $BBC7: CD 03 6F  ; owned by current player?
   BNE @Phase1Next                                      ; $BBCA: D0 03
   JSR @FindBestOfficerNoExclude                         ; $BBCC: 20 3E BD  ; init trackers (no exclusion)
@@ -4456,18 +4456,18 @@ AbsorbUpdateRecord:
   LDA a:$0036                                         ; $BBD2: AD 36 00
   CMP #$1E                                            ; $BBD5: C9 1E
   BCC @Phase1Loop                                      ; $BBD7: 90 E8
-; --- Phase 2: find non-AI entity with most officers ---
+; --- Phase 2: find non-AI province with most officers ---
   LDA #$00                                            ; $BBD9: A9 00
-  STA a:$0036                                         ; $BBDB: 8D 36 00  ; entity index = 0
+  STA a:$0036                                         ; $BBDB: 8D 36 00  ; province index = 0
   STA a:$0037                                         ; $BBDE: 8D 37 00  ; best army count = 0
   LDA #$FF                                            ; $BBE1: A9 FF
-  STA a:$0038                                         ; $BBE3: 8D 38 00  ; best entity ID = none
+  STA a:$0038                                         ; $BBE3: 8D 38 00  ; best province ID = none
 @FindTargetLoop:
   LDA a:$0036                                         ; $BBE6: AD 36 00
-  JSR GetProvinceOwner                                       ; $BBE9: 20 05 D1  ; resolve entity → owner
+  JSR GetProvinceOwner                                       ; $BBE9: 20 05 D1  ; resolve province → owner
   CMP $6F03                                           ; $BBEC: CD 03 6F  ; owned by player?
   BEQ @FindTargetNext                                 ; $BBEF: F0 1F  ; yes → skip (can't absorb own)
-  JSR GetPlayerRecordPtr                                       ; $BBF1: 20 19 D3  ; resolve owner's character record
+  JSR GetPlayerRecordPtr                                       ; $BBF1: 20 19 D3  ; resolve owner's officer record
   LDY #$03                                            ; $BBF4: A0 03
   LDA ($24),Y                                         ; $BBF6: B1 24
   CMP #$03                                            ; $BBF8: C9 03  ; status $03 = dismissed/inactive?
@@ -4478,7 +4478,7 @@ AbsorbUpdateRecord:
   BCC @FindTargetNext                                 ; $BC05: 90 09  ; no → skip
   STA a:$0037                                         ; $BC07: 8D 37 00  ; new best army count
   LDA a:$0036                                         ; $BC0A: AD 36 00
-  STA a:$0038                                         ; $BC0D: 8D 38 00  ; new best entity ID
+  STA a:$0038                                         ; $BC0D: 8D 38 00  ; new best province ID
 @FindTargetNext:
   INC a:$0036                                         ; $BC10: EE 36 00
   LDA a:$0036                                         ; $BC13: AD 36 00
@@ -4497,15 +4497,15 @@ AbsorbUpdateRecord:
   STA $6F73,Y                                         ; $BC28: 99 73 6F
   DEY                                                 ; $BC2B: 88
   BPL @ClearCandidateBuf                               ; $BC2C: 10 FA
-  LDA a:$0038                                         ; $BC2E: AD 38 00  ; best entity ID
-  JSR GetProvinceOwner                                       ; $BC31: 20 05 D1  ; resolve entity → record ptr
+  LDA a:$0038                                         ; $BC2E: AD 38 00  ; best province ID
+  JSR GetProvinceOwner                                       ; $BC31: 20 05 D1  ; resolve province → record ptr
   LDA #$11                                            ; $BC34: A9 11
   STA a:$0036                                         ; $BC36: 8D 36 00  ; slot index = $11
   LDA #$00                                            ; $BC39: A9 00
   STA a:$0037                                         ; $BC3B: 8D 37 00  ; candidate count = 0
 @FilterOfficerLoop:                                    ; scan army slots $11-$1A for recruitable officers
   LDY a:$0036                                         ; $BC3E: AC 36 00
-  LDA ($20),Y                                         ; $BC41: B1 20  ; character ID in slot
+  LDA ($20),Y                                         ; $BC41: B1 20  ; officer ID in slot
   CMP #$FF                                            ; $BC43: C9 FF  ; empty slot?
   BEQ @FilterOfficerNext                               ; $BC45: F0 1B  ; yes → next
   LDY #$03                                            ; $BC47: A0 03
@@ -4515,7 +4515,7 @@ AbsorbUpdateRecord:
   CMP #$5A                                            ; $BC50: C9 5A  ; loyalty >= $5A → too loyal
   BCS @FilterOfficerNext                               ; $BC52: B0 0E
   LDY a:$0036                                         ; $BC54: AC 36 00
-  LDA ($20),Y                                         ; $BC57: B1 20  ; re-read character ID
+  LDA ($20),Y                                         ; $BC57: B1 20  ; re-read officer ID
   LDY a:$0037                                         ; $BC59: AC 37 00  ; candidate index
 @StoreCandidate:
   STA $6F73,Y                                         ; $BC5C: 99 73 6F  ; store in candidate buffer
@@ -4547,7 +4547,7 @@ AbsorbUpdateRecord:
   BCS @ComputeThreshold                                ; $BC92: B0 02
   LDA #$00                                            ; $BC94: A9 00  ; clamp to 0
 @ComputeThreshold:
-  LDY $6F02                                           ; $BC96: AC 02 6F  ; kingdom index
+  LDY $6F02                                           ; $BC96: AC 02 6F  ; game level
   CLC                                                 ; $BC99: 18
   ADC $BCAB,Y                                         ; $BC9A: 79 AB BC  ; + tier modifier
   STA $2A                                             ; $BC9D: 85 2A  ; success threshold
@@ -4556,7 +4556,7 @@ AbsorbUpdateRecord:
   CMP $2A                                             ; $BCA4: C5 2A  ; random >= threshold?
   .byte $90,$06                                       ; $BCA6: 90 06 (BCC mid-instruction target)
   JMP EndTurn                                         ; $BCA8: 4C 3D A2  ; probability check failed → abort
-; --- Phase 6: transfer officer, update stats, sweep affected entities ---
+; --- Phase 6: transfer officer, update stats, sweep affected provinces ---
   .byte $10,$20                                       ; $BCAB: 10 20 (BPL mid-instruction target)
   BMI @StoreCandidate                                  ; $BCAD: 30 AD
   ROL $8500,X                                         ; $BCAF: 3E 00 85
@@ -4584,34 +4584,34 @@ AbsorbUpdateRecord:
 @ClampStatResult:
   STA ($22),Y                                         ; $BCDE: 91 22  ; write reduced stat back
   LDA $6F03                                           ; $BCE0: AD 03 6F  ; current player ID
-  JSR GetPlayerRecordPtr                                       ; $BCE3: 20 19 D3  ; resolve player's character record
+  JSR GetPlayerRecordPtr                                       ; $BCE3: 20 19 D3  ; resolve player's officer record
   LDY #$00                                            ; $BCE6: A0 00
   LDA ($24),Y                                         ; $BCE8: B1 24
-  STA a:$0039                                         ; $BCEA: 8D 39 00  ; player's character ID
-  LDA a:$0038                                         ; $BCED: AD 38 00  ; absorbed entity ID
-  JSR GetProvinceOwner                                       ; $BCF0: 20 05 D1  ; resolve entity → owner
-  STA a:$003B                                         ; $BCF3: 8D 3B 00  ; absorbed entity owner
+  STA a:$0039                                         ; $BCEA: 8D 39 00  ; player's officer ID
+  LDA a:$0038                                         ; $BCED: AD 38 00  ; absorbed province ID
+  JSR GetProvinceOwner                                       ; $BCF0: 20 05 D1  ; resolve province → owner
+  STA a:$003B                                         ; $BCF3: 8D 3B 00  ; absorbed province owner
   JSR GetPlayerRecordPtr                                       ; $BCF6: 20 19 D3
   LDY #$00                                            ; $BCF9: A0 00
   LDA ($24),Y                                         ; $BCFB: B1 24
-  STA a:$003A                                         ; $BCFD: 8D 3A 00  ; target entity's primary char ID
+  STA a:$003A                                         ; $BCFD: 8D 3A 00  ; target province's primary char ID
   LDY #$03                                            ; $BD00: A0 03
   LDA ($24),Y                                         ; $BD02: B1 24
   STA $6F44                                           ; $BD04: 8D 44 6F  ; absorbed officer display flag
-; --- Final sweep: find best replacement in affected entities ---
+; --- Final sweep: find best replacement in affected provinces ---
   LDA #$00                                            ; $BD07: A9 00
-  STA a:$0036                                         ; $BD09: 8D 36 00  ; entity index = 0
+  STA a:$0036                                         ; $BD09: 8D 36 00  ; province index = 0
   LDA #$FF                                            ; $BD0C: A9 FF
   STA a:$003D                                         ; $BD0E: 8D 3D 00  ; best char tracker = none
   LDA #$00                                            ; $BD11: A9 00
   STA a:$003E                                         ; $BD13: 8D 3E 00  ; best stat value = 0
 @SweepLoop:
   LDA a:$0036                                         ; $BD16: AD 36 00
-  JSR GetProvinceOwner                                       ; $BD19: 20 05 D1  ; resolve entity → owner
-  CMP a:$003B                                         ; $BD1C: CD 3B 00  ; same owner as absorbed entity?
+  JSR GetProvinceOwner                                       ; $BD19: 20 05 D1  ; resolve province → owner
+  CMP a:$003B                                         ; $BD1C: CD 3B 00  ; same owner as absorbed province?
   BNE @SweepNext                                       ; $BD1F: D0 06
-  LDA a:$003A                                         ; $BD21: AD 3A 00  ; target entity's primary char
-  JSR @FindBestOfficerInEntity                          ; $BD24: 20 40 BD  ; find best replacement officer
+  LDA a:$003A                                         ; $BD21: AD 3A 00  ; target province's primary char
+  JSR @FindBestOfficerInProvince                          ; $BD24: 20 40 BD  ; find best replacement officer
 @SweepNext:
   INC a:$0036                                         ; $BD27: EE 36 00
   LDA a:$0036                                         ; $BD2A: AD 36 00
@@ -4625,32 +4625,32 @@ AbsorbUpdateRecord:
   JMP EndTurn                                         ; $BD3B: 4C 3D A2  ; done → exit
 ;-------------------------------------------------------------------------------
 ; $BD3E: @FindBestOfficerNoExclude
-; Alternate entry: exclude no character ($FF = none).
-; Falls through to @FindBestOfficerInEntity at $BD40.
+; Alternate entry: exclude no officer ($FF = none).
+; Falls through to @FindBestOfficerInProvince at $BD40.
 ;-------------------------------------------------------------------------------
 @FindBestOfficerNoExclude:
   LDA #$FF                                            ; $BD3E: A9 FF  ; sentinel = no exclusion
 
 
 ;-------------------------------------------------------------------------------
-; $BD40: @FindBestOfficerInEntity
-; Scans entity $0036's army slots ($11-$1A) for the officer with the
-; highest stat at record offset 2, excluding character in A.
-; Input:  A = character ID to exclude ($FF = none), $0036 = entity index
-; Output: $003D = best character ID, $003E = best stat value
+; $BD40: @FindBestOfficerInProvince
+; Scans province $0036's army slots ($11-$1A) for the officer with the
+; highest stat at record offset 2, excluding officer in A.
+; Input:  A = officer ID to exclude ($FF = none), $0036 = province index
+; Output: $003D = best officer ID, $003E = best stat value
 ;-------------------------------------------------------------------------------
-@FindBestOfficerInEntity:
-  STA $2A                                             ; $BD40: 85 2A  ; save excluded character ID
+@FindBestOfficerInProvince:
+  STA $2A                                             ; $BD40: 85 2A  ; save excluded officer ID
   LDA a:$0036                                         ; $BD42: AD 36 00
-  JSR GetProvinceOwner                                       ; $BD45: 20 05 D1  ; resolve entity → record ptr ($20/$21)
+  JSR GetProvinceOwner                                       ; $BD45: 20 05 D1  ; resolve province → record ptr ($20/$21)
   LDA #$11                                            ; $BD48: A9 11
   STA a:$003C                                         ; $BD4A: 8D 3C 00  ; start at army slot offset $11
 @ScanOfficerLoop:
   LDY a:$003C                                         ; $BD4D: AC 3C 00
-  LDA ($20),Y                                         ; $BD50: B1 20  ; character ID in slot
+  LDA ($20),Y                                         ; $BD50: B1 20  ; officer ID in slot
   CMP #$FF                                            ; $BD52: C9 FF  ; empty slot → done
   BEQ @ScanNext                                        ; $BD54: F0 19
-  CMP $2A                                             ; $BD56: C5 2A  ; same as excluded character?
+  CMP $2A                                             ; $BD56: C5 2A  ; same as excluded officer?
   BEQ @ScanNext                                        ; $BD58: F0 15
   LDY #$02                                            ; $BD5A: A0 02
   JSR ReadRecordField::Alt                                           ; $BD5C: 20 AB D2  ; read stat at offset 2
@@ -4658,8 +4658,8 @@ AbsorbUpdateRecord:
   BCC @ScanNext                                        ; $BD62: 90 0B
   STA a:$003E                                         ; $BD64: 8D 3E 00  ; update best stat value
   LDY a:$003C                                         ; $BD67: AC 3C 00
-  LDA ($20),Y                                         ; $BD6A: B1 20  ; re-read character ID
-  STA a:$003D                                         ; $BD6C: 8D 3D 00  ; update best character ID
+  LDA ($20),Y                                         ; $BD6A: B1 20  ; re-read officer ID
+  STA a:$003D                                         ; $BD6C: 8D 3D 00  ; update best officer ID
 @ScanNext:
   INC a:$003C                                         ; $BD6F: EE 3C 00
   LDA a:$003C                                         ; $BD72: AD 3C 00
@@ -4676,10 +4676,10 @@ AbsorbUpdateRecord:
 ; Called from AiTurnDispatch after enemy province scan completes.
 ;
 ; Variables:
-;   $0036 = candidate_idx  — entity scan index (0..$1D)
+;   $0036 = candidate_idx  — province scan index (0..$1D)
 ;   $0037 = best_score     — best province score (low byte at offset 1)
 ;   $0038 = best_slot_val  — best army-slot officer ID ($FF = none found)
-;   $0039 = best_entity    — best province entity index ($FF = none found)
+;   $0039 = best_province    — best province province index ($FF = none found)
 ;   $24   = slot_offset    — army slot offset ($11..$1A)
 ;===============================================================================
 @AiDev_Main:
@@ -4690,13 +4690,13 @@ AbsorbUpdateRecord:
   STA a:$0037                                         ; $BD7F: 8D 37 00  ; best_score = 0
   LDA #$FF                                            ; $BD82: A9 FF
   STA a:$0038                                         ; $BD84: 8D 38 00  ; best_slot_val = $FF (no target)
-  STA a:$0039                                         ; $BD87: 8D 39 00  ; best_entity = $FF
+  STA a:$0039                                         ; $BD87: 8D 39 00  ; best_province = $FF
 
-@AiDev_OuterLoop:                                                             ; scan entities 0..$1D
+@AiDev_OuterLoop:                                                             ; scan provinces 0..$1D
   LDA a:$0036                                         ; $BD8A: AD 36 00  ; candidate_idx
-  JSR GetProvinceOwner                                       ; $BD8D: 20 05 D1  ; resolve entity → record ptr ($20/$21)
+  JSR GetProvinceOwner                                       ; $BD8D: 20 05 D1  ; resolve province → record ptr ($20/$21)
   CMP sram_player_id                                  ; $BD90: CD 03 6F  ; owned by current player?
-  BNE @AiDev_OuterLoopNext                                   ; $BD93: D0 59      ; not ours → next entity
+  BNE @AiDev_OuterLoopNext                                   ; $BD93: D0 59      ; not ours → next province
 
   ; --- Check province score ≥ $012C (300) ---
   LDY #$01                                            ; $BD95: A0 01
@@ -4743,7 +4743,7 @@ AbsorbUpdateRecord:
 ;===============================================================================
 ; @CompareAndUpdate — Compare score with best and update if better
 ; Entry: A = province score (low byte), $24 = slot_offset
-; Updates: best_score ($0037), best_slot_val ($0038), best_entity ($0039)
+; Updates: best_score ($0037), best_slot_val ($0038), best_province ($0039)
 ; Then continues the inner/outer scan loop or exits to processing.
 ;===============================================================================
 @CompareAndUpdate:
@@ -4754,7 +4754,7 @@ AbsorbUpdateRecord:
   LDA ($20),Y                                         ; $BDDB: B1 20      ; officer ID at slot offset
   STA a:$0038                                         ; $BDDD: 8D 38 00  ; best_slot_val
   LDA a:$0036                                         ; $BDE0: AD 36 00  ; candidate_idx
-  STA a:$0039                                         ; $BDE3: 8D 39 00  ; best_entity
+  STA a:$0039                                         ; $BDE3: 8D 39 00  ; best_province
 
 @AiDev_SlotAdvance:                                                             ; advance inner loop (next army slot)
   INC $24                                               ; $BDE6: E6 24      ; next slot offset
@@ -4762,10 +4762,10 @@ AbsorbUpdateRecord:
   CMP #$1B                                              ; $BDEA: C9 1B      ; end of slots?
   BCC @AiDev_SlotLoop                                        ; $BDEC: 90 B9      ; continue inner loop
 
-@AiDev_OuterLoopNext:                                                           ; advance outer loop (next entity)
+@AiDev_OuterLoopNext:                                                           ; advance outer loop (next province)
   INC a:$0036                                           ; $BDEE: EE 36 00  ; candidate_idx++
   LDA a:$0036                                           ; $BDF1: AD 36 00  ; candidate_idx
-  CMP #$1E                                              ; $BDF4: C9 1E      ; scanned all entities?
+  CMP #$1E                                              ; $BDF4: C9 1E      ; scanned all provinces?
   BCC @AiDev_OuterLoop                                       ; $BDF6: 90 92      ; continue outer loop
 
   ; --- Post-scan: check if any target was found ---
@@ -4776,7 +4776,7 @@ AbsorbUpdateRecord:
   JMP @AiAction_EndTurn                                   ; $BDFF: 4C C7 BE  ; → end turn phase
 
 @AiDev_ProcessBest:                                                             ; === Train the best officer ===
-  LDA a:$0039                                           ; $BE02: AD 39 00  ; best entity index
+  LDA a:$0039                                           ; $BE02: AD 39 00  ; best province index
   JSR GetProvinceOwner                                         ; $BE05: 20 05 D1  ; resolve → record ptr ($20)
   LDA a:$0038                                           ; $BE08: AD 38 00  ; best officer ID
   LDY #$08                                              ; $BE0B: A0 08
@@ -4846,11 +4846,11 @@ AbsorbUpdateRecord:
   ; --- Consume province resources (deduct cost from field $02/$03) ---
   LDA #$00                                              ; $BE74: A9 00
   STA $24                                               ; $BE76: 85 24
-  LDA a:$0039                                           ; $BE78: AD 39 00  ; best entity
+  LDA a:$0039                                           ; $BE78: AD 39 00  ; best province
   JSR DeductRecordStat2                                         ; $BE7B: 20 6F D3  ; deduct training cost
 
   ; --- Add cost to development investment (field $0C/$0D += cost) ---
-  LDA a:$0039                                           ; $BE7E: AD 39 00  ; best entity
+  LDA a:$0039                                           ; $BE7E: AD 39 00  ; best province
   JSR GetProvinceOwner                                         ; $BE81: 20 05 D1  ; re-resolve province → ($20)
   LDY #$0C                                              ; $BE84: A0 0C
   LDA $28                                               ; $BE86: A5 28
@@ -4920,7 +4920,7 @@ AbsorbUpdateRecord:
 ; Advances the AI turn phase counter. Each call increments the per-player
 ; action counter ($6F83,X). After $1E actions, advances the global phase
 ; ($6F62). At phase 3, transitions to next game state via $D140.
-; Otherwise, resets counter and resolves current entity.
+; Otherwise, resets counter and resolves current province.
 ;===============================================================================
 @AiTurn_AdvancePhase:
   LDX $6F03                                           ; $BEE6: AE 03 6F  ; current player
@@ -4939,10 +4939,10 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $BF05: A9 00      ; phase ≠ 3: zero counter
 @ResetCounter:
   STA $6F83,X                                         ; $BF07: 9D 83 6F  ; store zeroed counter
-  STA $6F5E                                           ; $BF0A: 8D 5E 6F  ; reset entity index
-  JSR GetProvinceOwner                                       ; $BF0D: 20 05 D1  ; resolve entity record
-  CMP $6F03                                           ; $BF10: CD 03 6F  ; entity owned by current player?
-  BNE @AiTurn_AdvancePhase                             ; $BF13: D0 D1      ; no → try next entity
+  STA $6F5E                                           ; $BF0A: 8D 5E 6F  ; reset province index
+  JSR GetProvinceOwner                                       ; $BF0D: 20 05 D1  ; resolve province record
+  CMP $6F03                                           ; $BF10: CD 03 6F  ; province owned by current player?
+  BNE @AiTurn_AdvancePhase                             ; $BF13: D0 D1      ; no → try next province
   RTS                                                 ; $BF15: 60
 ;-------------------------------------------------------------------------------
 ; $BF16: AiAction_RandomDispatch
@@ -4984,8 +4984,8 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $BF44: @AiAction_ReinforceTroops
-; Computes troop reinforcement: (entity_idx × $0E × kingdom_mod) / $0A,
-; adds loyalty bonus, writes to entity record[$08/$09] (16-bit), capped at 999.
+; Computes troop reinforcement: (province_idx × $0E × level_mod) / $0A,
+; adds loyalty bonus, writes to province record[$08/$09] (16-bit), capped at 999.
 ;===============================================================================
 @AiAction_ReinforceTroops:
   LDA #$0A                                            ; $BF44: A9 0A
@@ -4994,8 +4994,8 @@ AbsorbUpdateRecord:
   STA $23                                             ; $BF4A: 85 23
   LDA #$0E                                            ; $BF4C: A9 0E
   STA $24                                             ; $BF4E: 85 24
-  LDA $6F5E                                           ; $BF50: AD 5E 6F  ; entity index
-  JSR DeductRecordStat2                                       ; $BF53: 20 6F D3  ; multiply: entity_idx × $0E
+  LDA $6F5E                                           ; $BF50: AD 5E 6F  ; province index
+  JSR DeductRecordStat2                                       ; $BF53: 20 6F D3  ; multiply: province_idx × $0E
   BCC @CalcOverflow                                        ; $BF56: 90 68 (BCC @CalcOverflow)
   LDA $22                                             ; $BF58: A5 22
   STA $20                                             ; $BF5A: 85 20
@@ -5003,8 +5003,8 @@ AbsorbUpdateRecord:
   STA $21                                             ; $BF5E: 85 21
   LDA #$00                                            ; $BF60: A9 00
   STA $22                                             ; $BF62: 85 22
-  LDY $6F02                                           ; $BF64: AC 02 6F  ; kingdom index
-  LDA @KingdomActionModifiers,Y                        ; $BF67: B9 42 C0  ; kingdom modifier
+  LDY $6F02                                           ; $BF64: AC 02 6F  ; game level
+  LDA @LevelActionModifiers,Y                        ; $BF67: B9 42 C0  ; level modifier
   STA $23                                             ; $BF6A: 85 23
   JSR Multiply32                                       ; $BF6C: 20 38 D4  ; multiply result × modifier
   LDA $26                                             ; $BF6F: A5 26
@@ -5021,10 +5021,10 @@ AbsorbUpdateRecord:
   LDA $21                                             ; $BF86: A5 21
   STA $22                                             ; $BF88: 85 22
   LDA $6F5E                                           ; $BF8A: AD 5E 6F
-  JSR GetProvinceOwner                                       ; $BF8D: 20 05 D1  ; resolve entity → ($20)
+  JSR GetProvinceOwner                                       ; $BF8D: 20 05 D1  ; resolve province → ($20)
   LDA $22                                             ; $BF90: A5 22
   JSR @AddLoyaltyBonus_Small                           ; $BF92: 20 A7 C1  ; add loyalty bonus to field[$0B]
-  LDY #$08                                            ; $BF95: A0 08      ; entity record offset $08 (troops lo)
+  LDY #$08                                            ; $BF95: A0 08      ; province record offset $08 (troops lo)
   LDA ($20),Y                                         ; $BF97: B1 20
   CLC                                                 ; $BF99: 18
   ADC $22                                             ; $BF9A: 65 22
@@ -5053,9 +5053,9 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $BFC3: @AiAction_ReinforceSupplies
-; Same algorithm as ReinforceTroops but writes to entity record[$0E/$0F]
-; (supply/provision field) instead of $08/$09. Same kingdom modifier table
-; (@KingdomActionModifiers, offset 0). Same cap of 999.
+; Same algorithm as ReinforceTroops but writes to province record[$0E/$0F]
+; (supply/provision field) instead of $08/$09. Same level modifier table
+; (@LevelActionModifiers, offset 0). Same cap of 999.
 ;===============================================================================
 @AiAction_ReinforceSupplies:
   LDA #$0A                                            ; $BFC3: A9 0A
@@ -5073,8 +5073,8 @@ AbsorbUpdateRecord:
   STA $21                                             ; $BFDD: 85 21
   LDA #$00                                            ; $BFDF: A9 00
   STA $22                                             ; $BFE1: 85 22
-  LDY $6F02                                           ; $BFE3: AC 02 6F  ; kingdom index
-  LDA @KingdomActionModifiers,Y                        ; $BFE6: B9 42 C0  ; kingdom modifier
+  LDY $6F02                                           ; $BFE3: AC 02 6F  ; game level
+  LDA @LevelActionModifiers,Y                        ; $BFE6: B9 42 C0  ; level modifier
   STA $23                                             ; $BFE9: 85 23
   JSR Multiply32                                       ; $BFEB: 20 38 D4
   LDA $26                                             ; $BFEE: A5 26
@@ -5092,7 +5092,7 @@ AbsorbUpdateRecord:
   LDA $21                                             ; $C005: A5 21
   STA $22                                             ; $C007: 85 22
   LDA $6F5E                                           ; $C009: AD 5E 6F
-  JSR GetProvinceOwner                                       ; $C00C: 20 05 D1  ; resolve entity → ($20)
+  JSR GetProvinceOwner                                       ; $C00C: 20 05 D1  ; resolve province → ($20)
   LDA $22                                             ; $C00F: A5 22
   JSR @AddLoyaltyBonus_Small                           ; $C011: 20 A7 C1  ; loyalty bonus to field[$0B]
   LDY #$0E                                            ; $C014: A0 0E      ; offset $0E (supplies lo)
@@ -5122,17 +5122,17 @@ AbsorbUpdateRecord:
 @CalcOverflow:
   JMP @AiAction_EndTurn                                ; $C03F: 4C C7 BE  ; return to AI turn loop
 
-; Per-kingdom action modifiers (circular 12-byte table, indexed by kingdom_index)
+; Per-level action modifiers (12-byte table, indexed by game level)
 ; Accessed at different base offsets to select action type:
 ;   +0 = troops/supplies, +3 = small stat, +6 = composite, +9 = officer loyalty
-@KingdomActionModifiers:
+@LevelActionModifiers:
   .byte $0C,$0F,$12,$06,$07,$08,$19,$14,$0F,$03,$05,$07  ; 12,15,18,6,7,8,25,20,15,3,5,7
 
 
 ;===============================================================================
 ; $C04E: @AiAction_BoostMorale
-; Computes morale boost at HALF strength: (entity_idx × $0E × mod) / $0A / 2.
-; Writes to entity record[$06/$07] (16-bit morale), capped at $270F.
+; Computes morale boost at HALF strength: (province_idx × $0E × mod) / $0A / 2.
+; Writes to province record[$06/$07] (16-bit morale), capped at $270F.
 ; Also adds a large loyalty bonus via @AddLoyaltyBonus_Large.
 ;===============================================================================
 @AiAction_BoostMorale:
@@ -5145,7 +5145,7 @@ AbsorbUpdateRecord:
   math_temp2               = $0026
   math_temp3               = $0027
   work_outer_idx           = $0036
-  sram_kingdom_index       = $6F02
+  sram_game_level          = $6F02
 
   LDA #$0A                                            ; $C04E: A9 0A
   STA $22                                             ; $C050: 85 22
@@ -5163,7 +5163,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $C06A: A9 00
   STA $22                                             ; $C06C: 85 22
   LDY $6F02                                           ; $C06E: AC 02 6F
-  LDA @KingdomActionModifiers,Y                        ; $C071: B9 42 C0  ; kingdom modifier (offset 0)
+  LDA @LevelActionModifiers,Y                        ; $C071: B9 42 C0  ; level modifier (offset 0)
   STA $23                                             ; $C074: 85 23
   JSR Multiply32                                       ; $C076: 20 38 D4
   LDA $26                                             ; $C079: A5 26
@@ -5182,7 +5182,7 @@ AbsorbUpdateRecord:
   LSR $23                                             ; $C094: 46 23      ; halve the 16-bit result (÷2)
   ROR $22                                             ; $C096: 66 22
   LDA $6F5E                                           ; $C098: AD 5E 6F
-  JSR GetProvinceOwner                                       ; $C09B: 20 05 D1  ; resolve entity → ($20)
+  JSR GetProvinceOwner                                       ; $C09B: 20 05 D1  ; resolve province → ($20)
   JSR @AddLoyaltyBonus_Large                           ; $C09E: 20 C0 C1  ; bonus based on 3000 threshold
   LDY #$06                                            ; $C0A1: A0 06      ; offset $06 (morale lo)
   LDA ($20),Y                                         ; $C0A3: B1 20
@@ -5213,8 +5213,8 @@ AbsorbUpdateRecord:
 
 ;-------------------------------------------------------------------------------
 ; $C0CF: @AiAction_SmallStatBoost
-; Single-byte stat boost: (entity_idx × $0A × mod[3]) / $0A.
-; Writes to entity record[$0A] (single byte), capped at 99 ($63).
+; Single-byte stat boost: (province_idx × $0A × mod[3]) / $0A.
+; Writes to province record[$0A] (single byte), capped at 99 ($63).
 ;-------------------------------------------------------------------------------
 @AiAction_SmallStatBoost:
   LDA #$0A                                            ; $C0CF: A9 0A
@@ -5233,7 +5233,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $C0EB: A9 00
   STA $22                                             ; $C0ED: 85 22
   LDY $6F02                                           ; $C0EF: AC 02 6F
-  LDA @KingdomActionModifiers+3,Y                      ; $C0F2: B9 45 C0  ; modifier at offset 3
+  LDA @LevelActionModifiers+3,Y                      ; $C0F2: B9 45 C0  ; modifier at offset 3
   STA $23                                             ; $C0F5: 85 23
   JSR Multiply32                                       ; $C0F7: 20 38 D4
   LDA $26                                             ; $C0FA: A5 26
@@ -5267,10 +5267,10 @@ AbsorbUpdateRecord:
 ;-------------------------------------------------------------------------------
 ; $C130: @AiAction_CompositeBoost
 ; Composite boost combining TWO multiplication results:
-;   part1 = entity_idx × $1E (via DeductRecordStat2)
-;   part2 = entity_idx × $1E (via DeductRecordStat4)
+;   part1 = province_idx × $1E (via DeductRecordStat2)
+;   part2 = province_idx × $1E (via DeductRecordStat4)
 ;   result = (part1 + part2) / mod[6]
-; Writes to entity record[$0B] (single byte), capped at 99.
+; Writes to province record[$0B] (single byte), capped at 99.
 ;-------------------------------------------------------------------------------
 @AiAction_CompositeBoost:
   LDA #$1E                                            ; $C130: A9 1E
@@ -5307,7 +5307,7 @@ AbsorbUpdateRecord:
   LDA $2B                                             ; $C171: A5 2B
   STA $22                                             ; $C173: 85 22
   LDY $6F02                                           ; $C175: AC 02 6F
-  LDA @KingdomActionModifiers+6,Y                      ; $C178: B9 48 C0  ; modifier at offset 6
+  LDA @LevelActionModifiers+6,Y                      ; $C178: B9 48 C0  ; modifier at offset 6
   STA $23                                             ; $C17B: 85 23
   LDA #$00                                            ; $C17D: A9 00
   STA $24                                             ; $C17F: 85 24
@@ -5333,7 +5333,7 @@ AbsorbUpdateRecord:
 
 ;-------------------------------------------------------------------------------
 ; $C1A7: @AddLoyaltyBonus_Small
-; Adds loyalty bonus (1 or 2) to entity record[$0B], capped at 100.
+; Adds loyalty bonus (1 or 2) to province record[$0B], capped at 100.
 ; Input A = value to compare: if A < $1F → bonus=1, else bonus=2.
 ;-------------------------------------------------------------------------------
 @AddLoyaltyBonus_Small:
@@ -5357,7 +5357,7 @@ AbsorbUpdateRecord:
 ;-------------------------------------------------------------------------------
 ; $C1C0: @AddLoyaltyBonus_Large
 ; Adds loyalty bonus (1 or 2) based on whether 16-bit value $22/$23 ≥ 3000.
-; Bonus is added to entity record[$0B], capped at 100.
+; Bonus is added to province record[$0B], capped at 100.
 ;-------------------------------------------------------------------------------
 @AddLoyaltyBonus_Large:
   LDY #$01                                            ; $C1C0: A0 01      ; default bonus = 1
@@ -5426,7 +5426,7 @@ AbsorbUpdateRecord:
   JSR RandomBelow                                       ; $C224: 20 AD D4
   CLC                                                 ; $C227: 18
   LDY $6F02                                           ; $C228: AC 02 6F
-  ADC @KingdomActionModifiers+9,Y                      ; $C22B: 79 4B C0  ; modifier at offset 9
+  ADC @LevelActionModifiers+9,Y                      ; $C22B: 79 4B C0  ; modifier at offset 9
   STA $22                                             ; $C22E: 85 22
   LDA a:$0036                                         ; $C230: AD 36 00
   LDY #$03                                            ; $C233: A0 03
@@ -5503,7 +5503,7 @@ AbsorbUpdateRecord:
   math_ext                 = $0024
   math_temp1               = $0025
   work_outer_idx           = $0036
-  sram_kingdom_index       = $6F02
+  sram_game_level          = $6F02
 
   JSR @FindLowestAttributeOfficer                      ; $C298: 20 EB C2  ; find officer w/ lowest field[$02]
   LDA $23                                             ; $C29B: A5 23
@@ -5529,7 +5529,7 @@ AbsorbUpdateRecord:
   JSR RandomBelow                                       ; $C2C7: 20 AD D4
   CLC                                                 ; $C2CA: 18
   LDY $6F02                                           ; $C2CB: AC 02 6F
-  ADC @KingdomActionModifiers+9,Y                      ; $C2CE: 79 4B C0  ; modifier at offset 9
+  ADC @LevelActionModifiers+9,Y                      ; $C2CE: 79 4B C0  ; modifier at offset 9
   STA $22                                             ; $C2D1: 85 22
   LDA a:$0036                                         ; $C2D3: AD 36 00
   LDY #$02                                            ; $C2D6: A0 02
@@ -5592,9 +5592,9 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $C337: @AiAction_EvaluateAndExecute
-; Switches to bank 1F, evaluates entity strategic state, and executes actions.
+; Switches to bank 1F, evaluates province strategic state, and executes actions.
 ; Loops: evaluate → deduct cost → write result → re-evaluate until done.
-; Two paths based on $3A bit fields: lower 5 bits (domestic/military actions)
+; Two paths based on $3A bit fields: lower 5 bits (strategy/military actions)
 ; and upper 3 bits (intrigue/special actions), using different cost tables.
 ;===============================================================================
 @AiAction_EvaluateAndExecute:
@@ -5658,9 +5658,9 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $C3A4: @DeductActionCost
-; Subtracts a 16-bit cost from entity record[$02/$03] using cost tables.
+; Subtracts a 16-bit cost from province record[$02/$03] using cost tables.
 ; X = table index (0,2,4,...14). Returns with C=1 on success, C=0 on underflow.
-; Cost tables: $C3BF (domestic), $C3CF (military), $C3DF (intrigue-A), $C3EF (intrigue-B)
+; Cost tables: $C3BF (strategy), $C3CF (military), $C3DF (intrigue-A), $C3EF (intrigue-B)
 ;===============================================================================
 @DeductActionCost:
   math_acc_lo              = $0020
@@ -5669,11 +5669,11 @@ AbsorbUpdateRecord:
   LDY #$02                                            ; $C3A4: A0 02
   LDA ($20),Y                                         ; $C3A6: B1 20
   SEC                                                 ; $C3A8: 38
-  SBC @ActionCostTable_Domestic,X                      ; $C3A9: FD BF C3  ; subtract cost lo byte
+  SBC @ActionCostTable_Strategy,X                      ; $C3A9: FD BF C3  ; subtract cost lo byte
   STA $22                                             ; $C3AC: 85 22
   INY                                                 ; $C3AE: C8
   LDA ($20),Y                                         ; $C3AF: B1 20
-  SBC @ActionCostTable_Domestic+1,X                    ; $C3B1: FD C0 C3  ; subtract cost hi byte
+  SBC @ActionCostTable_Strategy+1,X                    ; $C3B1: FD C0 C3  ; subtract cost hi byte
   BCC @Underflow                                        ; $C3B4: 90 08 (BCC @Underflow)
   STA ($20),Y                                         ; $C3B6: 91 20
   LDA $22                                             ; $C3B8: A5 22
@@ -5685,8 +5685,8 @@ AbsorbUpdateRecord:
 
 ; Action cost tables (16-bit LE, indexed by X = 0,2,4,...14)
 ; Each entry is a 16-bit cost value (lo,hi).
-; Domestic: used by lower-5-bit path (indices 0–4, rest zero-padded)
-@ActionCostTable_Domestic:
+; Strategy: used by lower-5-bit path (indices 0–4, rest zero-padded)
+@ActionCostTable_Strategy:
   .word $0032,$0046,$0078,$00B4,$00FA              ; 50, 70, 120, 180, 250
   .word $0000,$0000,$0000                            ; padding (unused entries)
 ; Military: used by lower-5-bit path (indices 0–5)
@@ -5704,7 +5704,7 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $C3FF: @FindBestActionField (nested in AiTurnDispatch)
-; Scans entity fields $11–$1A to find the highest-scoring action.
+; Scans province fields $11–$1A to find the highest-scoring action.
 ; Uses @AiActionParamTable for action group lookup and threshold comparison.
 ; Returns: $38 = best field index ($FF if none), $3A = best field value.
 ;===============================================================================
@@ -5750,7 +5750,7 @@ AbsorbUpdateRecord:
   CMP #$1B                                            ; $C44C: C9 1B
   BCC @NextField                                      ; $C44E: 90 BE
   RTS                                                 ; $C450: 60
-;--- GetActionGroup: classify entity into action group (0–3) ---
+;--- GetActionGroup: classify province into action group (0–3) ---
 @GetActionGroup:
   LDY #$0A                                            ; $C451: A0 0A
   JSR ReadRecordField::Alt                                           ; $C453: 20 AB D2
@@ -5795,7 +5795,7 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $C498: @ComputeActionScore (nested in AiTurnDispatch)
-; Computes final action score from entity action group and field value.
+; Computes final action score from province action group and field value.
 ; Action group (upper 4 bits of @AiActionParamTable) × 32 + threshold × 32.
 ; Returns: A = score (or $FF if no match).
 ;===============================================================================
@@ -5841,7 +5841,7 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $C4D0: @AiActionParamTable (data, nested in AiTurnDispatch)
-; 30-byte action group table: maps entity index → action group (0–3).
+; 30-byte action group table: maps province index → action group (0–3).
 ; 30-byte threshold table ($C4EE): upper-5-bit thresholds for action scoring.
 ;===============================================================================
 @AiActionParamTable:
@@ -5855,7 +5855,7 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $C50E: FindBestOfficerAssign
-; Search entities 0-29 for the best-scoring officer owned by the current player,
+; Search provinces 0-29 for the best-scoring officer owned by the current player,
 ; then move it: remove from source list ($FF-terminate) and insert into target list.
 ;===============================================================================
 .proc FindBestOfficerAssign
@@ -5880,39 +5880,39 @@ AbsorbUpdateRecord:
   STA a:$003C                                         ; $C525: 8D 3C 00  ; best_score = 0
   LDA #$FF                                            ; $C528: A9 FF
   STA a:$003D                                         ; $C52A: 8D 3D 00  ; best_idx = none
-@NextEntity:                                          ; --- loop: evaluate entity $003B ---
+@NextProvince:                                          ; --- loop: evaluate province $003B ---
   LDA a:$003B                                         ; $C52D: AD 3B 00
   STA a:$0036                                         ; $C530: 8D 36 00
-  JSR GetProvinceOwner                                       ; $C533: 20 05 D1  ; resolve entity ptr
+  JSR GetProvinceOwner                                       ; $C533: 20 05 D1  ; resolve province ptr
   AND #$07                                            ; $C536: 29 07
   CMP $6F03                                           ; $C538: CD 03 6F  ; belongs to current player?
   BNE @AdvanceIdx                                     ; $C53B: D0 2A  ; no → next
   JSR CollectEnemyProvinces                                       ; $C53D: 20 A4 D1  ; check eligibility
   BNE @AdvanceIdx                                     ; $C540: D0 25  ; not eligible → next
   LDX a:$0045                                         ; $C542: AE 45 00  ; search_max
-  LDY a:$0036                                         ; $C545: AC 36 00  ; entity_idx
+  LDY a:$0036                                         ; $C545: AC 36 00  ; province_idx
   JSR CheckPathExists                                       ; $C548: 20 83 D5  ; search → A=result
   CMP #$FF                                            ; $C54B: C9 FF
   BNE @AdvanceIdx                                     ; $C54D: D0 18  ; not $FF → skip
   LDA a:$003B                                         ; $C54F: AD 3B 00
-  JSR CountRecordSlots                                       ; $C552: 20 04 D3  ; get score for entity
+  JSR CountRecordSlots                                       ; $C552: 20 04 D3  ; get score for province
   CMP a:$003C                                         ; $C555: CD 3C 00  ; better than best?
   BCC @AdvanceIdx                                     ; $C558: 90 0D  ; no → skip
   CMP #$0A                                            ; $C55A: C9 0A
   BEQ @AdvanceIdx                                     ; $C55C: F0 09  ; score=$0A → skip
   STA a:$003C                                         ; $C55E: 8D 3C 00  ; best_score = score
   LDA a:$003B                                         ; $C561: AD 3B 00
-  STA a:$003D                                         ; $C564: 8D 3D 00  ; best_idx = entity
-@AdvanceIdx:                                                ; --- next entity ---
+  STA a:$003D                                         ; $C564: 8D 3D 00  ; best_idx = province
+@AdvanceIdx:                                                ; --- next province ---
   INC a:$003B                                         ; $C567: EE 3B 00
   LDA a:$003B                                         ; $C56A: AD 3B 00
   CMP #$1E                                            ; $C56D: C9 1E  ; idx < 30?
-  BCC @NextEntity                                     ; $C56F: 90 BC  ; yes → continue loop
+  BCC @NextProvince                                     ; $C56F: 90 BC  ; yes → continue loop
   LDA a:$003D                                         ; $C571: AD 3D 00
   CMP #$FF                                            ; $C574: C9 FF
   BEQ @Exit                                           ; $C576: F0 3D  ; no best found → exit
   ; --- Move officer: remove from source, insert into target ---
-  LDA a:$0045                                         ; $C578: AD 45 00  ; source entity
+  LDA a:$0045                                         ; $C578: AD 45 00  ; source province
   JSR GetProvinceOwner                                       ; $C57B: 20 05 D1  ; resolve ptr → ($20)
   LDY #$00                                            ; $C57E: A0 00
   LDA ($EE),Y                                         ; $C580: B1 EE  ; read value from ($EE)
@@ -5927,7 +5927,7 @@ AbsorbUpdateRecord:
 @EraseFromSource:                                                ; --- $FF-terminate source slot ---
   LDA #$FF                                            ; $C590: A9 FF
   STA ($20),Y                                         ; $C592: 91 20  ; erase from source
-  LDA a:$003D                                         ; $C594: AD 3D 00  ; best entity index
+  LDA a:$003D                                         ; $C594: AD 3D 00  ; best province index
   JSR GetProvinceOwner                                       ; $C597: 20 05 D1  ; resolve ptr → ($20)
   LDY #$11                                            ; $C59A: A0 11
 @ScanTargetLoop:
@@ -5951,7 +5951,7 @@ AbsorbUpdateRecord:
 
 ;===============================================================================
 ; $C5B9: ProcessAllOfficers
-; Iterate entities 0-29: evaluate each officer and attempt kingdom assignment.
+; Iterate provinces 0-29: evaluate each officer and attempt officer assignmentment.
 ; Contains nested EvaluateAndMarkOfficer ($C5D2).
 ;===============================================================================
 .proc ProcessAllOfficers
@@ -5959,13 +5959,13 @@ AbsorbUpdateRecord:
 
   LDA #$00                                            ; $C5B9: A9 00
   STA a:$0036                                         ; $C5BB: 8D 36 00  ; idx = 0
-@PerEntityLoop:                                       ; --- per-entity loop (0..29) ---
+@PerProvinceLoop:                                       ; --- per-province loop (0..29) ---
   JSR EvaluateAndMarkOfficer                          ; $C5BE: 20 D2 C5  ; evaluate & mark officer
-  JSR CalcActionProb_Entry                            ; $C5C1: 20 CC C6  ; attempt kingdom assign
+  JSR CalcActionProb_Entry                            ; $C5C1: 20 CC C6  ; attempt officer assignment
   INC a:$0036                                         ; $C5C4: EE 36 00
   LDA a:$0036                                         ; $C5C7: AD 36 00
   CMP #$1E                                            ; $C5CA: C9 1E
-  BCC @PerEntityLoop                                  ; $C5CC: 90 F0
+  BCC @PerProvinceLoop                                  ; $C5CC: 90 F0
   JSR FindPlayerProvinceByValue                                       ; $C5CE: 20 49 D2
   RTS                                                 ; $C5D1: 60
 
@@ -6071,8 +6071,8 @@ AbsorbUpdateRecord:
 ; DefaultReturn ($C68A): return $0A (low ~10% chance).
 ; ReturnValid ($C68D): return $5A (high ~89% chance).
 ; CheckOtherPlayer ($C690): player 2/3 action ID lookup.
-; Entry ($C6CC): check entity ownership, copy kingdom data from bank $30,
-; iterate kingdom entries, roll random vs threshold, assign officers on success.
+; Entry ($C6CC): check province ownership, copy province slot data from bank $30,
+; iterate officer records, roll random vs threshold, assign officers on success.
 ;===============================================================================
 .proc CalcActionProb
   .global CalcActionProb_Entry
@@ -6083,7 +6083,7 @@ AbsorbUpdateRecord:
   math_ext                 = $0024
   work_outer_idx           = $0036
   work_inner_idx           = $0037
-  sram_kingdom_index       = $6F02
+  sram_game_level          = $6F02
   sram_player_id           = $6F03
 
 CalcActionProb_GetThreshold:
@@ -6170,19 +6170,19 @@ CalcActionProb_Entry:
   ASL A                                               ; $C70A: 0A
   TAY                                                 ; $C70B: A8
   LDX #$00                                            ; $C70C: A2 00
-@CopyKingdom:
+@CopyProvinceSlots:
   LDA $9D72,Y                                         ; $C70E: B9 72 9D
   STA $6F73,X                                         ; $C711: 9D 73 6F
   INY                                                 ; $C714: C8
   INX                                                 ; $C715: E8
   CPX #$08                                            ; $C716: E0 08
-  BCC @CopyKingdom                                    ; $C718: 90 F4
+  BCC @CopyProvinceSlots                                    ; $C718: 90 F4
   LDA #$C0                                            ; $C71A: A9 C0
   STA $22                                             ; $C71C: 85 22
   LDA #$63                                            ; $C71E: A9 63
   STA $23                                             ; $C720: 85 23
   LDX #$00                                            ; $C722: A2 00
-@EntryLoop:                                           ; --- iterate kingdom entries ---
+@EntryLoop:                                           ; --- iterate officer records ---
   LDY #$0B                                            ; $C724: A0 0B
   LDA ($22),Y                                         ; $C726: B1 22
   AND #$03                                            ; $C728: 29 03
@@ -6246,7 +6246,7 @@ CalcActionProb_Entry:
   PLA                                                 ; $C793: 68
   RTS                                                 ; $C794: 60
 
-; $C795: kingdom-specific probability thresholds (indexed by $6F02)
+; $C795: Per-level probability thresholds (indexed by game level)
 @Thresholds:
   .byte $0A, $0A, $0A, $0A, $0A                       ; $C795: 0A 0A 0A 0A 0A
 .endproc
@@ -6255,18 +6255,18 @@ CalcActionProb_Entry:
 ; $C79A: OfficerSearchAndEvaluate
 ;
 ; AI officer recruitment/transfer pipeline for the current player ($6F03).
-; Scans entities 0–29 and, for each entity owned by the current player,
+; Scans provinces 0–29 and, for each province owned by the current player,
 ; attempts to recruit or transfer subordinate officers.
 ;
-; OVERALL FLOW (outer loop over entities):
-;   1. Iterate entity IDs 0..$1D in work_outer_idx ($0036).
-;   2. Skip entities not owned by current player (GetProvinceOwner ownership check).
+; OVERALL FLOW (outer loop over provinces):
+;   1. Iterate province IDs 0..$1D in work_outer_idx ($0036).
+;   2. Skip provinces not owned by current player (GetProvinceOwner ownership check).
 ;   3. Clear dispatch buffer $0540[0..$0F] = $FF.
 ;   4. Run @FindBestSubordinate evaluation loop: find best subordinate candidate.
-;      - If no candidate ($22 != 0 or $2B < 2), advance to next entity.
+;      - If no candidate ($22 != 0 or $2B < 2), advance to next province.
 ;      - Roll random threshold (B1F_RandomByte2); retry if below $21.
 ;   5. Compute record via DeductRecordStat2; if carry clear → @EarlyExit (RTS).
-;   6. Switch to bank $30, read flag byte $8FFC[entity_id].
+;   6. Switch to bank $30, read flag byte $8FFC[province_id].
 ;      - Bit 3 set → @Dispatch97A: call @WriteSubordinateValue post-processing + DeductCounter_Unwind1,
 ;        then loop back to @EvalLoop.
 ;      - Bit 3 clear → JMP @FillSlots (recruitment path).
@@ -6275,7 +6275,7 @@ CalcActionProb_Entry:
 ;
 ; @FillSlots ($C80A) — Recruit fill phase:
 ;   Init $6F73[0..$0F] = $FF (unclaimed). Switch to bank $30. Compute
-;   subordinate base offset (entity_idx * 8). Randomly pick slot 0..7;
+;   subordinate base offset (province_idx * 8). Randomly pick slot 0..7;
 ;   if unclaimed, mark it and read subordinate record ID from $9D72 table.
 ;   If valid (not $80+), JMP @ValidateAndMark. Scan all 8 slots; if any
 ;   remain unclaimed, retry. When all 8 claimed → RTS (return to caller).
@@ -6295,7 +6295,7 @@ CalcActionProb_Entry:
 ;
 ; @TransferFillSlots ($C885) — Transfer fill phase:
 ;   Init $6F7B[0..7] = $FF (unclaimed). Compute subordinate base offset
-;   for entity $0037 (idx * 8). Randomly pick slot 0..7; if unclaimed,
+;   for province $0037 (idx * 8). Randomly pick slot 0..7; if unclaimed,
 ;   mark and read subordinate record ID. If valid, JMP @TransferValidate.
 ;   Scan all 8 slots; retry until all claimed → RTS.
 ;
@@ -6307,15 +6307,15 @@ CalcActionProb_Entry:
 ;     - Not eligible → @TransferSkip (RTS).
 ;
 ; @SwapSlots ($C8E6) — Officer swap phase:
-;   Load entity $0036's record pointer (GetProvinceOwner). Scan record offset
+;   Load province $0036's record pointer (GetProvinceOwner). Scan record offset
 ;   $11+ for the subordinate matching $0039; replace with $FF (empty).
-;   Load entity $0037's record pointer. Scan offset $11+ for an empty
+;   Load province $0037's record pointer. Scan offset $11+ for an empty
 ;   ($FF) slot; write $0039's old subordinate there.
-;   Compact entity $0036's subordinate list via CompactRecordSlots.
+;   Compact province $0036's subordinate list via CompactRecordSlots.
 ;   JMP @Dispatch97A → @WriteSubordinateValue post-processing, then back to @EvalLoop.
 ;
 ; EXIT PATHS:
-;   RTS at $C7A9 — entity loop exhausted (all 30 checked).
+;   RTS at $C7A9 — province loop exhausted (all 30 checked).
 ;   RTS at $C7FE — DeductRecordStat2 carry clear (early exit).
 ;   RTS at $C84C — @FillSlots completed all 8 recruit slots.
 ;   RTS at $C869 — @ValidateAndMark: officer not owned by current player.
@@ -6330,12 +6330,12 @@ CalcActionProb_Entry:
 ;   $0023  math_acc_hi       DeductRecordStat2 parameter
 ;   $0024  math_ext          DeductRecordStat2 parameter / FillSlots base offset
 ;   $0028  sub_table_lo      TransferFillSlots subordinate base offset
-;   $0036  work_outer_idx    Outer entity ID loop counter
+;   $0036  work_outer_idx    Outer province ID loop counter
 ;   $0037  work_inner_idx    RecruitValidate subordinate record ID
 ;                           TransferValidate target for swap
 ;   $0038  work_inner_idx2   TransferValidate subordinate record ID
 ;   $0039  work_sub_idx      SwapSlots: subordinate to match/swap
-;   $0540  state_sub_dispatch Dispatch buffer (16 bytes, cleared per entity)
+;   $0540  state_sub_dispatch Dispatch buffer (16 bytes, cleared per province)
 ;   $6F03  sram_player_id    Current player ID
 ;   $6F73  recruit buffer    Recruit slot claims (16 bytes)
 ;   $6F7B  transfer buffer   Transfer slot claims (8 bytes)
@@ -6356,18 +6356,18 @@ CalcActionProb_Entry:
 
   LDY #$FF                                            ; $C79A: A0 FF
   STY a:$0036                                         ; $C79C: 8C 36 00
-@EntityLoop:
+@ProvinceLoop:
   INC a:$0036                                         ; $C79F: EE 36 00
   LDA a:$0036                                         ; $C7A2: AD 36 00
   CMP #$1E                                            ; $C7A5: C9 1E
-  BCC @OwnedEntity                                    ; $C7A7: 90 01
+  BCC @OwnedProvince                                    ; $C7A7: 90 01
   RTS                                                 ; $C7A9: 60
-@OwnedEntity:
+@OwnedProvince:
   LDA a:$0036                                         ; $C7AA: AD 36 00
   JSR GetProvinceOwner                                       ; $C7AD: 20 05 D1
   AND #$07                                            ; $C7B0: 29 07
   CMP $6F03                                           ; $C7B2: CD 03 6F
-  BNE @EntityLoop                                     ; $C7B5: D0 E8
+  BNE @ProvinceLoop                                     ; $C7B5: D0 E8
   LDY #$0F                                            ; $C7B7: A0 0F
   LDA #$FF                                            ; $C7B9: A9 FF
 @ClearBuffer:
@@ -6377,10 +6377,10 @@ CalcActionProb_Entry:
 @EvalLoop:
   JSR @FindBestSubordinate                            ; $C7C1: 20 17 C9
   LDA $22                                             ; $C7C4: A5 22
-  BNE @EntityLoop                                     ; $C7C6: D0 D7
+  BNE @ProvinceLoop                                     ; $C7C6: D0 D7
   LDA $2B                                             ; $C7C8: A5 2B
   CMP #$02                                            ; $C7CA: C9 02
-  BCC @EntityLoop                                     ; $C7CC: 90 D1
+  BCC @ProvinceLoop                                     ; $C7CC: 90 D1
   JSR B1F_RandomByte2                                 ; $C7CE: 20 8A E8
   CMP $21                                             ; $C7D1: C5 21
   BCC @EvalLoop                                       ; $C7D3: 90 EC
@@ -6417,10 +6417,10 @@ CalcActionProb_Entry:
   STA $6F73,Y                                         ; $C80E: 99 73 6F
   DEY                                                 ; $C811: 88
   BPL @RecruitInitLoop                                ; $C812: 10 FA
-  ; --- Switch to bank $30 for entity data access ---
+  ; --- Switch to bank $30 for province data access ---
   LDY #$30                                            ; $C814: A0 30
   JSR B1F_SwitchBank8_A                               ; $C816: 20 66 F2
-  ; --- Compute base offset for entity's subordinate table (idx * 8) ---
+  ; --- Compute base offset for province's subordinate table (idx * 8) ---
   LDA a:$0036                                         ; $C819: AD 36 00
   ASL A                                               ; $C81C: 0A
   ASL A                                               ; $C81D: 0A
@@ -6556,33 +6556,33 @@ CalcActionProb_Entry:
   RTS                                                 ; $C8E5: 60
 
 @SwapSlots: ; SwapOfficerSlots ($C8E6)
-  ; --- Load entity $0036's record pointer ---
+  ; --- Load province $0036's record pointer ---
   LDA a:$0036                                         ; $C8E6: AD 36 00
   JSR GetProvinceOwner                                       ; $C8E9: 20 05 D1  ; ($20) = record ptr
-  ; --- Read and save entity $0036's subtype at offset $11 ---
+  ; --- Read and save province $0036's subtype at offset $11 ---
   LDY #$10                                            ; $C8EC: A0 10
 @SwapAdvanceY1:
   INY                                                 ; $C8EE: C8       ; Y = $11
   LDA ($20),Y                                         ; $C8EF: B1 20
   CMP a:$0039                                         ; $C8F1: CD 39 00
   BNE @SwapAdvanceY1                                  ; $C8F4: D0 F8
-  ; --- Write $FF (empty) into entity $0036's subtype slot ---
+  ; --- Write $FF (empty) into province $0036's subtype slot ---
   LDA #$FF                                            ; $C8F6: A9 FF
   STA ($20),Y                                         ; $C8F8: 91 20
-  ; --- Load entity $0037's record pointer ---
+  ; --- Load province $0037's record pointer ---
   LDA a:$0037                                         ; $C8FA: AD 37 00
   JSR GetProvinceOwner                                       ; $C8FD: 20 05 D1  ; ($20) = record ptr
-  ; --- Read and validate entity $0037's subtype at offset $11 ---
+  ; --- Read and validate province $0037's subtype at offset $11 ---
   LDY #$10                                            ; $C900: A0 10
 @SwapAdvanceY2:
   INY                                                 ; $C902: C8       ; Y = $11
   LDA ($20),Y                                         ; $C903: B1 20
   CMP #$FF                                            ; $C905: C9 FF
   BNE @SwapAdvanceY2                                  ; $C907: D0 F9
-  ; --- Write entity $0036's old subtype into entity $0037's slot ---
+  ; --- Write province $0036's old subtype into province $0037's slot ---
   LDA a:$0039                                         ; $C909: AD 39 00
   STA ($20),Y                                         ; $C90C: 91 20
-  ; --- Compact subordinate lists for entity $0036 ---
+  ; --- Compact subordinate lists for province $0036 ---
   LDA a:$0036                                         ; $C90E: AD 36 00
   JSR CompactRecordSlots                                       ; $C911: 20 DD D3
   ; --- Fall through to @WriteSubordinateValue for post-processing ---
@@ -6590,7 +6590,7 @@ CalcActionProb_Entry:
 
 ;-------------------------------------------------------------------------------
 ; @FindBestSubordinate ($C917)
-; Scan subordinate slots $11–$1B of entity $0036's record, find the slot with
+; Scan subordinate slots $11–$1B of province $0036's record, find the slot with
 ; the lowest stat value (via $D2AB). Clear that slot's marker in $052F[],
 ; store the subordinate ID in $0039, and compute the result in $22/$23.
 ; Also calls Divide16 for additional post-processing.
@@ -9138,7 +9138,7 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
   LDA $0540                                           ; $D71A: AD 40 05
   JSR B1F_CallbackDispatcher                          ; $D71D: 20 DE EA
   ; --- Inline pointer table (5 entries) ---
-  .addr CallDomesticDisplay                       ; $D720: 2A D7
+  .addr CallStrategyModeDisplay                       ; $D720: 2A D7
   .addr ActionResultDisplay::TimerLoop                ; $D722: 4F D7
   .addr RenderOverlay                             ; $D724: 9C D9
   .addr ClearOverlay                              ; $D726: 7E DA
@@ -9146,9 +9146,9 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
 .endproc
 
 ;===============================================================================
-; $D72A: CallDomesticDisplay
+; $D72A: CallStrategyModeDisplay
 ;===============================================================================
-.proc CallDomesticDisplay
+.proc CallStrategyModeDisplay
 
   LDY #$37                                            ; $D72A: A0 37
   JSR B1F_BankedCallbackTrampoline                    ; $D72C: 20 07 EE

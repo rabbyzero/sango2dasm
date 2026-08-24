@@ -170,7 +170,7 @@ All outbound $A000/$C000 traffic uses the trampoline. Jump-table entry =
 | MoveState_Select $A5BB | $3D | $1D | $A027 |
 | CommandState_Init $A8BB | $28 | $08 | $A01B (build command list) |
 | CommandState_Cancel $AADD | $3D | $1D | $A027 |
-| ExecStratagem_WinOver $B3AD | $2A | $0A | $A006 `B0A_0B_ArmyValueCalc_Entry` |
+| ExecStratagem_Enticement $B3AD | $2A | $0A | $A006 `B0A_0B_ArmyValueCalc_Entry` |
 | ApplyLoyaltyChange $B62A | $2E | $0E | $A009 (display scroll loop) |
 | ApplyLoyaltyChange $B63D | $28 | $08 | $A02A (slot clear) |
 | ApplyGoldChange $B6EA | $2E | $0E | $A006 |

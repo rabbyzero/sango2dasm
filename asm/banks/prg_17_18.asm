@@ -87,8 +87,8 @@ strategy_officer_list_hi     = $0411  ; Officer ID list hi (usually unused)
 troop_assign_counter_lo      = $0424  ; Troop assignment progress counter lo
 troop_assign_counter_hi      = $0425  ; Troop assignment progress counter hi
 selected_officer_id          = $042C  ; Active/selected officer ID
-; $042D - local to BattleResult_ApplyTroopLoss (officer_id_ext)
-battle_result_phase          = $042E  ; Battle result phase (shared with strategy command dispatch)
+; $042D - local to WarResult_ApplyTroopLoss (officer_id_ext)
+war_result_phase          = $042E  ; War result phase (shared with strategy command dispatch)
 ; $042F-$0431 - local to Duel_ApplyDamage (damage_amount, damage_applied)
 dispatch_timer               = $0435  ; Dispatch timer / countdown
 menu_blink_timer             = $046C  ; Menu selection blink timer
@@ -2905,8 +2905,8 @@ MainGameDispatch:
 ; --- Inline pointer table (22 entries) ---
   .word StrategyModeDispatch                                         ; $B118: 44 B1
   .word TroopAssignmentDispatch                                         ; $B11A: 4F B3
-  .word CombatCalcDispatch                                         ; $B11C: C8 B5
-  .word BattleResultDispatch                                         ; $B11E: C7 B8
+  .word WarClashDispatch                                         ; $B11C: C8 B5
+  .word WarResultDispatch                                         ; $B11E: C7 B8
   .word DuelDispatch                                         ; $B120: 6D BA
   .word IntrigueDispatch                                        ; $B122: 3B BC
   .word EventCutsceneDispatch                                         ; $B124: E9 BC
@@ -3567,27 +3567,27 @@ TroopAssign_SummaryMenuData:
 .endproc
 
 ;===============================================================================
-; $B5C8: CombatCalcDispatch
+; $B5C8: WarClashDispatch
 ;===============================================================================
-.proc CombatCalcDispatch
-CombatCalcDispatch:
+.proc WarClashDispatch
+WarClashDispatch:
   LDA sub_state                                           ; $B5C8: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B5CB: 20 DE EA
 ; --- Inline pointer table (5 entries) ---
-  .word CombatCalc_CompareForces                                         ; $B5CE: D8 B5
-  .word CombatCalc_MoraleCheck                                         ; $B5D0: 26 B6
-  .word CombatCalc_DefenseCheck                                         ; $B5D2: 59 B6
-  .word CombatCalc_OfficerDuel                                         ; $B5D4: 89 B6
-  .word CombatCalc_DetermineOutcome                                         ; $B5D6: 19 B7
+  .word WarClash_CompareForces                                         ; $B5CE: D8 B5
+  .word WarClash_MoraleCheck                                         ; $B5D0: 26 B6
+  .word WarClash_DefenseCheck                                         ; $B5D2: 59 B6
+  .word WarClash_OfficerDuel                                         ; $B5D4: 89 B6
+  .word WarClash_DetermineOutcome                                         ; $B5D6: 19 B7
 .endproc
 ;===============================================================================
-; $B5D8: CombatCalc_CompareForces
+; $B5D8: WarClash_CompareForces
 ;===============================================================================
-.proc CombatCalc_CompareForces
+.proc WarClash_CompareForces
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-CombatCalc_CompareForces:
+WarClash_CompareForces:
   LDA active_player_slot                                           ; $B5D8: AD AA 04
   EOR #$01                                            ; $B5DB: 49 01
   TAY                                                 ; $B5DD: A8
@@ -3608,14 +3608,14 @@ CombatCalc_CompareForces:
   BCS @skip_2                                           ; $B603: B0 1D
   JSR CheckPlayerIsRuler                                           ; $B605: 20 62 D2
   BCS @skip_2                                           ; $B608: B0 18
-  JSR CombatCalc_MoraleCalc                                           ; $B60A: 20 B3 B7
+  JSR WarClash_MoraleCalc                                           ; $B60A: 20 B3 B7
   CMP ptr_0010_lo                                         ; $B60D: CD 10 00
   BCS @skip_2                                           ; $B610: B0 10
   LDA ptr_0010_lo                                         ; $B612: AD 10 00
   BEQ @skip_2                                           ; $B615: F0 0B
   LDA #$03                                            ; $B617: A9 03
   STA sub_action_type                                           ; $B619: 8D BF 04
-  JMP CombatCalc_SetActionResult                                           ; $B61C: 4C A8 B7
+  JMP WarClash_SetActionResult                                           ; $B61C: 4C A8 B7
 @skip:
   INC sub_state                                           ; $B61F: EE A9 04
 @skip_2:
@@ -3623,11 +3623,11 @@ CombatCalc_CompareForces:
   RTS                                                 ; $B625: 60
 .endproc
 ;===============================================================================
-; $B626: CombatCalc_MoraleCheck
+; $B626: WarClash_MoraleCheck
 ;===============================================================================
-.proc CombatCalc_MoraleCheck
+.proc WarClash_MoraleCheck
   combat_threshold       = $0010
-CombatCalc_MoraleCheck:
+WarClash_MoraleCheck:
   LDA active_player_slot                                           ; $B626: AD AA 04
   EOR #$01                                            ; $B629: 49 01
   TAY                                                 ; $B62B: A8
@@ -3639,24 +3639,24 @@ CombatCalc_MoraleCheck:
   ADC #$1E                                            ; $B639: 69 1E
   CMP combat_threshold                                         ; $B63B: CD 10 00
   BCS @skip                                           ; $B63E: B0 15
-  JSR CombatCalc_DefenseCalc                                           ; $B640: 20 DD B7
+  JSR WarClash_DefenseCalc                                           ; $B640: 20 DD B7
   CMP combat_threshold                                         ; $B643: CD 10 00
   BCS @skip                                           ; $B646: B0 0D
   LDA combat_threshold                                         ; $B648: AD 10 00
   BEQ @skip                                           ; $B64B: F0 08
   LDA #$06                                            ; $B64D: A9 06
   STA sub_action_type                                           ; $B64F: 8D BF 04
-  JMP CombatCalc_SetActionResult                                           ; $B652: 4C A8 B7
+  JMP WarClash_SetActionResult                                           ; $B652: 4C A8 B7
 @skip:
   INC sub_state                                           ; $B655: EE A9 04
   RTS                                                 ; $B658: 60
 .endproc
 ;===============================================================================
-; $B659: CombatCalc_DefenseCheck
+; $B659: WarClash_DefenseCheck
 ;===============================================================================
-.proc CombatCalc_DefenseCheck
+.proc WarClash_DefenseCheck
   combat_threshold        = $0010
-CombatCalc_DefenseCheck:
+WarClash_DefenseCheck:
   LDY active_player_slot                                           ; $B659: AC AA 04
   LDA player_army_value_0,Y                                         ; $B65C: B9 B1 04
   CMP #$1E                                            ; $B65F: C9 1E
@@ -3667,25 +3667,25 @@ CombatCalc_DefenseCheck:
   LDA player_army_value_0,Y                                         ; $B669: B9 B1 04
   CMP #$32                                            ; $B66C: C9 32
   BCC @skip                                           ; $B66E: 90 15
-  JSR CombatCalc_LeadershipCheck                                           ; $B670: 20 16 B8
+  JSR WarClash_LeadershipCheck                                           ; $B670: 20 16 B8
   CMP combat_threshold                                         ; $B673: CD 10 00
   BCS @skip                                           ; $B676: B0 0D
   LDA combat_threshold                                         ; $B678: AD 10 00
   BEQ @skip                                           ; $B67B: F0 08
   LDA #$02                                            ; $B67D: A9 02
   STA sub_action_type                                           ; $B67F: 8D BF 04
-  JMP CombatCalc_SetActionResult                                           ; $B682: 4C A8 B7
+  JMP WarClash_SetActionResult                                           ; $B682: 4C A8 B7
 @skip:
   INC sub_state                                           ; $B685: EE A9 04
   RTS                                                 ; $B688: 60
 .endproc
 ;===============================================================================
-; $B689: CombatCalc_OfficerDuel
+; $B689: WarClash_OfficerDuel
 ;===============================================================================
-.proc CombatCalc_OfficerDuel
+.proc WarClash_OfficerDuel
   officer_data_ptr     = $0000
   combat_threshold       = $0010
-CombatCalc_OfficerDuel:
+WarClash_OfficerDuel:
   LDY active_player_slot                                           ; $B689: AC AA 04
   LDA player_action_timer_0,Y                                         ; $B68C: B9 B5 04
   AND #$7F                                            ; $B68F: 29 7F
@@ -3706,14 +3706,14 @@ CombatCalc_OfficerDuel:
   LDA (officer_data_ptr),Y                                         ; $B6B1: B1 00
   CMP combat_threshold                                         ; $B6B3: CD 10 00
   BCS @skip_2                                           ; $B6B6: B0 15
-  JSR CombatCalc_DuelCheck                                           ; $B6B8: 20 51 B8
+  JSR WarClash_DuelCheck                                           ; $B6B8: 20 51 B8
   CMP combat_threshold                                         ; $B6BB: CD 10 00
   BCS @skip_2                                           ; $B6BE: B0 0D
   LDA combat_threshold                                         ; $B6C0: AD 10 00
   BEQ @skip_2                                           ; $B6C3: F0 08
   LDA #$07                                            ; $B6C5: A9 07
   STA sub_action_type                                           ; $B6C7: 8D BF 04
-  JMP CombatCalc_SetActionResult                                           ; $B6CA: 4C A8 B7
+  JMP WarClash_SetActionResult                                           ; $B6CA: 4C A8 B7
 @skip_2:
   LDY active_player_slot                                           ; $B6CD: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B6D0: B9 AD 04
@@ -3730,7 +3730,7 @@ CombatCalc_OfficerDuel:
   LDA (officer_data_ptr),Y                                         ; $B6EB: B1 00
   CMP combat_threshold                                         ; $B6ED: CD 10 00
   BCC @skip_3                                           ; $B6F0: 90 23
-  JSR CombatCalc_FinalCalc                                           ; $B6F2: 20 9B B8
+  JSR WarClash_FinalCalc                                           ; $B6F2: 20 9B B8
   CMP combat_threshold                                         ; $B6F5: CD 10 00
   BCS @skip_3                                           ; $B6F8: B0 1B
   LDY active_player_slot                                           ; $B6FA: AC AA 04
@@ -3744,17 +3744,17 @@ CombatCalc_OfficerDuel:
   BNE @skip_3                                           ; $B70B: D0 08
   LDA #$08                                            ; $B70D: A9 08
   STA sub_action_type                                           ; $B70F: 8D BF 04
-  JMP CombatCalc_SetActionResult                                           ; $B712: 4C A8 B7
+  JMP WarClash_SetActionResult                                           ; $B712: 4C A8 B7
 @skip_3:
   INC sub_state                                           ; $B715: EE A9 04
   RTS                                                 ; $B718: 60
 .endproc
 ;===============================================================================
-; $B719: CombatCalc_DetermineOutcome
+; $B719: WarClash_DetermineOutcome
 ;===============================================================================
-.proc CombatCalc_DetermineOutcome
+.proc WarClash_DetermineOutcome
   random_offset     = $0000
-CombatCalc_DetermineOutcome:
+WarClash_DetermineOutcome:
   LDX #$00                                            ; $B719: A2 00
   LDA active_player_slot                                           ; $B71B: AD AA 04
   EOR #$01                                            ; $B71E: 49 01
@@ -3789,10 +3789,10 @@ CombatCalc_DetermineOutcome:
   CLC                                                 ; $B752: 18
   ADC random_offset                                         ; $B753: 6D 00 00
   TAX                                                 ; $B756: AA
-  LDA CombatCalc_OutcomeTable,X                                         ; $B757: BD 60 B7
+  LDA WarClash_OutcomeTable,X                                         ; $B757: BD 60 B7
   STA sub_action_type                                           ; $B75A: 8D BF 04
-  JMP CombatCalc_SetActionResult                                           ; $B75D: 4C A8 B7
-CombatCalc_OutcomeTable:
+  JMP WarClash_SetActionResult                                           ; $B75D: 4C A8 B7
+WarClash_OutcomeTable:
   .byte $00,$00,$00,$02,$02,$02,$02,$02,$00,$00,$00,$00,$00,$02,$02,$02; $B760: 00 00 00 02 02 02 02 02 00 00 00 00 00 02 02 02
   .byte $00,$00,$00,$00,$00,$00,$02,$02,$00,$00,$02,$02,$02,$02,$02,$02; $B770: 00 00 00 00 00 00 02 02 00 00 02 02 02 02 02 02
   .byte $00,$00,$00,$00,$02,$02,$02,$02,$00,$00,$00,$00,$00,$02,$02,$02; $B780: 00 00 00 00 02 02 02 02 00 00 00 00 00 02 02 02
@@ -3801,13 +3801,13 @@ CombatCalc_OutcomeTable:
 .endproc
 
 ;===============================================================================
-; $B7A8: CombatCalc_SetActionResult
+; $B7A8: WarClash_SetActionResult
 ;===============================================================================
-.proc CombatCalc_SetActionResult
+.proc WarClash_SetActionResult
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-CombatCalc_SetActionResult:
+WarClash_SetActionResult:
   LDA #$01                                            ; $B7A8: A9 01
   STA game_state                                           ; $B7AA: 8D A8 04
   LDA #$03                                            ; $B7AD: A9 03
@@ -3815,16 +3815,16 @@ CombatCalc_SetActionResult:
   RTS                                                 ; $B7B2: 60
 .endproc
 ;===============================================================================
-; $B7B3: CombatCalc_MoraleCalc
+; $B7B3: WarClash_MoraleCalc
 ; Computes morale threshold: officer_morale + army_value, capped at $8C.
 ; Returns random roll via B1F_RandomBelow100.
 ; Note: JMP to GetOfficerRecordAddr at $B7BF may be a ROM bug (should be JSR);
 ;       code at $B7C2-$B7DA is unreachable via JMP.
 ;===============================================================================
-.proc CombatCalc_MoraleCalc
+.proc WarClash_MoraleCalc
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
-CombatCalc_MoraleCalc:
+WarClash_MoraleCalc:
   LDY active_player_slot                                           ; $B7B3: AC AA 04
   LDA player_army_value_0,Y                                         ; $B7B6: B9 B1 04
   STA ptr_0010_lo                                         ; $B7B9: 8D 10 00
@@ -3845,14 +3845,14 @@ CombatCalc_MoraleCalc:
   JMP B1F_RandomBelow100                              ; $B7DA: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B7DD: CombatCalc_DefenseCalc
+; $B7DD: WarClash_DefenseCalc
 ; Computes defense threshold: min(officer_stats) + army_value, capped at $7C.
 ; Returns random roll via B1F_RandomBelow100.
 ;===============================================================================
-.proc CombatCalc_DefenseCalc
+.proc WarClash_DefenseCalc
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
-CombatCalc_DefenseCalc:
+WarClash_DefenseCalc:
   LDY active_player_slot                                           ; $B7DD: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B7E0: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B7E3: 20 D7 F2
@@ -3880,14 +3880,14 @@ CombatCalc_DefenseCalc:
   JMP B1F_RandomBelow100                              ; $B813: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B816: CombatCalc_LeadershipCheck
+; $B816: WarClash_LeadershipCheck
 ; Computes leadership diff: $32 - (attacker_leadership - defender_leadership).
 ; Returns random roll via B1F_RandomBelow100.
 ;===============================================================================
-.proc CombatCalc_LeadershipCheck
+.proc WarClash_LeadershipCheck
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
-CombatCalc_LeadershipCheck:
+WarClash_LeadershipCheck:
   LDA active_player_slot                                           ; $B816: AD AA 04
   EOR #$01                                            ; $B819: 49 01
   TAY                                                 ; $B81B: A8
@@ -3917,15 +3917,15 @@ CombatCalc_LeadershipCheck:
   JMP B1F_RandomBelow100                              ; $B84E: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B851: CombatCalc_DuelCheck
+; $B851: WarClash_DuelCheck
 ; Computes duel threshold: attacker_attack - (attacker_defense + defender_morale).
 ; Returns random roll via B1F_RandomBelow100.
 ;===============================================================================
-.proc CombatCalc_DuelCheck
+.proc WarClash_DuelCheck
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-CombatCalc_DuelCheck:
+WarClash_DuelCheck:
   LDY active_player_slot                                           ; $B851: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B854: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B857: 20 D7 F2
@@ -3960,14 +3960,14 @@ CombatCalc_DuelCheck:
   JMP B1F_RandomBelow100                              ; $B898: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B89B: CombatCalc_FinalCalc
+; $B89B: WarClash_FinalCalc
 ; Computes final threshold: (defender_defense - defender_attack) + $0A.
 ; Returns random roll via B1F_RandomBelow100.
 ;===============================================================================
-.proc CombatCalc_FinalCalc
+.proc WarClash_FinalCalc
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
-CombatCalc_FinalCalc:
+WarClash_FinalCalc:
   LDA active_player_slot                                           ; $B89B: AD AA 04
   EOR #$01                                            ; $B89E: 49 01
   TAY                                                 ; $B8A0: A8
@@ -3992,30 +3992,30 @@ CombatCalc_FinalCalc:
   JMP B1F_RandomBelow100                              ; $B8C4: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B8C7: BattleResultDispatch
+; $B8C7: WarResultDispatch
 ;===============================================================================
-.proc BattleResultDispatch
-BattleResultDispatch:
+.proc WarResultDispatch
+WarResultDispatch:
   LDA sub_state                                           ; $B8C7: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B8CA: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word BattleResult_Calculate                                         ; $B8CD: D3 B8
-  .word BattleResult_CheckContinue                                         ; $B8CF: A5 B9
-  .word BattleResult_Finalize                                         ; $B8D1: C8 B9
+  .word WarResult_Calculate                                         ; $B8CD: D3 B8
+  .word WarResult_CheckContinue                                         ; $B8CF: A5 B9
+  .word WarResult_Finalize                                         ; $B8D1: C8 B9
 .endproc
 ;===============================================================================
-; $B8D3: BattleResult_Calculate
+; $B8D3: WarResult_Calculate
 ;===============================================================================
-.proc BattleResult_Calculate
+.proc WarResult_Calculate
   officer_data_ptr     = $0000
   ppu_tile_lo     = $0001
   battle_tile_attr      = $0002
   div_loop_count      = $0003
   col_counter_lo  = $0004
   work_val       = $0010
-BattleResult_Calculate:
+WarResult_Calculate:
   INC sub_state                                           ; $B8D3: EE A9 04
-  JSR BattleResult_ComputeDifferential                   ; $B8D6: 20 15 BA
+  JSR WarResult_ComputeDifferential                   ; $B8D6: 20 15 BA
   LDY active_player_slot                                           ; $B8D9: AC AA 04
   LDA player_action_timer_0,Y                                         ; $B8DC: B9 B5 04
   AND #$7F                                            ; $B8DF: 29 7F
@@ -4043,7 +4043,7 @@ BattleResult_Calculate:
   LDA work_val                                         ; $B90E: AD 10 00
   CMP #$64                                            ; $B911: C9 64
   BCC @skip                                           ; $B913: 90 03
-  JMP BattleResult_ShowVictory                                           ; $B915: 4C A0 B9
+  JMP WarResult_ShowVictory                                           ; $B915: 4C A0 B9
 @skip:
   LDA #$03                                            ; $B918: A9 03
   STA div_loop_count                                         ; $B91A: 8D 03 00
@@ -4051,7 +4051,7 @@ BattleResult_Calculate:
   STA work_marker                                         ; $B91F: 8D 02 00
   STA col_counter_lo                                         ; $B922: 8D 04 00
   JSR B1F_MathDiv16                                   ; $B925: 20 7C EA
-  JMP BattleResult_ApplyTroopLoss                                           ; $B928: 4C 6D B9
+  JMP WarResult_ApplyTroopLoss                                           ; $B928: 4C 6D B9
 @skip_2:
   CMP #$06                                            ; $B92B: C9 06
   BNE @skip_5                                           ; $B92D: D0 33
@@ -4061,7 +4061,7 @@ BattleResult_Calculate:
   LDA ppu_tile_lo                                         ; $B936: AD 01 00
   ASL A                                               ; $B939: 0A
   STA ppu_tile_lo                                         ; $B93A: 8D 01 00
-  JMP BattleResult_ApplyTroopLoss                                           ; $B93D: 4C 6D B9
+  JMP WarResult_ApplyTroopLoss                                           ; $B93D: 4C 6D B9
 @skip_3:
   JSR B1F_RandomByte                                  ; $B940: 20 7A E8
   AND #$1F                                            ; $B943: 29 1F
@@ -4077,20 +4077,20 @@ BattleResult_Calculate:
   LDA #$00                                            ; $B95A: A9 00
 @skip_4:
   STA player_army_value_0,Y                                         ; $B95C: 99 B1 04
-  JMP BattleResult_ShowVictory                                           ; $B95F: 4C A0 B9
+  JMP WarResult_ShowVictory                                           ; $B95F: 4C A0 B9
 @skip_5:
   LDY active_player_slot                                           ; $B962: AC AA 04
   LDA work_val                                         ; $B965: AD 10 00
   CMP name_tile_ptr_lo,Y                                         ; $B968: D9 C5 04
-  BCS BattleResult_ShowVictory                                           ; $B96B: B0 33
+  BCS WarResult_ShowVictory                                           ; $B96B: B0 33
 .endproc
 ;===============================================================================
-; $B96D: BattleResult_ApplyTroopLoss
+; $B96D: WarResult_ApplyTroopLoss
 ;===============================================================================
-.proc BattleResult_ApplyTroopLoss
+.proc WarResult_ApplyTroopLoss
   officer_id_ext     = $042D
   ppu_tile_lo     = $0001
-BattleResult_ApplyTroopLoss:
+WarResult_ApplyTroopLoss:
   LDA ppu_tile_lo                                         ; $B96D: AD 01 00
   BEQ @skip_2                                           ; $B970: F0 29
   BMI @skip_2                                           ; $B972: 30 27
@@ -4108,7 +4108,7 @@ BattleResult_ApplyTroopLoss:
   STA selected_officer_id                                           ; $B98B: 8D 2C 04
   LDA #$00                                            ; $B98E: A9 00
   STA officer_id_ext                                           ; $B990: 8D 2D 04
-  STA battle_result_phase                                           ; $B993: 8D 2E 04
+  STA war_result_phase                                           ; $B993: 8D 2E 04
   LDA #$22                                            ; $B996: A9 22
   JMP B1F_SetUI4                                      ; $B998: 4C 8B F2
 @skip_2:
@@ -4116,18 +4116,18 @@ BattleResult_ApplyTroopLoss:
   JMP B1F_SetUI4                                      ; $B99D: 4C 8B F2
 .endproc
 ;===============================================================================
-; $B9A0: BattleResult_ShowVictory
+; $B9A0: WarResult_ShowVictory
 ;===============================================================================
-.proc BattleResult_ShowVictory
-BattleResult_ShowVictory:
+.proc WarResult_ShowVictory
+WarResult_ShowVictory:
   LDA #$25                                            ; $B9A0: A9 25
   JMP B1F_SetUI0                                      ; $B9A2: 4C 6D F2
 .endproc
 ;===============================================================================
-; $B9A5: BattleResult_CheckContinue
+; $B9A5: WarResult_CheckContinue
 ;===============================================================================
-.proc BattleResult_CheckContinue
-BattleResult_CheckContinue:
+.proc WarResult_CheckContinue
+WarResult_CheckContinue:
   JSR CheckButtonConfirm                                           ; $B9A5: 20 99 D2
   BCC @skip                                           ; $B9A8: 90 1D
   JSR ReadMenuSelection                                           ; $B9AA: 20 3D D1
@@ -4145,16 +4145,16 @@ BattleResult_CheckContinue:
   RTS                                                 ; $B9C7: 60
 .endproc
 ;===============================================================================
-; $B9C8: BattleResult_Finalize
+; $B9C8: WarResult_Finalize
 ;===============================================================================
-.proc BattleResult_Finalize
+.proc WarResult_Finalize
   ppu_tile_lo     = $0001
   battle_tile_attr      = $0002
   temp_0010       = $0010
   param_0560      = $0560
   param_056e      = $056E
   param_0570      = $0570
-BattleResult_Finalize:
+WarResult_Finalize:
   LDA a:$007E                                         ; $B9C8: AD 7E 00
   AND #$04                                            ; $B9CB: 29 04
   BNE @skip                                           ; $B9CD: D0 1D
@@ -4192,7 +4192,7 @@ BattleResult_Finalize:
   LDA #$00                                            ; $BA0F: A9 00
   STA sub_state                                           ; $BA11: 8D A9 04
   RTS                                                 ; $BA14: 60
-BattleResult_ComputeDifferential:
+WarResult_ComputeDifferential:
   JSR B1F_RandomBelow100                              ; $BA15: 20 43 E8
   STA temp_0010                                         ; $BA18: 8D 10 00
   LDY #$00                                            ; $BA1B: A0 00
@@ -8191,7 +8191,7 @@ StrategyCommand_InitOfficerScroll:
   STA dispatch_src_ptr_hi                                           ; $D6BC: 8D CB 04
   JSR @init_palette                                           ; $D6BF: 20 6D D7
   LDA #$D9                                            ; $D6C2: A9 D9
-  LDX battle_result_phase                                           ; $D6C4: AE 2E 04
+  LDX war_result_phase                                           ; $D6C4: AE 2E 04
   CPX #$FF                                            ; $D6C7: E0 FF
   BEQ @skip                                           ; $D6C9: F0 02
   LDA #$D8                                            ; $D6CB: A9 D8

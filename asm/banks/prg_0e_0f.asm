@@ -25,7 +25,7 @@ Loc_A00C:
   JMP $DF6E                               ; $A00C: 4C 6E DF
 ;===============================================================================
 ; $A00F: BattleVBlankFrameUpdate
-; Battle-scene VBlank frame hook (entry 5 of the bank jump table, dispatched
+; Battle Mode VBlank frame hook (entry 5 of the bank jump table, dispatched
 ; via BattleVBlankFrameUpdate_Entry at $A000), called from prg_1f.asm
 ; NmiState3_Battle ($F945, bank $19 pair). Applies the CHR bank animation,
 ; runs the battle overlay state machine BattleOverlayDispatch (phases 0-2
@@ -206,7 +206,8 @@ Loc_A00C:
 ; $A0F9: BattleOverlayIntroAnimQueue
 ; Intro sub-state 2. Waits for the animation queue to idle, then enqueues the
 ; $E8/$E9 tile animation ($0310/$0311, slot $0300=0), sets panel param
-; $00BC=5, submits via $CBF1 and advances to sub-state 3.
+; $00BC=5, refreshes the panel troop-count block (BattlePanelStatsRefresh)
+; and advances to sub-state 3.
 ;===============================================================================
 .proc BattleOverlayIntroAnimQueue
   JSR BattleAnimQueueIdleCheck                 ; $A0F9: 20 70 B8 ; anim queue idle check
@@ -220,7 +221,7 @@ Loc_A00C:
   INC $0541                               ; $A10D: EE 41 05 ; sub-state <- 3
   LDA #$05                                ; $A110: A9 05
   STA a:$00BC                             ; $A112: 8D BC 00
-  JSR $CBF1                               ; $A115: 20 F1 CB
+  JSR BattlePanelStatsRefresh           ; $A115: 20 F1 CB ; refresh panel stats
 @Done:
   RTS                                     ; $A118: 60
 .endproc
@@ -411,7 +412,8 @@ Phase1SidePriorityOrder:
 ; Sub-phase 2, entered when a full roster scan found no acting unit. Re-arms
 ; sub-phase 1 (the cycle resumes with another scan next frame) and, once the
 ; animation queue idles (BattleAnimQueueIdleCheck, C=1 idle), enqueues the $E9 tile animation
-; ($0310=$E9, slot $0300=0) via $CBF1. Then walks the same 22x4 roster grid
+; ($0310=$E9, slot $0300=0) and refreshes the panel troop-count block
+; (BattlePanelStatsRefresh). Then walks the same 22x4 roster grid
 ; as Phase1NextActorSelect but only for side groups 0 and 1: cells of side
 ; groups 2/3 advance immediately, while the first side-0/1 cell stalls one
 ; frame ($0547 counts 0 -> 1) before the walk resumes one cell per visit.
@@ -429,7 +431,7 @@ Phase1SidePriorityOrder:
   STA $0310                               ; $A241: 8D 10 03 ; anim id
   LDA #$00                                ; $A244: A9 00
   STA $0300                               ; $A246: 8D 00 03 ; anim slot
-  JSR $CBF1                               ; $A249: 20 F1 CB ; enqueue anim
+  JSR BattlePanelStatsRefresh           ; $A249: 20 F1 CB ; refresh panel stats
 @ScanGrid:
   LDA $0546                               ; $A24C: AD 46 05
   CMP #$04                                ; $A24F: C9 04
@@ -638,7 +640,7 @@ Phase1SidePriorityOrder:
 ; BattleOverlayDispatch, run once per VBlank while $0540 = 4. Entered at
 ; sub 0 by BattleDefeatEventCheck ($A2A9) and at sub 3 by
 ; BattleRetreatEventCheck ($A32F). Runs a random damage-roll cycle that
-; drains one side's strength ($05AC side A / $05B7 side B, selected by scan
+; drains one side's troop count ($05AC side A / $05B7 side B, selected by scan
 ; column $0545) and ends by advancing to phase 5. Sub-phases via inline
 ; 7-entry table at $A3C4 indexed by $0541:
 ;   0 Phase4ResultAdvance        ($A3D0) stall one frame
@@ -674,15 +676,17 @@ Phase1SidePriorityOrder:
 .endproc
 ;===============================================================================
 ; $A3D4: Phase4ResultDefeatInputWait
-; Sub 1: waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set) and an
-; A/B button edge on either pad ($CCA8 -> $CD22, bits 0-1 of merged $0001),
+; Sub 1: waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set), draws
+; the blinking input prompt sprite (BattleInputPromptDraw) and accepts an
+; A/B button edge on either pad (BattleBothPadsStateFetch $CD22, bits 0-1 of
+; merged $0001),
 ; then advances to sub 2 via B1F_PaletteCopyBuffer + BattleOverlayTotalRefresh.
 ;===============================================================================
 .proc Phase4ResultDefeatInputWait
   JSR BattleBothPadsStateFetch            ; $A3D4: 20 22 CD ; merge both pads -> $0000/$0001
   JSR BattleAnimQueueIdleCheck                 ; $A3D7: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A3DA: 90 15 ; busy: wait
-  JSR $CCA8                               ; $A3DC: 20 A8 CC ; panel input check setup
+  JSR BattleInputPromptDraw             ; $A3DC: 20 A8 CC ; blink input prompt sprite
   JSR BattleBothPadsStateFetch            ; $A3DF: 20 22 CD ; re-fetch merged pad state
   LDA $01                                 ; $A3E2: A5 01 ; merged raw state
   AND #$03                                ; $A3E4: 29 03 ; A or B edge?
@@ -724,7 +728,7 @@ Phase1SidePriorityOrder:
   JSR BattleBothPadsStateFetch            ; $A407: 20 22 CD ; merge both pads
   JSR BattleAnimQueueIdleCheck                 ; $A40A: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A40D: 90 5D ; busy: wait
-  JSR $CCA8                               ; $A40F: 20 A8 CC ; panel input check setup
+  JSR BattleInputPromptDraw             ; $A40F: 20 A8 CC ; blink input prompt sprite
   JSR BattleBothPadsStateFetch            ; $A412: 20 22 CD ; re-fetch merged pad state
   LDA $01                                 ; $A415: A5 01 ; merged raw state
   AND #$03                                ; $A417: 29 03 ; A or B edge?
@@ -754,12 +758,12 @@ Phase1SidePriorityOrder:
   BNE @SideB                              ; $A450: D0 1B
   LDA $0514                               ; $A452: AD 14 05 ; strip 0 buffer ptr
   STA $042C                               ; $A455: 8D 2C 04
-  LDA $05AC                               ; $A458: AD AC 05 ; side A strength
+  LDA $05AC                               ; $A458: AD AC 05 ; side A troop count
   SEC                                     ; $A45B: 38
   SBC $0548                               ; $A45C: ED 48 05
   BCS @StoreSideA                         ; $A45F: B0 08 ; no underflow
   LDA $05AC                               ; $A461: AD AC 05 ; clamp: drain all
-  STA $042F                               ; $A464: 8D 2F 04 ; damage = full strength
+  STA $042F                               ; $A464: 8D 2F 04 ; damage = full troop count
   LDA #$00                                ; $A467: A9 00
 @StoreSideA:
   STA $05AC                               ; $A469: 8D AC 05
@@ -768,12 +772,12 @@ Phase1SidePriorityOrder:
 @SideB:
   LDA $0516                               ; $A46D: AD 16 05 ; strip 1 buffer ptr
   STA $042C                               ; $A470: 8D 2C 04
-  LDA $05B7                               ; $A473: AD B7 05 ; side B strength
+  LDA $05B7                               ; $A473: AD B7 05 ; side B troop count
   SEC                                     ; $A476: 38
   SBC $0548                               ; $A477: ED 48 05
   BCS @StoreSideB                         ; $A47A: B0 08 ; no underflow
   LDA $05B7                               ; $A47C: AD B7 05 ; clamp: drain all
-  STA $042F                               ; $A47F: 8D 2F 04 ; damage = full strength
+  STA $042F                               ; $A47F: 8D 2F 04 ; damage = full troop count
   LDA #$00                                ; $A482: A9 00
 @StoreSideB:
   STA $05B7                               ; $A484: 8D B7 05
@@ -782,7 +786,7 @@ Phase1SidePriorityOrder:
 ;===============================================================================
 ; $A488: Phase4ResultDamageApply
 ; Sub 4: anim-idle + A/B edge gate; on input, Phase4ResultColumnDamageSelect
-; returns the current strength of the scanned side (0 if fully drained).
+; returns the current troop count of the scanned side (0 if fully drained).
 ; Non-zero confirms (B1F_PaletteCopyBuffer, sub <- 2, BattleOverlayTotalRefresh);
 ; zero advances to sub 5 with SFX $D3.
 ;===============================================================================
@@ -790,12 +794,12 @@ Phase1SidePriorityOrder:
   JSR BattleBothPadsStateFetch            ; $A488: 20 22 CD ; merge both pads
   JSR BattleAnimQueueIdleCheck                 ; $A48B: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A48E: 90 24 ; busy: wait
-  JSR $CCA8                               ; $A490: 20 A8 CC ; panel input check setup
+  JSR BattleInputPromptDraw             ; $A490: 20 A8 CC ; blink input prompt sprite
   JSR BattleBothPadsStateFetch            ; $A493: 20 22 CD ; re-fetch merged pad state
   LDA $01                                 ; $A496: A5 01 ; merged raw state
   AND #$03                                ; $A498: 29 03 ; A or B edge?
   BEQ @Done                               ; $A49A: F0 18
-  JSR Phase4ResultColumnDamageSelect      ; $A49C: 20 D8 A4 ; strength of scanned side
+  JSR Phase4ResultColumnDamageSelect      ; $A49C: 20 D8 A4 ; troop count of scanned side
   BEQ @Advance                            ; $A49F: F0 0B ; fully drained
   JSR B1F_PaletteCopyBuffer               ; $A4A1: 20 EE EC ; confirm path
   LDA #$02                                ; $A4A4: A9 02
@@ -818,7 +822,7 @@ Phase1SidePriorityOrder:
   JSR BattleBothPadsStateFetch            ; $A4B5: 20 22 CD ; merge both pads
   JSR BattleAnimQueueIdleCheck                 ; $A4B8: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A4BB: 90 1A ; busy: wait
-  JSR $CCA8                               ; $A4BD: 20 A8 CC ; panel input check setup
+  JSR BattleInputPromptDraw             ; $A4BD: 20 A8 CC ; blink input prompt sprite
   JSR BattleBothPadsStateFetch            ; $A4C0: 20 22 CD ; re-fetch merged pad state
   LDA $01                                 ; $A4C3: A5 01 ; merged raw state
   AND #$03                                ; $A4C5: 29 03 ; A or B edge?
@@ -833,15 +837,15 @@ Phase1SidePriorityOrder:
 .endproc
 ;===============================================================================
 ; $A4D8: Phase4ResultColumnDamageSelect
-; Helper for Phase4ResultDamageApply: returns A = strength of the side
+; Helper for Phase4ResultDamageApply: returns A = troop count of the side
 ; selected by scan column $0545 (0 -> side A $05AC, non-zero -> side B
 ; $05B7); Z flag set when the side is fully drained.
 ;===============================================================================
 .proc Phase4ResultColumnDamageSelect
-  LDA $05AC                               ; $A4D8: AD AC 05 ; side A strength
+  LDA $05AC                               ; $A4D8: AD AC 05 ; side A troop count
   LDY $0545                               ; $A4DB: AC 45 05 ; scan column
   BEQ @Compare                            ; $A4DE: F0 03 ; column 0: side A
-  LDA $05B7                               ; $A4E0: AD B7 05 ; side B strength
+  LDA $05B7                               ; $A4E0: AD B7 05 ; side B troop count
 @Compare:
   CMP #$00                                ; $A4E3: C9 00 ; set Z if drained
   RTS                                     ; $A4E5: 60
@@ -1117,7 +1121,7 @@ Phase2AnimWaitExit:
 ; back to $05C2[$0545] and computes the damage inflicted on column $054A:
 ; if its action bits are 2, Phase2AttackComputeDefended (60% base), else
 ; Phase2AttackDamageCompute. The damage ($00) is subtracted from the column
-; HP $05AC[$054A]; a drained column is eliminated (panel update with amount
+; troop count $05AC[$054A]; a drained column is eliminated (panel update with amount
 ; $01, un-highlight, roster slots $0580/$0596/$05AC/$05C2 <- $FF), a
 ; surviving column is redrawn highlighted. Either way advances to sub 5.
 ;===============================================================================
@@ -1143,12 +1147,12 @@ Phase2AnimWaitExit:
   JSR Phase2AttackDamageCompute           ; $A682: 20 F2 A8 ; full damage
 @ApplyDamage:
   LDY $054A                               ; $A685: AC 4A 05 ; target column
-  LDA $05AC,Y                             ; $A688: B9 AC 05 ; target HP
+  LDA $05AC,Y                             ; $A688: B9 AC 05 ; target troop count
   SEC                                     ; $A68B: 38
   SBC $00                                 ; $A68C: E5 00 ; subtract damage
   STA $05AC,Y                             ; $A68E: 99 AC 05
   BEQ @Eliminated                         ; $A691: F0 02 ; exactly drained
-  BCS @Survived                           ; $A693: B0 28 ; HP left
+  BCS @Survived                           ; $A693: B0 28 ; troop count left
 @Eliminated:
   LDA $01                                 ; $A695: A5 01 ; computed amount
   STA $00                                 ; $A697: 85 00
@@ -1290,7 +1294,7 @@ Phase2AnimWaitExit:
 ; while the frame counter $0548 counts down from $18. Then writes the
 ; recorded status $054C to $05C2[$0545], copies the target column $054D to
 ; $054A, recomputes the column highlight with attack bonus
-; (Phase2AttackComputeWithBonus), and subtracts the damage ($00) from HP
+; (Phase2AttackComputeWithBonus), and subtracts the damage ($00) from troop count
 ; $05AC[$054D]. A drained column is eliminated (panel update, un-highlight,
 ; roster slots <- $FF); a surviving column is redrawn highlighted. Either
 ; way advances to sub $A.
@@ -1307,15 +1311,15 @@ Phase2AnimWaitExit:
   STA $054A                               ; $A772: 8D 4A 05
   JSR Phase2AttackComputeWithBonus        ; $A775: 20 71 A8 ; damage + bonus
   LDY $054D                               ; $A778: AC 4D 05 ; target column
-  LDA $05AC,Y                             ; $A77B: B9 AC 05 ; target HP
-  STA $01                                 ; $A77E: 85 01 ; keep pre-damage HP
+  LDA $05AC,Y                             ; $A77B: B9 AC 05 ; target troop count
+  STA $01                                 ; $A77E: 85 01 ; keep pre-damage troop count
   SEC                                     ; $A780: 38
   SBC $00                                 ; $A781: E5 00 ; subtract damage
   STA $05AC,Y                             ; $A783: 99 AC 05
   BEQ @Eliminated                         ; $A786: F0 02 ; exactly drained
-  BCS Phase2DamageSurvived                ; $A788: B0 28 ; HP left
+  BCS Phase2DamageSurvived                ; $A788: B0 28 ; troop count left
 @Eliminated:
-  LDA $01                                 ; $A78A: A5 01 ; pre-damage HP
+  LDA $01                                 ; $A78A: A5 01 ; pre-damage troop count
   STA $00                                 ; $A78C: 85 00
   JSR Phase2DamagePanelUpdate             ; $A78E: 20 C5 A7 ; panel damage number
   LDA #$00                                ; $A791: A9 00
@@ -1561,8 +1565,8 @@ Phase2DamageAnimExit:
 ; Core damage computation, result in $00. Base value = side attack value
 ; $056A (cursor column < $0B, plus bonus $0570 when column 0) or $056B
 ; (columns >= $0B, plus bonus $0571 when column $0B), scaled by a tier
-; percentage chosen from the target HP $05AC[$0545] (tier table 20/40/50/
-; 70/85/95/100 for HP < 15/35/60/80/90/100). Then an adjustment keyed on
+; percentage chosen from the target troop count $05AC[$0545] (tier table 20/40/50/
+; 70/85/95/100 for troop count < 15/35/60/80/90/100). Then an adjustment keyed on
 ; index column $054A: edge columns 0/$0B subtract the defense value
 ; $056E/$056F from half the damage (floor 0); a column whose action bits
 ; are 1 scales the damage to 3/4.
@@ -1586,25 +1590,25 @@ Phase2DamageAnimExit:
   JMP @ScaleByTier                        ; $A912: 4C 15 A9 ; redundant jump (ROM artifact)
 @ScaleByTier:
   PHA                                     ; $A915: 48 ; base attack value
-  LDA $05AC,Y                             ; $A916: B9 AC 05 ; target HP
+  LDA $05AC,Y                             ; $A916: B9 AC 05 ; target troop count
   LDY #$14                                ; $A919: A0 14 ; 20 percent
   CMP #$0F                                ; $A91B: C9 0F
-  BCC @DoScale                            ; $A91D: 90 20 ; HP < 15
+  BCC @DoScale                            ; $A91D: 90 20 ; troop count < 15
   LDY #$28                                ; $A91F: A0 28 ; 40 percent
   CMP #$23                                ; $A921: C9 23
-  BCC @DoScale                            ; $A923: 90 1A ; HP < 35
+  BCC @DoScale                            ; $A923: 90 1A ; troop count < 35
   LDY #$32                                ; $A925: A0 32 ; 50 percent
   CMP #$3C                                ; $A927: C9 3C
-  BCC @DoScale                            ; $A929: 90 14 ; HP < 60
+  BCC @DoScale                            ; $A929: 90 14 ; troop count < 60
   LDY #$46                                ; $A92B: A0 46 ; 70 percent
   CMP #$50                                ; $A92D: C9 50
-  BCC @DoScale                            ; $A92F: 90 0E ; HP < 80
+  BCC @DoScale                            ; $A92F: 90 0E ; troop count < 80
   LDY #$55                                ; $A931: A0 55 ; 85 percent
   CMP #$5A                                ; $A933: C9 5A
-  BCC @DoScale                            ; $A935: 90 08 ; HP < 90
+  BCC @DoScale                            ; $A935: 90 08 ; troop count < 90
   LDY #$5F                                ; $A937: A0 5F ; 95 percent
   CMP #$64                                ; $A939: C9 64
-  BCC @DoScale                            ; $A93B: 90 02 ; HP < 100
+  BCC @DoScale                            ; $A93B: 90 02 ; troop count < 100
   LDY #$64                                ; $A93D: A0 64 ; 100 percent
 @DoScale:
   STY $03                                 ; $A93F: 84 03 ; tier percent
@@ -1806,7 +1810,7 @@ Phase2DamageAnimExit:
 ; Sub 0. Advances to sub 1, clears the menu step $0548 and $054A, sets UI
 ; mode $D1 (B1F_SetUI0) and resolves the acting unit id $0560[$0549] to its
 ; officer record pointer ($00) via B1F_GetOfficerRecordAddr. Then fills the
-; command panel field block $044C-$0457: base value = column-0 strength of
+; command panel field block $044C-$0457: base value = column-0 troop count of
 ; side A ($05AC) or side B ($05B7) per acting side, overridden from record
 ; field [0] unless the resume latch $054B == 1; record fields [2]/[1]/[3]
 ; go to $044F/$0452/$0455, and field [3] == 100 forces $0457 <- $FE. Panel
@@ -1822,10 +1826,10 @@ Phase2DamageAnimExit:
   LDY $0549                               ; $AA5A: AC 49 05 ; acting side
   LDA $0560,Y                             ; $AA5D: B9 60 05 ; acting unit id
   JSR B1F_GetOfficerRecordAddr            ; $AA60: 20 D7 F2 ; record ptr -> ($00)
-  LDA $05AC                               ; $AA63: AD AC 05 ; side A column-0 strength
+  LDA $05AC                               ; $AA63: AD AC 05 ; side A column-0 troop count
   LDY $0549                               ; $AA66: AC 49 05
   BEQ @StoreTotal                         ; $AA69: F0 03
-  LDA $05B7                               ; $AA6B: AD B7 05 ; side B column-0 strength
+  LDA $05B7                               ; $AA6B: AD B7 05 ; side B column-0 troop count
 @StoreTotal:
   STA $044C                               ; $AA6E: 8D 4C 04 ; panel base value
   LDX $054B                               ; $AA71: AE 4B 05 ; resume latch phase
@@ -1856,7 +1860,7 @@ Phase2DamageAnimExit:
   CMP #$64                                ; $AAAE: C9 64 ; full 100
   BNE @SetPanelParam                      ; $AAB0: D0 05
   LDA #$FE                                ; $AAB2: A9 FE
-  STA $0457                               ; $AAB4: 8D 57 04 ; full-strength marker
+  STA $0457                               ; $AAB4: 8D 57 04 ; full-troop-count marker
 @SetPanelParam:
   LDA #$06                                ; $AAB7: A9 06
   STA a:$00BD                             ; $AAB9: 8D BD 00 ; panel param
@@ -1906,7 +1910,8 @@ Phase2DamageAnimExit:
 ; $0550[$0549*4+$0548]: slot value 4 with no pending side status counters
 ; $0574-$0577 (own side's nibble clear) commits straight to phase 8 sub 0
 ; with the slot <- 2; any other value advances to sub 3, queueing the
-; $E8/$E9 tile animation ($0310/$0311, slot $0300=0) via $CBF1 when the
+; $E8/$E9 tile animation ($0310/$0311, slot $0300=0) and refreshing the
+; panel troop-count block (BattlePanelStatsRefresh) when the
 ; resume latch $054B == 1 (player-request entry), else handing control off
 ; at Phase3CommandResultWait::Phase3CommandResumeHandoff. Every frame also
 ; runs Phase3CommandDirInput + Phase3CommandArrowDraw.
@@ -1968,7 +1973,7 @@ Phase2DamageAnimExit:
   STA $0311                               ; $AB62: 8D 11 03 ; anim id hi
   LDA #$00                                ; $AB65: A9 00
   STA $0300                               ; $AB67: 8D 00 03 ; anim slot 0
-  JSR $CBF1                               ; $AB6A: 20 F1 CB ; queue animation
+  JSR BattlePanelStatsRefresh           ; $AB6A: 20 F1 CB ; refresh panel stats
   RTS                                     ; $AB6D: 60
 @FrameUpdate:
   JSR Phase3CommandDirInput               ; $AB6E: 20 C3 AB ; direction buttons
@@ -2299,7 +2304,8 @@ Phase3CommandArrowTiles:
 ;      row effect via Phase8RowEffectDispatch (Phase8RowCoinFlip..
 ;      Phase8RowAdvance);
 ;   B: cancels back to phase 3 sub 3 (queueing the $E8/$E9 tile animation
-;      slot 0 via $CBF1).
+;      slot 0 and refreshing the panel troop-count block via
+;      BattlePanelStatsRefresh).
 ;===============================================================================
 .proc Phase8PanelMenuInput
   LDA a:$0083                             ; $AD5D: AD 83 00 ; pad latch hi
@@ -2373,7 +2379,7 @@ Phase3CommandArrowTiles:
   STA $0311                               ; $AE05: 8D 11 03 ; anim id hi
   LDA #$00                                ; $AE08: A9 00
   STA $0300                               ; $AE0A: 8D 00 03 ; anim slot 0
-  JSR $CBF1                               ; $AE0D: 20 F1 CB ; enqueue anim
+  JSR BattlePanelStatsRefresh           ; $AE0D: 20 F1 CB ; refresh panel stats
 @Done:
   RTS                                     ; $AE10: 60
 .endproc
@@ -2381,13 +2387,14 @@ Phase3CommandArrowTiles:
 ; $AE11: Phase8PanelConfirmWait
 ; Sub 3. Waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set) and an A
 ; button edge, then returns to phase 3 sub 3 (queueing the $E8/$E9 tile
-; animation slot 0 via $CBF1). If the side control flag $0562[$0549] == 3
+; animation slot 0 and refreshing the panel troop-count block via
+; BattlePanelStatsRefresh). If the side control flag $0562[$0549] == 3
 ; (player-request entry), both pads are merged via
 ; BattleBothPadsStateFetch and the resume latch $054B/$054C is set to 1/1
 ; so phase 3 hands control back afterwards.
 ;===============================================================================
 .proc Phase8PanelConfirmWait
-  JSR $CCA8                               ; $AE11: 20 A8 CC ; panel input check setup
+  JSR BattleInputPromptDraw             ; $AE11: 20 A8 CC ; blink input prompt sprite
   LDY $0549                               ; $AE14: AC 49 05 ; acting side
   LDA $0562,Y                             ; $AE17: B9 62 05 ; side control flag
   CMP #$03                                ; $AE1A: C9 03 ; player-request entry
@@ -2423,14 +2430,15 @@ Phase3CommandArrowTiles:
   STA $054B                               ; $AE60: 8D 4B 05 ; resume latch phase <- 1
   LDA #$01                                ; $AE63: A9 01
   STA $054C                               ; $AE65: 8D 4C 05 ; resume latch sub <- 1
-  JSR $CBF1                               ; $AE68: 20 F1 CB ; enqueue anim
+  JSR BattlePanelStatsRefresh           ; $AE68: 20 F1 CB ; refresh panel stats
 @Done:
   RTS                                     ; $AE6B: 60
 .endproc
 ;===============================================================================
 ; $AE6C: Phase8PanelReturnToCommand
 ; Returns to phase 3 sub 3: sets the phase/sub, queues the $E8/$E9 tile
-; animation (slot 0, anim id lo cleared afterwards) via $CBF1.
+; animation (slot 0, anim id lo cleared afterwards) and refreshes the
+; panel troop-count block (BattlePanelStatsRefresh).
 ;===============================================================================
 .proc Phase8PanelReturnToCommand
   LDA #$03                                ; $AE6C: A9 03
@@ -2445,7 +2453,7 @@ Phase3CommandArrowTiles:
   STA $0300                               ; $AE82: 8D 00 03 ; anim slot 0
   LDA #$00                                ; $AE85: A9 00
   STA $0310                               ; $AE87: 8D 10 03 ; clear anim id lo
-  JSR $CBF1                               ; $AE8A: 20 F1 CB ; enqueue anim
+  JSR BattlePanelStatsRefresh           ; $AE8A: 20 F1 CB ; refresh panel stats
   RTS                                     ; $AE8D: 60
 .endproc
 ;===============================================================================
@@ -2454,7 +2462,7 @@ Phase3CommandArrowTiles:
 ; button edge, then advances to phase 5 sub 0 (battle resolution).
 ;===============================================================================
 .proc Phase8PanelAdvanceWait
-  JSR $CCA8                               ; $AE8E: 20 A8 CC ; panel input check setup
+  JSR BattleInputPromptDraw             ; $AE8E: 20 A8 CC ; blink input prompt sprite
   LDA $0549                               ; $AE91: AD 49 05 ; acting side
   JSR BattlePadStateFetch                 ; $AE94: 20 DE CC
   JSR BattleAnimQueueIdleCheck                 ; $AE97: 20 70 B8 ; anim queue idle check
@@ -2488,7 +2496,7 @@ Phase3CommandArrowTiles:
   STA $0300                               ; $AEC4: 8D 00 03 ; anim slot 0
   LDA #$00                                ; $AEC7: A9 00
   STA $0310                               ; $AEC9: 8D 10 03 ; clear anim id lo
-  JSR $CBF1                               ; $AECC: 20 F1 CB ; enqueue anim
+  JSR BattlePanelStatsRefresh           ; $AECC: 20 F1 CB ; refresh panel stats
   RTS                                     ; $AECF: 60
 .endproc
 ;===============================================================================
@@ -2555,7 +2563,7 @@ Phase8RowCursorParams:
 .endproc
 ;===============================================================================
 ; $AF26: Phase8RowStatCheck
-; Row 1. Auto-fails while the battle scene phase $0544 == 5 on side A.
+; Row 1. Auto-fails while the battle phase $0544 == 5 on side A.
 ; Otherwise reads both officers' records (B1F_GetOfficerRecordAddr on the
 ; side unit ids $0560/$0561): field [$B]>>4 (rank/aptitude) and field [2]
 ; (troops), swaps the pairs when side B acts so ($000A,$000C) describe the
@@ -2565,7 +2573,7 @@ Phase8RowCursorParams:
 ; otherwise fails at @Fail (UI $EB, sub-phase++ = confirm wait).
 ;===============================================================================
 .proc Phase8RowStatCheck
-  LDA $0544                               ; $AF26: AD 44 05 ; battle scene phase
+  LDA $0544                               ; $AF26: AD 44 05 ; battle phase
   CMP #$05                                ; $AF29: C9 05
   BNE @SideCheck                          ; $AF2B: D0 08
   LDA $0549                               ; $AF2D: AD 49 05 ; acting side
@@ -3190,7 +3198,7 @@ Phase9AdvanceFramePtrTable:
   LDA $05C2,Y                             ; $B3FD: B9 C2 05 ; roster entry
   CMP #$FF                                ; $B400: C9 FF
   BEQ @NextSlot                           ; $B402: F0 32 ; empty slot
-  LDA $05AC,Y                             ; $B404: B9 AC 05 ; unit HP
+  LDA $05AC,Y                             ; $B404: B9 AC 05 ; unit troop count
   BNE @UpdateSprite                       ; $B407: D0 22 ; still alive
   LDA #$00                                ; $B409: A9 00
   STA a:$0012                             ; $B40B: 8D 12 00 ; clear-sprite flag
@@ -3205,7 +3213,7 @@ Phase9AdvanceFramePtrTable:
   STA $0596,Y                             ; $B41D: 99 96 05 ; row <- $FF
   STA $05C2,Y                             ; $B420: 99 C2 05 ; roster <- $FF
   LDA #$00                                ; $B423: A9 00
-  STA $05AC,Y                             ; $B425: 99 AC 05 ; HP <- 0
+  STA $05AC,Y                             ; $B425: 99 AC 05 ; troop count <- 0
   JMP @NextSlot                           ; $B428: 4C 36 B4
 @UpdateSprite:
   LDA #$01                                ; $B42B: A9 01
@@ -3303,7 +3311,7 @@ Phase9AdvanceReturn:
 ;===============================================================================
 ; $B4AA: Phase9AdvanceContactApply
 ; Applies the rolled contact damage (Phase9AdvanceDamageRoll result $0000)
-; to unit HP $05AC[$001C] (clamped at zero; on clamp the pre-damage HP is
+; to unit troop count $05AC[$001C] (clamped at zero; on clamp the pre-damage troop count is
 ; reported instead), then feeds the damage into the acting-side strip
 ; buffer ($000A <- $0560[$0549], $000B <- damage, $000C <- 0) and exits
 ; through the strip sprite update at $D7FB.
@@ -3311,17 +3319,17 @@ Phase9AdvanceReturn:
 .proc Phase9AdvanceContactApply
   JSR Phase9AdvanceDamageRoll             ; $B4AA: 20 E3 B4
   LDY a:$001C                             ; $B4AD: AC 1C 00 ; slot cursor
-  LDA $05AC,Y                             ; $B4B0: B9 AC 05 ; unit HP
-  STA a:$0001                             ; $B4B3: 8D 01 00 ; old HP
+  LDA $05AC,Y                             ; $B4B0: B9 AC 05 ; unit troop count
+  STA a:$0001                             ; $B4B3: 8D 01 00 ; old troop count
   SEC                                     ; $B4B6: 38
   SBC a:$0000                             ; $B4B7: ED 00 00 ; - damage
-  STA $05AC,Y                             ; $B4BA: 99 AC 05 ; new HP
+  STA $05AC,Y                             ; $B4BA: 99 AC 05 ; new troop count
   BEQ @StripUpdate                        ; $B4BD: F0 0D ; exactly zero
   BCS @StripUpdate                        ; $B4BF: B0 0B ; no underflow
   LDA #$00                                ; $B4C1: A9 00
   STA $05AC,Y                             ; $B4C3: 99 AC 05 ; clamp at zero
   LDA a:$0001                             ; $B4C6: AD 01 00
-  STA a:$0000                             ; $B4C9: 8D 00 00 ; report old HP
+  STA a:$0000                             ; $B4C9: 8D 00 00 ; report old troop count
 @StripUpdate:
   LDA a:$0000                             ; $B4CC: AD 00 00 ; damage dealt
   STA a:$000B                             ; $B4CF: 8D 0B 00
@@ -3396,12 +3404,12 @@ Phase9AdvanceReturn:
 ; Builds the battle rosters of both sides from the side officer ids $0560
 ; (side A) and $0561 (side B); called from Loc_D054 at battle start. First
 ; clears the $58-byte roster block $0580-$05D7 with $FF (unit columns
-; $0580/$058B, unit rows $0596/$05A1, roster codes $05C2/$05CD, column HP
-; $05AD/$05B8, side strengths $05AC/$05B7).
+; $0580/$058B, unit rows $0596/$05A1, roster codes $05C2/$05CD, column troop count
+; $05AD/$05B8, side troop counts $05AC/$05B7).
 ; Per side, with the officer record via B1F_GetOfficerRecordAddr:
-;   - record field [0] -> side strength ($05AC/$05B7);
-;   - troop total = record fields [9]:[8]: column count = ceil(troops/100)
-;     ($0566/$0567), then the troop total is split into per-column HP
+;   - record field [0] -> side troop count ($05AC/$05B7);
+;   - troop count = record fields [9]:[8]: column count = ceil(troops/100)
+;     ($0566/$0567), then the troop count is split into per-column troop count
 ;     ($05AD/$05B8): the first (troops mod count) columns get the ceil
 ;     share, the rest the floor share;
 ;   - unit-class composition from the grade of record field [1]
@@ -3414,7 +3422,7 @@ Phase9AdvanceReturn:
 ;   - unit placement from BattleFormationPtrTable: side A uses layout
 ;     index i = $056C & 3 (columns entry i -> $0580, rows entry i+6 ->
 ;     $0596); side B uses i = $056D & 3 and mirrors the columns
-;     ($058B <- $0F - col, rows -> $05A1). In battle scene phase 5
+;     ($058B <- $0F - col, rows -> $05A1). In battle phase 5
 ;     ($0544 == 5) side B uses the fixed index 4 with dedicated layouts:
 ;     class-2 slots take entries 4/10, all other slots entries 5/11, and
 ;     the class-3 bound is zeroed (no $23 units).
@@ -3426,12 +3434,12 @@ Phase9AdvanceReturn:
   STA $0580,Y                             ; $B54C: 99 80 05
   DEY                                     ; $B54F: 88
   BPL @ClearLoop                          ; $B550: 10 FA
-; --- Side A: officer record, strength and column count ---
+; --- Side A: officer record, troop count and column count ---
   LDA $0560                               ; $B552: AD 60 05 ; side A officer id
   JSR B1F_GetOfficerRecordAddr            ; $B555: 20 D7 F2 ; record ptr -> ($00)
   LDY #$00                                ; $B558: A0 00
   LDA ($00),Y                             ; $B55A: B1 00 ; record field [0]
-  STA $05AC                               ; $B55C: 8D AC 05 ; side A strength
+  STA $05AC                               ; $B55C: 8D AC 05 ; side A troop count
   LDY #$0B                                ; $B55F: A0 0B
   LDA ($00),Y                             ; $B561: B1 00 ; field [$B] rank/aptitude
   PHA                                     ; $B563: 48 ; save for class lookup
@@ -3467,23 +3475,23 @@ Phase9AdvanceReturn:
   JSR B1F_MathDiv16                       ; $B5A3: 20 7C EA ; troops / count
   LDY #$00                                ; $B5A6: A0 00
   INC a:$0001                             ; $B5A8: EE 01 00 ; ceil share
-  LDA a:$0001                             ; $B5AB: AD 01 00 ; HP share
-@SideAHpFill:
+  LDA a:$0001                             ; $B5AB: AD 01 00 ; troop count share
+@SideATroopCountFill:
   CPY a:$0005                             ; $B5AE: CC 05 00 ; remainder
-  BCS @SideAHpTail                        ; $B5B1: B0 0B ; Y >= r: floor share
+  BCS @SideATroopCountTail                        ; $B5B1: B0 0B ; Y >= r: floor share
   STA $05AD,Y                             ; $B5B3: 99 AD 05 ; ceil share
   INY                                     ; $B5B6: C8
   CPY $0566                               ; $B5B7: CC 66 05 ; column count
-  BCC @SideAHpFill                        ; $B5BA: 90 F2
+  BCC @SideATroopCountFill                        ; $B5BA: 90 F2
   BCS @SideAFormation                     ; $B5BC: B0 0C ; always: columns done
-@SideAHpTail:
+@SideATroopCountTail:
   SEC                                     ; $B5BE: 38
   SBC #$01                                ; $B5BF: E9 01 ; floor share
-@SideAHpTailLoop:
+@SideATroopCountTailLoop:
   STA $05AD,Y                             ; $B5C1: 99 AD 05
   INY                                     ; $B5C4: C8
   CPY $0566                               ; $B5C5: CC 66 05
-  BCC @SideAHpTailLoop                    ; $B5C8: 90 F7
+  BCC @SideATroopCountTailLoop                    ; $B5C8: 90 F7
 ; --- Side A: formation layout and unit-class bounds ---
 @SideAFormation:
   LDA $056C                               ; $B5CA: AD 6C 05 ; formation random
@@ -3547,12 +3555,12 @@ Phase9AdvanceReturn:
   INY                                     ; $B63F: C8
   CPY a:$0000                             ; $B640: CC 00 00 ; slot count
   BCC @SideARosterLoop                    ; $B643: 90 D7
-; --- Side B: officer record, strength and column count ---
+; --- Side B: officer record, troop count and column count ---
   LDA $0561                               ; $B645: AD 61 05 ; side B officer id
   JSR B1F_GetOfficerRecordAddr            ; $B648: 20 D7 F2 ; record ptr -> ($00)
   LDY #$00                                ; $B64B: A0 00
   LDA ($00),Y                             ; $B64D: B1 00 ; record field [0]
-  STA $05B7                               ; $B64F: 8D B7 05 ; side B strength
+  STA $05B7                               ; $B64F: 8D B7 05 ; side B troop count
   LDY #$0B                                ; $B652: A0 0B
   LDA ($00),Y                             ; $B654: B1 00 ; field [$B] rank/aptitude
   PHA                                     ; $B656: 48 ; save for class lookup
@@ -3588,27 +3596,27 @@ Phase9AdvanceReturn:
   JSR B1F_MathDiv16                       ; $B696: 20 7C EA ; troops / count
   LDY #$00                                ; $B699: A0 00
   INC a:$0001                             ; $B69B: EE 01 00 ; ceil share
-  LDA a:$0001                             ; $B69E: AD 01 00 ; HP share
-@SideBHpFill:
+  LDA a:$0001                             ; $B69E: AD 01 00 ; troop count share
+@SideBTroopCountFill:
   CPY a:$0005                             ; $B6A1: CC 05 00 ; remainder
-  BCS @SideBHpTail                        ; $B6A4: B0 0B ; Y >= r: floor share
+  BCS @SideBTroopCountTail                        ; $B6A4: B0 0B ; Y >= r: floor share
   STA $05B8,Y                             ; $B6A6: 99 B8 05 ; ceil share
   INY                                     ; $B6A9: C8
   CPY $0567                               ; $B6AA: CC 67 05 ; column count
-  BCC @SideBHpFill                        ; $B6AD: 90 F2
+  BCC @SideBTroopCountFill                        ; $B6AD: 90 F2
   BCS @SideBFormation                     ; $B6AF: B0 0C ; always: columns done
-@SideBHpTail:
+@SideBTroopCountTail:
   SEC                                     ; $B6B1: 38
   SBC #$01                                ; $B6B2: E9 01 ; floor share
-@SideBHpTailLoop:
+@SideBTroopCountTailLoop:
   STA $05B8,Y                             ; $B6B4: 99 B8 05
   INY                                     ; $B6B7: C8
   CPY $0567                               ; $B6B8: CC 67 05
-  BCC @SideBHpTailLoop                    ; $B6BB: 90 F7
+  BCC @SideBTroopCountTailLoop                    ; $B6BB: 90 F7
 ; --- Side B: formation layouts and unit-class bounds ---
 @SideBFormation:
   LDA #$04                                ; $B6BD: A9 04 ; siege layout index
-  LDY $0544                               ; $B6BF: AC 44 05 ; battle scene phase
+  LDY $0544                               ; $B6BF: AC 44 05 ; battle phase
   CPY #$05                                ; $B6C2: C0 05
   BEQ @SideBLayoutLoad                    ; $B6C4: F0 05 ; phase 5: fixed index 4
   LDA $056D                               ; $B6C6: AD 6D 05 ; formation random
@@ -3656,7 +3664,7 @@ Phase9AdvanceReturn:
   STA a:$0001                             ; $B71C: 8D 01 00
   LDA BattleUnitGradeLimitTable+1,Y       ; $B71F: B9 AD B7 ; class-2 bound
   STA a:$0002                             ; $B722: 8D 02 00
-  LDA $0544                               ; $B725: AD 44 05 ; battle scene phase
+  LDA $0544                               ; $B725: AD 44 05 ; battle phase
   CMP #$05                                ; $B728: C9 05
   BNE @SideBBoundsDone                    ; $B72A: D0 05
   LDA #$00                                ; $B72C: A9 00 ; phase 5: no class 3
@@ -3682,7 +3690,7 @@ Phase9AdvanceReturn:
   STA $05CD,Y                             ; $B752: 99 CD 05 ; roster code
   CMP #$22                                ; $B755: C9 22 ; class 2 code?
   BEQ @SideBPlaceShared                   ; $B757: F0 21 ; -> index-i layouts
-  LDA $0544                               ; $B759: AD 44 05 ; battle scene phase
+  LDA $0544                               ; $B759: AD 44 05 ; battle phase
   CMP #$05                                ; $B75C: C9 05
   BNE @SideBPlaceShared                   ; $B75E: D0 1A ; not phase 5: shared
   LDA ($1A),Y                             ; $B760: B1 1A ; siege col layout entry
@@ -3718,7 +3726,7 @@ Phase9AdvanceReturn:
 ; 12 pointers to the 11-byte placement layouts below: entries 0-5 select
 ; column layouts ($0580/$058B), entries 6-11 row layouts ($0596/$05A1).
 ; Side A uses entries i / i+6 with i = $056C & 3; side B entries i / i+6
-; with i = $056D & 3 (columns mirrored); battle scene phase 5 forces side B
+; with i = $056D & 3 (columns mirrored); battle phase 5 forces side B
 ; to index 4, where class-2 slots use entries 4/10 and all other slots
 ; entries 5/11.
 BattleFormationPtrTable:
@@ -3801,13 +3809,13 @@ BattleFormationRows_5:
 ; nametable PPU update record ($0380-$039C, $FF-terminated) and raises
 ; $007E bit 2 so the NMI handler transfers it. Parameters: $0012 mode
 ; (0 = plain terrain redraw, skipping the target slot's own occupancy
-; bit; nonzero = highlight render with status tiles + HP digit overlay),
+; bit; nonzero = highlight render with status tiles + troop count digit overlay),
 ; $0013 roster slot (0-$15; column $0580[Y], row $0596[Y]).
-; Flow: switch the $8000 map bank for battle scene phase $0544, fetch the
+; Flow: switch the $8000 map bank for battle phase $0544, fetch the
 ; map tile at (row,col) from the phase map table, expand it to a 2x2 tile
 ; pattern via the phase pattern table, compute the nametable addresses of
 ; the 2x2 cell on both screens, optionally overlay status highlight tiles
-; (BattleCellHighlightTiles) and HP digits (BattleCellHpDigitOverlay),
+; (BattleCellHighlightTiles) and troop count digits (BattleCellTroopCountDigitOverlay),
 ; merge the adjacency occupancy bits (BattleCellAdjacencyScan) into the
 ; attribute bytes, and terminate the record.
 ;===============================================================================
@@ -3817,7 +3825,7 @@ BattleFormationRows_5:
   STA a:$0010                             ; $B888: 8D 10 00
   LDA $0596,Y                             ; $B88B: B9 96 05 ; unit row
   STA a:$0011                             ; $B88E: 8D 11 00
-  LDA $0544                               ; $B891: AD 44 05 ; battle scene phase
+  LDA $0544                               ; $B891: AD 44 05 ; battle phase
   PHA                                     ; $B894: 48 ; (copy 2: attribute pass)
   PHA                                     ; $B895: 48 ; (copy 1: pattern pass)
   TAY                                     ; $B896: A8
@@ -3836,7 +3844,7 @@ BattleFormationRows_5:
   LDA BattleCellPatternPtrTable+1,Y       ; $B8B3: B9 2D BB ; pattern base hi
   STA a:$0003                             ; $B8B6: 8D 03 00
   LDA a:$0010                             ; $B8B9: AD 10 00 ; unit column
-  STA a:$0008                             ; $B8BC: 8D 08 00 ; (kept for HP pass)
+  STA a:$0008                             ; $B8BC: 8D 08 00 ; (kept for troop count pass)
   LDX #$00                                ; $B8BF: A2 00 ; unused
   LDA a:$0011                             ; $B8C1: AD 11 00 ; unit row
   ASL                                     ; $B8C4: 0A ; row * 16 (map stride)
@@ -3910,7 +3918,7 @@ BattleFormationRows_5:
   STA $0385                               ; $B957: 8D 85 03 ; record 1 seg 2 header
   STA $038E                               ; $B95A: 8D 8E 03 ; record 2 header
   STA $0393                               ; $B95D: 8D 93 03 ; record 2 seg 2 header
-; --- Highlight pass ($0012 nonzero): status tiles + HP digits ---------------
+; --- Highlight pass ($0012 nonzero): status tiles + troop count digits ---------------
   LDA a:$0012                             ; $B960: AD 12 00 ; highlight flag
   BEQ @AttributePass                      ; $B963: F0 44 ; plain redraw
   LDY a:$0013                             ; $B965: AC 13 00 ; roster slot
@@ -3941,7 +3949,7 @@ BattleFormationRows_5:
   LDA BattleCellHighlightTiles+3,Y        ; $B99D: B9 52 BB ; bottom-right
   STA $0389                               ; $B9A0: 8D 89 03
   STA $0397                               ; $B9A3: 8D 97 03
-  JSR BattleCellHpDigitOverlay            ; $B9A6: 20 18 BA ; HP digits on bottom row
+  JSR BattleCellTroopCountDigitOverlay            ; $B9A6: 20 18 BA ; troop count digits on bottom row
 ; --- Attribute pass: base attribute + adjacency occupancy bits --------------
 @AttributePass:
   PLA                                     ; $B9A9: 68 ; phase (copy 2)
@@ -3994,21 +4002,21 @@ BattleFormationRows_5:
   RTS                                     ; $BA17: 60
 .endproc
 ;===============================================================================
-; $BA18: BattleCellHpDigitOverlay
-; Highlight-pass helper: overlays the unit's HP as two digit tiles on the
-; cell's bottom row of record 2 ($0396/$0397). HP $05AC[$0013] is packed
+; $BA18: BattleCellTroopCountDigitOverlay
+; Highlight-pass helper: overlays the unit's troop count as two digit tiles on the
+; cell's bottom row of record 2 ($0396/$0397). troop count $05AC[$0013] is packed
 ; to BCD via B1F_MathBinToBcd; the tens and ones digits map to tiles
-; $B4+d. When the BCD high byte $0008 has a nonzero low nibble (HP in the
+; $B4+d. When the BCD high byte $0008 has a nonzero low nibble (troop count in the
 ; thousands), the digits are replaced by the $BE/$BF overflow marker pair.
 ;===============================================================================
-.proc BattleCellHpDigitOverlay
+.proc BattleCellTroopCountDigitOverlay
   LDY a:$0013                             ; $BA18: AC 13 00 ; roster slot
-  LDA $05AC,Y                             ; $BA1B: B9 AC 05 ; unit HP
+  LDA $05AC,Y                             ; $BA1B: B9 AC 05 ; unit troop count
   STA a:$0001                             ; $BA1E: 8D 01 00 ; BCD input lo
   LDA #$00                                ; $BA21: A9 00
   STA a:$0002                             ; $BA23: 8D 02 00 ; BCD input mid
   STA a:$0003                             ; $BA26: 8D 03 00 ; BCD input hi
-  JSR B1F_MathBinToBcd                    ; $BA29: 20 BA E9 ; HP -> packed BCD
+  JSR B1F_MathBinToBcd                    ; $BA29: 20 BA E9 ; troop count -> packed BCD
   LDA a:$0007                             ; $BA2C: AD 07 00 ; tens+ones BCD byte
   LSR                                     ; $BA2F: 4A ; tens digit
   LSR                                     ; $BA30: 4A
@@ -4146,7 +4154,7 @@ BattleFormationRows_5:
 ; BattleCellMapBankTable (currently bank $21 for every phase).
 ;===============================================================================
 ; --- Phase map table pointers ($BB1E, 7 words) --------------------------------
-; 16x16 tile-id maps, one per battle scene phase (16-byte rows).
+; 16x16 tile-id maps, one per battle phase (16-byte rows).
 BattleCellMapPtrTable:
   .word $8440,$8570,$86A0,$87D0           ; $BB1E: phases 0-3
   .word $8900,$8A30,$8B60                 ; $BB26: phases 4-6
@@ -4162,7 +4170,7 @@ BattleCellAttrPtrTable:
   .word $8400,$8530,$8660,$8790           ; $BB3A: phases 0-3
   .word $88C0,$89F0,$8B20                 ; $BB42: phases 4-6
 ; --- Phase $8000 map bank table ($BB48, 7 bytes) -------------------------------
-; Bank argument for B1F_SwitchBank8_B, indexed by battle scene phase.
+; Bank argument for B1F_SwitchBank8_B, indexed by battle phase.
 BattleCellMapBankTable:
   .byte $21,$21,$21,$21,$21,$21,$21       ; $BB48: bank $21 for all phases
 ; --- Highlight cell tiles ($BB4F, 16 x 4 bytes) ---------------------------------
@@ -4581,7 +4589,7 @@ BattleSideStatusCounterStream3:  ; counter 3, tiles $6D/$6E/$7D/$7E (attr $02)
 ;===============================================================================
 ; $C01B: BattleChrBankAnimate
 ; Animates the battle CHR banks once per VBlank. Row index = bits 3-4 of the
-; frame tick counter $005E (advances every 8 frames); battle scene phase 3
+; frame tick counter $005E (advances every 8 frames); battle phase 3
 ; ($0544) selects the second half of the table. Writes the chosen pair of CHR
 ; bank numbers to all five shadow copies of CHR bank 5 ($00B3/$00C3/$00CB/
 ; $00D3/$00DB) and CHR bank 7 ($00B5/$00C5/$00CD/$00D5/$00DD); the primary
@@ -4590,7 +4598,7 @@ BattleSideStatusCounterStream3:  ; counter 3, tiles $6D/$6E/$7D/$7E (attr $02)
 ;===============================================================================
 .proc BattleChrBankAnimate
 frame_tick     = $005E  ; frame tick counter (incremented by NmiEpilogue)
-battle_phase   = $0544  ; battle scene phase
+battle_phase   = $0544  ; battle phase
 
   LDA a:frame_tick                        ; $C01B: AD 5E 00
   LSR                                     ; $C01E: 4A
@@ -6017,18 +6025,18 @@ Loc_CAB1:
 .endproc
 ;-------------------------------------------------------------------------------
 ; $CAF9: BattleTerrainPassabilityCheck
-; Terrain passability check for the acting slot $0545's troop type against
+; Terrain passability check for the acting slot $0545's army affinity against
 ; the candidate tile at absolute coordinates $0000/$0001. Reads the tile id
 ; from the current battle map's terrain grid ($0544 = map index; per-map
 ; pointers at $BB1E, the $8000 window bank from $BB48), maps the tile id
 ; through BattleTerrainClassTable and returns:
-;   A = 0              - class 0 passes for every troop type, as does any
-;                        class matching one of the troop type's two entries
-;                        in BattleTroopTerrainTableA/B;
+;   A = 0              - class 0 passes for every army affinity, as does any
+;                        class matching one of the army affinity's two entries
+;                        in BattleArmyAffinityTerrainTableA/B;
 ;   A = terrain class  - blocked: classes 1/5 always (no troop-type
 ;                        override), and classes 2/3/4 the troop cannot
 ;                        traverse.
-; Troop type = bits 2-3 of officer-record byte $0B of the acting side's
+; Army affinity = bits 2-3 of officer-record byte $0B of the acting side's
 ; lead officer ($0560 for side A slots, $0561 for side B slots).
 ;-------------------------------------------------------------------------------
 .proc BattleTerrainPassabilityCheck
@@ -6073,13 +6081,13 @@ Loc_CAB1:
   LDA ($00),Y                             ; $CB42: B1 00 ; officer byte $0B
   LSR                                     ; $CB44: 4A
   LSR                                     ; $CB45: 4A
-  AND #$03                                ; $CB46: 29 03 ; troop type (bits 2-3)
+  AND #$03                                ; $CB46: 29 03 ; army affinity (bits 2-3)
   TAY                                     ; $CB48: A8
   PLA                                     ; $CB49: 68 ; terrain class
   TAX                                     ; $CB4A: AA ; kept in X (unused)
-  CMP BattleTroopTerrainTableA,Y          ; $CB4B: D9 E9 CB ; allowed class A
+  CMP BattleArmyAffinityTerrainTableA,Y          ; $CB4B: D9 E9 CB ; allowed class A
   BEQ @Passable                           ; $CB4E: F0 05
-  CMP BattleTroopTerrainTableB,Y          ; $CB50: D9 ED CB ; allowed class B
+  CMP BattleArmyAffinityTerrainTableB,Y          ; $CB50: D9 ED CB ; allowed class B
   BNE @Exit                               ; $CB53: D0 02 ; blocked: A = class
 @Passable:
   LDA #$00                                ; $CB55: A9 00 ; passable
@@ -6098,113 +6106,167 @@ BattleTerrainClassTable:
   .byte $05,$05,$05,$05,$05,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00; $CBB9: 05 05 05 05 05 00 00 00 00 00 00 00 00 00 00 00
   .byte $00,$00,$00,$00,$00,$03,$04,$02,$00,$00,$00,$00,$00,$00,$00,$01; $CBC9: 00 00 00 00 00 03 04 02 00 00 00 00 00 00 00 01
   .byte $01,$01,$01,$01,$01,$01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00; $CBD9: 01 01 01 01 01 01 01 00 00 00 00 00 00 00 00 00
-; --- Allowed terrain classes per troop type (class A / class B) ---
-BattleTroopTerrainTableA:
+; --- Allowed terrain classes per army affinity (class A / class B) ---
+BattleArmyAffinityTerrainTableA:
   .byte $00,$02,$03,$00                   ; $CBE9: 00 02 03 00
-BattleTroopTerrainTableB:
+BattleArmyAffinityTerrainTableB:
   .byte $00,$02,$04,$00                   ; $CBED: 00 02 04 00
-Loc_CBF1:
+;===============================================================================
+; $CBF1: BattlePanelStatsRefresh
+; Rebuilds the battle status panel troop-count field block $044C-$046C from
+; the live roster: the per-side general/infantry/archer/cavalry troop counts
+; shown on the panel (cf. manual p. 31 example: 体73/騎97/弓179/歩700). The
+; block holds 8 fields at stride 3 (value lo, value hi, reserved):
+;   $044C       field 0: side A commander troop count (8-bit, <- $05AC)
+;   $044F       field 1: side B commander troop count (8-bit, <- $05B7)
+;   $0452/$0453 field 2: side A class-1 (infantry) troop total (16-bit)
+;   $0455/$0456 field 3: side B class-1 (infantry) troop total
+;   $0458/$0459 field 4: side A class-2 (archer) troop total
+;   $045B/$045C field 5: side B class-2 (archer) troop total
+;   $045E/$045F field 6: side A class-3 (cavalry) troop total
+;   $0461/$0462 field 7: side B class-3 (cavalry) troop total
+; The commander counts come from roster slots 0/$0B themselves; the class
+; totals are accumulated by @ClassTroopSum over the 11 roster slots of each
+; side (bases 0 and $0B). The class-to-piece mapping (1 = infantry 歩兵,
+; 2 = archer 弓隊, 3 = cavalry 騎馬) follows BattleRosterSetup's composition
+; rules and the manual's 騎:弓:歩 table. Callers pair this refresh with
+; their own $0310/$0311/$0300 tile-animation queue writes: intro sub-state 2
+; ($A0F9), the phase 1 round pass ($A235), and every return to the phase 3
+; command panel ($AB6A, $AE0D, $AE68, $AE8A, $AECC, $D727).
+;===============================================================================
+.proc BattlePanelStatsRefresh
 ; --- Code Region ---
-  LDY #$20                                ; $CBF1: A0 20
+  LDY #$20                                ; $CBF1: A0 20 ; field block size - 1
   LDA #$00                                ; $CBF3: A9 00
-Loc_CBF5:
-  STA $044C,Y                             ; $CBF5: 99 4C 04
+@ClearLoop:
+  STA $044C,Y                             ; $CBF5: 99 4C 04 ; clear $044C-$046C
   DEY                                     ; $CBF8: 88
-  BPL $CBF5                               ; $CBF9: 10 FA
-  LDA $05AC                               ; $CBFB: AD AC 05
-  STA $044C                               ; $CBFE: 8D 4C 04
-  LDA $05B7                               ; $CC01: AD B7 05
-  STA $044F                               ; $CC04: 8D 4F 04
-  LDA #$01                                ; $CC07: A9 01
-  LDY #$00                                ; $CC09: A0 00
-  JSR $CC7A                               ; $CC0B: 20 7A CC
-  LDA a:$0001                             ; $CC0E: AD 01 00
-  STA $0452                               ; $CC11: 8D 52 04
-  LDA a:$0002                             ; $CC14: AD 02 00
-  STA $0453                               ; $CC17: 8D 53 04
-  LDA #$01                                ; $CC1A: A9 01
-  LDY #$0B                                ; $CC1C: A0 0B
-  JSR $CC7A                               ; $CC1E: 20 7A CC
+  BPL @ClearLoop                          ; $CBF9: 10 FA
+  LDA $05AC                               ; $CBFB: AD AC 05 ; side A commander troop count
+  STA $044C                               ; $CBFE: 8D 4C 04 ; field 0
+  LDA $05B7                               ; $CC01: AD B7 05 ; side B commander troop count
+  STA $044F                               ; $CC04: 8D 4F 04 ; field 1
+  LDA #$01                                ; $CC07: A9 01 ; class 1 (infantry)
+  LDY #$00                                ; $CC09: A0 00 ; side A roster base
+  JSR @ClassTroopSum                      ; $CC0B: 20 7A CC ; sum -> $0001/$0002
+  LDA a:$0001                             ; $CC0E: AD 01 00 ; total lo
+  STA $0452                               ; $CC11: 8D 52 04 ; field 2 lo
+  LDA a:$0002                             ; $CC14: AD 02 00 ; total hi
+  STA $0453                               ; $CC17: 8D 53 04 ; field 2 hi
+  LDA #$01                                ; $CC1A: A9 01 ; class 1 (infantry)
+  LDY #$0B                                ; $CC1C: A0 0B ; side B roster base
+  JSR @ClassTroopSum                      ; $CC1E: 20 7A CC
   LDA a:$0001                             ; $CC21: AD 01 00
-  STA $0455                               ; $CC24: 8D 55 04
+  STA $0455                               ; $CC24: 8D 55 04 ; field 3 lo
   LDA a:$0002                             ; $CC27: AD 02 00
-  STA $0456                               ; $CC2A: 8D 56 04
-  LDA #$02                                ; $CC2D: A9 02
-  LDY #$00                                ; $CC2F: A0 00
-  JSR $CC7A                               ; $CC31: 20 7A CC
+  STA $0456                               ; $CC2A: 8D 56 04 ; field 3 hi
+  LDA #$02                                ; $CC2D: A9 02 ; class 2 (archer)
+  LDY #$00                                ; $CC2F: A0 00 ; side A roster base
+  JSR @ClassTroopSum                      ; $CC31: 20 7A CC
   LDA a:$0001                             ; $CC34: AD 01 00
-  STA $0458                               ; $CC37: 8D 58 04
+  STA $0458                               ; $CC37: 8D 58 04 ; field 4 lo
   LDA a:$0002                             ; $CC3A: AD 02 00
-  STA $0459                               ; $CC3D: 8D 59 04
-  LDA #$02                                ; $CC40: A9 02
-  LDY #$0B                                ; $CC42: A0 0B
-  JSR $CC7A                               ; $CC44: 20 7A CC
+  STA $0459                               ; $CC3D: 8D 59 04 ; field 4 hi
+  LDA #$02                                ; $CC40: A9 02 ; class 2 (archer)
+  LDY #$0B                                ; $CC42: A0 0B ; side B roster base
+  JSR @ClassTroopSum                      ; $CC44: 20 7A CC
   LDA a:$0001                             ; $CC47: AD 01 00
-  STA $045B                               ; $CC4A: 8D 5B 04
+  STA $045B                               ; $CC4A: 8D 5B 04 ; field 5 lo
   LDA a:$0002                             ; $CC4D: AD 02 00
-  STA $045C                               ; $CC50: 8D 5C 04
-  LDA #$03                                ; $CC53: A9 03
-  LDY #$00                                ; $CC55: A0 00
-  JSR $CC7A                               ; $CC57: 20 7A CC
+  STA $045C                               ; $CC50: 8D 5C 04 ; field 5 hi
+  LDA #$03                                ; $CC53: A9 03 ; class 3 (cavalry)
+  LDY #$00                                ; $CC55: A0 00 ; side A roster base
+  JSR @ClassTroopSum                      ; $CC57: 20 7A CC
   LDA a:$0001                             ; $CC5A: AD 01 00
-  STA $045E                               ; $CC5D: 8D 5E 04
+  STA $045E                               ; $CC5D: 8D 5E 04 ; field 6 lo
   LDA a:$0002                             ; $CC60: AD 02 00
-  STA $045F                               ; $CC63: 8D 5F 04
-  LDA #$03                                ; $CC66: A9 03
-  LDY #$0B                                ; $CC68: A0 0B
-  JSR $CC7A                               ; $CC6A: 20 7A CC
+  STA $045F                               ; $CC63: 8D 5F 04 ; field 6 hi
+  LDA #$03                                ; $CC66: A9 03 ; class 3 (cavalry)
+  LDY #$0B                                ; $CC68: A0 0B ; side B roster base
+  JSR @ClassTroopSum                      ; $CC6A: 20 7A CC
   LDA a:$0001                             ; $CC6D: AD 01 00
-  STA $0461                               ; $CC70: 8D 61 04
+  STA $0461                               ; $CC70: 8D 61 04 ; field 7 lo
   LDA a:$0002                             ; $CC73: AD 02 00
-  STA $0462                               ; $CC76: 8D 62 04
+  STA $0462                               ; $CC76: 8D 62 04 ; field 7 hi
   RTS                                     ; $CC79: 60
-Loc_CC7A:
-  STA a:$0000                             ; $CC7A: 8D 00 00
+;-------------------------------------------------------------------------------
+; @ClassTroopSum ($CC7A): accumulates the per-slot troop counts $05AC,Y of
+; the 11 roster slots starting at base Y whose roster code low nibble
+; ($05C2,Y & $0F) equals the requested unit class in A. Returns the 16-bit
+; total in $0001 (lo) / $0002 (hi). Empty slots ($FF) and commander slots
+; (low nibble 0) never match classes 1-3 and are skipped. Destroys A/X/Y.
+;-------------------------------------------------------------------------------
+@ClassTroopSum:
+  STA a:$0000                             ; $CC7A: 8D 00 00 ; requested class
   LDA #$00                                ; $CC7D: A9 00
-  STA a:$0001                             ; $CC7F: 8D 01 00
-  STA a:$0002                             ; $CC82: 8D 02 00
-  LDX #$0A                                ; $CC85: A2 0A
-Loc_CC87:
-  LDA $05C2,Y                             ; $CC87: B9 C2 05
-  AND #$0F                                ; $CC8A: 29 0F
+  STA a:$0001                             ; $CC7F: 8D 01 00 ; total lo <- 0
+  STA a:$0002                             ; $CC82: 8D 02 00 ; total hi <- 0
+  LDX #$0A                                ; $CC85: A2 0A ; 11 slots per side
+@SumLoop:
+  LDA $05C2,Y                             ; $CC87: B9 C2 05 ; roster code
+  AND #$0F                                ; $CC8A: 29 0F ; unit class
   CMP a:$0000                             ; $CC8C: CD 00 00
-  BNE $CCA3                               ; $CC8F: D0 12
-  LDA $05AC,Y                             ; $CC91: B9 AC 05
+  BNE @NextSlot                           ; $CC8F: D0 12 ; class mismatch
+  LDA $05AC,Y                             ; $CC91: B9 AC 05 ; slot troop count
   CLC                                     ; $CC94: 18
   ADC a:$0001                             ; $CC95: 6D 01 00
-  STA a:$0001                             ; $CC98: 8D 01 00
+  STA a:$0001                             ; $CC98: 8D 01 00 ; total lo += count
   LDA a:$0002                             ; $CC9B: AD 02 00
-  ADC #$00                                ; $CC9E: 69 00
-  STA a:$0002                             ; $CCA0: 8D 02 00
-Loc_CCA3:
+  ADC #$00                                ; $CC9E: 69 00 ; propagate carry
+  STA a:$0002                             ; $CCA0: 8D 02 00 ; total hi
+@NextSlot:
   INY                                     ; $CCA3: C8
   DEX                                     ; $CCA4: CA
-  BPL $CC87                               ; $CCA5: 10 E0
+  BPL @SumLoop                            ; $CCA5: 10 E0
   RTS                                     ; $CCA7: 60
-Loc_CCA8:
-  LDA #$D8                                ; $CCA8: A9 D8
-  STA a:$000A                             ; $CCAA: 8D 0A 00
-  LDA #$A0                                ; $CCAD: A9 A0
-  STA a:$000C                             ; $CCAF: 8D 0C 00
-  JMP $CCBF                               ; $CCB2: 4C BF CC
-; --- Data Region ---
-  .byte $A9,$E0,$8D,$0A,$00,$A9,$A0,$8D,$0C,$00; $CCB5: A9 E0 8D 0A 00 A9 A0 8D 0C 00
-Loc_CCBF:
+.endproc
+;===============================================================================
+; $CCA8: BattleInputPromptDraw
+; Draws the blinking input-prompt sprite (tile $04, Y base $A0) used by the
+; A/B input-wait states: phase 4 defeat/retreat/damage/confirm handlers
+; ($A3DC, $A40F, $A490, $A4BD) and the phase 8 panel confirm/advance waits
+; ($AE11, $AE8E). The prompt is drawn only while frame tick counter $005E
+; bit 4 is clear, so it blinks at a 16-tick period. X base selects the
+; prompt position: entry $CCA8 uses X = $D8; the unreferenced alternate
+; entry BattleInputPromptDrawAlt ($CCB5) uses X = $E0. The sprite record
+; (BattleInputPromptSprite) is submitted to B1F_SpriteOamWriterSimple with
+; flip flags $0002 <- 0; the OAM slot cursor $007C is left as set by the
+; per-frame sprite pipeline.
+;===============================================================================
+.proc BattleInputPromptDraw
 ; --- Code Region ---
-  LDA a:$005E                             ; $CCBF: AD 5E 00
-  AND #$10                                ; $CCC2: 29 10
-  BNE $CCD8                               ; $CCC4: D0 12
+  LDA #$D8                                ; $CCA8: A9 D8 ; X base <- $D8
+  STA a:$000A                             ; $CCAA: 8D 0A 00
+  LDA #$A0                                ; $CCAD: A9 A0 ; Y base <- $A0
+  STA a:$000C                             ; $CCAF: 8D 0C 00
+  JMP BattleInputPromptBlinkDraw          ; $CCB2: 4C BF CC ; skip the alt entry
+;-------------------------------------------------------------------------------
+; BattleInputPromptDrawAlt ($CCB5): unreferenced alternate entry (retained
+; for ROM byte-exactness): identical to the main entry but with X base $E0
+; (prompt shifted 8 pixels right). Falls through to the blink gate.
+;-------------------------------------------------------------------------------
+BattleInputPromptDrawAlt:
+  LDA #$E0                                ; $CCB5: A9 E0 ; X base <- $E0
+  STA a:$000A                             ; $CCB7: 8D 0A 00
+  LDA #$A0                                ; $CCBA: A9 A0 ; Y base <- $A0
+  STA a:$000C                             ; $CCBC: 8D 0C 00
+BattleInputPromptBlinkDraw:
+  LDA a:$005E                             ; $CCBF: AD 5E 00 ; frame tick counter
+  AND #$10                                ; $CCC2: 29 10 ; blink phase bit
+  BNE @Done                               ; $CCC4: D0 12 ; blink off: skip draw
   LDA #$D9                                ; $CCC6: A9 D9
-  STA a:$0000                             ; $CCC8: 8D 00 00
+  STA a:$0000                             ; $CCC8: 8D 00 00 ; sprite record ptr lo
   LDA #$CC                                ; $CCCB: A9 CC
-  STA a:$0001                             ; $CCCD: 8D 01 00
+  STA a:$0001                             ; $CCCD: 8D 01 00 ; ptr hi -> BattleInputPromptSprite
   LDA #$00                                ; $CCD0: A9 00
-  STA a:$0002                             ; $CCD2: 8D 02 00
-  JMP $F1AD                               ; $CCD5: 4C AD F1
-Loc_CCD8:
+  STA a:$0002                             ; $CCD2: 8D 02 00 ; flip flags <- 0
+  JMP B1F_SpriteOamWriterSimple           ; $CCD5: 4C AD F1 ; draw prompt sprite
+@Done:
   RTS                                     ; $CCD8: 60
-; --- Data Region ---
+; --- Sprite record: single tile $04 at offset (0,0) + bases, $80-terminated ---
+BattleInputPromptSprite:
   .byte $00,$04,$00,$00,$80               ; $CCD9: 00 04 00 00 80
+.endproc
 ;===============================================================================
 ; $CCDE: BattlePadStateFetch
 ; Mode-filtered controller state fetch. Input: A = pad index (0/1). The input
@@ -6546,7 +6608,7 @@ Loc_D053:
 ; --- Code Region ---
   RTS                                     ; $D053: 60
 Loc_D054:  ; (dispatch callback target)
-; Battle scene start: reset phase/sub-phase, clear the damage counter $0548
+; Battle Mode start: reset phase/sub-phase, clear the damage counter $0548
 ; and build both sides' rosters via BattleRosterSetup.
   LDA #$00                                ; $D054: A9 00
   STA $0540                               ; $D056: 8D 40 05
@@ -7333,7 +7395,7 @@ Loc_D6FC:
   STA $0311                               ; $D71F: 8D 11 03
   LDA #$00                                ; $D722: A9 00
   STA $0300                               ; $D724: 8D 00 03
-  JSR $CBF1                               ; $D727: 20 F1 CB
+  JSR BattlePanelStatsRefresh           ; $D727: 20 F1 CB ; refresh panel stats
 Loc_D72A:  ; (dispatch callback target)
   RTS                                     ; $D72A: 60
 Loc_D72B:

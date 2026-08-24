@@ -407,7 +407,7 @@ map_data_ptr_hi = $0069
 @normal_mode:
   LDY #$28                                      ; $E1B2: A0 28
   JSR SwitchBankAC_B                            ; $E1B4: 20 37 F2
-  JSR B08_09_BattleSetup_Entry                  ; $E1B7: 20 03 A0  Normal path (bank $08)
+  JSR B08_09_WarSetup_Entry                  ; $E1B7: 20 03 A0  Normal path (bank $08)
 @after_mode_check:
   LDA map_scroll_y                              ; $E1BA: AD 10 05
   STA $0090                                     ; $E1BD: 8D 90 00
@@ -3824,7 +3824,7 @@ NmiDispatchTable:
   JSR B1D_1E_MenuUpdate                         ; $FA3C: 20 03 A0  Menu update (bank $1D)
   LDY #$28                                      ; $FA3F: A0 28
   JSR SwitchBankAC_B                            ; $FA41: 20 37 F2
-  JSR B08_09_BattleResultDispatch_Entry         ; $FA44: 20 24 A0  Battle result dispatch (bank $08)
+  JSR B08_09_WarResultDispatch_Entry         ; $FA44: 20 24 A0  Battle result dispatch (bank $08)
   JSR RestorePlayerPointers                     ; $FA47: 20 BF FA
   JSR SpriteClearFromIndex                      ; $FA4A: 20 30 E8
   JSR WaitVBlank                                ; $FA4D: 20 28 FB

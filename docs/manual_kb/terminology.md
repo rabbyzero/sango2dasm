@@ -210,7 +210,7 @@ The four modes nest; they are not peers:
 | 籠絡 | rouraku | Enticement (turn officer) |
 | 十面埋伏 | juumen maifuku | TenfoldAmbush |
 | 水攻 | suikou | FloodAttack |
-| 雲梯 | untei | SiegeLadder |
+| 連弩 | rendou | RepeatingCrossbow |
 | 劫火 | gouka | Inferno |
 | 奇門遁甲 | kimon tonkou | MysticalStasis |
 

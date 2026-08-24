@@ -1,0 +1,177 @@
+=== Finding best font bank ===
+Best: chr_0c ptable 2 ($1000), score=2681
+
+=== Building tile→char mapping for chr_0c ptable 2 ===
+
+--- Kana tile mapping (chr_0c ptable 2) ---
+  $04 → ー (match=50/64)
+  $05 → ー (match=52/64)
+  $06 → ー (match=51/64)
+  $07 → ー (match=50/64)
+  $09 → メ (match=49/64)
+  $0C → ユ (match=50/64)
+  $0D → ユ (match=49/64)
+  $0F → ニ (match=49/64)
+  $10 → チ (match=49/64)
+  $11 → ワ (match=51/64)
+  $12 → ム (match=52/64)
+  $13 → ニ (match=54/64)
+  $14 → キ (match=50/64)
+  $15 → ヒ (match=49/64)
+  $16 → ル (match=50/64)
+  $17 → ロ (match=50/64)
+  $19 → ー (match=49/64)
+  $1B → ニ (match=51/64)
+  $1C → セ (match=51/64)
+  $1D → ワ (match=52/64)
+  $1E → ッ (match=52/64)
+  $1F → ロ (match=52/64)
+  $22 → イ (match=56/64)
+  $23 → イ (match=54/64)
+  $25 → シ (match=54/64)
+  $26 → キ (match=48/64)
+  $27 → ヒ (match=52/64)
+  $28 → ヨ (match=51/64)
+  $29 → ル (match=48/64)
+  $2A → ー (match=51/64)
+  $2B → ー (match=51/64)
+  $2C → ミ (match=50/64)
+  $2D → レ (match=49/64)
+  $2E → ー (match=54/64)
+  $2F → ー (match=55/64)
+  $30 → ム (match=52/64)
+  $31 → ニ (match=51/64)
+  $32 → チ (match=54/64)
+  $33 → エ (match=60/64)
+  $34 → ト (match=54/64)
+  $35 → ロ (match=49/64)
+  $36 → ガ (match=55/64)
+  $37 → コ (match=55/64)
+  $38 → ニ (match=54/64)
+
+--- Digit tile mapping ---
+  $76 → 4 (match=48/64)
+  $78 → 2 (match=48/64)
+  $7E → 1 (match=49/64)
+
+=== Cross-validating with officer names ===
+  [✗] Officer  0: [04 09 05 18 31]
+       decoded: ーメー?18ニ
+       expected: リュウビ
+  [✗] Officer  1: [05 0D 06]
+       decoded: ーユー
+       expected: カンウ
+  [✗] Officer  2: [05 11 0A]
+       decoded: ーワ?0A
+       expected: チョウヒ
+  [✗] Officer  3: [05 31 09 05]
+       decoded: ーニメー
+       expected: チョウウン
+  [✗] Officer  4: [05 31 0F 37 06]
+       decoded: ーニニコー
+       expected: ショカツリョウ
+  [✗] Officer  5: [06 0A 31]
+       decoded: ー?0Aニ
+       expected: カンキョウ
+  [✗] Officer  6: [07 15 0A 15]
+       decoded: ーヒ?0Aヒ
+       expected: ソンケン
+  [✗] Officer  7: [07 31 0A]
+       decoded: ーニ?0A
+       expected: ソウソウ
+  [✗] Officer  8: [07 31 0F 37 06]
+       decoded: ーニニコー
+       expected: ソウヒ
+  [✗] Officer  9: [07 31 13 31]
+       decoded: ーニニニ
+       expected: カコウトン
+  [✗] Officer 10: [07 31 21]
+       decoded: ーニ?21
+       expected: カコウエン
+  [✗] Officer 11: [08 06 0C 31]
+       decoded: ?08ーユニ
+       expected: テンイ
+  [✗] Officer 12: [08 06 0E 31]
+       decoded: ?08ー?0Eニ
+       expected: キョチョ
+  [✗] Officer 13: [08 06 12 06]
+       decoded: ?08ームー
+       expected: リョフ
+  [✗] Officer 14: [08 06 14 36 06]
+       decoded: ?08ーキガー
+       expected: エンショウ
+  [✗] Officer 15: [08 06 20 05]
+       decoded: ?08ー?20ー
+       expected: エンジュツ
+  [✗] Officer 16: [08 06 21]
+       decoded: ?08ー?21
+       expected: バチョウ
+  [✗] Officer 17: [08 06 2C 05]
+       decoded: ?08ーミー
+       expected: カク
+  [✗] Officer 18: [09 05 07 15]
+       decoded: メーーヒ
+       expected: シュウユ
+  [✗] Officer 19: [09 05 2B 37 06]
+       decoded: メーーコー
+       expected: ロシュク
+  [✗] Officer 20: [09 09]
+       decoded: メメ
+       expected: リクソン
+  [✗] Officer 21: [09 0A 31]
+       decoded: メ?0Aニ
+       expected: リョモウ
+  [✗] Officer 22: [09 0B]
+       decoded: メ?0B
+       expected: カンネイ
+  [✗] Officer 23: [09 0B 0F]
+       decoded: メ?0Bニ
+       expected: タイシジ
+  [✗] Officer 24: [09 0B 09]
+       decoded: メ?0Bメ
+       expected: ホウトウ
+  [✗] Officer 25: [09 0B 0F 37 06]
+       decoded: メ?0Bニコー
+       expected: コウチュウ
+  [✗] Officer 26: [09 39 0B 0F 31]
+       decoded: メ?39?0Bニニ
+       expected: ギエン
+  [✗] Officer 27: [09 0B 17]
+       decoded: メ?0Bロ
+       expected: マダイ
+  [✗] Officer 28: [09 0B 2F 05]
+       decoded: メ?0Bーー
+       expected: シバイ
+  [✗] Officer 29: [09 0D 06 07 31]
+       decoded: メユーーニ
+       expected: シュハ
+  [✗] Officer 30: [09 0D 06 17 31]
+       decoded: メユーロニ
+       expected: キョウカイ
+  [✗] Officer 31: [09 0D 06 1D]
+       decoded: メユーワ
+       expected: キョウト
+  [✗] Officer 32: [09 0D 06 21 39 06]
+       decoded: メユー?21?39ー
+       expected: オウヘイ
+  [✗] Officer 33: [09 0D 06 2A 31]
+       decoded: メユーーニ
+       expected: チョウホウ
+  [✗] Officer 34: [09 39 13 31]
+       decoded: メ?39ニニ
+       expected: ギカイ
+  [✗] Officer 35: [09 39 38 09 31]
+       decoded: メ?39ニメニ
+       expected: コウガイ
+  [✗] Officer 36: [09 1D 31]
+       decoded: メワニ
+       expected: ジョウタイ
+  [✗] Officer 37: [09 28 06]
+       decoded: メヨー
+       expected: レイソウ
+  [✗] Officer 38: [09 31 06]
+       decoded: メニー
+       expected: チョウイン
+  [✗] Officer 39: [09 31 07 05]
+       decoded: メニーー
+       expected: サイボウ

@@ -96,9 +96,9 @@ exchange_ruler_id   = $044C  ; exchange partner ruler ID
 ; $045B - group A officer count
 ; $045C-$045D - group A reserve counts (cleared)
 
-; --- Kingdom parameter snapshot ($046C-$046F) ---
+; --- Country parameter snapshot ($046C-$046F) ---
 ; Copied from SRAM $6F3F-$6F42 in CommandState_Init.
-kingdom_param_copy  = $046C  ; kingdom parameter snapshot (4 bytes)
+country_param_copy  = $046C  ; country parameter snapshot (4 bytes)
 
 ; --- Animation / scroll pointers ($0470-$0473) ---
 anim_ppu_ptr_lo     = $0470  ; animation PPU pointer lo (shared w/ 17_18)
@@ -118,7 +118,7 @@ officer_rec_dst_hi  = $04D5  ; officer record dest ptr hi
 ; --- Army group slot array ($04D8-$04DF, 8 bytes) ---
 ; Two groups of 4 slots: group A at $04D8-$04DB, group B at $04DC-$04DF.
 ; Each slot: officer index into $06xx tables; $FF = empty.
-; Populated by ExecStratagem_AmbushAllSides; checked in move validation.
+; Populated by ExecStratagem_TenfoldAmbush; checked in move validation.
 army_slot_base      = $04D8  ; army group slot array base (8 bytes)
 ; $04D8-$04DB - group A slots (selected by $0504 >= 0)
 ; $04DC-$04DF - group B slots (selected by $0504 < 0)
@@ -1368,7 +1368,7 @@ OfficerTransfer_SetupResult:
   LDY #$03                              ; $A8AB: A0 03
 @CopyLoop:
   LDA $6F3F,Y                           ; $A8AD: B9 3F 6F
-  STA kingdom_param_copy,Y                           ; $A8B0: 99 6C 04
+  STA country_param_copy,Y                           ; $A8B0: 99 6C 04
   DEY                                   ; $A8B3: 88
   BPL @CopyLoop                         ; $A8B4: 10 F7
   INC $0501                             ; $A8B6: EE 01 05
@@ -1742,7 +1742,7 @@ OfficerTransfer_SetupResult:
 .proc CommandPhase_RestorePosition
   LDY #$03                              ; $AB6F: A0 03
 @CopyLoop:
-  LDA kingdom_param_copy,Y                           ; $AB71: B9 6C 04
+  LDA country_param_copy,Y                           ; $AB71: B9 6C 04
   STA $6F3F,Y                           ; $AB74: 99 3F 6F
   DEY                                   ; $AB77: 88
   BPL @CopyLoop                         ; $AB78: 10 F7
@@ -1894,29 +1894,29 @@ OfficerTransfer_SetupResult:
   AND #$0F                              ; $ADA7: 29 0F
   JSR B1F_CallbackDispatcher            ; $ADA9: 20 DE EA
 ; --- CallbackDispatcher table (16 entries): stratagem validation handlers ---
-; Stratagem codes: 0=FireAttack (火攻), 1=Trap (陷阱), 2=FeintTroops (虚兵),
-; 3=AmbushStrike (要击), 4=MuddyWater (乱水), 5=FireArrows (火箭),
-; 6=FeintCounter (伪击转杀), 7=CoordinatedStrike (共杀), 8=WinOver (笼络),
-; 9=FallingRocks (落石), 10=ChainStratagem (连环), 11=AmbushAllSides (十面埋伏),
-; 12=WaterAttack (水攻), 13=RepeatingCrossbow (连弩), 14=PillageFire (劫火),
-; 15=QimenDunjia (奇门遁甲). Terrain: 0=woods, 2=plains, 3=water, 4=mountain,
-; 5=castle.
+; Stratagem codes: 0=FireAttack (火攻), 1=PitfallTrap (陷阱), 2=FeintTroops (虚兵),
+; 3=AmbushStrike (要击), 4=BoatSabotage (乱水), 5=SupplyBurning (火箭),
+; 6=CastleRaid (伪击转杀), 7=FriendlyFire (共杀), 8=Enticement (笼络),
+; 9=Rockfall (落石), 10=ChainLink (连环), 11=TenfoldAmbush (十面埋伏),
+; 12=FloodAttack (水攻), 13=RepeatingCrossbow (連弩; rain-of-arrows effect),
+; 14=Inferno (劫火), 15=MysticalStasis (奇门遁甲). Terrain: 0=Forest,
+; 2=Plain, 3=River, 4=Mountain, 5=Castle.
   .word ValidStratagem_FireAttack             ; $ADAC: $CC AD   ; stratagem 0
-  .word ValidStratagem_Trap                   ; $ADAE: $D8 AD   ; stratagem 1
+  .word ValidStratagem_PitfallTrap            ; $ADAE: $D8 AD   ; stratagem 1
   .word ValidStratagem_FeintTroops            ; $ADB0: $D8 AD   ; stratagem 2
   .word ValidStratagem_AmbushStrike           ; $ADB2: $D8 AD   ; stratagem 3
-  .word ValidStratagem_MuddyWater             ; $ADB4: $E4 AD   ; stratagem 4
-  .word ValidStratagem_FireArrows             ; $ADB6: $EE AD   ; stratagem 5
-  .word ValidStratagem_FeintCounter           ; $ADB8: $FB AD   ; stratagem 6
-  .word ValidStratagem_CoordinatedStrike      ; $ADBA: $68 AE   ; stratagem 7
-  .word ValidStratagem_WinOver                ; $ADBC: $C4 AE   ; stratagem 8
-  .word ValidStratagem_FallingRocks           ; $ADBE: $CE AE   ; stratagem 9
-  .word ValidStratagem_ChainStratagem         ; $ADC0: $0A AF   ; stratagem 10
-  .word ValidStratagem_AmbushAllSides         ; $ADC2: $73 AF   ; stratagem 11
-  .word ValidStratagem_WaterAttack            ; $ADC4: $0A AF   ; stratagem 12
-  .word ValidStratagem_RepeatingCrossbow      ; $ADC6: $A1 AF   ; stratagem 13
-  .word ValidStratagem_PillageFire            ; $ADC8: $D3 AF   ; stratagem 14
-  .word ValidStratagem_QimenDunjia            ; $ADCA: $1D B0   ; stratagem 15
+  .word ValidStratagem_BoatSabotage           ; $ADB4: $E4 AD   ; stratagem 4
+  .word ValidStratagem_SupplyBurning          ; $ADB6: $EE AD   ; stratagem 5
+  .word ValidStratagem_CastleRaid             ; $ADB8: $FB AD   ; stratagem 6
+  .word ValidStratagem_FriendlyFire           ; $ADBA: $68 AE   ; stratagem 7
+  .word ValidStratagem_Enticement             ; $ADBC: $C4 AE   ; stratagem 8
+  .word ValidStratagem_Rockfall               ; $ADBE: $CE AE   ; stratagem 9
+  .word ValidStratagem_ChainLink              ; $ADC0: $0A AF   ; stratagem 10
+  .word ValidStratagem_TenfoldAmbush          ; $ADC2: $73 AF   ; stratagem 11
+  .word ValidStratagem_FloodAttack            ; $ADC4: $0A AF   ; stratagem 12
+  .word ValidStratagem_RepeatingCrossbow            ; $ADC6: $A1 AF   ; stratagem 13
+  .word ValidStratagem_Inferno                ; $ADC8: $D3 AF   ; stratagem 14
+  .word ValidStratagem_MysticalStasis         ; $ADCA: $1D B0   ; stratagem 15
 .endproc
 
 .proc ValidStratagem_FireAttack
@@ -1931,7 +1931,7 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $ADD7: 60
 .endproc
 
-.proc ValidStratagem_Trap
+.proc ValidStratagem_PitfallTrap
   LDA $0A                               ; $ADD8: A5 0A
   BEQ @Success                          ; $ADDA: F0 06
   CMP #$04                              ; $ADDC: C9 04
@@ -1943,11 +1943,11 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $ADE3: 60
 .endproc
 ; FeintTroops (虚兵, stratagem 2) and AmbushStrike (要击, stratagem 3) share
-; the Trap validation body at $ADD8.
-ValidStratagem_FeintTroops = ValidStratagem_Trap
-ValidStratagem_AmbushStrike = ValidStratagem_Trap
+; the PitfallTrap validation body at $ADD8.
+ValidStratagem_FeintTroops = ValidStratagem_PitfallTrap
+ValidStratagem_AmbushStrike = ValidStratagem_PitfallTrap
 
-.proc ValidStratagem_MuddyWater
+.proc ValidStratagem_BoatSabotage
   LDA $0A                               ; $ADE4: A5 0A
   CMP #$03                              ; $ADE6: C9 03
   BEQ @Success                          ; $ADE8: F0 02
@@ -1958,7 +1958,7 @@ ValidStratagem_AmbushStrike = ValidStratagem_Trap
   RTS                                   ; $ADED: 60
 .endproc
 
-.proc ValidStratagem_FireArrows
+.proc ValidStratagem_SupplyBurning
   LDY $0509                             ; $ADEE: AC 09 05
   BEQ @Success                          ; $ADF1: F0 06
   CPY #$0A                              ; $ADF3: C0 0A
@@ -1970,7 +1970,7 @@ ValidStratagem_AmbushStrike = ValidStratagem_Trap
   RTS                                   ; $ADFA: 60
 .endproc
 
-.proc ValidStratagem_FeintCounter
+.proc ValidStratagem_CastleRaid
   LDY $0A                               ; $ADFB: A4 0A
   CPY #$05                              ; $ADFD: C0 05
   BNE @Fail                             ; $ADFF: D0 28
@@ -2034,11 +2034,11 @@ ValidStratagem_AmbushStrike = ValidStratagem_Trap
   SEC                                   ; $AE66: 38
   RTS                                   ; $AE67: 60
 @Fail:
-  CLC                                   ; (shared exit with ValidStratagem_FeintCounter)
+  CLC                                   ; (shared exit with ValidStratagem_CastleRaid)
   RTS
 .endproc
 
-.proc ValidStratagem_CoordinatedStrike
+.proc ValidStratagem_FriendlyFire
   LDY $0A                               ; $AE68: A4 0A
   BEQ @CheckAdjacent                    ; $AE6A: F0 04
   CPY #$04                              ; $AE6C: C0 04
@@ -2093,7 +2093,7 @@ ValidStratagem_AmbushStrike = ValidStratagem_Trap
   RTS                                   ; $AEC3: 60
 .endproc
 
-.proc ValidStratagem_WinOver
+.proc ValidStratagem_Enticement
   LDA $0A                               ; $AEC4: A5 0A
   CMP #$05                              ; $AEC6: C9 05
   BNE @Success                          ; $AEC8: D0 02
@@ -2104,7 +2104,7 @@ ValidStratagem_AmbushStrike = ValidStratagem_Trap
   RTS                                   ; $AECD: 60
 .endproc
 
-.proc ValidStratagem_FallingRocks
+.proc ValidStratagem_Rockfall
   LDA $0B                               ; $AECE: A5 0B
   CMP #$04                              ; $AED0: C9 04
   BEQ @CheckAdjacent                    ; $AED2: F0 04
@@ -2138,7 +2138,7 @@ ValidStratagem_AmbushStrike = ValidStratagem_Trap
   RTS                                   ; $AF09: 60
 .endproc
 
-.proc ValidStratagem_ChainStratagem
+.proc ValidStratagem_ChainLink
   LDY $0A                               ; $AF0A: A4 0A
   CPY #$03                              ; $AF0C: C0 03
   BNE @Fail                             ; $AF0E: D0 32
@@ -2197,11 +2197,11 @@ ValidStratagem_AmbushStrike = ValidStratagem_Trap
   LDA #$FF                              ; $AF70: A9 FF
   RTS                                   ; $AF72: 60
 .endproc
-; WaterAttack (水攻, stratagem 12) shares the ChainStratagem validation body
+; FloodAttack (水攻, stratagem 12) shares the ChainLink validation body
 ; at $AF0A.
-ValidStratagem_WaterAttack = ValidStratagem_ChainStratagem
+ValidStratagem_FloodAttack = ValidStratagem_ChainLink
 
-.proc ValidStratagem_AmbushAllSides
+.proc ValidStratagem_TenfoldAmbush
   LDA $0B                               ; $AF73: A5 0B
   BNE @Fail                             ; $AF75: D0 26
   LDY $050A                             ; $AF77: AC 0A 05
@@ -2259,7 +2259,7 @@ ValidStratagem_WaterAttack = ValidStratagem_ChainStratagem
   RTS                                   ; $AFD2: 60
 .endproc
 
-.proc ValidStratagem_PillageFire
+.proc ValidStratagem_Inferno
   LDY $0A                               ; $AFD3: A4 0A
   CPY #$05                              ; $AFD5: C0 05
   BEQ @Fail                             ; $AFD7: F0 42
@@ -2302,7 +2302,7 @@ ValidStratagem_WaterAttack = ValidStratagem_ChainStratagem
   RTS                                   ; $B01C: 60
 .endproc
 
-.proc ValidStratagem_QimenDunjia
+.proc ValidStratagem_MysticalStasis
   LDY $0A                               ; $B01D: A4 0A
   CPY #$03                              ; $B01F: C0 03
   BEQ @Fail                             ; $B021: F0 06
@@ -2330,34 +2330,34 @@ ValidStratagem_WaterAttack = ValidStratagem_ChainStratagem
   JSR B1F_CallbackDispatcher            ; $B03F: 20 DE EA
 ; --- CallbackDispatcher table (16 entries): stratagem execution handlers ---
   .word ExecStratagem_FireAttack              ; $B042: $62 B0   ; stratagem 0
-  .word ExecStratagem_Trap                    ; $B044: $DD B0   ; stratagem 1
+  .word ExecStratagem_PitfallTrap             ; $B044: $DD B0   ; stratagem 1
   .word ExecStratagem_FeintTroops             ; $B046: $55 B1   ; stratagem 2
   .word ExecStratagem_AmbushStrike            ; $B048: $7A B1   ; stratagem 3
-  .word ExecStratagem_MuddyWater              ; $B04A: $D5 B1   ; stratagem 4
-  .word ExecStratagem_FireArrows              ; $B04C: $43 B2   ; stratagem 5
-  .word ExecStratagem_FeintCounter            ; $B04E: $62 B0   ; stratagem 6
-  .word ExecStratagem_CoordinatedStrike       ; $B050: $CD B2   ; stratagem 7
-  .word ExecStratagem_WinOver                 ; $B052: $1C B3   ; stratagem 8
-  .word ExecStratagem_FallingRocks            ; $B054: $B6 B3   ; stratagem 9
-  .word ExecStratagem_ChainStratagem          ; $B056: $D0 B3   ; stratagem 10
-  .word ExecStratagem_AmbushAllSides          ; $B058: $2A B4   ; stratagem 11
-  .word ExecStratagem_WaterAttack             ; $B05A: $66 B4   ; stratagem 12
-  .word ExecStratagem_RepeatingCrossbow       ; $B05C: $B8 B4   ; stratagem 13
-  .word ExecStratagem_PillageFire             ; $B05E: $0C B5   ; stratagem 14
-  .word ExecStratagem_QimenDunjia             ; $B060: $A6 B5   ; stratagem 15
+  .word ExecStratagem_BoatSabotage            ; $B04A: $D5 B1   ; stratagem 4
+  .word ExecStratagem_SupplyBurning           ; $B04C: $43 B2   ; stratagem 5
+  .word ExecStratagem_CastleRaid              ; $B04E: $62 B0   ; stratagem 6
+  .word ExecStratagem_FriendlyFire            ; $B050: $CD B2   ; stratagem 7
+  .word ExecStratagem_Enticement              ; $B052: $1C B3   ; stratagem 8
+  .word ExecStratagem_Rockfall                ; $B054: $B6 B3   ; stratagem 9
+  .word ExecStratagem_ChainLink               ; $B056: $D0 B3   ; stratagem 10
+  .word ExecStratagem_TenfoldAmbush           ; $B058: $2A B4   ; stratagem 11
+  .word ExecStratagem_FloodAttack             ; $B05A: $66 B4   ; stratagem 12
+  .word ExecStratagem_RepeatingCrossbow             ; $B05C: $B8 B4   ; stratagem 13
+  .word ExecStratagem_Inferno                 ; $B05E: $0C B5   ; stratagem 14
+  .word ExecStratagem_MysticalStasis          ; $B060: $A6 B5   ; stratagem 15
 .endproc
 
 ;===============================================================================
 ; ExecStratagem_FireAttack ($B062)
 ;
-; FireAttack (火攻, stratagem 0); the exec table entry for FeintCounter
-; (伪击转杀, stratagem 6) resolves here via the ExecStratagem_FeintCounter
+; FireAttack (火攻, stratagem 0); the exec table entry for CastleRaid
+; (伪击转杀, stratagem 6) resolves here via the ExecStratagem_CastleRaid
 ; alias. Drains resources from the target officer to the acting side.
 ;   Entry 1 (ExecStratagem_FireAttack): dispatch entry - check success by stats;
 ;           on failure set error flag $0544=$FF and return.
 ;   Entry 2 (CommandPhase_DrainCalc, $B070): drain calculation only (no success
-;           check); also called directly from ExecStratagem_CoordinatedStrike
-;           and ExecStratagem_CoordinatedStrikeNeighbor.
+;           check); also called directly from ExecStratagem_FriendlyFire
+;           and ExecStratagem_FriendlyFireNeighbor.
 ;===============================================================================
 .proc ExecStratagem_FireAttack
   JSR CheckSuccessByStats               ; $B062: 20 BE B7
@@ -2425,11 +2425,11 @@ CommandPhase_DrainCalc:
   INC $0501                             ; $B0D9: EE 01 05
   RTS                                   ; $B0DC: 60
 .endproc
-; FeintCounter (伪击转杀, stratagem 6) shares the FireAttack execution body
+; CastleRaid (伪击转杀, stratagem 6) shares the FireAttack execution body
 ; at $B062.
-ExecStratagem_FeintCounter = ExecStratagem_FireAttack
+ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
-.proc ExecStratagem_Trap
+.proc ExecStratagem_PitfallTrap
   JSR CheckSuccessByStats               ; $B0DD: 20 BE B7
   BCS @B0EB                             ; $B0E0: B0 09
   INC $0501                             ; $B0E2: EE 01 05
@@ -2560,7 +2560,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B1D4: 60
 .endproc
 
-.proc ExecStratagem_MuddyWater
+.proc ExecStratagem_BoatSabotage
   JSR CheckSuccessByStats               ; $B1D5: 20 BE B7
   BCS @B1E3                             ; $B1D8: B0 09
   INC $0501                             ; $B1DA: EE 01 05
@@ -2619,7 +2619,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B242: 60
 .endproc
 
-.proc ExecStratagem_FireArrows
+.proc ExecStratagem_SupplyBurning
   JSR CheckSuccessByStats               ; $B243: 20 BE B7
   BCS @Success                          ; $B246: B0 09
   INC $0501                             ; $B248: EE 01 05
@@ -2688,7 +2688,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B2CC: 60
 .endproc
 
-.proc ExecStratagem_CoordinatedStrike
+.proc ExecStratagem_FriendlyFire
   JSR CheckSuccessByStats               ; $B2CD: 20 BE B7
   BCS @Success                          ; $B2D0: B0 09
   INC $0501                             ; $B2D2: EE 01 05
@@ -2699,22 +2699,22 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   JSR CommandPhase_DrainCalc              ; $B2DB: 20 70 B0
   JSR GetOfficerPos                     ; $B2DE: 20 7B B6
   DEC $10                               ; $B2E1: C6 10
-  JSR ExecStratagem_CoordinatedStrikeNeighbor ; $B2E3: 20 04 B3
+  JSR ExecStratagem_FriendlyFireNeighbor ; $B2E3: 20 04 B3
   JSR GetOfficerPos                     ; $B2E6: 20 7B B6
   INC $10                               ; $B2E9: E6 10
-  JSR ExecStratagem_CoordinatedStrikeNeighbor ; $B2EB: 20 04 B3
+  JSR ExecStratagem_FriendlyFireNeighbor ; $B2EB: 20 04 B3
   JSR GetOfficerPos                     ; $B2EE: 20 7B B6
   DEC $11                               ; $B2F1: C6 11
-  JSR ExecStratagem_CoordinatedStrikeNeighbor ; $B2F3: 20 04 B3
+  JSR ExecStratagem_FriendlyFireNeighbor ; $B2F3: 20 04 B3
   JSR GetOfficerPos                     ; $B2F6: 20 7B B6
   INC $11                               ; $B2F9: E6 11
-  JSR ExecStratagem_CoordinatedStrikeNeighbor ; $B2FB: 20 04 B3
+  JSR ExecStratagem_FriendlyFireNeighbor ; $B2FB: 20 04 B3
   LDA #$07                              ; $B2FE: A9 07
   STA $0501                             ; $B300: 8D 01 05
   RTS                                   ; $B303: 60
 .endproc
 
-.proc ExecStratagem_CoordinatedStrikeNeighbor
+.proc ExecStratagem_FriendlyFireNeighbor
   JSR CheckTileAccess                   ; $B304: 20 43 B6
   BEQ @Done                             ; $B307: F0 12
   CMP #$FE                              ; $B309: C9 FE
@@ -2729,7 +2729,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B31B: 60
 .endproc
 
-.proc ExecStratagem_WinOver
+.proc ExecStratagem_Enticement
   JSR CheckActionSuccess                ; $B31C: 20 2B B7
   BCS @Success                          ; $B31F: B0 09
   INC $0501                             ; $B321: EE 01 05
@@ -2806,7 +2806,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                         ; $B3B5: 60
 .endproc
 
-.proc ExecStratagem_FallingRocks
+.proc ExecStratagem_Rockfall
   JSR CheckSuccessByStats               ; $B3B6: 20 BE B7
   BCS @Success                          ; $B3B9: B0 09
   INC $0501                             ; $B3BB: EE 01 05
@@ -2821,7 +2821,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B3CF: 60
 .endproc
 
-.proc ExecStratagem_ChainStratagem
+.proc ExecStratagem_ChainLink
   JSR CheckSuccessByStats               ; $B3D0: 20 BE B7
   BCS @Success                          ; $B3D3: B0 09
   INC $0501                             ; $B3D5: EE 01 05
@@ -2838,7 +2838,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   STA $12                               ; $B3EA: 85 12
   TYA                                   ; $B3EC: 98
   PHA                                   ; $B3ED: 48
-  JSR ExecStratagem_ChainStratagemProcess   ; $B3EE: 20 FE B3
+  JSR ExecStratagem_ChainLinkProcess   ; $B3EE: 20 FE B3
   PLA                                   ; $B3F1: 68
   TAY                                   ; $B3F2: A8
 @NextNeighbor:
@@ -2850,7 +2850,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B3FD: 60
 .endproc
 
-.proc ExecStratagem_ChainStratagemProcess
+.proc ExecStratagem_ChainLinkProcess
   LDY $12                               ; $B3FE: A4 12
   LDA $0600,Y                           ; $B400: B9 00 06
   STA $10                               ; $B403: 85 10
@@ -2875,7 +2875,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B429: 60
 .endproc
 
-.proc ExecStratagem_AmbushAllSides
+.proc ExecStratagem_TenfoldAmbush
   LDX #$00                              ; $B42A: A2 00
   LDA $0504                             ; $B42C: AD 04 05
   BPL @LoadSlot                         ; $B42F: 10 02
@@ -2906,7 +2906,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B465: 60
 .endproc
 
-.proc ExecStratagem_WaterAttack
+.proc ExecStratagem_FloodAttack
   JSR CheckSuccessByStats               ; $B466: 20 BE B7
   BCS @Success                          ; $B469: B0 09
   INC $0501                             ; $B46B: EE 01 05
@@ -2923,7 +2923,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   STA $12                               ; $B480: 85 12
   TYA                                   ; $B482: 98
   PHA                                   ; $B483: 48
-  JSR ExecStratagem_WaterAttackProcess      ; $B484: 20 94 B4
+  JSR ExecStratagem_FloodAttackProcess      ; $B484: 20 94 B4
   PLA                                   ; $B487: 68
   TAY                                   ; $B488: A8
 @NextNeighbor:
@@ -2935,7 +2935,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B493: 60
 .endproc
 
-.proc ExecStratagem_WaterAttackProcess
+.proc ExecStratagem_FloodAttackProcess
   LDY $12                               ; $B494: A4 12
   LDA $0600,Y                           ; $B496: B9 00 06
   STA $10                               ; $B499: 85 10
@@ -2999,7 +2999,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B50B: 60
 .endproc
 
-.proc ExecStratagem_PillageFire
+.proc ExecStratagem_Inferno
   JSR CheckSuccessByStats               ; $B50C: 20 BE B7
   BCS @Success                          ; $B50F: B0 09
   INC $0501                             ; $B511: EE 01 05
@@ -3016,7 +3016,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   STA $12                               ; $B526: 85 12
   TYA                                   ; $B528: 98
   PHA                                   ; $B529: 48
-  JSR ExecStratagem_PillageFireCheck        ; $B52A: 20 38 B5
+  JSR ExecStratagem_InfernoCheck        ; $B52A: 20 38 B5
   PLA                                   ; $B52D: 68
   TAY                                   ; $B52E: A8
 @NextNeighbor:
@@ -3027,7 +3027,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B537: 60
 .endproc
 
-.proc ExecStratagem_PillageFireCheck
+.proc ExecStratagem_InfernoCheck
   LDY $12                               ; $B538: A4 12
   LDA $0600,Y                           ; $B53A: B9 00 06
   STA $10                               ; $B53D: 85 10
@@ -3040,14 +3040,14 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   LDA $0509                             ; $B54D: AD 09 05
   PHA                                   ; $B550: 48
   STY $0509                             ; $B551: 8C 09 05
-  JSR ExecStratagem_PillageFireCalc         ; $B554: 20 5C B5
+  JSR ExecStratagem_InfernoCalc         ; $B554: 20 5C B5
   PLA                                   ; $B557: 68
   STA $0509                             ; $B558: 8D 09 05
 @Done:
   RTS                                   ; $B55B: 60
 .endproc
 
-.proc ExecStratagem_PillageFireCalc
+.proc ExecStratagem_InfernoCalc
   LDY $050A                             ; $B55C: AC 0A 05
   LDA $0664,Y                           ; $B55F: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B562: 20 D7 F2
@@ -3083,7 +3083,7 @@ ExecStratagem_FeintCounter = ExecStratagem_FireAttack
   RTS                                   ; $B5A5: 60
 .endproc
 
-.proc ExecStratagem_QimenDunjia
+.proc ExecStratagem_MysticalStasis
   JSR CheckSuccessByStats               ; $B5A6: 20 BE B7
   BCS @Success                          ; $B5A9: B0 09
   INC $0501                             ; $B5AB: EE 01 05
