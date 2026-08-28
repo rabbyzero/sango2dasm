@@ -41,7 +41,14 @@ for a in external:
                  r"\1\2ext_{:04X}".format(a), src)
 
 harness = src + "\n" + stubs
-open("build/_region.asm", "w").write(harness)
+# RAM globals owned by other bank files (referenced, not redefined, here)
+external_ram = [
+    "menu_cursor_col = $0424\n",
+    "menu_cursor_page = $0425\n",
+    "war_scene_id = $0500\n",
+    "war_scene_phase = $0501\n",
+]
+open("build/_region.asm", "w").write(harness + "\n" + "".join(external_ram))
 print("external stubs:", len(external))
 
 cfg = """

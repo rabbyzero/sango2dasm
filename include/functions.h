@@ -668,6 +668,12 @@ B1D_1E_SramInit_Proc      = $DD8B   ; SRAM init procedure
 B1D_1E_OfficerParamDisp_Proc = $DE7E ; Officer parameter display procedure
 B1D_1E_OfficerRecLookup_Proc = $DEB9 ; Officer record lookup procedure
 
+;-------------------------------------------------------------------------------
+; Bank $19 - Battle overlay strip rendering ($A000-$BFFF)
+; Loaded via SwitchBankAC with Y=$39 ($39 & $1F = $19, $C000 slot = $1A)
+;-------------------------------------------------------------------------------
+B19_OverlayStripRender_Entry = $A000  ; OverlayStripRender_Entry: redraw one battle overlay strip (X = strip 0/1)
+
 ;===============================================================================
 ; SECTION 3: Banked Code at $8000-$9FFF (Slot 0)
 ; Banks switched via SwitchBank8_B ($F25F) or SwitchBank8_A ($F266)
@@ -1066,5 +1072,184 @@ B08_09_WarResultSlotReset = $DC4A ; Battle result slot reset
 B08_09_WarResultSlotTemplateApply = $DC9C ; Battle result slot template apply
 B08_09_WarResult_SlotRecordPtrs = $DCB7 ; Slot -> record pointers
 B08_09_WarResult_SlotRecordTemplate = $DCC5 ; Template values for offsets 2-$10
+
+;===============================================================================
+; SECTION 8: Combined Banks $0E+$0F ($A000-$DFFF)
+; Bank $0E at $A000-$BFFF paired with Bank $0F at $C000-$DFFF
+; Battle Mode overlay + battle animation/sound engine
+; Loaded via SwitchBankAC with Y=$2E ($2E & $1F = $0E)
+; Entry points via jump table at $A000-$A00C
+;===============================================================================
+
+;-------------------------------------------------------------------------------
+; Jump Table Entry Points ($A000-$A00C)
+;-------------------------------------------------------------------------------
+B0E_0F_BattleVBlankFrameUpdate_Entry = $A000 ; BattleVBlankFrameUpdate_Entry: Battle VBlank frame hook
+B0E_0F_BattleAnimSoundEngine_Entry = $A003 ; BattleAnimSoundEngine_Entry: Battle scene animation/sound engine
+B0E_0F_OfficerBattleExpLevelCheck_Entry = $A006 ; OfficerBattleExpLevelCheck_Entry: Battle exp/level-up
+B0E_0F_OfficerStatSumBattleTransfer_Entry = $A009 ; OfficerStatSumBattleTransfer_Entry: Stat-sum exp transfer
+B0E_0F_SoundPlayAlt_Entry       = $A00C  ; SoundPlayAlt_Entry: Battle sound channel alternate play entry
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $0E ($A00F-$BFFF)
+;-------------------------------------------------------------------------------
+B0E_0F_BattleVBlankFrameUpdate = $A00F ; Battle Mode VBlank frame hook
+B0E_0F_BattleOverlayDispatch = $A030 ; Overlay state-machine dispatcher (phase table $A06F)
+B0E_0F_Phase0IntroSubDispatch = $A085 ; Phase 0 (intro) sub-dispatch on $0541
+B0E_0F_BattleOverlayIntroSkipCheck = $A095 ; Intro sub 0: skip check ($0087 bit7)
+B0E_0F_BattleOverlayIntroRosterWalk = $A0D3 ; Intro sub 1: roster cell walk
+B0E_0F_BattleOverlayIntroAnimQueue = $A0F9 ; Intro sub 2: enqueue intro anim
+B0E_0F_BattleOverlayIntroDataFormatTop = $A119 ; Intro sub 3: format top panel data
+B0E_0F_BattleOverlayIntroDataFormatBottomAndAdvance = $A137 ; Intro sub 4: format bottom + advance
+B0E_0F_Phase1NextActorSubDispatch = $A15F ; Phase 1 (next-actor select) sub-dispatch
+B0E_0F_Phase1CycleInit          = $A16E ; Phase 1 sub 0: cycle init
+B0E_0F_Phase1NextActorSelect    = $A183 ; Phase 1 sub 1: roster scan for next actor
+B0E_0F_Phase1RoundPass          = $A235 ; Phase 1 sub 2: round pass (no actor found)
+B0E_0F_BattleDefeatEventCheck   = $A2A9 ; Per-side defeat event check
+B0E_0F_BattleRetreatEventCheck  = $A32F ; Per-side retreat event check
+B0E_0F_BattlePlayerRequestPoll  = $A39D ; Player command-request poll
+B0E_0F_Phase4ResultSubDispatch  = $A3BC ; Phase 4 (defeat/retreat result) sub-dispatch
+B0E_0F_Phase4ResultAdvance      = $A3D0 ; Phase 4 sub 0: defeat entry stall
+B0E_0F_Phase4ResultDefeatInputWait = $A3D4 ; Phase 4 sub 1: defeat input wait
+B0E_0F_Phase4ResultFlashTrigger = $A3F2 ; Phase 4 sub 2/6: screen flash trigger
+B0E_0F_Phase4ResultRetreatInputWait = $A407 ; Phase 4 sub 3: retreat entry input wait
+B0E_0F_Phase4ResultDamageApply  = $A488 ; Phase 4 sub 4: damage apply
+B0E_0F_Phase4ResultConfirmInput = $A4B5 ; Phase 4 sub 5: confirm input
+B0E_0F_Phase4ResultColumnDamageSelect = $A4D8 ; Helper: troop count of selected column
+B0E_0F_Phase4ResultColumnStripSelect = $A4E6 ; Helper: strip flag of selected column
+B0E_0F_Phase2ActionSubDispatch  = $A4F7 ; Phase 2 (command resolution) sub-dispatch
+B0E_0F_Phase2ActionGate         = $A519 ; Phase 2 sub 0: command value routing gate
+B0E_0F_Phase2CursorWalkInit     = $A5C4 ; Phase 2 sub 1: cursor walk init
+B0E_0F_Phase2CursorWalkStep     = $A5F3 ; Phase 2 sub 2: cursor walk animation step
+B0E_0F_Phase2TurnPassReset      = $A606 ; Turn-pass reset (two entry paths)
+B0E_0F_Phase2MoveEventCheck     = $A61D ; Phase 2 sub 3: move path event gate
+B0E_0F_Phase2MoveCommit         = $A654 ; Phase 2 sub 4: move commit
+B0E_0F_Phase2CursorBlinkIfActive = $A6D0 ; Conditional cursor column blink
+B0E_0F_Phase2ActionEndWait      = $A6E4 ; Phase 2 sub 5: action anim done wait
+B0E_0F_Phase2AttackSetup        = $A702 ; Phase 2 sub 6: attack setup
+B0E_0F_Phase2AttackArrowAnim    = $A72E ; Phase 2 sub 7: attack arrow animation
+B0E_0F_Phase2AttackAnimCount    = $A74A ; Phase 2 sub 8: attack marker count
+B0E_0F_Phase2AttackDamageApply  = $A75B ; Phase 2 sub 9: attack damage apply
+B0E_0F_Phase2DamageSurvived     = $A7B2 ; Damage-survived path of damage apply
+B0E_0F_Phase2DamagePanelUpdate  = $A7C5 ; Damage-number panel update setup
+B0E_0F_Phase2ActionDoneWait     = $A7E0 ; Phase 2 sub $A: action done wait
+B0E_0F_Phase2ColumnResetCheck   = $A7FE ; Side-event pending column reset check
+B0E_0F_Phase2AttackComputeDefended = $A84D ; Damage compute: defended target
+B0E_0F_Phase2AttackComputeWithBonus = $A871 ; Damage compute: main attack + bonus
+B0E_0F_Phase2PercentScale       = $A8CF ; A = A * Y / 100 percent scale
+B0E_0F_Phase2AttackDamageCompute = $A8F2 ; Core attack damage compute
+B0E_0F_Phase2CursorStep         = $A9A0 ; Walk position one-cell step
+B0E_0F_Phase2CommitMarkerAdjust = $A9BD ; Commit walk into column row markers
+B0E_0F_Phase2CursorStepFast     = $A9E6 ; Walk position double step
+B0E_0F_Phase2ColumnStatusEncode = $AA0F ; Encode acting unit into column status
+B0E_0F_Phase3CommandSubDispatch = $AA23 ; Phase 3 (command selection) sub-dispatch
+B0E_0F_Phase3CommandPanelInit   = $AA4A ; Phase 3 sub 0: command panel init
+B0E_0F_Phase3CommandAnimStep    = $AABD ; Phase 3 sub 1: panel anim step
+B0E_0F_Phase3CommandInput       = $AAF0 ; Phase 3 sub 2: player command input
+B0E_0F_Phase3CommandConfirmWait = $AB75 ; Phase 3 sub 3: confirm wait
+B0E_0F_Phase3CommandResultWait  = $AB9A ; Phase 3 sub 4: result wait
+B0E_0F_Phase3CommandDirInput    = $ABC3 ; Command menu direction input handler
+B0E_0F_Phase3CommandArrowDraw   = $AC73 ; Command menu selection arrow sprite
+B0E_0F_Phase3CommandMarkerUpdate = $ACA8 ; Command menu target marker refresh
+B0E_0F_Phase8PanelSubDispatch   = $ACC5 ; Phase 8 (point-spend panel) sub-dispatch
+B0E_0F_Phase8PanelInit          = $ACEC ; Phase 8 sub 0: panel init
+B0E_0F_Phase8PanelScriptStep    = $AD3C ; Phase 8 sub 1: script step wait
+B0E_0F_Phase8PanelMenuInput     = $AD5D ; Phase 8 sub 2: row selection input
+B0E_0F_Phase8PanelConfirmWait   = $AE11 ; Phase 8 sub 3: confirm wait
+B0E_0F_Phase8PanelReturnToCommand = $AE6C ; Return to phase 3 sub 3
+B0E_0F_Phase8PanelAdvanceWait   = $AE8E ; Phase 8 sub 4: advance wait
+B0E_0F_Phase8PanelReturnToCommandDup = $AEAE ; Unreferenced dup of ReturnToCommand
+B0E_0F_Phase8RowEffectDispatch  = $AF11 ; Purchased row effect dispatch
+B0E_0F_Phase8RowStatCheck       = $AF26 ; Row 1: stat check (siege auto-fail)
+B0E_0F_Phase8RowCoinFlip        = $AFD2 ; Row 0: coin flip effect
+B0E_0F_Phase8RowCounter574      = $AFF6 ; Row effect: status counter $0574 <- 4
+B0E_0F_Phase8RowCounter575      = $B00E ; Row 2: status counter $0575 <- 3
+B0E_0F_Phase8RowCounter576      = $B02E ; Row 3: status counter $0576 <- 4
+B0E_0F_Phase8RowReloadRoll      = $B066 ; Reload roll: A + 5 + rand[0,5)
+B0E_0F_Phase8RowCounter577      = $B07C ; Row 4: status counter $0577 <- 3
+B0E_0F_Phase8RowAdvance         = $B09C ; Row 5: leave panel -> phase 9
+B0E_0F_Phase8RowScriptQueue     = $B0AC ; Queue row script into VRAM script buffer
+B0E_0F_BattleSideStatusCountersDecrement = $B15B ; Per-frame status counter tick-down
+B0E_0F_Phase9AdvanceSubDispatch = $B1EC ; Phase 9 (formation advance) sub-dispatch
+B0E_0F_Phase9AdvanceInit        = $B211 ; Phase 9 sub 0: marker OAM init
+B0E_0F_Phase9AdvanceAnimFrame   = $B25B ; Phase 9 sub 1: 32-frame advance animation
+B0E_0F_Phase9AdvanceComplete    = $B2A9 ; Advance animation off-strip exit
+B0E_0F_Phase9AdvanceMarkerRender = $B2AC ; Advance marker draw
+B0E_0F_Phase9AdvanceContactTick = $B2F5 ; Phase 9 sub 2: contact-damage tick
+B0E_0F_Phase9AdvanceRosterSweep = $B3EF ; Phase 9 sub 3: roster slot sweep
+B0E_0F_Phase9AdvanceFinish      = $B440 ; Shared advance-finish block
+B0E_0F_Phase9AdvanceContactScan = $B44B ; Contact-damage tile scan
+B0E_0F_Phase9AdvanceContactCheck = $B48A ; Slot proximity check vs marker
+B0E_0F_Phase9AdvanceContactApply = $B4AA ; Apply rolled contact damage
+B0E_0F_Phase9AdvanceDamageRoll  = $B4E3 ; Contact-damage roll
+B0E_0F_BattleRosterSetup        = $B548 ; Build both sides' battle rosters
+B0E_0F_BattleAnimQueueIdleCheck = $B870 ; Anim queue status in carry (C=1 idle)
+B0E_0F_BattleCellRedraw         = $B882 ; Battlefield cell rebuild (dual-queue)
+B0E_0F_BattleCellTroopCountDigitOverlay = $BA18 ; Troop-count digit overlay helper
+B0E_0F_BattleCellAdjacencyScan  = $BA56 ; Occupancy adjacency scan into attr byte
+B0E_0F_BattleCellSlotAdjacencyMerge = $BA79 ; Slot occupancy mask merge
+B0E_0F_Phase2CursorArrowDraw    = $BB8F ; Walk-cursor arrow sprite draw
+B0E_0F_Phase2AttackArrowSprSubmit = $BE76 ; Attack arrow sprite submit
+B0E_0F_Phase2AttackMarkerSprSubmit = $BF15 ; 2x2 attack-marker sprite submit
+B0E_0F_BattleSideStatusCounterDraw = $BF4C ; Status counter bytes $0574-$0577 redraw
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $0F ($C01B-$DFFF)
+;-------------------------------------------------------------------------------
+B0E_0F_BattleChrBankAnimate     = $C01B ; Per-VBlank battle CHR bank animation
+B0E_0F_Phase2WalkDirectionResolve = $C064 ; Walk-direction resolver (phase 2 gate)
+B0E_0F_Phase2StepTileProbe      = $C1CD ; Step-tile probe shared by resolvers
+B0E_0F_Phase2MoveRouteResolve   = $C20F ; Move-route direction resolver
+B0E_0F_Phase2AttackRouteResolve = $C30F ; Attack-route resolver
+B0E_0F_BattleSlotSideCompare    = $C827 ; Side-relation compare for roster slots
+B0E_0F_Phase3CommandMarkerRender = $C839 ; Command-menu value marker draw
+B0E_0F_FormationConfirmPromptDraw = $C8FD ; Blinking "press A" confirm prompt sprite
+B0E_0F_BattleSideCombatStatsInit = $C926 ; Pre-battle combat-parameter setup
+B0E_0F_BattleOverlayTotalRefresh = $CA3F ; Commit troop state into roster records
+B0E_0F_Phase2ArrowPathTileCheck = $CAC8 ; Line-of-fire tile check
+B0E_0F_BattleTerrainPassabilityCheck = $CAF9 ; Terrain passability vs army affinity
+B0E_0F_BattlePanelStatsRefresh  = $CBF1 ; Status panel troop field block rebuild
+B0E_0F_BattleInputPromptDraw    = $CCA8 ; Blinking input-prompt sprite draw
+B0E_0F_BattlePadStateFetch      = $CCDE ; Mode-filtered controller state fetch
+B0E_0F_BattleBothPadsStateFetch = $CD22 ; Both pads merged state fetch
+B0E_0F_Phase5SideEventSubDispatch = $CD43 ; Phase 5 (side event) sub-dispatch
+B0E_0F_Phase5SideEventRosterCommit = $CD4F ; Phase 5 sub 0: roster commit
+B0E_0F_Phase5SideEventPanelSetup = $CD59 ; Phase 5 sub 1: panel setup
+B0E_0F_Phase5SideEventClose     = $CDCF ; Phase 5 sub 2: event close
+B0E_0F_Phase5RetreatSlotMark    = $CE10 ; Helper: retreat slot mark
+B0E_0F_Phase6FormationSelectSubDispatch = $CE25 ; Phase 6 (side A formation) sub-dispatch
+B0E_0F_Phase6FormationPanelInit = $CE33 ; Phase 6 sub 0: panel init
+B0E_0F_Phase6FormationMenuInput = $CE68 ; Phase 6 sub 1: menu input
+B0E_0F_Phase6FormationConfirmWait = $CEAE ; Phase 6 sub 2: confirm wait
+B0E_0F_Phase6AdvanceToSideBFormation = $CEFA ; Phase 6 sub 3: advance to phase 7
+B0E_0F_FormationSelectMenu      = $CF05 ; Side-wrapped 4-wide formation menu
+B0E_0F_Phase7FormationSelectSubDispatch = $CF67 ; Phase 7 (side B formation) sub-dispatch
+B0E_0F_Phase7FormationPanelInit = $CF77 ; Phase 7 sub 0: panel init
+B0E_0F_Phase7FormationPanelOpen = $CF9D ; Phase 7 sub 1: panel open
+B0E_0F_Phase7FormationMenuInput = $CFC2 ; Phase 7 sub 2: menu input
+B0E_0F_Phase7FormationConfirmWait = $D008 ; Phase 7 sub 3: confirm wait
+B0E_0F_Phase7BattleModeStart    = $D054 ; Phase 7 sub 4: Battle Mode start
+B0E_0F_Phase1AiSideRefresh      = $D067 ; Phase-1 AI side refresh helper
+B0E_0F_AiTacticSpendDispatch    = $D0AE ; AI tactic-point spend dispatch
+B0E_0F_AiBattleOrderAssign      = $D0CB ; Battle order slot assignment
+B0E_0F_AiCommanderRoutCheck     = $D1D8 ; AI commander rout check
+B0E_0F_AiArmyRoutCheck          = $D2D4 ; AI whole-army rout check
+B0E_0F_BattleOutnumberedCheck   = $D32A ; Side strength comparison
+B0E_0F_AiTacticPointSpend       = $D3C7 ; AI tactic point spend engine
+B0E_0F_PhaseATauntSubDispatch   = $D6BA ; Phase $A (AI taunt scene) sub-dispatch
+B0E_0F_PhaseATauntSceneOpen     = $D6CC ; Taunt sub 0: opening beat
+B0E_0F_PhaseATauntSceneAdvanceWait = $D6DD ; Taunt sub 1: advance wait
+B0E_0F_PhaseATauntStripRedraw   = $D72B ; Taunt overlay strip redraw helper
+B0E_0F_PhaseATauntSceneStep     = $D743 ; Taunt sub 4: scene step
+B0E_0F_PhaseATauntSceneChoice   = $D77F ; Taunt sub 5: two-row choice menu
+B0E_0F_OfficerBattleExpLevelCheck = $D7FB ; Battle experience accrual and level-up check
+B0E_0F_OfficerStatSumBattleTransfer = $D8B0 ; Donor Might+Intelligence -> recipient exp
+B0E_0F_BattleAnimSoundEngine    = $D8D4 ; Battle animation script + sound engine
+B0E_0F_BattleSoundChannelProc   = $DC59 ; Sound channel processing engine
+
+;-------------------------------------------------------------------------------
+; Aliases (multi-entry proc sub-labels)
+;-------------------------------------------------------------------------------
+B0E_0F_SoundPlayAlt             = $DF6E ; BattleSoundChannelProc::SoundPlayAlt (alternate play entry)
 
 .endif ; GUARD_FUNCTIONS_H
