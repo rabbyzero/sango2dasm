@@ -23,10 +23,8 @@
 .include "prg_15.asm"
 .include "prg_16.asm"
 .include "prg_17_18.asm"
-.include "prg_19.asm"
-.include "prg_1a.asm"
-.include "prg_1b.asm"
-.include "prg_1c.asm"
+.include "prg_19_1a.asm"
+.include "prg_1b_1c.asm"
 .include "prg_1d_1e.asm"
 .include "prg_1f.asm"
 

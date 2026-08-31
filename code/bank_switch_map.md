@@ -233,6 +233,35 @@ ExchangeScene x3).
 **Trampoline:** OfficerDisplay_Lookup $A89B and DomesticMenu_Return $C95D,
 Y=$3D -> self pair, $A015 `B1D_1E_LoadScenarioData`.
 
+### 3.7 Banks $1B+$1C (prg_1b_1c.asm, partially decoded)
+
+**Called from bank $1F:** NmiState2_MapScreen ($F8EF) switches Y=$3B and
+JSR $A000 -> `MapScreenFrameUpdate` ($A00C): per-frame map-screen update
+(ruler marker sprites via `MapRulerMarkerDraw` $DE83, animated province
+sprites via `MapProvinceSpriteRefresh` $DF35, then frame-state dispatch by
+$0400 through `B1F_CallbackDispatcher`). Entry $A000 is a stub aliasing
+$A00C; $A003/$A006/$A009 jump to $DA02/$D64A/$DF25.
+
+**Trampoline calls out (from MapScreenFrameUpdate and its frame-state table
+$A025-$A044):**
+
+| Caller | Y | Target |
+|---|---|---|
+| MapScreenFrameUpdate $A014 | $39 | $19 $A02A (MapProvinceDirtyMark: marks pending province $0402 in dirty bitmap $04E0-$04E3) |
+| frame state $0B handler $A047 | $39 | $19 $A003 |
+| frame state $0C handler $A04F | $39 | $19 $A021 |
+| frame state 9 handler $A057 | $39 | $19 $A006 |
+| frame state $0A handler $A05F | $39 | $19 $A009 |
+| frame state $0D handler $A067 | $39 | $19 $A00C |
+| frame state $0E handler $A06F | $3D | $1D $A039 `B1D_1E_SceneRenderer` |
+| frame state $0F handler $A077 | $39 | $19 $A01E |
+
+**Note:** bank $19 entry stubs are 3-byte JMPs ($A000->$CE1F, $A003->$A033,
+$A006->$C773, $A009->$A296, $A00C->$AD81, $A01E->$C435, $A021->$AFE5,
+$A02A->MapProvinceDirtyMark); several are shared with battle overlay usage. The $04E0-$04E3
+dirty bitmap is set by bank $19 $A02A and consumed/cleared each frame by
+`MapProvinceSpriteRefresh`.
+
 ---
 
 ## 4. Target-bank roles (inferred)
@@ -255,7 +284,7 @@ Y=$3D -> self pair, $A015 `B1D_1E_LoadScenarioData`.
 | $16 | turn summary / menu renderer tiles |
 | $17+$18 | display engine (disassembled) |
 | $19+$1A | event/cutscene PPU helpers (RLE writer at $A000, dispatch at $A012) |
-| $1B+$1C | PPU raw copy helper ($A003) |
+| $1B+$1C | map screen: per-frame update (ruler marker + province sprites + frame-state machine, $A000/$A00C), PPU raw copy helper ($A003) |
 | $1D+$1E | menus / domestic dispatch / SRAM (disassembled) |
 | $1F | fixed boot bank: state machine, NMI, sound, primitives |
 

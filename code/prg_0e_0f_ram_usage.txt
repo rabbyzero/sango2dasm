@@ -1,0 +1,2184 @@
+==============================================================================
+$000  (211 refs)
+procs: Phase2AttackRouteResolve(48), BattleSideStatusCountersDecrement(21), (file-top)(17), BattleRosterSetup(11), BattleOutnumberedCheck(9), BattleCellRedraw(8), BattleCellSlotAdjacencyMerge(8), Phase9AdvanceDamageRoll(7), Phase2WalkDirectionResolve(7), AiTacticPointSpend(7), BattleSideCombatStatsInit(5), Phase2MoveRouteResolve(4), AiCommanderRoutCheck(4), Phase9AdvanceContactApply(3), Phase2CursorArrowDraw(3), Phase2StepTileProbe(3), BattlePadStateFetch(3), BattleBothPadsStateFetch(3), Phase3CommandDirInput(2), Phase8PanelMenuInput(2), Phase8RowReloadRoll(2), Phase2ArrowPathTileCheck(2), BattlePanelStatsRefresh(2), FormationSelectMenu(2), Phase4ResultDefeatInputWait(1), Phase3CommandSubDispatch(1), Phase3CommandAnimStep(1), Phase3CommandConfirmWait(1), Phase3CommandResultWait(1), Phase3CommandArrowDraw(1), Phase3CommandMarkerUpdate(1), Phase8PanelSubDispatch(1), Phase8RowScriptQueue(1), Phase9AdvanceSubDispatch(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1), BattleSideStatusCounterDraw(1), Phase3CommandMarkerRender(1), FormationConfirmPromptDraw(1), BattleTerrainPassabilityCheck(1), BattleInputPromptDraw(1), Phase6FormationPanelInit(1), Phase6FormationMenuInput(1), Phase6FormationConfirmWait(1), Phase7FormationPanelOpen(1), Phase7FormationMenuInput(1), Phase7FormationConfirmWait(1), PhaseATauntStripRedraw(1), PhaseATauntSceneStep(1), PhaseATauntSceneChoice(1)
+mnems: STA(130), LDA(29), ?(19), ORA(7), CMP(4), ADC(4), STY(3), INC(3), CPY(3), JSR(2), LDY(2), SBC(2), STX(2), LDX(1)
+     699 Phase4ResultDefeatInputWait  JSR BattleBothPadsStateFetch ; $A3D4: 20 22 CD ; merge both pads -> $0000/$0001
+    1805 Phase3CommandSubDispatch     STA a:$0000        ; $AA29: 8D 00 00
+    1890 (file-top)                   ?                  ; B1D_1E_OfficerDisplay_Render (Y=$3D) with buffer ptr $0000 <-
+    1911 Phase3CommandAnimStep        STA a:$0000        ; $AAE5: 8D 00 00
+    2012 Phase3CommandConfirmWait     STA a:$0000        ; $AB87: 8D 00 00
+    2037 Phase3CommandResultWait      STA a:$0000        ; $ABA2: 8D 00 00
+    2116 Phase3CommandDirInput        STA a:$0000        ; $AC23: 8D 00 00 ; cap
+    2120 Phase3CommandDirInput        CMP a:$0000        ; $AC2C: CD 00 00
+    2164 Phase3CommandArrowDraw       STA a:$0000        ; $AC75: 8D 00 00 ; table ptr lo
+    2189 (file-top)                   ?                  ; Refreshes the command-menu target marker: menu step $0548 into $0000 and
+    2195 Phase3CommandMarkerUpdate    STA a:$0000        ; $ACAB: 8D 00 00
+    2219 Phase8PanelSubDispatch       STA a:$0000        ; $ACCB: 8D 00 00
+    2332 Phase8PanelMenuInput         LDA a:$0000        ; $AD6B: AD 00 00
+    2351 Phase8PanelMenuInput         STA a:$0000        ; $AD9C: 8D 00 00
+  ...
+==============================================================================
+$001  (182 refs)
+procs: Phase2AttackRouteResolve(48), BattleRosterSetup(17), (file-top)(11), BattlePanelStatsRefresh(11), BattleOutnumberedCheck(9), Phase2WalkDirectionResolve(7), BattleSideCombatStatsInit(7), Phase3CommandDirInput(4), Phase8PanelMenuInput(4), Phase2MoveRouteResolve(4), AiCommanderRoutCheck(4), Phase2CursorArrowDraw(3), Phase2StepTileProbe(3), BattlePadStateFetch(3), BattleBothPadsStateFetch(3), PhaseATauntSceneChoice(3), Phase3CommandInput(2), Phase8RowStatCheck(2), Phase9AdvanceContactApply(2), Phase9AdvanceDamageRoll(2), BattleCellRedraw(2), Phase3CommandMarkerRender(2), Phase2ArrowPathTileCheck(2), FormationSelectMenu(2), AiTacticPointSpend(2), Phase4ResultDefeatInputWait(1), Phase3CommandConfirmWait(1), Phase3CommandResultWait(1), Phase3CommandArrowDraw(1), Phase3CommandMarkerUpdate(1), Phase8PanelConfirmWait(1), Phase8PanelAdvanceWait(1), Phase8RowScriptQueue(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), BattleCellTroopCountDigitOverlay(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1), BattleSideStatusCounterDraw(1), FormationConfirmPromptDraw(1), BattleTerrainPassabilityCheck(1), BattleInputPromptDraw(1), Phase6FormationMenuInput(1), Phase6FormationConfirmWait(1), Phase7FormationMenuInput(1), Phase7FormationConfirmWait(1), PhaseATauntSceneAdvanceWait(1), PhaseATauntSceneStep(1)
+mnems: STA(110), LDA(42), ?(12), INC(4), ADC(4), JSR(2), CPY(2), ORA(2), SBC(1), CMP(1), STX(1), LDY(1)
+     699 Phase4ResultDefeatInputWait  JSR BattleBothPadsStateFetch ; $A3D4: 20 22 CD ; merge both pads -> $0000/$0001
+    1936 Phase3CommandInput           LDA a:$0001        ; $AAF6: AD 01 00 ; pad raw state
+    1945 Phase3CommandInput           LDA a:$0001        ; $AB0B: AD 01 00
+    2014 Phase3CommandConfirmWait     STA a:$0001        ; $AB8C: 8D 01 00 ; ptr hi
+    2039 Phase3CommandResultWait      STA a:$0001        ; $ABA7: 8D 01 00 ; ptr hi
+    2069 Phase3CommandDirInput        LDA a:$0001        ; $ABC9: AD 01 00 ; pad raw state
+    2097 Phase3CommandDirInput        LDA a:$0001        ; $AC00: AD 01 00
+    2129 Phase3CommandDirInput        LDA a:$0001        ; $AC3F: AD 01 00
+    2143 Phase3CommandDirInput        LDA a:$0001        ; $AC5E: AD 01 00
+    2166 Phase3CommandArrowDraw       STA a:$0001        ; $AC7A: 8D 01 00 ; table ptr hi
+    2190 (file-top)                   ?                  ; the current action slot value $0550[$0549*4+$0548] into $0001/$0002,
+    2203 Phase3CommandMarkerUpdate    STA a:$0001        ; $ACBB: 8D 01 00
+    2334 Phase8PanelMenuInput         LDA a:$0001        ; $AD71: AD 01 00
+    2353 Phase8PanelMenuInput         STA a:$0001        ; $ADA1: 8D 01 00
+  ...
+==============================================================================
+$002  (67 refs)
+procs: BattlePanelStatsRefresh(11), BattleRosterSetup(8), BattleOverlayTotalRefresh(8), BattleCellSlotAdjacencyMerge(6), BattleOutnumberedCheck(6), (file-top)(4), BattleSideCombatStatsInit(4), BattleCellRedraw(3), Phase2CursorArrowDraw(3), Phase3CommandArrowDraw(1), Phase3CommandMarkerUpdate(1), Phase8RowStatCheck(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase9AdvanceDamageRoll(1), BattleCellTroopCountDigitOverlay(1), BattleCellAdjacencyScan(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1), BattleSideStatusCounterDraw(1), FormationConfirmPromptDraw(1), BattleTerrainPassabilityCheck(1), BattleInputPromptDraw(1)
+mnems: STA(32), LDA(14), ?(5), ADC(4), CPY(2), INC(2), SBC(2), STY(2), STX(2), DEC(1), JSR(1)
+    2176 Phase3CommandArrowDraw       STA a:$0002        ; $AC95: 8D 02 00
+    2204 Phase3CommandMarkerUpdate    STA a:$0002        ; $ACBE: 8D 02 00
+    2645 Phase8RowStatCheck           STA a:$0002        ; $AF9E: 8D 02 00 ; dividend hi <- 0
+    3114 Phase9AdvanceMarkerRender    STA a:$0002        ; $B2B8: 8D 02 00
+    3170 Phase9AdvanceContactTick     STA a:$0002        ; $B325: 8D 02 00
+    3413 Phase9AdvanceDamageRoll      STA a:$0002        ; $B537: 8D 02 00 ; dividend hi
+    3473 BattleRosterSetup            STA a:$0002        ; $B56E: 8D 02 00 ; dividend hi
+    3493 BattleRosterSetup            STA a:$0002        ; $B59B: 8D 02 00 ; dividend hi
+    3553 BattleRosterSetup            STA a:$0002        ; $B60E: 8D 02 00
+    3567 BattleRosterSetup            CPY a:$0002        ; $B62B: CC 02 00 ; class-2 bound
+    3594 BattleRosterSetup            STA a:$0002        ; $B661: 8D 02 00 ; dividend hi
+    3614 BattleRosterSetup            STA a:$0002        ; $B68E: 8D 02 00 ; dividend hi
+    3687 BattleRosterSetup            STA a:$0002        ; $B722: 8D 02 00
+    3707 BattleRosterSetup            CPY a:$0002        ; $B74B: CC 02 00 ; class-2 bound
+  ...
+==============================================================================
+$003  (43 refs)
+procs: BattleRosterSetup(8), BattleOverlayTotalRefresh(8), BattleCellSlotAdjacencyMerge(6), BattleOutnumberedCheck(6), BattleSideCombatStatsInit(4), BattleCellRedraw(3), Phase8RowStatCheck(1), (file-top)(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase9AdvanceDamageRoll(1), BattleCellTroopCountDigitOverlay(1), BattleCellAdjacencyScan(1), BattleTerrainPassabilityCheck(1)
+mnems: STA(21), LDA(9), STY(4), SBC(3), ORA(2), ?(1), INC(1), DEC(1), STX(1)
+    2643 Phase8RowStatCheck           STA a:$0003        ; $AF99: 8D 03 00 ; divisor <- 10
+    3105 (file-top)                   ?                  ; sprite column <- $055B; writer preset $0003=0/$0004=$A0. Exits through
+    3130 Phase9AdvanceMarkerRender    STA a:$0003        ; $B2DD: 8D 03 00 ; writer preset
+    3179 Phase9AdvanceContactTick     STA a:$0003        ; $B33E: 8D 03 00 ; writer preset
+    3411 Phase9AdvanceDamageRoll      STA a:$0003        ; $B532: 8D 03 00 ; divisor
+    3479 BattleRosterSetup            STA a:$0003        ; $B57A: 8D 03 00
+    3489 BattleRosterSetup            STA a:$0003        ; $B593: 8D 03 00 ; divisor <- count
+    3600 BattleRosterSetup            STA a:$0003        ; $B66D: 8D 03 00
+    3610 BattleRosterSetup            STA a:$0003        ; $B686: 8D 03 00 ; divisor <- count
+    3718 BattleRosterSetup            STA a:$0003        ; $B762: 8D 03 00
+    3721 BattleRosterSetup            SBC a:$0003        ; $B768: ED 03 00 ; mirror column
+    3731 BattleRosterSetup            STA a:$0003        ; $B77C: 8D 03 00
+    3734 BattleRosterSetup            SBC a:$0003        ; $B782: ED 03 00 ; mirror column
+    3866 BattleCellRedraw             STA a:$0003        ; $B8B6: 8D 03 00
+  ...
+==============================================================================
+$004  (14 refs)
+procs: BattleRosterSetup(4), BattleCellRedraw(4), Phase8RowStatCheck(1), (file-top)(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase9AdvanceDamageRoll(1), BattleSideCombatStatsInit(1)
+mnems: STA(10), ROL(2), ?(1), ADC(1)
+    2646 Phase8RowStatCheck           STA a:$0004        ; $AFA1: 8D 04 00 ; divisor hi <- 0
+    3105 (file-top)                   ?                  ; sprite column <- $055B; writer preset $0003=0/$0004=$A0. Exits through
+    3132 Phase9AdvanceMarkerRender    STA a:$0004        ; $B2E2: 8D 04 00 ; writer preset
+    3181 Phase9AdvanceContactTick     STA a:$0004        ; $B343: 8D 04 00 ; writer preset
+    3414 Phase9AdvanceDamageRoll      STA a:$0004        ; $B53A: 8D 04 00
+    3481 BattleRosterSetup            STA a:$0004        ; $B57F: 8D 04 00
+    3495 BattleRosterSetup            STA a:$0004        ; $B5A0: 8D 04 00
+    3602 BattleRosterSetup            STA a:$0004        ; $B672: 8D 04 00
+    3616 BattleRosterSetup            STA a:$0004        ; $B693: 8D 04 00
+    3879 BattleCellRedraw             STA a:$0004        ; $B8CF: 8D 04 00 ; tile offset high byte
+    3882 BattleCellRedraw             ROL a:$0004        ; $B8D5: 2E 04 00
+    3884 BattleCellRedraw             ROL a:$0004        ; $B8D9: 2E 04 00
+    3889 BattleCellRedraw             ADC a:$0004        ; $B8E6: 6D 04 00
+    5959 BattleSideCombatStatsInit    STA a:$0004        ; $C9E4: 8D 04 00
+  ...
+==============================================================================
+$005  (4 refs)
+procs: BattleRosterSetup(4)
+mnems: LDA(2), CPY(2)
+    3483 BattleRosterSetup            LDA a:$0005        ; $B585: AD 05 00 ; remainder
+    3501 BattleRosterSetup            CPY a:$0005        ; $B5AE: CC 05 00 ; remainder
+    3604 BattleRosterSetup            LDA a:$0005        ; $B678: AD 05 00 ; remainder
+    3622 BattleRosterSetup            CPY a:$0005        ; $B6A1: CC 05 00 ; remainder
+==============================================================================
+$006  (1 refs)
+procs: BattleSideCombatStatsInit(1)
+mnems: LDA(1)
+    5952 BattleSideCombatStatsInit    LDA a:$0006        ; $C9D1: AD 06 00
+==============================================================================
+$007  (3 refs)
+procs: BattleCellTroopCountDigitOverlay(2), BattleSideCombatStatsInit(1)
+mnems: LDA(3)
+    4041 BattleCellTroopCountDigitOverlay LDA a:$0007        ; $BA2C: AD 07 00 ; tens+ones BCD byte
+    4049 BattleCellTroopCountDigitOverlay LDA a:$0007        ; $BA39: AD 07 00
+    5954 BattleSideCombatStatsInit    LDA a:$0007        ; $C9D7: AD 07 00
+==============================================================================
+$008  (7 refs)
+procs: BattleCellRedraw(5), (file-top)(1), BattleCellTroopCountDigitOverlay(1)
+mnems: STA(2), ASL(1), ADC(1), ORA(1), ?(1), LDA(1)
+    3868 BattleCellRedraw             STA a:$0008        ; $B8BC: 8D 08 00 ; (kept for troop count pass)
+    3910 BattleCellRedraw             ASL a:$0008        ; $B911: 0E 08 00 ; column * 2
+    3919 BattleCellRedraw             ADC a:$0008        ; $B923: 6D 08 00 ; + column * 2
+    3986 BattleCellRedraw             STA a:$0008        ; $B9BE: 8D 08 00
+    3991 BattleCellRedraw             ORA a:$0008        ; $B9C8: 0D 08 00 ; attribute cell offset
+    4030 (file-top)                   ?                  ; $B4+d. When the BCD high byte $0008 has a nonzero low nibble (troop count in the
+    4054 BattleCellTroopCountDigitOverlay LDA a:$0008        ; $BA44: AD 08 00 ; thousands+hundreds
+==============================================================================
+$00A  (49 refs)
+procs: AiTacticPointSpend(11), Phase8RowStatCheck(8), (file-top)(3), BattleCellSlotAdjacencyMerge(3), BattleRosterSetup(2), BattleInputPromptDraw(2), AiBattleOrderAssign(2), Phase3CommandSubDispatch(1), Phase3CommandArrowDraw(1), Phase8PanelSubDispatch(1), Phase9AdvanceSubDispatch(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase9AdvanceContactApply(1), Phase2CursorArrowDraw(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1), BattleSideStatusCounterDraw(1), FormationConfirmPromptDraw(1), Phase6FormationMenuInput(1), Phase6FormationConfirmWait(1), Phase7FormationMenuInput(1), Phase7FormationConfirmWait(1), PhaseATauntStripRedraw(1), OfficerBattleExpLevelCheck(1)
+mnems: STA(34), LDA(4), CMP(4), ?(3), LDY(2), ORA(1), LDX(1)
+    1807 Phase3CommandSubDispatch     STA a:$000A        ; $AA2E: 8D 0A 00
+    2169 Phase3CommandArrowDraw       STA a:$000A        ; $AC83: 8D 0A 00
+    2221 Phase8PanelSubDispatch       STA a:$000A        ; $ACD0: 8D 0A 00 ; buffer ptr hi
+    2605 Phase8RowStatCheck           STA a:$000A        ; $AF43: 8D 0A 00 ; side A rank
+    2623 Phase8RowStatCheck           LDY a:$000A        ; $AF6A: AC 0A 00
+    2625 Phase8RowStatCheck           STA a:$000A        ; $AF70: 8D 0A 00 ; own rank
+    2632 Phase8RowStatCheck           LDA a:$000A        ; $AF82: AD 0A 00 ; own rank
+    2639 Phase8RowStatCheck           STA a:$000A        ; $AF8E: 8D 0A 00 ; dividend lo
+    2648 Phase8RowStatCheck           LDA a:$000A        ; $AFA7: AD 0A 00 ; quotient
+    2653 Phase8RowStatCheck           STA a:$000A        ; $AFB1: 8D 0A 00 ; success chance
+    2656 Phase8RowStatCheck           CMP a:$000A        ; $AFB9: CD 0A 00
+    2982 Phase9AdvanceSubDispatch     STA a:$000A        ; $B1F7: 8D 0A 00 ; buffer ptr hi
+    3123 Phase9AdvanceMarkerRender    STA a:$000A        ; $B2CA: 8D 0A 00 ; sprite Y
+    3172 Phase9AdvanceContactTick     STA a:$000A        ; $B32B: 8D 0A 00 ; sprite Y
+  ...
+==============================================================================
+$00B  (35 refs)
+procs: AiTacticPointSpend(5), Phase8RowStatCheck(4), BattleCellRedraw(4), (file-top)(3), BattleCellSlotAdjacencyMerge(3), OfficerStatSumBattleTransfer(3), BattleRosterSetup(2), OfficerBattleExpLevelCheck(2), Phase3CommandArrowDraw(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase9AdvanceContactApply(1), Phase2CursorArrowDraw(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1), BattleSideStatusCounterDraw(1), AiBattleOrderAssign(1)
+mnems: STA(18), LDA(4), ?(3), ROL(2), STX(2), STY(1), SBC(1), ORA(1), CMP(1), ROR(1), ADC(1)
+    2173 Phase3CommandArrowDraw       STA a:$000B        ; $AC8D: 8D 0B 00
+    2617 Phase8RowStatCheck           STA a:$000B        ; $AF5B: 8D 0B 00 ; side B rank
+    2624 Phase8RowStatCheck           LDA a:$000B        ; $AF6D: AD 0B 00
+    2626 Phase8RowStatCheck           STY a:$000B        ; $AF73: 8C 0B 00 ; opp rank
+    2634 Phase8RowStatCheck           SBC a:$000B        ; $AF86: ED 0B 00 ; - opp rank
+    3127 Phase9AdvanceMarkerRender    STA a:$000B        ; $B2D5: 8D 0B 00
+    3176 Phase9AdvanceContactTick     STA a:$000B        ; $B336: 8D 0B 00
+    3336 (file-top)                   ?                  ; buffer ($000A <- $0560[$0549], $000B <- damage, $000C <- 0) and exits
+    3355 Phase9AdvanceContactApply    STA a:$000B        ; $B4CF: 8D 0B 00
+    3525 BattleRosterSetup            STA a:$000B        ; $B5DA: 8D 0B 00
+    3651 BattleRosterSetup            STA a:$000B        ; $B6D6: 8D 0B 00
+    3912 BattleCellRedraw             STA a:$000B        ; $B916: 8D 0B 00 ; address high part
+    3915 BattleCellRedraw             ROL a:$000B        ; $B91B: 2E 0B 00
+    3917 BattleCellRedraw             ROL a:$000B        ; $B91F: 2E 0B 00
+  ...
+==============================================================================
+$00C  (34 refs)
+procs: AiTacticPointSpend(4), (file-top)(3), Phase8RowStatCheck(3), BattleCellSlotAdjacencyMerge(3), AiBattleOrderAssign(3), OfficerStatSumBattleTransfer(3), BattleRosterSetup(2), BattleInputPromptDraw(2), OfficerBattleExpLevelCheck(2), Phase3CommandArrowDraw(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase9AdvanceContactApply(1), Phase2CursorArrowDraw(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1), BattleSideStatusCounterDraw(1), FormationConfirmPromptDraw(1)
+mnems: STA(22), ?(3), LDA(3), LDY(1), ORA(1), STX(1), LDX(1), LSR(1), ADC(1)
+    2159 (file-top)                   ?                  ; step table, row param $000C <- $80, direct placement through
+    2171 Phase3CommandArrowDraw       STA a:$000C        ; $AC88: 8D 0C 00 ; row param
+    2608 Phase8RowStatCheck           STA a:$000C        ; $AF4A: 8D 0C 00 ; side A troops
+    2627 Phase8RowStatCheck           LDY a:$000C        ; $AF76: AC 0C 00
+    2629 Phase8RowStatCheck           STA a:$000C        ; $AF7C: 8D 0C 00 ; own troops
+    3125 Phase9AdvanceMarkerRender    STA a:$000C        ; $B2D0: 8D 0C 00 ; sprite X
+    3174 Phase9AdvanceContactTick     STA a:$000C        ; $B331: 8D 0C 00 ; sprite X
+    3336 (file-top)                   ?                  ; buffer ($000A <- $0560[$0549], $000B <- damage, $000C <- 0) and exits
+    3357 Phase9AdvanceContactApply    STA a:$000C        ; $B4D4: 8D 0C 00
+    3527 BattleRosterSetup            STA a:$000C        ; $B5E0: 8D 0C 00
+    3653 BattleRosterSetup            STA a:$000C        ; $B6DC: 8D 0C 00
+    4108 BattleCellSlotAdjacencyMerge STA a:$000C        ; $BA85: 8D 0C 00 ; sub-cell 3 mask
+    4118 BattleCellSlotAdjacencyMerge STA a:$000C        ; $BA9D: 8D 0C 00
+    4166 BattleCellSlotAdjacencyMerge ORA a:$000C        ; $BB14: 0D 0C 00
+  ...
+==============================================================================
+$00D  (26 refs)
+procs: Phase8RowStatCheck(4), AiBattleOrderAssign(4), AiTacticPointSpend(4), BattleCellSlotAdjacencyMerge(3), BattleRosterSetup(2), OfficerBattleExpLevelCheck(2), Phase3CommandArrowDraw(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase2CursorArrowDraw(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1), BattleSideStatusCounterDraw(1)
+mnems: STA(16), LDA(5), STY(1), ORA(1), LDX(1), STX(1), CMP(1)
+    2174 Phase3CommandArrowDraw       STA a:$000D        ; $AC90: 8D 0D 00
+    2620 Phase8RowStatCheck           STA a:$000D        ; $AF62: 8D 0D 00 ; side B troops
+    2628 Phase8RowStatCheck           LDA a:$000D        ; $AF79: AD 0D 00
+    2630 Phase8RowStatCheck           STY a:$000D        ; $AF7F: 8C 0D 00 ; opp troops
+    2640 Phase8RowStatCheck           LDA a:$000D        ; $AF91: AD 0D 00 ; opponent troops
+    3128 Phase9AdvanceMarkerRender    STA a:$000D        ; $B2D8: 8D 0D 00
+    3177 Phase9AdvanceContactTick     STA a:$000D        ; $B339: 8D 0D 00
+    3529 BattleRosterSetup            STA a:$000D        ; $B5E6: 8D 0D 00
+    3655 BattleRosterSetup            STA a:$000D        ; $B6E2: 8D 0D 00
+    4110 BattleCellSlotAdjacencyMerge STA a:$000D        ; $BA8A: 8D 0D 00 ; sub-cell 2 mask
+    4120 BattleCellSlotAdjacencyMerge STA a:$000D        ; $BAA2: 8D 0D 00
+    4154 BattleCellSlotAdjacencyMerge ORA a:$000D        ; $BAF6: 0D 0D 00
+    4251 Phase2CursorArrowDraw        STA a:$000D        ; $BBD5: 8D 0D 00 ; Y offset hi
+    4457 Phase2AttackArrowSprSubmit   STA a:$000D        ; $BECA: 8D 0D 00 ; Y hi <- 0
+  ...
+==============================================================================
+$00E  (2 refs)
+procs: OfficerBattleExpLevelCheck(2)
+mnems: STA(1), LDA(1)
+    8203 OfficerBattleExpLevelCheck   STA a:$000E        ; $D81A: 8D 0E 00 ; working high
+    8232 OfficerBattleExpLevelCheck   LDA a:$000E        ; $D84D: AD 0E 00
+==============================================================================
+$00F  (4 refs)
+procs: OfficerBattleExpLevelCheck(4)
+mnems: STA(2), CMP(1), ORA(1)
+    8237 OfficerBattleExpLevelCheck   STA a:$000F        ; $D857: 8D 0F 00 ; no level-up
+    8252 OfficerBattleExpLevelCheck   STA a:$000F        ; $D872: 8D 0F 00 ; new level nibble
+    8256 OfficerBattleExpLevelCheck   CMP a:$000F        ; $D87B: CD 0F 00
+    8261 OfficerBattleExpLevelCheck   ORA a:$000F        ; $D886: 0D 0F 00 ; set new level
+==============================================================================
+$010  (50 refs)
+procs: Phase2MoveRouteResolve(13), Phase2AttackRouteResolve(13), Phase2WalkDirectionResolve(7), BattleCellRedraw(5), (file-top)(5), Phase8PanelMenuInput(2), FormationSelectMenu(2), PhaseATauntSceneChoice(2), BattleCellAdjacencyScan(1)
+mnems: INC(16), STA(14), LDA(13), ?(5), ORA(1), SBC(1)
+    2340 Phase8PanelMenuInput         STA a:$0010        ; $AD7F: 8D 10 00
+    2347 Phase8PanelMenuInput         STA a:$0010        ; $AD92: 8D 10 00 ; cursor table ptr <- $AF00
+    3846 BattleCellRedraw             STA a:$0010        ; $B888: 8D 10 00
+    3867 BattleCellRedraw             LDA a:$0010        ; $B8B9: AD 10 00 ; unit column
+    3876 BattleCellRedraw             ORA a:$0010        ; $B8C9: 0D 10 00 ; map offset = row*16 + col
+    3983 BattleCellRedraw             LDA a:$0010        ; $B9B8: AD 10 00 ; column
+    3999 BattleCellRedraw             LDA a:$0010        ; $B9DD: AD 10 00 ; column
+    4067 (file-top)                   ?                  ; ($0010 col / $0011 row): scans all 22 roster slots $15 -> 0 and, for each
+    4073 BattleCellAdjacencyScan      LDA a:$0010        ; $BA56: AD 10 00 ; column
+    4686 Phase2WalkDirectionResolve   STA a:$0010        ; $C07A: 8D 10 00
+    4692 Phase2WalkDirectionResolve   STA a:$0010        ; $C089: 8D 10 00
+    4701 Phase2WalkDirectionResolve   STA a:$0010        ; $C09E: 8D 10 00
+    4707 Phase2WalkDirectionResolve   STA a:$0010        ; $C0AC: 8D 10 00
+    4714 Phase2WalkDirectionResolve   SBC a:$0010        ; $C0BC: ED 10 00 ; actor - objective
+  ...
+==============================================================================
+$011  (23 refs)
+procs: Phase2WalkDirectionResolve(7), BattleCellRedraw(4), (file-top)(3), Phase8PanelMenuInput(2), FormationSelectMenu(2), PhaseATauntSceneChoice(2), BattleCellAdjacencyScan(1), Phase2MoveRouteResolve(1), Phase2AttackRouteResolve(1)
+mnems: STA(14), LDA(5), ?(3), SBC(1)
+    2342 Phase8PanelMenuInput         STA a:$0011        ; $AD85: 8D 11 00
+    2349 Phase8PanelMenuInput         STA a:$0011        ; $AD97: 8D 11 00
+    3848 BattleCellRedraw             STA a:$0011        ; $B88E: 8D 11 00
+    3870 BattleCellRedraw             LDA a:$0011        ; $B8C1: AD 11 00 ; unit row
+    3987 BattleCellRedraw             LDA a:$0011        ; $B9C1: AD 11 00 ; row
+    4003 BattleCellRedraw             LDA a:$0011        ; $B9E6: AD 11 00 ; row
+    4067 (file-top)                   ?                  ; ($0010 col / $0011 row): scans all 22 roster slots $15 -> 0 and, for each
+    4076 BattleCellAdjacencyScan      LDA a:$0011        ; $BA5E: AD 11 00 ; row
+    4688 Phase2WalkDirectionResolve   STA a:$0011        ; $C080: 8D 11 00
+    4694 Phase2WalkDirectionResolve   STA a:$0011        ; $C08F: 8D 11 00
+    4703 Phase2WalkDirectionResolve   STA a:$0011        ; $C0A4: 8D 11 00
+    4709 Phase2WalkDirectionResolve   STA a:$0011        ; $C0B2: 8D 11 00
+    4724 Phase2WalkDirectionResolve   SBC a:$0011        ; $C0D0: ED 11 00 ; actor - objective
+    4725 Phase2WalkDirectionResolve   STA a:$0011        ; $C0D3: 8D 11 00 ; signed row delta
+  ...
+==============================================================================
+$012  (28 refs)
+procs: (file-top)(7), Phase2WalkDirectionResolve(5), Phase8PanelMenuInput(3), PhaseATauntSceneChoice(3), Phase9AdvanceRosterSweep(2), BattleCellRedraw(2), FormationSelectMenu(2), Phase8RowEffectDispatch(1), BattleCellAdjacencyScan(1), Phase6FormationMenuInput(1), Phase7FormationMenuInput(1)
+mnems: LDA(11), ?(8), STA(6), INC(2), LDY(1)
+    2311 (file-top)                   ?                  ; latches it back, then steps the row cursor $0012 over the current tier's
+    2317 (file-top)                   ?                  ; (@RowCostTable[$0012] = 3/5/7/8/$A/$C), deducts it and applies the
+    2344 Phase8PanelMenuInput         STA a:$0012        ; $AD8A: 8D 12 00 ; selected row <- 0
+    2354 Phase8PanelMenuInput         LDA a:$0012        ; $ADA4: AD 12 00 ; selected row
+    2369 Phase8PanelMenuInput         LDY a:$0012        ; $ADCA: AC 12 00 ; selected row
+    2567 Phase8RowEffectDispatch      LDA a:$0012        ; $AF11: AD 12 00 ; selected row
+    3205 (file-top)                   ?                  ; ($0012=0) and removed from the event/row/column/roster arrays ($FF);
+    3206 (file-top)                   ?                  ; living units get their strip sprite refreshed ($0012=1). When all slots
+    3224 Phase9AdvanceRosterSweep     STA a:$0012        ; $B40B: 8D 12 00 ; clear-sprite flag
+    3240 Phase9AdvanceRosterSweep     STA a:$0012        ; $B42D: 8D 12 00 ; refresh-sprite flag
+    3831 (file-top)                   ?                  ; $007E bit 2 so the NMI handler transfers it. Parameters: $0012 mode
+    3942 BattleCellRedraw             ?                  ; --- Highlight pass ($0012 nonzero): status tiles + troop count digits ---------------
+    3943 BattleCellRedraw             LDA a:$0012        ; $B960: AD 12 00 ; highlight flag
+    4070 (file-top)                   ?                  ; ($0012 == 0) the target slot $0013 itself is skipped.
+  ...
+==============================================================================
+$013  (10 refs)
+procs: (file-top)(4), Phase9AdvanceRosterSweep(2), BattleCellRedraw(2), BattleCellTroopCountDigitOverlay(1), BattleCellAdjacencyScan(1)
+mnems: ?(4), LDY(3), STY(2), CPY(1)
+    3225 Phase9AdvanceRosterSweep     STY a:$0013        ; $B40E: 8C 13 00 ; slot param
+    3241 Phase9AdvanceRosterSweep     STY a:$0013        ; $B430: 8C 13 00 ; slot param
+    3829 (file-top)                   ?                  ; Rebuilds the battlefield cell of roster slot $0013 as a queued dual-
+    3834 (file-top)                   ?                  ; $0013 roster slot (0-$15; column $0580[Y], row $0596[Y]).
+    3844 BattleCellRedraw             LDY a:$0013        ; $B882: AC 13 00 ; roster slot
+    3945 BattleCellRedraw             LDY a:$0013        ; $B965: AC 13 00 ; roster slot
+    4028 (file-top)                   ?                  ; cell's bottom row of record 2 ($0396/$0397). troop count $05AC[$0013] is packed
+    4034 BattleCellTroopCountDigitOverlay LDY a:$0013        ; $BA18: AC 13 00 ; roster slot
+    4070 (file-top)                   ?                  ; ($0012 == 0) the target slot $0013 itself is skipped.
+    4083 BattleCellAdjacencyScan      CPY a:$0013        ; $BA6D: CC 13 00 ; target slot?
+==============================================================================
+$01A  (5 refs)
+procs: (file-top)(2), Phase9AdvanceContactScan(1), Phase9AdvanceContactCheck(1), BattleRosterSetup(1)
+mnems: ?(2), STA(2), SBC(1)
+    3266 (file-top)                   ?                  ; coordinates ($001A row, $001B column) and scans the OPPOSING side's 11
+    3277 Phase9AdvanceContactScan     STA a:$001A        ; $B452: 8D 1A 00 ; marker tile row
+    3308 (file-top)                   ?                  ; Proximity check for roster slot $001C: |unit row $0596 - marker row $001A|
+    3316 Phase9AdvanceContactCheck    SBC a:$001A        ; $B491: ED 1A 00 ; - marker row
+    3657 BattleRosterSetup            STA a:$001A        ; $B6E8: 8D 1A 00
+==============================================================================
+$01B  (5 refs)
+procs: (file-top)(2), Phase9AdvanceContactScan(1), Phase9AdvanceContactCheck(1), BattleRosterSetup(1)
+mnems: ?(2), STA(2), SBC(1)
+    3266 (file-top)                   ?                  ; coordinates ($001A row, $001B column) and scans the OPPOSING side's 11
+    3283 Phase9AdvanceContactScan     STA a:$001B        ; $B45C: 8D 1B 00 ; marker tile column
+    3309 (file-top)                   ?                  ; <= 2 and |unit column $0580 - marker column $001B| <= 2 (both via biased
+    3323 Phase9AdvanceContactCheck    SBC a:$001B        ; $B49F: ED 1B 00 ; - marker column
+    3659 BattleRosterSetup            STA a:$001B        ; $B6EE: 8D 1B 00
+==============================================================================
+$01C  (13 refs)
+procs: Phase9AdvanceContactScan(6), (file-top)(3), Phase9AdvanceContactCheck(1), Phase9AdvanceContactApply(1), Phase9AdvanceDamageRoll(1), BattleRosterSetup(1)
+mnems: STA(3), ?(3), LDY(3), INC(2), LDA(2)
+    3287 Phase9AdvanceContactScan     STA a:$001C        ; $B466: 8D 1C 00 ; slot cursor
+    3290 Phase9AdvanceContactScan     INC a:$001C        ; $B46C: EE 1C 00
+    3291 Phase9AdvanceContactScan     LDA a:$001C        ; $B46F: AD 1C 00
+    3297 Phase9AdvanceContactScan     STA a:$001C        ; $B479: 8D 1C 00 ; slot cursor
+    3300 Phase9AdvanceContactScan     INC a:$001C        ; $B47F: EE 1C 00
+    3301 Phase9AdvanceContactScan     LDA a:$001C        ; $B482: AD 1C 00
+    3308 (file-top)                   ?                  ; Proximity check for roster slot $001C: |unit row $0596 - marker row $001A|
+    3313 Phase9AdvanceContactCheck    LDY a:$001C        ; $B48A: AC 1C 00 ; slot cursor
+    3334 (file-top)                   ?                  ; to unit troop count $05AC[$001C] (clamped at zero; on clamp the pre-damage troop count is
+    3341 Phase9AdvanceContactApply    LDY a:$001C        ; $B4AD: AC 1C 00 ; slot cursor
+    3365 (file-top)                   ?                  ; Contact-damage roll for slot $001C. Base damage = B1F_RandomBelowThreshold
+    3393 Phase9AdvanceDamageRoll      LDY a:$001C        ; $B50B: AC 1C 00 ; slot cursor
+    3661 BattleRosterSetup            STA a:$001C        ; $B6F4: 8D 1C 00
+==============================================================================
+$01D  (1 refs)
+procs: BattleRosterSetup(1)
+mnems: STA(1)
+    3663 BattleRosterSetup            STA a:$001D        ; $B6FA: 8D 1D 00
+==============================================================================
+$05E  (13 refs)
+procs: (file-top)(6), Phase2CursorBlinkIfActive(2), Phase9AdvanceContactTick(1), Phase2CursorArrowDraw(1), BattleChrBankAnimate(1), FormationConfirmPromptDraw(1), BattleInputPromptDraw(1)
+mnems: ?(7), LDA(6)
+    1200 (file-top)                   ?                  ; Conditional column blink: when $005E bits 0-1 are set (frame phase),
+    1205 Phase2CursorBlinkIfActive    LDA a:$005E        ; $A6D0: AD 5E 00 ; frame phase flags
+    1208 Phase2CursorBlinkIfActive    LDA a:$005E        ; $A6D7: AD 5E 00
+    3143 (file-top)                   ?                  ; $005E low-nibble frame phase is 0; every 4 ticks applies
+    3149 Phase9AdvanceContactTick     LDA a:$005E        ; $B2F5: AD 5E 00 ; frame phase flags
+    4213 (file-top)                   ?                  ; $005E: word index = (((status<<2) | (action&3)) << 2 | frame). Flip flags
+    4220 Phase2CursorArrowDraw        LDA a:$005E        ; $BB8F: AD 5E 00 ; frame tick counter
+    4614 (file-top)                   ?                  ; frame tick counter $005E (advances every 8 frames); battle phase 3
+    4622 BattleChrBankAnimate         ?                  ; frame tick counter (incremented by NmiEpilogue)
+    5821 (file-top)                   ?                  ; $005E bit 4 (visible 16 frames, hidden 16 frames). On the hidden half the
+    5827 FormationConfirmPromptDraw   LDA a:$005E        ; $C8FD: AD 5E 00 ; frame counter
+    6321 (file-top)                   ?                  ; ($AE11, $AE8E). The prompt is drawn only while frame tick counter $005E
+    6347 BattleInputPromptDraw        LDA a:$005E        ; $CCBF: AD 5E 00 ; frame tick counter
+==============================================================================
+$07A  (5 refs)
+procs: (file-top)(3), Phase4ResultFlashTrigger(1), Phase5SideEventPanelSetup(1)
+mnems: ?(3), STA(2)
+     661 (file-top)                   ?                  ; 2 Phase4ResultFlashTrigger   ($A3F2) $0087 bit7 -> flash $0500=$0B, $007A <- 3
+     717 (file-top)                   ?                  ; $0501 <- 0, flash counter $007A <- 3) and falls through.
+     727 Phase4ResultFlashTrigger     STA a:$007A        ; $A403: 8D 7A 00 ; flash counter
+    6470 (file-top)                   ?                  ; (B1F_NmiDisable), advances to sub 2, arms the flash counter ($007A <- 7)
+    6484 Phase5SideEventPanelSetup    STA a:$007A        ; $CD66: 8D 7A 00 ; flash counter <- 7
+==============================================================================
+$07C  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    6326 (file-top)                   ?                  ; flip flags $0002 <- 0; the OAM slot cursor $007C is left as set by the
+==============================================================================
+$07E  (21 refs)
+procs: (file-top)(9), Phase8RowScriptQueue(2), BattleCellRedraw(2), Phase3CommandMarkerRender(2), BattleOverlayIntroDataFormatBottomAndAdvance(1), Phase2ActionEndWait(1), Phase2ActionDoneWait(1), Phase3CommandAnimStep(1), Phase3CommandResultWait(1), Phase8PanelScriptStep(1)
+mnems: ?(9), LDA(9), STA(3)
+     265 (file-top)                   ?                  ; Intro sub-state 4. If $007E is clear, banked-calls B1D_1E_DataFormatter
+     271 BattleOverlayIntroDataFormatBottomAndAdvance LDA a:$007E        ; $A137: AD 7E 00
+    1218 (file-top)                   ?                  ; Sub 5: waits for $007E bit2 (action animation done); then re-highlights
+    1222 Phase2ActionEndWait          LDA a:$007E        ; $A6E4: AD 7E 00 ; action status
+    1399 (file-top)                   ?                  ; Sub $A: waits for $007E bit2 (action animation done); then re-highlights
+    1403 Phase2ActionDoneWait         LDA a:$007E        ; $A7E0: AD 7E 00 ; action status
+    1886 (file-top)                   ?                  ; input flag $007E bit2 is set (both wait paths exit at the trailing RTS).
+    1896 Phase3CommandAnimStep        LDA a:$007E        ; $AAC2: AD 7E 00
+    2025 (file-top)                   ?                  ; Sub 4. Waits while input flag $007E is set; then banked-calls
+    2034 Phase3CommandResultWait      LDA a:$007E        ; $AB9A: AD 7E 00 ; input busy flag
+    2287 (file-top)                   ?                  ; row script is still displayed ($007E != 0). Otherwise queues the row
+    2294 Phase8PanelScriptStep        LDA a:$007E        ; $AD41: AD 7E 00 ; script busy flag
+    2835 (file-top)                   ?                  ; script buffer $0380 and marks the script pending ($007E bit 2). Called by
+    2855 Phase8RowScriptQueue         LDA a:$007E        ; $B0CC: AD 7E 00 ; script busy flag
+  ...
+==============================================================================
+$081  (15 refs)
+procs: BattleVBlankFrameUpdate(3), Phase8PanelMenuInput(3), FormationSelectMenu(3), PhaseATauntSceneChoice(3), (file-top)(2), BattlePadStateFetch(1)
+mnems: STA(8), LDA(5), ?(2)
+      41 BattleVBlankFrameUpdate      LDA a:$0081        ; $A01A: AD 81 00
+      44 BattleVBlankFrameUpdate      STA a:$0081        ; $A021: 8D 81 00
+      50 BattleVBlankFrameUpdate      STA a:$0081        ; $A02C: 8D 81 00
+    2310 (file-top)                   ?                  ; $0083/$0081 on the stack, refetches the acting side's pad state and
+    2328 Phase8PanelMenuInput         LDA a:$0081        ; $AD61: AD 81 00 ; pad latch lo
+    2335 Phase8PanelMenuInput         STA a:$0081        ; $AD74: 8D 81 00 ; relatch lo
+    2357 Phase8PanelMenuInput         STA a:$0081        ; $ADAB: 8D 81 00 ; restore pad latch lo
+    6372 (file-top)                   ?                  ; $0081 to feed B1D_1E_MenuUpdate.
+    6389 BattlePadStateFetch          LDA a:$0081        ; $CCF9: AD 81 00 ; pad 1 raw
+    6757 FormationSelectMenu          LDA a:$0081        ; $CF09: AD 81 00
+    6764 FormationSelectMenu          STA a:$0081        ; $CF1A: 8D 81 00
+    6783 FormationSelectMenu          STA a:$0081        ; $CF4A: 8D 81 00
+    8119 PhaseATauntSceneChoice       LDA a:$0081        ; $D78F: AD 81 00 ; pad latch lo
+    8123 PhaseATauntSceneChoice       STA a:$0081        ; $D799: 8D 81 00 ; relatch
+  ...
+==============================================================================
+$082  (1 refs)
+procs: BattlePadStateFetch(1)
+mnems: LDA(1)
+    6397 BattlePadStateFetch          LDA a:$0082        ; $CD0C: AD 82 00 ; pad 2 raw
+==============================================================================
+$083  (9 refs)
+procs: Phase8PanelMenuInput(3), FormationSelectMenu(3), (file-top)(2), BattlePadStateFetch(1)
+mnems: STA(4), LDA(3), ?(2)
+    2310 (file-top)                   ?                  ; $0083/$0081 on the stack, refetches the acting side's pad state and
+    2325 Phase8PanelMenuInput         LDA a:$0083        ; $AD5D: AD 83 00 ; pad latch hi
+    2333 Phase8PanelMenuInput         STA a:$0083        ; $AD6E: 8D 83 00 ; relatch hi
+    2359 Phase8PanelMenuInput         STA a:$0083        ; $ADAF: 8D 83 00 ; restore pad latch hi
+    6387 BattlePadStateFetch          LDA a:$0083        ; $CCF3: AD 83 00 ; pad 1 edge
+    6748 (file-top)                   ?                  ; slots $0083/$0081, steps the menu (B1F_MenuStep4) over
+    6755 FormationSelectMenu          LDA a:$0083        ; $CF05: AD 83 00
+    6762 FormationSelectMenu          STA a:$0083        ; $CF14: 8D 83 00
+    6785 FormationSelectMenu          STA a:$0083        ; $CF4E: 8D 83 00
+==============================================================================
+$085  (1 refs)
+procs: BattlePadStateFetch(1)
+mnems: LDA(1)
+    6395 BattlePadStateFetch          LDA a:$0085        ; $CD06: AD 85 00 ; pad 2 edge
+==============================================================================
+$087  (9 refs)
+procs: (file-top)(5), BattleOverlayIntroSkipCheck(1), Phase4ResultFlashTrigger(1), Phase5SideEventPanelSetup(1), Phase5SideEventClose(1)
+mnems: ?(5), LDA(4)
+     159 (file-top)                   ?                  ; Intro sub-state 0. If $0087 bit7 is set, skip the intro entirely: jump to
+     165 BattleOverlayIntroSkipCheck  LDA a:$0087        ; $A095: AD 87 00
+     661 (file-top)                   ?                  ; 2 Phase4ResultFlashTrigger   ($A3F2) $0087 bit7 -> flash $0500=$0B, $007A <- 3
+     715 (file-top)                   ?                  ; Sub 2 and sub 6 shared handler: waits on $0087 bit7 (palette/frame flag);
+     720 Phase4ResultFlashTrigger     LDA a:$0087        ; $A3F2: AD 87 00 ; palette/frame flag
+    6469 (file-top)                   ?                  ; Sub 1: waits on $0087 bit7 (palette/frame flag), then disables NMI
+    6479 Phase5SideEventPanelSetup    LDA a:$0087        ; $CD59: AD 87 00 ; palette/frame flag
+    6535 (file-top)                   ?                  ; Sub 2: waits on $0087 bit7, then reloads both sides' troop counts from
+    6544 Phase5SideEventClose         LDA a:$0087        ; $CDCF: AD 87 00 ; palette/frame flag
+==============================================================================
+$08F  (7 refs)
+procs: (file-top)(4), Phase3CommandInput(2), Phase9AdvanceInit(1)
+mnems: ?(3), STA(3), LDA(1)
+    1923 (file-top)                   ?                  ; battle flag $008F. A (raw bit0) resolves the current action slot
+    1939 Phase3CommandInput           LDA a:$008F        ; $AAFD: AD 8F 00 ; battle flag
+    1941 Phase3CommandInput           STA a:$008F        ; $AB02: 8D 8F 00 ; toggle
+    2029 (file-top)                   ?                  ; Phase3CommandInput's confirm branch: it clears battle flag $008F and
+    2049 (file-top)                   STA a:$008F        ; $ABB3: 8D 8F 00 ; battle flag <- 0
+    3003 (file-top)                   ?                  ; $055B (unit column $0580 << 4). Clears the battle flag $008F.
+    3041 Phase9AdvanceInit            STA a:$008F        ; $B257: 8D 8F 00 ; battle flag <- 0
+==============================================================================
+$0AE  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    4618 (file-top)                   ?                  ; copies at $00AE-$00B5 are pushed to the Namco-163 by B1F ChrBankSwitch.
+==============================================================================
+$0B1  (2 refs)
+procs: (file-top)(1), Phase9AdvanceInit(1)
+mnems: ?(1), STA(1)
+    2998 (file-top)                   ?                  ; Sub 0. Blanks the five marker OAM rows ($00B1/$00C1/$00D1/$00C9/$00D9 <-
+    3007 Phase9AdvanceInit            STA a:$00B1        ; $B213: 8D B1 00 ; marker OAM row blank
+==============================================================================
+$0B3  (2 refs)
+procs: (file-top)(1), BattleChrBankAnimate(1)
+mnems: ?(1), STA(1)
+    4616 (file-top)                   ?                  ; bank numbers to all five shadow copies of CHR bank 5 ($00B3/$00C3/$00CB/
+    4640 BattleChrBankAnimate         STA a:$00B3        ; $C032: 8D B3 00
+==============================================================================
+$0B5  (3 refs)
+procs: (file-top)(2), BattleChrBankAnimate(1)
+mnems: ?(2), STA(1)
+    4617 (file-top)                   ?                  ; $00D3/$00DB) and CHR bank 7 ($00B5/$00C5/$00CD/$00D5/$00DD); the primary
+    4618 (file-top)                   ?                  ; copies at $00AE-$00B5 are pushed to the Namco-163 by B1F ChrBankSwitch.
+    4646 BattleChrBankAnimate         STA a:$00B5        ; $C044: 8D B5 00
+==============================================================================
+$0B7  (2 refs)
+procs: (file-top)(1), BattleSideStatusCounterDraw(1)
+mnems: ?(1), STA(1)
+    4525 (file-top)                   ?                  ; the digit tile base is $D0. Submission goes through $F092 with $00B7=$91.
+    4584 BattleSideStatusCounterDraw  STA a:$00B7        ; $BFCB: 8D B7 00
+==============================================================================
+$0BB  (13 refs)
+procs: (file-top)(7), BattleOverlayIntroDataFormatTop(1), Phase3CommandConfirmWait(1), Phase8PanelScriptStep(1), Phase3CommandMarkerRender(1), Phase7FormationPanelOpen(1), PhaseATauntSceneStep(1)
+mnems: ?(7), STA(6)
+     244 (file-top)                   ?                  ; and param $00BB=9 to format the top panel. Advances to sub-state 4.
+     250 BattleOverlayIntroDataFormatTop STA a:$00BB        ; $A120: 8D BB 00
+    2000 (file-top)                   ?                  ; idle (BattleAnimQueueIdleCheck carry clear); then sets panel param $00BB <- 9 and
+    2010 Phase3CommandConfirmWait     STA a:$00BB        ; $AB81: 8D BB 00 ; panel param
+    2288 (file-top)                   ?                  ; script line $0548 (row text table via Loc_B0AC, script id $00BB <- 9) and
+    2297 Phase8PanelScriptStep        STA a:$00BB        ; $AD48: 8D BB 00 ; script id
+    2836 (file-top)                   ?                  ; Phase8PanelScriptStep with the script id $00BB already set.
+    5732 (file-top)                   ?                  ; param $00BB <- $77. Called by Phase3CommandMarkerUpdate.
+    5784 Phase3CommandMarkerRender    STA a:$00BB        ; $C8B7: 8D BB 00 ; script param
+    6848 (file-top)                   ?                  ; with buffer $0561) and sets panel params $00BB <- 9 / $00BC <- $7D.
+    6863 Phase7FormationPanelOpen     STA a:$00BB        ; $CFB9: 8D BB 00 ; panel param
+    8065 (file-top)                   ?                  ; effect target $042C, sets script id $00BB <- 9, then banked-calls
+    8080 PhaseATauntSceneStep         STA a:$00BB        ; $D75B: 8D BB 00 ; script id <- 9
+==============================================================================
+$0BC  (10 refs)
+procs: (file-top)(5), BattleOverlayIntroAnimQueue(1), Phase6FormationPanelInit(1), Phase6FormationConfirmWait(1), Phase7FormationPanelOpen(1), Phase7FormationConfirmWait(1)
+mnems: ?(5), STA(5)
+     221 (file-top)                   ?                  ; $00BC=5, refreshes the panel troop-count block (BattlePanelStatsRefresh)
+     235 BattleOverlayIntroAnimQueue  STA a:$00BC        ; $A112: 8D BC 00
+    6618 (file-top)                   ?                  ; page); panel param $00BC <- $7D.
+    6642 Phase6FormationPanelInit     STA a:$00BC        ; $CE64: 8D BC 00 ; panel param
+    6693 (file-top)                   ?                  ; side B) once the command cycle finishes; panel param $00BC <- 5.
+    6726 Phase6FormationConfirmWait   STA a:$00BC        ; $CEF6: 8D BC 00 ; panel param
+    6848 (file-top)                   ?                  ; with buffer $0561) and sets panel params $00BB <- 9 / $00BC <- $7D.
+    6865 Phase7FormationPanelOpen     STA a:$00BC        ; $CFBE: 8D BC 00 ; panel param
+    6917 (file-top)                   ?                  ; start) once the command cycle finishes; panel param $00BC <- 5.
+    6950 Phase7FormationConfirmWait   STA a:$00BC        ; $D050: 8D BC 00 ; panel param
+==============================================================================
+$0BD  (6 refs)
+procs: (file-top)(3), Phase3CommandPanelInit(1), Phase3CommandConfirmWait(1), Phase8PanelInit(1)
+mnems: ?(3), STA(3)
+    1831 (file-top)                   ?                  ; param $00BD <- 6.
+    1880 Phase3CommandPanelInit       STA a:$00BD        ; $AAB9: 8D BD 00 ; panel param
+    1999 (file-top)                   ?                  ; Sub 3. Sets panel param $00BD <- 6 and waits for the animation queue to
+    2006 Phase3CommandConfirmWait     STA a:$00BD        ; $AB77: 8D BD 00 ; panel param
+    2242 (file-top)                   ?                  ; $044D/$044E cleared, panel param $00BD <- $57, menu cursor $0424/$0425
+    2278 Phase8PanelInit              STA a:$00BD        ; $AD30: 8D BD 00 ; panel param
+==============================================================================
+$0C1  (2 refs)
+procs: (file-top)(1), Phase9AdvanceInit(1)
+mnems: ?(1), STA(1)
+    2998 (file-top)                   ?                  ; Sub 0. Blanks the five marker OAM rows ($00B1/$00C1/$00D1/$00C9/$00D9 <-
+    3008 Phase9AdvanceInit            STA a:$00C1        ; $B216: 8D C1 00
+==============================================================================
+$0C3  (2 refs)
+procs: (file-top)(1), BattleChrBankAnimate(1)
+mnems: ?(1), STA(1)
+    4616 (file-top)                   ?                  ; bank numbers to all five shadow copies of CHR bank 5 ($00B3/$00C3/$00CB/
+    4641 BattleChrBankAnimate         STA a:$00C3        ; $C035: 8D C3 00
+==============================================================================
+$0C5  (2 refs)
+procs: (file-top)(1), BattleChrBankAnimate(1)
+mnems: ?(1), STA(1)
+    4617 (file-top)                   ?                  ; $00D3/$00DB) and CHR bank 7 ($00B5/$00C5/$00CD/$00D5/$00DD); the primary
+    4647 BattleChrBankAnimate         STA a:$00C5        ; $C047: 8D C5 00
+==============================================================================
+$0C9  (2 refs)
+procs: (file-top)(1), Phase9AdvanceInit(1)
+mnems: ?(1), STA(1)
+    2998 (file-top)                   ?                  ; Sub 0. Blanks the five marker OAM rows ($00B1/$00C1/$00D1/$00C9/$00D9 <-
+    3010 Phase9AdvanceInit            STA a:$00C9        ; $B21C: 8D C9 00
+==============================================================================
+$0CB  (2 refs)
+procs: (file-top)(1), BattleChrBankAnimate(1)
+mnems: ?(1), STA(1)
+    4616 (file-top)                   ?                  ; bank numbers to all five shadow copies of CHR bank 5 ($00B3/$00C3/$00CB/
+    4642 BattleChrBankAnimate         STA a:$00CB        ; $C038: 8D CB 00
+==============================================================================
+$0CD  (2 refs)
+procs: (file-top)(1), BattleChrBankAnimate(1)
+mnems: ?(1), STA(1)
+    4617 (file-top)                   ?                  ; $00D3/$00DB) and CHR bank 7 ($00B5/$00C5/$00CD/$00D5/$00DD); the primary
+    4648 BattleChrBankAnimate         STA a:$00CD        ; $C04A: 8D CD 00
+==============================================================================
+$0D1  (2 refs)
+procs: (file-top)(1), Phase9AdvanceInit(1)
+mnems: ?(1), STA(1)
+    2998 (file-top)                   ?                  ; Sub 0. Blanks the five marker OAM rows ($00B1/$00C1/$00D1/$00C9/$00D9 <-
+    3009 Phase9AdvanceInit            STA a:$00D1        ; $B219: 8D D1 00
+==============================================================================
+$0D3  (2 refs)
+procs: (file-top)(1), BattleChrBankAnimate(1)
+mnems: ?(1), STA(1)
+    4617 (file-top)                   ?                  ; $00D3/$00DB) and CHR bank 7 ($00B5/$00C5/$00CD/$00D5/$00DD); the primary
+    4643 BattleChrBankAnimate         STA a:$00D3        ; $C03B: 8D D3 00
+==============================================================================
+$0D5  (2 refs)
+procs: (file-top)(1), BattleChrBankAnimate(1)
+mnems: ?(1), STA(1)
+    4617 (file-top)                   ?                  ; $00D3/$00DB) and CHR bank 7 ($00B5/$00C5/$00CD/$00D5/$00DD); the primary
+    4649 BattleChrBankAnimate         STA a:$00D5        ; $C04D: 8D D5 00
+==============================================================================
+$0D9  (2 refs)
+procs: (file-top)(1), Phase9AdvanceInit(1)
+mnems: ?(1), STA(1)
+    2998 (file-top)                   ?                  ; Sub 0. Blanks the five marker OAM rows ($00B1/$00C1/$00D1/$00C9/$00D9 <-
+    3011 Phase9AdvanceInit            STA a:$00D9        ; $B21F: 8D D9 00
+==============================================================================
+$0DB  (1 refs)
+procs: BattleChrBankAnimate(1)
+mnems: STA(1)
+    4644 BattleChrBankAnimate         STA a:$00DB        ; $C03E: 8D DB 00
+==============================================================================
+$0DD  (1 refs)
+procs: BattleChrBankAnimate(1)
+mnems: STA(1)
+    4650 BattleChrBankAnimate         STA a:$00DD        ; $C050: 8D DD 00
+==============================================================================
+$0E2  (1 refs)
+procs: BattleAnimSoundEngine(1)
+mnems: STA(1)
+    8326 BattleAnimSoundEngine        STA a:$00E2        ; $D8DB: 8D E2 00
+==============================================================================
+$0F0  (2 refs)
+procs: BattleAnimSoundEngine(2)
+mnems: STA(2)
+    8389 BattleAnimSoundEngine        STA a:$00F0        ; $D95B: 8D F0 00
+    8424 BattleAnimSoundEngine        STA a:$00F0        ; $D9B0: 8D F0 00
+==============================================================================
+$0F1  (8 refs)
+procs: BattleAnimSoundEngine(8)
+mnems: STA(3), ROL(2), ADC(2), STY(1)
+    8391 BattleAnimSoundEngine        STA a:$00F1        ; $D961: 8D F1 00
+    8419 BattleAnimSoundEngine        STY a:$00F1        ; $D9A3: 8C F1 00
+    8422 BattleAnimSoundEngine        ROL a:$00F1        ; $D9AA: 2E F1 00
+    8426 BattleAnimSoundEngine        ADC a:$00F1        ; $D9B6: 6D F1 00
+    8427 BattleAnimSoundEngine        STA a:$00F1        ; $D9B9: 8D F1 00
+    8575 BattleAnimSoundEngine        STA a:$00F1        ; $DAD4: 8D F1 00
+    8578 BattleAnimSoundEngine        ROL a:$00F1        ; $DADB: 2E F1 00
+    8582 BattleAnimSoundEngine        ADC a:$00F1        ; $DAE7: 6D F1 00
+==============================================================================
+$300  (16 refs)
+procs: (file-top)(7), BattleOverlayIntroAnimQueue(1), Phase1RoundPass(1), Phase3CommandInput(1), Phase8PanelMenuInput(1), Phase8PanelConfirmWait(1), Phase8PanelReturnToCommand(1), Phase8PanelReturnToCommandDup(1), BattleAnimQueueIdleCheck(1), Phase7FormationPanelInit(1)
+mnems: STA(9), ?(6), LDA(1)
+     220 (file-top)                   ?                  ; $E8/$E9 tile animation ($0310/$0311, slot $0300=0), sets panel param
+     232 BattleOverlayIntroAnimQueue  STA $0300          ; $A10A: 8D 00 03
+     427 (file-top)                   ?                  ; ($0310=$E9, slot $0300=0) and refreshes the panel troop-count block
+     446 Phase1RoundPass              STA $0300          ; $A246: 8D 00 03 ; anim slot
+    1927 (file-top)                   ?                  ; $E8/$E9 tile animation ($0310/$0311, slot $0300=0) and refreshing the
+    1989 Phase3CommandInput           STA $0300          ; $AB67: 8D 00 03 ; anim slot 0
+    2395 Phase8PanelMenuInput         STA $0300          ; $AE0A: 8D 00 03 ; anim slot 0
+    2440 Phase8PanelConfirmWait       STA $0300          ; $AE56: 8D 00 03 ; anim slot 0
+    2467 Phase8PanelReturnToCommand   STA $0300          ; $AE82: 8D 00 03 ; anim slot 0
+    2496 (file-top)                   ?                  ; Unreferenced duplicate of Phase8PanelReturnToCommand without the $0300
+    2510 Phase8PanelReturnToCommandDup STA $0300          ; $AEC4: 8D 00 03 ; anim slot 0
+    3810 (file-top)                   ?                  ; queue slot headers $0300 (slot 0) and $0304 (slot 1) hold $FF (empty),
+    3818 BattleAnimQueueIdleCheck     LDA $0300          ; $B877: AD 00 03 ; queue slot 0 header
+    6226 (file-top)                   ?                  ; their own $0310/$0311/$0300 tile-animation queue writes: intro sub-state 2
+  ...
+==============================================================================
+$304  (2 refs)
+procs: (file-top)(1), BattleAnimQueueIdleCheck(1)
+mnems: ?(1), LDA(1)
+    3810 (file-top)                   ?                  ; queue slot headers $0300 (slot 0) and $0304 (slot 1) hold $FF (empty),
+    3815 BattleAnimQueueIdleCheck     LDA $0304          ; $B870: AD 04 03 ; queue slot 1 header
+==============================================================================
+$310  (18 refs)
+procs: (file-top)(7), Phase8PanelConfirmWait(2), Phase8PanelReturnToCommand(2), Phase8PanelReturnToCommandDup(2), BattleOverlayIntroAnimQueue(1), Phase1RoundPass(1), Phase3CommandInput(1), Phase8PanelMenuInput(1), Phase7FormationPanelInit(1)
+mnems: STA(12), ?(6)
+     220 (file-top)                   ?                  ; $E8/$E9 tile animation ($0310/$0311, slot $0300=0), sets panel param
+     228 BattleOverlayIntroAnimQueue  STA $0310          ; $A100: 8D 10 03
+     427 (file-top)                   ?                  ; ($0310=$E9, slot $0300=0) and refreshes the panel troop-count block
+     444 Phase1RoundPass              STA $0310          ; $A241: 8D 10 03 ; anim id
+    1927 (file-top)                   ?                  ; $E8/$E9 tile animation ($0310/$0311, slot $0300=0) and refreshing the
+    1985 Phase3CommandInput           STA $0310          ; $AB5D: 8D 10 03 ; anim id lo
+    2391 Phase8PanelMenuInput         STA $0310          ; $AE00: 8D 10 03 ; anim id lo
+    2436 Phase8PanelConfirmWait       STA $0310          ; $AE4C: 8D 10 03 ; anim id lo
+    2442 Phase8PanelConfirmWait       STA $0310          ; $AE5B: 8D 10 03 ; clear anim id lo
+    2463 Phase8PanelReturnToCommand   STA $0310          ; $AE78: 8D 10 03 ; anim id lo
+    2469 Phase8PanelReturnToCommand   STA $0310          ; $AE87: 8D 10 03 ; clear anim id lo
+    2506 Phase8PanelReturnToCommandDup STA $0310          ; $AEBA: 8D 10 03 ; anim id lo
+    2512 Phase8PanelReturnToCommandDup STA $0310          ; $AEC9: 8D 10 03 ; clear anim id lo
+    6226 (file-top)                   ?                  ; their own $0310/$0311/$0300 tile-animation queue writes: intro sub-state 2
+  ...
+==============================================================================
+$311  (8 refs)
+procs: (file-top)(2), BattleOverlayIntroAnimQueue(1), Phase3CommandInput(1), Phase8PanelMenuInput(1), Phase8PanelConfirmWait(1), Phase8PanelReturnToCommand(1), Phase8PanelReturnToCommandDup(1)
+mnems: STA(7), ?(1)
+     230 BattleOverlayIntroAnimQueue  STA $0311          ; $A105: 8D 11 03
+    1987 Phase3CommandInput           STA $0311          ; $AB62: 8D 11 03 ; anim id hi
+    2393 Phase8PanelMenuInput         STA $0311          ; $AE05: 8D 11 03 ; anim id hi
+    2438 Phase8PanelConfirmWait       STA $0311          ; $AE51: 8D 11 03 ; anim id hi
+    2465 Phase8PanelReturnToCommand   STA $0311          ; $AE7D: 8D 11 03 ; anim id hi
+    2508 Phase8PanelReturnToCommandDup STA $0311          ; $AEBF: 8D 11 03 ; anim id hi
+    6226 (file-top)                   ?                  ; their own $0310/$0311/$0300 tile-animation queue writes: intro sub-state 2
+    8035 (file-top)                   STA $0311          ; $D71F: 8D 11 03 ; tile anim slot 0 hi
+==============================================================================
+$380  (5 refs)
+procs: (file-top)(3), BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: ?(3), STA(2)
+    2835 (file-top)                   ?                  ; script buffer $0380 and marks the script pending ($007E bit 2). Called by
+    3830 (file-top)                   ?                  ; nametable PPU update record ($0380-$039C, $FF-terminated) and raises
+    3938 BattleCellRedraw             STA $0380          ; $B954: 8D 80 03 ; record 1 header
+    5725 (file-top)                   ?                  ; (0-3). Builds a two-segment, FF-terminated VRAM script in the $0380
+    5775 Phase3CommandMarkerRender    STA $0380          ; $C8A0: 8D 80 03 ; seg 1 length: 5 tiles
+==============================================================================
+$381  (3 refs)
+procs: BattleCellRedraw(2), Phase3CommandMarkerRender(1)
+mnems: STA(2), LDA(1)
+    3924 BattleCellRedraw             STA $0381          ; $B931: 8D 81 03 ; record 1 addr hi
+    3932 BattleCellRedraw             LDA $0381          ; $B945: AD 81 03
+    5740 Phase3CommandMarkerRender    STA $0381          ; $C842: 8D 81 03
+==============================================================================
+$382  (3 refs)
+procs: BattleCellRedraw(2), Phase3CommandMarkerRender(1)
+mnems: STA(2), LDA(1)
+    3920 BattleCellRedraw             STA $0382          ; $B926: 8D 82 03 ; record 1 addr lo
+    3927 BattleCellRedraw             LDA $0382          ; $B939: AD 82 03 ; addr lo + one row
+    5742 Phase3CommandMarkerRender    STA $0382          ; $C848: 8D 82 03
+==============================================================================
+$383  (3 refs)
+procs: BattleCellRedraw(2), Phase3CommandMarkerRender(1)
+mnems: STA(3)
+    3893 BattleCellRedraw             STA $0383          ; $B8F0: 8D 83 03 ; record 1 tile 0
+    3962 BattleCellRedraw             STA $0383          ; $B985: 8D 83 03
+    5755 Phase3CommandMarkerRender    STA $0383          ; $C865: 8D 83 03
+==============================================================================
+$384  (3 refs)
+procs: BattleCellRedraw(2), Phase3CommandMarkerRender(1)
+mnems: STA(3)
+    3897 BattleCellRedraw             STA $0384          ; $B8F9: 8D 84 03
+    3965 BattleCellRedraw             STA $0384          ; $B98E: 8D 84 03
+    5757 Phase3CommandMarkerRender    STA $0384          ; $C86B: 8D 84 03
+==============================================================================
+$385  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    3939 BattleCellRedraw             STA $0385          ; $B957: 8D 85 03 ; record 1 seg 2 header
+    5759 Phase3CommandMarkerRender    STA $0385          ; $C871: 8D 85 03
+==============================================================================
+$386  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    3934 BattleCellRedraw             STA $0386          ; $B94A: 8D 86 03 ; record 1 seg 2 addr hi
+    5761 Phase3CommandMarkerRender    STA $0386          ; $C877: 8D 86 03
+==============================================================================
+$387  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    3930 BattleCellRedraw             STA $0387          ; $B93F: 8D 87 03 ; record 1 seg 2 addr lo
+    5763 Phase3CommandMarkerRender    STA $0387          ; $C87D: 8D 87 03
+==============================================================================
+$388  (3 refs)
+procs: BattleCellRedraw(2), Phase3CommandMarkerRender(1)
+mnems: STA(3)
+    3901 BattleCellRedraw             STA $0388          ; $B902: 8D 88 03
+    3968 BattleCellRedraw             STA $0388          ; $B997: 8D 88 03
+    5777 Phase3CommandMarkerRender    STA $0388          ; $C8A5: 8D 88 03 ; seg 2 length: 5 tiles
+==============================================================================
+$389  (3 refs)
+procs: BattleCellRedraw(2), Phase3CommandMarkerRender(1)
+mnems: STA(3)
+    3905 BattleCellRedraw             STA $0389          ; $B90B: 8D 89 03
+    3971 BattleCellRedraw             STA $0389          ; $B9A0: 8D 89 03
+    5744 Phase3CommandMarkerRender    STA $0389          ; $C84E: 8D 89 03
+==============================================================================
+$38A  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    4016 BattleCellRedraw             STA $038A          ; $BA04: 8D 8A 03
+    5746 Phase3CommandMarkerRender    STA $038A          ; $C854: 8D 8A 03
+==============================================================================
+$38B  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    4012 BattleCellRedraw             STA $038B          ; $B9FA: 8D 8B 03
+    5765 Phase3CommandMarkerRender    STA $038B          ; $C883: 8D 8B 03
+==============================================================================
+$38C  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    4009 BattleCellRedraw             STA $038C          ; $B9F2: 8D 8C 03 ; record 1 attr addr lo
+    5767 Phase3CommandMarkerRender    STA $038C          ; $C889: 8D 8C 03
+==============================================================================
+$38D  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    3997 BattleCellRedraw             STA $038D          ; $B9D7: 8D 8D 03 ; record 1 attribute
+    5769 Phase3CommandMarkerRender    STA $038D          ; $C88F: 8D 8D 03
+==============================================================================
+$38E  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    3940 BattleCellRedraw             STA $038E          ; $B95A: 8D 8E 03 ; record 2 header
+    5771 Phase3CommandMarkerRender    STA $038E          ; $C895: 8D 8E 03
+==============================================================================
+$38F  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    3926 BattleCellRedraw             STA $038F          ; $B936: 8D 8F 03 ; record 2 addr hi
+    5773 Phase3CommandMarkerRender    STA $038F          ; $C89B: 8D 8F 03
+==============================================================================
+$390  (2 refs)
+procs: BattleCellRedraw(1), Phase3CommandMarkerRender(1)
+mnems: STA(2)
+    3921 BattleCellRedraw             STA $0390          ; $B929: 8D 90 03 ; record 2 addr lo
+    5779 Phase3CommandMarkerRender    STA $0390          ; $C8AA: 8D 90 03 ; script terminator
+==============================================================================
+$391  (2 refs)
+procs: BattleCellRedraw(2)
+mnems: STA(2)
+    3894 BattleCellRedraw             STA $0391          ; $B8F3: 8D 91 03 ; record 2 tile 0
+    3963 BattleCellRedraw             STA $0391          ; $B988: 8D 91 03
+==============================================================================
+$392  (2 refs)
+procs: BattleCellRedraw(2)
+mnems: STA(2)
+    3898 BattleCellRedraw             STA $0392          ; $B8FC: 8D 92 03
+    3966 BattleCellRedraw             STA $0392          ; $B991: 8D 92 03
+==============================================================================
+$393  (1 refs)
+procs: BattleCellRedraw(1)
+mnems: STA(1)
+    3941 BattleCellRedraw             STA $0393          ; $B95D: 8D 93 03 ; record 2 seg 2 header
+==============================================================================
+$394  (1 refs)
+procs: BattleCellRedraw(1)
+mnems: STA(1)
+    3936 BattleCellRedraw             STA $0394          ; $B94F: 8D 94 03 ; record 2 seg 2 addr hi
+==============================================================================
+$395  (1 refs)
+procs: BattleCellRedraw(1)
+mnems: STA(1)
+    3931 BattleCellRedraw             STA $0395          ; $B942: 8D 95 03 ; record 2 seg 2 addr lo
+==============================================================================
+$396  (5 refs)
+procs: BattleCellRedraw(2), BattleCellTroopCountDigitOverlay(2), (file-top)(1)
+mnems: STA(4), ?(1)
+    3902 BattleCellRedraw             STA $0396          ; $B905: 8D 96 03
+    3969 BattleCellRedraw             STA $0396          ; $B99A: 8D 96 03
+    4028 (file-top)                   ?                  ; cell's bottom row of record 2 ($0396/$0397). troop count $05AC[$0013] is packed
+    4048 BattleCellTroopCountDigitOverlay STA $0396          ; $BA36: 8D 96 03 ; bottom-left tile
+    4058 BattleCellTroopCountDigitOverlay STA $0396          ; $BA4D: 8D 96 03
+==============================================================================
+$397  (4 refs)
+procs: BattleCellRedraw(2), BattleCellTroopCountDigitOverlay(2)
+mnems: STA(4)
+    3906 BattleCellRedraw             STA $0397          ; $B90E: 8D 97 03
+    3972 BattleCellRedraw             STA $0397          ; $B9A3: 8D 97 03
+    4053 BattleCellTroopCountDigitOverlay STA $0397          ; $BA41: 8D 97 03 ; bottom-right tile
+    4060 BattleCellTroopCountDigitOverlay STA $0397          ; $BA52: 8D 97 03
+==============================================================================
+$398  (1 refs)
+procs: BattleCellRedraw(1)
+mnems: STA(1)
+    4017 BattleCellRedraw             STA $0398          ; $BA07: 8D 98 03
+==============================================================================
+$399  (1 refs)
+procs: BattleCellRedraw(1)
+mnems: STA(1)
+    4014 BattleCellRedraw             STA $0399          ; $B9FF: 8D 99 03
+==============================================================================
+$39A  (1 refs)
+procs: BattleCellRedraw(1)
+mnems: STA(1)
+    4010 BattleCellRedraw             STA $039A          ; $B9F5: 8D 9A 03 ; record 2 attr addr lo
+==============================================================================
+$39B  (1 refs)
+procs: BattleCellRedraw(1)
+mnems: STA(1)
+    3998 BattleCellRedraw             STA $039B          ; $B9DA: 8D 9B 03 ; record 2 attribute
+==============================================================================
+$39C  (1 refs)
+procs: BattleCellRedraw(1)
+mnems: STA(1)
+    4019 BattleCellRedraw             STA $039C          ; $BA0C: 8D 9C 03
+==============================================================================
+$3E8  (1 refs)
+procs: OfficerBattleExpLevelCheck(1)
+mnems: ?(1)
+    8241 OfficerBattleExpLevelCheck   ?                  ; require $03E8/$07D0/$0DAC/$1388/$1D4C/$2710/$3A98 to reach the next level.
+==============================================================================
+$424  (10 refs)
+procs: (file-top)(6), Phase8PanelInit(1), Phase6FormationPanelInit(1), Phase7FormationPanelInit(1), PhaseATauntSceneStep(1)
+mnems: ?(6), STA(4)
+    2242 (file-top)                   ?                  ; $044D/$044E cleared, panel param $00BD <- $57, menu cursor $0424/$0425
+    2280 Phase8PanelInit              STA $0424          ; $AD35: 8D 24 04 ; menu cursor col <- 0
+    6617 (file-top)                   ?                  ; buffer $0560) and resets the shared menu cursor ($0424 column / $0425
+    6639 Phase6FormationPanelInit     STA $0424          ; $CE5C: 8D 24 04 ; menu column <- 0
+    6649 (file-top)                   ?                  ; 4-wide menu; shared cursor $0424/$0425, selected item -> $056C) and wait
+    6823 (file-top)                   ?                  ; ($0424 column / $0425 page).
+    6839 Phase7FormationPanelInit     STA $0424          ; $CF96: 8D 24 04 ; menu column <- 0
+    6873 (file-top)                   ?                  ; 4-wide menu; shared cursor $0424/$0425, selected item -> $056D) and wait
+    8068 (file-top)                   ?                  ; finally clears the menu cursor $0424/$0425.
+    8093 PhaseATauntSceneStep         STA $0424          ; $D778: 8D 24 04 ; menu cursor col <- 0
+==============================================================================
+$425  (8 refs)
+procs: (file-top)(4), Phase8PanelInit(1), Phase6FormationPanelInit(1), Phase7FormationPanelInit(1), PhaseATauntSceneStep(1)
+mnems: ?(4), STA(4)
+    2242 (file-top)                   ?                  ; $044D/$044E cleared, panel param $00BD <- $57, menu cursor $0424/$0425
+    2281 Phase8PanelInit              STA $0425          ; $AD38: 8D 25 04 ; menu cursor page <- 0
+    6617 (file-top)                   ?                  ; buffer $0560) and resets the shared menu cursor ($0424 column / $0425
+    6640 Phase6FormationPanelInit     STA $0425          ; $CE5F: 8D 25 04 ; menu page <- 0
+    6823 (file-top)                   ?                  ; ($0424 column / $0425 page).
+    6840 Phase7FormationPanelInit     STA $0425          ; $CF99: 8D 25 04 ; menu page <- 0
+    8068 (file-top)                   ?                  ; finally clears the menu cursor $0424/$0425.
+    8094 PhaseATauntSceneStep         STA $0425          ; $D77B: 8D 25 04 ; menu cursor page <- 0
+==============================================================================
+$42C  (18 refs)
+procs: (file-top)(6), BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), Phase4ResultRetreatInputWait(2), AiCommanderRoutCheck(2), Phase8RowCoinFlip(1), Phase6FormationMenuInput(1), Phase7FormationMenuInput(1), PhaseATauntSceneStep(1)
+mnems: STA(12), ?(6)
+     494 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block $042C and
+     509 BattleDefeatEventCheck       STA $042C          ; $A2BC: 8D 2C 04
+     544 BattleDefeatEventCheck       STA $042C          ; $A30A: 8D 2C 04
+     576 BattleRetreatEventCheck      STA $042C          ; $A339: 8D 2C 04
+     605 BattleRetreatEventCheck      STA $042C          ; $A37B: 8D 2C 04
+     773 Phase4ResultRetreatInputWait STA $042C          ; $A455: 8D 2C 04
+     787 Phase4ResultRetreatInputWait STA $042C          ; $A470: 8D 2C 04
+    2563 (file-top)                   ?                  ; row 0 is a coin flip that targets the opposing unit $042C; row 5 advances
+    2673 (file-top)                   ?                  ; opposing side's unit id $0560[$0549^1] into $042C as the effect target,
+    2691 Phase8RowCoinFlip            STA $042C          ; $AFF0: 8D 2C 04 ; effect target
+    6652 (file-top)                   ?                  ; (country record byte 0) to $042C for panel formatting.
+    6682 Phase6FormationMenuInput     STA $042C          ; $CEAA: 8D 2C 04 ; panel officer id
+    6906 Phase7FormationMenuInput     STA $042C          ; $D004: 8D 2C 04 ; panel officer id
+    7224 (file-top)                   ?                  ; its own commander $0560 into $042C/$0514 and the enemy $0561 into $0516,
+  ...
+==============================================================================
+$42F  (3 refs)
+procs: Phase4ResultRetreatInputWait(3)
+mnems: STA(3)
+     763 Phase4ResultRetreatInputWait STA $042F          ; $A43A: 8D 2F 04 ; panel param mirror
+     779 Phase4ResultRetreatInputWait STA $042F          ; $A464: 8D 2F 04 ; damage = full troop count
+     793 Phase4ResultRetreatInputWait STA $042F          ; $A47F: 8D 2F 04 ; damage = full troop count
+==============================================================================
+$430  (2 refs)
+procs: (file-top)(1), Phase4ResultRetreatInputWait(1)
+mnems: ?(1), STA(1)
+     737 (file-top)                   ?                  ; amount $0548 (mirror $042F), clears $0430/$0431, plays SFX $7E and
+     766 Phase4ResultRetreatInputWait STA $0430          ; $A442: 8D 30 04
+==============================================================================
+$431  (1 refs)
+procs: Phase4ResultRetreatInputWait(1)
+mnems: STA(1)
+     767 Phase4ResultRetreatInputWait STA $0431          ; $A445: 8D 31 04
+==============================================================================
+$44C  (9 refs)
+procs: (file-top)(4), Phase3CommandPanelInit(2), BattlePanelStatsRefresh(2), Phase8PanelInit(1)
+mnems: STA(5), ?(4)
+    1827 (file-top)                   ?                  ; command panel field block $044C-$0457: base value = column-0 troop count of
+    1848 Phase3CommandPanelInit       STA $044C          ; $AA6E: 8D 4C 04 ; panel base value
+    1854 Phase3CommandPanelInit       STA $044C          ; $AA7C: 8D 4C 04 ; override base value
+    2241 (file-top)                   ?                  ; the panel field block: base value $044C <- budget, extension bytes
+    2273 Phase8PanelInit              STA $044C          ; $AD23: 8D 4C 04 ; panel base value
+    6209 (file-top)                   ?                  ; Rebuilds the battle status panel troop-count field block $044C-$046C from
+    6213 (file-top)                   ?                  ; $044C       field 0: side A commander troop count (8-bit, <- $05AC)
+    6235 BattlePanelStatsRefresh      STA $044C,Y        ; $CBF5: 99 4C 04 ; clear $044C-$046C
+    6239 BattlePanelStatsRefresh      STA $044C          ; $CBFE: 8D 4C 04 ; field 0
+==============================================================================
+$44D  (3 refs)
+procs: Phase3CommandPanelInit(1), (file-top)(1), Phase8PanelInit(1)
+mnems: STA(2), ?(1)
+    1863 Phase3CommandPanelInit       STA $044D          ; $AA8F: 8D 4D 04 ; clear field ext bytes
+    2242 (file-top)                   ?                  ; $044D/$044E cleared, panel param $00BD <- $57, menu cursor $0424/$0425
+    2275 Phase8PanelInit              STA $044D          ; $AD28: 8D 4D 04 ; clear field ext bytes
+==============================================================================
+$44E  (3 refs)
+procs: Phase3CommandPanelInit(1), (file-top)(1), Phase8PanelInit(1)
+mnems: STA(2), ?(1)
+    1864 Phase3CommandPanelInit       STA $044E          ; $AA92: 8D 4E 04
+    2242 (file-top)                   ?                  ; $044D/$044E cleared, panel param $00BD <- $57, menu cursor $0424/$0425
+    2276 Phase8PanelInit              STA $044E          ; $AD2B: 8D 4E 04
+==============================================================================
+$44F  (4 refs)
+procs: (file-top)(2), Phase3CommandPanelInit(1), BattlePanelStatsRefresh(1)
+mnems: ?(2), STA(2)
+    1830 (file-top)                   ?                  ; go to $044F/$0452/$0455, and field [3] == 100 forces $0457 <- $FE. Panel
+    1858 Phase3CommandPanelInit       STA $044F          ; $AA83: 8D 4F 04
+    6214 (file-top)                   ?                  ; $044F       field 1: side B commander troop count (8-bit, <- $05B7)
+    6241 BattlePanelStatsRefresh      STA $044F          ; $CC04: 8D 4F 04 ; field 1
+==============================================================================
+$450  (1 refs)
+procs: Phase3CommandPanelInit(1)
+mnems: STA(1)
+    1865 Phase3CommandPanelInit       STA $0450          ; $AA95: 8D 50 04
+==============================================================================
+$451  (1 refs)
+procs: Phase3CommandPanelInit(1)
+mnems: STA(1)
+    1866 Phase3CommandPanelInit       STA $0451          ; $AA98: 8D 51 04
+==============================================================================
+$452  (4 refs)
+procs: (file-top)(2), Phase3CommandPanelInit(1), BattlePanelStatsRefresh(1)
+mnems: ?(2), STA(2)
+    1830 (file-top)                   ?                  ; go to $044F/$0452/$0455, and field [3] == 100 forces $0457 <- $FE. Panel
+    1861 Phase3CommandPanelInit       STA $0452          ; $AA8A: 8D 52 04
+    6215 (file-top)                   ?                  ; $0452/$0453 field 2: side A class-1 (infantry) troop total (16-bit)
+    6246 BattlePanelStatsRefresh      STA $0452          ; $CC11: 8D 52 04 ; field 2 lo
+==============================================================================
+$453  (3 refs)
+procs: Phase3CommandPanelInit(1), (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: STA(2), ?(1)
+    1867 Phase3CommandPanelInit       STA $0453          ; $AA9B: 8D 53 04
+    6215 (file-top)                   ?                  ; $0452/$0453 field 2: side A class-1 (infantry) troop total (16-bit)
+    6248 BattlePanelStatsRefresh      STA $0453          ; $CC17: 8D 53 04 ; field 2 hi
+==============================================================================
+$454  (1 refs)
+procs: Phase3CommandPanelInit(1)
+mnems: STA(1)
+    1868 Phase3CommandPanelInit       STA $0454          ; $AA9E: 8D 54 04
+==============================================================================
+$455  (3 refs)
+procs: Phase3CommandPanelInit(1), (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: STA(2), ?(1)
+    1873 Phase3CommandPanelInit       STA $0455          ; $AAAB: 8D 55 04
+    6216 (file-top)                   ?                  ; $0455/$0456 field 3: side B class-1 (infantry) troop total
+    6253 BattlePanelStatsRefresh      STA $0455          ; $CC24: 8D 55 04 ; field 3 lo
+==============================================================================
+$456  (3 refs)
+procs: Phase3CommandPanelInit(1), (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: STA(2), ?(1)
+    1869 Phase3CommandPanelInit       STA $0456          ; $AAA1: 8D 56 04
+    6216 (file-top)                   ?                  ; $0455/$0456 field 3: side B class-1 (infantry) troop total
+    6255 BattlePanelStatsRefresh      STA $0456          ; $CC2A: 8D 56 04 ; field 3 hi
+==============================================================================
+$457  (4 refs)
+procs: (file-top)(2), Phase3CommandPanelInit(2)
+mnems: ?(2), STA(2)
+    1827 (file-top)                   ?                  ; command panel field block $044C-$0457: base value = column-0 troop count of
+    1830 (file-top)                   ?                  ; go to $044F/$0452/$0455, and field [3] == 100 forces $0457 <- $FE. Panel
+    1870 Phase3CommandPanelInit       STA $0457          ; $AAA4: 8D 57 04
+    1877 Phase3CommandPanelInit       STA $0457          ; $AAB4: 8D 57 04 ; full-troop-count marker
+==============================================================================
+$458  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6217 (file-top)                   ?                  ; $0458/$0459 field 4: side A class-2 (archer) troop total
+    6260 BattlePanelStatsRefresh      STA $0458          ; $CC37: 8D 58 04 ; field 4 lo
+==============================================================================
+$459  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6217 (file-top)                   ?                  ; $0458/$0459 field 4: side A class-2 (archer) troop total
+    6262 BattlePanelStatsRefresh      STA $0459          ; $CC3D: 8D 59 04 ; field 4 hi
+==============================================================================
+$45B  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6218 (file-top)                   ?                  ; $045B/$045C field 5: side B class-2 (archer) troop total
+    6267 BattlePanelStatsRefresh      STA $045B          ; $CC4A: 8D 5B 04 ; field 5 lo
+==============================================================================
+$45C  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6218 (file-top)                   ?                  ; $045B/$045C field 5: side B class-2 (archer) troop total
+    6269 BattlePanelStatsRefresh      STA $045C          ; $CC50: 8D 5C 04 ; field 5 hi
+==============================================================================
+$45E  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6219 (file-top)                   ?                  ; $045E/$045F field 6: side A class-3 (cavalry) troop total
+    6274 BattlePanelStatsRefresh      STA $045E          ; $CC5D: 8D 5E 04 ; field 6 lo
+==============================================================================
+$45F  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6219 (file-top)                   ?                  ; $045E/$045F field 6: side A class-3 (cavalry) troop total
+    6276 BattlePanelStatsRefresh      STA $045F          ; $CC63: 8D 5F 04 ; field 6 hi
+==============================================================================
+$461  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6220 (file-top)                   ?                  ; $0461/$0462 field 7: side B class-3 (cavalry) troop total
+    6281 BattlePanelStatsRefresh      STA $0461          ; $CC70: 8D 61 04 ; field 7 lo
+==============================================================================
+$462  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6220 (file-top)                   ?                  ; $0461/$0462 field 7: side B class-3 (cavalry) troop total
+    6283 BattlePanelStatsRefresh      STA $0462          ; $CC76: 8D 62 04 ; field 7 hi
+==============================================================================
+$46C  (2 refs)
+procs: (file-top)(1), BattlePanelStatsRefresh(1)
+mnems: ?(1), STA(1)
+    6209 (file-top)                   ?                  ; Rebuilds the battle status panel troop-count field block $044C-$046C from
+    6235 BattlePanelStatsRefresh      STA $044C,Y        ; $CBF5: 99 4C 04 ; clear $044C-$046C
+==============================================================================
+$4A8  (2 refs)
+procs: (file-top)(1), Phase5SideEventPanelSetup(1)
+mnems: ?(1), STA(1)
+    6471 (file-top)                   ?                  ; and clears panel params $04A8-$04AA. Then fills the per-side panel block
+    6486 Phase5SideEventPanelSetup    STA $04A8          ; $CD6B: 8D A8 04 ; panel params clear
+==============================================================================
+$4A9  (1 refs)
+procs: Phase5SideEventPanelSetup(1)
+mnems: STA(1)
+    6487 Phase5SideEventPanelSetup    STA $04A9          ; $CD6E: 8D A9 04
+==============================================================================
+$4AA  (2 refs)
+procs: (file-top)(1), Phase5SideEventPanelSetup(1)
+mnems: ?(1), STA(1)
+    6471 (file-top)                   ?                  ; and clears panel params $04A8-$04AA. Then fills the per-side panel block
+    6488 Phase5SideEventPanelSetup    STA $04AA          ; $CD71: 8D AA 04
+==============================================================================
+$4AB  (3 refs)
+procs: Phase5SideEventPanelSetup(2), (file-top)(1)
+mnems: STA(2), ?(1)
+    6476 (file-top)                   ?                  ; into $04AB/$04AC (swapped: $04AC/$04AB).
+    6506 Phase5SideEventPanelSetup    STA $04AB          ; $CD9A: 8D AB 04
+    6530 Phase5SideEventPanelSetup    STA $04AB          ; $CDCB: 8D AB 04 ; B mode -> slot 0
+==============================================================================
+$4AC  (4 refs)
+procs: (file-top)(2), Phase5SideEventPanelSetup(2)
+mnems: ?(2), STA(2)
+    6476 (file-top)                   ?                  ; into $04AB/$04AC (swapped: $04AC/$04AB).
+    6512 Phase5SideEventPanelSetup    STA $04AC          ; $CDA6: 8D AC 04
+    6524 Phase5SideEventPanelSetup    STA $04AC          ; $CDBF: 8D AC 04 ; A mode -> slot 1
+==============================================================================
+$4AD  (3 refs)
+procs: Phase5SideEventPanelSetup(2), (file-top)(1)
+mnems: STA(2), ?(1)
+    6474 (file-top)                   ?                  ; side B mode is 0/1. Strip pointers $0560/$0561 go to $04AD/$04AE (swapped:
+    6498 Phase5SideEventPanelSetup    STA $04AD          ; $CD88: 8D AD 04
+    6518 Phase5SideEventPanelSetup    STA $04AD          ; $CDB3: 8D AD 04 ; -> slot 0
+==============================================================================
+$4AE  (4 refs)
+procs: (file-top)(2), Phase5SideEventPanelSetup(2)
+mnems: ?(2), STA(2)
+    6474 (file-top)                   ?                  ; side B mode is 0/1. Strip pointers $0560/$0561 go to $04AD/$04AE (swapped:
+    6475 (file-top)                   ?                  ; $04AE/$04AD) and each side's pad mode is stored (or $80 for AI mode 3)
+    6500 Phase5SideEventPanelSetup    STA $04AE          ; $CD8E: 8D AE 04
+    6516 Phase5SideEventPanelSetup    STA $04AE          ; $CDAD: 8D AE 04 ; -> slot 1
+==============================================================================
+$4BC  (3 refs)
+procs: BattleOverlayDispatch(2), (file-top)(1)
+mnems: ?(2), STA(1)
+      60 (file-top)                   ?                  ; $04BC=$D0); the second trampoline resumes directly into the phase dispatch.
+     114 BattleOverlayDispatch        ?                  ; Strip 1: row param $04BC=$D0, buffer ptr lo from $0561, X=1
+     116 BattleOverlayDispatch        STA $04BC          ; $A054: 8D BC 04
+==============================================================================
+$4C1  (2 refs)
+procs: (file-top)(1), BattleSideCombatStatsInit(1)
+mnems: ?(1), STA(1)
+    5860 (file-top)                   ?                  ; - Attack value -> $056A/$056B (mirrored to $04C1/$04C2): record[1]
+    5877 BattleSideCombatStatsInit    STA $04C1          ; $C932: 8D C1 04 ; attack value mirror
+==============================================================================
+$4C2  (1 refs)
+procs: BattleSideCombatStatsInit(1)
+mnems: STA(1)
+    5896 BattleSideCombatStatsInit    STA $04C2          ; $C967: 8D C2 04 ; attack value mirror
+==============================================================================
+$500  (3 refs)
+procs: (file-top)(2), Phase4ResultFlashTrigger(1)
+mnems: ?(2), STA(1)
+     661 (file-top)                   ?                  ; 2 Phase4ResultFlashTrigger   ($A3F2) $0087 bit7 -> flash $0500=$0B, $007A <- 3
+     716 (file-top)                   ?                  ; while clear, stalls. When set, arms a screen flash ($0500 <- $0B,
+     723 Phase4ResultFlashTrigger     STA $0500          ; $A3F9: 8D 00 05 ; flash id
+==============================================================================
+$501  (2 refs)
+procs: (file-top)(1), Phase4ResultFlashTrigger(1)
+mnems: ?(1), STA(1)
+     717 (file-top)                   ?                  ; $0501 <- 0, flash counter $007A <- 3) and falls through.
+     725 Phase4ResultFlashTrigger     STA $0501          ; $A3FE: 8D 01 05
+==============================================================================
+$514  (13 refs)
+procs: (file-top)(5), BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), AiCommanderRoutCheck(2), Phase4ResultRetreatInputWait(1), Phase5SideEventClose(1)
+mnems: STA(6), ?(5), LDA(2)
+     495 (file-top)                   ?                  ; $0514-$0517 (side A: $0515=2/$0517=0, side B: $0515=0/$0517=2), jumps to
+     510 BattleDefeatEventCheck       STA $0514          ; $A2BF: 8D 14 05
+     540 BattleDefeatEventCheck       STA $0514          ; $A2FF: 8D 14 05
+     566 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block ($0514-$0517,
+     577 BattleRetreatEventCheck      STA $0514          ; $A33C: 8D 14 05
+     601 BattleRetreatEventCheck      STA $0514          ; $A370: 8D 14 05
+     772 Phase4ResultRetreatInputWait LDA $0514          ; $A452: AD 14 05 ; strip 0 buffer ptr
+    6562 Phase5SideEventClose         LDA $0514          ; $CDFD: AD 14 05 ; side A strip ptr
+    6995 (file-top)                   ?                  ; battle result (phase/sub <- 4/0, retreat strip $0514-$0517, UI mode 4).
+    7222 (file-top)                   ?                  ; phase 4 battle result (phase/sub <- 4/0, retreat strip $0514-$0517 with
+    7224 (file-top)                   ?                  ; its own commander $0560 into $042C/$0514 and the enemy $0561 into $0516,
+    7312 AiCommanderRoutCheck         STA $0514          ; $D288: 8D 14 05 ; strip slot 0
+    7329 AiCommanderRoutCheck         STA $0514          ; $D2B1: 8D 14 05 ; strip slot 0
+==============================================================================
+$515  (13 refs)
+procs: (file-top)(5), BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), AiCommanderRoutCheck(2), Phase4ResultColumnStripSelect(1), Phase5SideEventClose(1)
+mnems: STA(7), ?(5), LDY(1)
+     495 (file-top)                   ?                  ; $0514-$0517 (side A: $0515=2/$0517=0, side B: $0515=0/$0517=2), jumps to
+     512 BattleDefeatEventCheck       STA $0515          ; $A2C4: 8D 15 05
+     542 BattleDefeatEventCheck       STA $0515          ; $A304: 8D 15 05
+     579 BattleRetreatEventCheck      STA $0515          ; $A341: 8D 15 05
+     603 BattleRetreatEventCheck      STA $0515          ; $A375: 8D 15 05
+     831 (file-top)                   ?                  ; marks the drained side's strip flag ($0515 side A / $0517 side B <- 2),
+     869 (file-top)                   ?                  ; selected by scan column $0545: column 0 -> $0515 (side A), else $0517
+     880 Phase4ResultColumnStripSelect STA $0515          ; $A4F3: 8D 15 05 ; side A strip flag
+    6538 (file-top)                   ?                  ; == 1 in $0515/$0517) by setting slot 0 of the corresponding side's action
+    6563 Phase5SideEventClose         LDY $0515          ; $CE00: AC 15 05 ; side A strip flag
+    7314 AiCommanderRoutCheck         STA $0515          ; $D28D: 8D 15 05 ; strip mode 3
+    7331 AiCommanderRoutCheck         STA $0515          ; $D2B6: 8D 15 05 ; strip mode 3
+==============================================================================
+$516  (8 refs)
+procs: BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), AiCommanderRoutCheck(2), Phase4ResultRetreatInputWait(1), Phase5SideEventClose(1)
+mnems: STA(6), LDA(2)
+     514 BattleDefeatEventCheck       STA $0516          ; $A2CA: 8D 16 05
+     545 BattleDefeatEventCheck       STA $0516          ; $A30D: 8D 16 05
+     581 BattleRetreatEventCheck      STA $0516          ; $A347: 8D 16 05
+     606 BattleRetreatEventCheck      STA $0516          ; $A37E: 8D 16 05
+     786 Phase4ResultRetreatInputWait LDA $0516          ; $A46D: AD 16 05 ; strip 1 buffer ptr
+    6565 Phase5SideEventClose         LDA $0516          ; $CE06: AD 16 05 ; side B strip ptr
+    7316 AiCommanderRoutCheck         STA $0516          ; $D293: 8D 16 05 ; strip slot 1
+    7333 AiCommanderRoutCheck         STA $0516          ; $D2BC: 8D 16 05 ; strip slot 1
+==============================================================================
+$517  (14 refs)
+procs: (file-top)(6), BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), AiCommanderRoutCheck(2), Phase4ResultColumnStripSelect(1), Phase5SideEventClose(1)
+mnems: STA(7), ?(6), LDY(1)
+     495 (file-top)                   ?                  ; $0514-$0517 (side A: $0515=2/$0517=0, side B: $0515=0/$0517=2), jumps to
+     516 BattleDefeatEventCheck       STA $0517          ; $A2CF: 8D 17 05
+     547 BattleDefeatEventCheck       STA $0517          ; $A312: 8D 17 05
+     583 BattleRetreatEventCheck      STA $0517          ; $A34C: 8D 17 05
+     608 BattleRetreatEventCheck      STA $0517          ; $A383: 8D 17 05
+     831 (file-top)                   ?                  ; marks the drained side's strip flag ($0515 side A / $0517 side B <- 2),
+     869 (file-top)                   ?                  ; selected by scan column $0545: column 0 -> $0515 (side A), else $0517
+     876 Phase4ResultColumnStripSelect STA $0517          ; $A4ED: 8D 17 05 ; side B strip flag
+    6566 Phase5SideEventClose         LDY $0517          ; $CE09: AC 17 05 ; side B strip flag
+    7222 (file-top)                   ?                  ; phase 4 battle result (phase/sub <- 4/0, retreat strip $0514-$0517 with
+    7318 AiCommanderRoutCheck         STA $0517          ; $D298: 8D 17 05
+    7335 AiCommanderRoutCheck         STA $0517          ; $D2C1: 8D 17 05
+==============================================================================
+$540  (42 refs)
+procs: (file-top)(7), BattleOverlayDispatch(3), AiTacticPointSpend(3), Phase1NextActorSelect(2), BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), AiCommanderRoutCheck(2), BattleOverlayIntroSkipCheck(1), BattleOverlayIntroDataFormatBottomAndAdvance(1), Phase2TurnPassReset(1), Phase2MoveEventCheck(1), Phase2ActionEndWait(1), Phase2ActionDoneWait(1), Phase2ColumnResetCheck(1), Phase3CommandInput(1), Phase8PanelMenuInput(1), Phase8PanelConfirmWait(1), Phase8PanelReturnToCommand(1), Phase8PanelAdvanceWait(1), Phase8PanelReturnToCommandDup(1), Phase8RowAdvance(1), Phase9AdvanceFinish(1), Phase5SideEventClose(1), Phase6FormationConfirmWait(1), Phase6AdvanceToSideBFormation(1), Phase7FormationConfirmWait(1), Phase7BattleModeStart(1), PhaseATauntSceneChoice(1)
+mnems: STA(34), ?(6), LDA(2)
+      96 BattleOverlayDispatch        LDA $0540          ; $A030: AD 40 05
+     127 BattleOverlayDispatch        LDA $0540          ; $A069: AD 40 05
+     129 BattleOverlayDispatch        ?                  ; --- CallbackDispatcher phase table, indexed by $0540 ---
+     168 BattleOverlayIntroSkipCheck  STA $0540          ; $A09C: 8D 40 05 ; phase <- 6
+     282 BattleOverlayIntroDataFormatBottomAndAdvance STA $0540          ; $A14E: 8D 40 05 ; phase <- 1 (intro done)
+     349 Phase1NextActorSelect        STA $0540          ; $A199: 8D 40 05 ; phase <- 3
+     376 Phase1NextActorSelect        STA $0540          ; $A1D6: 8D 40 05 ; phase <- 2
+     519 BattleDefeatEventCheck       STA $0540          ; $A2D4: 8D 40 05 ; phase <- 4
+     549 BattleDefeatEventCheck       STA $0540          ; $A317: 8D 40 05 ; phase <- 4
+     588 BattleRetreatEventCheck      STA $0540          ; $A356: 8D 40 05 ; phase <- 4
+     610 BattleRetreatEventCheck      STA $0540          ; $A388: 8D 40 05 ; phase <- 4
+     653 (file-top)                   ?                  ; BattleOverlayDispatch, run once per VBlank while $0540 = 4. Entered at
+     886 (file-top)                   ?                  ; run once per VBlank while $0540 = 2. Redraws the side status counters
+    1072 Phase2TurnPassReset          STA $0540          ; $A614: 8D 40 05 ; phase <- 1
+  ...
+==============================================================================
+$541  (122 refs)
+procs: (file-top)(18), Phase1NextActorSelect(3), Phase2ActionGate(3), AiTacticPointSpend(3), Phase0IntroSubDispatch(2), Phase1NextActorSubDispatch(2), BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), Phase4ResultSubDispatch(2), Phase4ResultRetreatInputWait(2), Phase4ResultDamageApply(2), Phase2ActionSubDispatch(2), Phase2MoveEventCheck(2), Phase2MoveCommit(2), Phase3CommandSubDispatch(2), Phase3CommandInput(2), Phase8PanelSubDispatch(2), Phase8RowStatCheck(2), Phase8RowCoinFlip(2), Phase9AdvanceSubDispatch(2), Phase5SideEventSubDispatch(2), Phase6FormationSelectSubDispatch(2), Phase7FormationSelectSubDispatch(2), AiCommanderRoutCheck(2), PhaseATauntSubDispatch(2), BattleOverlayIntroSkipCheck(1), BattleOverlayIntroRosterWalk(1), BattleOverlayIntroAnimQueue(1), BattleOverlayIntroDataFormatTop(1), BattleOverlayIntroDataFormatBottomAndAdvance(1), Phase1CycleInit(1), Phase1RoundPass(1), Phase4ResultAdvance(1), Phase4ResultDefeatInputWait(1), Phase4ResultConfirmInput(1), Phase2CursorWalkInit(1), Phase2TurnPassReset(1), Phase2ActionEndWait(1), Phase2AttackSetup(1), Phase2AttackArrowAnim(1), Phase2AttackAnimCount(1), Phase2AttackDamageApply(1), Phase2DamageSurvived(1), Phase2ActionDoneWait(1), Phase2ColumnResetCheck(1), Phase3CommandPanelInit(1), Phase3CommandAnimStep(1), Phase3CommandConfirmWait(1), Phase8PanelInit(1), Phase8PanelScriptStep(1), Phase8PanelMenuInput(1), Phase8PanelConfirmWait(1), Phase8PanelReturnToCommand(1), Phase8PanelAdvanceWait(1), Phase8PanelReturnToCommandDup(1), Phase8RowCounter575(1), Phase8RowCounter576(1), Phase8RowCounter577(1), Phase8RowAdvance(1), Phase9AdvanceInit(1), Phase9AdvanceAnimFrame(1), Phase9AdvanceContactTick(1), Phase9AdvanceFinish(1), Phase5SideEventRosterCommit(1), Phase5SideEventPanelSetup(1), Phase5SideEventClose(1), Phase6FormationPanelInit(1), Phase6FormationMenuInput(1), Phase6FormationConfirmWait(1), Phase6AdvanceToSideBFormation(1), Phase7FormationPanelInit(1), Phase7FormationPanelOpen(1), Phase7FormationMenuInput(1), Phase7FormationConfirmWait(1), Phase7BattleModeStart(1), PhaseATauntSceneOpen(1), PhaseATauntSceneStep(1), PhaseATauntSceneChoice(1)
+mnems: INC(43), STA(41), ?(27), LDA(11)
+      56 (file-top)                   ?                  ; BattleVBlankFrameUpdate. Phase = $0540, sub-phase = $0541.
+      62 (file-top)                   ?                  ; via B1F_CallbackDispatcher; every phase handler sub-dispatches on $0541.
+     144 (file-top)                   ?                  ; Phase-0 handler entry (battle intro): sub-dispatch on $0541 through the
+     148 Phase0IntroSubDispatch       LDA $0541          ; $A085: AD 41 05
+     150 Phase0IntroSubDispatch       ?                  ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
+     170 BattleOverlayIntroSkipCheck  STA $0541          ; $A0A1: 8D 41 05 ; sub-phase <- 0
+     213 BattleOverlayIntroRosterWalk INC $0541          ; $A0F5: EE 41 05 ; all entries: sub-state <- 2
+     233 BattleOverlayIntroAnimQueue  INC $0541          ; $A10D: EE 41 05 ; sub-state <- 3
+     259 BattleOverlayIntroDataFormatTop INC $0541          ; $A133: EE 41 05 ; sub-state <- 4
+     284 BattleOverlayIntroDataFormatBottomAndAdvance STA $0541          ; $A153: 8D 41 05 ; sub-phase <- 0
+     295 (file-top)                   ?                  ; then sub-dispatches on $0541 through the inline 3-entry table below.
+     302 Phase1NextActorSubDispatch   LDA $0541          ; $A162: AD 41 05
+     316 Phase1CycleInit              INC $0541          ; $A16E: EE 41 05 ; sub-phase <- 1
+     351 Phase1NextActorSelect        STA $0541          ; $A19E: 8D 41 05 ; sub-phase <- 0
+  ...
+==============================================================================
+$544  (15 refs)
+procs: (file-top)(6), BattleRosterSetup(3), AiBattleOrderAssign(2), Phase8RowStatCheck(1), BattleCellRedraw(1), BattleChrBankAnimate(1), BattleTerrainPassabilityCheck(1)
+mnems: ?(7), LDA(6), LDY(1), ADC(1)
+    2580 (file-top)                   ?                  ; Row 1. Auto-fails while the battle phase $0544 == 5 on side A.
+    2590 Phase8RowStatCheck           LDA $0544          ; $AF26: AD 44 05 ; battle phase
+    3447 (file-top)                   ?                  ; ($0544 == 5) side B uses the fixed index 4 with dedicated layouts:
+    3640 BattleRosterSetup            LDY $0544          ; $B6BF: AC 44 05 ; battle phase
+    3688 BattleRosterSetup            LDA $0544          ; $B725: AD 44 05 ; battle phase
+    3714 BattleRosterSetup            LDA $0544          ; $B759: AD 44 05 ; battle phase
+    3849 BattleCellRedraw             LDA $0544          ; $B891: AD 44 05 ; battle phase
+    4623 BattleChrBankAnimate         ?                  ; battle phase
+    6123 (file-top)                   ?                  ; from the current battle map's terrain grid ($0544 = map index; per-map
+    6136 BattleTerrainPassabilityCheck LDA $0544          ; $CAF9: AD 44 05 ; battle map index
+    6984 (file-top)                   ?                  ; siege battles ($0544 == 5) use fixed Hold/Advance patterns. Slot
+    7075 (file-top)                   ?                  ; phase $0544; the resulting offset selects a 4-byte order vector in
+    7077 (file-top)                   ?                  ; copied into the side's slots. Siege battles ($0544 == 5) take fixed
+    7124 AiBattleOrderAssign          ADC $0544          ; $D11A: 6D 44 05 ; + battle phase
+  ...
+==============================================================================
+$545  (107 refs)
+procs: (file-top)(28), AiTacticPointSpend(15), Phase1NextActorSelect(5), Phase1RoundPass(5), Phase2ActionGate(4), Phase2CommitMarkerAdjust(4), Phase2AttackRouteResolve(4), Phase2ColumnResetCheck(3), Phase2CursorArrowDraw(3), AiCommanderRoutCheck(3), AiArmyRoutCheck(3), BattleRetreatEventCheck(2), Phase2CursorWalkInit(2), Phase2MoveEventCheck(2), Phase2MoveCommit(2), Phase2AttackSetup(2), Phase2WalkDirectionResolve(2), Phase2StepTileProbe(2), Phase1CycleInit(1), Phase4ResultRetreatInputWait(1), Phase4ResultColumnDamageSelect(1), Phase4ResultColumnStripSelect(1), Phase2TurnPassReset(1), Phase2ActionEndWait(1), Phase2AttackDamageApply(1), Phase2DamagePanelUpdate(1), Phase2ActionDoneWait(1), Phase2AttackDamageCompute(1), Phase2ColumnStatusEncode(1), Phase2AttackArrowSprSubmit(1), Phase2ArrowPathTileCheck(1), BattleTerrainPassabilityCheck(1), Phase1AiSideRefresh(1), BattleOutnumberedCheck(1)
+mnems: ?(30), LDA(28), LDY(27), STA(12), LDX(4), INC(3), STY(3)
+     312 (file-top)                   ?                  ; ($0545=column, $0546=side-group row, $0547=frame wait) and the round-pass
+     318 Phase1CycleInit              STA $0545          ; $A173: 8D 45 05 ; scan column <- 0
+     368 Phase1NextActorSelect        LDY $0545          ; $A1C4: AC 45 05 ; roster column
+     380 Phase1NextActorSelect        LDY $0545          ; $A1E0: AC 45 05
+     406 Phase1NextActorSelect        INC $0545          ; $A214: EE 45 05 ; next column
+     407 Phase1NextActorSelect        LDA $0545          ; $A217: AD 45 05
+     411 Phase1NextActorSelect        STA $0545          ; $A220: 8D 45 05 ; column wrap
+     465 Phase1RoundPass              INC $0545          ; $A270: EE 45 05 ; next column
+     466 Phase1RoundPass              LDA $0545          ; $A273: AD 45 05
+     470 Phase1RoundPass              STA $0545          ; $A27C: 8D 45 05 ; column wrap
+     478 Phase1RoundPass              STA $0545          ; $A28E: 8D 45 05 ; cursor reset
+     485 Phase1RoundPass              STA $0545          ; $A2A2: 8D 45 05
+     567 (file-top)                   ?                  ; mirrored layout per side; side A also clears the scan column $0545 while
+     585 BattleRetreatEventCheck      STA $0545          ; $A351: 8D 45 05 ; scan column <- 0
+  ...
+==============================================================================
+$546  (13 refs)
+procs: Phase1RoundPass(6), (file-top)(3), Phase1NextActorSelect(3), Phase1CycleInit(1)
+mnems: STA(4), LDA(3), ?(2), LDY(2), INC(2)
+     312 (file-top)                   ?                  ; ($0545=column, $0546=side-group row, $0547=frame wait) and the round-pass
+     319 Phase1CycleInit              STA $0546          ; $A176: 8D 46 05 ; side-group row <- 0
+     365 Phase1NextActorSelect        LDY $0546          ; $A1BC: AC 46 05 ; side-group row
+     412 Phase1NextActorSelect        INC $0546          ; $A223: EE 46 05 ; next side group
+     413 Phase1NextActorSelect        LDA $0546          ; $A226: AD 46 05
+     419 (file-top)                   ?                  ; --- Phase 1 side-group priority order, indexed by scan row $0546 ---
+     449 Phase1RoundPass              LDA $0546          ; $A24C: AD 46 05
+     452 Phase1RoundPass              LDY $0546          ; $A253: AC 46 05
+     472 Phase1RoundPass              INC $0546          ; $A282: EE 46 05 ; next side group
+     473 Phase1RoundPass              LDA $0546          ; $A285: AD 46 05
+     479 Phase1RoundPass              STA $0546          ; $A291: 8D 46 05
+     486 Phase1RoundPass              STA $0546          ; $A2A5: 8D 46 05
+    8027 (file-top)                   STA $0546          ; $D70B: 8D 46 05 ; scan cursor row <- 0
+==============================================================================
+$547  (9 refs)
+procs: Phase1RoundPass(4), (file-top)(3), Phase1CycleInit(1), Phase1NextActorSelect(1)
+mnems: STA(4), ?(3), INC(1), LDA(1)
+     312 (file-top)                   ?                  ; ($0545=column, $0546=side-group row, $0547=frame wait) and the round-pass
+     320 Phase1CycleInit              STA $0547          ; $A179: 8D 47 05 ; frame wait <- 0
+     337 (file-top)                   ?                  ; A full scan without a match clears $0547 and advances to sub-phase 2
+     405 Phase1NextActorSelect        STA $0547          ; $A211: 8D 47 05 ; frame wait <- 0
+     431 (file-top)                   ?                  ; frame ($0547 counts 0 -> 1) before the walk resumes one cell per visit.
+     458 Phase1RoundPass              INC $0547          ; $A261: EE 47 05 ; side 0/1: frame wait
+     459 Phase1RoundPass              LDA $0547          ; $A264: AD 47 05
+     464 Phase1RoundPass              STA $0547          ; $A26D: 8D 47 05 ; frame wait <- 0
+     471 Phase1RoundPass              STA $0547          ; $A27F: 8D 47 05
+==============================================================================
+$548  (101 refs)
+procs: (file-top)(29), Phase3CommandDirInput(7), AiTacticPointSpend(7), AiCommanderRoutCheck(6), Phase9AdvanceContactTick(4), Phase2AttackRouteResolve(4), BattleOverlayIntroRosterWalk(3), Phase4ResultRetreatInputWait(3), Phase2AttackArrowAnim(3), Phase3CommandAnimStep(3), Phase9AdvanceAnimFrame(3), Phase9AdvanceRosterSweep(3), Phase2CursorWalkStep(2), Phase2MoveCommit(2), Phase2AttackAnimCount(2), Phase3CommandMarkerUpdate(2), Phase8PanelScriptStep(2), BattleOverlayIntroSkipCheck(1), Phase2ActionGate(1), Phase2CursorWalkInit(1), Phase2MoveEventCheck(1), Phase2AttackDamageApply(1), Phase3CommandPanelInit(1), Phase3CommandArrowDraw(1), Phase8PanelInit(1), Phase8RowEffectDispatch(1), Phase8RowScriptQueue(1), Phase9AdvanceInit(1), Phase9AdvanceMarkerRender(1), Phase5SideEventClose(1), Phase7BattleModeStart(1), PhaseATauntSceneOpen(1), PhaseATauntSceneStep(1)
+mnems: ?(29), STA(25), LDA(14), INC(13), LDX(6), DEC(5), LDY(2), SBC(2), ORA(2), ADC(2), STX(1)
+     161 (file-top)                   ?                  ; and the roster index $0548 cleared, then run BattleSideCombatStatsInit
+     185 BattleOverlayIntroSkipCheck  STA $0548          ; $A0CC: 8D 48 05
+     193 (file-top)                   ?                  ; then draws one roster entry per frame: entry $0548 of the 22-slot list at
+     202 BattleOverlayIntroRosterWalk LDY $0548          ; $A0DC: AC 48 05
+     209 BattleOverlayIntroRosterWalk INC $0548          ; $A0EB: EE 48 05
+     210 BattleOverlayIntroRosterWalk LDA $0548          ; $A0EE: AD 48 05
+     737 (file-top)                   ?                  ; amount $0548 (mirror $042F), clears $0430/$0431, plays SFX $7E and
+     764 Phase4ResultRetreatInputWait STA $0548          ; $A43D: 8D 48 05 ; pending damage amount
+     776 Phase4ResultRetreatInputWait SBC $0548          ; $A45C: ED 48 05
+     790 Phase4ResultRetreatInputWait SBC $0548          ; $A477: ED 48 05
+     915 (file-top)                   ?                  ; slot $0550 by Phase1NextActorSelect). First clears the frame counter $0548
+     931 Phase2ActionGate             STA $0548          ; $A51B: 8D 48 05 ; frame counter <- 0
+    1011 (file-top)                   ?                  ; advances to sub 2, clears the frame counter $0548 and latches the acting
+    1023 Phase2CursorWalkInit         STA $0548          ; $A5D5: 8D 48 05 ; frame counter <- 0
+  ...
+==============================================================================
+$549  (112 refs)
+procs: (file-top)(32), Phase2MoveRouteResolve(8), Phase2AttackRouteResolve(8), Phase2ActionGate(6), Phase3CommandDirInput(6), Phase2WalkDirectionResolve(6), Phase3CommandInput(5), Phase8PanelMenuInput(5), Phase2AttackArrowSprSubmit(4), Phase8PanelConfirmWait(3), Phase3CommandPanelInit(2), Phase8PanelInit(2), Phase8RowStatCheck(2), Phase1NextActorSelect(1), Phase2CursorStep(1), Phase2CommitMarkerAdjust(1), Phase2CursorStepFast(1), Phase3CommandSubDispatch(1), Phase3CommandAnimStep(1), Phase3CommandMarkerUpdate(1), Phase8PanelSubDispatch(1), Phase8PanelAdvanceWait(1), Phase8RowCoinFlip(1), Phase8RowCounter574(1), Phase8RowCounter575(1), Phase8RowCounter576(1), Phase8RowCounter577(1), Phase9AdvanceSubDispatch(1), Phase9AdvanceInit(1), Phase9AdvanceRosterSweep(1), Phase9AdvanceContactScan(1), Phase9AdvanceContactApply(1), Phase9AdvanceDamageRoll(1), Phase6FormationConfirmWait(1), Phase7FormationConfirmWait(1), AiTacticPointSpend(1)
+mnems: ?(32), LDA(31), STA(25), LDY(23), STX(1)
+      89 (file-top)                   ?                  ; per-side point budget $0572[$0549]; B-cancel and A-confirm return to
+     331 (file-top)                   ?                  ; with $0549 <- $0569 and $054B/$054C <- 1. Otherwise scans the 22-slot
+     347 Phase1NextActorSelect        STA $0549          ; $A194: 8D 49 05 ; request param
+     629 (file-top)                   ?                  ; command input) with $0549 <- $0569 selecting the acting player.
+     921 (file-top)                   ?                  ; also falls to the selection gate, as does a missing actor ($0549 bit7).
+     943 Phase2ActionGate             LDA $0549          ; $A539: AD 49 05 ; acting unit id
+     955 Phase2ActionGate             LDA $0549          ; $A555: AD 49 05 ; acting unit id
+     962 Phase2ActionGate             LDA $0549          ; $A564: AD 49 05
+     974 Phase2ActionGate             LDA $0549          ; $A580: AD 49 05 ; acting unit id
+     998 Phase2ActionGate             LDA $0549          ; $A5B2: AD 49 05 ; direction ($FF = none)
+    1001 Phase2ActionGate             LDA $0549          ; $A5BA: AD 49 05
+    1044 (file-top)                   ?                  ; walk position one cell per frame in the direction for acting side $0549
+    1686 (file-top)                   ?                  ; acting side $0549: 0 -> row--, 1 -> row++, 2 -> column--, 3 -> column++.
+    1689 Phase2CursorStep             LDA $0549          ; $A9A0: AD 49 05 ; acting side
+  ...
+==============================================================================
+$54A  (42 refs)
+procs: (file-top)(15), Phase2MoveCommit(5), Phase2CursorStepFast(4), Phase2MoveRouteResolve(4), Phase2CursorStep(2), Phase2CursorWalkInit(1), Phase2MoveEventCheck(1), Phase2AttackSetup(1), Phase2AttackDamageApply(1), Phase2AttackDamageCompute(1), Phase3CommandPanelInit(1), Phase8PanelInit(1), Phase8PanelScriptStep(1), Phase8PanelMenuInput(1), Phase2CursorArrowDraw(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1)
+mnems: ?(15), LDA(7), STA(4), LDY(4), STX(4), DEC(3), INC(3), STY(1), CMP(1)
+    1012 (file-top)                   ?                  ; column's row markers: $054A <- $0580[$0545]<<4, $054B <- $0596[$0545]<<4.
+    1030 Phase2CursorWalkInit         STA $054A          ; $A5E2: 8D 4A 05 ; walk row << 4
+    1100 Phase2MoveEventCheck         LDA $054A          ; $A626: AD 4A 05 ; walk row << 4
+    1135 (file-top)                   ?                  ; back to $05C2[$0545] and computes the damage inflicted on column $054A:
+    1138 (file-top)                   ?                  ; troop count $05AC[$054A]; a drained column is eliminated (panel update with amount
+    1144 Phase2MoveCommit             LDY $054A          ; $A657: AC 4A 05 ; target column
+    1163 Phase2MoveCommit             LDY $054A          ; $A685: AC 4A 05 ; target column
+    1176 Phase2MoveCommit             LDA $054A          ; $A6A0: AD 4A 05 ; target column
+    1179 Phase2MoveCommit             LDY $054A          ; $A6A8: AC 4A 05
+    1191 Phase2MoveCommit             LDA $054A          ; $A6C4: AD 4A 05 ; target column
+    1240 (file-top)                   ?                  ; acting column's row markers ($054A <- $0580[Y]<<4, $054B <- $0596[Y]<<4)
+    1256 Phase2AttackSetup            STA $054A          ; $A71B: 8D 4A 05 ; target row << 4
+    1325 Phase2AttackDamageApply      STA $054A          ; $A772: 8D 4A 05
+    1584 (file-top)                   ?                  ; index column $054A: edge columns 0/$0B subtract the defense value
+  ...
+==============================================================================
+$54B  (46 refs)
+procs: (file-top)(25), Phase2CursorStepFast(4), Phase2CursorStep(2), Phase3CommandDirInput(2), Phase1NextActorSelect(1), Phase2ActionGate(1), Phase2CursorWalkInit(1), Phase2MoveCommit(1), Phase2AttackSetup(1), Phase3CommandPanelInit(1), Phase3CommandInput(1), Phase8PanelConfirmWait(1), Phase2CursorArrowDraw(1), Phase2AttackArrowSprSubmit(1), Phase2AttackMarkerSprSubmit(1), Phase6FormationConfirmWait(1), Phase7FormationConfirmWait(1)
+mnems: ?(23), STA(8), LDA(6), DEC(3), INC(3), LDX(3)
+      71 (file-top)                   ?                  ; ($AA23-$ACC4); it resumes at the latched phase/sub in $054B/$054C.
+      78 (file-top)                   ?                  ; $054B/$054C <- 6/3, and sub 3 advances to phase 7. Phase 7 (side B
+      83 (file-top)                   ?                  ; $054B/$054C <- 7/4 so sub 4 starts battle mode (roster setup), and input
+     331 (file-top)                   ?                  ; with $0549 <- $0569 and $054B/$054C <- 1. Otherwise scans the 22-slot
+     353 Phase1NextActorSelect        STA $054B          ; $A1A3: 8D 4B 05
+     973 Phase2ActionGate             STA $054B          ; $A57D: 8D 4B 05 ; record for commit
+    1012 (file-top)                   ?                  ; column's row markers: $054A <- $0580[$0545]<<4, $054B <- $0596[$0545]<<4.
+    1036 Phase2CursorWalkInit         STA $054B          ; $A5EC: 8D 4B 05 ; walk column << 4
+    1134 (file-top)                   ?                  ; counter $0548 counts to $20. Then writes the recorded column status $054B
+    1151 Phase2MoveCommit             LDA $054B          ; $A66A: AD 4B 05 ; recorded status
+    1240 (file-top)                   ?                  ; acting column's row markers ($054A <- $0580[Y]<<4, $054B <- $0596[Y]<<4)
+    1262 Phase2AttackSetup            STA $054B          ; $A725: 8D 4B 05 ; target column << 4
+    1685 (file-top)                   ?                  ; Steps the walk position ($054A column / $054B row) one cell per the
+    1691 Phase2CursorStep             DEC $054B          ; $A9A5: CE 4B 05 ; row--
+  ...
+==============================================================================
+$54C  (24 refs)
+procs: (file-top)(17), Phase2ActionGate(2), Phase1NextActorSelect(1), Phase2AttackDamageApply(1), Phase8PanelConfirmWait(1), Phase6FormationConfirmWait(1), Phase7FormationConfirmWait(1)
+mnems: ?(15), STA(7), LDA(2)
+      71 (file-top)                   ?                  ; ($AA23-$ACC4); it resumes at the latched phase/sub in $054B/$054C.
+      78 (file-top)                   ?                  ; $054B/$054C <- 6/3, and sub 3 advances to phase 7. Phase 7 (side B
+      83 (file-top)                   ?                  ; $054B/$054C <- 7/4 so sub 4 starts battle mode (roster setup), and input
+     331 (file-top)                   ?                  ; with $0549 <- $0569 and $054B/$054C <- 1. Otherwise scans the 22-slot
+     355 Phase1NextActorSelect        STA $054C          ; $A1A8: 8D 4C 05
+     916 (file-top)                   ?                  ; and the recorded-status byte $054C. Command 1 goes straight to the
+     933 Phase2ActionGate             STA $054C          ; $A520: 8D 4C 05 ; recorded status <- 0
+     954 Phase2ActionGate             STA $054C          ; $A552: 8D 4C 05 ; record for commit
+    1309 (file-top)                   ?                  ; recorded status $054C to $05C2[$0545], copies the target column $054D to
+    1322 Phase2AttackDamageApply      LDA $054C          ; $A769: AD 4C 05 ; recorded status
+    1791 (file-top)                   ?                  ; side and the resume latch $054B/$054C <- 1/1. First redraws the acting
+    1800 (file-top)                   ?                  ; latched phase/sub at $054B/$054C
+    2030 (file-top)                   ?                  ; resumes the latched phase/sub-phase from $054B/$054C (player-request
+    2052 (file-top)                   LDA $054C          ; $ABBC: AD 4C 05 ; resume latch sub-phase
+  ...
+==============================================================================
+$54D  (12 refs)
+procs: Phase2AttackDamageApply(5), Phase2AttackRouteResolve(4), (file-top)(2), Phase2DamageSurvived(1)
+mnems: STX(4), LDY(3), LDA(3), ?(2)
+    1309 (file-top)                   ?                  ; recorded status $054C to $05C2[$0545], copies the target column $054D to
+    1312 (file-top)                   ?                  ; $05AC[$054D]. A drained column is eliminated (panel update, un-highlight,
+    1317 Phase2AttackDamageApply      LDY $054D          ; $A75B: AC 4D 05 ; target column
+    1324 Phase2AttackDamageApply      LDA $054D          ; $A76F: AD 4D 05 ; target column
+    1327 Phase2AttackDamageApply      LDY $054D          ; $A778: AC 4D 05 ; target column
+    1341 Phase2AttackDamageApply      LDA $054D          ; $A795: AD 4D 05 ; target column
+    1344 Phase2AttackDamageApply      LDY $054D          ; $A79D: AC 4D 05
+    1369 Phase2DamageSurvived         LDA $054D          ; $A7B9: AD 4D 05 ; target column
+    5217 Phase2AttackRouteResolve     STX $054D          ; $C440: 8E 4D 05 ; target column
+    5369 Phase2AttackRouteResolve     STX $054D          ; $C57B: 8E 4D 05 ; target column
+    5527 Phase2AttackRouteResolve     STX $054D          ; $C6C3: 8E 4D 05 ; target column
+    5679 Phase2AttackRouteResolve     STX $054D          ; $C7FE: 8E 4D 05 ; target column
+==============================================================================
+$54F  (12 refs)
+procs: Phase2ActionGate(4), Phase1NextActorSelect(3), (file-top)(2), Phase2ColumnResetCheck(2), Phase2WalkDirectionResolve(1)
+mnems: LDA(7), STA(3), ?(2)
+     391 Phase1NextActorSelect        STA $054F          ; $A1F6: 8D 4F 05
+     395 Phase1NextActorSelect        STA $054F          ; $A1FF: 8D 4F 05
+     400 Phase1NextActorSelect        STA $054F          ; $A20B: 8D 4F 05 ; even: 2
+     890 (file-top)                   ?                  ; command value $054F to the attack path (subs 6-9), the move path (subs
+     914 (file-top)                   ?                  ; Sub 0: routes the acting unit's command value $054F (copied from action
+     934 Phase2ActionGate             LDA $054F          ; $A523: AD 4F 05 ; command value
+     945 Phase2ActionGate             LDA $054F          ; $A53E: AD 4F 05
+     964 Phase2ActionGate             LDA $054F          ; $A569: AD 4F 05
+     980 Phase2ActionGate             LDA $054F          ; $A58C: AD 4F 05
+    1431 Phase2ColumnResetCheck       LDA $054F          ; $A805: AD 4F 05 ; command value
+    1438 Phase2ColumnResetCheck       LDA $054F          ; $A814: AD 4F 05 ; command value
+    4679 Phase2WalkDirectionResolve   LDA $054F          ; $C069: AD 4F 05 ; command value
+==============================================================================
+$550  (15 refs)
+procs: (file-top)(10), AiArmyRoutCheck(2), BattleOverlayIntroSkipCheck(1), Phase5RetreatSlotMark(1), AiBattleOrderAssign(1)
+mnems: ?(10), STA(3), LDA(2)
+     160 (file-top)                   ?                  ; phase 6 with all per-unit/per-side status slots ($0550-$0557, $0574-$0577)
+     172 BattleOverlayIntroSkipCheck  STA $0550          ; $A0A6: 8D 50 05
+     335 (file-top)                   ?                  ; action slot $0550[unit&$0F (+4 for roster columns >= $0B)] is copied to
+     915 (file-top)                   ?                  ; slot $0550 by Phase1NextActorSelect). First clears the frame counter $0548
+    1924 (file-top)                   ?                  ; $0550[$0549*4+$0548]: slot value 4 with no pending side status counters
+    2060 (file-top)                   ?                  ; action slot value $0550[$0549*4+$0548], down $20 / up $10 cycle the menu
+    2190 (file-top)                   ?                  ; the current action slot value $0550[$0549*4+$0548] into $0001/$0002,
+    6539 (file-top)                   ?                  ; slot array ($0550 side A / $0554 side B) via Phase5RetreatSlotMark, then
+    6584 Phase5RetreatSlotMark        STA $0550          ; $CE1B: 8D 50 05 ; side A slot 0 <- 1
+    6977 (file-top)                   ?                  ; $0550-$0553 / $0554-$0557 of every AI-controlled side (control mode
+    7069 (file-top)                   ?                  ; Assigns the four battle order slots $0550-$0553 (side A) / $0554-$0557
+    7088 AiBattleOrderAssign          LDA $0550          ; $D0D2: AD 50 05 ; side A slot 0
+    7354 (file-top)                   ?                  ; skipped) and all four of the side's order slots ($0550-$0553 or
+    7361 AiArmyRoutCheck              LDA $0550          ; $D2DC: AD 50 05 ; side A slot 0
+  ...
+==============================================================================
+$551  (2 refs)
+procs: BattleOverlayIntroSkipCheck(1), AiArmyRoutCheck(1)
+mnems: STA(2)
+     173 BattleOverlayIntroSkipCheck  STA $0551          ; $A0A9: 8D 51 05
+    7388 AiArmyRoutCheck              STA $0551          ; $D30E: 8D 51 05 ; slot 1
+==============================================================================
+$552  (2 refs)
+procs: BattleOverlayIntroSkipCheck(1), AiArmyRoutCheck(1)
+mnems: STA(2)
+     174 BattleOverlayIntroSkipCheck  STA $0552          ; $A0AC: 8D 52 05
+    7389 AiArmyRoutCheck              STA $0552          ; $D311: 8D 52 05 ; slot 2
+==============================================================================
+$553  (5 refs)
+procs: (file-top)(3), BattleOverlayIntroSkipCheck(1), AiArmyRoutCheck(1)
+mnems: ?(3), STA(2)
+     175 BattleOverlayIntroSkipCheck  STA $0553          ; $A0AF: 8D 53 05
+    6977 (file-top)                   ?                  ; $0550-$0553 / $0554-$0557 of every AI-controlled side (control mode
+    7069 (file-top)                   ?                  ; Assigns the four battle order slots $0550-$0553 (side A) / $0554-$0557
+    7354 (file-top)                   ?                  ; skipped) and all four of the side's order slots ($0550-$0553 or
+    7390 AiArmyRoutCheck              STA $0553          ; $D314: 8D 53 05 ; slot 3
+==============================================================================
+$554  (9 refs)
+procs: (file-top)(4), AiArmyRoutCheck(2), BattleOverlayIntroSkipCheck(1), Phase5RetreatSlotMark(1), AiBattleOrderAssign(1)
+mnems: ?(4), STA(3), LDA(2)
+     176 BattleOverlayIntroSkipCheck  STA $0554          ; $A0B2: 8D 54 05
+    6539 (file-top)                   ?                  ; slot array ($0550 side A / $0554 side B) via Phase5RetreatSlotMark, then
+    6588 Phase5RetreatSlotMark        STA $0554          ; $CE21: 8D 54 05 ; side B slot 0 <- 1
+    6977 (file-top)                   ?                  ; $0550-$0553 / $0554-$0557 of every AI-controlled side (control mode
+    7069 (file-top)                   ?                  ; Assigns the four battle order slots $0550-$0553 (side A) / $0554-$0557
+    7100 AiBattleOrderAssign          LDA $0554          ; $D0ED: AD 54 05 ; side B slot 0
+    7355 (file-top)                   ?                  ; $0554-$0557) are set to Withdraw (1).
+    7366 AiArmyRoutCheck              LDA $0554          ; $D2E5: AD 54 05 ; side B slot 0
+    7395 AiArmyRoutCheck              STA $0554          ; $D31A: 8D 54 05 ; slot 0
+==============================================================================
+$555  (2 refs)
+procs: BattleOverlayIntroSkipCheck(1), AiArmyRoutCheck(1)
+mnems: STA(2)
+     177 BattleOverlayIntroSkipCheck  STA $0555          ; $A0B5: 8D 55 05
+    7396 AiArmyRoutCheck              STA $0555          ; $D31D: 8D 55 05 ; slot 1
+==============================================================================
+$556  (3 refs)
+procs: BattleOverlayIntroSkipCheck(1), AiBattleOrderAssign(1), AiArmyRoutCheck(1)
+mnems: STA(3)
+     178 BattleOverlayIntroSkipCheck  STA $0556          ; $A0B8: 8D 56 05
+    7192 AiBattleOrderAssign          STA $0556          ; $D1AC: 8D 56 05 ; side B slot 2
+    7397 AiArmyRoutCheck              STA $0556          ; $D320: 8D 56 05 ; slot 2
+==============================================================================
+$557  (4 refs)
+procs: (file-top)(2), BattleOverlayIntroSkipCheck(1), AiArmyRoutCheck(1)
+mnems: STA(2), ?(2)
+     179 BattleOverlayIntroSkipCheck  STA $0557          ; $A0BB: 8D 57 05
+    6977 (file-top)                   ?                  ; $0550-$0553 / $0554-$0557 of every AI-controlled side (control mode
+    7069 (file-top)                   ?                  ; Assigns the four battle order slots $0550-$0553 (side A) / $0554-$0557
+    7398 AiArmyRoutCheck              STA $0557          ; $D323: 8D 57 05 ; slot 3
+==============================================================================
+$558  (3 refs)
+procs: (file-top)(2), Phase9AdvanceInit(1)
+mnems: ?(2), STA(1)
+    3000 (file-top)                   ?                  ; the advance parameters from the acting side's roster base slot ($0558 <-
+    3020 Phase9AdvanceInit            STA $0558          ; $B233: 8D 58 05 ; roster base slot
+    3203 (file-top)                   ?                  ; Sub 3. Sweeps the acting side's 11 roster slots ($0558+$0548, slot index
+==============================================================================
+$559  (4 refs)
+procs: (file-top)(2), Phase9AdvanceInit(1), Phase9AdvanceAnimFrame(1)
+mnems: ?(2), STA(1), LDA(1)
+    3001 (file-top)                   ?                  ; 0 for side 0, $0B for side 1): direction code $0559 (roster byte $05C2
+    3027 Phase9AdvanceInit            STA $0559          ; $B23E: 8D 59 05 ; direction code
+    3047 (file-top)                   ?                  ; position one unit in direction $0559 (0 row up, 1 row down, 2 column left,
+    3064 Phase9AdvanceAnimFrame       LDA $0559          ; $B26D: AD 59 05 ; direction code
+==============================================================================
+$55A  (12 refs)
+procs: (file-top)(4), Phase9AdvanceAnimFrame(4), Phase9AdvanceInit(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase9AdvanceContactScan(1)
+mnems: LDA(5), ?(4), STA(1), DEC(1), INC(1)
+    3002 (file-top)                   ?                  ; high nibble), start row $055A (unit row $0596 << 4) and start column
+    3033 Phase9AdvanceInit            STA $055A          ; $B248: 8D 5A 05 ; start row
+    3053 (file-top)                   ?                  ; (row $055A - wobble, column $055B).
+    3066 Phase9AdvanceAnimFrame       DEC $055A          ; $B272: CE 5A 05 ; dir 0: row -1
+    3067 Phase9AdvanceAnimFrame       LDA $055A          ; $B275: AD 5A 05
+    3074 Phase9AdvanceAnimFrame       INC $055A          ; $B283: EE 5A 05 ; dir 1: row +1
+    3075 Phase9AdvanceAnimFrame       LDA $055A          ; $B286: AD 5A 05
+    3103 (file-top)                   ?                  ; Phase9AdvanceStripDrawDesc, sprite row <- marker row $055A minus the
+    3120 Phase9AdvanceMarkerRender    LDA $055A          ; $B2C3: AD 5A 05 ; marker row
+    3171 Phase9AdvanceContactTick     LDA $055A          ; $B328: AD 5A 05 ; marker row
+    3265 (file-top)                   ?                  ; Contact-damage scan: converts the marker position $055A/$055B to tile
+    3272 Phase9AdvanceContactScan     LDA $055A          ; $B44B: AD 5A 05 ; marker row
+==============================================================================
+$55B  (11 refs)
+procs: Phase9AdvanceAnimFrame(4), (file-top)(3), Phase9AdvanceInit(1), Phase9AdvanceMarkerRender(1), Phase9AdvanceContactTick(1), Phase9AdvanceContactScan(1)
+mnems: LDA(5), ?(3), STA(1), DEC(1), INC(1)
+    3003 (file-top)                   ?                  ; $055B (unit column $0580 << 4). Clears the battle flag $008F.
+    3039 Phase9AdvanceInit            STA $055B          ; $B252: 8D 5B 05 ; start column
+    3082 Phase9AdvanceAnimFrame       DEC $055B          ; $B294: CE 5B 05 ; dir 2: column -1
+    3083 Phase9AdvanceAnimFrame       LDA $055B          ; $B297: AD 5B 05
+    3088 Phase9AdvanceAnimFrame       INC $055B          ; $B2A1: EE 5B 05 ; dir 3: column +1
+    3089 Phase9AdvanceAnimFrame       LDA $055B          ; $B2A4: AD 5B 05
+    3105 (file-top)                   ?                  ; sprite column <- $055B; writer preset $0003=0/$0004=$A0. Exits through
+    3124 Phase9AdvanceMarkerRender    LDA $055B          ; $B2CD: AD 5B 05 ; marker column
+    3173 Phase9AdvanceContactTick     LDA $055B          ; $B32E: AD 5B 05 ; marker column
+    3265 (file-top)                   ?                  ; Contact-damage scan: converts the marker position $055A/$055B to tile
+    3278 Phase9AdvanceContactScan     LDA $055B          ; $B455: AD 5B 05 ; marker column
+==============================================================================
+$560  (48 refs)
+procs: (file-top)(24), BattleOverlayDispatch(2), BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), BattleSideCombatStatsInit(2), Phase5SideEventPanelSetup(2), AiCommanderRoutCheck(2), BattleOverlayIntroDataFormatTop(1), Phase2DamagePanelUpdate(1), Phase3CommandConfirmWait(1), Phase8RowStatCheck(1), BattleRosterSetup(1), BattleOverlayTotalRefresh(1), Phase5SideEventClose(1), Phase5RetreatSlotMark(1), Phase6FormationPanelInit(1), Phase6FormationMenuInput(1), Phase6FormationConfirmWait(1), AiBattleOrderAssign(1)
+mnems: ?(25), LDA(22), CMP(1)
+     104 BattleOverlayDispatch        ?                  ; Strip 0: buffer ptr lo from $0560 (hi fixed $A5), X=0
+     105 BattleOverlayDispatch        LDA $0560          ; $A040: AD 60 05
+     243 (file-top)                   ?                  ; B1D_1E_DataFormatter (bank $1D, Y=$3D) with buffer ptr $00/$01 = $0560/0
+     251 BattleOverlayIntroDataFormatTop LDA $0560          ; $A123: AD 60 05
+     494 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block $042C and
+     508 BattleDefeatEventCheck       LDA $0560          ; $A2B9: AD 60 05 ; strip 0 buffer ptr
+     539 BattleDefeatEventCheck       LDA $0560          ; $A2FC: AD 60 05 ; strip 0 buffer ptr
+     566 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block ($0514-$0517,
+     575 BattleRetreatEventCheck      LDA $0560          ; $A336: AD 60 05 ; strip 0 buffer ptr
+     600 BattleRetreatEventCheck      LDA $0560          ; $A36D: AD 60 05 ; strip 0 buffer ptr
+    1378 (file-top)                   ?                  ; $0C <- 0), overlay strip buffer pointer $0560 into $0A (or $0561 for
+    1386 Phase2DamagePanelUpdate      LDA $0560          ; $A7CD: AD 60 05 ; strip 0 buffer ptr
+    1793 (file-top)                   ?                  ; $0560[$0549], X=0), then dispatches on $0541 via B1F_CallbackDispatcher
+    1825 (file-top)                   ?                  ; mode $D1 (B1F_SetUI0) and resolves the acting unit id $0560[$0549] to its
+  ...
+==============================================================================
+$561  (36 refs)
+procs: (file-top)(12), AiCommanderRoutCheck(4), BattleDefeatEventCheck(2), BattleRetreatEventCheck(2), BattleSideCombatStatsInit(2), Phase5SideEventPanelSetup(2), BattleOverlayDispatch(1), BattleOverlayIntroDataFormatBottomAndAdvance(1), Phase2DamagePanelUpdate(1), Phase3CommandResultWait(1), Phase8RowStatCheck(1), BattleRosterSetup(1), BattleOverlayTotalRefresh(1), Phase5SideEventClose(1), Phase7FormationPanelOpen(1), Phase7FormationMenuInput(1), Phase7FormationConfirmWait(1), AiBattleOrderAssign(1)
+mnems: LDA(24), ?(12)
+      59 (file-top)                   ?                  ; (X selects the strip: 0 uses buffer ptr $0560, 1 uses $0561 with row param
+     117 BattleOverlayDispatch        LDA $0561          ; $A057: AD 61 05
+     266 (file-top)                   ?                  ; (bank $1D) with buffer ptr $00/$01 = $0561/1 to format the bottom panel,
+     273 BattleOverlayIntroDataFormatBottomAndAdvance LDA $0561          ; $A13C: AD 61 05
+     494 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block $042C and
+     513 BattleDefeatEventCheck       LDA $0561          ; $A2C7: AD 61 05 ; strip 1 buffer ptr
+     543 BattleDefeatEventCheck       LDA $0561          ; $A307: AD 61 05 ; strip 1 buffer ptr
+     566 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block ($0514-$0517,
+     580 BattleRetreatEventCheck      LDA $0561          ; $A344: AD 61 05 ; strip 1 buffer ptr
+     604 BattleRetreatEventCheck      LDA $0561          ; $A378: AD 61 05 ; strip 1 buffer ptr
+    1378 (file-top)                   ?                  ; $0C <- 0), overlay strip buffer pointer $0560 into $0A (or $0561 for
+    1390 Phase2DamagePanelUpdate      LDA $0561          ; $A7D7: AD 61 05 ; strip 1 buffer ptr
+    2026 (file-top)                   ?                  ; B1D_1E_DataFormatter (Y=$3D) with buffer ptr ($0000) <- $0561/1 to
+    2036 Phase3CommandResultWait      LDA $0561          ; $AB9F: AD 61 05 ; strip 1 buffer ptr lo
+  ...
+==============================================================================
+$562  (17 refs)
+procs: (file-top)(8), Phase5SideEventPanelSetup(3), Phase1AiSideRefresh(2), BattlePadStateFetch(1), Phase6FormationPanelInit(1), AiTacticSpendDispatch(1), AiBattleOrderAssign(1)
+mnems: LDA(9), ?(8)
+    2405 (file-top)                   ?                  ; BattlePanelStatsRefresh). If the side control flag $0562[$0549] == 3
+    6366 (file-top)                   ?                  ; source mode is taken from $0562 (pad 1) / $0563 (pad 2):
+    6378 BattlePadStateFetch          LDA $0562          ; $CCE2: AD 62 05 ; pad 1 input mode
+    6472 (file-top)                   ?                  ; from the pad input modes $0562/$0563: direct order when side A mode is 0
+    6489 Phase5SideEventPanelSetup    LDA $0562          ; $CD74: AD 62 05 ; side A input mode
+    6501 Phase5SideEventPanelSetup    LDA $0562          ; $CD91: AD 62 05 ; side A mode
+    6519 Phase5SideEventPanelSetup    LDA $0562          ; $CDB6: AD 62 05 ; side A mode
+    6597 (file-top)                   ?                  ; BattleRosterSetup as the &3 layout index); input mode $0562 = 3 (AI) gets
+    6614 (file-top)                   ?                  ; default, then (unless side A input mode $0562 = 3, AI: jump straight to
+    6624 Phase6FormationPanelInit     LDA $0562          ; $CE3B: AD 62 05 ; side A input mode
+    6978 (file-top)                   ?                  ; $0562/$0563 == 3; human sides get their orders from the phase 3
+    7009 Phase1AiSideRefresh          LDA $0562          ; $D071: AD 62 05
+    7026 Phase1AiSideRefresh          LDA $0562          ; $D095: AD 62 05
+    7044 (file-top)                   ?                  ; AiTacticPointSpend for every AI-controlled side (control mode $0562/$0563
+  ...
+==============================================================================
+$563  (17 refs)
+procs: (file-top)(7), Phase5SideEventPanelSetup(4), Phase1AiSideRefresh(2), BattlePadStateFetch(1), Phase7FormationPanelInit(1), AiTacticSpendDispatch(1), AiBattleOrderAssign(1)
+mnems: LDA(10), ?(7)
+    6366 (file-top)                   ?                  ; source mode is taken from $0562 (pad 1) / $0563 (pad 2):
+    6381 BattlePadStateFetch          LDA $0563          ; $CCE8: AD 63 05 ; pad 2 input mode
+    6472 (file-top)                   ?                  ; from the pad input modes $0562/$0563: direct order when side A mode is 0
+    6491 Phase5SideEventPanelSetup    LDA $0563          ; $CD79: AD 63 05 ; side B input mode
+    6493 Phase5SideEventPanelSetup    LDA $0563          ; $CD7E: AD 63 05
+    6507 Phase5SideEventPanelSetup    LDA $0563          ; $CD9D: AD 63 05 ; side B mode
+    6525 Phase5SideEventPanelSetup    LDA $0563          ; $CDC2: AD 63 05 ; side B mode
+    6801 (file-top)                   ?                  ; Scale), using side B input mode $0563 and country $0565. Input mode 3
+    6820 (file-top)                   ?                  ; default, then (unless side B input mode $0563 = 3, AI: jump straight to
+    6829 Phase7FormationPanelInit     LDA $0563          ; $CF7F: AD 63 05 ; side B input mode
+    6978 (file-top)                   ?                  ; $0562/$0563 == 3; human sides get their orders from the phase 3
+    7015 Phase1AiSideRefresh          LDA $0563          ; $D07D: AD 63 05
+    7032 Phase1AiSideRefresh          LDA $0563          ; $D0A1: AD 63 05
+    7044 (file-top)                   ?                  ; AiTacticPointSpend for every AI-controlled side (control mode $0562/$0563
+  ...
+==============================================================================
+$564  (2 refs)
+procs: (file-top)(1), Phase6FormationMenuInput(1)
+mnems: ?(1), LDA(1)
+    6651 (file-top)                   ?                  ; panel $D2 (confirm) and copy side A country $0564's ruler officer id
+    6678 Phase6FormationMenuInput     LDA $0564          ; $CEA0: AD 64 05 ; side A country
+==============================================================================
+$565  (3 refs)
+procs: (file-top)(2), Phase7FormationMenuInput(1)
+mnems: ?(2), LDA(1)
+    6801 (file-top)                   ?                  ; Scale), using side B input mode $0563 and country $0565. Input mode 3
+    6875 (file-top)                   ?                  ; panel $D2 (confirm) and copy side B country $0565's ruler officer id
+    6902 Phase7FormationMenuInput     LDA $0565          ; $CFFA: AD 65 05 ; side B country
+==============================================================================
+$566  (5 refs)
+procs: BattleRosterSetup(4), (file-top)(1)
+mnems: CPY(2), ?(1), STA(1), LDA(1)
+    3433 (file-top)                   ?                  ; ($0566/$0567), then the troop count is split into per-column troop count
+    3488 BattleRosterSetup            STA $0566          ; $B590: 8D 66 05 ; side A column count
+    3505 BattleRosterSetup            CPY $0566          ; $B5B7: CC 66 05 ; column count
+    3514 BattleRosterSetup            CPY $0566          ; $B5C5: CC 66 05
+    3555 BattleRosterSetup            LDA $0566          ; $B611: AD 66 05 ; column count
+==============================================================================
+$567  (4 refs)
+procs: BattleRosterSetup(4)
+mnems: CPY(2), STA(1), LDA(1)
+    3609 BattleRosterSetup            STA $0567          ; $B683: 8D 67 05 ; side B column count
+    3626 BattleRosterSetup            CPY $0567          ; $B6AA: CC 67 05 ; column count
+    3635 BattleRosterSetup            CPY $0567          ; $B6B8: CC 67 05
+    3695 BattleRosterSetup            LDA $0567          ; $B731: AD 67 05 ; column count
+==============================================================================
+$568  (9 refs)
+procs: (file-top)(4), Phase1NextActorSelect(3), BattleOverlayIntroDataFormatBottomAndAdvance(1), BattlePlayerRequestPoll(1)
+mnems: ?(4), STA(4), LDA(1)
+     268 (file-top)                   ?                  ; $0568/$0569.
+     286 BattleOverlayIntroDataFormatBottomAndAdvance STA $0568          ; $A158: 8D 68 05
+     330 (file-top)                   ?                  ; flags $0568/$0569, set from BattlePlayerRequestPoll controller polling) advances to phase 3
+     343 Phase1NextActorSelect        LDA $0568          ; $A189: AD 68 05
+     357 Phase1NextActorSelect        STA $0568          ; $A1AD: 8D 68 05 ; consume request flags
+     362 Phase1NextActorSelect        STA $0568          ; $A1B6: 8D 68 05
+     627 (file-top)                   ?                  ; flags $0568 (pad 1) / $0569 (pad 2). Phase1NextActorSelect consumes them:
+     638 BattlePlayerRequestPoll      STA $0568          ; $A3A9: 8D 68 05 ; pad 1 request flag
+    1790 (file-top)                   ?                  ; on a queued player request (handoff flags $0568/$0569) with $0549 = acting
+==============================================================================
+$569  (10 refs)
+procs: (file-top)(4), Phase1NextActorSelect(4), BattleOverlayIntroDataFormatBottomAndAdvance(1), BattlePlayerRequestPoll(1)
+mnems: ?(4), STA(4), ORA(1), LDA(1)
+     268 (file-top)                   ?                  ; $0568/$0569.
+     287 BattleOverlayIntroDataFormatBottomAndAdvance STA $0569          ; $A15B: 8D 69 05
+     331 (file-top)                   ?                  ; with $0549 <- $0569 and $054B/$054C <- 1. Otherwise scans the 22-slot
+     344 Phase1NextActorSelect        ORA $0569          ; $A18C: 0D 69 05
+     346 Phase1NextActorSelect        LDA $0569          ; $A191: AD 69 05
+     358 Phase1NextActorSelect        STA $0569          ; $A1B0: 8D 69 05
+     363 Phase1NextActorSelect        STA $0569          ; $A1B9: 8D 69 05
+     627 (file-top)                   ?                  ; flags $0568 (pad 1) / $0569 (pad 2). Phase1NextActorSelect consumes them:
+     629 (file-top)                   ?                  ; command input) with $0549 <- $0569 selecting the acting player.
+     646 BattlePlayerRequestPoll      STA $0569          ; $A3B8: 8D 69 05 ; pad 2 request flag
+==============================================================================
+$56A  (21 refs)
+procs: (file-top)(8), Phase2AttackComputeWithBonus(5), Phase2AttackComputeDefended(3), Phase8RowCounter576(2), Phase2AttackDamageCompute(1), BattleSideStatusCountersDecrement(1), BattleSideCombatStatsInit(1)
+mnems: ?(8), STA(8), LDA(4), ADC(1)
+    1469 (file-top)                   ?                  ; side attack values $056A/$056B, scales each to 60% via
+    1475 Phase2AttackComputeDefended  LDA $056A          ; $A84D: AD 6A 05 ; side A attack value
+    1479 Phase2AttackComputeDefended  STA $056A          ; $A856: 8D 6A 05
+    1489 Phase2AttackComputeDefended  STA $056A          ; $A86D: 8D 6A 05
+    1495 (file-top)                   ?                  ; Damage compute for the main attack: saves $056A/$056B, scales each to 70%
+    1502 Phase2AttackComputeWithBonus LDA $056A          ; $A871: AD 6A 05 ; side A attack value
+    1506 Phase2AttackComputeWithBonus STA $056A          ; $A87A: 8D 6A 05
+    1516 Phase2AttackComputeWithBonus ADC $056A          ; $A88E: 6D 6A 05
+    1521 Phase2AttackComputeWithBonus STA $056A          ; $A897: 8D 6A 05
+    1548 Phase2AttackComputeWithBonus STA $056A          ; $A8CB: 8D 6A 05
+    1580 (file-top)                   ?                  ; $056A (cursor column < $0B, plus bonus $0570 when column 0) or $056B
+    1592 Phase2AttackDamageCompute    LDA $056A          ; $A8F9: AD 6A 05 ; side A attack value
+    2561 (file-top)                   ?                  ; saves and advances the periodic reload value $056A/$056B; row 1 rolls an
+    2742 (file-top)                   ?                  ; current $056A/$056B is saved into the reload latch $0578/$0579 and
+  ...
+==============================================================================
+$56B  (19 refs)
+procs: (file-top)(6), Phase2AttackComputeWithBonus(5), Phase2AttackComputeDefended(3), Phase8RowCounter576(2), Phase2AttackDamageCompute(1), BattleSideStatusCountersDecrement(1), BattleSideCombatStatsInit(1)
+mnems: STA(8), ?(6), LDA(4), ADC(1)
+    1480 Phase2AttackComputeDefended  LDA $056B          ; $A859: AD 6B 05 ; side B attack value
+    1484 Phase2AttackComputeDefended  STA $056B          ; $A862: 8D 6B 05
+    1487 Phase2AttackComputeDefended  STA $056B          ; $A869: 8D 6B 05 ; restore
+    1523 Phase2AttackComputeWithBonus LDA $056B          ; $A89A: AD 6B 05 ; side B attack value
+    1527 Phase2AttackComputeWithBonus STA $056B          ; $A8A3: 8D 6B 05
+    1537 Phase2AttackComputeWithBonus ADC $056B          ; $A8B7: 6D 6B 05
+    1542 Phase2AttackComputeWithBonus STA $056B          ; $A8C0: 8D 6B 05
+    1546 Phase2AttackComputeWithBonus STA $056B          ; $A8C7: 8D 6B 05 ; restore
+    1580 (file-top)                   ?                  ; $056A (cursor column < $0B, plus bonus $0570 when column 0) or $056B
+    1599 Phase2AttackDamageCompute    LDA $056B          ; $A907: AD 6B 05 ; side B attack value
+    2561 (file-top)                   ?                  ; saves and advances the periodic reload value $056A/$056B; row 1 rolls an
+    2742 (file-top)                   ?                  ; current $056A/$056B is saved into the reload latch $0578/$0579 and
+    2745 (file-top)                   ?                  ; values back into $056A/$056B. The counter-set tail ($B036, Apply) is
+    2759 Phase8RowCounter576          LDA $056B          ; $B045: AD 6B 05 ; side B reload value
+  ...
+==============================================================================
+$56C  (7 refs)
+procs: (file-top)(4), BattleRosterSetup(1), Phase6FormationPanelInit(1), Phase6FormationMenuInput(1)
+mnems: ?(4), STA(2), LDA(1)
+    3444 (file-top)                   ?                  ; index i = $056C & 3 (columns entry i -> $0580, rows entry i+6 ->
+    3518 BattleRosterSetup            LDA $056C          ; $B5CA: AD 6C 05 ; formation random
+    3749 (file-top)                   ?                  ; Side A uses entries i / i+6 with i = $056C & 3; side B entries i / i+6
+    6596 (file-top)                   ?                  ; index $056C (0-3: Serpent/Goose/Wedge/Fish Scale, consumed by
+    6613 (file-top)                   ?                  ; Sub 0. Seeds formation index $056C with a random value (&3) as the
+    6623 Phase6FormationPanelInit     STA $056C          ; $CE38: 8D 6C 05 ; formation <- random
+    6667 Phase6FormationMenuInput     STA $056C          ; $CE84: 8D 6C 05 ; formation index
+==============================================================================
+$56D  (7 refs)
+procs: (file-top)(4), BattleRosterSetup(1), Phase7FormationPanelInit(1), Phase7FormationMenuInput(1)
+mnems: ?(4), STA(2), LDA(1)
+    3445 (file-top)                   ?                  ; $0596); side B uses i = $056D & 3 and mirrors the columns
+    3643 BattleRosterSetup            LDA $056D          ; $B6C6: AD 6D 05 ; formation random
+    3750 (file-top)                   ?                  ; with i = $056D & 3 (columns mirrored); battle phase 5 forces side B
+    6800 (file-top)                   ?                  ; edits the side B formation index $056D (0-3: Serpent/Goose/Wedge/Fish
+    6819 (file-top)                   ?                  ; Sub 0. Seeds formation index $056D with a random value (&3) as the
+    6828 Phase7FormationPanelInit     STA $056D          ; $CF7C: 8D 6D 05 ; formation <- random
+    6891 Phase7FormationMenuInput     STA $056D          ; $CFDE: 8D 6D 05 ; formation index
+==============================================================================
+$56E  (4 refs)
+procs: (file-top)(2), Phase2AttackDamageCompute(1), BattleSideCombatStatsInit(1)
+mnems: ?(2), LDA(1), STX(1)
+    1585 (file-top)                   ?                  ; $056E/$056F from half the damage (floor 0); a column whose action bits
+    1659 Phase2AttackDamageCompute    LDA $056E          ; $A97D: AD 6E 05 ; defense value A
+    5865 (file-top)                   ?                  ; - Edge-column defense -> $056E/$056F: BattleEdgeDefenseHighTable
+    5879 BattleSideCombatStatsInit    STX $056E          ; $C938: 8E 6E 05
+==============================================================================
+$56F  (4 refs)
+procs: (file-top)(2), Phase2AttackDamageCompute(1), BattleSideCombatStatsInit(1)
+mnems: ?(2), LDA(1), STX(1)
+    1585 (file-top)                   ?                  ; $056E/$056F from half the damage (floor 0); a column whose action bits
+    1662 Phase2AttackDamageCompute    LDA $056F          ; $A984: AD 6F 05 ; defense value B
+    5865 (file-top)                   ?                  ; - Edge-column defense -> $056E/$056F: BattleEdgeDefenseHighTable
+    5898 BattleSideCombatStatsInit    STX $056F          ; $C96D: 8E 6F 05
+==============================================================================
+$570  (6 refs)
+procs: (file-top)(2), AiTacticPointSpend(2), Phase2AttackDamageCompute(1), BattleSideCombatStatsInit(1)
+mnems: ?(3), ADC(1), STY(1), LDA(1)
+    1580 (file-top)                   ?                  ; $056A (cursor column < $0B, plus bonus $0570 when column 0) or $056B
+    1596 Phase2AttackDamageCompute    ADC $0570          ; $A901: 6D 70 05 ; column-0 bonus
+    5863 (file-top)                   ?                  ; - Edge-column attack bonus -> $0570/$0571: BattleEdgeBonusLowTable
+    5878 BattleSideCombatStatsInit    STY $0570          ; $C935: 8C 70 05
+    7900 AiTacticPointSpend           ?                  ; bonuses $0570/$0571 and commander troop counts $05AC/$05B7 of both
+    7909 AiTacticPointSpend           LDA $0570          ; $D652: AD 70 05 ; side A attack bonus
+==============================================================================
+$571  (6 refs)
+procs: (file-top)(2), AiTacticPointSpend(2), Phase2AttackDamageCompute(1), BattleSideCombatStatsInit(1)
+mnems: ?(3), ADC(1), STY(1), LDA(1)
+    1581 (file-top)                   ?                  ; (columns >= $0B, plus bonus $0571 when column $0B), scaled by a tier
+    1603 Phase2AttackDamageCompute    ADC $0571          ; $A90F: 6D 71 05 ; column-$B bonus
+    5863 (file-top)                   ?                  ; - Edge-column attack bonus -> $0570/$0571: BattleEdgeBonusLowTable
+    5897 BattleSideCombatStatsInit    STY $0571          ; $C96A: 8C 71 05
+    7900 AiTacticPointSpend           ?                  ; bonuses $0570/$0571 and commander troop counts $05AC/$05B7 of both
+    7911 AiTacticPointSpend           LDA $0571          ; $D658: AD 71 05 ; side B attack bonus
+==============================================================================
+$572  (7 refs)
+procs: (file-top)(5), BattleSideCombatStatsInit(1), AiTacticPointSpend(1)
+mnems: ?(5), STA(1), LDX(1)
+      89 (file-top)                   ?                  ; per-side point budget $0572[$0549]; B-cancel and A-confirm return to
+    2239 (file-top)                   ?                  ; the point tier $054A (0-5) from the per-side point budget $0572[$0549]
+    2316 (file-top)                   ?                  ; A: if the budget $0572[$0549] covers the row cost
+    5867 (file-top)                   ?                  ; - Tactic point budget -> $0572/$0573: record[2] * 13 / 100, spent by the
+    5891 BattleSideCombatStatsInit    STA $0572          ; $C958: 8D 72 05 ; side A point budget
+    7501 (file-top)                   ?                  ; tactic point budget $0572[$057C] is then mirrored to $0548 and walked
+    7535 AiTacticPointSpend           LDX $0572          ; $D3DC: AE 72 05 ; side A point budget
+==============================================================================
+$573  (3 refs)
+procs: (file-top)(1), BattleSideCombatStatsInit(1), AiTacticPointSpend(1)
+mnems: ?(1), STA(1), LDX(1)
+    5867 (file-top)                   ?                  ; - Tactic point budget -> $0572/$0573: record[2] * 13 / 100, spent by the
+    5910 BattleSideCombatStatsInit    STA $0573          ; $C98D: 8D 73 05
+    7542 AiTacticPointSpend           LDX $0573          ; $D3E7: AE 73 05 ; side B point budget
+==============================================================================
+$574  (31 refs)
+procs: (file-top)(15), Phase8RowCounter574(3), Phase2ActionGate(2), BattleSideStatusCountersDecrement(2), BattleSideStatusCounterDraw(2), AiTacticPointSpend(2), BattleOverlayIntroSkipCheck(1), Phase1RoundPass(1), Phase2ActionSubDispatch(1), Phase3CommandInput(1), PhaseATauntSceneOpen(1)
+mnems: ?(16), LDA(8), STA(4), JSR(3)
+      88 (file-top)                   ?                  ; and no side status counters $0574-$0577 are pending. The panel spends the
+     160 (file-top)                   ?                  ; phase 6 with all per-unit/per-side status slots ($0550-$0557, $0574-$0577)
+     180 BattleOverlayIntroSkipCheck  STA $0574          ; $A0BE: 8D 74 05
+     294 (file-top)                   ?                  ; status counters $0574-$0577 via BattleSideStatusCounterDraw every frame,
+     433 (file-top)                   ?                  ; side status counters $0574-$0577 are ticked down via
+     481 Phase1RoundPass              JSR BattleSideStatusCountersDecrement ; $A297: 20 5B B1 ; tick $0574-$0577
+     887 (file-top)                   ?                  ; ($0574-$0577), polls both pads for player takeover requests
+     895 Phase2ActionSubDispatch      JSR BattleSideStatusCounterDraw ; $A4F7: 20 4C BF ; redraw $0574-$0577
+     923 (file-top)                   ?                  ; status counter $0574 nybble for the scanned board half (low for columns
+     987 Phase2ActionGate             LDA $0574          ; $A59C: AD 74 05 ; side status counter
+     992 Phase2ActionGate             LDA $0574          ; $A5A5: AD 74 05 ; side status counter
+    1925 (file-top)                   ?                  ; $0574-$0577 (own side's nibble clear) commits straight to phase 8 sub 0
+    1955 Phase3CommandInput           LDA $0574          ; $AB1F: AD 74 05 ; side status counters
+    2560 (file-top)                   ?                  ; side status counters $0574-$0577 (the acting side's nibble) - row 3 also
+  ...
+==============================================================================
+$575  (24 refs)
+procs: Phase2AttackRouteResolve(8), (file-top)(4), Phase8RowCounter575(3), AiTacticPointSpend(3), BattleSideStatusCountersDecrement(2), BattleSideStatusCounterDraw(2), BattleOverlayIntroSkipCheck(1), Phase3CommandInput(1)
+mnems: LDA(12), ?(5), STA(4), ORA(2), JSR(1)
+     181 BattleOverlayIntroSkipCheck  STA $0575          ; $A0C1: 8D 75 05
+    1956 Phase3CommandInput           ORA $0575          ; $AB22: 0D 75 05
+    2716 (file-top)                   ?                  ; Row 2. UI $EE, sub-phase++, then sets status counter $0575 to 3 in the
+    2725 Phase8RowCounter575          LDA $0575          ; $B016: AD 75 05 ; status counter 575 (multi-entry: AiTacticPointSpend)
+    2730 Phase8RowCounter575          STA $0575          ; $B022: 8D 75 05
+    2735 Phase8RowCounter575          STA $0575          ; $B02A: 8D 75 05
+    2895 (file-top)                   ?                  ; round pass (each byte holds two nibble counters). $0574/$0575/$0577 use
+    2906 BattleSideStatusCountersDecrement LDA $0575          ; $B16A: AD 75 05
+    2910 BattleSideStatusCountersDecrement STA $0575          ; $B176: 8D 75 05
+    4538 BattleSideStatusCounterDraw  LDA $0575          ; $BF62: AD 75 05
+    4542 BattleSideStatusCounterDraw  LDA $0575          ; $BF6C: AD 75 05
+    5062 (file-top)                   ?                  ; acting side's nibble of $0575 (loaded to 3 by Phase8RowCounter575, ticked
+    5167 Phase2AttackRouteResolve     LDA $0575          ; $C3D8: AD 75 05 ; side range counters
+    5172 Phase2AttackRouteResolve     LDA $0575          ; $C3E2: AD 75 05
+  ...
+==============================================================================
+$576  (16 refs)
+procs: (file-top)(4), Phase8RowCounter576(3), AiTacticPointSpend(3), BattleSideStatusCountersDecrement(2), BattleSideStatusCounterDraw(2), BattleOverlayIntroSkipCheck(1), Phase3CommandInput(1)
+mnems: ?(5), STA(4), LDA(4), ORA(2), JSR(1)
+     182 BattleOverlayIntroSkipCheck  STA $0576          ; $A0C4: 8D 76 05
+    1957 Phase3CommandInput           ORA $0576          ; $AB25: 0D 76 05
+    2740 (file-top)                   ?                  ; Row 3. UI $EF, sub-phase++, sets status counter $0576 to 4 in the acting
+    2743 (file-top)                   ?                  ; replaced by itself + 5 + rand[0,5) (Phase8RowReloadRoll). When a $0576
+    2753 Phase8RowCounter576          LDA $0576          ; $B036: AD 76 05 ; status counter 576 (multi-entry: AiTacticPointSpend)
+    2758 Phase8RowCounter576          STA $0576          ; $B042: 8D 76 05
+    2767 Phase8RowCounter576          STA $0576          ; $B056: 8D 76 05
+    2896 (file-top)                   ?                  ; @NibbleDecrement; $0576 uses @CounterDecrementLatch instead: when one of
+    2911 BattleSideStatusCountersDecrement LDA $0576          ; $B179: AD 76 05
+    2915 BattleSideStatusCountersDecrement STA $0576          ; $B185: 8D 76 05
+    4546 BattleSideStatusCounterDraw  LDA $0576          ; $BF76: AD 76 05
+    4550 BattleSideStatusCounterDraw  LDA $0576          ; $BF80: AD 76 05
+    7512 (file-top)                   ?                  ; cost $08 @Counter576Purchase: status counter $0576 <- 4 plus periodic
+    7533 AiTacticPointSpend           ORA $0576          ; $D3D6: 0D 76 05
+  ...
+==============================================================================
+$577  (31 refs)
+procs: (file-top)(13), Phase8RowCounter577(3), AiTacticPointSpend(3), Phase2AttackComputeWithBonus(2), BattleSideStatusCountersDecrement(2), Phase2AttackArrowSprSubmit(2), BattleSideStatusCounterDraw(2), BattleOverlayIntroSkipCheck(1), Phase1RoundPass(1), Phase2ActionSubDispatch(1), Phase3CommandInput(1)
+mnems: ?(14), LDA(8), STA(4), JSR(3), ORA(2)
+      88 (file-top)                   ?                  ; and no side status counters $0574-$0577 are pending. The panel spends the
+     183 BattleOverlayIntroSkipCheck  STA $0577          ; $A0C7: 8D 77 05
+     294 (file-top)                   ?                  ; status counters $0574-$0577 via BattleSideStatusCounterDraw every frame,
+     433 (file-top)                   ?                  ; side status counters $0574-$0577 are ticked down via
+     481 Phase1RoundPass              JSR BattleSideStatusCountersDecrement ; $A297: 20 5B B1 ; tick $0574-$0577
+     895 Phase2ActionSubDispatch      JSR BattleSideStatusCounterDraw ; $A4F7: 20 4C BF ; redraw $0574-$0577
+    1497 (file-top)                   ?                  ; counter $0577 (low for side A, high for side B) is set - adds a random
+    1507 Phase2AttackComputeWithBonus LDA $0577          ; $A87D: AD 77 05 ; packed bonus counter
+    1528 Phase2AttackComputeWithBonus LDA $0577          ; $A8A6: AD 77 05 ; packed bonus counter
+    1925 (file-top)                   ?                  ; $0574-$0577 (own side's nibble clear) commits straight to phase 8 sub 0
+    1958 Phase3CommandInput           ORA $0577          ; $AB28: 0D 77 05
+    2560 (file-top)                   ?                  ; side status counters $0574-$0577 (the acting side's nibble) - row 3 also
+    2796 (file-top)                   ?                  ; Row 4. UI $F0, sub-phase++, then sets status counter $0577 to 3 in the
+    2805 Phase8RowCounter577          LDA $0577          ; $B084: AD 77 05 ; status counter 577 (multi-entry: AiTacticPointSpend)
+  ...
+==============================================================================
+$578  (4 refs)
+procs: (file-top)(2), Phase8RowCounter576(1), BattleSideStatusCountersDecrement(1)
+mnems: ?(2), STA(1), LDA(1)
+    2742 (file-top)                   ?                  ; current $056A/$056B is saved into the reload latch $0578/$0579 and
+    2769 Phase8RowCounter576          STA $0578          ; $B05C: 8D 78 05 ; save to reload latch
+    2897 (file-top)                   ?                  ; its nibbles reaches zero, the reload values $0578/$0579 are latched into
+    2951 BattleSideStatusCountersDecrement LDA $0578          ; $B1CB: AD 78 05
+==============================================================================
+$579  (4 refs)
+procs: (file-top)(2), Phase8RowCounter576(1), BattleSideStatusCountersDecrement(1)
+mnems: ?(2), STA(1), LDA(1)
+    2742 (file-top)                   ?                  ; current $056A/$056B is saved into the reload latch $0578/$0579 and
+    2760 Phase8RowCounter576          STA $0579          ; $B048: 8D 79 05 ; save to reload latch
+    2897 (file-top)                   ?                  ; its nibbles reaches zero, the reload values $0578/$0579 are latched into
+    2963 BattleSideStatusCountersDecrement LDA $0579          ; $B1E5: AD 79 05
+==============================================================================
+$57A  (11 refs)
+procs: (file-top)(4), AiBattleOrderAssign(3), Phase1AiSideRefresh(2), Phase1CycleInit(1), Phase1RoundPass(1)
+mnems: LDA(5), ?(4), STA(1), INC(1)
+     297 (file-top)                   ?                  ; sub 2 passes the round (incrementing the pass counter $057A and ticking
+     321 Phase1CycleInit              STA $057A          ; $A17C: 8D 7A 05 ; round-pass counter <- 0
+     432 (file-top)                   ?                  ; After the full walk: round-pass counter $057A is incremented, the packed
+     480 Phase1RoundPass              INC $057A          ; $A294: EE 7A 05 ; round-pass counter++
+    6983 (file-top)                   ?                  ; phase $0544, shifted by +4 once the round-pass counter $057A >= 4;
+    7006 Phase1AiSideRefresh          LDA $057A          ; $D06A: AD 7A 05
+    7023 Phase1AiSideRefresh          LDA $057A          ; $D08E: AD 7A 05 ; round-pass counter
+    7076 (file-top)                   ?                  ; AiOrderVectorWindow (offset + 4 once the round-pass counter $057A >= 4)
+    7128 AiBattleOrderAssign          LDA $057A          ; $D124: AD 7A 05 ; round-pass counter
+    7159 AiBattleOrderAssign          LDA $057A          ; $D16E: AD 7A 05 ; round-pass counter
+    7172 AiBattleOrderAssign          LDA $057A          ; $D189: AD 7A 05 ; round-pass counter
+==============================================================================
+$57B  (7 refs)
+procs: BattlePadStateFetch(4), BattleVBlankFrameUpdate(2), (file-top)(1)
+mnems: STA(3), ORA(2), ?(1), LDA(1)
+      33 (file-top)                   ?                  ; input suppressed ($057B=0 is temporarily swapped into the input flags at
+      39 BattleVBlankFrameUpdate      STA $057B          ; $A014: 8D 7B 05
+      43 BattleVBlankFrameUpdate      LDA $057B          ; $A01E: AD 7B 05
+    6391 BattlePadStateFetch          ORA $057B          ; $CCFF: 0D 7B 05
+    6392 BattlePadStateFetch          STA $057B          ; $CD02: 8D 7B 05 ; latch into menu input mask
+    6399 BattlePadStateFetch          ORA $057B          ; $CD12: 0D 7B 05
+    6400 BattlePadStateFetch          STA $057B          ; $CD15: 8D 7B 05
+==============================================================================
+$57C  (27 refs)
+procs: (file-top)(9), AiTacticPointSpend(9), PhaseATauntSceneAdvanceWait(3), PhaseATauntSceneChoice(3), PhaseATauntSceneStep(2), PhaseATauntStripRedraw(1)
+mnems: ?(10), LDY(8), LDA(4), STA(4), STX(1)
+    7045 (file-top)                   ?                  ; == 3) with X = side index (0/1 -> $057C/$0549) and Y = roster base
+    7496 (file-top)                   ?                  ; $057C and mirrored to the acting side $0549), Y = roster base
+    7501 (file-top)                   ?                  ; tactic point budget $0572[$057C] is then mirrored to $0548 and walked
+    7528 AiTacticPointSpend           STX $057C          ; $D3C7: 8E 7C 05 ; AI side index
+    7650 AiTacticPointSpend           LDY $057C          ; $D49D: AC 7C 05 ; side index
+    7727 AiTacticPointSpend           LDY $057C          ; $D549: AC 7C 05 ; side index
+    7789 AiTacticPointSpend           LDY $057C          ; $D5AD: AC 7C 05 ; side index
+    7819 AiTacticPointSpend           LDY $057C          ; $D5D8: AC 7C 05 ; side index
+    7857 AiTacticPointSpend           ?                  ; base ($057C EOR 1, zero/non-zero is all BattleOutnumberedCheck needs), the
+    7866 AiTacticPointSpend           LDA $057C          ; $D616: AD 7C 05 ; side index
+    7881 AiTacticPointSpend           LDY $057C          ; $D632: AC 7C 05 ; side index
+    7947 AiTacticPointSpend           LDY $057C          ; $D6AD: AC 7C 05 ; side index
+    7994 (file-top)                   ?                  ; (PhaseATauntStripRedraw with $057C temporarily flipped) and refetches
+    8004 PhaseATauntSceneAdvanceWait  LDA $057C          ; $D6DD: AD 7C 05 ; side index
+  ...
+==============================================================================
+$57D  (2 refs)
+procs: AiTacticPointSpend(2)
+mnems: STA(1), LDA(1)
+    7599 AiTacticPointSpend           STA $057D          ; $D439: 8D 7D 05 ; zone selector
+    7605 AiTacticPointSpend           LDA $057D          ; $D443: AD 7D 05 ; zone selector
+==============================================================================
+$57E  (7 refs)
+procs: AiTacticPointSpend(7)
+mnems: STA(2), INC(2), LDY(2), ?(1)
+    7601 AiTacticPointSpend           STA $057E          ; $D43E: 8D 7E 05 ; enemy count <- 0
+    7624 AiTacticPointSpend           INC $057E          ; $D46B: EE 7E 05 ; enemy in zone
+    7631 AiTacticPointSpend           LDY $057E          ; $D476: AC 7E 05 ; enemy count
+    7687 AiTacticPointSpend           ?                  ; counting enemy-occupied tiles into $057E across all class-2 units. A
+    7695 AiTacticPointSpend           STA $057E          ; $D508: 8D 7E 05 ; enemy count <- 0
+    7715 AiTacticPointSpend           LDY $057E          ; $D530: AC 7E 05 ; enemy count
+    7748 AiTacticPointSpend           INC $057E          ; $D570: EE 7E 05 ; enemy found
+==============================================================================
+$580  (24 refs)
+procs: (file-top)(21), BattleDefeatEventCheck(1), BattleRetreatEventCheck(1), Phase2WalkDirectionResolve(1)
+mnems: ?(21), LDA(3)
+     194 (file-top)                   ?                  ; $0580 is passed to BattleCellRedraw (skipping $FF slots) with zp $12/$13 params. When
+     328 (file-top)                   ?                  ; event flags $0580/$058B == $FE) and BattleDefeatEventCheck (== $FF) abort
+     492 (file-top)                   ?                  ; Checks the per-side battle event flags ($0580 = side A, $058B = side B)
+     500 BattleDefeatEventCheck       LDA $0580          ; $A2A9: AD 80 05 ; side A event flag
+     572 BattleRetreatEventCheck      LDA $0580          ; $A32F: AD 80 05 ; side A event flag
+    1012 (file-top)                   ?                  ; column's row markers: $054A <- $0580[$0545]<<4, $054B <- $0596[$0545]<<4.
+    1139 (file-top)                   ?                  ; $01, un-highlight, roster slots $0580/$0596/$05AC/$05C2 <- $FF), a
+    1240 (file-top)                   ?                  ; acting column's row markers ($054A <- $0580[Y]<<4, $054B <- $0596[Y]<<4)
+    1421 (file-top)                   ?                  ; $0580[$0545] == 0 for columns 0-$A, or low nibble $F for columns >= $0B),
+    1423 (file-top)                   ?                  ; (Phase1RoundPass), marks the column slots cleared ($0580/$0596 <- $FE,
+    1711 (file-top)                   ?                  ; $0549: 0 -> $0596[X]--, 1 -> $0596[X]++, 2 -> $0580[X]--, 3 -> $0580[X]++
+    3003 (file-top)                   ?                  ; $055B (unit column $0580 << 4). Clears the battle flag $008F.
+    3309 (file-top)                   ?                  ; <= 2 and |unit column $0580 - marker column $001B| <= 2 (both via biased
+    3427 (file-top)                   ?                  ; clears the $58-byte roster block $0580-$05D7 with $FF (unit columns
+  ...
+==============================================================================
+$581  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    7409 (file-top)                   ?                  ; ($0581 column / $05AD troop count), side B from slots $B-$14 ($058C /
+==============================================================================
+$58B  (7 refs)
+procs: (file-top)(4), BattleDefeatEventCheck(1), BattleRetreatEventCheck(1), Phase2WalkDirectionResolve(1)
+mnems: ?(4), LDA(3)
+     328 (file-top)                   ?                  ; event flags $0580/$058B == $FE) and BattleDefeatEventCheck (== $FF) abort
+     492 (file-top)                   ?                  ; Checks the per-side battle event flags ($0580 = side A, $058B = side B)
+     531 BattleDefeatEventCheck       LDA $058B          ; $A2EC: AD 8B 05 ; side B event flag
+     597 BattleRetreatEventCheck      LDA $058B          ; $A366: AD 8B 05 ; side B event flag
+    3446 (file-top)                   ?                  ; ($058B <- $0F - col, rows -> $05A1). In battle phase 5
+    4685 Phase2WalkDirectionResolve   LDA $058B          ; $C077: AD 8B 05 ; enemy commander column
+==============================================================================
+$58C  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    7409 (file-top)                   ?                  ; ($0581 column / $05AD troop count), side B from slots $B-$14 ($058C /
+==============================================================================
+$596  (15 refs)
+procs: (file-top)(13), Phase2WalkDirectionResolve(2)
+mnems: ?(13), LDA(2)
+    1012 (file-top)                   ?                  ; column's row markers: $054A <- $0580[$0545]<<4, $054B <- $0596[$0545]<<4.
+    1139 (file-top)                   ?                  ; $01, un-highlight, roster slots $0580/$0596/$05AC/$05C2 <- $FF), a
+    1240 (file-top)                   ?                  ; acting column's row markers ($054A <- $0580[Y]<<4, $054B <- $0596[Y]<<4)
+    1423 (file-top)                   ?                  ; (Phase1RoundPass), marks the column slots cleared ($0580/$0596 <- $FE,
+    1711 (file-top)                   ?                  ; $0549: 0 -> $0596[X]--, 1 -> $0596[X]++, 2 -> $0580[X]--, 3 -> $0580[X]++
+    3002 (file-top)                   ?                  ; high nibble), start row $055A (unit row $0596 << 4) and start column
+    3308 (file-top)                   ?                  ; Proximity check for roster slot $001C: |unit row $0596 - marker row $001A|
+    3428 (file-top)                   ?                  ; $0580/$058B, unit rows $0596/$05A1, roster codes $05C2/$05CD, column troop count
+    3748 (file-top)                   ?                  ; column layouts ($0580/$058B), entries 6-11 row layouts ($0596/$05A1).
+    3834 (file-top)                   ?                  ; $0013 roster slot (0-$15; column $0580[Y], row $0596[Y]).
+    4097 (file-top)                   ?                  ; ($0580[Y],$0596[Y]) and ORs the matching mask into $0000 (bits are
+    4390 (file-top)                   ?                  ; <- $0580[$0545]<<4, X offset <- $0596[$0545]<<4, stream ptr <-
+    4693 Phase2WalkDirectionResolve   LDA $0596          ; $C08C: AD 96 05 ; enemy commander row
+    4708 Phase2WalkDirectionResolve   LDA $0596          ; $C0AF: AD 96 05 ; enemy commander row
+  ...
+==============================================================================
+$5A1  (2 refs)
+procs: Phase2WalkDirectionResolve(2)
+mnems: LDA(2)
+    4687 Phase2WalkDirectionResolve   LDA $05A1          ; $C07D: AD A1 05 ; enemy commander row
+    4702 Phase2WalkDirectionResolve   LDA $05A1          ; $C0A1: AD A1 05 ; enemy commander row
+==============================================================================
+$5AC  (25 refs)
+procs: (file-top)(13), Phase4ResultRetreatInputWait(3), AiTacticPointSpend(2), BattleDefeatEventCheck(1), Phase4ResultColumnDamageSelect(1), Phase3CommandPanelInit(1), BattleRosterSetup(1), BattleOverlayTotalRefresh(1), BattlePanelStatsRefresh(1), Phase5SideEventClose(1)
+mnems: ?(14), LDA(8), STA(3)
+     503 BattleDefeatEventCheck       LDA $05AC          ; $A2B0: AD AC 05
+     656 (file-top)                   ?                  ; drains one side's troop count ($05AC side A / $05B7 side B, selected by scan
+     774 Phase4ResultRetreatInputWait LDA $05AC          ; $A458: AD AC 05 ; side A troop count
+     778 Phase4ResultRetreatInputWait LDA $05AC          ; $A461: AD AC 05 ; clamp: drain all
+     782 Phase4ResultRetreatInputWait STA $05AC          ; $A469: 8D AC 05
+     858 Phase4ResultColumnDamageSelect LDA $05AC          ; $A4D8: AD AC 05 ; side A troop count
+    1138 (file-top)                   ?                  ; troop count $05AC[$054A]; a drained column is eliminated (panel update with amount
+    1139 (file-top)                   ?                  ; $01, un-highlight, roster slots $0580/$0596/$05AC/$05C2 <- $FF), a
+    1312 (file-top)                   ?                  ; $05AC[$054D]. A drained column is eliminated (panel update, un-highlight,
+    1582 (file-top)                   ?                  ; percentage chosen from the target troop count $05AC[$0545] (tier table 20/40/50/
+    1843 Phase3CommandPanelInit       LDA $05AC          ; $AA63: AD AC 05 ; side A column-0 troop count
+    3204 (file-top)                   ?                  ; $0548 = 0..$0A): dead units ($05AC == 0) are cleared from the OAM via BattleCellRedraw
+    3334 (file-top)                   ?                  ; to unit troop count $05AC[$001C] (clamped at zero; on clamp the pre-damage troop count is
+    3429 (file-top)                   ?                  ; $05AD/$05B8, side troop counts $05AC/$05B7).
+  ...
+==============================================================================
+$5AD  (4 refs)
+procs: (file-top)(4)
+mnems: ?(4)
+    3429 (file-top)                   ?                  ; $05AD/$05B8, side troop counts $05AC/$05B7).
+    3434 (file-top)                   ?                  ; ($05AD/$05B8): the first (troops mod count) columns get the ceil
+    6009 (file-top)                   ?                  ; 10 per-unit HP values ($05AD-$05B6 side A / $05B8-$05C1 side B, $FF empty
+    7409 (file-top)                   ?                  ; ($0581 column / $05AD troop count), side B from slots $B-$14 ($058C /
+==============================================================================
+$5B6  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    6009 (file-top)                   ?                  ; 10 per-unit HP values ($05AD-$05B6 side A / $05B8-$05C1 side B, $FF empty
+==============================================================================
+$5B7  (15 refs)
+procs: (file-top)(3), Phase4ResultRetreatInputWait(3), AiTacticPointSpend(2), BattleDefeatEventCheck(1), Phase4ResultColumnDamageSelect(1), Phase3CommandPanelInit(1), BattleRosterSetup(1), BattleOverlayTotalRefresh(1), BattlePanelStatsRefresh(1), Phase5SideEventClose(1)
+mnems: LDA(8), ?(4), STA(3)
+     534 BattleDefeatEventCheck       LDA $05B7          ; $A2F3: AD B7 05
+     656 (file-top)                   ?                  ; drains one side's troop count ($05AC side A / $05B7 side B, selected by scan
+     788 Phase4ResultRetreatInputWait LDA $05B7          ; $A473: AD B7 05 ; side B troop count
+     792 Phase4ResultRetreatInputWait LDA $05B7          ; $A47C: AD B7 05 ; clamp: drain all
+     796 Phase4ResultRetreatInputWait STA $05B7          ; $A484: 8D B7 05
+     861 Phase4ResultColumnDamageSelect LDA $05B7          ; $A4E0: AD B7 05 ; side B troop count
+    1846 Phase3CommandPanelInit       LDA $05B7          ; $AA6B: AD B7 05 ; side B column-0 troop count
+    3584 BattleRosterSetup            STA $05B7          ; $B64F: 8D B7 05 ; side B troop count
+    6008 (file-top)                   ?                  ; ($05AC side A / $05B7 side B), record[8/9] <- 16-bit sum of the side's
+    6047 BattleOverlayTotalRefresh    LDA $05B7          ; $CA89: AD B7 05
+    6240 BattlePanelStatsRefresh      LDA $05B7          ; $CC01: AD B7 05 ; side B commander troop count
+    6537 (file-top)                   ?                  ; B1F_GetOfficerRecordAddr) into $05AC/$05B7. Marks a retreat (strip flag
+    6555 Phase5SideEventClose         STA $05B7          ; $CDEB: 8D B7 05 ; side B troop count
+    7900 AiTacticPointSpend           ?                  ; bonuses $0570/$0571 and commander troop counts $05AC/$05B7 of both
+  ...
+==============================================================================
+$5B8  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    6009 (file-top)                   ?                  ; 10 per-unit HP values ($05AD-$05B6 side A / $05B8-$05C1 side B, $FF empty
+==============================================================================
+$5C1  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    6009 (file-top)                   ?                  ; 10 per-unit HP values ($05AD-$05B6 side A / $05B8-$05C1 side B, $FF empty
+==============================================================================
+$5C2  (16 refs)
+procs: (file-top)(15), AiTacticPointSpend(1)
+mnems: ?(16)
+     332 (file-top)                   ?                  ; battle roster $05C2 column by column ($0545) through the side groups in
+     917 (file-top)                   ?                  ; selection gate. Otherwise the cursor column's status $05C2[$0545] decides:
+    1135 (file-top)                   ?                  ; back to $05C2[$0545] and computes the damage inflicted on column $054A:
+    1139 (file-top)                   ?                  ; $01, un-highlight, roster slots $0580/$0596/$05AC/$05C2 <- $FF), a
+    1309 (file-top)                   ?                  ; recorded status $054C to $05C2[$0545], copies the target column $054D to
+    1424 (file-top)                   ?                  ; $05C2 <- $FF) and pops the caller return address so the rest of the frame
+    1770 (file-top)                   ?                  ; column's roster status $05C2[$0545], preserving the low nibble (action
+    3001 (file-top)                   ?                  ; 0 for side 0, $0B for side 1): direction code $0559 (roster byte $05C2
+    3369 (file-top)                   ?                  ; ($05C2 low nibble) takes one third via B1F_MathDiv16 doubled. Result in
+    3428 (file-top)                   ?                  ; $0580/$058B, unit rows $0596/$05A1, roster codes $05C2/$05CD, column troop count
+    3441 (file-top)                   ?                  ; class 1 ($31/$21); roster codes go to $05C2/$05CD (high nibble =
+    4199 (file-top)                   ?                  ; ((($05C2[high nibble]>>2) | ($05C2 & 3)) * 4). One 4-byte 2x2 tile set
+    4211 (file-top)                   ?                  ; status $05C2[$0545] (high nibble = unit status, bits 1:0 = action bits)
+    4666 (file-top)                   ?                  ; slot 0 for side-B actors). The column status low nibble ($05C2[$0545])
+  ...
+==============================================================================
+$5CD  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    3441 (file-top)                   ?                  ; class 1 ($31/$21); roster codes go to $05C2/$05CD (high nibble =
+==============================================================================
+$5D7  (1 refs)
+procs: (file-top)(1)
+mnems: ?(1)
+    3427 (file-top)                   ?                  ; clears the $58-byte roster block $0580-$05D7 with $FF (unit columns
+==============================================================================
+$7D0  (1 refs)
+procs: OfficerBattleExpLevelCheck(1)
+mnems: ?(1)
+    8241 OfficerBattleExpLevelCheck   ?                  ; require $03E8/$07D0/$0DAC/$1388/$1D4C/$2710/$3A98 to reach the next level.
+==============================================================================
+$7F2  (4 refs)
+procs: BattleAnimSoundEngine(4)
+mnems: STA(2), ORA(1), BIT(1)
+    8330 BattleAnimSoundEngine        STA $07F2          ; $D8E5: 8D F2 07
+    8375 BattleAnimSoundEngine        ORA $07F2          ; $D949: 0D F2 07
+    8376 BattleAnimSoundEngine        STA $07F2          ; $D94C: 8D F2 07
+    8769 BattleAnimSoundEngine        BIT $07F2          ; $DC37: 2C F2 07
+==============================================================================
+$7F3  (5 refs)
+procs: BattleAnimSoundEngine(5)
+mnems: LDY(3), STA(1), LDA(1)
+    8336 BattleAnimSoundEngine        STA $07F3          ; $D8F1: 8D F3 07
+    8373 BattleAnimSoundEngine        LDY $07F3          ; $D943: AC F3 07
+    8634 BattleAnimSoundEngine        LDA $07F3          ; $DB4A: AD F3 07
+    8648 BattleAnimSoundEngine        LDY $07F3          ; $DB65: AC F3 07
+    8767 BattleAnimSoundEngine        LDY $07F3          ; $DC31: AC F3 07
+==============================================================================
+$7F4  (11 refs)
+procs: BattleAnimSoundEngine(7), BattleSoundChannelProc(4)
+mnems: BIT(9), STA(1), ?(1)
+    8342 BattleAnimSoundEngine        STA $07F4          ; $D8FD: 8D F4 07
+    8470 BattleAnimSoundEngine        BIT $07F4          ; $DA05: 2C F4 07
+    8481 BattleAnimSoundEngine        BIT $07F4          ; $DA1D: 2C F4 07
+    8520 BattleAnimSoundEngine        BIT $07F4          ; $DA67: 2C F4 07
+    8615 BattleAnimSoundEngine        BIT $07F4          ; $DB2C: 2C F4 07
+    8726 BattleAnimSoundEngine        BIT $07F4          ; $DBF6: 2C F4 07
+    8776 BattleAnimSoundEngine        BIT $07F4          ; $DC3F: 2C F4 07
+    8830 BattleSoundChannelProc       BIT $07F4          ; $DC90: 2C F4 07
+    8863 BattleSoundChannelProc       BIT $07F4          ; $DCDB: 2C F4 07
+    8894 BattleSoundChannelProc       ?                  ; $DD56: 00 01 82 43 04 05 06 07 ; per-channel mode byte -> $07F4
+    8981 BattleSoundChannelProc       BIT $07F4          ; $DF71: 2C F4 07
+==============================================================================
+$7F5  (5 refs)
+procs: BattleSoundChannelProc(4), BattleAnimSoundEngine(1)
+mnems: LDY(4), STA(1)
+    8340 BattleAnimSoundEngine        STA $07F5          ; $D8F7: 8D F5 07
+    8878 BattleSoundChannelProc       LDY $07F5          ; $DCFF: AC F5 07
+    8994 BattleSoundChannelProc       LDY $07F5          ; $DF87: AC F5 07
+    9020 BattleSoundChannelProc       LDY $07F5          ; $DFB1: AC F5 07
+    9024 BattleSoundChannelProc       LDY $07F5          ; $DFB5: AC F5 07
+==============================================================================
+$7F6  (2 refs)
+procs: BattleAnimSoundEngine(2)
+mnems: ORA(1), STA(1)
+    8686 BattleAnimSoundEngine        ORA $07F6          ; $DBAB: 0D F6 07
+    8687 BattleAnimSoundEngine        STA $07F6          ; $DBAE: 8D F6 07
+==============================================================================
+$7F7  (21 refs)
+procs: BattleAnimSoundEngine(13), BattleSoundChannelProc(8)
+mnems: STA(9), LDA(5), ORA(4), ASL(1), ROR(1), ROL(1)
+    8401 BattleAnimSoundEngine        ORA $07F7          ; $D977: 0D F7 07
+    8480 BattleAnimSoundEngine        STA $07F7          ; $DA1A: 8D F7 07
+    8488 BattleAnimSoundEngine        LDA $07F7          ; $DA2E: AD F7 07
+    8540 BattleAnimSoundEngine        ORA $07F7          ; $DA90: 0D F7 07
+    8611 BattleAnimSoundEngine        STA $07F7          ; $DB21: 8D F7 07
+    8614 BattleAnimSoundEngine        LDA $07F7          ; $DB29: AD F7 07
+    8643 BattleAnimSoundEngine        STA $07F7          ; $DB59: 8D F7 07
+    8653 BattleAnimSoundEngine        ASL $07F7          ; $DB70: 0E F7 07
+    8674 BattleAnimSoundEngine        ROR $07F7          ; $DB90: 6E F7 07
+    8692 BattleAnimSoundEngine        LDA $07F7          ; $DBB8: AD F7 07
+    8717 BattleAnimSoundEngine        STA $07F7          ; $DBE6: 8D F7 07
+    8783 BattleAnimSoundEngine        STA $07F7          ; $DC4B: 8D F7 07
+    8789 BattleAnimSoundEngine        STA $07F7          ; $DC54: 8D F7 07
+    8806 BattleSoundChannelProc       STA $07F7          ; $DC60: 8D F7 07 ; clear freq shift acc
+  ...
+==============================================================================
+$7F8  (5 refs)
+procs: BattleAnimSoundEngine(5)
+mnems: STA(2), ROL(1), LSR(1), LDA(1)
+    8645 BattleAnimSoundEngine        STA $07F8          ; $DB5F: 8D F8 07
+    8654 BattleAnimSoundEngine        ROL $07F8          ; $DB73: 2E F8 07
+    8673 BattleAnimSoundEngine        LSR $07F8          ; $DB8D: 4E F8 07
+    8690 BattleAnimSoundEngine        LDA $07F8          ; $DBB4: AD F8 07
+    8719 BattleAnimSoundEngine        STA $07F8          ; $DBEB: 8D F8 07
+==============================================================================
+$7F9  (2 refs)
+procs: BattleAnimSoundEngine(1), BattleSoundChannelProc(1)
+mnems: INC(1), LDA(1)
+    8331 BattleAnimSoundEngine        INC $07F9          ; $D8E8: EE F9 07
+    8871 BattleSoundChannelProc       LDA $07F9          ; $DCEF: AD F9 07

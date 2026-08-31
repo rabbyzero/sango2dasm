@@ -24,7 +24,7 @@
 ; $E9BA-$EC66  Math Library         BCD<->binary, 16/24-bit div, 24x8/24x16
 ;                                   mul, mul-div-100, callback dispatcher
 ; $EC67-$ED18  Palette Animation    Color rotation effects
-; $ED19-$EE51  Menu Cursor System   8 entry points (1-8 items/page), D-pad
+; $ED19-$EE4D  Menu Cursor System   8 entry points (1-8 items/page), D-pad
 ;                                   navigation, banked callback trampoline
 ; $EE53-$F076  NMI Sub-Dispatch     BG/sprite/attribute tile writers
 ; $F077-$F2AE  OAM/CHR/Window       Sprite OAM writers, CHR bank switch,
@@ -2413,18 +2413,12 @@ ptr_hi   = $0C
   PHA                                           ; $EE3F: 48
   LDA addr_trampoline_saved_bank                ; $EE40: AD 58 00
   PHA                                           ; $EE43: 48
-  LDA #$EE                                      ; $EE44: A9 EE
+  LDA #<(@return_addr-1)                        ; $EE44: A9 EE  return addr low = $EE4C
   PHA                                           ; $EE46: 48
-  LDA #$4C                                      ; $EE47: A9 4C
+  LDA #>(@return_addr-1)                        ; $EE47: A9 4C  return addr high = $EE
   PHA                                           ; $EE49: 48
   JMP (addr_trampoline_target_lo)               ; $EE4A: 6C 5B 00
-.endproc
-
-;===============================================================================
-; $EE4D: Banked Callback Return
-; Restores PRG banks after banked call completes
-;===============================================================================
-.proc BankedCallbackReturn
+@return_addr:
   PLA                                           ; $EE4D: 68
   TAY                                           ; $EE4E: A8
   JSR SwitchBankAC_B                            ; $EE4F: 20 37 F2
