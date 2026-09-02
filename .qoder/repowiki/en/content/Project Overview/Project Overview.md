@@ -14,6 +14,7 @@
 - [tools/generate_bank_stubs.py](file://tools/generate_bank_stubs.py)
 - [tools/disasm_6502.py](file://tools/disasm_6502.py)
 - [tools/verify_rom.py](file://tools/verify_rom.py)
+- [tools/rename_battle_to_war.py](file://tools/rename_battle_to_war.py)
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [asm/banks/prg_00.asm](file://asm/banks/prg_00.asm)
@@ -31,11 +32,13 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation of the new knowledge base structure covering 15 structured documents transcribed from original Japanese manual scans
-- Enhanced terminology standardization section with detailed coverage of the semantic English glossary system
-- Updated project structure documentation to include the knowledge base as a core component
-- Expanded educational value section to highlight the knowledge base's role in preserving game terminology and mechanics
-- Added new sections covering knowledge base integration and terminology-driven development workflow
+- Updated terminology throughout to reflect major alignment from 'battle' to 'war' across the entire codebase
+- Revised references to battle systems and related functionality to use war terminology consistently
+- Updated strategic command names (LandDevelop → LandReclamation, FloodControl → DisasterPrevention, CastleRepair → UnidentifiedCmd)
+- Enhanced Section 7 coverage with comprehensive war system documentation for combined banks 08+09
+- Updated all function declarations and labels to use War* prefix instead of Battle*
+- Refined knowledge base integration to support consistent war-focused terminology
+- Added siege ladder reference fix from 雲梯 to 連弩 in strategic tables
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -54,6 +57,8 @@
 This project is a complete reverse engineering and disassembly effort for the Namco-163 (Mapper 19) strategy game Sangokushi 2 - Haou no Tairiku (J) for the Nintendo Entertainment System (NES). The goal is to produce a faithful, byte-accurate recreation of the original ROM using modern tooling and a modular, bank-based organization. The project covers 32 programmable PRG banks (256KB) and mirrors the game's mapper abstraction to support 8KB bank switching across four PRG slots ($8000–$FFFF). It also documents the reset handler, vector dispatch mechanism, and the bank-switched code that implements gameplay states, display, audio, and I/O.
 
 Beyond technical reconstruction, this project serves as an educational resource for retro gaming preservation. It demonstrates how to split, analyze, and rebuild a complex mapper-based ROM while maintaining byte-for-byte fidelity, and it provides a reusable framework applicable to other games using similar mappers. **The project now includes a comprehensive knowledge base structure containing 15 structured documents transcribed from the original Japanese manual scans**, establishing a canonical reference framework for terminology standardization and game mechanics understanding throughout the disassembly process.
+
+**Updated** The project has undergone a major terminology alignment across the entire codebase, systematically replacing 'battle' terminology with 'war' to better reflect the game's strategic warfare focus. This includes renaming core functions, data structures, and system components to use War* prefixes instead of Battle*, ensuring consistency with the game's actual terminology and improving clarity for developers working with the codebase. The automated `rename_battle_to_war.py` tool ensures consistent application of these changes across all relevant files including PRG banks, function headers, and assembly code.
 
 ## Project Structure
 The repository is organized around a modular bank-based approach and a cc65 toolchain integration, enhanced by a structured knowledge base system. The structure supports incremental disassembly and verification:
@@ -113,6 +118,8 @@ L --> G
 - Mapper abstraction: include/namco163.h defines register addresses, bank indices, and macros for bank switching, enabling consistent mapper usage across code.
 - Reset handler and vector dispatch: asm/main.asm and asm/banks/prg_1f.asm implement the reset routine and a vector table-driven state machine that dispatches to game logic across banks.
 - **Knowledge base framework**: Structured documentation system providing canonical terminology and game mechanics reference for consistent disassembly naming and understanding.
+
+**Updated** The core components now feature a comprehensive war system implementation with standardized terminology throughout. All battle-related functionality has been renamed to use War* prefixes, including WarSetup, WarPhaseProcess, WarCasualtyResolution, and WarResultDispatch, reflecting the game's focus on strategic warfare rather than individual battles. The automated terminology alignment tool ensures consistency across all war-related components.
 
 Practical outcomes:
 - Byte-accurate ROM verification against the original
@@ -187,6 +194,8 @@ The consolidated semantic English glossary ([terminology.md](file://docs/manual_
 - **Mode Hierarchy**: Clear distinction between Strategy Mode, Tactical Mode, Battle Mode, and Duel Mode
 - **Statistical Terminology**: Canonical names for officer stats, country data, and game variables
 
+**Updated** The terminology system now emphasizes war-focused language throughout, with systematic replacement of battle-related terms with war equivalents. This includes strategic command names such as LandReclamation (formerly LandDevelop), DisasterPrevention (formerly FloodControl), and UnidentifiedCmd (formerly CastleRepair), ensuring consistency with the game's actual terminology. The automated `rename_battle_to_war.py` tool applies these changes consistently across all code files.
+
 ```mermaid
 flowchart TD
 KB[Knowledge Base] --> TERM[Terminology Glossary]
@@ -241,14 +250,21 @@ RST->>ST1 : Jump to State 1
 - [asm/banks/prg_1f.asm:74-148](file://asm/banks/prg_1f.asm#L74-L148)
 - [code/bank_1f_plan.md:8-18](file://code/bank_1f_plan.md#L8-L18)
 
-### Enhanced Section 7: Combined Banks 08+09 - AI Turn Processing and Battle System
-**Updated** Enhanced Section 7 coverage now includes comprehensive jump-table entries and internal procedures for combined banks 08+09 with B08_09_* prefixed function declarations. This section implements the core AI turn processing and battle system functionality.
+### Enhanced Section 7: Combined Banks 08+09 - AI Turn Processing and War System
+**Updated** Enhanced Section 7 coverage now includes comprehensive jump-table entries and internal procedures for combined banks 08+09 with B08_09_* prefixed function declarations. This section implements the core AI turn processing and war system functionality with standardized war terminology throughout.
 
 The combined banks 08+09 provide a 16KB memory space ($A000-$DFFF) containing:
-- **Jump Table Entry Points**: 14 entry points at $A000-$A02A handling AI turn processing, battle setup, casualty resolution, and result scenes
+- **Jump Table Entry Points**: 14 entry points at $A000-$A02A handling AI turn processing, war setup, casualty resolution, and result scenes
 - **AI Decision Engine**: Complete AI officer action system with strategic decision-making, movement planning, and combat evaluation
-- **Battle System**: Full battle phase processing including unit positioning, combat calculations, and result scene management
+- **War System**: Full war phase processing including unit positioning, combat calculations, and result scene management
 - **Strategic Elements**: Formation management, terrain effects, and special officer validation
+
+**Updated Terminology**: All war-related functions now use War* prefix instead of Battle*:
+- WarSetup_Entry, WarPhaseProcess_Entry, WarCasualtyResolution_Entry
+- WarAttritionRound_Entry, WarStatusPanelDraw_Entry, WarMapScrollUpdate_Entry
+- WarResultDispatch_Entry, WarResultSceneInit_Entry, WarSlotClear_Entry
+
+The automated terminology alignment tool (`rename_battle_to_war.py`) ensures consistent application of these changes across all war-related components, including RAM equates, procedure labels, and entry stubs.
 
 ```mermaid
 flowchart TD
@@ -256,12 +272,11 @@ AITP[AiTurnProcess_Entry] --> AILOOP[Officer Loop]
 AILOOP --> DECIDE[AiOfficerActionDecide]
 DECIDE --> ACTION[Action Handler]
 ACTION --> MOVE[AiExecuteMove]
-ACTION --> ATTACK[Battle Setup]
+ACTION --> ATTACK[War Setup]
 MOVE --> EVAL[Evaluate Options]
-ATTACK --> PHASE[BattlePhaseProcess]
-PHASE --> RESOLVE[Casualty Resolution]
-RESOLVE --> RESULT[BattleResultDispatch]
-RESULT --> SCENE[BattleResultSceneInit]
+ATTACK --> PHASE[WarPhaseProcess]
+PHASE --> RESOLVE[WarResultDispatch]
+RESOLVE --> SCENE[WarResultSceneInit]
 SCENE --> MENU[Menu Interaction]
 MENU --> FINALIZE[Finalize Results]
 ```
@@ -374,6 +389,8 @@ PRG2 --> PRG3
 - Build with cc65 and verify byte-for-byte against the original
 - **Use knowledge base terminology for consistent labeling throughout the process**
 
+**Updated** The workflow now incorporates the standardized war terminology system, ensuring that all labels and procedures use consistent War* prefixes and strategic command names like LandReclamation and DisasterPrevention. The automated `rename_battle_to_war.py` tool can be applied to maintain consistency across all war-related components.
+
 ```mermaid
 sequenceDiagram
 participant Dev as "Developer"
@@ -382,6 +399,7 @@ participant Analyze as "analyze_rom.py"
 participant Stubs as "generate_bank_stubs.py"
 participant Disasm as "disasm_6502.py"
 participant KB as "Knowledge Base"
+participant Rename as "rename_battle_to_war.py"
 participant Build as "Makefile + ld65"
 participant Verify as "verify_rom.py"
 Dev->>Split : Split original ROM
@@ -392,6 +410,8 @@ Dev->>Stubs : Generate bank stubs
 Stubs-->>Dev : .asm stubs for all banks
 Dev->>KB : Consult terminology guide
 KB-->>Dev : Canonical naming conventions
+Dev->>Rename : Apply war terminology
+Rename-->>Dev : Updated labels and functions
 Dev->>Disasm : Disassemble boot bank (0x1F)
 Disasm-->>Dev : Listing with addresses
 Dev->>Build : Assemble and link
@@ -405,6 +425,7 @@ Verify-->>Dev : Byte-accurate pass/fail
 - [tools/analyze_rom.py:10-128](file://tools/analyze_rom.py#L10-L128)
 - [tools/generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46)
 - [tools/disasm_6502.py:286-334](file://tools/disasm_6502.py#L286-L334)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 - [Makefile:37-48](file://Makefile#L37-L48)
 - [tools/verify_rom.py:10-51](file://tools/verify_rom.py#L10-L51)
 
@@ -414,6 +435,7 @@ Verify-->>Dev : Byte-accurate pass/fail
 - [tools/analyze_rom.py:10-128](file://tools/analyze_rom.py#L10-L128)
 - [tools/generate_bank_stubs.py:12-46](file://tools/generate_bank_stubs.py#L12-L46)
 - [tools/disasm_6502.py:286-334](file://tools/disasm_6502.py#L286-L334)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 - [Makefile:37-48](file://Makefile#L37-L48)
 - [tools/verify_rom.py:10-51](file://tools/verify_rom.py#L10-L51)
 
@@ -424,6 +446,8 @@ The project exhibits strong cohesion within its modular bank structure and clean
 - Bank stubs in asm/banks/ depend on rom/prg/ for original binary inclusion and on linker.cfg for segment placement
 - Tools are decoupled and invoked via Makefile targets, enabling reproducible builds
 - **Knowledge base documents provide cross-references between game mechanics and implementation details**
+
+**Updated** The dependency analysis now includes the automated terminology alignment tool (rename_battle_to_war.py) which ensures consistency across all war-related components. This tool processes multiple file types including assembly code, function headers, and documentation to maintain consistent war-focused terminology throughout the codebase.
 
 ```mermaid
 graph TB
@@ -436,6 +460,7 @@ ROM["rom/prg/*.bin"]
 MK["Makefile"]
 TOOLS["tools/*"]
 KB["docs/manual_kb/*"]
+RENAME["rename_battle_to_war.py"]
 MAIN --> REG
 MAIN --> MAP
 STUBS --> ROM
@@ -445,6 +470,9 @@ MK --> LCFG
 MK --> TOOLS
 KB --> STUBS
 KB --> TOOLS
+RENAME --> STUBS
+RENAME --> TOOLS
+RENAME --> KB
 ```
 
 **Diagram sources**
@@ -453,6 +481,7 @@ KB --> TOOLS
 - [include/6502_registers.h:5-43](file://include/6502_registers.h#L5-L43)
 - [linker.cfg:18-54](file://linker.cfg#L18-54)
 - [Makefile:19-28](file://Makefile#L19-L28)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 **Section sources**
 - [asm/main.asm:6-7](file://asm/main.asm#L6-L7)
@@ -468,6 +497,8 @@ KB --> TOOLS
 - AI processing efficiency: The enhanced Section 7 implementation optimizes AI turn processing through efficient officer scanning and decision trees.
 - **Knowledge base integration**: Terminology consistency reduces cognitive load during development and maintenance, improving overall productivity.
 
+**Updated** The performance considerations now include the benefits of standardized war terminology, which improves code readability and reduces confusion when working with war-related systems. The automated terminology alignment tool helps maintain this consistency without manual intervention, reducing potential errors and improving development efficiency.
+
 ## Troubleshooting Guide
 Common issues and remedies:
 - Incorrect bank mapping: Ensure bank indices and switch addresses are aligned with include/namco163.h and linker.cfg. Misalignment leads to incorrect code execution or crashes.
@@ -477,13 +508,22 @@ Common issues and remedies:
 - Section 7 integration: When working with combined banks 08+09, ensure proper bank switching between $A000-$BFFF and $C000-$DFFF ranges.
 - **Terminology inconsistencies**: Refer to docs/manual_kb/terminology.md for canonical naming conventions when creating new labels or procedures.
 
+**Updated** Additional troubleshooting guidance for terminology issues:
+- **War vs Battle terminology**: Use rename_battle_to_war.py to automatically align terminology across the codebase
+- **Strategic command names**: Verify that commands use updated names (LandReclamation, DisasterPrevention, UnidentifiedCmd)
+- **Function naming**: Ensure all war-related functions use War* prefix instead of Battle*
+- **Siege equipment references**: Check for correct siege ladder terminology (連弩 vs 雲梯) in strategic tables
+
 **Section sources**
 - [include/namco163.h:10-87](file://include/namco163.h#L10-L87)
 - [linker.cfg:18-54](file://linker.cfg#L18-54)
 - [tools/verify_rom.py:10-51](file://tools/verify_rom.py#L10-L51)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 ## Conclusion
-This project demonstrates a robust, modular approach to reverse engineering a mapper-based NES game. By combining a mapper abstraction, bank-stubbed assembly, an automated analysis pipeline, and a comprehensive knowledge base framework, it achieves both educational clarity and technical fidelity. The enhanced Section 7 coverage for combined banks 08+09 provides comprehensive documentation of the AI turn processing and battle system, contributing significantly to understanding the game's strategic mechanics. **The addition of the knowledge base structure represents a major advancement in the project's ability to preserve and communicate game terminology and mechanics.** The workflow from ROM splitting to verified disassembly provides a template applicable to other classic games, contributing to the preservation and understanding of NES architecture.
+This project demonstrates a robust, modular approach to reverse engineering a mapper-based NES game. By combining a mapper abstraction, bank-stubbed assembly, an automated analysis pipeline, and a comprehensive knowledge base framework, it achieves both educational clarity and technical fidelity. The enhanced Section 7 coverage for combined banks 08+09 provides comprehensive documentation of the AI turn processing and war system, contributing significantly to understanding the game's strategic mechanics. **The addition of the knowledge base structure represents a major advancement in the project's ability to preserve and communicate game terminology and mechanics.** The workflow from ROM splitting to verified disassembly provides a template applicable to other classic games, contributing to the preservation and understanding of NES architecture.
+
+**Updated** The major terminology alignment from 'battle' to 'war' throughout the codebase represents a significant improvement in clarity and consistency. This systematic renaming of core functions, data structures, and system components ensures that the disassembly accurately reflects the game's strategic warfare focus and provides a more intuitive development experience for contributors working with the war system components. The automated `rename_battle_to_war.py` tool ensures that this terminology consistency is maintained across all relevant files, making the codebase more maintainable and easier to understand for future contributors.
 
 ## Appendices
 
@@ -491,8 +531,14 @@ This project demonstrates a robust, modular approach to reverse engineering a ma
 - Bank switching: The act of replacing the contents of an 8KB window in the $8000–$FFFF range by writing to special addresses. This lets a cartridge fit more code than the console's fixed window allows.
 - Vector dispatch: A table of addresses that the reset handler consults to decide where to jump next. It enables a compact dispatch mechanism across many states.
 - Mapper abstraction: Encapsulating mapper-specific details (register addresses, bank indices, macros) in a single header file simplifies code reuse and reduces errors.
-- Combined banks: Multiple 8KB banks can be logically combined to create larger functional units, such as the 16KB AI and battle system in banks 08+09.
+- Combined banks: Multiple 8KB banks can be logically combined to create larger functional units, such as the 16KB AI and war system in banks 08+09.
 - **Knowledge base utilization**: The structured documentation system provides authoritative references for game terminology, mechanics, and implementation guidance throughout the disassembly process.
+
+**Updated** New concepts specific to the war system:
+- **War terminology**: Systematic use of 'war' instead of 'battle' to reflect the strategic nature of the game's conflict resolution
+- **War system components**: WarSetup, WarPhaseProcess, WarCasualtyResolution, and WarResultDispatch handle the complete war lifecycle
+- **Strategic commands**: Updated command names like LandReclamation and DisasterPrevention reflect the game's strategic focus
+- **Automated terminology alignment**: The rename_battle_to_war.py tool ensures consistent application of war terminology across all code files
 
 **Section sources**
 - [PROJECT.md:84-117](file://PROJECT.md#L84-L117)
@@ -505,11 +551,18 @@ This project demonstrates a robust, modular approach to reverse engineering a ma
 - Section 7 development: When extending the AI system, maintain consistency with existing B08_09_* naming conventions and follow the established jump table pattern.
 - **Knowledge base integration**: Leverage the terminology glossary and game mechanics documentation to ensure consistent naming and understanding across all disassembled components.
 
+**Updated** Additional guidance for war system development:
+- **Terminology alignment**: Use rename_battle_to_war.py to ensure consistent war terminology across all components
+- **War function patterns**: Follow established patterns for War* prefixed functions in the war system
+- **Strategic command implementation**: Implement commands using updated names (LandReclamation, DisasterPrevention, UnidentifiedCmd)
+- **Siege equipment references**: Use correct siege ladder terminology (連弩 vs 雲梯) in strategic tables and comments
+
 **Section sources**
 - [linker.cfg:32-54](file://linker.cfg#L32-L54)
 - [PROJECT.md:134-151](file://PROJECT.md#L134-L151)
 - [tools/disasm_6502.py:286-334](file://tools/disasm_6502.py#L286-L334)
 - [include/functions.h:887-1071](file://include/functions.h#L887-L1071)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 ### Knowledge Base Integration Guide
 **New** The knowledge base serves as a central reference for understanding game mechanics and ensuring consistent terminology throughout the disassembly process.
@@ -525,6 +578,13 @@ This project demonstrates a robust, modular approach to reverse engineering a ma
 3. **For understanding game logic**: Reference specific mechanic documents for accurate implementation
 4. **During code review**: Verify terminology consistency against the knowledge base
 
+**Updated** Enhanced usage patterns for war system development:
+- **War terminology verification**: Cross-reference war-related components with terminology.md to ensure consistent 'war' vs 'battle' usage
+- **Strategic command alignment**: Verify command names match updated terminology (LandReclamation, DisasterPrevention, UnidentifiedCmd)
+- **War system consistency**: Use rename_battle_to_war.py to maintain terminology consistency across war-related code
+- **Siege equipment accuracy**: Ensure correct siege ladder terminology (連弩 vs 雲梯) in strategic tables and documentation
+
 **Section sources**
 - [docs/manual_kb/README.md:1-97](file://docs/manual_kb/README.md#L1-L97)
 - [docs/manual_kb/terminology.md:1-293](file://docs/manual_kb/terminology.md#L1-L293)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)

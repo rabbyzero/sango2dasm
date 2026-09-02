@@ -11,6 +11,9 @@
 - [verify_coverage.py](file://tools/verify_coverage.py)
 - [verify_disasm.py](file://tools/verify_disasm.py)
 - [verify_f3bd_f667.py](file://tools/verify_f3bd_f667.py)
+- [verify_19_1a.py](file://tools/verify_19_1a.py)
+- [verify_1b_1c.py](file://tools/verify_1b_1c.py)
+- [verify_0e_0f.py](file://tools/verify_0e_0f.py)
 - [analyze_b517.py](file://tools/analyze_b517.py)
 - [check_continuity.py](file://tools/check_continuity.py)
 - [fix_asm_errors.py](file://tools/fix_asm_errors.py)
@@ -27,15 +30,18 @@
 - [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [all_banks.asm](file://asm/banks/all_banks.asm)
 - [prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
+- [prg_19_1a.asm](file://asm/banks/prg_19_1a.asm)
+- [prg_1b_1c.asm](file://asm/banks/prg_1b_1c.asm)
+- [prg_0e_0f.asm](file://asm/banks/prg_0e_0f.asm)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for new inline dispatcher analysis tool (analyze_b517.py) that validates the Loc_B517 dispatch mechanism in prg_08
-- Enhanced verification system with specialized region verification tools (verify_b130_bab2.py and verify_find_region.py) for targeted byte-level validation against original ROM data
-- Expanded verification ecosystem to include coverage analysis, disassembly verification, and specialized bank validation tools
+- Added comprehensive documentation for new combined bank verification tools (verify_19_1a.py and verify_1b_1c.py) that provide zero mismatch guarantees for paired bank combinations
+- Enhanced verification system with specialized tools for banks $19+$1A and $1B+$1C with automated stub generation and external reference handling
+- Updated verify_0e_0f.py with external RAM global declarations for menu cursor positioning ($0424/$0425) and war scene state variables ($0500-$0501)
+- Expanded verification ecosystem to include sophisticated combined bank validation with automatic assembly harness generation
 - Updated verification pipeline diagrams to reflect the enhanced multi-layered validation approach with specialized tools for different ROM regions and mechanisms
-- Added detailed analysis of inline dispatcher mechanism validation and its integration with the build system
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -46,20 +52,21 @@
 6. [Enhanced Verification Pipeline](#enhanced-verification-pipeline)
 7. [Range-Based Verification](#range-based-verification)
 8. [Specialized Bank Validation](#specialized-bank-validation)
-9. [Inline Dispatcher Mechanism Analysis](#inline-dispatcher-mechanism-analysis)
-10. [Region-Specific Verification](#region-specific-verification)
-11. [Coverage and Disassembly Verification](#coverage-and-disassembly-verification)
-12. [Gap Detection and Continuity Validation](#gap-detection-and-continuity-validation)
-13. [Assembly Error Correction](#assembly-error-correction)
-14. [Dependency Analysis](#dependency-analysis)
-15. [Performance Considerations](#performance-considerations)
-16. [Troubleshooting Guide](#troubleshooting-guide)
-17. [Conclusion](#conclusion)
+9. [Combined Bank Verification](#combined-bank-verification)
+10. [Inline Dispatcher Mechanism Analysis](#inline-dispatcher-mechanism-analysis)
+11. [Region-Specific Verification](#region-specific-verification)
+12. [Coverage and Disassembly Verification](#coverage-and-disassembly-verification)
+13. [Gap Detection and Continuity Validation](#gap-detection-and-continuity-validation)
+14. [Assembly Error Correction](#assembly-error-correction)
+15. [Dependency Analysis](#dependency-analysis)
+16. [Performance Considerations](#performance-considerations)
+17. [Troubleshooting Guide](#troubleshooting-guide)
+18. [Conclusion](#conclusion)
 
 ## Introduction
 This document explains the comprehensive ROM verification system used to ensure byte-exact accuracy between rebuilt ROMs and the original Sangokushi 2 game. The verification mechanism performs both comprehensive ROM-level validation and targeted range-based validation to validate disassembly correctness and maintain project quality throughout the development lifecycle.
 
-The verification workflow integrates with the broader build pipeline: ROM splitting, assembly, linking, and final ROM construction. It reports mismatches with precise byte-level details and calculates accuracy metrics to guide iterative improvements. The system now includes a sophisticated suite of specialized tools for validating specific memory ranges, inline dispatcher mechanisms, and complex disassembly workflows including combined bank validation and paired bank combinations.
+The verification workflow integrates with the broader build pipeline: ROM splitting, assembly, linking, and final ROM construction. It reports mismatches with precise byte-level details and calculates accuracy metrics to guide iterative improvements. The system now includes a sophisticated suite of specialized tools for validating specific memory ranges, inline dispatcher mechanisms, and complex disassembly workflows including combined bank validation and paired bank combinations with zero mismatch guarantees.
 
 The enhanced verification system provides multiple layers of validation from full ROM comparison down to individual byte-level accuracy checks, ensuring comprehensive coverage of all aspects of the disassembly process while maintaining high performance and actionable feedback for developers.
 
@@ -71,6 +78,12 @@ The verification system spans several specialized tools and build targets, now e
 - **Range verification**: validates specific memory ranges within disassembly files
 - **Byte-level validation**: performs precise byte-by-byte comparison for individual banks
 - **Paired bank validation**: verifies paired banks ($0A/$0B) as a unified 16KB block
+
+### Combined Bank Verification Tools
+- **Combined bank verification**: validates paired banks ($19/$1A, $1B/$1C) as unified 16KB blocks with zero mismatch guarantees
+- **Automated stub generation**: automatically creates external reference stubs for isolated compilation
+- **External RAM handling**: manages cross-bank RAM dependencies with proper global declarations
+- **Independent assembly**: compiles combined bank files in isolation against original ROM data
 
 ### Specialized Analysis Tools
 - **Inline dispatcher analysis**: analyzes Loc_B517 dispatch mechanism in prg_08
@@ -95,13 +108,16 @@ F["verify_rom.py<br/>Full ROM comparison"] --> G["Full ROM Report<br/>Mismatches
 H["verify_range.py<br/>Range validation"] --> I["Range Report<br/>Targeted validation"]
 J["verify_1d_bytes.py<br/>Byte-level validation"] --> K["Bank $1D Validation<br/>Exact byte comparison"]
 L["verify_0a_0b.py<br/>Paired bank validation"] --> M["$0A+$0B Validation<br/>16KB combined verification"]
-N["analyze_b517.py<br/>Dispatcher analysis"] --> O["Loc_B517 Analysis<br/>Inline dispatcher mechanism"]
-P["verify_b130_bab2.py<br/>Battle block verification"] --> Q["Battle Block Validation<br/>$B130-$BAB2 region"]
-R["verify_find_region.py<br/>Function verification"] --> S["AiFindNearbyOfficers<br/>$A8D3-$A943 validation"]
-T["verify_coverage.py<br/>Coverage analysis"] --> U["Coverage Report<br/>Address completeness"]
-V["verify_disasm.py<br/>Disassembly check"] --> W["Instruction Verification<br/>Known addresses"]
-X["check_continuity.py<br/>Gap detection"] --> Y["Continuity Report<br/>Address gaps/overlaps"]
-Z["fix_asm_errors.py<br/>Assembly correction"] --> AA["Corrected Assembly<br/>Fixed syntax errors"]
+N["verify_19_1a.py<br/>Combined bank verification"] --> O["$19+$1A Validation<br/>Zero mismatch guarantee"]
+P["verify_1b_1c.py<br/>Combined bank verification"] --> Q["$1B+$1C Validation<br/>Zero mismatch guarantee"]
+R["verify_0e_0f.py<br/>Enhanced verification"] --> S["$0E+$0F Validation<br/>External RAM globals"]
+T["analyze_b517.py<br/>Dispatcher analysis"] --> U["Loc_B517 Analysis<br/>Inline dispatcher mechanism"]
+V["verify_b130_bab2.py<br/>Battle block verification"] --> W["Battle Block Validation<br/>$B130-$BAB2 region"]
+X["verify_find_region.py<br/>Function verification"] --> Y["AiFindNearbyOfficers<br/>$A8D3-$A943 validation"]
+Z["verify_coverage.py<br/>Coverage analysis"] --> AA["Coverage Report<br/>Address completeness"]
+BB["verify_disasm.py<br/>Disassembly check"] --> CC["Instruction Verification<br/>Known addresses"]
+DD["check_continuity.py<br/>Gap detection"] --> EE["Continuity Report<br/>Address gaps/overlaps"]
+FF["fix_asm_errors.py<br/>Assembly correction"] --> GG["Corrected Assembly<br/>Fixed syntax errors"]
 E --> F
 A --> F
 E --> H
@@ -110,19 +126,25 @@ Q --> L
 O --> N
 P --> P
 R --> R
-T --> T
-V --> V
+U --> T
+W --> V
 Y --> X
 AA --> Z
+CC --> BB
+EE --> DD
+GG --> FF
 ```
 
 **Diagram sources**
 - [Makefile:58-62](file://Makefile#L58-L62)
 - [split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
 - [verify_rom.py:10-73](file://tools/verify_rom.py#L10-L73)
-- [verify_range.py:1-62](file://tools/verify_range.py#L1-62)
-- [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-75)
-- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-28)
+- [verify_range.py:1-62](file://tools/verify_range.py#L1-L62)
+- [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-L75)
+- [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
+- [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
+- [verify_0e_0f.py:1-97](file://tools/verify_0e_0f.py#L1-L97)
 - [analyze_b517.py:1-135](file://tools/analyze_b517.py#L1-L135)
 - [verify_b130_bab2.py:1-62](file://tools/verify_b130_bab2.py#L1-L62)
 - [verify_find_region.py:1-55](file://tools/verify_find_region.py#L1-L55)
@@ -154,21 +176,21 @@ The range validation tool focuses on specific memory ranges within disassembly f
 - Binary comparison: compares disassembly annotations against actual ROM binary data
 - Targeted reporting: focuses on mismatches within validated ranges
 
-### Specialized Analysis Tools
-New specialized tools provide deep analysis capabilities:
+### Combined Bank Verification Tools
+New specialized tools provide sophisticated combined bank validation:
 
-#### Inline Dispatcher Analysis (analyze_b517.py)
-- **Mechanism Discovery**: Identifies and analyzes inline dispatcher patterns in code
-- **Call Site Analysis**: Examines how dispatchers are called and indexed
-- **Table Structure Validation**: Verifies .word table format and entry counts
-- **Target Resolution**: Maps dispatcher indices to actual function addresses
-- **Code Flow Analysis**: Ensures proper return flow after handler execution
+#### Combined Bank Verification (verify_19_1a.py and verify_1b_1c.py)
+- **Isolated Compilation**: Assembles combined bank files independently with proper segment organization
+- **Automatic Stub Generation**: Creates external reference stubs for cross-bank dependencies
+- **Memory Layout Management**: Sets correct .org directives for bank base addresses ($A000, $C000)
+- **Zero Mismatch Guarantee**: Compares assembled output directly against original ROM data
+- **External Reference Handling**: Automatically detects and stubs JSR/JMP references to external addresses
 
-#### Region Verification Tools
-- **Battle Block Verification (verify_b130_bab2.py)**: Validates battle result processing code
-- **Function Verification (verify_find_region.py)**: Checks specific functions like AiFindNearbyOfficers
-- **Automated Build Integration**: Assembles and links test harnesses automatically
-- **Binary Comparison**: Compiles test code and compares against original ROM
+#### Enhanced Region Verification (verify_0e_0f.py)
+- **External RAM Globals**: Manages cross-bank RAM dependencies with proper global declarations
+- **Menu Cursor Positioning**: Handles menu_cursor_col ($0424) and menu_cursor_page ($0425)
+- **War Scene State**: Manages war_scene_id ($0500) and war_scene_phase ($0501)
+- **Comprehensive Stubbing**: Combines external code references with RAM global declarations
 
 ### Coverage and Disassembly Verification
 - **Coverage Analysis (verify_coverage.py)**: Ensures complete address range validation
@@ -205,6 +227,9 @@ The syntax correction tool automates assembly error fixes:
 - [verify_range.py:1-62](file://tools/verify_range.py#L1-L62)
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-L75)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
+- [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
+- [verify_0e_0f.py:1-97](file://tools/verify_0e_0f.py#L1-L97)
 - [analyze_b517.py:1-135](file://tools/analyze_b517.py#L1-L135)
 - [verify_b130_bab2.py:1-62](file://tools/verify_b130_bab2.py#L1-L62)
 - [verify_find_region.py:1-55](file://tools/verify_find_region.py#L1-L55)
@@ -227,6 +252,9 @@ participant VerifyFull as "verify_rom.py"
 participant VerifyRange as "verify_range.py"
 participant VerifyBank1D as "verify_1d_bytes.py"
 participant Verify0A0B as "verify_0a_0b.py"
+participant Verify191A as "verify_19_1a.py"
+participant Verify1B1C as "verify_1b_1c.py"
+participant Verify0E0F as "verify_0e_0f.py"
 participant AnalyzeDisp as "analyze_b517.py"
 participant VerifyRegion as "verify_b130_bab2.py"
 participant VerifyFunc as "verify_find_region.py"
@@ -244,6 +272,21 @@ Make->>VerifyFull : compare original vs rebuilt
 VerifyFull->>Orig : read original ROM
 VerifyFull->>VerifyFull : compare byte-by-byte
 VerifyFull-->>Dev : report full ROM mismatches + accuracy
+Make->>Verify191A : verify combined banks $19+$1A
+Verify191A->>Verify191A : generate external stubs
+Verify191A->>Verify191A : compile isolated combined bank
+Verify191A->>Verify191A : compare against original ROM
+Verify191A-->>Dev : report zero mismatch validation
+Make->>Verify1B1C : verify combined banks $1B+$1C
+Verify1B1C->>Verify1B1C : generate external stubs
+Verify1B1C->>Verify1B1C : compile isolated combined bank
+Verify1B1C->>Verify1B1C : compare against original ROM
+Verify1B1C-->>Dev : report zero mismatch validation
+Make->>Verify0E0F : verify enhanced combined banks $0E+$0F
+Verify0E0F->>Verify0E0F : add external RAM globals
+Verify0E0F->>Verify0E0F : compile with RAM dependencies
+Verify0E0F->>Verify0E0F : compare against original ROM
+Verify0E0F-->>Dev : report enhanced validation
 Make->>AnalyzeDisp : analyze inline dispatcher
 AnalyzeDisp->>AnalyzeDisp : parse prg_08.bin
 AnalyzeDisp->>AnalyzeDisp : identify Loc_B517 pattern
@@ -278,6 +321,9 @@ FixErr-->>Dev : return corrected assembly
 - [verify_range.py:1-62](file://tools/verify_range.py#L1-L62)
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-L75)
 - [verify_0a_0b.py:1-28](file://tools/verify_0a_0b.py#L1-L28)
+- [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
+- [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
+- [verify_0e_0f.py:1-97](file://tools/verify_0e_0f.py#L1-L97)
 - [analyze_b517.py:1-135](file://tools/analyze_b517.py#L1-L135)
 - [verify_b130_bab2.py:1-62](file://tools/verify_b130_bab2.py#L1-L62)
 - [verify_find_region.py:1-55](file://tools/verify_find_region.py#L1-L55)
@@ -319,6 +365,75 @@ ExitCode --> |No| Fail["Exit 1"]
 
 **Section sources**
 - [verify_rom.py:10-73](file://tools/verify_rom.py#L10-L73)
+
+### Combined Bank Verification Algorithm
+The new combined bank verification tools implement sophisticated isolated compilation and validation:
+
+```mermaid
+flowchart TD
+Start(["Start"]) --> LoadASM["Load combined bank ASM<br/>(prg_19_1a.asm or prg_1b_1c.asm)"]
+LoadASM --> FixSegments["Fix segment .org directives<br/>($A000 for first bank,<br/>$C000 for second bank)"]
+FixSegments --> ScanRefs["Scan for JSR/JMP references<br/>to external addresses"]
+ScanRefs --> GenerateStubs["Generate external stubs<br/>for cross-bank dependencies"]
+GenerateStubs --> CreateHarness["Create isolated assembly harness<br/>with stubs and RAM globals"]
+CreateHarness --> Compile["Compile with ca65<br/>(isolated environment)"]
+Compile --> Link["Link with ld65<br/>(custom memory map)"]
+Link --> LoadOutput["Load compiled output<br/>(bank1.bin + bank2.bin)"]
+LoadOutput --> LoadOriginal["Load original ROM banks<br/>(prg_19.bin + prg_1a.bin)"]
+LoadOriginal --> CompareBytes["Compare bytes sequentially<br/>with zero tolerance"]
+CompareBytes --> Mismatch{"Bytes differ?"}
+Mismatch --> |Yes| CountMismatch["Increment mismatch count<br/>+ show first 30 details"]
+Mismatch --> |No| NextByte["Advance index"]
+CountMismatch --> NextByte
+NextByte --> EndCheck{"Reached end?"}
+EndCheck --> |Yes| FinalReport["Print total mismatches<br/>and pass/fail status"]
+EndCheck --> |No| CompareBytes
+FinalReport --> ExitCode{"Zero mismatches?"}
+ExitCode --> |Yes| Success["Exit 0 - Zero mismatch guarantee"]
+ExitCode --> |No| Fail["Exit 1 - Mismatches found"]
+```
+
+**Diagram sources**
+- [verify_19_1a.py:16-90](file://tools/verify_19_1a.py#L16-L90)
+- [verify_1b_1c.py:16-90](file://tools/verify_1b_1c.py#L16-L90)
+
+**Section sources**
+- [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
+- [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
+
+### Enhanced Region Verification Algorithm
+The enhanced verify_0e_0f.py tool implements sophisticated external RAM management:
+
+```mermaid
+flowchart TD
+Start(["Start"]) --> LoadASM["Load combined bank ASM<br/>(prg_0e_0f.asm)"]
+LoadASM --> FixSegments["Fix segment .org directives<br/>($A000 for bank $0E,<br/>$C000 for bank $0F)"]
+FixSegments --> ScanRefs["Scan for JSR/JMP references<br/>to external addresses"]
+ScanRefs --> GenerateStubs["Generate external code stubs"]
+GenerateStubs --> AddRAMGlobals["Add external RAM globals:<br/>menu_cursor_col=$0424<br/>menu_cursor_page=$0425<br/>war_scene_id=$0500<br/>war_scene_phase=$0501"]
+AddRAMGlobals --> CreateHarness["Create isolated assembly harness<br/>with code stubs + RAM globals"]
+CreateHarness --> Compile["Compile with ca65<br/>(isolated environment)"]
+Compile --> Link["Link with ld65<br/>(custom memory map)"]
+Link --> LoadOutput["Load compiled output<br/>(bank0e.bin + bank0f.bin)"]
+LoadOutput --> LoadOriginal["Load original ROM banks<br/>(prg_0e.bin + prg_0f.bin)"]
+LoadOriginal --> CompareBytes["Compare bytes sequentially<br/>with zero tolerance"]
+CompareBytes --> Mismatch{"Bytes differ?"}
+Mismatch --> |Yes| CountMismatch["Increment mismatch count<br/>+ show first 30 details"]
+Mismatch --> |No| NextByte["Advance index"]
+CountMismatch --> NextByte
+NextByte --> EndCheck{"Reached end?"}
+EndCheck --> |Yes| FinalReport["Print total mismatches<br/>and pass/fail status"]
+EndCheck --> |No| CompareBytes
+FinalReport --> ExitCode{"Zero mismatches?"}
+ExitCode --> |Yes| Success["Exit 0 - Zero mismatch guarantee"]
+ExitCode --> |No| Fail["Exit 1 - Mismatches found"]
+```
+
+**Diagram sources**
+- [verify_0e_0f.py:16-97](file://tools/verify_0e_0f.py#L16-L97)
+
+**Section sources**
+- [verify_0e_0f.py:1-97](file://tools/verify_0e_0f.py#L1-L97)
 
 ### Inline Dispatcher Mechanism Analysis
 The analyze_b517.py tool implements sophisticated inline dispatcher analysis:
@@ -632,6 +747,13 @@ All verification tools employ deterministic methodologies:
 - First-mismatch tracking: records the first mismatch address for quick navigation
 - Limited visibility: displays only the first N mismatches to keep logs readable
 
+#### Combined Bank Verification
+- Isolated compilation: compiles combined bank files independently with proper memory layout
+- Automatic stub generation: creates external reference stubs for cross-bank dependencies
+- Zero tolerance: requires exact byte-for-byte match with original ROM data
+- External dependency management: handles both code references and RAM globals
+- Memory layout enforcement: sets correct .org directives for bank base addresses
+
 #### Inline Dispatcher Analysis
 - Pattern recognition: identifies JSR $B517 calls and their inline tables
 - Call site analysis: examines context around each dispatcher usage
@@ -685,6 +807,9 @@ This methodology ensures reproducible results and clear actionable feedback for 
 
 **Section sources**
 - [verify_rom.py:27-73](file://tools/verify_rom.py#L27-L73)
+- [verify_19_1a.py:16-90](file://tools/verify_19_1a.py#L16-L90)
+- [verify_1b_1c.py:16-90](file://tools/verify_1b_1c.py#L16-L90)
+- [verify_0e_0f.py:16-97](file://tools/verify_0e_0f.py#L16-L97)
 - [analyze_b517.py:19-135](file://tools/analyze_b517.py#L19-L135)
 - [verify_b130_bab2.py:12-62](file://tools/verify_b130_bab2.py#L12-L62)
 - [verify_find_region.py:12-55](file://tools/verify_find_region.py#L12-L55)
@@ -704,6 +829,20 @@ All verification tools produce structured output:
 - Mismatch details (address, original byte, rebuilt byte)
 - Total mismatches and accuracy percentage
 - First mismatch address for rapid investigation
+
+#### Combined Bank Verification
+- External stub count and types
+- Compilation and linking status
+- Zero mismatch validation result
+- Detailed mismatch reporting with first 30 examples
+- Pass/fail status with exit codes
+
+#### Enhanced Region Verification
+- External RAM global declarations
+- Cross-bank dependency management
+- Compilation status with RAM dependencies
+- Binary comparison results with detailed mismatch information
+- Zero mismatch guarantee validation
 
 #### Inline Dispatcher Analysis
 - Caller site identification with context
@@ -761,6 +900,9 @@ Exit codes:
 
 **Section sources**
 - [verify_rom.py:18-73](file://tools/verify_rom.py#L18-L73)
+- [verify_19_1a.py:74-90](file://tools/verify_19_1a.py#L74-L90)
+- [verify_1b_1c.py:74-90](file://tools/verify_1b_1c.py#L74-L90)
+- [verify_0e_0f.py:81-97](file://tools/verify_0e_0f.py#L81-L97)
 - [analyze_b517.py:19-135](file://tools/analyze_b517.py#L19-L135)
 - [verify_b130_bab2.py:50-62](file://tools/verify_b130_bab2.py#L50-L62)
 - [verify_find_region.py:43-55](file://tools/verify_find_region.py#L43-L55)
@@ -789,6 +931,9 @@ participant Asm as "Assembler"
 participant Link as "Linker"
 participant Build as "build_nes.py"
 participant VerifyFull as "verify_rom.py"
+participant Verify191A as "verify_19_1a.py"
+participant Verify1B1C as "verify_1b_1c.py"
+participant Verify0E0F as "verify_0e_0f.py"
 participant AnalyzeDisp as "analyze_b517.py"
 participant VerifyRegion as "verify_b130_bab2.py"
 participant VerifyFunc as "verify_find_region.py"
@@ -816,6 +961,21 @@ Build-->>Make : sango2.nes
 Dev->>Make : make verify
 Make->>VerifyFull : full ROM comparison
 VerifyFull-->>Dev : comprehensive report
+Make->>Verify191A : verify combined banks $19+$1A
+Verify191A->>Verify191A : generate external stubs
+Verify191A->>Verify191A : compile isolated combined bank
+Verify191A->>Verify191A : compare against original ROM
+Verify191A-->>Dev : zero mismatch validation
+Make->>Verify1B1C : verify combined banks $1B+$1C
+Verify1B1C->>Verify1B1C : generate external stubs
+Verify1B1C->>Verify1B1C : compile isolated combined bank
+Verify1B1C->>Verify1B1C : compare against original ROM
+Verify1B1C-->>Dev : zero mismatch validation
+Make->>Verify0E0F : verify enhanced combined banks $0E+$0F
+Verify0E0F->>Verify0E0F : add external RAM globals
+Verify0E0F->>Verify0E0F : compile with RAM dependencies
+Verify0E0F->>Verify0E0F : compare against original ROM
+Verify0E0F-->>Dev : enhanced validation
 Make->>AnalyzeDisp : analyze inline dispatcher
 AnalyzeDisp-->>Dev : dispatcher mechanism analysis
 Make->>VerifyRegion : verify battle block region
@@ -843,6 +1003,9 @@ FixErr-->>Dev : corrected assembly output
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
 - [build_nes.py:10-51](file://tools/build_nes.py#L10-L51)
 - [verify_rom.py:10-73](file://tools/verify_rom.py#L10-L73)
+- [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
+- [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
+- [verify_0e_0f.py:1-97](file://tools/verify_0e_0f.py#L1-L97)
 - [analyze_b517.py:1-135](file://tools/analyze_b517.py#L1-L135)
 - [verify_b130_bab2.py:1-62](file://tools/verify_b130_bab2.py#L1-L62)
 - [verify_find_region.py:1-55](file://tools/verify_find_region.py#L1-L55)
@@ -865,6 +1028,20 @@ Common scenarios and how to interpret results:
 - Mismatches present: shows total mismatches, accuracy percentage, and first mismatch address
 - Size mismatch warning: indicates padding or header differences; investigate build configuration
 - First mismatch address: use to locate the problematic area in the disassembly or assembly
+
+#### Combined Bank Verification
+- Zero mismatch guarantee: confirms combined bank files are byte-for-byte identical to original ROM
+- External stub generation: shows number of cross-bank dependencies automatically handled
+- Compilation status: indicates successful isolated compilation with proper memory layout
+- Mismatch details: shows first 30 mismatches with exact addresses and byte values
+- Pass/fail status: exit code 0 indicates perfect match, non-zero indicates discrepancies
+
+#### Enhanced Region Verification
+- External RAM globals: shows cross-bank RAM dependencies properly declared
+- Menu cursor positioning: handles menu_cursor_col ($0424) and menu_cursor_page ($0425)
+- War scene state: manages war_scene_id ($0500) and war_scene_phase ($0501)
+- Zero mismatch validation: confirms combined bank files match original ROM exactly
+- Dependency management: demonstrates proper handling of cross-bank RAM references
 
 #### Inline Dispatcher Analysis
 - Caller site identification: shows where JSR $B517 is used with context
@@ -920,6 +1097,9 @@ These outputs guide targeted fixes and iterative improvements across different v
 
 **Section sources**
 - [verify_rom.py:22-73](file://tools/verify_rom.py#L22-L73)
+- [verify_19_1a.py:74-90](file://tools/verify_19_1a.py#L74-L90)
+- [verify_1b_1c.py:74-90](file://tools/verify_1b_1c.py#L74-L90)
+- [verify_0e_0f.py:81-97](file://tools/verify_0e_0f.py#L81-L97)
 - [analyze_b517.py:19-135](file://tools/analyze_b517.py#L19-L135)
 - [verify_b130_bab2.py:50-62](file://tools/verify_b130_bab2.py#L50-L62)
 - [verify_find_region.py:43-55](file://tools/verify_find_region.py#L43-L55)
@@ -936,11 +1116,11 @@ These outputs guide targeted fixes and iterative improvements across different v
 - After editing bank stubs: mismatches often appear near the edited region; use first mismatch address to focus analysis
 - After linker updates: mismatches may shift due to segment placement; re-run verification to confirm resolution
 - Post-disasm: mismatches indicate incorrect disassembly or missing bank segments in the linker configuration
+- Combined bank validation: zero mismatch guarantees ensure $19+$1A and $1B+$1C combinations are byte-exact
+- Enhanced region verification: external RAM globals properly handle cross-bank dependencies for $0E+$0F
 - Inline dispatcher analysis: identifies incorrect disassembly of inline tables as code instead of data
 - Region verification failures: indicate specific corruption or annotation errors within targeted regions
 - Coverage gaps: suggest incomplete disassembly or missing address comments in output files
-- Combined bank validation: ensures $1D/$1E integration maintains byte-exact accuracy
-- Paired bank validation: ensures $0A/$0B combination maintains byte-exact accuracy across 16KB boundary
 - Continuity issues: gaps or overlaps in combined bank files indicate structural problems
 - Assembly syntax errors: illegal addressing modes require correction before successful assembly
 
@@ -950,6 +1130,9 @@ These outputs guide targeted fixes and iterative improvements across different v
 - [verify_range.py:30-31](file://tools/verify_range.py#L30-L31)
 - [verify_1d_bytes.py:34-39](file://tools/verify_1d_bytes.py#L34-L39)
 - [verify_0a_0b.py:17-20](file://tools/verify_0a_0b.py#L17-L20)
+- [verify_19_1a.py:74-90](file://tools/verify_19_1a.py#L74-L90)
+- [verify_1b_1c.py:74-90](file://tools/verify_1b_1c.py#L74-L90)
+- [verify_0e_0f.py:81-97](file://tools/verify_0e_0f.py#L81-L97)
 - [check_continuity.py:58-64](file://tools/check_continuity.py#L58-L64)
 - [analyze_b517.py:124-135](file://tools/analyze_b517.py#L124-L135)
 - [verify_b130_bab2.py:50-62](file://tools/verify_b130_bab2.py#L50-L62)
@@ -969,6 +1152,8 @@ These outputs guide targeted fixes and iterative improvements across different v
 - Check memory mapping: verify that address calculations align with expected bank layouts
 - Validate combined bank integrity: use gap detection tools to ensure continuity in $1D/$1E files
 - Validate paired bank integrity: use paired bank validation tools to ensure $0A/$0B combination accuracy
+- Use combined bank verification: run verify_19_1a.py and verify_1b_1c.py for zero mismatch guarantees
+- Use enhanced region verification: run verify_0e_0f.py for external RAM dependency validation
 - Correct assembly syntax errors: use error correction tools to fix illegal addressing modes
 - Perform byte-level validation: use specialized tools to verify exact byte correspondence
 - Check coverage completeness: use verify_coverage.py to ensure all expected addresses are analyzed
@@ -984,6 +1169,9 @@ These outputs guide targeted fixes and iterative improvements across different v
 - [verify_coverage.py:20-35](file://tools/verify_coverage.py#L20-L35)
 - [verify_range.py:36-39](file://tools/verify_range.py#L36-L39)
 - [verify_0a_0b.py:17-20](file://tools/verify_0a_0b.py#L17-L20)
+- [verify_19_1a.py:74-90](file://tools/verify_19_1a.py#L74-L90)
+- [verify_1b_1c.py:74-90](file://tools/verify_1b_1c.py#L74-L90)
+- [verify_0e_0f.py:81-97](file://tools/verify_0e_0f.py#L81-L97)
 - [check_continuity.py:58-64](file://tools/check_continuity.py#L58-L64)
 - [fix_asm_errors.py:18-29](file://tools/fix_asm_errors.py#L18-L29)
 - [verify_1d_bytes.py:54-61](file://tools/verify_1d_bytes.py#L54-61)
@@ -1065,6 +1253,52 @@ ExitCode --> |No| Fail["Exit 1"]
 
 **Section sources**
 - [verify_1d_bytes.py:1-75](file://tools/verify_1d_bytes.py#L1-L75)
+
+## Combined Bank Verification
+The enhanced verification system now includes sophisticated combined bank verification tools that provide zero mismatch guarantees for paired bank combinations:
+
+### Combined Bank Verification Methodology
+The new verification tools (verify_19_1a.py and verify_1b_1c.py) implement advanced isolated compilation and validation:
+
+- **Isolated Compilation**: Compiles combined bank files independently with proper memory layout
+- **Automatic Stub Generation**: Creates external reference stubs for cross-bank dependencies
+- **Memory Layout Management**: Sets correct .org directives for bank base addresses ($A000, $C000)
+- **Zero Mismatch Guarantee**: Requires exact byte-for-byte match with original ROM data
+- **External Reference Handling**: Automatically detects and stubs JSR/JMP references to external addresses
+
+### Supported Combined Bank Pairs
+- **Banks $19+$1A**: Verified by verify_19_1a.py with zero mismatch guarantee
+- **Banks $1B+$1C**: Verified by verify_1b_1c.py with zero mismatch guarantee  
+- **Banks $0E+$0F**: Enhanced by verify_0e_0f.py with external RAM global support
+
+### External RAM Global Management
+The enhanced verify_0e_0f.py tool manages cross-bank RAM dependencies:
+
+- **Menu Cursor Positioning**: Handles menu_cursor_col ($0424) and menu_cursor_page ($0425)
+- **War Scene State**: Manages war_scene_id ($0500) and war_scene_phase ($0501)
+- **Cross-Bank Dependencies**: Properly declares external RAM globals for isolated compilation
+- **Dependency Resolution**: Ensures proper handling of RAM references between bank pairs
+
+### Key Features
+- **Automated Stub Creation**: Generates external code reference stubs automatically
+- **Memory Layout Enforcement**: Ensures correct segment organization and addressing
+- **Comprehensive Validation**: Compiles and links in isolation against original ROM data
+- **Detailed Reporting**: Shows first 30 mismatches with exact addresses and byte values
+- **Zero Tolerance**: Requires perfect byte-for-byte match with original ROM
+
+### Usage in Development Workflow
+The combined bank verification tools are essential for maintaining accuracy:
+
+- **Incremental Validation**: Verify combined bank pairs without rebuilding entire ROM
+- **Dependency Management**: Handle cross-bank code and RAM dependencies automatically
+- **Quality Assurance**: Ensure combined bank files maintain byte-exact accuracy
+- **Debugging Support**: Quickly identify issues in combined bank relationships
+- **Regression Testing**: Verify that changes don't break combined bank functionality
+
+**Section sources**
+- [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
+- [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
+- [verify_0e_0f.py:1-97](file://tools/verify_0e_0f.py#L1-L97)
 
 ## Inline Dispatcher Mechanism Analysis
 The new inline dispatcher analysis capability provides specialized verification for the Loc_B517 dispatch mechanism:
@@ -1262,6 +1496,15 @@ VerifyBank1D["verify_1d_bytes.py"] --> Bank1D["Bank $1D Binary<br/>prg_1d.bin"]
 VerifyBank1D --> FinalASM["Final Assembly<br/>(/tmp/prg_1d_final.asm)"]
 Verify0A0B["verify_0a_0b.py"] --> OriginalROM["Original ROM"]
 Verify0A0B --> TestBin["Test Build<br/>build/prg_0a_0b_test.bin"]
+Verify191A["verify_19_1a.py"] --> ASM191A["Combined ASM<br/>prg_19_1a.asm"]
+Verify191A --> ROM19["ROM Bank $19<br/>rom/prg/prg_19.bin"]
+Verify191A --> ROM1A["ROM Bank $1A<br/>rom/prg/prg_1a.bin"]
+Verify1B1C["verify_1b_1c.py"] --> ASM1B1C["Combined ASM<br/>prg_1b_1c.asm"]
+Verify1B1C --> ROM1B["ROM Bank $1B<br/>rom/prg/prg_1b.bin"]
+Verify1B1C --> ROM1C["ROM Bank $1C<br/>rom/prg/prg_1c.bin"]
+Verify0E0F["verify_0e_0f.py"] --> ASM0E0F["Combined ASM<br/>prg_0e_0f.asm"]
+Verify0E0F --> ROM0E["ROM Bank $0E<br/>rom/prg/prg_0e.bin"]
+Verify0E0F --> ROM0F["ROM Bank $0F<br/>rom/prg/prg_0f.bin"]
 AnalyzeDisp["analyze_b517.py"] --> PRG08["PRG Bank 08<br/>rom/prg/prg_08.bin"]
 VerifyRegion["verify_b130_bab2.py"] --> SourceASM["Source Assembly<br/>asm/banks/prg_08_09.asm"]
 VerifyRegion --> ROMBin08["ROM Binary<br/>rom/prg/prg_08.bin"]
@@ -1289,6 +1532,9 @@ Split --> Banks
 - [verify_range.py:7-9](file://tools/verify_range.py#L7-L9)
 - [verify_1d_bytes.py:9-15](file://tools/verify_1d_bytes.py#L9-L15)
 - [verify_0a_0b.py:5-12](file://tools/verify_0a_0b.py#L5-L12)
+- [verify_19_1a.py:16-21](file://tools/verify_19_1a.py#L16-L21)
+- [verify_1b_1c.py:16-21](file://tools/verify_1b_1c.py#L16-L21)
+- [verify_0e_0f.py:16-21](file://tools/verify_0e_0f.py#L16-L21)
 - [analyze_b517.py:4](file://tools/analyze_b517.py#L4)
 - [verify_b130_bab2.py:13-52](file://tools/verify_b130_bab2.py#L13-L52)
 - [verify_find_region.py:13-45](file://tools/verify_find_region.py#L13-L45)
@@ -1317,6 +1563,7 @@ Split --> Banks
 - **Batch processing**: Multiple validation tools can run in parallel for improved throughput
 - **Specialized algorithms**: Byte-level validation uses optimized comparison loops for better performance
 - **Paired bank efficiency**: Sequential bank reading minimizes memory overhead for paired validation
+- **Combined bank efficiency**: Isolated compilation reduces dependency overhead for combined bank validation
 - **Automated compilation**: Region verification tools optimize compilation by focusing on specific code sections
 - **Coverage analysis efficiency**: Uses set operations for fast address tracking and gap detection
 
@@ -1328,6 +1575,19 @@ Common issues and resolutions:
 - Size mismatches: check header creation and padding logic; ensure PRG size aligns with expectations
 - Excessive mismatches: inspect recent changes to bank segments or disassembly accuracy
 - First mismatch instability: indicates linker or disassembly drift; stabilize by fixing segments and re-running verification
+
+### Combined Bank Verification Issues
+- Isolated compilation failures: check external reference stub generation and memory layout
+- External dependency errors: verify cross-bank code references are properly stubbed
+- RAM global declaration issues: ensure external RAM globals are properly declared for combined banks
+- Memory layout problems: verify .org directives are correctly set for bank base addresses
+- Zero mismatch failures: examine first 30 mismatch details for precise issue location
+
+### Enhanced Region Verification Issues
+- External RAM global conflicts: verify RAM global declarations don't conflict with other definitions
+- Cross-bank dependency resolution: ensure proper handling of menu cursor and war scene state variables
+- Compilation errors: check for missing symbols or incorrect addressing modes in combined banks
+- Linking failures: verify custom memory map configuration for combined bank compilation
 
 ### Inline Dispatcher Analysis Issues
 - Pattern matching failures: ensure JSR $B517 exists in target ROM bank
@@ -1387,6 +1647,9 @@ Common issues and resolutions:
 
 **Section sources**
 - [verify_rom.py:53-73](file://tools/verify_rom.py#L53-L73)
+- [verify_19_1a.py:74-90](file://tools/verify_19_1a.py#L74-L90)
+- [verify_1b_1c.py:74-90](file://tools/verify_1b_1c.py#L74-L90)
+- [verify_0e_0f.py:81-97](file://tools/verify_0e_0f.py#L81-L97)
 - [analyze_b517.py:124-135](file://tools/analyze_b517.py#L124-L135)
 - [verify_b130_bab2.py:41-48](file://tools/verify_b130_bab2.py#L41-L48)
 - [verify_find_region.py:32-41](file://tools/verify_find_region.py#L32-L41)
@@ -1402,14 +1665,16 @@ Common issues and resolutions:
 ## Conclusion
 The ROM verification system provides a comprehensive, robust, and deterministic mechanism to validate disassembly correctness through multiple layers of validation approaches. By performing byte-exact comparisons and delivering precise reporting, it anchors the development cycle with reliable quality checks across the entire ROM structure.
 
-The enhanced verification system now includes sophisticated specialized tools that significantly expand its capabilities beyond basic ROM comparison. The addition of inline dispatcher analysis (analyze_b517.py), region-specific verification tools (verify_b130_bab2.py and verify_find_region.py), coverage analysis (verify_coverage.py), and disassembly verification (verify_disasm.py) creates a comprehensive validation ecosystem that addresses the complex needs of modern disassembly projects.
+The enhanced verification system now includes sophisticated specialized tools that significantly expand its capabilities beyond basic ROM comparison. The addition of combined bank verification tools (verify_19_1a.py and verify_1b_1c.py) with zero mismatch guarantees, enhanced region verification (verify_0e_0f.py) with external RAM global support, inline dispatcher analysis (analyze_b517.py), region-specific verification tools (verify_b130_bab2.py and verify_find_region.py), coverage analysis (verify_coverage.py), and disassembly verification (verify_disasm.py) creates a comprehensive validation ecosystem that addresses the complex needs of modern disassembly projects.
 
 These specialized tools provide targeted validation for different aspects of the ROM structure:
+- **Combined bank verification** ensures zero mismatch guarantees for paired bank combinations ($19+$1A, $1B+$1C)
+- **Enhanced region verification** handles cross-bank RAM dependencies with proper global declarations
 - **Inline dispatcher analysis** ensures correct handling of sophisticated control flow mechanisms
 - **Region-specific verification** allows focused validation of critical game logic and data structures
 - **Coverage analysis** guarantees comprehensive disassembly completeness
 - **Disassembly verification** provides quick spot-checks of known instruction sequences
 
-The multi-layered validation approach provides both broad coverage and targeted precision, enabling developers to quickly identify and resolve issues across different scopes of the ROM structure, from full ROM validation down to individual byte-level accuracy in combined and paired bank files. The integration of gap detection, byte-level validation, paired bank validation, inline dispatcher analysis, and assembly error correction tools creates a comprehensive validation ecosystem that supports the evolving complexity of modern disassembly projects, particularly those involving sophisticated memory management, inline dispatch mechanisms, and combined bank architectures.
+The multi-layered validation approach provides both broad coverage and targeted precision, enabling developers to quickly identify and resolve issues across different scopes of the ROM structure, from full ROM validation down to individual byte-level accuracy in combined and paired bank files. The integration of gap detection, byte-level validation, paired bank validation, combined bank verification with zero mismatch guarantees, external RAM global management, inline dispatcher analysis, and assembly error correction tools creates a comprehensive validation ecosystem that supports the evolving complexity of modern disassembly projects, particularly those involving sophisticated memory management, inline dispatch mechanisms, and combined bank architectures.
 
 Proper use of this comprehensive verification output, combined with careful linker configuration and accurate disassembly, ensures high-fidelity ROM reconstruction and maintains project quality throughout development. The system's ability to handle complex verification scenarios while providing actionable feedback makes it an essential tool for maintaining accuracy in large-scale disassembly projects like Sangokushi 2.

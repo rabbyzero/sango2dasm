@@ -38,6 +38,8 @@
 - [tools/fix_range_errors.py](file://tools/fix_range_errors.py)
 - [tools/verify_1d_bytes.py](file://tools/verify_1d_bytes.py)
 - [tools/fix_disasm.py](file://tools/fix_disasm.py)
+- [tools/rename_battle_to_war.py](file://tools/rename_battle_to_war.py)
+- [include/functions.h](file://include/functions.h)
 - [asm/main.asm](file://asm/main.asm)
 - [asm/banks/prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [asm/banks/prg_17_18.asm](file://asm/banks/prg_17_18.asm)
@@ -50,6 +52,7 @@
 - [code/bank_1f_plan.md](file://code/bank_1f_plan.md)
 - [code/key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [code/bank_1f_analysis.md](file://code/bank_1f_analysis.md)
+- [docs/manual_kb/terminology.md](file://docs/manual_kb/terminology.md)
 - [transform_wrap.py](file://transform_wrap.py)
 - [transform_final.py](file://transform_final.py)
 - [fix_labels.py](file://fix_labels.py)
@@ -64,12 +67,11 @@
 
 ## Update Summary
 **Changes Made**
-- Enhanced disassembly workflow with new transformation tools for converting inline .byte data to proper .word directives
-- Added automated verification and fixing capabilities for callback patterns in prg_0c_0d.asm
-- Implemented sophisticated inline data transformation pipeline for BankedCallbackTrampoline and CallbackDispatcher patterns
-- Integrated comprehensive error correction tools for assembly syntax and range errors
-- Added specialized verification utilities for byte-for-byte accuracy validation
-- Enhanced procedural structure detection and label management systems
+- Updated terminology standardization from "battle" to "war" across all cross-reference management and label analysis systems
+- Enhanced cross-reference handling with standardized war terminology for battle-related functions and data structures
+- Updated label management tools to support consistent war terminology throughout the disassembly workflow
+- Modified cross-bank reference patterns to use standardized war scene and result processing labels
+- Enhanced verification processes to validate war terminology consistency across all bank files
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -86,7 +88,7 @@
 ## Introduction
 This document describes a systematic disassembly workflow for the Namco-163 (Mapper 19) ROM of Sangokushi 2 - Haou no Tairiku (J). It focuses on extracting and documenting game code from the PRG banks, starting with Bank 0x1F that contains the reset handler and vector dispatch table. The guide covers bank prioritization, stub replacement, modular organization, cross-references, label management, incremental development, and verification.
 
-**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format. The pipeline now includes an 11-stage process for Bank $1F assembly code modernization with systematic code organization, mnemonic correction, and validation utilities. **Enhanced** Advanced PRG bank 1D/1E disassembly system with sophisticated labeling algorithms, improved cross-reference detection, and specialized analysis tools providing better understanding of label usage patterns and facilitating further refactoring efforts. **New** Sophisticated inline data transformation system for converting .byte directives to proper .word directives with automated callback pattern recognition and verification.
+**Updated** Enhanced with comprehensive transformation pipeline featuring automated assembly code cleaning, modernization, and validation steps using the new pbank31.cdl.asm reference format. The pipeline now includes an 11-stage process for Bank $1F assembly code modernization with systematic code organization, mnemonic correction, and validation utilities. **Enhanced** Advanced PRG bank 1D/1E disassembly system with sophisticated labeling algorithms, improved cross-reference detection, and specialized analysis tools providing better understanding of label usage patterns and facilitating further refactoring efforts. **New** Sophisticated inline data transformation system for converting .byte directives to proper .word directives with automated callback pattern recognition and verification. **Updated** Terminology standardization now consistently uses "war" instead of "battle" for all battle-related functionality, including war scene processing, war result handling, and war phase management across all bank files and cross-references.
 
 ## Project Structure
 The repository organizes assets around a cc65 toolchain and a modular bank structure with advanced transformation capabilities:
@@ -102,6 +104,7 @@ The repository organizes assets around a cc65 toolchain and a modular bank struc
 - **New** Inline data transformation tools for callback patterns and procedural structures
 - **Enhanced** Paired bank disassembly tools for PRG banks $17/$18 with systematic section headers and semantic naming
 - **Enhanced** Combined bank disassembly tools for PRG banks $1D/$1E with sophisticated labeling system and cross-reference handling
+- **Updated** Standardized war terminology across all cross-reference management and label analysis systems
 
 ```mermaid
 graph TB
@@ -136,6 +139,8 @@ E --> CC["tools/transform_0c_0d_inline.py<br/>tools/fix_0c_0d_inline.py"]
 CC --> DD["asm/banks/prg_0c_0d.asm<br/>(Transformed)"]
 DD --> EE["tools/verify_0c_0d_directives.py"]
 EE --> FF["Verification Reports"]
+E --> GG["tools/rename_battle_to_war.py<br/>(Terminology Standardization)"]
+GG --> HH["Standardized War Terminology"]
 ```
 
 **Diagram sources**
@@ -162,10 +167,11 @@ EE --> FF["Verification Reports"]
 - [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
 - [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
 - [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 **Section sources**
 - [PROJECT.md:14-47](file://PROJECT.md#L14-L47)
-- [Makefile:1-102](file://Makefile#L1-102)
+- [Makefile:1-102](file://Makefile#L1-L102)
 - [linker.cfg:1-55](file://linker.cfg#L1-L55)
 
 ## Core Components
@@ -190,8 +196,9 @@ EE --> FF["Verification Reports"]
 - **New** Inline data transformation: Automated conversion of .byte directives to .word directives for callback patterns.
 - **New** Callback pattern recognition: Sophisticated detection of BankedCallbackTrampoline and CallbackDispatcher patterns.
 - **New** Error correction tools: Automated fixing of assembly syntax, range errors, and missing bytes.
+- **Updated** Terminology standardization: Consistent use of "war" terminology across all battle-related functionality, including war scene processing, war result handling, and war phase management.
 
-**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction. The pipeline now consists of 11 systematic stages for complete code modernization. **Enhanced** Advanced PRG bank 1D/1E disassembly methodology with sophisticated labeling algorithms, improved cross-reference detection, and specialized analysis tools providing better understanding of label usage patterns and facilitating further refactoring efforts. **New** Sophisticated inline data transformation system automatically converts .byte directives to proper .word directives for callback patterns, with comprehensive verification and error correction capabilities.
+**Updated** Enhanced transformation pipeline now includes automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format for comprehensive error detection and correction. The pipeline now consists of 11 systematic stages for complete code modernization. **Enhanced** Advanced PRG bank 1D/1E disassembly methodology with sophisticated labeling algorithms, improved cross-reference detection, and specialized analysis tools providing better understanding of label usage patterns and facilitating further refactoring efforts. **New** Sophisticated inline data transformation system automatically converts .byte directives to proper .word directives for callback patterns, with comprehensive verification and error correction capabilities. **Updated** Standardized war terminology ensures consistency across all cross-reference management and label analysis systems, replacing all battle-related terms with war terminology throughout the entire disassembly workflow.
 
 **Section sources**
 - [tools/split_rom.py:38-122](file://tools/split_rom.py#L38-L122)
@@ -221,11 +228,12 @@ EE --> FF["Verification Reports"]
 - [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
 - [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
 - [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 ## Architecture Overview
 The disassembly architecture centers on Bank 0x1F as the boot bank. At startup, the reset handler initializes PPU/APU, clears RAM, and dispatches to a state handler via an indirect vector table. Bank 0x1F also contains NMI/IRQ handlers, sound engine, PPU utilities, math routines, and data access functions. Other banks are accessed via bank switching controlled by the Namco-163 mapper.
 
-**Enhanced** With sophisticated paired bank architecture for PRG banks $17/$18, which work together as a 16KB unit ($A000-$DFFF) with shared cross-bank references and coordinated loading via SwitchBankAC_A/B macros. **Enhanced** Advanced combined bank architecture for PRG banks $1D/$1E, which work together as a 16KB unit ($A000-$DFFF) with specialized disassembly tools, sophisticated labeling system, and enhanced cross-reference mapping. **New** Sophisticated inline data transformation system for callback patterns with automatic .byte to .word directive conversion and comprehensive verification.
+**Enhanced** With sophisticated paired bank architecture for PRG banks $17/$18, which work together as a 16KB unit ($A000-$DFFF) with shared cross-bank references and coordinated loading via SwitchBankAC_A/B macros. **Enhanced** Advanced combined bank architecture for PRG banks $1D/$1E, which work together as a 16KB unit ($A000-$DFFF) with specialized disassembly tools, sophisticated labeling system, and enhanced cross-reference mapping. **New** Sophisticated inline data transformation system for callback patterns with automatic .byte to .word directive conversion and comprehensive verification. **Updated** Standardized war terminology throughout the architecture, with war scene processing, war result handling, and war phase management consistently labeled across all components.
 
 ```mermaid
 graph TB
@@ -262,6 +270,12 @@ PRG --> B1D["$A000-$BFFF<br/>Menu/Display"]
 PRG --> B1E["$C000-$DFFF<br/>Domestic Affairs"]
 B1D -.-> B1E
 end
+subgraph "War Scene Processing"
+PRG --> WAR["$A000-$DFFF<br/>War Scene & Results"]
+WAR --> WARSCENE["WarSceneInit<br/>WarResultDispatch"]
+WAR --> WARPHASE["WarPhaseProcess<br/>WarCasualtyResolution"]
+WAR --> WARRESULT["WarResultSceneInit<br/>WarResultFinalize"]
+end
 subgraph "Inline Data Transformation"
 PRG --> B0C0D["$A000-$BFFF<br/>prg_0c_0d.asm"]
 B0C0D --> TRANS["transform_0c_0d_inline.py"]
@@ -282,6 +296,7 @@ end
 - [include/namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
 - [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 **Section sources**
 - [PROJECT.md:101-117](file://PROJECT.md#L101-L117)
@@ -384,7 +399,7 @@ J --> K["asm/banks/prg_17_18.asm<br/>(Systematic Organization)"]
 ```
 
 **Diagram sources**
-- [tools/disasm_17_18.py:123-710](file://tools/disasm_17_18.py#L123-L710)
+- [tools/disasm_17_18.py:123-710](file://tools/disasm_17_18.py#L123-710)
 - [tools/analyze_17_18.py:8-118](file://tools/analyze_17_18.py#L8-L118)
 - [tools/transform_17_18.py:171-348](file://tools/transform_17_18.py#L171-L348)
 - [tools/localize_labels.py:94-377](file://tools/localize_labels.py#L94-L377)
@@ -576,7 +591,7 @@ Examples:
 - Use banked call patterns (e.g., JSR to $A000–$A045) and bank switching macros.
 - Maintain a plan document to track which regions are analyzed and planned.
 
-**Enhanced** Sophisticated cross-reference handling for paired banks $17/$18 with automatic detection of cross-bank references and semantic naming. **Enhanced** Advanced cross-reference handling for combined banks $1D/$1E with sophisticated label usage pattern analysis and specialized disassembly tools.
+**Enhanced** Sophisticated cross-reference handling for paired banks $17/$18 with automatic detection of cross-bank references and semantic naming. **Enhanced** Advanced cross-reference handling for combined banks $1D/$1E with sophisticated label usage pattern analysis and specialized disassembly tools. **Updated** Standardized war terminology throughout all cross-reference management systems, ensuring consistent labeling of war scene processing, war result handling, and war phase management across all bank files.
 
 Cross-references in Bank 0x1F:
 - Calls to bank-switched display routines at $A000–$A045
@@ -587,12 +602,14 @@ Cross-references in paired banks $17/$18:
 - Semantic naming convention: B17_18_ prefix for all functions
 - Systematic section headers for organized code structure
 - **Enhanced** Label usage pattern analysis for refactoring support
+- **Updated** Standardized war terminology for battle-related functions (WarSetup, WarExecute, WarPostProcess, etc.)
 
 Cross-references in combined banks $1D/$1E:
 - Automatic detection of cross-bank label references between $A000-$BFFF and $C000-$DFFF
 - **Enhanced** Sophisticated disassembly tools for specialized cross-reference mapping
 - **Enhanced** Label usage pattern analysis and refactoring support
 - Systematic organization with meaningful subroutine names
+- **Updated** Consistent war terminology for war scene and result processing functions
 
 **Section sources**
 - [code/bank_1f_plan.md:224-245](file://code/bank_1f_plan.md#L224-L245)
@@ -601,6 +618,8 @@ Cross-references in combined banks $1D/$1E:
 - [tools/disasm_1d_enhanced.py:145-161](file://tools/disasm_1d_enhanced.py#L145-L161)
 - [tools/disasm_1e_definitive.py:332-414](file://tools/disasm_1e_definitive.py#L332-L414)
 - [tools/localize_labels.py:94-377](file://tools/localize_labels.py#L94-L377)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
+- [include/functions.h:900-1071](file://include/functions.h#L900-L1071)
 
 ### Step 12: Incremental Development and Progress Tracking
 - Assemble and link after adding each bank's code.
@@ -640,7 +659,7 @@ Annotation workflow:
 
 **Enhanced** Enhanced analysis documentation now includes detailed examples with inline machine code comments showing ROM addresses and raw bytes for better understanding of code patterns.
 
-**Enhanced** Sophisticated paired bank analysis with systematic function boundary detection, cross-reference mapping, and label usage pattern analysis. **Enhanced** Advanced combined bank analysis with specialized data region detection, tile data block identification, and refactoring support.
+**Enhanced** Sophisticated paired bank analysis with systematic function boundary detection, cross-reference mapping, and label usage pattern analysis. **Enhanced** Advanced combined bank analysis with specialized data region detection, tile data block identification, and refactoring support. **Updated** Standardized war terminology throughout all analysis tools and documentation, ensuring consistent labeling of war scene processing, war result handling, and war phase management.
 
 Examples:
 - RNG core at $E87A reads from a precomputed table
@@ -652,15 +671,16 @@ Examples:
 - **Enhanced** Callback dispatcher patterns at $EADE with inline pointer tables
 - **Enhanced** Banked callback trampoline patterns at $EE07 with 2-byte targets
 - **Enhanced** Label usage pattern analysis for refactoring support
+- **Updated** Standardized war scene processing functions (WarSceneInit, WarResultDispatch, WarPhaseProcess, etc.)
 
 **Section sources**
 - [tools/analyze_bank_1f.py:1-157](file://tools/analyze_bank_1f.py#L1-L157)
 - [tools/analyze_17_18.py:74-115](file://tools/analyze_17_18.py#L74-L115)
 - [code/key_functions_analysis.md:9-31](file://code/key_functions_analysis.md#L9-31)
 - [code/key_functions_analysis.md:66-100](file://code/key_functions_analysis.md#L66-100)
-- [code/key_functions_analysis.md:159-189](file://code/key_functions_analysis.md#L159-189)
-- [tools/disasm_1d_enhanced.py:108-135](file://tools/disasm_1d_enhanced.py#L108-135)
-- [tools/disasm_1e_definitive.py:86-278](file://tools/disasm_1e_definitive.py#L86-278)
+- [code/key_functions_analysis.md:159-189](file://code/key_functions_analysis.md#L159-L189)
+- [tools/disasm_1d_enhanced.py:108-135](file://tools/disasm_1d_enhanced.py#L108-L135)
+- [tools/disasm_1e_definitive.py:86-278](file://tools/disasm_1e_definitive.py#L86-L278)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
 - [tools/analyze_1e_deep.py:1-53](file://tools/analyze_1e_deep.py#L1-L53)
 
@@ -673,7 +693,7 @@ Prioritize by:
 - **Enhanced** Paired bank coordination (banks $17/$18 work together)
 - **Enhanced** Combined bank coordination (banks $1D/$1E work together)
 
-**Enhanced** Analysis plan now includes detailed documentation with sophisticated inline comments and machine code examples for better understanding of each bank's role and dependencies.
+**Enhanced** Analysis plan now includes detailed documentation with sophisticated inline comments and machine code examples for better understanding of each bank's role and dependencies. **Updated** War scene processing banks are prioritized due to their critical role in battle outcome resolution and post-battle state management.
 
 Plan document outlines sessions and dependencies for Bank 0x1F.
 
@@ -737,10 +757,11 @@ Differential analysis workflow:
 - Coordinated loading via SwitchBankAC macros
 - Systematic semantic naming for clarity
 - **Enhanced** Label usage pattern analysis for better refactoring support
+- **Updated** Standardized war terminology for battle-related functions and data structures
 
 **Section sources**
 - [tools/disasm_17_18.py:632-679](file://tools/disasm_17_18.py#L632-L679)
-- [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-9)
+- [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [tools/localize_labels.py:94-377](file://tools/localize_labels.py#L94-L377)
 
 ### Step 20: Combined Bank Coordination and Loading (Enhanced)
@@ -756,9 +777,10 @@ Differential analysis workflow:
 - **Enhanced** Sophisticated disassembly tools for specialized analysis and validation
 - **Enhanced** Label usage pattern analysis and refactoring support
 - Systematic organization with meaningful subroutine names and section headers
+- **Updated** Consistent war terminology for war scene and result processing functions
 
 **Section sources**
-- [tools/disasm_1d_enhanced.py:246-264](file://tools/disasm_1d_enhanced.py#L246-264)
+- [tools/disasm_1d_enhanced.py:246-264](file://tools/disasm_1d_enhanced.py#L246-L264)
 - [tools/disasm_1e_definitive.py:423-433](file://tools/disasm_1e_definitive.py#L423-L433)
 - [asm/banks/prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [tools/analyze_1e.py:1-36](file://tools/analyze_1e.py#L1-L36)
@@ -808,6 +830,39 @@ I --> J["Fixed prg_0c_0d.asm<br/>Proper .word Directives"]
 - [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
 - [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
 
+### Step 22: Terminology Standardization (New)
+- Use rename_battle_to_war.py to standardize terminology from "battle" to "war" across all files
+- Automatically updates RAM equates, procedure labels, and entry points
+- Ensures consistent war terminology throughout the entire codebase
+- Updates comments and documentation to reflect the new terminology
+
+**New** Comprehensive terminology standardization pipeline:
+
+**Stage 1: tools/rename_battle_to_war.py** - Automated replacement of battle terminology with war terminology
+**Stage 2: Cross-reference validation** - Ensures all war-scene related functions use consistent naming
+**Stage 3: Documentation updates** - Updates comments and documentation to reflect war terminology
+**Stage 4: Verification** - Validates that all battle-related functionality is now consistently labeled as war-related
+
+```mermaid
+flowchart TD
+A["Original Files<br/>with 'battle' terminology"] --> B["rename_battle_to_war.py<br/>Automated Replacement"]
+B --> C["RAM Equates<br/>battle_* → war_*"]
+B --> D["Procedure Labels<br/>Battle* → War*"]
+B --> E["Entry Points<br/>B*_Battle* → B*_War*"]
+C --> F["Cross-Reference Validation"]
+D --> F
+E --> F
+F --> G["Documentation Updates"]
+G --> H["Standardized War Terminology"]
+```
+
+**Diagram sources**
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
+
+**Section sources**
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
+- [include/functions.h:900-1071](file://include/functions.h#L900-L1071)
+
 ## Dependency Analysis
 The disassembly pipeline depends on:
 - ROM splitting and combined PRG for analysis
@@ -825,6 +880,7 @@ The disassembly pipeline depends on:
 - **Enhanced** Label usage pattern analysis tools for refactoring support
 - **New** Inline data transformation tools for callback patterns and procedural structures
 - **New** Comprehensive error correction tools for assembly syntax and range errors
+- **New** Terminology standardization tools for consistent war terminology
 
 ```mermaid
 graph TB
@@ -862,6 +918,8 @@ INLINE --> FIXED0C0D["asm/banks/prg_0c_0d.asm<br/>(Transformed)"]
 FIXED0C0D --> VERIFY0C0D["tools/verify_0c_0d_directives.py"]
 VERIFY0C0D --> ERRORS["tools/fix_asm_errors.py<br/>tools/fix_missing_bytes.py<br/>tools/fix_range_errors.py"]
 ERRORS --> FINAL0C0D["Fixed prg_0c_0d.asm"]
+ASM --> TERM["tools/rename_battle_to_war.py<br/>(Terminology Standardization)"]
+TERM --> STANDARDIZED["Standardized War Terminology"]
 ```
 
 **Diagram sources**
@@ -875,7 +933,7 @@ ERRORS --> FINAL0C0D["Fixed prg_0c_0d.asm"]
 - [tools/assemble_prg_1d_1e.py:1-41](file://tools/assemble_prg_1d_1e.py#L1-L41)
 - [tools/transform_17_18.py:320-348](file://tools/transform_17_18.py#L320-L348)
 - [transform_wrap.py:286-303](file://transform_wrap.py#L286-303)
-- [transform_final.py:222-235](file://transform_final.py#L222-235)
+- [transform_final.py:222-235](file://transform_final.py#L222-L235)
 - [fix_labels.py:13-68](file://fix_labels.py#L13-L68)
 - [fix_syntax.py:11-72](file://fix_syntax.py#L11-L72)
 - [fix_scope.py:13-149](file://fix_scope.py#L13-L149)
@@ -897,6 +955,7 @@ ERRORS --> FINAL0C0D["Fixed prg_0c_0d.asm"]
 - [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
 - [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
 - [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 **Section sources**
 - [Makefile:38-61](file://Makefile#L38-L61)
@@ -914,6 +973,7 @@ ERRORS --> FINAL0C0D["Fixed prg_0c_0d.asm"]
 - **Enhanced** Label usage pattern analysis tools provide efficient refactoring support and better understanding of code structure.
 - **New** Inline data transformation tools significantly reduce manual effort in converting .byte directives to .word directives with automated pattern recognition.
 - **New** Comprehensive error correction tools minimize manual intervention and improve overall workflow efficiency.
+- **New** Terminology standardization eliminates manual effort in updating battle-related terms to war terminology across the entire codebase.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -939,6 +999,7 @@ Common issues and remedies:
 - **New** Assembly syntax errors: Use tools/fix_asm_errors.py to automatically convert problematic instructions to .byte directives.
 - **New** Missing byte annotations: Use tools/fix_missing_bytes.py to add missing opcode bytes to assembly comments.
 - **New** Range error issues: Use tools/fix_range_errors.py to handle branch instruction range problems.
+- **New** Terminology inconsistencies: Use tools/rename_battle_to_war.py to standardize war terminology across all files.
 
 **Section sources**
 - [tools/annotate_asm.py:315-481](file://tools/annotate_asm.py#L315-L481)
@@ -966,11 +1027,12 @@ Common issues and remedies:
 - [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
 - [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
 - [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 ## Conclusion
 This workflow establishes a repeatable, incremental approach to disassembling Sangokushi 2's PRG banks with comprehensive transformation capabilities. Starting with Bank 0x1F ensures you understand the reset handler and dispatch mechanism, after which you can systematically replace stubs with real disassembly, manage cross-references, and verify accuracy through byte-exact comparisons. The modular bank structure, transformation pipeline, and reference format validation support continuous refinement and expansion while ensuring code quality and consistency.
 
-**Enhanced** Sophisticated transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project. The new 11-stage pipeline provides systematic validation and error detection at each phase, ensuring reliable and accurate disassembly results. The addition of paired bank disassembly tools for PRG banks $17/$18 and combined bank disassembly tools for PRG banks $1D/$1E further enhances the workflow with systematic section headers, semantic naming conventions, and automated cross-reference handling. These new tools provide specialized analysis and validation capabilities that streamline the disassembly process and improve code organization. **Enhanced** Advanced labeling system with sophisticated label usage pattern analysis provides better understanding of code structure and facilitates further refactoring efforts, making the disassembly process more efficient and maintainable. **New** Sophisticated inline data transformation system automatically converts .byte directives to proper .word directives for callback patterns, with comprehensive verification and error correction capabilities that significantly reduce manual effort and improve accuracy.
+**Enhanced** Sophisticated transformation pipeline with automated assembly code cleaning, modernization, and validation using the pbank31.cdl.asm reference format significantly improves code quality, traceability, and maintainability for this complex 6502 project. The new 11-stage pipeline provides systematic validation and error detection at each phase, ensuring reliable and accurate disassembly results. The addition of paired bank disassembly tools for PRG banks $17/$18 and combined bank disassembly tools for PRG banks $1D/$1E further enhances the workflow with systematic section headers, semantic naming conventions, and automated cross-reference handling. These new tools provide specialized analysis and validation capabilities that streamline the disassembly process and improve code organization. **Enhanced** Advanced labeling system with sophisticated label usage pattern analysis provides better understanding of code structure and facilitates further refactoring efforts, making the disassembly process more efficient and maintainable. **New** Sophisticated inline data transformation system automatically converts .byte directives to proper .word directives for callback patterns, with comprehensive verification and error correction capabilities that significantly reduce manual effort and improve accuracy. **Updated** Comprehensive terminology standardization from "battle" to "war" ensures consistent labeling across all battle-related functionality, including war scene processing, war result handling, and war phase management, improving code clarity and maintainability throughout the entire disassembly workflow.
 
 ## Appendices
 
@@ -1018,6 +1080,8 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
   - python3 tools/fix_asm_errors.py
   - python3 tools/fix_missing_bytes.py
   - python3 tools/fix_range_errors.py
+- **New** Standardize terminology from battle to war:
+  - python3 tools/rename_battle_to_war.py
 
 **Section sources**
 - [Makefile:64-69](file://Makefile#L64-L69)
@@ -1052,6 +1116,7 @@ This workflow establishes a repeatable, incremental approach to disassembling Sa
 - [tools/fix_asm_errors.py:1-35](file://tools/fix_asm_errors.py#L1-L35)
 - [tools/fix_missing_bytes.py:1-285](file://tools/fix_missing_bytes.py#L1-L285)
 - [tools/fix_range_errors.py:1-41](file://tools/fix_range_errors.py#L1-L41)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
 
 ### Enhanced Disassembly Features
 **Enhanced Section** Highlighting the improvements to PRG bank 1F, paired bank, and combined bank disassembly processes.
@@ -1081,6 +1146,7 @@ Key enhancements:
 - **New Callback Pattern Recognition**: Sophisticated detection of BankedCallbackTrampoline and CallbackDispatcher patterns
 - **New Comprehensive Error Correction**: Automated fixing of assembly syntax, range errors, and missing bytes
 - **New Binary Verification**: Byte-for-byte validation of transformed directives against original ROM data
+- **New Terminology Standardization**: Automated replacement of battle terminology with war terminology across all files
 
 Example of enhanced paired bank output format:
 ```asm
@@ -1151,10 +1217,25 @@ Example of new inline data transformation output:
 .word $D2D0                               ; $A04E: D0 D2
 ```
 
+Example of standardized war terminology output:
+```asm
+; War scene state ($0500-$0514)
+war_scene_id        = $0500  ; war scene/command id (state select)
+war_scene_phase     = $0501  ; war scene phase/state index
+
+; War result processing functions
+B08_09_WarResultDispatch      = $D70F ; War result dispatch
+B08_09_WarResultSceneInit     = $D66E ; War result scene init
+B08_09_WarPhaseProcess        = $BAB3 ; War phase process dispatcher
+B08_09_WarCasualtyResolution  = $C983 ; War casualty/morale resolution
+B08_09_WarAttritionRound      = $CD78 ; War attrition round
+B08_09_WarStatusPanelDraw     = $CFA2 ; War status panel draw
+```
+
 **Section sources**
 - [tools/disasm_bank_1f.py:329-442](file://tools/disasm_bank_1f.py#L329-L442)
 - [tools/disasm_17_18.py:322-405](file://tools/disasm_17_18.py#L322-L405)
-- [tools/disasm_1d_enhanced.py:246-264](file://tools/disasm_1d_enhanced.py#L246-264)
+- [tools/disasm_1d_enhanced.py:246-264](file://tools/disasm_1d_enhanced.py#L246-L264)
 - [tools/disasm_1e_definitive.py:423-433](file://tools/disasm_1e_definitive.py#L423-L433)
 - [tools/align_comments.py:1-48](file://tools/align_comments.py#L1-L48)
 - [code/bank_1f_analysis.md:1-800](file://code/bank_1f_analysis.md#L1-L800)
@@ -1171,3 +1252,5 @@ Example of new inline data transformation output:
 - [tools/transform_0c_0d_inline.py:1-393](file://tools/transform_0c_0d_inline.py#L1-L393)
 - [tools/fix_0c_0d_inline.py:1-226](file://tools/fix_0c_0d_inline.py#L1-L226)
 - [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
+- [tools/rename_battle_to_war.py:1-135](file://tools/rename_battle_to_war.py#L1-L135)
+- [include/functions.h:900-1071](file://include/functions.h#L900-L1071)

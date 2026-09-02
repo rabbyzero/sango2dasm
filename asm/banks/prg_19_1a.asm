@@ -16,8 +16,8 @@
 Loc_A000:
 ; --- Code Region ---
   JMP $CE1F                               ; $A000: 4C 1F CE
-Loc_A003:  ; (dispatch callback target)
-  JMP $A033                               ; $A003: 4C 33 A0
+AttractDemoDispatch_Entry:  ; (dispatch callback target)
+  JMP AttractDemoDispatch                 ; $A003: 4C 33 A0
 Loc_A006:  ; (dispatch callback target)
   JMP $C773                               ; $A006: 4C 73 C7
 Loc_A009:  ; (dispatch callback target)
@@ -37,271 +37,390 @@ Loc_A01B:
 Loc_A01E:  ; (dispatch callback target)
   JMP $C435                               ; $A01E: 4C 35 C4
 Loc_A021:  ; (dispatch callback target)
-  JMP $AFE5                               ; $A021: 4C E5 AF
+  JMP ProvinceOfficerRosterDispatch       ; $A021: 4C E5 AF
 Loc_A024:
   JMP $BA70                               ; $A024: 4C 70 BA
 Loc_A027:
   JMP $BB03                               ; $A027: 4C 03 BB
 Loc_A02A:  ; (dispatch callback target)
-  JMP $BBDE                               ; $A02A: 4C DE BB
+  JMP MapProvinceDirtyMark                ; $A02A: 4C DE BB
 Loc_A02D:
   JMP $BC02                               ; $A02D: 4C 02 BC
 Loc_A030:
   JMP $BB73                               ; $A030: 4C 73 BB
-Loc_A033:
-  LDA $0401                               ; $A033: AD 01 04
-  JSR $EADE                               ; $A036: 20 DE EA
-; --- Data Region ---
-  .byte $41,$A0,$2C,$A1,$5E,$A1,$86,$A1   ; $A039: 41 A0 2C A1 5E A1 86 A1
-Loc_A041:  ; (dispatch callback target)
-; --- Code Region ---
+;===============================================================================
+; $A033: AttractDemoDispatch
+; Frame state $0B handler of the map-screen frame machine (entered from
+; prg_1b_1c MapScreenFrameStateDispatch via banks $19+$1A entry $A003):
+; the title-screen attract demo run when no game is active. Dispatches the
+; demo sub-state by $0401:
+;   0 CountrySelect - rotation tick, officer census, pick next
+;     Country of the demo, hand off to camera-focus frame state $0A
+;   1 OverlayInit   - status overlay ($20) + camera target setup
+;   2 OverlayPoll   - wait with overlay up, Start exits the demo
+;   3 ResetCheck    - idle check, Start soft-resets to the title
+; Demo RAM: $6F00 demo year counter (starts $59), $6F01 rotation step (0-$0B),
+; $6F03 focused Country slot (0-6), $6F04 frame divider (0-6), $6F05 province
+; count display value, $6F06 camera-focus phase flag, $6F45 rotation order
+; index (0-4, random from SramInit). Country records: 7 x 8 bytes at
+; $6F07..$6F37 (stride 8): [0]=Ruler id ($FF = empty), [1]=home Province.
+;===============================================================================
+.proc AttractDemoDispatch
+  LDA $0401                               ; $A033: AD 01 04 ; attract demo sub-state
+  JSR B1F_CallbackDispatcher              ; $A036: 20 DE EA
+; --- Inline pointer table (4 entries) ---
+  .word CountrySelect                     ; $A039: 41 A0 ; sub-state 0
+  .word OverlayInit                       ; $A03B: 2C A1 ; sub-state 1
+  .word OverlayPoll                       ; $A03D: 5E A1 ; sub-state 2
+  .word ResetCheck                        ; $A03F: 86 A1 ; sub-state 3
+;===============================================================================
+; $A041: CountrySelect (sub-state 0)
+; Sub-state 0. Every 7th frame advances rotation step $6F01 (12 steps per
+; demo year $6F00), decays the per-Country timers, and picks the next
+; Country slot from AttractCountryOrderTable row $6F45. For the focused
+; Country: builds the Country list + Officer census (AttractDemoCensusBuild),
+; counts its Provinces, draws the demo year on the stats overlay (banked
+; call to bank $1D YearDisplaySetup, entry $A01E -> $A6B6), resolves the
+; Ruler's home Province, then hands off to
+; camera-focus frame state $0A. If fewer than 30 unclaimed Officers remain,
+; the demo idles via overlay $D5 (sub-state 3).
+;===============================================================================
+CountrySelect:  ; sub-state 0
   LDA #$F0                                ; $A041: A9 F0
-  STA $6F41                               ; $A043: 8D 41 6F
-  INC $6F04                               ; $A046: EE 04 6F
+  STA $6F41                               ; $A043: 8D 41 6F ; park camera Y off-screen
+  INC $6F04                               ; $A046: EE 04 6F ; frame divider
   LDA $6F04                               ; $A049: AD 04 6F
   CMP #$07                                ; $A04C: C9 07
-  BCC $A06B                               ; $A04E: 90 1B
+  BCC @FrameTick                          ; $A04E: 90 1B
   LDA #$00                                ; $A050: A9 00
   STA $6F04                               ; $A052: 8D 04 6F
-  STA $6F06                               ; $A055: 8D 06 6F
-  LDY $6F01                               ; $A058: AC 01 6F
+  STA $6F06                               ; $A055: 8D 06 6F ; camera-focus phase flag
+  LDY $6F01                               ; $A058: AC 01 6F ; rotation step
   INY                                     ; $A05B: C8
-  CPY #$0C                                ; $A05C: C0 0C
-  BCC $A065                               ; $A05E: 90 05
+  CPY #$0C                                ; $A05C: C0 0C ; 12 steps per demo year
+  BCC @StoreStep                          ; $A05E: 90 05
   LDY #$00                                ; $A060: A0 00
-  INC $6F00                               ; $A062: EE 00 6F
-Loc_A065:
+  INC $6F00                               ; $A062: EE 00 6F ; demo year tick
+@StoreStep:
   STY $6F01                               ; $A065: 8C 01 6F
-  JSR $A209                               ; $A068: 20 09 A2
-Loc_A06B:
-  LDA $6F45                               ; $A06B: AD 45 6F
+  JSR DecayCountryTimers                  ; $A068: 20 09 A2
+@FrameTick:
+  LDA $6F45                               ; $A06B: AD 45 6F ; rotation order index
   ASL                                     ; $A06E: 0A
   ASL                                     ; $A06F: 0A
   ASL                                     ; $A070: 0A
-  ORA $6F04                               ; $A071: 0D 04 6F
+  ORA $6F04                               ; $A071: 0D 04 6F ; row*8 + frame divider
   TAY                                     ; $A074: A8
-  LDA $A104,Y                             ; $A075: B9 04 A1
-  STA $6F03                               ; $A078: 8D 03 6F
+  LDA AttractCountryOrderTable,Y          ; $A075: B9 04 A1 ; next Country slot
+  STA $6F03                               ; $A078: 8D 03 6F ; focused Country slot
   ASL                                     ; $A07B: 0A
   TAY                                     ; $A07C: A8
-  LDA $A0D6,Y                             ; $A07D: B9 D6 A0
+  LDA CountryRecordPtrTable,Y             ; $A07D: B9 D6 A0 ; Country record ptr lo
   STA a:$00EE                             ; $A080: 8D EE 00
-  LDA $A0D7,Y                             ; $A083: B9 D7 A0
+  LDA CountryRecordPtrTable+1,Y           ; $A083: B9 D7 A0 ; Country record ptr hi
   STA a:$00EF                             ; $A086: 8D EF 00
   LDY #$00                                ; $A089: A0 00
-  LDA ($EE),Y                             ; $A08B: B1 EE
-  CMP #$FF                                ; $A08D: C9 FF
-  BEQ $A041                               ; $A08F: F0 B0
-  JSR $A240                               ; $A091: 20 40 A2
+  LDA ($EE),Y                             ; $A08B: B1 EE     ; Country record[0] = Ruler id
+  CMP #$FF                                ; $A08D: C9 FF     ; $FF = empty slot
+  BEQ CountrySelect                       ; $A08F: F0 B0     ; empty: spin until filled
+  JSR AttractDemoCensusBuild              ; $A091: 20 40 A2 ; -> $0011 = unclaimed Officer count
   LDA a:$0011                             ; $A094: AD 11 00
-  CMP #$1E                                ; $A097: C9 1E
-  BCS $A0A5                               ; $A099: B0 0A
+  CMP #$1E                                ; $A097: C9 1E     ; 30+ Officers still unclaimed?
+  BCS @FocusReady                         ; $A099: B0 0A
   LDA #$03                                ; $A09B: A9 03
-  STA $0401                               ; $A09D: 8D 01 04
+  STA $0401                               ; $A09D: 8D 01 04 ; demo over -> sub-state 3
   LDA #$D5                                ; $A0A0: A9 D5
-  JMP $F28B                               ; $A0A2: 4C 8B F2
-Loc_A0A5:
+  JMP B1F_SetUI4                          ; $A0A2: 4C 8B F2 ; idle overlay (no return)
+@FocusReady:
   LDA $6F03                               ; $A0A5: AD 03 6F
   AND #$07                                ; $A0A8: 29 07
-  JSR $A19F                               ; $A0AA: 20 9F A1
-Loc_A0AD:  ; (dispatch callback target)
+  JSR ProvinceCountByOwner                ; $A0AA: 20 9F A1 ; -> $0003 = owned Province count
   LDY a:$0003                             ; $A0AD: AC 03 00
-  LDA $A0E4,Y                             ; $A0B0: B9 E4 A0
-  STA $6F05                               ; $A0B3: 8D 05 6F
-  LDY #$3D                                ; $A0B6: A0 3D
-  JSR $EE07                               ; $A0B8: 20 07 EE
-; --- Data Region ---
-  .byte $1E,$A0,$A0,$00,$B1,$EE,$8D,$0A,$00,$20,$EB,$A1,$A0,$01,$91,$EE; $A0BB: 1E A0 A0 00 B1 EE 8D 0A 00 20 EB A1 A0 01 91 EE
-  .byte $A9,$0A,$8D,$00,$04,$A9,$00,$8D,$01,$04,$60,$07,$6F,$0F,$6F,$17; $A0CB: A9 0A 8D 00 04 A9 00 8D 01 04 60 07 6F 0F 6F 17
-  .byte $6F,$1F,$6F,$27,$6F,$2F,$6F,$37,$6F,$00,$03,$03,$03,$04,$05,$07; $A0DB: 6F 1F 6F 27 6F 2F 6F 37 6F 00 03 03 03 04 05 07
-  .byte $07,$07,$08,$08,$08,$08,$09,$09,$09,$09,$0A,$0A,$0A,$0B,$0B,$0B; $A0EB: 07 07 08 08 08 08 09 09 09 09 0A 0A 0A 0B 0B 0B
-  .byte $0B,$0C,$0C,$0C,$0C,$0D,$0D,$0D,$0D,$00,$01,$02,$03,$06,$05,$04; $A0FB: 0B 0C 0C 0C 0C 0D 0D 0D 0D 00 01 02 03 06 05 04
-  .byte $00,$01,$04,$06,$00,$02,$03,$05,$00,$03,$02,$04,$06,$05,$00,$01; $A10B: 00 01 04 06 00 02 03 05 00 03 02 04 06 05 00 01
-  .byte $00,$05,$06,$04,$03,$00,$01,$02,$00,$04,$02,$03,$00,$01,$05,$06; $A11B: 00 05 06 04 03 00 01 02 00 04 02 03 00 01 05 06
-  .byte $00                               ; $A12B: 00
-Loc_A12C:  ; (dispatch callback target)
-; --- Code Region ---
-  INC $0401                               ; $A12C: EE 01 04
+  LDA ProvinceCountDisplayTable,Y         ; $A0B0: B9 E4 A0
+  STA $6F05                               ; $A0B3: 8D 05 6F ; Province count display value
+  LDY #$3D                                ; $A0B6: A0 3D     ; target banks $1D+$1E
+  JSR B1F_BankedCallbackTrampoline        ; $A0B8: 20 07 EE
+; --- BankedCallbackTrampoline target ---
+  .word B1D_1E_YearDisplaySetup           ; $A0BB: 1E A0 (bank $1D $A01E -> JMP $A6B6: YearDisplaySetup)
+; --- Resumed code after trampoline return ---
+  LDY #$00                                ; $A0BD: A0 00
+  LDA ($EE),Y                             ; $A0BF: B1 EE     ; focused Country's Ruler id
+  STA a:$000A                             ; $A0C1: 8D 0A 00
+  JSR FindOfficerProvince                 ; $A0C4: 20 EB A1 ; -> A = Province housing the Ruler
+  LDY #$01                                ; $A0C7: A0 01
+  STA ($EE),Y                             ; $A0C9: 91 EE     ; Country record[1] = home Province
+  LDA #$0A                                ; $A0CB: A9 0A
+  STA $0400                               ; $A0CD: 8D 00 04 ; camera-focus frame state
+  LDA #$00                                ; $A0D0: A9 00
+  STA $0401                               ; $A0D2: 8D 01 04
+  RTS                                     ; $A0D5: 60
+; --- Country record pointer table (same entries as B1F CountryDataPtrTable) ---
+CountryRecordPtrTable:
+  .word $6F07                             ; $A0D6: 07 6F ; Country slot 0
+  .word $6F0F                             ; $A0D8: 0F 6F ; Country slot 1
+  .word $6F17                             ; $A0DA: 17 6F ; Country slot 2
+  .word $6F1F                             ; $A0DC: 1F 6F ; Country slot 3
+  .word $6F27                             ; $A0DE: 27 6F ; Country slot 4
+  .word $6F2F                             ; $A0E0: 2F 6F ; Country slot 5
+  .word $6F37                             ; $A0E2: 37 6F ; Country slot 6
+; --- Province count display table: owned Province count (0-31) -> overlay value ---
+ProvinceCountDisplayTable:
+  .byte $00,$03,$03,$03,$04,$05,$07,$07   ; $A0E4: 00 03 03 03 04 05 07 07
+  .byte $07,$08,$08,$08,$08,$09,$09,$09   ; $A0EC: 07 08 08 08 08 09 09 09
+  .byte $09,$0A,$0A,$0A,$0B,$0B,$0B,$0B   ; $A0F4: 09 0A 0A 0A 0B 0B 0B 0B
+  .byte $0C,$0C,$0C,$0C,$0D,$0D,$0D,$0D   ; $A0FC: 0C 0C 0C 0C 0D 0D 0D 0D
+; --- Attract demo Country rotation orders: 5 rows x 8 (7 slots + pad), row = $6F45 ---
+AttractCountryOrderTable:
+  .byte $00,$01,$02,$03,$06,$05,$04,$00   ; $A104: 00 01 02 03 06 05 04 00 ; order 0
+  .byte $01,$04,$06,$00,$02,$03,$05,$00   ; $A10C: 01 04 06 00 02 03 05 00 ; order 1
+  .byte $03,$02,$04,$06,$05,$00,$01,$00   ; $A114: 03 02 04 06 05 00 01 00 ; order 2
+  .byte $05,$06,$04,$03,$00,$01,$02,$00   ; $A11C: 05 06 04 03 00 01 02 00 ; order 3
+  .byte $04,$02,$03,$00,$01,$05,$06,$00   ; $A124: 04 02 03 00 01 05 06 00 ; order 4
+;===============================================================================
+; $A12C: OverlayInit (sub-state 1)
+; Sub-state 1. Opens the Country status overlay (UI $20), posts the focused
+; Country and its Province count display value, and sets the map camera
+; target ($6F3F/$6F41) on the Ruler's home Province via the bank-$1A
+; per-Province camera tables at $C737 (X) / $C755 (Y).
+;===============================================================================
+OverlayInit:  ; sub-state 1
+  INC $0401                               ; $A12C: EE 01 04 ; -> sub-state 2
   LDA #$20                                ; $A12F: A9 20
-  JSR $F28B                               ; $A131: 20 8B F2
+  JSR B1F_SetUI4                          ; $A131: 20 8B F2 ; Country status overlay
   LDY #$00                                ; $A134: A0 00
-  LDA ($EE),Y                             ; $A136: B1 EE
-  STA $042C                               ; $A138: 8D 2C 04
+  LDA ($EE),Y                             ; $A136: B1 EE     ; focused Country's Ruler id
+  STA $042C                               ; $A138: 8D 2C 04 ; overlay: Country
   LDA $6F05                               ; $A13B: AD 05 6F
-  STA $042F                               ; $A13E: 8D 2F 04
+  STA $042F                               ; $A13E: 8D 2F 04 ; overlay: Province count value
   LDA #$00                                ; $A141: A9 00
   STA $0430                               ; $A143: 8D 30 04
   STA $0431                               ; $A146: 8D 31 04
   LDY #$01                                ; $A149: A0 01
-  LDA ($EE),Y                             ; $A14B: B1 EE
+  LDA ($EE),Y                             ; $A14B: B1 EE     ; home Province
   TAY                                     ; $A14D: A8
-  LDA $C737,Y                             ; $A14E: B9 37 C7
-  STA $6F3F                               ; $A151: 8D 3F 6F
-  LDA $C755,Y                             ; $A154: B9 55 C7
+  LDA $C737,Y                             ; $A14E: B9 37 C7 ; camera X by Province
+  STA $6F3F                               ; $A151: 8D 3F 6F ; camera X target
+  LDA $C755,Y                             ; $A154: B9 55 C7 ; camera Y by Province
   CLC                                     ; $A157: 18
   ADC #$01                                ; $A158: 69 01
-  STA $6F41                               ; $A15A: 8D 41 6F
+  STA $6F41                               ; $A15A: 8D 41 6F ; camera Y target
   RTS                                     ; $A15D: 60
-Loc_A15E:  ; (dispatch callback target)
-  LDY #$3D                                ; $A15E: A0 3D
-  JSR $EE07                               ; $A160: 20 07 EE
-; --- Data Region ---
-  .byte $21,$A0,$AD,$00,$03,$C9,$FF,$D0,$19,$AD,$04,$03,$C9,$FF,$D0,$12; $A163: 21 A0 AD 00 03 C9 FF D0 19 AD 04 03 C9 FF D0 12
-  .byte $20,$C2,$A1,$AD,$81,$00,$29,$01,$F0,$08,$A9,$00,$8D,$00,$04,$8D; $A173: 20 C2 A1 AD 81 00 29 01 F0 08 A9 00 8D 00 04 8D
-  .byte $01,$04                           ; $A183: 01 04
-Loc_A185:
-; --- Code Region ---
+;===============================================================================
+; $A15E: OverlayPoll (sub-state 2)
+; Sub-state 2, runs every frame while the status overlay is up. Banked call
+; to bank $1D SlowPeriodic (entry $A021 -> $A77F: PeriodicOverlayRefresh
+; slow tick, redraws the stats overlay from $6F05 every 16th tick), then
+; draws the marker sprite; Start exits the demo back to frame state 0.
+;===============================================================================
+OverlayPoll:  ; sub-state 2
+  LDY #$3D                                ; $A15E: A0 3D     ; target banks $1D+$1E
+  JSR B1F_BankedCallbackTrampoline        ; $A160: 20 07 EE
+; --- BankedCallbackTrampoline target ---
+  .word B1D_1E_SlowPeriodic               ; $A163: 21 A0 (bank $1D $A021 -> JMP $A77F: PeriodicOverlayRefresh::SlowPeriodic)
+; --- Resumed code after trampoline return ---
+  LDA $0300                               ; $A165: AD 00 03 ; overlay slot 0 sentinel ($FF = idle)
+  CMP #$FF                                ; $A168: C9 FF
+  BNE OverlayPollExit                     ; $A16A: D0 19
+  LDA $0304                               ; $A16C: AD 04 03 ; overlay slot 1 sentinel
+  CMP #$FF                                ; $A16F: C9 FF
+  BNE OverlayPollExit                     ; $A171: D0 12
+  JSR MarkerSpriteDraw                    ; $A173: 20 C2 A1
+  LDA a:$0081                             ; $A176: AD 81 00 ; pad 1
+  AND #$01                                ; $A179: 29 01     ; Start
+  BEQ OverlayPollExit                     ; $A17B: F0 08
+  LDA #$00                                ; $A17D: A9 00
+  STA $0400                               ; $A17F: 8D 00 04 ; exit: frame state 0 (ruler intro)
+  STA $0401                               ; $A182: 8D 01 04
+OverlayPollExit:
   RTS                                     ; $A185: 60
-Loc_A186:  ; (dispatch callback target)
+;===============================================================================
+; $A186: ResetCheck (sub-state 3)
+; Sub-state 3 (demo idled: too few unclaimed Officers). Once both overlay
+; slots are free, Start soft-resets the console back to the title sequence.
+;===============================================================================
+ResetCheck:  ; sub-state 3
   LDA $0300                               ; $A186: AD 00 03
   CMP #$FF                                ; $A189: C9 FF
-  BNE $A19E                               ; $A18B: D0 11
+  BNE @exit                               ; $A18B: D0 11
   LDA $0304                               ; $A18D: AD 04 03
   CMP #$FF                                ; $A190: C9 FF
-  BNE $A19E                               ; $A192: D0 0A
-  LDA a:$0081                             ; $A194: AD 81 00
-  AND #$01                                ; $A197: 29 01
-  BEQ $A19E                               ; $A199: F0 03
-  JMP $E000                               ; $A19B: 4C 00 E0
-Loc_A19E:
+  BNE @exit                               ; $A192: D0 0A
+  LDA a:$0081                             ; $A194: AD 81 00 ; pad 1
+  AND #$01                                ; $A197: 29 01     ; Start
+  BEQ @exit                               ; $A199: F0 03
+  JMP B1F_Reset                           ; $A19B: 4C 00 E0 ; soft reset -> title
+@exit:
   RTS                                     ; $A19E: 60
-Loc_A19F:
-  STA a:$0002                             ; $A19F: 8D 02 00
+.endproc
+;===============================================================================
+; $A19F: ProvinceCountByOwner
+; Counts the Provinces whose owner (record[0] low nibble) matches A.
+; Input: A = Country id; Output: $0003 = Province count. Scans all 30
+; Province records (ids $00-$1D) via B1F_GetProvinceRecordAddr.
+;===============================================================================
+ProvinceCountByOwner:
+  STA a:$0002                             ; $A19F: 8D 02 00 ; target Country id
   LDA #$00                                ; $A1A2: A9 00
-  STA a:$0003                             ; $A1A4: 8D 03 00
-  LDA #$1D                                ; $A1A7: A9 1D
-Loc_A1A9:
+  STA a:$0003                             ; $A1A4: 8D 03 00 ; match count
+  LDA #$1D                                ; $A1A7: A9 1D     ; last Province id (30)
+@Loop:
   PHA                                     ; $A1A9: 48
-  JSR $F2AF                               ; $A1AA: 20 AF F2
+  JSR B1F_GetProvinceRecordAddr           ; $A1AA: 20 AF F2 ; ($00) = id*32+$6000
   LDY #$00                                ; $A1AD: A0 00
-  LDA ($00),Y                             ; $A1AF: B1 00
-  AND #$0F                                ; $A1B1: 29 0F
+  LDA ($00),Y                             ; $A1AF: B1 00     ; Province record[0]
+  AND #$0F                                ; $A1B1: 29 0F     ; owner Country id
   CMP a:$0002                             ; $A1B3: CD 02 00
-  BNE $A1BB                               ; $A1B6: D0 03
+  BNE @Next                               ; $A1B6: D0 03
   INC a:$0003                             ; $A1B8: EE 03 00
-Loc_A1BB:
+@Next:
   PLA                                     ; $A1BB: 68
   SEC                                     ; $A1BC: 38
   SBC #$01                                ; $A1BD: E9 01
-  BPL $A1A9                               ; $A1BF: 10 E8
+  BPL @Loop                               ; $A1BF: 10 E8
   RTS                                     ; $A1C1: 60
-Loc_A1C2:
-  LDA a:$005E                             ; $A1C2: AD 5E 00
+;===============================================================================
+; $A1C2: MarkerSpriteDraw
+; Draws the demo marker sprite (MarkerSpriteData) at fixed screen position
+; ($D8,$A0) via B1F_SpriteOamWriterSimple. Skipped while $005E bit4 is set.
+;===============================================================================
+MarkerSpriteDraw:
+  LDA a:$005E                             ; $A1C2: AD 5E 00 ; marker gate flag
   AND #$10                                ; $A1C5: 29 10
-  BNE $A1E5                               ; $A1C7: D0 1C
+  BNE @skip                               ; $A1C7: D0 1C
   LDA #$D8                                ; $A1C9: A9 D8
-  STA a:$000A                             ; $A1CB: 8D 0A 00
+  STA a:$000A                             ; $A1CB: 8D 0A 00 ; sprite Y
   LDA #$A0                                ; $A1CE: A9 A0
-  STA a:$000C                             ; $A1D0: 8D 0C 00
-  LDA #$E6                                ; $A1D3: A9 E6
+  STA a:$000C                             ; $A1D0: 8D 0C 00 ; sprite X
+  LDA #<MarkerSpriteData                  ; $A1D3: A9 E6
   STA a:$0000                             ; $A1D5: 8D 00 00
-  LDA #$A1                                ; $A1D8: A9 A1
+  LDA #>MarkerSpriteData                  ; $A1D8: A9 A1
   STA a:$0001                             ; $A1DA: 8D 01 00
   LDA #$00                                ; $A1DD: A9 00
-  STA a:$0002                             ; $A1DF: 8D 02 00
-  JMP $F1AD                               ; $A1E2: 4C AD F1
-Loc_A1E5:
+  STA a:$0002                             ; $A1DF: 8D 02 00 ; OAM page
+  JMP B1F_SpriteOamWriterSimple           ; $A1E2: 4C AD F1
+@skip:
   RTS                                     ; $A1E5: 60
-; --- Data Region ---
+MarkerSpriteData:
   .byte $00,$04,$00,$00,$80               ; $A1E6: 00 04 00 00 80
-Loc_A1EB:
-; --- Code Region ---
-  LDX #$00                                ; $A1EB: A2 00
-Loc_A1ED:
+;===============================================================================
+; $A1EB: FindOfficerProvince
+; Finds the Province housing Officer id $000A by scanning the 10-slot Officer
+; roster (record offsets $11-$1A) of all 30 Province records.
+; Output: A = Province id ($00 fallback if not found).
+;===============================================================================
+FindOfficerProvince:
+  LDX #$00                                ; $A1EB: A2 00     ; Province id
+@ProvinceLoop:
   TXA                                     ; $A1ED: 8A
-  JSR $F2AF                               ; $A1EE: 20 AF F2
-  LDY #$11                                ; $A1F1: A0 11
-Loc_A1F3:
+  JSR B1F_GetProvinceRecordAddr           ; $A1EE: 20 AF F2
+  LDY #$11                                ; $A1F1: A0 11     ; roster offsets $11-$1A
+@RosterLoop:
   LDA ($00),Y                             ; $A1F3: B1 00
-  CMP a:$000A                             ; $A1F5: CD 0A 00
-  BNE $A1FC                               ; $A1F8: D0 02
+  CMP a:$000A                             ; $A1F5: CD 0A 00 ; target Officer id
+  BNE @RosterNext                         ; $A1F8: D0 02
   TXA                                     ; $A1FA: 8A
-  RTS                                     ; $A1FB: 60
-Loc_A1FC:
+  RTS                                     ; $A1FB: 60        ; found: A = Province id
+@RosterNext:
   INY                                     ; $A1FC: C8
   CPY #$1B                                ; $A1FD: C0 1B
-  BCC $A1F3                               ; $A1FF: 90 F2
+  BCC @RosterLoop                         ; $A1FF: 90 F2
   INX                                     ; $A201: E8
-  CPX #$1E                                ; $A202: E0 1E
-  BCC $A1ED                               ; $A204: 90 E7
-  LDA #$00                                ; $A206: A9 00
+  CPX #$1E                                ; $A202: E0 1E     ; 30 Provinces
+  BCC @ProvinceLoop                       ; $A204: 90 E7
+  LDA #$00                                ; $A206: A9 00     ; not found
   RTS                                     ; $A208: 60
-Loc_A209:
+;===============================================================================
+; $A209: DecayCountryTimers
+; Decays the four packed-nibble timers (Country record offsets $04-$07) of
+; every Country record ($6F07..$6F37): low nibble -1, high nibble -$10,
+; each skipped once zero. Run once per rotation step by the demo cycle.
+;===============================================================================
+DecayCountryTimers:
   LDA #$00                                ; $A209: A9 00
-  STA a:$0002                             ; $A20B: 8D 02 00
-Loc_A20E:
+  STA a:$0002                             ; $A20B: 8D 02 00 ; Country index
+@CountryLoop:
   LDA a:$0002                             ; $A20E: AD 02 00
-  JSR $F368                               ; $A211: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $A211: 20 68 F3 ; ($00) = Country record
   LDY #$04                                ; $A214: A0 04
-Loc_A216:
+@FieldLoop:
   LDA ($00),Y                             ; $A216: B1 00
-  AND #$0F                                ; $A218: 29 0F
-  BEQ $A223                               ; $A21A: F0 07
+  AND #$0F                                ; $A218: 29 0F     ; low nibble timer
+  BEQ @SkipLow                            ; $A21A: F0 07
   LDA ($00),Y                             ; $A21C: B1 00
   SEC                                     ; $A21E: 38
   SBC #$01                                ; $A21F: E9 01
   STA ($00),Y                             ; $A221: 91 00
-Loc_A223:
+@SkipLow:
   LDA ($00),Y                             ; $A223: B1 00
-  AND #$F0                                ; $A225: 29 F0
-  BEQ $A230                               ; $A227: F0 07
+  AND #$F0                                ; $A225: 29 F0     ; high nibble timer
+  BEQ @SkipHigh                           ; $A227: F0 07
   LDA ($00),Y                             ; $A229: B1 00
   SEC                                     ; $A22B: 38
   SBC #$10                                ; $A22C: E9 10
   STA ($00),Y                             ; $A22E: 91 00
-Loc_A230:
+@SkipHigh:
   INY                                     ; $A230: C8
   CPY #$08                                ; $A231: C0 08
-  BCC $A216                               ; $A233: 90 E1
+  BCC @FieldLoop                          ; $A233: 90 E1
   INC a:$0002                             ; $A235: EE 02 00
   LDA a:$0002                             ; $A238: AD 02 00
-  CMP #$07                                ; $A23B: C9 07
-  BCC $A20E                               ; $A23D: 90 CF
+  CMP #$07                                ; $A23B: C9 07     ; 7 Countries
+  BCC @CountryLoop                        ; $A23D: 90 CF
   RTS                                     ; $A23F: 60
-Loc_A240:
+;===============================================================================
+; $A240: AttractDemoCensusBuild
+; Prepares the demo's Country list and Officer census:
+;   1. Switches $8000 to bank $11, copies the seven Country record[0] Ruler
+;      ids into the $042C list, and blanks the focused slot ($6F03) with $FF.
+;   2. Scans all Officer ids $00-$EC (237 Officers): counts into $0011 those
+;      that are not one of the active Rulers and whose SRAM record flag
+;      (offset $0B & $03) is not 3. Output $0011 gates the demo's end: the
+;      caller idles once fewer than 30 such Officers remain.
+;===============================================================================
+AttractDemoCensusBuild:
   LDY #$31                                ; $A240: A0 31
-  JSR $F25F                               ; $A242: 20 5F F2
+  JSR B1F_SwitchBank8_B                   ; $A242: 20 5F F2 ; $8000 <- bank $11
   LDY #$00                                ; $A245: A0 00
   LDX #$00                                ; $A247: A2 00
-Loc_A249:
-  LDA $6F07,Y                             ; $A249: B9 07 6F
-  STA $042C,X                             ; $A24C: 9D 2C 04
+@CopyLoop:
+  LDA $6F07,Y                             ; $A249: B9 07 6F ; Country record[0] = Ruler id
+  STA $042C,X                             ; $A24C: 9D 2C 04 ; demo Country list
   INX                                     ; $A24F: E8
   TXA                                     ; $A250: 8A
   ASL                                     ; $A251: 0A
   ASL                                     ; $A252: 0A
-  ASL                                     ; $A253: 0A
+  ASL                                     ; $A253: 0A        ; X*8 = record stride
   TAY                                     ; $A254: A8
-  CPX #$07                                ; $A255: E0 07
-  BCC $A249                               ; $A257: 90 F0
-  LDX $6F03                               ; $A259: AE 03 6F
+  CPX #$07                                ; $A255: E0 07     ; 7 Countries
+  BCC @CopyLoop                           ; $A257: 90 F0
+  LDX $6F03                               ; $A259: AE 03 6F ; focused Country slot
   LDA #$FF                                ; $A25C: A9 FF
-  STA $042C,X                             ; $A25E: 9D 2C 04
+  STA $042C,X                             ; $A25E: 9D 2C 04 ; blank the focused slot
   LDA #$00                                ; $A261: A9 00
-  STA a:$0010                             ; $A263: 8D 10 00
-  STA a:$0011                             ; $A266: 8D 11 00
-Loc_A269:
+  STA a:$0010                             ; $A263: 8D 10 00 ; Officer id scan
+  STA a:$0011                             ; $A266: 8D 11 00 ; census count
+@OfficerLoop:
   LDX #$00                                ; $A269: A2 00
-Loc_A26B:
-  LDA $042C,X                             ; $A26B: BD 2C 04
-  CMP a:$0010                             ; $A26E: CD 10 00
-  BEQ $A28B                               ; $A271: F0 18
+@RulerCheck:
+  LDA $042C,X                             ; $A26B: BD 2C 04 ; active Ruler id
+  CMP a:$0010                             ; $A26E: CD 10 00 ; is this Officer a Ruler?
+  BEQ @OfficerNext                        ; $A271: F0 18
   INX                                     ; $A273: E8
   CPX #$07                                ; $A274: E0 07
-  BCC $A26B                               ; $A276: 90 F3
+  BCC @RulerCheck                         ; $A276: 90 F3
   LDA a:$0010                             ; $A278: AD 10 00
-  JSR $F2D7                               ; $A27B: 20 D7 F2
+  JSR B1F_GetOfficerRecordAddr            ; $A27B: 20 D7 F2 ; id*12+$63C0
   LDY #$0B                                ; $A27E: A0 0B
-  LDA ($00),Y                             ; $A280: B1 00
+  LDA ($00),Y                             ; $A280: B1 00     ; Officer record flag byte
   AND #$03                                ; $A282: 29 03
-  CMP #$03                                ; $A284: C9 03
-  BEQ $A28B                               ; $A286: F0 03
+  CMP #$03                                ; $A284: C9 03     ; status 3: excluded
+  BEQ @OfficerNext                        ; $A286: F0 03
   INC a:$0011                             ; $A288: EE 11 00
-Loc_A28B:
+@OfficerNext:
   INC a:$0010                             ; $A28B: EE 10 00
   LDA a:$0010                             ; $A28E: AD 10 00
-  CMP #$ED                                ; $A291: C9 ED
-  BCC $A269                               ; $A293: 90 D4
+  CMP #$ED                                ; $A291: C9 ED     ; Officer ids $00-$EC
+  BCC @OfficerLoop                        ; $A293: 90 D4
   RTS                                     ; $A295: 60
 Loc_A296:
   LDA $0401                               ; $A296: AD 01 04
@@ -1092,7 +1211,7 @@ Loc_A974:
   RTS                                     ; $A984: 60
 Loc_A985:
   LDA $0472                               ; $A985: AD 72 04
-  JSR $BBE7                               ; $A988: 20 E7 BB
+  JSR MapProvinceDirtyMark::ByZone        ; $A988: 20 E7 BB
   LDA $0471                               ; $A98B: AD 71 04
   CMP #$FF                                ; $A98E: C9 FF
   BEQ $A99F                               ; $A990: F0 0D
@@ -1847,48 +1966,96 @@ Loc_AFB8:  ; (dispatch callback target)
   STA $0401                               ; $AFE1: 8D 01 04
 Loc_AFE4:
   RTS                                     ; $AFE4: 60
-Loc_AFE5:
-  LDA $0401                               ; $AFE5: AD 01 04
-  JSR $EADE                               ; $AFE8: 20 DE EA
-; --- Data Region ---
-  .byte $F5,$AF,$41,$B0,$86,$B0,$36,$B1,$55,$B1; $AFEB: F5 AF 41 B0 86 B0 36 B1 55 B1
-Loc_AFF5:  ; (dispatch callback target)
-; --- Code Region ---
+;===============================================================================
+; $AFE5: ProvinceOfficerRosterDispatch
+; Map screen frame state $0C handler (entered from prg_1b_1c
+; MapScreenFrameStateDispatch via banks $19+$1A entry $A021). Displays the
+; focused Province's ($0402) Officer roster as a scrolling card carousel:
+;   0 RosterLoadInit   - load scenario data, fill roster into $0410
+;   1 CardPanelSetup   - card panel window parameters
+;   2 RosterPoll       - draw cursor card, Up/Down move, A/B exit handoff
+;   3 CardAnimWait     - card slide-in animation ($B2D7) frames 0-9
+;   4 RosterScroll     - 40-frame row scroll, then commit cursor move
+; Roster RAM: $0410-$0419 Officer roster (10 slots, $FF = empty),
+; $0408 cursor slot, $040C target slot, $0409 scroll offset (0-$4F, +2 per
+; frame), $040A scroll direction (0 = down, 1 = up), $040D card animation
+; frame (0-9, $FF = done), $040E/$040F row-marker coords (frames 6/7).
+; Card: 32-byte PPU strip record at $0380-$03A3 rebuilt per animation
+; frame by OfficerCardAnimStep + CardFillDispatch; rows sit at PPU $2400,
+; $2540, $2680 (slot mod 3). Exit handoff: frame state <- $0470,
+; sub-state <- $0471 (with a $0140 window-flash sequence when $0470 != 0).
+;===============================================================================
+.proc ProvinceOfficerRosterDispatch
+  LDA $0401                               ; $AFE5: AD 01 04 ; roster view sub-state
+  JSR B1F_CallbackDispatcher              ; $AFE8: 20 DE EA
+; --- Inline pointer table (5 entries) ---
+  .word RosterLoadInit                    ; $AFEB: F5 AF ; sub-state 0
+  .word CardPanelSetup                    ; $AFED: 41 B0 ; sub-state 1
+  .word RosterPoll                        ; $AFEF: 86 B0 ; sub-state 2
+  .word CardAnimWait                      ; $AFF1: 36 B1 ; sub-state 3
+  .word RosterScroll                      ; $AFF3: 55 B1 ; sub-state 4
+;===============================================================================
+; $AFF5: RosterLoadInit (sub-state 0)
+; Loads scenario data via bank $1D entry $A015 (LoadScenarioData -> $DBB1:
+; copies ScenarioDataTable[$0000 = 0], 32 bytes, to $0100), forces a
+; full sprite refresh, resets the card animation state, sets the map
+; overlay window parameters ($00BA/$00BB), clears the roster and fills
+; $0410-$0419 from the focused Province record's 10-slot Officer roster
+; (offsets $11-$1A, $FF = empty slot).
+;===============================================================================
+RosterLoadInit:  ; sub-state 0
   LDA #$00                                ; $AFF5: A9 00
   STA a:$0000                             ; $AFF7: 8D 00 00
-  LDY #$3D                                ; $AFFA: A0 3D
-  JSR $EE07                               ; $AFFC: 20 07 EE
-; --- Data Region ---
-  .byte $15,$A0,$A9,$FF,$8D,$E4,$04,$A9,$00,$8D,$0C,$04,$8D,$0D,$04,$EE; $AFFF: 15 A0 A9 FF 8D E4 04 A9 00 8D 0C 04 8D 0D 04 EE
-  .byte $01,$04,$A9,$08,$8D,$BA,$00,$A9,$06,$8D,$BB,$00,$A0,$00,$A9,$FF; $B00F: 01 04 A9 08 8D BA 00 A9 06 8D BB 00 A0 00 A9 FF
-Loc_B01F:
-; --- Code Region ---
-  STA $0410,Y                             ; $B01F: 99 10 04
+  LDY #$3D                                ; $AFFA: A0 3D     ; target banks $1D+$1E
+  JSR B1F_BankedCallbackTrampoline        ; $AFFC: 20 07 EE
+; --- BankedCallbackTrampoline target ---
+  .word B1D_1E_LoadScenarioData           ; $AFFF: 15 A0 (bank $1D $A015 -> JMP $DBB1: LoadScenarioData)
+; --- Resumed code after trampoline return ---
+  LDA #$FF                                ; $B001: A9 FF
+  STA $04E4                               ; $B003: 8D E4 04 ; force full sprite refresh
+  LDA #$00                                ; $B006: A9 00
+  STA $040C                               ; $B008: 8D 0C 04 ; card target slot
+  STA $040D                               ; $B00B: 8D 0D 04 ; card animation frame
+  INC $0401                               ; $B00E: EE 01 04 ; -> sub-state 1
+  LDA #$08                                ; $B011: A9 08
+  STA a:$00BA                             ; $B013: 8D BA 00 ; map overlay window param
+  LDA #$06                                ; $B016: A9 06
+  STA a:$00BB                             ; $B018: 8D BB 00
+  LDY #$00                                ; $B01B: A0 00
+  LDA #$FF                                ; $B01D: A9 FF
+@ClearRoster:
+  STA $0410,Y                             ; $B01F: 99 10 04 ; clear roster slot
   INY                                     ; $B022: C8
   CPY #$0A                                ; $B023: C0 0A
-  BCC $B01F                               ; $B025: 90 F8
-  LDA $0402                               ; $B027: AD 02 04
-  JSR $F2AF                               ; $B02A: 20 AF F2
+  BCC @ClearRoster                        ; $B025: 90 F8
+  LDA $0402                               ; $B027: AD 02 04 ; focused Province id
+  JSR B1F_GetProvinceRecordAddr           ; $B02A: 20 AF F2 ; -> ($00) = Province record
   LDX #$00                                ; $B02D: A2 00
-  LDY #$11                                ; $B02F: A0 11
-Loc_B031:
-  LDA ($00),Y                             ; $B031: B1 00
-  CMP #$FF                                ; $B033: C9 FF
-  BEQ $B03B                               ; $B035: F0 04
+  LDY #$11                                ; $B02F: A0 11     ; roster offset
+@CopyRoster:
+  LDA ($00),Y                             ; $B031: B1 00     ; Province roster slot
+  CMP #$FF                                ; $B033: C9 FF     ; empty slot
+  BEQ @SlotDone                           ; $B035: F0 04
   STA $0410,X                             ; $B037: 9D 10 04
   INX                                     ; $B03A: E8
-Loc_B03B:
+@SlotDone:
   INY                                     ; $B03B: C8
-  CPY #$1B                                ; $B03C: C0 1B
-  BCC $B031                               ; $B03E: 90 F1
+  CPY #$1B                                ; $B03C: C0 1B     ; 10 slots
+  BCC @CopyRoster                         ; $B03E: 90 F1
   RTS                                     ; $B040: 60
-Loc_B041:  ; (dispatch callback target)
-  JSR $B2D7                               ; $B041: 20 D7 B2
-  LDA $040D                               ; $B044: AD 0D 04
-  CMP #$FF                                ; $B047: C9 FF
-  BNE $B085                               ; $B049: D0 3A
+;===============================================================================
+; $B041: CardPanelSetup (sub-state 1)
+; Runs the card animation gate check ($B2D7), and on the first frame
+; ($040D == $FF) initializes the card panel window parameter block
+; ($0061, $0068-$0071, $0096-$0098) and clears the cursor slot $0408.
+;===============================================================================
+CardPanelSetup:  ; sub-state 1
+  JSR OfficerCardAnimStep                 ; $B041: 20 D7 B2 ; gate: $007E bit2 / $040D
+  LDA $040D                               ; $B044: AD 0D 04 ; card animation frame
+  CMP #$FF                                ; $B047: C9 FF     ; $FF = not animating
+  BNE CardPanelSetupExit                  ; $B049: D0 3A
   LDA #$00                                ; $B04B: A9 00
-  STA a:$0096                             ; $B04D: 8D 96 00
+  STA a:$0096                             ; $B04D: 8D 96 00 ; card panel param
   LDA #$01                                ; $B050: A9 01
   STA a:$0097                             ; $B052: 8D 97 00
   LDA #$00                                ; $B055: A9 00
@@ -1896,7 +2063,7 @@ Loc_B041:  ; (dispatch callback target)
   LDA #$01                                ; $B05A: A9 01
   STA a:$0061                             ; $B05C: 8D 61 00
   LDA #$40                                ; $B05F: A9 40
-  STA a:$0068                             ; $B061: 8D 68 00
+  STA a:$0068                             ; $B061: 8D 68 00 ; window rect params
   LDA #$18                                ; $B064: A9 18
   STA a:$006A                             ; $B066: 8D 6A 00
   LDA #$20                                ; $B069: A9 20
@@ -1907,69 +2074,82 @@ Loc_B041:  ; (dispatch callback target)
   STA a:$0070                             ; $B075: 8D 70 00
   LDA #$F1                                ; $B078: A9 F1
   STA a:$0071                             ; $B07A: 8D 71 00
-  INC $0401                               ; $B07D: EE 01 04
+  INC $0401                               ; $B07D: EE 01 04 ; -> sub-state 2
   LDA #$00                                ; $B080: A9 00
-  STA $0408                               ; $B082: 8D 08 04
-Loc_B085:
+  STA $0408                               ; $B082: 8D 08 04 ; cursor slot
+CardPanelSetupExit:
   RTS                                     ; $B085: 60
-Loc_B086:  ; (dispatch callback target)
+;===============================================================================
+; $B086: RosterPoll (sub-state 2)
+; Draws the cursor slot's Officer card (menu id $AE via $CE1F), then:
+;   - Up/Down ($0083 bit4/bit5, PadEdgeCursorMove) starts the move cycle
+;     via the card slide-in animation (-> sub-state 3).
+;   - A ($0081 bit0) exits: if the pending frame state $0470 is zero the
+;     handoff is immediate (ExitHandoff); otherwise the window-flash
+;     sequence below ($0140/$0472/$0473) runs first.
+;   - B ($0081 bit1) exits via ExitHandoff.
+; Window-flash sequence: $0472 counts 0 -> $0A with $0140 = $80, toggles
+; the palette bits $0473 into $0150 at step $0A, then marks $0472 = $80
+; done (which resets to 0 next entry).
+;===============================================================================
+RosterPoll:  ; sub-state 2
   LDA #$AE                                ; $B086: A9 AE
-  STA a:$000A                             ; $B088: 8D 0A 00
-  LDX $0408                               ; $B08B: AE 08 04
-  LDA $0410,X                             ; $B08E: BD 10 04
+  STA a:$000A                             ; $B088: 8D 0A 00 ; card menu id
+  LDX $0408                               ; $B08B: AE 08 04 ; cursor slot
+  LDA $0410,X                             ; $B08E: BD 10 04 ; roster Officer id
   STA a:$0000                             ; $B091: 8D 00 00
-  JSR $CE1F                               ; $B094: 20 1F CE
-  LDA $0472                               ; $B097: AD 72 04
-  BNE $B0AA                               ; $B09A: D0 0E
-  JSR $B209                               ; $B09C: 20 09 B2
-Loc_B09F:
-  LDA a:$0081                             ; $B09F: AD 81 00
-  LSR                                     ; $B0A2: 4A
-  BCC $B0E7                               ; $B0A3: 90 42
-  LDA $0470                               ; $B0A5: AD 70 04
-  BEQ $B0EA                               ; $B0A8: F0 40
-Loc_B0AA:
-  LDA $0140                               ; $B0AA: AD 40 01
-  BEQ $B0B0                               ; $B0AD: F0 01
-  RTS                                     ; $B0AF: 60
-Loc_B0B0:
-  LDA $0472                               ; $B0B0: AD 72 04
-  BMI $B0BF                               ; $B0B3: 30 0A
-  BEQ $B0C5                               ; $B0B5: F0 0E
+  JSR $CE1F                               ; $B094: 20 1F CE ; draw Officer card
+  LDA $0472                               ; $B097: AD 72 04 ; window-flash sequence
+  BNE WindowFlashWait                     ; $B09A: D0 0E
+  JSR PadEdgeCursorMove                   ; $B09C: 20 09 B2 ; Up/Down edge
+RosterExitPoll:
+  LDA a:$0081                             ; $B09F: AD 81 00 ; pad latch 1
+  LSR                                     ; $B0A2: 4A        ; bit0 = A
+  BCC PadBit1Check                        ; $B0A3: 90 42
+  LDA $0470                               ; $B0A5: AD 70 04 ; pending frame state
+  BEQ ExitHandoff                         ; $B0A8: F0 40     ; zero: exit now
+WindowFlashWait:
+  LDA $0140                               ; $B0AA: AD 40 01 ; window busy flag
+  BEQ WindowFlashStep                     ; $B0AD: F0 01
+  RTS                                     ; $B0AF: 60        ; busy: wait
+WindowFlashStep:
+  LDA $0472                               ; $B0B0: AD 72 04 ; sequence step
+  BMI WindowFlashReset                    ; $B0B3: 30 0A     ; $80 = done
+  BEQ WindowFlashOpen                     ; $B0B5: F0 0E     ; step 0
   CMP #$0A                                ; $B0B7: C9 0A
-  BEQ $B0CE                               ; $B0B9: F0 13
-  INC $0472                               ; $B0BB: EE 72 04
+  BEQ WindowFlashPalette                  ; $B0B9: F0 13     ; step $0A
+  INC $0472                               ; $B0BB: EE 72 04 ; count up
   RTS                                     ; $B0BE: 60
-Loc_B0BF:
+WindowFlashReset:
   LDA #$00                                ; $B0BF: A9 00
-  STA $0472                               ; $B0C1: 8D 72 04
+  STA $0472                               ; $B0C1: 8D 72 04 ; clear done mark
   RTS                                     ; $B0C4: 60
-Loc_B0C5:
+WindowFlashOpen:
   LDA #$80                                ; $B0C5: A9 80
-  STA $0140                               ; $B0C7: 8D 40 01
+  STA $0140                               ; $B0C7: 8D 40 01 ; open window
   INC $0472                               ; $B0CA: EE 72 04
   RTS                                     ; $B0CD: 60
-Loc_B0CE:
+WindowFlashPalette:
   LDA #$80                                ; $B0CE: A9 80
   STA $0140                               ; $B0D0: 8D 40 01
-  LDA $0473                               ; $B0D3: AD 73 04
+  LDA $0473                               ; $B0D3: AD 73 04 ; palette toggle
   EOR #$03                                ; $B0D6: 49 03
   STA $0473                               ; $B0D8: 8D 73 04
   ORA $0150                               ; $B0DB: 0D 50 01
-  STA $0150                               ; $B0DE: 8D 50 01
+  STA $0150                               ; $B0DE: 8D 50 01 ; palette mask
   LDA #$80                                ; $B0E1: A9 80
-  STA $0472                               ; $B0E3: 8D 72 04
+  STA $0472                               ; $B0E3: 8D 72 04 ; mark done
   RTS                                     ; $B0E6: 60
-Loc_B0E7:
-  LSR                                     ; $B0E7: 4A
-  BCC $B135                               ; $B0E8: 90 4B
-Loc_B0EA:
-  LDA $0470                               ; $B0EA: AD 70 04
-  STA $0400                               ; $B0ED: 8D 00 04
-  LDA $0471                               ; $B0F0: AD 71 04
+PadBit1Check:
+  LSR                                     ; $B0E7: 4A        ; bit1 = B
+  BCC RosterPollExit                      ; $B0E8: 90 4B
+ExitHandoff:
+  LDA $0470                               ; $B0EA: AD 70 04 ; pending frame state
+  STA $0400                               ; $B0ED: 8D 00 04 ; hand off frame machine
+  LDA $0471                               ; $B0F0: AD 71 04 ; pending sub-state
   STA $0401                               ; $B0F3: 8D 01 04
   LDA #$40                                ; $B0F6: A9 40
-  STA a:$0068                             ; $B0F8: 8D 68 00
+  STA a:$0068                             ; $B0F8: 8D 68 00 ; restore window params
   LDA #$14                                ; $B0FB: A9 14
   STA a:$006A                             ; $B0FD: 8D 6A 00
   LDA #$1E                                ; $B100: A9 1E
@@ -1988,213 +2168,267 @@ Loc_B0EA:
   LDA #$A0                                ; $B121: A9 A0
   STA a:$0098                             ; $B123: 8D 98 00
   LDA #$00                                ; $B126: A9 00
-  STA $04E4                               ; $B128: 8D E4 04
+  STA $04E4                               ; $B128: 8D E4 04 ; clear refresh flag
   LDA #$09                                ; $B12B: A9 09
   STA a:$00BB                             ; $B12D: 8D BB 00
   LDA #$0D                                ; $B130: A9 0D
   STA a:$00BC                             ; $B132: 8D BC 00
-Loc_B135:
+RosterPollExit:
   RTS                                     ; $B135: 60
-Loc_B136:  ; (dispatch callback target)
-  JSR $B2D7                               ; $B136: 20 D7 B2
+;===============================================================================
+; $B136: CardAnimWait (sub-state 3)
+; Redraws the cursor card each frame while OfficerCardAnimStep slides the
+; card strip in ($040D frames 0-9); when the animation completes
+; ($040D == $FF) advances to the row scroll (sub-state 4).
+;===============================================================================
+CardAnimWait:  ; sub-state 3
+  JSR OfficerCardAnimStep                 ; $B136: 20 D7 B2 ; advance card animation
   LDA #$AE                                ; $B139: A9 AE
-  STA a:$000A                             ; $B13B: 8D 0A 00
-  LDX $0408                               ; $B13E: AE 08 04
+  STA a:$000A                             ; $B13B: 8D 0A 00 ; card menu id
+  LDX $0408                               ; $B13E: AE 08 04 ; cursor slot
   LDA $0410,X                             ; $B141: BD 10 04
   STA a:$0000                             ; $B144: 8D 00 00
-  JSR $CE1F                               ; $B147: 20 1F CE
-  LDA $040D                               ; $B14A: AD 0D 04
-  CMP #$FF                                ; $B14D: C9 FF
-  BNE $B154                               ; $B14F: D0 03
-  INC $0401                               ; $B151: EE 01 04
-Loc_B154:
+  JSR $CE1F                               ; $B147: 20 1F CE ; redraw Officer card
+  LDA $040D                               ; $B14A: AD 0D 04 ; card animation frame
+  CMP #$FF                                ; $B14D: C9 FF     ; animation done?
+  BNE CardAnimWaitExit                    ; $B14F: D0 03
+  INC $0401                               ; $B151: EE 01 04 ; -> sub-state 4
+CardAnimWaitExit:
   RTS                                     ; $B154: 60
-Loc_B155:  ; (dispatch callback target)
-  JSR $B285                               ; $B155: 20 85 B2
-  LDA $040A                               ; $B158: AD 0A 04
-  BNE $B1AE                               ; $B15B: D0 51
-  LDA $0409                               ; $B15D: AD 09 04
-  CMP #$29                                ; $B160: C9 29
-  BCS $B189                               ; $B162: B0 25
+;===============================================================================
+; $B155: RosterScroll (sub-state 4)
+; 40-frame row scroll between cursor slot $0408 and target slot $040C.
+; Draws both cards at moving row positions (rows $AC and $FC, 80 px
+; apart, wrapping at the halfway point $0409 = $29); direction $040A
+; selects which card travels which way. RowMarkerBob bobs the row marker
+; ($00BC/$00BD + $0098) in step, and ScrollStepAdvance consumes the pad
+; and steps $0409 by 2; at $0409 >= $50 the move commits ($0401 -= 2 back
+; to sub-state 2, cursor slot +/-1). Then falls into RosterExitPoll.
+;===============================================================================
+RosterScroll:  ; sub-state 4
+  JSR RowMarkerBob                        ; $B155: 20 85 B2 ; marker bob tick
+  LDA $040A                               ; $B158: AD 0A 04 ; scroll direction
+  BNE ScrollDirUp                         ; $B15B: D0 51     ; 1 = up
+  LDA $0409                               ; $B15D: AD 09 04 ; scroll offset
+  CMP #$29                                ; $B160: C9 29     ; halfway point
+  BCS ScrollDownLate                      ; $B162: B0 25
   LDA #$AC                                ; $B164: A9 AC
   SEC                                     ; $B166: 38
-  SBC $0409                               ; $B167: ED 09 04
+  SBC $0409                               ; $B167: ED 09 04 ; row = $AC - offset
   STA a:$000A                             ; $B16A: 8D 0A 00
-  LDX $0408                               ; $B16D: AE 08 04
-  JSR $B1FF                               ; $B170: 20 FF B1
+  LDX $0408                               ; $B16D: AE 08 04 ; cursor card
+  JSR DrawRosterSlotCard                  ; $B170: 20 FF B1
   LDA #$FC                                ; $B173: A9 FC
   SEC                                     ; $B175: 38
-  SBC $0409                               ; $B176: ED 09 04
+  SBC $0409                               ; $B176: ED 09 04 ; row = $FC - offset
   STA a:$000A                             ; $B179: 8D 0A 00
   LDX $0408                               ; $B17C: AE 08 04
-  INX                                     ; $B17F: E8
-  JSR $B1FF                               ; $B180: 20 FF B1
-  JSR $B260                               ; $B183: 20 60 B2
-  JMP $B09F                               ; $B186: 4C 9F B0
-Loc_B189:
+  INX                                     ; $B17F: E8        ; next card
+  JSR DrawRosterSlotCard                  ; $B180: 20 FF B1
+  JSR ScrollStepAdvance                   ; $B183: 20 60 B2
+  JMP RosterExitPoll                      ; $B186: 4C 9F B0 ; shared input poll
+ScrollDownLate:
   LDA #$FC                                ; $B189: A9 FC
   SEC                                     ; $B18B: 38
   SBC $0409                               ; $B18C: ED 09 04
   STA a:$000A                             ; $B18F: 8D 0A 00
   LDX $0408                               ; $B192: AE 08 04
   INX                                     ; $B195: E8
-  JSR $B1FF                               ; $B196: 20 FF B1
+  JSR DrawRosterSlotCard                  ; $B196: 20 FF B1
   LDA #$AC                                ; $B199: A9 AC
   SEC                                     ; $B19B: 38
   SBC $0409                               ; $B19C: ED 09 04
   STA a:$000A                             ; $B19F: 8D 0A 00
   LDX $0408                               ; $B1A2: AE 08 04
-  JSR $B1FF                               ; $B1A5: 20 FF B1
-  JSR $B260                               ; $B1A8: 20 60 B2
-  JMP $B09F                               ; $B1AB: 4C 9F B0
-Loc_B1AE:
-  LDA $0409                               ; $B1AE: AD 09 04
-  CMP #$29                                ; $B1B1: C9 29
-  BCC $B1DA                               ; $B1B3: 90 25
+  JSR DrawRosterSlotCard                  ; $B1A5: 20 FF B1
+  JSR ScrollStepAdvance                   ; $B1A8: 20 60 B2
+  JMP RosterExitPoll                      ; $B1AB: 4C 9F B0
+ScrollDirUp:
+  LDA $0409                               ; $B1AE: AD 09 04 ; scroll offset
+  CMP #$29                                ; $B1B1: C9 29     ; halfway point
+  BCC ScrollUpLate                        ; $B1B3: 90 25
   LDA #$60                                ; $B1B5: A9 60
   CLC                                     ; $B1B7: 18
-  ADC $0409                               ; $B1B8: 6D 09 04
+  ADC $0409                               ; $B1B8: 6D 09 04 ; row = $60 + offset
   STA a:$000A                             ; $B1BB: 8D 0A 00
   LDX $0408                               ; $B1BE: AE 08 04
-  DEX                                     ; $B1C1: CA
-  JSR $B1FF                               ; $B1C2: 20 FF B1
+  DEX                                     ; $B1C1: CA        ; previous card
+  JSR DrawRosterSlotCard                  ; $B1C2: 20 FF B1
   LDA #$B0                                ; $B1C5: A9 B0
   CLC                                     ; $B1C7: 18
-  ADC $0409                               ; $B1C8: 6D 09 04
+  ADC $0409                               ; $B1C8: 6D 09 04 ; row = $B0 + offset
   STA a:$000A                             ; $B1CB: 8D 0A 00
   LDX $0408                               ; $B1CE: AE 08 04
-  JSR $B1FF                               ; $B1D1: 20 FF B1
-  JSR $B260                               ; $B1D4: 20 60 B2
-  JMP $B09F                               ; $B1D7: 4C 9F B0
-Loc_B1DA:
+  JSR DrawRosterSlotCard                  ; $B1D1: 20 FF B1
+  JSR ScrollStepAdvance                   ; $B1D4: 20 60 B2
+  JMP RosterExitPoll                      ; $B1D7: 4C 9F B0
+ScrollUpLate:
   LDA #$B0                                ; $B1DA: A9 B0
   CLC                                     ; $B1DC: 18
   ADC $0409                               ; $B1DD: 6D 09 04
   STA a:$000A                             ; $B1E0: 8D 0A 00
   LDX $0408                               ; $B1E3: AE 08 04
-  JSR $B1FF                               ; $B1E6: 20 FF B1
+  JSR DrawRosterSlotCard                  ; $B1E6: 20 FF B1
   LDA #$60                                ; $B1E9: A9 60
   CLC                                     ; $B1EB: 18
   ADC $0409                               ; $B1EC: 6D 09 04
   STA a:$000A                             ; $B1EF: 8D 0A 00
   LDX $0408                               ; $B1F2: AE 08 04
   DEX                                     ; $B1F5: CA
-  JSR $B1FF                               ; $B1F6: 20 FF B1
-  JSR $B260                               ; $B1F9: 20 60 B2
-  JMP $B09F                               ; $B1FC: 4C 9F B0
-Loc_B1FF:
-  LDA $0410,X                             ; $B1FF: BD 10 04
+  JSR DrawRosterSlotCard                  ; $B1F6: 20 FF B1
+  JSR ScrollStepAdvance                   ; $B1F9: 20 60 B2
+  JMP RosterExitPoll                      ; $B1FC: 4C 9F B0
+;===============================================================================
+; $B1FF: DrawRosterSlotCard
+; Draws the Officer card for roster slot X at card row $000A (menu id
+; $000A already set; card renderer $CE1F takes the Officer id in $0000).
+;===============================================================================
+DrawRosterSlotCard:
+  LDA $0410,X                             ; $B1FF: BD 10 04 ; roster Officer id
   STA a:$0000                             ; $B202: 8D 00 00
-  JSR $CE1F                               ; $B205: 20 1F CE
+  JSR $CE1F                               ; $B205: 20 1F CE ; draw Officer card
   RTS                                     ; $B208: 60
-Loc_B209:
-  LDA a:$0083                             ; $B209: AD 83 00
-  AND #$10                                ; $B20C: 29 10
-  BEQ $B230                               ; $B20E: F0 20
-  LDA $0408                               ; $B210: AD 08 04
-  BEQ $B230                               ; $B213: F0 1B
+;===============================================================================
+; $B209: PadEdgeCursorMove
+; Pad-edge cursor movement ($0083): Up (bit4) when the cursor is not in
+; slot 0, Down (bit5) when below slot 9 and the next slot is occupied.
+; Starts the move cycle: direction $040A, target slot $040C, card
+; animation frame $040D reset, -> sub-state 3.
+;===============================================================================
+PadEdgeCursorMove:
+  LDA a:$0083                             ; $B209: AD 83 00 ; pad edge latch
+  AND #$10                                ; $B20C: 29 10     ; Up
+  BEQ @DownEdge                           ; $B20E: F0 20
+  LDA $0408                               ; $B210: AD 08 04 ; cursor slot
+  BEQ @DownEdge                           ; $B213: F0 1B     ; slot 0: cannot move up
   LDA #$00                                ; $B215: A9 00
-  STA $0409                               ; $B217: 8D 09 04
+  STA $0409                               ; $B217: 8D 09 04 ; scroll offset
   LDA #$01                                ; $B21A: A9 01
-  STA $040A                               ; $B21C: 8D 0A 04
-  INC $0401                               ; $B21F: EE 01 04
+  STA $040A                               ; $B21C: 8D 0A 04 ; direction = up
+  INC $0401                               ; $B21F: EE 01 04 ; -> sub-state 3
   LDA #$00                                ; $B222: A9 00
-  STA $040D                               ; $B224: 8D 0D 04
+  STA $040D                               ; $B224: 8D 0D 04 ; card animation frame
   LDA $0408                               ; $B227: AD 08 04
   SEC                                     ; $B22A: 38
   SBC #$01                                ; $B22B: E9 01
-  STA $040C                               ; $B22D: 8D 0C 04
-Loc_B230:
-  LDA a:$0083                             ; $B230: AD 83 00
-  AND #$20                                ; $B233: 29 20
-  BEQ $B25F                               ; $B235: F0 28
-  LDY $0408                               ; $B237: AC 08 04
-  CPY #$09                                ; $B23A: C0 09
-  BCS $B25F                               ; $B23C: B0 21
+  STA $040C                               ; $B22D: 8D 0C 04 ; target slot
+@DownEdge:
+  LDA a:$0083                             ; $B230: AD 83 00 ; pad edge latch
+  AND #$20                                ; $B233: 29 20     ; Down
+  BEQ PadEdgeCursorMoveExit               ; $B235: F0 28
+  LDY $0408                               ; $B237: AC 08 04 ; cursor slot
+  CPY #$09                                ; $B23A: C0 09     ; bottom slot
+  BCS PadEdgeCursorMoveExit               ; $B23C: B0 21
   INY                                     ; $B23E: C8
-  LDA $0410,Y                             ; $B23F: B9 10 04
-  CMP #$FF                                ; $B242: C9 FF
-  BEQ $B25F                               ; $B244: F0 19
+  LDA $0410,Y                             ; $B23F: B9 10 04 ; next roster slot
+  CMP #$FF                                ; $B242: C9 FF     ; empty
+  BEQ PadEdgeCursorMoveExit               ; $B244: F0 19
   LDA #$00                                ; $B246: A9 00
-  STA $0409                               ; $B248: 8D 09 04
-  STA $040A                               ; $B24B: 8D 0A 04
-  INC $0401                               ; $B24E: EE 01 04
+  STA $0409                               ; $B248: 8D 09 04 ; scroll offset
+  STA $040A                               ; $B24B: 8D 0A 04 ; direction = down
+  INC $0401                               ; $B24E: EE 01 04 ; -> sub-state 3
   LDA #$00                                ; $B251: A9 00
-  STA $040D                               ; $B253: 8D 0D 04
+  STA $040D                               ; $B253: 8D 0D 04 ; card animation frame
   LDA $0408                               ; $B256: AD 08 04
   CLC                                     ; $B259: 18
   ADC #$01                                ; $B25A: 69 01
-  STA $040C                               ; $B25C: 8D 0C 04
-Loc_B25F:
+  STA $040C                               ; $B25C: 8D 0C 04 ; target slot
+PadEdgeCursorMoveExit:
   RTS                                     ; $B25F: 60
-Loc_B260:
+;===============================================================================
+; $B260: ScrollStepAdvance
+; Consumes the pad latch, steps the scroll offset $0409 by 2 and, once
+; the full 80 px ($50) travel is done, ends the scroll: back to
+; sub-state 2 ($0401 -= 2) with the cursor slot committed in the scroll
+; direction ($0408 +/- 1).
+;===============================================================================
+ScrollStepAdvance:
   LDA #$00                                ; $B260: A9 00
-  STA a:$0081                             ; $B262: 8D 81 00
-  INC $0409                               ; $B265: EE 09 04
+  STA a:$0081                             ; $B262: 8D 81 00 ; consume pad latch
+  INC $0409                               ; $B265: EE 09 04 ; scroll offset +2
   INC $0409                               ; $B268: EE 09 04
   LDA $0409                               ; $B26B: AD 09 04
-  CMP #$50                                ; $B26E: C9 50
-  BCC $B284                               ; $B270: 90 12
-  DEC $0401                               ; $B272: CE 01 04
+  CMP #$50                                ; $B26E: C9 50     ; full travel
+  BCC ScrollStepExit                      ; $B270: 90 12
+  DEC $0401                               ; $B272: CE 01 04 ; back to sub-state 2
   DEC $0401                               ; $B275: CE 01 04
-  LDA $040A                               ; $B278: AD 0A 04
-  BNE $B281                               ; $B27B: D0 04
-  INC $0408                               ; $B27D: EE 08 04
+  LDA $040A                               ; $B278: AD 0A 04 ; scroll direction
+  BNE @CommitUp                           ; $B27B: D0 04
+  INC $0408                               ; $B27D: EE 08 04 ; commit down
   RTS                                     ; $B280: 60
-Loc_B281:
-  DEC $0408                               ; $B281: CE 08 04
-Loc_B284:
+@CommitUp:
+  DEC $0408                               ; $B281: CE 08 04 ; commit up
+ScrollStepExit:
   RTS                                     ; $B284: 60
-Loc_B285:
-  LDA $040A                               ; $B285: AD 0A 04
-  BNE $B2B0                               ; $B288: D0 26
-  LDA $0409                               ; $B28A: AD 09 04
-  CMP #$40                                ; $B28D: C9 40
-  BNE $B29D                               ; $B28F: D0 0C
-  LDA $040E                               ; $B291: AD 0E 04
+;===============================================================================
+; $B285: RowMarkerBob
+; Vertical bob of the row marker during the scroll: down ($040A = 0)
+; increments $0098 by 2 per frame (wraps at $F0), up decrements by 2
+; (wraps below $10 by -$10). At offset $40 (down) / $10 (up) the marker
+; coordinates switch to the target slot's coords $040E/$040F.
+;===============================================================================
+RowMarkerBob:
+  LDA $040A                               ; $B285: AD 0A 04 ; scroll direction
+  BNE @BobUp                              ; $B288: D0 26
+  LDA $0409                               ; $B28A: AD 09 04 ; scroll offset
+  CMP #$40                                ; $B28D: C9 40     ; marker switch point
+  BNE @BobDownTick                        ; $B28F: D0 0C
+  LDA $040E                               ; $B291: AD 0E 04 ; target marker coords
   STA a:$00BC                             ; $B294: 8D BC 00
   LDA $040F                               ; $B297: AD 0F 04
   STA a:$00BD                             ; $B29A: 8D BD 00
-Loc_B29D:
-  INC a:$0098                             ; $B29D: EE 98 00
+@BobDownTick:
+  INC a:$0098                             ; $B29D: EE 98 00 ; marker bob counter
   INC a:$0098                             ; $B2A0: EE 98 00
   LDA a:$0098                             ; $B2A3: AD 98 00
   CMP #$F0                                ; $B2A6: C9 F0
-  BCC $B2D6                               ; $B2A8: 90 2C
+  BCC RowMarkerBobExit                    ; $B2A8: 90 2C
   LDA #$00                                ; $B2AA: A9 00
-  STA a:$0098                             ; $B2AC: 8D 98 00
+  STA a:$0098                             ; $B2AC: 8D 98 00 ; wrap
   RTS                                     ; $B2AF: 60
-Loc_B2B0:
-  LDA $0409                               ; $B2B0: AD 09 04
-  CMP #$10                                ; $B2B3: C9 10
-  BNE $B2C3                               ; $B2B5: D0 0C
-  LDA $040E                               ; $B2B7: AD 0E 04
+@BobUp:
+  LDA $0409                               ; $B2B0: AD 09 04 ; scroll offset
+  CMP #$10                                ; $B2B3: C9 10     ; marker switch point
+  BNE @BobUpTick                          ; $B2B5: D0 0C
+  LDA $040E                               ; $B2B7: AD 0E 04 ; target marker coords
   STA a:$00BC                             ; $B2BA: 8D BC 00
   LDA $040F                               ; $B2BD: AD 0F 04
   STA a:$00BD                             ; $B2C0: 8D BD 00
-Loc_B2C3:
-  DEC a:$0098                             ; $B2C3: CE 98 00
+@BobUpTick:
+  DEC a:$0098                             ; $B2C3: CE 98 00 ; marker bob counter
   DEC a:$0098                             ; $B2C6: CE 98 00
   LDA a:$0098                             ; $B2C9: AD 98 00
-  CMP #$F0                                ; $B2CC: C9 F0
-  BCC $B2D6                               ; $B2CE: 90 06
+  CMP #$F0                                ; $B2CC: C9 F0     ; underflow check
+  BCC RowMarkerBobExit                    ; $B2CE: 90 06
   SEC                                     ; $B2D0: 38
   SBC #$10                                ; $B2D1: E9 10
-  STA a:$0098                             ; $B2D3: 8D 98 00
-Loc_B2D6:
+  STA a:$0098                             ; $B2D3: 8D 98 00 ; wrap
+RowMarkerBobExit:
   RTS                                     ; $B2D6: 60
-Loc_B2D7:
-  LDA a:$007E                             ; $B2D7: AD 7E 00
-  AND #$04                                ; $B2DA: 29 04
-  BNE $B2E8                               ; $B2DC: D0 0A
+;===============================================================================
+; $B2D7: OfficerCardAnimStep
+; Card slide-in animation gate + step. Runs only when the card-anim flag
+; $007E bit2 is clear and a frame is pending ($040D BPL): builds the
+; 32-byte PPU strip record at $0380 for frame $040D of the target slot
+; $040C's card. PPU address = row base (slot mod 3 -> $2400/$2540/$2680
+; via CardRowBaseTable) + frame*$20 (slide-down one tile row per frame),
+; tile bytes from CardAnimPatternPtrs[frame], then CardFillDispatch fills
+; in the Officer-specific cells. Sets $007E bit2 (cleared elsewhere once
+; the strip is consumed), steps $040D 0-9 then $FF (done). Officer id
+; $FE in the roster selects the shared pattern frame 8.
+;===============================================================================
+OfficerCardAnimStep:
+  LDA a:$007E                             ; $B2D7: AD 7E 00 ; card/UI flags
+  AND #$04                                ; $B2DA: 29 04     ; card-anim busy bit
+  BNE OfficerCardAnimExit                 ; $B2DC: D0 0A
   LDA #$00                                ; $B2DE: A9 00
   STA a:$0001                             ; $B2E0: 8D 01 00
-  LDA $040D                               ; $B2E3: AD 0D 04
-  BPL $B2E9                               ; $B2E6: 10 01
-Loc_B2E8:
+  LDA $040D                               ; $B2E3: AD 0D 04 ; card animation frame
+  BPL CardStripBuild                      ; $B2E6: 10 01     ; $FF = idle
+OfficerCardAnimExit:
   RTS                                     ; $B2E8: 60
-Loc_B2E9:
-  PHA                                     ; $B2E9: 48
+CardStripBuild:
+  PHA                                     ; $B2E9: 48        ; frame
   ASL                                     ; $B2EA: 0A
   ROL a:$0001                             ; $B2EB: 2E 01 00
   ASL                                     ; $B2EE: 0A
@@ -2204,453 +2438,555 @@ Loc_B2E9:
   ASL                                     ; $B2F6: 0A
   ROL a:$0001                             ; $B2F7: 2E 01 00
   ASL                                     ; $B2FA: 0A
-  ROL a:$0001                             ; $B2FB: 2E 01 00
-  STA $0382                               ; $B2FE: 8D 82 03
+  ROL a:$0001                             ; $B2FB: 2E 01 00 ; frame*$20 strip offset
+  STA $0382                               ; $B2FE: 8D 82 03 ; PPU addr lo
   LDA a:$0001                             ; $B301: AD 01 00
-  STA $0381                               ; $B304: 8D 81 03
+  STA $0381                               ; $B304: 8D 81 03 ; PPU addr hi
   LDA #$20                                ; $B307: A9 20
-  STA $0380                               ; $B309: 8D 80 03
-  LDA $040C                               ; $B30C: AD 0C 04
-  STA a:$0001                             ; $B30F: 8D 01 00
+  STA $0380                               ; $B309: 8D 80 03 ; strip record marker
+  LDA $040C                               ; $B30C: AD 0C 04 ; target slot
+  STA a:$0001                             ; $B30F: 8D 01 00 ; dividend lo
   LDA #$00                                ; $B312: A9 00
-  STA a:$0002                             ; $B314: 8D 02 00
-  STA a:$0004                             ; $B317: 8D 04 00
+  STA a:$0002                             ; $B314: 8D 02 00 ; dividend hi
+  STA a:$0004                             ; $B317: 8D 04 00 ; divisor hi
   LDA #$03                                ; $B31A: A9 03
-  STA a:$0003                             ; $B31C: 8D 03 00
-  JSR $EA7C                               ; $B31F: 20 7C EA
-  LDA a:$0005                             ; $B322: AD 05 00
+  STA a:$0003                             ; $B31C: 8D 03 00 ; divisor lo
+  JSR B1F_MathDiv16                       ; $B31F: 20 7C EA ; remainder = slot mod 3
+  LDA a:$0005                             ; $B322: AD 05 00 ; slot mod 3 = card row
   ASL                                     ; $B325: 0A
   TAY                                     ; $B326: A8
-  LDA $B4B9,Y                             ; $B327: B9 B9 B4
+  LDA $B4B9,Y                             ; $B327: B9 B9 B4 ; row base lo
   CLC                                     ; $B32A: 18
   ADC $0382                               ; $B32B: 6D 82 03
   STA $0382                               ; $B32E: 8D 82 03
-  LDA $B4BA,Y                             ; $B331: B9 BA B4
+  LDA $B4BA,Y                             ; $B331: B9 BA B4 ; row base hi
   ADC $0381                               ; $B334: 6D 81 03
   STA $0381                               ; $B337: 8D 81 03
-  LDY $040C                               ; $B33A: AC 0C 04
-  LDA $0410,Y                             ; $B33D: B9 10 04
-  CMP #$FE                                ; $B340: C9 FE
-  BNE $B34A                               ; $B342: D0 06
+  LDY $040C                               ; $B33A: AC 0C 04 ; target slot
+  LDA $0410,Y                             ; $B33D: B9 10 04 ; roster Officer id
+  CMP #$FE                                ; $B340: C9 FE     ; special slot
+  BNE @PatternByFrame                     ; $B342: D0 06
   PLA                                     ; $B344: 68
-  LDY #$10                                ; $B345: A0 10
-  JMP $B34D                               ; $B347: 4C 4D B3
-Loc_B34A:
+  LDY #$10                                ; $B345: A0 10     ; shared pattern frame 8
+  JMP @CopyPattern                        ; $B347: 4C 4D B3
+@PatternByFrame:
   PLA                                     ; $B34A: 68
   ASL                                     ; $B34B: 0A
   TAY                                     ; $B34C: A8
-Loc_B34D:
-  LDA $B385,Y                             ; $B34D: B9 85 B3
+@CopyPattern:
+  LDA $B385,Y                             ; $B34D: B9 85 B3 ; pattern ptr lo
   STA a:$0000                             ; $B350: 8D 00 00
-  LDA $B386,Y                             ; $B353: B9 86 B3
+  LDA $B386,Y                             ; $B353: B9 86 B3 ; pattern ptr hi
   STA a:$0001                             ; $B356: 8D 01 00
   LDY #$00                                ; $B359: A0 00
-Loc_B35B:
-  LDA ($00),Y                             ; $B35B: B1 00
-  STA $0383,Y                             ; $B35D: 99 83 03
+@TileLoop:
+  LDA ($00),Y                             ; $B35B: B1 00     ; pattern tile
+  STA $0383,Y                             ; $B35D: 99 83 03 ; strip tile cell
   INY                                     ; $B360: C8
-  CPY #$20                                ; $B361: C0 20
-  BCC $B35B                               ; $B363: 90 F6
-  JSR $B4BF                               ; $B365: 20 BF B4
+  CPY #$20                                ; $B361: C0 20     ; 32 tiles
+  BCC @TileLoop                           ; $B363: 90 F6
+  JSR CardFillDispatch                    ; $B365: 20 BF B4 ; Officer-specific fill
   LDA #$FF                                ; $B368: A9 FF
-  STA $03A3                               ; $B36A: 8D A3 03
+  STA $03A3                               ; $B36A: 8D A3 03 ; strip terminator
   LDA a:$007E                             ; $B36D: AD 7E 00
-  ORA #$04                                ; $B370: 09 04
+  ORA #$04                                ; $B370: 09 04     ; card-anim busy
   STA a:$007E                             ; $B372: 8D 7E 00
-  INC $040D                               ; $B375: EE 0D 04
+  INC $040D                               ; $B375: EE 0D 04 ; next frame
   LDA $040D                               ; $B378: AD 0D 04
-  CMP #$0A                                ; $B37B: C9 0A
-  BCC $B384                               ; $B37D: 90 05
+  CMP #$0A                                ; $B37B: C9 0A     ; 10 frames
+  BCC CardAnimFrameDone                   ; $B37D: 90 05
   LDA #$FF                                ; $B37F: A9 FF
-  STA $040D                               ; $B381: 8D 0D 04
-Loc_B384:
+  STA $040D                               ; $B381: 8D 0D 04 ; animation done
+CardAnimFrameDone:
   RTS                                     ; $B384: 60
-; --- Data Region ---
-  .byte $99,$B3,$B9,$B3,$D9,$B3,$F9,$B3,$19,$B4,$39,$B4,$59,$B4,$79,$B4; $B385: 99 B3 B9 B3 D9 B3 F9 B3 19 B4 39 B4 59 B4 79 B4
-  .byte $99,$B4,$99,$B4,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B395: 99 B4 99 B4 01 01 01 01 01 01 01 01 01 01 01 01
-  .byte $01,$01,$01,$01,$01,$01,$40,$41,$01,$01,$01,$01,$46,$47,$01,$01; $B3A5: 01 01 01 01 01 01 40 41 01 01 01 01 46 47 01 01
-  .byte $01,$01,$01,$01,$01,$01,$00,$00,$00,$00,$01,$01,$01,$01,$01,$01; $B3B5: 01 01 01 01 01 01 00 00 00 00 01 01 01 01 01 01
-  .byte $01,$01,$01,$01,$01,$01,$50,$51,$01,$01,$01,$01,$56,$57,$01,$01; $B3C5: 01 01 01 01 01 01 50 51 01 01 01 01 56 57 01 01
-  .byte $01,$01,$01,$01,$01,$01,$00,$00,$00,$00,$01,$01,$01,$01,$01,$39; $B3D5: 01 01 01 01 01 01 00 00 00 00 01 01 01 01 01 39
-  .byte $01,$01,$01,$01,$01,$01,$42,$43,$01,$01,$01,$01,$48,$49,$01,$01; $B3E5: 01 01 01 01 01 01 42 43 01 01 01 01 48 49 01 01
-  .byte $01,$01,$01,$01,$01,$01,$00,$00,$00,$00,$01,$01,$32,$01,$2D,$20; $B3F5: 01 01 01 01 01 01 00 00 00 00 01 01 32 01 2D 20
-  .byte $2C,$01,$01,$01,$32,$01,$52,$53,$01,$01,$01,$01,$58,$59,$01,$01; $B405: 2C 01 01 01 32 01 52 53 01 01 01 01 58 59 01 01
-  .byte $01,$01,$01,$01,$01,$01,$00,$00,$00; $B415: 01 01 01 01 01 01 00 00 00
-Loc_B41E:
-  .byte $00,$01,$01,$01,$01,$4E,$4F,$01,$01,$01,$01,$01,$01,$44,$45,$01; $B41E: 00 01 01 01 01 4E 4F 01 01 01 01 01 01 44 45 01
-  .byte $01,$01,$01,$4A,$4B,$01,$01,$01,$01,$01,$01,$01,$01,$00,$00,$00; $B42E: 01 01 01 4A 4B 01 01 01 01 01 01 01 01 00 00 00
-  .byte $00,$01,$01,$01,$01,$5E,$5F,$01,$01,$01,$01,$01,$01,$54,$55,$01; $B43E: 00 01 01 01 01 5E 5F 01 01 01 01 01 01 54 55 01
-  .byte $01,$01,$01,$5A,$5B,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B44E: 01 01 01 5A 5B 01 01 01 01 01 01 01 01 01 01 01
-  .byte $01,$01,$01,$6C,$6D,$01           ; $B45E: 01 01 01 6C 6D 01
-  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$4C,$4D,$01,$01,$01,$01,$01; $B464: 01 01 01 01 01 01 01 01 01 4C 4D 01 01 01 01 01
-  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$6E,$6F,$6A; $B474: 01 01 01 01 01 01 01 01 01 01 01 01 01 6E 6F 6A
-  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$5C,$5D,$6A,$01,$01,$01,$01; $B484: 01 01 01 01 01 01 01 01 01 5C 5D 6A 01 01 01 01
-  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B494: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
-  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B4A4: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
-  .byte $01,$01,$01,$01,$01,$00,$24,$40,$25,$80,$26; $B4B4: 01 01 01 01 01 00 24 40 25 80 26
-Loc_B4BF:
-; --- Code Region ---
-  LDY $040C                               ; $B4BF: AC 0C 04
-  LDA $0410,Y                             ; $B4C2: B9 10 04
-  CMP #$ED                                ; $B4C5: C9 ED
-  BCC $B4CA                               ; $B4C7: 90 01
-Loc_B4C9:
+; --- Card animation pattern pointers (10 frames; 8/9 share $B499) ---
+CardAnimPatternPtrs:
+  .word CardAnimPatternFrames             ; $B385: 99 B3 ; frame 0
+  .word CardAnimPatternFrames+$20         ; $B387: B9 B3 ; frame 1
+  .word CardAnimPatternFrames+$40         ; $B389: D9 B3 ; frame 2
+  .word CardAnimPatternFrames+$60         ; $B38B: F9 B3 ; frame 3
+  .word CardAnimPatternFrames+$80         ; $B38D: 19 B4 ; frame 4
+  .word CardAnimPatternFrames+$A0         ; $B38F: 39 B4 ; frame 5
+  .word CardAnimPatternFrames+$C0         ; $B391: 59 B4 ; frame 6
+  .word CardAnimPatternFrames+$E0         ; $B393: 79 B4 ; frame 7
+  .word CardAnimPatternFrames+$100        ; $B395: 99 B4 ; frame 8
+  .word CardAnimPatternFrames+$100        ; $B397: 99 B4 ; frame 9
+; --- Card animation tile patterns: 9 x 32-byte strips ($01 = blank) ---
+CardAnimPatternFrames:
+  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B399: frame 0
+  .byte $01,$01,$40,$41,$01,$01,$01,$01,$46,$47,$01,$01,$01,$01,$01,$01; $B3A9
+  .byte $01,$01,$00,$00,$00,$00,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B3B9: frame 1
+  .byte $01,$01,$50,$51,$01,$01,$01,$01,$56,$57,$01,$01,$01,$01,$01,$01; $B3C9
+  .byte $01,$01,$00,$00,$00,$00,$01,$01,$01,$01,$01,$39,$01,$01,$01,$01; $B3D9: frame 2
+  .byte $01,$01,$42,$43,$01,$01,$01,$01,$48,$49,$01,$01,$01,$01,$01,$01; $B3E9
+  .byte $01,$01,$00,$00,$00,$00,$01,$01,$32,$01,$2D,$20,$2C,$01,$01,$01; $B3F9: frame 3
+  .byte $32,$01,$52,$53,$01,$01,$01,$01,$58,$59,$01,$01,$01,$01,$01,$01; $B409
+  .byte $01,$01,$00,$00,$00,$00,$01,$01,$01,$01,$4E,$4F,$01,$01,$01,$01; $B419: frame 4
+  .byte $01,$01,$44,$45,$01,$01,$01,$01,$4A,$4B,$01,$01,$01,$01,$01,$01; $B429
+  .byte $01,$01,$00,$00,$00,$00,$01,$01,$01,$01,$5E,$5F,$01,$01,$01,$01; $B439: frame 5
+  .byte $01,$01,$54,$55,$01,$01,$01,$01,$5A,$5B,$01,$01,$01,$01,$01,$01; $B449
+  .byte $01,$01,$01,$01,$01,$01,$01,$01,$6C,$6D,$01,$01,$01,$01,$01,$01; $B459: frame 6
+  .byte $01,$01,$01,$01,$4C,$4D,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B469
+  .byte $01,$01,$01,$01,$01,$01,$01,$01,$6E,$6F,$6A,$01,$01,$01,$01,$01; $B479: frame 7
+  .byte $01,$01,$01,$01,$5C,$5D,$6A,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B489
+  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B499: frame 8/9 (shared)
+  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B4A9
+; --- Card row PPU base addresses (slot mod 3): $2400 / $2540 / $2680 ---
+CardRowBaseTable:
+  .word $2400                             ; $B4B9: 00 24 ; card row 0
+  .word $2540                             ; $B4BB: 40 25 ; card row 1
+  .word $2680                             ; $B4BD: 80 26 ; card row 2
+;===============================================================================
+; $B4BF: CardFillDispatch
+; Officer-specific fill of the current card strip, dispatched by the
+; animation frame $040D (10 entries). Skipped for pending-transfer slots
+; (Officer id >= $ED). Record pointer ($10) = Officer record
+; (id*12+$63C0). Frames: 0/1 name marks and kana, 2 noop, 3 stat digits,
+; 4/5 portrait tiles + stat digits, 6/7 name-plate text strips (which
+; also produce the row-marker coords $040E/$040F), 8 row-marker commit,
+; 9 noop.
+;===============================================================================
+CardFillDispatch:
+  LDY $040C                               ; $B4BF: AC 0C 04 ; target slot
+  LDA $0410,Y                             ; $B4C2: B9 10 04 ; roster Officer id
+  CMP #$ED                                ; $B4C5: C9 ED     ; pending-transfer ids
+  BCC @RecordSetup                        ; $B4C7: 90 01
+@FillExit:
   RTS                                     ; $B4C9: 60
-Loc_B4CA:
-  JSR $F2D7                               ; $B4CA: 20 D7 F2
+@RecordSetup:
+  JSR B1F_GetOfficerRecordAddr            ; $B4CA: 20 D7 F2 ; -> ($00) = Officer record
   LDA a:$0000                             ; $B4CD: AD 00 00
-  STA a:$0010                             ; $B4D0: 8D 10 00
+  STA a:$0010                             ; $B4D0: 8D 10 00 ; record ptr lo
   LDA a:$0001                             ; $B4D3: AD 01 00
-  STA a:$0011                             ; $B4D6: 8D 11 00
-  LDA $040D                               ; $B4D9: AD 0D 04
-  JSR $EADE                               ; $B4DC: 20 DE EA
-; --- Data Region ---
-  .byte $08,$B5,$2D,$B5,$07,$B5,$A6,$B5,$30,$B6,$4D,$B6,$30,$B7,$70,$B7; $B4DF: 08 B5 2D B5 07 B5 A6 B5 30 B6 4D B6 30 B7 70 B7
-  .byte $F3,$B4,$07,$B5                   ; $B4EF: F3 B4 07 B5
-Loc_B4F3:  ; (dispatch callback target)
-; --- Code Region ---
-  LDA $0401                               ; $B4F3: AD 01 04
-  CMP #$03                                ; $B4F6: C9 03
-  BEQ $B506                               ; $B4F8: F0 0C
-  LDA $040E                               ; $B4FA: AD 0E 04
+  STA a:$0011                             ; $B4D6: 8D 11 00 ; record ptr hi
+  LDA $040D                               ; $B4D9: AD 0D 04 ; animation frame
+  JSR B1F_CallbackDispatcher              ; $B4DC: 20 DE EA
+; --- Inline pointer table (10 entries) ---
+  .word NameMarksOverlay                  ; $B4DF: 08 B5 ; frame 0
+  .word BaseKanaCopy                      ; $B4E1: 2D B5 ; frame 1
+  .word FrameNoop                         ; $B4E3: 07 B5 ; frame 2
+  .word FlagStatDigitsFill                ; $B4E5: A6 B5 ; frame 3
+  .word PortraitLevelTiles                ; $B4E7: 30 B6 ; frame 4
+  .word PortraitAndStatsFill              ; $B4E9: 4D B6 ; frame 5
+  .word NamePlateUpper                    ; $B4EB: 30 B7 ; frame 6
+  .word NamePlateLower                    ; $B4ED: 70 B7 ; frame 7
+  .word MarkerCoordCommit                 ; $B4EF: F3 B4 ; frame 8
+  .word FrameNoop                         ; $B4F1: 07 B5 ; frame 9
+;===============================================================================
+; $B4F3: MarkerCoordCommit (frame 8)
+; Commits the row-marker coordinates produced by frames 6/7 ($040E/$040F)
+; into $00BC/$00BD, unless the view is in the card slide-in wait
+; (sub-state 3).
+;===============================================================================
+MarkerCoordCommit:  ; frame 8
+  LDA $0401                               ; $B4F3: AD 01 04 ; roster view sub-state
+  CMP #$03                                ; $B4F6: C9 03     ; CardAnimWait
+  BEQ MarkerCoordExit                     ; $B4F8: F0 0C
+  LDA $040E                               ; $B4FA: AD 0E 04 ; marker row
   STA a:$00BC                             ; $B4FD: 8D BC 00
-  LDA $040F                               ; $B500: AD 0F 04
+  LDA $040F                               ; $B500: AD 0F 04 ; marker column
   STA a:$00BD                             ; $B503: 8D BD 00
-Loc_B506:
+MarkerCoordExit:
   RTS                                     ; $B506: 60
-Loc_B507:  ; (dispatch callback target)
+FrameNoop:  ; frames 2/9
   RTS                                     ; $B507: 60
-Loc_B508:  ; (dispatch callback target)
-  LDY $040C                               ; $B508: AC 0C 04
-  LDA $0410,Y                             ; $B50B: B9 10 04
-  JSR $F308                               ; $B50E: 20 08 F3
-  TAX                                     ; $B511: AA
+;===============================================================================
+; $B508: NameMarksOverlay (frame 0)
+; Scans the target Officer's name string (B1F_GetNameDisplayScale; A =
+; name width -> starting cell X) and overlays the dakuten/handakuten
+; marks ($39/$3A) into the name cells at $038A+X; base kana cells are
+; consumed one per character.
+;===============================================================================
+NameMarksOverlay:  ; frame 0
+  LDY $040C                               ; $B508: AC 0C 04 ; target slot
+  LDA $0410,Y                             ; $B50B: B9 10 04 ; roster Officer id
+  JSR B1F_GetNameDisplayScale             ; $B50E: 20 08 F3 ; -> ($00) name, A = width
+  TAX                                     ; $B511: AA        ; starting cell
   LDY #$00                                ; $B512: A0 00
-Loc_B514:
-  LDA ($00),Y                             ; $B514: B1 00
-  BEQ $B52C                               ; $B516: F0 14
-  CMP #$39                                ; $B518: C9 39
-  BEQ $B525                               ; $B51A: F0 09
-  CMP #$3A                                ; $B51C: C9 3A
-  BEQ $B525                               ; $B51E: F0 05
+@Scan:
+  LDA ($00),Y                             ; $B514: B1 00     ; name byte
+  BEQ @ScanExit                           ; $B516: F0 14     ; terminator
+  CMP #$39                                ; $B518: C9 39     ; dakuten
+  BEQ @StoreMark                          ; $B51A: F0 09
+  CMP #$3A                                ; $B51C: C9 3A     ; handakuten
+  BEQ @StoreMark                          ; $B51E: F0 05
   INY                                     ; $B520: C8
-  INX                                     ; $B521: E8
-  JMP $B514                               ; $B522: 4C 14 B5
-Loc_B525:
-  STA $038A,X                             ; $B525: 9D 8A 03
+  INX                                     ; $B521: E8        ; next base kana cell
+  JMP @Scan                               ; $B522: 4C 14 B5
+@StoreMark:
+  STA $038A,X                             ; $B525: 9D 8A 03 ; overlay mark
   INY                                     ; $B528: C8
-  JMP $B514                               ; $B529: 4C 14 B5
-Loc_B52C:
+  JMP @Scan                               ; $B529: 4C 14 B5
+@ScanExit:
   RTS                                     ; $B52C: 60
-Loc_B52D:  ; (dispatch callback target)
-  LDY $040C                               ; $B52D: AC 0C 04
+;===============================================================================
+; $B52D: BaseKanaCopy (frame 1)
+; Same scan as frame 0, but copies the base kana glyphs (everything that
+; is not a mark/terminator) into the name cells at $038B+X, then falls
+; through into StatDigitsFill.
+;===============================================================================
+BaseKanaCopy:  ; frame 1
+  LDY $040C                               ; $B52D: AC 0C 04 ; target slot
   LDA $0410,Y                             ; $B530: B9 10 04
-  JSR $F308                               ; $B533: 20 08 F3
+  JSR B1F_GetNameDisplayScale             ; $B533: 20 08 F3 ; -> ($00) name, A = width
   TAX                                     ; $B536: AA
   LDY #$00                                ; $B537: A0 00
-Loc_B539:
-  LDA ($00),Y                             ; $B539: B1 00
-  BEQ $B54D                               ; $B53B: F0 10
-  CMP #$39                                ; $B53D: C9 39
-  BEQ $B549                               ; $B53F: F0 08
-  CMP #$3A                                ; $B541: C9 3A
-  BEQ $B549                               ; $B543: F0 04
-  STA $038B,X                             ; $B545: 9D 8B 03
+@Scan:
+  LDA ($00),Y                             ; $B539: B1 00     ; name byte
+  BEQ StatDigitsFill                      ; $B53B: F0 10     ; terminator -> stat fill
+  CMP #$39                                ; $B53D: C9 39     ; dakuten: skip
+  BEQ @SkipMark                           ; $B53F: F0 08
+  CMP #$3A                                ; $B541: C9 3A     ; handakuten: skip
+  BEQ @SkipMark                           ; $B543: F0 04
+  STA $038B,X                             ; $B545: 9D 8B 03 ; base kana cell
   INX                                     ; $B548: E8
-Loc_B549:
+@SkipMark:
   INY                                     ; $B549: C8
-  JMP $B539                               ; $B54A: 4C 39 B5
-Loc_B54D:
-  LDY #$00                                ; $B54D: A0 00
+  JMP @Scan                               ; $B54A: 4C 39 B5
+;===============================================================================
+; $B54D: StatDigitsFill
+; Writes the BCD stat digits of record[0] (cells $0398/$0399) and
+; record[4] (cells $039E/$039F, blank high nibble when zero); digit
+; tiles start at $76 ('0'). Entered from frame 1 (fall-through/terminator
+; jump) and shared by the frame 1 handler.
+;===============================================================================
+StatDigitsFill:
+  LDY #$00                                ; $B54D: A0 00     ; record[0]
   LDA ($10),Y                             ; $B54F: B1 10
   STA a:$0001                             ; $B551: 8D 01 00
   LDA #$00                                ; $B554: A9 00
   STA a:$0002                             ; $B556: 8D 02 00
   STA a:$0003                             ; $B559: 8D 03 00
-  JSR $E9BA                               ; $B55C: 20 BA E9
-  LDA a:$0007                             ; $B55F: AD 07 00
+  JSR B1F_MathBinToBcd                    ; $B55C: 20 BA E9 ; record[0] -> BCD
+  LDA a:$0007                             ; $B55F: AD 07 00 ; packed digits
   LSR                                     ; $B562: 4A
   LSR                                     ; $B563: 4A
   LSR                                     ; $B564: 4A
-  LSR                                     ; $B565: 4A
-  BEQ $B56E                               ; $B566: F0 06
+  LSR                                     ; $B565: 4A        ; tens
+  BEQ $B56E                               ; $B566: F0 06     ; blank when zero
   CLC                                     ; $B568: 18
-  ADC #$76                                ; $B569: 69 76
+  ADC #$76                                ; $B569: 69 76     ; digit tile base
   STA $0398                               ; $B56B: 8D 98 03
 Loc_B56E:
   LDA a:$0007                             ; $B56E: AD 07 00
-  AND #$0F                                ; $B571: 29 0F
+  AND #$0F                                ; $B571: 29 0F     ; ones
   CLC                                     ; $B573: 18
   ADC #$76                                ; $B574: 69 76
   STA $0399                               ; $B576: 8D 99 03
-  LDY #$04                                ; $B579: A0 04
+  LDY #$04                                ; $B579: A0 04     ; record[4]
   LDA ($10),Y                             ; $B57B: B1 10
   STA a:$0001                             ; $B57D: 8D 01 00
   LDA #$00                                ; $B580: A9 00
   STA a:$0002                             ; $B582: 8D 02 00
   STA a:$0003                             ; $B585: 8D 03 00
-  JSR $E9BA                               ; $B588: 20 BA E9
+  JSR B1F_MathBinToBcd                    ; $B588: 20 BA E9
   LDA a:$0007                             ; $B58B: AD 07 00
   LSR                                     ; $B58E: 4A
   LSR                                     ; $B58F: 4A
   LSR                                     ; $B590: 4A
-  LSR                                     ; $B591: 4A
+  LSR                                     ; $B591: 4A        ; tens
   BEQ $B59A                               ; $B592: F0 06
   CLC                                     ; $B594: 18
   ADC #$76                                ; $B595: 69 76
   STA $039E                               ; $B597: 8D 9E 03
 Loc_B59A:
   LDA a:$0007                             ; $B59A: AD 07 00
-  AND #$0F                                ; $B59D: 29 0F
+  AND #$0F                                ; $B59D: 29 0F     ; ones
   CLC                                     ; $B59F: 18
   ADC #$76                                ; $B5A0: 69 76
   STA $039F                               ; $B5A2: 8D 9F 03
   RTS                                     ; $B5A5: 60
-Loc_B5A6:  ; (dispatch callback target)
-  LDY #$0B                                ; $B5A6: A0 0B
+;===============================================================================
+; $B5A6: FlagStatDigitsFill (frame 3)
+; Writes the flag-byte stat: record[$0B] bits 4-7 + 1 as BCD into cell
+; $0391, record[$02] digits into $0398/$0399, and record[$03] (capped at
+; 100) into $039E/$039F; the value 100 (max) fills both cells with the
+; max-value mark tile $32 instead.
+;===============================================================================
+FlagStatDigitsFill:  ; frame 3
+  LDY #$0B                                ; $B5A6: A0 0B     ; record[$0B] flag byte
   LDA ($10),Y                             ; $B5A8: B1 10
   LSR                                     ; $B5AA: 4A
   LSR                                     ; $B5AB: 4A
   LSR                                     ; $B5AC: 4A
-  LSR                                     ; $B5AD: 4A
+  LSR                                     ; $B5AD: 4A        ; bits 4-7 +1
   CLC                                     ; $B5AE: 18
   ADC #$01                                ; $B5AF: 69 01
   STA a:$0001                             ; $B5B1: 8D 01 00
   LDA #$00                                ; $B5B4: A9 00
   STA a:$0002                             ; $B5B6: 8D 02 00
   STA a:$0003                             ; $B5B9: 8D 03 00
-  JSR $E9BA                               ; $B5BC: 20 BA E9
+  JSR B1F_MathBinToBcd                    ; $B5BC: 20 BA E9 ; -> packed BCD
   LDA a:$0007                             ; $B5BF: AD 07 00
-  AND #$0F                                ; $B5C2: 29 0F
+  AND #$0F                                ; $B5C2: 29 0F     ; ones
   CLC                                     ; $B5C4: 18
   ADC #$76                                ; $B5C5: 69 76
   STA $0391                               ; $B5C7: 8D 91 03
-  LDY #$02                                ; $B5CA: A0 02
+  LDY #$02                                ; $B5CA: A0 02     ; record[$02]
   LDA ($10),Y                             ; $B5CC: B1 10
   STA a:$0001                             ; $B5CE: 8D 01 00
   LDA #$00                                ; $B5D1: A9 00
   STA a:$0002                             ; $B5D3: 8D 02 00
   STA a:$0003                             ; $B5D6: 8D 03 00
-  JSR $E9BA                               ; $B5D9: 20 BA E9
+  JSR B1F_MathBinToBcd                    ; $B5D9: 20 BA E9 ; record[$02] -> BCD
   LDA a:$0007                             ; $B5DC: AD 07 00
   LSR                                     ; $B5DF: 4A
   LSR                                     ; $B5E0: 4A
   LSR                                     ; $B5E1: 4A
-  LSR                                     ; $B5E2: 4A
+  LSR                                     ; $B5E2: 4A        ; tens
   BEQ $B5EB                               ; $B5E3: F0 06
   CLC                                     ; $B5E5: 18
   ADC #$76                                ; $B5E6: 69 76
   STA $0398                               ; $B5E8: 8D 98 03
 Loc_B5EB:
   LDA a:$0007                             ; $B5EB: AD 07 00
-  AND #$0F                                ; $B5EE: 29 0F
+  AND #$0F                                ; $B5EE: 29 0F     ; ones
   CLC                                     ; $B5F0: 18
   ADC #$76                                ; $B5F1: 69 76
   STA $0399                               ; $B5F3: 8D 99 03
-  LDY #$03                                ; $B5F6: A0 03
+  LDY #$03                                ; $B5F6: A0 03     ; record[$03]
   LDA ($10),Y                             ; $B5F8: B1 10
   STA a:$0001                             ; $B5FA: 8D 01 00
-  CMP #$64                                ; $B5FD: C9 64
-  BEQ $B627                               ; $B5FF: F0 26
+  CMP #$64                                ; $B5FD: C9 64     ; 100 = max
+  BEQ Loc_B627                            ; $B5FF: F0 26
   LDA #$00                                ; $B601: A9 00
   STA a:$0002                             ; $B603: 8D 02 00
   STA a:$0003                             ; $B606: 8D 03 00
-  JSR $E9BA                               ; $B609: 20 BA E9
+  JSR B1F_MathBinToBcd                    ; $B609: 20 BA E9
   LDA a:$0007                             ; $B60C: AD 07 00
   LSR                                     ; $B60F: 4A
   LSR                                     ; $B610: 4A
   LSR                                     ; $B611: 4A
-  LSR                                     ; $B612: 4A
+  LSR                                     ; $B612: 4A        ; tens
   BEQ $B61B                               ; $B613: F0 06
   CLC                                     ; $B615: 18
   ADC #$76                                ; $B616: 69 76
   STA $039E                               ; $B618: 8D 9E 03
 Loc_B61B:
   LDA a:$0007                             ; $B61B: AD 07 00
-  AND #$0F                                ; $B61E: 29 0F
+  AND #$0F                                ; $B61E: 29 0F     ; ones
   CLC                                     ; $B620: 18
   ADC #$76                                ; $B621: 69 76
   STA $039F                               ; $B623: 8D 9F 03
   RTS                                     ; $B626: 60
 Loc_B627:
-  LDA #$32                                ; $B627: A9 32
+  LDA #$32                                ; $B627: A9 32     ; max-value mark tile
   STA $039E                               ; $B629: 8D 9E 03
   STA $039F                               ; $B62C: 8D 9F 03
   RTS                                     ; $B62F: 60
-Loc_B630:  ; (dispatch callback target)
-  LDY #$0B                                ; $B630: A0 0B
+;===============================================================================
+; $B630: PortraitLevelTiles (frame 4)
+; Portrait corner tile pair from PortraitTilesAttr, selected by
+; record[$0B] bits 2-3, into name-row cells $038B/$038C.
+;===============================================================================
+PortraitLevelTiles:  ; frame 4
+  LDY #$0B                                ; $B630: A0 0B     ; record[$0B] flag byte
   LDA ($10),Y                             ; $B632: B1 10
   LSR                                     ; $B634: 4A
   LSR                                     ; $B635: 4A
-  AND #$03                                ; $B636: 29 03
+  AND #$03                                ; $B636: 29 03     ; bits 2-3
   ASL                                     ; $B638: 0A
   TAY                                     ; $B639: A8
-  LDA $B647,Y                             ; $B63A: B9 47 B6
+  LDA $B647,Y                             ; $B63A: B9 47 B6 ; tile pair lo
   STA $038B                               ; $B63D: 8D 8B 03
-  LDA $B648,Y                             ; $B640: B9 48 B6
+  LDA $B648,Y                             ; $B640: B9 48 B6 ; tile pair hi
   STA $038C                               ; $B643: 8D 8C 03
   RTS                                     ; $B646: 60
-; --- Data Region ---
-  .byte $62,$63,$64,$65,$60,$61           ; $B647: 62 63 64 65 60 61
-Loc_B64D:  ; (dispatch callback target)
-; --- Code Region ---
-  LDY #$0B                                ; $B64D: A0 0B
+; --- Portrait tile pairs by record[$0B] bits 2-3 (frame 4) ---
+PortraitTilesAttr:
+  .word $6362                             ; $B647: 62 63 ; attr 0
+  .word $6564                             ; $B649: 64 65 ; attr 1
+  .word $6160                             ; $B64B: 60 61 ; attr 2
+;===============================================================================
+; $B64D: PortraitAndStatsFill (frame 5)
+; Portrait corner tile pair from PortraitTilesLevel (record[$0B] bits
+; 2-3) into $038B/$038C, then the stat digit groups: record[$08]|-
+; (record[$09]&3)<<8 via the DigitStore helpers into $0390-$0394,
+; record[$01] into $0398/$0399, and (record[$06]|record[$07]<<8)*2 into
+; $039D-$039F (3 digits, leading blanks).
+;===============================================================================
+PortraitAndStatsFill:  ; frame 5
+  LDY #$0B                                ; $B64D: A0 0B     ; record[$0B] flag byte
   LDA ($10),Y                             ; $B64F: B1 10
   LSR                                     ; $B651: 4A
   LSR                                     ; $B652: 4A
-  AND #$03                                ; $B653: 29 03
+  AND #$03                                ; $B653: 29 03     ; bits 2-3
   ASL                                     ; $B655: 0A
   TAY                                     ; $B656: A8
-  LDA $B713,Y                             ; $B657: B9 13 B7
+  LDA $B713,Y                             ; $B657: B9 13 B7 ; tile pair lo
   STA $038B                               ; $B65A: 8D 8B 03
-  LDA $B714,Y                             ; $B65D: B9 14 B7
+  LDA $B714,Y                             ; $B65D: B9 14 B7 ; tile pair hi
   STA $038C                               ; $B660: 8D 8C 03
-  LDY #$08                                ; $B663: A0 08
+  LDY #$08                                ; $B663: A0 08     ; record[$08] lo
   LDA ($10),Y                             ; $B665: B1 10
   STA a:$0001                             ; $B667: 8D 01 00
-  LDY #$09                                ; $B66A: A0 09
+  LDY #$09                                ; $B66A: A0 09     ; record[$09]
   LDA ($10),Y                             ; $B66C: B1 10
-  AND #$03                                ; $B66E: 29 03
+  AND #$03                                ; $B66E: 29 03     ; hi = bits 0-1
   STA a:$0002                             ; $B670: 8D 02 00
   LDA #$00                                ; $B673: A9 00
   STA a:$0003                             ; $B675: 8D 03 00
-  JSR $E9BA                               ; $B678: 20 BA E9
+  JSR B1F_MathBinToBcd                    ; $B678: 20 BA E9 ; 4-digit stat
   LDX #$00                                ; $B67B: A2 00
-  LDY #$00                                ; $B67D: A0 00
-  LDA a:$0008                             ; $B67F: AD 08 00
-  JSR $B719                               ; $B682: 20 19 B7
+  LDY #$00                                ; $B67D: A0 00     ; digit cell $0390
+  LDA a:$0008                             ; $B67F: AD 08 00 ; thousands+tens byte
+  JSR DigitStoreUpper                     ; $B682: 20 19 B7
   LDA a:$0008                             ; $B685: AD 08 00
-  JSR $B71D                               ; $B688: 20 1D B7
-  LDA a:$0007                             ; $B68B: AD 07 00
-  JSR $B719                               ; $B68E: 20 19 B7
+  JSR DigitStoreLower                     ; $B688: 20 1D B7
+  LDA a:$0007                             ; $B68B: AD 07 00 ; hundreds+ones byte
+  JSR DigitStoreUpper                     ; $B68E: 20 19 B7
   LDA a:$0007                             ; $B691: AD 07 00
-  AND #$0F                                ; $B694: 29 0F
-  JSR $B727                               ; $B696: 20 27 B7
-  LDY #$01                                ; $B699: A0 01
+  AND #$0F                                ; $B694: 29 0F     ; ones
+  JSR DigitStoreOnes                      ; $B696: 20 27 B7
+  LDY #$01                                ; $B699: A0 01     ; record[$01]
   LDA ($10),Y                             ; $B69B: B1 10
   STA a:$0001                             ; $B69D: 8D 01 00
   LDA #$00                                ; $B6A0: A9 00
   STA a:$0002                             ; $B6A2: 8D 02 00
   STA a:$0003                             ; $B6A5: 8D 03 00
-  JSR $E9BA                               ; $B6A8: 20 BA E9
+  JSR B1F_MathBinToBcd                    ; $B6A8: 20 BA E9
   LDA a:$0007                             ; $B6AB: AD 07 00
   LSR                                     ; $B6AE: 4A
   LSR                                     ; $B6AF: 4A
   LSR                                     ; $B6B0: 4A
-  LSR                                     ; $B6B1: 4A
+  LSR                                     ; $B6B1: 4A        ; tens
   BEQ $B6BA                               ; $B6B2: F0 06
   CLC                                     ; $B6B4: 18
   ADC #$76                                ; $B6B5: 69 76
   STA $0398                               ; $B6B7: 8D 98 03
 Loc_B6BA:
   LDA a:$0007                             ; $B6BA: AD 07 00
-  AND #$0F                                ; $B6BD: 29 0F
+  AND #$0F                                ; $B6BD: 29 0F     ; ones
   CLC                                     ; $B6BF: 18
   ADC #$76                                ; $B6C0: 69 76
   STA $0399                               ; $B6C2: 8D 99 03
-  LDY #$06                                ; $B6C5: A0 06
+  LDY #$06                                ; $B6C5: A0 06     ; record[$06] lo
   LDA ($10),Y                             ; $B6C7: B1 10
   STA a:$0001                             ; $B6C9: 8D 01 00
-  LDY #$07                                ; $B6CC: A0 07
+  LDY #$07                                ; $B6CC: A0 07     ; record[$07] hi
   LDA ($10),Y                             ; $B6CE: B1 10
   STA a:$0002                             ; $B6D0: 8D 02 00
   LDA #$00                                ; $B6D3: A9 00
   STA a:$0003                             ; $B6D5: 8D 03 00
-  ASL a:$0001                             ; $B6D8: 0E 01 00
+  ASL a:$0001                             ; $B6D8: 0E 01 00 ; value x2
   ROL a:$0002                             ; $B6DB: 2E 02 00
   ROL a:$0003                             ; $B6DE: 2E 03 00
-  JSR $E9BA                               ; $B6E1: 20 BA E9
+  JSR B1F_MathBinToBcd                    ; $B6E1: 20 BA E9
   LDX #$00                                ; $B6E4: A2 00
-  LDA a:$0009                             ; $B6E6: AD 09 00
+  LDA a:$0009                             ; $B6E6: AD 09 00 ; hundred-thousands
   AND #$0F                                ; $B6E9: 29 0F
-  BEQ $B6F4                               ; $B6EB: F0 07
+  BEQ $B6F4                               ; $B6EB: F0 07     ; leading blank
   CLC                                     ; $B6ED: 18
   ADC #$76                                ; $B6EE: 69 76
   STA $039D                               ; $B6F0: 8D 9D 03
-  INX                                     ; $B6F3: E8
+  INX                                     ; $B6F3: E8        ; digits printed
 Loc_B6F4:
-  LDA a:$0008                             ; $B6F4: AD 08 00
+  LDA a:$0008                             ; $B6F4: AD 08 00 ; tens-of-thousands
   LSR                                     ; $B6F7: 4A
   LSR                                     ; $B6F8: 4A
   LSR                                     ; $B6F9: 4A
   LSR                                     ; $B6FA: 4A
   BNE $B701                               ; $B6FB: D0 04
   CPX #$00                                ; $B6FD: E0 00
-  BEQ $B707                               ; $B6FF: F0 06
+  BEQ $B707                               ; $B6FF: F0 06     ; still leading blank
 Loc_B701:
   CLC                                     ; $B701: 18
   ADC #$76                                ; $B702: 69 76
   STA $039E                               ; $B704: 8D 9E 03
 Loc_B707:
   LDA a:$0008                             ; $B707: AD 08 00
-  AND #$0F                                ; $B70A: 29 0F
+  AND #$0F                                ; $B70A: 29 0F     ; ones
   CLC                                     ; $B70C: 18
   ADC #$76                                ; $B70D: 69 76
   STA $039F                               ; $B70F: 8D 9F 03
   RTS                                     ; $B712: 60
-; --- Data Region ---
-  .byte $72,$73,$74,$75,$70,$71           ; $B713: 72 73 74 75 70 71
-Loc_B719:
-; --- Code Region ---
+; --- Portrait tile pairs by record[$0B] bits 2-3 (frame 5) ---
+PortraitTilesLevel:
+  .word $7372                             ; $B713: 72 73 ; level 0
+  .word $7574                             ; $B715: 74 75 ; level 1
+  .word $7170                             ; $B717: 70 71 ; level 2
+;===============================================================================
+; $B719/$B71D/$B727: DigitStoreUpper / DigitStoreLower / DigitStoreOnes
+; BCD digit writers for the $0390+ cell row: upper nibble (tens place of
+; the byte, blank when it is the leading zero), lower nibble (same
+; rule), and the unconditional ones digit. X counts digits printed, Y
+; tracks the cell index.
+;===============================================================================
+DigitStoreUpper:
   LSR                                     ; $B719: 4A
   LSR                                     ; $B71A: 4A
   LSR                                     ; $B71B: 4A
-  LSR                                     ; $B71C: 4A
-Loc_B71D:
+  LSR                                     ; $B71C: 4A        ; fall into lower
+DigitStoreLower:
   AND #$0F                                ; $B71D: 29 0F
   CPX #$00                                ; $B71F: E0 00
-  BNE $B727                               ; $B721: D0 04
+  BNE DigitStoreOnes                      ; $B721: D0 04     ; not leading
   CMP #$00                                ; $B723: C9 00
-  BEQ $B72E                               ; $B725: F0 07
-Loc_B727:
+  BEQ Loc_B72E                            ; $B725: F0 07     ; leading zero: blank
+DigitStoreOnes:
   CLC                                     ; $B727: 18
-  ADC #$76                                ; $B728: 69 76
-  STA $0390,Y                             ; $B72A: 99 90 03
-  INX                                     ; $B72D: E8
+  ADC #$76                                ; $B728: 69 76     ; digit tile base
+  STA $0390,Y                             ; $B72A: 99 90 03 ; digit cell
+  INX                                     ; $B72D: E8        ; digits printed
 Loc_B72E:
-  INY                                     ; $B72E: C8
+  INY                                     ; $B72E: C8        ; next cell
   RTS                                     ; $B72F: 60
-Loc_B730:  ; (dispatch callback target)
-  LDY #$0A                                ; $B730: A0 0A
+;===============================================================================
+; $B730: NamePlateUpper (frame 6)
+; Renders the upper name-plate text strip: record[$0A] bits 0-4 select
+; the strip via NamePlateStripSetup ($9B12 table in bank $30), 8 glyph
+; bytes copied into strip cells $038E-$0395 (tile base +$00); the first
+; byte becomes the marker row coord $040E. Bits 5-7*8+$18 select a
+; second strip, copied into $039A-$03A1 with tile base +$40, whose first
+; byte becomes the marker column coord $040F. Tail-calls the bank switch
+; back to $31.
+;===============================================================================
+NamePlateUpper:  ; frame 6
+  LDY #$0A                                ; $B730: A0 0A     ; record[$0A]
   LDA ($10),Y                             ; $B732: B1 10
   STA a:$0015                             ; $B734: 8D 15 00
-  AND #$1F                                ; $B737: 29 1F
-  JSR $B7C1                               ; $B739: 20 C1 B7
-  LDA #$00                                ; $B73C: A9 00
-  LDX #$0E                                ; $B73E: A2 0E
-  LDY #$01                                ; $B740: A0 01
-  JSR $B7A2                               ; $B742: 20 A2 B7
+  AND #$1F                                ; $B737: 29 1F     ; strip id (bits 0-4)
+  JSR NamePlateStripSetup                 ; $B739: 20 C1 B7 ; -> ($12) glyph strip
+  LDA #$00                                ; $B73C: A9 00     ; tile base +$00
+  LDX #$0E                                ; $B73E: A2 0E     ; strip cell $038E
+  LDY #$01                                ; $B740: A0 01     ; glyph offset
+  JSR NamePlateCopy                       ; $B742: 20 A2 B7
   LDY #$00                                ; $B745: A0 00
-  LDA ($12),Y                             ; $B747: B1 12
-  STA $040E                               ; $B749: 8D 0E 04
+  LDA ($12),Y                             ; $B747: B1 12     ; first glyph byte
+  STA $040E                               ; $B749: 8D 0E 04 ; marker row coord
   LDA a:$0015                             ; $B74C: AD 15 00
   ROL                                     ; $B74F: 2A
   ROL                                     ; $B750: 2A
   ROL                                     ; $B751: 2A
-  ROL                                     ; $B752: 2A
+  ROL                                     ; $B752: 2A        ; bits 5-7 -> low
   AND #$07                                ; $B753: 29 07
   CLC                                     ; $B755: 18
-  ADC #$18                                ; $B756: 69 18
-  JSR $B7C1                               ; $B758: 20 C1 B7
-  LDA #$40                                ; $B75B: A9 40
-  LDX #$1A                                ; $B75D: A2 1A
+  ADC #$18                                ; $B756: 69 18     ; second strip id
+  JSR NamePlateStripSetup                 ; $B758: 20 C1 B7
+  LDA #$40                                ; $B75B: A9 40     ; tile base +$40
+  LDX #$1A                                ; $B75D: A2 1A     ; strip cell $039A
   LDY #$01                                ; $B75F: A0 01
-  JSR $B7A2                               ; $B761: 20 A2 B7
+  JSR NamePlateCopy                       ; $B761: 20 A2 B7
   LDY #$00                                ; $B764: A0 00
-  LDA ($12),Y                             ; $B766: B1 12
-  STA $040F                               ; $B768: 8D 0F 04
+  LDA ($12),Y                             ; $B766: B1 12     ; first glyph byte
+  STA $040F                               ; $B768: 8D 0F 04 ; marker column coord
   LDY #$31                                ; $B76B: A0 31
-  JMP $F25F                               ; $B76D: 4C 5F F2
-Loc_B770:  ; (dispatch callback target)
-  LDY #$0A                                ; $B770: A0 0A
+  JMP B1F_SwitchBank8_B                   ; $B76D: 4C 5F F2 ; restore bank (no return)
+;===============================================================================
+; $B770: NamePlateLower (frame 7)
+; Same as frame 6 but the two glyph strips start at offset 9 (second
+; name-plate row, cells $038E/$039A) and no marker coords are stored.
+;===============================================================================
+NamePlateLower:  ; frame 7
+  LDY #$0A                                ; $B770: A0 0A     ; record[$0A]
   LDA ($10),Y                             ; $B772: B1 10
   STA a:$0015                             ; $B774: 8D 15 00
-  AND #$1F                                ; $B777: 29 1F
-  JSR $B7C1                               ; $B779: 20 C1 B7
-  LDA #$00                                ; $B77C: A9 00
-  LDX #$0E                                ; $B77E: A2 0E
-  LDY #$09                                ; $B780: A0 09
-  JSR $B7A2                               ; $B782: 20 A2 B7
+  AND #$1F                                ; $B777: 29 1F     ; strip id (bits 0-4)
+  JSR NamePlateStripSetup                 ; $B779: 20 C1 B7
+  LDA #$00                                ; $B77C: A9 00     ; tile base +$00
+  LDX #$0E                                ; $B77E: A2 0E     ; strip cell $038E
+  LDY #$09                                ; $B780: A0 09     ; glyph offset
+  JSR NamePlateCopy                       ; $B782: 20 A2 B7
   LDA a:$0015                             ; $B785: AD 15 00
   ROL                                     ; $B788: 2A
   ROL                                     ; $B789: 2A
@@ -2658,46 +2994,58 @@ Loc_B770:  ; (dispatch callback target)
   ROL                                     ; $B78B: 2A
   AND #$07                                ; $B78C: 29 07
   CLC                                     ; $B78E: 18
-  ADC #$18                                ; $B78F: 69 18
-  JSR $B7C1                               ; $B791: 20 C1 B7
-  LDA #$40                                ; $B794: A9 40
-  LDX #$1A                                ; $B796: A2 1A
+  ADC #$18                                ; $B78F: 69 18     ; second strip id
+  JSR NamePlateStripSetup                 ; $B791: 20 C1 B7
+  LDA #$40                                ; $B794: A9 40     ; tile base +$40
+  LDX #$1A                                ; $B796: A2 1A     ; strip cell $039A
   LDY #$09                                ; $B798: A0 09
-  JSR $B7A2                               ; $B79A: 20 A2 B7
+  JSR NamePlateCopy                       ; $B79A: 20 A2 B7
   LDY #$31                                ; $B79D: A0 31
-  JMP $F25F                               ; $B79F: 4C 5F F2
-Loc_B7A2:
-  STA a:$0014                             ; $B7A2: 8D 14 00
+  JMP B1F_SwitchBank8_B                   ; $B79F: 4C 5F F2 ; restore bank (no return)
+;===============================================================================
+; $B7A2: NamePlateCopy
+; Copies 8 glyph bytes from ($12)+Y into strip cells $0380+X, adding the
+; tile base in A to each glyph ($01 = blank cell, stored as-is).
+;===============================================================================
+NamePlateCopy:
+  STA a:$0014                             ; $B7A2: 8D 14 00 ; tile base
   TYA                                     ; $B7A5: 98
   CLC                                     ; $B7A6: 18
   ADC #$08                                ; $B7A7: 69 08
-  STA a:$0002                             ; $B7A9: 8D 02 00
-Loc_B7AC:
-  LDA ($12),Y                             ; $B7AC: B1 12
-  CMP #$01                                ; $B7AE: C9 01
-  BEQ $B7B6                               ; $B7B0: F0 04
+  STA a:$0002                             ; $B7A9: 8D 02 00 ; end offset
+@CopyLoop:
+  LDA ($12),Y                             ; $B7AC: B1 12     ; glyph byte
+  CMP #$01                                ; $B7AE: C9 01     ; blank cell
+  BEQ @StoreCell                          ; $B7B0: F0 04
   CLC                                     ; $B7B2: 18
-  ADC a:$0014                             ; $B7B3: 6D 14 00
-Loc_B7B6:
-  STA $0380,X                             ; $B7B6: 9D 80 03
+  ADC a:$0014                             ; $B7B3: 6D 14 00 ; apply tile base
+@StoreCell:
+  STA $0380,X                             ; $B7B6: 9D 80 03 ; strip cell
   INX                                     ; $B7B9: E8
   INY                                     ; $B7BA: C8
   CPY a:$0002                             ; $B7BB: CC 02 00
-  BCC $B7AC                               ; $B7BE: 90 EC
+  BCC @CopyLoop                           ; $B7BE: 90 EC
   RTS                                     ; $B7C0: 60
-Loc_B7C1:
-  ASL                                     ; $B7C1: 0A
+;===============================================================================
+; $B7C1: NamePlateStripSetup
+; Selects the name-plate glyph strip: switches the $8000 bank to $30 and
+; loads the strip pointer ($0012/$0013) from the $9B12 table (hi byte
+; +$80).
+;===============================================================================
+NamePlateStripSetup:
+  ASL                                     ; $B7C1: 0A        ; strip id x2
   TAX                                     ; $B7C2: AA
-  LDY #$30                                ; $B7C3: A0 30
-  JSR $F25F                               ; $B7C5: 20 5F F2
-  LDA $9B12,X                             ; $B7C8: BD 12 9B
+  LDY #$30                                ; $B7C3: A0 30     ; glyph data bank
+  JSR B1F_SwitchBank8_B                   ; $B7C5: 20 5F F2
+  LDA $9B12,X                             ; $B7C8: BD 12 9B ; strip ptr lo
   STA a:$0012                             ; $B7CB: 8D 12 00
   INX                                     ; $B7CE: E8
-  LDA $9B12,X                             ; $B7CF: BD 12 9B
+  LDA $9B12,X                             ; $B7CF: BD 12 9B ; strip ptr hi
   CLC                                     ; $B7D2: 18
   ADC #$80                                ; $B7D3: 69 80
   STA a:$0013                             ; $B7D5: 8D 13 00
   RTS                                     ; $B7D8: 60
+.endproc
 Loc_B7D9:
   LDA $0471                               ; $B7D9: AD 71 04
   JSR $F2AF                               ; $B7DC: 20 AF F2
@@ -3186,27 +3534,43 @@ Loc_BBBD:
   DEY                                     ; $BBD9: 88
   JSR $A52A                               ; $BBDA: 20 2A A5
   RTS                                     ; $BBDD: 60
-Loc_BBDE:
-  LDA $04E4                               ; $BBDE: AD E4 04
-  BNE $BBE4                               ; $BBE1: D0 01
+;===============================================================================
+; $BBDE: MapProvinceDirtyMark ($BBDE-$BBF9)
+; Marks one map zone dirty in the province-sprite dirty bitmap $04E0-$04E3 so
+; MapProvinceSpriteRefresh (banks $1B+$1C, $DF35) rebuilds its marker sprites
+; next frame. Multi-entry:
+;   - MapProvinceDirtyMark: banked entry via the $A02A stub (Y=$39 callback
+;     from MapScreenFrameUpdate $A014 in banks $1B+$1C). No-op unless sprite
+;     dirty mark $04E4 is set; marks pending province $0402.
+;   - ByZone: in-bank secondary entry; marks the zone id passed in
+;     A (used by Loc_A985 with demo camera zone $0472).
+; Zone id encoding: bit 0-2 = bit position within the bitmap byte (X),
+; bits 3-7 = bitmap byte index Y, so bit = $04E0[id>>3] mask 1<<(id&7).
+;===============================================================================
+.proc MapProvinceDirtyMark
+  LDA $04E4                               ; $BBDE: AD E4 04  ; sprite dirty mark
+  BNE @MarkPending                        ; $BBE1: D0 01     ; zero: no refresh pending
   RTS                                     ; $BBE3: 60
-Loc_BBE4:
-  LDA $0402                               ; $BBE4: AD 02 04
-Loc_BBE7:
+@MarkPending:
+  LDA $0402                               ; $BBE4: AD 02 04  ; pending province id
+ByZone:
   PHA                                     ; $BBE7: 48
-  AND #$07                                ; $BBE8: 29 07
+  AND #$07                                ; $BBE8: 29 07     ; bit index within byte
   TAX                                     ; $BBEA: AA
   PLA                                     ; $BBEB: 68
   LSR                                     ; $BBEC: 4A
   LSR                                     ; $BBED: 4A
-  LSR                                     ; $BBEE: 4A
-  TAY                                     ; $BBEF: A8
-  LDA $04E0,Y                             ; $BBF0: B9 E0 04
-  ORA $BBFA,X                             ; $BBF3: 1D FA BB
+  LSR                                     ; $BBEE: 4A         ; A = id / 8
+  TAY                                     ; $BBEF: A8         ; bitmap byte index
+  LDA $04E0,Y                             ; $BBF0: B9 E0 04  ; dirty bitmap byte
+  ORA MapProvinceDirtyBitMaskTable,X      ; $BBF3: 1D FA BB  ; set zone bit
   STA $04E0,Y                             ; $BBF6: 99 E0 04
   RTS                                     ; $BBF9: 60
 ; --- Data Region ---
-  .byte $01,$02,$04,$08,$10,$20,$40,$80   ; $BBFA: 01 02 04 08 10 20 40 80
+MapProvinceDirtyBitMaskTable:
+  .byte $01,$02,$04,$08,$10,$20,$40,$80   ; $BBFA: 01 02 04 08 10 20 40 80 ; bit masks 0-7 (duplicate of $DFEE in banks $1B+$1C)
+.endproc
+
 Loc_BC02:
 ; --- Code Region ---
   LDA #$40                                ; $BC02: A9 40

@@ -1,3 +1,4 @@
+<docs>
 # Build System and Tools
 
 <cite>
@@ -9,6 +10,8 @@
 - [test_17_18.cfg](file://test_17_18.cfg)
 - [build/test_17_18.cfg](file://build/test_17_18.cfg)
 - [test_0c_0d.cfg](file://test_0c_0d.cfg)
+- [tools/test_0a_0b.cfg](file://tools/test_0a_0b.cfg)
+- [tools/test_0e_0f.cfg](file://tools/test_0e_0f.cfg)
 - [check_baseline.py](file://check_baseline.py)
 - [convert_hex.py](file://convert_hex.py)
 - [transform_branches.py](file://transform_branches.py)
@@ -86,6 +89,24 @@
 - [tools/init_0e_0f.py](file://tools/init_0e_0f.py)
 - [tools/verify_0e_0f.py](file://tools/verify_0e_0f.py)
 - [tools/scan_bank_links.py](file://tools/scan_bank_links.py)
+- [tools/charmap_kana.py](file://tools/charmap_kana.py)
+- [tools/decode_menu_streams.py](file://tools/decode_menu_streams.py)
+- [tools/digit_test.py](file://tools/digit_test.py)
+- [tools/katakana_identify.py](file://tools/katakana_identify.py)
+- [tools/katakana_match.py](file://tools/katakana_match.py)
+- [tools/dump_font_ascii.py](file://tools/dump_font_ascii.py)
+- [tools/dump_font_pages.py](file://tools/dump_font_pages.py)
+- [tools/dump_record_fonts.py](file://tools/dump_record_fonts.py)
+- [tools/dump_strategy_font.py](file://tools/dump_strategy_font.py)
+- [tools/find_font_final.py](file://tools/find_font_final.py)
+- [tools/find_text_font.py](file://tools/find_text_font.py)
+- [tools/font_to_png.py](file://tools/font_to_png.py)
+- [tools/match_font_noto.py](file://tools/match_font_noto.py)
+- [tools/render_chr_font.py](file://tools/render_chr_font.py)
+- [tools/render_font_big.py](file://tools/render_font_big.py)
+- [tools/render_font_chunks.py](file://tools/render_font_chunks.py)
+- [tools/render_font_tiles.py](file://tools/render_font_tiles.py)
+- [tools/sprite_font_render.py](file://tools/sprite_font_render.py)
 - [asm/banks/prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
 - [asm/banks/prg_0c_0d.asm](file://asm/banks/prg_0c_0d.asm)
 - [asm/banks/prg_0e_0f.asm](file://asm/banks/prg_0e_0f.asm)
@@ -104,11 +125,13 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for the new knowledge base integration system with authoritative terminology reference from docs/manual_kb/
-- Updated tooling documentation to reflect new naming conventions in disasm_0a_0b.py that align with the semantic English glossary
-- Enhanced documentation workflow section to incorporate the authoritative vocabulary source for consistent label and symbol naming
-- Updated AI code modernization tools section to emphasize PascalCase semantic naming conventions derived from the manual knowledge base
-- Added guidance on using the consolidated semantic English glossary for maintaining consistency across all disassembly tools
+- Added comprehensive documentation for the new font analysis tools suite including charmap_kana.py, decode_menu_streams.py, digit_test.py, katakana_identify.py, katakana_match.py, and numerous other utilities for analyzing character encoding and rendering systems
+- Updated build system documentation to include Makefile targets for font analysis tools and their integration with the existing pipeline
+- Enhanced ROM generation process documentation to cover CHR page handling and sophisticated glyph mapping techniques
+- Added detailed coverage of the game's complex font system with multiple CHR pages and advanced character encoding schemes
+- Updated troubleshooting guide with font-specific issues and resolution strategies
+- Expanded verification system documentation to include font accuracy validation and character rendering verification
+- Added new isolated testing configurations for combined bank verification (test_0a_0b.cfg, test_0e_0f.cfg)
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -130,14 +153,15 @@
 17. [Consolidated Architecture Support](#consolidated-architecture-support)
 18. [Bank Switching Linkage Analysis](#bank-switching-linkage-analysis)
 19. [Knowledge Base Integration and Terminology Reference](#knowledge-base-integration-and-terminology-reference)
-20. [Dependency Analysis](#dependency-analysis)
-21. [Performance Considerations](#performance-considerations)
-22. [Troubleshooting Guide](#troubleshooting-guide)
-23. [Conclusion](#conclusion)
-24. [Appendices](#appendices)
+20. [Font Analysis Tools Suite](#font-analysis-tools-suite)
+21. [Dependency Analysis](#dependency-analysis)
+22. [Performance Considerations](#performance-considerations)
+23. [Troubleshooting Guide](#troubleshooting-guide)
+24. [Conclusion](#conclusion)
+25. [Appendices](#appendices)
 
 ## Introduction
-This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. **Updated**: The toolchain now integrates with an authoritative knowledge base system that provides canonical Japanese game terminology for consistent labeling and naming conventions throughout the disassembly process. The enhanced toolchain includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation. **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities using the new modular Ai* architecture with improved nested procedure support. **Updated**: Bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining compatibility with individual bank files. **New**: Specialized PRG bank $0C/$0D callback system analysis tools provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support. **New**: Three new utility tools enhance the reverse engineering workflow with automatic label generation, ROM byte extraction, and duplicate label resolution capabilities. **New**: Comprehensive consolidated architecture support with PRG banks $0E/$0F initialization tools, standalone verification, and bank-switching linkage analysis for enhanced cross-bank reference mapping.
+This document explains the complete build system and automated workflows for the Sango2Dasm project. It covers the Makefile targets, the ROM generation pipeline from assembly through linking to the final NES ROM with proper iNES headers, the verification system that ensures byte-exact rebuilds, and the enhanced annotation tools used to document and validate disassembly. The project now features a comprehensive unified disassembly approach that provides automated cleanup, cross-bank reference handling, address-to-symbol mapping, and specialized tools for different ROM regions. The recent addition of the automated RAM centralization tool provides systematic approach to maintaining consistent memory address definitions across the codebase, significantly improving code readability and maintainability. **Updated**: The toolchain now integrates with an authoritative knowledge base system that provides canonical Japanese game terminology for consistent labeling and naming conventions throughout the disassembly process. The enhanced toolchain includes specialized disassemblers for Bank $1D and $1E, cross-reference analysis tools, automated verification systems, sophisticated label analysis and renaming capabilities, and a comprehensive suite of Python analysis tools specifically designed for PRG banks $1D/$1E including RAM usage analysis, address validation, symbol conflict detection, data extraction, automated data insertion, and global variable validation. **New**: Advanced paired bank disassembly tools provide sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by specialized verification tools for byte-exact accuracy validation. **New**: AI code modernization tools provide automated analysis and structural optimization for the AI turn dispatch system with intelligent branch instruction fixing and semantic renaming capabilities using the new modular Ai* architecture with improved nested procedure support. **Updated**: Bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm, reducing compilation overhead through unified bank management while maintaining compatibility with individual bank files. **New**: Specialized PRG bank $0C/$0D callback system analysis tools provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support. **New**: Three new utility tools enhance the reverse engineering workflow with automatic label generation, ROM byte extraction, and duplicate label resolution capabilities. **New**: Comprehensive consolidated architecture support with PRG banks $0E/$0F initialization tools, standalone verification, and bank-switching linkage analysis for enhanced cross-bank reference mapping. **New**: Extensive font analysis tools suite provides comprehensive character encoding and rendering system analysis with sophisticated glyph mapping techniques for the game's complex multi-page font system.
 
 ## Project Structure
 The project is organized around a Makefile-driven build system, a cc65-based assembler/linker toolchain, and a suite of Python tools for ROM splitting, disassembly, analysis, annotation, verification, and assembly transformation. The structure supports:
@@ -157,6 +181,7 @@ The project is organized around a Makefile-driven build system, a cc65-based ass
 - **New**: Three new utility tools for automated label management and ROM data extraction
 - **New**: Consolidated architecture support with PRG banks $0E/$0F initialization, verification, and bank-switching linkage analysis
 - **New**: Knowledge base integration system providing authoritative terminology reference for consistent naming conventions
+- **New**: Comprehensive font analysis tools suite for character encoding and rendering system analysis with sophisticated glyph mapping techniques
 
 ```mermaid
 graph TB
@@ -184,6 +209,16 @@ subgraph "Knowledge Base Integration"
 KB1["docs/manual_kb/README.md<br/>Knowledge Base Index"]
 KB2["docs/manual_kb/terminology.md<br/>Semantic English Glossary"]
 KB3["Manual KB Files<br/>Game Documentation"]
+end
+subgraph "Font Analysis Tools Suite"
+FA1["charmap_kana.py<br/>Kana/Digit Character Mapping"]
+FA2["decode_menu_streams.py<br/>Menu Stream Decoding"]
+FA3["digit_test.py<br/>Digit Font Testing"]
+FA4["katakana_identify.py<br/>Katakana Identification"]
+FA5["katakana_match.py<br/>Katakana Pattern Matching"]
+FA6["dump_font_ascii.py<br/>Font ASCII Dumping"]
+FA7["render_font_tiles.py<br/>Font Tile Rendering"]
+FA8["match_font_noto.py<br/>Noto Font Matching"]
 end
 subgraph "Consolidated Architecture Tools"
 CA1["init_0e_0f.py<br/>Automated initialization"]
@@ -360,6 +395,14 @@ MK --> T_disasm1f
 MK --> T_gen
 MK --> T_analyze
 MK --> T_annotate
+MK --> FA1
+MK --> FA2
+MK --> FA3
+MK --> FA4
+MK --> FA5
+MK --> FA6
+MK --> FA7
+MK --> FA8
 T_split --> R_rom
 T_split --> R_info
 T_split --> R_combined
@@ -379,6 +422,8 @@ KB2 --> LA2
 - [test_17_18.cfg:1-9](file://test_17_18.cfg#L1-L9)
 - [build/test_17_18.cfg:1-11](file://build/test_17_18.cfg#L1-L11)
 - [test_0c_0d.cfg:1-13](file://test_0c_0d.cfg#L1-L13)
+- [tools/test_0a_0b.cfg:1-11](file://tools/test_0a_0b.cfg#L1-L11)
+- [tools/test_0e_0f.cfg:1-11](file://tools/test_0e_0f.cfg#L1-L11)
 - [docs/manual_kb/README.md:1-97](file://docs/manual_kb/README.md#L1-L97)
 - [docs/manual_kb/terminology.md:1-293](file://docs/manual_kb/terminology.md#L1-L293)
 
@@ -403,6 +448,7 @@ KB2 --> LA2
 - **New**: Three new utility tools enhance the reverse engineering workflow with automatic label generation, ROM byte extraction, and duplicate label resolution capabilities.
 - **New**: Consolidated architecture support with PRG banks $0E/$0F initialization tools, standalone verification, and bank-switching linkage analysis for enhanced cross-bank reference mapping.
 - **New**: Knowledge base integration system provides authoritative terminology reference for consistent naming conventions across all tools and processes.
+- **New**: Comprehensive font analysis tools suite provides sophisticated character encoding and rendering system analysis with multiple CHR page support and advanced glyph mapping techniques.
 - **Updated**: Consolidated bank management reduces compilation overhead through unified bank modules like prg_0c_0d.asm while maintaining compatibility with individual bank files.
 
 Key capabilities:
@@ -428,6 +474,7 @@ Key capabilities:
 - **New**: Three new utility tools for automated label management including automatic label generation, ROM byte extraction, and duplicate label resolution.
 - **New**: Consolidated architecture support with PRG banks $0E/$0F initialization, standalone verification, and bank-switching linkage analysis for enhanced cross-bank reference mapping.
 - **New**: Knowledge base integration with authoritative terminology reference ensuring consistent PascalCase semantic naming conventions across all tools.
+- **New**: Comprehensive font analysis tools suite with sophisticated character encoding analysis, menu stream decoding, digit font testing, katakana identification and matching, font ASCII dumping, tile rendering, and Noto font matching capabilities.
 - **Updated**: Consolidated bank management supporting unified bank modules for reduced compilation overhead while maintaining full compatibility with existing individual bank files.
 
 **Section sources**
@@ -461,6 +508,7 @@ The build system follows a linear pipeline with branching points for analysis an
 - **New**: Utilize new utility tools for automated label management including automatic label generation, ROM byte extraction, and duplicate label resolution.
 - **New**: Apply consolidated architecture tools for PRG banks $0E/$0F initialization, verification, and bank-switching linkage analysis.
 - **New**: Integrate knowledge base terminology reference for consistent naming conventions across all tools and processes.
+- **New**: Utilize comprehensive font analysis tools suite for character encoding and rendering system analysis with sophisticated glyph mapping techniques.
 - **Updated**: Process consolidated bank modules like prg_0c_0d.asm for reduced compilation overhead while maintaining compatibility with individual bank files.
 
 ```mermaid
@@ -492,6 +540,7 @@ participant APB as "Advanced Paired Bank Disassembly"
 participant NU as "New Utility Tools"
 participant CA as "Consolidated Architecture"
 participant KB as "Knowledge Base Integration"
+participant FA as "Font Analysis Tools Suite"
 Dev->>MK : "make"
 MK->>CA : "Assemble main.asm + discovered banks"
 CA-->>MK : "main.o"
@@ -562,6 +611,8 @@ Dev->>CA : "Run consolidated architecture tools"
 CA-->>Dev : "PRG banks $0E/$0F initialization, verification, linkage analysis"
 Dev->>KB : "Consult knowledge base for terminology"
 KB-->>Dev : "Authoritative terminology reference"
+Dev->>FA : "Run font analysis tools suite"
+FA-->>Dev : "Character encoding analysis, glyph mapping, font rendering"
 ```
 
 **Diagram sources**
@@ -639,6 +690,7 @@ KB-->>Dev : "Authoritative terminology reference"
 - **New**: make disasm_prg: General-purpose combined PRG disassembler with multi-pass code analysis.
 - **New**: make scan_bank_links: Analyze bank-switching call sites across all PRG bank files.
 - **New**: Direct tool execution for new utility tools: python3 tools/add_missing_labels.py, python3 tools/dump_bytes.py, python3 tools/fix_dup_labels2.py
+- **New**: Font analysis tool execution: python3 tools/charmap_kana.py, python3 tools/decode_menu_streams.py, python3 tools/digit_test.py, python3 tools/katakana_identify.py, python3 tools/katakana_match.py
 
 Usage patterns:
 - Start with make split to prepare ROM assets.
@@ -671,6 +723,7 @@ Usage patterns:
 - **New**: Execute new utility tools directly for automated label management tasks.
 - **New**: Run consolidated architecture tools for PRG banks $0E/$0F initialization and verification.
 - **New**: Consult knowledge base terminology reference for consistent naming conventions.
+- **New**: Utilize font analysis tools suite for character encoding and rendering system analysis.
 - Iterate assembly and linking, then verify with make verify or make verify_0a_0b for paired banks.
 
 **Section sources**
@@ -1829,7 +1882,7 @@ The globalize_04xx.py tool provides systematic approach to standardizing $04xx m
 
 #### Canonical Name Mapping
 - **Comprehensive Address Coverage**: Maps all $04xx addresses to globally standardized canonical names
-- **Functional Grouping**: Organizes addresses into logical functional groups for better code organization
+- **Functional Grouping**: Organizes addresses into logical functional groups based on their purpose and usage patterns
 - **Descriptive Naming**: Uses meaningful names that describe the purpose and usage of each memory location
 - **Comment Integration**: Adds descriptive comments explaining the function and context of each canonical name
 
@@ -1906,7 +1959,7 @@ Stage4 --> Output["Standardized Assembly Code"]
 - **Scope Preservation**: Maintains proper scoping for non-canonical addresses and local variables
 
 #### Stage 4: Alias Renaming
-- **Pattern Matching**: Uses regex patterns with word boundaries to ensure complete replacement without partial matches
+- **Pattern Matching**: Uses regex patterns with word boundaries to ensure accurate pattern matching
 - **Whole-Word Replacement**: Replaces old alias names with canonical names while preserving local @-scoped references
 - **Reference Counting**: Tracks and reports the number of references successfully renamed
 - **Scope Awareness**: Preserves scoped references (e.g., `::name`, `@name`) that should not be globally replaced
@@ -2770,6 +2823,185 @@ The integration of the authoritative terminology reference provides several key 
 - [tools/analyze_b49c.py:1-281](file://tools/analyze_b49c.py#L1-L281)
 - [tools/rename_loc_labels.py:1-339](file://tools/rename_loc_labels.py#L1-L339)
 
+## Font Analysis Tools Suite
+
+### Overview
+The font analysis tools suite provides comprehensive capabilities for analyzing the game's complex character encoding and rendering systems. This suite includes sophisticated tools for kana/digit character mapping, menu stream decoding, digit font testing, katakana identification and matching, font ASCII dumping, tile rendering, and Noto font matching. The tools support understanding the game's multi-page font system with advanced glyph mapping techniques and character encoding schemes.
+
+### Core Font Analysis Tools
+
+#### charmap_kana.py - Kana/Digit Character Mapping Tool
+- **Purpose**: Provides comprehensive kana and digit character mapping for Sangokushi 2 name-string encoding
+- **Character Encoding**: Implements SERIAL gojuon order encoding verified against known readings
+- **Postfix Support**: Handles dakuten/handakuten combining marks for voiced/semi-voiced characters
+- **Menu Screen Support**: Includes hiragana block for menu-screen text with verified command lists
+- **Name String Decoding**: Decodes $00-terminated name byte strings with proper postfix application
+- **Officer ID Mapping**: Provides officer index calculation from SRAM record addresses
+- **Digital Font Support**: Includes digit tile base mapping for number rendering
+
+#### decode_menu_streams.py - Menu Stream Decoding Tool
+- **Purpose**: Decodes MenuAction tile stream data from the PPUTileRender bytecode format
+- **Stream Processing**: Resolves pointer tables for each pos_buf_0 value and reads tile stream bytecode
+- **Command Decoding**: Decodes commands and literal tile bytes with comprehensive command support
+- **Bank Resolution**: Handles Namco-163 bank register values and physical bank mapping
+- **Handler Support**: Supports 25 different menu action handlers with parameter resolution
+- **Output Analysis**: Provides summary of tile indices and name references per handler
+
+#### digit_test.py - Digit Font Testing Tool
+- **Purpose**: Performs decisive digit testing to identify digit font pages in CHR banks
+- **Density Analysis**: Analyzes pixel density patterns to match plausible digit shapes
+- **Pattern Recognition**: Identifies digit-1 as thinner than digit-0 and digit-8 as densest
+- **Candidate Scanning**: Scans all 32 CHR banks across 8 slices for digit candidates
+- **Visual Output**: Renders candidate digits with ASCII art representation
+- **Validation Criteria**: Uses density ordering and shape characteristics for identification
+
+#### katakana_identify.py - Katakana Font Identification Tool
+- **Purpose**: Provides systematic katakana font identification for Sangokushi 2
+- **Multi-Stage Analysis**: Implements 4-stage process: render tiles, cross-reference hero names, identify patterns, build mapping
+- **Hero Name Integration**: Extracts and analyzes hero name byte sequences from prg_10.bin
+- **Candidate Scoring**: Scores CHR slices based on font-like properties and pixel density
+- **Visual Rendering**: Renders all 64 tiles from candidate slices with compact ASCII representation
+- **Pattern Matching**: Uses known katakana character patterns to identify tiles
+
+#### katakana_match.py - Katakana Pattern Matching Tool
+- **Purpose**: Compares game font tiles against standard katakana reference bitmaps
+- **Bitmap Comparison**: Uses hand-crafted 8x8 katakana bitmap reference set for matching
+- **Pixel Analysis**: Combines both bitplanes and counts set bits for density analysis
+- **Hero Name Analysis**: Extracts hero names and analyzes byte frequency patterns
+- **Constraint Matching**: Uses constraint-based matching to identify katakana characters
+- **Visual Output**: Renders tile bitmaps with 1-bit visualization for analysis
+
+### Supporting Font Tools
+
+#### dump_font_ascii.py - Font ASCII Dumping Tool
+- **Purpose**: Dumps font data in ASCII format for analysis and documentation
+- **Format Support**: Outputs font tiles in readable ASCII representation
+- **Range Selection**: Supports configurable tile ranges for targeted analysis
+- **Multi-Page Support**: Handles multiple CHR pages and font sections
+
+#### dump_font_pages.py - Font Page Dumping Tool
+- **Purpose**: Dumps complete font pages from CHR banks for comprehensive analysis
+- **Page Analysis**: Processes entire 1KB font pages with detailed tile information
+- **Metadata Generation**: Creates comprehensive font page documentation
+- **Cross-Reference Support**: Links font pages to game usage contexts
+
+#### dump_record_fonts.py - Record Font Dumping Tool
+- **Purpose**: Dumps font data associated with game records and data structures
+- **Record Integration**: Analyzes font usage within game record structures
+- **Data Context**: Provides context for how fonts are used in game data
+- **Structural Analysis**: Maps font references to game data structures
+
+#### dump_strategy_font.py - Strategy Font Dumping Tool
+- **Purpose**: Dumps font data specifically used in strategy mode interfaces
+- **Mode-Specific Analysis**: Focuses on strategy mode font usage patterns
+- **Interface Integration**: Analyzes font usage in strategy mode UI elements
+- **Command Text Support**: Handles strategy command text rendering
+
+#### find_font_final.py - Font Finding Tool
+- **Purpose**: Locates final font definitions and mappings in the ROM
+- **Comprehensive Search**: Scans ROM for font-related code and data
+- **Mapping Analysis**: Identifies font character mappings and glyph associations
+- **Final Assembly**: Provides final font definition output for documentation
+
+#### find_text_font.py - Text Font Finding Tool
+- **Purpose**: Finds text font definitions and rendering code
+- **Text Rendering Analysis**: Analyzes text rendering code paths
+- **Font Selection Logic**: Identifies font selection and switching mechanisms
+- **Rendering Pipeline**: Maps text rendering pipeline from code to visual output
+
+#### font_to_png.py - Font to PNG Converter
+- **Purpose**: Converts font tiles to PNG images for visual analysis
+- **Image Generation**: Creates PNG files from font tile data
+- **Visual Documentation**: Provides visual reference for font glyphs
+- **Batch Processing**: Supports processing multiple font pages and tiles
+
+#### match_font_noto.py - Noto Font Matching Tool
+- **Purpose**: Matches game fonts against Noto Sans JP reference fonts
+- **Reference Matching**: Uses Noto Sans JP as reference for character identification
+- **Glyph Comparison**: Compares game glyphs with standard Japanese characters
+- **Unicode Mapping**: Provides Unicode character mappings for identified glyphs
+
+#### render_chr_font.py - CHR Font Rendering Tool
+- **Purpose**: Renders CHR font data for visual analysis and documentation
+- **Visual Rendering**: Creates visual representations of font tiles
+- **Multi-Format Support**: Supports various output formats for different analysis needs
+- **Quality Visualization**: Provides high-quality visual output for font analysis
+
+#### render_font_big.py - Large Font Rendering Tool
+- **Purpose**: Renders fonts at larger scale for detailed analysis
+- **Scale Enhancement**: Enlarges font tiles for closer examination
+- **Detail Analysis**: Allows detailed inspection of font glyph characteristics
+- **Comparison Support**: Facilitates comparison between different font implementations
+
+#### render_font_chunks.py - Font Chunk Rendering Tool
+- **Purpose**: Renders font data in manageable chunks for analysis
+- **Chunk Processing**: Processes font data in smaller, manageable sections
+- **Incremental Analysis**: Supports incremental font analysis workflows
+- **Memory Efficiency**: Optimized for processing large font datasets
+
+#### render_font_tiles.py - Font Tile Rendering Tool
+- **Purpose**: Renders individual font tiles for detailed analysis
+- **Tile-Level Analysis**: Focuses on individual tile characteristics
+- **Pattern Recognition**: Identifies patterns in tile data and structure
+- **Quality Assessment**: Evaluates font tile quality and consistency
+
+#### sprite_font_render.py - Sprite Font Rendering Tool
+- **Purpose**: Renders sprite-based font data for analysis
+- **Sprite Analysis**: Analyzes sprite-based font implementations
+- **Animation Support**: Handles animated font effects and transitions
+- **Performance Analysis**: Evaluates sprite font performance characteristics
+
+### Integration with Build System
+The font analysis tools suite integrates with the build system through specialized Makefile targets:
+- **New**: make analyze_charmap: Runs kana/digit character mapping analysis
+- **New**: make decode_menu_streams: Decodes menu stream data for analysis
+- **New**: make test_digit_fonts: Performs digit font testing and identification
+- **New**: make identify_katakana: Executes katakana font identification process
+- **New**: make match_katakana: Performs katakana pattern matching analysis
+- **New**: make dump_font_ascii: Dumps font data in ASCII format
+- **New**: make dump_font_pages: Dumps complete font pages for analysis
+- **New**: make dump_record_fonts: Dumps record-associated font data
+- **New**: make dump_strategy_font: Dumps strategy mode font data
+- **New**: make find_font_final: Locates final font definitions
+- **New**: make find_text_font: Finds text font definitions and code
+- **New**: make convert_font_to_png: Converts font tiles to PNG images
+- **New**: make match_font_noto: Matches fonts against Noto reference
+- **New**: make render_chr_font: Renders CHR font data for analysis
+- **New**: make render_font_big: Renders large-scale font visuals
+- **New**: make render_font_chunks: Renders font chunks for analysis
+- **New**: make render_font_tiles: Renders individual font tiles
+- **New**: make render_sprite_font: Renders sprite-based font data
+
+### Advanced Font Analysis Workflows
+
+#### Character Encoding Analysis Workflow
+1. **Initial Mapping**: Use charmap_kana.py to establish character encoding mappings
+2. **Stream Decoding**: Use decode_menu_streams.py to analyze menu stream data
+3. **Digit Validation**: Use digit_test.py to validate digit font pages
+4. **Katakana Identification**: Use katakana_identify.py to identify katakana characters
+5. **Pattern Matching**: Use katakana_match.py to match characters against reference
+
+#### Visual Font Analysis Workflow
+1. **ASCII Dumping**: Use dump_font_ascii.py to create ASCII representations
+2. **Page Analysis**: Use dump_font_pages.py to analyze complete font pages
+3. **PNG Conversion**: Use font_to_png.py to create visual references
+4. **Large Scale Rendering**: Use render_font_big.py for detailed examination
+5. **Noto Matching**: Use match_font_noto.py for character identification
+
+#### Game Integration Analysis Workflow
+1. **Record Analysis**: Use dump_record_fonts.py to analyze game record fonts
+2. **Strategy Mode**: Use dump_strategy_font.py to analyze strategy mode fonts
+3. **Text Rendering**: Use find_text_font.py to analyze text rendering code
+4. **Final Assembly**: Use find_font_final.py to locate final font definitions
+5. **Sprite Analysis**: Use render_sprite_font.py to analyze sprite-based fonts
+
+**Section sources**
+- [tools/charmap_kana.py:1-127](file://tools/charmap_kana.py#L1-L127)
+- [tools/decode_menu_streams.py:1-311](file://tools/decode_menu_streams.py#L1-L311)
+- [tools/digit_test.py:1-57](file://tools/digit_test.py#L1-L57)
+- [tools/katakana_identify.py:1-299](file://tools/katakana_identify.py#L1-L299)
+- [tools/katakana_match.py:1-217](file://tools/katakana_match.py#L1-L217)
+
 ## Dependency Analysis
 The build system exhibits clear separation of concerns:
 - Makefile orchestrates tool invocations and manages dependencies between assembly, linking, and ROM packaging.
@@ -2787,10 +3019,11 @@ The build system exhibits clear separation of concerns:
 - **New**: Three new utility tools for automated label management provide complementary capabilities for maintaining label consistency and resolving common label-related issues.
 - **New**: Consolidated architecture support with PRG banks $0E/$0F initialization tools, standalone verification, and bank-switching linkage analysis for enhanced cross-bank reference mapping.
 - **New**: Knowledge base integration system provides authoritative terminology reference for consistent naming conventions across all tools and processes.
+- **New**: Comprehensive font analysis tools suite provides sophisticated character encoding and rendering system analysis with multiple CHR page support and advanced glyph mapping techniques.
 - **Updated**: Consolidated bank management reduces compilation overhead through unified bank modules like prg_0c_0d.asm while maintaining compatibility with individual bank files.
 - Assembly sources depend on include headers for hardware and mapper definitions.
 - Bank stubs and include files coordinate the assembly of multiple banks.
-- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, advanced paired bank disassembly tools, AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, specialized verification tools for comprehensive ROM coverage, PRG bank $0C/$0D callback system analysis tools with standalone verification support, consolidated architecture tools for PRG banks $0E/$0F, consolidated bank management for reduced compilation overhead, new utility tools for automated label management, and knowledge base integration system for authoritative terminology reference.
+- **New**: Cross-dependencies between unified disassembly tools, enhanced transformation pipeline, RAM centralization tool, ROM analysis tools, automated parameter declaration system, Bank $1D/$1E disassembly pipeline, label analysis system, PRG banks $1D/$1E analysis suite, advanced paired bank disassembly tools, AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, specialized verification tools for comprehensive ROM coverage, PRG bank $0C/$0D callback system analysis tools with standalone verification support, consolidated architecture tools for PRG banks $0E/$0F, consolidated bank management for reduced compilation overhead, new utility tools for automated label management, knowledge base integration system for authoritative terminology reference, and comprehensive font analysis tools suite for character encoding and rendering system analysis.
 
 ```mermaid
 graph TB
@@ -2863,6 +3096,14 @@ MK --> CA1["init_0e_0f.py"]
 MK --> CA2["verify_0e_0f.py"]
 MK --> CA3["scan_bank_links.py"]
 MK --> KB["Knowledge Base Integration"]
+MK --> FA1["charmap_kana.py"]
+MK --> FA2["decode_menu_streams.py"]
+MK --> FA3["digit_test.py"]
+MK --> FA4["katakana_identify.py"]
+MK --> FA5["katakana_match.py"]
+MK --> FA6["dump_font_ascii.py"]
+MK --> FA7["render_font_tiles.py"]
+MK --> FA8["match_font_noto.py"]
 M_main["asm/main.asm"] --> H_namco["include/namco163.h"]
 M_main --> H_macros["include/macros.h"]
 M_main --> H_functions["include/functions.h"]
@@ -2931,6 +3172,14 @@ KB --> APB1
 KB --> AI1
 KB --> TP1
 KB --> LA2
+FA1 --> FA2
+FA2 --> FA3
+FA3 --> FA4
+FA4 --> FA5
+FA5 --> FA6
+FA6 --> FA7
+FA7 --> FA8
+FA8 --> Output
 ```
 
 **Diagram sources**
@@ -3003,6 +3252,11 @@ KB --> LA2
 - [tools/scan_bank_links.py:1-329](file://tools/scan_bank_links.py#L1-L329)
 - [docs/manual_kb/README.md:1-97](file://docs/manual_kb/README.md#L1-L97)
 - [docs/manual_kb/terminology.md:1-293](file://docs/manual_kb/terminology.md#L1-L293)
+- [tools/charmap_kana.py:1-127](file://tools/charmap_kana.py#L1-L127)
+- [tools/decode_menu_streams.py:1-311](file://tools/decode_menu_streams.py#L1-L311)
+- [tools/digit_test.py:1-57](file://tools/digit_test.py#L1-L57)
+- [tools/katakana_identify.py:1-299](file://tools/katakana_identify.py#L1-L299)
+- [tools/katakana_match.py:1-217](file://tools/katakana_match.py#L1-L217)
 
 **Section sources**
 - [Makefile:31-101](file://Makefile#L31-L101)
@@ -3030,6 +3284,13 @@ KB --> LA2
 - **New**: Consolidated architecture tools for PRG banks $0E/$0F provide specialized processing with optimized performance for shared font/tile data; expect moderate processing time for initialization and verification.
 - **New**: Bank-switching linkage analysis tool scans multiple bank files with comprehensive pattern recognition; expect processing time proportional to total code size and switching pattern density.
 - **New**: Knowledge base integration system provides lightweight terminology reference lookups with minimal performance impact; expect negligible overhead for terminology queries.
+- **New**: Comprehensive font analysis tools suite provides sophisticated character encoding and rendering system analysis; expect processing time proportional to ROM size, CHR bank count, and analysis complexity.
+- **New**: Kana/digit character mapping tool processes character encoding with multiple font pages; expect moderate processing time for comprehensive character analysis.
+- **New**: Menu stream decoding tool analyzes complex bytecode streams with bank resolution; expect processing time proportional to stream complexity and handler count.
+- **New**: Digit font testing tool scans all 32 CHR banks across 8 slices; expect processing time proportional to total CHR data size and analysis depth.
+- **New**: Katakana identification tool performs multi-stage analysis with hero name integration; expect processing time proportional to CHR data size and candidate evaluation complexity.
+- **New**: Katakana pattern matching tool compares game fonts against reference bitmaps; expect processing time proportional to font data size and comparison complexity.
+- **New**: Font rendering tools provide visual analysis capabilities; expect processing time proportional to font data size and output format complexity.
 - **Updated**: Consolidated bank management reduces compilation overhead by processing fewer compilation units; expect faster build times with prg_0c_0d.asm and prg_0e_0f.asm compared to separate bank files.
 - **New**: Each disassembly, transformation, analysis, and label processing stage provides detailed logging; use make targets with verbose output to monitor progress during long-running operations.
 - **New**: Advanced .proc/.endproc organization with boundary analysis requires additional processing time but provides optimal code structure and maintainability.
@@ -3049,6 +3310,9 @@ KB --> LA2
 - **New**: New utility tools are optimized for efficiency with minimal overhead; add_missing_labels.py uses regex patterns for fast label detection, dump_bytes.py provides direct binary access for quick data extraction, and fix_dup_labels2.py uses efficient string replacement algorithms.
 - **New**: Consolidated architecture tools benefit from optimized processing of shared resources; init_0e_0f.py efficiently processes font/tile data with minimal overhead, verify_0e_0f.py provides fast standalone verification, and scan_bank_links.py uses efficient pattern matching algorithms.
 - **New**: Knowledge base integration provides fast terminology lookups with pre-indexed glossary data; expect minimal performance impact for terminology queries during disassembly operations.
+- **New**: Font analysis tools provide comprehensive character encoding and rendering system analysis; charmap_kana.py efficiently processes character mappings, decode_menu_streams.py optimizes stream processing, and digit_test.py uses efficient density analysis algorithms.
+- **New**: Katakana identification and matching tools perform sophisticated font analysis with optimized candidate scoring and pattern matching; expect processing time proportional to CHR data size and analysis depth.
+- **New**: Font rendering tools provide visual analysis capabilities with optimized image generation; expect processing time proportional to font data size and output format complexity.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -3121,6 +3385,14 @@ Common issues and resolutions:
 - **New**: Bank stub generation conflicts: Ensure generate_bank_stubs.py doesn't create duplicate files when consolidated modules exist.
 - **New**: Knowledge base integration issues: Verify that docs/manual_kb/terminology.md is accessible and contains proper terminology mappings for consistent naming conventions.
 - **New**: Terminology reference failures: Check that disassembly tools can properly access and use the authoritative terminology reference for label and symbol naming.
+- **New**: Font analysis tool failures: Verify ROM files exist in rom/prg/ and rom/chr/ directories; check file permissions and sizes.
+- **New**: Character encoding analysis issues: Ensure charmap_kana.py can access rom/prg_combined.bin and process character mappings correctly.
+- **New**: Menu stream decoding failures: Verify decode_menu_streams.py can access prg_combined.bin and resolve bank addresses properly.
+- **New**: Digit font testing issues: Check that digit_test.py can access chr_*.bin files and process CHR bank data correctly.
+- **New**: Katakana identification failures: Verify katakana_identify.py can access both prg_10.bin and chr_*.bin files for comprehensive analysis.
+- **New**: Katakana pattern matching issues: Ensure katakana_match.py can properly compare game fonts against reference bitmaps.
+- **New**: Font rendering tool failures: Verify font rendering tools have proper input file paths and output directory permissions.
+- **New**: Noto font matching issues: Check that match_font_noto.py can access Noto reference fonts and perform accurate character matching.
 - **Updated**: Consolidated bank compilation issues: Verify that prg_0c_0d.asm and prg_0e_0f.asm are properly included in all_banks.asm and that CODE_BANK0C/CODE_BANK0D and CODE_BANK0E/CODE_BANK0F segments are correctly mapped in linker.cfg.
 - **Updated**: Bank stub generation conflicts: Ensure generate_bank_stubs.py doesn't create duplicate files when consolidated modules exist.
 
@@ -3212,6 +3484,25 @@ Practical examples:
 - **New**: Duplicate label resolution: python3 tools/fix_dup_labels2.py
 - **New**: Consolidated architecture tools: python3 tools/init_0e_0f.py, python3 tools/verify_0e_0f.py, python3 tools/scan_bank_links.py
 - **New**: Knowledge base terminology reference: python3 tools/consult_knowledge_base.py
+- **New**: Font analysis tools: python3 tools/charmap_kana.py, python3 tools/decode_menu_streams.py, python3 tools/digit_test.py, python3 tools/katakana_identify.py, python3 tools/katakana_match.py
+- **New**: Character encoding analysis: python3 tools/charmap_kana.py
+- **New**: Menu stream decoding: python3 tools/decode_menu_streams.py
+- **New**: Digit font testing: python3 tools/digit_test.py
+- **New**: Katakana identification: python3 tools/katakana_identify.py
+- **New**: Katakana pattern matching: python3 tools/katakana_match.py
+- **New**: Font ASCII dumping: python3 tools/dump_font_ascii.py
+- **New**: Font page dumping: python3 tools/dump_font_pages.py
+- **New**: Record font dumping: python3 tools/dump_record_fonts.py
+- **New**: Strategy font dumping: python3 tools/dump_strategy_font.py
+- **New**: Font finding: python3 tools/find_font_final.py
+- **New**: Text font finding: python3 tools/find_text_font.py
+- **New**: Font to PNG conversion: python3 tools/font_to_png.py
+- **New**: Noto font matching: python3 tools/match_font_noto.py
+- **New**: CHR font rendering: python3 tools/render_chr_font.py
+- **New**: Large font rendering: python3 tools/render_font_big.py
+- **New**: Font chunk rendering: python3 tools/render_font_chunks.py
+- **New**: Font tile rendering: python3 tools/render_font_tiles.py
+- **New**: Sprite font rendering: python3 tools/sprite_font_render.py
 - **Updated**: Consolidated bank workflow: make banks (generates both individual and consolidated bank files), make (uses prg_0c_0d.asm and prg_0e_0f.asm for reduced compilation overhead)
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
@@ -3232,9 +3523,14 @@ Practical examples:
 - [tools/verify_0c_0d_directives.py:1-84](file://tools/verify_0c_0d_directives.py#L1-L84)
 - [tools/init_0e_0f.py:1-281](file://tools/init_0e_0f.py#L1-L281)
 - [tools/scan_bank_links.py:1-329](file://tools/scan_bank_links.py#L1-L329)
+- [tools/charmap_kana.py:1-127](file://tools/charmap_kana.py#L1-L127)
+- [tools/decode_menu_streams.py:1-311](file://tools/decode_menu_streams.py#L1-L311)
+- [tools/digit_test.py:1-57](file://tools/digit_test.py#L1-L57)
+- [tools/katakana_identify.py:1-299](file://tools/katakana_identify.py#L1-L299)
+- [tools/katakana_match.py:1-217](file://tools/katakana_match.py#L1-L217)
 
 ## Conclusion
-The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by the specialized verify_0a_0b.py verification tool that ensures byte-exact accuracy validation for paired banks $0A/$0B. **New**: The AI code modernization tools with analyze_b49c.py and nest_b49c.py provide automated analysis and structural optimization for the AI turn dispatch system with new modular Ai* architecture, enhanced nested procedure support, intelligent branch instruction fixing, semantic renaming using Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and nested procedure restructuring capabilities. **New**: The specialized PRG bank $0C/$0D callback system analysis tools with analyze_0c_0d_callbacks.py, check_trampoline_pattern.py, transform_0c_0d_inline.py, fix_0c_0d_inline.py, and verify_0c_0d_directives.py provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support through test_0c_0d.cfg configuration. **New**: Three new utility tools enhance the reverse engineering workflow with add_missing_labels.py for automatic label generation, dump_bytes.py for ROM byte extraction, and fix_dup_labels2.py for duplicate label resolution, providing essential capabilities for maintaining large-scale assembly codebases with consistent label management. **New**: The consolidated architecture support with init_0e_0f.py, verify_0e_0f.py, and scan_bank_links.py provides comprehensive tools for PRG banks $0E/$0F initialization, standalone verification, and bank-switching linkage analysis, enabling enhanced cross-bank reference mapping and improved understanding of the game's complex bank-switching architecture. **New**: The knowledge base integration system with docs/manual_kb/terminology.md provides authoritative terminology reference for consistent naming conventions across all tools and processes, ensuring that all labels, procedures, and RAM symbols follow consistent semantic naming patterns derived from the original Japanese instruction manual. **Updated**: The bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm and prg_0e_0f.asm, reducing compilation overhead through unified bank management while maintaining full compatibility with existing individual bank files. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, the advanced paired bank disassembly tools, the AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, the specialized PRG bank $0C/$0D callback system analysis tools with standalone verification support, the consolidated architecture tools for PRG banks $0E/$0F, the specialized verification tools for byte-exact accuracy validation, the consolidated bank management system, the new utility tools for automated label management, and the knowledge base integration system for authoritative terminology reference enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, advanced paired bank disassembly capabilities, AI code modernization features with modular Ai* architecture and enhanced nested procedure support, improved control flow with labeled targets, specialized PRG bank $0C/$0D callback system analysis with standalone verification support, consolidated architecture support for PRG banks $0E/$0F, specialized verification tools for byte-exact accuracy validation, consolidated bank management for reduced compilation overhead, new utility tools for automated label management, and authoritative terminology reference for consistent naming conventions, significantly improving code readability, maintainability, and build performance.
+The Sango2Dasm build system integrates cc65 assembly/linking with a robust set of Python tools to support ROM disassembly, analysis, annotation, and verification. The recent addition of the comprehensive unified disassembly pipeline provides unprecedented automation for different ROM regions, featuring six specialized tools that work together to provide cross-bank reference handling, address-to-symbol mapping, and region-specific disassembly capabilities. The newly enhanced transformation pipeline extends this automation to PRG bank $17/$18 assembly code with sophisticated semantic naming conventions, comprehensive .proc/.endproc organization, advanced boundary analysis capabilities, and the new automated parameter declaration system. The latest additions include proc_scope_17_18.py for enhanced .proc/.endproc organization, localize_labels.py for converting branch-only labels to @local format, auto_add_local_params.py for systematic parameter naming in assembly code, and globalize_04xx.py for centralized RAM definition standardization, significantly improving code readability and maintainability. The newly integrated ROM analysis and verification toolkit provides dedicated tools for detailed byte-level ROM inspection, pattern matching, and cross-referencing, enabling comprehensive ROM reconstruction and validation workflows. The most recent enhancement introduces the comprehensive PRG banks $1D/$1E analysis suite with analyze_ram_1d1e.py, check_addrs.py, check_conflicts.py, dump_data_range.py, mark_data_block.py, and verify_globals.py, providing specialized tools for RAM usage analysis, address validation, symbol conflict detection, ROM data extraction, automated data insertion, and global variable validation. **New**: The advanced paired bank disassembly system with disasm_0a_0b.py and disasm_prg.py provides sophisticated recursive descent algorithms for analyzing complex bank pairs with callback dispatchers and inline table detection, complemented by the specialized verify_0a_0b.py verification tool that ensures byte-exact accuracy validation for paired banks $0A/$0B. **New**: The AI code modernization tools with analyze_b49c.py and nest_b49c.py provide automated analysis and structural optimization for the AI turn dispatch system with new modular Ai* architecture, enhanced nested procedure support, intelligent branch instruction fixing, semantic renaming using Ai* prefix convention, improved control flow with labeled targets replacing raw address jumps, and nested procedure restructuring capabilities. **New**: The specialized PRG bank $0C/$0D callback system analysis tools with analyze_0c_0d_callbacks.py, check_trampoline_pattern.py, transform_0c_0d_inline.py, fix_0c_0d_inline.py, and verify_0c_0d_directives.py provide comprehensive analysis of BankedCallbackTrampoline and CallbackDispatcher patterns with inline data transformation capabilities and standalone verification support through test_0c_0d.cfg configuration. **New**: Three new utility tools enhance the reverse engineering workflow with add_missing_labels.py for automatic label generation, dump_bytes.py for ROM byte extraction, and fix_dup_labels2.py for duplicate label resolution, providing essential capabilities for maintaining large-scale assembly codebases with consistent label management. **New**: The consolidated architecture support with init_0e_0f.py, verify_0e_0f.py, and scan_bank_links.py provides comprehensive tools for PRG banks $0E/$0F initialization, standalone verification, and bank-switching linkage analysis, enabling enhanced cross-bank reference mapping and improved understanding of the game's complex bank-switching architecture. **New**: The knowledge base integration system with docs/manual_kb/terminology.md provides authoritative terminology reference for consistent naming conventions across all tools and processes, ensuring that all labels, procedures, and RAM symbols follow consistent semantic naming patterns derived from the original Japanese instruction manual. **New**: The comprehensive font analysis tools suite with charmap_kana.py, decode_menu_streams.py, digit_test.py, katakana_identify.py, katakana_match.py, and numerous supporting tools provides sophisticated character encoding and rendering system analysis with multiple CHR page support and advanced glyph mapping techniques, enabling detailed understanding of the game's complex font system. **Updated**: The bank stub generation and assembly process now supports consolidated bank modules like prg_0c_0d.asm and prg_0e_0f.asm, reducing compilation overhead through unified bank management while maintaining full compatibility with existing individual bank files. The Makefile provides a unified interface to orchestrate the complete pipeline, while tools like split_rom.py, disasm_6502.py, disasm_bank_1f.py, the unified disassembly tools, the enhanced transformation pipeline tools, the RAM centralization tool, the ROM analysis toolkit, the label analysis system, the PRG banks $1D/$1E analysis suite, the advanced paired bank disassembly tools, the AI code modernization tools with modular Ai* architecture and enhanced nested procedure support, the specialized PRG bank $0C/$0D callback system analysis tools with standalone verification support, the consolidated architecture tools for PRG banks $0E/$0F, the specialized verification tools for byte-exact accuracy validation, the consolidated bank management system, the new utility tools for automated label management, the knowledge base integration system for authoritative terminology reference, and the comprehensive font analysis tools suite for character encoding and rendering system analysis enable comprehensive ROM reconstruction and validation. By following the documented targets and procedures, developers can efficiently reconstruct and validate the ROM while maintaining byte-exact fidelity and ensuring clean, maintainable assembly code with proper cross-bank reference handling, semantic naming conventions, optimized .proc/.endproc organization, systematic parameter naming, centralized RAM definitions, comprehensive ROM analysis capabilities, automated label management, specialized PRG banks $1D/$1E analysis tools, advanced paired bank disassembly capabilities, AI code modernization features with modular Ai* architecture and enhanced nested procedure support, improved control flow with labeled targets, specialized PRG bank $0C/$0D callback system analysis with standalone verification support, consolidated architecture support for PRG banks $0E/$0F, specialized verification tools for byte-exact accuracy validation, consolidated bank management for reduced compilation overhead, new utility tools for automated label management, authoritative terminology reference for consistent naming conventions, and comprehensive font analysis tools for character encoding and rendering system analysis, significantly improving code readability, maintainability, and build performance.
 
 ## Appendices
 
@@ -3256,6 +3552,7 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: PRG bank $0C/$0D callback system analysis workflow: make analyze_callback_system, make check_trampoline_patterns, make transform_inline_data, make fix_inline_data, make verify_0c_0d_directives
 - **New**: New utility tools workflow: python3 tools/add_missing_labels.py, python3 tools/dump_bytes.py, python3 tools/fix_dup_labels2.py
 - **New**: Knowledge base integration workflow: Consult docs/manual_kb/terminology.md for authoritative terminology reference
+- **New**: Font analysis tools workflow: python3 tools/charmap_kana.py, python3 tools/decode_menu_streams.py, python3 tools/digit_test.py, python3 tools/katakana_identify.py, python3 tools/katakana_match.py
 - **Updated**: Consolidated bank workflow: make banks (generates both individual and consolidated bank files), make (uses prg_0c_0d.asm and prg_0e_0f.asm for reduced compilation overhead)
 - Iterative assembly: make, make verify
 - Cleanup: make clean, make distclean
@@ -3318,102 +3615,3 @@ The Sango2Dasm build system integrates cc65 assembly/linking with a robust set o
 - **New**: python3 tools/rename_loc_labels.py
 - **New**: python3 tools/enhance_prg_1d.py
 - **New**: python3 tools/analyze_ram_1d1e.py
-- **New**: python3 tools/check_addrs.py
-- **New**: python3 tools/check_conflicts.py
-- **New**: python3 tools/dump_data_range.py
-- **New**: python3 tools/mark_data_block.py
-- **New**: python3 tools/verify_globals.py
-- **New**: python3 tools/check_addresses.py
-- **New**: python3 tools/check_bank18.py
-- **New**: python3 tools/check_rom_offset.py
-- **New**: python3 tools/dump_chr_table.py
-- **New**: python3 tools/dump_correct_bytes.py
-- **New**: python3 tools/search_0530.py
-- **New**: python3 tools/search_chr_loader.py
-- **New**: python3 tools/search_chr_loader2.py
-- **New**: python3 tools/verify_disasm.py
-- **New**: python3 tools/analyze_1e.py
-- **New**: python3 tools/analyze_1e_deep.py
-- **New**: python3 tools/transform_17_18.py --dry-run
-- **New**: python3 tools/proc_scope_17_18.py --dry-run
-- **New**: python3 tools/localize_labels.py --dry-run
-- **New**: python3 tools/auto_add_local_params.py --input asm/banks/prg_17_18.asm --output asm/banks/prg_17_18_auto.asm
-- **New**: python3 tools/globalize_04xx.py --input asm/banks/prg_17_18.asm --output asm/banks/prg_17_18_globalized.asm
-- **New**: python3 tools/analyze_loc_labels.py
-- **New**: python3 tools/rename_loc_labels.py
-- **New**: python3 tools/enhance_prg_1d.py
-- **New**: python3 tools/analyze_ram_1d1e.py
-- **New**: python3 tools/check_addrs.py
-- **New**: python3 tools/check_conflicts.py
-- **New**: python3 tools/dump_data_range.py
-- **New**: python3 tools/mark_data_block.py
-- **New**: python3 tools/verify_globals.py
-- **New**: python3 tools/add_procs.py
-- **New**: python3 tools/analyze_17_18.py
-- **New**: python3 tools/debug_regions.py
-- **New**: python3 tools/proc_scope_17_18.py
-- **New**: python3 tools/localize_labels.py
-- **New**: python3 tools/auto_add_local_params.py
-- **New**: python3 tools/globalize_04xx.py
-- **New**: python3 tools/check_addresses.py --address $A8D3
-- **New**: python3 tools/check_bank18.py --offset $08D3
-- **New**: python3 tools/check_rom_offset.py --cpu $A8D3
-- **New**: python3 tools/dump_chr_table.py --range 256
-- **New**: python3 tools/dump_correct_bytes.py --start $08D3 --end $0988
-- **New**: python3 tools/search_0530.py --pattern 8D3005
-- **New**: python3 tools/search_chr_loader.py --pattern A8B9
-- **New**: python3 tools/search_chr_loader2.py --pattern A8B98D3005B98D3105
-- **New**: python3 tools/verify_disasm.py --addresses A8D3,A8D5,A8FD,A8FE,A901
-- **New**: python3 tools/analyze_1e.py --pattern C934
-- **New**: python3 tools/analyze_1e_deep.py --region DF10,DF90
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/disasm_1d.py rom/prg/prg_1d.bin
-- **New**: python3 tools/disasm_1d_enhanced.py
-- **New**: python3 tools/disasm_1d_final.py
-- **New**: python3 tools/disasm_1e.py rom/prg/prg_1e.bin
-- **New**: python3 tools/disasm_1e_definitive.py
-- **New**: python3 tools/disasm_1e_final.py
-- **New**: python3 tools/assemble_prg_1d_1e.py
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/disasm_0a_0b.py
-- **New**: python3 tools/disasm_prg.py 0x1D 0x1E --output output/prg_1d_1e_raw.asm
-- **New**: python3 tools/disasm_prg.py 0x0A 0x0B --output output/prg_0a_0b_raw.asm
-- **New**: python3 tools/verify_0a_0b.py
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/analyze_b49c.py
-- **New**: python3 tools/nest_b49c.py
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/analyze_0c_0d_callbacks.py
-- **New**: python3 tools/check_trampoline_pattern.py
-- **New**: python3 tools/transform_0c_0d_inline.py
-- **New**: python3 tools/fix_0c_0d_inline.py
-- **New**: python3 tools/verify_0c_0d_directives.py
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/add_missing_labels.py
-- **New**: python3 tools/dump_bytes.py
-- **New**: python3 tools/fix_dup_labels2.py
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/init_0e_0f.py
-- **New**: python3 tools/verify_0e_0f.py
-- **New**: python3 tools/scan_bank_links.py
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify
-- **New**: python3 tools/disasm_bank_1f.py rom/prg/prg_1f.bin
-- **New**: python3 tools/annotate_asm.py --in-place --verify

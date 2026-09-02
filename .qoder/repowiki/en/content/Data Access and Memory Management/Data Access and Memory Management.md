@@ -13,6 +13,7 @@
 - [prg_00.asm](file://asm/banks/prg_00.asm)
 - [prg_01.asm](file://asm/banks/prg_01.asm)
 - [prg_02.asm](file://asm/banks/prg_02.asm)
+- [prg_08_09.asm](file://asm/banks/prg_08_09.asm)
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
 - [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
 - [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
@@ -22,15 +23,16 @@
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
 - [globalize_04xx.py](file://tools/globalize_04xx.py)
+- [rename_battle_to_war.py](file://tools/rename_battle_to_war.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for enhanced data structure validation functions including ValidateRecordStats, ClampRecordStatPairs, ValidateRecordGold, CompactRecordSlots, and ValidateProvinceSlots
-- Expanded SRAM management section with VerifySramChecksum and CopySramToWork functions for improved data integrity checking
-- Updated memory management utilities section to include new validation and manipulation routines
-- Enhanced SRAM organization documentation with checksum verification and backup mechanisms
-- Added detailed analysis of data integrity checking patterns and memory safety measures
+- Updated all battle/war variable references throughout the documentation to reflect the comprehensive renaming from "battle" to "war" terminology
+- Revised memory organization sections to use updated variable names (war_action_points, war_side_flag, war_scene_index, etc.)
+- Updated data structure layout documentation to reflect renamed structures and variables
+- Enhanced examples and code references to use current war terminology consistently
+- Updated bank switching routines documentation to reference renamed functions and variables
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -52,7 +54,7 @@
 ## Introduction
 This document focuses on the data access and memory management patterns in the Sango2DASM project. It explains how the system organizes memory across the 6502 address space, how data structures are laid out and accessed, and how bank switching enables cross-bank data access via the Namco-163 mapper. The project has recently implemented a centralized global RAM definition system for the $04xx memory region, establishing canonical names for shared state variables across multiple game subsystems. It also documents SRAM usage for save data, RAM layout, and the macro utilities that simplify memory operations. Practical examples demonstrate memory optimization techniques and the relationship between code organization and memory efficiency.
 
-**Updated** Enhanced with expanded SRAM organization for persistent storage, reorganized OAM/sprite buffer system under $03xx memory region, and comprehensive data structure validation and integrity checking systems.
+**Updated** Enhanced with expanded SRAM organization for persistent storage, reorganized OAM/sprite buffer system under $03xx memory region, comprehensive data structure validation and integrity checking systems, and updated war/battle terminology throughout the codebase.
 
 ## Project Structure
 The project is organized around a 6502-based NES game using the Namco-163 (mapper 19) with 32 PRG banks of 8 KB each. The linker configuration defines four PRG slots ($8000–$FFFF) that are switchable via mapper registers. Bank 0x1F is fixed at $E000–$FFFF at boot and contains the reset handler and state dispatch logic. The include directory centralizes register and macro definitions, while asm/banks contains stub files for each PRG bank. The $04xx RAM region now features centralized global definitions with canonical names for shared state variables.
@@ -186,16 +188,19 @@ Practical implications:
 - [linker.cfg:32-54](file://linker.cfg#L32-54)
 - [PROJECT.md:70-83](file://PROJECT.md#L70-83)
 - [main.asm:13-20](file://asm/main.asm#L13-20)
-- [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-170)
+- [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-L170)
 
 ### Address Calculation Patterns and Data Structure Layouts
 The game computes pointers into bank-switched data using efficient 6502 arithmetic patterns. The key functions demonstrate multiply-by-constants using shifts and rotates, and pointer-table lookups for SRAM data.
+
+**Updated** The war scene state variables are now properly named with "war_" prefix instead of "battle_" prefix, reflecting the comprehensive terminology update across the codebase.
 
 - Hero data: id*32 + $6000, entry size 32 bytes, base $6000 (bank-switched).
 - City data: id*12 + $63C0, entry size 12 bytes, base $63C0 (bank-switched).
 - Hero initial data: id*12 + $8000, entry size 12 bytes, base $8000 (bank-switched).
 - Kata name: id*10 + $901A, entry size 10 bytes, base $901A (bank-switched).
 - Kingdom data: pointer table at $6F07 (SRAM), entry size 8 bytes.
+- War scene state: Located at $0500-$0514 with war-specific variables including war_action_points, war_side_flag, war_scene_index, and other war-related state variables.
 - Expanded SRAM: Dedicated persistent storage regions for kingdom data, player settings, and game state flags.
 
 ```mermaid
@@ -206,6 +211,7 @@ Choose --> |City| City["city_id * 12 + $63C0"]
 Choose --> |Hero Init| Init["hero_id * 12 + $8000"]
 Choose --> |Kata Name| Kata["id * 10 + $901A"]
 Choose --> |Kingdom| KPtr["Indirect pointer from SRAM $6F07"]
+Choose --> |War Scene| WarScene["Access war_* variables at $0500-$0514"]
 Choose --> |Player Settings| PSettings["Access SRAM $6F44"]
 Choose --> |Game State| GState["Access SRAM $6F8B"]
 Hero --> BankSel["Ensure Correct PRG Bank Loaded"]
@@ -213,23 +219,27 @@ City --> BankSel
 Init --> BankSel
 Kata --> BankSel
 KPtr --> SRAM["Access SRAM $6Fxx"]
+WarScene --> WarVars["war_action_points, war_side_flag, etc."]
 PSettings --> SRAM
 GState --> SRAM
 BankSel --> Indirect["Load Pointer into $0000/$0001"]
 SRAM --> Indirect
-Indirect --> End(["Use Indirect Access"])
+WarVars --> End(["Use Direct Variable Access"])
+Indirect --> End
 ```
 
 **Diagram sources**
 - [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-100)
 - [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-190)
 - [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-45)
+- [prg_08_09.asm:22-41](file://asm/banks/prg_08_09.asm#L22-41)
 - [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-149)
 
 **Section sources**
 - [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-100)
 - [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-190)
 - [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-45)
+- [prg_08_09.asm:22-41](file://asm/banks/prg_08_09.asm#L22-41)
 - [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-149)
 
 ### Bank Switching and the Mapper Abstraction
@@ -261,7 +271,7 @@ PRG-->>CPU : Code/data now accessible via selected banks
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
 
 **Section sources**
-- [namco163.h:10-14](file://include/namco163.h#L10-14)
+- [namco163.h:10-14](file://include/namco163.h#L10-L14)
 - [namco163.h:68-86](file://include/namco163.h#L68-86)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
 
@@ -671,13 +681,13 @@ Validation --> IntegrityCheck["Data Integrity Assurance"]
 ```
 
 **Diagram sources**
-- [main.asm:115-121](file://asm/main.asm#L115-121)
+- [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
-- [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-170)
+- [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-L170)
 
 **Section sources**
-- [main.asm:115-121](file://asm/main.asm#L115-121)
+- [main.asm:115-121](file://asm/main.asm#L115-L121)
 - [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
 - [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
 
@@ -691,9 +701,10 @@ Validation --> IntegrityCheck["Data Integrity Assurance"]
 - The reorganized $03xx buffer system provides efficient sprite buffer access with minimal page crossing overhead.
 - Dedicated SRAM regions enable faster persistent data access compared to banked PRG storage.
 - Structured SRAM organization reduces the overhead of pointer table lookups for kingdom data.
-- **Enhanced**: Validation functions are optimized for minimal performance impact while ensuring data integrity.
-- **Enhanced**: Checksum verification uses efficient page-by-page processing to minimize CPU overhead.
-- **Enhanced**: Data compaction algorithms use direct memory access patterns for optimal performance.
+- **Updated** War scene variables (war_action_points, war_side_flag, war_scene_index) are optimized for direct access patterns in the $0500-$0514 memory region.
+- **Enhanced** Validation functions are optimized for minimal performance impact while ensuring data integrity.
+- **Enhanced** Checksum verification uses efficient page-by-page processing to minimize CPU overhead.
+- **Enhanced** Data compaction algorithms use direct memory access patterns for optimal performance.
 
 ## Troubleshooting Guide
 Common issues and remedies:
@@ -705,9 +716,10 @@ Common issues and remedies:
 - $03xx buffer issues: Verify sprite_y_buffer is properly initialized and updated. Check that display queue pointers are correctly managed.
 - SRAM corruption: Monitor SRAM write operations carefully, especially for persistent data. Ensure proper initialization sequences are followed.
 - Sprite rendering problems: Verify OAM buffer management and ensure sprite count is properly tracked.
-- **Enhanced**: Data validation failures: Check that validation functions are called at appropriate times in the game flow. Verify data structure layouts match expected formats.
-- **Enhanced**: Checksum verification errors: Ensure magic bytes are properly written during save operations. Verify checksum calculation covers the correct memory range.
-- **Enhanced**: Memory overflow issues: Monitor stack usage and heap allocation patterns. Use bounds checking utilities to prevent buffer overflows.
+- **Updated** War scene variable access: Ensure war_* variables (war_action_points, war_side_flag, war_scene_index) are accessed from the correct memory addresses ($0500-$0514) and that the war/battle terminology is consistently used throughout the codebase.
+- **Enhanced** Data validation failures: Check that validation functions are called at appropriate times in the game flow. Verify data structure layouts match expected formats.
+- **Enhanced** Checksum verification errors: Ensure magic bytes are properly written during save operations. Verify checksum calculation covers the correct memory range.
+- **Enhanced** Memory overflow issues: Monitor stack usage and heap allocation patterns. Use bounds checking utilities to prevent buffer overflows.
 
 **Section sources**
 - [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
@@ -717,4 +729,4 @@ Common issues and remedies:
 - [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-170)
 
 ## Conclusion
-The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. The recent implementation of a centralized global RAM definition system for the $04xx memory region significantly improves code organization and maintainability by establishing canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides structured persistent storage for kingdom data, player settings, and game state flags, while the reorganized OAM buffer system under $03xx memory region enables efficient sprite rendering with dedicated buffer management. Enhanced data validation and integrity checking systems ensure robust data protection across all memory operations. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. The centralized $04xx RAM system eliminates redundant local memory address aliases and provides a single source of truth for shared state variables. The reorganized memory layout optimizes performance for both persistent data access and real-time sprite rendering. Enhanced validation functions provide comprehensive data integrity assurance, while SRAM management utilities ensure reliable save data persistence. Following the outlined practices ensures optimal memory usage and maintainable code organization.
+The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. The recent implementation of a centralized global RAM definition system for the $04xx memory region significantly improves code organization and maintainability by establishing canonical names for shared state variables across multiple game subsystems. The comprehensive renaming from "battle" to "war" terminology throughout the codebase reflects improved semantic clarity and better alignment with the game's strategic warfare theme. The expanded SRAM organization provides structured persistent storage for kingdom data, player settings, and game state flags, while the reorganized OAM buffer system under $03xx memory region enables efficient sprite rendering with dedicated buffer management. Enhanced data validation and integrity checking systems ensure robust data protection across all memory operations. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. The centralized $04xx RAM system eliminates redundant local memory address aliases and provides a single source of truth for shared state variables. The reorganized memory layout optimizes performance for both persistent data access and real-time sprite rendering. Enhanced validation functions provide comprehensive data integrity assurance, while SRAM management utilities ensure reliable save data persistence. Following the outlined practices ensures optimal memory usage and maintainable code organization.

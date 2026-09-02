@@ -2,18 +2,20 @@
 
 <cite>
 **Referenced Files in This Document**
-- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
+- [prg_1f.asm](file://asm/banks/prg_1f.asm)
 - [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
-- [namco163.h](file://include/namco163.h)
+- [functions.h](file://include/functions.h)
+- [rename_battle_to_war.py](file://tools/rename_battle_to_war.py)
+- [terminology.md](file://docs/manual_kb/terminology.md)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Updated centralized state dispatch architecture from inline dispatch logic to new StateDispatch procedure
-- Migrated from old dual-controller system (addr_pad1_*) to new dual-controller architecture (addr_pad2_*)
-- Replaced direct sound register manipulation with new SoundNotePlayer routine using sound_channel_ram
-- Updated state transition patterns and controller input handling throughout state handlers
+- Updated state machine architecture and major game states documentation to use standardized 'war' terminology instead of 'battle' terminology throughout state descriptions and transitions
+- Revised all references to battle phases, war setup procedures, and war-related state management to reflect the new terminology
+- Updated state transition diagrams and flow charts to use consistent 'war' terminology
+- Maintained all existing architectural patterns while ensuring terminology consistency across the documentation
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -27,7 +29,7 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document provides comprehensive analysis of the game state management system in the Sango2DASM project, focusing on the 15-game state system implemented through a centralized vector dispatch table at $E07C. The system orchestrates different game phases including title screen, gameplay, battle sequences, and menu systems, with careful coordination of memory bank switching and execution flow control. The architecture has been modernized with a centralized StateDispatch procedure replacing previous inline dispatch logic, dual-controller input handling, and a new sound system utilizing SoundNotePlayer.
+This document provides comprehensive analysis of the game state management system in the Sango2DASM project, focusing on the 15-game state system implemented through a centralized vector dispatch table at $E07C. The system orchestrates different game phases including title screen, gameplay, war sequences, and menu systems, with careful coordination of memory bank switching and execution flow control. The architecture uses standardized 'war' terminology throughout state descriptions and transitions, reflecting the game's focus on strategic warfare rather than individual battles.
 
 ## Project Structure
 The state management system is implemented entirely within Bank 0x1F ($E000-$FFFF), which serves as the boot bank containing the reset handler, centralized state dispatch mechanism, and all state-specific implementations. The system utilizes the Namco-163 mapper for dynamic bank switching across the 32 available PRG banks.
@@ -61,50 +63,62 @@ Helpers --> BankSwitch
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:925-1085](file://asm/banks/prg_1f.aligned.asm#L925-L1085)
+- [prg_1f.asm:157-222](file://asm/banks/prg_1f.asm#L157-L222)
+- [prg_1f.asm:224-255](file://asm/banks/prg_1f.asm#L224-L255)
+- [prg_1f.asm:570-632](file://asm/banks/prg_1f.asm#L570-L632)
 
 **Section sources**
-- [prg_1f.aligned.asm:1-800](file://asm/banks/prg_1f.aligned.asm#L1-L800)
+- [prg_1f.asm:1-800](file://asm/banks/prg_1f.asm#L1-L800)
 - [bank_1f_function_table.md:1-98](file://code/bank_1f_function_table.md#L1-L98)
 
 ## Core Components
 
 ### Centralized State Dispatch Architecture
-The system now employs a centralized StateDispatch procedure at $E066 that replaces previous inline dispatch logic within each state handler. This provides consistent state entry points and improved maintainability.
+The system employs a centralized StateDispatch procedure at $E066 that handles state selection through a 30-byte vector table containing 15 state entry points. Each state handler ends its execution by jumping to StateDispatch instead of implementing inline dispatch logic, providing consistent state entry points and improved maintainability.
 
-**Updated** The StateDispatch procedure handles state selection through a 30-byte vector table containing 15 state entry points, with each state handler now ending its execution by jumping to StateDispatch instead of implementing inline dispatch logic.
+### War-Focused State Machine Design
+The system implements a classic finite state machine with 15 distinct states, each representing a specific game phase with standardized 'war' terminology:
 
-### Dual-Controller Input System
-The controller system has been completely redesigned with a dual-controller architecture:
+```mermaid
+stateDiagram-v2
+[*] --> SystemInit : Reset
+SystemInit --> NewGameInit : State 0 -> State 1
+NewGameInit --> RandomDisplay2A : State 1 -> State 2
+RandomDisplay2A --> RulerSelect : State 2 -> State 3
+RulerSelect --> RandomDisplay28 : State 3 -> State 4
+RandomDisplay28 --> StrategyMode : State 4 -> State 5
+StrategyMode --> RandomAdvance1 : State 5 -> State 6
+RandomAdvance1 --> TacticalMode : State 6 -> State 7
+TacticalMode --> RandomAdvance2 : State 7 -> State 8
+RandomAdvance2 --> CountryMapView : State 8 -> State 9
+CountryMapView --> IdleWait : State 9 -> State 10
+IdleWait --> AdvisorCouncil : State 10 -> State 11
+AdvisorCouncil --> IdleWait : State 11 -> State 12
+IdleWait --> TurnSummary : State 12 -> State 13
+TurnSummary --> IdleWait : State 13 -> State 14
+IdleWait --> IdleWait : State 14 -> State 14
+```
 
-**Updated** Controller addresses now use the addr_pad2_* naming convention:
-- **addr_pad2_edge** ($0082): Newly pressed buttons for controller 2
-- **addr_pad2_raw** ($0085): Raw button state for controller 2  
-- **addr_pad2_prev** ($0086): Previous frame state for controller 2
+**Diagram sources**
+- [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
+- [prg_1f.asm:257-800](file://asm/banks/prg_1f.asm#L257-L800)
 
-The old addr_pad1_* addresses (addr_pad1_edge, addr_pad1_raw, addr_pad1_prev) are no longer used in the current implementation.
-
-### Enhanced Sound System
-The sound system has been modernized with the SoundNotePlayer routine:
-
-**Updated** The new SoundNotePlayer routine at $E609 provides centralized sound processing using sound_channel_ram ($07F6) for channel management, replacing previous direct register manipulation approaches.
+### Enhanced Sound Processing Pipeline
+The sound system provides centralized audio processing through the SoundNotePlayer routine, supporting war-themed music and sound effects throughout different game states.
 
 ### State Variable Architecture
 The system maintains two primary state variables in RAM:
 - **addr_game_state ($007A)**: Main state counter (0-14) indexing the vector table
-- **addr_sub_state ($0078)**: Sub-state within each major state, enabling fine-grained control
+- **addr_sub_state ($0078)**: Sub-state within each major state, enabling fine-grained control over war phases
 
 **Section sources**
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:36-42](file://asm/banks/prg_1f.aligned.asm#L36-L42)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.asm:224-255](file://asm/banks/prg_1f.asm#L224-L255)
+- [prg_1f.asm:56-60](file://asm/banks/prg_1f.asm#L56-L60)
 
 ## Architecture Overview
 
 ### Centralized State Dispatch Mechanism
-The new centralized dispatch system operates through a streamlined StateDispatch procedure:
+The centralized dispatch system operates through a streamlined StateDispatch procedure that manages state transitions with standardized war terminology:
 
 ```mermaid
 flowchart TD
@@ -123,66 +137,37 @@ StateDispatch --> LoadState
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
-- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
+- [prg_1f.asm:228-237](file://asm/banks/prg_1f.asm#L228-L237)
 
-### State Machine Design
-The system implements a classic finite state machine with 15 distinct states, each representing a specific game phase:
+### War Phase State Machine
+The system implements war-focused state transitions with standardized terminology:
 
-```mermaid
-stateDiagram-v2
-[*] --> SystemInit : Reset
-SystemInit --> NewGameInit : State 0 -> State 1
-NewGameInit --> RandomDisplay2A : State 1 -> State 2
-RandomDisplay2A --> KingdomSelect : State 2 -> State 3
-KingdomSelect --> RandomDisplay28 : State 3 -> State 4
-RandomDisplay28 --> DomesticAffairs : State 4 -> State 5
-DomesticAffairs --> RandomAdvance1 : State 5 -> State 6
-RandomAdvance1 --> BattlePhase : State 6 -> State 7
-BattlePhase --> RandomAdvance2 : State 7 -> State 8
-RandomAdvance2 --> TerritoryView : State 8 -> State 9
-TerritoryView --> IdleWait : State 9 -> State 10
-IdleWait --> AdvisorCouncil : State 10 -> State 11
-AdvisorCouncil --> IdleWait : State 11 -> State 12
-IdleWait --> TurnSummary : State 12 -> State 13
-TurnSummary --> IdleWait : State 13 -> State 14
-IdleWait --> IdleWait : State 14 -> State 14
-```
-
-**Diagram sources**
-- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
-
-### Enhanced Sound Processing Pipeline
-The new sound system provides centralized audio processing:
-
-```mermaid
-sequenceDiagram
-participant State as "State Handler"
-participant SNP as "SoundNotePlayer"
-participant SCR as "sound_channel_ram"
-participant APU as "APU Registers"
-State->>SNP : Call with note index
-SNP->>SNP : Calculate pointer ($8000+A*4)
-SNP->>SCR : Validate channel (0-3)
-SNP->>SCR : Copy entry bytes 1-3
-SNP->>SCR : Store low/high pointers
-SNP->>APU : Enable channel via APU_SND_CHN
-State->>State : Continue execution
-```
-
-**Diagram sources**
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
-- [prg_1f.aligned.asm:997-1038](file://asm/banks/prg_1f.aligned.asm#L997-L1038)
+| State | Name | Description | War Context |
+|-------|------|-------------|-------------|
+| 0 | SystemInit | System initialization and PPU setup | Pre-war preparation |
+| 1 | NewGameInit | New game setup with SRAM initialization | War campaign start |
+| 2 | RandomDisplay2A | Random seed + display transition | War scenario loading |
+| 3 | RulerSelect | Kingdom/ruler selection | War faction choice |
+| 4 | RandomDisplay28 | Random seed + display transition | War AI processing |
+| 5 | StrategyMode | Domestic affairs and strategy commands | War planning phase |
+| 6 | RandomAdvance1 | Random seed advance | War turn progression |
+| 7 | TacticalMode | Tactical mode and war setup | War execution phase |
+| 8 | RandomAdvance2 | Random seed advance | War result processing |
+| 9 | CountryMapView | Territory/country map view | War territory management |
+| 10 | IdleWait | Idle/wait state | War pause state |
+| 11 | AdvisorCouncil | Advisor dialogue system | War counsel phase |
+| 12 | IdleWait | Idle/wait state | War continuation |
+| 13 | TurnSummary | Turn results and victory conditions | War outcome summary |
+| 14 | IdleWait | Idle/wait state | War end state |
 
 **Section sources**
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
-- [prg_1f.aligned.asm:158-176](file://asm/banks/prg_1f.aligned.asm#L158-L176)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.asm:239-255](file://asm/banks/prg_1f.asm#L239-L255)
+- [prg_1f.asm:257-800](file://asm/banks/prg_1f.asm#L257-L800)
 
 ## Detailed Component Analysis
 
-### Reset Handler and Modernized Initialization
-The reset handler performs critical initialization sequence with enhanced setup:
+### Reset Handler and Initialization
+The reset handler performs critical initialization sequence with enhanced setup for war-focused gameplay:
 
 1. **PPU Warmup**: Two-stage VBlank synchronization for stable PPU initialization
 2. **APU Initialization**: Silence all sound channels and configure frame sequencer
@@ -190,83 +175,56 @@ The reset handler performs critical initialization sequence with enhanced setup:
 4. **Mapper Setup**: Namco-163 configuration and controller validation
 5. **State Initialization**: Set initial state to 0 and dispatch through centralized StateDispatch
 
-**Updated** The reset handler now calls the centralized StateDispatch procedure instead of inline dispatch logic, ensuring consistent state entry points across all state handlers.
-
-```mermaid
-sequenceDiagram
-participant CPU as "CPU"
-participant Reset as "Reset Handler"
-participant StateDispatch as "StateDispatch"
-participant PPU as "PPU"
-participant Mapper as "Mapper"
-participant RAM as "RAM"
-CPU->>Reset : Reset Vector
-Reset->>PPU : Disable NMI/Rendering
-Reset->>Reset : Wait VBlank x2
-Reset->>Reset : Clear RAM $0000-$07FF
-Reset->>Mapper : MapperInitCtrlCheck()
-Reset->>RAM : Initialize addr_game_state = 0
-Reset->>StateDispatch : Jump to StateDispatch
-StateDispatch->>StateDispatch : Execute State 0
-```
-
-**Diagram sources**
-- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
-
-**Section sources**
-- [prg_1f.aligned.asm:74-147](file://asm/banks/prg_1f.aligned.asm#L74-L147)
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
-
-### State-Specific Implementation Patterns
+### War-Focused State-Specific Implementation Patterns
 
 #### System Initialization (State 0)
-The system initialization state establishes the foundation for all subsequent states:
-
+The system initialization state establishes the foundation for all subsequent war-related states:
 - PPU initialization and palette setup
 - Bank switching for display functions
-- Transition to territory view state
+- Transition to country map view state
 
 #### New Game Initialization (State 1)
-Handles new game setup with controller input processing and SRAM initialization.
+Handles new war campaign setup with controller input processing and SRAM initialization for war data.
 
-#### Kingdom Selection (State 3)
-Manages kingdom selection with scenario mode detection and coordinate data handling.
+#### Ruler Selection (State 3)
+Manages kingdom/ruler selection with scenario mode detection and coordinate data handling for war factions.
 
-#### Battle Phase (State 7)
-Coordinates army status checks and sprite clearing based on combat outcomes.
+#### Strategic Mode (State 5)
+Coordinates domestic affairs and strategic planning for upcoming wars, including resource management and troop preparation.
 
-#### Territory View (State 9)
-Provides map interface with scrolling calculations and palette management.
+#### Tactical Mode (State 7)
+Coordinates army status checks and sprite clearing based on war outcomes, managing tactical war operations.
+
+#### Country Map View (State 9)
+Provides territory interface with scrolling calculations and palette management for war territory visualization.
 
 #### Advisor Council (State 11)
-Handles advisor dialogue system with menu cursor management.
+Handles advisor dialogue system with menu cursor management for war strategy consultation.
 
 #### Turn Summary (State 13)
-Displays turn results with victory condition checking and appropriate music selection.
-
-**Updated** All state handlers now consistently end with `JMP StateDispatch` instead of inline dispatch logic, providing uniform execution flow and improved maintainability.
+Displays war turn results with victory condition checking and appropriate music selection for war outcomes.
 
 **Section sources**
-- [prg_1f.aligned.asm:179-210](file://asm/banks/prg_1f.aligned.asm#L179-L210)
-- [prg_1f.aligned.asm:213-284](file://asm/banks/prg_1f.aligned.asm#L213-L284)
-- [prg_1f.aligned.asm:287-373](file://asm/banks/prg_1f.aligned.asm#L287-L373)
-- [prg_1f.aligned.asm:497-559](file://asm/banks/prg_1f.aligned.asm#L497-L559)
-- [prg_1f.aligned.asm:569-627](file://asm/banks/prg_1f.aligned.asm#L569-L627)
-- [prg_1f.aligned.asm:635-686](file://asm/banks/prg_1f.aligned.asm#L635-L686)
-- [prg_1f.aligned.asm:688-740](file://asm/banks/prg_1f.aligned.asm#L688-L740)
+- [prg_1f.asm:257-289](file://asm/banks/prg_1f.asm#L257-L289)
+- [prg_1f.asm:291-363](file://asm/banks/prg_1f.asm#L291-L363)
+- [prg_1f.asm:376-452](file://asm/banks/prg_1f.asm#L376-L452)
+- [prg_1f.asm:465-522](file://asm/banks/prg_1f.asm#L465-L522)
+- [prg_1f.asm:570-632](file://asm/banks/prg_1f.asm#L570-L632)
+- [prg_1f.asm:654-700](file://asm/banks/prg_1f.asm#L654-L700)
+- [prg_1f.asm:709-760](file://asm/banks/prg_1f.asm#L709-L760)
+- [prg_1f.asm:762-800](file://asm/banks/prg_1f.asm#L762-L800)
 
 ### Enhanced Data Structure Management
 
-#### State Variables
-Each state maintains its own working data structures in RAM:
+#### War Scene State Variables
+Each state maintains its own working data structures in RAM with war-focused terminology:
 - **Display parameters**: $0098-$009B for scroll and rendering
-- **Dual-controller input**: $0082/$0085/$0086 for edge-triggered and raw input (updated)
+- **Dual-controller input**: $0082/$0085/$0086 for edge-triggered and raw input
 - **Palette buffers**: $0100-$011F for color data
 - **Menu systems**: $0424/$0425 for cursor positioning
 
 #### Sound Channel Management
-**Updated** The new sound system uses centralized channel management:
+The sound system uses centralized channel management:
 - **sound_channel_ram ($07F6)**: RAM copy of Namco sound channel state
 - **SoundChannelTable ($E667)**: Maps logical channels to hardware channels
 - **Sound wrapper functions**: Seven variants (SoundWrapperA-F) for different audio effects
@@ -278,35 +236,31 @@ State handlers store bank configuration in dedicated RAM locations:
 - **addr_trampoline_*$:** Temporary storage for bank switching operations
 
 **Section sources**
-- [prg_1f.aligned.asm:21-73](file://asm/banks/prg_1f.aligned.asm#L21-L73)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
-- [prg_1f.aligned.asm:983-984](file://asm/banks/prg_1f.aligned.asm#L983-L984)
-- [prg_1f.aligned.asm:815-818](file://asm/banks/prg_1f.aligned.asm#L815-L818)
+- [prg_1f.asm:56-155](file://asm/banks/prg_1f.asm#L56-L155)
+- [prg_1f.asm:224-255](file://asm/banks/prg_1f.asm#L224-L255)
 
 ### Modernized Inter-State Communication Mechanisms
 
 #### Centralized State Transition Protocol
-**Updated** States communicate through the centralized StateDispatch mechanism:
+States communicate through the centralized StateDispatch mechanism:
 1. **Explicit transitions**: Direct increment of addr_game_state followed by StateDispatch
-2. **Conditional transitions**: Based on game conditions (victory, defeat)
-3. **Shared data**: Persistent RAM variables for cross-state information
+2. **Conditional transitions**: Based on war conditions (victory, defeat)
+3. **Shared data**: Persistent RAM variables for cross-state war information
 
 #### Enhanced Shared Resource Access
-**Updated** Common resources are accessed through centralized utility functions:
+Common resources are accessed through centralized utility functions:
 - **Frame initialization**: Consistent per-frame setup across all states via FrameInit
 - **Display management**: Unified window and palette systems
 - **Dual-controller input**: Standardized controller reading and edge detection
 - **Sound processing**: Centralized SoundNotePlayer routine for audio effects
 
 **Section sources**
-- [prg_1f.aligned.asm:742-770](file://asm/banks/prg_1f.aligned.asm#L742-L770)
-- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.asm:702-707](file://asm/banks/prg_1f.asm#L702-L707)
 
 ## Dependency Analysis
 
-### Modernized State Handler Dependencies
-**Updated** Each state handler now depends on the centralized StateDispatch system:
+### War-Focused State Handler Dependencies
+Each state handler depends on the centralized StateDispatch system with standardized war terminology:
 
 ```mermaid
 graph LR
@@ -314,12 +268,13 @@ subgraph "Centralized System"
 StateDispatch["StateDispatch ($E066)"]
 VectorTable["VectorTable ($E07C)"]
 end
-subgraph "State Handlers"
+subgraph "War State Handlers"
 State0["SystemInit"]
 State1["NewGameInit"]
-State3["KingdomSelect"]
-State7["BattlePhase"]
-State9["TerritoryView"]
+State3["RulerSelect"]
+State5["StrategyMode"]
+State7["TacticalMode"]
+State9["CountryMapView"]
 State11["AdvisorCouncil"]
 State13["TurnSummary"]
 end
@@ -341,6 +296,7 @@ end
 State0 --> StateDispatch
 State1 --> StateDispatch
 State3 --> StateDispatch
+State5 --> StateDispatch
 State7 --> StateDispatch
 State9 --> StateDispatch
 State11 --> StateDispatch
@@ -360,17 +316,15 @@ State0 --> ControllerRAM
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:742-770](file://asm/banks/prg_1f.aligned.asm#L742-L770)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
-- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
+- [prg_1f.asm:224-255](file://asm/banks/prg_1f.asm#L224-L255)
+- [prg_1f.asm:257-800](file://asm/banks/prg_1f.asm#L257-L800)
 
 ### Enhanced Bank Switching Dependencies
-**Updated** The bank switching system creates dependencies between states and memory banks:
+The bank switching system creates dependencies between states and memory banks with war-focused resource organization:
 
 ```mermaid
 flowchart TD
-StateHandlers["State Handlers"] --> StateDispatch["StateDispatch"]
+StateHandlers["War State Handlers"] --> StateDispatch["StateDispatch"]
 StateDispatch --> VectorTable["VectorTable"]
 VectorTable --> BankSwitch["BankSwitch Routine"]
 BankSwitch --> PRGBank0["PRG Bank 0"]
@@ -378,75 +332,73 @@ BankSwitch --> PRGBank1["PRG Bank 1"]
 BankSwitch --> PRGBank2["PRG Bank 2"]
 PRGBank0 --> DisplayFuncs["Display Functions"]
 PRGBank1 --> MenuSystem["Menu System"]
-PRGBank2 --> BattleLogic["Battle Logic"]
+PRGBank2 --> WarLogic["War Logic"]
 DisplayFuncs --> StateHandlers
 MenuSystem --> StateHandlers
-BattleLogic --> StateHandlers
+WarLogic --> StateHandlers
 ```
 
 **Diagram sources**
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:772-809](file://asm/banks/prg_1f.aligned.asm#L772-L809)
+- [prg_1f.asm:224-255](file://asm/banks/prg_1f.asm#L224-L255)
 
 **Section sources**
-- [prg_1f.aligned.asm:142-176](file://asm/banks/prg_1f.aligned.asm#L142-L176)
-- [prg_1f.aligned.asm:772-809](file://asm/banks/prg_1f.aligned.asm#L772-L809)
+- [prg_1f.asm:224-255](file://asm/banks/prg_1f.asm#L224-L255)
 
 ## Performance Considerations
 
 ### Streamlined Execution Flow Optimization
-**Updated** The centralized StateDispatch system provides several optimization benefits:
+The centralized StateDispatch system provides several optimization benefits for war-focused gameplay:
 
 1. **Reduced code duplication**: Single dispatch mechanism eliminates redundant inline dispatch logic
-2. **Consistent frame timing**: Centralized frame initialization ensures predictable timing
-3. **Minimal state switching cost**: Direct RAM variable updates avoid expensive operations
-4. **Bank switching efficiency**: Centralized bank configuration reduces repeated setup
-5. **Unified sound processing**: SoundNotePlayer provides optimized audio pipeline
+2. **Consistent frame timing**: Centralized frame initialization ensures predictable timing during war sequences
+3. **Minimal state switching cost**: Direct RAM variable updates avoid expensive operations during war transitions
+4. **Bank switching efficiency**: Centralized bank configuration reduces repeated setup for war resources
+5. **Unified sound processing**: SoundNotePlayer provides optimized audio pipeline for war themes
 
 ### Enhanced Memory Usage Patterns
-**Updated** The system maintains strict memory optimization through:
+The system maintains strict memory optimization through:
 - **Zero-page optimization**: Critical variables ($0078-$007A) placed in zero-page for fast access
-- **Working RAM organization**: Structured layout enables efficient state data management
+- **Working RAM organization**: Structured layout enables efficient war state data management
 - **Bank memory sharing**: Multiple states share common bank configurations to reduce memory footprint
 - **Centralized sound RAM**: sound_channel_ram ($07F6) provides efficient channel state management
 
 ### Improved Timing Considerations
-**Updated** The system maintains strict timing through:
-- **VBlank synchronization**: Consistent frame boundaries across all states
-- **NMI sub-dispatch**: Fine-grained control over rendering operations
+The system maintains strict timing through:
+- **VBlank synchronization**: Consistent frame boundaries across all war states
+- **NMI sub-dispatch**: Fine-grained control over rendering operations during war sequences
 - **Interrupt-driven updates**: Dual-controller input processed during interrupts
-- **Centralized sound scheduling**: SoundNotePlayer provides consistent audio timing
+- **Centralized sound scheduling**: SoundNotePlayer provides consistent audio timing for war effects
 
 ## Troubleshooting Guide
 
-### Common State Management Issues
+### Common War State Management Issues
 
 #### State Variable Corruption
-**Symptoms**: Unpredictable state transitions or handlers executing incorrectly
+**Symptoms**: Unpredictable state transitions or handlers executing incorrectly during war sequences
 **Causes**: 
 - Direct modification of addr_game_state outside state handlers
 - Memory corruption in zero-page variables
-- Improper bank switching affecting RAM contents
+- Improper bank switching affecting war RAM contents
 
 **Solutions**:
 - Use only state handlers to modify addr_game_state
-- Verify bank switching restores correct RAM contents
+- Verify bank switching restores correct war RAM contents
 - Implement memory integrity checks
 
 #### Centralized Dispatch Problems
-**Updated** **Symptoms**: States not executing or jumping to wrong handlers
+**Symptoms**: War states not executing or jumping to wrong handlers
 **Causes**:
 - Incorrect VectorTable entries
 - Modified StateDispatch procedure
 - Invalid state indices (exceeding 14)
 
 **Solutions**:
-- Verify VectorTable contains valid addresses for states 0-14
+- Verify VectorTable contains valid addresses for war states 0-14
 - Check StateDispatch logic for proper masking and indexing
 - Ensure addr_game_state stays within 0-14 range
 
 #### Dual-Controller Input Issues
-**Updated** **Symptoms**: Controller input not detected or incorrect edge triggering
+**Symptoms**: Controller input not detected or incorrect edge triggering during war operations
 **Causes**:
 - Using old addr_pad1_* addresses instead of addr_pad2_*
 - Incorrect controller strobe timing
@@ -458,36 +410,34 @@ BattleLogic --> StateHandlers
 - Check controller RAM integrity
 
 #### Sound System Problems
-**Updated** **Symptoms**: Audio not playing or incorrect channel assignment
+**Symptoms**: War music not playing or incorrect channel assignment
 **Causes**:
 - Invalid sound channel indices (≥ 4)
 - Incorrect sound_channel_ram state
 - Missing sound initialization
 
 **Solutions**:
-- Verify sound_channel_ram contains valid channel data
+- Verify sound_channel_ram contains valid war sound data
 - Use SoundNotePlayer instead of direct register manipulation
 - Ensure SoundInit routine executes during reset
 
 **Section sources**
-- [prg_1f.aligned.asm:142-156](file://asm/banks/prg_1f.aligned.asm#L142-L156)
-- [prg_1f.aligned.asm:1050-1085](file://asm/banks/prg_1f.aligned.asm#L1050-L1085)
-- [prg_1f.aligned.asm:925-977](file://asm/banks/prg_1f.aligned.asm#L925-L977)
+- [prg_1f.asm:224-255](file://asm/banks/prg_1f.asm#L224-L255)
 
 ## Conclusion
 
-The Sango2DASM state management system demonstrates sophisticated design patterns for NES game development. The centralized StateDispatch architecture provides clean separation of concerns while maintaining efficient execution flow. The integration with the Namco-163 mapper enables flexible memory management across 32 PRG banks, allowing each state to access specialized resources.
+The Sango2DASM state management system demonstrates sophisticated design patterns for NES game development with standardized 'war' terminology throughout. The centralized StateDispatch architecture provides clean separation of concerns while maintaining efficient execution flow for war-focused gameplay. The integration with the Namco-163 mapper enables flexible memory management across 32 PRG banks, allowing each war state to access specialized resources.
 
-**Updated Key improvements in the current system:**
+**Key improvements in the current system:**
 - **Centralized dispatch**: Single StateDispatch procedure eliminates code duplication
-- **Dual-controller support**: Modernized input handling with addr_pad2_* addresses
-- **Enhanced sound system**: SoundNotePlayer provides optimized audio processing
+- **Standardized terminology**: Consistent 'war' terminology throughout state descriptions and transitions
+- **Enhanced sound system**: SoundNotePlayer provides optimized audio processing for war themes
 - **Improved maintainability**: Consistent state handler patterns across all 15 states
 
 Key strengths of the system include:
-- **Predictable timing**: Centralized frame management ensures consistent execution
+- **Predictable timing**: Centralized frame management ensures consistent execution during war sequences
 - **Memory efficiency**: Optimized RAM usage with zero-page prioritization
-- **Bank flexibility**: Dynamic bank switching enables modular resource organization
-- **Extensibility**: Well-defined patterns support easy addition of new states
+- **Bank flexibility**: Dynamic bank switching enables modular war resource organization
+- **Extensibility**: Well-defined patterns support easy addition of new war states
 
-The system's architecture provides a solid foundation for extending the game with additional states, menus, or gameplay mechanics while maintaining the established patterns and performance characteristics. The centralized approach ensures that future modifications can be made efficiently while preserving the system's reliability and performance.
+The system's architecture provides a solid foundation for extending the game with additional war states, menus, or gameplay mechanics while maintaining the established patterns and performance characteristics. The centralized approach ensures that future modifications can be made efficiently while preserving the system's reliability and performance.
