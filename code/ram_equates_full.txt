@@ -1,0 +1,1243 @@
+====================================================================================================
+BANK: prg_08_09.asm
+====================================================================================================
+$0400  scene_callback_id         [prg_08_09.asm:3710]  next scene callback id ($0D post-battle)
+$0401  scene_callback_st         [prg_08_09.asm:3711]  next scene callback state
+$040C  result_cursor_x         [prg_08_09.asm:47]  result menu cursor X (cleared per phase)
+$040D  result_cursor_y         [prg_08_09.asm:48]  result menu cursor Y / pending-select flag
+$0410  result_sel_entry         [prg_08_09.asm:49]  result menu selected entry id
+$042C  action_result_lo         [prg_08_09.asm:43]  reported amount / result lo
+$042D  action_result_hi         [prg_08_09.asm:44]  reported amount / result hi
+$042E  action_result_cnt         [prg_08_09.asm:45]  result counter / record byte 2
+$044C  tile_cell_slots         [prg_08_09.asm:4509]  formation slot tile cells / selected tile
+$046C  result_menu_row         [prg_08_09.asm:50]  result menu row cursor
+$046D  picked_entry_id         [prg_08_09.asm:7704]  picked entry id (phases 4-5)
+$0470  route_mode         [prg_08_09.asm:4510]  state 9 route mode
+$0471  tile_result_flag         [prg_08_09.asm:4511]  tile apply result flag ($11 = out of reach)
+$048B  action_work_0         [prg_08_09.asm:4512]  action work area byte 0 (cleared)
+$048C  action_work_1         [prg_08_09.asm:4513]  action work area byte 1 (cleared)
+$048D  action_work_2         [prg_08_09.asm:4514]  action work area byte 2 (cleared)
+$048E  action_delta_lo         [prg_08_09.asm:4515]  stat A delta lo
+$048F  action_delta_hi         [prg_08_09.asm:4516]  stat A delta hi
+$0490  stat_delta_lo         [prg_08_09.asm:4517]  computed delta lo (ceil(statB*pct/100))
+$0491  stat_delta_hi         [prg_08_09.asm:4518]  computed delta hi
+$0492  action_percent         [prg_08_09.asm:4519]  action percent parameter
+$04C8  war_overlay_flag         [prg_08_09.asm:51]  battle overlay flag (gates panel/marker draw)
+$0500  war_scene_id         [prg_08_09.asm:23]  battle scene/command id (state select)
+$0501  war_scene_phase         [prg_08_09.asm:24]  battle scene phase/state index
+$0504  war_side_flag         [prg_08_09.asm:25]  acting-side flag (bit7: 1=attacker, 0=defender)
+$0505  war_action_points         [prg_08_09.asm:26]  AI action budget / status panel counter
+$0506  war_round_counter         [prg_08_09.asm:27]  battle round/day counter
+$0507  war_faction_pair         [prg_08_09.asm:28]  packed faction pair (lo=side 0, hi=side 1)
+$0508  scroll_dir_bits         [prg_08_09.asm:7460]  pending scroll direction bits (7=E,6=W,5=N,4=S)
+$0509  war_officer_slot         [prg_08_09.asm:29]  acting officer slot / scene variant
+$050A  war_scene_index         [prg_08_09.asm:30]  scene/command index (result scene $50/$51)
+$050B  scene_subparam         [prg_08_09.asm:3571]  scene sub-parameter ($11 attacker, $02 defender)
+$050E  war_province_idx         [prg_08_09.asm:31]  battle province (group) index
+$050F  war_attacker_code         [prg_08_09.asm:32]  attacker code (3 = ally side)
+$0514  war_side_selector         [prg_08_09.asm:33]  side selector (0/1, cleared on result init)
+$0522  war_stat_a_lo         [prg_08_09.asm:35]  side 0 stat A lo (side 1 at +2)
+$0523  war_stat_a_hi         [prg_08_09.asm:36]  side 0 stat A hi (side 1 at +2)
+$0526  war_stat_b_lo         [prg_08_09.asm:37]  side 0 stat B lo (side 1 at +2)
+$0527  war_stat_b_hi         [prg_08_09.asm:38]  side 0 stat B hi (side 1 at +2)
+$052A  war_target_province         [prg_08_09.asm:39]  battle/retreat target province
+$052B  war_target_officer         [prg_08_09.asm:40]  secondary/special target officer id
+$052C  war_target_param         [prg_08_09.asm:41]  secondary target param (officer/province)
+$052E  special_officer_flag         [prg_08_09.asm:6292]  special officer record byte 1 flag
+$052F  special_officer_idx         [prg_08_09.asm:6293]  special officer roster index
+$0540  result_sub_mode         [prg_08_09.asm:7703]  result scene sub-mode (dispatch index)
+$0541  result_scene_phase         [prg_08_09.asm:53]  result scene phase index (0-6)
+$0542  slot_count_m1         [prg_08_09.asm:7255]  last used slot index (count - 1)
+$0543  result_param_a         [prg_08_09.asm:7736]  result parameter A (-> result_param_copy)
+$0544  result_param_b         [prg_08_09.asm:7737]  result parameter B (-> result_kingdom_idx)
+$0545  result_dir_repeat         [prg_08_09.asm:54]  dir-repeat hold counters (4 bytes, +0..+3)
+$0549  dir_repeat_spare         [prg_08_09.asm:7739]  spare dir-repeat byte (cleared)
+$0550  unit_ally_counts         [prg_08_09.asm:3572]  per-province ally unit counts (11 entries)
+$0580  slot_id_list         [prg_08_09.asm:7254]  slot ID list output ($FF = unused)
+$0600  unit_coord_x         [prg_08_09.asm:58]  slot X coord column
+$0614  unit_coord_y         [prg_08_09.asm:59]  slot Y coord column
+$0628  unit_army_array         [prg_08_09.asm:60]  army column (bit7 = side flag)
+$063C  unit_state_array         [prg_08_09.asm:61]  unit state column
+$0650  unit_immobilized         [prg_08_09.asm:62]  immobilized/state flag column
+$0664  war_roster         [prg_08_09.asm:63]  officer id roster column ($FF = empty)
+$6F02  result_kingdom_idx         [prg_08_09.asm:7738]  latched kingdom index
+$6F07  faction_records         [prg_08_09.asm:67]  faction record base (stride 8)
+$6F0A  faction_rec_status         [prg_08_09.asm:68]  faction record status bytes (stride 8)
+$6F43  result_param_copy         [prg_08_09.asm:7705]  latched result parameter ($0543 copy)
+$6F44  war_outcome_flag         [prg_08_09.asm:56]  battle outcome / ruler result flag
+$6F47  reserve_units         [prg_08_09.asm:3573]  reserve unit id lists (2 x $14)
+$6F8C  ai_officer_idx         [prg_08_09.asm:70]  current AI officer slot index
+$6F8D  ai_target_slot         [prg_08_09.asm:129]  chosen direction / target slot / move result
+$6F8E  ai_target_officer         [prg_08_09.asm:130]  action target officer slot
+$6F8F  ai_action_result         [prg_08_09.asm:71]  AI action decision/result code
+$6F91  side_unit_base         [prg_08_09.asm:72]  side unit index base (0 or 10) / dispatch idx
+$6F92  rng_cursor         [prg_08_09.asm:79]  RNG table cursor (never reset, wraps)
+$6F93  rng_x_save         [prg_08_09.asm:80]  X register save for NextRandomByte
+$6F94  officer_scan_idx         [prg_08_09.asm:73]  officer scan index / unit count - 1
+$6F95  acted_officer_cnt         [prg_08_09.asm:74]  acted officer count
+$6F96  valid_officer_cnt         [prg_08_09.asm:75]  valid officer count
+$6F97  ai_move_cost         [prg_08_09.asm:131]  committed move cost nibble
+$6F99  formation_slot0_units         [prg_08_09.asm:76]  formation slot 0 unit count nibble
+$6F9A  formation_slot_idx         [prg_08_09.asm:2622]  formation slot index nibbles (stride 2)
+$6F9B  formation_slot1_units         [prg_08_09.asm:77]  formation slot 1 unit count nibble
+$6FA1  officer_state_table         [prg_08_09.asm:64]  officer state / unit placement queue ($40)
+$6FB5  move_reverse_dirs         [prg_08_09.asm:132]  per-officer reverse of last move direction
+$6FC9  proximity_table         [prg_08_09.asm:65]  proximity scan table ($14 bytes)
+$6FDD  adjacent_scan_results         [prg_08_09.asm:133]  adjacent officer scan result table
+$6FE1  special_tile_latch         [prg_08_09.asm:4520]  one-shot special tile trigger latch
+$6FEA  result_latch_flags         [prg_08_09.asm:55]  dir-repeat latch / outcome bits
+
+====================================================================================================
+BANK: prg_0a_0b.asm
+====================================================================================================
+$0020  math_acc_lo (x38)   [prg_0a_0b.asm:222]  
+$0020  record_ptr         [prg_0a_0b.asm:802]  pointer to current record data
+$0020  saved_Y         [prg_0a_0b.asm:8617]  
+$0020  slot_id         [prg_0a_0b.asm:7652]  Input: record ID (also used as scratch)
+$0020  work_result         [prg_0a_0b.asm:7498]  
+$0021  dividend_lo         [prg_0a_0b.asm:2669]  Divide16 dividend byte 0 (init 0)
+$0021  math_acc_mlo (x23)   [prg_0a_0b.asm:223]  
+$0021  table_ptr_lo         [prg_0a_0b.asm:8618]  
+$0022  dividend_mid         [prg_0a_0b.asm:2670]  Divide16 dividend byte 1 (province_sum)
+$0022  math_acc_mhi (x30)   [prg_0a_0b.asm:224]  
+$0022  record_ptr_lo         [prg_0a_0b.asm:7653]  Record pointer lo (set by ResolveRecordPtr)
+$0022  table_ptr_hi         [prg_0a_0b.asm:8619]  
+$0022  work_ptr_lo         [prg_0a_0b.asm:7503]  
+$0023  dividend_hi         [prg_0a_0b.asm:2671]  Divide16 dividend byte 2 / divisor hi (ruler_count)
+$0023  math_acc_hi (x26)   [prg_0a_0b.asm:225]  
+$0023  record_ptr_hi         [prg_0a_0b.asm:7654]  Record pointer hi
+$0023  target_hi         [prg_0a_0b.asm:8620]  
+$0023  work_ptr_hi         [prg_0a_0b.asm:7504]  
+$0024  math_ext (x31)   [prg_0a_0b.asm:226]  
+$0024  slot_index         [prg_0a_0b.asm:803]  slot offset iterator ($11..$1A)
+$0024  table_offset         [prg_0a_0b.asm:570]  
+$0024  target_lo         [prg_0a_0b.asm:8621]  
+$0025  attr_value         [prg_0a_0b.asm:571]  
+$0025  best_slot_val         [prg_0a_0b.asm:804]  best slot value found
+$0025  math_temp1 (x16)   [prg_0a_0b.asm:657]  
+$0026  best_slot_pos         [prg_0a_0b.asm:805]  Y-index of best slot
+$0026  math_temp2 (x13)   [prg_0a_0b.asm:227]  
+$0026  province_score         [prg_0a_0b.asm:572]  
+$0027  math_temp3 (x11)   [prg_0a_0b.asm:228]  
+$0027  ref_value         [prg_0a_0b.asm:806]  reference value for comparison
+$0028  sub_table_lo         [prg_0a_0b.asm:6349]  
+$002A  work_temp         [prg_0a_0b.asm:7214]  
+$0030  work_row         [prg_0a_0b.asm:8795]  
+$0031  work_src         [prg_0a_0b.asm:8796]  
+$0032  work_dst         [prg_0a_0b.asm:8797]  
+$0036  candidate_idx (x2)    [prg_0a_0b.asm:573]  
+$0036  province_idx         [prg_0a_0b.asm:3062]  outer loop: current province (0–$1D)
+$0036  work_outer_idx (x21)   [prg_0a_0b.asm:141]  Outer loop index
+$0037  best_inner_idx         [prg_0a_0b.asm:574]  
+$0037  best_slot_idx         [prg_0a_0b.asm:698]  best slot index (set by CompareValues)
+$0037  first_owned_idx         [prg_0a_0b.asm:3063]  first owned province found ($FF = none)
+$0037  work_inner_idx (x16)   [prg_0a_0b.asm:142]  Inner loop index
+$0038  best_idx         [prg_0a_0b.asm:575]  
+$0038  best_weak_idx         [prg_0a_0b.asm:3064]  weakest owned province index
+$0038  work_inner_idx2 (x14)   [prg_0a_0b.asm:143]  Inner loop index 2
+$0039  best_sub_idx         [prg_0a_0b.asm:576]  
+$0039  best_weak_val         [prg_0a_0b.asm:3065]  weakest owned province metric (lo byte)
+$0039  work_sub_idx (x8)    [prg_0a_0b.asm:144]  Sub-loop index
+$003A  best_outer_idx         [prg_0a_0b.asm:577]  
+$003A  province_idx (x2)    [prg_0a_0b.asm:886]  
+$003A  source_province         [prg_0a_0b.asm:699]  source/owner province ID (from caller)
+$003A  work_limit_a (x14)   [prg_0a_0b.asm:145]  Comparison limit A
+$003B  dispatch_val (x2)    [prg_0a_0b.asm:887]  
+$003B  saved_candidate         [prg_0a_0b.asm:807]  saved candidate province ID
+$003B  work_limit_b (x11)   [prg_0a_0b.asm:146]  Comparison limit B
+$003C  best_result         [prg_0a_0b.asm:808]  result value to write back
+$003C  field_offset         [prg_0a_0b.asm:888]  
+$003C  work_temp_0 (x12)   [prg_0a_0b.asm:147]  Temporary storage 0
+$003D  work_temp_1 (x10)   [prg_0a_0b.asm:148]  Temporary storage 1
+$003E  work_temp_2 (x10)   [prg_0a_0b.asm:149]  Temporary storage 2
+$003F  work_record_idx (x5)    [prg_0a_0b.asm:150]  Record index
+$0040  record_val         [prg_0a_0b.asm:921]  
+$0040  work_record_val (x7)    [prg_0a_0b.asm:151]  Record value
+$0041  search_result         [prg_0a_0b.asm:922]  
+$0041  work_best_value         [prg_0a_0b.asm:700]  best province score found so far
+$0041  work_search_result (x3)    [prg_0a_0b.asm:152]  Search/comparison result
+$0042  remainder_lo         [prg_0a_0b.asm:923]  
+$0043  remainder_hi         [prg_0a_0b.asm:924]  
+$0044  compare_mode         [prg_0a_0b.asm:702]  inner comparison mode flag (used by CompareValues)
+$0045  search_max         [prg_0a_0b.asm:701]  max provinces to scan
+$0045  work_search_max (x5)    [prg_0a_0b.asm:153]  Search max value
+$0056  work_bound         [prg_0a_0b.asm:8648]  
+$0540  state_sub_dispatch (x8)    [prg_0a_0b.asm:166]  Sub-state dispatch index
+$0541  state_display_idx (x27)   [prg_0a_0b.asm:167]  Display state index
+$0545  state_overlay_param (x4)    [prg_0a_0b.asm:168]  Overlay/menu parameter
+$0547  state_palette_mode (x2)    [prg_0a_0b.asm:169]  Palette animation mode
+$6F02  sram_game_level (x7)    [prg_0a_0b.asm:132]  Game level (0-2), selected at new game start
+$6F03  sram_player_id (x26)   [prg_0a_0b.asm:133]  Current player ID / slot
+$6F5B  sram_counter (x3)    [prg_0a_0b.asm:138]  Iteration counter
+$6F5F  sram_work_0 (x3)    [prg_0a_0b.asm:135]  Computed work value 0
+$6F60  sram_work_1 (x3)    [prg_0a_0b.asm:136]  Computed work value 1
+$6F61  sram_work_2 (x3)    [prg_0a_0b.asm:137]  Computed work value 2
+$6F8B  game_start_flag         [prg_0a_0b.asm:191]  
+$6F8B  sram_game_start_flag (x5)    [prg_0a_0b.asm:134]  Game start flag ($FF = new game)
+
+====================================================================================================
+BANK: prg_0c_0d.asm
+====================================================================================================
+$0400  scene_callback_id         [prg_0c_0d.asm:55]  scene callback ID (shared w/ 1D_1E)
+$0401  scene_callback_st         [prg_0c_0d.asm:56]  scene callback state counter
+$0402  province_idx         [prg_0c_0d.asm:57]  current province index (map bounds calc)
+$040C  detail_cursor_x         [prg_0c_0d.asm:59]  officer-detail panel cursor X (init 0)
+$040D  detail_cursor_y         [prg_0c_0d.asm:60]  officer-detail panel cursor Y (init 0)
+$0410  detail_officer_id         [prg_0c_0d.asm:62]  officer ID shown in detail view (from $0664,Y)
+$0420  menu_scroll_state         [prg_0c_0d.asm:65]  menu scroll / render state (shared w/ 1D_1E, 1F)
+$0424  menu_cursor_col         [prg_0c_0d.asm:67]  menu cursor column (0-based, shared w/ 1F MenuStep)
+$0425  menu_cursor_page         [prg_0c_0d.asm:68]  menu cursor page   (0-based, shared w/ 1F MenuStep)
+$042C  officer_sel_list         [prg_0c_0d.asm:74]  officer selection list base (32 bytes)
+$044C  exchange_disp_base         [prg_0c_0d.asm:83]  exchange display stats base (32 bytes)
+$044C  exchange_ruler_id         [prg_0c_0d.asm:84]  exchange partner ruler ID
+$046C  country_param_copy         [prg_0c_0d.asm:101]  country parameter snapshot (4 bytes)
+$0470  anim_ppu_ptr_lo         [prg_0c_0d.asm:104]  animation PPU pointer lo (shared w/ 17_18)
+$0471  anim_ppu_ptr_hi         [prg_0c_0d.asm:105]  animation PPU pointer hi
+$0472  map_scroll_ptr_lo         [prg_0c_0d.asm:106]  map scroll source pointer lo
+$0473  map_scroll_ptr_hi         [prg_0c_0d.asm:107]  map scroll source pointer hi
+$04C8  exchange_result_cnt         [prg_0c_0d.asm:110]  exchange result counter ($0543+1; 0 = show result)
+$04D2  officer_rec_src_lo         [prg_0c_0d.asm:113]  officer record source ptr lo
+$04D3  officer_rec_src_hi         [prg_0c_0d.asm:114]  officer record source ptr hi
+$04D4  officer_rec_dst_lo         [prg_0c_0d.asm:115]  officer record dest ptr lo
+$04D5  officer_rec_dst_hi         [prg_0c_0d.asm:116]  officer record dest ptr hi
+$04D8  army_slot_base         [prg_0c_0d.asm:122]  army group slot array base (8 bytes)
+$0500  exchange_state         [prg_0c_0d.asm:134]  exchange main state (0-15, indexes dispatch table)
+$0501  exchange_phase         [prg_0c_0d.asm:135]  exchange sub-phase within current state
+$0504  exchange_dir_flag         [prg_0c_0d.asm:138]  direction flag (bit7: 0=group A, 1=group B)
+$0505  move_points_left         [prg_0c_0d.asm:139]  movement points remaining / army strength
+$0506  ruler_turn_counter         [prg_0c_0d.asm:140]  ruler turn counter (inc per ruler switch)
+$0507  packed_ruler_pair         [prg_0c_0d.asm:141]  packed ruler pair (lo=A, hi=B nibble)
+$0508  exchange_wait_timer         [prg_0c_0d.asm:142]  timer / wait counter
+$0509  src_officer_slot         [prg_0c_0d.asm:143]  source officer slot index (into $06xx tables)
+$050A  dst_officer_slot         [prg_0c_0d.asm:144]  target officer slot / move path length
+$050B  cmd_phase_step         [prg_0c_0d.asm:145]  command phase step counter / message index
+$050C  morale_group_a         [prg_0c_0d.asm:146]  group A morale (ComputeArmyMorale)
+$050D  morale_group_b         [prg_0c_0d.asm:147]  group B morale (ComputeArmyMorale)
+$050E  province_check_flag         [prg_0c_0d.asm:148]  province check flag
+$050F  ruler_status_flag         [prg_0c_0d.asm:149]  ruler data byte 3 (alliance/status)
+$0510  map_scroll_x_lo         [prg_0c_0d.asm:153]  map scroll X lo
+$0511  map_scroll_x_hi         [prg_0c_0d.asm:154]  map scroll X hi
+$0512  map_scroll_y_lo         [prg_0c_0d.asm:155]  map scroll Y lo
+$0513  map_scroll_y_hi         [prg_0c_0d.asm:156]  map scroll Y hi
+$051A  merit_sum_a_lo         [prg_0c_0d.asm:160]  group A merit sum lo
+$051B  merit_sum_a_hi         [prg_0c_0d.asm:161]  group A merit sum hi
+$051C  merit_sum_b_lo         [prg_0c_0d.asm:162]  group B merit sum lo
+$051D  merit_sum_b_hi         [prg_0c_0d.asm:163]  group B merit sum hi
+$051E  officer_count_a         [prg_0c_0d.asm:164]  group A officer count
+$051F  officer_count_b         [prg_0c_0d.asm:165]  group B officer count
+$0522  province_ptr_a_lo         [prg_0c_0d.asm:169]  group A province ptr lo
+$0523  province_ptr_a_hi         [prg_0c_0d.asm:170]  group A province ptr hi
+$0524  province_ptr_b_lo         [prg_0c_0d.asm:171]  group B province ptr lo
+$0525  province_ptr_b_hi         [prg_0c_0d.asm:172]  group B province ptr hi
+$052A  scene_province_idx         [prg_0c_0d.asm:175]  province index copy (from $0402)
+$052B  scene_sel_officer         [prg_0c_0d.asm:176]  exchange scene selected officer index
+$052C  xfer_status_0         [prg_0c_0d.asm:177]  officer 0 status flags (byte 11 hi-nibble)
+$052D  xfer_status_1         [prg_0c_0d.asm:178]  officer 1 status flags
+$052E  xfer_power_0         [prg_0c_0d.asm:179]  officer 0 power (byte 1)
+$052F  xfer_power_1         [prg_0c_0d.asm:180]  officer 1 power
+$053D  undo_province_x         [prg_0c_0d.asm:184]  undo: province X
+$053E  undo_province_y         [prg_0c_0d.asm:185]  undo: province Y
+$053F  undo_cost         [prg_0c_0d.asm:186]  undo: movement cost
+$0540  move_path_x         [prg_0c_0d.asm:190]  move path province X array
+$0541  move_path_y         [prg_0c_0d.asm:191]  move path province Y array
+$0542  move_path_cost         [prg_0c_0d.asm:192]  move path cost array
+$0543  move_path_total         [prg_0c_0d.asm:193]  move path total cost / action index
+$0544  action_dispatch_idx         [prg_0c_0d.asm:194]  terrain type / action dispatch index
+$0550  exchange_sel_list         [prg_0c_0d.asm:198]  exchange officer selection list (16 bytes)
+$0560  xfer_officer_id_0         [prg_0c_0d.asm:201]  officer ID slot 0 (result display)
+$0561  xfer_officer_id_1         [prg_0c_0d.asm:202]  officer ID slot 1
+$0562  xfer_ruler_data_0         [prg_0c_0d.asm:203]  ruler byte-3 for source ruler
+$0563  xfer_ruler_data_1         [prg_0c_0d.asm:204]  ruler byte-3 for target ruler
+$0564  xfer_ruler_id_0         [prg_0c_0d.asm:205]  ruler ID 0 (from $0507, ordered by dir)
+$0565  xfer_ruler_id_1         [prg_0c_0d.asm:206]  ruler ID 1
+$0580  officer_select_flg         [prg_0c_0d.asm:210]  officer selection flags base (32 bytes)
+
+====================================================================================================
+BANK: prg_0e_0f.asm
+====================================================================================================
+$0000  attr_index         [prg_0e_0f.asm:4247]  status index (slot * 4 + state)
+$0000  attr_ofs         [prg_0e_0f.asm:4249]  attribute cell offset
+$0000  attr_ptr         [prg_0e_0f.asm:4245]  attribute table ptr (indirect)
+$0000  attr_work         [prg_0e_0f.asm:4248]  attribute work byte
+$0000  buf_ptr_lo (x2)    [prg_0e_0f.asm:2268]  panel reformat buffer ptr lo
+$0000  cand_col (x5)    [prg_0e_0f.asm:5333]  candidate column (col + delta)
+$0000  class2_count         [prg_0e_0f.asm:8110]  class-2 unit count
+$0000  col_delta         [prg_0e_0f.asm:8108]  probe column delta
+$0000  col_dist         [prg_0e_0f.asm:5139]  column distance
+$0000  country_ptr (x2)    [prg_0e_0f.asm:7186]  country record ptr (ruler id byte 0)
+$0000  ctr_work         [prg_0e_0f.asm:3220]  counter byte work cell for @NibbleDecrement
+$0000  cursor_ptr_lo (x2)    [prg_0e_0f.asm:2619]  cursor param ptr lo
+$0000  damage (x5)    [prg_0e_0f.asm:1366]  contact damage subtracted from troop count
+$0000  damage_work         [prg_0e_0f.asm:3735]  damage roll -> base damage -> third share
+$0000  desc_ptr_lo (x2)    [prg_0e_0f.asm:3433]  Phase9AdvanceStripDrawDesc ptr lo
+$0000  fmt_ptr_lo (x2)    [prg_0e_0f.asm:451]  B1D_1E_DataFormatter buffer ptr lo
+$0000  grade_work         [prg_0e_0f.asm:3829]  grade index g (n*4 + g)
+$0000  hit_work         [prg_0e_0f.asm:4528]  terrain hit work byte
+$0000  map_ptr         [prg_0e_0f.asm:4237]  battlefield cell map ptr (indirect)
+$0000  menu_step (x2)    [prg_0e_0f.asm:2474]  menu step (btl_frame_counter copy)
+$0000  merged_hi (x2)    [prg_0e_0f.asm:6894]  merged pad state hi (relatched to $0083)
+$0000  mul_value         [prg_0e_0f.asm:1792]  multiplicand lo (24-bit cell $0000-$0002)
+$0000  pad_fetched_hi (x2)    [prg_0e_0f.asm:2612]  BattlePadStateFetch result hi
+$0000  param_ptr_lo         [prg_0e_0f.asm:8711]  cursor param ptr lo
+$0000  path_ptr_lo (x2)    [prg_0e_0f.asm:4856]  arrow path stream ptr lo
+$0000  probe_col_delta         [prg_0e_0f.asm:7795]  tile probe column delta
+$0000  rec_ptr (x7)    [prg_0e_0f.asm:3822]  officer record ptr lo (indirect field reads)
+$0000  rec_ptr_lo (x3)    [prg_0e_0f.asm:2091]  officer record ptr lo (hi in $0001)
+$0000  req_class         [prg_0e_0f.asm:6740]  requested class filter ($FF = all)
+$0000  roll         [prg_0e_0f.asm:3094]  random roll amount
+$0000  script_ptr_lo         [prg_0e_0f.asm:3155]  script byte stream ptr lo
+$0000  side_id         [prg_0e_0f.asm:551]  side id from Phase1SidePriorityOrder
+$0000  slot_base (x2)    [prg_0e_0f.asm:552]  order-slot base (0 cols 0-$A, 4 cols $B-$14)
+$0000  slot_count         [prg_0e_0f.asm:3831]  slot count bound
+$0000  spr_ptr_lo (x2)    [prg_0e_0f.asm:6310]  sprite record ptr lo
+$0000  stat_work         [prg_0e_0f.asm:6360]  record byte work -> mul value
+$0000  status_work (x2)    [prg_0e_0f.asm:2026]  column status/id work byte
+$0000  step_cap         [prg_0e_0f.asm:2336]  cursor step cap index
+$0000  stream_ptr_lo         [prg_0e_0f.asm:4982]  counter stream ptr lo
+$0000  strip_ptr         [prg_0e_0f.asm:6510]  strip buffer ptr (indirect base)
+$0000  strip_ptr_lo (x13)   [prg_0e_0f.asm:297]  overlay strip render buffer ptr lo (bank $19)
+$0000  table_ptr_lo         [prg_0e_0f.asm:2435]  arrow table ptr lo
+$0000  total_a_lo         [prg_0e_0f.asm:7989]  side A troop total lo (swapped to own/enemy)
+$0000  zone_count         [prg_0e_0f.asm:8111]  enemy-in-zone count
+$0001  amount         [prg_0e_0f.asm:1367]  panel update amount (pre-damage troop count)
+$0001  attr_ptr_hi         [prg_0e_0f.asm:4246]  attribute table ptr hi
+$0001  bcd_in_lo         [prg_0e_0f.asm:4442]  binary troop count lo
+$0001  buf_ptr_hi (x2)    [prg_0e_0f.asm:2269]  buffer ptr hi
+$0001  cand_row (x5)    [prg_0e_0f.asm:5334]  candidate row (row + delta)
+$0001  cursor_ptr_hi (x2)    [prg_0e_0f.asm:2620]  cursor param ptr hi
+$0001  desc_ptr_hi (x2)    [prg_0e_0f.asm:3434]  descriptor ptr hi
+$0001  div_work_lo         [prg_0e_0f.asm:3823]  dividend/share/bound work lo
+$0001  dividend_lo (x4)    [prg_0e_0f.asm:1793]  MathDiv16 dividend lo (product byte 0)
+$0001  fmt_ptr_hi (x2)    [prg_0e_0f.asm:452]  formatter buffer ptr hi
+$0001  map_ptr_hi         [prg_0e_0f.asm:4238]  map ptr hi
+$0001  merged_lo (x2)    [prg_0e_0f.asm:6895]  merged pad state lo (relatched to $0081)
+$0001  opp_troops_scratch         [prg_0e_0f.asm:2895]  opponent troop count scratch
+$0001  pad_edge         [prg_0e_0f.asm:845]  mode-filtered controller edge flags
+$0001  pad_fetched_lo (x2)    [prg_0e_0f.asm:2613]  BattlePadStateFetch result lo
+$0001  pad_state (x15)   [prg_0e_0f.asm:914]  merged both-pad raw state
+$0001  param_ptr_hi         [prg_0e_0f.asm:8712]  cursor param ptr hi
+$0001  path_ptr_hi (x2)    [prg_0e_0f.asm:4857]  arrow path stream ptr hi
+$0001  probe_row_delta         [prg_0e_0f.asm:7796]  tile probe row delta
+$0001  row_delta         [prg_0e_0f.asm:8109]  probe row delta
+$0001  row_dist         [prg_0e_0f.asm:5140]  row distance
+$0001  script_ptr_hi         [prg_0e_0f.asm:3156]  script byte stream ptr hi
+$0001  slot_value         [prg_0e_0f.asm:6214]  action slot value (*5 for table)
+$0001  slot_value_lo         [prg_0e_0f.asm:2475]  action slot value lo
+$0001  spr_ptr_hi (x2)    [prg_0e_0f.asm:6311]  sprite record ptr hi
+$0001  status_frame         [prg_0e_0f.asm:4650]  status word with animation frame
+$0001  stream_ptr_hi         [prg_0e_0f.asm:4983]  counter stream ptr hi
+$0001  strip_ptr_hi         [prg_0e_0f.asm:8662]  officer display render buffer ptr hi
+$0001  table_ptr_hi         [prg_0e_0f.asm:2436]  arrow table ptr hi
+$0001  total_a_hi         [prg_0e_0f.asm:7990]  side A troop total hi
+$0001  total_lo         [prg_0e_0f.asm:6741]  class troop total lo
+$0001  troops_pre (x2)    [prg_0e_0f.asm:1544]  pre-damage troop count
+$0002  addr_lo         [prg_0e_0f.asm:6511]  VRAM address work lo
+$0002  attr_eor         [prg_0e_0f.asm:6312]  attribute EOR mask
+$0002  bcd_in_mid         [prg_0e_0f.asm:4443]  binary troop count mid
+$0002  class2_bound         [prg_0e_0f.asm:3825]  class-2 slot bound
+$0002  desc_index (x2)    [prg_0e_0f.asm:3435]  descriptor index (0)
+$0002  div_work_hi         [prg_0e_0f.asm:3824]  dividend hi / class-2 bound
+$0002  dividend_hi (x5)    [prg_0e_0f.asm:1794]  dividend hi (product byte 1)
+$0002  flip_flags (x5)    [prg_0e_0f.asm:2437]  sprite flip flags
+$0002  map_ptr_lo         [prg_0e_0f.asm:6641]  terrain map ptr lo
+$0002  pattern_ptr         [prg_0e_0f.asm:4239]  2x2 tile pattern ptr lo
+$0002  probe_col (x2)    [prg_0e_0f.asm:4489]  adjacent probe column
+$0002  slot_value_hi         [prg_0e_0f.asm:2476]  action slot value hi
+$0002  stream_work         [prg_0e_0f.asm:4984]  stream work byte
+$0002  total_b_lo         [prg_0e_0f.asm:7991]  side B troop total lo
+$0002  total_hi         [prg_0e_0f.asm:6742]  class troop total hi
+$0003  addr_hi         [prg_0e_0f.asm:6512]  VRAM address work hi
+$0003  bcd_in_hi         [prg_0e_0f.asm:4444]  binary troop count hi
+$0003  divisor_lo (x6)    [prg_0e_0f.asm:1796]  MathDiv16 divisor lo (= 100)
+$0003  map_ptr_hi         [prg_0e_0f.asm:6642]  terrain map ptr hi
+$0003  mirror_ofs         [prg_0e_0f.asm:3836]  column mirror offset (side B)
+$0003  pattern_ptr_hi         [prg_0e_0f.asm:4240]  pattern ptr hi
+$0003  percent (x2)    [prg_0e_0f.asm:1795]  multiplier percent (Y param)
+$0003  probe_row (x2)    [prg_0e_0f.asm:4490]  adjacent probe row
+$0003  tier_percent         [prg_0e_0f.asm:6365]  tier percent (Y param)
+$0003  total_b_hi         [prg_0e_0f.asm:7992]  side B troop total hi
+$0003  writer_preset_lo (x2)    [prg_0e_0f.asm:3440]  OAM writer preset lo (0)
+$0004  divisor_hi (x6)    [prg_0e_0f.asm:1797]  divisor hi (0)
+$0004  tile_offset_hi         [prg_0e_0f.asm:4241]  tile offset high byte
+$0004  writer_preset_hi (x2)    [prg_0e_0f.asm:3441]  OAM writer preset hi ($A0)
+$0005  remainder         [prg_0e_0f.asm:3828]  division remainder
+$0006  product_lo (x3)    [prg_0e_0f.asm:1798]  MathMul24x8 product byte 0
+$0007  bcd_tens         [prg_0e_0f.asm:4445]  BCD tens+ones result
+$0007  product_hi (x3)    [prg_0e_0f.asm:1799]  product byte 1
+$0008  bcd_thousands         [prg_0e_0f.asm:4446]  BCD thousands+hundreds result
+$0008  col_x2         [prg_0e_0f.asm:4242]  column * 2 work (VRAM addr / attr offset)
+$000A  calc_work_a         [prg_0e_0f.asm:8104]  layout ptr / success chance / own attack bonus
+$000A  col_layout_lo         [prg_0e_0f.asm:3832]  formation column layout ptr lo
+$000A  mask0         [prg_0e_0f.asm:4524]  sub-cell 0 highlight mask
+$000A  officer_id         [prg_0e_0f.asm:8792]  officer id (entry param)
+$000A  rank_a_work         [prg_0e_0f.asm:2899]  side A rank -> own rank -> dividend -> success chance
+$000A  slot_base_ofs         [prg_0e_0f.asm:7647]  order slot base offset
+$000A  spr_x (x5)    [prg_0e_0f.asm:4652]  cursor sprite X offset
+$000A  spr_y (x2)    [prg_0e_0f.asm:3436]  sprite Y (marker row - wobble)
+$000A  strip_ptr_hi (x9)    [prg_0e_0f.asm:298]  strip render buffer ptr hi
+$000A  tile_base         [prg_0e_0f.asm:4985]  digit tile base
+$000A  writer_arg_a         [prg_0e_0f.asm:2438]  OAM writer param A
+$000A  writer_ptr (x2)    [prg_0e_0f.asm:1612]  strip writer buffer ptr ($0560/$0561)
+$000B  addr_hi_work         [prg_0e_0f.asm:4243]  VRAM address high work byte
+$000B  amount_lo         [prg_0e_0f.asm:8793]  exp gain amount lo (entry param, halved)
+$000B  calc_work_b         [prg_0e_0f.asm:8105]  layout ptr hi / enemy attack bonus
+$000B  col_layout_hi         [prg_0e_0f.asm:3833]  column layout ptr hi
+$000B  donor_work         [prg_0e_0f.asm:8906]  donor officer id -> transfer amount lo
+$000B  mask1         [prg_0e_0f.asm:4525]  sub-cell 1 highlight mask
+$000B  rank_b_work         [prg_0e_0f.asm:2900]  side B rank -> opponent rank
+$000B  side_index         [prg_0e_0f.asm:7648]  side index (0/1)
+$000B  spr_arg_b (x2)    [prg_0e_0f.asm:3437]  OAM writer param B (0)
+$000B  spr_x_hi (x3)    [prg_0e_0f.asm:4653]  X offset hi
+$000B  tile_base_hi         [prg_0e_0f.asm:4986]  digit tile base hi
+$000B  writer_arg_b         [prg_0e_0f.asm:2439]  OAM writer param B
+$000B  writer_damage (x2)    [prg_0e_0f.asm:1613]  writer param: damage value
+$000C  amount_hi (x2)    [prg_0e_0f.asm:8794]  exp gain amount hi
+$000C  calc_work_c         [prg_0e_0f.asm:8106]  own commander troops work
+$000C  commander_id         [prg_0e_0f.asm:7646]  commander officer id
+$000C  mask3         [prg_0e_0f.asm:4526]  sub-cell 3 highlight mask
+$000C  row_layout_lo         [prg_0e_0f.asm:3834]  formation row layout ptr lo
+$000C  row_param         [prg_0e_0f.asm:4987]  status panel row parameter
+$000C  spr_x (x2)    [prg_0e_0f.asm:3438]  sprite X (marker column)
+$000C  spr_y (x5)    [prg_0e_0f.asm:4654]  cursor sprite Y offset (row + 8)
+$000C  troops_a_work         [prg_0e_0f.asm:2901]  side A troop count -> own troops
+$000C  writer_pad (x2)    [prg_0e_0f.asm:1614]  writer param: 0
+$000C  writer_row_param         [prg_0e_0f.asm:2440]  OAM writer row parameter
+$000D  calc_work_d         [prg_0e_0f.asm:8107]  enemy commander troops work
+$000D  exp_work_lo         [prg_0e_0f.asm:8795]  new experience lo
+$000D  mask2         [prg_0e_0f.asm:4527]  sub-cell 2 highlight mask
+$000D  row_layout_hi         [prg_0e_0f.asm:3835]  row layout ptr hi
+$000D  spr_arg_d (x2)    [prg_0e_0f.asm:3439]  OAM writer param D (0)
+$000D  spr_y_hi (x3)    [prg_0e_0f.asm:4655]  Y offset hi
+$000D  tile_attr         [prg_0e_0f.asm:4988]  digit tile attribute
+$000D  troops_b_work         [prg_0e_0f.asm:2902]  side B troop count -> opponent troops
+$000D  window_ofs         [prg_0e_0f.asm:7650]  order vector window offset
+$000D  writer_arg_d         [prg_0e_0f.asm:2441]  OAM writer param D
+$000E  exp_work_hi         [prg_0e_0f.asm:8796]  new experience hi
+$000F  new_level         [prg_0e_0f.asm:8797]  computed new level nibble
+$0010  cell_col (x2)    [prg_0e_0f.asm:4235]  unit battlefield column
+$0010  col_work         [prg_0e_0f.asm:5137]  objective column -> signed column delta
+$0010  cursor_ptr_lo         [prg_0e_0f.asm:8709]  cursor coord ptr lo
+$0010  cursor_tbl_lo (x2)    [prg_0e_0f.asm:2617]  cursor pos table ptr lo
+$0010  list_ptr_lo (x2)    [prg_0e_0f.asm:7296]  FormationSelectItemList ptr lo
+$0010  probe_ctr (x2)    [prg_0e_0f.asm:5388]  probe loop counter
+$0010  row_list_ptr_lo         [prg_0e_0f.asm:2614]  tier row list ptr lo
+$0011  cell_row (x2)    [prg_0e_0f.asm:4236]  unit battlefield row
+$0011  cursor_ptr_hi         [prg_0e_0f.asm:8710]  cursor coord ptr hi
+$0011  cursor_tbl_hi (x2)    [prg_0e_0f.asm:2618]  cursor pos table ptr hi
+$0011  list_ptr_hi (x2)    [prg_0e_0f.asm:7297]  item list ptr hi
+$0011  probe_spare (x2)    [prg_0e_0f.asm:5389]  spare (cleared, unused)
+$0011  row_list_ptr_hi         [prg_0e_0f.asm:2615]  tier row list ptr hi
+$0011  row_work         [prg_0e_0f.asm:5138]  objective row -> signed row delta
+$0012  axis_retry         [prg_0e_0f.asm:5136]  axis retry counter
+$0012  highlight (x2)    [prg_0e_0f.asm:4244]  highlight pass flag (nonzero = status tiles)
+$0012  menu_result (x2)    [prg_0e_0f.asm:7188]  FormationSelectMenu selected item
+$0012  selected_item         [prg_0e_0f.asm:7298]  selected menu item (stays for caller)
+$0012  selected_row (x3)    [prg_0e_0f.asm:2616]  selected row index
+$0012  sprite_mode         [prg_0e_0f.asm:3554]  0 = clear sprite, 1 = refresh sprite
+$0013  roster_slot (x2)    [prg_0e_0f.asm:4234]  roster slot index (Y param)
+$0013  slot_param         [prg_0e_0f.asm:3555]  roster slot parameter
+$0013  target_slot         [prg_0e_0f.asm:4492]  target roster slot
+$001A  marker_row (x2)    [prg_0e_0f.asm:3619]  marker tile row
+$001A  siege_col_ptr_lo         [prg_0e_0f.asm:3837]  siege column layout ptr lo (i+1)
+$001B  marker_col (x2)    [prg_0e_0f.asm:3620]  marker tile column
+$001B  siege_col_ptr_hi         [prg_0e_0f.asm:3838]  siege column layout ptr hi
+$001C  siege_row_ptr_lo         [prg_0e_0f.asm:3839]  siege row layout ptr lo (i+7)
+$001C  slot_cursor (x4)    [prg_0e_0f.asm:3621]  opposing roster slot cursor
+$001D  siege_row_ptr_hi         [prg_0e_0f.asm:3840]  siege row layout ptr hi
+$005E  frame_tick         [prg_0e_0f.asm:80]  frame tick counter (incremented every 8 frames by NmiEpilogue)
+$007A  btl_flash_counter         [prg_0e_0f.asm:81]  screen-flash countdown (game-state slot during battle phases 4/5)
+$007C  btl_oam_slot_cursor         [prg_0e_0f.asm:82]  OAM slot write cursor
+$007E  btl_anim_flags         [prg_0e_0f.asm:83]  NMI-owned animation/script status flags (bit2 = queued task done / input busy)
+$0081  btl_pad1_lo         [prg_0e_0f.asm:84]  pad 1 latched button state lo (menu input feed)
+$0082  btl_pad2_lo         [prg_0e_0f.asm:85]  pad 2 latched button state lo
+$0083  btl_pad1_hi         [prg_0e_0f.asm:86]  pad 1 latched button state hi
+$0085  btl_pad2_hi         [prg_0e_0f.asm:87]  pad 2 latched button state hi
+$0087  btl_frame_flag         [prg_0e_0f.asm:88]  palette/frame flag (bit7: intro skip, result flash wait)
+$008F  btl_battle_flag         [prg_0e_0f.asm:89]  battle commit flag (toggled by command confirm, cleared on advance init)
+$00BB  zp_panel_param_a         [prg_0e_0f.asm:90]  B1D_1E panel param A (script id)
+$00BC  zp_panel_param_b         [prg_0e_0f.asm:91]  B1D_1E panel param B (page/format)
+$00BD  zp_panel_param_c         [prg_0e_0f.asm:92]  B1D_1E panel param C (panel id)
+$0300  anim_queue_hdr0         [prg_0e_0f.asm:94]  queue slot 0 header ($FF = empty)
+$0304  anim_queue_hdr1         [prg_0e_0f.asm:95]  queue slot 1 header ($FF = empty)
+$0310  anim_queue_id0_lo         [prg_0e_0f.asm:96]  slot 0 tile-animation id lo
+$0311  anim_queue_id0_hi         [prg_0e_0f.asm:97]  slot 0 tile-animation id hi
+$0380  vram_script_buf         [prg_0e_0f.asm:99]  record base; fields accessed as vram_script_buf+offset
+$042C  btl_panel_params         [prg_0e_0f.asm:101]  panel parameter block (effect target / officer id at +0)
+$044C  btl_panel_fields         [prg_0e_0f.asm:102]  troop-count field block (fields 0-7, cleared through +$22)
+$04A8  btl_sideev_params         [prg_0e_0f.asm:103]  side-event panel params (+0..+2)
+$04AB  btl_sideev_troop_a         [prg_0e_0f.asm:104]  side-event panel troop count slot 0 (A/B swapped)
+$04AC  btl_sideev_troop_b         [prg_0e_0f.asm:105]  side-event panel troop count slot 1 (A/B swapped)
+$04AD  btl_sideev_strip_a         [prg_0e_0f.asm:106]  side-event panel strip pointer slot 0 (A/B swapped)
+$04AE  btl_sideev_strip_b         [prg_0e_0f.asm:107]  side-event panel strip pointer slot 1 (A/B swapped)
+$04BC  btl_strip_row_param         [prg_0e_0f.asm:108]  overlay strip redraw row param ($D0)
+$04C1  btl_attack_mirror_a         [prg_0e_0f.asm:109]  side A attack value mirror (of btl_attack_a)
+$04C2  btl_attack_mirror_b         [prg_0e_0f.asm:110]  side B attack value mirror (of btl_attack_b)
+$0514  btl_strip_sel_a         [prg_0e_0f.asm:112]  side A strip buffer pointer / selection
+$0515  btl_strip_flag_a         [prg_0e_0f.asm:113]  side A strip flag (2 = drained/retreat, mode 3 = AI strip)
+$0516  btl_strip_sel_b         [prg_0e_0f.asm:114]  side B strip buffer pointer / selection
+$0517  btl_strip_flag_b         [prg_0e_0f.asm:115]  side B strip flag
+$0540  btl_overlay_phase         [prg_0e_0f.asm:117]  BattleOverlayDispatch phase (0-6, $B)
+$0541  btl_overlay_sub         [prg_0e_0f.asm:118]  BattleOverlayDispatch sub-phase (per-phase state)
+$0544  battle_phase         [prg_0e_0f.asm:119]  battle mode phase (0-4 normal, 5 = siege battle; also battle map index)
+$0545  btl_scan_col         [prg_0e_0f.asm:120]  roster scan column (0-$14)
+$0546  btl_scan_row         [prg_0e_0f.asm:121]  side-group priority row
+$0547  btl_scan_wait         [prg_0e_0f.asm:122]  scan frame wait
+$0548  btl_frame_counter         [prg_0e_0f.asm:123]  per-phase frame/step counter (also roster index, damage amount, menu step)
+$0549  btl_acting_unit         [prg_0e_0f.asm:124]  acting unit id / side / player index (bit7 = none)
+$054A  btl_walk_row         [prg_0e_0f.asm:125]  cursor walk/marker row <<4 (also point tier, target row)
+$054B  btl_walk_col         [prg_0e_0f.asm:126]  cursor walk/target column <<4 (also phase resume latch)
+$054C  btl_recorded_status         [prg_0e_0f.asm:127]  column recorded status (also sub-phase resume latch)
+$054D  btl_target_col         [prg_0e_0f.asm:128]  attack target column
+$054F  btl_command         [prg_0e_0f.asm:129]  acting unit command value
+$0550  btl_order_slots_a         [prg_0e_0f.asm:131]  side A battle order slots (1 = withdraw, AI assignment)
+$0554  btl_order_slots_b         [prg_0e_0f.asm:132]  side B battle order slots
+$0558  btl_advance_base         [prg_0e_0f.asm:134]  acting side roster base slot (0 or $0B)
+$0559  btl_advance_dir         [prg_0e_0f.asm:135]  advance direction code (0 up, 1 down, 2 left, 3 right)
+$055A  btl_advance_marker_row         [prg_0e_0f.asm:136]  advance marker position row (<<4)
+$055B  btl_advance_marker_col         [prg_0e_0f.asm:137]  advance marker position column (<<4)
+$0560  btl_strip_buf_a         [prg_0e_0f.asm:139]  overlay strip 0 buffer pointer lo (side A representative id)
+$0561  btl_strip_buf_b         [prg_0e_0f.asm:140]  overlay strip 1 buffer pointer lo (side B representative id)
+$0562  btl_input_mode_a         [prg_0e_0f.asm:141]  side A input mode (0-2 human pad, 3 = AI)
+$0563  btl_input_mode_b         [prg_0e_0f.asm:142]  side B input mode
+$0564  btl_country_a         [prg_0e_0f.asm:143]  side A country id
+$0565  btl_country_b         [prg_0e_0f.asm:144]  side B country id
+$0566  btl_col_count_a         [prg_0e_0f.asm:145]  side A battlefield column count
+$0567  btl_col_count_b         [prg_0e_0f.asm:146]  side B battlefield column count
+$0568  btl_player_request_a         [prg_0e_0f.asm:148]  pad 1 player-request handoff flag
+$0569  btl_player_request_b         [prg_0e_0f.asm:149]  pad 2 player-request handoff flag
+$056A  btl_attack_a         [prg_0e_0f.asm:151]  side A attack value (periodic reload via btl_reload_a)
+$056B  btl_attack_b         [prg_0e_0f.asm:152]  side B attack value
+$056C  btl_formation_a         [prg_0e_0f.asm:153]  side A formation index (0-3: Serpent/Goose/Wedge/Fish Scale)
+$056D  btl_formation_b         [prg_0e_0f.asm:154]  side B formation index
+$056E  btl_defense_a         [prg_0e_0f.asm:155]  side A edge-column defense value
+$056F  btl_defense_b         [prg_0e_0f.asm:156]  side B edge-column defense value
+$0570  btl_edge_bonus_a         [prg_0e_0f.asm:157]  side A edge-column attack bonus (column 0)
+$0571  btl_edge_bonus_b         [prg_0e_0f.asm:158]  side B edge-column attack bonus (column $0B)
+$0572  btl_point_budget_a         [prg_0e_0f.asm:159]  side A tactic point budget
+$0573  btl_point_budget_b         [prg_0e_0f.asm:160]  side B tactic point budget
+$0574  btl_status_ctr0         [prg_0e_0f.asm:162]  status counter byte 0 (phase gate / stat-check rows)
+$0575  btl_status_ctr1         [prg_0e_0f.asm:163]  status counter byte 1 (range counters, row-2 effect)
+$0576  btl_status_ctr2         [prg_0e_0f.asm:164]  status counter byte 2 (reload counter latch, row-3 effect)
+$0577  btl_status_ctr3         [prg_0e_0f.asm:165]  status counter byte 3 (attack bonus counter, row-4 effect)
+$0578  btl_reload_a         [prg_0e_0f.asm:166]  side A attack value reload latch
+$0579  btl_reload_b         [prg_0e_0f.asm:167]  side B attack value reload latch
+$057A  btl_round_pass         [prg_0e_0f.asm:168]  round-pass counter (shifts AI order window at >= 4)
+$057B  btl_input_mask         [prg_0e_0f.asm:169]  menu input mask (0 suppresses B1D_1E_MenuUpdate input)
+$057C  btl_side_index         [prg_0e_0f.asm:170]  AI tactic / taunt scene side index (0/1)
+$0580  btl_unit_col_a         [prg_0e_0f.asm:172]  unit columns, side A (11 entries; $FF empty, $FE cleared)
+$058B  btl_unit_col_b         [prg_0e_0f.asm:173]  unit columns, side B
+$0596  btl_unit_row_a         [prg_0e_0f.asm:174]  unit rows, side A
+$05A1  btl_unit_row_b         [prg_0e_0f.asm:175]  unit rows, side B
+$05AC  btl_troops_a         [prg_0e_0f.asm:176]  side A troop count (commander)
+$05B7  btl_troops_b         [prg_0e_0f.asm:177]  side B troop count (commander)
+$05C2  btl_roster_code_a         [prg_0e_0f.asm:178]  roster status codes, side A (hi nibble status, lo action bits)
+$05CD  btl_roster_code_b         [prg_0e_0f.asm:179]  roster status codes, side B
+$0700  snd_chan_state         [prg_0e_0f.asm:181]  channel state (0 = off, 2 = init, $FF = remove, else playing)
+$0701  snd_chan_hw_idx         [prg_0e_0f.asm:182]  hardware channel index (& 7 selects mask tables)
+$0702  snd_chan_stream_lo         [prg_0e_0f.asm:183]  command stream pointer lo
+$0703  snd_chan_stream_hi         [prg_0e_0f.asm:184]  command stream pointer hi
+$0704  snd_chan_duration         [prg_0e_0f.asm:185]  duration byte (hi nibble base/flag, lo nibble current)
+$0705  snd_chan_dur_ctr         [prg_0e_0f.asm:186]  duration countdown
+$0706  snd_chan_volume         [prg_0e_0f.asm:187]  volume/register byte (current)
+$0707  snd_chan_volume_sv         [prg_0e_0f.asm:188]  volume/register byte (saved copy)
+$0708  snd_chan_note_ctr         [prg_0e_0f.asm:189]  note lifetime counter (0 removes channel)
+$0709  snd_chan_sweep         [prg_0e_0f.asm:190]  sweep register value ($4001)
+$070A  snd_chan_vib_ctr0         [prg_0e_0f.asm:191]  vibrato counter 0
+$070B  snd_chan_vib_ctr1         [prg_0e_0f.asm:192]  vibrato counter 1
+$070C  snd_chan_aux0c         [prg_0e_0f.asm:193]  channel work byte ($0C)
+$070D  snd_chan_freq_period         [prg_0e_0f.asm:194]  pitch frame modulo (freq division loop)
+$070E  snd_chan_frame_ctr         [prg_0e_0f.asm:195]  pitch frame counter
+$070F  snd_chan_decay_ctr         [prg_0e_0f.asm:196]  envelope decay counter
+$0710  snd_chan_decay_rld         [prg_0e_0f.asm:197]  envelope decay reload
+$0711  snd_chan_decay_tmr         [prg_0e_0f.asm:198]  envelope decay timer
+$0712  snd_chan_freq_acc         [prg_0e_0f.asm:199]  frequency/vibrato accumulator
+$0713  snd_chan_aux13         [prg_0e_0f.asm:200]  channel work byte ($13)
+$0714  snd_chan_cmd_rld         [prg_0e_0f.asm:201]  command frame reload
+$0715  snd_chan_cmd_tmr         [prg_0e_0f.asm:202]  command frame timer
+$07F2  snd_active_mask         [prg_0e_0f.asm:204]  active channel mask accumulated each frame
+$07F3  snd_hw_index         [prg_0e_0f.asm:205]  current hardware channel index (0-7)
+$07F4  snd_channel_mode         [prg_0e_0f.asm:206]  per-channel mode byte (from ChannelModeTable)
+$07F5  snd_reg_base         [prg_0e_0f.asm:207]  hardware register base (hw index * 4)
+$07F6  snd_apu_enable         [prg_0e_0f.asm:208]  APU $4015 channel-enable shadow
+$07F7  snd_freq_lo         [prg_0e_0f.asm:209]  note frequency divisor lo / freq shift accumulator
+$07F8  snd_freq_hi         [prg_0e_0f.asm:210]  note frequency divisor hi
+$07F9  snd_frame_ctr         [prg_0e_0f.asm:211]  engine frame counter
+
+====================================================================================================
+BANK: prg_17_18.asm
+====================================================================================================
+$0000  col_offset (x21)   [prg_17_18.asm:5746]  
+$0000  menu_tile_offset (x2)    [prg_17_18.asm:3341]  
+$0000  officer_data_ptr (x33)   [prg_17_18.asm:2952]  
+$0000  officer_ptr_lo         [prg_17_18.asm:7782]  
+$0000  ones_tile         [prg_17_18.asm:7784]  
+$0000  param_byte1 (x19)   [prg_17_18.asm:241]  
+$0000  ppu_addr_lo         [prg_17_18.asm:2325]  
+$0000  ppu_col_lo         [prg_17_18.asm:7194]  PPU dest addr lo (caller sets)
+$0000  ppu_col_offset (x7)    [prg_17_18.asm:6810]  
+$0000  random_offset         [prg_17_18.asm:3756]  
+$0000  sprite_pos         [prg_17_18.asm:7600]  sprite buffer position / quotient
+$0000  sprite_ptr_lo         [prg_17_18.asm:7312]  Sprite data ptr lo (output)
+$0000  src_ptr_lo         [prg_17_18.asm:7496]  
+$0001  officer_pos         [prg_17_18.asm:7601]  officer position value / remainder
+$0001  officer_ptr_hi         [prg_17_18.asm:7783]  
+$0001  param_byte2         [prg_17_18.asm:7734]  
+$0001  ppu_addr_hi (x15)   [prg_17_18.asm:242]  
+$0001  ppu_col_hi         [prg_17_18.asm:7195]  PPU dest addr hi (set to $21)
+$0001  ppu_tile_hi (x8)    [prg_17_18.asm:3342]  
+$0001  ppu_tile_lo (x4)    [prg_17_18.asm:3182]  
+$0001  sprite_ptr_hi         [prg_17_18.asm:7313]  Sprite data ptr hi (output, adjusted)
+$0001  src_ptr_hi         [prg_17_18.asm:7497]  
+$0001  stat_shifted         [prg_17_18.asm:3099]  
+$0001  stat_value         [prg_17_18.asm:7785]  
+$0001  tileset_offset (x2)    [prg_17_18.asm:6811]  
+$0002  battle_tile_attr (x2)    [prg_17_18.asm:4012]  
+$0002  event_tile_attr         [prg_17_18.asm:4775]  
+$0002  flip_flags         [prg_17_18.asm:7381]  Sprite flip flags (for OAM writer)
+$0002  metatile_id         [prg_17_18.asm:7498]  
+$0002  sprite_flip_flags         [prg_17_18.asm:7877]  Flip flags for OAM writer ($03 = H+V)
+$0002  tile_attr         [prg_17_18.asm:3100]  
+$0002  tile_attr_byte (x15)   [prg_17_18.asm:299]  
+$0002  tile_src_lo         [prg_17_18.asm:7196]  Source pointer lo (computed)
+$0002  tilemap_attr (x6)    [prg_17_18.asm:5443]  
+$0003  base_y_pos         [prg_17_18.asm:7499]  
+$0003  div_loop_count (x2)    [prg_17_18.asm:3101]  
+$0003  param_0003 (x7)    [prg_17_18.asm:600]  
+$0003  sprite_row_count         [prg_17_18.asm:3059]  
+$0003  tile_count_hi         [prg_17_18.asm:7787]  
+$0003  tile_src_hi         [prg_17_18.asm:7197]  Source pointer hi (computed)
+$0004  col_counter_lo (x4)    [prg_17_18.asm:363]  
+$0004  offset_hi         [prg_17_18.asm:7500]  
+$0004  tile_src_lo2         [prg_17_18.asm:7198]  Temp copy for multiply
+$0005  tile_col_index (x6)    [prg_17_18.asm:364]  
+$0005  tile_offset         [prg_17_18.asm:7501]  
+$0005  tile_src_hi2         [prg_17_18.asm:7199]  Temp copy for multiply
+$0006  current_row (x9)    [prg_17_18.asm:365]  
+$0007  max_rows (x4)    [prg_17_18.asm:366]  
+$0007  row_count         [prg_17_18.asm:7788]  
+$0008  attr_base_offset (x4)    [prg_17_18.asm:882]  
+$0008  ptr_0008_lo (x4)    [prg_17_18.asm:1112]  
+$0009  ptr_0008_hi (x4)    [prg_17_18.asm:1113]  
+$000A  overlay_data_ptr (x15)   [prg_17_18.asm:300]  
+$000A  tile_ptr_lo         [prg_17_18.asm:264]  
+$000A  x_coord_base         [prg_17_18.asm:7314]  X base coord (for OAM writer)
+$000B  ptr_hi (x7)    [prg_17_18.asm:344]  
+$000B  tile_ptr_hi         [prg_17_18.asm:265]  
+$000C  attr_byte_ptr_lo         [prg_17_18.asm:2832]  
+$000C  attr_ptr_lo         [prg_17_18.asm:266]  
+$000C  scene_coord_ptr (x16)   [prg_17_18.asm:561]  
+$000C  work_ptr_lo         [prg_17_18.asm:2463]  
+$000C  y_coord_base         [prg_17_18.asm:7315]  Y base coord (for OAM writer)
+$000D  attr_byte_ptr_hi         [prg_17_18.asm:2833]  
+$000D  attr_ptr_hi         [prg_17_18.asm:267]  
+$000D  work_ptr_hi (x12)   [prg_17_18.asm:562]  
+$000E  coord_byte_ptr_lo         [prg_17_18.asm:2834]  
+$000E  coord_high_bits (x5)    [prg_17_18.asm:1115]  
+$000E  coord_ptr_lo (x8)    [prg_17_18.asm:885]  
+$000F  coord_byte_ptr_hi         [prg_17_18.asm:2835]  
+$000F  coord_ptr_hi (x8)    [prg_17_18.asm:886]  
+$000F  param_000f         [prg_17_18.asm:1260]  
+$0010  combat_threshold (x3)    [prg_17_18.asm:3629]  
+$0010  intrigue_flags         [prg_17_18.asm:4594]  
+$0010  ptr_0010_lo (x23)   [prg_17_18.asm:2535]  
+$0010  scroll_col_off         [prg_17_18.asm:7382]  Scroll column offset (input)
+$0010  slot_base         [prg_17_18.asm:7602]  base offset for sprite slot ($A4 or $B2)
+$0010  sprite_index         [prg_17_18.asm:7878]  Sprite data index (input from caller)
+$0010  temp_0010 (x3)    [prg_17_18.asm:4153]  
+$0010  tilemap_work (x2)    [prg_17_18.asm:5444]  
+$0010  var_0010 (x2)    [prg_17_18.asm:1973]  
+$0010  work_0010 (x3)    [prg_17_18.asm:887]  
+$0010  work_val         [prg_17_18.asm:4015]  
+$0011  ptr_0010_hi (x19)   [prg_17_18.asm:2536]  
+$0011  scroll_dir         [prg_17_18.asm:7383]  Scroll direction: 0=fwd, nonzero=bwd
+$0011  temp_0011 (x6)    [prg_17_18.asm:5787]  
+$0011  work_0011         [prg_17_18.asm:4345]  
+$0012  formation_score         [prg_17_18.asm:4902]  
+$0012  menu_index (x2)    [prg_17_18.asm:3345]  
+$0012  player_offset         [prg_17_18.asm:7384]  Extra offset from player state
+$0012  tilemap_work (x4)    [prg_17_18.asm:5925]  
+$0016  data_ptr_offset         [prg_17_18.asm:2335]  
+$0016  tile_col_ptr_lo         [prg_17_18.asm:2836]  
+$0016  work_0016         [prg_17_18.asm:2728]  
+$0017  ptr_0017_lo         [prg_17_18.asm:2663]  
+$0017  temp_0017 (x2)    [prg_17_18.asm:1974]  
+$0017  tile_col_ptr_hi         [prg_17_18.asm:2837]  
+$0018  adjacency_ptr_offset (x2)    [prg_17_18.asm:1003]  
+$0018  ptr_0017_hi         [prg_17_18.asm:2664]  
+$0018  ptr_0018_lo         [prg_17_18.asm:1849]  
+$0018  tile_attr_ptr_lo         [prg_17_18.asm:2838]  
+$0018  var_0018 (x2)    [prg_17_18.asm:1550]  
+$0018  work_0018         [prg_17_18.asm:2729]  
+$0019  ptr_0018_hi         [prg_17_18.asm:1850]  
+$0019  ptr_0019_lo (x2)    [prg_17_18.asm:888]  
+$0019  tile_attr_ptr_hi         [prg_17_18.asm:2839]  
+$0019  var_0019 (x4)    [prg_17_18.asm:1525]  
+$0019  work_0019         [prg_17_18.asm:2800]  
+$001A  ptr_0019_hi (x2)    [prg_17_18.asm:889]  
+$001A  ptr_001a_lo (x2)    [prg_17_18.asm:368]  
+$001A  work_001a         [prg_17_18.asm:1004]  
+$001B  ptr_001a_hi (x2)    [prg_17_18.asm:369]  
+$001C  ptr_001c_lo (x4)    [prg_17_18.asm:370]  
+$001C  scene_byte_ptr_lo         [prg_17_18.asm:2840]  
+$001D  ptr_001c_hi (x4)    [prg_17_18.asm:371]  
+$001D  scene_byte_ptr_hi         [prg_17_18.asm:2841]  
+$001D  var_001d         [prg_17_18.asm:1280]  
+$001E  ptr_001e_lo (x5)    [prg_17_18.asm:372]  
+$001F  ptr_001e_hi (x5)    [prg_17_18.asm:373]  
+$001F  var_001f         [prg_17_18.asm:1281]  
+$0050  addr_rng_index         [prg_17_18.asm:69]  RNG table index
+$0058  addr_trampoline_saved_bank         [prg_17_18.asm:70]  Trampoline saved bank
+$006A  temp_006a         [prg_17_18.asm:8286]  
+$006C  ptr_006c_lo         [prg_17_18.asm:8287]  
+$006D  ptr_006c_hi         [prg_17_18.asm:8288]  
+$0078  addr_sub_state         [prg_17_18.asm:22]  Sub-state within each major state
+$007A  addr_game_state         [prg_17_18.asm:21]  State counter (0-14), indexes VectorTable
+$007C  addr_sprite_count         [prg_17_18.asm:23]  Current OAM slot index
+$007E  addr_nmi_ctrl         [prg_17_18.asm:30]  NMI sub-dispatch control bits
+$0081  addr_pad1_edge         [prg_17_18.asm:33]  Pad 1 newly-pressed buttons
+$0082  addr_pad2_edge         [prg_17_18.asm:34]  Pad 2 newly-pressed buttons
+$0083  addr_pad1_raw         [prg_17_18.asm:35]  Pad 1 raw button state
+$0084  addr_pad1_prev         [prg_17_18.asm:36]  Pad 1 previous frame state
+$0085  addr_pad2_raw         [prg_17_18.asm:37]  Pad 2 raw button state
+$0086  addr_pad2_prev         [prg_17_18.asm:38]  Pad 2 previous frame state
+$0087  addr_anim_direction         [prg_17_18.asm:41]  Palette animation direction
+$0088  addr_anim_step         [prg_17_18.asm:42]  Palette animation step
+$0089  addr_anim_speed         [prg_17_18.asm:43]  Palette animation speed
+$008A  addr_anim_counter         [prg_17_18.asm:44]  Palette animation tick counter
+$008B  addr_ppu_ctrl_ram         [prg_17_18.asm:26]  RAM copy of PPU control ($2000)
+$008C  addr_ppu_mask_ram         [prg_17_18.asm:27]  RAM copy of PPU mask ($2001)
+$008E  addr_scroll_x         [prg_17_18.asm:47]  Scroll X position
+$008F  addr_scroll_x_hi         [prg_17_18.asm:48]  Scroll X high (nametable bit)
+$0090  addr_scroll_y         [prg_17_18.asm:49]  Scroll Y position
+$0091  addr_scroll_y_hi         [prg_17_18.asm:50]  Scroll Y high
+$0092  ptr_0092_lo (x2)    [prg_17_18.asm:719]  
+$0093  ptr_0092_hi (x2)    [prg_17_18.asm:720]  
+$0094  addr_input_prev_x         [prg_17_18.asm:53]  Input prev X change flag
+$0095  addr_input_prev_y         [prg_17_18.asm:54]  Input prev Y change flag
+$0097  temp_0097 (x2)    [prg_17_18.asm:4565]  
+$0098  addr_display_mode         [prg_17_18.asm:28]  Display mode parameter
+$0099  addr_display_mode_h         [prg_17_18.asm:29]  Display mode parameter (high)
+$009C  addr_ctrl_state_x         [prg_17_18.asm:55]  Controller state X
+$009D  addr_ctrl_state_y         [prg_17_18.asm:56]  Controller state Y
+$00A4  callback_result (x4)    [prg_17_18.asm:3249]  
+$00A8  bank_switch_ptr (x6)    [prg_17_18.asm:890]  
+$00A8  ptr_00a8_lo         [prg_17_18.asm:9340]  
+$00A9  ptr_00a8_hi         [prg_17_18.asm:9341]  
+$00AA  ptr_00aa_lo         [prg_17_18.asm:9342]  
+$00AB  ptr_00aa_hi         [prg_17_18.asm:9343]  
+$00AC  ptr_00ac_lo         [prg_17_18.asm:9344]  
+$00AD  ptr_00ac_hi         [prg_17_18.asm:9345]  
+$00AE  addr_chr_bank_0         [prg_17_18.asm:59]  CHR bank 0 ($8000)
+$00AE  row_data_buf         [prg_17_18.asm:7502]  
+$00AF  addr_chr_bank_1         [prg_17_18.asm:60]  CHR bank 1 ($8800)
+$00B0  addr_chr_bank_2         [prg_17_18.asm:61]  CHR bank 2 ($9000)
+$00B1  addr_chr_bank_3         [prg_17_18.asm:62]  CHR bank 3 ($9800)
+$00B2  addr_chr_bank_4         [prg_17_18.asm:63]  CHR bank 4 ($A000)
+$00B3  addr_chr_bank_5         [prg_17_18.asm:64]  CHR bank 5 ($A800)
+$00B4  addr_chr_bank_6         [prg_17_18.asm:65]  CHR bank 6 ($B000)
+$00B5  addr_chr_bank_7         [prg_17_18.asm:66]  CHR bank 7 ($B800)
+$00BB  ptr_00bb_lo         [prg_17_18.asm:4596]  
+$00BB  temp_00bb         [prg_17_18.asm:4566]  
+$00BC  ptr_00bb_hi         [prg_17_18.asm:4597]  
+$00BD  temp_00bd         [prg_17_18.asm:4598]  
+$00BE  ptr_00be_lo         [prg_17_18.asm:6540]  
+$00BE  tile_buf         [prg_17_18.asm:9101]  
+$00BF  ptr_00be_hi         [prg_17_18.asm:6541]  
+$00C0  ptr_00c0_lo         [prg_17_18.asm:6542]  
+$00C1  ptr_00c0_hi         [prg_17_18.asm:6543]  
+$00C6  ptr_00c6_lo (x3)    [prg_17_18.asm:4729]  
+$00C6  temp_00c6 (x3)    [prg_17_18.asm:5371]  
+$00C7  ptr_00c6_hi (x3)    [prg_17_18.asm:4730]  
+$00C7  ptr_00c7_lo         [prg_17_18.asm:5848]  
+$00C8  ptr_00c7_hi         [prg_17_18.asm:5849]  
+$00C8  ptr_00c8_lo (x2)    [prg_17_18.asm:6546]  
+$00C8  temp_00c8         [prg_17_18.asm:4731]  
+$00C9  ptr_00c8_hi (x2)    [prg_17_18.asm:6547]  
+$00C9  temp_00c9 (x3)    [prg_17_18.asm:6131]  
+$00CC  ppu_col_lo (x6)    [prg_17_18.asm:5343]  
+$00CE  ptr_00ce_lo (x3)    [prg_17_18.asm:4732]  
+$00CE  temp_00ce (x3)    [prg_17_18.asm:5372]  
+$00CF  ptr_00ce_hi (x3)    [prg_17_18.asm:4733]  
+$00CF  ptr_00cf_lo         [prg_17_18.asm:5850]  
+$00D0  ptr_00cf_hi         [prg_17_18.asm:5851]  
+$00D0  ptr_00d0_lo (x2)    [prg_17_18.asm:6550]  
+$00D0  temp_00d0         [prg_17_18.asm:4734]  
+$00D1  ptr_00d0_hi (x2)    [prg_17_18.asm:6551]  
+$00D1  temp_00d1 (x3)    [prg_17_18.asm:6133]  
+$00D4  ppu_col_mid (x6)    [prg_17_18.asm:5344]  
+$00D6  ptr_00d6_lo (x3)    [prg_17_18.asm:4735]  
+$00D6  temp_00d6 (x3)    [prg_17_18.asm:5373]  
+$00D7  ptr_00d6_hi (x3)    [prg_17_18.asm:4736]  
+$00D7  ptr_00d7_lo         [prg_17_18.asm:5852]  
+$00D8  ptr_00d7_hi         [prg_17_18.asm:5853]  
+$00D8  ptr_00d8_lo (x2)    [prg_17_18.asm:6554]  
+$00D8  temp_00d8         [prg_17_18.asm:4737]  
+$00D9  ptr_00d8_hi (x2)    [prg_17_18.asm:6555]  
+$00D9  temp_00d9 (x3)    [prg_17_18.asm:6135]  
+$00DC  ppu_col_hi (x6)    [prg_17_18.asm:5345]  
+$0100  attr_buf         [prg_17_18.asm:9102]  
+$0115  ptr_0115_lo (x2)    [prg_17_18.asm:9199]  
+$0116  ptr_0115_hi (x2)    [prg_17_18.asm:9200]  
+$0117  var_0117         [prg_17_18.asm:9277]  
+$0142  var_0142         [prg_17_18.asm:1116]  
+$0166  var_0166         [prg_17_18.asm:1195]  
+$018A  var_018a         [prg_17_18.asm:2128]  
+$019E  attr_accumulator         [prg_17_18.asm:2338]  
+$01B0  ptr_01b0_lo         [prg_17_18.asm:1633]  
+$01B1  ptr_01b0_hi         [prg_17_18.asm:1634]  
+$01B2  ptr_01b2_lo         [prg_17_18.asm:1635]  
+$01B3  ptr_01b2_hi         [prg_17_18.asm:1636]  
+$0200  sprite_list (x2)    [prg_17_18.asm:6992]  
+$0300  confirm_check_0         [prg_17_18.asm:158]  Confirm check flag 0 (set by display, read by button check)
+$0304  confirm_check_1         [prg_17_18.asm:159]  Confirm check flag 1 (set by display, read by button check)
+$0310  display_queue_ptr_lo         [prg_17_18.asm:160]  PPU display queue pointer lo (consumed by NMI)
+$0311  display_queue_ptr_hi         [prg_17_18.asm:161]  PPU display queue pointer hi
+$0312  display_queue_end_lo         [prg_17_18.asm:162]  PPU display queue terminator lo ($FF)
+$0313  display_queue_end_hi         [prg_17_18.asm:163]  PPU display queue terminator hi ($FF)
+$0380  ptr_0380_lo (x2)    [prg_17_18.asm:8904]  
+$0380  sprite_y_buffer         [prg_17_18.asm:155]  Sprite Y-position buffer (OAM shadow start)
+$0381  ptr_0380_hi (x2)    [prg_17_18.asm:8905]  
+$0382  ptr_0382_lo (x2)    [prg_17_18.asm:8906]  
+$0383  ptr_0382_hi (x2)    [prg_17_18.asm:8907]  
+$03B7  map_scroll_ptr_0_lo         [prg_17_18.asm:166]  Map scroll PPU pointer 0 lo
+$03B8  map_scroll_ptr_0_hi         [prg_17_18.asm:167]  Map scroll PPU pointer 0 hi
+$03B9  map_scroll_ptr_1_lo         [prg_17_18.asm:168]  Map scroll PPU pointer 1 lo
+$03BA  map_scroll_ptr_1_hi         [prg_17_18.asm:169]  Map scroll PPU pointer 1 hi
+$03BB  map_scroll_ptr_2_lo         [prg_17_18.asm:170]  Map scroll PPU pointer 2 lo
+$03BC  map_scroll_ptr_2_hi         [prg_17_18.asm:171]  Map scroll PPU pointer 2 hi
+$0400  strategy_work_ptr_lo         [prg_17_18.asm:75]  Strategy command dispatch work pointer lo
+$0401  strategy_work_ptr_hi         [prg_17_18.asm:76]  Strategy command dispatch work pointer hi
+$0402  work_offset         [prg_17_18.asm:8182]  
+$0408  scroll_ptr_lo         [prg_17_18.asm:78]  Scroll position index into officer list
+$0409  scroll_ptr_hi         [prg_17_18.asm:79]  Scroll vertical position
+$040A  scroll_done_flag         [prg_17_18.asm:8738]  
+$040C  strategy_cursor_lo         [prg_17_18.asm:81]  Strategy command dispatch cursor/index lo
+$040D  strategy_cursor_hi         [prg_17_18.asm:82]  Strategy command dispatch cursor/index hi
+$040E  scroll_src_ptr_lo         [prg_17_18.asm:8793]  
+$040F  scroll_src_ptr_hi         [prg_17_18.asm:8794]  
+$0410  strategy_officer_list_lo         [prg_17_18.asm:84]  Officer ID list for strategy command dispatch
+$0411  strategy_officer_list_hi         [prg_17_18.asm:85]  Officer ID list hi (usually unused)
+$0424  troop_assign_counter_lo         [prg_17_18.asm:87]  Troop assignment progress counter lo
+$0425  troop_assign_counter_hi         [prg_17_18.asm:88]  Troop assignment progress counter hi
+$042C  selected_officer_id         [prg_17_18.asm:89]  Active/selected officer ID
+$042D  officer_id_ext         [prg_17_18.asm:4091]  
+$042E  war_result_phase         [prg_17_18.asm:91]  War result phase (shared with strategy command dispatch)
+$042F  damage_amount_lo         [prg_17_18.asm:4398]  
+$0430  damage_amount_hi         [prg_17_18.asm:4399]  
+$0431  damage_applied         [prg_17_18.asm:4400]  
+$0435  dispatch_timer         [prg_17_18.asm:93]  Dispatch timer / countdown
+$046C  menu_blink_timer         [prg_17_18.asm:94]  Menu selection blink timer
+$0470  anim_ppu_ptr_lo         [prg_17_18.asm:96]  Animation PPU pointer lo
+$0471  anim_ppu_ptr_hi         [prg_17_18.asm:97]  Animation PPU pointer hi
+$0472  map_scroll_ptr_lo         [prg_17_18.asm:98]  Map scroll source pointer lo
+$0473  map_scroll_ptr_hi         [prg_17_18.asm:99]  Map scroll source pointer hi
+$04A8  game_state         [prg_17_18.asm:101]  Major game state (0-14), indexes dispatch table
+$04A9  sub_state         [prg_17_18.asm:102]  Sub-state within each major state
+$04AA  active_player_slot         [prg_17_18.asm:103]  Current player index (0 or 1)
+$04AA  player_slot         [prg_17_18.asm:7386]  Active player slot index
+$04AB  player_flag_0         [prg_17_18.asm:104]  Player 0 flag/status byte
+$04AD  player_officer_id_0         [prg_17_18.asm:105]  Officer ID for player 0
+$04AE  player_officer_id_1         [prg_17_18.asm:106]  Officer ID for player 1
+$04AF  name_tile_index         [prg_17_18.asm:107]  Name tile / scroll tile data index
+$04AF  player_states         [prg_17_18.asm:7387]  Player state array base
+$04B0  strategy_action_index         [prg_17_18.asm:108]  Strategy Mode action type index
+$04B1  player_army_value_0         [prg_17_18.asm:109]  Army value for player 0
+$04B2  player_army_value_1         [prg_17_18.asm:110]  Army value for player 1
+$04B3  player_random_offset_0         [prg_17_18.asm:111]  Random offset for player 0
+$04B5  player_action_timer_0         [prg_17_18.asm:112]  Action timer for player 0
+$04B8  anim_timer         [prg_17_18.asm:113]  Animation / scroll timer
+$04B8  scroll_timer         [prg_17_18.asm:7385]  Frame counter for animation
+$04B9  map_scroll_phase         [prg_17_18.asm:114]  Map scroll animation phase
+$04BA  scroll_row_count         [prg_17_18.asm:115]  Scroll row count / sprite base
+$04BA  sprite_pos_lo         [prg_17_18.asm:7316]  Sprite position ptr lo (input)
+$04BA  sprite_x_base         [prg_17_18.asm:7388]  Sprite X coordinate base
+$04BB  slide_y_pos         [prg_17_18.asm:116]  Slide Y position / state
+$04BB  sprite_pos_hi         [prg_17_18.asm:7317]  Sprite position ptr hi (input)
+$04BC  cutscene_load_progress         [prg_17_18.asm:117]  Cutscene/overlay load progress
+$04BD  display_ptr_lo         [prg_17_18.asm:118]  Display/map pointer low
+$04BE  display_ptr_hi         [prg_17_18.asm:119]  Display/map pointer high
+$04BF  sub_action_type         [prg_17_18.asm:120]  Sub-action type selector
+$04C0  frame_counter         [prg_17_18.asm:121]  Frame counter
+$04C1  player_scene_index         [prg_17_18.asm:122]  Per-player scene index (array)
+$04C3  event_overlay_flag         [prg_17_18.asm:123]  Event overlay / battle formation flag
+$04C4  ui_state         [prg_17_18.asm:124]  UI state flag
+$04C5  name_tile_ptr_lo         [prg_17_18.asm:125]  Name tile pointer lo
+$04C6  name_tile_ptr_hi         [prg_17_18.asm:126]  Name tile pointer hi
+$04C9  dispatch_step         [prg_17_18.asm:128]  Dispatch step / phase counter
+$04CA  dispatch_src_ptr_lo         [prg_17_18.asm:129]  Dispatch source pointer lo
+$04CB  dispatch_src_ptr_hi         [prg_17_18.asm:130]  Dispatch source pointer hi
+$04CD  dispatch_dst_ptr_lo         [prg_17_18.asm:131]  Dispatch destination pointer lo
+$04CE  dispatch_dst_ptr_hi         [prg_17_18.asm:132]  Dispatch destination pointer hi
+$04D2  dispatch_data_ptr_lo         [prg_17_18.asm:133]  Dispatch data pointer lo
+$04D3  dispatch_data_ptr_hi         [prg_17_18.asm:134]  Dispatch data pointer hi
+$04D4  dispatch_offset_ptr_lo         [prg_17_18.asm:135]  Dispatch offset pointer lo
+$04D5  dispatch_offset_ptr_hi         [prg_17_18.asm:136]  Dispatch offset pointer hi
+$0500  ptr_0500_lo         [prg_17_18.asm:5513]  
+$0501  ptr_0500_hi         [prg_17_18.asm:5514]  
+$0507  param_0507         [prg_17_18.asm:1637]  
+$050E  param_050e         [prg_17_18.asm:9346]  
+$050F  territory_event_type         [prg_17_18.asm:174]  Territory event type selector
+$0514  player0_officer_lo         [prg_17_18.asm:175]  Player 0 officer ID / pointer lo
+$0515  player0_officer_hi         [prg_17_18.asm:176]  Player 0 officer ID hi / battle side array
+$0516  player1_officer_lo         [prg_17_18.asm:177]  Player 1 officer ID / pointer lo
+$0517  player1_officer_hi         [prg_17_18.asm:178]  Player 1 officer ID hi / battle config
+$0540  ptr_0540_lo         [prg_17_18.asm:9290]  
+$0541  strat_scroll_param         [prg_17_18.asm:181]  Strategy scroll / display parameter
+$0542  strat_display_ptr_lo         [prg_17_18.asm:182]  Display buffer pointer lo
+$0543  strat_display_ptr_hi         [prg_17_18.asm:183]  Display buffer pointer hi
+$0544  strat_scroll_index         [prg_17_18.asm:184]  Scroll index / wrap parameter
+$0560  param_0560         [prg_17_18.asm:4154]  
+$056E  param_056e         [prg_17_18.asm:4155]  
+$0570  param_0570         [prg_17_18.asm:4156]  
+$0600  oam_x_pos         [prg_17_18.asm:2801]  OAM sprite X position (reuses tile_grid_coord_x memory)
+$0600  oam_y_pos         [prg_17_18.asm:2730]  OAM sprite Y position (reuses tile_grid_coord_x memory)
+$0600  tile_grid_coord_x         [prg_17_18.asm:140]  X coordinate array (20 entries, $0600-$0613)
+$0614  oam_x_pos         [prg_17_18.asm:2731]  OAM sprite X position (reuses tile_grid_coord_y memory)
+$0614  oam_y_pos         [prg_17_18.asm:2802]  OAM sprite Y position (reuses tile_grid_coord_y memory)
+$0614  tile_grid_coord_y         [prg_17_18.asm:141]  Y coordinate / grid position array (20 entries, $0614-$0627)
+$0628  var_0628         [prg_17_18.asm:1638]  
+$063C  var_063c         [prg_17_18.asm:1639]  
+$0680  tile_index_grid         [prg_17_18.asm:142]  Tile index grid (64 bytes, $0680-$06BF); $FF = empty
+$06A0  adj_col_right (x4)    [prg_17_18.asm:2576]  Primary layer: left-right neighbor column (tile_index_grid+32)
+$06C0  adj_sec_col_left (x2)    [prg_17_18.asm:2620]  Secondary layer: up-down neighbor column (tile_index_grid+64)
+$06E0  adj_sec_col_right (x2)    [prg_17_18.asm:2621]  Secondary layer: left-right neighbor column (tile_index_grid+96)
+$6F07  sram_country_data         [prg_17_18.asm:146]  Country records (7 countries × 8 bytes, $6F07-$6F3E)
+$6F3F  sram_country_param_0         [prg_17_18.asm:147]  Country init param 0 (set to $80 on new game)
+$6F41  sram_country_param_1         [prg_17_18.asm:148]  Country init param 1 (set to $F0 on new game)
+$6F43  sram_scroll_pending         [prg_17_18.asm:149]  Scroll update pending flag (cleared after copy to strategy work ptr)
+$6F44  sram_player_swap         [prg_17_18.asm:150]  Player 2 / palette swap trigger (non-zero = swap active)
+$6F8B  sram_game_start_flag         [prg_17_18.asm:151]  Game start flag (set to $FF on new game)
+$6FE1  sram_territory_event         [prg_17_18.asm:152]  Territory event flag (bit 0 = capture officer)
+
+====================================================================================================
+BANK: prg_19_1a.asm
+====================================================================================================
+
+====================================================================================================
+BANK: prg_1b_1c.asm
+====================================================================================================
+
+====================================================================================================
+BANK: prg_1d_1e.asm
+====================================================================================================
+$0000  zp_ptr_lo         [prg_1d_1e.asm:25]  general-purpose ZP pointer lo (used by 28+ procs)
+$0001  zp_ptr_hi         [prg_1d_1e.asm:26]  general-purpose ZP pointer hi (used by 17+ procs)
+$0002  work2_lo         [prg_1d_1e.asm:27]  secondary workspace lo (OfficerRecCalc, StateHandler, etc.)
+$0003  work2_hi         [prg_1d_1e.asm:28]  secondary workspace hi
+$0004  copy_bank_ctr         [prg_1d_1e.asm:29]  bank copy counter (SramInit, StateHandler)
+$0005  state_tmp2         [prg_1d_1e.asm:1794]  StateHandler temp 2
+$0006  state_tmp         [prg_1d_1e.asm:30]  StateHandler temp / VerifyChecksum workspace
+$0007  bcd_digit2         [prg_1d_1e.asm:31]  BCD result byte 2 (PeriodicOverlayRefresh, YearDisplaySetup)
+$0008  bcd_digit1         [prg_1d_1e.asm:32]  BCD result byte 1 (YearDisplaySetup, MenuUpdate)
+$0009  bcd_digit0         [prg_1d_1e.asm:33]  BCD result byte 0 (MenuUpdate)
+$000A  banked_work0         [prg_1d_1e.asm:34]  BankedDataHandler / DisplayTileData workspace
+$000B  banked_work1         [prg_1d_1e.asm:35]  
+$000C  banked_work2         [prg_1d_1e.asm:36]  (also used by DisplayTileData)
+$000F  state_bcd_mode         [prg_1d_1e.asm:1795]  BCD/scale mode temp
+$0010  tile_ptr_lo         [prg_1d_1e.asm:37]  tilemap data pointer lo (DisplayTileData, StateHandler)
+$0011  tile_ptr_hi         [prg_1d_1e.asm:38]  tilemap data pointer hi
+$0012  cmd_byte         [prg_1d_1e.asm:252]  current command byte from data stream
+$0013  vram_tmp_lo         [prg_1d_1e.asm:40]  VRAM position temp lo (StateHandler, OfficerListHandler)
+$0014  officer_list_wrk         [prg_1d_1e.asm:2797]  officer list workspace
+$0015  state_scale_mode         [prg_1d_1e.asm:1789]  scale mode flag for officer name rendering
+$0016  officer_rec_idx         [prg_1d_1e.asm:1790]  officer record index temp
+$0017  prov_data_ptr_lo         [prg_1d_1e.asm:45]  province/officer data ptr lo (StateHandler, OfficerListHandler)
+$0018  prov_data_ptr_hi         [prg_1d_1e.asm:1791]  province data pointer hi
+$001A  officer_src_lo         [prg_1d_1e.asm:2798]  officer record source ptr lo
+$001B  officer_src_hi         [prg_1d_1e.asm:2799]  officer record source ptr hi
+$001C  officer_dst_lo         [prg_1d_1e.asm:2800]  officer record dest ptr lo
+$001D  officer_dst_hi         [prg_1d_1e.asm:2801]  officer record dest ptr hi
+$0020  province_tmp         [prg_1d_1e.asm:1355]  province data temp
+$005E  frame_tick_ctr         [prg_1d_1e.asm:57]  frame tick counter (PPUTileRender, PeriodicOverlayRefresh)
+$0061  disp_row_count         [prg_1d_1e.asm:58]  display row count / visible rows (OfficerListHandler, SceneRenderer)
+$0068  scene_param0         [prg_1d_1e.asm:59]  SceneRenderer / OfficerRecLookup param 0
+$0069  scene_param1         [prg_1d_1e.asm:60]  SceneRenderer / OfficerRecLookup param 1
+$006A  scene_param2         [prg_1d_1e.asm:61]  SceneRenderer / OfficerRecLookup param 2
+$006B  scene_param3         [prg_1d_1e.asm:62]  SceneRenderer / OfficerRecLookup param 3
+$006C  scene_param4         [prg_1d_1e.asm:63]  SceneRenderer / OfficerRecLookup param 4
+$006D  scene_param5         [prg_1d_1e.asm:64]  SceneRenderer / OfficerRecLookup param 5
+$006E  scene_param6         [prg_1d_1e.asm:65]  SceneRenderer / OfficerRecLookup param 6
+$006F  scene_param7         [prg_1d_1e.asm:66]  SceneRenderer / OfficerRecLookup param 7
+$0070  scene_param8         [prg_1d_1e.asm:67]  SceneRenderer / OfficerRecLookup param 8
+$0071  scene_param9         [prg_1d_1e.asm:68]  SceneRenderer / OfficerRecLookup param 9
+$0072  officer_lookup_x         [prg_1d_1e.asm:5934]  officer lookup X coord
+$0073  officer_lookup_y         [prg_1d_1e.asm:5935]  officer lookup Y coord
+$0074  scene_file_ref         [prg_1d_1e.asm:5936]  scene file reference
+$007D  strategy_trigger         [prg_1d_1e.asm:4992]  strategy menu trigger
+$007E  frame_flags         [prg_1d_1e.asm:255]  bit 0 = render request flag
+$0081  input_flags         [prg_1d_1e.asm:256]  controller input flags
+$008B  ppu_ctrl_mirror         [prg_1d_1e.asm:257]  mirror of PPU_CTRL ($2000)
+$008F  officer_flag_zp         [prg_1d_1e.asm:2802]  officer flag (zero-page)
+$00A6  data_ptr_lo         [prg_1d_1e.asm:253]  menu data stream pointer (16-bit)
+$00A7  data_ptr_hi         [prg_1d_1e.asm:254]  
+$00AE  officer_param_ofs         [prg_1d_1e.asm:76]  officer param data offset (OfficerParamDisp, StateHandler)
+$00B2  state_row_ofs1         [prg_1d_1e.asm:77]  StateHandler row offset 1
+$00B3  tile_row_count         [prg_1d_1e.asm:78]  tile row count (StateHandler, SceneRenderer)
+$00B4  state_row_ofs2         [prg_1d_1e.asm:79]  StateHandler row offset 2
+$00B9  setup_disp_tmp         [prg_1d_1e.asm:1704]  setup temp
+$00BD  banked_bd_lo         [prg_1d_1e.asm:1581]  banked data temp lo
+$00BE  state_be         [prg_1d_1e.asm:1796]  StateHandler temp
+$00BF  setup_disp_b         [prg_1d_1e.asm:5028]  display ptr temp B
+$00C0  setup_disp_c         [prg_1d_1e.asm:5053]  dispatch reset temp C
+$00C1  state_vram_cnt_lo         [prg_1d_1e.asm:81]  StateHandler VRAM counter lo (paired with $00C2)
+$00C2  state_vram_cnt_hi         [prg_1d_1e.asm:82]  StateHandler VRAM counter hi
+$00C3  state_row_cnt1_lo         [prg_1d_1e.asm:83]  StateHandler row counter 1 lo (paired with $00C4)
+$00C4  state_row_cnt1_hi         [prg_1d_1e.asm:84]  StateHandler row counter 1 hi
+$00C6  state_c6         [prg_1d_1e.asm:1797]  StateHandler temp
+$00C7  setup_disp_a         [prg_1d_1e.asm:5029]  display ptr temp A
+$00C8  setup_disp_d         [prg_1d_1e.asm:5054]  dispatch reset temp D
+$00C9  state_row_cnt2_lo         [prg_1d_1e.asm:89]  StateHandler row counter 2 lo (paired with $00CA)
+$00CA  state_row_cnt2_hi         [prg_1d_1e.asm:90]  StateHandler row counter 2 hi
+$00CB  state_vram_cnt2_lo         [prg_1d_1e.asm:92]  StateHandler VRAM counter 2 lo
+$00CC  state_vram_cnt2_hi         [prg_1d_1e.asm:93]  StateHandler VRAM counter 2 hi
+$00CE  state_ce         [prg_1d_1e.asm:1798]  StateHandler temp
+$00CF  setup_disp_e         [prg_1d_1e.asm:5030]  display ptr temp E
+$00D0  setup_disp_f         [prg_1d_1e.asm:5055]  dispatch reset temp F
+$00D1  state_row_cnt3_lo         [prg_1d_1e.asm:94]  StateHandler row counter 3 lo (paired with $00D2)
+$00D2  state_row_cnt3_hi         [prg_1d_1e.asm:95]  StateHandler row counter 3 hi
+$00D3  state_row_cnt4_lo         [prg_1d_1e.asm:96]  StateHandler row counter 4 lo
+$00D4  state_row_cnt4_hi         [prg_1d_1e.asm:97]  StateHandler row counter 4 hi
+$00D6  state_vram_cnt3_lo         [prg_1d_1e.asm:1792]  VRAM counter 3 lo
+$00DA  state_vram_cnt3_hi         [prg_1d_1e.asm:1793]  VRAM counter 3 hi
+$00DB  state_row_cnt5_lo         [prg_1d_1e.asm:100]  StateHandler row counter 5 lo
+$00DC  state_row_cnt5_hi         [prg_1d_1e.asm:101]  StateHandler row counter 5 hi
+$00E1  cur_bank_8000         [prg_1d_1e.asm:258]  current PRG bank mapped at $8000-$9FFF
+$0100  disp_ptr_table         [prg_1d_1e.asm:106]  display pointer table (SetupDisplayPtrs, MenuRenderer_SecondaryDispatch, LoadScenarioData)
+$010C  vfy_chk_10C         [prg_1d_1e.asm:5242]  checksum temp 10C
+$0110  disp_ptr_src_lo         [prg_1d_1e.asm:107]  display ptr source lo (SetupDisplayPtrs copies to $0100)
+$011C  vfy_chk_11C         [prg_1d_1e.asm:5243]  checksum temp 11C
+$0120  disp_ptr_src_hi         [prg_1d_1e.asm:108]  display ptr source hi (SetupDisplayPtrs copies to $0110)
+$0130  setup_disp_src         [prg_1d_1e.asm:5031]  display ptr source
+$0140  tile_buf_base         [prg_1d_1e.asm:109]  state dispatch control / tile buffer base
+$0141  state_scroll_x         [prg_1d_1e.asm:110]  scroll X offset (StateHandler, MapDisplaySetup)
+$0142  state_vram_hi         [prg_1d_1e.asm:111]  VRAM addr hi (StateHandler, MapDisplaySetup)
+$0143  state_vram_pos_lo         [prg_1d_1e.asm:112]  VRAM position lo (StateHandler scroll)
+$0144  state_vram_pos_hi         [prg_1d_1e.asm:113]  VRAM position hi (StateHandler scroll)
+$0145  state_disp_lo         [prg_1d_1e.asm:114]  display VRAM addr lo (StateHandler)
+$0146  state_disp_hi         [prg_1d_1e.asm:115]  display VRAM addr hi (StateHandler)
+$0147  state_attr_lo         [prg_1d_1e.asm:116]  attr block addr lo (StateHandler)
+$0148  state_attr_hi         [prg_1d_1e.asm:117]  attr block addr hi (StateHandler)
+$0149  tilemap_src_lo         [prg_1d_1e.asm:118]  tilemap source ptr lo (StateHandler)
+$014A  tilemap_src_hi         [prg_1d_1e.asm:119]  tilemap source ptr hi (StateHandler)
+$014B  state_scroll_y         [prg_1d_1e.asm:120]  scroll Y / attr merge buffer (StateHandler)
+$0150  officer_idx_buf         [prg_1d_1e.asm:121]  state mode flags / officer index buffer
+$0151  officer_list_idx         [prg_1d_1e.asm:122]  OfficerListHandler index entry
+$0152  state_name_vram_lo         [prg_1d_1e.asm:123]  name VRAM pos lo (StateHandler)
+$0153  state_name_vram_hi         [prg_1d_1e.asm:124]  name VRAM pos hi (StateHandler)
+$0154  state_row_limit         [prg_1d_1e.asm:125]  row limit / total rows (StateHandler, MapDisplaySetup)
+$0160  state_buf_end         [prg_1d_1e.asm:126]  tile row buffer start (56 bytes, StateHandler)
+$0166  state_buf_extra         [prg_1d_1e.asm:1799]  state buffer extra data
+$016F  state_buf_ext2         [prg_1d_1e.asm:1800]  state buffer extension 2
+$0175  state_buf_ext3         [prg_1d_1e.asm:1801]  state buffer extension 3
+$017D  state_buf_ext4         [prg_1d_1e.asm:1802]  state buffer extension 4
+$0183  state_officer_tmp         [prg_1d_1e.asm:127]  StateHandler / OfficerListHandler shared temp
+$0190  state_work_area         [prg_1d_1e.asm:1803]  StateHandler work area
+$0200  oam_buf_lo         [prg_1d_1e.asm:137]  OAM sprite buffer lo (SceneRenderer, SetupBankedData, StateHandler)
+$0201  oam_buf_hi         [prg_1d_1e.asm:138]  OAM sprite buffer hi
+$0202  oam_buf_idx         [prg_1d_1e.asm:139]  OAM sprite buffer index
+$0203  oam_buf_extra         [prg_1d_1e.asm:140]  OAM sprite buffer extra
+$0204  oam_extra         [prg_1d_1e.asm:3186]  OAM sprite data extra byte
+$0300  menu_status         [prg_1d_1e.asm:228]  $FF=done/inactive, $00=need init, $01=active
+$0303  overlay_flag         [prg_1d_1e.asm:229]  $00=direct render, $80=overlay mode
+$0304  tile_col_idx         [prg_1d_1e.asm:230]  current tile column being rendered
+$0305  render_bitmask         [prg_1d_1e.asm:231]  bitmask checked against $005E for render skip
+$0306  vram_pos_hi         [prg_1d_1e.asm:232]  VRAM address high byte for current tile row
+$0307  vram_pos_lo         [prg_1d_1e.asm:233]  VRAM address low byte
+$0308  input_flag         [prg_1d_1e.asm:234]  input pending flag (set when $0081 bit 0 set)
+$0309  saved_pos_hi         [prg_1d_1e.asm:235]  saved VRAM pos hi (for push/pop position)
+$030A  saved_ptr_lo         [prg_1d_1e.asm:236]  saved data ptr lo (for push/pop position)
+$030B  saved_ptr_hi         [prg_1d_1e.asm:237]  saved data ptr hi (for push/pop position)
+$030C  indirect_flag         [prg_1d_1e.asm:238]  $00=direct tiles, $01=indirect/overlay tiles
+$030F  tile_base_offset         [prg_1d_1e.asm:239]  base offset added to tile values in StoreTileByte
+$0310  pos_buf_0         [prg_1d_1e.asm:240]  VRAM position buffer (4-entry circular)
+$0311  pos_buf_1         [prg_1d_1e.asm:241]  
+$0312  pos_buf_2         [prg_1d_1e.asm:242]  
+$0313  pos_buf_3         [prg_1d_1e.asm:243]  
+$031C  tile_row1_hi         [prg_1d_1e.asm:244]  tile buffer row 1: VRAM hi/lo/data
+$031D  tile_row1_lo         [prg_1d_1e.asm:245]  
+$031E  tile_row1_data         [prg_1d_1e.asm:246]  start of row 1 tile data (indexed by tile_col_idx)
+$034B  menu_tile_tmp         [prg_1d_1e.asm:483]  tile temp
+$034C  tile_row2_hi         [prg_1d_1e.asm:247]  tile buffer row 2: VRAM hi/lo/data
+$034D  tile_row2_lo         [prg_1d_1e.asm:248]  
+$034E  tile_row2_data         [prg_1d_1e.asm:249]  start of row 2 tile data
+$037C  sub_state_main         [prg_1d_1e.asm:146]  sub-state dispatch: main (StateHandler)
+$037D  sub_state_prov         [prg_1d_1e.asm:147]  sub-state dispatch: province timer (StateHandler)
+$037E  sub_state_officer         [prg_1d_1e.asm:148]  sub-state dispatch: officer (StateHandler)
+$0380  disp_buf_base         [prg_1d_1e.asm:149]  display/render buffer base (14+ procs)
+$0381  disp_buf_ofs1         [prg_1d_1e.asm:150]  display buffer offset 1 (SceneRenderer, YearDisplaySetup, BankedDataHandler)
+$0382  disp_buf_ofs2         [prg_1d_1e.asm:151]  display buffer offset 2 (SceneRenderer, YearDisplaySetup, BankedDataHandler)
+$0383  disp_buf_ofs3         [prg_1d_1e.asm:152]  display buffer offset 3 (SceneRenderer, YearDisplaySetup)
+$0384  year_disp_84         [prg_1d_1e.asm:1164]  year display buffer 84
+$0385  year_disp_85         [prg_1d_1e.asm:1165]  year display buffer 85
+$0386  year_disp_86         [prg_1d_1e.asm:1166]  year display buffer 86
+$0387  year_disp_87         [prg_1d_1e.asm:1167]  year display buffer 87
+$0388  year_disp_88         [prg_1d_1e.asm:1168]  year display buffer 88
+$0389  disp_buf_ofs4         [prg_1d_1e.asm:153]  display buffer offset 4 (YearDisplaySetup, BankedDataHandler)
+$038A  disp_buf_ofs5         [prg_1d_1e.asm:154]  display buffer offset 5 (YearDisplaySetup, BankedDataHandler)
+$038B  year_disp_8B         [prg_1d_1e.asm:1169]  year display buffer 8B
+$038C  year_disp_8C         [prg_1d_1e.asm:1170]  year display buffer 8C
+$038D  disp_buf_ofs6         [prg_1d_1e.asm:155]  display buffer offset 6 (YearDisplaySetup, BankedDataHandler)
+$038E  disp_buf_ofs7         [prg_1d_1e.asm:156]  display buffer offset 7 (YearDisplaySetup, BankedDataHandler)
+$038F  disp_buf_ofs8         [prg_1d_1e.asm:157]  display buffer offset 8 (YearDisplaySetup, BankedDataHandler)
+$0390  disp_buf_ofs9         [prg_1d_1e.asm:158]  display buffer offset 9 (YearDisplaySetup, BankedDataHandler)
+$0391  disp_buf_ofsA         [prg_1d_1e.asm:159]  display buffer offset A (YearDisplaySetup, BankedDataHandler)
+$0392  disp_buf_ofsB         [prg_1d_1e.asm:160]  display buffer offset B (YearDisplaySetup, BankedDataHandler)
+$0393  disp_buf_ofsC         [prg_1d_1e.asm:161]  display buffer offset C (YearDisplaySetup, BankedDataHandler)
+$0394  disp_buf_ofsD         [prg_1d_1e.asm:162]  display buffer offset D (YearDisplaySetup, BankedDataHandler)
+$0395  banked_395         [prg_1d_1e.asm:1582]  banked data temp
+$039C  banked_39C         [prg_1d_1e.asm:1583]  banked data temp C
+$039D  banked_39D         [prg_1d_1e.asm:1584]  banked data temp D
+$03A0  banked_3A0         [prg_1d_1e.asm:1585]  banked data temp E0
+$03A1  banked_3A1         [prg_1d_1e.asm:1586]  banked data temp E1
+$03A2  banked_3A2         [prg_1d_1e.asm:1587]  banked data temp E2
+$03A3  banked_3A3         [prg_1d_1e.asm:1588]  banked data temp E3
+$03A4  banked_3A4         [prg_1d_1e.asm:1589]  banked data temp E4
+$03A5  scaled_name_tmp (x2)    [prg_1d_1e.asm:1474]  scaled name temp
+$03A6  banked_3A6         [prg_1d_1e.asm:1590]  banked data temp E6
+$03AA  overlay_bcd_hi         [prg_1d_1e.asm:1270]  overlay BCD high digit tile
+$03AB  overlay_bcd_lo         [prg_1d_1e.asm:1271]  overlay BCD low digit tile
+$03B1  disp_scaled_num         [prg_1d_1e.asm:1500]  scaled number temp
+$03BA  overlay_buf_end         [prg_1d_1e.asm:1272]  overlay buffer end
+$03C3  scene_render_flag         [prg_1d_1e.asm:3187]  scene render flag
+$0400  scene_callback_id         [prg_1d_1e.asm:172]  scene callback ID (SramInit, SceneRenderer)
+$0401  scene_callback_st         [prg_1d_1e.asm:173]  scene callback state counter (SceneRenderer, StateHandler)
+$0402  province_idx         [prg_1d_1e.asm:174]  current province index (StateHandler, OfficerListHandler)
+$040C  officer_param_base         [prg_1d_1e.asm:2806]  officer parameter base
+$0420  menu_scroll_state         [prg_1d_1e.asm:176]  menu scroll / render state (StateHandler, MenuRenderer)
+$0424  officer_list_flag         [prg_1d_1e.asm:2804]  officer list flag
+$0425  officer_list_tmp2         [prg_1d_1e.asm:2805]  officer list temp 2
+$042C  menu_fmt_data0         [prg_1d_1e.asm:477]  formatted number data 0
+$042D  menu_fmt_data1         [prg_1d_1e.asm:478]  formatted number data 1
+$042E  menu_fmt_data2         [prg_1d_1e.asm:479]  formatted number data 2
+$044C  menu_fmt_num0         [prg_1d_1e.asm:480]  formatted number 0
+$044D  menu_fmt_num1         [prg_1d_1e.asm:481]  formatted number 1
+$044E  menu_fmt_num2         [prg_1d_1e.asm:482]  formatted number 2
+$0470  officer_list_st         [prg_1d_1e.asm:3182]  officer list state 0
+$0471  officer_list_st1         [prg_1d_1e.asm:3183]  officer list state 1
+$0472  officer_list_st2         [prg_1d_1e.asm:3184]  officer list state 2
+$0473  officer_list_st3         [prg_1d_1e.asm:3185]  officer list state 3
+$0478  officer_list_ctrl         [prg_1d_1e.asm:189]  officer list control/state (OfficerListHandler)
+$0479  officer_list_cnt         [prg_1d_1e.asm:190]  officer list scroll count (OfficerListHandler)
+$047A  officer_list_idx2         [prg_1d_1e.asm:191]  officer list index counter (OfficerListHandler)
+$047B  officer_list_max         [prg_1d_1e.asm:192]  officer list max entries (OfficerListHandler)
+$047C  officer_list_col         [prg_1d_1e.asm:2803]  officer list column count
+$0480  officer_name_buf         [prg_1d_1e.asm:197]  officer name buffer ($0B bytes, OfficerListHandler, FlushTileBuffer)
+$0481  officer_name_len         [prg_1d_1e.asm:198]  officer name length / data (OfficerListHandler, FlushTileBuffer)
+$0482  officer_name_ext         [prg_1d_1e.asm:2807]  officer name extension data
+$0483  officer_name_ext2         [prg_1d_1e.asm:2808]  officer name extension data 2
+$0486  officer_name_ext3         [prg_1d_1e.asm:2809]  officer name extension data 3
+$04A0  menu_dispatch_flg         [prg_1d_1e.asm:202]  menu dispatch flag (MenuRenderer, MenuAction procs)
+$04A1  menu_row_step         [prg_1d_1e.asm:203]  menu row step counter (152 refs! core menu state)
+$04A2  menu_dispatch_idx         [prg_1d_1e.asm:204]  menu dispatch index / phase (MenuRenderer, OfficerRecCalc)
+$04A3  menu_row_inc         [prg_1d_1e.asm:205]  menu row increment counter (MenuRenderer, OfficerRecCalc)
+$04A4  menu_action_param         [prg_1d_1e.asm:206]  menu action parameter (various MenuAction procs)
+$04A5  menu_action_param2         [prg_1d_1e.asm:207]  menu action parameter 2 (various MenuAction procs)
+$04AE  officer_name_disp         [prg_1d_1e.asm:1440]  officer name display temp
+$04CC  menu_row_limit         [prg_1d_1e.asm:209]  menu row limit (MenuRenderer, OfficerRecCalc)
+$04D0  menu_disp_row_ctr         [prg_1d_1e.asm:210]  menu display row counter (MenuRenderer, StrategyMenu_Return)
+$04D2  officer_rec_src_lo         [prg_1d_1e.asm:211]  officer record source ptr lo (OfficerRecCalc)
+$04D3  officer_rec_src_hi         [prg_1d_1e.asm:212]  officer record source ptr hi (OfficerRecCalc)
+$04D4  officer_rec_dst_lo         [prg_1d_1e.asm:213]  officer record dest ptr lo (OfficerRecCalc)
+$04D5  officer_rec_dst_hi         [prg_1d_1e.asm:214]  officer record dest ptr hi (OfficerRecCalc)
+$04D6  menu_action_extra         [prg_1d_1e.asm:215]  menu action extra param (MenuAction08, ProvinceRecCalc)
+$0509  province_data_ref         [prg_1d_1e.asm:1356]  province data reference
+$0664  province_data_ref2         [prg_1d_1e.asm:1357]  province data reference 2
+
+====================================================================================================
+BANK: prg_1f.asm
+====================================================================================================
+$000A  graphic_ptr_lo         [prg_1f.asm:532]  
+$000B  graphic_ptr_hi         [prg_1f.asm:533]  
+$000C  base_ptr_lo         [prg_1f.asm:534]  
+$000D  base_ptr_hi         [prg_1f.asm:535]  
+$004E  addr_dispatch_ptr         [prg_1f.asm:59]  Indirect jump target (low)
+$004F  addr_dispatch_ptr_h         [prg_1f.asm:60]  Indirect jump target (high)
+$0050  addr_rng_index         [prg_1f.asm:89]  RNG table index
+$0051  addr_rng_saved_x         [prg_1f.asm:90]  Saved X register (RNG)
+$0052  addr_rng2_index         [prg_1f.asm:91]  RNG variant 2 table index
+$0053  addr_rng_temp_x         [prg_1f.asm:92]  RNG temp X save (variants)
+$0054  addr_rng3_index         [prg_1f.asm:93]  RNG variant 3 table index
+$0055  addr_rng4_index         [prg_1f.asm:94]  RNG variant 4 table index
+$0058  addr_trampoline_saved_bank         [prg_1f.asm:97]  
+$0059  addr_trampoline_ret_lo         [prg_1f.asm:98]  
+$005A  addr_trampoline_ret_hi         [prg_1f.asm:99]  
+$005B  addr_trampoline_target_lo         [prg_1f.asm:100]  
+$005C  addr_trampoline_target_hi         [prg_1f.asm:101]  
+$005D  addr_trampoline_bank_param         [prg_1f.asm:102]  
+$0068  map_data_ptr_lo         [prg_1f.asm:388]  
+$0069  map_data_ptr_hi         [prg_1f.asm:389]  
+$0078  addr_sub_state         [prg_1f.asm:58]  Sub-state within each major state
+$007A  addr_game_state         [prg_1f.asm:57]  State counter (0-14), indexes VectorTable
+$007C  addr_sprite_count         [prg_1f.asm:105]  Current OAM slot index
+$007D  addr_nmi_flag         [prg_1f.asm:67]  NMI update pending flag
+$007D  nmi_flag         [prg_1f.asm:2093]  
+$007E  addr_nmi_ctrl         [prg_1f.asm:68]  NMI sub-dispatch control bits
+$0081  addr_pad1_edge         [prg_1f.asm:71]  Pad 1 newly-pressed buttons
+$0082  addr_pad2_edge         [prg_1f.asm:72]  Pad 2 newly-pressed buttons
+$0083  addr_pad1_raw         [prg_1f.asm:73]  Pad 1 raw button state
+$0084  addr_pad1_prev         [prg_1f.asm:74]  Pad 1 previous frame state
+$0085  addr_pad2_raw         [prg_1f.asm:75]  Pad 2 raw button state
+$0086  addr_pad2_prev         [prg_1f.asm:76]  Pad 2 previous frame state
+$0087  addr_anim_direction         [prg_1f.asm:108]  Palette animation direction
+$0087  anim_direction         [prg_1f.asm:2089]  
+$0088  addr_anim_step         [prg_1f.asm:109]  Palette animation step
+$0088  anim_step         [prg_1f.asm:2090]  
+$0089  addr_anim_speed         [prg_1f.asm:110]  Palette animation speed
+$0089  anim_speed         [prg_1f.asm:2091]  
+$008A  addr_anim_counter         [prg_1f.asm:111]  Palette animation tick counter
+$008A  anim_counter         [prg_1f.asm:2092]  
+$008B  addr_ppu_ctrl_ram         [prg_1f.asm:63]  RAM copy of PPU control ($2000)
+$008C  addr_ppu_mask_ram         [prg_1f.asm:64]  RAM copy of PPU mask ($2001)
+$008E  addr_scroll_x         [prg_1f.asm:114]  Scroll X position
+$008F  addr_scroll_x_hi         [prg_1f.asm:115]  Scroll X high (nametable bit)
+$0090  addr_scroll_y         [prg_1f.asm:116]  Scroll Y position
+$0091  addr_scroll_y_hi         [prg_1f.asm:117]  Scroll Y high
+$0094  addr_input_prev_x         [prg_1f.asm:120]  Input prev X change flag
+$0095  addr_input_prev_y         [prg_1f.asm:121]  Input prev Y change flag
+$0098  addr_display_mode         [prg_1f.asm:65]  Display mode parameter
+$0099  addr_display_mode_h         [prg_1f.asm:66]  Display mode parameter (high)
+$009C  addr_ctrl_state_x         [prg_1f.asm:122]  Controller state X
+$009D  addr_ctrl_state_y         [prg_1f.asm:123]  Controller state Y
+$00AE  addr_chr_bank_0         [prg_1f.asm:126]  CHR bank 0 ($8000)
+$00AF  addr_chr_bank_1         [prg_1f.asm:127]  CHR bank 1 ($8800)
+$00B0  addr_chr_bank_2         [prg_1f.asm:128]  CHR bank 2 ($9000)
+$00B1  addr_chr_bank_3         [prg_1f.asm:129]  CHR bank 3 ($9800)
+$00B2  addr_chr_bank_4         [prg_1f.asm:130]  CHR bank 4 ($A000)
+$00B3  addr_chr_bank_5         [prg_1f.asm:131]  CHR bank 5 ($A800)
+$00B4  addr_chr_bank_6         [prg_1f.asm:132]  CHR bank 6 ($B000)
+$00B5  addr_chr_bank_7         [prg_1f.asm:133]  CHR bank 7 ($B800)
+$00DE  addr_prg_select_1a         [prg_1f.asm:136]  PRG bank select 1 (set A)
+$00DF  addr_prg_select_2a         [prg_1f.asm:137]  PRG bank select 2 (set A)
+$00E0  addr_prg_select_3a         [prg_1f.asm:138]  PRG bank select 3 (set A)
+$00E1  addr_prg_select_1b         [prg_1f.asm:139]  PRG bank select 1 (set B)
+$00E2  addr_prg_select_2b         [prg_1f.asm:140]  PRG bank select 2 (set B)
+$00E3  addr_prg_select_3b         [prg_1f.asm:141]  PRG bank select 3 (set B)
+$00E6  addr_bank_e6         [prg_1f.asm:79]  CHR bank register RAM copy (NAMCO_CHR_BANK_0)
+$00E7  addr_bank_e7         [prg_1f.asm:80]  CHR bank register RAM copy (NAMCO_CHR_BANK_1)
+$00E8  addr_bank_e8         [prg_1f.asm:81]  CHR bank register RAM copy (NAMCO_CHR_BANK_2)
+$00E9  addr_bank_e9         [prg_1f.asm:82]  CHR bank register RAM copy (NAMCO_CHR_BANK_3)
+$00EA  addr_bank_ea         [prg_1f.asm:83]  Extended bank config
+$00EB  addr_bank_eb         [prg_1f.asm:84]  Extended bank config
+$00EC  addr_bank_ec         [prg_1f.asm:85]  Extended bank config
+$00ED  addr_bank_ed         [prg_1f.asm:86]  Extended bank config
+$0424  addr_menu_column         [prg_1f.asm:148]  Cursor column (0-based within page)
+$0425  addr_menu_page         [prg_1f.asm:149]  Cursor page (0-based)
+$04AB  army_status1         [prg_1f.asm:576]  
+$04AC  army_status2         [prg_1f.asm:577]  
+$0500  select_mode         [prg_1f.asm:383]  
+$0510  map_scroll_y         [prg_1f.asm:384]  
+$0511  map_scroll_y_hi         [prg_1f.asm:385]  
+$0512  map_scroll_x         [prg_1f.asm:386]  
+$0513  map_scroll_x_hi         [prg_1f.asm:387]  
+$0541  completion_flag         [prg_1f.asm:767]  
+$0544  action_type (x2)    [prg_1f.asm:471]  
+$0562  sprite_idx2         [prg_1f.asm:473]  
+$0563  sprite_idx1         [prg_1f.asm:472]  
+$07F2  sound_ram_ptr         [prg_1f.asm:910]  
+$07F6  sound_channel_ram         [prg_1f.asm:1001]  RAM copy of Namco sound channel
+$07F6  sound_irq_lo         [prg_1f.asm:908]  
+$07F7  sound_irq_hi         [prg_1f.asm:909]  
+$6F3F  sram_map_cam_y         [prg_1f.asm:152]  Map camera Y pos low (set to $80 on new game; high at $6F40)
+$6F41  sram_map_cam_x         [prg_1f.asm:153]  Map camera X pos low (set to $F0 on new game; high at $6F42)
+$6F8B  sram_game_start_flag         [prg_1f.asm:154]  Game start flag (set to $FF on new game)
+

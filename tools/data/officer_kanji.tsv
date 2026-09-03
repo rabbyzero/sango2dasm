@@ -1,0 +1,244 @@
+# Officer id -> kanji / Chinese name map for 三國志II 覇王の大陸 (Namco, FC 1992).
+# The ROM stores katakana only (see tools/extract_officer_names.py); the kanji
+# identifications below come from published ROM rosters and were joined to the
+# ROM ids by exact match on the 5 visible stats in the master stat table
+# (bank $31 @ $8000, id*12), then reading-checked against the ROM katakana.
+# See docs/officer_names_kanji.md for provenance and method.
+id	katakana	kanji_ja	zh_hant	zh_hans	pinyin	note
+0	アカイナン	阿会喃	阿會喃	阿会喃	ā huì nán	
+1	イコウ	韋康	韋康	韦康	wéi kāng	
+2	イセキ	伊籍	伊籍	伊籍	yī jí	
+3	インカイ	尹楷	尹楷	尹楷	yǐn kǎi	
+4	インショウ	尹賞	尹賞	尹赏	yǐn shǎng	
+5	ウキン	于禁	于禁	于禁	yú jìn	page transcription 於禁 corrected (於=オ); ROM reads ウキン
+6	エツキツ	越吉	越吉	越吉	yuè jí	
+7	エンキ	袁煕	袁熙	袁熙	yuán xī	
+8	エンショウ	袁紹	袁紹	袁绍	yuán shào	
+9	エンタン	袁譚	袁譚	袁谭	yuán tán	
+10	エンホ	閻圃	閻圃	阎圃	yán pǔ	
+11	オウケン	王建	王建	王建	wáng jiàn	
+12	オウサン	王粲	王粲	王粲	wáng càn	
+13	オウソウ	王双	王雙	王双	wáng shuāng	
+14	オウチュウ	王忠	王忠	王忠	wáng zhōng	
+15	オウヘイ	王平	王平	王平	wáng píng	
+16	オウホ	王甫	王甫	王甫	wáng fǔ	
+17	オウルイ	王累	王累	王累	wáng lèi	
+18	カイエツ	蒯越	蒯越	蒯越	kuǎi yuè	
+19	カイリョウ	蒯良	蒯良	蒯良	kuǎi liáng	
+20	カカ	賈華	賈華	贾华	jiǎ huá	
+21	カキン	華歆	華歆	华歆	huà xīn	
+22	カク	賈詡	賈詡	贾诩	jiǎ xǔ	
+23	カクシ	郭汜	郭汜	郭汜	guō sì	
+24	カクカ	郭嘉	郭嘉	郭嘉	guō jiā	
+25	カクショウ	郝昭	郝昭	郝昭	hǎo zhāo	
+26	ガクシン	楽進	樂進	乐进	yuè jìn	
+27	カクト	郭図	郭圖	郭图	guō tú	
+28	カクワイ	郭淮	郭淮	郭淮	guō huái	
+29	カコウエン	夏侯淵	夏侯淵	夏侯渊	xià hóu yuān	
+30	カコウトン	夏侯惇	夏侯惇	夏侯惇	xià hóu dūn	page transcription 夏候惇 corrected
+31	カコウハ	夏侯覇	夏侯霸	夏侯霸	xià hóu bà	
+32	カコウボウ	夏侯楙	夏侯楙	夏侯楙	xià hóu mào	
+33	カコウラン	夏侯蘭	夏侯蘭	夏侯兰	xià hóu lán	
+34	ガタン	雅丹	雅丹	雅丹	yǎ dān	
+35	ガッカン	鄂煥	鄂煥	鄂焕	è huàn	
+36	カハン	賈範	賈範	贾范	jiǎ fàn	page transcription had a stray trailing kana
+37	カユウ	華雄	華雄	华雄	huà xióng	
+38	カンウ	関羽	關羽	关羽	guān yǔ	
+39	カンエイ	韓瑛	韓瑛	韩瑛	hán yīng	
+40	カンキ	韓琪	韓琪	韩琪	hán qí	
+41	カンゲン	韓玄	韓玄	韩玄	hán xuán	
+42	カンコウ	関興	關興	关兴	guān xīng	
+43	カンサク	関索	關索	关索	guān suǒ	
+44	カンスイ	韓遂	韓遂	韩遂	hán suì	
+45	カントウ	韓当	韓當	韩当	hán dāng	
+46	カントク	韓徳	韓德	韩德	hán dé	
+47	カンネイ	甘寧	甘寧	甘宁	gān níng	
+48	カンペイ	関平	關平	关平	guān píng	
+49	カンモウ	韓猛	韓猛	韩猛	hán měng	
+50	カンヨウ	簡雍	簡雍	简雍	jiǎn yōng	
+51	ガンリョウ	顔良	顏良	颜良	yán liáng	
+52	ギエン	魏延	魏延	魏延	wèi yán	
+53	ギキョ	義渠	義渠	义渠	yì qú	in-game name drops the surname of 蔣義渠 (Jiang Yiqu)
+54	ギュウキン	牛金	牛金	牛金	niú jīn	
+55	キョウイ	姜維	姜維	姜维	jiāng wéi	
+56	キョユウ	許攸	許攸	许攸	xǔ yōu	
+57	キョチョ	許褚	許褚	许褚	xǔ chǔ	page transcription 許緒 corrected (許褚, キョチョ)
+58	ギラン	嬀覧	媯覽	妫览	guī lǎn	
+59	キレイ	紀霊	紀靈	纪灵	jì líng	
+60	キンカンケツ	金環結	金環結	金环结	jīn huán jié	in-game name shortens 金環三結 to fit the 7-glyph name field
+61	グホン	虞翻	虞翻	虞翻	yú fān	page transcription 盧翻 corrected (虞翻, グホン)
+62	ケイドウエイ	邢道栄	邢道榮	邢道荣	xíng dào róng	page transcription 刑道榮 corrected (邢道栄)
+63	ゲンガン	厳顔	嚴顏	严颜	yán yán	
+64	ゲンシュン	厳畯	嚴畯	严畯	yán jùn	
+65	ゲンコウ	厳綱	嚴綱	严纲	yán gāng	
+66	ゴイ	呉懿	吳懿	吴懿	wú yì	
+67	コウガイ	黄蓋	黃蓋	黄盖	huáng gài	
+68	コウカン	高幹	高幹	高干	gāo gàn	
+69	コウショウ	高翔	高翔	高翔	gāo xiáng	
+70	コウケン	黄権	黃權	黄权	huáng quán	
+71	コウセイ	侯成	侯成	侯成	hóu chéng	
+72	コウセン	侯選	侯選	侯选	hóu xuǎn	
+73	コウソンエン	公孫淵	公孫淵	公孙渊	gōng sūn yuān	
+74	コウソンコウ	公孫康	公孫康	公孙康	gōng sūn kāng	
+75	コウチュウ	黄忠	黃忠	黄忠	huáng zhōng	
+76	コウテイ	高定	高定	高定	gāo dìng	
+77	コウラン	高覧	高覽	高览	gāo lǎn	
+78	ゴツトツコツ	兀突骨	兀突骨	兀突骨	wù tū gǔ	
+79	コヨウ	顧雍	顧雍	顾雍	gù yōng	
+80	コシャジ	胡車児	胡車兒	胡车儿	hú chē ér	
+81	ゴラン	呉蘭	吳蘭	吴兰	wú lán	
+82	サイエン	崔琰	崔琰	崔琰	cuī yǎn	
+83	サイヨウ	蔡陽	蔡陽	蔡阳	cài yáng	Sanguozhi writes 蔡揚; the game/Yanyi form 蔡陽 is used here
+84	サイリョウ	崔諒	崔諒	崔谅	cuī liàng	
+85	シカン	史渙	史渙	史涣	shǐ huàn	
+86	シバイ	司馬懿	司馬懿	司马懿	sī mǎ yì	
+87	シバシ	司馬師	司馬師	司马师	sī mǎ shī	
+88	シバショウ	司馬昭	司馬昭	司马昭	sī mǎ zhāo	
+89	シュウゼン	周善	周善	周善	zhōu shàn	
+90	シュウソウ	周倉	周倉	周仓	zhōu cāng	
+91	シュウタイ	周泰	周泰	周泰	zhōu tài	
+92	シュウホウ	周魴	周魴	周鲂	zhōu fáng	
+93	シュウユ	周瑜	周瑜	周瑜	zhōu yú	
+94	シュカン	朱桓	朱桓	朱桓	zhū huán	page transcription 朱恆 corrected (朱桓, シュカン)
+95	シュゼン	朱然	朱然	朱然	zhū rán	
+96	シュチ	朱治	朱治	朱治	zhū zhì	
+97	シュホウ	朱褒	朱褒	朱褒	zhū bāo	
+98	シュレイ	朱霊	朱靈	朱灵	zhū líng	
+99	ジュンイク	荀彧	荀彧	荀彧	xún yù	
+100	ジュンウケイ	淳于瓊	淳于瓊	淳于琼	chún yú qióng	page transcription 淳於瓊 corrected (於=オ)
+101	ジュンジン	荀諶	荀諶	荀谌	xún chén	
+102	ショウカン	蔣幹	蔣幹	蒋干	jiǎng gàn	
+103	ショウカイ	鍾会	鍾會	钟会	zhōng huì	
+104	ショウエン	蔣琬	蔣琬	蒋琬	jiǎng wǎn	
+105	ショウチョウ	向寵	向寵	向宠	xiàng chǒng	page transcription 尚寵 corrected (向寵, ショウチョウ)
+106	ジョエイ	徐栄	徐榮	徐荣	xú róng	
+107	ショカツキン	諸葛瑾	諸葛瑾	诸葛瑾	zhū gě jǐn	
+108	ショカツセン	諸葛瞻	諸葛瞻	诸葛瞻	zhū gě zhān	
+109	ショカツリョウ	諸葛亮	諸葛亮	诸葛亮	zhū gě liàng	
+110	ショカツカク	諸葛恪	諸葛恪	诸葛恪	zhū gě kè	
+111	ジョコウ	徐晃	徐晃	徐晃	xú huǎng	
+112	ジョショ	徐庶	徐庶	徐庶	xú shù	
+113	ジョセイ	徐盛	徐盛	徐盛	xú shèng	
+114	ジンシュン	任峻	任峻	任峻	rèn jùn	
+115	ジンソウ	任双	任雙	任双	rèn shuāng	no canonical Three Kingdoms referent; 任双 is Yoshikawa’s form of Yanyi’s 任夔
+116	シンタン	申耽	申耽	申耽	shēn dān	
+117	シンパイ	審配	審配	审配	shěn pèi	
+118	シンピ	辛毗	辛毗	辛毗	xīn pí	辛毘 and 辛毗 are variants of the same name
+119	シンピョウ	辛評	辛評	辛评	xīn píng	
+120	セイギ	成宜	成宜	成宜	chéng yí	
+121	セッソウ	薛綜	薛綜	薛综	xuē zōng	
+122	ゼンソウ	全琮	全琮	全琮	quán cóng	
+123	ソウエイ	曹叡	曹叡	曹叡	cáo ruì	
+124	ソウキュウ	曹休	曹休	曹休	cáo xiū	
+125	ソウケン	宋憲	宋憲	宋宪	sòng xiàn	
+126	ソウコウ	曹洪	曹洪	曹洪	cáo hóng	
+127	ソウショウ	曹彰	曹彰	曹彰	cáo zhāng	
+128	ソウショク	曹植	曹植	曹植	cáo zhí	
+129	ソウシン	曹真	曹真	曹真	cáo zhēn	
+130	ソウジン	曹仁	曹仁	曹仁	cáo rén	
+131	ソウソウ	曹操	曹操	曹操	cáo cāo	
+132	ソウヒ	曹丕	曹丕	曹丕	cáo pī	
+133	ソウユウ	曹熊	曹熊	曹熊	cáo xióng	
+134	ソジュ	沮授	沮授	沮授	jǔ shòu	
+135	ソヒ	蘇飛	蘇飛	苏飞	sū fēi	
+136	ソンカン	孫乾	孫乾	孙乾	sūn qián	OpenCC would give 孙干; the correct simplified form is 孙乾
+137	ソンケン	孫権	孫權	孙权	sūn quán	孫権, not 孫堅 - 孫策 is the playable Wu ruler in this game
+138	ソンサク	孫策	孫策	孙策	sūn cè	
+139	ソンヨク	孫翊	孫翊	孙翊	sūn yì	
+140	ソンレイ	孫礼	孫禮	孙礼	sūn lǐ	
+141	タイシジ	太史慈	太史慈	太史慈	tài shǐ cí	
+142	タンユウ	譚雄	譚雄	谭雄	tán xióng	
+143	チョウサイ	張済	張濟	张济	zhāng jì	
+144	チョウウン	趙雲	趙雲	赵云	zhào yún	
+145	チョウエイ	張衛	張衛	张卫	zhāng wèi	
+146	チョウオウ	張横	張橫	张横	zhāng héng	
+147	チョウギ	張嶷	張嶷	张嶷	zhāng yí	
+148	チョウゲツ	趙月	趙月	赵月	zhào yuè	
+149	チョウコウ	張郃	張郃	张郃	zhāng hé	
+150	チョウショウ	張松	張松	张松	zhāng sōng	
+151	チョウジン	張任	張任	张任	zhāng rèn	
+152	チョウナン	張南	張南	张南	zhāng nán	
+153	チョウヒ	張飛	張飛	张飞	zhāng fēi	
+154	チョウホウ	張苞	張苞	张苞	zhāng bāo	
+155	チョウヨク	張翼	張翼	张翼	zhāng yì	
+156	チョウリョウ	張遼	張遼	张辽	zhāng liáo	
+157	チンシン	陳震	陳震	陈震	chén zhèn	
+158	チンブ	陳武	陳武	陈武	chén wǔ	
+159	チンラン	陳蘭	陳蘭	陈兰	chén lán	
+160	チンリン	陳琳	陳琳	陈琳	chén lín	
+161	テイイク	程昱	程昱	程昱	chéng yù	
+162	テイギン	程銀	程銀	程银	chéng yín	
+163	テイフ	程普	程普	程普	chéng pǔ	
+164	テイヘイ	程秉	程秉	程秉	chéng bǐng	page transcription 程乘 corrected (程秉, テイヘイ)
+165	テンイ	典韋	典韋	典韦	diǎn wéi	
+166	デンチュウ	田疇	田疇	田畴	tián chóu	
+167	デンホウ	田豊	田豐	田丰	tián fēng	
+168	トウイン	董允	董允	董允	dǒng yǔn	
+169	トウガイ	鄧艾	鄧艾	邓艾	dèng ài	
+170	トウシ	鄧芝	鄧芝	邓芝	dèng zhī	
+171	トウシュウ	董襲	董襲	董袭	dǒng xí	
+172	トウトヌ	董荼奴	董荼奴	董荼奴	dǒng tú nú	page transcription 董茶奴 corrected; Yanyi also writes 董荼那
+173	トウタク	董卓	董卓	董卓	dǒng zhuó	
+174	バエン	馬延	馬延	马延	mǎ yán	
+175	バガン	馬玩	馬玩	马玩	mǎ wán	
+176	バキュウ	馬休	馬休	马休	mǎ xiū	
+177	バショク	馬謖	馬謖	马谡	mǎ sù	
+178	バジュン	馬遵	馬遵	马遵	mǎ zūn	
+179	バタイ	馬岱	馬岱	马岱	mǎ dài	
+180	バチョウ	馬超	馬超	马超	mǎ chāo	
+181	バテツ	馬鉄	馬鐵	马铁	mǎ tiě	
+182	バトウ	馬騰	馬騰	马腾	mǎ téng	
+183	バリョウ	馬良	馬良	马良	mǎ liáng	
+184	バンイク	万彧	萬彧	万彧	wàn yù	
+185	ハンショウ	潘璋	潘璋	潘璋	pān zhāng	page transcription 藩璋 corrected (潘璋, ハンショウ)
+186	ハンチュウ	樊稠	樊稠	樊稠	fán chóu	
+187	ヒイ	費禕	費禕	费祎	fèi yī	
+188	ビジク	糜竺	麋竺	麋竺	mí zhú	Yanyi writes 糜竺, Sanguozhi 麋竺
+189	ビホウ	糜芳	麋芳	麋芳	mí fāng	Yanyi writes 糜芳, Sanguozhi 麋芳
+190	フエイ	傅嬰	傅嬰	傅婴	fù yīng	
+191	ブンシュウ	文醜	文醜	文丑	wén chǒu	
+192	ブンペイ	文聘	文聘	文聘	wén pìn	
+193	ブアンコク	武安国	武安國	武安国	wǔ ān guó	
+194	ホウキ	逢紀	逄紀	逄纪	páng jì	zh.wikipedia writes the surname 逄 (Pang); ja/Yanyi use 逢
+195	ホウジュウ	龐柔	龐柔	庞柔	páng róu	
+196	ホウセイ	法正	法正	法正	fǎ zhèng	
+197	ホウトウ	龐統	龐統	庞统	páng tǒng	
+198	ホウトク	龐徳	龐德	庞德	páng dé	
+199	ホシツ	歩騭	步騭	步骘	bù zhì	
+200	モウカク	孟獲	孟獲	孟获	mèng huò	
+201	モウタツ	孟達	孟達	孟达	mèng dá	
+202	モウユウ	孟優	孟優	孟优	mèng yōu	
+203	ヨウガイ	雍闓	雍闓	雍闿	yōng kǎi	ROM has an explicit dakuten (ヨウガイ) so 雍闓, not 楊懐
+204	ヨウギ	楊儀	楊儀	杨仪	yáng yí	
+205	ヨウコウ	楊洪	楊洪	杨洪	yáng hóng	
+206	ヨウシュウ	楊修	楊修	杨修	yáng xiū	
+207	ヨウフ	楊阜	楊阜	杨阜	yáng fù	
+208	ライハク	雷薄	雷薄	雷薄	léi bó	
+209	ライドウ	雷銅	雷銅	雷铜	léi tóng	
+210	リイ	李異	李異	李异	lǐ yì	
+211	リカク	李傕	李傕	李傕	lǐ jué	
+212	リクセキ	陸績	陸績	陆绩	lù jì	
+213	リクソン	陸遜	陸遜	陆逊	lù xùn	
+214	リゲン	李厳	李嚴	李严	lǐ yán	
+215	リタン	李湛	李湛	李湛	lǐ zhàn	
+216	リテン	李典	李典	李典	lǐ diǎn	
+217	リフ	李孚	李孚	李孚	lǐ fú	
+218	リョフ	呂布	呂布	吕布	lǚ bù	
+219	リジュ	李儒	李儒	李儒	lǐ rú	
+220	リュウショウ	劉璋	劉璋	刘璋	liú zhāng	
+221	リュウド	劉度	劉度	刘度	liú dù	
+222	リュウビ	劉備	劉備	刘备	liú bèi	
+223	リュウヘイ	留平	留平	留平	liú píng	
+224	リュウホウ	劉封	劉封	刘封	liú fēng	
+225	リュウヨウ	劉曄	劉曄	刘晔	liú yè	
+226	リョウカ	廖化	廖化	廖化	liào huà	
+227	リョウコウ	梁興	梁興	梁兴	liáng xīng	
+228	リョウトウ	凌統	凌統	凌统	líng tǒng	
+229	リョガイ	呂凱	呂凱	吕凯	lǚ kǎi	
+230	リョコウ	呂曠	呂曠	吕旷	lǚ kuàng	
+231	リョケン	呂虔	呂虔	吕虔	lǚ qián	
+232	リョショウ	呂翔	呂翔	吕翔	lǚ xiáng	
+233	リョハン	呂範	呂範	吕范	lǚ fàn	
+234	リョモウ	呂蒙	呂蒙	吕蒙	lǚ méng	
+235	ロシュク	魯粛	魯肅	鲁肃	lǔ sù	
+236	リケイ	李珪	李珪	李珪	lǐ guī	

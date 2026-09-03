@@ -1,0 +1,39 @@
+# Province id -> kanji / Chinese name map for 三國志II 覇王の大陸 (Namco, FC 1992).
+# The ROM stores katakana only (name table: PRG bank $30 @ $9A1A, id*8; see
+# tools/extract_province_data.py). The kanji below are the Han readings of those
+# katakana, cross-checked against the printed manual map (docs/manual_kb/14-map.md)
+# and against the ROM's starting ownership (record[0]) per ruler.
+#
+# zh_hant = traditional Chinese, zh_hans = simplified Chinese, pinyin = Mandarin.
+# "note" records readings where the manual scan and the ROM katakana disagree.
+id	katakana	kanji_ja	zh_hant	zh_hans	pinyin	note
+0	リョウトウ	遼東	遼東	辽东	liáo dōng	
+1	ユウシュウ	幽州	幽州	幽州	yōu zhōu	
+2	ヘイシュウ	并州	并州	并州	bīng zhōu	Liu Bei's home province at the 189 start
+3	セイシュウ	青州	青州	青州	qīng zhōu	
+4	キシュウ	冀州	冀州	冀州	jì zhōu	
+5	セイアンヨウ	西安陽	西安陽	西安阳	xī ān yáng	
+6	リョウシュウ	涼州	涼州	凉州	liáng zhōu	
+7	アンテイ	安定	安定	安定	ān dìng	
+8	チョウアン	長安	長安	长安	cháng ān	
+9	セイヘイカン	西平関	西平關	西平关	xī píng guān	
+10	ジョシュウ	徐州	徐州	徐州	xú zhōu	kana ジョ = 徐 (dakuten $39 after シ)
+11	エンシュウ	兗州	兗州	兖州	yǎn zhōu	兗 (エン); often printed 兖 in simplified text
+12	ラクヨウ	洛陽	洛陽	洛阳	luò yáng	
+13	シンヤ	新野	新野	新野	xīn yě	
+14	ヨシュウ	豫州	豫州	豫州	yù zhōu	豫 = ヨ (not ヨウ)
+15	ケンギョウ	建業	建業	建业	jiàn yè	
+16	ヨウシュウ	揚州	揚州	扬州	yáng zhōu	
+17	ケンアン	建安	建安	建安	jiàn ān	
+18	コウシュウ	交州	交州	交州	jiāo zhōu	
+19	イクリン	郁林	鬱林	郁林	yù lín	Han commandery 鬱林/郁林; manual map prints 郁林
+20	コウカ	江夏	江夏	江夏	jiāng xià	Sun Ce's home province at the 189 start
+21	ケイシュウ	荊州	荊州	荆州	jīng zhōu	
+22	ショウヨウ	襄陽	襄陽	襄阳	xiāng yáng	襄 = ショウ; manual scan read as 衡陽(?) — ROM kana gives 襄陽
+23	チョウサ	長沙	長沙	长沙	cháng shā	
+24	レイリョウ	零陵	零陵	零陵	líng líng	
+25	カンチュウ	漢中	漢中	汉中	hàn zhōng	
+26	セイト	成都	成都	成都	chéng dū	
+27	フリョウ	涪陵	涪陵	涪陵	fú líng	涪 = フ; manual scan read as 建寧(?) — ROM kana gives 涪陵
+28	ウンナン	雲南	雲南	云南	yún nán	
+29	エイショウ	永昌	永昌	永昌	yǒng chāng	manual scan read as 永晶(?) — ROM kana gives 永昌

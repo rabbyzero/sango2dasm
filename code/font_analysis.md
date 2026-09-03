@@ -69,12 +69,25 @@ rec 15: 00 9D 20 2D 00 A5 28 09
 
 ## Officer name encoding @ $901A (bank $30) — VERIFIED serial gojuon
 
-237 entries x 10 bytes, $00-terminated; entry index = officer id
+240 entries x 10 bytes, $00-terminated (237 named + ids 237-239 blank);
+entry index = officer id
 (id = (sram_addr - $63C0)/12, cf. GetOfficerRecordAddr; name addr =
 id*10 + $901A, cf. GetNameDisplayScale). Anchors: id222 Liubei
 2B 36 06 1E 39 = リュウビ; id38 Guanyu 09 31 06 = カンウ; id153 Zhangfei
 14 37 06 1E = チョウヒ; id109 Zhugeliang 0F 37 09 15 2B 37 06 = ショカツリョウ;
 id121 = 11 38 12 06 = セッソウ; id26 = 09 39 0B 0F 31 = ガクシン.
+
+Table extent is pinned from both ends: entries 240/241 are the resource
+labels キン/コメ (drawn through the same id*10+$901A formula), and the ROM
+master stat table in bank $31 at $8000 (12 B/record) stops after record 236,
+so 237 officers are defined in ROM while SRAM/name space holds 240 slots.
+All 240 entries use only codes $04-$3A, i.e. the map below is complete for
+officer names; longest name is 7 glyphs (NameScaleTable has 9 slots).
+Extractor: `tools/extract_officer_names.py` ->
+`docs/officer_names.txt` / `.csv` and `include/officer_ids.inc`.
+The font has no kanji, so the ROM stores only the katakana reading; the kanji
+and Chinese forms of each name live in `tools/data/officer_kanji.tsv`
+(`tools/map_officer_kanji.py` -> `docs/officer_names_kanji.md` / `.csv`).
 
 Code space is SERIAL gojuon: $04=ア..$31=ン (46), $32-34=ァィゥ (guess,
 unused), $35=ャ $36=ュ $37=ョ $38=ッ, $39=゛ $3A=゜ postfix combining marks

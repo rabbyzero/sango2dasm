@@ -28,15 +28,16 @@
 - [check_trampoline_pattern.py](file://tools/check_trampoline_pattern.py)
 - [verify_19_1a.py](file://tools/verify_19_1a.py)
 - [verify_1b_1c.py](file://tools/verify_1b_1c.py)
+- [init_19_1a.py](file://tools/init_19_1a.py)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive combined PRG bank disassembly for banks $19/$1A and $1B/$1C, creating unified 16KB modules with byte-exact verification tools (verify_19_1a.py, verify_1b_1c.py)
-- Enhanced linker configuration retargeting BANK19/BANK1A and BANK1B/BANKC from $8000 stub locations to new combined $A000/$C000 layout
-- Updated all_banks.asm to include the new consolidated bank files prg_19_1a.asm and prg_1b_1c.asm
-- Added detailed documentation of the map screen frame processing system in banks $1B/$1C and attract demo system in banks $19/$1A
-- Enhanced practical examples showing the relationship between bank numbers and memory addresses for the newly consolidated banks
+- Added comprehensive documentation of the complete AttractDemoDispatch system in banks $19/$1A with detailed state machine analysis
+- Enhanced documentation of new helper functions including ProvinceCountByOwner, MarkerSpriteDraw, FindOfficerProvince, DecayCountryTimers, and AttractDemoCensusBuild
+- Updated bank 19/1A section with sophisticated attract demo functionality featuring country selection, camera focus, and status overlays
+- Added detailed analysis of enhanced data table organization with structured tables for country rotation orders, province count displays, and country record pointers
+- Updated practical examples to demonstrate the relationship between bank numbers and memory addresses for the newly enhanced PRG banks $19/$1A
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -50,10 +51,10 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major enhancements include the addition of combined PRG banks $08/$09, $0E/$0F, $19/$1A, and $1B/$1C containing sophisticated battle systems, AI components, and map screen processing logic, providing comprehensive province evaluation logic, army calculations, and battle resolution mechanics. **New**: The PRG banks $19/$1A implement an attract demo system with country selection and camera focus functionality, while banks $1B/$1C provide complete map screen frame processing with ruler intro sequences and province sprite management. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
+This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major enhancements include the addition of combined PRG banks $08/$09, $0E/$0F, $19/$1A, and $1B/$1C containing sophisticated battle systems, AI components, and map screen processing logic, providing comprehensive province evaluation logic, army calculations, and battle resolution mechanics. **New**: The PRG banks $19/$1A implement an attract demo system with complete state machine architecture, sophisticated country selection, camera focus functionality, and enhanced data table organization, while banks $1B/$1C provide complete map screen frame processing with ruler intro sequences and province sprite management. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
 
 ## Project Structure
-The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG banks $19/$1A provide an attract demo system with country selection and camera focus functionality, while banks $1B/$1C offer comprehensive map screen frame processing with ruler intro sequences and province sprite management.
+The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG banks $19/$1A provide a comprehensive attract demo system with sophisticated state machine architecture, country selection, camera focus functionality, and enhanced data table organization, while banks $1B/$1C offer comprehensive map screen frame processing with ruler intro sequences and province sprite management.
 
 ```mermaid
 graph TB
@@ -93,6 +94,7 @@ AT02["verify_0c_0d_directives.py"]
 AT03["check_trampoline_pattern.py"]
 AT04["verify_19_1a.py"]
 AT05["verify_1b_1c.py"]
+AT06["init_19_1a.py"]
 end
 subgraph "Linker Configuration"
 CFG["linker.cfg"]
@@ -126,6 +128,7 @@ AT02 -. verifies .-> S0C_0D
 AT03 -. checks .-> S0C_0D
 AT04 -. verifies .-> S19_1A
 AT05 -. verifies .-> S1B_1C
+AT06 -. initializes .-> S19_1A
 ```
 
 **Diagram sources**
@@ -168,7 +171,7 @@ AT05 -. verifies .-> S1B_1C
 - Fixed boot bank 0x1F mapped to $E000-$FFFF at reset
 - Bank switching controlled via mapper registers at $F800-$FE00
 - **Updated**: Consolidated bank switching mechanism for PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E using unified 16KB blocks at $A000-$DFFF
-- **New**: PRG banks $19/$1A provide attract demo functionality with country selection and camera focus, while banks $1B/$1C offer comprehensive map screen frame processing with ruler intro sequences
+- **New**: PRG banks $19/$1A provide attract demo functionality with sophisticated state machine architecture, country selection, camera focus, and enhanced data table organization, while banks $1B/$1C offer comprehensive map screen frame processing with ruler intro sequences
 
 Key implementation references:
 - Memory map and slot definitions in linker.cfg
@@ -176,7 +179,7 @@ Key implementation references:
 - Consolidated bank stubs for PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E in asm/banks/prg_08_09.asm, asm/banks/prg_0a_0b.asm, asm/banks/prg_0c_0d.asm, asm/banks/prg_0e_0f.asm, asm/banks/prg_17_18.asm, asm/banks/prg_19_1a.asm, asm/banks/prg_1b_1c.asm, and asm/banks/prg_1d_1e.asm
 - Bank switching helpers in include/functions.h
 - Boot bank 0x1F and vector table in bank_1f_analysis.md
-- **New**: Attract demo system implementation in prg_19_1a.asm and map screen processing in prg_1b_1c.asm
+- **New**: Attract demo system implementation in prg_19_1a.asm with complete state machine and helper functions, and map screen processing in prg_1b_1c.asm
 
 **Section sources**
 - [linker.cfg:14-30](file://linker.cfg#L14-L30)
@@ -190,7 +193,7 @@ Key implementation references:
 - [prg_1b_1c.asm:16-54](file://asm/banks/prg_1b_1c.asm#L16-L54)
 
 ## Architecture Overview
-The system uses a 4-slot PRG mapping scheme with 8KB banks. At reset, bank 0x1F is fixed in slot 3 ($E000-$FFFF). The remaining three slots ($8000-$DFFF) are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E are now managed as consolidated units, sharing the $A000-$DFFF address space through unified bank switching routines. Bank switching is performed by writing the desired bank number to specific addresses. **New**: The $19/$1A banks implement attract demo functionality with country selection and camera focus, while $1B/$1C provide comprehensive map screen frame processing with ruler intro sequences and province sprite management.
+The system uses a 4-slot PRG mapping scheme with 8KB banks. At reset, bank 0x1F is fixed in slot 3 ($E000-$FFFF). The remaining three slots ($8000-$DFFF) are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E are now managed as consolidated units, sharing the $A000-$DFFF address space through unified bank switching routines. Bank switching is performed by writing the desired bank number to specific addresses. **New**: The $19/$1A banks implement attract demo functionality with sophisticated state machine architecture, country selection, camera focus, and enhanced data table organization, while $1B/$1C provide comprehensive map screen frame processing with ruler intro sequences and province sprite management.
 
 ```mermaid
 graph TB
@@ -208,7 +211,7 @@ SWITCH0A0B["Consolidated $0A/$0B<br/>AI Turn Processing & Province Evaluation"]
 SWITCH0C0D["Consolidated $0C/$0D<br/>Officer Exchange System"]
 SWITCH0E0F["Consolidated $0E/$0F<br/>Battle Overlay System"]
 SWITCH1718["Consolidated $17/$18<br/>Display & Battle Systems"]
-SWITCH191A["Consolidated $19/$1A<br/>Attract Demo System"]
+SWITCH191A["Consolidated $19/$1A<br/>Attract Demo System with State Machine"]
 SWITCH1B1C["Consolidated $1B/$1C<br/>Map Screen Frame Processing"]
 SWITCH1D1E["Enhanced $1D/$1E<br/>SceneRenderer System"]
 CPU --> REG8000
@@ -262,7 +265,7 @@ SWITCH1D1E --> MAPPER
   - $C000-$DFFF: Slot 2 (switchable via $FC00)
   - $E000-$FFFF: Slot 3 (fixed boot bank 0x1F via $FE00)
 
-**Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E are now consolidated into single 16KB blocks occupying both $A000-$BFFF and $C000-$DFFF. This consolidation allows the $A000-$BFFF and $C000-$DFFF slots to be switched as unified pairs using the SwitchBankAC routines. **New**: The $19/$1A banks implement attract demo functionality with country selection and camera focus, while $1B/$1C provide comprehensive map screen frame processing with ruler intro sequences.
+**Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E are now consolidated into single 16KB blocks occupying both $A000-$BFFF and $C000-$DFFF. This consolidation allows the $A000-$BFFF and $C000-$DFFF slots to be switched as unified pairs using the SwitchBankAC routines. **New**: The $19/$1A banks implement attract demo functionality with sophisticated state machine architecture, country selection, camera focus, and enhanced data table organization, while $1B/$1C provide comprehensive map screen frame processing with ruler intro sequences.
 
 Memory mapping configuration in linker.cfg:
 - MEMORY regions define four PRG slots with fill and fillval
@@ -278,7 +281,7 @@ Practical distribution examples:
 - **Updated**: Banks 0x0C/$0x0D: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with advanced callback systems)
 - **Updated**: Banks 0x0E/$0x0F: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with battle overlay system)
 - **Updated**: Banks 0x17/$0x18: $A000-$DFFF (consolidated 16KB block via SwitchBankAC)
-- **Updated**: Banks 0x19/$0x1A: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with attract demo system)
+- **Updated**: Banks 0x19/$0x1A: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with attract demo system and sophisticated state machine)
 - **Updated**: Banks 0x1B/$0x1C: $A000-$DFFF (consolidated 16KB block via SwitchBankAC with map screen processing)
 - **Updated**: Banks 0x1D/$0x1E: $A000-$DFFF (consolidated 16KB block via B1F_SwitchBank1D1E)
 - Bank 0x1F: $E000-$FFFF (boot bank, fixed)
@@ -327,7 +330,7 @@ Boot sequence and dispatch:
 - The $A000-$BFFF and $C000-$DFFF slots are now managed as unified pairs
 - Bank switching uses B1F_SwitchBankAC routines (B1F_SwitchBankAC_A/B) instead of individual $FA00/$FC00 writes
 - Bank parameter Y determines both $A000-$BFFF and $C000-$DFFF banks simultaneously
-- **New**: Specialized handling for banks $19/$1A with attract demo functionality and banks $1B/$1C with map screen processing following the established consolidation pattern
+- **New**: Specialized handling for banks $19/$1A with sophisticated attract demo state machine functionality and banks $1B/$1C with map screen processing following the established consolidation pattern
 
 Bank switching macros:
 - switch_bank_8000(BANK_XX)
@@ -384,7 +387,7 @@ Segment organization strategy:
 - **Updated**: Consolidated bank 0C/0D code uses CODE_BANK0C and CODE_BANK0D segments for unified management with advanced callback systems
 - **Updated**: Consolidated bank 0E/0F code uses CODE_BANK0E and CODE_BANK0F segments for unified management with battle overlay system
 - **Updated**: Consolidated bank 17/18 code uses CODE_BANK17 and CODE_BANK18 segments for unified management
-- **Updated**: Consolidated bank 19/1A code uses CODE_BANK19 and CODE_BANK1A segments for unified management with attract demo system
+- **Updated**: Consolidated bank 19/1A code uses CODE_BANK19 and CODE_BANK1A segments for unified management with sophisticated attract demo state machine
 - **Updated**: Consolidated bank 1B/1C code uses CODE_BANK1B and CODE_BANK1C segments for unified management with map screen processing
 - **Updated**: Consolidated bank 1D/1E code uses CODE_BANK1D and CODE_BANK1E segments for unified management
 
@@ -420,11 +423,11 @@ Segment organization strategy:
   - Stub: asm/banks/prg_17_18.asm includes rom/prg/prg_17_18.bin
   - Contains domestic/kingdom display functions at $A000-$A029
   - Provides unified 16KB code space for both $A000-$BFFF and $C000-$DFFF
-- **Updated**: Banks 0x19/$0x1A: $A000-$DFFF (consolidated with attract demo system)
+- **Updated**: Banks 0x19/$0x1A: $A000-$DFFF (consolidated with sophisticated attract demo state machine)
   - Stub: asm/banks/prg_19_1a.asm includes rom/prg/prg_19.bin and rom/prg/prg_1a.bin
-  - Contains AttractDemoDispatch_Entry at $A003 with attract demo state machine
-  - Provides unified 16KB code space for attract demo functionality with country selection, camera focus, and status overlays
-  - Implements sophisticated attract demo with country rotation, officer census building, and camera positioning
+  - Contains AttractDemoDispatch_Entry at $A003 with complete attract demo state machine
+  - Provides unified 16KB code space for attract demo functionality with sophisticated state machine, country selection, camera focus, and enhanced data table organization
+  - Implements comprehensive attract demo with CountrySelect, OverlayInit, OverlayPoll, and ResetCheck phases, plus helper functions for province counting, officer census building, and marker sprite drawing
 - **Updated**: Banks 0x1B/$0x1C: $A000-$DFFF (consolidated with map screen processing)
   - Stub: asm/banks/prg_1b_1c.asm includes rom/prg/prg_1b.bin and rom/prg/prg_1c.bin
   - Contains MapScreenFrameUpdate_Entry at $A000 with map screen frame processing
@@ -445,7 +448,7 @@ Segment organization strategy:
 - **Updated**: For consolidated bank 0x0C/$0x0D, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
 - **Updated**: For consolidated bank 0x0E/$0x0F, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
 - **Updated**: For consolidated bank 0x17/$0x18, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously
-- **Updated**: For consolidated bank 0x19/$0x1A, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously with attract demo functionality
+- **Updated**: For consolidated bank 0x19/$0x1A, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously with sophisticated attract demo state machine functionality
 - **Updated**: For consolidated bank 0x1B/$0x1C, bank 0x1F uses B1F_SwitchBankAC routines to switch both $A000-$BFFF and $C000-$DFFF simultaneously with map screen processing
 - **Updated**: For consolidated bank 0x1D/$0x1E, bank 0x1F uses B1F_SwitchBank1D1E routine to switch the entire $A000-$DFFF 16KB block
 - Bank switching routine reads a configuration table and writes to mapper registers $C000/$C800/$D000/$D800
@@ -473,7 +476,7 @@ Segment organization strategy:
 - **Updated**: Banks 0x0C/$0x0D map to $A000-$DFFF (consolidated 16KB block with advanced callback systems)
 - **Updated**: Banks 0x0E/$0x0F map to $A000-$DFFF (consolidated 16KB block with battle overlay system)
 - **Updated**: Banks 0x17/$0x18 map to $A000-$DFFF (consolidated 16KB block)
-- **Updated**: Banks 0x19/$0x1A map to $A000-$DFFF (consolidated 16KB block with attract demo system)
+- **Updated**: Banks 0x19/$0x1A map to $A000-$DFFF (consolidated 16KB block with sophisticated attract demo state machine)
 - **Updated**: Banks 0x1B/$0x1C map to $A000-$DFFF (consolidated 16KB block with map screen processing)
 - **Updated**: Banks 0x1D/$0x1E map to $A000-$DFFF (consolidated 16KB block)
 - Bank 0x1F maps to $E000-$FFFF (fixed)
@@ -511,7 +514,7 @@ This mapping is enforced by the mapper registers:
   - $E000-$FFFF: Slot 3 (boot bank 0x1F)
 
 **Updated**: Consolidated bank utilization:
-- $A000-$BFFF: Slot 1 - Bank 0x08 (battle and AI systems), Bank 0x0A (enhanced AI/province evaluation), Bank 0x0C (new consolidated module with callback systems), Bank 0x0E (battle overlay system), Bank 0x17 (display systems), Bank 0x19 (attract demo system), Bank 0x1B (map screen processing), and Bank 0x1D (enhanced display system)
+- $A000-$BFFF: Slot 1 - Bank 0x08 (battle and AI systems), Bank 0x0A (enhanced AI/province evaluation), Bank 0x0C (new consolidated module with callback systems), Bank 0x0E (battle overlay system), Bank 0x17 (display systems), Bank 0x19 (sophisticated attract demo state machine), Bank 0x1B (map screen processing), and Bank 0x1D (enhanced display system)
 - $C000-$DFFF: Slot 2 - Bank 0x09 (paired with bank 0x08), Bank 0x0B (paired with bank 0x0A), Bank 0x0D (paired with bank 0x0C), Bank 0x0F (paired with bank 0x0E), Bank 0x18 (paired with bank 0x17), Bank 0x1A (paired with bank 0x19), Bank 0x1C (paired with bank 0x1B), and Bank 0x1E (paired with bank 0x1D)
 - Unified 16KB blocks at $A000-$DFFF managed by consolidated bank switching
 - Bank switching occurs by writing to mapper registers at $F800-$FE00. The mapper decodes the bank number and maps it into the selected 8KB window. **Updated**: Consolidated banks use specialized switching routines for unified management.
@@ -536,7 +539,7 @@ This mapping is enforced by the mapper registers:
 - **New**: Bank 0x0C at $A000-$BFFF paired with bank 0x0D at $C000-$DFFF (new consolidated module with advanced callback systems)
 - **New**: Bank 0x0E at $A000-$BFFF paired with bank 0x0F at $C000-$DFFF (battle overlay system)
 - Bank 0x17 at $A000-$BFFF paired with bank 0x18 at $C000-$DFFF (display systems)
-- **New**: Bank 0x19 at $A000-$BFFF paired with bank 0x1A at $C000-$DFFF (attract demo system)
+- **New**: Bank 0x19 at $A000-$BFFF paired with bank 0x1A at $C000-$DFFF (sophisticated attract demo state machine)
 - **New**: Bank 0x1B at $A000-$BFFF paired with bank 0x1C at $C000-$DFFF (map screen processing)
 - Bank 0x1D at $A000-$BFFF paired with bank 0x1E at $C000-$DFFF (enhanced display system)
 - B1F_SwitchBank1D1E routine switches the entire $A000-$DFFF 16KB block for banks 0x1D/$0x1E
@@ -564,27 +567,34 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - [prg_1f.asm:2376-2397](file://asm/banks/prg_1f.asm#L2376-L2397)
 
 ### Attract Demo System in Banks $19/$1A
-**New**: Major expansion of PRG banks $19/$1A introduces comprehensive attract demo functionality:
+**New**: Major expansion of PRG banks $19/$1A introduces comprehensive attract demo functionality with sophisticated state machine architecture:
 
 #### Complete Attract Demo State Machine
-**New**: Sophisticated attract demo with country selection and camera focus:
-- **AttractDemoDispatch**: Main attract demo dispatcher with 4 phases (country select, overlay init, overlay poll, reset check)
-- **CountrySelect**: Country selection sub-state with rotation step management, officer census building, and province counting
-- **OverlayInit**: Status overlay initialization with country information display and camera positioning
-- **OverlayPoll**: Interactive overlay polling with Start button detection for demo exit
+**New**: Sophisticated attract demo with complete state machine implementation:
+- **AttractDemoDispatch**: Main attract demo dispatcher with 4 distinct phases (CountrySelect, OverlayInit, OverlayPoll, ResetCheck) using CallbackDispatcher for state-based routing
+- **CountrySelect**: Country selection sub-state with rotation step management, officer census building, province counting, and transition to camera-focus mode
+- **OverlayInit**: Status overlay initialization with country information display, province count setup, and camera positioning to ruler's home province
+- **OverlayPoll**: Interactive overlay polling with Start button detection for demo exit and integration with slow periodic updates
 - **ResetCheck**: Demo idle state with soft reset capability when too few officers remain
 
-#### Advanced Country Management
-**New**: Comprehensive country and officer management:
-- **ProvinceCountByOwner**: Counts provinces owned by specific countries for display purposes
-- **MarkerSpriteDraw**: Draws interactive marker sprites for country selection
-- **FindOfficerProvince**: Locates officer positions within province rosters
-- **DecayCountryTimers**: Manages packed-nibble timers for country records
-- **AttractDemoCensusBuild**: Builds country lists and performs officer census calculations
+#### Advanced Helper Functions and Data Tables
+**New**: Comprehensive helper functions and organized data structures:
+- **ProvinceCountByOwner**: Counts provinces owned by specific countries for display purposes with efficient province record scanning
+- **MarkerSpriteDraw**: Draws interactive marker sprites for country selection with optimized OAM writing
+- **FindOfficerProvince**: Locates officer positions within province rosters through systematic scanning
+- **DecayCountryTimers**: Manages packed-nibble timers for country records with efficient field processing
+- **AttractDemoCensusBuild**: Builds country lists and performs officer census calculations with SRAM integration
+
+#### Enhanced Data Table Organization
+**New**: Structured data tables for improved maintainability:
+- **CountryRecordPtrTable**: Organized pointer table for 7 country records with consistent stride
+- **ProvinceCountDisplayTable**: Lookup table mapping province counts (0-31) to display values
+- **AttractCountryOrderTable**: 5-row rotation order table (8 entries each) defining country selection sequences
+- **Demo RAM Layout**: Organized memory layout at $6F00-$6F45 for demo state management
 
 #### Player Interaction and Camera Control
 **New**: Sophisticated player interaction and camera control:
-- **Camera positioning**: Automatic camera targeting based on ruler's home province
+- **Camera positioning**: Automatic camera targeting based on ruler's home province with smooth transitions
 - **Input handling**: Start button detection for demo exit and transition to title screen
 - **Status overlays**: Dynamic display of country information and province counts
 - **Animation integration**: Smooth camera transitions and sprite animations
@@ -669,7 +679,7 @@ The bank organization depends on several components working together:
 - asm/banks/* stubs include the ROM binaries for each bank
 - **Updated**: Consolidated bank stubs for PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E in asm/banks/prg_08_09.asm, asm/banks/prg_0a_0b.asm, asm/banks/prg_0c_0d.asm, asm/banks/prg_0e_0f.asm, asm/banks/prg_17_18.asm, asm/banks/prg_19_1a.asm, asm/banks/prg_1b_1c.asm, and asm/banks/prg_1d_1e.asm
 - bank_1f_analysis.md documents the boot bank's role and dispatch mechanism
-- **New**: Attract demo system implementation in prg_19_1a.asm and map screen processing in prg_1b_1c.asm
+- **New**: Attract demo system implementation in prg_19_1a.asm with sophisticated state machine and helper functions, and map screen processing in prg_1b_1c.asm
 
 ```mermaid
 graph TB
@@ -682,13 +692,14 @@ ENHANCED_AI2["PRG 0A/0B Enhanced AI System<br/>Province Evaluation & Battle Logi
 NEW_OFFICER_EXCHANGE["PRG 0C/0D New Officer Exchange System<br/>with Callback Systems"]
 BATTLE_OVERLAY["PRG 0E/0F Battle Overlay System<br/>VBlank Processing & Phase Management"]
 DISPLAY_SYSTEMS["PRG 17/18 Display Systems<br/>Strategy Mode Rendering"]
-ATTRACT_DEMO["PRG 19/1A Attract Demo System<br/>Country Selection & Camera Focus"]
+ATTRACT_DEMO["PRG 19/1A Attract Demo System<br/>Sophisticated State Machine & Camera Focus"]
 MAP_SCREEN["PRG 1B/1C Map Screen Processing<br/>Ruler Intro & Province Sprites"]
 ENHANCED_DISPLAY["PRG 1D/1E Enhanced System<br/>Zero-Page Variables & SceneRenderer"]
 ROM["rom/prg/*.bin"]
 BOOT["bank_1f_analysis.md"]
 ANALYSIS_TOOLS["Analysis Tools Suite<br/>(Callback Analysis & Verification)"]
 VERIFICATION_TOOLS["Verification Tools<br/>(Byte-Exact ROM Matching)"]
+INIT_TOOLS["Initialization Tools<br/>(Attract Demo Setup)"]
 LCFG --> STUBS
 N163 --> STUBS
 FUNCS --> STUBS
@@ -705,6 +716,7 @@ BOOT --> STUBS
 ANALYSIS_TOOLS --> NEW_OFFICER_EXCHANGE
 VERIFICATION_TOOLS --> ATTRACT_DEMO
 VERIFICATION_TOOLS --> MAP_SCREEN
+INIT_TOOLS --> ATTRACT_DEMO
 ```
 
 **Diagram sources**
@@ -716,7 +728,7 @@ VERIFICATION_TOOLS --> MAP_SCREEN
 - [all_banks.asm:16](file://asm/banks/all_banks.asm#L16)
 - [all_banks.asm:17](file://asm/banks/all_banks.asm#L17)
 - [all_banks.asm:26](file://asm/banks/all_banks.asm#L26)
-- [all_banks.asm:27](file://asm/banks/all_banks.asm#L27)
+- [all_banks.asm:27](file://asm/banks/all_banks.asm#L26)
 - [all_banks.asm:28](file://asm/banks/all_banks.asm#L28)
 - [prg_08_09.asm:1-7](file://asm/banks/prg_08_09.asm#L1-L7)
 - [prg_0a_0b.asm:1-8](file://asm/banks/prg_0a_0b.asm#L1-L8)
@@ -733,6 +745,7 @@ VERIFICATION_TOOLS --> MAP_SCREEN
 - [check_trampoline_pattern.py:1-20](file://tools/check_trampoline_pattern.py#L1-L20)
 - [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
 - [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
+- [init_19_1a.py:1-285](file://tools/init_19_1a.py#L1-L285)
 
 **Section sources**
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
@@ -759,7 +772,7 @@ VERIFICATION_TOOLS --> MAP_SCREEN
 - Use the bank switching configuration table to batch changes when possible
 - **Updated**: Consolidated approach improves cache locality for related functions
 - **Updated**: Unified 16KB blocks reduce memory fragmentation and improve code organization
-- **New**: Attract demo system in banks $19/$1A provides efficient country selection with optimized camera positioning and input handling
+- **New**: Attract demo system in banks $19/$1A provides efficient country selection with optimized camera positioning, state machine dispatch, and enhanced data table lookups
 - **New**: Map screen processing in banks $1B/$1C offers optimized province sprite management with dirty bitmap tracking and animation phase coordination
 - **New**: Callback systems minimize overhead for dynamic function dispatching and state-based routing
 
@@ -785,17 +798,19 @@ Common issues and resolutions:
   - **New**: Check that bank 0x0C and 0x0D are properly paired in the switching routine
   - **New**: Check that bank 0x0E and 0x0F are properly paired in the switching routine
   - Check that bank 0x17 and 0x18 are properly paired in the switching routine
-  - **New**: Check that bank 0x19 and 0x1A are properly paired in the switching routine with attract demo functionality
+  - **New**: Check that bank 0x19 and 0x1A are properly paired in the switching routine with sophisticated attract demo state machine
   - **New**: Check that bank 0x1B and 0x1C are properly paired in the switching routine with map screen processing
   - **New**: Check that bank 0x1D and 0x1E are properly paired in the B1F_SwitchBank1D1E routine
   - **New**: Verify CODE_BANK08 and CODE_BANK09 segments are properly configured in linker.cfg
   - **New**: Ensure prg_08_09.asm follows the same consolidation pattern as other consolidated bank modules
 - **New**: Attract demo system issues:
-  - Verify AttractDemoDispatch flow through all 4 phases (country select, overlay init, overlay poll, reset check)
+  - Verify AttractDemoDispatch flow through all 4 phases (CountrySelect, OverlayInit, OverlayPoll, ResetCheck)
   - Check country selection logic with rotation step management and officer census building
   - Verify camera positioning based on ruler's home province and province count display
   - Ensure Start button detection works correctly for demo exit and title screen transition
   - Check province ownership counting and ending/unification scene triggering
+  - Verify helper functions (ProvinceCountByOwner, MarkerSpriteDraw, FindOfficerProvince, DecayCountryTimers, AttractDemoCensusBuild) are properly implemented
+  - Check enhanced data table organization (CountryRecordPtrTable, ProvinceCountDisplayTable, AttractCountryOrderTable)
 - **New**: Map screen processing issues:
   - Verify MapScreenFrameUpdate flow through ruler intro sequence states
   - Check province sprite refresh and dirty bitmap management
@@ -807,6 +822,7 @@ Common issues and resolutions:
   - Run verify_1b_1c.py to ensure banks $1B/$1C assemble to exact ROM match
   - Check external stub generation for cross-bank references
   - Verify segment organization matches original ROM layout at $A000/$C000
+  - Use init_19_1a.py for proper initialization of attract demo assembly
 
 **Section sources**
 - [bank_1f_analysis.md:54-77](file://code/bank_1f_analysis.md#L54-L77)
@@ -822,6 +838,7 @@ Common issues and resolutions:
 - [check_trampoline_pattern.py:1-20](file://tools/check_trampoline_pattern.py#L1-L20)
 - [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
 - [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
+- [init_19_1a.py:1-285](file://tools/init_19_1a.py#L1-L285)
 
 ## Conclusion
-The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $19/$1A provide a comprehensive attract demo system with country selection, camera focus, and status overlays, while banks $1B/$1C offer complete map screen frame processing with ruler intro sequences and province sprite management. **Updated**: PRG banks $08/$09 provide a comprehensive battle and AI system with sophisticated turn processing, officer action decision-making, movement engines, strategic command validation, and complete battle phase management with casualty resolution. **Updated**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **Updated**: PRG banks $0C/$0D provide a comprehensive officer exchange system with 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management. **Updated**: PRG banks $0E/$0F provide a comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios. **Updated**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) systems enable sophisticated dynamic function dispatching and state-based routing throughout the codebase. **New**: Comprehensive analysis tools suite enables verification of callback patterns, directive validation, and trampoline consistency checking. **New**: Byte-exact verification tools (verify_19_1a.py, verify_1b_1c.py) ensure consolidated bank assemblies match original ROM binaries precisely. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **Updated**: Consolidated bank switching reduces overhead and improves code organization through unified 16KB block management. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.
+The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $19/$1A provide a comprehensive attract demo system with sophisticated state machine architecture, country selection, camera focus, and enhanced data table organization, while banks $1B/$1C offer complete map screen frame processing with ruler intro sequences and province sprite management. **Updated**: PRG banks $08/$09 provide a comprehensive battle and AI system with sophisticated turn processing, officer action decision-making, movement engines, strategic command validation, and complete battle phase management with casualty resolution. **Updated**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **Updated**: PRG banks $0C/$0D provide a comprehensive officer exchange system with 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management. **Updated**: PRG banks $0E/$0F provide a comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios. **Updated**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) systems enable sophisticated dynamic function dispatching and state-based routing throughout the codebase. **New**: Comprehensive analysis tools suite enables verification of callback patterns, directive validation, and trampoline consistency checking. **New**: Byte-exact verification tools (verify_19_1a.py, verify_1b_1c.py) ensure consolidated bank assemblies match original ROM binaries precisely. **New**: Initialization tools (init_19_1a.py) provide robust setup and verification for attract demo assembly with byte-exact ROM matching. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **Updated**: Consolidated bank switching reduces overhead and improves code organization through unified 16KB block management. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.

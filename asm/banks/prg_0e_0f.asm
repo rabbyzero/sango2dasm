@@ -58,7 +58,7 @@
 ;   $0540 = overlay phase (0-$A); $0541 = sub-phase within each phase.
 ;   All phases use B1F_CallbackDispatcher inline tables for state dispatch.
 ;   Phases 0-2 first redraw both overlay strips via banked calls into
-;   bank $19 (B19_OverlayStripRender_Entry).
+;   bank $19 (B19_1A_OverlayStripRender_Entry).
 ;===============================================================================
 
 .include "6502_registers.h"
@@ -313,7 +313,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $A04B: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $A04D: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word B19_OverlayStripRender_Entry      ; $A050: 00 A0
+  .word B19_1A_OverlayStripRender_Entry   ; $A050: 00 A0
 ; Strip 1: row param $04BC=$D0, buffer ptr lo from $0561, X=1
   LDA #$D0                                ; $A052: A9 D0
   STA btl_strip_row_param                               ; $A054: 8D BC 04
@@ -325,7 +325,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $A062: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $A064: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19); resumes at @PhaseDispatch ---
-  .word B19_OverlayStripRender_Entry      ; $A067: 00 A0
+  .word B19_1A_OverlayStripRender_Entry   ; $A067: 00 A0
 @PhaseDispatch:
   LDA btl_overlay_phase                               ; $A069: AD 40 05
   JSR B1F_CallbackDispatcher              ; $A06C: 20 DE EA
@@ -2065,7 +2065,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $AA33: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $AA35: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $AA38: 00 A0 ; B19_OverlayStripRender_Entry
+  .word $A000                             ; $AA38: 00 A0 ; B19_1A_OverlayStripRender_Entry
   LDA btl_overlay_sub                               ; $AA3A: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $AA3D: 20 DE EA
 ; --- CallbackDispatcher sub table, indexed by $0541 ---
@@ -2509,7 +2509,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $ACD5: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $ACD7: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $ACDA: 00 A0 ; B19_OverlayStripRender_Entry
+  .word $A000                             ; $ACDA: 00 A0 ; B19_1A_OverlayStripRender_Entry
   LDA btl_overlay_sub                               ; $ACDC: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $ACDF: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
@@ -3307,7 +3307,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $B1FC: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $B1FE: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $B201: 00 A0 ; B19_OverlayStripRender_Entry
+  .word $A000                             ; $B201: 00 A0 ; B19_1A_OverlayStripRender_Entry
   LDA btl_overlay_sub                               ; $B203: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $B206: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
@@ -7194,7 +7194,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
   LDY #$39                                ; $CE75: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $CE77: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $CE7A: 00 A0 ; B19_OverlayStripRender_Entry
+  .word $A000                             ; $CE7A: 00 A0 ; B19_1A_OverlayStripRender_Entry
   LDY #$00                                ; $CE7C: A0 00 ; side A pad input
   JSR FormationSelectMenu                 ; $CE7E: 20 05 CF
   LDA a:menu_result                             ; $CE81: AD 12 00 ; menu result item
@@ -7239,7 +7239,7 @@ pad_state      = $0001  ; merged both-pad raw state
   LDY #$39                                ; $CEBB: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $CEBD: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $CEC0: 00 A0 ; B19_OverlayStripRender_Entry
+  .word $A000                             ; $CEC0: 00 A0 ; B19_1A_OverlayStripRender_Entry
   LDA #$00                                ; $CEC2: A9 00
   JSR BattlePadStateFetch                 ; $CEC4: 20 DE CC
   JSR BattleAnimQueueIdleCheck            ; $CEC7: 20 70 B8
@@ -7440,7 +7440,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
   LDY #$39                                ; $CFCF: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $CFD1: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $CFD4: 00 A0 ; B19_OverlayStripRender_Entry
+  .word $A000                             ; $CFD4: 00 A0 ; B19_1A_OverlayStripRender_Entry
   LDY #$01                                ; $CFD6: A0 01 ; side B pad input
   JSR FormationSelectMenu                 ; $CFD8: 20 05 CF
   LDA a:menu_result                             ; $CFDB: AD 12 00 ; menu result item
@@ -7485,7 +7485,7 @@ pad_state      = $0001  ; merged both-pad raw state
   LDY #$39                                ; $D015: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $D017: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $D01A: 00 A0 ; B19_OverlayStripRender_Entry
+  .word $A000                             ; $D01A: 00 A0 ; B19_1A_OverlayStripRender_Entry
   LDA #$01                                ; $D01C: A9 01
   JSR BattlePadStateFetch                 ; $D01E: 20 DE CC
   JSR BattleAnimQueueIdleCheck            ; $D021: 20 70 B8
@@ -8629,7 +8629,7 @@ PhaseATauntSceneWaitFrame:
 ; $D72B: PhaseATauntStripRedraw
 ; Redraws the overlay strip of the side currently in $057C: buffer ptr lo
 ; from $0560[$057C] (hi fixed $A5) via the bank-19 strip renderer
-; (B19_OverlayStripRender_Entry), X=0 strip slot, Y=$39.
+; (B19_1A_OverlayStripRender_Entry), X=0 strip slot, Y=$39.
 ;===============================================================================
 .proc PhaseATauntStripRedraw
 ; zero-page work cells (proc-local):
@@ -8644,7 +8644,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $D73B: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $D73D: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $D740: 00 A0 ; B19_OverlayStripRender_Entry
+  .word $A000                             ; $D740: 00 A0 ; B19_1A_OverlayStripRender_Entry
   RTS                                     ; $D742: 60
 .endproc
 ;===============================================================================

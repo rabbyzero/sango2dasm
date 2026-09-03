@@ -669,10 +669,19 @@ B1D_1E_OfficerParamDisp_Proc = $DE7E ; Officer parameter display procedure
 B1D_1E_OfficerRecLookup_Proc = $DEB9 ; Officer record lookup procedure
 
 ;-------------------------------------------------------------------------------
-; Bank $19 - Battle overlay strip rendering ($A000-$BFFF)
+; Banks $19+$1A - Map screen scenes (combined 16KB $A000-$DFFF)
 ; Loaded via SwitchBankAC with Y=$39 ($39 & $1F = $19, $C000 slot = $1A)
+;
+; Jump table entry points ($A000-$A024)
 ;-------------------------------------------------------------------------------
-B19_OverlayStripRender_Entry = $A000  ; OverlayStripRender_Entry: redraw one battle overlay strip (X = strip 0/1)
+B19_1A_OverlayStripRender_Entry = $A000  ; $A000 stub: redraw one battle overlay strip (X = strip 0/1)
+B19_1A_AttractDemoDispatch           = $A003 ; AttractDemoDispatch_Entry: title-screen attract demo dispatch
+B19_1A_StrategyRequestDispatch       = $A006 ; StrategyRequestDispatch_Entry: strategy request dispatch
+B19_1A_DemoEventPlaybackDispatch     = $A009 ; DemoEventPlaybackDispatch_Entry: demo event playback sequencer
+B19_1A_OfficerStatusScene            = $A00C ; Officer status scene entry stub
+B19_1A_UnificationEndingDispatch     = $A01E ; UnificationEndingDispatch_Entry: unification ending scene
+B19_1A_ProvinceOfficerRosterDispatch = $A021 ; ProvinceOfficerRosterDispatch_Entry: province officer roster
+B19_1A_MapProvinceDirtyMark          = $A02A ; MapProvinceDirtyMark_Entry: marks province $0402 dirty in $04E0-$04E3
 
 ;===============================================================================
 ; SECTION 3: Banked Code at $8000-$9FFF (Slot 0)

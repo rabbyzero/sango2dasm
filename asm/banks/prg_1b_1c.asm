@@ -42,12 +42,12 @@ Loc_A009:  ; (dispatch callback target)
 ;   4. When palette/frame flag $0087 bit7 is set (animation phase tick from
 ;      B1F_PaletteAnimation), dispatch the frame-state handler by $0400.
 ;===============================================================================
-MapScreenFrameUpdate:  ; (dispatch callback target)
+.proc MapScreenFrameUpdate  ; (dispatch callback target)
   JSR MapRulerMarkerDraw                  ; $A00C: 20 83 DE
   JSR MapProvinceSpriteRefresh            ; $A00F: 20 35 DF
   LDY #$39                                ; $A012: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A014: 20 07 EE
-  .word $A02A                             ; $A017: 2A A0 (BankedCallbackTrampoline target; bank $19 $A02A -> JMP MapProvinceDirtyMark)
+  .word B19_1A_MapProvinceDirtyMark       ; $A017: 2A A0 (BankedCallbackTrampoline target; bank $19 $A02A -> JMP MapProvinceDirtyMark)
   LDA a:$0087                             ; $A019: AD 87 00  ; palette/frame flag
   BMI MapScreenFrameStateDispatch         ; $A01C: 30 01     ; bit7 set: animation tick -> run state machine
   RTS                                     ; $A01E: 60        ; frame flag idle: nothing more this VBlank
@@ -55,60 +55,121 @@ MapScreenFrameStateDispatch:
   LDA $0400                               ; $A01F: AD 00 04  ; map screen frame state
   JSR B1F_CallbackDispatcher              ; $A022: 20 DE EA
 MapScreenFrameStateTable:
-  .word Loc_A07D                          ; $A025: 7D A0 ; state 0: sub-state dispatch by $0401
-  .word Loc_A18B                          ; $A027: 8B A1 ; state 1
+  .word MapRulerIntroDispatch             ; $A025: 7D A0 ; state 0: sub-state dispatch by $0401
+  .word CommandCategoryMenuDispatch       ; $A027: 8B A1 ; state 1: command category menu (sub-dispatch by $0401)
   .word Loc_A295                          ; $A029: 95 A2 ; state 2
   .word Loc_ADF2                          ; $A02B: F2 AD ; state 3
   .word Loc_B759                          ; $A02D: 59 B7 ; state 4
   .word Loc_BFB7                          ; $A02F: B7 BF ; state 5
   .word Loc_CADF                          ; $A031: DF CA ; state 6
-  .word Loc_A07D                          ; $A033: 7D A0 ; state 7: sub-state dispatch by $0401
-  .word Loc_A07D                          ; $A035: 7D A0 ; state 8: sub-state dispatch by $0401
-  .word Loc_A055                          ; $A037: 55 A0 ; state 9: banked call, banks $19+$1A $A006
-  .word Loc_A05D                          ; $A039: 5D A0 ; state $0A: banked call, banks $19+$1A $A009
-  .word Loc_A045                          ; $A03B: 45 A0 ; state $0B: banked call, banks $19+$1A $A003
-  .word Loc_A04D                          ; $A03D: 4D A0 ; state $0C: banked call, banks $19+$1A $A021
-  .word Loc_A065                          ; $A03F: 65 A0 ; state $0D: banked call, banks $19+$1A $A00C
-  .word Loc_A06D                          ; $A041: 6D A0 ; state $0E: banked call, B1D_1E_SceneRenderer
-  .word Loc_A075                          ; $A043: 75 A0 ; state $0F: banked call, banks $19+$1A $A01E
-Loc_A045:  ; (dispatch callback target)
-; --- Code Region ---
+  .word MapRulerIntroDispatch             ; $A033: 7D A0 ; state 7: sub-state dispatch by $0401
+  .word MapRulerIntroDispatch             ; $A035: 7D A0 ; state 8: sub-state dispatch by $0401
+  .word CallStrategyRequestDispatch       ; $A037: 55 A0 ; state 9: banked call, B19_1A_StrategyRequestDispatch
+  .word CallDemoEventPlaybackDispatch     ; $A039: 5D A0 ; state $0A: banked call, B19_1A_DemoEventPlaybackDispatch
+  .word CallAttractDemoDispatch           ; $A03B: 45 A0 ; state $0B: banked call, B19_1A_AttractDemoDispatch
+  .word CallProvinceOfficerRosterDispatch ; $A03D: 4D A0 ; state $0C: banked call, B19_1A_ProvinceOfficerRosterDispatch
+  .word CallOfficerStatusScene            ; $A03F: 65 A0 ; state $0D: banked call, B19_1A_OfficerStatusScene
+  .word CallSceneRenderer                 ; $A041: 6D A0 ; state $0E: banked call, B1D_1E_SceneRenderer
+  .word CallUnificationEndingDispatch     ; $A043: 75 A0 ; state $0F: banked call, B19_1A_UnificationEndingDispatch
+.endproc
+
+;===============================================================================
+; CallAttractDemoDispatch ($A045-$A04C) - dispatch callback target (state $0B)
+; Banked-call wrapper: switches to banks $19+$1A and invokes
+; B19_1A_AttractDemoDispatch (attract/title demo cycle handler).
+;===============================================================================
+.proc CallAttractDemoDispatch  ; (dispatch callback target)
   LDY #$39                                ; $A045: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A047: 20 07 EE
-  .word $A003                             ; $A04A: 03 A0 (BankedCallbackTrampoline target)
+  .word B19_1A_AttractDemoDispatch        ; $A04A: 03 A0 (BankedCallbackTrampoline target; bank $19 $A003 -> JMP AttractDemoDispatch)
   RTS                                     ; $A04C: 60
-Loc_A04D:  ; (dispatch callback target)
-; --- Code Region ---
+.endproc
+
+;===============================================================================
+; CallProvinceOfficerRosterDispatch ($A04D-$A054) - dispatch callback target (state $0C)
+; Banked-call wrapper: switches to banks $19+$1A and invokes
+; B19_1A_ProvinceOfficerRosterDispatch (province officer roster scene).
+;===============================================================================
+.proc CallProvinceOfficerRosterDispatch  ; (dispatch callback target)
   LDY #$39                                ; $A04D: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A04F: 20 07 EE
-  .word $A021                             ; $A052: 21 A0 (BankedCallbackTrampoline target)
+  .word B19_1A_ProvinceOfficerRosterDispatch ; $A052: 21 A0 (BankedCallbackTrampoline target; bank $19 $A021 -> JMP ProvinceOfficerRosterDispatch)
   RTS                                     ; $A054: 60
-Loc_A055:
+.endproc
+
+;===============================================================================
+; CallStrategyRequestDispatch ($A055-$A05B) - dispatch callback target (state 9)
+; Banked-call wrapper: switches to banks $19+$1A and invokes
+; B19_1A_StrategyRequestDispatch (strategy request processing).
+;===============================================================================
+.proc CallStrategyRequestDispatch  ; (dispatch callback target)
   LDY #$39                                ; $A055: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A057: 20 07 EE
-  .word $A006                             ; $A059: 06 A0 (BankedCallbackTrampoline target)
+  .word B19_1A_StrategyRequestDispatch    ; $A059: 06 A0 (BankedCallbackTrampoline target; bank $19 $A006 -> JMP $C773: StrategyRequestDispatch)
   RTS                                     ; $A05B: 60
-Loc_A05D:
+.endproc
+
+;===============================================================================
+; CallDemoEventPlaybackDispatch ($A05D-$A064) - dispatch callback target (state $0A)
+; Banked-call wrapper: switches to banks $19+$1A and invokes
+; B19_1A_DemoEventPlaybackDispatch (demo event playback).
+;===============================================================================
+.proc CallDemoEventPlaybackDispatch  ; (dispatch callback target)
   LDY #$39                                ; $A05D: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A05F: 20 07 EE
-  .word $A009                             ; $A062: 09 A0 (BankedCallbackTrampoline target)
+  .word B19_1A_DemoEventPlaybackDispatch  ; $A062: 09 A0 (BankedCallbackTrampoline target; bank $19 $A009 -> JMP DemoEventPlaybackDispatch)
   RTS                                     ; $A064: 60
-Loc_A065:
+.endproc
+
+;===============================================================================
+; CallOfficerStatusScene ($A065-$A06C) - dispatch callback target (state $0D)
+; Banked-call wrapper: switches to banks $19+$1A and invokes
+; B19_1A_OfficerStatusScene (officer status screen).
+;===============================================================================
+.proc CallOfficerStatusScene  ; (dispatch callback target)
   LDY #$39                                ; $A065: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A067: 20 07 EE
-  .word $A00C                             ; $A06A: 0C A0 (BankedCallbackTrampoline target)
+  .word B19_1A_OfficerStatusScene         ; $A06A: 0C A0 (BankedCallbackTrampoline target; bank $19 $A00C -> JMP OfficerStatusScene)
   RTS                                     ; $A06C: 60
-Loc_A06D:
+.endproc
+
+;===============================================================================
+; CallSceneRenderer ($A06D-$A074) - dispatch callback target (state $0E)
+; Banked-call wrapper: switches to banks $1D+$1E and invokes
+; B1D_1E_SceneRenderer (scene/overlay renderer).
+;===============================================================================
+.proc CallSceneRenderer  ; (dispatch callback target)
   LDY #$3D                                ; $A06D: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $A06F: 20 07 EE
   .word B1D_1E_SceneRenderer              ; $A072: 39 A0 (BankedCallbackTrampoline target)
   RTS                                     ; $A074: 60
-Loc_A075:
+.endproc
+
+;===============================================================================
+; CallUnificationEndingDispatch ($A075-$A07C) - dispatch callback target (state $0F)
+; Banked-call wrapper: switches to banks $19+$1A and invokes
+; B19_1A_UnificationEndingDispatch (unification ending scene).
+;===============================================================================
+.proc CallUnificationEndingDispatch  ; (dispatch callback target)
   LDY #$39                                ; $A075: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A077: 20 07 EE
-  .word $A01E                             ; $A07A: 1E A0 (BankedCallbackTrampoline target; bank $19 $A01E -> JMP $C435)
+  .word B19_1A_UnificationEndingDispatch  ; $A07A: 1E A0 (BankedCallbackTrampoline target; bank $19 $A01E -> JMP UnificationEndingDispatch)
   RTS                                     ; $A07C: 60
-Loc_A07D:
+.endproc
+;===============================================================================
+; MapRulerIntroDispatch ($A07D-$A18A)
+; Sub-state dispatcher for the map-screen ruler-intro sequence. Invoked as the
+; B1F_CallbackDispatcher callback for frame states 0/7/8 (table entries at
+; $A025/$A033/$A035). Dispatches on frame sub-state $0401:
+;   0: MapRulerIntroInit      - reset intro state; route to ending/attract/
+;                               camera-focus phase
+;   1: MapRulerIntroCameraSync - pan the camera; poll B/A/Select input
+;   2: MapRulerIntroWait      - wait for transition slot $0304 idle, then
+;                               enter frame state $0C (province roster)
+; Helper entry points (MapRulerIntroPadAdvance, MapRulerIntroCancelCheck) are
+; called from MapRulerIntroCameraSync only.
+;===============================================================================
+.proc MapRulerIntroDispatch  ; (dispatch callback target)
   LDA $0401                               ; $A07D: AD 01 04  ; frame sub-state
   JSR B1F_CallbackDispatcher              ; $A080: 20 DE EA
   .word MapRulerIntroInit                 ; $A083: 89 A0 ; sub-state 0
@@ -121,7 +182,7 @@ Loc_A07D:
 ; ($0470-$0472 scroll pointers, $00A4, dirty mark $04E4), then counts the
 ; provinces owned by the current ruler $6F03 (sram_player_id) via $DDBF:
 ;   - 30 provinces: the ruler owns the whole land -> frame state $0F
-;     (ending/unification scene, banks $19+$1A $A01E).
+;     (ending/unification scene, B19_1A_UnificationEndingDispatch).
 ;   - SRAM game-state flag $6F05 is $00 or negative (no active game):
 ;     frame state $0B + sub-state 0 (title/attract cycle) via B1F_SetUI4.
 ;   - Active game: cache the player's home province from the SRAM ruler
@@ -141,22 +202,22 @@ MapRulerIntroInit:  ; (dispatch callback target)
   JSR $DDBF                               ; $A0A0: 20 BF DD  ; count ruler's provinces -> $0011
   LDA a:$0011                             ; $A0A3: AD 11 00
   CMP #$1E                                ; $A0A6: C9 1E    ; all 30 provinces owned?
-  BNE $A0B0                               ; $A0A8: D0 06
+  BNE @NotUnified                         ; $A0A8: D0 06
   LDA #$0F                                ; $A0AA: A9 0F
   STA $0400                               ; $A0AC: 8D 00 04  ; ending/unification scene
   RTS                                     ; $A0AF: 60
-Loc_A0B0:
+@NotUnified:  ; fewer than 30 provinces: continue intro sequence
   INC $0401                               ; $A0B0: EE 01 04  ; advance to camera sync
   LDA $6F05                               ; $A0B3: AD 05 6F  ; SRAM game state flag
-  BMI $A0BA                               ; $A0B6: 30 02    ; negative: no active game
-  BNE $A0C7                               ; $A0B8: D0 0D    ; non-zero: game in progress
-Loc_A0BA:
+  BMI @NoActiveGame                       ; $A0B6: 30 02    ; negative: no active game
+  BNE @GameActive                         ; $A0B8: D0 0D    ; non-zero: game in progress
+@NoActiveGame:
   LDA #$0B                                ; $A0BA: A9 0B
   STA $0400                               ; $A0BC: 8D 00 04  ; attract/title cycle
   LDA #$00                                ; $A0BF: A9 00
   STA $0401                               ; $A0C1: 8D 01 04
   JMP $F28B                               ; $A0C4: 4C 8B F2  ; B1F_SetUI4 (no return)
-Loc_A0C7:
+@GameActive:
   LDY #$00                                ; $A0C7: A0 00
   LDA ($EE),Y                             ; $A0C9: B1 EE     ; home province from SRAM ruler record
   STA $042C                               ; $A0CB: 8D 2C 04  ; intro focus province
@@ -178,10 +239,19 @@ Loc_A0C7:
 ;          via $DEBA; if the camera is in bounds and the province belongs to
 ;          ruler $6F03, mark the screen dirty ($04E4) and advance frame state
 ;          $0400 (sub-state resets to 0).
-;        - B/Select ($0081|$0082 bit2): back out to frame state $0E with
-;          sub-state decremented (Loc_A161).
+;        - B pressed ($0081 bit1): resolve camera $6F3F/$6F41 to a province
+;          via $DEBA; if in bounds and owned by ruler $6F03, reset the scroll
+;          pointers and enter UI mode 4 via B1F_SetUI4, advancing the
+;          sub-state to the transition wait (MapRulerIntroWait).
+;        - Select on pad 1 or 2 (($0081|$0082) bit2): back out to frame state
+;          $0E with the sub-state decremented (MapRulerIntroCancelCheck).
+;        - A pressed ($0081 bit0): resolve the camera to a province via
+;          $DEBA; if the camera is in bounds and the province belongs to
+;          ruler $6F03, mark the screen dirty ($04E4) and advance frame
+;          state $0400 (sub-state resets to 0).
 ;        - No valid landing: stay and retry next tick.
-;      (Pad-edge helper Loc_A12D and cancel helper Loc_A161 below.)
+;      (Pad helper MapRulerIntroPadAdvance and cancel helper
+;      MapRulerIntroCancelCheck below.)
 ;===============================================================================
 MapRulerIntroCameraSync:  ; (dispatch callback target)
 ; --- Code Region ---
@@ -191,15 +261,15 @@ MapRulerIntroCameraSync:  ; (dispatch callback target)
   .word B1D_1E_SlowPeriodic               ; $A0E7: 21 A0 (BankedCallbackTrampoline target; slow periodic overlay refresh)
 ; --- Code Region ---
   JSR $DDAD                               ; $A0E9: 20 AD DD  ; check intro/scene busy flags $0304/$0300
-  BCC Loc_A12C                            ; $A0EC: 90 3E     ; busy: skip input this tick
-  JSR Loc_A12D                            ; $A0EE: 20 2D A1  ; A-button edge: resolve camera province
-  JSR Loc_A161                            ; $A0F1: 20 61 A1  ; B/Select edge: back out
-  LDA a:$0081                             ; $A0F4: AD 81 00  ; pad latch 1
+  BCC MapRulerIntroCameraSyncExit         ; $A0EC: 90 3E     ; busy: skip input this tick
+  JSR MapRulerIntroPadAdvance             ; $A0EE: 20 2D A1  ; B-button edge: resolve camera and advance
+  JSR MapRulerIntroCancelCheck            ; $A0F1: 20 61 A1  ; Select edge: back out to state $0E
+  LDA a:$0081                             ; $A0F4: AD 81 00  ; pad 1 newly-pressed (edge)
   AND #$01                                ; $A0F7: 29 01     ; A pressed
-  BEQ Loc_A12C                            ; $A0F9: F0 31
+  BEQ MapRulerIntroCameraSyncExit         ; $A0F9: F0 31
   JSR $DEBA                               ; $A0FB: 20 BA DE  ; camera ($6F3F,$6F41) -> province id in Y
   CPY #$FF                                ; $A0FE: C0 FF     ; camera outside map
-  BEQ Loc_A122                            ; $A100: F0 20     ; -> UI mode $21
+  BEQ MapRulerIntroCameraOffMapExit       ; $A100: F0 20     ; -> UI mode $21
   STY $0402                               ; $A102: 8C 02 04  ; pending province
   TYA                                     ; $A105: 98
   JSR B1F_GetProvinceRecordAddr           ; $A106: 20 AF F2  ; -> ($00) = province record
@@ -207,194 +277,259 @@ MapRulerIntroCameraSync:  ; (dispatch callback target)
   LDA ($00),Y                             ; $A10B: B1 00
   AND #$07                                ; $A10D: 29 07     ; owner ruler id
   CMP $6F03                               ; $A10F: CD 03 6F  ; ruler under camera = current ruler?
-  BNE Loc_A127                            ; $A112: D0 13     ; -> UI mode $22
+  BNE MapRulerIntroCameraNotOwnedExit     ; $A112: D0 13     ; -> UI mode $22
   LDA #$FF                                ; $A114: A9 FF
   STA $04E4                               ; $A116: 8D E4 04  ; force full sprite refresh
   INC $0400                               ; $A119: EE 00 04  ; advance frame state (sub-state -> 0)
   LDA #$00                                ; $A11C: A9 00
   STA $0401                               ; $A11E: 8D 01 04
   RTS                                     ; $A121: 60
-Loc_A122:
-; --- Code Region ---
-  LDA #$21                                ; $A122: A9 21
-  JMP $F26D                               ; $A124: 4C 6D F2
-Loc_A127:
-  LDA #$22                                ; $A127: A9 22
-  JMP $F26D                               ; $A129: 4C 6D F2
-Loc_A12C:
-  RTS                                     ; $A12C: 60
-Loc_A12D:
-  LDA a:$0081                             ; $A12D: AD 81 00
-  AND #$02                                ; $A130: 29 02
-  BEQ $A160                               ; $A132: F0 2C
+MapRulerIntroCameraOffMapExit:
+  LDA #$21                                ; $A122: A9 21     ; UI mode $21: camera outside map
+  JMP B1F_SetUI0                          ; $A124: 4C 6D F2  (no return)
+MapRulerIntroCameraNotOwnedExit:
+  LDA #$22                                ; $A127: A9 22     ; UI mode $22: province not owned
+  JMP B1F_SetUI0                          ; $A129: 4C 6D F2  (no return)
+MapRulerIntroCameraSyncExit:
+  RTS                                     ; $A12C: 60        ; shared exit: busy or no action this tick
+;===============================================================================
+; MapRulerIntroPadAdvance ($A12D-$A160)
+; B-button edge helper. If B ($0081 bit1) is newly pressed, resolves the
+; camera position to a province via $DEBA and, when it lands on a province
+; owned by ruler $6F03, advances the sub-state to the transition wait and
+; switches to UI mode 4 via B1F_SetUI4.
+;===============================================================================
+MapRulerIntroPadAdvance:
+  LDA a:$0081                             ; $A12D: AD 81 00  ; pad 1 newly-pressed (edge)
+  AND #$02                                ; $A130: 29 02     ; B pressed
+  BEQ MapRulerIntroPadAdvanceExit         ; $A132: F0 2C
   LDA #$00                                ; $A134: A9 00
-  STA a:$0081                             ; $A136: 8D 81 00
-  JSR $DEBA                               ; $A139: 20 BA DE
-  CPY #$FF                                ; $A13C: C0 FF
-  BEQ $A160                               ; $A13E: F0 20
-  STY $0402                               ; $A140: 8C 02 04
+  STA a:$0081                             ; $A136: 8D 81 00  ; consume pad edge
+  JSR $DEBA                               ; $A139: 20 BA DE  ; camera ($6F3F,$6F41) -> province id in Y
+  CPY #$FF                                ; $A13C: C0 FF     ; camera outside map
+  BEQ MapRulerIntroPadAdvanceExit         ; $A13E: F0 20
+  STY $0402                               ; $A140: 8C 02 04  ; pending province
   TYA                                     ; $A143: 98
-  JSR $F2AF                               ; $A144: 20 AF F2
+  JSR B1F_GetProvinceRecordAddr           ; $A144: 20 AF F2  ; -> ($00) = province record
   LDY #$00                                ; $A147: A0 00
   LDA ($00),Y                             ; $A149: B1 00
-  AND #$07                                ; $A14B: 29 07
-  CMP $6F03                               ; $A14D: CD 03 6F
-  BNE $A160                               ; $A150: D0 0E
-  INC $0401                               ; $A152: EE 01 04
+  AND #$07                                ; $A14B: 29 07     ; owner ruler id
+  CMP $6F03                               ; $A14D: CD 03 6F  ; province owned by current ruler?
+  BNE MapRulerIntroPadAdvanceExit         ; $A150: D0 0E
+  INC $0401                               ; $A152: EE 01 04  ; advance to sub-state 2 (transition wait)
   LDA #$00                                ; $A155: A9 00
-  STA $0470                               ; $A157: 8D 70 04
-  STA $0471                               ; $A15A: 8D 71 04
-  JMP $F28B                               ; $A15D: 4C 8B F2
-Loc_A160:
-  RTS                                     ; $A160: 60
-Loc_A161:
-  LDA a:$0081                             ; $A161: AD 81 00
-  ORA a:$0082                             ; $A164: 0D 82 00
-  AND #$04                                ; $A167: 29 04
-  BEQ $A178                               ; $A169: F0 0D
+  STA $0470                               ; $A157: 8D 70 04  ; reset scroll ptr slot 0
+  STA $0471                               ; $A15A: 8D 71 04  ; reset scroll ptr slot 1
+  JMP B1F_SetUI4                          ; $A15D: 4C 8B F2  ; UI mode 4 (no return)
+MapRulerIntroPadAdvanceExit:
+  RTS                                     ; $A160: 60        ; shared exit: no B press or invalid landing
+;===============================================================================
+; MapRulerIntroCancelCheck ($A161-$A178)
+; Select-edge helper. If Select is newly pressed on pad 1 or pad 2
+; (($0081|$0082) bit2), backs out of the intro: frame state $0E with the
+; sub-state decremented.
+;===============================================================================
+MapRulerIntroCancelCheck:
+  LDA a:$0081                             ; $A161: AD 81 00  ; pad 1 newly-pressed (edge)
+  ORA a:$0082                             ; $A164: 0D 82 00  ; pad 2 newly-pressed (edge)
+  AND #$04                                ; $A167: 29 04     ; Select pressed on either pad
+  BEQ MapRulerIntroCancelCheckExit        ; $A169: F0 0D
   LDA #$00                                ; $A16B: A9 00
-  STA a:$0081                             ; $A16D: 8D 81 00
+  STA a:$0081                             ; $A16D: 8D 81 00  ; consume pad 1 edge
   LDA #$0E                                ; $A170: A9 0E
-  STA $0400                               ; $A172: 8D 00 04
-  DEC $0401                               ; $A175: CE 01 04
-Loc_A178:
-  RTS                                     ; $A178: 60
+  STA $0400                               ; $A172: 8D 00 04  ; back out to frame state $0E
+  DEC $0401                               ; $A175: CE 01 04  ; decrement sub-state
+MapRulerIntroCancelCheckExit:
+  RTS                                     ; $A178: 60        ; shared exit
 ;===============================================================================
 ; MapRulerIntroWait ($A179-$A18A)
 ; Frame sub-state 2 of the ruler-intro sequence. Waits for the transition/
 ; busy slot $0304 to reach $FF (idle), then hands over to frame state $0C
-; (banks $19+$1A $A021) with the sub-state reset.
+; (B19_1A_ProvinceOfficerRosterDispatch) with the sub-state reset.
 ;===============================================================================
 MapRulerIntroWait:  ; (dispatch callback target)
   LDA $0304                               ; $A179: AD 04 03  ; transition busy slot
   CMP #$FF                                ; $A17C: C9 FF
-  BNE $A18A                               ; $A17E: D0 0A
+  BNE MapRulerIntroWaitExit               ; $A17E: D0 0A     ; still busy: keep waiting
   LDA #$0C                                ; $A180: A9 0C
-  STA $0400                               ; $A182: 8D 00 04
+  STA $0400                               ; $A182: 8D 00 04  ; province roster screen
   LDA #$00                                ; $A185: A9 00
   STA $0401                               ; $A187: 8D 01 04
-Loc_A18A:
-  RTS                                     ; $A18A: 60
-Loc_A18B:  ; (dispatch callback target)
-  LDA $0401                               ; $A18B: AD 01 04
-  JSR $EADE                               ; $A18E: 20 DE EA
-; --- Data Region ---
-  .byte $95,$A1,$D0,$A1                   ; $A191: 95 A1 D0 A1
-Loc_A195:  ; (dispatch callback target)
-; --- Code Region ---
+MapRulerIntroWaitExit:
+  RTS                                     ; $A18A: 60        ; proc exit
+.endproc
+;===============================================================================
+; CommandCategoryMenuDispatch ($A18B-$A294) - dispatch callback target (state 1)
+; Strategy command category selection menu (manual pp.14-15 categories:
+; 城 castle / 軍隊 army / 倉 warehouse / 町 town, the bottom-bar icons).
+; Dispatched from MapScreenFrameStateTable with $0400 = 1; sub-dispatches on
+; $0401 through the inline 2-entry table below:
+;   sub 0 CommandCategoryMenuScreenInit ($A195): gate on the screen-transition
+;     busy flag $0140 and the overlay slot sentinel $0304 ($FF = idle), then
+;     initialize the category screen: JSR MenuCursorReset resets the shared
+;     menu cursor
+;     ($0424/$0425 <- 0, returns A = $00), reset the map scroll animation
+;     counter $0470, seed the hemisphere phase $0471 <- 1, set panel params
+;     $00B3 <- 1 / $00BD <- $0C, mark the transition busy ($0140 <- $80),
+;     derive the hemisphere/attr flag word $0150 from the camera X $6F3F
+;     (bit7 set -> $01, else $81; bit7 complements the camera hemisphere;
+;     the Y = $40 reload on the east path is a dead store), and enter
+;     UI mode $23 via $F26D.
+;   sub 1 CommandCategoryMenuInput ($A1D0): step the shared menu cursor with
+;     B1F_MenuStep4 over CommandCategoryMenuTable (step 4; page 1 is all $FF,
+;     so only the four category items of page 0 are reachable), draw the
+;     cursor sprite via B1F_PointerTableLookup (per-item OAM Y/X base pair
+;     from CommandCategoryCursorPosTable) + CommandCategoryCursorSprite, then
+;     when $DDAD reports both overlay sentinels idle (C=1) poll pad 1 edges:
+;     - Up/Down ($30): step the vertical map scroll animation ($A259)
+;     - A (bit0): frame state $0400 <- selection + 2 (enters the chosen
+;       category's command screen; 2/3/4/5 = castle/army/warehouse/town in
+;       the manual's category order), sub-state <- 0, transition busy,
+;       UI mode 0
+;     - B (bit1): back to frame state 0 (ruler intro camera), sub-state <- 0,
+;       transition busy
+;===============================================================================
+.proc CommandCategoryMenuDispatch  ; (dispatch callback target)
+  LDA $0401                               ; $A18B: AD 01 04  ; sub-state
+  JSR B1F_CallbackDispatcher              ; $A18E: 20 DE EA
+; --- CallbackDispatcher sub-state table, indexed by $0401 ---
+  .word CommandCategoryMenuScreenInit     ; $A191: 95 A1 ; sub 0 ($A195)
+  .word CommandCategoryMenuInput          ; $A193: D0 A1 ; sub 1 ($A1D0)
+;===============================================================================
+; CommandCategoryMenuScreenInit ($A195-$A1CF) - sub 0
+;===============================================================================
+CommandCategoryMenuScreenInit:  ; (dispatch callback target)
   LDA $0140                               ; $A195: AD 40 01
-  BNE $A1CF                               ; $A198: D0 35
+  BNE @InitExit                           ; $A198: D0 35     ; transition busy: wait
   LDA $0304                               ; $A19A: AD 04 03
   CMP #$FF                                ; $A19D: C9 FF
-  BNE $A1CF                               ; $A19F: D0 2E
-  INC $0401                               ; $A1A1: EE 01 04
-  JSR $DD70                               ; $A1A4: 20 70 DD
-  STA $0470                               ; $A1A7: 8D 70 04
+  BNE @InitExit                           ; $A19F: D0 2E     ; overlay busy: wait
+  INC $0401                               ; $A1A1: EE 01 04  ; -> sub 1 (menu input)
+  JSR MenuCursorReset                    ; $A1A4: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
+  STA $0470                               ; $A1A7: 8D 70 04  ; map scroll anim counter <- 0
   LDA #$01                                ; $A1AA: A9 01
-  STA $0471                               ; $A1AC: 8D 71 04
-  STA a:$00B3                             ; $A1AF: 8D B3 00
+  STA $0471                               ; $A1AC: 8D 71 04  ; hemisphere phase <- 1
+  STA a:$00B3                             ; $A1AF: 8D B3 00  ; panel param
   LDA #$0C                                ; $A1B2: A9 0C
-  STA a:$00BD                             ; $A1B4: 8D BD 00
+  STA a:$00BD                             ; $A1B4: 8D BD 00  ; panel param
   LDY #$80                                ; $A1B7: A0 80
-  STY $0140                               ; $A1B9: 8C 40 01
+  STY $0140                               ; $A1B9: 8C 40 01  ; transition busy
   LDX #$01                                ; $A1BC: A2 01
-  LDA $6F3F                               ; $A1BE: AD 3F 6F
-  BMI $A1C7                               ; $A1C1: 30 04
+  LDA $6F3F                               ; $A1BE: AD 3F 6F  ; camera X
+  BMI @FlagWord                           ; $A1C1: 30 04     ; bit7 set: flag word $01
   LDX #$81                                ; $A1C3: A2 81
-  LDY #$40                                ; $A1C5: A0 40
-Loc_A1C7:
-  STX $0150                               ; $A1C7: 8E 50 01
+  LDY #$40                                ; $A1C5: A0 40     ; (dead store, byte-exact)
+@FlagWord:
+  STX $0150                               ; $A1C7: 8E 50 01  ; hemisphere/attr flag word
   LDA #$23                                ; $A1CA: A9 23
-  JMP $F26D                               ; $A1CC: 4C 6D F2
-Loc_A1CF:
-  RTS                                     ; $A1CF: 60
-Loc_A1D0:  ; (dispatch callback target)
+  JMP $F26D                               ; $A1CC: 4C 6D F2  ; UI mode $23 (no return)
+@InitExit:
+  RTS                                     ; $A1CF: 60        ; init-gate exit
+;===============================================================================
+; CommandCategoryMenuInput ($A1D0-$A242) - sub 1
+;===============================================================================
+CommandCategoryMenuInput:  ; (dispatch callback target)
   LDA #$44                                ; $A1D0: A9 44
-  STA a:$0010                             ; $A1D2: 8D 10 00
+  STA a:$0010                             ; $A1D2: 8D 10 00  ; ($0010) = CommandCategoryMenuTable
   LDA #$A2                                ; $A1D5: A9 A2
   STA a:$0011                             ; $A1D7: 8D 11 00
   LDA #$00                                ; $A1DA: A9 00
-  STA a:$0012                             ; $A1DC: 8D 12 00
-  JSR $ED28                               ; $A1DF: 20 28 ED
+  STA a:$0012                             ; $A1DC: 8D 12 00  ; selection output cell
+  JSR B1F_MenuStep4                       ; $A1DF: 20 28 ED  ; step cursor -> $0012 = item 0-3
   LDA #$4C                                ; $A1E2: A9 4C
-  STA a:$0010                             ; $A1E4: 8D 10 00
+  STA a:$0010                             ; $A1E4: 8D 10 00  ; ($0010) = CommandCategoryCursorPosTable
   LDA #$A2                                ; $A1E7: A9 A2
   STA a:$0011                             ; $A1E9: 8D 11 00
   LDA #$54                                ; $A1EC: A9 54
-  STA a:$0000                             ; $A1EE: 8D 00 00
+  STA a:$0000                             ; $A1EE: 8D 00 00  ; ($0000) = CommandCategoryCursorSprite
   LDA #$A2                                ; $A1F1: A9 A2
   STA a:$0001                             ; $A1F3: 8D 01 00
   LDA a:$0012                             ; $A1F6: AD 12 00
-  JSR $EDF5                               ; $A1F9: 20 F5 ED
-  JSR $DDAD                               ; $A1FC: 20 AD DD
-  BCC $A243                               ; $A1FF: 90 42
+  JSR B1F_PointerTableLookup              ; $A1F9: 20 F5 ED  ; draw cursor at selected item
+  JSR $DDAD                               ; $A1FC: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC CommandCategoryMenuExit             ; $A1FF: 90 42     ; busy: done this frame
   LDA $0470                               ; $A201: AD 70 04
-  BEQ $A209                               ; $A204: F0 03
-  JMP $A259                               ; $A206: 4C 59 A2
-Loc_A209:
-  LDA a:$0081                             ; $A209: AD 81 00
-  AND #$30                                ; $A20C: 29 30
-  BNE $A259                               ; $A20E: D0 49
+  BEQ @PadPoll                            ; $A204: F0 03     ; scroll anim idle: poll pad
+  JMP CommandCategoryMapScrollStep        ; $A206: 4C 59 A2  ; scroll anim in progress
+@PadPoll:
+  LDA a:$0081                             ; $A209: AD 81 00  ; pad 1 newly-pressed (edge)
+  AND #$30                                ; $A20C: 29 30     ; Up or Down
+  BNE CommandCategoryMapScrollStep        ; $A20E: D0 49     ; step vertical map scroll
   LDA a:$0081                             ; $A210: AD 81 00
   LSR                                     ; $A213: 4A
-  BCC $A22B                               ; $A214: 90 15
+  BCC @CancelCheck                        ; $A214: 90 15     ; bit0 = A
   LDY a:$0012                             ; $A216: AC 12 00
   INY                                     ; $A219: C8
   INY                                     ; $A21A: C8
-  STY $0400                               ; $A21B: 8C 00 04
+  STY $0400                               ; $A21B: 8C 00 04  ; frame state <- selection + 2
   LDA #$80                                ; $A21E: A9 80
-  STA $0140                               ; $A220: 8D 40 01
+  STA $0140                               ; $A220: 8D 40 01  ; transition busy
   LDA #$00                                ; $A223: A9 00
-  STA $0401                               ; $A225: 8D 01 04
-  JMP $F26D                               ; $A228: 4C 6D F2
-Loc_A22B:
+  STA $0401                               ; $A225: 8D 01 04  ; sub-state <- 0 of new state
+  JMP $F26D                               ; $A228: 4C 6D F2  ; UI mode 0 (no return)
+@CancelCheck:
   LSR                                     ; $A22B: 4A
-  BCC $A243                               ; $A22C: 90 15
+  BCC CommandCategoryMenuExit             ; $A22C: 90 15     ; bit1 = B
   LDA #$00                                ; $A22E: A9 00
-  STA $0400                               ; $A230: 8D 00 04
-  STA $0401                               ; $A233: 8D 01 04
+  STA $0400                               ; $A230: 8D 00 04  ; back to ruler intro (state 0)
+  STA $0401                               ; $A233: 8D 01 04  ; sub-state <- 0
   LDA #$80                                ; $A236: A9 80
-  STA $0140                               ; $A238: 8D 40 01
+  STA $0140                               ; $A238: 8D 40 01  ; transition busy
   LDA $0150                               ; $A23B: AD 50 01
-  ORA #$00                                ; $A23E: 09 00
+  ORA #$00                                ; $A23E: 09 00     ; no-op flag preserve (byte-exact)
   STA $0150                               ; $A240: 8D 50 01
-Loc_A243:
-  RTS                                     ; $A243: 60
+CommandCategoryMenuExit:
+  RTS                                     ; $A243: 60        ; shared exit (input + scroll paths)
 ; --- Data Region ---
-  .byte $00,$01,$02,$03,$FF,$FF,$FF,$FF,$B8,$4C,$B8,$74,$B8,$9C,$B8,$C4; $A244: 00 01 02 03 FF FF FF FF B8 4C B8 74 B8 9C B8 C4
+CommandCategoryMenuTable:  ; B1F_MenuStep4 items (page*4+column): page 0 = categories 0-3, page 1 = $FF (unreachable)
+  .byte $00,$01,$02,$03,$FF,$FF,$FF,$FF   ; $A244: 00 01 02 03 FF FF FF FF
+CommandCategoryCursorPosTable:  ; per item: OAM Y base + X base word, fetched by B1F_PointerTableLookup
+  .byte $B8,$4C,$B8,$74,$B8,$9C,$B8,$C4   ; $A24C: B8 4C B8 74 B8 9C B8 C4
+CommandCategoryCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
   .byte $00,$04,$00,$00,$80               ; $A254: 00 04 00 00 80
-Loc_A259:
+;===============================================================================
+; CommandCategoryMapScrollStep ($A259-$A294)
+; Vertical map scroll animation stepper, entered on each pad Up/Down edge and
+; re-entered from CommandCategoryMenuInput while $0470 is non-zero. Gated on
+; the transition busy flag $0140. Counts $0470 0 -> $0A one step per frame
+; (the map scroll consumers read $0470/$0471); on completion toggles the
+; hemisphere phase $0471 between 1 and 2 (EOR #3), ORs it into the flag word
+; $0150 and parks the finished marker $80, which clears back to 0 on the
+; next pass.
+;===============================================================================
+CommandCategoryMapScrollStep:
 ; --- Code Region ---
   LDA $0140                               ; $A259: AD 40 01
-  BNE $A243                               ; $A25C: D0 E5
-  LDA $0470                               ; $A25E: AD 70 04
-  BMI $A26D                               ; $A261: 30 0A
-  BEQ $A273                               ; $A263: F0 0E
-Loc_A265:
+  BNE CommandCategoryMenuExit             ; $A25C: D0 E5     ; transition busy: wait
+  LDA $0470                               ; $A25E: AD 70 04  ; scroll anim counter
+  BMI @ScrollRestart                      ; $A261: 30 0A     ; $80 = finished marker
+  BEQ @ScrollBegin                        ; $A263: F0 0E     ; idle: start a run
+@ScrollAdvance:
   CMP #$0A                                ; $A265: C9 0A
-  BEQ $A27C                               ; $A267: F0 13
+  BEQ @ScrollFinish                       ; $A267: F0 13     ; run complete
   INC $0470                               ; $A269: EE 70 04
   RTS                                     ; $A26C: 60
-Loc_A26D:
+@ScrollRestart:
   LDA #$00                                ; $A26D: A9 00
-  STA $0470                               ; $A26F: 8D 70 04
+  STA $0470                               ; $A26F: 8D 70 04  ; clear finished marker
   RTS                                     ; $A272: 60
-Loc_A273:
+@ScrollBegin:
   LDA #$80                                ; $A273: A9 80
-  STA $0140                               ; $A275: 8D 40 01
-  INC $0470                               ; $A278: EE 70 04
+  STA $0140                               ; $A275: 8D 40 01  ; transition busy
+  INC $0470                               ; $A278: EE 70 04  ; counter <- 1
   RTS                                     ; $A27B: 60
-Loc_A27C:
+@ScrollFinish:
   LDA #$80                                ; $A27C: A9 80
-  STA $0140                               ; $A27E: 8D 40 01
+  STA $0140                               ; $A27E: 8D 40 01  ; transition busy
   LDA $0471                               ; $A281: AD 71 04
-  EOR #$03                                ; $A284: 49 03
+  EOR #$03                                ; $A284: 49 03     ; toggle hemisphere phase 1 <-> 2
   STA $0471                               ; $A286: 8D 71 04
   ORA $0150                               ; $A289: 0D 50 01
-  STA $0150                               ; $A28C: 8D 50 01
+  STA $0150                               ; $A28C: 8D 50 01  ; apply phase to flag word
   LDA #$80                                ; $A28F: A9 80
-  STA $0470                               ; $A291: 8D 70 04
+  STA $0470                               ; $A291: 8D 70 04  ; finished marker
   RTS                                     ; $A294: 60
+.endproc
 Loc_A295:  ; (dispatch callback target)
   LDA $0401                               ; $A295: AD 01 04
   JSR $EADE                               ; $A298: 20 DE EA
@@ -410,7 +545,7 @@ Loc_A2C9:  ; (dispatch callback target)
   CMP #$FF                                ; $A2D1: C9 FF
   BNE $A2F8                               ; $A2D3: D0 23
   INC $0401                               ; $A2D5: EE 01 04
-  JSR $DD70                               ; $A2D8: 20 70 DD
+  JSR MenuCursorReset                    ; $A2D8: 20 70 DD
   STA $0473                               ; $A2DB: 8D 73 04
   STA a:$00A4                             ; $A2DE: 8D A4 00
   LDA #$FF                                ; $A2E1: A9 FF
@@ -450,7 +585,7 @@ Loc_A2F9:  ; (dispatch callback target)
   LDA a:$0012                             ; $A330: AD 12 00
   STA $0470                               ; $A333: 8D 70 04
   INC $0401                               ; $A336: EE 01 04
-  JMP $DD70                               ; $A339: 4C 70 DD
+  JMP MenuCursorReset                    ; $A339: 4C 70 DD
 Loc_A33C:
   LSR                                     ; $A33C: 4A
   BCC $A34C                               ; $A33D: 90 0D
@@ -591,7 +726,7 @@ Loc_A471:  ; (dispatch callback target)
   BPL $A49C                               ; $A47C: 10 1E
   CMP #$90                                ; $A47E: C9 90
   BNE $A49D                               ; $A480: D0 1B
-  JSR $DD70                               ; $A482: 20 70 DD
+  JSR MenuCursorReset                    ; $A482: 20 70 DD
   LDA $0470                               ; $A485: AD 70 04
   CMP #$03                                ; $A488: C9 03
   BNE $A492                               ; $A48A: D0 06
@@ -676,10 +811,14 @@ Loc_A53D:
   BEQ $A566                               ; $A54F: F0 15
 Loc_A551:
   INC $0401                               ; $A551: EE 01 04
-  LDY #$3D                                ; $A554: A0 3D
-  JSR $EE07                               ; $A556: 20 07 EE
-; --- Data Region ---
-  .byte $24,$A0,$20,$70,$DD,$8D,$6C,$04,$A9,$29,$4C,$6D,$F2; $A559: 24 A0 20 70 DD 8D 6C 04 A9 29 4C 6D F2
+  LDY #$3D                                ; $A554: A0 3D  ; bank pair select $3D&$1F = $1D+$1E
+  JSR B1F_BankedCallbackTrampoline        ; $A556: 20 07 EE  ; B1D_1E_ImmediateOverlay (bank $1D)
+  .word B1D_1E_ImmediateOverlay           ; $A559: 24 A0  ; inline trampoline target
+; --- Code Region ---
+  JSR MenuCursorReset                     ; $A55B: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
+  STA $046C                               ; $A55E: 8D 6C 04
+  LDA #$29                                ; $A561: A9 29
+  JMP $F26D                               ; $A563: 4C 6D F2  ; set UI mode $29
 Loc_A566:
 ; --- Code Region ---
   LDA #$16                                ; $A566: A9 16
@@ -938,7 +1077,7 @@ Loc_A77C:  ; (dispatch callback target)
   LDA #$02                                ; $A790: A9 02
   JSR $D58C                               ; $A792: 20 8C D5
   INC $0401                               ; $A795: EE 01 04
-  JSR $DD70                               ; $A798: 20 70 DD
+  JSR MenuCursorReset                    ; $A798: 20 70 DD
   STA $046C                               ; $A79B: 8D 6C 04
   JSR $DC6B                               ; $A79E: 20 6B DC
   STX a:$0002                             ; $A7A1: 8E 02 00
@@ -1035,7 +1174,7 @@ Loc_A881:  ; (dispatch callback target)
   INC $0401                               ; $A895: EE 01 04
   LDA $0481                               ; $A898: AD 81 04
   STA $0482                               ; $A89B: 8D 82 04
-  JSR $DD70                               ; $A89E: 20 70 DD
+  JSR MenuCursorReset                    ; $A89E: 20 70 DD
   STA $046C                               ; $A8A1: 8D 6C 04
   LDA #$29                                ; $A8A4: A9 29
   JMP $F26D                               ; $A8A6: 4C 6D F2
@@ -1191,7 +1330,7 @@ Loc_A9FB:  ; (dispatch callback target)
   LDA a:$0081                             ; $AA03: AD 81 00
   AND #$03                                ; $AA06: 29 03
   BEQ $AA2F                               ; $AA08: F0 25
-  JSR $DD70                               ; $AA0A: 20 70 DD
+  JSR MenuCursorReset                    ; $AA0A: 20 70 DD
   LDA #$00                                ; $AA0D: A9 00
   STA a:$00A4                             ; $AA0F: 8D A4 00
   LDA $0470                               ; $AA12: AD 70 04
@@ -1414,7 +1553,7 @@ Loc_AC00:  ; (dispatch callback target)
   LSR                                     ; $AC10: 4A
   BCC $AC21                               ; $AC11: 90 0E
   INC $0401                               ; $AC13: EE 01 04
-  JSR $DD70                               ; $AC16: 20 70 DD
+  JSR MenuCursorReset                    ; $AC16: 20 70 DD
   STA $046C                               ; $AC19: 8D 6C 04
   LDA #$29                                ; $AC1C: A9 29
   JMP $F26D                               ; $AC1E: 4C 6D F2
@@ -1644,7 +1783,7 @@ Loc_AE2A:  ; (dispatch callback target)
   CMP #$FF                                ; $AE32: C9 FF
   BNE $AE54                               ; $AE34: D0 1E
   INC $0401                               ; $AE36: EE 01 04
-  JSR $DD70                               ; $AE39: 20 70 DD
+  JSR MenuCursorReset                    ; $AE39: 20 70 DD
   STA $0473                               ; $AE3C: 8D 73 04
   STA a:$00A4                             ; $AE3F: 8D A4 00
   LDA #$80                                ; $AE42: A9 80
@@ -1699,7 +1838,7 @@ Loc_AEB0:
   BNE $AEC4                               ; $AEB2: D0 10
   LDA #$0E                                ; $AEB4: A9 0E
   STA $0401                               ; $AEB6: 8D 01 04
-  JSR $DD70                               ; $AEB9: 20 70 DD
+  JSR MenuCursorReset                    ; $AEB9: 20 70 DD
   STA $046C                               ; $AEBC: 8D 6C 04
   LDA #$29                                ; $AEBF: A9 29
   JMP $F26D                               ; $AEC1: 4C 6D F2
@@ -1715,7 +1854,7 @@ Loc_AEC4:
 Loc_AED7:
   LDA #$14                                ; $AED7: A9 14
   STA $0401                               ; $AED9: 8D 01 04
-  JSR $DD70                               ; $AEDC: 20 70 DD
+  JSR MenuCursorReset                    ; $AEDC: 20 70 DD
   LDA #$80                                ; $AEDF: A9 80
   STA $0478                               ; $AEE1: 8D 78 04
   LDA #$0F                                ; $AEE4: A9 0F
@@ -1878,7 +2017,7 @@ Loc_B035:
   BCC $B02D                               ; $B038: 90 F3
   CPX a:$0002                             ; $B03A: EC 02 00
   BNE $B08C                               ; $B03D: D0 4D
-  JSR $DD70                               ; $B03F: 20 70 DD
+  JSR MenuCursorReset                    ; $B03F: 20 70 DD
   LDA #$32                                ; $B042: A9 32
   JMP $F26D                               ; $B044: 4C 6D F2
 Loc_B047:  ; (dispatch callback target)
@@ -1985,7 +2124,7 @@ Loc_B140:
   LDA $048F                               ; $B15C: AD 8F 04
   STA $0433                               ; $B15F: 8D 33 04
   STA $0525                               ; $B162: 8D 25 05
-  JSR $DD70                               ; $B165: 20 70 DD
+  JSR MenuCursorReset                    ; $B165: 20 70 DD
   STA $0434                               ; $B168: 8D 34 04
   STA $046C                               ; $B16B: 8D 6C 04
   LDA #$06                                ; $B16E: A9 06
@@ -2085,7 +2224,7 @@ Loc_B21B:  ; (dispatch callback target)
 Loc_B235:
 ; --- Code Region ---
   INC $0401                               ; $B235: EE 01 04
-  JSR $DD70                               ; $B238: 20 70 DD
+  JSR MenuCursorReset                    ; $B238: 20 70 DD
   STA $046C                               ; $B23B: 8D 6C 04
   LDA #$29                                ; $B23E: A9 29
   JMP $F26D                               ; $B240: 4C 6D F2
@@ -2202,7 +2341,7 @@ Loc_B33C:  ; (dispatch callback target)
   LDA a:$0081                             ; $B350: AD 81 00
   LSR                                     ; $B353: 4A
   BCC $B364                               ; $B354: 90 0E
-  JSR $DD70                               ; $B356: 20 70 DD
+  JSR MenuCursorReset                    ; $B356: 20 70 DD
   STA $046C                               ; $B359: 8D 6C 04
   INC $0401                               ; $B35C: EE 01 04
   LDA #$29                                ; $B35F: A9 29
@@ -2350,7 +2489,7 @@ Loc_B47A:  ; (dispatch callback target)
   BCC $B479                               ; $B493: 90 E4
   LDA #$11                                ; $B495: A9 11
   STA $0401                               ; $B497: 8D 01 04
-  JSR $DD70                               ; $B49A: 20 70 DD
+  JSR MenuCursorReset                    ; $B49A: 20 70 DD
   STA $04E4                               ; $B49D: 8D E4 04
   LDA #$6D                                ; $B4A0: A9 6D
   JMP $F26D                               ; $B4A2: 4C 6D F2
@@ -2408,7 +2547,7 @@ Loc_B507:  ; (dispatch callback target)
   LDX #$80                                ; $B513: A2 80
 Loc_B515:
   STX $0150                               ; $B515: 8E 50 01
-  JSR $DD70                               ; $B518: 20 70 DD
+  JSR MenuCursorReset                    ; $B518: 20 70 DD
   INC $0401                               ; $B51B: EE 01 04
   LDA #$00                                ; $B51E: A9 00
   STA $04E4                               ; $B520: 8D E4 04
@@ -2687,7 +2826,7 @@ Loc_B77F:  ; (dispatch callback target)
   CMP #$FF                                ; $B787: C9 FF
   BNE $B7A6                               ; $B789: D0 1B
   INC $0401                               ; $B78B: EE 01 04
-  JSR $DD70                               ; $B78E: 20 70 DD
+  JSR MenuCursorReset                    ; $B78E: 20 70 DD
   STA $0473                               ; $B791: 8D 73 04
   LDA #$80                                ; $B794: A9 80
   STA $0140                               ; $B796: 8D 40 01
@@ -2732,7 +2871,7 @@ Loc_B7A7:  ; (dispatch callback target)
 Loc_B7F4:
   LDA #$05                                ; $B7F4: A9 05
   STA $0401                               ; $B7F6: 8D 01 04
-  JSR $DD70                               ; $B7F9: 20 70 DD
+  JSR MenuCursorReset                    ; $B7F9: 20 70 DD
   LDA #$58                                ; $B7FC: A9 58
   JMP $F26D                               ; $B7FE: 4C 6D F2
 Loc_B801:
@@ -2795,7 +2934,7 @@ Loc_B87A:
   LDA #$04                                ; $B87C: A9 04
   JSR $D58C                               ; $B87E: 20 8C D5
   JSR $DB87                               ; $B881: 20 87 DB
-  JSR $DD70                               ; $B884: 20 70 DD
+  JSR MenuCursorReset                    ; $B884: 20 70 DD
   STA $0472                               ; $B887: 8D 72 04
   LDA #$FF                                ; $B88A: A9 FF
   STA $04E4                               ; $B88C: 8D E4 04
@@ -2900,7 +3039,7 @@ Loc_B962:
   LDA #$00                                ; $B968: A9 00
   STA $0433                               ; $B96A: 8D 33 04
   STA $0434                               ; $B96D: 8D 34 04
-  JSR $DD70                               ; $B970: 20 70 DD
+  JSR MenuCursorReset                    ; $B970: 20 70 DD
   STA $046C                               ; $B973: 8D 6C 04
   INC $0401                               ; $B976: EE 01 04
   LDA #$29                                ; $B979: A9 29
@@ -3003,7 +3142,7 @@ Loc_BA04:  ; (dispatch callback target)
 Loc_BA43:
   RTS                                     ; $BA43: 60
 Loc_BA44:
-  JSR $DD70                               ; $BA44: 20 70 DD
+  JSR MenuCursorReset                    ; $BA44: 20 70 DD
   JSR $DB87                               ; $BA47: 20 87 DB
   LDA a:$0012                             ; $BA4A: AD 12 00
   BNE $BA57                               ; $BA4D: D0 08
@@ -3133,7 +3272,7 @@ Loc_BB5F:
   BCC $BB6F                               ; $BB60: 90 0D
   LDA #$05                                ; $BB62: A9 05
   STA $0401                               ; $BB64: 8D 01 04
-  JSR $DD70                               ; $BB67: 20 70 DD
+  JSR MenuCursorReset                    ; $BB67: 20 70 DD
   LDA #$58                                ; $BB6A: A9 58
   JMP $F26D                               ; $BB6C: 4C 6D F2
 Loc_BB6F:
@@ -3168,7 +3307,7 @@ Loc_BBB4:
   LSR                                     ; $BBB4: 4A
   BCC $BBC5                               ; $BBB5: 90 0E
   DEC $0401                               ; $BBB7: CE 01 04
-  JSR $DD70                               ; $BBBA: 20 70 DD
+  JSR MenuCursorReset                    ; $BBBA: 20 70 DD
   JSR $DB87                               ; $BBBD: 20 87 DB
   LDA #$7E                                ; $BBC0: A9 7E
   JMP $F26D                               ; $BBC2: 4C 6D F2
@@ -3209,7 +3348,7 @@ Loc_BC12:
 ; --- Code Region ---
   LDA #$06                                ; $BC12: A9 06
   STA $0401                               ; $BC14: 8D 01 04
-  JSR $DD70                               ; $BC17: 20 70 DD
+  JSR MenuCursorReset                    ; $BC17: 20 70 DD
   JSR $DB87                               ; $BC1A: 20 87 DB
   LDA #$7E                                ; $BC1D: A9 7E
   JMP $F26D                               ; $BC1F: 4C 6D F2
@@ -3286,7 +3425,7 @@ Loc_BCBF:
   JSR $DB72                               ; $BCC9: 20 72 DB
   LDA a:$0000                             ; $BCCC: AD 00 00
   STA $042C                               ; $BCCF: 8D 2C 04
-  JSR $DD70                               ; $BCD2: 20 70 DD
+  JSR MenuCursorReset                    ; $BCD2: 20 70 DD
   STA $042D                               ; $BCD5: 8D 2D 04
   STA $042E                               ; $BCD8: 8D 2E 04
   STA $046C                               ; $BCDB: 8D 6C 04
@@ -3383,7 +3522,7 @@ Loc_BD9B:
   BCC $BDAB                               ; $BD9C: 90 0D
   LDA #$05                                ; $BD9E: A9 05
   STA $0401                               ; $BDA0: 8D 01 04
-  JSR $DD70                               ; $BDA3: 20 70 DD
+  JSR MenuCursorReset                    ; $BDA3: 20 70 DD
   LDA #$58                                ; $BDA6: A9 58
   JMP $F26D                               ; $BDA8: 4C 6D F2
 Loc_BDAB:
@@ -3411,7 +3550,7 @@ Loc_BDC5:
   LDA $048E                               ; $BDDA: AD 8E 04
   JSR $BFA0                               ; $BDDD: 20 A0 BF
   STA $042F                               ; $BDE0: 8D 2F 04
-  JSR $DD70                               ; $BDE3: 20 70 DD
+  JSR MenuCursorReset                    ; $BDE3: 20 70 DD
   STA $0430                               ; $BDE6: 8D 30 04
   STA $0431                               ; $BDE9: 8D 31 04
   STA $046C                               ; $BDEC: 8D 6C 04
@@ -3591,7 +3730,7 @@ Loc_BF69:  ; (dispatch callback target)
   LDA a:$0081                             ; $BF71: AD 81 00
   AND #$03                                ; $BF74: 29 03
   BEQ $BF88                               ; $BF76: F0 10
-  JSR $DD70                               ; $BF78: 20 70 DD
+  JSR MenuCursorReset                    ; $BF78: 20 70 DD
   JSR $DB87                               ; $BF7B: 20 87 DB
   LDA #$06                                ; $BF7E: A9 06
   STA $0401                               ; $BF80: 8D 01 04
@@ -3627,14 +3766,33 @@ Loc_BFB7:  ; (dispatch callback target)
   .byte $6A,$C4,$A8,$C4,$15,$C5,$47,$C5,$8F,$C5,$D7,$C5,$7F,$C6,$F8,$C6; $BFCD: 6A C4 A8 C4 15 C5 47 C5 8F C5 D7 C5 7F C6 F8 C6
   .byte $13,$C7,$21,$C7,$44,$C7,$6E,$C7,$1F,$C8,$0A,$C9,$D2,$C9,$EF,$C9; $BFDD: 13 C7 21 C7 44 C7 6E C7 1F C8 0A C9 D2 C9 EF C9
 Loc_BFED:  ; (dispatch callback target)
-  .byte $AD,$40,$01,$D0,$32,$AD,$04,$03,$C9,$FF,$D0,$2B,$EE,$01,$04,$20; $BFED: AD 40 01 D0 32 AD 04 03 C9 FF D0 2B EE 01 04 20
-  .byte $70,$DD,$8D                       ; $BFFD: 70 DD 8D
+; --- Code Region ---
+  LDA $0140                               ; $BFED: AD 40 01  ; transition busy
+  BNE Loc_C024                            ; $BFF0: D0 32     ; wait
+  LDA $0304                               ; $BFF2: AD 04 03  ; overlay slot sentinel
+  CMP #$FF                                ; $BFF5: C9 FF
+  BNE Loc_C024                            ; $BFF7: D0 2B     ; overlay busy: wait
+  INC $0401                               ; $BFF9: EE 01 04  ; sub-state ++
+  JSR MenuCursorReset                     ; $BFFC: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
+  .byte $8D                               ; $BFFF: 8D        ; STA $0473 opcode; operand bytes are in bank $1C
 
 .segment "CODE_BANK1C"
 
-  .byte $73,$04,$A9,$0D,$8D,$BD,$00,$A9,$80,$8D,$40,$01,$A9,$04,$0D,$50; $C000: 73 04 A9 0D 8D BD 00 A9 80 8D 40 01 A9 04 0D 50
-  .byte $01,$8D,$50,$01,$AC,$02,$04,$B9,$25,$C0,$8D,$70,$04,$A8,$B9,$43; $C010: 01 8D 50 01 AC 02 04 B9 25 C0 8D 70 04 A8 B9 43
-  .byte $C0,$4C,$6D,$F2                   ; $C020: C0 4C 6D F2
+  .word $0473                             ; $C000: 73 04  ; STA operand (bank boundary split)
+; --- Code Region ---
+  LDA #$0D                                ; $C002: A9 0D
+  STA a:$00BD                             ; $C004: 8D BD 00  ; panel param
+  LDA #$80                                ; $C007: A9 80
+  STA $0140                               ; $C009: 8D 40 01  ; transition busy
+  LDA #$04                                ; $C00C: A9 04
+  ORA $0150                               ; $C00E: 0D 50 01
+  STA $0150                               ; $C011: 8D 50 01  ; hemisphere/attr flag word |= $04
+  LDY $0402                               ; $C014: AC 02 04
+  LDA $C025,Y                             ; $C017: B9 25 C0  ; scroll anim counter table
+  STA $0470                               ; $C01A: 8D 70 04  ; map scroll anim counter
+  TAY                                     ; $C01D: A8
+  LDA $C043,Y                             ; $C01E: B9 43 C0  ; UI mode table
+  JMP $F26D                               ; $C021: 4C 6D F2  ; set UI mode
 Loc_C024:
 ; --- Code Region ---
   RTS                                     ; $C024: 60
@@ -3671,7 +3829,7 @@ Loc_C04D:  ; (dispatch callback target)
 Loc_C08A:
   RTS                                     ; $C08A: 60
 Loc_C08B:
-  JSR $DD70                               ; $C08B: 20 70 DD
+  JSR MenuCursorReset                    ; $C08B: 20 70 DD
   LDA $0470                               ; $C08E: AD 70 04
   ASL                                     ; $C091: 0A
   ASL                                     ; $C092: 0A
@@ -3761,7 +3919,7 @@ Loc_C13B:
   LDA a:$0012                             ; $C170: AD 12 00
   BNE $C180                               ; $C173: D0 0B
   INC $0401                               ; $C175: EE 01 04
-  JSR $DD70                               ; $C178: 20 70 DD
+  JSR MenuCursorReset                    ; $C178: 20 70 DD
   LDA #$72                                ; $C17B: A9 72
   JMP $F26D                               ; $C17D: 4C 6D F2
 Loc_C180:
@@ -3819,7 +3977,7 @@ Loc_C1C1:  ; (dispatch callback target)
   LSR                                     ; $C1F8: 4A
   BCC $C206                               ; $C1F9: 90 0B
   DEC $0401                               ; $C1FB: CE 01 04
-  JSR $DD70                               ; $C1FE: 20 70 DD
+  JSR MenuCursorReset                    ; $C1FE: 20 70 DD
   LDA #$6F                                ; $C201: A9 6F
   JMP $F26D                               ; $C203: 4C 6D F2
 Loc_C206:
@@ -3915,7 +4073,7 @@ Loc_C2C5:  ; (dispatch callback target)
   LSR                                     ; $C2DD: 4A
   BCC $C2EB                               ; $C2DE: 90 0B
   DEC $0401                               ; $C2E0: CE 01 04
-  JSR $DD70                               ; $C2E3: 20 70 DD
+  JSR MenuCursorReset                    ; $C2E3: 20 70 DD
   LDA #$72                                ; $C2E6: A9 72
   JMP $F26D                               ; $C2E8: 4C 6D F2
 Loc_C2EB:
@@ -3946,7 +4104,7 @@ Loc_C2FF:
   LDA #$00                                ; $C326: A9 00
   STA $042E                               ; $C328: 8D 2E 04
   INC $0401                               ; $C32B: EE 01 04
-  JSR $DD70                               ; $C32E: 20 70 DD
+  JSR MenuCursorReset                    ; $C32E: 20 70 DD
   STA $046C                               ; $C331: 8D 6C 04
   LDA #$29                                ; $C334: A9 29
   JMP $F26D                               ; $C336: 4C 6D F2
@@ -4015,7 +4173,7 @@ Loc_C3A0:  ; (dispatch callback target)
   BCC $C3C8                               ; $C3B9: 90 0D
   LDA #$03                                ; $C3BB: A9 03
   STA $0401                               ; $C3BD: 8D 01 04
-  JSR $DD70                               ; $C3C0: 20 70 DD
+  JSR MenuCursorReset                    ; $C3C0: 20 70 DD
   LDA #$72                                ; $C3C3: A9 72
   JMP $F26D                               ; $C3C5: 4C 6D F2
 Loc_C3C8:
@@ -4043,7 +4201,7 @@ Loc_C3DC:
   STA $042C                               ; $C3FA: 8D 2C 04
   LDA a:$0001                             ; $C3FD: AD 01 00
   STA $042D                               ; $C400: 8D 2D 04
-  JSR $DD70                               ; $C403: 20 70 DD
+  JSR MenuCursorReset                    ; $C403: 20 70 DD
   STA $042E                               ; $C406: 8D 2E 04
   STA $046C                               ; $C409: 8D 6C 04
   INC $0401                               ; $C40C: EE 01 04
@@ -4108,7 +4266,7 @@ Loc_C46A:  ; (dispatch callback target)
   LDA $048E                               ; $C484: AD 8E 04
   BEQ $C4A7                               ; $C487: F0 1E
   INC $0401                               ; $C489: EE 01 04
-  JSR $DD70                               ; $C48C: 20 70 DD
+  JSR MenuCursorReset                    ; $C48C: 20 70 DD
   STA $046C                               ; $C48F: 8D 6C 04
   LDA #$29                                ; $C492: A9 29
   JMP $F26D                               ; $C494: 4C 6D F2
@@ -4117,7 +4275,7 @@ Loc_C497:
   BCC $C4A7                               ; $C498: 90 0D
   LDA #$02                                ; $C49A: A9 02
   STA $0401                               ; $C49C: 8D 01 04
-  JSR $DD70                               ; $C49F: 20 70 DD
+  JSR MenuCursorReset                    ; $C49F: 20 70 DD
   LDA #$6F                                ; $C4A2: A9 6F
   JMP $F26D                               ; $C4A4: 4C 6D F2
 Loc_C4A7:
@@ -4211,7 +4369,7 @@ Loc_C547:  ; (dispatch callback target)
   BEQ $C577                               ; $C567: F0 0E
 Loc_C569:
   INC $0401                               ; $C569: EE 01 04
-  JSR $DD70                               ; $C56C: 20 70 DD
+  JSR MenuCursorReset                    ; $C56C: 20 70 DD
   STA $046C                               ; $C56F: 8D 6C 04
   LDA #$29                                ; $C572: A9 29
   JMP $F26D                               ; $C574: 4C 6D F2
@@ -4436,7 +4594,7 @@ Loc_C744:  ; (dispatch callback target)
   INC $0401                               ; $C758: EE 01 04
   LDA #$8C                                ; $C75B: A9 8C
   STA a:$00BD                             ; $C75D: 8D BD 00
-  JSR $DD70                               ; $C760: 20 70 DD
+  JSR MenuCursorReset                    ; $C760: 20 70 DD
   LDA #$A5                                ; $C763: A9 A5
   JMP $F26D                               ; $C765: 4C 6D F2
 Loc_C768:
@@ -4476,7 +4634,7 @@ Loc_C76E:  ; (dispatch callback target)
 Loc_C7CD:
 ; --- Code Region ---
   INC $0401                               ; $C7CD: EE 01 04
-  JSR $DD70                               ; $C7D0: 20 70 DD
+  JSR MenuCursorReset                    ; $C7D0: 20 70 DD
   LDA #$A6                                ; $C7D3: A9 A6
   JMP $F28B                               ; $C7D5: 4C 8B F2
 Loc_C7D8:
@@ -4611,7 +4769,7 @@ Loc_C90A:  ; (dispatch callback target)
   LDA #$13                                ; $C93F: A9 13
   STA $0471                               ; $C941: 8D 71 04
   INC $0401                               ; $C944: EE 01 04
-  JSR $DD70                               ; $C947: 20 70 DD
+  JSR MenuCursorReset                    ; $C947: 20 70 DD
   LDA #$A5                                ; $C94A: A9 A5
   JMP $F28B                               ; $C94C: 4C 8B F2
 Loc_C94F:
@@ -4654,7 +4812,7 @@ Loc_C993:
   LDA #$17                                ; $C99F: A9 17
   STA $0471                               ; $C9A1: 8D 71 04
   INC $0401                               ; $C9A4: EE 01 04
-  JSR $DD70                               ; $C9A7: 20 70 DD
+  JSR MenuCursorReset                    ; $C9A7: 20 70 DD
   STA $046C                               ; $C9AA: 8D 6C 04
   LDA #$29                                ; $C9AD: A9 29
   JMP $F28B                               ; $C9AF: 4C 8B F2
@@ -4925,7 +5083,7 @@ Loc_CBFF:  ; (dispatch callback target)
   LDA $0471                               ; $CC0B: AD 71 04
   BNE $CC1A                               ; $CC0E: D0 0A
   INC $0401                               ; $CC10: EE 01 04
-  JSR $DD70                               ; $CC13: 20 70 DD
+  JSR MenuCursorReset                    ; $CC13: 20 70 DD
   STA $046C                               ; $CC16: 8D 6C 04
   RTS                                     ; $CC19: 60
 Loc_CC1A:
@@ -5014,7 +5172,7 @@ Loc_CCB8:
   LDA a:$0081                             ; $CCD5: AD 81 00
   AND #$03                                ; $CCD8: 29 03
   BEQ $CCF7                               ; $CCDA: F0 1B
-  JSR $DD70                               ; $CCDC: 20 70 DD
+  JSR MenuCursorReset                    ; $CCDC: 20 70 DD
   LDA a:$0081                             ; $CCDF: AD 81 00
   LSR                                     ; $CCE2: 4A
   BCS $CCF8                               ; $CCE3: B0 13
@@ -5067,10 +5225,18 @@ Loc_CD4C:  ; (dispatch callback target)
   JSR $D7A8                               ; $CD5D: 20 A8 D7
 Loc_CD60:
   LDY #$3D                                ; $CD60: A0 3D
-  JSR $EE07                               ; $CD62: 20 07 EE
-; --- Data Region ---
-  .byte $24,$A0,$20,$70,$DD,$AD,$7C,$04,$C9,$90,$F0,$0D,$EE,$01,$04,$A9; $CD65: 24 A0 20 70 DD AD 7C 04 C9 90 F0 0D EE 01 04 A9
-  .byte $00,$8D,$6C,$04,$A9,$29,$4C,$6D,$F2; $CD75: 00 8D 6C 04 A9 29 4C 6D F2
+  JSR B1F_BankedCallbackTrampoline        ; $CD62: 20 07 EE  ; B1D_1E_ImmediateOverlay (bank $1D)
+  .word B1D_1E_ImmediateOverlay           ; $CD65: 24 A0  ; inline trampoline target
+; --- Code Region ---
+  JSR MenuCursorReset                     ; $CD67: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
+  LDA $047C                               ; $CD6A: AD 7C 04
+  CMP #$90                                ; $CD6D: C9 90
+  BEQ Loc_CD7E                            ; $CD6F: F0 0D
+  INC $0401                               ; $CD71: EE 01 04  ; sub-state ++
+  LDA #$00                                ; $CD74: A9 00
+  STA $046C                               ; $CD76: 8D 6C 04
+  LDA #$29                                ; $CD79: A9 29
+  JMP $F26D                               ; $CD7B: 4C 6D F2  ; set UI mode $29
 Loc_CD7E:
 ; --- Code Region ---
   LDA #$00                                ; $CD7E: A9 00
@@ -5088,7 +5254,7 @@ Loc_CD89:  ; (dispatch callback target)
   BNE $CDA1                               ; $CD93: D0 0C
   LDA #$02                                ; $CD95: A9 02
   STA $0400                               ; $CD97: 8D 00 04
-  JSR $DD70                               ; $CD9A: 20 70 DD
+  JSR MenuCursorReset                    ; $CD9A: 20 70 DD
   STA $0401                               ; $CD9D: 8D 01 04
 Loc_CDA0:
   RTS                                     ; $CDA0: 60
@@ -5208,7 +5374,7 @@ Loc_CEAD:  ; (dispatch callback target)
   BEQ $CEC6                               ; $CEB3: F0 11
   CMP #$FF                                ; $CEB5: C9 FF
   BNE $CEC7                               ; $CEB7: D0 0E
-  JSR $DD70                               ; $CEB9: 20 70 DD
+  JSR MenuCursorReset                    ; $CEB9: 20 70 DD
   LDA #$02                                ; $CEBC: A9 02
   STA $0400                               ; $CEBE: 8D 00 04
   LDA #$00                                ; $CEC1: A9 00
@@ -5357,7 +5523,7 @@ Loc_CFFC:
   LDA #$02                                ; $CFFC: A9 02
   JSR $D58C                               ; $CFFE: 20 8C D5
   INC $0401                               ; $D001: EE 01 04
-  JSR $DD70                               ; $D004: 20 70 DD
+  JSR MenuCursorReset                    ; $D004: 20 70 DD
   STA $046C                               ; $D007: 8D 6C 04
   LDA #$29                                ; $D00A: A9 29
   JMP $F26D                               ; $D00C: 4C 6D F2
@@ -6812,10 +6978,25 @@ Loc_DD5E:
   LDX #$00                                ; $DD61: A2 00
   LDA #$A7                                ; $DD63: A9 A7
   STA a:$000A                             ; $DD65: 8D 0A 00
-  LDY #$39                                ; $DD68: A0 39
-  JSR $EE07                               ; $DD6A: 20 07 EE
-; --- Data Region ---
-  .byte $00,$A0,$60,$A9,$00,$8D,$24,$04,$8D,$25,$04,$60; $DD6D: 00 A0 60 A9 00 8D 24 04 8D 25 04 60
+  LDY #$39                                ; $DD68: A0 39  ; bank pair select $39&$1F = $19+$1A
+  JSR B1F_BankedCallbackTrampoline        ; $DD6A: 20 07 EE  ; B19_1A_OverlayStripRender (X = strip index)
+  .word B19_1A_OverlayStripRender_Entry   ; $DD6D: 00 A0  ; inline trampoline target
+; --- Code Region ---
+  RTS                                     ; $DD6F: 60        ; proc exit
+;===============================================================================
+; MenuCursorReset ($DD70-$DD78)
+; Clears the shared menu cursor: menu_cursor_col/menu_cursor_page
+; ($0424/$0425, prg_0c_0d.asm equates) <- 0 and returns A = $00, which
+; callers commonly propagate into a follow-up zero store ($0470 scroll
+; animation counter, $046C). Called from the category/command menu screens
+; throughout this bank (51 direct JSR + 1 JMP tail call).
+;===============================================================================
+.proc MenuCursorReset
+  LDA #$00                                ; $DD70: A9 00
+  STA $0424                               ; $DD72: 8D 24 04  ; menu cursor col <- 0
+  STA $0425                               ; $DD75: 8D 25 04  ; menu cursor page <- 0
+  RTS                                     ; $DD78: 60        ; proc exit
+.endproc
 Loc_DD79:
 ; --- Code Region ---
   LDY #$30                                ; $DD79: A0 30
