@@ -15,24 +15,34 @@
 - [prg_02.asm](file://asm/banks/prg_02.asm)
 - [prg_08_09.asm](file://asm/banks/prg_08_09.asm)
 - [prg_17_18.asm](file://asm/banks/prg_17_18.asm)
-- [prg_1f.aligned.asm](file://asm/banks/prg_1f.aligned.asm)
-- [prg_1f.asm.bak](file://asm/banks/prg_1f.asm.bak)
 - [prg_0a_0b.asm](file://asm/banks/prg_0a_0b.asm)
-- [prg_1d_1e.asm](file://asm/banks/prg_1d_1e.asm)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [key_functions_analysis.md](file://code/key_functions_analysis.md)
 - [bank_1f_function_table.md](file://code/bank_1f_function_table.md)
-- [globalize_04xx.py](file://tools/globalize_04xx.py)
-- [rename_battle_to_war.py](file://tools/rename_battle_to_war.py)
+- [cpu_ram_map.md](file://code/cpu_ram_map.md)
+- [ram_equates_full.txt](file://code/ram_equates_full.txt)
+- [extract_officer_data.py](file://tools/extract_officer_data.py)
+- [extract_province_data.py](file://tools/extract_province_data.py)
+- [extract_officer_names.py](file://tools/extract_officer_names.py)
+- [extract_ram_equates.py](file://tools/extract_ram_equates.py)
+- [officer_ids.inc](file://include/officer_ids.inc)
+- [province_ids.inc](file://include/province_ids.inc)
+- [officer_data.csv](file://docs/officer_data.csv)
+- [province_data.csv](file://docs/province_data.csv)
+- [officer_names.csv](file://docs/officer_names.csv)
+- [province_names.csv](file://docs/province_names.csv)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Updated all battle/war variable references throughout the documentation to reflect the comprehensive renaming from "battle" to "war" terminology
-- Revised memory organization sections to use updated variable names (war_action_points, war_side_flag, war_scene_index, etc.)
-- Updated data structure layout documentation to reflect renamed structures and variables
-- Enhanced examples and code references to use current war terminology consistently
-- Updated bank switching routines documentation to reference renamed functions and variables
+- Enhanced data structure documentation with comprehensive officer and province data extraction tools for detailed ROM analysis
+- Added sophisticated ROM parsing capabilities with field mapping verification and extensive output formats
+- Integrated automated RAM equates extraction system for consolidated bank architecture patterns
+- Expanded SRAM organization details with structured persistent storage regions and validation systems
+- Enhanced OAM buffer system documentation with dedicated sprite rendering infrastructure
+- Updated memory management utilities with improved cross-bank access mechanisms and data integrity checking
+- Added detailed address calculation patterns and data structure layouts from extracted ROM data
+- Implemented comprehensive include file generation for programmatic access to game data
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -46,18 +56,21 @@
 9. [Data Structure Validation and Integrity Checking](#data-structure-validation-and-integrity-checking)
 10. [SRAM Management and Backup Systems](#sram-management-and-backup-systems)
 11. [Memory Management Utilities](#memory-management-utilities)
-12. [Dependency Analysis](#dependency-analysis)
-13. [Performance Considerations](#performance-considerations)
-14. [Troubleshooting Guide](#troubleshooting-guide)
-15. [Conclusion](#conclusion)
+12. [Officer and Province Data Extraction Tools](#officer-and-province-data-extraction-tools)
+13. [RAM Equates System](#ram-equates-system)
+14. [Generated Include Files and Programmatic Access](#generated-include-files-and-programmatic-access)
+15. [Dependency Analysis](#dependency-analysis)
+16. [Performance Considerations](#performance-considerations)
+17. [Troubleshooting Guide](#troubleshooting-guide)
+18. [Conclusion](#conclusion)
 
 ## Introduction
-This document focuses on the data access and memory management patterns in the Sango2DASM project. It explains how the system organizes memory across the 6502 address space, how data structures are laid out and accessed, and how bank switching enables cross-bank data access via the Namco-163 mapper. The project has recently implemented a centralized global RAM definition system for the $04xx memory region, establishing canonical names for shared state variables across multiple game subsystems. It also documents SRAM usage for save data, RAM layout, and the macro utilities that simplify memory operations. Practical examples demonstrate memory optimization techniques and the relationship between code organization and memory efficiency.
+This document focuses on the data access and memory management patterns in the Sango2DASM project, now enhanced with comprehensive data extraction tools and a robust RAM equates system. The system organizes memory across the 6502 address space using a consolidated bank architecture with efficient data structure layouts and advanced memory management utilities. The project implements sophisticated officer and province data extraction capabilities, providing detailed analysis of ROM structures and persistent save data handling. Bank switching enables seamless cross-bank data access via the Namco-163 mapper, while the centralized RAM definition system ensures consistent variable naming across multiple game subsystems.
 
-**Updated** Enhanced with expanded SRAM organization for persistent storage, reorganized OAM/sprite buffer system under $03xx memory region, comprehensive data structure validation and integrity checking systems, and updated war/battle terminology throughout the codebase.
+**Updated** Enhanced with comprehensive officer and province data extraction tools, robust RAM equates system for consolidated bank architecture, improved memory management utilities, and detailed data structure validation systems.
 
 ## Project Structure
-The project is organized around a 6502-based NES game using the Namco-163 (mapper 19) with 32 PRG banks of 8 KB each. The linker configuration defines four PRG slots ($8000–$FFFF) that are switchable via mapper registers. Bank 0x1F is fixed at $E000–$FFFF at boot and contains the reset handler and state dispatch logic. The include directory centralizes register and macro definitions, while asm/banks contains stub files for each PRG bank. The $04xx RAM region now features centralized global definitions with canonical names for shared state variables.
+The project utilizes a 6502-based NES game with the Namco-163 (mapper 19) featuring 32 PRG banks of 8 KB each. The linker configuration defines four PRG slots ($8000–$FFFF) switchable via mapper registers, with Bank 0x1F fixed at $E000–$FFFF containing the reset handler and state dispatch logic. The include directory centralizes register and macro definitions, while asm/banks contains consolidated bank files. The $04xx RAM region features centralized global definitions with canonical names for shared state variables, and the project now includes sophisticated data extraction tools for ROM analysis.
 
 ```mermaid
 graph TB
@@ -66,7 +79,7 @@ ZP["$0000-$00FF<br/>Zero Page"]
 RAM["$0100-$07FF<br/>System RAM"]
 PPU_REGS["$2000-$2007<br/>PPU Registers"]
 IO["$4000-$401F<br/>APU/IO"]
-EXP["$4020-$5FFF<br/>Expansion ROM (Namco-163)"]
+EXP["$4020-$5FFF<br/>Expansion ROM"]
 SRAM["$6000-$7FFF<br/>SRAM (Save Data)"]
 PRG_SLOTS["$8000-$FFFF<br/>PRG Slots (Switchable)"]
 end
@@ -99,14 +112,15 @@ OAM_BUFFER --- MAP_PTRS
 - [linker.cfg:18-30](file://linker.cfg#L18-L30)
 
 ## Core Components
-- Memory map and segmentation: The linker defines ZEROPAGE, RAM, and four PRG slots. Bank 0x1F is mapped to $E000–$FFFF at boot.
-- Centralized global RAM definitions: The $04xx memory region now features canonical names for shared state variables across multiple game subsystems.
-- Expanded SRAM organization: Battery-backed SRAM now includes dedicated persistent storage for kingdom data, player settings, and game state flags.
-- Reorganized OAM buffer system: $03xx memory region provides sprite buffer management with sprite_y_buffer as primary OAM shadow buffer.
-- Enhanced data validation: Comprehensive validation functions ensure data integrity across all memory regions.
-- Register and mapper definitions: The 6502 registers and Namco-163 mapper registers are defined centrally for consistent access.
-- Macros: Common macros encapsulate PPU operations, DMA, and bank switching to reduce repetitive code and errors.
-- Bank stubs: Each PRG bank is represented by a stub file that includes the corresponding 8 KB binary until disassembly is complete.
+- Memory map and segmentation: The linker defines ZEROPAGE, RAM, and four PRG slots with Bank 0x1F mapped to $E000–$FFFF at boot
+- Centralized global RAM definitions: The $04xx memory region provides canonical names for shared state variables across multiple game subsystems
+- Expanded SRAM organization: Battery-backed SRAM includes dedicated persistent storage for kingdom data, player settings, and game state flags
+- Reorganized OAM buffer system: $03xx memory region provides sprite buffer management with sprite_y_buffer as primary OAM shadow buffer
+- Enhanced data validation: Comprehensive validation functions ensure data integrity across all memory regions
+- Register and mapper definitions: The 6502 registers and Namco-163 mapper registers are defined centrally for consistent access
+- Macros: Common macros encapsulate PPU operations, DMA, and bank switching to reduce repetitive code and errors
+- Bank stubs: Each PRG bank is represented by consolidated files that include corresponding binary segments
+- **New**: Automated data extraction tools for ROM analysis and include file generation
 
 **Section sources**
 - [linker.cfg:18-54](file://linker.cfg#L18-L54)
@@ -117,7 +131,7 @@ OAM_BUFFER --- MAP_PTRS
 - [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-L170)
 
 ## Architecture Overview
-The system uses a banked PRG model with a fixed boot bank (0x1F) and switchable PRG slots. Data tables and save data are located in bank-switched PRG and SRAM respectively. The mapper abstraction exposes simple macros to switch banks and configure registers. The reset handler initializes PPU/APU, clears RAM, and dispatches to state-specific handlers using a vector table in the boot bank. The centralized $04xx RAM system provides canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides dedicated persistent storage for game state, while the reorganized OAM buffer system manages sprite rendering efficiently. Enhanced data validation ensures integrity across all memory operations.
+The system employs a banked PRG model with a fixed boot bank (0x1F) and switchable PRG slots. Data tables and save data are located in bank-switched PRG and SRAM respectively. The mapper abstraction exposes simple macros to switch banks and configure registers. The reset handler initializes PPU/APU, clears RAM, and dispatches to state-specific handlers using a vector table in the boot bank. The centralized $04xx RAM system provides canonical names for shared state variables, while expanded SRAM organization provides dedicated persistent storage. Enhanced data validation ensures integrity across all memory operations.
 
 ```mermaid
 graph TB
@@ -136,6 +150,8 @@ DISPLAY_QUEUE["$0300-$0313<br/>Display Queue & Confirm Flags"]
 CANONICAL_NAMES["Canonical Names<br/>for Shared State"]
 VALIDATION["Data Validation<br/>& Integrity Checking"]
 CHECKSUM["SRAM Checksum<br/>Verification"]
+EXTRACTION["Data Extraction<br/>Tools"]
+INCLUDE_GEN["Include File<br/>Generation"]
 CPU --> PRG0
 CPU --> PRGA
 CPU --> PRGC
@@ -155,6 +171,8 @@ GLOBAL_RAM --> |"Validation Functions"| VALIDATION
 OAM_BUFFER --> |"Sprite Rendering"| PPU
 DISPLAY_QUEUE --> |"Display Management"| PPU
 SRAM --> |"Checksum Verification"| CHECKSUM
+EXTRACTION --> |"ROM Analysis"| SRAM
+EXTRACTION --> |"Generate Include Files"| INCLUDE_GEN
 ```
 
 **Diagram sources**
@@ -170,18 +188,18 @@ SRAM --> |"Checksum Verification"| CHECKSUM
 ## Detailed Component Analysis
 
 ### Memory Organization and Segmentation
-- Zero Page and System RAM: ZEROPAGE ($0000–$00FF) and BSS ($0100–$07FF) are defined in the linker. The main code reserves zero-page temporaries and a small RAM buffer for runtime use.
-- PRG Slots: Four 8 KB PRG slots are defined for banked code. Bank 0x1F is fixed at $E000–$FFFF; other banks are switchable via mapper registers.
-- SRAM: The linker and project documentation specify $6000–$7FFF as SRAM for save data. The expanded organization now includes dedicated persistent storage regions.
-- Centralized $04xx RAM: The $0400–$04FF region now contains centralized global definitions with canonical names for shared state variables across multiple game subsystems.
-- Reorganized $03xx RAM: The $0300–$03FF region provides specialized buffer management for OAM/sprite operations and display queue processing.
+- Zero Page and System RAM: ZEROPAGE ($0000–$00FF) and BSS ($0100–$07FF) are defined in the linker with main code reserving zero-page temporaries and small RAM buffers for runtime use
+- PRG Slots: Four 8 KB PRG slots are defined for banked code, with Bank 0x1F fixed at $E000–$FFFF; other banks are switchable via mapper registers
+- SRAM: The linker and project documentation specify $6000–$7FFF as SRAM for save data with expanded organization including dedicated persistent storage regions
+- Centralized $04xx RAM: The $0400–$04FF region contains centralized global definitions with canonical names for shared state variables across multiple game subsystems
+- Reorganized $03xx RAM: The $0300–$03FF region provides specialized buffer management for OAM/sprite operations and display queue processing
 
 Practical implications:
-- Use ZEROPAGE for hot-loop variables and temporary pointers to minimize instruction cycles.
-- Keep frequently accessed small buffers in $0100–$07FF to avoid page crossings.
-- Bank 0x1F is ideal for boot-time initialization and dispatch logic.
-- The centralized $04xx RAM system eliminates redundant local memory address aliases and improves code organization.
-- The $03xx region provides efficient sprite buffer management with dedicated OAM shadow buffer at $0380.
+- Use ZEROPAGE for hot-loop variables and temporary pointers to minimize instruction cycles
+- Keep frequently accessed small buffers in $0100–$07FF to avoid page crossings
+- Bank 0x1F is ideal for boot-time initialization and dispatch logic
+- The centralized $04xx RAM system eliminates redundant local memory address aliases and improves code organization
+- The $03xx region provides efficient sprite buffer management with dedicated OAM shadow buffer at $0380
 
 **Section sources**
 - [linker.cfg:18-30](file://linker.cfg#L18-30)
@@ -191,17 +209,20 @@ Practical implications:
 - [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-L170)
 
 ### Address Calculation Patterns and Data Structure Layouts
-The game computes pointers into bank-switched data using efficient 6502 arithmetic patterns. The key functions demonstrate multiply-by-constants using shifts and rotates, and pointer-table lookups for SRAM data.
+The game computes pointers into bank-switched data using efficient 6502 arithmetic patterns. Key functions demonstrate multiply-by-constants using shifts and rotates, and pointer-table lookups for SRAM data.
 
-**Updated** The war scene state variables are now properly named with "war_" prefix instead of "battle_" prefix, reflecting the comprehensive terminology update across the codebase.
+**Updated** Enhanced with comprehensive data extraction tools providing detailed analysis of officer and province data structures, including precise memory layouts and access patterns.
 
-- Hero data: id*32 + $6000, entry size 32 bytes, base $6000 (bank-switched).
-- City data: id*12 + $63C0, entry size 12 bytes, base $63C0 (bank-switched).
-- Hero initial data: id*12 + $8000, entry size 12 bytes, base $8000 (bank-switched).
-- Kata name: id*10 + $901A, entry size 10 bytes, base $901A (bank-switched).
-- Kingdom data: pointer table at $6F07 (SRAM), entry size 8 bytes.
-- War scene state: Located at $0500-$0514 with war-specific variables including war_action_points, war_side_flag, war_scene_index, and other war-related state variables.
-- Expanded SRAM: Dedicated persistent storage regions for kingdom data, player settings, and game state flags.
+- Hero data: id*32 + $6000, entry size 32 bytes, base $6000 (bank-switched)
+- City data: id*12 + $63C0, entry size 12 bytes, base $63C0 (bank-switched)
+- Hero initial data: id*12 + $8000, entry size 12 bytes, base $8000 (bank-switched)
+- Kata name: id*10 + $901A, entry size 10 bytes, base $901A (bank-switched)
+- Kingdom data: pointer table at $6F07 (SRAM), entry size 8 bytes
+- War scene state: Located at $0500-$0514 with war-specific variables including war_action_points, war_side_flag, war_scene_index, and other war-related state variables
+- Officer records: 12-byte master records at PRG offset $22000, copied to SRAM at $63C0
+- Province records: 32-byte master records at PRG offset $8C00, copied to SRAM at $6000
+- Province names: 8-byte katakana names at PRG offset $9A1A
+- **New**: Extracted data includes precise field mappings verified against actual game code
 
 ```mermaid
 flowchart TD
@@ -214,6 +235,9 @@ Choose --> |Kingdom| KPtr["Indirect pointer from SRAM $6F07"]
 Choose --> |War Scene| WarScene["Access war_* variables at $0500-$0514"]
 Choose --> |Player Settings| PSettings["Access SRAM $6F44"]
 Choose --> |Game State| GState["Access SRAM $6F8B"]
+Choose --> |Officer Data| Officer["Officer record: id * 12 + $63C0"]
+Choose --> |Province Data| Province["Province record: id * 32 + $6000"]
+Choose --> |Province Names| ProvNames["Province name: id * 8 + $9A1A"]
 Hero --> BankSel["Ensure Correct PRG Bank Loaded"]
 City --> BankSel
 Init --> BankSel
@@ -222,6 +246,9 @@ KPtr --> SRAM["Access SRAM $6Fxx"]
 WarScene --> WarVars["war_action_points, war_side_flag, etc."]
 PSettings --> SRAM
 GState --> SRAM
+Officer --> SRAM
+Province --> SRAM
+ProvNames --> BankSel
 BankSel --> Indirect["Load Pointer into $0000/$0001"]
 SRAM --> Indirect
 WarVars --> End(["Use Direct Variable Access"])
@@ -229,26 +256,26 @@ Indirect --> End
 ```
 
 **Diagram sources**
-- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-100)
-- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-190)
-- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-45)
-- [prg_08_09.asm:22-41](file://asm/banks/prg_08_09.asm#L22-41)
-- [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-149)
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
+- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-L190)
+- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-L45)
+- [prg_08_09.asm:22-41](file://asm/banks/prg_08_09.asm#L22-L41)
+- [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-L149)
 
 **Section sources**
-- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-100)
-- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-190)
-- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-45)
-- [prg_08_09.asm:22-41](file://asm/banks/prg_08_09.asm#L22-41)
-- [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-149)
+- [key_functions_analysis.md:33-100](file://code/key_functions_analysis.md#L33-L100)
+- [key_functions_analysis.md:159-190](file://code/key_functions_analysis.md#L159-L190)
+- [bank_1f_analysis.md:22-45](file://code/bank_1f_analysis.md#L22-L45)
+- [prg_08_09.asm:22-41](file://asm/banks/prg_08_09.asm#L22-L41)
+- [prg_17_18.asm:145-149](file://asm/banks/prg_17_18.asm#L145-L149)
 
 ### Bank Switching and the Mapper Abstraction
 The mapper abstraction simplifies cross-bank access by exposing macros to switch PRG banks into four 8 KB slots. The reset handler initializes the mapper and switches to a default bank configuration. Bank switching is also performed dynamically during gameplay to access different data tables.
 
 Key elements:
-- Mapper registers: $F800, $FA00, $FC00, $FE00 for slots $8000–$DFFF, with $E000–$FFFF fixed to bank 0x1F.
-- Macros: switch_bank_8000, switch_bank_A000, switch_bank_C000, switch_bank_E000.
-- Bank configuration table: 8-byte configurations written to mapper registers to select PRG banks.
+- Mapper registers: $F800, $FA00, $FC00, $FE00 for slots $8000–$DFFF, with $E000–$FFFF fixed to bank 0x1F
+- Macros: switch_bank_8000, switch_bank_A000, switch_bank_C000, switch_bank_E000
+- Bank configuration table: 8-byte configurations written to mapper registers to select PRG banks
 
 ```mermaid
 sequenceDiagram
@@ -267,23 +294,24 @@ PRG-->>CPU : Code/data now accessible via selected banks
 ```
 
 **Diagram sources**
-- [namco163.h:68-86](file://include/namco163.h#L68-86)
-- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
+- [namco163.h:68-86](file://include/namco163.h#L68-L86)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 
 **Section sources**
 - [namco163.h:10-14](file://include/namco163.h#L10-L14)
-- [namco163.h:68-86](file://include/namco163.h#L68-86)
-- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
+- [namco163.h:68-86](file://include/namco163.h#L68-L86)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 
 ### SRAM Usage for Save Data
 SRAM is used for persistent save data, notably kingdom parameters and flags. The reset handler demonstrates SRAM initialization and flag setting during new game initialization. The expanded organization now includes dedicated regions for different types of persistent data.
 
-- SRAM region: $6000–$7FFF (8 KB).
-- Kingdom data: $6F07–$6F3E (7 kingdoms × 8 bytes) for persistent kingdom records.
-- Player settings: $6F44 for player 2/palette swap trigger.
-- Game state flags: $6F8B for game start flag, $6F3F/$6F41 for kingdom initialization parameters.
-- Territory events: $6FE1 for territory-related event flags.
-- Pointer table for kingdoms stored in SRAM at $6F07, accessed indirectly.
+- SRAM region: $6000–$7FFF (8 KB)
+- Kingdom data: $6F07–$6F3E (7 kingdoms × 8 bytes) for persistent kingdom records
+- Player settings: $6F44 for player 2/palette swap trigger
+- Game state flags: $6F8B for game start flag, $6F3F/$6F41 for kingdom initialization parameters
+- Territory events: $6FE1 for territory-related event flags
+- Pointer table for kingdoms stored in SRAM at $6F07, accessed indirectly
+- **New**: Province records at $6000-$63BF (30 provinces × 32 bytes each)
 
 ```mermaid
 flowchart TD
@@ -292,21 +320,22 @@ SRAMInit --> KingdomPtrs["Kingdom Pointer Table<br/>$6F07 SRAM"]
 KingdomPtrs --> PlayerSettings["Player Settings<br/>$6F44"]
 PlayerSettings --> GameState["Game State Flags<br/>$6F8B"]
 GameState --> TerritoryEvents["Territory Events<br/>$6FE1"]
-TerritoryEvents --> Play["Gameplay Access"]
+TerritoryEvents --> ProvinceData["Province Records<br/>$6000-$63BF"]
+ProvinceData --> Play["Gameplay Access"]
 Play --> Save["Periodic Save to SRAM"]
 Save --> End(["Persistent Data"])
 ```
 
 **Diagram sources**
-- [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-156)
-- [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-189)
-- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-150)
+- [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-L156)
+- [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-L189)
+- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
 
 **Section sources**
 - [PROJECT.md:12](file://PROJECT.md#L12)
-- [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-156)
-- [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-189)
-- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-150)
+- [bank_1f_analysis.md:146-156](file://code/bank_1f_analysis.md#L146-L156)
+- [key_functions_analysis.md:175-189](file://code/key_functions_analysis.md#L175-L189)
+- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
 
 ### Macro Utilities for Memory Access
 The macro library provides reusable constructs for common operations:
@@ -319,10 +348,10 @@ The macro library provides reusable constructs for common operations:
 These macros reduce boilerplate and improve maintainability.
 
 **Section sources**
-- [macros.h:8-72](file://include/macros.h#L8-72)
+- [macros.h:8-72](file://include/macros.h#L8-L72)
 
 ### Bank Stub Files and Disassembly Workflow
-Each PRG bank is represented by a stub file that includes the corresponding 8 KB binary. The workflow involves replacing stubs with disassembled code and updating linker segments accordingly.
+Each PRG bank is represented by consolidated files that include corresponding binary segments. The workflow involves replacing stubs with disassembled code and updating linker segments accordingly.
 
 **Section sources**
 - [all_banks.asm:1-38](file://asm/banks/all_banks.asm#L1-38)
@@ -374,14 +403,14 @@ ReplaceAliases --> ImprovedMaintainability["Improved Code Organization<br/>and M
 ```
 
 **Diagram sources**
-- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-136)
-- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-68)
-- [globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-77)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
+- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-L68)
+- [globalize_04xx.py:15-77](file://tools/globalize_04xx.py#L15-L77)
 
 **Section sources**
-- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-136)
-- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-68)
-- [globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-205)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
+- [prg_1f.aligned.asm:56-68](file://asm/banks/prg_1f.aligned.asm#L56-L68)
+- [globalize_04xx.py:1-205](file://tools/globalize_04xx.py#L1-L205)
 
 ## Expanded Battery SRAM Organization
 
@@ -415,32 +444,42 @@ The SRAM organization has been significantly expanded to provide dedicated persi
 - **$6FE1**: Territory event flag (bit 0 = capture officer)
 - **Purpose**: Specialized game state tracking for specific mechanics
 
+#### **New**: Province Records Storage
+- **Base Address**: $6000
+- **Structure**: 30 provinces × 32 bytes each
+- **Range**: $6000–$63BF
+- **Purpose**: Province master records copied from PRG bank $30
+- **Fields**: Gold, rice, population, land value, industry, disaster prevention, governance, reserve troops, treasure, revolt cooldown, officer roster
+
 ### Access Patterns and Usage
 The expanded SRAM organization enables efficient access patterns:
 - **Direct Access**: Simple read/write operations to dedicated addresses
 - **Pointer Tables**: Kingdom data accessed via pointer table at $6F07
 - **Flag Management**: Boolean flags and state indicators for game progression
 - **Initialization**: New game setup writes to specific SRAM locations
+- **Structured Records**: Province records accessed via index-based calculations
 
 ```mermaid
 flowchart TD
-SRAMRegion["$6F00-$6FFF<br/>Battery-backed SRAM"] --> KingdomData["$6F07-$6F3E<br/>Kingdom Records"]
+SRAMRegion["$6000-$6FFF<br/>Battery-backed SRAM"] --> ProvinceRecords["$6000-$63BF<br/>Province Records"]
+SRAMRegion --> KingdomData["$6F07-$6F3E<br/>Kingdom Records"]
 SRAMRegion --> PlayerSettings["$6F44<br/>Player Settings"]
 SRAMRegion --> GameState["$6F3F/$6F41/$6F8B<br/>Game State Flags"]
 SRAMRegion --> TerritoryEvents["$6FE1<br/>Territory Events"]
-KingdomData --> PointerTable["Pointer Table<br/>$6F07"]
+ProvinceRecords --> ProvinceFields["Province Fields:<br/>Gold, Rice, Population,<br/>Land Value, Industry,<br/>Governance, Reserve Troops"]
+KingdomData --> PointerTable["Kingdom Pointer Table<br/>$6F07"]
 PlayerSettings --> SwapTrigger["Swap Trigger<br/>Non-zero Activates"]
 GameState --> NewGameInit["New Game Initialization"]
 TerritoryEvents --> CaptureFlag["Capture Officer Flag"]
 ```
 
 **Diagram sources**
-- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-150)
-- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-351)
+- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
+- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-L351)
 
 **Section sources**
-- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-150)
-- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-351)
+- [prg_17_18.asm:145-150](file://asm/banks/prg_17_18.asm#L145-L150)
+- [prg_1f.aligned.asm:346-351](file://asm/banks/prg_1f.aligned.asm#L346-L351)
 
 ## OAM/Sprite Buffer System Reorganization
 
@@ -491,10 +530,10 @@ MapPointers --> BackgroundScroll["Background Scrolling"]
 ```
 
 **Diagram sources**
-- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-170)
+- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-L170)
 
 **Section sources**
-- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-170)
+- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-L170)
 
 ## Data Structure Validation and Integrity Checking
 
@@ -540,13 +579,13 @@ CopyBackup --> ValidatedData["Validated & Backed Up Data"]
 ```
 
 **Diagram sources**
-- [prg_0a_0b.asm:239-247](file://asm/banks/prg_0a_0b.asm#L239-247)
-- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-9989)
+- [prg_0a_0b.asm:239-247](file://asm/banks/prg_0a_0b.asm#L239-L247)
+- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-L9989)
 
 **Section sources**
-- [prg_0a_0b.asm:239-247](file://asm/banks/prg_0a_0b.asm#L239-247)
-- [prg_0a_0b.asm:8413-8451](file://asm/banks/prg_0a_0b.asm#L8413-8451)
-- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-9989)
+- [prg_0a_0b.asm:239-247](file://asm/banks/prg_0a_0b.asm#L239-L247)
+- [prg_0a_0b.asm:8413-8451](file://asm/banks/prg_0a_0b.asm#L8413-L8451)
+- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-L9989)
 
 ## SRAM Management and Backup Systems
 
@@ -603,10 +642,10 @@ end
 ```
 
 **Diagram sources**
-- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-9989)
+- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-L9989)
 
 **Section sources**
-- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-9989)
+- [prg_0a_0b.asm:9902-9989](file://asm/banks/prg_0a_0b.asm#L9902-L9989)
 
 ## Memory Management Utilities
 
@@ -649,13 +688,286 @@ DataManip --> MultiRec["MultiRecCalc<br/>Multi-Record Processing"]
 ```
 
 **Diagram sources**
-- [prg_0a_0b.asm:8455-8573](file://asm/banks/prg_0a_0b.asm#L8455-8573)
-- [prg_0a_0b.asm:8577-8605](file://asm/banks/prg_0a_0b.asm#L8577-8605)
+- [prg_0a_0b.asm:8455-8573](file://asm/banks/prg_0a_0b.asm#L8455-L8573)
+- [prg_0a_0b.asm:8577-8605](file://asm/banks/prg_0a_0b.asm#L8577-L8605)
 
 **Section sources**
-- [prg_0a_0b.asm:8455-8573](file://asm/banks/prg_0a_0b.asm#L8455-8573)
-- [prg_0a_0b.asm:8577-8605](file://asm/banks/prg_0a_0b.asm#L8577-8605)
-- [prg_0a_0b.asm:8413-8451](file://asm/banks/prg_0a_0b.asm#L8413-8451)
+- [prg_0a_0b.asm:8455-8573](file://asm/banks/prg_0a_0b.asm#L8455-L8573)
+- [prg_0a_0b.asm:8577-8605](file://asm/banks/prg_0a_0b.asm#L8577-L8605)
+- [prg_0a_0b.asm:8413-8451](file://asm/banks/prg_0a_0b.asm#L8413-L8451)
+
+## Officer and Province Data Extraction Tools
+
+### Overview
+The project now includes sophisticated data extraction tools for analyzing ROM structures, specifically designed for officer and province data analysis. These tools provide comprehensive ROM parsing capabilities with detailed field mapping and validation.
+
+### Officer Data Extraction Tool
+
+#### Capabilities
+- **ROM Parsing**: Reads unmodified iNES images with header validation
+- **Name Decoding**: Extracts officer names from PRG offset $2101A (10 bytes/entry)
+- **Master Record Analysis**: Processes 12-byte officer records from PRG offset $22000
+- **Field Mapping**: Identifies vitality, might, intelligence, loyalty, virtue, experience, troop count, equipment, and army affinity
+- **Equipment Recognition**: Maps weapon and armor indices to Japanese names
+- **Army Affinity Classification**: Categorizes officers into plains, mountain, or naval armies
+- **Kanji Integration**: Incorporates Chinese and Japanese kanji from TSV databases
+- **Validation Reports**: Sanity checks for data integrity and consistency
+
+#### Output Formats
+- **CSV Export**: Structured data with all officer fields and metadata
+- **Markdown Documentation**: Human-readable format with field descriptions and equipment tables
+- **Text Format**: Formatted text output for quick reference
+
+### Province Data Extraction Tool
+
+#### Capabilities
+- **Province Name Extraction**: Parses 8-byte katakana names from PRG offset $9A1A
+- **Master Record Analysis**: Processes 32-byte province records from PRG offset $8C00
+- **Country Association**: Links provinces to their ruling countries and rulers
+- **Roster Analysis**: Extracts officer rosters and calculates active troop counts
+- **Stat Field Mapping**: Identifies gold, rice, population, land value, industry, disaster prevention, governance, reserve troops, treasure, and revolt cooldown
+- **Advanced Features**: Kanji integration, romanization, evidence-based mapping, comprehensive validation
+
+#### Output Formats
+- **CSV Export**: Complete province data with all fields and metadata
+- **Markdown Documentation**: Detailed documentation with field explanations and evidence
+- **Include Files**: ca65 include files with symbolic constants for programmatic access
+- **Text Format**: Formatted text output for analysis
+
+### Officer Names Extraction Tool
+
+#### Capabilities
+- **Name Table Parsing**: Extracts 240 officer name entries from PRG bank $30
+- **Character Encoding**: Handles katakana encoding with dakuten and handakuten marks
+- **Romanization**: Converts katakana names to Hepburn romanization
+- **Glyph Counting**: Calculates display glyph counts for proper spacing
+- **SRAM Correlation**: Links name table entries to corresponding SRAM records
+
+#### Output Formats
+- **CSV Export**: Officer names with addresses, hex data, and romanization
+- **Text Format**: Formatted text listing with alignment information
+- **Include Files**: ca65 include files with OFFICER_<NAME> constants
+
+### RAM Equates Extraction Tool
+
+#### Purpose
+Automated extraction of RAM equates from assembly files to create comprehensive memory maps and documentation.
+
+#### Features
+- **Per-Bank Analysis**: Scans individual bank files for RAM address definitions
+- **Comment Preservation**: Maintains semantic meaning from inline comments
+- **Range Filtering**: Focuses on meaningful RAM addresses ($0000-$07FF and $6000-$7FFF)
+- **Consolidated Output**: Generates unified memory maps across all banks
+
+### Integration with Build System
+The extraction tools integrate seamlessly with the project's build process:
+- **Automatic Generation**: Officer and province ID equates generated during build
+- **Documentation Updates**: CSV and markdown files updated with latest ROM data
+- **Validation Integration**: Tools can run as part of continuous integration pipelines
+
+```mermaid
+flowchart TD
+ROM["iNES ROM File"] --> OfficerExtract["Officer Data Extraction"]
+ROM --> ProvinceExtract["Province Data Extraction"]
+ROM --> OfficerNames["Officer Names Extraction"]
+ROM --> RAMEquates["RAM Equates Extraction"]
+OfficerExtract --> OfficerCSV["Officer Data CSV"]
+OfficerExtract --> OfficerMD["Officer Documentation"]
+ProvinceExtract --> ProvinceCSV["Province Data CSV"]
+ProvinceExtract --> ProvinceMD["Province Documentation"]
+ProvinceExtract --> ProvinceInc["Province IDs Include"]
+OfficerNames --> OfficerNamesCSV["Officer Names CSV"]
+OfficerNames --> OfficerNamesTxt["Officer Names Text"]
+OfficerNames --> OfficerInc["Officer IDs Include"]
+RAMEquates --> RAMMap["Consolidated RAM Map"]
+OfficerCSV --> IncludeFiles["Include Files"]
+ProvinceCSV --> IncludeFiles
+ProvinceInc --> IncludeFiles
+OfficerNamesCSV --> IncludeFiles
+OfficerInc --> IncludeFiles
+IncludeFiles --> BuildSystem["Build System"]
+```
+
+**Diagram sources**
+- [extract_officer_data.py:1-311](file://tools/extract_officer_data.py#L1-L311)
+- [extract_province_data.py:1-616](file://tools/extract_province_data.py#L1-L616)
+- [extract_officer_names.py:1-260](file://tools/extract_officer_names.py#L1-L260)
+- [extract_ram_equates.py:1-50](file://tools/extract_ram_equates.py#L1-L50)
+
+**Section sources**
+- [extract_officer_data.py:1-311](file://tools/extract_officer_data.py#L1-L311)
+- [extract_province_data.py:1-616](file://tools/extract_province_data.py#L1-L616)
+- [extract_officer_names.py:1-260](file://tools/extract_officer_names.py#L1-L260)
+- [extract_ram_equates.py:1-50](file://tools/extract_ram_equates.py#L1-L50)
+
+## RAM Equates System
+
+### Overview
+The RAM equates system provides comprehensive memory address definitions and semantic meanings across all bank files. This system consolidates RAM usage patterns and provides clear documentation for memory layout and variable purposes.
+
+### Consolidated Bank Architecture
+The project uses a consolidated bank pattern where paired bank files represent contiguous memory regions:
+- **prg_08_09.asm**: Battle engine and result scene handling
+- **prg_0a_0b.asm**: Strategy AI and data processing
+- **prg_0c_0d.asm**: Exchange engine and menu systems
+- **prg_0e_0f.asm**: Battle overlay and animation systems
+- **prg_17_18.asm**: Kernel cells and strategy mode display
+- **prg_19_1a.asm**: Attract demo and map screen states
+- **prg_1b_1c.asm**: Map screen frame states and transitions
+- **prg_1d_1e.asm**: State handlers and render buffers
+- **prg_1f.asm**: Kernel cells and SRAM record accessors
+
+### Memory Region Ownership
+Each bank file owns specific memory regions with well-defined responsibilities:
+
+#### Zero Page ($0000-$00FF)
+- **Kernel Cells**: Consistent meaning across all banks for math ABI, OAM parameters, tile workspace, search areas, RNG cells, IRQ modes, controller latches, palette animation, PPU mirrors, scroll registers, and bank selects
+- **Cross-Bank Communication**: Shared variables for inter-bank communication and state synchronization
+
+#### System RAM ($0100-$07FF)
+- **Per-Bank Variables**: Bank-specific variables organized by functional area
+- **Battle Engine**: War scene state, unit coordinates, AI scratch space, and result processing
+- **Strategy Mode**: Display queues, scroll parameters, and state management
+- **Menu Systems**: Cursor positions, selection lists, and panel data
+
+#### SRAM ($6000-$7FFF)
+- **Persistent Data**: Kingdom records, player settings, game state flags, and territory events
+- **Working Set**: Live game state that the engine reads and writes during gameplay
+- **Backup Snapshot**: Byte-for-byte backup of working set with checksum validation
+
+### Generated Include Files
+The RAM equates system generates include files for use in disassembly and development:
+
+#### Officer IDs Include
+- **Constants**: OFFICER_COUNT, OFFICER_SLOT_COUNT, OFFICER_NAME_BASE, OFFICER_NAME_STRIDE
+- **Symbolic Names**: OFFICER_AKAINAN through OFFICER_RIKEI with Japanese annotations
+- **Memory Layout**: Clear documentation of name table and SRAM record locations
+
+#### Province IDs Include
+- **Constants**: PROVINCE_COUNT, PROVINCE_NAME_BASE, PROVINCE_RECORD_BASE, PROVINCE_RECORD_SIZE
+- **Symbolic Names**: PROVINCE_RYOUTOU through PROVINCE_EISHOU with Japanese annotations
+- **Memory Layout**: Documentation of name table, master record, and SRAM record locations
+
+### Memory Map Documentation
+The consolidated RAM map provides comprehensive documentation of all memory regions with specific line references to source code:
+
+```mermaid
+flowchart TD
+BankFiles["Bank Assembly Files"] --> RAMExtraction["RAM Equates Extraction"]
+RAMExtraction --> MemoryMap["Consolidated Memory Map"]
+MemoryMap --> IncludeFiles["Generated Include Files"]
+IncludeFiles --> Development["Development Tools"]
+Development --> Documentation["Code Documentation"]
+```
+
+**Diagram sources**
+- [ram_equates_full.txt:1-200](file://code/ram_equates_full.txt#L1-L200)
+- [officer_ids.inc:1-250](file://include/officer_ids.inc#L1-L250)
+- [province_ids.inc:1-43](file://include/province_ids.inc#L1-L43)
+
+**Section sources**
+- [ram_equates_full.txt:1-200](file://code/ram_equates_full.txt#L1-L200)
+- [officer_ids.inc:1-250](file://include/officer_ids.inc#L1-L250)
+- [province_ids.inc:1-43](file://include/province_ids.inc#L1-L43)
+
+## Generated Include Files and Programmatic Access
+
+### Overview
+The project now includes automatically generated include files that provide symbolic constants and memory addresses for programmatic access to game data. These files are generated from the ROM data extraction tools and provide a clean interface for accessing officer and province information.
+
+### Officer IDs Include File
+
+#### Structure and Constants
+- **OFFICER_COUNT**: Total number of officers (237)
+- **OFFICER_SLOT_COUNT**: Total capacity of officer slots (240)
+- **OFFICER_NAME_BASE**: Base address for officer names ($901A)
+- **OFFICER_NAME_STRIDE**: Size of each officer name entry (10 bytes)
+- **OFFICER_RECORD_BASE**: Base address for officer SRAM records ($63C0)
+- **OFFICER_RECORD_SIZE**: Size of each officer record (12 bytes)
+
+#### Symbolic Constants
+- **OFFICER_AKAINAN**: Officer ID 0 (阿会喃)
+- **OFFICER_IKOU**: Officer ID 1 (韦康)
+- **OFFICER_ISEKI**: Officer ID 2 (伊籍)
+- ... (continues for all 237 officers)
+- **OFFICER_RIKEI**: Officer ID 236 (李傕)
+
+### Province IDs Include File
+
+#### Structure and Constants
+- **PROVINCE_COUNT**: Total number of provinces (30)
+- **PROVINCE_NAME_BASE**: Base address for province names ($9A1A)
+- **PROVINCE_NAME_STRIDE**: Size of each province name entry (8 bytes)
+- **PROVINCE_RECORD_BASE**: Base address for province SRAM records ($6000)
+- **PROVINCE_RECORD_SIZE**: Size of each province record (32 bytes)
+- **PROVINCE_COUNTRY_NONE**: Unclaimed land identifier ($07)
+
+#### Symbolic Constants
+- **PROVINCE_RYOUTOU**: Province ID 0 (辽东)
+- **PROVINCE_YUUSHUU**: Province ID 1 (幽州)
+- **PROVINCE_HEISHUU**: Province ID 2 (并州)
+- ... (continues for all 30 provinces)
+
+### Usage Examples
+
+#### Accessing Officer Data
+```assembly
+; Load officer name
+lda #OFFICER_ZHAOYUN    ; Load Zhao Yun's ID
+ldx #OFFICER_NAME_BASE
+jsr GetNameFromOffset   ; Get name string
+
+; Access officer SRAM record
+lda #OFFICER_ZHAOYUN
+asl                     ; Multiply by 2 for 16-bit offset
+tax
+lda #$C0                ; Low byte of $63C0
+sta temp_ptr_lo
+lda #$63                ; High byte of $63C0
+sta temp_ptr_hi
+```
+
+#### Accessing Province Data
+```assembly
+; Load province name
+lda #PROVINCE_CHENGDU   ; Load Chengdu's ID
+ldx #PROVINCE_NAME_BASE
+jsr GetNameFromOffset   ; Get name string
+
+; Access province SRAM record
+lda #PROVINCE_CHENGDU
+asl                     ; Multiply by 2 for 16-bit offset
+tax
+lda #$00                ; Low byte of $6000
+sta temp_ptr_lo
+lda #$60                ; High byte of $6000
+sta temp_ptr_hi
+```
+
+### Integration with Build System
+The include files are automatically regenerated when ROM data changes:
+- **Automatic Updates**: Run extraction tools to regenerate include files
+- **Version Control**: Include files are tracked in version control
+- **Build Integration**: Makefile targets for regeneration
+- **Validation**: Tools verify include file consistency with ROM data
+
+```mermaid
+flowchart TD
+ROMData["ROM Data Changes"] --> ExtractionTools["Extraction Tools"]
+ExtractionTools --> GenerateIncludes["Generate Include Files"]
+GenerateIncludes --> ValidateFiles["Validate Include Files"]
+ValidateFiles --> VersionControl["Version Control"]
+VersionControl --> BuildSystem["Build System"]
+BuildSystem --> Application["Application Code"]
+```
+
+**Diagram sources**
+- [officer_ids.inc:1-250](file://include/officer_ids.inc#L1-L250)
+- [province_ids.inc:1-43](file://include/province_ids.inc#L1-L43)
+
+**Section sources**
+- [officer_ids.inc:1-250](file://include/officer_ids.inc#L1-L250)
+- [province_ids.inc:1-43](file://include/province_ids.inc#L1-L43)
 
 ## Dependency Analysis
 The boot process depends on the mapper initialization and vector dispatch to reach state-specific handlers. Bank switching is orchestrated by a configuration routine that writes to mapper registers and stores a shadow copy in RAM. Data access functions rely on banked PRG tables and SRAM for persistence. The centralized $04xx RAM system provides canonical names for shared state variables across multiple game subsystems. The expanded SRAM organization provides structured persistent storage, while the reorganized OAM buffer system manages sprite rendering efficiently. Enhanced validation functions ensure data integrity throughout the system lifecycle.
@@ -671,62 +983,75 @@ State0 --> SRAM["$6000-$7FFF Save Data"]
 State0 --> GlobalRAM["$0400-$04FF Centralized RAM"]
 State0 --> OAMBuffer["$0380-$03FF Sprite Buffer"]
 State0 --> Validation["Data Validation System"]
+State0 --> Extraction["Data Extraction Tools"]
+State0 --> IncludeGen["Include File Generation"]
 GlobalRAM --> CanonicalNames["Canonical State Names"]
 SRAM --> KingdomData["Kingdom Data Storage"]
+SRAM --> ProvinceData["Province Data Storage"]
 SRAM --> PlayerSettings["Player Settings"]
 SRAM --> GameStateFlags["Game State Flags"]
 SRAM --> ChecksumVerify["Checksum Verification"]
 OAMBuffer --> SpriteRendering["Sprite Rendering"]
 Validation --> IntegrityCheck["Data Integrity Assurance"]
+Extraction --> ROMAnalysis["ROM Structure Analysis"]
+IncludeGen --> ProgrammaticAccess["Programmatic Data Access"]
 ```
 
 **Diagram sources**
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
-- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
-- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
+- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 - [prg_17_18.asm:144-170](file://asm/banks/prg_17_18.asm#L144-L170)
 
 **Section sources**
 - [main.asm:115-121](file://asm/main.asm#L115-L121)
-- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
-- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-533)
+- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
+- [bank_1f_analysis.md:499-533](file://code/bank_1f_analysis.md#L499-L533)
 
 ## Performance Considerations
-- Prefer ZEROPAGE for hot-loop variables and temporary pointers to minimize addressing overhead.
-- Use shift-and-add patterns for multiplication constants to keep code tight and fast.
-- Minimize page crossings by grouping related data within the same 256-byte page when feasible.
-- Bank data tables by usage frequency to reduce the number of bank switches during critical paths.
-- Leverage macros to avoid repetitive code and potential instruction overhead.
-- The centralized $04xx RAM system reduces code size by eliminating redundant local definitions, improving cache efficiency.
-- The reorganized $03xx buffer system provides efficient sprite buffer access with minimal page crossing overhead.
-- Dedicated SRAM regions enable faster persistent data access compared to banked PRG storage.
-- Structured SRAM organization reduces the overhead of pointer table lookups for kingdom data.
-- **Updated** War scene variables (war_action_points, war_side_flag, war_scene_index) are optimized for direct access patterns in the $0500-$0514 memory region.
-- **Enhanced** Validation functions are optimized for minimal performance impact while ensuring data integrity.
-- **Enhanced** Checksum verification uses efficient page-by-page processing to minimize CPU overhead.
-- **Enhanced** Data compaction algorithms use direct memory access patterns for optimal performance.
+- Prefer ZEROPAGE for hot-loop variables and temporary pointers to minimize addressing overhead
+- Use shift-and-add patterns for multiplication constants to keep code tight and fast
+- Minimize page crossings by grouping related data within the same 256-byte page when feasible
+- Bank data tables by usage frequency to reduce the number of bank switches during critical paths
+- Leverage macros to avoid repetitive code and potential instruction overhead
+- The centralized $04xx RAM system reduces code size by eliminating redundant local definitions, improving cache efficiency
+- The reorganized $03xx buffer system provides efficient sprite buffer access with minimal page crossing overhead
+- Dedicated SRAM regions enable faster persistent data access compared to banked PRG storage
+- Structured SRAM organization reduces the overhead of pointer table lookups for kingdom data
+- **Updated** Enhanced data extraction tools optimize ROM parsing with efficient memory access patterns
+- **Updated** RAM equates system improves code maintainability and reduces debugging time
+- **Updated** Consolidated bank architecture minimizes bank switching overhead through strategic data organization
+- **Updated** Include file generation reduces runtime overhead by providing compile-time constants
+- **Enhanced** Validation functions are optimized for minimal performance impact while ensuring data integrity
+- **Enhanced** Checksum verification uses efficient page-by-page processing to minimize CPU overhead
+- **Enhanced** Data compaction algorithms use direct memory access patterns for optimal performance
+- **New**: Generated include files eliminate runtime string lookups and provide type-safe access to game data
 
 ## Troubleshooting Guide
 Common issues and remedies:
-- Incorrect bank mapping: Ensure the correct bank is loaded before accessing banked data. Use the bank switch configuration routine and verify mapper register writes.
-- SRAM not persisting: Confirm SRAM is powered and that writes occur within the SRAM region ($6000–$7FFF). Check for accidental writes to other memory areas. Verify SRAM organization follows the established patterns.
-- PPU/VRAM corruption: Verify PPU initialization and address setting macros are used consistently. Clear PPU registers early and reinitialize as needed.
-- Vector dispatch failures: Validate the vector table index masking and ensure only valid indices are used.
-- $04xx RAM access issues: Ensure canonical names are used instead of local aliases. Verify that the centralized RAM definitions are properly included in the compilation unit.
-- $03xx buffer issues: Verify sprite_y_buffer is properly initialized and updated. Check that display queue pointers are correctly managed.
-- SRAM corruption: Monitor SRAM write operations carefully, especially for persistent data. Ensure proper initialization sequences are followed.
-- Sprite rendering problems: Verify OAM buffer management and ensure sprite count is properly tracked.
-- **Updated** War scene variable access: Ensure war_* variables (war_action_points, war_side_flag, war_scene_index) are accessed from the correct memory addresses ($0500-$0514) and that the war/battle terminology is consistently used throughout the codebase.
-- **Enhanced** Data validation failures: Check that validation functions are called at appropriate times in the game flow. Verify data structure layouts match expected formats.
-- **Enhanced** Checksum verification errors: Ensure magic bytes are properly written during save operations. Verify checksum calculation covers the correct memory range.
-- **Enhanced** Memory overflow issues: Monitor stack usage and heap allocation patterns. Use bounds checking utilities to prevent buffer overflows.
+- Incorrect bank mapping: Ensure the correct bank is loaded before accessing banked data. Use the bank switch configuration routine and verify mapper register writes
+- SRAM not persisting: Confirm SRAM is powered and that writes occur within the SRAM region ($6000–$7FFF). Check for accidental writes to other memory areas. Verify SRAM organization follows the established patterns
+- PPU/VRAM corruption: Verify PPU initialization and address setting macros are used consistently. Clear PPU registers early and reinitialize as needed
+- Vector dispatch failures: Validate the vector table index masking and ensure only valid indices are used
+- $04xx RAM access issues: Ensure canonical names are used instead of local aliases. Verify that the centralized RAM definitions are properly included in the compilation unit
+- $03xx buffer issues: Verify sprite_y_buffer is properly initialized and updated. Check that display queue pointers are correctly managed
+- SRAM corruption: Monitor SRAM write operations carefully, especially for persistent data. Ensure proper initialization sequences are followed
+- Sprite rendering problems: Verify OAM buffer management and ensure sprite count is properly tracked
+- **Updated** Data extraction tool failures: Verify ROM file integrity and ensure proper file paths. Check that extraction tools have appropriate permissions to read ROM files
+- **Updated** RAM equates inconsistencies: Use the consolidated RAM map to identify conflicting definitions. Verify that bank consolidation follows the established pairing pattern
+- **Updated** Include file generation issues: Ensure extraction tools run successfully before build. Check that generated files are properly integrated into the build system
+- **Enhanced** Memory overflow issues: Monitor stack usage and heap allocation patterns. Use bounds checking utilities to prevent buffer overflows
+- **Enhanced** Cross-bank communication errors: Verify that shared variables use canonical names and are properly synchronized between banks
+- **New**: Include file symbol conflicts: Check for duplicate symbols in generated include files and resolve naming collisions
+- **New**: ROM data mismatch: Verify that extraction tools are using the correct ROM file and that include files are regenerated after ROM changes
+- **New**: Character encoding issues: Ensure proper UTF-8 encoding for kanji and katakana data in generated documentation files
 
 **Section sources**
-- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-77)
+- [bank_1f_analysis.md:52-77](file://code/bank_1f_analysis.md#L52-L77)
 - [PROJECT.md:12](file://PROJECT.md#L12)
-- [macros.h:17-47](file://include/macros.h#L17-47)
-- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-136)
-- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-170)
+- [macros.h:17-47](file://include/macros.h#L17-L47)
+- [prg_17_18.asm:72-136](file://asm/banks/prg_17_18.asm#L72-L136)
+- [prg_17_18.asm:154-170](file://asm/banks/prg_17_18.asm#L154-L170)
 
 ## Conclusion
-The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. The recent implementation of a centralized global RAM definition system for the $04xx memory region significantly improves code organization and maintainability by establishing canonical names for shared state variables across multiple game subsystems. The comprehensive renaming from "battle" to "war" terminology throughout the codebase reflects improved semantic clarity and better alignment with the game's strategic warfare theme. The expanded SRAM organization provides structured persistent storage for kingdom data, player settings, and game state flags, while the reorganized OAM buffer system under $03xx memory region enables efficient sprite rendering with dedicated buffer management. Enhanced data validation and integrity checking systems ensure robust data protection across all memory operations. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. The centralized $04xx RAM system eliminates redundant local memory address aliases and provides a single source of truth for shared state variables. The reorganized memory layout optimizes performance for both persistent data access and real-time sprite rendering. Enhanced validation functions provide comprehensive data integrity assurance, while SRAM management utilities ensure reliable save data persistence. Following the outlined practices ensures optimal memory usage and maintainable code organization.
+The Sango2DASM project employs a disciplined memory organization strategy: a fixed boot bank for control flow, switchable PRG banks for data access, and SRAM for persistent save data. The recent implementation of a centralized global RAM definition system for the $04xx memory region significantly improves code organization and maintainability by establishing canonical names for shared state variables across multiple game subsystems. The enhanced data extraction tools provide comprehensive ROM analysis capabilities for officer and province data, while the robust RAM equates system ensures consistent memory management across the consolidated bank architecture. The expanded SRAM organization provides structured persistent storage for kingdom data, player settings, and game state flags, while the reorganized OAM buffer system under $03xx memory region enables efficient sprite rendering with dedicated buffer management. Enhanced data validation and integrity checking systems ensure robust data protection across all memory operations. Efficient 6502 arithmetic patterns and a robust mapper abstraction enable seamless cross-bank access. Macros streamline common operations, improving reliability and readability. The centralized $04xx RAM system eliminates redundant local memory address aliases and provides a single source of truth for shared state variables. The reorganized memory layout optimizes performance for both persistent data access and real-time sprite rendering. Enhanced validation functions provide comprehensive data integrity assurance, while SRAM management utilities ensure reliable save data persistence. The sophisticated data extraction tools enable detailed ROM analysis and documentation generation, while the consolidated bank architecture improves code organization and maintainability. The newly added include file generation system provides programmatic access to game data through symbolic constants, improving code safety and maintainability. Following the outlined practices ensures optimal memory usage and maintainable code organization.

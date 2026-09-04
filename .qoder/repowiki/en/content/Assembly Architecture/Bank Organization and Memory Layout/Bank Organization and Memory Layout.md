@@ -15,10 +15,6 @@
 - [prg_0e_0f.asm](file://asm/banks/prg_0e_0f.asm)
 - [prg_19_1a.asm](file://asm/banks/prg_19_1a.asm)
 - [prg_1b_1c.asm](file://asm/banks/prg_1b_1c.asm)
-- [prg_19.asm](file://asm/banks/prg_19.asm)
-- [prg_1a.asm](file://asm/banks/prg_1a.asm)
-- [prg_1b.asm](file://asm/banks/prg_1b.asm)
-- [prg_1c.asm](file://asm/banks/prg_1c.asm)
 - [main.asm](file://asm/main.asm)
 - [bank_1f_analysis.md](file://code/bank_1f_analysis.md)
 - [bank_1f_plan.md](file://code/bank_1f_plan.md)
@@ -29,15 +25,20 @@
 - [verify_19_1a.py](file://tools/verify_19_1a.py)
 - [verify_1b_1c.py](file://tools/verify_1b_1c.py)
 - [init_19_1a.py](file://tools/init_19_1a.py)
+- [extract_officer_data.py](file://tools/extract_officer_data.py)
+- [extract_province_data.py](file://tools/extract_province_data.py)
+- [officer_data.md](file://docs/officer_data.md)
+- [province_data.md](file://docs/province_data.md)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation of the complete AttractDemoDispatch system in banks $19/$1A with detailed state machine analysis
-- Enhanced documentation of new helper functions including ProvinceCountByOwner, MarkerSpriteDraw, FindOfficerProvince, DecayCountryTimers, and AttractDemoCensusBuild
-- Updated bank 19/1A section with sophisticated attract demo functionality featuring country selection, camera focus, and status overlays
-- Added detailed analysis of enhanced data table organization with structured tables for country rotation orders, province count displays, and country record pointers
-- Updated practical examples to demonstrate the relationship between bank numbers and memory addresses for the newly enhanced PRG banks $19/$1A
+- Updated to reflect major expansion of map-screen scene decoding with complete attract demo system implementation in banks $19/$1A
+- Enhanced documentation of strategy request handler and demo event playback sequencer functionality
+- Added comprehensive officer status display and province officer roster management systems
+- Documented unification ending sequences and ruler introduction sequences in consolidated bank architecture
+- Enhanced officer and province data extraction tools providing detailed analysis of 237 officers and 30 provinces
+- Updated bank switching mechanisms to document sophisticated state machine architecture for attract demo and map screen processing
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -51,10 +52,10 @@
 9. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. The document has been updated to reflect the recent consolidation of PRG banks $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E into unified 16KB blocks at $A000-$DFFF, replacing the previous separate bank management approach with a consolidated bank switching mechanism. **Updated**: Recent major enhancements include the addition of combined PRG banks $08/$09, $0E/$0F, $19/$1A, and $1B/$1C containing sophisticated battle systems, AI components, and map screen processing logic, providing comprehensive province evaluation logic, army calculations, and battle resolution mechanics. **New**: The PRG banks $19/$1A implement an attract demo system with complete state machine architecture, sophisticated country selection, camera focus functionality, and enhanced data table organization, while banks $1B/$1C provide complete map screen frame processing with ruler intro sequences and province sprite management. Practical examples show how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized. It also documents bank switching mechanisms, memory overlap considerations, and the rationale behind the 8KB bank size limitation.
+This document explains the bank organization and memory layout used by the Sango2DASM project for the Namco-163 (Mapper 19) implementation. It covers the 32-bank structure with 8KB banks, the fixed boot bank 0x1F mapped to $E000-$FFFF, the three switchable PRG slots at $8000-$DFFF, and the memory mapping configuration defined in linker.cfg. **Updated**: Recent major enhancements include the addition of comprehensive attract demo system in banks $19/$1A with sophisticated state machine architecture, complete strategy request handling, demo event playback sequencer, officer status display, and unification ending sequences. Banks $1B/$1C provide enhanced map screen frame processing with ruler intro sequences and province sprite management. The project now includes advanced data extraction tools that provide comprehensive analysis of 237 officers and 30 provinces with detailed field mappings and validation. Practical examples demonstrate how code is distributed across banks, how bank numbers relate to memory addresses, and how the 6502 address space is utilized with the new consolidated architecture.
 
 ## Project Structure
-The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces. **New**: PRG banks $19/$1A provide a comprehensive attract demo system with sophisticated state machine architecture, country selection, camera focus functionality, and enhanced data table organization, while banks $1B/$1C offer comprehensive map screen frame processing with ruler intro sequences and province sprite management.
+The project organizes PRG banks as 32 individual 8KB files (rom/prg/prg_XX.bin), each mapped into one of four PRG slots on the 6502 address bus. The linker.cfg defines the four PRG slots and how segments are loaded into them. The bank stub files under asm/banks/ include the ROM binaries and provide placeholders for disassembly. The include/namco163.h file defines mapper registers and bank switching macros. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E are now consolidated into single files that occupy both $A000-$BFFF and $C000-$DFFF, providing unified 16KB code spaces with sophisticated game systems. **New**: PRG banks $19/$1A implement a complete attract demo system with state machine architecture, country selection, camera focus functionality, and enhanced data table organization, while banks $1B/$1C offer comprehensive map screen frame processing with ruler intro sequences and province sprite management.
 
 ```mermaid
 graph TB
@@ -95,9 +96,12 @@ AT03["check_trampoline_pattern.py"]
 AT04["verify_19_1a.py"]
 AT05["verify_1b_1c.py"]
 AT06["init_19_1a.py"]
+AT07["extract_officer_data.py"]
+AT08["extract_province_data.py"]
 end
-subgraph "Linker Configuration"
-CFG["linker.cfg"]
+subgraph "Data Documentation"
+DOC01["officer_data.md<br/>237 officers analyzed"]
+DOC02["province_data.md<br/>30 provinces documented"]
 end
 B00 --> S00
 B01 --> S01
@@ -129,6 +133,8 @@ AT03 -. checks .-> S0C_0D
 AT04 -. verifies .-> S19_1A
 AT05 -. verifies .-> S1B_1C
 AT06 -. initializes .-> S19_1A
+AT07 -. extracts .-> DOC01
+AT08 -. extracts .-> DOC02
 ```
 
 **Diagram sources**
@@ -149,7 +155,7 @@ AT06 -. initializes .-> S19_1A
 - [prg_1d_1e.asm:1-10](file://asm/banks/prg_1d_1e.asm#L1-L10)
 - [linker.cfg:41-43](file://linker.cfg#L41-L43)
 - [linker.cfg:45-47](file://linker.cfg#L45-L47)
-- [linker.cfg:49-51](file://linker.cfg#L49-L51)
+- [linker.cfg:49-51](file://linker.cfg#L49-L47)
 - [linker.cfg:53-55](file://linker.cfg#L53-L55)
 - [linker.cfg:70-72](file://linker.cfg#L70-L72)
 - [linker.cfg:74-76](file://linker.cfg#L74-L76)
@@ -637,6 +643,66 @@ The bank switching routine in bank 0x1F demonstrates how configurations are appl
 - [prg_1b_1c.asm:186-262](file://asm/banks/prg_1b_1c.asm#L186-L262)
 - [prg_1b_1c.asm:268-278](file://asm/banks/prg_1b_1c.asm#L268-L278)
 
+### Strategy Request Handler and Demo Event Playback
+**New**: Enhanced strategy request handling and demo event playback sequencer in banks $19/$1A:
+
+#### Strategy Request Dispatch System
+**New**: Comprehensive strategy request processing with 17-entry state machine:
+- **StrategyRequestDispatch**: Main dispatcher handling ruler panel operations, war deployment, and post-war menus
+- **RequestPoll**: Centralized polling mechanism for strategy layer requests with result code handling
+- **ArmyDeploySceneTrigger**: Coordinated army deployment scene triggering with proper state management
+- **PostWarRulerMenu**: Post-war ruler menu handling with proper cleanup and state transitions
+
+#### Demo Event Playback Sequencer
+**New**: Sophisticated demo event playback with 16-entry state machine:
+- **DemoEventPlaybackDispatch**: Complete attract demo event sequencer playing simulated turns for focused country
+- **PlaybackPaceGate**: Timing control with overlay sentinels and demo step routing
+- **PlaybackStepRoute**: Event routing based on demo steps (damage, loss, reinforcement scenes)
+- **ProvinceRecountScenes**: Automated troop and gold recounting across all provinces
+- **OfficerManagementScenes**: Officer reinforcement, removal, succession, and reassessment scenes
+
+#### Unification Ending Sequences
+**New**: Complete unification ending system triggered when ruler owns all 30 provinces:
+- **UnificationEndingDispatch**: End-game celebration sequence with census calculation and scoring
+- **CensusRecount**: Comprehensive census of provinces, officers, and resources
+- **BestOfficerSelection**: Identification and display of best performing officer
+- **VerdictSystem**: Scoring system determining ending tier based on performance metrics
+
+**Section sources**
+- [prg_19_1a.asm:421-5267](file://asm/banks/prg_19_1a.asm#L421-L5267)
+- [prg_19_1a.asm:4810-4843](file://asm/banks/prg_19_1a.asm#L4810-L4843)
+
+### Officer Status Display and Province Officer Roster Management
+**New**: Comprehensive officer status display and province officer roster management systems:
+
+#### Province Officer Roster Dispatch
+**New**: Advanced officer roster display with scrolling card carousel:
+- **ProvinceOfficerRosterDispatch**: Main dispatcher for province officer roster viewing with 5 sub-states
+- **CardPanelSetup**: Card panel window configuration and parameter setup
+- **RosterScroll**: Smooth scrolling animation with row-based navigation
+- **CardAnimation**: 32-byte PPU strip record generation with frame-by-frame animation
+
+#### Officer Status Scene Integration
+**New**: Integrated officer status scene with shared sub-states:
+- **OfficerStatusScene**: Shared sub-states for officer management across different game modes
+- **OfficerReinforcement**: Officer arrival and assignment to provinces
+- **OfficerRemoval**: Probabilistic officer defection and removal mechanics
+- **RulerSuccession**: Officer transfer and new ruler coronation procedures
+
+#### Enhanced Data Extraction Tools
+**New**: Comprehensive officer and province data extraction capabilities:
+- **Officer Data Analysis**: Complete analysis of 237 officers with detailed field mappings and validation
+- **Province Data Analysis**: Comprehensive documentation of 30 provinces with starting conditions and relationships
+- **Field Validation**: Code-backed verification of all data field offsets and usage patterns
+- **Cross-Reference Integration**: Links between officers, provinces, and game mechanics
+
+**Section sources**
+- [prg_19_1a.asm:2182-2202](file://asm/banks/prg_19_1a.asm#L2182-L2202)
+- [extract_officer_data.py:1-200](file://tools/extract_officer_data.py#L1-L200)
+- [extract_province_data.py:1-200](file://tools/extract_province_data.py#L1-L200)
+- [officer_data.md:1-200](file://docs/officer_data.md#L1-L200)
+- [province_data.md:1-200](file://docs/province_data.md#L1-L200)
+
 ### Memory Overlap Considerations
 - Bank 0x1F is fixed in slot 3 ($E000-$FFFF) at boot
 - Other banks can be mapped into slots 0/1/2 at runtime
@@ -680,6 +746,7 @@ The bank organization depends on several components working together:
 - **Updated**: Consolidated bank stubs for PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E in asm/banks/prg_08_09.asm, asm/banks/prg_0a_0b.asm, asm/banks/prg_0c_0d.asm, asm/banks/prg_0e_0f.asm, asm/banks/prg_17_18.asm, asm/banks/prg_19_1a.asm, asm/banks/prg_1b_1c.asm, and asm/banks/prg_1d_1e.asm
 - bank_1f_analysis.md documents the boot bank's role and dispatch mechanism
 - **New**: Attract demo system implementation in prg_19_1a.asm with sophisticated state machine and helper functions, and map screen processing in prg_1b_1c.asm
+- **New**: Enhanced data extraction tools providing comprehensive analysis of officer and province data
 
 ```mermaid
 graph TB
@@ -700,6 +767,8 @@ BOOT["bank_1f_analysis.md"]
 ANALYSIS_TOOLS["Analysis Tools Suite<br/>(Callback Analysis & Verification)"]
 VERIFICATION_TOOLS["Verification Tools<br/>(Byte-Exact ROM Matching)"]
 INIT_TOOLS["Initialization Tools<br/>(Attract Demo Setup)"]
+EXTRACTION_TOOLS["Data Extraction Tools<br/>(Officer & Province Analysis)"]
+DATA_DOCS["Documentation<br/>(Officer & Province Data)"]
 LCFG --> STUBS
 N163 --> STUBS
 FUNCS --> STUBS
@@ -717,6 +786,8 @@ ANALYSIS_TOOLS --> NEW_OFFICER_EXCHANGE
 VERIFICATION_TOOLS --> ATTRACT_DEMO
 VERIFICATION_TOOLS --> MAP_SCREEN
 INIT_TOOLS --> ATTRACT_DEMO
+EXTRACTION_TOOLS --> DATA_DOCS
+DATA_DOCS --> STUBS
 ```
 
 **Diagram sources**
@@ -746,6 +817,10 @@ INIT_TOOLS --> ATTRACT_DEMO
 - [verify_19_1a.py:1-90](file://tools/verify_19_1a.py#L1-L90)
 - [verify_1b_1c.py:1-90](file://tools/verify_1b_1c.py#L1-L90)
 - [init_19_1a.py:1-285](file://tools/init_19_1a.py#L1-L285)
+- [extract_officer_data.py:1-200](file://tools/extract_officer_data.py#L1-L200)
+- [extract_province_data.py:1-200](file://tools/extract_province_data.py#L1-L200)
+- [officer_data.md:1-200](file://docs/officer_data.md#L1-L200)
+- [province_data.md:1-200](file://docs/province_data.md#L1-L200)
 
 **Section sources**
 - [linker.cfg:18-55](file://linker.cfg#L18-L55)
@@ -775,6 +850,7 @@ INIT_TOOLS --> ATTRACT_DEMO
 - **New**: Attract demo system in banks $19/$1A provides efficient country selection with optimized camera positioning, state machine dispatch, and enhanced data table lookups
 - **New**: Map screen processing in banks $1B/$1C offers optimized province sprite management with dirty bitmap tracking and animation phase coordination
 - **New**: Callback systems minimize overhead for dynamic function dispatching and state-based routing
+- **New**: Enhanced data extraction tools provide offline analysis capabilities without runtime performance impact
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -817,6 +893,21 @@ Common issues and resolutions:
   - Ensure ruler marker drawing works correctly with camera position updates
   - Verify input handling for province selection and camera navigation
   - Check UI mode transitions between attract/demo, ruler intro, and main game modes
+- **New**: Strategy request handler issues:
+  - Verify StrategyRequestDispatch flow through all 17 sub-states
+  - Check request polling mechanism and result code handling
+  - Ensure proper state transitions between ruler panels, war deployment, and post-war menus
+  - Verify army deployment scene triggering and cleanup procedures
+- **New**: Demo event playback issues:
+  - Verify DemoEventPlaybackDispatch flow through all 16 playback states
+  - Check event pacing and timing controls
+  - Ensure proper province recounting and officer management scenes
+  - Verify unification ending sequence triggers and scoring calculations
+- **New**: Data extraction tool issues:
+  - Run extract_officer_data.py to verify 237 officers are properly extracted and validated
+  - Run extract_province_data.py to verify 30 provinces are properly documented
+  - Check field mappings against code evidence in the ROM
+  - Verify cross-references between officers and provinces
 - **New**: Byte-exact verification issues:
   - Run verify_19_1a.py to ensure banks $19/$1A assemble to exact ROM match
   - Run verify_1b_1c.py to ensure banks $1B/$1C assemble to exact ROM match
@@ -833,6 +924,9 @@ Common issues and resolutions:
 - [prg_0c_0d.asm:1-8](file://asm/banks/prg_0c_0d.asm#L1-L8)
 - [prg_19_1a.asm:16-52](file://asm/banks/prg_19_1a.asm#L16-L52)
 - [prg_1b_1c.asm:16-54](file://asm/banks/prg_1b_1c.asm#L16-L54)
+- [prg_19_1a.asm:421-5267](file://asm/banks/prg_19_1a.asm#L421-L5267)
+- [extract_officer_data.py:1-200](file://tools/extract_officer_data.py#L1-L200)
+- [extract_province_data.py:1-200](file://tools/extract_province_data.py#L1-L200)
 - [analyze_0c_0d_callbacks.py:1-20](file://tools/analyze_0c_0d_callbacks.py#L1-L20)
 - [verify_0c_0d_directives.py:1-20](file://tools/verify_0c_0d_directives.py#L1-L20)
 - [check_trampoline_pattern.py:1-20](file://tools/check_trampoline_pattern.py#L1-L20)
@@ -841,4 +935,4 @@ Common issues and resolutions:
 - [init_19_1a.py:1-285](file://tools/init_19_1a.py#L1-L285)
 
 ## Conclusion
-The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $19/$1A provide a comprehensive attract demo system with sophisticated state machine architecture, country selection, camera focus, and enhanced data table organization, while banks $1B/$1C offer complete map screen frame processing with ruler intro sequences and province sprite management. **Updated**: PRG banks $08/$09 provide a comprehensive battle and AI system with sophisticated turn processing, officer action decision-making, movement engines, strategic command validation, and complete battle phase management with casualty resolution. **Updated**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **Updated**: PRG banks $0C/$0D provide a comprehensive officer exchange system with 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management. **Updated**: PRG banks $0E/$0F provide a comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios. **Updated**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) systems enable sophisticated dynamic function dispatching and state-based routing throughout the codebase. **New**: Comprehensive analysis tools suite enables verification of callback patterns, directive validation, and trampoline consistency checking. **New**: Byte-exact verification tools (verify_19_1a.py, verify_1b_1c.py) ensure consolidated bank assemblies match original ROM binaries precisely. **New**: Initialization tools (init_19_1a.py) provide robust setup and verification for attract demo assembly with byte-exact ROM matching. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **Updated**: Consolidated bank switching reduces overhead and improves code organization through unified 16KB block management. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.
+The Sango2DASM project employs a 32-bank, 8KB-per-bank scheme with four PRG slots on the 6502 address bus. Bank 0x1F is fixed at $E000-$FFFF and serves as the boot bank, while slots 0/1/2 are switchable via mapper registers. **Updated**: PRG banks $08/$09, $0A/$0B, $0C/$0D, $0E/$0F, $17/$18, $19/$1A, $1B/$1C, and $1D/$1E have been consolidated into unified 16KB blocks at $A000-$DFFF, managed through specialized bank switching routines. **New**: PRG banks $19/$1A provide a comprehensive attract demo system with sophisticated state machine architecture, country selection, camera focus, and enhanced data table organization, while banks $1B/$1C offer complete map screen frame processing with ruler intro sequences and province sprite management. **Updated**: PRG banks $08/$09 provide a comprehensive battle and AI system with sophisticated turn processing, officer action decision-making, movement engines, strategic command validation, and complete battle phase management with casualty resolution. **Updated**: PRG banks $0A/$0B provide enhanced AI turn processing with comprehensive province evaluation, army calculations, and battle system logic with extensive work area organization and SRAM integration. **Updated**: PRG banks $0C/$0D provide a comprehensive officer exchange system with 1760+ lines of documented code, complete state machine implementation with 5-phase exchange flow, officer management systems, command validation, army operations, and UI scene management. **Updated**: PRG banks $0E/$0F provide a comprehensive battle overlay system with VBlank frame processing, phase-based state management, and player input handling for battle scenarios. **Updated**: PRG banks $1D/$1E have undergone major refactoring with comprehensive zero-page variable organization, improved SceneRenderer callback architecture, and better code structure through systematic reorganization while maintaining complete functional equivalence. **New**: The BankedCallbackTrampoline ($EE07) and CallbackDispatcher ($EADE) systems enable sophisticated dynamic function dispatching and state-based routing throughout the codebase. **New**: Enhanced strategy request handler and demo event playback sequencer provide complete game flow management with 17-entry and 16-entry state machines respectively. **New**: Comprehensive officer status display and province officer roster management systems integrate seamlessly with the existing game architecture. **New**: Enhanced data extraction tools provide comprehensive analysis of 237 officers and 30 provinces with detailed field mappings, validation, and cross-reference capabilities. **New**: Unification ending sequences trigger when rulers achieve complete conquest, providing celebratory gameplay with census calculation and scoring systems. **New**: Byte-exact verification tools (verify_19_1a.py, verify_1b_1c.py) ensure consolidated bank assemblies match original ROM binaries precisely. **New**: Initialization tools (init_19_1a.py) provide robust setup and verification for attract demo assembly with byte-exact ROM matching. The linker.cfg defines the memory layout and segment-to-slot mapping, and the bank stubs integrate ROM binaries into the build. **Updated**: The consolidated approach simplifies management of related functionality while maintaining the flexibility of the 8KB bank architecture. **Updated**: Consolidated bank switching reduces overhead and improves code organization through unified 16KB block management. Bank switching is handled through macros and a configuration table, with specialized routines for consolidated bank management, enabling flexible code distribution across banks. Understanding these relationships is essential for accurate disassembly and reliable runtime behavior.

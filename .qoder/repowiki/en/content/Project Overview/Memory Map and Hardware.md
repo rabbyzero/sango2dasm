@@ -17,9 +17,10 @@
 ## Update Summary
 **Changes Made**
 - Updated memory organization documentation with new combined bank architecture for $19/$1A and $1B/$1C regions
-- Enhanced linker configuration showing retargeted segments from $8000 stubs to new $A000/$C000 layouts
+- Enhanced linker configuration showing retargeted segments from $8000 stubs to optimized $A000/$C000 layouts
 - Added detailed documentation of the 16KB combined bank structure spanning $A000-$DFFF
-- Updated PRG slot mapping to reflect the enhanced memory organization
+- Updated PRG slot mapping to reflect the enhanced memory organization with combined banks
+- Documented cross-bank communication patterns between $19/$1A and $1B/$1C regions
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -56,11 +57,15 @@ SLOT0["$8000-$9FFF<br/>PRG Slot 0"]
 SLOT1["$A000-$BFFF<br/>PRG Slot 1"]
 SLOT2["$C000-$DFFF<br/>PRG Slot 2"]
 SLOT3["$E000-$FFFF<br/>PRG Slot 3 (boot bank 0x1F)"]
+COMBINED19["Combined Banks $19/$1A<br/>16KB ($A000-$DFFF)"]
+COMBINED1B["Combined Banks $1B/$1C<br/>16KB ($A000-$DFFF)"]
 end
 PRG --> SLOT0
 PRG --> SLOT1
 PRG --> SLOT2
 PRG --> SLOT3
+PRG --> COMBINED19
+PRG --> COMBINED1B
 CHR --> PPU
 ```
 

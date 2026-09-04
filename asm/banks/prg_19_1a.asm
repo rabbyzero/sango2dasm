@@ -6299,7 +6299,6 @@ Loc_CEB8:
   LDA $9BAD,Y                             ; $CEBE: B9 AD 9B
   STA a:$0001                             ; $CEC1: 8D 01 00
   JMP $F1B7                               ; $CEC4: 4C B7 F1
-Loc_CEC7:
   LDA $9D64,Y                             ; $CEC7: B9 64 9D
   STA a:$0000                             ; $CECA: 8D 00 00
   LDA $9D65,Y                             ; $CECD: B9 65 9D
