@@ -272,9 +272,9 @@ VectorTable:
 @wait_vb:
   LDA PPU_STATUS                                ; $E0B0: AD 02 20
   BPL @wait_vb                                  ; $E0B3: 10 FB
-  LDA #$4C                                      ; $E0B5: A9 4C  JMP opcode
-  STA $00A5                                     ; $E0B7: 8D A5 00  Patch RAM
-  STA NAMCO_CTRL                                ; $E0BA: 8D 00 F8  Patch mapper
+  LDA #$4C                                      ; $E0B5: A9 4C  ; NAMCO_PROTECT_UPPER
+  STA $00A5                                     ; $E0B7: 8D A5 00  ; write-protect mirror
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $E0BA: 8D 00 F8  ; protect SRAM $7000-$7FFF
   LDA #$00                                      ; $E0BD: A9 00
   JSR BankSwitch                                ; $E0BF: 20 1F E5
   LDA #$10                                      ; $E0C2: A9 10  NMI enable + sprite height
@@ -894,9 +894,9 @@ BankSwitchTable:
   LDA #$00                                      ; $E57F: A9 00
   JSR SoundWrapperA                             ; $E581: 20 73 E6  Sound off
   JSR SoundInit                                 ; $E584: 20 90 E5
-  LDA #$4C                                      ; $E587: A9 4C  JMP opcode
-  STA $00A5                                     ; $E589: 8D A5 00  Patch RAM at $00A5
-  STA NAMCO_CTRL                                ; $E58C: 8D 00 F8  Write mapper
+  LDA #$4C                                      ; $E587: A9 4C  ; NAMCO_PROTECT_UPPER
+  STA $00A5                                     ; $E589: 8D A5 00  ; write-protect mirror
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $E58C: 8D 00 F8  ; protect SRAM $7000-$7FFF
   RTS                                           ; $E58F: 60
 .endproc
 
@@ -3370,7 +3370,7 @@ CountryDataPtrTable:
   BNE @check_loop                               ; $F3F2: D0 E3
   ; --- Anti-piracy path: all 70 checks passed (should not happen normally) ---
   LDA #$40                                      ; $F3F4: A9 40
-  STA NAMCO_PRG_8000_ALT                        ; $F3F6: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $F3F6: 8D 00 F8
   LDX #$01                                      ; $F3F9: A2 01
   JSR VerifyRamPattern                          ; $F3FB: 20 22 F4
   BEQ @display_error                            ; $F3FE: F0 0C
@@ -3661,7 +3661,7 @@ NmiDispatchTable:
   JSR BattleVBlankFrameUpdate_Entry             ; $F8C9: 20 03 A0  Frame update (bank $0E)
   LDA #$4C                                      ; $F8CC: A9 4C
   STA $A5                                       ; $F8CE: 85 A5
-  STA NAMCO_PRG_8000_ALT                        ; $F8D0: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $F8D0: 8D 00 F8
   JSR CalcScrollAddrAlt                         ; $F8D3: 20 9B FF
   JSR SwapPlayerPointers                        ; $F8D6: 20 A9 FA
   LDY #$3D                                      ; $F8D9: A0 3D
@@ -3693,7 +3693,7 @@ NmiDispatchTable:
   JSR $A003                                     ; $F916: 20 03 A0
   LDA #$4C                                      ; $F919: A9 4C
   STA $A5                                       ; $F91B: 85 A5
-  STA NAMCO_PRG_8000_ALT                        ; $F91D: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $F91D: 8D 00 F8
   JSR CalcScrollAddr                            ; $F920: 20 62 FF
   LDA $0500                                     ; $F923: AD 00 05
   CMP #$0C                                      ; $F926: C9 0C
@@ -3738,7 +3738,7 @@ NmiDispatchTable:
   JSR $A003                                     ; $F982: 20 03 A0
   LDA #$4C                                      ; $F985: A9 4C
   STA $A5                                       ; $F987: 85 A5
-  STA NAMCO_PRG_8000_ALT                        ; $F989: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $F989: 8D 00 F8
   JSR CalcScrollAddr                            ; $F98C: 20 62 FF
   LDY #$2E                                      ; $F98F: A0 2E
   JSR SwitchBankAC_B                            ; $F991: 20 37 F2
@@ -3762,7 +3762,7 @@ NmiDispatchTable:
   JSR $A003                                     ; $F9B8: 20 03 A0
   LDA #$4C                                      ; $F9BB: A9 4C
   STA $A5                                       ; $F9BD: 85 A5
-  STA NAMCO_PRG_8000_ALT                        ; $F9BF: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $F9BF: 8D 00 F8
   JSR CalcScrollAddr                            ; $F9C2: 20 62 FF
   JSR SwapPlayerPointers                        ; $F9C5: 20 A9 FA
   LDY #$37                                      ; $F9C8: A0 37
@@ -3788,7 +3788,7 @@ NmiDispatchTable:
   JSR $A003                                     ; $F9F5: 20 03 A0
   LDA #$4C                                      ; $F9F8: A9 4C
   STA $A5                                       ; $F9FA: 85 A5
-  STA NAMCO_PRG_8000_ALT                        ; $F9FC: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $F9FC: 8D 00 F8
   LDY #$2A                                      ; $F9FF: A0 2A
   JSR SwitchBankAC_B                            ; $FA01: 20 37 F2
   JSR B0A_0B_SubStateDispatch_Entry             ; $FA04: 20 03 A0  Sub-state dispatch (bank $0A)
@@ -3811,7 +3811,7 @@ NmiDispatchTable:
   JSR CalcScrollAddrAlt                         ; $FA2A: 20 9B FF
   LDA #$4C                                      ; $FA2D: A9 4C
   STA $A5                                       ; $FA2F: 85 A5
-  STA NAMCO_PRG_8000_ALT                        ; $FA31: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $FA31: 8D 00 F8
   JSR SwapPlayerPointers                        ; $FA34: 20 A9 FA
   LDY #$3D                                      ; $FA37: A0 3D
   JSR SwitchBankAC_B                            ; $FA39: 20 37 F2
@@ -3841,7 +3841,7 @@ NmiDispatchTable:
   JSR B1D_1E_MenuUpdate                         ; $FA70: 20 03 A0  Menu update (bank $1D)
   LDA #$4C                                      ; $FA73: A9 4C
   STA $A5                                       ; $FA75: 85 A5
-  STA NAMCO_PRG_8000_ALT                        ; $FA77: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $FA77: 8D 00 F8
   JSR ControllerRead                            ; $FA7A: 20 C6 E6
   JSR SwapPlayerPointers                        ; $FA7D: 20 A9 FA
   LDY #$37                                      ; $FA80: A0 37
@@ -3910,7 +3910,7 @@ NmiDispatchTable:
   JSR SwitchBankAC_B                            ; $FAE6: 20 37 F2
   JSR $A003                                     ; $FAE9: 20 03 A0
   LDA $A5                                       ; $FAEC: A5 A5
-  STA NAMCO_PRG_8000_ALT                        ; $FAEE: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT                  ; $FAEE: 8D 00 F8
   PLA                                           ; $FAF1: 68
   STA $E1                                       ; $FAF2: 85 E1
   STA NAMCO_PRG_8000                            ; $FAF4: 8D 00 E0

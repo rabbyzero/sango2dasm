@@ -9999,13 +9999,14 @@ PlayerPtrTable:
 
 ;===============================================================================
 ; $DC97: CopySramToWork
-; Patch NMI handler, then copy 16 pages from $7000 to $6000 (SRAM backup).
+; Re-protect SRAM upper half ($7000-$7FFF) via the mapper WRAM write-protect
+; register, then copy 16 pages from $7000 to $6000 (restore save snapshot).
 ;===============================================================================
 .proc CopySramToWork
 
-  LDA #$4C                                            ; $DC97: A9 4C
-  STA a:$00A5                                         ; $DC99: 8D A5 00
-  STA B1F_NmiHandler                                  ; $DC9C: 8D 00 F8
+  LDA #$4C                                            ; $DC97: A9 4C  ; NAMCO_PROTECT_UPPER
+  STA a:$00A5                                         ; $DC99: 8D A5 00  ; write-protect mirror
+  STA NAMCO_WRAM_WRITE_PROTECT                        ; $DC9C: 8D 00 F8
   LDA #$00                                            ; $DC9F: A9 00
   STA a:$0000                                         ; $DCA1: 8D 00 00
   STA a:$0002                                         ; $DCA4: 8D 02 00

@@ -30,10 +30,19 @@ NAMCO163_CHR_7    = $B800  ; CHR slot 7 -> PPU $1C00-$1FFF
 NAMCO_PRG_8000    = $E000  ; Switch PRG bank at $8000-$9FFF
 NAMCO_PRG_A000    = $E800  ; Switch PRG bank at $A000-$BFFF (ORA #$C0 to disable CHR-RAM)
 NAMCO_PRG_C000    = $F000  ; Switch PRG bank at $C000-$DFFF
-NAMCO_PRG_8000_ALT = $F800 ; Alternate/mirror for PRG $8000; also Namco control register
 
-; Namco-163 Control Register
-NAMCO_CTRL        = $F800  ; Sound/IRQ control (same address as PRG_8000_ALT)
+; Namco-163 WRAM Write-Protect Register ($F800-$FFFF, write)
+; Values $40-$4E: upper nybble $4 enables writes, low nybble bits 0-3
+; write-protect the four 2KB SRAM windows $6000-$67FF/$6800-$6FFF/
+; $7000-$77FF/$7800-$7FFF (1 = protected). Any value outside $40-$4E is
+; decoded as the sound RAM address port instead (NAMCO_CTRL below).
+NAMCO_WRAM_WRITE_PROTECT = $F800
+NAMCO_PROTECT_NONE   = $40  ; all four SRAM windows writable
+NAMCO_PROTECT_UPPER  = $4C  ; $7000-$7FFF write-protected (boot default)
+
+; Namco-163 Sound RAM Address Port (same write as NAMCO_WRAM_WRITE_PROTECT
+; for any value outside $40-$4E; bit 7 = auto-increment)
+NAMCO_CTRL        = $F800  ; Sound register address port
 
 ; Namco-163 Address/Control Port ($4800)
 ; Shared by sound and IRQ subsystems: write register index here first

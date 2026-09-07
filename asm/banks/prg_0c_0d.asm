@@ -541,7 +541,7 @@ PhaseExit:
   LDY #$39                                    ; $A260: A0 39
   JSR B1F_BankedCallbackTrampoline            ; $A262: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                               ; $A265: 12 A0
+  .word B19_1A_OfficerCardAnimStep_Entry    ; $A265: 12 A0
   JSR CheckExchangePossible                             ; $A267: 20 27 DF
   BCC @Done                             ; $A26A: 90 0E
   LDA $81                                     ; $A26C: A5 81
@@ -4899,7 +4899,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY #$39                                    ; $C39A: A0 39
   JSR B1F_BankedCallbackTrampoline            ; $C39C: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                                 ; $C39F: 12 A0
+  .word B19_1A_OfficerCardAnimStep_Entry      ; $C39F: 12 A0
   JSR TryAutoAdvance                          ; $C3A1: 20 DE A1
   LDA detail_cursor_y                                   ; $C3A4: AD 0D 04
   CMP #$FF                                    ; $C3A7: C9 FF

@@ -22,71 +22,71 @@ StrategyRequestDispatch_Entry:  ; (dispatch callback target)
   JMP StrategyRequestDispatch             ; $A006: 4C 73 C7
 DemoEventPlaybackDispatch_Entry:  ; (dispatch callback target)
   JMP DemoEventPlaybackDispatch            ; $A009: 4C 96 A2
-Loc_A00C:
-  JMP OfficerStatusScene                   ; $A00C: 4C 81 AD
+OfficerStatusScene_Entry:  ; (dispatch callback target)
+  JMP OfficerStatusScene                  ; $A00C: 4C 81 AD
 Loc_A00F:
   JMP $CFD6                               ; $A00F: 4C D6 CF
-Loc_A012:
-  JMP $B2D7                               ; $A012: 4C D7 B2
-Loc_A015:  ; (dispatch callback target)
-  JMP $B7D9                               ; $A015: 4C D9 B7
-Loc_A018:
-  JMP $B8D7                               ; $A018: 4C D7 B8
-Loc_A01B:
-  JMP $B964                               ; $A01B: 4C 64 B9
+OfficerCardAnimStep_Entry:  ; (BankedCallbackTrampoline target)
+  JMP OfficerCardAnimStep                 ; $A012: 4C D7 B2
+SortieWarCommit_Entry:  ; (BankedCallbackTrampoline target)
+  JMP SortieWarCommit                     ; $A015: 4C D9 B7
+TransferCapacityCalc_Entry:  ; (BankedCallbackTrampoline target)
+  JMP TransferCapacityCalc                ; $A018: 4C D7 B8
+OfficerArrivalScan_Entry:  ; (BankedCallbackTrampoline target)
+  JMP OfficerArrivalScan                  ; $A01B: 4C 64 B9
 Loc_A01E:  ; (dispatch callback target)
   JMP UnificationEndingDispatch           ; $A01E: 4C 35 C4
 Loc_A021:  ; (dispatch callback target)
   JMP ProvinceOfficerRosterDispatch       ; $A021: 4C E5 AF
-Loc_A024:
-  JMP $BA70                               ; $A024: 4C 70 BA
-Loc_A027:
-  JMP $BB03                               ; $A027: 4C 03 BB
-Loc_A02A:  ; (dispatch callback target)
+CastleDevResultRoll_Entry:  ; (BankedCallbackTrampoline target)
+  JMP CastleDevResultRoll                 ; $A024: 4C 70 BA
+GoodsSendPrepare_Entry:  ; (BankedCallbackTrampoline target)
+  JMP GoodsSendPrepare                    ; $A027: 4C 03 BB
+MapProvinceDirtyMark_Entry:  ; (BankedCallbackTrampoline target)
   JMP MapProvinceDirtyMark                ; $A02A: 4C DE BB
-Loc_A02D:
-  JMP $BC02                               ; $A02D: 4C 02 BC
-Loc_A030:
-  JMP $BB73                               ; $A030: 4C 73 BB
+SramSaveCommit_Entry:  ; (BankedCallbackTrampoline target)
+  JMP SramSaveCommit                      ; $A02D: 4C 02 BC  ; SRAM save commit
+GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
+  JMP GoodsSendApply                      ; $A030: 4C 73 BB
 ;===============================================================================
 ; $A033: AttractDemoDispatch
 ; Frame state $0B handler of the map-screen frame machine (entered from
 ; prg_1b_1c MapScreenFrameStateDispatch via banks $19+$1A entry $A003):
 ; the title-screen attract demo run when no game is active. Dispatches the
 ; demo sub-state by $0401:
-;   0 @CountrySelect - rotation tick, officer census, pick next
-;     Country of the demo, hand off to camera-focus frame state $0A
+;   0 CountrySelect - rotation tick, Officer census, pick the next Country
+;     of the demo, hand off to camera-focus frame state $0A
 ;   1 OverlayInit   - status overlay ($20) + camera target setup
 ;   2 OverlayPoll   - wait with overlay up, Start exits the demo
 ;   3 ResetCheck    - idle check, Start soft-resets to the title
 ; Demo RAM: $6F00 demo year counter (starts $59), $6F01 rotation step (0-$0B),
 ; $6F02 game level (0-2), $6F03 focused Country slot (0-6), $6F04 frame divider
-; (0-6), $6F05 province
-; count display value, $6F06 camera-focus phase flag, $6F45 rotation order
-; index (0-4, random from SramInit). Country records: 7 x 8 bytes at
-; $6F07..$6F37 (stride 8): [0]=Ruler id ($FF = empty), [1]=home Province.
+; (0-6), $6F05 Province count display value, $6F06 camera-focus phase flag,
+; $6F45 rotation order index (0-4, random from SramInit). Country records:
+; 7 x 8 bytes at $6F07..$6F37 (stride 8): [0]=Ruler id ($FF = empty),
+; [1]=home Province.
 ;===============================================================================
 .proc AttractDemoDispatch
   LDA $0401                               ; $A033: AD 01 04 ; attract demo sub-state
   JSR B1F_CallbackDispatcher              ; $A036: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word @CountrySelect                     ; $A039: 41 A0 ; sub-state 0
+  .word CountrySelect                     ; $A039: 41 A0 ; sub-state 0
   .word OverlayInit                       ; $A03B: 2C A1 ; sub-state 1
   .word OverlayPoll                       ; $A03D: 5E A1 ; sub-state 2
   .word ResetCheck                        ; $A03F: 86 A1 ; sub-state 3
 ;===============================================================================
-; $A041: @CountrySelect (sub-state 0)
+; $A041: CountrySelect (sub-state 0)
 ; Sub-state 0. Every 7th frame advances rotation step $6F01 (12 steps per
 ; demo year $6F00), decays the per-Country timers, and picks the next
 ; Country slot from AttractCountryOrderTable row $6F45. For the focused
 ; Country: builds the Country list + Officer census (AttractDemoCensusBuild),
 ; counts its Provinces, draws the demo year on the stats overlay (banked
 ; call to bank $1D YearDisplaySetup, entry $A01E -> $A6B6), resolves the
-; Ruler's home Province, then hands off to
-; camera-focus frame state $0A. If fewer than 30 unclaimed Officers remain,
-; the demo idles via overlay $D5 (sub-state 3).
+; Ruler's home Province, then hands off to camera-focus frame state $0A.
+; If fewer than 30 unclaimed Officers remain, the demo idles via overlay
+; $D5 (sub-state 3).
 ;===============================================================================
-@CountrySelect:  ; sub-state 0
+CountrySelect:  ; sub-state 0
   LDA #$F0                                ; $A041: A9 F0
   STA $6F41                               ; $A043: 8D 41 6F ; park camera Y off-screen
   INC $6F04                               ; $A046: EE 04 6F ; frame divider
@@ -123,7 +123,7 @@ Loc_A030:
   LDY #$00                                ; $A089: A0 00
   LDA ($EE),Y                             ; $A08B: B1 EE     ; Country record[0] = Ruler id
   CMP #$FF                                ; $A08D: C9 FF     ; $FF = empty slot
-  BEQ @CountrySelect                       ; $A08F: F0 B0     ; empty: spin until filled
+  BEQ CountrySelect                       ; $A08F: F0 B0     ; empty: spin until filled
   JSR AttractDemoCensusBuild              ; $A091: 20 40 A2 ; -> $0011 = unclaimed Officer count
   LDA a:$0011                             ; $A094: AD 11 00
   CMP #$1E                                ; $A097: C9 1E     ; 30+ Officers still unclaimed?
@@ -1862,161 +1862,227 @@ StatPairSubtract:
   RTS                                     ; $AD80: 60
 .endproc
 
+;===============================================================================
+; $AD81: OfficerStatusScene
+; Map screen frame state $0D handler (entered from prg_1b_1c
+; MapScreenFrameStateDispatch via banks $19+$1A entry $A00C; the strategy
+; banks hand off here, prg_0a_0b $DB11). Year-end handoff for the two
+; Countries packed into $0507 (low nibble = first Country processed, high
+; nibble = second; assembled at prg_0a_0b $A887 and prg_19_1a $B7FC/$B854).
+; For each Country the Ruler's Officer record status (record[$0B] & 3) is
+; checked: when it is 3 (Ruler out of office) the handoff params $0470-$0473
+; are armed and RulerSuccessionScene runs; otherwise the scene ends in
+; @StatusApply, which splits on the acting Country's control flag (($EE)
+; byte [3], set up by the strategy banks): $03 (player-controlled) hands off
+; to the strategy request mailbox poll, any other value returns to the map
+; with camera and year display setup. Sub-states 4-6 are the same procs used
+; as demo sub-states $C-$E of DemoEventPlaybackDispatch (RulerSuccessionScene,
+; OfficerReassessScene, ScenarioHandoffPrep).
+; Dispatches the scene sub-state by $0401:
+;   0 @StatusSceneInit     - clear sprite refresh flag, camera Y $F0, year display
+;   1 @StatusSrcSetup      - wait NMI idle, split $0507, first Country Ruler check
+;   2 @StatusDstSetup      - second Country Ruler check
+;   3 @StatusApply         - strategy mailbox handoff or map return
+;   4 RulerSuccessionScene - officer transfer / new-Ruler coronation (shared)
+;   5 OfficerReassessScene - strongest-Officer reassessment (shared)
+;   6 ScenarioHandoffPrep  - per-Country notice + record handoff (shared)
+; Scratch RAM: $040A acting Country, $040B Ruler Officer id, $040C the other
+; packed Country, $0470-$0473 handoff params ($0470 = RulerSuccessionScene
+; continuation sub-state after SuccessionArrivalScan, $0471 = RulerSuccession
+; no-slot exit sub-state, $0472/$0473 = final exit frame state/sub-state
+; consumed by ScenarioHandoffPrep HandoffExit), $042C overlay display value,
+; $6F44 map marker/palette Country, $6F3F/$6F41 camera X/Y targets.
+;===============================================================================
 .proc OfficerStatusScene
-  LDA $0401                               ; $AD81: AD 01 04
+  LDA $0401                               ; $AD81: AD 01 04 ; scene sub-state
   JSR B1F_CallbackDispatcher               ; $AD84: 20 DE EA
 ; --- Inline pointer table (7 entries) ---
-  .word @StatusSceneInit                   ; $AD87: 95 AD ; sub 0
-  .word @StatusSrcSetup                    ; $AD89: AA AD ; sub 1
-  .word StatusDstSetup                     ; $AD8B: 0D AE ; sub 2
-  .word StatusApply                        ; $AD8D: 51 AE ; sub 3
-  .word RulerSuccessionScene               ; $AD8F: 01 BE ; sub 4
-  .word OfficerReassessScene               ; $AD91: 32 C1 ; sub 5
-  .word ScenarioHandoffPrep                ; $AD93: 7A C3 ; sub 6
-@StatusSceneInit:  ; (dispatch callback target)
-; --- Code Region ---
+  .word @StatusSceneInit                  ; $AD87: 95 AD ; sub-state 0
+  .word @StatusSrcSetup                   ; $AD89: AA AD ; sub-state 1
+  .word @StatusDstSetup                   ; $AD8B: 0D AE ; sub-state 2
+  .word @StatusApply                      ; $AD8D: 51 AE ; sub-state 3
+  .word RulerSuccessionScene              ; $AD8F: 01 BE ; sub-state 4 (shared)
+  .word OfficerReassessScene              ; $AD91: 32 C1 ; sub-state 5 (shared)
+  .word ScenarioHandoffPrep               ; $AD93: 7A C3 ; sub-state 6 (shared)
+;===============================================================================
+; $AD95: @StatusSceneInit (sub-state 0)
+; Clears the sprite refresh flag, parks the camera Y target at $F0, and shows
+; the year display via the bank-$1D YearDisplaySetup entry, then advances to
+; sub-state 1.
+;===============================================================================
+@StatusSceneInit:  ; sub-state 0
   LDA #$00                                ; $AD95: A9 00
-  STA $04E4                               ; $AD97: 8D E4 04
+  STA $04E4                               ; $AD97: 8D E4 04 ; clear sprite refresh flag
   LDA #$F0                                ; $AD9A: A9 F0
-  STA $6F41                               ; $AD9C: 8D 41 6F
-  LDY #$3D                                ; $AD9F: A0 3D
+  STA $6F41                               ; $AD9C: 8D 41 6F ; camera Y target (default)
+  LDY #$3D                                ; $AD9F: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline         ; $ADA1: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A01E                            ; $ADA4: 1E A0 (bank $1D $A01E -> JMP YearDisplaySetup)
+  .word B1D_1E_YearDisplaySetup           ; $ADA4: 1E A0 (bank $1D $A01E -> JMP $A6B6: YearDisplaySetup)
 ; --- Resumed code after trampoline return ---
-  INC $0401                               ; $ADA6: EE 01 04
+  INC $0401                               ; $ADA6: EE 01 04 ; -> sub-state 1
   RTS                                     ; $ADA9: 60
-@StatusSrcSetup:  ; (dispatch callback target)
-; --- Code Region ---
-  LDA a:$007E                             ; $ADAA: AD 7E 00
-  BEQ $ADB0                               ; $ADAD: F0 01
-  RTS                                     ; $ADAF: 60
-Loc_ADB0:
-  LDA $0507                               ; $ADB0: AD 07 05
+;===============================================================================
+; $ADAA: @StatusSrcSetup (sub-state 1)
+; Waits for the NMI control bits $007E to clear, then splits $0507: the high
+; nibble (second Country) -> $040C, the low nibble (first Country) -> $040A.
+; Loads the Country's Ruler id (record[0]) into $040B and splits on the
+; Ruler's Officer record status (record[$0B] & 3): 3 (out of office) arms
+; the succession handoff params and falls into @EnterSuccessionScene
+; (sub-state 4); otherwise @StatusAdvance moves on to sub-state 2.
+;===============================================================================
+@StatusSrcSetup:  ; sub-state 1
+  LDA a:$007E                             ; $ADAA: AD 7E 00 ; NMI control bits
+  BEQ @NmiIdle                            ; $ADAD: F0 01
+  RTS                                     ; $ADAF: 60        ; NMI busy: retry next frame
+@NmiIdle:
+  LDA $0507                               ; $ADB0: AD 07 05 ; packed Country pair
   LSR                                     ; $ADB3: 4A
   LSR                                     ; $ADB4: 4A
   LSR                                     ; $ADB5: 4A
   LSR                                     ; $ADB6: 4A
-  STA $040C                               ; $ADB7: 8D 0C 04
+  STA $040C                               ; $ADB7: 8D 0C 04 ; second Country id
   LDA $0507                               ; $ADBA: AD 07 05
   AND #$0F                                ; $ADBD: 29 0F
-  STA $040A                               ; $ADBF: 8D 0A 04
-  JSR B1F_GetCountryDataPtr                ; $ADC2: 20 68 F3
+  STA $040A                               ; $ADBF: 8D 0A 04 ; first (acting) Country id
+  JSR B1F_GetCountryDataPtr                ; $ADC2: 20 68 F3 ; ($00) = Country record
   LDY #$00                                ; $ADC5: A0 00
   LDA ($00),Y                             ; $ADC7: B1 00
-  STA $040B                               ; $ADC9: 8D 0B 04
-  JSR B1F_GetOfficerRecordAddr             ; $ADCC: 20 D7 F2
+  STA $040B                               ; $ADC9: 8D 0B 04 ; Ruler Officer id
+  JSR B1F_GetOfficerRecordAddr             ; $ADCC: 20 D7 F2 ; ($00) = Officer record
   LDY #$0B                                ; $ADCF: A0 0B
   LDA ($00),Y                             ; $ADD1: B1 00
-  AND #$03                                ; $ADD3: 29 03
-  CMP #$03                                ; $ADD5: C9 03
-  BEQ StatusDstHandoff                     ; $ADD7: F0 04
-StatusAdvance:
-  INC $0401                               ; $ADD9: EE 01 04
+  AND #$03                                ; $ADD3: 29 03     ; Officer status flags
+  CMP #$03                                ; $ADD5: C9 03     ; $03 = out of office
+  BEQ @ArmSuccessionHandoff               ; $ADD7: F0 04
+@StatusAdvance:
+  INC $0401                               ; $ADD9: EE 01 04 ; -> next sub-state
   RTS                                     ; $ADDC: 60
-StatusDstHandoff:
+@ArmSuccessionHandoff:
   LDA #$02                                ; $ADDD: A9 02
-  STA $0470                               ; $ADDF: 8D 70 04
+  STA $0470                               ; $ADDF: 8D 70 04 ; succession resume sub-state (2)
   LDA #$06                                ; $ADE2: A9 06
-  STA $0471                               ; $ADE4: 8D 71 04
+  STA $0471                               ; $ADE4: 8D 71 04 ; no-slot exit sub-state (6)
   LDA #$0D                                ; $ADE7: A9 0D
-  STA $0472                               ; $ADE9: 8D 72 04
+  STA $0472                               ; $ADE9: 8D 72 04 ; exit frame state $0D
   LDA #$03                                ; $ADEC: A9 03
-  STA $0473                               ; $ADEE: 8D 73 04
-StatusDstPoll:
+  STA $0473                               ; $ADEF: 8D 73 04 ; exit sub-state 3 (@StatusApply)
+@EnterSuccessionScene:
   LDA #$04                                ; $ADF1: A9 04
-  STA $0401                               ; $ADF3: 8D 01 04
+  STA $0401                               ; $ADF3: 8D 01 04 ; -> sub-state 4 (RulerSuccessionScene)
   LDA #$00                                ; $ADF6: A9 00
-  STA $0402                               ; $ADF8: 8D 02 04
+  STA $0402                               ; $ADF8: 8D 02 04 ; Province cursor reset
   LDA $040A                               ; $ADFB: AD 0A 04
-  JSR B1F_GetCountryDataPtr                ; $ADFE: 20 68 F3
+  JSR B1F_GetCountryDataPtr                ; $ADFE: 20 68 F3 ; ($00) = Country record
   LDY #$03                                ; $AE01: A0 03
   LDA ($00),Y                             ; $AE03: B1 00
-  CMP #$03                                ; $AE05: C9 03
-  BEQ StatusAdvance                        ; $AE07: F0 D0
-  STA $6F44                               ; $AE09: 8D 44 6F
+  CMP #$03                                ; $AE05: C9 03     ; control flag: player Country
+  BEQ @StatusAdvance                      ; $AE07: F0 D0
+  STA $6F44                               ; $AE09: 8D 44 6F ; map marker/palette Country
   RTS                                     ; $AE0C: 60
-StatusDstSetup:  ; (dispatch callback target)
+;===============================================================================
+; $AE0D: @StatusDstSetup (sub-state 2)
+; Same examination for the second Country: the low nibble of $0507 moves to
+; $040C, the high nibble to $040A; the Ruler's Officer record status decides
+; between arming the succession handoff ($0470-$0473, then JMP
+; @EnterSuccessionScene) and @StatusDstAdvance (sub-state 3, @StatusApply).
+;===============================================================================
+@StatusDstSetup:  ; sub-state 2
   LDA $0507                               ; $AE0D: AD 07 05
   AND #$0F                                ; $AE10: 29 0F
-  STA $040C                               ; $AE12: 8D 0C 04
+  STA $040C                               ; $AE12: 8D 0C 04 ; first Country id
   LDA $0507                               ; $AE15: AD 07 05
   LSR                                     ; $AE18: 4A
   LSR                                     ; $AE19: 4A
   LSR                                     ; $AE1A: 4A
   LSR                                     ; $AE1B: 4A
-  STA $040A                               ; $AE1C: 8D 0A 04
-  JSR B1F_GetCountryDataPtr                ; $AE1F: 20 68 F3
+  STA $040A                               ; $AE1C: 8D 0A 04 ; second Country id
+  JSR B1F_GetCountryDataPtr                ; $AE1F: 20 68 F3 ; ($00) = Country record
   LDY #$00                                ; $AE22: A0 00
   LDA ($00),Y                             ; $AE24: B1 00
-  STA $040B                               ; $AE26: 8D 0B 04
-  JSR B1F_GetOfficerRecordAddr             ; $AE29: 20 D7 F2
+  STA $040B                               ; $AE26: 8D 0B 04 ; Ruler Officer id
+  JSR B1F_GetOfficerRecordAddr             ; $AE29: 20 D7 F2 ; ($00) = Officer record
   LDY #$0B                                ; $AE2C: A0 0B
   LDA ($00),Y                             ; $AE2E: B1 00
-  AND #$03                                ; $AE30: 29 03
-  CMP #$03                                ; $AE32: C9 03
-  BNE @StatusDstAdvance                    ; $AE34: D0 17
+  AND #$03                                ; $AE30: 29 03     ; Officer status flags
+  CMP #$03                                ; $AE32: C9 03     ; $03 = out of office
+  BNE @StatusDstAdvance                   ; $AE34: D0 17
   LDA #$03                                ; $AE36: A9 03
-  STA $0470                               ; $AE38: 8D 70 04
+  STA $0470                               ; $AE38: 8D 70 04 ; succession resume sub-state (3)
   LDA #$06                                ; $AE3B: A9 06
-  STA $0471                               ; $AE3D: 8D 71 04
+  STA $0471                               ; $AE3D: 8D 71 04 ; no-slot exit sub-state (6)
   LDA #$0B                                ; $AE40: A9 0B
-  STA $0472                               ; $AE42: 8D 72 04
+  STA $0472                               ; $AE42: 8D 72 04 ; exit frame state $0B (title cycle)
   LDA #$00                                ; $AE45: A9 00
-  STA $0473                               ; $AE47: 8D 73 04
-  JMP StatusDstPoll                        ; $AE4A: 4C F1 AD
+  STA $0473                               ; $AE47: 8D 73 04 ; exit sub-state 0
+  JMP @EnterSuccessionScene               ; $AE4A: 4C F1 AD
 @StatusDstAdvance:
-  INC $0401                               ; $AE4D: EE 01 04
+  INC $0401                               ; $AE4D: EE 01 04 ; -> sub-state 3
   RTS                                     ; $AE50: 60
-StatusApply:  ; (dispatch callback target)
+;===============================================================================
+; $AE51: @StatusApply (sub-state 3)
+; Terminal sub-state: neither Ruler needs succession. Clears the handoff
+; slots $0470/$0471, then splits on the acting Country's control flag
+; (($EE) byte [3]):
+;   - $03 (player-controlled): open the Ruler status overlay (UI $BB) with
+;     the Ruler id in $042C and hand off to the strategy request handler
+;     (frame state 9, sub-state 1 RequestPoll) with the request mailbox
+;     $6F8B and the counters $6F5B/$6F5C/$6F62 cleared.
+;   - other (CPU/inactive Country): latch the control flag into the map
+;     marker/palette Country $6F44, fix the Country's home Province
+;     (record[1]) to the Ruler's actual Province (FindOfficerProvince), aim
+;     the camera ($6F3F/$6F41) there, refresh the year display
+;     (YearDisplaySetup), and return to frame state 0 (map ruler intro).
+;===============================================================================
+@StatusApply:  ; sub-state 3
   LDA #$00                                ; $AE51: A9 00
-  STA $0470                               ; $AE53: 8D 70 04
+  STA $0470                               ; $AE53: 8D 70 04 ; clear handoff params
   STA $0471                               ; $AE56: 8D 71 04
   LDY #$03                                ; $AE59: A0 03
-  LDA ($EE),Y                             ; $AE5B: B1 EE
-  CMP #$03                                ; $AE5D: C9 03
-  BNE @StatusApplyMarch                    ; $AE5F: D0 2A
+  LDA ($EE),Y                             ; $AE5B: B1 EE     ; Country control flag
+  CMP #$03                                ; $AE5D: C9 03     ; $03 = player-controlled
+  BNE @StatusApplyMapReturn               ; $AE5F: D0 2A
   LDA #$BB                                ; $AE61: A9 BB
-  JSR B1F_SetUI4                           ; $AE63: 20 8B F2
+  JSR B1F_SetUI4                           ; $AE63: 20 8B F2 ; Ruler status overlay
   LDY #$00                                ; $AE66: A0 00
   LDA ($EE),Y                             ; $AE68: B1 EE
-  STA $042C                               ; $AE6A: 8D 2C 04
+  STA $042C                               ; $AE6A: 8D 2C 04 ; overlay: Ruler id
   LDA #$09                                ; $AE6D: A9 09
-  STA $0400                               ; $AE6F: 8D 00 04
+  STA $0400                               ; $AE6F: 8D 00 04 ; -> strategy request handler
   LDA #$01                                ; $AE72: A9 01
-  STA $0401                               ; $AE74: 8D 01 04
+  STA $0401                               ; $AE74: 8D 01 04 ; sub-state 1 (RequestPoll)
   LDA #$00                                ; $AE77: A9 00
-  STA $040C                               ; $AE79: 8D 0C 04
+  STA $040C                               ; $AE79: 8D 0C 04 ; result code slot
   LDA #$00                                ; $AE7C: A9 00
-  STA $6F8B                               ; $AE7E: 8D 8B 6F
-  STA $6F5B                               ; $AE81: 8D 5B 6F
+  STA $6F8B                               ; $AE7E: 8D 8B 6F ; reset request mailbox
+  STA $6F5B                               ; $AE81: 8D 5B 6F ; clear turn counters
   STA $6F5C                               ; $AE84: 8D 5C 6F
   STA $6F62                               ; $AE87: 8D 62 6F
   RTS                                     ; $AE8A: 60
-@StatusApplyMarch:
-  STA $6F44                               ; $AE8B: 8D 44 6F
+@StatusApplyMapReturn:
+  STA $6F44                               ; $AE8B: 8D 44 6F ; map marker/palette Country
   LDY #$00                                ; $AE8E: A0 00
-  LDA ($EE),Y                             ; $AE90: B1 EE
-  STA a:$000A                             ; $AE92: 8D 0A 00
-  JSR $A1EB                               ; $AE95: 20 EB A1
+  LDA ($EE),Y                             ; $AE90: B1 EE     ; Ruler Officer id
+  STA a:$000A                             ; $AE92: 8D 0A 00 ; FindOfficerProvince input
+  JSR FindOfficerProvince                 ; $AE95: 20 EB A1 ; -> A = Province housing the Ruler
   LDY #$01                                ; $AE98: A0 01
-  STA ($EE),Y                             ; $AE9A: 91 EE
+  STA ($EE),Y                             ; $AE9A: 91 EE     ; Country record[1] = home Province
   LDY #$01                                ; $AE9C: A0 01
-  LDA ($EE),Y                             ; $AE9E: B1 EE
+  LDA ($EE),Y                             ; $AE9E: B1 EE     ; home Province
   TAY                                     ; $AEA0: A8
-  LDA ProvinceCameraXTable,Y              ; $AEA1: B9 37 C7
-  STA $6F3F                               ; $AEA4: 8D 3F 6F
-  LDA ProvinceCameraYTable,Y              ; $AEA7: B9 55 C7
+  LDA ProvinceCameraXTable,Y              ; $AEA1: B9 37 C7 ; camera X by Province
+  STA $6F3F                               ; $AEA4: 8D 3F 6F ; camera X target
+  LDA ProvinceCameraYTable,Y              ; $AEA7: B9 55 C7 ; camera Y by Province
   CLC                                     ; $AEAA: 18
   ADC #$01                                ; $AEAB: 69 01
-  STA $6F41                               ; $AEAD: 8D 41 6F
-  LDY #$3D                                ; $AEB0: A0 3D
+  STA $6F41                               ; $AEAD: 8D 41 6F ; camera Y target
+  LDY #$3D                                ; $AEB0: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline         ; $AEB2: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A01E                            ; $AEB5: 1E A0 (bank $1D $A01E -> JMP YearDisplaySetup)
+  .word B1D_1E_YearDisplaySetup           ; $AEB5: 1E A0 (bank $1D $A01E -> JMP $A6B6: YearDisplaySetup)
 ; --- Resumed code after trampoline return ---
   LDA #$00                                ; $AEB7: A9 00
-  STA $0400                               ; $AEB9: 8D 00 04
+  STA $0400                               ; $AEB9: 8D 00 04 ; return to map ruler intro
   STA $0401                               ; $AEBC: 8D 01 04
   RTS                                     ; $AEBF: 60
 .endproc
@@ -2617,6 +2683,7 @@ RowMarkerBob:
   STA a:$0098                             ; $B2D3: 8D 98 00 ; wrap
 @RowMarkerBobExit:
   RTS                                     ; $B2D6: 60
+.endproc
 ;===============================================================================
 ; $B2D7: OfficerCardAnimStep
 ; Card slide-in animation gate + step. Runs only when the card-anim flag
@@ -2625,11 +2692,13 @@ RowMarkerBob:
 ; $040C's card. PPU address = row base (slot mod 3 -> $2400/$2540/$2680
 ; via CardRowBaseTable) + frame*$20 (slide-down one tile row per frame),
 ; tile bytes from CardAnimPatternPtrs[frame], then CardFillDispatch fills
-; in the Officer-specific cells. Sets $007E bit2 (cleared elsewhere once
-; the strip is consumed), steps $040D 0-9 then $FF (done). Officer id
+; in the Officer-specific cells. Setting $007E bit2 requests the NMI
+; VRAM-buffer write (prg_1f NmiDoBank3D_VramWrite $EEBE clears bit2 and
+; calls B1D_1E_VRAMBufferWrite, which consumes the strip record), and the
+; busy bit also gates re-entry. Steps $040D 0-9 then $FF (done). Officer id
 ; $FE in the roster selects the shared pattern frame 8.
 ;===============================================================================
-OfficerCardAnimStep:
+.proc OfficerCardAnimStep
   LDA a:$007E                             ; $B2D7: AD 7E 00 ; card/UI flags
   AND #$04                                ; $B2DA: 29 04     ; card-anim busy bit
   BNE @OfficerCardAnimExit                 ; $B2DC: D0 0A
@@ -2655,7 +2724,7 @@ OfficerCardAnimStep:
   LDA a:$0001                             ; $B301: AD 01 00
   STA $0381                               ; $B304: 8D 81 03 ; PPU addr hi
   LDA #$20                                ; $B307: A9 20
-  STA $0380                               ; $B309: 8D 80 03 ; strip record marker
+  STA $0380                               ; $B309: 8D 80 03 ; strip record: 32-tile write count
   LDA $040C                               ; $B30C: AD 0C 04 ; target slot
   STA a:$0001                             ; $B30F: 8D 01 00 ; dividend lo
   LDA #$00                                ; $B312: A9 00
@@ -2748,6 +2817,7 @@ CardRowBaseTable:
   .word $2400                             ; $B4B9: 00 24 ; card row 0
   .word $2540                             ; $B4BB: 40 25 ; card row 1
   .word $2680                             ; $B4BD: 80 26 ; card row 2
+.endproc
 ;===============================================================================
 ; $B4BF: CardFillDispatch
 ; Officer-specific fill of the current card strip, dispatched by the
@@ -2758,7 +2828,7 @@ CardRowBaseTable:
 ; also produce the row-marker coords $040E/$040F), 8 row-marker commit,
 ; 9 noop.
 ;===============================================================================
-CardFillDispatch:
+.proc CardFillDispatch
   LDY $040C                               ; $B4BF: AC 0C 04 ; target slot
   LDA $0410,Y                             ; $B4C2: B9 10 04 ; roster Officer id
   CMP #$ED                                ; $B4C5: C9 ED     ; pending-transfer ids
@@ -3258,27 +3328,51 @@ NamePlateStripSetup:
   STA a:$0013                             ; $B7D5: 8D 13 00
   RTS                                     ; $B7D8: 60
 .endproc
-Loc_B7D9:
-  LDA $0471                               ; $B7D9: AD 71 04
+
+;===============================================================================
+; $B7D9: SortieWarCommit
+; Executes an accepted 出陣 Sortie declaration. Called from prg_1b_1c
+; SortieWarRequestGate ($B257) via banks $19+$1A entry $A015 once the war
+; request dialog returns a non-cancel result. Caller prerequisites:
+; $0470/$0402 = sortie source Province, $0471 = war target Province,
+; $0151-$015A = selected march Officers, $0481 = march leader (the Ruler),
+; $042F/$0430 = march gold, $0432/$0433 = march rice (the provision dialogs
+; also stored them into the war pools $0528/$0529 gold, $0524/$0525 rice).
+;   1. Seizes the target Province's stocks into the war pools and zeroes
+;      them: gold (+$02/$03) -> $0526/$0527 (war side 0 stat B), rice
+;      (+$04/$05) -> $0522/$0523 (war side 0 stat A; drained by the
+;      attrition rounds -> 兵糧切れ starvation retreat).
+;   2. Packs $0507 = (source Country << 4) | target Country.
+;   3. Moves the target Province's Officer roster (slots $11-$1A) into the
+;      war roster defender column $0664-$066D and empties it.
+;   4. Builds the attacker column: $066E = leader $0481, then the $0151
+;      selected Officers (leader duplicates skipped) into $066F-$0677,
+;      $FF-padding to 20 entries total.
+;   5. Strips the source Province: removes every marching Officer from its
+;      roster (compacting the gaps), marks it UnclaimedLand (owner $07)
+;      when the roster ends up empty, and deducts the march gold/rice.
+;===============================================================================
+.proc SortieWarCommit
+  LDA $0471                               ; $B7D9: AD 71 04  ; war target Province
   JSR B1F_GetProvinceRecordAddr            ; $B7DC: 20 AF F2
   LDY #$02                                ; $B7DF: A0 02
   LDX #$26                                ; $B7E1: A2 26
-Loc_B7E3:
-  LDA ($00),Y                             ; $B7E3: B1 00
-  STA $0500,X                             ; $B7E5: 9D 00 05
+@SeizeLoop:
+  LDA ($00),Y                             ; $B7E3: B1 00     ; target stock byte
+  STA $0500,X                             ; $B7E5: 9D 00 05  ; war pool cell
   LDA #$00                                ; $B7E8: A9 00
-  STA ($00),Y                             ; $B7EA: 91 00
+  STA ($00),Y                             ; $B7EA: 91 00     ; zero the seized stock
   INY                                     ; $B7EC: C8
   INX                                     ; $B7ED: E8
   CPX #$28                                ; $B7EE: E0 28
-  BNE $B7F4                               ; $B7F0: D0 02
-  LDX #$22                                ; $B7F2: A2 22
-Loc_B7F4:
-  CPY #$06                                ; $B7F4: C0 06
-  BCC $B7E3                               ; $B7F6: 90 EB
+  BNE @SeizeWrap                          ; $B7F0: D0 02     ; past $0527: switch to rice cells
+  LDX #$22                                ; $B7F2: A2 22     ; rice cells $0522/$0523
+@SeizeWrap:
+  CPY #$06                                ; $B7F4: C0 06     ; gold + rice done?
+  BCC @SeizeLoop                          ; $B7F6: 90 EB
   LDY #$00                                ; $B7F8: A0 00
   LDA ($00),Y                             ; $B7FA: B1 00
-  STA $0507                               ; $B7FC: 8D 07 05
+  STA $0507                               ; $B7FC: 8D 07 05  ; war Country pair: defender (low)
   LDA a:$0000                             ; $B7FF: AD 00 00
   CLC                                     ; $B802: 18
   ADC #$11                                ; $B803: 69 11
@@ -3287,35 +3381,35 @@ Loc_B7F4:
   ADC #$00                                ; $B80B: 69 00
   STA a:$0001                             ; $B80D: 8D 01 00
   LDY #$09                                ; $B810: A0 09
-Loc_B812:
+@DefenderRosterCopy:
   LDA ($00),Y                             ; $B812: B1 00
   STA $0664,Y                             ; $B814: 99 64 06
   LDA #$FF                                ; $B817: A9 FF
   STA ($00),Y                             ; $B819: 91 00
   DEY                                     ; $B81B: 88
-  BPL $B812                               ; $B81C: 10 F4
-  LDY #$0A                                ; $B81E: A0 0A
-  LDA $0481                               ; $B820: AD 81 04
+  BPL @DefenderRosterCopy                 ; $B81C: 10 F4
+  LDY #$0A                                ; $B81E: A0 0A     ; attacker column start $066E
+  LDA $0481                               ; $B820: AD 81 04  ; march leader (the Ruler)
   STA $0664,Y                             ; $B823: 99 64 06
   INY                                     ; $B826: C8
   LDX #$00                                ; $B827: A2 00
-Loc_B829:
-  CPX #$0A                                ; $B829: E0 0A
-  BCC $B832                               ; $B82B: 90 05
+@AttackerFillLoop:
+  CPX #$0A                                ; $B829: E0 0A     ; selected list done?
+  BCC @AttackerFetch                      ; $B82B: 90 05
   LDA #$FF                                ; $B82D: A9 FF
-  JMP $B83A                               ; $B82F: 4C 3A B8
-Loc_B832:
-  LDA $0151,X                             ; $B832: BD 51 01
+  JMP @AttackerStore                      ; $B82F: 4C 3A B8
+@AttackerFetch:
+  LDA $0151,X                             ; $B832: BD 51 01  ; selected march Officer
   CMP $0481                               ; $B835: CD 81 04
-  BEQ $B83E                               ; $B838: F0 04
-Loc_B83A:
-  STA $0664,Y                             ; $B83A: 99 64 06
+  BEQ @AttackerSkip                       ; $B838: F0 04     ; leader already stored
+@AttackerStore:
+  STA $0664,Y                             ; $B83A: 99 64 06  ; war roster attacker column
   INY                                     ; $B83D: C8
-Loc_B83E:
+@AttackerSkip:
   INX                                     ; $B83E: E8
-  CPY #$14                                ; $B83F: C0 14
-  BCC $B829                               ; $B841: 90 E6
-  LDA $0402                               ; $B843: AD 02 04
+  CPY #$14                                ; $B83F: C0 14     ; war roster full (20)?
+  BCC @AttackerFillLoop                   ; $B841: 90 E6
+  LDA $0402                               ; $B843: AD 02 04  ; sortie source Province
   JSR B1F_GetProvinceRecordAddr            ; $B846: 20 AF F2
   LDY #$00                                ; $B849: A0 00
   LDA ($00),Y                             ; $B84B: B1 00
@@ -3324,38 +3418,38 @@ Loc_B83E:
   ASL                                     ; $B84F: 0A
   ASL                                     ; $B850: 0A
   ORA $0507                               ; $B851: 0D 07 05
-  STA $0507                               ; $B854: 8D 07 05
+  STA $0507                               ; $B854: 8D 07 05  ; + attacker Country (high nibble)
   LDX #$00                                ; $B857: A2 00
-Loc_B859:
-  LDA $0151,X                             ; $B859: BD 51 01
+@RemoveMarchersLoop:
+  LDA $0151,X                             ; $B859: BD 51 01  ; marching Officer
   CMP #$FF                                ; $B85C: C9 FF
-  BEQ $B879                               ; $B85E: F0 19
+  BEQ @RosterCompact                      ; $B85E: F0 19     ; selection list end
   STA a:$0002                             ; $B860: 8D 02 00
   LDY #$11                                ; $B863: A0 11
-Loc_B865:
+@RosterSearch:
   LDA ($00),Y                             ; $B865: B1 00
   CMP a:$0002                             ; $B867: CD 02 00
-  BEQ $B870                               ; $B86A: F0 04
+  BEQ @MarcherFound                       ; $B86A: F0 04
   INY                                     ; $B86C: C8
-  JMP $B865                               ; $B86D: 4C 65 B8
-Loc_B870:
+  JMP @RosterSearch                       ; $B86D: 4C 65 B8
+@MarcherFound:
   LDA #$FF                                ; $B870: A9 FF
-  STA ($00),Y                             ; $B872: 91 00
+  STA ($00),Y                             ; $B872: 91 00     ; remove from source roster
   INX                                     ; $B874: E8
   CPX #$0A                                ; $B875: E0 0A
-  BCC $B859                               ; $B877: 90 E0
-Loc_B879:
-  LDY #$11                                ; $B879: A0 11
-  LDA #$10                                ; $B87B: A9 10
+  BCC @RemoveMarchersLoop                 ; $B877: 90 E0
+@RosterCompact:
+  LDY #$11                                ; $B879: A0 11     ; compact the gaps
+  LDA #$10                                ; $B87B: A9 10     ; write index - 1
   STA a:$0003                             ; $B87D: 8D 03 00
-Loc_B880:
+@CompactLoop:
   LDA ($00),Y                             ; $B880: B1 00
   STA a:$0002                             ; $B882: 8D 02 00
   LDA #$FF                                ; $B885: A9 FF
   STA ($00),Y                             ; $B887: 91 00
   LDA a:$0002                             ; $B889: AD 02 00
   CMP #$FF                                ; $B88C: C9 FF
-  BEQ $B89F                               ; $B88E: F0 0F
+  BEQ @CompactSkip                        ; $B88E: F0 0F     ; empty slot
   TYA                                     ; $B890: 98
   TAX                                     ; $B891: AA
   INC a:$0003                             ; $B892: EE 03 00
@@ -3364,39 +3458,53 @@ Loc_B880:
   STA ($00),Y                             ; $B89B: 91 00
   TXA                                     ; $B89D: 8A
   TAY                                     ; $B89E: A8
-Loc_B89F:
+@CompactSkip:
   INY                                     ; $B89F: C8
-  CPY #$1B                                ; $B8A0: C0 1B
-  BCC $B880                               ; $B8A2: 90 DC
+  CPY #$1B                                ; $B8A0: C0 1B     ; 10 roster slots
+  BCC @CompactLoop                        ; $B8A2: 90 DC
   LDY #$11                                ; $B8A4: A0 11
   LDA ($00),Y                             ; $B8A6: B1 00
   CMP #$FF                                ; $B8A8: C9 FF
-  BNE $B8B2                               ; $B8AA: D0 06
-  LDA #$07                                ; $B8AC: A9 07
+  BNE @ProvisionDeduct                    ; $B8AA: D0 06     ; roster not empty
+  LDA #$07                                ; $B8AC: A9 07     ; UnclaimedLand owner id
   LDY #$00                                ; $B8AE: A0 00
   STA ($00),Y                             ; $B8B0: 91 00
-Loc_B8B2:
-  LDY #$02                                ; $B8B2: A0 02
+@ProvisionDeduct:
+  LDY #$02                                ; $B8B2: A0 02     ; source gold
   LDA ($00),Y                             ; $B8B4: B1 00
   SEC                                     ; $B8B6: 38
-  SBC $042F                               ; $B8B7: ED 2F 04
+  SBC $042F                               ; $B8B7: ED 2F 04  ; - march gold lo
   STA ($00),Y                             ; $B8BA: 91 00
   INY                                     ; $B8BC: C8
   LDA ($00),Y                             ; $B8BD: B1 00
-  SBC $0430                               ; $B8BF: ED 30 04
+  SBC $0430                               ; $B8BF: ED 30 04  ; - march gold hi
   STA ($00),Y                             ; $B8C2: 91 00
-  LDY #$04                                ; $B8C4: A0 04
+  LDY #$04                                ; $B8C4: A0 04     ; source rice
   LDA ($00),Y                             ; $B8C6: B1 00
   SEC                                     ; $B8C8: 38
-  SBC $0432                               ; $B8C9: ED 32 04
+  SBC $0432                               ; $B8C9: ED 32 04  ; - march rice lo
   STA ($00),Y                             ; $B8CC: 91 00
   INY                                     ; $B8CE: C8
   LDA ($00),Y                             ; $B8CF: B1 00
-  SBC $0433                               ; $B8D1: ED 33 04
+  SBC $0433                               ; $B8D1: ED 33 04  ; - march rice hi
   STA ($00),Y                             ; $B8D4: 91 00
   RTS                                     ; $B8D6: 60
-Loc_B8D7:
-  LDA $0470                               ; $B8D7: AD 70 04
+.endproc
+
+;===============================================================================
+; $B8D7: TransferCapacityCalc
+; Computes the transportable amounts for the 倉 warehouse command
+; 物資を運ぶ (called from prg_1b_1c WarehouseDestProvinceSelect
+; @DestAccepted, $B86B, via banks $19+$1A entry $A018). Inputs:
+; $0470 = source Province, $0471 = destination Province. For each good the
+; result is min(source stock, cap - destination stock):
+;   $0498/$0499 gold      (cap $270F = 9999)
+;   $049A/$049B rice      (cap $270F = 9999)
+;   $049C/$049D treasure  (cap $63 = 99)
+; The goods amount panel re-seeds $0490/$0491 from these words per phase.
+;===============================================================================
+.proc TransferCapacityCalc
+  LDA $0470                               ; $B8D7: AD 70 04  ; source Province
   JSR B1F_GetProvinceRecordAddr            ; $B8DA: 20 AF F2
   LDY #$02                                ; $B8DD: A0 02
   LDA ($00),Y                             ; $B8DF: B1 00
@@ -3415,294 +3523,364 @@ Loc_B8D7:
   STA $049C                               ; $B8FB: 8D 9C 04
   LDA #$00                                ; $B8FE: A9 00
   STA $049D                               ; $B900: 8D 9D 04
-  LDA $0471                               ; $B903: AD 71 04
+  LDA $0471                               ; $B903: AD 71 04  ; destination Province
   JSR B1F_GetProvinceRecordAddr            ; $B906: 20 AF F2
   LDY #$02                                ; $B909: A0 02
-  LDA #$0F                                ; $B90B: A9 0F
+  LDA #$0F                                ; $B90B: A9 0F     ; cap $270F = 9999
   SEC                                     ; $B90D: 38
-  SBC ($00),Y                             ; $B90E: F1 00
+  SBC ($00),Y                             ; $B90E: F1 00     ; - destination gold lo
   STA a:$0010                             ; $B910: 8D 10 00
   INY                                     ; $B913: C8
   LDA #$27                                ; $B914: A9 27
-  SBC ($00),Y                             ; $B916: F1 00
+  SBC ($00),Y                             ; $B916: F1 00     ; - destination gold hi
   STA a:$0011                             ; $B918: 8D 11 00
   LDY #$00                                ; $B91B: A0 00
-  JSR $B948                               ; $B91D: 20 48 B9
+  JSR @CapacityMinStore                   ; $B91D: 20 48 B9  ; min into $0498/$0499
   LDY #$04                                ; $B920: A0 04
   LDA #$0F                                ; $B922: A9 0F
   SEC                                     ; $B924: 38
-  SBC ($00),Y                             ; $B925: F1 00
+  SBC ($00),Y                             ; $B925: F1 00     ; - destination rice lo
   STA a:$0010                             ; $B927: 8D 10 00
   INY                                     ; $B92A: C8
   LDA #$27                                ; $B92B: A9 27
-  SBC ($00),Y                             ; $B92D: F1 00
+  SBC ($00),Y                             ; $B92D: F1 00     ; - destination rice hi
   STA a:$0011                             ; $B92F: 8D 11 00
   LDY #$02                                ; $B932: A0 02
-  JSR $B948                               ; $B934: 20 48 B9
+  JSR @CapacityMinStore                   ; $B934: 20 48 B9  ; min into $049A/$049B
   LDY #$10                                ; $B937: A0 10
-  LDA #$63                                ; $B939: A9 63
+  LDA #$63                                ; $B939: A9 63     ; cap $63 = 99
   SEC                                     ; $B93B: 38
-  SBC ($00),Y                             ; $B93C: F1 00
+  SBC ($00),Y                             ; $B93C: F1 00     ; - destination treasure
   STA a:$0010                             ; $B93E: 8D 10 00
   LDA #$00                                ; $B941: A9 00
   STA a:$0011                             ; $B943: 8D 11 00
-  LDY #$04                                ; $B946: A0 04
-Loc_B948:
+  LDY #$04                                ; $B946: A0 04     ; store into $049C/$049D
+@CapacityMinStore:
   LDA a:$0010                             ; $B948: AD 10 00
   SEC                                     ; $B94B: 38
-  SBC $0498,Y                             ; $B94C: F9 98 04
+  SBC $0498,Y                             ; $B94C: F9 98 04  ; $0010/$0011 - result
   LDA a:$0011                             ; $B94F: AD 11 00
   SBC $0499,Y                             ; $B952: F9 99 04
-  BCS $B963                               ; $B955: B0 0C
+  BCS @MinKeep                            ; $B955: B0 0C     ; result already the smaller
   LDA a:$0010                             ; $B957: AD 10 00
   STA $0498,Y                             ; $B95A: 99 98 04
   LDA a:$0011                             ; $B95D: AD 11 00
   STA $0499,Y                             ; $B960: 99 99 04
-Loc_B963:
+@MinKeep:
   RTS                                     ; $B963: 60
-Loc_B964:
-  LDY #$31                                ; $B964: A0 31
+.endproc
+
+;===============================================================================
+; $B964: OfficerArrivalScan
+; Finds an Officer candidate for Province $0402 (called from prg_1b_1c
+; $DC18 via banks $19+$1A entry $A01B). Two paths:
+;   1. Scheduled arrival: walks the bank-$31 arrival schedule at ($02) =
+;      $8B1C + $0402*$14, ten (Officer id, appear year) pairs per Province.
+;      A pair matches when the Officer is hidden (record[$0B]&3 == 1) and
+;      appear year - $64 <= $6F00 (reign year; display year = $6F00+$64).
+;   2. Fallback: scans every Officer for an available one (record[$0B]&3
+;      == 0) whose location (record[+5]) equals $0402 or one of the 8
+;      companion Provinces in the bank-$30 table $9D72[$0402*8], copied
+;      to $0160-$0167.
+; Found: $0472 = Officer id, $0473 = arrival param (ArrivalParamTable,
+; scheduled path only), $0470 = $07 handoff. Not found: $0011 = $80 (the
+; caller tests $0011 bit 7). The scheduled path returns without setting
+; $0470 when the Officer id misses ArrivalParamTable.
+; Note: the ArrivalParamTable scan walks offsets $00-$22 (18 pair slots)
+; but the table holds 16 pairs ($BA50-$BA6F); the trailing comparisons
+; read the code bytes $A2/$7F and $AD/$70 at $BA70-$BA73 and would only
+; misfire for Officer ids $A2/$AD.
+;===============================================================================
+.proc OfficerArrivalScan
+  LDY #$31                                ; $B964: A0 31     ; record bank
   JSR B1F_SwitchBank8_B                    ; $B966: 20 5F F2
   LDA $0402                               ; $B969: AD 02 04
   STA a:$0000                             ; $B96C: 8D 00 00
   LDA #$00                                ; $B96F: A9 00
   STA a:$0001                             ; $B971: 8D 01 00
   STA a:$0002                             ; $B974: 8D 02 00
-  LDA #$14                                ; $B977: A9 14
+  LDA #$14                                ; $B977: A9 14     ; 20 bytes per Province
   STA a:$0003                             ; $B979: 8D 03 00
-  JSR B1F_MathMul24x8                      ; $B97C: 20 E9 EB
+  JSR B1F_MathMul24x8                      ; $B97C: 20 E9 EB  ; $0402 * $14
   LDA a:$0006                             ; $B97F: AD 06 00
   CLC                                     ; $B982: 18
-  ADC #$1C                                ; $B983: 69 1C
+  ADC #$1C                                ; $B983: 69 1C     ; schedule table $8B1C lo
   STA a:$0002                             ; $B985: 8D 02 00
   LDA a:$0007                             ; $B988: AD 07 00
-  ADC #$8B                                ; $B98B: 69 8B
+  ADC #$8B                                ; $B98B: 69 8B     ; $8B1C hi (bank $31)
   STA a:$0003                             ; $B98D: 8D 03 00
   LDA #$00                                ; $B990: A9 00
-  STA a:$0004                             ; $B992: 8D 04 00
-Loc_B995:
+  STA a:$0004                             ; $B992: 8D 04 00  ; pair index
+@ScheduleLoop:
   LDY a:$0004                             ; $B995: AC 04 00
-  LDA ($02),Y                             ; $B998: B1 02
+  LDA ($02),Y                             ; $B998: B1 02     ; scheduled Officer id
   STA $0472                               ; $B99A: 8D 72 04
-  CMP #$FF                                ; $B99D: C9 FF
-  BNE $B9A4                               ; $B99F: D0 03
-  JMP $B9EA                               ; $B9A1: 4C EA B9
-Loc_B9A4:
+  CMP #$FF                                ; $B99D: C9 FF     ; schedule end
+  BNE @ScheduleLoad                       ; $B99F: D0 03
+  JMP @FallbackScan                       ; $B9A1: 4C EA B9
+@ScheduleLoad:
   JSR B1F_GetOfficerRecordAddr             ; $B9A4: 20 D7 F2
   LDY #$0B                                ; $B9A7: A0 0B
-  LDA ($00),Y                             ; $B9A9: B1 00
+  LDA ($00),Y                             ; $B9A9: B1 00     ; status byte
   AND #$03                                ; $B9AB: 29 03
-  CMP #$01                                ; $B9AD: C9 01
-  BEQ $B9BA                               ; $B9AF: F0 09
+  CMP #$01                                ; $B9AD: C9 01     ; hidden Officer?
+  BEQ @ScheduleYear                       ; $B9AF: F0 09
   INC a:$0004                             ; $B9B1: EE 04 00
-  INC a:$0004                             ; $B9B4: EE 04 00
-  JMP $B995                               ; $B9B7: 4C 95 B9
-Loc_B9BA:
-  INC a:$0004                             ; $B9BA: EE 04 00
+  INC a:$0004                             ; $B9B4: EE 04 00  ; next pair
+  JMP @ScheduleLoop                       ; $B9B7: 4C 95 B9
+@ScheduleYear:
+  INC a:$0004                             ; $B9BA: EE 04 00  ; -> appear year byte
   LDY a:$0004                             ; $B9BD: AC 04 00
-  LDA ($02),Y                             ; $B9C0: B1 02
+  LDA ($02),Y                             ; $B9C0: B1 02     ; appear year
   SEC                                     ; $B9C2: 38
-  SBC #$64                                ; $B9C3: E9 64
-  CMP $6F00                               ; $B9C5: CD 00 6F
-  BEQ $B9CC                               ; $B9C8: F0 02
-  BCS $B9EA                               ; $B9CA: B0 1E
-Loc_B9CC:
+  SBC #$64                                ; $B9C3: E9 64     ; - display year base
+  CMP $6F00                               ; $B9C5: CD 00 6F  ; vs reign year
+  BEQ @ArrivalFound                       ; $B9C8: F0 02
+  BCS @FallbackScan                       ; $B9CA: B0 1E     ; year not reached: stop
+@ArrivalFound:
   LDY #$00                                ; $B9CC: A0 00
-Loc_B9CE:
-  LDA $BA50,Y                             ; $B9CE: B9 50 BA
+@ParamTableScan:
+  LDA ArrivalParamTable,Y                 ; $B9CE: B9 50 BA  ; table Officer id
   CMP $0472                               ; $B9D1: CD 72 04
-  BEQ $B9DD                               ; $B9D4: F0 07
+  BEQ @ArrivalArm                         ; $B9D4: F0 07
   INY                                     ; $B9D6: C8
   INY                                     ; $B9D7: C8
-  CPY #$24                                ; $B9D8: C0 24
-  BCC $B9CE                               ; $B9DA: 90 F2
-  RTS                                     ; $B9DC: 60
-Loc_B9DD:
+  CPY #$24                                ; $B9D8: C0 24     ; 18 pair slots walked
+  BCC @ParamTableScan                     ; $B9DA: 90 F2
+  RTS                                     ; $B9DC: 60        ; id not listed: no handoff
+@ArrivalArm:
   INY                                     ; $B9DD: C8
-  LDA $BA50,Y                             ; $B9DE: B9 50 BA
+  LDA ArrivalParamTable,Y                 ; $B9DE: B9 50 BA  ; arrival param (2-4)
   STA $0473                               ; $B9E1: 8D 73 04
   LDA #$07                                ; $B9E4: A9 07
-  STA $0470                               ; $B9E6: 8D 70 04
+  STA $0470                               ; $B9E6: 8D 70 04  ; handoff id
   RTS                                     ; $B9E9: 60
-Loc_B9EA:
-  LDY #$30                                ; $B9EA: A0 30
+@FallbackScan:
+  LDY #$30                                ; $B9EA: A0 30     ; companion Province table bank
   JSR B1F_SwitchBank8_B                    ; $B9EC: 20 5F F2
   LDA $0402                               ; $B9EF: AD 02 04
   ASL                                     ; $B9F2: 0A
   ASL                                     ; $B9F3: 0A
-  ASL                                     ; $B9F4: 0A
+  ASL                                     ; $B9F4: 0A         ; *8
   TAY                                     ; $B9F5: A8
   LDX #$00                                ; $B9F6: A2 00
-Loc_B9F8:
-  LDA $9D72,Y                             ; $B9F8: B9 72 9D
+@AdjacencyCopy:
+  LDA $9D72,Y                             ; $B9F8: B9 72 9D  ; companion Province ids
   STA $0160,X                             ; $B9FB: 9D 60 01
   INY                                     ; $B9FE: C8
   INX                                     ; $B9FF: E8
   CPX #$08                                ; $BA00: E0 08
-  BCC $B9F8                               ; $BA02: 90 F4
-  LDY #$31                                ; $BA04: A0 31
+  BCC @AdjacencyCopy                      ; $BA02: 90 F4
+  LDY #$31                                ; $BA04: A0 31     ; restore record bank
   JSR B1F_SwitchBank8_B                    ; $BA06: 20 5F F2
   LDA #$00                                ; $BA09: A9 00
-  STA a:$0004                             ; $BA0B: 8D 04 00
-Loc_BA0E:
+  STA a:$0004                             ; $BA0B: 8D 04 00  ; Officer id scan
+@IdleScan:
   LDA a:$0004                             ; $BA0E: AD 04 00
   JSR B1F_GetOfficerRecordAddr             ; $BA11: 20 D7 F2
   LDY #$0B                                ; $BA14: A0 0B
-  LDA ($00),Y                             ; $BA16: B1 00
+  LDA ($00),Y                             ; $BA16: B1 00     ; status byte
   AND #$03                                ; $BA18: 29 03
-  BEQ $BA2C                               ; $BA1A: F0 10
-Loc_BA1C:
+  BEQ @IdleCandidate                      ; $BA1A: F0 10     ; available Officer
+@IdleNext:
   INC a:$0004                             ; $BA1C: EE 04 00
   LDA a:$0004                             ; $BA1F: AD 04 00
-  CMP #$ED                                ; $BA22: C9 ED
-  BCC $BA0E                               ; $BA24: 90 E8
+  CMP #$ED                                ; $BA22: C9 ED     ; all Officers scanned
+  BCC @IdleScan                           ; $BA24: 90 E8
   LDA #$80                                ; $BA26: A9 80
-  STA a:$0011                             ; $BA28: 8D 11 00
-Loc_BA2B:
+  STA a:$0011                             ; $BA28: 8D 11 00  ; not-found mark (bit 7)
+@ScanDone:
   RTS                                     ; $BA2B: 60
-Loc_BA2C:
+@IdleCandidate:
   LDA a:$0004                             ; $BA2C: AD 04 00
-  STA $0472                               ; $BA2F: 8D 72 04
+  STA $0472                               ; $BA2F: 8D 72 04  ; candidate Officer id
   LDY #$05                                ; $BA32: A0 05
-  LDA ($00),Y                             ; $BA34: B1 00
+  LDA ($00),Y                             ; $BA34: B1 00     ; location Province
   CMP $0402                               ; $BA36: CD 02 04
-  BEQ $BA2B                               ; $BA39: F0 F0
+  BEQ @ScanDone                           ; $BA39: F0 F0     ; already in Province
   STA a:$0005                             ; $BA3B: 8D 05 00
   LDX #$00                                ; $BA3E: A2 00
-Loc_BA40:
+@AdjacencyCheck:
   LDA $0160,X                             ; $BA40: BD 60 01
   CMP a:$0005                             ; $BA43: CD 05 00
-  BEQ $BA2B                               ; $BA46: F0 E3
+  BEQ @ScanDone                           ; $BA46: F0 E3     ; in a companion Province
   INX                                     ; $BA48: E8
   CPX #$08                                ; $BA49: E0 08
-  BCC $BA40                               ; $BA4B: 90 F3
-  JMP $BA1C                               ; $BA4D: 4C 1C BA
+  BCC @AdjacencyCheck                     ; $BA4B: 90 F3
+  JMP @IdleNext                           ; $BA4D: 4C 1C BA
 ; --- Data Region ---
+ArrivalParamTable:                        ; $BA50: Officer id -> arrival param (2-4)
   .byte $6D,$04,$70,$04,$56,$02,$37,$04,$B7,$04,$63,$02,$6B,$03,$2F,$03; $BA50: 6D 04 70 04 56 02 37 04 B7 04 63 02 6B 03 2F 03
   .byte $A1,$02,$EA,$03,$EB,$03,$D5,$03,$90,$04,$39,$02,$A5,$02,$9C,$02; $BA60: A1 02 EA 03 EB 03 D5 03 90 04 39 02 A5 02 9C 02
-Loc_BA70:
-; --- Code Region ---
-  LDX #$7F                                ; $BA70: A2 7F
-  LDA $0470                               ; $BA72: AD 70 04
-  BEQ $BA7F                               ; $BA75: F0 08
-  LDX #$88                                ; $BA77: A2 88
+.endproc
+
+;===============================================================================
+; $BA70: CastleDevResultRoll
+; Rolls the outcome of a castle 国造り development command (called from
+; prg_1b_1c CastleDevAnimWait $A4C6 via banks $19+$1A entry $A024 for
+; commands 0-2; command 3 情報集め rolls its own amount in prg_1b_1c).
+; Inputs: $0470 = dev command (0 開墾 land / 1 産業 industry / 2 町開発
+; population), $0481 = acting Officer. Amount = B1F_RandomMod8 rejected
+; down to 0-4, plus the Intelligence tier bonus from record[+2]
+; ($51+ -> +4, $33+ -> +2). Outputs:
+;   $0471 = result message id, $7F/$88/$91 + amount per command
+;   $0472 = DevIncrementTable[amount] = $0A + 2*amount field increment
+;   $04A2 = DevResultIndexTable[$0470*9 + amount] result overlay index
+;===============================================================================
+.proc CastleDevResultRoll
+  LDX #$7F                                ; $BA70: A2 7F     ; land message base
+  LDA $0470                               ; $BA72: AD 70 04  ; dev command
+  BEQ @BaseStore                          ; $BA75: F0 08
+  LDX #$88                                ; $BA77: A2 88     ; industry message base
   CMP #$01                                ; $BA79: C9 01
-  BEQ $BA7F                               ; $BA7B: F0 02
-  LDX #$91                                ; $BA7D: A2 91
-Loc_BA7F:
+  BEQ @BaseStore                          ; $BA7B: F0 02
+  LDX #$91                                ; $BA7D: A2 91     ; population message base
+@BaseStore:
   STX $0471                               ; $BA7F: 8E 71 04
-Loc_BA82:
+@RollLoop:
   JSR B1F_RandomMod8                       ; $BA82: 20 56 E8
-  CMP #$05                                ; $BA85: C9 05
-  BCS $BA82                               ; $BA87: B0 F9
-  STA a:$0010                             ; $BA89: 8D 10 00
-  LDA $0481                               ; $BA8C: AD 81 04
+  CMP #$05                                ; $BA85: C9 05     ; reject 5-7 -> 0-4
+  BCS @RollLoop                           ; $BA87: B0 F9
+  STA a:$0010                             ; $BA89: 8D 10 00  ; base roll
+  LDA $0481                               ; $BA8C: AD 81 04  ; acting Officer
   JSR B1F_GetOfficerRecordAddr             ; $BA8F: 20 D7 F2
   LDY #$02                                ; $BA92: A0 02
-  LDA ($00),Y                             ; $BA94: B1 00
-  CMP #$51                                ; $BA96: C9 51
-  BCS $BAAD                               ; $BA98: B0 13
-  CMP #$33                                ; $BA9A: C9 33
-  BCS $BAA1                               ; $BA9C: B0 03
-  JMP $BAB6                               ; $BA9E: 4C B6 BA
-Loc_BAA1:
+  LDA ($00),Y                             ; $BA94: B1 00     ; Intelligence
+  CMP #$51                                ; $BA96: C9 51     ; $51+: strong tier
+  BCS @TierHigh                           ; $BA98: B0 13
+  CMP #$33                                ; $BA9A: C9 33     ; $33+: mid tier
+  BCS @TierMid                            ; $BA9C: B0 03
+  JMP @ApplyRoll                          ; $BA9E: 4C B6 BA  ; low tier: no bonus
+@TierMid:
   LDA a:$0010                             ; $BAA1: AD 10 00
   CLC                                     ; $BAA4: 18
-  ADC #$02                                ; $BAA5: 69 02
+  ADC #$02                                ; $BAA5: 69 02     ; +2 bonus
   STA a:$0010                             ; $BAA7: 8D 10 00
-  JMP $BAB6                               ; $BAAA: 4C B6 BA
-Loc_BAAD:
+  JMP @ApplyRoll                          ; $BAAA: 4C B6 BA
+@TierHigh:
   LDA a:$0010                             ; $BAAD: AD 10 00
   CLC                                     ; $BAB0: 18
-  ADC #$04                                ; $BAB1: 69 04
+  ADC #$04                                ; $BAB1: 69 04     ; +4 bonus
   STA a:$0010                             ; $BAB3: 8D 10 00
-Loc_BAB6:
+@ApplyRoll:
   LDA a:$0010                             ; $BAB6: AD 10 00
   CLC                                     ; $BAB9: 18
-  ADC $0471                               ; $BABA: 6D 71 04
+  ADC $0471                               ; $BABA: 6D 71 04  ; message id + amount
   STA $0471                               ; $BABD: 8D 71 04
   LDY a:$0010                             ; $BAC0: AC 10 00
-  LDA $BADF,Y                             ; $BAC3: B9 DF BA
+  LDA DevIncrementTable,Y                 ; $BAC3: B9 DF BA  ; field increment
   STA $0472                               ; $BAC6: 8D 72 04
   LDA $0470                               ; $BAC9: AD 70 04
   ASL                                     ; $BACC: 0A
   ASL                                     ; $BACD: 0A
-  ASL                                     ; $BACE: 0A
+  ASL                                     ; $BACE: 0A         ; *8
   CLC                                     ; $BACF: 18
-  ADC $0470                               ; $BAD0: 6D 70 04
+  ADC $0470                               ; $BAD0: 6D 70 04  ; *9
   CLC                                     ; $BAD3: 18
-  ADC a:$0010                             ; $BAD4: 6D 10 00
+  ADC a:$0010                             ; $BAD4: 6D 10 00  ; + amount
   TAY                                     ; $BAD7: A8
-  LDA $BAE8,Y                             ; $BAD8: B9 E8 BA
+  LDA DevResultIndexTable,Y               ; $BAD8: B9 E8 BA  ; result overlay index
   STA $04A2                               ; $BADB: 8D A2 04
   RTS                                     ; $BADE: 60
 ; --- Data Region ---
-  .byte $0A,$0C,$0E,$10,$12,$14,$16,$18,$1A,$0A,$0B,$07,$07,$07,$0E,$0E; $BADF: 0A 0C 0E 10 12 14 16 18 1A 0A 0B 07 07 07 0E 0E
-  .byte $15,$0E,$10,$14,$18,$16,$12,$12,$14,$15,$14,$16,$18,$16,$18,$10; $BAEF: 15 0E 10 14 18 16 12 12 14 15 14 16 18 16 18 10
-  .byte $10,$18,$0F,$10                   ; $BAFF: 10 18 0F 10
-Loc_BB03:
-; --- Code Region ---
-  LDA $0402                               ; $BB03: AD 02 04
+DevIncrementTable:                        ; $BADF: amount -> field increment ($0A+2*amount)
+  .byte $0A,$0C,$0E,$10,$12,$14,$16,$18,$1A ; $BADF: 0A 0C 0E 10 12 14 16 18 1A
+DevResultIndexTable:                      ; $BAE8: [$0470*9 + amount] result index
+  .byte $0A,$0B,$07,$07,$07,$0E,$0E,$15,$0E ; $BAE8: 0A 0B 07 07 07 0E 0E 15 0E
+  .byte $10,$14,$18,$16,$12,$12,$14,$15,$14 ; $BAF1: 10 14 18 16 12 12 14 15 14
+  .byte $16,$18,$16,$18,$10,$10,$18,$0F,$10 ; $BAFA: 16 18 16 18 10 10 18 0F 10
+.endproc
+
+;===============================================================================
+; $BB03: GoodsSendPrepare
+; Prepares a goods send out of Province $0402 (called from prg_1b_1c
+; $CE4C via banks $19+$1A entry $A027; the follow-up call at $D291 runs
+; GoodsSendApply - together the pair deducts gold/rice from $0402 and
+; credits the Province housing Officer $042C, the payment leg of the
+; prg_1b_1c intrigue flow). Inputs: $042F/$0430 = base amount word.
+;   1. Copies record[+$02..+$04] to $0002-$0004, then compares the gold
+;      word $0002/$0003 against ($0004,$0005): $042D = $07 when gold is
+;      lower, $05 when equal (Y is still $05 from the copy loop), $03
+;      when higher.
+;   2. Rolls the send type with B1F_RandomBelowThreshold ($0A = 0-9):
+;      random < $042D keeps $F0 (gold), else $F1 (rice) - the type is
+;      biased towards the scarcer good; stored back into $042D.
+;   3. Scales the amount: $042F/$0430 = ($64 - $042F) * 4 (16-bit).
+;===============================================================================
+.proc GoodsSendPrepare
+  LDA $0402                               ; $BB03: AD 02 04  ; source Province
   JSR B1F_GetProvinceRecordAddr            ; $BB06: 20 AF F2
   LDY #$02                                ; $BB09: A0 02
-Loc_BB0B:
-  LDA ($00),Y                             ; $BB0B: B1 00
-  STA a:$0000,Y                           ; $BB0D: 99 00 00
-Loc_BB10:
+@StockCopy:
+  LDA ($00),Y                             ; $BB0B: B1 00     ; gold lo/hi, rice lo
+  STA a:$0000,Y                           ; $BB0D: 99 00 00  ; -> $0002-$0004
+@StockCopyCond:
   INY                                     ; $BB10: C8
   CPY #$05                                ; $BB11: C0 05
-  BCC $BB0B                               ; $BB13: 90 F6
-  LDA a:$0002                             ; $BB15: AD 02 00
+  BCC @StockCopy                          ; $BB13: 90 F6
+  LDA a:$0002                             ; $BB15: AD 02 00  ; gold word
   SEC                                     ; $BB18: 38
-  SBC a:$0004                             ; $BB19: ED 04 00
+  SBC a:$0004                             ; $BB19: ED 04 00  ; vs (rice lo, $0005)
   STA a:$0006                             ; $BB1C: 8D 06 00
   LDA a:$0003                             ; $BB1F: AD 03 00
   SBC a:$0005                             ; $BB22: ED 05 00
-  BCC $BB33                               ; $BB25: 90 0C
-  BNE $BB2E                               ; $BB27: D0 05
+  BCC @BiasLow                            ; $BB25: 90 0C     ; gold < rice: $07
+  BNE @BiasMid                            ; $BB27: D0 05     ; gold > rice: $03
   LDA a:$0006                             ; $BB29: AD 06 00
-  BEQ $BB35                               ; $BB2C: F0 07
-Loc_BB2E:
+  BEQ @BiasStore                          ; $BB2C: F0 07     ; equal: Y still $05
+@BiasMid:
   LDY #$03                                ; $BB2E: A0 03
-  JMP $BB35                               ; $BB30: 4C 35 BB
-Loc_BB33:
+  JMP @BiasStore                          ; $BB30: 4C 35 BB
+@BiasLow:
   LDY #$07                                ; $BB33: A0 07
-Loc_BB35:
-  STY $042D                               ; $BB35: 8C 2D 04
-  LDY #$F0                                ; $BB38: A0 F0
+@BiasStore:
+  STY $042D                               ; $BB35: 8C 2D 04  ; type-roll bias flag
+  LDY #$F0                                ; $BB38: A0 F0     ; gold send type
   LDA #$0A                                ; $BB3A: A9 0A
-  JSR B1F_RandomBelowThreshold             ; $BB3C: 20 62 E8
+  JSR B1F_RandomBelowThreshold             ; $BB3C: 20 62 E8  ; random 0-9
   CMP $042D                               ; $BB3F: CD 2D 04
-  BCC $BB45                               ; $BB42: 90 01
-  INY                                     ; $BB44: C8
-Loc_BB45:
-  STY $042D                               ; $BB45: 8C 2D 04
+  BCC @GoodsTypeStore                     ; $BB42: 90 01     ; below bias: keep gold
+  INY                                     ; $BB44: C8        ; else rice ($F1)
+@GoodsTypeStore:
+  STY $042D                               ; $BB45: 8C 2D 04  ; $F0 gold / $F1 rice
   LDA #$64                                ; $BB48: A9 64
   SEC                                     ; $BB4A: 38
-  SBC $042F                               ; $BB4B: ED 2F 04
+  SBC $042F                               ; $BB4B: ED 2F 04  ; $64 - base amount lo
   STA a:$0000                             ; $BB4E: 8D 00 00
   LDA #$00                                ; $BB51: A9 00
   STA a:$0001                             ; $BB53: 8D 01 00
   STA a:$0002                             ; $BB56: 8D 02 00
   LDA #$04                                ; $BB59: A9 04
   STA a:$0003                             ; $BB5B: 8D 03 00
-  JSR B1F_MathMul24x8                      ; $BB5E: 20 E9 EB
+  JSR B1F_MathMul24x8                      ; $BB5E: 20 E9 EB  ; * 4
   LDA a:$0006                             ; $BB61: AD 06 00
-  STA $042F                               ; $BB64: 8D 2F 04
+  STA $042F                               ; $BB64: 8D 2F 04  ; scaled send amount
   LDA a:$0007                             ; $BB67: AD 07 00
   STA $0430                               ; $BB6A: 8D 30 04
   LDA #$00                                ; $BB6D: A9 00
   STA $0431                               ; $BB6F: 8D 31 04
   RTS                                     ; $BB72: 60
-Loc_BB73:
-  LDA $0402                               ; $BB73: AD 02 04
+.endproc
+
+;===============================================================================
+; $BB73: GoodsSendApply
+; Applies the goods send prepared by GoodsSendPrepare. $042D selects the
+; good: $F0 = gold (record[+$02/$03]), otherwise rice (record[+$04/$05]).
+; Subtracts $042F/$0430 from Province $0402; on underflow aborts with
+; $042E = $042D and $042D = 0 (the caller tests $042D == 0). On success
+; the amount is added to the same good of the Province housing Officer
+; $042C ($000A -> FindOfficerProvince) and the pair is clamped to 9999
+; via ClampStatPair.
+;===============================================================================
+.proc GoodsSendApply
+  LDA $0402                               ; $BB73: AD 02 04  ; source Province
   JSR B1F_GetProvinceRecordAddr            ; $BB76: 20 AF F2
   LDY #$02                                ; $BB79: A0 02
   LDA $042D                               ; $BB7B: AD 2D 04
   CMP #$F0                                ; $BB7E: C9 F0
-  BEQ $BB84                               ; $BB80: F0 02
-  LDY #$04                                ; $BB82: A0 04
-Loc_BB84:
+  BEQ @DeductSrc                          ; $BB80: F0 02
+  LDY #$04                                ; $BB82: A0 04     ; rice offsets
+@DeductSrc:
   LDA ($00),Y                             ; $BB84: B1 00
   SEC                                     ; $BB86: 38
   SBC $042F                               ; $BB87: ED 2F 04
@@ -3710,30 +3888,30 @@ Loc_BB84:
   INY                                     ; $BB8D: C8
   LDA ($00),Y                             ; $BB8E: B1 00
   SBC $0430                               ; $BB90: ED 30 04
-  BCS $BBA1                               ; $BB93: B0 0C
+  BCS @DeductStore                        ; $BB93: B0 0C     ; sufficient stock
   LDA $042D                               ; $BB95: AD 2D 04
-  STA $042E                               ; $BB98: 8D 2E 04
+  STA $042E                               ; $BB98: 8D 2E 04  ; abort: keep send type
   LDA #$00                                ; $BB9B: A9 00
-  STA $042D                               ; $BB9D: 8D 2D 04
+  STA $042D                               ; $BB9D: 8D 2D 04  ; failure mark
   RTS                                     ; $BBA0: 60
-Loc_BBA1:
+@DeductStore:
   STA ($00),Y                             ; $BBA1: 91 00
   DEY                                     ; $BBA3: 88
   LDA a:$0002                             ; $BBA4: AD 02 00
   STA ($00),Y                             ; $BBA7: 91 00
-Loc_BBA9:  ; (dispatch callback target)
-  LDA $042C                               ; $BBA9: AD 2C 04
+@SendDestCredit:
+  LDA $042C                               ; $BBA9: AD 2C 04  ; target Officer
   STA a:$000A                             ; $BBAC: 8D 0A 00
-  JSR $A1EB                               ; $BBAF: 20 EB A1
+  JSR FindOfficerProvince                 ; $BBAF: 20 EB A1  ; -> ($00) his Province
   LDY #$02                                ; $BBB2: A0 02
   LDA $042D                               ; $BBB4: AD 2D 04
   CMP #$F0                                ; $BBB7: C9 F0
-  BEQ $BBBD                               ; $BBB9: F0 02
+  BEQ @DestAdd                            ; $BBB9: F0 02
   LDY #$04                                ; $BBBB: A0 04
-Loc_BBBD:
+@DestAdd:
   LDA ($00),Y                             ; $BBBD: B1 00
   CLC                                     ; $BBBF: 18
-  ADC $042F                               ; $BBC0: 6D 2F 04
+  ADC $042F                               ; $BBC0: 6D 2F 04  ; + send amount lo
   STA ($00),Y                             ; $BBC3: 91 00
   INY                                     ; $BBC5: C8
   LDA ($00),Y                             ; $BBC6: B1 00
@@ -3744,8 +3922,9 @@ Loc_BBBD:
   LDA a:$0001                             ; $BBD3: AD 01 00
   STA a:$0011                             ; $BBD6: 8D 11 00
   DEY                                     ; $BBD9: 88
-  JSR ClampStatPair                        ; $BBDA: 20 2A A5
+  JSR ClampStatPair                       ; $BBDA: 20 2A A5  ; clamp pair to 9999
   RTS                                     ; $BBDD: 60
+.endproc
 ;===============================================================================
 ; $BBDE: MapProvinceDirtyMark ($BBDE-$BBF9)
 ; Marks one map zone dirty in the province-sprite dirty bitmap $04E0-$04E3 so
@@ -3783,63 +3962,85 @@ MapProvinceDirtyBitMaskTable:
   .byte $01,$02,$04,$08,$10,$20,$40,$80   ; $BBFA: 01 02 04 08 10 20 40 80 ; bit masks 0-7 (duplicate of $DFEE in banks $1B+$1C)
 .endproc
 
-Loc_BC02:
-; --- Code Region ---
-  LDA #$40                                ; $BC02: A9 40
-  STA a:$00A5                             ; $BC04: 8D A5 00
-  STA $F800                               ; $BC07: 8D 00 F8
-  LDA #$49                                ; $BC0A: A9 49
+;===============================================================================
+; $BC02: SramSaveCommit
+; SramSaveCommit_Entry (stub $A02D): SRAM save commit, called from banks
+; $1B+$1C CastleSaveExecute ($AC38) via the LDY #$39 trampoline.
+; Commits the live game state ($6000-$6FFD, the SRAM working half) into the
+; battery-backed backup half $7000-$7FFD and stamps integrity data:
+;   $7FFC/$7FFD = "ID" magic ($49/$44), $7FFE/$7FFF = 16-bit additive
+;   checksum over every copied byte (lo/hi), matching VerifySramChecksum
+;   (prg_0a_0b $DC2F); the backup is restored by CopySramToWork
+;   (prg_0a_0b $DC97).
+; The mapper-19 WRAM write-protect register guards the backup half: upper
+; nybble $4 enables writes, low nybble bits 0-3 write-protect the four 2KB
+; windows. $00A5 is the software mirror of this register (written at boot,
+; saved/restored by NMI handlers); on exit it holds $4C.
+; ZP use: src_ptr $0000/$0001, dst_ptr $0002/$0003, checksum $0004/$0005.
+;===============================================================================
+.proc SramSaveCommit
+  src_ptr_lo = $0000
+  src_ptr_hi = $0001
+  dst_ptr_lo = $0002
+  dst_ptr_hi = $0003
+  checksum_lo = $0004
+  checksum_hi = $0005
+  LDA #NAMCO_PROTECT_NONE                 ; $BC02: A9 40  ; write-enable all 4 SRAM windows
+  STA a:$00A5                             ; $BC04: 8D A5 00  ; write-protect mirror
+  STA NAMCO_WRAM_WRITE_PROTECT            ; $BC07: 8D 00 F8
+  LDA #$49                                ; $BC0A: A9 49  ; "I" magic (lands at $7FFC after copy)
   STA $6FFC                               ; $BC0C: 8D FC 6F
-  LDA #$44                                ; $BC0F: A9 44
+  LDA #$44                                ; $BC0F: A9 44  ; "D" magic (lands at $7FFD after copy)
   STA $6FFD                               ; $BC11: 8D FD 6F
   LDA #$00                                ; $BC14: A9 00
-  STA a:$0000                             ; $BC16: 8D 00 00
-  STA a:$0002                             ; $BC19: 8D 02 00
-  STA a:$0004                             ; $BC1C: 8D 04 00
-  STA a:$0005                             ; $BC1F: 8D 05 00
+  STA a:src_ptr_lo                        ; $BC16: 8D 00 00  ; src = $6000 (live half)
+  STA a:dst_ptr_lo                        ; $BC19: 8D 02 00  ; dst = $7000 (backup half)
+  STA a:checksum_lo                       ; $BC1C: 8D 04 00  ; checksum = 0
+  STA a:checksum_hi                       ; $BC1F: 8D 05 00
   LDA #$60                                ; $BC22: A9 60
-  STA a:$0001                             ; $BC24: 8D 01 00
+  STA a:src_ptr_hi                        ; $BC24: 8D 01 00
   LDA #$70                                ; $BC27: A9 70
-  STA a:$0003                             ; $BC29: 8D 03 00
-Loc_BC2C:
+  STA a:dst_ptr_hi                        ; $BC29: 8D 03 00
+@PageLoop:
   LDY #$00                                ; $BC2C: A0 00
-Loc_BC2E:
-  LDA ($00),Y                             ; $BC2E: B1 00
-  STA ($02),Y                             ; $BC30: 91 02
+@CopyByte:
+  LDA (src_ptr_lo),Y                      ; $BC2E: B1 00
+  STA (dst_ptr_lo),Y                      ; $BC30: 91 02
   CLC                                     ; $BC32: 18
-  ADC a:$0004                             ; $BC33: 6D 04 00
-  STA a:$0004                             ; $BC36: 8D 04 00
-  LDA a:$0005                             ; $BC39: AD 05 00
+  ADC a:checksum_lo                       ; $BC33: 6D 04 00
+  STA a:checksum_lo                       ; $BC36: 8D 04 00
+  LDA a:checksum_hi                       ; $BC39: AD 05 00
   ADC #$00                                ; $BC3C: 69 00
-  STA a:$0005                             ; $BC3E: 8D 05 00
+  STA a:checksum_hi                       ; $BC3E: 8D 05 00
   INY                                     ; $BC41: C8
-  BNE $BC2E                               ; $BC42: D0 EA
-  INC a:$0001                             ; $BC44: EE 01 00
-  INC a:$0003                             ; $BC47: EE 03 00
-  LDA a:$0001                             ; $BC4A: AD 01 00
-  CMP #$6F                                ; $BC4D: C9 6F
-  BCC $BC2C                               ; $BC4F: 90 DB
+  BNE @CopyByte                           ; $BC42: D0 EA
+  INC a:src_ptr_hi                        ; $BC44: EE 01 00
+  INC a:dst_ptr_hi                        ; $BC47: EE 03 00
+  LDA a:src_ptr_hi                        ; $BC4A: AD 01 00
+  CMP #$6F                                ; $BC4D: C9 6F  ; full pages $60-$6E done
+  BCC @PageLoop                           ; $BC4F: 90 DB
   LDY #$00                                ; $BC51: A0 00
-Loc_BC53:
-  LDA ($00),Y                             ; $BC53: B1 00
-  STA ($02),Y                             ; $BC55: 91 02
+@TailCopy:
+  LDA (src_ptr_lo),Y                      ; $BC53: B1 00  ; last page: $6F00-$6FFD
+  STA (dst_ptr_lo),Y                      ; $BC55: 91 02
   CLC                                     ; $BC57: 18
-  ADC a:$0004                             ; $BC58: 6D 04 00
-  STA a:$0004                             ; $BC5B: 8D 04 00
-  LDA a:$0005                             ; $BC5E: AD 05 00
+  ADC a:checksum_lo                       ; $BC58: 6D 04 00
+  STA a:checksum_lo                       ; $BC5B: 8D 04 00
+  LDA a:checksum_hi                       ; $BC5E: AD 05 00
   ADC #$00                                ; $BC61: 69 00
-  STA a:$0005                             ; $BC63: 8D 05 00
+  STA a:checksum_hi                       ; $BC63: 8D 05 00
   INY                                     ; $BC66: C8
-  CPY #$FE                                ; $BC67: C0 FE
-  BNE $BC53                               ; $BC69: D0 E8
-  LDA a:$0004                             ; $BC6B: AD 04 00
+  CPY #$FE                                ; $BC67: C0 FE  ; stop at $7FFD (checksum slot $7FFE/$7FFF)
+  BNE @TailCopy                           ; $BC69: D0 E8
+  LDA a:checksum_lo                       ; $BC6B: AD 04 00
   STA $7FFE                               ; $BC6E: 8D FE 7F
-  LDA a:$0005                             ; $BC71: AD 05 00
+  LDA a:checksum_hi                       ; $BC71: AD 05 00
   STA $7FFF                               ; $BC74: 8D FF 7F
-  LDA #$4C                                ; $BC77: A9 4C
+  LDA #NAMCO_PROTECT_UPPER                ; $BC77: A9 4C  ; re-protect backup half $7000-$7FFF
   STA a:$00A5                             ; $BC79: 8D A5 00
-  STA $F800                               ; $BC7C: 8D 00 F8
+  STA NAMCO_WRAM_WRITE_PROTECT            ; $BC7C: 8D 00 F8
   RTS                                     ; $BC7F: 60
+.endproc
 .proc OfficerRemovalScene
   LDA $0402                               ; $BC80: AD 02 04
   JSR B1F_CallbackDispatcher               ; $BC83: 20 DE EA

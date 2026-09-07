@@ -231,7 +231,8 @@ B1F_MetaTileData          = $F477   ; Metatile data / sound+music data
 ;-------------------------------------------------------------------------------
 ; 1U: NMI Handler and Sub-States
 ;-------------------------------------------------------------------------------
-B1F_NmiHandler            = $F800   ; NMI handler (8 sub-states)
+; $F800 is the mapper WRAM write-protect register / sound address port, not an
+; NMI handler address (see namco163.h NAMCO_WRAM_WRITE_PROTECT).
 B1F_NmiDispatchTable      = $F87B   ; NMI game state dispatch table (9 entries)
 B1F_NmiEpilogue           = $F88D   ; Restore PRG banks, tick counters, RTI
 B1F_NmiState2_MapScreen   = $F8B5   ; NMI state 2: Map screen rendering
@@ -679,9 +680,17 @@ B19_1A_AttractDemoDispatch           = $A003 ; AttractDemoDispatch_Entry: title-
 B19_1A_StrategyRequestDispatch       = $A006 ; StrategyRequestDispatch_Entry: strategy request dispatch
 B19_1A_DemoEventPlaybackDispatch     = $A009 ; DemoEventPlaybackDispatch_Entry: demo event playback sequencer
 B19_1A_OfficerStatusScene            = $A00C ; Officer status scene entry stub
+B19_1A_OfficerCardAnimStep_Entry     = $A012 ; OfficerCardAnimStep_Entry: officer card slide-in animation step
+B19_1A_SortieWarCommit               = $A015 ; SortieWarCommit_Entry: commit the sortie (seize stocks, build war roster)
+B19_1A_TransferCapacityCalc          = $A018 ; TransferCapacityCalc_Entry: transport capacity min() per good
+B19_1A_OfficerArrivalScan            = $A01B ; OfficerArrivalScan_Entry: find arriving/available Officer for $0402
 B19_1A_UnificationEndingDispatch     = $A01E ; UnificationEndingDispatch_Entry: unification ending scene
 B19_1A_ProvinceOfficerRosterDispatch = $A021 ; ProvinceOfficerRosterDispatch_Entry: province officer roster
+B19_1A_CastleDevResultRoll           = $A024 ; CastleDevResultRoll_Entry: castle dev result roll (message/increment/index)
+B19_1A_GoodsSendPrepare              = $A027 ; GoodsSendPrepare_Entry: goods send type roll + amount scale
+B19_1A_GoodsSendApply                = $A030 ; GoodsSendApply_Entry: goods send apply to Officer $042C Province
 B19_1A_MapProvinceDirtyMark          = $A02A ; MapProvinceDirtyMark_Entry: marks province $0402 dirty in $04E0-$04E3
+B19_1A_SramSaveCommit                = $A02D ; SramSaveCommit_Entry: SRAM save commit (backup copy + "ID" magic + 16-bit checksum)
 
 ;===============================================================================
 ; SECTION 3: Banked Code at $8000-$9FFF (Slot 0)

@@ -4573,7 +4573,7 @@ Intrigue_ShowMenu:
   LDY #$39                                            ; $BC6B: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $BC6D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                                         ; $BC70: 12 A0
+  .word B19_1A_OfficerCardAnimStep_Entry              ; $BC70: 12 A0
   LDA strategy_cursor_hi                                           ; $BC72: AD 0D 04
   CMP #$FF                                            ; $BC75: C9 FF
   BNE @skip                                           ; $BC77: D0 12
@@ -8698,7 +8698,7 @@ StrategyCommand_InitOfficerDisplay:
   LDY #$39                                            ; $DA41: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DA43: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                                         ; $DA46: 12 A0
+  .word B19_1A_OfficerCardAnimStep_Entry              ; $DA46: 12 A0
   LDA strategy_cursor_hi                                           ; $DA48: AD 0D 04
   CMP #$FF                                            ; $DA4B: C9 FF
   BEQ @skip                                           ; $DA4D: F0 01
@@ -8767,7 +8767,7 @@ StrategyCommand_UpdateOfficerDisplay:
   LDY #$39                                            ; $DAB6: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DAB8: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                                         ; $DABB: 12 A0
+  .word B19_1A_OfficerCardAnimStep_Entry              ; $DABB: 12 A0
   LDA #$AE                                            ; $DABD: A9 AE
   STA $0A                                             ; $DABF: 85 0A
   LDX scroll_ptr_lo                                           ; $DAC1: AE 08 04

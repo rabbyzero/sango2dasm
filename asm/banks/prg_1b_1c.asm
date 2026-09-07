@@ -59,9 +59,9 @@ MapScreenFrameStateTable:
   .word CommandCategoryMenuDispatch       ; $A027: 8B A1 ; state 1: command category menu (sub-dispatch by $0401)
   .word CastleCommandDispatch             ; $A029: 95 A2 ; state 2: castle command screen
   .word ArmyCommandDispatch               ; $A02B: F2 AD ; state 3: army command screen (sub-dispatch by $0401)
-  .word Loc_B759                          ; $A02D: 59 B7 ; state 4
-  .word Loc_BFB7                          ; $A02F: B7 BF ; state 5
-  .word Loc_CADF                          ; $A031: DF CA ; state 6
+  .word WarehouseCommandDispatch          ; $A02D: 59 B7 ; state 4: warehouse command screen
+  .word TownCommandDispatch               ; $A02F: B7 BF ; state 5: town command screen (sub-dispatch by $0401)
+  .word IntrigueCommandDispatch           ; $A031: DF CA ; state 6: intrigue command screen (sub-dispatch by $0401)
   .word MapRulerIntroDispatch             ; $A033: 7D A0 ; state 7: sub-state dispatch by $0401
   .word MapRulerIntroDispatch             ; $A035: 7D A0 ; state 8: sub-state dispatch by $0401
   .word CallStrategyRequestDispatch       ; $A037: 55 A0 ; state 9: banked call, B19_1A_StrategyRequestDispatch
@@ -405,7 +405,7 @@ CommandCategoryMenuScreenInit:  ; (dispatch callback target)
   CMP #$FF                                ; $A19D: C9 FF
   BNE @InitExit                           ; $A19F: D0 2E     ; overlay busy: wait
   INC $0401                               ; $A1A1: EE 01 04  ; -> sub 1 (menu input)
-  JSR MenuCursorReset                    ; $A1A4: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
+  JSR MenuCursorReset                     ; $A1A4: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
   STA $0470                               ; $A1A7: 8D 70 04  ; map scroll anim counter <- 0
   LDA #$01                                ; $A1AA: A9 01
   STA $0471                               ; $A1AC: 8D 71 04  ; hemisphere phase <- 1
@@ -546,8 +546,8 @@ CommandCategoryMapScrollStep:
 ;   2 scouting: random outcomes by result class $0470 (supplies into field
 ;     +$10, hidden officer discovery -> CastleScoutRecruitApply)
 ;   3 disaster prevention (dev pipeline with $0470 = 3)
-;   4 exits to frame state 6 (Loc_CADF)
-;   5 save: SRAM save with checksum via bank $19 stub $A02D (-> JMP $BC02)
+;   4 exits to frame state 6 (IntrigueCommandDispatch, the intrigue screen)
+;   5 save: SRAM save commit via bank $19 stub $A02D (SramSaveCommit at $BC02)
 ; Sub-states:
 ;   0  CastleMenuScreenInit       gate transition/overlay sentinels, init
 ;                                 state, UI mode $25
@@ -571,7 +571,7 @@ CommandCategoryMapScrollStep:
 ;   16 CastleScoutFindDialog       2-item dialog ($ABC1): claim/find roll
 ;   17 CastleDisasterCapCheck      +$0A field cap 99, then dev pipeline
 ;   18 CastleSavePromptWait        A -> save confirm dialog, B -> screen init
-;   19 CastleSaveExecute           SRAM save stub $A02D, then result redraw
+;   19 CastleSaveExecute           SRAM save stub $A02D (SramSaveCommit), then result redraw
 ;   20 CastleResultMenuRedraw      $04A0 <- $04A2 overlay redraw trigger
 ;   21 CastlePostResultRoute       wait redraw; $0473 bit7 -> sub 13 else 22
 ;   22 CastleScreenIdleWait        A/B exit to frame state 0 (B1F_SetUI4)
@@ -614,7 +614,7 @@ CastleMenuScreenInit:  ; (dispatch callback target)
   CMP #$FF                                ; $A2D1: C9 FF
   BNE @InitGateExit                       ; $A2D3: D0 23
   INC $0401                               ; $A2D5: EE 01 04
-  JSR MenuCursorReset                    ; $A2D8: 20 70 DD
+  JSR MenuCursorReset                     ; $A2D8: 20 70 DD
   STA $0473                               ; $A2DB: 8D 73 04
   STA a:$00A4                             ; $A2DE: 8D A4 00
   LDA #$FF                                ; $A2E1: A9 FF
@@ -654,11 +654,11 @@ CastleCommandMenuInput:  ; (dispatch callback target)
   LDA a:$0012                             ; $A330: AD 12 00
   STA $0470                               ; $A333: 8D 70 04
   INC $0401                               ; $A336: EE 01 04
-  JMP MenuCursorReset                    ; $A339: 4C 70 DD
+  JMP MenuCursorReset                     ; $A339: 4C 70 DD
 @CancelCheck:
   LSR                                     ; $A33C: 4A
   BCC @InputExit                          ; $A33D: 90 0D
-  JSR $D568                               ; $A33F: 20 68 D5
+  JSR MapTransitionStateSave              ; $A33F: 20 68 D5
   LDA #$01                                ; $A342: A9 01
   STA $0400                               ; $A344: 8D 00 04
   LDA #$00                                ; $A347: A9 00
@@ -683,7 +683,7 @@ CastleCommandRouteDispatch:  ; (dispatch callback target)
 @RouteCommand1:
   CMP #$01                                ; $A373: C9 01
   BNE @RouteCommand2                      ; $A375: D0 13  ; command 2: scouting
-  JSR $D568                               ; $A377: 20 68 D5
+  JSR MapTransitionStateSave              ; $A377: 20 68 D5
   LDA $0402                               ; $A37A: AD 02 04
   STA $0470                               ; $A37D: 8D 70 04
   LDA #$07                                ; $A380: A9 07
@@ -800,13 +800,13 @@ CastleDevFieldOffsetTable:  ; per target: province record offset of the capped f
 CastleDevAnimWait:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0478                               ; $A471: AD 78 04
-  BNE CastleDevAnimWaitExit                ; $A474: D0 26
+  BNE CastleDevAnimWaitExit               ; $A474: D0 26
   JSR $D64A                               ; $A476: 20 4A D6
   LDA $047C                               ; $A479: AD 7C 04
-  BPL CastleDevAnimWaitExit                ; $A47C: 10 1E
+  BPL CastleDevAnimWaitExit               ; $A47C: 10 1E
   CMP #$90                                ; $A47E: C9 90
-  BNE CastleDevAnimWaitStep                ; $A480: D0 1B  ; window still sliding: run work step
-  JSR MenuCursorReset                    ; $A482: 20 70 DD
+  BNE CastleDevAnimWaitStep               ; $A480: D0 1B  ; window still sliding: run work step
+  JSR MenuCursorReset                     ; $A482: 20 70 DD
   LDA $0470                               ; $A485: AD 70 04
   CMP #$03                                ; $A488: C9 03
   BNE @RepeatTargetMenu                   ; $A48A: D0 06
@@ -840,7 +840,7 @@ CastleDevAnimWaitStep:
   BEQ CastleDevAmountRoll                 ; $A4C2: F0 0D     ; command 3: random amount path
   LDY #$39                                ; $A4C4: A0 39     ; target banks $19+$1A
   JSR $EE07                               ; $A4C6: 20 07 EE  ; B1F_BankedCallbackTrampoline
-  .word $A024                             ; $A4C9: 24 A0 (BankedCallbackTrampoline target; bank $19 $A024 -> JMP $BA70: dev-result roll)
+  .word B19_1A_CastleDevResultRoll        ; $A4C9: 24 A0 (BankedCallbackTrampoline target; bank $19 $A024 -> JMP CastleDevResultRoll)
   LDA $0471                               ; $A4CB: AD 71 04  ; rolled UI/message id
   JMP $F26D                               ; $A4CE: 4C 6D F2  ; B1F_SetUI0 (no return)
 CastleDevAmountRoll:
@@ -873,13 +873,13 @@ CastleDevConfirmGate:  ; (dispatch callback target)
   LDA $0481                               ; $A505: AD 81 04
   JSR $DD5E                               ; $A508: 20 5E DD
   JSR $DDAD                               ; $A50B: 20 AD DD
-  BCC CastleDevConfirmGateExit             ; $A50E: 90 2C
+  BCC CastleDevConfirmGateExit            ; $A50E: 90 2C
   JSR $D543                               ; $A510: 20 43 D5
   LDA a:$0081                             ; $A513: AD 81 00
   LSR                                     ; $A516: 4A
-  BCS CastleDevAmountCheck                 ; $A517: B0 24
+  BCS CastleDevAmountCheck                ; $A517: B0 24
   LSR                                     ; $A519: 4A
-  BCC CastleDevConfirmGateExit             ; $A51A: 90 20
+  BCC CastleDevConfirmGateExit            ; $A51A: 90 20
   LDY #$3D                                ; $A51C: A0 3D     ; target banks $1D+$1E
   JSR $EE07                               ; $A51E: 20 07 EE  ; B1F_BankedCallbackTrampoline
   .word B1D_1E_ImmediateOverlay           ; $A521: 24 A0 (BankedCallbackTrampoline target)
@@ -975,7 +975,7 @@ CastleDevExecute:  ; (dispatch callback target)
   LDA #$00                                ; $A5DC: A9 00
   STA $042D                               ; $A5DE: 8D 2D 04
   STA $042E                               ; $A5E1: 8D 2E 04
-  JSR $D568                               ; $A5E4: 20 68 D5
+  JSR MapTransitionStateSave              ; $A5E4: 20 68 D5
   LDA $0402                               ; $A5E7: AD 02 04
   JSR $F2AF                               ; $A5EA: 20 AF F2
   LDY #$02                                ; $A5ED: A0 02
@@ -1162,7 +1162,7 @@ CastleMoveTargetSelect:  ; (dispatch callback target)
   LDA #$00                                ; $A767: A9 00
   STA $0401                               ; $A769: 8D 01 04
   LDA #$02                                ; $A76C: A9 02
-  JSR $D58C                               ; $A76E: 20 8C D5
+  JSR MapTransitionStateRestore           ; $A76E: 20 8C D5
 @MoveSelectExit:
   RTS                                     ; $A771: 60
 @MoveOffMapExit:
@@ -1181,9 +1181,9 @@ CastleMoveListAnimWait:  ; (dispatch callback target)
   BEQ @PanAnimDone                        ; $A78B: F0 32  ; pan complete
   JSR $D7A8                               ; $A78D: 20 A8 D7
   LDA #$02                                ; $A790: A9 02
-  JSR $D58C                               ; $A792: 20 8C D5
+  JSR MapTransitionStateRestore           ; $A792: 20 8C D5
   INC $0401                               ; $A795: EE 01 04
-  JSR MenuCursorReset                    ; $A798: 20 70 DD
+  JSR MenuCursorReset                     ; $A798: 20 70 DD
   STA $046C                               ; $A79B: 8D 6C 04
   JSR $DC6B                               ; $A79E: 20 6B DC
   STX a:$0002                             ; $A7A1: 8E 02 00
@@ -1206,7 +1206,7 @@ CastleMoveListAnimWait:  ; (dispatch callback target)
   LDA #$00                                ; $A7BF: A9 00
   STA $0401                               ; $A7C1: 8D 01 04
   LDA #$02                                ; $A7C4: A9 02
-  JSR $D58C                               ; $A7C6: 20 8C D5
+  JSR MapTransitionStateRestore           ; $A7C6: 20 8C D5
 @ListAnimExit:
   RTS                                     ; $A7C9: 60
 CastleMoveConfirmMenu:  ; (dispatch callback target)
@@ -1267,7 +1267,7 @@ CastleMoveExecute:  ; (dispatch callback target)
   STA $04D6                               ; $A83A: 8D D6 04  ; menu action extra param
   LDA #$FF                                ; $A83D: A9 FF
   STA $0481                               ; $A83F: 8D 81 04  ; close mover window
-  JSR $D568                               ; $A842: 20 68 D5  ; (undocumented bank-$1C helper)
+  JSR MapTransitionStateSave              ; $A842: 20 68 D5  ; save camera snapshot for post-move return
   LDA #$14                                ; $A845: A9 14
   STA $0401                               ; $A847: 8D 01 04  ; -> sub 20 (result redraw)
   LDA #$FF                                ; $A84A: A9 FF
@@ -1309,7 +1309,7 @@ CastleScoutAnimWait:  ; (dispatch callback target)
   INC $0401                               ; $A895: EE 01 04
   LDA $0481                               ; $A898: AD 81 04
   STA $0482                               ; $A89B: 8D 82 04
-  JSR MenuCursorReset                    ; $A89E: 20 70 DD
+  JSR MenuCursorReset                     ; $A89E: 20 70 DD
   STA $046C                               ; $A8A1: 8D 6C 04
   LDA #$29                                ; $A8A4: A9 29
   JMP $F26D                               ; $A8A6: 4C 6D F2
@@ -1328,7 +1328,7 @@ CastleScoutDialogWait:  ; (dispatch callback target)
   STA $04A2                               ; $A8BD: 8D A2 04
   LDA #$32                                ; $A8C0: A9 32
   STA $04D6                               ; $A8C2: 8D D6 04
-  JSR $D568                               ; $A8C5: 20 68 D5
+  JSR MapTransitionStateSave              ; $A8C5: 20 68 D5
   LDA #$80                                ; $A8C8: A9 80
   STA $0473                               ; $A8CA: 8D 73 04
   LDA #$FF                                ; $A8CD: A9 FF
@@ -1479,7 +1479,7 @@ CastleScoutResultGate:  ; (dispatch callback target)
   LDA a:$0081                             ; $AA03: AD 81 00
   AND #$03                                ; $AA06: 29 03
   BEQ @ResultGateIdle                     ; $AA08: F0 25
-  JSR MenuCursorReset                    ; $AA0A: 20 70 DD
+  JSR MenuCursorReset                     ; $AA0A: 20 70 DD
   LDA #$00                                ; $AA0D: A9 00
   STA a:$00A4                             ; $AA0F: 8D A4 00
   LDA $0470                               ; $AA12: AD 70 04
@@ -1565,7 +1565,7 @@ CastleScoutRecruitDialog:  ; (dispatch callback target)
   LDA #$00                                ; $AACB: A9 00
   STA $0400                               ; $AACD: 8D 00 04
   STA $0401                               ; $AAD0: 8D 01 04
-  JSR $D568                               ; $AAD3: 20 68 D5
+  JSR MapTransitionStateSave              ; $AAD3: 20 68 D5
   JMP $F28B                               ; $AAD6: 4C 8B F2
 @RecruitIdle:
   LDA $0482                               ; $AAD9: AD 82 04
@@ -1604,7 +1604,7 @@ CastleScoutFindDialog:  ; (dispatch callback target)
   LSR                                     ; $AB23: 4A
   BCC @FindIdle                           ; $AB24: 90 0E
 @FindDeclineExit:
-  JSR $D568                               ; $AB26: 20 68 D5
+  JSR MapTransitionStateSave              ; $AB26: 20 68 D5
   LDA #$00                                ; $AB29: A9 00
   STA $0400                               ; $AB2B: 8D 00 04
   STA $0401                               ; $AB2E: 8D 01 04
@@ -1714,7 +1714,7 @@ CastleSavePromptWait:  ; (dispatch callback target)
   LSR                                     ; $AC10: 4A
   BCC @SaveBCheck                         ; $AC11: 90 0E
   INC $0401                               ; $AC13: EE 01 04
-  JSR MenuCursorReset                    ; $AC16: 20 70 DD
+  JSR MenuCursorReset                     ; $AC16: 20 70 DD
   STA $046C                               ; $AC19: 8D 6C 04
   LDA #$29                                ; $AC1C: A9 29
   JMP $F26D                               ; $AC1E: 4C 6D F2
@@ -1733,7 +1733,7 @@ CastleSaveExecute:  ; (dispatch callback target)
   BEQ @SaveDialogCancel                   ; $AC34: F0 40
   LDY #$39                                ; $AC36: A0 39     ; target banks $19+$1A
   JSR $EE07                               ; $AC38: 20 07 EE  ; B1F_BankedCallbackTrampoline
-  .word $A02D                             ; $AC3B: 2D A0 (BankedCallbackTrampoline target; bank $19 $A02D -> JMP $BC02: SRAM save with checksum)
+  .word B19_1A_SramSaveCommit             ; $AC3B: 2D A0 (BankedCallbackTrampoline target; bank $19 SramSaveCommit_Entry: SRAM save commit)
   LDA $6F00                               ; $AC3D: AD 00 6F  ; player gold (SRAM)
   CLC                                     ; $AC40: 18
   ADC #$64                                ; $AC41: 69 64
@@ -1753,7 +1753,7 @@ CastleSaveExecute:  ; (dispatch callback target)
   STA $04A2                               ; $AC63: 8D A2 04  ; overlay redraw param
   LDA #$42                                ; $AC66: A9 42
   STA $04D6                               ; $AC68: 8D D6 04  ; menu action extra param
-  JSR $D568                               ; $AC6B: 20 68 D5  ; (undocumented bank-$1C helper)
+  JSR MapTransitionStateSave              ; $AC6B: 20 68 D5  ; save camera snapshot before result redraw
   INC $0401                               ; $AC6E: EE 01 04  ; -> sub 20 (result redraw)
   LDA #$52                                ; $AC71: A9 52
   JMP $F26D                               ; $AC73: 4C 6D F2  ; UI mode $52 (no return)
@@ -1779,7 +1779,7 @@ CastlePostResultRoute:  ; (dispatch callback target)
   LDA $0140                               ; $AC95: AD 40 01
   BNE @PostResultExit                     ; $AC98: D0 1D
   LDA #$02                                ; $AC9A: A9 02
-  JSR $D58C                               ; $AC9C: 20 8C D5
+  JSR MapTransitionStateRestore           ; $AC9C: 20 8C D5
   LDA $0473                               ; $AC9F: AD 73 04
   BPL @PostResultAdvance                  ; $ACA2: 10 06
   LDA #$0D                                ; $ACA4: A9 0D
@@ -1801,7 +1801,7 @@ CastleScreenIdleWait:  ; (dispatch callback target)
   LDA a:$0081                             ; $ACC0: AD 81 00
   AND #$03                                ; $ACC3: 29 03
   BEQ @IdleWindowClose                    ; $ACC5: F0 0E
-  JSR $D568                               ; $ACC7: 20 68 D5
+  JSR MapTransitionStateSave              ; $ACC7: 20 68 D5
   LDA #$00                                ; $ACCA: A9 00
   STA $0400                               ; $ACCC: 8D 00 04
   STA $0401                               ; $ACCF: 8D 01 04
@@ -2019,34 +2019,34 @@ CastleMoveSourceCompact:
 ;===============================================================================
 .proc ArmyCommandDispatch  ; (dispatch callback target)
 ; --- Code Region ---
-  LDA $0401                              ; $ADF2: AD 01 04  ; army screen sub-state
-  JSR B1F_CallbackDispatcher             ; $ADF5: 20 DE EA
+  LDA $0401                               ; $ADF2: AD 01 04  ; army screen sub-state
+  JSR B1F_CallbackDispatcher              ; $ADF5: 20 DE EA
 ; --- CallbackDispatcher sub-state table, indexed by $0401 ---
-  .word ArmyMenuScreenInit               ; $ADF8: 2A AE ; sub 0
-  .word ArmyCommandMenuInput             ; $ADFA: 55 AE ; sub 1
-  .word SortieTargetPadPoll              ; $ADFC: 12 AF ; sub 2
-  .word SortieRosterAnimWait             ; $ADFE: AE AF ; sub 3
-  .word SortieProvisionMenu              ; $B000: 47 B0 ; sub 4
-  .word SortieProvisionDialog            ; $B002: CF B0 ; sub 5
-  .word SortieMemberMenu                 ; $B004: 90 B1 ; sub 6
-  .word SortieAbortSlideWait             ; $B006: 1B B2 ; sub 7
-  .word SortieWarRequestGate             ; $B008: 43 B2 ; sub 8
-  .word ConscriptionPanelWait            ; $B00A: 78 B2 ; sub 9
-  .word ConscriptionPanelInput           ; $B00C: 3C B3 ; sub 10
-  .word ConscriptionApply                ; $B00E: 6D B3 ; sub 11
-  .word ResultPanPrompt                  ; $B010: 0E B4 ; sub 12
-  .word ResultPanWait                    ; $B012: 31 B4 ; sub 13
-  .word ReconPromptWait                  ; $B014: 5D B4 ; sub 14
-  .word ReconTargetPadPoll               ; $B016: 7A B4 ; sub 15
-  .word ReconExitPromptInit              ; $B018: 07 B5 ; sub 16
-  .word ReconExitMenu                    ; $B01A: 28 B5 ; sub 17
-  .word ResultRedrawTrigger              ; $B01C: 92 B5 ; sub 18
-  .word MarchRouteGate                   ; $B01E: A6 B5 ; sub 19
-  .word GovernorRosterSlideWait          ; $B020: F1 B6 ; sub 20
-  .word WarSceneLaunch                   ; $B022: DC B5 ; sub 21
-  .word GovernorAppointMessageWait       ; $B024: 3E B7 ; sub 22
-  .word ReconMapScrollStep               ; $B026: 20 B6 ; sub 23
-  .word MarchPeacefulExecute             ; $B028: 70 B6 ; sub 24
+  .word ArmyMenuScreenInit                ; $ADF8: 2A AE ; sub 0
+  .word ArmyCommandMenuInput              ; $ADFA: 55 AE ; sub 1
+  .word SortieTargetPadPoll               ; $ADFC: 12 AF ; sub 2
+  .word SortieRosterAnimWait              ; $ADFE: AE AF ; sub 3
+  .word SortieProvisionMenu               ; $B000: 47 B0 ; sub 4
+  .word SortieProvisionDialog             ; $B002: CF B0 ; sub 5
+  .word SortieMemberMenu                  ; $B004: 90 B1 ; sub 6
+  .word SortieAbortSlideWait              ; $B006: 1B B2 ; sub 7
+  .word SortieWarRequestGate              ; $B008: 43 B2 ; sub 8
+  .word ConscriptionPanelWait             ; $B00A: 78 B2 ; sub 9
+  .word ConscriptionPanelInput            ; $B00C: 3C B3 ; sub 10
+  .word ConscriptionApply                 ; $B00E: 6D B3 ; sub 11
+  .word ResultPanPrompt                   ; $B010: 0E B4 ; sub 12
+  .word ResultPanWait                     ; $B012: 31 B4 ; sub 13
+  .word ReconPromptWait                   ; $B014: 5D B4 ; sub 14
+  .word ReconTargetPadPoll                ; $B016: 7A B4 ; sub 15
+  .word ReconExitPromptInit               ; $B018: 07 B5 ; sub 16
+  .word ReconExitMenu                     ; $B01A: 28 B5 ; sub 17
+  .word ResultRedrawTrigger               ; $B01C: 92 B5 ; sub 18
+  .word MarchRouteGate                    ; $B01E: A6 B5 ; sub 19
+  .word GovernorRosterSlideWait           ; $B020: F1 B6 ; sub 20
+  .word WarSceneLaunch                    ; $B022: DC B5 ; sub 21
+  .word GovernorAppointMessageWait        ; $B024: 3E B7 ; sub 22
+  .word ReconMapScrollStep                ; $B026: 20 B6 ; sub 23
+  .word MarchPeacefulExecute              ; $B028: 70 B6 ; sub 24
 ;===============================================================================
 ; ArmyMenuScreenInit ($AE2A-$AE54) - sub 0
 ; Gates on the transition busy flag $0140 and the overlay slot sentinel $0304
@@ -2056,936 +2056,936 @@ CastleMoveSourceCompact:
 ; $0150 and enters UI mode $60 via B1F_SetUI0.
 ;===============================================================================
 ArmyMenuScreenInit:  ; (dispatch callback target)
-  LDA $0140                              ; $AE2A: AD 40 01
-  BNE @InitGateExit                      ; $AE2D: D0 25     ; transition busy: wait
-  LDA $0304                              ; $AE2F: AD 04 03
-  CMP #$FF                               ; $AE32: C9 FF
-  BNE @InitGateExit                      ; $AE34: D0 1E     ; overlay busy: wait
-  INC $0401                              ; $AE36: EE 01 04  ; -> sub 1 (menu input)
-  JSR MenuCursorReset                    ; $AE39: 20 70 DD  ; menu cursor reset (A=$00)
-  STA $0473                              ; $AE3C: 8D 73 04
-  STA a:$00A4                            ; $AE3F: 8D A4 00
-  LDA #$80                               ; $AE42: A9 80
-  STA $0140                              ; $AE44: 8D 40 01  ; transition busy
-  LDA #$03                               ; $AE47: A9 03
-  ORA $0150                              ; $AE49: 0D 50 01
-  STA $0150                              ; $AE4C: 8D 50 01  ; flag word |= $03
-  LDA #$60                               ; $AE4F: A9 60
-  JMP B1F_SetUI0                         ; $AE51: 4C 6D F2  ; UI mode $60 (no return)
+  LDA $0140                               ; $AE2A: AD 40 01
+  BNE @InitGateExit                       ; $AE2D: D0 25     ; transition busy: wait
+  LDA $0304                               ; $AE2F: AD 04 03
+  CMP #$FF                                ; $AE32: C9 FF
+  BNE @InitGateExit                       ; $AE34: D0 1E     ; overlay busy: wait
+  INC $0401                               ; $AE36: EE 01 04  ; -> sub 1 (menu input)
+  JSR MenuCursorReset                     ; $AE39: 20 70 DD  ; menu cursor reset (A=$00)
+  STA $0473                               ; $AE3C: 8D 73 04
+  STA a:$00A4                             ; $AE3F: 8D A4 00
+  LDA #$80                                ; $AE42: A9 80
+  STA $0140                               ; $AE44: 8D 40 01  ; transition busy
+  LDA #$03                                ; $AE47: A9 03
+  ORA $0150                               ; $AE49: 0D 50 01
+  STA $0150                               ; $AE4C: 8D 50 01  ; flag word |= $03
+  LDA #$60                                ; $AE4F: A9 60
+  JMP B1F_SetUI0                          ; $AE51: 4C 6D F2  ; UI mode $60 (no return)
 @InitGateExit:
-  RTS                                    ; $AE54: 60        ; init-gate exit
+  RTS                                     ; $AE54: 60        ; init-gate exit
 ArmyCommandMenuInput:  ; (dispatch callback target)
-  LDA #$FF                               ; $AE55: A9 FF
-  STA a:$0010                            ; $AE57: 8D 10 00
-  LDA #$AE                               ; $AE5A: A9 AE
-  STA a:$0011                            ; $AE5C: 8D 11 00
-  LDA #$00                               ; $AE5F: A9 00
-  STA a:$0012                            ; $AE61: 8D 12 00
-  JSR B1F_MenuStep2                      ; $AE64: 20 1E ED
-  LDA #$05                               ; $AE67: A9 05
-  STA a:$0010                            ; $AE69: 8D 10 00
-  LDA #$AF                               ; $AE6C: A9 AF
-  STA a:$0011                            ; $AE6E: 8D 11 00
-  LDA #$0D                               ; $AE71: A9 0D
-  STA a:$0000                            ; $AE73: 8D 00 00
-  LDA #$AF                               ; $AE76: A9 AF
-  STA a:$0001                            ; $AE78: 8D 01 00
-  LDA a:$0012                            ; $AE7B: AD 12 00
-  JSR B1F_PointerTableLookup             ; $AE7E: 20 F5 ED
-  JSR $DDAD                              ; $AE81: 20 AD DD
-  BCC @MenuExit                          ; $AE84: 90 78
-  LDA a:$0081                            ; $AE86: AD 81 00
-  LSR                                    ; $AE89: 4A
-  BCC @CancelCheck                       ; $AE8A: 90 62
-  LDA a:$0012                            ; $AE8C: AD 12 00
-  BNE @RouteConscription                 ; $AE8F: D0 11
-  JSR $D568                              ; $AE91: 20 68 D5
-  LDA $0402                              ; $AE94: AD 02 04
-  STA $0470                              ; $AE97: 8D 70 04
-  INC $0401                              ; $AE9A: EE 01 04
-  LDA #$61                               ; $AE9D: A9 61
-  JMP B1F_SetUI0                         ; $AE9F: 4C 6D F2
+  LDA #$FF                                ; $AE55: A9 FF
+  STA a:$0010                             ; $AE57: 8D 10 00
+  LDA #$AE                                ; $AE5A: A9 AE
+  STA a:$0011                             ; $AE5C: 8D 11 00
+  LDA #$00                                ; $AE5F: A9 00
+  STA a:$0012                             ; $AE61: 8D 12 00
+  JSR B1F_MenuStep2                       ; $AE64: 20 1E ED
+  LDA #$05                                ; $AE67: A9 05
+  STA a:$0010                             ; $AE69: 8D 10 00
+  LDA #$AF                                ; $AE6C: A9 AF
+  STA a:$0011                             ; $AE6E: 8D 11 00
+  LDA #$0D                                ; $AE71: A9 0D
+  STA a:$0000                             ; $AE73: 8D 00 00
+  LDA #$AF                                ; $AE76: A9 AF
+  STA a:$0001                             ; $AE78: 8D 01 00
+  LDA a:$0012                             ; $AE7B: AD 12 00
+  JSR B1F_PointerTableLookup              ; $AE7E: 20 F5 ED
+  JSR $DDAD                               ; $AE81: 20 AD DD
+  BCC @MenuExit                           ; $AE84: 90 78
+  LDA a:$0081                             ; $AE86: AD 81 00
+  LSR                                     ; $AE89: 4A
+  BCC @CancelCheck                        ; $AE8A: 90 62
+  LDA a:$0012                             ; $AE8C: AD 12 00
+  BNE @RouteConscription                  ; $AE8F: D0 11
+  JSR MapTransitionStateSave              ; $AE91: 20 68 D5
+  LDA $0402                               ; $AE94: AD 02 04
+  STA $0470                               ; $AE97: 8D 70 04
+  INC $0401                               ; $AE9A: EE 01 04
+  LDA #$61                                ; $AE9D: A9 61
+  JMP B1F_SetUI0                          ; $AE9F: 4C 6D F2
 @RouteConscription:
-  CMP #$01                               ; $AEA2: C9 01
-  BNE @RouteRecon                        ; $AEA4: D0 0A
-  LDA #$09                               ; $AEA6: A9 09
-  STA $0401                              ; $AEA8: 8D 01 04
-  LDA #$68                               ; $AEAB: A9 68
-  JMP B1F_SetUI0                         ; $AEAD: 4C 6D F2
+  CMP #$01                                ; $AEA2: C9 01
+  BNE @RouteRecon                         ; $AEA4: D0 0A
+  LDA #$09                                ; $AEA6: A9 09
+  STA $0401                               ; $AEA8: 8D 01 04
+  LDA #$68                                ; $AEAB: A9 68
+  JMP B1F_SetUI0                          ; $AEAD: 4C 6D F2
 @RouteRecon:
-  CMP #$02                               ; $AEB0: C9 02
-  BNE @RouteGovernor                     ; $AEB2: D0 10
-  LDA #$0E                               ; $AEB4: A9 0E
-  STA $0401                              ; $AEB6: 8D 01 04
-  JSR MenuCursorReset                    ; $AEB9: 20 70 DD
-  STA $046C                              ; $AEBC: 8D 6C 04
-  LDA #$29                               ; $AEBF: A9 29
-  JMP B1F_SetUI0                         ; $AEC1: 4C 6D F2
+  CMP #$02                                ; $AEB0: C9 02
+  BNE @RouteGovernor                      ; $AEB2: D0 10
+  LDA #$0E                                ; $AEB4: A9 0E
+  STA $0401                               ; $AEB6: 8D 01 04
+  JSR MenuCursorReset                     ; $AEB9: 20 70 DD
+  STA $046C                               ; $AEBC: 8D 6C 04
+  LDA #$29                                ; $AEBF: A9 29
+  JMP B1F_SetUI0                          ; $AEC1: 4C 6D F2
 @RouteGovernor:
-  LDY #$01                               ; $AEC4: A0 01
-  LDA ($EE),Y                            ; $AEC6: B1 EE
-  CMP $0402                              ; $AEC8: CD 02 04
-  BNE @AppointListSetup                  ; $AECB: D0 0A
-  LDA #$16                               ; $AECD: A9 16
-  STA $0401                              ; $AECF: 8D 01 04
-  LDA #$49                               ; $AED2: A9 49
-  JMP B1F_SetUI0                         ; $AED4: 4C 6D F2
+  LDY #$01                                ; $AEC4: A0 01
+  LDA ($EE),Y                             ; $AEC6: B1 EE
+  CMP $0402                               ; $AEC8: CD 02 04
+  BNE @AppointListSetup                   ; $AECB: D0 0A
+  LDA #$16                                ; $AECD: A9 16
+  STA $0401                               ; $AECF: 8D 01 04
+  LDA #$49                                ; $AED2: A9 49
+  JMP B1F_SetUI0                          ; $AED4: 4C 6D F2
 @AppointListSetup:
-  LDA #$14                               ; $AED7: A9 14
-  STA $0401                              ; $AED9: 8D 01 04
-  JSR MenuCursorReset                    ; $AEDC: 20 70 DD
-  LDA #$80                               ; $AEDF: A9 80
-  STA $0478                              ; $AEE1: 8D 78 04
-  LDA #$0F                               ; $AEE4: A9 0F
-  STA $047C                              ; $AEE6: 8D 7C 04
-  LDA #$6C                               ; $AEE9: A9 6C
-  JMP B1F_SetUI0                         ; $AEEB: 4C 6D F2
+  LDA #$14                                ; $AED7: A9 14
+  STA $0401                               ; $AED9: 8D 01 04
+  JSR MenuCursorReset                     ; $AEDC: 20 70 DD
+  LDA #$80                                ; $AEDF: A9 80
+  STA $0478                               ; $AEE1: 8D 78 04
+  LDA #$0F                                ; $AEE4: A9 0F
+  STA $047C                               ; $AEE6: 8D 7C 04
+  LDA #$6C                                ; $AEE9: A9 6C
+  JMP B1F_SetUI0                          ; $AEEB: 4C 6D F2
 @CancelCheck:
-  LSR                                    ; $AEEE: 4A
-  BCC @MenuExit                          ; $AEEF: 90 0D
-  JSR $D568                              ; $AEF1: 20 68 D5
-  LDA #$01                               ; $AEF4: A9 01
-  STA $0400                              ; $AEF6: 8D 00 04
-  LDA #$00                               ; $AEF9: A9 00
-  STA $0401                              ; $AEFB: 8D 01 04
+  LSR                                     ; $AEEE: 4A
+  BCC @MenuExit                           ; $AEEF: 90 0D
+  JSR MapTransitionStateSave              ; $AEF1: 20 68 D5
+  LDA #$01                                ; $AEF4: A9 01
+  STA $0400                               ; $AEF6: 8D 00 04
+  LDA #$00                                ; $AEF9: A9 00
+  STA $0401                               ; $AEFB: 8D 01 04
 @MenuExit:
-  RTS                                    ; $AEFE: 60
+  RTS                                     ; $AEFE: 60
 ; --- Data Region ---
 ArmyMenuTable:  ; B1F_MenuStep2 items (0 sortie / 1 conscription / 2 recon / 3 appoint; $FF page filler)
-  .byte $00,$01,$02,$03,$FF,$FF          ; $AEFF: 00 01 02 03 FF FF
+  .byte $00,$01,$02,$03,$FF,$FF           ; $AEFF: 00 01 02 03 FF FF
 ArmyMenuCursorPosTable:  ; per item: OAM Y base + X base word, fetched by B1F_PointerTableLookup
-  .byte $B8,$48,$B8,$98,$C8,$48,$C8,$98  ; $AF05: B8 48 B8 98 C8 48 C8 98
+  .byte $B8,$48,$B8,$98,$C8,$48,$C8,$98   ; $AF05: B8 48 B8 98 C8 48 C8 98
 ArmyMenuCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
-  .byte $00,$07,$00,$00,$80              ; $AF0D: 00 07 00 00 80
+  .byte $00,$07,$00,$00,$80               ; $AF0D: 00 07 00 00 80
 ; --- Code Region ---
 SortieTargetPadPoll:  ; (dispatch callback target)
-  JSR $DDF2                              ; $AF12: 20 F2 DD
-  JSR $DDAD                              ; $AF15: 20 AD DD
-  BCC @PollExit                          ; $AF18: 90 1D
-  LDA a:$0081                            ; $AF1A: AD 81 00
-  LSR                                    ; $AF1D: 4A
-  BCS @TargetPick                        ; $AF1E: B0 18
-  LSR                                    ; $AF20: 4A
-  BCC @PollExit                          ; $AF21: 90 14
-  LDA #$FF                               ; $AF23: A9 FF
-  STA $04E4                              ; $AF25: 8D E4 04
-  JSR $DDAD                              ; $AF28: 20 AD DD
-  BCC @PollExit                          ; $AF2B: 90 0A
-  LDA #$00                               ; $AF2D: A9 00
-  STA $0401                              ; $AF2F: 8D 01 04
-  LDA #$03                               ; $AF32: A9 03
-  JSR $D58C                              ; $AF34: 20 8C D5
+  JSR $DDF2                               ; $AF12: 20 F2 DD
+  JSR $DDAD                               ; $AF15: 20 AD DD
+  BCC @PollExit                           ; $AF18: 90 1D
+  LDA a:$0081                             ; $AF1A: AD 81 00
+  LSR                                     ; $AF1D: 4A
+  BCS @TargetPick                         ; $AF1E: B0 18
+  LSR                                     ; $AF20: 4A
+  BCC @PollExit                           ; $AF21: 90 14
+  LDA #$FF                                ; $AF23: A9 FF
+  STA $04E4                               ; $AF25: 8D E4 04
+  JSR $DDAD                               ; $AF28: 20 AD DD
+  BCC @PollExit                           ; $AF2B: 90 0A
+  LDA #$00                                ; $AF2D: A9 00
+  STA $0401                               ; $AF2F: 8D 01 04
+  LDA #$03                                ; $AF32: A9 03
+  JSR MapTransitionStateRestore           ; $AF34: 20 8C D5
 @PollExit:
-  RTS                                    ; $AF37: 60
+  RTS                                     ; $AF37: 60
 @TargetPick:
-  JSR $DEBA                              ; $AF38: 20 BA DE
-  CPY #$FF                               ; $AF3B: C0 FF
-  BEQ @OffMapExit                        ; $AF3D: F0 65
-  STY $0402                              ; $AF3F: 8C 02 04
-  JSR $DD79                              ; $AF42: 20 79 DD
-  LDA $0402                              ; $AF45: AD 02 04
-  BMI @TargetRefused                     ; $AF48: 30 5F
-  STA $0471                              ; $AF4A: 8D 71 04
-  STA $050E                              ; $AF4D: 8D 0E 05
-  LDA a:$0010                            ; $AF50: AD 10 00
-  CMP $6F03                              ; $AF53: CD 03 6F
-  BEQ @TargetRefused                     ; $AF56: F0 51
-  LDA $6F03                              ; $AF58: AD 03 6F
-  JSR $F368                              ; $AF5B: 20 68 F3
-  LDA a:$0010                            ; $AF5E: AD 10 00
-  LSR                                    ; $AF61: 4A
-  CLC                                    ; $AF62: 18
-  ADC #$04                               ; $AF63: 69 04
-  TAY                                    ; $AF65: A8
-  LDA a:$0010                            ; $AF66: AD 10 00
-  AND #$01                               ; $AF69: 29 01
-  BEQ @TroopLoCheck                      ; $AF6B: F0 0B
-  LDA ($00),Y                            ; $AF6D: B1 00
-  LSR                                    ; $AF6F: 4A
-  LSR                                    ; $AF70: 4A
-  LSR                                    ; $AF71: 4A
-  LSR                                    ; $AF72: 4A
-  BNE @TargetBlocked                     ; $AF73: D0 2A
-  JMP @TargetOk                          ; $AF75: 4C 7E AF
+  JSR $DEBA                               ; $AF38: 20 BA DE
+  CPY #$FF                                ; $AF3B: C0 FF
+  BEQ @OffMapExit                         ; $AF3D: F0 65
+  STY $0402                               ; $AF3F: 8C 02 04
+  JSR $DD79                               ; $AF42: 20 79 DD
+  LDA $0402                               ; $AF45: AD 02 04
+  BMI @TargetRefused                      ; $AF48: 30 5F
+  STA $0471                               ; $AF4A: 8D 71 04
+  STA $050E                               ; $AF4D: 8D 0E 05
+  LDA a:$0010                             ; $AF50: AD 10 00
+  CMP $6F03                               ; $AF53: CD 03 6F
+  BEQ @TargetRefused                      ; $AF56: F0 51
+  LDA $6F03                               ; $AF58: AD 03 6F
+  JSR $F368                               ; $AF5B: 20 68 F3
+  LDA a:$0010                             ; $AF5E: AD 10 00
+  LSR                                     ; $AF61: 4A
+  CLC                                     ; $AF62: 18
+  ADC #$04                                ; $AF63: 69 04
+  TAY                                     ; $AF65: A8
+  LDA a:$0010                             ; $AF66: AD 10 00
+  AND #$01                                ; $AF69: 29 01
+  BEQ @TroopLoCheck                       ; $AF6B: F0 0B
+  LDA ($00),Y                             ; $AF6D: B1 00
+  LSR                                     ; $AF6F: 4A
+  LSR                                     ; $AF70: 4A
+  LSR                                     ; $AF71: 4A
+  LSR                                     ; $AF72: 4A
+  BNE @TargetBlocked                      ; $AF73: D0 2A
+  JMP @TargetOk                           ; $AF75: 4C 7E AF
 @TroopLoCheck:
-  LDA ($00),Y                            ; $AF78: B1 00
-  AND #$0F                               ; $AF7A: 29 0F
-  BNE @TargetBlocked                     ; $AF7C: D0 21
+  LDA ($00),Y                             ; $AF78: B1 00
+  AND #$0F                                ; $AF7A: 29 0F
+  BNE @TargetBlocked                      ; $AF7C: D0 21
 @TargetOk:
-  LDA $0470                              ; $AF7E: AD 70 04
-  STA $0402                              ; $AF81: 8D 02 04
-  JSR B1F_GetProvinceRecordAddr          ; $AF84: 20 AF F2
-  JSR $DC6B                              ; $AF87: 20 6B DC
-  STX $047C                              ; $AF8A: 8E 7C 04
-  LDA #$FF                               ; $AF8D: A9 FF
-  STA $04E4                              ; $AF8F: 8D E4 04
-  INC $0401                              ; $AF92: EE 01 04
-  LDA #$81                               ; $AF95: A9 81
-  STA $0478                              ; $AF97: 8D 78 04
-  LDA #$27                               ; $AF9A: A9 27
-  JMP B1F_SetUI0                         ; $AF9C: 4C 6D F2
+  LDA $0470                               ; $AF7E: AD 70 04
+  STA $0402                               ; $AF81: 8D 02 04
+  JSR B1F_GetProvinceRecordAddr           ; $AF84: 20 AF F2
+  JSR $DC6B                               ; $AF87: 20 6B DC
+  STX $047C                               ; $AF8A: 8E 7C 04
+  LDA #$FF                                ; $AF8D: A9 FF
+  STA $04E4                               ; $AF8F: 8D E4 04
+  INC $0401                               ; $AF92: EE 01 04
+  LDA #$81                                ; $AF95: A9 81
+  STA $0478                               ; $AF97: 8D 78 04
+  LDA #$27                                ; $AF9A: A9 27
+  JMP B1F_SetUI0                          ; $AF9C: 4C 6D F2
 @TargetBlocked:
-  LDA #$41                               ; $AF9F: A9 41
-  JMP B1F_SetUI0                         ; $AFA1: 4C 6D F2
+  LDA #$41                                ; $AF9F: A9 41
+  JMP B1F_SetUI0                          ; $AFA1: 4C 6D F2
 @OffMapExit:
-  LDA #$24                               ; $AFA4: A9 24
-  JMP B1F_SetUI0                         ; $AFA6: 4C 6D F2
+  LDA #$24                                ; $AFA4: A9 24
+  JMP B1F_SetUI0                          ; $AFA6: 4C 6D F2
 @TargetRefused:
-  LDA #$62                               ; $AFA9: A9 62
-  JMP B1F_SetUI0                         ; $AFAB: 4C 6D F2
+  LDA #$62                                ; $AFA9: A9 62
+  JMP B1F_SetUI0                          ; $AFAB: 4C 6D F2
 SortieRosterAnimWait:  ; (dispatch callback target)
-  LDA $0478                              ; $AFAE: AD 78 04
-  BNE @AnimWaitExit                      ; $AFB1: D0 25
-  JSR $D64A                              ; $AFB3: 20 4A D6
-  LDA $047C                              ; $AFB6: AD 7C 04
-  BPL @AnimWaitExit                      ; $AFB9: 10 1D
-  CMP #$90                               ; $AFBB: C9 90
-  BNE @Totalize                          ; $AFBD: D0 1A
-  LDA #$02                               ; $AFBF: A9 02
-  STA $0401                              ; $AFC1: 8D 01 04
-  LDA $046D                              ; $AFC4: AD 6D 04
-  STA $6F3F                              ; $AFC7: 8D 3F 6F
-  LDA $046E                              ; $AFCA: AD 6E 04
-  STA $6F41                              ; $AFCD: 8D 41 6F
-  JSR $D568                              ; $AFD0: 20 68 D5
-  LDA #$61                               ; $AFD3: A9 61
-  JMP B1F_SetUI0                         ; $AFD5: 4C 6D F2
+  LDA $0478                               ; $AFAE: AD 78 04
+  BNE @AnimWaitExit                       ; $AFB1: D0 25
+  JSR $D64A                               ; $AFB3: 20 4A D6
+  LDA $047C                               ; $AFB6: AD 7C 04
+  BPL @AnimWaitExit                       ; $AFB9: 10 1D
+  CMP #$90                                ; $AFBB: C9 90
+  BNE @Totalize                           ; $AFBD: D0 1A
+  LDA #$02                                ; $AFBF: A9 02
+  STA $0401                               ; $AFC1: 8D 01 04
+  LDA $046D                               ; $AFC4: AD 6D 04
+  STA $6F3F                               ; $AFC7: 8D 3F 6F
+  LDA $046E                               ; $AFCA: AD 6E 04
+  STA $6F41                               ; $AFCD: 8D 41 6F
+  JSR MapTransitionStateSave              ; $AFD0: 20 68 D5
+  LDA #$61                                ; $AFD3: A9 61
+  JMP B1F_SetUI0                          ; $AFD5: 4C 6D F2
 @AnimWaitExit:
-  RTS                                    ; $AFD8: 60
+  RTS                                     ; $AFD8: 60
 @Totalize:
-  LDA #$03                               ; $AFD9: A9 03
-  JSR $D58C                              ; $AFDB: 20 8C D5
-  LDX #$00                               ; $AFDE: A2 00
-  STX a:$0010                            ; $AFE0: 8E 10 00
-  STX a:$0011                            ; $AFE3: 8E 11 00
+  LDA #$03                                ; $AFD9: A9 03
+  JSR MapTransitionStateRestore           ; $AFDB: 20 8C D5
+  LDX #$00                                ; $AFDE: A2 00
+  STX a:$0010                             ; $AFE0: 8E 10 00
+  STX a:$0011                             ; $AFE3: 8E 11 00
 SortieRosterTroopSumLoop:
-  LDA $0481,X                            ; $AFE6: BD 81 04
-  CMP #$FF                               ; $AFE9: C9 FF
-  BEQ @TotalDone                         ; $AFEB: F0 1C
-  JSR B1F_GetOfficerRecordAddr           ; $AFED: 20 D7 F2
-  LDY #$08                               ; $AFF0: A0 08
-  LDA ($00),Y                            ; $AFF2: B1 00
-  CLC                                    ; $AFF4: 18
-  ADC a:$0010                            ; $AFF5: 6D 10 00
-  STA a:$0010                            ; $AFF8: 8D 10 00
-  INY                                    ; $AFFB: C8
-  LDA ($00),Y                            ; $AFFC: B1 00
-  ADC a:$0011                            ; $AFFE: 6D 11 00
-  STA a:$0011                            ; $B001: 8D 11 00
-  INX                                    ; $B004: E8
-  CPX #$0A                               ; $B005: E0 0A
-  BCC SortieRosterTroopSumLoop           ; $B007: 90 DD
+  LDA $0481,X                             ; $AFE6: BD 81 04
+  CMP #$FF                                ; $AFE9: C9 FF
+  BEQ @TotalDone                          ; $AFEB: F0 1C
+  JSR B1F_GetOfficerRecordAddr            ; $AFED: 20 D7 F2
+  LDY #$08                                ; $AFF0: A0 08
+  LDA ($00),Y                             ; $AFF2: B1 00
+  CLC                                     ; $AFF4: 18
+  ADC a:$0010                             ; $AFF5: 6D 10 00
+  STA a:$0010                             ; $AFF8: 8D 10 00
+  INY                                     ; $AFFB: C8
+  LDA ($00),Y                             ; $AFFC: B1 00
+  ADC a:$0011                             ; $AFFE: 6D 11 00
+  STA a:$0011                             ; $B001: 8D 11 00
+  INX                                     ; $B004: E8
+  CPX #$0A                                ; $B005: E0 0A
+  BCC SortieRosterTroopSumLoop            ; $B007: 90 DD
 @TotalDone:
-  LDA a:$0010                            ; $B009: AD 10 00
-  STA $042C                              ; $B00C: 8D 2C 04
-  LDA a:$0011                            ; $B00F: AD 11 00
-  STA $042D                              ; $B012: 8D 2D 04
-  LDA #$00                               ; $B015: A9 00
-  STA $042E                              ; $B017: 8D 2E 04
-  INC $0401                              ; $B01A: EE 01 04
-  LDA $0470                              ; $B01D: AD 70 04
-  JSR B1F_GetProvinceRecordAddr          ; $B020: 20 AF F2
-  JSR $DC6B                              ; $B023: 20 6B DC
-  STX a:$0002                            ; $B026: 8E 02 00
-  LDY #$00                               ; $B029: A0 00
-  LDX #$00                               ; $B02B: A2 00
+  LDA a:$0010                             ; $B009: AD 10 00
+  STA $042C                               ; $B00C: 8D 2C 04
+  LDA a:$0011                             ; $B00F: AD 11 00
+  STA $042D                               ; $B012: 8D 2D 04
+  LDA #$00                                ; $B015: A9 00
+  STA $042E                               ; $B017: 8D 2E 04
+  INC $0401                               ; $B01A: EE 01 04
+  LDA $0470                               ; $B01D: AD 70 04
+  JSR B1F_GetProvinceRecordAddr           ; $B020: 20 AF F2
+  JSR $DC6B                               ; $B023: 20 6B DC
+  STX a:$0002                             ; $B026: 8E 02 00
+  LDY #$00                                ; $B029: A0 00
+  LDX #$00                                ; $B02B: A2 00
 @CountLoop:
-  LDA $0481,Y                            ; $B02D: B9 81 04
-  CMP #$FF                               ; $B030: C9 FF
-  BEQ @CountNext                         ; $B032: F0 01
-  INX                                    ; $B034: E8
+  LDA $0481,Y                             ; $B02D: B9 81 04
+  CMP #$FF                                ; $B030: C9 FF
+  BEQ @CountNext                          ; $B032: F0 01
+  INX                                     ; $B034: E8
 @CountNext:
-  INY                                    ; $B035: C8
-  CPY #$0A                               ; $B036: C0 0A
-  BCC @CountLoop                         ; $B038: 90 F3
-  CPX a:$0002                            ; $B03A: EC 02 00
-  BNE SortieProvisionSeed                ; $B03D: D0 4D
-  JSR MenuCursorReset                    ; $B03F: 20 70 DD
-  LDA #$32                               ; $B042: A9 32
-  JMP B1F_SetUI0                         ; $B044: 4C 6D F2
+  INY                                     ; $B035: C8
+  CPY #$0A                                ; $B036: C0 0A
+  BCC @CountLoop                          ; $B038: 90 F3
+  CPX a:$0002                             ; $B03A: EC 02 00
+  BNE SortieProvisionSeed                 ; $B03D: D0 4D
+  JSR MenuCursorReset                     ; $B03F: 20 70 DD
+  LDA #$32                                ; $B042: A9 32
+  JMP B1F_SetUI0                          ; $B044: 4C 6D F2
 SortieProvisionMenu:  ; (dispatch callback target)
-  LDA #$C2                               ; $B047: A9 C2
-  STA a:$0010                            ; $B049: 8D 10 00
-  LDA #$B0                               ; $B04C: A9 B0
-  STA a:$0011                            ; $B04E: 8D 11 00
-  LDA #$00                               ; $B051: A9 00
-  STA a:$0012                            ; $B053: 8D 12 00
-  JSR B1F_MenuStep2                      ; $B056: 20 1E ED
-  LDA #$C6                               ; $B059: A9 C6
-  STA a:$0010                            ; $B05B: 8D 10 00
-  LDA #$B0                               ; $B05E: A9 B0
-  STA a:$0011                            ; $B060: 8D 11 00
-  LDA #$CA                               ; $B063: A9 CA
-  STA a:$0000                            ; $B065: 8D 00 00
-  LDA #$B0                               ; $B068: A9 B0
-  STA a:$0001                            ; $B06A: 8D 01 00
-  LDA a:$0012                            ; $B06D: AD 12 00
-  JSR B1F_PointerTableLookup             ; $B070: 20 F5 ED
-  JSR $DDAD                              ; $B073: 20 AD DD
-  BCC @MenuExit                          ; $B076: 90 0E
-  LDA a:$0081                            ; $B078: AD 81 00
-  LSR                                    ; $B07B: 4A
-  BCS @AcceptCheck                       ; $B07C: B0 09
-  LSR                                    ; $B07E: 4A
-  BCC @MenuExit                          ; $B07F: 90 05
+  LDA #$C2                                ; $B047: A9 C2
+  STA a:$0010                             ; $B049: 8D 10 00
+  LDA #$B0                                ; $B04C: A9 B0
+  STA a:$0011                             ; $B04E: 8D 11 00
+  LDA #$00                                ; $B051: A9 00
+  STA a:$0012                             ; $B053: 8D 12 00
+  JSR B1F_MenuStep2                       ; $B056: 20 1E ED
+  LDA #$C6                                ; $B059: A9 C6
+  STA a:$0010                             ; $B05B: 8D 10 00
+  LDA #$B0                                ; $B05E: A9 B0
+  STA a:$0011                             ; $B060: 8D 11 00
+  LDA #$CA                                ; $B063: A9 CA
+  STA a:$0000                             ; $B065: 8D 00 00
+  LDA #$B0                                ; $B068: A9 B0
+  STA a:$0001                             ; $B06A: 8D 01 00
+  LDA a:$0012                             ; $B06D: AD 12 00
+  JSR B1F_PointerTableLookup              ; $B070: 20 F5 ED
+  JSR $DDAD                               ; $B073: 20 AD DD
+  BCC @MenuExit                           ; $B076: 90 0E
+  LDA a:$0081                             ; $B078: AD 81 00
+  LSR                                     ; $B07B: 4A
+  BCS @AcceptCheck                        ; $B07C: B0 09
+  LSR                                     ; $B07E: 4A
+  BCC @MenuExit                           ; $B07F: 90 05
 @MenuReset:
-  LDA #$00                               ; $B081: A9 00
-  STA $0401                              ; $B083: 8D 01 04
+  LDA #$00                                ; $B081: A9 00
+  STA $0401                               ; $B083: 8D 01 04
 @MenuExit:
-  RTS                                    ; $B086: 60
+  RTS                                     ; $B086: 60
 @AcceptCheck:
-  LDA a:$0012                            ; $B087: AD 12 00
-  BNE @MenuReset                         ; $B08A: D0 F5
+  LDA a:$0012                             ; $B087: AD 12 00
+  BNE @MenuReset                          ; $B08A: D0 F5
 SortieProvisionSeed:
-  INC $0401                              ; $B08C: EE 01 04
-  JSR $DB87                              ; $B08F: 20 87 DB
-  LDA $0402                              ; $B092: AD 02 04
-  JSR B1F_GetProvinceRecordAddr          ; $B095: 20 AF F2
-  LDY #$02                               ; $B098: A0 02
-  LDA ($00),Y                            ; $B09A: B1 00
-  STA $0498                              ; $B09C: 8D 98 04
-  STA $0490                              ; $B09F: 8D 90 04
-  INY                                    ; $B0A2: C8
-  LDA ($00),Y                            ; $B0A3: B1 00
-  STA $0499                              ; $B0A5: 8D 99 04
-  STA $0491                              ; $B0A8: 8D 91 04
-  LDY #$04                               ; $B0AB: A0 04
-  LDA ($00),Y                            ; $B0AD: B1 00
-  STA $049A                              ; $B0AF: 8D 9A 04
-  INY                                    ; $B0B2: C8
-  LDA ($00),Y                            ; $B0B3: B1 00
-  STA $049B                              ; $B0B5: 8D 9B 04
-  LDA #$00                               ; $B0B8: A9 00
-  STA $0472                              ; $B0BA: 8D 72 04
-  LDA #$63                               ; $B0BD: A9 63
-  JMP B1F_SetUI0                         ; $B0BF: 4C 6D F2
+  INC $0401                               ; $B08C: EE 01 04
+  JSR $DB87                               ; $B08F: 20 87 DB
+  LDA $0402                               ; $B092: AD 02 04
+  JSR B1F_GetProvinceRecordAddr           ; $B095: 20 AF F2
+  LDY #$02                                ; $B098: A0 02
+  LDA ($00),Y                             ; $B09A: B1 00
+  STA $0498                               ; $B09C: 8D 98 04
+  STA $0490                               ; $B09F: 8D 90 04
+  INY                                     ; $B0A2: C8
+  LDA ($00),Y                             ; $B0A3: B1 00
+  STA $0499                               ; $B0A5: 8D 99 04
+  STA $0491                               ; $B0A8: 8D 91 04
+  LDY #$04                                ; $B0AB: A0 04
+  LDA ($00),Y                             ; $B0AD: B1 00
+  STA $049A                               ; $B0AF: 8D 9A 04
+  INY                                     ; $B0B2: C8
+  LDA ($00),Y                             ; $B0B3: B1 00
+  STA $049B                               ; $B0B5: 8D 9B 04
+  LDA #$00                                ; $B0B8: A9 00
+  STA $0472                               ; $B0BA: 8D 72 04
+  LDA #$63                                ; $B0BD: A9 63
+  JMP B1F_SetUI0                          ; $B0BF: 4C 6D F2
 ; --- Data Region ---
 ArmyProvisionMenuTable:  ; B1F_MenuStep2 items (0 provision / 1 cancel, $FF page filler)
-  .byte $00,$01,$FF,$FF                  ; $B0C2: 00 01 FF FF
+  .byte $00,$01,$FF,$FF                   ; $B0C2: 00 01 FF FF
 ArmyProvisionCursorPosTable:  ; per item: OAM Y base + X base word
-  .byte $C8,$60,$C8,$B0                  ; $B0C6: C8 60 C8 B0
+  .byte $C8,$60,$C8,$B0                   ; $B0C6: C8 60 C8 B0
 ArmyProvisionCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
-  .byte $00,$07,$00,$00,$80              ; $B0CA: 00 07 00 00 80
+  .byte $00,$07,$00,$00,$80               ; $B0CA: 00 07 00 00 80
 ; --- Code Region ---
 SortieProvisionDialog:  ; (dispatch callback target)
-  JSR $DDAD                              ; $B0CF: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
-  BCC @BusyExit                          ; $B0D2: 90 52     ; busy: exit
-  LDA $0472                              ; $B0D4: AD 72 04  ; dialog phase
-  BNE @RicePhase                         ; $B0D7: D0 4E     ; phase 1: rice dialog
-  LDA #$2E                               ; $B0D9: A9 2E
-  STA $031C                              ; $B0DB: 8D 1C 03  ; gold dialog window params
-  LDA #$23                               ; $B0DE: A9 23
-  STA $031D                              ; $B0E0: 8D 1D 03
-  JSR $DA02                              ; $B0E3: 20 02 DA  ; open dialog window
-  LDA a:$0081                            ; $B0E6: AD 81 00  ; pad 1 newly-pressed (edge)
-  LSR                                    ; $B0E9: 4A
-  BCC @GoldBack                          ; $B0EA: 90 1B     ; bit0 = A
-  LDA $048E                              ; $B0EC: AD 8E 04  ; entered gold amount lo
-  STA $042F                              ; $B0EF: 8D 2F 04  ; marching gold lo
-  STA $0528                              ; $B0F2: 8D 28 05
-  LDA $048F                              ; $B0F5: AD 8F 04  ; entered gold amount hi
-  STA $0430                              ; $B0F8: 8D 30 04  ; marching gold hi
-  STA $0529                              ; $B0FB: 8D 29 05
-  LDA #$00                               ; $B0FE: A9 00
-  STA $0431                              ; $B100: 8D 31 04
-  INC $0472                              ; $B103: EE 72 04  ; -> rice dialog phase
-  RTS                                    ; $B106: 60
+  JSR $DDAD                               ; $B0CF: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @BusyExit                           ; $B0D2: 90 52     ; busy: exit
+  LDA $0472                               ; $B0D4: AD 72 04  ; dialog phase
+  BNE @RicePhase                          ; $B0D7: D0 4E     ; phase 1: rice dialog
+  LDA #$2E                                ; $B0D9: A9 2E
+  STA $031C                               ; $B0DB: 8D 1C 03  ; gold dialog window params
+  LDA #$23                                ; $B0DE: A9 23
+  STA $031D                               ; $B0E0: 8D 1D 03
+  JSR $DA02                               ; $B0E3: 20 02 DA  ; open dialog window
+  LDA a:$0081                             ; $B0E6: AD 81 00  ; pad 1 newly-pressed (edge)
+  LSR                                     ; $B0E9: 4A
+  BCC @GoldBack                           ; $B0EA: 90 1B     ; bit0 = A
+  LDA $048E                               ; $B0EC: AD 8E 04  ; entered gold amount lo
+  STA $042F                               ; $B0EF: 8D 2F 04  ; marching gold lo
+  STA $0528                               ; $B0F2: 8D 28 05
+  LDA $048F                               ; $B0F5: AD 8F 04  ; entered gold amount hi
+  STA $0430                               ; $B0F8: 8D 30 04  ; marching gold hi
+  STA $0529                               ; $B0FB: 8D 29 05
+  LDA #$00                                ; $B0FE: A9 00
+  STA $0431                               ; $B100: 8D 31 04
+  INC $0472                               ; $B103: EE 72 04  ; -> rice dialog phase
+  RTS                                     ; $B106: 60
 @GoldBack:
 ; --- Code Region ---
-  LSR                                    ; $B107: 4A
-  BCC @BusyExit                          ; $B108: 90 1C
-  DEC $0401                              ; $B10A: CE 01 04
-  DEC $0401                              ; $B10D: CE 01 04
-  LDA $0402                              ; $B110: AD 02 04
-  JSR B1F_GetProvinceRecordAddr          ; $B113: 20 AF F2
-  JSR $DC6B                              ; $B116: 20 6B DC
-  STX $047C                              ; $B119: 8E 7C 04
-  LDA #$81                               ; $B11C: A9 81
-  STA $0478                              ; $B11E: 8D 78 04
-  LDA #$27                               ; $B121: A9 27
-  JMP B1F_SetUI0                         ; $B123: 4C 6D F2
+  LSR                                     ; $B107: 4A
+  BCC @BusyExit                           ; $B108: 90 1C
+  DEC $0401                               ; $B10A: CE 01 04
+  DEC $0401                               ; $B10D: CE 01 04
+  LDA $0402                               ; $B110: AD 02 04
+  JSR B1F_GetProvinceRecordAddr           ; $B113: 20 AF F2
+  JSR $DC6B                               ; $B116: 20 6B DC
+  STX $047C                               ; $B119: 8E 7C 04
+  LDA #$81                                ; $B11C: A9 81
+  STA $0478                               ; $B11E: 8D 78 04
+  LDA #$27                                ; $B121: A9 27
+  JMP B1F_SetUI0                          ; $B123: 4C 6D F2
 @BusyExit:
-  RTS                                    ; $B126: 60
+  RTS                                     ; $B126: 60
 @RicePhase:
-  CMP #$01                               ; $B127: C9 01
-  BNE @RiceDialog                        ; $B129: D0 15
-  JSR $DB87                              ; $B12B: 20 87 DB
-  LDA $049A                              ; $B12E: AD 9A 04
-  STA $0490                              ; $B131: 8D 90 04
-  LDA $049B                              ; $B134: AD 9B 04
-  STA $0491                              ; $B137: 8D 91 04
-  INC $0472                              ; $B13A: EE 72 04
-  LDA $0472                              ; $B13D: AD 72 04
+  CMP #$01                                ; $B127: C9 01
+  BNE @RiceDialog                         ; $B129: D0 15
+  JSR $DB87                               ; $B12B: 20 87 DB
+  LDA $049A                               ; $B12E: AD 9A 04
+  STA $0490                               ; $B131: 8D 90 04
+  LDA $049B                               ; $B134: AD 9B 04
+  STA $0491                               ; $B137: 8D 91 04
+  INC $0472                               ; $B13A: EE 72 04
+  LDA $0472                               ; $B13D: AD 72 04
 @RiceDialog:
-  LDA #$38                               ; $B140: A9 38
-  STA $031C                              ; $B142: 8D 1C 03
-  LDA #$23                               ; $B145: A9 23
-  STA $031D                              ; $B147: 8D 1D 03
-  JSR $DA02                              ; $B14A: 20 02 DA
-  LDA a:$0081                            ; $B14D: AD 81 00
-  LSR                                    ; $B150: 4A
-  BCC @RiceBack                          ; $B151: 90 25
-  LDA $048E                              ; $B153: AD 8E 04
-  STA $0432                              ; $B156: 8D 32 04
-  STA $0524                              ; $B159: 8D 24 05
-  LDA $048F                              ; $B15C: AD 8F 04
-  STA $0433                              ; $B15F: 8D 33 04
-  STA $0525                              ; $B162: 8D 25 05
-  JSR MenuCursorReset                    ; $B165: 20 70 DD
-  STA $0434                              ; $B168: 8D 34 04
-  STA $046C                              ; $B16B: 8D 6C 04
-  LDA #$06                               ; $B16E: A9 06
-  STA $0401                              ; $B170: 8D 01 04
-  LDA #$65                               ; $B173: A9 65
-  JMP B1F_SetUI0                         ; $B175: 4C 6D F2
+  LDA #$38                                ; $B140: A9 38
+  STA $031C                               ; $B142: 8D 1C 03
+  LDA #$23                                ; $B145: A9 23
+  STA $031D                               ; $B147: 8D 1D 03
+  JSR $DA02                               ; $B14A: 20 02 DA
+  LDA a:$0081                             ; $B14D: AD 81 00
+  LSR                                     ; $B150: 4A
+  BCC @RiceBack                           ; $B151: 90 25
+  LDA $048E                               ; $B153: AD 8E 04
+  STA $0432                               ; $B156: 8D 32 04
+  STA $0524                               ; $B159: 8D 24 05
+  LDA $048F                               ; $B15C: AD 8F 04
+  STA $0433                               ; $B15F: 8D 33 04
+  STA $0525                               ; $B162: 8D 25 05
+  JSR MenuCursorReset                     ; $B165: 20 70 DD
+  STA $0434                               ; $B168: 8D 34 04
+  STA $046C                               ; $B16B: 8D 6C 04
+  LDA #$06                                ; $B16E: A9 06
+  STA $0401                               ; $B170: 8D 01 04
+  LDA #$65                                ; $B173: A9 65
+  JMP B1F_SetUI0                          ; $B175: 4C 6D F2
 @RiceBack:
-  LSR                                    ; $B178: 4A
-  BCC @BusyExit                          ; $B179: 90 AB
-  JSR $DB87                              ; $B17B: 20 87 DB
-  LDA $0498                              ; $B17E: AD 98 04
-  STA $0490                              ; $B181: 8D 90 04
-  LDA $0499                              ; $B184: AD 99 04
-  STA $0491                              ; $B187: 8D 91 04
-  LDA #$00                               ; $B18A: A9 00
-  STA $0472                              ; $B18C: 8D 72 04
-  RTS                                    ; $B18F: 60
+  LSR                                     ; $B178: 4A
+  BCC @BusyExit                           ; $B179: 90 AB
+  JSR $DB87                               ; $B17B: 20 87 DB
+  LDA $0498                               ; $B17E: AD 98 04
+  STA $0490                               ; $B181: 8D 90 04
+  LDA $0499                               ; $B184: AD 99 04
+  STA $0491                               ; $B187: 8D 91 04
+  LDA #$00                                ; $B18A: A9 00
+  STA $0472                               ; $B18C: 8D 72 04
+  RTS                                     ; $B18F: 60
 SortieMemberMenu:  ; (dispatch callback target)
-  LDA #$0E                               ; $B190: A9 0E
-  STA a:$0010                            ; $B192: 8D 10 00
-  LDA #$B2                               ; $B195: A9 B2
-  STA a:$0011                            ; $B197: 8D 11 00
-  LDA #$00                               ; $B19A: A9 00
-  STA a:$0012                            ; $B19C: 8D 12 00
-  JSR B1F_MenuStep2                      ; $B19F: 20 1E ED
-  LDA #$12                               ; $B1A2: A9 12
-  STA a:$0010                            ; $B1A4: 8D 10 00
-  LDA #$B2                               ; $B1A7: A9 B2
-  STA a:$0011                            ; $B1A9: 8D 11 00
-  LDA #$16                               ; $B1AC: A9 16
-  STA a:$0000                            ; $B1AE: 8D 00 00
-  LDA #$B2                               ; $B1B1: A9 B2
-  STA a:$0001                            ; $B1B3: 8D 01 00
-  LDA a:$0012                            ; $B1B6: AD 12 00
-  JSR B1F_PointerTableLookup             ; $B1B9: 20 F5 ED
-  JSR $DDAD                              ; $B1BC: 20 AD DD
-  BCC @MenuExit                          ; $B1BF: 90 4C
-  LDA a:$0081                            ; $B1C1: AD 81 00
-  LSR                                    ; $B1C4: 4A
-  BCC @PadBCheck                         ; $B1C5: 90 3E
-  LDA a:$0012                            ; $B1C7: AD 12 00
-  BNE @MenuCancel                        ; $B1CA: D0 3C
-  INC $0401                              ; $B1CC: EE 01 04
-  LDY #$00                               ; $B1CF: A0 00
-  LDX #$00                               ; $B1D1: A2 00
+  LDA #$0E                                ; $B190: A9 0E
+  STA a:$0010                             ; $B192: 8D 10 00
+  LDA #$B2                                ; $B195: A9 B2
+  STA a:$0011                             ; $B197: 8D 11 00
+  LDA #$00                                ; $B19A: A9 00
+  STA a:$0012                             ; $B19C: 8D 12 00
+  JSR B1F_MenuStep2                       ; $B19F: 20 1E ED
+  LDA #$12                                ; $B1A2: A9 12
+  STA a:$0010                             ; $B1A4: 8D 10 00
+  LDA #$B2                                ; $B1A7: A9 B2
+  STA a:$0011                             ; $B1A9: 8D 11 00
+  LDA #$16                                ; $B1AC: A9 16
+  STA a:$0000                             ; $B1AE: 8D 00 00
+  LDA #$B2                                ; $B1B1: A9 B2
+  STA a:$0001                             ; $B1B3: 8D 01 00
+  LDA a:$0012                             ; $B1B6: AD 12 00
+  JSR B1F_PointerTableLookup              ; $B1B9: 20 F5 ED
+  JSR $DDAD                               ; $B1BC: 20 AD DD
+  BCC @MenuExit                           ; $B1BF: 90 4C
+  LDA a:$0081                             ; $B1C1: AD 81 00
+  LSR                                     ; $B1C4: 4A
+  BCC @PadBCheck                          ; $B1C5: 90 3E
+  LDA a:$0012                             ; $B1C7: AD 12 00
+  BNE @MenuCancel                         ; $B1CA: D0 3C
+  INC $0401                               ; $B1CC: EE 01 04
+  LDY #$00                                ; $B1CF: A0 00
+  LDX #$00                                ; $B1D1: A2 00
 @CopyLoop:
-  LDA $0481,Y                            ; $B1D3: B9 81 04
-  STA $0151,Y                            ; $B1D6: 99 51 01
-  CMP #$FF                               ; $B1D9: C9 FF
-  BEQ @CopyNext                          ; $B1DB: F0 01
-  INX                                    ; $B1DD: E8
+  LDA $0481,Y                             ; $B1D3: B9 81 04
+  STA $0151,Y                             ; $B1D6: 99 51 01
+  CMP #$FF                                ; $B1D9: C9 FF
+  BEQ @CopyNext                           ; $B1DB: F0 01
+  INX                                     ; $B1DD: E8
 @CopyNext:
-  INY                                    ; $B1DE: C8
-  CPY #$0A                               ; $B1DF: C0 0A
-  BCC @CopyLoop                          ; $B1E1: 90 F0
-  CPX #$02                               ; $B1E3: E0 02
-  BCS @LeaderCheck                       ; $B1E5: B0 03
-  JMP SortieMarchDialogSetup             ; $B1E7: 4C 35 B2
+  INY                                     ; $B1DE: C8
+  CPY #$0A                                ; $B1DF: C0 0A
+  BCC @CopyLoop                           ; $B1E1: 90 F0
+  CPX #$02                                ; $B1E3: E0 02
+  BCS @LeaderCheck                        ; $B1E5: B0 03
+  JMP SortieMarchDialogSetup              ; $B1E7: 4C 35 B2
 @LeaderCheck:
-  LDY #$00                               ; $B1EA: A0 00
-  LDA ($EE),Y                            ; $B1EC: B1 EE
-  CMP $0481                              ; $B1EE: CD 81 04
-  BNE @RejectSetup                       ; $B1F1: D0 03
-  JMP SortieMarchDialogSetup             ; $B1F3: 4C 35 B2
+  LDY #$00                                ; $B1EA: A0 00
+  LDA ($EE),Y                             ; $B1EC: B1 EE
+  CMP $0481                               ; $B1EE: CD 81 04
+  BNE @RejectSetup                        ; $B1F1: D0 03
+  JMP SortieMarchDialogSetup              ; $B1F3: 4C 35 B2
 @RejectSetup:
-  LDA #$81                               ; $B1F6: A9 81
-  STA $0478                              ; $B1F8: 8D 78 04
+  LDA #$81                                ; $B1F6: A9 81
+  STA $0478                               ; $B1F8: 8D 78 04
 @RejectStart:
-  LDA #$FF                               ; $B1FB: A9 FF
-  STA $047C                              ; $B1FD: 8D 7C 04
-  LDA #$66                               ; $B200: A9 66
-  JMP B1F_SetUI0                         ; $B202: 4C 6D F2
+  LDA #$FF                                ; $B1FB: A9 FF
+  STA $047C                               ; $B1FD: 8D 7C 04
+  LDA #$66                                ; $B200: A9 66
+  JMP B1F_SetUI0                          ; $B202: 4C 6D F2
 @PadBCheck:
-  LSR                                    ; $B205: 4A
-  BCC @MenuExit                          ; $B206: 90 05
+  LSR                                     ; $B205: 4A
+  BCC @MenuExit                           ; $B206: 90 05
 @MenuCancel:
-  LDA #$00                               ; $B208: A9 00
-  STA $0401                              ; $B20A: 8D 01 04
+  LDA #$00                                ; $B208: A9 00
+  STA $0401                               ; $B20A: 8D 01 04
 @MenuExit:
-  RTS                                    ; $B20D: 60
+  RTS                                     ; $B20D: 60
 ; --- Data Region ---
 ArmyMemberMenuTable:  ; B1F_MenuStep2 items (0 proceed / 1 cancel, $FF page filler)
-  .byte $00,$01,$FF,$FF                  ; $B20E: 00 01 FF FF
+  .byte $00,$01,$FF,$FF                   ; $B20E: 00 01 FF FF
 ArmyMemberCursorPosTable:  ; per item: OAM Y base + X base word
-  .byte $D8,$48,$D8,$98                  ; $B212: D8 48 D8 98
+  .byte $D8,$48,$D8,$98                   ; $B212: D8 48 D8 98
 ArmyMemberCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
-  .byte $00,$07,$00,$00,$80              ; $B216: 00 07 00 00 80
+  .byte $00,$07,$00,$00,$80               ; $B216: 00 07 00 00 80
 ; --- Code Region ---
 SortieAbortSlideWait:  ; (dispatch callback target)
-  LDA $0478                              ; $B21B: AD 78 04
-  BNE $B231                              ; $B21E: D0 11
-  JSR $D64A                              ; $B220: 20 4A D6
-  LDA $047C                              ; $B223: AD 7C 04
-  BPL $B231                              ; $B226: 10 09
-  CMP #$90                               ; $B228: C9 90
-  BNE @SlideStep                         ; $B22A: D0 06
-  LDA #$00                               ; $B22C: A9 00
-  STA $0401                              ; $B22E: 8D 01 04
-  RTS                                    ; $B231: 60
+  LDA $0478                               ; $B21B: AD 78 04
+  BNE $B231                               ; $B21E: D0 11
+  JSR $D64A                               ; $B220: 20 4A D6
+  LDA $047C                               ; $B223: AD 7C 04
+  BPL $B231                               ; $B226: 10 09
+  CMP #$90                                ; $B228: C9 90
+  BNE @SlideStep                          ; $B22A: D0 06
+  LDA #$00                                ; $B22C: A9 00
+  STA $0401                               ; $B22E: 8D 01 04
+  RTS                                     ; $B231: 60
 @SlideStep:
 ; --- Code Region ---
-  JSR $D7A8                              ; $B232: 20 A8 D7  ; slide overlay work step
+  JSR $D7A8                               ; $B232: 20 A8 D7  ; slide overlay work step
 SortieMarchDialogSetup:
-  INC $0401                              ; $B235: EE 01 04
-  JSR MenuCursorReset                    ; $B238: 20 70 DD
-  STA $046C                              ; $B23B: 8D 6C 04
-  LDA #$29                               ; $B23E: A9 29
-  JMP B1F_SetUI0                         ; $B240: 4C 6D F2
+  INC $0401                               ; $B235: EE 01 04
+  JSR MenuCursorReset                     ; $B238: 20 70 DD
+  STA $046C                               ; $B23B: 8D 6C 04
+  LDA #$29                                ; $B23E: A9 29
+  JMP B1F_SetUI0                          ; $B240: 4C 6D F2
 SortieWarRequestGate:  ; (dispatch callback target)
-  JSR $D5BD                              ; $B243: 20 BD D5
-  LDA a:$0013                            ; $B246: AD 13 00
-  BEQ @GateExit                          ; $B249: F0 09
-  CMP #$FF                               ; $B24B: C9 FF
-  BNE $B255                              ; $B24D: D0 06
-  LDA #$00                               ; $B24F: A9 00
-  STA $0401                              ; $B251: 8D 01 04
+  JSR $D5BD                               ; $B243: 20 BD D5
+  LDA a:$0013                             ; $B246: AD 13 00
+  BEQ @GateExit                           ; $B249: F0 09
+  CMP #$FF                                ; $B24B: C9 FF
+  BNE $B255                               ; $B24D: D0 06
+  LDA #$00                                ; $B24F: A9 00
+  STA $0401                               ; $B251: 8D 01 04
 @GateExit:
-  RTS                                    ; $B254: 60
-  LDY #$39                               ; $B255: A0 39     ; target banks $19+$1A
-  JSR B1F_BankedCallbackTrampoline       ; $B257: 20 07 EE
-  .word $A015                            ; $B25A: 15 A0 (BankedCallbackTrampoline target; bank $19 $A015 -> JMP $B7D9, undocumented)
-  LDA #$01                               ; $B25C: A9 01
-  STA $04A2                              ; $B25E: 8D A2 04  ; overlay redraw param
-  LDA #$47                               ; $B261: A9 47
-  STA $04D6                              ; $B263: 8D D6 04  ; menu action extra param
-  JSR $D568                              ; $B266: 20 68 D5
-  LDA #$12                               ; $B269: A9 12
-  STA $0401                              ; $B26B: 8D 01 04  ; -> sub 18 (result redraw)
-  LDA #$00                               ; $B26E: A9 00
-  STA $0473                              ; $B270: 8D 73 04
-  LDA #$67                               ; $B273: A9 67
-  JMP B1F_SetUI0                         ; $B275: 4C 6D F2  ; UI mode $67 (no return)
+  RTS                                     ; $B254: 60
+  LDY #$39                                ; $B255: A0 39     ; target banks $19+$1A
+  JSR B1F_BankedCallbackTrampoline        ; $B257: 20 07 EE
+  .word B19_1A_SortieWarCommit            ; $B25A: 15 A0 (BankedCallbackTrampoline target; bank $19 $A015 -> JMP SortieWarCommit)
+  LDA #$01                                ; $B25C: A9 01
+  STA $04A2                               ; $B25E: 8D A2 04  ; overlay redraw param
+  LDA #$47                                ; $B261: A9 47
+  STA $04D6                               ; $B263: 8D D6 04  ; menu action extra param
+  JSR MapTransitionStateSave              ; $B266: 20 68 D5
+  LDA #$12                                ; $B269: A9 12
+  STA $0401                               ; $B26B: 8D 01 04  ; -> sub 18 (result redraw)
+  LDA #$00                                ; $B26E: A9 00
+  STA $0473                               ; $B270: 8D 73 04
+  LDA #$67                                ; $B273: A9 67
+  JMP B1F_SetUI0                          ; $B275: 4C 6D F2  ; UI mode $67 (no return)
 ConscriptionPanelWait:  ; (dispatch callback target)
 ; --- Code Region ---
-  JSR $DDAD                              ; $B278: 20 AD DD
-  BCC @PollExit                          ; $B27B: 90 16
-  JSR $D543                              ; $B27D: 20 43 D5
-  LDA a:$0081                            ; $B280: AD 81 00
-  LSR                                    ; $B283: 4A
-  BCS @ScrollSetup                       ; $B284: B0 0E
-  LSR                                    ; $B286: 4A
-  BCC @PollExit                          ; $B287: 90 0A
-  JSR $DDAD                              ; $B289: 20 AD DD
-  BCC @PollExit                          ; $B28C: 90 05
-  LDA #$00                               ; $B28E: A9 00
-  STA $0401                              ; $B290: 8D 01 04
+  JSR $DDAD                               ; $B278: 20 AD DD
+  BCC @PollExit                           ; $B27B: 90 16
+  JSR $D543                               ; $B27D: 20 43 D5
+  LDA a:$0081                             ; $B280: AD 81 00
+  LSR                                     ; $B283: 4A
+  BCS @ScrollSetup                        ; $B284: B0 0E
+  LSR                                     ; $B286: 4A
+  BCC @PollExit                           ; $B287: 90 0A
+  JSR $DDAD                               ; $B289: 20 AD DD
+  BCC @PollExit                           ; $B28C: 90 05
+  LDA #$00                                ; $B28E: A9 00
+  STA $0401                               ; $B290: 8D 01 04
 @PollExit:
-  RTS                                    ; $B293: 60
+  RTS                                     ; $B293: 60
 @ScrollSetup:
-  LDA $0402                              ; $B294: AD 02 04
-  JSR B1F_GetProvinceRecordAddr          ; $B297: 20 AF F2
-  LDY #$0C                               ; $B29A: A0 0C
-  LDA #$10                               ; $B29C: A9 10
-  SEC                                    ; $B29E: 38
-  SBC ($00),Y                            ; $B29F: F1 00
-  STA a:$0010                            ; $B2A1: 8D 10 00
-  INY                                    ; $B2A4: C8
-  LDA #$27                               ; $B2A5: A9 27
-  SBC ($00),Y                            ; $B2A7: F1 00
-  STA a:$0011                            ; $B2A9: 8D 11 00
-  BCS @ScrollClamp                       ; $B2AC: B0 0B
-  LDA #$00                               ; $B2AE: A9 00
-  STA a:$0000                            ; $B2B0: 8D 00 00
-  STA a:$0001                            ; $B2B3: 8D 01 00
-  JMP @ScrollFinish                      ; $B2B6: 4C 25 B3
+  LDA $0402                               ; $B294: AD 02 04
+  JSR B1F_GetProvinceRecordAddr           ; $B297: 20 AF F2
+  LDY #$0C                                ; $B29A: A0 0C
+  LDA #$10                                ; $B29C: A9 10
+  SEC                                     ; $B29E: 38
+  SBC ($00),Y                             ; $B29F: F1 00
+  STA a:$0010                             ; $B2A1: 8D 10 00
+  INY                                     ; $B2A4: C8
+  LDA #$27                                ; $B2A5: A9 27
+  SBC ($00),Y                             ; $B2A7: F1 00
+  STA a:$0011                             ; $B2A9: 8D 11 00
+  BCS @ScrollClamp                        ; $B2AC: B0 0B
+  LDA #$00                                ; $B2AE: A9 00
+  STA a:$0000                             ; $B2B0: 8D 00 00
+  STA a:$0001                             ; $B2B3: 8D 01 00
+  JMP @ScrollFinish                       ; $B2B6: 4C 25 B3
 @ScrollClamp:
-  LDY #$03                               ; $B2B9: A0 03
-  LDA ($00),Y                            ; $B2BB: B1 00
-  STA a:$0002                            ; $B2BD: 8D 02 00
-  DEY                                    ; $B2C0: 88
-  LDA ($00),Y                            ; $B2C1: B1 00
-  STA a:$0001                            ; $B2C3: 8D 01 00
-  LDA #$14                               ; $B2C6: A9 14
-  STA a:$0003                            ; $B2C8: 8D 03 00
-  LDA #$00                               ; $B2CB: A9 00
-  STA a:$0004                            ; $B2CD: 8D 04 00
-  JSR $EA7C                              ; $B2D0: 20 7C EA
-  LDA a:$0001                            ; $B2D3: AD 01 00
-  STA a:$0000                            ; $B2D6: 8D 00 00
-  LDA a:$0002                            ; $B2D9: AD 02 00
-  STA a:$0001                            ; $B2DC: 8D 01 00
-  LDA #$00                               ; $B2DF: A9 00
-  STA a:$0002                            ; $B2E1: 8D 02 00
-  LDA #$64                               ; $B2E4: A9 64
-  STA a:$0003                            ; $B2E6: 8D 03 00
-  JSR $EBE9                              ; $B2E9: 20 E9 EB
-  LDA a:$0006                            ; $B2EC: AD 06 00
-  STA a:$0000                            ; $B2EF: 8D 00 00
-  LDA a:$0007                            ; $B2F2: AD 07 00
-  STA a:$0001                            ; $B2F5: 8D 01 00
-  LDA a:$0010                            ; $B2F8: AD 10 00
-  SEC                                    ; $B2FB: 38
-  SBC a:$0000                            ; $B2FC: ED 00 00
-  LDA a:$0011                            ; $B2FF: AD 11 00
-  SBC a:$0001                            ; $B302: ED 01 00
-  BCS @ScrollStore                       ; $B305: B0 0C
-  LDA a:$0010                            ; $B307: AD 10 00
-  STA a:$0000                            ; $B30A: 8D 00 00
-  LDA a:$0011                            ; $B30D: AD 11 00
-  STA a:$0001                            ; $B310: 8D 01 00
+  LDY #$03                                ; $B2B9: A0 03
+  LDA ($00),Y                             ; $B2BB: B1 00
+  STA a:$0002                             ; $B2BD: 8D 02 00
+  DEY                                     ; $B2C0: 88
+  LDA ($00),Y                             ; $B2C1: B1 00
+  STA a:$0001                             ; $B2C3: 8D 01 00
+  LDA #$14                                ; $B2C6: A9 14
+  STA a:$0003                             ; $B2C8: 8D 03 00
+  LDA #$00                                ; $B2CB: A9 00
+  STA a:$0004                             ; $B2CD: 8D 04 00
+  JSR $EA7C                               ; $B2D0: 20 7C EA
+  LDA a:$0001                             ; $B2D3: AD 01 00
+  STA a:$0000                             ; $B2D6: 8D 00 00
+  LDA a:$0002                             ; $B2D9: AD 02 00
+  STA a:$0001                             ; $B2DC: 8D 01 00
+  LDA #$00                                ; $B2DF: A9 00
+  STA a:$0002                             ; $B2E1: 8D 02 00
+  LDA #$64                                ; $B2E4: A9 64
+  STA a:$0003                             ; $B2E6: 8D 03 00
+  JSR $EBE9                               ; $B2E9: 20 E9 EB
+  LDA a:$0006                             ; $B2EC: AD 06 00
+  STA a:$0000                             ; $B2EF: 8D 00 00
+  LDA a:$0007                             ; $B2F2: AD 07 00
+  STA a:$0001                             ; $B2F5: 8D 01 00
+  LDA a:$0010                             ; $B2F8: AD 10 00
+  SEC                                     ; $B2FB: 38
+  SBC a:$0000                             ; $B2FC: ED 00 00
+  LDA a:$0011                             ; $B2FF: AD 11 00
+  SBC a:$0001                             ; $B302: ED 01 00
+  BCS @ScrollStore                        ; $B305: B0 0C
+  LDA a:$0010                             ; $B307: AD 10 00
+  STA a:$0000                             ; $B30A: 8D 00 00
+  LDA a:$0011                             ; $B30D: AD 11 00
+  STA a:$0001                             ; $B310: 8D 01 00
 @ScrollStore:
-  LDA #$00                               ; $B313: A9 00
-  STA a:$0002                            ; $B315: 8D 02 00
-  STA a:$0004                            ; $B318: 8D 04 00
-  LDA #$64                               ; $B31B: A9 64
-  STA a:$0003                            ; $B31D: 8D 03 00
-  LDA #$00                               ; $B320: A9 00
-  JSR $EAA5                              ; $B322: 20 A5 EA
+  LDA #$00                                ; $B313: A9 00
+  STA a:$0002                             ; $B315: 8D 02 00
+  STA a:$0004                             ; $B318: 8D 04 00
+  LDA #$64                                ; $B31B: A9 64
+  STA a:$0003                             ; $B31D: 8D 03 00
+  LDA #$00                                ; $B320: A9 00
+  JSR $EAA5                               ; $B322: 20 A5 EA
 @ScrollFinish:
-  LDA a:$0000                            ; $B325: AD 00 00
-  STA $0490                              ; $B328: 8D 90 04
-  LDA a:$0001                            ; $B32B: AD 01 00
-  STA $0491                              ; $B32E: 8D 91 04
-  JSR $DB87                              ; $B331: 20 87 DB
-  INC $0401                              ; $B334: EE 01 04
-  LDA #$69                               ; $B337: A9 69
-  JMP B1F_SetUI0                         ; $B339: 4C 6D F2
+  LDA a:$0000                             ; $B325: AD 00 00
+  STA $0490                               ; $B328: 8D 90 04
+  LDA a:$0001                             ; $B32B: AD 01 00
+  STA $0491                               ; $B32E: 8D 91 04
+  JSR $DB87                               ; $B331: 20 87 DB
+  INC $0401                               ; $B334: EE 01 04
+  LDA #$69                                ; $B337: A9 69
+  JMP B1F_SetUI0                          ; $B339: 4C 6D F2
 ConscriptionPanelInput:  ; (dispatch callback target)
-  JSR $DDAD                              ; $B33C: 20 AD DD
-  BCC @PanelExit                         ; $B33F: 90 2B
-  LDA #$D0                               ; $B341: A9 D0
-  STA $031C                              ; $B343: 8D 1C 03
-  LDA #$22                               ; $B346: A9 22
-  STA $031D                              ; $B348: 8D 1D 03
-  LDA #$02                               ; $B34B: A9 02
-  JSR $DA04                              ; $B34D: 20 04 DA
-  LDA a:$0081                            ; $B350: AD 81 00
-  LSR                                    ; $B353: 4A
-  BCC @PanelBCheck                       ; $B354: 90 0E
-  JSR MenuCursorReset                    ; $B356: 20 70 DD
-  STA $046C                              ; $B359: 8D 6C 04
-  INC $0401                              ; $B35C: EE 01 04
-  LDA #$29                               ; $B35F: A9 29
-  JMP B1F_SetUI0                         ; $B361: 4C 6D F2
+  JSR $DDAD                               ; $B33C: 20 AD DD
+  BCC @PanelExit                          ; $B33F: 90 2B
+  LDA #$D0                                ; $B341: A9 D0
+  STA $031C                               ; $B343: 8D 1C 03
+  LDA #$22                                ; $B346: A9 22
+  STA $031D                               ; $B348: 8D 1D 03
+  LDA #$02                                ; $B34B: A9 02
+  JSR $DA04                               ; $B34D: 20 04 DA
+  LDA a:$0081                             ; $B350: AD 81 00
+  LSR                                     ; $B353: 4A
+  BCC @PanelBCheck                        ; $B354: 90 0E
+  JSR MenuCursorReset                     ; $B356: 20 70 DD
+  STA $046C                               ; $B359: 8D 6C 04
+  INC $0401                               ; $B35C: EE 01 04
+  LDA #$29                                ; $B35F: A9 29
+  JMP B1F_SetUI0                          ; $B361: 4C 6D F2
 @PanelBCheck:
-  LSR                                    ; $B364: 4A
-  BCC @PanelExit                         ; $B365: 90 05
-  LDA #$00                               ; $B367: A9 00
-  STA $0401                              ; $B369: 8D 01 04
+  LSR                                     ; $B364: 4A
+  BCC @PanelExit                          ; $B365: 90 05
+  LDA #$00                                ; $B367: A9 00
+  STA $0401                               ; $B369: 8D 01 04
 @PanelExit:
-  RTS                                    ; $B36C: 60
+  RTS                                     ; $B36C: 60
 ConscriptionApply:  ; (dispatch callback target)
-  JSR $D5BD                              ; $B36D: 20 BD D5
-  LDA a:$0013                            ; $B370: AD 13 00
-  BEQ @ApplyWait                         ; $B373: F0 09
-  CMP #$FF                               ; $B375: C9 FF
-  BNE @ApplyAmount                       ; $B377: D0 06
-  LDA #$00                               ; $B379: A9 00
-  STA $0401                              ; $B37B: 8D 01 04
+  JSR $D5BD                               ; $B36D: 20 BD D5
+  LDA a:$0013                             ; $B370: AD 13 00
+  BEQ @ApplyWait                          ; $B373: F0 09
+  CMP #$FF                                ; $B375: C9 FF
+  BNE @ApplyAmount                        ; $B377: D0 06
+  LDA #$00                                ; $B379: A9 00
+  STA $0401                               ; $B37B: 8D 01 04
 @ApplyWait:
-  RTS                                    ; $B37E: 60
+  RTS                                     ; $B37E: 60
 @ApplyAmount:
-  LDA $048E                              ; $B37F: AD 8E 04
-  STA a:$0000                            ; $B382: 8D 00 00
-  LDA $048F                              ; $B385: AD 8F 04
-  STA a:$0001                            ; $B388: 8D 01 00
-  LDA #$00                               ; $B38B: A9 00
-  STA a:$0002                            ; $B38D: 8D 02 00
-  LDA #$14                               ; $B390: A9 14
-  STA a:$0003                            ; $B392: 8D 03 00
-  JSR $EBE9                              ; $B395: 20 E9 EB
-  LDA a:$0006                            ; $B398: AD 06 00
-  STA a:$0010                            ; $B39B: 8D 10 00
-  LDA a:$0007                            ; $B39E: AD 07 00
-  STA a:$0011                            ; $B3A1: 8D 11 00
-  LDA $048E                              ; $B3A4: AD 8E 04
-  STA a:$0000                            ; $B3A7: 8D 00 00
-  LDA $048F                              ; $B3AA: AD 8F 04
-  STA a:$0001                            ; $B3AD: 8D 01 00
-  LDA #$00                               ; $B3B0: A9 00
-  STA a:$0002                            ; $B3B2: 8D 02 00
-  LDA #$64                               ; $B3B5: A9 64
-  STA a:$0003                            ; $B3B7: 8D 03 00
-  JSR $EBE9                              ; $B3BA: 20 E9 EB
-  LDA $0402                              ; $B3BD: AD 02 04
-  JSR B1F_GetProvinceRecordAddr          ; $B3C0: 20 AF F2
-  LDY #$02                               ; $B3C3: A0 02
-  LDA ($00),Y                            ; $B3C5: B1 00
-  SEC                                    ; $B3C7: 38
-  SBC a:$0010                            ; $B3C8: ED 10 00
-  STA ($00),Y                            ; $B3CB: 91 00
-  INY                                    ; $B3CD: C8
-  LDA ($00),Y                            ; $B3CE: B1 00
-  SBC a:$0011                            ; $B3D0: ED 11 00
-  STA ($00),Y                            ; $B3D3: 91 00
-  LDY #$0C                               ; $B3D5: A0 0C
-  LDA ($00),Y                            ; $B3D7: B1 00
-  CLC                                    ; $B3D9: 18
-  ADC a:$0006                            ; $B3DA: 6D 06 00
-  STA ($00),Y                            ; $B3DD: 91 00
-  STA $042C                              ; $B3DF: 8D 2C 04
-  INY                                    ; $B3E2: C8
-  LDA ($00),Y                            ; $B3E3: B1 00
-  ADC a:$0007                            ; $B3E5: 6D 07 00
-  STA ($00),Y                            ; $B3E8: 91 00
-  STA $042D                              ; $B3EA: 8D 2D 04
-  LDA #$00                               ; $B3ED: A9 00
-  STA $042E                              ; $B3EF: 8D 2E 04
-  LDA #$1A                               ; $B3F2: A9 1A
-  STA $04A2                              ; $B3F4: 8D A2 04
-  LDA #$4D                               ; $B3F7: A9 4D
-  STA $04D6                              ; $B3F9: 8D D6 04
-  LDA #$12                               ; $B3FC: A9 12
-  STA $0401                              ; $B3FE: 8D 01 04
-  LDA #$FF                               ; $B401: A9 FF
-  STA $0473                              ; $B403: 8D 73 04
-  JSR $D568                              ; $B406: 20 68 D5
-  LDA #$00                               ; $B409: A9 00
-  JMP B1F_ClearUI                        ; $B40B: 4C 9B F2
+  LDA $048E                               ; $B37F: AD 8E 04
+  STA a:$0000                             ; $B382: 8D 00 00
+  LDA $048F                               ; $B385: AD 8F 04
+  STA a:$0001                             ; $B388: 8D 01 00
+  LDA #$00                                ; $B38B: A9 00
+  STA a:$0002                             ; $B38D: 8D 02 00
+  LDA #$14                                ; $B390: A9 14
+  STA a:$0003                             ; $B392: 8D 03 00
+  JSR $EBE9                               ; $B395: 20 E9 EB
+  LDA a:$0006                             ; $B398: AD 06 00
+  STA a:$0010                             ; $B39B: 8D 10 00
+  LDA a:$0007                             ; $B39E: AD 07 00
+  STA a:$0011                             ; $B3A1: 8D 11 00
+  LDA $048E                               ; $B3A4: AD 8E 04
+  STA a:$0000                             ; $B3A7: 8D 00 00
+  LDA $048F                               ; $B3AA: AD 8F 04
+  STA a:$0001                             ; $B3AD: 8D 01 00
+  LDA #$00                                ; $B3B0: A9 00
+  STA a:$0002                             ; $B3B2: 8D 02 00
+  LDA #$64                                ; $B3B5: A9 64
+  STA a:$0003                             ; $B3B7: 8D 03 00
+  JSR $EBE9                               ; $B3BA: 20 E9 EB
+  LDA $0402                               ; $B3BD: AD 02 04
+  JSR B1F_GetProvinceRecordAddr           ; $B3C0: 20 AF F2
+  LDY #$02                                ; $B3C3: A0 02
+  LDA ($00),Y                             ; $B3C5: B1 00
+  SEC                                     ; $B3C7: 38
+  SBC a:$0010                             ; $B3C8: ED 10 00
+  STA ($00),Y                             ; $B3CB: 91 00
+  INY                                     ; $B3CD: C8
+  LDA ($00),Y                             ; $B3CE: B1 00
+  SBC a:$0011                             ; $B3D0: ED 11 00
+  STA ($00),Y                             ; $B3D3: 91 00
+  LDY #$0C                                ; $B3D5: A0 0C
+  LDA ($00),Y                             ; $B3D7: B1 00
+  CLC                                     ; $B3D9: 18
+  ADC a:$0006                             ; $B3DA: 6D 06 00
+  STA ($00),Y                             ; $B3DD: 91 00
+  STA $042C                               ; $B3DF: 8D 2C 04
+  INY                                     ; $B3E2: C8
+  LDA ($00),Y                             ; $B3E3: B1 00
+  ADC a:$0007                             ; $B3E5: 6D 07 00
+  STA ($00),Y                             ; $B3E8: 91 00
+  STA $042D                               ; $B3EA: 8D 2D 04
+  LDA #$00                                ; $B3ED: A9 00
+  STA $042E                               ; $B3EF: 8D 2E 04
+  LDA #$1A                                ; $B3F2: A9 1A
+  STA $04A2                               ; $B3F4: 8D A2 04
+  LDA #$4D                                ; $B3F7: A9 4D
+  STA $04D6                               ; $B3F9: 8D D6 04
+  LDA #$12                                ; $B3FC: A9 12
+  STA $0401                               ; $B3FE: 8D 01 04
+  LDA #$FF                                ; $B401: A9 FF
+  STA $0473                               ; $B403: 8D 73 04
+  JSR MapTransitionStateSave              ; $B406: 20 68 D5
+  LDA #$00                                ; $B409: A9 00
+  JMP B1F_ClearUI                         ; $B40B: 4C 9B F2
 ResultPanPrompt:  ; (dispatch callback target)
-  JSR $DDAD                              ; $B40E: 20 AD DD
-  BCC @PromptExit                        ; $B411: 90 1D
-  JSR $D543                              ; $B413: 20 43 D5
-  LDA a:$0081                            ; $B416: AD 81 00
-  AND #$03                               ; $B419: 29 03
-  BNE @PanStart                          ; $B41B: D0 01
-  RTS                                    ; $B41D: 60
+  JSR $DDAD                               ; $B40E: 20 AD DD
+  BCC @PromptExit                         ; $B411: 90 1D
+  JSR $D543                               ; $B413: 20 43 D5
+  LDA a:$0081                             ; $B416: AD 81 00
+  AND #$03                                ; $B419: 29 03
+  BNE @PanStart                           ; $B41B: D0 01
+  RTS                                     ; $B41D: 60
 @PanStart:
-  LDA #$81                               ; $B41E: A9 81
-  STA $0478                              ; $B420: 8D 78 04
-  LDA #$10                               ; $B423: A9 10
-  STA $047C                              ; $B425: 8D 7C 04
-  INC $0401                              ; $B428: EE 01 04
-  LDA #$6A                               ; $B42B: A9 6A
-  JMP B1F_SetUI0                         ; $B42D: 4C 6D F2
+  LDA #$81                                ; $B41E: A9 81
+  STA $0478                               ; $B420: 8D 78 04
+  LDA #$10                                ; $B423: A9 10
+  STA $047C                               ; $B425: 8D 7C 04
+  INC $0401                               ; $B428: EE 01 04
+  LDA #$6A                                ; $B42B: A9 6A
+  JMP B1F_SetUI0                          ; $B42D: 4C 6D F2
 @PromptExit:
-  RTS                                    ; $B430: 60
+  RTS                                     ; $B430: 60
 ResultPanWait:  ; (dispatch callback target)
-  LDA $0478                              ; $B431: AD 78 04
-  BNE @PanWaitExit                       ; $B434: D0 26
-  JSR $D64A                              ; $B436: 20 4A D6
-  LDA $047C                              ; $B439: AD 7C 04
-  BPL @PanWaitExit                       ; $B43C: 10 1E
-  LDA $0402                              ; $B43E: AD 02 04
-  JSR B1F_GetProvinceRecordAddr          ; $B441: 20 AF F2
-  LDY #$0C                               ; $B444: A0 0C
-  LDA $042C                              ; $B446: AD 2C 04
-  STA ($00),Y                            ; $B449: 91 00
-  INY                                    ; $B44B: C8
-  LDA $042D                              ; $B44C: AD 2D 04
-  STA ($00),Y                            ; $B44F: 91 00
-  JSR $D568                              ; $B451: 20 68 D5
-  LDA #$00                               ; $B454: A9 00
-  STA $0400                              ; $B456: 8D 00 04
-  STA $0401                              ; $B459: 8D 01 04
+  LDA $0478                               ; $B431: AD 78 04
+  BNE @PanWaitExit                        ; $B434: D0 26
+  JSR $D64A                               ; $B436: 20 4A D6
+  LDA $047C                               ; $B439: AD 7C 04
+  BPL @PanWaitExit                        ; $B43C: 10 1E
+  LDA $0402                               ; $B43E: AD 02 04
+  JSR B1F_GetProvinceRecordAddr           ; $B441: 20 AF F2
+  LDY #$0C                                ; $B444: A0 0C
+  LDA $042C                               ; $B446: AD 2C 04
+  STA ($00),Y                             ; $B449: 91 00
+  INY                                     ; $B44B: C8
+  LDA $042D                               ; $B44C: AD 2D 04
+  STA ($00),Y                             ; $B44F: 91 00
+  JSR MapTransitionStateSave              ; $B451: 20 68 D5
+  LDA #$00                                ; $B454: A9 00
+  STA $0400                               ; $B456: 8D 00 04
+  STA $0401                               ; $B459: 8D 01 04
 @PanWaitExit:
-  RTS                                    ; $B45C: 60
+  RTS                                     ; $B45C: 60
 ReconPromptWait:  ; (dispatch callback target)
-  JSR $D5BD                              ; $B45D: 20 BD D5
-  LDA a:$0013                            ; $B460: AD 13 00
-  BEQ ReconPromptWaitExit                ; $B463: F0 14
-  CMP #$FF                               ; $B465: C9 FF
-  BEQ @PromptCancel                      ; $B467: F0 0B
-  INC $0401                              ; $B469: EE 01 04
-  JSR $D568                              ; $B46C: 20 68 D5
-  LDA #$6B                               ; $B46F: A9 6B
-  JMP B1F_SetUI0                         ; $B471: 4C 6D F2
+  JSR $D5BD                               ; $B45D: 20 BD D5
+  LDA a:$0013                             ; $B460: AD 13 00
+  BEQ ReconPromptWaitExit                 ; $B463: F0 14
+  CMP #$FF                                ; $B465: C9 FF
+  BEQ @PromptCancel                       ; $B467: F0 0B
+  INC $0401                               ; $B469: EE 01 04
+  JSR MapTransitionStateSave              ; $B46C: 20 68 D5
+  LDA #$6B                                ; $B46F: A9 6B
+  JMP B1F_SetUI0                          ; $B471: 4C 6D F2
 @PromptCancel:
-  LDA #$00                               ; $B474: A9 00
-  STA $0401                              ; $B476: 8D 01 04
+  LDA #$00                                ; $B474: A9 00
+  STA $0401                               ; $B476: 8D 01 04
 ReconPromptWaitExit:
-  RTS                                    ; $B479: 60
+  RTS                                     ; $B479: 60
 ReconTargetPadPoll:  ; (dispatch callback target)
-  JSR $DDF2                              ; $B47A: 20 F2 DD
-  JSR $DDAD                              ; $B47D: 20 AD DD
-  BCC ReconPromptWaitExit                ; $B480: 90 F7
-  LDA a:$0081                            ; $B482: AD 81 00
-  LSR                                    ; $B485: 4A
-  BCS @TargetPick                        ; $B486: B0 22
-  LSR                                    ; $B488: 4A
-  BCC ReconPromptWaitExit                ; $B489: 90 EE
-  LDA #$FF                               ; $B48B: A9 FF
-  STA $04E4                              ; $B48D: 8D E4 04
-  JSR $DDAD                              ; $B490: 20 AD DD
-  BCC ReconPromptWaitExit                ; $B493: 90 E4
-  LDA #$11                               ; $B495: A9 11
-  STA $0401                              ; $B497: 8D 01 04
-  JSR MenuCursorReset                    ; $B49A: 20 70 DD
-  STA $04E4                              ; $B49D: 8D E4 04
-  LDA #$6D                               ; $B4A0: A9 6D
-  JMP B1F_SetUI0                         ; $B4A2: 4C 6D F2
+  JSR $DDF2                               ; $B47A: 20 F2 DD
+  JSR $DDAD                               ; $B47D: 20 AD DD
+  BCC ReconPromptWaitExit                 ; $B480: 90 F7
+  LDA a:$0081                             ; $B482: AD 81 00
+  LSR                                     ; $B485: 4A
+  BCS @TargetPick                         ; $B486: B0 22
+  LSR                                     ; $B488: 4A
+  BCC ReconPromptWaitExit                 ; $B489: 90 EE
+  LDA #$FF                                ; $B48B: A9 FF
+  STA $04E4                               ; $B48D: 8D E4 04
+  JSR $DDAD                               ; $B490: 20 AD DD
+  BCC ReconPromptWaitExit                 ; $B493: 90 E4
+  LDA #$11                                ; $B495: A9 11
+  STA $0401                               ; $B497: 8D 01 04
+  JSR MenuCursorReset                     ; $B49A: 20 70 DD
+  STA $04E4                               ; $B49D: 8D E4 04
+  LDA #$6D                                ; $B4A0: A9 6D
+  JMP B1F_SetUI0                          ; $B4A2: 4C 6D F2
 @OffMapExit:
-  LDA #$24                               ; $B4A5: A9 24
-  JMP B1F_SetUI0                         ; $B4A7: 4C 6D F2
+  LDA #$24                                ; $B4A5: A9 24
+  JMP B1F_SetUI0                          ; $B4A7: 4C 6D F2
 @TargetPick:
-  JSR $DEBA                              ; $B4AA: 20 BA DE
-  CPY #$FF                               ; $B4AD: C0 FF
-  BEQ @OffMapExit                        ; $B4AF: F0 F4
-  STY $0402                              ; $B4B1: 8C 02 04
-  TYA                                    ; $B4B4: 98
-  JSR B1F_GetProvinceRecordAddr          ; $B4B5: 20 AF F2
-  LDA #$80                               ; $B4B8: A9 80
-  STA $0140                              ; $B4BA: 8D 40 01
-  LDX #$01                               ; $B4BD: A2 01
-  LDY #$80                               ; $B4BF: A0 80
-  LDA $6F3F                              ; $B4C1: AD 3F 6F
-  BMI @HemisphereStore                   ; $B4C4: 30 04
-  LDX #$81                               ; $B4C6: A2 81
-  LDY #$40                               ; $B4C8: A0 40
+  JSR $DEBA                               ; $B4AA: 20 BA DE
+  CPY #$FF                                ; $B4AD: C0 FF
+  BEQ @OffMapExit                         ; $B4AF: F0 F4
+  STY $0402                               ; $B4B1: 8C 02 04
+  TYA                                     ; $B4B4: 98
+  JSR B1F_GetProvinceRecordAddr           ; $B4B5: 20 AF F2
+  LDA #$80                                ; $B4B8: A9 80
+  STA $0140                               ; $B4BA: 8D 40 01
+  LDX #$01                                ; $B4BD: A2 01
+  LDY #$80                                ; $B4BF: A0 80
+  LDA $6F3F                               ; $B4C1: AD 3F 6F
+  BMI @HemisphereStore                    ; $B4C4: 30 04
+  LDX #$81                                ; $B4C6: A2 81
+  LDY #$40                                ; $B4C8: A0 40
 @HemisphereStore:
-  STX $0150                              ; $B4CA: 8E 50 01
-  LDA #$FF                               ; $B4CD: A9 FF
-  STA $04E4                              ; $B4CF: 8D E4 04
-  LDA #$00                               ; $B4D2: A9 00
-  STA $0472                              ; $B4D4: 8D 72 04
-  LDA #$01                               ; $B4D7: A9 01
-  STA $0473                              ; $B4D9: 8D 73 04
-  LDY #$00                               ; $B4DC: A0 00
-  LDA ($00),Y                            ; $B4DE: B1 00
-  CMP #$07                               ; $B4E0: C9 07
-  BNE @TargetOwned                       ; $B4E2: D0 0A
-  LDA #$17                               ; $B4E4: A9 17
-  STA $0401                              ; $B4E6: 8D 01 04
-  LDA #$B7                               ; $B4E9: A9 B7
-  JMP B1F_SetUI0                         ; $B4EB: 4C 6D F2
+  STX $0150                               ; $B4CA: 8E 50 01
+  LDA #$FF                                ; $B4CD: A9 FF
+  STA $04E4                               ; $B4CF: 8D E4 04
+  LDA #$00                                ; $B4D2: A9 00
+  STA $0472                               ; $B4D4: 8D 72 04
+  LDA #$01                                ; $B4D7: A9 01
+  STA $0473                               ; $B4D9: 8D 73 04
+  LDY #$00                                ; $B4DC: A0 00
+  LDA ($00),Y                             ; $B4DE: B1 00
+  CMP #$07                                ; $B4E0: C9 07
+  BNE @TargetOwned                        ; $B4E2: D0 0A
+  LDA #$17                                ; $B4E4: A9 17
+  STA $0401                               ; $B4E6: 8D 01 04
+  LDA #$B7                                ; $B4E9: A9 B7
+  JMP B1F_SetUI0                          ; $B4EB: 4C 6D F2
 @TargetOwned:
-  LDA #$00                               ; $B4EE: A9 00
-  STA $0400                              ; $B4F0: 8D 00 04
-  LDA #$02                               ; $B4F3: A9 02
-  STA $0401                              ; $B4F5: 8D 01 04
-  LDA #$03                               ; $B4F8: A9 03
-  STA $0470                              ; $B4FA: 8D 70 04
-  LDA #$10                               ; $B4FD: A9 10
-  STA $0471                              ; $B4FF: 8D 71 04
-  LDA #$00                               ; $B502: A9 00
-  JMP B1F_SetUI0                         ; $B504: 4C 6D F2
+  LDA #$00                                ; $B4EE: A9 00
+  STA $0400                               ; $B4F0: 8D 00 04
+  LDA #$02                                ; $B4F3: A9 02
+  STA $0401                               ; $B4F5: 8D 01 04
+  LDA #$03                                ; $B4F8: A9 03
+  STA $0470                               ; $B4FA: 8D 70 04
+  LDA #$10                                ; $B4FD: A9 10
+  STA $0471                               ; $B4FF: 8D 71 04
+  LDA #$00                                ; $B502: A9 00
+  JMP B1F_SetUI0                          ; $B504: 4C 6D F2
 ReconExitPromptInit:  ; (dispatch callback target)
-  LDA #$80                               ; $B507: A9 80
-  STA $0140                              ; $B509: 8D 40 01
-  LDX #$00                               ; $B50C: A2 00
-  LDA $6F3F                              ; $B50E: AD 3F 6F
-  BMI @HemisphereStore                   ; $B511: 30 02
-  LDX #$80                               ; $B513: A2 80
+  LDA #$80                                ; $B507: A9 80
+  STA $0140                               ; $B509: 8D 40 01
+  LDX #$00                                ; $B50C: A2 00
+  LDA $6F3F                               ; $B50E: AD 3F 6F
+  BMI @HemisphereStore                    ; $B511: 30 02
+  LDX #$80                                ; $B513: A2 80
 @HemisphereStore:
-  STX $0150                              ; $B515: 8E 50 01
-  JSR MenuCursorReset                    ; $B518: 20 70 DD
-  INC $0401                              ; $B51B: EE 01 04
-  LDA #$00                               ; $B51E: A9 00
-  STA $04E4                              ; $B520: 8D E4 04
-  LDA #$6D                               ; $B523: A9 6D
-  JMP B1F_SetUI0                         ; $B525: 4C 6D F2
+  STX $0150                               ; $B515: 8E 50 01
+  JSR MenuCursorReset                     ; $B518: 20 70 DD
+  INC $0401                               ; $B51B: EE 01 04
+  LDA #$00                                ; $B51E: A9 00
+  STA $04E4                               ; $B520: 8D E4 04
+  LDA #$6D                                ; $B523: A9 6D
+  JMP B1F_SetUI0                          ; $B525: 4C 6D F2
 ReconExitMenu:  ; (dispatch callback target)
-  LDA #$85                               ; $B528: A9 85
-  STA a:$0010                            ; $B52A: 8D 10 00
-  LDA #$B5                               ; $B52D: A9 B5
-  STA a:$0011                            ; $B52F: 8D 11 00
-  LDA #$00                               ; $B532: A9 00
-  STA a:$0012                            ; $B534: 8D 12 00
-  JSR B1F_MenuStep2                      ; $B537: 20 1E ED
-  LDA #$89                               ; $B53A: A9 89
-  STA a:$0010                            ; $B53C: 8D 10 00
-  LDA #$B5                               ; $B53F: A9 B5
-  STA a:$0011                            ; $B541: 8D 11 00
-  LDA #$8D                               ; $B544: A9 8D
-  STA a:$0000                            ; $B546: 8D 00 00
-  LDA #$B5                               ; $B549: A9 B5
-  STA a:$0001                            ; $B54B: 8D 01 00
-  LDA a:$0012                            ; $B54E: AD 12 00
-  JSR B1F_PointerTableLookup             ; $B551: 20 F5 ED
-  JSR $DDAD                              ; $B554: 20 AD DD
-  BCC @MenuExit                          ; $B557: 90 2B
-  LDA a:$0081                            ; $B559: AD 81 00
-  LSR                                    ; $B55C: 4A
-  BCC @MenuExit                          ; $B55D: 90 25
-  LDA a:$0012                            ; $B55F: AD 12 00
-  BNE @ExitLeave                         ; $B562: D0 0A
-  LDA #$0F                               ; $B564: A9 0F
-  STA $0401                              ; $B566: 8D 01 04
-  LDA #$6B                               ; $B569: A9 6B
-  JMP B1F_SetUI0                         ; $B56B: 4C 6D F2
+  LDA #$85                                ; $B528: A9 85
+  STA a:$0010                             ; $B52A: 8D 10 00
+  LDA #$B5                                ; $B52D: A9 B5
+  STA a:$0011                             ; $B52F: 8D 11 00
+  LDA #$00                                ; $B532: A9 00
+  STA a:$0012                             ; $B534: 8D 12 00
+  JSR B1F_MenuStep2                       ; $B537: 20 1E ED
+  LDA #$89                                ; $B53A: A9 89
+  STA a:$0010                             ; $B53C: 8D 10 00
+  LDA #$B5                                ; $B53F: A9 B5
+  STA a:$0011                             ; $B541: 8D 11 00
+  LDA #$8D                                ; $B544: A9 8D
+  STA a:$0000                             ; $B546: 8D 00 00
+  LDA #$B5                                ; $B549: A9 B5
+  STA a:$0001                             ; $B54B: 8D 01 00
+  LDA a:$0012                             ; $B54E: AD 12 00
+  JSR B1F_PointerTableLookup              ; $B551: 20 F5 ED
+  JSR $DDAD                               ; $B554: 20 AD DD
+  BCC @MenuExit                           ; $B557: 90 2B
+  LDA a:$0081                             ; $B559: AD 81 00
+  LSR                                     ; $B55C: 4A
+  BCC @MenuExit                           ; $B55D: 90 25
+  LDA a:$0012                             ; $B55F: AD 12 00
+  BNE @ExitLeave                          ; $B562: D0 0A
+  LDA #$0F                                ; $B564: A9 0F
+  STA $0401                               ; $B566: 8D 01 04
+  LDA #$6B                                ; $B569: A9 6B
+  JMP B1F_SetUI0                          ; $B56B: 4C 6D F2
 @ExitLeave:
-  LDA $046D                              ; $B56E: AD 6D 04
-  STA $6F3F                              ; $B571: 8D 3F 6F
-  LDA $046E                              ; $B574: AD 6E 04
-  STA $6F41                              ; $B577: 8D 41 6F
-  LDA #$00                               ; $B57A: A9 00
-  STA $0400                              ; $B57C: 8D 00 04
-  STA $0401                              ; $B57F: 8D 01 04
-  LDA #$03                               ; $B582: A9 03
+  LDA $046D                               ; $B56E: AD 6D 04
+  STA $6F3F                               ; $B571: 8D 3F 6F
+  LDA $046E                               ; $B574: AD 6E 04
+  STA $6F41                               ; $B577: 8D 41 6F
+  LDA #$00                                ; $B57A: A9 00
+  STA $0400                               ; $B57C: 8D 00 04
+  STA $0401                               ; $B57F: 8D 01 04
+  LDA #$03                                ; $B582: A9 03
 @MenuExit:
-  RTS                                    ; $B584: 60
+  RTS                                     ; $B584: 60
 ; --- Data Region ---
 ArmyReconExitMenuTable:  ; B1F_MenuStep2 items (0 resume picking / 1 leave, $FF page filler)
-  .byte $00,$01,$FF,$FF                  ; $B585: 00 01 FF FF
+  .byte $00,$01,$FF,$FF                   ; $B585: 00 01 FF FF
 ArmyReconExitCursorPosTable:  ; per item: OAM Y base + X base word
-  .byte $C8,$48,$C8,$98                  ; $B589: C8 48 C8 98
+  .byte $C8,$48,$C8,$98                   ; $B589: C8 48 C8 98
 ArmyReconExitCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
-  .byte $00,$07,$00,$00,$80              ; $B58D: 00 07 00 00 80
+  .byte $00,$07,$00,$00,$80               ; $B58D: 00 07 00 00 80
 ; --- Code Region ---
 ResultRedrawTrigger:  ; (dispatch callback target)
-  LDA $0140                              ; $B592: AD 40 01
-  BNE $B5A5                              ; $B595: D0 0E
-  LDA $04A2                              ; $B597: AD A2 04
-  STA $04A0                              ; $B59A: 8D A0 04
-  INC $0401                              ; $B59D: EE 01 04
-  LDA #$20                               ; $B5A0: A9 20
-  STA $046C                              ; $B5A2: 8D 6C 04
-  RTS                                    ; $B5A5: 60
+  LDA $0140                               ; $B592: AD 40 01
+  BNE $B5A5                               ; $B595: D0 0E
+  LDA $04A2                               ; $B597: AD A2 04
+  STA $04A0                               ; $B59A: 8D A0 04
+  INC $0401                               ; $B59D: EE 01 04
+  LDA #$20                                ; $B5A0: A9 20
+  STA $046C                               ; $B5A2: 8D 6C 04
+  RTS                                     ; $B5A5: 60
 MarchRouteGate:  ; (dispatch callback target)
-  LDA $04A0                              ; $B5A6: AD A0 04
-  BNE @GateExit                          ; $B5A9: D0 30
-  LDA $0140                              ; $B5AB: AD 40 01
-  BNE @GateExit                          ; $B5AE: D0 2B
-  LDA $0473                              ; $B5B0: AD 73 04
-  BMI @RouteResultPan                    ; $B5B3: 30 1C
-  LDA $0507                              ; $B5B5: AD 07 05
-  AND #$0F                               ; $B5B8: 29 0F
-  CMP #$07                               ; $B5BA: C9 07
-  BEQ @RoutePeaceful                     ; $B5BC: F0 10
-  JSR $ECEE                              ; $B5BE: 20 EE EC
-  LDY #$3D                               ; $B5C1: A0 3D     ; target banks $1D+$1E
-  JSR B1F_BankedCallbackTrampoline       ; $B5C3: 20 07 EE
-  .word B1D_1E_ImmediateOverlay          ; $B5C6: 24 A0 (BankedCallbackTrampoline target)
-  LDA #$15                               ; $B5C8: A9 15
-  STA $0401                              ; $B5CA: 8D 01 04  ; -> sub 21 (war scene launch)
-  RTS                                    ; $B5CD: 60
+  LDA $04A0                               ; $B5A6: AD A0 04
+  BNE @GateExit                           ; $B5A9: D0 30
+  LDA $0140                               ; $B5AB: AD 40 01
+  BNE @GateExit                           ; $B5AE: D0 2B
+  LDA $0473                               ; $B5B0: AD 73 04
+  BMI @RouteResultPan                     ; $B5B3: 30 1C
+  LDA $0507                               ; $B5B5: AD 07 05
+  AND #$0F                                ; $B5B8: 29 0F
+  CMP #$07                                ; $B5BA: C9 07
+  BEQ @RoutePeaceful                      ; $B5BC: F0 10
+  JSR $ECEE                               ; $B5BE: 20 EE EC
+  LDY #$3D                                ; $B5C1: A0 3D     ; target banks $1D+$1E
+  JSR B1F_BankedCallbackTrampoline        ; $B5C3: 20 07 EE
+  .word B1D_1E_ImmediateOverlay           ; $B5C6: 24 A0 (BankedCallbackTrampoline target)
+  LDA #$15                                ; $B5C8: A9 15
+  STA $0401                               ; $B5CA: 8D 01 04  ; -> sub 21 (war scene launch)
+  RTS                                     ; $B5CD: 60
 @RoutePeaceful:
 ; --- Code Region ---
-  JMP MarchPeacefulExecute               ; $B5CE: 4C 70 B6
+  JMP MarchPeacefulExecute                ; $B5CE: 4C 70 B6
 @RouteResultPan:
-  LDA #$03                               ; $B5D1: A9 03
-  JSR $D58C                              ; $B5D3: 20 8C D5
-  LDA #$0C                               ; $B5D6: A9 0C
-  STA $0401                              ; $B5D8: 8D 01 04
+  LDA #$03                                ; $B5D1: A9 03
+  JSR MapTransitionStateRestore           ; $B5D3: 20 8C D5
+  LDA #$0C                                ; $B5D6: A9 0C
+  STA $0401                               ; $B5D8: 8D 01 04
 @GateExit:
-  RTS                                    ; $B5DB: 60
+  RTS                                     ; $B5DB: 60
 WarSceneLaunch:  ; (dispatch callback target)
-  LDA a:$0087                            ; $B5DC: AD 87 00
-  BPL $B61F                              ; $B5DF: 10 3E
-  LDA #$03                               ; $B5E1: A9 03
-  STA a:$007A                            ; $B5E3: 8D 7A 00
-  LDA #$00                               ; $B5E6: A9 00
-  STA $0401                              ; $B5E8: 8D 01 04
-  LDA #$00                               ; $B5EB: A9 00
-  STA $0510                              ; $B5ED: 8D 10 05
-  STA $0511                              ; $B5F0: 8D 11 05
-  STA $0512                              ; $B5F3: 8D 12 05
-  STA $0513                              ; $B5F6: 8D 13 05
-  LDA #$0A                               ; $B5F9: A9 0A
-  STA $0500                              ; $B5FB: 8D 00 05
-  LDA #$00                               ; $B5FE: A9 00
-  STA $0501                              ; $B600: 8D 01 05
-  STA $0502                              ; $B603: 8D 02 05
-  STA $0503                              ; $B606: 8D 03 05
-  LDA #$80                               ; $B609: A9 80
-  STA $0504                              ; $B60B: 8D 04 05
-  LDA #$00                               ; $B60E: A9 00
-  STA $0505                              ; $B610: 8D 05 05
-  LDA #$00                               ; $B613: A9 00
-  STA $0506                              ; $B615: 8D 06 05
-  LDY #$2C                               ; $B618: A0 2C     ; target banks $0C+$0D
-  JSR B1F_BankedCallbackTrampoline       ; $B61A: 20 07 EE
-  .word B0C_0D_ExchangeSceneInit_Entry   ; $B61D: 03 A0 (BankedCallbackTrampoline target)
-  RTS                                    ; $B61F: 60
+  LDA a:$0087                             ; $B5DC: AD 87 00
+  BPL $B61F                               ; $B5DF: 10 3E
+  LDA #$03                                ; $B5E1: A9 03
+  STA a:$007A                             ; $B5E3: 8D 7A 00
+  LDA #$00                                ; $B5E6: A9 00
+  STA $0401                               ; $B5E8: 8D 01 04
+  LDA #$00                                ; $B5EB: A9 00
+  STA $0510                               ; $B5ED: 8D 10 05
+  STA $0511                               ; $B5F0: 8D 11 05
+  STA $0512                               ; $B5F3: 8D 12 05
+  STA $0513                               ; $B5F6: 8D 13 05
+  LDA #$0A                                ; $B5F9: A9 0A
+  STA $0500                               ; $B5FB: 8D 00 05
+  LDA #$00                                ; $B5FE: A9 00
+  STA $0501                               ; $B600: 8D 01 05
+  STA $0502                               ; $B603: 8D 02 05
+  STA $0503                               ; $B606: 8D 03 05
+  LDA #$80                                ; $B609: A9 80
+  STA $0504                               ; $B60B: 8D 04 05
+  LDA #$00                                ; $B60E: A9 00
+  STA $0505                               ; $B610: 8D 05 05
+  LDA #$00                                ; $B613: A9 00
+  STA $0506                               ; $B615: 8D 06 05
+  LDY #$2C                                ; $B618: A0 2C     ; target banks $0C+$0D
+  JSR B1F_BankedCallbackTrampoline        ; $B61A: 20 07 EE
+  .word B0C_0D_ExchangeSceneInit_Entry    ; $B61D: 03 A0 (BankedCallbackTrampoline target)
+  RTS                                     ; $B61F: 60
 ;===============================================================================
 ; ReconMapScrollStep ($B620-$B66F) - sub 23
 ; Map scroll stepper for the reconnaissance province picker, entered with
@@ -2997,372 +2997,472 @@ WarSceneLaunch:  ; (dispatch callback target)
 ;===============================================================================
 ReconMapScrollStep:  ; (dispatch callback target)
 ; --- Code Region ---
-  LDA $0472                              ; $B620: AD 72 04  ; scroll anim counter
-  BNE @ScrollAdvance                     ; $B623: D0 06
-  LDA a:$0081                            ; $B625: AD 81 00  ; pad 1 newly-pressed (edge)
-  LSR                                    ; $B628: 4A
-  BCC @ScrollBCheck                      ; $B629: 90 3C     ; bit0 = A
+  LDA $0472                               ; $B620: AD 72 04  ; scroll anim counter
+  BNE @ScrollAdvance                      ; $B623: D0 06
+  LDA a:$0081                             ; $B625: AD 81 00  ; pad 1 newly-pressed (edge)
+  LSR                                     ; $B628: 4A
+  BCC @ScrollBCheck                       ; $B629: 90 3C     ; bit0 = A
 @ScrollAdvance:
-  LDA $0140                              ; $B62B: AD 40 01
-  BNE @ScrollStepExit                    ; $B62E: D0 3F
-  LDA $0472                              ; $B630: AD 72 04
-  BMI @ScrollRestart                     ; $B633: 30 0A
-  BEQ @ScrollBegin                       ; $B635: F0 0E
-  CMP #$0A                               ; $B637: C9 0A
-  BEQ @ScrollFinish                      ; $B639: F0 13
-  INC $0472                              ; $B63B: EE 72 04
-  RTS                                    ; $B63E: 60
+  LDA $0140                               ; $B62B: AD 40 01
+  BNE @ScrollStepExit                     ; $B62E: D0 3F
+  LDA $0472                               ; $B630: AD 72 04
+  BMI @ScrollRestart                      ; $B633: 30 0A
+  BEQ @ScrollBegin                        ; $B635: F0 0E
+  CMP #$0A                                ; $B637: C9 0A
+  BEQ @ScrollFinish                       ; $B639: F0 13
+  INC $0472                               ; $B63B: EE 72 04
+  RTS                                     ; $B63E: 60
 @ScrollRestart:
-  LDA #$00                               ; $B63F: A9 00
-  STA $0472                              ; $B641: 8D 72 04
-  RTS                                    ; $B644: 60
+  LDA #$00                                ; $B63F: A9 00
+  STA $0472                               ; $B641: 8D 72 04
+  RTS                                     ; $B644: 60
 @ScrollBegin:
-  LDA #$80                               ; $B645: A9 80
-  STA $0140                              ; $B647: 8D 40 01
-  INC $0472                              ; $B64A: EE 72 04
-  RTS                                    ; $B64D: 60
+  LDA #$80                                ; $B645: A9 80
+  STA $0140                               ; $B647: 8D 40 01
+  INC $0472                               ; $B64A: EE 72 04
+  RTS                                     ; $B64D: 60
 @ScrollFinish:
-  LDA #$80                               ; $B64E: A9 80
-  STA $0140                              ; $B650: 8D 40 01
-  LDA $0473                              ; $B653: AD 73 04
-  EOR #$03                               ; $B656: 49 03
-  STA $0473                              ; $B658: 8D 73 04
-  ORA $0150                              ; $B65B: 0D 50 01
-  STA $0150                              ; $B65E: 8D 50 01
-  LDA #$80                               ; $B661: A9 80
-  STA $0472                              ; $B663: 8D 72 04
-  RTS                                    ; $B666: 60
+  LDA #$80                                ; $B64E: A9 80
+  STA $0140                               ; $B650: 8D 40 01
+  LDA $0473                               ; $B653: AD 73 04
+  EOR #$03                                ; $B656: 49 03
+  STA $0473                               ; $B658: 8D 73 04
+  ORA $0150                               ; $B65B: 0D 50 01
+  STA $0150                               ; $B65E: 8D 50 01
+  LDA #$80                                ; $B661: A9 80
+  STA $0472                               ; $B663: 8D 72 04
+  RTS                                     ; $B666: 60
 @ScrollBCheck:
-  LSR                                    ; $B667: 4A
-  BCC @ScrollStepExit                    ; $B668: 90 05
-  LDA #$10                               ; $B66A: A9 10
-  STA $0401                              ; $B66C: 8D 01 04
+  LSR                                     ; $B667: 4A
+  BCC @ScrollStepExit                     ; $B668: 90 05
+  LDA #$10                                ; $B66A: A9 10
+  STA $0401                               ; $B66C: 8D 01 04
 @ScrollStepExit:
-  RTS                                    ; $B66F: 60
+  RTS                                     ; $B66F: 60
 MarchPeacefulExecute:  ; (dispatch callback target)
-  JSR $E57F                              ; $B670: 20 7F E5
-  LDA #$81                               ; $B673: A9 81
-  JSR $E673                              ; $B675: 20 73 E6
-  LDA $0471                              ; $B678: AD 71 04
-  JSR B1F_GetProvinceRecordAddr          ; $B67B: 20 AF F2
-  LDY #$02                               ; $B67E: A0 02
-  LDA $0526                              ; $B680: AD 26 05
-  CLC                                    ; $B683: 18
-  ADC $042F                              ; $B684: 6D 2F 04
-  STA ($00),Y                            ; $B687: 91 00
-  INY                                    ; $B689: C8
-  LDA $0527                              ; $B68A: AD 27 05
-  ADC $0430                              ; $B68D: 6D 30 04
-  STA ($00),Y                            ; $B690: 91 00
-  LDY #$02                               ; $B692: A0 02
-  JSR $DDDC                              ; $B694: 20 DC DD
-  LDY #$04                               ; $B697: A0 04
-  LDA $0522                              ; $B699: AD 22 05
-  CLC                                    ; $B69C: 18
-  ADC $0432                              ; $B69D: 6D 32 04
-  STA ($00),Y                            ; $B6A0: 91 00
-  INY                                    ; $B6A2: C8
-  LDA $0523                              ; $B6A3: AD 23 05
-  ADC $0433                              ; $B6A6: 6D 33 04
-  STA ($00),Y                            ; $B6A9: 91 00
-  LDY #$04                               ; $B6AB: A0 04
-  JSR $DDDC                              ; $B6AD: 20 DC DD
-  LDY #$00                               ; $B6B0: A0 00
-  LDA ($EE),Y                            ; $B6B2: B1 EE
-  STA a:$000A                            ; $B6B4: 8D 0A 00
-  LDY #$11                               ; $B6B7: A0 11
-  LDX #$0A                               ; $B6B9: A2 0A
+  JSR $E57F                               ; $B670: 20 7F E5
+  LDA #$81                                ; $B673: A9 81
+  JSR $E673                               ; $B675: 20 73 E6
+  LDA $0471                               ; $B678: AD 71 04
+  JSR B1F_GetProvinceRecordAddr           ; $B67B: 20 AF F2
+  LDY #$02                                ; $B67E: A0 02
+  LDA $0526                               ; $B680: AD 26 05
+  CLC                                     ; $B683: 18
+  ADC $042F                               ; $B684: 6D 2F 04
+  STA ($00),Y                             ; $B687: 91 00
+  INY                                     ; $B689: C8
+  LDA $0527                               ; $B68A: AD 27 05
+  ADC $0430                               ; $B68D: 6D 30 04
+  STA ($00),Y                             ; $B690: 91 00
+  LDY #$02                                ; $B692: A0 02
+  JSR $DDDC                               ; $B694: 20 DC DD
+  LDY #$04                                ; $B697: A0 04
+  LDA $0522                               ; $B699: AD 22 05
+  CLC                                     ; $B69C: 18
+  ADC $0432                               ; $B69D: 6D 32 04
+  STA ($00),Y                             ; $B6A0: 91 00
+  INY                                     ; $B6A2: C8
+  LDA $0523                               ; $B6A3: AD 23 05
+  ADC $0433                               ; $B6A6: 6D 33 04
+  STA ($00),Y                             ; $B6A9: 91 00
+  LDY #$04                                ; $B6AB: A0 04
+  JSR $DDDC                               ; $B6AD: 20 DC DD
+  LDY #$00                                ; $B6B0: A0 00
+  LDA ($EE),Y                             ; $B6B2: B1 EE
+  STA a:$000A                             ; $B6B4: 8D 0A 00
+  LDY #$11                                ; $B6B7: A0 11
+  LDX #$0A                                ; $B6B9: A2 0A
 @RosterWriteLoop:
-  LDA $0664,X                            ; $B6BB: BD 64 06
-  CMP #$FF                               ; $B6BE: C9 FF
-  BEQ @RosterFinish                      ; $B6C0: F0 18
-  STA ($00),Y                            ; $B6C2: 91 00
-  CMP a:$000A                            ; $B6C4: CD 0A 00
-  BNE @RosterNext                        ; $B6C7: D0 0B
-  TYA                                    ; $B6C9: 98
-  PHA                                    ; $B6CA: 48
-  LDA $0471                              ; $B6CB: AD 71 04
-  LDY #$01                               ; $B6CE: A0 01
-  STA ($EE),Y                            ; $B6D0: 91 EE
-  PLA                                    ; $B6D2: 68
-  TAY                                    ; $B6D3: A8
+  LDA $0664,X                             ; $B6BB: BD 64 06
+  CMP #$FF                                ; $B6BE: C9 FF
+  BEQ @RosterFinish                       ; $B6C0: F0 18
+  STA ($00),Y                             ; $B6C2: 91 00
+  CMP a:$000A                             ; $B6C4: CD 0A 00
+  BNE @RosterNext                         ; $B6C7: D0 0B
+  TYA                                     ; $B6C9: 98
+  PHA                                     ; $B6CA: 48
+  LDA $0471                               ; $B6CB: AD 71 04
+  LDY #$01                                ; $B6CE: A0 01
+  STA ($EE),Y                             ; $B6D0: 91 EE
+  PLA                                     ; $B6D2: 68
+  TAY                                     ; $B6D3: A8
 @RosterNext:
-  INX                                    ; $B6D4: E8
-  INY                                    ; $B6D5: C8
-  CPY #$1B                               ; $B6D6: C0 1B
-  BCC @RosterWriteLoop                   ; $B6D8: 90 E1
+  INX                                     ; $B6D4: E8
+  INY                                     ; $B6D5: C8
+  CPY #$1B                                ; $B6D6: C0 1B
+  BCC @RosterWriteLoop                    ; $B6D8: 90 E1
 @RosterFinish:
-  LDA $0507                              ; $B6DA: AD 07 05
-  LSR                                    ; $B6DD: 4A
-  LSR                                    ; $B6DE: 4A
-  LSR                                    ; $B6DF: 4A
-  LSR                                    ; $B6E0: 4A
-  LDY #$00                               ; $B6E1: A0 00
-  STA ($00),Y                            ; $B6E3: 91 00
-  LDA #$00                               ; $B6E5: A9 00
-  STA $0400                              ; $B6E7: 8D 00 04
-  STA $0401                              ; $B6EA: 8D 01 04
-  JSR $D568                              ; $B6ED: 20 68 D5
-  RTS                                    ; $B6F0: 60
+  LDA $0507                               ; $B6DA: AD 07 05
+  LSR                                     ; $B6DD: 4A
+  LSR                                     ; $B6DE: 4A
+  LSR                                     ; $B6DF: 4A
+  LSR                                     ; $B6E0: 4A
+  LDY #$00                                ; $B6E1: A0 00
+  STA ($00),Y                             ; $B6E3: 91 00
+  LDA #$00                                ; $B6E5: A9 00
+  STA $0400                               ; $B6E7: 8D 00 04
+  STA $0401                               ; $B6EA: 8D 01 04
+  JSR MapTransitionStateSave              ; $B6ED: 20 68 D5
+  RTS                                     ; $B6F0: 60
 GovernorRosterSlideWait:  ; (dispatch callback target)
-  LDA $0478                              ; $B6F1: AD 78 04
-  BNE @SlideExit                         ; $B6F4: D0 11
-  JSR $D64A                              ; $B6F6: 20 4A D6
-  LDA $047C                              ; $B6F9: AD 7C 04
-  BPL @SlideExit                         ; $B6FC: 10 09
-  CMP #$90                               ; $B6FE: C9 90
-  BNE @AppointSwap                       ; $B700: D0 06
-  LDA #$00                               ; $B702: A9 00
-  STA $0401                              ; $B704: 8D 01 04
+  LDA $0478                               ; $B6F1: AD 78 04
+  BNE @SlideExit                          ; $B6F4: D0 11
+  JSR $D64A                               ; $B6F6: 20 4A D6
+  LDA $047C                               ; $B6F9: AD 7C 04
+  BPL @SlideExit                          ; $B6FC: 10 09
+  CMP #$90                                ; $B6FE: C9 90
+  BNE @AppointSwap                        ; $B700: D0 06
+  LDA #$00                                ; $B702: A9 00
+  STA $0401                               ; $B704: 8D 01 04
 @SlideExit:
-  RTS                                    ; $B707: 60
+  RTS                                     ; $B707: 60
 @AppointSwap:
-  JSR $D7A8                              ; $B708: 20 A8 D7
-  LDA $0402                              ; $B70B: AD 02 04
-  JSR B1F_GetProvinceRecordAddr          ; $B70E: 20 AF F2
-  LDY #$11                               ; $B711: A0 11
-  LDA ($00),Y                            ; $B713: B1 00
-  STA a:$0010                            ; $B715: 8D 10 00
-  LDY #$11                               ; $B718: A0 11
+  JSR $D7A8                               ; $B708: 20 A8 D7
+  LDA $0402                               ; $B70B: AD 02 04
+  JSR B1F_GetProvinceRecordAddr           ; $B70E: 20 AF F2
+  LDY #$11                                ; $B711: A0 11
+  LDA ($00),Y                             ; $B713: B1 00
+  STA a:$0010                             ; $B715: 8D 10 00
+  LDY #$11                                ; $B718: A0 11
 @SwapScanLoop:
-  LDA ($00),Y                            ; $B71A: B1 00
-  CMP $0481                              ; $B71C: CD 81 04
-  BEQ @SwapStore                         ; $B71F: F0 04
-  INY                                    ; $B721: C8
-  JMP @SwapScanLoop                      ; $B722: 4C 1A B7
+  LDA ($00),Y                             ; $B71A: B1 00
+  CMP $0481                               ; $B71C: CD 81 04
+  BEQ @SwapStore                          ; $B71F: F0 04
+  INY                                     ; $B721: C8
+  JMP @SwapScanLoop                       ; $B722: 4C 1A B7
 @SwapStore:
-  LDA a:$0010                            ; $B725: AD 10 00
-  STA ($00),Y                            ; $B728: 91 00
-  LDY #$11                               ; $B72A: A0 11
-  LDA $0481                              ; $B72C: AD 81 04
-  STA ($00),Y                            ; $B72F: 91 00
-  STA $042C                              ; $B731: 8D 2C 04
-  LDA #$16                               ; $B734: A9 16
-  STA $0401                              ; $B736: 8D 01 04
-  LDA #$64                               ; $B739: A9 64
-  JMP B1F_SetUI0                         ; $B73B: 4C 6D F2
+  LDA a:$0010                             ; $B725: AD 10 00
+  STA ($00),Y                             ; $B728: 91 00
+  LDY #$11                                ; $B72A: A0 11
+  LDA $0481                               ; $B72C: AD 81 04
+  STA ($00),Y                             ; $B72F: 91 00
+  STA $042C                               ; $B731: 8D 2C 04
+  LDA #$16                                ; $B734: A9 16
+  STA $0401                               ; $B736: 8D 01 04
+  LDA #$64                                ; $B739: A9 64
+  JMP B1F_SetUI0                          ; $B73B: 4C 6D F2
 GovernorAppointMessageWait:  ; (dispatch callback target)
-  JSR $DDAD                              ; $B73E: 20 AD DD
-  BCC @MessageExit                       ; $B741: 90 15
-  JSR $D543                              ; $B743: 20 43 D5
-  LDA a:$0081                            ; $B746: AD 81 00
-  AND #$03                               ; $B749: 29 03
-  BEQ @MessageExit                       ; $B74B: F0 0B
-  JSR $D568                              ; $B74D: 20 68 D5
-  LDA #$00                               ; $B750: A9 00
-  STA $0400                              ; $B752: 8D 00 04
-  STA $0401                              ; $B755: 8D 01 04
+  JSR $DDAD                               ; $B73E: 20 AD DD
+  BCC @MessageExit                        ; $B741: 90 15
+  JSR $D543                               ; $B743: 20 43 D5
+  LDA a:$0081                             ; $B746: AD 81 00
+  AND #$03                                ; $B749: 29 03
+  BEQ @MessageExit                        ; $B74B: F0 0B
+  JSR MapTransitionStateSave              ; $B74D: 20 68 D5
+  LDA #$00                                ; $B750: A9 00
+  STA $0400                               ; $B752: 8D 00 04
+  STA $0401                               ; $B755: 8D 01 04
 @MessageExit:
-  RTS                                    ; $B758: 60        ; proc exit
+  RTS                                     ; $B758: 60        ; proc exit
 .endproc
-Loc_B759:  ; (dispatch callback target)
-  LDA $0401                               ; $B759: AD 01 04
-  JSR $EADE                               ; $B75C: 20 DE EA
-; --- Data Region ---
-  .byte $7F,$B7,$A7,$B7,$1E,$B8,$97,$B8,$7E,$B9,$04,$BA,$CE,$BA,$7D,$BB; $B75F: 7F B7 A7 B7 1E B8 97 B8 7E B9 04 BA CE BA 7D BB
-  .byte $C6,$BB,$E6,$BC,$67,$BD,$19,$BE,$05,$BF,$19,$BF,$44,$BF,$69,$BF; $B76F: C6 BB E6 BC 67 BD 19 BE 05 BF 19 BF 44 BF 69 BF
-Loc_B77F:  ; (dispatch callback target)
+;===============================================================================
+; WarehouseCommandDispatch ($B759-$BFB6) - dispatch callback target (state 4)
+; Warehouse (倉) command screen for frame state 4, entered from the command
+; category menu (state 1, category 2), offering the manual's warehouse
+; commands (p.26) through nested menu windows; dispatched on sub-state $0401
+; through the 16-entry table below. Implements the manual's three warehouse
+; commands (p.26): 物資を運ぶ (subs 2-4), 与える to a subordinate general
+; (subs 6-9) and 与える to the populace (subs $0A/$0B). Working cells:
+; $0402 = camera-selected province, $0470 = flow flag (0 = gold / 1 =
+; treasure in the officer-give flow), $0471 = transport counterpart
+; province, $0472 = panel phase counter, $0473 = post-result UI mode,
+; $0478/$047C = window anim counter / phase, $0481 = gift-recipient officer
+; id, $048E/$048F = raw window input amount, $0490/$0491 + $0498/$0499 +
+; $049A/$049B = amount work words, $042C-$0434 = transfer/gift amounts.
+; Record fields touched: +$02/$03 gold, +$04/$05 rice, +$0B populace-give
+; stat (統治度, cap 100), +$10 treasure count; officer +$03 = loyalty
+; (忠誠度, cap 99). Sub-states:
+;   0  WarehouseMenuScreenInit       gate transition/overlay sentinels, reset
+;                                    menu cursor ($0473), UI mode $53
+;   1  WarehouseCommandMenuInput     top menu window (stream $B812, cursor
+;                                    pos table $B815, template $B819);
+;                                    item 0 -> 2 (物資を運ぶ), item 1 -> 5
+;                                    (与える); B -> frame state 1
+;   2  WarehouseDestProvinceSelect   A: camera -> province $0402/$0471 with
+;                                    owner check vs $6F03, bank $19 $A018
+;                                    stub, amount snapshot -> 3; B: -> 0
+;   3  WarehouseGoodsAmountPanel     phased ($0472) amount windows writing
+;                                    $042C/$042D, $042F-$0431 and $0432
+;                                    -> 4; B -> 0
+;   4  WarehouseGoodsTransferApply   confirm window $D5BD; subtract amounts
+;                                    from province $0402 record (+$02-$05,
+;                                    +$10) and add to province $0471 -> $0C
+;   5  WarehouseGiveMenuInput        与える submenu window ($BAC2); item 0
+;                                    -> 6 (subordinate general), item 1 ->
+;                                    $0A (populace); +$0B >= 100 -> $0E;
+;                                    B -> 0
+;   6  WarehouseOfficerGiveMenu      resource menu window ($BB70); item 0
+;                                    -> 7 (gold), item 1 -> 8 via province
+;                                    +$10 treasure count ($0F if none);
+;                                    B -> 5
+;   7  WarehouseGoldAmountPrompt     prompt window $DA04; A: accept scaled
+;                                    $048E -> 8; B -> 6
+;   8  WarehouseOfficerGiveGate      window anim wait ($0478/$047C);
+;                                    officer $0481 +$03 (loyalty) >= $5A ->
+;                                    bank $1D $A02A lookup
+;                                    (B1D_1E_OfficerDisplay_Lookup) -> $0E,
+;                                    else redraw pipeline -> 9; done -> 6
+;   9  WarehouseOfficerGiveApply     confirm window; province $0402 record
+;                                    -gold $048E (+$02/$03) or -1 treasure
+;                                    (+$10) by $0470; officer $0481 +$03 +=
+;                                    $042C (loyalty, cap 99) -> $0C
+;   $0A WarehousePopulaceAmountPanel phased amount windows writing gold
+;                                    $042C and rice $042F (scaled by $BFA0)
+;                                    -> $0B; B -> 5
+;   $0B WarehousePopulaceGiveApply   confirm window; province $0402 record
+;                                    -gold $042C (+$02/$03) and -rice
+;                                    $042F (+$04/$05), then +$0B += $042C
+;                                    (統治度, cap 100) -> $0C
+;   $0C WarehouseResultRedrawGate    wait transition busy; $04A0 <- $04A2
+;                                    overlay redraw trigger, $046C <- $60
+;                                    -> $0D
+;   $0D WarehouseResultRedrawWait    wait redraw and transition busy;
+;                                    optional bank $1D $A02A lookup, then
+;                                    UI mode $0473
+;   $0E WarehouseResultMessageWait   message window wait ($D543); A/B ->
+;                                    frame state 0; $0481 cleanup ($DD5E)
+;   $0F WarehouseResultRouteBack     message window wait; A/B -> sub 6
+; Shared helpers: WarehouseAmountDiv10 ($BF89), WarehouseSliderScale10
+; ($BFA0).
+;===============================================================================
+.proc WarehouseCommandDispatch  ; (dispatch callback target)
+; --- Code Region ---
+  LDA $0401                               ; $B759: AD 01 04  ; warehouse screen sub-state
+  JSR B1F_CallbackDispatcher              ; $B75C: 20 DE EA
+; --- CallbackDispatcher sub-state table, indexed by $0401 ---
+  .word WarehouseMenuScreenInit           ; $B75F: 7F B7 ; sub 0 ($B77F)
+  .word WarehouseCommandMenuInput         ; $B761: A7 B7 ; sub 1 ($B7A7)
+  .word WarehouseDestProvinceSelect       ; $B763: 1E B8 ; sub 2 ($B81E)
+  .word WarehouseGoodsAmountPanel         ; $B765: 97 B8 ; sub 3 ($B897)
+  .word WarehouseGoodsTransferApply       ; $B767: 7E B9 ; sub 4 ($B97E)
+  .word WarehouseGiveMenuInput            ; $B769: 04 BA ; sub 5 ($BA04)
+  .word WarehouseOfficerGiveMenu          ; $B76B: CE BA ; sub 6 ($BACE)
+  .word WarehouseGoldAmountPrompt         ; $B76D: 7D BB ; sub 7 ($BB7D)
+  .word WarehouseOfficerGiveGate          ; $B76F: C6 BB ; sub 8 ($BBC6)
+  .word WarehouseOfficerGiveApply         ; $B771: E6 BC ; sub 9 ($BCE6)
+  .word WarehousePopulaceAmountPanel      ; $B773: 67 BD ; sub $0A ($BD67)
+  .word WarehousePopulaceGiveApply        ; $B775: 19 BE ; sub $0B ($BE19)
+  .word WarehouseResultRedrawGate         ; $B777: 05 BF ; sub $0C ($BF05)
+  .word WarehouseResultRedrawWait         ; $B779: 19 BF ; sub $0D ($BF19)
+  .word WarehouseResultMessageWait        ; $B77B: 44 BF ; sub $0E ($BF44)
+  .word WarehouseResultRouteBack          ; $B77D: 69 BF ; sub $0F ($BF69)
+;===============================================================================
+; WarehouseMenuScreenInit ($B77F-$B7A6) - sub 0
+;===============================================================================
+WarehouseMenuScreenInit:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0140                               ; $B77F: AD 40 01
-  BNE $B7A6                               ; $B782: D0 22
+  BNE @InitGateExit                       ; $B782: D0 22     ; transition busy: wait
   LDA $0304                               ; $B784: AD 04 03
   CMP #$FF                                ; $B787: C9 FF
-  BNE $B7A6                               ; $B789: D0 1B
-  INC $0401                               ; $B78B: EE 01 04
-  JSR MenuCursorReset                    ; $B78E: 20 70 DD
-  STA $0473                               ; $B791: 8D 73 04
+  BNE @InitGateExit                       ; $B789: D0 1B     ; overlay busy: wait
+  INC $0401                               ; $B78B: EE 01 04  ; -> sub 1 (command menu)
+  JSR MenuCursorReset                     ; $B78E: 20 70 DD
+  STA $0473                               ; $B791: 8D 73 04  ; cursor value (post-result UI mode)
   LDA #$80                                ; $B794: A9 80
-  STA $0140                               ; $B796: 8D 40 01
+  STA $0140                               ; $B796: 8D 40 01  ; transition busy
   LDA #$04                                ; $B799: A9 04
   ORA $0150                               ; $B79B: 0D 50 01
   STA $0150                               ; $B79E: 8D 50 01
   LDA #$53                                ; $B7A1: A9 53
-  JMP $F26D                               ; $B7A3: 4C 6D F2
-Loc_B7A6:
-  RTS                                     ; $B7A6: 60
-Loc_B7A7:  ; (dispatch callback target)
-  LDA #$12                                ; $B7A7: A9 12
+  JMP $F26D                               ; $B7A3: 4C 6D F2  ; B1F_SetUI0 mode $53 (no return)
+@InitGateExit:
+  RTS                                     ; $B7A6: 60        ; init-gate exit
+;===============================================================================
+; WarehouseCommandMenuInput ($B7A7-$B811) - sub 1
+;===============================================================================
+WarehouseCommandMenuInput:  ; (dispatch callback target)
+; --- Code Region ---
+  LDA #$12                                ; $B7A7: A9 12     ; ($0010) = menu window stream $B812
   STA a:$0010                             ; $B7A9: 8D 10 00
   LDA #$B8                                ; $B7AC: A9 B8
   STA a:$0011                             ; $B7AE: 8D 11 00
   LDA #$00                                ; $B7B1: A9 00
-  STA a:$0012                             ; $B7B3: 8D 12 00
-  JSR $ED19                               ; $B7B6: 20 19 ED
+  STA a:$0012                             ; $B7B3: 8D 12 00  ; selection output cell
+  JSR $ED19                               ; $B7B6: 20 19 ED  ; draw menu window stream
   LDA #$15                                ; $B7B9: A9 15
-  STA a:$0010                             ; $B7BB: 8D 10 00
+  STA a:$0010                             ; $B7BB: 8D 10 00  ; ($0010) = cursor pos table $B815
   LDA #$B8                                ; $B7BE: A9 B8
   STA a:$0011                             ; $B7C0: 8D 11 00
   LDA #$19                                ; $B7C3: A9 19
-  STA a:$0000                             ; $B7C5: 8D 00 00
+  STA a:$0000                             ; $B7C5: 8D 00 00  ; ($0000) = cursor sprite template $B819
   LDA #$B8                                ; $B7C8: A9 B8
   STA a:$0001                             ; $B7CA: 8D 01 00
   LDA a:$0012                             ; $B7CD: AD 12 00
-  JSR $EDF5                               ; $B7D0: 20 F5 ED
-  JSR $DDAD                               ; $B7D3: 20 AD DD
-  BCC $B811                               ; $B7D6: 90 39
+  JSR $EDF5                               ; $B7D0: 20 F5 ED  ; B1F_PointerTableLookup: draw cursor at selected item
+  JSR $DDAD                               ; $B7D3: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @MenuFrameExit                      ; $B7D6: 90 39
   LDA a:$0081                             ; $B7D8: AD 81 00
   LSR                                     ; $B7DB: 4A
-  BCC $B801                               ; $B7DC: 90 23
+  BCC @MenuCancel                         ; $B7DC: 90 23     ; bit0 clear -> B check
   LDA a:$0012                             ; $B7DE: AD 12 00
-  BNE $B7F4                               ; $B7E1: D0 11
-  JSR $D568                               ; $B7E3: 20 68 D5
-  INC $0401                               ; $B7E6: EE 01 04
+  BNE @MenuToGive                         ; $B7E1: D0 11     ; item 1: 与える (sub 5)
+  JSR MapTransitionStateSave              ; $B7E3: 20 68 D5  ; close window
+  INC $0401                               ; $B7E6: EE 01 04  ; item 0: -> sub 2 (destination select)
   LDA $0402                               ; $B7E9: AD 02 04
-  STA $0470                               ; $B7EC: 8D 70 04
+  STA $0470                               ; $B7EC: 8D 70 04  ; snapshot selected province
   LDA #$54                                ; $B7EF: A9 54
-  JMP $F26D                               ; $B7F1: 4C 6D F2
-Loc_B7F4:
+  JMP $F26D                               ; $B7F1: 4C 6D F2  ; B1F_SetUI0 mode $54 (no return)
+@MenuToGive:
   LDA #$05                                ; $B7F4: A9 05
-  STA $0401                               ; $B7F6: 8D 01 04
-  JSR MenuCursorReset                    ; $B7F9: 20 70 DD
+  STA $0401                               ; $B7F6: 8D 01 04  ; -> sub 5 (与える menu)
+  JSR MenuCursorReset                     ; $B7F9: 20 70 DD
   LDA #$58                                ; $B7FC: A9 58
-  JMP $F26D                               ; $B7FE: 4C 6D F2
-Loc_B801:
+  JMP $F26D                               ; $B7FE: 4C 6D F2  ; B1F_SetUI0 mode $58 (no return)
+@MenuCancel:
   LSR                                     ; $B801: 4A
-  BCC $B811                               ; $B802: 90 0D
-  JSR $D568                               ; $B804: 20 68 D5
+  BCC @MenuFrameExit                      ; $B802: 90 0D
+  JSR MapTransitionStateSave              ; $B804: 20 68 D5  ; close window
   LDA #$01                                ; $B807: A9 01
-  STA $0400                               ; $B809: 8D 00 04
+  STA $0400                               ; $B809: 8D 00 04  ; back to frame state 1 (category menu)
   LDA #$00                                ; $B80C: A9 00
   STA $0401                               ; $B80E: 8D 01 04
-Loc_B811:
+@MenuFrameExit:
   RTS                                     ; $B811: 60
 ; --- Data Region ---
-  .byte $00,$01,$FF,$B8,$48,$C8,$48,$00,$07,$00,$00,$80; $B812: 00 01 FF B8 48 C8 48 00 07 00 00 80
-Loc_B81E:  ; (dispatch callback target)
+  .byte $00,$01,$FF,$B8,$48,$C8,$48       ; $B812: 00 01 FF B8 48 C8 48      ; menu window stream $B812 + cursor pos table $B815
+  .byte $00,$07,$00,$00,$80               ; $B81A: 00 07 00 00 80            ; cursor sprite template $B819
+;===============================================================================
+; WarehouseDestProvinceSelect ($B81E-$B894) - sub 2
+;===============================================================================
+WarehouseDestProvinceSelect:  ; (dispatch callback target)
 ; --- Code Region ---
-  JSR $DDF2                               ; $B81E: 20 F2 DD
-  JSR $DDAD                               ; $B821: 20 AD DD
-  BCC $B83E                               ; $B824: 90 18
+  JSR $DDF2                               ; $B81E: 20 F2 DD  ; province sprite animation tick
+  JSR $DDAD                               ; $B821: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @DestFrameExit                      ; $B824: 90 18
   LDA a:$0081                             ; $B826: AD 81 00
   LSR                                     ; $B829: 4A
-  BCS $B83F                               ; $B82A: B0 13
+  BCS @DestCameraSelect                   ; $B82A: B0 13     ; bit0 = A: select province under camera
   LSR                                     ; $B82C: 4A
-  BCC $B83E                               ; $B82D: 90 0F
+  BCC @DestFrameExit                      ; $B82D: 90 0F
   LDA #$FF                                ; $B82F: A9 FF
-  STA $04E4                               ; $B831: 8D E4 04
+  STA $04E4                               ; $B831: 8D E4 04  ; sprite dirty mark
   LDA #$00                                ; $B834: A9 00
-  STA $0401                               ; $B836: 8D 01 04
+  STA $0401                               ; $B836: 8D 01 04  ; B: cancel -> sub 0
   LDA #$04                                ; $B839: A9 04
-  JSR $D58C                               ; $B83B: 20 8C D5
-Loc_B83E:
+  JSR MapTransitionStateRestore           ; $B83B: 20 8C D5
+@DestFrameExit:
   RTS                                     ; $B83E: 60
-Loc_B83F:
-  JSR $DEBA                               ; $B83F: 20 BA DE
+@DestCameraSelect:
+  JSR $DEBA                               ; $B83F: 20 BA DE  ; camera position -> province id (Y)
   CPY #$FF                                ; $B842: C0 FF
-  BEQ $B85F                               ; $B844: F0 19
-  STY $0402                               ; $B846: 8C 02 04
+  BEQ @DestOffMapMsg                      ; $B844: F0 19     ; off-map: message mode $24
+  STY $0402                               ; $B846: 8C 02 04  ; selected province
   JSR $DD79                               ; $B849: 20 79 DD
   LDA $0402                               ; $B84C: AD 02 04
-  BMI $B864                               ; $B84F: 30 13
-  STA $0471                               ; $B851: 8D 71 04
+  BMI @DestRejectMsg                      ; $B84F: 30 13     ; negative: message mode $55
+  STA $0471                               ; $B851: 8D 71 04  ; transport counterpart province <- selection
   LDA a:$0010                             ; $B854: AD 10 00
-  CMP $6F03                               ; $B857: CD 03 6F
-  BNE $B864                               ; $B85A: D0 08
-  JMP $B869                               ; $B85C: 4C 69 B8
-Loc_B85F:
+  CMP $6F03                               ; $B857: CD 03 6F  ; current ruler id (SRAM)
+  BNE @DestRejectMsg                      ; $B85A: D0 08     ; owner mismatch: message mode $55
+  JMP @DestAccepted                       ; $B85C: 4C 69 B8
+@DestOffMapMsg:
   LDA #$24                                ; $B85F: A9 24
-  JMP $F26D                               ; $B861: 4C 6D F2
-Loc_B864:
+  JMP $F26D                               ; $B861: 4C 6D F2  ; B1F_SetUI0 mode $24 (no return)
+@DestRejectMsg:
   LDA #$55                                ; $B864: A9 55
-  JMP $F26D                               ; $B866: 4C 6D F2
-Loc_B869:
-  LDY #$39                                ; $B869: A0 39
-  JSR $EE07                               ; $B86B: 20 07 EE
-; --- Data Region ---
-  .byte $18,$A0,$AD,$98,$04,$8D,$90,$04,$AD,$99,$04,$8D; $B86E: 18 A0 AD 98 04 8D 90 04 AD 99 04 8D
-Loc_B87A:
-; --- Code Region ---
-  STA ($04),Y                             ; $B87A: 91 04
+  JMP $F26D                               ; $B866: 4C 6D F2  ; B1F_SetUI0 mode $55 (no return)
+@DestAccepted:
+  LDY #$39                                ; $B869: A0 39     ; target banks $19+$1A
+  JSR B1F_BankedCallbackTrampoline        ; $B86B: 20 07 EE  ; banks $19+$1A $A018 -> TransferCapacityCalc_Entry
+  .word $A018                             ; $B86E: 18 A0 (BankedCallbackTrampoline target; bank $19 $A018 -> JMP $B8D7, undocumented)
+  LDA $0498                               ; $B870: AD 98 04  ; amount work word snapshot
+  STA $0490                               ; $B873: 8D 90 04
+  LDA $0499                               ; $B876: AD 99 04
+  STA $0491                               ; $B879: 8D 91 04
   LDA #$04                                ; $B87C: A9 04
-  JSR $D58C                               ; $B87E: 20 8C D5
+  JSR MapTransitionStateRestore           ; $B87E: 20 8C D5
   JSR $DB87                               ; $B881: 20 87 DB
-  JSR MenuCursorReset                    ; $B884: 20 70 DD
-  STA $0472                               ; $B887: 8D 72 04
+  JSR MenuCursorReset                     ; $B884: 20 70 DD
+  STA $0472                               ; $B887: 8D 72 04  ; panel phase counter <- 0
   LDA #$FF                                ; $B88A: A9 FF
-  STA $04E4                               ; $B88C: 8D E4 04
-  INC $0401                               ; $B88F: EE 01 04
+  STA $04E4                               ; $B88C: 8D E4 04  ; sprite dirty mark
+  INC $0401                               ; $B88F: EE 01 04  ; -> sub 3 (goods amount panel)
   LDA #$57                                ; $B892: A9 57
-  JMP $F26D                               ; $B894: 4C 6D F2
-Loc_B897:  ; (dispatch callback target)
-  JSR $DDAD                               ; $B897: 20 AD DD
-  BCC $B916                               ; $B89A: 90 7A
-  LDA $0472                               ; $B89C: AD 72 04
-  BNE $B8D2                               ; $B89F: D0 31
-  LDA #$EE                                ; $B8A1: A9 EE
+  JMP $F26D                               ; $B894: 4C 6D F2  ; B1F_SetUI0 mode $57 (no return)
+;===============================================================================
+; WarehouseGoodsAmountPanel ($B897-$B97D) - sub 3
+;===============================================================================
+WarehouseGoodsAmountPanel:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $DDAD                               ; $B897: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @AmountFrameExit                    ; $B89A: 90 7A
+  LDA $0472                               ; $B89C: AD 72 04  ; panel phase counter
+  BNE @AmountPhase1                       ; $B89F: D0 31
+  LDA #$EE                                ; $B8A1: A9 EE     ; phase 0: amount window $EE/$22
   STA $031C                               ; $B8A3: 8D 1C 03
   LDA #$22                                ; $B8A6: A9 22
   STA $031D                               ; $B8A8: 8D 1D 03
   JSR $DA02                               ; $B8AB: 20 02 DA
   LDA a:$0081                             ; $B8AE: AD 81 00
   LSR                                     ; $B8B1: 4A
-  BCC $B8C9                               ; $B8B2: 90 15
-  LDA $048E                               ; $B8B4: AD 8E 04
+  BCC @AmountCancel                       ; $B8B2: 90 15     ; bit0 clear -> B check
+  LDA $048E                               ; $B8B4: AD 8E 04  ; window input amount
   STA $042C                               ; $B8B7: 8D 2C 04
   LDA $048F                               ; $B8BA: AD 8F 04
   STA $042D                               ; $B8BD: 8D 2D 04
   LDA #$00                                ; $B8C0: A9 00
   STA $042E                               ; $B8C2: 8D 2E 04
-  INC $0472                               ; $B8C5: EE 72 04
+  INC $0472                               ; $B8C5: EE 72 04  ; -> phase 1
   RTS                                     ; $B8C8: 60
-Loc_B8C9:
+@AmountCancel:
   LSR                                     ; $B8C9: 4A
-  BCC $B916                               ; $B8CA: 90 4A
+  BCC @AmountFrameExit                    ; $B8CA: 90 4A
   LDA #$00                                ; $B8CC: A9 00
-  STA $0401                               ; $B8CE: 8D 01 04
+  STA $0401                               ; $B8CE: 8D 01 04  ; B: cancel -> sub 0
   RTS                                     ; $B8D1: 60
-Loc_B8D2:
+@AmountPhase1:
   CMP #$01                                ; $B8D2: C9 01
-  BNE $B8EB                               ; $B8D4: D0 15
+  BNE @AmountPhase2                       ; $B8D4: D0 15
   JSR $DB87                               ; $B8D6: 20 87 DB
-  LDA $049A                               ; $B8D9: AD 9A 04
+  LDA $049A                               ; $B8D9: AD 9A 04  ; work word refresh
   STA $0490                               ; $B8DC: 8D 90 04
   LDA $049B                               ; $B8DF: AD 9B 04
   STA $0491                               ; $B8E2: 8D 91 04
-  INC $0472                               ; $B8E5: EE 72 04
+  INC $0472                               ; $B8E5: EE 72 04  ; -> phase 2
   LDA $0472                               ; $B8E8: AD 72 04
-Loc_B8EB:
+@AmountPhase2:
   CMP #$02                                ; $B8EB: C9 02
-  BNE $B92F                               ; $B8ED: D0 40
-  LDA #$F8                                ; $B8EF: A9 F8
+  BNE @AmountPhase3Input                  ; $B8ED: D0 40
+  LDA #$F8                                ; $B8EF: A9 F8     ; phase 2: amount window $F8/$22
   STA $031C                               ; $B8F1: 8D 1C 03
   LDA #$22                                ; $B8F4: A9 22
   STA $031D                               ; $B8F6: 8D 1D 03
   JSR $DA02                               ; $B8F9: 20 02 DA
   LDA a:$0081                             ; $B8FC: AD 81 00
   LSR                                     ; $B8FF: 4A
-  BCC $B917                               ; $B900: 90 15
-  LDA $048E                               ; $B902: AD 8E 04
+  BCC @AmountPhaseRestart                 ; $B900: 90 15     ; bit0 clear -> B check
+  LDA $048E                               ; $B902: AD 8E 04  ; window input amount
   STA $042F                               ; $B905: 8D 2F 04
   LDA $048F                               ; $B908: AD 8F 04
   STA $0430                               ; $B90B: 8D 30 04
   LDA #$00                                ; $B90E: A9 00
   STA $0431                               ; $B910: 8D 31 04
-  INC $0472                               ; $B913: EE 72 04
-Loc_B916:
+  INC $0472                               ; $B913: EE 72 04  ; -> phase 3
+@AmountFrameExit:
   RTS                                     ; $B916: 60
-Loc_B917:
+@AmountPhaseRestart:
   LSR                                     ; $B917: 4A
-  BCC $B916                               ; $B918: 90 FC
+  BCC @AmountFrameExit                    ; $B918: 90 FC
   JSR $DB87                               ; $B91A: 20 87 DB
-  LDA $0498                               ; $B91D: AD 98 04
+  LDA $0498                               ; $B91D: AD 98 04  ; work word refresh
   STA $0490                               ; $B920: 8D 90 04
   LDA $0499                               ; $B923: AD 99 04
   STA $0491                               ; $B926: 8D 91 04
   LDA #$00                                ; $B929: A9 00
-  STA $0472                               ; $B92B: 8D 72 04
+  STA $0472                               ; $B92B: 8D 72 04  ; restart at phase 0
   RTS                                     ; $B92E: 60
-Loc_B92F:
+@AmountPhase3Input:
   CMP #$03                                ; $B92F: C9 03
-  BNE $B944                               ; $B931: D0 11
+  BNE @AmountPhase3Window                 ; $B931: D0 11
   JSR $DB87                               ; $B933: 20 87 DB
-  LDA $049C                               ; $B936: AD 9C 04
+  LDA $049C                               ; $B936: AD 9C 04  ; work word refresh
   STA $0490                               ; $B939: 8D 90 04
   LDA #$00                                ; $B93C: A9 00
   STA $0491                               ; $B93E: 8D 91 04
-  INC $0472                               ; $B941: EE 72 04
-Loc_B944:
-  LDA #$2E                                ; $B944: A9 2E
+  INC $0472                               ; $B941: EE 72 04  ; -> phase 4
+@AmountPhase3Window:
+  LDA #$2E                                ; $B944: A9 2E     ; phase 3/4: amount window $2E/$23
   STA $031C                               ; $B946: 8D 1C 03
   LDA #$23                                ; $B949: A9 23
   STA $031D                               ; $B94B: 8D 1D 03
@@ -3370,37 +3470,41 @@ Loc_B944:
   JSR $DA04                               ; $B950: 20 04 DA
   LDA a:$0081                             ; $B953: AD 81 00
   LSR                                     ; $B956: 4A
-  BCS $B962                               ; $B957: B0 09
+  BCS @AmountToConfirm                    ; $B957: B0 09     ; bit0 = A: accept amount
   LSR                                     ; $B959: 4A
-  BCC $B916                               ; $B95A: 90 BA
+  BCC @AmountFrameExit                    ; $B95A: 90 BA
   LDA #$01                                ; $B95C: A9 01
-  STA $0472                               ; $B95E: 8D 72 04
+  STA $0472                               ; $B95E: 8D 72 04  ; B: back to phase 1
   RTS                                     ; $B961: 60
-Loc_B962:
-  LDA $048E                               ; $B962: AD 8E 04
+@AmountToConfirm:
+  LDA $048E                               ; $B962: AD 8E 04  ; window input amount
   STA $0432                               ; $B965: 8D 32 04
   LDA #$00                                ; $B968: A9 00
   STA $0433                               ; $B96A: 8D 33 04
   STA $0434                               ; $B96D: 8D 34 04
-  JSR MenuCursorReset                    ; $B970: 20 70 DD
+  JSR MenuCursorReset                     ; $B970: 20 70 DD
   STA $046C                               ; $B973: 8D 6C 04
-  INC $0401                               ; $B976: EE 01 04
+  INC $0401                               ; $B976: EE 01 04  ; -> sub 4 (transfer apply)
   LDA #$29                                ; $B979: A9 29
-  JMP $F26D                               ; $B97B: 4C 6D F2
-Loc_B97E:  ; (dispatch callback target)
-  JSR $D5BD                               ; $B97E: 20 BD D5
+  JMP $F26D                               ; $B97B: 4C 6D F2  ; B1F_SetUI0 mode $29 (no return)
+;===============================================================================
+; WarehouseGoodsTransferApply ($B97E-$BA03) - sub 4
+;===============================================================================
+WarehouseGoodsTransferApply:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $D5BD                               ; $B97E: 20 BD D5  ; open confirm window ($0013 = result)
   LDA a:$0013                             ; $B981: AD 13 00
-  BEQ $BA03                               ; $B984: F0 7D
+  BEQ @ApplyFrameExit                     ; $B984: F0 7D     ; window closed: done
   CMP #$FF                                ; $B986: C9 FF
-  BEQ $B9FE                               ; $B988: F0 74
+  BEQ @ApplyCancel                        ; $B988: F0 74     ; cancel -> sub 0
   LDA $0402                               ; $B98A: AD 02 04
-  JSR $F2AF                               ; $B98D: 20 AF F2
+  JSR $F2AF                               ; $B98D: 20 AF F2  ; B1F_GetProvinceRecordAddr: province $0402
   LDY #$02                                ; $B990: A0 02
   LDX #$00                                ; $B992: A2 00
-Loc_B994:
-  LDA ($00),Y                             ; $B994: B1 00
+@ApplySubLoop:
+  LDA ($00),Y                             ; $B994: B1 00     ; record +$02-$05 (gold/rice words)
   SEC                                     ; $B996: 38
-  SBC $042C,X                             ; $B997: FD 2C 04
+  SBC $042C,X                             ; $B997: FD 2C 04  ; -= transfer amounts
   STA ($00),Y                             ; $B99A: 91 00
   INY                                     ; $B99C: C8
   INX                                     ; $B99D: E8
@@ -3410,20 +3514,20 @@ Loc_B994:
   INY                                     ; $B9A5: C8
   LDX #$03                                ; $B9A6: A2 03
   CPY #$06                                ; $B9A8: C0 06
-  BCC $B994                               ; $B9AA: 90 E8
+  BCC @ApplySubLoop                       ; $B9AA: 90 E8
   LDY #$10                                ; $B9AC: A0 10
-  LDA ($00),Y                             ; $B9AE: B1 00
+  LDA ($00),Y                             ; $B9AE: B1 00     ; record +$10 (treasure count)
   SEC                                     ; $B9B0: 38
-  SBC $0432                               ; $B9B1: ED 32 04
+  SBC $0432                               ; $B9B1: ED 32 04  ; -= third transfer amount
   STA ($00),Y                             ; $B9B4: 91 00
   LDA $0471                               ; $B9B6: AD 71 04
-  JSR $F2AF                               ; $B9B9: 20 AF F2
+  JSR $F2AF                               ; $B9B9: 20 AF F2  ; B1F_GetProvinceRecordAddr: province $0471
   LDY #$02                                ; $B9BC: A0 02
   LDX #$00                                ; $B9BE: A2 00
-Loc_B9C0:
+@ApplyAddLoop:
   LDA ($00),Y                             ; $B9C0: B1 00
   CLC                                     ; $B9C2: 18
-  ADC $042C,X                             ; $B9C3: 7D 2C 04
+  ADC $042C,X                             ; $B9C3: 7D 2C 04  ; += transfer amounts
   STA ($00),Y                             ; $B9C6: 91 00
   INY                                     ; $B9C8: C8
   INX                                     ; $B9C9: E8
@@ -3433,200 +3537,210 @@ Loc_B9C0:
   INY                                     ; $B9D1: C8
   LDX #$03                                ; $B9D2: A2 03
   CPY #$06                                ; $B9D4: C0 06
-  BCC $B9C0                               ; $B9D6: 90 E8
+  BCC @ApplyAddLoop                       ; $B9D6: 90 E8
   LDY #$10                                ; $B9D8: A0 10
   LDA ($00),Y                             ; $B9DA: B1 00
   CLC                                     ; $B9DC: 18
   ADC $0432                               ; $B9DD: 6D 32 04
   STA ($00),Y                             ; $B9E0: 91 00
   LDA #$22                                ; $B9E2: A9 22
-  STA $04A2                               ; $B9E4: 8D A2 04
+  STA $04A2                               ; $B9E4: 8D A2 04  ; overlay redraw id
   LDA #$32                                ; $B9E7: A9 32
   STA $04D6                               ; $B9E9: 8D D6 04
   LDA #$FF                                ; $B9EC: A9 FF
-  STA $0481                               ; $B9EE: 8D 81 04
-  JSR $D568                               ; $B9F1: 20 68 D5
+  STA $0481                               ; $B9EE: 8D 81 04  ; clear gift-recipient officer
+  JSR MapTransitionStateSave              ; $B9F1: 20 68 D5  ; close window
   LDA #$0C                                ; $B9F4: A9 0C
-  STA $0401                               ; $B9F6: 8D 01 04
+  STA $0401                               ; $B9F6: 8D 01 04  ; -> sub $0C (result redraw gate)
   LDA #$31                                ; $B9F9: A9 31
-  JMP $F26D                               ; $B9FB: 4C 6D F2
-Loc_B9FE:
+  JMP $F26D                               ; $B9FB: 4C 6D F2  ; B1F_SetUI0 mode $31 (no return)
+@ApplyCancel:
   LDA #$00                                ; $B9FE: A9 00
-  STA $0401                               ; $BA00: 8D 01 04
-Loc_BA03:
+  STA $0401                               ; $BA00: 8D 01 04  ; -> sub 0
+@ApplyFrameExit:
   RTS                                     ; $BA03: 60
-Loc_BA04:  ; (dispatch callback target)
-  LDA #$C2                                ; $BA04: A9 C2
+;===============================================================================
+; WarehouseGiveMenuInput ($BA04-$BAC1) - sub 5 (与える submenu)
+;===============================================================================
+WarehouseGiveMenuInput:  ; (dispatch callback target)
+; --- Code Region ---
+  LDA #$C2                                ; $BA04: A9 C2     ; ($0010) = menu window stream $BAC2
   STA a:$0010                             ; $BA06: 8D 10 00
   LDA #$BA                                ; $BA09: A9 BA
   STA a:$0011                             ; $BA0B: 8D 11 00
   LDA #$00                                ; $BA0E: A9 00
-  STA a:$0012                             ; $BA10: 8D 12 00
-  JSR $ED19                               ; $BA13: 20 19 ED
+  STA a:$0012                             ; $BA10: 8D 12 00  ; selection output cell
+  JSR $ED19                               ; $BA13: 20 19 ED  ; draw menu window stream
   LDA #$C5                                ; $BA16: A9 C5
-  STA a:$0010                             ; $BA18: 8D 10 00
+  STA a:$0010                             ; $BA18: 8D 10 00  ; ($0010) = cursor pos table $BAC5
   LDA #$BA                                ; $BA1B: A9 BA
   STA a:$0011                             ; $BA1D: 8D 11 00
   LDA #$C9                                ; $BA20: A9 C9
-  STA a:$0000                             ; $BA22: 8D 00 00
+  STA a:$0000                             ; $BA22: 8D 00 00  ; ($0000) = cursor sprite template $BAC9
   LDA #$BA                                ; $BA25: A9 BA
   STA a:$0001                             ; $BA27: 8D 01 00
   LDA a:$0012                             ; $BA2A: AD 12 00
-  JSR $EDF5                               ; $BA2D: 20 F5 ED
-  JSR $DDAD                               ; $BA30: 20 AD DD
-  BCC $BA43                               ; $BA33: 90 0E
+  JSR $EDF5                               ; $BA2D: 20 F5 ED  ; B1F_PointerTableLookup: draw cursor at selected item
+  JSR $DDAD                               ; $BA30: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @GiveMenuFrameExit                  ; $BA33: 90 0E
   LDA a:$0081                             ; $BA35: AD 81 00
   LSR                                     ; $BA38: 4A
-  BCS $BA44                               ; $BA39: B0 09
+  BCS @GiveMenuSelect                     ; $BA39: B0 09     ; bit0 = A
   LSR                                     ; $BA3B: 4A
-  BCC $BA43                               ; $BA3C: 90 05
+  BCC @GiveMenuFrameExit                  ; $BA3C: 90 05
   LDA #$00                                ; $BA3E: A9 00
-  STA $0401                               ; $BA40: 8D 01 04
-Loc_BA43:
+  STA $0401                               ; $BA40: 8D 01 04  ; B: cancel -> sub 0
+@GiveMenuFrameExit:
   RTS                                     ; $BA43: 60
-Loc_BA44:
-  JSR MenuCursorReset                    ; $BA44: 20 70 DD
+@GiveMenuSelect:
+  JSR MenuCursorReset                     ; $BA44: 20 70 DD
   JSR $DB87                               ; $BA47: 20 87 DB
   LDA a:$0012                             ; $BA4A: AD 12 00
-  BNE $BA57                               ; $BA4D: D0 08
-  INC $0401                               ; $BA4F: EE 01 04
+  BNE @GiveMenuPopulace                   ; $BA4D: D0 08     ; item 1: populace give (sub $0A)
+  INC $0401                               ; $BA4F: EE 01 04  ; item 0: -> sub 6 (officer give)
   LDA #$7E                                ; $BA52: A9 7E
-  JMP $F26D                               ; $BA54: 4C 6D F2
-Loc_BA57:
+  JMP $F26D                               ; $BA54: 4C 6D F2  ; B1F_SetUI0 mode $7E (no return)
+@GiveMenuPopulace:
   LDA $0402                               ; $BA57: AD 02 04
-  JSR $F2AF                               ; $BA5A: 20 AF F2
+  JSR $F2AF                               ; $BA5A: 20 AF F2  ; B1F_GetProvinceRecordAddr: province $0402
   LDY #$0B                                ; $BA5D: A0 0B
-  LDA ($00),Y                             ; $BA5F: B1 00
+  LDA ($00),Y                             ; $BA5F: B1 00     ; record +$0B (統治度)
   CMP #$64                                ; $BA61: C9 64
-  BCC $BA6F                               ; $BA63: 90 0A
+  BCC @GiveMenuCapOk                      ; $BA63: 90 0A     ; < 100: continue
   LDA #$0E                                ; $BA65: A9 0E
-  STA $0401                               ; $BA67: 8D 01 04
+  STA $0401                               ; $BA67: 8D 01 04  ; already max: -> sub $0E (message)
   LDA #$A7                                ; $BA6A: A9 A7
-  JMP $F26D                               ; $BA6C: 4C 6D F2
-Loc_BA6F:
-  LDA a:$0000                             ; $BA6F: AD 00 00
+  JMP $F26D                               ; $BA6C: 4C 6D F2  ; B1F_SetUI0 mode $A7 (no return)
+@GiveMenuCapOk:
+  LDA a:$0000                             ; $BA6F: AD 00 00  ; ($10) = ($00): keep record pointer
   STA a:$0010                             ; $BA72: 8D 10 00
   LDA a:$0001                             ; $BA75: AD 01 00
   STA a:$0011                             ; $BA78: 8D 11 00
-  LDX #$64                                ; $BA7B: A2 64
+  LDX #$64                                ; $BA7B: A2 64     ; default amount cap 100
   LDY #$03                                ; $BA7D: A0 03
-  LDA ($10),Y                             ; $BA7F: B1 10
-  BNE $BA8B                               ; $BA81: D0 08
+  LDA ($10),Y                             ; $BA7F: B1 10     ; record +$03
+  BNE @GiveMenuSeedGold                   ; $BA81: D0 08     ; > $FF: cap at 100
   DEY                                     ; $BA83: 88
-  LDA ($10),Y                             ; $BA84: B1 10
+  LDA ($10),Y                             ; $BA84: B1 10     ; record +$02
   CMP #$64                                ; $BA86: C9 64
-  BCS $BA8B                               ; $BA88: B0 01
-  TAX                                     ; $BA8A: AA
-Loc_BA8B:
-  JSR $BF89                               ; $BA8B: 20 89 BF
-  STX $0498                               ; $BA8E: 8E 98 04
+  BCS @GiveMenuSeedGold                   ; $BA88: B0 01     ; >= 100: cap at 100
+  TAX                                     ; $BA8A: AA        ; seed with record value
+@GiveMenuSeedGold:
+  JSR WarehouseAmountDiv10                ; $BA8B: 20 89 BF
+  STX $0498                               ; $BA8E: 8E 98 04  ; gold gift amount work cell
   STX $0490                               ; $BA91: 8E 90 04
   LDX #$64                                ; $BA94: A2 64
   LDY #$05                                ; $BA96: A0 05
-  LDA ($10),Y                             ; $BA98: B1 10
-  BNE $BAA4                               ; $BA9A: D0 08
+  LDA ($10),Y                             ; $BA98: B1 10     ; record +$05
+  BNE @GiveMenuSeedRice                   ; $BA9A: D0 08
   DEY                                     ; $BA9C: 88
-  LDA ($10),Y                             ; $BA9D: B1 10
+  LDA ($10),Y                             ; $BA9D: B1 10     ; record +$04
   CMP #$64                                ; $BA9F: C9 64
-  BCS $BAA4                               ; $BAA1: B0 01
+  BCS @GiveMenuSeedRice                   ; $BAA1: B0 01
   TAX                                     ; $BAA3: AA
-Loc_BAA4:
-  JSR $BF89                               ; $BAA4: 20 89 BF
-  STX $049A                               ; $BAA7: 8E 9A 04
+@GiveMenuSeedRice:
+  JSR WarehouseAmountDiv10                ; $BAA4: 20 89 BF
+  STX $049A                               ; $BAA7: 8E 9A 04  ; rice gift amount work cell
   LDA #$00                                ; $BAAA: A9 00
   STA $0499                               ; $BAAC: 8D 99 04
   STA $049B                               ; $BAAF: 8D 9B 04
   STA $0491                               ; $BAB2: 8D 91 04
-  STA $0472                               ; $BAB5: 8D 72 04
+  STA $0472                               ; $BAB5: 8D 72 04  ; panel phase counter <- 0
   LDA #$0A                                ; $BAB8: A9 0A
-  STA $0401                               ; $BABA: 8D 01 04
+  STA $0401                               ; $BABA: 8D 01 04  ; -> sub $0A (populace amount panel)
   LDA #$59                                ; $BABD: A9 59
-  JMP $F26D                               ; $BABF: 4C 6D F2
+  JMP $F26D                               ; $BABF: 4C 6D F2  ; B1F_SetUI0 mode $59 (no return)
 ; --- Data Region ---
-  .byte $00,$01,$FF,$B8,$58,$C8,$58,$00,$07,$00,$00,$80; $BAC2: 00 01 FF B8 58 C8 58 00 07 00 00 80
-Loc_BACE:  ; (dispatch callback target)
+  .byte $00,$01,$FF,$B8,$58,$C8,$58       ; $BAC2: 00 01 FF B8 58 C8 58      ; menu window stream $BAC2 + cursor pos table $BAC5
+  .byte $00,$07,$00,$00,$80               ; $BAC9: 00 07 00 00 80            ; cursor sprite template $BAC9
+;===============================================================================
+; WarehouseOfficerGiveMenu ($BACE-$BB6F) - sub 6 (与える: gold/treasure)
+;===============================================================================
+WarehouseOfficerGiveMenu:  ; (dispatch callback target)
 ; --- Code Region ---
-  LDA #$70                                ; $BACE: A9 70
+  LDA #$70                                ; $BACE: A9 70     ; ($0010) = menu window stream $BB70
   STA a:$0010                             ; $BAD0: 8D 10 00
-Loc_BAD3:
   LDA #$BB                                ; $BAD3: A9 BB
   STA a:$0011                             ; $BAD5: 8D 11 00
   LDA #$00                                ; $BAD8: A9 00
-  STA a:$0012                             ; $BADA: 8D 12 00
-  JSR $ED1E                               ; $BADD: 20 1E ED
+  STA a:$0012                             ; $BADA: 8D 12 00  ; selection output cell
+  JSR $ED1E                               ; $BADD: 20 1E ED  ; draw menu window stream
   LDA #$74                                ; $BAE0: A9 74
-  STA a:$0010                             ; $BAE2: 8D 10 00
+  STA a:$0010                             ; $BAE2: 8D 10 00  ; ($0010) = cursor pos table $BB74
   LDA #$BB                                ; $BAE5: A9 BB
   STA a:$0011                             ; $BAE7: 8D 11 00
   LDA #$78                                ; $BAEA: A9 78
-  STA a:$0000                             ; $BAEC: 8D 00 00
+  STA a:$0000                             ; $BAEC: 8D 00 00  ; ($0000) = cursor sprite template $BB78
   LDA #$BB                                ; $BAEF: A9 BB
   STA a:$0001                             ; $BAF1: 8D 01 00
   LDA a:$0012                             ; $BAF4: AD 12 00
-  JSR $EDF5                               ; $BAF7: 20 F5 ED
-  JSR $DDAD                               ; $BAFA: 20 AD DD
-  BCC $BB6F                               ; $BAFD: 90 70
+  JSR $EDF5                               ; $BAF7: 20 F5 ED  ; B1F_PointerTableLookup: draw cursor at selected item
+  JSR $DDAD                               ; $BAFA: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @OfficerMenuFrameExit               ; $BAFD: 90 70
   LDA a:$0081                             ; $BAFF: AD 81 00
   LSR                                     ; $BB02: 4A
-  BCC $BB5F                               ; $BB03: 90 5A
+  BCC @OfficerMenuCancel                  ; $BB03: 90 5A     ; bit0 clear -> B check
   LDA $0402                               ; $BB05: AD 02 04
-  JSR $F2AF                               ; $BB08: 20 AF F2
+  JSR $F2AF                               ; $BB08: 20 AF F2  ; B1F_GetProvinceRecordAddr: province $0402
   LDA a:$0012                             ; $BB0B: AD 12 00
-  BNE $BB36                               ; $BB0E: D0 26
-  INC $0401                               ; $BB10: EE 01 04
+  BNE @OfficerMenuTreasure                ; $BB0E: D0 26     ; item 1: treasure give
+  INC $0401                               ; $BB10: EE 01 04  ; item 0: -> sub 7 (gold give)
   LDY #$03                                ; $BB13: A0 03
   LDX #$64                                ; $BB15: A2 64
-  LDA ($00),Y                             ; $BB17: B1 00
-  BNE $BB23                               ; $BB19: D0 08
+  LDA ($00),Y                             ; $BB17: B1 00     ; record +$03
+  BNE @OfficerMenuSeedGold                ; $BB19: D0 08
   DEY                                     ; $BB1B: 88
-  LDA ($00),Y                             ; $BB1C: B1 00
+  LDA ($00),Y                             ; $BB1C: B1 00     ; record +$02
   CMP #$64                                ; $BB1E: C9 64
-  BCS $BB23                               ; $BB20: B0 01
+  BCS @OfficerMenuSeedGold                ; $BB20: B0 01
   TAX                                     ; $BB22: AA
-Loc_BB23:
-  JSR $BF89                               ; $BB23: 20 89 BF
-  STX $0490                               ; $BB26: 8E 90 04
+@OfficerMenuSeedGold:
+  JSR WarehouseAmountDiv10                ; $BB23: 20 89 BF
+  STX $0490                               ; $BB26: 8E 90 04  ; gold gift amount work cell
   LDA #$00                                ; $BB29: A9 00
   STA $0491                               ; $BB2B: 8D 91 04
-  STA $0470                               ; $BB2E: 8D 70 04
+  STA $0470                               ; $BB2E: 8D 70 04  ; flow flag <- 0 (gold give)
   LDA #$5B                                ; $BB31: A9 5B
-  JMP $F26D                               ; $BB33: 4C 6D F2
-Loc_BB36:
+  JMP $F26D                               ; $BB33: 4C 6D F2  ; B1F_SetUI0 mode $5B (no return)
+@OfficerMenuTreasure:
   LDY #$10                                ; $BB36: A0 10
-  LDA ($00),Y                             ; $BB38: B1 00
-  BEQ $BB55                               ; $BB3A: F0 19
+  LDA ($00),Y                             ; $BB38: B1 00     ; record +$10 (treasure count)
+  BEQ @OfficerMenuNoTreasure              ; $BB3A: F0 19     ; none: -> sub $0F
   LDA #$08                                ; $BB3C: A9 08
-  STA $0401                               ; $BB3E: 8D 01 04
+  STA $0401                               ; $BB3E: 8D 01 04  ; -> sub 8 (officer give gate)
   LDA #$01                                ; $BB41: A9 01
-  STA $0470                               ; $BB43: 8D 70 04
+  STA $0470                               ; $BB43: 8D 70 04  ; flow flag <- 1 (treasure give)
   LDA #$80                                ; $BB46: A9 80
-  STA $0478                               ; $BB48: 8D 78 04
+  STA $0478                               ; $BB48: 8D 78 04  ; window anim counter
   LDA #$0F                                ; $BB4B: A9 0F
-  STA $047C                               ; $BB4D: 8D 7C 04
+  STA $047C                               ; $BB4D: 8D 7C 04  ; window anim phase
   LDA #$5D                                ; $BB50: A9 5D
-  JMP $F26D                               ; $BB52: 4C 6D F2
-Loc_BB55:
+  JMP $F26D                               ; $BB52: 4C 6D F2  ; B1F_SetUI0 mode $5D (no return)
+@OfficerMenuNoTreasure:
   LDA #$0F                                ; $BB55: A9 0F
-  STA $0401                               ; $BB57: 8D 01 04
+  STA $0401                               ; $BB57: 8D 01 04  ; -> sub $0F (route-back message)
   LDA #$AC                                ; $BB5A: A9 AC
-  JMP $F26D                               ; $BB5C: 4C 6D F2
-Loc_BB5F:
+  JMP $F26D                               ; $BB5C: 4C 6D F2  ; B1F_SetUI0 mode $AC (no return)
+@OfficerMenuCancel:
   LSR                                     ; $BB5F: 4A
-  BCC $BB6F                               ; $BB60: 90 0D
+  BCC @OfficerMenuFrameExit               ; $BB60: 90 0D
   LDA #$05                                ; $BB62: A9 05
-  STA $0401                               ; $BB64: 8D 01 04
-  JSR MenuCursorReset                    ; $BB67: 20 70 DD
+  STA $0401                               ; $BB64: 8D 01 04  ; B: -> sub 5 (与える menu)
+  JSR MenuCursorReset                     ; $BB67: 20 70 DD
   LDA #$58                                ; $BB6A: A9 58
-  JMP $F26D                               ; $BB6C: 4C 6D F2
-Loc_BB6F:
+  JMP $F26D                               ; $BB6C: 4C 6D F2  ; B1F_SetUI0 mode $58 (no return)
+@OfficerMenuFrameExit:
   RTS                                     ; $BB6F: 60
 ; --- Data Region ---
-  .byte $00,$01,$FF,$FF,$C8,$58,$C8,$A8,$00,$07,$00,$00,$80; $BB70: 00 01 FF FF C8 58 C8 A8 00 07 00 00 80
-Loc_BB7D:  ; (dispatch callback target)
+  .byte $00,$01,$FF,$FF,$C8,$58,$C8,$A8,$00,$07,$00,$00,$80 ; $BB70: 00 01 FF FF C8 58 C8 A8 00 07 00 00 80
+;===============================================================================
+; WarehouseGoldAmountPrompt ($BB7D-$BBC5) - sub 7 (gold amount prompt)
+;===============================================================================
+WarehouseGoldAmountPrompt:  ; (dispatch callback target)
 ; --- Code Region ---
-  JSR $DDAD                               ; $BB7D: 20 AD DD
-  BCC $BBC5                               ; $BB80: 90 43
-  LDA #$2F                                ; $BB82: A9 2F
+  JSR $DDAD                               ; $BB7D: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @GoldPromptFrameExit                ; $BB80: 90 43
+  LDA #$2F                                ; $BB82: A9 2F     ; prompt window $2F/$23
   STA $031C                               ; $BB84: 8D 1C 03
   LDA #$23                                ; $BB87: A9 23
   STA $031D                               ; $BB89: 8D 1D 03
@@ -3634,78 +3748,84 @@ Loc_BB7D:  ; (dispatch callback target)
   JSR $DA04                               ; $BB8E: 20 04 DA
   LDA a:$0081                             ; $BB91: AD 81 00
   LSR                                     ; $BB94: 4A
-  BCC $BBB4                               ; $BB95: 90 1D
-  LDA $048E                               ; $BB97: AD 8E 04
-  BEQ $BBC5                               ; $BB9A: F0 29
-  JSR $BFA0                               ; $BB9C: 20 A0 BF
-  INC $0401                               ; $BB9F: EE 01 04
-  STA $048E                               ; $BBA2: 8D 8E 04
+  BCC @GoldPromptCancel                   ; $BB95: 90 1D     ; bit0 clear -> B check
+  LDA $048E                               ; $BB97: AD 8E 04  ; window input amount (gold)
+  BEQ @GoldPromptFrameExit                ; $BB9A: F0 29     ; zero: keep waiting
+  JSR WarehouseSliderScale10              ; $BB9C: 20 A0 BF
+  INC $0401                               ; $BB9F: EE 01 04  ; -> sub 8 (officer give gate)
+  STA $048E                               ; $BBA2: 8D 8E 04  ; gold gift amount
   LDA #$80                                ; $BBA5: A9 80
-  STA $0478                               ; $BBA7: 8D 78 04
+  STA $0478                               ; $BBA7: 8D 78 04  ; window anim counter
   LDA #$0F                                ; $BBAA: A9 0F
-  STA $047C                               ; $BBAC: 8D 7C 04
+  STA $047C                               ; $BBAC: 8D 7C 04  ; window anim phase
   LDA #$5D                                ; $BBAF: A9 5D
-  JMP $F26D                               ; $BBB1: 4C 6D F2
-Loc_BBB4:
+  JMP $F26D                               ; $BBB1: 4C 6D F2  ; B1F_SetUI0 mode $5D (no return)
+@GoldPromptCancel:
   LSR                                     ; $BBB4: 4A
-  BCC $BBC5                               ; $BBB5: 90 0E
-  DEC $0401                               ; $BBB7: CE 01 04
-  JSR MenuCursorReset                    ; $BBBA: 20 70 DD
+  BCC @GoldPromptFrameExit                ; $BBB5: 90 0E
+  DEC $0401                               ; $BBB7: CE 01 04  ; B: -> sub 6 (resource menu)
+  JSR MenuCursorReset                     ; $BBBA: 20 70 DD
   JSR $DB87                               ; $BBBD: 20 87 DB
   LDA #$7E                                ; $BBC0: A9 7E
-  JMP $F26D                               ; $BBC2: 4C 6D F2
-Loc_BBC5:
+  JMP $F26D                               ; $BBC2: 4C 6D F2  ; B1F_SetUI0 mode $7E (no return)
+@GoldPromptFrameExit:
   RTS                                     ; $BBC5: 60
-Loc_BBC6:  ; (dispatch callback target)
-  LDA $0478                               ; $BBC6: AD 78 04
-  BNE $BC22                               ; $BBC9: D0 57
-  JSR $D64A                               ; $BBCB: 20 4A D6
-  LDA $047C                               ; $BBCE: AD 7C 04
-  BPL $BC22                               ; $BBD1: 10 4F
-  CMP #$90                                ; $BBD3: C9 90
-  BEQ $BC12                               ; $BBD5: F0 3B
-  CMP #$81                                ; $BBD7: C9 81
-  BEQ $BBEC                               ; $BBD9: F0 11
-  LDA $0481                               ; $BBDB: AD 81 04
-  JSR $F2D7                               ; $BBDE: 20 D7 F2
-  LDY #$03                                ; $BBE1: A0 03
-  LDA ($00),Y                             ; $BBE3: B1 00
-  CMP #$5A                                ; $BBE5: C9 5A
-  BCS $BBFB                               ; $BBE7: B0 12
-  JMP $BC23                               ; $BBE9: 4C 23 BC
-Loc_BBEC:
-  LDA #$0F                                ; $BBEC: A9 0F
-  STA $047C                               ; $BBEE: 8D 7C 04
-  LDA #$80                                ; $BBF1: A9 80
-  STA $0478                               ; $BBF3: 8D 78 04
-  LDA #$4A                                ; $BBF6: A9 4A
-  JMP $F26D                               ; $BBF8: 4C 6D F2
-Loc_BBFB:
-  LDA $0481                               ; $BBFB: AD 81 04
-  STA a:$0000                             ; $BBFE: 8D 00 00
-  LDY #$3D                                ; $BC01: A0 3D
-  JSR $EE07                               ; $BC03: 20 07 EE
-; --- Data Region ---
-  .byte $2A,$A0,$A9,$0E,$8D,$01,$04,$A9,$5E,$4C,$6D,$F2; $BC06: 2A A0 A9 0E 8D 01 04 A9 5E 4C 6D F2
-Loc_BC12:
+;===============================================================================
+; WarehouseOfficerGiveGate ($BBC6-$BCE3) - sub 8
+;===============================================================================
+WarehouseOfficerGiveGate:  ; (dispatch callback target)
 ; --- Code Region ---
+  LDA $0478                               ; $BBC6: AD 78 04  ; window anim counter
+  BNE @GiveGateFrameExit                  ; $BBC9: D0 57     ; anim running: wait
+  JSR $D64A                               ; $BBCB: 20 4A D6  ; step window anim
+  LDA $047C                               ; $BBCE: AD 7C 04  ; window anim phase
+  BPL @GiveGateFrameExit                  ; $BBD1: 10 4F     ; positive: still animating
+  CMP #$90                                ; $BBD3: C9 90
+  BEQ @GiveGateAnimDone                   ; $BBD5: F0 3B     ; anim done: back to sub 6
+  CMP #$81                                ; $BBD7: C9 81
+  BEQ @GiveGateAnimRestart                ; $BBD9: F0 11     ; anim restart marker
+  LDA $0481                               ; $BBDB: AD 81 04  ; gift-recipient officer id
+  JSR $F2D7                               ; $BBDE: 20 D7 F2  ; B1F_GetOfficerRecordAddr
+  LDY #$03                                ; $BBE1: A0 03
+  LDA ($00),Y                             ; $BBE3: B1 00     ; officer +$03 (loyalty)
+  CMP #$5A                                ; $BBE5: C9 5A
+  BCS @GiveGateLoyaltyMax                 ; $BBE7: B0 12     ; >= 90: already devoted
+  JMP @GiveGateRedraw                     ; $BBE9: 4C 23 BC
+@GiveGateAnimRestart:
+  LDA #$0F                                ; $BBEC: A9 0F
+  STA $047C                               ; $BBEE: 8D 7C 04  ; window anim phase
+  LDA #$80                                ; $BBF1: A9 80
+  STA $0478                               ; $BBF3: 8D 78 04  ; window anim counter
+  LDA #$4A                                ; $BBF6: A9 4A
+  JMP $F26D                               ; $BBF8: 4C 6D F2  ; B1F_SetUI0 mode $4A (no return)
+@GiveGateLoyaltyMax:
+  LDA $0481                               ; $BBFB: AD 81 04  ; gift-recipient officer id
+  STA a:$0000                             ; $BBFE: 8D 00 00
+  LDY #$3D                                ; $BC01: A0 3D     ; target banks $1D+$1E
+  JSR B1F_BankedCallbackTrampoline        ; $BC03: 20 07 EE
+  .word B1D_1E_OfficerDisplay_Lookup      ; $BC06: 2A A0 (BankedCallbackTrampoline target; bank $1D $A02A -> JMP OfficerDisplay_Lookup)
+  LDA #$0E                                ; $BC08: A9 0E
+  STA $0401                               ; $BC0A: 8D 01 04  ; -> sub $0E (result message)
+  LDA #$5E                                ; $BC0C: A9 5E
+  JMP $F26D                               ; $BC0E: 4C 6D F2  ; B1F_SetUI0 mode $5E (no return)
+@GiveGateAnimDone:
   LDA #$06                                ; $BC12: A9 06
-  STA $0401                               ; $BC14: 8D 01 04
-  JSR MenuCursorReset                    ; $BC17: 20 70 DD
+  STA $0401                               ; $BC14: 8D 01 04  ; -> sub 6 (resource menu)
+  JSR MenuCursorReset                     ; $BC17: 20 70 DD
   JSR $DB87                               ; $BC1A: 20 87 DB
   LDA #$7E                                ; $BC1D: A9 7E
-  JMP $F26D                               ; $BC1F: 4C 6D F2
-Loc_BC22:
+  JMP $F26D                               ; $BC1F: 4C 6D F2  ; B1F_SetUI0 mode $7E (no return)
+@GiveGateFrameExit:
   RTS                                     ; $BC22: 60
-Loc_BC23:
+@GiveGateRedraw:
   LDA $0402                               ; $BC23: AD 02 04
   JSR $DD4F                               ; $BC26: 20 4F DD
-  JSR $F2D7                               ; $BC29: 20 D7 F2
+  JSR $F2D7                               ; $BC29: 20 D7 F2  ; B1F_GetOfficerRecordAddr ($0481)
   LDY #$04                                ; $BC2C: A0 04
-  LDA ($00),Y                             ; $BC2E: B1 00
+  LDA ($00),Y                             ; $BC2E: B1 00     ; officer +$04
   STA a:$0000                             ; $BC30: 8D 00 00
-  LDA $0470                               ; $BC33: AD 70 04
-  BNE $BC8B                               ; $BC36: D0 53
+  LDA $0470                               ; $BC33: AD 70 04  ; flow flag (0 = gold, 1 = treasure)
+  BNE @GiveGateRedrawTreasure             ; $BC36: D0 53     ; 1: treasure variant
   LDA #$00                                ; $BC38: A9 00
   STA a:$0001                             ; $BC3A: 8D 01 00
   STA a:$0002                             ; $BC3D: 8D 02 00
@@ -3736,8 +3856,8 @@ Loc_BC23:
   ADC #$07                                ; $BC80: 69 07
   STA a:$0003                             ; $BC82: 8D 03 00
   JSR $EBE9                               ; $BC85: 20 E9 EB
-  JMP $BCBF                               ; $BC88: 4C BF BC
-Loc_BC8B:
+  JMP @GiveGateRedrawFinish               ; $BC88: 4C BF BC
+@GiveGateRedrawTreasure:
   LDA #$00                                ; $BC8B: A9 00
   STA a:$0001                             ; $BC8D: 8D 01 00
   STA a:$0002                             ; $BC90: 8D 02 00
@@ -3752,15 +3872,15 @@ Loc_BC8B:
   LDA #$00                                ; $BCA7: A9 00
   STA a:$0001                             ; $BCA9: 8D 01 00
   STA a:$0002                             ; $BCAC: 8D 02 00
-Loc_BCAF:
+@GiveGateRedrawPoll:
   JSR $E856                               ; $BCAF: 20 56 E8
   CMP #$07                                ; $BCB2: C9 07
-  BEQ $BCAF                               ; $BCB4: F0 F9
+  BEQ @GiveGateRedrawPoll                 ; $BCB4: F0 F9
   CLC                                     ; $BCB6: 18
   ADC #$0A                                ; $BCB7: 69 0A
   STA a:$0003                             ; $BCB9: 8D 03 00
   JSR $EBE9                               ; $BCBC: 20 E9 EB
-Loc_BCBF:
+@GiveGateRedrawFinish:
   LDA #$0A                                ; $BCBF: A9 0A
   STA a:$0003                             ; $BCC1: 8D 03 00
   LDA #$00                                ; $BCC4: A9 00
@@ -3768,82 +3888,90 @@ Loc_BCBF:
   JSR $DB72                               ; $BCC9: 20 72 DB
   LDA a:$0000                             ; $BCCC: AD 00 00
   STA $042C                               ; $BCCF: 8D 2C 04
-  JSR MenuCursorReset                    ; $BCD2: 20 70 DD
+  JSR MenuCursorReset                     ; $BCD2: 20 70 DD
   STA $042D                               ; $BCD5: 8D 2D 04
   STA $042E                               ; $BCD8: 8D 2E 04
   STA $046C                               ; $BCDB: 8D 6C 04
-  INC $0401                               ; $BCDE: EE 01 04
+  INC $0401                               ; $BCDE: EE 01 04  ; -> sub 9 (officer give apply)
   LDA #$29                                ; $BCE1: A9 29
-  JMP $F26D                               ; $BCE3: 4C 6D F2
-Loc_BCE6:  ; (dispatch callback target)
-  JSR $D5BD                               ; $BCE6: 20 BD D5
+  JMP $F26D                               ; $BCE3: 4C 6D F2  ; B1F_SetUI0 mode $29 (no return)
+;===============================================================================
+; WarehouseOfficerGiveApply ($BCE6-$BD66) - sub 9
+;===============================================================================
+WarehouseOfficerGiveApply:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $D5BD                               ; $BCE6: 20 BD D5  ; open confirm window ($0013 = result)
   LDA a:$0013                             ; $BCE9: AD 13 00
-  BEQ $BD66                               ; $BCEC: F0 78
+  BEQ @OfficerApplyFrameExit              ; $BCEC: F0 78     ; window closed: done
   CMP #$FF                                ; $BCEE: C9 FF
-  BEQ $BD61                               ; $BCF0: F0 6F
+  BEQ @OfficerApplyCancel                 ; $BCF0: F0 6F     ; cancel -> sub 0
   LDA $0402                               ; $BCF2: AD 02 04
-  JSR $F2AF                               ; $BCF5: 20 AF F2
-  LDA $0470                               ; $BCF8: AD 70 04
-  BNE $BD11                               ; $BCFB: D0 14
+  JSR $F2AF                               ; $BCF5: 20 AF F2  ; B1F_GetProvinceRecordAddr: province $0402
+  LDA $0470                               ; $BCF8: AD 70 04  ; flow flag (0 = gold, 1 = treasure)
+  BNE @OfficerApplyTreasure               ; $BCFB: D0 14     ; 1: treasure give
   LDY #$02                                ; $BCFD: A0 02
-  LDA ($00),Y                             ; $BCFF: B1 00
+  LDA ($00),Y                             ; $BCFF: B1 00     ; record +$02
   SEC                                     ; $BD01: 38
-  SBC $048E                               ; $BD02: ED 8E 04
+  SBC $048E                               ; $BD02: ED 8E 04  ; -= gold gift (16-bit)
   STA ($00),Y                             ; $BD05: 91 00
   INY                                     ; $BD07: C8
   LDA ($00),Y                             ; $BD08: B1 00
   SBC #$00                                ; $BD0A: E9 00
   STA ($00),Y                             ; $BD0C: 91 00
-  JMP $BD1A                               ; $BD0E: 4C 1A BD
-Loc_BD11:
+  JMP @OfficerApplyCredit                 ; $BD0E: 4C 1A BD
+@OfficerApplyTreasure:
   LDY #$10                                ; $BD11: A0 10
-  LDA ($00),Y                             ; $BD13: B1 00
+  LDA ($00),Y                             ; $BD13: B1 00     ; record +$10 (treasure count)
   SEC                                     ; $BD15: 38
-  SBC #$01                                ; $BD16: E9 01
+  SBC #$01                                ; $BD16: E9 01     ; -= 1 treasure
   STA ($00),Y                             ; $BD18: 91 00
-Loc_BD1A:
-  LDA $0481                               ; $BD1A: AD 81 04
-  JSR $F2D7                               ; $BD1D: 20 D7 F2
+@OfficerApplyCredit:
+  LDA $0481                               ; $BD1A: AD 81 04  ; gift-recipient officer id
+  JSR $F2D7                               ; $BD1D: 20 D7 F2  ; B1F_GetOfficerRecordAddr
   LDY #$03                                ; $BD20: A0 03
-  LDA ($00),Y                             ; $BD22: B1 00
+  LDA ($00),Y                             ; $BD22: B1 00     ; officer +$03 (loyalty)
   CLC                                     ; $BD24: 18
-  ADC $042C                               ; $BD25: 6D 2C 04
+  ADC $042C                               ; $BD25: 6D 2C 04  ; += gift amount
   CMP #$64                                ; $BD28: C9 64
-  BCC $BD3E                               ; $BD2A: 90 12
+  BCC @OfficerApplyStore                  ; $BD2A: 90 12
   STA a:$0002                             ; $BD2C: 8D 02 00
-  LDA #$63                                ; $BD2F: A9 63
-  SEC                                     ; $BD31: 38
+  LDA #$63                                ; $BD2F: A9 63     ; cap at 99: reduce the
+  SEC                                     ; $BD31: 38        ; credit by the overflow
   SBC a:$0002                             ; $BD32: ED 02 00
   CLC                                     ; $BD35: 18
   ADC $042C                               ; $BD36: 6D 2C 04
   STA $042C                               ; $BD39: 8D 2C 04
   LDA #$63                                ; $BD3C: A9 63
-Loc_BD3E:
+@OfficerApplyStore:
   STA ($00),Y                             ; $BD3E: 91 00
   LDA #$17                                ; $BD40: A9 17
-  STA $04A2                               ; $BD42: 8D A2 04
+  STA $04A2                               ; $BD42: 8D A2 04  ; overlay redraw id
   LDA #$29                                ; $BD45: A9 29
   STA $04D6                               ; $BD47: 8D D6 04
   LDA #$03                                ; $BD4A: A9 03
   STA a:$00A4                             ; $BD4C: 8D A4 00
-  JSR $D568                               ; $BD4F: 20 68 D5
+  JSR MapTransitionStateSave              ; $BD4F: 20 68 D5  ; close window
   LDA #$0C                                ; $BD52: A9 0C
-  STA $0401                               ; $BD54: 8D 01 04
+  STA $0401                               ; $BD54: 8D 01 04  ; -> sub $0C (result redraw gate)
   LDA #$5F                                ; $BD57: A9 5F
-  STA $0473                               ; $BD59: 8D 73 04
+  STA $0473                               ; $BD59: 8D 73 04  ; post-result UI mode
   LDA #$00                                ; $BD5C: A9 00
-  JMP $F29B                               ; $BD5E: 4C 9B F2
-Loc_BD61:
+  JMP $F29B                               ; $BD5E: 4C 9B F2  ; B1F_SetUI1 mode 0 (no return)
+@OfficerApplyCancel:
   LDA #$00                                ; $BD61: A9 00
-  STA $0401                               ; $BD63: 8D 01 04
-Loc_BD66:
+  STA $0401                               ; $BD63: 8D 01 04  ; -> sub 0
+@OfficerApplyFrameExit:
   RTS                                     ; $BD66: 60
-Loc_BD67:  ; (dispatch callback target)
-  JSR $DDAD                               ; $BD67: 20 AD DD
-  BCC $BDAB                               ; $BD6A: 90 3F
-  LDA $0472                               ; $BD6C: AD 72 04
-  BNE $BDAC                               ; $BD6F: D0 3B
-  LDA #$2C                                ; $BD71: A9 2C
+;===============================================================================
+; WarehousePopulaceAmountPanel ($BD67-$BE18) - sub $0A (与える: gold/rice)
+;===============================================================================
+WarehousePopulaceAmountPanel:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $DDAD                               ; $BD67: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @PopulaceFrameExit                  ; $BD6A: 90 3F
+  LDA $0472                               ; $BD6C: AD 72 04  ; panel phase counter
+  BNE @PopulacePhaseNext                  ; $BD6F: D0 3B
+  LDA #$2C                                ; $BD71: A9 2C     ; phase 0: amount window $2C/$23 (gold)
   STA $031C                               ; $BD73: 8D 1C 03
   LDA #$23                                ; $BD76: A9 23
   STA $031D                               ; $BD78: 8D 1D 03
@@ -3851,37 +3979,37 @@ Loc_BD67:  ; (dispatch callback target)
   JSR $DA04                               ; $BD7D: 20 04 DA
   LDA a:$0081                             ; $BD80: AD 81 00
   LSR                                     ; $BD83: 4A
-  BCC $BD9B                               ; $BD84: 90 15
-  LDA $048E                               ; $BD86: AD 8E 04
-  JSR $BFA0                               ; $BD89: 20 A0 BF
-  STA $042C                               ; $BD8C: 8D 2C 04
+  BCC @PopulaceCancel                     ; $BD84: 90 15     ; bit0 clear -> B check
+  LDA $048E                               ; $BD86: AD 8E 04  ; window input amount (gold)
+  JSR WarehouseSliderScale10              ; $BD89: 20 A0 BF
+  STA $042C                               ; $BD8C: 8D 2C 04  ; gold gift amount
   LDA #$00                                ; $BD8F: A9 00
   STA $042D                               ; $BD91: 8D 2D 04
   STA $042E                               ; $BD94: 8D 2E 04
-  INC $0472                               ; $BD97: EE 72 04
+  INC $0472                               ; $BD97: EE 72 04  ; -> phase 1
   RTS                                     ; $BD9A: 60
-Loc_BD9B:
+@PopulaceCancel:
   LSR                                     ; $BD9B: 4A
-  BCC $BDAB                               ; $BD9C: 90 0D
+  BCC @PopulaceFrameExit                  ; $BD9C: 90 0D
   LDA #$05                                ; $BD9E: A9 05
-  STA $0401                               ; $BDA0: 8D 01 04
-  JSR MenuCursorReset                    ; $BDA3: 20 70 DD
+  STA $0401                               ; $BDA0: 8D 01 04  ; B: -> sub 5 (与える menu)
+  JSR MenuCursorReset                     ; $BDA3: 20 70 DD
   LDA #$58                                ; $BDA6: A9 58
-  JMP $F26D                               ; $BDA8: 4C 6D F2
-Loc_BDAB:
+  JMP $F26D                               ; $BDA8: 4C 6D F2  ; B1F_SetUI0 mode $58 (no return)
+@PopulaceFrameExit:
   RTS                                     ; $BDAB: 60
-Loc_BDAC:
+@PopulacePhaseNext:
   CMP #$01                                ; $BDAC: C9 01
-  BNE $BDC5                               ; $BDAE: D0 15
+  BNE @PopulacePhase2                     ; $BDAE: D0 15
   JSR $DB87                               ; $BDB0: 20 87 DB
-  LDA $049A                               ; $BDB3: AD 9A 04
+  LDA $049A                               ; $BDB3: AD 9A 04  ; work word refresh
   STA $0490                               ; $BDB6: 8D 90 04
   LDA $049B                               ; $BDB9: AD 9B 04
   STA $0491                               ; $BDBC: 8D 91 04
-  INC $0472                               ; $BDBF: EE 72 04
+  INC $0472                               ; $BDBF: EE 72 04  ; -> phase 2
   LDA $0472                               ; $BDC2: AD 72 04
-Loc_BDC5:
-  LDA #$36                                ; $BDC5: A9 36
+@PopulacePhase2:
+  LDA #$36                                ; $BDC5: A9 36     ; phase 1/2: amount window $36/$23 (rice)
   STA $031C                               ; $BDC7: 8D 1C 03
   LDA #$23                                ; $BDCA: A9 23
   STA $031D                               ; $BDCC: 8D 1D 03
@@ -3889,59 +4017,63 @@ Loc_BDC5:
   JSR $DA04                               ; $BDD1: 20 04 DA
   LDA a:$0081                             ; $BDD4: AD 81 00
   LSR                                     ; $BDD7: 4A
-  BCC $BE01                               ; $BDD8: 90 27
-  LDA $048E                               ; $BDDA: AD 8E 04
-  JSR $BFA0                               ; $BDDD: 20 A0 BF
-  STA $042F                               ; $BDE0: 8D 2F 04
-  JSR MenuCursorReset                    ; $BDE3: 20 70 DD
+  BCC @PopulacePhase2Cancel               ; $BDD8: 90 27     ; bit0 clear -> B check
+  LDA $048E                               ; $BDDA: AD 8E 04  ; window input amount (rice)
+  JSR WarehouseSliderScale10              ; $BDDD: 20 A0 BF
+  STA $042F                               ; $BDE0: 8D 2F 04  ; rice gift amount
+  JSR MenuCursorReset                     ; $BDE3: 20 70 DD
   STA $0430                               ; $BDE6: 8D 30 04
   STA $0431                               ; $BDE9: 8D 31 04
   STA $046C                               ; $BDEC: 8D 6C 04
   LDA $042C                               ; $BDEF: AD 2C 04
-  BNE $BDF9                               ; $BDF2: D0 05
+  BNE @PopulaceAdvance                    ; $BDF2: D0 05     ; either amount set: advance
   LDA $042F                               ; $BDF4: AD 2F 04
-  BEQ $BDAB                               ; $BDF7: F0 B2
-Loc_BDF9:
-  INC $0401                               ; $BDF9: EE 01 04
+  BEQ @PopulaceFrameExit                  ; $BDF7: F0 B2     ; both zero: stay
+@PopulaceAdvance:
+  INC $0401                               ; $BDF9: EE 01 04  ; -> sub $0B (populace give apply)
   LDA #$29                                ; $BDFC: A9 29
-  JMP $F26D                               ; $BDFE: 4C 6D F2
-Loc_BE01:
+  JMP $F26D                               ; $BDFE: 4C 6D F2  ; B1F_SetUI0 mode $29 (no return)
+@PopulacePhase2Cancel:
   LSR                                     ; $BE01: 4A
-  BCC $BDAB                               ; $BE02: 90 A7
+  BCC @PopulaceFrameExit                  ; $BE02: 90 A7
   JSR $DB87                               ; $BE04: 20 87 DB
-  LDA $0498                               ; $BE07: AD 98 04
+  LDA $0498                               ; $BE07: AD 98 04  ; work word refresh
   STA $0490                               ; $BE0A: 8D 90 04
   LDA $0499                               ; $BE0D: AD 99 04
   STA $0491                               ; $BE10: 8D 91 04
   LDA #$00                                ; $BE13: A9 00
-  STA $0472                               ; $BE15: 8D 72 04
+  STA $0472                               ; $BE15: 8D 72 04  ; restart at phase 0
   RTS                                     ; $BE18: 60
-Loc_BE19:  ; (dispatch callback target)
-  JSR $D5BD                               ; $BE19: 20 BD D5
+;===============================================================================
+; WarehousePopulaceGiveApply ($BE19-$BF02) - sub $0B
+;===============================================================================
+WarehousePopulaceGiveApply:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $D5BD                               ; $BE19: 20 BD D5  ; open confirm window ($0013 = result)
   LDA a:$0013                             ; $BE1C: AD 13 00
-  BEQ $BE2A                               ; $BE1F: F0 09
+  BEQ @PopulaceApplyFrameExit             ; $BE1F: F0 09     ; window closed: done
   CMP #$FF                                ; $BE21: C9 FF
-  BNE $BE2B                               ; $BE23: D0 06
+  BNE @PopulaceApplyCommit                ; $BE23: D0 06
   LDA #$00                                ; $BE25: A9 00
-  STA $0401                               ; $BE27: 8D 01 04
-Loc_BE2A:
+  STA $0401                               ; $BE27: 8D 01 04  ; cancel -> sub 0
+@PopulaceApplyFrameExit:
   RTS                                     ; $BE2A: 60
-Loc_BE2B:
+@PopulaceApplyCommit:
   LDA $0402                               ; $BE2B: AD 02 04
-  JSR $F2AF                               ; $BE2E: 20 AF F2
+  JSR $F2AF                               ; $BE2E: 20 AF F2  ; B1F_GetProvinceRecordAddr: province $0402
   LDY #$02                                ; $BE31: A0 02
-  LDA ($00),Y                             ; $BE33: B1 00
+  LDA ($00),Y                             ; $BE33: B1 00     ; record +$02
   SEC                                     ; $BE35: 38
-  SBC $042C                               ; $BE36: ED 2C 04
+  SBC $042C                               ; $BE36: ED 2C 04  ; -= gold gift (16-bit)
   STA ($00),Y                             ; $BE39: 91 00
   INY                                     ; $BE3B: C8
   LDA ($00),Y                             ; $BE3C: B1 00
   SBC $042D                               ; $BE3E: ED 2D 04
   STA ($00),Y                             ; $BE41: 91 00
   LDY #$04                                ; $BE43: A0 04
-  LDA ($00),Y                             ; $BE45: B1 00
+  LDA ($00),Y                             ; $BE45: B1 00     ; record +$04
   SEC                                     ; $BE47: 38
-  SBC $042F                               ; $BE48: ED 2F 04
+  SBC $042F                               ; $BE48: ED 2F 04  ; -= rice gift (16-bit)
   STA ($00),Y                             ; $BE4B: 91 00
   INY                                     ; $BE4D: C8
   LDA ($00),Y                             ; $BE4E: B1 00
@@ -3950,30 +4082,30 @@ Loc_BE2B:
   LDA $0402                               ; $BE55: AD 02 04
   JSR $F2AF                               ; $BE58: 20 AF F2
   LDY #$11                                ; $BE5B: A0 11
-  LDA ($00),Y                             ; $BE5D: B1 00
-  JSR $F2D7                               ; $BE5F: 20 D7 F2
+  LDA ($00),Y                             ; $BE5D: B1 00     ; first roster officer id
+  JSR $F2D7                               ; $BE5F: 20 D7 F2  ; B1F_GetOfficerRecordAddr
   LDY #$04                                ; $BE62: A0 04
-  LDA ($00),Y                             ; $BE64: B1 00
+  LDA ($00),Y                             ; $BE64: B1 00     ; officer +$04
   STA a:$0003                             ; $BE66: 8D 03 00
   LDA $042C                               ; $BE69: AD 2C 04
   CLC                                     ; $BE6C: 18
-  ADC $042F                               ; $BE6D: 6D 2F 04
+  ADC $042F                               ; $BE6D: 6D 2F 04  ; combined amounts (16-bit)
   STA a:$0000                             ; $BE70: 8D 00 00
   LDA $042D                               ; $BE73: AD 2D 04
   ADC $0430                               ; $BE76: 6D 30 04
   STA a:$0001                             ; $BE79: 8D 01 00
   LDA #$00                                ; $BE7C: A9 00
   STA a:$0002                             ; $BE7E: 8D 02 00
-  JSR $EBE9                               ; $BE81: 20 E9 EB
+  JSR $EBE9                               ; $BE81: 20 E9 EB  ; B1F_MathMul24x8
   LDA #$D0                                ; $BE84: A9 D0
   STA a:$0003                             ; $BE86: 8D 03 00
   LDA #$07                                ; $BE89: A9 07
   STA a:$0004                             ; $BE8B: 8D 04 00
   JSR $DB72                               ; $BE8E: 20 72 DB
-Loc_BE91:
+@PopulaceApplyPoll:
   JSR $E856                               ; $BE91: 20 56 E8
   CMP #$07                                ; $BE94: C9 07
-  BEQ $BE91                               ; $BE96: F0 F9
+  BEQ @PopulaceApplyPoll                  ; $BE96: F0 F9
   CLC                                     ; $BE98: 18
   ADC #$0A                                ; $BE99: 69 0A
   STA a:$0003                             ; $BE9B: 8D 03 00
@@ -3991,130 +4123,290 @@ Loc_BE91:
   LDA $0402                               ; $BEBC: AD 02 04
   JSR $F2AF                               ; $BEBF: 20 AF F2
   LDY #$0B                                ; $BEC2: A0 0B
-  LDA ($00),Y                             ; $BEC4: B1 00
+  LDA ($00),Y                             ; $BEC4: B1 00     ; record +$0B (統治度)
   CLC                                     ; $BEC6: 18
-  ADC $042C                               ; $BEC7: 6D 2C 04
+  ADC $042C                               ; $BEC7: 6D 2C 04  ; += gold gift
   STA a:$0002                             ; $BECA: 8D 02 00
   SEC                                     ; $BECD: 38
   SBC #$64                                ; $BECE: E9 64
-  BCC $BEE4                               ; $BED0: 90 12
-  STA a:$0002                             ; $BED2: 8D 02 00
-  LDA $042C                               ; $BED5: AD 2C 04
+  BCC @PopulaceApplyStore                 ; $BED0: 90 12     ; still < 100: store
+  STA a:$0002                             ; $BED2: 8D 02 00  ; overflow: cap at 100 and
+  LDA $042C                               ; $BED5: AD 2C 04  ; refund the difference
   SEC                                     ; $BED8: 38
   SBC a:$0002                             ; $BED9: ED 02 00
   STA $042C                               ; $BEDC: 8D 2C 04
   LDA #$64                                ; $BEDF: A9 64
   STA a:$0002                             ; $BEE1: 8D 02 00
-Loc_BEE4:
+@PopulaceApplyStore:
   LDA a:$0002                             ; $BEE4: AD 02 00
   STA ($00),Y                             ; $BEE7: 91 00
   LDA #$0C                                ; $BEE9: A9 0C
-  STA $04A2                               ; $BEEB: 8D A2 04
+  STA $04A2                               ; $BEEB: 8D A2 04  ; overlay redraw id
   LDA #$29                                ; $BEEE: A9 29
   STA $04D6                               ; $BEF0: 8D D6 04
   LDA #$FF                                ; $BEF3: A9 FF
-  STA $0481                               ; $BEF5: 8D 81 04
-  JSR $D568                               ; $BEF8: 20 68 D5
+  STA $0481                               ; $BEF5: 8D 81 04  ; clear gift-recipient officer
+  JSR MapTransitionStateSave              ; $BEF8: 20 68 D5  ; close window
   LDA #$0C                                ; $BEFB: A9 0C
-  STA $0401                               ; $BEFD: 8D 01 04
+  STA $0401                               ; $BEFD: 8D 01 04  ; -> sub $0C (result redraw gate)
   LDA #$5A                                ; $BF00: A9 5A
-  JMP $F26D                               ; $BF02: 4C 6D F2
-Loc_BF05:  ; (dispatch callback target)
+  JMP $F26D                               ; $BF02: 4C 6D F2  ; B1F_SetUI0 mode $5A (no return)
+;===============================================================================
+; WarehouseResultRedrawGate ($BF05-$BF18) - sub $0C
+;===============================================================================
+WarehouseResultRedrawGate:  ; (dispatch callback target)
+; --- Code Region ---
   LDA $0140                               ; $BF05: AD 40 01
-  BNE $BF18                               ; $BF08: D0 0E
+  BNE @RedrawGateExit                     ; $BF08: D0 0E     ; transition busy: wait
   LDA $04A2                               ; $BF0A: AD A2 04
-  STA $04A0                               ; $BF0D: 8D A0 04
-  INC $0401                               ; $BF10: EE 01 04
+  STA $04A0                               ; $BF0D: 8D A0 04  ; overlay redraw trigger
+  INC $0401                               ; $BF10: EE 01 04  ; -> sub $0D
   LDA #$60                                ; $BF13: A9 60
   STA $046C                               ; $BF15: 8D 6C 04
-Loc_BF18:
+@RedrawGateExit:
   RTS                                     ; $BF18: 60
-Loc_BF19:  ; (dispatch callback target)
-  LDA $04A0                               ; $BF19: AD A0 04
-  BNE $BF43                               ; $BF1C: D0 25
-  LDA $0140                               ; $BF1E: AD 40 01
-  BNE $BF43                               ; $BF21: D0 20
-  LDA #$04                                ; $BF23: A9 04
-  JSR $D58C                               ; $BF25: 20 8C D5
-  INC $0401                               ; $BF28: EE 01 04
-  LDA $0473                               ; $BF2B: AD 73 04
-  BEQ $BF43                               ; $BF2E: F0 13
-  LDA $0481                               ; $BF30: AD 81 04
-  STA a:$0000                             ; $BF33: 8D 00 00
-  LDY #$3D                                ; $BF36: A0 3D
-  JSR $EE07                               ; $BF38: 20 07 EE
-; --- Data Region ---
-  .byte $2A,$A0,$AD,$73,$04,$4C,$6D,$F2   ; $BF3B: 2A A0 AD 73 04 4C 6D F2
-Loc_BF43:
+;===============================================================================
+; WarehouseResultRedrawWait ($BF19-$BF43) - sub $0D
+;===============================================================================
+WarehouseResultRedrawWait:  ; (dispatch callback target)
 ; --- Code Region ---
+  LDA $04A0                               ; $BF19: AD A0 04
+  BNE @RedrawWaitExit                     ; $BF1C: D0 25     ; redraw pending: wait
+  LDA $0140                               ; $BF1E: AD 40 01
+  BNE @RedrawWaitExit                     ; $BF21: D0 20     ; transition busy: wait
+  LDA #$04                                ; $BF23: A9 04
+  JSR MapTransitionStateRestore           ; $BF25: 20 8C D5
+  INC $0401                               ; $BF28: EE 01 04  ; -> sub $0E (message)
+  LDA $0473                               ; $BF2B: AD 73 04  ; post-result UI mode
+  BEQ @RedrawWaitExit                     ; $BF2E: F0 13     ; none: done
+  LDA $0481                               ; $BF30: AD 81 04  ; gift-recipient officer id
+  STA a:$0000                             ; $BF33: 8D 00 00
+  LDY #$3D                                ; $BF36: A0 3D     ; target banks $1D+$1E
+  JSR B1F_BankedCallbackTrampoline        ; $BF38: 20 07 EE
+  .word B1D_1E_OfficerDisplay_Lookup      ; $BF3B: 2A A0 (BankedCallbackTrampoline target; bank $1D $A02A -> JMP OfficerDisplay_Lookup)
+  LDA $0473                               ; $BF3D: AD 73 04
+  JMP $F26D                               ; $BF40: 4C 6D F2  ; B1F_SetUI0 mode $0473 (no return)
+@RedrawWaitExit:
   RTS                                     ; $BF43: 60
-Loc_BF44:  ; (dispatch callback target)
-  JSR $DDAD                               ; $BF44: 20 AD DD
-  BCC $BF5E                               ; $BF47: 90 15
-  JSR $D543                               ; $BF49: 20 43 D5
+;===============================================================================
+; WarehouseResultMessageWait ($BF44-$BF68) - sub $0E
+;===============================================================================
+WarehouseResultMessageWait:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $DDAD                               ; $BF44: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @MsgWaitCleanup                     ; $BF47: 90 15
+  JSR $D543                               ; $BF49: 20 43 D5  ; message window tick
   LDA a:$0081                             ; $BF4C: AD 81 00
-  AND #$03                                ; $BF4F: 29 03
-  BEQ $BF5E                               ; $BF51: F0 0B
-  JSR $D568                               ; $BF53: 20 68 D5
+  AND #$03                                ; $BF4F: 29 03     ; A or B pressed
+  BEQ @MsgWaitCleanup                     ; $BF51: F0 0B
+  JSR MapTransitionStateSave              ; $BF53: 20 68 D5  ; close window
   LDA #$00                                ; $BF56: A9 00
-  STA $0400                               ; $BF58: 8D 00 04
+  STA $0400                               ; $BF58: 8D 00 04  ; frame state 0 (map camera)
   STA $0401                               ; $BF5B: 8D 01 04
-Loc_BF5E:
-  LDA $0481                               ; $BF5E: AD 81 04
+@MsgWaitCleanup:
+  LDA $0481                               ; $BF5E: AD 81 04  ; gift-recipient officer id
   CMP #$FF                                ; $BF61: C9 FF
-  BEQ $BF68                               ; $BF63: F0 03
-  JSR $DD5E                               ; $BF65: 20 5E DD
-Loc_BF68:
+  BEQ @MsgWaitExit                        ; $BF63: F0 03
+  JSR $DD5E                               ; $BF65: 20 5E DD  ; release selected officer marker
+@MsgWaitExit:
   RTS                                     ; $BF68: 60
-Loc_BF69:  ; (dispatch callback target)
-  JSR $DDAD                               ; $BF69: 20 AD DD
-  BCC $BF88                               ; $BF6C: 90 1A
-  JSR $D543                               ; $BF6E: 20 43 D5
+;===============================================================================
+; WarehouseResultRouteBack ($BF69-$BF88) - sub $0F
+;===============================================================================
+WarehouseResultRouteBack:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $DDAD                               ; $BF69: 20 AD DD  ; overlay sentinel idle check (C=1 idle)
+  BCC @RouteBackFrameExit                 ; $BF6C: 90 1A
+  JSR $D543                               ; $BF6E: 20 43 D5  ; message window tick
   LDA a:$0081                             ; $BF71: AD 81 00
-  AND #$03                                ; $BF74: 29 03
-  BEQ $BF88                               ; $BF76: F0 10
-  JSR MenuCursorReset                    ; $BF78: 20 70 DD
+  AND #$03                                ; $BF74: 29 03     ; A or B pressed
+  BEQ @RouteBackFrameExit                 ; $BF76: F0 10
+  JSR MenuCursorReset                     ; $BF78: 20 70 DD
   JSR $DB87                               ; $BF7B: 20 87 DB
   LDA #$06                                ; $BF7E: A9 06
-  STA $0401                               ; $BF80: 8D 01 04
+  STA $0401                               ; $BF80: 8D 01 04  ; -> sub 6 (resource menu)
   LDA #$7E                                ; $BF83: A9 7E
-  JMP $F26D                               ; $BF85: 4C 6D F2
-Loc_BF88:
+  JMP $F26D                               ; $BF85: 4C 6D F2  ; B1F_SetUI0 mode $7E (no return)
+@RouteBackFrameExit:
   RTS                                     ; $BF88: 60
-Loc_BF89:
+;===============================================================================
+; WarehouseAmountDiv10 ($BF89-$BF9F)
+; Divides X by 10 via B1F_MathDiv16 ($EA7C, dividend $0001/$0002, divisor
+; $0003/$0004, quotient $0001/$0002) and returns the quotient in X. Used by
+; subs 5/6 to seed the amount work cells ($0490/$0498/$049A) from the
+; province record values before the amount input windows open.
+;===============================================================================
+WarehouseAmountDiv10:
+; --- Code Region ---
   STX a:$0001                             ; $BF89: 8E 01 00
-  LDA #$0A                                ; $BF8C: A9 0A
+  LDA #$0A                                ; $BF8C: A9 0A     ; divisor 10
   STA a:$0003                             ; $BF8E: 8D 03 00
   LDA #$00                                ; $BF91: A9 00
   STA a:$0002                             ; $BF93: 8D 02 00
   STA a:$0004                             ; $BF96: 8D 04 00
-  JSR $EA7C                               ; $BF99: 20 7C EA
-  LDX a:$0001                             ; $BF9C: AE 01 00
+  JSR $EA7C                               ; $BF99: 20 7C EA  ; B1F_MathDiv16
+  LDX a:$0001                             ; $BF9C: AE 01 00  ; X <- quotient low byte
   RTS                                     ; $BF9F: 60
-Loc_BFA0:
+;===============================================================================
+; WarehouseSliderScale10 ($BFA0-$BFB6)
+; Converts the raw window slider value in A (from the amount input window,
+; mirrored in $048E) into the stored amount: A is multiplied by 10 via
+; B1F_MathMul24x8 ($EBE9, multiplicand $0000-$0002, multiplier $0003,
+; 40-bit product $0005-$0009) and the high byte of the product ($0006) is
+; returned, i.e. A * 10 / 256.
+;===============================================================================
+WarehouseSliderScale10:
+; --- Code Region ---
   STA a:$0000                             ; $BFA0: 8D 00 00
   LDA #$00                                ; $BFA3: A9 00
   STA a:$0001                             ; $BFA5: 8D 01 00
   STA a:$0002                             ; $BFA8: 8D 02 00
-  LDA #$0A                                ; $BFAB: A9 0A
+  LDA #$0A                                ; $BFAB: A9 0A     ; multiplier 10
   STA a:$0003                             ; $BFAD: 8D 03 00
-  JSR $EBE9                               ; $BFB0: 20 E9 EB
-  LDA a:$0006                             ; $BFB3: AD 06 00
+  JSR $EBE9                               ; $BFB0: 20 E9 EB  ; B1F_MathMul24x8
+  LDA a:$0006                             ; $BFB3: AD 06 00  ; product high byte
   RTS                                     ; $BFB6: 60
-Loc_BFB7:  ; (dispatch callback target)
-  LDA $0401                               ; $BFB7: AD 01 04
-  JSR $EADE                               ; $BFBA: 20 DE EA
-; --- Data Region ---
-  .byte $ED,$BF,$4D,$C0,$36,$C1,$C1,$C1,$C5,$C2,$39,$C3,$A0,$C3,$14,$C4; $BFBD: ED BF 4D C0 36 C1 C1 C1 C5 C2 39 C3 A0 C3 14 C4
-  .byte $6A,$C4,$A8,$C4,$15,$C5,$47,$C5,$8F,$C5,$D7,$C5,$7F,$C6,$F8,$C6; $BFCD: 6A C4 A8 C4 15 C5 47 C5 8F C5 D7 C5 7F C6 F8 C6
-  .byte $13,$C7,$21,$C7,$44,$C7,$6E,$C7,$1F,$C8,$0A,$C9,$D2,$C9,$EF,$C9; $BFDD: 13 C7 21 C7 44 C7 6E C7 1F C8 0A C9 D2 C9 EF C9
-Loc_BFED:  ; (dispatch callback target)
+.endproc
+;===============================================================================
+; TownCommandDispatch ($BFB7-$CADC) - dispatch callback target (state 5)
+; Town (町) command screen for frame state 5, entered from the command
+; category menu (state 1, category 3). Offers the manual's four town
+; facilities (p.27: 武器屋 Armory / 学問所 Academy / 病院 Hospital / 商店
+; Market) according to the province's facility set; dispatched on sub-state
+; $0401 through the 24-entry table below. Facility action codes (table
+; $C10E, per facility set): 0 = Armory (subs $12-$17), 1 = Academy (subs
+; $0E-$11), 2 = Hospital (subs $0A-$0D), 3 = Market (subs 2-9).
+; Working cells: $0402 = camera-selected province, $0470 = facility set id
+; (subs 0-1) then service flag (0 = hospital heal / 1 = academy train),
+; $0471 = academy Intelligence gain base tier / next-sub route after the
+; buyer gate, $0472 = famous-weapon event mask, $0473 = pending
+; officer-card close id, $0478/$047C = window anim counter/phase, $0481 =
+; selected officer id, $048E/$048F = raw window input amount, $0490/$0491
+; = amount work word, $0492 = rice trade rate byte, $042C-$042E =
+; trade/service amounts, $044C-$044F = weapon grid cells (cell $00-$17 =
+; weapon id, $18-$1D = armor id).
+; Record fields touched: province +$02/$03 gold, +$04/$05 rice, +$10
+; treasure; officer +$00 vitality (hospital heal), +$02 intelligence
+; (academy train), +$0A weapon/armor bits (armory purchase). Sub-states:
+;   0  TownScreenInit         gate transition/overlay sentinels, $0473 <- 0,
+;                             UI mode <- @TownFacilityUiTable[set]
+;   1  TownFacilityMenuInput  facility menu poll ($DCD0); A: route by
+;                             @FacilityActionCodeTable[set*4+item];
+;                             B: close window -> frame state 1
+;   2  MarketTradeMenuInput   market menu window ($C1B4); item 0 -> 3
+;                             (rice trade), item 1 -> 8 (treasure; $11
+;                             if none); B -> 0
+;   3  MarketRiceTradeSetup   rice trade menu window ($C2B8); item 0 (buy):
+;                             $0490 <- gold*rate/100 seed -> 4 (UI $73);
+;                             item 1 (sell): $0492 <- sell rate -> 6
+;                             (UI $74); B -> 2
+;   4  MarketRiceBuyConfirm   prompt window $DA02; A: cost $042C <-
+;                             $048E*100/$0492 -> 5 (UI $29); B -> 3
+;   5  MarketRiceBuyApply     confirm window $D5BD; province gold -=
+;                             $042C, rice += $048E -> $0F (UI $75);
+;                             cancel -> 0
+;   6  MarketRiceSellConfirm  prompt window $DA02; A: gain $042C <-
+;                             $048E*$0492/100 -> 7 (UI $29); B -> 3
+;   7  MarketRiceSellApply    confirm window $D5BD; province rice -=
+;                             $048E, gold += $042C -> $0F (UI $76);
+;                             cancel -> 0
+;   8  MarketTreasureSellPrompt prompt window $DA04; A: amount $048E > 0
+;                             -> 9 (UI $29); B -> 2
+;   9  MarketTreasureSellApply  confirm window $D5BD; province treasure
+;                             -= $048E, gold += $048E*100 (宝 -> 金100)
+;                             -> $0F (UI $76); cancel -> 0
+;   $0A HospitalFeeSetup      window anim wait; $0470 <- 0, fee $042C <-
+;                             $32 (金50) -> $0B (UI $28); closed -> 0
+;   $0B ServiceFeeConfirm     pad poll; province gold vs $042C check ->
+;                             $0C (UI $29); short -> $11 (UI $2A);
+;                             B -> 0
+;   $0C ServiceFeePayApply    confirm window $D5BD; province gold -=
+;                             $042C; bank $1D OfficerDisplay_Lookup;
+;                             UI $7A/$7C by $0470 -> $0D; cancel -> 0
+;   $0D OfficerServiceApply   officer card $DD5E ($0481); A/B: close
+;                             card, $0401 <- $0F, then by $0470: heal
+;                             vitality += $23+rand(0..10) clamped
+;                             (UI $7B) / train intelligence +=
+;                             rand(0..4)+$0471 tier (UI $7D)
+;   $0E AcademyCostSelect     window anim wait; intelligence tier of
+;                             officer $0481: $3D-$4F -> fee $0A/gain 6,
+;                             $1F-$3C -> fee $14/gain 8, <$1F -> fee
+;                             $1E/gain 5; $0470 <- 1 -> $0B (UI $28);
+;                             $50+ -> bank $1D lookup, $0473 <- $0481,
+;                             $0401 <- $11 (UI $79); closed -> 0; B -> $0D
+;   $0F ResultRedrawGate      bank $1D ImmediateOverlay; $04A0 <- $04A2,
+;                             $046C <- $60 -> $10
+;   $10 ResultRedrawWait      wait $04A0 and transition busy; $D58C(4)
+;                             -> $11
+;   $11 TownScreenExitWait    pad poll: A/B -> frame state 0 (map);
+;                             $0473 pending officer-card close via $DD5E
+;   $12 ArmoryWindowWait      window anim wait; $00BD <- $8C, cursor
+;                             reset, UI $A5 -> $13; closed -> 0
+;   $13 ArmoryItemGridInput   4-item weapon grid menu ($C7EE); bank $08
+;                             ExpandFormationSlots fills grid cells
+;                             $044C-$044F and price records $042C+slot*3
+;                             from @ArmoryGridSetTable[province];
+;                             province $1B special: 4th cell <- weapon
+;                             $17 priced $0190; A -> $14; B -> $12
+;   $14 ArmoryItemDescStream  waits overlay $0300; bank $30 window;
+;                             renders the grid items' records ($9B12
+;                             pointer table) as a $0380 PPU text stream
+;                             at the @ArmoryItemDescAddrTable
+;                             positions -> $15
+;   $15 ArmoryBuyMenuInput    4-item buy menu ($C9BF); A: select item
+;                             ($044C <- cell), province gold vs price
+;                             record $042C[item*3] and @WeaponGateCheck
+;                             ($0472 mask) -> $16 with $0471 <- $17
+;                             (buy, UI $29) / $11 (denied, UI $AA/$AB)
+;   $16 ArmoryBuyerGate       waits overlay $0300; opens buyer overlay
+;                             ($00BC/$00BD <- $0D/$8C) via bank $1D
+;                             ImmediateOverlay; $0401 <- $0471
+;   $17 ArmoryPurchaseApply   window result $D5BD; $6FE1 |= $0472 event
+;                             bits; officer $0481 +$0A weapon/armor
+;                             bits <- $044C (mask $1F weapon / $E0
+;                             armor by cell); province gold -= $042C ->
+;                             $0F (UI $AB); cancel -> 0
+; Shared helper: @WeaponGateCheck ($CA6B) - famous-weapon restrictions:
+; cell $0F needs officer $26, $17 officer $99, $16 Might >= $5B, $1E
+; Virtue >= $5B; sets the $0472 mask, CS = allowed, and reports already-
+; owned weapons against the $6FE1 event flags.
+;===============================================================================
+.proc TownCommandDispatch  ; (dispatch callback target)
+; --- Code Region ---
+  LDA $0401                               ; $BFB7: AD 01 04  ; town screen sub-state
+  JSR B1F_CallbackDispatcher              ; $BFBA: 20 DE EA
+; --- CallbackDispatcher sub-state table, indexed by $0401 ---
+  .word @TownScreenInit                   ; $BFBD: ED BF ; sub 0 ($BFED)
+  .word @TownFacilityMenuInput            ; $BFBF: 4D C0 ; sub 1 ($C04D)
+  .word @MarketTradeMenuInput             ; $BFC1: 36 C1 ; sub 2 ($C136)
+  .word @MarketRiceTradeSetup             ; $BFC3: C1 C1 ; sub 3 ($C1C1)
+  .word @MarketRiceBuyConfirm             ; $BFC5: C5 C2 ; sub 4 ($C2C5)
+  .word @MarketRiceBuyApply               ; $BFC7: 39 C3 ; sub 5 ($C339)
+  .word @MarketRiceSellConfirm            ; $BFC9: A0 C3 ; sub 6 ($C3A0)
+  .word @MarketRiceSellApply              ; $BFCB: 14 C4 ; sub 7 ($C414)
+  .word @MarketTreasureSellPrompt         ; $BFCD: 6A C4 ; sub 8 ($C46A)
+  .word @MarketTreasureSellApply          ; $BFCF: A8 C4 ; sub 9 ($C4A8)
+  .word @HospitalFeeSetup                 ; $BFD1: 15 C5 ; sub $0A ($C515)
+  .word @ServiceFeeConfirm                ; $BFD3: 47 C5 ; sub $0B ($C547)
+  .word @ServiceFeePayApply               ; $BFD5: 8F C5 ; sub $0C ($C58F)
+  .word @OfficerServiceApply              ; $BFD7: D7 C5 ; sub $0D ($C5D7)
+  .word @AcademyCostSelect                ; $BFD9: 7F C6 ; sub $0E ($C67F)
+  .word @ResultRedrawGate                 ; $BFDB: F8 C6 ; sub $0F ($C6F8)
+  .word @ResultRedrawWait                 ; $BFDD: 13 C7 ; sub $10 ($C713)
+  .word @TownScreenExitWait               ; $BFDF: 21 C7 ; sub $11 ($C721)
+  .word @ArmoryWindowWait                 ; $BFE1: 44 C7 ; sub $12 ($C744)
+  .word @ArmoryItemGridInput              ; $BFE3: 6E C7 ; sub $13 ($C76E)
+  .word @ArmoryItemDescStream             ; $BFE5: 1F C8 ; sub $14 ($C81F)
+  .word @ArmoryBuyMenuInput               ; $BFE7: 0A C9 ; sub $15 ($C90A)
+  .word @ArmoryBuyerGate                  ; $BFE9: D2 C9 ; sub $16 ($C9D2)
+  .word @ArmoryPurchaseApply              ; $BFEB: EF C9 ; sub $17 ($C9EF)
+@TownScreenInit:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0140                               ; $BFED: AD 40 01  ; transition busy
-  BNE Loc_C024                            ; $BFF0: D0 32     ; wait
+  BNE @InitGateExit                       ; $BFF0: D0 32     ; wait
   LDA $0304                               ; $BFF2: AD 04 03  ; overlay slot sentinel
   CMP #$FF                                ; $BFF5: C9 FF
-  BNE Loc_C024                            ; $BFF7: D0 2B     ; overlay busy: wait
+  BNE @InitGateExit                       ; $BFF7: D0 2B     ; overlay busy: wait
   INC $0401                               ; $BFF9: EE 01 04  ; sub-state ++
   JSR MenuCursorReset                     ; $BFFC: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
   .byte $8D                               ; $BFFF: 8D        ; STA $0473 opcode; operand bytes are in bank $1C
@@ -4131,19 +4423,22 @@ Loc_BFED:  ; (dispatch callback target)
   ORA $0150                               ; $C00E: 0D 50 01
   STA $0150                               ; $C011: 8D 50 01  ; hemisphere/attr flag word |= $04
   LDY $0402                               ; $C014: AC 02 04
-  LDA $C025,Y                             ; $C017: B9 25 C0  ; scroll anim counter table
+  LDA @TownFacilitySetTable,Y             ; $C017: B9 25 C0  ; facility set id of province $0402
   STA $0470                               ; $C01A: 8D 70 04  ; map scroll anim counter
   TAY                                     ; $C01D: A8
-  LDA $C043,Y                             ; $C01E: B9 43 C0  ; UI mode table
+  LDA @TownFacilityUiTable,Y              ; $C01E: B9 43 C0  ; screen UI mode per facility set
   JMP $F26D                               ; $C021: 4C 6D F2  ; set UI mode
-Loc_C024:
+@InitGateExit:
 ; --- Code Region ---
   RTS                                     ; $C024: 60
 ; --- Data Region ---
-  .byte $04,$01,$07,$08,$09,$01,$09,$05,$09,$01,$08,$07,$09,$07,$05,$09; $C025: 04 01 07 08 09 01 09 05 09 01 08 07 09 07 05 09
-  .byte $04,$01,$02,$01,$07,$06,$03,$06,$05,$07,$09,$02,$07,$00,$AE,$AF; $C035: 04 01 02 01 07 06 03 06 05 07 09 02 07 00 AE AF
+@TownFacilitySetTable:
+  .byte $04,$01,$07,$08,$09,$01,$09,$05,$09,$01,$08,$07,$09,$07,$05,$09 ; $C025: 04 01 07 08 09 01 09 05 09 01 08 07 09 07 05 09 ; facility set id per province $0402
+  .byte $04,$01,$02,$01,$07,$06,$03,$06,$05,$07,$09,$02,$07,$00 ; $C035: 04 01 02 01 07 06 03 06 05 07 09 02 07 00
+@TownFacilityUiTable:
+  .byte $AE,$AF                           ; $C043: AE AF ; UI mode per facility set 0-9
   .byte $B0,$B1,$B2,$B3,$B4,$B5,$B6,$6E   ; $C045: B0 B1 B2 B3 B4 B5 B6 6E
-Loc_C04D:  ; (dispatch callback target)
+@TownFacilityMenuInput:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR $DCD0                               ; $C04D: 20 D0 DC
   LDA a:$0013                             ; $C050: AD 13 00
@@ -4163,23 +4458,23 @@ Loc_C04D:  ; (dispatch callback target)
   BCS $C08B                               ; $C075: B0 14
   LSR                                     ; $C077: 4A
   BCC $C08A                               ; $C078: 90 10
-  JSR $D568                               ; $C07A: 20 68 D5
+  JSR MapTransitionStateSave              ; $C07A: 20 68 D5
   LDA #$01                                ; $C07D: A9 01
   STA $0400                               ; $C07F: 8D 00 04
   LDA #$00                                ; $C082: A9 00
   STA $0401                               ; $C084: 8D 01 04
   JSR $F26D                               ; $C087: 20 6D F2
-Loc_C08A:
+@MenuIdleExit:
   RTS                                     ; $C08A: 60
-Loc_C08B:
-  JSR MenuCursorReset                    ; $C08B: 20 70 DD
+@FacilitySelect:
+  JSR MenuCursorReset                     ; $C08B: 20 70 DD
   LDA $0470                               ; $C08E: AD 70 04
   ASL                                     ; $C091: 0A
   ASL                                     ; $C092: 0A
   CLC                                     ; $C093: 18
   ADC a:$0012                             ; $C094: 6D 12 00
   TAY                                     ; $C097: A8
-  LDA $C10E,Y                             ; $C098: B9 0E C1
+  LDA @FacilityActionCodeTable,Y          ; $C098: B9 0E C1  ; facility action code (0 armory/1 academy/2 hospital/3 market)
   BEQ $C0B9                               ; $C09B: F0 1C
   CMP #$01                                ; $C09D: C9 01
   BEQ $C0CD                               ; $C09F: F0 2C
@@ -4193,7 +4488,7 @@ Loc_C08B:
   STA $04D6                               ; $C0B1: 8D D6 04
   LDA #$6F                                ; $C0B4: A9 6F
   JMP $F26D                               ; $C0B6: 4C 6D F2
-Loc_C0B9:
+@ActionArmory:
   LDA #$12                                ; $C0B9: A9 12
   STA $0401                               ; $C0BB: 8D 01 04
   LDA #$80                                ; $C0BE: A9 80
@@ -4202,7 +4497,7 @@ Loc_C0B9:
   STA $047C                               ; $C0C5: 8D 7C 04
   LDA #$A4                                ; $C0C8: A9 A4
   JMP $F26D                               ; $C0CA: 4C 6D F2
-Loc_C0CD:
+@ActionAcademy:
   LDA #$0E                                ; $C0CD: A9 0E
   STA $0401                               ; $C0CF: 8D 01 04
   LDA #$80                                ; $C0D2: A9 80
@@ -4211,7 +4506,7 @@ Loc_C0CD:
   STA $047C                               ; $C0D9: 8D 7C 04
   LDA #$78                                ; $C0DC: A9 78
   JMP $F26D                               ; $C0DE: 4C 6D F2
-Loc_C0E1:
+@ActionHospital:
   JSR $DC7C                               ; $C0E1: 20 7C DC
   LDA $0151                               ; $C0E4: AD 51 01
   CMP #$FF                                ; $C0E7: C9 FF
@@ -4224,20 +4519,22 @@ Loc_C0E1:
   STA $047C                               ; $C0F7: 8D 7C 04
   LDA #$77                                ; $C0FA: A9 77
   JMP $F26D                               ; $C0FC: 4C 6D F2
-Loc_C0FF:
+@HospitalIdleRoute:
   LDA #$11                                ; $C0FF: A9 11
   STA $0401                               ; $C101: 8D 01 04
   LDA #$AD                                ; $C104: A9 AD
   JMP $F26D                               ; $C106: 4C 6D F2
 ; --- Data Region ---
-  .byte $00,$04,$00,$00,$80,$00,$01,$FF,$FF,$00,$02,$FF,$FF,$00,$03,$FF; $C109: 00 04 00 00 80 00 01 FF FF 00 02 FF FF 00 03 FF
-  .byte $FF,$01,$02,$FF,$FF,$01,$03,$FF,$FF,$02,$03,$FF,$FF,$00,$01,$03; $C119: FF 01 02 FF FF 01 03 FF FF 02 03 FF FF 00 01 03
-  .byte $FF,$00,$02,$03,$FF,$01,$02,$03,$FF,$00,$01,$02,$03; $C129: FF 00 02 03 FF 01 02 03 FF 00 01 02 03
-Loc_C136:  ; (dispatch callback target)
+@FacilityCursorSprite:
+  .byte $00,$04,$00,$00,$80               ; $C109: 00 04 00 00 80 ; facility menu cursor sprite template
+@FacilityActionCodeTable:
+  .byte $00,$01,$FF,$FF,$00,$02,$FF,$FF,$00,$03,$FF ; $C10E: 00 01 FF FF 00 02 FF FF 00 03 FF ; facility action codes (sets 0-2)
+  .byte $FF,$01,$02,$FF,$FF,$01,$03,$FF,$FF,$02,$03,$FF,$FF,$00,$01,$03 ; $C119: FF 01 02 FF FF 01 03 FF FF 02 03 FF FF 00 01 03 ; (sets 3-6)
+  .byte $FF,$00,$02,$03,$FF,$01,$02,$03,$FF,$00,$01,$02,$03 ; $C129: FF 00 02 03 FF 01 02 03 FF 00 01 02 03 ; (sets 7-9)
+@MarketTradeMenuInput:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$B4                                ; $C136: A9 B4
   STA a:$0010                             ; $C138: 8D 10 00
-Loc_C13B:
   LDA #$C1                                ; $C13B: A9 C1
   STA a:$0011                             ; $C13D: 8D 11 00
   LDA #$00                                ; $C140: A9 00
@@ -4262,10 +4559,10 @@ Loc_C13B:
   LDA a:$0012                             ; $C170: AD 12 00
   BNE $C180                               ; $C173: D0 0B
   INC $0401                               ; $C175: EE 01 04
-  JSR MenuCursorReset                    ; $C178: 20 70 DD
+  JSR MenuCursorReset                     ; $C178: 20 70 DD
   LDA #$72                                ; $C17B: A9 72
   JMP $F26D                               ; $C17D: 4C 6D F2
-Loc_C180:
+@MarketTreasureRoute:
   LDA $0402                               ; $C180: AD 02 04
   JSR $F2AF                               ; $C183: 20 AF F2
   LDY #$10                                ; $C186: A0 10
@@ -4279,21 +4576,26 @@ Loc_C180:
   JSR $DB87                               ; $C199: 20 87 DB
   LDA #$70                                ; $C19C: A9 70
   JMP $F26D                               ; $C19E: 4C 6D F2
-Loc_C1A1:
+@MarketNoTreasure:
   LDA #$11                                ; $C1A1: A9 11
   STA $0401                               ; $C1A3: 8D 01 04
   LDA #$AC                                ; $C1A6: A9 AC
   JMP $F26D                               ; $C1A8: 4C 6D F2
-Loc_C1AB:
+@MarketCancel:
   LSR                                     ; $C1AB: 4A
   BCC $C1B3                               ; $C1AC: 90 05
   LDA #$00                                ; $C1AE: A9 00
   STA $0401                               ; $C1B0: 8D 01 04
-Loc_C1B3:
+@MarketMenuExit:
   RTS                                     ; $C1B3: 60
 ; --- Data Region ---
-  .byte $00,$01,$FF,$FF,$C8,$58,$C8,$A8,$00,$07,$00,$00,$80; $C1B4: 00 01 FF FF C8 58 C8 A8 00 07 00 00 80
-Loc_C1C1:  ; (dispatch callback target)
+@MarketMenuStream:
+  .byte $00,$01,$FF,$FF                   ; $C1B4: 00 01 FF FF ; 2-item market menu stream header
+@MarketMenuPosTable:
+  .byte $C8,$58,$C8,$A8                   ; $C1B8: C8 58 C8 A8 ; item cursor positions
+@MarketCursorSprite:
+  .byte $00,$07,$00,$00,$80               ; $C1BC: 00 07 00 00 80 ; cursor sprite template
+@MarketRiceTradeSetup:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$B8                                ; $C1C1: A9 B8
   STA a:$0010                             ; $C1C3: 8D 10 00
@@ -4320,12 +4622,12 @@ Loc_C1C1:  ; (dispatch callback target)
   LSR                                     ; $C1F8: 4A
   BCC $C206                               ; $C1F9: 90 0B
   DEC $0401                               ; $C1FB: CE 01 04
-  JSR MenuCursorReset                    ; $C1FE: 20 70 DD
+  JSR MenuCursorReset                     ; $C1FE: 20 70 DD
   LDA #$6F                                ; $C201: A9 6F
   JMP $F26D                               ; $C203: 4C 6D F2
-Loc_C206:
+@RiceTradeIdleExit:
   RTS                                     ; $C206: 60
-Loc_C207:
+@RiceTradeConfirm:
   JSR $DB87                               ; $C207: 20 87 DB
   LDY #$30                                ; $C20A: A0 30
   JSR $F25F                               ; $C20C: 20 5F F2
@@ -4358,7 +4660,7 @@ Loc_C207:
   STA $0401                               ; $C24C: 8D 01 04
   LDA #$74                                ; $C24F: A9 74
   JMP $F26D                               ; $C251: 4C 6D F2
-Loc_C254:
+@RiceBuySeed:
   LDY #$01                                ; $C254: A0 01
   LDA ($02),Y                             ; $C256: B1 02
   STA $0492                               ; $C258: 8D 92 04
@@ -4388,7 +4690,7 @@ Loc_C254:
   BEQ $C29E                               ; $C297: F0 05
   LDA #$01                                ; $C299: A9 01
   STA a:$0005                             ; $C29B: 8D 05 00
-Loc_C29E:
+@RiceBuyCostCommit:
   LDA a:$0000                             ; $C29E: AD 00 00
   CLC                                     ; $C2A1: 18
   ADC a:$0005                             ; $C2A2: 6D 05 00
@@ -4400,8 +4702,13 @@ Loc_C29E:
   LDA #$73                                ; $C2B3: A9 73
   JMP $F26D                               ; $C2B5: 4C 6D F2
 ; --- Data Region ---
-  .byte $00,$01,$FF,$FF,$C8,$58,$C8,$A8,$00,$07,$00,$00,$80; $C2B8: 00 01 FF FF C8 58 C8 A8 00 07 00 00 80
-Loc_C2C5:  ; (dispatch callback target)
+@RiceTradeMenuStream:
+  .byte $00,$01,$FF,$FF                   ; $C2B8: 00 01 FF FF ; 2-item rice trade menu stream header
+@RiceTradeMenuPosTable:
+  .byte $C8,$58,$C8,$A8                   ; $C2BC: C8 58 C8 A8 ; item cursor positions
+@RiceTradeCursorSprite:
+  .byte $00,$07,$00,$00,$80               ; $C2C0: 00 07 00 00 80 ; cursor sprite template
+@MarketRiceBuyConfirm:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR $DDAD                               ; $C2C5: 20 AD DD
   BCC $C2EB                               ; $C2C8: 90 21
@@ -4416,12 +4723,12 @@ Loc_C2C5:  ; (dispatch callback target)
   LSR                                     ; $C2DD: 4A
   BCC $C2EB                               ; $C2DE: 90 0B
   DEC $0401                               ; $C2E0: CE 01 04
-  JSR MenuCursorReset                    ; $C2E3: 20 70 DD
+  JSR MenuCursorReset                     ; $C2E3: 20 70 DD
   LDA #$72                                ; $C2E6: A9 72
   JMP $F26D                               ; $C2E8: 4C 6D F2
-Loc_C2EB:
+@RiceBuyIdleExit:
   RTS                                     ; $C2EB: 60
-Loc_C2EC:
+@RiceBuyConfirm:
   LDA $048E                               ; $C2EC: AD 8E 04
   STA a:$0000                             ; $C2EF: 8D 00 00
   LDA $048F                               ; $C2F2: AD 8F 04
@@ -4429,7 +4736,7 @@ Loc_C2EC:
   BNE $C2FF                               ; $C2F8: D0 05
   LDA a:$0000                             ; $C2FA: AD 00 00
   BEQ $C2EB                               ; $C2FD: F0 EC
-Loc_C2FF:
+@RiceBuyCostCalc:
   LDA #$00                                ; $C2FF: A9 00
   STA a:$0002                             ; $C301: 8D 02 00
   LDA #$64                                ; $C304: A9 64
@@ -4447,11 +4754,11 @@ Loc_C2FF:
   LDA #$00                                ; $C326: A9 00
   STA $042E                               ; $C328: 8D 2E 04
   INC $0401                               ; $C32B: EE 01 04
-  JSR MenuCursorReset                    ; $C32E: 20 70 DD
+  JSR MenuCursorReset                     ; $C32E: 20 70 DD
   STA $046C                               ; $C331: 8D 6C 04
   LDA #$29                                ; $C334: A9 29
   JMP $F26D                               ; $C336: 4C 6D F2
-Loc_C339:  ; (dispatch callback target)
+@MarketRiceBuyApply:  ; (dispatch callback target)
   JSR $D5BD                               ; $C339: 20 BD D5
   LDA a:$0013                             ; $C33C: AD 13 00
   BEQ $C39F                               ; $C33F: F0 5E
@@ -4472,7 +4779,7 @@ Loc_C339:  ; (dispatch callback target)
   DEY                                     ; $C35F: 88
   STA ($00),Y                             ; $C360: 91 00
   INY                                     ; $C362: C8
-Loc_C363:
+@BuyGoldStore:
   STA ($00),Y                             ; $C363: 91 00
   LDY #$04                                ; $C365: A0 04
   LDA ($00),Y                             ; $C367: B1 00
@@ -4491,17 +4798,17 @@ Loc_C363:
   STA $042D                               ; $C385: 8D 2D 04
   LDA #$00                                ; $C388: A9 00
   STA $042E                               ; $C38A: 8D 2E 04
-  JSR $D568                               ; $C38D: 20 68 D5
+  JSR MapTransitionStateSave              ; $C38D: 20 68 D5
   LDA #$0F                                ; $C390: A9 0F
   STA $0401                               ; $C392: 8D 01 04
   LDA #$75                                ; $C395: A9 75
   JMP $F26D                               ; $C397: 4C 6D F2
-Loc_C39A:
+@BuyCancel:
   LDA #$00                                ; $C39A: A9 00
   STA $0401                               ; $C39C: 8D 01 04
-Loc_C39F:
+@BuyApplyExit:
   RTS                                     ; $C39F: 60
-Loc_C3A0:  ; (dispatch callback target)
+@MarketRiceSellConfirm:  ; (dispatch callback target)
   JSR $DDAD                               ; $C3A0: 20 AD DD
   BCC $C3C8                               ; $C3A3: 90 23
   LDA #$50                                ; $C3A5: A9 50
@@ -4516,12 +4823,12 @@ Loc_C3A0:  ; (dispatch callback target)
   BCC $C3C8                               ; $C3B9: 90 0D
   LDA #$03                                ; $C3BB: A9 03
   STA $0401                               ; $C3BD: 8D 01 04
-  JSR MenuCursorReset                    ; $C3C0: 20 70 DD
+  JSR MenuCursorReset                     ; $C3C0: 20 70 DD
   LDA #$72                                ; $C3C3: A9 72
   JMP $F26D                               ; $C3C5: 4C 6D F2
-Loc_C3C8:
+@RiceSellIdleExit:
   RTS                                     ; $C3C8: 60
-Loc_C3C9:
+@RiceSellConfirm:
   LDA $048E                               ; $C3C9: AD 8E 04
   STA a:$0000                             ; $C3CC: 8D 00 00
   LDA $048F                               ; $C3CF: AD 8F 04
@@ -4529,7 +4836,7 @@ Loc_C3C9:
   BNE $C3DC                               ; $C3D5: D0 05
   LDA a:$0000                             ; $C3D7: AD 00 00
   BEQ $C3C8                               ; $C3DA: F0 EC
-Loc_C3DC:
+@RiceSellCostCalc:
   LDA #$00                                ; $C3DC: A9 00
   STA a:$0002                             ; $C3DE: 8D 02 00
   LDA $0492                               ; $C3E1: AD 92 04
@@ -4544,13 +4851,13 @@ Loc_C3DC:
   STA $042C                               ; $C3FA: 8D 2C 04
   LDA a:$0001                             ; $C3FD: AD 01 00
   STA $042D                               ; $C400: 8D 2D 04
-  JSR MenuCursorReset                    ; $C403: 20 70 DD
+  JSR MenuCursorReset                     ; $C403: 20 70 DD
   STA $042E                               ; $C406: 8D 2E 04
   STA $046C                               ; $C409: 8D 6C 04
   INC $0401                               ; $C40C: EE 01 04
   LDA #$29                                ; $C40F: A9 29
   JMP $F26D                               ; $C411: 4C 6D F2
-Loc_C414:  ; (dispatch callback target)
+@MarketRiceSellApply:  ; (dispatch callback target)
   JSR $D5BD                               ; $C414: 20 BD D5
   LDA a:$0013                             ; $C417: AD 13 00
   BEQ $C469                               ; $C41A: F0 4D
@@ -4571,7 +4878,7 @@ Loc_C414:  ; (dispatch callback target)
   DEY                                     ; $C43A: 88
   STA ($00),Y                             ; $C43B: 91 00
   INY                                     ; $C43D: C8
-Loc_C43E:
+@SellRiceStore:
   STA ($00),Y                             ; $C43E: 91 00
   LDY #$02                                ; $C440: A0 02
   LDA ($00),Y                             ; $C442: B1 00
@@ -4584,17 +4891,17 @@ Loc_C43E:
   STA ($00),Y                             ; $C450: 91 00
   LDY #$02                                ; $C452: A0 02
   JSR $DDDC                               ; $C454: 20 DC DD
-  JSR $D568                               ; $C457: 20 68 D5
+  JSR MapTransitionStateSave              ; $C457: 20 68 D5
   LDA #$0F                                ; $C45A: A9 0F
   STA $0401                               ; $C45C: 8D 01 04
   LDA #$76                                ; $C45F: A9 76
   JMP $F26D                               ; $C461: 4C 6D F2
-Loc_C464:
+@SellCancel:
   LDA #$00                                ; $C464: A9 00
   STA $0401                               ; $C466: 8D 01 04
-Loc_C469:
+@SellApplyExit:
   RTS                                     ; $C469: 60
-Loc_C46A:  ; (dispatch callback target)
+@MarketTreasureSellPrompt:  ; (dispatch callback target)
   JSR $DDAD                               ; $C46A: 20 AD DD
   BCC $C4A7                               ; $C46D: 90 38
   LDA #$30                                ; $C46F: A9 30
@@ -4609,21 +4916,21 @@ Loc_C46A:  ; (dispatch callback target)
   LDA $048E                               ; $C484: AD 8E 04
   BEQ $C4A7                               ; $C487: F0 1E
   INC $0401                               ; $C489: EE 01 04
-  JSR MenuCursorReset                    ; $C48C: 20 70 DD
+  JSR MenuCursorReset                     ; $C48C: 20 70 DD
   STA $046C                               ; $C48F: 8D 6C 04
   LDA #$29                                ; $C492: A9 29
   JMP $F26D                               ; $C494: 4C 6D F2
-Loc_C497:
+@TreasurePromptCancel:
   LSR                                     ; $C497: 4A
   BCC $C4A7                               ; $C498: 90 0D
   LDA #$02                                ; $C49A: A9 02
   STA $0401                               ; $C49C: 8D 01 04
-  JSR MenuCursorReset                    ; $C49F: 20 70 DD
+  JSR MenuCursorReset                     ; $C49F: 20 70 DD
   LDA #$6F                                ; $C4A2: A9 6F
   JMP $F26D                               ; $C4A4: 4C 6D F2
-Loc_C4A7:
+@TreasurePromptExit:
   RTS                                     ; $C4A7: 60
-Loc_C4A8:  ; (dispatch callback target)
+@MarketTreasureSellApply:  ; (dispatch callback target)
   JSR $D5BD                               ; $C4A8: 20 BD D5
   LDA a:$0013                             ; $C4AB: AD 13 00
   BEQ $C514                               ; $C4AE: F0 64
@@ -4661,17 +4968,17 @@ Loc_C4A8:  ; (dispatch callback target)
   STA ($00),Y                             ; $C4FB: 91 00
   LDY #$02                                ; $C4FD: A0 02
   JSR $DDDC                               ; $C4FF: 20 DC DD
-  JSR $D568                               ; $C502: 20 68 D5
+  JSR MapTransitionStateSave              ; $C502: 20 68 D5
   LDA #$0F                                ; $C505: A9 0F
   STA $0401                               ; $C507: 8D 01 04
   LDA #$76                                ; $C50A: A9 76
   JMP $F26D                               ; $C50C: 4C 6D F2
-Loc_C50F:
+@TreasureSellAbort:
   LDA #$00                                ; $C50F: A9 00
   STA $0401                               ; $C511: 8D 01 04
-Loc_C514:
+@TreasureApplyExit:
   RTS                                     ; $C514: 60
-Loc_C515:  ; (dispatch callback target)
+@HospitalFeeSetup:  ; (dispatch callback target)
   LDA $0478                               ; $C515: AD 78 04
   BNE $C546                               ; $C518: D0 2C
   JSR $D64A                               ; $C51A: 20 4A D6
@@ -4689,12 +4996,12 @@ Loc_C515:  ; (dispatch callback target)
   INC $0401                               ; $C539: EE 01 04
   LDA #$28                                ; $C53C: A9 28
   JMP $F26D                               ; $C53E: 4C 6D F2
-Loc_C541:
+@HospitalFeeAbort:
   LDA #$00                                ; $C541: A9 00
   STA $0401                               ; $C543: 8D 01 04
-Loc_C546:
+@HospitalFeeIdleExit:
   RTS                                     ; $C546: 60
-Loc_C547:  ; (dispatch callback target)
+@ServiceFeeConfirm:  ; (dispatch callback target)
   JSR $DDAD                               ; $C547: 20 AD DD
   BCC $C58E                               ; $C54A: 90 42
   JSR $D543                               ; $C54C: 20 43 D5
@@ -4710,27 +5017,27 @@ Loc_C547:  ; (dispatch callback target)
   INY                                     ; $C564: C8
   LDA ($00),Y                             ; $C565: B1 00
   BEQ $C577                               ; $C567: F0 0E
-Loc_C569:
+@FeeAcceptRoute:
   INC $0401                               ; $C569: EE 01 04
-  JSR MenuCursorReset                    ; $C56C: 20 70 DD
+  JSR MenuCursorReset                     ; $C56C: 20 70 DD
   STA $046C                               ; $C56F: 8D 6C 04
   LDA #$29                                ; $C572: A9 29
   JMP $F26D                               ; $C574: 4C 6D F2
-Loc_C577:
+@FeeInsufficient:
   LDA #$11                                ; $C577: A9 11
   STA $0401                               ; $C579: 8D 01 04
   LDA #$2A                                ; $C57C: A9 2A
   JMP $F26D                               ; $C57E: 4C 6D F2
-Loc_C581:
+@FeeCancelCheck:
   LSR                                     ; $C581: 4A
   BCC $C58E                               ; $C582: 90 0A
   JSR $DDAD                               ; $C584: 20 AD DD
   BCC $C58E                               ; $C587: 90 05
   LDA #$00                                ; $C589: A9 00
   STA $0401                               ; $C58B: 8D 01 04
-Loc_C58E:
+@FeeConfirmExit:
   RTS                                     ; $C58E: 60
-Loc_C58F:  ; (dispatch callback target)
+@ServiceFeePayApply:  ; (dispatch callback target)
   JSR $D5BD                               ; $C58F: 20 BD D5
   LDA a:$0013                             ; $C592: AD 13 00
   BEQ $C5D6                               ; $C595: F0 3F
@@ -4751,18 +5058,22 @@ Loc_C58F:  ; (dispatch callback target)
   STA a:$0000                             ; $C5B5: 8D 00 00
   LDY #$3D                                ; $C5B8: A0 3D
   JSR $EE07                               ; $C5BA: 20 07 EE
-; --- Data Region ---
-  .byte $2A,$A0,$EE,$01,$04,$AD,$70,$04,$D0,$05,$A9,$7A,$4C,$6D,$F2; $C5BD: 2A A0 EE 01 04 AD 70 04 D0 05 A9 7A 4C 6D F2
-Loc_C5CC:
 ; --- Code Region ---
+  .word B1D_1E_OfficerDisplay_Lookup      ; $C5BD: 2A A0 (BankedCallbackTrampoline target; bank $1D $A02A -> JMP OfficerDisplay_Lookup)
+  INC $0401                               ; $C5BF: EE 01 04  ; -> sub $0D (officer service)
+  LDA $0470                               ; $C5C2: AD 70 04  ; service flag (0 hospital / 1 academy)
+  BNE @AcademyListUI                      ; $C5C5: D0 05
+  LDA #$7A                                ; $C5C7: A9 7A
+  JMP B1F_SetUI0                          ; $C5C9: 4C 6D F2  ; UI mode $7A (hospital officer list, no return)
+@AcademyListUI:
   LDA #$7C                                ; $C5CC: A9 7C
   JMP $F26D                               ; $C5CE: 4C 6D F2
-Loc_C5D1:
+@FeePayAbort:
   LDA #$00                                ; $C5D1: A9 00
   STA $0401                               ; $C5D3: 8D 01 04
-Loc_C5D6:
+@FeePayExit:
   RTS                                     ; $C5D6: 60
-Loc_C5D7:  ; (dispatch callback target)
+@OfficerServiceApply:  ; (dispatch callback target)
   LDA $0481                               ; $C5D7: AD 81 04
   JSR $DD5E                               ; $C5DA: 20 5E DD
   JSR $DDAD                               ; $C5DD: 20 AD DD
@@ -4771,16 +5082,19 @@ Loc_C5D7:  ; (dispatch callback target)
   LDA a:$0081                             ; $C5E5: AD 81 00
   AND #$03                                ; $C5E8: 29 03
   BNE $C5ED                               ; $C5EA: D0 01
-Loc_C5EC:
+@ServiceCardIdleExit:
   RTS                                     ; $C5EC: 60
-Loc_C5ED:
-  JSR $D568                               ; $C5ED: 20 68 D5
+@ServiceCardConfirm:
+  JSR MapTransitionStateSave              ; $C5ED: 20 68 D5
   LDY #$3D                                ; $C5F0: A0 3D
   JSR $EE07                               ; $C5F2: 20 07 EE
-; --- Data Region ---
-  .byte $24,$A0,$A9,$0F,$8D,$01,$04,$AD,$70,$04,$D0,$51; $C5F5: 24 A0 A9 0F 8D 01 04 AD 70 04 D0 51
-Loc_C601:
 ; --- Code Region ---
+  .word B1D_1E_ImmediateOverlay           ; $C5F5: 24 A0 (BankedCallbackTrampoline target; bank $1D $A024 -> JMP ImmediateOverlay)
+  LDA #$0F                                ; $C5F7: A9 0F
+  STA $0401                               ; $C5F9: 8D 01 04  ; -> sub $0F (result redraw)
+  LDA $0470                               ; $C5FC: AD 70 04  ; service flag (0 hospital / 1 academy)
+  BNE @AcademyTrainApply                  ; $C5FF: D0 51
+@HospitalHealCalc:
   JSR $E85C                               ; $C601: 20 5C E8
   CMP #$0B                                ; $C604: C9 0B
   BCS $C601                               ; $C606: B0 F9
@@ -4809,14 +5123,14 @@ Loc_C601:
   STA $042C                               ; $C63B: 8D 2C 04
   LDA a:$0002                             ; $C63E: AD 02 00
   STA ($00),Y                             ; $C641: 91 00
-Loc_C643:
+@HealResultUI:
   LDA #$0D                                ; $C643: A9 0D
   STA $04A2                               ; $C645: 8D A2 04
   LDA #$52                                ; $C648: A9 52
   STA $04D6                               ; $C64A: 8D D6 04
   LDA #$7B                                ; $C64D: A9 7B
   JMP $F26D                               ; $C64F: 4C 6D F2
-Loc_C652:
+@AcademyTrainApply:
   LDA $0481                               ; $C652: AD 81 04
   JSR $F2D7                               ; $C655: 20 D7 F2
   JSR $E856                               ; $C658: 20 56 E8
@@ -4836,7 +5150,7 @@ Loc_C652:
   STA $04D6                               ; $C677: 8D D6 04
   LDA #$7D                                ; $C67A: A9 7D
   JMP $F26D                               ; $C67C: 4C 6D F2
-Loc_C67F:  ; (dispatch callback target)
+@AcademyCostSelect:  ; (dispatch callback target)
   LDA $0478                               ; $C67F: AD 78 04
   BNE $C6F7                               ; $C682: D0 73
   JSR $D64A                               ; $C684: 20 4A D6
@@ -4856,16 +5170,16 @@ Loc_C67F:  ; (dispatch callback target)
   LDA #$0A                                ; $C6A5: A9 0A
   LDX #$06                                ; $C6A7: A2 06
   JMP $C6BB                               ; $C6A9: 4C BB C6
-Loc_C6AC:
+@AcademyTierMid:
   CMP #$1F                                ; $C6AC: C9 1F
   BCC $C6B7                               ; $C6AE: 90 07
   LDA #$14                                ; $C6B0: A9 14
   LDX #$08                                ; $C6B2: A2 08
   JMP $C6BB                               ; $C6B4: 4C BB C6
-Loc_C6B7:
+@AcademyTierLow:
   LDA #$1E                                ; $C6B7: A9 1E
   LDX #$05                                ; $C6B9: A2 05
-Loc_C6BB:
+@AcademyTierSet:
   STA $042C                               ; $C6BB: 8D 2C 04
   STX $0471                               ; $C6BE: 8E 71 04
   LDA #$00                                ; $C6C1: A9 00
@@ -4877,55 +5191,63 @@ Loc_C6BB:
   STA $0401                               ; $C6D0: 8D 01 04
   LDA #$28                                ; $C6D3: A9 28
   JMP $F26D                               ; $C6D5: 4C 6D F2
-Loc_C6D8:
+@AcademyMaxed:
   LDA $0481                               ; $C6D8: AD 81 04
   STA $0473                               ; $C6DB: 8D 73 04
   STA a:$0000                             ; $C6DE: 8D 00 00
   LDY #$3D                                ; $C6E1: A0 3D
   JSR $EE07                               ; $C6E3: 20 07 EE
-; --- Data Region ---
-  .byte $2A,$A0,$A9,$11,$8D,$01,$04,$A9,$79,$4C,$6D,$F2; $C6E6: 2A A0 A9 11 8D 01 04 A9 79 4C 6D F2
-Loc_C6F2:
 ; --- Code Region ---
+  .word B1D_1E_OfficerDisplay_Lookup      ; $C6E6: 2A A0 (BankedCallbackTrampoline target; bank $1D $A02A -> JMP OfficerDisplay_Lookup)
+  LDA #$11                                ; $C6E8: A9 11
+  STA $0401                               ; $C6EA: 8D 01 04  ; -> sub $11 (screen exit wait)
+  LDA #$79                                ; $C6EC: A9 79
+  JMP B1F_SetUI0                          ; $C6EE: 4C 6D F2  ; UI mode $79 (Intelligence maxed message, no return)
+@AcademyAbort:
   LDA #$00                                ; $C6F2: A9 00
   STA $0401                               ; $C6F4: 8D 01 04
-Loc_C6F7:
+@AcademyExit:
   RTS                                     ; $C6F7: 60
-Loc_C6F8:  ; (dispatch callback target)
+@ResultRedrawGate:  ; (dispatch callback target)
   LDY #$3D                                ; $C6F8: A0 3D
   JSR $EE07                               ; $C6FA: 20 07 EE
-; --- Data Region ---
-  .byte $24,$A0,$AD,$40,$01,$D0,$0E,$AD,$A2,$04,$8D,$A0,$04,$EE,$01,$04; $C6FD: 24 A0 AD 40 01 D0 0E AD A2 04 8D A0 04 EE 01 04
-  .byte $A9,$60,$8D,$6C,$04               ; $C70D: A9 60 8D 6C 04
-Loc_C712:
 ; --- Code Region ---
+  .word B1D_1E_ImmediateOverlay           ; $C6FD: 24 A0 (BankedCallbackTrampoline target; bank $1D $A024 -> JMP ImmediateOverlay)
+  LDA $0140                               ; $C6FF: AD 40 01  ; transition busy
+  BNE @RedrawGateExit                     ; $C702: D0 0E     ; wait
+  LDA $04A2                               ; $C704: AD A2 04  ; pending overlay redraw trigger
+  STA $04A0                               ; $C707: 8D A0 04
+  INC $0401                               ; $C70A: EE 01 04  ; -> sub $10 (redraw wait)
+  LDA #$60                                ; $C70D: A9 60
+  STA $046C                               ; $C70F: 8D 6C 04  ; message window mode
+@RedrawGateExit:
   RTS                                     ; $C712: 60
-Loc_C713:  ; (dispatch callback target)
+@ResultRedrawWait:  ; (dispatch callback target)
   LDA $04A0                               ; $C713: AD A0 04
   BNE $C720                               ; $C716: D0 08
   LDA #$04                                ; $C718: A9 04
-  JSR $D58C                               ; $C71A: 20 8C D5
+  JSR MapTransitionStateRestore           ; $C71A: 20 8C D5
   INC $0401                               ; $C71D: EE 01 04
-Loc_C720:
+@RedrawWaitExit:
   RTS                                     ; $C720: 60
-Loc_C721:  ; (dispatch callback target)
+@TownScreenExitWait:  ; (dispatch callback target)
   JSR $DDAD                               ; $C721: 20 AD DD
   BCC $C73B                               ; $C724: 90 15
   JSR $D543                               ; $C726: 20 43 D5
   LDA a:$0081                             ; $C729: AD 81 00
   AND #$03                                ; $C72C: 29 03
   BEQ $C73B                               ; $C72E: F0 0B
-  JSR $D568                               ; $C730: 20 68 D5
+  JSR MapTransitionStateSave              ; $C730: 20 68 D5
   LDA #$00                                ; $C733: A9 00
   STA $0400                               ; $C735: 8D 00 04
   STA $0401                               ; $C738: 8D 01 04
-Loc_C73B:
+@ExitCleanupCheck:
   LDA $0473                               ; $C73B: AD 73 04
   BEQ $C743                               ; $C73E: F0 03
   JMP $DD5E                               ; $C740: 4C 5E DD
-Loc_C743:
+@ExitWaitExit:
   RTS                                     ; $C743: 60
-Loc_C744:  ; (dispatch callback target)
+@ArmoryWindowWait:  ; (dispatch callback target)
   LDA $0478                               ; $C744: AD 78 04
   BNE $C76D                               ; $C747: D0 24
   JSR $D64A                               ; $C749: 20 4A D6
@@ -4937,15 +5259,15 @@ Loc_C744:  ; (dispatch callback target)
   INC $0401                               ; $C758: EE 01 04
   LDA #$8C                                ; $C75B: A9 8C
   STA a:$00BD                             ; $C75D: 8D BD 00
-  JSR MenuCursorReset                    ; $C760: 20 70 DD
+  JSR MenuCursorReset                     ; $C760: 20 70 DD
   LDA #$A5                                ; $C763: A9 A5
   JMP $F26D                               ; $C765: 4C 6D F2
-Loc_C768:
+@ArmoryAbort:
   LDA #$00                                ; $C768: A9 00
   STA $0401                               ; $C76A: 8D 01 04
-Loc_C76D:
+@ArmoryWinExit:
   RTS                                     ; $C76D: 60
-Loc_C76E:  ; (dispatch callback target)
+@ArmoryItemGridInput:  ; (dispatch callback target)
   LDA #$EE                                ; $C76E: A9 EE
   STA a:$0010                             ; $C770: 8D 10 00
   LDA #$C7                                ; $C773: A9 C7
@@ -4967,20 +5289,30 @@ Loc_C76E:  ; (dispatch callback target)
   LSR                                     ; $C79D: 4A
   BCC $C7D8                               ; $C79E: 90 38
   LDY $0402                               ; $C7A0: AC 02 04
-  LDA $C801,Y                             ; $C7A3: B9 01 C8
+  LDA @ArmoryGridSetTable,Y               ; $C7A3: B9 01 C8  ; weapon grid set of province $0402
   STA a:$0000                             ; $C7A6: 8D 00 00
   LDY #$28                                ; $C7A9: A0 28
   JSR $EE07                               ; $C7AB: 20 07 EE
-; --- Data Region ---
-  .byte $1E,$A0,$AD,$02,$04,$C9,$1B,$D0,$16,$AD,$4C,$04,$C9,$10,$D0,$0F; $C7AE: 1E A0 AD 02 04 C9 1B D0 16 AD 4C 04 C9 10 D0 0F
-  .byte $A9,$17,$8D,$4F,$04,$A9,$90,$8D,$35,$04,$A9,$01,$8D,$36,$04; $C7BE: A9 17 8D 4F 04 A9 90 8D 35 04 A9 01 8D 36 04
-Loc_C7CD:
 ; --- Code Region ---
+  .word B08_09_ExpandFormationSlots_Entry ; $C7AE: 1E A0 (BankedCallbackTrampoline target; banks $08+$09 $A01E -> JMP ExpandFormationSlots; reused to lay out the 4 weapon grid cells $044C-$044F and the price records $042C+slot*3)
+  LDA $0402                               ; $C7B0: AD 02 04  ; province id
+  CMP #$1B                                ; $C7B3: C9 1B
+  BNE @ArmoryGridNext                     ; $C7B5: D0 16     ; famous-weapon grid only in province $1B
+  LDA $044C                               ; $C7B7: AD 4C 04  ; first grid cell
+  CMP #$10                                ; $C7BA: C9 10
+  BNE @ArmoryGridNext                     ; $C7BC: D0 0F
+  LDA #$17                                ; $C7BE: A9 17
+  STA $044F                               ; $C7C0: 8D 4F 04  ; 4th cell <- weapon $17 (province-exclusive)
+  LDA #$90                                ; $C7C3: A9 90
+  STA $0435                               ; $C7C5: 8D 35 04  ; 4th price record <- $0190 (400 gold)
+  LDA #$01                                ; $C7C8: A9 01
+  STA $0436                               ; $C7CA: 8D 36 04
+@ArmoryGridNext:
   INC $0401                               ; $C7CD: EE 01 04
-  JSR MenuCursorReset                    ; $C7D0: 20 70 DD
+  JSR MenuCursorReset                     ; $C7D0: 20 70 DD
   LDA #$A6                                ; $C7D3: A9 A6
   JMP $F28B                               ; $C7D5: 4C 8B F2
-Loc_C7D8:
+@ArmoryMenuBack:
   LSR                                     ; $C7D8: 4A
   BCC $C7ED                               ; $C7D9: 90 12
   DEC $0401                               ; $C7DB: CE 01 04
@@ -4990,26 +5322,50 @@ Loc_C7D8:
   STA $047C                               ; $C7E5: 8D 7C 04
   LDA #$A4                                ; $C7E8: A9 A4
   JMP $F26D                               ; $C7EA: 4C 6D F2
-Loc_C7ED:
+@ArmoryMenuExit:
   RTS                                     ; $C7ED: 60
 ; --- Data Region ---
-  .byte $00,$01,$02,$03,$FF,$FF,$BC,$58,$BC,$98,$CC,$58,$CC,$98,$00,$07; $C7EE: 00 01 02 03 FF FF BC 58 BC 98 CC 58 CC 98 00 07
-  .byte $00,$00,$80,$00,$00,$00,$00,$01,$00,$00,$00,$01,$00,$00,$00,$01; $C7FE: 00 00 80 00 00 00 00 01 00 00 00 01 00 00 00 01
-  .byte $00,$00,$02,$00,$00,$00,$00,$01,$00,$00,$00,$00,$01,$01,$00,$00; $C80E: 00 00 02 00 00 00 00 01 00 00 00 00 01 01 00 00
+@ArmoryMenuStream:
+  .byte $00,$01,$02,$03,$FF,$FF           ; $C7EE: 00 01 02 03 FF FF ; 4-item weapon grid menu stream
+@ArmoryMenuPosTable:
+  .byte $BC,$58,$BC,$98,$CC,$58,$CC,$98   ; $C7F4: BC 58 BC 98 CC 58 CC 98 ; item cursor positions
+@ArmoryCursorSprite:
+  .byte $00,$07,$00,$00,$80               ; $C7FC: 00 07 00 00 80 ; cursor sprite template
+@ArmoryGridSetTable:
+  .byte $00,$00,$00,$00,$01,$00,$00,$00,$01,$00,$00,$00,$01 ; $C801: 00 00 00 00 01 00 00 00 01 00 00 00 01 ; weapon grid set per province
+  .byte $00,$00,$02,$00,$00,$00,$00,$01,$00,$00,$00,$00,$01,$01,$00,$00 ; $C80E: 00 00 02 00 00 00 00 01 00 00 00 00 01 01 00 00
   .byte $01                               ; $C81E: 01
-Loc_C81F:  ; (dispatch callback target)
+@ArmoryItemDescStream:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0300                               ; $C81F: AD 00 03
   CMP #$FF                                ; $C822: C9 FF
   BEQ $C827                               ; $C824: F0 01
   RTS                                     ; $C826: 60
-; --- Data Region ---
-  .byte $A0,$30,$20,$5F,$F2,$A0,$00,$A2,$00,$8E,$10,$00,$8E,$11,$00,$8E; $C827: A0 30 20 5F F2 A0 00 A2 00 8E 10 00 8E 11 00 8E
-  .byte $12,$00,$AC,$10,$00,$B9,$4C,$04,$0A,$A8,$B9,$12,$9B,$8D,$00,$00; $C837: 12 00 AC 10 00 B9 4C 04 0A A8 B9 12 9B 8D 00 00
-  .byte $C8,$B9,$12,$9B,$18,$69,$80,$8D,$01,$00,$A0,$00,$B1,$00,$8D,$BC; $C847: C8 B9 12 9B 18 69 80 8D 01 00 A0 00 B1 00 8D BC
-  .byte $00,$4C,$73,$C8                   ; $C857: 00 4C 73 C8
-Loc_C85B:
 ; --- Code Region ---
+  LDY #$30                                ; $C827: A0 30     ; bank $30 window (item records)
+  JSR B1F_SwitchBank8_B                   ; $C829: 20 5F F2
+  LDY #$00                                ; $C82C: A0 00
+  LDX #$00                                ; $C82E: A2 00     ; X = grid slot index
+  STX a:$0010                             ; $C830: 8E 10 00  ; grid slot counter
+  STX a:$0011                             ; $C833: 8E 11 00  ; PPU stream write index
+  STX a:$0012                             ; $C836: 8E 12 00  ; desc address table index
+@ArmoryGridFirstItem:
+  LDY a:$0010                             ; $C839: AC 10 00
+  LDA $044C,Y                             ; $C83B: B9 4C 04  ; grid cell (weapon/armor id)
+  ASL                                     ; $C83E: 0A
+  TAY                                     ; $C83F: A8
+  LDA $9B12,Y                             ; $C840: B9 12 9B  ; bank $30 item record pointer table ($9B12)
+  STA a:$0000                             ; $C843: 8D 00 00
+  INY                                     ; $C846: C8
+  LDA $9B12,Y                             ; $C847: B9 12 9B
+  CLC                                     ; $C84A: 18
+  ADC #$80                                ; $C84B: 69 80     ; record pointer high byte +$80
+  STA a:$0001                             ; $C84D: 8D 01 00
+  LDY #$00                                ; $C850: A0 00
+  LDA ($00),Y                             ; $C852: B1 00
+  STA a:$00BC                             ; $C854: 8D BC 00  ; first item record tile marker
+  JMP @ArmoryRowLoop                      ; $C857: 4C 73 C8
+@ArmoryGridNextItem:
   LDY a:$0010                             ; $C85B: AC 10 00
   LDA $044C,Y                             ; $C85E: B9 4C 04
   ASL                                     ; $C861: 0A
@@ -5021,7 +5377,7 @@ Loc_C85B:
   CLC                                     ; $C86D: 18
   ADC #$80                                ; $C86E: 69 80
   STA a:$0001                             ; $C870: 8D 01 00
-Loc_C873:
+@ArmoryRowLoop:
   LDY #$00                                ; $C873: A0 00
   STY a:$0014                             ; $C875: 8C 14 00
   STY a:$0015                             ; $C878: 8C 15 00
@@ -5031,9 +5387,9 @@ Loc_C873:
   STA a:$00BD                             ; $C882: 8D BD 00
   LDA #$40                                ; $C885: A9 40
   STA a:$0015                             ; $C887: 8D 15 00
-Loc_C88A:
+@ArmoryDescRowLoop:
   LDX a:$0012                             ; $C88A: AE 12 00
-  LDA $C8FA,X                             ; $C88D: BD FA C8
+  LDA @ArmoryItemDescAddrTable,X          ; $C88D: BD FA C8  ; desc PPU address pair per slot
   STA a:$0002                             ; $C890: 8D 02 00
   INX                                     ; $C893: E8
   LDA $C8FA,X                             ; $C894: BD FA C8
@@ -5051,7 +5407,7 @@ Loc_C88A:
   STA $0380,X                             ; $C8B1: 9D 80 03
   LDA #$00                                ; $C8B4: A9 00
   STA a:$0013                             ; $C8B6: 8D 13 00
-Loc_C8B9:
+@ArmoryDescByteLoop:
   INX                                     ; $C8B9: E8
   INY                                     ; $C8BA: C8
   LDA ($00),Y                             ; $C8BB: B1 00
@@ -5073,7 +5429,7 @@ Loc_C8B9:
   CMP #$04                                ; $C8E2: C9 04
   BCS $C8E9                               ; $C8E4: B0 03
   JMP $C85B                               ; $C8E6: 4C 5B C8
-Loc_C8E9:
+@ArmoryDescDone:
   LDA #$FF                                ; $C8E9: A9 FF
   STA $0380,X                             ; $C8EB: 9D 80 03
   LDA a:$007E                             ; $C8EE: AD 7E 00
@@ -5082,10 +5438,10 @@ Loc_C8E9:
   INC $0401                               ; $C8F6: EE 01 04
   RTS                                     ; $C8F9: 60
 ; --- Data Region ---
-  .byte $E3,$22,$03,$23,$F1,$22,$11,$23,$43,$23; $C8FA: E3 22 03 23 F1 22 11 23 43 23
-Loc_C904:
-  .byte $63,$23,$51,$23,$71,$23           ; $C904: 63 23 51 23 71 23
-Loc_C90A:  ; (dispatch callback target)
+@ArmoryItemDescAddrTable:
+  .byte $E3,$22,$03,$23,$F1,$22,$11,$23,$43,$23 ; $C8FA: E3 22 03 23 F1 22 11 23 43 23 ; item desc PPU address (lo/hi) per grid slot
+  .byte $63,$23,$51,$23,$71,$23           ; $C904: 63 23 51 23 71 23 ; (continued)
+@ArmoryBuyMenuInput:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$BF                                ; $C90A: A9 BF
   STA a:$0010                             ; $C90C: 8D 10 00
@@ -5112,12 +5468,12 @@ Loc_C90A:  ; (dispatch callback target)
   LDA #$13                                ; $C93F: A9 13
   STA $0471                               ; $C941: 8D 71 04
   INC $0401                               ; $C944: EE 01 04
-  JSR MenuCursorReset                    ; $C947: 20 70 DD
+  JSR MenuCursorReset                     ; $C947: 20 70 DD
   LDA #$A5                                ; $C94A: A9 A5
   JMP $F28B                               ; $C94C: 4C 8B F2
-Loc_C94F:
+@BuyMenuIdleExit:
   RTS                                     ; $C94F: 60
-Loc_C950:
+@ArmoryBuySelect:
   LDY a:$0012                             ; $C950: AC 12 00
   LDA $044C,Y                             ; $C953: B9 4C 04
   STA $044C                               ; $C956: 8D 4C 04
@@ -5141,13 +5497,13 @@ Loc_C950:
   LDA ($00),Y                             ; $C97E: B1 00
   SBC a:$0011                             ; $C980: ED 11 00
   BCC $C9B2                               ; $C983: 90 2D
-  JSR $CA6B                               ; $C985: 20 6B CA
+  JSR @WeaponGateCheck                    ; $C985: 20 6B CA  ; famous-weapon restriction check
   BCS $C993                               ; $C988: B0 09
   LDA #$11                                ; $C98A: A9 11
   STA $0471                               ; $C98C: 8D 71 04
   INC $0401                               ; $C98F: EE 01 04
   RTS                                     ; $C992: 60
-Loc_C993:
+@ArmoryBuyRoute:
   LDA a:$0010                             ; $C993: AD 10 00
   STA $042C                               ; $C996: 8D 2C 04
   LDA a:$0011                             ; $C999: AD 11 00
@@ -5155,20 +5511,24 @@ Loc_C993:
   LDA #$17                                ; $C99F: A9 17
   STA $0471                               ; $C9A1: 8D 71 04
   INC $0401                               ; $C9A4: EE 01 04
-  JSR MenuCursorReset                    ; $C9A7: 20 70 DD
+  JSR MenuCursorReset                     ; $C9A7: 20 70 DD
   STA $046C                               ; $C9AA: 8D 6C 04
   LDA #$29                                ; $C9AD: A9 29
   JMP $F28B                               ; $C9AF: 4C 8B F2
-Loc_C9B2:
+@WeaponGateFail:
   LDA #$11                                ; $C9B2: A9 11
   STA $0471                               ; $C9B4: 8D 71 04
   INC $0401                               ; $C9B7: EE 01 04
   LDA #$AA                                ; $C9BA: A9 AA
   JMP $F28B                               ; $C9BC: 4C 8B F2
 ; --- Data Region ---
-  .byte $00,$01,$02,$03,$FF,$FF,$BC,$10,$BC,$80,$D4,$10,$D4,$80,$00,$07; $C9BF: 00 01 02 03 FF FF BC 10 BC 80 D4 10 D4 80 00 07
-  .byte $00,$00,$80                       ; $C9CF: 00 00 80
-Loc_C9D2:  ; (dispatch callback target)
+@ArmoryBuyMenuStream:
+  .byte $00,$01,$02,$03,$FF,$FF           ; $C9BF: 00 01 02 03 FF FF ; 4-item buy menu stream
+@ArmoryBuyPosTable:
+  .byte $BC,$10,$BC,$80,$D4,$10,$D4,$80   ; $C9C5: BC 10 BC 80 D4 10 D4 80 ; item cursor positions
+@ArmoryBuyCursorSprite:
+  .byte $00,$07,$00,$00,$80               ; $C9CD: 00 07 00 00 80 ; cursor sprite template
+@ArmoryBuyerGate:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0300                               ; $C9D2: AD 00 03
   BNE $C9EE                               ; $C9D5: D0 17
@@ -5179,8 +5539,8 @@ Loc_C9D2:  ; (dispatch callback target)
   LDY #$3D                                ; $C9E1: A0 3D
   JSR $EE07                               ; $C9E3: 20 07 EE
 ; --- Data Region ---
-  .byte $24,$A0,$AD,$71,$04,$8D,$01,$04,$60; $C9E6: 24 A0 AD 71 04 8D 01 04 60
-Loc_C9EF:  ; (dispatch callback target)
+  .byte $24,$A0,$AD,$71,$04,$8D,$01,$04,$60 ; $C9E6: 24 A0 AD 71 04 8D 01 04 60
+@ArmoryPurchaseApply:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR $D5BD                               ; $C9EF: 20 BD D5
   LDA a:$0013                             ; $C9F2: AD 13 00
@@ -5191,7 +5551,7 @@ Loc_C9EF:  ; (dispatch callback target)
   BEQ $CA06                               ; $C9FE: F0 06
   ORA $6FE1                               ; $CA00: 0D E1 6F
   STA $6FE1                               ; $CA03: 8D E1 6F
-Loc_CA06:
+@EquipMaskSet:
   LDA #$E0                                ; $CA06: A9 E0
   STA a:$0010                             ; $CA08: 8D 10 00
   LDA $044C                               ; $CA0B: AD 4C 04
@@ -5208,7 +5568,7 @@ Loc_CA06:
   STA $044C                               ; $CA1C: 8D 4C 04
   LDA #$1F                                ; $CA1F: A9 1F
   STA a:$0010                             ; $CA21: 8D 10 00
-Loc_CA24:
+@EquipApply:
   LDA $0481                               ; $CA24: AD 81 04
   JSR $F2D7                               ; $CA27: 20 D7 F2
   LDY #$0A                                ; $CA2A: A0 0A
@@ -5231,17 +5591,17 @@ Loc_CA24:
   STA $04A2                               ; $CA50: 8D A2 04
   LDA #$4D                                ; $CA53: A9 4D
   STA $04D6                               ; $CA55: 8D D6 04
-  JSR $D568                               ; $CA58: 20 68 D5
+  JSR MapTransitionStateSave              ; $CA58: 20 68 D5
   LDA #$0F                                ; $CA5B: A9 0F
   STA $0401                               ; $CA5D: 8D 01 04
   LDA #$AB                                ; $CA60: A9 AB
   JMP $F26D                               ; $CA62: 4C 6D F2
-Loc_CA65:
+@PurchaseAbort:
   LDA #$00                                ; $CA65: A9 00
   STA $0401                               ; $CA67: 8D 01 04
-Loc_CA6A:
+@PurchaseExit:
   RTS                                     ; $CA6A: 60
-Loc_CA6B:
+@WeaponGateCheck:
   LDA #$00                                ; $CA6B: A9 00
   STA $0472                               ; $CA6D: 8D 72 04
   LDA $0481                               ; $CA70: AD 81 04
@@ -5255,7 +5615,7 @@ Loc_CA6B:
   BNE $CABE                               ; $CA85: D0 37
   LDA #$02                                ; $CA87: A9 02
   JMP $CAC5                               ; $CA89: 4C C5 CA
-Loc_CA8C:
+@WeaponGateCase17:
   CMP #$17                                ; $CA8C: C9 17
   BNE $CA9C                               ; $CA8E: D0 0C
   LDA a:$0002                             ; $CA90: AD 02 00
@@ -5263,7 +5623,7 @@ Loc_CA8C:
   BNE $CABE                               ; $CA95: D0 27
   LDA #$04                                ; $CA97: A9 04
   JMP $CAC5                               ; $CA99: 4C C5 CA
-Loc_CA9C:
+@WeaponGateCase16:
   CMP #$16                                ; $CA9C: C9 16
   BNE $CAAD                               ; $CA9E: D0 0D
   LDY #$01                                ; $CAA0: A0 01
@@ -5272,7 +5632,7 @@ Loc_CA9C:
   BCC $CABE                               ; $CAA6: 90 16
   LDA #$08                                ; $CAA8: A9 08
   JMP $CAC5                               ; $CAAA: 4C C5 CA
-Loc_CAAD:
+@WeaponGateCase1E:
   CMP #$1E                                ; $CAAD: C9 1E
   BNE $CAD6                               ; $CAAF: D0 25
   LDY #$04                                ; $CAB1: A0 04
@@ -5281,34 +5641,145 @@ Loc_CAAD:
   BCC $CABE                               ; $CAB7: 90 05
   LDA #$10                                ; $CAB9: A9 10
   JMP $CAC5                               ; $CABB: 4C C5 CA
-Loc_CABE:
+@WeaponGateDenied:
   LDA #$9A                                ; $CABE: A9 9A
   JSR $F28B                               ; $CAC0: 20 8B F2
   CLC                                     ; $CAC3: 18
   RTS                                     ; $CAC4: 60
-Loc_CAC5:
+@WeaponGatePass:
   STA a:$0003                             ; $CAC5: 8D 03 00
   LDA $6FE1                               ; $CAC8: AD E1 6F
   AND a:$0003                             ; $CACB: 2D 03 00
   BNE $CAD8                               ; $CACE: D0 08
   LDA a:$0003                             ; $CAD0: AD 03 00
   STA $0472                               ; $CAD3: 8D 72 04
-Loc_CAD6:
+@WeaponGateOk:
   SEC                                     ; $CAD6: 38
   RTS                                     ; $CAD7: 60
-Loc_CAD8:
+@WeaponGateAlready:
   LDA #$9B                                ; $CAD8: A9 9B
   JSR $F28B                               ; $CADA: 20 8B F2
   CLC                                     ; $CADD: 18
-  RTS                                     ; $CADE: 60
-Loc_CADF:  ; (dispatch callback target)
-  LDA $0401                               ; $CADF: AD 01 04
-  JSR $EADE                               ; $CAE2: 20 DE EA
-; --- Data Region ---
-  .byte $09,$CB,$FF,$CB,$82,$CC,$4C,$CD,$89,$CD,$8E,$CE,$AD,$CE,$F7,$CE; $CAE5: 09 CB FF CB 82 CC 4C CD 89 CD 8E CE AD CE F7 CE
-  .byte $1E,$CF,$8D,$CF,$E4,$CF,$1F,$D0,$E8,$D0,$FC,$D0,$3F,$D1,$8F,$D1; $CAF5: 1E CF 8D CF E4 CF 1F D0 E8 D0 FC D0 3F D1 8F D1
-  .byte $B9,$D1,$3C,$D2                   ; $CB05: B9 D1 3C D2
-Loc_CB09:  ; (dispatch callback target)
+  RTS                                     ; $CADE: 60        ; gate exit
+.endproc
+
+;===============================================================================
+; IntrigueCommandDispatch ($CADF-$D2D5) - dispatch callback target (state 6)
+; Intrigue (策略) command screen for frame state 6, entered from the castle
+; command screen (state 2, command 4). Offers the manual's three intrigue
+; commands (pp.22-23: 同盟 Alliance / 離間 Discord / 引き抜き Poaching);
+; dispatched on sub-state $0401 through the 18-entry table below.
+; Working cells: $0402 = camera-selected province, $0470 = own country id
+; (sub 0: province record byte 0 & 7) then message id before the result
+; redraw, $0471 = scroll rows left (sub 1) / target country id, $0472 =
+; command id (0 = Discord, 1 = Poaching) then own country id during the
+; gift flow, $0473 = flow gate (1 = ruler-card alliance, 2 = poach roster
+; transfer, 3 = alliance gift dialog, $80/$81/$FF = message/card variants),
+; $0478/$047C = window anim counter/phase, $0481 = officer id in play,
+; $0482/$0483 = alliance-nibble swap pair (own/target country),
+; $048B/$0490 = rival-country list count/buffer, $042C-$042E = ruler id and
+; gift class/shortfall cells, $042F-$0431 = success threshold and 24-bit
+; gift amount, $6F44 = alliance-formed toggle.
+; Record fields touched: province +$00 country id (poach cleanup), +$02/03
+; gold, +$04/05 rice (gift payment), +$11-$1A officer rosters (poach move);
+; country +$04-$07 alliance-state nibbles (AllianceStateGet/Set).
+; Sub-states:
+;   0  @MenuScreenInput        3-item intrigue menu ($CBEE); A routes:
+;                              Alliance -> 1, Discord -> 8 ($0472 = 0,
+;                              UI $3E), Poaching -> 7 ($0470 <- $0402,
+;                              $0472 = 1); B -> frame state 2
+;   1  @AllianceRulerListBuild render rival-ruler rows into the scroll
+;                              panel ($0480/$0481, +$40 per row); rival
+;                              countries into $0490, count $048B; rows
+;                              exhausted -> 2 (cursor reset)
+;   2  @AllianceRulerSelect    paged 3-row select over $0490 ($CD33); A:
+;                              $0471 <- target country, alliance-state
+;                              nibble zero -> 3 (message $27) else -> 5
+;                              ($042C = $29); B -> 5 ($042C = $3B)
+;   3  @AllianceAnimWait       window anim to $90 + yes/no dialog open
+;                              ($D64A/$D7A8); answered -> 4 (UI $29),
+;                              closed at $90 -> 0 (UI $3B)
+;   4  @AllianceConfirmGate    $D5BD yes/no; cancel -> frame state 2;
+;                              confirm routes on target country status
+;                              byte [3]: == 3 -> Intelligence/size odds roll
+;                              (success: $0470 = $43 -> 12; fail: banked
+;                              gift amount calc $A027, $0473 = 3, $0470 =
+;                              $EC -> 12), else ruler-card path
+;                              ($0473 = 1 -> 12)
+;   5  @AllianceDialogCloseWait overlay refresh wait; $042C == $29 -> 6,
+;                              otherwise sub 0 (UI <- $042C)
+;   6  @AllianceDissolveGate   $D5BD yes/no; clears the alliance nibbles on
+;                              both sides (AllianceStateSet clear path while
+;                              $0401 == 6), $042C <- target ruler -> 14
+;                              ($0473 = $80, UI $44); cancel -> frame state 2
+;   7  @PoachProvincePrep      roster capacity check on province $0470
+;                              (ProvinceOfficerCount); full (10) -> 14
+;                              ($0473 = $80, UI $47 notice -> map),
+;                              else -> 8 (UI $3E)
+;   8  @TargetProvincePick     camera pick ($DEBA): off-map -> UI $24,
+;                              unclaimed -> UI $46, own -> UI $40, valid
+;                              -> 9 (UI $48); B -> frame state 2
+;   9  @TargetOfficerSelect    yes/no dialog ($D64A) over the mode $48
+;                              officer list; pick: $042C <- $0481,
+;                              $0402 <- $0470 -> 10 (UI $27); cancel ->
+;                              frame state 2; re-open -> UI $4A
+;   10 @CommandConfirmGate     yes/no dialog ($D64A/$D7A8); answered -> 11
+;                              (UI $29), closed -> 0 (UI $3B)
+;   11 @CommandExecute         $D5BD yes/no; $0472 = 1: Poaching odds
+;                              (PoachOddsCalc, PoachRosterTransfer,
+;                              $0470 = $4B, $0473 = 2) vs fail ($0470 =
+;                              $4C); $0472 = 0: Discord loyalty drop
+;                              (DiscordLoyaltyDropCalc, $0470 = $4E);
+;                              -> 12 (UI cleared)
+;   12 @ResultRedrawGate       wait $0140; $04A0 <- $04A2 -> 13
+;   13 @ResultRoute            wait redraw, restore map scroll ($D58C);
+;                              $0473: 1 -> 15 (UI $E2 ruler card), 3 -> 17
+;                              (banked MapProvinceDirtyMark, UI $EC gift
+;                              dialog), else -> 14 (UI <- $0470)
+;   14 @MessageWaitRoute       input wait (MapCursorArrowDraw); closes the
+;                              window and routes on $0473: $81 toggles
+;                              $6F44, 2 fixes an emptied province
+;                              (+$00 <- 7); -> frame state 0
+;   15 @CardOpenWait           input wait -> 16 (UI $EF, dirty mark)
+;   16 @CardCloseRoute         officer-card close ($DD5E) + 2-item dialog
+;                              ($D22F); A with cursor 0: mutual
+;                              AllianceStateSet via $0482/$0483 (message
+;                              $E4), else $E5; -> 14
+;   17 @AllianceGiftDialog     gift dialog input ($D2D6 menu); yes: banked
+;                              gift deduct $A030, shortfall -> UI $2A/$ED,
+;                              paid: mutual AllianceStateSet via
+;                              $0472/$0471 (message $E4); no -> 14
+;                              ($0473 = $80, message $E5)
+; Intrigue-screen helpers below the proc: PoachOddsCalc, DiscordLoyaltyDropCalc,
+; PoachRosterTransfer, AllianceListRowRender, AllianceStateGet/Set,
+; MapCursorArrowDraw (intrigue-exclusive), plus the shared ProvinceOfficerCount,
+; CountryProvinceCount and window/dialog utilities ($D568/$D58C/$D5BD/$D64A/$D7A8)
+; which keep raw labels at their other call sites.
+;===============================================================================
+.proc IntrigueCommandDispatch  ; (dispatch callback target)
+; --- Code Region ---
+  LDA $0401                               ; $CADF: AD 01 04  ; intrigue screen sub-state
+  JSR B1F_CallbackDispatcher              ; $CAE2: 20 DE EA
+; --- CallbackDispatcher sub-state table, indexed by $0401 ---
+  .word @MenuScreenInput                  ; $CAE5: 09 CB ; sub 0
+  .word @AllianceRulerListBuild           ; $CAE7: FF CB ; sub 1
+  .word @AllianceRulerSelect              ; $CAE9: 82 CC ; sub 2
+  .word @AllianceAnimWait                 ; $CAEB: 4C CD ; sub 3
+  .word @AllianceConfirmGate              ; $CAED: 89 CD ; sub 4
+  .word @AllianceDialogCloseWait          ; $CAEF: 8E CE ; sub 5
+  .word @AllianceDissolveGate             ; $CAF1: AD CE ; sub 6
+  .word @PoachProvincePrep                ; $CAF3: F7 CE ; sub 7
+  .word @TargetProvincePick               ; $CAF5: 1E CF ; sub 8
+  .word @TargetOfficerSelect              ; $CAF7: 8D CF ; sub 9
+  .word @CommandConfirmGate               ; $CAF9: E4 CF ; sub 10
+  .word @CommandExecute                   ; $CAFB: 1F D0 ; sub 11
+  .word @ResultRedrawGate                 ; $CAFD: E8 D0 ; sub 12
+  .word @ResultRoute                      ; $CAFF: FC D0 ; sub 13
+  .word @MessageWaitRoute                 ; $CB01: 3F D1 ; sub 14
+  .word @CardOpenWait                     ; $CB03: 8F D1 ; sub 15
+  .word @CardCloseRoute                   ; $CB05: B9 D1 ; sub 16
+  .word @AllianceGiftDialog               ; $CB07: 3C D2 ; sub 17
+@MenuScreenInput:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$EE                                ; $CB09: A9 EE
   STA a:$0010                             ; $CB0B: 8D 10 00
@@ -5316,7 +5787,7 @@ Loc_CB09:  ; (dispatch callback target)
   STA a:$0011                             ; $CB10: 8D 11 00
   LDA #$00                                ; $CB13: A9 00
   STA a:$0012                             ; $CB15: 8D 12 00
-  JSR $ED1E                               ; $CB18: 20 1E ED
+  JSR B1F_MenuStep2                       ; $CB18: 20 1E ED  ; intrigue command menu (@CommandMenuItems)
   LDA #$F4                                ; $CB1B: A9 F4
   STA a:$0010                             ; $CB1D: 8D 10 00
   LDA #$CB                                ; $CB20: A9 CB
@@ -5326,161 +5797,168 @@ Loc_CB09:  ; (dispatch callback target)
   LDA #$CB                                ; $CB2A: A9 CB
   STA a:$0001                             ; $CB2C: 8D 01 00
   LDA a:$0012                             ; $CB2F: AD 12 00
-  JSR $EDF5                               ; $CB32: 20 F5 ED
-  JSR $DDAD                               ; $CB35: 20 AD DD
-  BCC $CB4D                               ; $CB38: 90 13
+  JSR B1F_PointerTableLookup              ; $CB32: 20 F5 ED  ; cursor sprite (@CommandCursorPos/@CommandCursorSprite)
+  JSR $DDAD                               ; $CB35: 20 AD DD  ; overlay idle + pad poll
+  BCC @MenuInputExit                      ; $CB38: 90 13
   LDA a:$0081                             ; $CB3A: AD 81 00
   LSR                                     ; $CB3D: 4A
-  BCS $CB4E                               ; $CB3E: B0 0E
+  BCS @MenuConfirm                        ; $CB3E: B0 0E     ; A pressed
   LSR                                     ; $CB40: 4A
-Loc_CB41:
-  BCC $CB4D                               ; $CB41: 90 0A
+@MenuBCheck:
+  BCC @MenuInputExit                      ; $CB41: 90 0A     ; B not pressed
   LDA #$02                                ; $CB43: A9 02
-  STA $0400                               ; $CB45: 8D 00 04
+  STA $0400                               ; $CB45: 8D 00 04  ; back to castle screen (state 2)
   LDA #$00                                ; $CB48: A9 00
   STA $0401                               ; $CB4A: 8D 01 04
-Loc_CB4D:
+@MenuInputExit:
   RTS                                     ; $CB4D: 60
-Loc_CB4E:
+@MenuConfirm:
   LDA #$3E                                ; $CB4E: A9 3E
-  STA $04D6                               ; $CB50: 8D D6 04
-  LDA a:$0012                             ; $CB53: AD 12 00
-  BEQ $CB8C                               ; $CB56: F0 34
+  STA $04D6                               ; $CB50: 8D D6 04  ; pending window close id
+  LDA a:$0012                             ; $CB53: AD 12 00  ; menu cursor
+  BEQ @MenuRouteAlliance                  ; $CB56: F0 34
   CMP #$02                                ; $CB58: C9 02
-  BEQ $CB7B                               ; $CB5A: F0 1F
+  BEQ @MenuRoutePoaching                  ; $CB5A: F0 1F
+@MenuRouteDiscord:
   LDA $0402                               ; $CB5C: AD 02 04
-  STA $0470                               ; $CB5F: 8D 70 04
+  STA $0470                               ; $CB5F: 8D 70 04  ; keep camera province
   LDA a:$0012                             ; $CB62: AD 12 00
   CMP #$01                                ; $CB65: C9 01
-  BNE $CB7B                               ; $CB67: D0 12
+  BNE @MenuRoutePoaching                  ; $CB67: D0 12
   LDA #$00                                ; $CB69: A9 00
-  STA $0472                               ; $CB6B: 8D 72 04
-  JSR $D568                               ; $CB6E: 20 68 D5
+  STA $0472                               ; $CB6B: 8D 72 04  ; command id 0 = Discord
+  JSR MapTransitionStateSave              ; $CB6E: 20 68 D5  ; close command window
   LDA #$08                                ; $CB71: A9 08
-  STA $0401                               ; $CB73: 8D 01 04
+  STA $0401                               ; $CB73: 8D 01 04  ; -> @TargetProvincePick
   LDA #$3E                                ; $CB76: A9 3E
-  JMP $F26D                               ; $CB78: 4C 6D F2
-Loc_CB7B:
+  JMP $F26D                               ; $CB78: 4C 6D F2  ; UI mode $3E (camera pick)
+@MenuRoutePoaching:
   LDA $0402                               ; $CB7B: AD 02 04
-  STA $0470                               ; $CB7E: 8D 70 04
+  STA $0470                               ; $CB7E: 8D 70 04  ; own province for the capacity check
   LDA #$01                                ; $CB81: A9 01
-  STA $0472                               ; $CB83: 8D 72 04
+  STA $0472                               ; $CB83: 8D 72 04  ; command id 1 = Poaching
   LDA #$07                                ; $CB86: A9 07
-  STA $0401                               ; $CB88: 8D 01 04
+  STA $0401                               ; $CB88: 8D 01 04  ; -> @PoachProvincePrep
   RTS                                     ; $CB8B: 60
-Loc_CB8C:
-  INC $0401                               ; $CB8C: EE 01 04
+@MenuRouteAlliance:
+  INC $0401                               ; $CB8C: EE 01 04  ; -> @AllianceRulerListBuild
   LDA #$00                                ; $CB8F: A9 00
   STA $0472                               ; $CB91: 8D 72 04
-  STA $048B                               ; $CB94: 8D 8B 04
+  STA $048B                               ; $CB94: 8D 8B 04  ; rival list count <- 0
   LDA #$03                                ; $CB97: A9 03
-  STA $0471                               ; $CB99: 8D 71 04
+  STA $0471                               ; $CB99: 8D 71 04  ; scroll panel rows left
   LDA #$80                                ; $CB9C: A9 80
-  STA $0480                               ; $CB9E: 8D 80 04
+  STA $0480                               ; $CB9E: 8D 80 04  ; panel row PPU address $2280
   LDA #$22                                ; $CBA1: A9 22
   STA $0481                               ; $CBA3: 8D 81 04
   LDA $0402                               ; $CBA6: AD 02 04
-  JSR $F2AF                               ; $CBA9: 20 AF F2
+  JSR B1F_GetProvinceRecordAddr           ; $CBA9: 20 AF F2
   LDY #$00                                ; $CBAC: A0 00
   LDA ($00),Y                             ; $CBAE: B1 00
-  AND #$07                                ; $CBB0: 29 07
+  AND #$07                                ; $CBB0: 29 07     ; own country id
   STA $0470                               ; $CBB2: 8D 70 04
   LDX #$00                                ; $CBB5: A2 00
-  STX a:$0010                             ; $CBB7: 8E 10 00
-Loc_CBBA:
+  STX a:$0010                             ; $CBB7: 8E 10 00  ; living-country census
+@CountryCensusLoop:
   LDA #$FF                                ; $CBBA: A9 FF
-  STA $0490,X                             ; $CBBC: 9D 90 04
+  STA $0490,X                             ; $CBBC: 9D 90 04  ; clear rival list slot
   TXA                                     ; $CBBF: 8A
-  JSR $F368                               ; $CBC0: 20 68 F3
+  JSR B1F_GetCountryDataPtr               ; $CBC0: 20 68 F3
   LDY #$00                                ; $CBC3: A0 00
   LDA ($00),Y                             ; $CBC5: B1 00
   CMP #$FF                                ; $CBC7: C9 FF
-  BEQ $CBCE                               ; $CBC9: F0 03
+  BEQ @CountryCensusNext                  ; $CBC9: F0 03     ; country dead
   INC a:$0010                             ; $CBCB: EE 10 00
-Loc_CBCE:
+@CountryCensusNext:
   INX                                     ; $CBCE: E8
   CPX #$07                                ; $CBCF: E0 07
-  BCC $CBBA                               ; $CBD1: 90 E7
+  BCC @CountryCensusLoop                  ; $CBD1: 90 E7
   LDA a:$0010                             ; $CBD3: AD 10 00
   CMP #$02                                ; $CBD6: C9 02
-  BCC $CBDF                               ; $CBD8: 90 05
+  BCC @MenuNoRivals                       ; $CBD8: 90 05     ; fewer than two living countries
   LDA #$3C                                ; $CBDA: A9 3C
-  JMP $F26D                               ; $CBDC: 4C 6D F2
-Loc_CBDF:
+  JMP $F26D                               ; $CBDC: 4C 6D F2  ; UI mode $3C (ruler scroll panel)
+@MenuNoRivals:
   LDA #$FF                                ; $CBDF: A9 FF
   STA $0473                               ; $CBE1: 8D 73 04
   LDA #$0E                                ; $CBE4: A9 0E
-  STA $0401                               ; $CBE6: 8D 01 04
+  STA $0401                               ; $CBE6: 8D 01 04  ; -> @MessageWaitRoute
   LDA #$A8                                ; $CBE9: A9 A8
-  JMP $F26D                               ; $CBEB: 4C 6D F2
+  JMP $F26D                               ; $CBEB: 4C 6D F2  ; UI mode $A8 (notice)
 ; --- Data Region ---
-  .byte $00,$01,$02,$FF,$FF,$FF,$B8,$48,$B8,$98,$C8,$48,$00,$07,$00,$00; $CBEE: 00 01 02 FF FF FF B8 48 B8 98 C8 48 00 07 00 00
-  .byte $80                               ; $CBFE: 80
-Loc_CBFF:  ; (dispatch callback target)
+@CommandMenuItems:  ; B1F_MenuStep2 items (0-2 = Alliance/Discord/Poaching, $FF filler)
+  .byte $00,$01,$02,$FF,$FF,$FF           ; $CBEE: 00 01 02 FF FF FF
+@CommandCursorPos:  ; per item: OAM Y base + X base word
+  .byte $B8,$48,$B8,$98,$C8,$48           ; $CBF4: B8 48 B8 98 C8 48
+@CommandCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
+  .byte $00,$07,$00,$00,$80               ; $CBFA: 00 07 00 00 80
+@AllianceRulerListBuild:  ; (dispatch callback target)
 ; --- Code Region ---
   LDY #$30                                ; $CBFF: A0 30
-  JSR $F25F                               ; $CC01: 20 5F F2
+  JSR B1F_SwitchBank8_B                   ; $CC01: 20 5F F2  ; ruler name data bank
   LDA a:$007E                             ; $CC04: AD 7E 00
   AND #$03                                ; $CC07: 29 03
-  BNE $CC81                               ; $CC09: D0 76
+  BNE @ListBusyExit                       ; $CC09: D0 76     ; PPU update busy
   LDA $0471                               ; $CC0B: AD 71 04
-  BNE $CC1A                               ; $CC0E: D0 0A
-  INC $0401                               ; $CC10: EE 01 04
-  JSR MenuCursorReset                    ; $CC13: 20 70 DD
-  STA $046C                               ; $CC16: 8D 6C 04
+  BNE @ListDrawRow                        ; $CC0E: D0 0A
+  INC $0401                               ; $CC10: EE 01 04  ; rows done -> @AllianceRulerSelect
+  JSR MenuCursorReset                     ; $CC13: 20 70 DD
+  STA $046C                               ; $CC16: 8D 6C 04  ; select page <- 0
   RTS                                     ; $CC19: 60
-Loc_CC1A:
+@ListDrawRow:
   LDY #$00                                ; $CC1A: A0 00
   LDA #$01                                ; $CC1C: A9 01
-Loc_CC1E:
-  STA $0160,Y                             ; $CC1E: 99 60 01
+@ListRowFill:
+  STA $0160,Y                             ; $CC1E: 99 60 01  ; row buffer template fill
   INY                                     ; $CC21: C8
-Loc_CC22:
+@ListRowFillDone:
   CPY #$40                                ; $CC22: C0 40
-  BCC $CC1E                               ; $CC24: 90 F8
+  BCC @ListRowFill                        ; $CC24: 90 F8
   LDA #$00                                ; $CC26: A9 00
-  STA a:$0010                             ; $CC28: 8D 10 00
-Loc_CC2B:
+  STA a:$0010                             ; $CC28: 8D 10 00  ; rows-drawn flag
+@ListScanLoop:
   LDA $0472                               ; $CC2B: AD 72 04
   CMP #$07                                ; $CC2E: C9 07
-  BCS $CC52                               ; $CC30: B0 20
+  BCS @ListScanEnd                        ; $CC30: B0 20
   CMP $0470                               ; $CC32: CD 70 04
-  BEQ $CC5C                               ; $CC35: F0 25
-  JSR $DD56                               ; $CC37: 20 56 DD
+  BEQ @ListScanNext                       ; $CC35: F0 25     ; skip own country
+  JSR $DD56                               ; $CC37: 20 56 DD  ; country -> ruler id
   CMP #$FF                                ; $CC3A: C9 FF
-  BEQ $CC5C                               ; $CC3C: F0 1E
+  BEQ @ListScanNext                       ; $CC3C: F0 1E     ; country dead
   PHA                                     ; $CC3E: 48
   LDY $048B                               ; $CC3F: AC 8B 04
   LDA $0472                               ; $CC42: AD 72 04
-  STA $0490,Y                             ; $CC45: 99 90 04
+  STA $0490,Y                             ; $CC45: 99 90 04  ; record rival country id
   INC $048B                               ; $CC48: EE 8B 04
   PLA                                     ; $CC4B: 68
-  JSR $F308                               ; $CC4C: 20 08 F3
-  JSR $D472                               ; $CC4F: 20 72 D4
-Loc_CC52:
+  JSR B1F_GetNameDisplayScale             ; $CC4C: 20 08 F3  ; ruler name width
+  JSR AllianceListRowRender               ; $CC4F: 20 72 D4  ; draw name + alliance-state row
+@ListScanEnd:
   LDA a:$0010                             ; $CC52: AD 10 00
-  BNE $CC62                               ; $CC55: D0 0B
+  BNE @ListRowAdvance                     ; $CC55: D0 0B
   LDA #$10                                ; $CC57: A9 10
   STA a:$0010                             ; $CC59: 8D 10 00
-Loc_CC5C:
+@ListScanNext:
   INC $0472                               ; $CC5C: EE 72 04
-  JMP $CC2B                               ; $CC5F: 4C 2B CC
-Loc_CC62:
-  DEC $0471                               ; $CC62: CE 71 04
+  JMP @ListScanLoop                       ; $CC5F: 4C 2B CC
+@ListRowAdvance:
+  DEC $0471                               ; $CC62: CE 71 04  ; one more panel row used
   INC $0472                               ; $CC65: EE 72 04
   LDA $0480                               ; $CC68: AD 80 04
   CLC                                     ; $CC6B: 18
   ADC #$40                                ; $CC6C: 69 40
-  STA $0480                               ; $CC6E: 8D 80 04
+  STA $0480                               ; $CC6E: 8D 80 04  ; panel row PPU address += $40
   LDA $0481                               ; $CC71: AD 81 04
   ADC #$00                                ; $CC74: 69 00
   STA $0481                               ; $CC76: 8D 81 04
   LDA a:$007E                             ; $CC79: AD 7E 00
   ORA #$02                                ; $CC7C: 09 02
-  STA a:$007E                             ; $CC7E: 8D 7E 00
+  STA a:$007E                             ; $CC7E: 8D 7E 00  ; schedule panel PPU update
+@ListBusyExit:
   RTS                                     ; $CC81: 60
-Loc_CC82:  ; (dispatch callback target)
-  LDA $0424                               ; $CC82: AD 24 04
+@AllianceRulerSelect:  ; (dispatch callback target)
+; --- Code Region ---
+  LDA $0424                               ; $CC82: AD 24 04  ; save cursor col
   STA a:$0013                             ; $CC85: 8D 13 00
   LDA $0425                               ; $CC88: AD 25 04
   STA a:$0014                             ; $CC8B: 8D 14 00
@@ -5493,14 +5971,14 @@ Loc_CC82:  ; (dispatch callback target)
   JSR $ED1E                               ; $CC9D: 20 1E ED
   TAY                                     ; $CCA0: A8
   LDA $0490,Y                             ; $CCA1: B9 90 04
-  BPL $CCB8                               ; $CCA4: 10 12
+  BPL @RulerRedraw                        ; $CCA4: 10 12     ; valid rival entry
   LDA a:$0013                             ; $CCA6: AD 13 00
   STA $0424                               ; $CCA9: 8D 24 04
   LDA a:$0014                             ; $CCAC: AD 14 00
   STA $0425                               ; $CCAF: 8D 25 04
   LDA $046C                               ; $CCB2: AD 6C 04
   STA a:$0012                             ; $CCB5: 8D 12 00
-Loc_CCB8:
+@RulerRedraw:
   LDA #$3B                                ; $CCB8: A9 3B
   STA a:$0010                             ; $CCBA: 8D 10 00
   LDA #$CD                                ; $CCBD: A9 CD
@@ -5511,62 +5989,67 @@ Loc_CCB8:
   STA a:$0001                             ; $CCC9: 8D 01 00
   LDA a:$0012                             ; $CCCC: AD 12 00
   STA $046C                               ; $CCCF: 8D 6C 04
-  JSR $EDF5                               ; $CCD2: 20 F5 ED
+  JSR B1F_PointerTableLookup              ; $CCD2: 20 F5 ED  ; cursor sprite (@RulerSelectCursorPos/@RulerSelectCursorSprite)
   LDA a:$0081                             ; $CCD5: AD 81 00
   AND #$03                                ; $CCD8: 29 03
-  BEQ $CCF7                               ; $CCDA: F0 1B
-  JSR MenuCursorReset                    ; $CCDC: 20 70 DD
+  BEQ @RulerInputExit                     ; $CCDA: F0 1B
+  JSR MenuCursorReset                     ; $CCDC: 20 70 DD
   LDA a:$0081                             ; $CCDF: AD 81 00
   LSR                                     ; $CCE2: 4A
-  BCS $CCF8                               ; $CCE3: B0 13
+  BCS @RulerConfirm                       ; $CCE3: B0 13     ; A pressed
   LSR                                     ; $CCE5: 4A
-  BCC $CCF7                               ; $CCE6: 90 0F
+  BCC @RulerInputExit                     ; $CCE6: 90 0F
   LDA #$05                                ; $CCE8: A9 05
-  STA $0401                               ; $CCEA: 8D 01 04
+  STA $0401                               ; $CCEA: 8D 01 04  ; B -> @AllianceDialogCloseWait
   LDA #$3B                                ; $CCED: A9 3B
   STA $042C                               ; $CCEF: 8D 2C 04
   LDA #$00                                ; $CCF2: A9 00
-  JMP $F28B                               ; $CCF4: 4C 8B F2
-Loc_CCF7:
+  JMP $F28B                               ; $CCF4: 4C 8B F2  ; message UI
+@RulerInputExit:
   RTS                                     ; $CCF7: 60
-Loc_CCF8:
+@RulerConfirm:
   LDY a:$0012                             ; $CCF8: AC 12 00
   LDA $0490,Y                             ; $CCFB: B9 90 04
-  STA $0471                               ; $CCFE: 8D 71 04
+  STA $0471                               ; $CCFE: 8D 71 04  ; target country id
   LDA $0470                               ; $CD01: AD 70 04
-  JSR $DD56                               ; $CD04: 20 56 DD
+  JSR $DD56                               ; $CD04: 20 56 DD  ; own country data ptr + ruler id
   LDA $0471                               ; $CD07: AD 71 04
-  JSR $D4ED                               ; $CD0A: 20 ED D4
-  BNE $CD21                               ; $CD0D: D0 12
-  INC $0401                               ; $CD0F: EE 01 04
+  JSR AllianceStateGet                    ; $CD0A: 20 ED D4  ; target alliance-state nibble
+  BNE @RulerAlreadyAllied                 ; $CD0D: D0 12
+  INC $0401                               ; $CD0F: EE 01 04  ; -> @AllianceAnimWait
   LDA #$80                                ; $CD12: A9 80
   STA $0478                               ; $CD14: 8D 78 04
   LDA #$0F                                ; $CD17: A9 0F
   STA $047C                               ; $CD19: 8D 7C 04
   LDA #$27                                ; $CD1C: A9 27
-  JMP $F28B                               ; $CD1E: 4C 8B F2
-Loc_CD21:
+  JMP $F28B                               ; $CD1E: 4C 8B F2  ; message UI ($27)
+@RulerAlreadyAllied:
   LDA #$05                                ; $CD21: A9 05
-  STA $0401                               ; $CD23: 8D 01 04
+  STA $0401                               ; $CD23: 8D 01 04  ; -> @AllianceDialogCloseWait
   LDA #$29                                ; $CD26: A9 29
   STA $042C                               ; $CD28: 8D 2C 04
   LDA #$00                                ; $CD2B: A9 00
   STA $046C                               ; $CD2D: 8D 6C 04
-  JMP $F28B                               ; $CD30: 4C 8B F2
+  JMP $F28B                               ; $CD30: 4C 8B F2  ; message UI
 ; --- Data Region ---
-  .byte $00,$01,$02,$03,$04,$05,$FF,$FF,$B8,$08,$B8,$88,$C8,$08,$C8,$88; $CD33: 00 01 02 03 04 05 FF FF B8 08 B8 88 C8 08 C8 88
-  .byte $D8,$08,$D8,$88,$00,$07,$00,$00,$80; $CD43: D8 08 D8 88 00 07 00 00 80
-Loc_CD4C:  ; (dispatch callback target)
+@RulerSelectMenuItems:  ; B1F_MenuStep2 items (paged 3-row rival list, $FF filler)
+  .byte $00,$01,$02,$03,$04,$05,$FF,$FF   ; $CD33: 00 01 02 03 04 05 FF FF
+@RulerSelectCursorPos:  ; per item: OAM Y base + X base word
+  .byte $B8,$08,$B8,$88,$C8,$08,$C8,$88   ; $CD3B: B8 08 B8 88 C8 08 C8 88
+  .byte $D8,$08,$D8,$88                   ; $CD43: D8 08 D8 88
+@RulerSelectCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
+  .byte $00,$07,$00,$00,$80               ; $CD47: 00 07 00 00 80
+@AllianceAnimWait:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0478                               ; $CD4C: AD 78 04
-  BNE $CD88                               ; $CD4F: D0 37
-  JSR $D64A                               ; $CD51: 20 4A D6
+  BNE @AnimBusyExit                       ; $CD4F: D0 37     ; window anim running
+  JSR $D64A                               ; $CD51: 20 4A D6  ; yes/no dialog poll
   LDA $047C                               ; $CD54: AD 7C 04
-  BPL $CD88                               ; $CD57: 10 2F
+  BPL @AnimBusyExit                       ; $CD57: 10 2F     ; dialog still open
   CMP #$81                                ; $CD59: C9 81
-  BNE $CD60                               ; $CD5B: D0 03
-  JSR $D7A8                               ; $CD5D: 20 A8 D7
-Loc_CD60:
+  BNE @AnimDialogSeen                     ; $CD5B: D0 03
+  JSR $D7A8                               ; $CD5D: 20 A8 D7  ; dialog open animation
+@AnimDialogSeen:
   LDY #$3D                                ; $CD60: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $CD62: 20 07 EE  ; B1D_1E_ImmediateOverlay (bank $1D)
   .word B1D_1E_ImmediateOverlay           ; $CD65: 24 A0  ; inline trampoline target
@@ -5574,508 +6057,536 @@ Loc_CD60:
   JSR MenuCursorReset                     ; $CD67: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
   LDA $047C                               ; $CD6A: AD 7C 04
   CMP #$90                                ; $CD6D: C9 90
-  BEQ Loc_CD7E                            ; $CD6F: F0 0D
-  INC $0401                               ; $CD71: EE 01 04  ; sub-state ++
+  BEQ @AnimClosed                         ; $CD6F: F0 0D     ; dialog closed without answer
+  INC $0401                               ; $CD71: EE 01 04  ; -> @AllianceConfirmGate
   LDA #$00                                ; $CD74: A9 00
   STA $046C                               ; $CD76: 8D 6C 04
   LDA #$29                                ; $CD79: A9 29
   JMP $F26D                               ; $CD7B: 4C 6D F2  ; set UI mode $29
-Loc_CD7E:
+@AnimClosed:
 ; --- Code Region ---
   LDA #$00                                ; $CD7E: A9 00
-  STA $0401                               ; $CD80: 8D 01 04
+  STA $0401                               ; $CD80: 8D 01 04  ; -> @MenuScreenInput
   LDA #$3B                                ; $CD83: A9 3B
-  JMP $F26D                               ; $CD85: 4C 6D F2
+  JMP $F26D                               ; $CD85: 4C 6D F2  ; UI mode $3B
 ; --- Data Region ---
+@AnimBusyExit:  ; stray RTS padding byte reached by the anim-busy branches
   .byte $60                               ; $CD88: 60
-Loc_CD89:  ; (dispatch callback target)
+@AllianceConfirmGate:  ; (dispatch callback target)
 ; --- Code Region ---
-  JSR $D5BD                               ; $CD89: 20 BD D5
+  JSR $D5BD                               ; $CD89: 20 BD D5  ; yes/no confirm poll
   LDA a:$0013                             ; $CD8C: AD 13 00
-  BEQ $CDA0                               ; $CD8F: F0 0F
+  BEQ @ConfirmPending                     ; $CD8F: F0 0F     ; no input yet
   CMP #$FF                                ; $CD91: C9 FF
-  BNE $CDA1                               ; $CD93: D0 0C
+  BNE @ConfirmAccepted                    ; $CD93: D0 0C
   LDA #$02                                ; $CD95: A9 02
-  STA $0400                               ; $CD97: 8D 00 04
-  JSR MenuCursorReset                    ; $CD9A: 20 70 DD
-  STA $0401                               ; $CD9D: 8D 01 04
-Loc_CDA0:
+  STA $0400                               ; $CD97: 8D 00 04  ; cancel -> castle screen (state 2)
+  JSR MenuCursorReset                     ; $CD9A: 20 70 DD
+  STA $0401                               ; $CD9D: 8D 01 04  ; sub-state <- 0
+@ConfirmPending:
   RTS                                     ; $CDA0: 60
-Loc_CDA1:
+@ConfirmAccepted:
   LDA #$19                                ; $CDA1: A9 19
-  STA $04A2                               ; $CDA3: 8D A2 04
+  STA $04A2                               ; $CDA3: 8D A2 04  ; overlay redraw id
   LDA $0471                               ; $CDA6: AD 71 04
-  JSR $DD56                               ; $CDA9: 20 56 DD
-  STA $042C                               ; $CDAC: 8D 2C 04
+  JSR $DD56                               ; $CDA9: 20 56 DD  ; target country data ptr + ruler id
+  STA $042C                               ; $CDAC: 8D 2C 04  ; target ruler officer id
   LDY #$03                                ; $CDAF: A0 03
   LDA ($00),Y                             ; $CDB1: B1 00
   CMP #$03                                ; $CDB3: C9 03
-  BEQ $CDBA                               ; $CDB5: F0 03
-  JMP $CE6E                               ; $CDB7: 4C 6E CE
-Loc_CDBA:
+  BEQ @AllianceRollPath                   ; $CDB5: F0 03     ; status byte [3] == 3
+  JMP @AllianceCardPath                   ; $CDB7: 4C 6E CE
+@AllianceRollPath:
   LDA $0471                               ; $CDBA: AD 71 04
   STA a:$0010                             ; $CDBD: 8D 10 00
-  JSR $DDBF                               ; $CDC0: 20 BF DD
+  JSR CountryProvinceCount                ; $CDC0: 20 BF DD  ; provinces of target country -> $0011
   LDA a:$0011                             ; $CDC3: AD 11 00
   STA a:$000A                             ; $CDC6: 8D 0A 00
   LDA $6F03                               ; $CDC9: AD 03 6F
   STA a:$0010                             ; $CDCC: 8D 10 00
-  JSR $DDBF                               ; $CDCF: 20 BF DD
+  JSR CountryProvinceCount                ; $CDCF: 20 BF DD  ; provinces of player country -> $0011
   LDA a:$0011                             ; $CDD2: AD 11 00
   SEC                                     ; $CDD5: 38
-  SBC a:$000A                             ; $CDD6: ED 0A 00
-  BCS $CDDD                               ; $CDD9: B0 02
+  SBC a:$000A                             ; $CDD6: ED 0A 00  ; size advantage
+  BCS @SizeClamped                        ; $CDD9: B0 02
   LDA #$00                                ; $CDDB: A9 00
-Loc_CDDD:
+@SizeClamped:
   STA a:$000A                             ; $CDDD: 8D 0A 00
   LDA $042C                               ; $CDE0: AD 2C 04
-  JSR $F2D7                               ; $CDE3: 20 D7 F2
+  JSR B1F_GetOfficerRecordAddr            ; $CDE3: 20 D7 F2  ; target ruler officer record
   LDY #$02                                ; $CDE6: A0 02
   LDA ($00),Y                             ; $CDE8: B1 00
-  STA a:$0010                             ; $CDEA: 8D 10 00
+  STA a:$0010                             ; $CDEA: 8D 10 00  ; target ruler Intelligence
   LDA $0481                               ; $CDED: AD 81 04
-  JSR $F2D7                               ; $CDF0: 20 D7 F2
+  JSR B1F_GetOfficerRecordAddr            ; $CDF0: 20 D7 F2  ; officer record for cell $0481
   LDY #$02                                ; $CDF3: A0 02
   LDA ($00),Y                             ; $CDF5: B1 00
-  STA a:$0011                             ; $CDF7: 8D 11 00
+  STA a:$0011                             ; $CDF7: 8D 11 00  ; Intelligence
   LDY #$04                                ; $CDFA: A0 04
   LDA ($00),Y                             ; $CDFC: B1 00
   CLC                                     ; $CDFE: 18
-  ADC a:$0011                             ; $CDFF: 6D 11 00
+  ADC a:$0011                             ; $CDFF: 6D 11 00  ; + officer +$04 value
   SEC                                     ; $CE02: 38
-  SBC a:$0010                             ; $CE03: ED 10 00
-  BCS $CE0A                               ; $CE06: B0 02
+  SBC a:$0010                             ; $CE03: ED 10 00  ; - target ruler Intelligence
+  BCS @OddsClamped                        ; $CE06: B0 02
   LDA #$00                                ; $CE08: A9 00
-Loc_CE0A:
-  STA a:$0001                             ; $CE0A: 8D 01 00
+@OddsClamped:
+  STA a:$0001                             ; $CE0A: 8D 01 00  ; raw odds
   LDA #$00                                ; $CE0D: A9 00
   STA a:$0002                             ; $CE0F: 8D 02 00
   STA a:$0004                             ; $CE12: 8D 04 00
   LDA #$04                                ; $CE15: A9 04
   STA a:$0003                             ; $CE17: 8D 03 00
-  JSR $EA7C                               ; $CE1A: 20 7C EA
+  JSR B1F_MathDiv16                       ; $CE1A: 20 7C EA  ; odds / 4
   LDA a:$0001                             ; $CE1D: AD 01 00
   CLC                                     ; $CE20: 18
-  ADC a:$000A                             ; $CE21: 6D 0A 00
-  BPL $CE28                               ; $CE24: 10 02
+  ADC a:$000A                             ; $CE21: 6D 0A 00  ; + size advantage
+  BPL @ThresholdSet                       ; $CE24: 10 02
   LDA #$00                                ; $CE26: A9 00
-Loc_CE28:
-  STA $042F                               ; $CE28: 8D 2F 04
-  JSR $E843                               ; $CE2B: 20 43 E8
+@ThresholdSet:
+  STA $042F                               ; $CE28: 8D 2F 04  ; success threshold
+  JSR B1F_RandomBelow100                  ; $CE2B: 20 43 E8
   CMP $042F                               ; $CE2E: CD 2F 04
-  BCC $CE4A                               ; $CE31: 90 17
+  BCC @AllianceRollFail                   ; $CE31: 90 17     ; below threshold
   LDA #$04                                ; $CE33: A9 04
   STA a:$00A4                             ; $CE35: 8D A4 00
-  JSR $D568                               ; $CE38: 20 68 D5
+  JSR MapTransitionStateSave              ; $CE38: 20 68 D5  ; close command window
   LDA #$0C                                ; $CE3B: A9 0C
-  STA $0401                               ; $CE3D: 8D 01 04
+  STA $0401                               ; $CE3D: 8D 01 04  ; -> @ResultRedrawGate
   LDA #$43                                ; $CE40: A9 43
-  STA $0470                               ; $CE42: 8D 70 04
+  STA $0470                               ; $CE42: 8D 70 04  ; success message id
   LDA #$00                                ; $CE45: A9 00
-  JMP $F29B                               ; $CE47: 4C 9B F2
-Loc_CE4A:
+  JMP $F29B                               ; $CE47: 4C 9B F2  ; clear UI
+@AllianceRollFail:
   LDY #$39                                ; $CE4A: A0 39
-  JSR $EE07                               ; $CE4C: 20 07 EE
-; --- Data Region ---
-  .byte $27,$A0,$A9,$03,$8D,$73,$04,$AD,$70,$04,$8D,$72,$04,$A9,$EC,$8D; $CE4F: 27 A0 A9 03 8D 73 04 AD 70 04 8D 72 04 A9 EC 8D
-  .byte $70,$04                           ; $CE5F: 70 04
-Loc_CE61:
+  JSR B1F_BankedCallbackTrampoline        ; $CE4C: 20 07 EE  ; banks $19+$1A $A027 -> GoodsSendPrepare_Entry
+  .word B19_1A_GoodsSendPrepare           ; $CE4F: 27 A0  ; inline trampoline target
 ; --- Code Region ---
-  JSR $D568                               ; $CE61: 20 68 D5
+  LDA #$03                                ; $CE51: A9 03
+  STA $0473                               ; $CE53: 8D 73 04  ; gift dialog gate on the result route
+  LDA $0470                               ; $CE56: AD 70 04
+  STA $0472                               ; $CE59: 8D 72 04  ; keep own country id
+  LDA #$EC                                ; $CE5C: A9 EC
+  STA $0470                               ; $CE5F: 8D 70 04  ; gift dialog UI mode
+@AllianceResultExit:
+; --- Code Region ---
+  JSR MapTransitionStateSave              ; $CE61: 20 68 D5  ; close command window
   LDA #$0C                                ; $CE64: A9 0C
-  STA $0401                               ; $CE66: 8D 01 04
+  STA $0401                               ; $CE66: 8D 01 04  ; -> @ResultRedrawGate
   LDA #$00                                ; $CE69: A9 00
-  JMP $F29B                               ; $CE6B: 4C 9B F2
-Loc_CE6E:
+  JMP $F29B                               ; $CE6B: 4C 9B F2  ; clear UI
+@AllianceCardPath:
   LDA $0471                               ; $CE6E: AD 71 04
-  STA $0483                               ; $CE71: 8D 83 04
+  STA $0483                               ; $CE71: 8D 83 04  ; alliance swap pair: target country
   LDA $0470                               ; $CE74: AD 70 04
-  STA $0482                               ; $CE77: 8D 82 04
-  JSR $DD56                               ; $CE7A: 20 56 DD
+  STA $0482                               ; $CE77: 8D 82 04  ; alliance swap pair: own country
+  JSR $DD56                               ; $CE7A: 20 56 DD  ; own country ruler id
   STA $042D                               ; $CE7D: 8D 2D 04
   LDA $0481                               ; $CE80: AD 81 04
   STA $042E                               ; $CE83: 8D 2E 04
   LDA #$01                                ; $CE86: A9 01
-  STA $0473                               ; $CE88: 8D 73 04
-  JMP $CE61                               ; $CE8B: 4C 61 CE
-Loc_CE8E:  ; (dispatch callback target)
-  JSR $DDAD                               ; $CE8E: 20 AD DD
-  BCC $CEAC                               ; $CE91: 90 19
-  LDY #$3D                                ; $CE93: A0 3D
-  JSR $EE07                               ; $CE95: 20 07 EE
-; --- Data Region ---
-  .byte $24,$A0,$EE,$01,$04,$AD,$2C,$04,$C9,$29,$F0,$05,$A0,$00,$8C,$01; $CE98: 24 A0 EE 01 04 AD 2C 04 C9 29 F0 05 A0 00 8C 01
-  .byte $04                               ; $CEA8: 04
-Loc_CEA9:
+  STA $0473                               ; $CE88: 8D 73 04  ; ruler-card alliance gate
+  JMP @AllianceResultExit                 ; $CE8B: 4C 61 CE
+@AllianceDialogCloseWait:  ; (dispatch callback target)
 ; --- Code Region ---
-  JMP $F26D                               ; $CEA9: 4C 6D F2
-Loc_CEAC:
+  JSR $DDAD                               ; $CE8E: 20 AD DD  ; overlay idle + pad poll
+  BCC @DialogWaitExit                     ; $CE91: 90 19
+  LDY #$3D                                ; $CE93: A0 3D
+  JSR B1F_BankedCallbackTrampoline        ; $CE95: 20 07 EE  ; banks $1D+$1E overlay refresh
+  .word B1D_1E_ImmediateOverlay           ; $CE98: 24 A0  ; inline trampoline target
+; --- Code Region ---
+  INC $0401                               ; $CE9A: EE 01 04  ; -> @AllianceDissolveGate
+  LDA $042C                               ; $CE9D: AD 2C 04
+  CMP #$29                                ; $CEA0: C9 29
+  BEQ @DialogKeepSub                      ; $CEA2: F0 05
+  LDY #$00                                ; $CEA4: A0 00
+  STY $0401                               ; $CEA6: 8C 01 04  ; back to sub 0
+@DialogKeepSub:
+  JMP $F26D                               ; $CEA9: 4C 6D F2  ; UI mode <- A ($042C)
+@DialogWaitExit:
   RTS                                     ; $CEAC: 60
-Loc_CEAD:  ; (dispatch callback target)
-  JSR $D5BD                               ; $CEAD: 20 BD D5
+@AllianceDissolveGate:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $D5BD                               ; $CEAD: 20 BD D5  ; yes/no confirm poll
   LDA a:$0013                             ; $CEB0: AD 13 00
-  BEQ $CEC6                               ; $CEB3: F0 11
+  BEQ @ExecPending                        ; $CEB3: F0 11
   CMP #$FF                                ; $CEB5: C9 FF
-  BNE $CEC7                               ; $CEB7: D0 0E
-  JSR MenuCursorReset                    ; $CEB9: 20 70 DD
+  BNE @ExecAccepted                       ; $CEB7: D0 0E
+  JSR MenuCursorReset                     ; $CEB9: 20 70 DD
   LDA #$02                                ; $CEBC: A9 02
-  STA $0400                               ; $CEBE: 8D 00 04
+  STA $0400                               ; $CEBE: 8D 00 04  ; cancel -> castle screen (state 2)
   LDA #$00                                ; $CEC1: A9 00
   STA $0401                               ; $CEC3: 8D 01 04
-Loc_CEC6:
+@ExecPending:
   RTS                                     ; $CEC6: 60
-Loc_CEC7:
+@ExecAccepted:
   LDA $0470                               ; $CEC7: AD 70 04
-  JSR $DD56                               ; $CECA: 20 56 DD
+  JSR $DD56                               ; $CECA: 20 56 DD  ; own country data ptr
   LDA $0471                               ; $CECD: AD 71 04
-  JSR $D508                               ; $CED0: 20 08 D5
+  JSR AllianceStateSet                    ; $CED0: 20 08 D5  ; clear alliance nibble on own side
   LDA $0471                               ; $CED3: AD 71 04
-  JSR $DD56                               ; $CED6: 20 56 DD
+  JSR $DD56                               ; $CED6: 20 56 DD  ; target country data ptr
   LDA $0470                               ; $CED9: AD 70 04
-  JSR $D508                               ; $CEDC: 20 08 D5
+  JSR AllianceStateSet                    ; $CEDC: 20 08 D5  ; clear alliance nibble on target side
   LDA $0471                               ; $CEDF: AD 71 04
-  JSR $DD56                               ; $CEE2: 20 56 DD
+  JSR $DD56                               ; $CEE2: 20 56 DD  ; target ruler id
   STA $042C                               ; $CEE5: 8D 2C 04
   LDA #$80                                ; $CEE8: A9 80
   STA $0473                               ; $CEEA: 8D 73 04
   LDA #$0E                                ; $CEED: A9 0E
-  STA $0401                               ; $CEEF: 8D 01 04
+  STA $0401                               ; $CEEF: 8D 01 04  ; -> @MessageWaitRoute
   LDA #$44                                ; $CEF2: A9 44
-  JMP $F26D                               ; $CEF4: 4C 6D F2
-Loc_CEF7:  ; (dispatch callback target)
+  JMP $F26D                               ; $CEF4: 4C 6D F2  ; UI mode $44
+@PoachProvincePrep:  ; (dispatch callback target)
+; --- Code Region ---
   LDA $0470                               ; $CEF7: AD 70 04
-  JSR $F2AF                               ; $CEFA: 20 AF F2
-  JSR $DC6B                               ; $CEFD: 20 6B DC
+  JSR B1F_GetProvinceRecordAddr           ; $CEFA: 20 AF F2
+  JSR ProvinceOfficerCount                ; $CEFD: 20 6B DC  ; roster slots in use -> X
   CPX #$0A                                ; $CF00: E0 0A
-  BEQ $CF0F                               ; $CF02: F0 0B
-  JSR $D568                               ; $CF04: 20 68 D5
-  INC $0401                               ; $CF07: EE 01 04
+  BEQ @PoachRosterFull                    ; $CF02: F0 0B     ; all 10 slots filled
+  JSR MapTransitionStateSave              ; $CF04: 20 68 D5  ; close command window
+  INC $0401                               ; $CF07: EE 01 04  ; -> @TargetProvincePick
   LDA #$3E                                ; $CF0A: A9 3E
-  JMP $F26D                               ; $CF0C: 4C 6D F2
-Loc_CF0F:
+  JMP $F26D                               ; $CF0C: 4C 6D F2  ; UI mode $3E (camera pick)
+@PoachRosterFull:
   LDA #$0E                                ; $CF0F: A9 0E
-  STA $0401                               ; $CF11: 8D 01 04
+  STA $0401                               ; $CF11: 8D 01 04  ; -> @MessageWaitRoute
   LDA #$80                                ; $CF14: A9 80
   STA $0473                               ; $CF16: 8D 73 04
   LDA #$47                                ; $CF19: A9 47
-  JMP $F26D                               ; $CF1B: 4C 6D F2
-Loc_CF1E:  ; (dispatch callback target)
-  JSR $DDF2                               ; $CF1E: 20 F2 DD
-  JSR $DDAD                               ; $CF21: 20 AD DD
-  BCC $CF8C                               ; $CF24: 90 66
+  JMP $F26D                               ; $CF1B: 4C 6D F2  ; UI mode $47 (roster-full notice)
+@TargetProvincePick:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $DDF2                               ; $CF1E: 20 F2 DD  ; province sprite animation tick
+  JSR $DDAD                               ; $CF21: 20 AD DD  ; overlay idle + pad poll
+  BCC @PickIdleExit                       ; $CF24: 90 66
   LDA a:$0081                             ; $CF26: AD 81 00
   LSR                                     ; $CF29: 4A
-  BCC $CF5E                               ; $CF2A: 90 32
-  JSR $DEBA                               ; $CF2C: 20 BA DE
+  BCC @PickCancelCheck                    ; $CF2A: 90 32
+  JSR $DEBA                               ; $CF2C: 20 BA DE  ; camera position -> province id in Y
   CPY #$FF                                ; $CF2F: C0 FF
-  BEQ $CF82                               ; $CF31: F0 4F
-  STY $0402                               ; $CF33: 8C 02 04
+  BEQ @PickOffMap                         ; $CF31: F0 4F
+  STY $0402                               ; $CF33: 8C 02 04  ; selected province
   TYA                                     ; $CF36: 98
   STA $0471                               ; $CF37: 8D 71 04
-  JSR $F2AF                               ; $CF3A: 20 AF F2
+  JSR B1F_GetProvinceRecordAddr           ; $CF3A: 20 AF F2
   LDY #$00                                ; $CF3D: A0 00
   LDA ($00),Y                             ; $CF3F: B1 00
-  AND #$07                                ; $CF41: 29 07
+  AND #$07                                ; $CF41: 29 07     ; owner country id
   CMP #$07                                ; $CF43: C9 07
-  BEQ $CF7D                               ; $CF45: F0 36
+  BEQ @PickUnclaimed                      ; $CF45: F0 36
   CMP $6F03                               ; $CF47: CD 03 6F
-  BEQ $CF87                               ; $CF4A: F0 3B
-  INC $0401                               ; $CF4C: EE 01 04
+  BEQ @PickOwnProvince                    ; $CF4A: F0 3B
+  INC $0401                               ; $CF4C: EE 01 04  ; -> @TargetOfficerSelect
   LDA #$80                                ; $CF4F: A9 80
   STA $0478                               ; $CF51: 8D 78 04
   LDA #$0F                                ; $CF54: A9 0F
   STA $047C                               ; $CF56: 8D 7C 04
   LDA #$48                                ; $CF59: A9 48
-  JMP $F26D                               ; $CF5B: 4C 6D F2
-Loc_CF5E:
+  JMP $F26D                               ; $CF5B: 4C 6D F2  ; UI mode $48 (officer list)
+@PickCancelCheck:
   LSR                                     ; $CF5E: 4A
-  BCC $CF8C                               ; $CF5F: 90 2B
+  BCC @PickIdleExit                       ; $CF5F: 90 2B
   JSR $DDAD                               ; $CF61: 20 AD DD
-  BCC $CF8C                               ; $CF64: 90 26
+  BCC @PickIdleExit                       ; $CF64: 90 26
   LDA #$FF                                ; $CF66: A9 FF
-  STA $04E4                               ; $CF68: 8D E4 04
+  STA $04E4                               ; $CF68: 8D E4 04  ; cancel camera pick
   LDA #$02                                ; $CF6B: A9 02
-  STA $0400                               ; $CF6D: 8D 00 04
+  STA $0400                               ; $CF6D: 8D 00 04  ; back to castle screen (state 2)
   LDA #$00                                ; $CF70: A9 00
   STA $0401                               ; $CF72: 8D 01 04
   LDA #$02                                ; $CF75: A9 02
-  JSR $D58C                               ; $CF77: 20 8C D5
-  JMP $CF8C                               ; $CF7A: 4C 8C CF
-Loc_CF7D:
+  JSR MapTransitionStateRestore           ; $CF77: 20 8C D5  ; restore map scroll
+  JMP @PickIdleExit                       ; $CF7A: 4C 8C CF
+@PickUnclaimed:
   LDA #$46                                ; $CF7D: A9 46
-  JMP $F26D                               ; $CF7F: 4C 6D F2
-Loc_CF82:
+  JMP $F26D                               ; $CF7F: 4C 6D F2  ; UI mode $46 (unclaimed notice)
+@PickOffMap:
   LDA #$24                                ; $CF82: A9 24
-  JMP $F26D                               ; $CF84: 4C 6D F2
-Loc_CF87:
+  JMP $F26D                               ; $CF84: 4C 6D F2  ; UI mode $24
+@PickOwnProvince:
   LDA #$40                                ; $CF87: A9 40
-  JMP $F26D                               ; $CF89: 4C 6D F2
-Loc_CF8C:
+  JMP $F26D                               ; $CF89: 4C 6D F2  ; UI mode $40 (own province notice)
+@PickIdleExit:
   RTS                                     ; $CF8C: 60
-Loc_CF8D:  ; (dispatch callback target)
+@TargetOfficerSelect:  ; (dispatch callback target)
+; --- Code Region ---
   LDA $0478                               ; $CF8D: AD 78 04
-  BNE $CFE3                               ; $CF90: D0 51
+  BNE @OfficerAnimExit                    ; $CF90: D0 51     ; window anim running
   LDA #$FF                                ; $CF92: A9 FF
   STA $04E4                               ; $CF94: 8D E4 04
-  JSR $D64A                               ; $CF97: 20 4A D6
+  JSR $D64A                               ; $CF97: 20 4A D6  ; yes/no dialog poll
   LDA $047C                               ; $CF9A: AD 7C 04
-  BPL $CFE3                               ; $CF9D: 10 44
+  BPL @OfficerAnimExit                    ; $CF9D: 10 44     ; dialog still open
   CMP #$90                                ; $CF9F: C9 90
-  BEQ $CFD4                               ; $CFA1: F0 31
+  BEQ @OfficerCancel                      ; $CFA1: F0 31
   CMP #$81                                ; $CFA3: C9 81
-  BEQ $CFC5                               ; $CFA5: F0 1E
+  BEQ @OfficerReopen                      ; $CFA5: F0 1E
   LDA $0481                               ; $CFA7: AD 81 04
-  STA $042C                               ; $CFAA: 8D 2C 04
-  INC $0401                               ; $CFAD: EE 01 04
+  STA $042C                               ; $CFAA: 8D 2C 04  ; selected officer id
+  INC $0401                               ; $CFAD: EE 01 04  ; -> @CommandConfirmGate
   LDA $0470                               ; $CFB0: AD 70 04
-  STA $0402                               ; $CFB3: 8D 02 04
+  STA $0402                               ; $CFB3: 8D 02 04  ; remember target province
   LDA #$80                                ; $CFB6: A9 80
   STA $0478                               ; $CFB8: 8D 78 04
   LDA #$0F                                ; $CFBB: A9 0F
   STA $047C                               ; $CFBD: 8D 7C 04
   LDA #$27                                ; $CFC0: A9 27
-  JMP $F26D                               ; $CFC2: 4C 6D F2
-Loc_CFC5:
+  JMP $F26D                               ; $CFC2: 4C 6D F2  ; UI mode $27 (confirm dialog)
+@OfficerReopen:
   LDA #$0F                                ; $CFC5: A9 0F
   STA $047C                               ; $CFC7: 8D 7C 04
   LDA #$80                                ; $CFCA: A9 80
   STA $0478                               ; $CFCC: 8D 78 04
   LDA #$4A                                ; $CFCF: A9 4A
-  JMP $F26D                               ; $CFD1: 4C 6D F2
-Loc_CFD4:
+  JMP $F26D                               ; $CFD1: 4C 6D F2  ; UI mode $4A
+@OfficerCancel:
   LDA #$02                                ; $CFD4: A9 02
-  STA $0400                               ; $CFD6: 8D 00 04
+  STA $0400                               ; $CFD6: 8D 00 04  ; back to castle screen (state 2)
   LDA #$00                                ; $CFD9: A9 00
   STA $0401                               ; $CFDB: 8D 01 04
   LDA #$02                                ; $CFDE: A9 02
-  JSR $D58C                               ; $CFE0: 20 8C D5
-Loc_CFE3:
+  JSR MapTransitionStateRestore           ; $CFE0: 20 8C D5  ; restore map scroll
+@OfficerAnimExit:
   RTS                                     ; $CFE3: 60
-Loc_CFE4:  ; (dispatch callback target)
+@CommandConfirmGate:  ; (dispatch callback target)
+; --- Code Region ---
   LDA $0478                               ; $CFE4: AD 78 04
-  BNE $D01E                               ; $CFE7: D0 35
-  JSR $D64A                               ; $CFE9: 20 4A D6
+  BNE @CmdAnimExit                        ; $CFE7: D0 35     ; window anim running
+  JSR $D64A                               ; $CFE9: 20 4A D6  ; yes/no dialog poll
   LDA $047C                               ; $CFEC: AD 7C 04
-  BPL $D01E                               ; $CFEF: 10 2D
+  BPL @CmdAnimExit                        ; $CFEF: 10 2D     ; dialog still open
   CMP #$90                                ; $CFF1: C9 90
-  BEQ $D00F                               ; $CFF3: F0 1A
+  BEQ @CmdClosed                          ; $CFF3: F0 1A     ; dialog closed without answer
   CMP #$81                                ; $CFF5: C9 81
-  BNE $CFFC                               ; $CFF7: D0 03
-  JSR $D7A8                               ; $CFF9: 20 A8 D7
-Loc_CFFC:
+  BNE @CmdAnswered                        ; $CFF7: D0 03
+  JSR $D7A8                               ; $CFF9: 20 A8 D7  ; dialog open animation
+@CmdAnswered:
   LDA #$02                                ; $CFFC: A9 02
-  JSR $D58C                               ; $CFFE: 20 8C D5
-  INC $0401                               ; $D001: EE 01 04
-  JSR MenuCursorReset                    ; $D004: 20 70 DD
+  JSR MapTransitionStateRestore           ; $CFFE: 20 8C D5  ; restore map scroll
+  INC $0401                               ; $D001: EE 01 04  ; -> @CommandExecute
+  JSR MenuCursorReset                     ; $D004: 20 70 DD
   STA $046C                               ; $D007: 8D 6C 04
   LDA #$29                                ; $D00A: A9 29
-  JMP $F26D                               ; $D00C: 4C 6D F2
-Loc_D00F:
+  JMP $F26D                               ; $D00C: 4C 6D F2  ; UI mode $29
+@CmdClosed:
   LDA #$02                                ; $D00F: A9 02
-  STA $0400                               ; $D011: 8D 00 04
+  STA $0400                               ; $D011: 8D 00 04  ; back to castle screen (state 2)
   LDA #$00                                ; $D014: A9 00
   STA $0401                               ; $D016: 8D 01 04
   LDA #$02                                ; $D019: A9 02
-  JSR $D58C                               ; $D01B: 20 8C D5
-Loc_D01E:
+  JSR MapTransitionStateRestore           ; $D01B: 20 8C D5  ; restore map scroll
+@CmdAnimExit:
   RTS                                     ; $D01E: 60
-Loc_D01F:  ; (dispatch callback target)
-  JSR $D5BD                               ; $D01F: 20 BD D5
+@CommandExecute:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $D5BD                               ; $D01F: 20 BD D5  ; yes/no confirm poll
   LDA a:$0013                             ; $D022: AD 13 00
-  BEQ $D035                               ; $D025: F0 0E
+  BEQ @ExecIdleExit                       ; $D025: F0 0E
   CMP #$FF                                ; $D027: C9 FF
-  BNE $D036                               ; $D029: D0 0B
+  BNE @ExecRun                            ; $D029: D0 0B
   LDA #$02                                ; $D02B: A9 02
-  STA $0400                               ; $D02D: 8D 00 04
-  LDA #$00                                ; $D030: A9 00
+  STA $0400                               ; $D02D: 8D 00 04  ; cancel -> castle screen (state 2)
+  LDA #$00                                ; $D02F: A9 00
   STA $0401                               ; $D032: 8D 01 04
-Loc_D035:
+@ExecIdleExit:
   RTS                                     ; $D035: 60
-Loc_D036:
+@ExecRun:
   LDA $0472                               ; $D036: AD 72 04
-  BNE $D03E                               ; $D039: D0 03
-  JMP $D066                               ; $D03B: 4C 66 D0
-Loc_D03E:
+  BNE @PoachingBranch                     ; $D039: D0 03     ; command id 1 = Poaching
+  JMP @DiscordBranch                      ; $D03B: 4C 66 D0
+@PoachingBranch:
   LDA #$13                                ; $D03E: A9 13
-  STA $04A2                               ; $D040: 8D A2 04
-  JSR $D2E3                               ; $D043: 20 E3 D2
-  JSR $E843                               ; $D046: 20 43 E8
+  STA $04A2                               ; $D040: 8D A2 04  ; overlay redraw id
+  JSR PoachOddsCalc                       ; $D043: 20 E3 D2  ; loyalty-tier success odds -> $0001
+  JSR B1F_RandomBelow100                  ; $D046: 20 43 E8
   CMP a:$0001                             ; $D049: CD 01 00
-  BCC $D051                               ; $D04C: 90 03
-  JMP $D0C3                               ; $D04E: 4C C3 D0
-Loc_D051:
-  JSR $D41B                               ; $D051: 20 1B D4
+  BCC @PoachSuccess                       ; $D04C: 90 03
+  JMP @OutcomeFail                        ; $D04E: 4C C3 D0
+@PoachSuccess:
+  JSR PoachRosterTransfer                 ; $D051: 20 1B D4  ; move officer to province $0470 roster
   LDA #$4B                                ; $D054: A9 4B
-  STA $0470                               ; $D056: 8D 70 04
+  STA $0470                               ; $D056: 8D 70 04  ; success message id
   LDA #$02                                ; $D059: A9 02
-  STA $0473                               ; $D05B: 8D 73 04
+  STA $0473                               ; $D05B: 8D 73 04  ; roster-transfer result gate
   LDA #$03                                ; $D05E: A9 03
   STA a:$00A4                             ; $D060: 8D A4 00
-  JMP $D0DB                               ; $D063: 4C DB D0
-Loc_D066:
+  JMP @ResultWindowClose                  ; $D063: 4C DB D0
+@DiscordBranch:
   LDA #$04                                ; $D066: A9 04
-  STA $04A2                               ; $D068: 8D A2 04
-  JSR $D3C5                               ; $D06B: 20 C5 D3
-  JSR $E843                               ; $D06E: 20 43 E8
+  STA $04A2                               ; $D068: 8D A2 04  ; overlay redraw id
+  JSR DiscordLoyaltyDropCalc              ; $D06B: 20 C5 D3  ; loyalty drop amount -> $0001
+  JSR B1F_RandomBelow100                  ; $D06E: 20 43 E8
   CMP a:$0001                             ; $D071: CD 01 00
-  BCC $D079                               ; $D074: 90 03
-  JMP $D0C3                               ; $D076: 4C C3 D0
-Loc_D079:
+  BCC @DiscordRoll                        ; $D074: 90 03
+  JMP @OutcomeFail                        ; $D076: 4C C3 D0
+@DiscordRoll:
   LDA $0481                               ; $D079: AD 81 04
-  JSR $F2D7                               ; $D07C: 20 D7 F2
+  JSR B1F_GetOfficerRecordAddr            ; $D07C: 20 D7 F2  ; officer record
   LDY #$02                                ; $D07F: A0 02
   LDA ($00),Y                             ; $D081: B1 00
-  STA a:$0001                             ; $D083: 8D 01 00
+  STA a:$0001                             ; $D083: 8D 01 00  ; Intelligence
   LDA #$14                                ; $D086: A9 14
   STA a:$0003                             ; $D088: 8D 03 00
   LDA #$00                                ; $D08B: A9 00
   STA a:$0002                             ; $D08D: 8D 02 00
   STA a:$0004                             ; $D090: 8D 04 00
-  JSR $EA7C                               ; $D093: 20 7C EA
-  JSR $E850                               ; $D096: 20 50 E8
+  JSR B1F_MathDiv16                       ; $D093: 20 7C EA  ; Intelligence / 20
+  JSR B1F_RandomMod4                      ; $D096: 20 50 E8  ; random component
   CLC                                     ; $D099: 18
   ADC a:$0001                             ; $D09A: 6D 01 00
-  BEQ $D0C3                               ; $D09D: F0 24
+  BEQ @OutcomeFail                        ; $D09D: F0 24     ; no loyalty drop
   STA a:$0010                             ; $D09F: 8D 10 00
   LDA $042C                               ; $D0A2: AD 2C 04
-  JSR $F2D7                               ; $D0A5: 20 D7 F2
+  JSR B1F_GetOfficerRecordAddr            ; $D0A5: 20 D7 F2  ; officer record
   LDY #$03                                ; $D0A8: A0 03
   LDA ($00),Y                             ; $D0AA: B1 00
   SEC                                     ; $D0AC: 38
-  SBC a:$0010                             ; $D0AD: ED 10 00
-  BCS $D0B4                               ; $D0B0: B0 02
+  SBC a:$0010                             ; $D0AD: ED 10 00  ; loyalty -= drop
+  BCS @LoyaltyClamped                     ; $D0B0: B0 02
   LDA #$00                                ; $D0B2: A9 00
-Loc_D0B4:
+@LoyaltyClamped:
   STA ($00),Y                             ; $D0B4: 91 00
   LDA #$4E                                ; $D0B6: A9 4E
-  STA $0470                               ; $D0B8: 8D 70 04
+  STA $0470                               ; $D0B8: 8D 70 04  ; discord message id
   LDA #$03                                ; $D0BB: A9 03
   STA a:$00A4                             ; $D0BD: 8D A4 00
-  JMP $D0DB                               ; $D0C0: 4C DB D0
-Loc_D0C3:
+  JMP @ResultWindowClose                  ; $D0C0: 4C DB D0
+@OutcomeFail:
   LDA #$04                                ; $D0C3: A9 04
   STA a:$00A4                             ; $D0C5: 8D A4 00
   LDA #$4C                                ; $D0C8: A9 4C
-  STA $0470                               ; $D0CA: 8D 70 04
-  JMP $D0DB                               ; $D0CD: 4C DB D0
-; --- Data Region ---
-  .byte $AD,$81,$04,$8D,$2D,$04,$A9,$4D,$8D,$70,$04; $D0D0: AD 81 04 8D 2D 04 A9 4D 8D 70 04
-Loc_D0DB:
+  STA $0470                               ; $D0CA: 8D 70 04  ; failure message id
+  JMP @ResultWindowClose                  ; $D0CD: 4C DB D0
+@FailAltTail:  ; unreferenced alternate outcome tail (no in-bank branch reaches it)
 ; --- Code Region ---
-  JSR $D568                               ; $D0DB: 20 68 D5
+  LDA $0481                               ; $D0D0: AD 81 04
+  STA $042D                               ; $D0D3: 8D 2D 04  ; officer id for the card flow
+  LDA #$4D                                ; $D0D6: A9 4D
+  STA $0470                               ; $D0D8: 8D 70 04  ; alternate message id
+@ResultWindowClose:
+; --- Code Region ---
+  JSR MapTransitionStateSave              ; $D0DB: 20 68 D5  ; close command window
   LDA #$0C                                ; $D0DE: A9 0C
-  STA $0401                               ; $D0E0: 8D 01 04
+  STA $0401                               ; $D0E0: 8D 01 04  ; -> @ResultRedrawGate
   LDA #$00                                ; $D0E3: A9 00
-  JMP $F29B                               ; $D0E5: 4C 9B F2
-Loc_D0E8:  ; (dispatch callback target)
+  JMP $F29B                               ; $D0E5: 4C 9B F2  ; clear UI
+@ResultRedrawGate:  ; (dispatch callback target)
+; --- Code Region ---
   LDA $0140                               ; $D0E8: AD 40 01
-  BNE $D0FB                               ; $D0EB: D0 0E
+  BNE @RedrawBusyExit                     ; $D0EB: D0 0E     ; screen transition busy
   LDA $04A2                               ; $D0ED: AD A2 04
-  STA $04A0                               ; $D0F0: 8D A0 04
-  INC $0401                               ; $D0F3: EE 01 04
+  STA $04A0                               ; $D0F0: 8D A0 04  ; trigger overlay redraw
+  INC $0401                               ; $D0F3: EE 01 04  ; -> @ResultRoute
   LDA #$60                                ; $D0F6: A9 60
   STA $046C                               ; $D0F8: 8D 6C 04
-Loc_D0FB:
+@RedrawBusyExit:
   RTS                                     ; $D0FB: 60
-Loc_D0FC:  ; (dispatch callback target)
+@ResultRoute:  ; (dispatch callback target)
+; --- Code Region ---
   LDA $04A0                               ; $D0FC: AD A0 04
-  BNE $D13E                               ; $D0FF: D0 3D
+  BNE @ResultWaitExit                     ; $D0FF: D0 3D     ; redraw still queued
   LDA #$02                                ; $D101: A9 02
-  JSR $D58C                               ; $D103: 20 8C D5
+  JSR MapTransitionStateRestore           ; $D103: 20 8C D5  ; restore map scroll
   LDA $0473                               ; $D106: AD 73 04
   CMP #$01                                ; $D109: C9 01
-  BNE $D11F                               ; $D10B: D0 12
+  BNE @ResultGiftCheck                    ; $D10B: D0 12
   LDA #$0F                                ; $D10D: A9 0F
-  STA $0401                               ; $D10F: 8D 01 04
+  STA $0401                               ; $D10F: 8D 01 04  ; -> @CardOpenWait
   LDA $6F44                               ; $D112: AD 44 6F
   EOR #$01                                ; $D115: 49 01
-  STA $6F44                               ; $D117: 8D 44 6F
+  STA $6F44                               ; $D117: 8D 44 6F  ; alliance-formed toggle
   LDA #$E2                                ; $D11A: A9 E2
-  JMP $F28B                               ; $D11C: 4C 8B F2
-Loc_D11F:
+  JMP $F28B                               ; $D11C: 4C 8B F2  ; message UI (ruler card)
+@ResultGiftCheck:
   CMP #$03                                ; $D11F: C9 03
-  BNE $D128                               ; $D121: D0 05
+  BNE @ResultMessage                      ; $D121: D0 05
   LDA #$10                                ; $D123: A9 10
   STA $0401                               ; $D125: 8D 01 04
-Loc_D128:
-  INC $0401                               ; $D128: EE 01 04
+@ResultMessage:
+  INC $0401                               ; $D128: EE 01 04  ; -> @MessageWaitRoute / @AllianceGiftDialog
   LDA $0481                               ; $D12B: AD 81 04
   STA a:$0000                             ; $D12E: 8D 00 00
   LDY #$3D                                ; $D131: A0 3D
-  JSR $EE07                               ; $D133: 20 07 EE
-; --- Data Region ---
-  .byte $2A,$A0,$AD,$70,$04,$4C,$6D,$F2   ; $D136: 2A A0 AD 70 04 4C 6D F2
-Loc_D13E:
+  JSR B1F_BankedCallbackTrampoline        ; $D133: 20 07 EE  ; banks $1D+$1E officer display lookup
+  .word B1D_1E_OfficerDisplay_Lookup      ; $D136: 2A A0  ; inline trampoline target
 ; --- Code Region ---
+  LDA $0470                               ; $D138: AD 70 04
+  JMP $F26D                               ; $D13B: 4C 6D F2  ; UI mode <- message id
+@ResultWaitExit:
   RTS                                     ; $D13E: 60
-Loc_D13F:  ; (dispatch callback target)
-  JSR $DDAD                               ; $D13F: 20 AD DD
-  BCC $D183                               ; $D142: 90 3F
-  JSR $D543                               ; $D144: 20 43 D5
+@MessageWaitRoute:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $DDAD                               ; $D13F: 20 AD DD  ; overlay idle + pad poll
+  BCC @MsgCardClose                       ; $D142: 90 3F
+  JSR MapCursorArrowDraw                  ; $D144: 20 43 D5  ; map cursor arrow sprite
   LDA a:$0081                             ; $D147: AD 81 00
   AND #$03                                ; $D14A: 29 03
-  BEQ $D183                               ; $D14C: F0 35
-  JSR $D568                               ; $D14E: 20 68 D5
+  BEQ @MsgCardClose                       ; $D14C: F0 35     ; no A/B input
+  JSR MapTransitionStateSave              ; $D14E: 20 68 D5  ; close message window
   LDA #$00                                ; $D151: A9 00
-  STA $0400                               ; $D153: 8D 00 04
+  STA $0400                               ; $D153: 8D 00 04  ; back to map idle (state 0)
   STA $0401                               ; $D156: 8D 01 04
   LDA $0473                               ; $D159: AD 73 04
   CMP #$81                                ; $D15C: C9 81
-  BNE $D16B                               ; $D15E: D0 0B
+  BNE @MsgGate2                           ; $D15E: D0 0B
   LDA $6F44                               ; $D160: AD 44 6F
   EOR #$01                                ; $D163: 49 01
-  STA $6F44                               ; $D165: 8D 44 6F
-  JMP $D183                               ; $D168: 4C 83 D1
-Loc_D16B:
+  STA $6F44                               ; $D165: 8D 44 6F  ; alliance-formed toggle
+  JMP @MsgCardClose                       ; $D168: 4C 83 D1
+@MsgGate2:
   CMP #$02                                ; $D16B: C9 02
-  BNE $D183                               ; $D16D: D0 14
+  BNE @MsgCardClose                       ; $D16D: D0 14
   LDA $0471                               ; $D16F: AD 71 04
-  JSR $F2AF                               ; $D172: 20 AF F2
+  JSR B1F_GetProvinceRecordAddr           ; $D172: 20 AF F2
   LDY #$11                                ; $D175: A0 11
   LDA ($00),Y                             ; $D177: B1 00
   CMP #$FF                                ; $D179: C9 FF
-  BNE $D183                               ; $D17B: D0 06
+  BNE @MsgCardClose                       ; $D17B: D0 06
   LDY #$00                                ; $D17D: A0 00
   LDA #$07                                ; $D17F: A9 07
-  STA ($00),Y                             ; $D181: 91 00
-Loc_D183:
+  STA ($00),Y                             ; $D181: 91 00     ; emptied province -> unclaimed
+@MsgCardClose:
   LDA $0473                               ; $D183: AD 73 04
-  BMI $D18E                               ; $D186: 30 06
+  BMI @MsgIdleExit                        ; $D186: 30 06     ; $80/$81/$FF: no card pending
   LDA $0481                               ; $D188: AD 81 04
-  JSR $DD5E                               ; $D18B: 20 5E DD
-Loc_D18E:
+  JSR $DD5E                               ; $D18B: 20 5E DD  ; close officer card overlay
+@MsgIdleExit:
   RTS                                     ; $D18E: 60
-Loc_D18F:  ; (dispatch callback target)
-  JSR $DDAD                               ; $D18F: 20 AD DD
-  BCC $D183                               ; $D192: 90 EF
-  JSR $D543                               ; $D194: 20 43 D5
+@CardOpenWait:  ; (dispatch callback target)
+; --- Code Region ---
+  JSR $DDAD                               ; $D18F: 20 AD DD  ; overlay idle + pad poll
+  BCC @MsgCardClose                       ; $D192: 90 EF     ; shared card-close tail (sub 14)
+  JSR MapCursorArrowDraw                  ; $D194: 20 43 D5  ; map cursor arrow sprite
   LDA a:$0081                             ; $D197: AD 81 00
   AND #$03                                ; $D19A: 29 03
-  BEQ $D1B8                               ; $D19C: F0 1A
-  INC $0401                               ; $D19E: EE 01 04
+  BEQ @CardIdleExit                       ; $D19C: F0 1A     ; wait for A/B
+  INC $0401                               ; $D19E: EE 01 04  ; -> @CardCloseRoute
   LDA #$00                                ; $D1A1: A9 00
   STA a:$00A4                             ; $D1A3: 8D A4 00
   LDA $0481                               ; $D1A6: AD 81 04
   STA a:$0000                             ; $D1A9: 8D 00 00
   LDY #$3D                                ; $D1AC: A0 3D
-  JSR $EE07                               ; $D1AE: 20 07 EE
-; --- Data Region ---
-  .byte $2A,$A0,$A9,$EF,$4C,$6D,$F2       ; $D1B1: 2A A0 A9 EF 4C 6D F2
-Loc_D1B8:
+  JSR B1F_BankedCallbackTrampoline        ; $D1AE: 20 07 EE  ; banks $1D+$1E officer display lookup
+  .word B1D_1E_OfficerDisplay_Lookup      ; $D1B1: 2A A0  ; inline trampoline target
 ; --- Code Region ---
+  LDA #$EF                                ; $D1B3: A9 EF
+  JMP $F26D                               ; $D1B5: 4C 6D F2  ; UI mode $EF
+@CardIdleExit:
   RTS                                     ; $D1B8: 60
-Loc_D1B9:  ; (dispatch callback target)
+@CardCloseRoute:  ; (dispatch callback target)
+; --- Code Region ---
   LDA $0481                               ; $D1B9: AD 81 04
-  JSR $DD5E                               ; $D1BC: 20 5E DD
-  JSR $DDAD                               ; $D1BF: 20 AD DD
-  BCC $D22E                               ; $D1C2: 90 6A
+  JSR $DD5E                               ; $D1BC: 20 5E DD  ; close officer card overlay
+  JSR $DDAD                               ; $D1BF: 20 AD DD  ; overlay idle + pad poll
+  BCC @CardCloseIdle                      ; $D1C2: 90 6A
   LDA #$2F                                ; $D1C4: A9 2F
   STA a:$0010                             ; $D1C6: 8D 10 00
   LDA #$D2                                ; $D1C9: A9 D2
   STA a:$0011                             ; $D1CB: 8D 11 00
   LDA #$00                                ; $D1CE: A9 00
   STA a:$0012                             ; $D1D0: 8D 12 00
-  JSR $ED1E                               ; $D1D3: 20 1E ED
+  JSR B1F_MenuStep2                       ; $D1D3: 20 1E ED  ; card dialog (@CardCloseMenuItems)
   LDA #$33                                ; $D1D6: A9 33
   STA a:$0010                             ; $D1D8: 8D 10 00
   LDA #$D2                                ; $D1DB: A9 D2
@@ -6085,72 +6596,126 @@ Loc_D1B9:  ; (dispatch callback target)
   LDA #$D2                                ; $D1E5: A9 D2
   STA a:$0001                             ; $D1E7: 8D 01 00
   LDA a:$0012                             ; $D1EA: AD 12 00
-  JSR $EDF5                               ; $D1ED: 20 F5 ED
+  JSR B1F_PointerTableLookup              ; $D1ED: 20 F5 ED  ; cursor sprite (@CardCloseCursorPos/@CardCloseCursorSprite)
   LDA a:$0081                             ; $D1F0: AD 81 00
   AND #$01                                ; $D1F3: 29 01
-  BEQ $D22E                               ; $D1F5: F0 37
+  BEQ @CardCloseIdle                      ; $D1F5: F0 37     ; wait for A
   LDA #$0E                                ; $D1F7: A9 0E
-  STA $0401                               ; $D1F9: 8D 01 04
+  STA $0401                               ; $D1F9: 8D 01 04  ; -> @MessageWaitRoute
   LDA #$81                                ; $D1FC: A9 81
   STA $0473                               ; $D1FE: 8D 73 04
   LDA $042D                               ; $D201: AD 2D 04
-  STA $042C                               ; $D204: 8D 2C 04
+  STA $042C                               ; $D204: 8D 2C 04  ; ruler id for the card flow
   LDA a:$0012                             ; $D207: AD 12 00
-  BNE $D229                               ; $D20A: D0 1D
+  BNE @CardDismissed                      ; $D20A: D0 1D     ; dialog declined
   LDA $0482                               ; $D20C: AD 82 04
-  JSR $DD56                               ; $D20F: 20 56 DD
+  JSR $DD56                               ; $D20F: 20 56 DD  ; own country data ptr
   LDA $0483                               ; $D212: AD 83 04
-  JSR $D508                               ; $D215: 20 08 D5
+  JSR AllianceStateSet                    ; $D215: 20 08 D5  ; set alliance nibble on own side
   LDA $0483                               ; $D218: AD 83 04
-  JSR $DD56                               ; $D21B: 20 56 DD
+  JSR $DD56                               ; $D21B: 20 56 DD  ; target country data ptr
   LDA $0482                               ; $D21E: AD 82 04
-  JSR $D508                               ; $D221: 20 08 D5
+  JSR AllianceStateSet                    ; $D221: 20 08 D5  ; set alliance nibble on target side
   LDA #$E4                                ; $D224: A9 E4
-  JMP $F28B                               ; $D226: 4C 8B F2
-Loc_D229:
+  JMP $F28B                               ; $D226: 4C 8B F2  ; message UI (alliance formed)
+@CardDismissed:
   LDA #$E5                                ; $D229: A9 E5
-  JMP $F28B                               ; $D22B: 4C 8B F2
-Loc_D22E:
+  JMP $F28B                               ; $D22B: 4C 8B F2  ; message UI (alliance declined)
+@CardCloseIdle:
   RTS                                     ; $D22E: 60
 ; --- Data Region ---
-  .byte $00,$01,$FF,$FF,$D0,$58,$D0       ; $D22F: 00 01 FF FF D0 58 D0
-Loc_D236:
-  .byte $98,$00,$07,$00,$00,$80,$AD,$81,$04,$20,$5E,$DD,$20,$AD,$DD,$90; $D236: 98 00 07 00 00 80 AD 81 04 20 5E DD 20 AD DD 90
-  .byte $E7,$A9,$D6,$8D,$10,$00,$A9,$D2,$8D,$11,$00,$A9,$00,$8D,$12,$00; $D246: E7 A9 D6 8D 10 00 A9 D2 8D 11 00 A9 00 8D 12 00
-  .byte $20,$1E,$ED,$A9,$DA,$8D,$10,$00,$A9,$D2,$8D,$11,$00,$A9,$DE,$8D; $D256: 20 1E ED A9 DA 8D 10 00 A9 D2 8D 11 00 A9 DE 8D
-  .byte $00,$00,$A9,$D2,$8D,$01,$00,$AD,$12,$00,$20,$F5,$ED,$AD,$81,$00; $D266: 00 00 A9 D2 8D 01 00 AD 12 00 20 F5 ED AD 81 00
-  .byte $29,$01,$D0,$01,$60               ; $D276: 29 01 D0 01 60
-Loc_D27B:
+@CardCloseMenuItems:  ; B1F_MenuStep2 items (2-item confirm, $FF filler)
+  .byte $00,$01,$FF,$FF                   ; $D22F: 00 01 FF FF
+@CardCloseCursorPos:  ; per item: OAM Y base + X base word
+  .byte $D0,$58,$D0,$98                   ; $D233: D0 58 D0 98
+@CardCloseCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
+  .byte $00,$07,$00,$00,$80               ; $D237: 00 07 00 00 80
+@AllianceGiftDialog:  ; (dispatch callback target)
 ; --- Code Region ---
+  LDA $0481                               ; $D23C: AD 81 04
+  JSR $DD5E                               ; $D23F: 20 5E DD  ; close officer card overlay
+  JSR $DDAD                               ; $D242: 20 AD DD  ; overlay idle + pad poll
+  BCC @CardCloseIdle                      ; $D245: 90 E7
+  LDA #$D6                                ; $D247: A9 D6
+  STA a:$0010                             ; $D249: 8D 10 00
+  LDA #$D2                                ; $D24C: A9 D2
+  STA a:$0011                             ; $D24E: 8D 11 00
+  LDA #$00                                ; $D251: A9 00
+  STA a:$0012                             ; $D253: 8D 12 00
+  JSR B1F_MenuStep2                       ; $D256: 20 1E ED  ; gift dialog (@GiftDialogMenuItems)
+  LDA #$DA                                ; $D259: A9 DA
+  STA a:$0010                             ; $D25B: 8D 10 00
+  LDA #$D2                                ; $D25E: A9 D2
+  STA a:$0011                             ; $D260: 8D 11 00
+  LDA #$DE                                ; $D263: A9 DE
+  STA a:$0000                             ; $D265: 8D 00 00
+  LDA #$D2                                ; $D268: A9 D2
+  STA a:$0001                             ; $D26A: 8D 01 00
+  LDA a:$0012                             ; $D26D: AD 12 00
+  JSR B1F_PointerTableLookup              ; $D270: 20 F5 ED  ; cursor sprite (@GiftDialogCursorPos/@GiftDialogCursorSprite)
+  LDA a:$0081                             ; $D273: AD 81 00
+  AND #$01                                ; $D276: 29 01
+  BNE @GiftDecide                         ; $D278: D0 01     ; A pressed
+  RTS                                     ; $D27A: 60
+@GiftDecide:
   LDA #$80                                ; $D27B: A9 80
   STA $0473                               ; $D27D: 8D 73 04
   LDA #$0E                                ; $D280: A9 0E
-  STA $0401                               ; $D282: 8D 01 04
+  STA $0401                               ; $D282: 8D 01 04  ; -> @MessageWaitRoute
   LDA a:$0012                             ; $D285: AD 12 00
-  BEQ $D28F                               ; $D288: F0 05
+  BEQ @GiftPay                            ; $D288: F0 05     ; item 0 = pay the gift
   LDA #$E5                                ; $D28A: A9 E5
-  JMP $F28B                               ; $D28C: 4C 8B F2
-Loc_D28F:
+  JMP $F28B                               ; $D28C: 4C 8B F2  ; message UI (alliance declined)
+@GiftPay:
   LDY #$39                                ; $D28F: A0 39
-  JSR $EE07                               ; $D291: 20 07 EE
-; --- Data Region ---
-  .byte $30,$A0,$AD,$2D,$04,$F0,$2C,$AD,$72,$04,$20,$56,$DD,$AD,$71,$04; $D294: 30 A0 AD 2D 04 F0 2C AD 72 04 20 56 DD AD 71 04
-  .byte $20,$08,$D5,$AD,$71,$04,$20,$56,$DD,$AD,$72,$04,$20,$08,$D5,$A9; $D2A4: 20 08 D5 AD 71 04 20 56 DD AD 72 04 20 08 D5 A9
-  .byte $00,$8D,$73,$04,$A9,$03,$8D,$A4,$00,$A9,$02,$20,$8C,$D5,$A9,$E4; $D2B4: 00 8D 73 04 A9 03 8D A4 00 A9 02 20 8C D5 A9 E4
-  .byte $4C,$8B,$F2                       ; $D2C4: 4C 8B F2
-Loc_D2C7:
+  JSR B1F_BankedCallbackTrampoline        ; $D291: 20 07 EE  ; banks $19+$1A $A030 -> GoodsSendApply_Entry
+  .word B19_1A_GoodsSendApply             ; $D294: 30 A0  ; inline trampoline target
+; --- Code Region ---
+  LDA $042D                               ; $D296: AD 2D 04
+  BEQ @GiftShortfall                      ; $D299: F0 2C     ; gift could not be paid in full
+  LDA $0472                               ; $D29B: AD 72 04
+  JSR $DD56                               ; $D29E: 20 56 DD  ; own country data ptr
+  LDA $0471                               ; $D2A1: AD 71 04
+  JSR AllianceStateSet                    ; $D2A4: 20 08 D5  ; set alliance nibble on own side
+  LDA $0471                               ; $D2A7: AD 71 04
+  JSR $DD56                               ; $D2AA: 20 56 DD  ; target country data ptr
+  LDA $0472                               ; $D2AD: AD 72 04
+  JSR AllianceStateSet                    ; $D2B0: 20 08 D5  ; set alliance nibble on target side
+  LDA #$00                                ; $D2B3: A9 00
+  STA $0473                               ; $D2B5: 8D 73 04
+  LDA #$03                                ; $D2B8: A9 03
+  STA a:$00A4                             ; $D2BA: 8D A4 00
+  LDA #$02                                ; $D2BD: A9 02
+  JSR MapTransitionStateRestore           ; $D2BF: 20 8C D5  ; restore map scroll
+  LDA #$E4                                ; $D2C2: A9 E4
+  JMP $F28B                               ; $D2C4: 4C 8B F2  ; message UI (alliance formed)
+@GiftShortfall:
 ; --- Code Region ---
   LDX #$2A                                ; $D2C7: A2 2A
   LDA $042E                               ; $D2C9: AD 2E 04
   CMP #$F0                                ; $D2CC: C9 F0
-  BEQ $D2D2                               ; $D2CE: F0 02
-  LDX #$ED                                ; $D2D0: A2 ED
-Loc_D2D2:
+  BEQ @GiftShortfallMsg                   ; $D2CE: F0 02     ; gold gift ($F0)
+  LDX #$ED                                ; $D2D0: A2 ED     ; rice gift ($F1)
+@GiftShortfallMsg:
   TXA                                     ; $D2D2: 8A
-  JMP $F28B                               ; $D2D3: 4C 8B F2
+  JMP $F28B                               ; $D2D3: 4C 8B F2  ; message UI (shortfall)
 ; --- Data Region ---
-  .byte $00,$01,$FF,$FF,$D8,$57,$D8,$97,$00,$07,$00,$00,$80; $D2D6: 00 01 FF FF D8 57 D8 97 00 07 00 00 80
-Loc_D2E3:
+@GiftDialogMenuItems:  ; B1F_MenuStep2 items (2-item pay dialog, $FF filler)
+  .byte $00,$01,$FF,$FF                   ; $D2D6: 00 01 FF FF
+@GiftDialogCursorPos:  ; per item: OAM Y base + X base word
+  .byte $D8,$57,$D8,$97                   ; $D2DA: D8 57 D8 97
+@GiftDialogCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 terminator
+  .byte $00,$07,$00,$00,$80               ; $D2DE: 00 07 00 00 80
+.endproc
+;===============================================================================
+; PoachOddsCalc ($D2E3-$D3C4)
+; Poaching (引き抜き) success odds for the intrigue screen (@CommandExecute).
+; Reads the target officer ($042C) Loyalty (+$03), selects a base/scale pair
+; from @LoyaltyTierTable, then scales it by the officer's Intelligence (+$02)
+; and +$04 value with the +$0B level nibble; leaves the 16-bit odds in
+; $0001/$0002 (divided by 16).
+;===============================================================================
+.proc PoachOddsCalc
 ; --- Code Region ---
   LDA $042C                               ; $D2E3: AD 2C 04
   JSR $F2D7                               ; $D2E6: 20 D7 F2
@@ -6158,53 +6723,53 @@ Loc_D2E3:
   LDX #$00                                ; $D2EB: A2 00
   LDA ($00),Y                             ; $D2ED: B1 00
   CMP #$1F                                ; $D2EF: C9 1F
-  BCC $D317                               ; $D2F1: 90 24
+  BCC @TierSelected                       ; $D2F1: 90 24
   LDX #$04                                ; $D2F3: A2 04
   CMP #$29                                ; $D2F5: C9 29
-  BCC $D317                               ; $D2F7: 90 1E
+  BCC @TierSelected                       ; $D2F7: 90 1E
   LDX #$08                                ; $D2F9: A2 08
   CMP #$33                                ; $D2FB: C9 33
-  BCC $D317                               ; $D2FD: 90 18
+  BCC @TierSelected                       ; $D2FD: 90 18
   LDX #$0C                                ; $D2FF: A2 0C
   CMP #$3D                                ; $D301: C9 3D
-  BCC $D317                               ; $D303: 90 12
+  BCC @TierSelected                       ; $D303: 90 12
   LDX #$10                                ; $D305: A2 10
   CMP #$47                                ; $D307: C9 47
-  BCC $D317                               ; $D309: 90 0C
+  BCC @TierSelected                       ; $D309: 90 0C
   LDX #$14                                ; $D30B: A2 14
   CMP #$4C                                ; $D30D: C9 4C
-  BCC $D317                               ; $D30F: 90 06
+  BCC @TierSelected                       ; $D30F: 90 06
   LDA #$00                                ; $D311: A9 00
   STA a:$0001                             ; $D313: 8D 01 00
   RTS                                     ; $D316: 60
-Loc_D317:
-  LDA $D3AD,X                             ; $D317: BD AD D3
+@TierSelected:
+  LDA @LoyaltyTierTable,X                 ; $D317: BD AD D3
   STA a:$0010                             ; $D31A: 8D 10 00
-  LDA $D3AE,X                             ; $D31D: BD AE D3
+  LDA @LoyaltyTierTable+1,X               ; $D31D: BD AE D3
   STA a:$0011                             ; $D320: 8D 11 00
-  LDA $D3AF,X                             ; $D323: BD AF D3
+  LDA @LoyaltyTierTable+2,X               ; $D323: BD AF D3
   STA a:$0012                             ; $D326: 8D 12 00
-  LDA $D3B0,X                             ; $D329: BD B0 D3
+  LDA @LoyaltyTierTable+3,X               ; $D329: BD B0 D3
   STA a:$0013                             ; $D32C: 8D 13 00
   LDA $0481                               ; $D32F: AD 81 04
-  JSR $F2D7                               ; $D332: 20 D7 F2
+  JSR B1F_GetOfficerRecordAddr            ; $D332: 20 D7 F2
   LDY #$0B                                ; $D335: A0 0B
   LDA ($00),Y                             ; $D337: B1 00
   LSR                                     ; $D339: 4A
   LSR                                     ; $D33A: 4A
   LSR                                     ; $D33B: 4A
   LSR                                     ; $D33C: 4A
-  PHA                                     ; $D33D: 48
+  PHA                                     ; $D33D: 48        ; +$0B level nibble
   LDY #$02                                ; $D33E: A0 02
   LDA ($00),Y                             ; $D340: B1 00
-  STA a:$0003                             ; $D342: 8D 03 00
+  STA a:$0003                             ; $D342: 8D 03 00  ; Intelligence
   LDY #$04                                ; $D345: A0 04
   LDA ($00),Y                             ; $D347: B1 00
-  STA a:$0000                             ; $D349: 8D 00 00
+  STA a:$0000                             ; $D349: 8D 00 00  ; +$04 value
   LDA #$00                                ; $D34C: A9 00
   STA a:$0001                             ; $D34E: 8D 01 00
   STA a:$0002                             ; $D351: 8D 02 00
-  JSR $EBE9                               ; $D354: 20 E9 EB
+  JSR B1F_MathMul24x8                     ; $D354: 20 E9 EB  ; (+$04) * Intelligence
   LDA a:$0006                             ; $D357: AD 06 00
   CLC                                     ; $D35A: 18
   ADC a:$0010                             ; $D35B: 6D 10 00
@@ -6219,7 +6784,7 @@ Loc_D317:
   STA a:$0002                             ; $D373: 8D 02 00
   LDA #$64                                ; $D376: A9 64
   STA a:$0003                             ; $D378: 8D 03 00
-  JSR $EBE9                               ; $D37B: 20 E9 EB
+  JSR B1F_MathMul24x8                     ; $D37B: 20 E9 EB  ; level nibble * 100
   LDA a:$0006                             ; $D37E: AD 06 00
   CLC                                     ; $D381: 18
   ADC a:$0010                             ; $D382: 6D 10 00
@@ -6235,30 +6800,39 @@ Loc_D317:
   STA a:$0003                             ; $D3A0: 8D 03 00
   LDA a:$0013                             ; $D3A3: AD 13 00
   STA a:$0004                             ; $D3A6: 8D 04 00
-  JSR $EA7C                               ; $D3A9: 20 7C EA
+  JSR B1F_MathDiv16                       ; $D3A9: 20 7C EA  ; odds / 16
   RTS                                     ; $D3AC: 60
 ; --- Data Region ---
-  .byte $88,$13,$FA,$00,$A0,$0F,$C2,$01,$B8,$0B,$84,$03,$D0,$07,$14,$05; $D3AD: 88 13 FA 00 A0 0F C2 01 B8 0B 84 03 D0 07 14 05
+@LoyaltyTierTable:  ; per loyalty band ($1F-$4C): base word + scale word
+  .byte $88,$13,$FA,$00,$A0,$0F,$C2,$01,$B8,$0B,$84,$03,$D0,$07,$14,$05 ; $D3AD: 88 13 FA 00 A0 0F C2 01 B8 0B 84 03 D0 07 14 05
   .byte $E8,$03,$D0,$07,$00,$00,$60,$09   ; $D3BD: E8 03 D0 07 00 00 60 09
-Loc_D3C5:
+.endproc
+;===============================================================================
+; DiscordLoyaltyDropCalc ($D3C5-$D41A)
+; Discord (離間) loyalty-drop amount for the intrigue screen
+; (@CommandExecute). Weight = (Intelligence + +$04 value) of officer $0481
+; times (62 - Loyalty(+3) of officer $042C), divided by 100; leaves the
+; 16-bit result in $0001/$0002.
+;===============================================================================
+.proc DiscordLoyaltyDropCalc
 ; --- Code Region ---
   LDA $042C                               ; $D3C5: AD 2C 04
-  JSR $F2D7                               ; $D3C8: 20 D7 F2
+  JSR B1F_GetOfficerRecordAddr            ; $D3C8: 20 D7 F2  ; officer record
   LDY #$03                                ; $D3CB: A0 03
   LDA ($00),Y                             ; $D3CD: B1 00
   STA a:$0003                             ; $D3CF: 8D 03 00
   LDA #$62                                ; $D3D2: A9 62
   SEC                                     ; $D3D4: 38
   SBC a:$0003                             ; $D3D5: ED 03 00
-  BCS $D3DC                               ; $D3D8: B0 02
+  BCS @WeightClamped                      ; $D3D8: B0 02
   LDA #$00                                ; $D3DA: A9 00
-Loc_D3DC:
+@WeightClamped:
   STA a:$0003                             ; $D3DC: 8D 03 00
   LDA $0481                               ; $D3DF: AD 81 04
-  JSR $F2D7                               ; $D3E2: 20 D7 F2
+  JSR B1F_GetOfficerRecordAddr            ; $D3E2: 20 D7 F2  ; officer record
   LDY #$02                                ; $D3E5: A0 02
   LDA ($00),Y                             ; $D3E7: B1 00
-  STA a:$0004                             ; $D3E9: 8D 04 00
+  STA a:$0004                             ; $D3E9: 8D 04 00  ; Intelligence
   LDY #$04                                ; $D3EC: A0 04
   LDA ($00),Y                             ; $D3EE: B1 00
   CLC                                     ; $D3F0: 18
@@ -6267,7 +6841,7 @@ Loc_D3DC:
   LDA #$00                                ; $D3F7: A9 00
   STA a:$0001                             ; $D3F9: 8D 01 00
   STA a:$0002                             ; $D3FC: 8D 02 00
-  JSR $EBE9                               ; $D3FF: 20 E9 EB
+  JSR B1F_MathMul24x8                     ; $D3FF: 20 E9 EB  ; * (62 - Loyalty)
   LDA a:$0006                             ; $D402: AD 06 00
   STA a:$0001                             ; $D405: 8D 01 00
   LDA a:$0007                             ; $D408: AD 07 00
@@ -6276,75 +6850,99 @@ Loc_D3DC:
   STA a:$0003                             ; $D410: 8D 03 00
   LDA #$00                                ; $D413: A9 00
   STA a:$0004                             ; $D415: 8D 04 00
-  JMP $EA7C                               ; $D418: 4C 7C EA
-Loc_D41B:
+  JMP B1F_MathDiv16                       ; $D418: 4C 7C EA  ; tail call: / 100
+.endproc
+;===============================================================================
+; PoachRosterTransfer ($D41B-$D471)
+; Poaching (引き抜き) roster move for the intrigue screen (@CommandExecute).
+; Appends officer $042C to the destination province $0470 roster (+$10 tail),
+; removes it from the source province $0471 roster (shift + $FF fill), and
+; stashes dest-ruler/officer/source-ruler in $0030/$0031/$0032 before
+; notifying the strategy engine via the banked B19_1A_StrategyRequestDispatch
+; call (Y=$2A).
+;===============================================================================
+.proc PoachRosterTransfer
+; --- Code Region ---
   LDA $0470                               ; $D41B: AD 70 04
-  JSR $F2AF                               ; $D41E: 20 AF F2
+  JSR B1F_GetProvinceRecordAddr           ; $D41E: 20 AF F2
   LDY #$10                                ; $D421: A0 10
-Loc_D423:
+@DestTailScan:
   INY                                     ; $D423: C8
   LDA ($00),Y                             ; $D424: B1 00
   CMP #$FF                                ; $D426: C9 FF
-  BNE $D423                               ; $D428: D0 F9
+  BNE @DestTailScan                       ; $D428: D0 F9
   LDA $042C                               ; $D42A: AD 2C 04
-  STA ($00),Y                             ; $D42D: 91 00
+  STA ($00),Y                             ; $D42D: 91 00     ; append officer id
   LDA $0471                               ; $D42F: AD 71 04
-  JSR $F2AF                               ; $D432: 20 AF F2
+  JSR B1F_GetProvinceRecordAddr           ; $D432: 20 AF F2
   LDY #$10                                ; $D435: A0 10
-Loc_D437:
+@SrcFindScan:
   INY                                     ; $D437: C8
   LDA ($00),Y                             ; $D438: B1 00
   CMP $042C                               ; $D43A: CD 2C 04
-  BNE $D437                               ; $D43D: D0 F8
-Loc_D43F:
+  BNE @SrcFindScan                        ; $D43D: D0 F8
+@SrcShiftLoop:
   INY                                     ; $D43F: C8
   CPY #$1B                                ; $D440: C0 1B
-  BEQ $D44D                               ; $D442: F0 09
+  BEQ @SrcTailClear                       ; $D442: F0 09
   LDA ($00),Y                             ; $D444: B1 00
   DEY                                     ; $D446: 88
-  STA ($00),Y                             ; $D447: 91 00
+  STA ($00),Y                             ; $D447: 91 00     ; shift roster left
   INY                                     ; $D449: C8
-  JMP $D43F                               ; $D44A: 4C 3F D4
-Loc_D44D:
+  JMP @SrcShiftLoop                       ; $D44A: 4C 3F D4
+@SrcTailClear:
   DEY                                     ; $D44D: 88
   LDA #$FF                                ; $D44E: A9 FF
-  STA ($00),Y                             ; $D450: 91 00
+  STA ($00),Y                             ; $D450: 91 00     ; clear last slot
   LDA $042C                               ; $D452: AD 2C 04
-  STA a:$0031                             ; $D455: 8D 31 00
+  STA a:$0031                             ; $D455: 8D 31 00  ; moved officer
   LDA $0470                               ; $D458: AD 70 04
-  JSR $DD4F                               ; $D45B: 20 4F DD
-  STA a:$0030                             ; $D45E: 8D 30 00
+  JSR $DD4F                               ; $D45B: 20 4F DD  ; province -> country ruler
+  STA a:$0030                             ; $D45E: 8D 30 00  ; dest ruler
   LDA $0471                               ; $D461: AD 71 04
   JSR $DD4F                               ; $D464: 20 4F DD
-  STA a:$0032                             ; $D467: 8D 32 00
+  STA a:$0032                             ; $D467: 8D 32 00  ; source ruler
   LDY #$2A                                ; $D46A: A0 2A
-  JSR $EE07                               ; $D46C: 20 07 EE
-; --- Data Region ---
-  .byte $06,$A0,$60,$A0,$00,$AE,$10,$00   ; $D46F: 06 A0 60 A0 00 AE 10 00
-Loc_D477:
+  JSR B1F_BankedCallbackTrampoline        ; $D46C: 20 07 EE  ; banks $19+$1A strategy request
+  .word B19_1A_StrategyRequestDispatch    ; $D46F: 06 A0  ; inline trampoline target
 ; --- Code Region ---
+  RTS                                     ; $D471: 60
+.endproc
+;===============================================================================
+; AllianceListRowRender ($D472-$D4EC)
+; Renders one rival-ruler scroll-panel row for @AllianceRulerListBuild: X =
+; row column base, $00/$01 = ruler name record, $0472 = rival country id.
+; Copies the name characters into the row buffer ($0182/$0162 with the
+; $39/$3A combining-mark cells), then appends the alliance-state digits via
+; AllianceStateGet (blank $32 filler when the nibble is clear).
+;===============================================================================
+.proc AllianceListRowRender
+; --- Code Region ---
+  LDY #$00                                ; $D472: A0 00
+  LDX a:$0010                             ; $D474: AE 10 00
+@NameCharLoop:
   LDA ($00),Y                             ; $D477: B1 00
-  BEQ $D492                               ; $D479: F0 17
+  BEQ @NameDone                           ; $D479: F0 17
   CMP #$39                                ; $D47B: C9 39
-  BEQ $D489                               ; $D47D: F0 0A
+  BEQ @NameMark                           ; $D47D: F0 0A
   CMP #$3A                                ; $D47F: C9 3A
-  BEQ $D489                               ; $D481: F0 06
+  BEQ @NameMark                           ; $D481: F0 06
   STA $0182,X                             ; $D483: 9D 82 01
-  JMP $D48D                               ; $D486: 4C 8D D4
-Loc_D489:
+  JMP @NameNext                           ; $D486: 4C 8D D4
+@NameMark:
   DEX                                     ; $D489: CA
-  STA $0162,X                             ; $D48A: 9D 62 01
-Loc_D48D:
+  STA $0162,X                             ; $D48A: 9D 62 01  ; combining mark cell
+@NameNext:
   INX                                     ; $D48D: E8
   INY                                     ; $D48E: C8
-  JMP $D477                               ; $D48F: 4C 77 D4
-Loc_D492:
+  JMP @NameCharLoop                       ; $D48F: 4C 77 D4
+@NameDone:
   LDX a:$0010                             ; $D492: AE 10 00
   LDA $0470                               ; $D495: AD 70 04
-  JSR $DD56                               ; $D498: 20 56 DD
+  JSR $DD56                               ; $D498: 20 56 DD  ; own country data ptr
   LDA $0472                               ; $D49B: AD 72 04
-  JSR $D4ED                               ; $D49E: 20 ED D4
-  BNE $D4B5                               ; $D4A1: D0 12
+  JSR AllianceStateGet                    ; $D49E: 20 ED D4  ; rival alliance-state nibble
+  BNE @TermDigits                         ; $D4A1: D0 12
   LDA #$32                                ; $D4A3: A9 32
   STA $018A,X                             ; $D4A5: 9D 8A 01
   STA $018B,X                             ; $D4A8: 9D 8B 01
@@ -6352,27 +6950,27 @@ Loc_D492:
   STA $018D,X                             ; $D4AE: 9D 8D 01
   STA $018E,X                             ; $D4B1: 9D 8E 01
   RTS                                     ; $D4B4: 60
-Loc_D4B5:
+@TermDigits:
   STA a:$0001                             ; $D4B5: 8D 01 00
   LDA #$00                                ; $D4B8: A9 00
   STA a:$0002                             ; $D4BA: 8D 02 00
   STA a:$0003                             ; $D4BD: 8D 03 00
-  JSR $E9BA                               ; $D4C0: 20 BA E9
+  JSR $E9BA                               ; $D4C0: 20 BA E9  ; divide for digit render
   LDA a:$0007                             ; $D4C3: AD 07 00
   LSR                                     ; $D4C6: 4A
   LSR                                     ; $D4C7: 4A
   LSR                                     ; $D4C8: 4A
   LSR                                     ; $D4C9: 4A
-  BEQ $D4D2                               ; $D4CA: F0 06
+  BEQ @TermOnes                           ; $D4CA: F0 06
   CLC                                     ; $D4CC: 18
   ADC #$76                                ; $D4CD: 69 76
-  STA $018D,X                             ; $D4CF: 9D 8D 01
-Loc_D4D2:
+  STA $018D,X                             ; $D4CF: 9D 8D 01  ; tens digit tile
+@TermOnes:
   LDA a:$0007                             ; $D4D2: AD 07 00
   AND #$0F                                ; $D4D5: 29 0F
   CLC                                     ; $D4D7: 18
   ADC #$76                                ; $D4D8: 69 76
-  STA $018E,X                             ; $D4DA: 9D 8E 01
+  STA $018E,X                             ; $D4DA: 9D 8E 01  ; ones digit tile
   LDA #$1C                                ; $D4DD: A9 1C
   STA $018A,X                             ; $D4DF: 9D 8A 01
   LDA #$0D                                ; $D4E2: A9 0D
@@ -6380,7 +6978,16 @@ Loc_D4D2:
   LDA #$2B                                ; $D4E7: A9 2B
   STA $018C,X                             ; $D4E9: 9D 8C 01
   RTS                                     ; $D4EC: 60
-Loc_D4ED:
+.endproc
+;===============================================================================
+; AllianceStateGet ($D4ED-$D507)
+; Returns the alliance-state nibble for the country id in A from the country
+; record at $00/$01: the +$04-$07 area holds one nibble per country (even id
+; = low nibble, odd id = high nibble); nonzero = allied. The unreferenced
+; @ReadHighNibble path returns the high nibble directly.
+;===============================================================================
+.proc AllianceStateGet
+; --- Code Region ---
   STA a:$0002                             ; $D4ED: 8D 02 00
   LSR                                     ; $D4F0: 4A
   CLC                                     ; $D4F1: 18
@@ -6388,18 +6995,28 @@ Loc_D4ED:
   TAY                                     ; $D4F4: A8
   LDA a:$0002                             ; $D4F5: AD 02 00
   AND #$01                                ; $D4F8: 29 01
-  BNE $D501                               ; $D4FA: D0 05
+  BNE @ReadHighNibble                     ; $D4FA: D0 05
   LDA ($00),Y                             ; $D4FC: B1 00
   AND #$0F                                ; $D4FE: 29 0F
   RTS                                     ; $D500: 60
-Loc_D501:
+@ReadHighNibble:
   LDA ($00),Y                             ; $D501: B1 00
   LSR                                     ; $D503: 4A
   LSR                                     ; $D504: 4A
   LSR                                     ; $D505: 4A
   LSR                                     ; $D506: 4A
   RTS                                     ; $D507: 60
-Loc_D508:
+.endproc
+;===============================================================================
+; AllianceStateSet ($D508-$D542)
+; Sets ($0C/$C0 pattern) or clears ($F0/$0F mask) the alliance-state nibble
+; for the country id in A within the country record at $00/$01 (see
+; AllianceStateGet). The clear path is taken while $0401 == 6, i.e. when
+; called from @AllianceDissolveGate; the set path runs from the ruler-card
+; and gift-dialog alliance formations.
+;===============================================================================
+.proc AllianceStateSet
+; --- Code Region ---
   STA a:$0010                             ; $D508: 8D 10 00
   LSR                                     ; $D50B: 4A
   CLC                                     ; $D50C: 18
@@ -6407,34 +7024,42 @@ Loc_D508:
   TAY                                     ; $D50F: A8
   LDA $0401                               ; $D510: AD 01 04
   CMP #$06                                ; $D513: C9 06
-  BEQ $D52D                               ; $D515: F0 16
+  BEQ @ClearNibble                        ; $D515: F0 16     ; dissolve path
   LDX #$0C                                ; $D517: A2 0C
   LDA a:$0010                             ; $D519: AD 10 00
   AND #$01                                ; $D51C: 29 01
-  BEQ $D522                               ; $D51E: F0 02
+  BEQ @WriteNibble                        ; $D51E: F0 02
   LDX #$C0                                ; $D520: A2 C0
-Loc_D522:
+@WriteNibble:
   STX a:$0010                             ; $D522: 8E 10 00
   LDA ($00),Y                             ; $D525: B1 00
   ORA a:$0010                             ; $D527: 0D 10 00
   STA ($00),Y                             ; $D52A: 91 00
   RTS                                     ; $D52C: 60
-Loc_D52D:
+@ClearNibble:
   LDX #$F0                                ; $D52D: A2 F0
   LDA a:$0010                             ; $D52F: AD 10 00
   AND #$01                                ; $D532: 29 01
-  BEQ $D538                               ; $D534: F0 02
+  BEQ @MaskNibble                         ; $D534: F0 02
   LDX #$0F                                ; $D536: A2 0F
-Loc_D538:
+@MaskNibble:
   STX a:$0010                             ; $D538: 8E 10 00
   LDA ($00),Y                             ; $D53B: B1 00
   AND a:$0010                             ; $D53D: 2D 10 00
   STA ($00),Y                             ; $D540: 91 00
   RTS                                     ; $D542: 60
-Loc_D543:
+.endproc
+;===============================================================================
+; MapCursorArrowDraw ($D543-$D567)
+; Draws the strategy-map cursor arrow sprite (@ArrowSprite) into OAM via
+; B1F_SpriteOamWriterSimple when the arrow flag $005E bit 4 is set; used by
+; the intrigue message waits (@MessageWaitRoute/@CardOpenWait).
+;===============================================================================
+.proc MapCursorArrowDraw
+; --- Code Region ---
   LDA a:$005E                             ; $D543: AD 5E 00
   AND #$10                                ; $D546: 29 10
-  BEQ $D562                               ; $D548: F0 18
+  BEQ @ArrowExit                          ; $D548: F0 18
   LDA #$00                                ; $D54A: A9 00
   STA a:$0002                             ; $D54C: 8D 02 00
   STA a:$000A                             ; $D54F: 8D 0A 00
@@ -6443,20 +7068,36 @@ Loc_D543:
   STA a:$0000                             ; $D557: 8D 00 00
   LDA #$D5                                ; $D55A: A9 D5
   STA a:$0001                             ; $D55C: 8D 01 00
-  JMP $F1AD                               ; $D55F: 4C AD F1
-Loc_D562:
+  JMP B1F_SpriteOamWriterSimple           ; $D55F: 4C AD F1  ; tail call
+@ArrowExit:
   RTS                                     ; $D562: 60
 ; --- Data Region ---
+@ArrowSprite:  ; OAM template (dY, tile, attr, dX) + $80 terminator
   .byte $D9,$04,$00,$7C,$80               ; $D563: D9 04 00 7C 80
-Loc_D568:
+.endproc
+;===============================================================================
+; MapTransitionStateSave ($D568-$D58B)
+; Saves the strategy-map camera snapshot and begins a screen transition:
+;   - $0140 <- $80 (screen-transition busy)
+;   - $0150 <- hemisphere flag word: $80 when camera X $6F3F bit7 is clear,
+;     $00 when set (bit7 = complement of the camera hemisphere; the low flag
+;     bits stay clear here, unlike the inline variant in
+;     CommandCategoryMenuScreenInit which sets bit0)
+;   - snapshot $046D-$046F <- camera X $6F3F / camera Y $6F41 / pending
+;     province $0402, so command screens can pan the camera freely and the
+;     pre-command view can be restored later (see MapTransitionStateRestore
+;     and the inline restores at $AFC4/$B56E)
+; Called on every command-screen exit that routes to another map frame state.
+;===============================================================================
+.proc MapTransitionStateSave
 ; --- Code Region ---
   LDA #$80                                ; $D568: A9 80
   STA $0140                               ; $D56A: 8D 40 01
   LDX #$00                                ; $D56D: A2 00
   LDA $6F3F                               ; $D56F: AD 3F 6F
-  BMI $D576                               ; $D572: 30 02
+  BMI @StoreFlagWord                      ; $D572: 30 02
   LDX #$80                                ; $D574: A2 80
-Loc_D576:
+@StoreFlagWord:
   STX $0150                               ; $D576: 8E 50 01
   LDA $6F3F                               ; $D579: AD 3F 6F
   STA $046D                               ; $D57C: 8D 6D 04
@@ -6465,7 +7106,20 @@ Loc_D576:
   LDA $0402                               ; $D585: AD 02 04
   STA $046F                               ; $D588: 8D 6F 04
   RTS                                     ; $D58B: 60
-Loc_D58C:
+.endproc
+;===============================================================================
+; MapTransitionStateRestore ($D58C-$D5BC)
+; Counterpart to MapTransitionStateSave: restores the camera snapshot and
+; redraws the map view. A = low-bit flag word value ($02/$03 at call sites):
+;   - $0150 <- A
+;   - camera X $6F3F / camera Y $6F41 <- snapshot $046D/$046E, then
+;     MapRulerMarkerDraw ($DE83) redraws the ruler marker at the camera
+;   - pending province $0402 <- snapshot $046F, then B1F_GetProvinceRecordAddr
+;     ($F2AF) is called with it (pointer result unused here)
+;   - $0140 <- $80 (transition busy for the return to the map view)
+;   - $0150 |= hemisphere bit ($80 when camera X bit7 clear, $00 when set)
+;===============================================================================
+.proc MapTransitionStateRestore
   STA $0150                               ; $D58C: 8D 50 01
   LDA $046D                               ; $D58F: AD 6D 04
   STA $6F3F                               ; $D592: 8D 3F 6F
@@ -6479,13 +7133,14 @@ Loc_D58C:
   STY $0140                               ; $D5A9: 8C 40 01
   LDX #$00                                ; $D5AC: A2 00
   LDA $6F3F                               ; $D5AE: AD 3F 6F
-  BMI $D5B5                               ; $D5B1: 30 02
+  BMI @MergeHemiBit                       ; $D5B1: 30 02
   LDX #$80                                ; $D5B3: A2 80
-Loc_D5B5:
+@MergeHemiBit:
   TXA                                     ; $D5B5: 8A
   ORA $0150                               ; $D5B6: 0D 50 01
   STA $0150                               ; $D5B9: 8D 50 01
   RTS                                     ; $D5BC: 60
+.endproc
 Loc_D5BD:
   LDA $046C                               ; $D5BD: AD 6C 04
   BNE $D614                               ; $D5C0: D0 52
@@ -6535,14 +7190,14 @@ Loc_D614:
   LDY #$3D                                ; $D620: A0 3D
   JSR $EE07                               ; $D622: 20 07 EE
 ; --- Data Region ---
-  .byte $24,$A0,$60,$A0,$3D,$20,$07,$EE,$2D,$A0,$AD,$6C,$04,$C9,$40,$D0; $D625: 24 A0 60 A0 3D 20 07 EE 2D A0 AD 6C 04 C9 40 D0
+  .byte $24,$A0,$60,$A0,$3D,$20,$07,$EE,$2D,$A0,$AD,$6C,$04,$C9,$40,$D0 ; $D625: 24 A0 60 A0 3D 20 07 EE 2D A0 AD 6C 04 C9 40 D0
   .byte $03,$CE,$05,$6F                   ; $D635: 03 CE 05 6F
 Loc_D639:
 ; --- Code Region ---
   DEC $046C                               ; $D639: CE 6C 04
   RTS                                     ; $D63C: 60
 ; --- Data Region ---
-  .byte $00,$01,$FF,$FF,$C8,$60,$C8,$A0,$00,$07,$00,$00,$80; $D63D: 00 01 FF FF C8 60 C8 A0 00 07 00 00 80
+  .byte $00,$01,$FF,$FF,$C8,$60,$C8,$A0,$00,$07,$00,$00,$80 ; $D63D: 00 01 FF FF C8 60 C8 A0 00 07 00 00 80
 Loc_D64A:
 ; --- Code Region ---
   LDA $0425                               ; $D64A: AD 25 04
@@ -6662,8 +7317,8 @@ Loc_D746:
   STA $047C                               ; $D748: 8D 7C 04
   RTS                                     ; $D74B: 60
 ; --- Data Region ---
-  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$FF,$27,$08,$37,$08; $D74C: 00 01 02 03 04 05 06 07 08 09 0A FF 27 08 37 08
-  .byte $47,$08,$57,$08,$67,$08,$77,$08,$87,$08,$97,$08,$A7,$08,$B7,$08; $D75C: 47 08 57 08 67 08 77 08 87 08 97 08 A7 08 B7 08
+  .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0A,$FF,$27,$08,$37,$08 ; $D74C: 00 01 02 03 04 05 06 07 08 09 0A FF 27 08 37 08
+  .byte $47,$08,$57,$08,$67,$08,$77,$08,$87,$08,$97,$08,$A7,$08,$B7,$08 ; $D75C: 47 08 57 08 67 08 77 08 87 08 97 08 A7 08 B7 08
   .byte $C7,$08,$00,$07,$00,$00,$80       ; $D76C: C7 08 00 07 00 00 80
 Loc_D773:
 ; --- Code Region ---
@@ -7215,27 +7870,35 @@ Loc_DC15:
   RTS                                     ; $DC15: 60
 Loc_DC16:
   LDY #$39                                ; $DC16: A0 39
-  JSR $EE07                               ; $DC18: 20 07 EE
+  JSR $EE07                               ; $DC18: 20 07 EE  ; banks $19+$1A $A01B -> OfficerArrivalScan_Entry
 ; --- Data Region ---
-  .byte $1B,$A0,$AD,$11,$00,$30,$DC,$60,$01,$01,$08,$08,$08,$08,$08,$08; $DC1B: 1B A0 AD 11 00 30 DC 60 01 01 08 08 08 08 08 08
-  .byte $01,$01,$02,$02,$08,$08,$08,$08,$02,$03,$03,$04,$04,$04,$08,$08; $DC2B: 01 01 02 02 08 08 08 08 02 03 03 04 04 04 08 08
-  .byte $01,$01,$02,$06,$06,$08,$08,$08,$02,$02,$06,$06,$06,$08,$08,$08; $DC3B: 01 01 02 06 06 08 08 08 02 02 06 06 06 08 08 08
-  .byte $03,$04,$04,$06,$06,$06,$08,$08,$01,$01,$01,$05,$06,$06,$08,$08; $DC4B: 03 04 04 06 06 06 08 08 01 01 01 05 06 06 08 08
-  .byte $03,$03,$05,$05,$06,$06,$06,$08,$03,$03,$04,$04,$05,$05,$05,$08; $DC5B: 03 03 05 05 06 06 06 08 03 03 04 04 05 05 05 08
-Loc_DC6B:
+  .byte $1B,$A0,$AD,$11,$00,$30,$DC,$60,$01,$01,$08,$08,$08,$08,$08,$08 ; $DC1B: 1B A0 AD 11 00 30 DC 60 01 01 08 08 08 08 08 08
+  .byte $01,$01,$02,$02,$08,$08,$08,$08,$02,$03,$03,$04,$04,$04,$08,$08 ; $DC2B: 01 01 02 02 08 08 08 08 02 03 03 04 04 04 08 08
+  .byte $01,$01,$02,$06,$06,$08,$08,$08,$02,$02,$06,$06,$06,$08,$08,$08 ; $DC3B: 01 01 02 06 06 08 08 08 02 02 06 06 06 08 08 08
+  .byte $03,$04,$04,$06,$06,$06,$08,$08,$01,$01,$01,$05,$06,$06,$08,$08 ; $DC4B: 03 04 04 06 06 06 08 08 01 01 01 05 06 06 08 08
+  .byte $03,$03,$05,$05,$06,$06,$06,$08,$03,$03,$04,$04,$05,$05,$05,$08 ; $DC5B: 03 03 05 05 06 06 06 08 03 03 04 04 05 05 05 08
+;===============================================================================
+; ProvinceOfficerCount ($DC6B-$DC7B)
+; Shared helper (castle/army dispatch rosters and the intrigue screen): counts
+; the non-$FF entries in the province officer roster (+$11-$1A) of the
+; province record at $00/$01; returns the count in X. @PoachProvincePrep uses
+; it to reject poaching into a full (10-officer) province.
+;===============================================================================
+.proc ProvinceOfficerCount
 ; --- Code Region ---
   LDY #$11                                ; $DC6B: A0 11
   LDX #$00                                ; $DC6D: A2 00
-Loc_DC6F:
+@RosterScan:
   LDA ($00),Y                             ; $DC6F: B1 00
   CMP #$FF                                ; $DC71: C9 FF
-  BEQ $DC76                               ; $DC73: F0 01
+  BEQ @RosterNext                         ; $DC73: F0 01
   INX                                     ; $DC75: E8
-Loc_DC76:
+@RosterNext:
   INY                                     ; $DC76: C8
   CPY #$1B                                ; $DC77: C0 1B
-  BCC $DC6F                               ; $DC79: 90 F4
+  BCC @RosterScan                         ; $DC79: 90 F4
   RTS                                     ; $DC7B: 60
+.endproc
 Loc_DC7C:
   LDY #$11                                ; $DC7C: A0 11
   LDA #$FF                                ; $DC7E: A9 FF
@@ -7275,8 +7938,8 @@ Loc_DCC5:
   BCC $DC9F                               ; $DCCD: 90 D0
   RTS                                     ; $DCCF: 60
 ; --- Data Region ---
-  .byte $AD,$70,$04,$C9,$06,$90,$1B,$C9,$09,$90,$2E,$A9,$35,$8D,$10,$00; $DCD0: AD 70 04 C9 06 90 1B C9 09 90 2E A9 35 8D 10 00
-  .byte $A9,$DD,$8D,$11,$00,$A9,$47,$8D,$13,$00,$A9,$DD,$8D,$14,$00,$4C; $DCE0: A9 DD 8D 11 00 A9 47 8D 13 00 A9 DD 8D 14 00 4C
+  .byte $AD,$70,$04,$C9,$06,$90,$1B,$C9,$09,$90,$2E,$A9,$35,$8D,$10,$00 ; $DCD0: AD 70 04 C9 06 90 1B C9 09 90 2E A9 35 8D 10 00
+  .byte $A9,$DD,$8D,$11,$00,$A9,$47,$8D,$13,$00,$A9,$DD,$8D,$14,$00,$4C ; $DCE0: A9 DD 8D 11 00 A9 47 8D 13 00 A9 DD 8D 14 00 4C
   .byte $1D,$DD                           ; $DCF0: 1D DD
 Loc_DCF2:
 ; --- Code Region ---
@@ -7303,9 +7966,9 @@ Loc_DD1D:
   STA a:$0012                             ; $DD1F: 8D 12 00
   JMP $ED28                               ; $DD22: 4C 28 ED
 ; --- Data Region ---
-  .byte $00,$01,$FF,$FF,$FF,$FF,$FF,$FF,$00,$01,$02,$FF,$FF,$FF,$FF,$FF; $DD25: 00 01 FF FF FF FF FF FF 00 01 02 FF FF FF FF FF
-  .byte $00,$01,$02,$03,$FF,$FF,$FF,$FF,$C0,$78,$C0,$A8,$C0,$60,$C0,$90; $DD35: 00 01 02 03 FF FF FF FF C0 78 C0 A8 C0 60 C0 90
-  .byte $C0,$C0,$C0,$60,$C0,$80,$C0,$A0,$C0,$C0; $DD45: C0 C0 C0 60 C0 80 C0 A0 C0 C0
+  .byte $00,$01,$FF,$FF,$FF,$FF,$FF,$FF,$00,$01,$02,$FF,$FF,$FF,$FF,$FF ; $DD25: 00 01 FF FF FF FF FF FF 00 01 02 FF FF FF FF FF
+  .byte $00,$01,$02,$03,$FF,$FF,$FF,$FF,$C0,$78,$C0,$A8,$C0,$60,$C0,$90 ; $DD35: 00 01 02 03 FF FF FF FF C0 78 C0 A8 C0 60 C0 90
+  .byte $C0,$C0,$C0,$60,$C0,$80,$C0,$A0,$C0,$C0 ; $DD45: C0 C0 C0 60 C0 80 C0 A0 C0 C0
 Loc_DD4F:
 ; --- Code Region ---
   JSR $F2AF                               ; $DD4F: 20 AF F2
@@ -7382,23 +8045,32 @@ Loc_DDAD:
 Loc_DDBD:
   CLC                                     ; $DDBD: 18
   RTS                                     ; $DDBE: 60
-Loc_DDBF:
+;===============================================================================
+; CountryProvinceCount ($DDBF-$DDBB)
+; Shared helper (map-ruler intro and the intrigue screen): counts the
+; provinces whose record byte 0 & 7 matches the country id in $0010; leaves
+; the count in $0011. @AllianceRollPath uses it for the country-size odds
+; term.
+;===============================================================================
+.proc CountryProvinceCount
+; --- Code Region ---
   LDX #$00                                ; $DDBF: A2 00
   STX a:$0011                             ; $DDC1: 8E 11 00
-Loc_DDC4:
+@ProvinceScan:
   TXA                                     ; $DDC4: 8A
-  JSR $F2AF                               ; $DDC5: 20 AF F2
+  JSR B1F_GetProvinceRecordAddr           ; $DDC5: 20 AF F2
   LDY #$00                                ; $DDC8: A0 00
   LDA ($00),Y                             ; $DDCA: B1 00
-  AND #$07                                ; $DDCC: 29 07
+  AND #$07                                ; $DDCC: 29 07     ; owner country id
   CMP a:$0010                             ; $DDCE: CD 10 00
-  BNE $DDD6                               ; $DDD1: D0 03
+  BNE @ProvinceNext                       ; $DDD1: D0 03
   INC a:$0011                             ; $DDD3: EE 11 00
-Loc_DDD6:
+@ProvinceNext:
   INX                                     ; $DDD6: E8
   CPX #$1E                                ; $DDD7: E0 1E
-  BCC $DDC4                               ; $DDD9: 90 E9
+  BCC @ProvinceScan                       ; $DDD9: 90 E9
   RTS                                     ; $DDDB: 60
+.endproc
 Loc_DDDC:
   LDA ($00),Y                             ; $DDDC: B1 00
   SEC                                     ; $DDDE: 38
@@ -7522,7 +8194,7 @@ Loc_DEA5:
 Loc_DEB0:
   RTS                                     ; $DEB0: 60
 ; --- Data Region ---
-  .byte $00,$05,$00,$00,$08,$06,$00,$00,$80; $DEB1: 00 05 00 00 08 06 00 00 80
+  .byte $00,$05,$00,$00,$08,$06,$00,$00,$80 ; $DEB1: 00 05 00 00 08 06 00 00 80
 Loc_DEBA:
 ; --- Code Region ---
   LDA $6F3F                               ; $DEBA: AD 3F 6F
@@ -7553,11 +8225,11 @@ Loc_DEE3:
 Loc_DEE8:
   RTS                                     ; $DEE8: 60
 ; --- Data Region ---
-  .byte $E8,$B0,$90,$D0,$A8,$68,$38,$58,$70,$38,$D0,$B0,$90,$80,$A8,$D8; $DEE9: E8 B0 90 D0 A8 68 38 58 70 38 D0 B0 90 80 A8 D8
-  .byte $C0,$D0,$B8,$68,$A8,$88,$70,$98,$80,$50,$38,$58,$40,$10,$10,$17; $DEF9: C0 D0 B8 68 A8 88 70 98 80 50 38 58 40 10 10 17
-  .byte $1F,$28,$38,$17,$28,$38,$40,$40,$40,$48,$48,$50,$58,$60,$60; $DF09: 1F 28 38 17 28 38 40 40 40 48 48 50 58 60 60
+  .byte $E8,$B0,$90,$D0,$A8,$68,$38,$58,$70,$38,$D0,$B0,$90,$80,$A8,$D8 ; $DEE9: E8 B0 90 D0 A8 68 38 58 70 38 D0 B0 90 80 A8 D8
+  .byte $C0,$D0,$B8,$68,$A8,$88,$70,$98,$80,$50,$38,$58,$40,$10,$10,$17 ; $DEF9: C0 D0 B8 68 A8 88 70 98 80 50 38 58 40 10 10 17
+  .byte $1F,$28,$38,$17,$28,$38,$40,$40,$40,$48,$48,$50,$58,$60,$60 ; $DF09: 1F 28 38 17 28 38 40 40 40 48 48 50 58 60 60
 Loc_DF18:
-  .byte $70,$88,$88,$68,$68,$70,$78,$80,$50,$60; $DF18: 70 88 88 68 68 70 78 80 50 60
+  .byte $70,$88,$88,$68,$68,$70,$78,$80,$50,$60 ; $DF18: 70 88 88 68 68 70 78 80 50 60
   .byte $68,$78,$78                       ; $DF22: 68 78 78
 Loc_DF25:
 ; --- Code Region ---
@@ -7645,7 +8317,7 @@ Loc_DF97:
 Loc_DFBF:
   RTS                                     ; $DFBF: 60
 ; --- Data Region ---
-  .byte $00,$01,$00,$01,$08,$09,$0A,$0B,$00,$00,$01,$01,$00,$00,$00,$00; $DFC0: 00 01 00 01 08 09 0A 0B 00 00 01 01 00 00 00 00
-  .byte $00,$00,$40,$40,$40,$00,$80,$80,$80,$80,$40,$40,$40,$40,$40,$40; $DFD0: 00 00 40 40 40 00 80 80 80 80 40 40 40 40 40 40
-  .byte $40,$40,$40,$80,$40,$40,$80,$40,$40,$80,$80,$80,$80,$80,$01,$02; $DFE0: 40 40 40 80 40 40 80 40 40 80 80 80 80 80 01 02
-  .byte $04,$08,$10,$20,$40,$80,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF; $DFF0: 04 08 10 20 40 80 FF FF FF FF FF FF FF FF FF FF
+  .byte $00,$01,$00,$01,$08,$09,$0A,$0B,$00,$00,$01,$01,$00,$00,$00,$00 ; $DFC0: 00 01 00 01 08 09 0A 0B 00 00 01 01 00 00 00 00
+  .byte $00,$00,$40,$40,$40,$00,$80,$80,$80,$80,$40,$40,$40,$40,$40,$40 ; $DFD0: 00 00 40 40 40 00 80 80 80 80 40 40 40 40 40 40
+  .byte $40,$40,$40,$80,$40,$40,$80,$40,$40,$80,$80,$80,$80,$80,$01,$02 ; $DFE0: 40 40 40 80 40 40 80 40 40 80 80 80 80 80 01 02
+  .byte $04,$08,$10,$20,$40,$80,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF ; $DFF0: 04 08 10 20 40 80 FF FF FF FF FF FF FF FF FF FF

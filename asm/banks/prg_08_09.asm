@@ -8039,7 +8039,7 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   LDY #$39                              ; $D93B: A0 39     ; bank pair param
   JSR B1F_BankedCallbackTrampoline      ; $D93D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                           ; $D940: 12 A0
+  .word B19_1A_OfficerCardAnimStep_Entry ; $D940: 12 A0
   CLC                                   ; $D942: 18        ; busy: skip input
   RTS                                   ; $D943: 60
 @StepMenu:
