@@ -46,3 +46,7 @@ See the consolidated semantic English glossary:
 [terminology.md](terminology.md) → "Duel Mode" (e.g. 一騎討ち → `Duel`,
 体力ゲージ → `HealthGauge`, commands `Feint`/`Strike`/`Persuade`/`Insult`/
 `DesperateAttack`/`Flee`/`Surrender`).
+
+Outcome probability analysis for 説得/罵倒 (per-condition accept/waver/refuse
+tables and enrage thresholds): [code/persuade_insult_rate_tables.md]
+(../../code/persuade_insult_rate_tables.md).

@@ -129,13 +129,15 @@
 ; These addresses have consistent meaning across the bank pair.
 
 ; --- Battery SRAM ($6Fxx) ---
+sram_game_year        = $6F00  ; Calendar year - 100 (display year = $6F00+$64; new game seeds $59 = year 189); demo year tick reuse
+sram_game_month       = $6F01  ; Calendar month - 1 (display month = $6F01+1); demo rotation step reuse
 sram_game_level        = $6F02  ; Game level (0-2), selected at new game start
 sram_player_id         = $6F03  ; Current player ID / slot
-sram_game_start_flag   = $6F8B  ; Game start flag ($FF = new game)
-sram_work_0            = $6F5F  ; Computed work value 0
-sram_work_1            = $6F60  ; Computed work value 1
-sram_work_2            = $6F61  ; Computed work value 2
-sram_counter           = $6F5B  ; Iteration counter
+sram_game_start_flag   = $6F8B  ; Strategy-layer request mailbox ($FF = turn complete, $FE = battle pending, $01 = consumed)
+sram_counter           = $6F5B  ; AI turn-cycle counter (dispatch selector in CheckGameStart)
+sram_action_budget     = $6F5D  ; AI action-point budget (decremented per action)
+sram_continue_flag     = $6F8C  ; Post-conquest context flag (0 = full new-game setup, 1 = continue)
+sram_absorb_adjust     = $6F8D  ; Absorption adjustment parameter (drives ApplyScenarioDeductions and cost scaling)
 
 ; --- Work Area ($0036-$0045) ---
 work_outer_idx         = $0036  ; Outer loop index
@@ -236,9 +238,9 @@ OfficerAssignEntry: JSR FindBestOfficerAssign                           ; $A021:
   sram_game_level          = $6F02
   sram_player_id           = $6F03
   sram_counter             = $6F5B
-  sram_work_0              = $6F5F
-  sram_work_1              = $6F60
-  sram_work_2              = $6F61
+  sram_ai_weight_a         = $6F5F
+  sram_ai_weight_b         = $6F60
+  sram_ai_weight_c         = $6F61
 
   LDA #$00                                            ; $A043: A9 00
   STA a:$0039                                         ; $A045: 8D 39 00
@@ -430,9 +432,9 @@ TierAdjustC:
 ;===============================================================================
 .proc AiActionWeightedDispatch
   math_acc_mlo             = $0021
-  sram_work_0              = $6F5F
-  sram_work_1              = $6F60
-  sram_work_2              = $6F61
+  sram_ai_weight_a         = $6F5F
+  sram_ai_weight_b         = $6F60
+  sram_ai_weight_c         = $6F61
 
   LDA $6F5F                                           ; $A19C: AD 5F 6F
   CLC                                                 ; $A19F: 18
@@ -470,8 +472,8 @@ TierAdjustC:
 ;      - Level 2:   30% chance → EvalProvinceAbsorption
 ;      - Otherwise falls through to readiness check.
 ;   2. State readiness thresholds (@checkReadiness):
-;      - Level 0: ready if $6F00 >= 90 (development counter)
-;      - Level 1: ready if $6F00 >= 90 AND $6F01 >= 6
+;      - Level 0: ready if game year $6F00 >= 90 (year 190+)
+;      - Level 1: ready if game year $6F00 >= 90 OR month $6F01 >= 6 (July+)
 ;      - Level 2: always ready (no checks)
 ;      - Not ready → EndTurn (abort, do nothing)
 ;   3. Expansion sequence (@expansionReady):
@@ -505,17 +507,17 @@ TierAdjustC:
   BEQ @level0Check                                    ; $A1E7: F0 15     ; level 0
   CMP #$02                                            ; $A1E9: C9 02
   BEQ @expansionReady                                 ; $A1EB: F0 1B     ; level 2: always ready
-  ; Level 1: need $6F00 >= 90 AND $6F01 >= 6
-  LDA $6F00                                           ; $A1ED: AD 00 6F  ; development counter
+  ; Level 1: need game year >= 190 OR month >= July (raw $6F01 >= 6)
+  LDA sram_game_year                                  ; $A1ED: AD 00 6F  ; calendar year - 100
   CMP #$5A                                            ; $A1F0: C9 5A     ; >= 90?
   BCS @expansionReady                                 ; $A1F2: B0 14
-  LDA $6F01                                           ; $A1F4: AD 01 6F  ; sub-phase counter
+  LDA sram_game_month                                 ; $A1F4: AD 01 6F  ; calendar month - 1
   CMP #$06                                            ; $A1F7: C9 06     ; >= 6?
   BCS @expansionReady                                 ; $A1F9: B0 0D
   JMP EndTurn                                          ; $A1FB: 4C 3D A2  ; not ready → abort
 @level0Check:
-  ; Level 0: need $6F00 >= 90
-  LDA $6F00                                           ; $A1FE: AD 00 6F  ; development counter
+  ; Level 0: need game year >= 190
+  LDA sram_game_year                                  ; $A1FE: AD 00 6F  ; calendar year - 100
   CMP #$5A                                            ; $A201: C9 5A     ; >= 90?
   BCS @expansionReady                                 ; $A203: B0 03
   JMP EndTurn                                          ; $A205: 4C 3D A2  ; not ready → abort
@@ -1566,7 +1568,7 @@ CompareValues:
   LDA #$FE                                            ; $A8C1: A9 FE
   STA $6F8B                                           ; $A8C3: 8D 8B 6F
   LDA #$00                                            ; $A8C6: A9 00
-  STA $6F8D                                           ; $A8C8: 8D 8D 6F
+  STA $6F8D                                           ; $A8C8: 8D 8D 6F  ; reset absorption adjustment parameter
   RTS                                                 ; $A8CB: 60
 @Finalize:
   JSR InitNewGameContext::SumEnemyRecords              ; $A8CC: 20 D5 AC
@@ -1631,13 +1633,16 @@ CompareValues:
   JSR FindPlayerProvinceByValue                                       ; $A919: 20 49 D2
   JMP FindBestOfficerByCategory::ProcessCategories     ; $A91C: 4C 19 CA
 @ClearGameStateVars:                                   ; $A91F
+  ; Zero the 16-bit army-pool accumulators $6F73-$6F78. These cells are
+  ; dual-use: per-owner "has active provinces" marks ($FF/$00) during the
+  ; AI turn scan (@ScanProvinceOwnership), army pools here.
   LDA #$00                                            ; $A91F: A9 00
-  STA $6F73                                           ; $A921: 8D 73 6F
-  STA $6F74                                           ; $A924: 8D 74 6F
-  STA $6F75                                           ; $A927: 8D 75 6F
-  STA $6F76                                           ; $A92A: 8D 76 6F
-  STA $6F77                                           ; $A92D: 8D 77 6F
-  STA $6F78                                           ; $A930: 8D 78 6F
+  STA $6F73                                           ; $A921: 8D 73 6F  ; pool for $066E roster lo
+  STA $6F74                                           ; $A924: 8D 74 6F  ; pool for $066E roster hi
+  STA $6F75                                           ; $A927: 8D 75 6F  ; pool for $0664 roster lo
+  STA $6F76                                           ; $A92A: 8D 76 6F  ; pool for $0664 roster hi
+  STA $6F77                                           ; $A92D: 8D 77 6F  ; per-officer count A
+  STA $6F78                                           ; $A930: 8D 78 6F  ; per-officer count B
   LDA #$00                                            ; $A933: A9 00
   STA a:$0040                                         ; $A935: 8D 40 00
 @RecordLoopBody:
@@ -3297,7 +3302,8 @@ AbsorbUpdateRecord:
 ;   4. Officer Development (@AiDev_Main, $BD7A):
 ;      - Scan owned provinces for trainable officers (province score >= 300)
 ;      - Select best candidate by province score
-;      - Train officer: set ability to $03E8 (1000), deduct province resources
+;      - Assign troops: set officer TroopCount to $03E8 (1000), deduct the
+;        cost from province ReserveTroops (record +$0C/$0D)
 ;      - Loop until no candidates remain, then → End Turn
 ;
 ;   5. End Turn (@AiAction_EndTurn, $BEC7):
@@ -3310,18 +3316,18 @@ AbsorbUpdateRecord:
 ;
 ;   6. Continue Turn (@AiAction_ContinueTurn, $C1E0):
 ;      - Random(100) dispatch:
-;        * 0-29 (30%):  @FindWeakestLoyaltyOfficer → boost officer field[$03]
-;        * 30-99 (70%): @AiAction_ManageOfficerLoyalty (field[$02] management)
+;        * 0-29 (30%):  @FindWeakestLoyaltyOfficer → boost officer field[$03] (Loyalty)
+;        * 30-99 (70%): @AiAction_TrainIntelligence (officer field[$02] Intelligence)
 ;      - Falls through to @AiAction_EvaluateAndExecute if no valid officer
 ;
 ;   7. Roll Action (@RollAction, $BF16):
 ;      - Random(100) 4-way dispatch:
-;        * 0-39:  @AiAction_StatBranch → game-state check:
-;                 - State 3-7: @AiAction_ReinforceTroops
-;                 - Otherwise: @AiAction_ReinforceSupplies
-;        * 40-69: @AiAction_BoostMorale (half-strength morale boost)
-;        * 70-89: @AiAction_SmallStatBoost (single-byte stat boost)
-;        * 90-99: @AiAction_CompositeBoost (combined stat boost)
+;        * 0-39:  @AiAction_StatBranch → calendar month check ($6F01):
+;                 - Months 4-8 (raw 3-7): @AiAction_LandReclamation
+;                 - Otherwise: @AiAction_IndustryDevelopment
+;        * 40-69: @AiAction_TownDevelopment (Population boost, half strength)
+;        * 70-89: @AiAction_DisasterPrevention (single-byte boost)
+;        * 90-99: @AiAction_GovernanceBoost (Governance boost)
 ;
 ;   8. Strategic Eval (@AiAction_EvaluateAndExecute, $C337):
 ;      - Switch to bank 1F, evaluate province strategic state
@@ -3346,16 +3352,16 @@ AbsorbUpdateRecord:
 ;   @AiAction_EndTurn ($BEC7)       - End turn handler
 ;   @AiTurn_AdvancePhase ($BEE6)    - Advance turn phase counter
 ;   @RollAction ($BF16)             - Random action dispatch
-;   @AiAction_ReinforceTroops ($BF44)   - Reinforce troops
-;   @AiAction_ReinforceSupplies ($BFC3) - Reinforce supplies
-;   @AiAction_BoostMorale ($C04E)       - Boost morale
-;   @AiAction_SmallStatBoost ($C0CF)    - Small stat boost
-;   @AiAction_CompositeBoost ($C130)    - Composite boost
-;   @AddLoyaltyBonus_Small ($C1A7)      - Small loyalty bonus
-;   @AddLoyaltyBonus_Large ($C1C0)      - Large loyalty bonus
+;   @AiAction_LandReclamation ($BF44)   - LandValue development (土地の開墾)
+;   @AiAction_IndustryDevelopment ($BFC3) - Industry development (産業の発展)
+;   @AiAction_TownDevelopment ($C04E)       - Population development (町の開発)
+;   @AiAction_DisasterPrevention ($C0CF)    - DisasterPrevention boost (防災)
+;   @AiAction_GovernanceBoost ($C130)    - Governance boost (統治度)
+;   @AddGovernanceBump_Small ($C1A7)      - Small Governance bump
+;   @AddGovernanceBump_Large ($C1C0)      - Large Governance bump
 ;   @AiAction_ContinueTurn ($C1E0)      - Continue turn handler
 ;   @FindWeakestLoyaltyOfficer ($C248)  - Find weakest loyalty officer
-;   @AiAction_ManageOfficerLoyalty ($C298) - Manage officer loyalty
+;   @AiAction_TrainIntelligence ($C298) - Intelligence training (知力)
 ;   @FindLowestAttributeOfficer ($C2EB) - Find lowest attribute officer
 ;   @AiAction_EvaluateAndExecute ($C337) - Strategic evaluation
 ;   @DeductActionCost ($C3A4)           - Deduct action cost
@@ -3366,7 +3372,10 @@ AbsorbUpdateRecord:
 ; DATA TABLES:
 ;   @LevelTierModifiers ($BA81)   - Level tier modifiers (level*4 + tier, 12 bytes)
 ;   @AiDev_ActionThreshold ($BEDF)  - Per-player aggression thresholds (7 bytes)
-;   @LevelActionModifiers ($C042) - Level action modifiers (one per level, 12 bytes)
+;   @LevelDevelopmentGainModifiers ($C042) - Dev gain modifiers (Land/Industry/Population, one per level, 3 bytes)
+;   @LevelDisasterPreventionGains ($C045)  - DisasterPrevention gain modifiers (one per level, 3 bytes)
+;   @LevelGovernanceDivisors ($C048)       - GovernanceBoost divisors (one per level, 3 bytes)
+;   @LevelIntelligenceGains ($C04B)        - Intelligence training bonuses (one per level, 3 bytes)
 ;   @ActionCostTable_Strategy ($C3BF) - Strategy action costs (16 bytes)
 ;   @ActionCostTable_Military ($C3CF) - Military action costs (16 bytes)
 ;   @ActionCostTable_IntrigueA ($C3DF) - Intrigue costs A (16 bytes)
@@ -4947,47 +4956,51 @@ AbsorbUpdateRecord:
 ;-------------------------------------------------------------------------------
 ; $BF16: AiAction_RandomDispatch
 ; 4-way random dispatch selecting AI action type. Rolls random(100):
-;   0–39  → game-state check → ReinforceTroops or ReinforceSupplies
-;   40–69 → @AiAction_BoostMorale
-;   70–89 → @AiAction_SmallStatBoost
-;   90–99 → @AiAction_CompositeBoost
+;   0–39  → calendar month check → LandReclamation or IndustryDevelopment
+;   40–69 → @AiAction_TownDevelopment
+;   70–89 → @AiAction_DisasterPrevention
+;   90–99 → @AiAction_GovernanceBoost
 ;-------------------------------------------------------------------------------
 @RollAction:
   LDA #$64                                            ; $BF16: A9 64      ; random(100)
   JSR RandomBelowFull                                   ; $BF18: 20 BB D4
   CMP #$28                                            ; $BF1B: C9 28      ; < 40?
-  BCS @CheckMorale                                        ; $BF1D: B0 03      ; no → check next range
-  JMP @AiAction_StatBranch                             ; $BF1F: 4C 33 BF  ; game-state dependent branch
-@CheckMorale:
+  BCS @CheckTownDev                                        ; $BF1D: B0 03      ; no → check next range
+  JMP @AiAction_StatBranch                             ; $BF1F: 4C 33 BF  ; month-dependent branch
+@CheckTownDev:
   CMP #$46                                            ; $BF22: C9 46      ; < 70?
   BCS @SkipBoost                                      ; $BF24: B0 03 (BCS @SkipBoost)
-  JMP @AiAction_BoostMorale                            ; $BF26: 4C 4E C0  ; 40–69 → morale boost
+  JMP @AiAction_TownDevelopment                            ; $BF26: 4C 4E C0  ; 40–69 → TownDevelopment
 @SkipBoost:
   CMP #$5A                                            ; $BF29: C9 5A      ; < 90?
   BCS @SkipSmall                                     ; $BF2B: B0 03 (BCS @SkipSmall)
-  JMP @AiAction_SmallStatBoost                         ; $BF2D: 4C CF C0  ; 70–89 → small stat boost
+  JMP @AiAction_DisasterPrevention                         ; $BF2D: 4C CF C0  ; 70–89 → DisasterPrevention
 @SkipSmall:
-  JMP @AiAction_CompositeBoost                         ; $BF30: 4C 30 C1  ; 90–99 → composite boost
+  JMP @AiAction_GovernanceBoost                         ; $BF30: 4C 30 C1  ; 90–99 → GovernanceBoost
 
-; --- Game-state dependent branch (random < 40) ---
-; If game state $6F01 is 3–7: reinforce troops; otherwise reinforce supplies.
+; --- Calendar-month dependent branch (random < 40) ---
+; If calendar month $6F01 is raw 3-7 (April-August): LandReclamation;
+; otherwise (raw < 3 or >= 8) IndustryDevelopment.
 @AiAction_StatBranch:
-  LDA $6F01                                           ; $BF33: AD 01 6F  ; game state
-  CMP #$03                                            ; $BF36: C9 03      ; state < 3?
-  BCC @GotoSupplies                                       ; $BF38: 90 07      ; yes → supplies
-  CMP #$08                                            ; $BF3A: C9 08      ; state ≥ 8?
-  BCS @GotoSupplies                                       ; $BF3C: B0 03      ; yes → supplies
-  JMP @AiAction_ReinforceTroops                        ; $BF3E: 4C 44 BF  ; state 3–7 → troops
-@GotoSupplies:
-  JMP @AiAction_ReinforceSupplies                      ; $BF41: 4C C3 BF  ; default → supplies
+  LDA $6F01                                           ; $BF33: AD 01 6F  ; calendar month - 1
+  CMP #$03                                            ; $BF36: C9 03      ; month < April?
+  BCC @GotoIndustry                                       ; $BF38: 90 07      ; yes → IndustryDevelopment
+  CMP #$08                                            ; $BF3A: C9 08      ; month > August?
+  BCS @GotoIndustry                                       ; $BF3C: B0 03      ; yes → IndustryDevelopment
+  JMP @AiAction_LandReclamation                        ; $BF3E: 4C 44 BF  ; April-August → LandReclamation
+@GotoIndustry:
+  JMP @AiAction_IndustryDevelopment                      ; $BF41: 4C C3 BF  ; default → IndustryDevelopment
 
 
 ;===============================================================================
-; $BF44: @AiAction_ReinforceTroops
-; Computes troop reinforcement: (province_idx × $0E × level_mod) / $0A,
-; adds loyalty bonus, writes to province record[$08/$09] (16-bit), capped at 999.
+; $BF44: @AiAction_LandReclamation
+; AI version of 土地の開墾 (LandReclamation command). Spends
+; 10 + random(14) Gold (DeductRecordStat2, province +$02/$03), then adds
+; spent × @LevelDevelopmentGainModifiers[level] / 10 to province record[$08/$09] (LandValue 土地),
+; capped at 999 ($03E7). Also bumps Governance (+$0B) via
+; @AddGovernanceBump_Small. @RollAction's month gate runs this April-August.
 ;===============================================================================
-@AiAction_ReinforceTroops:
+@AiAction_LandReclamation:
   LDA #$0A                                            ; $BF44: A9 0A
   STA $22                                             ; $BF46: 85 22
   LDA #$00                                            ; $BF48: A9 00
@@ -5004,7 +5017,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $BF60: A9 00
   STA $22                                             ; $BF62: 85 22
   LDY $6F02                                           ; $BF64: AC 02 6F  ; game level
-  LDA @LevelActionModifiers,Y                        ; $BF67: B9 42 C0  ; level modifier
+  LDA @LevelDevelopmentGainModifiers,Y               ; $BF67: B9 42 C0  ; dev gain modifier
   STA $23                                             ; $BF6A: 85 23
   JSR Multiply32                                       ; $BF6C: 20 38 D4  ; multiply result × modifier
   LDA $26                                             ; $BF6F: A5 26
@@ -5023,7 +5036,7 @@ AbsorbUpdateRecord:
   LDA $6F5E                                           ; $BF8A: AD 5E 6F
   JSR GetProvinceOwner                                       ; $BF8D: 20 05 D1  ; resolve province → ($20)
   LDA $22                                             ; $BF90: A5 22
-  JSR @AddLoyaltyBonus_Small                           ; $BF92: 20 A7 C1  ; add loyalty bonus to field[$0B]
+  JSR @AddGovernanceBump_Small                           ; $BF92: 20 A7 C1  ; Governance bump to +$0B
   LDY #$08                                            ; $BF95: A0 08      ; province record offset $08 (troops lo)
   LDA ($20),Y                                         ; $BF97: B1 20
   CLC                                                 ; $BF99: 18
@@ -5052,12 +5065,13 @@ AbsorbUpdateRecord:
   JMP @AiAction_EndTurn                                ; $BFC0: 4C C7 BE  ; return to AI turn loop
 
 ;===============================================================================
-; $BFC3: @AiAction_ReinforceSupplies
-; Same algorithm as ReinforceTroops but writes to province record[$0E/$0F]
-; (supply/provision field) instead of $08/$09. Same level modifier table
-; (@LevelActionModifiers, offset 0). Same cap of 999.
+; $BFC3: @AiAction_IndustryDevelopment
+; AI version of 産業の発展 (IndustryDevelopment command). Spends
+; 10 + random(14) Gold like LandReclamation, then adds
+; spent × @LevelDevelopmentGainModifiers[level] / 10 to province record[$0E/$0F] (Industry 産業),
+; capped at 999 ($03E7). Also bumps Governance (+$0B).
 ;===============================================================================
-@AiAction_ReinforceSupplies:
+@AiAction_IndustryDevelopment:
   LDA #$0A                                            ; $BFC3: A9 0A
   STA $22                                             ; $BFC5: 85 22
   LDA #$00                                            ; $BFC7: A9 00
@@ -5074,7 +5088,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $BFDF: A9 00
   STA $22                                             ; $BFE1: 85 22
   LDY $6F02                                           ; $BFE3: AC 02 6F  ; game level
-  LDA @LevelActionModifiers,Y                        ; $BFE6: B9 42 C0  ; level modifier
+  LDA @LevelDevelopmentGainModifiers,Y               ; $BFE6: B9 42 C0  ; dev gain modifier
   STA $23                                             ; $BFE9: 85 23
   JSR Multiply32                                       ; $BFEB: 20 38 D4
   LDA $26                                             ; $BFEE: A5 26
@@ -5094,7 +5108,7 @@ AbsorbUpdateRecord:
   LDA $6F5E                                           ; $C009: AD 5E 6F
   JSR GetProvinceOwner                                       ; $C00C: 20 05 D1  ; resolve province → ($20)
   LDA $22                                             ; $C00F: A5 22
-  JSR @AddLoyaltyBonus_Small                           ; $C011: 20 A7 C1  ; loyalty bonus to field[$0B]
+  JSR @AddGovernanceBump_Small                           ; $C011: 20 A7 C1  ; Governance bump to +$0B
   LDY #$0E                                            ; $C014: A0 0E      ; offset $0E (supplies lo)
   LDA ($20),Y                                         ; $C016: B1 20
   CLC                                                 ; $C018: 18
@@ -5122,20 +5136,30 @@ AbsorbUpdateRecord:
 @CalcOverflow:
   JMP @AiAction_EndTurn                                ; $C03F: 4C C7 BE  ; return to AI turn loop
 
-; Per-level action modifiers (12-byte table, indexed by game level)
-; Accessed at different base offsets to select action type:
-;   +0 = troops/supplies, +3 = small stat, +6 = composite, +9 = officer loyalty
-@LevelActionModifiers:
-  .byte $0C,$0F,$12,$06,$07,$08,$19,$14,$0F,$03,$05,$07  ; 12,15,18,6,7,8,25,20,15,3,5,7
+; Per-level AI action modifiers: four 3-byte groups, indexed by game level $6F02.
+; Dev gains and DisasterPrevention gains multiply the spent gold (÷10);
+; GovernanceBoost divides (gold_spent + rice_spent); Intelligence training
+; adds a bonus to random(5).
+@LevelDevelopmentGainModifiers:
+  .byte $0C,$0F,$12                                   ; $C042: dev gain modifier (Land/Industry/Pop)
+@LevelDisasterPreventionGains:
+  .byte $06,$07,$08                                   ; $C045: DisasterPrevention gain modifier
+@LevelGovernanceDivisors:
+  .byte $19,$14,$0F                                   ; $C048: GovernanceBoost divisor
+@LevelIntelligenceGains:
+  .byte $03,$05,$07                                   ; $C04B: Intelligence training bonus
 
 
 ;===============================================================================
-; $C04E: @AiAction_BoostMorale
-; Computes morale boost at HALF strength: (province_idx × $0E × mod) / $0A / 2.
-; Writes to province record[$06/$07] (16-bit morale), capped at $270F.
-; Also adds a large loyalty bonus via @AddLoyaltyBonus_Large.
+; $C04E: @AiAction_TownDevelopment
+; AI version of 町の開発 (TownDevelopment command). Spends
+; 10 + random(14) Gold like LandReclamation, then adds
+; spent × @LevelDevelopmentGainModifiers[level] / 10 / 2 (HALF strength) to province record[$06/$07]
+; (Population 人口, stored ÷100; panel appends two 0 tiles), capped at
+; $270F = 9999 → 999,900 people. Also bumps Governance (+$0B) via
+; @AddGovernanceBump_Large (gain >= 3000 → +2, else +1).
 ;===============================================================================
-@AiAction_BoostMorale:
+@AiAction_TownDevelopment:
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -5163,7 +5187,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $C06A: A9 00
   STA $22                                             ; $C06C: 85 22
   LDY $6F02                                           ; $C06E: AC 02 6F
-  LDA @LevelActionModifiers,Y                        ; $C071: B9 42 C0  ; level modifier (offset 0)
+  LDA @LevelDevelopmentGainModifiers,Y               ; $C071: B9 42 C0  ; dev gain modifier
   STA $23                                             ; $C074: 85 23
   JSR Multiply32                                       ; $C076: 20 38 D4
   LDA $26                                             ; $C079: A5 26
@@ -5183,8 +5207,8 @@ AbsorbUpdateRecord:
   ROR $22                                             ; $C096: 66 22
   LDA $6F5E                                           ; $C098: AD 5E 6F
   JSR GetProvinceOwner                                       ; $C09B: 20 05 D1  ; resolve province → ($20)
-  JSR @AddLoyaltyBonus_Large                           ; $C09E: 20 C0 C1  ; bonus based on 3000 threshold
-  LDY #$06                                            ; $C0A1: A0 06      ; offset $06 (morale lo)
+  JSR @AddGovernanceBump_Large                           ; $C09E: 20 C0 C1  ; bonus based on 3000 threshold
+  LDY #$06                                            ; $C0A1: A0 06      ; offset $06 (population lo)
   LDA ($20),Y                                         ; $C0A3: B1 20
   CLC                                                 ; $C0A5: 18
   ADC $22                                             ; $C0A6: 65 22
@@ -5196,11 +5220,11 @@ AbsorbUpdateRecord:
   STA ($20),Y                                         ; $C0B1: 91 20
   CMP #$27                                            ; $C0B3: C9 27      ; hi ≥ $27?
   BCC @UnderCap                                   ; $C0B5: 90 10 (BCC @UnderCap)
-  DEY                                                 ; $C0B7: 88         ; offset $06 (morale lo)
+  DEY                                                 ; $C0B7: 88         ; offset $06 (population lo)
   LDA ($20),Y                                         ; $C0B8: B1 20
   CMP #$10                                            ; $C0BA: C9 10      ; lo ≥ $10?
   BCC @UnderCap                                   ; $C0BC: 90 09 (BCC @UnderCap)
-  LDA #$0F                                            ; $C0BE: A9 0F      ; clamp to $0F27 (morale cap)
+  LDA #$0F                                            ; $C0BE: A9 0F      ; clamp to $0F27 (population cap 9999)
   STA ($20),Y                                         ; $C0C0: 91 20
   INY                                                 ; $C0C2: C8
   LDA #$27                                            ; $C0C3: A9 27
@@ -5212,11 +5236,13 @@ AbsorbUpdateRecord:
   JMP @AiAction_EndTurn                                ; $C0CC: 4C C7 BE  ; return to AI turn loop
 
 ;-------------------------------------------------------------------------------
-; $C0CF: @AiAction_SmallStatBoost
-; Single-byte stat boost: (province_idx × $0A × mod[3]) / $0A.
-; Writes to province record[$0A] (single byte), capped at 99 ($63).
+; $C0CF: @AiAction_DisasterPrevention
+; AI version of 防災 (DisasterPrevention command). Spends
+; 10 + random(10) Gold (DeductRecordStat2), then adds
+; spent × @LevelDisasterPreventionGains[level] / 10 to province record[$0A]
+; (DisasterPrevention 防災, single byte), capped at 99 ($63).
 ;-------------------------------------------------------------------------------
-@AiAction_SmallStatBoost:
+@AiAction_DisasterPrevention:
   LDA #$0A                                            ; $C0CF: A9 0A
   STA $22                                             ; $C0D1: 85 22
   LDA #$00                                            ; $C0D3: A9 00
@@ -5233,7 +5259,7 @@ AbsorbUpdateRecord:
   LDA #$00                                            ; $C0EB: A9 00
   STA $22                                             ; $C0ED: 85 22
   LDY $6F02                                           ; $C0EF: AC 02 6F
-  LDA @LevelActionModifiers+3,Y                      ; $C0F2: B9 45 C0  ; modifier at offset 3
+  LDA @LevelDisasterPreventionGains,Y                ; $C0F2: B9 45 C0  ; disaster prevention gain
   STA $23                                             ; $C0F5: 85 23
   JSR Multiply32                                       ; $C0F7: 20 38 D4
   LDA $26                                             ; $C0FA: A5 26
@@ -5265,14 +5291,14 @@ AbsorbUpdateRecord:
   JMP @AiAction_EndTurn                                ; $C12D: 4C C7 BE  ; return to AI turn loop
 
 ;-------------------------------------------------------------------------------
-; $C130: @AiAction_CompositeBoost
-; Composite boost combining TWO multiplication results:
-;   part1 = province_idx × $1E (via DeductRecordStat2)
-;   part2 = province_idx × $1E (via DeductRecordStat4)
-;   result = (part1 + part2) / mod[6]
-; Writes to province record[$0B] (single byte), capped at 99.
+; $C130: @AiAction_GovernanceBoost
+; Spends 30 + random(30) Gold (DeductRecordStat2) AND 30 + random(30) Rice
+; (DeductRecordStat4, province +$04/$05); adds
+; (gold_spent + rice_spent) / @LevelGovernanceDivisors[level] to province record[$0B]
+; (Governance 統治度), capped at 99. The resource-funded equivalent of the
+; Governance bump the human development commands grant.
 ;-------------------------------------------------------------------------------
-@AiAction_CompositeBoost:
+@AiAction_GovernanceBoost:
   LDA #$1E                                            ; $C130: A9 1E
   STA $22                                             ; $C132: 85 22
   LDA #$00                                            ; $C134: A9 00
@@ -5307,7 +5333,7 @@ AbsorbUpdateRecord:
   LDA $2B                                             ; $C171: A5 2B
   STA $22                                             ; $C173: 85 22
   LDY $6F02                                           ; $C175: AC 02 6F
-  LDA @LevelActionModifiers+6,Y                      ; $C178: B9 48 C0  ; modifier at offset 6
+  LDA @LevelGovernanceDivisors,Y                     ; $C178: B9 48 C0  ; governance divisor
   STA $23                                             ; $C17B: 85 23
   LDA #$00                                            ; $C17D: A9 00
   STA $24                                             ; $C17F: 85 24
@@ -5332,11 +5358,12 @@ AbsorbUpdateRecord:
   JMP @AiAction_EndTurn                                ; $C1A4: 4C C7 BE  ; return to AI turn loop
 
 ;-------------------------------------------------------------------------------
-; $C1A7: @AddLoyaltyBonus_Small
-; Adds loyalty bonus (1 or 2) to province record[$0B], capped at 100.
-; Input A = value to compare: if A < $1F → bonus=1, else bonus=2.
+; $C1A7: @AddGovernanceBump_Small
+; Adds a Governance (統治度) bump of 1-2 to province record[$0B], capped at
+; 100 ($64). Input A = value to compare: if A < $1F → bump=1, else bump=2.
+; Same +$0B bump the human CastleDevFieldAddCapped performs.
 ;-------------------------------------------------------------------------------
-@AddLoyaltyBonus_Small:
+@AddGovernanceBump_Small:
   LDY #$01                                            ; $C1A7: A0 01      ; default bonus = 1
   CMP #$1F                                            ; $C1A9: C9 1F
   BCC @AssignBonus_S                                      ; $C1AB: 90 01
@@ -5355,11 +5382,11 @@ AbsorbUpdateRecord:
   RTS                                                 ; $C1BF: 60
 
 ;-------------------------------------------------------------------------------
-; $C1C0: @AddLoyaltyBonus_Large
-; Adds loyalty bonus (1 or 2) based on whether 16-bit value $22/$23 ≥ 3000.
-; Bonus is added to province record[$0B], capped at 100.
+; $C1C0: @AddGovernanceBump_Large
+; Adds a Governance (統治度) bump of 1-2 based on whether 16-bit value
+; $22/$23 >= 3000. Bump is added to province record[$0B], capped at 100.
 ;-------------------------------------------------------------------------------
-@AddLoyaltyBonus_Large:
+@AddGovernanceBump_Large:
   LDY #$01                                            ; $C1C0: A0 01      ; default bonus = 1
   LDA $22                                             ; $C1C2: A5 22
   SEC                                                 ; $C1C4: 38
@@ -5384,7 +5411,7 @@ AbsorbUpdateRecord:
 ;-------------------------------------------------------------------------------
 ; $C1E0: @AiAction_ContinueTurn
 ; Clears AI work area ($6F73-$6F82), then randomly picks between:
-;   70% → @AiAction_ManageOfficerLoyalty (field[$02] management)
+;   70% → @AiAction_TrainIntelligence (Intelligence training, field[$02])
 ;   30% → @FindWeakestLoyaltyOfficer → boost officer field[$03]
 ; If officer field[$03] ≥ 70, retries. Falls through to @AiAction_EvaluateAndExecute
 ; if no valid officer found.
@@ -5400,7 +5427,7 @@ AbsorbUpdateRecord:
   JSR RandomBelowFull                                   ; $C1EC: 20 BB D4
   CMP #$1E                                            ; $C1EF: C9 1E
   BCC @BranchRandom                                           ; $C1F1: 90 03
-  JMP @AiAction_ManageOfficerLoyalty                   ; $C1F3: 4C 98 C2  ; 70% → officer management
+  JMP @AiAction_TrainIntelligence                   ; $C1F3: 4C 98 C2  ; 70% → intelligence training
 @BranchRandom:
   JSR @FindWeakestLoyaltyOfficer                       ; $C1F6: 20 48 C2  ; find officer w/ lowest field[$03]
   LDA $23                                             ; $C1F9: A5 23
@@ -5426,7 +5453,7 @@ AbsorbUpdateRecord:
   JSR RandomBelow                                       ; $C224: 20 AD D4
   CLC                                                 ; $C227: 18
   LDY $6F02                                           ; $C228: AC 02 6F
-  ADC @LevelActionModifiers+9,Y                      ; $C22B: 79 4B C0  ; modifier at offset 9
+  ADC @LevelIntelligenceGains,Y                      ; $C22B: 79 4B C0  ; intelligence bonus
   STA $22                                             ; $C22E: 85 22
   LDA a:$0036                                         ; $C230: AD 36 00
   LDY #$03                                            ; $C233: A0 03
@@ -5491,12 +5518,13 @@ AbsorbUpdateRecord:
 
 
 ;===============================================================================
-; $C298: @AiAction_ManageOfficerLoyalty
-; Finds officer with lowest field[$02], boosts it if in range [50, 80).
+; $C298: @AiAction_TrainIntelligence
+; AI intelligence study (学問所-style): finds the officer with the lowest
+; field[$02] (Intelligence 知力), boosts it if in range [50, 80).
 ; Uses @FindLowestAttributeOfficer, then adds computed bonus to field[$02].
 ; Retries if value is outside [50, 80) range.
 ;===============================================================================
-@AiAction_ManageOfficerLoyalty:
+@AiAction_TrainIntelligence:
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
@@ -5513,9 +5541,9 @@ AbsorbUpdateRecord:
   LDY #$02                                            ; $C2A4: A0 02
   JSR ReadRecordField                                       ; $C2A6: 20 83 D2
   CMP #$32                                            ; $C2A9: C9 32
-  BCC @AiAction_ManageOfficerLoyalty                   ; $C2AB: 90 EB      ; below 50 → retry
+  BCC @AiAction_TrainIntelligence                   ; $C2AB: 90 EB      ; below 50 → retry
   CMP #$50                                            ; $C2AD: C9 50
-  BCS @AiAction_ManageOfficerLoyalty                   ; $C2AF: B0 E7      ; above 80 → retry
+  BCS @AiAction_TrainIntelligence                   ; $C2AF: B0 E7      ; above 80 → retry
   LDA #$14                                            ; $C2B1: A9 14
   STA $22                                             ; $C2B3: 85 22
   LDA #$00                                            ; $C2B5: A9 00
@@ -5529,7 +5557,7 @@ AbsorbUpdateRecord:
   JSR RandomBelow                                       ; $C2C7: 20 AD D4
   CLC                                                 ; $C2CA: 18
   LDY $6F02                                           ; $C2CB: AC 02 6F
-  ADC @LevelActionModifiers+9,Y                      ; $C2CE: 79 4B C0  ; modifier at offset 9
+  ADC @LevelIntelligenceGains,Y                      ; $C2CE: 79 4B C0  ; intelligence bonus
   STA $22                                             ; $C2D1: 85 22
   LDA a:$0036                                         ; $C2D3: AD 36 00
   LDY #$02                                            ; $C2D6: A0 02
@@ -8856,7 +8884,8 @@ AdjBitMasks:
 ;===============================================================================
 ; $D5E8: ValidateRecordStats
 ; Debug validation: check first 4 bytes of province record at ($20) are < 100.
-; Triggers BRK with error code $14-$17 on violation.
+; On violation, writes the error code to $6FFF (BRK log sink; outside the
+; $6000-$6FFD save snapshot) and triggers BRK with error code $14-$17.
 ;===============================================================================
 .proc ValidateRecordStats
   math_acc_lo              = $0020
@@ -8909,7 +8938,7 @@ AdjBitMasks:
 ;===============================================================================
 ; $D61F: ValidateRecordStatsAlt
 ; Same as ValidateRecordStats but uses pointer at ($22).
-; Error codes $18-$1B.
+; Error codes $18-$1B (written to $6FFF BRK log sink before BRK).
 ;===============================================================================
 .proc ValidateRecordStatsAlt
   math_acc_mhi             = $0022
@@ -8995,7 +9024,8 @@ AdjBitMasks:
 ;===============================================================================
 ; $D688: ValidateRecordGold
 ; Debug validation: check record field at offset $0C/$0D < $1027.
-; Triggers BRK with error code $1E on violation. Uses pointer ($22).
+; Triggers BRK with error code $1E on violation (code written to $6FFF sink).
+; Uses pointer ($22).
 ;===============================================================================
 .proc ValidateRecordGold
   math_acc_mhi             = $0022
@@ -9020,7 +9050,8 @@ AdjBitMasks:
 ; $D69D: ClampRecordStatPairsAlt
 ; Same as ClampRecordStatPairs but uses pointer at ($20).
 ; Also has an alternate entry at @ValidateGold ($D6D0) that checks offset
-; $0C/$0D and triggers BRK with error $21 (unreachable from main entry).
+; $0C/$0D and triggers BRK with error $21 (unreachable from main entry;
+; error code written to the $6FFF BRK log sink).
 ;===============================================================================
 .proc ClampRecordStatPairsAlt
   math_acc_lo              = $0020
@@ -9090,7 +9121,7 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
 ; $D6E6: ValidateProvinceSlots
 ; Debug validation: verify officer slot consistency for all 30 provinces.
 ; If slot at offset $11 is $FF (empty), slot at $12 must also be $FF.
-; Triggers BRK with error $22 on violation.
+; Triggers BRK with error $22 on violation (code written to $6FFF sink).
 ;===============================================================================
 .proc ValidateProvinceSlots
   math_acc_lo              = $0020
@@ -9192,7 +9223,7 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
 ; $D74C: ActionResultDisplay
 ; Display sequence dispatcher. Contains the 9-state display sub-machine
 ; and the A-button skip handler (SkipToTileScroll).
-;   Entry $D74C: JMP $E000 (exit to fixed-bank code)
+;   Entry $D74C: JMP B1F_Reset (exit to fixed-bank code)
 ;   Entry $D74F (@TimerLoop): frame-counter timeout then dispatch display
 ;     sub-states via $0541. Referenced from StackFill dispatch table.
 ;
@@ -9205,7 +9236,7 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
   state_sub_dispatch       = $0540
   state_display_idx        = $0541
 
-  JMP $E000                                           ; $D74C: 4C 00 E0
+  JMP B1F_Reset                                       ; $D74C: 4C 00 E0
 
 TimerLoop:
   INC $0470                                           ; $D74F: EE 70 04

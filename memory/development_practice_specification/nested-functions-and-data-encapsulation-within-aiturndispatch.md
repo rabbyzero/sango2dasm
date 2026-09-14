@@ -10,4 +10,4 @@
 
 ## Content
 
-When working inside `AiTurnDispatch` in `prg_0a_0b.asm`, always account for all nested functions (e.g., `@AiAction_BoostMorale`) and locally scoped data tables (e.g., `@AiActionParamTable`) as inseparable parts of the same logical and physical procedure unit. Their definitions, references, and lifetime must remain fully contained within the `$B49C-$C50D` address range.
+When working inside `AiTurnDispatch` in `prg_0a_0b.asm`, always account for all nested functions (e.g., `@AiAction_TownDevelopment`) and locally scoped data tables (e.g., `@AiActionParamTable`) as inseparable parts of the same logical and physical procedure unit. Their definitions, references, and lifetime must remain fully contained within the `$B49C-$C50D` address range.

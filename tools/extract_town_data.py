@@ -119,6 +119,19 @@ def item_class(cell):
     return '防具 armor (hidden)'
 
 
+# Equipment weight per item id, from StrategyMode_EquipWeightTable
+# ($B2C0-$B2DF in prg_17_18.asm): entries $00-$17 = weapons (swords,
+# blades, spears), entries $18-$1F = armors (item ids 24-31). Subtracted
+# from (Vitality + Might) / 10 + $14 to elect the faster duelist as the
+# first actor (StrategyMode_CalcEquipSpeed).
+EQUIP_WEIGHTS = [
+    4, 3, 5, 8, 9, 6, 7, 4,   # $00-$07 swords 剣
+    4, 6, 7, 8, 7, 6, 8, 10,  # $08-$0F blades 刀
+    4, 5, 6, 8, 7, 8, 6, 10,  # $10-$17 spears 槍
+    1, 2, 4, 6, 5, 10, 3, 7,  # $18-$1F armors 防具 (item ids 24-31)
+]
+
+
 def load_province_names():
     """id -> (katakana, zh_hans, kanji_ja) from docs/province_names.csv."""
     path = os.path.join(ROOT, 'docs', 'province_names.csv')
@@ -203,6 +216,7 @@ def extract():
             'item_id': cell,
             'item_name': item_name(cell),
             'category': item_class(cell),
+            'weight': EQUIP_WEIGHTS[cell],
             'price_gold': price if price else '',
             'sold_at_189_start': ('yes' if where else
                                   ('no (unpriced)' if not price else
@@ -269,7 +283,7 @@ def main():
               ['province_id', 'province', 'item_id', 'item_name', 'category',
                'price_gold'])
     write_csv(os.path.join(docs, 'equipment_catalog.csv'), catalog_rows,
-              ['item_id', 'item_name', 'category', 'price_gold',
+              ['item_id', 'item_name', 'category', 'weight', 'price_gold',
                'sold_at_189_start', 'provinces'])
     write_csv(os.path.join(docs, 'rice_prices.csv'), rice_rows,
               ['province_id', 'province', 'has_market',

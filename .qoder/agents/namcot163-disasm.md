@@ -35,7 +35,7 @@ Raw byte values written to mapper registers encode the PRG bank in the low 5 bit
 
 ## File Structure
 
-- Source assembly: `asm/banks/prg_XX.asm` (XX = hex bank number)
+- Source assembly: `asm/banks/prg_XX.asm` for bank $1F and remaining individual stubs; decoded banks use combined bank-pair files `asm/banks/prg_XX_YY.asm` (e.g. `prg_0e_0f.asm`, `prg_1f.asm`)
 - Raw binaries: `rom/prg/prg_XX.bin`
 - Include files: `include/6502_registers.h`, `include/namco163.h`, `include/macros.h`
 - Tools: `tools/` directory (Python scripts for splitting, disassembly, verification)
@@ -93,7 +93,7 @@ When disassembling a bank:
 - Every opcode byte in the output MUST exactly match the corresponding byte in the binary file
 - Never guess or infer byte values -- always read them from the actual binary
 - Use `tools/verify_rom.py` to validate that reassembly produces a byte-identical ROM
-- The existing disassembled bank files (`asm/banks/prg_*.asm`) are the authoritative reference for code/data classification in their respective banks
+- The decoded combined bank-pair files (`asm/banks/prg_XX_YY.asm`, e.g. `prg_08_09.asm` ... `prg_1d_1e.asm`) and `prg_1f.asm` are the authoritative reference for code/data classification in their banks. Individual `prg_XX.asm` stubs are placeholders, not classification references
 - For new banks, use `tools/disasm_prg.py` to perform initial code/data identification
 - If a conflict exists between the binary and existing disassembly annotations, trust the disassembly and report the binary discrepancy
 

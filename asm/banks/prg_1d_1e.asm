@@ -1399,7 +1399,7 @@ OfficerDisplay_Lookup:
   LDY #$3D                                ; $A899: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $A89B: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A015                               ; $A89E: 15 A0  -> LoadScenarioData_Entry ($DBB1)
+  .word B1D_1E_LoadScenarioData           ; $A89E: 15 A0  -> LoadScenarioData_Entry ($DBB1)
   PLA                                       ; $A8A0: 68
   STA $0000                                 ; $A8A1: 8D 00 00
 ; Entry: copy name tilemap and render
@@ -5011,7 +5011,7 @@ StrategyMenu_Return:
   LDY #$3D                                              ; $C95B: A0 3D
   JSR B1F_BankedCallbackTrampoline                      ; $C95D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A015                                           ; $C960: 15 A0  -> LoadScenarioData_Entry ($DBB1)
+  .word B1D_1E_LoadScenarioData           ; $C960: 15 A0  -> LoadScenarioData_Entry ($DBB1)
   LDA #$80                                              ; $C962: A9 80
   STA $0140                                             ; $C964: 8D 40 01
   LDA #$22                                              ; $C967: A9 22

@@ -222,17 +222,17 @@ ExchangeFrameUpdate:
   LDY #$28                              ; $A00C: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $A00E: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                               ; $A011: $12 A0
+  .word B08_09_WarStatusPanelDraw_Entry ; $A011: $12 A0
   LDY #$28                                    ; $A013: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $A015: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A021                               ; $A018: $21 A0
+  .word B08_09_WarMapScrollUpdate_Entry ; $A018: $21 A0
   JSR $A028                             ; $A01A: 20 28 A0
   JSR SetupExchangeSfx                  ; $A01D: 20 39 DF
-  LDY #$20                                    ; $A020: A0 20
+  LDY #$28                              ; $A020: A0 28     ; banks $08+$09
   JSR B1F_BankedCallbackTrampoline      ; $A022: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A015                               ; $A025: $15 A0
+  .word B08_09_StratagemTargetMarker_Entry ; $A025: $15 A0
   RTS                                         ; $A027: 60
   LDA exchange_state                      ; $A028: AD 00 05
   JSR B1F_CallbackDispatcher            ; $A02B: 20 DE EA
@@ -344,7 +344,7 @@ ExchangeFrameUpdate:
   LDY #$3D                              ; $A0E6: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $A0E8: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A027                               ; $A0EB: $27 A0
+  .word B1D_1E_ProvinceDataHandler      ; $A0EB: $27 A0
   LDA #$C1                                    ; $A0ED: A9 C1
   JSR B1F_SetUI5                              ; $A0EF: 20 83 F2
   LDA #$00                                    ; $A0F2: A9 00
@@ -535,7 +535,7 @@ PhaseExit:
   LDY #$39                              ; $A255: A0 39
   JSR B1F_BankedCallbackTrampoline      ; $A257: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                               ; $A25A: $00 A0
+  .word B19_1A_OfficerCardRender_Entry  ; $A25A: $00 A0
   LDA #$06                                    ; $A25C: A9 06
   STA $BB                                     ; $A25E: 85 BB
   LDY #$39                                    ; $A260: A0 39
@@ -878,7 +878,7 @@ OfficerTransfer_SetupResult:
   LDY #$28                              ; $A4CE: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $A4D0: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A027                               ; $A4D3: $27 A0
+  .word B08_09_WarResultSceneInit_Entry ; $A4D3: $27 A0
   RTS                                         ; $A4D5: 60
   LDA $050F                                   ; $A4D6: AD 0F 05
   CMP #$03                                    ; $A4D9: C9 03
@@ -971,7 +971,7 @@ OfficerTransfer_SetupResult:
   LDY #$2E                              ; $A577: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $A579: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A006                               ; $A57C: $06 A0
+  .word B0E_0F_OfficerBattleExpLevelCheck_Entry ; $A57C: $06 A0
   JSR CalcOfficerMeritLevels              ; $A57E: 20 03 DB
   LDA $0509                                   ; $A581: AD 09 05
   STA $050A                                   ; $A584: 8D 0A 05
@@ -1001,7 +1001,7 @@ OfficerTransfer_SetupResult:
   LDY #$3D                              ; $A5B9: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $A5BB: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A027                               ; $A5BE: $27 A0
+  .word B1D_1E_ProvinceDataHandler      ; $A5BE: $27 A0
   LDA $0509                                   ; $A5C0: AD 09 05
   TAX                                         ; $A5C3: AA
   LDA $050A                                   ; $A5C4: AD 0A 05
@@ -1375,7 +1375,7 @@ OfficerTransfer_SetupResult:
   LDY #$28                              ; $A8B9: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $A8BB: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A01B                               ; $A8BE: $1B A0
+  .word B08_09_BuildCommandList_Entry   ; $A8BE: $1B A0
   RTS                                         ; $A8C0: 60
 .endproc
 
@@ -2801,7 +2801,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDY #$2A                              ; $B3AB: A0 2A
   JSR B1F_BankedCallbackTrampoline      ; $B3AD: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A006                               ; $B3B0: $06 A0
+  .word B0A_0B_ArmyValueCalc_Entry      ; $B3B0: $06 A0
   INC $0501                                   ; $B3B2: EE 01 05
   RTS                                         ; $B3B5: 60
 .endproc
@@ -3154,7 +3154,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDY #$2E                              ; $B628: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $B62A: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A009                               ; $B62D: $09 A0
+  .word B0E_0F_OfficerStatSumBattleTransfer_Entry ; $B62D: $09 A0
   LDY $0509                                   ; $B62F: AC 09 05
   LDA $0664,Y                                 ; $B632: B9 64 06
   STA officer_sel_list+6                                   ; $B635: 8D 32 04
@@ -3162,7 +3162,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDY #$28                                    ; $B63B: A0 28
   JSR B1F_BankedCallbackTrampoline            ; $B63D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A02A                               ; $B640: $2A A0
+  .word B08_09_WarSlotClear_Entry       ; $B640: $2A A0
 .endproc
 
 .proc CheckTileAccess
@@ -3258,7 +3258,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDY #$2E                              ; $B6E8: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $B6EA: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A006                               ; $B6ED: $06 A0
+  .word B0E_0F_OfficerBattleExpLevelCheck_Entry ; $B6ED: $06 A0
   RTS                                         ; $B6EF: 60
 .endproc
 
@@ -4090,7 +4090,7 @@ ProvinceSelect_GetRecord:
   LDY #$3D                              ; $BCF6: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $BCF8: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A027                               ; $BCFB: $27 A0
+  .word B1D_1E_ProvinceDataHandler      ; $BCFB: $27 A0
   LDA officer_sel_list                                   ; $BCFD: AD 2C 04
   JSR B1F_GetCountryDataPtr                     ; $BD00: 20 68 F3
   LDY #$00                                    ; $BD03: A0 00
@@ -4234,7 +4234,7 @@ ProvinceSelect_GetRecord:
   LDY #$28                              ; $BE0A: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $BE0C: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A00F                               ; $BE0F: $0F A0
+  .word B08_09_WarAttritionRound_Entry  ; $BE0F: $0F A0
   LDA $050A                                   ; $BE11: AD 0A 05
   BEQ @SkipRestore                      ; $BE14: F0 0B
   LDA #$07                                    ; $BE16: A9 07
@@ -4277,7 +4277,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY #$28                              ; $BE67: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $BE69: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A00C                               ; $BE6C: $0C A0
+  .word B08_09_WarCasualtyResolution_Entry ; $BE6C: $0C A0
 @Continue:
   LDA #$04                              ; $BE6E: A9 04
   STA $0501                             ; $BE70: 8D 01 05
@@ -4436,7 +4436,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY #$3D                              ; $BF9E: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $BFA0: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A027                               ; $BFA3: $27 A0
+  .word B1D_1E_ProvinceDataHandler      ; $BFA3: $27 A0
   LDA #$02                                    ; $BFA5: A9 02
   STA $00A4                                   ; $BFA7: 8D A4 00
   DEC $0505                                   ; $BFAA: CE 05 05
@@ -4489,7 +4489,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY #$3D                              ; $C014: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $C016: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A027                               ; $C019: $27 A0
+  .word B1D_1E_ProvinceDataHandler      ; $C019: $27 A0
   LDY $6F8D                                   ; $C01B: AC 8D 6F
   LDA $0505                                   ; $C01E: AD 05 05
   SEC                                         ; $C021: 38
@@ -4623,7 +4623,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY #$3D                              ; $C156: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $C158: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A027                               ; $C15B: $27 A0
+  .word B1D_1E_ProvinceDataHandler      ; $C15B: $27 A0
   LDA $0509                                   ; $C15D: AD 09 05
   STA $050A                                   ; $C160: 8D 0A 05
   LDA $6F8C                                   ; $C163: AD 8C 6F
@@ -4702,7 +4702,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY #$28                              ; $C1FC: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $C1FE: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A009                               ; $C201: $09 A0
+  .word B08_09_AiOfficerActionDispatch_Entry ; $C201: $09 A0
   RTS                                         ; $C203: 60
 .endproc
 
@@ -4874,7 +4874,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY #$39                              ; $C35E: A0 39
   JSR B1F_BankedCallbackTrampoline      ; $C360: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                               ; $C363: $00 A0
+  .word B19_1A_OfficerCardRender_Entry  ; $C363: $00 A0
   LDY $0509                                   ; $C365: AC 09 05
   LDA $0600,Y                                 ; $C368: B9 00 06
   STA $00                                     ; $C36B: 85 00
@@ -5380,7 +5380,7 @@ MoraleCapByAvgMerit:                    ; $C613: maximum morale after bonus
   LDY #$28                              ; $C73B: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $C73D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A018                               ; $C740: $18 A0
+  .word B08_09_ValidateSpecialOfficer_Entry ; $C740: $18 A0
   LDA #$03                                    ; $C742: A9 03
   STA $0501                                   ; $C744: 8D 01 05  ; state = Confirm
   JSR $E57F                             ; $C747: 20 7F E5
@@ -5450,7 +5450,7 @@ FindOfficerInRoster:
   LDY #$2E                              ; $C7AD: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $C7AF: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A009                               ; $C7B2: $09 A0
+  .word B0E_0F_OfficerStatSumBattleTransfer_Entry ; $C7B2: $09 A0
   PLA                                         ; $C7B4: 68
   TAY                                         ; $C7B5: A8
   TYA                                         ; $C7B6: 98
@@ -5471,7 +5471,7 @@ FindOfficerInRoster:
   LDY #$28                              ; $C7D3: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $C7D5: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A02A                               ; $C7D8: $2A A0
+  .word B08_09_WarSlotClear_Entry       ; $C7D8: $2A A0
   RTS                                         ; $C7DA: 60
 @Action_AddToList:  ; (dispatch callback target)
   ; Add officer to pending list; bit7 of $0628,Y selects list
@@ -5507,7 +5507,7 @@ FindOfficerInRoster:
   LDY #$2A                              ; $C813: A0 2A
   JSR B1F_BankedCallbackTrampoline      ; $C815: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A00C                               ; $C818: $0C A0
+  .word B0A_0B_DistanceClamp_Entry      ; $C818: $0C A0
   LDY $12                                     ; $C81A: A4 12
   JMP @CallUpdateUI                   ; $C81C: 4C D0 C7
 @Action_ToggleSelect:  ; (dispatch callback target)
@@ -5563,7 +5563,7 @@ FindOfficerInRoster:
   LDY #$2A                              ; $C87E: A0 2A
   JSR B1F_BankedCallbackTrampoline      ; $C880: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A006                               ; $C883: $06 A0
+  .word B0A_0B_ArmyValueCalc_Entry      ; $C883: $06 A0
   RTS                                         ; $C885: 60
 ; --- Adjust group stats for officer at roster index Y ---
 ; bit7 of $0628: 0=remove from group A ($051A) add to B ($051C)
@@ -7125,7 +7125,7 @@ FindOfficerInRoster:
   LDY #$28                              ; $D4F3: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $D4F5: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A006                               ; $D4F8: $06 A0
+  .word B08_09_WarPhaseProcess_Entry    ; $D4F8: $06 A0
   RTS                                         ; $D4FA: 60
 ExchangeAnimFrameUpdate:
   ; Advance animation frame counter ($0318/$0319); triggers refresh every 15 frames
@@ -7429,7 +7429,7 @@ UpdateCursorTile:
   LDY #$37                              ; $D72C: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $D72E: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                               ; $D731: $12 A0
+  .word B17_18_BattleDispatch           ; $D731: $12 A0
   LDA $10                                     ; $D733: A5 10
   AND #$0F                                    ; $D735: 29 0F
   STA $08                                     ; $D737: 85 08
@@ -7500,7 +7500,7 @@ UpdateCursorTile:
   LDY #$37                              ; $D7B3: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $D7B5: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A018                               ; $D7B8: $18 A0
+  .word B17_18_SetupAdvisorTiles        ; $D7B8: $18 A0
   LDA #$B0                                    ; $D7BA: A9 B0
   STA $00                                     ; $D7BC: 85 00
   LDA #$01                                    ; $D7BE: A9 01
@@ -7523,7 +7523,7 @@ UpdateCursorTile:
   LDY #$37                              ; $D7DE: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $D7E0: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A015                               ; $D7E3: $15 A0
+  .word B17_18_OverlayWindow            ; $D7E3: $15 A0
   LDA $10                                     ; $D7E5: A5 10
   AND #$0E                                    ; $D7E7: 29 0E
   LSR A                                       ; $D7E9: 4A
@@ -7568,7 +7568,7 @@ UpdateCursorTile:
   LDY #$37                              ; $D825: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $D827: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A015                               ; $D82A: $15 A0
+  .word B17_18_OverlayWindow            ; $D82A: $15 A0
   PLA                                         ; $D82C: 68
   TAY                                         ; $D82D: A8
   LDA ($00),Y                                 ; $D82E: B1 00
@@ -7587,7 +7587,7 @@ UpdateCursorTile:
   LDY #$37                              ; $D845: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $D847: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A015                               ; $D84A: $15 A0
+  .word B17_18_OverlayWindow            ; $D84A: $15 A0
   PLA                                         ; $D84C: 68
   TAY                                         ; $D84D: A8
   LDA ($00),Y                                 ; $D84E: B1 00
@@ -8016,7 +8016,7 @@ GetTerrainType:
   LDY #$37                              ; $DB6B: A0 37
   JSR B1F_BankedCallbackTrampoline      ; $DB6D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A012                               ; $DB70: $12 A0
+  .word B17_18_BattleDispatch           ; $DB70: $12 A0
   LDA #$9E                                    ; $DB72: A9 9E
   STA $0002                                   ; $DB74: 8D 02 00
   LDA #$DB                                    ; $DB77: A9 DB
@@ -8078,7 +8078,7 @@ CenterMapOnSlot:
   LDY #$39                              ; $DC43: A0 39
   JSR B1F_BankedCallbackTrampoline      ; $DC45: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                               ; $DC48: $00 A0
+  .word B19_1A_OfficerCardRender_Entry  ; $DC48: $00 A0
   RTS                                         ; $DC4A: 60
 CheckOfficerArmyGroup:
   ; Check if officer at Y belongs to correct army group; returns $00 or $FF
@@ -8457,7 +8457,7 @@ ValidateExchangeOfficer:
   LDY #$28                              ; $DF10: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $DF12: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A018                               ; $DF15: $18 A0
+  .word B08_09_ValidateSpecialOfficer_Entry ; $DF15: $18 A0
   LDA #$4A                                    ; $DF17: A9 4A
   LDY $042F                                   ; $DF19: AC 2F 04
   BNE @SetResult                        ; $DF1C: D0 02

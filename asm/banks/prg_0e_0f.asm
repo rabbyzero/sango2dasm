@@ -885,13 +885,13 @@ pad_edge       = $0001  ; mode-filtered controller edge flags
   LDA btl_overlay_sub                               ; $A3BC: AD 41 05 ; sub-phase index
   JSR B1F_CallbackDispatcher              ; $A3BF: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase4ResultAdvance               ; $A3C4: D0 A3 ; sub 0
-  .word Phase4ResultDefeatInputWait       ; $A3C6: D4 A3 ; sub 1
-  .word Phase4ResultFlashTrigger          ; $A3C8: F2 A3 ; sub 2
-  .word Phase4ResultRetreatInputWait      ; $A3CA: 07 A4 ; sub 3
-  .word Phase4ResultDamageApply           ; $A3CC: 88 A4 ; sub 4
-  .word Phase4ResultConfirmInput          ; $A3CE: B5 A4 ; sub 5
-  .word Phase4ResultFlashTrigger          ; $A3D0: F2 A3 ; sub 6
+  .word Phase4ResultAdvance               ; $A3C2: D0 A3 ; sub 0
+  .word Phase4ResultDefeatInputWait       ; $A3C4: D4 A3 ; sub 1
+  .word Phase4ResultFlashTrigger          ; $A3C6: F2 A3 ; sub 2
+  .word Phase4ResultRetreatInputWait      ; $A3C8: 07 A4 ; sub 3
+  .word Phase4ResultDamageApply           ; $A3CA: 88 A4 ; sub 4
+  .word Phase4ResultConfirmInput          ; $A3CC: B5 A4 ; sub 5
+  .word Phase4ResultFlashTrigger          ; $A3CE: F2 A3 ; sub 6
 .endproc
 ;===============================================================================
 ; $A3D0: Phase4ResultAdvance
@@ -2065,7 +2065,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $AA33: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $AA35: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $AA38: 00 A0 ; B19_1A_OverlayStripRender_Entry
+  .word B19_1A_OverlayStripRender_Entry   ; $AA38: 00 A0
   LDA btl_overlay_sub                               ; $AA3A: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $AA3D: 20 DE EA
 ; --- CallbackDispatcher sub table, indexed by $0541 ---
@@ -2509,7 +2509,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $ACD5: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $ACD7: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $ACDA: 00 A0 ; B19_1A_OverlayStripRender_Entry
+  .word B19_1A_OverlayStripRender_Entry   ; $ACDA: 00 A0
   LDA btl_overlay_sub                               ; $ACDC: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $ACDF: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
@@ -2601,8 +2601,8 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 ; animation queue idles (BattleAnimQueueIdleCheck carry set):
 ;   A: if the budget $0572[$0549] covers the row cost
 ;      (@RowCostTable[$0012] = 3/5/7/8/$A/$C), deducts it and applies the
-;      row effect via Phase8RowEffectDispatch (Phase8RowCoinFlip..
-;      Phase8RowAdvance);
+;      row effect via Phase8RowEffectDispatch (Phase8RowBind..
+;      Phase8RowExplosion);
 ;   B: cancels back to phase 3 sub 3 (queueing the $E8/$E9 tile animation
 ;      slot 0 and refreshing the panel troop-count block via
 ;      BattlePanelStatsRefresh).
@@ -2861,8 +2861,8 @@ Phase8RowCursorParams:
 ; side status counters $0574-$0577 (the acting side's nibble) - row 3 also
 ; saves and advances the periodic reload value $056A/$056B; row 1 rolls an
 ; officer-stat chance check (success skips to sub 4, failure to sub 3);
-; row 0 is a coin flip that targets the opposing unit $042C; row 5 advances
-; to phase 9 (formation advance).
+; row 0 (Bind) coin-flips and on a hit targets the opposing unit $042C;
+; row 5 (Explosion) advances to phase 9 (formation advance).
 ;===============================================================================
 .proc Phase8RowEffectDispatch
 ; zero-page work cells (proc-local):
@@ -2871,16 +2871,16 @@ selected_row   = $0012  ; selected row index
   STA btl_frame_counter                               ; $AF14: 8D 48 05 ; mirror to row slot
   JSR B1F_CallbackDispatcher              ; $AF17: 20 DE EA
 ; --- CallbackDispatcher row-effect table, indexed by selected row ---
-  .word Phase8RowCoinFlip                 ; $AF1A: D2 AF ; row 0 ($AFD2)
-  .word Phase8RowStatCheck                ; $AF1C: 26 AF ; row 1 ($AF26)
-  .word Phase8RowCounter575               ; $AF1E: 0E B0 ; row 2 ($B00E)
-  .word Phase8RowCounter576               ; $AF20: 2E B0 ; row 3 ($B02E)
-  .word Phase8RowCounter577               ; $AF22: 7C B0 ; row 4 ($B07C)
-  .word Phase8RowAdvance                  ; $AF24: 9C B0 ; row 5 ($B09C)
+  .word Phase8RowBind                 ; $AF1A: D2 AF ; row 0 ($AFD2)
+  .word Phase8RowTaunt                ; $AF1C: 26 AF ; row 1 ($AF26)
+  .word Phase8RowCrossbowVolley               ; $AF1E: 0E B0 ; row 2 ($B00E)
+  .word Phase8RowMoraleBoost               ; $AF20: 2E B0 ; row 3 ($B02E)
+  .word Phase8RowFireArrows               ; $AF22: 7C B0 ; row 4 ($B07C)
+  .word Phase8RowExplosion                  ; $AF24: 9C B0 ; row 5 ($B09C)
 .endproc
 ;===============================================================================
-; $AF26: Phase8RowStatCheck
-; Row 1. Auto-fails while the battle phase $0544 == 5 on side A.
+; $AF26: Phase8RowTaunt
+; Row 1 (Taunt). Auto-fails while the battle phase $0544 == 5 on side A.
 ; Otherwise reads both officers' records (B1F_GetOfficerRecordAddr on the
 ; side unit ids $0560/$0561): field [$B]>>4 (rank/aptitude) and field [2]
 ; (troops), swaps the pairs when side B acts so ($000A,$000C) describe the
@@ -2889,7 +2889,7 @@ selected_row   = $0012  ; selected row index
 ; lands below the chance, succeeds (UI $EA, sub-phase <- 4 = advance wait),
 ; otherwise fails at @Fail (UI $EB, sub-phase++ = confirm wait).
 ;===============================================================================
-.proc Phase8RowStatCheck
+.proc Phase8RowTaunt
 ; zero-page work cells (proc-local):
 rec_ptr_lo     = $0000  ; officer record ptr lo (caller-set)
 opp_troops_scratch = $0001  ; opponent troop count scratch
@@ -2980,13 +2980,13 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
   RTS                                     ; $AFD1: 60
 .endproc
 ;===============================================================================
-; $AFD2: Phase8RowCoinFlip
-; Row 0. Coin flip on B1F_RandomByte bit 0. Miss (bit clear): UI $ED and
+; $AFD2: Phase8RowBind
+; Row 0 (Bind). Coin flip on B1F_RandomByte bit 0. Miss (bit clear): UI $ED and
 ; back to the confirm wait (sub-phase++). Hit (bit set): UI $EC, stores the
 ; opposing side's unit id $0560[$0549^1] into $042C as the effect target,
-; then falls through into Phase8RowCounter574.
+; then falls through into Phase8RowCounter574 (bind counter $0574 <- 4).
 ;===============================================================================
-.proc Phase8RowCoinFlip
+.proc Phase8RowBind
   JSR B1F_RandomByte                      ; $AFD2: 20 7A E8
   AND #$01                                ; $AFD5: 29 01 ; coin bit
   BNE @Hit                                ; $AFD7: D0 09
@@ -3008,7 +3008,7 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
 ; $AFF6: Phase8RowCounter574
 ; Sets status counter $0574 to 4 in the acting side's nibble (side A: low
 ; nibble, side B: high nibble), preserving the other side's nibble. Fall-
-; through tail of Phase8RowCoinFlip.
+; through tail of Phase8RowBind.
 ;===============================================================================
 .proc Phase8RowCounter574
   LDA btl_status_ctr0                               ; $AFF6: AD 74 05 ; status counter 574
@@ -3025,12 +3025,12 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
   RTS                                     ; $B00D: 60
 .endproc
 ;===============================================================================
-; $B00E: Phase8RowCounter575
+; $B00E: Phase8RowCrossbowVolley
 ; Row 2. UI $EE, sub-phase++, then sets status counter $0575 to 3 in the
 ; acting side's nibble. The counter-set tail ($B016, Apply) is also
 ; called directly from AiTacticPointSpend without the UI preamble.
 ;===============================================================================
-.proc Phase8RowCounter575
+.proc Phase8RowCrossbowVolley
   LDA #$EE                                ; $B00E: A9 EE
   JSR B1F_SetUI0                          ; $B010: 20 6D F2 ; UI $EE
   INC btl_overlay_sub                               ; $B013: EE 41 05 ; sub-phase <- 3
@@ -3049,7 +3049,7 @@ Apply:
   RTS                                     ; $B02D: 60
 .endproc
 ;===============================================================================
-; $B02E: Phase8RowCounter576
+; $B02E: Phase8RowMoraleBoost
 ; Row 3. UI $EF, sub-phase++, sets status counter $0576 to 4 in the acting
 ; side's nibble, then advances the side's periodic reload value: the
 ; current $056A/$056B is saved into the reload latch $0578/$0579 and
@@ -3058,7 +3058,7 @@ Apply:
 ; values back into $056A/$056B. The counter-set tail ($B036, Apply) is
 ; also called directly from AiTacticPointSpend without the UI preamble.
 ;===============================================================================
-.proc Phase8RowCounter576
+.proc Phase8RowMoraleBoost
   LDA #$EF                                ; $B02E: A9 EF
   JSR B1F_SetUI0                          ; $B030: 20 6D F2 ; UI $EF
   INC btl_overlay_sub                               ; $B033: EE 41 05 ; sub-phase <- 3
@@ -3107,12 +3107,12 @@ roll           = $0000  ; random roll amount
   RTS                                     ; $B07B: 60
 .endproc
 ;===============================================================================
-; $B07C: Phase8RowCounter577
+; $B07C: Phase8RowFireArrows
 ; Row 4. UI $F0, sub-phase++, then sets status counter $0577 to 3 in the
 ; acting side's nibble. The counter-set tail ($B084, Apply) is also
 ; called directly from AiTacticPointSpend without the UI preamble.
 ;===============================================================================
-.proc Phase8RowCounter577
+.proc Phase8RowFireArrows
   LDA #$F0                                ; $B07C: A9 F0
   JSR B1F_SetUI0                          ; $B07E: 20 6D F2 ; UI $F0
   INC btl_overlay_sub                               ; $B081: EE 41 05 ; sub-phase <- 3
@@ -3131,11 +3131,11 @@ Apply:
   RTS                                     ; $B09B: 60
 .endproc
 ;===============================================================================
-; $B09C: Phase8RowAdvance
-; Row 5. Leaves the panel: phase <- 9 (formation advance), sub-phase <- 0,
-; UI mode $F1.
+; $B09C: Phase8RowExplosion
+; Row 5 (Explosion). Leaves the panel: phase <- 9 (formation advance),
+; sub-phase <- 0, UI mode $F1.
 ;===============================================================================
-.proc Phase8RowAdvance
+.proc Phase8RowExplosion
   LDA #$09                                ; $B09C: A9 09
   STA btl_overlay_phase                               ; $B09E: 8D 40 05 ; phase <- 9
   LDA #$00                                ; $B0A1: A9 00
@@ -3307,7 +3307,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $B1FC: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $B1FE: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $B201: 00 A0 ; B19_1A_OverlayStripRender_Entry
+  .word B19_1A_OverlayStripRender_Entry   ; $B201: 00 A0
   LDA btl_overlay_sub                               ; $B203: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $B206: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
@@ -5531,7 +5531,7 @@ cand_row       = $0001  ; candidate row argument
 ; arrow flight counter $0548 <- $1C/$2C/$3C/$4C/$5C for distances 2-6
 ; (Phase2AttackArrowAnim decrements it by 2 per frame), direction $0549 <-
 ; 0 up / 1 down / 2 left / 3 right. Distances 5-6 additionally require the
-; acting side's nibble of $0575 (loaded to 3 by Phase8RowCounter575, ticked
+; acting side's nibble of $0575 (loaded to 3 by Phase8RowCrossbowVolley, ticked
 ; down by BattleSideStatusCountersDecrement) to be non-zero.
 ; Side failures dispatch through the probe counter $0010 like
 ; Phase2MoveRouteResolve: 3 = give up ($0549 <- $FF, the gate falls back to
@@ -7194,7 +7194,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
   LDY #$39                                ; $CE75: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $CE77: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $CE7A: 00 A0 ; B19_1A_OverlayStripRender_Entry
+  .word B19_1A_OverlayStripRender_Entry   ; $CE7A: 00 A0
   LDY #$00                                ; $CE7C: A0 00 ; side A pad input
   JSR FormationSelectMenu                 ; $CE7E: 20 05 CF
   LDA a:menu_result                             ; $CE81: AD 12 00 ; menu result item
@@ -7239,7 +7239,7 @@ pad_state      = $0001  ; merged both-pad raw state
   LDY #$39                                ; $CEBB: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $CEBD: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $CEC0: 00 A0 ; B19_1A_OverlayStripRender_Entry
+  .word B19_1A_OverlayStripRender_Entry   ; $CEC0: 00 A0
   LDA #$00                                ; $CEC2: A9 00
   JSR BattlePadStateFetch                 ; $CEC4: 20 DE CC
   JSR BattleAnimQueueIdleCheck            ; $CEC7: 20 70 B8
@@ -7440,7 +7440,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
   LDY #$39                                ; $CFCF: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $CFD1: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $CFD4: 00 A0 ; B19_1A_OverlayStripRender_Entry
+  .word B19_1A_OverlayStripRender_Entry   ; $CFD4: 00 A0
   LDY #$01                                ; $CFD6: A0 01 ; side B pad input
   JSR FormationSelectMenu                 ; $CFD8: 20 05 CF
   LDA a:menu_result                             ; $CFDB: AD 12 00 ; menu result item
@@ -7485,7 +7485,7 @@ pad_state      = $0001  ; merged both-pad raw state
   LDY #$39                                ; $D015: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $D017: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $D01A: 00 A0 ; B19_1A_OverlayStripRender_Entry
+  .word B19_1A_OverlayStripRender_Entry   ; $D01A: 00 A0
   LDA #$01                                ; $D01C: A9 01
   JSR BattlePadStateFetch                 ; $D01E: 20 DE CC
   JSR BattleAnimQueueIdleCheck            ; $D021: 20 70 B8
@@ -8079,25 +8079,25 @@ total_b_hi     = $0003  ; side B troop total hi
 ; purchase deducts its cost from the budget and pops both its own return
 ; and the ladder's return (2x PLA), ending the side's spend for this
 ; pass:
-;   cost $0C @AdvancePurchase: formation advance (phase 9 sub 0, UI $F1),
+;   cost $0C @ExplosionPurchase: Explosion (phase 9 sub 0, UI $F1),
 ;     gated on enemies crowding the commander's facing probe zone;
-;   cost $0A @Counter577Purchase: status counter $0577 <- 3
-;     (Phase8RowCounter577Apply), gated on enemies near the side's
+;   cost $0A @FireArrowsPurchase: status counter $0577 <- 3
+;     (Phase8RowFireArrows::Apply), gated on enemies near the side's
 ;     class-2 units;
-;   cost $08 @Counter576Purchase: status counter $0576 <- 4 plus periodic
-;     reload advance (Phase8RowCounter576Apply), flat 20% roll;
-;   cost $07 @Counter575Purchase: status counter $0575 <- 3
-;     (Phase8RowCounter575Apply), odds scale with the class-2 unit count;
-;   cost $05 @StatEdgePurchase: phase $A sub 4 (battle event wrapper),
+;   cost $08 @MoraleBoostPurchase: status counter $0576 <- 4 plus periodic
+;     reload advance (Phase8RowMoraleBoost::Apply), flat 20% roll;
+;   cost $07 @CrossbowVolleyPurchase: status counter $0575 <- 3
+;     (Phase8RowCrossbowVolley::Apply), odds scale with the class-2 unit count;
+;   cost $05 @TauntPurchase: phase $A sub 4 (Taunt, battle event wrapper),
 ;     gated on own attack bonus and commander troops both >= the enemy's;
-;   cost $03 @CoinFlipPurchase: phase $A sub 0 (battle event wrapper,
+;   cost $03 @BindPurchase: phase $A sub 0 (Bind, battle event wrapper,
 ;     grants counter $0574 <- 4), gated on the enemy army collapsing
 ;     (BattleOutnumberedCheck), a 50% roll and a coin flip.
 ; The purchases reuse the Phase8 row effects without their panel UI.
-; The manual's battle tactics list (docs/manual_kb/06-reference-tables.md:
-; Chouhatsu/Jubaku/Do/Shiki Koujou/Hiya/Bakuen at 3/3?/6?/8?/10/12 points)
-; is the likely in-game correspondence of the six rows; panel text is not
-; decoded yet, so the naming here stays with the code-level effects.
+; Row identities are confirmed against the manual's battle tactics list
+; (docs/manual_kb/06-reference-tables.md): row 0 = Bind (Jubaku), row 1 =
+; Taunt (Chouhatsu), row 2 = CrossbowVolley, row 3 = MoraleBoost (Shiki
+; Koujou), row 4 = FireArrows, row 5 = Explosion (Bakuen).
 ;===============================================================================
 .proc AiTacticPointSpend
 ; zero-page work cells (proc-local):
@@ -8132,48 +8132,48 @@ zone_count     = $0000  ; enemy-in-zone count
 @PurchaseLadder:
   LDX btl_frame_counter                               ; $D3F2: AE 48 05 ; budget
   CPX #$0C                                ; $D3F5: E0 0C ; cost 12
-  BCC @Counter577Check                    ; $D3F7: 90 03
-  JSR @AdvancePurchase                    ; $D3F9: 20 2F D4
-@Counter577Check:
+  BCC @FireArrowsCheck                    ; $D3F7: 90 03
+  JSR @ExplosionPurchase                    ; $D3F9: 20 2F D4
+@FireArrowsCheck:
   LDX btl_frame_counter                               ; $D3FC: AE 48 05
   CPX #$0A                                ; $D3FF: E0 0A ; cost 10
-  BCC @Counter576Check                    ; $D401: 90 03
-  JSR @Counter577Purchase                 ; $D403: 20 06 D5
-@Counter576Check:
+  BCC @MoraleBoostCheck                    ; $D401: 90 03
+  JSR @FireArrowsPurchase                 ; $D403: 20 06 D5
+@MoraleBoostCheck:
   LDX btl_frame_counter                               ; $D406: AE 48 05
   CPX #$08                                ; $D409: E0 08 ; cost 8
-  BCC @Counter575Check                    ; $D40B: 90 03
-  JSR @Counter576Purchase                 ; $D40D: 20 A0 D5
-@Counter575Check:
+  BCC @CrossbowVolleyCheck                    ; $D40B: 90 03
+  JSR @MoraleBoostPurchase                 ; $D40D: 20 A0 D5
+@CrossbowVolleyCheck:
   LDX btl_frame_counter                               ; $D410: AE 48 05
   CPX #$07                                ; $D413: E0 07 ; cost 7
-  BCC @StatEdgeCheck                      ; $D415: 90 03
-  JSR @Counter575Purchase                 ; $D417: 20 BC D5
-@StatEdgeCheck:
+  BCC @TauntCheck                      ; $D415: 90 03
+  JSR @CrossbowVolleyPurchase                 ; $D417: 20 BC D5
+@TauntCheck:
   LDX btl_frame_counter                               ; $D41A: AE 48 05
   CPX #$05                                ; $D41D: E0 05 ; cost 5
-  BCC @CoinFlipCheck                      ; $D41F: 90 03
-  JSR @StatEdgePurchase                   ; $D421: 20 52 D6
-@CoinFlipCheck:
+  BCC @BindCheck                      ; $D41F: 90 03
+  JSR @TauntPurchase                   ; $D421: 20 52 D6
+@BindCheck:
   LDX btl_frame_counter                               ; $D424: AE 48 05
   CPX #$03                                ; $D427: E0 03 ; cost 3
   BCC @LadderDone                         ; $D429: 90 03
-  JSR @CoinFlipPurchase                   ; $D42B: 20 12 D6
+  JSR @BindPurchase                   ; $D42B: 20 12 D6
 @LadderDone:
   RTS                                     ; $D42E: 60
 ;-------------------------------------------------------------------------------
-; $D42F: @AdvancePurchase (cost $0C)
-; Formation-advance purchase. Selects one of four 9-tile probe zones
-; (@AdvanceZoneDown/Up/Left/Right) by the high nibble of the commander's
+; $D42F: @ExplosionPurchase (cost $0C)
+; Explosion (Bakuen) purchase. Selects one of four 9-tile probe zones
+; (@ExplosionZoneDown/Up/Left/Right) by the high nibble of the commander's
 ; roster code $05C2[$0545] - the side tag (3 = A, 2 = B) picks the zone
 ; facing the enemy half of the board, other values pick the vertical
 ; zones. Counts enemy-occupied tiles in the zone via Phase2StepTileProbe
 ; ($057E), then a B1F_RandomBelowThreshold(100) roll below
-; @AdvanceSuccessChance[count] (0/0/40/70/100...) succeeds: pops the
+; @ExplosionSuccessChance[count] (0/0/40/70/100...) succeeds: pops the
 ; ladder return, sets phase/sub <- 9/0 (formation advance), UI $F1
 ; (B1F_SetUI0) and deducts 12 points.
 ;-------------------------------------------------------------------------------
-@AdvancePurchase:
+@ExplosionPurchase:
   LDY btl_scan_col                               ; $D42F: AC 45 05 ; roster base
   LDA btl_roster_code_a,Y                             ; $D432: B9 C2 05 ; commander roster code
   LSR                                     ; $D435: 4A
@@ -8189,9 +8189,9 @@ zone_count     = $0000  ; enemy-in-zone count
   LDA $057D                               ; $D443: AD 7D 05 ; zone selector
   ASL                                     ; $D446: 0A ; * 2
   TAX                                     ; $D447: AA
-  LDA @AdvanceZonePtrTable,X              ; $D448: BD AA D4 ; zone ptr lo
+  LDA @ExplosionZonePtrTable,X              ; $D448: BD AA D4 ; zone ptr lo
   STA a:calc_work_a                             ; $D44B: 8D 0A 00
-  LDA @AdvanceZonePtrTable+1,X            ; $D44E: BD AB D4 ; ptr hi
+  LDA @ExplosionZonePtrTable+1,X            ; $D44E: BD AB D4 ; ptr hi
   STA a:calc_work_b                             ; $D451: 8D 0B 00
   LDA (calc_work_a),Y                             ; $D454: B1 0A ; column delta
   STA a:col_delta                             ; $D456: 8D 00 00
@@ -8213,7 +8213,7 @@ zone_count     = $0000  ; enemy-in-zone count
   CMP #$09                                ; $D472: C9 09 ; 9 zone tiles
   BCC @ZoneLoop                           ; $D474: 90 CB
   LDY $057E                               ; $D476: AC 7E 05 ; enemy count
-  LDA @AdvanceSuccessChance,Y             ; $D479: B9 FA D4
+  LDA @ExplosionSuccessChance,Y             ; $D479: B9 FA D4
   BEQ @ZoneMiss                           ; $D47C: F0 0D ; count < 2: never
   STA a:calc_work_a                             ; $D47E: 8D 0A 00 ; success chance
   LDA #$64                                ; $D481: A9 64
@@ -8238,43 +8238,43 @@ zone_count     = $0000  ; enemy-in-zone count
   STA btl_point_budget_a,Y                             ; $D4A6: 99 72 05 ; budget -= 12
   RTS                                     ; $D4A9: 60 ; back to AiTacticSpendDispatch
 ; --- Data Region ---
-@AdvanceZonePtrTable:
+@ExplosionZonePtrTable:
 ; Probe zone pointers indexed by the zone selector (x2): zone 0 below the
 ; commander, zone 1 above, zone 2 left, zone 3 right.
   .word $D4B2,$D4C4                       ; $D4AA: B2 D4 C4 D4 ; zones 0/1
   .word $D4D6,$D4E8                       ; $D4AE: D6 D4 E8 D4 ; zones 2/3
-@AdvanceZoneDown:
+@ExplosionZoneDown:
 ; Zone 0: 3x3 block below the commander (rows +1..+3, columns -1..+1).
   .byte $FF,$FF,$FF,$00,$00,$00,$01,$01,$01 ; $D4B2: FF FF FF 00 00 00 01 01 01 ; column deltas
   .byte $01,$02,$03,$01,$02,$03,$01,$02,$03 ; $D4BB: 01 02 03 01 02 03 01 02 03 ; row deltas
-@AdvanceZoneUp:
+@ExplosionZoneUp:
 ; Zone 1: 3x3 block above the commander (rows -1..-3, columns -1..+1).
   .byte $FF,$FF,$FF,$00,$00,$00,$01,$01,$01 ; $D4C4: FF FF FF 00 00 00 01 01 01 ; column deltas
   .byte $FF,$FE,$FD,$FF,$FE,$FD,$FF,$FE,$FD ; $D4CD: FF FE FD FF FE FD FF FE FD ; row deltas
-@AdvanceZoneLeft:
+@ExplosionZoneLeft:
 ; Zone 2: block left of the commander (columns -1..-3, rows -1..+1).
   .byte $FF,$FF,$FF,$FE,$FE,$FE,$FD,$FD,$FD ; $D4D6: FF FF FF FE FE FE FD FD FD ; column deltas
   .byte $FF,$00,$01,$FF,$00,$01,$FF,$00,$01 ; $D4DF: FF 00 01 FF 00 01 FF 00 01 ; row deltas
-@AdvanceZoneRight:
+@ExplosionZoneRight:
 ; Zone 3: block right of the commander (columns +1..+3, rows -1..+1).
   .byte $01,$01,$01,$02,$02,$02,$03,$03,$03 ; $D4E8: 01 01 01 02 02 02 03 03 03 ; column deltas
   .byte $FF,$00,$01,$FF,$00,$01,$FF,$00,$01 ; $D4F1: FF 00 01 FF 00 01 FF 00 01 ; row deltas
-@AdvanceSuccessChance:
+@ExplosionSuccessChance:
 ; Success chance per enemy count in the zone (index 0-11): 0/0/40/70,
 ; 100 from four enemies on.
   .byte $00,$00,$28,$46,$64,$64,$64,$64,$64,$64,$64,$64; $D4FA: 00 00 28 46 64 64 64 64 64 64 64 64
 ;-------------------------------------------------------------------------------
-; $D506: @Counter577Purchase (cost $0A)
-; Status-counter-577 purchase. Scans the side's 11 roster slots; every
+; $D506: @FireArrowsPurchase (cost $0A)
+; FireArrows purchase. Scans the side's 11 roster slots; every
 ; class-2 unit (roster code low nibble == 2) runs @FlankProbe, a 9-tile
 ; long-range probe (columns 0, rows +/-2..+/-4 and columns -2..-4, row 0)
 ; counting enemy-occupied tiles into $057E across all class-2 units. A
 ; B1F_RandomBelowThreshold(100) roll below @FlankProbeSuccessChance[count]
 ; (0/0/40/70/100...) succeeds: sets counter $0577 <- 3 for the acting
-; side via Phase8RowCounter577Apply (no panel UI), deducts 10 points and
+; side via Phase8RowFireArrows::Apply (no panel UI), deducts 10 points and
 ; pops the ladder return.
 ;-------------------------------------------------------------------------------
-@Counter577Purchase:
+@FireArrowsPurchase:
   LDA #$00                                ; $D506: A9 00
   STA $057E                               ; $D508: 8D 7E 05 ; enemy count <- 0
   LDA btl_scan_col                               ; $D50B: AD 45 05 ; roster base
@@ -8307,7 +8307,7 @@ zone_count     = $0000  ; enemy-in-zone count
 @FlankMiss:
   RTS                                     ; $D545: 60 ; back to the ladder
 @FlankHit:
-  JSR Phase8RowCounter577::Apply          ; $D546: 20 84 B0 ; counter $0577 <- 3
+  JSR Phase8RowFireArrows::Apply          ; $D546: 20 84 B0 ; counter $0577 <- 3
   LDY btl_side_index                               ; $D549: AC 7C 05 ; side index
   LDA btl_point_budget_a,Y                             ; $D54C: B9 72 05 ; point budget
   SEC                                     ; $D54F: 38
@@ -8356,20 +8356,20 @@ zone_count     = $0000  ; enemy-in-zone count
 ; four enemies on.
   .byte $00,$00,$28,$46,$64,$64,$64,$64,$64,$64,$64,$64; $D594: 00 00 28 46 64 64 64 64 64 64 64 64
 ;-------------------------------------------------------------------------------
-; $D5A0: @Counter576Purchase (cost $08)
-; Status-counter-576 purchase. Flat 20% roll (B1F_RandomBelowThreshold(100)
+; $D5A0: @MoraleBoostPurchase (cost $08)
+; MoraleBoost purchase. Flat 20% roll (B1F_RandomBelowThreshold(100)
 ; below $14); on success sets counter $0576 <- 4 and advances the side's
-; periodic reload value via Phase8RowCounter576Apply, deducts 8 points and
+; periodic reload value via Phase8RowMoraleBoost::Apply, deducts 8 points and
 ; pops the ladder return.
 ;-------------------------------------------------------------------------------
-@Counter576Purchase:
+@MoraleBoostPurchase:
   LDA #$64                                ; $D5A0: A9 64
   JSR B1F_RandomBelowThreshold            ; $D5A2: 20 62 E8 ; roll [0,100)
   CMP #$14                                ; $D5A5: C9 14 ; 20% chance
   BCC @ReloadHit                          ; $D5A7: 90 01
   RTS                                     ; $D5A9: 60 ; back to the ladder
 @ReloadHit:
-  JSR Phase8RowCounter576::Apply          ; $D5AA: 20 36 B0 ; counter $0576 <- 4 + reload
+  JSR Phase8RowMoraleBoost::Apply          ; $D5AA: 20 36 B0 ; counter $0576 <- 4 + reload
   LDY btl_side_index                               ; $D5AD: AC 7C 05 ; side index
   LDA btl_point_budget_a,Y                             ; $D5B0: B9 72 05 ; point budget
   SEC                                     ; $D5B3: 38
@@ -8379,18 +8379,18 @@ zone_count     = $0000  ; enemy-in-zone count
   PLA                                     ; $D5BA: 68 ; drop ladder return
   RTS                                     ; $D5BB: 60 ; back to AiTacticSpendDispatch
 ;-------------------------------------------------------------------------------
-; $D5BC: @Counter575Purchase (cost $07)
-; Status-counter-575 purchase. Counts the side's class-2 units via
+; $D5BC: @CrossbowVolleyPurchase (cost $07)
+; CrossbowVolley purchase. Counts the side's class-2 units via
 ; @ClassCount; a B1F_RandomBelowThreshold(100) roll below
-; @Counter575ClassCountChance[count] (0/0/48/80/128, guaranteed from four
+; @CrossbowVolleyClassCountChance[count] (0/0/48/80/128, guaranteed from four
 ; units on) succeeds: sets counter $0575 <- 3 via
-; Phase8RowCounter575Apply, deducts 7 points and pops the ladder return.
+; Phase8RowCrossbowVolley::Apply, deducts 7 points and pops the ladder return.
 ;-------------------------------------------------------------------------------
-@Counter575Purchase:
+@CrossbowVolleyPurchase:
   JSR @ClassCount                         ; $D5BC: 20 F3 D5 ; count -> $0000
   LDY a:class2_count                             ; $D5BF: AC 00 00 ; class-2 unit count
   BEQ @ClassMiss                          ; $D5C2: F0 10 ; none: never
-  LDA @Counter575ClassCountChance,Y       ; $D5C4: B9 E7 D5
+  LDA @CrossbowVolleyClassCountChance,Y       ; $D5C4: B9 E7 D5
   STA a:calc_work_a                             ; $D5C7: 8D 0A 00 ; success chance
   LDA #$64                                ; $D5CA: A9 64
   JSR B1F_RandomBelowThreshold            ; $D5CC: 20 62 E8 ; roll [0,100)
@@ -8399,7 +8399,7 @@ zone_count     = $0000  ; enemy-in-zone count
 @ClassMiss:
   RTS                                     ; $D5D4: 60 ; back to the ladder
 @ClassHit:
-  JSR Phase8RowCounter575::Apply          ; $D5D5: 20 16 B0 ; counter $0575 <- 3
+  JSR Phase8RowCrossbowVolley::Apply          ; $D5D5: 20 16 B0 ; counter $0575 <- 3
   LDY btl_side_index                               ; $D5D8: AC 7C 05 ; side index
   LDA btl_point_budget_a,Y                             ; $D5DB: B9 72 05 ; point budget
   SEC                                     ; $D5DE: 38
@@ -8409,7 +8409,7 @@ zone_count     = $0000  ; enemy-in-zone count
   PLA                                     ; $D5E5: 68 ; drop ladder return
   RTS                                     ; $D5E6: 60 ; back to AiTacticSpendDispatch
 ; --- Data Region ---
-@Counter575ClassCountChance:
+@CrossbowVolleyClassCountChance:
 ; Success chance per class-2 unit count (index 0-11): 0/0/48/80, 128
 ; (guaranteed) from four units on.
   .byte $00,$00,$30,$50,$80,$80,$80,$80,$80,$80,$80,$80; $D5E7: 00 00 30 50 80 80 80 80 80 80 80 80
@@ -8435,8 +8435,8 @@ zone_count     = $0000  ; enemy-in-zone count
   BCC @ClassCountLoop                     ; $D60F: 90 EA
   RTS                                     ; $D611: 60
 ;-------------------------------------------------------------------------------
-; $D612: @CoinFlipPurchase (cost $03)
-; Taunt-scene purchase (PhaseATauntSubDispatch sub 0: counter $0574 <- 4
+; $D612: @BindPurchase (cost $03)
+; Bind purchase (PhaseATauntSubDispatch sub 0: counter $0574 <- 4
 ; via PhaseATauntSceneOpen). Gate: with $0545 flipped to the enemy roster
 ; base ($057C EOR 1, zero/non-zero is all BattleOutnumberedCheck needs), the
 ; enemy army must be collapsing, then a roll below 50 must pass. The 3
@@ -8444,7 +8444,7 @@ zone_count     = $0000  ; enemy-in-zone count
 ; lost flip still drains the budget (original quirk). On success pops
 ; the ladder return and enters phase $A sub 0.
 ;-------------------------------------------------------------------------------
-@CoinFlipPurchase:
+@BindPurchase:
   LDA btl_scan_col                               ; $D612: AD 45 05 ; roster base
   PHA                                     ; $D615: 48 ; save
   LDA btl_side_index                               ; $D616: AD 7C 05 ; side index
@@ -8454,23 +8454,23 @@ zone_count     = $0000  ; enemy-in-zone count
   PLA                                     ; $D621: 68
   STA btl_scan_col                               ; $D622: 8D 45 05 ; restore roster base
   TYA                                     ; $D625: 98
-  BNE @CoinMiss                           ; $D626: D0 09 ; enemy not collapsing
+  BNE @BindMiss                           ; $D626: D0 09 ; enemy not collapsing
   LDA #$64                                ; $D628: A9 64
   JSR B1F_RandomBelowThreshold            ; $D62A: 20 62 E8 ; roll [0,100)
   CMP #$32                                ; $D62D: C9 32 ; 50% chance
-  BCC @CoinSpend                          ; $D62F: 90 01
-@CoinMiss:
+  BCC @BindSpend                          ; $D62F: 90 01
+@BindMiss:
   RTS                                     ; $D631: 60 ; back to the ladder
-@CoinSpend:
+@BindSpend:
   LDY btl_side_index                               ; $D632: AC 7C 05 ; side index
   LDA btl_point_budget_a,Y                             ; $D635: B9 72 05 ; point budget
   SEC                                     ; $D638: 38
   SBC #$03                                ; $D639: E9 03 ; cost 3
-@CoinStore:
+@BindStore:
   STA btl_point_budget_a,Y                             ; $D63B: 99 72 05 ; budget -= 3 (before the flip)
   JSR B1F_RandomByte                      ; $D63E: 20 7A E8 ; coin flip
   AND #$01                                ; $D641: 29 01
-  BNE @CoinMiss                           ; $D643: D0 EC ; lost flip: budget already spent
+  BNE @BindMiss                           ; $D643: D0 EC ; lost flip: budget already spent
   PLA                                     ; $D645: 68 ; drop own return
   PLA                                     ; $D646: 68 ; drop ladder return
   LDA #$0A                                ; $D647: A9 0A
@@ -8479,8 +8479,8 @@ zone_count     = $0000  ; enemy-in-zone count
   STA btl_overlay_sub                               ; $D64E: 8D 41 05 ; sub-phase <- 0
   RTS                                     ; $D651: 60 ; back to AiTacticSpendDispatch
 ;-------------------------------------------------------------------------------
-; $D652: @StatEdgePurchase (cost $05)
-; Taunt-scene purchase (PhaseATauntSubDispatch sub 4). Loads the commander-column attack
+; $D652: @TauntPurchase (cost $05)
+; Taunt purchase (PhaseATauntSubDispatch sub 4). Loads the commander-column attack
 ; bonuses $0570/$0571 and commander troop counts $05AC/$05B7 of both
 ; sides; when the acting side is B ($0545 != 0) the pairs are swapped so
 ; ($000A,$000C) describe the acting side. Gate: own attack bonus >= the
@@ -8489,7 +8489,7 @@ zone_count     = $0000  ; enemy-in-zone count
 ; ladder return, enters phase $A sub 4 (taunt scene, skipping the opening
 ; beat) and deducts 5 points.
 ;-------------------------------------------------------------------------------
-@StatEdgePurchase:
+@TauntPurchase:
   LDA btl_edge_bonus_a                               ; $D652: AD 70 05 ; side A attack bonus
   STA a:calc_work_a                             ; $D655: 8D 0A 00
   LDA btl_edge_bonus_b                               ; $D658: AD 71 05 ; side B attack bonus
@@ -8539,8 +8539,8 @@ zone_count     = $0000  ; enemy-in-zone count
 ; $D6BA: PhaseATauntSubDispatch
 ; Phase-$A handler entry (AI taunt scene): sub-dispatch on $0541 through the
 ; inline 6-entry table below. Entered only from the AI tactic-point spend
-; ladder AiTacticPointSpend: @CoinFlipPurchase (Taunt row, cost 3) starts at
-; sub 0 and runs subs 0-5; @StatEdgePurchase (stat-edge row, cost 5) starts
+; ladder AiTacticPointSpend: @BindPurchase (Bind row, cost 3) starts at
+; sub 0 and runs subs 0-5; @TauntPurchase (Taunt row, cost 5) starts
 ; at sub 4 and skips the opening beat. Subs 2/3 are idle wait frames; the
 ; scene exits either back to the command select (Phase3CommandConfirmWait
 ; with the resume latch 1/1) or into the phase-5 side event (sub 0).
@@ -8561,7 +8561,7 @@ zone_count     = $0000  ; enemy-in-zone count
 ; Sub 0 (taunt opening beat). Advances to sub 1, clears the row cursor
 ; $0548, sets UI panel $7B and applies status counter $0574 <- 4 for the
 ; acting side through Phase8RowCounter574 (the no-UI counter tail of the
-; player-side Taunt row).
+; player-side Bind row).
 ;===============================================================================
 .proc PhaseATauntSceneOpen
   INC btl_overlay_sub                               ; $D6CC: EE 41 05 ; sub-phase <- 1
@@ -8644,7 +8644,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDY #$39                                ; $D73B: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $D73D: 20 07 EE
 ; --- BankedCallbackTrampoline target (bank $19) ---
-  .word $A000                             ; $D740: 00 A0 ; B19_1A_OverlayStripRender_Entry
+  .word B19_1A_OverlayStripRender_Entry   ; $D740: 00 A0
   RTS                                     ; $D742: 60
 .endproc
 ;===============================================================================

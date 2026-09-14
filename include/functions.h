@@ -26,7 +26,7 @@ GUARD_FUNCTIONS_H = 1
 ; 1A: Reset and State Machine
 ;-------------------------------------------------------------------------------
 B1F_Reset                 = $E000   ; Reset handler: SEI, CLD, RAM clear, init
-B1F_StateDispatch         = $E066   ; Jump to handler via VectorTable[game_state]
+B1F_StateDispatch         = $E066   ; Jump to handler via VectorTable[duel_state]
 B1F_VectorTable           = $E07C   ; State dispatch table (15 entries, 2 bytes each)
 B1F_State_SystemInit      = $E09A   ; State 0: System init, PPU setup, -> state 9
 B1F_State_NewGameInit     = $E0DA   ; State 1: New game init, SRAM, music $81
@@ -180,6 +180,7 @@ B1F_NamcoSoundRegRead     = $F077   ; Namco-163 sound register read
 B1F_SpriteOamWriterScroll = $F092   ; Sprite OAM writer with scroll offset
 B1F_SpriteOamWriterScroll_NoInit = $F09C ; mid-entry: caller preset $0003/$0004
 B1F_SpriteOamWriterSimple = $F1AD   ; Sprite OAM writer direct placement
+B1F_SpriteOamWriterSimple_NoInit = $F1B7 ; mid-entry: caller preset $0003/$0004
 
 ;-------------------------------------------------------------------------------
 ; 1O: CHR Bank Switching
@@ -238,7 +239,7 @@ B1F_NmiEpilogue           = $F88D   ; Restore PRG banks, tick counters, RTI
 B1F_NmiState2_MapScreen   = $F8B5   ; NMI state 2: Map screen rendering
 B1F_NmiState3_Battle      = $F8FE   ; NMI state 3: Battle rendering
 B1F_NmiState4_Menu        = $F96A   ; NMI state 4: Menu rendering
-B1F_NmiState5_Intrigue    = $F9A0   ; NMI state 5: Intrigue (策略) rendering
+B1F_NmiState5_Duel        = $F9A0   ; NMI state 5: Tactical Mode frame; runs Duel Mode dispatcher (DuelModeDispatch, bank $17/$18)
 B1F_NmiState6_Event       = $F9E4   ; NMI state 6: Event rendering
 B1F_NmiState7_Strategy    = $FA13   ; NMI state 7: Strategy rendering
 B1F_NmiState8_Officer     = $FA53   ; NMI state 8: Officer rendering
@@ -303,7 +304,7 @@ B17_18_BattleEffects      = $A00F   ; BattleEffects_Entry: Battle visual effects
 B17_18_BattleDispatch     = $A012   ; BattleDispatch_Entry: Battle dispatch
 B17_18_OverlayWindow      = $A015   ; OverlayWindow_Entry: Overlay/window rendering
 B17_18_SetupAdvisorTiles  = $A018   ; SetupAdvisorTiles_Entry: Setup advisor/council tiles
-B17_18_MainGameDispatch   = $A01B   ; MainGameDispatch_Entry: Main game mode dispatcher
+B17_18_DuelModeDispatch   = $A01B   ; DuelModeDispatch_Entry: Duel mode main dispatcher
 B17_18_StrategyCommandDispatch = $A01E ; StrategyCommandDispatch_Entry: Strategy command dispatcher
 B17_18_AnimationDispatch  = $A021   ; AnimationDispatch_Entry: Animation dispatch
 B17_18_StrategyModeDisplay = $A024   ; StrategyModeDisplay_Entry: Strategy Mode display
@@ -351,135 +352,135 @@ B17_18_PopulateAdjacencyEntries = $B00F
 B17_18_BuildAdjacencyMapSmall = $B055
 B17_18_PopulateAdjacencyEntriesSmall = $B06B
 B17_18_PrepareAdjacencyPtrs = $B08F
-B17_18_StrategyModeDispatch = $B144
-B17_18_StrategyMode_InitOfficers = $B15A
-B17_18_StrategyMode_StoreOfficerSlot = $B1A2
-B17_18_StrategyMode_ShowMessage = $B1A6
-B17_18_StrategyMode_ShowDialog = $B1BB
-B17_18_StrategyMode_LoadPortrait = $B1D4
-B17_18_StrategyMode_BuildSpriteData = $B1EE
-B17_18_StrategyMode_FinalizeSprites = $B21C
+B17_18_DuelSceneDispatch = $B144
+B17_18_DuelScene_InitOfficers = $B15A
+B17_18_DuelScene_StoreNameTile = $B1A2
+B17_18_DuelScene_ShowMsg = $B1A6
+B17_18_DuelScene_ShowDialog = $B1BB
+B17_18_DuelScene_LoadPortrait = $B1D4
+B17_18_DuelScene_BuildRiderSprites = $B1EE
+B17_18_DuelScene_FinalizeSprites = $B21C
 B17_18_StrategyMode_CalcTroopStats = $B230
-B17_18_StrategyMode_SetupDisplay = $B2E0
-B17_18_TroopAssignmentDispatch = $B34F
-B17_18_TroopAssign_SelectTarget = $B361
-B17_18_TroopAssign_Execute = $B3F0
-B17_18_TroopAssign_ShowMenu = $B407
-B17_18_TroopAssign_HandleResult = $B47E
-B17_18_TroopAssign_Confirm = $B552
-B17_18_TroopAssign_ShowSummary = $B569
-B17_18_WarClashDispatch = $B5C8
-B17_18_WarClash_CompareForces = $B5D8
-B17_18_WarClash_MoraleCheck = $B626
-B17_18_WarClash_DefenseCheck = $B659
-B17_18_WarClash_OfficerDuel = $B689
-B17_18_WarClash_DetermineOutcome = $B719
-B17_18_WarClash_SetActionResult = $B7A8
+B17_18_DuelScene_ShowChallenge = $B2E0
+B17_18_DuelCommandDispatch = $B34F
+B17_18_DuelCmd_RoundSetup = $B361
+B17_18_DuelCmd_RenderStats = $B3F0
+B17_18_DuelCmd_CommandMenu = $B407
+B17_18_DuelCmd_CommandRoute = $B47E
+B17_18_DuelCmd_TacticConfirm = $B552
+B17_18_DuelCmd_TacticSelect = $B569
+B17_18_DuelAiDispatch = $B5C8
+B17_18_DuelAi_SurrenderCheck = $B5D8
+B17_18_DuelAi_DesperateCheck = $B626
+B17_18_DuelAi_StrikeCheck = $B659
+B17_18_DuelAi_TacticCheck = $B689
+B17_18_DuelAi_PickFeintStrike = $B719
+B17_18_DuelAi_CommitCommand = $B7A8
 B17_18_WarClash_MoraleCalc = $B7B3
-B17_18_WarClash_DefenseCalc = $B7DD
-B17_18_WarClash_LeadershipCheck = $B816
-B17_18_WarClash_DuelCheck = $B851
-B17_18_WarClash_FinalCalc = $B89B
-B17_18_WarResultDispatch = $B8C7
-B17_18_WarResult_Calculate = $B8D3
-B17_18_WarResult_ApplyTroopLoss = $B96D
-B17_18_WarResult_ShowVictory = $B9A0
-B17_18_WarResult_CheckContinue = $B9A5
-B17_18_WarResult_Finalize = $B9C8
-B17_18_DuelDispatch = $BA6D
-B17_18_Duel_Init  = $BA87
-B17_18_Duel_CheckContinue = $BAA5
-B17_18_Duel_ShowMenu = $BAC0
-B17_18_Duel_PlayerAction = $BADA
-B17_18_Duel_RandomEvent = $BB03
-B17_18_Duel_ShowMenu2 = $BB41
-B17_18_Duel_ApplyDamage = $BB5B
-B17_18_Duel_CheckFlee = $BB93
-B17_18_Duel_NextRound = $BBC0
-B17_18_Duel_CheckEnd = $BC00
+B17_18_DuelAi_DesperateThreshold = $B7DD
+B17_18_DuelAi_StrikeThreshold = $B816
+B17_18_DuelAi_PersuadeThreshold = $B851
+B17_18_DuelAi_InsultThreshold = $B89B
+B17_18_DuelStrikeResolveDispatch = $B8C7
+B17_18_DuelStrike_Resolve = $B8D3
+B17_18_DuelStrike_ApplyGauge = $B96D
+B17_18_DuelStrike_ShowParried = $B9A0
+B17_18_DuelStrike_WaitConfirm = $B9A5
+B17_18_DuelStrike_NextRound = $B9C8
+B17_18_DuelPursueDispatch = $BA6D
+B17_18_DuelPursue_Init = $BA87
+B17_18_DuelPursue_WaitIntro = $BAA5
+B17_18_DuelPursue_WindowSlideIn = $BAC0
+B17_18_DuelPursue_SetupPursuer = $BADA
+B17_18_DuelPursue_EscapeRoll = $BB03
+B17_18_DuelPursue_WindowSlideOut = $BB41
+B17_18_DuelPursue_ApplyStrike = $BB5B
+B17_18_DuelPursue_CheckDeath = $BB93
+B17_18_DuelPursue_DeadHandoff = $BBC0
+B17_18_DuelPursue_EscapeFinish = $BC00
 B17_18_Duel_SwapActive = $BC16
-B17_18_IntrigueDispatch   = $BC3B
-B17_18_Intrigue_Init      = $BC47
-B17_18_Intrigue_ShowMenu  = $BC5C
-B17_18_Intrigue_HandleAction = $BC8C
-B17_18_EventCutsceneDispatch = $BCE9
-B17_18_EventCutscene_Init = $BCFB
-B17_18_EventCutscene_ShowText = $BD1E
-B17_18_EventCutscene_Display = $BD40
-B17_18_EventCutscene_NoOp = $BD5C
-B17_18_EventCutscene_NoEvent = $BD5D
-B17_18_EventCutscene_Execute = $BDA9
-B17_18_EventCutscene_Cleanup = $BE3F
-B17_18_BattleInitDispatch = $BE78
-B17_18_BattleInit_Setup   = $BE86
-B17_18_BattleInit_Position = $BF43
-B17_18_BattleInit_Configure = $BF66
-B17_18_BattleInit_Finalize = $BF7E
+B17_18_DuelDataToggleDispatch = $BC3B
+B17_18_DuelData_Init = $BC47
+B17_18_DuelData_ShowCard = $BC5C
+B17_18_DuelData_HandleInput = $BC8C
+B17_18_SurrenderSceneDispatch = $BCE9
+B17_18_Surrender_Init = $BCFB
+B17_18_Surrender_ShowText = $BD1E
+B17_18_Surrender_Display = $BD40
+B17_18_Surrender_NoOp = $BD5C
+B17_18_Surrender_NoEvent = $BD5D
+B17_18_Surrender_Execute = $BDA9
+B17_18_Surrender_Cleanup = $BE3F
+B17_18_PersuadeResolveDispatch = $BE78
+B17_18_PersuadeRollEvent = $BE86
+B17_18_Persuade_FadeOut = $BF43
+B17_18_Persuade_WaverHandoff = $BF66
+B17_18_Persuade_AcceptHandoff = $BF7E
 
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $18 ($C000-$DFFF)
 ;-------------------------------------------------------------------------------
-B17_18_WarSetup_Exec   = $C08A
-B17_18_EventCutsceneDispatch2 = $C116
-B17_18_EventCutscene2_Init = $C124
-B17_18_EventCutscene2_LoadData = $C13A
-B17_18_EventCutscene2_Show = $C14A
-B17_18_EventCutscene2_Execute = $C187
-B17_18_EventCutscene_LoadOverlay = $C1E2
+B17_18_InsultResolve_Exec = $C08A
+B17_18_TacticDialogDispatch = $C116
+B17_18_TacticDialog_Init = $C124
+B17_18_TacticDialog_LoadName = $C13A
+B17_18_TacticDialog_ShowAppeal = $C14A
+B17_18_TacticDialog_Execute = $C187
+B17_18_TacticDialog_LoadCards = $C1E2
 B17_18_MapFadeDispatch    = $C21C
 B17_18_MapFade_Init       = $C22A
 B17_18_MapFade_FadeIn     = $C256
 B17_18_MapFade_Draw       = $C28E
 B17_18_MapFade_Complete   = $C2AA
 B17_18_MapFade_DrawColumn = $C2CC
-B17_18_TerritoryEventDispatch = $C2F6
-B17_18_TerritoryEvent_Init = $C30E
-B17_18_TerritoryEvent_Check = $C33B
-B17_18_TerritoryEvent_Execute = $C35D
-B17_18_TerritoryEvent_ApplyResult = $C40B
-B17_18_TerritoryEvent_CaptureOfficer = $C42E
-B17_18_TerritoryEvent_Finalize = $C44F
+B17_18_SpoilsEventDispatch = $C2F6
+B17_18_Spoils_Init = $C30E
+B17_18_Spoils_FadeGate = $C33B
+B17_18_Spoils_Execute = $C35D
+B17_18_Spoils_ApplyItem = $C40B
+B17_18_Spoils_CaptureOfficer = $C42E
+B17_18_Spoils_Finalize = $C44F
 B17_18_PaletteTransitionDispatch = $C464
 B17_18_PaletteTransition_Copy = $C46E
 B17_18_PaletteTransition_Fade = $C480
-B17_18_MapScrollDispatch_A = $C498
-B17_18_MapScrollA_Init    = $C4AC
-B17_18_MapScrollA_Scroll  = $C4C3
-B17_18_MapScrollA_Draw    = $C4E9
-B17_18_MapScrollA_Update  = $C55A
-B17_18_MapScrollA_Animate = $C598
-B17_18_MapScrollA_Finalize = $C5D2
-B17_18_MapScrollA_Complete = $C66B
-B17_18_MapScrollDispatch_B = $C689
-B17_18_MapScrollB_Init    = $C69F
-B17_18_MapScrollB_Scroll  = $C6B6
-B17_18_MapScrollB_Draw    = $C6DC
-B17_18_MapScrollB_Update  = $C72D
-B17_18_MapScrollB_Animate = $C773
-B17_18_MapScrollB_Finalize = $C809
-B17_18_MapScrollB_Complete = $C84A
-B17_18_MapScrollB_Extra   = $C884
-B17_18_MapScrollDispatch_C = $C949
-B17_18_MapScrollC_Init    = $C95F
-B17_18_MapScrollC_Scroll  = $C976
-B17_18_MapScrollC_Draw    = $C99C
-B17_18_MapScrollC_Update  = $C9ED
-B17_18_MapScrollC_Animate = $CA50
-B17_18_MapScrollC_Finalize = $CAB8
-B17_18_MapScrollC_Complete = $CAD4
-B17_18_MapScrollC_Extra   = $CB0E
-B17_18_MapSlideDispatch_A = $CB9E
-B17_18_MapSlideA_Init     = $CBAA
-B17_18_MapSlideA_Slide    = $CC0A
-B17_18_MapSlideA_Complete = $CC62
-B17_18_MapSlideDispatch_B = $CC87
-B17_18_MapSlideB_Init     = $CC93
-B17_18_MapSlideB_Slide    = $CCAA
-B17_18_MapSlideB_Complete = $CCD0
-B17_18_MapSlideDispatch_C = $CD3C
-B17_18_MapSlideC_Init     = $CD48
-B17_18_MapSlideC_Slide    = $CD5F
-B17_18_MapSlideC_Complete = $CD85
+B17_18_FeintSceneDispatch = $C498
+B17_18_FeintScene_Init    = $C4AC
+B17_18_FeintScene_Scroll  = $C4C3
+B17_18_FeintScene_Draw    = $C4E9
+B17_18_FeintScene_Update  = $C55A
+B17_18_FeintScene_Animate = $C598
+B17_18_FeintScene_Finalize = $C5D2
+B17_18_FeintScene_Complete = $C66B
+B17_18_StrikeSceneDispatch = $C689
+B17_18_StrikeScene_Init    = $C69F
+B17_18_StrikeScene_Scroll  = $C6B6
+B17_18_StrikeScene_Draw    = $C6DC
+B17_18_StrikeScene_Update  = $C72D
+B17_18_StrikeScene_Animate = $C773
+B17_18_StrikeScene_Finalize = $C809
+B17_18_StrikeScene_Complete = $C84A
+B17_18_StrikeScene_Extra   = $C884
+B17_18_DesperateSceneDispatch = $C949
+B17_18_DesperateScene_Init    = $C95F
+B17_18_DesperateScene_Scroll  = $C976
+B17_18_DesperateScene_Draw    = $C99C
+B17_18_DesperateScene_Update  = $C9ED
+B17_18_DesperateScene_Animate = $CA50
+B17_18_DesperateScene_Finalize = $CAB8
+B17_18_DesperateScene_Complete = $CAD4
+B17_18_DesperateScene_Extra   = $CB0E
+B17_18_StrikeSlideDispatch = $CB9E
+B17_18_StrikeSlide_Init     = $CBAA
+B17_18_StrikeSlide_Slide    = $CC0A
+B17_18_StrikeSlide_Complete = $CC62
+B17_18_DuelMenuSlideInDispatch = $CC87
+B17_18_DuelMenuSlideIn_Init     = $CC93
+B17_18_DuelMenuSlideIn_Slide    = $CCAA
+B17_18_DuelMenuSlideIn_Complete = $CCD0
+B17_18_DuelMenuSlideOutDispatch = $CD3C
+B17_18_DuelMenuSlideOut_Init     = $CD48
+B17_18_DuelMenuSlideOut_Slide    = $CD5F
+B17_18_DuelMenuSlideOut_Complete = $CD85
 B17_18_BuildPPUTileBuffer = $CDFD
 B17_18_DrawSpriteFromBank = $CEA5
 B17_18_MapScroll_UpdatePosition = $CEE1
@@ -487,16 +488,16 @@ B17_18_ExpandMetatileToSprites = $CFA3
 B17_18_FinalizeSpriteBuffer = $D060
 B17_18_ReadMenuSelection  = $D13D
 B17_18_SetupMenuPtr       = $D166
-B17_18_TroopAssign_NextState = $D17C
+B17_18_DuelCmd_FillStatTiles = $D17C
 B17_18_DrawCompletionSprite = $D235
 B17_18_CheckPlayerIsRuler = $D262
 B17_18_SetDisplayPointer  = $D283
 B17_18_CheckButtonConfirm = $D299
-B17_18_DomAction_InitOfficerScroll = $D6AA
-B17_18_DomAction_ScrollIntroPanel = $D79B
-B17_18_DomAction_ScrollTextPhase2 = $D83A
-B17_18_DomAction_ScrollAndWait = $D8C9
-B17_18_DomAction_FinalizeCleanup = $D920
+B17_18_StrategyCommand_InitOfficerScroll = $D6AA
+B17_18_StrategyCommand_ScrollIntroPanel = $D79B
+B17_18_StrategyCommand_ScrollTextPhase2 = $D83A
+B17_18_StrategyCommand_ScrollAndWait = $D8C9
+B17_18_StrategyCommand_FinalizeCleanup = $D920
 B17_18_Finalize_Init      = $D932
 B17_18_Finalize_SetupUI   = $D950
 B17_18_Finalize_WaitConfirm = $D95A
@@ -504,14 +505,14 @@ B17_18_Finalize_ScrollTimer = $D976
 B17_18_Finalize_PaletteCopy = $D9B4
 B17_18_Finalize_NoOp      = $D9C1
 B17_18_Finalize_ExitTransition = $D9C2
-B17_18_DomAction_MainInteractive = $D9CA
-B17_18_DomAction_BuildOfficerList = $D9DE
-B17_18_DomAction_InitOfficerDisplay = $DA41
-B17_18_DomAction_RenderOfficerEntry = $DA87
-B17_18_DomAction_UpdateOfficerDisplay = $DAB6
-B17_18_DomAction_ScrollOfficerList = $DAE0
-B17_18_DomAction_FinalizeDisplayBuffer = $DB90
-B17_18_DomAction_CheckConfirmInput = $DBDA
+B17_18_StrategyCommand_MainInteractive = $D9CA
+B17_18_StrategyCommand_BuildOfficerList = $D9DE
+B17_18_StrategyCommand_InitOfficerDisplay = $DA41
+B17_18_StrategyCommand_RenderOfficerEntry = $DA87
+B17_18_StrategyCommand_UpdateOfficerDisplay = $DAB6
+B17_18_StrategyCommand_ScrollOfficerList = $DAE0
+B17_18_StrategyCommand_FinalizeDisplayBuffer = $DB90
+B17_18_StrategyCommand_CheckConfirmInput = $DBDA
 B17_18_RenderDispatchSprite = $DBF3
 B17_18_ScrollPanel_LoadRow = $DC13
 B17_18_ScrollPanel_PrepareRowData = $DCE1
@@ -673,13 +674,15 @@ B1D_1E_OfficerRecLookup_Proc = $DEB9 ; Officer record lookup procedure
 ; Banks $19+$1A - Map screen scenes (combined 16KB $A000-$DFFF)
 ; Loaded via SwitchBankAC with Y=$39 ($39 & $1F = $19, $C000 slot = $1A)
 ;
-; Jump table entry points ($A000-$A024)
+; Jump table entry points ($A000-$A032)
 ;-------------------------------------------------------------------------------
 B19_1A_OverlayStripRender_Entry = $A000  ; $A000 stub: redraw one battle overlay strip (X = strip 0/1)
+B19_1A_OfficerCardRender_Entry = $A000   ; $A000 stub alias: officer card overlay strip render
 B19_1A_AttractDemoDispatch           = $A003 ; AttractDemoDispatch_Entry: title-screen attract demo dispatch
 B19_1A_StrategyRequestDispatch       = $A006 ; StrategyRequestDispatch_Entry: strategy request dispatch
 B19_1A_DemoEventPlaybackDispatch     = $A009 ; DemoEventPlaybackDispatch_Entry: demo event playback sequencer
 B19_1A_OfficerStatusScene            = $A00C ; Officer status scene entry stub
+B19_1A_ExchangeMarchCutscene         = $A00F ; ExchangeMarchCutscene_Entry: war exchange marching cutscene (per-frame)
 B19_1A_OfficerCardAnimStep_Entry     = $A012 ; OfficerCardAnimStep_Entry: officer card slide-in animation step
 B19_1A_SortieWarCommit               = $A015 ; SortieWarCommit_Entry: commit the sortie (seize stocks, build war roster)
 B19_1A_TransferCapacityCalc          = $A018 ; TransferCapacityCalc_Entry: transport capacity min() per good
@@ -691,6 +694,65 @@ B19_1A_GoodsSendPrepare              = $A027 ; GoodsSendPrepare_Entry: goods sen
 B19_1A_GoodsSendApply                = $A030 ; GoodsSendApply_Entry: goods send apply to Officer $042C Province
 B19_1A_MapProvinceDirtyMark          = $A02A ; MapProvinceDirtyMark_Entry: marks province $0402 dirty in $04E0-$04E3
 B19_1A_SramSaveCommit                = $A02D ; SramSaveCommit_Entry: SRAM save commit (backup copy + "ID" magic + 16-bit checksum)
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $19 ($A033-$BFFF)
+; (stubs above share names with procs below, hence the _Proc suffix)
+;-------------------------------------------------------------------------------
+B19_1A_AttractDemoDispatch_Proc = $A033  ; Attract demo frame state $0B handler (title-screen demo cycle)
+B19_1A_ProvinceCountByOwner = $A19F      ; Count Provinces whose owner matches A
+B19_1A_MarkerSpriteDraw = $A1C2          ; Draw demo marker sprite (MarkerSpriteData)
+B19_1A_FindOfficerProvince = $A1EB       ; Find Province housing Officer id $000A
+B19_1A_DecayCountryTimers = $A209        ; Decay packed-nibble Country record timers ($04-$07)
+B19_1A_AttractDemoCensusBuild = $A240    ; Build demo Country list + Officer census
+B19_1A_DemoEventPlaybackDispatch_Proc = $A296 ; Demo event playback sequencer (frame state $0A)
+B19_1A_PlaybackPaceGate = $A2BC          ; Playback pace gate (frame divider)
+B19_1A_PlaybackStepRoute = $A30C         ; Playback event step routing
+B19_1A_PlaybackSeverityArm = $A33C       ; Arm severity event playback
+B19_1A_PlaybackExitRoute = $A363         ; Playback exit routing
+B19_1A_PlaybackRulerLoad = $A389         ; Load demo Ruler
+B19_1A_PlaybackRulerSplit = $A39B        ; Split Ruler demo path
+B19_1A_ProvinceTroopRecount = $A3E5      ; Recompute Province record troop/gold counts
+B19_1A_ClampStatPair = $A52A             ; Clamp 16-bit stat pair
+B19_1A_ValidateRecountStats = $A540      ; Debug validation of recalculated Province record
+B19_1A_ValidateRecountSlots = $A582      ; Debug validation: Province Officer slots $11-$1A
+B19_1A_ProvinceGoldRecount = $A5AA       ; Recompute Province gold
+B19_1A_WarDamageScene = $A6EF            ; War damage overlay scene
+B19_1A_ProvincePickListBuild = $A896     ; Build Province pick list
+B19_1A_ProvinceTroopDeduct = $A8E0       ; Deduct Province troops (with record update)
+B19_1A_ProvinceTroopSubtract = $A93E     ; Subtract Province troops (raw)
+B19_1A_DirtyMarkAndCard = $A985          ; Mark Province dirty + officer card redraw
+B19_1A_TroopLossScene = $A9A0            ; Troop loss overlay scene
+B19_1A_AnnualProvinceEvent = $AB15       ; Annual Province event handler
+B19_1A_OfficerStatusScene_Proc = $AD81   ; Officer status scene
+B19_1A_OfficerReinforceScene = $AEC0     ; Officer reinforce scene
+B19_1A_ProvinceOfficerRosterDispatch_Proc = $AFE5 ; Province officer roster dispatch
+B19_1A_OfficerCardAnimStep_Proc = $B2D7  ; Officer card slide-in animation step
+B19_1A_CardFillDispatch = $B4BF          ; Officer card fill dispatch (animation frames)
+B19_1A_SortieWarCommit_Proc = $B7D9      ; Commit the sortie: seize stocks, build war roster
+B19_1A_TransferCapacityCalc_Proc = $B8D7 ; Transport capacity min() per good
+B19_1A_OfficerArrivalScan_Proc = $B964   ; Find arriving/available Officer for $0402
+B19_1A_CastleDevResultRoll_Proc = $BA70  ; Castle dev result roll (message/increment/index)
+B19_1A_GoodsSendPrepare_Proc = $BB03     ; Goods send type roll + amount scale
+B19_1A_GoodsSendApply_Proc = $BB73       ; Apply goods send to Officer $042C Province
+B19_1A_MapProvinceDirtyMark_Proc = $BBDE ; Mark province $0402 dirty in $04E0-$04E3
+B19_1A_SramSaveCommit_Proc = $BC02       ; SRAM save commit (backup copy + "ID" magic + checksum)
+B19_1A_OfficerRemovalScene = $BC80       ; Officer removal (death/dismissal) scene
+B19_1A_RulerSuccessionScene = $BE01      ; Ruler succession scene
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $1A ($C000-$DFFF)
+;-------------------------------------------------------------------------------
+B19_1A_RosterSwapFirst = $C101           ; Swap first roster slot to front
+B19_1A_OfficerReassessScene = $C132      ; Officer reassess scene
+B19_1A_ScenarioHandoffPrep = $C37A       ; Scenario handoff preparation
+B19_1A_UnificationEndingDispatch_Proc = $C435 ; Unification ending scene dispatch
+B19_1A_MapCameraScrollRepeat = $C67C     ; Map camera scroll with auto-repeat (bank pair twin)
+B19_1A_MapProvinceUnderCamera = $C708    ; Find Province under camera center
+B19_1A_StrategyRequestDispatch_Proc = $C773 ; Strategy request processing dispatch
+B19_1A_CountryControlToggle = $CD8C      ; Country control (player/AI) toggle
+B19_1A_OfficerCardRender = $CE1F         ; Officer card sprite overlay strip render
+B19_1A_ExchangeMarchCutscene_Proc = $CFD6 ; War exchange marching cutscene (per-frame)
 
 ;===============================================================================
 ; SECTION 3: Banked Code at $8000-$9FFF (Slot 0)
@@ -944,7 +1006,7 @@ B08_09_Action_AttackNearest = $A166 ; Action 2: attack nearest enemy
 B08_09_GetOrderedDestination = $A1E5 ; Get ordered destination
 B08_09_Action_DefendBase  = $A210   ; Action 3: defend capital
 B08_09_Action_SweepRange3 = $A2AD   ; Action 4: sweep range 3
-B08_09_Action_CaptureProvince = $A329 ; Action 5: capture province
+B08_09_Action_BuyRice = $A329 ; Action 5: march to ordered province, buy rice with gold
 B08_09_Action_RestoreHP   = $A507   ; Action 6: restore HP
 B08_09_Action_Idle        = $A606   ; Action 7: idle
 B08_09_AiExecuteMove      = $A60C   ; AI movement engine
@@ -953,11 +1015,11 @@ B08_09_AiCheckAttackNearby = $A8A8  ; Check attack nearby
 B08_09_AiFindNearbyOfficers = $A8D3 ; Find nearby officers
 B08_09_AiFindNearbyOfficers_ScanLoop = $A8E8 ; Multi-entry: scan loop (target in $20/$21)
 B08_09_AiCheckFaction     = $A944   ; Check faction (also called from $CB74)
-B08_09_AiCheckMove        = $A95C   ; Check move feasibility
-B08_09_AiCheckAttackFeasible = $A9CF ; Check attack feasibility
-B08_09_AiCheckRecruit     = $AAF8   ; Check recruit feasibility
-B08_09_AiRecruitClassTable = $AC65  ; Recruit class table
-B08_09_AiCheckActionFeasible = $AC7B ; Stratagem feasibility dispatcher
+B08_09_AiPickStratagemTarget = $A95C ; Pick stratagem target: radius-5 enemies strongest-first, first candidate with a feasible stratagem wins
+B08_09_AiPickStratagem = $A9CF ; Pick feasible stratagem code vs candidate (tier cascade + random)
+B08_09_AiCheckAdvancedStratagem = $AAF8 ; Attempt stratagems $0A-$0F vs nearby enemies (caster-id gated)
+B08_09_AiAdvancedStratagemOfficerTable = $AC65 ; Caster-id whitelist for stratagems $0A-$0F, per rank group
+B08_09_AiCheckStratagemFeasible = $AC7B ; Per-stratagem precondition dispatcher (X = stratagem code 0-$0F)
 B08_09_AiFeasible_FireAttack = $ACCE ; Feasible: FireAttack (火計)
 B08_09_AiFeasible_PitfallTrap = $ACDB ; Feasible: PitfallTrap (陥穽)
 B08_09_AiFeasible_BoatSabotage = $ACE8 ; Feasible: BoatSabotage (乱水)
@@ -1178,14 +1240,14 @@ B0E_0F_Phase8PanelReturnToCommand = $AE6C ; Return to phase 3 sub 3
 B0E_0F_Phase8PanelAdvanceWait   = $AE8E ; Phase 8 sub 4: advance wait
 B0E_0F_Phase8PanelReturnToCommandDup = $AEAE ; Unreferenced dup of ReturnToCommand
 B0E_0F_Phase8RowEffectDispatch  = $AF11 ; Purchased row effect dispatch
-B0E_0F_Phase8RowStatCheck       = $AF26 ; Row 1: stat check (siege auto-fail)
-B0E_0F_Phase8RowCoinFlip        = $AFD2 ; Row 0: coin flip effect
+B0E_0F_Phase8RowTaunt           = $AF26 ; Row 1: Taunt stat check (siege auto-fail)
+B0E_0F_Phase8RowBind            = $AFD2 ; Row 0: Bind effect (coin-flip hit)
 B0E_0F_Phase8RowCounter574      = $AFF6 ; Row effect: status counter $0574 <- 4
-B0E_0F_Phase8RowCounter575      = $B00E ; Row 2: status counter $0575 <- 3
-B0E_0F_Phase8RowCounter576      = $B02E ; Row 3: status counter $0576 <- 4
+B0E_0F_Phase8RowCrossbowVolley  = $B00E ; Row 2: status counter $0575 <- 3
+B0E_0F_Phase8RowMoraleBoost     = $B02E ; Row 3: status counter $0576 <- 4
 B0E_0F_Phase8RowReloadRoll      = $B066 ; Reload roll: A + 5 + rand[0,5)
-B0E_0F_Phase8RowCounter577      = $B07C ; Row 4: status counter $0577 <- 3
-B0E_0F_Phase8RowAdvance         = $B09C ; Row 5: leave panel -> phase 9
+B0E_0F_Phase8RowFireArrows      = $B07C ; Row 4: status counter $0577 <- 3
+B0E_0F_Phase8RowExplosion       = $B09C ; Row 5: Explosion purchase -> phase 9
 B0E_0F_Phase8RowScriptQueue     = $B0AC ; Queue row script into VRAM script buffer
 B0E_0F_BattleSideStatusCountersDecrement = $B15B ; Per-frame status counter tick-down
 B0E_0F_Phase9AdvanceSubDispatch = $B1EC ; Phase 9 (formation advance) sub-dispatch
@@ -1264,6 +1326,80 @@ B0E_0F_OfficerBattleExpLevelCheck = $D7FB ; Battle experience accrual and level-
 B0E_0F_OfficerStatSumBattleTransfer = $D8B0 ; Donor Might+Intelligence -> recipient exp
 B0E_0F_BattleAnimSoundEngine    = $D8D4 ; Battle animation script + sound engine
 B0E_0F_BattleSoundChannelProc   = $DC59 ; Sound channel processing engine
+
+;===============================================================================
+; SECTION 9: Combined Banks $1B+$1C ($A000-$DFFF)
+; Bank $1B at $A000-$BFFF paired with Bank $1C at $C000-$DFFF
+; Map screen frame update module
+; Loaded via SwitchBankAC with Y=$3B ($3B & $1F = $1B)
+; Entry points via jump table at $A000-$A00B
+;===============================================================================
+
+;-------------------------------------------------------------------------------
+; Jump Table Entry Points ($A000-$A00B)
+;-------------------------------------------------------------------------------
+B1B_1C_MapScreenFrameUpdate_Entry = $A000 ; MapScreenFrameUpdate_Entry: per-frame map-screen update (NmiState2_MapScreen)
+B1B_1C_ActionDeltaInputPoll_Entry = $A003 ; ActionDeltaInputPoll_Entry: war-scene action delta input poll
+B1B_1C_OfficerSelectDialogPoll_Entry = $A006 ; OfficerSelectDialogPoll_Entry: Officer select dialog poll (dispatch callback target)
+B1B_1C_ProvinceZoneOriginGet_Entry = $A009 ; ProvinceZoneOriginGet_Entry: Province id $000A -> map zone origin $000B/$000C
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $1B ($A00C-$BFFF)
+;-------------------------------------------------------------------------------
+B1B_1C_MapScreenFrameUpdate = $A00C      ; Per-frame map-screen update (invoked by NmiState2_MapScreen)
+B1B_1C_CallAttractDemoDispatch = $A045   ; Banked-call wrapper -> B19_1A_AttractDemoDispatch
+B1B_1C_CallProvinceOfficerRosterDispatch = $A04D ; Banked-call wrapper -> B19_1A_ProvinceOfficerRosterDispatch
+B1B_1C_CallStrategyRequestDispatch = $A055 ; Banked-call wrapper -> B19_1A_StrategyRequestDispatch
+B1B_1C_CallDemoEventPlaybackDispatch = $A05D ; Banked-call wrapper -> B19_1A_DemoEventPlaybackDispatch
+B1B_1C_CallOfficerStatusScene = $A065    ; Banked-call wrapper -> B19_1A_OfficerStatusScene
+B1B_1C_CallSceneRenderer = $A06D         ; Banked-call wrapper -> B1D_1E_SceneRenderer
+B1B_1C_CallUnificationEndingDispatch = $A075 ; Banked-call wrapper -> B19_1A_UnificationEndingDispatch
+B1B_1C_MapRulerIntroDispatch = $A07D     ; Map ruler-intro sequence sub-state dispatch
+B1B_1C_CommandCategoryMenuDispatch = $A18B ; Command category selection menu (state 1)
+B1B_1C_CastleCommandDispatch = $A295     ; Castle command screen (state 2)
+B1B_1C_ArmyCommandDispatch = $ADF2       ; Army command screen (state 3)
+B1B_1C_WarehouseCommandDispatch = $B759  ; Warehouse command screen (state 4)
+B1B_1C_TownCommandDispatch = $BFB7       ; Town command screen (state 5)
+B1B_1C_IntrigueCommandDispatch = $CADF   ; Intrigue command screen (state 6)
+
+;-------------------------------------------------------------------------------
+; Internal procs - Bank $1C ($D2E3-$DFFF)
+;-------------------------------------------------------------------------------
+B1B_1C_PoachOddsCalc = $D2E3             ; Poach odds calculation
+B1B_1C_DiscordLoyaltyDropCalc = $D3C5    ; Discord loyalty drop calculation
+B1B_1C_PoachRosterTransfer = $D41B       ; Poached officer roster transfer
+B1B_1C_AllianceListRowRender = $D472     ; Alliance list row render
+B1B_1C_AllianceStateGet = $D4ED          ; Alliance state get (country pair)
+B1B_1C_AllianceStateSet = $D508          ; Alliance state set
+B1B_1C_MapCursorArrowDraw = $D543        ; Map cursor arrow sprite draw
+B1B_1C_MapTransitionStateSave = $D568    ; Save map transition state
+B1B_1C_MapTransitionStateRestore = $D58C ; Restore map transition state
+B1B_1C_ConfirmDialogPoll = $D5BD         ; Shared confirm dialog poll
+B1B_1C_OfficerSelectDialogPoll = $D64A   ; Officer select dialog poll (strategy mode)
+B1B_1C_OfficerSelectRowMarkDraw = $D773  ; Officer select row mark repaint
+B1B_1C_DialogWindowClose = $D7A8         ; Shared dialog/roster window close step
+B1B_1C_OfficerTroopPoolAssignPoll = $D7C5 ; Troop pool distribution poll (dialog phase $10)
+B1B_1C_TroopPoolRemainderSweep = $D987   ; Round troop count down + pool remainder sweep
+B1B_1C_ActionDeltaInputPoll = $DA02      ; War-scene action delta input poll
+B1B_1C_MathDivideProduct = $DB72         ; Tail-call wrapper for B1F_MathDiv24
+B1B_1C_ActionDeltaWorkReset = $DB87      ; Clear numeric-input work area $048B-$048F
+B1B_1C_CastleScoutOutcomeRoll = $DB99    ; Scout outcome roll for province $0402
+B1B_1C_ProvinceOfficerCount = $DC6B      ; Count officers in province roster
+B1B_1C_HospitalWoundedRosterBuild = $DC7C ; Hospital wounded candidate roster build
+B1B_1C_TownFacilityMenuLayoutSelect = $DCD0 ; Facility menu layout selector
+B1B_1C_ProvinceRulerIdGet = $DD4F        ; A = ruler id of province
+B1B_1C_CountryRulerIdGet = $DD56         ; A = ruler id of country
+B1B_1C_OfficerCardShow = $DD5E           ; Draw standing Officer card sprite
+B1B_1C_MenuCursorReset = $DD70           ; Clear shared menu cursor
+B1B_1C_ProvinceAdjacencyValidate = $DD79 ; Castle-move target adjacency validation
+B1B_1C_OverlayIdleCheck = $DDAD          ; C=1 while overlay/anim queues $0300/$0301 idle
+B1B_1C_CountryProvinceCount = $DDBF      ; Count provinces of country
+B1B_1C_ClampProvinceGoldRice = $DDDC     ; Clamp 16-bit province Gold/Rice field
+B1B_1C_MapCameraScroll = $DDF2           ; Map camera D-pad scroll with auto-repeat
+B1B_1C_MapRulerMarkerDraw = $DE83        ; Ruler marker sprites at camera position
+B1B_1C_MapProvinceHitTest = $DEBA        ; Hit-test province under map cursor
+B1B_1C_ProvinceZoneOriginGet = $DF25     ; Province id -> map zone origin
+B1B_1C_MapProvinceSpriteRefresh = $DF35  ; Rebuild animated province marker sprites + clear dirty bitmap
 
 ;-------------------------------------------------------------------------------
 ; Aliases (multi-entry proc sub-labels)

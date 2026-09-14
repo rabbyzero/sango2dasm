@@ -187,7 +187,7 @@ always two 4-byte slot headers owned by the frame engine.
 | `$0310-$0313` | 0e_0f | anim queue slot-0 tile-animation id lo/hi |
 | `$0310-$0313` | 17_18 | PPU display queue pointer + `$FF` terminator |
 | `$0310-$0313` | 1d_1e | VRAM position circular buffer (4 entries) |
-| `$0318-$0319` | 19_1a, 1b_1c | animation frame counter/state |
+| `$0318-$0319` | 19_1a, 1b_1c | map camera scroll: `$0318` latched D-pad direction nibble, `$0319` auto-repeat hold counter (identical scroll routine at 19_1a `$C67C` and 1b_1c `$DDF2`) |
 | `$031C-$034E` | 1d_1e | tile row buffers 1/2 (VRAM hi/lo + data per column) |
 | `$0380-$039C` | 0e_0f | `vram_script_buf` VRAM update script (two `$FF`-terminated segments) |
 | `$0380` | 17_18 | `sprite_y_buffer` (OAM shadow scratch) |
@@ -228,13 +228,13 @@ have canonical names used by several banks without redefinition.
 | `$0480-$0486` | — | officer name buffer ($0B) + lengths (1d_1e); work cells (1b_1c) |
 | `$048B-$0492` | — | action work area + stat deltas (08_09, 1b_1c) |
 | `$0498-$049D` | — | stat snapshot row (19_1a, 1b_1c) |
-| `$04A0-$04A5` | `menu_dispatch_*` | `menu_dispatch_flg` `$04A0` (menu id), `menu_row_step` `$04A1`, `menu_dispatch_idx` `$04A2`, `menu_row_inc` `$04A3`, action params `$04A4/$04A5` (1d_1e); `menu_index` `$04A2` = `$04A0 - 1` (19_1a, 1b_1c); `game_state`/`sub_state`/`player_slot` copies `$04A8-$04AA` (17_18) |
-| `$04A8-$04B3` | — | player state block (17_18): game state copy, sub state, active player slot, player flags, officer ids, army values, random offsets, timers; `btl_sideev_params` `$04A8-$04AA` (0e_0f side-event panel) |
+| `$04A0-$04A5` | `menu_dispatch_*` | `menu_dispatch_flg` `$04A0` (menu id), `menu_row_step` `$04A1`, `menu_dispatch_idx` `$04A2`, `menu_row_inc` `$04A3`, action params `$04A4/$04A5` (1d_1e); `menu_index` `$04A2` = `$04A0 - 1` (19_1a, 1b_1c); `duel_state`/`sub_state`/`player_slot` copies `$04A8-$04AA` (17_18) |
+| `$04A8-$04B3` | — | duel state block (17_18): duel state (duel_state), sub state, active player slot, player flags, officer ids, side strength gauges (`war_side_strength_0/1` `$04B1/$04B2`, 1-byte [0,100] gauges seeded from the commanding officer's Vitality at duel start — not the 16-bit TroopCount), random offsets, timers; `btl_sideev_params` `$04A8-$04AA` (0e_0f side-event panel) |
 | `$04B8-$04C0` | — | animation/scroll timers, slide Y, cutscene progress, display ptrs, sub-action type, frame counter (17_18) |
 | `$04C1-$04C6` | — | player scene index array, event overlay flag, UI state, name tile ptrs (17_18); `btl_attack_mirror_a/b` `$04C1/$04C2` (0e_0f) |
-| `$04C8` | — | `war_overlay_flag` (08_09) / `exchange_result_cnt` (0c_0d) |
-| `$04C9-$04CE` | — | dispatch step + src/dst/data/offset pointers (17_18); row/scroll state (19_1a) |
-| `$04D0-$04D1` | — | menu display row counter (1d_1e); scroll row (19_1a) |
+| `$04C8` | — | `war_overlay_flag` (08_09) / `exchange_result_cnt` (0c_0d) / exchange cutscene phase latch: trigger 1..$7F, $80 = panel build, $81 = scene loop, cleared on end (19_1a `ExchangeMarchCutscene`) |
+| `$04C9-$04CE` | — | dispatch step + src/dst/data/offset pointers (17_18); row/scroll state (19_1a); cutscene state: `$04C9` scene index, `$04CA` cursor, `$04CB` sub-cursor, `$04CD`/`$04CE` frame counters (19_1a `ExchangeMarchCutscene`) |
+| `$04D0-$04D1` | — | menu display row counter (1d_1e); scroll row (19_1a); cutscene elapsed timer `$04D0` (ends at `$B0`) + step frame countdown `$04D1` (19_1a `ExchangeMarchCutscene`) |
 | `$04D2-$04D5` | `officer_rec_src/dst` | Officer record copy source/dest pointers (0c_0d, 1d_1e); dispatch data/offset ptrs (17_18) |
 | `$04D6` | `menu_action_extra` | Menu action extra param (`$47` or `$A2` skips PPU init; 1d_1e, 19_1a, 1b_1c) |
 | `$04D8-$04DF` | — | `army_slot_base` 8-byte array (0c_0d, shared with 08_09); `officer_select_flg`-style scratch |
@@ -319,19 +319,25 @@ as `GetProvinceRuntimePtr` returning the pointer in `($20)`; `prg_0a_0b`
 
 | Offset | Width | Meaning |
 |--------|-------|---------|
-| `+$00` | 1 | Owner / ruler code (bits 0-2 select the Country slot); also the officer "home" value |
-| `+$01` | 1 | unidentified |
-| `+$02/$03` | 2 | Gold (16-bit LE) — action costs are subtracted here (`$BF...`, `DeductRecordStat2`) |
-| `+$04/$05` | 2 | unidentified |
-| `+$06/$07` | 2 | Morale (16-bit LE), capped at `$270F` (9999) |
-| `+$08/$09` | 2 | Troops (16-bit LE), capped at 999 — target of `ReinforceTroops` |
-| `+$0A` | 1 | Development stat, capped at 99 |
-| `+$0B` | 1 | Loyalty stat, capped at 99 for the plain raise, 100 for the bonus paths |
-| `+$0C/$0D` | 2 | unidentified |
-| `+$0E/$0F` | 2 | Supplies (16-bit LE) — same algorithm as `ReinforceTroops` |
-| `+$10` | 1 | unidentified |
-| `+$11-$1A` | 10 | Officer roster: 10 officer-id slots, `$FF` = empty. `CountRosterSlots` (`$D3D5`-ish) counts non-`$FF` entries; a compaction routine (`$D520`-ish) removes `$FF` gaps in place |
-| `+$1B-$1F` | 5 | unidentified / padding |
+| `+$00` | 1 | Owner / ruler code (low nibble = Country id 0-6, `7` = UnclaimedLand); also the officer "home" value |
+| `+$01` | 1 | always 0 in the ROM seed (runtime field) |
+| `+$02/$03` | 2 | Gold 金 (16-bit LE), capped at 9999. Development/AI actions spend from here (`DeductRecordStat2`: amount = base + random, `ClampRecordStatPairs*` clamps to `$0F27`); stratagem/intrigue eval costs via `@DeductActionCost` |
+| `+$04/$05` | 2 | Rice 米 (16-bit LE), capped at 9999 (`ClampRecordStatPairs` second pair; `DeductRecordStat4` spends here) |
+| `+$06/$07` | 2 | Population 人口 (16-bit LE, **stored ÷ 100** — the province panel appends two `0` tiles), capped at 9999 = 999,900 people. Target of the human `CastleDev` population route and AI `@AiAction_TownDevelopment`. (Earlier revisions mislabeled this "Morale" — no such stat exists in the manual) |
+| `+$08/$09` | 2 | LandValue 土地 (16-bit LE), capped at 999 — target of `CastleDev` land route and AI `@AiAction_LandReclamation` (month-gated April–August) |
+| `+$0A` | 1 | DisasterPrevention 防災, capped at 99 — target of `CastleDev` disaster route and AI `@AiAction_DisasterPrevention` |
+| `+$0B` | 1 | Governance 統治度, capped at 100; below 50 the annual check rolls a revolt. Every development action bumps this byte (`CastleDevFieldAddCapped`, AI `@AddGovernanceBump_Small/Large`, `@AiAction_GovernanceBoost`) |
+| `+$0C/$0D` | 2 | ReserveTroops 控え (16-bit LE), capped at 10000 (`$2710`, checked by `ValidateRecordGold` `$D688`). Troop assignment (`@AiDev_Main`, max 1000 per officer) draws from and tracks investment in this pool |
+| `+$0E/$0F` | 2 | Industry 産業 (16-bit LE), capped at 999 — target of `CastleDev` industry route and AI `@AiAction_IndustryDevelopment` |
+| `+$10` | 1 | Treasure 宝, capped at 99; 0 in the ROM seed |
+| `+$11-$1A` | 10 | Officer roster: 10 officer-id slots, `$FF` = empty. `CountRecordSlots` (`$D304`) counts non-`$FF` entries; `CompactRecordSlots` (`$D3DD`) removes `$FF` gaps in place |
+| `+$1B` | 1 | RevoltCooldown (months, set on a revolt; 0 in the ROM seed) |
+| `+$1C-$1F` | 4 | always 0 in the ROM seed (runtime fields) |
+
+Layout verified against the ROM seed table (bank `$30`, `$8C00`, 32 B/record) in
+`docs/province_data.md` / `docs/province_data.csv` and against the human
+development command (`prg_1b_1c.asm` `CastleDevFieldOffsetTable`: `+$08` land,
+`+$0E` industry, `+$06` population) and the AI equivalents in `prg_0a_0b.asm`.
 
 ### `$63C0-$6EFF`: Officer records (12 bytes each)
 
@@ -383,7 +389,8 @@ officer's decoded starting record.
 
 | Address | Name(s) | Meaning |
 |---------|---------|---------|
-| `$6F00-$6F01` | — | attract-demo scratch: demo year tick / rotation step (reused while no game is loaded) |
+| `$6F00` | `sram_game_year` (0a_0b) | Calendar year − 100 (display year = `$6F00+$64`; prg_19_1a `$B9C5`/`$C3EC`); new game seeds `$59` = year 189 (prg_1d_1e `$DE59`); AI expansion readiness gate in 0a_0b `CountryExpansionCheck` (`>= $5A` = year 190+); attract demo reuses it as the demo year tick (`INC` at prg_19_1a `$A062`) |
+| `$6F01` | `sram_game_month` (0a_0b) | Calendar month − 1 (display month = `$6F01+1`); drives AI seasonal actions in 0a_0b (reinforce troops when raw 3–7 = April–August, else supplies); level-1 expansion gate (`>= 6` = July+); attract demo rotation step reuse |
 | `$6F02` | `sram_game_level` (0a_0b) | Game level 0-2, selected at new game start; demo scratch `result_kingdom_idx` latch in 08_09 |
 | `$6F03` | `sram_player_id` | Current player country slot / ruler id |
 | `$6F04-$6F06` | — | attract-demo scratch: frame divider, Province count display value, camera-focus phase flag |
@@ -392,18 +399,19 @@ officer's decoded starting record.
 | `$6F3F-$6F42` | `sram_map_cam_y/x` | Map camera position: Y low `$6F3F`, Y high `$6F40`, X low `$6F41`, X high `$6F42` (init `$80`/`$F0` on new game) |
 | `$6F3F` / `$6F41` | — | country init params `$80`/`$F0` on new game (17_18 view of the same bytes) |
 | `$6F43` | — | latched result parameter / scroll-pending flag |
-| `$6F44` | — | multi-alias: battle outcome flag (08_09), target province record field 3 (19_1a), player swap trigger (17_18) |
+| `$6F44` | — | multi-alias: battle outcome flag (08_09), absorbed-officer display flag (0a_0b `$B783`/`$BD04`), target province record field 3 (19_1a), player swap trigger (17_18) |
 | `$6F45` | — | attract-demo rotation order index (0-4, randomised by `SramInit`; row base for the 5×8 rotation table) |
 | `$6F47-$6F6E` | `reserve_units` | Reserve unit id lists, 2 × `$14` (08_09). Overlaps the counters below — the war engine and the strategy-AI counters are never live at the same time |
 | `$6F5B-$6F5D` | — | iteration counter (`sram_counter`), per-turn counter `$6F5C`, AI action-point budget `$6F5D` (seeded as `$6F05 * 10`, max 130, decremented per action) |
 | `$6F5E` | — | province index cursor for the AI turn scan |
 | `$6F5F-$6F62` | — | computed weight values 0-2 (`$6F5F-$6F61`, used by the weighted-random action dispatcher), global phase / per-officer active flag `$6F62` |
 | `$6F72` | — | selected candidate officer id |
-| `$6F73-$6F82` | — | AI work area, cleared before each decision pass. `$6F73[0..7]` = per-owner "has active provinces" marks (`$FF` = none, `$00` = has provinces; a helper counts the `$00` entries in `$6F73[0..6]`) |
+| `$6F73-$6F82` | — | AI work area, cleared before each decision pass. `$6F73[0..7]` = per-owner "has active provinces" marks (`$FF` = none, `$00` = has provinces; a helper counts the `$00` entries in `$6F73[0..6]`). Dual-use inside 0a_0b `InitNewGameContext`: `$6F73/$6F74` and `$6F75/$6F76` are 16-bit army-pool accumulators distributed over the `$066E` / `$0664` rosters |
 | `$6F7B-$6F82` | — | transfer/claim buffer, 8 bytes, initialised to `$FF` = unclaimed |
 | `$6F83` | — | per-country action counter (`$6F83,X`); after `$1E` actions the global phase advances |
 | `$6F8B` | `sram_game_start_flag` | **Strategy-layer request mailbox** — the main cross-bank handshake. Strategy banks `$0A/$0B` post a request code and spin-wait; map-screen frame state 9 (banks `$19/$1A`, `$C773-$CD8B`, 16-entry sub-state table at `$C779`) polls it and acknowledges by writing `$01`. Codes: `$FF` turn complete (posted by `$08/$09`), `$FE` battle pending, `$FD` fully absorbed, `$FC` absorption result, `$FB`/`$FA`/`$F9` strategy actions, `$F8` absorption variant. Parameters travel in zero page `$0038-$0043`. Also set to `$FF` at new game. See `memory/project_tech_stack/strategy-layer-request-mailbox-protocol.md` |
-| `$6F8C-$6F8F` | — | AI turn scratch: `ai_officer_idx`, `ai_target_slot`, `ai_target_officer`, `ai_action_result` |
+| `$6F8C` | — | war AI: `ai_officer_idx` (08_09); 0a_0b `sram_continue_flag`: post-conquest context flag (0 = full new-game setup, 1 = continue existing armies) |
+| `$6F8D` | — | war AI: `ai_target_slot` (08_09); 0a_0b `sram_absorb_adjust`: absorption adjustment parameter (`$1E −` clamped army delta, written at `$AE96`; drives `ApplyScenarioDeductions` thresholds and `×4/10` cost scaling) |
 | `$6F91-$6F9B` | — | war AI scratch: `side_unit_base` (0/10), `rng_cursor`, `rng_x_save`, `officer_scan_idx`, `acted_officer_cnt`, `valid_officer_cnt`, `ai_move_cost`, `formation_slot0/1_units` (nibbles, stride 2 at `$6F9A`) |
 | `$6FA1-$6FE0` | `officer_state_table` | Officer state / unit placement queue (`$40` bytes) |
 | `$6FB5` | `move_reverse_dirs` | Per-officer reverse of last move direction |
@@ -413,6 +421,7 @@ officer's decoded starting record.
 | `$6FE2-$6FE8` | — | per-country event backup flags (one per country; restored if `$6FE2 == $FF` means no backup) |
 | `$6FEA` | `result_latch_flags` | Dir-repeat latch / outcome bits |
 | `$6FFC-$6FFD` | — | save magic `"ID"` (`$49 $44`), stamped by the save routine immediately before the copy (`prg_19_1a` `$BC0A-$BC11`) |
+| `$6FFE-$6FFF` | — | outside the save snapshot (`$6000-$6FFD` is copied). `$6FFF` is the BRK debug error-code sink in prg_0a_0b validate routines (`ValidateRecordStats` `$D5E8`, `ValidateRecordStatsAlt` `$D61F`, `ValidateRecordGold` `$D688`, `ClampRecordStatPairsAlt::@ValidateGold` `$D6D0`, `ValidateProvinceSlots` `$D6E6`): the error code is stored here immediately before `BRK` |
 
 ### `$7000-$7FFF`: save snapshot
 
@@ -437,8 +446,9 @@ seeded `$AA`. They are only reachable from the anti-piracy path of
 
 ### Notes
 
-- `$6F00-$6F06` is dual-use: game level/player id during real games, attract
-  demo scratch during the demo (the demo runs with no valid save).
+- `$6F00-$6F06` is dual-use: calendar year/month (`$6F00`/`$6F01`) and game
+  level/player id (`$6F02`/`$6F03`) during real games, attract demo scratch
+  during the demo (the demo runs with no valid save).
 - `$6F8B` is the only cross-bank blocking handshake in the codebase; a requester
   writes a code and busy-waits for the handler to write `$01` back.
 - Writes to the whole `$6000-$7FFF` window are gated by `NAMCO_CTRL` (`$F800`),

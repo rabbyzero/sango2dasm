@@ -84,12 +84,12 @@ strategy_cursor_hi           = $040D  ; Strategy command dispatch cursor/index h
 strategy_officer_list_lo     = $0410  ; Officer ID list for strategy command dispatch
 strategy_officer_list_hi     = $0411  ; Officer ID list hi (usually unused)
 ; Officer/Selection ($0424-$0435)
-troop_assign_counter_lo      = $0424  ; Troop assignment progress counter lo
-troop_assign_counter_hi      = $0425  ; Troop assignment progress counter hi
+menu_cursor_col      = $0424  ; Troop assignment progress counter lo
+menu_cursor_page      = $0425  ; Troop assignment progress counter hi
 selected_officer_id          = $042C  ; Active/selected officer ID
-; $042D - local to WarResult_ApplyTroopLoss (officer_id_ext)
+; $042D - local to DuelStrike_ApplyGauge (officer_id_ext)
 war_result_phase          = $042E  ; War result phase (shared with strategy command dispatch)
-; $042F-$0431 - local to Duel_ApplyDamage (damage_amount, damage_applied)
+; $042F-$0431 - local to DuelPursue_ApplyStrike (damage_amount, damage_applied)
 dispatch_timer               = $0435  ; Dispatch timer / countdown
 menu_blink_timer             = $046C  ; Menu selection blink timer
 ; Map/Scroll pointers ($0470-$0473)
@@ -97,8 +97,8 @@ anim_ppu_ptr_lo              = $0470  ; Animation PPU pointer lo
 anim_ppu_ptr_hi              = $0471  ; Animation PPU pointer hi
 map_scroll_ptr_lo            = $0472  ; Map scroll source pointer lo
 map_scroll_ptr_hi            = $0473  ; Map scroll source pointer hi
-; Main game state ($04A8-$04C0)
-game_state                   = $04A8  ; Major game state (0-14), indexes dispatch table
+; Duel mode state ($04A8-$04C0)
+duel_state                   = $04A8  ; Duel state (0-$15), indexes DuelModeDispatch
 sub_state                    = $04A9  ; Sub-state within each major state
 active_player_slot           = $04AA  ; Current player index (0 or 1)
 player_flag_0                = $04AB  ; Player 0 flag/status byte
@@ -106,8 +106,15 @@ player_officer_id_0          = $04AD  ; Officer ID for player 0
 player_officer_id_1          = $04AE  ; Officer ID for player 1
 name_tile_index              = $04AF  ; Name tile / scroll tile data index
 strategy_action_index        = $04B0  ; Strategy Mode action type index
-player_army_value_0          = $04B1  ; Army value for player 0
-player_army_value_1          = $04B2  ; Army value for player 1
+war_side_strength_0          = $04B1  ; Side war-strength gauge, side 0; 1 byte [0,100]: snapshot of the
+                                     ; commanding officer's Vitality (record +0, 体力) taken at war start
+                                     ; by DuelScene_InitOfficers ($B16F), then decremented by clash/
+                                     ; result losses. NOT the 16-bit 兵数 TroopCount (record +8/+9).
+                                     ; After the snapshot it evolves independently of the record: duel
+                                     ; damage (DuelPursue_ApplyStrike $BB89) and war-end processing write
+                                     ; record +0 directly; no re-sync or write-back between gauge and
+                                     ; record exists in this bank.
+war_side_strength_1          = $04B2  ; Side war-strength gauge, side 1 (see war_side_strength_0)
 player_random_offset_0       = $04B3  ; Random offset for player 0
 player_action_timer_0        = $04B5  ; Action timer for player 0
 anim_timer                   = $04B8  ; Animation / scroll timer
@@ -117,7 +124,7 @@ slide_y_pos                  = $04BB  ; Slide Y position / state
 cutscene_load_progress       = $04BC  ; Cutscene/overlay load progress
 display_ptr_lo               = $04BD  ; Display/map pointer low
 display_ptr_hi               = $04BE  ; Display/map pointer high
-sub_action_type              = $04BF  ; Sub-action type selector
+duel_command_code              = $04BF  ; Sub-action type selector
 frame_counter                = $04C0  ; Frame counter
 player_scene_index           = $04C1  ; Per-player scene index (array)
 event_overlay_flag           = $04C3  ; Event overlay / battle formation flag
@@ -171,7 +178,7 @@ map_scroll_ptr_2_lo          = $03BB  ; Map scroll PPU pointer 2 lo
 map_scroll_ptr_2_hi          = $03BC  ; Map scroll PPU pointer 2 hi
 
 ; --- Officer / Battle State ($050F-$0517) ---
-territory_event_type         = $050F  ; Territory event type selector
+spoils_event_type         = $050F  ; Territory event type selector
 player0_officer_lo           = $0514  ; Player 0 officer ID / pointer lo
 player0_officer_hi           = $0515  ; Player 0 officer ID hi / battle side array
 player1_officer_lo           = $0516  ; Player 1 officer ID / pointer lo
@@ -217,9 +224,9 @@ OverlayWindow_Entry:
 SetupAdvisorTiles_Entry:
 ; SetupAdvisorTiles_Entry ($A018):
   JMP SetupAdvisorTiles                                           ; $A018: 4C 83 A9
-MainGameDispatch_Entry:
-; MainGameDispatch_Entry ($A01B):
-  JMP MainGameDispatch                                           ; $A01B: 4C 00 B1
+DuelModeDispatch_Entry:
+; DuelModeDispatch_Entry ($A01B):
+  JMP DuelModeDispatch                                           ; $A01B: 4C 00 B1
 StrategyCommandDispatch_Entry:
 ; StrategyCommandDispatch_Entry ($A01E):
   JMP StrategyCommandDispatch                                    ; $A01E: 4C 93 D6
@@ -351,6 +358,7 @@ AdvanceSrcPtr:
   ADC #$00                                            ; $A0DE: 69 00
   STA ptr_hi                                         ; $A0E0: 8D 0B 00
   RTS                                                 ; $A0E3: 60
+.endproc
 
 ;===============================================================================
 ; $A0E4: PpuWriteRawRows
@@ -2883,14 +2891,31 @@ PrepareAdjacencyPtrs:
   RTS                                                     ; $B0FF: 60
 .endproc
 
-;--- $B100: Main Game Dispatch ---
+;--- $B100: Duel Mode Dispatch ---
 
 ;===============================================================================
-; $B100: MainGameDispatch
-; MainGameDispatch_Entry: Main game mode dispatcher (22-entry dispatch table)
+; $B100: DuelModeDispatch
+; Main dispatcher of the duel mode (22-entry duel_state table;
+; duel_state = $04A8, sub_state = $04A9). Dispatches on duel_state:
+;   $00     DuelSceneDispatch        duel intro scene (also $0A/$0B/$0C)
+;   $01     DuelCommandDispatch      command menu 牽制/退却/攻撃/降参/戦術/データ/捨て身
+;   $02     DuelAiDispatch           CPU command selection
+;   $03     DuelStrikeResolveDispatch  strike damage/parry resolution
+;   $04     DuelPursueDispatch       退却 flee/pursuit sequence
+;   $05     DuelDataToggleDispatch   データ officer-card screen
+;   $06     SurrenderSceneDispatch   降参 surrender cutscene
+;   $07     PersuadeResolveDispatch  説得 outcome handling (events 2-4)
+;   $08     InsultResolve_Exec       罵倒 resolution (one-shot)
+;   $09     TacticDialogDispatch     説得/罵倒 appeal+reply dialog
+;   $0A-$0C DuelSceneDispatch        intro variants
+;   $0D     MapFadeDispatch          map fade-out after the duel ends
+;   $0E     SpoilsEventDispatch      reward cutscene (join/capture)
+;   $0F     PaletteTransitionDispatch  palette fade between scenes
+;   $10-$12 FeintScene/StrikeScene/DesperateSceneDispatch  attack cutscene scrolls
+;   $13-$15 StrikeSlide/DuelMenuSlideIn/OutDispatch  menu window slides
 ;===============================================================================
-.proc MainGameDispatch
-MainGameDispatch:
+.proc DuelModeDispatch
+DuelModeDispatch:
   LDY active_player_slot                                           ; $B100: AC AA 04
   LDA player_flag_0,Y                                         ; $B103: B9 AB 04
   BPL @skip                                           ; $B106: 10 07
@@ -2900,57 +2925,60 @@ MainGameDispatch:
   LDA player_flag_0,Y                                         ; $B10C: B9 AB 04
 @skip:
   STA $6F44                                           ; $B10F: 8D 44 6F
-  LDA game_state                                           ; $B112: AD A8 04
+  LDA duel_state                                           ; $B112: AD A8 04
   JSR B1F_CallbackDispatcher                          ; $B115: 20 DE EA
 ; --- Inline pointer table (22 entries) ---
-  .word StrategyModeDispatch                                         ; $B118: 44 B1
-  .word TroopAssignmentDispatch                                         ; $B11A: 4F B3
-  .word WarClashDispatch                                         ; $B11C: C8 B5
-  .word WarResultDispatch                                         ; $B11E: C7 B8
-  .word DuelDispatch                                         ; $B120: 6D BA
-  .word IntrigueDispatch                                        ; $B122: 3B BC
-  .word EventCutsceneDispatch                                         ; $B124: E9 BC
-  .word BattleInitDispatch                                         ; $B126: 78 BE
-  .word BattleSetup_Exec                                         ; $B128: 8A C0
-  .word EventCutsceneDispatch2                                         ; $B12A: 16 C1
-  .word StrategyModeDispatch                                         ; $B12C: 44 B1
-  .word StrategyModeDispatch                                         ; $B12E: 44 B1
-  .word StrategyModeDispatch                                         ; $B130: 44 B1
+  .word DuelSceneDispatch                                         ; $B118: 44 B1
+  .word DuelCommandDispatch                                         ; $B11A: 4F B3
+  .word DuelAiDispatch                                         ; $B11C: C8 B5
+  .word DuelStrikeResolveDispatch                                         ; $B11E: C7 B8
+  .word DuelPursueDispatch                                         ; $B120: 6D BA
+  .word DuelDataToggleDispatch                                        ; $B122: 3B BC
+  .word SurrenderSceneDispatch                                         ; $B124: E9 BC
+  .word PersuadeResolveDispatch                                         ; $B126: 78 BE
+  .word InsultResolve_Exec                                         ; $B128: 8A C0
+  .word TacticDialogDispatch                                         ; $B12A: 16 C1
+  .word DuelSceneDispatch                                         ; $B12C: 44 B1
+  .word DuelSceneDispatch                                         ; $B12E: 44 B1
+  .word DuelSceneDispatch                                         ; $B130: 44 B1
   .word MapFadeDispatch                                         ; $B132: 1C C2
-  .word TerritoryEventDispatch                                         ; $B134: F6 C2
+  .word SpoilsEventDispatch                                         ; $B134: F6 C2
   .word PaletteTransitionDispatch                                         ; $B136: 64 C4
-  .word MapScrollDispatch_A                                         ; $B138: 98 C4
-  .word MapScrollDispatch_B                                         ; $B13A: 89 C6
-  .word MapScrollDispatch_C                                         ; $B13C: 49 C9
-  .word MapSlideDispatch_A                                         ; $B13E: 9E CB
-  .word MapSlideDispatch_B                                         ; $B140: 87 CC
-  .word MapSlideDispatch_C                                         ; $B142: 3C CD
+  .word FeintSceneDispatch                                         ; $B138: 98 C4
+  .word StrikeSceneDispatch                                         ; $B13A: 89 C6
+  .word DesperateSceneDispatch                                         ; $B13C: 49 C9
+  .word StrikeSlideDispatch                                         ; $B13E: 9E CB
+  .word DuelMenuSlideInDispatch                                         ; $B140: 87 CC
+  .word DuelMenuSlideOutDispatch                                         ; $B142: 3C CD
 .endproc
 
 ;===============================================================================
-; $B144: StrategyModeDispatch
-; Sub-dispatcher: mode 09 (8-entry dispatch table)
+; $B144: DuelSceneDispatch
+; Duel scene intro (games $00/$0A/$0B/$0C). Snapshots both commanders'
+; Vitality into the gauges, draws the mounted-officer scene, computes each
+; side's equip-speed base (first actor), then shows the duel challenge dialog
+; (panels $3A/$3B) and enters the tactic dialog state ($09).
 ;===============================================================================
-.proc StrategyModeDispatch
-StrategyModeDispatch:
+.proc DuelSceneDispatch
+DuelSceneDispatch:
   LDA sub_state                                           ; $B144: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B147: 20 DE EA
 ; --- Inline pointer table (8 entries) ---
-  .word StrategyMode_InitOfficers                                         ; $B14A: 5A B1
-  .word StrategyMode_ShowMessage                                         ; $B14C: A6 B1
-  .word StrategyMode_ShowDialog                                         ; $B14E: BB B1
-  .word StrategyMode_LoadPortrait                                         ; $B150: D4 B1
-  .word StrategyMode_BuildSpriteData                                         ; $B152: EE B1
-  .word StrategyMode_FinalizeSprites                                         ; $B154: 1C B2
-  .word StrategyMode_CalcTroopStats                                         ; $B156: 30 B2
-  .word StrategyMode_SetupDisplay                                         ; $B158: E0 B2
+  .word DuelScene_InitOfficers                                         ; $B14A: 5A B1
+  .word DuelScene_ShowMsg                                         ; $B14C: A6 B1
+  .word DuelScene_ShowDialog                                         ; $B14E: BB B1
+  .word DuelScene_LoadPortrait                                         ; $B150: D4 B1
+  .word DuelScene_BuildRiderSprites                                         ; $B152: EE B1
+  .word DuelScene_FinalizeSprites                                         ; $B154: 1C B2
+  .word DuelScene_CalcEquipSpeed                                           ; $B156: 30 B2
+  .word DuelScene_ShowChallenge                                         ; $B158: E0 B2
 .endproc
 ;===============================================================================
-; $B15A: StrategyMode_InitOfficers
+; $B15A: DuelScene_InitOfficers
 ;===============================================================================
-.proc StrategyMode_InitOfficers
+.proc DuelScene_InitOfficers
   officer_data_ptr     = $0000
-StrategyMode_InitOfficers:
+DuelScene_InitOfficers:
   LDA a:$0087                                         ; $B15A: AD 87 00
   BMI @skip                                           ; $B15D: 30 01
   RTS                                                 ; $B15F: 60
@@ -2962,8 +2990,8 @@ StrategyMode_InitOfficers:
   JSR B1F_GetOfficerRecordAddr                        ; $B168: 20 D7 F2
   LDY #$00                                            ; $B16B: A0 00
   LDA (officer_data_ptr),Y                                         ; $B16D: B1 00
-  STA player_army_value_0,X                                         ; $B16F: 9D B1 04
-  JSR LB188                                           ; $B172: 20 88 B1
+  STA war_side_strength_0,X                                         ; $B16F: 9D B1 04
+  JSR @CalcNameTileVariant                            ; $B172: 20 88 B1
   INX                                                 ; $B175: E8
   CPX #$02                                            ; $B176: E0 02
   BCC @loop                                           ; $B178: 90 EB
@@ -2973,36 +3001,36 @@ StrategyMode_InitOfficers:
   CLC                                                 ; $B182: 18
   ADC #$01                                            ; $B183: 69 01
   JMP BuildPPUTileBuffer                                           ; $B185: 4C FD CD
-LB188:
+@CalcNameTileVariant:
   LDY #$0A                                            ; $B188: A0 0A
   LDA (officer_data_ptr),Y                                         ; $B18A: B1 00
   AND #$1F                                            ; $B18C: 29 1F
   CMP #$10                                            ; $B18E: C9 10
   BCC @skip_2                                           ; $B190: 90 05
   LDA #$01                                            ; $B192: A9 01
-  JMP StrategyMode_StoreOfficerSlot                                           ; $B194: 4C A2 B1
+  JMP DuelScene_StoreNameTile                                           ; $B194: 4C A2 B1
 @skip_2:
   CMP #$08                                            ; $B197: C9 08
   BCC @skip_3                                           ; $B199: 90 05
   LDA #$00                                            ; $B19B: A9 00
-  JMP StrategyMode_StoreOfficerSlot                                           ; $B19D: 4C A2 B1
+  JMP DuelScene_StoreNameTile                                           ; $B19D: 4C A2 B1
 @skip_3:
   LDA #$02                                            ; $B1A0: A9 02
 .endproc
 ;===============================================================================
-; $B1A2: StrategyMode_StoreOfficerSlot
+; $B1A2: DuelScene_StoreNameTile
 ;===============================================================================
-.proc StrategyMode_StoreOfficerSlot
-StrategyMode_StoreOfficerSlot:
+.proc DuelScene_StoreNameTile
+DuelScene_StoreNameTile:
   STA name_tile_index,X                                         ; $B1A2: 9D AF 04
   RTS                                                 ; $B1A5: 60
 .endproc
 ;===============================================================================
-; $B1A6: StrategyMode_ShowMessage
+; $B1A6: DuelScene_ShowMsg
 ;===============================================================================
-.proc StrategyMode_ShowMessage
+.proc DuelScene_ShowMsg
   officer_data_ptr     = $0000
-StrategyMode_ShowMessage:
+DuelScene_ShowMsg:
   LDA a:$007E                                         ; $B1A6: AD 7E 00
   AND #$04                                            ; $B1A9: 29 04
   BNE @skip                                           ; $B1AB: D0 0D
@@ -3015,11 +3043,11 @@ StrategyMode_ShowMessage:
   RTS                                                 ; $B1BA: 60
 .endproc
 ;===============================================================================
-; $B1BB: StrategyMode_ShowDialog
+; $B1BB: DuelScene_ShowDialog
 ;===============================================================================
-.proc StrategyMode_ShowDialog
+.proc DuelScene_ShowDialog
   officer_data_ptr     = $0000
-StrategyMode_ShowDialog:
+DuelScene_ShowDialog:
   LDA a:$007E                                         ; $B1BB: AD 7E 00
   AND #$04                                            ; $B1BE: 29 04
   BNE @skip                                           ; $B1C0: D0 11
@@ -3034,11 +3062,11 @@ StrategyMode_ShowDialog:
   RTS                                                 ; $B1D3: 60
 .endproc
 ;===============================================================================
-; $B1D4: StrategyMode_LoadPortrait
+; $B1D4: DuelScene_LoadPortrait
 ;===============================================================================
-.proc StrategyMode_LoadPortrait
+.proc DuelScene_LoadPortrait
   officer_data_ptr     = $0000
-StrategyMode_LoadPortrait:
+DuelScene_LoadPortrait:
   LDA a:$007E                                         ; $B1D4: AD 7E 00
   AND #$04                                            ; $B1D7: 29 04
   BNE @skip                                           ; $B1D9: D0 12
@@ -3053,11 +3081,11 @@ StrategyMode_LoadPortrait:
   RTS                                                 ; $B1ED: 60
 .endproc
 ;===============================================================================
-; $B1EE: StrategyMode_BuildSpriteData
+; $B1EE: DuelScene_BuildRiderSprites
 ;===============================================================================
-.proc StrategyMode_BuildSpriteData
+.proc DuelScene_BuildRiderSprites
   sprite_row_count      = $0003
-StrategyMode_BuildSpriteData:
+DuelScene_BuildRiderSprites:
   LDY #$31                                            ; $B1EE: A0 31
   JSR B1F_SwitchBank8_B                               ; $B1F0: 20 5F F2
   LDX #$00                                            ; $B1F3: A2 00
@@ -3078,10 +3106,10 @@ StrategyMode_BuildSpriteData:
   RTS                                                 ; $B21B: 60
 .endproc
 ;===============================================================================
-; $B21C: StrategyMode_FinalizeSprites
+; $B21C: DuelScene_FinalizeSprites
 ;===============================================================================
-.proc StrategyMode_FinalizeSprites
-StrategyMode_FinalizeSprites:
+.proc DuelScene_FinalizeSprites
+DuelScene_FinalizeSprites:
   JSR FinalizeSpriteBuffer                                           ; $B21C: 20 60 D0
   LDA #$FF                                            ; $B21F: A9 FF
   STA sprite_y_buffer,X                                         ; $B221: 9D 80 03
@@ -3092,24 +3120,37 @@ StrategyMode_FinalizeSprites:
   RTS                                                 ; $B22F: 60
 .endproc
 ;===============================================================================
-; $B230: StrategyMode_CalcTroopStats
+; $B230: DuelScene_CalcEquipSpeed
+; Computes each commander's combat speed from equipment weight and elects
+; the faster side as the first actor (active_player_slot).
+; Per commander (X = 0/1, officer id from player_officer_id_0,X):
+;   equipment byte record+$0A: bits 0-4 = weapon id, bits 5-7 = armor id
+;   (armor indexes the table at +$18 = item ids 24-31; see
+;   docs/equipment_catalog.csv, docs/officer_data.md)
+;   weight = DuelScene_EquipWeightTable[weapon id]
+;          + DuelScene_EquipWeightTable[armor id + $18]
+;   speed  = (record+0 Vitality + record+1 Might) / 10 + $14 - weight
+; Speed bases go to player_random_offset_0,X (reused by
+; DuelAi_PickFeintStrike and DuelPursue_EscapeRoll); a random 0-10 roll per
+; side (held in display_ptr_lo/hi) picks the higher-speed side as the
+; first actor.
 ;===============================================================================
-.proc StrategyMode_CalcTroopStats
+.proc DuelScene_CalcEquipSpeed
   officer_data_ptr     = $0000
-  stat_shifted     = $0001
-  tile_attr      = $0002
-  div_loop_count      = $0003
-  col_counter_lo  = $0004
-  ptr_0010_lo     = $0010
-  ptr_0010_hi     = $0011
-StrategyMode_CalcTroopStats:
+  speed_dividend_lo    = $0001  ; record+0 + record+1 / MathDiv16 quotient
+  speed_dividend_hi    = $0002
+  divisor_lo           = $0003  ; MathDiv16 divisor lo = 10
+  divisor_hi           = $0004  ; MathDiv16 divisor hi = 0
+  equip_weight         = $0010  ; weapon weight / total weight work cell
+  armor_row_index      = $0011  ; (record+$0A >> 5) + $18 table index
+DuelScene_CalcEquipSpeed:
   LDX #$00                                            ; $B230: A2 00
 @loop:
   LDA player_officer_id_0,X                                         ; $B232: BD AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B235: 20 D7 F2
   LDY #$0A                                            ; $B238: A0 0A
   LDA (officer_data_ptr),Y                                         ; $B23A: B1 00
-  STA ptr_0010_lo                                         ; $B23C: 8D 10 00
+  STA a:equip_weight                                         ; $B23C: 8D 10 00 ; equipment byte +$0A
   LSR A                                               ; $B23F: 4A
   LSR A                                               ; $B240: 4A
   LSR A                                               ; $B241: 4A
@@ -3117,37 +3158,37 @@ StrategyMode_CalcTroopStats:
   LSR A                                               ; $B243: 4A
   CLC                                                 ; $B244: 18
   ADC #$18                                            ; $B245: 69 18
-  STA ptr_0010_hi                                         ; $B247: 8D 11 00
-  LDA ptr_0010_lo                                         ; $B24A: AD 10 00
+  STA a:armor_row_index                                         ; $B247: 8D 11 00 ; armor index + $18
+  LDA a:equip_weight                                         ; $B24A: AD 10 00
   AND #$1F                                            ; $B24D: 29 1F
-  STA ptr_0010_lo                                         ; $B24F: 8D 10 00
+  STA a:equip_weight                                         ; $B24F: 8D 10 00 ; weapon id (bits 0-4)
   TAY                                                 ; $B252: A8
-  LDA StrategyMode_TroopStatAdjTable,Y                                         ; $B253: B9 C0 B2
-  STA ptr_0010_lo                                         ; $B256: 8D 10 00
-  LDY ptr_0010_hi                                         ; $B259: AC 11 00
-  LDA StrategyMode_TroopStatAdjTable,Y                                         ; $B25C: B9 C0 B2
+  LDA DuelScene_EquipWeightTable,Y                                         ; $B253: B9 C0 B2 ; weapon weight
+  STA a:equip_weight                                         ; $B256: 8D 10 00 ; weapon weight
+  LDY a:armor_row_index                                         ; $B259: AC 11 00
+  LDA DuelScene_EquipWeightTable,Y                                         ; $B25C: B9 C0 B2 ; armor weight
   CLC                                                 ; $B25F: 18
-  ADC ptr_0010_lo                                         ; $B260: 6D 10 00
-  STA ptr_0010_lo                                         ; $B263: 8D 10 00
+  ADC a:equip_weight                                         ; $B260: 6D 10 00
+  STA a:equip_weight                                         ; $B263: 8D 10 00 ; total weight
   LDY #$00                                            ; $B266: A0 00
   LDA (officer_data_ptr),Y                                         ; $B268: B1 00
-  STA work_marker                                         ; $B26A: 8D 02 00
+  STA a:speed_dividend_hi                                         ; $B26A: 8D 02 00
   LDY #$01                                            ; $B26D: A0 01
   LDA (officer_data_ptr),Y                                         ; $B26F: B1 00
   CLC                                                 ; $B271: 18
-  ADC work_marker                                         ; $B272: 6D 02 00
-  STA stat_sum                                         ; $B275: 8D 01 00
+  ADC a:speed_dividend_hi                                         ; $B272: 6D 02 00
+  STA a:speed_dividend_lo                                         ; $B275: 8D 01 00
   LDA #$00                                            ; $B278: A9 00
-  STA work_marker                                         ; $B27A: 8D 02 00
-  STA col_counter_lo                                         ; $B27D: 8D 04 00
+  STA a:speed_dividend_hi                                         ; $B27A: 8D 02 00
+  STA a:divisor_hi                                         ; $B27D: 8D 04 00
   LDA #$0A                                            ; $B280: A9 0A
-  STA div_loop_count                                         ; $B282: 8D 03 00
+  STA a:divisor_lo                                         ; $B282: 8D 03 00
   JSR B1F_MathDiv16                                   ; $B285: 20 7C EA
-  LDA stat_sum                                         ; $B288: AD 01 00
+  LDA a:speed_dividend_lo                                         ; $B288: AD 01 00
   CLC                                                 ; $B28B: 18
   ADC #$14                                            ; $B28C: 69 14
   SEC                                                 ; $B28E: 38
-  SBC ptr_0010_lo                                         ; $B28F: ED 10 00
+  SBC a:equip_weight                                         ; $B28F: ED 10 00
   STA player_random_offset_0,X                                         ; $B292: 9D B3 04
 @loop_2:
   JSR B1F_RandomByte                                  ; $B295: 20 7A E8
@@ -3170,22 +3211,25 @@ StrategyMode_CalcTroopStats:
   STA frame_counter                                           ; $B2B9: 8D C0 04
   INC sub_state                                           ; $B2BC: EE A9 04
   RTS                                                 ; $B2BF: 60
-StrategyMode_TroopStatAdjTable:
+DuelScene_EquipWeightTable:
+; Equipment weight per item id: entries $00-$17 = weapons (swords $00-$07,
+; blades $08-$0F, spears $10-$17), entries $18-$1F = armors (item ids
+; 24-31). Subtracted from the speed base in the calc above.
   .byte $04,$03,$05,$08,$09,$06,$07,$04,$04,$06,$07,$08,$07,$06,$08,$0A; $B2C0: 04 03 05 08 09 06 07 04 04 06 07 08 07 06 08 0A
   .byte $04,$05,$06,$08,$07,$08,$06,$0A,$01,$02,$04,$06,$05,$0A,$03,$07; $B2D0: 04 05 06 08 07 08 06 0A 01 02 04 06 05 0A 03 07
 .endproc
 ;===============================================================================
-; $B2E0: StrategyMode_SetupDisplay
+; $B2E0: DuelScene_ShowChallenge
 ;===============================================================================
-.proc StrategyMode_SetupDisplay
+.proc DuelScene_ShowChallenge
   officer_data_ptr     = $0000
   ppu_tile_lo     = $0001
-StrategyMode_SetupDisplay:
+DuelScene_ShowChallenge:
   LDY name_tile_index                                           ; $B2E0: AC AF 04
-  LDA StrategyMode_NameTileLookup+9,Y                                         ; $B2E3: B9 4C B3
+  LDA DuelScene_NameTileLookup+9,Y                                         ; $B2E3: B9 4C B3
   STA officer_data_ptr                                         ; $B2E6: 8D 00 00
   LDY strategy_action_index                                           ; $B2E9: AC B0 04
-  LDA StrategyMode_NameTileLookup+9,Y                                         ; $B2EC: B9 4C B3
+  LDA DuelScene_NameTileLookup+9,Y                                         ; $B2EC: B9 4C B3
   STA ppu_tile_lo                                         ; $B2EF: 8D 01 00
   LDA officer_data_ptr                                         ; $B2F2: AD 00 00
   ASL A                                               ; $B2F5: 0A
@@ -3194,7 +3238,7 @@ StrategyMode_SetupDisplay:
   CLC                                                 ; $B2FA: 18
   ADC ppu_tile_lo                                         ; $B2FB: 6D 01 00
   TAY                                                 ; $B2FE: A8
-  LDA StrategyMode_NameTileLookup,Y                                         ; $B2FF: B9 43 B3
+  LDA DuelScene_NameTileLookup,Y                                         ; $B2FF: B9 43 B3
   STA name_tile_ptr_lo                                           ; $B302: 8D C5 04
   LDA ppu_tile_lo                                         ; $B305: AD 01 00
   ASL A                                               ; $B308: 0A
@@ -3203,7 +3247,7 @@ StrategyMode_SetupDisplay:
   CLC                                                 ; $B30D: 18
   ADC officer_data_ptr                                         ; $B30E: 6D 00 00
   TAY                                                 ; $B311: A8
-  LDA StrategyMode_NameTileLookup,Y                                         ; $B312: B9 43 B3
+  LDA DuelScene_NameTileLookup,Y                                         ; $B312: B9 43 B3
   STA name_tile_ptr_hi                                           ; $B315: 8D C6 04
   LDA #$02                                            ; $B318: A9 02
   STA event_overlay_flag                                           ; $B31A: 8D C3 04
@@ -3216,38 +3260,55 @@ StrategyMode_SetupDisplay:
   LDA #$3B                                            ; $B32E: A9 3B
   STA display_ptr_hi                                           ; $B330: 8D BE 04
   LDA #$00                                            ; $B333: A9 00
-  STA sub_action_type                                           ; $B335: 8D BF 04
+  STA duel_command_code                                           ; $B335: 8D BF 04
   LDA #$09                                            ; $B338: A9 09
-  STA game_state                                           ; $B33A: 8D A8 04
+  STA duel_state                                           ; $B33A: 8D A8 04
   LDA #$00                                            ; $B33D: A9 00
   STA sub_state                                           ; $B33F: 8D A9 04
   RTS                                                 ; $B342: 60
-StrategyMode_NameTileLookup:
+DuelScene_NameTileLookup:
   .byte $46,$4B,$3C,$37,$3C,$46,$50,$32,$3C,$01,$02,$00; $B343: 46 4B 3C 37 3C 46 50 32 3C 01 02 00
 .endproc
 
 ;===============================================================================
-; $B34F: TroopAssignmentDispatch
+; $B34F: DuelCommandDispatch
+; Duel command menu (state $01). Command list panel $2B:
+;   牽制(けんせい) / 退却(たいきゃく) / 攻撃(こうげき) / 降参(こうさん) /
+;   戦術(せんじゅつ) / データ / 捨て身の攻撃(すてみのこうげき)
+; Sub-states: 0 DuelCmd_RoundSetup (CPU side -> $02 DuelAiDispatch),
+; 1 DuelCmd_RenderStats, 2 DuelCmd_CommandMenu, 3 DuelCmd_CommandRoute,
+; 4 DuelCmd_TacticConfirm, 5 DuelCmd_TacticSelect (説得/罵倒 submenu $2C).
+; Command routing in DuelCmd_CommandRoute ($B47E):
+;   0 牽制->$10+msg$23   1 退却->$04   2 攻撃->$11+msg$21   3 降参->$06
+;   4 戦術: intercepted in DuelCmd_CommandMenu (round-timer gated submenu $2C)
+;   5 データ->$05   6 捨て身->$12+msg$24
+;   7 説得->$07   8 罵倒->$08   (7/8 issued by DuelCmd_TacticSelect)
 ;===============================================================================
-.proc TroopAssignmentDispatch
-TroopAssignmentDispatch:
+.proc DuelCommandDispatch
+DuelCommandDispatch:
   LDA sub_state                                           ; $B34F: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B352: 20 DE EA
 ; --- Inline pointer table (6 entries) ---
-  .word TroopAssign_SelectTarget                                         ; $B355: 61 B3
-  .word TroopAssign_Execute                                         ; $B357: F0 B3
-  .word TroopAssign_ShowMenu                                         ; $B359: 07 B4
-  .word TroopAssign_HandleResult                                         ; $B35B: 7E B4
-  .word TroopAssign_Confirm                                         ; $B35D: 52 B5
-  .word TroopAssign_ShowSummary                                         ; $B35F: 69 B5
+  .word DuelCmd_RoundSetup                                         ; $B355: 61 B3
+  .word DuelCmd_RenderStats                                         ; $B357: F0 B3
+  .word DuelCmd_CommandMenu                                         ; $B359: 07 B4
+  .word DuelCmd_CommandRoute                                         ; $B35B: 7E B4
+  .word DuelCmd_TacticConfirm                                         ; $B35D: 52 B5
+  .word DuelCmd_TacticSelect                                         ; $B35F: 69 B5
 .endproc
 ;===============================================================================
-; $B361: TroopAssign_SelectTarget
+; $B361: DuelCmd_RoundSetup
+; Round bookkeeping. Alternates the acting side each frame while
+; frame_counter counts up; once both round timers (player_action_timer bit7
+; clear) expire, resolves initiative by rand(0-10)+player_random_offset
+; (higher roll acts first) and decrements the opponent's timer. CPU side
+; (player_flag bit7 set) goes to state $02 (DuelAiDispatch); the human side
+; gets its officer card rendered and the command list panel $2B.
 ;===============================================================================
-.proc TroopAssign_SelectTarget
+.proc DuelCmd_RoundSetup
   officer_data_ptr     = $0000
   callback_result       = $00A4
-TroopAssign_SelectTarget:
+DuelCmd_RoundSetup:
   LDA frame_counter                                           ; $B361: AD C0 04
   BNE @skip                                           ; $B364: D0 08
   LDA active_player_slot                                           ; $B366: AD AA 04
@@ -3258,7 +3319,7 @@ TroopAssign_SelectTarget:
   LDA frame_counter                                           ; $B371: AD C0 04
   CMP #$03                                            ; $B374: C9 03
   BCC @skip_2                                           ; $B376: 90 03
-  JSR LB3C6                                           ; $B378: 20 C6 B3
+  JSR @ResolveRandomWinner                            ; $B378: 20 C6 B3
 @skip_2:
   LDA active_player_slot                                           ; $B37B: AD AA 04
   EOR #$01                                            ; $B37E: 49 01
@@ -3275,7 +3336,7 @@ TroopAssign_SelectTarget:
   LDA player_flag_0,Y                                         ; $B394: B9 AB 04
   BPL @skip_4                                           ; $B397: 10 06
   LDA #$02                                            ; $B399: A9 02
-  STA game_state                                           ; $B39B: 8D A8 04
+  STA duel_state                                           ; $B39B: 8D A8 04
   RTS                                                 ; $B39E: 60
 @skip_4:
   LDY active_player_slot                                           ; $B39F: AC AA 04
@@ -3284,7 +3345,7 @@ TroopAssign_SelectTarget:
   LDY #$3D                                            ; $B3A8: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $B3AA: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A030                                         ; $B3AD: 30 A0
+  .word B1D_1E_OfficerDisplay_Render                  ; $B3AD: 30 A0
   LDY active_player_slot                                           ; $B3AF: AC AA 04
   LDA player_action_timer_0,Y                                         ; $B3B2: B9 B5 04
   AND #$7F                                            ; $B3B5: 29 7F
@@ -3295,7 +3356,7 @@ TroopAssign_SelectTarget:
   INC sub_state                                           ; $B3BE: EE A9 04
   LDA #$2B                                            ; $B3C1: A9 2B
   JMP B1F_SetUI0                                      ; $B3C3: 4C 6D F2
-LB3C6:
+@ResolveRandomWinner:
   LDX #$00                                            ; $B3C6: A2 00
 @loop:
   JSR B1F_RandomByte                                  ; $B3C8: 20 7A E8
@@ -3319,31 +3380,38 @@ LB3C6:
   RTS                                                 ; $B3EF: 60
 .endproc
 ;===============================================================================
-; $B3F0: TroopAssign_Execute
+; $B3F0: DuelCmd_RenderStats
+; Waits for the anim queue, clears the menu cursor and fills the acting
+; officer's stat tiles (DuelCmd_FillStatTiles) before the command menu opens.
 ;===============================================================================
-.proc TroopAssign_Execute
-TroopAssign_Execute:
+.proc DuelCmd_RenderStats
+DuelCmd_RenderStats:
   JSR SetupMenuPtr                                           ; $B3F0: 20 66 D1
   JSR CheckButtonConfirm                                           ; $B3F3: 20 99 D2
   BCC @skip                                           ; $B3F6: 90 0E
   LDA #$00                                            ; $B3F8: A9 00
-  STA troop_assign_counter_lo                                           ; $B3FA: 8D 24 04
-  STA troop_assign_counter_hi                                           ; $B3FD: 8D 25 04
+  STA menu_cursor_col                                           ; $B3FA: 8D 24 04
+  STA menu_cursor_page                                           ; $B3FD: 8D 25 04
   INC sub_state                                           ; $B400: EE A9 04
-  JMP TroopAssign_NextState                                           ; $B403: 4C 7C D1
+  JMP DuelCmd_FillStatTiles                                           ; $B403: 4C 7C D1
 @skip:
   RTS                                                 ; $B406: 60
 .endproc
 ;===============================================================================
-; $B407: TroopAssign_ShowMenu
+; $B407: DuelCmd_CommandMenu
+; 7-item command menu (grid $B461, panel $2B). On A (pad $0081 bit 0) stores
+; the selection in duel_command_code and hands it to DuelCmd_CommandRoute,
+; except item 4 (戦術): only usable once the actor's round timer has expired;
+; then opens the 説得/罵倒 submenu (panel $2C, sub 4 DuelCmd_TacticConfirm),
+; otherwise stays in the menu.
 ;===============================================================================
-.proc TroopAssign_ShowMenu
+.proc DuelCmd_CommandMenu
   menu_tile_offset     = $0000
   ppu_tile_hi     = $0001
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
   menu_index       = $0012
-TroopAssign_ShowMenu:
+DuelCmd_CommandMenu:
   JSR SetupMenuPtr                                           ; $B407: 20 66 D1
   LDA #$61                                            ; $B40A: A9 61
   STA ptr_0010_lo                                         ; $B40C: 8D 10 00
@@ -3367,7 +3435,7 @@ TroopAssign_ShowMenu:
   BCC @skip_2                                           ; $B43A: 90 24
   INC sub_state                                           ; $B43C: EE A9 04
   LDA menu_index                                         ; $B43F: AD 12 00
-  STA sub_action_type                                           ; $B442: 8D BF 04
+  STA duel_command_code                                           ; $B442: 8D BF 04
   CMP #$04                                            ; $B445: C9 04
   BNE @skip_2                                           ; $B447: D0 17
   LDY active_player_slot                                           ; $B449: AC AA 04
@@ -3382,7 +3450,7 @@ TroopAssign_ShowMenu:
   STA sub_state                                           ; $B45D: 8D A9 04
 @skip_2:
   RTS                                                 ; $B460: 60
-TroopAssign_MenuData:
+DuelCommandMenuData:
 ; --- Menu Grid Layout (step_size=2, 2 columns x 5 pages) ---
 ; 7 item IDs ($00-$06), $FF = invalid/end sentinel
   .byte $00,$01,$02,$03,$04,$05,$06,$FF,$FF,$FF                ; $B461
@@ -3394,18 +3462,25 @@ TroopAssign_MenuData:
 .endproc
 
 ;===============================================================================
-; $B47E: TroopAssign_HandleResult
+; $B47E: DuelCmd_CommandRoute
+; Routes the chosen command (duel_command_code) to its scene. Codes:
+; 0 牽制->state $10+panel $23; 1 退却->state $04; 2 攻撃->state $11+panel $21;
+; 3 降参->state $06 (allowed only when CheckPlayerIsRuler returns carry
+; clear, else rejected back to the menu); 5 データ->state $05 (side kept in
+; display_ptr_hi); 6 捨て身->state $12+panel $24; 7 説得->state $07;
+; 8 罵倒->state $08 (the fall-through default). Code 4 never reaches here
+; (intercepted by DuelCmd_CommandMenu).
 ;===============================================================================
-.proc TroopAssign_HandleResult
-TroopAssign_HandleResult:
-  LDA sub_action_type                                           ; $B47E: AD BF 04
+.proc DuelCmd_CommandRoute
+DuelCmd_CommandRoute:
+  LDA duel_command_code                                           ; $B47E: AD BF 04
   BNE @skip                                           ; $B481: D0 22
   LDA #$03                                            ; $B483: A9 03
   STA display_ptr_lo                                           ; $B485: 8D BD 04
   LDA #$00                                            ; $B488: A9 00
   STA display_ptr_hi                                           ; $B48A: 8D BE 04
   LDA #$10                                            ; $B48D: A9 10
-  STA game_state                                           ; $B48F: 8D A8 04
+  STA duel_state                                           ; $B48F: 8D A8 04
   LDA #$00                                            ; $B492: A9 00
   STA sub_state                                           ; $B494: 8D A9 04
   LDY active_player_slot                                           ; $B497: AC AA 04
@@ -3417,7 +3492,7 @@ TroopAssign_HandleResult:
   CMP #$01                                            ; $B4A5: C9 01
   BNE @skip_2                                           ; $B4A7: D0 0F
   LDA #$04                                            ; $B4A9: A9 04
-  STA game_state                                           ; $B4AB: 8D A8 04
+  STA duel_state                                           ; $B4AB: 8D A8 04
   LDA #$00                                            ; $B4AE: A9 00
   STA sub_state                                           ; $B4B0: 8D A9 04
   LDA #$00                                            ; $B4B3: A9 00
@@ -3430,7 +3505,7 @@ TroopAssign_HandleResult:
   LDA #$00                                            ; $B4C1: A9 00
   STA display_ptr_hi                                           ; $B4C3: 8D BE 04
   LDA #$11                                            ; $B4C6: A9 11
-  STA game_state                                           ; $B4C8: 8D A8 04
+  STA duel_state                                           ; $B4C8: 8D A8 04
   LDA #$00                                            ; $B4CB: A9 00
   STA sub_state                                           ; $B4CD: 8D A9 04
   LDY active_player_slot                                           ; $B4D0: AC AA 04
@@ -3447,7 +3522,7 @@ TroopAssign_HandleResult:
   RTS                                                 ; $B4EA: 60
 @skip_4:
   LDA #$06                                            ; $B4EB: A9 06
-  STA game_state                                           ; $B4ED: 8D A8 04
+  STA duel_state                                           ; $B4ED: 8D A8 04
   LDA #$00                                            ; $B4F0: A9 00
   STA sub_state                                           ; $B4F2: 8D A9 04
   LDA #$00                                            ; $B4F5: A9 00
@@ -3456,12 +3531,12 @@ TroopAssign_HandleResult:
   CMP #$05                                            ; $B4FA: C9 05
   BNE @skip_6                                           ; $B4FC: D0 14
   LDA #$05                                            ; $B4FE: A9 05
-  STA game_state                                           ; $B500: 8D A8 04
+  STA duel_state                                           ; $B500: 8D A8 04
   LDA #$00                                            ; $B503: A9 00
   STA sub_state                                           ; $B505: 8D A9 04
   LDA active_player_slot                                           ; $B508: AD AA 04
   STA display_ptr_hi                                           ; $B50B: 8D BE 04
-  STA sub_action_type                                           ; $B50E: 8D BF 04
+  STA duel_command_code                                           ; $B50E: 8D BF 04
   RTS                                                 ; $B511: 60
 @skip_6:
   CMP #$06                                            ; $B512: C9 06
@@ -3471,7 +3546,7 @@ TroopAssign_HandleResult:
   LDA #$00                                            ; $B51B: A9 00
   STA display_ptr_hi                                           ; $B51D: 8D BE 04
   LDA #$12                                            ; $B520: A9 12
-  STA game_state                                           ; $B522: 8D A8 04
+  STA duel_state                                           ; $B522: 8D A8 04
   LDA #$00                                            ; $B525: A9 00
   STA sub_state                                           ; $B527: 8D A9 04
   LDY active_player_slot                                           ; $B52A: AC AA 04
@@ -3483,43 +3558,48 @@ TroopAssign_HandleResult:
   CMP #$07                                            ; $B538: C9 07
   BNE @skip_8                                           ; $B53A: D0 0B
   LDA #$07                                            ; $B53C: A9 07
-  STA game_state                                           ; $B53E: 8D A8 04
+  STA duel_state                                           ; $B53E: 8D A8 04
   LDA #$00                                            ; $B541: A9 00
   STA sub_state                                           ; $B543: 8D A9 04
   RTS                                                 ; $B546: 60
 @skip_8:
   LDA #$08                                            ; $B547: A9 08
-  STA game_state                                           ; $B549: 8D A8 04
+  STA duel_state                                           ; $B549: 8D A8 04
   LDA #$00                                            ; $B54C: A9 00
   STA sub_state                                           ; $B54E: 8D A9 04
   RTS                                                 ; $B551: 60
 .endproc
 ;===============================================================================
-; $B552: TroopAssign_Confirm
+; $B552: DuelCmd_TacticConfirm
+; Waits for the anim queue, then clears the menu cursor and fills the stat
+; tiles before the 説得/罵倒 submenu opens.
 ;===============================================================================
-.proc TroopAssign_Confirm
-TroopAssign_Confirm:
+.proc DuelCmd_TacticConfirm
+DuelCmd_TacticConfirm:
   JSR SetupMenuPtr                                           ; $B552: 20 66 D1
   JSR CheckButtonConfirm                                           ; $B555: 20 99 D2
   BCC @skip                                           ; $B558: 90 0E
   INC sub_state                                           ; $B55A: EE A9 04
   LDA #$00                                            ; $B55D: A9 00
-  STA troop_assign_counter_lo                                           ; $B55F: 8D 24 04
-  STA troop_assign_counter_hi                                           ; $B562: 8D 25 04
-  JMP TroopAssign_NextState                                           ; $B565: 4C 7C D1
+  STA menu_cursor_col                                           ; $B55F: 8D 24 04
+  STA menu_cursor_page                                           ; $B562: 8D 25 04
+  JMP DuelCmd_FillStatTiles                                           ; $B565: 4C 7C D1
 @skip:
   RTS                                                 ; $B568: 60
 .endproc
 ;===============================================================================
-; $B569: TroopAssign_ShowSummary
+; $B569: DuelCmd_TacticSelect
+; 2-item 説得/罵倒 submenu (grid $B5BB, sprites $B5BF). On A commits
+; duel_command_code = menu_index + 7 (7 説得 / 8 罵倒) and returns to
+; DuelCmd_CommandRoute (sub 3); on B reopens the command list (panel $2B).
 ;===============================================================================
-.proc TroopAssign_ShowSummary
+.proc DuelCmd_TacticSelect
   menu_tile_offset     = $0000
   ppu_tile_hi     = $0001
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
   menu_index       = $0012
-TroopAssign_ShowSummary:
+DuelCmd_TacticSelect:
   JSR SetupMenuPtr                                           ; $B569: 20 66 D1
   LDA #$BB                                            ; $B56C: A9 BB
   STA ptr_0010_lo                                         ; $B56E: 8D 10 00
@@ -3544,7 +3624,7 @@ TroopAssign_ShowSummary:
   LDA menu_index                                         ; $B59E: AD 12 00
   CLC                                                 ; $B5A1: 18
   ADC #$07                                            ; $B5A2: 69 07
-  STA sub_action_type                                           ; $B5A4: 8D BF 04
+  STA duel_command_code                                           ; $B5A4: 8D BF 04
   LDA #$03                                            ; $B5A7: A9 03
   STA sub_state                                           ; $B5A9: 8D A9 04
   RTS                                                 ; $B5AC: 60
@@ -3557,7 +3637,7 @@ TroopAssign_ShowSummary:
   JMP B1F_SetUI0                                      ; $B5B7: 4C 6D F2
 @skip_2:
   RTS                                                 ; $B5BA: 60
-TroopAssign_SummaryMenuData:
+DuelTacticMenuData:
 ; --- Summary Menu Grid Layout (2 items, 2 sentinels) ---
   .byte $00,$01,$FF,$FF                                        ; $B5BB
 ; --- Summary Sprite Pointer Table (2 word entries) ---
@@ -3567,136 +3647,161 @@ TroopAssign_SummaryMenuData:
 .endproc
 
 ;===============================================================================
-; $B5C8: WarClashDispatch
+; $B5C8: DuelAiDispatch
+; CPU-side duel command selection (state $02; entered from DuelCmd_RoundSetup
+; when the acting side's player_flag bit7 is set). Each check may commit a
+; command code via DuelAi_CommitCommand -> DuelCmd_CommandRoute:
+;   0 DuelAi_SurrenderCheck  降参(3): DuelAi_SurrenderThreshold roll
+;   1 DuelAi_DesperateCheck  捨て身(6): DuelAi_DesperateThreshold roll
+;   2 DuelAi_StrikeCheck     攻撃(2): DuelAi_StrikeThreshold roll
+;   3 DuelAi_TacticCheck     説得(7)/罵倒(8): Int/Virtue/Loyalty thresholds
+;   4 DuelAi_PickFeintStrike 牽制(0)/攻撃(2) from the strength-tier table
 ;===============================================================================
-.proc WarClashDispatch
-WarClashDispatch:
+.proc DuelAiDispatch
+DuelAiDispatch:
   LDA sub_state                                           ; $B5C8: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B5CB: 20 DE EA
 ; --- Inline pointer table (5 entries) ---
-  .word WarClash_CompareForces                                         ; $B5CE: D8 B5
-  .word WarClash_MoraleCheck                                         ; $B5D0: 26 B6
-  .word WarClash_DefenseCheck                                         ; $B5D2: 59 B6
-  .word WarClash_OfficerDuel                                         ; $B5D4: 89 B6
-  .word WarClash_DetermineOutcome                                         ; $B5D6: 19 B7
+  .word DuelAi_SurrenderCheck                                         ; $B5CE: D8 B5
+  .word DuelAi_DesperateCheck                                         ; $B5D0: 26 B6
+  .word DuelAi_StrikeCheck                                         ; $B5D2: 59 B6
+  .word DuelAi_TacticCheck                                         ; $B5D4: 89 B6
+  .word DuelAi_PickFeintStrike                                         ; $B5D6: 19 B7
 .endproc
 ;===============================================================================
-; $B5D8: WarClash_CompareForces
+; $B5D8: DuelAi_SurrenderCheck
+; Fires 降参 (code 3) when the CPU is in trouble: own strength gauge below
+; both its own Vitality/2 (record +0, LSR) and the opponent's gauge, the
+; CheckPlayerIsRuler gate returns carry clear, and a B1F_RandomBelow100 roll
+; lands under DuelAi_SurrenderThreshold (nonzero). Otherwise advances to the
+; next AI check; when the gauge is still at or above Vitality/2 (healthy) it
+; skips the desperate check as well (sub_state +2 instead of +1).
 ;===============================================================================
-.proc WarClash_CompareForces
+.proc DuelAi_SurrenderCheck
   officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-  ptr_0010_hi     = $0011
-WarClash_CompareForces:
+  gate_threshold      = $0010  ; opponent strength gauge, then surrender threshold (set by DuelAi_SurrenderThreshold)
+  vitality_half_threshold = $0011 ; own Vitality (record +0) / 2
+DuelAi_SurrenderCheck:
   LDA active_player_slot                                           ; $B5D8: AD AA 04
   EOR #$01                                            ; $B5DB: 49 01
   TAY                                                 ; $B5DD: A8
-  LDA player_army_value_0,Y                                         ; $B5DE: B9 B1 04
-  STA ptr_0010_lo                                         ; $B5E1: 8D 10 00
+  LDA war_side_strength_0,Y                                         ; $B5DE: B9 B1 04
+  STA gate_threshold                                         ; $B5E1: 8D 10 00
   LDY active_player_slot                                           ; $B5E4: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B5E7: B9 AD 04
   JSR B1F_GetOfficerRomRecordAddr                     ; $B5EA: 20 87 F3
   LDY #$00                                            ; $B5ED: A0 00
   LDA (officer_data_ptr),Y                                         ; $B5EF: B1 00
   LSR A                                               ; $B5F1: 4A
-  STA ptr_0010_hi                                         ; $B5F2: 8D 11 00
+  STA vitality_half_threshold                                         ; $B5F2: 8D 11 00
   LDY active_player_slot                                           ; $B5F5: AC AA 04
-  LDA player_army_value_0,Y                                         ; $B5F8: B9 B1 04
-  CMP ptr_0010_hi                                         ; $B5FB: CD 11 00
-  BCS @skip                                           ; $B5FE: B0 1F
-  CMP ptr_0010_lo                                         ; $B600: CD 10 00
-  BCS @skip_2                                           ; $B603: B0 1D
+  LDA war_side_strength_0,Y                                         ; $B5F8: B9 B1 04
+  CMP vitality_half_threshold                                         ; $B5FB: CD 11 00
+  BCS @GaugeHealthy                                           ; $B5FE: B0 1F
+  CMP gate_threshold                                         ; $B600: CD 10 00
+  BCS @NextCheck                                           ; $B603: B0 1D
   JSR CheckPlayerIsRuler                                           ; $B605: 20 62 D2
-  BCS @skip_2                                           ; $B608: B0 18
-  JSR WarClash_MoraleCalc                                           ; $B60A: 20 B3 B7
-  CMP ptr_0010_lo                                         ; $B60D: CD 10 00
-  BCS @skip_2                                           ; $B610: B0 10
-  LDA ptr_0010_lo                                         ; $B612: AD 10 00
-  BEQ @skip_2                                           ; $B615: F0 0B
+  BCS @NextCheck                                           ; $B608: B0 18
+  JSR DuelAi_SurrenderThreshold                                           ; $B60A: 20 B3 B7
+  CMP gate_threshold                                         ; $B60D: CD 10 00
+  BCS @NextCheck                                           ; $B610: B0 10
+  LDA gate_threshold                                         ; $B612: AD 10 00
+  BEQ @NextCheck                                           ; $B615: F0 0B
   LDA #$03                                            ; $B617: A9 03
-  STA sub_action_type                                           ; $B619: 8D BF 04
-  JMP WarClash_SetActionResult                                           ; $B61C: 4C A8 B7
-@skip:
+  STA duel_command_code                                           ; $B619: 8D BF 04
+  JMP DuelAi_CommitCommand                                           ; $B61C: 4C A8 B7
+@GaugeHealthy:
   INC sub_state                                           ; $B61F: EE A9 04
-@skip_2:
+@NextCheck:
   INC sub_state                                           ; $B622: EE A9 04
   RTS                                                 ; $B625: 60
 .endproc
 ;===============================================================================
-; $B626: WarClash_MoraleCheck
+; $B626: DuelAi_DesperateCheck
+; Fires 捨て身の攻撃 (code 6) when the opponent's strength gauge exceeds own
+; gauge by more than $1E and a roll lands under DuelAi_DesperateThreshold
+; (nonzero). Otherwise advances to the next AI check.
 ;===============================================================================
-.proc WarClash_MoraleCheck
-  combat_threshold       = $0010
-WarClash_MoraleCheck:
+.proc DuelAi_DesperateCheck
+  gate_threshold      = $0010  ; opponent strength gauge, then desperate threshold (set by DuelAi_DesperateThreshold)
+DuelAi_DesperateCheck:
   LDA active_player_slot                                           ; $B626: AD AA 04
   EOR #$01                                            ; $B629: 49 01
   TAY                                                 ; $B62B: A8
-  LDA player_army_value_0,Y                                         ; $B62C: B9 B1 04
-  STA combat_threshold                                         ; $B62F: 8D 10 00
+  LDA war_side_strength_0,Y                                         ; $B62C: B9 B1 04
+  STA gate_threshold                                         ; $B62F: 8D 10 00
   LDY active_player_slot                                           ; $B632: AC AA 04
-  LDA player_army_value_0,Y                                         ; $B635: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B635: B9 B1 04
   CLC                                                 ; $B638: 18
   ADC #$1E                                            ; $B639: 69 1E
-  CMP combat_threshold                                         ; $B63B: CD 10 00
-  BCS @skip                                           ; $B63E: B0 15
-  JSR WarClash_DefenseCalc                                           ; $B640: 20 DD B7
-  CMP combat_threshold                                         ; $B643: CD 10 00
-  BCS @skip                                           ; $B646: B0 0D
-  LDA combat_threshold                                         ; $B648: AD 10 00
-  BEQ @skip                                           ; $B64B: F0 08
+  CMP gate_threshold                                         ; $B63B: CD 10 00
+  BCS @NextCheck                                           ; $B63E: B0 15
+  JSR DuelAi_DesperateThreshold                                           ; $B640: 20 DD B7
+  CMP gate_threshold                                         ; $B643: CD 10 00
+  BCS @NextCheck                                           ; $B646: B0 0D
+  LDA gate_threshold                                         ; $B648: AD 10 00
+  BEQ @NextCheck                                           ; $B64B: F0 08
   LDA #$06                                            ; $B64D: A9 06
-  STA sub_action_type                                           ; $B64F: 8D BF 04
-  JMP WarClash_SetActionResult                                           ; $B652: 4C A8 B7
-@skip:
+  STA duel_command_code                                           ; $B64F: 8D BF 04
+  JMP DuelAi_CommitCommand                                           ; $B652: 4C A8 B7
+@NextCheck:
   INC sub_state                                           ; $B655: EE A9 04
   RTS                                                 ; $B658: 60
 .endproc
 ;===============================================================================
-; $B659: WarClash_DefenseCheck
+; $B659: DuelAi_StrikeCheck
+; Fires 攻撃 (code 2) when own strength gauge is under $1E, the opponent's
+; is $32 or more, and a roll lands under DuelAi_StrikeThreshold (nonzero).
+; Otherwise advances to the tactic check.
 ;===============================================================================
-.proc WarClash_DefenseCheck
-  combat_threshold        = $0010
-WarClash_DefenseCheck:
+.proc DuelAi_StrikeCheck
+  strike_threshold    = $0010  ; set by DuelAi_StrikeThreshold; roll must land below it
+DuelAi_StrikeCheck:
   LDY active_player_slot                                           ; $B659: AC AA 04
-  LDA player_army_value_0,Y                                         ; $B65C: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B65C: B9 B1 04
   CMP #$1E                                            ; $B65F: C9 1E
-  BCS @skip                                           ; $B661: B0 22
+  BCS @NextCheck                                           ; $B661: B0 22
   LDY active_player_slot                                           ; $B663: AC AA 04
   EOR #$01                                            ; $B666: 49 01
   TAY                                                 ; $B668: A8
-  LDA player_army_value_0,Y                                         ; $B669: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B669: B9 B1 04
   CMP #$32                                            ; $B66C: C9 32
-  BCC @skip                                           ; $B66E: 90 15
-  JSR WarClash_LeadershipCheck                                           ; $B670: 20 16 B8
-  CMP combat_threshold                                         ; $B673: CD 10 00
-  BCS @skip                                           ; $B676: B0 0D
-  LDA combat_threshold                                         ; $B678: AD 10 00
-  BEQ @skip                                           ; $B67B: F0 08
+  BCC @NextCheck                                           ; $B66E: 90 15
+  JSR DuelAi_StrikeThreshold                                           ; $B670: 20 16 B8
+  CMP strike_threshold                                         ; $B673: CD 10 00
+  BCS @NextCheck                                           ; $B676: B0 0D
+  LDA strike_threshold                                         ; $B678: AD 10 00
+  BEQ @NextCheck                                           ; $B67B: F0 08
   LDA #$02                                            ; $B67D: A9 02
-  STA sub_action_type                                           ; $B67F: 8D BF 04
-  JMP WarClash_SetActionResult                                           ; $B682: 4C A8 B7
-@skip:
+  STA duel_command_code                                           ; $B67F: 8D BF 04
+  JMP DuelAi_CommitCommand                                           ; $B682: 4C A8 B7
+@NextCheck:
   INC sub_state                                           ; $B685: EE A9 04
   RTS                                                 ; $B688: 60
 .endproc
 ;===============================================================================
-; $B689: WarClash_OfficerDuel
+; $B689: DuelAi_TacticCheck
+; Tactic check for the CPU side (both round timers elapsed). Gate 1: own
+; Intelligence > target Intelligence, then a roll below the
+; DuelAi_PersuadeThreshold result fires command 7 (説得). Gate 2: target
+; Might >= own Might, then a roll below the DuelAi_InsultThreshold result
+; fires command 8 (罵倒).
 ;===============================================================================
-.proc WarClash_OfficerDuel
+.proc DuelAi_TacticCheck
   officer_data_ptr     = $0000
-  combat_threshold       = $0010
-WarClash_OfficerDuel:
+  gate_value      = $0010  ; own attribute (Intelligence then Might), then roll threshold (set by DuelAi_*Threshold)
+DuelAi_TacticCheck:
   LDY active_player_slot                                           ; $B689: AC AA 04
   LDA player_action_timer_0,Y                                         ; $B68C: B9 B5 04
   AND #$7F                                            ; $B68F: 29 7F
-  BEQ @skip                                           ; $B691: F0 03
-  JMP @skip_3                                           ; $B693: 4C 15 B7
-@skip:
+  BEQ @TimerExpired                                           ; $B691: F0 03
+  JMP @NextCheck                                           ; $B693: 4C 15 B7
+@TimerExpired:
   LDA player_officer_id_0,Y                                         ; $B696: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B699: 20 D7 F2
   LDY #$02                                            ; $B69C: A0 02
   LDA (officer_data_ptr),Y                                         ; $B69E: B1 00
-  STA combat_threshold                                         ; $B6A0: 8D 10 00
+  STA gate_value                                         ; $B6A0: 8D 10 00
   LDA active_player_slot                                           ; $B6A3: AD AA 04
   EOR #$01                                            ; $B6A6: 49 01
   TAY                                                 ; $B6A8: A8
@@ -3704,23 +3809,23 @@ WarClash_OfficerDuel:
   JSR B1F_GetOfficerRecordAddr                        ; $B6AC: 20 D7 F2
   LDY #$02                                            ; $B6AF: A0 02
   LDA (officer_data_ptr),Y                                         ; $B6B1: B1 00
-  CMP combat_threshold                                         ; $B6B3: CD 10 00
-  BCS @skip_2                                           ; $B6B6: B0 15
-  JSR WarClash_DuelCheck                                           ; $B6B8: 20 51 B8
-  CMP combat_threshold                                         ; $B6BB: CD 10 00
-  BCS @skip_2                                           ; $B6BE: B0 0D
-  LDA combat_threshold                                         ; $B6C0: AD 10 00
-  BEQ @skip_2                                           ; $B6C3: F0 08
+  CMP gate_value                                         ; $B6B3: CD 10 00
+  BCS @InsultGate                                           ; $B6B6: B0 15
+  JSR DuelAi_PersuadeThreshold                                           ; $B6B8: 20 51 B8
+  CMP gate_value                                         ; $B6BB: CD 10 00
+  BCS @InsultGate                                           ; $B6BE: B0 0D
+  LDA gate_value                                         ; $B6C0: AD 10 00
+  BEQ @InsultGate                                           ; $B6C3: F0 08
   LDA #$07                                            ; $B6C5: A9 07
-  STA sub_action_type                                           ; $B6C7: 8D BF 04
-  JMP WarClash_SetActionResult                                           ; $B6CA: 4C A8 B7
-@skip_2:
+  STA duel_command_code                                           ; $B6C7: 8D BF 04
+  JMP DuelAi_CommitCommand                                           ; $B6CA: 4C A8 B7
+@InsultGate:
   LDY active_player_slot                                           ; $B6CD: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B6D0: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B6D3: 20 D7 F2
   LDY #$01                                            ; $B6D6: A0 01
   LDA (officer_data_ptr),Y                                         ; $B6D8: B1 00
-  STA combat_threshold                                         ; $B6DA: 8D 10 00
+  STA gate_value                                         ; $B6DA: 8D 10 00
   LDA active_player_slot                                           ; $B6DD: AD AA 04
   EOR #$01                                            ; $B6E0: 49 01
   TAY                                                 ; $B6E2: A8
@@ -3728,71 +3833,75 @@ WarClash_OfficerDuel:
   JSR B1F_GetOfficerRecordAddr                        ; $B6E6: 20 D7 F2
   LDY #$01                                            ; $B6E9: A0 01
   LDA (officer_data_ptr),Y                                         ; $B6EB: B1 00
-  CMP combat_threshold                                         ; $B6ED: CD 10 00
-  BCC @skip_3                                           ; $B6F0: 90 23
-  JSR WarClash_FinalCalc                                           ; $B6F2: 20 9B B8
-  CMP combat_threshold                                         ; $B6F5: CD 10 00
-  BCS @skip_3                                           ; $B6F8: B0 1B
+  CMP gate_value                                         ; $B6ED: CD 10 00
+  BCC @NextCheck                                           ; $B6F0: 90 23
+  JSR DuelAi_InsultThreshold                                           ; $B6F2: 20 9B B8
+  CMP gate_value                                         ; $B6F5: CD 10 00
+  BCS @NextCheck                                           ; $B6F8: B0 1B
   LDY active_player_slot                                           ; $B6FA: AC AA 04
   LDA player_action_timer_0,Y                                         ; $B6FD: B9 B5 04
-  BMI @skip_3                                           ; $B700: 30 13
+  BMI @NextCheck                                           ; $B700: 30 13
   TYA                                                 ; $B702: 98
   EOR #$01                                            ; $B703: 49 01
   TAY                                                 ; $B705: A8
   LDA player_action_timer_0,Y                                         ; $B706: B9 B5 04
   AND #$7F                                            ; $B709: 29 7F
-  BNE @skip_3                                           ; $B70B: D0 08
+  BNE @NextCheck                                           ; $B70B: D0 08
   LDA #$08                                            ; $B70D: A9 08
-  STA sub_action_type                                           ; $B70F: 8D BF 04
-  JMP WarClash_SetActionResult                                           ; $B712: 4C A8 B7
-@skip_3:
+  STA duel_command_code                                           ; $B70F: 8D BF 04
+  JMP DuelAi_CommitCommand                                           ; $B712: 4C A8 B7
+@NextCheck:
   INC sub_state                                           ; $B715: EE A9 04
   RTS                                                 ; $B718: 60
 .endproc
 ;===============================================================================
-; $B719: WarClash_DetermineOutcome
+; $B719: DuelAi_PickFeintStrike
+; Fallback pick when no special command fired: indexes the 72-byte
+; DuelAi_FeintStrikeTable by both sides' strength-gauge tiers (opponent
+; $1F/$3D, own $1F/$3D, each +8) plus B1F_RandomMod8, and commits the
+; result (0 牽制 / 2 攻撃).
 ;===============================================================================
-.proc WarClash_DetermineOutcome
-  random_offset     = $0000
-WarClash_DetermineOutcome:
+.proc DuelAi_PickFeintStrike
+  rand_roll      = $0000
+DuelAi_PickFeintStrike:
   LDX #$00                                            ; $B719: A2 00
   LDA active_player_slot                                           ; $B71B: AD AA 04
   EOR #$01                                            ; $B71E: 49 01
   TAY                                                 ; $B720: A8
-  LDA player_army_value_0,Y                                         ; $B721: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B721: B9 B1 04
   CMP #$1F                                            ; $B724: C9 1F
-  BCC @skip                                           ; $B726: 90 08
+  BCC @OpponentTierSet                                           ; $B726: 90 08
   LDX #$18                                            ; $B728: A2 18
   CMP #$3D                                            ; $B72A: C9 3D
-  BCC @skip                                           ; $B72C: 90 02
+  BCC @OpponentTierSet                                           ; $B72C: 90 02
   LDX #$30                                            ; $B72E: A2 30
-@skip:
+@OpponentTierSet:
   LDY active_player_slot                                           ; $B730: AC AA 04
-  LDA player_army_value_0,Y                                         ; $B733: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B733: B9 B1 04
   CMP #$1F                                            ; $B736: C9 1F
-  BCC @skip_2                                           ; $B738: 90 11
+  BCC @TierIndexSet                                           ; $B738: 90 11
   TXA                                                 ; $B73A: 8A
   CLC                                                 ; $B73B: 18
   ADC #$08                                            ; $B73C: 69 08
   TAX                                                 ; $B73E: AA
-  LDA player_army_value_0,Y                                         ; $B73F: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B73F: B9 B1 04
   CMP #$3D                                            ; $B742: C9 3D
-  BCC @skip_2                                           ; $B744: 90 05
+  BCC @TierIndexSet                                           ; $B744: 90 05
   TXA                                                 ; $B746: 8A
   CLC                                                 ; $B747: 18
   ADC #$08                                            ; $B748: 69 08
   TAX                                                 ; $B74A: AA
-@skip_2:
+@TierIndexSet:
   JSR B1F_RandomMod8                                  ; $B74B: 20 56 E8
-  STA random_offset                                         ; $B74E: 8D 00 00
+  STA rand_roll                                         ; $B74E: 8D 00 00
   TXA                                                 ; $B751: 8A
   CLC                                                 ; $B752: 18
-  ADC random_offset                                         ; $B753: 6D 00 00
+  ADC rand_roll                                         ; $B753: 6D 00 00
   TAX                                                 ; $B756: AA
-  LDA WarClash_OutcomeTable,X                                         ; $B757: BD 60 B7
-  STA sub_action_type                                           ; $B75A: 8D BF 04
-  JMP WarClash_SetActionResult                                           ; $B75D: 4C A8 B7
-WarClash_OutcomeTable:
+  LDA DuelAi_FeintStrikeTable,X                                         ; $B757: BD 60 B7
+  STA duel_command_code                                           ; $B75A: 8D BF 04
+  JMP DuelAi_CommitCommand                                           ; $B75D: 4C A8 B7
+DuelAi_FeintStrikeTable:
   .byte $00,$00,$00,$02,$02,$02,$02,$02,$00,$00,$00,$00,$00,$02,$02,$02; $B760: 00 00 00 02 02 02 02 02 00 00 00 00 00 02 02 02
   .byte $00,$00,$00,$00,$00,$00,$02,$02,$00,$00,$02,$02,$02,$02,$02,$02; $B770: 00 00 00 00 00 00 02 02 00 00 02 02 02 02 02 02
   .byte $00,$00,$00,$00,$02,$02,$02,$02,$00,$00,$00,$00,$00,$02,$02,$02; $B780: 00 00 00 00 02 02 02 02 00 00 00 00 00 02 02 02
@@ -3801,93 +3910,100 @@ WarClash_OutcomeTable:
 .endproc
 
 ;===============================================================================
-; $B7A8: WarClash_SetActionResult
+; $B7A8: DuelAi_CommitCommand
+; Commits the AI's chosen duel_command_code by returning to the command
+; router (state $01, sub 3 = DuelCmd_CommandRoute).
 ;===============================================================================
-.proc WarClash_SetActionResult
-  officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-  ptr_0010_hi     = $0011
-WarClash_SetActionResult:
+.proc DuelAi_CommitCommand
+DuelAi_CommitCommand:
   LDA #$01                                            ; $B7A8: A9 01
-  STA game_state                                           ; $B7AA: 8D A8 04
+  STA duel_state                                           ; $B7AA: 8D A8 04
   LDA #$03                                            ; $B7AD: A9 03
   STA sub_state                                           ; $B7AF: 8D A9 04
   RTS                                                 ; $B7B2: 60
 .endproc
 ;===============================================================================
-; $B7B3: WarClash_MoraleCalc
-; Computes morale threshold: officer_morale + army_value, capped at $8C.
-; Returns random roll via B1F_RandomBelow100.
+; $B7B3: DuelAi_SurrenderThreshold
+; Computes the loyalty-gate threshold: $8C - (officer_loyalty + own side
+; strength), floored at 0. officer_loyalty = SRAM officer record +3 (忠誠度
+; Loyalty); own side strength = war_side_strength_0 (active slot).
+; The caller (DuelAi_SurrenderCheck) fires command 3 (降参) when the roll is
+; below this threshold (left in $0010).
 ; Note: JMP to GetOfficerRecordAddr at $B7BF may be a ROM bug (should be JSR);
 ;       code at $B7C2-$B7DA is unreachable via JMP.
 ;===============================================================================
-.proc WarClash_MoraleCalc
+.proc DuelAi_SurrenderThreshold
   officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-WarClash_MoraleCalc:
+  threshold      = $0010  ; $8C - (Loyalty + own side gauge), floored at 0
+DuelAi_SurrenderThreshold:
   LDY active_player_slot                                           ; $B7B3: AC AA 04
-  LDA player_army_value_0,Y                                         ; $B7B6: B9 B1 04
-  STA ptr_0010_lo                                         ; $B7B9: 8D 10 00
+  LDA war_side_strength_0,Y                                         ; $B7B6: B9 B1 04
+  STA threshold                                         ; $B7B9: 8D 10 00
   LDA player_officer_id_0,Y                                         ; $B7BC: B9 AD 04
   JMP B1F_GetOfficerRecordAddr                        ; $B7BF: 4C D7 F2
   LDY #$03                                            ; $B7C2: A0 03
   LDA (officer_data_ptr),Y                                         ; $B7C4: B1 00
   CLC                                                 ; $B7C6: 18
-  ADC ptr_0010_lo                                         ; $B7C7: 6D 10 00
-  STA ptr_0010_lo                                         ; $B7CA: 8D 10 00
+  ADC threshold                                         ; $B7C7: 6D 10 00
+  STA threshold                                         ; $B7CA: 8D 10 00
   LDA #$8C                                            ; $B7CD: A9 8C
   SEC                                                 ; $B7CF: 38
-  SBC ptr_0010_lo                                         ; $B7D0: ED 10 00
-  BPL @skip                                           ; $B7D3: 10 02
+  SBC threshold                                         ; $B7D0: ED 10 00
+  BPL @FloorZero                                           ; $B7D3: 10 02
   LDA #$00                                            ; $B7D5: A9 00
-@skip:
-  STA ptr_0010_lo                                         ; $B7D7: 8D 10 00
+@FloorZero:
+  STA threshold                                         ; $B7D7: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B7DA: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B7DD: WarClash_DefenseCalc
-; Computes defense threshold: min(officer_stats) + army_value, capped at $7C.
-; Returns random roll via B1F_RandomBelow100.
+; $B7DD: DuelAi_DesperateThreshold
+; Computes the defense-gate threshold: $7C - (max(Might, Intelligence) + own
+; side strength), floored at 0. Might = officer record +1, Intelligence = +2
+; (active slot officer); own side strength = war_side_strength_0. The max
+; keeps the STRONGER of the two stats in the threshold.
+; The caller (DuelAi_DesperateCheck) fires command 6 (捨て身) when the roll is
+; below this threshold (left in $0010).
 ;===============================================================================
-.proc WarClash_DefenseCalc
+.proc DuelAi_DesperateThreshold
   officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-WarClash_DefenseCalc:
+  threshold      = $0010  ; $7C - (max(Might, Intelligence) + own side gauge), floored at 0
+DuelAi_DesperateThreshold:
   LDY active_player_slot                                           ; $B7DD: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B7E0: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B7E3: 20 D7 F2
   LDY #$01                                            ; $B7E6: A0 01
   LDA (officer_data_ptr),Y                                         ; $B7E8: B1 00
-  STA ptr_0010_lo                                         ; $B7EA: 8D 10 00
+  STA threshold                                         ; $B7EA: 8D 10 00
   LDY #$02                                            ; $B7ED: A0 02
   LDA (officer_data_ptr),Y                                         ; $B7EF: B1 00
-  CMP ptr_0010_lo                                         ; $B7F1: CD 10 00
-  BCC @skip_2                                           ; $B7F4: 90 03
-  STA ptr_0010_lo                                         ; $B7F6: 8D 10 00
-@skip_2:
+  CMP threshold                                         ; $B7F1: CD 10 00
+  BCC @MaxPicked                                           ; $B7F4: 90 03
+  STA threshold                                         ; $B7F6: 8D 10 00
+@MaxPicked:
   LDY active_player_slot                                           ; $B7F9: AC AA 04
-  LDA player_army_value_0,Y                                         ; $B7FC: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B7FC: B9 B1 04
   CLC                                                 ; $B7FF: 18
-  ADC ptr_0010_lo                                         ; $B800: 6D 10 00
-  STA ptr_0010_lo                                         ; $B803: 8D 10 00
+  ADC threshold                                         ; $B800: 6D 10 00
+  STA threshold                                         ; $B803: 8D 10 00
   LDA #$7C                                            ; $B806: A9 7C
   SEC                                                 ; $B808: 38
-  SBC ptr_0010_lo                                         ; $B809: ED 10 00
-  BPL @skip_3                                           ; $B80C: 10 02
+  SBC threshold                                         ; $B809: ED 10 00
+  BPL @FloorZero                                           ; $B80C: 10 02
   LDA #$00                                            ; $B80E: A9 00
-@skip_3:
-  STA ptr_0010_lo                                         ; $B810: 8D 10 00
+@FloorZero:
+  STA threshold                                         ; $B810: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B813: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B816: WarClash_LeadershipCheck
-; Computes leadership diff: $32 - (attacker_leadership - defender_leadership).
+; $B816: DuelAi_StrikeThreshold
+; Strike threshold: $32 - max(0, own Might - opponent Might), floored at 0
+; (Might = officer record +1; own = active slot, opponent = other slot).
 ; Returns random roll via B1F_RandomBelow100.
 ;===============================================================================
-.proc WarClash_LeadershipCheck
+.proc DuelAi_StrikeThreshold
   officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-WarClash_LeadershipCheck:
+  threshold      = $0010  ; $32 - max(0, own Might - opponent Might), floored at 0
+DuelAi_StrikeThreshold:
   LDA active_player_slot                                           ; $B816: AD AA 04
   EOR #$01                                            ; $B819: 49 01
   TAY                                                 ; $B81B: A8
@@ -3895,51 +4011,52 @@ WarClash_LeadershipCheck:
   JSR B1F_GetOfficerRecordAddr                        ; $B81F: 20 D7 F2
   LDY #$01                                            ; $B822: A0 01
   LDA (officer_data_ptr),Y                                         ; $B824: B1 00
-  STA ptr_0010_lo                                         ; $B826: 8D 10 00
+  STA threshold                                         ; $B826: 8D 10 00
   LDY active_player_slot                                           ; $B829: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B82C: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B82F: 20 D7 F2
   LDY #$01                                            ; $B832: A0 01
   LDA (officer_data_ptr),Y                                         ; $B834: B1 00
   SEC                                                 ; $B836: 38
-  SBC ptr_0010_lo                                         ; $B837: ED 10 00
-  BPL @skip_4                                           ; $B83A: 10 02
+  SBC threshold                                         ; $B837: ED 10 00
+  BPL @DiffFloor                                           ; $B83A: 10 02
   LDA #$00                                            ; $B83C: A9 00
-@skip_4:
-  STA ptr_0010_lo                                         ; $B83E: 8D 10 00
+@DiffFloor:
+  STA threshold                                         ; $B83E: 8D 10 00
   LDA #$32                                            ; $B841: A9 32
   SEC                                                 ; $B843: 38
-  SBC ptr_0010_lo                                         ; $B844: ED 10 00
-  BPL @skip_5                                           ; $B847: 10 02
+  SBC threshold                                         ; $B844: ED 10 00
+  BPL @ThresholdFloor                                           ; $B847: 10 02
   LDA #$00                                            ; $B849: A9 00
-@skip_5:
-  STA ptr_0010_lo                                         ; $B84B: 8D 10 00
+@ThresholdFloor:
+  STA threshold                                         ; $B84B: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B84E: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B851: WarClash_DuelCheck
-; Computes duel threshold: attacker_attack - (attacker_defense + defender_morale).
-; Returns random roll via B1F_RandomBelow100.
+; $B851: DuelAi_PersuadeThreshold
+; 説得 threshold: (own Intelligence + own Virtue) - (own Might + target
+; Loyalty), floored at 0. Left in $0010; the caller compares the
+; B1F_RandomBelow100 roll against it.
 ;===============================================================================
-.proc WarClash_DuelCheck
+.proc DuelAi_PersuadeThreshold
   officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-  ptr_0010_hi     = $0011
-WarClash_DuelCheck:
+  pos_sum      = $0010  ; own Intelligence + own Virtue
+  neg_sum      = $0011  ; own Might + target Loyalty
+DuelAi_PersuadeThreshold:
   LDY active_player_slot                                           ; $B851: AC AA 04
   LDA player_officer_id_0,Y                                         ; $B854: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $B857: 20 D7 F2
   LDY #$02                                            ; $B85A: A0 02
   LDA (officer_data_ptr),Y                                         ; $B85C: B1 00
-  STA ptr_0010_lo                                         ; $B85E: 8D 10 00
+  STA pos_sum                                         ; $B85E: 8D 10 00
   LDY #$04                                            ; $B861: A0 04
   LDA (officer_data_ptr),Y                                         ; $B863: B1 00
   CLC                                                 ; $B865: 18
-  ADC ptr_0010_lo                                         ; $B866: 6D 10 00
-  STA ptr_0010_lo                                         ; $B869: 8D 10 00
+  ADC pos_sum                                         ; $B866: 6D 10 00
+  STA pos_sum                                         ; $B869: 8D 10 00
   LDY #$01                                            ; $B86C: A0 01
   LDA (officer_data_ptr),Y                                         ; $B86E: B1 00
-  STA ptr_0010_hi                                         ; $B870: 8D 11 00
+  STA neg_sum                                         ; $B870: 8D 11 00
   LDA active_player_slot                                           ; $B873: AD AA 04
   EOR #$01                                            ; $B876: 49 01
   TAY                                                 ; $B878: A8
@@ -3948,26 +4065,26 @@ WarClash_DuelCheck:
   LDY #$03                                            ; $B87F: A0 03
   LDA (officer_data_ptr),Y                                         ; $B881: B1 00
   CLC                                                 ; $B883: 18
-  ADC ptr_0010_hi                                         ; $B884: 6D 11 00
-  STA ptr_0010_hi                                         ; $B887: 8D 11 00
-  LDA ptr_0010_lo                                         ; $B88A: AD 10 00
+  ADC neg_sum                                         ; $B884: 6D 11 00
+  STA neg_sum                                         ; $B887: 8D 11 00
+  LDA pos_sum                                         ; $B88A: AD 10 00
   SEC                                                 ; $B88D: 38
-  SBC ptr_0010_hi                                         ; $B88E: ED 11 00
-  BPL @skip_6                                           ; $B891: 10 02
+  SBC neg_sum                                         ; $B88E: ED 11 00
+  BPL @FloorZero                                           ; $B891: 10 02
   LDA #$00                                            ; $B893: A9 00
-@skip_6:
-  STA ptr_0010_lo                                         ; $B895: 8D 10 00
+@FloorZero:
+  STA pos_sum                                         ; $B895: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B898: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B89B: WarClash_FinalCalc
-; Computes final threshold: (defender_defense - defender_attack) + $0A.
-; Returns random roll via B1F_RandomBelow100.
+; $B89B: DuelAi_InsultThreshold
+; 罵倒 threshold: (target Might - target Intelligence) + $0A, floored at 0.
+; Left in $0010; the caller compares the B1F_RandomBelow100 roll against it.
 ;===============================================================================
-.proc WarClash_FinalCalc
+.proc DuelAi_InsultThreshold
   officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-WarClash_FinalCalc:
+  threshold      = $0010  ; max(0, target Might - target Intelligence) + $0A, floored at 0
+DuelAi_InsultThreshold:
   LDA active_player_slot                                           ; $B89B: AD AA 04
   EOR #$01                                            ; $B89E: 49 01
   TAY                                                 ; $B8A0: A8
@@ -3975,47 +4092,58 @@ WarClash_FinalCalc:
   JSR B1F_GetOfficerRecordAddr                        ; $B8A4: 20 D7 F2
   LDY #$02                                            ; $B8A7: A0 02
   LDA (officer_data_ptr),Y                                         ; $B8A9: B1 00
-  STA ptr_0010_lo                                         ; $B8AB: 8D 10 00
+  STA threshold                                         ; $B8AB: 8D 10 00
   LDY #$01                                            ; $B8AE: A0 01
   LDA (officer_data_ptr),Y                                         ; $B8B0: B1 00
   SEC                                                 ; $B8B2: 38
-  SBC ptr_0010_lo                                         ; $B8B3: ED 10 00
-  BCS @skip_7                                           ; $B8B6: B0 02
+  SBC threshold                                         ; $B8B3: ED 10 00
+  BCS @DiffFloor                                           ; $B8B6: B0 02
   LDA #$00                                            ; $B8B8: A9 00
-@skip_7:
+@DiffFloor:
   CLC                                                 ; $B8BA: 18
   ADC #$0A                                            ; $B8BB: 69 0A
-  BPL @skip_8                                           ; $B8BD: 10 02
+  BPL @FloorZero                                           ; $B8BD: 10 02
   LDA #$00                                            ; $B8BF: A9 00
-@skip_8:
-  STA ptr_0010_lo                                         ; $B8C1: 8D 10 00
+@FloorZero:
+  STA threshold                                         ; $B8C1: 8D 10 00
   JMP B1F_RandomBelow100                              ; $B8C4: 4C 43 E8
 .endproc
 ;===============================================================================
-; $B8C7: WarResultDispatch
+; $B8C7: DuelStrikeResolveDispatch
+; Strike/feint/desperate damage resolution (state $03; reached from the
+; attack cutscene games $10-$12). Sub-states: 0 DuelStrike_Resolve,
+; 1 DuelStrike_WaitConfirm, 2 DuelStrike_NextRound.
 ;===============================================================================
-.proc WarResultDispatch
-WarResultDispatch:
+.proc DuelStrikeResolveDispatch
+DuelStrikeResolveDispatch:
   LDA sub_state                                           ; $B8C7: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $B8CA: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word WarResult_Calculate                                         ; $B8CD: D3 B8
-  .word WarResult_CheckContinue                                         ; $B8CF: A5 B9
-  .word WarResult_Finalize                                         ; $B8D1: C8 B9
+  .word DuelStrike_Resolve                                         ; $B8CD: D3 B8
+  .word DuelStrike_WaitConfirm                                         ; $B8CF: A5 B9
+  .word DuelStrike_NextRound                                         ; $B8D1: C8 B9
 .endproc
 ;===============================================================================
-; $B8D3: WarResult_Calculate
+; $B8D3: DuelStrike_Resolve
+; Computes the strike differential (DuelStrike_ComputeDifferential, +$14
+; while the attacker's round timer is still running, then damage =
+; differential*3/10) and resolves by command: 牽制 (0) with differential
+; >= $64 is parried (panel $25), else scaled via B1F_MathDiv16 into
+; DuelStrike_ApplyGauge; 捨て身 (6) doubles the damage below $1E, else
+; risks a 10-30 backfire on the attacker's own gauge (panel $25); 攻撃 (2)
+; is parried when the differential reaches the side's parry threshold
+; (name_tile_ptr_lo), else falls through into DuelStrike_ApplyGauge.
 ;===============================================================================
-.proc WarResult_Calculate
+.proc DuelStrike_Resolve
   officer_data_ptr     = $0000
   ppu_tile_lo     = $0001
   battle_tile_attr      = $0002
   div_loop_count      = $0003
   col_counter_lo  = $0004
   work_val       = $0010
-WarResult_Calculate:
+DuelStrike_Resolve:
   INC sub_state                                           ; $B8D3: EE A9 04
-  JSR WarResult_ComputeDifferential                   ; $B8D6: 20 15 BA
+  JSR DuelStrike_ComputeDifferential                   ; $B8D6: 20 15 BA
   LDY active_player_slot                                           ; $B8D9: AC AA 04
   LDA player_action_timer_0,Y                                         ; $B8DC: B9 B5 04
   AND #$7F                                            ; $B8DF: 29 7F
@@ -4038,12 +4166,12 @@ WarResult_Calculate:
   INC ppu_tile_lo                                         ; $B903: EE 01 00
   JMP @loop                                           ; $B906: 4C F7 B8
 @loop_2:
-  LDA sub_action_type                                           ; $B909: AD BF 04
+  LDA duel_command_code                                           ; $B909: AD BF 04
   BNE @skip_2                                           ; $B90C: D0 1D
   LDA work_val                                         ; $B90E: AD 10 00
   CMP #$64                                            ; $B911: C9 64
   BCC @skip                                           ; $B913: 90 03
-  JMP WarResult_ShowVictory                                           ; $B915: 4C A0 B9
+  JMP DuelStrike_ShowParried                                           ; $B915: 4C A0 B9
 @skip:
   LDA #$03                                            ; $B918: A9 03
   STA div_loop_count                                         ; $B91A: 8D 03 00
@@ -4051,7 +4179,7 @@ WarResult_Calculate:
   STA work_marker                                         ; $B91F: 8D 02 00
   STA col_counter_lo                                         ; $B922: 8D 04 00
   JSR B1F_MathDiv16                                   ; $B925: 20 7C EA
-  JMP WarResult_ApplyTroopLoss                                           ; $B928: 4C 6D B9
+  JMP DuelStrike_ApplyGauge                                           ; $B928: 4C 6D B9
 @skip_2:
   CMP #$06                                            ; $B92B: C9 06
   BNE @skip_5                                           ; $B92D: D0 33
@@ -4061,7 +4189,7 @@ WarResult_Calculate:
   LDA ppu_tile_lo                                         ; $B936: AD 01 00
   ASL A                                               ; $B939: 0A
   STA ppu_tile_lo                                         ; $B93A: 8D 01 00
-  JMP WarResult_ApplyTroopLoss                                           ; $B93D: 4C 6D B9
+  JMP DuelStrike_ApplyGauge                                           ; $B93D: 4C 6D B9
 @skip_3:
   JSR B1F_RandomByte                                  ; $B940: 20 7A E8
   AND #$1F                                            ; $B943: 29 1F
@@ -4070,40 +4198,43 @@ WarResult_Calculate:
   ADC #$0A                                            ; $B949: 69 0A
   STA officer_data_ptr                                         ; $B94B: 8D 00 00
   LDY active_player_slot                                           ; $B94E: AC AA 04
-  LDA player_army_value_0,Y                                         ; $B951: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B951: B9 B1 04
   SEC                                                 ; $B954: 38
   SBC officer_data_ptr                                         ; $B955: ED 00 00
   BPL @skip_4                                           ; $B958: 10 02
   LDA #$00                                            ; $B95A: A9 00
 @skip_4:
-  STA player_army_value_0,Y                                         ; $B95C: 99 B1 04
-  JMP WarResult_ShowVictory                                           ; $B95F: 4C A0 B9
+  STA war_side_strength_0,Y                                         ; $B95C: 99 B1 04
+  JMP DuelStrike_ShowParried                                           ; $B95F: 4C A0 B9
 @skip_5:
   LDY active_player_slot                                           ; $B962: AC AA 04
   LDA work_val                                         ; $B965: AD 10 00
   CMP name_tile_ptr_lo,Y                                         ; $B968: D9 C5 04
-  BCS WarResult_ShowVictory                                           ; $B96B: B0 33
+  BCS DuelStrike_ShowParried                                           ; $B96B: B0 33
 .endproc
 ;===============================================================================
-; $B96D: WarResult_ApplyTroopLoss
+; $B96D: DuelStrike_ApplyGauge
+; Subtracts the computed damage from the defender's strength gauge
+; (war_side_strength_0, floored at 0) and shows the damage panel $22; a
+; zero/negative damage shows panel $39 instead.
 ;===============================================================================
-.proc WarResult_ApplyTroopLoss
+.proc DuelStrike_ApplyGauge
   officer_id_ext     = $042D
   ppu_tile_lo     = $0001
-WarResult_ApplyTroopLoss:
+DuelStrike_ApplyGauge:
   LDA ppu_tile_lo                                         ; $B96D: AD 01 00
   BEQ @skip_2                                           ; $B970: F0 29
   BMI @skip_2                                           ; $B972: 30 27
   LDA active_player_slot                                           ; $B974: AD AA 04
   EOR #$01                                            ; $B977: 49 01
   TAY                                                 ; $B979: A8
-  LDA player_army_value_0,Y                                         ; $B97A: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B97A: B9 B1 04
   SEC                                                 ; $B97D: 38
   SBC ppu_tile_lo                                         ; $B97E: ED 01 00
   BCS @skip                                           ; $B981: B0 02
   LDA #$00                                            ; $B983: A9 00
 @skip:
-  STA player_army_value_0,Y                                         ; $B985: 99 B1 04
+  STA war_side_strength_0,Y                                         ; $B985: 99 B1 04
   LDA ppu_tile_lo                                         ; $B988: AD 01 00
   STA selected_officer_id                                           ; $B98B: 8D 2C 04
   LDA #$00                                            ; $B98E: A9 00
@@ -4116,18 +4247,20 @@ WarResult_ApplyTroopLoss:
   JMP B1F_SetUI4                                      ; $B99D: 4C 8B F2
 .endproc
 ;===============================================================================
-; $B9A0: WarResult_ShowVictory
+; $B9A0: DuelStrike_ShowParried
 ;===============================================================================
-.proc WarResult_ShowVictory
-WarResult_ShowVictory:
+.proc DuelStrike_ShowParried
+DuelStrike_ShowParried:
   LDA #$25                                            ; $B9A0: A9 25
   JMP B1F_SetUI0                                      ; $B9A2: 4C 6D F2
 .endproc
 ;===============================================================================
-; $B9A5: WarResult_CheckContinue
+; $B9A5: DuelStrike_WaitConfirm
+; Waits for confirm, clears the sprite buffer and raises the $007E bit 2
+; frame trigger before the next-round check.
 ;===============================================================================
-.proc WarResult_CheckContinue
-WarResult_CheckContinue:
+.proc DuelStrike_WaitConfirm
+DuelStrike_WaitConfirm:
   JSR CheckButtonConfirm                                           ; $B9A5: 20 99 D2
   BCC @skip                                           ; $B9A8: 90 1D
   JSR ReadMenuSelection                                           ; $B9AA: 20 3D D1
@@ -4145,29 +4278,32 @@ WarResult_CheckContinue:
   RTS                                                 ; $B9C7: 60
 .endproc
 ;===============================================================================
-; $B9C8: WarResult_Finalize
+; $B9C8: DuelStrike_NextRound
+; Runs once the $007E trigger clears: if either strength gauge is empty the
+; emptied side loses (card marked, state $0D map fade ends the duel);
+; otherwise the next round starts at the command menu (state $01 sub 0).
 ;===============================================================================
-.proc WarResult_Finalize
+.proc DuelStrike_NextRound
   ppu_tile_lo     = $0001
   battle_tile_attr      = $0002
   temp_0010       = $0010
   param_0560      = $0560
   param_056e      = $056E
   param_0570      = $0570
-WarResult_Finalize:
+DuelStrike_NextRound:
   LDA a:$007E                                         ; $B9C8: AD 7E 00
   AND #$04                                            ; $B9CB: 29 04
   BNE @skip                                           ; $B9CD: D0 1D
   LDY active_player_slot                                           ; $B9CF: AC AA 04
-  LDA player_army_value_0,Y                                         ; $B9D2: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B9D2: B9 B1 04
   BEQ @skip_2                                           ; $B9D5: F0 16
   LDA active_player_slot                                           ; $B9D7: AD AA 04
   EOR #$01                                            ; $B9DA: 49 01
   TAY                                                 ; $B9DC: A8
-  LDA player_army_value_0,Y                                         ; $B9DD: B9 B1 04
+  LDA war_side_strength_0,Y                                         ; $B9DD: B9 B1 04
   BEQ @skip_2                                           ; $B9E0: F0 0B
   LDA #$01                                            ; $B9E2: A9 01
-  STA game_state                                           ; $B9E4: 8D A8 04
+  STA duel_state                                           ; $B9E4: 8D A8 04
   LDA #$00                                            ; $B9E7: A9 00
   STA sub_state                                           ; $B9E9: 8D A9 04
 @skip:
@@ -4188,11 +4324,11 @@ WarResult_Finalize:
   LDA #$00                                            ; $BA05: A9 00
   STA player0_officer_hi,Y                                         ; $BA07: 99 15 05
   LDA #$0D                                            ; $BA0A: A9 0D
-  STA game_state                                           ; $BA0C: 8D A8 04
+  STA duel_state                                           ; $BA0C: 8D A8 04
   LDA #$00                                            ; $BA0F: A9 00
   STA sub_state                                           ; $BA11: 8D A9 04
   RTS                                                 ; $BA14: 60
-WarResult_ComputeDifferential:
+DuelStrike_ComputeDifferential:
   JSR B1F_RandomBelow100                              ; $BA15: 20 43 E8
   STA temp_0010                                         ; $BA18: 8D 10 00
   LDY #$00                                            ; $BA1B: A0 00
@@ -4236,30 +4372,36 @@ WarResult_ComputeDifferential:
   RTS                                                 ; $BA6C: 60
 .endproc
 ;===============================================================================
-; $BA6D: DuelDispatch
+; $BA6D: DuelPursueDispatch
+; 退却 resolution (state $04, from DuelCmd_CommandRoute code 1). The acting
+; side flees and the opponent gets one pursuit strike. Sub-states:
+; 0 Init, 1 WaitIntro, 2 WindowSlideIn (state $14), 3 SetupPursuer,
+; 4 EscapeRoll, 5 WindowSlideOut (state $15), 6 ApplyStrike, 7 CheckDeath,
+; 8 DeadHandoff, 9 EscapeFinish. Duel_SwapActive is the shared exit helper.
 ;===============================================================================
-.proc DuelDispatch
-DuelDispatch:
+.proc DuelPursueDispatch
+DuelPursueDispatch:
   LDA sub_state                                           ; $BA6D: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BA70: 20 DE EA
 ; --- Inline pointer table (10 entries) ---
-  .word Duel_Init                                         ; $BA73: 87 BA
-  .word Duel_CheckContinue                                         ; $BA75: A5 BA
-  .word Duel_ShowMenu                                         ; $BA77: C0 BA
-  .word Duel_PlayerAction                                         ; $BA79: DA BA
-  .word Duel_RandomEvent                                         ; $BA7B: 03 BB
-  .word Duel_ShowMenu2                                         ; $BA7D: 41 BB
-  .word Duel_ApplyDamage                                         ; $BA7F: 5B BB
-  .word Duel_CheckFlee                                         ; $BA81: 93 BB
-  .word Duel_NextRound                                         ; $BA83: C0 BB
-  .word Duel_CheckEnd                                         ; $BA85: 00 BC
+  .word DuelPursue_Init                                         ; $BA73: 87 BA
+  .word DuelPursue_WaitIntro                                         ; $BA75: A5 BA
+  .word DuelPursue_WindowSlideIn                                         ; $BA77: C0 BA
+  .word DuelPursue_SetupPursuer                                         ; $BA79: DA BA
+  .word DuelPursue_EscapeRoll                                         ; $BA7B: 03 BB
+  .word DuelPursue_WindowSlideOut                                         ; $BA7D: 41 BB
+  .word DuelPursue_ApplyStrike                                         ; $BA7F: 5B BB
+  .word DuelPursue_CheckDeath                                         ; $BA81: 93 BB
+  .word DuelPursue_DeadHandoff                                         ; $BA83: C0 BB
+  .word DuelPursue_EscapeFinish                                         ; $BA85: 00 BC
 .endproc
 ;===============================================================================
-; $BA87: Duel_Init
+; $BA87: DuelPursue_Init
+; Sub 0: renders the fleeing officer's card and shows panel $29.
 ;===============================================================================
-.proc Duel_Init
+.proc DuelPursue_Init
   officer_data_ptr     = $0000
-Duel_Init:
+DuelPursue_Init:
   JSR CheckButtonConfirm                                           ; $BA87: 20 99 D2
   BCC @skip                                           ; $BA8A: 90 18
   INC sub_state                                           ; $BA8C: EE A9 04
@@ -4269,17 +4411,18 @@ Duel_Init:
   LDY #$3D                                            ; $BA98: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $BA9A: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A030                                         ; $BA9D: 30 A0
+  .word B1D_1E_OfficerDisplay_Render                  ; $BA9D: 30 A0
   LDA #$29                                            ; $BA9F: A9 29
   JMP B1F_SetUI0                                      ; $BAA1: 4C 6D F2
 @skip:
   RTS                                                 ; $BAA4: 60
 .endproc
 ;===============================================================================
-; $BAA5: Duel_CheckContinue
+; $BAA5: DuelPursue_WaitIntro
+; Sub 1: waits for confirm, then clears the UI layer.
 ;===============================================================================
-.proc Duel_CheckContinue
-Duel_CheckContinue:
+.proc DuelPursue_WaitIntro
+DuelPursue_WaitIntro:
   JSR SetupMenuPtr                                           ; $BAA5: 20 66 D1
   JSR CheckButtonConfirm                                           ; $BAA8: 20 99 D2
   BCC @skip                                           ; $BAAB: 90 12
@@ -4294,10 +4437,12 @@ Duel_CheckContinue:
   RTS                                                 ; $BABF: 60
 .endproc
 ;===============================================================================
-; $BAC0: Duel_ShowMenu
+; $BAC0: DuelPursue_WindowSlideIn
+; Sub 2: on confirm starts the pursuer window slide-in (display 4/3 ->
+; state $14 DuelMenuSlideInDispatch, which returns here at sub 3).
 ;===============================================================================
-.proc Duel_ShowMenu
-Duel_ShowMenu:
+.proc DuelPursue_WindowSlideIn
+DuelPursue_WindowSlideIn:
   JSR CheckButtonConfirm                                           ; $BAC0: 20 99 D2
   BCC @skip                                           ; $BAC3: 90 14
   LDA #$04                                            ; $BAC5: A9 04
@@ -4305,19 +4450,21 @@ Duel_ShowMenu:
   LDA #$03                                            ; $BACA: A9 03
   STA display_ptr_hi                                           ; $BACC: 8D BE 04
   LDA #$14                                            ; $BACF: A9 14
-  STA game_state                                           ; $BAD1: 8D A8 04
+  STA duel_state                                           ; $BAD1: 8D A8 04
   LDA #$00                                            ; $BAD4: A9 00
   STA sub_state                                           ; $BAD6: 8D A9 04
 @skip:
   RTS                                                 ; $BAD9: 60
 .endproc
 ;===============================================================================
-; $BADA: Duel_PlayerAction
+; $BADA: DuelPursue_SetupPursuer
+; Sub 3: swaps the active slot to the pursuer (opponent), renders their
+; officer card and shows panel $2A.
 ;===============================================================================
-.proc Duel_PlayerAction
+.proc DuelPursue_SetupPursuer
   officer_data_ptr     = $0000
   callback_result       = $00A4
-Duel_PlayerAction:
+DuelPursue_SetupPursuer:
   JSR CheckButtonConfirm                                           ; $BADA: 20 99 D2
   BCC @skip                                           ; $BADD: 90 23
   LDA active_player_slot                                           ; $BADF: AD AA 04
@@ -4329,7 +4476,7 @@ Duel_PlayerAction:
   LDY #$3D                                            ; $BAEE: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $BAF0: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A030                                         ; $BAF3: 30 A0
+  .word B1D_1E_OfficerDisplay_Render                  ; $BAF3: 30 A0
   LDA #$02                                            ; $BAF5: A9 02
   STA a:zp_a4                                         ; $BAF7: 8D A4 00
   INC sub_state                                           ; $BAFA: EE A9 04
@@ -4339,11 +4486,15 @@ Duel_PlayerAction:
   RTS                                                 ; $BB02: 60
 .endproc
 ;===============================================================================
-; $BB03: Duel_RandomEvent
+; $BB03: DuelPursue_EscapeRoll
+; Sub 4: escape roll. Threshold = player_random_offset_0[opponent] * 2;
+; a B1F_RandomBelow100 roll BELOW it means the flee succeeds -> sub 9
+; (EscapeFinish) with the pursuer's taunt panel $3C; otherwise the window
+; slides out (sub 5 -> state $15) and the pursuer strikes.
 ;===============================================================================
-.proc Duel_RandomEvent
+.proc DuelPursue_EscapeRoll
   work_0011       = $0011
-Duel_RandomEvent:
+DuelPursue_EscapeRoll:
   LDA active_player_slot                                           ; $BB03: AD AA 04
   JSR SetupMenuPtr                                           ; $BB06: 20 66 D1
   JSR CheckButtonConfirm                                           ; $BB09: 20 99 D2
@@ -4374,10 +4525,12 @@ Duel_RandomEvent:
   RTS                                                 ; $BB40: 60
 .endproc
 ;===============================================================================
-; $BB41: Duel_ShowMenu2
+; $BB41: DuelPursue_WindowSlideOut
+; Sub 5: on confirm starts the pursuer window slide-out (display 4/6 ->
+; state $15 DuelMenuSlideOutDispatch, which returns here at sub 6).
 ;===============================================================================
-.proc Duel_ShowMenu2
-Duel_ShowMenu2:
+.proc DuelPursue_WindowSlideOut
+DuelPursue_WindowSlideOut:
   JSR CheckButtonConfirm                                           ; $BB41: 20 99 D2
   BCC @skip                                           ; $BB44: 90 14
   LDA #$04                                            ; $BB46: A9 04
@@ -4385,21 +4538,23 @@ Duel_ShowMenu2:
   LDA #$06                                            ; $BB4B: A9 06
   STA display_ptr_hi                                           ; $BB4D: 8D BE 04
   LDA #$15                                            ; $BB50: A9 15
-  STA game_state                                           ; $BB52: 8D A8 04
+  STA duel_state                                           ; $BB52: 8D A8 04
   LDA #$00                                            ; $BB55: A9 00
   STA sub_state                                           ; $BB57: 8D A9 04
 @skip:
   RTS                                                 ; $BB5A: 60
 .endproc
 ;===============================================================================
-; $BB5B: Duel_ApplyDamage
+; $BB5B: DuelPursue_ApplyStrike
+; Sub 6: the fleeing officer takes rand(0-9)+5 Vitality damage (record +0,
+; floored at 0); shows the pursuit-damage panel $3D.
 ;===============================================================================
-.proc Duel_ApplyDamage
+.proc DuelPursue_ApplyStrike
   damage_amount_lo     = $042F
   damage_amount_hi     = $0430
   damage_applied       = $0431
   officer_data_ptr     = $0000
-Duel_ApplyDamage:
+DuelPursue_ApplyStrike:
   LDA #$0A                                            ; $BB5B: A9 0A
   JSR B1F_RandomBelowThreshold                        ; $BB5D: 20 62 E8
   CLC                                                 ; $BB60: 18
@@ -4427,11 +4582,14 @@ Duel_ApplyDamage:
   JMP B1F_SetUI4                                      ; $BB90: 4C 8B F2
 .endproc
 ;===============================================================================
-; $BB93: Duel_CheckFlee
+; $BB93: DuelPursue_CheckDeath
+; Sub 7: on confirm, if the fleeing officer's Vitality hit 0 -> sub 8
+; (DeadHandoff) with the fallen panel $26; otherwise exits via
+; Duel_SwapActive (palette fade back to the command menu).
 ;===============================================================================
-.proc Duel_CheckFlee
+.proc DuelPursue_CheckDeath
   officer_data_ptr     = $0000
-Duel_CheckFlee:
+DuelPursue_CheckDeath:
   JSR CheckButtonConfirm                                           ; $BB93: 20 99 D2
   BCC @skip_2                                           ; $BB96: 90 27
   JSR ReadMenuSelection                                           ; $BB98: 20 3D D1
@@ -4455,10 +4613,12 @@ Duel_CheckFlee:
   RTS                                                 ; $BBBF: 60
 .endproc
 ;===============================================================================
-; $BBC0: Duel_NextRound
+; $BBC0: DuelPursue_DeadHandoff
+; Sub 8: on confirm marks the fallen side (player0_officer_hi = 2) and
+; hands off to the reward cutscene (state $0E) with frame_counter = $FF.
 ;===============================================================================
-.proc Duel_NextRound
-Duel_NextRound:
+.proc DuelPursue_DeadHandoff
+DuelPursue_DeadHandoff:
   JSR CheckButtonConfirm                                           ; $BBC0: 20 99 D2
   BCC @skip                                           ; $BBC3: 90 0A
   JSR ReadMenuSelection                                           ; $BBC5: 20 3D D1
@@ -4485,7 +4645,7 @@ Duel_NextRound:
   LDA #$00                                            ; $BBEB: A9 00
   STA player0_officer_hi,Y                                         ; $BBED: 99 15 05
   LDA #$0E                                            ; $BBF0: A9 0E
-  STA game_state                                           ; $BBF2: 8D A8 04
+  STA duel_state                                           ; $BBF2: 8D A8 04
   LDA #$00                                            ; $BBF5: A9 00
   STA sub_state                                           ; $BBF7: 8D A9 04
   LDA #$FF                                            ; $BBFA: A9 FF
@@ -4493,10 +4653,11 @@ Duel_NextRound:
   RTS                                                 ; $BBFF: 60
 .endproc
 ;===============================================================================
-; $BC00: Duel_CheckEnd
+; $BC00: DuelPursue_EscapeFinish
+; Sub 9: on confirm exits via Duel_SwapActive (palette fade, state $0F).
 ;===============================================================================
-.proc Duel_CheckEnd
-Duel_CheckEnd:
+.proc DuelPursue_EscapeFinish
+DuelPursue_EscapeFinish:
   LDA active_player_slot                                           ; $BC00: AD AA 04
   JSR SetupMenuPtr                                           ; $BC03: 20 66 D1
   JSR CheckButtonConfirm                                           ; $BC06: 20 99 D2
@@ -4510,6 +4671,8 @@ Duel_CheckEnd:
 .endproc
 ;===============================================================================
 ; $BC16: Duel_SwapActive
+; Shared exit helper: toggles the acting side, sets the card-slide modes
+; (new side 1 / old side 0) and enters the palette transition (state $0F).
 ;===============================================================================
 .proc Duel_SwapActive
 Duel_SwapActive:
@@ -4527,28 +4690,35 @@ Duel_SwapActive:
   LDA #$00                                            ; $BC2B: A9 00
   STA player0_officer_hi,Y                                         ; $BC2D: 99 15 05
   LDA #$0F                                            ; $BC30: A9 0F
-  STA game_state                                           ; $BC32: 8D A8 04
+  STA duel_state                                           ; $BC32: 8D A8 04
   LDA #$00                                            ; $BC35: A9 00
   STA sub_state                                           ; $BC37: 8D A9 04
   RTS                                                 ; $BC3A: 60
 .endproc
 ;===============================================================================
-; $BC3B: IntrigueDispatch (策略: alliance/discord/poach command group)
+; $BC3B: DuelDataToggleDispatch
+; データ screen (state $05, opened from the duel command menu with the
+; selected side in display_ptr_hi). Shows both commanders' officer cards;
+; D-pad ($0081 bits 4/5) swaps the highlighted card, B returns to the
+; command menu (state $01 sub 2).
 ;===============================================================================
-.proc IntrigueDispatch
-IntrigueDispatch:
+.proc DuelDataToggleDispatch
+DuelDataToggleDispatch:
   LDA sub_state                                           ; $BC3B: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BC3E: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word Intrigue_Init                                         ; $BC41: 47 BC
-  .word Intrigue_ShowMenu                                         ; $BC43: 5C BC
-  .word Intrigue_HandleAction                                         ; $BC45: 8C BC
+  .word DuelData_Init                                         ; $BC41: 47 BC
+  .word DuelData_ShowCard                                         ; $BC43: 5C BC
+  .word DuelData_HandleInput                                         ; $BC45: 8C BC
 .endproc
 ;===============================================================================
-; $BC47: Intrigue_Init
+; $BC47: DuelData_Init
+; Sub 0: clears the card-render handshake ($000C/$000D) and stores the
+; selected side's officer id (display_ptr_hi selects the side) into $0010
+; for the B19_1A card renderer.
 ;===============================================================================
-.proc Intrigue_Init
-Intrigue_Init:
+.proc DuelData_Init
+DuelData_Init:
   INC sub_state                                           ; $BC47: EE A9 04
   LDA #$00                                            ; $BC4A: A9 00
   STA strategy_cursor_lo                                           ; $BC4C: 8D 0C 04
@@ -4559,16 +4729,19 @@ Intrigue_Init:
   RTS                                                 ; $BC5B: 60
 .endproc
 ;===============================================================================
-; $BC5C: Intrigue_ShowMenu
+; $BC5C: DuelData_ShowCard
+; Sub 1: draws the selected officer card via B19_1A_OfficerCardAnimStep
+; (banked trampoline, Y = $39). When the animator flags completion
+; ($000D = $FF) advances to the input handler with $0097 = 1.
 ;===============================================================================
-.proc Intrigue_ShowMenu
+.proc DuelData_ShowCard
   temp_0097       = $0097
   temp_00bb       = $00BB
-Intrigue_ShowMenu:
+DuelData_ShowCard:
   LDA display_ptr_hi                                           ; $BC5C: AD BE 04
   STA active_player_slot                                           ; $BC5F: 8D AA 04
   JSR SetupMenuPtr                                           ; $BC62: 20 66 D1
-  LDA sub_action_type                                           ; $BC65: AD BF 04
+  LDA duel_command_code                                           ; $BC65: AD BF 04
   STA active_player_slot                                           ; $BC68: 8D AA 04
   LDY #$39                                            ; $BC6B: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $BC6D: 20 07 EE
@@ -4588,27 +4761,30 @@ Intrigue_ShowMenu:
   RTS                                                 ; $BC8B: 60
 .endproc
 ;===============================================================================
-; $BC8C: Intrigue_HandleAction
+; $BC8C: DuelData_HandleInput
+; Sub 2: input loop. D-pad bits 4/5 toggle the highlighted officer
+; (display_ptr_hi EOR 1) and restart the card animation; B (bit 1) returns
+; to the command menu (state $01 sub 2).
 ;===============================================================================
-.proc Intrigue_HandleAction
-  intrigue_flags       = $0010
+.proc DuelData_HandleInput
+  pad_bits_copy       = $0010
   temp_0097       = $0097
   ptr_00bb_lo     = $00BB
   ptr_00bb_hi     = $00BC
   temp_00bd       = $00BD
-Intrigue_HandleAction:
+DuelData_HandleInput:
   LDA display_ptr_hi                                           ; $BC8C: AD BE 04
   STA active_player_slot                                           ; $BC8F: 8D AA 04
   JSR SetupMenuPtr                                           ; $BC92: 20 66 D1
-  LDA sub_action_type                                           ; $BC95: AD BF 04
+  LDA duel_command_code                                           ; $BC95: AD BF 04
   STA active_player_slot                                           ; $BC98: 8D AA 04
   LDA strategy_cursor_hi                                           ; $BC9B: AD 0D 04
   BPL @skip                                           ; $BC9E: 10 1E
   LDA a:$0081                                         ; $BCA0: AD 81 00
-  STA intrigue_flags                                         ; $BCA3: 8D 10 00
+  STA pad_bits_copy                                         ; $BCA3: 8D 10 00
   AND #$02                                            ; $BCA6: 29 02
   BNE @skip_2                                           ; $BCA8: D0 15
-  LDA intrigue_flags                                         ; $BCAA: AD 10 00
+  LDA pad_bits_copy                                         ; $BCAA: AD 10 00
   AND #$30                                            ; $BCAD: 29 30
   BEQ @skip                                           ; $BCAF: F0 0D
   LDA display_ptr_hi                                           ; $BCB1: AD BE 04
@@ -4620,10 +4796,10 @@ Intrigue_HandleAction:
   RTS                                                 ; $BCBE: 60
 @skip_2:
   LDA #$01                                            ; $BCBF: A9 01
-  STA game_state                                           ; $BCC1: 8D A8 04
+  STA duel_state                                           ; $BCC1: 8D A8 04
   LDA #$02                                            ; $BCC4: A9 02
   STA sub_state                                           ; $BCC6: 8D A9 04
-  LDA sub_action_type                                           ; $BCC9: AD BF 04
+  LDA duel_command_code                                           ; $BCC9: AD BF 04
   STA active_player_slot                                           ; $BCCC: 8D AA 04
   LDA #$09                                            ; $BCCF: A9 09
   STA ptr_00bb_lo                                         ; $BCD1: 8D BB 00
@@ -4638,27 +4814,33 @@ Intrigue_HandleAction:
   RTS                                                 ; $BCE8: 60
 .endproc
 ;===============================================================================
-; $BCE9: EventCutsceneDispatch
+; $BCE9: SurrenderSceneDispatch
+; 降参 cutscene (state $06, from DuelCmd_CommandRoute code 3 when the
+; CheckPlayerIsRuler gate allows). Sub-states: 0 Init, 1 ShowText,
+; 2 Display, 3 NoEvent, 4 Execute, 5 Cleanup. DrawOfficerCards is the
+; shared sprite helper.
 ;===============================================================================
-.proc EventCutsceneDispatch
-EventCutsceneDispatch:
+.proc SurrenderSceneDispatch
+SurrenderSceneDispatch:
   LDA sub_state                                           ; $BCE9: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BCEC: 20 DE EA
 ; --- Inline pointer table (6 entries) ---
-  .word EventCutscene_Init                                         ; $BCEF: FB BC
-  .word EventCutscene_ShowText                                         ; $BCF1: 1E BD
-  .word EventCutscene_Display                                         ; $BCF3: 40 BD
-  .word EventCutscene_NoEvent                                         ; $BCF5: 5D BD
-  .word EventCutscene_Execute                                         ; $BCF7: A9 BD
-  .word EventCutscene_Cleanup                                         ; $BCF9: 3F BE
+  .word Surrender_Init                                         ; $BCEF: FB BC
+  .word Surrender_ShowText                                         ; $BCF1: 1E BD
+  .word Surrender_Display                                         ; $BCF3: 40 BD
+  .word Surrender_NoEvent                                         ; $BCF5: 5D BD
+  .word Surrender_Execute                                         ; $BCF7: A9 BD
+  .word Surrender_Cleanup                                         ; $BCF9: 3F BE
 .endproc
 ;===============================================================================
-; $BCFB: EventCutscene_Init
+; $BCFB: Surrender_Init
+; Sub 0: waits for the anim queue, renders the acting officer's card
+; (B1D_1E_OfficerDisplay_Render) and shows panel $27.
 ;===============================================================================
-.proc EventCutscene_Init
+.proc Surrender_Init
   officer_data_ptr     = $0000
   callback_result       = $00A4
-EventCutscene_Init:
+Surrender_Init:
   JSR CheckButtonConfirm                                           ; $BCFB: 20 99 D2
   BCC @skip                                           ; $BCFE: 90 1D
   INC sub_state                                           ; $BD00: EE A9 04
@@ -4668,7 +4850,7 @@ EventCutscene_Init:
   LDY #$3D                                            ; $BD0C: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $BD0E: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A030                                         ; $BD11: 30 A0
+  .word B1D_1E_OfficerDisplay_Render                  ; $BD11: 30 A0
   LDA #$04                                            ; $BD13: A9 04
   STA a:zp_a4                                         ; $BD15: 8D A4 00
   LDA #$27                                            ; $BD18: A9 27
@@ -4677,17 +4859,19 @@ EventCutscene_Init:
   RTS                                                 ; $BD1D: 60
 .endproc
 ;===============================================================================
-; $BD1E: EventCutscene_ShowText
+; $BD1E: Surrender_ShowText
+; Sub 1: on confirm re-inits PPU updates (B1F_BankPpuInit), plays sound
+; $6C and clears the UI layer.
 ;===============================================================================
-.proc EventCutscene_ShowText
-EventCutscene_ShowText:
+.proc Surrender_ShowText
+Surrender_ShowText:
   JSR SetupMenuPtr                                           ; $BD1E: 20 66 D1
   JSR CheckButtonConfirm                                           ; $BD21: 20 99 D2
-  BCC EventCutscene_NoOp                                           ; $BD24: 90 36
+  BCC Surrender_NoOp                                           ; $BD24: 90 36
   JSR ReadMenuSelection                                           ; $BD26: 20 3D D1
   LDA a:$0081                                         ; $BD29: AD 81 00
   AND #$03                                            ; $BD2C: 29 03
-  BEQ EventCutscene_NoOp                                           ; $BD2E: F0 2C
+  BEQ Surrender_NoOp                                           ; $BD2E: F0 2C
   INC sub_state                                           ; $BD30: EE A9 04
   JSR B1F_BankPpuInit                                 ; $BD33: 20 7F E5
   LDA #$6C                                            ; $BD36: A9 6C
@@ -4696,13 +4880,15 @@ EventCutscene_ShowText:
   JMP B1F_SetUI4                                      ; $BD3D: 4C 8B F2
 .endproc
 ;===============================================================================
-; $BD40: EventCutscene_Display
+; $BD40: Surrender_Display
+; Sub 2: on confirm builds the PPU tile buffer for the card slide (tile
+; base $43 for slot 0, $55 for slot 1).
 ;===============================================================================
-.proc EventCutscene_Display
+.proc Surrender_Display
   officer_data_ptr     = $0000
-EventCutscene_Display:
+Surrender_Display:
   JSR CheckButtonConfirm                                           ; $BD40: 20 99 D2
-  BCC EventCutscene_NoOp                                           ; $BD43: 90 17
+  BCC Surrender_NoOp                                           ; $BD43: 90 17
   INC sub_state                                           ; $BD45: EE A9 04
   LDA #$43                                            ; $BD48: A9 43
   STA officer_data_ptr                                         ; $BD4A: 8D 00 00
@@ -4715,16 +4901,19 @@ EventCutscene_Display:
   JMP BuildPPUTileBuffer                                           ; $BD59: 4C FD CD
 .endproc
 ;===============================================================================
-; $BD5C: EventCutscene_NoOp
+; $BD5C: Surrender_NoOp
 ;===============================================================================
-.proc EventCutscene_NoOp
-EventCutscene_NoOp:
+.proc Surrender_NoOp
+Surrender_NoOp:
   RTS                                                 ; $BD5C: 60
 .endproc
 ;===============================================================================
-; $BD5D: EventCutscene_NoEvent
+; $BD5D: Surrender_NoEvent
+; Sub 3: arms the slide sprite buffers ($00C6-$00D8), scroll row count
+; $5F and the side-dependent slide Y ($18/$A8) and sprite base ($E3/$F5),
+; then builds the tile buffer.
 ;===============================================================================
-.proc EventCutscene_NoEvent
+.proc Surrender_NoEvent
   officer_data_ptr     = $0000
   ptr_00c6_lo     = $00C6
   ptr_00c6_hi     = $00C7
@@ -4735,7 +4924,7 @@ EventCutscene_NoOp:
   ptr_00d6_lo     = $00D6
   ptr_00d6_hi     = $00D7
   temp_00d8       = $00D8
-EventCutscene_NoEvent:
+Surrender_NoEvent:
   LDA #$98                                            ; $BD5D: A9 98
   STA a:zp_c6                                         ; $BD5F: 8D C6 00
   STA a:zp_ce                                         ; $BD62: 8D CE 00
@@ -4768,14 +4957,14 @@ EventCutscene_NoEvent:
   JMP BuildPPUTileBuffer                                           ; $BDA6: 4C FD CD
 .endproc
 ;===============================================================================
-; $BDA9: EventCutscene_Execute
+; $BDA9: Surrender_Execute
+; Sub 4: advances the slide animation; every 32nd tick starts the next
+; phase, and on phase 5 shows panel $28.
 ;===============================================================================
-.proc EventCutscene_Execute
+.proc Surrender_Execute
   officer_data_ptr     = $0000
   event_tile_attr      = $0002
-  ptr_0010_lo     = $0010
-  ptr_0010_hi     = $0011
-EventCutscene_Execute:
+Surrender_Execute:
   INC anim_timer                                           ; $BDA9: EE B8 04
   LDA anim_timer                                           ; $BDAC: AD B8 04
   LSR A                                               ; $BDAF: 4A
@@ -4785,14 +4974,25 @@ EventCutscene_Execute:
   LSR A                                               ; $BDB3: 4A
   AND #$07                                            ; $BDB4: 29 07
   CMP #$05                                            ; $BDB6: C9 05
-  BNE LBDCB                                           ; $BDB8: D0 11
+  BNE DrawOfficerCards                                ; $BDB8: D0 11
   INC sub_state                                           ; $BDBA: EE A9 04
   LDY active_player_slot                                           ; $BDBD: AC AA 04
   LDA player_officer_id_0,Y                                         ; $BDC0: B9 AD 04
   STA selected_officer_id                                           ; $BDC3: 8D 2C 04
   LDA #$28                                            ; $BDC6: A9 28
   JMP B1F_SetUI4                                      ; $BDC8: 4C 8B F2
-LBDCB:
+.endproc
+;-------------------------------------------------------------------------------
+; $BDCB: DrawOfficerCards - shared sprite draw helper at the tail of
+; Surrender_Execute, also called from Surrender_Cleanup. Entered with
+; A = slide offset frame; draws the officer card and name-tile sprites via
+; DrawSpriteFromBank. Bare global between procs by necessity (shared with
+; Surrender_Cleanup).
+;-------------------------------------------------------------------------------
+DrawOfficerCards:
+  officer_data_ptr     = $0000
+  ptr_0010_lo     = $0010
+  ptr_0010_hi     = $0011
   STA ptr_0010_lo                                         ; $BDCB: 8D 10 00
   STA ptr_0010_hi                                         ; $BDCE: 8D 11 00
   LDA active_player_slot                                           ; $BDD1: AD AA 04
@@ -4845,14 +5045,16 @@ LBDCB:
   JMP DrawSpriteFromBank                                           ; $BE3B: 4C A5 CE
 @skip_3:
   RTS                                                 ; $BE3E: 60
-.endproc
 ;===============================================================================
-; $BE3F: EventCutscene_Cleanup
+; $BE3F: Surrender_Cleanup
+; Sub 5: redraws both officer cards; on confirm marks the acting side
+; (player0_officer_hi = 3) and hands off to the reward cutscene (state $0E)
+; with frame_counter = $80.
 ;===============================================================================
-.proc EventCutscene_Cleanup
-EventCutscene_Cleanup:
+.proc Surrender_Cleanup
+Surrender_Cleanup:
   LDA #$04                                            ; $BE3F: A9 04
-  JSR LBDCB                                           ; $BE41: 20 CB BD
+  JSR DrawOfficerCards                                ; $BE41: 20 CB BD
   JSR CheckButtonConfirm                                           ; $BE44: 20 99 D2
   BCC @skip_2                                           ; $BE47: 90 2E
   JSR ReadMenuSelection                                           ; $BE49: 20 3D D1
@@ -4873,34 +5075,46 @@ EventCutscene_Cleanup:
   LDA #$80                                            ; $BE68: A9 80
   STA frame_counter                                           ; $BE6A: 8D C0 04
   LDA #$0E                                            ; $BE6D: A9 0E
-  STA game_state                                           ; $BE6F: 8D A8 04
+  STA duel_state                                           ; $BE6F: 8D A8 04
   LDA #$00                                            ; $BE72: A9 00
   STA sub_state                                           ; $BE74: 8D A9 04
 @skip_2:
   RTS                                                 ; $BE77: 60
 .endproc
 ;===============================================================================
-; $BE78: BattleInitDispatch
+; $BE78: PersuadeResolveDispatch
+; 説得 outcome handling (state $07, entered from TacticDialog_Execute for
+; persuade events 2-4 with sub_state = event-1): 0 PersuadeRollEvent,
+; 1 Persuade_FadeOut, 2 Persuade_WaverHandoff, 3 Persuade_AcceptHandoff.
 ;===============================================================================
-.proc BattleInitDispatch
-BattleInitDispatch:
+.proc PersuadeResolveDispatch
+PersuadeResolveDispatch:
   LDA sub_state                                           ; $BE78: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $BE7B: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word BattleInit_Setup                                         ; $BE7E: 86 BE
-  .word BattleInit_Position                                         ; $BE80: 43 BF
-  .word BattleInit_Configure                                         ; $BE82: 66 BF
-  .word BattleInit_Finalize                                         ; $BE84: 7E BF
+  .word PersuadeRollEvent                                         ; $BE7E: 86 BE
+  .word Persuade_FadeOut                                         ; $BE80: 43 BF
+  .word Persuade_WaverHandoff                                         ; $BE82: 66 BF
+  .word Persuade_AcceptHandoff                                         ; $BE84: 7E BF
 .endproc
 ;===============================================================================
-; $BE86: BattleInit_Setup
+; $BE86: PersuadeRollEvent
+; 説得 success roll (state $07 sub 0, one-shot from DuelCmd_CommandRoute
+; code 7). Builds an index into the 216-entry PersuadeEventTable:
+;   target Loyalty  (record +3): <$50 +$18, additionally <$32 +$18
+;   target Vitality (record +0): <$50 +$08, additionally <$32 +$08
+;   own Intelligence+Virtue (+2/+4): <$B4 +$48, additionally <$82 +$48
+; index += B1F_RandomMod8(). Event value: 1 decline / 2 decline (target
+; sets event_overlay_flag 2, avoids further duels) / 3 wavers / 4 accepts.
+; Queues the appeal panel (event+$2F = $30-$33) and reply panel (event+$33
+; = $34-$37) in display_ptr_lo/hi and opens the dialog (state $09).
 ;===============================================================================
-.proc BattleInit_Setup
+.proc PersuadeRollEvent
   officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-  ptr_0010_hi     = $0011
-  formation_score       = $0012
-BattleInit_Setup:
+  target_loyalty       = $0010
+  target_vitality      = $0011
+  own_int_virtue       = $0012
+PersuadeRollEvent:
   LDA active_player_slot                                           ; $BE86: AD AA 04
   EOR #$01                                            ; $BE89: 49 01
   TAY                                                 ; $BE8B: A8
@@ -4908,108 +5122,110 @@ BattleInit_Setup:
   JSR B1F_GetOfficerRecordAddr                        ; $BE8F: 20 D7 F2
   LDY #$03                                            ; $BE92: A0 03
   LDA (officer_data_ptr),Y                                         ; $BE94: B1 00
-  STA ptr_0010_lo                                         ; $BE96: 8D 10 00
+  STA target_loyalty                                  ; $BE96: 8D 10 00
   LDY #$00                                            ; $BE99: A0 00
   LDA (officer_data_ptr),Y                                         ; $BE9B: B1 00
-  STA ptr_0010_hi                                         ; $BE9D: 8D 11 00
+  STA target_vitality                                 ; $BE9D: 8D 11 00
   LDY active_player_slot                                           ; $BEA0: AC AA 04
   LDA player_officer_id_0,Y                                         ; $BEA3: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $BEA6: 20 D7 F2
   LDY #$02                                            ; $BEA9: A0 02
   LDA (officer_data_ptr),Y                                         ; $BEAB: B1 00
-  STA formation_score                                         ; $BEAD: 8D 12 00
+  STA own_int_virtue                                  ; $BEAD: 8D 12 00
   LDY #$04                                            ; $BEB0: A0 04
   LDA (officer_data_ptr),Y                                         ; $BEB2: B1 00
   CLC                                                 ; $BEB4: 18
-  ADC formation_score                                         ; $BEB5: 6D 12 00
-  STA formation_score                                         ; $BEB8: 8D 12 00
+  ADC own_int_virtue                                  ; $BEB5: 6D 12 00
+  STA own_int_virtue                                  ; $BEB8: 8D 12 00
   LDX #$00                                            ; $BEBB: A2 00
-  LDA ptr_0010_lo                                         ; $BEBD: AD 10 00
+  LDA target_loyalty                                  ; $BEBD: AD 10 00
   CMP #$50                                            ; $BEC0: C9 50
-  BCS @skip                                           ; $BEC2: B0 11
+  BCS @LoyaltyTierDone                                ; $BEC2: B0 11
   TXA                                                 ; $BEC4: 8A
   CLC                                                 ; $BEC5: 18
   ADC #$18                                            ; $BEC6: 69 18
   TAX                                                 ; $BEC8: AA
-  LDA ptr_0010_lo                                         ; $BEC9: AD 10 00
+  LDA target_loyalty                                  ; $BEC9: AD 10 00
   CMP #$32                                            ; $BECC: C9 32
-  BCS @skip                                           ; $BECE: B0 05
+  BCS @LoyaltyTierDone                                ; $BECE: B0 05
   TXA                                                 ; $BED0: 8A
   CLC                                                 ; $BED1: 18
   ADC #$18                                            ; $BED2: 69 18
   TAX                                                 ; $BED4: AA
-@skip:
-  LDA ptr_0010_hi                                         ; $BED5: AD 11 00
+@LoyaltyTierDone:
+  LDA target_vitality                                 ; $BED5: AD 11 00
   CMP #$50                                            ; $BED8: C9 50
-  BCS @skip_2                                           ; $BEDA: B0 11
+  BCS @VitalityTierDone                               ; $BEDA: B0 11
   TXA                                                 ; $BEDC: 8A
   CLC                                                 ; $BEDD: 18
   ADC #$08                                            ; $BEDE: 69 08
   TAX                                                 ; $BEE0: AA
-  LDA ptr_0010_hi                                         ; $BEE1: AD 11 00
+  LDA target_vitality                                 ; $BEE1: AD 11 00
   CMP #$32                                            ; $BEE4: C9 32
-  BCS @skip_2                                           ; $BEE6: B0 05
+  BCS @VitalityTierDone                               ; $BEE6: B0 05
   TXA                                                 ; $BEE8: 8A
   CLC                                                 ; $BEE9: 18
   ADC #$08                                            ; $BEEA: 69 08
   TAX                                                 ; $BEEC: AA
-@skip_2:
-  LDA formation_score                                         ; $BEED: AD 12 00
+@VitalityTierDone:
+  LDA own_int_virtue                                  ; $BEED: AD 12 00
   CMP #$B4                                            ; $BEF0: C9 B4
-  BCS @skip_3                                           ; $BEF2: B0 11
+  BCS @AptitudeTierDone                               ; $BEF2: B0 11
   TXA                                                 ; $BEF4: 8A
   CLC                                                 ; $BEF5: 18
   ADC #$48                                            ; $BEF6: 69 48
   TAX                                                 ; $BEF8: AA
-  LDA formation_score                                         ; $BEF9: AD 12 00
+  LDA own_int_virtue                                  ; $BEF9: AD 12 00
   CMP #$82                                            ; $BEFC: C9 82
-  BCS @skip_3                                           ; $BEFE: B0 05
+  BCS @AptitudeTierDone                               ; $BEFE: B0 05
   TXA                                                 ; $BF00: 8A
   CLC                                                 ; $BF01: 18
   ADC #$48                                            ; $BF02: 69 48
   TAX                                                 ; $BF04: AA
-@skip_3:
+@AptitudeTierDone:
   JSR B1F_RandomMod8                                  ; $BF05: 20 56 E8
-  STA ptr_0010_lo                                         ; $BF08: 8D 10 00
+  STA target_loyalty                                  ; $BF08: 8D 10 00
   TXA                                                 ; $BF0B: 8A
   CLC                                                 ; $BF0C: 18
-  ADC ptr_0010_lo                                         ; $BF0D: 6D 10 00
+  ADC target_loyalty                                  ; $BF0D: 6D 10 00
   TAX                                                 ; $BF10: AA
-  LDA BattleInit_FormationData,X                                         ; $BF11: BD B2 BF
-  STA sub_action_type                                           ; $BF14: 8D BF 04
+  LDA PersuadeEventTable,X                                         ; $BF11: BD B2 BF
+  STA duel_command_code                                           ; $BF14: 8D BF 04
   CLC                                                 ; $BF17: 18
   ADC #$33                                            ; $BF18: 69 33
   STA display_ptr_hi                                           ; $BF1A: 8D BE 04
-  LDA sub_action_type                                           ; $BF1D: AD BF 04
+  LDA duel_command_code                                           ; $BF1D: AD BF 04
   CLC                                                 ; $BF20: 18
   ADC #$2F                                            ; $BF21: 69 2F
   STA display_ptr_lo                                           ; $BF23: 8D BD 04
-  LDA sub_action_type                                           ; $BF26: AD BF 04
+  LDA duel_command_code                                           ; $BF26: AD BF 04
   CMP #$03                                            ; $BF29: C9 03
-  BCS @skip_4                                           ; $BF2B: B0 0B
+  BCS @SkipDeclineFlag                                ; $BF2B: B0 0B
   LDA active_player_slot                                           ; $BF2D: AD AA 04
   EOR #$01                                            ; $BF30: 49 01
   TAY                                                 ; $BF32: A8
   LDA #$02                                            ; $BF33: A9 02
   STA event_overlay_flag,Y                                         ; $BF35: 99 C3 04
-@skip_4:
+@SkipDeclineFlag:
   LDA #$09                                            ; $BF38: A9 09
-  STA game_state                                           ; $BF3A: 8D A8 04
+  STA duel_state                                           ; $BF3A: 8D A8 04
   LDA #$00                                            ; $BF3D: A9 00
   STA sub_state                                           ; $BF3F: 8D A9 04
   RTS                                                 ; $BF42: 60
 .endproc
 ;===============================================================================
-; $BF43: BattleInit_Position
+; $BF43: Persuade_FadeOut
+; Event 2 (declined): sets the card-slide modes (opponent 1, acting side 0)
+; and fades via the palette transition (state $0F).
 ;===============================================================================
-.proc BattleInit_Position
-BattleInit_Position:
+.proc Persuade_FadeOut
+Persuade_FadeOut:
   LDA active_player_slot                                           ; $BF43: AD AA 04
   EOR #$01                                            ; $BF46: 49 01
   TAY                                                 ; $BF48: A8
-  BEQ @skip                                           ; $BF49: F0 02
+  BEQ @OpponentSlotSet                                ; $BF49: F0 02
   LDY #$02                                            ; $BF4B: A0 02
-@skip:
+@OpponentSlotSet:
   LDA #$01                                            ; $BF4D: A9 01
   STA player0_officer_hi,Y                                         ; $BF4F: 99 15 05
   TYA                                                 ; $BF52: 98
@@ -5018,21 +5234,23 @@ BattleInit_Position:
   LDA #$00                                            ; $BF56: A9 00
   STA player0_officer_hi,Y                                         ; $BF58: 99 15 05
   LDA #$0F                                            ; $BF5B: A9 0F
-  STA game_state                                           ; $BF5D: 8D A8 04
+  STA duel_state                                           ; $BF5D: 8D A8 04
   LDA #$00                                            ; $BF60: A9 00
   STA sub_state                                           ; $BF62: 8D A9 04
   RTS                                                 ; $BF65: 60
 .endproc
 ;===============================================================================
-; $BF66: BattleInit_Configure
+; $BF66: Persuade_WaverHandoff
+; Event 3 (wavers): clears both card-slide modes and hands off to the
+; reward cutscene (state $0E) with frame_counter = $FF.
 ;===============================================================================
-.proc BattleInit_Configure
-BattleInit_Configure:
+.proc Persuade_WaverHandoff
+Persuade_WaverHandoff:
   LDA #$00                                            ; $BF66: A9 00
   STA player0_officer_hi                                           ; $BF68: 8D 15 05
   STA player1_officer_hi                                           ; $BF6B: 8D 17 05
   LDA #$0E                                            ; $BF6E: A9 0E
-  STA game_state                                           ; $BF70: 8D A8 04
+  STA duel_state                                           ; $BF70: 8D A8 04
   LDA #$00                                            ; $BF73: A9 00
   STA sub_state                                           ; $BF75: 8D A9 04
   LDA #$FF                                            ; $BF78: A9 FF
@@ -5040,20 +5258,23 @@ BattleInit_Configure:
   RTS                                                 ; $BF7D: 60
 .endproc
 ;===============================================================================
-; $BF7E: BattleInit_Finalize
+; $BF7E: Persuade_AcceptHandoff
+; Event 4 (accepted; panel $38 "[NAME] joins" already queued): on confirm
+; marks the joining side (player0_officer_hi = 4) and hands off to the
+; reward cutscene (state $0E) with frame_counter = $FF.
 ;===============================================================================
-.proc BattleInit_Finalize
-BattleInit_Finalize:
+.proc Persuade_AcceptHandoff
+Persuade_AcceptHandoff:
   JSR CheckButtonConfirm                                           ; $BF7E: 20 99 D2
-  BCC @skip_2                                           ; $BF81: 90 2E
+  BCC @WaitInput                                      ; $BF81: 90 2E
   JSR ReadMenuSelection                                           ; $BF83: 20 3D D1
   LDA a:$0081                                         ; $BF86: AD 81 00
   AND #$03                                            ; $BF89: 29 03
-  BEQ @skip_2                                           ; $BF8B: F0 24
+  BEQ @WaitInput                                      ; $BF8B: F0 24
   LDY active_player_slot                                           ; $BF8D: AC AA 04
-  BEQ @skip                                           ; $BF90: F0 02
+  BEQ @OpponentSlotSet                                ; $BF90: F0 02
   LDY #$02                                            ; $BF92: A0 02
-@skip:
+@OpponentSlotSet:
   LDA #$00                                            ; $BF94: A9 00
   STA player0_officer_hi,Y                                         ; $BF96: 99 15 05
   TYA                                                 ; $BF99: 98
@@ -5062,44 +5283,81 @@ BattleInit_Finalize:
   LDA #$04                                            ; $BF9D: A9 04
   STA player0_officer_hi,Y                                         ; $BF9F: 99 15 05
   LDA #$0E                                            ; $BFA2: A9 0E
-  STA game_state                                           ; $BFA4: 8D A8 04
+  STA duel_state                                           ; $BFA4: 8D A8 04
   LDA #$00                                            ; $BFA7: A9 00
   STA sub_state                                           ; $BFA9: 8D A9 04
   LDA #$FF                                            ; $BFAC: A9 FF
   STA frame_counter                                           ; $BFAE: 8D C0 04
-@skip_2:
+@WaitInput:
   RTS                                                 ; $BFB1: 60
 .endproc
-BattleInit_FormationData:
-  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $BFB2: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
-  .byte $01,$01,$01,$01,$02,$02,$02,$02,$01,$01,$01,$01,$01,$01,$01,$02; $BFC2: 01 01 01 01 02 02 02 02 01 01 01 01 01 01 01 02
-  .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$02,$02,$03,$03; $BFD2: 01 01 01 01 01 01 01 01 01 01 01 01 02 02 03 03
-  .byte $01,$01,$01,$01,$01,$01,$04,$04,$01,$01,$03,$03,$04,$04,$04,$04; $BFE2: 01 01 01 01 01 01 04 04 01 01 03 03 04 04 04 04
-  .byte $02,$02,$02,$02,$04,$04,$04,$04,$01,$01,$01,$01,$01,$01; $BFF2: 02 02 02 02 04 04 04 04 01 01 01 01 01 01
+; ---------------------------------------------------------------------------
+; Row index = AptitudeTier*$48 + LoyaltyTier*$18 + VitalityTier*$08 + rand(0-7)
+;   A = AptitudeTier (own record +2 + +4, Int+Virtue): 0 = >= $B4, 1 = >= $82, 2 = < $82
+;   L = LoyaltyTier  (target record +3, Loyalty):      0 = >= $50, 1 = >= $32, 2 = < $32
+;   V = VitalityTier (target record +0, Vitality):     0 = >= $50, 1 = >= $32, 2 = < $32
+; Values: 1 decline / 2 decline (target avoids further duels) / 3 waver / 4 accept
+; One line per (A,L,V) tier over rand 0-7; the A1 L0 V0 row is split across the
+; bank boundary (its last two bytes continue at $C000 in bank $18).
+; ---------------------------------------------------------------------------
+PersuadeEventTable:
+; --- AptitudeTier 0 (own Int+Virtue >= $B4) ---
+  .byte $01,$01,$01,$01,$01,$01,$01,$01; A0 L0 V0  $BFB2: 01 01 01 01 01 01 01 01
+  .byte $01,$01,$01,$01,$01,$01,$01,$01; A0 L0 V1  $BFBA: 01 01 01 01 01 01 01 01
+  .byte $01,$01,$01,$01,$02,$02,$02,$02; A0 L0 V2  $BFC2: 01 01 01 01 02 02 02 02
+  .byte $01,$01,$01,$01,$01,$01,$01,$02; A0 L1 V0  $BFCA: 01 01 01 01 01 01 01 02
+  .byte $01,$01,$01,$01,$01,$01,$01,$01; A0 L1 V1  $BFD2: 01 01 01 01 01 01 01 01
+  .byte $01,$01,$01,$01,$02,$02,$03,$03; A0 L1 V2  $BFDA: 01 01 01 01 02 02 03 03
+  .byte $01,$01,$01,$01,$01,$01,$04,$04; A0 L2 V0  $BFE2: 01 01 01 01 01 01 04 04
+  .byte $01,$01,$03,$03,$04,$04,$04,$04; A0 L2 V1  $BFEA: 01 01 03 03 04 04 04 04
+  .byte $02,$02,$02,$02,$04,$04,$04,$04; A0 L2 V2  $BFF2: 02 02 02 02 04 04 04 04
+; --- AptitudeTier 1 (own Int+Virtue < $B4) ---
+  .byte $01,$01,$01,$01,$01,$01; A1 L0 V0 rand 0-5  $BFFA: 01 01 01 01 01 01 (row split, cont. bank $18)
 
 .segment "CODE_BANK18"
 
 ;===============================================================================
-; $C000-$C089: Tile/map lookup table
+; $C000-$C089: PersuadeEventTable continuation (bank $18 half of the 216-entry
+; table started at $BFB2; the A1 L0 V0 row is split across the bank boundary).
 ;===============================================================================
-;BattleInit_FormationDataBank18:
-  .byte $01,$01,$01,$01,$01,$01,$01,$01,$02,$02,$01,$01,$01,$01,$01,$01; $C000: 01 01 01 01 01 01 01 01 02 02 01 01 01 01 01 01
-  .byte $02,$02,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$02,$02; $C010: 02 02 01 01 01 01 01 01 01 01 01 01 01 01 02 02
-  .byte $03,$03,$01,$01,$01,$01,$02,$02,$02,$02,$01,$01,$01,$01,$03,$03; $C020: 03 03 01 01 01 01 02 02 02 02 01 01 01 01 03 03
-  .byte $04,$04,$01,$01,$03,$03,$03,$03,$04,$04,$01,$01,$03,$03,$04,$04; $C030: 04 04 01 01 03 03 03 03 04 04 01 01 03 03 04 04
-  .byte $04,$04,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $C040: 04 04 01 01 01 01 01 01 01 01 01 01 01 01 01 01
-  .byte $01,$01,$01,$01,$01,$01,$02,$02,$02,$02,$01,$01,$01,$01,$04,$04; $C050: 01 01 01 01 01 01 02 02 02 02 01 01 01 01 04 04
-  .byte $04,$04,$01,$01,$03,$03,$03,$03,$04,$04,$01,$01,$02,$02,$04,$04; $C060: 04 04 01 01 03 03 03 03 04 04 01 01 02 02 04 04
-  .byte $04,$04,$01,$01,$01,$01,$04,$04,$04,$04,$01,$01,$02,$02,$04,$04; $C070: 04 04 01 01 01 01 04 04 04 04 01 01 02 02 04 04
-  .byte $04,$04,$01,$01,$04,$04,$04,$04,$04,$04       ; $C080: 04 04 01 01 04 04 04 04 04 04
+;PersuadeEventTableBank18:
+  .byte $01,$01; A1 L0 V0 rand 6-7  $C000: 01 01 (split row, cont. from bank $17)
+; --- AptitudeTier 1 (own Int+Virtue < $B4), continued ---
+  .byte $01,$01,$01,$01,$01,$01,$02,$02; A1 L0 V1  $C002: 01 01 01 01 01 01 02 02
+  .byte $01,$01,$01,$01,$01,$01,$02,$02; A1 L0 V2  $C00A: 01 01 01 01 01 01 02 02
+  .byte $01,$01,$01,$01,$01,$01,$01,$01; A1 L1 V0  $C012: 01 01 01 01 01 01 01 01
+  .byte $01,$01,$01,$01,$02,$02,$03,$03; A1 L1 V1  $C01A: 01 01 01 01 02 02 03 03
+  .byte $01,$01,$01,$01,$02,$02,$02,$02; A1 L1 V2  $C022: 01 01 01 01 02 02 02 02
+  .byte $01,$01,$01,$01,$03,$03,$04,$04; A1 L2 V0  $C02A: 01 01 01 01 03 03 04 04
+  .byte $01,$01,$03,$03,$03,$03,$04,$04; A1 L2 V1  $C032: 01 01 03 03 03 03 04 04
+  .byte $01,$01,$03,$03,$04,$04,$04,$04; A1 L2 V2  $C03A: 01 01 03 03 04 04 04 04
+; --- AptitudeTier 2 (own Int+Virtue < $82) ---
+  .byte $01,$01,$01,$01,$01,$01,$01,$01; A2 L0 V0  $C042: 01 01 01 01 01 01 01 01
+  .byte $01,$01,$01,$01,$01,$01,$01,$01; A2 L0 V1  $C04A: 01 01 01 01 01 01 01 01
+  .byte $01,$01,$01,$01,$02,$02,$02,$02; A2 L0 V2  $C052: 01 01 01 01 02 02 02 02
+  .byte $01,$01,$01,$01,$04,$04,$04,$04; A2 L1 V0  $C05A: 01 01 01 01 04 04 04 04
+  .byte $01,$01,$03,$03,$03,$03,$04,$04; A2 L1 V1  $C062: 01 01 03 03 03 03 04 04
+  .byte $01,$01,$02,$02,$04,$04,$04,$04; A2 L1 V2  $C06A: 01 01 02 02 04 04 04 04
+  .byte $01,$01,$01,$01,$04,$04,$04,$04; A2 L2 V0  $C072: 01 01 01 01 04 04 04 04
+  .byte $01,$01,$02,$02,$04,$04,$04,$04; A2 L2 V1  $C07A: 01 01 02 02 04 04 04 04
+  .byte $01,$01,$04,$04,$04,$04,$04,$04; A2 L2 V2  $C082: 01 01 04 04 04 04 04 04
 ;===============================================================================
-; $C08A: BattleSetup_Exec
+; $C08A: InsultResolve_Exec
+; 罵倒 resolution (state $08, one-shot from DuelCmd_CommandRoute code 8).
+; threshold = own Intelligence + own Virtue - target Intelligence (floored
+; at 0, then +1). Roll = threshold + B1F_RandomMod16 clamped to 0-9
+; (re-rolled while >= $0A). Roll < $6E: the target brushes it off (reply
+; panel $2F). Roll >= $6E: the target is enraged - its player_action_timer
+; = B1F_RandomMod4 (nonzero) + 2 rounds, event_overlay_flag[target] = 2,
+; reply panel $2E. The taunt panel $2D is queued in display_ptr_lo either
+; way; opens the dialog (state $09) with duel_command_code = 0 and raises
+; bit 7 of the taunter's player_action_timer as a cooldown marker.
 ;===============================================================================
-.proc BattleSetup_Exec
+.proc InsultResolve_Exec
   officer_data_ptr     = $0000
-  ptr_0010_lo     = $0010
-  ptr_0010_hi     = $0011
-BattleSetup_Exec:
+  calc_byte            = $0010
+  target_int           = $0011
+InsultResolve_Exec:
   LDY active_player_slot                                           ; $C08A: AC AA 04
   LDA #$80                                            ; $C08D: A9 80
   STA player_action_timer_0,Y                                         ; $C08F: 99 B5 04
@@ -5110,78 +5368,84 @@ BattleSetup_Exec:
   JSR B1F_GetOfficerRecordAddr                        ; $C099: 20 D7 F2
   LDY #$02                                            ; $C09C: A0 02
   LDA (officer_data_ptr),Y                                         ; $C09E: B1 00
-  STA ptr_0010_hi                                         ; $C0A0: 8D 11 00
+  STA target_int                                      ; $C0A0: 8D 11 00
   LDY active_player_slot                                           ; $C0A3: AC AA 04
   LDA player_officer_id_0,Y                                         ; $C0A6: B9 AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $C0A9: 20 D7 F2
   LDY #$02                                            ; $C0AC: A0 02
   LDA (officer_data_ptr),Y                                         ; $C0AE: B1 00
-  STA ptr_0010_lo                                         ; $C0B0: 8D 10 00
+  STA calc_byte                                       ; $C0B0: 8D 10 00
   LDY #$04                                            ; $C0B3: A0 04
   LDA (officer_data_ptr),Y                                         ; $C0B5: B1 00
   CLC                                                 ; $C0B7: 18
-  ADC ptr_0010_lo                                         ; $C0B8: 6D 10 00
+  ADC calc_byte                                       ; $C0B8: 6D 10 00
   SEC                                                 ; $C0BB: 38
-  SBC ptr_0010_hi                                         ; $C0BC: ED 11 00
-  BCS @skip                                           ; $C0BF: B0 02
+  SBC target_int                                      ; $C0BC: ED 11 00
+  BCS @SkipClamp                                      ; $C0BF: B0 02
   LDA #$00                                            ; $C0C1: A9 00
-@skip:
-  STA ptr_0010_lo                                         ; $C0C3: 8D 10 00
-  INC ptr_0010_lo                                         ; $C0C6: EE 10 00
-@loop:
+@SkipClamp:
+  STA calc_byte                                       ; $C0C3: 8D 10 00
+  INC calc_byte                                       ; $C0C6: EE 10 00
+@RerollRand:
   JSR B1F_RandomMod16                                 ; $C0C9: 20 5C E8
   CMP #$0A                                            ; $C0CC: C9 0A
-  BCS @loop                                           ; $C0CE: B0 F9
-  ADC ptr_0010_lo                                         ; $C0D0: 6D 10 00
+  BCS @RerollRand                                     ; $C0CE: B0 F9
+  ADC calc_byte                                       ; $C0D0: 6D 10 00
   CMP #$6E                                            ; $C0D3: C9 6E
-  BCS @loop_2                                           ; $C0D5: B0 08
+  BCS @EnragedRollLoop                                ; $C0D5: B0 08
   LDA #$2F                                            ; $C0D7: A9 2F
   STA display_ptr_hi                                           ; $C0D9: 8D BE 04
-  JMP @skip_2                                           ; $C0DC: 4C 03 C1
-@loop_2:
+  JMP @OutcomeResolved                                ; $C0DC: 4C 03 C1
+@EnragedRollLoop:
   JSR B1F_RandomMod4                                  ; $C0DF: 20 50 E8
-  STA ptr_0010_lo                                         ; $C0E2: 8D 10 00
-  BEQ @loop_2                                           ; $C0E5: F0 F8
-  INC ptr_0010_lo                                         ; $C0E7: EE 10 00
-  INC ptr_0010_lo                                         ; $C0EA: EE 10 00
+  STA calc_byte                                       ; $C0E2: 8D 10 00
+  BEQ @EnragedRollLoop                                ; $C0E5: F0 F8
+  INC calc_byte                                       ; $C0E7: EE 10 00
+  INC calc_byte                                       ; $C0EA: EE 10 00
   LDA active_player_slot                                           ; $C0ED: AD AA 04
   EOR #$01                                            ; $C0F0: 49 01
   TAY                                                 ; $C0F2: A8
-  LDA ptr_0010_lo                                         ; $C0F3: AD 10 00
+  LDA calc_byte                                       ; $C0F3: AD 10 00
   STA player_action_timer_0,Y                                         ; $C0F6: 99 B5 04
   LDA #$02                                            ; $C0F9: A9 02
   STA event_overlay_flag,Y                                         ; $C0FB: 99 C3 04
   LDA #$2E                                            ; $C0FE: A9 2E
   STA display_ptr_hi                                           ; $C100: 8D BE 04
-@skip_2:
+@OutcomeResolved:
   LDA #$2D                                            ; $C103: A9 2D
   STA display_ptr_lo                                           ; $C105: 8D BD 04
   LDA #$09                                            ; $C108: A9 09
-  STA game_state                                           ; $C10A: 8D A8 04
+  STA duel_state                                           ; $C10A: 8D A8 04
   LDA #$00                                            ; $C10D: A9 00
   STA sub_state                                           ; $C10F: 8D A9 04
-  STA sub_action_type                                           ; $C112: 8D BF 04
+  STA duel_command_code                                           ; $C112: 8D BF 04
   RTS                                                 ; $C115: 60
 .endproc
 ;===============================================================================
-; $C116: EventCutsceneDispatch2
+; $C116: TacticDialogDispatch
+; Appeal/reply dialog shared by 説得 and 罵倒 (state $09, from
+; PersuadeRollEvent or InsultResolve_Exec; the appeal panel id is in
+; display_ptr_lo, the reply panel id in display_ptr_hi). Sub-states:
+; 0 Init, 1 LoadName, 2 ShowAppeal, 3 Execute.
 ;===============================================================================
-.proc EventCutsceneDispatch2
-EventCutsceneDispatch2:
+.proc TacticDialogDispatch
+TacticDialogDispatch:
   LDA sub_state                                           ; $C116: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C119: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word EventCutscene2_Init                                         ; $C11C: 24 C1
-  .word EventCutscene2_LoadData                                         ; $C11E: 3A C1
-  .word EventCutscene2_Show                                         ; $C120: 4A C1
-  .word EventCutscene2_Execute                                         ; $C122: 87 C1
+  .word TacticDialog_Init                                         ; $C11C: 24 C1
+  .word TacticDialog_LoadName                                         ; $C11E: 3A C1
+  .word TacticDialog_ShowAppeal                                         ; $C120: 4A C1
+  .word TacticDialog_Execute                                         ; $C122: 87 C1
 .endproc
 ;===============================================================================
-; $C124: EventCutscene2_Init
+; $C124: TacticDialog_Init
+; Sub 0: waits for the anim queue, renders the acting officer's card
+; (B1D_1E_OfficerDisplay_Render), then the name display.
 ;===============================================================================
-.proc EventCutscene2_Init
+.proc TacticDialog_Init
   officer_data_ptr     = $0000
-EventCutscene2_Init:
+TacticDialog_Init:
   JSR CheckButtonConfirm                                           ; $C124: 20 99 D2
   BCC @skip                                           ; $C127: 90 10
   INC sub_state                                           ; $C129: EE A9 04
@@ -5190,29 +5454,34 @@ EventCutscene2_Init:
   LDY #$3D                                            ; $C132: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $C134: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A030                                         ; $C137: 30 A0
+  .word B1D_1E_OfficerDisplay_Render                  ; $C137: 30 A0
 @skip:
   RTS                                                 ; $C139: 60
 .endproc
 ;===============================================================================
-; $C13A: EventCutscene2_LoadData
+; $C13A: TacticDialog_LoadName
+; Sub 1: renders the name (B1D_1E_OfficerNameDisplay) and sets the display
+; pointer from display_ptr_lo via SetDisplayPointer.
 ;===============================================================================
-.proc EventCutscene2_LoadData
-EventCutscene2_LoadData:
+.proc TacticDialog_LoadName
+TacticDialog_LoadName:
   INC sub_state                                           ; $C13A: EE A9 04
   LDY #$3D                                            ; $C13D: A0 3D
   JSR B1F_BankedCallbackTrampoline                    ; $C13F: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A033                                         ; $C142: 33 A0
+  .word B1D_1E_OfficerNameDisplay                     ; $C142: 33 A0
   LDA display_ptr_lo                                           ; $C144: AD BD 04
   JMP SetDisplayPointer                                           ; $C147: 4C 83 D2
 .endproc
 ;===============================================================================
-; $C14A: EventCutscene2_Show
+; $C14A: TacticDialog_ShowAppeal
+; Sub 2: draws both officer cards (TacticDialog_LoadCards) and shows the
+; appeal panel; on confirm swaps the active slot to the target for the
+; reply.
 ;===============================================================================
-.proc EventCutscene2_Show
+.proc TacticDialog_ShowAppeal
   temp_0010       = $0010
-EventCutscene2_Show:
+TacticDialog_ShowAppeal:
   LDY active_player_slot                                           ; $C14A: AC AA 04
   LDA event_overlay_flag,Y                                         ; $C14D: B9 C3 04
   STA temp_0010,Y                                       ; $C150: 99 10 00
@@ -5221,7 +5490,7 @@ EventCutscene2_Show:
   TAY                                                 ; $C156: A8
   LDA #$80                                            ; $C157: A9 80
   STA temp_0010,Y                                       ; $C159: 99 10 00
-  JSR EventCutscene_LoadOverlay                                           ; $C15C: 20 E2 C1
+  JSR TacticDialog_LoadCards                                           ; $C15C: 20 E2 C1
   JSR CheckButtonConfirm                                           ; $C15F: 20 99 D2
   BCC @skip                                           ; $C162: 90 22
   JSR ReadMenuSelection                                           ; $C164: 20 3D D1
@@ -5241,11 +5510,16 @@ EventCutscene2_Show:
   RTS                                                 ; $C186: 60
 .endproc
 ;===============================================================================
-; $C187: EventCutscene2_Execute
+; $C187: TacticDialog_Execute
+; Sub 3: draws both cards, shows the reply panel and routes the outcome.
+; duel_command_code 0 (罵倒) or 1 (説得 declined) returns to the command
+; menu (state $01, overlay/UI cleared); persuade events 2-4 continue in
+; PersuadeResolveDispatch (state $07, sub = event-1), with event 4 first
+; queueing panel $38 ([NAME] joins).
 ;===============================================================================
-.proc EventCutscene2_Execute
+.proc TacticDialog_Execute
   temp_0010       = $0010
-EventCutscene2_Execute:
+TacticDialog_Execute:
   LDY active_player_slot                                           ; $C187: AC AA 04
   LDA event_overlay_flag,Y                                         ; $C18A: B9 C3 04
   STA temp_0010,Y                                       ; $C18D: 99 10 00
@@ -5254,7 +5528,7 @@ EventCutscene2_Execute:
   TAY                                                 ; $C193: A8
   LDA #$80                                            ; $C194: A9 80
   STA temp_0010,Y                                       ; $C196: 99 10 00
-  JSR EventCutscene_LoadOverlay                                           ; $C199: 20 E2 C1
+  JSR TacticDialog_LoadCards                                           ; $C199: 20 E2 C1
   JSR CheckButtonConfirm                                           ; $C19C: 20 99 D2
   BCC @skip_2                                           ; $C19F: 90 40
   JSR ReadMenuSelection                                           ; $C1A1: 20 3D D1
@@ -5264,21 +5538,21 @@ EventCutscene2_Execute:
   LDA active_player_slot                                           ; $C1AB: AD AA 04
   EOR #$01                                            ; $C1AE: 49 01
   STA active_player_slot                                           ; $C1B0: 8D AA 04
-  LDA sub_action_type                                           ; $C1B3: AD BF 04
+  LDA duel_command_code                                           ; $C1B3: AD BF 04
   CMP #$02                                            ; $C1B6: C9 02
   BCC @skip                                           ; $C1B8: 90 17
   STA sub_state                                           ; $C1BA: 8D A9 04
   DEC sub_state                                           ; $C1BD: CE A9 04
   LDA #$07                                            ; $C1C0: A9 07
-  STA game_state                                           ; $C1C2: 8D A8 04
-  LDA sub_action_type                                           ; $C1C5: AD BF 04
+  STA duel_state                                           ; $C1C2: 8D A8 04
+  LDA duel_command_code                                           ; $C1C5: AD BF 04
   CMP #$04                                            ; $C1C8: C9 04
   BNE @skip_2                                           ; $C1CA: D0 15
   LDA #$38                                            ; $C1CC: A9 38
   JMP B1F_SetUI4                                      ; $C1CE: 4C 8B F2
 @skip:
   LDA #$01                                            ; $C1D1: A9 01
-  STA game_state                                           ; $C1D3: 8D A8 04
+  STA duel_state                                           ; $C1D3: 8D A8 04
   LDA #$00                                            ; $C1D6: A9 00
   STA sub_state                                           ; $C1D8: 8D A9 04
   STA event_overlay_flag                                           ; $C1DB: 8D C3 04
@@ -5287,15 +5561,17 @@ EventCutscene2_Execute:
   RTS                                                 ; $C1E1: 60
 .endproc
 ;===============================================================================
-; $C1E2: EventCutscene_LoadOverlay
+; $C1E2: TacticDialog_LoadCards
+; Draws both officer cards via B19_1A_OfficerCardRender_Entry (banked
+; trampoline, Y = $39) with slide progress $A5 (slot 0) / $C8 (slot 1).
 ;===============================================================================
-.proc EventCutscene_LoadOverlay
+.proc TacticDialog_LoadCards
   officer_data_ptr     = $0000
   overlay_data_ptr          = $000A
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
   callback_result       = $00A4
-EventCutscene_LoadOverlay:
+TacticDialog_LoadCards:
   LDA #$A5                                            ; $C1E2: A9 A5
   STA ptr_lo                                         ; $C1E4: 8D 0A 00
   LDX #$00                                            ; $C1E7: A2 00
@@ -5306,7 +5582,7 @@ EventCutscene_LoadOverlay:
   LDY #$39                                            ; $C1F5: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $C1F7: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                                         ; $C1FA: 00 A0
+  .word B19_1A_OfficerCardRender_Entry                ; $C1FA: 00 A0
   LDX #$01                                            ; $C1FC: A2 01
   LDA #$C8                                            ; $C1FE: A9 C8
   STA cutscene_load_progress                                           ; $C200: 8D BC 04
@@ -5317,13 +5593,15 @@ EventCutscene_LoadOverlay:
   LDY #$39                                            ; $C20F: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $C211: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                                         ; $C214: 00 A0
+  .word B19_1A_OfficerCardRender_Entry                ; $C214: 00 A0
   LDA #$00                                            ; $C216: A9 00
   STA cutscene_load_progress                                           ; $C218: 8D BC 04
   RTS                                                 ; $C21B: 60
 .endproc
 ;===============================================================================
 ; $C21C: MapFadeDispatch
+; Map fade sequence (state $0D) that ends the duel scene and returns to the
+; war scene. Sub-states: 0 Init, 1 FadeIn, 2 Draw, 3 Complete.
 ;===============================================================================
 .proc MapFadeDispatch
 MapFadeDispatch:
@@ -5429,7 +5707,7 @@ MapFade_Complete:
   AND #$03                                            ; $C2BA: 29 03
   BEQ @skip                                           ; $C2BC: F0 0D
   LDA #$0E                                            ; $C2BE: A9 0E
-  STA game_state                                           ; $C2C0: 8D A8 04
+  STA duel_state                                           ; $C2C0: 8D A8 04
   LDA #$00                                            ; $C2C3: A9 00
   STA sub_state                                           ; $C2C5: 8D A9 04
   STA frame_counter                                           ; $C2C8: 8D C0 04
@@ -5464,10 +5742,13 @@ MapFade_DrawColumn:
   JMP DrawSpriteFromBank                                           ; $C2F3: 4C A5 CE
 .endproc
 ;===============================================================================
-; $C2F6: TerritoryEventDispatch
+; $C2F6: SpoilsEventDispatch
+; Reward cutscene (state $0E) after a duel ends by surrender, persuasion or
+; KO: grants the treasure item (panels $3E-$42) and/or captures the
+; defeated officer. Sub-states: 0 Init, 1 FadeGate, 2 Execute, 3 Finalize.
 ;===============================================================================
-.proc TerritoryEventDispatch
-TerritoryEventDispatch:
+.proc SpoilsEventDispatch
+SpoilsEventDispatch:
   LDA frame_counter                                           ; $C2F6: AD C0 04
   BMI @skip                                           ; $C2F9: 30 05
   LDA #$01                                            ; $C2FB: A9 01
@@ -5476,16 +5757,16 @@ TerritoryEventDispatch:
   LDA sub_state                                           ; $C300: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C303: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word TerritoryEvent_Init                                         ; $C306: 0E C3
-  .word TerritoryEvent_Check                                         ; $C308: 3B C3
-  .word TerritoryEvent_Execute                                         ; $C30A: 5D C3
-  .word TerritoryEvent_Finalize                                         ; $C30C: 4F C4
+  .word Spoils_Init                                         ; $C306: 0E C3
+  .word Spoils_FadeGate                                         ; $C308: 3B C3
+  .word Spoils_Execute                                         ; $C30A: 5D C3
+  .word Spoils_Finalize                                         ; $C30C: 4F C4
 .endproc
 ;===============================================================================
-; $C30E: TerritoryEvent_Init
+; $C30E: Spoils_Init
 ;===============================================================================
-.proc TerritoryEvent_Init
-TerritoryEvent_Init:
+.proc Spoils_Init
+Spoils_Init:
   LDA player_officer_id_0                                           ; $C30E: AD AD 04
   STA player0_officer_lo                                           ; $C311: 8D 14 05
   LDA player_officer_id_1                                           ; $C314: AD AE 04
@@ -5507,19 +5788,19 @@ TerritoryEvent_Init:
   RTS                                                 ; $C33A: 60
 .endproc
 ;===============================================================================
-; $C33B: TerritoryEvent_Check
+; $C33B: Spoils_FadeGate
 ;===============================================================================
-.proc TerritoryEvent_Check
+.proc Spoils_FadeGate
   ptr_0500_lo     = $0500
   ptr_0500_hi     = $0501
-TerritoryEvent_Check:
+Spoils_FadeGate:
   LDA a:$0087                                         ; $C33B: AD 87 00
   BPL @skip_2                                           ; $C33E: 10 1C
   LDA #$0B                                            ; $C340: A9 0B
   STA ptr_0500_lo                                           ; $C342: 8D 00 05
   LDA #$00                                            ; $C345: A9 00
   STA ptr_0500_hi                                           ; $C347: 8D 01 05
-  LDA territory_event_type                                           ; $C34A: AD 0F 05
+  LDA spoils_event_type                                           ; $C34A: AD 0F 05
   CMP #$03                                            ; $C34D: C9 03
   BEQ @skip                                           ; $C34F: F0 03
   STA $6F44                                           ; $C351: 8D 44 6F
@@ -5531,13 +5812,13 @@ TerritoryEvent_Check:
   RTS                                                 ; $C35C: 60
 .endproc
 ;===============================================================================
-; $C35D: TerritoryEvent_Execute
+; $C35D: Spoils_Execute
 ;===============================================================================
-.proc TerritoryEvent_Execute
+.proc Spoils_Execute
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-TerritoryEvent_Execute:
+Spoils_Execute:
   LDX display_ptr_lo                                           ; $C35D: AE BD 04
   LDA player0_officer_lo,X                                         ; $C360: BD 14 05
   CMP #$83                                            ; $C363: C9 83
@@ -5554,7 +5835,7 @@ TerritoryEvent_Execute:
 @skip_3:
   CMP #$DE                                            ; $C378: C9 DE
   BNE @skip_4                                           ; $C37A: D0 03
-  JMP TerritoryEvent_CaptureOfficer                                           ; $C37C: 4C 2E C4
+  JMP Spoils_CaptureOfficer                                           ; $C37C: 4C 2E C4
 @skip_4:
   LDA $6FE1                                           ; $C37F: AD E1 6F
   AND #$01                                            ; $C382: 29 01
@@ -5586,7 +5867,7 @@ TerritoryEvent_Execute:
   STA ptr_0010_lo                                         ; $C3B5: 8D 10 00
   LDA #$3F                                            ; $C3B8: A9 3F
   STA ptr_0010_hi                                         ; $C3BA: 8D 11 00
-  JMP TerritoryEvent_ApplyResult                                           ; $C3BD: 4C 0B C4
+  JMP Spoils_ApplyItem                                           ; $C3BD: 4C 0B C4
 @skip_7:
   LDA display_ptr_lo                                           ; $C3C0: AD BD 04
   EOR #$02                                            ; $C3C3: 49 02
@@ -5602,7 +5883,7 @@ TerritoryEvent_Execute:
   STA ptr_0010_lo                                         ; $C3D8: 8D 10 00
   LDA #$40                                            ; $C3DB: A9 40
   STA ptr_0010_hi                                         ; $C3DD: 8D 11 00
-  JMP TerritoryEvent_ApplyResult                                           ; $C3E0: 4C 0B C4
+  JMP Spoils_ApplyItem                                           ; $C3E0: 4C 0B C4
 @skip_8:
   LDA #$64                                            ; $C3E3: A9 64
   JSR B1F_RandomBelowThreshold                        ; $C3E5: 20 62 E8
@@ -5615,7 +5896,7 @@ TerritoryEvent_Execute:
   STA ptr_0010_lo                                         ; $C3F6: 8D 10 00
   LDA #$41                                            ; $C3F9: A9 41
   STA ptr_0010_hi                                         ; $C3FB: 8D 11 00
-  JMP TerritoryEvent_ApplyResult                                           ; $C3FE: 4C 0B C4
+  JMP Spoils_ApplyItem                                           ; $C3FE: 4C 0B C4
 @skip_9:
   LDA #$05                                            ; $C401: A9 05
   STA ptr_0010_lo                                         ; $C403: 8D 10 00
@@ -5623,13 +5904,13 @@ TerritoryEvent_Execute:
   STA ptr_0010_hi                                         ; $C408: 8D 11 00
 .endproc
 ;===============================================================================
-; $C40B: TerritoryEvent_ApplyResult
+; $C40B: Spoils_ApplyItem
 ;===============================================================================
-.proc TerritoryEvent_ApplyResult
+.proc Spoils_ApplyItem
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-TerritoryEvent_ApplyResult:
+Spoils_ApplyItem:
   LDA display_ptr_lo                                           ; $C40B: AD BD 04
   EOR #$02                                            ; $C40E: 49 02
   TAX                                                 ; $C410: AA
@@ -5646,11 +5927,11 @@ TerritoryEvent_ApplyResult:
   JMP B1F_SetUI4                                      ; $C42B: 4C 8B F2
 .endproc
 ;===============================================================================
-; $C42E: TerritoryEvent_CaptureOfficer
+; $C42E: Spoils_CaptureOfficer
 ;===============================================================================
-.proc TerritoryEvent_CaptureOfficer
+.proc Spoils_CaptureOfficer
   officer_data_ptr     = $0000
-TerritoryEvent_CaptureOfficer:
+Spoils_CaptureOfficer:
   LDA display_ptr_lo                                           ; $C42E: AD BD 04
   EOR #$02                                            ; $C431: 49 02
   TAX                                                 ; $C433: AA
@@ -5667,10 +5948,10 @@ TerritoryEvent_CaptureOfficer:
   JMP B1F_SetUI4                                      ; $C44C: 4C 8B F2
 .endproc
 ;===============================================================================
-; $C44F: TerritoryEvent_Finalize
+; $C44F: Spoils_Finalize
 ;===============================================================================
-.proc TerritoryEvent_Finalize
-TerritoryEvent_Finalize:
+.proc Spoils_Finalize
+Spoils_Finalize:
   JSR CheckButtonConfirm                                           ; $C44F: 20 99 D2
   BCC @skip                                           ; $C452: 90 0F
   JSR ReadMenuSelection                                           ; $C454: 20 3D D1
@@ -5684,6 +5965,8 @@ TerritoryEvent_Finalize:
 .endproc
 ;===============================================================================
 ; $C464: PaletteTransitionDispatch
+; Palette fade between scenes (state $0F): copies the target palette
+; (Copy) then steps the fade (Fade); used by the flee/persuade exits.
 ;===============================================================================
 .proc PaletteTransitionDispatch
 PaletteTransitionDispatch:
@@ -5712,7 +5995,7 @@ PaletteTransition_Copy:
 PaletteTransition_Fade:
   LDA a:$0087                                         ; $C480: AD 87 00
   BPL @skip_2                                           ; $C483: 10 12
-  LDA territory_event_type                                           ; $C485: AD 0F 05
+  LDA spoils_event_type                                           ; $C485: AD 0F 05
   CMP #$03                                            ; $C488: C9 03
   BEQ @skip                                           ; $C48A: F0 03
   STA $6F44                                           ; $C48C: 8D 44 6F
@@ -5724,27 +6007,31 @@ PaletteTransition_Fade:
   RTS                                                 ; $C497: 60
 .endproc
 ;===============================================================================
-; $C498: MapScrollDispatch_A
+; $C498: FeintSceneDispatch
+; 牽制 attack cutscene (state $10, from DuelCmd_CommandRoute code 0 +
+; panel $23): background scroll, attacker animation, then the strike
+; resolution (state $03). Sub-states: 0 Init, 1 Scroll, 2 Draw, 3 Update,
+; 4 Animate, 5 Finalize, 6 Complete.
 ;===============================================================================
-.proc MapScrollDispatch_A
-MapScrollDispatch_A:
+.proc FeintSceneDispatch
+FeintSceneDispatch:
   LDA sub_state                                           ; $C498: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C49B: 20 DE EA
 ; --- Inline pointer table (7 entries) ---
-  .word MapScrollA_Init                                         ; $C49E: AC C4
-  .word MapScrollA_Scroll                                         ; $C4A0: C3 C4
-  .word MapScrollA_Draw                                         ; $C4A2: E9 C4
-  .word MapScrollA_Update                                         ; $C4A4: 5A C5
-  .word MapScrollA_Animate                                         ; $C4A6: 98 C5
-  .word MapScrollA_Finalize                                         ; $C4A8: D2 C5
-  .word MapScrollA_Complete                                         ; $C4AA: 6B C6
+  .word FeintScene_Init                                         ; $C49E: AC C4
+  .word FeintScene_Scroll                                         ; $C4A0: C3 C4
+  .word FeintScene_Draw                                         ; $C4A2: E9 C4
+  .word FeintScene_Update                                         ; $C4A4: 5A C5
+  .word FeintScene_Animate                                         ; $C4A6: 98 C5
+  .word FeintScene_Finalize                                         ; $C4A8: D2 C5
+  .word FeintScene_Complete                                         ; $C4AA: 6B C6
 .endproc
 ;===============================================================================
-; $C4AC: MapScrollA_Init
+; $C4AC: FeintScene_Init
 ;===============================================================================
-.proc MapScrollA_Init
+.proc FeintScene_Init
   col_offset     = $0000
-MapScrollA_Init:
+FeintScene_Init:
   INC sub_state                                           ; $C4AC: EE A9 04
   LDA #$43                                            ; $C4AF: A9 43
   STA col_offset                                         ; $C4B1: 8D 00 00
@@ -5757,11 +6044,11 @@ MapScrollA_Init:
   JMP BuildPPUTileBuffer                                           ; $C4C0: 4C FD CD
 .endproc
 ;===============================================================================
-; $C4C3: MapScrollA_Scroll
+; $C4C3: FeintScene_Scroll
 ;===============================================================================
-.proc MapScrollA_Scroll
+.proc FeintScene_Scroll
   col_offset     = $0000
-MapScrollA_Scroll:
+FeintScene_Scroll:
   LDA #$00                                            ; $C4C3: A9 00
   STA anim_timer                                           ; $C4C5: 8D B8 04
   INC sub_state                                           ; $C4C8: EE A9 04
@@ -5780,12 +6067,12 @@ MapScrollA_Scroll:
   JMP BuildPPUTileBuffer                                           ; $C4E6: 4C FD CD
 .endproc
 ;===============================================================================
-; $C4E9: MapScrollA_Draw
+; $C4E9: FeintScene_Draw
 ;===============================================================================
-.proc MapScrollA_Draw
+.proc FeintScene_Draw
   col_offset     = $0000
   temp_0011       = $0011
-MapScrollA_Draw:
+FeintScene_Draw:
   LDA active_player_slot                                           ; $C4E9: AD AA 04
   BEQ @skip                                           ; $C4EC: F0 0A
   LDA slide_y_pos                                           ; $C4EE: AD BB 04
@@ -5828,22 +6115,22 @@ MapScrollA_Draw:
   LDA active_player_slot                                           ; $C53E: AD AA 04
   ASL A                                               ; $C541: 0A
   TAY                                                 ; $C542: A8
-  LDA MapScrollA_ScrollOffsetTable,Y                                         ; $C543: B9 56 C5
+  LDA FeintScene_ScrollOffsetTable,Y                                         ; $C543: B9 56 C5
   STA map_scroll_ptr_1_hi                                           ; $C546: 8D BA 03
   INY                                                 ; $C549: C8
-  LDA MapScrollA_ScrollOffsetTable,Y                                         ; $C54A: B9 56 C5
+  LDA FeintScene_ScrollOffsetTable,Y                                         ; $C54A: B9 56 C5
   STA map_scroll_ptr_2_lo                                           ; $C54D: 8D BB 03
   LDA #$FF                                            ; $C550: A9 FF
   STA map_scroll_ptr_2_hi                                           ; $C552: 8D BC 03
   RTS                                                 ; $C555: 60
-MapScrollA_ScrollOffsetTable:
+FeintScene_ScrollOffsetTable:
   .byte $44,$11,$CC,$33                               ; $C556: 44 11 CC 33
 .endproc
 
 ;===============================================================================
-; $C55A: MapScrollA_Update
+; $C55A: FeintScene_Update
 ;===============================================================================
-.proc MapScrollA_Update
+.proc FeintScene_Update
   col_offset     = $0000
   ptr_00c7_lo     = $00C7
   ptr_00c7_hi     = $00C8
@@ -5851,7 +6138,7 @@ MapScrollA_ScrollOffsetTable:
   ptr_00cf_hi     = $00D0
   ptr_00d7_lo     = $00D7
   ptr_00d7_hi     = $00D8
-MapScrollA_Update:
+FeintScene_Update:
   LDA #$92                                            ; $C55A: A9 92
   STA a:zp_c7                                         ; $C55C: 8D C7 00
   STA a:zp_cf                                         ; $C55F: 8D CF 00
@@ -5879,15 +6166,15 @@ MapScrollA_Update:
   JMP BuildPPUTileBuffer                                           ; $C595: 4C FD CD
 .endproc
 ;===============================================================================
-; $C598: MapScrollA_Animate
+; $C598: FeintScene_Animate
 ;===============================================================================
-.proc MapScrollA_Animate
+.proc FeintScene_Animate
   col_offset     = $0000
   ppu_tile_hi     = $0001
   ppu_col_lo       = $00CC
   ppu_col_mid       = $00D4
   ppu_col_hi       = $00DC
-MapScrollA_Animate:
+FeintScene_Animate:
   LDA #$90                                            ; $C598: A9 90
   STA a:zp_cc                                         ; $C59A: 8D CC 00
   STA a:zp_d4                                         ; $C59D: 8D D4 00
@@ -5915,15 +6202,15 @@ MapScrollA_Animate:
   JMP BuildPPUTileBuffer                                           ; $C5CF: 4C FD CD
 .endproc
 ;===============================================================================
-; $C5D2: MapScrollA_Finalize
+; $C5D2: FeintScene_Finalize
 ;===============================================================================
-.proc MapScrollA_Finalize
+.proc FeintScene_Finalize
   col_offset     = $0000
   tilemap_attr      = $0002
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
   tilemap_work       = $0012
-MapScrollA_Finalize:
+FeintScene_Finalize:
   LDA anim_timer                                           ; $C5D2: AD B8 04
   LSR A                                               ; $C5D5: 4A
   LSR A                                               ; $C5D6: 4A
@@ -5999,13 +6286,13 @@ MapScrollA_Finalize:
   RTS                                                 ; $C66A: 60
 .endproc
 ;===============================================================================
-; $C66B: MapScrollA_Complete
+; $C66B: FeintScene_Complete
 ;===============================================================================
-.proc MapScrollA_Complete
+.proc FeintScene_Complete
   col_offset     = $0000
-MapScrollA_Complete:
+FeintScene_Complete:
   LDA #$13                                            ; $C66B: A9 13
-  STA game_state                                           ; $C66D: 8D A8 04
+  STA duel_state                                           ; $C66D: 8D A8 04
   LDA #$00                                            ; $C670: A9 00
   STA sub_state                                           ; $C672: 8D A9 04
   LDA #$ED                                            ; $C675: A9 ED
@@ -6019,28 +6306,31 @@ MapScrollA_Complete:
   JMP BuildPPUTileBuffer                                           ; $C686: 4C FD CD
 .endproc
 ;===============================================================================
-; $C689: MapScrollDispatch_B
+; $C689: StrikeSceneDispatch
+; 攻撃 attack cutscene (state $11, from DuelCmd_CommandRoute code 2 +
+; panel $21): same scroll/animate structure as the feint scene, with an
+; extra sub-state (7 Extra). Ends in the strike resolution (state $03).
 ;===============================================================================
-.proc MapScrollDispatch_B
-MapScrollDispatch_B:
+.proc StrikeSceneDispatch
+StrikeSceneDispatch:
   LDA sub_state                                           ; $C689: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C68C: 20 DE EA
 ; --- Inline pointer table (8 entries) ---
-  .word MapScrollB_Init                                         ; $C68F: 9F C6
-  .word MapScrollB_Scroll                                         ; $C691: B6 C6
-  .word MapScrollB_Draw                                         ; $C693: DC C6
-  .word MapScrollB_Update                                         ; $C695: 2D C7
-  .word MapScrollB_Animate                                         ; $C697: 73 C7
-  .word MapScrollB_Finalize                                         ; $C699: 09 C8
-  .word MapScrollB_Complete                                         ; $C69B: 4A C8
-  .word MapScrollB_Extra                                         ; $C69D: 84 C8
+  .word StrikeScene_Init                                         ; $C68F: 9F C6
+  .word StrikeScene_Scroll                                         ; $C691: B6 C6
+  .word StrikeScene_Draw                                         ; $C693: DC C6
+  .word StrikeScene_Update                                         ; $C695: 2D C7
+  .word StrikeScene_Animate                                         ; $C697: 73 C7
+  .word StrikeScene_Finalize                                         ; $C699: 09 C8
+  .word StrikeScene_Complete                                         ; $C69B: 4A C8
+  .word StrikeScene_Extra                                         ; $C69D: 84 C8
 .endproc
 ;===============================================================================
-; $C69F: MapScrollB_Init
+; $C69F: StrikeScene_Init
 ;===============================================================================
-.proc MapScrollB_Init
+.proc StrikeScene_Init
   col_offset     = $0000
-MapScrollB_Init:
+StrikeScene_Init:
   INC sub_state                                           ; $C69F: EE A9 04
   LDA #$43                                            ; $C6A2: A9 43
   STA col_offset                                         ; $C6A4: 8D 00 00
@@ -6053,11 +6343,11 @@ MapScrollB_Init:
   JMP BuildPPUTileBuffer                                           ; $C6B3: 4C FD CD
 .endproc
 ;===============================================================================
-; $C6B6: MapScrollB_Scroll
+; $C6B6: StrikeScene_Scroll
 ;===============================================================================
-.proc MapScrollB_Scroll
+.proc StrikeScene_Scroll
   col_offset     = $0000
-MapScrollB_Scroll:
+StrikeScene_Scroll:
   LDA #$00                                            ; $C6B6: A9 00
   STA anim_timer                                           ; $C6B8: 8D B8 04
   INC sub_state                                           ; $C6BB: EE A9 04
@@ -6076,15 +6366,15 @@ MapScrollB_Scroll:
   JMP BuildPPUTileBuffer                                           ; $C6D9: 4C FD CD
 .endproc
 ;===============================================================================
-; $C6DC: MapScrollB_Draw
+; $C6DC: StrikeScene_Draw
 ;===============================================================================
-.proc MapScrollB_Draw
+.proc StrikeScene_Draw
   col_offset     = $0000
   temp_0011       = $0011
   ppu_col_lo       = $00CC
   ppu_col_mid       = $00D4
   ppu_col_hi       = $00DC
-MapScrollB_Draw:
+StrikeScene_Draw:
   LDA active_player_slot                                           ; $C6DC: AD AA 04
   BEQ @skip                                           ; $C6DF: F0 0A
   LDA slide_y_pos                                           ; $C6E1: AD BB 04
@@ -6123,9 +6413,9 @@ MapScrollB_Draw:
   JMP MapScroll_UpdatePosition                                           ; $C72A: 4C E1 CE
 .endproc
 ;===============================================================================
-; $C72D: MapScrollB_Update
+; $C72D: StrikeScene_Update
 ;===============================================================================
-.proc MapScrollB_Update
+.proc StrikeScene_Update
   col_offset     = $0000
   temp_00c6       = $00C6
   temp_00c9       = $00C9
@@ -6133,7 +6423,7 @@ MapScrollB_Draw:
   temp_00d1       = $00D1
   temp_00d6       = $00D6
   temp_00d9       = $00D9
-MapScrollB_Update:
+StrikeScene_Update:
   LDA #$83                                            ; $C72D: A9 83
   STA a:zp_c9                                         ; $C72F: 8D C9 00
   STA a:zp_d1                                         ; $C732: 8D D1 00
@@ -6165,15 +6455,15 @@ MapScrollB_Update:
   JMP BuildPPUTileBuffer                                           ; $C770: 4C FD CD
 .endproc
 ;===============================================================================
-; $C773: MapScrollB_Animate
+; $C773: StrikeScene_Animate
 ;===============================================================================
-.proc MapScrollB_Animate
+.proc StrikeScene_Animate
   col_offset     = $0000
   tilemap_attr      = $0002
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
   tilemap_work       = $0012
-MapScrollB_Animate:
+StrikeScene_Animate:
   LDA anim_timer                                           ; $C773: AD B8 04
   LSR A                                               ; $C776: 4A
   LSR A                                               ; $C777: 4A
@@ -6246,9 +6536,9 @@ MapScrollB_Animate:
   JMP DrawSpriteFromBank                                           ; $C806: 4C A5 CE
 .endproc
 ;===============================================================================
-; $C809: MapScrollB_Finalize
+; $C809: StrikeScene_Finalize
 ;===============================================================================
-.proc MapScrollB_Finalize
+.proc StrikeScene_Finalize
   col_offset     = $0000
   temp_00c6       = $00C6
   temp_00c9       = $00C9
@@ -6256,7 +6546,7 @@ MapScrollB_Animate:
   temp_00d1       = $00D1
   temp_00d6       = $00D6
   temp_00d9       = $00D9
-MapScrollB_Finalize:
+StrikeScene_Finalize:
   LDA #$00                                            ; $C809: A9 00
   STA anim_timer                                           ; $C80B: 8D B8 04
   LDA #$57                                            ; $C80E: A9 57
@@ -6286,15 +6576,15 @@ MapScrollB_Finalize:
   JMP BuildPPUTileBuffer                                           ; $C847: 4C FD CD
 .endproc
 ;===============================================================================
-; $C84A: MapScrollB_Complete
+; $C84A: StrikeScene_Complete
 ;===============================================================================
-.proc MapScrollB_Complete
+.proc StrikeScene_Complete
   col_offset     = $0000
   ppu_tile_hi     = $0001
   ppu_col_lo       = $00CC
   ppu_col_mid       = $00D4
   ppu_col_hi       = $00DC
-MapScrollB_Complete:
+StrikeScene_Complete:
   LDA #$90                                            ; $C84A: A9 90
   STA a:zp_cc                                         ; $C84C: 8D CC 00
   STA a:zp_d4                                         ; $C84F: 8D D4 00
@@ -6322,9 +6612,9 @@ MapScrollB_Complete:
   JMP BuildPPUTileBuffer                                           ; $C881: 4C FD CD
 .endproc
 ;===============================================================================
-; $C884: MapScrollB_Extra
+; $C884: StrikeScene_Extra
 ;===============================================================================
-.proc MapScrollB_Extra
+.proc StrikeScene_Extra
   ppu_tile_hi     = $0001
   tilemap_attr      = $0002
   ptr_0010_lo     = $0010
@@ -6333,7 +6623,7 @@ MapScrollB_Complete:
   temp_00c9       = $00C9
   temp_00d1       = $00D1
   temp_00d9       = $00D9
-MapScrollB_Extra:
+StrikeScene_Extra:
   LDA anim_timer                                           ; $C884: AD B8 04
   LSR A                                               ; $C887: 4A
   LSR A                                               ; $C888: 4A
@@ -6351,7 +6641,7 @@ MapScrollB_Extra:
   CMP #$05                                            ; $C89E: C9 05
   BCC @skip                                           ; $C8A0: 90 0B
   LDA #$13                                            ; $C8A2: A9 13
-  STA game_state                                           ; $C8A4: 8D A8 04
+  STA duel_state                                           ; $C8A4: 8D A8 04
   LDA #$00                                            ; $C8A7: A9 00
   STA sub_state                                           ; $C8A9: 8D A9 04
   RTS                                                 ; $C8AC: 60
@@ -6429,28 +6719,31 @@ MapScrollB_Extra:
   RTS                                                 ; $C948: 60
 .endproc
 ;===============================================================================
-; $C949: MapScrollDispatch_C
+; $C949: DesperateSceneDispatch
+; 捨て身の攻撃 cutscene (state $12, from DuelCmd_CommandRoute code 6 +
+; panel $24): same scroll/animate structure, with an extra sub-state
+; (7 Extra). Ends in the strike resolution (state $03).
 ;===============================================================================
-.proc MapScrollDispatch_C
-MapScrollDispatch_C:
+.proc DesperateSceneDispatch
+DesperateSceneDispatch:
   LDA sub_state                                           ; $C949: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C94C: 20 DE EA
 ; --- Inline pointer table (8 entries) ---
-  .word MapScrollC_Init                                         ; $C94F: 5F C9
-  .word MapScrollC_Scroll                                         ; $C951: 76 C9
-  .word MapScrollC_Draw                                         ; $C953: 9C C9
-  .word MapScrollC_Update                                         ; $C955: ED C9
-  .word MapScrollC_Animate                                         ; $C957: 50 CA
-  .word MapScrollC_Finalize                                         ; $C959: B8 CA
-  .word MapScrollC_Complete                                         ; $C95B: D4 CA
-  .word MapScrollC_Extra                                         ; $C95D: 0E CB
+  .word DesperateScene_Init                                         ; $C94F: 5F C9
+  .word DesperateScene_Scroll                                         ; $C951: 76 C9
+  .word DesperateScene_Draw                                         ; $C953: 9C C9
+  .word DesperateScene_Update                                         ; $C955: ED C9
+  .word DesperateScene_Animate                                         ; $C957: 50 CA
+  .word DesperateScene_Finalize                                         ; $C959: B8 CA
+  .word DesperateScene_Complete                                         ; $C95B: D4 CA
+  .word DesperateScene_Extra                                         ; $C95D: 0E CB
 .endproc
 ;===============================================================================
-; $C95F: MapScrollC_Init
+; $C95F: DesperateScene_Init
 ;===============================================================================
-.proc MapScrollC_Init
+.proc DesperateScene_Init
   col_offset     = $0000
-MapScrollC_Init:
+DesperateScene_Init:
   INC sub_state                                           ; $C95F: EE A9 04
   LDA #$55                                            ; $C962: A9 55
   STA col_offset                                         ; $C964: 8D 00 00
@@ -6463,11 +6756,11 @@ MapScrollC_Init:
   JMP BuildPPUTileBuffer                                           ; $C973: 4C FD CD
 .endproc
 ;===============================================================================
-; $C976: MapScrollC_Scroll
+; $C976: DesperateScene_Scroll
 ;===============================================================================
-.proc MapScrollC_Scroll
+.proc DesperateScene_Scroll
   col_offset     = $0000
-MapScrollC_Scroll:
+DesperateScene_Scroll:
   LDA #$00                                            ; $C976: A9 00
   STA anim_timer                                           ; $C978: 8D B8 04
   INC sub_state                                           ; $C97B: EE A9 04
@@ -6486,15 +6779,15 @@ MapScrollC_Scroll:
   JMP BuildPPUTileBuffer                                           ; $C999: 4C FD CD
 .endproc
 ;===============================================================================
-; $C99C: MapScrollC_Draw
+; $C99C: DesperateScene_Draw
 ;===============================================================================
-.proc MapScrollC_Draw
+.proc DesperateScene_Draw
   col_offset     = $0000
   temp_0011       = $0011
   ppu_col_lo       = $00CC
   ppu_col_mid       = $00D4
   ppu_col_hi       = $00DC
-MapScrollC_Draw:
+DesperateScene_Draw:
   LDA active_player_slot                                           ; $C99C: AD AA 04
   BEQ @skip                                           ; $C99F: F0 0A
   LDA slide_y_pos                                           ; $C9A1: AD BB 04
@@ -6533,9 +6826,9 @@ MapScrollC_Draw:
   JMP MapScroll_UpdatePosition                                           ; $C9EA: 4C E1 CE
 .endproc
 ;===============================================================================
-; $C9ED: MapScrollC_Update
+; $C9ED: DesperateScene_Update
 ;===============================================================================
-.proc MapScrollC_Update
+.proc DesperateScene_Update
   col_offset     = $0000
   ptr_00be_lo     = $00BE
   ptr_00be_hi     = $00BF
@@ -6553,7 +6846,7 @@ MapScrollC_Draw:
   ptr_00d6_hi     = $00D7
   ptr_00d8_lo     = $00D8
   ptr_00d8_hi     = $00D9
-MapScrollC_Update:
+DesperateScene_Update:
   LDA #$3F                                            ; $C9ED: A9 3F
   STA scroll_row_count                                           ; $C9EF: 8D BA 04
   LDA #$86                                            ; $C9F2: A9 86
@@ -6594,14 +6887,14 @@ MapScrollC_Update:
   JMP BuildPPUTileBuffer                                           ; $CA4D: 4C FD CD
 .endproc
 ;===============================================================================
-; $CA50: MapScrollC_Animate
+; $CA50: DesperateScene_Animate
 ;===============================================================================
-.proc MapScrollC_Animate
+.proc DesperateScene_Animate
   col_offset     = $0000
   ppu_tile_hi     = $0001
   tilemap_attr      = $0002
   tilemap_work       = $0010
-MapScrollC_Animate:
+DesperateScene_Animate:
   INC anim_timer                                           ; $CA50: EE B8 04
   LDA anim_timer                                           ; $CA53: AD B8 04
   LSR A                                               ; $CA56: 4A
@@ -6654,11 +6947,11 @@ MapScrollC_Animate:
   JMP DrawSpriteFromBank                                           ; $CAB5: 4C A5 CE
 .endproc
 ;===============================================================================
-; $CAB8: MapScrollC_Finalize
+; $CAB8: DesperateScene_Finalize
 ;===============================================================================
-.proc MapScrollC_Finalize
+.proc DesperateScene_Finalize
   col_offset     = $0000
-MapScrollC_Finalize:
+DesperateScene_Finalize:
   LDA #$00                                            ; $CAB8: A9 00
   STA anim_timer                                           ; $CABA: 8D B8 04
   INC sub_state                                           ; $CABD: EE A9 04
@@ -6673,15 +6966,15 @@ MapScrollC_Finalize:
   JMP BuildPPUTileBuffer                                           ; $CAD1: 4C FD CD
 .endproc
 ;===============================================================================
-; $CAD4: MapScrollC_Complete
+; $CAD4: DesperateScene_Complete
 ;===============================================================================
-.proc MapScrollC_Complete
+.proc DesperateScene_Complete
   col_offset     = $0000
   ppu_tile_hi     = $0001
   ppu_col_lo       = $00CC
   ppu_col_mid       = $00D4
   ppu_col_hi       = $00DC
-MapScrollC_Complete:
+DesperateScene_Complete:
   LDA #$90                                            ; $CAD4: A9 90
   STA a:zp_cc                                         ; $CAD6: 8D CC 00
   STA a:zp_d4                                         ; $CAD9: 8D D4 00
@@ -6709,15 +7002,15 @@ MapScrollC_Complete:
   JMP BuildPPUTileBuffer                                           ; $CB0B: 4C FD CD
 .endproc
 ;===============================================================================
-; $CB0E: MapScrollC_Extra
+; $CB0E: DesperateScene_Extra
 ;===============================================================================
-.proc MapScrollC_Extra
+.proc DesperateScene_Extra
   ppu_tile_hi     = $0001
   tilemap_attr      = $0002
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
   tilemap_work       = $0012
-MapScrollC_Extra:
+DesperateScene_Extra:
   LDA anim_timer                                           ; $CB0E: AD B8 04
   LSR A                                               ; $CB11: 4A
   LSR A                                               ; $CB12: 4A
@@ -6735,7 +7028,7 @@ MapScrollC_Extra:
   CMP #$06                                            ; $CB26: C9 06
   BNE @skip                                           ; $CB28: D0 0B
   LDA #$13                                            ; $CB2A: A9 13
-  STA game_state                                           ; $CB2C: 8D A8 04
+  STA duel_state                                           ; $CB2C: 8D A8 04
   LDA #$00                                            ; $CB2F: A9 00
   STA sub_state                                           ; $CB31: 8D A9 04
   RTS                                                 ; $CB34: 60
@@ -6792,21 +7085,24 @@ MapScrollC_Extra:
   RTS                                                 ; $CB9D: 60
 .endproc
 ;===============================================================================
-; $CB9E: MapSlideDispatch_A
+; $CB9E: StrikeSlideDispatch
+; Post-attack window slide (state $13): slides the duel window back in
+; after the strike cutscene before the damage panels show. Sub-states:
+; 0 Init, 1 Slide, 2 Complete.
 ;===============================================================================
-.proc MapSlideDispatch_A
-MapSlideDispatch_A:
+.proc StrikeSlideDispatch
+StrikeSlideDispatch:
   LDA sub_state                                           ; $CB9E: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $CBA1: 20 DE EA
 ; --- Inline pointer table (3 entries: Init, Slide, Complete) ---
-  .word MapSlideA_Init                                         ; $CBA4: AA CB
-  .word MapSlideA_Slide                                         ; $CBA6: 0A CC
-  .word MapSlideA_Complete                                         ; $CBA8: 62 CC
+  .word StrikeSlide_Init                                         ; $CBA4: AA CB
+  .word StrikeSlide_Slide                                         ; $CBA6: 0A CC
+  .word StrikeSlide_Complete                                         ; $CBA8: 62 CC
 .endproc
 ;===============================================================================
-; $CBAA: MapSlideA_Init
+; $CBAA: StrikeSlide_Init
 ;===============================================================================
-.proc MapSlideA_Init
+.proc StrikeSlide_Init
   ppu_col_offset     = $0000
   tileset_offset     = $0001
   ptr_00c6_lo     = $00C6
@@ -6821,7 +7117,7 @@ MapSlideDispatch_A:
   ptr_00d6_hi     = $00D7
   ptr_00d8_lo     = $00D8
   ptr_00d8_hi     = $00D9
-MapSlideA_Init:
+StrikeSlide_Init:
   LDA #$80                                            ; $CBAA: A9 80
   STA a:zp_c6                                         ; $CBAC: 8D C6 00
   STA a:zp_ce                                         ; $CBAF: 8D CE 00
@@ -6863,13 +7159,13 @@ MapSlideA_Init:
   JMP BuildPPUTileBuffer                                           ; $CC07: 4C FD CD
 .endproc
 ;===============================================================================
-; $CC0A: MapSlideA_Slide
+; $CC0A: StrikeSlide_Slide
 ;===============================================================================
-.proc MapSlideA_Slide
+.proc StrikeSlide_Slide
   ppu_col_offset     = $0000
   tileset_offset     = $0001
   temp_0011       = $0011
-MapSlideA_Slide:
+StrikeSlide_Slide:
   LDA active_player_slot                                           ; $CC0A: AD AA 04
   BEQ @skip                                           ; $CC0D: F0 0A
   LDA slide_y_pos                                           ; $CC0F: AD BB 04
@@ -6911,13 +7207,13 @@ MapSlideA_Slide:
   JMP MapScroll_UpdatePosition                                           ; $CC5F: 4C E1 CE
 .endproc
 ;===============================================================================
-; $CC62: MapSlideA_Complete
+; $CC62: StrikeSlide_Complete
 ;===============================================================================
-.proc MapSlideA_Complete
+.proc StrikeSlide_Complete
   ppu_col_offset     = $0000
-MapSlideA_Complete:
+StrikeSlide_Complete:
   LDA display_ptr_lo                                           ; $CC62: AD BD 04
-  STA game_state                                           ; $CC65: 8D A8 04
+  STA duel_state                                           ; $CC65: 8D A8 04
   LDA display_ptr_hi                                           ; $CC68: AD BE 04
   STA sub_state                                           ; $CC6B: 8D A9 04
   LDA active_player_slot                                           ; $CC6E: AD AA 04
@@ -6933,23 +7229,25 @@ MapSlideA_Complete:
   JMP BuildPPUTileBuffer                                           ; $CC84: 4C FD CD
 .endproc
 ;===============================================================================
-; $CC87: MapSlideDispatch_B
+; $CC87: DuelMenuSlideInDispatch
+; Menu window slide-in (state $14, from DuelPursue_WindowSlideIn): slides
+; the pursuer window in, then returns to the flee sequence (state $04).
 ;===============================================================================
-.proc MapSlideDispatch_B
-MapSlideDispatch_B:
+.proc DuelMenuSlideInDispatch
+DuelMenuSlideInDispatch:
   LDA sub_state                                           ; $CC87: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $CC8A: 20 DE EA
 ; --- Inline pointer table (3 entries: Init, Slide, Complete) ---
-  .word MapSlideB_Init                                         ; $CC8D: 93 CC
-  .word MapSlideB_Slide                                         ; $CC8F: AA CC
-  .word MapSlideB_Complete                                         ; $CC91: D0 CC
+  .word DuelMenuSlideIn_Init                                         ; $CC8D: 93 CC
+  .word DuelMenuSlideIn_Slide                                         ; $CC8F: AA CC
+  .word DuelMenuSlideIn_Complete                                         ; $CC91: D0 CC
 .endproc
 ;===============================================================================
-; $CC93: MapSlideB_Init
+; $CC93: DuelMenuSlideIn_Init
 ;===============================================================================
-.proc MapSlideB_Init
+.proc DuelMenuSlideIn_Init
   ppu_col_offset     = $0000
-MapSlideB_Init:
+DuelMenuSlideIn_Init:
   INC sub_state                                           ; $CC93: EE A9 04
   LDA #$55                                            ; $CC96: A9 55
   STA ppu_col_offset                                         ; $CC98: 8D 00 00
@@ -6962,11 +7260,11 @@ MapSlideB_Init:
   JMP BuildPPUTileBuffer                                           ; $CCA7: 4C FD CD
 .endproc
 ;===============================================================================
-; $CCAA: MapSlideB_Slide
+; $CCAA: DuelMenuSlideIn_Slide
 ;===============================================================================
-.proc MapSlideB_Slide
+.proc DuelMenuSlideIn_Slide
   ppu_col_offset     = $0000
-MapSlideB_Slide:
+DuelMenuSlideIn_Slide:
   LDA #$00                                            ; $CCAA: A9 00
   STA anim_timer                                           ; $CCAC: 8D B8 04
   INC sub_state                                           ; $CCAF: EE A9 04
@@ -6985,12 +7283,12 @@ MapSlideB_Slide:
   JMP BuildPPUTileBuffer                                           ; $CCCD: 4C FD CD
 .endproc
 ;===============================================================================
-; $CCD0: MapSlideB_Complete
+; $CCD0: DuelMenuSlideIn_Complete
 ;===============================================================================
-.proc MapSlideB_Complete
+.proc DuelMenuSlideIn_Complete
   temp_0011       = $0011
   sprite_list      = $0200
-MapSlideB_Complete:
+DuelMenuSlideIn_Complete:
   LDA active_player_slot                                           ; $CCD0: AD AA 04
   BEQ @skip                                           ; $CCD3: F0 0A
   LDA slide_y_pos                                           ; $CCD5: AD BB 04
@@ -7003,7 +7301,7 @@ MapSlideB_Complete:
   BNE @skip_3                                           ; $CCE4: D0 0D
 @skip_2:
   LDA display_ptr_lo                                           ; $CCE6: AD BD 04
-  STA game_state                                           ; $CCE9: 8D A8 04
+  STA duel_state                                           ; $CCE9: 8D A8 04
   LDA display_ptr_hi                                           ; $CCEC: AD BE 04
   STA sub_state                                           ; $CCEF: 8D A9 04
   RTS                                                 ; $CCF2: 60
@@ -7051,23 +7349,26 @@ MapSlideB_Complete:
   RTS                                                 ; $CD3B: 60
 .endproc
 ;===============================================================================
-; $CD3C: MapSlideDispatch_C
+; $CD3C: DuelMenuSlideOutDispatch
+; Menu window slide-out (state $15, from DuelPursue_WindowSlideOut): slides
+; the pursuer window out, then returns to the flee sequence (state $04) for
+; the pursuit strike.
 ;===============================================================================
-.proc MapSlideDispatch_C
-MapSlideDispatch_C:
+.proc DuelMenuSlideOutDispatch
+DuelMenuSlideOutDispatch:
   LDA sub_state                                           ; $CD3C: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $CD3F: 20 DE EA
 ; --- Inline pointer table (3 entries: Init, Slide, Complete) ---
-  .word MapSlideC_Init                                         ; $CD42: 48 CD
-  .word MapSlideC_Slide                                         ; $CD44: 5F CD
-  .word MapSlideC_Complete                                         ; $CD46: 85 CD
+  .word DuelMenuSlideOut_Init                                         ; $CD42: 48 CD
+  .word DuelMenuSlideOut_Slide                                         ; $CD44: 5F CD
+  .word DuelMenuSlideOut_Complete                                         ; $CD46: 85 CD
 .endproc
 ;===============================================================================
-; $CD48: MapSlideC_Init
+; $CD48: DuelMenuSlideOut_Init
 ;===============================================================================
-.proc MapSlideC_Init
+.proc DuelMenuSlideOut_Init
   ppu_col_offset     = $0000
-MapSlideC_Init:
+DuelMenuSlideOut_Init:
   INC sub_state                                           ; $CD48: EE A9 04
   LDA #$55                                            ; $CD4B: A9 55
   STA ppu_col_offset                                         ; $CD4D: 8D 00 00
@@ -7080,11 +7381,11 @@ MapSlideC_Init:
   JMP BuildPPUTileBuffer                                           ; $CD5C: 4C FD CD
 .endproc
 ;===============================================================================
-; $CD5F: MapSlideC_Slide
+; $CD5F: DuelMenuSlideOut_Slide
 ;===============================================================================
-.proc MapSlideC_Slide
+.proc DuelMenuSlideOut_Slide
   ppu_col_offset     = $0000
-MapSlideC_Slide:
+DuelMenuSlideOut_Slide:
   LDA #$00                                            ; $CD5F: A9 00
   STA anim_timer                                           ; $CD61: 8D B8 04
   INC sub_state                                           ; $CD64: EE A9 04
@@ -7103,12 +7404,12 @@ MapSlideC_Slide:
   JMP BuildPPUTileBuffer                                           ; $CD82: 4C FD CD
 .endproc
 ;===============================================================================
-; $CD85: MapSlideC_Complete
+; $CD85: DuelMenuSlideOut_Complete
 ;===============================================================================
-.proc MapSlideC_Complete
+.proc DuelMenuSlideOut_Complete
   temp_0011       = $0011
   sprite_list      = $0200
-MapSlideC_Complete:
+DuelMenuSlideOut_Complete:
   LDA active_player_slot                                           ; $CD85: AD AA 04
   BEQ @skip                                           ; $CD88: F0 0A
   LDA slide_y_pos                                           ; $CD8A: AD BB 04
@@ -7121,7 +7422,7 @@ MapSlideC_Complete:
   BNE @skip_3                                           ; $CD99: D0 0D
 @skip_2:
   LDA display_ptr_lo                                           ; $CD9B: AD BD 04
-  STA game_state                                           ; $CD9E: 8D A8 04
+  STA duel_state                                           ; $CD9E: 8D A8 04
   LDA display_ptr_hi                                           ; $CDA1: AD BE 04
   STA sub_state                                           ; $CDA4: 8D A9 04
   RTS                                                 ; $CDA7: 60
@@ -7605,7 +7906,7 @@ FinalizeSpriteBuffer:
 @loop:
   LDA player_officer_id_0,X                                    ; $D062: BD AD 04
   JSR B1F_GetOfficerRecordAddr                        ; $D065: 20 D7 F2
-  LDA player_army_value_0,X                                   ; $D068: BD B1 04
+  LDA war_side_strength_0,X                                   ; $D068: BD B1 04
   LDY #$00                                            ; $D06B: A0 00
   STA (sprite_pos),Y                                  ; $D06D: 91 00
   INX                                                 ; $D06F: E8
@@ -7614,11 +7915,11 @@ FinalizeSpriteBuffer:
   LDX #$00                                            ; $D074: A2 00
   LDA #$A4                                            ; $D076: A9 A4 (slot base for officer 0)
   STA slot_base                                       ; $D078: 8D 10 00
-  LDA player_army_value_0                                     ; $D07B: AD B1 04 (officer 0 position)
+  LDA war_side_strength_0                                     ; $D07B: AD B1 04 (officer 0 position)
   JSR WriteOfficerSpriteEntry                         ; $D07E: 20 89 D0
   LDA #$B2                                            ; $D081: A9 B2 (slot base for officer 1)
   STA slot_base                                       ; $D083: 8D 10 00
-  LDA player_army_value_1                                     ; $D086: AD B2 04 (officer 1 position)
+  LDA war_side_strength_1                                     ; $D086: AD B2 04 (officer 1 position)
 ; Falls through into WriteOfficerSpriteEntry
 WriteOfficerSpriteEntry:
   STA officer_pos                                     ; $D089: 8D 01 00
@@ -7770,15 +8071,15 @@ SetupMenuPtr:
   LDY #$39                                            ; $D174: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $D176: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                                         ; $D179: 00 A0
+  .word B19_1A_OfficerCardRender_Entry                ; $D179: 00 A0
   RTS                                                 ; $D17B: 60
 .endproc
 ;===============================================================================
-; $D17C: TroopAssign_NextState
+; $D17C: DuelCmd_FillStatTiles
 ; Init $0380 buffer from defaults, then compute display tiles for 4 officer stats.
 ; Officer_ptr_lo/hi ($0000/$0001) = 16-bit pointer to officer record (set by SetupMenuPtr).
 ;===============================================================================
-.proc TroopAssign_NextState
+.proc DuelCmd_FillStatTiles
   officer_ptr_lo  = $0000
   officer_ptr_hi  = $0001
   ones_tile       = $0000
@@ -7790,7 +8091,7 @@ SetupMenuPtr:
   ptr_0010_hi     = $0011
   slot_buf_lo     = sprite_y_buffer
   slot_buf_hi     = sprite_y_buffer + 1
-TroopAssign_NextState:
+DuelCmd_FillStatTiles:
   LDY #$40                                            ; $D17C: A0 40
 @init_loop:
   LDA slot_defaults,Y                                  ; $D17E: B9 F4 D1
@@ -8261,7 +8562,7 @@ StrategyCommand_InitOfficerScroll:
 @skip_6:
   RTS                                                 ; $D751: 60
 @skip_7:
-  JMP $E000                                           ; $D752: 4C 00 E0
+  JMP B1F_Reset                                       ; $D752: 4C 00 E0
 DispatchBankTable:
   .byte $09,$0A,$0B,$0C,$F0,$F0,$F0,$0D,$0E,$0F,$10,$11,$12,$13,$13,$14; $D755: Dispatch bank lookup (index → PRG bank)
   .byte $14,$15,$15,$14,$14,$13,$13,$FE               ; $D765: 14 15 15 14 14 13 13 FE
@@ -8615,7 +8916,7 @@ Finalize_NoOp:
 Finalize_ExitTransition:
   LDA a:$0087                                         ; $D9C2: AD 87 00
   BPL Finalize_NoOp                                          ; $D9C5: 10 FA
-  JMP $E000                                           ; $D9C7: 4C 00 E0
+  JMP B1F_Reset                                       ; $D9C7: 4C 00 E0
 .endproc
 ;===============================================================================
 ; $D9CA: StrategyCommand_MainInteractive
@@ -8745,7 +9046,7 @@ StrategyCommand_RenderOfficerEntry:
   LDY #$39                                            ; $DA93: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DA95: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                                         ; $DA98: 00 A0
+  .word B19_1A_OfficerCardRender_Entry                ; $DA98: 00 A0
   INC strat_display_ptr_lo                                           ; $DA9A: EE 42 05
   LDA #$00                                            ; $DA9D: A9 00
   STA scroll_ptr_hi                                           ; $DA9F: 8D 09 04
@@ -8776,7 +9077,7 @@ StrategyCommand_UpdateOfficerDisplay:
   LDY #$39                                            ; $DAC9: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DACB: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                                         ; $DACE: 00 A0
+  .word B19_1A_OfficerCardRender_Entry                ; $DACE: 00 A0
   LDA strategy_cursor_hi                                           ; $DAD0: AD 0D 04
   CMP #$FF                                            ; $DAD3: C9 FF
   BNE @skip                                           ; $DAD5: D0 08
@@ -8862,7 +9163,7 @@ StrategyCommand_RenderOfficerName:
   LDY #$39                                            ; $DB55: A0 39
   JSR B1F_BankedCallbackTrampoline                    ; $DB57: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                                         ; $DB5A: 00 A0
+  .word B19_1A_OfficerCardRender_Entry                ; $DB5A: 00 A0
   RTS                                                 ; $DB5C: 60
 ;-------------------------------------------------------------------------------
 ; StrategyCommand_AdvanceScrollPosition

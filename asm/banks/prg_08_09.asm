@@ -32,10 +32,10 @@ war_province_idx    = $050E  ; battle province (group) index
 war_attacker_code   = $050F  ; attacker code (3 = ally side)
 war_side_selector   = $0514  ; side selector (0/1, cleared on result init)
 ; --- Per-side stat pairs ($0522-$052C, side 1 entries at +2) ---
-war_stat_a_lo       = $0522  ; side 0 stat A lo (side 1 at +2)
-war_stat_a_hi       = $0523  ; side 0 stat A hi (side 1 at +2)
-war_stat_b_lo       = $0526  ; side 0 stat B lo (side 1 at +2)
-war_stat_b_hi       = $0527  ; side 0 stat B hi (side 1 at +2)
+war_rice_lo         = $0522  ; side 0 remaining rice lo (RemainingRice, side 1 at +2)
+war_rice_hi         = $0523  ; side 0 remaining rice hi (side 1 at +2)
+war_gold_lo         = $0526  ; side 0 remaining gold lo (RemainingGold, side 1 at +2)
+war_gold_hi         = $0527  ; side 0 remaining gold hi (side 1 at +2)
 war_target_province = $052A  ; battle/retreat target province
 war_target_officer  = $052B  ; secondary/special target officer id
 war_target_param    = $052C  ; secondary target param (officer/province)
@@ -118,8 +118,9 @@ WarSlotClear_Entry:  ; (dispatch callback target)
 ; Spans $A02D-$B12F: includes @AiOfficerActionDecide, the Action_* handlers,
 ; the nested AiExecuteMove movement engine, and the nested helpers
 ; AiScanAdjacentOfficers, AiCheckAttackNearby, AiFindNearbyOfficers,
-; AiCheckFaction, AiCheckMove, AiCheckAttackFeasible, AiCheckRecruit,
-; AiCheckActionFeasible, AiSortNearbyOfficers, AiCheckFlee,
+; AiCheckFaction, AiPickStratagemTarget, AiPickStratagem,
+; AiCheckAdvancedStratagem,
+; AiCheckStratagemFeasible, AiSortNearbyOfficers, AiCheckFlee,
 ; AiComputeArmyStats and AiComputeBattleStats. All are called only from
 ; this group, except AiCheckFaction which is also called from $CB74
 ; (via AiTurnProcess::AiCheckFaction).
@@ -187,12 +188,12 @@ adjacent_scan_results  = $6FDD  ; adjacent officer scan result table
 ; Input: Y = officer index ($6F8C also holds it)
 ; Reads officer state from $6FA1,Y; low nibble selects the action handler via
 ; the inline CallbackDispatcher table:
-;   0 = Action_DefaultDecision   (flee/recruit/attack/move priority chain)
+;   0 = Action_DefaultDecision   (flee/stratagem/attack/move priority chain)
 ;   1 = Action_Regroup           (rejoin main force / march to capital)
 ;   2 = Action_AttackNearest     (nearest enemy, range 2 from self)
 ;   3 = Action_DefendBase        (nearest enemy, range 2 from capital)
 ;   4 = Action_SweepRange3       (nearest enemy, range 3 from self)
-;   5 = Action_CaptureProvince   (occupy province, transfer resources)
+;   5 = Action_BuyRice           (march to ordered province, buy rice with gold)
 ;   6 = Action_RestoreHP         (spend 50 gold to restore HP)
 ;   7 = Action_Idle              (no action)
 ; Sets $6F8F with action result (0-4, or 3 for no action)
@@ -202,12 +203,12 @@ adjacent_scan_results  = $6FDD  ; adjacent officer scan result table
   AND #$0F                              ; $A09C: 29 0F     ; low nibble = action type
   JSR CallbackDispatcher                ; $A09E: 20 17 B5  ; dispatch on action type (0-7)
   ; Inline dispatch table (targets of CallbackDispatcher)
-  .word Action_DefaultDecision          ; $A0A1: B1 A0     ; action 0: priority chain (flee/recruit/attack/move/random)
+  .word Action_DefaultDecision          ; $A0A1: B1 A0     ; action 0: priority chain (flee/stratagem/attack/move/random)
   .word Action_Regroup                  ; $A0A3: 05 A1     ; action 1: rejoin main force / march to capital
   .word Action_AttackNearest            ; $A0A5: 66 A1     ; action 2: attack nearest enemy (range 2, self)
   .word Action_DefendBase               ; $A0A7: 10 A2     ; action 3: intercept enemy near base (range 2)
   .word Action_SweepRange3              ; $A0A9: AD A2     ; action 4: sweep enemies within range 3
-  .word Action_CaptureProvince          ; $A0AB: 29 A3     ; action 5: capture target province
+  .word Action_BuyRice                  ; $A0AB: 29 A3     ; action 5: march & buy rice with gold
   .word Action_RestoreHP                ; $A0AD: 07 A5     ; action 6: spend 50 gold, restore HP
   .word Action_Idle                     ; $A0AF: 06 A6     ; action 7: no action
 Action_DefaultDecision:
@@ -216,18 +217,18 @@ Action_DefaultDecision:
   JMP @Path2                            ; $A0B6: 4C F6 A0  ; else -> chain without attack
 @Path1:
   JSR AiCheckFlee                       ; $A0B9: 20 0D AF
-  BCC @CheckRecruit                     ; $A0BC: 90 01     ; C=1: action decided
+  BCC @CheckAdvancedStratagem           ; $A0BC: 90 01     ; C=1: action decided
   RTS                                   ; $A0BE: 60
-@CheckRecruit:
-  JSR AiCheckRecruit                    ; $A0BF: 20 F8 AA
+@CheckAdvancedStratagem:
+  JSR AiCheckAdvancedStratagem          ; $A0BF: 20 F8 AA
   BCC @CheckAttack                      ; $A0C2: 90 01
   RTS                                   ; $A0C4: 60
 @CheckAttack:
   JSR AiCheckAttackNearby               ; $A0C5: 20 A8 A8
-  BCC @CheckMove                        ; $A0C8: 90 01
+  BCC @PickStratagemTarget              ; $A0C8: 90 01
   RTS                                   ; $A0CA: 60
-@CheckMove:
-  JSR AiCheckMove                       ; $A0CB: 20 5C A9
+@PickStratagemTarget:
+  JSR AiPickStratagemTarget             ; $A0CB: 20 5C A9
   BCC @RandomAction                     ; $A0CE: 90 01
   RTS                                   ; $A0D0: 60
 @RandomAction:
@@ -250,21 +251,21 @@ Action_DefaultDecision:
   JMP AiExecuteMove                     ; $A0F3: 4C 0C A6
 @Path2:
   JSR AiCheckFlee                       ; $A0F6: 20 0D AF
-  BCC @CheckRecruit2                    ; $A0F9: 90 01
+  BCC @CheckAdvancedStratagem2          ; $A0F9: 90 01
   RTS                                   ; $A0FB: 60
-@CheckRecruit2:
-  JSR AiCheckRecruit                    ; $A0FC: 20 F8 AA
-  BCC @CheckMove2                       ; $A0FF: 90 01
+@CheckAdvancedStratagem2:
+  JSR AiCheckAdvancedStratagem          ; $A0FC: 20 F8 AA
+  BCC @PickStratagemTarget2             ; $A0FF: 90 01
   RTS                                   ; $A101: 60
-@CheckMove2:
-  JMP AiCheckMove                       ; $A102: 4C 5C A9
+@PickStratagemTarget2:
+  JMP AiPickStratagemTarget             ; $A102: 4C 5C A9
 ; Action 1: Regroup - rejoin main force, else march to capital/ordered target
 Action_Regroup:
   JSR AiCheckFlee                       ; $A105: 20 0D AF
-  BCC @TryRecruit                       ; $A108: 90 01
+  BCC @TryAdvancedStratagem             ; $A108: 90 01
   RTS                                   ; $A10A: 60
-@TryRecruit:
-  JSR AiCheckRecruit                    ; $A10B: 20 F8 AA
+@TryAdvancedStratagem:
+  JSR AiCheckAdvancedStratagem          ; $A10B: 20 F8 AA
   BCC @CheckStrength                    ; $A10E: 90 01
   RTS                                   ; $A110: 60
 @CheckStrength:
@@ -313,10 +314,10 @@ Action_Regroup:
 ; Action 2: Attack nearest enemy within range 2 of this officer
 Action_AttackNearest:
   JSR AiCheckFlee                       ; $A166: 20 0D AF
-  BCC @TryRecruitAtk                    ; $A169: 90 01
+  BCC @TryAdvancedStratagemAtk          ; $A169: 90 01
   RTS                                   ; $A16B: 60
-@TryRecruitAtk:
-  JSR AiCheckRecruit                    ; $A16C: 20 F8 AA
+@TryAdvancedStratagemAtk:
+  JSR AiCheckAdvancedStratagem          ; $A16C: 20 F8 AA
   BCC @TryAttackAdj                     ; $A16F: 90 01
   RTS                                   ; $A171: 60
 @TryAttackAdj:
@@ -402,10 +403,10 @@ GetOrderedDestination:
 ; Action 3: Defend base - intercept nearest enemy within range 2 of own capital
 Action_DefendBase:
   JSR AiCheckFlee                       ; $A210: 20 0D AF
-  BCC @DefTryRecruit                    ; $A213: 90 01
+  BCC @DefTryAdvancedStratagem          ; $A213: 90 01
   RTS                                   ; $A215: 60
-@DefTryRecruit:
-  JSR AiCheckRecruit                    ; $A216: 20 F8 AA
+@DefTryAdvancedStratagem:
+  JSR AiCheckAdvancedStratagem          ; $A216: 20 F8 AA
   BCC @DefTryAttack                     ; $A219: 90 01
   RTS                                   ; $A21B: 60
 @DefTryAttack:
@@ -447,7 +448,7 @@ Action_DefendBase:
   BEQ @DefAdjNext                       ; $A263: F0 07     ; empty: skip
   CMP #$0A                              ; $A265: C9 0A
   BEQ @DefAdjNext                       ; $A267: F0 03     ; slot $0A: skip
-  JMP AiCheckMove                       ; $A269: 4C 5C A9  ; ally adjacent: let move logic decide
+  JMP AiPickStratagemTarget             ; $A269: 4C 5C A9  ; ally adjacent: let stratagem pick decide
 @DefAdjNext:
   INY                                   ; $A26C: C8
   CPY #$04                              ; $A26D: C0 04
@@ -463,7 +464,7 @@ Action_DefendBase:
   STA $0021                             ; $A283: 8D 21 00
   JMP AiExecuteMove                     ; $A286: 4C 0C A6
 @DefNoEnemy:
-  JSR AiCheckMove                       ; $A289: 20 5C A9  ; generic move check
+  JSR AiPickStratagemTarget             ; $A289: 20 5C A9  ; pick stratagem target vs nearby enemy
   BCC @DefCapital                       ; $A28C: 90 01
   RTS                                   ; $A28E: 60
 @DefCapital:
@@ -484,10 +485,10 @@ Action_DefendBase:
 ; Action 4: Sweep - attack nearest enemy within range 3 of this officer
 Action_SweepRange3:
   JSR AiCheckFlee                       ; $A2AD: 20 0D AF
-  BCC @SwTryRecruit                     ; $A2B0: 90 01
+  BCC @SwTryAdvancedStratagem           ; $A2B0: 90 01
   RTS                                   ; $A2B2: 60
-@SwTryRecruit:
-  JSR AiCheckRecruit                    ; $A2B3: 20 F8 AA
+@SwTryAdvancedStratagem:
+  JSR AiCheckAdvancedStratagem          ; $A2B3: 20 F8 AA
   BCC @SwTryAttack                      ; $A2B6: 90 01
   RTS                                   ; $A2B8: 60
 @SwTryAttack:
@@ -527,7 +528,7 @@ Action_SweepRange3:
   STA $0021                             ; $A2FF: 8D 21 00
   JMP AiExecuteMove                     ; $A302: 4C 0C A6
 @SwNoEnemy:
-  JSR AiCheckMove                       ; $A305: 20 5C A9  ; generic move check
+  JSR AiPickStratagemTarget             ; $A305: 20 5C A9  ; pick stratagem target vs nearby enemy
   BCC @SwCapital                        ; $A308: 90 01
   RTS                                   ; $A30A: 60
 @SwCapital:
@@ -545,10 +546,13 @@ Action_SweepRange3:
 @SwStoreY2:
   STA $0021                             ; $A323: 8D 21 00
   JMP AiExecuteMove                     ; $A326: 4C 0C A6
-; Action 5: Capture province - march to target province from $9BA4 table (bank $31,
+; Action 5: Buy rice - march to target province from $9BA4 table (bank $31,
 ; 3-byte entries indexed by $050E*3). On arrival, set officer state nibble to 7
-; (occupation) and transfer a share of the province resources to faction stock.
-Action_CaptureProvince:
+; and BUY RICE WITH GOLD: rice needed = troops*4/1000*days_remaining
+; (AiComputeBattleStats), shortfall = needed - remaining rice ($0522),
+; gold cost = shortfall * 100 / ProvinceRiceBuyRate ($8FC0 bank $30, rice per
+; 100 gold), capped at 70% of the side's remaining gold ($0526).
+Action_BuyRice:
   LDY #$31                              ; $A329: A0 31     ; data bank
   JSR B1F_SwitchBank8_A                             ; $A32B: 20 66 F2  ; SwitchBank8_A
   LDA war_province_idx                             ; $A32E: AD 0E 05  ; province index
@@ -616,16 +620,16 @@ Action_CaptureProvince:
   LDY ai_officer_idx                             ; $A3AE: AC 8C 6F
   LDA officer_state_table,Y                           ; $A3B1: B9 A1 6F  ; officer state
   AND #$F0                              ; $A3B4: 29 F0
-  ORA #$07                              ; $A3B6: 09 07     ; action nibble = 7 (occupy)
+  ORA #$07                              ; $A3B6: 09 07     ; action nibble = 7 (done/idle)
   STA officer_state_table,Y                           ; $A3B8: 99 A1 6F
   LDX #$00                              ; $A3BB: A2 00     ; faction A resource ptr
   LDA war_side_flag                             ; $A3BD: AD 04 05
   BPL @CapGetPtr                        ; $A3C0: 10 02
   LDX #$02                              ; $A3C2: A2 02     ; faction B resource ptr
 @CapGetPtr:
-  LDA war_stat_b_lo,X                           ; $A3C4: BD 26 05  ; province value lo
+  LDA war_gold_lo,X                           ; $A3C4: BD 26 05  ; remaining gold lo
   STA $0020                             ; $A3C7: 8D 20 00
-  LDA war_stat_b_hi,X                           ; $A3CA: BD 27 05  ; province value hi
+  LDA war_gold_hi,X                           ; $A3CA: BD 27 05  ; remaining gold hi
   STA $0021                             ; $A3CD: 8D 21 00
   LDA #$00                              ; $A3D0: A9 00
   STA $0022                             ; $A3D2: 8D 22 00
@@ -638,7 +642,7 @@ Action_CaptureProvince:
   STA $0021                             ; $A3E6: 8D 21 00
   LDA $0028                             ; $A3E9: AD 28 00  ; product hi
   STA $0022                             ; $A3EC: 8D 22 00
-  LDA #$0A                              ; $A3EF: A9 0A     ; /10 -> 70% share
+  LDA #$0A                              ; $A3EF: A9 0A     ; /10 -> 70% of gold (spend cap)
   STA $0023                             ; $A3F1: 8D 23 00
   LDA #$00                              ; $A3F4: A9 00
   STA $0024                             ; $A3F6: 8D 24 00
@@ -653,18 +657,18 @@ Action_CaptureProvince:
   BPL @CapCalcDelta                     ; $A410: 10 02
   LDX #$02                              ; $A412: A2 02
 @CapCalcDelta:
-  LDA $002A                             ; $A414: AD 2A 00  ; battle result lo
+  LDA $002A                             ; $A414: AD 2A 00  ; rice needed lo (scaled army)
   SEC                                   ; $A417: 38
-  SBC war_stat_a_lo,X                           ; $A418: FD 22 05  ; - stock lo
-  STA $0038                             ; $A41B: 8D 38 00  ; delta lo
+  SBC war_rice_lo,X                           ; $A418: FD 22 05  ; - remaining rice lo
+  STA $0038                             ; $A41B: 8D 38 00  ; rice shortfall lo
   STA $0020                             ; $A41E: 8D 20 00
-  LDA $002B                             ; $A421: AD 2B 00  ; battle result hi
-  SBC war_stat_a_hi,X                           ; $A424: FD 23 05  ; - stock hi
-  STA $0039                             ; $A427: 8D 39 00  ; delta hi
+  LDA $002B                             ; $A421: AD 2B 00  ; rice needed hi
+  SBC war_rice_hi,X                           ; $A424: FD 23 05  ; - remaining rice hi
+  STA $0039                             ; $A427: 8D 39 00  ; rice shortfall hi
   STA $0021                             ; $A42A: 8D 21 00
   LDA #$00                              ; $A42D: A9 00
   STA $0022                             ; $A42F: 8D 22 00
-  LDA #$64                              ; $A432: A9 64     ; *100
+  LDA #$64                              ; $A432: A9 64     ; *100 (rate is rice per 100 gold)
   STA $0023                             ; $A434: 8D 23 00
   JSR Mul24x8                           ; $A437: 20 85 B5
   LDA $0026                             ; $A43A: AD 26 00
@@ -679,7 +683,7 @@ Action_CaptureProvince:
   ASL                                   ; $A454: 0A
   TAY                                   ; $A455: A8
   INY                                   ; $A456: C8        ; word entry high byte
-  LDA $8FC0,Y                           ; $A457: B9 C0 8F  ; province rate factor
+  LDA $8FC0,Y                           ; $A457: B9 C0 8F  ; ProvinceRiceBuyRate (rice/100 gold)
   STA $003A                             ; $A45A: 8D 3A 00
   STA $0023                             ; $A45D: 8D 23 00  ; divisor
   LDA #$00                              ; $A460: A9 00
@@ -696,26 +700,27 @@ Action_CaptureProvince:
   LDA $0037                             ; $A478: AD 37 00
   SBC $0021                             ; $A47B: ED 21 00  ; - transfer hi
   BCC @CapPartial                       ; $A47E: 90 27     ; transfer > share: clamp
-  LDA war_stat_b_lo,X                           ; $A480: BD 26 05  ; province value lo
+  LDA war_gold_lo,X                           ; $A480: BD 26 05  ; remaining gold lo
   SEC                                   ; $A483: 38
   SBC $0020                             ; $A484: ED 20 00
-  STA war_stat_b_lo,X                           ; $A487: 9D 26 05
-  LDA war_stat_b_hi,X                           ; $A48A: BD 27 05
+  STA war_gold_lo,X                           ; $A487: 9D 26 05
+  LDA war_gold_hi,X                           ; $A48A: BD 27 05
   SBC $0021                             ; $A48D: ED 21 00
-  STA war_stat_b_hi,X                           ; $A490: 9D 27 05
-  LDA war_stat_a_lo,X                           ; $A493: BD 22 05  ; stock lo
+  STA war_gold_hi,X                           ; $A490: 9D 27 05
+  LDA war_rice_lo,X                           ; $A493: BD 22 05  ; remaining rice lo
   CLC                                   ; $A496: 18
-  ADC $0038                             ; $A497: 6D 38 00  ; + delta lo
-  STA war_stat_a_lo,X                           ; $A49A: 9D 22 05
-  LDA war_stat_a_hi,X                           ; $A49D: BD 23 05
-  ADC $0039                             ; $A4A0: 6D 39 00  ; + delta hi
-  STA war_stat_a_hi,X                           ; $A4A3: 9D 23 05
+  ADC $0038                             ; $A497: 6D 38 00  ; + rice bought lo
+  STA war_rice_lo,X                           ; $A49A: 9D 22 05
+  LDA war_rice_hi,X                           ; $A49D: BD 23 05
+  ADC $0039                             ; $A4A0: 6D 39 00  ; + rice bought hi
+  STA war_rice_hi,X                           ; $A4A3: 9D 23 05
   RTS                                   ; $A4A6: 60
+; @CapPartial: gold cost > 70% cap - spend the whole cap instead
 @CapPartial:
-  LDA $0036                             ; $A4A7: AD 36 00  ; clamp to share: use all
+  LDA $0036                             ; $A4A7: AD 36 00  ; spend cap lo
   STA $0020                             ; $A4AA: 8D 20 00
   LDA $0037                             ; $A4AD: AD 37 00
-  STA $0021                             ; $A4B0: 8D 21 00
+  STA $0021                             ; $A4B0: 8D 21 00  ; cap * rate / 100 = rice bought
   LDA #$00                              ; $A4B3: A9 00
   STA $0022                             ; $A4B5: 8D 22 00
   LDA $003A                             ; $A4B8: AD 3A 00  ; rate factor
@@ -732,20 +737,20 @@ Action_CaptureProvince:
   LDA #$64                              ; $A4D8: A9 64     ; /100
   STA $0023                             ; $A4DA: 8D 23 00
   JSR Div24Bit                          ; $A4DD: 20 36 B5
-  LDA war_stat_b_lo,X                           ; $A4E0: BD 26 05  ; province value lo
+  LDA war_gold_lo,X                           ; $A4E0: BD 26 05  ; remaining gold lo
   SEC                                   ; $A4E3: 38
-  SBC $0036                             ; $A4E4: ED 36 00  ; - share lo
-  STA war_stat_b_lo,X                           ; $A4E7: 9D 26 05
-  LDA war_stat_b_hi,X                           ; $A4EA: BD 27 05
+  SBC $0036                             ; $A4E4: ED 36 00  ; - spend cap lo
+  STA war_gold_lo,X                           ; $A4E7: 9D 26 05
+  LDA war_gold_hi,X                           ; $A4EA: BD 27 05
   SBC $0037                             ; $A4ED: ED 37 00  ; - share hi
-  STA war_stat_b_hi,X                           ; $A4F0: 9D 27 05
-  LDA war_stat_a_lo,X                           ; $A4F3: BD 22 05
+  STA war_gold_hi,X                           ; $A4F0: 9D 27 05
+  LDA war_rice_lo,X                           ; $A4F3: BD 22 05
   CLC                                   ; $A4F6: 18
   ADC $0020                             ; $A4F7: 6D 20 00  ; + transfer lo
-  STA war_stat_a_lo,X                           ; $A4FA: 9D 22 05
-  LDA war_stat_a_hi,X                           ; $A4FD: BD 23 05
+  STA war_rice_lo,X                           ; $A4FA: 9D 22 05
+  LDA war_rice_hi,X                           ; $A4FD: BD 23 05
   ADC $0021                             ; $A500: 6D 21 00  ; + transfer hi
-  STA war_stat_a_hi,X                           ; $A503: 9D 23 05
+  STA war_rice_hi,X                           ; $A503: 9D 23 05
   RTS                                   ; $A506: 60
 ; Action 6: Restore HP - march to target province ($9BA4 entry +4, bank $31),
 ; then spend 50 gold to restore officer HP by a random 0-10 amount (capped by the
@@ -830,20 +835,20 @@ Action_RestoreHP:
   BPL @HealCheckGold                    ; $A5A7: 10 02
   LDX #$02                              ; $A5A9: A2 02     ; faction B funds
 @HealCheckGold:
-  LDA war_stat_b_hi,X                           ; $A5AB: BD 27 05  ; gold hi
+  LDA war_gold_hi,X                           ; $A5AB: BD 27 05  ; gold hi
   BNE @HealDeductGold                   ; $A5AE: D0 08     ; >= $100: affordable
-  LDA war_stat_b_lo,X                           ; $A5B0: BD 26 05  ; gold lo
+  LDA war_gold_lo,X                           ; $A5B0: BD 26 05  ; gold lo
   CMP #$32                              ; $A5B3: C9 32     ; need 50 gold
   BCS @HealDeductGold                   ; $A5B5: B0 01
   RTS                                   ; $A5B7: 60        ; too poor: abort
 @HealDeductGold:
-  LDA war_stat_b_lo,X                           ; $A5B8: BD 26 05
+  LDA war_gold_lo,X                           ; $A5B8: BD 26 05
   SEC                                   ; $A5BB: 38
   SBC #$32                              ; $A5BC: E9 32     ; -50 lo
-  STA war_stat_b_lo,X                           ; $A5BE: 9D 26 05
-  LDA war_stat_b_hi,X                           ; $A5C1: BD 27 05
+  STA war_gold_lo,X                           ; $A5BE: 9D 26 05
+  LDA war_gold_hi,X                           ; $A5C1: BD 27 05
   SBC #$00                              ; $A5C4: E9 00     ; borrow hi
-  STA war_stat_b_hi,X                           ; $A5C6: 9D 27 05
+  STA war_gold_hi,X                           ; $A5C6: 9D 27 05
 @HealRollLoop:
   JSR NextRandomByte                    ; $A5C9: 20 D5 B5
   AND #$0F                              ; $A5CC: 29 0F     ; random 0-15
@@ -1008,14 +1013,14 @@ AiExecuteMove:
   LDA officer_state_table,Y                           ; $A6EE: B9 A1 6F  ; officer state
   CMP #$01                              ; $A6F1: C9 01     ; regrouping?
   BEQ @BlockedPathEncounter             ; $A6F3: F0 0A
-  CMP #$05                              ; $A6F5: C9 05     ; capturing province?
+  CMP #$05                              ; $A6F5: C9 05     ; buy-rice march?
   BEQ @BlockedPathEncounter             ; $A6F7: F0 06
 @AbortNoAction:
   LDA #$03                              ; $A6F9: A9 03     ; result = no action
   STA ai_action_result                             ; $A6FB: 8D 8F 6F
   RTS                                   ; $A6FE: 60
 @BlockedPathEncounter:
-  JMP @CheckEnemyEncounter              ; $A6FF: 4C 05 A8  ; regroup/capture: engage
+  JMP @CheckEnemyEncounter              ; $A6FF: 4C 05 A8  ; regroup/buy-rice: engage
 @CommitMove:
   LDY ai_officer_idx                             ; $A702: AC 8C 6F
   LDA unit_immobilized,Y                           ; $A705: B9 50 06  ; immobilized flag
@@ -1137,7 +1142,7 @@ AiExecuteMove:
   .byte $02,$03,$03,$00                       ; $A7E9: 02 03 03 00  ; group 7
   .byte $03,$03,$03,$00,$01,$02,$02,$00,$03,$05,$02,$00,$03,$02,$04,$00; $A7ED: 03 03 03 00 01 02 02 00 03 05 02 00 03 02 04 00  ; groups 8-11
   .byte $04,$04,$04,$00,$04,$04,$04,$00       ; $A7FD: 04 04 04 00 04 04 04 00  ; groups 12-13
-; Regroup (state 1) / capture (state 5) paths reach here when both candidate
+; Regroup (state 1) / buy-rice (state 5) paths reach here when both candidate
 ; tiles are occupied: if an enemy stands on a candidate direction, record the
 ; encounter ($6F8D = enemy officer index) and, when $0505 >= 2, set result 1
 @CheckEnemyEncounter:
@@ -1172,7 +1177,7 @@ AiExecuteMove:
 ; Populates $6FDD-$6FE0 with officer indices found N/S/W/E
 ; Input: Y = officer index
 ; Referenced by the Action_* handlers above ($A11B/$A259), AiExecuteMove
-; ($A60F), AiCheckAttackNearby ($A8B2), and AiCheckActionFeasible
+; ($A60F), AiCheckAttackNearby ($A8B2), and AiCheckStratagemFeasible
 ; ($AD0A/$AD2E/$AD73/$AD9C/$AE08/$AE2A)
 ;-------------------------------------------------------------------------------
 AiScanAdjacentOfficers:
@@ -1368,20 +1373,21 @@ AiCheckFaction:
   LDA #$80                              ; $A959: A9 80
   RTS                                   ; $A95B: 60
 ;===============================================================================
-; AiCheckMove ($A95C-$A9CE) - Select an action against the best nearby
-; enemy candidate for the current AI officer ($6F8C).
+; AiPickStratagemTarget ($A95C-$A9CE) - Pick the target for a stratagem
+; against the best nearby enemy candidate for the current AI officer ($6F8C).
 ;
 ; 1. Derive an officer rating tier from record field +2 ($002A = 1/3/5/7/9).
 ; 2. Fill the nearby-officer table ($6FC9, radius 5) and compact it to enemy
 ;    officer slot indices sorted by troop strength (AiSortNearbyOfficers).
-; 3. Try candidates in strength order: AiCheckAttackFeasible picks the best
-;    feasible action ($002C) against each candidate.
+; 3. Try candidates in strength order: the first candidate for which
+;    AiPickStratagem finds a feasible stratagem wins. The stratagem code is
+;    whatever the AiPickStratagem cascade selects — no best-stratagem search.
 ;
-; Output: C=1 -> $6F8D = action code ($002C), $6F8E = target officer slot,
+; Output: C=1 -> $6F8D = stratagem code ($002C), $6F8E = target officer slot,
 ;                $6F8F = 2
-;         C=0 -> $6F8F = 3 (no feasible action)
+;         C=0 -> $6F8F = 3 (no feasible stratagem)
 ;===============================================================================
-AiCheckMove:
+AiPickStratagemTarget:
   LDY ai_officer_idx                             ; $A95C: AC 8C 6F  ; current AI officer
   LDA war_roster,Y                           ; $A95F: B9 64 06
   JSR GetOfficerRecordPtr               ; $A962: 20 91 B4  ; ($20) = record
@@ -1417,12 +1423,12 @@ AiCheckMove:
   BEQ @NextCandidate                    ; $A9A0: F0 21     ; slot inactive
   STX $002B                             ; $A9A2: 8E 2B 00  ; candidate for feasibility check
   STY $002F                             ; $A9A5: 8C 2F 00  ; save list index (sort clobbers)
-  JSR AiCheckAttackFeasible             ; $A9A8: 20 CF A9
+  JSR AiPickStratagem                   ; $A9A8: 20 CF A9
   BCC @Retry                            ; $A9AB: 90 13
-  LDA $002C                             ; $A9AD: AD 2C 00  ; chosen action code
+  LDA $002C                             ; $A9AD: AD 2C 00  ; chosen stratagem code
   STA ai_target_slot                             ; $A9B0: 8D 8D 6F
   LDA $002B                             ; $A9B3: AD 2B 00
-  STA ai_target_officer                             ; $A9B6: 8D 8E 6F  ; action target officer
+  STA ai_target_officer                             ; $A9B6: 8D 8E 6F  ; stratagem target officer
   LDA #$02                              ; $A9B9: A9 02
   STA ai_action_result                             ; $A9BB: 8D 8F 6F  ; decision = act on target
   SEC                                   ; $A9BE: 38
@@ -1439,22 +1445,24 @@ AiCheckMove:
   CLC                                   ; $A9CD: 18
   RTS                                   ; $A9CE: 60
 ;===============================================================================
-; AiCheckAttackFeasible ($A9CF-$AAF7) - Choose a feasible action against the
+; AiPickStratagem ($A9CF-$AAF7) - Pick a feasible stratagem code against the
 ; candidate officer in $002B for the current AI officer ($6F8C).
 ;
-; Input:  $002A = rating tier (1/3/5/7/9 from AiCheckMove)
+; Input:  $002A = rating tier (1/3/5/7/9 from AiPickStratagemTarget)
 ;         $002B = candidate officer slot
 ;         $0505 = AI action budget
-; Output: C=1 -> $002C = chosen action code (also stored by AiCheckActionFeasible)
+; Output: C=1 -> $002C = chosen stratagem code (also stored by AiCheckStratagemFeasible)
 ;         C=0 -> $6F8F = 3 (nothing feasible)
 ;
-; Tries a fixed priority cascade of action codes, each gated by rating tier,
-; whether the candidate has troops ($002D), the action budget $0505, and the
-; terrain/situation check in AiCheckActionFeasible. If the direct cascade
-; fails, a random branch picks between actions 2/1/3, then falls back to
-; actions 4 and 0.
+; Tries a fixed priority cascade of stratagem codes, each gated by rating
+; tier, whether the candidate has troops ($002D), the action budget $0505,
+; and the terrain/situation preconditions in AiCheckStratagemFeasible:
+; 6 CastleRaid, 5 SupplyBurning, 8 Enticement, 9 Rockfall, 7 FriendlyFire,
+; 1 PitfallTrap (if 1 is feasible, a random pick between 3 AmbushStrike /
+; 2 FeintTroops / 1 PitfallTrap replaces it), falling back to 4 BoatSabotage
+; and 0 FireAttack.
 ;===============================================================================
-AiCheckAttackFeasible:
+AiPickStratagem:
   LDY $002B                             ; $A9CF: AC 2B 00  ; candidate officer
   LDA war_roster,Y                           ; $A9D2: B9 64 06
   JSR GetOfficerRecordPtr               ; $A9D5: 20 91 B4
@@ -1467,169 +1475,172 @@ AiCheckAttackFeasible:
   LDA #$00                              ; $A9E3: A9 00     ; candidate has no troops
 @StoreTroopFlag:
   STA $002D                             ; $A9E5: 8D 2D 00
-; --- Action 6: tier >= 6, candidate has troops, budget >= 8 ---
+; --- Stratagem 6 (CastleRaid): tier >= 6, candidate has troops, budget >= 8 ---
   LDA $002A                             ; $A9E8: AD 2A 00
   CMP #$06                              ; $A9EB: C9 06
-  BCC @TryAction5                       ; $A9ED: 90 14
+  BCC @TrySupplyBurning                 ; $A9ED: 90 14
   LDA $002D                             ; $A9EF: AD 2D 00
-  BEQ @TryAction5                       ; $A9F2: F0 0F
+  BEQ @TrySupplyBurning                 ; $A9F2: F0 0F
   LDA war_action_points                             ; $A9F4: AD 05 05
   CMP #$08                              ; $A9F7: C9 08
-  BCC @TryAction5                       ; $A9F9: 90 08
+  BCC @TrySupplyBurning                 ; $A9F9: 90 08
   LDX #$06                              ; $A9FB: A2 06
-  JSR AiCheckActionFeasible             ; $A9FD: 20 7B AC
-  BCC @TryAction5                       ; $AA00: 90 01
+  JSR AiCheckStratagemFeasible          ; $A9FD: 20 7B AC
+  BCC @TrySupplyBurning                 ; $AA00: 90 01
   RTS                                   ; $AA02: 60
-; --- Action 5: tier >= 5, budget >= 8 ---
-@TryAction5:
+; --- Stratagem 5 (SupplyBurning): tier >= 5, budget >= 8 ---
+@TrySupplyBurning:
   LDA $002A                             ; $AA03: AD 2A 00
   CMP #$05                              ; $AA06: C9 05
-  BCC @TryAction8                       ; $AA08: 90 0F
+  BCC @TryEnticement                    ; $AA08: 90 0F
   LDA war_action_points                             ; $AA0A: AD 05 05
   CMP #$08                              ; $AA0D: C9 08
-  BCC @TryAction8                       ; $AA0F: 90 08
+  BCC @TryEnticement                    ; $AA0F: 90 08
   LDX #$05                              ; $AA11: A2 05
-  JSR AiCheckActionFeasible             ; $AA13: 20 7B AC
-  BCC @TryAction8                       ; $AA16: 90 01
+  JSR AiCheckStratagemFeasible          ; $AA13: 20 7B AC
+  BCC @TryEnticement                    ; $AA16: 90 01
   RTS                                   ; $AA18: 60
-; --- Action 8: tier >= 8, budget >= $0A ---
-@TryAction8:
+; --- Stratagem 8 (Enticement): tier >= 8, budget >= $0A ---
+@TryEnticement:
   LDA $002A                             ; $AA19: AD 2A 00
   CMP #$08                              ; $AA1C: C9 08
-  BCC @TryAction9                       ; $AA1E: 90 0F
+  BCC @TryRockfall                      ; $AA1E: 90 0F
   LDA war_action_points                             ; $AA20: AD 05 05
   CMP #$0A                              ; $AA23: C9 0A
-  BCC @TryAction9                       ; $AA25: 90 08
+  BCC @TryRockfall                      ; $AA25: 90 08
   LDX #$08                              ; $AA27: A2 08
-  JSR AiCheckActionFeasible             ; $AA29: 20 7B AC
-  BCC @TryAction9                       ; $AA2C: 90 01
+  JSR AiCheckStratagemFeasible          ; $AA29: 20 7B AC
+  BCC @TryRockfall                      ; $AA2C: 90 01
   RTS                                   ; $AA2E: 60
-; --- Action 9: tier >= 9, candidate has troops, budget >= 9 ---
-@TryAction9:
+; --- Stratagem 9 (Rockfall): tier >= 9, candidate has troops, budget >= 9 ---
+@TryRockfall:
   LDA $002A                             ; $AA2F: AD 2A 00
   CMP #$09                              ; $AA32: C9 09
-  BCC @TryAction7                       ; $AA34: 90 14
+  BCC @TryFriendlyFire                  ; $AA34: 90 14
   LDA $002D                             ; $AA36: AD 2D 00
-  BEQ @TryAction7                       ; $AA39: F0 0F
+  BEQ @TryFriendlyFire                  ; $AA39: F0 0F
   LDA war_action_points                             ; $AA3B: AD 05 05
   CMP #$09                              ; $AA3E: C9 09
-  BCC @TryAction7                       ; $AA40: 90 08
+  BCC @TryFriendlyFire                  ; $AA40: 90 08
   LDX #$09                              ; $AA42: A2 09
-  JSR AiCheckActionFeasible             ; $AA44: 20 7B AC
-  BCC @TryAction7                       ; $AA47: 90 01
+  JSR AiCheckStratagemFeasible          ; $AA44: 20 7B AC
+  BCC @TryFriendlyFire                  ; $AA47: 90 01
   RTS                                   ; $AA49: 60
-; --- Action 7: tier >= 7, candidate has troops, budget >= 8 ---
-@TryAction7:
+; --- Stratagem 7 (FriendlyFire): tier >= 7, candidate has troops, budget >= 8 ---
+@TryFriendlyFire:
   LDA $002A                             ; $AA4A: AD 2A 00
   CMP #$07                              ; $AA4D: C9 07
-  BCC @TryAction1                       ; $AA4F: 90 14
+  BCC @TryPitfallTrap                   ; $AA4F: 90 14
   LDA $002D                             ; $AA51: AD 2D 00
-  BEQ @TryAction1                       ; $AA54: F0 0F
+  BEQ @TryPitfallTrap                   ; $AA54: F0 0F
   LDA war_action_points                             ; $AA56: AD 05 05
   CMP #$08                              ; $AA59: C9 08
-  BCC @TryAction1                       ; $AA5B: 90 08
+  BCC @TryPitfallTrap                   ; $AA5B: 90 08
   LDX #$07                              ; $AA5D: A2 07
-  JSR AiCheckActionFeasible             ; $AA5F: 20 7B AC
-  BCC @TryAction1                       ; $AA62: 90 01
+  JSR AiCheckStratagemFeasible          ; $AA5F: 20 7B AC
+  BCC @TryPitfallTrap                   ; $AA62: 90 01
   RTS                                   ; $AA64: 60
-; --- Action 1: no gating other than the feasibility check ---
-@TryAction1:
+; --- Stratagem 1 (PitfallTrap): feasibility gates the random pick below ---
+@TryPitfallTrap:
   LDX #$01                              ; $AA65: A2 01
-  JSR AiCheckActionFeasible             ; $AA67: 20 7B AC
-  BCS @RandomPick                       ; $AA6A: B0 03
-  JMP @TryAction4                       ; $AA6C: 4C C2 AA
-; --- Random fallback: roll 0-3 and map to actions 2/1/3 (0 = reroll) ---
-@RandomPick:
+  JSR AiCheckStratagemFeasible          ; $AA67: 20 7B AC
+  BCS @RandomStratagem                  ; $AA6A: B0 03
+  JMP @TryBoatSabotage                  ; $AA6C: 4C C2 AA
+; --- Random fallback: roll 1-3 and map to stratagems 2/1/3 (0 = reroll) ---
+@RandomStratagem:
   JSR NextRandomByte                    ; $AA6F: 20 D5 B5
   AND #$03                              ; $AA72: 29 03
-  BEQ @RandomPick                       ; $AA74: F0 F9     ; 0 -> reroll
+  BEQ @RandomStratagem                  ; $AA74: F0 F9     ; 0 -> reroll
   CMP #$01                              ; $AA76: C9 01
-  BEQ @RandomAction2                    ; $AA78: F0 1D
+  BEQ @RandFeintTroops                  ; $AA78: F0 1D
   CMP #$02                              ; $AA7A: C9 02
-  BEQ @RandomAction1                    ; $AA7C: F0 37
-; --- Random roll 3: action 3, needs troops, tier >= 3, budget >= 6 ---
+  BEQ @RandPitfallTrap                  ; $AA7C: F0 37
+; --- Roll 3: stratagem 3 (AmbushStrike), needs troops, tier >= 3, budget >= 6 ---
   LDA $002D                             ; $AA7E: AD 2D 00
-  BEQ @RandomPick                       ; $AA81: F0 EC     ; no troops -> reroll
+  BEQ @RandomStratagem                  ; $AA81: F0 EC     ; no troops -> reroll
   LDA $002A                             ; $AA83: AD 2A 00
   CMP #$03                              ; $AA86: C9 03
-  BCC @TryAction4                       ; $AA88: 90 38
+  BCC @TryBoatSabotage                  ; $AA88: 90 38
   LDA #$03                              ; $AA8A: A9 03
   STA $002C                             ; $AA8C: 8D 2C 00
   LDA war_action_points                             ; $AA8F: AD 05 05
   CMP #$06                              ; $AA92: C9 06
-  BCC @TryAction4                       ; $AA94: 90 2C
+  BCC @TryBoatSabotage                  ; $AA94: 90 2C
   RTS                                   ; $AA96: 60
-; --- Random roll 1: action 2, tier >= 2, target state low nibble 0, budget >= 4 ---
-@RandomAction2:
+; --- Roll 1: stratagem 2 (FeintTroops), tier >= 2, target idle, budget >= 4 ---
+@RandFeintTroops:
   LDA $002A                             ; $AA97: AD 2A 00
   CMP #$02                              ; $AA9A: C9 02
-  BCC @TryAction4                       ; $AA9C: 90 24
+  BCC @TryBoatSabotage                  ; $AA9C: 90 24
   LDY $002B                             ; $AA9E: AC 2B 00
   LDA unit_immobilized,Y                           ; $AAA1: B9 50 06  ; candidate state
   AND #$0F                              ; $AAA4: 29 0F
-  BNE @TryAction4                       ; $AAA6: D0 1A     ; must be idle (0)
+  BNE @TryBoatSabotage                  ; $AAA6: D0 1A     ; must be idle (0)
   LDA #$02                              ; $AAA8: A9 02
   STA $002C                             ; $AAAA: 8D 2C 00
   LDA war_action_points                             ; $AAAD: AD 05 05
   CMP #$04                              ; $AAB0: C9 04
-  BCC @TryAction4                       ; $AAB2: 90 0E
+  BCC @TryBoatSabotage                  ; $AAB2: 90 0E
   RTS                                   ; $AAB4: 60
-; --- Random roll 2: action 1, budget >= 5 ---
-@RandomAction1:
+; --- Roll 2: stratagem 1 (PitfallTrap), budget >= 5 ---
+@RandPitfallTrap:
   LDA #$01                              ; $AAB5: A9 01
   STA $002C                             ; $AAB7: 8D 2C 00
   LDA war_action_points                             ; $AABA: AD 05 05
   CMP #$05                              ; $AABD: C9 05
-  BCC @TryAction4                       ; $AABF: 90 01
+  BCC @TryBoatSabotage                  ; $AABF: 90 01
   RTS                                   ; $AAC1: 60
-; --- Action 4: tier >= 4, candidate has troops, budget >= 7 ---
-@TryAction4:
+; --- Stratagem 4 (BoatSabotage): tier >= 4, candidate has troops, budget >= 7 ---
+@TryBoatSabotage:
   LDA $002A                             ; $AAC2: AD 2A 00
   CMP #$04                              ; $AAC5: C9 04
-  BCC @TryAction0                       ; $AAC7: 90 14
+  BCC @TryFireAttack                    ; $AAC7: 90 14
   LDA $002D                             ; $AAC9: AD 2D 00
-  BEQ @TryAction0                       ; $AACC: F0 0F
+  BEQ @TryFireAttack                    ; $AACC: F0 0F
   LDA war_action_points                             ; $AACE: AD 05 05
   CMP #$07                              ; $AAD1: C9 07
-  BCC @TryAction0                       ; $AAD3: 90 08
+  BCC @TryFireAttack                    ; $AAD3: 90 08
   LDX #$04                              ; $AAD5: A2 04
-  JSR AiCheckActionFeasible             ; $AAD7: 20 7B AC
-  BCC @TryAction0                       ; $AADA: 90 01
+  JSR AiCheckStratagemFeasible          ; $AAD7: 20 7B AC
+  BCC @TryFireAttack                    ; $AADA: 90 01
   RTS                                   ; $AADC: 60
-; --- Action 0: candidate has troops, budget >= 6 ---
-@TryAction0:
+; --- Stratagem 0 (FireAttack): candidate has troops, budget >= 6 ---
+@TryFireAttack:
   LDA $002D                             ; $AADD: AD 2D 00
-  BEQ @NoAction                         ; $AAE0: F0 0F
+  BEQ @NoStratagem                      ; $AAE0: F0 0F
   LDA war_action_points                             ; $AAE2: AD 05 05
   CMP #$06                              ; $AAE5: C9 06
-  BCC @NoAction                         ; $AAE7: 90 08
+  BCC @NoStratagem                      ; $AAE7: 90 08
   LDX #$00                              ; $AAE9: A2 00
-  JSR AiCheckActionFeasible             ; $AAEB: 20 7B AC
-  BCC @NoAction                         ; $AAEE: 90 01
+  JSR AiCheckStratagemFeasible          ; $AAEB: 20 7B AC
+  BCC @NoStratagem                      ; $AAEE: 90 01
   RTS                                   ; $AAF0: 60
-@NoAction:
+@NoStratagem:
   LDA #$03                              ; $AAF1: A9 03
   STA ai_action_result                             ; $AAF3: 8D 8F 6F  ; decision = nothing feasible
   CLC                                   ; $AAF6: 18
   RTS                                   ; $AAF7: 60
 ;===============================================================================
-; AiCheckRecruit ($AAF8-$AC7A) - Try to recruit nearby officers for the
-; current AI officer ($6F8C).
+; AiCheckAdvancedStratagem ($AAF8-$AC7A) - Attempt the advanced stratagems
+; $0A-$0F (ChainLink/TenfoldAmbush/FloodAttack/RepeatingCrossbow/Inferno/
+; MysticalStasis) against nearby enemy officers for the current AI officer
+; ($6F8C).
 ;
-; Gates: self record field +2 (rating, $002A) >= $5C and the self record
-; field +11 high nibble (rank, $0036) >= 3. Then scans the nearby-officer
-; table (radius 5, sorted strongest first) and, for each candidate, tries
-; recruit action codes $0A-$0F in order. Each attempt requires a class-table
-; membership check (@CheckClassTable), optionally candidate troops
+; Gates: self record field +2 >= $5C and the self record field +11 high
+; nibble (rank, $0036) >= 3. Then scans the nearby-officer table (radius 5,
+; sorted strongest first) and, for each candidate, tries stratagem codes
+; $0A-$0F in order. Each attempt requires the self officer id ($002A, loaded
+; from war_roster) to be whitelisted in AiAdvancedStratagemOfficerTable
+; (@CheckOfficerIdTable), optionally candidate troops
 ; (@CheckCandidateHasTroops), and a minimum AI action budget ($0505).
 ;
-; Output: C=1 -> $6F8D = action code ($002C), $6F8E = target officer, $6F8F = 2
-;         C=0 -> $6F8F = 3 (no valid recruit)
+; Output: C=1 -> $6F8D = stratagem code ($002C), $6F8E = target officer, $6F8F = 2
+;         C=0 -> $6F8F = 3 (no feasible stratagem)
 ;===============================================================================
-AiCheckRecruit:
+AiCheckAdvancedStratagem:
   LDY ai_officer_idx                             ; $AAF8: AC 8C 6F  ; current AI officer
   LDA war_roster,Y                           ; $AAFB: B9 64 06
-  STA $002A                             ; $AAFE: 8D 2A 00  ; self rating
+  STA $002A                             ; $AAFE: 8D 2A 00  ; self officer id
   JSR GetOfficerRecordPtr               ; $AB01: 20 91 B4
   LDY #$02                              ; $AB04: A0 02
   LDA ($20),Y                           ; $AB06: B1 20     ; record field +2
@@ -1665,12 +1676,12 @@ AiCheckRecruit:
   BEQ @NextCandidate                    ; $AB39: F0 21     ; slot inactive
   STY $002F                             ; $AB3B: 8C 2F 00  ; save list index
   STX $002B                             ; $AB3E: 8E 2B 00  ; candidate for checks
-  JSR @TryRecruitCandidate              ; $AB41: 20 68 AB
+  JSR @TryCandidateStratagem            ; $AB41: 20 68 AB
   BCC @Retry                            ; $AB44: 90 13
-  LDA $002C                             ; $AB46: AD 2C 00  ; chosen recruit action
+  LDA $002C                             ; $AB46: AD 2C 00  ; chosen stratagem code
   STA ai_target_slot                             ; $AB49: 8D 8D 6F
   LDA $002B                             ; $AB4C: AD 2B 00
-  STA ai_target_officer                             ; $AB4F: 8D 8E 6F  ; recruit target officer
+  STA ai_target_officer                             ; $AB4F: 8D 8E 6F  ; stratagem target officer
   LDA #$02                              ; $AB52: A9 02
   STA ai_action_result                             ; $AB54: 8D 8F 6F  ; decision = act on target
   SEC                                   ; $AB57: 38
@@ -1687,123 +1698,126 @@ AiCheckRecruit:
   CLC                                   ; $AB66: 18
   RTS                                   ; $AB67: 60
 ; ---------------------------------------------------------------------------
-; @TryRecruitCandidate - attempt recruit actions $0A-$0F against $002B
+; @TryCandidateStratagem - attempt stratagems $0A-$0F against $002B
 ; ---------------------------------------------------------------------------
-@TryRecruitCandidate:
-; --- Action $0A: rank >= 3 table match, candidate idle ($0650 low nibble 0),
-; ---             budget >= 9 ---
+@TryCandidateStratagem:
+; --- Stratagem $0A: rank >= 3 officer-table match, candidate idle ($0650
+; ---             low nibble 0), budget >= 9 ---
   LDY #$00                              ; $AB68: A0 00     ; table offset
   LDA #$03                              ; $AB6A: A9 03
   STA $0022                             ; $AB6C: 8D 22 00  ; required rank
-  JSR @CheckClassTable                  ; $AB6F: 20 31 AC
-  BCC @TryRecruitB                      ; $AB72: 90 19
+  JSR @CheckOfficerIdTable              ; $AB6F: 20 31 AC
+  BCC @TryTenfoldAmbush                 ; $AB72: 90 19
   LDX $002B                             ; $AB74: AE 2B 00
   LDA unit_immobilized,X                           ; $AB77: BD 50 06  ; candidate state
   AND #$0F                              ; $AB7A: 29 0F
-  BNE @TryRecruitB                      ; $AB7C: D0 0F     ; must be idle (0)
+  BNE @TryTenfoldAmbush                 ; $AB7C: D0 0F     ; must be idle (0)
   LDA war_action_points                             ; $AB7E: AD 05 05
   CMP #$09                              ; $AB81: C9 09
-  BCC @TryRecruitB                      ; $AB83: 90 08
+  BCC @TryTenfoldAmbush                 ; $AB83: 90 08
   LDX #$0A                              ; $AB85: A2 0A
-  JSR AiCheckActionFeasible             ; $AB87: 20 7B AC
-  BCC @TryRecruitB                      ; $AB8A: 90 01
+  JSR AiCheckStratagemFeasible          ; $AB87: 20 7B AC
+  BCC @TryTenfoldAmbush                 ; $AB8A: 90 01
   RTS                                   ; $AB8C: 60
-; --- Action $0B: rank >= 3 table match, budget >= $0A ---
-@TryRecruitB:
+; --- Stratagem $0B: rank >= 3 officer-table match, budget >= $0A ---
+@TryTenfoldAmbush:
   LDY #$00                              ; $AB8D: A0 00
   LDA #$03                              ; $AB8F: A9 03
   STA $0022                             ; $AB91: 8D 22 00
-  JSR @CheckClassTable                  ; $AB94: 20 31 AC
-  BCC @TryRecruitC                      ; $AB97: 90 0F
+  JSR @CheckOfficerIdTable              ; $AB94: 20 31 AC
+  BCC @TryFloodAttack                   ; $AB97: 90 0F
   LDA war_action_points                             ; $AB99: AD 05 05
   CMP #$0A                              ; $AB9C: C9 0A
-  BCC @TryRecruitC                      ; $AB9E: 90 08
+  BCC @TryFloodAttack                   ; $AB9E: 90 08
   LDX #$0B                              ; $ABA0: A2 0B
-  JSR AiCheckActionFeasible             ; $ABA2: 20 7B AC
-  BCC @TryRecruitC                      ; $ABA5: 90 01
+  JSR AiCheckStratagemFeasible          ; $ABA2: 20 7B AC
+  BCC @TryFloodAttack                   ; $ABA5: 90 01
   RTS                                   ; $ABA7: 60
-; --- Action $0C: rank >= 4 table match, candidate has troops, budget >= $0A ---
-@TryRecruitC:
+; --- Stratagem $0C: rank >= 4 officer-table match, candidate has troops,
+; ---             budget >= $0A ---
+@TryFloodAttack:
   LDY #$0B                              ; $ABA8: A0 0B     ; table offset
   LDA #$04                              ; $ABAA: A9 04
   STA $0022                             ; $ABAC: 8D 22 00
-  JSR @CheckClassTable                  ; $ABAF: 20 31 AC
-  BCC @TryRecruitD                      ; $ABB2: 90 14
+  JSR @CheckOfficerIdTable              ; $ABAF: 20 31 AC
+  BCC @TryRepeatingCrossbow             ; $ABB2: 90 14
   JSR @CheckCandidateHasTroops          ; $ABB4: 20 4D AC
-  BCC @TryRecruitD                      ; $ABB7: 90 0F
+  BCC @TryRepeatingCrossbow             ; $ABB7: 90 0F
   LDA war_action_points                             ; $ABB9: AD 05 05
   CMP #$0A                              ; $ABBC: C9 0A
-  BCC @TryRecruitD                      ; $ABBE: 90 08
+  BCC @TryRepeatingCrossbow             ; $ABBE: 90 08
   LDX #$0C                              ; $ABC0: A2 0C
-  JSR AiCheckActionFeasible             ; $ABC2: 20 7B AC
-  BCC @TryRecruitD                      ; $ABC5: 90 01
+  JSR AiCheckStratagemFeasible          ; $ABC2: 20 7B AC
+  BCC @TryRepeatingCrossbow             ; $ABC5: 90 01
   RTS                                   ; $ABC7: 60
-; --- Action $0D: rank >= 4 table match, candidate has troops, budget >= 8 ---
-@TryRecruitD:
+; --- Stratagem $0D: rank >= 4 officer-table match, candidate has troops,
+; ---             budget >= 8 ---
+@TryRepeatingCrossbow:
   LDY #$0B                              ; $ABC8: A0 0B
   LDA #$04                              ; $ABCA: A9 04
   STA $0022                             ; $ABCC: 8D 22 00
-  JSR @CheckClassTable                  ; $ABCF: 20 31 AC
-  BCC @TryRecruitE                      ; $ABD2: 90 14
+  JSR @CheckOfficerIdTable              ; $ABCF: 20 31 AC
+  BCC @TryInferno                       ; $ABD2: 90 14
   JSR @CheckCandidateHasTroops          ; $ABD4: 20 4D AC
-  BCC @TryRecruitE                      ; $ABD7: 90 0F
+  BCC @TryInferno                       ; $ABD7: 90 0F
   LDA war_action_points                             ; $ABD9: AD 05 05
   CMP #$08                              ; $ABDC: C9 08
-  BCC @TryRecruitE                      ; $ABDE: 90 08
+  BCC @TryInferno                       ; $ABDE: 90 08
   LDX #$0D                              ; $ABE0: A2 0D
-  JSR AiCheckActionFeasible             ; $ABE2: 20 7B AC
-  BCC @TryRecruitE                      ; $ABE5: 90 01
+  JSR AiCheckStratagemFeasible          ; $ABE2: 20 7B AC
+  BCC @TryInferno                       ; $ABE5: 90 01
   RTS                                   ; $ABE7: 60
-; --- Action $0E: rank >= 5 table match, candidate has troops, budget >= $0C ---
-@TryRecruitE:
+; --- Stratagem $0E: rank >= 5 officer-table match, candidate has troops,
+; ---             budget >= $0C ---
+@TryInferno:
   LDY #$11                              ; $ABE8: A0 11     ; table offset
   LDA #$05                              ; $ABEA: A9 05
   STA $0022                             ; $ABEC: 8D 22 00
-  JSR @CheckClassTable                  ; $ABEF: 20 31 AC
-  BCC @TryRecruitF                      ; $ABF2: 90 14
+  JSR @CheckOfficerIdTable              ; $ABEF: 20 31 AC
+  BCC @TryMysticalStasis                ; $ABF2: 90 14
   JSR @CheckCandidateHasTroops          ; $ABF4: 20 4D AC
-  BCC @TryRecruitF                      ; $ABF7: 90 0F
+  BCC @TryMysticalStasis                ; $ABF7: 90 0F
   LDA war_action_points                             ; $ABF9: AD 05 05
   CMP #$0C                              ; $ABFC: C9 0C
-  BCC @TryRecruitF                      ; $ABFE: 90 08
+  BCC @TryMysticalStasis                ; $ABFE: 90 08
   LDX #$0E                              ; $AC00: A2 0E
-  JSR AiCheckActionFeasible             ; $AC02: 20 7B AC
-  BCC @TryRecruitF                      ; $AC05: 90 01
+  JSR AiCheckStratagemFeasible          ; $AC02: 20 7B AC
+  BCC @TryMysticalStasis                ; $AC05: 90 01
   RTS                                   ; $AC07: 60
-; --- Action $0F: self rating == $6D, rank >= 6, candidate state high nibble
-; ---             clear, budget >= $0A ---
-@TryRecruitF:
+; --- Stratagem $0F: self officer id == $6D, rank >= 6, candidate state high
+; ---             nibble clear, budget >= $0A ---
+@TryMysticalStasis:
   LDA $002A                             ; $AC08: AD 2A 00
   CMP #$6D                              ; $AC0B: C9 6D
-  BNE @RecruitFail                      ; $AC0D: D0 20
+  BNE @StratagemFail                    ; $AC0D: D0 20
   LDA $0036                             ; $AC0F: AD 36 00
   CMP #$06                              ; $AC12: C9 06
-  BCC @RecruitFail                      ; $AC14: 90 19
+  BCC @StratagemFail                    ; $AC14: 90 19
   LDX $002B                             ; $AC16: AE 2B 00
   LDA unit_immobilized,X                           ; $AC19: BD 50 06
   AND #$F0                              ; $AC1C: 29 F0
-  BNE @RecruitFail                      ; $AC1E: D0 0F
+  BNE @StratagemFail                    ; $AC1E: D0 0F
   LDA war_action_points                             ; $AC20: AD 05 05
   CMP #$0A                              ; $AC23: C9 0A
-  BCC @RecruitFail                      ; $AC25: 90 08
+  BCC @StratagemFail                    ; $AC25: 90 08
   LDX #$0F                              ; $AC27: A2 0F
-  JSR AiCheckActionFeasible             ; $AC29: 20 7B AC
-  BCC @RecruitFail                      ; $AC2C: 90 01
+  JSR AiCheckStratagemFeasible          ; $AC29: 20 7B AC
+  BCC @StratagemFail                    ; $AC2C: 90 01
   RTS                                   ; $AC2E: 60
-@RecruitFail:
+@StratagemFail:
   CLC                                   ; $AC2F: 18
   RTS                                   ; $AC30: 60
 ; ---------------------------------------------------------------------------
-; @CheckClassTable - requires rank $0036 >= required rank $0022, then scans
-; AiRecruitClassTable from offset Y for the self rating $002A. $FF terminates.
-; Returns C=1 if the rating is listed, C=0 otherwise.
+; @CheckOfficerIdTable - requires rank $0036 >= required rank $0022, then scans
+; AiAdvancedStratagemOfficerTable from offset Y for the self officer id
+; $002A. $FF terminates. Returns C=1 if the id is listed, C=0 otherwise.
 ; ---------------------------------------------------------------------------
-@CheckClassTable:
+@CheckOfficerIdTable:
   LDA $0036                             ; $AC31: AD 36 00
   CMP $0022                             ; $AC34: CD 22 00
   BCC @TableFail                        ; $AC37: 90 07
 @TableNext:
-  LDA AiRecruitClassTable,Y             ; $AC39: B9 65 AC
+  LDA AiAdvancedStratagemOfficerTable,Y             ; $AC39: B9 65 AC
   CMP #$FF                              ; $AC3C: C9 FF
   BNE @TableCompare                     ; $AC3E: D0 02
 @TableFail:
@@ -1837,13 +1851,14 @@ AiCheckRecruit:
 @NoTroops:
   CLC                                   ; $AC63: 18
   RTS                                   ; $AC64: 60
-; Recruit class table: rating values eligible per rank group, $FF-terminated.
+; Advanced-stratagem officer table: self officer ids eligible per rank group,
+; $FF-terminated.
 ; Offsets: 0 = rank-3 group, $0B = rank-4 group, $11 = rank-5 group.
-AiRecruitClassTable:
+AiAdvancedStratagemOfficerTable:
   .byte $A1,$63,$A7,$16,$C4,$DB,$EA,$6B,$CE,$EB,$B7,$18,$37,$70,$D5,$6E; $AC65: A1 63 A7 16 C4 DB EA 6B CE EB B7 18 37 70 D5 6E
   .byte $67,$C5,$56,$5D,$6D,$FF           ; $AC75: 67 C5 56 5D 6D FF
 ;===============================================================================
-; AiCheckActionFeasible ($AC7B-$AE92) - Per-stratagem precondition check.
+; AiCheckStratagemFeasible ($AC7B-$AE92) - Per-stratagem precondition check.
 ; Input:  X = stratagem code (0-$0F); $002B = target officer slot
 ; Output: C=1 if the stratagem is feasible for the current officer ($6F8C)
 ;
@@ -1853,8 +1868,8 @@ AiRecruitClassTable:
 ; 2), then dispatches on the stratagem code through the inline .word table
 ; below to a small condition handler. Each handler returns C=1 / C=0.
 ;===============================================================================
-AiCheckActionFeasible:
-  STX $002C                             ; $AC7B: 8E 2C 00  ; save action code
+AiCheckStratagemFeasible:
+  STX $002C                             ; $AC7B: 8E 2C 00  ; save stratagem code
   LDY $002B                             ; $AC7E: AC 2B 00  ; target officer slot
   LDA unit_coord_x,Y                           ; $AC81: B9 00 06  ; target map X
   STA $0020                             ; $AC84: 8D 20 00
@@ -1869,7 +1884,7 @@ AiCheckActionFeasible:
   STA $0021                             ; $AC9F: 8D 21 00
   JSR GetTileTerrainClamped             ; $ACA2: 20 E5 B6  ; terrain at self
   STA $0029                             ; $ACA5: 8D 29 00
-  LDA $002C                             ; $ACA8: AD 2C 00  ; action code -> A
+  LDA $002C                             ; $ACA8: AD 2C 00  ; stratagem code -> A
   JSR CallbackDispatcher                 ; $ACAB: 20 17 B5
 ; --- Inline dispatch table: stratagem code (A) -> condition handler ---
   .word AiFeasible_FireAttack           ; $ACAE: CE AC      ; stratagem 0
@@ -2299,23 +2314,29 @@ AiSortNearbyOfficers:
 ; AiCheckFlee ($AF0D-$B066) - Decide whether the current AI officer ($6F8C)
 ; should retreat and pick a retreat destination.
 ;
-; The owning side's province id is derived from $0507 (low nibble when the
-; player side acts, high nibble when the AI side acts, selected via $0504
-; bit7). That province record's first byte becomes the officer's home value,
-; which drives three threshold paths:
-;   - officer home == capital value      -> strict thresholds ($012D, min $33)
-;   - officer slot 0 or $0A              -> army-strength comparison path
-;   - anything else                      -> relaxed thresholds ($C9, min $64)
-;                                            plus a random gate (< $46 passes)
-; The strength gate (@CheckStrength) requires the officer's record field +8
-; (troop low byte) to be at or below the threshold; when it passes, the home
-; province value must also be >= the record threshold, and the candidate
-; province must have a record byte +0 >= $0024.
+; The acting side's country id comes from $0507 (war_faction_pair: low nibble
+; when the player side acts, high nibble when the AI side acts, selected via
+; $0504 bit7). GetFactionRecordPtr fetches the country record (SRAM
+; $6F07+id*8); its byte 0 is the Ruler id. Three decision paths:
+;   - officer == country Ruler id         -> @RulerPath (strictest thresholds)
+;   - officer slot 0 / $0A (side leaders) -> @LeaderPath (army-balance gate,
+;                                           then TroopCount < $0100, Vitality < $29)
+;   - anything else                       -> @FieldOfficerPath (TroopCount
+;                                           < $00C9, Vitality < $64, plus a
+;                                           random gate (< $46 passes))
+; The @CheckStrength gate returns C=1 (stay) unless the officer is weak
+; enough to flee: record TroopCount (+8/+9, 16-bit) BELOW the ($0022,$0023)
+; ceiling AND record Vitality (+0, 体力) BELOW the $0024 ceiling.
 ;
 ; Output: C=1 -> $6F8D = destination province id, $6F8F = 4 (flee)
 ;         C=0 -> no retreat
 ;===============================================================================
 AiCheckFlee:
+; --- Scratch aliases (cell roles alternate within the proc) ---
+ruler_id                = $0022  ; country record byte 0 (Ruler id)
+flee_troop_threshold_lo = $0022  ; 16-bit TroopCount ceiling (flee if below)
+flee_troop_threshold_hi = $0023
+flee_vitality_ceiling   = $0024  ; Vitality (体力) ceiling (flee if below)
   LDA war_faction_pair                             ; $AF0D: AD 07 05  ; side/province packed byte
   LDX war_side_flag                             ; $AF10: AE 04 05  ; acting-side flag
   BPL @MaskProvince                     ; $AF13: 10 04     ; player side: low nibble
@@ -2325,23 +2346,23 @@ AiCheckFlee:
   LSR                                   ; $AF18: 4A        ; AI side: high nibble
 @MaskProvince:
   AND #$0F                              ; $AF19: 29 0F
-  JSR GetFactionRecordPtr               ; $AF1B: 20 C2 B4  ; ($20) = faction record
+  JSR GetFactionRecordPtr               ; $AF1B: 20 C2 B4  ; ($20) = country record
   LDY #$00                              ; $AF1E: A0 00
-  LDA ($20),Y                           ; $AF20: B1 20     ; province record byte 0
-  STA $0022                             ; $AF22: 8D 22 00  ; home value
+  LDA ($20),Y                           ; $AF20: B1 20     ; country record byte 0 (Ruler id)
+  STA ruler_id                          ; $AF22: 8D 22 00  ; country Ruler id
   LDY ai_officer_idx                             ; $AF25: AC 8C 6F
-  LDA war_roster,Y                           ; $AF28: B9 64 06  ; officer home value
-  CMP $0022                             ; $AF2B: CD 22 00
+  LDA war_roster,Y                           ; $AF28: B9 64 06  ; officer id in this slot
+  CMP ruler_id                          ; $AF2B: CD 22 00
   BNE @NotCapital                       ; $AF2E: D0 03
-  JMP @CapitalPath                      ; $AF30: 4C AA AF  ; at capital -> strict path
+  JMP @RulerPath                        ; $AF30: 4C AA AF  ; ruler -> strictest path
 @NotCapital:
   CPY #$00                              ; $AF33: C0 00
-  BEQ @ArmyPath                         ; $AF35: F0 07     ; slot 0 (faction A leader)
+  BEQ @LeaderPath                       ; $AF35: F0 07     ; slot 0 (side 0 leader unit)
   CPY #$0A                              ; $AF37: C0 0A
-  BEQ @ArmyPath                         ; $AF39: F0 03     ; slot $0A (faction B leader)
-  JMP @FieldPath                        ; $AF3B: 4C 88 AF  ; ordinary officer path
-; --- Army-strength path: compare AI total army against enemy total ---
-@ArmyPath:
+  BEQ @LeaderPath                       ; $AF39: F0 03     ; slot $0A (side 1 leader unit)
+  JMP @FieldOfficerPath                 ; $AF3B: 4C 88 AF  ; ordinary officer path
+; --- Side-leader path: army-balance gate, then flee thresholds ---
+@LeaderPath:
   JSR AiComputeArmyStats                ; $AF3E: 20 67 B0
   LDA $002A                             ; $AF41: AD 2A 00  ; ally army low
   SEC                                   ; $AF44: 38
@@ -2365,22 +2386,22 @@ AiCheckFlee:
   JMP @ChooseDest                       ; $AF6E: 4C BE AF  ; badly outnumbered -> flee
 @ArmyThresholds:
   LDA #$65                              ; $AF71: A9 65
-  STA $0022                             ; $AF73: 8D 22 00  ; max strength threshold 101
+  STA flee_troop_threshold_lo           ; $AF73: 8D 22 00  ; TroopCount ceiling $0065 (101)
   LDA #$00                              ; $AF76: A9 00
-  STA $0023                             ; $AF78: 8D 23 00
+  STA flee_troop_threshold_hi           ; $AF78: 8D 23 00
   LDA #$29                              ; $AF7B: A9 29
-  STA $0024                             ; $AF7D: 8D 24 00  ; province record minimum 41
+  STA flee_vitality_ceiling             ; $AF7D: 8D 24 00  ; Vitality ceiling $29 (41)
   JSR @CheckStrength                    ; $AF80: 20 D4 AF
   BCS @NoFlee                           ; $AF83: B0 4D     ; too strong to flee
   JMP @ChooseDest                       ; $AF85: 4C BE AF
 ; --- Ordinary-officer path: relaxed thresholds plus a random gate ---
-@FieldPath:
+@FieldOfficerPath:
   LDA #$C9                              ; $AF88: A9 C9
-  STA $0022                             ; $AF8A: 8D 22 00  ; max strength threshold 201
+  STA flee_troop_threshold_lo           ; $AF8A: 8D 22 00  ; TroopCount ceiling $00C9 (201)
   LDA #$00                              ; $AF8D: A9 00
-  STA $0023                             ; $AF8F: 8D 23 00
+  STA flee_troop_threshold_hi           ; $AF8F: 8D 23 00
   LDA #$64                              ; $AF92: A9 64
-  STA $0024                             ; $AF94: 8D 24 00  ; province record minimum 100
+  STA flee_vitality_ceiling             ; $AF94: 8D 24 00  ; Vitality ceiling $64 (100)
   JSR @CheckStrength                    ; $AF97: 20 D4 AF
   BCS @NoFlee                           ; $AF9A: B0 36     ; too strong to flee
 @RandomGate:
@@ -2390,14 +2411,14 @@ AiCheckFlee:
   CMP #$46                              ; $AFA3: C9 46
   BCS @NoFlee                           ; $AFA5: B0 2B     ; >= 70: stay
   JMP @ChooseDest                       ; $AFA7: 4C BE AF
-; --- Capital path: strictest thresholds ---
-@CapitalPath:
+; --- Ruler path: strictest thresholds ---
+@RulerPath:
   LDA #$2D                              ; $AFAA: A9 2D
-  STA $0022                             ; $AFAC: 8D 22 00  ; max strength threshold 45
+  STA flee_troop_threshold_lo           ; $AFAC: 8D 22 00  ; TroopCount ceiling $012D (301)
   LDA #$01                              ; $AFAF: A9 01
-  STA $0023                             ; $AFB1: 8D 23 00
+  STA flee_troop_threshold_hi           ; $AFB1: 8D 23 00
   LDA #$33                              ; $AFB4: A9 33
-  STA $0024                             ; $AFB6: 8D 24 00  ; province record minimum 51
+  STA flee_vitality_ceiling             ; $AFB6: 8D 24 00  ; Vitality ceiling $33 (51)
   JSR @CheckStrength                    ; $AFB9: 20 D4 AF
   BCS @NoFlee                           ; $AFBC: B0 14     ; too strong to flee
 ; ---------------------------------------------------------------------------
@@ -2417,9 +2438,9 @@ AiCheckFlee:
   CLC                                   ; $AFD2: 18
   RTS                                   ; $AFD3: 60
 ; ---------------------------------------------------------------------------
-; @CheckStrength - C=1 when the officer's troop low byte (record field +8)
-; exceeds the ($0022,$0023) threshold, i.e. NOT weak enough to flee; when
-; weak, additionally requires the home province value >= $0024.
+; @CheckStrength - C=1 (stay) unless the officer is weak enough to flee:
+; record TroopCount (+8/+9, 16-bit) must be BELOW the ($0022,$0023) ceiling
+; AND record Vitality (+0, 体力) must be BELOW the $0024 ceiling.
 ; ---------------------------------------------------------------------------
 @CheckStrength:
   LDY ai_officer_idx                             ; $AFD4: AC 8C 6F
@@ -2428,14 +2449,14 @@ AiCheckFlee:
   LDY #$08                              ; $AFDD: A0 08
   LDA ($20),Y                           ; $AFDF: B1 20     ; troop count low
   SEC                                   ; $AFE1: 38
-  SBC $0022                             ; $AFE2: ED 22 00
+  SBC flee_troop_threshold_lo           ; $AFE2: ED 22 00
   LDY #$09                              ; $AFE5: A0 09
   LDA ($20),Y                           ; $AFE7: B1 20     ; troop count high
-  SBC $0023                             ; $AFE9: ED 23 00
-  BCS @TooStrong                        ; $AFEC: B0 07     ; troops > threshold
+  SBC flee_troop_threshold_hi           ; $AFE9: ED 23 00
+  BCS @TooStrong                        ; $AFEC: B0 07     ; TroopCount >= ceiling -> stay
   LDY #$00                              ; $AFEE: A0 00
-  LDA ($20),Y                           ; $AFF0: B1 20     ; record byte 0 (home value)
-  CMP $0024                             ; $AFF2: CD 24 00  ; C=1 if >= required minimum
+  LDA ($20),Y                           ; $AFF0: B1 20     ; record byte 0 (Vitality 体力)
+  CMP flee_vitality_ceiling             ; $AFF2: CD 24 00  ; C=1 if Vitality >= ceiling -> stay
 @TooStrong:
   RTS                                   ; $AFF5: 60
 ; ---------------------------------------------------------------------------
@@ -2445,6 +2466,10 @@ AiCheckFlee:
 ; acting faction with no stationed officers.
 ; ---------------------------------------------------------------------------
 @FindDest:
+; --- Scratch aliases (cell roles alternate within the proc) ---
+find_faction_id  = $0022  ; acting faction id
+find_province_id = $0023  ; candidate province id
+find_table_index = $0024  ; candidate table index
   LDA war_side_flag                             ; $AFF6: AD 04 05  ; acting-side flag
   BPL @ScanCandidates                   ; $AFF9: 10 07
   LDA war_target_province                             ; $AFFB: AD 2A 05  ; AI preset retreat target
@@ -2453,7 +2478,7 @@ AiCheckFlee:
 @ScanCandidates:
   LDA war_faction_pair                             ; $B002: AD 07 05
   AND #$0F                              ; $B005: 29 0F     ; acting faction id
-  STA $0022                             ; $B007: 8D 22 00
+  STA find_faction_id                   ; $B007: 8D 22 00
   LDY #$30                              ; $B00A: A0 30
   JSR B1F_SwitchBank8_A                             ; $B00C: 20 66 F2  ; SwitchBank8_A: bank $30
   LDA war_province_idx                             ; $B00F: AD 0E 05  ; turn/phase index
@@ -2467,19 +2492,19 @@ AiCheckFlee:
 @CandidateLoop:
   LDA $9D72,Y                           ; $B01D: B9 72 9D  ; candidate province id
   BMI @Advance                          ; $B020: 30 31     ; $FF/negative: Y still index
-  STA $0023                             ; $B022: 8D 23 00
-  STY $0024                             ; $B025: 8C 24 00  ; save table index
+  STA find_province_id                  ; $B022: 8D 23 00
+  STY find_table_index                  ; $B025: 8C 24 00  ; save table index
   JSR GetProvinceRuntimePtr             ; $B028: 20 69 B4  ; ($20) = $6000 + id*32
   LDY #$00                              ; $B02B: A0 00
   LDA ($20),Y                           ; $B02D: B1 20     ; province record byte 0
   AND #$07                              ; $B02F: 29 07     ; owner field
   CMP #$07                              ; $B031: C9 07
   BNE @CheckOwned                       ; $B033: D0 09     ; not ownerless
-  LDA $0023                             ; $B035: AD 23 00
+  LDA find_province_id                  ; $B035: AD 23 00
   STA $0025                             ; $B038: 8D 25 00  ; ownerless fallback candidate
   JMP @NextCandidate                    ; $B03B: 4C 50 B0
 @CheckOwned:
-  CMP $0022                             ; $B03E: CD 22 00  ; owned by acting faction?
+  CMP find_faction_id                   ; $B03E: CD 22 00  ; owned by acting faction?
   BNE @NextCandidate                    ; $B041: D0 0D
   LDY #$11                              ; $B043: A0 11
 @CheckOfficers:
@@ -2490,7 +2515,7 @@ AiCheckFlee:
   CPY #$1B                              ; $B04C: C0 1B     ; slots $11-$1A
   BCC @CheckOfficers                    ; $B04E: 90 F5
 @NextCandidate:
-  LDY $0024                             ; $B050: AC 24 00  ; restore table index
+  LDY find_table_index                  ; $B050: AC 24 00  ; restore table index
 @Advance:
   INY                                   ; $B053: C8
   INX                                   ; $B054: E8
@@ -2500,7 +2525,7 @@ AiCheckFlee:
   STA ai_target_slot                             ; $B05C: 8D 8D 6F
   RTS                                   ; $B05F: 60
 @FoundDest:
-  LDA $0023                             ; $B060: AD 23 00
+  LDA find_province_id                  ; $B060: AD 23 00
   STA ai_target_slot                             ; $B063: 8D 8D 6F  ; owned, ungarrisoned province
   RTS                                   ; $B066: 60
 ;===============================================================================
@@ -3696,7 +3721,7 @@ reserve_units          = $6F47  ; reserve unit id lists (2 x $14)
 .proc WarExecute  ; (dispatch callback target)
   JSR B1F_PaletteCopyBuffer                             ; $BB93: 20 EE EC
   JSR PopulateOfficerArrays             ; $BB96: 20 0A BF
-  JSR ApplyCoordDeltas                  ; $BB99: 20 27 C0
+  JSR WarPhaseProcess::UpdateOfficerCoords::ApplyCoordDeltas ; $BB99: 20 27 C0
   INC war_scene_phase                             ; $BB9C: EE 01 05
   RTS                                   ; $BB9F: 60
 .endproc
@@ -3795,7 +3820,7 @@ SwapFirstUnitToFront:
 @SwapScan:
   LDA ($0A),Y                           ; $BC23: B1 0A
   CMP $0002                             ; $BC25: CD 02 00
-  BEQ @SwapFound                        ; $BC28: F0 06
+  BEQ @DoSwap                           ; $BC28: F0 06
   INY                                   ; $BC2A: C8
   CPY #$1B                              ; $BC2B: C0 1B
   BCC @SwapScan                         ; $BC2D: 90 F4
@@ -3816,31 +3841,32 @@ SwapFirstUnitToFront:
 DoDispatch:
   LDA side_unit_base                             ; $BC46: AD 91 6F
   JSR B1F_CallbackDispatcher          ; $BC49: 20 DE EA  ; dispatch on result type
-; --- Inline dispatch table (high-byte-first format, 3 entries) ---
-; Entry 0 → @ProcessAttackerUnits ($BC52, data-as-code)
-; Entry 1 → WarExecute+4 ($BD59, inside nested proc)
-; Entry 2 → $FFE0 (unused/reserved)
-  .word @ProcessAttackerUnits                     ; $BC4C: 52 BC  (entry 0)
-  .byte $BD,$59                                        ; $BC4E: BD 59  (entry 1)
-  .byte $FF,$E0                                        ; $BC50: FF E0  (entry 2, unused)
+; --- Inline dispatch table (.word low-byte-first, 3 entries) ---
+; Entry 0 → @WarSeedProvinceRoster ($BC52)
+; Entry 1 → WarUnitMatchRun ($BD59)
+; Entry 2 → WarUnitMatchRunAlt ($BD67)
+  .word @WarSeedProvinceRoster                    ; $BC4C: 52 BC  (entry 0)
+  .word WarUnitMatchRun                           ; $BC4E: 59 BD  (entry 1)
+  .word WarUnitMatchRunAlt                        ; $BC50: 67 BD  (entry 2)
 ;-------------------------------------------------------------------------------
-; @ProcessAttackerUnits (dispatch target 0 from $BC46)
-; Data-as-code: loads $050E*8 as Y index, calls FindDefenderMatch for each
-; attacker officer. Aborts if any match fails (X=$FF).
+; @WarSeedProvinceRoster (dispatch entry 0 from $BC46)
+; Collects units into $6FA1 via CollectUnitsBySide, then seeds the war
+; province record's first roster slot ($11) by matching war_target_officer
+; through FindDefenderMatch. On a match (X != $FF) falls through into
+; WarUnitMatcher; otherwise returns.
 ;-------------------------------------------------------------------------------
-@ProcessAttackerUnits:
-  LDA war_province_idx                             ; $BC52: AD 0E 05
-  ASL                                   ; $BC55: 0A
-  ASL                                   ; $BC56: 0A
-  ASL                                   ; $BC57: 0A
-  TAY                                   ; $BC58: A8
-  LDA #$00                              ; $BC59: A9 00
-  STA $0004                             ; $BC5B: 8D 04 00
-  JSR FindDefenderMatch                 ; $BC5E: 20 96 BD
-  CPX #$FF                              ; $BC61: E0 FF
-  BNE @ProcessAttackerUnits             ; $BC63: D0 ED  ; loop (self-referencing data-as-code)
-  RTS                                   ; $BC65: 60
-  ; Remaining bytes $BC52-$BC6C are data-as-code (opcodes reinterpreted)
+@WarSeedProvinceRoster:
+  JSR CollectUnitsBySide                ; $BC52: 20 CD BD
+  LDA war_province_idx                             ; $BC55: AD 0E 05
+  STA $0002                             ; $BC58: 8D 02 00
+  LDA #$11                              ; $BC5B: A9 11
+  STA $0003                             ; $BC5D: 8D 03 00
+  LDA #$00                              ; $BC60: A9 00
+  STA $0004                             ; $BC62: 8D 04 00
+  JSR FindDefenderMatch                 ; $BC65: 20 96 BD
+  CPX #$FF                              ; $BC68: E0 FF
+  BNE WarUnitMatcher                 ; $BC6A: D0 01  ; match found -> WarUnitMatcher
+  RTS                                   ; $BC6C: 60
 
 ;-------------------------------------------------------------------------------
 ; WarUnitMatcher - Main unit matching loop
@@ -3974,22 +4000,24 @@ WarUnitMatcher:
   INX                                   ; $BD55: E8
   JMP @ScanAllies                       ; $BD56: 4C 03 BD
 ;-------------------------------------------------------------------------------
-; Phase 2: WarExecute
-; Calls CollectUnitsBySide to build $6FA1 unit list, then FrontloadFactionUnit
-; to position current faction's unit, then enters WarUnitMatcher.
+; WarUnitMatchRun (dispatch entry 1 from $BC46; was @WarExecute)
+; Calls CollectUnitsBySide to build the $6FA1 unit list, then
+; FrontloadFactionUnit to position the current faction's unit, resets the
+; $6FA1 cursor ($0004 = 0), and enters WarUnitMatcher.
 ;-------------------------------------------------------------------------------
-@WarExecute:
+WarUnitMatchRun:
   JSR CollectUnitsBySide                ; $BD59: 20 CD BD
   JSR FrontloadFactionUnit              ; $BD5C: 20 55 BE
   LDA #$00                              ; $BD5F: A9 00
   STA $0004                             ; $BD61: 8D 04 00
   JMP WarUnitMatcher                 ; $BD64: 4C 6D BC
 ;-------------------------------------------------------------------------------
-; Phase 2 alt: WarExecute (defender side / $BD67)
-; Similar to $BD59 but also handles $052A faction target.
-; Searches $0664 for $FF slot before calling FindDefenderMatch.
+; WarUnitMatchRunAlt (dispatch entry 2 from $BC46; was @WarExecuteAlt)
+; Like WarUnitMatchRun but first seeds the war_target_province ($052A)
+; record: scans roster slots $11-$1A for a free ($FF) entry and fills it
+; via FindDefenderMatch before entering WarUnitMatcher.
 ;-------------------------------------------------------------------------------
-@WarExecuteAlt:
+WarUnitMatchRunAlt:
   JSR CollectUnitsBySide                ; $BD67: 20 CD BD
   JSR FrontloadFactionUnit              ; $BD6A: 20 55 BE
   LDA war_target_province                             ; $BD6D: AD 2A 05
@@ -4228,7 +4256,7 @@ PopulateOfficerArrays:
   INX                                   ; $BEF3: E8
   INY                                   ; $BEF4: C8
   CPY #$1B                              ; $BEF5: C0 1B
-  BCC @PopCount                         ; $BEF7: 90 F4
+  BCC @CountAllies                      ; $BEF7: 90 F4
 @PopStore:
   LDY $0016                             ; $BEF9: AC 16 00
   TXA                                   ; $BEFC: 8A
@@ -4297,7 +4325,7 @@ PopulateOfficerArrays:
   LDA #$00                              ; $BF79: A9 00
   STA $0001                             ; $BF7B: 8D 01 00
   STA $0002                             ; $BF7E: 8D 02 00
-  JSR @PushY                            ; $BF81: 20 B3 BF
+  JSR PushY                             ; $BF81: 20 B3 BF
   LDY #$02                              ; $BF84: A0 02
   JSR FindNearestThreshold              ; $BF86: 20 EC BF
   STA $0003                             ; $BF89: 8D 03 00
@@ -4321,11 +4349,11 @@ LoadCoordPair:
   STA $0001                             ; $BFA8: 8D 01 00
   LDA #$00                              ; $BFAB: A9 00
   STA $0002                             ; $BFAD: 8D 02 00
-  JMP @ComputeCoord                     ; $BFB0: 4C B5 BF
-@PushY:
+  JMP ComputeCoord                      ; $BFB0: 4C B5 BF
+PushY:
   TYA                                   ; $BFB3: 98
   PHA                                   ; $BFB4: 48
-@ComputeCoord:
+ComputeCoord:
   LDA #$0A                              ; $BFB5: A9 0A
   SEC                                   ; $BFB7: 38
   SBC $0003                             ; $BFB8: ED 03 00
@@ -4375,7 +4403,7 @@ FindNearestThreshold:
   INX                                   ; $C008: E8
   INX                                   ; $C009: E8
   CPX #$08                              ; $C00A: E0 08
-  BCC @SearchThreshold                  ; $C00C: 90 EB
+  .byte $90, $EB                          ; $C00C: 90 EB (BCC $BFF9 = @SearchThreshold)
 @ThresholdResult:
   TXA                                   ; $C00E: 8A
   LSR                                   ; $C00F: 4A
@@ -4440,22 +4468,22 @@ ApplyCoordDeltas:
   LDY #$02                              ; $C07A: A0 02
   LDA ($00),Y                           ; $C07C: B1 00
   CLC                                   ; $C07E: 18
-  ADC war_stat_b_lo,X                           ; $C07F: 7D 26 05
+  ADC war_gold_lo,X                           ; $C07F: 7D 26 05
   STA ($00),Y                           ; $C082: 91 00
   INY                                   ; $C084: C8
   LDA ($00),Y                           ; $C085: B1 00
-  ADC war_stat_b_hi,X                           ; $C087: 7D 27 05
+  ADC war_gold_hi,X                           ; $C087: 7D 27 05
   STA ($00),Y                           ; $C08A: 91 00
   LDY #$02                              ; $C08C: A0 02
   JSR @ClampCoord                       ; $C08E: 20 A5 C0
   LDY #$04                              ; $C091: A0 04
   LDA ($00),Y                           ; $C093: B1 00
   CLC                                   ; $C095: 18
-  ADC war_stat_a_lo,X                           ; $C096: 7D 22 05
+  ADC war_rice_lo,X                           ; $C096: 7D 22 05
   STA ($00),Y                           ; $C099: 91 00
   INY                                   ; $C09B: C8
   LDA ($00),Y                           ; $C09C: B1 00
-  ADC war_stat_a_hi,X                           ; $C09E: 7D 23 05
+  ADC war_rice_hi,X                           ; $C09E: 7D 23 05
   STA ($00),Y                           ; $C0A1: 91 00
   LDY #$04                              ; $C0A3: A0 04
 ;-------------------------------------------------------------------------------
@@ -4490,14 +4518,15 @@ ApplyCoordDeltas:
 ; transfers, officer stat checks, formation setup/render, tile effects),
 ; then either RTS to wait for the next callback or loads a UI mode into A
 ; and JMPs B1F_SetUI2/B1F_SetUI5 to advance the battle presentation.
-; Side stat pairs (X=0 near side, X=2 far side, from GetBattleSideOffset):
-;   $0522/$0523 = stat A, $0526/$0527 = stat B (both clamped to 0..9999).
+; Side resource pairs (X=0 near side, X=2 far side, from GetBattleSideOffset):
+;   $0522/$0523 = remaining rice, $0526/$0527 = remaining gold
+;   (rice clamped to 0..9999, gold clamped to 0).
 ; States:
 ;   0 State0_ShowActionPanel        draw panel, parse action parameters
-;   1 State1_GrowStatA              raise stat A by delta, lower stat B
-;   2 State2_GrowStatB              raise stat B by scaled, lower stat A
+;   1 State1_GrowStatA              buy rice: rice += delta, gold -= delta*100/rate
+;   2 State2_GrowStatB              sell rice: rice -= delta, gold += delta*rate/100
 ;   3 State3_CheckOfficerStat       compare officer runtime/ROM record byte 0
-;   4 State4_ConsumeAndRestore      spend 50 stat B, restore officer stat
+;   4 State4_ConsumeAndRestore      spend 50 gold, restore officer stat
 ;   5 State5_SetupFormation         expand formation id into 4 unit slots
 ;   6 State6_RenderFormationSprites write formation sprites to $0380 buffer
 ;   7 State7_ApplyTileEffect        apply selected tile / special tile check
@@ -4512,8 +4541,8 @@ tile_result_flag       = $0471  ; tile apply result flag ($11 = out of reach)
 action_work_0          = $048B  ; action work area byte 0 (cleared)
 action_work_1          = $048C  ; action work area byte 1 (cleared)
 action_work_2          = $048D  ; action work area byte 2 (cleared)
-action_delta_lo        = $048E  ; stat A delta lo
-action_delta_hi        = $048F  ; stat A delta hi
+action_delta_lo        = $048E  ; rice amount delta lo (bought/sold)
+action_delta_hi        = $048F  ; rice amount delta hi
 stat_delta_lo          = $0490  ; computed delta lo (ceil(statB*pct/100))
 stat_delta_hi          = $0491  ; computed delta hi
 action_percent         = $0492  ; action percent parameter
@@ -4538,9 +4567,9 @@ special_tile_latch     = $6FE1  ; one-shot special tile trigger latch
 ;   bit0 -> @ExecuteAction: swap in bank $30 (B1F_SwitchBank8_B), fetch the
 ;           action parameter record for action index $050E from the $8FC0
 ;           pointer table into ($0002). With submode $0012 != 0 the full
-;           stat A amount is used directly ($0490) -> state 2 (UI $AA);
+;           rice amount is used directly ($0490) -> state 2 (UI $AA);
 ;           with $0012 == 0 the percent path computes
-;           ceil(statB * percent / 100) into $0490 -> state 1 (UI $A9).
+;           ceil(gold * percent / 100) into $0490 -> state 1 (UI $A9).
 ;   bit1 -> reset command ($0500/$0501 = 0).
 ;-------------------------------------------------------------------------------
 State0_ShowActionPanel:
@@ -4593,9 +4622,9 @@ State0_ShowActionPanel:
   JSR GetBattleSideOffset               ; $C13F: 20 3E C9  ; X = side * 2
   LDA $0012                             ; $C142: AD 12 00  ; submode
   BEQ @PercentPath                      ; $C145: F0 28
-  LDA war_stat_a_lo,X                           ; $C147: BD 22 05  ; direct path: stat A pair
+  LDA war_rice_lo,X                           ; $C147: BD 22 05  ; direct path: rice pair
   STA stat_delta_lo                             ; $C14A: 8D 90 04
-  LDA war_stat_a_hi,X                           ; $C14D: BD 23 05
+  LDA war_rice_hi,X                           ; $C14D: BD 23 05
   STA stat_delta_hi                             ; $C150: 8D 91 04
   LDY #$00                              ; $C153: A0 00
   LDA ($02),Y                           ; $C155: B1 02     ; param byte 0 -> percent
@@ -4616,9 +4645,9 @@ State0_ShowActionPanel:
   LDA #$00                              ; $C179: A9 00
   STA action_result_hi                             ; $C17B: 8D 2D 04
   STA action_result_cnt                             ; $C17E: 8D 2E 04
-  LDA war_stat_b_lo,X                           ; $C181: BD 26 05  ; stat B pair = base value
+  LDA war_gold_lo,X                           ; $C181: BD 26 05  ; gold pair = base value
   STA $0000                             ; $C184: 8D 00 00
-  LDA war_stat_b_hi,X                           ; $C187: BD 27 05
+  LDA war_gold_hi,X                           ; $C187: BD 27 05
   STA $0001                             ; $C18A: 8D 01 00
   LDA #$00                              ; $C18D: A9 00
   STA $0002                             ; $C18F: 8D 02 00
@@ -4655,12 +4684,12 @@ State0_ShowActionPanel:
 State0PanelLayout:
   .byte $00,$01,$FF,$FF,$C6,$47,$C6,$87,$00,$07,$00,$00,$80; $C1DE: 00 01 FF FF C6 47 C6 87 00 07 00 00 80
 ;-------------------------------------------------------------------------------
-; State 1 - Grow stat A: apply the delta computed in state 0.
+; State 1 - Grow stat A (BUY RICE): apply the delta computed in state 0.
 ; Waits for the panel animation, runs the banked callback at $A003 (bank Y
 ; selects the overlay), then on $0081:
 ;   bit0 -> @ApplyGain: base = delta * 100 / percent (inverse of state 0's
-;           percent path). Stat B ($0526) is lowered by base (clamped at 0),
-;           stat A ($0522) is raised by the delta $048E (clamped at 9999).
+;           percent path). Gold ($0526) is lowered by base (clamped at 0),
+;           rice ($0522) is raised by the delta $048E (clamped at 9999).
 ;           $042C reports the delta, then state 8 (UI $AB).
 ;   bit1 -> step back to state 0 (clear $0424/$0425, UI $A8).
 ;-------------------------------------------------------------------------------
@@ -4673,7 +4702,7 @@ State1_GrowStatA:
   STA $031D                             ; $C1F7: 8D 1D 03
   LDY #$3B                              ; $C1FA: A0 3B     ; target bank
   JSR B1F_BankedCallbackTrampoline      ; $C1FC: 20 07 EE
-  .word $A003                           ; $C1FF: 03 A0 (BankedCallbackTrampoline target)
+  .word B1B_1C_ActionDeltaInputPoll_Entry ; $C1FF: 03 A0 (BankedCallbackTrampoline target)
   LDA $0081                             ; $C201: AD 81 00  ; command-step flags
   LSR                                   ; $C204: 4A
   BCS @ApplyGain                        ; $C205: B0 14     ; bit0: execute step
@@ -4714,34 +4743,34 @@ State1_GrowStatA:
   STA $0004                             ; $C258: 8D 04 00
   JSR B1F_MathDiv24                     ; $C25B: 20 A5 EA  ; base = delta*100/percent
   JSR GetBattleSideOffset               ; $C25E: 20 3E C9  ; X = side * 2
-  LDA war_stat_b_lo,X                           ; $C261: BD 26 05  ; stat B -= base
+  LDA war_gold_lo,X                           ; $C261: BD 26 05  ; gold -= base
   SEC                                   ; $C264: 38
   SBC $0000                             ; $C265: ED 00 00
-  STA war_stat_b_lo,X                           ; $C268: 9D 26 05
-  LDA war_stat_b_hi,X                           ; $C26B: BD 27 05
+  STA war_gold_lo,X                           ; $C268: 9D 26 05
+  LDA war_gold_hi,X                           ; $C26B: BD 27 05
   SBC $0001                             ; $C26E: ED 01 00
   BCS @StatBClampDone                   ; $C271: B0 05
   LDA #$00                              ; $C273: A9 00
-  STA war_stat_b_lo,X                           ; $C275: 9D 26 05  ; clamp at 0
+  STA war_gold_lo,X                           ; $C275: 9D 26 05  ; clamp at 0
 @StatBClampDone:
-  STA war_stat_b_hi,X                           ; $C278: 9D 27 05
-  LDA war_stat_a_lo,X                           ; $C27B: BD 22 05  ; stat A += delta
+  STA war_gold_hi,X                           ; $C278: 9D 27 05
+  LDA war_rice_lo,X                           ; $C27B: BD 22 05  ; rice += delta
   CLC                                   ; $C27E: 18
   ADC action_delta_lo                             ; $C27F: 6D 8E 04
-  STA war_stat_a_lo,X                           ; $C282: 9D 22 05
-  LDA war_stat_a_hi,X                           ; $C285: BD 23 05
+  STA war_rice_lo,X                           ; $C282: 9D 22 05
+  LDA war_rice_hi,X                           ; $C285: BD 23 05
   ADC action_delta_hi                             ; $C288: 6D 8F 04
-  STA war_stat_a_hi,X                           ; $C28B: 9D 23 05
-  LDA war_stat_a_lo,X                           ; $C28E: BD 22 05  ; clamp at 9999 ($270F)
+  STA war_rice_hi,X                           ; $C28B: 9D 23 05
+  LDA war_rice_lo,X                           ; $C28E: BD 22 05  ; clamp at 9999 ($270F)
   SEC                                   ; $C291: 38
   SBC #$10                              ; $C292: E9 10
-  LDA war_stat_a_hi,X                           ; $C294: BD 23 05
+  LDA war_rice_hi,X                           ; $C294: BD 23 05
   SBC #$27                              ; $C297: E9 27
   BCC @StatAClampDone                   ; $C299: 90 0A
   LDA #$0F                              ; $C29B: A9 0F
-  STA war_stat_a_lo,X                           ; $C29D: 9D 22 05
+  STA war_rice_lo,X                           ; $C29D: 9D 22 05
   LDA #$27                              ; $C2A0: A9 27
-  STA war_stat_a_hi,X                           ; $C2A2: 9D 23 05
+  STA war_rice_hi,X                           ; $C2A2: 9D 23 05
 @StatAClampDone:
   LDA action_delta_lo                             ; $C2A5: AD 8E 04  ; report the delta
   STA action_result_lo                             ; $C2A8: 8D 2C 04
@@ -4754,11 +4783,11 @@ State1_GrowStatA:
   LDA #$AB                              ; $C2BB: A9 AB     ; UI mode $AB
   JMP B1F_SetUI2                        ; $C2BD: 4C 83 F2
 ;-------------------------------------------------------------------------------
-; State 2 - Grow stat B: mirror of State1_GrowStatA.
+; State 2 - Grow stat B (SELL RICE): mirror of State1_GrowStatA.
 ; Waits for the panel animation, runs the banked callback at $A003, then on
 ; $0081:
-;   bit0 -> @ApplyDrain: scaled = delta * percent / 100. Stat A ($0522) is
-;           lowered by the delta $048E (clamped at 0), stat B ($0526) is
+;   bit0 -> @ApplyDrain: scaled = delta * percent / 100. Rice ($0522) is
+;           lowered by the delta $048E (clamped at 0), gold ($0526) is
 ;           raised by scaled (clamped at 9999). $042C reports scaled,
 ;           then state 8 (UI $AC).
 ;   bit1 -> restart at state 0 (clear $0424/$0425, UI $A8).
@@ -4772,7 +4801,7 @@ State2_GrowStatB:
   STA $031D                             ; $C2CC: 8D 1D 03
   LDY #$3B                              ; $C2CF: A0 3B     ; target bank
   JSR B1F_BankedCallbackTrampoline      ; $C2D1: 20 07 EE
-  .word $A003                           ; $C2D4: 03 A0 (BankedCallbackTrampoline target)
+  .word B1B_1C_ActionDeltaInputPoll_Entry ; $C2D4: 03 A0 (BankedCallbackTrampoline target)
   LDA $0081                             ; $C2D6: AD 81 00  ; command-step flags
   LSR                                   ; $C2D9: 4A
   BCS @ApplyDrain                       ; $C2DA: B0 16     ; bit0: execute step
@@ -4818,34 +4847,34 @@ State2_GrowStatB:
   LDA $0001                             ; $C33B: AD 01 00
   STA action_result_hi                             ; $C33E: 8D 2D 04
   JSR GetBattleSideOffset               ; $C341: 20 3E C9  ; X = side * 2
-  LDA war_stat_a_lo,X                           ; $C344: BD 22 05  ; stat A -= delta
+  LDA war_rice_lo,X                           ; $C344: BD 22 05  ; rice -= delta
   SEC                                   ; $C347: 38
   SBC action_delta_lo                             ; $C348: ED 8E 04
-  STA war_stat_a_lo,X                           ; $C34B: 9D 22 05
-  LDA war_stat_a_hi,X                           ; $C34E: BD 23 05
+  STA war_rice_lo,X                           ; $C34B: 9D 22 05
+  LDA war_rice_hi,X                           ; $C34E: BD 23 05
   SBC action_delta_hi                             ; $C351: ED 8F 04
   BCS @StatAClampDone                   ; $C354: B0 05
   LDA #$00                              ; $C356: A9 00
-  STA war_stat_a_lo,X                           ; $C358: 9D 22 05  ; clamp at 0
+  STA war_rice_lo,X                           ; $C358: 9D 22 05  ; clamp at 0
 @StatAClampDone:
-  STA war_stat_a_hi,X                           ; $C35B: 9D 23 05
-  LDA war_stat_b_lo,X                           ; $C35E: BD 26 05  ; stat B += scaled
+  STA war_rice_hi,X                           ; $C35B: 9D 23 05
+  LDA war_gold_lo,X                           ; $C35E: BD 26 05  ; gold += scaled
   CLC                                   ; $C361: 18
   ADC action_result_lo                             ; $C362: 6D 2C 04
-  STA war_stat_b_lo,X                           ; $C365: 9D 26 05
-  LDA war_stat_b_hi,X                           ; $C368: BD 27 05
+  STA war_gold_lo,X                           ; $C365: 9D 26 05
+  LDA war_gold_hi,X                           ; $C368: BD 27 05
   ADC action_result_hi                             ; $C36B: 6D 2D 04
-  STA war_stat_b_hi,X                           ; $C36E: 9D 27 05
-  LDA war_stat_b_lo,X                           ; $C371: BD 26 05  ; clamp at 9999 ($270F)
+  STA war_gold_hi,X                           ; $C36E: 9D 27 05
+  LDA war_gold_lo,X                           ; $C371: BD 26 05  ; clamp at 9999 ($270F)
   SEC                                   ; $C374: 38
   SBC #$10                              ; $C375: E9 10
-  LDA war_stat_b_hi,X                           ; $C377: BD 27 05
+  LDA war_gold_hi,X                           ; $C377: BD 27 05
   SBC #$27                              ; $C37A: E9 27
   BCC @StatBClampDone                   ; $C37C: 90 0A
   LDA #$0F                              ; $C37E: A9 0F
-  STA war_stat_b_lo,X                           ; $C380: 9D 26 05
+  STA war_gold_lo,X                           ; $C380: 9D 26 05
   LDA #$27                              ; $C383: A9 27
-  STA war_stat_b_hi,X                           ; $C385: 9D 27 05
+  STA war_gold_hi,X                           ; $C385: 9D 27 05
 @StatBClampDone:
   LDA #$08                              ; $C388: A9 08
   STA war_scene_phase                             ; $C38A: 8D 01 05  ; continue in state 8
@@ -4899,11 +4928,11 @@ State3_CheckOfficerStat:
   LDA #$B2                              ; $C3E4: A9 B2     ; UI mode $B2
   JMP B1F_SetUI2                        ; $C3E6: 4C 83 F2
 ;-------------------------------------------------------------------------------
-; State 4 - Consume stat B and restore the officer stat.
+; State 4 - Consume gold and restore the officer stat.
 ; Draws the panel from State4PanelLayout, waits for $0081:
 ;   bit0 -> @ApplyRestore (only when submode $0012 == 0):
-;           if stat B ($0526/$0527) < 50 -> state 8 (UI $B0), not enough.
-;           otherwise stat B -= 50; gain = 35 + (random mod 16, rerolled
+;           if gold ($0526/$0527) < 50 -> state 8 (UI $B0), not enough.
+;           otherwise gold -= 50; gain = 35 + (random mod 16, rerolled
 ;           until < 11); the officer runtime record byte 0 is raised by the
 ;           gain (clamped at the ROM baseline, excess removed from the gain),
 ;           then state 8 (UI $B4).
@@ -4944,9 +4973,9 @@ State4_ConsumeAndRestore:
   LDA $0012                             ; $C42C: AD 12 00  ; submode
   BNE @ResetCommand                     ; $C42F: D0 F2
   JSR GetBattleSideOffset               ; $C431: 20 3E C9  ; X = side * 2
-  LDA war_stat_b_hi,X                           ; $C434: BD 27 05  ; stat B high byte
+  LDA war_gold_hi,X                           ; $C434: BD 27 05  ; gold high byte
   BNE @Deduct50                         ; $C437: D0 11
-  LDA war_stat_b_lo,X                           ; $C439: BD 26 05  ; stat B low byte
+  LDA war_gold_lo,X                           ; $C439: BD 26 05  ; gold low byte
   CMP #$32                              ; $C43C: C9 32     ; < 50 -> not enough
   BCS @Deduct50                         ; $C43E: B0 0A
   LDA #$08                              ; $C440: A9 08
@@ -4954,13 +4983,13 @@ State4_ConsumeAndRestore:
   LDA #$B0                              ; $C445: A9 B0     ; UI mode $B0
   JMP B1F_SetUI2                        ; $C447: 4C 83 F2
 @Deduct50:
-  LDA war_stat_b_lo,X                           ; $C44A: BD 26 05  ; stat B -= 50
+  LDA war_gold_lo,X                           ; $C44A: BD 26 05  ; gold -= 50
   SEC                                   ; $C44D: 38
   SBC #$32                              ; $C44E: E9 32
-  STA war_stat_b_lo,X                           ; $C450: 9D 26 05
-  LDA war_stat_b_hi,X                           ; $C453: BD 27 05
+  STA war_gold_lo,X                           ; $C450: 9D 26 05
+  LDA war_gold_hi,X                           ; $C453: BD 27 05
   SBC #$00                              ; $C456: E9 00
-  STA war_stat_b_hi,X                           ; $C458: 9D 27 05
+  STA war_gold_hi,X                           ; $C458: 9D 27 05
 @RollGain:
   JSR B1F_RandomMod16                   ; $C45B: 20 5C E8
   CMP #$0B                              ; $C45E: C9 0B     ; reroll if >= 11
@@ -5181,11 +5210,11 @@ SlotParamTable:
 ;   bit0 -> restart formation selection: $00BD = $8C, state 5 (UI $AD).
 ;   bit1 -> @ApplySelectedTile: selected tile = $044C[$0012], target offset =
 ;           slot record $042C[$0012*3]. If the target exceeds the side's
-;           stat B ($0526/$0527): $0471 = $11, state 8 (UI $B0).
+;           gold ($0526/$0527): $0471 = $11, state 8 (UI $B0).
 ;           Otherwise CheckSpecialTiles; if it handled a special tile ->
 ;           state 8, else apply the tile bits to officer record byte $0A
 ;           (masked with $0010, OR'd with $044C), subtract the target from
-;           stat B, state 8 (UI $AF).
+;           gold, state 8 (UI $AF).
 ;-------------------------------------------------------------------------------
 State7_ApplyTileEffect:
   LDA #$28                              ; $C62E: A9 28
@@ -5236,12 +5265,12 @@ State7_ApplyTileEffect:
   LDA action_result_lo,Y                           ; $C694: B9 2C 04  ; target offset high
   STA $0011                             ; $C697: 8D 11 00
   JSR GetBattleSideOffset               ; $C69A: 20 3E C9  ; X = side * 2
-  LDA war_stat_b_lo,X                           ; $C69D: BD 26 05  ; compare stat B with target
+  LDA war_gold_lo,X                           ; $C69D: BD 26 05  ; compare gold with target
   SEC                                   ; $C6A0: 38
   SBC $0010                             ; $C6A1: ED 10 00
-  LDA war_stat_b_hi,X                           ; $C6A4: BD 27 05
+  LDA war_gold_hi,X                           ; $C6A4: BD 27 05
   SBC $0011                             ; $C6A7: ED 11 00
-  BCS @CheckSpecial                     ; $C6AA: B0 0D     ; stat B >= target
+  BCS @CheckSpecial                     ; $C6AA: B0 0D     ; gold >= target
   LDA #$11                              ; $C6AC: A9 11     ; target out of reach
   STA tile_result_flag                             ; $C6AE: 8D 71 04
   INC war_scene_phase                             ; $C6B1: EE 01 05  ; state 8
@@ -5286,13 +5315,13 @@ State7_ApplyTileEffect:
   ORA tile_cell_slots                             ; $C703: 0D 4C 04  ; merge tile bits
   STA ($00),Y                           ; $C706: 91 00
   JSR GetBattleSideOffset               ; $C708: 20 3E C9  ; X = side * 2
-  LDA war_stat_b_lo,X                           ; $C70B: BD 26 05  ; stat B -= target
+  LDA war_gold_lo,X                           ; $C70B: BD 26 05  ; gold -= target
   SEC                                   ; $C70E: 38
   SBC action_result_lo                             ; $C70F: ED 2C 04
-  STA war_stat_b_lo,X                           ; $C712: 9D 26 05
-  LDA war_stat_b_hi,X                           ; $C715: BD 27 05
+  STA war_gold_lo,X                           ; $C712: 9D 26 05
+  LDA war_gold_hi,X                           ; $C715: BD 27 05
   SBC action_result_hi                             ; $C718: ED 2D 04
-  STA war_stat_b_hi,X                           ; $C71B: 9D 27 05
+  STA war_gold_hi,X                           ; $C71B: 9D 27 05
   LDA #$08                              ; $C71E: A9 08
   STA war_scene_phase                             ; $C720: 8D 01 05  ; continue in state 8
   LDA #$AF                              ; $C723: A9 AF     ; UI mode $AF
@@ -5519,7 +5548,7 @@ ExpandFormationSlots:
 ; TileOffsetTable - battle-map position offset per tile cell (32 words).
 ; Indexed by cell*2, where cell = row*8+col within the formation tile grid.
 ; The word is stored as the slot position record at $042C by
-; ExpandFormationSlots and later compared against the side stat B pair.
+; ExpandFormationSlots and later compared against the side gold pair.
 ;-------------------------------------------------------------------------------
 TileOffsetTable:
   .word $0032,$0046,$0078,$00B4,$00FA,$0000,$0000,$0000 ; $C89E: 32 00 46 00 78 00 B4 00 FA 00 00 00 00 00 00 00
@@ -5542,8 +5571,8 @@ FormationTileLayouts:
 ;-------------------------------------------------------------------------------
 ; GetBattleSideOffset - battle-side table offset in X.
 ; X = 0 when $0504 is non-negative (near side), X = 2 otherwise (far side).
-; Used to index the per-side stat pairs $0522/$0523 (stat A) and
-; $0526/$0527 (stat B). Also called from the battle command region at $C983+
+; Used to index the per-side resource pairs $0522/$0523 (rice) and
+; $0526/$0527 (gold). Also called from the battle command region at $C983+
 ; via AiOfficerActionDispatch::GetBattleSideOffset.
 ;-------------------------------------------------------------------------------
 GetBattleSideOffset:
@@ -5601,9 +5630,10 @@ ActionMarkerSprite:
 ;===============================================================================
 ; Processes cascading battle effects after combat actions resolve:
 ;   1. Accumulate damage from officer states (5→+100, 6→+50, 7→dismiss)
-;   2. Subtract total from acting side's stat B ($0526/$0527)
-;   3. If stat B underflows, remove officers by state threshold (6→5), restart
-;   4. Check opponent viability via averaged stats (@ComputeAverageStats → @TransformStatPair)
+;   2. Charge the total against the acting side's gold ($0526/$0527):
+;      state-5 (buy rice) officers cost 100 each, state-6 (restore HP) 50 each
+;   3. If gold underflows, cancel officers by state threshold (6→5), restart
+;   4. Check opponent viability via averaged stats (ComputeAverageStats → @TransformStatPair)
 ;   5. Rout/morale collapse check using reinforcement table at $9BA4
 ;
 ; Officer state low nibble ($6FA1,Y) semantics:
@@ -5612,9 +5642,9 @@ ActionMarkerSprite:
 ;   2 = attacking       6 = heavily damaged (100 pts)
 ;   3 = retreating      7 = dismissed/casualty (removed, high nibble cleared)
 ;
-; Side stat pairs (X = GetBattleSideOffset):
-;   $0522,X/$0523,X = stat A (morale/leadership, clamped 0..9999)
-;   $0526,X/$0527,X = stat B (troop strength, clamped 0..9999)
+; Side resource pairs (X = GetBattleSideOffset):
+;   $0522,X/$0523,X = remaining rice (clamped 0..9999)
+;   $0526,X/$0527,X = remaining gold
 ;
 ; Reinforcement table at $9BA4: 3 bytes per entry, indexed by $050E*3.
 ;   Entry+0: first check threshold (FF = no reinforcement available)
@@ -5623,8 +5653,8 @@ ActionMarkerSprite:
 ;
 ; Key zero-page temporaries:
 ;   $0010/$0011 = 16-bit damage accumulator (Phase 1), reused as threshold
-;   $001A/$001B = averaged ally stat A/B (from @ComputeAverageStats + @TransformStatPair)
-;   $001C/$001D = averaged enemy stat A/B (from @ComputeAverageStats + @TransformStatPair)
+;   $001A/$001B = averaged ally troop total (from ComputeAverageStats + @TransformStatPair)
+;   $001C/$001D = averaged enemy troop total (from ComputeAverageStats + @TransformStatPair)
 ;   $001E = scaling factor ($1E - $0506), used by @TransformStatPair
 ;===============================================================================
 .proc WarCasualtyResolution
@@ -5639,7 +5669,7 @@ ActionMarkerSprite:
 ;   low nibble 6 → add 50 ($0032) to damage accumulator
 ;   low nibble <5 → no damage contribution
 @AccumDamageLoop:
-  JSR @CheckFaction                       ; $C98B: 20 92 CC
+  JSR CheckFaction                        ; $C98B: 20 92 CC
   BMI @NextOfficer                        ; $C98E: 30 34
   LDA officer_state_table,Y                           ; $C990: B9 A1 6F
   AND #$0F                              ; $C993: 29 0F
@@ -5668,26 +5698,26 @@ ActionMarkerSprite:
   LDA $0011                             ; $C9BC: AD 11 00
   ADC #$00                              ; $C9BF: 69 00
   STA $0011                             ; $C9C1: 8D 11 00
-;--- Phase 2: Apply accumulated damage to acting side's stat B ---------------
-; stat B ($0526,X/$0527,X) -= damage ($0010/$0011)
-; If underflow (C=0): stat B depleted → enter Phase 3 casualty removal
-; If no underflow: stat B held → skip to Phase 4 opponent viability check
+;--- Phase 2: Charge accumulated action cost to acting side's gold ------------
+; gold ($0526,X/$0527,X) -= total ($0010/$0011)
+; If underflow (C=0): gold depleted → enter Phase 3 cancellation
+; If no underflow: gold held → skip to Phase 4 opponent viability check
 @NextOfficer:
   INY                                   ; $C9C4: C8
   CPY #$14                              ; $C9C5: C0 14
   BCC @AccumDamageLoop                    ; $C9C7: 90 C2
   JSR AiOfficerActionDispatch::GetBattleSideOffset ; $C9C9: 20 3E C9
-  LDA war_stat_b_lo,X                           ; $C9CC: BD 26 05
+  LDA war_gold_lo,X                           ; $C9CC: BD 26 05
   SEC                                   ; $C9CF: 38
   SBC $0010                             ; $C9D0: ED 10 00
-  LDA war_stat_b_hi,X                           ; $C9D3: BD 27 05
+  LDA war_gold_hi,X                           ; $C9D3: BD 27 05
   SBC $0011                             ; $C9D6: ED 11 00
   BCC @InitThreshold                      ; $C9D9: 90 03
   JMP @CheckOpponentViable                ; $C9DB: 4C 10 CA
-;--- Phase 3: Stat B depleted — remove officers by descending threshold ------
+;--- Phase 3: Gold depleted — cancel officers by descending threshold ---------
 ; Search ally officers for one with low nibble == threshold (starting at 6,
-; decrementing to 5). When found: clear high nibble (dismiss from battle),
-; then JMP back to Phase 1 entry ($C983) to recalculate damage from scratch.
+; decrementing to 5). When found: clear low nibble (idle the officer),
+; then JMP back to Phase 1 entry ($C983) to recalculate the cost from scratch.
 ; This creates a recursive loop: damage → deplete → remove → recalculate.
 ; If no officer matches at any threshold, fall through to Phase 4.
 @InitThreshold:
@@ -5696,7 +5726,7 @@ ActionMarkerSprite:
 @ThresholdLoop:
   LDY #$00                              ; $C9E3: A0 00
 @ScanForThreshold:
-  JSR @CheckFaction                       ; $C9E5: 20 92 CC
+  JSR CheckFaction                        ; $C9E5: 20 92 CC
   BMI @NextThresholdSlot                  ; $C9E8: 30 17
   LDA officer_state_table,Y                           ; $C9EA: B9 A1 6F
   AND #$0F                              ; $C9ED: 29 0F
@@ -5719,33 +5749,33 @@ ActionMarkerSprite:
   BCS @ThresholdLoop                      ; $CA0E: B0 D3
 ;--- Phase 4: Check opponent viability via averaged stats --------------------
 ; Call @ComputeScaledStats to compute averaged stats into $001A-$001D (via
-; @ComputeAverageStats + @TransformStatPair, scaled by $001E = $1E - $0506).
-; Then compare OPPONENT's stat A ($0522,X with X flipped) vs averaged ally
-; stats ($001A/$001B). If opponent stat A depleted → Phase 5 rout check.
+; ComputeAverageStats + @TransformStatPair, scaled by $001E = $1E - $0506).
+; Then compare OPPONENT's remaining rice ($0522,X with X flipped) vs averaged ally
+; troop totals ($001A/$001B). If opponent rice depleted → Phase 5 rout check.
 @CheckOpponentViable:
-  JSR @ComputeScaledStats                 ; $CA10: 20 00 CD
+  JSR ComputeScaledStats                  ; $CA10: 20 00 CD
   JSR AiOfficerActionDispatch::GetBattleSideOffset ; $CA13: 20 3E C9
-  LDA war_stat_a_lo,X                           ; $CA16: BD 22 05
+  LDA war_rice_lo,X                           ; $CA16: BD 22 05
   SEC                                   ; $CA19: 38
   SBC $001A                             ; $CA1A: ED 1A 00
-  LDA war_stat_a_hi,X                           ; $CA1D: BD 23 05
+  LDA war_rice_hi,X                           ; $CA1D: BD 23 05
   SBC $001B                             ; $CA20: ED 1B 00
   BCS @CheckOwnStatA                      ; $CA23: B0 03
   JMP @LookupReinforcement                ; $CA25: 4C 5F CA
-; Opponent stat A still viable — now check OWN side's stat A vs averaged
-; enemy stats ($001C/$001D). Flip X to own side for comparison.
-; If own stat A depleted → set scale to 5 (reduced severity), recheck with
+; Opponent rice still viable — now check OWN side's rice vs averaged
+; enemy troop totals ($001C/$001D). Flip X to own side for comparison.
+; If own rice depleted → set scale to 5 (reduced severity), recheck with
 ;   fresh offset. If still depleted → @SetFleeingOfficers (morale breaks).
-; If own stat A held → both sides viable, skip to Phase 6 (@LookupReinforcement2).
+; If own rice held → both sides viable, skip to Phase 6 (@LookupReinforcement2).
 @CheckOwnStatA:
   JSR AiOfficerActionDispatch::GetBattleSideOffset ; $CA28: 20 3E C9
   TXA                                   ; $CA2B: 8A
   EOR #$02                              ; $CA2C: 49 02
   TAX                                   ; $CA2E: AA
-  LDA war_stat_a_lo,X                           ; $CA2F: BD 22 05
+  LDA war_rice_lo,X                           ; $CA2F: BD 22 05
   SEC                                   ; $CA32: 38
   SBC $001C                             ; $CA33: ED 1C 00
-  LDA war_stat_a_hi,X                           ; $CA36: BD 23 05
+  LDA war_rice_hi,X                           ; $CA36: BD 23 05
   SBC $001D                             ; $CA39: ED 1D 00
   BCS @SkipToFallback                     ; $CA3C: B0 1E
   LDA #$05                              ; $CA3E: A9 05  ; reduced severity (scale=5 vs normal $1E-$0506)
@@ -5754,22 +5784,22 @@ ActionMarkerSprite:
   TXA                                   ; $CA46: 8A
   EOR #$02                              ; $CA47: 49 02
   TAX                                   ; $CA49: AA
-  LDA war_stat_a_lo,X                           ; $CA4A: BD 22 05
+  LDA war_rice_lo,X                           ; $CA4A: BD 22 05
   SEC                                   ; $CA4D: 38
   SBC $001C                             ; $CA4E: ED 1C 00
-  LDA war_stat_a_hi,X                           ; $CA51: BD 23 05
+  LDA war_rice_hi,X                           ; $CA51: BD 23 05
   SBC $001D                             ; $CA54: ED 1D 00
   BCS @SkipToFallback                     ; $CA57: B0 03
   JSR @SetFleeingOfficers                 ; $CA59: 20 4D CB
-; Own stat A still depleted even with reduced scaling → morale breaks.
+; Own rice still depleted even with reduced scaling → morale breaks.
 ; Set fleeing officers, then proceed to Phase 6 (@LookupReinforcement2).
 @SkipToFallback:
   JMP @LookupReinforcement2               ; $CA5C: 4C C2 CA
 ;--- Phase 5: Rout/morale check — first reinforcement table lookup ---------
-; Opponent's stat A was depleted. Look up reinforcement table at $9BA4:
+; Opponent's rice was depleted. Look up reinforcement table at $9BA4:
 ;   index = $050E * 3 (each entry is 3 bytes: ASL+ASL+ADC $0000 = *3)
 ;   entry+0 == $FF → no reinforcement, jump to @NoReinforcement (morale collapse)
-;   entry+0 != $FF → check if own stat B can sustain (high byte != 0, or
+;   entry+0 != $FF → check if own gold can sustain (high byte != 0, or
 ;     low byte >= 100). If viable, search for officer with state 5 to dismiss.
 ;     If no state-5 officer found, call @MarkOfficerByType.
 @LookupReinforcement:
@@ -5786,24 +5816,24 @@ ActionMarkerSprite:
   CMP #$FF                              ; $CA74: C9 FF
   BNE @CheckStatBSustain                  ; $CA76: D0 03
   JMP @NoReinforcement                    ; $CA78: 4C A8 CA
-; Reinforcement entry+0 is valid. Check own stat B:
-;   stat B >= $0064 (100) → can sustain, search for state-5 officer to dismiss
-;   stat B < $0064 → insufficient strength, jump to morale collapse ($CAA8)
+; Reinforcement entry+0 is valid. Check own gold:
+;   gold >= $0064 (100) → can sustain, search for state-5 officer to dismiss
+;   gold < $0064 → insufficient strength, jump to morale collapse ($CAA8)
 @CheckStatBSustain:
   JSR AiOfficerActionDispatch::GetBattleSideOffset ; $CA7B: 20 3E C9
-  LDA war_stat_b_hi,X                           ; $CA7E: BD 27 05
+  LDA war_gold_hi,X                           ; $CA7E: BD 27 05
   BNE @SearchState5                       ; $CA81: D0 0A
-  LDA war_stat_b_lo,X                           ; $CA83: BD 26 05
+  LDA war_gold_lo,X                           ; $CA83: BD 26 05
   CMP #$64                              ; $CA86: C9 64
   BCS @SearchState5                       ; $CA88: B0 03
   JMP @NoReinforcement                    ; $CA8A: 4C A8 CA
-; Stat B viable. Scan ally officers for one with low nibble == 5 (damaged).
+; Gold viable. Scan ally officers for one with low nibble == 5 (damaged).
 ; If found → fall through to @FoundState5 which JMPs to @LookupReinforcement2.
 ; If none found → call @MarkOfficerByType to force-mark by type priority.
 @SearchState5:
   LDY #$00                              ; $CA8D: A0 00
 @ScanForState5:
-  JSR @CheckFaction                       ; $CA8F: 20 92 CC
+  JSR CheckFaction                        ; $CA8F: 20 92 CC
   BMI @NextState5Slot                     ; $CA92: 30 09
   LDA officer_state_table,Y                           ; $CA94: B9 A1 6F
   AND #$0F                              ; $CA97: 29 0F
@@ -5816,19 +5846,19 @@ ActionMarkerSprite:
   JSR @MarkOfficerByType                  ; $CAA2: 20 6A CB
 @FoundState5:
   JMP @LookupReinforcement2               ; $CAA5: 4C C2 CA
-;--- Phase 5b: Morale collapse path (no reinforcement or stat B too low) ---
+;--- Phase 5b: Morale collapse path (no reinforcement or gold too low) ------
 ; Set $001E = 10 ($0A) via SetScaleFactor entry, compute averaged stats.
-; Check opponent's stat A vs averaged ally stats. If opponent still viable →
+; Check opponent's rice vs averaged ally troop totals. If opponent still viable →
 ; call @ResetAllyStates to reset all ally states 1-4 to state 1 (rally/reorganize).
 ; If opponent depleted → trigger rout via @ResetAllyStates (same effect).
 @NoReinforcement:
   LDA #$0A                              ; $CAA8: A9 0A
   JSR SetScaleFactor                      ; $CAAA: 20 06 CD
   JSR AiOfficerActionDispatch::GetBattleSideOffset ; $CAAD: 20 3E C9
-  LDA war_stat_a_lo,X                           ; $CAB0: BD 22 05
+  LDA war_rice_lo,X                           ; $CAB0: BD 22 05
   SEC                                   ; $CAB3: 38
   SBC $001A                             ; $CAB4: ED 1A 00
-  LDA war_stat_a_hi,X                           ; $CAB7: BD 23 05
+  LDA war_rice_hi,X                           ; $CAB7: BD 23 05
   SBC $001B                             ; $CABA: ED 1B 00
   BCS @LookupReinforcement2               ; $CABD: B0 03
   JSR @ResetAllyStates                    ; $CABF: 20 FE CB
@@ -5836,7 +5866,7 @@ ActionMarkerSprite:
 ; Look up reinforcement table at $9BA4, entry+4 (offset by 4 from first
 ; lookup: ASL+ASL+ADC+$04 = index*3+4).
 ;   entry+4 == $FF → skip to final check at @FinalCheck
-;   entry+4 != $FF → check own stat B >= $0032 (50). If below → @FinalCheck.
+;   entry+4 != $FF → check own gold >= $0032 (50). If below → @FinalCheck.
 ;     If viable, count ally officers with low nibble == 6 (heavily damaged).
 ;     If count >= 2 → @FinalCheck. If < 2 → process at @ProcessLowState.
 @LookupReinforcement2:
@@ -5855,19 +5885,19 @@ ActionMarkerSprite:
   CMP #$FF                              ; $CADA: C9 FF
   BEQ @FinalCheck                         ; $CADC: F0 2B
   JSR AiOfficerActionDispatch::GetBattleSideOffset ; $CADE: 20 3E C9
-  LDA war_stat_b_hi,X                           ; $CAE1: BD 27 05
+  LDA war_gold_hi,X                           ; $CAE1: BD 27 05
   BNE @CountHeavilyDamaged                ; $CAE4: D0 07
-  LDA war_stat_b_lo,X                           ; $CAE6: BD 26 05
+  LDA war_gold_lo,X                           ; $CAE6: BD 26 05
   CMP #$32                              ; $CAE9: C9 32
   BCC @FinalCheck                         ; $CAEB: 90 1C
-; Stat B >= $0032 (50). Count ally officers with low nibble == 6 (heavily
+; Gold >= $0032 (50). Count ally officers with low nibble == 6 (heavily
 ; damaged). If count >= 2 → enough presence, go to @ComputeFinalThreshold.
 ; If count < 2 → too few heavy officers, process at @ProcessLowState.
 @CountHeavilyDamaged:
   LDY #$00                              ; $CAED: A0 00
   LDX #$00                              ; $CAEF: A2 00
 @ScanState6:
-  JSR @CheckFaction                       ; $CAF1: 20 92 CC
+  JSR CheckFaction                        ; $CAF1: 20 92 CC
   BMI @NextState6Slot                     ; $CAF4: 30 0A
   LDA officer_state_table,Y                           ; $CAF6: B9 A1 6F
   AND #$0F                              ; $CAF9: 29 0F
@@ -5889,7 +5919,7 @@ ActionMarkerSprite:
   STX $0010                             ; $CB0C: 8E 10 00
   LDY #$00                              ; $CB0F: A0 00
 @ScanLowState:
-  JSR @CheckFaction                       ; $CB11: 20 92 CC
+  JSR CheckFaction                        ; $CB11: 20 92 CC
   BMI @NextLowStateSlot                   ; $CB14: 30 0C
   LDA officer_state_table,Y                           ; $CB16: B9 A1 6F
   BEQ @NextLowStateSlot                   ; $CB19: F0 07
@@ -5901,12 +5931,12 @@ ActionMarkerSprite:
   CPY #$14                              ; $CB23: C0 14
   BCC @ScanLowState                       ; $CB25: 90 EA
 ;--- Final check: averaged enemy stats vs absolute thresholds -----------
-; Compute averaged stats via @ComputeAverageStats. Then compare:
-;   averaged enemy stat A ($001C/$001D) vs $03E8 (1000): if >= → @CountAndDecrementStates
-;   averaged ally  stat A ($001A/$001B) vs $1388 (5000): if >= → @ResetAllyStates (rally)
+; Compute averaged stats via ComputeAverageStats. Then compare:
+;   averaged enemy troops ($001C/$001D) vs $03E8 (1000): if >= → @CountAndDecrementStates
+;   averaged ally  troops ($001A/$001B) vs $1388 (5000): if >= → @ResetAllyStates (rally)
 ;   otherwise → @CountAndDecrementStates (state counting/reinforcement)
 @ComputeFinalThreshold:
-  JSR @ComputeAverageStats                ; $CB27: 20 AA CC
+  JSR ComputeAverageStats                 ; $CB27: 20 AA CC
   LDA $001C                             ; $CB2A: AD 1C 00
   SEC                                   ; $CB2D: 38
   SBC #$E8                              ; $CB2E: E9 E8
@@ -5926,12 +5956,12 @@ ActionMarkerSprite:
   JMP @ResetAllyStates                    ; $CB4A: 4C FE CB
 ;=== Helper: SetFleeingOfficers ($CB4D-$CB69) ===
 ; Scan all 20 officer slots. For each ally with state 1 (active) or
-; 2 (attacking), set state to 4 (fleeing). Used when own stat A is
+; 2 (attacking), set state to 4 (fleeing). Used when own rice is
 ; depleted but recheck shows it's still viable.
 @SetFleeingOfficers:
   LDY #$00                              ; $CB4D: A0 00
 @FleeScanLoop:
-  JSR @CheckFaction                       ; $CB4F: 20 92 CC
+  JSR CheckFaction                        ; $CB4F: 20 92 CC
   BMI @NextFleeSlot                       ; $CB52: 30 10
   LDA officer_state_table,Y                           ; $CB54: B9 A1 6F
   CMP #$01                              ; $CB57: C9 01
@@ -5994,7 +6024,7 @@ ActionMarkerSprite:
   STY $0010                             ; $CB9C: 8C 10 00
   STY $0011                             ; $CB9F: 8C 11 00
 @CountLoop:
-  JSR @CheckFaction                       ; $CBA2: 20 92 CC
+  JSR CheckFaction                        ; $CBA2: 20 92 CC
   LDA officer_state_table,Y                           ; $CBA5: B9 A1 6F
   CMP #$01                              ; $CBA8: C9 01
   BNE @CheckState3                        ; $CBAA: D0 06
@@ -6031,7 +6061,7 @@ ActionMarkerSprite:
 @DecrementOfficerState:
   LDY #$00                              ; $CBDF: A0 00
 @DecScanLoop:
-  JSR @CheckFaction                       ; $CBE1: 20 92 CC
+  JSR CheckFaction                        ; $CBE1: 20 92 CC
   BMI @DecNextSlot                        ; $CBE4: 30 12
   LDA officer_state_table,Y                           ; $CBE6: B9 A1 6F
   CMP $0000                             ; $CBE9: CD 00 00
@@ -6051,7 +6081,7 @@ ActionMarkerSprite:
 @ResetAllyStates:
   LDY #$00                              ; $CBFE: A0 00
 @ResetScanLoop:
-  JSR @CheckFaction                       ; $CC00: 20 92 CC
+  JSR CheckFaction                        ; $CC00: 20 92 CC
   BMI @ResetNextSlot                      ; $CC03: 30 0E
   LDA officer_state_table,Y                           ; $CC05: B9 A1 6F
   BEQ @ResetNextSlot                      ; $CC08: F0 09
@@ -6127,7 +6157,8 @@ ActionMarkerSprite:
   LDY #$14                              ; $CC8F: A0 14
 @TransformReturn:
   RTS                                   ; $CC91: 60
-@CheckFaction:                          ; byte-identical duplicate of AiCheckFaction ($A944)
+CheckFaction:                           ; byte-identical duplicate of AiCheckFaction ($A944)
+; Bare global: called from several cheap-local scopes ($C98B..$CCE0).
   LDA war_side_flag                             ; $CC92: AD 04 05
   BMI @FactionNear                        ; $CC95: 30 08
   LDA unit_army_array,Y                           ; $CC97: B9 28 06
@@ -6143,11 +6174,12 @@ ActionMarkerSprite:
   LDA #$80                              ; $CCA7: A9 80
   RTS                                   ; $CCA9: 60
 ;=== Helper: ComputeAverageStats ($CCAA-$CCFF) ===
-; Sum stat A (bytes 8-9) and stat B (bytes 8-9 at offset $08) from all
+; Sum officer troop counts (record bytes 8-9) from all
 ; officer records ($0664 slot table → $F2D7 record lookup). Accumulates
 ; separately for allies ($001A/$001B) and enemies ($001C/$001D) based on
 ; faction check via $CC92. X selects pair: X=0 → ally accum, X=2 → enemy.
-@ComputeAverageStats:
+; Bare global: called from two cheap-local scopes ($CB27 and $CD09).
+ComputeAverageStats:
   LDY #$31                              ; $CCAA: A0 31
   JSR B1F_SwitchBank8_B                             ; $CCAC: 20 5F F2
   LDY #$00                              ; $CCAF: A0 00
@@ -6173,7 +6205,7 @@ ActionMarkerSprite:
   PLA                                   ; $CCDC: 68
   TAY                                   ; $CCDD: A8
   LDX #$00                              ; $CCDE: A2 00
-  JSR @CheckFaction                       ; $CCE0: 20 92 CC
+  JSR CheckFaction                        ; $CCE0: 20 92 CC
   BPL @AvgAccumulate                      ; $CCE3: 10 02
   LDX #$02                              ; $CCE5: A2 02
 @AvgAccumulate:
@@ -6195,13 +6227,14 @@ ActionMarkerSprite:
 ; Calls $CCAA to accumulate raw stats, then applies $CD43 coordinate
 ; transform to both ally ($001A/$001B) and enemy ($001C/$001D) averages.
 ; Result: scaled/averaged stat values ready for comparison.
-@ComputeScaledStats:
+; Bare global: called from .proc WarCasualtyResolution ($CA10).
+ComputeScaledStats:
   LDA #$1E                              ; $CD00: A9 1E
   SEC                                   ; $CD02: 38
   SBC war_round_counter                             ; $CD03: ED 06 05
 SetScaleFactor:
   STA $001E                             ; $CD06: 8D 1E 00
-  JSR @ComputeAverageStats                ; $CD09: 20 AA CC
+  JSR ComputeAverageStats                 ; $CD09: 20 AA CC
   LDA $001A                             ; $CD0C: AD 1A 00
   STA $0000                             ; $CD0F: 8D 00 00
   LDA $001B                             ; $CD12: AD 1B 00
@@ -6259,8 +6292,8 @@ SetScaleFactor:
 ;   2. Damage roll with scale factor $001E = $01 via ComputeScaledStats
 ;      ($CD06): per-round losses from each army's averaged troop strength
 ;      (ally roll in $001A/$001B, enemy roll in $001C/$001D)
-;   3. Side B stat A ($0524/$0525) -= ally roll; zero -> ally-side outcome
-;   4. Side A stat A ($0522/$0523) -= enemy roll; zero -> enemy-side outcome
+;   3. Side B rice ($0524/$0525) -= ally roll; zero -> ally-side outcome
+;   4. Side A rice ($0522/$0523) -= enemy roll; zero -> enemy-side outcome
 ;   5. Both armies survive: formation slot attrition passes over $0650,
 ;      special officer $6D handling (troop damage + banked record update),
 ;      then 5-slot action timers at $04DB expire into flags at $04D8
@@ -6309,46 +6342,46 @@ special_officer_idx    = $052F  ; special officer roster index
 @ProcessRound:
   LDA #$01                              ; $CD8C: A9 01
   JSR WarCasualtyResolution::SetScaleFactor ; $CD8E: 20 06 CD
-; Side B stat A ($0524/$0525) -= ally roll; underflow or zero means that
+; Side B rice ($0524/$0525) -= ally roll; underflow or zero means that
 ; army is annihilated -> result code $80, ally-side outcome branch.
-  LDA war_stat_a_lo+2                             ; $CD91: AD 24 05
+  LDA war_rice_lo+2                             ; $CD91: AD 24 05
   SEC                                   ; $CD94: 38
   SBC $001A                             ; $CD95: ED 1A 00
-  STA war_stat_a_lo+2                             ; $CD98: 8D 24 05
-  LDA war_stat_a_hi+2                             ; $CD9B: AD 25 05
+  STA war_rice_lo+2                             ; $CD98: 8D 24 05
+  LDA war_rice_hi+2                             ; $CD9B: AD 25 05
   SBC $001B                             ; $CD9E: ED 1B 00
-  STA war_stat_a_hi+2                             ; $CDA1: 8D 25 05
+  STA war_rice_hi+2                             ; $CDA1: 8D 25 05
   BCC @SideBAnnihilated                 ; $CDA4: 90 0A
-  LDA war_stat_a_lo+2                             ; $CDA6: AD 24 05
+  LDA war_rice_lo+2                             ; $CDA6: AD 24 05
   BNE @ApplySideALosses                 ; $CDA9: D0 15
-  LDA war_stat_a_hi+2                             ; $CDAB: AD 25 05
+  LDA war_rice_hi+2                             ; $CDAB: AD 25 05
   BNE @ApplySideALosses                 ; $CDAE: D0 10
 @SideBAnnihilated:
   LDA #$00                              ; $CDB0: A9 00
-  STA war_stat_a_lo+2                             ; $CDB2: 8D 24 05
-  STA war_stat_a_hi+2                             ; $CDB5: 8D 25 05
+  STA war_rice_lo+2                             ; $CDB2: 8D 24 05
+  STA war_rice_hi+2                             ; $CDB5: 8D 25 05
   LDA #$80                              ; $CDB8: A9 80
   STA $0000                             ; $CDBA: 8D 00 00
   JMP @AllySideOutcome                  ; $CDBD: 4C AB CE
-; Side A stat A ($0522/$0523) -= enemy roll; zero means that army is
+; Side A rice ($0522/$0523) -= enemy roll; zero means that army is
 ; annihilated -> enemy-side outcome branch.
 @ApplySideALosses:
-  LDA war_stat_a_lo                             ; $CDC0: AD 22 05
+  LDA war_rice_lo                             ; $CDC0: AD 22 05
   SEC                                   ; $CDC3: 38
   SBC $001C                             ; $CDC4: ED 1C 00
-  STA war_stat_a_lo                             ; $CDC7: 8D 22 05
-  LDA war_stat_a_hi                             ; $CDCA: AD 23 05
+  STA war_rice_lo                             ; $CDC7: 8D 22 05
+  LDA war_rice_hi                             ; $CDCA: AD 23 05
   SBC $001D                             ; $CDCD: ED 1D 00
-  STA war_stat_a_hi                             ; $CDD0: 8D 23 05
+  STA war_rice_hi                             ; $CDD0: 8D 23 05
   BCC @SideAAnnihilated                 ; $CDD3: 90 0A
-  LDA war_stat_a_lo                             ; $CDD5: AD 22 05
+  LDA war_rice_lo                             ; $CDD5: AD 22 05
   BNE @BothSidesSurvive                 ; $CDD8: D0 10
-  LDA war_stat_a_hi                             ; $CDDA: AD 23 05
+  LDA war_rice_hi                             ; $CDDA: AD 23 05
   BNE @BothSidesSurvive                 ; $CDDD: D0 0B
 @SideAAnnihilated:
   LDA #$00                              ; $CDDF: A9 00
-  STA war_stat_a_lo                             ; $CDE1: 8D 22 05
-  STA war_stat_a_hi                             ; $CDE4: 8D 23 05
+  STA war_rice_lo                             ; $CDE1: 8D 22 05
+  STA war_rice_hi                             ; $CDE4: 8D 23 05
   JMP @EnemySideOutcome                 ; $CDE7: 4C 06 CF
 ; --- Both armies survive the round ---------------------------------------------
 ; Pass 1: decrement low-nibble counters of every occupied formation slot.
@@ -6382,7 +6415,7 @@ special_officer_idx    = $052F  ; special officer roster index
   STA $000A                             ; $CE16: 8D 0A 00
   LDY #$2E                              ; $CE19: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $CE1B: 20 07 EE
-  .word $A006                           ; $CE1E: 06 A0  ; inline banked target
+  .word B0E_0F_OfficerBattleExpLevelCheck_Entry ; $CE1E: 06 A0  ; inline banked target
 @ExpireActionTimers:
 ; Decrement the 5 action timers at $04DB-$04DF ($FF = inactive). A timer
 ; that reaches zero marks its slot in $04D8-$04DC as expired ($FF).
@@ -6475,7 +6508,7 @@ special_officer_idx    = $052F  ; special officer roster index
   TAY                                   ; $CEA7: A8
   JMP @SlotNext                         ; $CEA8: 4C 5A CE
 ;=== Outcome: ally-side branch ($CEAB-$CF05) ===
-; Reached when side B stat A ($0524/$0525) is depleted or the round limit is
+; Reached when side B rice ($0524/$0525) is depleted or the round limit is
 ; hit. Records the outcome officer (11th roster slot), then sets the outcome
 ; variables and selects side via $0514 = 1.
 @AllySideOutcome:
@@ -6527,7 +6560,7 @@ special_officer_idx    = $052F  ; special officer roster index
   STA war_side_selector                             ; $CF02: 8D 14 05
   RTS                                   ; $CF05: 60
 ;=== Outcome: enemy-side branch ($CF06-$CF5F) ===
-; Reached when side A stat A ($0522/$0523) is depleted. Records the outcome
+; Reached when side A rice ($0522/$0523) is depleted. Records the outcome
 ; officer (1st roster slot), inspects ruler B's record, and selects side via
 ; $0514 = 0.
 @EnemySideOutcome:
@@ -6643,8 +6676,8 @@ special_officer_idx    = $052F  ; special officer roster index
 ;      digit at ($10,$D8).
 ;   5. Selected side's strength as a 4-digit BCD number at Y = $40 with
 ;      leading-zero suppression ($0011 counts digits already drawn):
-;      $005E bit6 clear -> stat A pair ($0522/$0523 = side 0,
-;      $0524/$0525 = side 1); bit6 set -> stat B pair ($0526/$0527 or
+;      $005E bit6 clear -> rice pair ($0522/$0523 = side 0,
+;      $0524/$0525 = side 1); bit6 set -> gold pair ($0526/$0527 or
 ;      $0528/$0529). $0504 bit7 (attacker flag) selects side 1 when set.
 ;      Digit columns: thousands X=$D0, hundreds X=$D8, tens X=$E0,
 ;      ones X=$E8.
@@ -6741,7 +6774,7 @@ special_officer_idx    = $052F  ; special officer roster index
   LDY #$D8                              ; $D05F: A0 D8
   STY $000C                             ; $D061: 8C 0C 00  ; X = $D8
   JSR @DrawDigit                        ; $D064: 20 26 D1
-; --- Strength value: stat A (bit6 clear) or stat B (bit6 set) -----------------
+; --- Strength value: rice (bit6 clear) or gold (bit6 set) -----------------
 ; $0504 bit7 (attacker flag) selects side 1 (X=2) instead of side 0 (X=0).
   LDA $005E                             ; $D067: AD 5E 00  ; display flags
   AND #$40                              ; $D06A: 29 40     ; panel mode bit
@@ -6751,9 +6784,9 @@ special_officer_idx    = $052F  ; special officer roster index
   BPL @LoadStatA                        ; $D073: 10 02
   LDX #$02                              ; $D075: A2 02     ; side 1 stat pair
 @LoadStatA:
-  LDA war_stat_a_lo,X                           ; $D077: BD 22 05  ; stat A lo
+  LDA war_rice_lo,X                           ; $D077: BD 22 05  ; rice lo
   STA $0001                             ; $D07A: 8D 01 00  ; BCD input lo
-  LDA war_stat_a_hi,X                           ; $D07D: BD 23 05  ; stat A hi
+  LDA war_rice_hi,X                           ; $D07D: BD 23 05  ; rice hi
   STA $0002                             ; $D080: 8D 02 00  ; BCD input mid
   LDA #$00                              ; $D083: A9 00
   STA $0003                             ; $D085: 8D 03 00  ; BCD input hi
@@ -6769,9 +6802,9 @@ special_officer_idx    = $052F  ; special officer roster index
   BPL @StatBSelected                    ; $D09D: 10 02
   LDX #$02                              ; $D09F: A2 02     ; side 1 stat pair
 @StatBSelected:
-  LDA war_stat_b_lo,X                           ; $D0A1: BD 26 05  ; stat B lo
+  LDA war_gold_lo,X                           ; $D0A1: BD 26 05  ; gold lo
   STA $0001                             ; $D0A4: 8D 01 00  ; BCD input lo
-  LDA war_stat_b_hi,X                           ; $D0A7: BD 27 05  ; stat B hi
+  LDA war_gold_hi,X                           ; $D0A7: BD 27 05  ; gold hi
   STA $0002                             ; $D0AA: 8D 02 00  ; BCD input mid
   LDA #$00                              ; $D0AD: A9 00
   STA $0003                             ; $D0AF: 8D 03 00  ; BCD input hi
@@ -7949,7 +7982,7 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   LDY #$39                              ; $D8AD: A0 39     ; bank pair param
   JSR B1F_BankedCallbackTrampoline      ; $D8AF: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                           ; $D8B2: 00 A0
+  .word B19_1A_OfficerCardRender_Entry  ; $D8B2: 00 A0
   JSR WarResultReadyCheck            ; $D8B4: 20 FE DA
   BCC @Wait                             ; $D8B7: 90 2A     ; scene not ready
   JSR WarResultCursorSpriteDraw      ; $D8B9: 20 D9 DA
@@ -7987,7 +8020,7 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   LDY #$39                              ; $D8F1: A0 39     ; bank pair param
   JSR B1F_BankedCallbackTrampoline      ; $D8F3: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                           ; $D8F6: 00 A0
+  .word B19_1A_OfficerCardRender_Entry  ; $D8F6: 00 A0
   LDA $0087                             ; $D8F8: AD 87 00  ; battle-continue flag
   BPL @Exit                             ; $D8FB: 10 08
   LDA #$01                              ; $D8FD: A9 01
@@ -8032,7 +8065,7 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   LDY #$39                              ; $D92D: A0 39     ; bank pair param
   JSR B1F_BankedCallbackTrampoline      ; $D92F: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word $A000                           ; $D932: 00 A0
+  .word B19_1A_OfficerCardRender_Entry  ; $D932: 00 A0
   LDA result_cursor_y                             ; $D934: AD 0D 04  ; pending-selection flag
   CMP #$FF                              ; $D937: C9 FF
   BEQ @StepMenu                         ; $D939: F0 09     ; none: step the menu

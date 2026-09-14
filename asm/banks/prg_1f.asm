@@ -2946,12 +2946,16 @@ SpriteOamWriterScroll_NoInit:
 ; Converts sprite data at ($00) directly to OAM
 ; Input: $00/$01 = sprite data ptr, $02 = flip flags
 ;        $0A = X base, $0C = Y base, $007C = OAM slot
+; Mid-entry $F1B7 (B1F_SpriteOamWriterSimple_NoInit): skips the $0003/$0004
+; init; caller must preset $0003 (tile bias) and $0004 (X clip min, write
+; only sprites with screen X >= $0004).
 ;===============================================================================
 .proc SpriteOamWriterSimple
   LDA #$00                                      ; $F1AD: A9 00
   STA $0003                                     ; $F1AF: 8D 03 00
   LDA #$00                                      ; $F1B2: A9 00
   STA $0004                                     ; $F1B4: 8D 04 00
+SpriteOamWriterSimple_NoInit:
   LDY #$00                                      ; $F1B7: A0 00
   LDX addr_sprite_count                         ; $F1B9: AE 7C 00
 @main_loop:
@@ -3612,7 +3616,7 @@ MetaTileData:
 NmiDispatchTable:
   .word NmiState0_Idle, NmiState0_Idle          ; $F87B: states 0,1
   .word NmiState2_MapScreen, NmiState3_Battle   ; $F87F: states 2,3
-  .word NmiState4_Menu, NmiState5_Intrigue     ; $F883: states 4,5
+  .word NmiState4_Menu, NmiState5_Duel        ; $F883: states 4,5
   .word NmiState6_Event, NmiState7_Strategy     ; $F887: states 6,7
   .word NmiState8_Officer                       ; $F88B: state 8
 .endproc
@@ -3672,7 +3676,7 @@ NmiDispatchTable:
   JSR B1D_1E_MenuRenderer                       ; $F8E7: 20 3F A0  Menu renderer (bank $1D)
   LDY #$3B                                      ; $F8EA: A0 3B
   JSR SwitchBankAC_B                            ; $F8EC: 20 37 F2
-  JSR $A000                                     ; $F8EF: 20 00 A0
+  JSR B19_1A_OverlayStripRender_Entry           ; $F8EF: 20 00 A0
   JSR RestorePlayerPointers                     ; $F8F2: 20 BF FA
   JSR SpriteClearFromIndex                      ; $F8F5: 20 30 E8
   JSR WaitVBlank                                ; $F8F8: 20 28 FB
@@ -3709,7 +3713,7 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                        ; $F93D: 20 A9 FA
   LDY #$39                                      ; $F940: A0 39
   JSR SwitchBankAC_B                            ; $F942: 20 37 F2
-  JSR $A00F                                     ; $F945: 20 0F A0
+  JSR B19_1A_ExchangeMarchCutscene              ; $F945: 20 0F A0  ; war exchange marching cutscene
   LDY #$2C                                      ; $F948: A0 2C
   JSR SwitchBankAC_B                            ; $F94A: 20 37 F2
   JSR B0C_0D_ExchangeFrameUpdate_Entry          ; $F94D: 20 00 A0  Exchange frame update (bank $0C)
@@ -3742,14 +3746,16 @@ NmiDispatchTable:
   JSR CalcScrollAddr                            ; $F98C: 20 62 FF
   LDY #$2E                                      ; $F98F: A0 2E
   JSR SwitchBankAC_B                            ; $F991: 20 37 F2
-  JSR $A000                                     ; $F994: 20 00 A0
+  JSR B19_1A_OverlayStripRender_Entry           ; $F994: 20 00 A0
   JSR SpriteClearFromIndex                      ; $F997: 20 30 E8
   JSR WaitVBlank                                ; $F99A: 20 28 FB
   JMP NmiEpilogue                               ; $F99D: 4C 8D F8
 .endproc
 
-;--- $F9A0: VBlank handler - intrigue (策略) ---
-.proc NmiState5_Intrigue
+;--- $F9A0: VBlank handler - Tactical Mode frame; runs the Duel Mode
+; dispatcher (DuelModeDispatch, 一騎討ち) from bank $17/$18 each frame.
+; Entered when State_TacticalMode sets addr_sub_state = 5.
+.proc NmiState5_Duel
   JSR NmiSubDispatch                            ; $F9A0: 20 53 EE
   JSR ChrBankSwitch                             ; $F9A3: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $F9A6: 20 0B FB
@@ -3767,7 +3773,7 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                        ; $F9C5: 20 A9 FA
   LDY #$37                                      ; $F9C8: A0 37
   JSR SwitchBankAC_B                            ; $F9CA: 20 37 F2
-  JSR B17_18_MainGameDispatch                   ; $F9CD: 20 1B A0  Main game dispatch (bank $17)
+  JSR B17_18_DuelModeDispatch                   ; $F9CD: 20 1B A0  Duel mode dispatch (bank $17)
   LDY #$3D                                      ; $F9D0: A0 3D
   JSR SwitchBankAC_B                            ; $F9D2: 20 37 F2
   JSR B1D_1E_MenuUpdate                         ; $F9D5: 20 03 A0  Menu update (bank $1D)
@@ -4580,6 +4586,6 @@ IrqMode7_Exit:
 ; $FFFA-$FFFF: 6502 Interrupt Vectors
 ;===============================================================================
   .addr NmiHandler                              ; $FFFA: 00 F8 (NMI -> $F800)
-  .addr $E000                                   ; $FFFC: 00 E0 (RESET -> $E000)
+  .addr Reset                                   ; $FFFC: 00 E0 (RESET -> $E000)
   .addr IrqHandler                              ; $FFFE: 2D FB (IRQ -> $FB2D)
 
