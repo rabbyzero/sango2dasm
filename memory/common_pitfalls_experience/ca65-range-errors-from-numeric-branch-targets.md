@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** c712d7bc-2d87-4298-ba5a-7eed996e6871
 - **Keywords:** ca65 range error, numeric branch target, bank assembly, byte-exact verify, linker config
-- **Usage scenarios:**
-  - Assembling prg bank files standalone for byte-exact verification
-  - Decoding new raw .byte blobs into instructions in bank files
-  - Fixing disassembly build errors before applying code-analysis edits
 
 ## Content
 

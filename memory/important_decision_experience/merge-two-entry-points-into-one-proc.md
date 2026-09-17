@@ -3,8 +3,6 @@
 - **Category:** important_decision_experience
 - **Memory ID:** 7e8c1abf-0930-4d2a-bde1-fd1d4fc150e4
 - **Keywords:** assembly, entry point, proc merge, disassembly
-- **Usage scenarios:**
-  - Combining two assembly procedures that share code and entry points
 
 ## Content
 

@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 0447754b-c08b-406f-81e1-82e85953c923
 - **Keywords:** ROM byte drift, data table restructuring, byte-exact verification, tile ID ordering
-- **Usage scenarios:**
-  - Refactoring data tables in NES disassembly projects
-  - When byte-exact verification fails after code changes
-  - Restructuring icon/sprite tile tables with non-monotonic IDs
 
 ## Content
 

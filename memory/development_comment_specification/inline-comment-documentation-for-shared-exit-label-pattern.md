@@ -3,9 +3,6 @@
 - **Category:** development_comment_specification
 - **Memory ID:** 4aab0515-b6f0-4d7e-a8c5-f1955b65b333
 - **Keywords:** inline comments, label scoping, shared exit, ca65, documentation
-- **Usage scenarios:**
-  - Documenting ca65 label scoping constraints in assembly files
-  - Adding inline explanations for bare-global label patterns
 
 ## Content
 

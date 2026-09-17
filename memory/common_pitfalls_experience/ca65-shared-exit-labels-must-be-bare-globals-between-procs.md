@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 1851c9dc-0aea-4f97-8434-fff1b2a99bb8
 - **Keywords:** ca65, label scoping, .proc, cross-proc reference, cheap-local labels, shared exit
-- **Usage scenarios:**
-  - Refactoring raw .byte regions into semantic procs with shared RTS
-  - Debugging undefined symbol errors for cross-proc label references
-  - Resolving cheap-local label scope truncation by bare labels
 
 ## Content
 

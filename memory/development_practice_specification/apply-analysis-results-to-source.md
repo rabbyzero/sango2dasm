@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** 838ee8b2-0b70-40bd-9757-9b70f59d69ec
 - **Keywords:** source update, label renaming, comment update
-- **Usage scenarios:**
-  - Finalizing an analysis task
-  - Updating disassembled code after verification
-  - Maintaining source truth in disassembly projects
 
 ## Content
 

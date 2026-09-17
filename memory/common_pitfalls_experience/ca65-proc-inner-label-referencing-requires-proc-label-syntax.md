@@ -3,9 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** e550186b-0534-4cb7-bfcf-3df093db45ac
 - **Keywords:** ca65, .proc, scope resolution, JSR, assembly
-- **Usage scenarios:**
-  - Referencing a label inside a .proc from outside fails with undefined symbol error
-  - Migrating a routine to .proc breaks existing JSR calls
 
 ## Content
 

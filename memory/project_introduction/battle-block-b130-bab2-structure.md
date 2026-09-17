@@ -1,0 +1,9 @@
+# Battle block $B130-$BAB2 structure in prg_08_09.asm
+
+- **Category:** project_introduction
+- **Memory ID:** 06a92df9-76c8-4444-affb-b8eab22304d1
+- **Keywords:** BattleSetup, BattleResultProcess, GetTileTerrain, terrain tables, formation data, prg_08_09
+
+## Content
+
+In prg_08_09.asm, $B130-$BAB2 was fully analyzed and restructured (byte-exact verified, tools/verify_b130_bab2.py harness): BattleSetup (.proc, $B130-$B468, $A003 dispatch) clears $6FA1/$6FC9, reads faction pair from $0507, and per at-war faction (record byte 3 == $03) nests @CountAndSortUnits, @DeploySideUnits, @SetupDefenderRoster/@SetupAttackerRoster, @SwapUnitPair, plus packed-nibble @FormationData. Helpers: GetProvinceRuntimePtr ($B469, $6000+A*32), GetFactionRecordPtr ($B4C2, $6F07+idx*8 via FactionRecordPtrTable). Math/RNG block $B536-$B6E4 verified: Div24Bit ($B536, restoring 24-bit long division, quotient ($20,$21,$22), remainder ($25,$26,$27)), Mul24x8 ($B585, shift-add; consumes multiplier $23 and multiplicand ($20,$21,$22), result ($26,$27,$28)), NextRandomByte ($B5D5, cursor $6F92 never reset so it wraps). RandomTable ($B5E5-$B6E4) is ONE 256-byte permutation of $00-$FF, byte-identical to B1F's RandomTable at $E8BA; the old "Data_B682 unreferenced data" label was WRONG — bytes 157-255 are the table tail reachable via the wrapping 8-bit cursor (merged into RandomTable). BattleResultProcess (.proc $B933-$BAB2, $6F8B==$01 phase) resolves one battle strike (damage to officer record bytes 8/9, result in $042C-$042D) and sets $6F8B=$FF. GetTileTerrainClamped wraps nested @GetTileTerrain ($B6E5): quadrant from ($0020,$0021), zone byte via ($00A8), TileBankTable ($B8BB, 120 bytes) selects bank, TerrainMapPtrTable ($B7CB, 120 words) gives 16x16 map, TileTerrainTable ($B74B, 128 bytes) converts tile->terrain. Region $A000-$B6E5 verified byte-exact via tools/tmp_verify_b536.py harness.

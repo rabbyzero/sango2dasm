@@ -1,6 +1,6 @@
 # Battle AI Decision Tree — prg_0e_0f.asm
 
-Decision-tree summary of the AI battle model in `asm/banks/prg_0e_0f.asm` (battle overlay bank pair, banks $0E/$0F). Companion to `code/tactical_ai_decision_tree.md`, which covers the war-layer AI in `prg_08_09.asm` (AiTurnProcess); this document covers the **Battle Mode** side director: the per-round-pass AI that assigns battle orders, evaluates routs, and spends tactic points.
+Decision-tree summary of the AI battle model in `asm/banks/prg_0e_0f.asm` (battle overlay bank pair, banks $0E/$0F). Companion to `code/tactical_ai_decision_tree.md`, which covers the war-layer AI in `prg_08_09.asm` (AiTurnProcess), and to `code/strategy_ai_decision_tree.md` (strategy-layer AI, `prg_0a_0b.asm`) and `code/duel_ai_decision_tree.md` (one-on-one duel AI, `prg_17_18.asm`); this document covers the **Battle Mode** side director: the per-round-pass AI that assigns battle orders, evaluates routs, and spends tactic points.
 
 All addresses are ROM addresses ($D0xx region lives in the fixed/$C000-mapped half of the bank pair). RAM names follow the `btl_*` equates documented in `code/prg_0e_0f_ram_map.md`.
 

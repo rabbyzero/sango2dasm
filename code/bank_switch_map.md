@@ -214,9 +214,9 @@ banks **$00/$03/$04/$05** hold the 16x16 terrain detail maps.
 
 - Slot A: $10 x16 (record/province data across the AI turn:
   ScanMatchData, FindBestEnemyProvince, InitNewGameContext,
-  EvalProvinceAbsorption, AiTurnDispatch, CalcActionProb,
+  EvalProvinceAbsorption, AiAction_DomesticTurn, CalcActionProb,
   OfficerSearchAndEvaluate, FindBestOfficerByCategory,
-  CountValidPlayerProvinces, CollectEnemyProvinces/X, BuildAdjacencyBitmap),
+  CountDefendedBorderProvinces, CollectEnemyBorderProvinces/X, BuildAdjacencyBitmap),
   $11 x2 (EvaluateAndMarkOfficer, ReadBankedRecordField).
 - Slot B: $01 (Y=$21) for StateSpriteAnim and DrawSelectionSprites
   (sprite/animation data).

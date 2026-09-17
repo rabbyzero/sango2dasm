@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 4ecf05ed-e8da-4a65-91bc-428e93b8350d
 - **Keywords:** SearchReplace, whitespace mismatch, branch comments, column alignment, transform_branches.py
-- **Usage scenarios:**
-  - Performing text replacement in assembly files with fixed-column formatting
-  - Debugging SearchReplace failures due to whitespace mismatches
-  - Working on assembly files with transform_branches.py legacy padding
 
 ## Content
 

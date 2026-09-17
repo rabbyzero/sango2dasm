@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** abf5b70d-38ed-4775-aa6f-b2cc43f9ec4b
 - **Keywords:** state machine, dispatch, semantic naming, assembly labeling
-- **Usage scenarios:**
-  - Renaming raw address labels in PRG assembly files
-  - Defining new state machine entry points in 6502 code
-  - Refactoring legacy labels to improve code readability
 
 ## Content
 

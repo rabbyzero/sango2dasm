@@ -82,7 +82,7 @@ Writes to `$6000-$7FFF` are gated by the Namco-163 write-protect register at
 | `$000A-$000D`  | OAM/strip writer param quad       | X, X-hi, Y, Y-hi (or buffer ptr hi) for the overlay strip/OAM writers; `banked_work0-2` in `prg_1d_1e`; graphic/base pointer pair in `prg_1f`; BCD digit pairs `$000B/$000C` in the `prg_1f` math library |
 | `$0010-$0013`  | tile/stream workspace             | `tile_ptr_lo/hi` `$0010/$0011`, `cmd_byte` `$0012` (menu data-stream command), `vram_tmp_lo` `$0013` (`prg_1d_1e`); menu ptr lo/hi + result in the `prg_1f` MenuStep ABI; cursor/list pointers in other banks |
 | `$0020-$0029`  | math accumulator workspace        | `prg_0a_0b` mirror of the bank-`$1F` math ABI, shifted by `$20`: `Multiply32` (`$D438`) 24-bit multiplicand `$0020-$0022` × byte `$0023` → 32-bit product `$0026-$0029`; `Divide16` (`$D40F`) dividend `$0021/$0022` ÷ divisor `$0023/$0024` → quotient `$0021/$0022`, remainder `$0025/$0026`. Named `math_acc_lo/mlo/mhi/hi`, `math_ext`, `math_temp1-3`. `($20)` and `($22)` double as province/officer record pointers |
-| `$0036-$0045`  | shared search/work area           | `work_outer_idx` `$0036`, `work_inner_idx` `$0037`, `work_inner_idx2` `$0038`, `work_sub_idx` `$0039`, `work_limit_a/b` `$003A/$003B`, `work_temp_0-2` `$003C-$003E`, `work_record_idx/val` `$003F/$0040`, `work_search_result` `$0041`, `work_search_max` `$0045` (`prg_0a_0b` strategy AI; reused as function params elsewhere). `$0038-$0043` is also the parameter block for the `$6F8B` strategy-layer mailbox |
+| `$0036-$0045`  | shared search/work area           | `work_outer_idx` `$0036`, `work_inner_idx` `$0037`, `work_inner_idx2` `$0038`, `work_sub_idx` `$0039`, `work_limit_a/b` `$003A/$003B`, `work_temp_0-2` `$003C-$003E`, `work_record_idx/val` `$003F/$0040`, `work_search_result` `$0041`, `work_ref_officer_prov` `$0045` (`prg_0a_0b` strategy AI; province holding the ($EE) officer, excluded from transfer scans; reused as function params elsewhere). `$0038-$0043` is also the parameter block for the `$6F8B` strategy-layer mailbox |
 | `$004E-$004F`  | `addr_dispatch_ptr(_h)`           | Indirect jump target for state dispatch (`prg_1f`, kernel) |
 | `$0050-$0055`  | RNG cells                         | `addr_rng_index` `$0050`, `addr_rng_saved_x` `$0051`, variant indexes `$0052-$0055`; `$0050/$0052/$0054/$0055` are advanced every NMI so the sequence depends on frame timing |
 | `$0058-$005D`  | BankedCallbackTrampoline ABI      | saved bank `$0058`, return addr `$0059/$005A`, target addr `$005B/$005C`, bank param `$005D` |
@@ -345,8 +345,8 @@ Accessor `B1F_GetOfficerRecordAddr` (`prg_1f.asm` `$F2D7`): `A` = officer id,
 result `($0000/$0001) = id * 12 + $63C0`. The ROM master table is fetched by
 `GetOfficerRomRecordAddr` (`$F387`), which maps PRG bank `$31` at `$8000` and
 computes `id * 12 + $8000` — the SRAM block is initialised from it at new game.
-`prg_0a_0b` `ReadRecordField` (`$D283`, alt entry `$D2AB` using `($22)`) reads
-individual fields.
+`prg_0a_0b` `GetOfficerRecordField` (`$D283`, alt entry `$D2AB` using `($22)`) reads
+individual fields: `A` = officer id, `Y` = field offset.
 
 | Offset | Meaning |
 |--------|---------|
@@ -389,10 +389,10 @@ officer's decoded starting record.
 
 | Address | Name(s) | Meaning |
 |---------|---------|---------|
-| `$6F00` | `sram_game_year` (0a_0b) | Calendar year − 100 (display year = `$6F00+$64`; prg_19_1a `$B9C5`/`$C3EC`); new game seeds `$59` = year 189 (prg_1d_1e `$DE59`); AI expansion readiness gate in 0a_0b `CountryExpansionCheck` (`>= $5A` = year 190+); attract demo reuses it as the demo year tick (`INC` at prg_19_1a `$A062`) |
+| `$6F00` | `sram_game_year` (0a_0b) | Calendar year − 100 (display year = `$6F00+$64`; prg_19_1a `$B9C5`/`$C3EC`); new game seeds `$59` = year 189 (prg_1d_1e `$DE59`); AI expansion readiness gate in 0a_0b `AiAction_ExpandProvinces` (`>= $5A` = year 190+); attract demo reuses it as the demo year tick (`INC` at prg_19_1a `$A062`) |
 | `$6F01` | `sram_game_month` (0a_0b) | Calendar month − 1 (display month = `$6F01+1`); drives AI seasonal actions in 0a_0b (reinforce troops when raw 3–7 = April–August, else supplies); level-1 expansion gate (`>= 6` = July+); attract demo rotation step reuse |
 | `$6F02` | `sram_game_level` (0a_0b) | Game level 0-2, selected at new game start; demo scratch `result_kingdom_idx` latch in 08_09 |
-| `$6F03` | `sram_player_id` | Current player country slot / ruler id |
+| `$6F03` | `sram_current_country` | Current acting country id (whose turn/AI action is running; the human country during human turns) |
 | `$6F04-$6F06` | — | attract-demo scratch: frame divider, Province count display value, camera-focus phase flag |
 | `$6F05` | — | SRAM game-state flag (0 = no game, ≥1 = in progress; clamped); also AI budget seed (`$6F5D = $6F05 * 10`, max 130) |
 | `$6F07-$6F3E` | `faction_records` / `sram_country_data` | Country records, 7 countries × 8 bytes (stride 8): slots at `$6F07,$6F0F,$6F17,$6F1F,$6F27,$6F2F,$6F37`, resolved by `B1F_GetCountryDataPtr` (`prg_1f` `$F368`) via `CountryDataPtrTable` (`$F379`). Record byte `[0]` = Ruler id (`$FF` = empty), `[1]` = home Province, `[3]` = status/alliance byte (`$6F0A` + stride 8) |
@@ -404,9 +404,9 @@ officer's decoded starting record.
 | `$6F47-$6F6E` | `reserve_units` | Reserve unit id lists, 2 × `$14` (08_09). Overlaps the counters below — the war engine and the strategy-AI counters are never live at the same time |
 | `$6F5B-$6F5D` | — | iteration counter (`sram_counter`), per-turn counter `$6F5C`, AI action-point budget `$6F5D` (seeded as `$6F05 * 10`, max 130, decremented per action) |
 | `$6F5E` | — | province index cursor for the AI turn scan |
-| `$6F5F-$6F62` | — | computed weight values 0-2 (`$6F5F-$6F61`, used by the weighted-random action dispatcher), global phase / per-officer active flag `$6F62` |
+| `$6F5F-$6F62` | — | AI action weights `$6F5F-$6F61` seeded by 0a_0b `InitWorkAreas` from AiWeight*Base[level*8+player] + AiWeight*TierAdj[level*4+tier] (tier from `AiCountExpansionRoom` border/officer-slot ratio), consumed by the weighted-random `AiActionChoose`; global phase `$6F62` |
 | `$6F72` | — | selected candidate officer id |
-| `$6F73-$6F82` | — | AI work area, cleared before each decision pass. `$6F73[0..7]` = per-owner "has active provinces" marks (`$FF` = none, `$00` = has provinces; a helper counts the `$00` entries in `$6F73[0..6]`). Dual-use inside 0a_0b `InitNewGameContext`: `$6F73/$6F74` and `$6F75/$6F76` are 16-bit army-pool accumulators distributed over the `$066E` / `$0664` rosters |
+| `$6F73-$6F82` | — | AI work area, cleared before each decision pass. `$6F73[0..7]` = per-owner "has active provinces" marks (`$FF` = none, `$00` = has provinces; a helper counts the `$00` entries in `$6F73[0..6]`). Dual-use inside 0a_0b `InitNewGameContext`: `$6F73/$6F74` and `$6F75/$6F76` are 16-bit army-pool accumulators distributed over the `$066E` / `$0664` rosters. `AiAction_ContinueTurn` reuses `$6F73-$6F7C` as per-slot processed markers for the officer-slot scans `$11-$1A` (cleared to `$FF` each pass, picked slots marked `$00` so retries skip them) |
 | `$6F7B-$6F82` | — | transfer/claim buffer, 8 bytes, initialised to `$FF` = unclaimed |
 | `$6F83` | — | per-country action counter (`$6F83,X`); after `$1E` actions the global phase advances |
 | `$6F8B` | `sram_game_start_flag` | **Strategy-layer request mailbox** — the main cross-bank handshake. Strategy banks `$0A/$0B` post a request code and spin-wait; map-screen frame state 9 (banks `$19/$1A`, `$C773-$CD8B`, 16-entry sub-state table at `$C779`) polls it and acknowledges by writing `$01`. Codes: `$FF` turn complete (posted by `$08/$09`), `$FE` battle pending, `$FD` fully absorbed, `$FC` absorption result, `$FB`/`$FA`/`$F9` strategy actions, `$F8` absorption variant. Parameters travel in zero page `$0038-$0043`. Also set to `$FF` at new game. See `memory/project_tech_stack/strategy-layer-request-mailbox-protocol.md` |

@@ -1,6 +1,6 @@
 # Duel AI Decision Tree — prg_17_18.asm
 
-Decision-tree summary of the CPU duelist's command selection in `asm/banks/prg_17_18.asm` (duel module bank pair, banks $17/$18). Companion to `code/battle_ai_decision_tree.md` (Battle Mode side director) and `code/tactical_ai_decision_tree.md` (war-layer AI); this document covers the **one-on-one duel (一騎討ち) AI**: the priority ladder the CPU walks each round to pick between 降参 (surrender), 捨て身の攻撃 (desperate attack), 攻撃 (strike), 説得 (persuade), 罵倒 (insult), and the 牽制/攻撃 fallback.
+Decision-tree summary of the CPU duelist's command selection in `asm/banks/prg_17_18.asm` (duel module bank pair, banks $17/$18). Companion to `code/battle_ai_decision_tree.md` (Battle Mode side director), `code/tactical_ai_decision_tree.md` (war-layer AI), and `code/strategy_ai_decision_tree.md` (strategy-layer AI, `prg_0a_0b.asm`); this document covers the **one-on-one duel (一騎討ち) AI**: the priority ladder the CPU walks each round to pick between 降参 (surrender), 捨て身の攻撃 (desperate attack), 攻撃 (strike), 説得 (persuade), 罵倒 (insult), and the 牽制/攻撃 fallback.
 
 All addresses are ROM addresses in the $B5xx-$B8xx window of the bank pair. RAM names follow the duel-module equates (`duel_state` $04A8, `sub_state` $04A9, `active_player_slot` $04AA, `player_officer_id_0` $04AD, `player_action_timer_0` $B5 area $04B5, `war_side_strength_0` $04B1/$04B2, `duel_command_code` $04BF). Officer record fields: +0 = 体力 Vitality, +1 = 武力 Might, +2 = 知力 Intelligence, +3 = 忠誠度 Loyalty, +4 = 人徳 Virtue.
 

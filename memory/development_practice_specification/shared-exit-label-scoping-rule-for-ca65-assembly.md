@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** 16a18700-e457-4ae7-ac39-83f285b5e3d6
 - **Keywords:** shared exit labels, ca65 .proc scope, bare globals, branch targets
-- **Usage scenarios:**
-  - Refactoring procedures with common exit paths
-  - Resolving ca65 label accessibility errors
-  - Documenting inline jump table patterns
 
 ## Content
 

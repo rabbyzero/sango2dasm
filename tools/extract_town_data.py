@@ -25,8 +25,8 @@ Armory stock (subs 19-21 of the town dispatch, $C76E-$C9EF):
   banked trampoline at $C7AB (bank $28 & $1F = $08, $A01E -> bank $09) into
   ExpandFormationSlots (prg_08_09.asm $C851), which fans the formation's
   16 tile cells out to the 4 armory pages (side * 4 + slot).
-* Cell -> sale price: TileOffsetTable bank $09 $C89E, 32 words
-  (the same table the battle formations use for slot positions; the armory
+* Cell -> sale price: ItemPriceTable bank $09 $C89E, 32 words
+  (the same table the battle-prep shop uses for prices; the armory
   purchase code at $C962 reads the word the fan-out wrote to $042C+sel*3
   and subtracts it from the province gold at record +2).
 * Cell -> item: cell index == equipment id as encoded in the officer
@@ -69,7 +69,7 @@ FACILITY_ROUTE_OFF = 0x010E   # $C10E: town type -> 4 facility screen ids
 ARMORY_FORMATION_OFF = 0x0801  # $C801: province -> armory formation id
 B09 = 'rom/prg/prg_09.bin'    # maps at CPU $C000
 FORMATION_LAYOUT_OFF = 0x08DE  # $C8DE: FormationTileLayouts, 6 x 16
-PRICE_TABLE_OFF = 0x089E       # $C89E: TileOffsetTable, 32 words
+PRICE_TABLE_OFF = 0x089E       # $C89E: ItemPriceTable, 32 words
 B30 = 'rom/prg/prg_10.bin'    # virtual bank $30, maps at CPU $8000
 RICE_RATE_OFF = 0x0FC0         # $8FC0: province -> (sell_rate, buy_rate)
 

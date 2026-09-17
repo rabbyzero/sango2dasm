@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** eb686c7f-3a85-47cb-b7fa-8c1a8a502cee
 - **Keywords:** disasm_prg, PRG bank, disassembly, tool, first step
-- **Usage scenarios:**
-  - Starting disassembly of a new PRG bank pair
-  - Need initial code/data identification for a bank
-  - Creating raw disassembly output for analysis
 
 ## Content
 

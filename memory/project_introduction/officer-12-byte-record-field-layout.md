@@ -3,10 +3,6 @@
 - **Category:** project_introduction
 - **Memory ID:** b55bc565-336a-48be-a2a2-a0f8d265aece
 - **Keywords:** officer record, 12 bytes, HP, Power, Intelligence, Loyalty, Benevolence, $63C0
-- **Usage scenarios:**
-  - Analyzing or modifying officer data in SRAM or ROM bank $11
-  - Understanding AI officer evaluation and training logic
-  - Interpreting officer record byte offsets in disassembly code
 
 ## Content
 

@@ -3,8 +3,6 @@
 - **Category:** project_tech_stack
 - **Memory ID:** 090d4481-e810-47b0-b454-f91b0eeac302
 - **Keywords:** independent proc, control flow, 6502 assembly
-- **Usage scenarios:**
-  - Deciding whether to merge or split procedures sharing an endpoint
 
 ## Content
 

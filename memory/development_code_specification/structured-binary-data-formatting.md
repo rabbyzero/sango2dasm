@@ -3,8 +3,6 @@
 - **Category:** development_code_specification
 - **Memory ID:** 225928fa-f1bd-4cbb-9f31-0cc379366c08
 - **Keywords:** data formatting, structured layout, binary data
-- **Usage scenarios:**
-  - Formatting binary data tables in disassembly output
 
 ## Content
 

@@ -3,9 +3,6 @@
 - **Category:** project_build_configuration
 - **Memory ID:** 5d8d3378-5e67-4ccb-af26-adc519bacba5
 - **Keywords:** verification tools, bank initialization, linkage validation, Python scripts
-- **Usage scenarios:**
-  - When verifying newly disassembled banks match original ROM
-  - When checking cross-bank call linkage integrity
 
 ## Content
 

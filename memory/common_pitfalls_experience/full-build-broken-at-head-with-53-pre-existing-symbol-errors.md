@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 8ff99533-cb61-4fc4-a375-4f6bae09aa13
 - **Keywords:** pre-existing build failure, duplicate symbol errors, standalone harness verification, error list diff
-- **Usage scenarios:**
-  - Diagnosing make or ca65 build failures
-  - Verifying bank changes without working full build
-  - Assessing regression of assembly errors
 
 ## Content
 

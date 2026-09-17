@@ -1,0 +1,11 @@
+# Phase 1 AI-side refresh decoded in prg_0e_0f.asm ($D067-$D0AD)
+
+- **Category:** task_summary_experience
+- **Memory ID:** a9d6c3a5-b2e1-4f08-b1bd-71773c1ca7c7
+- **Keywords:** Phase1AiSideRefresh, action slot values, commander rout check, army rout check, AI order vector, game level thresholds
+
+## Content
+
+$D067-$D0AD in asm/banks/prg_0e_0f.asm became Phase1AiSideRefresh (.proc), called from Phase1CycleInit ($A17F) and Phase1RoundPass ($A29D). Flow: (1) JSR $D0CB assigns action slots $0550-$0553/$0554-$0557 for AI sides ($0562/$0563==3) not already withdrawing; per-side resolver $D102 indexes table $D1B0 by army affinity (officer record [$B] bits 2-3)*8 + battle phase $0544 (+4 when round pass $057A>=4), copies 4-byte vector from window $D1C8; siege ($0544==5) uses fixed Hold/Advance patterns. Slot values: 0=Advance 1=Withdraw 2=Hold 3=Surround 4=Tactic(phase 8) $80=Advance/Hold coin flip. Quirk: affinity 3 + phases {1,2,4} yields index $80, reading code bytes at $D248 ([05,C9,02,B0]) - unhandled original sentinel, behaves like Advance. (2) From pass 4, per AI side: commander rout check $D1D8 (troops $05AC+Y < $D1E7[level $6F02]=45/40/30, >=2 enemy-adjacent tiles via Phase2StepTileProbe, record field [3]!=100, roll < $D1EA=55/50/30) drops 1 return (2x PLA) and forces phase 4 result (strip $0514-$0517 mode 3, B1F_BankPpuInit + SFX $6C + B1F_SetUI4 $7D); side B strip writes $0516=$0561 own commander (side A writes enemy $0561 - original asymmetry). (3) Clears scan cursor $0545. (4) Army rout check $D2D4/$D32A: own non-commander total <200 and outnumbered by 145+ (code at $D395-$D3BF: own total + $90 then compared against enemy total; enemy ahead by more than 144 triggers), roll < $D327=30/40/45 -> drops 2 returns (4x PLA), all four slots <- Withdraw. $6F02=sram_game_level 0-2 (0=easiest). Verified byte-exact via tools/verify_0e_0f.py (16384 bytes, 0 mismatches). Callers' 'side panel refresh' comments corrected.
+
+CORRECTIONS (2026-09-10): the army-rout outnumber margin is 145+ (enemy total exceeds own by more than 144, per $D3A5 ADC #$90 and the proc header comment "outnumbered by 145+"), not "400+" as previously stated. Full decision-tree doc generated at code/battle_ai_decision_tree.md.

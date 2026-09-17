@@ -85,7 +85,11 @@ The four modes nest; they are not peers:
 | 控え | hikae | ReserveTroops |
 | 武器 / 防具 | buki / bougu | Weapon / Armor |
 
-## Country stats (国のデータ)
+## Province stats (国のデータ)
+
+Note: the Japanese manual labels this panel 国のデータ, but it shows the
+statistics of a single **province** (e.g. 并州), not of a whole country.
+A country contains one or more provinces; these stats are per-province.
 
 | Japanese | Reading | Semantic English |
 |----------|---------|------------------|
@@ -287,6 +291,6 @@ The four modes nest; they are not peers:
 | Tactic point cost table | `TacticCostTable` |
 | Duel command dispatch | `DuelCommandDispatch` |
 | Officer stat block in RAM | `OfficerStats` (fields `Vitality`, `Intelligence`, `Might`, `Virtue`, `Loyalty`, `Experience`) |
-| Country data block | `CountryData` (fields `Governance`, `Gold`, `Rice`, …) |
+| Province data block (国のデータ panel) | `ProvinceData` (fields `Governance`, `Gold`, `Rice`, …) |
 | Monthly event dispatch | `MonthlyEventDispatch` |
 | War result tally (損兵/損将/降将) | `WarResultTally` |

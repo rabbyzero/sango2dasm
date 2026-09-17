@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 4650c10e-7e9b-43ce-9b9e-ac4250c24b4c
 - **Keywords:** SearchReplace, comment formatting, bulk refactoring, NES disassembly, stray blank lines
-- **Usage scenarios:**
-  - Applying semantic renaming with header comments to assembly procedures
-  - Performing bulk code changes with embedded documentation
-  - Refactoring raw disassembly into named procedures
 
 ## Content
 

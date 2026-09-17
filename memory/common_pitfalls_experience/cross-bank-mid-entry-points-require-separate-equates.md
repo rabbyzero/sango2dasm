@@ -3,9 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** b15e085d-8da0-4fbb-89f9-bdae9eee4f45
 - **Keywords:** cross-bank reference, mid-entry point, equates, sprite OAM writer, banked callbacks
-- **Usage scenarios:**
-  - When implementing cross-bank references for procedures with multiple entry points
-  - When debugging incorrect JSR/JMP byte encoding in banked callback systems
 
 ## Content
 

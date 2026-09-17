@@ -3,10 +3,6 @@
 - **Category:** development_code_specification
 - **Memory ID:** 152208ab-78ea-4d78-937e-1fdb66ee91a1
 - **Keywords:** @-prefix, inline labels, ca65, cheap local labels, label scoping
-- **Usage scenarios:**
-  - Writing or editing ca65 assembly code with local labels
-  - Reviewing pull requests for correct label syntax and placement
-  - Onboarding new contributors on proper label declaration style
 
 ## Content
 

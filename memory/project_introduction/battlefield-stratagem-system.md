@@ -3,11 +3,6 @@
 - **Category:** project_introduction
 - **Memory ID:** b67a21ef-a281-4d51-9b3e-0e5e507a0b19
 - **Keywords:** battlefield stratagems, terrain conditions, combat effects, AI feasibility, ROM handlers, stratagem list
-- **Usage scenarios:**
-  - Implementing new stratagem effects or conditions
-  - Debugging AI decision-making for battlefield actions
-  - Verifying terrain-based feasibility checks in combat
-  - Mapping game mechanics to assembly-level handlers
 
 ## Content
 

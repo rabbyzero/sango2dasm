@@ -167,7 +167,7 @@ $0541  state_display_idx (x27)   [prg_0a_0b.asm:167]  Display state index
 $0545  state_overlay_param (x4)    [prg_0a_0b.asm:168]  Overlay/menu parameter
 $0547  state_palette_mode (x2)    [prg_0a_0b.asm:169]  Palette animation mode
 $6F02  sram_game_level (x7)    [prg_0a_0b.asm:132]  Game level (0-2), selected at new game start
-$6F03  sram_player_id (x26)   [prg_0a_0b.asm:133]  Current player ID / slot
+$6F03  sram_current_country (x48)   [prg_0a_0b.asm:133]  Current acting country id (whose turn/AI action is running; the human country during human turns)
 $6F5B  sram_counter (x3)    [prg_0a_0b.asm:138]  Iteration counter
 $6F5F  sram_work_0 (x3)    [prg_0a_0b.asm:135]  Computed work value 0
 $6F60  sram_work_1 (x3)    [prg_0a_0b.asm:136]  Computed work value 1

@@ -1,0 +1,9 @@
+# DrawStratagemTargetMarkers routine $D1ED-$D38F in prg_08_09.asm
+
+- **Category:** project_introduction
+- **Memory ID:** 73456bfd-a8e7-4c3e-8ac6-1bc6cdb146d3
+- **Keywords:** DrawStratagemTargetMarkers, stratagem marker, $9D58 table, $9BA4 bank31, SpriteOamWriterScroll_NoInit, $D1ED
+
+## Content
+
+In asm/banks/prg_08_09.asm, $D1ED-$D38F was fully analyzed and restructured into `.proc DrawStratagemTargetMarkers` (byte-exact verified, tools/tmp_verify_d1ed.py harness, 0 mismatches over $D1ED-$D38F). Entry via StratagemTargetMarker_Entry stub ($A015). Gates: $008F==0, battle command $0500<$0C, screen mode $0061!=$07. Draws 16x16 stratagem target marker sprites on the battle map: (1) @SelectEffectChrBanks ($D2F5) picks effect CHR bank $88/$8B by $005E bit4 into $00B2/$00D6 (+$00C2/$00C6/$00D2 when $04C8==0); (2) province marker (@ProvinceMarkerOam $D315, tiles $02/$03/$0E/$0F) at the province pixel position from bank-$31 table $9D58 (4 bytes per province $050E: 16-bit little-endian (Y,X) pixel pair), suppressed when that position hits a battlefield city tile and $005E bit6 is clear; (3) @DrawCityTargetMarkers ($D24D) draws @CityMarkerOam ($D326, tiles $3C-$3F) at up to three city tiles from bank-$31 table $9BA4 (6 bytes per province = three (X,Y) tile pairs, X>=$80 = unused). @CheckPositionHitsCityTile ($D337) divides 16-bit pixel pairs by 16 and scans the 20 battlefield city tiles ($0600=X, $0614=Y); carry contract: clear = match+bit6 clear (suppress), set = no-match or match+bit6 set. Sprites rendered via B1F_SpriteOamWriterScroll_NoInit ($F09C mid-entry, caller presets $0003 tile bias/$0004 Y clamp=$9C); new equate added in include/functions.h. Note: the $9BA4 table interpreted in bank-$31 context is city-tile pairs — distinct from other bank contexts' interpretations of the same address.

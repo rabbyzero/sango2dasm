@@ -17,8 +17,8 @@ of canonical command/stratagem names for disassembly labeling.
 | — | 武将の移動 | Move generals from adjacent own country to unclaimed land |
 | — | 防災 | Raise disaster-prevention value |
 | — | 記録する | Save the game |
-| 軍隊 | 出陣 | Attack an adjacent enemy country |
-| 軍隊 | 偵察 | View enemy country data |
+| 軍隊 | 出陣 | Attack an adjacent enemy province |
+| 軍隊 | 偵察 | View enemy province data (国のデータ panel) |
 | 軍隊 | 徴兵 | Hire soldiers |
 | 軍隊 | 任命 | Appoint the governor (太守) |
 | 倉 | 物資を運ぶ | Transport gold etc. to adjacent own country |

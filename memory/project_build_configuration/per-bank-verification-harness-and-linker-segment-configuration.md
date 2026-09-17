@@ -3,10 +3,6 @@
 - **Category:** project_build_configuration
 - **Memory ID:** c51e49b5-7f40-4bb0-9854-bb8ecda7705b
 - **Keywords:** Makefile, per-bank verification, linker configuration, CODE_BANK segments
-- **Usage scenarios:**
-  - When building PRG banks with per-bank harness approach
-  - Configuring linker segment addresses for combined bank pairs
-  - Verifying ROM byte-exactness when full build is broken
 
 ## Content
 

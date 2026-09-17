@@ -1,0 +1,29 @@
+# Duel module procs renamed: DuelModeDispatch, duel_state $04A8, verified semantics
+
+- **Category:** common_pitfalls_experience
+- **Memory ID:** d19f0aa9-9def-4d4a-9169-3ccbd491ce79
+- **Keywords:** duel mode, persuade success rate, PersuadeRollEvent, duel_state, prg_17_18
+
+## Content
+
+## Bug class: Mislabels hiding the duel-mode (一騎討ち) command/persuade code
+
+## Root cause:
+prg_17_18 (the duel module, dispatched per-frame from prg_1f NmiState5_Duel $F9A0 via DuelModeDispatch $B100, entry stub DuelModeDispatch_Entry $A01B; duel_state = $04A8 [renamed from game_state — it is the DUEL state cell, NOT a full-game state; the NMI's mode cell is the separate addr_game_state $007A], sub_state = $04A9) had systematically misleading proc names. Verified by decoding UI panel scripts (B1F_SetUI ids) from undisassembled banks $12/$13 (tools/decode_war_panels.py; CalcMenuDataPtr $A61D adds +$20/+$40 to the pointer HIGH byte, so table word $6235 -> $8235).
+
+## 2026-09-11 canonical names (all renamed in asm + include/functions.h):
+StrategyMode_* -> DuelScene_*; TroopAssignmentDispatch -> DuelCommandDispatch (children DuelCmd_*); WarClashDispatch -> DuelAiDispatch (children DuelAi_*); WarResultDispatch -> DuelStrikeResolveDispatch (DuelStrike_*); DuelDispatch -> DuelPursueDispatch (DuelPursue_*); IntrigueDispatch -> DuelDataToggleDispatch (DuelData_*; it is the データ card screen, NOT 策略); EventCutsceneDispatch -> SurrenderSceneDispatch; EventCutsceneDispatch2 -> TacticDialogDispatch; BattleInitDispatch/BattleInit_Setup -> PersuadeResolveDispatch/PersuadeRollEvent; BattleInit_FormationData -> PersuadeEventTable; BattleSetup_Exec -> InsultResolve_Exec; TerritoryEventDispatch -> SpoilsEventDispatch (Spoils_*); MapScrollA/B/C -> FeintScene/StrikeScene/DesperateScene; MapSlideA/B/C -> StrikeSlide/DuelMenuSlideIn/Out; MainGameDispatch -> DuelModeDispatch (2026-09-14: it dispatches only the duel mode; 22-entry duel_state table). RAM renames: game_state $04A8 -> duel_state; sub_action_type $04BF -> duel_command_code; territory_event_type $050F -> spoils_event_type; player_army_value_0/1 -> war_side_strength_0/1; troop_assign_counter_lo/hi $0424/25 -> menu_cursor_col/page. Comment phrasing "game $XX" -> "state $XX" throughout prg_17_18.
+
+## Corrected semantics (panel-text + code verified):
+- state $01 DuelCommandDispatch: menu panel $2B (牽制/退却/攻撃/降参/戦術/データ/捨て身の攻撃), menu data $B461; DuelCmd_CommandRoute $B47E routes: 0 牽制->state $10 + panel $23; 1 退却->state $04; 2 攻撃->state $11 + $21; 3 降参->state $06 (CheckPlayerIsRuler gate, carry clear = allowed); 5 データ->state $05; 6 捨て身->state $12 + $24; 7 説得->state $07; 8 罵倒->state $08. Code 4 戦術 NEVER reaches the router: DuelCmd_CommandMenu intercepts it (only usable once the actor's round timer expired; opens the 説得/罵倒 submenu panel $2C via DuelCmd_TacticConfirm/TacticSelect, which commit codes 7/8).
+- 説得 resolution = PersuadeRollEvent $BE86 (state $07 sub 0): index = (target.Loyalty <$50 +$18, <$32 +$18) + (target.Vitality <$50 +$08, <$32 +$08) + (own Int+Virtue <$B4 +$48, <$82 +$48) + rand(0-7) into the 216-entry PersuadeEventTable at $BFB2 (bank $17) + $C000-$C089 (bank $18). Values 1-4: 1 decline / 2 decline / 3 wavers / 4 accepts. State $09 TacticDialog shows appeal panel event+$2F ($30-$33) and reply event+$33 ($34-$37); events 2-4 return to state $07 sub=event-1 (FadeOut/WaverHandoff/AcceptHandoff); event 4 first queues panel $38 "[NAME] joins". Success 0-75% (tools/analyze_persuade_table.py).
+- 罵倒 resolution = InsultResolve_Exec $C08A (state $08): threshold = own Int + own Virtue - target Int (floored 0, +1); roll = threshold + rand(0-9) (re-rolled while >= $0A); < $6E -> brush-off $2F, >= $6E -> enraged $2E (target timer = rand(1-3 nonzero) + 2 = 3-5 rounds, event_overlay_flag[target]=2, bit7 of taunter's player_action_timer = cooldown).
+- state $04 DuelPursueDispatch: escape roll 0-99 vs threshold = player_random_offset_0[opponent]*2 (the equip-speed value); roll BELOW threshold = escape succeeds (pursuer taunt $3C「逃げ足ばかり速い」, sub 9 -> Duel_SwapActive -> state $0F); roll >= threshold = caught -> slide-out (state $15) + ApplyStrike: rand(0-9)+5 Vitality damage, panel $3D; Vitality 0 -> panel $26, state $0E capture.
+- state $03 DuelStrikeResolveDispatch: DuelStrike_Resolve computes differential (equip-speed scene params, +-5 jitter, +$14 while attacker timer running, damage = diff*3/10); 牽制 diff >= $64 parried ($25); 捨て身 doubles damage under $1E else 10-30 backfire on own gauge; 攻撃 parried at name_tile_ptr_lo threshold else DuelStrike_ApplyGauge (panel $22 / $39). Either gauge empty -> loser marked, state $0D ends duel.
+- Helpers: CheckButtonConfirm $D299 = anim-queue-idle wait; ReadMenuSelection $D13D = blink cursor sprite; SetupMenuPtr $D166 = render officer card (Y=$39 trampoline). $0081 = pad1 edge (bit0 A, bit1 B, bit4 Up, bit5 Down, bit6 Left, bit7 Right).
+
+## 2026-09-14 correction (PersuadeEventTable flag gate):
+The decline flag is set for persuade events 1 AND 2, not only event 2: PersuadeRollEvent $BF26 gates on `CMP #$03 / BCS` (event < 3 -> event_overlay_flag[target] = 2). Event 1 has no handoff (dialog closes back to the command menu). Rate tables per condition cell and insult enrage formula are documented in code/persuade_insult_rate_tables.md (generated by tools/gen_persuade_insult_rate_tables.py from the ROM banks); PersuadeEventTable in prg_17_18.asm is now formatted one .byte line per (Aptitude,Loyalty,Vitality) tier with A/L/V tags, byte-verified against the ROM.
+
+## Reusable lesson:
+When names look wrong, decode the UI panel text (bank $32/$33 scripts) to recover ground truth; panel ids map 1:1 to SetUI call sites. Applies to prg_17_18 duel module. Supersedes the earlier wrong claim that duel mode has no per-command logic, and the "WarClash = war machine" framing (this module is entirely the duel; Tactical Mode war logic lives elsewhere).

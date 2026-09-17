@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 5f3e5fbc-df0c-4290-9450-4650f77c9e66
 - **Keywords:** .proc scope, label accessibility, ca65, undefined symbols, shared subroutines
-- **Usage scenarios:**
-  - Assembly fails with undefined symbol despite label existing
-  - Two procs need to share a subroutine
-  - Local label referenced from outside proc
 
 ## Content
 

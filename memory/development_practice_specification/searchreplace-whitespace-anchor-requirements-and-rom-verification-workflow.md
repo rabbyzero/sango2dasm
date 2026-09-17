@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** 9c70774c-58b2-4091-90c7-e2169d4184ca
 - **Keywords:** SearchReplace, whitespace handling, ROM verification, assembly documentation
-- **Usage scenarios:**
-  - Performing text replacement in assembly files with fixed-column formatting
-  - Debugging SearchReplace failures due to whitespace mismatches
-  - Verifying disassembly accuracy against original ROM bytes
 
 ## Content
 

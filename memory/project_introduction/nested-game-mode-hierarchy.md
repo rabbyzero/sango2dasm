@@ -3,10 +3,6 @@
 - **Category:** project_introduction
 - **Memory ID:** ec8408a5-4bd9-4f06-90e7-5ebca486eed2
 - **Keywords:** Game mode hierarchy, Strategy Mode, Tactical Mode, Battle Mode nesting, Duel Mode
-- **Usage scenarios:**
-  - Naming state handlers and mode-related labels
-  - Writing comments about game flow transitions
-  - Translating Japanese mode terms in manual KB
 
 ## Content
 

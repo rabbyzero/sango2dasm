@@ -3,9 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 3809c7df-61d0-4b0a-8f00-8fd824021ddb
 - **Keywords:** verification harness, ROM byte-exact match, pseudo-disassembly, illegal opcodes, ca65 addressing mode
-- **Usage scenarios:**
-  - When creating ROM verification harnesses for NES disassembly projects
-  - When troubleshooting ca65 'Illegal addressing mode' errors in verification scripts
 
 ## Content
 

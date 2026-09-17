@@ -3,9 +3,6 @@
 - **Category:** project_build_configuration
 - **Memory ID:** 17046208-039a-4b70-85d5-e4e494b99abc
 - **Keywords:** Makefile, build targets, ROM build, disasm, verify
-- **Usage scenarios:**
-  - Learning how to build, disassemble, or analyze the ROM using available Make targets
-  - Understanding the build flow and output structure
 
 ## Content
 

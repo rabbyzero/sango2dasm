@@ -3,10 +3,6 @@
 - **Category:** project_tech_stack
 - **Memory ID:** 2a8ef781-f1d7-44f1-b69a-8e5f895e02e1
 - **Keywords:** $6F8B mailbox, cross-bank SRAM communication, request/ack handshake, ResolveCountryAbsorb, frame state 9, strategy layer, map screen
-- **Usage scenarios:**
-  - Tracing war/battle trigger from strategy to map screen
-  - Decoding cross-bank SRAM communication patterns
-  - Analyzing request/ack handshake protocols
 
 ## Content
 

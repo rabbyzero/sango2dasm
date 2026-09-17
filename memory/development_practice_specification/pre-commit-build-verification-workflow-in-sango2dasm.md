@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** e671c0af-e420-406e-8d7d-e7e02b81dbf6
 - **Keywords:** build verification, make, check_baseline.py, check_diff.py, git workflow, pre-commit checks
-- **Usage scenarios:**
-  - Before committing large refactors
-  - When validating ROM integrity after changes
-  - When setting up CI checks for NES ASM projects
 
 ## Content
 

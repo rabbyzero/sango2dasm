@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 44db742a-2975-4991-a062-5ad477576097
 - **Keywords:** JSR, bank boundary, segment split, 6502 assembly
-- **Usage scenarios:**
-  - Disassembling ROMs where control flow crosses bank boundaries
-  - Fixing incorrect code placement due to unsplit cross-bank jumps
-  - Reconstructing proper segment layout from raw binary dumps
 
 ## Content
 

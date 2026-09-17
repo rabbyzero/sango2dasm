@@ -3,11 +3,6 @@
 - **Category:** project_tech_stack
 - **Memory ID:** 80a3e948-1fbb-45bb-ac53-3a25304e5918
 - **Keywords:** multi-entry, fall-through, proc pattern, global inner label, externally referenced
-- **Usage scenarios:**
-  - Merging two related entry points into one proc when one falls through to the other
-  - Encountering a JSR to a label inside another procedure
-  - Refactoring auto-disassembled code with spurious dispatch tables
-  - Combining address calculation and data copying into a single proc
 
 ## Content
 

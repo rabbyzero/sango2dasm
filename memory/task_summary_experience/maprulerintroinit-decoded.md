@@ -1,0 +1,9 @@
+# MapRulerIntroInit decoded at Loc_A089 in prg_1b_1c.asm with zero drift
+
+- **Category:** task_summary_experience
+- **Memory ID:** 4862bdec-6c63-41c1-8fb2-e272db0199cd
+- **Keywords:** MapRulerIntroInit, ruler intro sequence, frame sub-state, misclassified code, missing instruction, $6F05 game state
+
+## Content
+
+prg_1b_1c.asm $A07D-$A18A analyzed and wrapped as .proc MapRulerIntroDispatch, the sub-state dispatcher for the map-screen ruler-intro sequence (B1F_CallbackDispatcher callback for frame states 0/7/8, table entries $A025/$A033/$A035 in MapScreenFrameStateTable; dispatch on $0401, table $A083). Sub-states: 0 MapRulerIntroInit ($A089-$A0DE; clears $0470-$0472/$00A4/$04E4, copies ruler id $6F03 to $0010, counts owned provinces via $DDBF; 30 -> frame state $0F ending; $6F05 <= 0 -> state $0B sub 0 attract via B1F_SetUI4; active game -> home province from ($EE) SRAM ruler record into $042C, $6F05 into $042F, UI mode $1F via B1F_SetUI0); 1 MapRulerIntroCameraSync ($A0DF-$A121; $DDF2 animation tick, banked call B1D_1E_SlowPeriodic, $DDAD busy check; A edge -> $DEBA camera-to-province, owner check vs $6F03 -> $04E4=$FF, INC $0400 done; camera off map -> UI mode $21 MapRulerIntroCameraOffMapExit, not owned -> UI mode $22 MapRulerIntroCameraNotOwnedExit, both via B1F_SetUI0); 2 MapRulerIntroWait ($A179-$A18A; waits $0304==$FF then state $0C province roster). Helpers: MapRulerIntroPadAdvance ($A12D-$A160; $0081 bit1 B edge -> $DEBA, if owned INC $0401, clear $0470/$0471, JMP B1F_SetUI4) and MapRulerIntroCancelCheck ($A161-$A178; ($0081|$0082) bit2 Select edge -> state $0E, DEC $0401). Renamed former Loc_A07D/A122/A127/A12C/A12D/A160/A161/A178/A18A; raw JMP/JSR targets replaced by equates B1F_SetUI0/B1F_SetUI4/B1F_GetProvinceRecordAddr. Fixed earlier misreading: $0081 bit1 (B) advances the intro, bit2 ($0081|$0082, Select on pad 1 or 2) cancels to state $0E. Verified byte-exact via tools/verify_1b_1c.py (16384 bytes, 0 mismatches).

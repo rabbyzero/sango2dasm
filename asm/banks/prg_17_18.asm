@@ -2909,7 +2909,7 @@ PrepareAdjacencyPtrs:
 ;   $09     TacticDialogDispatch     説得/罵倒 appeal+reply dialog
 ;   $0A-$0C DuelSceneDispatch        intro variants
 ;   $0D     MapFadeDispatch          map fade-out after the duel ends
-;   $0E     SpoilsEventDispatch      reward cutscene (join/capture)
+;   $0E     SpoilsEventDispatch      post-duel spoils loot / exit fade
 ;   $0F     PaletteTransitionDispatch  palette fade between scenes
 ;   $10-$12 FeintScene/StrikeScene/DesperateSceneDispatch  attack cutscene scrolls
 ;   $13-$15 StrikeSlide/DuelMenuSlideIn/OutDispatch  menu window slides
@@ -5743,9 +5743,16 @@ MapFade_DrawColumn:
 .endproc
 ;===============================================================================
 ; $C2F6: SpoilsEventDispatch
-; Reward cutscene (state $0E) after a duel ends by surrender, persuasion or
-; KO: grants the treasure item (panels $3E-$42) and/or captures the
-; defeated officer. Sub-states: 0 Init, 1 FadeGate, 2 Execute, 3 Finalize.
+; Post-duel spoils cutscene (state $0E). Loot is rolled only when a side
+; fell (side outcome marker $02); surrender/join/waver outcomes go straight
+; to the exit fade. Sub-states: 0 PickFallenSide, 1 ExitFade, 2 RollLoot,
+; 3 WaitConfirm. Loot goes into the winner's record +0A (panels $3E-$42):
+;   馬騰 BATOU $B6   -> weapon 5 セイコウのケン      panel $3E (always)
+;   曹操 SOUSOU $83  -> weapon 6 イテンのケン       panel $3F (30% roll)
+;   董卓 TOUTAKU $AD -> weapon 7 シチセイホウケン   panel $40 (winner +0B hi < $20)
+;   劉備 RYUUBI $DE  -> armor 7 リュウリンのヨロイ  panel $42 (always)
+;   country ruler (records 0-6 byte +0) -> weapon 14 リュウカトウ
+;                                       panel $41 (50% roll, SRAM $6FE1 bit0)
 ;===============================================================================
 .proc SpoilsEventDispatch
 SpoilsEventDispatch:
@@ -5757,16 +5764,19 @@ SpoilsEventDispatch:
   LDA sub_state                                           ; $C300: AD A9 04
   JSR B1F_CallbackDispatcher                          ; $C303: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
-  .word Spoils_Init                                         ; $C306: 0E C3
-  .word Spoils_FadeGate                                         ; $C308: 3B C3
-  .word Spoils_Execute                                         ; $C30A: 5D C3
-  .word Spoils_Finalize                                         ; $C30C: 4F C4
+  .word Spoils_PickFallenSide                                         ; $C306: 0E C3
+  .word Spoils_ExitFade                                         ; $C308: 3B C3
+  .word Spoils_RollLoot                                         ; $C30A: 5D C3
+  .word Spoils_WaitConfirm                                         ; $C30C: 4F C4
 .endproc
 ;===============================================================================
-; $C30E: Spoils_Init
+; $C30E: Spoils_PickFallenSide
+; Snapshots both officer ids into the $0514 side array and selects the side
+; whose outcome marker is $02 (fallen) into display_ptr_lo for the loot
+; roll; no fallen side (surrender/join/waver) advances to the exit fade.
 ;===============================================================================
-.proc Spoils_Init
-Spoils_Init:
+.proc Spoils_PickFallenSide
+Spoils_PickFallenSide:
   LDA player_officer_id_0                                           ; $C30E: AD AD 04
   STA player0_officer_lo                                           ; $C311: 8D 14 05
   LDA player_officer_id_1                                           ; $C314: AD AE 04
@@ -5774,101 +5784,112 @@ Spoils_Init:
   LDY #$00                                            ; $C31A: A0 00
   LDA player0_officer_hi                                           ; $C31C: AD 15 05
   CMP #$02                                            ; $C31F: C9 02
-  BEQ @skip                                           ; $C321: F0 0F
+  BEQ @FallenSideFound                                ; $C321: F0 0F
   LDY #$02                                            ; $C323: A0 02
   LDA player1_officer_hi                                           ; $C325: AD 17 05
   CMP #$02                                            ; $C328: C9 02
-  BEQ @skip                                           ; $C32A: F0 06
+  BEQ @FallenSideFound                                ; $C32A: F0 06
   INC sub_state                                           ; $C32C: EE A9 04
   JMP B1F_PaletteCopyBuffer                           ; $C32F: 4C EE EC
-@skip:
+@FallenSideFound:
   STY display_ptr_lo                                           ; $C332: 8C BD 04
   LDA #$02                                            ; $C335: A9 02
   STA sub_state                                           ; $C337: 8D A9 04
   RTS                                                 ; $C33A: 60
 .endproc
 ;===============================================================================
-; $C33B: Spoils_FadeGate
+; $C33B: Spoils_ExitFade
+; Terminal exit: waits for the $0087 bit7 trigger, echoes the shared ruler
+; status byte ($050F) to the SRAM ruler-result flag $6F44 unless it is 3,
+; switches the full-game NMI mode ($007A) to 3 and starts the palette fade.
 ;===============================================================================
-.proc Spoils_FadeGate
+.proc Spoils_ExitFade
   ptr_0500_lo     = $0500
   ptr_0500_hi     = $0501
-Spoils_FadeGate:
+Spoils_ExitFade:
   LDA a:$0087                                         ; $C33B: AD 87 00
-  BPL @skip_2                                           ; $C33E: 10 1C
+  BPL @WaitTrigger                                    ; $C33E: 10 1C
   LDA #$0B                                            ; $C340: A9 0B
   STA ptr_0500_lo                                           ; $C342: 8D 00 05
   LDA #$00                                            ; $C345: A9 00
   STA ptr_0500_hi                                           ; $C347: 8D 01 05
   LDA spoils_event_type                                           ; $C34A: AD 0F 05
   CMP #$03                                            ; $C34D: C9 03
-  BEQ @skip                                           ; $C34F: F0 03
+  BEQ @StartFade                                      ; $C34F: F0 03
   STA $6F44                                           ; $C351: 8D 44 6F
-@skip:
+@StartFade:
   LDA #$03                                            ; $C354: A9 03
   STA a:$007A                                         ; $C356: 8D 7A 00
   JMP B1F_PaletteFadeInit                             ; $C359: 4C BF EC
-@skip_2:
+@WaitTrigger:
   RTS                                                 ; $C35C: 60
 .endproc
 ;===============================================================================
-; $C35D: Spoils_Execute
+; $C35D: Spoils_RollLoot
+; Rolls the spoils for the fallen side (display_ptr_lo slot): special drops
+; for 馬騰/曹操/董卓/劉備 (ids per include/officer_ids.inc), else scans the
+; 7 country records (byte +0 = ruler id) for a 50% ruler drop. No match or
+; failed roll -> back to the exit fade (sub 1).
 ;===============================================================================
-.proc Spoils_Execute
+.proc Spoils_RollLoot
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-Spoils_Execute:
+  OFFICER_SOUSOU   = $83  ; 曹操 -> weapon 6 イテンのケン (30% roll)
+  OFFICER_TOUTAKU  = $AD  ; 董卓 -> weapon 7 シチセイホウケン
+  OFFICER_BATOU    = $B6  ; 馬騰 -> weapon 5 セイコウのケン (always)
+  OFFICER_RYUUBI   = $DE  ; 劉備 -> armor 7 リュウリンのヨロイ (always)
+Spoils_RollLoot:
   LDX display_ptr_lo                                           ; $C35D: AE BD 04
   LDA player0_officer_lo,X                                         ; $C360: BD 14 05
-  CMP #$83                                            ; $C363: C9 83
-  BNE @skip                                           ; $C365: D0 03
-  JMP @skip_6                                           ; $C367: 4C AA C3
-@skip:
-  CMP #$AD                                            ; $C36A: C9 AD
-  BNE @skip_2                                           ; $C36C: D0 03
-  JMP @skip_7                                           ; $C36E: 4C C0 C3
-@skip_2:
-  CMP #$B6                                            ; $C371: C9 B6
-  BNE @skip_3                                           ; $C373: D0 03
-  JMP @skip_9                                           ; $C375: 4C 01 C4
-@skip_3:
-  CMP #$DE                                            ; $C378: C9 DE
-  BNE @skip_4                                           ; $C37A: D0 03
-  JMP Spoils_CaptureOfficer                                           ; $C37C: 4C 2E C4
-@skip_4:
+  CMP #OFFICER_SOUSOU                                 ; $C363: C9 83
+  BNE @CheckToutaku                                   ; $C365: D0 03
+  JMP @SousouRoll                                     ; $C367: 4C AA C3
+@CheckToutaku:
+  CMP #OFFICER_TOUTAKU                                ; $C36A: C9 AD
+  BNE @CheckBatou                                     ; $C36C: D0 03
+  JMP @ToutakuGate                                    ; $C36E: 4C C0 C3
+@CheckBatou:
+  CMP #OFFICER_BATOU                                  ; $C371: C9 B6
+  BNE @CheckRyubi                                     ; $C373: D0 03
+  JMP @BatouDrop                                      ; $C375: 4C 01 C4
+@CheckRyubi:
+  CMP #OFFICER_RYUUBI                                 ; $C378: C9 DE
+  BNE @ScanRulers                                     ; $C37A: D0 03
+  JMP Spoils_GrantArmor                               ; $C37C: 4C 2E C4
+@ScanRulers:
   LDA $6FE1                                           ; $C37F: AD E1 6F
   AND #$01                                            ; $C382: 29 01
-  BNE @loop_2                                           ; $C384: D0 1E
+  BNE @NoLoot                                         ; $C384: D0 1E
   LDA #$00                                            ; $C386: A9 00
   STA ptr_0010_lo                                         ; $C388: 8D 10 00
-@loop:
+@RulerScanLoop:
   JSR B1F_GetCountryDataPtr                             ; $C38B: 20 68 F3
   LDY #$00                                            ; $C38E: A0 00
   LDA (officer_data_ptr),Y                                         ; $C390: B1 00
   CMP player0_officer_lo,X                                         ; $C392: DD 14 05
-  BNE @skip_5                                           ; $C395: D0 03
-  JMP @skip_8                                           ; $C397: 4C E3 C3
-@skip_5:
+  BNE @RulerNext                                      ; $C395: D0 03
+  JMP @RulerRoll                                      ; $C397: 4C E3 C3
+@RulerNext:
   INC ptr_0010_lo                                         ; $C39A: EE 10 00
   LDA ptr_0010_lo                                         ; $C39D: AD 10 00
   CMP #$07                                            ; $C3A0: C9 07
-  BCC @loop                                           ; $C3A2: 90 E7
-@loop_2:
+  BCC @RulerScanLoop                                  ; $C3A2: 90 E7
+@NoLoot:
   LDA #$01                                            ; $C3A4: A9 01
   STA sub_state                                           ; $C3A6: 8D A9 04
   RTS                                                 ; $C3A9: 60
-@skip_6:
+@SousouRoll:
   LDA #$64                                            ; $C3AA: A9 64
   JSR B1F_RandomBelowThreshold                        ; $C3AC: 20 62 E8
   CMP #$1E                                            ; $C3AF: C9 1E
-  BCS @loop_2                                           ; $C3B1: B0 F1
+  BCS @NoLoot                                         ; $C3B1: B0 F1
   LDA #$06                                            ; $C3B3: A9 06
   STA ptr_0010_lo                                         ; $C3B5: 8D 10 00
   LDA #$3F                                            ; $C3B8: A9 3F
   STA ptr_0010_hi                                         ; $C3BA: 8D 11 00
-  JMP Spoils_ApplyItem                                           ; $C3BD: 4C 0B C4
-@skip_7:
+  JMP Spoils_GrantWeapon                                           ; $C3BD: 4C 0B C4
+@ToutakuGate:
   LDA display_ptr_lo                                           ; $C3C0: AD BD 04
   EOR #$02                                            ; $C3C3: 49 02
   TAX                                                 ; $C3C5: AA
@@ -5878,17 +5899,17 @@ Spoils_Execute:
   LDA (officer_data_ptr),Y                                         ; $C3CE: B1 00
   AND #$F0                                            ; $C3D0: 29 F0
   CMP #$20                                            ; $C3D2: C9 20
-  BCS @loop_2                                           ; $C3D4: B0 CE
+  BCS @NoLoot                                         ; $C3D4: B0 CE
   LDA #$07                                            ; $C3D6: A9 07
   STA ptr_0010_lo                                         ; $C3D8: 8D 10 00
   LDA #$40                                            ; $C3DB: A9 40
   STA ptr_0010_hi                                         ; $C3DD: 8D 11 00
-  JMP Spoils_ApplyItem                                           ; $C3E0: 4C 0B C4
-@skip_8:
+  JMP Spoils_GrantWeapon                                           ; $C3E0: 4C 0B C4
+@RulerRoll:
   LDA #$64                                            ; $C3E3: A9 64
   JSR B1F_RandomBelowThreshold                        ; $C3E5: 20 62 E8
   CMP #$32                                            ; $C3E8: C9 32
-  BCS @loop_2                                           ; $C3EA: B0 B8
+  BCS @NoLoot                                         ; $C3EA: B0 B8
   LDA $6FE1                                           ; $C3EC: AD E1 6F
   ORA #$01                                            ; $C3EF: 09 01
   STA $6FE1                                           ; $C3F1: 8D E1 6F
@@ -5896,21 +5917,24 @@ Spoils_Execute:
   STA ptr_0010_lo                                         ; $C3F6: 8D 10 00
   LDA #$41                                            ; $C3F9: A9 41
   STA ptr_0010_hi                                         ; $C3FB: 8D 11 00
-  JMP Spoils_ApplyItem                                           ; $C3FE: 4C 0B C4
-@skip_9:
+  JMP Spoils_GrantWeapon                                           ; $C3FE: 4C 0B C4
+@BatouDrop:
   LDA #$05                                            ; $C401: A9 05
   STA ptr_0010_lo                                         ; $C403: 8D 10 00
   LDA #$3E                                            ; $C406: A9 3E
   STA ptr_0010_hi                                         ; $C408: 8D 11 00
 .endproc
 ;===============================================================================
-; $C40B: Spoils_ApplyItem
+; $C40B: Spoils_GrantWeapon
+; Writes the loot weapon id (ptr_0010_lo) into the winner's record +0A
+; weapon bits (0-4, armor bits 5-7 preserved), advances to the confirm
+; wait and shows the loot panel (ptr_0010_hi) via B1F_SetUI4.
 ;===============================================================================
-.proc Spoils_ApplyItem
+.proc Spoils_GrantWeapon
   officer_data_ptr     = $0000
   ptr_0010_lo     = $0010
   ptr_0010_hi     = $0011
-Spoils_ApplyItem:
+Spoils_GrantWeapon:
   LDA display_ptr_lo                                           ; $C40B: AD BD 04
   EOR #$02                                            ; $C40E: 49 02
   TAX                                                 ; $C410: AA
@@ -5927,11 +5951,14 @@ Spoils_ApplyItem:
   JMP B1F_SetUI4                                      ; $C42B: 4C 8B F2
 .endproc
 ;===============================================================================
-; $C42E: Spoils_CaptureOfficer
+; $C42E: Spoils_GrantArmor
+; 劉備 RYUUBI ($DE) drop: writes armor id 7 (item 31 リュウリンのヨロイ)
+; into the winner's record +0A armor bits (5-7, weapon bits 0-4 preserved),
+; advances to the confirm wait and shows panel $42 via B1F_SetUI4.
 ;===============================================================================
-.proc Spoils_CaptureOfficer
+.proc Spoils_GrantArmor
   officer_data_ptr     = $0000
-Spoils_CaptureOfficer:
+Spoils_GrantArmor:
   LDA display_ptr_lo                                           ; $C42E: AD BD 04
   EOR #$02                                            ; $C431: 49 02
   TAX                                                 ; $C433: AA
@@ -5948,19 +5975,21 @@ Spoils_CaptureOfficer:
   JMP B1F_SetUI4                                      ; $C44C: 4C 8B F2
 .endproc
 ;===============================================================================
-; $C44F: Spoils_Finalize
+; $C44F: Spoils_WaitConfirm
+; Waits for a confirm press after the loot panel, then routes to the exit
+; fade (sub 1).
 ;===============================================================================
-.proc Spoils_Finalize
-Spoils_Finalize:
+.proc Spoils_WaitConfirm
+Spoils_WaitConfirm:
   JSR CheckButtonConfirm                                           ; $C44F: 20 99 D2
-  BCC @skip                                           ; $C452: 90 0F
+  BCC @KeepWaiting                                    ; $C452: 90 0F
   JSR ReadMenuSelection                                           ; $C454: 20 3D D1
   LDA a:$0081                                         ; $C457: AD 81 00
   AND #$03                                            ; $C45A: 29 03
-  BEQ @skip                                           ; $C45C: F0 05
+  BEQ @KeepWaiting                                    ; $C45C: F0 05
   LDA #$01                                            ; $C45E: A9 01
   STA sub_state                                           ; $C460: 8D A9 04
-@skip:
+@KeepWaiting:
   RTS                                                 ; $C463: 60
 .endproc
 ;===============================================================================

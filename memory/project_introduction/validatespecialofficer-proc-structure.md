@@ -1,0 +1,9 @@
+# ValidateSpecialOfficer proc $D390-$D3ED structure in prg_08_09.asm
+
+- **Category:** project_introduction
+- **Memory ID:** a92c6d51-41d0-437d-b6e6-c1c1d12ef6c5
+- **Keywords:** ValidateSpecialOfficer, special officer roster, officer exchange, BuildCommandList, command menu type, prg_08_09
+
+## Content
+
+In prg_08_09.asm, $D390-$D3ED was analyzed and restructured (byte-exact verified via tools/tmp_verify_d390.py, 94 bytes): ValidateSpecialOfficer (.proc, entry stub ValidateSpecialOfficer_Entry at $A018) is invoked via B1F_BankedCallbackTrampoline with LDY #$28 (PRG banks 08+09; bank wraps mod $20) from prg_0c_0d officer exchange flows OfficerExchangeDispatch::@SetupAndValidate ($C73D) and ValidateExchangeOfficer ($DF12). Input $042C = candidate officer ID; status class = high nibble of officer record byte 11 (via B1F_GetOfficerRecordAddr). Classes 3/4/5/6 select partitions of the contiguous @SpecialOfficerTable ($D3D8: class3=$A1..$B7 11 ids @+$00, class4=$18..$67 6 ids @+$0B, class5=$C5,$56,$5D @+$11, class6=$6D @+$14, shared $FF terminator @+$15); membership leaves $042D (pre-cleared 0) unchanged, non-membership or class outside 3-6 sets $042D=$FF. The same roster/class logic is reused by BuildCommandList ($D3EE, stub BuildCommandList_Entry at $A01B, called from prg_0c_0d CommandState_Init $A8BB): roster members with class>=3..6 get menu types 5-8 (12/14/15/16 command items); other officers use record byte 2 thresholds $28/$3C/$4B/$55 -> types 0-4; writes item index list to $0580 and menu type (count-1) to $0542, consumed by CommandState_Menu via MenuTypeItemListPtrs. Officer $6D is the same special officer handled by BattleAttritionRound::@LoadSpecialOfficer. Also fixed wrong JSR CallbackDispatcher -> B1F_CallbackDispatcher at $BAB6 and $BC49 (ROM bytes 20 DE EA). Pre-existing mismatches remain in unrefactored $BAF4-$BC65 battle-block code; full make is blocked by unrelated pre-existing errors.

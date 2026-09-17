@@ -3,9 +3,6 @@
 - **Category:** important_decision_experience
 - **Memory ID:** a780f1d1-c291-45c3-bf1c-eac08209009c
 - **Keywords:** procedure encapsulation, data tables, proc scope, namespace pollution, NES disassembly
-- **Usage scenarios:**
-  - When refactoring NES 6502 assembly to organize procedure-specific data
-  - When deciding whether to keep data tables inside or outside proc scope
 
 ## Content
 

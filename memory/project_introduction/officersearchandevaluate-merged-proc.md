@@ -3,10 +3,6 @@
 - **Category:** project_introduction
 - **Memory ID:** e7e2e9d4-d47c-4d03-bd01-995943b83257
 - **Keywords:** OfficerSearchAndEvaluate, merged proc, $C79A, prg_0a_0b, AiRecruit, SwapOfficerSlots
-- **Usage scenarios:**
-  - Editing or analyzing the officer search/recruitment/swap code in prg_0a_0b.asm
-  - Understanding the control flow between fill-slots, validate, eligibility check, and swap logic
-  - Debugging stack issues in the AI recruitment path
 
 ## Content
 

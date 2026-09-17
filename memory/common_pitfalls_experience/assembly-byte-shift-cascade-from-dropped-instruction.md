@@ -3,9 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 0b694a9c-ea29-4a4a-9ac6-309204dc1dc5
 - **Keywords:** assembly byte shift, instruction removal, cascade mismatch, verification harness
-- **Usage scenarios:**
-  - When refactoring assembly procedures and removing instructions
-  - Debugging widespread byte mismatches after code changes
 
 ## Content
 

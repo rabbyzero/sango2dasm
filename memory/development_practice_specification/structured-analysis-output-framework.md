@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** a1ee1788-9edf-4d39-86c3-9787bcfc2ff5
 - **Keywords:** analysis structure, reverse engineering, documentation
-- **Usage scenarios:**
-  - Producing standardized analysis reports
-  - Ensuring completeness in reverse-engineering tasks
-  - Reviewing analysis for missing components
 
 ## Content
 

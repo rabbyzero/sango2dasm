@@ -1,0 +1,9 @@
+# prg_0a_0b AI action step naming: AiActionChoose and AiAction_ steps
+
+- **Category:** development_code_specification
+- **Memory ID:** f2411ac0-c10a-40e1-868a-e12725a41a55
+- **Keywords:** AiActionChoose, AiAction_ExpandProvinces, AiAction_DomesticTurn, AiAction_Loop, AiCountExpansionRoom, AiWeightBase
+
+## Content
+
+prg_0a_0b.asm AI action cluster naming (user-directed renames): the three dispatch targets of the weighted selector at $A19C are steps of one AI action, so they all carry the AiAction_ step prefix. Final names: $A19C = AiActionChoose (weighted random over sram_ai_weight_a/b/c $6F5F-$6F61; entry 0/1 are one-or-the-other actions, entry 2 jumps to the shared loop step), $A1C5 = AiAction_ExpandProvinces (formerly CountryExpansionCheck), $B49C = AiAction_DomesticTurn (formerly AiTurnDispatch), $BEC7 local label = @AiAction_Loop (formerly @AiAction_EndTurn - NOT an end-turn step: advances action/phase counters, then rolls random(80) vs @AiDev_ActionThreshold for the next action; AI turn ends only when global phase $6F62 hits 3 inside @AiTurn_AdvancePhase). Trampoline $A23D = AiAction_LoopTramp (formerly EndTurn). Second round: $A0D3 ScanMatchData renamed AiCountExpansionRoom; weight tables ProvinceDataA/B/C renamed AiWeightExpandBase/AiWeightDomesticBase/AiWeightLoopBase ($A133/$A14B/$A163) and TierAdjustA/B/C renamed AiWeightExpandTierAdj/AiWeightDomesticTierAdj/AiWeightLoopTierAdj ($A17B/$A186/$A191). Weight formula: weight = AiWeight<Action>Base[level*8+player_id] + AiWeight<Action>TierAdj[level*4+tier]; tier = f(100 * $0038 / $0037) where $0037 = own/empty border edges (adjacency table $9D72, 8 neighbors/province, $FF-terminated) and $0038 = provinces with such an edge AND <4 officers; ratio <31 -> tier 0, <71 -> tier 1, else 2. Verified via normalized ca65 error-set comparison (20 pre-existing duplicate-symbol errors unchanged) and mermaid.ink diagram rendering.

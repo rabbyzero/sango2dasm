@@ -3,6 +3,11 @@
 Source: `asm/banks/prg_08_09.asm`, `.proc AiTurnProcess` and its nested helpers.
 All decisions below are reconstructed from the byte-exact disassembly.
 
+Companions in the four-AI-layer set (Strategy > Tactical > Battle > Duel):
+`code/strategy_ai_decision_tree.md` (strategy-layer AI, `prg_0a_0b.asm`),
+`code/battle_ai_decision_tree.md` (Battle Mode side director, `prg_0e_0f.asm`),
+`code/duel_ai_decision_tree.md` (one-on-one duel AI, `prg_17_18.asm`).
+
 ## Key inputs
 
 | RAM | Meaning |

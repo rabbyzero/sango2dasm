@@ -3,10 +3,6 @@
 - **Category:** important_decision_experience
 - **Memory ID:** c0b6b2f7-6433-412a-96af-d86bc4031d82
 - **Keywords:** routine renaming, semantic naming, NES disassembly, SceneRenderer
-- **Usage scenarios:**
-  - Renaming generic assembly labels (e.g., SmallRoutineX) to descriptive names based on behavioral analysis
-  - Choosing a functionally accurate name for a graphics rendering routine in a NES disassembly
-  - Consistently updating routine names across source and tooling scripts after reverse-engineering analysis
 
 ## Content
 

@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** b44823bb-9182-464f-b1fb-3f5a6e6e0e43
 - **Keywords:** regex token boundary, symbolic conversion, zp vs absolute, replacement script
-- **Usage scenarios:**
-  - Writing scripts that rename raw operands to symbols
-  - Symbolic reference conversion producing zero matches
-  - Mixed zp/absolute addressing cleanup
 
 ## Content
 

@@ -291,7 +291,7 @@ guessed from the values:
 | `+4/+5` 米 | 輸送 moves it as the second 16-bit resource; the annual harvest (below) credits it |
 | `+6/+7` 人口 | panel stream draws it with 5 digits followed by two literal `$B6` (`0`) tiles, so the stored value is / 100 |
 | `+8/+9` 土地 | annual harvest (`$A60B`, `prg_19_1a.asm`): `land / lvl_div * lvl_base / $3C * 統治度tier / 100` is **added to 米** (`+4/+5`) |
-| `+10` 防災 | panel stream draws it with 2 digits (max 99) right after 人口, matching the panel order in `docs/manual_kb/03-country-stats.md` |
+| `+10` 防災 | panel stream draws it with 2 digits (max 99) right after 人口, matching the panel order in `docs/manual_kb/03-province-stats.md` |
 | `+11` 統治度 | `AnnualTakeoverCheck` (`$AB6E`) rolls a revolt when it is `< 50` (tiers at 50/40/30/20); both income routines scale their yield by its 50/60/70/80/90/100 tier |
 | `+12/+13` 控え | 徴兵 adds the recruited men here and clamps at `$2710` (10000) |
 | `+14/+15` 産業 | annual tax (`$A446`, `prg_19_1a.asm`): `industry / lvl_div * lvl_base / $50 * 統治度tier / 100` is **added to 金** (`+2/+3`) |

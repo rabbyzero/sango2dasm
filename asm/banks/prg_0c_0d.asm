@@ -68,7 +68,7 @@ menu_cursor_col     = $0424  ; menu cursor column (0-based, shared w/ 1F MenuSte
 menu_cursor_page    = $0425  ; menu cursor page   (0-based, shared w/ 1F MenuStep)
 
 ; --- Officer selection array ($042C-$044B, 32 bytes) ---
-; Built by @BuildOfficerList: populated from city + reserve rosters.
+; Built by BuildOfficerList (ArmyDeployDispatch / OfficerExchangeSelectDispatch):
 ; Each byte = officer ID; $FF = empty slot; $FE = list terminator.
 ; Also used as a single-officer work byte at $042C in move/validate procs.
 officer_sel_list    = $042C  ; officer selection list base (32 bytes)
@@ -209,6 +209,13 @@ xfer_ruler_id_1     = $0565  ; ruler ID 1
 ; Used by exchange scene to mark selected officers; $FF = unselected.
 officer_select_flg  = $0580  ; officer selection flags base (32 bytes)
 
+; --- Intra-bank inner-entry aliases ---
+; Global-scope equates for cross-proc JSRs to inner labels that are
+; referenced forward (ca65 cannot resolve forward Proc::Label refs
+; from inside a nested .proc scope).
+AdjustStatsForY    = OfficerTransferCalc::AdjustStatsForY
+AdjustStatsByIndex = OfficerTransferCalc::AdjustStatsByIndex
+
 .segment "CODE_BANK0C"
 
 ExchangeFrameUpdate_Entry:
@@ -227,13 +234,16 @@ ExchangeFrameUpdate:
   JSR B1F_BankedCallbackTrampoline      ; $A015: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B08_09_WarMapScrollUpdate_Entry ; $A018: $21 A0
-  JSR $A028                             ; $A01A: 20 28 A0
+  JSR ExchangeStateDispatch             ; $A01A: 20 28 A0
   JSR SetupExchangeSfx                  ; $A01D: 20 39 DF
   LDY #$28                              ; $A020: A0 28     ; banks $08+$09
   JSR B1F_BankedCallbackTrampoline      ; $A022: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B08_09_StratagemTargetMarker_Entry ; $A025: $15 A0
   RTS                                         ; $A027: 60
+.proc ExchangeStateDispatch
+  ; Main exchange-scene state dispatcher: loads exchange_state ($0500) and
+  ; dispatches through B1F_CallbackDispatcher to 16 state handlers.
   LDA exchange_state                      ; $A028: AD 00 05
   JSR B1F_CallbackDispatcher            ; $A02B: 20 DE EA
 ; --- CallbackDispatcher table (16 entries) ---
@@ -253,6 +263,8 @@ ExchangeFrameUpdate:
   .word OfficerExchangeSelectDispatch       ; $A048: 16 CD
   .word OfficerReserveAssignDispatch      ; $A04A: CD D2
   .word ExchangeScene                    ; $A04C: F0 D4
+.endproc
+
 .proc PhaseDispatch
   ; Phase dispatcher for state $0500==0; dispatches on $0501 (5 phases)
   LDA exchange_phase                      ; $A04E: AD 01 05
@@ -549,7 +561,7 @@ PhaseExit:
   BEQ @Done                             ; $A270: F0 08
   INC $0501                                   ; $A272: EE 01 05
   LDA #$05                                    ; $A275: A9 05
-  JSR $F293                             ; $A277: 20 93 F2
+  JSR B1F_SetUI5                        ; $A277: 20 93 F2
 @Done:
   RTS                                   ; $A27A: 60
 .endproc
@@ -871,20 +883,21 @@ OfficerTransfer_SetupResult:
   LDA $0614,Y                           ; $A4BD: B9 14 06
   STA $11                               ; $A4C0: 85 11
   LDA $0504                             ; $A4C2: AD 04 05
-  BPL $A4D6                             ; $A4C5: 10 0F
+  BPL @CheckRulerStatus                 ; $A4C5: 10 0F
   JSR GetTerrainType                    ; $A4C7: 20 46 DB
   CMP #$05                              ; $A4CA: C9 05
-  BNE $A4D6                             ; $A4CC: D0 08
+  BNE @CheckRulerStatus                 ; $A4CC: D0 08
   LDY #$28                              ; $A4CE: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $A4D0: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B08_09_WarResultSceneInit_Entry ; $A4D3: $27 A0
   RTS                                         ; $A4D5: 60
+@CheckRulerStatus:                      ; $A4D6: ruler status check / defense scan
   LDA $050F                                   ; $A4D6: AD 0F 05
   CMP #$03                                    ; $A4D9: C9 03
   BEQ @AdvanceState                     ; $A4DB: F0 27
   LDY #$31                                    ; $A4DD: A0 31
-  JSR $F25F                             ; $A4DF: 20 5F F2
+  JSR B1F_SwitchBank8_B                 ; $A4DF: 20 5F F2
   LDA $050E                                   ; $A4E2: AD 0E 05
   ASL A                                       ; $A4E5: 0A
   STA $00                                     ; $A4E6: 85 00
@@ -1637,7 +1650,7 @@ OfficerTransfer_SetupResult:
 
 .proc CommandState_Cancel
   LDA $007E                             ; $AAA7: AD 7E 00
-  BNE $AAE2                             ; $AAAA: D0 36
+  BNE @Done                             ; $AAAA: D0 36
   LDA $050B                             ; $AAAC: AD 0B 05
   STA $0509                             ; $AAAF: 8D 09 05
   LDA #$01                              ; $AAB2: A9 01
@@ -1815,10 +1828,10 @@ OfficerTransfer_SetupResult:
   PHA                                   ; $AC24: 48
   INX                                   ; $AC25: E8
   LDY $02                               ; $AC26: A4 02
-  LDA $AC54,Y                           ; $AC28: B9 54 AC
+  LDA @MsgTileAddrTable+3,Y             ; $AC28: B9 54 AC
   STA $0380,X                           ; $AC2B: 9D 80 03
   INX                                   ; $AC2E: E8
-  LDA $AC53,Y                           ; $AC2F: B9 53 AC
+  LDA @MsgTileAddrTable+2,Y             ; $AC2F: B9 53 AC
   STA $0380,X                           ; $AC32: 9D 80 03
   INX                                   ; $AC35: E8
   PLA                                   ; $AC36: 68
@@ -2738,7 +2751,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   RTS                                   ; $B329: 60
 @Success:
   LDY $0509                             ; $B32A: AC 09 05
-  JSR $C886                             ; $B32D: 20 86 C8
+  JSR AdjustStatsForY                   ; $B32D: 20 86 C8
   LDY $0509                             ; $B330: AC 09 05
   LDA $0628,Y                           ; $B333: B9 28 06
   EOR #$80                              ; $B336: 49 80
@@ -3137,7 +3150,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDA #$FF                              ; $B600: A9 FF
   STA officer_sel_list+6                             ; $B602: 8D 32 04
   LDA $06                               ; $B605: A5 06
-  BNE $B642                             ; $B607: D0 39
+  BNE @Done                             ; $B607: D0 39
   LDY #$0B                              ; $B609: A0 0B
   LDA ($00),Y                           ; $B60B: B1 00
   ORA #$03                              ; $B60D: 09 03
@@ -3163,6 +3176,8 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   JSR B1F_BankedCallbackTrampoline            ; $B63D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B08_09_WarSlotClear_Entry       ; $B640: $2A A0
+@Done:                                  ; $B642: return from WarSlotClear trampoline
+  RTS                                   ; $B642: 60  (unreachable from fallthrough - shared exit)
 .endproc
 
 .proc CheckTileAccess
@@ -3972,7 +3987,7 @@ ProvinceSelect_GetRecord:
 .endproc
 
 .proc ProvinceSelect_RemoveOfficer
-  JSR $C91E                             ; $BC2A: 20 1E C9
+  JSR AdjustStatsByIndex                ; $BC2A: 20 1E C9
   JSR ProvinceSelect_CheckSlot           ; $BC2D: 20 11 BC
   LDX $0509                             ; $BC30: AE 09 05
   BEQ @StoreOfficer                     ; $BC33: F0 04
@@ -4503,7 +4518,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDA #$A1                                    ; $C036: A9 A1
   JSR B1F_SetUI5                              ; $C038: 20 83 F2
   LDA #$65                                    ; $C03B: A9 65
-  JSR $E69B                             ; $C03D: 20 9B E6
+  JSR B1F_SoundWrapperF                 ; $C03D: 20 9B E6
   INC $0501                                   ; $C040: EE 01 05
   RTS                                         ; $C043: 60
 ; Action point cost table indexed by stratagem code ($6F8D)
@@ -4539,7 +4554,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY $0509                             ; $C095: AC 09 05
   LDA #$00                              ; $C098: A9 00
   STA $0650,Y                           ; $C09A: 99 50 06
-  JSR $B02B                             ; $C09D: 20 2B B0
+  JSR ExecuteAction                     ; $C09D: 20 2B B0
   JSR CalcOfficerMeritLevels              ; $C0A0: 20 03 DB
   LDA #$01                              ; $C0A3: A9 01
   STA $12                               ; $C0A5: 85 12
@@ -4651,7 +4666,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   JSR UpdateCursorTile                             ; $C198: 20 CC D6
   LDA $6F8D                             ; $C19B: AD 8D 6F
   STA $050B                             ; $C19E: 8D 0B 05
-  JSR $BC2A                             ; $C1A1: 20 2A BC
+  JSR ProvinceSelect_RemoveOfficer      ; $C1A1: 20 2A BC
   LDA #$05                              ; $C1A4: A9 05
   JSR B1F_SetUI5                        ; $C1A6: 20 93 F2
 ; Advance to final state
@@ -4665,7 +4680,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDA $6F8C                             ; $C1B5: AD 8C 6F
   STA $0509                             ; $C1B8: 8D 09 05
   STA $050A                             ; $C1BB: 8D 0A 05
-  JSR $B02B                             ; $C1BE: 20 2B B0
+  JSR ExecuteAction                     ; $C1BE: 20 2B B0
   JSR CalcOfficerMeritLevels              ; $C1C1: 20 03 DB
   LDA #$01                              ; $C1C4: A9 01
   STA $12                               ; $C1C6: 85 12
@@ -4702,7 +4717,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDY #$28                              ; $C1FC: A0 28
   JSR B1F_BankedCallbackTrampoline      ; $C1FE: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B08_09_AiOfficerActionDispatch_Entry ; $C201: $09 A0
+  .word B08_09_WarTownActionDispatch_Entry ; $C201: $09 A0
   RTS                                         ; $C203: 60
 .endproc
 
@@ -5067,7 +5082,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   JSR SearchRosterByTileCoord                             ; $C4D0: 20 B6 D6
   TYA                                   ; $C4D3: 98
   BPL @CheckMoveDown                    ; $C4D4: 10 13
-  JSR $C447                             ; $C4D6: 20 47 C4
+  JSR @CheckBoundsForPosition           ; $C4D6: 20 47 C4
   BCC @CheckMoveDown                    ; $C4D9: 90 0E
   LDA #$00                              ; $C4DB: A9 00
   STA $12                               ; $C4DD: 85 12
@@ -5090,7 +5105,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   JSR SearchRosterByTileCoord                             ; $C501: 20 B6 D6
   TYA                                   ; $C504: 98
   BPL @CheckMoveLeft                    ; $C505: 10 13
-  JSR $C447                             ; $C507: 20 47 C4
+  JSR @CheckBoundsForPosition           ; $C507: 20 47 C4
   BCC @CheckMoveLeft                    ; $C50A: 90 0E
   LDA #$00                              ; $C50C: A9 00
   STA $12                               ; $C50E: 85 12
@@ -5120,7 +5135,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   JSR SearchRosterByTileCoord                             ; $C53A: 20 B6 D6
   TYA                                   ; $C53D: 98
   BPL @CheckMoveRight                   ; $C53E: 10 1C
-  JSR $C447                             ; $C540: 20 47 C4
+  JSR @CheckBoundsForPosition           ; $C540: 20 47 C4
   BCC @CheckMoveRight                   ; $C543: 90 17
   LDA #$00                              ; $C545: A9 00
   STA $12                               ; $C547: 85 12
@@ -5153,7 +5168,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   JSR SearchRosterByTileCoord                             ; $C57D: 20 B6 D6
   TYA                                   ; $C580: 98
   BPL @CursorDone                       ; $C581: 10 1C
-  JSR $C447                             ; $C583: 20 47 C4
+  JSR @CheckBoundsForPosition           ; $C583: 20 47 C4
   BCC @CursorDone                       ; $C586: 90 17
   LDA #$00                              ; $C588: A9 00
   STA $12                               ; $C58A: 85 12
@@ -5188,13 +5203,13 @@ ComputeArmyMorale:
   STA $04                               ; $C5B8: 85 04
   JSR B1F_MathDiv24                     ; $C5BA: 20 A5 EA
   LDY $00                               ; $C5BD: A4 00  ; Y = avg merit index
-  LDA $C606,Y                           ; $C5BF: B9 06 C6  ; bonus = MoraleBonusByAvgMerit[Y]
+  LDA MoraleBonusByAvgMerit,Y           ; $C5BF: B9 06 C6
   CLC                                   ; $C5C2: 18
   ADC $050C                             ; $C5C3: 6D 0C 05
   STA $050C                             ; $C5C6: 8D 0C 05
-  CMP $C613,Y                           ; $C5C9: D9 13 C6
+  CMP MoraleCapByAvgMerit,Y             ; $C5C9: D9 13 C6
   BCC @MoraleCap1                       ; $C5CC: 90 06
-  LDA $C613,Y                           ; $C5CE: B9 13 C6
+  LDA MoraleCapByAvgMerit,Y             ; $C5CE: B9 13 C6
   STA $050C                             ; $C5D1: 8D 0C 05
 @MoraleCap1:
   JSR SumArmyGroupB_Stats               ; $C5D4: 20 C3 DA
@@ -5211,13 +5226,13 @@ ComputeArmyMorale:
   STA $04                               ; $C5E9: 85 04
   JSR B1F_MathDiv24                     ; $C5EB: 20 A5 EA
   LDY $00                               ; $C5EE: A4 00  ; Y = avg merit index
-  LDA $C606,Y                           ; $C5F0: B9 06 C6  ; bonus = MoraleBonusByAvgMerit[Y]
+  LDA MoraleBonusByAvgMerit,Y           ; $C5F0: B9 06 C6
   CLC                                   ; $C5F3: 18
   ADC $050D                             ; $C5F4: 6D 0D 05
   STA $050D                             ; $C5F7: 8D 0D 05
-  CMP $C613,Y                           ; $C5FA: D9 13 C6
+  CMP MoraleCapByAvgMerit,Y             ; $C5FA: D9 13 C6
   BCC @MoraleCap2                       ; $C5FD: 90 06
-  LDA $C613,Y                           ; $C5FF: B9 13 C6
+  LDA MoraleCapByAvgMerit,Y             ; $C5FF: B9 13 C6
   STA $050D                             ; $C602: 8D 0D 05
 @MoraleCap2:
   RTS                                   ; $C605: 60
@@ -5383,9 +5398,9 @@ MoraleCapByAvgMerit:                    ; $C613: maximum morale after bonus
   .word B08_09_ValidateSpecialOfficer_Entry ; $C740: $18 A0
   LDA #$03                                    ; $C742: A9 03
   STA $0501                                   ; $C744: 8D 01 05  ; state = Confirm
-  JSR $E57F                             ; $C747: 20 7F E5
+  JSR B1F_BankPpuInit                   ; $C747: 20 7F E5
   LDA #$7B                                    ; $C74A: A9 7B
-  JSR $E68B                             ; $C74C: 20 8B E6
+  JSR B1F_SoundWrapperD                 ; $C74C: 20 8B E6
   LDA #$4A                                    ; $C74F: A9 4A
   LDY $042F                                   ; $C751: AC 2F 04
   BNE @DisplayUI                        ; $C754: D0 02
@@ -5512,7 +5527,7 @@ FindOfficerInRoster:
   JMP @CallUpdateUI                   ; $C81C: 4C D0 C7
 @Action_ToggleSelect:  ; (dispatch callback target)
   ; Toggle officer selection (bit7 of $0628) and ally flag ($6FA1)
-  JSR @AdjustStatsForY                  ; $C81F: 20 86 C8
+  JSR AdjustStatsForY                   ; $C81F: 20 86 C8
   LDA $0628,Y                           ; $C822: B9 28 06
   EOR #$80                              ; $C825: 49 80
   STA $0628,Y                           ; $C827: 99 28 06
@@ -5568,7 +5583,7 @@ FindOfficerInRoster:
 ; --- Adjust group stats for officer at roster index Y ---
 ; bit7 of $0628: 0=remove from group A ($051A) add to B ($051C)
 ;                1=remove from group B ($051C) add to A ($051A)
-@AdjustStatsForY:
+AdjustStatsForY:
   TYA                                   ; $C886: 98
   TAX                                   ; $C887: AA
   PHA                                   ; $C888: 48
@@ -5604,7 +5619,7 @@ FindOfficerInRoster:
   LDA $051D                             ; $C8CB: AD 1D 05
   ADC $03                               ; $C8CE: 65 03
   STA $051D                             ; $C8D0: 8D 1D 05
-  JMP @RestoreY                         ; $C8D3: 4C 1B C9
+  JMP RestoreY                          ; $C8D3: 4C 1B C9
 @SubtractFromGroupA:
   DEC $051F                             ; $C8D6: CE 1F 05
   LDA $0664,X                           ; $C8D9: BD 64 06
@@ -5637,12 +5652,12 @@ FindOfficerInRoster:
   LDA $051B                             ; $C913: AD 1B 05
   ADC $03                               ; $C916: 65 03
   STA $051B                             ; $C918: 8D 1B 05
-@RestoreY:
+RestoreY:
   PLA                                   ; $C91B: 68
   TAY                                   ; $C91C: A8
   RTS                                   ; $C91D: 60
 ; --- Adjust group stats for officer at $0509 index ---
-@AdjustStatsByIndex:
+AdjustStatsByIndex:
   LDX $0509                             ; $C91E: AE 09 05
   LDA $0628,X                           ; $C921: BD 28 06
   BMI @SubtractFromGroupA2              ; $C924: 30 34
@@ -5663,11 +5678,11 @@ FindOfficerInRoster:
   LDA $051B                             ; $C945: AD 1B 05
   SBC $03                               ; $C948: E5 03
   STA $051B                             ; $C94A: 8D 1B 05
-  BCS @RestoreY                         ; $C94D: B0 3C
+  BCS RestoreY                          ; $C94D: B0 3C
   LDA #$00                              ; $C94F: A9 00
   STA $051A                             ; $C951: 8D 1A 05
   STA $051B                             ; $C954: 8D 1B 05
-  JMP @RestoreY                         ; $C957: 4C 8B C9
+  JMP RestoreY                          ; $C957: 4C 8B C9
 @SubtractFromGroupA2:
   DEC $051F                             ; $C95A: CE 1F 05
   LDA $0664,X                           ; $C95D: BD 64 06
@@ -5686,7 +5701,7 @@ FindOfficerInRoster:
   LDA $051D                             ; $C979: AD 1D 05
   SBC $03                               ; $C97C: E5 03
   STA $051D                             ; $C97E: 8D 1D 05
-  BCS @RestoreY                         ; $C981: B0 08
+  BCS RestoreY                          ; $C981: B0 08
   LDA #$00                              ; $C983: A9 00
   STA $051C                             ; $C985: 8D 1C 05
   STA $051D                             ; $C988: 8D 1D 05
@@ -5806,13 +5821,13 @@ FindOfficerInRoster:
   LDA $0514                             ; $CA55: AD 14 05
   ASL                                   ; $CA58: 0A
   TAY                                   ; $CA59: A8
-  LDA $CA91,Y                           ; $CA5A: B9 91 CA
+  LDA @MsgPtrTable1,Y                   ; $CA5A: B9 91 CA
   STA $00                               ; $CA5D: 85 00
-  LDA $CA92,Y                           ; $CA5F: B9 92 CA
+  LDA @MsgPtrTable1+1,Y                 ; $CA5F: B9 92 CA
   STA $01                               ; $CA62: 85 01
-  LDA $CA99,Y                           ; $CA64: B9 99 CA
+  LDA @MsgPtrTable2,Y                   ; $CA64: B9 99 CA
   STA $02                               ; $CA67: 85 02
-  LDA $CA9A,Y                           ; $CA69: B9 9A CA
+  LDA @MsgPtrTable2+1,Y                 ; $CA69: B9 9A CA
   STA $03                               ; $CA6C: 85 03
   LDY #$00                              ; $CA6E: A0 00
 @CopyLoop1:
@@ -6155,7 +6170,7 @@ FindOfficerInRoster:
 @State_Init:
   ; Build eligible officer list; if slot 0 empty, exit to mode $0F
   JSR RecalcExchangeStats               ; $CD2A: 20 29 CC
-  JSR @BuildOfficerList                  ; $CD2D: 20 E1 D0
+  JSR BuildOfficerList                  ; $CD2D: 20 E1 D0
   LDA #$FF                              ; $CD30: A9 FF
   STA officer_sel_list,X                           ; $CD32: 9D 2C 04
 @CheckSlot:
@@ -6172,7 +6187,7 @@ FindOfficerInRoster:
 @ShowUI:
   LDA #$DC                              ; $CD46: A9 DC
   JSR B1F_SetUI5                        ; $CD48: 20 93 F2
-  JSR @LoadExchangeRulerId              ; $CD4B: 20 C3 D0
+  JSR LoadExchangeRulerId               ; $CD4B: 20 C3 D0
   INC $0501                             ; $CD4E: EE 01 05
 @Done:
   RTS                                   ; $CD51: 60
@@ -6199,7 +6214,7 @@ FindOfficerInRoster:
   ASL                                   ; $CD75: 0A
   ASL                                   ; $CD76: 0A
   STA $0504                             ; $CD77: 8D 04 05
-  JSR $BB84                             ; $CD7A: 20 84 BB
+  JSR ProvinceSelect_InitList           ; $CD7A: 20 84 BB
   INC $050A                             ; $CD7D: EE 0A 05
   LDA $050A                             ; $CD80: AD 0A 05
   BEQ @GetRuler                         ; $CD83: F0 17
@@ -6232,7 +6247,7 @@ FindOfficerInRoster:
   LDY #$00                              ; $CDAF: A0 00
   LDA ($00),Y                           ; $CDB1: B1 00
   STA $03                               ; $CDB3: 85 03
-  JSR @BuildOfficerList                  ; $CDB5: 20 E1 D0
+  JSR BuildOfficerList                  ; $CDB5: 20 E1 D0
   LDX #$00                              ; $CDB8: A2 00
 @AssignLoop:
   LDA officer_sel_list,X                           ; $CDBA: BD 2C 04
@@ -6309,7 +6324,7 @@ FindOfficerInRoster:
   LDA #$E5                              ; $CE4D: A9 E5
 @ShowConfirmUI:
   JSR B1F_SetUI2                        ; $CE4F: 20 83 F2
-  JSR @LoadExchangeRulerId              ; $CE52: 20 C3 D0
+  JSR LoadExchangeRulerId               ; $CE52: 20 C3 D0
 @ConfirmDone:
   RTS                                   ; $CE55: 60
 @State_Confirm:
@@ -6321,7 +6336,7 @@ FindOfficerInRoster:
   LDA $81                               ; $CE61: A5 81
   AND #$01                              ; $CE63: 29 01
   BEQ @ConfirmDone                      ; $CE65: F0 0E
-  JSR @BuildOfficerList                  ; $CE67: 20 E1 D0
+  JSR BuildOfficerList                  ; $CE67: 20 E1 D0
   STX $050A                             ; $CE6A: 8E 0A 05
   LDA #$DE                              ; $CE6D: A9 DE
   JSR B1F_SetUI4                        ; $CE6F: 20 8B F2
@@ -6353,16 +6368,16 @@ FindOfficerInRoster:
   LDA $050A                             ; $CE9E: AD 0A 05
   ASL                                   ; $CEA1: 0A
   TAY                                   ; $CEA2: A8
-  LDA @ExchangeItemPoolPtrs,Y           ; $CEA3: B9 5E CF
+  LDA ExchangeItemPoolPtrs,Y            ; $CEA3: B9 5E CF
   STA $10                               ; $CEA6: 85 10
-  LDA @ExchangeItemPoolPtrs+1,Y         ; $CEA8: B9 5F CF
+  LDA ExchangeItemPoolPtrs+1,Y          ; $CEA8: B9 5F CF
   STA $11                               ; $CEAB: 85 11
   LDA #$00                              ; $CEAD: A9 00
   STA $12                               ; $CEAF: 85 12
   JSR B1F_MenuStep3                     ; $CEB1: 20 23 ED
-  LDA #<@ExchangeSlotPPUAddrs           ; $CEB4: A9 34
+  LDA #<ExchangeSlotPPUAddrs            ; $CEB4: A9 34
   STA $10                               ; $CEB6: 85 10
-  LDA #>@ExchangeSlotPPUAddrs           ; $CEB8: A9 CF
+  LDA #>ExchangeSlotPPUAddrs            ; $CEB8: A9 CF
   STA $11                               ; $CEBA: 85 11
   LDA #<@ExchangeSlotConfig             ; $CEBC: A9 04
   STA $00                               ; $CEBE: 85 00
@@ -6371,8 +6386,8 @@ FindOfficerInRoster:
   LDA $12                               ; $CEC4: A5 12
   STA $0508                             ; $CEC6: 8D 08 05
   JSR B1F_PointerTableLookup            ; $CEC9: 20 F5 ED
-  JSR @ToggleOfficerSelect              ; $CECC: 20 67 D1
-  JSR @RenderExchangeMenu               ; $CECF: 20 BC D1
+  JSR ToggleOfficerSelect               ; $CECC: 20 67 D1
+  JSR RenderExchangeMenu                ; $CECF: 20 BC D1
   LDA $81                               ; $CED2: A5 81
   AND #$01                              ; $CED4: 29 01
   BEQ @CancelDone                        ; $CED6: F0 2B
@@ -6405,7 +6420,7 @@ FindOfficerInRoster:
   .byte $00,$07,$00,$F8,$80             ; $CF04: menu slot config (5 bytes)
 @State_Finalize:
   ; Wait for A-button confirmation; execute all pending transfers and restart
-  JSR @RenderExchangeMenu               ; $CF09: 20 BC D1
+  JSR RenderExchangeMenu                ; $CF09: 20 BC D1
   JSR CheckExchangePossible                             ; $CF0C: 20 27 DF
   BCC @FinalizeDone                     ; $CF0F: 90 22
   JSR DrawExchangeArrows_Right                             ; $CF11: 20 63 DC
@@ -6424,11 +6439,11 @@ FindOfficerInRoster:
   STA $90                               ; $CF26: 85 90
   LDA #$00                              ; $CF28: A9 00
   STA $0501                             ; $CF2A: 8D 01 05
-  JSR @ExecuteAllTransfers              ; $CF2D: 20 F9 D1
+  JSR ExecuteAllTransfers               ; $CF2D: 20 F9 D1
   JMP @State_Init                       ; $CF30: 4C 2A CD
   RTS                                   ; $CF33: 60
 ; --- Exchange slot PPU addresses (7 rows x 3 columns = 21 entries) ---
-@ExchangeSlotPPUAddrs:
+ExchangeSlotPPUAddrs:
   .word $2016,$6816,$B016               ; $CF34: row 0
   .word $2026,$6826,$B026               ; $CF3A: row 1
   .word $2036,$6836,$B036               ; $CF40: row 2
@@ -6437,7 +6452,7 @@ FindOfficerInRoster:
   .word $2066,$6866,$B066               ; $CF52: row 5
   .word $2076,$6876,$B076               ; $CF58: row 6
 ; --- Exchange item pool pointers (21 entries, indexed by officer count) ---
-@ExchangeItemPoolPtrs:
+ExchangeItemPoolPtrs:
   .word @Pool_20                        ; $CF5E: $D0BD
   .word @Pool_19                        ; $CF60: $D0B7
   .word @Pool_18                        ; $CF62: $D0B1
@@ -6511,7 +6526,7 @@ FindOfficerInRoster:
   .byte $00,$01,$FF,$FF,$FF,$FF         ; $D0B7: 2 items + 4 FF
 @Pool_20:
   .byte $00,$FF,$FF,$FF,$FF,$FF         ; $D0BD: 1 item + 5 FF
-@LoadExchangeRulerId:
+LoadExchangeRulerId:
   ; Load exchange partner ruler ID into $044C
   LDY $0507                             ; $D0C3: AC 07 05
   LDA $050B                             ; $D0C6: AD 0B 05
@@ -6531,7 +6546,7 @@ FindOfficerInRoster:
   LDA ($00),Y                           ; $D0DB: B1 00
   STA exchange_ruler_id                             ; $D0DD: 8D 4C 04
   RTS                                   ; $D0E0: 60
-@BuildOfficerList:
+BuildOfficerList:
   ; Clear selection flags ($0580) and officer slots ($042C), then populate
   ; from city officer lists based on exchange direction ($050B bit 4)
   LDY #$20                              ; $D0E1: A0 20
@@ -6610,7 +6625,7 @@ FindOfficerInRoster:
   LDA #$FE                              ; $D161: A9 FE
   STA officer_sel_list,X                           ; $D163: 9D 2C 04
   RTS                                   ; $D166: 60
-@ToggleOfficerSelect:
+ToggleOfficerSelect:
   ; Toggle officer selection flag in $0580; validates capacity and ruler constraints
   LDX #$00                              ; $D167: A2 00
   LDY #$1F                              ; $D169: A0 1F
@@ -6633,7 +6648,7 @@ FindOfficerInRoster:
   LDA $0540                             ; $D189: AD 40 05
   CMP #$1E                              ; $D18C: C9 1E
   BNE @CheckCapacity                    ; $D18E: D0 0E
-  JSR @LoadExchangeRulerId              ; $D190: 20 C3 D0
+  JSR LoadExchangeRulerId               ; $D190: 20 C3 D0
   LDY $0508                             ; $D193: AC 08 05
   CMP officer_sel_list,Y                           ; $D196: D9 2C 04
   BEQ @ToggleDone                       ; $D199: F0 20
@@ -6656,7 +6671,7 @@ FindOfficerInRoster:
   STA $0580,Y                           ; $D1B8: 99 80 05
 @ToggleDone:
   RTS                                   ; $D1BB: 60
-@RenderExchangeMenu:
+RenderExchangeMenu:
   ; Render all selected officers in the exchange menu grid
   LDA #$08                              ; $D1BC: A9 08
   STA $00AF                             ; $D1BE: 8D AF 00
@@ -6680,9 +6695,9 @@ FindOfficerInRoster:
   RTS                                   ; $D1DE: 60
 @RenderMenuSlot:
   ; Render a single officer slot using PPU address and config tables
-  LDA #<@ExchangeSlotPPUAddrs           ; $D1DF: A9 34
+  LDA #<ExchangeSlotPPUAddrs            ; $D1DF: A9 34
   STA $10                               ; $D1E1: 85 10
-  LDA #>@ExchangeSlotPPUAddrs           ; $D1E3: A9 CF
+  LDA #>ExchangeSlotPPUAddrs            ; $D1E3: A9 CF
   STA $11                               ; $D1E5: 85 11
   LDA #<@MenuSlotRenderConfig           ; $D1E7: A9 F4
   STA $00                               ; $D1E9: 85 00
@@ -6693,7 +6708,7 @@ FindOfficerInRoster:
   RTS                                   ; $D1F3: 60
 @MenuSlotRenderConfig:
   .byte $00,$7E,$01,$00,$80             ; $D1F4: render config (5 bytes)
-@ExecuteAllTransfers:
+ExecuteAllTransfers:
   ; Iterate $0580 selection flags; transfer each selected officer
   LDY #$00                              ; $D1F9: A0 00
 @TransferLoop:
@@ -6749,7 +6764,7 @@ FindOfficerInRoster:
   PHA                                   ; $D24E: 48
   LDA $0540                             ; $D24F: AD 40 05
   STA $050B                             ; $D252: 8D 0B 05
-  JSR $BC11                             ; $D255: 20 11 BC
+  JSR ProvinceSelect_CheckSlot          ; $D255: 20 11 BC
   PLA                                   ; $D258: 68
   STA $050B                             ; $D259: 8D 0B 05
   PLA                                   ; $D25C: 68
@@ -6839,7 +6854,7 @@ FindOfficerInRoster:
 @State_Init:
   ; Build eligible officer list; if fewer than 11, show error and advance
   JSR RecalcExchangeStats               ; $D2E1: 20 29 CC
-  JSR $D0E1                             ; $D2E4: 20 E1 D0  ; OfficerExchangeSelectDispatch@BuildOfficerList
+  JSR OfficerExchangeSelectDispatch::BuildOfficerList  ; $D2E4: 20 E1 D0
   LDA #$FF                              ; $D2E7: A9 FF
   STA officer_sel_list,X                           ; $D2E9: 9D 2C 04
   STX $050A                             ; $D2EC: 8E 0A 05
@@ -6856,7 +6871,7 @@ FindOfficerInRoster:
   ; Too few officers; show error dialog and advance state
   LDA #$DF                              ; $D304: A9 DF
   JSR B1F_SetUI5                        ; $D306: 20 93 F2
-  JSR $D0C3                             ; $D309: 20 C3 D0  ; OfficerExchangeSelectDispatch@LoadExchangeRulerId
+  JSR OfficerExchangeSelectDispatch::LoadExchangeRulerId  ; $D309: 20 C3 D0
   INC $0501                             ; $D30C: EE 01 05
   RTS                                   ; $D30F: 60
 @State_WaitInput:
@@ -6880,7 +6895,7 @@ FindOfficerInRoster:
   ASL                                   ; $D337: 0A
   ASL                                   ; $D338: 0A
   STA $0504                             ; $D339: 8D 04 05
-  JSR $BB84                             ; $D33C: 20 84 BB
+  JSR ProvinceSelect_InitList           ; $D33C: 20 84 BB
   INC $050A                             ; $D33F: EE 0A 05
   LDY $050A                             ; $D342: AC 0A 05
   LDA #$1E                              ; $D345: A9 1E
@@ -6934,7 +6949,7 @@ FindOfficerInRoster:
   LDA #$E5                              ; $D3A6: A9 E5
 @SetMenuUI:
   JSR B1F_SetUI2                        ; $D3A8: 20 83 F2
-  JSR $D0C3                             ; $D3AB: 20 C3 D0  ; OfficerExchangeSelectDispatch@LoadExchangeRulerId
+  JSR OfficerExchangeSelectDispatch::LoadExchangeRulerId  ; $D3AB: 20 C3 D0
 @MenuDone:
   RTS                                   ; $D3AE: 60
 @State_Confirm:
@@ -6949,7 +6964,7 @@ FindOfficerInRoster:
   LDA #$00                              ; $D3C0: A9 00
   STA menu_cursor_col                             ; $D3C2: 8D 24 04
   STA menu_cursor_page                             ; $D3C5: 8D 25 04
-  JSR $D0E1                             ; $D3C8: 20 E1 D0  ; OfficerExchangeSelectDispatch@BuildOfficerList
+  JSR OfficerExchangeSelectDispatch::BuildOfficerList  ; $D3C8: 20 E1 D0
   STX $050A                             ; $D3CB: 8E 0A 05
   LDA #$DE                              ; $D3CE: A9 DE
   JSR B1F_SetUI4                        ; $D3D0: 20 8B F2
@@ -6978,9 +6993,9 @@ FindOfficerInRoster:
   LDA $050A                             ; $D3F7: AD 0A 05
   ASL                                   ; $D3FA: 0A
   TAY                                   ; $D3FB: A8
-  LDA $CF5E,Y                           ; $D3FC: B9 5E CF  ; ExchangeItemPoolPtrs
+  LDA OfficerExchangeSelectDispatch::ExchangeItemPoolPtrs,Y  ; $D3FC: B9 5E CF
   STA $10                               ; $D3FF: 85 10
-  LDA $CF5F,Y                           ; $D401: B9 5F CF
+  LDA OfficerExchangeSelectDispatch::ExchangeItemPoolPtrs+1,Y  ; $D401: B9 5F CF
   STA $11                               ; $D404: 85 11
   LDA #$00                              ; $D406: A9 00
   STA $12                               ; $D408: 85 12
@@ -6996,8 +7011,8 @@ FindOfficerInRoster:
   LDA $12                               ; $D41D: A5 12
   STA $0508                             ; $D41F: 8D 08 05
   JSR B1F_PointerTableLookup            ; $D422: 20 F5 ED
-  JSR $D167                             ; $D425: 20 67 D1  ; OfficerExchangeSelectDispatch@ToggleOfficerSelect
-  JSR $D1BC                             ; $D428: 20 BC D1  ; OfficerExchangeSelectDispatch@RenderExchangeMenu
+  JSR OfficerExchangeSelectDispatch::ToggleOfficerSelect  ; $D425: 20 67 D1
+  JSR OfficerExchangeSelectDispatch::RenderExchangeMenu  ; $D428: 20 BC D1
   LDA $81                               ; $D42B: A5 81
   AND #$01                              ; $D42D: 29 01
   BEQ @RenderDone                       ; $D42F: F0 2B
@@ -7030,7 +7045,7 @@ FindOfficerInRoster:
   .byte $00,$07,$00,$F8,$80               ; $D45D: 00 07 00 F8 80
 @State_Finalize:
   ; Execute all pending transfers, reset state, and restart from Init
-  JSR $D1BC                             ; $D462: 20 BC D1  ; OfficerExchangeSelectDispatch@RenderExchangeMenu
+  JSR OfficerExchangeSelectDispatch::RenderExchangeMenu  ; $D462: 20 BC D1
   JSR CheckExchangePossible                             ; $D465: 20 27 DF  ; WaitVBlankInput
   BCC @FinalDone                        ; $D468: 90 22
   JSR DrawExchangeArrows_Right                             ; $D46A: 20 63 DC  ; ReadJoypad
@@ -7048,7 +7063,7 @@ FindOfficerInRoster:
   STA $90                               ; $D47F: 85 90
   LDA #$00                              ; $D481: A9 00
   STA $0501                             ; $D483: 8D 01 05
-  JSR $D1F9                             ; $D486: 20 F9 D1  ; OfficerExchangeSelectDispatch@ExecuteAllTransfers
+  JSR OfficerExchangeSelectDispatch::ExecuteAllTransfers  ; $D486: 20 F9 D1
   JMP @State_Init                       ; $D489: 4C E1 D2
 @FinalDone:
   RTS                                   ; $D48C: 60
@@ -7078,7 +7093,7 @@ FindOfficerInRoster:
   PHA                                   ; $D4A7: 48
   LDA $050E                             ; $D4A8: AD 0E 05
   STA $050B                             ; $D4AB: 8D 0B 05
-  JSR $BC11                             ; $D4AE: 20 11 BC
+  JSR ProvinceSelect_CheckSlot          ; $D4AE: 20 11 BC
   PLA                                   ; $D4B1: 68
   STA $050B                             ; $D4B2: 8D 0B 05
   PLA                                   ; $D4B5: 68

@@ -3,10 +3,6 @@
 - **Category:** common_pitfalls_experience
 - **Memory ID:** 10e5ca89-783f-4209-8f8e-f91e18cc31f4
 - **Keywords:** byte-exact drift, redundant jump, label drift, verifier mismatch
-- **Usage scenarios:**
-  - Editing byte-exact disassembly files
-  - Diagnosing scattered verifier mismatches
-  - Cleaning up decoded routines
 
 ## Content
 

@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** 10951dce-f9f8-40c4-b69b-fd056bb43efc
 - **Keywords:** SearchReplace, whitespace alignment, branch comments, column alignment, transform_branches.py
-- **Usage scenarios:**
-  - Performing text replacement in prg_0e_0f.asm with fixed-column formatting
-  - Debugging SearchReplace failures due to whitespace mismatches
-  - Working on assembly files with transform_branches.py legacy padding
 
 ## Content
 

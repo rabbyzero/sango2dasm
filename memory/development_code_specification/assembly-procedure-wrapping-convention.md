@@ -3,10 +3,6 @@
 - **Category:** development_code_specification
 - **Memory ID:** adf7ace8-ae0e-4faa-b3a7-7c11f54429ac
 - **Keywords:** assembly, .proc, inner labels, code encapsulation
-- **Usage scenarios:**
-  - Refactoring a state machine with internal sub-states into a modular block
-  - Converting a dispatcher with local callbacks into a cohesive unit
-  - Encapsulating code with no external dependencies on internal labels
 
 ## Content
 

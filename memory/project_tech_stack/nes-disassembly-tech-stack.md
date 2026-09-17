@@ -3,9 +3,6 @@
 - **Category:** project_tech_stack
 - **Memory ID:** 818e598c-c9a3-4ae9-930c-a162db72ac2a
 - **Keywords:** 6502 Assembly, cc65, Python 3, NES, Namco-163
-- **Usage scenarios:**
-  - Understanding the programming language and toolchain used for the disassembly project
-  - Identifying required tools when setting up the development environment
 
 ## Content
 

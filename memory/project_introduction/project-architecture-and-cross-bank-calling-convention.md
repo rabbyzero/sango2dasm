@@ -3,10 +3,6 @@
 - **Category:** project_introduction
 - **Memory ID:** 7f8e7f83-fc0f-4abb-a025-2ffa5f3f7431
 - **Keywords:** bank-switching, trampoline, functions.h, entry equate, ROM verification
-- **Usage scenarios:**
-  - Renaming jump targets or trampoline addresses in banked assembly code
-  - Adding or updating cross-bank function references in functions.h
-  - Verifying assembly changes against original ROM using standalone scripts
 
 ## Content
 

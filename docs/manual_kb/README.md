@@ -29,7 +29,7 @@ Each scan is one two-page spread (front/back cover scans are exceptions).
 | 08 | 12–13 | ゲームの始め方: メニュー / レベル / 君主選択; 林之章 (戦略篇) title | [01-overview](01-overview.md) |
 | 09 | 14–15 | 戦略モード/操作法: 基本画面, コントローラー | [04-strategy-commands](04-strategy-commands.md) |
 | 10 | 16–17 | 戦略モード/武将データ | [02-general-stats](02-general-stats.md) |
-| 11 | 18–19 | 戦略モード/国のデータ | [03-country-stats](03-country-stats.md) |
+| 11 | 18–19 | 戦略モード/国のデータ | [03-province-stats](03-province-stats.md) |
 | 12 | 20–21 | 戦略モード/コマンド(1): 城のコマンド(1) | [04-strategy-commands](04-strategy-commands.md) |
 | 13 | 22–23 | 戦略モード/コマンド(2): 城のコマンド(2) | [04-strategy-commands](04-strategy-commands.md) |
 | 14 | 24–25 | 戦略モード/コマンド(3): 軍隊のコマンド | [04-strategy-commands](04-strategy-commands.md) |
@@ -72,7 +72,7 @@ The manual is organized into four named chapters:
 0. [terminology.md](terminology.md) — **consolidated semantic English glossary** (primary naming reference)
 1. [01-overview.md](01-overview.md) — game premise, modes, victory rules, setup flow
 2. [02-general-stats.md](02-general-stats.md) — 武将データ (general attributes)
-3. [03-country-stats.md](03-country-stats.md) — 国のデータ (province statistics)
+3. [03-province-stats.md](03-province-stats.md) — 国のデータ (province statistics; the panel is per-province despite the 国 label)
 4. [04-strategy-commands.md](04-strategy-commands.md) — 戦略モード commands (城/軍隊/倉/町)
 5. [05-events.md](05-events.md) — monthly events (tax/flood/drought/harvest)
 6. [06-reference-tables.md](06-reference-tables.md) — 操作一覧表: movement costs, 計略一覧, 戦術一覧, troop composition, duel commands

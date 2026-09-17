@@ -3,10 +3,6 @@
 - **Category:** development_code_specification
 - **Memory ID:** 5b851c94-fc49-4240-88da-03537515ef43
 - **Keywords:** PascalCase, semantic English, naming convention, procedure labels
-- **Usage scenarios:**
-  - Naming new procedures or constants in assembly files
-  - Refactoring legacy labels to follow project conventions
-  - Code review for naming consistency
 
 ## Content
 

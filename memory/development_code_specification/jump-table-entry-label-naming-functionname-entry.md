@@ -3,9 +3,6 @@
 - **Category:** development_code_specification
 - **Memory ID:** ead63306-29b6-4c08-875f-1b3eaf9d9cd9
 - **Keywords:** Entry, label, naming, jump table, Function_Entry
-- **Usage scenarios:**
-  - Naming jump table entry labels in bank asm files
-  - Commenting equates in functions.h for bank entry points
 
 ## Content
 

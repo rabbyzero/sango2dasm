@@ -3,10 +3,6 @@
 - **Category:** development_practice_specification
 - **Memory ID:** 09f8de24-2917-4f8f-aec3-58ec503938aa
 - **Keywords:** Dispatch, main loop, semantic naming, state machine
-- **Usage scenarios:**
-  - Naming a dispatcher that re-enters the main game loop or render cycle
-  - Refactoring idle/yield procedures in the state machine table
-  - Extending the main dispatch table with system-level handlers
 
 ## Content
 

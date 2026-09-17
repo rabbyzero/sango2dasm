@@ -543,8 +543,8 @@ CommandCategoryMapScrollStep:
 ;   1 officer move: destination province picked with the camera (own or
 ;     unclaimed owner, within road range), movers chosen in the UI mode $29
 ;     window into $0481-$048A, rosters updated by CastleMoveRosterApply
-;   2 scouting: random outcomes by result class $0470 (supplies into field
-;     +$10, hidden officer discovery -> CastleScoutRecruitApply)
+;   2 scouting: random outcomes by result class $0470 (gold/rice reports,
+;     treasure into +$10, hidden officer discovery -> CastleScoutRecruitApply)
 ;   3 disaster prevention (dev pipeline with $0470 = 3)
 ;   4 exits to frame state 6 (IntrigueCommandDispatch, the intrigue screen)
 ;   5 save: SRAM save commit via bank $19 stub $A02D (SramSaveCommit at $BC02)
@@ -1367,17 +1367,17 @@ CastleScoutExecute:  ; (dispatch callback target)
   JSR CastleScoutOutcomeRoll              ; $A90F: 20 99 DB  ; scout outcome roll -> class $0470
   LDA $0470                               ; $A912: AD 70 04  ; scout result class
   CMP #$08                                ; $A915: C9 08
-  BEQ CastleScoutFoundOfficer             ; $A917: F0 16     ; found a hidden officer
+  BEQ CastleScoutNothingFound             ; $A917: F0 16     ; class 8: nothing found
   LDA $0470                               ; $A919: AD 70 04
   CMP #$04                                ; $A91C: C9 04
-  BEQ CastleScoutFoundSupplies            ; $A91E: F0 1E     ; found gold/rice
+  BEQ CastleScoutFoundTreasure            ; $A91E: F0 1E     ; class 4: treasure found
   BCC CastleScoutReportMenu               ; $A920: 90 4C     ; lower classes: report menu
   LDA #$FF                                ; $A922: A9 FF
   STA $0481                               ; $A924: 8D 81 04  ; close officer window
   INC $0401                               ; $A927: EE 01 04  ; -> sub 14 (result gate)
   LDA #$33                                ; $A92A: A9 33
   JMP B1F_SetUI0                               ; $A92C: 4C 6D F2  ; UI mode $33 (no return)
-CastleScoutFoundOfficer:
+CastleScoutNothingFound:
 ; --- Code Region ---
   LDA #$04                                ; $A92F: A9 04
   STA a:$00A4                             ; $A931: 8D A4 00
@@ -1385,9 +1385,9 @@ CastleScoutFoundOfficer:
   STA $0401                               ; $A936: 8D 01 04
   LDA #$35                                ; $A939: A9 35
   JMP B1F_SetUI0                               ; $A93B: 4C 6D F2
-CastleScoutFoundSupplies:
+CastleScoutFoundTreasure:
   JSR B1F_RandomMod4                               ; $A93E: 20 50 E8
-  BEQ CastleScoutFoundSupplies            ; $A941: F0 FB  ; wait for a zero roll
+  BEQ CastleScoutFoundTreasure            ; $A941: F0 FB  ; reroll until non-zero (1-3)
   STA $042C                               ; $A943: 8D 2C 04
   LDA #$00                                ; $A946: A9 00
   STA $042D                               ; $A948: 8D 2D 04
@@ -1399,10 +1399,10 @@ CastleScoutFoundSupplies:
   CLC                                     ; $A958: 18
   ADC $042C                               ; $A959: 6D 2C 04
   CMP #$63                                ; $A95C: C9 63
-  BCC @SuppliesStoreField                 ; $A95E: 90 02
-@SuppliesClampMax:
+  BCC @TreasureStoreField                 ; $A95E: 90 02
+@TreasureClampMax:
   LDA #$63                                ; $A960: A9 63
-@SuppliesStoreField:
+@TreasureStoreField:
   STA ($00),Y                             ; $A962: 91 00
   LDA #$16                                ; $A964: A9 16
   STA $0401                               ; $A966: 8D 01 04
@@ -1633,7 +1633,7 @@ CastleScoutFindDialog:  ; (dispatch callback target)
   SBC $042D                               ; $AB5F: ED 2D 04
   STA ($00),Y                             ; $AB62: 91 00
   BCC @FindRestoreAmount                  ; $AB64: 90 3E  ; underflow: restore original amounts
-  JMP CastleScoutRecruitApply             ; $AB66: 4C E0 AC  ; underflow: undo and exit via recruit path
+  JMP CastleScoutRecruitApply             ; $AB66: 4C E0 AC  ; paid in full: officer joins
 @FindRollGate:
   LDA $0402                               ; $AB69: AD 02 04
   JSR B1F_GetProvinceRecordAddr                               ; $AB6C: 20 AF F2
@@ -1641,15 +1641,15 @@ CastleScoutFindDialog:  ; (dispatch callback target)
   LDY #$00                                ; $AB71: A0 00
   LDA ($00),Y                             ; $AB73: B1 00
   CMP $0473                               ; $AB75: CD 73 04
-  BEQ @FindSetThreshold                   ; $AB78: F0 02  ; owner match: threshold 2
-  LDX #$0D                                ; $AB7A: A2 0D
+  BEQ @FindSetThreshold                   ; $AB78: F0 02  ; owner == preferred Country: threshold 2
+  LDX #$0D                                ; $AB7A: A2 0D  ; mismatch: threshold $0D
 @FindSetThreshold:
   STX a:$0000                             ; $AB7C: 8E 00 00
   JSR B1F_RandomMod16                               ; $AB7F: 20 5C E8
   CMP a:$0000                             ; $AB82: CD 00 00
-  BCC @FindOfficerFound                   ; $AB85: 90 03  ; roll below threshold: officer found
-  JMP CastleScoutRecruitApply             ; $AB87: 4C E0 AC  ; roll failed threshold: exit via recruit path
-@FindOfficerFound:
+  BCC @FindRecruitDeclined                   ; $AB85: 90 03  ; roll below threshold: officer declines (card only, no join)
+  JMP CastleScoutRecruitApply             ; $AB87: 4C E0 AC  ; roll >= threshold: officer joins
+@FindRecruitDeclined:
   LDA $0472                               ; $AB8A: AD 72 04
   STA $0481                               ; $AB8D: 8D 81 04
   STA a:$0000                             ; $AB90: 8D 00 00
@@ -2523,14 +2523,15 @@ ArmyMemberCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 termin
 ; --- Code Region ---
 SortieAbortSlideWait:  ; (dispatch callback target)
   LDA $0478                               ; $B21B: AD 78 04
-  BNE $B231                               ; $B21E: D0 11
+  BNE @SlideWaitExit                      ; $B21E: D0 11
   JSR OfficerSelectDialogPoll             ; $B220: 20 4A D6
   LDA $047C                               ; $B223: AD 7C 04
-  BPL $B231                               ; $B226: 10 09
+  BPL @SlideWaitExit                      ; $B226: 10 09
   CMP #$90                                ; $B228: C9 90
   BNE @SlideStep                          ; $B22A: D0 06
   LDA #$00                                ; $B22C: A9 00
   STA $0401                               ; $B22E: 8D 01 04
+@SlideWaitExit:
   RTS                                     ; $B231: 60
 @SlideStep:
 ; --- Code Region ---
@@ -2546,11 +2547,12 @@ SortieWarRequestGate:  ; (dispatch callback target)
   LDA a:$0013                             ; $B246: AD 13 00
   BEQ @GateExit                           ; $B249: F0 09
   CMP #$FF                                ; $B24B: C9 FF
-  BNE $B255                               ; $B24D: D0 06
+  BNE @WarRequestCommit                   ; $B24D: D0 06
   LDA #$00                                ; $B24F: A9 00
   STA $0401                               ; $B251: 8D 01 04
 @GateExit:
   RTS                                     ; $B254: 60
+@WarRequestCommit:
   LDY #$39                                ; $B255: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $B257: 20 07 EE
   .word B19_1A_SortieWarCommit            ; $B25A: 15 A0 (BankedCallbackTrampoline target; bank $19 $A015 -> JMP SortieWarCommit)
@@ -2924,12 +2926,13 @@ ArmyReconExitCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 ter
 ; --- Code Region ---
 ResultRedrawTrigger:  ; (dispatch callback target)
   LDA $0140                               ; $B592: AD 40 01
-  BNE $B5A5                               ; $B595: D0 0E
+  BNE @RedrawBusyExit                     ; $B595: D0 0E
   LDA $04A2                               ; $B597: AD A2 04
   STA $04A0                               ; $B59A: 8D A0 04
   INC $0401                               ; $B59D: EE 01 04
   LDA #$20                                ; $B5A0: A9 20
   STA $046C                               ; $B5A2: 8D 6C 04
+@RedrawBusyExit:
   RTS                                     ; $B5A5: 60
 MarchRouteGate:  ; (dispatch callback target)
   LDA $04A0                               ; $B5A6: AD A0 04
@@ -2961,7 +2964,7 @@ MarchRouteGate:  ; (dispatch callback target)
   RTS                                     ; $B5DB: 60
 WarSceneLaunch:  ; (dispatch callback target)
   LDA a:$0087                             ; $B5DC: AD 87 00
-  BPL $B61F                               ; $B5DF: 10 3E
+  BPL @WarLaunchSkip                      ; $B5DF: 10 3E
   LDA #$03                                ; $B5E1: A9 03
   STA a:$007A                             ; $B5E3: 8D 7A 00
   LDA #$00                                ; $B5E6: A9 00
@@ -2986,6 +2989,7 @@ WarSceneLaunch:  ; (dispatch callback target)
   LDY #$2C                                ; $B618: A0 2C     ; target banks $0C+$0D
   JSR B1F_BankedCallbackTrampoline        ; $B61A: 20 07 EE
   .word B0C_0D_ExchangeSceneInit_Entry    ; $B61D: 03 A0 (BankedCallbackTrampoline target)
+@WarLaunchSkip:
   RTS                                     ; $B61F: 60
 ;===============================================================================
 ; ReconMapScrollStep ($B620-$B66F) - sub 23
@@ -4359,7 +4363,7 @@ WarehouseSliderScale10:
 ;   $12 ArmoryWindowWait      window anim wait; $00BD <- $8C, cursor
 ;                             reset, UI $A5 -> $13; closed -> 0
 ;   $13 ArmoryItemGridInput   4-item weapon grid menu ($C7EE); bank $08
-;                             ExpandFormationSlots fills grid cells
+;                             ExpandArmoryGridSlots fills grid cells
 ;                             $044C-$044F and price records $042C+slot*3
 ;                             from @ArmoryGridSetTable[province];
 ;                             province $1B special: 4th cell <- weapon
@@ -4371,7 +4375,7 @@ WarehouseSliderScale10:
 ;                             positions -> $15
 ;   $15 ArmoryBuyMenuInput    4-item buy menu ($C9BF); A: select item
 ;                             ($044C <- cell), province gold vs price
-;                             record $042C[item*3] and @WeaponGateCheck
+;                             record $042C[item*3] and @FamousWeaponGateCheck
 ;                             ($0472 mask) -> $16 with $0471 <- $17
 ;                             (buy, UI $29) / $11 (denied, UI $AA/$AB)
 ;   $16 ArmoryBuyerGate       waits overlay $0300; opens buyer overlay
@@ -4382,10 +4386,15 @@ WarehouseSliderScale10:
 ;                             bits <- $044C (mask $1F weapon / $E0
 ;                             armor by cell); province gold -= $042C ->
 ;                             $0F (UI $AB); cancel -> 0
-; Shared helper: @WeaponGateCheck ($CA6B) - famous-weapon restrictions:
-; cell $0F needs officer $26, $17 officer $99, $16 Might >= $5B, $1E
-; Virtue >= $5B; sets the $0472 mask, CS = allowed, and reports already-
-; owned weapons against the $6FE1 event flags.
+; Shared helper: @FamousWeaponGateCheck ($CA6B) - famous-weapon purchase
+; gate for the four hidden famous pieces; each is buyable once per game via
+; its $6FE1 event bit (OR'd in by @ArmoryPurchaseApply on a confirmed buy):
+;   $0F hidden blade (400g) : buyer must be officer $26 (関羽)  -> bit $02
+;   $17 hidden spear (400g) : buyer must be officer $99 (張飛)  -> bit $04
+;   $16 hidden spear (350g) : buyer Might (record +$01) >= $5B  -> bit $08
+;   $1E hidden armor (350g) : buyer Virtue (record +$04) >= $5B -> bit $10
+; Other items pass with no event bit. CS = allowed; CLC = denied (UI $9A)
+; or already owned (UI $9B).
 ;===============================================================================
 .proc TownCommandDispatch  ; (dispatch callback target)
 ; --- Code Region ---
@@ -4468,12 +4477,12 @@ WarehouseSliderScale10:
   LDA a:$0012                             ; $C066: AD 12 00
   JSR B1F_PointerTableLookup                               ; $C069: 20 F5 ED
   JSR OverlayIdleCheck                               ; $C06C: 20 AD DD
-  BCC $C08A                               ; $C06F: 90 19
+  BCC @MenuIdleExit                       ; $C06F: 90 19
   LDA a:$0081                             ; $C071: AD 81 00
   LSR                                     ; $C074: 4A
-  BCS $C08B                               ; $C075: B0 14
+  BCS @FacilitySelect                     ; $C075: B0 14
   LSR                                     ; $C077: 4A
-  BCC $C08A                               ; $C078: 90 10
+  BCC @MenuIdleExit                       ; $C078: 90 10
   JSR MapTransitionStateSave              ; $C07A: 20 68 D5
   LDA #$01                                ; $C07D: A9 01
   STA $0400                               ; $C07F: 8D 00 04
@@ -4491,11 +4500,11 @@ WarehouseSliderScale10:
   ADC a:$0012                             ; $C094: 6D 12 00
   TAY                                     ; $C097: A8
   LDA @FacilityActionCodeTable,Y          ; $C098: B9 0E C1  ; facility action code (0 armory/1 academy/2 hospital/3 market)
-  BEQ $C0B9                               ; $C09B: F0 1C
+  BEQ @ActionArmory                       ; $C09B: F0 1C
   CMP #$01                                ; $C09D: C9 01
-  BEQ $C0CD                               ; $C09F: F0 2C
+  BEQ @ActionAcademy                      ; $C09F: F0 2C
   CMP #$02                                ; $C0A1: C9 02
-  BEQ $C0E1                               ; $C0A3: F0 3C
+  BEQ @ActionHospital                     ; $C0A3: F0 3C
   LDA #$02                                ; $C0A5: A9 02
   STA $0401                               ; $C0A7: 8D 01 04
   LDA #$21                                ; $C0AA: A9 21
@@ -4526,7 +4535,7 @@ WarehouseSliderScale10:
   JSR HospitalWoundedRosterBuild          ; $C0E1: 20 7C DC  ; wounded roster -> $0151-$015A
   LDA $0151                               ; $C0E4: AD 51 01
   CMP #$FF                                ; $C0E7: C9 FF
-  BEQ $C0FF                               ; $C0E9: F0 14
+  BEQ @HospitalIdleRoute                  ; $C0E9: F0 14
   LDA #$0A                                ; $C0EB: A9 0A
   STA $0401                               ; $C0ED: 8D 01 04
   LDA #$80                                ; $C0F0: A9 80
@@ -4567,13 +4576,13 @@ WarehouseSliderScale10:
   LDA a:$0012                             ; $C15C: AD 12 00
   JSR B1F_PointerTableLookup                               ; $C15F: 20 F5 ED
   JSR OverlayIdleCheck                               ; $C162: 20 AD DD
-  BCC $C1B3                               ; $C165: 90 4C
+  BCC @MarketMenuExit                     ; $C165: 90 4C
   LDA a:$0081                             ; $C167: AD 81 00
   LSR                                     ; $C16A: 4A
-  BCC $C1AB                               ; $C16B: 90 3E
+  BCC @MarketCancel                       ; $C16B: 90 3E
   JSR ActionDeltaWorkReset                ; $C16D: 20 87 DB
   LDA a:$0012                             ; $C170: AD 12 00
-  BNE $C180                               ; $C173: D0 0B
+  BNE @MarketTreasureRoute                ; $C173: D0 0B
   INC $0401                               ; $C175: EE 01 04
   JSR MenuCursorReset                     ; $C178: 20 70 DD
   LDA #$72                                ; $C17B: A9 72
@@ -4583,7 +4592,7 @@ WarehouseSliderScale10:
   JSR B1F_GetProvinceRecordAddr                               ; $C183: 20 AF F2
   LDY #$10                                ; $C186: A0 10
   LDA ($00),Y                             ; $C188: B1 00
-  BEQ $C1A1                               ; $C18A: F0 15
+  BEQ @MarketNoTreasure                   ; $C18A: F0 15
   STA $0490                               ; $C18C: 8D 90 04
   LDA #$00                                ; $C18F: A9 00
   STA $0491                               ; $C191: 8D 91 04
@@ -4599,7 +4608,7 @@ WarehouseSliderScale10:
   JMP B1F_SetUI0                               ; $C1A8: 4C 6D F2
 @MarketCancel:
   LSR                                     ; $C1AB: 4A
-  BCC $C1B3                               ; $C1AC: 90 05
+  BCC @MarketMenuExit                     ; $C1AC: 90 05
   LDA #$00                                ; $C1AE: A9 00
   STA $0401                               ; $C1B0: 8D 01 04
 @MarketMenuExit:
@@ -4631,12 +4640,12 @@ WarehouseSliderScale10:
   LDA a:$0012                             ; $C1E7: AD 12 00
   JSR B1F_PointerTableLookup                               ; $C1EA: 20 F5 ED
   JSR OverlayIdleCheck                               ; $C1ED: 20 AD DD
-  BCC $C206                               ; $C1F0: 90 14
+  BCC @RiceTradeIdleExit                  ; $C1F0: 90 14
   LDA a:$0081                             ; $C1F2: AD 81 00
   LSR                                     ; $C1F5: 4A
-  BCS $C207                               ; $C1F6: B0 0F
+  BCS @RiceTradeConfirm                   ; $C1F6: B0 0F
   LSR                                     ; $C1F8: 4A
-  BCC $C206                               ; $C1F9: 90 0B
+  BCC @RiceTradeIdleExit                  ; $C1F9: 90 0B
   DEC $0401                               ; $C1FB: CE 01 04
   JSR MenuCursorReset                     ; $C1FE: 20 70 DD
   LDA #$6F                                ; $C201: A9 6F
@@ -4658,7 +4667,7 @@ WarehouseSliderScale10:
   LDA $0402                               ; $C220: AD 02 04
   JSR B1F_GetProvinceRecordAddr                               ; $C223: 20 AF F2
   LDA a:$0012                             ; $C226: AD 12 00
-  BEQ $C254                               ; $C229: F0 29
+  BEQ @RiceBuySeed                        ; $C229: F0 29
   LDY #$04                                ; $C22B: A0 04
   LDA ($00),Y                             ; $C22D: B1 00
   STA $0490                               ; $C22F: 8D 90 04
@@ -4703,7 +4712,7 @@ WarehouseSliderScale10:
   STA a:$0004                             ; $C28E: 8D 04 00
   JSR MathDivideProduct                   ; $C291: 20 72 DB
   LDA a:$0005                             ; $C294: AD 05 00
-  BEQ $C29E                               ; $C297: F0 05
+  BEQ @RiceBuyCostCommit                  ; $C297: F0 05
   LDA #$01                                ; $C299: A9 01
   STA a:$0005                             ; $C29B: 8D 05 00
 @RiceBuyCostCommit:
@@ -4727,7 +4736,7 @@ WarehouseSliderScale10:
 @MarketRiceBuyConfirm:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR OverlayIdleCheck                               ; $C2C5: 20 AD DD
-  BCC $C2EB                               ; $C2C8: 90 21
+  BCC @RiceBuyIdleExit                    ; $C2C8: 90 21
   LDA #$50                                ; $C2CA: A9 50
   STA $031C                               ; $C2CC: 8D 1C 03
   LDA #$23                                ; $C2CF: A9 23
@@ -4735,9 +4744,9 @@ WarehouseSliderScale10:
   JSR ActionDeltaInputPoll                               ; $C2D4: 20 02 DA
   LDA a:$0081                             ; $C2D7: AD 81 00
   LSR                                     ; $C2DA: 4A
-  BCS $C2EC                               ; $C2DB: B0 0F
+  BCS @RiceBuyConfirm                     ; $C2DB: B0 0F
   LSR                                     ; $C2DD: 4A
-  BCC $C2EB                               ; $C2DE: 90 0B
+  BCC @RiceBuyIdleExit                    ; $C2DE: 90 0B
   DEC $0401                               ; $C2E0: CE 01 04
   JSR MenuCursorReset                     ; $C2E3: 20 70 DD
   LDA #$72                                ; $C2E6: A9 72
@@ -4749,9 +4758,9 @@ WarehouseSliderScale10:
   STA a:$0000                             ; $C2EF: 8D 00 00
   LDA $048F                               ; $C2F2: AD 8F 04
   STA a:$0001                             ; $C2F5: 8D 01 00
-  BNE $C2FF                               ; $C2F8: D0 05
+  BNE @RiceBuyCostCalc                    ; $C2F8: D0 05
   LDA a:$0000                             ; $C2FA: AD 00 00
-  BEQ $C2EB                               ; $C2FD: F0 EC
+  BEQ @RiceBuyIdleExit                    ; $C2FD: F0 EC
 @RiceBuyCostCalc:
   LDA #$00                                ; $C2FF: A9 00
   STA a:$0002                             ; $C301: 8D 02 00
@@ -4777,9 +4786,9 @@ WarehouseSliderScale10:
 @MarketRiceBuyApply:  ; (dispatch callback target)
   JSR ConfirmDialogPoll                  ; $C339: 20 BD D5
   LDA a:$0013                             ; $C33C: AD 13 00
-  BEQ $C39F                               ; $C33F: F0 5E
+  BEQ @BuyApplyExit                       ; $C33F: F0 5E
   CMP #$FF                                ; $C341: C9 FF
-  BEQ $C39A                               ; $C343: F0 55
+  BEQ @BuyCancel                          ; $C343: F0 55
   LDA $0402                               ; $C345: AD 02 04
   JSR B1F_GetProvinceRecordAddr                               ; $C348: 20 AF F2
   LDY #$02                                ; $C34B: A0 02
@@ -4790,7 +4799,7 @@ WarehouseSliderScale10:
   INY                                     ; $C355: C8
   LDA ($00),Y                             ; $C356: B1 00
   SBC $042D                               ; $C358: ED 2D 04
-  BCS $C363                               ; $C35B: B0 06
+  BCS @BuyGoldStore                       ; $C35B: B0 06
   LDA #$00                                ; $C35D: A9 00
   DEY                                     ; $C35F: 88
   STA ($00),Y                             ; $C360: 91 00
@@ -4826,7 +4835,7 @@ WarehouseSliderScale10:
   RTS                                     ; $C39F: 60
 @MarketRiceSellConfirm:  ; (dispatch callback target)
   JSR OverlayIdleCheck                               ; $C3A0: 20 AD DD
-  BCC $C3C8                               ; $C3A3: 90 23
+  BCC @RiceSellIdleExit                   ; $C3A3: 90 23
   LDA #$50                                ; $C3A5: A9 50
   STA $031C                               ; $C3A7: 8D 1C 03
   LDA #$23                                ; $C3AA: A9 23
@@ -4834,9 +4843,9 @@ WarehouseSliderScale10:
   JSR ActionDeltaInputPoll                               ; $C3AF: 20 02 DA
   LDA a:$0081                             ; $C3B2: AD 81 00
   LSR                                     ; $C3B5: 4A
-  BCS $C3C9                               ; $C3B6: B0 11
+  BCS @RiceSellConfirm                    ; $C3B6: B0 11
   LSR                                     ; $C3B8: 4A
-  BCC $C3C8                               ; $C3B9: 90 0D
+  BCC @RiceSellIdleExit                   ; $C3B9: 90 0D
   LDA #$03                                ; $C3BB: A9 03
   STA $0401                               ; $C3BD: 8D 01 04
   JSR MenuCursorReset                     ; $C3C0: 20 70 DD
@@ -4849,9 +4858,9 @@ WarehouseSliderScale10:
   STA a:$0000                             ; $C3CC: 8D 00 00
   LDA $048F                               ; $C3CF: AD 8F 04
   STA a:$0001                             ; $C3D2: 8D 01 00
-  BNE $C3DC                               ; $C3D5: D0 05
+  BNE @RiceSellCostCalc                   ; $C3D5: D0 05
   LDA a:$0000                             ; $C3D7: AD 00 00
-  BEQ $C3C8                               ; $C3DA: F0 EC
+  BEQ @RiceSellIdleExit                   ; $C3DA: F0 EC
 @RiceSellCostCalc:
   LDA #$00                                ; $C3DC: A9 00
   STA a:$0002                             ; $C3DE: 8D 02 00
@@ -4876,9 +4885,9 @@ WarehouseSliderScale10:
 @MarketRiceSellApply:  ; (dispatch callback target)
   JSR ConfirmDialogPoll                  ; $C414: 20 BD D5
   LDA a:$0013                             ; $C417: AD 13 00
-  BEQ $C469                               ; $C41A: F0 4D
+  BEQ @SellApplyExit                      ; $C41A: F0 4D
   CMP #$FF                                ; $C41C: C9 FF
-  BEQ $C464                               ; $C41E: F0 44
+  BEQ @SellCancel                         ; $C41E: F0 44
   LDA $0402                               ; $C420: AD 02 04
   JSR B1F_GetProvinceRecordAddr                               ; $C423: 20 AF F2
   LDY #$04                                ; $C426: A0 04
@@ -4889,7 +4898,7 @@ WarehouseSliderScale10:
   INY                                     ; $C430: C8
   LDA ($00),Y                             ; $C431: B1 00
   SBC $048F                               ; $C433: ED 8F 04
-  BCS $C43E                               ; $C436: B0 06
+  BCS @SellRiceStore                      ; $C436: B0 06
   LDA #$00                                ; $C438: A9 00
   DEY                                     ; $C43A: 88
   STA ($00),Y                             ; $C43B: 91 00
@@ -4919,7 +4928,7 @@ WarehouseSliderScale10:
   RTS                                     ; $C469: 60
 @MarketTreasureSellPrompt:  ; (dispatch callback target)
   JSR OverlayIdleCheck                               ; $C46A: 20 AD DD
-  BCC $C4A7                               ; $C46D: 90 38
+  BCC @TreasurePromptExit                 ; $C46D: 90 38
   LDA #$30                                ; $C46F: A9 30
   STA $031C                               ; $C471: 8D 1C 03
   LDA #$23                                ; $C474: A9 23
@@ -4928,9 +4937,9 @@ WarehouseSliderScale10:
   JSR ActionDeltaInputPoll_CapInA                               ; $C47B: 20 04 DA
   LDA a:$0081                             ; $C47E: AD 81 00
   LSR                                     ; $C481: 4A
-  BCC $C497                               ; $C482: 90 13
+  BCC @TreasurePromptCancel               ; $C482: 90 13
   LDA $048E                               ; $C484: AD 8E 04
-  BEQ $C4A7                               ; $C487: F0 1E
+  BEQ @TreasurePromptExit                 ; $C487: F0 1E
   INC $0401                               ; $C489: EE 01 04
   JSR MenuCursorReset                     ; $C48C: 20 70 DD
   STA $046C                               ; $C48F: 8D 6C 04
@@ -4938,7 +4947,7 @@ WarehouseSliderScale10:
   JMP B1F_SetUI0                               ; $C494: 4C 6D F2
 @TreasurePromptCancel:
   LSR                                     ; $C497: 4A
-  BCC $C4A7                               ; $C498: 90 0D
+  BCC @TreasurePromptExit                 ; $C498: 90 0D
   LDA #$02                                ; $C49A: A9 02
   STA $0401                               ; $C49C: 8D 01 04
   JSR MenuCursorReset                     ; $C49F: 20 70 DD
@@ -4949,9 +4958,9 @@ WarehouseSliderScale10:
 @MarketTreasureSellApply:  ; (dispatch callback target)
   JSR ConfirmDialogPoll                  ; $C4A8: 20 BD D5
   LDA a:$0013                             ; $C4AB: AD 13 00
-  BEQ $C514                               ; $C4AE: F0 64
+  BEQ @TreasureApplyExit                  ; $C4AE: F0 64
   CMP #$FF                                ; $C4B0: C9 FF
-  BEQ $C50F                               ; $C4B2: F0 5B
+  BEQ @TreasureSellAbort                  ; $C4B2: F0 5B
   LDA #$64                                ; $C4B4: A9 64
   STA a:$0003                             ; $C4B6: 8D 03 00
   LDA $048E                               ; $C4B9: AD 8E 04
@@ -4996,12 +5005,12 @@ WarehouseSliderScale10:
   RTS                                     ; $C514: 60
 @HospitalFeeSetup:  ; (dispatch callback target)
   LDA $0478                               ; $C515: AD 78 04
-  BNE $C546                               ; $C518: D0 2C
+  BNE @HospitalFeeIdleExit                ; $C518: D0 2C
   JSR OfficerSelectDialogPoll             ; $C51A: 20 4A D6
   LDA $047C                               ; $C51D: AD 7C 04
-  BPL $C546                               ; $C520: 10 24
+  BPL @HospitalFeeIdleExit                ; $C520: 10 24
   CMP #$90                                ; $C522: C9 90
-  BEQ $C541                               ; $C524: F0 1B
+  BEQ @HospitalFeeAbort                   ; $C524: F0 1B
   JSR DialogWindowClose                   ; $C526: 20 A8 D7
   LDA #$00                                ; $C529: A9 00
   STA $0470                               ; $C52B: 8D 70 04
@@ -5019,20 +5028,20 @@ WarehouseSliderScale10:
   RTS                                     ; $C546: 60
 @ServiceFeeConfirm:  ; (dispatch callback target)
   JSR OverlayIdleCheck                               ; $C547: 20 AD DD
-  BCC $C58E                               ; $C54A: 90 42
+  BCC @FeeConfirmExit                     ; $C54A: 90 42
   JSR MapCursorArrowDraw                               ; $C54C: 20 43 D5
   LDA a:$0081                             ; $C54F: AD 81 00
   LSR                                     ; $C552: 4A
-  BCC $C581                               ; $C553: 90 2C
+  BCC @FeeCancelCheck                     ; $C553: 90 2C
   LDA $0402                               ; $C555: AD 02 04
   JSR B1F_GetProvinceRecordAddr                               ; $C558: 20 AF F2
   LDY #$02                                ; $C55B: A0 02
   LDA ($00),Y                             ; $C55D: B1 00
   CMP $042C                               ; $C55F: CD 2C 04
-  BCS $C569                               ; $C562: B0 05
+  BCS @FeeAcceptRoute                     ; $C562: B0 05
   INY                                     ; $C564: C8
   LDA ($00),Y                             ; $C565: B1 00
-  BEQ $C577                               ; $C567: F0 0E
+  BEQ @FeeInsufficient                    ; $C567: F0 0E
 @FeeAcceptRoute:
   INC $0401                               ; $C569: EE 01 04
   JSR MenuCursorReset                     ; $C56C: 20 70 DD
@@ -5046,9 +5055,9 @@ WarehouseSliderScale10:
   JMP B1F_SetUI0                               ; $C57E: 4C 6D F2
 @FeeCancelCheck:
   LSR                                     ; $C581: 4A
-  BCC $C58E                               ; $C582: 90 0A
+  BCC @FeeConfirmExit                     ; $C582: 90 0A
   JSR OverlayIdleCheck                               ; $C584: 20 AD DD
-  BCC $C58E                               ; $C587: 90 05
+  BCC @FeeConfirmExit                     ; $C587: 90 05
   LDA #$00                                ; $C589: A9 00
   STA $0401                               ; $C58B: 8D 01 04
 @FeeConfirmExit:
@@ -5056,9 +5065,9 @@ WarehouseSliderScale10:
 @ServiceFeePayApply:  ; (dispatch callback target)
   JSR ConfirmDialogPoll                  ; $C58F: 20 BD D5
   LDA a:$0013                             ; $C592: AD 13 00
-  BEQ $C5D6                               ; $C595: F0 3F
+  BEQ @FeePayExit                         ; $C595: F0 3F
   CMP #$FF                                ; $C597: C9 FF
-  BEQ $C5D1                               ; $C599: F0 36
+  BEQ @FeePayAbort                        ; $C599: F0 36
   LDA $0402                               ; $C59B: AD 02 04
   JSR B1F_GetProvinceRecordAddr                               ; $C59E: 20 AF F2
   LDY #$02                                ; $C5A1: A0 02
@@ -5093,11 +5102,11 @@ WarehouseSliderScale10:
   LDA $0481                               ; $C5D7: AD 81 04
   JSR OfficerCardShow                     ; $C5DA: 20 5E DD  ; show officer card ($0481)
   JSR OverlayIdleCheck                               ; $C5DD: 20 AD DD
-  BCC $C5EC                               ; $C5E0: 90 0A
+  BCC @ServiceCardIdleExit                ; $C5E0: 90 0A
   JSR MapCursorArrowDraw                               ; $C5E2: 20 43 D5
   LDA a:$0081                             ; $C5E5: AD 81 00
   AND #$03                                ; $C5E8: 29 03
-  BNE $C5ED                               ; $C5EA: D0 01
+  BNE @ServiceCardConfirm                 ; $C5EA: D0 01
 @ServiceCardIdleExit:
   RTS                                     ; $C5EC: 60
 @ServiceCardConfirm:
@@ -5113,7 +5122,7 @@ WarehouseSliderScale10:
 @HospitalHealCalc:
   JSR B1F_RandomMod16                               ; $C601: 20 5C E8
   CMP #$0B                                ; $C604: C9 0B
-  BCS $C601                               ; $C606: B0 F9
+  BCS @HospitalHealCalc                   ; $C606: B0 F9
   CLC                                     ; $C608: 18
   ADC #$23                                ; $C609: 69 23
   STA $042C                               ; $C60B: 8D 2C 04
@@ -5131,7 +5140,7 @@ WarehouseSliderScale10:
   STA ($00),Y                             ; $C629: 91 00
   SEC                                     ; $C62B: 38
   SBC a:$0002                             ; $C62C: ED 02 00
-  BCC $C643                               ; $C62F: 90 12
+  BCC @HealResultUI                       ; $C62F: 90 12
   STA a:$0003                             ; $C631: 8D 03 00
   LDA $042C                               ; $C634: AD 2C 04
   SEC                                     ; $C637: 38
@@ -5151,7 +5160,7 @@ WarehouseSliderScale10:
   JSR B1F_GetOfficerRecordAddr                               ; $C655: 20 D7 F2
   JSR B1F_RandomMod8                               ; $C658: 20 56 E8
   CMP #$05                                ; $C65B: C9 05
-  BCS $C652                               ; $C65D: B0 F3
+  BCS @AcademyTrainApply                  ; $C65D: B0 F3
   CLC                                     ; $C65F: 18
   ADC $0471                               ; $C660: 6D 71 04
   STA $042C                               ; $C663: 8D 2C 04
@@ -5168,27 +5177,27 @@ WarehouseSliderScale10:
   JMP B1F_SetUI0                               ; $C67C: 4C 6D F2
 @AcademyCostSelect:  ; (dispatch callback target)
   LDA $0478                               ; $C67F: AD 78 04
-  BNE $C6F7                               ; $C682: D0 73
+  BNE @AcademyExit                        ; $C682: D0 73
   JSR OfficerSelectDialogPoll             ; $C684: 20 4A D6
   LDA $047C                               ; $C687: AD 7C 04
-  BPL $C6F7                               ; $C68A: 10 6B
+  BPL @AcademyExit                        ; $C68A: 10 6B
   CMP #$90                                ; $C68C: C9 90
-  BEQ $C6F2                               ; $C68E: F0 62
+  BEQ @AcademyAbort                       ; $C68E: F0 62
   JSR DialogWindowClose                   ; $C690: 20 A8 D7
   LDA $0481                               ; $C693: AD 81 04
   JSR B1F_GetOfficerRecordAddr                               ; $C696: 20 D7 F2
   LDY #$02                                ; $C699: A0 02
   LDA ($00),Y                             ; $C69B: B1 00
   CMP #$50                                ; $C69D: C9 50
-  BCS $C6D8                               ; $C69F: B0 37
+  BCS @AcademyMaxed                       ; $C69F: B0 37
   CMP #$3D                                ; $C6A1: C9 3D
-  BCC $C6AC                               ; $C6A3: 90 07
+  BCC @AcademyTierMid                     ; $C6A3: 90 07
   LDA #$0A                                ; $C6A5: A9 0A
   LDX #$06                                ; $C6A7: A2 06
   JMP @AcademyTierSet                               ; $C6A9: 4C BB C6
 @AcademyTierMid:
   CMP #$1F                                ; $C6AC: C9 1F
-  BCC $C6B7                               ; $C6AE: 90 07
+  BCC @AcademyTierLow                     ; $C6AE: 90 07
   LDA #$14                                ; $C6B0: A9 14
   LDX #$08                                ; $C6B2: A2 08
   JMP @AcademyTierSet                               ; $C6B4: 4C BB C6
@@ -5240,7 +5249,7 @@ WarehouseSliderScale10:
   RTS                                     ; $C712: 60
 @ResultRedrawWait:  ; (dispatch callback target)
   LDA $04A0                               ; $C713: AD A0 04
-  BNE $C720                               ; $C716: D0 08
+  BNE @RedrawWaitExit                     ; $C716: D0 08
   LDA #$04                                ; $C718: A9 04
   JSR MapTransitionStateRestore           ; $C71A: 20 8C D5
   INC $0401                               ; $C71D: EE 01 04
@@ -5248,29 +5257,29 @@ WarehouseSliderScale10:
   RTS                                     ; $C720: 60
 @TownScreenExitWait:  ; (dispatch callback target)
   JSR OverlayIdleCheck                               ; $C721: 20 AD DD
-  BCC $C73B                               ; $C724: 90 15
+  BCC @ExitCleanupCheck                   ; $C724: 90 15
   JSR MapCursorArrowDraw                               ; $C726: 20 43 D5
   LDA a:$0081                             ; $C729: AD 81 00
   AND #$03                                ; $C72C: 29 03
-  BEQ $C73B                               ; $C72E: F0 0B
+  BEQ @ExitCleanupCheck                   ; $C72E: F0 0B
   JSR MapTransitionStateSave              ; $C730: 20 68 D5
   LDA #$00                                ; $C733: A9 00
   STA $0400                               ; $C735: 8D 00 04
   STA $0401                               ; $C738: 8D 01 04
 @ExitCleanupCheck:
   LDA $0473                               ; $C73B: AD 73 04
-  BEQ $C743                               ; $C73E: F0 03
+  BEQ @ExitWaitExit                       ; $C73E: F0 03
   JMP OfficerCardShow                     ; $C740: 4C 5E DD
 @ExitWaitExit:
   RTS                                     ; $C743: 60
 @ArmoryWindowWait:  ; (dispatch callback target)
   LDA $0478                               ; $C744: AD 78 04
-  BNE $C76D                               ; $C747: D0 24
+  BNE @ArmoryWinExit                      ; $C747: D0 24
   JSR OfficerSelectDialogPoll             ; $C749: 20 4A D6
   LDA $047C                               ; $C74C: AD 7C 04
-  BPL $C76D                               ; $C74F: 10 1C
+  BPL @ArmoryWinExit                      ; $C74F: 10 1C
   CMP #$90                                ; $C751: C9 90
-  BEQ $C768                               ; $C753: F0 13
+  BEQ @ArmoryAbort                        ; $C753: F0 13
   JSR DialogWindowClose                   ; $C755: 20 A8 D7
   INC $0401                               ; $C758: EE 01 04
   LDA #$8C                                ; $C75B: A9 8C
@@ -5289,7 +5298,7 @@ WarehouseSliderScale10:
   LDA #>@ArmoryMenuStream                 ; $C773: A9 C7
   STA a:$0011                             ; $C775: 8D 11 00
   LDA #$00                                ; $C778: A9 00
-  STA a:$0012                             ; $C77A: 8D 12 00
+  STA a:$0012                             ; $C77A: 8D 12 00  ; menu category $0012 = 0 (categories 0-3; passed as input to grid expansion below)
   JSR B1F_MenuStep2                               ; $C77D: 20 1E ED
   LDA #<@ArmoryMenuPosTable               ; $C780: A9 F4
   STA a:$0010                             ; $C782: 8D 10 00
@@ -5303,17 +5312,17 @@ WarehouseSliderScale10:
   JSR B1F_PointerTableLookup                               ; $C797: 20 F5 ED
   LDA a:$0081                             ; $C79A: AD 81 00
   LSR                                     ; $C79D: 4A
-  BCC $C7D8                               ; $C79E: 90 38
+  BCC @ArmoryMenuBack                     ; $C79E: 90 38
   LDY $0402                               ; $C7A0: AC 02 04
   LDA @ArmoryGridSetTable,Y               ; $C7A3: B9 01 C8  ; weapon grid set of province $0402
   STA a:$0000                             ; $C7A6: 8D 00 00
-  LDY #$28                                ; $C7A9: A0 28
-  JSR B1F_BankedCallbackTrampoline                               ; $C7AB: 20 07 EE
+  LDY #$28                                ; $C7A9: A0 28     ; target banks $08+$09
+  JSR B1F_BankedCallbackTrampoline                               ; $C7AB: 20 07 EE  ; inputs: $0000 = province grid set (from @ArmoryGridSetTable), $0012 = menu category 0-3
 ; --- Code Region ---
-  .word B08_09_ExpandFormationSlots_Entry ; $C7AE: 1E A0 (BankedCallbackTrampoline target; banks $08+$09 $A01E -> JMP ExpandFormationSlots; reused to lay out the 4 weapon grid cells $044C-$044F and the price records $042C+slot*3)
+  .word B08_09_ExpandArmoryGridSlots_Entry ; $C7AE: 1E A0 (BankedCallbackTrampoline target; reaches shared entry stub $A01E in prg_08_09.asm -> JMP ExpandArmoryGridSlots; stub shared with war-map armory flow WarTownActionDispatch state 5; reused to lay out the 4 weapon grid cells $044C-$044F and the price records $042C+slot*3)
   LDA $0402                               ; $C7B0: AD 02 04  ; province id
-  CMP #$1B                                ; $C7B3: C9 1B
-  BNE @ArmoryGridNext                     ; $C7B5: D0 16     ; famous-weapon grid only in province $1B
+  CMP #$1B                                ; $C7B3: C9 1B     ; province #$1B = Furyou (フリョウ, 涪陵)
+  BNE @ArmoryGridNext                     ; $C7B5: D0 16     ; famous-weapon grid only in province $1B (Furyou 涪陵)
   LDA $044C                               ; $C7B7: AD 4C 04  ; first grid cell
   CMP #$10                                ; $C7BA: C9 10
   BNE @ArmoryGridNext                     ; $C7BC: D0 0F
@@ -5330,7 +5339,7 @@ WarehouseSliderScale10:
   JMP B1F_SetUI4                               ; $C7D5: 4C 8B F2
 @ArmoryMenuBack:
   LSR                                     ; $C7D8: 4A
-  BCC $C7ED                               ; $C7D9: 90 12
+  BCC @ArmoryMenuExit                     ; $C7D9: 90 12
   DEC $0401                               ; $C7DB: CE 01 04
   LDA #$80                                ; $C7DE: A9 80
   STA $0478                               ; $C7E0: 8D 78 04
@@ -5355,9 +5364,10 @@ WarehouseSliderScale10:
 ; --- Code Region ---
   LDA $0300                               ; $C81F: AD 00 03
   CMP #$FF                                ; $C822: C9 FF
-  BEQ $C827                               ; $C824: F0 01
+  BEQ @ArmoryDescRender                   ; $C824: F0 01
   RTS                                     ; $C826: 60
 ; --- Code Region ---
+@ArmoryDescRender:
   LDY #$30                                ; $C827: A0 30     ; bank $30 window (item records)
   JSR B1F_SwitchBank8_B                   ; $C829: 20 5F F2
   LDY #$00                                ; $C82C: A0 00
@@ -5399,7 +5409,7 @@ WarehouseSliderScale10:
   STY a:$0015                             ; $C878: 8C 15 00
   LDA ($00),Y                             ; $C87B: B1 00
   CMP a:$00BC                             ; $C87D: CD BC 00
-  BEQ $C88A                               ; $C880: F0 08
+  BEQ @ArmoryDescRowLoop                  ; $C880: F0 08
   STA a:$00BD                             ; $C882: 8D BD 00
   LDA #$40                                ; $C885: A9 40
   STA a:$0015                             ; $C887: 8D 15 00
@@ -5433,17 +5443,17 @@ WarehouseSliderScale10:
   INC a:$0013                             ; $C8C4: EE 13 00
   LDA a:$0013                             ; $C8C7: AD 13 00
   CMP #$08                                ; $C8CA: C9 08
-  BCC $C8B9                               ; $C8CC: 90 EB
+  BCC @ArmoryDescByteLoop                 ; $C8CC: 90 EB
   INX                                     ; $C8CE: E8
   STX a:$0011                             ; $C8CF: 8E 11 00
   INC a:$0014                             ; $C8D2: EE 14 00
   LDA a:$0014                             ; $C8D5: AD 14 00
   CMP #$02                                ; $C8D8: C9 02
-  BCC $C88A                               ; $C8DA: 90 AE
+  BCC @ArmoryDescRowLoop                  ; $C8DA: 90 AE
   INC a:$0010                             ; $C8DC: EE 10 00
   LDA a:$0010                             ; $C8DF: AD 10 00
   CMP #$04                                ; $C8E2: C9 04
-  BCS $C8E9                               ; $C8E4: B0 03
+  BCS @ArmoryDescDone                     ; $C8E4: B0 03
   JMP @ArmoryGridNextItem                               ; $C8E6: 4C 5B C8
 @ArmoryDescDone:
   LDA #$FF                                ; $C8E9: A9 FF
@@ -5478,9 +5488,9 @@ WarehouseSliderScale10:
   JSR B1F_PointerTableLookup                               ; $C933: 20 F5 ED
   LDA a:$0081                             ; $C936: AD 81 00
   LSR                                     ; $C939: 4A
-  BCS $C950                               ; $C93A: B0 14
+  BCS @ArmoryBuySelect                    ; $C93A: B0 14
   LSR                                     ; $C93C: 4A
-  BCC $C94F                               ; $C93D: 90 10
+  BCC @BuyMenuIdleExit                    ; $C93D: 90 10
   LDA #$13                                ; $C93F: A9 13
   STA $0471                               ; $C941: 8D 71 04
   INC $0401                               ; $C944: EE 01 04
@@ -5512,9 +5522,9 @@ WarehouseSliderScale10:
   INY                                     ; $C97D: C8
   LDA ($00),Y                             ; $C97E: B1 00
   SBC a:$0011                             ; $C980: ED 11 00
-  BCC $C9B2                               ; $C983: 90 2D
-  JSR @WeaponGateCheck                    ; $C985: 20 6B CA  ; famous-weapon restriction check
-  BCS $C993                               ; $C988: B0 09
+  BCC @ArmoryBuyCantAfford                ; $C983: 90 2D  ; province gold below price
+  JSR @FamousWeaponGateCheck              ; $C985: 20 6B CA  ; famous-weapon purchase gate
+  BCS @ArmoryBuyRoute                     ; $C988: B0 09
   LDA #$11                                ; $C98A: A9 11
   STA $0471                               ; $C98C: 8D 71 04
   INC $0401                               ; $C98F: EE 01 04
@@ -5531,7 +5541,7 @@ WarehouseSliderScale10:
   STA $046C                               ; $C9AA: 8D 6C 04
   LDA #$29                                ; $C9AD: A9 29
   JMP B1F_SetUI4                               ; $C9AF: 4C 8B F2
-@WeaponGateFail:
+@ArmoryBuyCantAfford:
   LDA #$11                                ; $C9B2: A9 11
   STA $0471                               ; $C9B4: 8D 71 04
   INC $0401                               ; $C9B7: EE 01 04
@@ -5547,24 +5557,27 @@ WarehouseSliderScale10:
 @ArmoryBuyerGate:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0300                               ; $C9D2: AD 00 03
-  BNE $C9EE                               ; $C9D5: D0 17
+  BNE @ArmoryBuyGateSkip                  ; $C9D5: D0 17
   LDA #$0D                                ; $C9D7: A9 0D
   STA a:$00BC                             ; $C9D9: 8D BC 00
   LDA #$8C                                ; $C9DC: A9 8C
   STA a:$00BD                             ; $C9DE: 8D BD 00
   LDY #$3D                                ; $C9E1: A0 3D
   JSR B1F_BankedCallbackTrampoline                               ; $C9E3: 20 07 EE
-; --- Data Region ---
-  .byte $24,$A0,$AD,$71,$04,$8D,$01,$04,$60 ; $C9E6: 24 A0 AD 71 04 8D 01 04 60
+  .word B1D_1E_ImmediateOverlay           ; $C9E6: 24 A0 (BankedCallbackTrampoline target)
+  LDA $0471                               ; $C9E8: AD 71 04
+  STA $0401                               ; $C9EB: 8D 01 04  ; -> sub 17 (@ArmoryPurchaseApply)
+@ArmoryBuyGateSkip:
+  RTS                                     ; $C9EE: 60
 @ArmoryPurchaseApply:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR ConfirmDialogPoll                  ; $C9EF: 20 BD D5
   LDA a:$0013                             ; $C9F2: AD 13 00
-  BEQ $CA6A                               ; $C9F5: F0 73
+  BEQ @PurchaseExit                       ; $C9F5: F0 73
   CMP #$FF                                ; $C9F7: C9 FF
-  BEQ $CA65                               ; $C9F9: F0 6A
+  BEQ @PurchaseAbort                      ; $C9F9: F0 6A
   LDA $0472                               ; $C9FB: AD 72 04
-  BEQ $CA06                               ; $C9FE: F0 06
+  BEQ @EquipMaskSet                       ; $C9FE: F0 06
   ORA $6FE1                               ; $CA00: 0D E1 6F
   STA $6FE1                               ; $CA03: 8D E1 6F
 @EquipMaskSet:
@@ -5572,7 +5585,7 @@ WarehouseSliderScale10:
   STA a:$0010                             ; $CA08: 8D 10 00
   LDA $044C                               ; $CA0B: AD 4C 04
   CMP #$18                                ; $CA0E: C9 18
-  BCC $CA24                               ; $CA10: 90 12
+  BCC @EquipApply                         ; $CA10: 90 12
   SEC                                     ; $CA12: 38
   SBC #$18                                ; $CA13: E9 18
   CLC                                     ; $CA15: 18
@@ -5617,63 +5630,75 @@ WarehouseSliderScale10:
   STA $0401                               ; $CA67: 8D 01 04
 @PurchaseExit:
   RTS                                     ; $CA6A: 60
-@WeaponGateCheck:
+; --- Famous-weapon purchase gate -------------------------------------------
+; Gate for the four famous (hidden) equipment pieces, entered after the gold
+; check with the selected equipment id in $044C and the buying officer in
+; $0481. Each famous piece carries a once-per-game event bit in $6FE1 (OR'd
+; in by @ArmoryPurchaseApply when the buy is confirmed), so a second buy is
+; rejected as already owned. Requirements and the bit each item grants:
+;   $0F hidden blade (400g) : buyer must be officer $26 (関羽)  -> bit $02
+;   $17 hidden spear (400g) : buyer must be officer $99 (張飛)  -> bit $04
+;   $16 hidden spear (350g) : buyer Might (record +$01) >= $5B  -> bit $08
+;   $1E hidden armor (350g) : buyer Virtue (record +$04) >= $5B -> bit $10
+; Any other item passes straight through with no event bit.
+; Exits: CS = allowed, CLC = denied (UI $9A) or already owned (UI $9B).
+@FamousWeaponGateCheck:
   LDA #$00                                ; $CA6B: A9 00
-  STA $0472                               ; $CA6D: 8D 72 04
-  LDA $0481                               ; $CA70: AD 81 04
-  STA a:$0002                             ; $CA73: 8D 02 00
-  JSR B1F_GetOfficerRecordAddr                               ; $CA76: 20 D7 F2
-  LDA $044C                               ; $CA79: AD 4C 04
+  STA $0472                               ; $CA6D: 8D 72 04  ; famous-weapon event mask (none yet)
+  LDA $0481                               ; $CA70: AD 81 04  ; buying officer id
+  STA a:$0002                             ; $CA73: 8D 02 00  ; keep across record lookup
+  JSR B1F_GetOfficerRecordAddr                               ; $CA76: 20 D7 F2  ; -> ($00) = buyer officer record
+  LDA $044C                               ; $CA79: AD 4C 04  ; selected equipment id
   CMP #$0F                                ; $CA7C: C9 0F
-  BNE $CA8C                               ; $CA7E: D0 0C
-  LDA a:$0002                             ; $CA80: AD 02 00
+  BNE @FamousWeaponCaseChouHi             ; $CA7E: D0 0C
+  LDA a:$0002                             ; $CA80: AD 02 00  ; hidden blade: only 関羽 may buy
   CMP #$26                                ; $CA83: C9 26
-  BNE $CABE                               ; $CA85: D0 37
-  LDA #$02                                ; $CA87: A9 02
-  JMP @WeaponGatePass                               ; $CA89: 4C C5 CA
-@WeaponGateCase17:
+  BNE @FamousWeaponGateDenied             ; $CA85: D0 37
+  LDA #$02                                ; $CA87: A9 02     ; ownership event bit: blade
+  JMP @FamousWeaponGateGrantBit                               ; $CA89: 4C C5 CA
+@FamousWeaponCaseChouHi:
   CMP #$17                                ; $CA8C: C9 17
-  BNE $CA9C                               ; $CA8E: D0 0C
-  LDA a:$0002                             ; $CA90: AD 02 00
+  BNE @FamousWeaponCaseMight              ; $CA8E: D0 0C
+  LDA a:$0002                             ; $CA90: AD 02 00  ; province-exclusive spear: only 張飛 may buy
   CMP #$99                                ; $CA93: C9 99
-  BNE $CABE                               ; $CA95: D0 27
-  LDA #$04                                ; $CA97: A9 04
-  JMP @WeaponGatePass                               ; $CA99: 4C C5 CA
-@WeaponGateCase16:
+  BNE @FamousWeaponGateDenied             ; $CA95: D0 27
+  LDA #$04                                ; $CA97: A9 04     ; ownership event bit: spear
+  JMP @FamousWeaponGateGrantBit                               ; $CA99: 4C C5 CA
+@FamousWeaponCaseMight:
   CMP #$16                                ; $CA9C: C9 16
-  BNE $CAAD                               ; $CA9E: D0 0D
-  LDY #$01                                ; $CAA0: A0 01
+  BNE @FamousWeaponCaseVirtue             ; $CA9E: D0 0D
+  LDY #$01                                ; $CAA0: A0 01     ; +$01 Might
   LDA ($00),Y                             ; $CAA2: B1 00
-  CMP #$5B                                ; $CAA4: C9 5B
-  BCC $CABE                               ; $CAA6: 90 16
-  LDA #$08                                ; $CAA8: A9 08
-  JMP @WeaponGatePass                               ; $CAAA: 4C C5 CA
-@WeaponGateCase1E:
+  CMP #$5B                                ; $CAA4: C9 5B     ; needs Might >= 91
+  BCC @FamousWeaponGateDenied             ; $CAA6: 90 16
+  LDA #$08                                ; $CAA8: A9 08     ; ownership event bit: spear
+  JMP @FamousWeaponGateGrantBit                               ; $CAAA: 4C C5 CA
+@FamousWeaponCaseVirtue:
   CMP #$1E                                ; $CAAD: C9 1E
-  BNE $CAD6                               ; $CAAF: D0 25
-  LDY #$04                                ; $CAB1: A0 04
+  BNE @FamousWeaponGateAllow              ; $CAAF: D0 25
+  LDY #$04                                ; $CAB1: A0 04     ; +$04 Virtue
   LDA ($00),Y                             ; $CAB3: B1 00
-  CMP #$5B                                ; $CAB5: C9 5B
-  BCC $CABE                               ; $CAB7: 90 05
-  LDA #$10                                ; $CAB9: A9 10
-  JMP @WeaponGatePass                               ; $CABB: 4C C5 CA
-@WeaponGateDenied:
-  LDA #$9A                                ; $CABE: A9 9A
+  CMP #$5B                                ; $CAB5: C9 5B     ; needs Virtue >= 91
+  BCC @FamousWeaponGateDenied             ; $CAB7: 90 05
+  LDA #$10                                ; $CAB9: A9 10     ; ownership event bit: armor
+  JMP @FamousWeaponGateGrantBit                               ; $CABB: 4C C5 CA
+@FamousWeaponGateDenied:
+  LDA #$9A                                ; $CABE: A9 9A     ; "cannot buy this" message
   JSR B1F_SetUI4                               ; $CAC0: 20 8B F2
   CLC                                     ; $CAC3: 18
   RTS                                     ; $CAC4: 60
-@WeaponGatePass:
-  STA a:$0003                             ; $CAC5: 8D 03 00
-  LDA $6FE1                               ; $CAC8: AD E1 6F
+@FamousWeaponGateGrantBit:
+  STA a:$0003                             ; $CAC5: 8D 03 00  ; candidate ownership bit
+  LDA $6FE1                               ; $CAC8: AD E1 6F  ; famous-weapon ownership flags
   AND a:$0003                             ; $CACB: 2D 03 00
-  BNE $CAD8                               ; $CACE: D0 08
+  BNE @FamousWeaponGateAlreadyOwned       ; $CACE: D0 08
   LDA a:$0003                             ; $CAD0: AD 03 00
-  STA $0472                               ; $CAD3: 8D 72 04
-@WeaponGateOk:
+  STA $0472                               ; $CAD3: 8D 72 04  ; mask OR'd into $6FE1 once buy confirms
+@FamousWeaponGateAllow:
   SEC                                     ; $CAD6: 38
   RTS                                     ; $CAD7: 60
-@WeaponGateAlready:
-  LDA #$9B                                ; $CAD8: A9 9B
+@FamousWeaponGateAlreadyOwned:
+  LDA #$9B                                ; $CAD8: A9 9B     ; "already bought" message
   JSR B1F_SetUI4                               ; $CADA: 20 8B F2
   CLC                                     ; $CADD: 18
   RTS                                     ; $CADE: 60        ; gate exit
@@ -7747,7 +7772,7 @@ OfficerSelectCursorSprite:  ; cursor OAM template (dY, tile, attr, dX) + $80 ter
 ;===============================================================================
 ; ActionDeltaInputPoll ($DA02-$DB71)
 ; War-scene action delta input (dispatch callback target, entry stub $A003;
-; banks $08+$09 AiOfficerActionDispatch State1_GrowStatA / State2_GrowStatB
+; banks $08+$09 WarTownActionDispatch State1_BuyRice / State2_SellRice
 ; call it through the banked callback trampoline, Y=$3B). Edits the 4-digit
 ; action delta $048E/$048F (caller RAM action_delta_lo/hi) with pad 1 edges
 ; $0081: Right (bit7) decrements the digit cursor $048B toward the ones digit
@@ -7993,21 +8018,58 @@ ActionDeltaInputPoll_CapInA = ActionDeltaInputPoll::ActionDeltaInputPoll_CapInA
 ; Scout (情報集め) outcome roll for the province $0402; called from
 ; CastleScoutExecute (sub 13) with the acting officer id in $0481. The result
 ; class lands in $0470 (0-8), consumed by CastleScoutExecute / ResultGate:
-;   0/1 report: gold found (small tier)   2 report: town growth
-;   3   report: gold found (large tier)   4 supplies into field +$10
-;   5/6 hidden-officer traces (recruit / find dialogs)
-;   7   hidden officer found (also the OfficerArrivalScan handoff value)
-;   8   found-officer panel path (CastleScoutFoundOfficer, no scan run)
+;   0/1 gold found, small (+$1E + roll 0-40 -> record +$02/$03, UI $B8)
+;   2   rice found (+$32 + roll -> record +$04/$05, UI $B9)
+;   3   gold found, large (+$50 + roll -> record +$02/$03, UI $BA)
+;   4   treasure found (+1-3 -> record +$10 Treasure, cap 99, UI $34)
+;   5   hidden officer found, joins free (sub 15 recruit dialog, UI $39)
+;   6   hidden officer found, gold price (sub 16 find dialog, cost =
+;       avg(record $00-$02) / 3)
+;   7   hidden officer found, join gated by preferred-Country roll (sub 16)
+;   8   nothing found (empty result, UI $35)
+; The table never yields class 0 or 7: 0 is unused, and 7 exists only as the
+; OfficerArrivalScan handoff ($0470 <- $07), which promotes a rolled 5/6 when
+; the scan arms a scheduled arrival.
 ; Roll: $0011 bit 7 flags a full province roster (10 officers). The acting
 ; officer's Virtue (+$04; <$29 / $29-$50 / >=$51 -> base kept from
 ; ProvinceOfficerCount / $18 / $30) plus Intelligence (+$02; same thresholds
 ; -> +$08 / +$10) select one of the nine 8-entry groups of
-; CastleScoutOutcomeTable via B1F_RandomMod8.
+; CastleScoutOutcomeTable via B1F_RandomMod8. Group profiles: the low-Virtue
+; groups 0-2 (base = roster count 0-10) roll mostly small gold and class 8;
+; mid-Virtue groups 3-5 add rice / large gold and shift toward class 6
+; traces; high-Virtue groups 6-8 weight classes 5/6 with 8 still common.
 ; Gating: roster open and class 5-7 -> B19_1A_OfficerArrivalScan (banked,
-; Y=$39): a found officer yields $0472 = id, $0473 = arrival param and
-; $0470 = $07 (unchanged when the id misses ArrivalParamTable); nobody found
-; sets $0011 = $80 and the roll is retried. Roster full -> classes >= 5 are
-; retried; class 8 never runs the scan.
+; Y=$39). Reroll loop: both the roster-full gate and a failed scan set
+; $0011 bit 7 and jump back to @OutcomeLookup, so drawn classes >= 5 keep
+; rerolling until a 0-4 class appears ($0011 is never cleared again); class
+; 8 passes through without a scan.
+; Scan results on return: $0472 = Officer id when found (always); scheduled
+; path with the id listed in OfficerPreferredCountryTable also sets $0470 =
+; $07 and $0473 = preferred Country id; the fallback path and a
+; scheduled-unlisted id keep the rolled class and leave $0473 at the $80
+; marker stored by CastleScoutDialogWait. Downstream consumers:
+;   - CastleScoutExecute (sub 13) routes $0470: 8 -> CastleScoutNothingFound
+;     (empty result: sub 22, UI $35, panel param $00A4 = 4); 4 ->
+;     CastleScoutFoundTreasure adds 1-3 to record +$10 (Treasure, cap 99,
+;     UI $34); 0-3 -> report menu adding $1E/$50 + roll to record +$02/$03
+;     (gold, classes 0/1/3, UIs $B8/$BA) or $32 + roll to record +$04/$05
+;     (rice, class 2, UI $B9); 5-7 -> close officer window ($0481 = $FF),
+;     sub 14, UI $33.
+;   - CastleScoutResultGate (sub 14): class 6 -> sub 16 find dialog (UI $38)
+;     with the claim cost = average of officer record bytes $00-$02 / 3 in
+;     $042C/$042D; class 7 -> sub 16 find dialog (UI $36); class 5 -> sub 15
+;     recruit dialog (UI $37).
+;   - Class 5 claim -> CastleScoutRecruitApply: $0472 appended to the roster
+;     at +$11+count (joins free), status byte +$0B <- &FC | $02 discovered
+;     bit1, UI $39. Class 6 claim pays the cost from province gold
+;     (underflow -> restore, UI $2A) then joins the same way.
+;   - Class 7 claim rolls B1F_RandomMod16: province owner (record +$00) ==
+;     $0473 -> threshold 2 (joins on roll >= 2, 14 of 16), otherwise $0D
+;     (joins on roll >= $0D, 3 of 16). Roll >= threshold ->
+;     CastleScoutRecruitApply (joins, UI $39); roll below threshold ->
+;     officer card shown via B1D_1E_OfficerDisplay_Lookup but NOT recruited
+;     (@FindRecruitDeclined, UI $3A). $0473 = $80 never matches an owner
+;     Country id, so only a scheduled arrival can hit the easy threshold.
 ;===============================================================================
 .proc CastleScoutOutcomeRoll
 ; --- Code Region ---
@@ -8063,10 +8125,10 @@ ActionDeltaInputPoll_CapInA = ActionDeltaInputPoll::ActionDeltaInputPoll_CapInA
   CMP #$05                                ; $DBF9: C9 05
   BCS @Reroll                             ; $DBFB: B0 01     ; officer classes reroll
   RTS                                     ; $DBFD: 60        ; proc exit (class 0-4)
-@Reroll:
+@Reroll:  ; loop entry: drawn class >= 5, or scan found nobody ($0011 bit 7)
   JSR B1F_RandomMod8                      ; $DBFE: 20 56 E8
   STA a:$0010                             ; $DC01: 8D 10 00
-  JMP @OutcomeLookup                      ; $DC04: 4C E5 DB
+  JMP @OutcomeLookup                      ; $DC04: 4C E5 DB  ; loops until a 0-4 class
 @RosterOpenGate:
   LDA $0470                               ; $DC07: AD 70 04
   CMP #$05                                ; $DC0A: C9 05
@@ -8085,6 +8147,9 @@ ActionDeltaInputPoll_CapInA = ActionDeltaInputPoll::ActionDeltaInputPoll_CapInA
   RTS                                     ; $DC22: 60        ; proc exit
 ; --- Data Region ---
 CastleScoutOutcomeTable:  ; result class per (Virtue base + Intelligence offset) * 8 + random 0-7
+                          ; rows $DC23/$DC2B/$DC33 = Virtue low (roster-count base)
+                          ; x Intel low/mid/high; $DC3B-$DC4B = Virtue $18 rows;
+                          ; $DC53-$DC63 = Virtue $30 rows; entries only 1-6 and 8
   .byte $01,$01,$08,$08,$08,$08,$08,$08   ; $DC23: 01 01 08 08 08 08 08 08
   .byte $01,$01,$02,$02,$08,$08,$08,$08   ; $DC2B: 01 01 02 02 08 08 08 08
   .byte $02,$03,$03,$04,$04,$04,$08,$08   ; $DC33: 02 03 03 04 04 04 08 08

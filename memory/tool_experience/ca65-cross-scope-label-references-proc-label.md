@@ -3,8 +3,6 @@
 - **Category:** tool_experience
 - **Memory ID:** b0f7349c-d42a-4a08-8975-474f436d923a
 - **Keywords:** ca65, scope separator, cheap local label, multi-entry procedure, cross-proc JSR
-- **Usage scenarios:**
-  - Calling or jumping to a label defined inside another .proc scope in ca65 assembly sources
 
 ## Content
 

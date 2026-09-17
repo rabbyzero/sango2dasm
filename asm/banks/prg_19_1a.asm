@@ -3615,11 +3615,14 @@ NamePlateStripSetup:
 ;      == 0) whose location (record[+5]) equals $0402 or one of the 8
 ;      companion Provinces in the bank-$30 table $9D72[$0402*8], copied
 ;      to $0160-$0167.
-; Found: $0472 = Officer id, $0473 = arrival param (ArrivalParamTable,
-; scheduled path only), $0470 = $07 handoff. Not found: $0011 = $80 (the
-; caller tests $0011 bit 7). The scheduled path returns without setting
-; $0470 when the Officer id misses ArrivalParamTable.
-; Note: the ArrivalParamTable scan walks offsets $00-$22 (18 pair slots)
+; Found: $0472 = Officer id, $0473 = preferred Country id (from
+; OfficerPreferredCountryTable, scheduled path only), $0470 = $07 handoff.
+; The caller compares $0473 against the scouting Province's owner Country
+; (prg_1b_1c $AB75): match -> find threshold 2, otherwise $0D. Not found:
+; $0011 = $80 (the caller tests $0011 bit 7). The scheduled path returns
+; without setting $0470 when the Officer id misses OfficerPreferredCountryTable.
+; Note: the OfficerPreferredCountryTable scan walks offsets $00-$22 (18 pair
+; slots)
 ; but the table holds 16 pairs ($BA50-$BA6F); the trailing comparisons
 ; read the code bytes $A2/$7F and $AD/$70 at $BA70-$BA73 and would only
 ; misfire for Officer ids $A2/$AD.
@@ -3673,7 +3676,7 @@ NamePlateStripSetup:
 @ArrivalFound:
   LDY #$00                                ; $B9CC: A0 00
 @ParamTableScan:
-  LDA ArrivalParamTable,Y                 ; $B9CE: B9 50 BA  ; table Officer id
+  LDA OfficerPreferredCountryTable,Y      ; $B9CE: B9 50 BA  ; table Officer id
   CMP $0472                               ; $B9D1: CD 72 04
   BEQ @ArrivalArm                         ; $B9D4: F0 07
   INY                                     ; $B9D6: C8
@@ -3683,8 +3686,8 @@ NamePlateStripSetup:
   RTS                                     ; $B9DC: 60        ; id not listed: no handoff
 @ArrivalArm:
   INY                                     ; $B9DD: C8
-  LDA ArrivalParamTable,Y                 ; $B9DE: B9 50 BA  ; arrival param (2-4)
-  STA $0473                               ; $B9E1: 8D 73 04
+  LDA OfficerPreferredCountryTable,Y      ; $B9DE: B9 50 BA  ; preferred Country id
+  STA $0473                               ; $B9E1: 8D 73 04  ; preferred Country id
   LDA #$07                                ; $B9E4: A9 07
   STA $0470                               ; $B9E6: 8D 70 04  ; handoff id
   RTS                                     ; $B9E9: 60
@@ -3742,9 +3745,26 @@ NamePlateStripSetup:
   BCC @AdjacencyCheck                     ; $BA4B: 90 F3
   JMP @IdleNext                           ; $BA4D: 4C 1C BA
 ; --- Data Region ---
-ArrivalParamTable:                        ; $BA50: Officer id -> arrival param (2-4)
-  .byte $6D,$04,$70,$04,$56,$02,$37,$04,$B7,$04,$63,$02,$6B,$03,$2F,$03; $BA50: 6D 04 70 04 56 02 37 04 B7 04 63 02 6B 03 2F 03
-  .byte $A1,$02,$EA,$03,$EB,$03,$D5,$03,$90,$04,$39,$02,$A5,$02,$9C,$02; $BA60: A1 02 EA 03 EB 03 D5 03 90 04 39 02 A5 02 9C 02
+OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Country id
+                                          ; pairs (Officer id, Country); the scout find
+                                          ; gate in prg_1b_1c $AB75 compares the Province
+                                          ; owner Country with the second byte
+  .byte $6D,$04                           ; $BA50: 6D 04  ; Shokatsuryou ショカツリョウ 諸葛亮/诸葛亮 -> Country 2
+  .byte $70,$04                           ; $BA52: 70 04  ; Josho ジョショ 徐庶/徐庶 -> Country 4
+  .byte $56,$02                           ; $BA54: 56 02  ; Shibai シバイ 司馬懿/司马懿 -> Country 2
+  .byte $37,$04                           ; $BA56: 37 04  ; Kyoui キョウイ 姜維/姜维 -> Country 4
+  .byte $B7,$04                           ; $BA58: B7 04  ; Baryou バリョウ 馬良/马良 -> Country 4
+  .byte $63,$02                           ; $BA5A: 63 02  ; Jun'iku ジュンイク 荀彧/荀彧 -> Country 2
+  .byte $6B,$03                           ; $BA5C: 6B 03  ; Shokatsukin ショカツキン 諸葛瑾/诸葛瑾 -> Country 3
+  .byte $2F,$03                           ; $BA5E: 2F 03  ; Kannei カンネイ 甘寧/甘宁 -> Country 3
+  .byte $A1,$02                           ; $BA60: A1 02  ; Teiiku テイイク 程昱/程昱 -> Country 2
+  .byte $EA,$03                           ; $BA62: EA 03  ; Ryomou リョモウ 呂蒙/吕蒙 -> Country 3
+  .byte $EB,$03                           ; $BA64: EB 03  ; Roshuku ロシュク 魯粛/鲁肃 -> Country 3
+  .byte $D5,$03                           ; $BA66: D5 03  ; Rikuson リクソン 陸遜/陆逊 -> Country 3
+  .byte $90,$04                           ; $BA68: 90 04  ; Chouun チョウウン 趙雲/赵云 -> Country 4
+  .byte $39,$02                           ; $BA6A: 39 02  ; Kyocho キョチョ 許褚/许褚 -> Country 2
+  .byte $A5,$02                           ; $BA6C: A5 02  ; Ten'i テンイ 典韋/典韦 -> Country 2
+  .byte $9C,$02                           ; $BA6E: 9C 02  ; Chouryou チョウリョウ 張遼/张辽 -> Country 2
 .endproc
 
 ;===============================================================================
@@ -5510,7 +5530,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ;   $FA prg_0a_0b $BB3B (post-action Province sweep)       -> sub-state $E
 ;   $F9 prg_0a_0b $BD31 (absorb sweep)                     -> sub-state $F
 ;   $F8 prg_0a_0b $B786 (Province transfer, needs answer)  -> sub-state $10
-;   $FF turn exhausted (prg_0a_0b $D147 OrderScroll underflow, prg_08_09
+;   $FF turn exhausted (prg_0a_0b $D147 action-budget underflow, prg_08_09
 ;       $A093/$BAAD) -> counts $040C; after $20 exhausted turns the map screen
 ;       returns to frame state 0 with the game-state flag $6F05 cleared
 ; Every presentation ends either by setting $6F8B directly (sub-states $A/$C:
@@ -5545,8 +5565,9 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ;===============================================================================
 ; $C79B: RulerPanelOpen (sub-state 0)
 ; Opens the Ruler status overlay (UI $BB) for the current Ruler, parks the
-; camera Y off-screen, seeds the OrderScroll (command point) counter $6F5D from
-; OrderScrollCountTable ($6F05 * 10), clears the request mailbox $6F8B and the
+; camera Y off-screen, seeds the strategy-mode AI action budget $6F5D
+; (sram_action_budget in prg_0a_0b) from AiActionBudgetTable ($6F05 * 10),
+; clears the request mailbox $6F8B and the
 ; per-turn counters $6F5B/$6F5C/$6F62, then advances to the poll sub-state 1.
 ;===============================================================================
 @RulerPanelOpen:  ; sub-state 0
@@ -5561,16 +5582,17 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   LDA #$00                                ; $C7AF: A9 00
   STA $040C                               ; $C7B1: 8D 0C 04 ; step counter / result code
   LDY $6F05                               ; $C7B4: AC 05 6F ; SRAM game-state flag
-  LDA OrderScrollCountTable,Y             ; $C7B7: B9 CC C7 ; OrderScroll count = flag * 10
-  STA $6F5D                               ; $C7BA: 8D 5D 6F ; command point budget
+  LDA AiActionBudgetTable,Y               ; $C7B7: B9 CC C7 ; AI action budget = flag * 10
+  STA $6F5D                               ; $C7BA: 8D 5D 6F ; strategy AI action budget
   LDA #$00                                ; $C7BD: A9 00
   STA $6F8B                               ; $C7BF: 8D 8B 6F ; clear request mailbox
   STA $6F5B                               ; $C7C2: 8D 5B 6F ; iteration counter
   STA $6F5C                               ; $C7C5: 8D 5C 6F
   STA $6F62                               ; $C7C8: 8D 62 6F ; global action phase
   RTS                                     ; $C7CB: 60
-; --- OrderScroll (command point) table: game-state flag $6F05 (0-19) -> flag*10 ---
-OrderScrollCountTable:
+; --- Strategy-mode AI action budget table: game-state flag $6F05 (0-19) ->
+; --- flag*10; seeds sram_action_budget $6F5D (prg_0a_0b) each ruler turn ---
+AiActionBudgetTable:
   .byte $00,$0A,$14,$1E,$28,$32,$3C,$46   ; $C7CC: 00 0A 14 1E 28 32 3C 46
   .byte $50,$5A,$64,$6E,$78,$82,$8C,$96   ; $C7D4: 50 5A 64 6E 78 82 8C 96
   .byte $A0,$AA,$B4,$BE                   ; $C7DC: A0 AA B4 BE
@@ -5784,7 +5806,7 @@ OfficerCategoryTileTable:
   .byte $AD,$08,$83,$8A,$DE,$DC,$B6,$00   ; $C93A: AD 08 83 8A DE DC B6 00
 ;-------------------------------------------------------------------------------
 ; $C942: ReqProvinceSweepNotice (mailbox $FA)
-; prg_0a_0b $BB3B finished its post-action sweep over all 30 Provinces and
+; prg_0a_0b $BB3B (@AiAction_PoachOfficer) finished its post-poach sweep and
 ; spin-waits for $6F8B to become $00. Opens overlay $E6 with the swept pair
 ; $0041/$0040, resolves the Officer display for $003D in bank $1D, caches the
 ; new owner's Country field [3] into $6F44 and moves to sub-state $E.
@@ -5817,7 +5839,8 @@ ReqProvinceSweepNotice:  ; mailbox $FA
   RTS                                     ; $C97C: 60
 ;-------------------------------------------------------------------------------
 ; $C97D: ReqAbsorbSweepNotice (mailbox $F9)
-; prg_0a_0b $BD31 finished the absorb sweep and spin-waits for $6F8B to become
+; prg_0a_0b $BD31 (@AiAction_SowDiscord) finished its loyalty-drop sweep and
+; spin-waits for $6F8B to become
 ; $00. Same shape as ReqProvinceSweepNotice but with the pair $003A/$0039 and
 ; the shorter sub-state $F prompt (no Country field caching).
 ;-------------------------------------------------------------------------------
@@ -5844,18 +5867,20 @@ ReqAbsorbSweepNotice:  ; mailbox $F9
   RTS                                     ; $C9AA: 60
 ;-------------------------------------------------------------------------------
 ; $C9AB: ReqTransferConfirm (mailbox $F8)
-; prg_0a_0b $B786 wants to transfer a Province and spin-waits for $6F8B to
-; change; $00 means "do the swap", anything else means "abandon it". Opens
-; overlay $E2 with the two Rulers ($0041/$0040) and the Province ($0042) and
-; moves to the Yes/No prompt sub-state $10.
+; prg_0a_0b $B786 (@AiAction_ProposeAlliance) wants to form an alliance with
+; this country, paying a gold/rice tribute; it spin-waits for $6F8B to change;
+; $00 means "accepted, pay and form the alliance", anything else means
+; "refused". Opens overlay $E2 with the recipient Ruler ($0041), the sender
+; Ruler ($0040) and the envoy officer ($0042) and moves to the Yes/No prompt
+; sub-state $10.
 ;-------------------------------------------------------------------------------
 ReqTransferConfirm:  ; mailbox $F8
-  LDA a:$0041                             ; $C9AB: AD 41 00 ; target Ruler Officer id
+  LDA a:$0041                             ; $C9AB: AD 41 00 ; recipient Ruler Officer id
   STA $042C                               ; $C9AE: 8D 2C 04 ; overlay: Officer 0
-  LDA a:$0040                             ; $C9B1: AD 40 00 ; current Ruler Officer id
+  LDA a:$0040                             ; $C9B1: AD 40 00 ; sender Ruler Officer id
   STA $042D                               ; $C9B4: 8D 2D 04 ; overlay: Officer 1
-  LDA a:$0042                             ; $C9B7: AD 42 00 ; Country slot
-  STA $042E                               ; $C9BA: 8D 2E 04 ; overlay: result phase
+  LDA a:$0042                             ; $C9B7: AD 42 00 ; envoy officer id (most loyal)
+  STA $042E                               ; $C9BA: 8D 2E 04 ; overlay: envoy Officer
   LDA #$E2                                ; $C9BD: A9 E2
   JSR B1F_SetUI4                          ; $C9BF: 20 8B F2
   LDA #$10                                ; $C9C2: A9 10

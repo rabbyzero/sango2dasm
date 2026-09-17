@@ -3,12 +3,6 @@
 - **Category:** development_code_specification
 - **Memory ID:** efe7d886-f473-4014-bbc5-a6782e89519e
 - **Keywords:** @-prefix, local labels, ca65 cheap locals, cross-proc references, same bank, forward reference, bare globals
-- **Usage scenarios:**
-  - Naming labels in bank assembly files
-  - Referencing functions within same bank
-  - Cross-proc JSR/JMP calls
-  - Local labels inside .proc blocks
-  - Forward-referenced table lookups across procs
 
 ## Content
 
