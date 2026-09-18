@@ -141,7 +141,7 @@ compare-chain thresholds are `W_expand` (expand) and `W_expand + W_domestic`
   (max `+5` at level 0 vs `+4` at level 2), while the domestic tier-adj
   flattens (level 0/1 tier 2 = `+0`, level 2 keeps `+1`).
 - Weights are re-seeded only once per `InitWorkAreas` pass (`$6F5B` AI
-  turn-cycle counter alternates seed → act → idle in `CheckGameStart`), so the
+  turn-cycle counter alternates seed → act → idle in `StrategyAiTurnDispatch`), so the
   tier reflects border/officer-room conditions at seeding time, not per action.
 
 ## 7. Related level-dependent thresholds (context)

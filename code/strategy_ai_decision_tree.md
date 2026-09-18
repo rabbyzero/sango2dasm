@@ -26,10 +26,10 @@ Related documents — the four AI layers of the nested mode hierarchy
 
 ```mermaid
 flowchart TD
-    E["CheckGameStart_Entry $A000"] --> CGS{"CheckGameStart $A00F<br/>$6F8B mailbox flag"}
+    E["StrategyAiTurnDispatch_Entry $A000"] --> CGS{"StrategyAiTurnDispatch $A00F<br/>$6F8B mailbox flag"}
     CGS -->|"negative - no request"| X["RTS"]
-    CGS -->|"== $01 - new game"| NG["BuildAdjacencyBitmap<br/>InitNewGameContext $A8D7<br/>full post-conquest setup"]
-    CGS -->|"other"| OFF["BuildAdjacencyBitmap<br/>FindBestOfficerAssign $C50E<br/>ProcessAllOfficers $C5B9<br/>OfficerSearchAndEvaluate $C79A<br/>FindBestOfficerByCategory $C98F"]
+    CGS -->|"== $01 - game start"| NG["BuildAdjacencyBitmap<br/>InitNewGameContext $A8D7<br/>full post-conquest setup"]
+    CGS -->|"other"| OFF["AI officer phase $A01E-$A035:<br/>BuildAdjacencyBitmap<br/>AiOfficer_RulerToFrontier $C50E<br/>AiOfficer_RosterFill $C5B9<br/>AiOfficer_RecruitTransfer $C79A<br/>PromoteBestOfficerForCountry $C98F<br/>SellSurplusRice $CC12"]
     OFF --> CYC{"$6F5B<br/>AI turn-cycle counter"}
     CYC -->|"0 - first cycle"| IWA["InitWorkAreas $A043<br/>seed AI weights $6F5F-$6F61<br/>base + tier adj - see section 5"]
     CYC -->|"1"| WD
@@ -267,11 +267,11 @@ unit with two linker segments (`CODE_BANK0A` / `CODE_BANK0B`, config
 flowchart LR
     subgraph PUB["Public entry stubs $A000-$A00E"]
         direction TB
-        P1["CheckGameStart_Entry<br/>SubStateDispatch_Entry<br/>ArmyValueCalc_Entry<br/>DataRecordLookup_Entry<br/>DistanceClamp_Entry"]
+        P1["StrategyAiTurnDispatch_Entry<br/>SubStateDispatch_Entry<br/>ArmyValueCalc_Entry<br/>DataRecordLookup_Entry<br/>DistanceClamp_Entry"]
     end
     subgraph AI["AI turn engine $A00F-$A6xx, $B49C-$C50D, $C50E-$C79A"]
         direction TB
-        A1["CheckGameStart / InitWorkAreas / AiCountExpansionRoom<br/>AiActionChoose / AiAction_ExpandProvinces<br/>AiAction_DomesticTurn $B49C-$C50D<br/>FindBestOfficerAssign / ProcessAllOfficers<br/>CalcActionProb / OfficerSearchAndEvaluate<br/>FindBestOfficerByCategory / ApplyScenarioDeductions"]
+        A1["StrategyAiTurnDispatch / InitWorkAreas / AiCountExpansionRoom<br/>AiActionChoose / AiAction_ExpandProvinces<br/>AiAction_DomesticTurn $B49C-$C50D<br/>AiOfficer_RulerToFrontier / AiOfficer_RosterFill<br/>CalcActionProb / AiOfficer_RecruitTransfer<br/>PromoteBestOfficerForCountry / ApplyScenarioDeductions"]
     end
     subgraph ABS["Conquest pipeline $A79C-$B49B"]
         direction TB
@@ -311,8 +311,8 @@ flowchart LR
 
 | Group | Procs |
 |-------|-------|
-| Public stubs | `CheckGameStart_Entry` $A000, `SubStateDispatch_Entry` $A003, `ArmyValueCalc_Entry` $A006, `DataRecordLookup_Entry` $A009, `DistanceClamp_Entry` $A00C |
-| AI engine | `CheckGameStart` $A00F, `InitWorkAreas` $A043, `AiCountExpansionRoom` $A0D3, `AiActionChoose` $A19C, `AiAction_ExpandProvinces` $A1C5, `AiAction_LoopTramp` $A23D, `FindBestEnemyProvince` $A240, `FindAbsorptionSource` $A303, `DispatchOfficerArmies` $A45C, `ArmyDispatch` $A481, `AiAction_DomesticTurn` $B49C, `FindBestOfficerAssign` $C50E, `ProcessAllOfficers` $C5B9, `CalcActionProb` $C66F, `OfficerSearchAndEvaluate` $C79A, `FindBestOfficerByCategory` $C98F, `ApplyScenarioDeductions` $CD68, `BracketDeductArmy` $CEDD |
+| Public stubs | `StrategyAiTurnDispatch_Entry` $A000, `SubStateDispatch_Entry` $A003, `ArmyValueCalc_Entry` $A006, `DataRecordLookup_Entry` $A009, `DistanceClamp_Entry` $A00C |
+| AI engine | `StrategyAiTurnDispatch` $A00F, `InitWorkAreas` $A043, `AiCountExpansionRoom` $A0D3, `AiActionChoose` $A19C, `AiAction_ExpandProvinces` $A1C5, `AiAction_LoopTramp` $A23D, `FindBestEnemyProvince` $A240, `FindAbsorptionSource` $A303, `DispatchOfficerArmies` $A45C, `ArmyDispatch` $A481, `AiAction_DomesticTurn` $B49C, `AiOfficer_RulerToFrontier` $C50E, `AiOfficer_RosterFill` $C5B9, `CalcActionProb` $C66F, `AiOfficer_RecruitTransfer` $C79A, `PromoteBestOfficerForCountry` $C98F, `ApplyScenarioDeductions` $CD68, `BracketDeductArmy` $CEDD |
 | Conquest | `ResolveCountryAbsorb` $A79C, `InitNewGameContext` $A8D7, `EvalProvinceAbsorption` $B10E, `AbsorbPreview` $B1F9, `TransferProvinceValues` $B1FD, `AbsorbUpdateRecord` $B287, `FallbackMergeProvinces` $B357 |
 | Tier / render | `LevelTierDispatch` $A6BC, `CalcArmyTierAndRender` $A6C9, `CalcTierWorkPtr` $A74A, `TileRender` $A55C, `NameTable` $A60C |
 | Record helpers | `ArmyValueCalc` $CF3F, `DataRecordLookup` $CF7C, `DistanceClamp` $D00C, `CalcOfficersPerProvince` $D03A, `CalcOfficersPerProvinceDup` $D05D, `CountCountryProvinces` $D080, `CountDefendedBorderProvinces` $D0AA, `GetProvinceOwner` $D105, `DeductCounterMultiEntry` $D12D, `CollectEnemyBorderProvinces` $D1A4, `CollectEnemyBorderProvincesX` $D1F4, `FindCountryProvinceOfOfficer` $D249, `GetOfficerRecordField` $D283, `ReadBankedRecordField` $D2D3, `CountRecordSlots` $D304, `GetCountryRecordPtr` $D319, `DeductRecordStat2` $D36F, `DeductRecordStat4` $D3A9, `CompactRecordSlots` $D3DD |
@@ -336,7 +336,7 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
 | `$6F07-$6F3E` | Country records, 7 × 8 B (stride 8) | Read via `GetCountryRecordPtr`/`B1F_GetCountryDataPtr`; status byte +3 gates the final absorption path |
 | `$6F43` | latched result parameter | `ClearOverlayMenu` `$DAF4` |
 | `$6F44` | display param for AI action notices | `$B783` recipient status byte for the alliance-gift confirm (`@AiAction_ProposeAlliance`), `$BD04` absorbed-officer flag |
-| `$6F5B` | `sram_counter` — AI turn-cycle counter | Dispatch selector in `CheckGameStart` |
+| `$6F5B` | `sram_counter` — AI turn-cycle counter | Dispatch selector in `StrategyAiTurnDispatch` |
 | `$6F5D` | `sram_action_budget` — AI action-point budget | Spent via `DeductCounter_ZeroEnd`: 5 per ContinueTurn/development action, 2 per `@AiDev_Main` officer training; zero/underflow ends the AI turn via `$D140` |
 | `$6F5E` | AI province cursor | Reset by `@AiTurn_AdvancePhase`, read by every action handler |
 | `$6F5F-$6F61` | AI action weights A/B/C (`sram_ai_weight_a/b/c` proc-local) | Seeded by `InitWorkAreas` (base + tier adj, see section 5), consumed by `AiActionChoose` |
@@ -399,6 +399,25 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
    `code/ai_decision_tree.md` (renamed earlier to
    `code/tactical_ai_decision_tree.md`) was corrected and the battle/duel
    siblings added to the related-documents list.
+10. Dispatcher and officer-phase renames (2026-09): `CheckGameStart` →
+   `StrategyAiTurnDispatch` (the $A00F proc is the Strategy Mode per-country
+   turn driver, not a game-start check: it gates on the `$6F8B` mailbox,
+   routes `$01` to `InitNewGameContext`, and otherwise runs the AI officer
+   phase and the `$6F5B` action-cycle dispatch). Officer-phase renames:
+   `FindBestOfficerAssign` → `AiOfficer_RulerToFrontier` (moves the ruler
+   officer at `($EE)` to the most-garrisoned own rival-bordering,
+   path-connected province), `ProcessAllOfficers` → `AiOfficer_RosterFill`
+   (hires free officers into own rosters), `OfficerSearchAndEvaluate` →
+   `AiOfficer_RecruitTransfer`, trampoline target `OfficerAssignEntry` →
+   `AiOfficerPhaseEntry`, and the mislabeled `FinalizeOfficers` ($CC12) →
+   `SellSurplusRice` — it converts surplus rice to gold (keeps rice worth
+   max(officer-stat total, rice − 300), sells the rest at
+   `$8FC0[province]/100`) in provinces with gold < 50. Cross-proc references
+   to `$CC12`/`$CA19` were also fixed to global alias equates
+   (`SellSurplusRice_Entry`, `ProcessRulerSuccession_Entry`) because ca65
+   cannot resolve forward `Proc::Label` references from inside another proc
+   (the breakage was previously masked by the pre-existing duplicate-symbol
+   errors).
 
 Verification: standalone `ca65` on this file produces the identical
 pre-existing error set (48 duplicate-symbol errors, line numbers shifted

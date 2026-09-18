@@ -312,9 +312,9 @@ State_NewGameInit:
   JMP $E066
 
 ;-------------------------------------------------------------------------------
-; State_RandomDisplay2A ($E17D-$E189)
+; State_StrategyAiTurnFrame ($E17D-$E189)
 ;-------------------------------------------------------------------------------
-State_RandomDisplay2A:
+State_StrategyAiTurnFrame:
   ; $20 $7A $E8
   JSR $E87A
   ; $A0 $2A

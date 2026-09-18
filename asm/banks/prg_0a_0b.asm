@@ -12,14 +12,14 @@
 
 ; Global label declarations (ca65 .proc creates local scope)
 .global ArmyDispatch
-.global CheckGameStart_Entry
+.global StrategyAiTurnDispatch_Entry
 .global SubStateDispatch_Entry
 .global ArmyValueCalc_Entry
 .global DataRecordLookup_Entry
 .global DistanceClamp_Entry
 .global InitWorkAreas
 .global NameTable
-.global CheckGameStart
+.global StrategyAiTurnDispatch
 .global FindAbsorptionSource
 .global AiCountExpansionRoom
 .global AiActionChoose
@@ -53,12 +53,12 @@
 .global TransferProvinceValues
 .global FallbackMergeProvinces
 .global AiAction_DomesticTurn
-.global FindBestOfficerAssign
-.global ProcessAllOfficers
+.global AiOfficer_RulerToFrontier
+.global AiOfficer_RosterFill
 .global EvaluateAndMarkOfficer
 .global CalcActionProb
-.global OfficerSearchAndEvaluate
-.global FindBestOfficerByCategory
+.global AiOfficer_RecruitTransfer
+.global PromoteBestOfficerForCountry
 .global ApplyScenarioDeductions
 .global BracketDeductGold
 .global ArmyDeductionTable
@@ -134,7 +134,7 @@ sram_game_month       = $6F01  ; Calendar month - 1 (display month = $6F01+1); d
 sram_game_level        = $6F02  ; Game level (0-2), selected at new game start
 sram_current_country  = $6F03  ; Current acting country id (whose turn/AI action is running; the human country during human turns)
 sram_game_start_flag   = $6F8B  ; Strategy-layer request mailbox ($01 = consumed, $F8 = alliance-gift confirm, $F9/$FA = sweep notices, $FB/$FC = officer notices, $FD = fully absorbed, $FE = battle pending, $FF = turn complete)
-sram_counter           = $6F5B  ; AI turn-cycle counter (dispatch selector in CheckGameStart)
+sram_counter           = $6F5B  ; AI turn-cycle counter (dispatch selector in StrategyAiTurnDispatch)
 sram_action_budget     = $6F5D  ; AI action-point budget (decremented per action)
 sram_continue_flag     = $6F8C  ; Post-conquest context flag (0 = full new-game setup, 1 = continue)
 sram_absorb_adjust     = $6F8D  ; Absorption adjustment parameter (drives ApplyScenarioDeductions and cost scaling)
@@ -175,8 +175,8 @@ state_palette_mode     = $0547  ; Palette animation mode
 ;===============================================================================
 ; Jump Table - Public entry points ($A000-$A00E)
 ;===============================================================================
-CheckGameStart_Entry:
-  JMP CheckGameStart                                ; $A000: 4C 0F A0
+StrategyAiTurnDispatch_Entry:
+  JMP StrategyAiTurnDispatch                       ; $A000: 4C 0F A0
 SubStateDispatch_Entry:
   JMP SubStateDispatch                            ; $A003: 4C 17 D7
 ArmyValueCalc_Entry:
@@ -186,27 +186,39 @@ DataRecordLookup_Entry:
 DistanceClamp_Entry:
   JMP DistanceClamp                               ; $A00C: 4C 0C D0
 ;===============================================================================
-; $A00F: CheckGameStart
-; Check game start flag ($6F8B) and dispatch start menu / main flow
+; $A00F: StrategyAiTurnDispatch
+; Strategy Mode per-country turn driver, called every map frame from bank $1F
+; (State_StrategyAiTurnFrame -> B0A_0B_StrategyAiTurnDispatch_Entry $A000).
+; Gates on the $6F8B strategy-layer request mailbox:
+;   negative ($F8-$FF notices / battle pending / turn complete) -> RTS
+;   $01 -> game-start context init: JMP InitNewGameContext (new-scenario
+;          setup or post-conquest continue, selected by $6F8C)
+;   otherwise -> the AI turn officer phase $A01E-$A035 (part of the strategy
+;          AI decision tree; re-entered at $A021 by the bank-$0B display
+;          callback CallStrategyModeDisplay), then the AI turn-cycle counter
+;          $6F5B selects via JumpDispatcher:
+;          0 -> InitWorkAreas (seed AI weights $6F5F-$6F61)
+;          1 -> AiActionChoose (weighted action)
+;          >= 2 -> RTS (idle until the next call)
 ;===============================================================================
-.proc CheckGameStart
+.proc StrategyAiTurnDispatch
   game_start_flag          = $6F8B
 
   LDA game_start_flag                               ; $A00F: AD 8B 6F
-  BMI @Exit                                           ; $A012: 30 2E  if negative, no game start
+  BMI @Exit                                           ; $A012: 30 2E  negative: mailbox busy/notice -> done
   CMP #$01                                            ; $A014: C9 01
-  BNE @NotOne                                         ; $A016: D0 06  if != 1, skip new-game path
+  BNE @NotOne                                         ; $A016: D0 06  != $01 -> AI turn path
   JSR BuildAdjacencyBitmap                                       ; $A018: 20 CB D4
-  JMP InitNewGameContext                              ; $A01B: 4C D7 A8  new game: jump to start menu
+  JMP InitNewGameContext                              ; $A01B: 4C D7 A8  game start: new-scenario / post-conquest context init
 @NotOne:
-  JSR BuildAdjacencyBitmap                                       ; $A01E: 20 CB D4
-OfficerAssignEntry: JSR FindBestOfficerAssign                           ; $A021: 20 0E C5
-  JSR ProcessAllOfficers                             ; $A024: 20 B9 C5
-  JSR OfficerSearchAndEvaluate                        ; $A027: 20 9A C7
-  LDA $6F03                                           ; $A02A: AD 03 6F
-  JSR FindBestOfficerByCategory                       ; $A02D: 20 8F C9
-  JSR FindCountryProvinceOfOfficer                                    ; $A030: 20 49 D2
-  JSR FindBestOfficerByCategory::FinalizeOfficers   ; $A033: 20 12 CC
+  JSR BuildAdjacencyBitmap                                       ; $A01E: 20 CB D4  ; rebuild province adjacency bitmap
+AiOfficerPhaseEntry: JSR AiOfficer_RulerToFrontier                       ; $A021: 20 0E C5  ; move ruler to best enemy-bordering own province
+  JSR AiOfficer_RosterFill                           ; $A024: 20 B9 C5  ; hire free officers into own province rosters
+  JSR AiOfficer_RecruitTransfer                       ; $A027: 20 9A C7  ; pay gold, recruit/transfer officers between provinces
+  LDA $6F03                                           ; $A02A: AD 03 6F  ; A = current country
+  JSR PromoteBestOfficerForCountry                    ; $A02D: 20 8F C9  ; best officer -> governor slot in each own province
+  JSR FindCountryProvinceOfOfficer                                    ; $A030: 20 49 D2  ; re-resolve ruler's province
+  JSR SellSurplusRice_Entry ; $A033: 20 12 CC  ; sell surplus rice for gold in gold-poor provinces
   LDA $6F5B                                           ; $A036: AD 5B 6F
   JSR JumpDispatcher                                  ; $A039: 20 94 D4
   ; Jump table (3 entries):
@@ -1647,13 +1659,13 @@ CompareValues:
   ORA sram_current_country                            ; $A908: 0D 03 6F
   STA ($20),Y                                         ; $A90B: 91 20
   JSR FindCountryProvinceOfOfficer                                    ; $A90D: 20 49 D2
-  JMP FindBestOfficerByCategory::ProcessCategories     ; $A910: 4C 19 CA
+  JMP ProcessRulerSuccession_Entry ; $A910: 4C 19 CA  ; post-setup ruler succession pass
   ; --- Continue existing game path ---
 @ContinueGamePath:                                    ; $A913
   JSR @PlaceNewEnemies                                       ; $A913: 20 10 AB
   JSR @SubtractBattleCosts                                       ; $A916: 20 67 AC
   JSR FindCountryProvinceOfOfficer                                    ; $A919: 20 49 D2
-  JMP FindBestOfficerByCategory::ProcessCategories     ; $A91C: 4C 19 CA
+  JMP ProcessRulerSuccession_Entry ; $A91C: 4C 19 CA  ; post-setup ruler succession pass
 @ClearGameStateVars:                                   ; $A91F
   ; Zero the 16-bit army-pool accumulators $6F73-$6F78. These cells are
   ; dual-use: per-owner "has active provinces" marks ($FF/$00) during the
@@ -3538,8 +3550,17 @@ AbsorbUpdateRecord:
 ; Picks the destination for the officer taken from source province $003B:
 ; an own province (owner = sram_current_country) that has at least one
 ; rival-held neighbour, is path-connected to $003B (CheckPathExists),
-; and holds the fewest officers (< 10). The source's strongest officer
-; (highest officer field 1) is moved there; spends 2 action budget points.
+; and holds the fewest officers (< 10). The source's highest-Might officer
+; (record +$01 武力) is moved there; spends 2 action budget points.
+; NOTE: the scan has NO ruler exclusion (unlike @FindMostLoyalOfficer), so
+; the ruler is transferred if he has the highest Might. The governor (太守)
+; is the officer in roster slot $11 (cf. prg_1b_1c @AppointSwap $B708), so:
+; - target with occupied slot $11: the ruler lands in a later slot and is
+;   NOT the target's governor;
+; - empty target roster: the ruler lands in slot $11 and BECOMES governor;
+; - source: CompactRecordSlots slides survivors toward $11, so vacating
+;   slot $11 hands the source governorship to the next officer. The
+;   ruler's residence (FindRulerProvince) moves to the target province.
 ; Input: $003B = source province index
 ; Output: $003D = best target province ($FF if none)
 ;===============================================================================
@@ -5994,11 +6015,17 @@ AbsorbUpdateRecord:
 
 
 ;===============================================================================
-; $C50E: FindBestOfficerAssign
-; Search provinces 0-29 for the best-scoring officer owned by the current country,
-; then move it: remove from source list ($FF-terminate) and insert into target list.
+; $C50E: AiOfficer_RulerToFrontier
+; Strategy AI officer-phase step: move the ruler officer (ruler record at
+; ($EE), id at +0) from his current province into the best own province that
+; borders a rival country (CollectEnemyBorderProvinces) and is path-connected
+; to him through own territory (CheckPathExists = $FF), picking the
+; most-garrisoned candidate with fewer than 10 officers (CountRecordSlots).
+; Erases him from the source roster ($FF + CompactRecordSlots), appends him
+; to the target roster, spends 2 action-budget points ($6F5D via
+; DeductCounter_Unwind1), then re-resolves the ruler's province.
 ;===============================================================================
-.proc FindBestOfficerAssign
+.proc AiOfficer_RulerToFrontier
   math_acc_lo              = $0020
   work_outer_idx           = $0036
   work_limit_b             = $003B
@@ -6090,10 +6117,18 @@ AbsorbUpdateRecord:
 
 
 ;===============================================================================
-; $C5B9: ProcessAllOfficers
-; Iterate provinces 0-29: evaluate each officer and attempt officer assignmentment.
+; $C5B9: AiOfficer_RosterFill
+; Strategy AI officer-phase step: per-province pass (0-29) that fills own
+; province rosters with free officers:
+;   - EvaluateAndMarkOfficer: 10% chance per province to hire a
+;     historically-timed free officer (year-gated table), set his status
+;     bits to employed, and append him to the roster.
+;   - CalcActionProb_Entry: probability-gated assignment of free officers
+;     whose current location (record +$05) matches the province or one of
+;     its 8 neighbours, then recomputes the country's army value.
+; Ends by re-resolving the ruler's province.
 ;===============================================================================
-.proc ProcessAllOfficers
+.proc AiOfficer_RosterFill
   work_outer_idx           = $0036
 
   LDA #$00                                            ; $C5B9: A9 00
@@ -6391,11 +6426,11 @@ CalcActionProb_Entry:
 .endproc
 
 ;===============================================================================
-; $C79A: OfficerSearchAndEvaluate
+; $C79A: AiOfficer_RecruitTransfer
 ;
-; AI officer recruitment/transfer pipeline for the current country ($6F03).
-; Scans provinces 0–29 and, for each province owned by the current country,
-; attempts to recruit or transfer subordinate officers.
+; Strategy AI officer-phase step for the current country ($6F03):
+; scans provinces 0-29 and, for each province owned by the current country,
+; pays gold and recruits/transfers officers between provinces.
 ;
 ; OVERALL FLOW (outer loop over provinces):
 ;   1. Iterate province IDs 0..$1D in work_outer_idx ($0036).
@@ -6479,7 +6514,7 @@ CalcActionProb_Entry:
 ;   $6F73  recruit buffer    Recruit slot claims (16 bytes)
 ;   $6F7B  transfer buffer   Transfer slot claims (8 bytes)
 ;===============================================================================
-.proc OfficerSearchAndEvaluate
+.proc AiOfficer_RecruitTransfer
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -6806,13 +6841,20 @@ CalcActionProb_Entry:
 .endproc
 
 ;===============================================================================
-; $C98F: FindBestOfficerByCategory
-;   A = category index; iterates 30 officer slots, scanning each for the best
-;   candidate matching the category, swaps it into priority slot $11, then
-;   processes all 7 categories applying officer changes.
-;   Contains nested: ScanOfficerRecordForBest ($C9A5), swap/promote ($C9F9).
+; $C98F: PromoteBestOfficerForCountry
+;   A = country id; scans the rosters ($11-$1A) of the country's provinces for
+;   the best officer (loyalty $64 wins outright, else highest loyalty+virtue)
+;   and swaps him into the governor slot $11.
+;   ProcessRulerSuccession ($CA19) then handles ruler succession for countries
+;   0-6: when a country's ruler status byte (+3) is $03, the first officer
+;   from the country's HeirPriorityList found governing one of its provinces
+;   becomes the new ruler (loyalty set to $64); if no listed heir qualifies,
+;   the best officer in its provinces is appointed instead; if the country has
+;   no officers at all, the ruler record is marked empty ($FF).
+;   Contains nested: @ScanProvinceRoster ($C9A5), @SwapBestToGovernorSlot
+;   ($C9F9).
 ;===============================================================================
-.proc FindBestOfficerByCategory
+.proc PromoteBestOfficerForCountry
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_ext                 = $0024
@@ -6825,15 +6867,15 @@ CalcActionProb_Entry:
   work_limit_a             = $003A
   work_limit_b             = $003B
   work_temp_0              = $003C
-  work_record_val          = $0040
+  work_country_id          = $0040
   sram_game_start_flag     = $6F8B
 
-; --- Outer loop: iterate 30 officer slots ---
-  STA a:work_inner_idx                                ; $C98F: 8D 37 00  category index
+; --- Outer loop: iterate 30 province slots ---
+  STA a:work_inner_idx                                ; $C98F: 8D 37 00  country id
   LDA #$00                                            ; $C992: A9 00
   STA a:work_outer_idx                                ; $C994: 8D 36 00  start at slot 0
 @SlotLoop:
-  JSR @ScanOfficer                                    ; $C997: 20 A5 C9
+  JSR @ScanProvinceRoster                             ; $C997: 20 A5 C9
   INC a:work_outer_idx                                ; $C99A: EE 36 00
   LDA a:work_outer_idx                                ; $C99D: AD 36 00
   CMP #$1E                                            ; $C9A0: C9 1E  loop 30 slots
@@ -6841,15 +6883,16 @@ CalcActionProb_Entry:
 @Done:
   RTS                                                 ; $C9A4: 60
 
-; --- ScanOfficerRecordForBest ($C9A5) ---
-; Scans one officer record for the best candidate matching the category.
-@ScanOfficer:
+; --- ScanProvinceRoster ($C9A5) ---
+; Scans one province's officer roster ($11-$1A) for the best candidate for
+; the target country.
+@ScanProvinceRoster:
 
   LDA a:work_outer_idx                                ; $C9A5: AD 36 00
   JSR GetProvinceOwner                                       ; $C9A8: 20 05 D1  slot * 32 + $6000
-  AND #$07                                            ; $C9AB: 29 07  category bits
-  CMP a:work_inner_idx                                ; $C9AD: CD 37 00  matches target?
-  BNE @Done                                           ; $C9B0: D0 F2  skip if category mismatch
+  AND #$07                                            ; $C9AB: 29 07  country id bits
+  CMP a:work_inner_idx                                ; $C9AD: CD 37 00  matches target country?
+  BNE @Done                                           ; $C9B0: D0 F2  skip if country mismatch
   LDA #$11                                            ; $C9B2: A9 11
   STA a:work_limit_a                                  ; $C9B4: 8D 3A 00  scan from slot 17
   LDA #$00                                            ; $C9B7: A9 00
@@ -6862,16 +6905,16 @@ CalcActionProb_Entry:
   CMP #$FF                                            ; $C9C6: C9 FF  terminator?
   BEQ @NoBestSlot                                     ; $C9C8: F0 25
   LDY #$03                                            ; $C9CA: A0 03
-  JSR GetOfficerRecordField::Alt                                           ; $C9CC: 20 AB D2  score at byte+3
+  JSR GetOfficerRecordField::Alt                                           ; $C9CC: 20 AB D2  loyalty at byte+3
   CMP #$64                                            ; $C9CF: C9 64  score == 100?
   BNE @CheckBetter                                    ; $C9D1: D0 09
   LDA a:work_limit_a                                  ; $C9D3: AD 3A 00  perfect score
   STA a:work_temp_0                                   ; $C9D6: 8D 3C 00
-  JMP @SwapBest                                       ; $C9D9: 4C F9 C9
+  JMP @SwapBestToGovernorSlot                         ; $C9D9: 4C F9 C9
 @CheckBetter:
   LDY #$04                                            ; $C9DC: A0 04
   CLC                                                 ; $C9DE: 18
-  ADC (math_acc_mhi),Y                                ; $C9DF: 71 22  score at byte+4
+  ADC (math_acc_mhi),Y                                ; $C9DF: 71 22  add virtue (byte+4)
   CMP a:work_limit_b                                  ; $C9E1: CD 3B 00  better than best?
   BCC @NoBestSlot                                     ; $C9E4: 90 09
   STA a:work_limit_b                                  ; $C9E6: 8D 3B 00  update best score
@@ -6883,16 +6926,16 @@ CalcActionProb_Entry:
   CMP #$1B                                            ; $C9F5: C9 1B  scan through slot 26
   BCC @CheckNext                                      ; $C9F7: 90 C8
 
-; --- SwapBestToPrioritySlot + ProcessAllCategories ($C9F9) ---
-; Swaps best sub-entry (slot in $3C) into priority slot $11,
-; then processes categories 0-6 applying officer changes.
-@SwapBest:
+; --- SwapBestToGovernorSlot + ProcessRulerSuccession ($C9F9) ---
+; Swaps the best officer (roster slot in $3C) into the governor slot $11,
+; then handles ruler succession for countries 0-6.
+@SwapBestToGovernorSlot:
 
   LDA a:work_temp_0                                   ; $C9F9: AD 3C 00  best slot index
   CMP #$FF                                            ; $C9FC: C9 FF  no match found?
-  BEQ @AlreadyPriority                                ; $C9FE: F0 18
-  CMP #$11                                            ; $CA00: C9 11  already priority slot?
-  BEQ @AlreadyPriority                                ; $CA02: F0 14
+  BEQ @AlreadyGovernor                                ; $C9FE: F0 18
+  CMP #$11                                            ; $CA00: C9 11  already governor?
+  BEQ @AlreadyGovernor                                ; $CA02: F0 14
   LDY #$11                                            ; $CA04: A0 11  swap slot $11 <-> best
   LDA (math_acc_lo),Y                                 ; $CA06: B1 20
   PHA                                                 ; $CA08: 48
@@ -6903,53 +6946,53 @@ CalcActionProb_Entry:
   PLA                                                 ; $CA12: 68
   LDY a:work_temp_0                                   ; $CA13: AC 3C 00
   STA (math_acc_lo),Y                                 ; $CA16: 91 20
-@AlreadyPriority:
+@AlreadyGovernor:
   RTS                                                 ; $CA18: 60
-; --- Category processing loop (categories 0-6) ---
-ProcessCategories: LDA #$00                                            ; $CA19: A9 00
-  STA a:work_record_val                               ; $CA1B: 8D 40 00  category = 0
-@CategoryLoop:
-  LDA a:work_record_val                               ; $CA1E: AD 40 00
-  JSR GetCountryRecordPtr                                      ; $CA21: 20 19 D3  get record ptr
+; --- Ruler succession loop (countries 0-6) ---
+ProcessRulerSuccession: LDA #$00                                      ; $CA19: A9 00
+  STA a:work_country_id                               ; $CA1B: 8D 40 00  country id = 0
+@CountryLoop:
+  LDA a:work_country_id                               ; $CA1E: AD 40 00
+  JSR GetCountryRecordPtr                                      ; $CA21: 20 19 D3  get country record ptr
   LDY #$00                                            ; $CA24: A0 00
-  LDA (math_ext),Y                                    ; $CA26: B1 24  first byte
+  LDA (math_ext),Y                                    ; $CA26: B1 24  ruler officer id
   CMP #$FF                                            ; $CA28: C9 FF  empty record?
-  BEQ @NextCategory                                   ; $CA2A: F0 2C
-  STA a:work_inner_idx2                               ; $CA2C: 8D 38 00  save officer ID
+  BEQ @NextCountry                                    ; $CA2A: F0 2C
+  STA a:work_inner_idx2                               ; $CA2C: 8D 38 00  save ruler officer id
   LDY #$03                                            ; $CA2F: A0 03
-  LDA (math_ext),Y                                    ; $CA31: B1 24  status byte
+  LDA (math_ext),Y                                    ; $CA31: B1 24  ruler status byte
   CMP #$03                                            ; $CA33: C9 03  status == 3?
-  BNE @NextCategory                                   ; $CA35: D0 21
+  BNE @NextCountry                                    ; $CA35: D0 21
   LDA a:work_inner_idx2                               ; $CA37: AD 38 00
   LDY #$0B                                            ; $CA3A: A0 0B
-  JSR GetOfficerRecordField::Alt                                           ; $CA3C: 20 AB D2  lookup score
+  JSR GetOfficerRecordField::Alt                                           ; $CA3C: 20 AB D2  lookup status flags
   AND #$03                                            ; $CA3F: 29 03
   CMP #$02                                            ; $CA41: C9 02
-  BEQ @SkipMarkDeleted                                ; $CA43: F0 0D
+  BEQ @RulerAlreadyDead                               ; $CA43: F0 0D
   LDY #$0B                                            ; $CA45: A0 0B
   LDA (math_acc_mhi),Y                                ; $CA47: B1 22
   AND #$FC                                            ; $CA49: 29 FC
   ORA #$03                                            ; $CA4B: 09 03  set bits 0-1
   STA (math_acc_mhi),Y                                ; $CA4D: 91 22
-  JSR $CA68                                           ; $CA4F: 20 68 CA  apply changes
-@SkipMarkDeleted:
-  LDA a:work_record_val                               ; $CA52: AD 40 00
-  JSR FindBestOfficerByCategory                       ; $CA55: 20 8F C9  promote best for category
-@NextCategory:
-  INC a:work_record_val                               ; $CA58: EE 40 00
-  LDA a:work_record_val                               ; $CA5B: AD 40 00
-  CMP #$07                                            ; $CA5E: C9 07  7 categories done?
-  BCC @CategoryLoop                                   ; $CA60: 90 BC
+  JSR $CA68                                           ; $CA4F: 20 68 CA  appoint successor
+@RulerAlreadyDead:
+  LDA a:work_country_id                               ; $CA52: AD 40 00
+  JSR PromoteBestOfficerForCountry                    ; $CA55: 20 8F C9  re-promote best officer to governor
+@NextCountry:
+  INC a:work_country_id                               ; $CA58: EE 40 00
+  LDA a:work_country_id                               ; $CA5B: AD 40 00
+  CMP #$07                                            ; $CA5E: C9 07  7 countries done?
+  BCC @CountryLoop                                    ; $CA60: 90 BC
   JSR FindCountryProvinceOfOfficer                                    ; $CA62: 20 49 D2
   JMP @AiAction_Loop                                ; $CA65: 4C C7 BE
-; --- Helper subroutine (outside proc boundary) ---
-  JSR $CA87                                           ; $CA68: 20 87 CA  load record ptr
-  JSR @FindBestInCategory                             ; $CA6B: 20 05 CB
-  LDA a:work_record_val                               ; $CA6E: AD 40 00
-  JSR GetCountryRecordPtr                                      ; $CA71: 20 19 D3
+; --- AppointSuccessor (outside proc boundary) ---
+  JSR $CA87                                           ; $CA68: 20 87 CA  try heir priority list
+  JSR @FindBestHeirCandidate                          ; $CA6B: 20 05 CB  then best-officer fallback
+  LDA a:work_country_id                               ; $CA6E: AD 40 00
+  JSR GetCountryRecordPtr                                      ; $CA71: 20 19 D3  get country record ptr
   LDY #$00                                            ; $CA74: A0 00
   LDA #$FF                                            ; $CA76: A9 FF
-  STA (math_ext),Y                                    ; $CA78: 91 24  mark as deleted
+  STA (math_ext),Y                                    ; $CA78: 91 24  mark ruler record empty
   LDA #$FB                                            ; $CA7A: A9 FB
   STA sram_game_start_flag                            ; $CA7C: 8D 8B 6F
 @WaitDone:
@@ -6957,39 +7000,40 @@ ProcessCategories: LDA #$00                                            ; $CA19: 
   CMP #$01                                            ; $CA82: C9 01
   BNE @WaitDone                                       ; $CA84: D0 F9  busy-wait
   RTS                                                 ; $CA86: 60
-; --- Helper: load record pointer for category ---
-  LDA a:work_record_val                               ; $CA87: AD 40 00
-  ASL A                                               ; $CA8A: 0A  category * 2
+; --- Helper: load heir priority list pointer for the country ---
+  LDA a:work_country_id                               ; $CA87: AD 40 00
+  ASL A                                               ; $CA8A: 0A  country * 2
   TAY                                                 ; $CA8B: A8
-  LDA CategoryRecordPtrs,Y                            ; $CA8C: B9 D8 CA
+  LDA HeirPriorityListPtrs,Y                          ; $CA8C: B9 D8 CA
   STA $24                                             ; $CA8F: 85 24
-  LDA CategoryRecordPtrs+1,Y                          ; $CA91: B9 D9 CA
+  LDA HeirPriorityListPtrs+1,Y                        ; $CA91: B9 D9 CA
   STA $25                                             ; $CA94: 85 25
   LDA #$00                                            ; $CA96: A9 00
   STA $26                                             ; $CA98: 85 26
-@CheckNextRecord:
+@TryNextHeir:
   LDY $26                                             ; $CA9A: A4 26
   LDA ($24),Y                                         ; $CA9C: B1 24
   CMP #$FF                                            ; $CA9E: C9 FF
-  BEQ @HelperDone                                     ; $CAA0: F0 0A
-  STA $27                                             ; $CAA2: 85 27
-  JSR @SearchForCategoryMatch                         ; $CAA4: 20 AD CA
+  BEQ @HeirListDone                                   ; $CAA0: F0 0A
+  STA $27                                             ; $CAA2: 85 27  heir candidate id
+  JSR @FindHeirInProvinces                            ; $CAA4: 20 AD CA
   INC $26                                             ; $CAA7: E6 26
-  JMP @CheckNextRecord                                ; $CAA9: 4C 9A CA
-@HelperDone:
+  JMP @TryNextHeir                                    ; $CAA9: 4C 9A CA
+@HeirListDone:
   RTS                                                 ; $CAAC: 60
 
-; --- SearchForCategoryMatch ($CAAD) ---
-; Scans 30 officers for category match at slot $11.
-; On match, pops 4 return addresses and jumps to @SwapAndProcess.
-@SearchForCategoryMatch:
+; --- FindHeirInProvinces ($CAAD) ---
+; Heir candidate id in $27: scans all 30 provinces for one owned by the
+; country ($0040) whose governor slot $11 holds the candidate.
+; On match, pops 4 return addresses and jumps to @InstallNewRuler.
+@FindHeirInProvinces:
   LDA #$00                                            ; $CAAD: A9 00
   STA $2A                                             ; $CAAF: 85 2A
 @SearchNext:
   LDA $2A                                             ; $CAB1: A5 2A
   JSR GetProvinceOwner                                       ; $CAB3: 20 05 D1
   CMP a:$0040                                         ; $CAB6: CD 40 00
-  BNE @SearchNext                                     ; $CAB9: D0 0D  skip if not matching category
+  BNE @SearchNext                                     ; $CAB9: D0 0D  skip if owner != country
   LDY #$11                                            ; $CABB: A0 11
   LDA ($20),Y                                         ; $CABD: B1 20
   CMP $27                                             ; $CABF: C5 27
@@ -7006,32 +7050,67 @@ ProcessCategories: LDA #$00                                            ; $CA19: 
   PLA                                                 ; $CAD2: 68
   PLA                                                 ; $CAD3: 68
   PLA                                                 ; $CAD4: 68
-  JMP @SwapAndProcess                                 ; $CAD5: 4C 52 CB
+  JMP @InstallNewRuler                                ; $CAD5: 4C 52 CB
 
-; --- Category Record Pointer Table ($CAD8-$CB04) ---
-; Part 1: 7 word pointers (category → byte-list address).
-; Part 2: Byte lists terminated by $FF.
-; Accessed via LDA CategoryRecordPtrs,Y where Y = category*2.
-CategoryRecordPtrs:
-  .word CategoryList0                                   ; $CAD8: category 0
-  .word CategoryList1                                   ; $CADA: category 1
-  .word CategoryList2                                   ; $CADC: category 2
-  .word CategoryList3                                   ; $CADE: category 3
-  .word CategoryList4                                   ; $CAE0: category 4
-  .word CategoryList5                                   ; $CAE2: category 5
-  .word CategoryList6                                   ; $CAE4: category 6
-CategoryList0: .byte $DA, $DB, $D3, $FF                              ; $CAE6: list 0
-CategoryList1: .byte $09, $07, $FF                                   ; $CAEA: list 1
-CategoryList2: .byte $84, $7B, $7F, $80, $85, $82, $FF              ; $CAED: list 2
-CategoryList3: .byte $89, $8B, $5D, $FF                              ; $CAF4: list 3
-CategoryList4: .byte $E0, $6D, $26, $99, $FF                         ; $CAF8: list 4
-CategoryList5: .byte $42, $97, $FF                                   ; $CAFD: list 5
-CategoryList6: .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: list 6
+; --- Heir Priority List Table ($CAD8-$CB04) ---
+; Part 1: 7 word pointers (country → heir priority list address).
+; Part 2: Per-country heir priority lists: ordered successor candidates
+; (officer IDs, terminated by $FF). On ruler death, the first listed officer
+; found governing one of the country's provinces becomes the new ruler.
+; Accessed via LDA HeirPriorityListPtrs,Y where Y = country*2.
+; Per-entry comment: katakana / romaji / kanji_ja / zh_hans (docs/officer_names_kanji.csv).
+HeirPriorityListPtrs:
+  .word HeirPriorityList0                             ; $CAD8: country 0
+  .word HeirPriorityList1                             ; $CADA: country 1
+  .word HeirPriorityList2                             ; $CADC: country 2
+  .word HeirPriorityList3                             ; $CADE: country 3
+  .word HeirPriorityList4                             ; $CAE0: country 4
+  .word HeirPriorityList5                             ; $CAE2: country 5
+  .word HeirPriorityList6                             ; $CAE4: country 6
+HeirPriorityList0:                                      ; $CAE6: heir list 0
+  .byte $DA             ; $CAE6: DA    ; リョフ         Ryofu           呂布 / 吕布
+  .byte $DB             ; $CAE7: DB    ; リジュ         Riju            李儒 / 李儒
+  .byte $D3             ; $CAE8: D3    ; リカク         Rikaku          李傕 / 李傕
+  .byte $FF             ; $CAE9: FF    ; terminator
+HeirPriorityList1:                                      ; $CAEA: heir list 1
+  .byte $09             ; $CAEA: 09    ; エンタン        Entan           袁譚 / 袁谭
+  .byte $07             ; $CAEB: 07    ; エンキ         Enki            袁煕 / 袁熙
+  .byte $FF             ; $CAEC: FF    ; terminator
+HeirPriorityList2:                                      ; $CAED: heir list 2
+  .byte $84             ; $CAED: 84    ; ソウヒ         Souhi           曹丕 / 曹丕
+  .byte $7B             ; $CAEE: 7B    ; ソウエイ        Souei           曹叡 / 曹叡
+  .byte $7F             ; $CAEF: 7F    ; ソウショウ       Soushou         曹彰 / 曹彰
+  .byte $80             ; $CAF0: 80    ; ソウショク       Soushoku        曹植 / 曹植
+  .byte $85             ; $CAF1: 85    ; ソウユウ        Souyuu          曹熊 / 曹熊
+  .byte $82             ; $CAF2: 82    ; ソウジン        Soujin          曹仁 / 曹仁
+  .byte $FF             ; $CAF3: FF    ; terminator
+HeirPriorityList3:                                      ; $CAF4: heir list 3
+  .byte $89             ; $CAF4: 89    ; ソンケン        Sonken          孫権 / 孙权
+  .byte $8B             ; $CAF5: 8B    ; ソンヨク        Sonyoku         孫翊 / 孙翊
+  .byte $5D             ; $CAF6: 5D    ; シュウユ        Shuuyu          周瑜 / 周瑜
+  .byte $FF             ; $CAF7: FF    ; terminator
+HeirPriorityList4:                                      ; $CAF8: heir list 4
+  .byte $E0             ; $CAF8: E0    ; リュウホウ       Ryuuhou         劉封 / 刘封
+  .byte $6D             ; $CAF9: 6D    ; ショカツリョウ     Shokatsuryou    諸葛亮 / 诸葛亮
+  .byte $26             ; $CAFA: 26    ; カンウ         Kan'u           関羽 / 关羽
+  .byte $99             ; $CAFB: 99    ; チョウヒ        Chouhi          張飛 / 张飞
+  .byte $FF             ; $CAFC: FF    ; terminator
+HeirPriorityList5:                                      ; $CAFD: heir list 5
+  .byte $42             ; $CAFD: 42    ; ゴイ           Goi             呉懿 / 吴懿
+  .byte $97             ; $CAFE: 97    ; チョウジン       Choujin         張任 / 张任
+  .byte $FF             ; $CAFF: FF    ; terminator
+HeirPriorityList6:                                      ; $CB00: heir list 6
+  .byte $B4             ; $CB00: B4    ; バチョウ        Bachou          馬超 / 马超
+  .byte $B0             ; $CB01: B0    ; バキュウ        Bakyuu          馬休 / 马休
+  .byte $B5             ; $CB02: B5    ; バテツ         Batetsu         馬鉄 / 马铁
+  .byte $B3             ; $CB03: B3    ; バタイ         Batai           馬岱 / 马岱
+  .byte $FF             ; $CB04: FF    ; terminator
 
-; --- FindBestInCategory ($CB05) ---
-; Scans 30 officers' sub-entries for best score at byte+4.
-; Pops 2 return addresses and jumps to @SwapAndProcess on success.
-@FindBestInCategory:
+; --- FindBestHeirCandidate ($CB05) ---
+; Fallback when no listed heir qualifies: scans the rosters ($11-$1A) of the
+; country's provinces for the officer with the best virtue (record byte+4).
+; Pops 2 return addresses and jumps to @InstallNewRuler on success.
+@FindBestHeirCandidate:
   LDA #$00                                            ; $CB05: A9 00
   STA $2A                                             ; $CB07: 85 2A
   STA $2B                                             ; $CB09: 85 2B
@@ -7041,7 +7120,7 @@ CategoryList6: .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: li
   LDA $2A                                             ; $CB0F: A5 2A
   JSR GetProvinceOwner                                       ; $CB11: 20 05 D1
   CMP a:$0040                                         ; $CB14: CD 40 00
-  BNE @AdvanceOfficer                                 ; $CB17: D0 25
+  BNE @AdvanceProvince                                ; $CB17: D0 25
   LDY #$11                                            ; $CB19: A0 11
   STY $24                                             ; $CB1B: 84 24
   LDY $24                                             ; $CB1D: A4 24
@@ -7061,7 +7140,7 @@ CategoryList6: .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: li
   LDA $24                                             ; $CB38: A5 24
   CMP #$1B                                            ; $CB3A: C9 1B
   BCC @FindNext                                       ; $CB3C: 90 DF
-@AdvanceOfficer:
+@AdvanceProvince:
   INC $2A                                             ; $CB3E: E6 2A
   LDA $2A                                             ; $CB40: A5 2A
   CMP #$1E                                            ; $CB42: C9 1E
@@ -7071,13 +7150,16 @@ CategoryList6: .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: li
   BEQ @NoBestFound                                    ; $CB4A: F0 05
   PLA                                                 ; $CB4C: 68
   PLA                                                 ; $CB4D: 68
-  JMP @SwapAndProcess                                 ; $CB4E: 4C 52 CB
+  JMP @InstallNewRuler                                ; $CB4E: 4C 52 CB
 @NoBestFound:
   RTS                                                 ; $CB51: 60
 
-; --- SwapAndProcess ($CB52) ---
-; Swaps officer into record, sets byte+3=$64, processes all 30 officers.
-@SwapAndProcess:
+; --- InstallNewRuler ($CB52) ---
+; Installs the successor (officer id in $27) as the country's ruler: writes
+; him into country record byte 0 and sets his loyalty (record byte+3) to
+; $64, then runs the post-succession province pass ($CB81) and waits for the
+; NMI refresh flag.
+@InstallNewRuler:
   LDA a:$0040                                         ; $CB52: AD 40 00
   JSR GetCountryRecordPtr                                      ; $CB55: 20 19 D3
   LDY #$00                                            ; $CB58: A0 00
@@ -7101,6 +7183,12 @@ CategoryList6: .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: li
   CMP #$01                                            ; $CB7C: C9 01
   BNE @WaitGameFlag                                   ; $CB7E: D0 F9
   RTS                                                 ; $CB80: 60
+
+; --- PostSuccessionProvincePass ($CB81) ---
+; New ruler id in $27: for every province owned by the country, officers
+; other than the new ruler with loyalty < $1F may defect (20% chance: status
+; bits cleared, record byte+5 = province owner); rosters are then compacted,
+; and a province left without officers becomes unowned (owner $07).
   LDA $27                                             ; $CB81: A5 27
   STA $30                                             ; $CB83: 85 30
   LDA #$00                                            ; $CB85: A9 00
@@ -7120,7 +7208,8 @@ CategoryList6: .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: li
   RTS                                                 ; $CBA2: 60
 
 ; --- ScoreAndAdjust ($CBA3) ---
-; Scores sub-entries $11-$1A, adjusts attributes via DataRecordLookup.
+; Adjusts one province's roster slots $11-$1A after a ruler change (defection
+; rule per PostSuccessionProvincePass above).
 @ScoreAndAdjust:
   LDA #$11                                            ; $CBA3: A9 11
   STA a:$0044                                         ; $CBA5: 8D 44 00
@@ -7171,16 +7260,23 @@ CategoryList6: .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: li
   LDA #$07                                            ; $CC0D: A9 07
   STA ($20),Y                                         ; $CC0F: 91 20
   RTS                                                 ; $CC11: 60
-@FinalizeOfficers:
+; --- SellSurplusRice ($CC12) ---
+; Strategy AI officer-phase step (entered at $A033 via SellSurplusRice_Entry):
+; for each province owned by the current country with gold (+$02/+$03) under
+; $32 (50), convert surplus rice into gold: keeps rice worth max(officer-stat
+; total, rice - 300), sells the rest at the province's rice price
+; $8FC0[province]/100, credits the proceeds to the province's gold, clamps,
+; and spends 2 action-budget points (DeductCounter_Unwind1).
+SellSurplusRice:
   LDY #$FF                                            ; $CC12: A0 FF
   STY a:$0036                                         ; $CC14: 8C 36 00
 @FindOfficer:
   INC a:$0036                                         ; $CC17: EE 36 00
   LDA a:$0036                                         ; $CC1A: AD 36 00
   CMP #$1E                                            ; $CC1D: C9 1E
-  BCC @CheckCategory                                  ; $CC1F: 90 01
+  BCC @CheckCountry                                   ; $CC1F: 90 01
   RTS                                                 ; $CC21: 60
-@CheckCategory:
+@CheckCountry:
   LDA a:$0036                                         ; $CC22: AD 36 00
   JSR GetProvinceOwner                                       ; $CC25: 20 05 D1
   AND #$07                                            ; $CC28: 29 07
@@ -7328,6 +7424,13 @@ CategoryList6: .byte $B4, $B0, $B5, $B3, $FF                         ; $CB00: li
   STA a:$003A                                         ; $CD64: 8D 3A 00
   RTS                                                 ; $CD67: 60
 .endproc
+
+; External entry points of PromoteBestOfficerForCountry referenced from other
+; procs earlier in this file. Global-scope alias equates are required here:
+; ca65 cannot resolve forward Proc::Label references from inside another .proc
+; scope (same pattern as the DeductCounter aliases below).
+ProcessRulerSuccession_Entry = PromoteBestOfficerForCountry::ProcessRulerSuccession
+SellSurplusRice_Entry       = PromoteBestOfficerForCountry::SellSurplusRice
 
 
 ;===============================================================================
@@ -7680,8 +7783,9 @@ ArmyResultTable:                                      ; $CED3
 
 ;===============================================================================
 ; $CF7C: DataRecordLookup
-; Lookup data records by category index ($32) and record ID ($30).
-; Scans the category's byte list for a match. If found, returns immediately.
+; Heir-list membership check: $32 = country id, $30 = officer id. Scans the
+; country's HeirPriorityList (via HeirPriorityListPtrs) for the officer.
+; If found, returns immediately.
 ; If not found, computes a signed difference from two lookups ($33, $31)
 ; and continues to @ClampResult for clamping to range [$0A, $63].
 ;===============================================================================
@@ -7694,11 +7798,11 @@ ArmyResultTable:                                      ; $CED3
   math_temp1               = $0025
 
   LDA $32                                             ; $CF7C: A5 32
-  ASL A                                               ; $CF7E: 0A  category * 2
+  ASL A                                               ; $CF7E: 0A  country * 2
   TAY                                                 ; $CF7F: A8
-  LDA CategoryRecordPtrs,Y                            ; $CF80: B9 D8 CA
+  LDA HeirPriorityListPtrs,Y                          ; $CF80: B9 D8 CA
   STA $24                                             ; $CF83: 85 24
-  LDA CategoryRecordPtrs+1,Y                          ; $CF85: B9 D9 CA
+  LDA HeirPriorityListPtrs+1,Y                        ; $CF85: B9 D9 CA
   STA $25                                             ; $CF88: 85 25
   LDY #$FF                                            ; $CF8A: A0 FF
 @ScanNext:
@@ -9311,7 +9415,7 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
   LDY #$37                                            ; $D72A: A0 37
   JSR B1F_BankedCallbackTrampoline                    ; $D72C: 20 07 EE
   ; --- BankedCallbackTrampoline target ---
-  .addr CheckGameStart::OfficerAssignEntry            ; $D72F: 21 A0
+  .addr StrategyAiTurnDispatch::AiOfficerPhaseEntry   ; $D72F: 21 A0
   RTS                                                 ; $D731: 60
 .endproc
 

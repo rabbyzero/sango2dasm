@@ -145,8 +145,8 @@ FUNCTIONS = [
     (0xE09A, 0xE0D9, "State_SystemInit", "func"),
     # Entry 1: New Game Init
     (0xE0DA, 0xE17C, "State_NewGameInit", "func"),
-    # Entry 2: Random + Display (Y=$2A)
-    (0xE17D, 0xE18A, "State_RandomDisplay2A", "func"),
+    # Entry 2: Strategy AI turn frame (Y=$2A)
+    (0xE17D, 0xE18A, "State_StrategyAiTurnFrame", "func"),
     # Entry 3: Kingdom Select
     (0xE18B, 0xE220, "State_KingdomSelect", "func"),
     # Entry 4: Random + Display (Y=$28)
@@ -454,7 +454,7 @@ def build_function_table():
         (0xE07C, 0xE09A, "VectorTable", "table", 30, "State dispatch table (15 entries, 2 bytes each)"),
         (0xE09A, 0xE0D9, "State_SystemInit", "func", 63, "Entry 0: System init, PPU setup, transition to state 9"),
         (0xE0DA, 0xE17C, "State_NewGameInit", "func", 162, "Entry 1: New game init, display, SRAM init, music $81"),
-        (0xE17D, 0xE18A, "State_RandomDisplay2A", "func", 13, "Entry 2: Random + display (Y=$2A), brief transition"),
+        (0xE17D, 0xE18A, "State_StrategyAiTurnFrame", "func", 13, "Entry 2: strategy AI turn frame (Y=$2A), loops in state 2"),
         (0xE18B, 0xE220, "State_KingdomSelect", "func", 150, "Entry 3: Kingdom select, scenario/normal mode"),
         (0xE221, 0xE22E, "State_RandomDisplay28", "func", 13, "Entry 4: Random + display (Y=$28), brief transition"),
         (0xE22F, 0xE2C1, "State_DomesticAffairs", "func", 146, "Entry 5: Domestic affairs, action selection"),

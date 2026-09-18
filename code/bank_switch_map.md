@@ -126,7 +126,7 @@ Dynamic $8000 tables: `TileBankTable` ($B8BB in $08), `BattleBankTable`
 |---|---|---|---|
 | State_NewGameInit $E110 | $37 | $17+$18 | `B17_18_PpuCopyRaw` display |
 | State_NewGameInit $E118, $E134 | $3D | $1D+$1E | SRAM flag / `B1D_1E_MenuUpdate` |
-| State_RandomDisplay2A $E182 | $2A | $0A+$0B | `B17_18_PpuWriteRle`-equivalent in $0A |
+| State_StrategyAiTurnFrame $E182 | $2A | $0A+$0B | Strategy Mode AI turn dispatch (`StrategyAiTurnDispatch_Entry` $A000) |
 | State_KingdomSelect $E19A | $37 | $17+$18 | `B17_18_DataRecordLoader` |
 | State_KingdomSelect $E1A9 | $2C | $0C+$0D | `B0C_0D_OfficerTransferCalc_Entry` (scenario mode) |
 | State_KingdomSelect $E1B4 | $28 | $08+$09 | `B17_18_PpuCopyRaw`-equivalent in $08 (normal mode) |
@@ -208,14 +208,14 @@ banks **$00/$03/$04/$05** hold the 16x16 terrain detail maps.
 ### 4.3 Banks $0A+$0B (prg_0a_0b.asm)
 
 **Code switch (trampoline):** CallDomesticDisplay $D72C, Y=$37 -> $17+$18
-`CheckGameStart::OfficerAssignEntry` ($A021).
+`StrategyAiTurnDispatch::AiOfficerPhaseEntry` ($A021).
 
 **Data switches ($8000):**
 
 - Slot A: $10 x16 (record/province data across the AI turn:
-  ScanMatchData, FindBestEnemyProvince, InitNewGameContext,
+  AiCountExpansionRoom, FindBestEnemyProvince, InitNewGameContext,
   EvalProvinceAbsorption, AiAction_DomesticTurn, CalcActionProb,
-  OfficerSearchAndEvaluate, FindBestOfficerByCategory,
+  AiOfficer_RecruitTransfer, PromoteBestOfficerForCountry,
   CountDefendedBorderProvinces, CollectEnemyBorderProvinces/X, BuildAdjacencyBitmap),
   $11 x2 (EvaluateAndMarkOfficer, ReadBankedRecordField).
 - Slot B: $01 (Y=$21) for StateSpriteAnim and DrawSelectionSprites

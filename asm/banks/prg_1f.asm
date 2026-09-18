@@ -239,7 +239,7 @@ sram_game_start_flag = $6F8B                    ; Game start flag (set to $FF on
 VectorTable:
   .addr State_SystemInit                        ; $E07C: 9A E0 | 0:  $E09A
   .addr State_NewGameInit                       ; $E07E: DA E0 | 1:  $E0DA
-  .addr State_RandomDisplay2A                   ; $E080: 7D E1 | 2:  $E17D
+  .addr State_StrategyAiTurnFrame               ; $E080: 7D E1 | 2:  $E17D
   .addr State_RulerSelect                       ; $E082: 8B E1 | 3:  $E18B
   .addr State_RandomDisplay28                   ; $E084: 21 E2 | 4:  $E221
   .addr State_StrategyMode                      ; $E086: 2F E2 | 5:  $E22F
@@ -363,13 +363,17 @@ VectorTable:
 .endproc
 
 ;===============================================================================
-; $E17D: Entry 2 - Random + Display (Y=$2A)
+; $E17D: Entry 2 - Strategy AI turn frame (Y=$2A)
+; Per-frame driver of game state 2: advances the RNG, maps the $0A+$0B bank
+; pair, and runs the Strategy Mode AI turn dispatcher (which also handles the
+; game-start path via the $6F8B mailbox). Loops through StateDispatch until
+; another state transition changes addr_game_state.
 ;===============================================================================
-.proc State_RandomDisplay2A
+.proc State_StrategyAiTurnFrame
   JSR RandomByte                                ; $E17D: 20 7A E8
   LDY #$2A                                      ; $E180: A0 2A
   JSR SwitchBankAC_A                            ; $E182: 20 4B F2
-  JSR B0A_0B_CheckGameStart_Entry               ; $E185: 20 00 A0  Check game start (bank $0A)
+  JSR B0A_0B_StrategyAiTurnDispatch_Entry        ; $E185: 20 00 A0  Strategy Mode AI turn dispatch (bank $0A)
   JMP StateDispatch                             ; $E188: 4C 66 E0
 .endproc
 

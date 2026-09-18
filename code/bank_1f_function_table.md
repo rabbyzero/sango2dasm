@@ -6,7 +6,7 @@
 | $E07C | $E099 | VectorTable | table | 30 | State dispatch table (15 entries, 2 bytes each) |
 | $E09A | $E0D8 | State_SystemInit | func | 63 | Entry 0: System init, PPU setup, transition to state 9 |
 | $E0DA | $E17B | State_NewGameInit | func | 162 | Entry 1: New game init, display, SRAM init, music $81 |
-| $E17D | $E189 | State_RandomDisplay2A | func | 13 | Entry 2: Random + display (Y=$2A), brief transition |
+| $E17D | $E189 | State_StrategyAiTurnFrame | func | 13 | Entry 2: strategy AI turn frame (Y=$2A), loops in state 2 |
 | $E18B | $E21F | State_KingdomSelect | func | 150 | Entry 3: Kingdom select, scenario/normal mode |
 | $E221 | $E22D | State_RandomDisplay28 | func | 13 | Entry 4: Random + display (Y=$28), brief transition |
 | $E22F | $E2C0 | State_DomesticAffairs | func | 146 | Entry 5: Domestic affairs, action selection |

@@ -30,7 +30,7 @@ B1F_StateDispatch         = $E066   ; Jump to handler via VectorTable[duel_state
 B1F_VectorTable           = $E07C   ; State dispatch table (15 entries, 2 bytes each)
 B1F_State_SystemInit      = $E09A   ; State 0: System init, PPU setup, -> state 9
 B1F_State_NewGameInit     = $E0DA   ; State 1: New game init, SRAM, music $81
-B1F_State_RandomDisplay2A = $E17D   ; State 2: Random + display (Y=$2A)
+B1F_State_StrategyAiTurnFrame = $E17D   ; State 2: strategy AI turn frame (Y=$2A -> bank $0A+$0B)
 B1F_State_RulerSelect     = $E18B   ; State 3: Ruler select, scenario/normal
 B1F_State_RandomDisplay28 = $E221   ; State 4: Random + display (Y=$28)
 B1F_State_StrategyMode    = $E22F   ; State 5: Strategy mode, command select
@@ -779,7 +779,7 @@ B19_1A_ExchangeMarchCutscene_Proc = $CFD6 ; War exchange marching cutscene (per-
 ;-------------------------------------------------------------------------------
 ; Jump Table Entry Points ($A000-$A00E)
 ;-------------------------------------------------------------------------------
-B0A_0B_CheckGameStart_Entry = $A000 ; CheckGameStart_Entry: Game start check
+B0A_0B_StrategyAiTurnDispatch_Entry = $A000 ; StrategyAiTurnDispatch_Entry: Strategy Mode per-country turn driver
 B0A_0B_SubStateDispatch_Entry = $A003 ; SubStateDispatch_Entry: Sub-state dispatch
 B0A_0B_ArmyValueCalc_Entry = $A006 ; ArmyValueCalc_Entry: Army value calculation
 B0A_0B_DataRecordLookup_Entry = $A009 ; DataRecordLookup_Entry: Data record lookup
@@ -788,7 +788,7 @@ B0A_0B_DistanceClamp_Entry = $A00C ; DistanceClamp_Entry: Distance clamp
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $0A ($A00F-$BFFF)
 ;-------------------------------------------------------------------------------
-B0A_0B_CheckGameStart     = $A00F   ; Check game start flag and dispatch
+B0A_0B_StrategyAiTurnDispatch = $A00F   ; Strategy Mode AI turn dispatch (mailbox gate, officer phase, action-cycle dispatch)
 B0A_0B_InitWorkAreas      = $A043   ; Initialize work areas and tier adjust
 B0A_0B_AiCountExpansionRoom = $A0D3 ; Count own/empty border edges + expansion-capable provinces
 B0A_0B_AiActionChoose     = $A19C   ; AI action weighted choose (expand/domestic/loop)
@@ -815,12 +815,12 @@ B0A_0B_AiAction_DomesticTurn = $B49C ; AI action step: domestic turn (large stat
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $0B ($C000-$DFFF)
 ;-------------------------------------------------------------------------------
-B0A_0B_FindBestOfficerAssign = $C50E ; Find best officer assignment
-B0A_0B_ProcessAllOfficers = $C5B9   ; Process all officers
+B0A_0B_AiOfficer_RulerToFrontier = $C50E ; AI officer phase: move ruler to best enemy-bordering own province
+B0A_0B_AiOfficer_RosterFill = $C5B9   ; AI officer phase: hire free officers into own province rosters
 B0A_0B_EvaluateAndMarkOfficer = $C5D2 ; Evaluate and mark officer (nested)
 B0A_0B_CalcActionProb     = $C66F   ; Calculate action probability
-B0A_0B_OfficerSearchAndEvaluate = $C79A ; Officer search and evaluate (merged)
-B0A_0B_FindBestOfficerByCategory = $C98F ; Find best officer by category
+B0A_0B_AiOfficer_RecruitTransfer = $C79A ; AI officer phase: pay gold, recruit/transfer officers between provinces
+B0A_0B_PromoteBestOfficerForCountry = $C98F ; Promote best officer to governor for a country
 B0A_0B_ApplyScenarioDeductions = $CD68 ; Apply scenario deductions
 B0A_0B_BracketDeductArmy  = $CEDD   ; Bracket deduct army
 B0A_0B_ArmyValueCalc      = $CF3F   ; Army value calculation
