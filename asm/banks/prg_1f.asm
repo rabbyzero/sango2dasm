@@ -218,7 +218,7 @@ sram_game_start_flag = $6F8B                    ; Game start flag (set to $FF on
 
   ; Initialize game state to 0
   LDA #$00                                      ; $E061: A9 00
-  STA addr_game_state                           ; $E063: 8D 7A 00
+  STA a:addr_game_state                         ; $E063: 8D 7A 00
 .endproc
 
 ;===============================================================================
@@ -226,14 +226,14 @@ sram_game_start_flag = $6F8B                    ; Game start flag (set to $FF on
 ; All state handlers JMP here to re-enter the main loop.
 ;===============================================================================
 .proc StateDispatch
-  LDA addr_game_state                           ; $E066: AD 7A 00
+  LDA a:addr_game_state                         ; $E066: AD 7A 00
   AND #$1F                                      ; $E069: 29 1F  Mask to 0-31
   ASL                                           ; $E06B: 0A  * 2 for word index
   TAY                                           ; $E06C: A8
   LDA VectorTable,Y                             ; $E06D: B9 7C E0
-  STA addr_dispatch_ptr                         ; $E070: 8D 4E 00
+  STA a:addr_dispatch_ptr                       ; $E070: 8D 4E 00
   LDA VectorTable+1,Y                           ; $E073: B9 7D E0
-  STA addr_dispatch_ptr+1                       ; $E076: 8D 4F 00
+  STA a:addr_dispatch_ptr+1                     ; $E076: 8D 4F 00
   JMP (addr_dispatch_ptr)                       ; $E079: 6C 4E 00
 
 VectorTable:
@@ -273,18 +273,18 @@ VectorTable:
   LDA PPU_STATUS                                ; $E0B0: AD 02 20
   BPL @wait_vb                                  ; $E0B3: 10 FB
   LDA #$4C                                      ; $E0B5: A9 4C  ; NAMCO_PROTECT_UPPER
-  STA $00A5                                     ; $E0B7: 8D A5 00  ; write-protect mirror
+  STA a:$00A5                                   ; $E0B7: 8D A5 00  ; write-protect mirror
   STA NAMCO_WRAM_WRITE_PROTECT                  ; $E0BA: 8D 00 F8  ; protect SRAM $7000-$7FFF
   LDA #$00                                      ; $E0BD: A9 00
   JSR BankSwitch                                ; $E0BF: 20 1F E5
   LDA #$10                                      ; $E0C2: A9 10  NMI enable + sprite height
-  STA addr_ppu_ctrl_ram                         ; $E0C4: 8D 8B 00
+  STA a:addr_ppu_ctrl_ram                       ; $E0C4: 8D 8B 00
   STA PPU_CTRL                                  ; $E0C7: 8D 00 20
   LDA #$00                                      ; $E0CA: A9 00  Rendering off
-  STA addr_ppu_mask_ram                         ; $E0CC: 8D 8C 00
+  STA a:addr_ppu_mask_ram                       ; $E0CC: 8D 8C 00
   STA PPU_MASK                                  ; $E0CF: 8D 01 20
   LDA #$09                                      ; $E0D2: A9 09  Next state = 9
-  STA addr_game_state                           ; $E0D4: 8D 7A 00
+  STA a:addr_game_state                         ; $E0D4: 8D 7A 00
   JMP StateDispatch                             ; $E0D7: 4C 66 E0
 .endproc
 
@@ -297,7 +297,7 @@ VectorTable:
 .proc State_NewGameInit
   JSR FrameInit                                 ; $E0DA: 20 DA E4
   LDA #$02                                      ; $E0DD: A9 02
-  STA addr_sub_state                            ; $E0DF: 8D 78 00  Sub-state = 2
+  STA a:addr_sub_state                          ; $E0DF: 8D 78 00  Sub-state = 2
   LDA #$00                                      ; $E0E2: A9 00
   JSR DisplayInit                               ; $E0E4: 20 70 E3
   LDY #$30                                      ; $E0E7: A0 30
@@ -305,18 +305,18 @@ VectorTable:
 
   ; Set pointer to $8000
   LDA #$00                                      ; $E0EC: A9 00
-  STA $000A                                     ; $E0EE: 8D 0A 00  ptr_lo
+  STA a:$000A                                   ; $E0EE: 8D 0A 00  ptr_lo
   LDA #$80                                      ; $E0F1: A9 80
-  STA $000B                                     ; $E0F3: 8D 0B 00  ptr_hi -> $8000
+  STA a:$000B                                   ; $E0F3: 8D 0B 00  ptr_hi -> $8000
   LDA #$20                                      ; $E0F6: A9 20
-  STA $0001                                     ; $E0F8: 8D 01 00  width param
+  STA a:$0001                                   ; $E0F8: 8D 01 00  width param
   LDA #$00                                      ; $E0FB: A9 00
-  STA $0000                                     ; $E0FD: 8D 00 00
-  STA $0004                                     ; $E100: 8D 04 00
-  STA $0005                                     ; $E103: 8D 05 00
-  STA $0006                                     ; $E106: 8D 06 00
+  STA a:$0000                                   ; $E0FD: 8D 00 00
+  STA a:$0004                                   ; $E100: 8D 04 00
+  STA a:$0005                                   ; $E103: 8D 05 00
+  STA a:$0006                                   ; $E106: 8D 06 00
   LDA #$04                                      ; $E109: A9 04
-  STA $0007                                     ; $E10B: 8D 07 00
+  STA a:$0007                                   ; $E10B: 8D 07 00
 
   LDY #$37                                      ; $E10E: A0 37
   JSR SwitchBankAC_B                            ; $E110: 20 37 F2
@@ -326,7 +326,7 @@ VectorTable:
   LDY #$3D                                      ; $E116: A0 3D
   JSR SwitchBankAC_B                            ; $E118: 20 37 F2
   LDA #$00                                      ; $E11B: A9 00
-  STA $0000                                     ; $E11D: 8D 00 00
+  STA a:$0000                                   ; $E11D: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E120: 20 15 A0  Load scenario data (bank-switched)
 
   JSR ScrollSet                                 ; $E123: 20 F7 EA
@@ -341,7 +341,7 @@ VectorTable:
   JSR B1D_1E_ClearWorkBuffer                    ; $E137: 20 36 A0  Clear work buffer (bank-switched)
   JSR PaletteFadeInit                           ; $E13A: 20 BF EC
   LDA #$A0                                      ; $E142: A9 00
-  STA addr_display_mode                         ; $E149: 8D 98 00
+  STA a:addr_display_mode                       ; $E149: 8D 98 00
   LDA #$00                                      ; $E14C: A9 00
   STA $0420                                     ; $E14E: 8D 20 04
   STA $04E0                                     ; $E151: 8D E0 04
@@ -354,7 +354,7 @@ VectorTable:
   STA sram_map_cam_y                            ; $E164: 8D 3F 6F  SRAM: map camera Y
   LDA #$00                                      ; $E167: A9 00
   JSR BankSwitch                                ; $E169: 20 1F E5
-  INC addr_game_state                           ; $E16C: EE 7A 00  Next state
+  INC a:addr_game_state                         ; $E16C: EE 7A 00  Next state
   LDA #$81                                      ; $E16F: A9 81
   JSR SoundWrapperA                             ; $E171: 20 73 E6  Music $81
   JSR PpuMaskEnable                             ; $E174: 20 49 E7
@@ -394,7 +394,7 @@ map_data_ptr_hi = $0069
 
   JSR FrameInit                                 ; $E18B: 20 DA E4
   LDA #$03                                      ; $E18E: A9 03
-  STA addr_sub_state                            ; $E190: 8D 78 00
+  STA a:addr_sub_state                          ; $E190: 8D 78 00
   LDA #$01                                      ; $E193: A9 01
   JSR DisplayInit                               ; $E195: 20 70 E3
   LDY #$37                                      ; $E198: A0 37
@@ -414,13 +414,13 @@ map_data_ptr_hi = $0069
   JSR B08_09_WarSetup_Entry                  ; $E1B7: 20 03 A0  Normal path (bank $08)
 @after_mode_check:
   LDA map_scroll_y                              ; $E1BA: AD 10 05
-  STA $0090                                     ; $E1BD: 8D 90 00
+  STA a:$0090                                   ; $E1BD: 8D 90 00
   LDA map_scroll_y_hi                           ; $E1C0: AD 11 05
-  STA $0091                                     ; $E1C3: 8D 91 00
+  STA a:$0091                                   ; $E1C3: 8D 91 00
   LDA map_scroll_x                              ; $E1C6: AD 12 05
-  STA $008E                                     ; $E1C9: 8D 8E 00
+  STA a:$008E                                   ; $E1C9: 8D 8E 00
   LDA map_scroll_x_hi                           ; $E1CC: AD 13 05
-  STA $008F                                     ; $E1CF: 8D 8F 00
+  STA a:$008F                                   ; $E1CF: 8D 8F 00
   LDA #$FF                                      ; $E1D2: A9 FF
   STA $0518                                     ; $E1D4: 8D 18 05  Ruler select flag
 
@@ -429,25 +429,25 @@ map_data_ptr_hi = $0069
   JSR SwitchBankAC_B                            ; $E1D9: 20 37 F2
   JSR B1D_1E_ProvinceDataWindowFrame                       ; $E1DC: 20 09 A0  Province data window frame (bank-switched)
   LDA #$00                                      ; $E1E4: A9 01
-  STA $0000                                     ; $E1E6: 8D 00 00
+  STA a:$0000                                   ; $E1E6: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E1E9: 20 15 A0
   JSR ScrollSet                                 ; $E1EC: 20 F7 EA
 
   LDA #$00                                      ; $E1EF: A9 00
   STA $0508                                     ; $E1F1: 8D 08 05
   LDA #$70                                      ; $E1F4: A9 70
-  STA map_data_ptr_lo                           ; $E1F6: 8D 68 00
+  STA a:map_data_ptr_lo                         ; $E1F6: 8D 68 00
   LDA #$AF                                      ; $E1F9: A9 AF
-  STA map_data_ptr_hi                           ; $E1FB: 8D 69 00  Ptr = $AF70
+  STA a:map_data_ptr_hi                         ; $E1FB: 8D 69 00  Ptr = $AF70
 
   LDA #$01                                      ; $E1FE: A9 01
   JSR BankSwitch                                ; $E200: 20 1F E5
   LDA #$01                                      ; $E203: A9 01
-  STA $0097                                     ; $E205: 8D 97 00
+  STA a:$0097                                   ; $E205: 8D 97 00
   JSR PaletteFadeInit                           ; $E208: 20 BF EC
   LDA #$05                                      ; $E20B: A9 05
-  STA $0061                                     ; $E20D: 8D 61 00
-  INC addr_game_state                           ; $E210: EE 7A 00
+  STA a:$0061                                   ; $E20D: 8D 61 00
+  INC a:addr_game_state                         ; $E210: EE 7A 00
   LDA #$1D                                      ; $E213: A9 1D
   JSR SoundWrapperA                             ; $E215: 20 73 E6  Music $1D
   JSR PpuMaskEnable                             ; $E218: 20 49 E7
@@ -482,7 +482,7 @@ sprite_idx2     = $0562
 
   JSR FrameInit                                 ; $E22F: 20 DA E4
   LDA #$04                                      ; $E232: A9 04
-  STA addr_sub_state                            ; $E234: 8D 78 00
+  STA a:addr_sub_state                          ; $E234: 8D 78 00
   LDA action_type                               ; $E237: AD 44 05
   CLC                                           ; $E23A: 18
   ADC #$02                                      ; $E23B: 69 02
@@ -499,7 +499,7 @@ sprite_idx2     = $0562
   LDA action_type                               ; $E252: AD 44 05
   CLC                                           ; $E255: 18
   ADC #$02                                      ; $E256: 69 02
-  STA $0000                                     ; $E258: 8D 00 00
+  STA a:$0000                                   ; $E258: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E25B: 20 15 A0  Load scenario data (bank-switched)
 
   ; Sprite positions from table
@@ -518,7 +518,7 @@ sprite_idx2     = $0562
   LDA #$01                                      ; $E27E: A9 01
   STA $0000                                     ; $E285: 8D 98 00
   JSR PaletteFadeInit                           ; $E288: 20 BF EC
-  INC addr_game_state                           ; $E28B: EE 7A 00
+  INC a:addr_game_state                         ; $E28B: EE 7A 00
   LDA #$0D                                      ; $E28E: A9 0D
   JSR SoundWrapperC                             ; $E290: 20 83 E6
   JSR PpuMaskEnable                             ; $E293: 20 49 E7
@@ -546,13 +546,13 @@ base_ptr_hi     = $000D
   ASL                                           ; $E29F: 0A  * 2 for table index
   TAY                                           ; $E2A0: A8
   LDA StrategyCommandGraphicPtrs,Y              ; $E2A1: B9 C2 E2
-  STA graphic_ptr_lo                            ; $E2A4: 8D 0A 00
+  STA a:graphic_ptr_lo                          ; $E2A4: 8D 0A 00
   LDA StrategyCommandGraphicPtrs+1,Y            ; $E2A7: B9 C3 E2
-  STA graphic_ptr_hi                            ; $E2AA: 8D 0B 00
+  STA a:graphic_ptr_hi                          ; $E2AA: 8D 0B 00
   LDA StrategyCommandBaseDataPtrs,Y             ; $E2AD: B9 D0 E2
-  STA base_ptr_lo                               ; $E2B0: 8D 0C 00
+  STA a:base_ptr_lo                             ; $E2B0: 8D 0C 00
   LDA StrategyCommandBaseDataPtrs+1,Y           ; $E2B3: B9 D1 E2
-  STA base_ptr_hi                               ; $E2B6: 8D 0D 00
+  STA a:base_ptr_hi                             ; $E2B6: 8D 0D 00
   LDY #$37                                      ; $E2B9: A0 37
   JSR SwitchBankAC_B                            ; $E2BB: 20 37 F2
   JSR B17_18_PpuWriteTileOffset                 ; $E2BE: 20 06 A0  Tile write with offset (bank-switched)
@@ -586,28 +586,28 @@ army_status2    = $04AC
 
   JSR FrameInit                                 ; $E2E8: 20 DA E4
   LDA #$05                                      ; $E2EB: A9 05
-  STA addr_sub_state                            ; $E2ED: 8D 78 00
+  STA a:addr_sub_state                          ; $E2ED: 8D 78 00
   LDA #$0A                                      ; $E2F0: A9 0A  Tactical display mode
   JSR DisplayInit                               ; $E2F2: 20 70 E3
   LDA #$A0                                      ; $E2F5: A9 A0
-  STA addr_display_mode                         ; $E2F7: 8D 98 00
+  STA a:addr_display_mode                       ; $E2F7: 8D 98 00
   LDY #$30                                      ; $E2FA: A0 30
   JSR SwitchBank8_B                             ; $E2FC: 20 5F F2
   LDA #$00                                      ; $E2FF: A9 00
-  STA $000A                                     ; $E301: 8D 0A 00  ptr_lo
+  STA a:$000A                                   ; $E301: 8D 0A 00  ptr_lo
   LDA #$84                                      ; $E304: A9 84
-  STA $000B                                     ; $E306: 8D 0B 00  ptr_hi -> $8400
+  STA a:$000B                                   ; $E306: 8D 0B 00  ptr_hi -> $8400
   LDA #$00                                      ; $E309: A9 00
-  STA $0000                                     ; $E30B: 8D 00 00
+  STA a:$0000                                   ; $E30B: 8D 00 00
   LDA #$20                                      ; $E30E: A9 20
-  STA $0001                                     ; $E310: 8D 01 00
+  STA a:$0001                                   ; $E310: 8D 01 00
   LDY #$37                                      ; $E313: A0 37
   JSR SwitchBankAC_B                            ; $E315: 20 37 F2
   JSR B17_18_PpuCopyRaw                         ; $E318: 20 03 A0  Tactical display (bank-switched)
   LDY #$3D                                      ; $E31B: A0 3D
   JSR SwitchBankAC_B                            ; $E31D: 20 37 F2
   LDA #$0A                                      ; $E320: A9 0A
-  STA $0000                                     ; $E322: 8D 00 00
+  STA a:$0000                                   ; $E322: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E325: 20 15 A0  Load scenario data (bank-switched)
 
   JSR ScrollSet                                 ; $E328: 20 F7 EA
@@ -631,7 +631,7 @@ army_status2    = $04AC
   JSR SwitchBankAC_B                            ; $E34C: 20 37 F2
   LDA #$02                                      ; $E34F: A9 02
   JSR B1D_1E_SceneRecordLookup                   ; $E351: 20 45 A0  Scene record lookup (bank-switched)
-  INC addr_game_state                           ; $E359: EE 7A 00
+  INC a:addr_game_state                         ; $E359: EE 7A 00
   LDA #$12                                      ; $E35C: A9 12
   JSR SoundWrapperB                             ; $E35E: 20 7B E6  Tactical music $12
   JSR PpuMaskEnable                             ; $E361: 20 49 E7
@@ -665,31 +665,31 @@ army_status2    = $04AC
 .proc State_CountryMapView
   JSR FrameInit                                 ; $E37C: 20 DA E4
   LDA #$06                                      ; $E37F: A9 06
-  STA addr_sub_state                            ; $E381: 8D 78 00
+  STA a:addr_sub_state                          ; $E381: 8D 78 00
   LDA #$0B                                      ; $E384: A9 0B  Country map display mode
   JSR DisplayInit                               ; $E386: 20 70 E3
   LDY #$35                                      ; $E389: A0 35
   JSR SwitchBank8_B                             ; $E38B: 20 5F F2
   LDA #$90                                      ; $E38E: A9 90
-  STA $000A                                     ; $E390: 8D 0A 00
+  STA a:$000A                                   ; $E390: 8D 0A 00
   LDA #$9A                                      ; $E393: A9 9A
-  STA $000B                                     ; $E395: 8D 0B 00  Ptr -> $9A90
+  STA a:$000B                                   ; $E395: 8D 0B 00  Ptr -> $9A90
   LDA #$20                                      ; $E398: A9 20
-  STA $0001                                     ; $E39A: 8D 01 00
+  STA a:$0001                                   ; $E39A: 8D 01 00
   LDA #$00                                      ; $E39D: A9 00
-  STA $0000                                     ; $E39F: 8D 00 00
-  STA $0004                                     ; $E3A2: 8D 04 00
-  STA $0005                                     ; $E3A5: 8D 05 00
-  STA $0006                                     ; $E3A8: 8D 06 00
+  STA a:$0000                                   ; $E39F: 8D 00 00
+  STA a:$0004                                   ; $E3A2: 8D 04 00
+  STA a:$0005                                   ; $E3A5: 8D 05 00
+  STA a:$0006                                   ; $E3A8: 8D 06 00
   LDA #$04                                      ; $E3AB: A9 04
-  STA $0007                                     ; $E3AD: 8D 07 00
+  STA a:$0007                                   ; $E3AD: 8D 07 00
   LDY #$37                                      ; $E3B0: A0 37
   JSR SwitchBankAC_B                            ; $E3B2: 20 37 F2
   JSR B17_18_PpuCopyRaw                         ; $E3B5: 20 03 A0
   LDY #$3D                                      ; $E3B8: A0 3D
   JSR SwitchBankAC_B                            ; $E3BA: 20 37 F2
   LDA #$0B                                      ; $E3BD: A9 0B
-  STA $0000                                     ; $E3BF: 8D 00 00
+  STA a:$0000                                   ; $E3BF: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E3C2: 20 15 A0
   JSR ScrollSet                                 ; $E3C5: 20 F7 EA
   JSR PaletteFadeInit                           ; $E3C8: 20 BF EC
@@ -698,10 +698,10 @@ army_status2    = $04AC
   LDA #$03                                      ; $E3D0: A9 03
   JSR B1D_1E_SceneRecordLookup                   ; $E3D2: 20 45 A0  Scene record lookup (bank-switched)
   LDA #$A0                                      ; $E3D5: A9 A0
-  STA addr_display_mode                         ; $E3D7: 8D 98 00
+  STA a:addr_display_mode                       ; $E3D7: 8D 98 00
   LDA #$02                                      ; $E3DA: A9 02
   JSR BankSwitch                                ; $E3DC: 20 1F E5
-  INC addr_game_state                           ; $E3DF: EE 7A 00
+  INC a:addr_game_state                         ; $E3DF: EE 7A 00
   JSR PpuMaskEnable                             ; $E3E2: 20 49 E7
   JSR NmiEnable                                 ; $E3E5: 20 53 E7
   JMP StateDispatch                             ; $E3E8: 4C 66 E0
@@ -729,24 +729,24 @@ army_status2    = $04AC
 .proc State_NewGameSetup
   JSR FrameInit                                 ; $E3EE: 20 DA E4
   LDA #$07                                      ; $E3F1: A9 07
-  STA addr_sub_state                            ; $E3F3: 8D 78 00
+  STA a:addr_sub_state                          ; $E3F3: 8D 78 00
   LDA #$0C                                      ; $E3F6: A9 0C  Menu font/display record $0C
   JSR DisplayInit                               ; $E3F8: 20 70 E3
   LDY #$32                                      ; $E3FB: A0 32
   JSR SwitchBank8_B                             ; $E3FD: 20 5F F2
   LDA #$E3                                      ; $E400: A9 E3
-  STA $000A                                     ; $E402: 8D 0A 00
+  STA a:$000A                                   ; $E402: 8D 0A 00
   LDA #$9A                                      ; $E405: A9 9A
-  STA $000B                                     ; $E407: 8D 0B 00  Ptr -> $9AE3
+  STA a:$000B                                   ; $E407: 8D 0B 00  Ptr -> $9AE3
   LDA #$20                                      ; $E40A: A9 20
-  STA $0001                                     ; $E40C: 8D 01 00
+  STA a:$0001                                   ; $E40C: 8D 01 00
   LDA #$00                                      ; $E40F: A9 00
-  STA $0000                                     ; $E411: 8D 00 00
-  STA $0004                                     ; $E414: 8D 04 00
-  STA $0005                                     ; $E417: 8D 05 00
-  STA $0006                                     ; $E41A: 8D 06 00
+  STA a:$0000                                   ; $E411: 8D 00 00
+  STA a:$0004                                   ; $E414: 8D 04 00
+  STA a:$0005                                   ; $E417: 8D 05 00
+  STA a:$0006                                   ; $E41A: 8D 06 00
   LDA #$04                                      ; $E41D: A9 04
-  STA $0007                                     ; $E41F: 8D 07 00
+  STA a:$0007                                   ; $E41F: 8D 07 00
   LDY #$37                                      ; $E422: A0 37
   JSR SwitchBankAC_B                            ; $E424: 20 37 F2
   JSR B17_18_PpuCopyRaw                         ; $E427: 20 03 A0
@@ -756,7 +756,7 @@ army_status2    = $04AC
   LDY #$3D                                      ; $E432: A0 3D
   JSR SwitchBankAC_B                            ; $E434: 20 37 F2
   LDA #$0C                                      ; $E437: A9 0C
-  STA $0000                                     ; $E439: 8D 00 00
+  STA a:$0000                                   ; $E439: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E43C: 20 15 A0
   JSR ScrollSet                                 ; $E43F: 20 F7 EA
   JSR PaletteFadeInit                           ; $E442: 20 BF EC
@@ -765,10 +765,10 @@ army_status2    = $04AC
   LDA #$04                                      ; $E44A: A9 04
   JSR B1D_1E_SceneRecordLookup                   ; $E44C: 20 45 A0  Scene record lookup (bank-switched)
   LDA #$A0                                      ; $E44F: A9 A0
-  STA addr_display_mode                         ; $E451: 8D 98 00
+  STA a:addr_display_mode                       ; $E451: 8D 98 00
   LDA #$02                                      ; $E454: A9 02
   JSR BankSwitch                                ; $E456: 20 1F E5
-  INC addr_game_state                           ; $E459: EE 7A 00
+  INC a:addr_game_state                         ; $E459: EE 7A 00
   LDA #$08                                      ; $E45C: A9 08
   JSR SoundWrapperC                             ; $E45E: 20 83 E6  Sound $08
   JSR PpuMaskEnable                             ; $E461: 20 49 E7
@@ -798,26 +798,26 @@ music_select = $0541
 
   JSR FrameInit                                 ; $E46A: 20 DA E4
   LDA #$08                                      ; $E46D: A9 08
-  STA addr_sub_state                            ; $E46F: 8D 78 00
+  STA a:addr_sub_state                          ; $E46F: 8D 78 00
   LDA #$0D                                      ; $E472: A9 0D  Message scene display mode
   JSR DisplayInit                               ; $E474: 20 70 E3
   LDY #$36                                      ; $E477: A0 36
   JSR SwitchBank8_B                             ; $E479: 20 5F F2
   LDA #$92                                      ; $E47C: A9 92
-  STA $000A                                     ; $E47E: 8D 0A 00
+  STA a:$000A                                   ; $E47E: 8D 0A 00
   LDA #$9B                                      ; $E481: A9 9B
-  STA $000B                                     ; $E483: 8D 0B 00  Ptr -> $9B92
+  STA a:$000B                                   ; $E483: 8D 0B 00  Ptr -> $9B92
   LDA #$00                                      ; $E486: A9 00
-  STA $0000                                     ; $E488: 8D 00 00
+  STA a:$0000                                   ; $E488: 8D 00 00
   LDA #$20                                      ; $E48B: A9 20
-  STA $0001                                     ; $E48D: 8D 01 00
+  STA a:$0001                                   ; $E48D: 8D 01 00
   LDY #$37                                      ; $E490: A0 37
   JSR SwitchBankAC_B                            ; $E492: 20 37 F2
   JSR B17_18_PpuCopyRaw                         ; $E495: 20 03 A0
   LDY #$3D                                      ; $E498: A0 3D
   JSR SwitchBankAC_B                            ; $E49A: 20 37 F2
   LDA #$0D                                      ; $E49D: A9 0D
-  STA $0000                                     ; $E49F: 8D 00 00
+  STA a:$0000                                   ; $E49F: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E4A2: 20 15 A0
   JSR ScrollSet                                 ; $E4A5: 20 F7 EA
   LDY #$3D                                      ; $E4A8: A0 3D
@@ -825,10 +825,10 @@ music_select = $0541
   LDA #$05                                      ; $E4AD: A9 05
   JSR B1D_1E_SceneRecordLookup                   ; $E4AF: 20 45 A0
   LDA #$A0                                      ; $E4B2: A9 A0
-  STA addr_display_mode                         ; $E4B4: 8D 98 00
+  STA a:addr_display_mode                       ; $E4B4: 8D 98 00
   LDA #$02                                      ; $E4B7: A9 02
   JSR BankSwitch                                ; $E4B9: 20 1F E5
-  INC addr_game_state                           ; $E4BC: EE 7A 00
+  INC a:addr_game_state                         ; $E4BC: EE 7A 00
   LDY music_select                              ; $E4BF: AC 41 05
   BNE @fanfare_music                            ; $E4C2: D0 08
   LDA #$98                                      ; $E4C4: A9 98
@@ -854,19 +854,19 @@ music_select = $0541
   JSR BankPpuInit                               ; $E4E3: 20 7F E5
   JSR NametableFill2                            ; $E4E6: 20 DF E7
   LDA #$00                                      ; $E4E9: A9 00
-  STA $0090                                     ; $E4EB: 8D 90 00
-  STA $0091                                     ; $E4EE: 8D 91 00
-  STA $008E                                     ; $E4F1: 8D 8E 00
-  STA $008F                                     ; $E4F4: 8D 8F 00
-  STA addr_display_mode                         ; $E4F7: 8D 98 00
-  STA $0099                                     ; $E4FA: 8D 99 00
-  STA $0096                                     ; $E4FD: 8D 96 00
-  STA $0097                                     ; $E500: 8D 97 00
-  STA addr_nmi_ctrl                             ; $E505: 8D 7E 00
-  STA $005E                                     ; $E508: 8D 5E 00
-  STA $005F                                     ; $E50B: 8D 5F 00
-  STA $008D                                     ; $E50E: 8D 8D 00
-  STA $00A4                                     ; $E511: 8D A4 00
+  STA a:$0090                                   ; $E4EB: 8D 90 00
+  STA a:$0091                                   ; $E4EE: 8D 91 00
+  STA a:$008E                                   ; $E4F1: 8D 8E 00
+  STA a:$008F                                   ; $E4F4: 8D 8F 00
+  STA a:addr_display_mode                       ; $E4F7: 8D 98 00
+  STA a:$0099                                   ; $E4FA: 8D 99 00
+  STA a:$0096                                   ; $E4FD: 8D 96 00
+  STA a:$0097                                   ; $E500: 8D 97 00
+  STA a:addr_nmi_ctrl                           ; $E505: 8D 7E 00
+  STA a:$005E                                   ; $E508: 8D 5E 00
+  STA a:$005F                                   ; $E50B: 8D 5F 00
+  STA a:$008D                                   ; $E50E: 8D 8D 00
+  STA a:$00A4                                   ; $E511: 8D A4 00
   LDA #$FF                                      ; $E514: A9 FF
   STA $0300                                     ; $E516: 8D 00 03  Sentinel values
   STA $0304                                     ; $E519: 8D 04 03
@@ -883,32 +883,32 @@ music_select = $0541
   ASL                                           ; $E521: 0A  A * 8 -> table offset
   TAY                                           ; $E522: A8
   LDA BankSwitchTable,Y                         ; $E523: B9 67 E5
-  STA addr_bank_e6                              ; $E526: 8D E6 00
+  STA a:addr_bank_e6                            ; $E526: 8D E6 00
   STA NAMCO_CHR_BANK_0                          ; $E529: 8D 00 C0  CHR bank 0
   INY                                           ; $E52C: C8
   LDA BankSwitchTable,Y                         ; $E52D: B9 67 E5
-  STA addr_bank_e7                              ; $E530: 8D E7 00
+  STA a:addr_bank_e7                            ; $E530: 8D E7 00
   STA NAMCO_CHR_BANK_1                          ; $E533: 8D 00 C8  CHR bank 1
   INY                                           ; $E536: C8
   LDA BankSwitchTable,Y                         ; $E537: B9 67 E5
-  STA addr_bank_e8                              ; $E53A: 8D E8 00
+  STA a:addr_bank_e8                            ; $E53A: 8D E8 00
   STA NAMCO_CHR_BANK_2                          ; $E53D: 8D 00 D0  CHR bank 2
   INY                                           ; $E540: C8
   LDA BankSwitchTable,Y                         ; $E541: B9 67 E5
-  STA addr_bank_e9                              ; $E544: 8D E9 00
+  STA a:addr_bank_e9                            ; $E544: 8D E9 00
   STA NAMCO_CHR_BANK_3                          ; $E547: 8D 00 D8  CHR bank 3
   INY                                           ; $E54A: C8
   LDA BankSwitchTable,Y                         ; $E54B: B9 67 E5
-  STA addr_bank_ea                              ; $E54E: 8D EA 00
+  STA a:addr_bank_ea                            ; $E54E: 8D EA 00
   INY                                           ; $E551: C8
   LDA BankSwitchTable,Y                         ; $E552: B9 67 E5
-  STA addr_bank_eb                              ; $E555: 8D EB 00
+  STA a:addr_bank_eb                            ; $E555: 8D EB 00
   INY                                           ; $E558: C8
   LDA BankSwitchTable,Y                         ; $E559: B9 67 E5
-  STA addr_bank_ec                              ; $E55C: 8D EC 00
+  STA a:addr_bank_ec                            ; $E55C: 8D EC 00
   INY                                           ; $E55F: C8
   LDA BankSwitchTable,Y                         ; $E560: B9 67 E5
-  STA addr_bank_ed                              ; $E563: 8D ED 00
+  STA a:addr_bank_ed                            ; $E563: 8D ED 00
   RTS                                           ; $E566: 60
 
 BankSwitchTable:
@@ -925,7 +925,7 @@ BankSwitchTable:
   JSR SoundWrapperA                             ; $E581: 20 73 E6  Sound off
   JSR SoundInit                                 ; $E584: 20 90 E5
   LDA #$4C                                      ; $E587: A9 4C  ; NAMCO_PROTECT_UPPER
-  STA $00A5                                     ; $E589: 8D A5 00  ; write-protect mirror
+  STA a:$00A5                                   ; $E589: 8D A5 00  ; write-protect mirror
   STA NAMCO_WRAM_WRITE_PROTECT                  ; $E58C: 8D 00 F8  ; protect SRAM $7000-$7FFF
   RTS                                           ; $E58F: 60
 .endproc
@@ -1033,17 +1033,17 @@ sound_channel_ram = $07F6                       ; RAM copy of Namco sound channe
   LDY #$22                                      ; $E609: A0 22           ; window param for display setup
   JSR SwitchBank8_B                             ; $E60B: 20 5F F2        ; prepare display/window context
   LDY #$00                                      ; $E60E: A0 00           ; Y=0 for indirect indexed access
-  STY note_ptr_hi                               ; $E610: 8C F1 00        ; clear high byte of pointer
+  STY a:note_ptr_hi                             ; $E610: 8C F1 00        ; clear high byte of pointer
   ASL A                                         ; $E613: 0A              ; A = entry_index * 2 (shift 1)
-  ROL note_ptr_hi                               ; $E614: 2E F1 00        ; rotate carry into high byte
+  ROL a:note_ptr_hi                             ; $E614: 2E F1 00        ; rotate carry into high byte
   ASL A                                         ; $E617: 0A              ; A = entry_index * 4 (shift 2)
-  ROL note_ptr_hi                               ; $E618: 2E F1 00        ; rotate carry into high byte
+  ROL a:note_ptr_hi                             ; $E618: 2E F1 00        ; rotate carry into high byte
   CLC                                           ; $E61B: 18              ; prepare 16-bit add
   ADC #$00                                      ; $E61C: 69 00           ; add leftover carry to low byte
-  STA note_ptr_lo                               ; $E61E: 8D F0 00        ; $F0 = low byte of (index*4)
+  STA a:note_ptr_lo                             ; $E61E: 8D F0 00        ; $F0 = low byte of (index*4)
   LDA #$80                                      ; $E621: A9 80           ; base address $8000 (PRG_SLOT0)
-  ADC note_ptr_hi                               ; $E623: 6D F1 00        ; $80 + high byte of (index*4)
-  STA note_ptr_hi                               ; $E626: 8D F1 00        ; $F1 = high byte → ptr = $8000+A*4
+  ADC a:note_ptr_hi                             ; $E623: 6D F1 00        ; $80 + high byte of (index*4)
+  STA a:note_ptr_hi                             ; $E626: 8D F1 00        ; $F1 = high byte → ptr = $8000+A*4
   TXA                                           ; $E629: 8A              ; save X (slot index in $0700)
   PHA                                           ; $E62A: 48              ; push X to stack
   LDA (note_ptr_lo),Y                           ; $E62B: B1 F0           ; read entry byte 0 (Y=0)
@@ -1152,10 +1152,10 @@ WavetableInitData:
 ;         $0082 = pad2 edge, $0085 = pad2 raw, $0086 = pad2 prev
 ;===============================================================================
 .proc ControllerRead
-  LDA addr_pad1_raw                             ; $E6C6: AD 83 00
-  STA addr_pad1_prev                            ; $E6C9: 8D 84 00  Save previous pad1
-  LDA addr_pad2_raw                             ; $E6CC: AD 85 00
-  STA addr_pad2_prev                            ; $E6CF: 8D 86 00  Save previous pad2
+  LDA a:addr_pad1_raw                           ; $E6C6: AD 83 00
+  STA a:addr_pad1_prev                          ; $E6C9: 8D 84 00  Save previous pad1
+  LDA a:addr_pad2_raw                           ; $E6CC: AD 85 00
+  STA a:addr_pad2_prev                          ; $E6CF: 8D 86 00  Save previous pad2
   LDA #$01                                      ; $E6D2: A9 01
   STA APU_JOY1                                  ; $E6D4: 8D 16 40  Strobe controller (start)
   LDA #$00                                      ; $E6D7: A9 00
@@ -1165,21 +1165,21 @@ WavetableInitData:
   LDA APU_JOY1                                  ; $E6DE: AD 16 40  Read pad 1 bit
   AND #$03                                      ; $E6E1: 29 03
   CMP #$01                                      ; $E6E3: C9 01
-  ROR addr_pad1_raw                             ; $E6E5: 6E 83 00  Shift into pad1 raw
+  ROR a:addr_pad1_raw                           ; $E6E5: 6E 83 00  Shift into pad1 raw
   LDA APU_JOY2                                  ; $E6E8: AD 17 40  Read pad 2 bit
   AND #$03                                      ; $E6EB: 29 03
   CMP #$01                                      ; $E6ED: C9 01
-  ROR addr_pad2_raw                             ; $E6EF: 6E 85 00  Shift into pad2 raw
+  ROR a:addr_pad2_raw                           ; $E6EF: 6E 85 00  Shift into pad2 raw
   DEX                                           ; $E6F2: CA
   BPL @read_loop                                ; $E6F3: 10 E9      Loop 8 times
-  LDA addr_pad1_raw                             ; $E6F5: AD 83 00
-  EOR addr_pad1_prev                            ; $E6F8: 4D 84 00
-  AND addr_pad1_raw                             ; $E6FB: 2D 83 00
-  STA addr_pad1_edge                            ; $E6FE: 8D 81 00  Pad 1 edge-triggered
-  LDA addr_pad2_raw                             ; $E701: AD 85 00
-  EOR addr_pad2_prev                            ; $E704: 4D 86 00
-  AND addr_pad2_raw                             ; $E707: 2D 85 00
-  STA addr_pad2_edge                            ; $E70A: 8D 82 00  Pad 2 edge-triggered
+  LDA a:addr_pad1_raw                           ; $E6F5: AD 83 00
+  EOR a:addr_pad1_prev                          ; $E6F8: 4D 84 00
+  AND a:addr_pad1_raw                           ; $E6FB: 2D 83 00
+  STA a:addr_pad1_edge                          ; $E6FE: 8D 81 00  Pad 1 edge-triggered
+  LDA a:addr_pad2_raw                           ; $E701: AD 85 00
+  EOR a:addr_pad2_prev                          ; $E704: 4D 86 00
+  AND a:addr_pad2_raw                           ; $E707: 2D 85 00
+  STA a:addr_pad2_edge                          ; $E70A: 8D 82 00  Pad 2 edge-triggered
   RTS                                           ; $E70D: 60
 .endproc
 
@@ -1188,12 +1188,12 @@ WavetableInitData:
 ; Uploads palette data from $0100-$011F to PPU $3F00
 ;===============================================================================
 .proc PaletteUpload
-  LDA addr_ppu_ctrl_ram                         ; $E70E: AD 8B 00  Load PPU ctrl mirror
+  LDA a:addr_ppu_ctrl_ram                       ; $E70E: AD 8B 00  Load PPU ctrl mirror
   AND #$FB                                      ; $E711: 29 FB     Clear VRAM inc bit (set +1)
   STA PPU_CTRL                                  ; $E713: 8D 00 20  Apply to PPU
   LDA PPU_STATUS                                ; $E716: AD 02 20  Reset PPU address latch
   LDY #$00                                      ; $E719: A0 00
-  STY $007D                                     ; $E71B: 8C 7D 00
+  STY a:$007D                                   ; $E71B: 8C 7D 00
   LDA #$3F                                      ; $E71E: A9 3F
   STA PPU_ADDR                                  ; $E720: 8D 06 20  PPU addr high = $3F
   STY PPU_ADDR                                  ; $E723: 8C 06 20  PPU addr low = $00
@@ -1225,7 +1225,7 @@ PpuMaskEnable:
   BNE :+                                        ; $E74B: D0 02     (always taken)
 PpuMaskDisable:
   LDA #$00                                      ; $E74D: A9 00
-: STA addr_ppu_mask_ram                         ; $E74F: 8D 8C 00
+: STA a:addr_ppu_mask_ram                       ; $E74F: 8D 8C 00
   RTS                                           ; $E752: 60
 
 ;===============================================================================
@@ -1236,16 +1236,16 @@ PpuMaskDisable:
 NmiEnable:
   LDA PPU_STATUS                                ; $E753: AD 02 20  Reset PPU latch
   LDY #$00                                      ; $E756: A0 00
-  STY $007B                                     ; $E758: 8C 7B 00
-  STY $007E                                     ; $E75B: 8C 7E 00
-  LDA addr_ppu_ctrl_ram                         ; $E75E: AD 8B 00
+  STY a:$007B                                   ; $E758: 8C 7B 00
+  STY a:$007E                                   ; $E75B: 8C 7E 00
+  LDA a:addr_ppu_ctrl_ram                       ; $E75E: AD 8B 00
   ORA #$80                                      ; $E761: 09 80     Set NMI enable bit
-  STA addr_ppu_ctrl_ram                         ; $E763: 8D 8B 00
+  STA a:addr_ppu_ctrl_ram                       ; $E763: 8D 8B 00
   BNE :+                                        ; $E766: D0 08     (always taken)
 NmiDisable:
-  LDA addr_ppu_ctrl_ram                         ; $E768: AD 8B 00
+  LDA a:addr_ppu_ctrl_ram                       ; $E768: AD 8B 00
   AND #$7F                                      ; $E76B: 29 7F     Clear NMI enable bit
-  STA addr_ppu_ctrl_ram                         ; $E76D: 8D 8B 00
+  STA a:addr_ppu_ctrl_ram                       ; $E76D: 8D 8B 00
 : STA PPU_CTRL                                  ; $E770: 8D 00 20
   RTS                                           ; $E773: 60
 
@@ -1483,11 +1483,11 @@ threshold = $10
 ; Preserves: X (saved/restored via $0051)
 ;===============================================================================
 .proc RandomByte
-  STX addr_rng_saved_x                          ; $E87A: 8E 51 00
-  LDX addr_rng_index                            ; $E87D: AE 50 00
+  STX a:addr_rng_saved_x                        ; $E87A: 8E 51 00
+  LDX a:addr_rng_index                          ; $E87D: AE 50 00
   LDA RandomTable,X                             ; $E880: BD BA E8
-  INC addr_rng_index                            ; $E883: EE 50 00
-  LDX addr_rng_saved_x                          ; $E886: AE 51 00
+  INC a:addr_rng_index                          ; $E883: EE 50 00
+  LDX a:addr_rng_saved_x                        ; $E886: AE 51 00
   RTS                                           ; $E889: 60
 .endproc
 
@@ -1499,27 +1499,27 @@ threshold = $10
 ;===============================================================================
 .proc RandomVariants
 RandomByte2:
-  STX addr_rng_temp_x                           ; $E88A: 8E 53 00
-  LDX addr_rng2_index                           ; $E88D: AE 52 00
+  STX a:addr_rng_temp_x                         ; $E88A: 8E 53 00
+  LDX a:addr_rng2_index                         ; $E88D: AE 52 00
   LDA RandomTable,X                             ; $E890: BD BA E8
-  INC addr_rng2_index                           ; $E893: EE 52 00
-  LDX addr_rng_temp_x                           ; $E896: AE 53 00
+  INC a:addr_rng2_index                         ; $E893: EE 52 00
+  LDX a:addr_rng_temp_x                         ; $E896: AE 53 00
   RTS                                           ; $E899: 60
 
 RandomByte3:
-  STX addr_rng_temp_x                           ; $E89A: 8E 53 00
-  LDX addr_rng3_index                           ; $E89D: AE 54 00
+  STX a:addr_rng_temp_x                         ; $E89A: 8E 53 00
+  LDX a:addr_rng3_index                         ; $E89D: AE 54 00
   LDA RandomTable,X                             ; $E8A0: BD BA E8
-  INC addr_rng3_index                           ; $E8A3: EE 54 00
-  LDX addr_rng_temp_x                           ; $E8A6: AE 53 00
+  INC a:addr_rng3_index                         ; $E8A3: EE 54 00
+  LDX a:addr_rng_temp_x                         ; $E8A6: AE 53 00
   RTS                                           ; $E8A9: 60
 
 RandomByte4:
-  STX addr_rng_temp_x                           ; $E8AA: 8E 53 00
-  LDX addr_rng4_index                           ; $E8AD: AE 55 00
+  STX a:addr_rng_temp_x                         ; $E8AA: 8E 53 00
+  LDX a:addr_rng4_index                         ; $E8AD: AE 55 00
   LDA RandomTable,X                             ; $E8B0: BD BA E8
-  INC addr_rng4_index                           ; $E8B3: EE 55 00
-  LDX addr_rng_temp_x                           ; $E8B6: AE 53 00
+  INC a:addr_rng4_index                         ; $E8B3: EE 55 00
+  LDX a:addr_rng_temp_x                         ; $E8B6: AE 53 00
   RTS                                           ; $E8B9: 60
 .endproc
 
@@ -1827,17 +1827,17 @@ target_hi     = $04
 ; Then updates PPU_CTRL nametable select bits from $008F
 ;===============================================================================
 .proc ScrollSet
-  LDA addr_scroll_x                             ; $EAF7: AD 8E 00
+  LDA a:addr_scroll_x                           ; $EAF7: AD 8E 00
   STA PPU_SCROLL                                ; $EAFA: 8D 05 20
-  LDA addr_scroll_y                             ; $EAFD: AD 90 00
+  LDA a:addr_scroll_y                           ; $EAFD: AD 90 00
   STA PPU_SCROLL                                ; $EB00: 8D 05 20
-  LDA addr_ppu_ctrl_ram                         ; $EB03: AD 8B 00
+  LDA a:addr_ppu_ctrl_ram                       ; $EB03: AD 8B 00
   AND #$FE                                      ; $EB06: 29 FE
-  STA addr_ppu_ctrl_ram                         ; $EB08: 8D 8B 00
-  LDA addr_scroll_x_hi                          ; $EB0B: AD 8F 00
+  STA a:addr_ppu_ctrl_ram                       ; $EB08: 8D 8B 00
+  LDA a:addr_scroll_x_hi                        ; $EB0B: AD 8F 00
   AND #$01                                      ; $EB0E: 29 01
-  ORA addr_ppu_ctrl_ram                         ; $EB10: 0D 8B 00
-  STA addr_ppu_ctrl_ram                         ; $EB13: 8D 8B 00
+  ORA a:addr_ppu_ctrl_ram                       ; $EB10: 0D 8B 00
+  STA a:addr_ppu_ctrl_ram                       ; $EB13: 8D 8B 00
   STA PPU_CTRL                                  ; $EB16: 8D 00 20
   RTS                                           ; $EB19: 60
 .endproc
@@ -2123,27 +2123,27 @@ anim_speed      = $0089
 anim_counter    = $008A
 nmi_flag        = $007D
 
-  LDA anim_direction                            ; $EC67: AD 87 00
+  LDA a:anim_direction                          ; $EC67: AD 87 00
   BMI @done                                     ; $EC6A: 30 52
-  DEC anim_counter                              ; $EC6C: CE 8A 00
+  DEC a:anim_counter                            ; $EC6C: CE 8A 00
   BPL @done                                     ; $EC6F: 10 4D
-  LDA anim_speed                                ; $EC71: AD 89 00
-  STA anim_counter                              ; $EC74: 8D 8A 00
+  LDA a:anim_speed                              ; $EC71: AD 89 00
+  STA a:anim_counter                            ; $EC74: 8D 8A 00
   LDA #$01                                      ; $EC77: A9 01
-  STA nmi_flag                                  ; $EC79: 8D 7D 00
-  LDA anim_direction                            ; $EC7C: AD 87 00
+  STA a:nmi_flag                                ; $EC79: 8D 7D 00
+  LDA a:anim_direction                          ; $EC7C: AD 87 00
   BEQ @reverse                                  ; $EC7F: F0 0D
-  INC anim_step                                 ; $EC81: EE 88 00
-  LDA anim_step                                 ; $EC84: AD 88 00
+  INC a:anim_step                               ; $EC81: EE 88 00
+  LDA a:anim_step                               ; $EC84: AD 88 00
   CMP #$04                                      ; $EC87: C9 04
   BCC @apply_shift                              ; $EC89: 90 0D
   JMP @mark_done                                ; $EC8B: 4C 93 EC
 @reverse:
-  DEC anim_step                                 ; $EC8E: CE 88 00
+  DEC a:anim_step                               ; $EC8E: CE 88 00
   BNE @apply_shift                              ; $EC91: D0 05
 @mark_done:
   LDA #$FF                                      ; $EC93: A9 FF
-  STA anim_direction                            ; $EC95: 8D 87 00
+  STA a:anim_direction                          ; $EC95: 8D 87 00
 @apply_shift:
   LDA #$00                                      ; $EC98: A9 00
   STA $00                                       ; $EC9A: 85 00
@@ -2155,7 +2155,7 @@ nmi_flag        = $007D
   STA $03                                       ; $ECA6: 85 03
   LDY #$1F                                      ; $ECA8: A0 1F
 @shift_loop:
-  LDX anim_step                                 ; $ECAA: AE 88 00
+  LDX a:anim_step                               ; $ECAA: AE 88 00
   LDA ($02),Y                                   ; $ECAD: B1 02
 @sub_loop:
   DEX                                           ; $ECAF: CA
@@ -2178,11 +2178,11 @@ nmi_flag        = $007D
 ;===============================================================================
 .proc PaletteFadeInit
   LDA #$00                                      ; $ECBF: A9 00
-  STA $0087                                     ; $ECC1: 8D 87 00
+  STA a:$0087                                   ; $ECC1: 8D 87 00
   LDA #$04                                      ; $ECC4: A9 04
-  STA $0088                                     ; $ECC6: 8D 88 00
+  STA a:$0088                                   ; $ECC6: 8D 88 00
   LDA #$04                                      ; $ECC9: A9 04
-  STA $0089                                     ; $ECCB: 8D 89 00
+  STA a:$0089                                   ; $ECCB: 8D 89 00
   LDA #$00                                      ; $ECCE: A9 00
   STA $00                                       ; $ECD0: 85 00
   LDA #$01                                      ; $ECD2: A9 01
@@ -2209,11 +2209,11 @@ nmi_flag        = $007D
 ;===============================================================================
 .proc PaletteCopyBuffer
   LDA #$01                                      ; $ECEE: A9 01
-  STA $0087                                     ; $ECF0: 8D 87 00
+  STA a:$0087                                   ; $ECF0: 8D 87 00
   LDA #$00                                      ; $ECF3: A9 00
-  STA $0088                                     ; $ECF5: 8D 88 00
+  STA a:$0088                                   ; $ECF5: 8D 88 00
   LDA #$04                                      ; $ECF8: A9 04
-  STA $0089                                     ; $ECFA: 8D 89 00
+  STA a:$0089                                   ; $ECFA: 8D 89 00
   LDA #$00                                      ; $ECFD: A9 00
   STA $00                                       ; $ECFF: 85 00
   LDA #$01                                      ; $ED01: A9 01
@@ -2270,22 +2270,22 @@ MenuStep8:
   JMP MenuMain                                  ; $ED3E: 4C 41 ED
 MenuMain:
   STA step_size                                 ; $ED41: 85 00
-  LDA addr_pad1_edge                            ; $ED43: AD 81 00
+  LDA a:addr_pad1_edge                          ; $ED43: AD 81 00
   AND #$80                                      ; $ED46: 29 80
   BEQ @check_left                               ; $ED48: F0 03
   JSR @cursor_right                             ; $ED4A: 20 71 ED
 @check_left:
-  LDA addr_pad1_edge                            ; $ED4D: AD 81 00
+  LDA a:addr_pad1_edge                          ; $ED4D: AD 81 00
   AND #$40                                      ; $ED50: 29 40
   BEQ @check_down                               ; $ED52: F0 03
   JSR @cursor_left                              ; $ED54: 20 8D ED
 @check_down:
-  LDA addr_pad1_edge                            ; $ED57: AD 81 00
+  LDA a:addr_pad1_edge                          ; $ED57: AD 81 00
   AND #$20                                      ; $ED5A: 29 20
   BEQ @check_up                                 ; $ED5C: F0 03
   JSR @cursor_down                              ; $ED5E: 20 A9 ED
 @check_up:
-  LDA addr_pad1_edge                            ; $ED61: AD 81 00
+  LDA a:addr_pad1_edge                          ; $ED61: AD 81 00
   AND #$10                                      ; $ED64: 29 10
   BEQ @do_lookup                                ; $ED66: F0 03
   JSR @cursor_up                                ; $ED68: 20 BE ED
@@ -2416,33 +2416,33 @@ ptr_hi   = $0C
 ; Usage: LDY #bank; JSR BankedCallbackTrampoline; .word target_addr
 ;===============================================================================
 .proc BankedCallbackTrampoline
-  LDA addr_prg_select_2b                        ; $EE07: AD E2 00
-  STA addr_trampoline_saved_bank                ; $EE0A: 8D 58 00
-  STY addr_trampoline_bank_param                ; $EE0D: 8C 5D 00
+  LDA a:addr_prg_select_2b                      ; $EE07: AD E2 00
+  STA a:addr_trampoline_saved_bank              ; $EE0A: 8D 58 00
+  STY a:addr_trampoline_bank_param              ; $EE0D: 8C 5D 00
   PLA                                           ; $EE10: 68
   CLC                                           ; $EE11: 18
   ADC #$01                                      ; $EE12: 69 01
-  STA addr_trampoline_ret_lo                    ; $EE14: 8D 59 00
+  STA a:addr_trampoline_ret_lo                  ; $EE14: 8D 59 00
   PLA                                           ; $EE17: 68
   ADC #$00                                      ; $EE18: 69 00
-  STA addr_trampoline_ret_hi                    ; $EE1A: 8D 5A 00
+  STA a:addr_trampoline_ret_hi                  ; $EE1A: 8D 5A 00
   LDY #$00                                      ; $EE1D: A0 00
   LDA (addr_trampoline_ret_lo),Y                ; $EE1F: B1 59
-  STA addr_trampoline_target_lo                 ; $EE21: 8D 5B 00
+  STA a:addr_trampoline_target_lo               ; $EE21: 8D 5B 00
   INY                                           ; $EE24: C8
   LDA (addr_trampoline_ret_lo),Y                ; $EE25: B1 59
-  STA addr_trampoline_target_hi                 ; $EE27: 8D 5C 00
-  LDY addr_trampoline_bank_param                ; $EE2A: AC 5D 00
+  STA a:addr_trampoline_target_hi               ; $EE27: 8D 5C 00
+  LDY a:addr_trampoline_bank_param              ; $EE2A: AC 5D 00
   JSR SwitchBankAC_B                            ; $EE2D: 20 37 F2
-  INC addr_trampoline_ret_lo                    ; $EE30: EE 59 00
+  INC a:addr_trampoline_ret_lo                  ; $EE30: EE 59 00
   BNE @no_carry                                 ; $EE33: D0 03
-  INC addr_trampoline_ret_hi                    ; $EE35: EE 5A 00
+  INC a:addr_trampoline_ret_hi                  ; $EE35: EE 5A 00
 @no_carry:
-  LDA addr_trampoline_ret_hi                    ; $EE38: AD 5A 00
+  LDA a:addr_trampoline_ret_hi                  ; $EE38: AD 5A 00
   PHA                                           ; $EE3B: 48
-  LDA addr_trampoline_ret_lo                    ; $EE3C: AD 59 00
+  LDA a:addr_trampoline_ret_lo                  ; $EE3C: AD 59 00
   PHA                                           ; $EE3F: 48
-  LDA addr_trampoline_saved_bank                ; $EE40: AD 58 00
+  LDA a:addr_trampoline_saved_bank              ; $EE40: AD 58 00
   PHA                                           ; $EE43: 48
   LDA #<(@return_addr-1)                        ; $EE44: A9 EE  return addr low = $EE4C
   PHA                                           ; $EE46: 48
@@ -2463,9 +2463,9 @@ ptr_hi   = $0C
 ; bit5 -> PpuAttrTileWrite, bit4 -> PpuAttrTileWriteAlt
 ;===============================================================================
 .proc NmiSubDispatch
-  LDA addr_nmi_flag                             ; $EE53: AD 7D 00
+  LDA a:addr_nmi_flag                           ; $EE53: AD 7D 00
   BNE NmiPaletteUpload                          ; $EE56: D0 1A
-  LDA addr_nmi_ctrl                             ; $EE58: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EE58: AD 7E 00
   BMI NmiDoBgWrite                              ; $EE5B: 30 18
   ASL                                           ; $EE5D: 0A
   BMI NmiDoSpriteWrite                          ; $EE5E: 30 27
@@ -2495,9 +2495,9 @@ ptr_hi   = $0C
 ;--- $EE75: BG tile write dispatch handler ($007E bit 7) ---
 .proc NmiDoBgWrite
   PHA                                           ; $EE75: 48
-  LDA addr_nmi_ctrl                             ; $EE76: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EE76: AD 7E 00
   AND #$7F                                      ; $EE79: 29 7F
-  STA addr_nmi_ctrl                             ; $EE7B: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EE7B: 8D 7E 00
   JSR PpuBgTileWrite                            ; $EE7E: 20 0B EF
   PLA                                           ; $EE81: 68
   RTS                                           ; $EE82: 60
@@ -2508,9 +2508,9 @@ ptr_hi   = $0C
 ;--- $EE87: sprite tile write dispatch handler ($007E bit 6) ---
 .proc NmiDoSpriteWrite
   PHA                                           ; $EE87: 48
-  LDA addr_nmi_ctrl                             ; $EE88: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EE88: AD 7E 00
   AND #$BF                                      ; $EE8B: 29 BF
-  STA addr_nmi_ctrl                             ; $EE8D: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EE8D: 8D 7E 00
   JSR PpuSpriteTileWrite                        ; $EE90: 20 71 EF
   PLA                                           ; $EE93: 68
   RTS                                           ; $EE94: 60
@@ -2519,17 +2519,17 @@ ptr_hi   = $0C
 
 ;--- $EE98: attribute tile write dispatch handler ($007E bit 5) ---
 .proc NmiDoAttrWrite
-  LDA addr_nmi_ctrl                             ; $EE98: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EE98: AD 7E 00
   AND #$DF                                      ; $EE9B: 29 DF
-  STA addr_nmi_ctrl                             ; $EE9D: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EE9D: 8D 7E 00
   JMP PpuAttrTileWrite                          ; $EEA0: 4C C0 EF
 .endproc
 
 ;--- $EEA3: attribute tile write alt dispatch handler ($007E bit 4) ---
 .proc NmiDoAttrWriteAlt
-  LDA addr_nmi_ctrl                             ; $EEA3: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EEA3: AD 7E 00
   AND #$EF                                      ; $EEA6: 29 EF
-  STA addr_nmi_ctrl                             ; $EEA8: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EEA8: 8D 7E 00
   JMP PpuAttrTileWriteAlt                       ; $EEAB: 4C 28 F0
 .endproc
 
@@ -2537,17 +2537,17 @@ ptr_hi   = $0C
 .proc NmiDoBank3D_MapDisplay
   LDY #$3D                                      ; $EEAE: A0 3D
   JSR SwitchBankAC_B                            ; $EEB0: 20 37 F2
-  LDA addr_nmi_ctrl                             ; $EEB3: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EEB3: AD 7E 00
   AND #$F7                                      ; $EEB6: 29 F7
-  STA addr_nmi_ctrl                             ; $EEB8: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EEB8: 8D 7E 00
   JMP B1D_1E_MapDisplaySetup                    ; $EEBB: 4C 0C A0  Map display setup (bank $1D)
 .endproc
 
 ;--- $EEBE: bank $1D dispatch handler ($007E bit 2): VRAM buffer write ---
 .proc NmiDoBank3D_VramWrite
-  LDA addr_nmi_ctrl                             ; $EEBE: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EEBE: AD 7E 00
   AND #$FB                                      ; $EEC1: 29 FB
-  STA addr_nmi_ctrl                             ; $EEC3: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EEC3: 8D 7E 00
   LDY #$3D                                      ; $EEC6: A0 3D
   JSR SwitchBankAC_B                            ; $EEC8: 20 37 F2
   JMP B1D_1E_VRAMBufferWrite                    ; $EECB: 4C 06 A0  VRAM buffer write (bank $1D)
@@ -2555,9 +2555,9 @@ ptr_hi   = $0C
 
 ;--- $EECE: bank $1D dispatch handler ($007E bit 1): flush tile buffer ---
 .proc NmiDoBank3D_FlushTiles
-  LDA addr_nmi_ctrl                             ; $EECE: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EECE: AD 7E 00
   AND #$FD                                      ; $EED1: 29 FD
-  STA addr_nmi_ctrl                             ; $EED3: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EED3: 8D 7E 00
   LDY #$3D                                      ; $EED6: A0 3D
   JSR SwitchBankAC_B                            ; $EED8: 20 37 F2
   JMP B1D_1E_FlushTileBuffer                    ; $EEDB: 4C 12 A0  Flush tile buffer (bank $1D)
@@ -2575,7 +2575,7 @@ ptr_hi   = $0C
 ; Simplified variant checking fewer bits of $007E
 ;===============================================================================
 .proc NmiSubDispatchAlt
-  LDA addr_nmi_ctrl                             ; $EEE6: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EEE6: AD 7E 00
   BMI @do_bg                                    ; $EEE9: 30 0A
   ASL                                           ; $EEEB: 0A
   BMI @do_sprite                                ; $EEEC: 30 12
@@ -2586,15 +2586,15 @@ ptr_hi   = $0C
   RTS                                           ; $EEF4: 60
 
 @do_bg:
-  LDA addr_nmi_ctrl                             ; $EEF5: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EEF5: AD 7E 00
   AND #$7F                                      ; $EEF8: 29 7F
-  STA addr_nmi_ctrl                             ; $EEFA: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EEFA: 8D 7E 00
   JMP PpuBgTileWrite                            ; $EEFD: 4C 0B EF
 
 @do_sprite:
-  LDA addr_nmi_ctrl                             ; $EF00: AD 7E 00
+  LDA a:addr_nmi_ctrl                           ; $EF00: AD 7E 00
   AND #$BF                                      ; $EF03: 29 BF
-  STA addr_nmi_ctrl                             ; $EF05: 8D 7E 00
+  STA a:addr_nmi_ctrl                           ; $EF05: 8D 7E 00
   JMP PpuSpriteTileWrite                        ; $EF08: 4C 71 EF
 .endproc
 
@@ -2605,21 +2605,21 @@ ptr_hi   = $0C
 ;===============================================================================
 .proc PpuBgTileWrite
   LDA $0141                                     ; $EF0B: AD 41 01
-  STA $0001                                     ; $EF0E: 8D 01 00
+  STA a:$0001                                   ; $EF0E: 8D 01 00
   LDA $0140                                     ; $EF11: AD 40 01
   AND #$03                                      ; $EF14: 29 03
-  ASL $0001                                     ; $EF16: 0E 01 00
+  ASL a:$0001                                   ; $EF16: 0E 01 00
   ROL                                           ; $EF19: 2A
-  ASL $0001                                     ; $EF1A: 0E 01 00
+  ASL a:$0001                                   ; $EF1A: 0E 01 00
   ROL                                           ; $EF1D: 2A
-  ASL $0001                                     ; $EF1E: 0E 01 00
+  ASL a:$0001                                   ; $EF1E: 0E 01 00
   ROL                                           ; $EF21: 2A
-  STA $0001                                     ; $EF22: 8D 01 00
+  STA a:$0001                                   ; $EF22: 8D 01 00
   LDA #$1E                                      ; $EF25: A9 1E
   SEC                                           ; $EF27: 38
-  SBC $0001                                     ; $EF28: ED 01 00
-  STA $0000                                     ; $EF2B: 8D 00 00
-  LDA addr_ppu_ctrl_ram                         ; $EF2E: AD 8B 00
+  SBC a:$0001                                   ; $EF28: ED 01 00
+  STA a:$0000                                   ; $EF2B: 8D 00 00
+  LDA a:addr_ppu_ctrl_ram                       ; $EF2E: AD 8B 00
   ORA #$04                                      ; $EF31: 09 04
   STA PPU_CTRL                                  ; $EF33: 8D 00 20
   LDA PPU_STATUS                                ; $EF36: AD 02 20
@@ -2632,7 +2632,7 @@ ptr_hi   = $0C
   LDA $0142,Y                                   ; $EF47: B9 42 01
   STA PPU_DATA                                  ; $EF4A: 8D 07 20
   INY                                           ; $EF4D: C8
-  CPY $0000                                     ; $EF4E: CC 00 00
+  CPY a:$0000                                   ; $EF4E: CC 00 00
   BCC @write_loop1                              ; $EF51: 90 F4
   LDA $0140                                     ; $EF53: AD 40 01
   AND #$FC                                      ; $EF56: 29 FC
@@ -2657,7 +2657,7 @@ ptr_hi   = $0C
 ; Address from $0164/$0165
 ;===============================================================================
 .proc PpuSpriteTileWrite
-  LDA addr_ppu_ctrl_ram                         ; $EF71: AD 8B 00
+  LDA a:addr_ppu_ctrl_ram                       ; $EF71: AD 8B 00
   AND #$FB                                      ; $EF74: 29 FB
   STA PPU_CTRL                                  ; $EF76: 8D 00 20
   LDA PPU_STATUS                                ; $EF79: AD 02 20
@@ -2666,17 +2666,17 @@ ptr_hi   = $0C
   LDA $0165                                     ; $EF82: AD 65 01
   STA PPU_ADDR                                  ; $EF85: 8D 06 20
   AND #$1F                                      ; $EF88: 29 1F
-  STA $0000                                     ; $EF8A: 8D 00 00
+  STA a:$0000                                   ; $EF8A: 8D 00 00
   LDA #$20                                      ; $EF8D: A9 20
   SEC                                           ; $EF8F: 38
-  SBC $0000                                     ; $EF90: ED 00 00
-  STA $0000                                     ; $EF93: 8D 00 00
+  SBC a:$0000                                   ; $EF90: ED 00 00
+  STA a:$0000                                   ; $EF93: 8D 00 00
   LDY #$00                                      ; $EF96: A0 00
 @write_loop1:
   LDA $0166,Y                                   ; $EF98: B9 66 01
   STA PPU_DATA                                  ; $EF9B: 8D 07 20
   INY                                           ; $EF9E: C8
-  CPY $0000                                     ; $EF9F: CC 00 00
+  CPY a:$0000                                   ; $EF9F: CC 00 00
   BCC @write_loop1                              ; $EFA2: 90 F4
   LDA $0164                                     ; $EFA4: AD 64 01
   STA PPU_ADDR                                  ; $EFA7: 8D 06 20
@@ -2702,48 +2702,48 @@ ptr_hi   = $0C
 ;===============================================================================
 .proc PpuAttrTileWrite
   LDA $0189                                     ; $EFC0: AD 89 01
-  STA $0001                                     ; $EFC3: 8D 01 00
+  STA a:$0001                                   ; $EFC3: 8D 01 00
   AND #$38                                      ; $EFC6: 29 38
   LSR                                           ; $EFC8: 4A
   LSR                                           ; $EFC9: 4A
   LSR                                           ; $EFCA: 4A
-  STA $0000                                     ; $EFCB: 8D 00 00
+  STA a:$0000                                   ; $EFCB: 8D 00 00
   LDA #$08                                      ; $EFCE: A9 08
   SEC                                           ; $EFD0: 38
-  SBC $0000                                     ; $EFD1: ED 00 00
-  STA $0000                                     ; $EFD4: 8D 00 00
+  SBC a:$0000                                   ; $EFD1: ED 00 00
+  STA a:$0000                                   ; $EFD4: 8D 00 00
   LDY #$00                                      ; $EFD7: A0 00
   LDA PPU_STATUS                                ; $EFD9: AD 02 20
 @write_loop1:
   LDA $0188                                     ; $EFDC: AD 88 01
   STA PPU_ADDR                                  ; $EFDF: 8D 06 20
-  LDA $0001                                     ; $EFE2: AD 01 00
+  LDA a:$0001                                   ; $EFE2: AD 01 00
   STA PPU_ADDR                                  ; $EFE5: 8D 06 20
   LDA $018A,Y                                   ; $EFE8: B9 8A 01
   STA PPU_DATA                                  ; $EFEB: 8D 07 20
-  LDA $0001                                     ; $EFEE: AD 01 00
+  LDA a:$0001                                   ; $EFEE: AD 01 00
   CLC                                           ; $EFF1: 18
   ADC #$08                                      ; $EFF2: 69 08
-  STA $0001                                     ; $EFF4: 8D 01 00
+  STA a:$0001                                   ; $EFF4: 8D 01 00
   INY                                           ; $EFF7: C8
-  CPY $0000                                     ; $EFF8: CC 00 00
+  CPY a:$0000                                   ; $EFF8: CC 00 00
   BCC @write_loop1                              ; $EFFB: 90 DF
   LDA $0189                                     ; $EFFD: AD 89 01
   AND #$C7                                      ; $F000: 29 C7
-  STA $0001                                     ; $F002: 8D 01 00
+  STA a:$0001                                   ; $F002: 8D 01 00
 @write_loop2:
   CPY #$08                                      ; $F005: C0 08
   BCS @done                                     ; $F007: B0 1E
   LDA $0188                                     ; $F009: AD 88 01
   STA PPU_ADDR                                  ; $F00C: 8D 06 20
-  LDA $0001                                     ; $F00F: AD 01 00
+  LDA a:$0001                                   ; $F00F: AD 01 00
   STA PPU_ADDR                                  ; $F012: 8D 06 20
   LDA $018A,Y                                   ; $F015: B9 8A 01
   STA PPU_DATA                                  ; $F018: 8D 07 20
-  LDA $0001                                     ; $F01B: AD 01 00
+  LDA a:$0001                                   ; $F01B: AD 01 00
   CLC                                           ; $F01E: 18
   ADC #$08                                      ; $F01F: 69 08
-  STA $0001                                     ; $F021: 8D 01 00
+  STA a:$0001                                   ; $F021: 8D 01 00
   INY                                           ; $F024: C8
   BNE @write_loop2                              ; $F025: D0 DE
 @done:
@@ -2756,7 +2756,7 @@ ptr_hi   = $0C
 ; Address from $019C/$019D, handles wrap at 8 bytes
 ;===============================================================================
 .proc PpuAttrTileWriteAlt
-  LDA addr_ppu_ctrl_ram                         ; $F028: AD 8B 00
+  LDA a:addr_ppu_ctrl_ram                       ; $F028: AD 8B 00
   AND #$FB                                      ; $F02B: 29 FB
   STA PPU_CTRL                                  ; $F02D: 8D 00 20
   LDA PPU_STATUS                                ; $F030: AD 02 20
@@ -2765,17 +2765,17 @@ ptr_hi   = $0C
   LDA $019D                                     ; $F039: AD 9D 01
   STA PPU_ADDR                                  ; $F03C: 8D 06 20
   AND #$07                                      ; $F03F: 29 07
-  STA $0000                                     ; $F041: 8D 00 00
+  STA a:$0000                                   ; $F041: 8D 00 00
   LDA #$08                                      ; $F044: A9 08
   SEC                                           ; $F046: 38
-  SBC $0000                                     ; $F047: ED 00 00
-  STA $0000                                     ; $F04A: 8D 00 00
+  SBC a:$0000                                   ; $F047: ED 00 00
+  STA a:$0000                                   ; $F04A: 8D 00 00
   LDY #$00                                      ; $F04D: A0 00
 @write_loop1:
   LDA $019E,Y                                   ; $F04F: B9 9E 01
   STA PPU_DATA                                  ; $F052: 8D 07 20
   INY                                           ; $F055: C8
-  CPY $0000                                     ; $F056: CC 00 00
+  CPY a:$0000                                   ; $F056: CC 00 00
   BCC @write_loop1                              ; $F059: 90 F4
   LDA $019C                                     ; $F05B: AD 9C 01
   STA PPU_ADDR                                  ; $F05E: 8D 06 20
@@ -2798,19 +2798,19 @@ ptr_hi   = $0C
 ; Compares $009C and $009D, flags changes in $0094/$0095
 ;===============================================================================
 .proc NamcoSoundRegRead
-  LDA addr_ctrl_state_x                         ; $F077: AD 9C 00
-  EOR addr_ctrl_state_y                         ; $F07A: 4D 9D 00
+  LDA a:addr_ctrl_state_x                       ; $F077: AD 9C 00
+  EOR a:addr_ctrl_state_y                       ; $F07A: 4D 9D 00
   PHA                                           ; $F07D: 48
   AND #$C0                                      ; $F07E: 29 C0
   BEQ @check_low                                ; $F080: F0 05
   LDY #$FF                                      ; $F082: A0 FF
-  STY addr_input_prev_y                         ; $F084: 8C 95 00
+  STY a:addr_input_prev_y                       ; $F084: 8C 95 00
 @check_low:
   PLA                                           ; $F087: 68
   AND #$30                                      ; $F088: 29 30
   BEQ @done                                     ; $F08A: F0 05
   LDY #$FF                                      ; $F08C: A0 FF
-  STY addr_input_prev_x                         ; $F08E: 8C 94 00
+  STY a:addr_input_prev_x                       ; $F08E: 8C 94 00
 @done:
   RTS                                           ; $F091: 60
 .endproc
@@ -2826,65 +2826,65 @@ ptr_hi   = $0C
 ;===============================================================================
 .proc SpriteOamWriterScroll
   LDA #$00                                      ; $F092: A9 00
-  STA $0003                                     ; $F094: 8D 03 00
+  STA a:$0003                                   ; $F094: 8D 03 00
   LDA #$F0                                      ; $F097: A9 F0
-  STA $0004                                     ; $F099: 8D 04 00
+  STA a:$0004                                   ; $F099: 8D 04 00
 SpriteOamWriterScroll_NoInit:
-  BIT $0002                                     ; $F09C: 2C 02 00
+  BIT a:$0002                                   ; $F09C: 2C 02 00
   BPL @skip_x_flip                              ; $F09F: 10 12
-  LDA $000A                                     ; $F0A1: AD 0A 00
+  LDA a:$000A                                   ; $F0A1: AD 0A 00
   SEC                                           ; $F0A4: 38
   SBC #$08                                      ; $F0A5: E9 08
   CMP #$F0                                      ; $F0A7: C9 F0
   BCC @store_x                                  ; $F0A9: 90 05
   SBC #$10                                      ; $F0AB: E9 10
-  DEC $000B                                     ; $F0AD: CE 0B 00
+  DEC a:$000B                                   ; $F0AD: CE 0B 00
 @store_x:
-  STA $000A                                     ; $F0B0: 8D 0A 00
+  STA a:$000A                                   ; $F0B0: 8D 0A 00
 @skip_x_flip:
-  BIT $0002                                     ; $F0B3: 2C 02 00
+  BIT a:$0002                                   ; $F0B3: 2C 02 00
   BVC @apply_scroll                             ; $F0B6: 50 0E
-  LDA $000C                                     ; $F0B8: AD 0C 00
+  LDA a:$000C                                   ; $F0B8: AD 0C 00
   SEC                                           ; $F0BB: 38
   SBC #$10                                      ; $F0BC: E9 10
-  STA $000C                                     ; $F0BE: 8D 0C 00
+  STA a:$000C                                   ; $F0BE: 8D 0C 00
   BCS @apply_scroll                             ; $F0C1: B0 03
-  DEC $000D                                     ; $F0C3: CE 0D 00
+  DEC a:$000D                                   ; $F0C3: CE 0D 00
 @apply_scroll:
-  LDA $000A                                     ; $F0C6: AD 0A 00
+  LDA a:$000A                                   ; $F0C6: AD 0A 00
   SEC                                           ; $F0C9: 38
-  SBC addr_scroll_y                             ; $F0CA: ED 90 00
+  SBC a:addr_scroll_y                           ; $F0CA: ED 90 00
   BCS @no_borrow_x                              ; $F0CD: B0 04
   SEC                                           ; $F0CF: 38
   SBC #$10                                      ; $F0D0: E9 10
   CLC                                           ; $F0D2: 18
 @no_borrow_x:
-  STA $000A                                     ; $F0D3: 8D 0A 00
-  LDA $000B                                     ; $F0D6: AD 0B 00
-  SBC addr_scroll_y_hi                          ; $F0D9: ED 91 00
-  STA $000B                                     ; $F0DC: 8D 0B 00
-  LDA $000C                                     ; $F0DF: AD 0C 00
+  STA a:$000A                                   ; $F0D3: 8D 0A 00
+  LDA a:$000B                                   ; $F0D6: AD 0B 00
+  SBC a:addr_scroll_y_hi                        ; $F0D9: ED 91 00
+  STA a:$000B                                   ; $F0DC: 8D 0B 00
+  LDA a:$000C                                   ; $F0DF: AD 0C 00
   SEC                                           ; $F0E2: 38
-  SBC addr_scroll_x                             ; $F0E3: ED 8E 00
-  STA $000C                                     ; $F0E6: 8D 0C 00
-  LDA $000D                                     ; $F0E9: AD 0D 00
-  SBC addr_scroll_x_hi                          ; $F0EC: ED 8F 00
-  STA $000D                                     ; $F0EF: 8D 0D 00
+  SBC a:addr_scroll_x                           ; $F0E3: ED 8E 00
+  STA a:$000C                                   ; $F0E6: 8D 0C 00
+  LDA a:$000D                                   ; $F0E9: AD 0D 00
+  SBC a:addr_scroll_x_hi                        ; $F0EC: ED 8F 00
+  STA a:$000D                                   ; $F0EF: 8D 0D 00
   LDY #$00                                      ; $F0F2: A0 00
-  LDX addr_sprite_count                         ; $F0F4: AE 7C 00
+  LDX a:addr_sprite_count                       ; $F0F4: AE 7C 00
 @main_loop:
   CPX #$FF                                      ; $F0F7: E0 FF
   BNE @process_sprite                           ; $F0F9: D0 04
 @end:
-  STX addr_sprite_count                         ; $F0FB: 8E 7C 00
+  STX a:addr_sprite_count                       ; $F0FB: 8E 7C 00
   RTS                                           ; $F0FE: 60
 @process_sprite:
-  LDA $000B                                     ; $F0FF: AD 0B 00
-  STA $000F                                     ; $F102: 8D 0F 00
+  LDA a:$000B                                   ; $F0FF: AD 0B 00
+  STA a:$000F                                   ; $F102: 8D 0F 00
   LDA ($00),Y                                   ; $F105: B1 00
   CMP #$80                                      ; $F107: C9 80
   BEQ @end                                      ; $F109: F0 F0
-  BIT $0002                                     ; $F10B: 2C 02 00
+  BIT a:$0002                                   ; $F10B: 2C 02 00
   BPL @no_x_mirror                              ; $F10E: 10 05
   LDA #$08                                      ; $F110: A9 08
   SEC                                           ; $F112: 38
@@ -2892,41 +2892,41 @@ SpriteOamWriterScroll_NoInit:
 @no_x_mirror:
   CMP #$80                                      ; $F115: C9 80
   BCS @negative_x                               ; $F117: B0 0F
-  ADC $000A                                     ; $F119: 6D 0A 00
-  STA $000E                                     ; $F11C: 8D 0E 00
-  LDA $000B                                     ; $F11F: AD 0B 00
+  ADC a:$000A                                   ; $F119: 6D 0A 00
+  STA a:$000E                                   ; $F11C: 8D 0E 00
+  LDA a:$000B                                   ; $F11F: AD 0B 00
   ADC #$00                                      ; $F122: 69 00
   BEQ @visible                                  ; $F124: F0 1A
   BNE @skip_sprite                              ; $F126: D0 7E
 @negative_x:
   EOR #$FF                                      ; $F128: 49 FF
   ADC #$00                                      ; $F12A: 69 00
-  STA $000E                                     ; $F12C: 8D 0E 00
-  LDA $000A                                     ; $F12F: AD 0A 00
+  STA a:$000E                                   ; $F12C: 8D 0E 00
+  LDA a:$000A                                   ; $F12F: AD 0A 00
   SEC                                           ; $F132: 38
-  SBC $000E                                     ; $F133: ED 0E 00
-  STA $000E                                     ; $F136: 8D 0E 00
-  LDA $000B                                     ; $F139: AD 0B 00
+  SBC a:$000E                                   ; $F133: ED 0E 00
+  STA a:$000E                                   ; $F136: 8D 0E 00
+  LDA a:$000B                                   ; $F139: AD 0B 00
   SBC #$00                                      ; $F13C: E9 00
   BNE @skip_sprite                              ; $F13E: D0 66
 @visible:
-  LDA $000E                                     ; $F140: AD 0E 00
+  LDA a:$000E                                   ; $F140: AD 0E 00
   SEC                                           ; $F143: 38
   SBC #$01                                      ; $F144: E9 01
-  CMP $0004                                     ; $F146: CD 04 00
+  CMP a:$0004                                   ; $F146: CD 04 00
   BCS @skip_sprite                              ; $F149: B0 5B
   STA $0200,X                                   ; $F14B: 9D 00 02
   INY                                           ; $F14E: C8
   LDA ($00),Y                                   ; $F14F: B1 00
   CLC                                           ; $F151: 18
-  ADC $0003                                     ; $F152: 6D 03 00
+  ADC a:$0003                                   ; $F152: 6D 03 00
   STA $0201,X                                   ; $F155: 9D 01 02
   INY                                           ; $F158: C8
   LDA ($00),Y                                   ; $F159: B1 00
-  EOR $0002                                     ; $F15B: 4D 02 00
+  EOR a:$0002                                   ; $F15B: 4D 02 00
   STA $0202,X                                   ; $F15E: 9D 02 02
   INY                                           ; $F161: C8
-  BIT $0002                                     ; $F162: 2C 02 00
+  BIT a:$0002                                   ; $F162: 2C 02 00
   LDA ($00),Y                                   ; $F165: B1 00
   BVC @no_y_mirror                              ; $F167: 50 05
   LDA #$08                                      ; $F169: A9 08
@@ -2935,12 +2935,12 @@ SpriteOamWriterScroll_NoInit:
 @no_y_mirror:
   BPL @positive_y                               ; $F16E: 10 26
   EOR #$FF                                      ; $F170: 49 FF
-  STA $000E                                     ; $F172: 8D 0E 00
-  LDA $000C                                     ; $F175: AD 0C 00
+  STA a:$000E                                   ; $F172: 8D 0E 00
+  LDA a:$000C                                   ; $F175: AD 0C 00
   SEC                                           ; $F178: 38
-  SBC $000E                                     ; $F179: ED 0E 00
+  SBC a:$000E                                   ; $F179: ED 0E 00
   STA $0203,X                                   ; $F17C: 9D 03 02
-  LDA $000D                                     ; $F17F: AD 0D 00
+  LDA a:$000D                                   ; $F17F: AD 0D 00
   SBC #$00                                      ; $F182: E9 00
   BNE @skip_y_offscreen                         ; $F184: D0 0C
 @advance_slot:
@@ -2958,9 +2958,9 @@ SpriteOamWriterScroll_NoInit:
   JMP @main_loop                                ; $F193: 4C F7 F0
 @positive_y:
   CLC                                           ; $F196: 18
-  ADC $000C                                     ; $F197: 6D 0C 00
+  ADC a:$000C                                   ; $F197: 6D 0C 00
   STA $0203,X                                   ; $F19A: 9D 03 02
-  LDA $000D                                     ; $F19D: AD 0D 00
+  LDA a:$000D                                   ; $F19D: AD 0D 00
   ADC #$00                                      ; $F1A0: 69 00
   BEQ @advance_slot                             ; $F1A2: F0 E2
   BNE @skip_y_offscreen                         ; $F1A4: D0 EC
@@ -2983,25 +2983,25 @@ SpriteOamWriterScroll_NoInit:
 ;===============================================================================
 .proc SpriteOamWriterSimple
   LDA #$00                                      ; $F1AD: A9 00
-  STA $0003                                     ; $F1AF: 8D 03 00
+  STA a:$0003                                   ; $F1AF: 8D 03 00
   LDA #$00                                      ; $F1B2: A9 00
-  STA $0004                                     ; $F1B4: 8D 04 00
+  STA a:$0004                                   ; $F1B4: 8D 04 00
 SpriteOamWriterSimple_NoInit:
   LDY #$00                                      ; $F1B7: A0 00
-  LDX addr_sprite_count                         ; $F1B9: AE 7C 00
+  LDX a:addr_sprite_count                       ; $F1B9: AE 7C 00
 @main_loop:
   CPX #$FF                                      ; $F1BC: E0 FF
   BNE @process                                  ; $F1BE: D0 04
 @end:
-  STX addr_sprite_count                         ; $F1C0: 8E 7C 00
+  STX a:addr_sprite_count                       ; $F1C0: 8E 7C 00
   RTS                                           ; $F1C3: 60
 @process:
   LDA ($00),Y                                   ; $F1C4: B1 00
   CMP #$80                                      ; $F1C6: C9 80
   BEQ @end                                      ; $F1C8: F0 F6
   CLC                                           ; $F1CA: 18
-  ADC $000A                                     ; $F1CB: 6D 0A 00
-  CMP $0004                                     ; $F1CE: CD 04 00
+  ADC a:$000A                                   ; $F1CB: 6D 0A 00
+  CMP a:$0004                                   ; $F1CE: CD 04 00
   BCS @write_oam                                ; $F1D1: B0 07
   INY                                           ; $F1D3: C8
   INY                                           ; $F1D4: C8
@@ -3013,16 +3013,16 @@ SpriteOamWriterSimple_NoInit:
   INY                                           ; $F1DD: C8
   LDA ($00),Y                                   ; $F1DE: B1 00
   CLC                                           ; $F1E0: 18
-  ADC $0003                                     ; $F1E1: 6D 03 00
+  ADC a:$0003                                   ; $F1E1: 6D 03 00
   STA $0201,X                                   ; $F1E4: 9D 01 02
   INY                                           ; $F1E7: C8
   LDA ($00),Y                                   ; $F1E8: B1 00
-  EOR $0002                                     ; $F1EA: 4D 02 00
+  EOR a:$0002                                   ; $F1EA: 4D 02 00
   STA $0202,X                                   ; $F1ED: 9D 02 02
   INY                                           ; $F1F0: C8
   LDA ($00),Y                                   ; $F1F1: B1 00
   CLC                                           ; $F1F3: 18
-  ADC $000C                                     ; $F1F4: 6D 0C 00
+  ADC a:$000C                                   ; $F1F4: 6D 0C 00
   STA $0203,X                                   ; $F1F7: 9D 03 02
   INY                                           ; $F1FA: C8
   INX                                           ; $F1FB: E8
@@ -3040,21 +3040,21 @@ SpriteOamWriterSimple_NoInit:
 ; CHR registers at $8000/$8800/$9000/$9800/$A000/$A800/$B000/$B800
 ;===============================================================================
 .proc ChrBankSwitch
-  LDA addr_chr_bank_0                           ; $F206: AD AE 00
+  LDA a:addr_chr_bank_0                         ; $F206: AD AE 00
   STA NAMCO163_CHR_0                            ; $F209: 8D 00 80
-  LDA addr_chr_bank_1                           ; $F20C: AD AF 00
+  LDA a:addr_chr_bank_1                         ; $F20C: AD AF 00
   STA NAMCO163_CHR_1                            ; $F20F: 8D 00 88
-  LDA addr_chr_bank_2                           ; $F212: AD B0 00
+  LDA a:addr_chr_bank_2                         ; $F212: AD B0 00
   STA NAMCO163_CHR_2                            ; $F215: 8D 00 90
-  LDA addr_chr_bank_3                           ; $F218: AD B1 00
+  LDA a:addr_chr_bank_3                         ; $F218: AD B1 00
   STA NAMCO163_CHR_3                            ; $F21B: 8D 00 98
-  LDA addr_chr_bank_4                           ; $F21E: AD B2 00
+  LDA a:addr_chr_bank_4                         ; $F21E: AD B2 00
   STA NAMCO163_CHR_4                            ; $F221: 8D 00 A0
-  LDA addr_chr_bank_5                           ; $F224: AD B3 00
+  LDA a:addr_chr_bank_5                         ; $F224: AD B3 00
   STA NAMCO163_CHR_5                            ; $F227: 8D 00 A8
-  LDA addr_chr_bank_6                           ; $F22A: AD B4 00
+  LDA a:addr_chr_bank_6                         ; $F22A: AD B4 00
   STA NAMCO163_CHR_6                            ; $F22D: 8D 00 B0
-  LDA addr_chr_bank_7                           ; $F230: AD B5 00
+  LDA a:addr_chr_bank_7                         ; $F230: AD B5 00
   STA NAMCO163_CHR_7                            ; $F233: 8D 00 B8
   RTS                                           ; $F236: 60
 .endproc
@@ -3066,9 +3066,9 @@ SpriteOamWriterSimple_NoInit:
 ; Saves bank numbers to RAM slot B ($00E2, $00E3)
 ;===============================================================================
 .proc SwitchBankAC_B
-  STY addr_prg_select_2b                        ; $F237: 8C E2 00
+  STY a:addr_prg_select_2b                      ; $F237: 8C E2 00
   INY                                           ; $F23A: C8
-  STY addr_prg_select_3b                        ; $F23B: 8C E3 00
+  STY a:addr_prg_select_3b                      ; $F23B: 8C E3 00
   ; Write NAMCO_PRG_C000 first: Y already holds bank Y+1 for the $C000 window.
   ; NAMCO_PRG_C000 only needs the raw bank number (bits 0-5), so STY works directly.
   STY NAMCO_PRG_C000                            ; $F23E: 8C 00 F0
@@ -3090,9 +3090,9 @@ SpriteOamWriterSimple_NoInit:
 ; Saves bank numbers to RAM slot A ($00DF, $00E0)
 ;===============================================================================
 .proc SwitchBankAC_A
-  STY addr_prg_select_2a                        ; $F24B: 8C DF 00
+  STY a:addr_prg_select_2a                      ; $F24B: 8C DF 00
   INY                                           ; $F24E: C8
-  STY addr_prg_select_3a                        ; $F24F: 8C E0 00
+  STY a:addr_prg_select_3a                      ; $F24F: 8C E0 00
   STY NAMCO_PRG_C000                            ; $F252: 8C 00 F0
   DEY                                           ; $F255: 88
   PHA                                           ; $F256: 48
@@ -3109,7 +3109,7 @@ SpriteOamWriterSimple_NoInit:
 ; Writes to Namco-163 register NAMCO_PRG_8000, saves to RAM slot B ($00E1)
 ;===============================================================================
 .proc SwitchBank8_B
-  STY addr_prg_select_1b                        ; $F25F: 8C E1 00
+  STY a:addr_prg_select_1b                      ; $F25F: 8C E1 00
   STY NAMCO_PRG_8000                            ; $F262: 8C 00 E0
   RTS                                           ; $F265: 60
 .endproc
@@ -3120,7 +3120,7 @@ SpriteOamWriterSimple_NoInit:
 ; Writes to Namco-163 register NAMCO_PRG_8000, saves to RAM slot A ($00DE)
 ;===============================================================================
 .proc SwitchBank8_A
-  STY addr_prg_select_1a                        ; $F266: 8C DE 00
+  STY a:addr_prg_select_1a                      ; $F266: 8C DE 00
   STY NAMCO_PRG_8000                            ; $F269: 8C 00 E0
   RTS                                           ; $F26C: 60
 .endproc
@@ -3197,23 +3197,23 @@ common:
 ;===============================================================================
 .proc GetProvinceRecordAddr
   LDY #$00                                      ; $F2AF: A0 00
-  STY $0001                                     ; $F2B1: 8C 01 00
+  STY a:$0001                                   ; $F2B1: 8C 01 00
   ASL A                                         ; $F2B4: 0A
-  ROL $0001                                     ; $F2B5: 2E 01 00
+  ROL a:$0001                                   ; $F2B5: 2E 01 00
   ASL A                                         ; $F2B8: 0A
-  ROL $0001                                     ; $F2B9: 2E 01 00
+  ROL a:$0001                                   ; $F2B9: 2E 01 00
   ASL A                                         ; $F2BC: 0A
-  ROL $0001                                     ; $F2BD: 2E 01 00
+  ROL a:$0001                                   ; $F2BD: 2E 01 00
   ASL A                                         ; $F2C0: 0A
-  ROL $0001                                     ; $F2C1: 2E 01 00
+  ROL a:$0001                                   ; $F2C1: 2E 01 00
   ASL A                                         ; $F2C4: 0A
-  ROL $0001                                     ; $F2C5: 2E 01 00
+  ROL a:$0001                                   ; $F2C5: 2E 01 00
   CLC                                           ; $F2C8: 18
   ADC #$00                                      ; $F2C9: 69 00
-  STA $0000                                     ; $F2CB: 8D 00 00
-  LDA $0001                                     ; $F2CE: AD 01 00
+  STA a:$0000                                   ; $F2CB: 8D 00 00
+  LDA a:$0001                                   ; $F2CE: AD 01 00
   ADC #$60                                      ; $F2D1: 69 60
-  STA $0001                                     ; $F2D3: 8D 01 00
+  STA a:$0001                                   ; $F2D3: 8D 01 00
   RTS                                           ; $F2D6: 60
 .endproc
 
@@ -3227,27 +3227,27 @@ common:
 ;===============================================================================
 .proc GetOfficerRecordAddr
   LDY #$00                                      ; $F2D7: A0 00
-  STY $0001                                     ; $F2D9: 8C 01 00
-  STA $0000                                     ; $F2DC: 8D 00 00
+  STY a:$0001                                   ; $F2D9: 8C 01 00
+  STA a:$0000                                   ; $F2DC: 8D 00 00
   ASL A                                         ; $F2DF: 0A
-  ROL $0001                                     ; $F2E0: 2E 01 00
+  ROL a:$0001                                   ; $F2E0: 2E 01 00
   CLC                                           ; $F2E3: 18
-  ADC $0000                                     ; $F2E4: 6D 00 00
+  ADC a:$0000                                   ; $F2E4: 6D 00 00
   PHA                                           ; $F2E7: 48
-  LDA $0001                                     ; $F2E8: AD 01 00
+  LDA a:$0001                                   ; $F2E8: AD 01 00
   ADC #$00                                      ; $F2EB: 69 00
-  STA $0001                                     ; $F2ED: 8D 01 00
+  STA a:$0001                                   ; $F2ED: 8D 01 00
   PLA                                           ; $F2F0: 68
   ASL A                                         ; $F2F1: 0A
-  ROL $0001                                     ; $F2F2: 2E 01 00
+  ROL a:$0001                                   ; $F2F2: 2E 01 00
   ASL A                                         ; $F2F5: 0A
-  ROL $0001                                     ; $F2F6: 2E 01 00
+  ROL a:$0001                                   ; $F2F6: 2E 01 00
   CLC                                           ; $F2F9: 18
   ADC #$C0                                      ; $F2FA: 69 C0
-  STA $0000                                     ; $F2FC: 8D 00 00
-  LDA $0001                                     ; $F2FF: AD 01 00
+  STA a:$0000                                   ; $F2FC: 8D 00 00
+  LDA a:$0001                                   ; $F2FF: AD 01 00
   ADC #$63                                      ; $F302: 69 63
-  STA $0001                                     ; $F304: 8D 01 00
+  STA a:$0001                                   ; $F304: 8D 01 00
   RTS                                           ; $F307: 60
 .endproc
 
@@ -3261,31 +3261,31 @@ common:
 ; Output: A = display scale value from table (3,3,3,2,2,1,1,0,0) leading spaces
 ;===============================================================================
 .proc GetNameDisplayScale
-  STA $0002                                     ; $F308: 8D 02 00
+  STA a:$0002                                   ; $F308: 8D 02 00
   LDY #$30                                      ; $F30B: A0 30
   JSR SwitchBank8_B                             ; $F30D: 20 5F F2
   LDA #$00                                      ; $F310: A9 00
-  STA $0001                                     ; $F312: 8D 01 00
-  LDA $0002                                     ; $F315: AD 02 00
+  STA a:$0001                                   ; $F312: 8D 01 00
+  LDA a:$0002                                   ; $F315: AD 02 00
   ASL A                                         ; $F318: 0A
-  ROL $0001                                     ; $F319: 2E 01 00
+  ROL a:$0001                                   ; $F319: 2E 01 00
   ASL A                                         ; $F31C: 0A
-  ROL $0001                                     ; $F31D: 2E 01 00
+  ROL a:$0001                                   ; $F31D: 2E 01 00
   CLC                                           ; $F320: 18
-  ADC $0002                                     ; $F321: 6D 02 00
-  STA $0000                                     ; $F324: 8D 00 00
-  LDA $0001                                     ; $F327: AD 01 00
+  ADC a:$0002                                   ; $F321: 6D 02 00
+  STA a:$0000                                   ; $F324: 8D 00 00
+  LDA a:$0001                                   ; $F327: AD 01 00
   ADC #$00                                      ; $F32A: 69 00
-  STA $0001                                     ; $F32C: 8D 01 00
-  ASL $0000                                     ; $F32F: 0E 00 00
-  ROL $0001                                     ; $F332: 2E 01 00
-  LDA $0000                                     ; $F335: AD 00 00
+  STA a:$0001                                   ; $F32C: 8D 01 00
+  ASL a:$0000                                   ; $F32F: 0E 00 00
+  ROL a:$0001                                   ; $F332: 2E 01 00
+  LDA a:$0000                                   ; $F335: AD 00 00
   CLC                                           ; $F338: 18
   ADC #$1A                                      ; $F339: 69 1A
-  STA $0000                                     ; $F33B: 8D 00 00
-  LDA $0001                                     ; $F33E: AD 01 00
+  STA a:$0000                                   ; $F33B: 8D 00 00
+  LDA a:$0001                                   ; $F33E: AD 01 00
   ADC #$90                                      ; $F341: 69 90
-  STA $0001                                     ; $F343: 8D 01 00
+  STA a:$0001                                   ; $F343: 8D 01 00
   LDY #$00                                      ; $F346: A0 00
   LDX #$00                                      ; $F348: A2 00
 @scan_loop:
@@ -3317,9 +3317,9 @@ NameScaleTable:
   ASL A                                         ; $F36A: 0A
   TAY                                           ; $F36B: A8
   LDA CountryDataPtrTable,Y                     ; $F36C: B9 79 F3
-  STA $0000                                     ; $F36F: 8D 00 00
+  STA a:$0000                                   ; $F36F: 8D 00 00
   LDA CountryDataPtrTable+1,Y                   ; $F372: B9 7A F3
-  STA $0001                                     ; $F375: 8D 01 00
+  STA a:$0001                                   ; $F375: 8D 01 00
   RTS                                           ; $F378: 60
 
 CountryDataPtrTable:
@@ -3344,27 +3344,27 @@ CountryDataPtrTable:
   LDY #$31                                      ; $F387: A0 31
   JSR SwitchBank8_B                             ; $F389: 20 5F F2
   LDY #$00                                      ; $F38C: A0 00
-  STY $0001                                     ; $F38E: 8C 01 00
-  STA $0000                                     ; $F391: 8D 00 00
+  STY a:$0001                                   ; $F38E: 8C 01 00
+  STA a:$0000                                   ; $F391: 8D 00 00
   ASL A                                         ; $F394: 0A
-  ROL $0001                                     ; $F395: 2E 01 00
+  ROL a:$0001                                   ; $F395: 2E 01 00
   CLC                                           ; $F398: 18
-  ADC $0000                                     ; $F399: 6D 00 00
+  ADC a:$0000                                   ; $F399: 6D 00 00
   PHA                                           ; $F39C: 48
-  LDA $0001                                     ; $F39D: AD 01 00
+  LDA a:$0001                                   ; $F39D: AD 01 00
   ADC #$00                                      ; $F3A0: 69 00
-  STA $0001                                     ; $F3A2: 8D 01 00
+  STA a:$0001                                   ; $F3A2: 8D 01 00
   PLA                                           ; $F3A5: 68
   ASL A                                         ; $F3A6: 0A
-  ROL $0001                                     ; $F3A7: 2E 01 00
+  ROL a:$0001                                   ; $F3A7: 2E 01 00
   ASL A                                         ; $F3AA: 0A
-  ROL $0001                                     ; $F3AB: 2E 01 00
+  ROL a:$0001                                   ; $F3AB: 2E 01 00
   CLC                                           ; $F3AE: 18
   ADC #$00                                      ; $F3AF: 69 00
-  STA $0000                                     ; $F3B1: 8D 00 00
-  LDA $0001                                     ; $F3B4: AD 01 00
+  STA a:$0000                                   ; $F3B1: 8D 00 00
+  LDA a:$0001                                   ; $F3B4: AD 01 00
   ADC #$80                                      ; $F3B7: 69 80
-  STA $0001                                     ; $F3B9: 8D 01 00
+  STA a:$0001                                   ; $F3B9: 8D 01 00
   RTS                                           ; $F3BC: 60
 .endproc
 
@@ -3392,13 +3392,13 @@ CountryDataPtrTable:
 @check_loop:
   LDA CopyProtectionCheck,X                     ; $F3D7: BD BD F3
   AND #$01                                      ; $F3DA: 29 01
-  STA $0001                                     ; $F3DC: 8D 01 00
+  STA a:$0001                                   ; $F3DC: 8D 01 00
   STA APU_JOY1                                  ; $F3DF: 8D 16 40
   LDA APU_JOY2                                  ; $F3E2: AD 17 40
   LSR A                                         ; $F3E5: 4A
   EOR #$FF                                      ; $F3E6: 49 FF
   AND #$01                                      ; $F3E8: 29 01
-  CMP $0001                                     ; $F3EA: CD 01 00
+  CMP a:$0001                                   ; $F3EA: CD 01 00
   BNE @normal_exit                              ; $F3ED: D0 32
   INX                                           ; $F3EF: E8
   CPX #$46                                      ; $F3F0: E0 46
@@ -3441,13 +3441,13 @@ CountryDataPtrTable:
   JSR InitRamTestParams                         ; $F422: 20 58 F4
 @verify_loop:
   LDA ($02),Y                                   ; $F425: B1 02
-  CMP $0000                                     ; $F427: CD 00 00
+  CMP a:$0000                                   ; $F427: CD 00 00
   BNE @fail                                     ; $F42A: D0 12
   JSR AdvanceHashPattern                        ; $F42C: 20 68 F4
   INY                                           ; $F42F: C8
   BNE @verify_loop                              ; $F430: D0 F3
-  INC $0003                                     ; $F432: EE 03 00
-  LDA $0003                                     ; $F435: AD 03 00
+  INC a:$0003                                   ; $F432: EE 03 00
+  LDA a:$0003                                   ; $F435: AD 03 00
   CMP #$80                                      ; $F438: C9 80
   BNE @verify_loop                              ; $F43A: D0 E9
   LDA #$00                                      ; $F43C: A9 00
@@ -3463,13 +3463,13 @@ CountryDataPtrTable:
 .proc WriteRamPattern
   JSR InitRamTestParams                         ; $F43F: 20 58 F4
 @write_loop:
-  LDA $0000                                     ; $F442: AD 00 00
+  LDA a:$0000                                   ; $F442: AD 00 00
   STA ($02),Y                                   ; $F445: 91 02
   JSR AdvanceHashPattern                        ; $F447: 20 68 F4
   INY                                           ; $F44A: C8
   BNE @write_loop                               ; $F44B: D0 F5
-  INC $0003                                     ; $F44D: EE 03 00
-  LDA $0003                                     ; $F450: AD 03 00
+  INC a:$0003                                   ; $F44D: EE 03 00
+  LDA a:$0003                                   ; $F450: AD 03 00
   CMP #$80                                      ; $F453: C9 80
   BNE @write_loop                               ; $F455: D0 EB
   RTS                                           ; $F457: 60
@@ -3482,11 +3482,11 @@ CountryDataPtrTable:
 ;===============================================================================
 .proc InitRamTestParams
   LDY #$00                                      ; $F458: A0 00
-  STY $0002                                     ; $F45A: 8C 02 00
+  STY a:$0002                                   ; $F45A: 8C 02 00
   LDA #$60                                      ; $F45D: A9 60
-  STA $0003                                     ; $F45F: 8D 03 00
+  STA a:$0003                                   ; $F45F: 8D 03 00
   LDA #$AA                                      ; $F462: A9 AA
-  STA $0000                                     ; $F464: 8D 00 00
+  STA a:$0000                                   ; $F464: 8D 00 00
   RTS                                           ; $F467: 60
 .endproc
 
@@ -3499,12 +3499,12 @@ CountryDataPtrTable:
 ;===============================================================================
 .proc AdvanceHashPattern
 @retry:
-  LDA $0000                                     ; $F468: AD 00 00
+  LDA a:$0000                                   ; $F468: AD 00 00
   ASL A                                         ; $F46B: 0A
   ASL A                                         ; $F46C: 0A
   SEC                                           ; $F46D: 38
-  ADC $0000                                     ; $F46E: 6D 00 00
-  STA $0000                                     ; $F471: 8D 00 00
+  ADC a:$0000                                   ; $F46E: 6D 00 00
+  STA a:$0000                                   ; $F471: 8D 00 00
   BEQ @retry                                    ; $F474: F0 F2
   RTS                                           ; $F476: 60
 .endproc
@@ -3597,13 +3597,13 @@ MetaTileData:
   LDA PPU_STATUS                                ; $F805: AD 02 20
   LDA #$00                                      ; $F808: A9 00
   STA NAMCO_IRQ_HI                              ; $F80A: 8D 00 58
-  LDA $0068                                     ; $F80D: AD 68 00
+  LDA a:$0068                                   ; $F80D: AD 68 00
   STA NAMCO_IRQ_LO                              ; $F810: 8D 00 50
-  LDA $0069                                     ; $F813: AD 69 00
+  LDA a:$0069                                   ; $F813: AD 69 00
   STA NAMCO_IRQ_HI                              ; $F816: 8D 00 58
-  STA $0062                                     ; $F819: 8D 62 00
-  LDA $0061                                     ; $F81C: AD 61 00
-  STA $0060                                     ; $F81F: 8D 60 00
+  STA a:$0062                                   ; $F819: 8D 62 00
+  LDA a:$0061                                   ; $F81C: AD 61 00
+  STA a:$0060                                   ; $F81F: 8D 60 00
   CLI                                           ; $F822: 58
   LDA #$E0                                      ; $F823: A9 E0
   STA NAMCO_CHR_BANK_0                          ; $F825: 8D 00 C0
@@ -3630,7 +3630,7 @@ MetaTileData:
   STY $7B                                       ; $F855: 84 7B
   LDA #$02                                      ; $F857: A9 02
   STA APU_OAM_DMA                               ; $F859: 8D 14 40
-  LDA $008C                                     ; $F85C: AD 8C 00
+  LDA a:$008C                                   ; $F85C: AD 8C 00
   STA PPU_MASK                                  ; $F85F: 8D 01 20
   LDA #$00                                      ; $F862: A9 00
   STA $7C                                       ; $F864: 85 7C
@@ -3639,9 +3639,9 @@ MetaTileData:
   ASL A                                         ; $F86A: 0A
   TAY                                           ; $F86B: A8
   LDA NmiDispatchTable,Y                        ; $F86C: B9 7B F8
-  STA $0000                                     ; $F86F: 8D 00 00
+  STA a:$0000                                   ; $F86F: 8D 00 00
   LDA NmiDispatchTable+1,Y                      ; $F872: B9 7C F8
-  STA $0001                                     ; $F875: 8D 01 00
+  STA a:$0001                                   ; $F875: 8D 01 00
   JMP ($0000)                                   ; $F878: 6C 00 00
 
 NmiDispatchTable:
@@ -3657,7 +3657,7 @@ NmiDispatchTable:
 ; Restores PRG banks, increments tick counters, restores regs, RTI.
 ;===============================================================================
 .proc NmiEpilogue
-  DEC $007B                                     ; $F88D: CE 7B 00
+  DEC a:$007B                                   ; $F88D: CE 7B 00
   LDA $DE                                       ; $F890: A5 DE
   STA NAMCO_PRG_8000                            ; $F892: 8D 00 E0
   LDA $DF                                       ; $F895: A5 DF
@@ -3733,7 +3733,7 @@ NmiDispatchTable:
   LDA $0500                                     ; $F923: AD 00 05
   CMP #$0C                                      ; $F926: C9 0C
   BCS @skip_weather                             ; $F928: B0 13
-  LDA $008F                                     ; $F92A: AD 8F 00
+  LDA a:$008F                                   ; $F92A: AD 8F 00
   BNE @skip_weather                             ; $F92D: D0 0E
   JSR NamcoSoundRegRead                         ; $F92F: 20 77 F0
   LDY #$37                                      ; $F932: A0 37
@@ -3753,8 +3753,8 @@ NmiDispatchTable:
   JSR B1D_1E_MenuUpdate                         ; $F955: 20 03 A0  Menu update (bank $1D)
   JSR RestorePlayerPointers                     ; $F958: 20 BF FA
   JSR SpriteClearFromIndex                      ; $F95B: 20 30 E8
-  LDA $009C                                     ; $F95E: AD 9C 00
-  STA $009D                                     ; $F961: 8D 9D 00
+  LDA a:$009C                                   ; $F95E: AD 9C 00
+  STA a:$009D                                   ; $F961: 8D 9D 00
   JSR WaitVBlank                                ; $F964: 20 28 FB
   JMP NmiEpilogue                               ; $F967: 4C 8D F8
 .endproc
@@ -4004,7 +4004,7 @@ NmiDispatchTable:
 @irq_hang:
   JMP @irq_hang                                 ; $FB3C: 4C 3C FB
 @irq_dispatch:
-  LDY $0060                                     ; $FB3F: AC 60 00
+  LDY a:$0060                                   ; $FB3F: AC 60 00
   BEQ @irq_exit_sei                             ; $FB42: F0 4E
   DEY                                           ; $FB44: 88
   BNE @check_mode2                              ; $FB45: D0 09
@@ -4062,7 +4062,7 @@ NmiDispatchTable:
 @irq_exit_sei:
   SEI                                           ; $FB92: 78
   LDA #$00                                      ; $FB93: A9 00
-  STA $0062                                     ; $FB95: 8D 62 00
+  STA a:$0062                                   ; $FB95: 8D 62 00
   STA NAMCO_IRQ_LO                              ; $FB98: 8D 00 50
   STA NAMCO_IRQ_HI                              ; $FB9B: 8D 00 58
 .endproc
@@ -4078,17 +4078,17 @@ IrqExit:
 
 ;--- $FBA4: IRQ modes 1,3 - sound regs + CHR dispatch ---
 .proc IrqMode1_SoundAndChr
-  LDA $0063                                     ; $FBA4: AD 63 00
+  LDA a:$0063                                   ; $FBA4: AD 63 00
   ASL A                                         ; $FBA7: 0A
   TAX                                           ; $FBA8: AA
   LDA #$00                                      ; $FBA9: A9 00
   STA NAMCO_IRQ_LO                              ; $FBAB: 8D 00 50
-  LDA $006A,X                                   ; $FBAE: BD 6A 00
+  LDA a:$006A,X                                 ; $FBAE: BD 6A 00
   STA NAMCO_IRQ_LO                              ; $FBB1: 8D 00 50
-  LDA $006B,X                                   ; $FBB4: BD 6B 00
+  LDA a:$006B,X                                 ; $FBB4: BD 6B 00
   STA NAMCO_IRQ_HI                              ; $FBB7: 8D 00 58
 @check_sub2:
-  LDY $0063                                     ; $FBBA: AC 63 00
+  LDY a:$0063                                   ; $FBBA: AC 63 00
   BEQ IrqChrUpdate_Block1                       ; $FBBD: F0 0F
   DEY                                           ; $FBBF: 88
   BNE @check_sub3                               ; $FBC0: D0 03
@@ -4119,7 +4119,7 @@ IrqExit:
   STX NAMCO163_CHR_2                            ; $FBEE: 8E 00 90
   LDA $C1                                       ; $FBF1: A5 C1
   STA NAMCO163_CHR_3                            ; $FBF3: 8D 00 98
-  INC $0063                                     ; $FBF6: EE 63 00
+  INC a:$0063                                   ; $FBF6: EE 63 00
   JMP IrqExit                                   ; $FBF9: 4C 9E FB
 .endproc
 
@@ -4141,7 +4141,7 @@ IrqExit:
   STA NAMCO163_CHR_2                            ; $FC1C: 8D 00 90
   LDY $C9                                       ; $FC1F: A4 C9
   STY NAMCO163_CHR_3                            ; $FC21: 8C 00 98
-  INC $0063                                     ; $FC24: EE 63 00
+  INC a:$0063                                   ; $FC24: EE 63 00
   JMP IrqExit                                   ; $FC27: 4C 9E FB
 .endproc
 
@@ -4163,7 +4163,7 @@ IrqExit:
   LDY $D1                                       ; $FC4A: A4 D1
   STA NAMCO163_CHR_2                            ; $FC4C: 8D 00 90
   STY NAMCO163_CHR_3                            ; $FC4F: 8C 00 98
-  INC $0063                                     ; $FC52: EE 63 00
+  INC a:$0063                                   ; $FC52: EE 63 00
   JMP IrqExit                                   ; $FC55: 4C 9E FB
 .endproc
 
@@ -4186,8 +4186,8 @@ IrqExit:
   STA NAMCO163_CHR_2                            ; $FC7A: 8D 00 90
   STY NAMCO163_CHR_3                            ; $FC7D: 8C 00 98
   LDA #$00                                      ; $FC80: A9 00
-  STA $0063                                     ; $FC82: 8D 63 00
-  INC $0060                                     ; $FC85: EE 60 00
+  STA a:$0063                                   ; $FC82: 8D 63 00
+  INC a:$0060                                   ; $FC85: EE 60 00
   JMP IrqExit                                   ; $FC88: 4C 9E FB
 .endproc
 
@@ -4195,21 +4195,21 @@ IrqExit:
 .proc IrqMode2_FullSetup
   SEI                                           ; $FC8B: 78
   LDA #$00                                      ; $FC8C: A9 00
-  STA $0062                                     ; $FC8E: 8D 62 00
+  STA a:$0062                                   ; $FC8E: 8D 62 00
   STA NAMCO_IRQ_LO                              ; $FC91: 8D 00 50
   STA NAMCO_IRQ_HI                              ; $FC94: 8D 00 58
   LDY #$08                                      ; $FC97: A0 08
 @delay_spin1:
   DEY                                           ; $FC99: 88
   BPL @delay_spin1                              ; $FC9A: 10 FD
-  LDA $0099                                     ; $FC9C: AD 99 00
+  LDA a:$0099                                   ; $FC9C: AD 99 00
   AND #$07                                      ; $FC9F: 29 07
   ASL A                                         ; $FCA1: 0A
   TAY                                           ; $FCA2: A8
   LDA ScanlineDelayTable,Y                      ; $FCA3: B9 1A FD
-  STA $0046                                     ; $FCA6: 8D 46 00
+  STA a:$0046                                   ; $FCA6: 8D 46 00
   LDA ScanlineDelayTable+1,Y                    ; $FCA9: B9 1B FD
-  STA $0047                                     ; $FCAC: 8D 47 00
+  STA a:$0047                                   ; $FCAC: 8D 47 00
   LDA #$0F                                      ; $FCAF: A9 0F
   STA NAMCO163_CHR_0                            ; $FCB1: 8D 00 80
   STA NAMCO163_CHR_1                            ; $FCB4: 8D 00 88
@@ -4220,7 +4220,7 @@ IrqExit:
   STA NAMCO163_CHR_6                            ; $FCC3: 8D 00 B0
   STA NAMCO163_CHR_7                            ; $FCC6: 8D 00 B8
 @delay_loop1:
-  DEC $0046                                     ; $FCC9: CE 46 00
+  DEC a:$0046                                   ; $FCC9: CE 46 00
   BNE @delay_loop1                              ; $FCCC: D0 FB
   LDA $EA                                       ; $FCCE: A5 EA
   LDY $9B                                       ; $FCD0: A4 9B
@@ -4232,7 +4232,7 @@ IrqExit:
   STX PPU_SCROLL                                ; $FCDF: 8E 05 20
   STX PPU_SCROLL                                ; $FCE2: 8E 05 20
 @delay_loop2:
-  DEC $0047                                     ; $FCE5: CE 47 00
+  DEC a:$0047                                   ; $FCE5: CE 47 00
   BNE @delay_loop2                              ; $FCE8: D0 FB
   LDA $BA                                       ; $FCEA: A5 BA
   LDY $BB                                       ; $FCEC: A4 BB
@@ -4265,7 +4265,7 @@ ScanlineDelayTable:
 .proc IrqMode4_SimpleChr
   SEI                                           ; $FD2A: 78
   LDA #$00                                      ; $FD2B: A9 00
-  STA $0062                                     ; $FD2D: 8D 62 00
+  STA a:$0062                                   ; $FD2D: 8D 62 00
   STA NAMCO_IRQ_LO                              ; $FD30: 8D 00 50
   STA NAMCO_IRQ_HI                              ; $FD33: 8D 00 58
   LDY #$0F                                      ; $FD36: A0 0F
@@ -4317,7 +4317,7 @@ ScanlineDelayTable:
 .proc IrqMode5_PpuAddrChr
   SEI                                           ; $FD95: 78
   LDA #$00                                      ; $FD96: A9 00
-  STA $0062                                     ; $FD98: 8D 62 00
+  STA a:$0062                                   ; $FD98: 8D 62 00
   STA NAMCO_IRQ_LO                              ; $FD9B: 8D 00 50
   STA NAMCO_IRQ_HI                              ; $FD9E: 8D 00 58
   LDA PPU_STATUS                                ; $FDA1: AD 02 20
@@ -4360,7 +4360,7 @@ ScanlineDelayTable:
 .proc IrqMode6_Minimal
   SEI                                           ; $FDF4: 78
   LDA #$00                                      ; $FDF5: A9 00
-  STA $0062                                     ; $FDF7: 8D 62 00
+  STA a:$0062                                   ; $FDF7: 8D 62 00
   STA NAMCO_IRQ_LO                              ; $FDFA: 8D 00 50
   STA NAMCO_IRQ_HI                              ; $FDFD: 8D 00 58
   JMP IrqExit                                   ; $FE00: 4C 9E FB
@@ -4368,16 +4368,16 @@ ScanlineDelayTable:
 
 ;--- $FE03: IRQ mode 7 - sound + CHR sub-dispatch ---
 .proc IrqMode7_SoundChr
-  LDA $0063                                     ; $FE03: AD 63 00
+  LDA a:$0063                                   ; $FE03: AD 63 00
   ASL A                                         ; $FE06: 0A
   TAX                                           ; $FE07: AA
   LDA #$00                                      ; $FE08: A9 00
   STA NAMCO_IRQ_LO                              ; $FE0A: 8D 00 50
-  LDA $006A,X                                   ; $FE0D: BD 6A 00
+  LDA a:$006A,X                                 ; $FE0D: BD 6A 00
   STA NAMCO_IRQ_LO                              ; $FE10: 8D 00 50
-  LDA $006B,X                                   ; $FE13: BD 6B 00
+  LDA a:$006B,X                                 ; $FE13: BD 6B 00
   STA NAMCO_IRQ_HI                              ; $FE16: 8D 00 58
-  LDY $0063                                     ; $FE19: AC 63 00
+  LDY a:$0063                                   ; $FE19: AC 63 00
   BEQ @block1_update                            ; $FE1C: F0 09
   DEY                                           ; $FE1E: 88
 @mode7_dispatch:
@@ -4411,22 +4411,22 @@ ScanlineDelayTable:
   JMP IrqChrUpdate_Block3                       ; $FE5E: 4C 2A FC
 IrqMode7_Exit:
   LDA #$00                                      ; $FE61: A9 00
-  STA $0063                                     ; $FE63: 8D 63 00
+  STA a:$0063                                   ; $FE63: 8D 63 00
   JMP IrqMode5_PpuAddrChr                       ; $FE66: 4C 95 FD
 .endproc
 
 ;--- $FE69: IRQ mode 8 - sound + CHR variant ---
 .proc IrqMode8_SoundChr
-  LDA $0063                                     ; $FE69: AD 63 00
+  LDA a:$0063                                   ; $FE69: AD 63 00
   ASL A                                         ; $FE6C: 0A
   TAX                                           ; $FE6D: AA
   LDA #$00                                      ; $FE6E: A9 00
   STA NAMCO_IRQ_LO                              ; $FE70: 8D 00 50
-  LDA $006A,X                                   ; $FE73: BD 6A 00
+  LDA a:$006A,X                                 ; $FE73: BD 6A 00
   STA NAMCO_IRQ_LO                              ; $FE76: 8D 00 50
-  LDA $006B,X                                   ; $FE79: BD 6B 00
+  LDA a:$006B,X                                 ; $FE79: BD 6B 00
   STA NAMCO_IRQ_HI                              ; $FE7C: 8D 00 58
-  LDY $0063                                     ; $FE7F: AC 63 00
+  LDY a:$0063                                   ; $FE7F: AC 63 00
   BNE @mode8_check1                             ; $FE82: D0 03
   JMP IrqChrUpdate_Block1                       ; $FE84: 4C CE FB
 @mode8_check1:
@@ -4445,7 +4445,7 @@ IrqMode7_Exit:
 .proc IrqMode9_BasicChr
   SEI                                           ; $FE96: 78
   LDA #$00                                      ; $FE97: A9 00
-  STA $0062                                     ; $FE99: 8D 62 00
+  STA a:$0062                                   ; $FE99: 8D 62 00
   STA NAMCO_IRQ_LO                              ; $FE9C: 8D 00 50
   STA NAMCO_IRQ_HI                              ; $FE9F: 8D 00 58
   LDA $BA                                       ; $FEA2: A5 BA
@@ -4471,7 +4471,7 @@ IrqMode7_Exit:
 .proc IrqMode10_PpuScroll
   SEI                                           ; $FECD: 78
   LDA #$00                                      ; $FECE: A9 00
-  STA $0062                                     ; $FED0: 8D 62 00
+  STA a:$0062                                   ; $FED0: 8D 62 00
   STA NAMCO_IRQ_LO                              ; $FED3: 8D 00 50
   STA NAMCO_IRQ_HI                              ; $FED6: 8D 00 58
   LDA PPU_STATUS                                ; $FED9: AD 02 20
@@ -4516,11 +4516,11 @@ IrqMode7_Exit:
 .proc IrqMode11_ScrollFwd
   LDA #$00                                      ; $FF31: A9 00
   STA NAMCO_IRQ_LO                              ; $FF33: 8D 00 50
-  LDA $006A                                     ; $FF36: AD 6A 00
+  LDA a:$006A                                   ; $FF36: AD 6A 00
   STA NAMCO_IRQ_LO                              ; $FF39: 8D 00 50
-  LDA $006B                                     ; $FF3C: AD 6B 00
+  LDA a:$006B                                   ; $FF3C: AD 6B 00
   STA NAMCO_IRQ_HI                              ; $FF3F: 8D 00 58
-  INC $0060                                     ; $FF42: EE 60 00
+  INC a:$0060                                   ; $FF42: EE 60 00
   JMP IrqChrUpdate_Block1                       ; $FF45: 4C CE FB
 .endproc
 
@@ -4528,12 +4528,12 @@ IrqMode7_Exit:
 .proc IrqMode12_ScrollBack
   LDA #$00                                      ; $FF48: A9 00
   STA NAMCO_IRQ_LO                              ; $FF4A: 8D 00 50
-  LDA $006C                                     ; $FF4D: AD 6C 00
+  LDA a:$006C                                   ; $FF4D: AD 6C 00
   STA NAMCO_IRQ_LO                              ; $FF50: 8D 00 50
-  LDA $006D                                     ; $FF53: AD 6D 00
+  LDA a:$006D                                   ; $FF53: AD 6D 00
   STA NAMCO_IRQ_HI                              ; $FF56: 8D 00 58
-  DEC $0060                                     ; $FF59: CE 60 00
-  DEC $0060                                     ; $FF5C: CE 60 00
+  DEC a:$0060                                   ; $FF59: CE 60 00
+  DEC a:$0060                                   ; $FF5C: CE 60 00
   JMP IrqChrUpdate_Block2                       ; $FF5F: 4C FC FB
 .endproc
 
@@ -4544,29 +4544,29 @@ IrqMode7_Exit:
 ;===============================================================================
 .proc CalcScrollAddr
   LDA #$00                                      ; $FF62: A9 00
-  STA $0047                                     ; $FF64: 8D 47 00
-  LDA $0098                                     ; $FF67: AD 98 00
-  STA $0099                                     ; $FF6A: 8D 99 00
+  STA a:$0047                                   ; $FF64: 8D 47 00
+  LDA a:$0098                                   ; $FF67: AD 98 00
+  STA a:$0099                                   ; $FF6A: 8D 99 00
   AND #$F8                                      ; $FF6D: 29 F8
   ASL A                                         ; $FF6F: 0A
-  ROL $0047                                     ; $FF70: 2E 47 00
+  ROL a:$0047                                   ; $FF70: 2E 47 00
   ASL A                                         ; $FF73: 0A
-  ROL $0047                                     ; $FF74: 2E 47 00
-  STA $009A                                     ; $FF77: 8D 9A 00
-  LDA $0047                                     ; $FF7A: AD 47 00
+  ROL a:$0047                                   ; $FF74: 2E 47 00
+  STA a:$009A                                   ; $FF77: 8D 9A 00
+  LDA a:$0047                                   ; $FF7A: AD 47 00
   CLC                                           ; $FF7D: 18
   ADC #$20                                      ; $FF7E: 69 20
-  STA $009B                                     ; $FF80: 8D 9B 00
+  STA a:$009B                                   ; $FF80: 8D 9B 00
   LDA #$E0                                      ; $FF83: A9 E0
-  STA $00EA                                     ; $FF85: 8D EA 00
-  STA $00EC                                     ; $FF88: 8D EC 00
-  LDA $0097                                     ; $FF8B: AD 97 00
+  STA a:$00EA                                   ; $FF85: 8D EA 00
+  STA a:$00EC                                   ; $FF88: 8D EC 00
+  LDA a:$0097                                   ; $FF8B: AD 97 00
   AND #$01                                      ; $FF8E: 29 01
 @check_nt:
   BEQ @rts_calc                                 ; $FF90: F0 08
   LDA #$E1                                      ; $FF92: A9 E1
-  STA $00EA                                     ; $FF94: 8D EA 00
-  STA $00EC                                     ; $FF97: 8D EC 00
+  STA a:$00EA                                   ; $FF94: 8D EA 00
+  STA a:$00EC                                   ; $FF97: 8D EC 00
 @rts_calc:
   RTS                                           ; $FF9A: 60
 .endproc
@@ -4577,31 +4577,31 @@ IrqMode7_Exit:
 ;===============================================================================
 .proc CalcScrollAddrAlt
   LDA #$00                                      ; $FF9B: A9 00
-  STA $0047                                     ; $FF9D: 8D 47 00
-  LDA $0098                                     ; $FFA0: AD 98 00
-  STA $0099                                     ; $FFA3: 8D 99 00
+  STA a:$0047                                   ; $FF9D: 8D 47 00
+  LDA a:$0098                                   ; $FFA0: AD 98 00
+  STA a:$0099                                   ; $FFA3: 8D 99 00
   AND #$F8                                      ; $FFA6: 29 F8
   ASL A                                         ; $FFA8: 0A
-  ROL $0047                                     ; $FFA9: 2E 47 00
+  ROL a:$0047                                   ; $FFA9: 2E 47 00
   ASL A                                         ; $FFAC: 0A
-  ROL $0047                                     ; $FFAD: 2E 47 00
-  STA $009A                                     ; $FFB0: 8D 9A 00
-  LDA $0047                                     ; $FFB3: AD 47 00
+  ROL a:$0047                                   ; $FFAD: 2E 47 00
+  STA a:$009A                                   ; $FFB0: 8D 9A 00
+  LDA a:$0047                                   ; $FFB3: AD 47 00
   CLC                                           ; $FFB6: 18
   ADC #$20                                      ; $FFB7: 69 20
-  STA $009B                                     ; $FFB9: 8D 9B 00
+  STA a:$009B                                   ; $FFB9: 8D 9B 00
   LDA #$E0                                      ; $FFBC: A9 E0
-  STA $00EA                                     ; $FFBE: 8D EA 00
-  LDA $0097                                     ; $FFC1: AD 97 00
+  STA a:$00EA                                   ; $FFBE: 8D EA 00
+  LDA a:$0097                                   ; $FFC1: AD 97 00
   AND #$01                                      ; $FFC4: 29 01
 @check_nt_alt:
   BEQ @rts_calc_alt                             ; $FFC6: F0 0E
-  LDA $009B                                     ; $FFC8: AD 9B 00
+  LDA a:$009B                                   ; $FFC8: AD 9B 00
   CLC                                           ; $FFCB: 18
   ADC #$04                                      ; $FFCC: 69 04
-  STA $009B                                     ; $FFCE: 8D 9B 00
+  STA a:$009B                                   ; $FFCE: 8D 9B 00
   LDA #$E1                                      ; $FFD1: A9 E1
-  STA $00EA                                     ; $FFD3: 8D EA 00
+  STA a:$00EA                                   ; $FFD3: 8D EA 00
 @rts_calc_alt:
   RTS                                           ; $FFD6: 60
 .endproc
