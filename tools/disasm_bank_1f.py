@@ -150,7 +150,7 @@ FUNCTIONS = [
     # Entry 3: Kingdom Select
     (0xE18B, 0xE220, "State_KingdomSelect", "func"),
     # Entry 4: Random + Display (Y=$28)
-    (0xE221, 0xE22E, "State_RandomDisplay28", "func"),
+    (0xE221, 0xE22E, "State_WarAiTurnFrame", "func"),
     # Entry 5: Domestic Affairs
     (0xE22F, 0xE2C1, "State_DomesticAffairs", "func"),
     # Sub-function: Domestic action display lookup
@@ -171,10 +171,10 @@ FUNCTIONS = [
     (0xE37C, 0xE3EA, "State_TerritoryView", "func"),
     # Entry 10/12/14: Idle / Wait State
     (0xE3EB, 0xE3ED, "State_IdleWait", "func"),
-    # Entry 11: Advisor / Council
-    (0xE3EE, 0xE469, "State_AdvisorCouncil", "func"),
-    # Entry 13: Turn Summary
-    (0xE46A, 0xE4D9, "State_TurnSummary", "func"),
+    # Entry 11: New game setup
+    (0xE3EE, 0xE469, "State_NewGameSetup", "func"),
+    # Entry 13: Event message scene
+    (0xE46A, 0xE4D9, "State_EventMessageScene", "func"),
     # Frame Init Helper
     (0xE4DA, 0xE51E, "FrameInit", "func"),
     # Bank Switch
@@ -210,7 +210,8 @@ FUNCTIONS = [
     (0xE774, 0xE7DE, "NametableFill1", "func"),
     # Nametable fill mode 2
     (0xE7DF, 0xE822, "NametableFill2", "func"),
-    # Sprite buffer init
+    # Sprite buffer init (entry $E823: LDY #$04 is dead, Y reloaded at $E825;
+    # both entries fill $0200-$02FF with $F0 identically)
     (0xE823, 0xE842, "SpriteBufferInit", "func"),
     # RNG helpers
     (0xE843, 0xE84A, "RandomBelow100", "func"),
@@ -456,7 +457,7 @@ def build_function_table():
         (0xE0DA, 0xE17C, "State_NewGameInit", "func", 162, "Entry 1: New game init, display, SRAM init, music $81"),
         (0xE17D, 0xE18A, "State_StrategyAiTurnFrame", "func", 13, "Entry 2: strategy AI turn frame (Y=$2A), loops in state 2"),
         (0xE18B, 0xE220, "State_KingdomSelect", "func", 150, "Entry 3: Kingdom select, scenario/normal mode"),
-        (0xE221, 0xE22E, "State_RandomDisplay28", "func", 13, "Entry 4: Random + display (Y=$28), brief transition"),
+        (0xE221, 0xE22E, "State_WarAiTurnFrame", "func", 13, "Entry 4: War/tactical AI turn frame (Y=$28 -> bank $08+$09, AiTurnProcess)"),
         (0xE22F, 0xE2C1, "State_DomesticAffairs", "func", 146, "Entry 5: Domestic affairs, action selection"),
         (0xE29C, 0xE2C1, "DomesticActionLookup", "func", 37, "Domestic action display lookup by $0544"),
         (0xE2C2, 0xE2DE, "DomesticGraphicPtrs", "table", 28, "7 graphic pointers for domestic actions"),
@@ -467,8 +468,8 @@ def build_function_table():
         (0xE370, 0xE37B, "DisplayInit", "func", 11, "Display init helper: window clear + bank display"),
         (0xE37C, 0xE3EA, "State_TerritoryView", "func", 110, "Entry 9: Territory/map view"),
         (0xE3EB, 0xE3ED, "State_IdleWait", "func", 3, "Entry 10/12/14: Idle wait, JMP dispatch"),
-        (0xE3EE, 0xE469, "State_AdvisorCouncil", "func", 123, "Entry 11: Advisor/council dialogue"),
-        (0xE46A, 0xE4D9, "State_TurnSummary", "func", 111, "Entry 13: Turn summary/report"),
+        (0xE3EE, 0xE469, "State_NewGameSetup", "func", 123, "Entry 11: New-game setup (SramInit re-seed, menu record $0C, -> state 12)"),
+        (0xE46A, 0xE4D9, "State_EventMessageScene", "func", 111, "Entry 13: Event message scene"),
         (0xE4DA, 0xE51E, "FrameInit", "func", 68, "Per-frame setup: PPU, bank, clear working RAM"),
         (0xE51F, 0xE566, "BankSwitch", "func", 71, "8-byte config bank switch (Namco-163 PRG)"),
         (0xE567, 0xE57E, "BankSwitchTable", "table", 23, "Bank switch configuration table"),
@@ -485,7 +486,7 @@ def build_function_table():
         (0xE753, 0xE773, "PpuCtrlNmiHelpers", "func", 32, "PPU ctrl/NMI helpers"),
         (0xE774, 0xE7DE, "NametableFill1", "func", 106, "Nametable fill mode 1"),
         (0xE7DF, 0xE822, "NametableFill2", "func", 68, "Nametable fill mode 2"),
-        (0xE823, 0xE842, "SpriteBufferInit", "func", 31, "Fill sprite buffer $0200-$02FF with $F0"),
+        (0xE823, 0xE842, "SpriteBufferInit", "func", 31, "Fill $0200-$02FF with $F0; LDY #$04 at $E823 dead, both entries identical"),
         (0xE843, 0xE84A, "RandomBelow100", "func", 7, "Random byte < 100"),
         (0xE84B, 0xE84F, "RandomDiv2", "func", 4, "Random byte / 2"),
         (0xE850, 0xE861, "RandomModPow2", "func", 17, "Random mod 4/8/16"),

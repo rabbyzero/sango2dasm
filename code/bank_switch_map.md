@@ -131,15 +131,15 @@ Dynamic $8000 tables: `TileBankTable` ($B8BB in $08), `BattleBankTable`
 | State_KingdomSelect $E1A9 | $2C | $0C+$0D | `B0C_0D_OfficerTransferCalc_Entry` (scenario mode) |
 | State_KingdomSelect $E1B4 | $28 | $08+$09 | `B17_18_PpuCopyRaw`-equivalent in $08 (normal mode) |
 | State_KingdomSelect $E1D9 | $3D | $1D+$1E | `B1D_1E_StateHandler` |
-| State_RandomDisplay28 $E226 | $28 | $08+$09 | PPU RLE display |
+| State_WarAiTurnFrame $E226 | $28 | $08+$09 | War/tactical AI turn frame (`B08_09_AiTurnProcess_Entry` $A000) |
 | State_DomesticAffairs $E247 | $37 | $17+$18 | display |
 | State_DomesticAffairs $E24F, $E27B | $3D | $1D+$1E | domestic dispatch |
 | DomesticActionLookup $E2BB | $37 | $17+$18 | action graphics by $0544 |
 | State_BattlePhase $E315, $E31D, $E34C | $37 / $3D | $17+$18 / $1D+$1E | battle status |
 | DisplayInit $E372 | $3D | $1D+$1E | bank display |
 | State_TerritoryView $E3B2, $E3BA, $E3CD | $37 / $3D | $17+$18 / $1D+$1E | map view |
-| State_AdvisorCouncil $E424, $E42C..$E447 | $37 / $3D | $17+$18 / $1D+$1E | council dialogue |
-| State_TurnSummary $E492, $E49A, $E4AA | $37 / $3D | $17+$18 / $1D+$1E | turn report |
+| State_NewGameSetup $E424, $E42C..$E447 | $37 / $3D | $17+$18 / $1D+$1E | new-game setup (SramInit re-seed) |
+| State_EventMessageScene $E492, $E49A, $E4AA | $37 / $3D | $17+$18 / $1D+$1E | message scene |
 
 **Data switches** — $8000 window (`SwitchBank8_A/B`):
 
@@ -148,8 +148,8 @@ Dynamic $8000 tables: `TileBankTable` ($B8BB in $08), `BattleBankTable`
 | State_NewGameInit $E0E9 | $30 | $10 | data read after pointer setup |
 | State_BattlePhase $E2FC | $30 | $10 | battle data |
 | State_TerritoryView $E38B | $35 | $15 | map graphics |
-| State_AdvisorCouncil $E3FD | $32 | $12 | advisor tiles |
-| State_TurnSummary $E479 | $36 | $16 | report tiles |
+| State_NewGameSetup $E3FD | $32 | $12 | new-game setup tiles |
+| State_EventMessageScene $E479 | $36 | $16 | blank message scene tiles |
 | GetNameDisplayScale $F30D | $30 | $10 | name width data |
 | GetOfficerRomRecordAddr $F389 | $31 | $11 | officer records |
 | SoundNotePlayer $E60B | $22 | $02 | wavetable/note data |
@@ -298,7 +298,7 @@ DomesticMenu_Return $C95D, Y=$3D -> self pair, $A015
 | MenuUpdate, OfficerListHandler, ScenePageCopy, SramInit, StateHandler | $10 | menu/scene data |
 | SetupBankedData, StateHandler, SramInit | $11 | banked data |
 | MenuRenderer | $16 | renderer tiles |
-| OfficerParamDisp | $01 | officer param graphics |
+| MenuFontRecordLoad | $01 | menu font graphics |
 | MenuUpdate `CmdDrawName*` handlers | save/restore | `LDA cur_bank_8000 ($E1); PHA`, switch to $10 or dynamic bank from command stream (`LDA ($A6),Y`), then `PLA; TAY; JSR B1F_SwitchBank8_B` to restore |
 | MenuUpdate (sprite pos) | **dynamic** | `PosDataBankTable` ($A6A7): $33/$32 -> physical **$13/$12** |
 

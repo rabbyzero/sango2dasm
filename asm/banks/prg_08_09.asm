@@ -6463,7 +6463,7 @@ special_officer_idx    = $052F  ; special officer roster index
   STA a:$000A                           ; $CE16: 8D 0A 00
   LDY #$2E                              ; $CE19: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $CE1B: 20 07 EE
-  .word B0E_0F_OfficerBattleExpLevelCheck_Entry ; $CE1E: 06 A0  ; inline banked target
+  .word B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry ; $CE1E: 06 A0  ; inline banked target
 @ExpireActionTimers:
 ; Decrement the 5 action timers at $04DB-$04DF ($FF = inactive). A timer
 ; that reaches zero marks its slot in $04D8-$04DC as expired ($FF).

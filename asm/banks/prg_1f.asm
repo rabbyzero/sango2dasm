@@ -241,16 +241,16 @@ VectorTable:
   .addr State_NewGameInit                       ; $E07E: DA E0 | 1:  $E0DA
   .addr State_StrategyAiTurnFrame               ; $E080: 7D E1 | 2:  $E17D
   .addr State_RulerSelect                       ; $E082: 8B E1 | 3:  $E18B
-  .addr State_RandomDisplay28                   ; $E084: 21 E2 | 4:  $E221
+  .addr State_WarAiTurnFrame                    ; $E084: 21 E2 | 4:  $E221
   .addr State_StrategyMode                      ; $E086: 2F E2 | 5:  $E22F
   .addr State_RandomAdvance1                    ; $E088: E2 E2 | 6:  $E2E2
   .addr State_TacticalMode                      ; $E08A: E8 E2 | 7:  $E2E8
   .addr State_RandomAdvance2                    ; $E08C: 6A E3 | 8:  $E36A
   .addr State_CountryMapView                    ; $E08E: 7C E3 | 9:  $E37C
   .addr State_IdleWait                          ; $E090: EB E3 | 10: $E3EB
-  .addr State_AdvisorCouncil                    ; $E092: EE E3 | 11: $E3EE
+  .addr State_NewGameSetup                      ; $E092: EE E3 | 11: $E3EE
   .addr State_IdleWait                          ; $E094: EB E3 | 12: $E3EB (same as 10)
-  .addr State_TurnSummary                       ; $E096: 6A E4 | 13: $E46A
+  .addr State_EventMessageScene                 ; $E096: 6A E4 | 13: $E46A
   .addr State_IdleWait                          ; $E098: EB E3 | 14: $E3EB (same as 10)
 .endproc
 
@@ -406,7 +406,7 @@ map_data_ptr_hi = $0069
   BNE @normal_mode                              ; $E1A5: D0 0B
   LDY #$2C                                      ; $E1A7: A0 2C
   JSR SwitchBankAC_B                            ; $E1A9: 20 37 F2
-  JSR B0C_0D_OfficerTransferCalc_Entry          ; $E1AC: 20 06 A0  Scenario path (bank $0C)
+  JSR B0C_0D_OfficerTransferActionDispatch_Entry          ; $E1AC: 20 06 A0  Exchange mode path (bank $0C)
   JMP @after_mode_check                         ; $E1AF: 4C BA E1
 @normal_mode:
   LDY #$28                                      ; $E1B2: A0 28
@@ -427,7 +427,7 @@ map_data_ptr_hi = $0069
   ; Display + render
   LDY #$3D                                      ; $E1D7: A0 37
   JSR SwitchBankAC_B                            ; $E1D9: 20 37 F2
-  JSR B1D_1E_StateHandler                       ; $E1DC: 20 09 A0  State handler (bank-switched)
+  JSR B1D_1E_ProvinceDataWindowFrame                       ; $E1DC: 20 09 A0  Province data window frame (bank-switched)
   LDA #$00                                      ; $E1E4: A9 01
   STA $0000                                     ; $E1E6: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E1E9: 20 15 A0
@@ -456,9 +456,13 @@ map_data_ptr_hi = $0069
 .endproc
 
 ;===============================================================================
-; $E221: Entry 4 - Random + Display (Y=$28)
+; $E221: Entry 4 - War AI turn frame (Y=$28)
+; Per-frame driver of game state 4: advances the RNG, maps the $08+$09 bank
+; pair, and runs the war/tactical-layer AI turn process (AiTurnProcess).
+; Loops through StateDispatch until another state transition changes
+; addr_game_state.
 ;===============================================================================
-.proc State_RandomDisplay28
+.proc State_WarAiTurnFrame
   JSR RandomByte                                ; $E221: 20 7A E8
   LDY #$28                                      ; $E224: A0 28
   JSR SwitchBankAC_A                            ; $E226: 20 4B F2
@@ -626,7 +630,7 @@ army_status2    = $04AC
   LDY #$3D                                      ; $E34A: A0 3D
   JSR SwitchBankAC_B                            ; $E34C: 20 37 F2
   LDA #$02                                      ; $E34F: A9 02
-  JSR B1D_1E_OfficerRecLookup                   ; $E351: 20 45 A0  Officer record lookup (bank-switched)
+  JSR B1D_1E_SceneRecordLookup                   ; $E351: 20 45 A0  Scene record lookup (bank-switched)
   INC addr_game_state                           ; $E359: EE 7A 00
   LDA #$12                                      ; $E35C: A9 12
   JSR SoundWrapperB                             ; $E35E: 20 7B E6  Tactical music $12
@@ -650,7 +654,7 @@ army_status2    = $04AC
 .proc DisplayInit
   LDY #$3D                                      ; $E370: A0 3D
   JSR SwitchBankAC_B                            ; $E372: 20 37 F2  Window clear
-  JSR B1D_1E_OfficerParamDisp                   ; $E375: 20 1B A0  Officer param display (bank-switched)
+  JSR B1D_1E_MenuFontRecordLoad                 ; $E375: 20 1B A0  Menu font record load (bank-switched)
   JSR ChrBankSwitch                             ; $E378: 20 06 F2  CHR bank switch
   RTS                                           ; $E37B: 60
 .endproc
@@ -692,7 +696,7 @@ army_status2    = $04AC
   LDY #$3D                                      ; $E3CB: A0 3D
   JSR SwitchBankAC_B                            ; $E3CD: 20 37 F2
   LDA #$03                                      ; $E3D0: A9 03
-  JSR B1D_1E_OfficerRecLookup                   ; $E3D2: 20 45 A0  Officer record lookup (bank-switched)
+  JSR B1D_1E_SceneRecordLookup                   ; $E3D2: 20 45 A0  Scene record lookup (bank-switched)
   LDA #$A0                                      ; $E3D5: A9 A0
   STA addr_display_mode                         ; $E3D7: 8D 98 00
   LDA #$02                                      ; $E3DA: A9 02
@@ -711,13 +715,22 @@ army_status2    = $04AC
 .endproc
 
 ;===============================================================================
-; $E3EE: Entry 11 - Advisor / Council
+; $E3EE: Entry 11 - New game setup (Y=$32)
+; One-shot setup for the fresh-game menu screen: clears the background,
+; re-initializes the battery-SRAM record area for a new game
+; (B1D_1E_SramInit: province/officer records reloaded from ROM banks
+; $10/$11, year 189 / month 1 seeded, AI counters reset, demo rotation
+; index randomized), loads menu font/display record $0C, selects the
+; NmiState7_Strategy menu frame handler (addr_sub_state = 7), then parks
+; in state 12 (IdleWait) where the menu system takes over.
+; Entered from the title-menu new-game path (prg_0a_0b ClearOverlayExit,
+; $DBCE); the continue path exits earlier via ClearOverlayWait -> state 1.
 ;===============================================================================
-.proc State_AdvisorCouncil
+.proc State_NewGameSetup
   JSR FrameInit                                 ; $E3EE: 20 DA E4
   LDA #$07                                      ; $E3F1: A9 07
   STA addr_sub_state                            ; $E3F3: 8D 78 00
-  LDA #$0C                                      ; $E3F6: A9 0C  Advisor display mode
+  LDA #$0C                                      ; $E3F6: A9 0C  Menu font/display record $0C
   JSR DisplayInit                               ; $E3F8: 20 70 E3
   LDY #$32                                      ; $E3FB: A0 32
   JSR SwitchBank8_B                             ; $E3FD: 20 5F F2
@@ -739,7 +752,7 @@ army_status2    = $04AC
   JSR B17_18_PpuCopyRaw                         ; $E427: 20 03 A0
   LDY #$3D                                      ; $E42A: A0 3D
   JSR SwitchBankAC_B                            ; $E42C: 20 37 F2
-  JSR B1D_1E_SramInit                           ; $E42F: 20 18 A0  SRAM init (bank-switched)
+  JSR B1D_1E_SramInit                           ; $E42F: 20 18 A0  New-game SRAM re-init (bank-switched)
   LDY #$3D                                      ; $E432: A0 3D
   JSR SwitchBankAC_B                            ; $E434: 20 37 F2
   LDA #$0C                                      ; $E437: A9 0C
@@ -750,7 +763,7 @@ army_status2    = $04AC
   LDY #$3D                                      ; $E445: A0 3D
   JSR SwitchBankAC_B                            ; $E447: 20 37 F2
   LDA #$04                                      ; $E44A: A9 04
-  JSR B1D_1E_OfficerRecLookup                   ; $E44C: 20 45 A0  Officer record lookup (bank-switched)
+  JSR B1D_1E_SceneRecordLookup                   ; $E44C: 20 45 A0  Scene record lookup (bank-switched)
   LDA #$A0                                      ; $E44F: A9 A0
   STA addr_display_mode                         ; $E451: 8D 98 00
   LDA #$02                                      ; $E454: A9 02
@@ -764,16 +777,29 @@ army_status2    = $04AC
 .endproc
 
 ;===============================================================================
-; $E46A: Entry 13 - Turn Summary
-; Params: $0541 = completion flag (0=normal music, nonzero=victory music)
+; $E46A: Entry 13 - Event Message Scene
+; One-shot scene setup for the dated ruler message screen: scene record 5
+; (SceneRecordLookup), scenario record $0D, NMI sub-state 8 ->
+; NmiState8_Officer renderer; advances to state 14 (IdleWait). Callers fill
+; the display block $042C-$0434 (ruler id, notice id, year+100, month+1)
+; before entering:
+;   - ScenarioHandoffPrep @HandoffLeaderStore (prg_19_1a $C410): closing
+;     sub-state of the DemoEventPlaybackDispatch / OfficerStatusScene event
+;     scenes (war damage, troop losses, succession, ...); $0541=0
+;   - ClearOverlayCancel (prg_0a_0b $DC00): title-overlay cancel message;
+;     $0541=1
+;   - UnificationEndingDispatch @VerdictWait (prg_19_1a $C606): stores the
+;     verdict tier (score $0435: >=$46 -> 1, >=$28 -> 2, else 3) in $0541
+; $0541 = message variant / music selector: 0 -> music $98 (event notice),
+; nonzero -> music $AA (ending verdict / cancel fanfare).
 ;===============================================================================
-.proc State_TurnSummary
-completion_flag = $0541
+.proc State_EventMessageScene
+music_select = $0541
 
   JSR FrameInit                                 ; $E46A: 20 DA E4
   LDA #$08                                      ; $E46D: A9 08
   STA addr_sub_state                            ; $E46F: 8D 78 00
-  LDA #$0D                                      ; $E472: A9 0D  Report display mode
+  LDA #$0D                                      ; $E472: A9 0D  Message scene display mode
   JSR DisplayInit                               ; $E474: 20 70 E3
   LDY #$36                                      ; $E477: A0 36
   JSR SwitchBank8_B                             ; $E479: 20 5F F2
@@ -797,21 +823,21 @@ completion_flag = $0541
   LDY #$3D                                      ; $E4A8: A0 3D
   JSR SwitchBankAC_B                            ; $E4AA: 20 37 F2
   LDA #$05                                      ; $E4AD: A9 05
-  JSR B1D_1E_OfficerRecLookup                   ; $E4AF: 20 45 A0
+  JSR B1D_1E_SceneRecordLookup                   ; $E4AF: 20 45 A0
   LDA #$A0                                      ; $E4B2: A9 A0
   STA addr_display_mode                         ; $E4B4: 8D 98 00
   LDA #$02                                      ; $E4B7: A9 02
   JSR BankSwitch                                ; $E4B9: 20 1F E5
   INC addr_game_state                           ; $E4BC: EE 7A 00
-  LDY completion_flag                           ; $E4BF: AC 41 05
-  BNE @victory_music                            ; $E4C2: D0 08
+  LDY music_select                              ; $E4BF: AC 41 05
+  BNE @fanfare_music                            ; $E4C2: D0 08
   LDA #$98                                      ; $E4C4: A9 98
-  JSR SoundWrapperA                             ; $E4C6: 20 73 E6  Normal music $98
-  JMP @after_music                              ; $E4C9: 4C D1 E4
-@victory_music:
+  JSR SoundWrapperA                             ; $E4C6: 20 73 E6  Event notice music $98
+  JMP @music_done                               ; $E4C9: 4C D1 E4
+@fanfare_music:
   LDA #$AA                                      ; $E4CC: A9 AA
-  JSR SoundWrapperB                             ; $E4CE: 20 7B E6  Victory music $AA
-@after_music:
+  JSR SoundWrapperB                             ; $E4CE: 20 7B E6  Ending/verdict music $AA
+@music_done:
   JSR PpuMaskEnable                             ; $E4D1: 20 49 E7
   JSR NmiEnable                                 ; $E4D4: 20 53 E7
   JMP StateDispatch                             ; $E4D7: 4C 66 E0
@@ -1341,15 +1367,16 @@ fill_attr     = $03
 
 ;===============================================================================
 ; $E823: Sprite Buffer Init
-; Two entry points:
-;   $E823 - fills $0204-$02FF with $F0 (preserves sprite 0)
-;   $E825 - fills $0200-$02FF with $F0 (all sprites off-screen)
+; Fills OAM mirror $0200-$02FF with $F0 (all sprites off-screen).
+; Reached via JMP from FrameInit ($E51C: 4C 23 E8). Note: the LDY #$04
+; at $E823 is dead code -- fall-through to $E825 immediately reloads
+; Y with #$00, so both entries behave identically.
 ;===============================================================================
 .proc SpriteBufferInit
-  LDY #$04                                      ; $E823: A0 04
+  LDY #$04                                      ; $E823: A0 04  dead; Y reloaded at $E825
 .endproc
 
-;--- $E825: fill all of $0200-$02FF (fall-through from SpriteBufferInit) ---
+;--- $E825: effective entry; fill $0200-$02FF (fall-through from $E823) ---
 .proc SpriteBufferInitAll
   LDY #$00                                      ; $E825: A0 00
   LDA #$F0                                      ; $E827: A9 F0
@@ -3675,7 +3702,7 @@ NmiDispatchTable:
   LDY #$3D                                      ; $F8D9: A0 3D
   JSR SwitchBankAC_B                            ; $F8DB: 20 37 F2
   JSR B1D_1E_MenuUpdate                         ; $F8DE: 20 03 A0  Menu update (bank $1D)
-  JSR B1D_1E_StateHandler                       ; $F8E1: 20 09 A0  State handler (bank $1D)
+  JSR B1D_1E_ProvinceDataWindowFrame                       ; $F8E1: 20 09 A0  Province data window frame (bank $1D)
   JSR B1D_1E_OfficerListHandler                 ; $F8E4: 20 0F A0  Officer list handler (bank $1D)
   JSR B1D_1E_MenuRenderer                       ; $F8E7: 20 3F A0  Menu renderer (bank $1D)
   LDY #$3B                                      ; $F8EA: A0 3B

@@ -4,7 +4,7 @@ Status: font pages IDENTIFIED; per-glyph char mapping still in progress.
 
 ## CHR hardware chain (verified in code)
 
-1. `OfficerParamDisp` ($DE7E, prg_1d_1e): copies 48 bytes from bank $21 table
+1. `MenuFontRecordLoad` ($DE7E, prg_1d_1e): copies 48 bytes from bank $21 table
    `$946C + A*48` (phys bank $01, file ofs 0x346C in prg_combined.bin) to
    `$00AE-$00DD`. A = display-mode index.
 2. First 8 bytes ($00AE-$00B5) = 1KB CHR page numbers for NAMCO163 slots 0-7.

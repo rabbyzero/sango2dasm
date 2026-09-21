@@ -444,9 +444,9 @@ State_KingdomSelect:
   JMP $E066
 
 ;-------------------------------------------------------------------------------
-; State_RandomDisplay28 ($E221-$E22D)
+; State_WarAiTurnFrame ($E221-$E22D)
 ;-------------------------------------------------------------------------------
-State_RandomDisplay28:
+State_WarAiTurnFrame:
   ; $20 $7A $E8
   JSR $E87A
   ; $A0 $28
@@ -858,9 +858,9 @@ State_IdleWait:
   JMP $E066
 
 ;-------------------------------------------------------------------------------
-; State_AdvisorCouncil ($E3EE-$E468)
+; State_NewGameSetup ($E3EE-$E468)
 ;-------------------------------------------------------------------------------
-State_AdvisorCouncil:
+State_NewGameSetup:
   ; $20 $DA $E4
   JSR $E4DA
   ; $A9 $07
@@ -957,9 +957,9 @@ State_AdvisorCouncil:
   JMP $E066
 
 ;-------------------------------------------------------------------------------
-; State_TurnSummary ($E46A-$E4D8)
+; State_EventMessageScene ($E46A-$E4D8)
 ;-------------------------------------------------------------------------------
-State_TurnSummary:
+State_EventMessageScene:
   ; $20 $DA $E4
   JSR $E4DA
   ; $A9 $08

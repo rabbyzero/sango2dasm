@@ -2308,7 +2308,8 @@ ReinforceCardShow:  ; (dispatch callback target)
 ;===============================================================================
 ; $AFF5: @RosterLoadInit (sub-state 0)
 ; Loads scenario data via bank $1D entry $A015 (LoadScenarioData -> $DBB1:
-; copies ScenarioDataTable[$0000 = 0], 32 bytes, to $0100), forces a
+; copies the @RecordPtrTable[$0000 = 0] target record (32 bytes) to
+; $0100), forces a
 ; full sprite refresh, resets the card animation state, sets the map
 ; overlay window parameters ($00BA/$00BB), clears the roster and fills
 ; $0410-$0419 from the focused Province record's 10-slot Officer roster

@@ -8,7 +8,7 @@
 | $E0DA | $E17B | State_NewGameInit | func | 162 | Entry 1: New game init, display, SRAM init, music $81 |
 | $E17D | $E189 | State_StrategyAiTurnFrame | func | 13 | Entry 2: strategy AI turn frame (Y=$2A), loops in state 2 |
 | $E18B | $E21F | State_KingdomSelect | func | 150 | Entry 3: Kingdom select, scenario/normal mode |
-| $E221 | $E22D | State_RandomDisplay28 | func | 13 | Entry 4: Random + display (Y=$28), brief transition |
+| $E221 | $E22D | State_WarAiTurnFrame | func | 13 | Entry 4: War/tactical AI turn frame (Y=$28 -> bank $08+$09, AiTurnProcess) |
 | $E22F | $E2C0 | State_DomesticAffairs | func | 146 | Entry 5: Domestic affairs, action selection |
 | $E29C | $E2C0 | DomesticActionLookup | func | 37 | Domestic action display lookup by $0544 |
 | $E2C2 | $E2DD | DomesticGraphicPtrs | table | 28 | 7 graphic pointers for domestic actions |
@@ -19,8 +19,8 @@
 | $E370 | $E37A | DisplayInit | func | 11 | Display init helper: window clear + bank display |
 | $E37C | $E3E9 | State_TerritoryView | func | 110 | Entry 9: Territory/map view |
 | $E3EB | $E3EC | State_IdleWait | func | 3 | Entry 10/12/14: Idle wait, JMP dispatch |
-| $E3EE | $E468 | State_AdvisorCouncil | func | 123 | Entry 11: Advisor/council dialogue |
-| $E46A | $E4D8 | State_TurnSummary | func | 111 | Entry 13: Turn summary/report |
+| $E3EE | $E468 | State_NewGameSetup | func | 123 | Entry 11: New-game setup (SramInit re-seed, menu record $0C, -> state 12) |
+| $E46A | $E4D8 | State_EventMessageScene | func | 111 | Entry 13: Event message scene |
 | $E4DA | $E51D | FrameInit | func | 68 | Per-frame setup: PPU, bank, clear working RAM |
 | $E51F | $E565 | BankSwitch | func | 71 | 8-byte config bank switch (Namco-163 PRG) |
 | $E567 | $E57D | BankSwitchTable | table | 23 | Bank switch configuration table |
@@ -37,7 +37,7 @@
 | $E753 | $E772 | PpuCtrlNmiHelpers | func | 32 | PPU ctrl/NMI helpers |
 | $E774 | $E7DD | NametableFill1 | func | 106 | Nametable fill mode 1 |
 | $E7DF | $E821 | NametableFill2 | func | 68 | Nametable fill mode 2 |
-| $E823 | $E841 | SpriteBufferInit | func | 31 | Fill sprite buffer $0200-$02FF with $F0 |
+| $E823 | $E841 | SpriteBufferInit | func | 31 | Fill $0200-$02FF with $F0; LDY #$04 at $E823 dead (Y reloaded at $E825), both entries identical |
 | $E843 | $E849 | RandomBelow100 | func | 7 | Random byte < 100 |
 | $E84B | $E84E | RandomDiv2 | func | 4 | Random byte / 2 |
 | $E850 | $E860 | RandomModPow2 | func | 17 | Random mod 4/8/16 |

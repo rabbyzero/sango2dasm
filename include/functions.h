@@ -32,7 +32,7 @@ B1F_State_SystemInit      = $E09A   ; State 0: System init, PPU setup, -> state 
 B1F_State_NewGameInit     = $E0DA   ; State 1: New game init, SRAM, music $81
 B1F_State_StrategyAiTurnFrame = $E17D   ; State 2: strategy AI turn frame (Y=$2A -> bank $0A+$0B)
 B1F_State_RulerSelect     = $E18B   ; State 3: Ruler select, scenario/normal
-B1F_State_RandomDisplay28 = $E221   ; State 4: Random + display (Y=$28)
+B1F_State_WarAiTurnFrame = $E221   ; State 4: War/tactical AI turn frame (Y=$28 -> bank $08+$09, AiTurnProcess)
 B1F_State_StrategyMode    = $E22F   ; State 5: Strategy mode, command select
 B1F_StrategyCommandLookup = $E29C   ; Strategy command display by $0544
 B1F_StrategyCommandGraphicPtrs = $E2C2 ; 7 graphic pointers for strategy commands
@@ -44,8 +44,8 @@ B1F_State_RandomAdvance2  = $E36A   ; State 8: Pure RNG advance
 B1F_DisplayInit           = $E370   ; Display init: window clear + bank display
 B1F_State_CountryMapView  = $E37C   ; State 9: Country map view
 B1F_State_IdleWait        = $E3EB   ; State 10/12/14: Idle wait, JMP dispatch
-B1F_State_AdvisorCouncil  = $E3EE   ; State 11: Advisor/council dialogue
-B1F_State_TurnSummary     = $E46A   ; State 13: Turn summary/report
+B1F_State_NewGameSetup   = $E3EE   ; State 11: New-game setup (SramInit re-seed, menu record $0C, -> state 12)
+B1F_State_EventMessageScene = $E46A   ; State 13: Event message scene (event notices / title-cancel / unification verdict)
 B1F_FrameInit             = $E4DA   ; Per-frame setup: PPU, bank, clear RAM
 
 ;-------------------------------------------------------------------------------
@@ -88,8 +88,8 @@ B1F_NmiDisable            = $E768   ; Disable NMI (clear bit 7 of PPU_CTRL)
 B1F_NametableFill1        = $E774   ; Nametable fill mode 1 (3 nametables)
 B1F_NametableFillSub      = $E7B5   ; Fill one nametable (1024 bytes)
 B1F_NametableFill2        = $E7DF   ; Nametable fill mode 2
-B1F_SpriteBufferInit      = $E823   ; Init sprite buffer from index
-B1F_SpriteBufferInitAll   = $E825   ; Fill $0200-$02FF with $F0
+B1F_SpriteBufferInit      = $E823   ; Fill $0200-$02FF with $F0 (LDY #$04 dead; same behavior as $E825)
+B1F_SpriteBufferInitAll   = $E825   ; Fill $0200-$02FF with $F0 (effective entry; fall-through target of $E823)
 B1F_SpriteClearFromIndex  = $E830   ; Clear sprites from X index
 
 ;-------------------------------------------------------------------------------
@@ -530,13 +530,13 @@ B17_18_SpriteFromTable    = $DEFA
 B1D_1E_PPUTileRender      = $A000   ; PPUTileRender_Entry: PPU tile render
 B1D_1E_MenuUpdate         = $A003   ; MenuUpdate_Entry: Menu update
 B1D_1E_VRAMBufferWrite    = $A006   ; VRAMBufferWrite_Entry: VRAM buffer write
-B1D_1E_StateHandler       = $A009   ; StateHandler_Entry: State handler
+B1D_1E_ProvinceDataWindowFrame = $A009 ; ProvinceDataWindowFrame_Entry: Province data window frame
 B1D_1E_MapDisplaySetup    = $A00C   ; MapDisplaySetup_Entry: Map display setup
 B1D_1E_OfficerListHandler = $A00F   ; OfficerListHandler_Entry: Officer list handler
 B1D_1E_FlushTileBuffer    = $A012   ; FlushTileBuffer_Entry: Upload 64-byte tile buffer to VRAM
 B1D_1E_LoadScenarioData   = $A015   ; LoadScenarioData_Entry: Copy 32 bytes from scenario table
 B1D_1E_SramInit           = $A018   ; SramInit_Entry: SRAM initialization
-B1D_1E_OfficerParamDisp   = $A01B   ; OfficerParamDisp_Entry: Officer parameter display
+B1D_1E_MenuFontRecordLoad = $A01B   ; MenuFontRecordLoad_Entry: Menu font record load
 B1D_1E_YearDisplaySetup   = $A01E   ; YearDisplaySetup_Entry: Year display setup
 B1D_1E_SlowPeriodic       = $A021   ; SlowPeriodic_Entry: Slow periodic overlay refresh
 B1D_1E_ImmediateOverlay   = $A024   ; ImmediateOverlay_Entry: Immediate overlay refresh
@@ -550,7 +550,7 @@ B1D_1E_SceneRenderer      = $A039   ; SceneRenderer_Entry: Scene renderer
 B1D_1E_DataFormatter      = $A03C   ; DataFormatter_Entry: Data formatter
 B1D_1E_MenuRenderer       = $A03F   ; MenuRenderer_Entry: Menu renderer
 B1D_1E_BankedDataHandler  = $A042   ; BankedDataHandler_Entry: Banked data handler
-B1D_1E_OfficerRecLookup   = $A045   ; OfficerRecLookup_Entry: Officer record lookup
+B1D_1E_SceneRecordLookup  = $A045   ; SceneRecordLookup_Entry: Scene record lookup
 
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $1D code ($A048-$BFFF)
@@ -576,33 +576,33 @@ B1D_1E_CmdDrawNumber      = $A3B1   ; Cmd: draw number
 B1D_1E_CmdDrawNameFromData = $A426  ; Cmd: draw name from data
 B1D_1E_CmdDrawNameFixed7  = $A4B0   ; Cmd: draw name fixed 7
 B1D_1E_CmdDrawFormattedNumber = $A53E ; Cmd: draw formatted number
-B1D_1E_DigitTileOffsetTable = $A607 ; Digit tile offset table (8 bytes)
+B1D_1E_DigitTileOffsetTable = $A607 ; MenuUpdate @DigitTileOffsetTable (8 bytes)
 B1D_1E_ClearTileBuffers   = $A60F   ; Clear tile row buffers
 B1D_1E_CalcMenuDataPtr    = $A61D   ; Calculate menu data pointer
-B1D_1E_BankPageOffsetTable = $A672  ; Bank page offset table (15 words)
+B1D_1E_BankPageOffsetTable = $A672  ; MenuUpdate @BankPageOffsetTable (15 words)
 B1D_1E_SelectDataBankByPos = $A690  ; Select data bank by position
-B1D_1E_PosDataBankTable   = $A6A7   ; Position data bank table (15 bytes)
+B1D_1E_PosDataBankTable   = $A6A7   ; MenuUpdate @PosDataBankTable (15 bytes)
 B1D_1E_YearDisplaySetup_Proc = $A6B6 ; Year display setup procedure
 B1D_1E_ProvinceDataHandler_Proc = $A830 ; Province data handler procedure
-B1D_1E_ProvinceDisplayTilemap = $A856 ; Province display tilemap
+B1D_1E_ProvinceDisplayTilemap = $A856 ; ProvinceDataHandler @ProvinceDisplayTilemap (59 bytes)
 B1D_1E_OfficerDisplay_LookupProc = $A890 ; Officer display lookup procedure
-B1D_1E_OfficerDisplayTilemap = $A8C3 ; Officer display tilemap
+B1D_1E_OfficerDisplayTilemap = $A8C3 ; OfficerDisplay_Lookup @OfficerDisplayTilemap
 B1D_1E_OfficerNameDisplay_Proc = $A8FD ; Officer name display procedure
-B1D_1E_OfficerNameTilemap = $A91D   ; Officer name tilemap
+B1D_1E_OfficerNameTilemap = $A91D   ; OfficerNameDisplay @OfficerNameTilemap
 B1D_1E_DisplayScaledName  = $A957   ; Display scaled katakana name
 B1D_1E_FormatNumberPair   = $A96F   ; Format number pair
 B1D_1E_DisplayScaledNumber = $A976  ; Display scaled number
 B1D_1E_DataFormatter_Proc = $A991   ; Data formatter procedure
 B1D_1E_DisplayData_Table  = $AB08   ; Display data table
-B1D_1E_DataFormatter_Table1 = $AA37 ; Data formatter table 1
-B1D_1E_DataFormatter_Table2 = $AA88 ; Data formatter table 2
+B1D_1E_DataFormatter_Table1 = $AA37 ; DataFormatter @DataFormatter_Table1
+B1D_1E_DataFormatter_Table2 = $AA88 ; DataFormatter @DataFormatter_Table2
 B1D_1E_BankedDataHandler_Proc = $AA37 ; Banked data handler procedure
 B1D_1E_SetupBankedData    = $AB38   ; Setup banked data
-B1D_1E_StateHandler_Proc  = $ABD2   ; State handler procedure
+B1D_1E_ProvinceDataWindowFrame_Proc = $ABD2 ; Province data window frame procedure
 B1D_1E_CountryTemplatePtrs = $AD84  ; Country template pointers (7 entries)
 B1D_1E_DrawOfficerName    = $B0AB   ; Draw officer name
 B1D_1E_RenderSubState     = $B14C   ; Render sub-state
-B1D_1E_SubStateChrTiles   = $B222   ; Sub-state CHR tiles (4 bytes)
+B1D_1E_SubStateChrTiles   = $B222   ; ProvinceDataWindowFrame @SubStateChrTiles (24 bytes)
 B1D_1E_LoadOfficerNameInfo = $B23A  ; Load officer name info
 B1D_1E_MapDisplaySetup_Proc = $B29F ; Map display setup procedure
 B1D_1E_ProvinceDetailTilemap = $B305 ; Province detail tilemap
@@ -665,10 +665,10 @@ B1D_1E_OfficerRecCalc     = $CB52   ; Officer record address calculator
 B1D_1E_ProvinceRecCalc    = $CC09   ; Province record address calculator
 B1D_1E_MenuTilemapStream  = $CC40   ; Menu tilemap data stream (large)
 B1D_1E_LoadScenarioData_Proc = $DBB1 ; Load scenario data procedure
-B1D_1E_ScenarioDataTable  = $DBCF   ; Scenario data pointer table
+B1D_1E_ScenarioRecordPtrTable = $DBCF  ; LoadScenarioData @RecordPtrTable (14 x .word, $DBCF-$DBEA)
 B1D_1E_SramInit_Proc      = $DD8B   ; SRAM init procedure
-B1D_1E_OfficerParamDisp_Proc = $DE7E ; Officer parameter display procedure
-B1D_1E_OfficerRecLookup_Proc = $DEB9 ; Officer record lookup procedure
+B1D_1E_MenuFontRecordLoad_Proc = $DE7E ; Menu font record load procedure
+B1D_1E_SceneRecordLookup_Proc = $DEB9 ; Scene record lookup procedure
 
 ;-------------------------------------------------------------------------------
 ; Banks $19+$1A - Map screen scenes (combined 16KB $A000-$DFFF)
@@ -930,7 +930,7 @@ B0A_0B_ProvinceEvalExit   = $B17D   ; Common exit -> EndTurn
 ;-------------------------------------------------------------------------------
 B0C_0D_ExchangeFrameUpdate_Entry = $A000 ; ExchangeFrameUpdate_Entry: Main frame update
 B0C_0D_ExchangeSceneInit_Entry = $A003 ; ExchangeSceneInit_Entry: Exchange scene init
-B0C_0D_OfficerTransferCalc_Entry = $A006 ; OfficerTransferCalc_Entry: Transfer calc
+B0C_0D_OfficerTransferActionDispatch_Entry = $A006 ; OfficerTransferActionDispatch_Entry: Pending transfer action dispatch
 
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $0C ($A009-$BFFF)
@@ -956,7 +956,7 @@ B0C_0D_OfficerMarchDispatch = $BE7E ; Army march dispatch (17 states)
 B0C_0D_MainLoopDispatch   = $C1FC   ; Trampoline back to frame update
 B0C_0D_ArmyDeployDispatch = $C204   ; Army deployment (7 states)
 B0C_0D_OfficerExchangeDispatch = $C691 ; Exchange init/select/exit (4 states)
-B0C_0D_OfficerTransferCalc = $C766 ; Transfer merit calc + action dispatch
+B0C_0D_OfficerTransferActionDispatch = $C766 ; Officer transfer action dispatch (8 action handlers)
 B0C_0D_OfficerExchangeConfirmDispatch = $C98C ; Exchange confirmation (6 states)
 B0C_0D_RecalcExchangeStats = $CC29 ; Ruler stat recalculation for exchange
 B0C_0D_OfficerExchangeSelectDispatch = $CD16 ; Officer selection (7 states)
@@ -1166,8 +1166,8 @@ B08_09_WarResult_SlotRecordTemplate = $DCC5 ; Template values for offsets 2-$10
 ;-------------------------------------------------------------------------------
 B0E_0F_BattleVBlankFrameUpdate_Entry = $A000 ; BattleVBlankFrameUpdate_Entry: Battle VBlank frame hook
 B0E_0F_BattleAnimSoundEngine_Entry = $A003 ; BattleAnimSoundEngine_Entry: Battle scene animation/sound engine
-B0E_0F_OfficerBattleExpLevelCheck_Entry = $A006 ; OfficerBattleExpLevelCheck_Entry: Battle exp/level-up
-B0E_0F_OfficerStatSumBattleTransfer_Entry = $A009 ; OfficerStatSumBattleTransfer_Entry: Stat-sum exp transfer
+B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry = $A006 ; OfficerBattleExpAccrueAndLevelUp_Entry: Battle exp accrual + level-up
+B0E_0F_OfficerStatSumExpGrant_Entry = $A009 ; OfficerStatSumExpGrant_Entry: Donor stat-sum experience grant
 B0E_0F_SoundPlayAlt_Entry       = $A00C  ; SoundPlayAlt_Entry: Battle sound channel alternate play entry
 
 ;-------------------------------------------------------------------------------
@@ -1322,8 +1322,8 @@ B0E_0F_PhaseATauntSceneAdvanceWait = $D6DD ; Taunt sub 1: advance wait
 B0E_0F_PhaseATauntStripRedraw   = $D72B ; Taunt overlay strip redraw helper
 B0E_0F_PhaseATauntSceneStep     = $D743 ; Taunt sub 4: scene step
 B0E_0F_PhaseATauntSceneChoice   = $D77F ; Taunt sub 5: two-row choice menu
-B0E_0F_OfficerBattleExpLevelCheck = $D7FB ; Battle experience accrual and level-up check
-B0E_0F_OfficerStatSumBattleTransfer = $D8B0 ; Donor Might+Intelligence -> recipient exp
+B0E_0F_OfficerBattleExpAccrueAndLevelUp = $D7FB ; Battle experience accrual and level-up application
+B0E_0F_OfficerStatSumExpGrant = $D8B0 ; Donor Might+Intelligence -> recipient experience
 B0E_0F_BattleAnimSoundEngine    = $D8D4 ; Battle animation script + sound engine
 B0E_0F_BattleSoundChannelProc   = $DC59 ; Sound channel processing engine
 

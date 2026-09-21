@@ -68,7 +68,7 @@ $E079: JMP ($004E)      ; Jump to entry point
 | 8 | $E36A | $6A $E3 | Random Seed Advance |
 | 9 | $E37C | $7C $E3 | Territory / Map View |
 | 10 | $E3EB | $EB $E3 | Idle / Wait State |
-| 11 | $E3EE | $EE $E3 | Advisor / Council |
+| 11 | $E3EE | $EE $E3 | New Game Setup |
 | 12 | $E3EB | $EB $E3 | Idle / Wait State (same as 10) |
 | 13 | $E46A | $6A $E4 | Turn Summary |
 | 14 | $E3EB | $EB $E3 | Idle / Wait State (same as 10) |
@@ -413,13 +413,13 @@ $E3EB: JMP $E066      ; Immediately return to dispatch
 
 ---
 
-## $E3EE: Entry 11 - Advisor / Council (~120 bytes, JMP $E066)
+## $E3EE: Entry 11 - New Game Setup (~120 bytes, JMP $E066)
 
 ```asm
 $E3EE: JSR $E4DA      ; Frame init
 $E3F1: LDA #$07
 $E3F3: STA $0078      ; Sub-state = 7
-$E3F6: LDA #$0C       ; Advisor display mode
+$E3F6: LDA #$0C       ; Menu font/display record $0C
 $E3F8: JSR $E370       ; Display init (mode $0C)
 $E3FB: LDY #$32
 $E3FD: JSR $F25F      ; Window setup
@@ -428,7 +428,7 @@ $E402: STA $000A       ; Ptr low
 $E405: LDA #$9A
 $E407: STA $000B       ; Ptr high -> $9AE3
 $E40A-$E427: Display params + render calls
-$E42A-$E437: Window + advisor dialogue ($A018)
+$E42A-$E437: Window + new-game SRAM re-init ($A018 = SramInit)
 $E43F: JSR $EAF7      ; Read controller input
 $E442-$E458: Screen update + render + bank switch
 $E459: INC $007A      ; Next state
@@ -438,7 +438,7 @@ $E461-$E467: Display updates
 $E467: JMP $E066      ; Return to dispatch
 ```
 
-**Analysis**: Advisor/council phase. Displays advisor dialogue with data from $9AE3. Uses unique bank-switched function $A018 (advisor dialogue). Sound $08. Bank switch config 2.
+**Analysis**: New-game setup (verified 2026-09; the old "advisor dialogue" reading of $A018 was wrong — $A018 is `SramInit`, which clears $6000-$6FFF and re-seeds the full new-game record area from ROM: province records from bank $10 $8C00, officer records from bank $11 $8000, year $59 (189) / month $00, AI counters reset, demo rotation index randomized). Entered from the title-menu new-game path (prg_0a_0b ClearOverlayExit $DBCE); the continue path exits earlier via ClearOverlayWait -> state 1. Advances to state 12 (IdleWait) where NmiState7_Strategy drives the menu screen. Sound $08. Bank switch config 2.
 
 ---
 
@@ -1746,7 +1746,7 @@ State 7: Battle Phase -> combat
 State 8: Random Seed Advance -> RNG refresh
 State 9: Territory / Map View -> game map
 State 10: Idle/Wait -> frame wait
-State 11: Advisor/Council -> advisor dialogue
+State 11: New Game Setup -> fresh SRAM re-seed + menu screen setup
 State 12: Idle/Wait -> frame wait
 State 13: Turn Summary -> end-of-turn report
 State 14: Idle/Wait -> frame wait

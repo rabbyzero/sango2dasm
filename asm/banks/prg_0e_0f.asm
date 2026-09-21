@@ -217,10 +217,10 @@ BattleVBlankFrameUpdate_Entry:  ; (dispatch callback target)
   JMP BattleVBlankFrameUpdate             ; $A000: 4C 0F A0
 BattleAnimSoundEngine_Entry:  ; (dispatch callback target)
   JMP BattleAnimSoundEngine                     ; $A003: 4C D4 D8
-OfficerBattleExpLevelCheck_Entry:
-  JMP OfficerBattleExpLevelCheck          ; $A006: 4C FB D7
-OfficerStatSumBattleTransfer_Entry:
-  JMP OfficerStatSumBattleTransfer          ; $A009: 4C B0 D8
+OfficerBattleExpAccrueAndLevelUp_Entry:
+  JMP OfficerBattleExpAccrueAndLevelUp    ; $A006: 4C FB D7
+OfficerStatSumExpGrant_Entry:
+  JMP OfficerStatSumExpGrant              ; $A009: 4C B0 D8
 SoundPlayAlt_Entry:
   JMP BattleSoundChannelProc::SoundPlayAlt                          ; $A00C: 4C 6E DF
 ;===============================================================================
@@ -1604,7 +1604,7 @@ Phase2DamageAnimExit:
 ; $A7C5: Phase2DamagePanelUpdate
 ; Sets up the damage-number panel update: amount $00 into $0B (high byte
 ; $0C <- 0), overlay strip buffer pointer $0560 into $0A (or $0561 for
-; cursor columns >= $0B), then submits via OfficerBattleExpLevelCheck.
+; cursor columns >= $0B), then submits via OfficerBattleExpAccrueAndLevelUp.
 ;===============================================================================
 .proc Phase2DamagePanelUpdate
 ; zero-page work cells (proc-local):
@@ -1623,7 +1623,7 @@ writer_pad     = $000C  ; writer param: 0
   LDA btl_strip_buf_b                               ; $A7D7: AD 61 05 ; strip 1 buffer ptr
 @Submit:
   STA writer_ptr                                 ; $A7DA: 85 0A
-  JSR OfficerBattleExpLevelCheck          ; $A7DC: 20 FB D7 ; exp accrual/level-up
+  JSR OfficerBattleExpAccrueAndLevelUp    ; $A7DC: 20 FB D7 ; exp accrual/level-up
 @Done:
   RTS                                     ; $A7DF: 60
 .endproc
@@ -3688,7 +3688,7 @@ marker_col     = $001B  ; marker tile column
 ; to unit troop count $05AC[$001C] (clamped at zero; on clamp the pre-damage troop count is
 ; reported instead), then feeds the damage into the acting-side strip
 ; buffer ($000A <- $0560[$0549], $000B <- damage, $000C <- 0) and exits
-; through OfficerBattleExpLevelCheck at $D7FB.
+; through OfficerBattleExpAccrueAndLevelUp at $D7FB.
 ;===============================================================================
 .proc Phase9AdvanceContactApply
 ; zero-page work cells (proc-local):
@@ -3719,7 +3719,7 @@ writer_pad     = $000C  ; writer param: 0
   LDY btl_acting_unit                               ; $B4D7: AC 49 05 ; acting side
   LDA btl_strip_buf_a,Y                             ; $B4DA: B9 60 05 ; strip buffer ptr lo
   STA a:writer_ptr                             ; $B4DD: 8D 0A 00
-  JMP OfficerBattleExpLevelCheck          ; $B4E0: 4C FB D7 ; exp accrual/level-up
+  JMP OfficerBattleExpAccrueAndLevelUp    ; $B4E0: 4C FB D7 ; exp accrual/level-up
 .endproc
 ;===============================================================================
 ; $B4E3: Phase9AdvanceDamageRoll
@@ -8773,21 +8773,26 @@ PhaseATauntChoiceCursorParams:
 ; B1F_PointerTableLookup.
   .byte $00,$07,$00,$00,$80               ; $D7F6: 00 07 00 00 80
 ;===============================================================================
-; $D7FB: OfficerBattleExpLevelCheck
-; Battle experience accrual and level-up check for a commander officer.
-; Input: $000A <- officer id (experience recipient), $000B/$000C <-
-; 16-bit amount. Bank entry OfficerBattleExpLevelCheck_Entry; also called from
-; Phase2DamagePanelUpdate ($A7DC) and Phase9AdvanceContactApply ($B4E0).
-; Halves the amount and adds it to the officer's 16-bit Experience
-; field (record bytes 6-7, capped at $C34F). The experience total is then
-; compared against the OfficerLevelExpThresholds entry for the officer's
-; current level (record byte $0B high nibble); on reaching the threshold the
-; level is bumped (byte $0B high nibble +1, low nibble preserved) and Might
-; (record byte 1) gains a diminishing bonus by current Might. The following
-; OfficerStatSumBattleTransfer (bank entry OfficerStatSumBattleTransfer_Entry) wraps this routine,
-; feeding the donor's Might + Intelligence as the amount.
+; $D7FB: OfficerBattleExpAccrueAndLevelUp
+; Accrues battle experience for an officer and applies the LevelUp when the
+; experience threshold is reached. Input: $000A <- officer id (experience
+; recipient), $000B/$000C <- 16-bit amount (credited halved, per the manual
+; roughly 1 exp point per 2 enemy soldiers defeated). Bank entry
+; OfficerBattleExpAccrueAndLevelUp_Entry; also called from
+; Phase2DamagePanelUpdate ($A7DC) and Phase9AdvanceContactApply ($B4E0), and
+; via BankedCallbackTrampoline from prg_0c_0d.asm ($A57C, $B6ED) and
+; prg_08_09.asm ($CE1E).
+; Adds the halved amount to the officer's 16-bit Experience field (record
+; bytes 6-7, capped at $C34F = 49999). The experience total is then compared
+; against the OfficerLevelExpThresholds entry for the officer's current level
+; (record byte $0B high nibble); on reaching the threshold the level is bumped
+; (byte $0B high nibble +1, low nibble preserved) and Might (record byte 1)
+; gains a diminishing MightGain bonus by current Might. Returns the new level
+; nibble in $000F ($00 = no level-up).
+; OfficerStatSumExpGrant (bank entry OfficerStatSumExpGrant_Entry) wraps this
+; routine, feeding the donor's Might + Intelligence as the amount.
 ;===============================================================================
-.proc OfficerBattleExpLevelCheck
+.proc OfficerBattleExpAccrueAndLevelUp
 ; zero-page work cells (proc-local):
 officer_id     = $000A  ; officer id (entry param)
 amount_lo      = $000B  ; exp gain amount lo (entry param, halved)
@@ -8893,15 +8898,19 @@ LevelUp:
   RTS                                     ; $D8AF: 60
 .endproc
 ;===============================================================================
-; $D8B0: OfficerStatSumBattleTransfer
-; Computes the donor officer's Might (record byte 1) + Intelligence (record
-; byte 2) sum and feeds it as the 16-bit amount to OfficerBattleExpLevelCheck.
+; $D8B0: OfficerStatSumExpGrant
+; Credits the recipient officer with experience equal to the donor officer's
+; Might (record byte 1) + Intelligence (record byte 2) sum, then falls through
+; to OfficerBattleExpAccrueAndLevelUp, which halves the amount and applies the
+; level-up. Used when an officer leaves play (record status byte $0B |= $03:
+; defeat or departure) — per the manual, defeating an enemy general grants a
+; bonus in experience points drawn from the departing officer's stat sum.
 ; Input: $000A <- recipient officer id (passed through to $D7FB, experience
 ; target), $000B <- donor officer id (stat source). Bank entry
-; OfficerStatSumBattleTransfer_Entry;
+; OfficerStatSumExpGrant_Entry;
 ; called via BankedCallbackTrampoline from prg_0c_0d.asm ($B628, $C7AD).
 ;===============================================================================
-.proc OfficerStatSumBattleTransfer
+.proc OfficerStatSumExpGrant
 ; zero-page work cells (proc-local):
 donor_work     = $000B  ; donor officer id -> transfer amount lo
 amount_hi      = $000C  ; transfer amount hi
@@ -8920,7 +8929,7 @@ rec_ptr        = $0000  ; officer record ptr (Might/Int)
   LDA a:amount_hi                             ; $D8C9: AD 0C 00
   ADC #$00                                ; $D8CC: 69 00 ; carry -> amount high
   STA a:amount_hi                             ; $D8CE: 8D 0C 00
-  JMP OfficerBattleExpLevelCheck          ; $D8D1: 4C FB D7 ; exp accrual/level-up
+  JMP OfficerBattleExpAccrueAndLevelUp    ; $D8D1: 4C FB D7 ; exp accrual/level-up
 .endproc
 ;===============================================================================
 ; $D8D4: BattleAnimSoundEngine

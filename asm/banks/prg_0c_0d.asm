@@ -27,7 +27,7 @@
 ;   $C1FC-$C203  MainLoopDispatch - trampoline back to frame update
 ;   $C204-$C690  ArmyDeployDispatch - army deployment (7 sub-states)
 ;   $C691-$C765  OfficerExchangeDispatch - exchange init/select/exit
-;   $C766-$C98B  OfficerTransferCalc - transfer merit + action dispatch
+;   $C766-$C98B  OfficerTransferActionDispatch - pending transfer action dispatch
 ;   $C98C-$CC28  OfficerExchangeConfirmDispatch - confirmation screen
 ;   $CC29-$CD15  RecalcExchangeStats - ruler stat recalculation
 ;   $CD16-$D2CC  OfficerExchangeSelectDispatch - officer selection (7 states)
@@ -213,8 +213,8 @@ officer_select_flg  = $0580  ; officer selection flags base (32 bytes)
 ; Global-scope equates for cross-proc JSRs to inner labels that are
 ; referenced forward (ca65 cannot resolve forward Proc::Label refs
 ; from inside a nested .proc scope).
-AdjustStatsForY    = OfficerTransferCalc::AdjustStatsForY
-AdjustStatsByIndex = OfficerTransferCalc::AdjustStatsByIndex
+AdjustStatsForY    = OfficerTransferActionDispatch::AdjustStatsForY
+AdjustStatsByIndex = OfficerTransferActionDispatch::AdjustStatsByIndex
 
 .segment "CODE_BANK0C"
 
@@ -222,8 +222,8 @@ ExchangeFrameUpdate_Entry:
   JMP ExchangeFrameUpdate               ; $A000: 4C 09 A0
 ExchangeSceneInit_Entry:
   JMP ExchangeScene_Init               ; $A003: 4C 99 DC
-OfficerTransferCalc_Entry:
-  JMP OfficerTransferCalc               ; $A006: 4C 66 C7
+OfficerTransferActionDispatch_Entry:
+  JMP OfficerTransferActionDispatch               ; $A006: 4C 66 C7
 ExchangeFrameUpdate:
   JSR UpdateExchangeSfx                 ; $A009: 20 88 DF
   LDY #$28                              ; $A00C: A0 28
@@ -984,7 +984,7 @@ OfficerTransfer_SetupResult:
   LDY #$2E                              ; $A577: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $A579: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B0E_0F_OfficerBattleExpLevelCheck_Entry ; $A57C: $06 A0
+  .word B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry ; $A57C: $06 A0
   JSR CalcOfficerMeritLevels              ; $A57E: 20 03 DB
   LDA $0509                                   ; $A581: AD 09 05
   STA $050A                                   ; $A584: 8D 0A 05
@@ -3167,7 +3167,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDY #$2E                              ; $B628: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $B62A: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B0E_0F_OfficerStatSumBattleTransfer_Entry ; $B62D: $09 A0
+  .word B0E_0F_OfficerStatSumExpGrant_Entry ; $B62D: $09 A0
   LDY $0509                                   ; $B62F: AC 09 05
   LDA $0664,Y                                 ; $B632: B9 64 06
   STA officer_sel_list+6                                   ; $B635: 8D 32 04
@@ -3273,7 +3273,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDY #$2E                              ; $B6E8: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $B6EA: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B0E_0F_OfficerBattleExpLevelCheck_Entry ; $B6ED: $06 A0
+  .word B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry ; $B6ED: $06 A0
   RTS                                         ; $B6EF: 60
 .endproc
 
@@ -5421,8 +5421,8 @@ FindOfficerInRoster:
 @FindDone:
   RTS                                   ; $C765: 60
 
-.proc OfficerTransferCalc
-; --- Transfer two officers (from $0514/$0516 with actions $0515/$0517) ---
+.proc OfficerTransferActionDispatch
+; --- Execute pending officer-transfer actions (parties $0514/$0516, actions $0515/$0517) ---
   JSR CalcOfficerMeritLevels            ; $C766: 20 03 DB
   LDA $0514                             ; $C769: AD 14 05
   JSR FindOfficerInRoster               ; $C76C: 20 5B C7
@@ -5465,7 +5465,7 @@ FindOfficerInRoster:
   LDY #$2E                              ; $C7AD: A0 2E
   JSR B1F_BankedCallbackTrampoline      ; $C7AF: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B0E_0F_OfficerStatSumBattleTransfer_Entry ; $C7B2: $09 A0
+  .word B0E_0F_OfficerStatSumExpGrant_Entry ; $C7B2: $09 A0
   PLA                                         ; $C7B4: 68
   TAY                                         ; $C7B5: A8
   TYA                                         ; $C7B6: 98
