@@ -81,6 +81,8 @@ The four modes nest; they are not peers:
 | 山軍 | sangun | MountainArmy |
 | 水軍 | suigun | NavalArmy |
 | 兵数 | heisuu | TroopCount |
+| 位置 | ichi | LocationProvince (officer record `+5`, runtime province id) |
+| 状態 | joutai | OfficerStatus (record `+11` bits 0-1: 0 在野 free, 1 hidden, 2 rostered, 3 out of action) |
 | 現役 | gen'eki | ActiveTroops |
 | 控え | hikae | ReserveTroops |
 | 武器 / 防具 | buki / bougu | Weapon / Armor |

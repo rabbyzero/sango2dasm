@@ -326,12 +326,12 @@ as `GetProvinceRuntimePtr` returning the pointer in `($20)`; `prg_0a_0b`
 | `+$06/$07` | 2 | Population 人口 (16-bit LE, **stored ÷ 100** — the province panel appends two `0` tiles), capped at 9999 = 999,900 people. Target of the human `CastleDev` population route and AI `@AiAction_TownDevelopment`. (Earlier revisions mislabeled this "Morale" — no such stat exists in the manual) |
 | `+$08/$09` | 2 | LandValue 土地 (16-bit LE), capped at 999 — target of `CastleDev` land route and AI `@AiAction_LandReclamation` (month-gated April–August) |
 | `+$0A` | 1 | DisasterPrevention 防災, capped at 99 — target of `CastleDev` disaster route and AI `@AiAction_DisasterPrevention` |
-| `+$0B` | 1 | Governance 統治度, capped at 100; below 50 the annual check rolls a revolt. Every development action bumps this byte (`CastleDevFieldAddCapped`, AI `@AddGovernanceBump_Small/Large`, `@AiAction_GovernanceBoost`) |
+| `+$0B` | 1 | Governance 統治度, capped at 100; below 50 the annual check rolls a rebellion. Every development action bumps this byte (`CastleDevFieldAddCapped`, AI `@AddGovernanceBump_Small/Large`, `@AiAction_GovernanceBoost`) |
 | `+$0C/$0D` | 2 | ReserveTroops 控え (16-bit LE), capped at 10000 (`$2710`, checked by `ValidateRecordGold` `$D688`). Troop assignment (`@AiDev_Main`, max 1000 per officer) draws from and tracks investment in this pool |
 | `+$0E/$0F` | 2 | Industry 産業 (16-bit LE), capped at 999 — target of `CastleDev` industry route and AI `@AiAction_IndustryDevelopment` |
 | `+$10` | 1 | Treasure 宝, capped at 99; 0 in the ROM seed |
 | `+$11-$1A` | 10 | Officer roster: 10 officer-id slots, `$FF` = empty. `CountRecordSlots` (`$D304`) counts non-`$FF` entries; `CompactRecordSlots` (`$D3DD`) removes `$FF` gaps in place |
-| `+$1B` | 1 | RevoltCooldown (months, set on a revolt; 0 in the ROM seed) |
+| `+$1B` | 1 | RebellionCooldown (months, set on a rebellion; 0 in the ROM seed) |
 | `+$1C-$1F` | 4 | always 0 in the ROM seed (runtime fields) |
 
 Layout verified against the ROM seed table (bank `$30`, `$8C00`, 32 B/record) in
@@ -355,18 +355,20 @@ individual fields: `A` = officer id, `Y` = field offset.
 | `+2` | 知力 Intelligence |
 | `+3` | 忠誠度 Loyalty (dynamic, clamped to `[10, 90]`; the ROM seed uses `100` to mark the seven playable rulers) |
 | `+4` | 人徳 Virtue |
-| `+5` | unidentified; always `0` in the ROM seed, so it is a runtime-only field |
+| `+5` | 位置 LocationProvince (province id `$00-$2D`; runtime-only, `0` in the ROM seed — written on defection/relocation, e.g. `prg_0a_0b` `$CBE4`, `prg_19_1a` `$C0A1`) |
 | `+6/+7` | 経験値 Experience, 16-bit LE |
 | `+8/+9` | 兵数 TroopCount, 16-bit LE |
 | `+10` | equipment, packed: bits 0-4 = 武器 Weapon, bits 5-7 = 防具 Armor |
-| `+11` | bits 4-7 = レベル OfficerLevel (0-based; the UI shows level+1), bits 0-3 = 軍の属性 ArmyAffinity |
+| `+11` | bits 4-7 = レベル OfficerLevel (0-based; the UI shows level+1), bits 2-3 = 軍の属性 ArmyAffinity, bits 0-1 = status (`0` 在野 free, `1` hidden/not-yet-appeared, `2` rostered to a province, `3` out of action — dead/removed, triggers ruler succession; set via `ORA #$03` in `OfficerKill` `prg_19_1a` `$BDCA`, death checked at `prg_0a_0b` `$CA43` `@RulerAlreadyDead`) |
 
 The `+6`-through-`+11` decode is confirmed against the manual's 呂布 duel data
 (`docs/manual_kb/10-duel-mode.md`: 武99 知17 忠30 徳10, レベル4, 山軍,
 方天画戟, 甲冑), which is exactly what ROM record 218 yields. ArmyAffinity is
-`(nibble - 1) / 4` → `0` 平軍 / `1` 山軍 / `2` 水軍; the ROM only ever stores
-nibbles `1,2,5,6,9,10` and the distinction inside each pair is not yet
-identified. Weapon and armor code tables are listed in `docs/officer_data.md`.
+`(nibble - 1) / 4` → `0` 平軍 / `1` 山軍 / `2` 水軍; equivalently the
+battle AI reads bits 2-3 directly (`prg_0e_0f` `@OrderResolve` `$D110`:
+`LSR LSR AND #$03`). The ROM only ever stores nibbles `1,2,5,6,9,10`
+and the distinction inside each pair is not yet identified. Weapon and
+armor code tables are listed in `docs/officer_data.md`.
 Field names follow `docs/manual_kb/terminology.md`.
 
 The 240-slot capacity follows from the geometry `($6F00 - $63C0) / 12` and is
@@ -406,7 +408,7 @@ officer's decoded starting record.
 | `$6F5E` | — | province index cursor for the AI turn scan |
 | `$6F5F-$6F62` | — | AI action weights `$6F5F-$6F61` seeded by 0a_0b `InitWorkAreas` from AiWeight*Base[level*8+player] + AiWeight*TierAdj[level*4+tier] (tier from `AiCountExpansionRoom` border/officer-slot ratio), consumed by the weighted-random `AiActionChoose`; global phase `$6F62` |
 | `$6F72` | — | selected candidate officer id |
-| `$6F73-$6F82` | — | AI work area, cleared before each decision pass. `$6F73[0..7]` = per-owner "has active provinces" marks (`$FF` = none, `$00` = has provinces; a helper counts the `$00` entries in `$6F73[0..6]`). Dual-use inside 0a_0b `InitNewGameContext`: `$6F73/$6F74` and `$6F75/$6F76` are 16-bit army-pool accumulators distributed over the `$066E` / `$0664` rosters. `AiAction_ContinueTurn` reuses `$6F73-$6F7C` as per-slot processed markers for the officer-slot scans `$11-$1A` (cleared to `$FF` each pass, picked slots marked `$00` so retries skip them) |
+| `$6F73-$6F82` | — | AI work area, cleared before each decision pass. `$6F73[0..7]` = per-owner "has active provinces" marks (`$FF` = none, `$00` = has provinces; a helper counts the `$00` entries in `$6F73[0..6]`). Dual-use inside 0a_0b `SettleStagedOfficers`: `$6F73/$6F74` and `$6F75/$6F76` are 16-bit army-pool accumulators distributed over the `$066E` / `$0664` rosters. `AiAction_ContinueTurn` reuses `$6F73-$6F7C` as per-slot processed markers for the officer-slot scans `$11-$1A` (cleared to `$FF` each pass, picked slots marked `$00` so retries skip them) |
 | `$6F7B-$6F82` | — | transfer/claim buffer, 8 bytes, initialised to `$FF` = unclaimed |
 | `$6F83` | — | per-country action counter (`$6F83,X`); after `$1E` actions the global phase advances |
 | `$6F8B` | `sram_game_start_flag` | **Strategy-layer request mailbox** — the main cross-bank handshake. Strategy banks `$0A/$0B` post a request code and spin-wait; map-screen frame state 9 (banks `$19/$1A`, `$C773-$CD8B`, 16-entry sub-state table at `$C779`) polls it and acknowledges by writing `$01`. Codes: `$FF` turn complete (posted by `$08/$09`), `$FE` battle pending, `$FD` fully absorbed, `$FC` absorption result, `$FB`/`$FA`/`$F9` strategy actions, `$F8` absorption variant. Parameters travel in zero page `$0038-$0043`. Also set to `$FF` at new game. See `memory/project_tech_stack/strategy-layer-request-mailbox-protocol.md` |
@@ -477,11 +479,14 @@ seeded `$AA`. They are only reachable from the anti-piracy path of
 
 - Province record fields `+$01`, `+$04/$05`, `+$0C/$0D`, `+$10`, `+$1B-$1F` are
   still unidentified.
-- Officer record field `+5` has no known meaning; it is `0` in every ROM seed
-  record, so it is written only at runtime. Within the `+11` army-affinity
-  nibble, the pairing (`1`/`2`, `5`/`6`, `9`/`10`) is likewise unexplained.
+- Officer record field `+5` is decoded as 位置 LocationProvince (runtime
+  writes/reads verified; see `docs/officer_data.md`). Within the `+11`
+  army-affinity nibble, the pairing (`1`/`2`, `5`/`6`, `9`/`10`) is still
+  unexplained.
 - Officer starting province and appearance year are not part of the 12-byte
-  master record; the scenario table that holds them has not been located.
+  master record; they live in the arrival schedule at bank `$31` `$8B1C`
+  (ten (officer id, appear year) pairs per province, stride `$14`, walked by
+  `OfficerArrivalScan` `prg_19_1a` `$B964`).
 - The officer *slot* count (240) is derived from the geometry of
   `$63C0-$6EFF`, not from a loop bound; the officer count proper is 237.
 - `$0600-$06FF` is documented both as war unit columns (`prg_08_09`) and as the
@@ -495,9 +500,9 @@ seeded `$AA`. They are only reachable from the anti-piracy path of
 
 - `tools/verify_0e_0f.py` — assembles `prg_0e_0f` in isolation, 16384 bytes, 0
   mismatches vs `rom/prg/prg_0e.bin` + `prg_0f.bin`.
-- `tools/tmp_verify_ram_syms.py` — byte parity for `prg_08_09` after RAM symbol
+- `tools/verify_ram_syms.py` — byte parity for `prg_08_09` after RAM symbol
   conversion (bank08 keeps a pre-existing `$BAF4+` drift, bank09 clean).
-- `tools/tmp_verify2_1f.py` — equate-aware verification for `prg_1f`.
+- `tools/verify_1f.py` — equate-aware verification for `prg_1f`.
 - Cautions: zp-encoded operands (`A5`-style) must stay zp and absolute-encoded
   zero-page operands must keep the `a:` prefix — changing either shifts all
   later bytes (see `code/prg_0e_0f_ram_map.md`).

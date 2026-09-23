@@ -18,12 +18,12 @@
 .global DataRecordLookup_Entry
 .global DistanceClamp_Entry
 .global InitWorkAreas
-.global NameTable
+.global CoverRiceShortfall
 .global StrategyAiTurnDispatch
 .global FindAbsorptionSource
 .global AiCountExpansionRoom
 .global AiActionChoose
-.global TileRender
+.global CoverGoldShortfall
 .global ArmyValueCalc
 .global CallStrategyModeDisplay
 .global ClearOverlay
@@ -44,10 +44,10 @@
 
 .global DispatchOfficerArmies
 .global LevelTierDispatch
-.global CalcArmyTierAndRender
-.global CalcTierWorkPtr
-.global ResolveCountryAbsorb
-.global InitNewGameContext
+.global CalcArmyTierAndCosts
+.global CalcExpeditionCosts
+.global ResolveProvinceConquest
+.global SettleStagedOfficers
 .global EvalProvinceAbsorption
 .global AbsorbPreview
 .global TransferProvinceValues
@@ -191,8 +191,8 @@ DistanceClamp_Entry:
 ; (State_StrategyAiTurnFrame -> B0A_0B_StrategyAiTurnDispatch_Entry $A000).
 ; Gates on the $6F8B strategy-layer request mailbox:
 ;   negative ($F8-$FF notices / battle pending / turn complete) -> RTS
-;   $01 -> game-start context init: JMP InitNewGameContext (new-scenario
-;          setup or post-conquest continue, selected by $6F8C)
+;   $01 -> staged-officer settlement: JMP SettleStagedOfficers (war/march
+;          aftermath, placement path selected by $6F8C)
 ;   otherwise -> the AI turn officer phase $A01E-$A035 (part of the strategy
 ;          AI decision tree; re-entered at $A021 by the bank-$0B display
 ;          callback CallStrategyModeDisplay), then the AI turn-cycle counter
@@ -209,7 +209,7 @@ DistanceClamp_Entry:
   CMP #$01                                            ; $A014: C9 01
   BNE @NotOne                                         ; $A016: D0 06  != $01 -> AI turn path
   JSR BuildAdjacencyBitmap                                       ; $A018: 20 CB D4
-  JMP InitNewGameContext                              ; $A01B: 4C D7 A8  game start: new-scenario / post-conquest context init
+  JMP SettleStagedOfficers                            ; $A01B: 4C D7 A8  settle staged officers (war/march aftermath)
 @NotOne:
   JSR BuildAdjacencyBitmap                                       ; $A01E: 20 CB D4  ; rebuild province adjacency bitmap
 AiOfficerPhaseEntry: JSR AiOfficer_RulerToFrontier                       ; $A021: 20 0E C5  ; move ruler to best enemy-bordering own province
@@ -515,8 +515,8 @@ AiWeightLoopTierAdj:
 ;      b. Raise min-officer threshold (+3, cap 10)
 ;      c. FindAbsorptionSource   - if source province officer count is below threshold
 ;      d. DispatchOfficerArmies  - process officer army fields
-;      e. LevelTierDispatch    - calc army tier & render
-;      f. ResolveCountryAbsorb   - execute conquest
+;      e. LevelTierDispatch    - calc army tier & costs
+;      f. ResolveProvinceConquest - execute province conquest & stage war
 ;===============================================================================
 .proc AiAction_ExpandProvinces
   LDA $6F02                                           ; $A1C5: AD 02 6F  ; game level
@@ -578,8 +578,8 @@ AiWeightLoopTierAdj:
   JSR FindAbsorptionSource                            ; $A230: 20 03 A3  ; find better source
 @skipSearch:
   JSR DispatchOfficerArmies                           ; $A233: 20 5C A4  ; process officer armies
-  JSR LevelTierDispatch                             ; $A236: 20 BC A6  ; calc army tier & render
-  JSR ResolveCountryAbsorb                              ; $A239: 20 9C A7  ; execute conquest
+  JSR LevelTierDispatch                             ; $A236: 20 BC A6  ; calc army tier & costs
+  JSR ResolveProvinceConquest                           ; $A239: 20 9C A7  ; execute conquest
 @done:
   RTS                                                 ; $A23C: 60
 .endproc
@@ -1027,7 +1027,7 @@ CompareValues:
   LDA a:province_idx                                    ; $A4FE: AD 3A 00
   JSR DeductRecordStat2                                       ; $A501: 20 6F D3
   BCS @PostRender                                     ; $A504: B0 0F
-  JSR TileRender                                  ; $A506: 20 5C A5
+  JSR CoverGoldShortfall                          ; $A506: 20 5C A5
   BCS @PostRender                                     ; $A509: B0 0A
   PLA                                                 ; $A50B: 68
   PLA                                                 ; $A50C: 68
@@ -1074,10 +1074,14 @@ CompareValues:
 
 
 ;===============================================================================
-; $A55C: TileRender
-; Render tile row to PPU
+; $A55C: CoverGoldShortfall
+; Gold-solvency helper for the AI expedition (historically misnamed
+; "TileRender"). Scans the acting country's provinces (excluding launch
+; province $003A) for the poorest gold pair record[$02/$03] above the 100
+; floor, skims 100 (or down to the floor) into the launch province, spends
+; 2 action-budget points and returns SEC for the caller to retry.
 ;===============================================================================
-.proc TileRender
+.proc CoverGoldShortfall
   math_acc_lo              = $0020
   work_outer_idx           = $0036
   work_limit_a             = $003A
@@ -1178,10 +1182,13 @@ CompareValues:
 .endproc
 
 ;===============================================================================
-; $A60C: NameTable
-; Find player province, calculate screen position, setup scroll and display window
+; $A60C: CoverRiceShortfall
+; Rice-solvency helper (historically misnamed "NameTable"). Same scan as
+; CoverGoldShortfall but on the rice pair record[$04/$05]: skims 100 from
+; the poorest own province above the 100 floor into the launch province,
+; spends 2 action-budget points, SEC = retried by the caller.
 ;===============================================================================
-.proc NameTable
+.proc CoverRiceShortfall
   math_acc_lo              = $0020
   work_outer_idx           = $0036
   work_limit_a             = $003A
@@ -1270,23 +1277,25 @@ CompareValues:
 
 ;===============================================================================
 ; $A6BC: LevelTierDispatch
-; Thin wrapper that calls CalcArmyTierAndRender to determine army tier
-; and process army strength costs/rendering based on the game level.
+; Thin wrapper that runs the attack-tier roll (CalcArmyTierAndCosts):
+; committed officer count and expedition costs for the acting level.
 ;===============================================================================
 .proc LevelTierDispatch
 
-  JSR CalcArmyTierAndRender                           ; $A6BC: 20 C9 A6
+  JSR CalcArmyTierAndCosts                            ; $A6BC: 20 C9 A6
   RTS                                                 ; $A6BF: 60
 .endproc
 
 ;===============================================================================
-; $A6C9: CalcArmyTierAndRender
-; Determines action tier (1-4) using a per-level threshold
-; table, computes army cost values (tier * 120, tier * 100 ± random delta),
-; then loops subtracting costs from province records and rendering tiles.
-; If rendering fails (carry set), unwinds stack and JMPs AiAction_LoopTramp.
+; $A6C9: CalcArmyTierAndCosts
+; Rolls the attack tier k (1-4) from random(100) against the per-level
+; threshold table, committed officers m = max(1, N - k), then computes
+; expedition costs (CalcExpeditionCosts) and runs the gold/rice solvency
+; loops (CoverGoldShortfall / CoverRiceShortfall top-ups).
+; If a top-up finds no donor province, unwinds 4 returns and JMPs
+; AiAction_LoopTramp (conquest aborted).
 ;===============================================================================
-.proc CalcArmyTierAndRender
+.proc CalcArmyTierAndCosts
   ThresholdTable:                                      ; $A6C0: 9 bytes, 3 rows x 3 cols
     .byte $1E,$14,$0A                                  ; $A6C0: tier thresholds col 0
     .byte $3C,$32,$28                                  ; $A6C3: tier thresholds col 1
@@ -1329,8 +1338,8 @@ CompareValues:
   BEQ @ClampResult                                    ; $A6FD: F0 03
   STA a:$0037                                         ; $A6FF: 8D 37 00
 @ClampResult:
-  JSR CalcTierWorkPtr                                 ; $A702: 20 4A A7
-@RenderLoop:
+  JSR CalcExpeditionCosts                             ; $A702: 20 4A A7
+@GoldSolvencyLoop:
   LDA a:$003A                                         ; $A705: AD 3A 00
   JSR GetProvinceOwner                                       ; $A708: 20 05 D1
   LDY #$02                                            ; $A70B: A0 02
@@ -1340,15 +1349,15 @@ CompareValues:
   INY                                                 ; $A713: C8
   LDA ($20),Y                                         ; $A714: B1 20
   SBC a:$003E                                         ; $A716: ED 3E 00
-  BCS @SubtractLimitB                                 ; $A719: B0 0C
-  JSR TileRender                                      ; $A71B: 20 5C A5
-  BCS @RenderLoop                                     ; $A71E: B0 E5
+  BCS @RiceSolvencyCheck                              ; $A719: B0 0C
+  JSR CoverGoldShortfall                              ; $A71B: 20 5C A5
+  BCS @GoldSolvencyLoop                               ; $A71E: B0 E5
   PLA                                                 ; $A720: 68
   PLA                                                 ; $A721: 68
   PLA                                                 ; $A722: 68
   PLA                                                 ; $A723: 68
   JMP AiAction_LoopTramp                             ; $A724: 4C C7 BE
-@SubtractLimitB:
+@RiceSolvencyCheck:
   LDA a:$003A                                         ; $A727: AD 3A 00
   JSR GetProvinceOwner                                       ; $A72A: 20 05 D1
   LDY #$04                                            ; $A72D: A0 04
@@ -1359,8 +1368,8 @@ CompareValues:
   LDA ($20),Y                                         ; $A736: B1 20
   SBC a:$003C                                         ; $A738: ED 3C 00
   BCS @Exit                                           ; $A73B: B0 0C
-  JSR NameTable                                       ; $A73D: 20 0C A6
-  BCS @SubtractLimitB                                 ; $A740: B0 E5
+  JSR CoverRiceShortfall                              ; $A73D: 20 0C A6
+  BCS @RiceSolvencyCheck                              ; $A740: B0 E5
   PLA                                                 ; $A742: 68
   PLA                                                 ; $A743: 68
   PLA                                                 ; $A744: 68
@@ -1371,14 +1380,14 @@ CompareValues:
 .endproc
 
 ;===============================================================================
-; $A74A: CalcTierWorkPtr
-; Computes two 16-bit work values from the tier count:
-;   limit_b = tier * 120 (army cost upper bound)
-;   limit_a = tier * 100 (gold cost base)
-; Then applies a random delta (±random(100)) to limit_a for variation.
-; Outputs: $003B/$003C = limit_b (16-bit), $003D/$003E = limit_a ± delta
+; $A74A: CalcExpeditionCosts
+; Computes the AI expedition cost pair from the committed officer count
+; ($0037 = m, set by CalcArmyTierAndCosts):
+;   riceCost = m * 120                 -> $003B/$003C
+;   goldCost = m * 100 ± random(0..99) -> $003D/$003E
+;             (sign from B1F_RandomByte2 bit7)
 ;===============================================================================
-.proc CalcTierWorkPtr
+.proc CalcExpeditionCosts
   work_inner_idx           = $0037
   work_limit_a             = $003A
   work_limit_b             = $003B
@@ -1413,7 +1422,7 @@ CompareValues:
   LDA $2B                                             ; $A782: A5 2B
   SBC #$00                                            ; $A784: E9 00
   STA a:$003E                                         ; $A786: 8D 3E 00
-  JMP @DeadTarget                                     ; $A789: 4C 9B A7
+  JMP @Done                                           ; $A789: 4C 9B A7
 @PositiveDelta:
   LDA $2A                                             ; $A78C: A5 2A
   CLC                                                 ; $A78E: 18
@@ -1422,25 +1431,42 @@ CompareValues:
   LDA $2B                                             ; $A794: A5 2B
   ADC #$00                                            ; $A796: 69 00
   STA a:$003E                                         ; $A798: 8D 3E 00
-@DeadTarget:
+@Done:
   RTS                                                 ; $A79B: 60
 .endproc
 
 
 ;===============================================================================
-; $A79C: ResolveCountryAbsorb
-; Executes a country absorption (conquest) between attacker A ($003A) and
-; defender B ($0038). Workflow:
-;   1. Subtract army/gold costs ($003B-$003E) from A's province record
-;   2. Fill buffer $0600-$0678 with $FF (clear staging area)
-;   3. Extract best-scoring officers from A's slots into $066E buffer
-;   4. Extract B's remaining officers into $0664 buffer
-;   5. Copy B's position/stats to display RAM ($0500-range)
-;   6. Set game-start flag $6F8B:
-;      - $FE if defender has remaining forces (battle pending)
-;      - $FD if fully absorbed (call SumEnemyRecords)
+; $A79C: ResolveProvinceConquest
+; Executes the conquest of the enemy Province $0038 (staged by
+; AiAction_ExpandProvinces) and stages the follow-up war against the country
+; that owns it. The attacking army musters from launch Province $003A.
+; Workflow:
+;   1. Pay the expedition from the launch Province: gold [$02/$03] -= $003D/E,
+;      rice [$04/$05] -= $003B/C (no underflow guard - pairs may wrap)
+;   2. Fill staging $0600-$0678 with $FF
+;   3. Extract the top-m ($0037) launch officers into the attacker column
+;      $066E, score = might/2 + loyalty (record[1]/2 + record[3]); officers
+;      with loyalty 100 are SKIPPED by a dead branch (BEQ @UpdateBest lands on
+;      an empty label - the intended auto-best body is missing). Each picked
+;      slot is emptied; ends with CompactRecordSlots on the launch Province
+;   4. Capture the target Province's whole roster ($11-$1A) into the defender
+;      column $0664, emptying the slots
+;   5. Seize the target's stocks into the war pools: gold [$02/$03] ->
+;      $0526/$0527, rice [$04/$05] -> $0522/$0523; zero the pairs
+;   6. Stage war params: $0507 = actingCountry<<4 | targetOwner,
+;      $050E = target Province, $0402 = launch Province, $0524/$25 = riceCost,
+;      $0528/$29 = goldCost
+;   7. Branch on the owning country's control byte record[$03] (both exits
+;      2x PLA, skipping the rest of AiAction_ExpandProvinces):
+;      - == $03 computer ruler -> SumWarSideStrengths + $6F8B = $FD: the
+;        province conquest settles instantly, no tactical war scene
+;      - otherwise human ruler -> $6F8B = $FE war pending: the tactical war
+;        scene launches and the human defends
+;   Country destruction / ruler succession is NOT done here; it happens later
+;   in the settlement pass (SettleStagedOfficers -> ProcessRulerSuccession).
 ;===============================================================================
-.proc ResolveCountryAbsorb
+.proc ResolveProvinceConquest
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_ext                 = $0024
@@ -1593,10 +1619,10 @@ CompareValues:
   LDA a:$0038                                         ; $A8AE: AD 38 00
   JSR GetProvinceOwner                                       ; $A8B1: 20 05 D1
   JSR GetCountryRecordPtr                                      ; $A8B4: 20 19 D3
-  LDY #$03                                            ; $A8B7: A0 03
+  LDY #$03                                            ; $A8B7: A0 03  ; defender control byte record[$03]
   LDA ($24),Y                                         ; $A8B9: B1 24
-  CMP #$03                                            ; $A8BB: C9 03
-  BEQ @Finalize                                       ; $A8BD: F0 0D
+  CMP #$03                                            ; $A8BB: C9 03  ; $03 = computer ruler?
+  BEQ @Finalize                                       ; $A8BD: F0 0D  ; AI vs AI: absorb instantly, no war scene
   PLA                                                 ; $A8BF: 68
   PLA                                                 ; $A8C0: 68
   LDA #$FE                                            ; $A8C1: A9 FE
@@ -1605,7 +1631,7 @@ CompareValues:
   STA $6F8D                                           ; $A8C8: 8D 8D 6F  ; reset absorption adjustment parameter
   RTS                                                 ; $A8CB: 60
 @Finalize:
-  JSR InitNewGameContext::SumEnemyRecords              ; $A8CC: 20 D5 AC
+  JSR SumWarSideStrengths                                   ; $A8CC: 20 D5 AC
   PLA                                                 ; $A8CF: 68
   PLA                                                 ; $A8D0: 68
   LDA #$FD                                            ; $A8D1: A9 FD
@@ -1615,9 +1641,34 @@ CompareValues:
 
 
 ;===============================================================================
-; $A8D7: InitNewGameContext
+; $A8D7: SettleStagedOfficers
+; Settles the staged officer columns $0664/$066E left by a completed war or
+; officer march. Entered ONLY via the strategy mailbox $01 (posted by
+; WarPhaseHandoff prg_19_1a $CB7B after the war-report menus, or by
+; MoveState_CheckStart prg_0c_0d $A528 on march completion) through
+; StrategyAiTurnDispatch $A01B. Mode byte $6F8C selects the placement path:
+;   $00 = attacker conquered the war province (ApplyScenarioDeductions runs,
+;        @PlaceColumnsConquest + owner flip at $A906)
+;   nonzero = province held / march arrival (@PlaceColumnsHeld, no flip)
+; Workflow:
+;   1. @ApplyTroopAttrition $A91F: every column officer keeps
+;      troops x Vitality/100 (record[0]); losses -> pools $6F73-$6F76
+;   2. @CountColumnsMarkCasualties $A9CC: count columns into $003C/$003D;
+;      per side with >= 5 officers, floor(count/4) WEAKEST (might+intellect,
+;      loyalty-100 exempt) die via @FindWeakestSlot (status = 3), +120 each
+;      to the side pool
+;   3. GrantWarExperience $AF9C: (pool + 120xCasualties) / survivors / 2 ->
+;      experience record[6/7] (cap $C34F); DistribLevelThresholds $B0BC
+;      level-ups (max 14) grant +1 might/record[5]/virtue/intellect
+;   4. @DeductWarSupplies $AC67: consumption = (sumTroops/100) x 4x$6F8D/10
+;      paid from the seized rice pool / expedition rice budget; bracket
+;      shaves; remainders written back into the province's stocks
+;   5. placement (see $6F8C above), then FindCountryProvinceOfOfficer and
+;      JMP ProcessRulerSuccession for the post-war succession pass
+; (Formerly misnamed InitNewGameContext - it initializes no new game; the
+; old name came from misreading $6F8C == 0 as "new-game setup".)
 ;===============================================================================
-.proc InitNewGameContext
+.proc SettleStagedOfficers
   math_acc_lo              = $0020
   math_acc_mlo             = $0021
   math_acc_mhi             = $0022
@@ -1636,21 +1687,21 @@ CompareValues:
   work_search_result       = $0041
   sram_current_country     = $6F03
 
-  LDA $6F8C                                           ; $A8D7: AD 8C 6F  new game flag (0=new)
-  BNE @SkipNewGamePrep                                ; $A8DA: D0 03
+  LDA $6F8C                                           ; $A8D7: AD 8C 6F  settlement mode (0 = conquered war province)
+  BNE @SkipScenarioDeductions                         ; $A8DA: D0 03
   JSR ApplyScenarioDeductions                         ; $A8DC: 20 68 CD
-@SkipNewGamePrep:                                     ; $A8DF
+@SkipScenarioDeductions:                              ; $A8DF
   LDA a:$0038                                         ; $A8DF: AD 38 00
   JSR GetProvinceOwner                                       ; $A8E2: 20 05 D1
   STA a:$003E                                         ; $A8E5: 8D 3E 00
-  JSR @ClearGameStateVars                             ; $A8E8: 20 1F A9
-  JSR @CountRecords                                       ; $A8EB: 20 CC A9
-  JSR @AdjustGold                                     ; $A8EE: 20 9C AF
+  JSR @ApplyTroopAttrition                            ; $A8E8: 20 1F A9
+  JSR @CountColumnsMarkCasualties                         ; $A8EB: 20 CC A9
+  JSR GrantWarExperience                              ; $A8EE: 20 9C AF
   LDA $6F8C                                           ; $A8F1: AD 8C 6F
-  BNE @ContinueGamePath                               ; $A8F4: D0 1D
-  ; --- New game path ---
-  JSR @PlaceNewArmies                                       ; $A8F6: 20 80 AA
-  JSR @SubtractBattleCosts                                       ; $A8F9: 20 67 AC
+  BNE @HeldOrMarchPath                                ; $A8F4: D0 1D
+  ; --- Conquest path ($6F8C == 0) ---
+  JSR @PlaceColumnsConquest                                 ; $A8F6: 20 80 AA
+  JSR @DeductWarSupplies                                         ; $A8F9: 20 67 AC
   LDA a:$0038                                         ; $A8FC: AD 38 00
   JSR GetProvinceOwner                                       ; $A8FF: 20 05 D1
   LDY #$00                                            ; $A902: A0 00
@@ -1660,13 +1711,13 @@ CompareValues:
   STA ($20),Y                                         ; $A90B: 91 20
   JSR FindCountryProvinceOfOfficer                                    ; $A90D: 20 49 D2
   JMP ProcessRulerSuccession_Entry ; $A910: 4C 19 CA  ; post-setup ruler succession pass
-  ; --- Continue existing game path ---
-@ContinueGamePath:                                    ; $A913
-  JSR @PlaceNewEnemies                                       ; $A913: 20 10 AB
-  JSR @SubtractBattleCosts                                       ; $A916: 20 67 AC
+  ; --- Held / march path ($6F8C != 0) ---
+@HeldOrMarchPath:                                     ; $A913
+  JSR @PlaceColumnsHeld                                      ; $A913: 20 10 AB
+  JSR @DeductWarSupplies                                         ; $A916: 20 67 AC
   JSR FindCountryProvinceOfOfficer                                    ; $A919: 20 49 D2
   JMP ProcessRulerSuccession_Entry ; $A91C: 4C 19 CA  ; post-setup ruler succession pass
-@ClearGameStateVars:                                   ; $A91F
+@ApplyTroopAttrition:                                  ; $A91F
   ; Zero the 16-bit army-pool accumulators $6F73-$6F78. These cells are
   ; dual-use: per-owner "has active provinces" marks ($FF/$00) during the
   ; AI turn scan (@ScanBorderingCountries), army pools here.
@@ -1757,7 +1808,7 @@ CompareValues:
 @ClearExit:
   RTS                                                 ; $A9CB: 60
 
-@CountRecords:
+@CountColumnsMarkCasualties:
   LDY #$00                                            ; $A9CC: A0 00
   LDX #$00                                            ; $A9CE: A2 00
 @CountArmyLoop:
@@ -1863,7 +1914,7 @@ CompareValues:
   STA ($22),Y                                         ; $AA7D: 91 22
   RTS                                                 ; $AA7F: 60
 
-@PlaceNewArmies:
+@PlaceColumnsConquest:
   LDA a:$0038                                         ; $AA80: AD 38 00
   JSR GetProvinceOwner                                       ; $AA83: 20 05 D1
   LDX #$00                                            ; $AA86: A2 00
@@ -1937,7 +1988,7 @@ CompareValues:
   JSR DistanceClamp                               ; $AB0C: 20 0C D0
   RTS                                                 ; $AB0F: 60
 
-@PlaceNewEnemies:
+@PlaceColumnsHeld:
   LDA a:$0038                                         ; $AB10: AD 38 00
   JSR GetProvinceOwner                                       ; $AB13: 20 05 D1
   LDX #$00                                            ; $AB16: A2 00
@@ -2114,8 +2165,8 @@ CompareValues:
   STA a:$002D                                         ; $AC63: 8D 2D 00
   RTS                                                 ; $AC66: 60
 
-@SubtractBattleCosts:
-  JSR @SumAllResources                                       ; $AC67: 20 BF AE
+@DeductWarSupplies:
+  JSR SumColumnTroops                                 ; $AC67: 20 BF AE
   LDA $0522                                           ; $AC6A: AD 22 05
   SEC                                                 ; $AC6D: 38
   SBC $2A                                             ; $AC6E: E5 2A
@@ -2163,7 +2214,29 @@ CompareValues:
   ADC $0529                                           ; $ACCF: 6D 29 05
   STA ($20),Y                                         ; $ACD2: 91 20
   RTS                                                 ; $ACD4: 60
-SumEnemyRecords: LDA #$00                                            ; $ACD5: A9 00
+.endproc
+
+
+;===============================================================================
+; $ACD5: SumWarSideStrengths
+;
+; AI-vs-AI instant war settlement math. Sole caller: ResolveProvinceConquest
+; ($A8CC) when the target province's ruler is a computer (record[$03] == $03).
+; Scores both staged columns (max 10 officers each), attacker $066E first,
+; then defender $0664:
+;   side strength = SUM(might)/10 + SUM(troops)/100 + (head record[7] >> 4)*10
+; into $003C/$3D (attack) and $003E/$3F (defend), then
+;   share% = attackStr*100 / (attackStr + defendStr)
+;   $6F8D  = $1E - |share/2 - $19| (0 = even fight .. $1E = walkover; scales
+;           the 4x$6F8D/10 attrition applied by the settlement pass)
+;   $6F8C  = $00 (conquest settles) if the seized rice pool $0522/$23 cannot
+;            cover the defender column's (troops/100 x 4x$6F8D/10) consumption
+;            or random(100) < share%; else $01 (province held)
+; The staged columns are left intact for SettleStagedOfficers, which consumes
+; $6F8C/$6F8D when the $FD mailbox reaches the settlement pass.
+;===============================================================================
+.proc SumWarSideStrengths
+  LDA #$00                                            ; $ACD5: A9 00
   STA a:$003C                                         ; $ACD7: 8D 3C 00
   STA a:$003D                                         ; $ACDA: 8D 3D 00
   STA a:$003E                                         ; $ACDD: 8D 3E 00
@@ -2362,7 +2435,7 @@ SumEnemyRecords: LDA #$00                                            ; $ACD5: A9
   SEC                                                 ; $AE93: 38
   SBC $20                                             ; $AE94: E5 20
   STA $6F8D                                           ; $AE96: 8D 8D 6F
-  JSR @SumAllResources                                       ; $AE99: 20 BF AE
+  JSR SumColumnTroops                                 ; $AE99: 20 BF AE
   LDA $0522                                           ; $AE9C: AD 22 05
   SEC                                                 ; $AE9F: 38
   SBC $2A                                             ; $AEA0: E5 2A
@@ -2381,8 +2454,20 @@ SumEnemyRecords: LDA #$00                                            ; $ACD5: A9
   LDA #$01                                            ; $AEB9: A9 01
   STA $6F8C                                           ; $AEBB: 8D 8C 6F
   RTS                                                 ; $AEBE: 60
+.endproc
 
-@SumAllResources:
+
+;===============================================================================
+; $AEBF: SumColumnTroops
+;
+; Sums the troop strength (record[8] + record[9]<<8) of both staged columns,
+; $0664 first then $066E, and scales each subtotal by the attrition factor:
+;   result = (troops/100) x 4x$6F8D / 10
+; Returns the $0664 column result in $2A/$2B and the $066E column result in
+; $2C/$2D. Shared by SettleStagedOfficers (@DeductWarSupplies $AC67) and
+; SumWarSideStrengths ($AE99).
+;===============================================================================
+.proc SumColumnTroops
   LDA #$00                                            ; $AEBF: A9 00
   STA $24                                             ; $AEC1: 85 24
   STA $25                                             ; $AEC3: 85 25
@@ -2496,7 +2581,20 @@ SumEnemyRecords: LDA #$00                                            ; $ACD5: A9
   LDA $22                                             ; $AF97: A5 22
   STA $2D                                             ; $AF99: 85 2D
   RTS                                                 ; $AF9B: 60
-@AdjustGold:
+.endproc
+
+
+;===============================================================================
+; $AF9C: GrantWarExperience
+;
+; War experience payout for SettleStagedOfficers ($A8EE). Adds 120 ($78) per
+; casualty ($6F77/$6F78) to the loss pools, divides them by the survivor
+; counts $003C/$003D, then @DistributeToSlot hands each surviving officer
+; half a share: experience record[6/7] += (pool + 120xCasualties) / survivors
+; / 2 (cap $C34F). DistribLevelThresholds $B0BC level-ups (max 14) grant +1
+; might/record[5]/virtue/intellect.
+;===============================================================================
+.proc GrantWarExperience
   LDA $6F77                                           ; $AF9C: AD 77 6F
   STA $20                                             ; $AF9F: 85 20
   LDA #$78                                            ; $AFA1: A9 78
@@ -2627,13 +2725,13 @@ SumEnemyRecords: LDA #$00                                            ; $ACD5: A9
   TAY                                                 ; $B0AC: A8
   LDA $2D                                             ; $B0AD: A5 2D
   SEC                                                 ; $B0AF: 38
-  SBC DistribLevelThresholds,Y                        ; $B0B0: F9 BC B0
+  SBC @DistribLevelThresholds,Y                       ; $B0B0: F9 BC B0
   LDA a:$002E                                         ; $B0B3: AD 2E 00
-  SBC DistribLevelThresholds+1,Y                      ; $B0B6: F9 BD B0
+  SBC @DistribLevelThresholds+1,Y                     ; $B0B6: F9 BD B0
   BCS @SetLevelField                                                                           ; $B0B9: B0 0F (BCS cross-proc)
 @DistribExit:
   RTS                                                 ; $B0BB: 60
-DistribLevelThresholds:                               ; $B0BC
+@DistribLevelThresholds:                              ; $B0BC
   .word $03E8                                         ; $B0BC: E8 03 (1000)
   .word $07D0                                         ; $B0BE: D0 07 (2000)
   .word $0DAC                                         ; $B0C0: AC 0D (3500)
@@ -2861,7 +2959,8 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
 
 ;===============================================================================
 ; $B1F9: AbsorbPreview
-; Compute absorb deltas and render result without applying slot transfer.
+; Compute absorb deltas (gold/rice shortfall clamps) without applying
+; the slot transfer.
 ;===============================================================================
 .proc AbsorbPreview
 
@@ -2886,7 +2985,7 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
   work_temp_2              = $003E
   sram_current_country     = $6F03
 
-  JSR CalcTierWorkPtr                                 ; $B1FD: 20 4A A7
+  JSR CalcExpeditionCosts                             ; $B1FD: 20 4A A7
   LDA a:$0038                                         ; $B200: AD 38 00
   JSR GetProvinceOwner                                       ; $B203: 20 05 D1
   LDA a:$003D                                         ; $B206: AD 3D 00
@@ -2912,11 +3011,11 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
   LDA a:$003C                                         ; $B230: AD 3C 00
   SBC ($20),Y                                         ; $B233: F1 20
   STA a:$003C                                         ; $B235: 8D 3C 00
-  BCS @RenderNameLoop                                   ; $B238: B0 08  ; no underflow → continue
+  BCS @GoldSolvencyLoop                                 ; $B238: B0 08  ; -> gold solvency loop
   LDA #$00                                            ; $B23A: A9 00
   STA a:$003B                                         ; $B23C: 8D 3B 00
   STA a:$003C                                         ; $B23F: 8D 3C 00
-@RenderTileLoop:
+@GoldSolvencyLoop:
   LDA a:$003A                                         ; $B242: AD 3A 00
   JSR GetProvinceOwner                                       ; $B245: 20 05 D1
   LDY #$02                                            ; $B248: A0 02
@@ -2926,15 +3025,15 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
   INY                                                 ; $B250: C8
   LDA ($20),Y                                         ; $B251: B1 20
   SBC a:$003E                                         ; $B253: ED 3E 00
-  BCS @SubLimitB                                        ; $B256: B0 0C  ; no underflow → skip to limit_b
-  JSR TileRender                                  ; $B258: 20 5C A5
-  BCS @RenderTileLoop                                   ; $B25B: B0 E5  ; loop: render tile row and retry
+  BCS @RiceSolvencyLoop                                 ; $B256: B0 0C  ; -> rice solvency loop
+  JSR CoverGoldShortfall                               ; $B258: 20 5C A5
+  BCS @GoldSolvencyLoop                                 ; $B25B: B0 E5  ; loop: top up gold and retry
   PLA                                                 ; $B25D: 68
   PLA                                                 ; $B25E: 68
   PLA                                                 ; $B25F: 68
   PLA                                                 ; $B260: 68
   JMP @AiAction_Loop                                ; $B261: 4C C7 BE
-@RenderNameLoop:
+@RiceSolvencyLoop:
   LDA a:$003A                                         ; $B264: AD 3A 00
   JSR GetProvinceOwner                                       ; $B267: 20 05 D1
   LDY #$04                                            ; $B26A: A0 04
@@ -2944,14 +3043,15 @@ ProvinceEvalExit = $B17D                             ; trampoline → @AiAction_
   INY                                                 ; $B272: C8
   LDA ($20),Y                                         ; $B273: B1 20
   SBC a:$003C                                         ; $B275: ED 3C 00
-  BCS @SubLimitB                                        ; $B278: B0 0C  ; no underflow → skip to limit_b
-  JSR NameTable                                   ; $B27A: 20 0C A6
-  BCS @RenderNameLoop                                   ; $B27D: B0 E5  ; loop: render name row and retry
+  BCS @Exit                                             ; $B278: B0 0C  ; rice covered -> done (branch bytes target $B286)
+  JSR CoverRiceShortfall                               ; $B27A: 20 0C A6
+  BCS @RiceSolvencyLoop                                 ; $B27D: B0 E5  ; loop: top up rice and retry
   PLA                                                 ; $B27F: 68
   PLA                                                 ; $B280: 68
   PLA                                                 ; $B281: 68
   PLA                                                 ; $B282: 68
   JMP @AiAction_Loop                                ; $B283: 4C C7 BE
+@Exit:
   RTS                                                 ; $B286: 60
 .endproc
 

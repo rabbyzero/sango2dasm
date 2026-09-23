@@ -23,11 +23,11 @@ terms from `docs/manual_kb/terminology.md`.
 | `+2` | 知力 Intelligence | 1-100 |
 | `+3` | 忠誠度 Loyalty | 100 = playable ruler |
 | `+4` | 人徳 Virtue | 1-100 |
-| `+5` | - | always 0 in ROM (runtime field) |
+| `+5` | 位置 LocationProvince | province id $00-$2D; runtime-only, always 0 in ROM |
 | `+6/+7` | 経験値 Experience | 16-bit LE; 0/1000/2000/3500/5000 |
 | `+8/+9` | 兵数 TroopCount | 16-bit LE; non-zero only for officers on the map at the 189 start |
 | `+10` | 武器 Weapon / 防具 Armor | bits 0-4 weapon, bits 5-7 armor |
-| `+11` | レベル OfficerLevel / 軍の属性 ArmyAffinity | bits 4-7 level (0-based), bits 0-3 affinity |
+| `+11` | レベル OfficerLevel / 軍の属性 ArmyAffinity / 状態 status | bits 4-7 level (0-based), bits 2-3 affinity, bits 0-1 status (see below) |
 
 ### Equipment codes
 
@@ -54,11 +54,41 @@ worst to best.
 | 双鉤槍 | 20 | |  |  |
 | 方天画戟 | 21 | |  |  |
 
-軍の属性 / ArmyAffinity (low nibble of `+11`) only ever takes
-six values, in pairs: `1`/`2` = 平軍 PlainsArmy, `5`/`6` = 山軍
-MountainArmy, `9`/`10` = 水軍 NavalArmy. The affinity itself
-is `(n - 1) / 4`; what distinguishes the two values within
-each pair is not yet known.
+軍の属性 / ArmyAffinity (bits 2-3 of `+11`, equivalently the full
+low nibble `& $0F` mapped as `(n - 1) / 4`) only ever takes
+six nibble values, in pairs: `1`/`2` = 平軍 PlainsArmy, `5`/`6` =
+山軍 MountainArmy, `9`/`10` = 水軍 NavalArmy. The battle AI
+indexes its order-vector tables with bits 2-3 directly
+(`prg_0e_0f.asm` `@OrderResolve` `$D110`: `LSR LSR AND #$03`).
+What distinguishes the two values inside each pair is not yet known.
+
+### Status (`+11` bits 0-1) and location (`+5`)
+
+Both are runtime-only fields - every ROM seed record has them
+at 0 - and are decoded from the code that maintains them:
+
+| `& $03` | Meaning | Key evidence |
+|---|---|---|
+| `0` | 在野 free / unaffiliated | `OfficerArrivalScan` fallback (prg_19_1a `$BA1A`) looks for free officers whose `+5` location matches the scouted province; defection paths clear the bits (prg_0a_0b `$CBE0`) |
+| `1` | hidden / not yet appeared | arrival-schedule scan prg_0a_0b `$C63B` only considers `&3 == 1` officers whose appear year has passed, and recruits them to the province roster as `2` (prg_0a_0b `$C657`); reinforcement scan prg_19_1a `$AF04` |
+| `2` | rostered to a province | `ValidateProvinceSlots` (prg_19_1a `$A59A`, debug): every non-empty province roster slot must hold a status-2 officer |
+| `3` | out of action (dead / removed; triggers ruler succession) | `OfficerKill` (prg_19_1a `$BDCA`) sets it via `ORA #$03` and `$FF`s the roster slot; prg_0a_0b `$CA4B` labels the already-3 case `@RulerAlreadyDead`; the year-end `OfficerStatusScene` (prg_19_1a `$ADD5`) arms `RulerSuccessionScene` on it; counted as excluded at prg_19_1a `$A284` |
+
+`+5` 位置 LocationProvince holds the province id ($00-$2D)
+where the officer currently is. It is written whenever an
+officer changes location: a defecting roster officer is
+re-tagged with the province he defects in
+(`prg_0a_0b.asm` `$CBE4`, post-succession pass; likewise the
+arrival relocation `prg_19_1a.asm` `$C0A1`), and the AI
+stationing pass assigns a free officer a province from the
+companion-province table $9D72 with a 1-in-8 roll
+(`prg_0a_0b.asm` `$AC3A`).
+
+Starting province and appearance year are *not* in this
+record; they live in the arrival schedule at bank `$31`
+`$8B1C`: ten (officer id, appear year) pairs per province
+(stride `$14`), walked by `OfficerArrivalScan`
+(`prg_19_1a.asm` `$B964`).
 
 ### Notes
 
@@ -69,8 +99,9 @@ each pair is not yet known.
   except for id 71 侯成, who has 1000 experience but a level
   nibble of 0. That looks like a data-entry slip in the
   original ROM.
-* Starting province and appearance year are *not* in this
-  record; they live in a separate scenario table.
+* Starting province and appearance year are read from the
+  bank-`$31` arrival schedule at `$8B1C` (see the status and
+  location section above), not from this record.
 
 ## Officers
 

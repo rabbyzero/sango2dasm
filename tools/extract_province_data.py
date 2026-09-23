@@ -78,9 +78,9 @@ POPULATION_SCALE = 100         # panel appends two literal "0" tiles
 #                       => this field is 土地 LandValue
 #   +14/+15             annual tax ($A446, bank $39/$3A): scaled into 金
 #                       => this field is 産業 Industry
-#   +11                 AnnualTakeoverCheck ($AB6E, bank $39/$3A) revolt roll;
+#   +11                 RebellionTakeoverCheck ($AB6E, bank $39/$3A) rebellion roll;
 #                       also the 50/60/../100 tier multiplier on both incomes
-#   +27                 revolt cooldown written there (6 months)
+#   +27                 rebellion cooldown written there (6 months)
 # Column names below are the snake_case form of the canonical semantic English
 # terms in docs/manual_kb/terminology.md (Country, LandValue, Treasure, ...).
 FIELDS = [
@@ -90,11 +90,11 @@ FIELDS = [
     ('population_raw', 6, 2, '人口 Population / 100 (panel draws value + "00")'),
     ('land_value', 8, 2, '土地 LandValue (cap 999)'),
     ('disaster_prevention', 10, 1, '防災 DisasterPrevention (cap 99)'),
-    ('governance', 11, 1, '統治度 Governance (cap 100; < 50 = annual revolt roll)'),
+    ('governance', 11, 1, '統治度 Governance (cap 100; < 50 = annual rebellion roll)'),
     ('reserve_troops', 12, 2, '控え ReserveTroops (cap 10000; 徴兵 target)'),
     ('industry', 14, 2, '産業 Industry (cap 999)'),
     ('treasure', 16, 1, '宝 Treasure (cap 99)'),
-    ('revolt_timer', 27, 1, '反乱クールダウン RevoltCooldown in months (0 in ROM)'),
+    ('rebellion_timer', 27, 1, '反乱クールダウン RebellionCooldown in months (0 in ROM)'),
 ]
 
 # docs/province_data.csv columns: (name, 日本語, meaning). Stat column names are
@@ -333,15 +333,15 @@ def write_md(rows, path, officers):
         f.write('| `+8/+9` | 土地 LandValue | 16-bit LE; capped at 999 |\n')
         f.write('| `+10` | 防災 DisasterPrevention | capped at 99 |\n')
         f.write('| `+11` | 統治度 Governance | capped at 100; below 50 the '
-                'annual check rolls a revolt |\n')
+                'annual check rolls a rebellion |\n')
         f.write('| `+12/+13` | 控え ReserveTroops | 16-bit LE; 徴兵 adds here, '
                 'capped at 10000 |\n')
         f.write('| `+14/+15` | 産業 Industry | 16-bit LE; capped at 999 |\n')
         f.write('| `+16` | 宝 Treasure | capped at 99; 0 in ROM |\n')
         f.write('| `+17..+26` | 武将 Officer roster | 10 slots (`$11-$1A`), '
                 '`$FF` = empty |\n')
-        f.write('| `+27` | 反乱クールダウン RevoltCooldown | months, set to 6 '
-                'on a revolt; 0 in ROM |\n')
+        f.write('| `+27` | 反乱クールダウン RebellionCooldown | months, set to 6 '
+                'on a rebellion; 0 in ROM |\n')
         f.write('| `+28..+31` | - | always 0 in ROM (runtime fields) |\n\n')
         f.write('The 現役 (active) soldier total the game shows in the province\n'
                 'panel is not stored here: it is summed on the fly from the\n'
@@ -455,12 +455,12 @@ guessed from the values:
 | `+6/+7` 人口 | panel stream draws it with 5 digits followed by two literal `$B6` (`0`) tiles, so the stored value is / 100 |
 | `+8/+9` 土地 | annual harvest (`$A60B`, `prg_19_1a.asm`): `land / lvl_div * lvl_base / $3C * 統治度tier / 100` is **added to 米** (`+4/+5`) |
 | `+10` 防災 | panel stream draws it with 2 digits (max 99) right after 人口, matching the panel order in `docs/manual_kb/03-country-stats.md` |
-| `+11` 統治度 | `AnnualTakeoverCheck` (`$AB6E`) rolls a revolt when it is `< 50` (tiers at 50/40/30/20); both income routines scale their yield by its 50/60/70/80/90/100 tier |
+| `+11` 統治度 | `RebellionTakeoverCheck` (`$AB6E`) rolls a rebellion when it is `< 50` (tiers at 50/40/30/20); both income routines scale their yield by its 50/60/70/80/90/100 tier |
 | `+12/+13` 控え | 徴兵 adds the recruited men here and clamps at `$2710` (10000) |
 | `+14/+15` 産業 | annual tax (`$A446`, `prg_19_1a.asm`): `industry / lvl_div * lvl_base / $50 * 統治度tier / 100` is **added to 金** (`+2/+3`) |
 | `+16` 宝 | 輸送 moves it as an 8-bit resource, clamped at 99 |
 | `+17..+26` 武将 | `FindOfficerProvince` and the `$F0`/`$F3` panel commands walk slots `$11-$1A` looking for `$FF` |
-| `+27` cooldown | `AnnualTakeoverMark` stores 6 there, and the revolt check skips a province while it is non-zero |
+| `+27` cooldown | `RebellionTakeoverMark` stores 6 there, and the rebellion check skips a province while it is non-zero |
 
 The 産業 -> 金 / 土地 -> 米 pair is what disambiguates the two
 999-capped 16-bit stats, and it agrees with the panel order

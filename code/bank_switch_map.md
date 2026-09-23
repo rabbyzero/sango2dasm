@@ -213,7 +213,7 @@ banks **$00/$03/$04/$05** hold the 16x16 terrain detail maps.
 **Data switches ($8000):**
 
 - Slot A: $10 x16 (record/province data across the AI turn:
-  AiCountExpansionRoom, FindBestEnemyProvince, InitNewGameContext,
+  AiCountExpansionRoom, FindBestEnemyProvince, SettleStagedOfficers,
   EvalProvinceAbsorption, AiAction_DomesticTurn, CalcActionProb,
   AiOfficer_RecruitTransfer, PromoteBestOfficerForCountry,
   CountDefendedBorderProvinces, CollectEnemyBorderProvinces/X, BuildAdjacencyBitmap),

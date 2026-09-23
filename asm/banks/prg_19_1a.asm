@@ -20,8 +20,8 @@ AttractDemoDispatch_Entry:  ; (dispatch callback target)
   JMP AttractDemoDispatch                 ; $A003: 4C 33 A0
 StrategyRequestDispatch_Entry:  ; (dispatch callback target)
   JMP StrategyRequestDispatch             ; $A006: 4C 73 C7
-DemoEventPlaybackDispatch_Entry:  ; (dispatch callback target)
-  JMP DemoEventPlaybackDispatch            ; $A009: 4C 96 A2
+DemoEventDispatch_Entry:  ; (dispatch callback target)
+  JMP DemoEventDispatch                   ; $A009: 4C 96 A2
 OfficerStatusScene_Entry:  ; (dispatch callback target)
   JMP OfficerStatusScene                  ; $A00C: 4C 81 AD
 ExchangeMarchCutscene_Entry:  ; (NmiState3_Battle per-frame call)
@@ -435,60 +435,64 @@ AttractDemoCensusBuild:
   RTS                                     ; $A295: 60
 .endproc
 ;===============================================================================
-; $A296: DemoEventPlaybackDispatch
+; $A296: DemoEventDispatch
 ; Map screen frame state $0A handler (entered from prg_1b_1c
 ; MapScreenFrameStateDispatch via banks $19+$1A entry
-; DemoEventPlaybackDispatch_Entry, Y=$39): the attract-demo event playback
-; sequencer. AttractDemoDispatch hands off with $0400=$0A after picking the
-; demo Country; this machine plays one simulated turn of events for the
-; focused Country and returns to frame state $0B (demo), $09 (strategy) or
-; $00. Dispatches the playback sub-state by $0401 through a 16-entry
-; B1F_CallbackDispatcher inline table:
-;   0 PlaybackPaceGate     - wait overlay sentinels, route by demo step $6F01
-;   1 PlaybackStepRoute    - route by $6F01 (7/8 -> damage, 4/5 -> loss)
-;   2 PlaybackSeverityArm  - arm event severity tier $0470 from slot $6F03
-;   3 PlaybackRulerLoad    - load Ruler officer id into $040B, -> removal
-;   4 PlaybackRulerSplit   - split on Ruler record status ($0B)&3
-;   5 PlaybackExitRoute    - exit to $0400=$09 (strategy) or $0B (demo)
-;   6 ProvinceTroopRecount - all-province troop recount (window + math)
-;   7 ProvinceGoldRecount  - all-province gold/food recount
-;   8 WarDamageScene       - random province damage + casualty removal
-;   9 TroopLossScene       - second damage pass (troops/rosters)
-;   A OfficerReinforceScene - insert arriving officer into province roster
-;   B OfficerRemovalScene  - probabilistic officer defection/removal
-;   C RulerSuccessionScene - officer transfer / new-ruler coronation
-;   D OfficerReassessScene - strongest-officer reassessment
+; DemoEventDispatch_Entry, Y=$39): the attract-demo MONTHLY EVENT DISPATCH.
+; AttractDemoDispatch hands off with $0400=$0A after picking the demo
+; Country; this machine decides whether and how that month's events happen
+; (in-proc random rolls that mutate the SRAM scenario state), scheduled by
+; the demo month $6F01 (12 months per year $6F00), then returns to frame
+; state $0B (next demo Country) or $09 (strategy turn). Dispatches the
+; event sub-state by $0401 through a 16-entry B1F_CallbackDispatcher table:
+;   0 EventPaceGate        - wait overlay sentinels, pick month job by $6F01
+;   1 EventDisasterRoute   - disaster router by $6F01 (raw 4/5 -> flood,
+;                            raw 7/8 -> drought)
+;   2 EventReinforceGate   - officer-arrival gate: arm schedule index $0470 by
+;                            acting Country $6F03
+;   3 EventRulerLoad       - load Ruler officer id into $040B, -> death rolls
+;   4 EventRulerDeathCheck - Ruler out-of-action check -> succession or exit
+;   5 EventControlHandoff  - branch on Country control byte: $09 turn
+;                            engine / $0B demo rotation
+;   6 TaxCollectionEvent   - 税金の徴収: annual Gold payout (Pop x Industry x Gov)
+;   7 RiceHarvestEvent     - 米の収穫: annual Rice payout (Pop x Land x Gov)
+;   8 DroughtDamageScene   - drought (日照り): population/land/officer troop drain
+;   9 FloodDamageScene     - flood (洪水): population/rice/industry drain
+;   A OfficerReinforceScene - induct a free-agent Officer into home Province
+;   B OfficerNaturalDeathScene - monthly natural-death (シホウ) roll per Officer
+;   C RulerSuccessionScene - heir march/transfer + new-Ruler coronation
+;   D SuccessionApplyScene - apply the succession: install the heir (or strongest officer) as Ruler
 ;   E ScenarioHandoffPrep  - fill demo record $042E-$0434, exit handoff
-;   F AnnualProvinceEvent  - yearly province takeover + stat drain
+;   F ProvinceRebellionEvent  - monthly peasant rebellion: 統治度<50 roll + drain
 ; Handlers C/D/E are shared sub-states of frame state $0D
 ; (OfficerStatusScene, banks $19+$1A stub $A00C).
 ; Scratch RAM: $040A acting Country, $040B officer id, $040C/$040D
 ; province/officer cursors, $040E/$040F scan cursors, $0470-$0473 pending
 ; exit handoff, $042C/$042D card params, $6F44 marker Country.
 ;===============================================================================
-.proc DemoEventPlaybackDispatch
+.proc DemoEventDispatch
   LDA $0401                               ; $A296: AD 01 04
   JSR B1F_CallbackDispatcher               ; $A299: 20 DE EA
 ; --- Inline pointer table (16 entries) ---
-  .word PlaybackPaceGate                   ; $A29C: BC A2 ; sub-state 0
-  .word PlaybackStepRoute                  ; $A29E: 0C A3 ; sub-state 1
-  .word PlaybackSeverityArm                ; $A2A0: 3C A3 ; sub-state 2
-  .word PlaybackRulerLoad                  ; $A2A2: 89 A3 ; sub-state 3
-  .word PlaybackRulerSplit                 ; $A2A4: 9B A3 ; sub-state 4
-  .word PlaybackExitRoute                  ; $A2A6: 63 A3 ; sub-state 5
-  .word ProvinceTroopRecount               ; $A2A8: E5 A3 ; sub-state 6
-  .word ProvinceGoldRecount                ; $A2AA: AA A5 ; sub-state 7
-  .word WarDamageScene                     ; $A2AC: EF A6 ; sub-state 8
-  .word TroopLossScene                     ; $A2AE: A0 A9 ; sub-state 9
+  .word EventPaceGate                      ; $A29C: BC A2 ; sub-state 0
+  .word EventDisasterRoute                 ; $A29E: 0C A3 ; sub-state 1
+  .word EventReinforceGate                 ; $A2A0: 3C A3 ; sub-state 2
+  .word EventRulerLoad                     ; $A2A2: 89 A3 ; sub-state 3
+  .word EventRulerDeathCheck               ; $A2A4: 9B A3 ; sub-state 4
+  .word EventControlHandoff                ; $A2A6: 63 A3 ; sub-state 5
+  .word TaxCollectionEvent                 ; $A2A8: E5 A3 ; sub-state 6
+  .word RiceHarvestEvent                   ; $A2AA: AA A5 ; sub-state 7
+  .word DroughtDamageScene                 ; $A2AC: EF A6 ; sub-state 8
+  .word FloodDamageScene                   ; $A2AE: A0 A9 ; sub-state 9
   .word OfficerReinforceScene              ; $A2B0: C0 AE ; sub-state 10
-  .word OfficerRemovalScene                ; $A2B2: 80 BC ; sub-state 11
+  .word OfficerNaturalDeathScene           ; $A2B2: 80 BC ; sub-state 11
   .word RulerSuccessionScene               ; $A2B4: 01 BE ; sub-state 12
-  .word OfficerReassessScene               ; $A2B6: 32 C1 ; sub-state 13
+  .word SuccessionApplyScene               ; $A2B6: 32 C1 ; sub-state 13
   .word ScenarioHandoffPrep                ; $A2B8: 7A C3 ; sub-state 14
-  .word AnnualProvinceEvent                ; $A2BA: 15 AB ; sub-state 15
+  .word ProvinceRebellionEvent                ; $A2BA: 15 AB ; sub-state 15
 .endproc
 
-.proc PlaybackPaceGate
+.proc EventPaceGate
 ; --- Code Region ---
   LDA $0300                               ; $A2BC: AD 00 03
   CMP #$FF                                ; $A2BF: C9 FF
@@ -499,31 +503,31 @@ AttractDemoCensusBuild:
   LDA a:$007E                             ; $A2CA: AD 7E 00
   BNE @PaceGateDone                        ; $A2CD: D0 0A
   LDA $6F06                               ; $A2CF: AD 06 6F
-  BEQ @PaceCheckTroopStep                  ; $A2D2: F0 06
+  BEQ @PaceCheckTaxStep                    ; $A2D2: F0 06
   LDA #$02                                ; $A2D4: A9 02
   STA $0401                               ; $A2D6: 8D 01 04
 @PaceGateDone:
   RTS                                     ; $A2D9: 60
-@PaceCheckTroopStep:
+@PaceCheckTaxStep:
   INC $6F06                               ; $A2DA: EE 06 6F
   LDA $6F01                               ; $A2DD: AD 01 6F
   CMP #$03                                ; $A2E0: C9 03
-  BNE @PaceCheckGoldStep                   ; $A2E2: D0 0B
+  BNE @PaceCheckHarvestStep                ; $A2E2: D0 0B
   LDA #$06                                ; $A2E4: A9 06
   STA $0401                               ; $A2E6: 8D 01 04
   LDA #$00                                ; $A2E9: A9 00
   STA $0402                               ; $A2EB: 8D 02 04
   RTS                                     ; $A2EE: 60
-@PaceCheckGoldStep:
+@PaceCheckHarvestStep:
   LDA $6F01                               ; $A2EF: AD 01 6F
   CMP #$09                                ; $A2F2: C9 09
-  BNE @PaceRouteAnnual                     ; $A2F4: D0 0B
+  BNE @PaceRouteRebellion                     ; $A2F4: D0 0B
   LDA #$07                                ; $A2F6: A9 07
   STA $0401                               ; $A2F8: 8D 01 04
   LDA #$00                                ; $A2FB: A9 00
   STA $0402                               ; $A2FD: 8D 02 04
   RTS                                     ; $A300: 60
-@PaceRouteAnnual:
+@PaceRouteRebellion:
   LDA #$0F                                ; $A301: A9 0F
   STA $0401                               ; $A303: 8D 01 04
   LDA #$00                                ; $A306: A9 00
@@ -532,81 +536,124 @@ AttractDemoCensusBuild:
 
 .endproc
 
-.proc PlaybackStepRoute
+;===============================================================================
+; $A30C: EventDisasterRoute
+; Monthly natural-disaster router (sub-state 1), run after the month job in
+; EventPaceGate (tax/harvest payout or rebellion sweep) completes. Calendar month
+; $6F01 is raw (display month = raw + 1; docs/manual_kb/05-events.md):
+;   raw 7/8 (Aug/Sep, inside the manual's months 7-10 drought window 日照り)
+;     -> sub-state 8 DroughtDamageScene
+;   raw 4/5 (May/Jun, inside the manual's months 4-6 flood window 洪水)
+;     -> sub-state 9 FloodDamageScene
+;   any other month -> advance to sub-state 2 (EventReinforceGate)
+; The ROM fires only in these two month pairs, a subset of the manual windows.
+;===============================================================================
+.proc EventDisasterRoute
   LDA $6F01                               ; $A30C: AD 01 6F
-  CMP #$07                                ; $A30F: C9 07
-  BEQ @StepRouteDamage                     ; $A311: F0 04
-  CMP #$08                                ; $A313: C9 08
-  BNE @StepRouteLossCheck                  ; $A315: D0 0B
-@StepRouteDamage:
+  CMP #$07                                ; $A30F: C9 07 ; raw Aug?
+  BEQ @DisasterRouteDrought                ; $A311: F0 04
+  CMP #$08                                ; $A313: C9 08 ; raw Sep?
+  BNE @DisasterRouteFloodCheck             ; $A315: D0 0B
+@DisasterRouteDrought:  ; -> sub-state 8 DroughtDamageScene
   LDA #$08                                ; $A317: A9 08
   STA $0401                               ; $A319: 8D 01 04
   LDA #$00                                ; $A31C: A9 00
   STA $0402                               ; $A31E: 8D 02 04
   RTS                                     ; $A321: 60
-@StepRouteLossCheck:
+@DisasterRouteFloodCheck:
   LDA $6F01                               ; $A322: AD 01 6F
-  CMP #$04                                ; $A325: C9 04
-  BEQ @StepRouteLoss                       ; $A327: F0 04
-  CMP #$05                                ; $A329: C9 05
-  BNE @StepRouteAdvance                    ; $A32B: D0 0B
-@StepRouteLoss:
+  CMP #$04                                ; $A325: C9 04 ; raw May?
+  BEQ @DisasterRouteFlood                  ; $A327: F0 04
+  CMP #$05                                ; $A329: C9 05 ; raw Jun?
+  BNE @DisasterRouteAdvance                ; $A32B: D0 0B
+@DisasterRouteFlood:  ; -> sub-state 9 FloodDamageScene
   LDA #$09                                ; $A32D: A9 09
   STA $0401                               ; $A32F: 8D 01 04
   LDA #$00                                ; $A332: A9 00
   STA $0402                               ; $A334: 8D 02 04
   RTS                                     ; $A337: 60
-@StepRouteAdvance:
+@DisasterRouteAdvance:  ; no disaster this month -> sub-state 2
   INC $0401                               ; $A338: EE 01 04
   RTS                                     ; $A33B: 60
 .endproc
 
-.proc PlaybackSeverityArm
-  LDA $6F03                               ; $A33C: AD 03 6F
+;===============================================================================
+; $A33C: EventReinforceGate
+; Officer-arrival gate for the acting Country $6F03 (id 0-6) - NOT a disaster
+; severity step despite the legacy name. Each Country's historical officers
+; join via static per-Country schedules in ROM bank $31:
+;   Countries 0/1/5: no schedule consulted -> advance to sub-state 3
+;                    (EventRulerLoad, the death-roll chain)
+;   Country 6 aliases slot 5 (LDA #$05); Countries 2/3/4/6:
+;                    $0470 = (Country-2)*2 = byte index into the 4-entry
+;                    word-pointer table $8D74 -> sub-state $0A
+;                    OfficerReinforceScene, which resolves
+;                    ptr = word[$8D74+$0470] (hi byte +$60) to a
+;                    $FF-terminated (officer id, appear-year) pair list in
+;                    the same bank, takes the first officer whose status
+;                    record[$0B]&3==1 (hidden / not yet appeared) with
+;                    appear year <= current year $6F00, and inducts him into
+;                    the acting Country's home Province roster (($EE)+1).
+;===============================================================================
+.proc EventReinforceGate
+  LDA $6F03                               ; $A33C: AD 03 6F ; acting Country id
   CMP #$02                                ; $A33F: C9 02
-  BCC @SeverityArmAdvance                  ; $A341: 90 1C
+  BCC @ReinforceGateSkip                   ; $A341: 90 1C  ; Countries 0/1: no schedule
   CMP #$05                                ; $A343: C9 05
-  BEQ @SeverityArmAdvance                  ; $A345: F0 18
+  BEQ @ReinforceGateSkip                   ; $A345: F0 18  ; Country 5: no schedule
   CMP #$06                                ; $A347: C9 06
-  BNE @SeverityTierWrite                   ; $A349: D0 02
-  LDA #$05                                ; $A34B: A9 05
-@SeverityTierWrite:
+  BNE @ReinforceGateArmIndex               ; $A349: D0 02
+  LDA #$05                                ; $A34B: A9 05  ; Country 6 aliases slot 5
+@ReinforceGateArmIndex:
   SEC                                     ; $A34D: 38
   SBC #$02                                ; $A34E: E9 02
-  ASL                                     ; $A350: 0A
+  ASL                                     ; $A350: 0A     ; byte index into word table $8D74
   STA $0470                               ; $A351: 8D 70 04
   LDA #$0A                                ; $A354: A9 0A
   STA $0401                               ; $A356: 8D 01 04
   LDA #$00                                ; $A359: A9 00
   STA $0402                               ; $A35B: 8D 02 04
   RTS                                     ; $A35E: 60
-@SeverityArmAdvance:
+@ReinforceGateSkip:  ; -> sub-state 3 EventRulerLoad
   INC $0401                               ; $A35F: EE 01 04
   RTS                                     ; $A362: 60
 .endproc
 
-.proc PlaybackExitRoute
+;===============================================================================
+; $A363: EventControlHandoff
+; Terminal handoff of the event machine (sub-state 5). The "Event" prefix is
+; the DemoEventDispatch sub-state family scope marker; the proc itself does
+; no event work beyond clearing the pending handoff param $0470. Routes on
+; the acting Country's control byte, Country record[$03] via ($EE):
+;   == $03 (AI / unattended): $0400 = $09 -> CallStrategyRequestDispatch
+;              (frame table prg_1b_1c $A037): the Country's strategy turn
+;              runs through the normal turn engine; $0401 = 0
+;   else (player-owned 0-2):  latches the control byte into $6F44,
+;              $0400 = $0B -> CallAttractDemoDispatch (frame table $A03B):
+;              back to the attract-demo Country rotation; $0401 = 1
+;===============================================================================
+.proc EventControlHandoff
   LDA #$00                                ; $A363: A9 00
-  STA $0470                               ; $A365: 8D 70 04
+  STA $0470                               ; $A365: 8D 70 04 ; clear handoff param
   LDY #$03                                ; $A368: A0 03
-  LDA ($EE),Y                             ; $A36A: B1 EE
-  CMP #$03                                ; $A36C: C9 03
-  BNE @PlaybackExitDemo                    ; $A36E: D0 0B
+  LDA ($EE),Y                             ; $A36A: B1 EE ; Country control byte
+  CMP #$03                                ; $A36C: C9 03 ; AI/unattended?
+  BNE @HandoffToDemo                      ; $A36E: D0 0B
   LDA #$09                                ; $A370: A9 09
-  STA $0400                               ; $A372: 8D 00 04
+  STA $0400                               ; $A372: 8D 00 04 ; -> strategy turn engine
   LDA #$00                                ; $A375: A9 00
   STA $0401                               ; $A377: 8D 01 04
   RTS                                     ; $A37A: 60
-@PlaybackExitDemo:
-  STA $6F44                               ; $A37B: 8D 44 6F
+@HandoffToDemo:  ; player-owned control value
+  STA $6F44                               ; $A37B: 8D 44 6F ; latch control byte
   LDA #$0B                                ; $A37E: A9 0B
-  STA $0400                               ; $A380: 8D 00 04
+  STA $0400                               ; $A380: 8D 00 04 ; -> demo rotation
   LDA #$01                                ; $A383: A9 01
   STA $0401                               ; $A385: 8D 01 04
   RTS                                     ; $A388: 60
 .endproc
 
-.proc PlaybackRulerLoad
+.proc EventRulerLoad
   LDY #$00                                ; $A389: A0 00
   LDA ($EE),Y                             ; $A38B: B1 EE
   STA $040B                               ; $A38D: 8D 0B 04
@@ -617,16 +664,36 @@ AttractDemoCensusBuild:
   RTS                                     ; $A39A: 60
 .endproc
 
-.proc PlaybackRulerSplit
+;===============================================================================
+; $A39B: EventRulerDeathCheck
+; Ruler-death resolution gate (sub-state 4), entered after
+; OfficerNaturalDeathScene (sub-state $0B) rolls the Ruler last and re-enters
+; at $0401=4. Does NOT roll for death itself - it tests the flag the kill
+; path wrote. Reloads the Ruler officer id from Country record ($EE)+0 into
+; $040B, fetches his officer record and tests status record[$0B] & $03:
+;   != 3 (still reigning): advance to sub-state 5 (EventControlHandoff) - the
+;              month's event chain ends here
+;   == 3 (out of action):  OfficerKill marked him dead (record[$0B] ORA
+;              #$03 at $BDCA) -> arm the succession: handoff block
+;              $0470=$05/$0471=$0E/$0472=$0B/$0473=$00, $040A = acting
+;              Country, $040C = $FF (heir-scan cursor), $0402=0,
+;              $0401=$0C RulerSuccessionScene (heir march/transfer +
+;              coronation); if Country control byte record[$03]==$03
+;              (AI/unattended country - the same test the damage scenes use
+;              to skip the marker/card), skip straight to $0D
+;              SuccessionApplyScene -
+;              the succession applies silently, no staging.
+;===============================================================================
+.proc EventRulerDeathCheck
   LDY #$00                                ; $A39B: A0 00
-  LDA ($EE),Y                             ; $A39D: B1 EE
+  LDA ($EE),Y                             ; $A39D: B1 EE ; Ruler officer id
   STA $040B                               ; $A39F: 8D 0B 04
   JSR B1F_GetOfficerRecordAddr             ; $A3A2: 20 D7 F2
   LDY #$0B                                ; $A3A5: A0 0B
-  LDA ($00),Y                             ; $A3A7: B1 00
+  LDA ($00),Y                             ; $A3A7: B1 00 ; status byte
   AND #$03                                ; $A3A9: 29 03
-  CMP #$03                                ; $A3AB: C9 03
-  BNE @RulerSplitAdvance                   ; $A3AD: D0 32
+  CMP #$03                                ; $A3AB: C9 03 ; 3 = out of action
+  BNE @RulerDeathCheckAdvance              ; $A3AD: D0 32  ; Ruler alive -> exit chain
   LDA #$05                                ; $A3AF: A9 05
   STA $0470                               ; $A3B1: 8D 70 04
   LDA #$0E                                ; $A3B4: A9 0E
@@ -644,23 +711,43 @@ AttractDemoCensusBuild:
   LDA #$00                                ; $A3D3: A9 00
   STA $0402                               ; $A3D5: 8D 02 04
   LDY #$03                                ; $A3D8: A0 03
-  LDA ($EE),Y                             ; $A3DA: B1 EE
-  CMP #$03                                ; $A3DC: C9 03
-  BEQ @RulerSplitAdvance                   ; $A3DE: F0 01
-  RTS                                     ; $A3E0: 60
-@RulerSplitAdvance:
+  LDA ($EE),Y                             ; $A3DA: B1 EE ; Country record[$03]
+  CMP #$03                                ; $A3DC: C9 03 ; display-hidden country?
+  BEQ @RulerDeathCheckAdvance              ; $A3DE: F0 01  ; -> $0D silent succession
+  RTS                                     ; $A3E0: 60  ; -> $0C succession scene
+@RulerDeathCheckAdvance:
   INC $0401                               ; $A3E1: EE 01 04
   RTS                                     ; $A3E4: 60
 .endproc
 
-.proc ProvinceTroopRecount
+;===============================================================================
+; $A3E5: TaxCollectionEvent
+; DemoEventDispatch sub-state 6: the annual TaxCollection event (税金の徴収),
+; armed by EventPaceGate for raw month 3 (display April; the manual's tax
+; window is months 1-3, docs/manual_kb/05-events.md). 3-step machine on
+; $0402: open banner stream $BC (message tiles $9F), wait the anim +
+; overlay sentinels, then @TaxScan pays out every Province and sets
+; $0401=1 (-> EventDisasterRoute, no disaster in April, falls to sub 2).
+; Per-Province payout (all 30 records scanned, no owner filter; 24-bit
+; math via B1F_MathDiv24 / B1F_MathMul24x16):
+;   M    = Industry +$0E/$0F / @TaxScaleDivTable[level] (3,3,4)
+;          + @TaxScaleBaseTable[level]                  (100,60,60)
+;   GovQ = Governance +$0B quantized down to {50,60,70,80,90,100}
+;          (<51->50, <71->60, <81->70, <91->80, <100->90, else 100)
+;   Gold +$02/$03 += Population +$06/$07 x M / 80 x GovQ / 100, clamped
+;          at 9999 (ClampStatPair)
+; Manual match: Gold increases according to 産業, 人口, and 統治度; the
+; game level $6F02 scales the 産業 term. The old "TroopRecount" name was
+; wrong twice over - no troop stat is touched, only Gold grows.
+;===============================================================================
+.proc TaxCollectionEvent
   LDA $0402                               ; $A3E5: AD 02 04
   JSR B1F_CallbackDispatcher               ; $A3E8: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word @TroopRecountWindow                ; $A3EB: F1 A3 ; sub 0
-  .word @TroopRecountOverlayWait           ; $A3ED: 04 A4 ; sub 1
-  .word @TroopRecountApply                 ; $A3EF: 20 A4 ; sub 2
-@TroopRecountWindow:  ; (dispatch callback target)
+  .word @TaxWindow                         ; $A3EB: F1 A3 ; sub 0
+  .word @TaxOverlayWait                    ; $A3ED: 04 A4 ; sub 1
+  .word @TaxApply                          ; $A3EF: 20 A4 ; sub 2
+@TaxWindow:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$BC                                ; $A3F1: A9 BC
   JSR B1F_SetUI4                           ; $A3F3: 20 8B F2
@@ -670,29 +757,29 @@ AttractDemoCensusBuild:
   LDA #$20                                ; $A3FE: A9 20
   STA $04A0                               ; $A400: 8D A0 04
   RTS                                     ; $A403: 60
-@TroopRecountOverlayWait:  ; (dispatch callback target)
+@TaxOverlayWait:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $04A0                               ; $A404: AD A0 04
-  BNE @TroopRecountOverlayWaitExit        ; $A407: D0 16
+  BNE @TaxOverlayWaitExit                  ; $A407: D0 16
   LDA $0140                               ; $A409: AD 40 01
-  BNE @TroopRecountOverlayWaitExit        ; $A40C: D0 11
+  BNE @TaxOverlayWaitExit                  ; $A40C: D0 11
   LDA $0300                               ; $A40E: AD 00 03
   CMP #$FF                                ; $A411: C9 FF
-  BNE @TroopRecountOverlayWaitExit        ; $A413: D0 0A
+  BNE @TaxOverlayWaitExit                  ; $A413: D0 0A
   LDA $0304                               ; $A415: AD 04 03
   CMP #$FF                                ; $A418: C9 FF
-  BNE @TroopRecountOverlayWaitExit        ; $A41A: D0 03
+  BNE @TaxOverlayWaitExit                  ; $A41A: D0 03
   INC $0402                               ; $A41C: EE 02 04
-@TroopRecountOverlayWaitExit:
+@TaxOverlayWaitExit:
   RTS                                     ; $A41F: 60
-@TroopRecountApply:  ; (dispatch callback target)
+@TaxApply:  ; (dispatch callback target)
   LDA #$01                                ; $A420: A9 01
   STA $0401                               ; $A422: 8D 01 04
-  JSR @TroopRecountScan                    ; $A425: 20 29 A4
+  JSR @TaxScan                             ; $A425: 20 29 A4
   RTS                                     ; $A428: 60
-@TroopRecountScan:
+@TaxScan:
   LDA #$1D                                ; $A429: A9 1D
-@TroopRecountScanLoop:
+@TaxScanLoop:
   PHA                                     ; $A42B: 48
   JSR B1F_GetProvinceRecordAddr            ; $A42C: 20 AF F2
   LDA a:$0000                             ; $A42F: AD 00 00
@@ -717,13 +804,13 @@ AttractDemoCensusBuild:
   STA a:$0002                             ; $A457: 8D 02 00
   STA a:$0004                             ; $A45A: 8D 04 00
   LDY $6F02                               ; $A45D: AC 02 6F
-  LDA @TroopRecountScaleDivTable,Y        ; $A460: B9 27 A5
+  LDA @TaxScaleDivTable,Y                  ; $A460: B9 27 A5
   STA a:$0003                             ; $A463: 8D 03 00
   JSR B1F_MathDiv24                        ; $A466: 20 A5 EA
   LDY $6F02                               ; $A469: AC 02 6F
   LDA a:$0000                             ; $A46C: AD 00 00
   CLC                                     ; $A46F: 18
-  ADC @TroopRecountScaleBaseTable,Y       ; $A470: 79 24 A5
+  ADC @TaxScaleBaseTable,Y                 ; $A470: 79 24 A5
   STA a:$0003                             ; $A473: 8D 03 00
   LDA a:$0001                             ; $A476: AD 01 00
   ADC #$00                                ; $A479: 69 00
@@ -751,21 +838,21 @@ AttractDemoCensusBuild:
   AND #$7F                                ; $A4B1: 29 7F
   LDY #$32                                ; $A4B3: A0 32
   CMP #$33                                ; $A4B5: C9 33
-  BCC @TroopRecountTierCap                 ; $A4B7: 90 1A
+  BCC @TaxTierCap                          ; $A4B7: 90 1A
   LDY #$3C                                ; $A4B9: A0 3C
   CMP #$47                                ; $A4BB: C9 47
-  BCC @TroopRecountTierCap                 ; $A4BD: 90 14
+  BCC @TaxTierCap                          ; $A4BD: 90 14
   LDY #$46                                ; $A4BF: A0 46
   CMP #$51                                ; $A4C1: C9 51
-  BCC @TroopRecountTierCap                 ; $A4C3: 90 0E
+  BCC @TaxTierCap                          ; $A4C3: 90 0E
   LDY #$50                                ; $A4C5: A0 50
   CMP #$5B                                ; $A4C7: C9 5B
-  BCC @TroopRecountTierCap                 ; $A4C9: 90 08
+  BCC @TaxTierCap                          ; $A4C9: 90 08
   LDY #$5A                                ; $A4CB: A0 5A
   CMP #$64                                ; $A4CD: C9 64
-  BCC @TroopRecountTierCap                 ; $A4CF: 90 02
+  BCC @TaxTierCap                          ; $A4CF: 90 02
   LDY #$64                                ; $A4D1: A0 64
-@TroopRecountTierCap:
+@TaxTierCap:
   STY a:$0003                             ; $A4D3: 8C 03 00
   LDA #$00                                ; $A4D6: A9 00
   STA a:$0004                             ; $A4D8: 8D 04 00
@@ -792,21 +879,21 @@ AttractDemoCensusBuild:
   STA ($10),Y                             ; $A50D: 91 10
   LDY #$02                                ; $A50F: A0 02
   JSR ClampStatPair                        ; $A511: 20 2A A5
-  JSR ValidateRecountStats                ; $A514: 20 40 A5
-  JSR ValidateRecountSlots                ; $A517: 20 82 A5
+  JSR ValidateProvinceStats                ; $A514: 20 40 A5
+  JSR ValidateProvinceSlots                ; $A517: 20 82 A5
   PLA                                     ; $A51A: 68
   SEC                                     ; $A51B: 38
   SBC #$01                                ; $A51C: E9 01
-  BMI @TroopRecountScanDone                ; $A51E: 30 03
-  JMP @TroopRecountScanLoop                ; $A520: 4C 2B A4
-@TroopRecountScanDone:
+  BMI @TaxScanDone                         ; $A51E: 30 03
+  JMP @TaxScanLoop                         ; $A520: 4C 2B A4
+@TaxScanDone:
   RTS                                     ; $A523: 60
 ; --- Data Region ---
-; Recount scaling parameters indexed by game level $6F02 (0-2): per-index base
+; Tax scaling parameters indexed by game level $6F02 (0-2): per-index base
 ; added to the divided Province value, then the matching divisor.
-@TroopRecountScaleBaseTable:
+@TaxScaleBaseTable:
   .byte $64,$3C,$3C                       ; $A524: 64 3C 3C
-@TroopRecountScaleDivTable:
+@TaxScaleDivTable:
   .byte $03,$03,$04                       ; $A527: 03 03 04
 .endproc
 
@@ -829,15 +916,15 @@ AttractDemoCensusBuild:
 .endproc
 
 ;===============================================================================
-; $A540: ValidateRecountStats
+; $A540: ValidateProvinceStats
 ; Debug validation of the recalculated Province record at ($10), wired in
-; from ProvinceTroopRecount ($A514). Same debug-validation family as the
+; from TaxCollectionEvent ($A514) and RiceHarvestEvent ($A6D9). Same debug-validation family as the
 ; prg_0a_0b ValidateRecordStats/ValidateRecordGold checks: asserts the
 ; 16-bit stat pairs at offsets +2, +4, +$0C are < $2710 (10000), then
 ; checks Province byte 0 low nibble against byte $11. Retail ROM stubs the
 ; entry to RTS, so the check body below is unreachable.
 ;===============================================================================
-.proc ValidateRecountStats
+.proc ValidateProvinceStats
   RTS                                     ; $A540: 60        ; entry stubbed to RTS
 @CheckField02:                            ; unreachable (entry stubbed)
   LDY #$02                                ; $A541: A0 02
@@ -874,24 +961,25 @@ AttractDemoCensusBuild:
   LDA ($10),Y                             ; $A570: B1 10
   AND #$0F                                ; $A572: 29 0F
   CMP #$07                                ; $A574: C9 07
-  BNE @ValidateRecountDone                ; $A576: D0 09
+  BNE @ValidateProvinceDone               ; $A576: D0 09
   LDY #$11                                ; $A578: A0 11
   LDA ($10),Y                             ; $A57A: B1 10
   CMP #$FF                                ; $A57C: C9 FF
-  BEQ @ValidateRecountDone                ; $A57E: F0 01
+  BEQ @ValidateProvinceDone               ; $A57E: F0 01
   BRK                                     ; $A580: 00
-@ValidateRecountDone:
+@ValidateProvinceDone:
   RTS                                     ; $A581: 60
 .endproc
 
 ;===============================================================================
-; $A582: ValidateRecountSlots
+; $A582: ValidateProvinceSlots
 ; Debug validation: scans Province-record Officer slots $11-$1A; every
 ; non-empty slot must reference an Officer whose record byte $0B status
-; bits are 2. Wired in from ProvinceTroopRecount ($A517). Retail ROM stubs
+; bits are 2. Wired in from TaxCollectionEvent ($A517) and RiceHarvestEvent
+; ($A6DC). Retail ROM stubs
 ; the entry to RTS, so the scan body below is unreachable.
 ;===============================================================================
-.proc ValidateRecountSlots
+.proc ValidateProvinceSlots
   RTS                                     ; $A582: 60        ; entry stubbed to RTS
 @SlotScanStart:                           ; unreachable (entry stubbed)
   LDA #$11                                ; $A583: A9 11
@@ -922,14 +1010,30 @@ AttractDemoCensusBuild:
   RTS                                     ; $A5A9: 60
 .endproc
 
-.proc ProvinceGoldRecount
+;===============================================================================
+; $A5AA: RiceHarvestEvent
+; DemoEventDispatch sub-state 7: the annual RiceHarvest event (米の収穫),
+; armed by EventPaceGate for raw month 9 (display October; the manual's
+; harvest window is months 11-12, docs/manual_kb/05-events.md). Same
+; 3-step machine on $0402: banner stream $BD (message tiles $9F), overlay
+; wait, then @HarvestScan pays out all 30 Provinces and sets $0401=1.
+; Per-Province payout (24-bit math as in TaxCollectionEvent):
+;   M    = LandValue +$08/$09 / @HarvestLevelDivisor[level] (3,3,4)
+;          + @HarvestLevelBonus[level]                     (100,60,60)
+;   GovQ = Governance +$0B quantized (same ladder as TaxCollectionEvent)
+;   Rice +$04/$05 += Population +$06/$07 x M / 60 x GovQ / 100, clamped
+;          at 9999 (ClampStatPair)
+; Manual match: Rice increases according to 土地, 人口, and 統治度. The old
+; "GoldRecount" name was doubly wrong - this event grows Rice, not Gold.
+;===============================================================================
+.proc RiceHarvestEvent
   LDA $0402                               ; $A5AA: AD 02 04
   JSR B1F_CallbackDispatcher               ; $A5AD: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word @GoldRecountWindow                 ; $A5B0: B6 A5 ; sub 0
-  .word @GoldRecountOverlayWait            ; $A5B2: C9 A5 ; sub 1
-  .word @GoldRecountApply                   ; $A5B4: E5 A5 ; sub 2
-@GoldRecountWindow:  ; (dispatch callback target)
+  .word @HarvestWindow                     ; $A5B0: B6 A5 ; sub 0
+  .word @HarvestOverlayWait                ; $A5B2: C9 A5 ; sub 1
+  .word @HarvestApply                      ; $A5B4: E5 A5 ; sub 2
+@HarvestWindow:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$BD                                ; $A5B6: A9 BD
   JSR B1F_SetUI4                           ; $A5B8: 20 8B F2
@@ -939,29 +1043,29 @@ AttractDemoCensusBuild:
   LDA #$1D                                ; $A5C3: A9 1D
   STA $04A0                               ; $A5C5: 8D A0 04
   RTS                                     ; $A5C8: 60
-@GoldRecountOverlayWait:  ; (dispatch callback target)
+@HarvestOverlayWait:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $04A0                               ; $A5C9: AD A0 04
-  BNE @GoldRecountOverlayWaitExit         ; $A5CC: D0 16
+  BNE @HarvestOverlayWaitExit              ; $A5CC: D0 16
   LDA $0140                               ; $A5CE: AD 40 01
-  BNE @GoldRecountOverlayWaitExit         ; $A5D1: D0 11
+  BNE @HarvestOverlayWaitExit              ; $A5D1: D0 11
   LDA $0300                               ; $A5D3: AD 00 03
   CMP #$FF                                ; $A5D6: C9 FF
-  BNE @GoldRecountOverlayWaitExit         ; $A5D8: D0 0A
+  BNE @HarvestOverlayWaitExit              ; $A5D8: D0 0A
   LDA $0304                               ; $A5DA: AD 04 03
   CMP #$FF                                ; $A5DD: C9 FF
-  BNE @GoldRecountOverlayWaitExit         ; $A5DF: D0 03
+  BNE @HarvestOverlayWaitExit              ; $A5DF: D0 03
   INC $0402                               ; $A5E1: EE 02 04
-@GoldRecountOverlayWaitExit:
+@HarvestOverlayWaitExit:
   RTS                                     ; $A5E4: 60
-@GoldRecountApply:  ; (dispatch callback target)
+@HarvestApply:  ; (dispatch callback target)
   LDA #$01                                ; $A5E5: A9 01
   STA $0401                               ; $A5E7: 8D 01 04
-  JSR @GoldRecountScan                     ; $A5EA: 20 EE A5
+  JSR @HarvestScan                         ; $A5EA: 20 EE A5
   RTS                                     ; $A5ED: 60
-@GoldRecountScan:
+@HarvestScan:
   LDA #$1D                                ; $A5EE: A9 1D
-@GoldRecountScanLoop:
+@HarvestScanLoop:
   PHA                                     ; $A5F0: 48
   JSR B1F_GetProvinceRecordAddr            ; $A5F1: 20 AF F2
   LDA a:$0000                             ; $A5F4: AD 00 00
@@ -986,13 +1090,13 @@ AttractDemoCensusBuild:
   STA a:$0002                             ; $A61C: 8D 02 00
   STA a:$0004                             ; $A61F: 8D 04 00
   LDY $6F02                               ; $A622: AC 02 6F
-  LDA @GoldRecountLevelDivisor,Y         ; $A625: B9 EC A6
+  LDA @HarvestLevelDivisor,Y               ; $A625: B9 EC A6
   STA a:$0003                             ; $A628: 8D 03 00
   JSR B1F_MathDiv24                        ; $A62B: 20 A5 EA
   LDY $6F02                               ; $A62E: AC 02 6F
   LDA a:$0000                             ; $A631: AD 00 00
   CLC                                     ; $A634: 18
-  ADC @GoldRecountLevelBonus,Y           ; $A635: 79 E9 A6
+  ADC @HarvestLevelBonus,Y                 ; $A635: 79 E9 A6
   STA a:$0003                             ; $A638: 8D 03 00
   LDA a:$0001                             ; $A63B: AD 01 00
   ADC #$00                                ; $A63E: 69 00
@@ -1020,21 +1124,21 @@ AttractDemoCensusBuild:
   AND #$7F                                ; $A676: 29 7F
   LDY #$32                                ; $A678: A0 32
   CMP #$33                                ; $A67A: C9 33
-  BCC @GoldRecountTierCap                  ; $A67C: 90 1A
+  BCC @HarvestTierCap                      ; $A67C: 90 1A
   LDY #$3C                                ; $A67E: A0 3C
   CMP #$47                                ; $A680: C9 47
-  BCC @GoldRecountTierCap                  ; $A682: 90 14
+  BCC @HarvestTierCap                      ; $A682: 90 14
   LDY #$46                                ; $A684: A0 46
   CMP #$51                                ; $A686: C9 51
-  BCC @GoldRecountTierCap                  ; $A688: 90 0E
+  BCC @HarvestTierCap                      ; $A688: 90 0E
   LDY #$50                                ; $A68A: A0 50
   CMP #$5B                                ; $A68C: C9 5B
-  BCC @GoldRecountTierCap                  ; $A68E: 90 08
+  BCC @HarvestTierCap                      ; $A68E: 90 08
   LDY #$5A                                ; $A690: A0 5A
   CMP #$64                                ; $A692: C9 64
-  BCC @GoldRecountTierCap                  ; $A694: 90 02
+  BCC @HarvestTierCap                      ; $A694: 90 02
   LDY #$64                                ; $A696: A0 64
-@GoldRecountTierCap:
+@HarvestTierCap:
   STY a:$0003                             ; $A698: 8C 03 00
   LDA #$00                                ; $A69B: A9 00
   STA a:$0004                             ; $A69D: 8D 04 00
@@ -1061,23 +1165,51 @@ AttractDemoCensusBuild:
   STA ($10),Y                             ; $A6D2: 91 10
   LDY #$04                                ; $A6D4: A0 04
   JSR ClampStatPair                        ; $A6D6: 20 2A A5
-  JSR ValidateRecountStats                ; $A6D9: 20 40 A5
-  JSR ValidateRecountSlots                ; $A6DC: 20 82 A5
+  JSR ValidateProvinceStats                ; $A6D9: 20 40 A5
+  JSR ValidateProvinceSlots                ; $A6DC: 20 82 A5
   PLA                                     ; $A6DF: 68
   SEC                                     ; $A6E0: 38
   SBC #$01                                ; $A6E1: E9 01
-  BMI @GoldRecountScanDone                 ; $A6E3: 30 03
-  JMP @GoldRecountScanLoop                 ; $A6E5: 4C F0 A5
-@GoldRecountScanDone:
+  BMI @HarvestScanDone                     ; $A6E3: 30 03
+  JMP @HarvestScanLoop                     ; $A6E5: 4C F0 A5
+@HarvestScanDone:
   RTS                                     ; $A6E8: 60
 ; --- Data Region ---
-@GoldRecountLevelBonus:                  ; gold recount bonus, indexed by game level $6F02
+@HarvestLevelBonus:                        ; rice harvest bonus, indexed by game level $6F02
   .byte $64,$3C,$3C                       ; $A6E9: 64 3C 3C
-@GoldRecountLevelDivisor:                ; gold recount divisor, indexed by game level $6F02
+@HarvestLevelDivisor:                      ; rice harvest divisor, indexed by game level $6F02
   .byte $03,$03,$04                       ; $A6EC: 03 03 04
 .endproc
 
-.proc WarDamageScene
+;===============================================================================
+; $A6EF: DroughtDamageScene
+; DemoEventDispatch sub-state 8: the monthly DROUGHT event (日照り, Aug/Sep,
+; see EventDisasterRoute). 4-step banner/card machine on $0402:
+;   0 @DamageListBuild    - ProvincePickListBuild pool A (Y=$00): up to 16
+;                           drought-hit Provinces into $042D-$043C; none picked
+;                           -> exit to sub-state 2 (EventReinforceGate)
+;   1 @DamageOverlayWait  - open banner stream $BE, message tiles $9F, wait
+;                           anim $04A0 and overlay sentinels $0300/$0304
+;   2 @DamageProvincePoll - per pick (skip UnclaimedLand owner nibble 7):
+;                           DisasterSeverityRoll; unless 防災 tier x=$0A (from
+;                           防災==99, full immunity): Population +$06/$07 and
+;                           LandValue +$08/$09 each -= (value/4) x tier/10,
+;                           then every stationed officer's TroopCount
+;                           (roster +$11-+$1A, officer record +$08/$09) -=
+;                           (value/4) x tier/10. Manual match: drought
+;                           damages 人口/兵数/土地 (docs/manual_kb/05-events.md).
+;                           Country record[$03]==$03 (AI/unattended
+;                           country): no marker/card, next pick;
+;                           else arm marker ($6F44), show roster-slot-0 card
+;                           (OfficerDisplay_Lookup trampoline, UI stream $3F)
+;   3 DamageCardRedraw    - DirtyMarkAndCard + marker draw, wait sentinels
+;                           and A-ack ($0081 bit 0), next pick; after 16
+;                           slots close banner (SetUI4 $00) -> sub-state 2
+; Scratch: $0403 pick cursor, a:$0010 severity tier x, a:$0011 card officer
+; id, a:$000A/$000B drained-record ptr, a:$000C/$000D Province record ptr,
+; a:$00A4 overlay mode $04 active / $03 done.
+;===============================================================================
+.proc DroughtDamageScene
 ; --- Code Region ---
   LDA $0402                               ; $A6EF: AD 02 04
   JSR B1F_CallbackDispatcher               ; $A6F2: 20 DE EA
@@ -1147,7 +1279,7 @@ DamageProvinceApply:
   AND #$07                                ; $A76A: 29 07
   CMP #$07                                ; $A76C: C9 07
   BEQ DamageListAdvance                    ; $A76E: F0 DB
-  JSR ProvinceTroopDeduct                  ; $A770: 20 E0 A8
+  JSR DisasterSeverityRoll                 ; $A770: 20 E0 A8
   LDA a:$0010                             ; $A773: AD 10 00
   CMP #$0A                                ; $A776: C9 0A
   BNE @DamageTroopDeduct                   ; $A778: D0 0F
@@ -1172,7 +1304,7 @@ DamageProvinceApply:
   LSR a:$0001                             ; $A7A8: 4E 01 00
   ROR a:$0000                             ; $A7AB: 6E 00 00
   LDY #$06                                ; $A7AE: A0 06
-  JSR ProvinceTroopSubtract                ; $A7B0: 20 3E A9
+  JSR DisasterFractionSubtract             ; $A7B0: 20 3E A9
   LDY #$08                                ; $A7B3: A0 08
   LDA ($0A),Y                             ; $A7B5: B1 0A
   STA a:$0000                             ; $A7B7: 8D 00 00
@@ -1184,7 +1316,7 @@ DamageProvinceApply:
   LSR a:$0001                             ; $A7C6: 4E 01 00
   ROR a:$0000                             ; $A7C9: 6E 00 00
   LDY #$08                                ; $A7CC: A0 08
-  JSR ProvinceTroopSubtract                ; $A7CE: 20 3E A9
+  JSR DisasterFractionSubtract             ; $A7CE: 20 3E A9
   LDA a:$000A                             ; $A7D1: AD 0A 00
   STA a:$000C                             ; $A7D4: 8D 0C 00
   LDA a:$000B                             ; $A7D7: AD 0B 00
@@ -1212,7 +1344,7 @@ DamageProvinceApply:
   LSR a:$0001                             ; $A809: 4E 01 00
   ROR a:$0000                             ; $A80C: 6E 00 00
   LDY #$08                                ; $A80F: A0 08
-  JSR ProvinceTroopSubtract                ; $A811: 20 3E A9
+  JSR DisasterFractionSubtract             ; $A811: 20 3E A9
 @DamageRosterNext:
   PLA                                     ; $A814: 68
   TAY                                     ; $A815: A8
@@ -1278,6 +1410,15 @@ DamageCardRedraw:  ; (dispatch callback target)
   RTS                                     ; $A895: 60
 .endproc
 
+;===============================================================================
+; $A896: ProvincePickListBuild
+; Flood/drought hit-list builder: blanks the 16 slots $042C-$043B with $FF,
+; then per slot X re-rolls B1F_RandomMod8 until the roll is <6; only roll 0
+; keeps the pool entry: $042D,X = @ProvincePickPoolA + Y (Y is the slot index
+; offset from the caller: $00 = pool A for DroughtDamageScene, $10 = pool B
+; for FloodDamageScene), rolls 1-5 leave the slot empty (~2.7 hits per
+; month). a:$0000 = hit count; 0 makes the caller skip the scene entirely.
+;===============================================================================
 .proc ProvincePickListBuild
   LDX #$10                                ; $A896: A2 10
   LDA #$FF                                ; $A898: A9 FF
@@ -1309,7 +1450,25 @@ DamageCardRedraw:  ; (dispatch callback target)
   .byte $00,$03,$04,$0A,$0B,$0C,$0E,$0F,$10,$12,$13,$14,$16,$17,$1B,$FF; $A8D0: 00 03 04 0A 0B 0C 0E 0F 10 12 13 14 16 17 1B FF
 .endproc
 
-.proc ProvinceTroopDeduct
+;===============================================================================
+; $A8E0: DisasterSeverityRoll
+; Shared flood/drought severity helper. Reads the Province DisasterPrevention
+; 防災 byte +$0A and arms the drain tier x in a:$0010 (the
+; DisasterFractionSubtract multiplier, x/10 of the caller-scaled field) plus
+; the 防災 decay base y in a:$0011:
+;   99    -> x=10 (scenes treat as full immunity, no stat drain), decay +$0A
+;   80-98 -> x=8, decay +7      50-79 -> x=6, decay +5
+;   20-49 -> x=4, decay +1      1-19  -> x=2, no decay
+;   0     -> x=0 (helper skips the multiply and drains the full pre-scaled
+;               value: 25% of Population, 50% of Rice - the most damaging
+;               tier; ROM quirk vs the manual's 防災-mitigates-damage claim)
+; Nonzero y erodes 防災 itself by random(0-5)+y (B1F_RandomMod8 re-rolled
+; while >=6, min 1): every disaster decays 防災 so it must be re-invested
+; via the 防災 command (CastleDev route / @AiAction_DisasterPrevention).
+; Returns a:$0011 = Province roster slot 0 (+$11), the officer id the caller
+; renders on the damage card ($FF = no card).
+;===============================================================================
+.proc DisasterSeverityRoll
 ; --- Code Region ---
   LDY #$0A                                ; $A8E0: A0 0A
   LDA ($00),Y                             ; $A8E2: B1 00
@@ -1362,7 +1521,15 @@ DamageCardRedraw:  ; (dispatch callback target)
   RTS                                     ; $A93D: 60
 .endproc
 
-.proc ProvinceTroopSubtract
+;===============================================================================
+; $A93E: DisasterFractionSubtract
+; Flood/drought drain helper: subtracts a:$0010/10 of the caller-scaled
+; 16-bit LE value in a:$0000/$0001 (record field pre-divided /4, Rice /2)
+; from the 16-bit LE field at ($0A),Y: field -= field x tier / 10, via
+; B1F_MathMul24x8 + B1F_MathDiv24 (#10). Tier x=0 short-circuits to a raw
+; subtract of the pre-scaled value (see DisasterSeverityRoll tier table).
+;===============================================================================
+.proc DisasterFractionSubtract
   LDA a:$0010                             ; $A93E: AD 10 00
   BEQ @TroopSubtractApply                  ; $A941: F0 31
   TYA                                     ; $A943: 98
@@ -1412,7 +1579,29 @@ DamageCardRedraw:  ; (dispatch callback target)
   RTS                                     ; $A99F: 60
 .endproc
 
-.proc TroopLossScene
+;===============================================================================
+; $A9A0: FloodDamageScene
+; DemoEventDispatch sub-state 9: the monthly FLOOD event (洪水, May/Jun, see
+; EventDisasterRoute). Same 4-step banner/card machine as DroughtDamageScene,
+; differing in the pick pool and the drained stats:
+;   0 @LossListBuild      - ProvincePickListBuild pool B (Y=$10)
+;   1 @LossWindowOpen     - open banner stream $BF, message tiles $9F, wait
+;                           anim $04A0 and overlay sentinels
+;   2 @LossProvincePoll   - per pick (skip UnclaimedLand owner nibble 7):
+;                           DisasterSeverityRoll; unless tier x=$0A (防災==99,
+;                           full immunity): Rice +$04/$05 -= (value/2) x
+;                           tier/10 (10-40%; tier 0 flat 50%), Population
+;                           +$06/$07 and Industry +$0E/$0F -= (value/4) x
+;                           tier/10 (5-20%; tier 0 flat 25%). Manual match:
+;                           flood damages 人口/米/産業
+;                           (docs/manual_kb/05-events.md). Country
+;                           record[$03]==$03 (AI/unattended) skips marker/
+;                           card; else marker
+;                           ($6F44) + roster-slot-0 card (UI stream $45)
+;   3 LossCardRedraw      - DirtyMarkAndCard + marker, A-ack, next pick;
+;                           after 16 slots close banner -> sub-state 2
+;===============================================================================
+.proc FloodDamageScene
   LDA $0402                               ; $A9A0: AD 02 04
   JSR B1F_CallbackDispatcher               ; $A9A3: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
@@ -1478,7 +1667,7 @@ LossProvinceApply:
   AND #$07                                ; $AA1B: 29 07
   CMP #$07                                ; $AA1D: C9 07
   BEQ LossListAdvance                      ; $AA1F: F0 DB
-  JSR ProvinceTroopDeduct                  ; $AA21: 20 E0 A8
+  JSR DisasterSeverityRoll                 ; $AA21: 20 E0 A8
   LDA a:$0010                             ; $AA24: AD 10 00
   CMP #$0A                                ; $AA27: C9 0A
   BNE @LossTroopDeduct                     ; $AA29: D0 0F
@@ -1503,7 +1692,7 @@ LossProvinceApply:
   LSR a:$0001                             ; $AA59: 4E 01 00
   ROR a:$0000                             ; $AA5C: 6E 00 00
   LDY #$06                                ; $AA5F: A0 06
-  JSR ProvinceTroopSubtract                ; $AA61: 20 3E A9
+  JSR DisasterFractionSubtract             ; $AA61: 20 3E A9
   LDY #$0E                                ; $AA64: A0 0E
   LDA ($0A),Y                             ; $AA66: B1 0A
   STA a:$0000                             ; $AA68: 8D 00 00
@@ -1515,7 +1704,7 @@ LossProvinceApply:
   LSR a:$0001                             ; $AA77: 4E 01 00
   ROR a:$0000                             ; $AA7A: 6E 00 00
   LDY #$0E                                ; $AA7D: A0 0E
-  JSR ProvinceTroopSubtract                ; $AA7F: 20 3E A9
+  JSR DisasterFractionSubtract             ; $AA7F: 20 3E A9
   LDY #$04                                ; $AA82: A0 04
   LDA ($0A),Y                             ; $AA84: B1 0A
   STA a:$0000                             ; $AA86: 8D 00 00
@@ -1525,7 +1714,7 @@ LossProvinceApply:
   LSR a:$0001                             ; $AA8F: 4E 01 00
   ROR a:$0000                             ; $AA92: 6E 00 00
   LDY #$04                                ; $AA95: A0 04
-  JSR ProvinceTroopSubtract                ; $AA97: 20 3E A9
+  JSR DisasterFractionSubtract             ; $AA97: 20 3E A9
 @LossCountryCheck:
   LDY #$00                                ; $AA9A: A0 00
   LDA ($0A),Y                             ; $AA9C: B1 0A
@@ -1584,104 +1773,119 @@ LossCardRedraw:  ; (dispatch callback target)
 @LossCardWaitExit:
   RTS                                     ; $AB14: 60
 .endproc
-
-.proc AnnualProvinceEvent
+;===============================================================================
+; $AB15: ProvinceRebellionEvent
+; Monthly peasant-rebellion processor (the demo's default month job, reached from
+; EventPaceGate for any month that is not a tax/harvest payout). Scans all 30 Provinces:
+;   1. @RebellionEventGate - during the scenario's first months (year $6F00==$59
+;      and month $6F01<4) skip; otherwise clear the pick list.
+;   2. RebellionProvinceLoop - per Province (skip unowned, owner nibble==7): the
+;      RebellionCooldown byte [$1B] counts down each month; only at 0 is it eligible.
+;   3. RebellionTakeoverCheck - read 統治度 [$0B]; >=50 never rebels, else a
+;      tiered risk ($05/$0A/$1E/$32 for 40/30/20/lower) is rolled vs
+;      random($64). On a hit the Province is queued and [$1B] rearms to $06.
+;   4. RebellionProvinceHit - for each queued Province roll RandomMod4 to drain
+;      gold, troops, or food (StatPairSubtract, scaled by the 統治度 tier);
+;      the drain is shown as a card only for non-AI-owned Countries.
+; Confirmed by docs/province_data.md: "rolls a rebellion when 統治度 is < 50".
+;===============================================================================
+.proc ProvinceRebellionEvent
   LDA $0402                               ; $AB15: AD 02 04
   JSR B1F_CallbackDispatcher               ; $AB18: 20 DE EA
 ; --- Inline pointer table (5 entries) ---
-  .word @AnnualEventGate                   ; $AB1B: 25 AB ; sub 0
-  .word AnnualProvincePoll                 ; $AB1D: A9 AB ; sub 1
-  .word AnnualOverlayWait                  ; $AB1F: 4D AC ; sub 2
-  .word AnnualOverlayWait2                 ; $AB21: 9A AC ; sub 3
-  .word AnnualExitCheck                    ; $AB23: BD AC ; sub 4
-@AnnualEventGate:  ; (dispatch callback target)
+  .word @RebellionEventGate                   ; $AB1B: 25 AB ; sub 0
+  .word RebellionProvincePoll                 ; $AB1D: A9 AB ; sub 1
+  .word RebellionOverlayWait                  ; $AB1F: 4D AC ; sub 2
+  .word RebellionOverlayWait2                 ; $AB21: 9A AC ; sub 3
+  .word RebellionExitCheck                    ; $AB23: BD AC ; sub 4
+@RebellionEventGate:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $6F00                               ; $AB25: AD 00 6F
   CMP #$59                                ; $AB28: C9 59
-  BNE @AnnualListBuild                     ; $AB2A: D0 0D
+  BNE @RebellionListBuild                     ; $AB2A: D0 0D
   LDA $6F01                               ; $AB2C: AD 01 6F
   CMP #$04                                ; $AB2F: C9 04
-  BCS @AnnualListBuild                     ; $AB31: B0 06
+  BCS @RebellionListBuild                     ; $AB31: B0 06
   LDA #$01                                ; $AB33: A9 01
   STA $0401                               ; $AB35: 8D 01 04
   RTS                                     ; $AB38: 60
-@AnnualListBuild:
+@RebellionListBuild:
   LDX #$00                                ; $AB39: A2 00
   LDA #$00                                ; $AB3B: A9 00
-@AnnualSlotsClearLoop:
+@RebellionSlotsClearLoop:
   STA $042C,X                             ; $AB3D: 9D 2C 04
   INX                                     ; $AB40: E8
   CPX #$1E                                ; $AB41: E0 1E
-  BCC @AnnualSlotsClearLoop               ; $AB43: 90 F8
+  BCC @RebellionSlotsClearLoop               ; $AB43: 90 F8
   LDX #$00                                ; $AB45: A2 00
-AnnualProvinceLoop:
+RebellionProvinceLoop:
   TXA                                     ; $AB47: 8A
   JSR B1F_GetProvinceRecordAddr            ; $AB48: 20 AF F2
   LDY #$00                                ; $AB4B: A0 00
   LDA ($00),Y                             ; $AB4D: B1 00
   AND #$0F                                ; $AB4F: 29 0F
   CMP #$07                                ; $AB51: C9 07
-  BEQ AnnualProvinceNext                   ; $AB53: F0 0B
+  BEQ RebellionProvinceNext                   ; $AB53: F0 0B
   LDY #$1B                                ; $AB55: A0 1B
   LDA ($00),Y                             ; $AB57: B1 00
-  BEQ AnnualTakeoverCheck                  ; $AB59: F0 13
+  BEQ RebellionTakeoverCheck                  ; $AB59: F0 13
   SEC                                     ; $AB5B: 38
   SBC #$01                                ; $AB5C: E9 01
   STA ($00),Y                             ; $AB5E: 91 00
-AnnualProvinceNext:
+RebellionProvinceNext:
   INX                                     ; $AB60: E8
   CPX #$1E                                ; $AB61: E0 1E
-  BCC AnnualProvinceLoop                   ; $AB63: 90 E2
+  BCC RebellionProvinceLoop                   ; $AB63: 90 E2
   INC $0402                               ; $AB65: EE 02 04
   LDA #$00                                ; $AB68: A9 00
   STA $0403                               ; $AB6A: 8D 03 04
   RTS                                     ; $AB6D: 60
-AnnualTakeoverCheck:
+RebellionTakeoverCheck:
   LDY #$0B                                ; $AB6E: A0 0B
   LDA ($00),Y                             ; $AB70: B1 00
   CMP #$32                                ; $AB72: C9 32
-  BCS AnnualProvinceNext                   ; $AB74: B0 EA
+  BCS RebellionProvinceNext                   ; $AB74: B0 EA
   LDY #$05                                ; $AB76: A0 05
   CMP #$28                                ; $AB78: C9 28
-  BCS @AnnualTierSel                       ; $AB7A: B0 0E
+  BCS @RebellionTierSel                       ; $AB7A: B0 0E
   LDY #$0A                                ; $AB7C: A0 0A
   CMP #$1E                                ; $AB7E: C9 1E
-  BCS @AnnualTierSel                       ; $AB80: B0 08
+  BCS @RebellionTierSel                       ; $AB80: B0 08
   LDY #$1E                                ; $AB82: A0 1E
   CMP #$14                                ; $AB84: C9 14
-  BCS @AnnualTierSel                       ; $AB86: B0 02
+  BCS @RebellionTierSel                       ; $AB86: B0 02
   LDY #$32                                ; $AB88: A0 32
-@AnnualTierSel:
+@RebellionTierSel:
   STY a:$0011                             ; $AB8A: 8C 11 00
   LDA #$64                                ; $AB8D: A9 64
   JSR B1F_RandomBelowThreshold             ; $AB8F: 20 62 E8
   CMP a:$0011                             ; $AB92: CD 11 00
-  BCC @AnnualTakeoverMark                  ; $AB95: 90 03
-  JMP AnnualProvinceNext                   ; $AB97: 4C 60 AB
-@AnnualTakeoverMark:
+  BCC @RebellionTakeoverMark                  ; $AB95: 90 03
+  JMP RebellionProvinceNext                   ; $AB97: 4C 60 AB
+@RebellionTakeoverMark:
   LDA a:$0011                             ; $AB9A: AD 11 00
   STA $042C,X                             ; $AB9D: 9D 2C 04
   LDY #$1B                                ; $ABA0: A0 1B
   LDA #$06                                ; $ABA2: A9 06
   STA ($00),Y                             ; $ABA4: 91 00
-  JMP AnnualProvinceNext                   ; $ABA6: 4C 60 AB
-AnnualProvincePoll:  ; (dispatch callback target)
+  JMP RebellionProvinceNext                   ; $ABA6: 4C 60 AB
+RebellionProvincePoll:  ; (dispatch callback target)
   LDY $0403                               ; $ABA9: AC 03 04
   LDA $042C,Y                             ; $ABAC: B9 2C 04
-  BNE AnnualProvinceHit                    ; $ABAF: D0 18
-AnnualPollAdvance:
+  BNE RebellionProvinceHit                    ; $ABAF: D0 18
+RebellionPollAdvance:
   INC $0403                               ; $ABB1: EE 03 04
   LDA $0403                               ; $ABB4: AD 03 04
   CMP #$1E                                ; $ABB7: C9 1E
-  BCC @AnnualPollAdvanceExit              ; $ABB9: 90 0D
+  BCC @RebellionPollAdvanceExit              ; $ABB9: 90 0D
   LDA #$01                                ; $ABBB: A9 01
   STA $0401                               ; $ABBD: 8D 01 04
   LDA #$00                                ; $ABC0: A9 00
   STA a:$00A4                             ; $ABC2: 8D A4 00
   JSR B1F_SetUI4                           ; $ABC5: 20 8B F2
-@AnnualPollAdvanceExit:
+@RebellionPollAdvanceExit:
   RTS                                     ; $ABC8: 60
-AnnualProvinceHit:
+RebellionProvinceHit:
   STA $0470                               ; $ABC9: 8D 70 04
   TYA                                     ; $ABCC: 98
   JSR B1F_GetProvinceRecordAddr            ; $ABCD: 20 AF F2
@@ -1689,31 +1893,31 @@ AnnualProvinceHit:
   STA a:$000A                             ; $ABD3: 8D 0A 00
   LDA a:$0001                             ; $ABD6: AD 01 00
   STA a:$000B                             ; $ABD9: 8D 0B 00
-@AnnualEventRollLoop:
+@RebellionEventRollLoop:
   JSR B1F_RandomMod4                       ; $ABDC: 20 50 E8
-  BEQ @AnnualEventRollLoop                ; $ABDF: F0 FB
+  BEQ @RebellionEventRollLoop                ; $ABDF: F0 FB
   STA a:$0010                             ; $ABE1: 8D 10 00
   CMP #$01                                ; $ABE4: C9 01
-  BNE @AnnualEventTroopCase               ; $ABE6: D0 06
-  JSR AnnualGoldDec                        ; $ABE8: 20 CD AC
-  JMP @AnnualCountryCheck                 ; $ABEB: 4C FB AB
-@AnnualEventTroopCase:
+  BNE @RebellionEventTroopCase               ; $ABE6: D0 06
+  JSR RebellionGoldDec                        ; $ABE8: 20 CD AC
+  JMP @RebellionCountryCheck                 ; $ABEB: 4C FB AB
+@RebellionEventTroopCase:
   CMP #$02                                ; $ABEE: C9 02
-  BNE @AnnualEventFoodCase                ; $ABF0: D0 06
-  JSR AnnualTroopDec                       ; $ABF2: 20 E9 AC
-  JMP @AnnualCountryCheck                 ; $ABF5: 4C FB AB
-@AnnualEventFoodCase:
-  JSR AnnualFoodDec                        ; $ABF8: 20 14 AD
-@AnnualCountryCheck:
+  BNE @RebellionEventFoodCase                ; $ABF0: D0 06
+  JSR RebellionTroopDec                       ; $ABF2: 20 E9 AC
+  JMP @RebellionCountryCheck                 ; $ABF5: 4C FB AB
+@RebellionEventFoodCase:
+  JSR RebellionFoodDec                        ; $ABF8: 20 14 AD
+@RebellionCountryCheck:
   LDY #$00                                ; $ABFB: A0 00
   LDA ($0A),Y                             ; $ABFD: B1 0A
   JSR B1F_GetCountryDataPtr                ; $ABFF: 20 68 F3
   LDY #$03                                ; $AC02: A0 03
   LDA ($00),Y                             ; $AC04: B1 00
   CMP #$03                                ; $AC06: C9 03
-  BNE @AnnualMarkerArm                    ; $AC08: D0 03
-  JMP AnnualPollAdvance                    ; $AC0A: 4C B1 AB
-@AnnualMarkerArm:
+  BNE @RebellionMarkerArm                    ; $AC08: D0 03
+  JMP RebellionPollAdvance                    ; $AC0A: 4C B1 AB
+@RebellionMarkerArm:
   STA $6F44                               ; $AC0D: 8D 44 6F
   INC $0402                               ; $AC10: EE 02 04
   LDA $0403                               ; $AC13: AD 03 04
@@ -1740,26 +1944,26 @@ AnnualProvinceHit:
   STA $04A0                               ; $AC45: 8D A0 04
   LDA #$E8                                ; $AC48: A9 E8
   JMP B1F_SetUI4                           ; $AC4A: 4C 8B F2
-AnnualOverlayWait:  ; (dispatch callback target)
+RebellionOverlayWait:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR DirtyMarkAndCard                     ; $AC4D: 20 85 A9
   LDA $04A0                               ; $AC50: AD A0 04
-  BNE @AnnualOverlayWaitExit              ; $AC53: D0 1C
+  BNE @RebellionOverlayWaitExit              ; $AC53: D0 1C
   LDA $0140                               ; $AC55: AD 40 01
-  BNE @AnnualOverlayWaitExit              ; $AC58: D0 17
+  BNE @RebellionOverlayWaitExit              ; $AC58: D0 17
   LDA $0300                               ; $AC5A: AD 00 03
   CMP #$FF                                ; $AC5D: C9 FF
-  BNE @AnnualOverlayWaitExit              ; $AC5F: D0 10
+  BNE @RebellionOverlayWaitExit              ; $AC5F: D0 10
   LDA $0304                               ; $AC61: AD 04 03
   CMP #$FF                                ; $AC64: C9 FF
-  BNE @AnnualOverlayWaitExit              ; $AC66: D0 09
+  BNE @RebellionOverlayWaitExit              ; $AC66: D0 09
   JSR MarkerSpriteDraw                    ; $AC68: 20 C2 A1
   LDA a:$0081                             ; $AC6B: AD 81 00
   LSR                                     ; $AC6E: 4A
-  BCS AnnualOverlayAck                     ; $AC6F: B0 01
-@AnnualOverlayWaitExit:
+  BCS RebellionOverlayAck                     ; $AC6F: B0 01
+@RebellionOverlayWaitExit:
   RTS                                     ; $AC71: 60
-AnnualOverlayAck:
+RebellionOverlayAck:
   INC $0402                               ; $AC72: EE 02 04
   LDA #$04                                ; $AC75: A9 04
   STA a:$00A4                             ; $AC77: 8D A4 00
@@ -1778,34 +1982,34 @@ AnnualOverlayAck:
   CLC                                     ; $AC93: 18
   ADC $0470                               ; $AC94: 6D 70 04
   JMP B1F_SetUI0                           ; $AC97: 4C 6D F2
-AnnualOverlayWait2:  ; (dispatch callback target)
+RebellionOverlayWait2:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR DirtyMarkAndCard                     ; $AC9A: 20 85 A9
   LDA $0300                               ; $AC9D: AD 00 03
   CMP #$FF                                ; $ACA0: C9 FF
-  BNE @AnnualOverlayWait2Exit             ; $ACA2: D0 18
+  BNE @RebellionOverlayWait2Exit             ; $ACA2: D0 18
   LDA $0304                               ; $ACA4: AD 04 03
   CMP #$FF                                ; $ACA7: C9 FF
-  BNE @AnnualOverlayWait2Exit             ; $ACA9: D0 11
+  BNE @RebellionOverlayWait2Exit             ; $ACA9: D0 11
   JSR MarkerSpriteDraw                    ; $ACAB: 20 C2 A1
   LDA a:$0081                             ; $ACAE: AD 81 00
   LSR                                     ; $ACB1: 4A
-  BCC @AnnualOverlayWait2Exit             ; $ACB2: 90 08
+  BCC @RebellionOverlayWait2Exit             ; $ACB2: 90 08
   INC $0402                               ; $ACB4: EE 02 04
   LDA #$00                                ; $ACB7: A9 00
   JMP B1F_SetUI4                           ; $ACB9: 4C 8B F2
-@AnnualOverlayWait2Exit:
+@RebellionOverlayWait2Exit:
   RTS                                     ; $ACBC: 60
-AnnualExitCheck:  ; (dispatch callback target)
+RebellionExitCheck:  ; (dispatch callback target)
   LDA $0304                               ; $ACBD: AD 04 03
   CMP #$FF                                ; $ACC0: C9 FF
-  BNE @AnnualExitWait                     ; $ACC2: D0 08
+  BNE @RebellionExitWait                     ; $ACC2: D0 08
   LDA #$01                                ; $ACC4: A9 01
   STA $0402                               ; $ACC6: 8D 02 04
-  JMP AnnualPollAdvance                    ; $ACC9: 4C B1 AB
-@AnnualExitWait:
+  JMP RebellionPollAdvance                    ; $ACC9: 4C B1 AB
+@RebellionExitWait:
   RTS                                     ; $ACCC: 60
-AnnualGoldDec:
+RebellionGoldDec:
   LDX #$01                                ; $ACCD: A2 01
   LDA $0470                               ; $ACCF: AD 70 04
   CMP #$05                                ; $ACD2: C9 05
@@ -1821,7 +2025,7 @@ AnnualGoldDec:
   STX a:$0003                             ; $ACE1: 8E 03 00
   LDY #$06                                ; $ACE4: A0 06
   JMP StatPairSubtract                     ; $ACE6: 4C 3F AD
-AnnualTroopDec:
+RebellionTroopDec:
   LDX #$04                                ; $ACE9: A2 04
   LDA $0470                               ; $ACEB: AD 70 04
   CMP #$05                                ; $ACEE: C9 05
@@ -1843,7 +2047,7 @@ AnnualTroopDec:
   STA a:$0003                             ; $AD0C: 8D 03 00
   LDY #$04                                ; $AD0F: A0 04
   JMP StatPairSubtract                     ; $AD11: 4C 3F AD
-AnnualFoodDec:
+RebellionFoodDec:
   LDX #$04                                ; $AD14: A2 04
   LDA $0470                               ; $AD16: AD 70 04
   CMP #$05                                ; $AD19: C9 05
@@ -1906,18 +2110,18 @@ StatPairSubtract:
 ; checked: when it is 3 (Ruler out of office) the handoff params $0470-$0473
 ; are armed and RulerSuccessionScene runs; otherwise the scene ends in
 ; @StatusApply, which splits on the acting Country's control flag (($EE)
-; byte [3], set up by the strategy banks): $03 (player-controlled) hands off
+; byte [3], set up by the strategy banks): $03 (computer/AI-controlled) hands off
 ; to the strategy request mailbox poll, any other value returns to the map
 ; with camera and year display setup. Sub-states 4-6 are the same procs used
-; as demo sub-states $C-$E of DemoEventPlaybackDispatch (RulerSuccessionScene,
-; OfficerReassessScene, ScenarioHandoffPrep).
+; as demo sub-states $C-$E of DemoEventDispatch (RulerSuccessionScene,
+; SuccessionApplyScene, ScenarioHandoffPrep).
 ; Dispatches the scene sub-state by $0401:
 ;   0 @StatusSceneInit     - clear sprite refresh flag, camera Y $F0, year display
 ;   1 @StatusSrcSetup      - wait NMI idle, split $0507, first Country Ruler check
 ;   2 @StatusDstSetup      - second Country Ruler check
 ;   3 @StatusApply         - strategy mailbox handoff or map return
 ;   4 RulerSuccessionScene - officer transfer / new-Ruler coronation (shared)
-;   5 OfficerReassessScene - strongest-Officer reassessment (shared)
+;   5 SuccessionApplyScene - apply the succession: install the chosen heir/strongest Officer as Ruler (shared)
 ;   6 ScenarioHandoffPrep  - per-Country notice + record handoff (shared)
 ; Scratch RAM: $040A acting Country, $040B Ruler Officer id, $040C the other
 ; packed Country, $0470-$0473 handoff params ($0470 = RulerSuccessionScene
@@ -1935,7 +2139,7 @@ StatPairSubtract:
   .word @StatusDstSetup                   ; $AD8B: 0D AE ; sub-state 2
   .word @StatusApply                      ; $AD8D: 51 AE ; sub-state 3
   .word RulerSuccessionScene              ; $AD8F: 01 BE ; sub-state 4 (shared)
-  .word OfficerReassessScene              ; $AD91: 32 C1 ; sub-state 5 (shared)
+  .word SuccessionApplyScene              ; $AD91: 32 C1 ; sub-state 5 (shared)
   .word ScenarioHandoffPrep               ; $AD93: 7A C3 ; sub-state 6 (shared)
 ;===============================================================================
 ; $AD95: @StatusSceneInit (sub-state 0)
@@ -2009,7 +2213,7 @@ StatPairSubtract:
   JSR B1F_GetCountryDataPtr                ; $ADFE: 20 68 F3 ; ($00) = Country record
   LDY #$03                                ; $AE01: A0 03
   LDA ($00),Y                             ; $AE03: B1 00
-  CMP #$03                                ; $AE05: C9 03     ; control flag: player Country
+  CMP #$03                                ; $AE05: C9 03     ; control flag: computer(AI) Country
   BEQ @StatusAdvance                      ; $AE07: F0 D0
   STA $6F44                               ; $AE09: 8D 44 6F ; map marker/palette Country
   RTS                                     ; $AE0C: 60
@@ -2057,11 +2261,11 @@ StatPairSubtract:
 ; Terminal sub-state: neither Ruler needs succession. Clears the handoff
 ; slots $0470/$0471, then splits on the acting Country's control flag
 ; (($EE) byte [3]):
-;   - $03 (player-controlled): open the Ruler status overlay (UI $BB) with
+;   - $03 (computer/AI-controlled): open the Ruler status overlay (UI $BB) with
 ;     the Ruler id in $042C and hand off to the strategy request handler
 ;     (frame state 9, sub-state 1 RequestPoll) with the request mailbox
 ;     $6F8B and the counters $6F5B/$6F5C/$6F62 cleared.
-;   - other (CPU/inactive Country): latch the control flag into the map
+;   - other (human/inactive Country): latch the control flag into the map
 ;     marker/palette Country $6F44, fix the Country's home Province
 ;     (record[1]) to the Ruler's actual Province (FindOfficerProvince), aim
 ;     the camera ($6F3F/$6F41) there, refresh the year display
@@ -2073,7 +2277,7 @@ StatPairSubtract:
   STA $0471                               ; $AE56: 8D 71 04
   LDY #$03                                ; $AE59: A0 03
   LDA ($EE),Y                             ; $AE5B: B1 EE     ; Country control flag
-  CMP #$03                                ; $AE5D: C9 03     ; $03 = player-controlled
+  CMP #$03                                ; $AE5D: C9 03     ; $03 = computer/AI-controlled
   BNE @StatusApplyMapReturn               ; $AE5F: D0 2A
   LDA #$BB                                ; $AE61: A9 BB
   JSR B1F_SetUI4                           ; $AE63: 20 8B F2 ; Ruler status overlay
@@ -4095,20 +4299,45 @@ MapProvinceDirtyBitMaskTable:
   STA NAMCO_WRAM_WRITE_PROTECT            ; $BC7C: 8D 00 F8
   RTS                                     ; $BC7F: 60
 .endproc
-.proc OfficerRemovalScene
+;===============================================================================
+; $BC80: OfficerNaturalDeathScene
+; Event sub-state $B: the monthly natural-death (シホウ) pass, run at
+; strategy turn start for the acting Country $6F03 (EventRulerLoad sub 3
+; hands off here via $0401 = $0B). Two passes share DeathChanceRoll:
+;   1. DeathProvinceScan: every Province owned by $6F03, every roster slot
+;      [$11]-[$1A]: the Ruler ($040B) is skipped and his Province/slot cached
+;      into $001E/$001F for the pass-2 roll; every other rostered Officer
+;      rolls DeathChanceRoll, and on a kill the death card (UI $C1,
+;      MenuAction1A_OfficerDeath "[NAME]がシホウしました", Officer id in
+;      $042C) is shown (DeathOverlayWait) before OfficerKill marks
+;      record[$0B] status 3 and compacts the roster.
+;   2. After all Provinces: the cached Ruler slot is restored into
+;      $0408/$0409 and the Ruler himself rolls ($0401 <- 4,
+;      EventRulerDeathCheck handles the succession when he died).
+; DeathChanceRoll ($BD28): banks in ROM page $31 and reads the per-Officer
+; death-year table at $9C58 (one byte per Officer id, byte = death_year -
+; 100; extracted to docs/officer_death_years.csv by
+; tools/extract_death_years.py). Deficit = $6F00 (game year - 100) -
+; table[Officer id]; negative -> survives this month. Otherwise the deficit
+; is clamped to 0-6 and indexes DeathChanceThreshold: roll = random($C8)
+; (B1F_RandomBelowThreshold), dies when roll < threshold:
+;   year 0: $05/200 (2.5%), +1: $0A (5%), +2: $14 (10%), +3: $25 (18.5%),
+;   +4: $50 (40%), +5: $A0 (80%), +6 or later: $C9 -> always.
+;===============================================================================
+.proc OfficerNaturalDeathScene
   LDA $0402                               ; $BC80: AD 02 04
   JSR B1F_CallbackDispatcher               ; $BC83: 20 DE EA
 ; --- Inline pointer table (3 entries) ---
-  .word @RemovalScanInit                   ; $BC86: 8C BC ; sub 0
-  .word RemovalProvinceScan                ; $BC88: 95 BC ; sub 1
-  .word RemovalOverlayWait                 ; $BC8A: 67 BD ; sub 2
-@RemovalScanInit:  ; (dispatch callback target)
+  .word @DeathScanInit                   ; $BC86: 8C BC ; sub 0
+  .word DeathProvinceScan                ; $BC88: 95 BC ; sub 1
+  .word DeathOverlayWait                 ; $BC8A: 67 BD ; sub 2
+@DeathScanInit:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$00                                ; $BC8C: A9 00
   STA $0408                               ; $BC8E: 8D 08 04
   INC $0402                               ; $BC91: EE 02 04
   RTS                                     ; $BC94: 60
-RemovalProvinceScan:  ; (dispatch callback target)
+DeathProvinceScan:  ; (dispatch callback target)
   LDA $0408                               ; $BC95: AD 08 04
   JSR B1F_GetProvinceRecordAddr            ; $BC98: 20 AF F2
   LDA a:$0000                             ; $BC9B: AD 00 00
@@ -4128,15 +4357,15 @@ RosterSlotScanLoop:
   CMP #$FF                                ; $BCBC: C9 FF
   BEQ RosterSlotAdvance                   ; $BCBE: F0 34
   CMP $040B                               ; $BCC0: CD 0B 04
-  BNE @RemovalRollKill                    ; $BCC3: D0 0F
+  BNE @DeathRollKill                    ; $BCC3: D0 0F
   LDA $0408                               ; $BCC5: AD 08 04
   STA a:$001E                             ; $BCC8: 8D 1E 00
   LDA $0409                               ; $BCCB: AD 09 04
   STA a:$001F                             ; $BCCE: 8D 1F 00
   JMP RosterSlotAdvance                   ; $BCD1: 4C F4 BC
-@RemovalRollKill:
+@DeathRollKill:
   STA $040A                               ; $BCD4: 8D 0A 04
-  JSR RemovalChanceRoll                    ; $BCD7: 20 28 BD
+  JSR DeathChanceRoll                    ; $BCD7: 20 28 BD
   BCC RosterSlotAdvance                   ; $BCDA: 90 18
   LDY #$03                                ; $BCDC: A0 03
   LDA ($EE),Y                             ; $BCDE: B1 EE
@@ -4157,20 +4386,20 @@ ProvinceScanAdvance:
   INC $0408                               ; $BCFE: EE 08 04
   LDA $0408                               ; $BD01: AD 08 04
   CMP #$1E                                ; $BD04: C9 1E
-  BCC RemovalProvinceScan                  ; $BD06: 90 8D
+  BCC DeathProvinceScan                  ; $BD06: 90 8D
   LDA $040B                               ; $BD08: AD 0B 04
   STA $040A                               ; $BD0B: 8D 0A 04
   LDA a:$001E                             ; $BD0E: AD 1E 00
   STA $0408                               ; $BD11: 8D 08 04
   LDA a:$001F                             ; $BD14: AD 1F 00
   STA $0409                               ; $BD17: 8D 09 04
-  JSR RemovalChanceRoll                    ; $BD1A: 20 28 BD
+  JSR DeathChanceRoll                    ; $BD1A: 20 28 BD
   LDA #$04                                ; $BD1D: A9 04
   STA $0401                               ; $BD1F: 8D 01 04
   LDA #$00                                ; $BD22: A9 00
   STA $0402                               ; $BD24: 8D 02 04
   RTS                                     ; $BD27: 60
-RemovalChanceRoll:
+DeathChanceRoll:
   LDY #$31                                ; $BD28: A0 31
   JSR B1F_SwitchBank8_B                    ; $BD2A: 20 5F F2
   LDA #$58                                ; $BD2D: A9 58
@@ -4187,23 +4416,23 @@ RemovalChanceRoll:
   LDA #$06                                ; $BD46: A9 06
 @ChanceIndexClamp:
   TAY                                     ; $BD48: A8
-  LDA RemovalChanceThreshold,Y            ; $BD49: B9 60 BD
+  LDA DeathChanceThreshold,Y            ; $BD49: B9 60 BD
   STA a:$000C                             ; $BD4C: 8D 0C 00
   LDA #$C8                                ; $BD4F: A9 C8
   JSR B1F_RandomBelowThreshold             ; $BD51: 20 62 E8
   CMP a:$000C                             ; $BD54: CD 0C 00
-  BCC RemovalKill                          ; $BD57: 90 02
+  BCC DeathApplyKill                          ; $BD57: 90 02
 @ChanceRollSurvive:
   CLC                                     ; $BD59: 18
   RTS                                     ; $BD5A: 60
-RemovalKill:
+DeathApplyKill:
   JSR OfficerKill                          ; $BD5B: 20 BB BD
   SEC                                     ; $BD5E: 38
   RTS                                     ; $BD5F: 60
 ; --- Data Region ---
-RemovalChanceThreshold:                  ; removal roll threshold out of $C8, indexed by clamped deficit (0-6)
+DeathChanceThreshold:                    ; death roll threshold out of $C8, indexed by clamped year deficit (0-6)
   .byte $05,$0A,$14,$25,$50,$A0,$C9       ; $BD60: 05 0A 14 25 50 A0 C9
-RemovalOverlayWait:  ; (dispatch callback target)
+DeathOverlayWait:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0300                               ; $BD67: AD 00 03
   CMP #$FF                                ; $BD6A: C9 FF
@@ -4699,17 +4928,30 @@ SuccessionApplyWait:  ; (dispatch callback target)
   RTS                                     ; $C131: 60
 .endproc
 
-.proc OfficerReassessScene
+;===============================================================================
+; $C132: SuccessionApplyScene - apply the succession for the acting Country
+;   ($040A): install a new Ruler (Country record[0]). Sub 1 scans the Country's
+;   preferred-heir list SuccessionArrivalOfficerTable[$040A*8] for the first
+;   heir physically present in a Province (ProvinceOfOfficerFind); if none is
+;   found sub 2 promotes the highest-Might officer in the Country
+;   (StrongestOfficerFind). Sub 3 writes the chosen Officer into Country
+;   record[0] and moves him to the front of his Province roster
+;   (RosterSwapFirst); sub 5 sets his loyalty to 100 and - on the
+;   strongest-officer fallback path ($0409 bit7) - purges low-loyalty (<31)
+;   Officers, who defect (ArrivalRosterShift). Shared sub-state $5 with
+;   OfficerStatusScene (frame $0D). Dispatches the scene sub-state by $0402.
+;===============================================================================
+.proc SuccessionApplyScene
   LDA $0402                               ; $C132: AD 02 04
   JSR B1F_CallbackDispatcher               ; $C135: 20 DE EA
 ; --- Inline pointer table (6 entries) ---
-  .word @ReassessInit                      ; $C138: 44 C1 ; sub 0
-  .word ReassessListScan                   ; $C13A: 58 C1 ; sub 1
-  .word ReassessStrongestScan              ; $C13C: DB C1 ; sub 2
-  .word ReassessAnnounce                   ; $C13E: 5D C2 ; sub 3
-  .word ReassessDelay                      ; $C140: 80 C2 ; sub 4
-  .word ReassessApply                      ; $C142: 89 C2 ; sub 5
-@ReassessInit:  ; (dispatch callback target)
+  .word @SuccessionApplyInit                      ; $C138: 44 C1 ; sub 0
+  .word SuccessionApplyListScan                   ; $C13A: 58 C1 ; sub 1
+  .word SuccessionApplyStrongestScan              ; $C13C: DB C1 ; sub 2
+  .word SuccessionApplyAnnounce                   ; $C13E: 5D C2 ; sub 3
+  .word SuccessionApplyDelay                      ; $C140: 80 C2 ; sub 4
+  .word SuccessionApplyCommit                      ; $C142: 89 C2 ; sub 5
+@SuccessionApplyInit:  ; (dispatch callback target)
 ; --- Code Region ---
   INC $0402                               ; $C144: EE 02 04
   LDA #$00                                ; $C147: A9 00
@@ -4720,7 +4962,7 @@ SuccessionApplyWait:  ; (dispatch callback target)
   JSR B1F_SetUI4                           ; $C154: 20 8B F2
 ListScanDelayWait:
   RTS                                     ; $C157: 60
-ReassessListScan:  ; (dispatch callback target)
+SuccessionApplyListScan:  ; (dispatch callback target)
   INC $04D0                               ; $C158: EE D0 04
   BNE ListScanDelayWait                   ; $C15B: D0 FA
   LDA $040A                               ; $C15D: AD 0A 04
@@ -4728,11 +4970,11 @@ ReassessListScan:  ; (dispatch callback target)
   ASL                                     ; $C161: 0A
   ASL                                     ; $C162: 0A
   STA a:$0010                             ; $C163: 8D 10 00
-  LDA #$42                                ; $C166: A9 42
+  LDA #<SuccessionArrivalOfficerTable     ; $C166: A9 42
   CLC                                     ; $C168: 18
   ADC a:$0010                             ; $C169: 6D 10 00
   STA a:$0010                             ; $C16C: 8D 10 00
-  LDA #$C3                                ; $C16F: A9 C3
+  LDA #>SuccessionArrivalOfficerTable     ; $C16F: A9 C3
   ADC #$00                                ; $C171: 69 00
   STA a:$0011                             ; $C173: 8D 11 00
   LDY #$00                                ; $C176: A0 00
@@ -4789,7 +5031,7 @@ ProvinceOfOfficerFind:
   BCC @ProvinceScanLoop                   ; $C1D7: 90 CA
   CLC                                     ; $C1D9: 18
   RTS                                     ; $C1DA: 60
-ReassessStrongestScan:  ; (dispatch callback target)
+SuccessionApplyStrongestScan:  ; (dispatch callback target)
   LDA #$FF                                ; $C1DB: A9 FF
   STA a:$0010                             ; $C1DD: 8D 10 00
   LDX #$00                                ; $C1E0: A2 00
@@ -4809,14 +5051,14 @@ ReassessStrongestScan:  ; (dispatch callback target)
   BCC @StrongestScanLoop                  ; $C1FA: 90 E9
   LDA a:$0010                             ; $C1FC: AD 10 00
   CMP #$FF                                ; $C1FF: C9 FF
-  BEQ @ReassessNoneExit                    ; $C201: F0 0E
+  BEQ @SuccessionApplyNoneExit                    ; $C201: F0 0E
   STA $040D                               ; $C203: 8D 0D 04
   LDA #$80                                ; $C206: A9 80
   STA $0409                               ; $C208: 8D 09 04
   LDA #$03                                ; $C20B: A9 03
   STA $0402                               ; $C20D: 8D 02 04
   RTS                                     ; $C210: 60
-@ReassessNoneExit:
+@SuccessionApplyNoneExit:
   LDA $0471                               ; $C211: AD 71 04
   STA $0401                               ; $C214: 8D 01 04
   LDA #$00                                ; $C217: A9 00
@@ -4851,7 +5093,7 @@ StrongestOfficerFind:
   BCC @BestStatScanLoop                   ; $C25A: 90 D2
 @BestStatDone:
   RTS                                     ; $C25C: 60
-ReassessAnnounce:  ; (dispatch callback target)
+SuccessionApplyAnnounce:  ; (dispatch callback target)
   LDA $040A                               ; $C25D: AD 0A 04
   JSR B1F_GetCountryDataPtr                ; $C260: 20 68 F3
   LDY #$00                                ; $C263: A0 00
@@ -4865,16 +5107,16 @@ ReassessAnnounce:  ; (dispatch callback target)
   STA $04D0                               ; $C278: 8D D0 04
   LDA #$C2                                ; $C27B: A9 C2
   JMP B1F_SetUI4                           ; $C27D: 4C 8B F2
-ReassessDelay:  ; (dispatch callback target)
+SuccessionApplyDelay:  ; (dispatch callback target)
   INC $04D0                               ; $C280: EE D0 04
-  BNE @ReassessDelayWait                  ; $C283: D0 03
+  BNE @SuccessionApplyDelayWait                  ; $C283: D0 03
   INC $0402                               ; $C285: EE 02 04
-@ReassessDelayWait:
+@SuccessionApplyDelayWait:
   RTS                                     ; $C288: 60
-ReassessApply:  ; (dispatch callback target)
+SuccessionApplyCommit:  ; (dispatch callback target)
   LDA $0409                               ; $C289: AD 09 04
-  BMI ReassessRosterScan                   ; $C28C: 30 18
-ReassessBoostAndExit:
+  BMI SuccessionApplyRosterScan                   ; $C28C: 30 18
+SuccessionApplyBoostAndExit:
   LDA $040D                               ; $C28E: AD 0D 04
   JSR B1F_GetOfficerRecordAddr             ; $C291: 20 D7 F2
   LDY #$03                                ; $C294: A0 03
@@ -4885,7 +5127,7 @@ ReassessBoostAndExit:
   LDA #$00                                ; $C2A0: A9 00
   STA $0402                               ; $C2A2: 8D 02 04
   RTS                                     ; $C2A5: 60
-ReassessRosterScan:
+SuccessionApplyRosterScan:
   LDA #$00                                ; $C2A6: A9 00
   STA a:$0012                             ; $C2A8: 8D 12 00
 @ShiftProvinceLoop:
@@ -4921,12 +5163,12 @@ ReassessRosterScan:
   LDY #$03                                ; $C2EF: A0 03
   LDA ($22),Y                             ; $C2F1: B1 22
   CMP #$1F                                ; $C2F3: C9 1F
-  BCS @ReassessScanNext                    ; $C2F5: B0 0A
+  BCS @SuccessionApplyScanNext                    ; $C2F5: B0 0A
   JSR B1F_RandomBelow100                   ; $C2F7: 20 43 E8
   CMP #$14                                ; $C2FA: C9 14
-  BCS @ReassessScanNext                    ; $C2FC: B0 03
+  BCS @SuccessionApplyScanNext                    ; $C2FC: B0 03
   JSR ArrivalRosterShift                   ; $C2FE: 20 18 C3
-@ReassessScanNext:
+@SuccessionApplyScanNext:
 ; --- Code Region ---
   INC a:$0013                             ; $C301: EE 13 00
   LDY a:$0013                             ; $C304: AC 13 00
@@ -4937,7 +5179,7 @@ ReassessRosterScan:
   LDA a:$0012                             ; $C30E: AD 12 00
   CMP #$1E                                ; $C311: C9 1E
   BCC @ShiftProvinceLoop                  ; $C313: 90 96
-  JMP ReassessBoostAndExit                 ; $C315: 4C 8E C2
+  JMP SuccessionApplyBoostAndExit                 ; $C315: 4C 8E C2
 ArrivalRosterShift:
   LDA a:$0031                             ; $C318: AD 31 00
   CMP $040D                               ; $C31B: CD 0D 04
@@ -4963,19 +5205,34 @@ ArrivalRosterShift:
   STA ($10),Y                             ; $C33C: 91 10
   DEC a:$0013                             ; $C33E: CE 13 00
   RTS                                     ; $C341: 60
-; --- Data Region ---
 .endproc
 
-; --- Succession arrival Officer schedule: 7 Countries x 8 Officer-id slots
-; --- ($FF = empty), indexed by SuccessionArrivalScan as table[$040A*8]
-; --- (RulerSuccessionScene $BFDE). Kept outside any .proc: it physically
-; --- trails OfficerReassessScene ($C341) and cannot be relocated to the
-; --- consumer's proc without shifting every following bank-$1A address.
+; --- Succession arrival Officer schedule: shared data region of the ---
+; --- SuccessionApplyScene / RulerSuccessionScene pair. 7 Countries x 8 ---
+; --- Officer-id slots ($FF = empty slot), indexed by the acting Country ---
+; --- record / $040A as table[$040A*8]; read by SuccessionArrivalScan and by ---
+; --- SuccessionApplyListScan (via #< / #>). Kept a global file-scope label ---
+; --- (not a standalone .proc), and it cannot be scoped inside the proc ---
+; --- because the earlier RulerSuccessionScene forward-references it, which ---
+; --- ca65 forbids across .proc scopes. Each row is one Country's preferred ---
+; --- heirs in succession order (names verified via the ROM officer id ---
+; --- table; see docs/officer_names_kanji.csv). ---
 SuccessionArrivalOfficerTable:
-  .byte $DA,$DB,$D3,$FF,$FF,$FF,$FF,$FF,$09,$07,$FF,$FF,$FF,$FF,$FF,$FF; $C342: DA DB D3 FF FF FF FF FF 09 07 FF FF FF FF FF FF
-  .byte $84,$7B,$7F,$80,$85,$82,$FF,$FF,$89,$8B,$5D,$FF,$FF,$FF,$FF,$FF; $C352: 84 7B 7F 80 85 82 FF FF 89 8B 5D FF FF FF FF FF
-  .byte $E0,$6D,$26,$99,$FF,$FF,$FF,$FF,$42,$97,$FF,$FF,$FF,$FF,$FF,$FF; $C362: E0 6D 26 99 FF FF FF FF 42 97 FF FF FF FF FF FF
-  .byte $B4,$B0,$B5,$B3,$FF,$FF,$FF,$FF   ; $C372: B4 B0 B5 B3 FF FF FF FF
+@DongZhuo:  ; 董卓
+  .byte $DA,$DB,$D3,$FF,$FF,$FF,$FF,$FF ; $C342: 呂布 Ryofu, 李儒 Riju, 李傕 Rikaku
+@YuanShao:  ; 袁紹
+  .byte $09,$07,$FF,$FF,$FF,$FF,$FF,$FF ; $C34A: 袁譚 Entan, 袁煕 Enki
+@CaoCao:    ; 曹操
+  .byte $84,$7B,$7F,$80,$85,$82,$FF,$FF ; $C352: 曹丕 Souhi, 曹叡 Souei, 曹彰 Soushou, 曹植 Soushoku, 曹熊 Souyuu, 曹仁 Soujin
+@SunCe:     ; 孫策
+  .byte $89,$8B,$5D,$FF,$FF,$FF,$FF,$FF ; $C35A: 孫權 Sonken, 孫翊 Sonyoku, 周瑜 Shuuyu
+@LiuBei:    ; 劉備
+  .byte $E0,$6D,$26,$99,$FF,$FF,$FF,$FF ; $C362: 劉封 Ryuuhou, 諸葛亮 Shokatsuryou, 関羽 Kan'u, 張飛 Chouhi
+@LiuZhang:  ; 劉璋
+  .byte $42,$97,$FF,$FF,$FF,$FF,$FF,$FF ; $C36A: 呉懿 Goi, 張任 Choujin
+@MaTeng:    ; 馬騰
+  .byte $B4,$B0,$B5,$B3,$FF,$FF,$FF,$FF ; $C372: 馬超 Bachou, 馬休 Bakyuu, 馬鉄 Batetsu, 馬岱 Batai
+
 .proc ScenarioHandoffPrep
 ; --- Code Region ---
   LDA $0402                               ; $C37A: AD 02 04
@@ -5522,9 +5779,9 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ;   2. refreshes the Ruler card through bank $1D BankedDataHandler, and
 ;   3. decodes the mailbox code and starts the matching presentation.
 ; Mailbox codes (requester -> sub-state):
-;   $FE ResolveCountryAbsorb (prg_0a_0b $A8C1, defender still has forces)
+;   $FE ResolveProvinceConquest (prg_0a_0b $A8C1, human defender: war pending)
 ;       -> sub-state 4: war menu, army-deploy scene, then the post-war menus
-;   $FD ResolveCountryAbsorb (prg_0a_0b $A8D1, Country fully absorbed)
+;   $FD ResolveProvinceConquest (prg_0a_0b $A8D1, computer defender: instantly conquered)
 ;       -> sub-state 8: post-war menus only
 ;   $FC prg_0a_0b $CB74 (Officer swapped into a record)   -> sub-state $B
 ;   $FB prg_0a_0b $CA7A (Officer record deleted)           -> sub-state $C
@@ -5703,8 +5960,8 @@ RequestPoll:  ; sub-states 1-3
   RTS                                     ; $C898: 60
 ;===============================================================================
 ; $C899: ReqWarPending (mailbox $FE)
-; ResolveCountryAbsorb left the defender with forces, so a War has to be played
-; out. Marks the swept Provinces dirty, resolves the map-half flag for the
+; ResolveProvinceConquest staged a war against a human-owned Province, so the
+; war has to be played out. Marks the swept Provinces dirty, resolves the map-half flag for the
 ; target Province, posts the Ruler's Officer card, then opens bank $1D menu 9
 ; ($04A0 = 9 -> MenuAction08) with extra parameter $04D6 = $47 (which makes the
 ; menu skip its PPU re-init because the map screen is already up) and moves to
@@ -5737,7 +5994,7 @@ ReqWarPending:  ; mailbox $FE
   RTS                                     ; $C8CE: 60
 ;===============================================================================
 ; $C8CF: ReqCountryAbsorbed (mailbox $FD)
-; ResolveCountryAbsorb fully absorbed the defender, so there is nothing to
+; ResolveProvinceConquest conquered a computer-owned Province, so there is nothing to
 ; deploy: same war menu 9 is opened but with extra parameter $04D6 = $A2 (menu
 ; does re-init the PPU) and the flow starts directly at the post-war sub-state 8.
 ;===============================================================================
@@ -6748,7 +7005,7 @@ RequestAckReturn:
 ; --- Data Region ---
   .word @Phase1StepSequencer              ; $D00C: 1F D4  ; phase $80 -> step sequencer
   .word @Phase2FrameHandler               ; $D00E: 10 D0  ; phase $81 -> scene frame handler
-@Phase2FrameHandler:                      ; (dispatch callback target)
+@Phase2FrameHandler:  ; (dispatch callback target)
 ; --- Code Region ---
   INC $04D0                               ; $D010: EE D0 04 ; scene elapsed timer (cutscene ends at $B0)
   JSR @MarchFormationOamDraw              ; $D013: 20 EA D2 ; 12-sprite marching soldier strip
@@ -6776,7 +7033,7 @@ RequestAckReturn:
   .word @Scene08OverlayInit               ; $D044: 32 D2  ; scene 8: overlay cell init
   .word @Scene09OverlayInit               ; $D046: 63 D2  ; scene 9: overlay cell init
   .word @Scene10OverlayInit               ; $D048: 94 D2  ; scene 10: soldiers leave one by one
-@Scene00OverlayInit:                      ; (dispatch callback target)
+@Scene00OverlayInit:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $04CA                               ; $D04A: AD CA 04
   BNE @Scene00Tail                        ; $D04D: D0 0F
@@ -6804,7 +7061,7 @@ RequestAckReturn:
   STA $04CA                               ; $D073: 8D CA 04
   INC $04CA                               ; $D076: EE CA 04
   JMP @SceneTimerCheck                    ; $D079: 4C A3 D3
-@Scene01PaletteSwap:                      ; (dispatch callback target)
+@Scene01PaletteSwap:  ; (dispatch callback target)
   LDA $04CA                               ; $D07C: AD CA 04
   CMP $04CB                               ; $D07F: CD CB 04
   BNE @Scene01Swap                        ; $D082: D0 0E
@@ -6835,7 +7092,7 @@ RequestAckReturn:
 @Scene01PaletteTable:
   .byte $16,$26,$27,$26,$27,$26           ; $D0AC: 16 26 27 26 27 26  ; 3-byte $010D-$010F cell triple per cursor
   .byte $27,$26,$16,$26,$16,$26           ; $D0B2: 27 26 16 26 16 26
-@Scene02OverlayInit:                      ; (dispatch callback target)
+@Scene02OverlayInit:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $04CA                               ; $D0B8: AD CA 04
   BNE @Scene02Tail                        ; $D0BB: D0 1A
@@ -6866,7 +7123,7 @@ RequestAckReturn:
   STA $04CA                               ; $D0EC: 8D CA 04
   INC $04CA                               ; $D0EF: EE CA 04
   JMP @SceneTimerCheck                    ; $D0F2: 4C A3 D3
-@Scene03OverlayInit:                      ; (dispatch callback target)
+@Scene03OverlayInit:  ; (dispatch callback target)
   LDA $04CA                               ; $D0F5: AD CA 04
   BNE @Scene03Tail                        ; $D0F8: D0 1A
   LDA #$F0                                ; $D0FA: A9 F0
@@ -6895,7 +7152,7 @@ RequestAckReturn:
   STA $04CA                               ; $D129: 8D CA 04
   INC $04CA                               ; $D12C: EE CA 04
   JMP @SceneTimerCheck                    ; $D12F: 4C A3 D3
-@Scene04OverlayInit:                      ; (dispatch callback target)
+@Scene04OverlayInit:  ; (dispatch callback target)
   LDA $04CA                               ; $D132: AD CA 04
   BNE @Scene04Tail                        ; $D135: D0 2E
   LDA #$EC                                ; $D137: A9 EC
@@ -6934,7 +7191,7 @@ RequestAckReturn:
   STA $04CB                               ; $D186: 8D CB 04
 @Scene04TimerJmp:
   JMP @SceneTimerCheck                    ; $D189: 4C A3 D3
-@Scene05OverlayInit:                      ; (dispatch callback target)
+@Scene05OverlayInit:  ; (dispatch callback target)
   LDA $04CA                               ; $D18C: AD CA 04
   BNE @Scene05Tail                        ; $D18F: D0 1A
   LDA #$E5                                ; $D191: A9 E5
@@ -6960,7 +7217,7 @@ RequestAckReturn:
   ADC #$01                                ; $D1BB: 69 01
   STA $04CA                               ; $D1BD: 8D CA 04
   JMP @SceneTimerCheck                    ; $D1C0: 4C A3 D3
-@Scene06OverlayInit:                      ; (dispatch callback target)
+@Scene06OverlayInit:  ; (dispatch callback target)
   LDA $04CA                               ; $D1C3: AD CA 04
   BNE @Scene06Tail                        ; $D1C6: D0 14
   LDA #$EF                                ; $D1C8: A9 EF
@@ -6992,7 +7249,7 @@ RequestAckReturn:
   ADC #$03                                ; $D1FE: 69 03
   STA $04CB                               ; $D200: 8D CB 04
   JMP @SceneTimerCheck                    ; $D203: 4C A3 D3
-@Scene07OverlayInit:                      ; (dispatch callback target)
+@Scene07OverlayInit:  ; (dispatch callback target)
   LDA $04CA                               ; $D206: AD CA 04
   BNE @Scene07Tail                        ; $D209: D0 0F
   LDA #$BB                                ; $D20B: A9 BB
@@ -7014,7 +7271,7 @@ RequestAckReturn:
   ADC #$01                                ; $D22A: 69 01
   STA $04CA                               ; $D22C: 8D CA 04
   JMP @SceneTimerCheck                    ; $D22F: 4C A3 D3
-@Scene08OverlayInit:                      ; (dispatch callback target)
+@Scene08OverlayInit:  ; (dispatch callback target)
   LDA $04CA                               ; $D232: AD CA 04
   BNE @Scene08Tail                        ; $D235: D0 0F
   LDA #$B9                                ; $D237: A9 B9
@@ -7038,7 +7295,7 @@ RequestAckReturn:
   STA $04CA                               ; $D25A: 8D CA 04
   INC $04CA                               ; $D25D: EE CA 04
   JMP @SceneTimerCheck                    ; $D260: 4C A3 D3
-@Scene09OverlayInit:                      ; (dispatch callback target)
+@Scene09OverlayInit:  ; (dispatch callback target)
   LDA $04CA                               ; $D263: AD CA 04
   BNE @Scene09Tail                        ; $D266: D0 0F
   LDA #$D8                                ; $D268: A9 D8
@@ -7062,7 +7319,7 @@ RequestAckReturn:
   STA $04CA                               ; $D28B: 8D CA 04
   INC $04CA                               ; $D28E: EE CA 04
   JMP @SceneTimerCheck                    ; $D291: 4C A3 D3
-@Scene10OverlayInit:                      ; (dispatch callback target)
+@Scene10OverlayInit:  ; (dispatch callback target)
   LDA $04CA                               ; $D294: AD CA 04
   BNE @Scene10Tail                        ; $D297: D0 16
   LDA #$E3                                ; $D299: A9 E3
@@ -7241,13 +7498,13 @@ RequestAckReturn:
   LDA #$1D                                ; $D419: A9 1D
   JSR B1F_SoundWrapperA                   ; $D41B: 20 73 E6
   RTS                                     ; $D41E: 60
-@Phase1StepSequencer:                     ; (dispatch callback target)
+@Phase1StepSequencer:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $04CA                               ; $D41F: AD CA 04
   JSR B1F_CallbackDispatcher              ; $D422: 20 DE EA
 ; --- Data Region ---
   .byte $2F,$D4,$76,$D4,$59,$D5,$F2,$D5,$EA,$D6  ; $D425: 2F D4 76 D4 59 D5 F2 D5 EA D6
-@Phase1Step0RecordFetch:                  ; (dispatch callback target)
+@Phase1Step0RecordFetch:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$50                                ; $D42F: A9 50
   STA $04D4                               ; $D431: 8D D4 04
@@ -7279,7 +7536,7 @@ RequestAckReturn:
   STA $04D1                               ; $D46F: 8D D1 04
   INC $04CA                               ; $D472: EE CA 04
   RTS                                     ; $D475: 60
-@Phase1Step1StripCopy:                    ; (dispatch callback target)
+@Phase1Step1StripCopy:  ; (dispatch callback target)
   LDY #$21                                ; $D476: A0 21
   JSR B1F_SwitchBank8_B                   ; $D478: 20 5F F2
   LDA $04D4                               ; $D47B: AD D4 04
@@ -7382,7 +7639,7 @@ RequestAckReturn:
 @SceneTransitionTable:
   .byte $02,$10,$06,$08,$04,$02,$0E,$08   ; $D549: 02 10 06 08 04 02 0E 08  ; next scene = tbl[$04C9] >> 1
   .byte $0C,$14,$0A,$08,$04,$12,$02,$00   ; $D551: 0C 14 0A 08 04 12 02 00  ; scenes 8-15
-@Phase1Step2RowCopy:                      ; (dispatch callback target)
+@Phase1Step2RowCopy:  ; (dispatch callback target)
 ; --- Code Region ---
   LDY #$21                                ; $D559: A0 21
   JSR B1F_SwitchBank8_B                   ; $D55B: 20 5F F2
@@ -7449,7 +7706,7 @@ RequestAckReturn:
   ORA #$04                                ; $D5EC: 09 04
   STA a:$007E                             ; $D5EE: 8D 7E 00
   RTS                                     ; $D5F1: 60
-@Phase1Step3PaletteSetup:                 ; (dispatch callback target)
+@Phase1Step3PaletteSetup:  ; (dispatch callback target)
   LDA $04C9                               ; $D5F2: AD C9 04
   ASL                                     ; $D5F5: 0A
   ASL                                     ; $D5F6: 0A
@@ -7534,7 +7791,7 @@ RequestAckReturn:
   .byte $0F,$2A,$36,$17,$0F,$2A,$36,$17,$0F,$36,$17,$10  ; $D6D2: 0F 2A 36 17 0F 2A 36 17 0F 36 17 10
   .byte $0F,$07,$07,$18                   ; $D6DE: 0F 07 07 18  ; scene 9 palette chunk
   .byte $0F,$36,$17,$16,$0F,$20,$10,$0F   ; $D6E2: 0F 36 17 16 0F 20 10 0F  ; scene 10 palette chunk
-@Phase1Step4ArmPhase2:                    ; (dispatch callback target)
+@Phase1Step4ArmPhase2:  ; (dispatch callback target)
 ; --- Code Region ---
   LDY #$03                                ; $D6EA: A0 03
   LDA #$01                                ; $D6EC: A9 01

@@ -65,7 +65,7 @@ MapScreenFrameStateTable:
   .word MapRulerIntroDispatch             ; $A033: 7D A0 ; state 7: sub-state dispatch by $0401
   .word MapRulerIntroDispatch             ; $A035: 7D A0 ; state 8: sub-state dispatch by $0401
   .word CallStrategyRequestDispatch       ; $A037: 55 A0 ; state 9: banked call, B19_1A_StrategyRequestDispatch
-  .word CallDemoEventPlaybackDispatch     ; $A039: 5D A0 ; state $0A: banked call, B19_1A_DemoEventPlaybackDispatch
+  .word CallDemoEventDispatch             ; $A039: 5D A0 ; state $0A: banked call, B19_1A_DemoEventDispatch
   .word CallAttractDemoDispatch           ; $A03B: 45 A0 ; state $0B: banked call, B19_1A_AttractDemoDispatch
   .word CallProvinceOfficerRosterDispatch ; $A03D: 4D A0 ; state $0C: banked call, B19_1A_ProvinceOfficerRosterDispatch
   .word CallOfficerStatusScene            ; $A03F: 65 A0 ; state $0D: banked call, B19_1A_OfficerStatusScene
@@ -110,14 +110,14 @@ MapScreenFrameStateTable:
 .endproc
 
 ;===============================================================================
-; CallDemoEventPlaybackDispatch ($A05D-$A064) - dispatch callback target (state $0A)
+; CallDemoEventDispatch ($A05D-$A064) - dispatch callback target (state $0A)
 ; Banked-call wrapper: switches to banks $19+$1A and invokes
-; B19_1A_DemoEventPlaybackDispatch (demo event playback).
+; B19_1A_DemoEventDispatch (attract-demo monthly event dispatch).
 ;===============================================================================
-.proc CallDemoEventPlaybackDispatch  ; (dispatch callback target)
+.proc CallDemoEventDispatch  ; (dispatch callback target)
   LDY #$39                                ; $A05D: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A05F: 20 07 EE
-  .word B19_1A_DemoEventPlaybackDispatch  ; $A062: 09 A0 (BankedCallbackTrampoline target; bank $19 $A009 -> JMP DemoEventPlaybackDispatch)
+  .word B19_1A_DemoEventDispatch          ; $A062: 09 A0 (BankedCallbackTrampoline target; bank $19 $A009 -> JMP DemoEventDispatch)
   RTS                                     ; $A064: 60
 .endproc
 

@@ -18,13 +18,16 @@ the canonical glossary in `docs/manual_kb/terminology.md`:
   +2       知力     Intelligence
   +3       忠誠度   Loyalty (100 = a playable ruler)
   +4       人徳     Virtue
-  +5       always 0 in ROM (runtime field)
+  +5       位置     LocationProvince (province id $00-$2D; runtime-only,
+                    always 0 in the ROM seed)
   +6/+7    経験値   Experience, 16-bit little-endian
   +8/+9    兵数     TroopCount, 16-bit little-endian (non-zero only for the
                     officers already on the map in the 189 start year)
   +10      equipment, packed: bits 0-4 = 武器 (Weapon), bits 5-7 = 防具 (Armor)
   +11      bits 4-7 = レベル (OfficerLevel, 0-based; the game displays it +1)
-           bits 0-3 = 軍の属性 (ArmyAffinity): {1,2} 平, {5,6} 山, {9,10} 水
+           bits 2-3 = 軍の属性 (ArmyAffinity): {1,2} 平, {5,6} 山, {9,10} 水
+           bits 0-1 = status: 0 在野 free, 1 hidden, 2 rostered, 3 out of
+                    action (dead/removed; triggers ruler succession)
 
 Weapon indices fall into three groups of 8 (剣 / 刀 / 槍系) and armor is
 ordered worst-to-best; both tables were recovered by correlating every record
@@ -222,11 +225,11 @@ def write_md(rows, path, info):
                 ('`+2`', '知力 Intelligence', '1-100'),
                 ('`+3`', '忠誠度 Loyalty', '100 = playable ruler'),
                 ('`+4`', '人徳 Virtue', '1-100'),
-                ('`+5`', '-', 'always 0 in ROM (runtime field)'),
+                ('`+5`', '位置 LocationProvince', 'province id $00-$2D; runtime-only, always 0 in ROM'),
                 ('`+6/+7`', '経験値 Experience', '16-bit LE; 0/1000/2000/3500/5000'),
                 ('`+8/+9`', '兵数 TroopCount', '16-bit LE; non-zero only for officers on the map at the 189 start'),
                 ('`+10`', '武器 Weapon / 防具 Armor', 'bits 0-4 weapon, bits 5-7 armor'),
-                ('`+11`', 'レベル OfficerLevel / 軍の属性 ArmyAffinity', 'bits 4-7 level (0-based), bits 0-3 affinity')):
+                ('`+11`', 'レベル OfficerLevel / 軍の属性 ArmyAffinity / 状態 status', 'bits 4-7 level (0-based), bits 2-3 affinity, bits 0-1 status (see below)')):
             f.write(f'| {off} | {name} | {note} |\n')
         f.write('\n### Equipment codes\n\n')
         f.write('Weapons come in three groups of eight; armor is ordered\n'
@@ -238,11 +241,53 @@ def write_md(rows, path, info):
             wi = f'{WEAPONS[wk[n]]} | {wk[n]}' if n < len(wk) else ' | '
             ai = f'{ARMOR[ak[n]]} | {ak[n]}' if n < len(ak) else ' | '
             f.write(f'| {wi} | | {ai} |\n')
-        f.write('\n軍の属性 / ArmyAffinity (low nibble of `+11`) only ever takes\n'
-                'six values, in pairs: `1`/`2` = 平軍 PlainsArmy, `5`/`6` = 山軍\n'
-                'MountainArmy, `9`/`10` = 水軍 NavalArmy. The affinity itself\n'
-                'is `(n - 1) / 4`; what distinguishes the two values within\n'
-                'each pair is not yet known.\n')
+        f.write('\n軍の属性 / ArmyAffinity (bits 2-3 of `+11`, equivalently the full\n'
+                'low nibble `& $0F` mapped as `(n - 1) / 4`) only ever takes\n'
+                'six nibble values, in pairs: `1`/`2` = 平軍 PlainsArmy, `5`/`6` =\n'
+                '山軍 MountainArmy, `9`/`10` = 水軍 NavalArmy. The battle AI\n'
+                'indexes its order-vector tables with bits 2-3 directly\n'
+                '(`prg_0e_0f.asm` `@OrderResolve` `$D110`: `LSR LSR AND #$03`).\n'
+                'What distinguishes the two values inside each pair is not yet known.\n')
+        f.write('\n### Status (`+11` bits 0-1) and location (`+5`)\n\n')
+        f.write('Both are runtime-only fields - every ROM seed record has them\n'
+                'at 0 - and are decoded from the code that maintains them:\n\n')
+        f.write('| `& $03` | Meaning | Key evidence |\n|---|---|---|\n')
+        f.write(
+            '| `0` | 在野 free / unaffiliated | `OfficerArrivalScan` fallback '
+            '(prg_19_1a `$BA1A`) looks for free officers whose `+5` location '
+            'matches the scouted province; defection paths clear the bits '
+            '(prg_0a_0b `$CBE0`) |\n')
+        f.write(
+            '| `1` | hidden / not yet appeared | arrival-schedule scan '
+            'prg_0a_0b `$C63B` only considers `&3 == 1` officers whose appear '
+            'year has passed, and recruits them to the province roster as `2` '
+            '(prg_0a_0b `$C657`); reinforcement scan prg_19_1a `$AF04` |\n')
+        f.write(
+            '| `2` | rostered to a province | `ValidateProvinceSlots` '
+            '(prg_19_1a `$A59A`, debug): every non-empty province roster slot '
+            'must hold a status-2 officer |\n')
+        f.write(
+            '| `3` | out of action (dead / removed; triggers ruler '
+            'succession) | `OfficerKill` (prg_19_1a `$BDCA`) sets it via '
+            '`ORA #$03` and `$FF`s the roster slot; prg_0a_0b `$CA4B` labels '
+            'the already-3 case `@RulerAlreadyDead`; the year-end '
+            '`OfficerStatusScene` (prg_19_1a `$ADD5`) arms '
+            '`RulerSuccessionScene` on it; counted as excluded at '
+            'prg_19_1a `$A284` |\n')
+        f.write('\n`+5` 位置 LocationProvince holds the province id ($00-$2D)\n'
+                'where the officer currently is. It is written whenever an\n'
+                'officer changes location: a defecting roster officer is\n'
+                're-tagged with the province he defects in\n'
+                '(`prg_0a_0b.asm` `$CBE4`, post-succession pass; likewise the\n'
+                'arrival relocation `prg_19_1a.asm` `$C0A1`), and the AI\n'
+                'stationing pass assigns a free officer a province from the\n'
+                'companion-province table $9D72 with a 1-in-8 roll\n'
+                '(`prg_0a_0b.asm` `$AC3A`).\n\n'
+                'Starting province and appearance year are *not* in this\n'
+                'record; they live in the arrival schedule at bank `$31`\n'
+                '`$8B1C`: ten (officer id, appear year) pairs per province\n'
+                '(stride `$14`), walked by `OfficerArrivalScan`\n'
+                '(`prg_19_1a.asm` `$B964`).\n')
         f.write('\n### Notes\n\n')
         f.write('* Records 237-239 exist in the 240-slot array but hold\n'
                 '  unrelated bytes, which is why the officer count is 237.\n')
@@ -251,8 +296,9 @@ def write_md(rows, path, info):
                 '  except for id 71 侯成, who has 1000 experience but a level\n'
                 '  nibble of 0. That looks like a data-entry slip in the\n'
                 '  original ROM.\n')
-        f.write('* Starting province and appearance year are *not* in this\n'
-                '  record; they live in a separate scenario table.\n')
+        f.write('* Starting province and appearance year are read from the\n'
+                '  bank-`$31` arrival schedule at `$8B1C` (see the status and\n'
+                '  location section above), not from this record.\n')
         f.write('\n## Officers\n\n')
         head = [label for _, label in COLUMNS if label != 'kanji_ja']
         f.write('| ' + ' | '.join(head) + ' |\n')

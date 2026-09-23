@@ -13,7 +13,7 @@
 ;-------------------------------------------------------------------------------
 ; $E000-$E079  Reset Handler        PPU/APU init, RAM clear, mapper init
 ; $E07C-$E099  Vector Dispatch      15 state entry points indexed by $007A
-; $E09A-$E4D8  Game State Handlers  System init, new game, ruler select,
+; $E09A-$E4D8  Game State Handlers  System init, new game, war scene launch,
 ;                                   strategy mode, tactical mode, country map,
 ;                                   advisor, turn summary, idle waits
 ; $E4DA-$E566  Core Helpers         FrameInit, BankSwitch (8-byte config)
@@ -240,7 +240,7 @@ VectorTable:
   .addr State_SystemInit                        ; $E07C: 9A E0 | 0:  $E09A
   .addr State_NewGameInit                       ; $E07E: DA E0 | 1:  $E0DA
   .addr State_StrategyAiTurnFrame               ; $E080: 7D E1 | 2:  $E17D
-  .addr State_RulerSelect                       ; $E082: 8B E1 | 3:  $E18B
+  .addr State_WarSceneLaunch                    ; $E082: 8B E1 | 3:  $E18B
   .addr State_WarAiTurnFrame                    ; $E084: 21 E2 | 4:  $E221
   .addr State_StrategyMode                      ; $E086: 2F E2 | 5:  $E22F
   .addr State_RandomAdvance1                    ; $E088: E2 E2 | 6:  $E2E2
@@ -340,7 +340,11 @@ VectorTable:
   JSR SwitchBankAC_B                            ; $E134: 20 37 F2
   JSR B1D_1E_ClearWorkBuffer                    ; $E137: 20 36 A0  Clear work buffer (bank-switched)
   JSR PaletteFadeInit                           ; $E13A: 20 BF EC
-  LDA #$A0                                      ; $E142: A9 00
+  LDY #$3D                                      ; $E13D: A0 3D
+  JSR SwitchBankAC_B                            ; $E13F: 20 37 F2
+  LDA #$00                                      ; $E142: A9 00
+  JSR B1D_1E_SceneRecordLookup                  ; $E144: 20 45 A0  Scene record lookup (bank $1D/$1E)
+  LDA #$A0                                      ; $E147: A9 A0
   STA a:addr_display_mode                       ; $E149: 8D 98 00
   LDA #$00                                      ; $E14C: A9 00
   STA $0420                                     ; $E14E: 8D 20 04
@@ -378,13 +382,24 @@ VectorTable:
 .endproc
 
 ;===============================================================================
-; $E18B: Entry 3 - Ruler Select
-; Params: $0500 = select mode ($0B=scenario)
-;         $0510-$0513 = map scroll target data
+; $E18B: Entry 3 - War Scene Launch (verified; formerly misnamed "Ruler Select")
+; One-shot launch frame on the war/battle side, then INC addr_game_state -> 4
+; (WarAiTurnFrame / AiTurnProcess). Only four sites store game state 3:
+;   WarSceneLaunch prg_1b_1c $B5E1 / ArmyDeploySceneTrigger prg_19_1a $CA4A
+;     arm war_scene_id $0500 = $0A; Spoils_ExitFade prg_17_18 $C354 and
+;     Phase4ResultFlashTrigger prg_0e_0f $A403 arm $0500 = $0B post-battle.
+; Dispatch on $0500:
+;   $0B  -> bank $0C/$0D OfficerTransferActionDispatch: commit pending officer
+;           transfers queued in $0514-$0517 (action 2 = transfer)
+;   else -> bank $08/$09 WarSetup: deploy the $0507 faction pair for battle
+; No controller input is polled; NMI render sub-state $0078 = 3
+; (NmiState3_Battle).
+; Params: $0500 = launch selector ($0B = officer-transfer commit)
+;         $0510-$0513 = map scroll target data (cleared by the launchers)
 ;         $0068/$0069 = map data pointer
 ;===============================================================================
-.proc State_RulerSelect
-select_mode     = $0500
+.proc State_WarSceneLaunch
+war_scene_id    = $0500  ; launch selector, alias of prg_08_09 war_scene_id
 map_scroll_y    = $0510
 map_scroll_y_hi = $0511
 map_scroll_x    = $0512
@@ -401,17 +416,17 @@ map_data_ptr_hi = $0069
   JSR SwitchBankAC_B                            ; $E19A: 20 37 F2
   JSR B17_18_DataRecordLoader                   ; $E19D: 20 27 A0  Data record loader (bank-switched)
 
-  LDA select_mode                               ; $E1A0: AD 00 05
-  CMP #$0B                                      ; $E1A3: C9 0B  Scenario mode?
-  BNE @normal_mode                              ; $E1A5: D0 0B
+  LDA war_scene_id                              ; $E1A0: AD 00 05
+  CMP #$0B                                      ; $E1A3: C9 0B  Officer-transfer commit launch?
+  BNE @battle_deployment                        ; $E1A5: D0 0B
   LDY #$2C                                      ; $E1A7: A0 2C
   JSR SwitchBankAC_B                            ; $E1A9: 20 37 F2
-  JSR B0C_0D_OfficerTransferActionDispatch_Entry          ; $E1AC: 20 06 A0  Exchange mode path (bank $0C)
+  JSR B0C_0D_OfficerTransferActionDispatch_Entry          ; $E1AC: 20 06 A0  Commit pending officer transfers $0514-$0517 (bank $0C)
   JMP @after_mode_check                         ; $E1AF: 4C BA E1
-@normal_mode:
+@battle_deployment:
   LDY #$28                                      ; $E1B2: A0 28
   JSR SwitchBankAC_B                            ; $E1B4: 20 37 F2
-  JSR B08_09_WarSetup_Entry                  ; $E1B7: 20 03 A0  Normal path (bank $08)
+  JSR B08_09_WarSetup_Entry                  ; $E1B7: 20 03 A0  Battle deployment, faction pair $0507 (bank $08)
 @after_mode_check:
   LDA map_scroll_y                              ; $E1BA: AD 10 05
   STA a:$0090                                   ; $E1BD: 8D 90 00
@@ -422,13 +437,15 @@ map_data_ptr_hi = $0069
   LDA map_scroll_x_hi                           ; $E1CC: AD 13 05
   STA a:$008F                                   ; $E1CF: 8D 8F 00
   LDA #$FF                                      ; $E1D2: A9 FF
-  STA $0518                                     ; $E1D4: 8D 18 05  Ruler select flag
+  STA $0518                                     ; $E1D4: 8D 18 05  Clear exchange-SFX sequence flag (SetupExchangeSfx, prg_0c_0d)
 
   ; Display + render
-  LDY #$3D                                      ; $E1D7: A0 37
+  LDY #$37                                      ; $E1D7: A0 37
   JSR SwitchBankAC_B                            ; $E1D9: 20 37 F2
-  JSR B1D_1E_ProvinceDataWindowFrame                       ; $E1DC: 20 09 A0  Province data window frame (bank-switched)
-  LDA #$00                                      ; $E1E4: A9 01
+  JSR B17_18_DisplayScrollLoop                  ; $E1DC: 20 09 A0  Display scroll + render loop (bank $17/$18)
+  LDY #$3D                                      ; $E1DF: A0 3D
+  JSR SwitchBankAC_B                            ; $E1E1: 20 37 F2
+  LDA #$01                                      ; $E1E4: A9 01
   STA a:$0000                                   ; $E1E6: 8D 00 00
   JSR B1D_1E_LoadScenarioData                   ; $E1E9: 20 15 A0
   JSR ScrollSet                                 ; $E1EC: 20 F7 EA
@@ -516,7 +533,9 @@ sprite_idx2     = $0562
   LDY #$3D                                      ; $E279: A0 3D
   JSR SwitchBankAC_B                            ; $E27B: 20 37 F2
   LDA #$01                                      ; $E27E: A9 01
-  STA $0000                                     ; $E285: 8D 98 00
+  JSR B1D_1E_SceneRecordLookup                  ; $E280: 20 45 A0  Scene record lookup (bank $1D/$1E)
+  LDA #$A0                                      ; $E283: A9 A0
+  STA a:addr_display_mode                       ; $E285: 8D 98 00
   JSR PaletteFadeInit                           ; $E288: 20 BF EC
   INC a:addr_game_state                         ; $E28B: EE 7A 00
   LDA #$0D                                      ; $E28E: A9 0D
@@ -524,9 +543,6 @@ sprite_idx2     = $0562
   JSR PpuMaskEnable                             ; $E293: 20 49 E7
   JSR NmiEnable                                 ; $E296: 20 53 E7
   JMP StateDispatch                             ; $E299: 4C 66 E0
-
-StrategyCommandSpriteYPos:
-  .byte $10, $0F, $00, $16                      ; $E2DE: 10 0F 00 16
 .endproc
 
 ;===============================================================================
@@ -566,6 +582,12 @@ StrategyCommandBaseDataPtrs:
   .addr $8000, $8000, $8000, $8000              ; $E2D0: 00 80 00 80 00 80 00 80
   .addr $8000, $8000, $8000                     ; $E2D8: 00 80 00 80 00 80
 .endproc
+
+; Sprite position pairs referenced by State_StrategyMode ($E261 / $E26D);
+; ROM places this table after the pointer tables above, at $E2DE. Kept at file
+; scope (outside .proc) so the referencing proc can resolve it.
+StrategyCommandSpriteYPos:
+  .byte $10, $0F, $00, $16                      ; $E2DE: 10 0F 00 16
 
 ;===============================================================================
 ; $E2E2: Entry 6 - Random Seed Advance
@@ -631,6 +653,8 @@ army_status2    = $04AC
   JSR SwitchBankAC_B                            ; $E34C: 20 37 F2
   LDA #$02                                      ; $E34F: A9 02
   JSR B1D_1E_SceneRecordLookup                   ; $E351: 20 45 A0  Scene record lookup (bank-switched)
+  LDA #$00                                      ; $E354: A9 00
+  JSR BankSwitch                                ; $E356: 20 1F E5
   INC a:addr_game_state                         ; $E359: EE 7A 00
   LDA #$12                                      ; $E35C: A9 12
   JSR SoundWrapperB                             ; $E35E: 20 7B E6  Tactical music $12
@@ -784,7 +808,7 @@ army_status2    = $04AC
 ; the display block $042C-$0434 (ruler id, notice id, year+100, month+1)
 ; before entering:
 ;   - ScenarioHandoffPrep @HandoffLeaderStore (prg_19_1a $C410): closing
-;     sub-state of the DemoEventPlaybackDispatch / OfficerStatusScene event
+;     sub-state of the DemoEventDispatch / OfficerStatusScene event
 ;     scenes (war damage, troop losses, succession, ...); $0541=0
 ;   - ClearOverlayCancel (prg_0a_0b $DC00): title-overlay cancel message;
 ;     $0541=1
@@ -862,6 +886,7 @@ music_select = $0541
   STA a:$0099                                   ; $E4FA: 8D 99 00
   STA a:$0096                                   ; $E4FD: 8D 96 00
   STA a:$0097                                   ; $E500: 8D 97 00
+  LDA #$00                                      ; $E503: A9 00
   STA a:addr_nmi_ctrl                           ; $E505: 8D 7E 00
   STA a:$005E                                   ; $E508: 8D 5E 00
   STA a:$005F                                   ; $E50B: 8D 5F 00
@@ -913,7 +938,7 @@ music_select = $0541
 
 BankSwitchTable:
   .byte $E0, $E1, $E1, $E1, $E0, $E1, $E0, $E1  ; $E567: E0 E1 E1 E1 E0 E1 E0 E1  Config 0
-  .byte $E0, $E0, $E0, $E0, $E0, $E1, $E0, $E1  ; $E56F: E0 E0 E0 E0 E1 E1 E1 E1  Config 1
+  .byte $E0, $E0, $E0, $E0, $E1, $E1, $E1, $E1  ; $E56F: E0 E0 E0 E0 E1 E1 E1 E1  Config 1
   .byte $E0, $E1, $E0, $E1, $E0, $E1, $E0, $E1  ; $E577: E0 E1 E0 E1 E0 E1 E0 E1  Config 2
 .endproc
 
@@ -2444,9 +2469,9 @@ ptr_hi   = $0C
   PHA                                           ; $EE3F: 48
   LDA a:addr_trampoline_saved_bank              ; $EE40: AD 58 00
   PHA                                           ; $EE43: 48
-  LDA #<(@return_addr-1)                        ; $EE44: A9 EE  return addr low = $EE4C
+  LDA #>(@return_addr-1)                        ; $EE44: A9 EE  return addr high = $EE
   PHA                                           ; $EE46: 48
-  LDA #>(@return_addr-1)                        ; $EE47: A9 4C  return addr high = $EE
+  LDA #<(@return_addr-1)                        ; $EE47: A9 4C  return addr low = $4C
   PHA                                           ; $EE49: 48
   JMP (addr_trampoline_target_lo)               ; $EE4A: 6C 5B 00
 @return_addr:
@@ -3693,7 +3718,7 @@ NmiDispatchTable:
   JSR ControllerRead                            ; $F8C1: 20 C6 E6
   LDY #$2E                                      ; $F8C4: A0 2E
   JSR SwitchBankAC_B                            ; $F8C6: 20 37 F2
-  JSR BattleVBlankFrameUpdate_Entry             ; $F8C9: 20 03 A0  Frame update (bank $0E)
+  JSR B0E_0F_BattleAnimSoundEngine_Entry         ; $F8C9: 20 03 A0  Bank $0E entry $A003
   LDA #$4C                                      ; $F8CC: A9 4C
   STA $A5                                       ; $F8CE: 85 A5
   STA NAMCO_WRAM_WRITE_PROTECT                  ; $F8D0: 8D 00 F8
@@ -4619,4 +4644,5 @@ IrqMode7_Exit:
   .addr NmiHandler                              ; $FFFA: 00 F8 (NMI -> $F800)
   .addr Reset                                   ; $FFFC: 00 E0 (RESET -> $E000)
   .addr IrqHandler                              ; $FFFE: 2D FB (IRQ -> $FB2D)
+
 

@@ -114,7 +114,7 @@ Per-glyph identification for ~110 kanji/kana tiles (pages $95/$78).
 - tools/dump_record_fonts.py, find_text_font.py, find_font_final.py,
   dump_font_pages.py, scan_triple.py, digit_test.py
 - tools/dump_strategy_font.py -> output/strategy_font_ascii.txt
-- tools/tmp_name_xref.py -> output/name_xref.txt (dictionary entries)
+- tools/name_xref.py -> output/name_xref.txt (dictionary entries)
 - output/menu_streams.txt (all 53 decoded PPUTileRender streams)
 
 ## Corrections to prior-session conclusions

@@ -28,7 +28,7 @@ Related documents — the four AI layers of the nested mode hierarchy
 flowchart TD
     E["StrategyAiTurnDispatch_Entry $A000"] --> CGS{"StrategyAiTurnDispatch $A00F<br/>$6F8B mailbox flag"}
     CGS -->|"negative - no request"| X["RTS"]
-    CGS -->|"== $01 - game start"| NG["BuildAdjacencyBitmap<br/>InitNewGameContext $A8D7<br/>full post-conquest setup"]
+    CGS -->|"== $01 - settlement"| NG["BuildAdjacencyBitmap<br/>SettleStagedOfficers $A8D7<br/>staged-column settlement"]
     CGS -->|"other"| OFF["AI officer phase $A01E-$A035:<br/>BuildAdjacencyBitmap<br/>AiOfficer_RulerToFrontier $C50E<br/>AiOfficer_RosterFill $C5B9<br/>AiOfficer_RecruitTransfer $C79A<br/>PromoteBestOfficerForCountry $C98F<br/>SellSurplusRice $CC12"]
     OFF --> CYC{"$6F5B<br/>AI turn-cycle counter"}
     CYC -->|"0 - first cycle"| IWA["InitWorkAreas $A043<br/>seed AI weights $6F5F-$6F61<br/>base + tier adj - see section 5"]
@@ -40,7 +40,7 @@ flowchart TD
     WD -->|"weight B"| ATD["AiAction_DomesticTurn $B49C<br/>domestic turn actions - see section 3"]
     WD -->|"weight C"| ET["AiAction_LoopTramp $A23D<br/>jump straight to the AI action loop<br/>@AiAction_Loop - see section 4"]
 
-    CEC -->|"posts $6F8B"| MB["$6F8B mailbox:<br/>$FE = battle pending<br/>$FD = fully absorbed"]
+    CEC -->|"posts $6F8B"| MB["$6F8B mailbox:<br/>$FE = war pending (human defender)<br/>$FD = conquest settled (computer defender)"]
     ATD -.-> MB
 ```
 
@@ -67,11 +67,11 @@ flowchart TD
     FBEP --> SLOTS["slot-capture counter +3, cap 10<br/>$0037"]
     SLOTS --> FAS["FindAbsorptionSource $A303<br/>if source lacks slots"]
     FAS --> DOA["DispatchOfficerArmies $A45C"]
-    DOA --> LTD["LevelTierDispatch $A6BC<br/>CalcArmyTierAndRender $A6C9"]
-    LTD --> RCA["ResolveCountryAbsorb $A79C<br/>deduct attacker stats, move officers,<br/>zero conquered province, pack war params"]
-    RCA --> POST{"country status +3 == 3?"}
-    POST -->|"no"| FE["$6F8B = $FE battle pending<br/>reset $6F8D adjust param"]
-    POST -->|"yes"| SUM["SumEnemyRecords +<br/>$6F8B = $FD fully absorbed"]
+    DOA --> LTD["LevelTierDispatch $A6BC<br/>CalcArmyTierAndCosts $A6C9"]
+    LTD --> RPC["ResolveProvinceConquest $A79C<br/>pay expedition, extract top-m attackers,<br/>capture province roster, seize stocks,<br/>pack war params"]
+    RPC --> POST{"owner control byte record[$03] == $03?"}
+    POST -->|"no: human defender"| FE["$6F8B = $FE war pending<br/>reset $6F8D adjust param"]
+    POST -->|"yes: computer defender"| SUM["SumWarSideStrengths +<br/>$6F8B = $FD conquest settled"]
     EPA["EvalProvinceAbsorption $B10E<br/>value-based absorption<br/>AbsorbUpdateRecord $B287 /<br/>FallbackMergeProvinces $B357"]
 ```
 
@@ -260,8 +260,11 @@ Example (level 0, player 0, tier 0): expand `$0D+$02 = $0F`, domestic
 ## 6. File structure
 
 Bank `$0A` maps at `$A000-$BFFF`, bank `$0B` at `$C000-$DFFF`; the file is one
-unit with two linker segments (`CODE_BANK0A` / `CODE_BANK0B`, config
-`tools/test_0a_0b.cfg`, verified by `tools/verify_0a_0b.py`).
+unit with two linker segments (`CODE_BANK0A` / `CODE_BANK0B`), verified by
+`tools/verify_0a_0b_standalone.py` (a thin wrapper over the shared
+`tools/_bank_verify_lib.py`, which generates the two-segment linker config at
+runtime and byte-compares the 16 KB output against `rom/prg/prg_0a.bin +
+prg_0b.bin`).
 
 ```mermaid
 flowchart LR
@@ -275,7 +278,7 @@ flowchart LR
     end
     subgraph ABS["Conquest pipeline $A79C-$B49B"]
         direction TB
-        B1["ResolveCountryAbsorb<br/>InitNewGameContext $A8D7-$B10D<br/>EvalProvinceAbsorption / AbsorbPreview<br/>TransferProvinceValues / AbsorbUpdateRecord<br/>FallbackMergeProvinces"]
+        B1["ResolveProvinceConquest<br/>SettleStagedOfficers $A8D7-$B10D<br/>EvalProvinceAbsorption / AbsorbPreview<br/>TransferProvinceValues / AbsorbUpdateRecord<br/>FallbackMergeProvinces"]
     end
     subgraph DOM["Record / domain helpers $CF3F-$D335"]
         direction TB
@@ -291,7 +294,7 @@ flowchart LR
     end
     subgraph UI["Display / overlay / input $D717-$DC2E, $A55C-$A6BB"]
         direction TB
-        F1["SubStateDispatch $D717 5-way<br/>ActionResultDisplay + State* frame handlers<br/>RenderOverlay / Overlay* / ClearOverlay*<br/>TileRender / NameTable / ScrollUpdate<br/>DrawSelectionSprites / MenuInputHandler<br/>SpriteSetup2 / PaletteCheck"]
+        F1["SubStateDispatch $D717 5-way<br/>ActionResultDisplay + State* frame handlers<br/>RenderOverlay / Overlay* / ClearOverlay*<br/>ScrollUpdate<br/>DrawSelectionSprites / MenuInputHandler<br/>SpriteSetup2 / PaletteCheck"]
     end
     subgraph SRAM["SRAM save / load $DC2F-$DCC7"]
         direction TB
@@ -313,8 +316,8 @@ flowchart LR
 |-------|-------|
 | Public stubs | `StrategyAiTurnDispatch_Entry` $A000, `SubStateDispatch_Entry` $A003, `ArmyValueCalc_Entry` $A006, `DataRecordLookup_Entry` $A009, `DistanceClamp_Entry` $A00C |
 | AI engine | `StrategyAiTurnDispatch` $A00F, `InitWorkAreas` $A043, `AiCountExpansionRoom` $A0D3, `AiActionChoose` $A19C, `AiAction_ExpandProvinces` $A1C5, `AiAction_LoopTramp` $A23D, `FindBestEnemyProvince` $A240, `FindAbsorptionSource` $A303, `DispatchOfficerArmies` $A45C, `ArmyDispatch` $A481, `AiAction_DomesticTurn` $B49C, `AiOfficer_RulerToFrontier` $C50E, `AiOfficer_RosterFill` $C5B9, `CalcActionProb` $C66F, `AiOfficer_RecruitTransfer` $C79A, `PromoteBestOfficerForCountry` $C98F, `ApplyScenarioDeductions` $CD68, `BracketDeductArmy` $CEDD |
-| Conquest | `ResolveCountryAbsorb` $A79C, `InitNewGameContext` $A8D7, `EvalProvinceAbsorption` $B10E, `AbsorbPreview` $B1F9, `TransferProvinceValues` $B1FD, `AbsorbUpdateRecord` $B287, `FallbackMergeProvinces` $B357 |
-| Tier / render | `LevelTierDispatch` $A6BC, `CalcArmyTierAndRender` $A6C9, `CalcTierWorkPtr` $A74A, `TileRender` $A55C, `NameTable` $A60C |
+| Conquest | `ResolveProvinceConquest` $A79C, `SettleStagedOfficers` $A8D7, `EvalProvinceAbsorption` $B10E, `AbsorbPreview` $B1F9, `TransferProvinceValues` $B1FD, `AbsorbUpdateRecord` $B287, `FallbackMergeProvinces` $B357 |
+| Tier / costs | `LevelTierDispatch` $A6BC, `CalcArmyTierAndCosts` $A6C9, `CalcExpeditionCosts` $A74A, `CoverGoldShortfall` $A55C, `CoverRiceShortfall` $A60C |
 | Record helpers | `ArmyValueCalc` $CF3F, `DataRecordLookup` $CF7C, `DistanceClamp` $D00C, `CalcOfficersPerProvince` $D03A, `CalcOfficersPerProvinceDup` $D05D, `CountCountryProvinces` $D080, `CountDefendedBorderProvinces` $D0AA, `GetProvinceOwner` $D105, `DeductCounterMultiEntry` $D12D, `CollectEnemyBorderProvinces` $D1A4, `CollectEnemyBorderProvincesX` $D1F4, `FindCountryProvinceOfOfficer` $D249, `GetOfficerRecordField` $D283, `ReadBankedRecordField` $D2D3, `CountRecordSlots` $D304, `GetCountryRecordPtr` $D319, `DeductRecordStat2` $D36F, `DeductRecordStat4` $D3A9, `CompactRecordSlots` $D3DD |
 | Math / geometry | `Divide24` $D336, `Divide16` $D40F, `Multiply32` $D438, `Multiply8x8` $D471, `JumpDispatcher` $D494, `RandomBelow` $D4AD, `BuildAdjacencyBitmap` $D4CB, `MergeAdjacencyBits` $D53E, `CheckPathExists` $D583 |
 | Debug / validation | `DebugStub_E7` $D5E7, `ValidateRecordStats` $D5E8, `DebugStub_1E` $D61E, `ValidateRecordStatsAlt` $D61F, `ClampRecordStatPairs` $D655, `ValidateRecordGold` $D688, `ClampRecordStatPairsAlt` $D69D, `DebugStub_E5` $D6E5, `ValidateProvinceSlots` $D6E6 |
@@ -341,9 +344,9 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
 | `$6F5E` | AI province cursor | Reset by `@AiTurn_AdvancePhase`, read by every action handler |
 | `$6F5F-$6F61` | AI action weights A/B/C (`sram_ai_weight_a/b/c` proc-local) | Seeded by `InitWorkAreas` (base + tier adj, see section 5), consumed by `AiActionChoose` |
 | `$6F62` | AI global phase | Advances every 30 actions; wraps at 3 with a game-state transition through `$D140`. The `$6F62,Y` accesses in the ContinueTurn officer finders index Y = `$11-$1A` and actually address `$6F73-$6F7C` (processed-slot markers) |
-| `$6F73-$6F78` | per-owner "has provinces" marks; army-pool accumulators in `InitNewGameContext` | Dual use, documented in cpu_ram_map.md |
-| `$6F8B` | `sram_game_start_flag` — strategy-layer mailbox | AI action requests `$F8` alliance-gift confirm, `$F9` absorb-sweep notice, `$FA` province-sweep notice, `$FB`/`$FC` officer notices; plus `$FE` battle pending, `$FD` fully absorbed, `$FF` turn complete, `$01` consumed |
-| `$6F8C` | `sram_continue_flag` — post-conquest context (0 = new-game setup) | Read/written by `InitNewGameContext` |
+| `$6F73-$6F78` | per-owner "has provinces" marks; army-pool accumulators in `SettleStagedOfficers` | Dual use, documented in cpu_ram_map.md |
+| `$6F8B` | `sram_game_start_flag` — strategy-layer mailbox | AI action requests `$F8` alliance-gift confirm, `$F9` absorb-sweep notice, `$FA` province-sweep notice, `$FB`/`$FC` officer notices; plus `$FE` war pending (human defender), `$FD` conquest settled (computer defender), `$FF` turn complete, `$01` consumed |
+| `$6F8C` | settlement mode (0 = attacker conquered the war province) | Read/written by `SettleStagedOfficers` |
 | `$6F8D` | `sram_absorb_adjust` — absorption adjustment parameter | Written `$AE96`, drives `ApplyScenarioDeductions` and `×4/10` scaling |
 | `$6FFF` | BRK debug error-code sink | Validate routines only; outside the `$6000-$6FFD` save snapshot |
 
@@ -376,7 +379,7 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
    population, `+$0A` disaster prevention). The whole province record table in
    `code/cpu_ram_map.md` was realigned: Rice `+$04/$05`, LandValue `+$08/$09`,
    DisasterPrevention `+$0A`, Governance `+$0B`, ReserveTroops `+$0C/$0D`
-   (cap 10000), Industry `+$0E/$0F`, Treasure `+$10`, RevoltCooldown `+$1B`.
+   (cap 10000), Industry `+$0E/$0F`, Treasure `+$10`, RebellionCooldown `+$1B`.
 7. AI action renames (proc-local `@`-labels, byte-neutral; ca65 error set
    unchanged): `@AiAction_ReinforceTroops`→`@AiAction_LandReclamation`,
    `@AiAction_ReinforceSupplies`→`@AiAction_IndustryDevelopment`,
@@ -402,7 +405,7 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
 10. Dispatcher and officer-phase renames (2026-09): `CheckGameStart` →
    `StrategyAiTurnDispatch` (the $A00F proc is the Strategy Mode per-country
    turn driver, not a game-start check: it gates on the `$6F8B` mailbox,
-   routes `$01` to `InitNewGameContext`, and otherwise runs the AI officer
+   routes `$01` to `SettleStagedOfficers`, and otherwise runs the AI officer
    phase and the `$6F5B` action-cycle dispatch). Officer-phase renames:
    `FindBestOfficerAssign` → `AiOfficer_RulerToFrontier` (moves the ruler
    officer at `($EE)` to the most-garrisoned own rival-bordering,

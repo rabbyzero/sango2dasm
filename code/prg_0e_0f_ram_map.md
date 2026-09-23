@@ -5,7 +5,7 @@ WRAM) in `asm/banks/prg_0e_0f.asm`, with semantic names assigned to the
 cross-procedure parameters and global variables. The raw-operand usage
 inventory this analysis is based on is preserved in
 `code/prg_0e_0f_ram_usage.txt` (generated pre-rename by
-`tools/tmp_ram_usage_0e0f.py`).
+`tools/ram_usage_0e0f.py`).
 
 ## Region overview
 

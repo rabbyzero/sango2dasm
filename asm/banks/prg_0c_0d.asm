@@ -2444,7 +2444,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
 .proc ExecStratagem_PitfallTrap
   JSR CheckSuccessByStats               ; $B0DD: 20 BE B7
-  BCS @B0EB                             ; $B0E0: B0 09
+  BCS CommandPhase_LoyaltyDrainCalc     ; $B0E0: B0 09
   INC $0501                             ; $B0E2: EE 01 05
   LDA #$FF                              ; $B0E5: A9 FF
   STA $0544                             ; $B0E7: 8D 44 05
@@ -2529,7 +2529,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
 .proc ExecStratagem_AmbushStrike
   JSR CheckSuccessByStats               ; $B17A: 20 BE B7
-  BCS @B188                             ; $B17D: B0 09
+  BCS CommandPhase_StatDrainCalcA       ; $B17D: B0 09
   INC $0501                             ; $B17F: EE 01 05
   LDA #$FF                              ; $B182: A9 FF
   STA $0544                             ; $B184: 8D 44 05
@@ -2575,7 +2575,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
 .proc ExecStratagem_BoatSabotage
   JSR CheckSuccessByStats               ; $B1D5: 20 BE B7
-  BCS @B1E3                             ; $B1D8: B0 09
+  BCS CommandPhase_StatDrainCalcB       ; $B1D8: B0 09
   INC $0501                             ; $B1DA: EE 01 05
   LDA #$FF                              ; $B1DD: A9 FF
   STA $0544                             ; $B1DF: 8D 44 05
@@ -2871,7 +2871,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   STA $11                               ; $B408: 85 11
   JSR GetTerrainType                             ; $B40A: 20 46 DB
   CMP #$03                              ; $B40D: C9 03
-  BNE @B429                             ; $B40F: D0 18
+  BNE @Done                             ; $B40F: D0 18
   LDA #$02                              ; $B411: A9 02
   JSR B1F_RandomBelowThreshold          ; $B413: 20 62 E8
   CLC                                   ; $B416: 18
@@ -2956,7 +2956,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   STA $11                               ; $B49E: 85 11
   JSR GetTerrainType                             ; $B4A0: 20 46 DB
   CMP #$03                              ; $B4A3: C9 03
-  BNE @B4B7                             ; $B4A5: D0 10
+  BNE @Done                             ; $B4A5: D0 10
   LDY $12                               ; $B4A7: A4 12
   LDA $0509                             ; $B4A9: AD 09 05
   PHA                                   ; $B4AC: 48
@@ -3048,7 +3048,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   STA $11                               ; $B542: 85 11
   JSR GetTerrainType                             ; $B544: 20 46 DB
   CMP #$05                              ; $B547: C9 05
-  BEQ @B55B                             ; $B549: F0 10
+  BEQ @Done                             ; $B549: F0 10
   LDY $12                               ; $B54B: A4 12
   LDA $0509                             ; $B54D: AD 09 05
   PHA                                   ; $B550: 48
@@ -3285,7 +3285,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDA $0523,Y                                 ; $B6F8: B9 23 05
   SBC $11                                     ; $B6FB: E5 11
   STA $13                                     ; $B6FD: 85 13
-  BCS @B711                             ; $B6FF: B0 10
+  BCS @StoreResult                      ; $B6FF: B0 10
   LDA $0522,Y                                 ; $B701: B9 22 05
   STA $10                                     ; $B704: 85 10
   LDA $0523,Y                                 ; $B706: B9 23 05
@@ -5777,7 +5777,7 @@ AdjustStatsByIndex:
   AND #$01                              ; $CA0B: 29 01
   BEQ @Done                             ; $CA0D: F0 03
   INC $0501                             ; $CA0F: EE 01 05
-@CA12:
+@CancelExit:
   RTS                                   ; $CA12: 60
 @State_Execute:
   JSR RecalcExchangeStats               ; $CA13: 20 29 CC
@@ -5796,12 +5796,12 @@ AdjustStatsByIndex:
 @State_Cancel:
   JSR RecalcExchangeStats               ; $CA2F: 20 29 CC
   JSR CheckExchangePossible                             ; $CA32: 20 27 DF
-  BCC @CA12                             ; $CA35: 90 09
+  BCC @CancelReturn                     ; $CA35: 90 09  ; RTS exit, state unchanged
   LDA $81                               ; $CA37: A5 81
   AND #$01                              ; $CA39: 29 01
-  BEQ @CA12                             ; $CA3B: F0 03
+  BEQ @CancelReturn                     ; $CA3B: F0 03  ; RTS exit, state unchanged
   DEC $0501                             ; $CA3D: CE 01 05  ; back to State_Execute
-@CA40:
+@CancelReturn:
   RTS                                   ; $CA40: 60
 @SetupPpuRegisters:
   LDA #$E0                              ; $CA41: A9 E0
