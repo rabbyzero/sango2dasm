@@ -163,7 +163,7 @@ def verify_bank_pair(bank_hi, bank_lo, *,
             if r.returncode == 0:
                 break
             missing = sorted(set(re.findall(
-                r"Symbol '([A-Za-z_][A-Za-z0-9_]*)' is undefined", r.stderr)))
+                r"Symbol [\u2018']([A-Za-z_][A-Za-z0-9_]*)[\u2019'] is undefined", r.stderr)))
             if not missing:
                 print("CA65 FAILED:\n" + r.stderr[:3000])
                 return 1

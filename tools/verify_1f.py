@@ -5,6 +5,12 @@ Disassembles rom/prg/prg_1f.bin from $E000, walks the source lines in
 order, assembles each instruction mentally via a small 6502 model, and
 reports any byte-level mismatch. Label resolution uses the address
 comments so we only check operand/opcode encoding, not label values.
+
+Equate resolution is .proc-scope aware: this bank reuses proc-local
+zero-page names (dividend_hi, bcd_*, product_b*) across math helpers
+with different addresses per proc.  Names defined exactly once are
+seeded globally; duplicated names follow the nearest-preceding-define
+rule, applied as the source walk passes each definition line.
 """
 import re
 import sys
@@ -14,12 +20,24 @@ SRC_PATH = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_1f.asm"
 
 # ---- 1. collect equate values (simple `name = $XXXX` lines) ----
 src_lines = open(SRC_PATH).read().splitlines()
-equates = {}
 eq_pat = re.compile(r"^\s*([A-Za-z_]\w*)\s*=\s*\$(1?[0-9A-Fa-f]{1,4})\s*(?:;.*)?$")
-for line in src_lines:
+eq_defs_by_line = {}   # lineno -> [(name, value)] redefinitions at that line
+equates = {}           # active symbol table used by resolve()
+first_val = {}         # name -> first value
+def_counts = {}        # name -> number of definitions
+for lineno, line in enumerate(src_lines, 1):
     m = eq_pat.match(line)
     if m:
-        equates[m.group(1)] = int(m.group(2), 16)
+        name, val = m.group(1), int(m.group(2), 16)
+        def_counts[name] = def_counts.get(name, 0) + 1
+        first_val.setdefault(name, val)
+        eq_defs_by_line.setdefault(lineno, []).append((name, val))
+# single-definition names are scope-independent: seed them directly.
+# duplicated (proc-local) names start undefined and are (re)applied when
+# the walk reaches their definition line -> nearest preceding define wins.
+for name, count in def_counts.items():
+    if count == 1:
+        equates[name] = first_val[name]
 # well-known hardware registers
 for name, val in {
     "PPU_CTRL": 0x2000, "PPU_MASK": 0x2001, "PPU_STATUS": 0x2002,
@@ -213,6 +231,10 @@ problems = []
 checked = 0
 cur_addr = None
 for lineno, line in enumerate(src_lines, 1):
+    # apply proc-local equate definitions as the walk reaches them
+    for name, val in eq_defs_by_line.get(lineno, ()):
+        if def_counts[name] > 1:
+            equates[name] = val
     cm = comment_pat.search(line)
     if not cm:
         continue

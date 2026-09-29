@@ -54,3 +54,6 @@ Entry points:
 - $A000 JMP $CE1F (OfficerCardRender, called with LDX #$00, $0000=officer id, $000A=$A7)
 - $A003 JMP $C773 (frame state 9 variant)
 - $A009 JMP $C773 (frame state 9 variant)
+
+## Corrections (2026-09-24)
+- $6F05 is the **OrderScroll (command points, 命令書) of the current country** (user-corrected) — not an "SRAM game-state flag". Read every $6F05 mention above accordingly: 0 / negative = no active game; seeds AI action budget $6F5D = $6F05 x 10; the ConfirmDialogPoll DEC = a confirmed command spends 1 OrderScroll; prg_1d_1e SceneCheckGameState was renamed SceneClampOrderScroll (clamps values >= $02 down to $01). Authoritative entry: code/cpu_ram_map.md.

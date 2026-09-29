@@ -550,8 +550,9 @@ Action_SweepRange3:
 ; 3-byte entries indexed by $050E*3). On arrival, set officer state nibble to 7
 ; and BUY RICE WITH GOLD: rice needed = troops*4/1000*days_remaining
 ; (AiComputeBattleStats), shortfall = needed - remaining rice ($0522),
-; gold cost = shortfall * 100 / ProvinceRiceBuyRate ($8FC0 bank $30, rice per
-; 100 gold), capped at 70% of the side's remaining gold ($0526).
+; gold cost = shortfall * 100 / ProvinceRiceTradeRateTable[province] +1 byte
+; ($8FC0 bank $30, rice per 100 gold), capped at 70% of the side's remaining
+; gold ($0526).
 Action_BuyRice:
   LDY #$31                              ; $A329: A0 31     ; data bank
   JSR B1F_SwitchBank8_A                 ; $A32B: 20 66 F2  ; SwitchBank8_A
@@ -682,8 +683,8 @@ Action_BuyRice:
   LDA war_province_idx                  ; $A451: AD 0E 05
   ASL                                   ; $A454: 0A
   TAY                                   ; $A455: A8
-  INY                                   ; $A456: C8        ; word entry high byte
-  LDA $8FC0,Y                           ; $A457: B9 C0 8F  ; ProvinceRiceBuyRate (rice/100 gold)
+  INY                                   ; $A456: C8        ; -> second rate byte
+  LDA $8FC0,Y                           ; $A457: B9 C0 8F  ; ProvinceRiceTradeRateTable +1 byte (rice/100 gold)
   STA a:$003A                           ; $A45A: 8D 3A 00
   STA a:$0023                           ; $A45D: 8D 23 00  ; divisor
   LDA #$00                              ; $A460: A9 00
@@ -4599,7 +4600,8 @@ equipment_event_latch  = $6FE1  ; one-shot special equipment event latch
 ; Draws the panel from State0PanelLayout via B1F_MenuStep2 /
 ; B1F_PointerTableLookup, then waits for the $0081 command flags:
 ;   bit0 -> @ExecuteAction: swap in bank $30 (B1F_SwitchBank8_B), fetch the
-;           action parameter record for action index $050E from the $8FC0
+;           province rice-rate pair (ProvinceRiceTradeRateTable) for province
+;           index $050E from the $8FC0
 ;           pointer table into ($0002). With submode $0012 != 0 the full
 ;           rice amount is used directly ($0490) -> state 2 (UI $AA);
 ;           with $0012 == 0 the percent path computes
@@ -4643,13 +4645,13 @@ State0_ShowActionPanel:
   STA action_work_2                     ; $C120: 8D 8D 04
   STA action_delta_lo                   ; $C123: 8D 8E 04
   STA action_delta_hi                   ; $C126: 8D 8F 04
-  LDY #$30                              ; $C129: A0 30     ; PRG bank for param table
+  LDY #$30                              ; $C129: A0 30     ; PRG bank for ProvinceRiceTradeRateTable
   JSR B1F_SwitchBank8_B                 ; $C12B: 20 5F F2
-  LDA war_province_idx                  ; $C12E: AD 0E 05  ; action index
+  LDA war_province_idx                  ; $C12E: AD 0E 05  ; province index
   ASL                                   ; $C131: 0A        ; *2 (word entries)
   CLC                                   ; $C132: 18
   ADC #$C0                              ; $C133: 69 C0
-  STA a:$0002                           ; $C135: 8D 02 00  ; -> $8FC0 parameter table
+  STA a:$0002                           ; $C135: 8D 02 00  ; -> $8FC0 ProvinceRiceTradeRateTable
   LDA #$8F                              ; $C138: A9 8F
   ADC #$00                              ; $C13A: 69 00
   STA a:$0003                           ; $C13C: 8D 03 00

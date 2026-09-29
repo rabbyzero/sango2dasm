@@ -31,9 +31,9 @@ state_tmp         = $0006  ; ProvinceDataWindowFrame temp / VerifyChecksum works
 bcd_digit2        = $0007  ; BCD result byte 2 (PeriodicOverlayRefresh, YearDisplaySetup)
 bcd_digit1        = $0008  ; BCD result byte 1 (YearDisplaySetup, MenuUpdate)
 bcd_digit0        = $0009  ; BCD result byte 0 (MenuUpdate)
-banked_work0      = $000A  ; BankedDataHandler / DisplayTileData workspace
-banked_work1      = $000B
-banked_work2      = $000C  ; (also used by DisplayTileData)
+banked_work0      = $000A  ; RulerCardRefresh card label variant / DisplayTileData workspace
+banked_work1      = $000B                        ; RulerCardRefresh Officer id
+banked_work2      = $000C  ; (also used by DisplayTileData) RulerCardRefresh refresh mode
 tile_ptr_lo       = $0010  ; tilemap data pointer lo (DisplayTileData, ProvinceDataWindowFrame)
 tile_ptr_hi       = $0011  ; tilemap data pointer hi
 ; cmd_byte         = $0012  ; (already defined) current command byte from data stream
@@ -77,7 +77,7 @@ font_record_buf = $00AE      ; menu font record buffer, 48 bytes (MenuFontRecord
 state_row_ofs1    = $00B2  ; ProvinceDataWindowFrame row offset 1
 tile_row_count    = $00B3  ; tile row count (ProvinceDataWindowFrame, SceneRenderer)
 state_row_ofs2    = $00B4  ; ProvinceDataWindowFrame row offset 2
-; setup_disp_tmp    = 00B9  ; (SetupBankedData local)
+; setup_disp_tmp    = 00B9  ; (OfficerNameSpritePost local: name-font CHR page id)
 state_vram_cnt_lo = $00C1  ; ProvinceDataWindowFrame VRAM counter lo (paired with $00C2)
 state_vram_cnt_hi = $00C2  ; ProvinceDataWindowFrame VRAM counter hi
 state_row_cnt1_lo = $00C3  ; ProvinceDataWindowFrame row counter 1 lo (paired with $00C4)
@@ -134,7 +134,7 @@ state_officer_tmp = $0183  ; ProvinceDataWindowFrame / OfficerListHandler shared
 ;-------------------------------------------------------------------------------
 ; Page $02: OAM sprite data
 ;-------------------------------------------------------------------------------
-oam_buf_lo        = $0200  ; OAM sprite buffer lo (SceneRenderer, SetupBankedData, ProvinceDataWindowFrame)
+oam_buf_lo        = $0200  ; OAM sprite buffer lo (SceneRenderer, OfficerNameSpritePost, ProvinceDataWindowFrame)
 oam_buf_hi        = $0201  ; OAM sprite buffer hi
 oam_buf_idx       = $0202  ; OAM sprite buffer index
 oam_buf_extra     = $0203  ; OAM sprite buffer extra
@@ -147,20 +147,20 @@ sub_state_main    = $037C  ; sub-state dispatch: main (ProvinceDataWindowFrame)
 sub_state_prov    = $037D  ; sub-state dispatch: province timer (ProvinceDataWindowFrame)
 sub_state_officer = $037E  ; sub-state dispatch: officer (ProvinceDataWindowFrame)
 disp_buf_base     = $0380  ; display/render buffer base (14+ procs)
-disp_buf_ofs1     = $0381  ; display buffer offset 1 (SceneRenderer, YearDisplaySetup, BankedDataHandler)
-disp_buf_ofs2     = $0382  ; display buffer offset 2 (SceneRenderer, YearDisplaySetup, BankedDataHandler)
+disp_buf_ofs1     = $0381  ; display buffer offset 1 (SceneRenderer, YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofs2     = $0382  ; display buffer offset 2 (SceneRenderer, YearDisplaySetup, RulerCardRefresh)
 disp_buf_ofs3     = $0383  ; display buffer offset 3 (SceneRenderer, YearDisplaySetup)
-disp_buf_ofs4     = $0389  ; display buffer offset 4 (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofs5     = $038A  ; display buffer offset 5 (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofs6     = $038D  ; display buffer offset 6 (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofs7     = $038E  ; display buffer offset 7 (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofs8     = $038F  ; display buffer offset 8 (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofs9     = $0390  ; display buffer offset 9 (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofsA     = $0391  ; display buffer offset A (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofsB     = $0392  ; display buffer offset B (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofsC     = $0393  ; display buffer offset C (YearDisplaySetup, BankedDataHandler)
-disp_buf_ofsD     = $0394  ; display buffer offset D (YearDisplaySetup, BankedDataHandler)
-; scaled_name_tmp   = $03A5  ; (DisplayScaledName/BankedDataHandler local)
+disp_buf_ofs4     = $0389  ; display buffer offset 4 (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofs5     = $038A  ; display buffer offset 5 (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofs6     = $038D  ; display buffer offset 6 (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofs7     = $038E  ; display buffer offset 7 (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofs8     = $038F  ; display buffer offset 8 (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofs9     = $0390  ; display buffer offset 9 (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofsA     = $0391  ; display buffer offset A (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofsB     = $0392  ; display buffer offset B (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofsC     = $0393  ; display buffer offset C (YearDisplaySetup, RulerCardRefresh)
+disp_buf_ofsD     = $0394  ; display buffer offset D (YearDisplaySetup, RulerCardRefresh)
+; scaled_name_tmp   = $03A5  ; (DisplayScaledName/RulerCardRefresh local)
 ; overlay_bcd_hi    = 03AA  ; (PeriodicOverlayRefresh local)
 ; overlay_bcd_lo    = 03AB  ; (PeriodicOverlayRefresh local)
 ; overlay_buf_end   = 03BA  ; (PeriodicOverlayRefresh local)
@@ -327,9 +327,9 @@ DataFormatter_Entry:
 MenuRenderer_Entry:
   ; MenuRenderer
   JMP MenuRenderer                ; $A03F: 4C 36 BE
-BankedDataHandler_Entry:
-  ; BankedDataHandler
-  JMP BankedDataHandler           ; $A042: 4C 37 AA
+RulerCardRefresh_Entry:
+  ; RulerCardRefresh
+  JMP RulerCardRefresh          ; $A042: 4C 37 AA
 SceneRecordLookup_Entry:
   ; SceneRecordLookup
   JMP SceneRecordLookup                      ; $A045: 4C B9 DE
@@ -1303,7 +1303,7 @@ YearDisplaySetup:
 @frame_exit:
   RTS                                     ; $A7B1: 60
 
-; Entry: always converts $6F05 to BCD, copies template, overlays digits
+; Entry: always converts the OrderScroll $6F05 to BCD, copies template, overlays digits
 ::ImmediateOverlay:
   LDA #$00                                ; $A7B2: A9 00
   STA a:$0002 ; $A7B4: 8D 02 00
@@ -1574,19 +1574,42 @@ DataFormatter:
 
 .endproc
 
-.proc BankedDataHandler
+;===============================================================================
+; $AA37: RulerCardRefresh (bank $1D entry stub $A042, code $AA37-$AB07)
+; Composes the map screen's Ruler card: the card's header-label kanji row in the
+; display stream buffer $0380-$03A6, plus the Officer's own name kanji as
+; sprites. Banked-called (Y=$3D) only by prg_19_1a StrategyRequestDispatch
+; (11 sites: RequestPoll and the post-war/menu handlers). Full walkthrough:
+; code/ruler_card_decode.md.
+; Inputs: $000B Officer id ($FF = none -> skip the name sprites)
+;         $000A card label variant 0-3 ($FF = leave the label cells blank)
+;         $000C refresh mode: 0 = clear + rebuild the tile stream,
+;                             non-zero = name sprites only (returns at $AA5E)
+; Output: display stream $0380-$03A6, OAM shadow entries appended through the
+;         slot cursor $007C, panel param $00BD <- $76, $007E bit2 (render request)
+; Tile stream: 2 blocks of 16 tiles - $0380 header ($10 count, VRAM $22C8) and
+;         $0393 header ($10 count, VRAM $22E8) - then $03A6 = $FF terminator.
+;         Rows $22C8/$22E8 are nametable rows 6/7, so each 16x16 kanji occupies
+;         one cell in row 6 (top halves) plus the cell below it in row 7 (bottom
+;         halves): tile ids (n, n+1) over (n+$10, n+$11).
+;         Row 6 cols 14-15 / row 7 cols 14-15 get the fixed kanji at page base
+;         $00 ($C0,$C1 / $D0,$D1); cols 18-23 get the variant's kanji from
+;         @RulerCardLabelTiles (3 kanji for variants 0/2, 2 kanji + blanks for
+;         variants 1/3).
+;===============================================================================
+.proc RulerCardRefresh
   ; Proc-local RAM variables
-  scaled_name_tmp   = $03A5  ; scaled name temp
-  banked_bd_lo      = $00BD  ; banked data temp lo
-  banked_395        = $0395  ; banked data temp
-  banked_39C        = $039C  ; banked data temp C
-  banked_39D        = $039D  ; banked data temp D
-  banked_3A0        = $03A0  ; banked data temp E0
-  banked_3A1        = $03A1  ; banked data temp E1
-  banked_3A2        = $03A2  ; banked data temp E2
-  banked_3A3        = $03A3  ; banked data temp E3
-  banked_3A4        = $03A4  ; banked data temp E4
-  banked_3A6        = $03A6  ; banked data temp E6
+  scaled_name_tmp   = $03A5  ; label row 2, last kanji half
+  banked_bd_lo      = $00BD  ; panel param C (set to $76 digit/label base)
+  banked_395        = $0395  ; stream block 2 VRAM lo ($22E8)
+  banked_39C        = $039C  ; fixed kanji bottom-left half ($D0)
+  banked_39D        = $039D  ; fixed kanji bottom-right half ($D1)
+  banked_3A0        = $03A0  ; label row 2, kanji 1 bottom half
+  banked_3A1        = $03A1  ; label row 2, kanji 1 bottom half (right)
+  banked_3A2        = $03A2  ; label row 2, kanji 2 bottom half
+  banked_3A3        = $03A3  ; label row 2, kanji 2 bottom half (right)
+  banked_3A4        = $03A4  ; label row 2, kanji 3 bottom half
+  banked_3A6        = $03A6  ; display stream terminator ($FF)
   LDA a:$000A ; $AA37: AD 0A 00
   PHA                                     ; $AA3A: 48
   LDA a:$000B ; $AA3B: AD 0B 00
@@ -1596,7 +1619,7 @@ DataFormatter:
   LDA a:$000B ; $AA43: AD 0B 00
   CMP #$FF                                ; $AA46: C9 FF
   BEQ @skip_jsr                            ; $AA48: F0 03
-  JSR SetupBankedData                       ; $AA4A: 20 38 AB
+  JSR OfficerNameSpritePost                ; $AA4A: 20 38 AB
 @skip_jsr:
   PLA                                     ; $AA4D: 68
   STA a:$000C ; $AA4E: 8D 0C 00
@@ -1611,7 +1634,7 @@ DataFormatter:
   LDY #$30                                ; $AA5F: A0 30
   LDA #$01                                ; $AA61: A9 01
 @clear_loop:
-  STA $0380,Y                             ; $AA63: 99 80 03
+  STA $0380,Y                             ; $AA63: 99 80 03   ; blank tile $01 over $0380-$03B0
   DEY                                     ; $AA66: 88
   BPL @clear_loop                            ; $AA67: 10 FA
   LDA a:$000A ; $AA69: AD 0A 00
@@ -1625,29 +1648,29 @@ DataFormatter:
   ASL A                                   ; $AA78: 0A
   ASL A                                   ; $AA79: 0A
   TAY                                     ; $AA7A: A8
-  LDA $AB08,Y                             ; $AA7B: B9 08 AB
+  LDA @RulerCardLabelTiles,Y              ; $AA7B: B9 08 AB
   STA $038D                               ; $AA7E: 8D 8D 03
-  LDA $AB09,Y                             ; $AA81: B9 09 AB
+  LDA @RulerCardLabelTiles+1,Y            ; $AA81: B9 09 AB
   STA $038E                               ; $AA84: 8D 8E 03
-  LDA $AB0A,Y                             ; $AA87: B9 0A AB
+  LDA @RulerCardLabelTiles+2,Y            ; $AA87: B9 0A AB
   STA $038F                               ; $AA8A: 8D 8F 03
-  LDA $AB0B,Y                             ; $AA8D: B9 0B AB
+  LDA @RulerCardLabelTiles+3,Y            ; $AA8D: B9 0B AB
   STA $0390                               ; $AA90: 8D 90 03
-  LDA $AB0C,Y                             ; $AA93: B9 0C AB
+  LDA @RulerCardLabelTiles+4,Y            ; $AA93: B9 0C AB
   STA $0391                               ; $AA96: 8D 91 03
-  LDA $AB0D,Y                             ; $AA99: B9 0D AB
+  LDA @RulerCardLabelTiles+5,Y            ; $AA99: B9 0D AB
   STA $0392                               ; $AA9C: 8D 92 03
-  LDA $AB0E,Y                             ; $AA9F: B9 0E AB
+  LDA @RulerCardLabelTiles+6,Y            ; $AA9F: B9 0E AB
   STA $03A0                               ; $AAA2: 8D A0 03
-  LDA $AB0F,Y                             ; $AAA5: B9 0F AB
+  LDA @RulerCardLabelTiles+7,Y            ; $AAA5: B9 0F AB
   STA $03A1                               ; $AAA8: 8D A1 03
-  LDA $AB10,Y                             ; $AAAB: B9 10 AB
+  LDA @RulerCardLabelTiles+8,Y            ; $AAAB: B9 10 AB
   STA $03A2                               ; $AAAE: 8D A2 03
-  LDA $AB11,Y                             ; $AAB1: B9 11 AB
+  LDA @RulerCardLabelTiles+9,Y            ; $AAB1: B9 11 AB
   STA $03A3                               ; $AAB4: 8D A3 03
-  LDA $AB12,Y                             ; $AAB7: B9 12 AB
+  LDA @RulerCardLabelTiles+10,Y           ; $AAB7: B9 12 AB
   STA $03A4                               ; $AABA: 8D A4 03
-  LDA $AB13,Y                             ; $AABD: B9 13 AB
+  LDA @RulerCardLabelTiles+11,Y           ; $AABD: B9 13 AB
   STA $03A5                               ; $AAC0: 8D A5 03
   LDA #$76                                ; $AAC3: A9 76
   STA a:$00BD ; $AAC5: 8D BD 00
@@ -1678,29 +1701,57 @@ DataFormatter:
   ORA #$04                                ; $AB02: 09 04
   STA a:$007E ; $AB04: 8D 7E 00
   RTS                                     ; $AB07: 60
-; 5x6 display data table (5 bytes x 6 records + terminator)
-DisplayData_Table:
-  .byte $C2, $C3, $C4, $C5, $C6             ; $AB08: record 1
-  .byte $C7, $D2, $D3, $D4, $D5             ; $AB0D: record 2
-  .byte $D6, $D7, $C8, $C9, $CA             ; $AB12: record 3
-  .byte $CB, $01, $01, $D8, $D9             ; $AB17: record 4
-  .byte $DA, $DB, $01, $01, $C2             ; $AB1C: record 5
-  .byte $C3, $CC, $CD, $C6, $C7             ; $AB21: record 6
-  .byte $D2                                   ; $AB26: terminator
-; 17-byte data region
-  .byte $D3, $DC, $DD, $D6, $D7             ; $AB27
-  .byte $CE, $CF, $E0, $E1, $01             ; $AB2C
-  .byte $01, $DE, $DF, $F0, $F1             ; $AB31
-  .byte $01, $01                              ; $AB36
+; @RulerCardLabelTiles - card header-label kanji, 4 variants x 12 bytes ($0C stride)
+; Indexed by the caller's card label variant ($000A * $0C -> Y). Bytes 0-5 go to the
+; display buffer at $038D-$0392 (VRAM $22D2-$22D7 = nametable row 6, cols 18-23:
+; the top halves of 3 kanji), bytes 6-11 to $03A0-$03A5 (VRAM $22F2-$22F7 = row 7,
+; cols 18-23: the matching bottom halves, always the top half id + $10).
+; $01 = blank tile padding when the label has fewer than 3 kanji.
+@RulerCardLabelTiles:
+; Variant 0 - 3 kanji (page bases $02, $04, $06)
+  .byte $C2, $C3, $C4, $C5, $C6, $C7        ; $AB08: variant 0, row 6 (top halves)
+  .byte $D2, $D3, $D4, $D5, $D6, $D7        ; $AB0E: variant 0, row 7 (bottom halves)
+
+; Variant 1 - 2 kanji (bases $08, $0A) + 2 blank cells
+  .byte $C8, $C9, $CA, $CB, $01, $01        ; $AB14: variant 1, row 6 (top halves)
+  .byte $D8, $D9, $DA, $DB, $01, $01        ; $AB1A: variant 1, row 7 (bottom halves)
+
+; Variant 2 - 3 kanji (bases $02, $0C, $06)
+  .byte $C2, $C3, $CC, $CD, $C6, $C7        ; $AB20: variant 2, row 6 (top halves)
+  .byte $D2, $D3, $DC, $DD, $D6, $D7        ; $AB26: variant 2, row 7 (bottom halves)
+
+; Variant 3 - 2 kanji (bases $0E, $10) + 2 blank cells
+  .byte $CE, $CF, $E0, $E1, $01, $01        ; $AB2C: variant 3, row 6 (top halves)
+  .byte $DE, $DF, $F0, $F1, $01, $01        ; $AB32: variant 3, row 7 (bottom halves)
 
 .endproc
 
 ;-------------------------------------------------------------------------------
-; SetupBankedData - Switch bank and copy display/name data
+; OfficerNameSpritePost ($AB38-$ABD1: code $AB38-$ABB7, tables $ABB8-$ABD1)
+; Was mislabelled SetupBankedData / BankedDataHandler_tail. Posts the Officer's
+; name kanji as sprites out of the banked roster record:
+;   1. $8000-$9FFF window <- PRG bank $31 (B1F_SwitchBank8_B, shadow $00E1; the
+;      NMI re-applies $00E1 every frame, so the switch survives interrupts).
+;   2. record = $8DB4 + Officer id ($000B) * $0D, 13 bytes:
+;        [0]      name-font CHR page id -> $00B9 (no disassembled reader)
+;        [1..12]  up to 3 kanji x 4 tile ids, $FF terminated/padded;
+;                 one kanji = (n, n+1, n+$10, n+$11) = the top-left, top-right,
+;                 bottom-left and bottom-right 8x8 tiles of a 16x16 glyph
+;      Tile ids are page-relative; the page holds 16 kanji (64 tiles), which is
+;      why officers sharing a surname share leading tile ids (e.g. ids 29-33
+;      夏侯淵/惇/覇/楙/蘭 all start 00 01 10 11 | 02 03 12 13).
+;   3. sprite pattern = tile id + $C0 (sprite tile page $C0-$FF), attribute $01;
+;      entries are appended to the OAM shadow $0200 through the slot cursor $007C.
+;   4. First pass walks slots 1/5/9 for the $FF terminator and derives the X
+;      shift $20/$10/$00 ($0002), which right-aligns a 1-2 kanji name in the
+;      3-cell row; second pass emits one sprite per tile id.
+; Coordinates (OAM order Y, tile, attribute, X): @NameSpriteY_Table -> byte 0
+; ($AF/$B7 = the two 8-pixel tile rows of a kanji), @NameSpriteX_Table + shift
+; -> byte 3 ($38/$40, $48/$50, $58/$60 = the three 16-pixel kanji cells).
 ;-------------------------------------------------------------------------------
-.proc SetupBankedData
+.proc OfficerNameSpritePost
   ; Proc-local RAM variable
-  setup_disp_tmp    = $00B9  ; setup temp
+  name_font_page    = $00B9  ; name-font CHR page id (record byte 0)
   LDY #$31                                  ; $AB38: select bank $31
   JSR B1F_SwitchBank8_B                     ; $AB3A: 20 5F F2
   LDA a:$000B ; $AB3D: AD 0B 00
@@ -1720,7 +1771,7 @@ DisplayData_Table:
   STA a:$0001 ; $AB61: 8D 01 00
   LDY #$00                                  ; $AB64: A0 00
   LDA ($00),Y                               ; $AB66: B1 00
-  STA a:$00B9 ; $AB68: 8D B9 00
+  STA a:name_font_page ; $AB68: 8D B9 00
   LDX #$30                                  ; $AB6B: A2 30
   LDY #$01                                  ; $AB6D: A0 01
 @copy_data_loop:
@@ -1748,9 +1799,9 @@ DisplayData_Table:
   CLC                                       ; $AB90: 18
   ADC #$C0                                  ; $AB91: 69 C0
   STA $0201,X                               ; $AB93: 9D 01 02
-  LDA @SpriteX_Table,Y                       ; $AB96: B9 B8 AB
+  LDA @NameSpriteY_Table,Y                       ; $AB96: B9 B8 AB
   STA $0200,X                               ; $AB99: 9D 00 02
-  LDA @SpriteY_Table,Y                       ; $AB9C: B9 C5 AB
+  LDA @NameSpriteX_Table,Y                       ; $AB9C: B9 C5 AB
   CLC                                       ; $AB9F: 18
   ADC a:$0002 ; $ABA0: 6D 02 00
   STA $0203,X                               ; $ABA3: 9D 03 02
@@ -1766,21 +1817,17 @@ DisplayData_Table:
 @copy_name_done:
   STX a:$007C ; $ABB4: 8E 7C 00
   RTS                                       ; $ABB7: 60
-; Sprite coordinate tables (13 bytes each, index 0 unused, indices 1-12 used)
-@SpriteX_Table:
+; Name sprite coordinate tables - 13 entries each ($ABB8-$ABC4, $ABC5-$ABD1).
+; Indexed by the record slot 1-12 (index 0 unused, filler $F0); the copy loop
+; runs while Y < $0D, so both tables must be 13 bytes long.
+@NameSpriteY_Table:                             ; $ABB8: OAM byte 0 = Y ($AF/$B7 tile rows)
   .byte $F0, $AF, $AF, $B7, $B7            ; $ABB8
   .byte $AF, $AF, $B7, $B7, $AF            ; $ABBD
   .byte $AF, $B7, $B7                       ; $ABC2
-@SpriteY_Table:
+@NameSpriteX_Table:                             ; $ABC5: OAM byte 3 = X ($38..$60 kanji cells)
   .byte $F0, $38, $40, $38, $40            ; $ABC5
   .byte $48, $50, $48, $50, $58            ; $ABCA
-  .byte $60                                 ; $ABCF
-.endproc
-
-; Remainder of BankedDataHandler
-.proc BankedDataHandler_tail
-  CLI                                       ; $ABD0: 58
-  RTS                                       ; $ABD1: 60
+  .byte $60, $58, $60                       ; $ABCF: slots 10-12, kanji 3 cells
 .endproc
 
 .proc ProvinceDataWindowFrame
@@ -3317,7 +3364,7 @@ SceneRendererDispatch:
   LDA a:$0083 ; $BD4F: AD 83 00
   CMP #$1C                                ; $BD52: C9 1C
   BNE @inc_and_jmp                            ; $BD54: D0 03
-  JSR SceneCheckGameState                            ; $BD56: 20 F1 BD
+  JSR SceneClampOrderScroll                     ; $BD56: 20 F1 BD
 @inc_and_jmp:
   INC $0401                               ; $BD59: EE 01 04
   JMP B1F_PaletteCopyBuffer                 ; $BD5C: 4C EE EC
@@ -3403,10 +3450,11 @@ SceneRendererDispatch:
 .endproc
 
 ;-------------------------------------------------------------------------------
-; SceneCheckGameState ($BDF1-$BDFD)
-; Ensure SRAM game state flag is at least $01
+; SceneClampOrderScroll ($BDF1-$BDFD)
+; Clamp the current country's OrderScroll (command points) $6F05: values >= $02
+; are forced down to $01; $00/$01 are left untouched
 ;-------------------------------------------------------------------------------
-.proc SceneCheckGameState
+.proc SceneClampOrderScroll
   LDA $6F05                               ; $BDF1: AD 05 6F
   CMP #$02                                ; $BDF4: C9 02
   BCC @rts2                            ; $BDF6: 90 05
@@ -5980,9 +6028,13 @@ LoadScenarioData:
 ; $DEB9: SceneRecordLookup
 ; Assembles a 14-byte scene record from column-oriented tables into
 ; $0061/$0068-$0074 (same block SceneInitTimer/SceneBufferFill preset).
-; Input: A = scene index, assigned by prg_1f.asm StateDispatch target procs
-;        (2=State_TacticalMode, 3=State_CountryMapView, 4=State_NewGameSetup,
-;        5=State_EventMessageScene)
+; Input: A = scene index, passed by the prg_1f.asm state procs:
+;        0 = State_StrategyMapLaunch $E142 (strategy map)
+;        1 = State_StrategyMode $E27E
+;        2 = State_DuelSceneLaunch $E34F (duel)
+;        3 = State_CountryMapView $E3D0 (title)
+;        4 = State_NewGameSetup $E44A
+;        5 = State_EventMessageScene $E4AD
 ;===============================================================================
 .proc SceneRecordLookup
   ; Proc-local RAM variables

@@ -65,8 +65,8 @@ MapScreenFrameStateTable:
   .word MapRulerIntroDispatch             ; $A033: 7D A0 ; state 7: sub-state dispatch by $0401
   .word MapRulerIntroDispatch             ; $A035: 7D A0 ; state 8: sub-state dispatch by $0401
   .word CallStrategyRequestDispatch       ; $A037: 55 A0 ; state 9: banked call, B19_1A_StrategyRequestDispatch
-  .word CallDemoEventDispatch             ; $A039: 5D A0 ; state $0A: banked call, B19_1A_DemoEventDispatch
-  .word CallAttractDemoDispatch           ; $A03B: 45 A0 ; state $0B: banked call, B19_1A_AttractDemoDispatch
+  .word CallMonthlyEventDispatch             ; $A039: 5D A0 ; state $0A: banked call, B19_1A_MonthlyEventDispatch
+  .word CallCountryRotationDispatch           ; $A03B: 45 A0 ; state $0B: banked call, B19_1A_CountryRotationDispatch
   .word CallProvinceOfficerRosterDispatch ; $A03D: 4D A0 ; state $0C: banked call, B19_1A_ProvinceOfficerRosterDispatch
   .word CallOfficerStatusScene            ; $A03F: 65 A0 ; state $0D: banked call, B19_1A_OfficerStatusScene
   .word CallSceneRenderer                 ; $A041: 6D A0 ; state $0E: banked call, B1D_1E_SceneRenderer
@@ -74,14 +74,14 @@ MapScreenFrameStateTable:
 .endproc
 
 ;===============================================================================
-; CallAttractDemoDispatch ($A045-$A04C) - dispatch callback target (state $0B)
+; CallCountryRotationDispatch ($A045-$A04C) - dispatch callback target (state $0B)
 ; Banked-call wrapper: switches to banks $19+$1A and invokes
-; B19_1A_AttractDemoDispatch (attract/title demo cycle handler).
+; B19_1A_CountryRotationDispatch (per-Country turn rotation / next-Ruler handoff).
 ;===============================================================================
-.proc CallAttractDemoDispatch  ; (dispatch callback target)
+.proc CallCountryRotationDispatch  ; (dispatch callback target)
   LDY #$39                                ; $A045: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A047: 20 07 EE
-  .word B19_1A_AttractDemoDispatch        ; $A04A: 03 A0 (BankedCallbackTrampoline target; bank $19 $A003 -> JMP AttractDemoDispatch)
+  .word B19_1A_CountryRotationDispatch        ; $A04A: 03 A0 (BankedCallbackTrampoline target; bank $19 $A003 -> JMP CountryRotationDispatch)
   RTS                                     ; $A04C: 60
 .endproc
 
@@ -110,14 +110,14 @@ MapScreenFrameStateTable:
 .endproc
 
 ;===============================================================================
-; CallDemoEventDispatch ($A05D-$A064) - dispatch callback target (state $0A)
+; CallMonthlyEventDispatch ($A05D-$A064) - dispatch callback target (state $0A)
 ; Banked-call wrapper: switches to banks $19+$1A and invokes
-; B19_1A_DemoEventDispatch (attract-demo monthly event dispatch).
+; B19_1A_MonthlyEventDispatch (per-Country monthly event dispatch).
 ;===============================================================================
-.proc CallDemoEventDispatch  ; (dispatch callback target)
+.proc CallMonthlyEventDispatch  ; (dispatch callback target)
   LDY #$39                                ; $A05D: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A05F: 20 07 EE
-  .word B19_1A_DemoEventDispatch          ; $A062: 09 A0 (BankedCallbackTrampoline target; bank $19 $A009 -> JMP DemoEventDispatch)
+  .word B19_1A_MonthlyEventDispatch          ; $A062: 09 A0 (BankedCallbackTrampoline target; bank $19 $A009 -> JMP MonthlyEventDispatch)
   RTS                                     ; $A064: 60
 .endproc
 
@@ -161,7 +161,7 @@ MapScreenFrameStateTable:
 ; Sub-state dispatcher for the map-screen ruler-intro sequence. Invoked as the
 ; B1F_CallbackDispatcher callback for frame states 0/7/8 (table entries at
 ; $A025/$A033/$A035). Dispatches on frame sub-state $0401:
-;   0: MapRulerIntroInit      - reset intro state; route to ending/attract/
+;   0: MapRulerIntroInit      - reset intro state; route to ending/rotation/
 ;                               camera-focus phase
 ;   1: MapRulerIntroCameraSync - pan the camera; poll B/A/Select input
 ;   2: MapRulerIntroWait      - wait for transition slot $0304 idle, then
@@ -183,10 +183,12 @@ MapScreenFrameStateTable:
 ; provinces owned by the current ruler $6F03 (sram_player_id) via $DDBF:
 ;   - 30 provinces: the ruler owns the whole land -> frame state $0F
 ;     (ending/unification scene, B19_1A_UnificationEndingDispatch).
-;   - SRAM game-state flag $6F05 is $00 or negative (no active game):
-;     frame state $0B + sub-state 0 (title/attract cycle) via B1F_SetUI4.
+;   - OrderScroll (command points) $6F05 of the current country is $00 or
+;     negative (the acting country owns 0 provinces -> no live turn):
+;     frame state $0B + sub-state 0 (Country rotation / title attract) via B1F_SetUI4.
 ;   - Active game: cache the player's home province from the SRAM ruler
-;     record (($EE), set up by bank $0A+$0B) into $042C, snapshot $6F05 into
+;     record (($EE), set up by bank $0A+$0B) into $042C, snapshot the
+;     OrderScroll $6F05 into
 ;     $042F, and enter UI mode $1F for the camera focus phase.
 ;===============================================================================
 MapRulerIntroInit:  ; (dispatch callback target)
@@ -208,12 +210,12 @@ MapRulerIntroInit:  ; (dispatch callback target)
   RTS                                     ; $A0AF: 60
 @NotUnified:  ; fewer than 30 provinces: continue intro sequence
   INC $0401                               ; $A0B0: EE 01 04  ; advance to camera sync
-  LDA $6F05                               ; $A0B3: AD 05 6F  ; SRAM game state flag
+  LDA $6F05                               ; $A0B3: AD 05 6F  ; current country's OrderScroll (command points)
   BMI @NoActiveGame                       ; $A0B6: 30 02    ; negative: no active game
-  BNE @GameActive                         ; $A0B8: D0 0D    ; non-zero: game in progress
+  BNE @GameActive                         ; $A0B8: D0 0D    ; non-zero: active game
 @NoActiveGame:
   LDA #$0B                                ; $A0BA: A9 0B
-  STA $0400                               ; $A0BC: 8D 00 04  ; attract/title cycle
+  STA $0400                               ; $A0BC: 8D 00 04  ; Country rotation frame
   LDA #$00                                ; $A0BF: A9 00
   STA $0401                               ; $A0C1: 8D 01 04
   JMP B1F_SetUI4                               ; $A0C4: 4C 8B F2  ; B1F_SetUI4 (no return)
@@ -224,7 +226,7 @@ MapRulerIntroInit:  ; (dispatch callback target)
   STY $0430                               ; $A0CE: 8C 30 04
   STY $0431                               ; $A0D1: 8C 31 04
   LDA $6F05                               ; $A0D4: AD 05 6F
-  STA $042F                               ; $A0D7: 8D 2F 04  ; snapshot of game state flag
+  STA $042F                               ; $A0D7: 8D 2F 04  ; snapshot of OrderScroll
   LDA #$1F                                ; $A0DA: A9 1F
   JMP B1F_SetUI0                               ; $A0DC: 4C 6D F2  ; B1F_SetUI0 mode $1F (no return)
 ;===============================================================================
@@ -6901,9 +6903,12 @@ WarehouseSliderScale10:
 ; Poaching (引き抜き) roster move for the intrigue screen (@CommandExecute).
 ; Appends officer $042C to the destination province $0470 roster (+$10 tail),
 ; removes it from the source province $0471 roster (shift + $FF fill), and
-; stashes dest-ruler/officer/source-ruler in $0030/$0031/$0032 before
-; notifying the strategy engine via the banked B19_1A_StrategyRequestDispatch
-; call (Y=$2A).
+; stashes dest-ruler/officer/source-ruler in $0030/$0031/$0032, then bank-calls
+; B0A_0B_ArmyValueCalc (Y=$2A -> banks $0A+$0B, entry $A006) to re-anchor the
+; moved Officer's loyalty against the new Ruler. $0032 is left for the caller's
+; own bookkeeping; this entry takes only $0030/$0031.
+; Note: the inline word $A006 is a per-bank entry stub - with Y=$2A it is bank
+; $0A's ArmyValueCalc, not the same-valued bank-$19 StrategyRequestDispatch.
 ;===============================================================================
 .proc PoachRosterTransfer
 ; --- Code Region ---
@@ -6946,9 +6951,9 @@ WarehouseSliderScale10:
   LDA $0471                               ; $D461: AD 71 04
   JSR ProvinceRulerIdGet                               ; $D464: 20 4F DD
   STA a:$0032                             ; $D467: 8D 32 00  ; source ruler
-  LDY #$2A                                ; $D46A: A0 2A
-  JSR B1F_BankedCallbackTrampoline        ; $D46C: 20 07 EE  ; banks $19+$1A strategy request
-  .word B19_1A_StrategyRequestDispatch    ; $D46F: 06 A0  ; inline trampoline target
+  LDY #$2A                                ; $D46A: A0 2A     ; target banks $0A+$0B
+  JSR B1F_BankedCallbackTrampoline        ; $D46C: 20 07 EE  ; re-anchor moved officer's loyalty
+  .word B0A_0B_ArmyValueCalc_Entry        ; $D46F: 06 A0 (bank $0A $A006 -> JMP $CF3F: ArmyValueCalc)
 ; --- Code Region ---
   RTS                                     ; $D471: 60
 .endproc
@@ -7199,7 +7204,8 @@ WarehouseSliderScale10:
 ;   - Pad 1 edges $0081: A on "no" ($0012 != 0) or B -> $0013 = $FF (cancel);
 ;     A on "yes" -> $046C <- $80 starts the close countdown.
 ;   - $046C != 0 (closing): B1D_1E_FastPeriodic overlay refresh each frame and
-;     $046C countdown; at $40 also DEC $6F05. When $046C reaches $01 the
+;     $046C countdown; at $40 also DEC $6F05 (current country's OrderScroll,
+;     command points). When $046C reaches $01 the
 ;     result latches $0013 <- $80 (confirmed) and B1D_1E_ImmediateOverlay
 ;     refreshes the screen. $046C stays $01 until a caller clears it.
 ; Callers clear $046C (usually the A=$00 leftover from MenuCursorReset) to
@@ -7262,7 +7268,7 @@ WarehouseSliderScale10:
   LDA $046C                               ; $D62F: AD 6C 04
   CMP #$40                                ; $D632: C9 40
   BNE @DecrementTimer                     ; $D634: D0 03
-  DEC $6F05                               ; $D636: CE 05 6F  ; SRAM game-state flag tick
+  DEC $6F05                               ; $D636: CE 05 6F  ; confirmed command spends 1 OrderScroll
 @DecrementTimer:
   DEC $046C                               ; $D639: CE 6C 04
   RTS                                     ; $D63C: 60

@@ -20,7 +20,9 @@ sango2dasm/
 ├── linker.cfg                               # ca65 linker config
 ├── asm/
 │   ├── main.asm                             # Entry point (reset/NMI/IRQ stubs)
-│   └── banks/                               # 32 bank stub files (prg_00.asm - prg_1f.asm)
+│   └── banks/                               # Bank files: code prg_XX.asm, seed data data_XX.asm
+│       ├── data_10.asm                       # Seed DATA bank (reg $30): annotated .byte records
+│       └── data_11.asm                       # Seed DATA bank (reg $31): annotated .byte records
 ├── include/
 │   ├── 6502_registers.h                     # PPU/APU register definitions
 │   ├── namco163.h                           # Namco-163 mapper definitions + bank switch macros
@@ -41,11 +43,16 @@ sango2dasm/
 │   ├── map_officer_kanji.py                 # Join officer ids to kanji/Chinese names
 │   ├── extract_officer_data.py              # Decode the 12-byte officer records from the .nes
 │   ├── extract_province_data.py             # Decode the 30 province names + 32-byte records
+│   ├── verify_seed_tables.py                # Re-check the new-game seed tables and the SramInit copies
+│   ├── analyze_disaster_pick_rng.py         # All 256 disaster pick RNG indices + same-month Province pair coherence
+│   ├── gen_data_bank_asm.py                 # Render seed banks $10/$11 as annotated .byte asm
+│   ├── verify_data_banks.py                 # Assemble those banks, prove byte-exact, decode edits
 │   ├── data/
 │   │   ├── officer_kanji.tsv                # id -> kanji / 繁體 / 简体 / pinyin map
 │   │   └── province_kanji.tsv               # Province id -> kanji / 繁體 / 简体 / pinyin map
 │   └── build_nes.py                         # Add iNES header to PRG binary
 ├── code/                                    # Place for disassembled code
+│   └── disaster_pick_rng_coherence.md       # Flood/drought pick: 256 indices + same-month Province pair coherence
 ├── docs/
 │   ├── officer_names.txt                    # Extracted officer katakana name table
 │   ├── officer_names.csv                    # Same, as CSV
@@ -56,6 +63,8 @@ sango2dasm/
 │   ├── province_names.csv                   # 30 province katakana names + kanji/繁體/简体/pinyin
 │   ├── province_data.md                     # Province record layout, countries, starting data, raw dumps
 │   ├── province_data.csv                    # Same, as CSV (adds raw record bytes)
+│   ├── disaster_pick_rng_sequences.csv      # All 256 random indices -> flood/drought hit Provinces (generated)
+│   ├── disaster_pick_rng_pair_coherence.csv # Per-Province-pair joint hit counts / lift / phi in one month (generated)
 │   └── manual_kb/                           # Knowledge base transcribed from the original Japanese manual
 ├── res/
 │   └── manual_jpn/                          # Scanned pages of the original user manual (37 JPGs)
@@ -83,7 +92,11 @@ Path: `/home/zero/.local/bin/` (added to PATH in `.bashrc`/`.zshrc`)
 | `make` | Build NES ROM from assembly |
 | `make split` | Split original ROM into PRG/CHR banks |
 | `make banks` | Generate PRG bank stub files |
+| `make databanks` | Re-render the annotated seed-data banks `$10`/`$11` from the ROM, then verify |
+| `make databanks-csv` | Re-render them from the decoded `docs/*.csv` (the CSV editing path) |
+| `make verifydata` | Assemble banks `$10`/`$11` standalone and prove byte-exactness |
 | `make analyze` | Analyze original ROM structure |
+| `make disasterrng` | Re-enumerate the 256 disaster province-pick RNG indices and rebuild the same-month coherence doc/CSVs |
 | `make disasm FILE=rom/prg/prg_XX.bin ADDR=XXXX LEN=256` | Disassemble binary (use ADDR=E000 for bank 0x1F) |
 | `make verify` | Compare built ROM with original |
 | `make clean` | Remove build artifacts |
@@ -149,11 +162,16 @@ Key banks identified by `make analyze`:
 | 0x14 | 655 JSR, 719 RTI | Heavy code (graphics?) |
 | 0x15 | 429 JSR, 930 RTI | Heavy code (graphics?) |
 | 0x16 | 428 JSR, 549 RTI | Heavy code |
-| 0x10 | 341 RTI, low JSR | IRQ/data heavy |
+| 0x10 | 341 RTI, low JSR | **Data bank** (register `$30`): province records, officer/province name tables |
+| 0x11 | - | **Data bank** (register `$31`): officer master records, arrival schedule, death-year table |
 | 0x1E | 384 RTI | IRQ/data heavy |
 | 0x07 | All 0xFF | Empty bank |
 
 Banks with `[CODE]` marker have high JSR counts and are likely code-heavy.
+The RTI-based heuristic misreads dense data as code: banks `0x10`/`0x11` are only
+ever selected into the `$8000-$9FFF` data window and every region decoded so far
+is a lookup table, so they stay `.incbin` stubs - see
+[code/initial_data_tables.md](./code/initial_data_tables.md).
 
 ## Disassembly Workflow
 
@@ -242,10 +260,13 @@ one-to-one, every reading composes) without writing anything.
 ## Officer Data Table
 
 Each officer also has a 12-byte master record in PRG bank `$31` at `$8000`
-(PRG offset `$22000`, `.nes` offset `$22010`), which seeds the SRAM record at
-`id * 12 + $63C0` at new game. `tools/extract_officer_data.py` reads the
-original `.nes` image directly — it parses the iNES header rather than assuming
-a fixed data start — decodes all 237 records, and joins the ROM katakana names
+(PRG offset `$22000`, `.nes` offset `$22010`, `rom/prg/prg_11.bin + $0000`),
+which seeds the SRAM record at `id * 12 + $63C0` at new game. `SramInit`
+(`$DD8B`) copies `$0B40` bytes = 240 slots, so slots `$ED`-`$EF` are padding and
+the real count is 237 — every officer scan loop stops at `CMP #$ED`.
+`tools/extract_officer_data.py` reads the original `.nes` image directly — it
+parses the iNES header rather than assuming a fixed data start — decodes all
+237 records, and joins the ROM katakana names (bank `$30` `$901A`, 10 B/entry)
 with the simplified-Chinese names from `tools/data/officer_kanji.tsv`.
 
 ```
@@ -255,38 +276,58 @@ python tools/extract_officer_data.py [--rom PATH] [--check] [--print]
 | Offset | Field |
 |--------|-------|
 | `+0` … `+4` | 体力 Vitality, 武力 Might, 知力 Intelligence, 忠誠度 Loyalty, 人徳 Virtue |
-| `+5` | always `0` in ROM (runtime-only field) |
+| `+5` | always `0` in ROM (runtime-only 位置 LocationProvince) |
 | `+6/+7` | 経験値 Experience, 16-bit LE |
 | `+8/+9` | 兵数 TroopCount, 16-bit LE (non-zero only for the officers already on the map at the 189 start) |
 | `+10` | bits 0-4 = 武器 Weapon, bits 5-7 = 防具 Armor |
-| `+11` | bits 4-7 = レベル OfficerLevel (0-based), bits 0-3 = 軍の属性 ArmyAffinity (平/山/水) |
+| `+11` | bits 4-7 = レベル OfficerLevel (0-based), bits 2-3 = 軍の属性 ArmyAffinity (0 平 / 1 山 / 2 水), bits 0-1 = 状態 OfficerStatus (seed: 1 hidden, 2 rostered) |
 
+The two low bit pairs of `+11` are independent fields: the seed status `2` set
+is *exactly* the set of officers listed in the Province roster slots (57 of
+them), which is what separated the status bits from the affinity bits.
 Column names in the generated files use the canonical semantic English terms
 from `docs/manual_kb/terminology.md`.
 
 | Path | Contents |
 |------|----------|
 | `docs/officer_data.md` | Record layout, weapon/armor code tables, and all 237 officers |
-| `docs/officer_data.csv` | Same as CSV, plus equipment indices and the raw 12 record bytes |
+| `docs/officer_data.csv` | Same as CSV, plus equipment indices, status, roster/schedule cross-references and the raw 12 record bytes |
 
 The decode is confirmed by the manual's 呂布 duel data
 (`docs/manual_kb/10-duel-mode.md`), which matches record 218 field for field.
-`--check` validates without writing.
+`--check` validates without writing (it also asserts the roster/OfficerStatus
+agreement and the arrival-schedule counts). The hidden officers' starting
+Province and appearance year come from the arrival schedule in the same bank at
+`$8B1C`; the byte-exact evidence for all of this is in
+[code/initial_data_tables.md](./code/initial_data_tables.md), machine-checked by
+`tools/verify_seed_tables.py`.
+
+The bank itself is checked out as readable data: `asm/banks/data_11.asm` renders
+all 237 officer records as labelled `.byte` rows (`OfficerRecord_<NAME>`, one
+decoded summary per row) with the unanalysed ranges kept as sliced `.incbin`.
+Edit it directly, or edit `docs/officer_data.csv` and run `make databanks-csv`;
+`make verifydata` assembles the bank, proves it byte-exact against the ROM and
+reports any change as `OfficerRecord_RYOFU (218 吕布): 武力 Might $63 -> $64`.
+Labels come from `include/officer_ids.inc`, so label, code symbol and CSV row
+name the same officer.
 
 ## Province Data Table
 
 The 30 provinces (the manual calls them 国) have two ROM tables, both in PRG
 bank `$30`:
 
-| Table | CPU | PRG offset | Stride |
-|-------|-----|------------|--------|
-| Province katakana names | `$9A1A` | `$21A1A` | 8 bytes, `$00`-terminated |
-| Province master records | `$8C00` | `$20C00` | 32 bytes |
+| Table | CPU | PRG offset | Bank file + offset | Stride |
+|-------|-----|------------|--------------------|--------|
+| Province katakana names | `$9A1A` | `$21A1A` | `prg_10.bin + $1A1A` | 8 bytes, `$00`-terminated |
+| Province master records | `$8C00` | `$20C00` | `prg_10.bin + $0C00` | 32 bytes |
 
 `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e.asm`) copies the whole `$3C0`-byte
-record block verbatim to SRAM `$6000`, so the ROM block *is* the new-game
-starting state: `sram_record = id * 32 + $6000`. Names are drawn by
-`CmdDrawNameFromData` (`ptr = id * 8 + $9A1A`, up to 6 glyphs).
+record block verbatim to SRAM `$6000` (`@Copy1Loop`, `$DDCD`-`$DE10`: bank `$30`,
+source `$8C00`, length test `CMP #$03` / `CPX #$C0`), so the ROM block *is* the
+new-game starting state: `sram_record = id * 32 + $6000`. The block fills
+`$6000-$63BF` exactly and the officer seed block starts at the next byte,
+`$63C0`. Names are drawn by `CmdDrawNameFromData` (`$A426`: bank `$30`,
+`ptr = id * 8 + $9A1A`, up to 6 glyphs).
 
 ```
 python tools/extract_province_data.py [--rom PATH] [--check] [--print]
@@ -304,7 +345,7 @@ python tools/extract_province_data.py [--rom PATH] [--check] [--print]
 | `+12/+13` | 控え ReserveTroops, 16-bit LE (徴兵 target, capped 10000) |
 | `+14/+15` | 産業 Industry, 16-bit LE (drives the annual 金 tax) |
 | `+16` | 宝 Treasure |
-| `+17..+26` | 武将 Officer roster, 10 slots, `$FF` = empty |
+| `+17..+26` | 武将 Officer roster, 10 slots, `$FF` = empty (these ids are exactly the officer seed records with 状態 = 2) |
 | `+27` | 反乱クールダウン RevoltCooldown, in months |
 
 | Path | Contents |
@@ -325,7 +366,12 @@ The two 999-capped stats are told apart by the annual income routines in
 scales `+14/+15` into 金 (産業), both multiplied by the 統治度 tier. This also
 resolves three province readings the manual scan could not
 (`docs/manual_kb/14-map.md`): 襄陽, 涪陵, 永昌. `--check` validates without
-writing.
+writing, including that the roster set equals the officer seed's status-2 set.
+Byte-exact location evidence: [code/initial_data_tables.md](./code/initial_data_tables.md).
+
+`asm/banks/data_10.asm` renders both province tables as labelled `.byte` records
+(`ProvinceRecord_<NAME>` with a decoded summary per province, plus
+`ProvinceName_<NAME>`), verified byte-exact by `make verifydata`.
 
 ## Game Manual Knowledge Base
 

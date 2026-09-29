@@ -43,12 +43,20 @@ The four modes nest; they are not peers:
 
 - **Strategy Mode** (戦略モード) — the map-level domestic/foreign affairs
   loop. What older code called "DomesticAffairs" belongs here
-  (e.g. `State_StrategyMode`, state 5).
-- **Tactical Mode** (戦術モード) — the field/army movement layer. What older
-  code called "BattlePhase" is actually Tactical Mode
-  (e.g. `State_TacticalMode`, state 7).
-- **Battle Mode** (戦闘モード) — a sub-scenario of Tactical Mode.
-- **Duel Mode** (一騎討ちモード) — a sub-scenario of Battle Mode.
+  (e.g. `State_StrategyMode`, state 5; the map screen itself is launched by
+  `State_StrategyMapLaunch`, state 1).
+- **Tactical Mode** (戦術モード) — the field/army movement layer, the "war"
+  scene of this codebase: game states 3 and 4 (`State_WarSceneLaunch` $E18B /
+  `State_WarAiTurnFrame` $E221, whose AI runs from bank $08+$09
+  `AiTurnProcess`).
+- **Battle Mode** (戦闘モード) — a sub-scenario of Tactical Mode (bank $0E+$0F
+  phase machine, reached from the war layer when armies engage).
+- **Duel Mode** (一騎討ちモード) — a sub-scenario of Battle Mode: game state 7
+  (`State_DuelSceneLaunch` $E2E8, entered from Battle Mode phase 5 side event),
+  whose frames run `NmiState5_Duel` -> bank $17+$18 `DuelModeDispatch`.
+  Naming note: this state was once called `State_BattlePhase` and then
+  `State_TacticalMode`; both were wrong - neither the tactical nor the battle
+  layer launches here.
 
 ### Domain model: Ruler / Country / Province
 

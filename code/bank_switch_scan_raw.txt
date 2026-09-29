@@ -157,10 +157,10 @@
   $C457 L 5001 [ArmyDeployDispatch] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @5000)
   $C497 L 5038 [ArmyDeployDispatch] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @5037)
   $C73D L 5381 [OfficerExchangeDispatch] LDY #$28 trampoline -> B08_09_ValidateSpecialOfficer_Entry
-  $C7AF L 5451 [OfficerTransferCalc] LDY #$2E trampoline -> B0E_0F_OfficerStatSumBattleTransfer_Entry
-  $C7D5 L 5472 [OfficerTransferCalc] LDY #$28 trampoline -> B08_09_WarSlotClear_Entry
-  $C815 L 5508 [OfficerTransferCalc] LDY #$2A trampoline -> B0A_0B_DistanceClamp_Entry
-  $C880 L 5564 [OfficerTransferCalc] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
+  $C7AF L 5451 [OfficerFateCommitDispatch] LDY #$2E trampoline -> B0E_0F_OfficerStatSumBattleTransfer_Entry
+  $C7D5 L 5472 [OfficerFateCommitDispatch] LDY #$28 trampoline -> B08_09_WarSlotClear_Entry
+  $C815 L 5508 [OfficerFateCommitDispatch] LDY #$2A trampoline -> B0A_0B_DistanceClamp_Entry
+  $C880 L 5564 [OfficerFateCommitDispatch] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
   $CC2B L 6024 [RecalcExchangeStats] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @6023)
   $D225 L 6726 [OfficerExchangeSelectDispatch] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6725)
   $D4F5 L 7126 [ExchangeScene] LDY #$28 trampoline -> B08_09_WarPhaseProcess_Entry
@@ -259,8 +259,8 @@
   prg_0a_0b.asm      -> $17+$18          (1 calls: CallStrategyModeDisplay)
   prg_0c_0d.asm      -> $06 @$8000       (4 calls: ArmyDeployDispatch)
   prg_0c_0d.asm      -> $08+$09          (13 calls: ?, ApplyLoyaltyChange, CommandState_Init, ExchangeScene, MainLoopDispatch, MoveState_CheckDest...)
-  prg_0c_0d.asm      -> $0A+$0B          (3 calls: ExecStratagem_Enticement, OfficerTransferCalc)
-  prg_0c_0d.asm      -> $0E+$0F          (4 calls: ApplyGoldChange, ApplyLoyaltyChange, MoveState_Select, OfficerTransferCalc)
+  prg_0c_0d.asm      -> $0A+$0B          (3 calls: ExecStratagem_Enticement, OfficerFateCommitDispatch)
+  prg_0c_0d.asm      -> $0E+$0F          (4 calls: ApplyGoldChange, ApplyLoyaltyChange, MoveState_Select, OfficerFateCommitDispatch)
   prg_0c_0d.asm      -> $10 @$8000       (4 calls: ExchangeScene, OfficerExchangeSelectDispatch, ProvinceSelect_InitList)
   prg_0c_0d.asm      -> $11 @$8000       (4 calls: ExchangeScene, RecalcExchangeStats)
   prg_0c_0d.asm      -> $17+$18          (6 calls: ExchangeScene)

@@ -1,0 +1,335 @@
+raw branch sites: 98
+unique target addresses: 78
+
+$B231  (2 site(s))  target: RTS                                     ; $B231: 60
+    label: None (None)  target proc: ArmyCommandDispatch  ; (dispatch callback target)  src procs: ['ArmyCommandDispatch  ; (dispatch callback target)']
+    line  2526  $B21E BNE  in ArmyCommandDispatch  ; (dispatch callback target)
+    line  2529  $B226 BPL  in ArmyCommandDispatch  ; (dispatch callback target)
+
+$B255  (1 site(s))  target: LDY #$39                                ; $B255: A0 39     ; target banks $19+$1A
+    label: None (None)  target proc: ArmyCommandDispatch  ; (dispatch callback target)  src procs: ['ArmyCommandDispatch  ; (dispatch callback target)']
+    line  2549  $B24D BNE  in ArmyCommandDispatch  ; (dispatch callback target)
+
+$B5A5  (1 site(s))  target: RTS                                     ; $B5A5: 60
+    label: None (None)  target proc: ArmyCommandDispatch  ; (dispatch callback target)  src procs: ['ArmyCommandDispatch  ; (dispatch callback target)']
+    line  2927  $B595 BNE  in ArmyCommandDispatch  ; (dispatch callback target)
+
+$B61F  (1 site(s))  target: RTS                                     ; $B61F: 60
+    label: None (None)  target proc: ArmyCommandDispatch  ; (dispatch callback target)  src procs: ['ArmyCommandDispatch  ; (dispatch callback target)']
+    line  2964  $B5DF BPL  in ArmyCommandDispatch  ; (dispatch callback target)
+
+$C08A  (2 site(s))  target: RTS                                     ; $C08A: 60
+    label: @MenuIdleExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4471  $C06F BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  4476  $C078 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C08B  (1 site(s))  target: JSR MenuCursorReset                     ; $C08B: 20 70 DD
+    label: @FacilitySelect (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4474  $C075 BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C0B9  (1 site(s))  target: LDA #$12                                ; $C0B9: A9 12
+    label: @ActionArmory (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4494  $C09B BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C0CD  (1 site(s))  target: LDA #$0E                                ; $C0CD: A9 0E
+    label: @ActionAcademy (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4496  $C09F BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C0E1  (1 site(s))  target: JSR HospitalWoundedRosterBuild          ; $C0E1: 20 7C DC  ; wounded roster -> $0151-$015A
+    label: @ActionHospital (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4498  $C0A3 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C0FF  (1 site(s))  target: LDA #$11                                ; $C0FF: A9 11
+    label: @HospitalIdleRoute (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4529  $C0E9 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C180  (1 site(s))  target: LDA $0402                               ; $C180: AD 02 04
+    label: @MarketTreasureRoute (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4576  $C173 BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$C1A1  (1 site(s))  target: LDA #$11                                ; $C1A1: A9 11
+    label: @MarketNoTreasure (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4586  $C18A BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C1AB  (1 site(s))  target: LSR                                     ; $C1AB: 4A
+    label: @MarketCancel (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4573  $C16B BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C1B3  (2 site(s))  target: RTS                                     ; $C1B3: 60
+    label: @MarketMenuExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4570  $C165 BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  4602  $C1AC BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C206  (2 site(s))  target: RTS                                     ; $C206: 60
+    label: @RiceTradeIdleExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4634  $C1F0 BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  4639  $C1F9 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C207  (1 site(s))  target: JSR ActionDeltaWorkReset                ; $C207: 20 87 DB
+    label: @RiceTradeConfirm (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4637  $C1F6 BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C254  (1 site(s))  target: LDY #$01                                ; $C254: A0 01
+    label: @RiceBuySeed (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4661  $C229 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C29E  (1 site(s))  target: LDA a:$0000                             ; $C29E: AD 00 00
+    label: @RiceBuyCostCommit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4706  $C297 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C2EB  (3 site(s))  target: RTS                                     ; $C2EB: 60
+    label: @RiceBuyIdleExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4730  $C2C8 BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  4740  $C2DE BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  4754  $C2FD BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C2EC  (1 site(s))  target: LDA $048E                               ; $C2EC: AD 8E 04
+    label: @RiceBuyConfirm (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4738  $C2DB BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C2FF  (1 site(s))  target: LDA #$00                                ; $C2FF: A9 00
+    label: @RiceBuyCostCalc (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4752  $C2F8 BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$C363  (1 site(s))  target: STA ($00),Y                             ; $C363: 91 00
+    label: @BuyGoldStore (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4793  $C35B BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C39A  (1 site(s))  target: LDA #$00                                ; $C39A: A9 00
+    label: @BuyCancel (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4782  $C343 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C39F  (1 site(s))  target: RTS                                     ; $C39F: 60
+    label: @BuyApplyExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4780  $C33F BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C3C8  (3 site(s))  target: RTS                                     ; $C3C8: 60
+    label: @RiceSellIdleExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4829  $C3A3 BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  4839  $C3B9 BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  4854  $C3DA BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C3C9  (1 site(s))  target: LDA $048E                               ; $C3C9: AD 8E 04
+    label: @RiceSellConfirm (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4837  $C3B6 BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C3DC  (1 site(s))  target: LDA #$00                                ; $C3DC: A9 00
+    label: @RiceSellCostCalc (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4852  $C3D5 BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$C43E  (1 site(s))  target: STA ($00),Y                             ; $C43E: 91 00
+    label: @SellRiceStore (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4892  $C436 BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C464  (1 site(s))  target: LDA #$00                                ; $C464: A9 00
+    label: @SellCancel (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4881  $C41E BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C469  (1 site(s))  target: RTS                                     ; $C469: 60
+    label: @SellApplyExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4879  $C41A BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C497  (1 site(s))  target: LSR                                     ; $C497: 4A
+    label: @TreasurePromptCancel (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4931  $C482 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C4A7  (3 site(s))  target: RTS                                     ; $C4A7: 60
+    label: @TreasurePromptExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4922  $C46D BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  4933  $C487 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+    line  4941  $C498 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C50F  (1 site(s))  target: LDA #$00                                ; $C50F: A9 00
+    label: @TreasureSellAbort (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4954  $C4B2 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C514  (1 site(s))  target: RTS                                     ; $C514: 60
+    label: @TreasureApplyExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4952  $C4AE BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C541  (1 site(s))  target: LDA #$00                                ; $C541: A9 00
+    label: @HospitalFeeAbort (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5004  $C524 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C546  (2 site(s))  target: RTS                                     ; $C546: 60
+    label: @HospitalFeeIdleExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  4999  $C518 BNE  in TownCommandDispatch  ; (dispatch callback target)
+    line  5002  $C520 BPL  in TownCommandDispatch  ; (dispatch callback target)
+
+$C569  (1 site(s))  target: INC $0401                               ; $C569: EE 01 04
+    label: @FeeAcceptRoute (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5032  $C562 BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C577  (1 site(s))  target: LDA #$11                                ; $C577: A9 11
+    label: @FeeInsufficient (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5035  $C567 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C581  (1 site(s))  target: LSR                                     ; $C581: 4A
+    label: @FeeCancelCheck (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5026  $C553 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C58E  (3 site(s))  target: RTS                                     ; $C58E: 60
+    label: @FeeConfirmExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5022  $C54A BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  5049  $C582 BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  5051  $C587 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C5D1  (1 site(s))  target: LDA #$00                                ; $C5D1: A9 00
+    label: @FeePayAbort (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5061  $C599 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C5D6  (1 site(s))  target: RTS                                     ; $C5D6: 60
+    label: @FeePayExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5059  $C595 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C5EC  (1 site(s))  target: RTS                                     ; $C5EC: 60
+    label: @ServiceCardIdleExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5096  $C5E0 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C5ED  (1 site(s))  target: JSR MapTransitionStateSave              ; $C5ED: 20 68 D5
+    label: @ServiceCardConfirm (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5100  $C5EA BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$C601  (1 site(s))  target: JSR B1F_RandomMod16                               ; $C601: 20 5C E8
+    label: @HospitalHealCalc (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5116  $C606 BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C643  (1 site(s))  target: LDA #$0D                                ; $C643: A9 0D
+    label: @HealResultUI (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5134  $C62F BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C652  (1 site(s))  target: LDA $0481                               ; $C652: AD 81 04
+    label: @AcademyTrainApply (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5154  $C65D BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C6AC  (1 site(s))  target: CMP #$1F                                ; $C6AC: C9 1F
+    label: @AcademyTierMid (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5185  $C6A3 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C6B7  (1 site(s))  target: LDA #$1E                                ; $C6B7: A9 1E
+    label: @AcademyTierLow (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5191  $C6AE BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C6D8  (1 site(s))  target: LDA $0481                               ; $C6D8: AD 81 04
+    label: @AcademyMaxed (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5183  $C69F BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C6F2  (1 site(s))  target: LDA #$00                                ; $C6F2: A9 00
+    label: @AcademyAbort (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5176  $C68E BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C6F7  (2 site(s))  target: RTS                                     ; $C6F7: 60
+    label: @AcademyExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5171  $C682 BNE  in TownCommandDispatch  ; (dispatch callback target)
+    line  5174  $C68A BPL  in TownCommandDispatch  ; (dispatch callback target)
+
+$C720  (1 site(s))  target: RTS                                     ; $C720: 60
+    label: @RedrawWaitExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5243  $C716 BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$C73B  (2 site(s))  target: LDA $0473                               ; $C73B: AD 73 04
+    label: @ExitCleanupCheck (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5251  $C724 BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  5255  $C72E BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C743  (1 site(s))  target: RTS                                     ; $C743: 60
+    label: @ExitWaitExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5262  $C73E BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C768  (1 site(s))  target: LDA #$00                                ; $C768: A9 00
+    label: @ArmoryAbort (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5273  $C753 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C76D  (2 site(s))  target: RTS                                     ; $C76D: 60
+    label: @ArmoryWinExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5268  $C747 BNE  in TownCommandDispatch  ; (dispatch callback target)
+    line  5271  $C74F BPL  in TownCommandDispatch  ; (dispatch callback target)
+
+$C7D8  (1 site(s))  target: LSR                                     ; $C7D8: 4A
+    label: @ArmoryMenuBack (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5306  $C79E BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C7ED  (1 site(s))  target: RTS                                     ; $C7ED: 60
+    label: @ArmoryMenuExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5333  $C7D9 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C827  (1 site(s))  target: LDY #$30                                ; $C827: A0 30     ; bank $30 window (item records)
+    label: None (None)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5358  $C824 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$C88A  (2 site(s))  target: LDX a:$0012                             ; $C88A: AE 12 00
+    label: @ArmoryDescRowLoop (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5402  $C880 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+    line  5442  $C8DA BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C8B9  (1 site(s))  target: INX                                     ; $C8B9: E8
+    label: @ArmoryDescByteLoop (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5436  $C8CC BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C8E9  (1 site(s))  target: LDA #$FF                                ; $C8E9: A9 FF
+    label: @ArmoryDescDone (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5446  $C8E4 BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C94F  (1 site(s))  target: RTS                                     ; $C94F: 60
+    label: @BuyMenuIdleExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5483  $C93D BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C950  (1 site(s))  target: LDY a:$0012                             ; $C950: AC 12 00
+    label: @ArmoryBuySelect (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5481  $C93A BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C993  (1 site(s))  target: LDA a:$0010                             ; $C993: AD 10 00
+    label: @ArmoryBuyRoute (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5517  $C988 BCS  in TownCommandDispatch  ; (dispatch callback target)
+
+$C9B2  (1 site(s))  target: LDA #$11                                ; $C9B2: A9 11
+    label: @WeaponGateFail (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5515  $C983 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$C9EE  (1 site(s))  target: ??
+    label: None (None)  target proc: None  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5550  $C9D5 BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$CA06  (1 site(s))  target: LDA #$E0                                ; $CA06: A9 E0
+    label: @EquipMaskSet (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5567  $C9FE BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$CA24  (1 site(s))  target: LDA $0481                               ; $CA24: AD 81 04
+    label: @EquipApply (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5575  $CA10 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$CA65  (1 site(s))  target: LDA #$00                                ; $CA65: A9 00
+    label: @PurchaseAbort (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5565  $C9F9 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$CA6A  (1 site(s))  target: RTS                                     ; $CA6A: 60
+    label: @PurchaseExit (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5563  $C9F5 BEQ  in TownCommandDispatch  ; (dispatch callback target)
+
+$CA8C  (1 site(s))  target: CMP #$17                                ; $CA8C: C9 17
+    label: @WeaponGateCase17 (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5628  $CA7E BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$CA9C  (1 site(s))  target: CMP #$16                                ; $CA9C: C9 16
+    label: @WeaponGateCase16 (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5636  $CA8E BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$CAAD  (1 site(s))  target: CMP #$1E                                ; $CAAD: C9 1E
+    label: @WeaponGateCase1E (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5644  $CA9E BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$CABE  (4 site(s))  target: LDA #$9A                                ; $CABE: A9 9A
+    label: @WeaponGateDenied (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5631  $CA85 BNE  in TownCommandDispatch  ; (dispatch callback target)
+    line  5639  $CA95 BNE  in TownCommandDispatch  ; (dispatch callback target)
+    line  5648  $CAA6 BCC  in TownCommandDispatch  ; (dispatch callback target)
+    line  5657  $CAB7 BCC  in TownCommandDispatch  ; (dispatch callback target)
+
+$CAD6  (1 site(s))  target: SEC                                     ; $CAD6: 38
+    label: @WeaponGateOk (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5653  $CAAF BNE  in TownCommandDispatch  ; (dispatch callback target)
+
+$CAD8  (1 site(s))  target: LDA #$9B                                ; $CAD8: A9 9B
+    label: @WeaponGateAlready (local)  target proc: TownCommandDispatch  ; (dispatch callback target)  src procs: ['TownCommandDispatch  ; (dispatch callback target)']
+    line  5669  $CACE BNE  in TownCommandDispatch  ; (dispatch callback target)
+

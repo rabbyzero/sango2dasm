@@ -5,9 +5,10 @@ ROM), Chinese name, and starting data, read directly out of
 the iNES image by `tools/extract_province_data.py`.
 
 * PRG 256 KB, CHR 256 KB, mapper 19 (Namco 163)
-* names: PRG `$21A1A`, 8 bytes/entry (CPU `$9A1A`, bank `$30`), `$00`-terminated
-* data: PRG `$20C00`, 32 bytes/record (CPU `$8C00`, bank `$30`)
+* names: PRG `$21A1A`, 8 bytes/entry (CPU `$9A1A`, bank `$30`, `rom/prg/prg_10.bin` + `$1A1A`), `$00`-terminated
+* data: PRG `$20C00`, 32 bytes/record (CPU `$8C00`, bank `$30`, `rom/prg/prg_10.bin` + `$0C00`)
 * 30 provinces; record `id * 32 + $6000` once copied to SRAM
+* SramInit (@Copy1Loop `$DDCD`-`$DE10`) copies exactly `$3C0` bytes = the 30 records, filling SRAM `$6000-63BF`; the officer seed block starts at the next byte, `$63C0`
 
 ## Record layout
 
@@ -15,7 +16,9 @@ The master record is the seed image of the province's SRAM
 record at `id * 32 + $6000`, i.e. the new-game starting state;
 `SramInit` copies all `$3C0` bytes verbatim. Column names use
 the canonical semantic English terms from
-`docs/manual_kb/terminology.md`.
+`docs/manual_kb/terminology.md`. The byte-exact evidence for
+the table locations and the seed copy is in
+`code/initial_data_tables.md`.
 
 | Offset | Field | Notes |
 |---|---|---|
@@ -30,7 +33,7 @@ the canonical semantic English terms from
 | `+12/+13` | 控え ReserveTroops | 16-bit LE; 徴兵 adds here, capped at 10000 |
 | `+14/+15` | 産業 Industry | 16-bit LE; capped at 999 |
 | `+16` | 宝 Treasure | capped at 99; 0 in ROM |
-| `+17..+26` | 武将 Officer roster | 10 slots (`$11-$1A`), `$FF` = empty |
+| `+17..+26` | 武将 Officer roster | 10 slots (`$11-$1A`), `$FF` = empty; the ids listed here are exactly the officer seed records whose `+11` bits 0-1 = 2 (rostered) |
 | `+27` | 反乱クールダウン RebellionCooldown | months, set to 6 on a rebellion; 0 in ROM |
 | `+28..+31` | - | always 0 in ROM (runtime fields) |
 
@@ -291,7 +294,7 @@ guessed from the values:
 | `+4/+5` 米 | 輸送 moves it as the second 16-bit resource; the annual harvest (below) credits it |
 | `+6/+7` 人口 | panel stream draws it with 5 digits followed by two literal `$B6` (`0`) tiles, so the stored value is / 100 |
 | `+8/+9` 土地 | annual harvest (`$A60B`, `prg_19_1a.asm`): `land / lvl_div * lvl_base / $3C * 統治度tier / 100` is **added to 米** (`+4/+5`) |
-| `+10` 防災 | panel stream draws it with 2 digits (max 99) right after 人口, matching the panel order in `docs/manual_kb/03-province-stats.md` |
+| `+10` 防災 | panel stream draws it with 2 digits (max 99) right after 人口, matching the panel order in `docs/manual_kb/03-country-stats.md` |
 | `+11` 統治度 | `RebellionTakeoverCheck` (`$AB6E`) rolls a rebellion when it is `< 50` (tiers at 50/40/30/20); both income routines scale their yield by its 50/60/70/80/90/100 tier |
 | `+12/+13` 控え | 徴兵 adds the recruited men here and clamps at `$2710` (10000) |
 | `+14/+15` 産業 | annual tax (`$A446`, `prg_19_1a.asm`): `industry / lvl_div * lvl_base / $50 * 統治度tier / 100` is **added to 金** (`+2/+3`) |

@@ -10,10 +10,16 @@ Province name table (verified against CmdDrawNameFromData, which computes
   entry             = 8 bytes, $00-terminated, zero padded
 
 Province master records (seed image of SRAM, copied by SramInit $DD8B in bank
-$3D/$3E: 0x3C0 bytes from bank $30 $8C00 to SRAM $6000):
+$3D/$3E: the @Copy1Loop at $DDCD-$DE10 sets Y=$30 for the $8000 window, source
+$8C00, destination $6000 and stops after 3 full pages plus $C0 bytes = $3C0):
 
   file offset       = 0x20000 + ($8C00 - $8000) + index * 32 = 0x20C00 + index*32
   SRAM record       = index * 32 + $6000  (B1F_GetProvinceRecordAddr $F2AF)
+  bank file         = rom/prg/prg_10.bin + $0C00 (register $30 -> physical $10)
+
+The $3C0-byte block fills SRAM $6000-$63BF exactly, and the officer seed block
+follows immediately at $63C0 (see tools/extract_officer_data.py), so the two
+new-game tables are contiguous in RAM.
 
 Index == province id for both tables, and (0x63C0 - 0x6000) / 32 = 30 records,
 which matches the 30 provinces of the printed manual map.
@@ -47,17 +53,24 @@ OFFICER_KANJI_CSV = os.path.join(ROOT, 'docs', 'officer_names_kanji.csv')
 NAME_TABLE_OFFSET = 0x21A1A    # file offset of province 0's name
 NAME_TABLE_ADDR = 0x9A1A       # CPU address in bank $30
 NAME_ENTRY_SIZE = 8
+NAME_BANK_FILE = ('prg_10.bin', 0x1A1A)   # register $30 -> physical bank $10
 
 DATA_TABLE_OFFSET = 0x20C00    # file offset of province 0's master record
 DATA_TABLE_ADDR = 0x8C00       # CPU address in bank $30
+DATA_BANK_FILE = ('prg_10.bin', 0x0C00)   # register $30 -> physical bank $10
 RECORD_SIZE = 32
 PROVINCE_COUNT = 30            # (0x63C0 - 0x6000) / 32
 PROVINCE_RECORD_BASE = 0x6000
+SRAM_COPY_BYTES = RECORD_SIZE * PROVINCE_COUNT   # $3C0, the SramInit @Copy1Loop
 
 OFFICER_TABLE_OFFSET = 0x22000  # officer master records, bank $31 $8000
+OFFICER_BANK_FILE = ('prg_11.bin', 0x0000)   # register $31 -> physical bank $11
 OFFICER_RECORD_SIZE = 12
+OFFICER_COUNT = 237
 OFFICER_TROOPS_OFFSET = 8       # bytes +8/+9 = 兵数 TroopCount (16-bit LE)
 OFFICER_LOYALTY_OFFSET = 3      # +3 = 忠誠度 Loyalty; 100 marks a Ruler
+OFFICER_STATUS_OFFSET = 11      # +11 bits 0-1 = 状態 OfficerStatus
+OFFICER_STATUS_ROSTERED = 2     # seed value for an officer on the map
 OFFICER_NAME_OFFSET = 0x2101A
 OFFICER_NAME_SIZE = 10
 
@@ -253,11 +266,19 @@ def _pad(text, width):
 def _provenance(f, count):
     f.write(f'* PRG 256 KB, CHR 256 KB, mapper 19 (Namco 163)\n')
     f.write(f'* names: PRG `${NAME_TABLE_OFFSET:05X}`, {NAME_ENTRY_SIZE} bytes/entry '
-            f'(CPU `${NAME_TABLE_ADDR:04X}`, bank `$30`), `$00`-terminated\n')
+            f'(CPU `${NAME_TABLE_ADDR:04X}`, bank `$30`, '
+            f'`rom/prg/{NAME_BANK_FILE[0]}` + `${NAME_BANK_FILE[1]:04X}`), '
+            f'`$00`-terminated\n')
     f.write(f'* data: PRG `${DATA_TABLE_OFFSET:05X}`, {RECORD_SIZE} bytes/record '
-            f'(CPU `${DATA_TABLE_ADDR:04X}`, bank `$30`)\n')
+            f'(CPU `${DATA_TABLE_ADDR:04X}`, bank `$30`, '
+            f'`rom/prg/{DATA_BANK_FILE[0]}` + `${DATA_BANK_FILE[1]:04X}`)\n')
     f.write(f'* {count} provinces; record `id * {RECORD_SIZE} + '
             f'${PROVINCE_RECORD_BASE:04X}` once copied to SRAM\n')
+    f.write(f'* SramInit (@Copy1Loop `$DDCD`-`$DE10`) copies exactly '
+            f'`${SRAM_COPY_BYTES:03X}` bytes = the {count} records, filling '
+            f'SRAM `${PROVINCE_RECORD_BASE:04X}-'
+            f'{PROVINCE_RECORD_BASE + SRAM_COPY_BYTES - 1:04X}`; the officer '
+            f'seed block starts at the next byte, `$63C0`\n')
 
 
 def write_names_csv(rows, path):
@@ -321,7 +342,9 @@ def write_md(rows, path, officers):
                 'record at `id * 32 + $6000`, i.e. the new-game starting state;\n'
                 '`SramInit` copies all `$3C0` bytes verbatim. Column names use\n'
                 'the canonical semantic English terms from\n'
-                '`docs/manual_kb/terminology.md`.\n\n')
+                '`docs/manual_kb/terminology.md`. The byte-exact evidence for\n'
+                'the table locations and the seed copy is in\n'
+                '`code/initial_data_tables.md`.\n\n')
         f.write('| Offset | Field | Notes |\n|---|---|---|\n')
         f.write('| `+0` | 所属国 Country | low nibble = Country id 0-6, '
                 '`7` = 空白地 UnclaimedLand |\n')
@@ -339,7 +362,8 @@ def write_md(rows, path, officers):
         f.write('| `+14/+15` | 産業 Industry | 16-bit LE; capped at 999 |\n')
         f.write('| `+16` | 宝 Treasure | capped at 99; 0 in ROM |\n')
         f.write('| `+17..+26` | 武将 Officer roster | 10 slots (`$11-$1A`), '
-                '`$FF` = empty |\n')
+                '`$FF` = empty; the ids listed here are exactly the officer '
+                'seed records whose `+11` bits 0-1 = 2 (rostered) |\n')
         f.write('| `+27` | 反乱クールダウン RebellionCooldown | months, set to 6 '
                 'on a rebellion; 0 in ROM |\n')
         f.write('| `+28..+31` | - | always 0 in ROM (runtime fields) |\n\n')
@@ -501,7 +525,7 @@ def write_inc(rows, path):
                     f'{r["kanji"].get("kanji_ja", "")}\n')
 
 
-def check(rows, bad, missing, mismatched):
+def check(rows, bad, missing, mismatched, rom_path=PRG_COMBINED):
     """Validate the extraction without writing; returns a process exit code."""
     problems = []
     if len(rows) != PROVINCE_COUNT:
@@ -539,12 +563,34 @@ def check(rows, bad, missing, mismatched):
         if rec[1] or any(rec[28:]):
             problems.append(f'province {r["id"]}: runtime fields not zero')
 
+    # The Province roster is the independent source for the officer seed's
+    # 状態 OfficerStatus (record +11 bits 0-1): exactly the rostered officers
+    # must carry the seed value 2, nobody else.
+    with open(rom_path, 'rb') as f:
+        prg = f.read()
+    statuses = {}
+    for oid in range(OFFICER_COUNT):
+        base = OFFICER_TABLE_OFFSET + oid * OFFICER_RECORD_SIZE
+        statuses[oid] = prg[base + OFFICER_STATUS_OFFSET] & 0x03
+    rostered = {o for r in rows for o in r['roster']}
+    status_rostered = {o for o, s in statuses.items()
+                       if s == OFFICER_STATUS_ROSTERED}
+    if rostered != status_rostered:
+        problems.append(
+            'roster / OfficerStatus disagreement: roster-only '
+            f'{sorted(rostered - status_rostered)}, status-2-only '
+            f'{sorted(status_rostered - rostered)}')
+    if len(rostered) != len(slots):
+        problems.append(f'{len(status_rostered)} status-2 officers but '
+                        f'{len(slots)} roster slots')
+
     for p in problems:
         print(f'FAIL: {p}', file=sys.stderr)
     if problems:
         return 1
     print(f'OK: {len(rows)} provinces, {len(countries)} countries, '
-          f'{len(slots)} rostered officers, all names mapped')
+          f'{len(slots)} rostered officers, all names mapped, '
+          f'officer seed OfficerStatus matches the rosters')
     return 0
 
 
@@ -580,7 +626,7 @@ def main():
                   f'ROM {r["katakana"]}', file=sys.stderr)
 
     if args.check:
-        return check(rows, bad, missing, mismatched)
+        return check(rows, bad, missing, mismatched, args.rom)
 
     officers = load_officer_names()
     out_dir = os.path.join(ROOT, 'docs')

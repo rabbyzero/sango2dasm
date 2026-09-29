@@ -6562,7 +6562,7 @@ CalcActionProb_Entry:
 ;     - Not eligible → JMP @SwapSlots (perform officer swap instead).
 ;
 ; @CheckEligibility ($C86A) — Shared eligibility subroutine:
-;   Switch to bank $30. Check officer flag byte $8FFC[officer_id] bit 3.
+;   Switch to bank $30. Check province facility byte $8FFC[province_id] bit 3.
 ;   If set, count active subordinates via CountRecordSlots (offsets $11–$19).
 ;   Eligible if bit 3 set AND subordinate count < $0A.
 ;   Returns: carry SET = eligible, carry CLEAR = not eligible.
@@ -6749,12 +6749,12 @@ CalcActionProb_Entry:
 
 @CheckEligibility: ; CheckOfficerEligibility ($C86A)
   PHA                                                 ; $C86A: 48
-  ; --- Check flag bit 3 at $8FFC[officer_id] ---
+  ; --- Check facility bit 3 at $8FFC[province_id] (ProvinceFacilityFlags) ---
   LDY #$30                                            ; $C86B: A0 30
   JSR B1F_SwitchBank8_A                               ; $C86D: 20 66 F2
   PLA                                                 ; $C870: 68
   TAY                                                 ; $C871: A8
-  LDA $8FFC,Y                                         ; $C872: B9 FC 8F  ; officer flag byte
+  LDA $8FFC,Y                                         ; $C872: B9 FC 8F  ; province facility flags
   AND #$08                                            ; $C875: 29 08     ; bit 3 = recruitable?
   BEQ @Ineligible                                     ; $C877: F0 0A     ; no → not eligible
   ; --- Count active subordinate slots (offsets $11-$19 in record) ---
@@ -7365,7 +7365,8 @@ HeirPriorityList6:                                      ; $CB00: heir list 6
 ; for each province owned by the current country with gold (+$02/+$03) under
 ; $32 (50), convert surplus rice into gold: keeps rice worth max(officer-stat
 ; total, rice - 300), sells the rest at the province's rice price
-; $8FC0[province]/100, credits the proceeds to the province's gold, clamps,
+; ProvinceRiceTradeRateTable[province] +1 byte (rice/100 gold), credits the
+; proceeds to the province's gold, clamps,
 ; and spends 2 action-budget points (DeductCounter_Unwind1).
 SellSurplusRice:
   LDY #$FF                                            ; $CC12: A0 FF
@@ -7394,7 +7395,7 @@ SellSurplusRice:
   JSR B1F_SwitchBank8_A                               ; $CC3F: 20 66 F2
   LDY a:$0036                                         ; $CC42: AC 36 00
   LDA $8FFC,Y                                         ; $CC45: B9 FC 8F
-  AND #$04                                            ; $CC48: 29 04
+  AND #$04                                            ; $CC48: 29 04     ; province facility bit 2 = 町
   BEQ @FindOfficer                                    ; $CC4A: F0 CB
   JSR @CalcOfficerTotal                               ; $CC4C: 20 F8 CC
   LDA a:$0036                                         ; $CC4F: AD 36 00

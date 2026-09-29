@@ -27,7 +27,7 @@
 ;   $C1FC-$C203  MainLoopDispatch - trampoline back to frame update
 ;   $C204-$C690  ArmyDeployDispatch - army deployment (7 sub-states)
 ;   $C691-$C765  OfficerExchangeDispatch - exchange init/select/exit
-;   $C766-$C98B  OfficerTransferActionDispatch - pending transfer action dispatch
+;   $C766-$C98B  OfficerFateCommitDispatch - post-battle officer fate commit
 ;   $C98C-$CC28  OfficerExchangeConfirmDispatch - confirmation screen
 ;   $CC29-$CD15  RecalcExchangeStats - ruler stat recalculation
 ;   $CD16-$D2CC  OfficerExchangeSelectDispatch - officer selection (7 states)
@@ -213,8 +213,8 @@ officer_select_flg  = $0580  ; officer selection flags base (32 bytes)
 ; Global-scope equates for cross-proc JSRs to inner labels that are
 ; referenced forward (ca65 cannot resolve forward Proc::Label refs
 ; from inside a nested .proc scope).
-AdjustStatsForY    = OfficerTransferActionDispatch::AdjustStatsForY
-AdjustStatsByIndex = OfficerTransferActionDispatch::AdjustStatsByIndex
+AdjustStatsForY    = OfficerFateCommitDispatch::AdjustStatsForY
+AdjustStatsByIndex = OfficerFateCommitDispatch::AdjustStatsByIndex
 
 .segment "CODE_BANK0C"
 
@@ -222,8 +222,8 @@ ExchangeFrameUpdate_Entry:
   JMP ExchangeFrameUpdate               ; $A000: 4C 09 A0
 ExchangeSceneInit_Entry:
   JMP ExchangeScene_Init               ; $A003: 4C 99 DC
-OfficerTransferActionDispatch_Entry:
-  JMP OfficerTransferActionDispatch               ; $A006: 4C 66 C7
+OfficerFateCommitDispatch_Entry:
+  JMP OfficerFateCommitDispatch               ; $A006: 4C 66 C7
 ExchangeFrameUpdate:
   JSR UpdateExchangeSfx                 ; $A009: 20 88 DF
   LDY #$28                              ; $A00C: A0 28
@@ -5421,8 +5421,8 @@ FindOfficerInRoster:
 @FindDone:
   RTS                                   ; $C765: 60
 
-.proc OfficerTransferActionDispatch
-; --- Execute pending officer-transfer actions (parties $0514/$0516, actions $0515/$0517) ---
+.proc OfficerFateCommitDispatch
+; --- Commit post-battle officer fates (parties $0514/$0516, actions $0515/$0517) ---
   JSR CalcOfficerMeritLevels            ; $C766: 20 03 DB
   LDA $0514                             ; $C769: AD 14 05
   JSR FindOfficerInRoster               ; $C76C: 20 5B C7
@@ -5440,8 +5440,8 @@ FindOfficerInRoster:
 ; --- CallbackDispatcher table (8 entries) ---
   .word @Action_Nop                         ; $C787: $97 C7
   .word @Action_Nop2                        ; $C789: $98 C7
-  .word @Action_TransferOfficer             ; $C78B: $99 C7
-  .word @Action_AddToList                   ; $C78D: $DB C7
+  .word @Action_OfficerKillCommit           ; $C78B: $99 C7
+  .word @Action_QueueOfficer                ; $C78D: $DB C7
   .word @Action_ToggleSelect                ; $C78F: $1F C8
   .word @Action_ToggleSelect                ; $C791: $1F C8
   .word @Action_ToggleSelect                ; $C793: $1F C8
@@ -5450,8 +5450,8 @@ FindOfficerInRoster:
   RTS                                   ; $C797: 60
 @Action_Nop2:  ; (dispatch callback target)
   RTS                                   ; $C798: 60
-@Action_TransferOfficer:  ; (dispatch callback target)
-  ; Transfer officer between groups; Y = roster index
+@Action_OfficerKillCommit:  ; (dispatch callback target)
+  ; Officer fallen in battle: grant donor->recipient EXP, mark status out-of-action, clear war slot; Y = roster index
   TYA                                   ; $C799: 98
   PHA                                   ; $C79A: 48
   LDA $0664,Y                           ; $C79B: B9 64 06
@@ -5488,8 +5488,8 @@ FindOfficerInRoster:
 ; --- BankedCallbackTrampoline target ---
   .word B08_09_WarSlotClear_Entry       ; $C7D8: $2A A0
   RTS                                         ; $C7DA: 60
-@Action_AddToList:  ; (dispatch callback target)
-  ; Add officer to pending list; bit7 of $0628,Y selects list
+@Action_QueueOfficer:  ; (dispatch callback target)
+  ; Queue officer to pending list; bit7 of $0628,Y selects list
   LDA $0628,Y                                 ; $C7DB: B9 28 06
   BPL @ScanPendingList2               ; $C7DE: 10 19
   LDX #$00                                    ; $C7E0: A2 00

@@ -30,7 +30,7 @@ $0040-$0043 = strategy-layer result parameters
 $0041 = work_search_result
 
 SRAM variables:
-$6F05 = SRAM game-state flag (0 = no game, 1 = game in progress, clamped ≥1)
+$6F05 = OrderScroll (command points, 命令書) of the current country (0 / negative = no active game)
 $6F5B = iteration counter / AI budget source
 $6F5D = AI action budget ($6F05 * 10, max 130)
 $6F62 = global phase / per-officer active flag

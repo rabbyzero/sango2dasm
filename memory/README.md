@@ -9,7 +9,7 @@ Regenerated from the on-disk dump by tools/regen_memory_readme.py.
 ## Index
 
 
-### common_pitfalls_experience (52)
+### common_pitfalls_experience (53)
 
 - [6502 BCC trampoline vs JMP target separation rule](common_pitfalls_experience/6502-bcc-trampoline-vs-jmp-target-separation-rule.md) — `7570b8cc-e3c9-4c00-a454-404de48d2920`
 - [Address-operand regex must consume full hex token before \b](common_pitfalls_experience/address-operand-regex-must-consume-full-hex-token.md) — `b44823bb-9182-464f-b1fb-3f5a6e6e0e43`
@@ -32,6 +32,7 @@ Regenerated from the on-disk dump by tools/regen_memory_readme.py.
 - [Circular dependency in computed address operands for trampoline returns](common_pitfalls_experience/circular-dependency-in-computed-address-operands-for-trampoline-returns.md) — `3d4bda29-6356-4cf1-b8e8-1ff5826464c6`
 - [Comment block formatting corruption during bulk SearchReplace refactoring](common_pitfalls_experience/comment-block-formatting-corruption-during-bulk-searchreplace.md) — `4650c10e-7e9b-43ce-9b9e-ac4250c24b4c`
 - [Cross-bank mid-entry points require separate equates to avoid incorrect address encoding](common_pitfalls_experience/cross-bank-mid-entry-points-require-separate-equates.md) — `b15e085d-8da0-4fbb-89f9-bdae9eee4f45`
+- [Data-bank generator region cursor hides over-emitting emitters](common_pitfalls_experience/data-bank-generator-region-cursor-hides-over-emitting-emitters.md) — `0c76a0bd-6eca-4e12-96b4-b980e469c0aa`
 - [Data table mis-splitting causes ROM overflow during disassembly refactoring](common_pitfalls_experience/data-table-mis-splitting-causes-rom-overflow.md) — `d249ef3e-b69a-4cc5-9276-346255416be9`
 - [Data table restructure must preserve physical byte order](common_pitfalls_experience/data-table-restructure-must-preserve-physical-byte-order.md) — `0447754b-c08b-406f-81e1-82e85953c923`
 - [Distinguish genuine mechanics from stale naming after semantic refactoring](common_pitfalls_experience/distinguish-genuine-mechanics-from-stale-naming-after-semantic-refactoring.md) — `23a8c164-3927-43b9-b584-053f397e6294`
@@ -68,8 +69,7 @@ Regenerated from the on-disk dump by tools/regen_memory_readme.py.
 
 - [$6F02 is the game level indicator selected at new game](development_code_specification/6f02-is-the-game-level-indicator-selected-at-new-game.md) — `e8f00569-616f-4180-b3a5-ace2c713dd41`
 - [$6F8B is the strategy-engine request mailbox (game start flag / presentation request codes)](development_code_specification/6f8b-is-the-strategy-engine-request-mailbox.md) — `9a4a0ec1-d34e-40ec-b283-da40f38aef3b`
-- [AiAction_DomesticTurn procedure end address constraint](development_code_specification/aiturndispatch-procedure-end-address-constraint.md) — `05ae9772-b452-487e-9fa9-5ef22d7c8148`
-- [prg_0a_0b AI action step naming: AiActionChoose and AiAction_ steps](development_code_specification/prg-0a-0b-ai-action-step-naming.md) — `f2411ac0-c10a-40e1-868a-e12725a41a55`
+- [AiAction_DomesticTurn (formerly AiTurnDispatch) procedure end address constraint](development_code_specification/aiturndispatch-procedure-end-address-constraint.md) — `05ae9772-b452-487e-9fa9-5ef22d7c8148`
 - [Assembly @-prefix label style for local scope](development_code_specification/assembly-at-prefix-label-style-for-local-scope.md) — `5946082c-4eeb-4a9d-8bb4-0634867fd0b1`
 - [Assembly procedure wrapping convention](development_code_specification/assembly-procedure-wrapping-convention.md) — `adf7ace8-ae0e-4faa-b3a7-7c11f54429ac`
 - [Bank-1F cross-bank functions use B1F_* prefix convention in functions.h](development_code_specification/bank-1f-cross-bank-functions-use-b1f-prefix-convention-in-functions-h.md) — `17774e59-d0cf-4215-9b6a-214f90e38cb7`
@@ -93,6 +93,7 @@ Regenerated from the on-disk dump by tools/regen_memory_readme.py.
 - [NmiDispatchTable uses 16-bit words](development_code_specification/nmidispatchtable-uses-16-bit-words.md) — `d958198c-0ebe-46e4-a20c-adf1cc8c0401`
 - [OfficerExchangeDispatch procedure end address constraint](development_code_specification/officerexchangedispatch-procedure-end-address-constraint.md) — `26328ea0-ec84-40e4-8ae7-62d1098ed5f9`
 - [PascalCase semantic English naming convention for procedures and constants](development_code_specification/pascalcase-semantic-english-naming-convention.md) — `5b851c94-fc49-4240-88da-03537515ef43`
+- [prg_0a_0b AI action step naming: AiActionChoose and AiAction_ steps](development_code_specification/prg-0a-0b-ai-action-step-naming.md) — `f2411ac0-c10a-40e1-868a-e12725a41a55`
 - [.proc encapsulation for MapProvinceDirtyMark](development_code_specification/proc-encapsulation-for-mapprovincedirtymark.md) — `7bd22339-0e40-4596-a7f5-be279e9d87d5`
 - [Replace .byte/.word data lines with disassembled code if they are actually code](development_code_specification/replace-byte-word-data-lines-with-disassembled-code.md) — `cd6e92bd-ff6c-4df9-a1e7-76b15cac841e`
 - [Semantic naming convention for common exit routines](development_code_specification/semantic-naming-convention-for-common-exit-routines.md) — `f7908f5f-e89f-4545-9c52-e538e59546ca`
@@ -426,5 +427,5 @@ Regenerated from the on-disk dump by tools/regen_memory_readme.py.
 ## Totals
 
 - Categories: 14
-- Memory files: 371
+- Memory files: 373
 

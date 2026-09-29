@@ -1,11 +1,11 @@
 ;===============================================================================
-; PRG Bank 03 - $E000-$FFFF
-; Generated stub for disassembly
+; DATA Bank 03 (PRG $03) - 8KB data bank, mapped into $8000-$9FFF by SwitchBank8;
+; no code lives here (see code/bank_switch_map.md 5.2).
 ;===============================================================================
 
 .segment "CODE_BANK03"
 
-; TODO: Disassemble code here
+; Raw slice of the stock ROM until its data tables are decoded.
 ; Original binary: rom/prg/prg_03.bin
 
 .incbin "rom/prg/prg_03.bin"

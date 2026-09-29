@@ -29,7 +29,7 @@ B1F_Reset                 = $E000   ; Reset handler: SEI, CLD, RAM clear, init
 B1F_StateDispatch         = $E066   ; Jump to handler via VectorTable[duel_state]
 B1F_VectorTable           = $E07C   ; State dispatch table (15 entries, 2 bytes each)
 B1F_State_SystemInit      = $E09A   ; State 0: System init, PPU setup, -> state 9
-B1F_State_NewGameInit     = $E0DA   ; State 1: New game init, SRAM, music $81
+B1F_State_StrategyMapLaunch = $E0DA   ; State 1: launch the Strategy Mode map screen (sub-state 2, uploads bank $10 $8000, arms $6F8B mailbox, music $81)
 B1F_State_StrategyAiTurnFrame = $E17D   ; State 2: strategy AI turn frame (Y=$2A -> bank $0A+$0B)
 B1F_State_WarSceneLaunch  = $E18B   ; State 3: war scene launch, dispatch on $0500 ($0B = officer-transfer commit, else WarSetup battle deployment) -> state 4
 B1F_State_WarAiTurnFrame = $E221   ; State 4: War/tactical AI turn frame (Y=$28 -> bank $08+$09, AiTurnProcess)
@@ -39,7 +39,7 @@ B1F_StrategyCommandGraphicPtrs = $E2C2 ; 7 graphic pointers for strategy command
 B1F_StrategyCommandBaseDataPtrs = $E2D0 ; Base data pointers for strategy display
 B1F_StrategyCommandSpriteYPos = $E2DE ; Sprite Y position table (4 bytes)
 B1F_State_RandomAdvance1  = $E2E2   ; State 6: Pure RNG advance
-B1F_State_TacticalMode    = $E2E8   ; State 7: Tactical mode, army status
+B1F_State_DuelSceneLaunch = $E2E8   ; State 7: Duel Mode launch (sub-state 5 -> NmiState5_Duel, uploads bank $10 $8400, duel music $12)
 B1F_State_RandomAdvance2  = $E36A   ; State 8: Pure RNG advance
 B1F_DisplayInit           = $E370   ; Display init: window clear + bank display
 B1F_State_CountryMapView  = $E37C   ; State 9: Country map view
@@ -549,7 +549,7 @@ B1D_1E_ClearWorkBuffer    = $A036   ; ClearWorkBuffer_Entry: Clear work buffer
 B1D_1E_SceneRenderer      = $A039   ; SceneRenderer_Entry: Scene renderer
 B1D_1E_DataFormatter      = $A03C   ; DataFormatter_Entry: Data formatter
 B1D_1E_MenuRenderer       = $A03F   ; MenuRenderer_Entry: Menu renderer
-B1D_1E_BankedDataHandler  = $A042   ; BankedDataHandler_Entry: Banked data handler
+B1D_1E_RulerCardRefresh   = $A042   ; RulerCardRefresh_Entry: Ruler card compose (label kanji row + name sprites)
 B1D_1E_SceneRecordLookup  = $A045   ; SceneRecordLookup_Entry: Scene record lookup
 
 ;-------------------------------------------------------------------------------
@@ -593,11 +593,11 @@ B1D_1E_DisplayScaledName  = $A957   ; Display scaled katakana name
 B1D_1E_FormatNumberPair   = $A96F   ; Format number pair
 B1D_1E_DisplayScaledNumber = $A976  ; Display scaled number
 B1D_1E_DataFormatter_Proc = $A991   ; Data formatter procedure
-B1D_1E_DisplayData_Table  = $AB08   ; Display data table
+B1D_1E_RulerCardLabelTiles = $AB08  ; RulerCardRefresh @RulerCardLabelTiles (4 label variants x 12 kanji tile halves)
 B1D_1E_DataFormatter_Table1 = $AA37 ; DataFormatter @DataFormatter_Table1
 B1D_1E_DataFormatter_Table2 = $AA88 ; DataFormatter @DataFormatter_Table2
-B1D_1E_BankedDataHandler_Proc = $AA37 ; Banked data handler procedure
-B1D_1E_SetupBankedData    = $AB38   ; Setup banked data
+B1D_1E_RulerCardRefresh_Proc = $AA37 ; Ruler card compose procedure
+B1D_1E_OfficerNameSpritePost = $AB38 ; Officer name kanji sprite post
 B1D_1E_ProvinceDataWindowFrame_Proc = $ABD2 ; Province data window frame procedure
 B1D_1E_CountryTemplatePtrs = $AD84  ; Country template pointers (7 entries)
 B1D_1E_DrawOfficerName    = $B0AB   ; Draw officer name
@@ -678,9 +678,9 @@ B1D_1E_SceneRecordLookup_Proc = $DEB9 ; Scene record lookup procedure
 ;-------------------------------------------------------------------------------
 B19_1A_OverlayStripRender_Entry = $A000  ; $A000 stub: redraw one battle overlay strip (X = strip 0/1)
 B19_1A_OfficerCardRender_Entry = $A000   ; $A000 stub alias: officer card overlay strip render
-B19_1A_AttractDemoDispatch           = $A003 ; AttractDemoDispatch_Entry: title-screen attract demo dispatch
+B19_1A_CountryRotationDispatch            = $A003 ; CountryRotationDispatch_Entry: per-Country turn rotation (frame $0B) entry
 B19_1A_StrategyRequestDispatch       = $A006 ; StrategyRequestDispatch_Entry: strategy request dispatch
-B19_1A_DemoEventDispatch              = $A009 ; DemoEventDispatch_Entry: attract-demo monthly event dispatch
+B19_1A_MonthlyEventDispatch              = $A009 ; MonthlyEventDispatch_Entry: per-Country monthly event dispatch (frame $0A)
 B19_1A_OfficerStatusScene            = $A00C ; Officer status scene entry stub
 B19_1A_ExchangeMarchCutscene         = $A00F ; ExchangeMarchCutscene_Entry: war exchange marching cutscene (per-frame)
 B19_1A_OfficerCardAnimStep_Entry     = $A012 ; OfficerCardAnimStep_Entry: officer card slide-in animation step
@@ -699,18 +699,18 @@ B19_1A_SramSaveCommit                = $A02D ; SramSaveCommit_Entry: SRAM save c
 ; Internal procs - Bank $19 ($A033-$BFFF)
 ; (stubs above share names with procs below, hence the _Proc suffix)
 ;-------------------------------------------------------------------------------
-B19_1A_AttractDemoDispatch_Proc = $A033  ; Attract demo frame state $0B handler (title-screen demo cycle)
+B19_1A_CountryRotationDispatch_Proc = $A033  ; Frame state $0B: per-Country turn rotation / next-Ruler handoff
 B19_1A_ProvinceCountByOwner = $A19F      ; Count Provinces whose owner matches A
-B19_1A_MarkerSpriteDraw = $A1C2          ; Draw demo marker sprite (MarkerSpriteData)
+B19_1A_MarkerSpriteDraw = $A1C2          ; Draw rotation marker sprite (MarkerSpriteData)
 B19_1A_FindOfficerProvince = $A1EB       ; Find Province housing Officer id $000A
 B19_1A_DecayCountryTimers = $A209        ; Decay packed-nibble Country record timers ($04-$07)
-B19_1A_AttractDemoCensusBuild = $A240    ; Build demo Country list + Officer census
-B19_1A_DemoEventDispatch_Proc = $A296        ; Attract-demo monthly event dispatch (frame state $0A)
+B19_1A_CountryCensusBuild = $A240    ; Build acting-Country list + Officer census
+B19_1A_MonthlyEventDispatch_Proc = $A296        ; Per-Country monthly event dispatch (frame state $0A)
 B19_1A_EventPaceGate = $A2BC                 ; Event pace gate (month scheduler front door)
 B19_1A_EventDisasterRoute = $A30C            ; Flood/drought disaster router (month $6F01)
 B19_1A_EventReinforceGate = $A33C        ; Officer-arrival gate by acting Country $6F03
-B19_1A_EventControlHandoff = $A363       ; Handoff on Country control byte ($09 engine/$0B demo)
-B19_1A_EventRulerLoad = $A389                ; Load demo Ruler officer id
+B19_1A_EventControlHandoff = $A363       ; Handoff on Country control byte ($09 engine/$0B rotation)
+B19_1A_EventRulerLoad = $A389                ; Load acting Country's Ruler officer id
 B19_1A_EventRulerDeathCheck = $A39B      ; Ruler out-of-action check -> succession or exit
 B19_1A_TaxCollectionEvent = $A3E5          ; TaxCollection 税金の徴収: annual Gold payout event
 B19_1A_ClampStatPair = $A52A             ; Clamp 16-bit stat pair
@@ -930,7 +930,7 @@ B0A_0B_ProvinceEvalExit   = $B17D   ; Common exit -> EndTurn
 ;-------------------------------------------------------------------------------
 B0C_0D_ExchangeFrameUpdate_Entry = $A000 ; ExchangeFrameUpdate_Entry: Main frame update
 B0C_0D_ExchangeSceneInit_Entry = $A003 ; ExchangeSceneInit_Entry: Exchange scene init
-B0C_0D_OfficerTransferActionDispatch_Entry = $A006 ; OfficerTransferActionDispatch_Entry: Pending transfer action dispatch
+B0C_0D_OfficerFateCommitDispatch_Entry = $A006 ; OfficerFateCommitDispatch_Entry: Post-battle officer fate commit
 
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $0C ($A009-$BFFF)
@@ -956,7 +956,7 @@ B0C_0D_OfficerMarchDispatch = $BE7E ; Army march dispatch (17 states)
 B0C_0D_MainLoopDispatch   = $C1FC   ; Trampoline back to frame update
 B0C_0D_ArmyDeployDispatch = $C204   ; Army deployment (7 states)
 B0C_0D_OfficerExchangeDispatch = $C691 ; Exchange init/select/exit (4 states)
-B0C_0D_OfficerTransferActionDispatch = $C766 ; Officer transfer action dispatch (8 action handlers)
+B0C_0D_OfficerFateCommitDispatch = $C766 ; Post-battle officer fate commit (kill/queue/toggle handlers)
 B0C_0D_OfficerExchangeConfirmDispatch = $C98C ; Exchange confirmation (6 states)
 B0C_0D_RecalcExchangeStats = $CC29 ; Ruler stat recalculation for exchange
 B0C_0D_OfficerExchangeSelectDispatch = $CD16 ; Officer selection (7 states)
@@ -1347,10 +1347,10 @@ B1B_1C_ProvinceZoneOriginGet_Entry = $A009 ; ProvinceZoneOriginGet_Entry: Provin
 ; Internal procs - Bank $1B ($A00C-$BFFF)
 ;-------------------------------------------------------------------------------
 B1B_1C_MapScreenFrameUpdate = $A00C      ; Per-frame map-screen update (invoked by NmiState2_MapScreen)
-B1B_1C_CallAttractDemoDispatch = $A045   ; Banked-call wrapper -> B19_1A_AttractDemoDispatch
+B1B_1C_CallCountryRotationDispatch = $A045   ; Banked-call wrapper -> B19_1A_CountryRotationDispatch
 B1B_1C_CallProvinceOfficerRosterDispatch = $A04D ; Banked-call wrapper -> B19_1A_ProvinceOfficerRosterDispatch
 B1B_1C_CallStrategyRequestDispatch = $A055 ; Banked-call wrapper -> B19_1A_StrategyRequestDispatch
-B1B_1C_CallDemoEventDispatch = $A05D     ; Banked-call wrapper -> B19_1A_DemoEventDispatch
+B1B_1C_CallMonthlyEventDispatch = $A05D     ; Banked-call wrapper -> B19_1A_MonthlyEventDispatch
 B1B_1C_CallOfficerStatusScene = $A065    ; Banked-call wrapper -> B19_1A_OfficerStatusScene
 B1B_1C_CallSceneRenderer = $A06D         ; Banked-call wrapper -> B1D_1E_SceneRenderer
 B1B_1C_CallUnificationEndingDispatch = $A075 ; Banked-call wrapper -> B19_1A_UnificationEndingDispatch

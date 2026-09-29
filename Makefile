@@ -65,6 +65,20 @@ $(OUTPUT): $(PRG_BIN)
 banks:
 	@python3 tools/generate_bank_stubs.py $(ASM_DIR)/banks
 
+# Re-render the annotated seed-data banks (PRG $10/$11) from the ROM, then verify
+databanks:
+	@python3 tools/gen_data_bank_asm.py --bank all --write
+	@$(MAKE) verifydata
+
+# Re-render the seed-data banks from the decoded CSVs (edit docs/*.csv, then run)
+databanks-csv:
+	@python3 tools/gen_data_bank_asm.py --bank all --from-csv --write
+	@$(MAKE) verifydata
+
+# Assemble banks $10/$11 standalone and prove them byte-exact against the ROM
+verifydata:
+	@python3 tools/verify_data_banks.py
+
 # Split ROM into banks
 split:
 	@python3 tools/split_rom.py "Sangokushi 2 - Haou no Tairiku (J).nes" $(ROM_DIR)
@@ -81,6 +95,10 @@ disasm:
 # Analyze ROM
 analyze:
 	@python3 tools/analyze_rom.py "Sangokushi 2 - Haou no Tairiku (J).nes"
+
+# Enumerate the 256 disaster province-pick RNG sequences, rebuild the coherence doc/CSVs
+disasterrng:
+	@python3 tools/analyze_disaster_pick_rng.py
 
 # Clean build artifacts
 clean:
@@ -101,8 +119,12 @@ help:
 	@echo "  all       - Build NES ROM from assembly (default)"
 	@echo "  split     - Split original ROM into PRG/CHR banks"
 	@echo "  banks     - Generate PRG bank stub files"
+	@echo '  databanks   - Re-render annotated seed-data banks $$10/$$11 from the ROM'
+	@echo '  databanks-csv - Re-render them from docs/officer_data.csv/province_data.csv'
+	@echo '  verifydata  - Assemble banks $$10/$$11 and prove byte-exactness'
 	@echo "  disasm    - Disassemble a binary (FILE, ADDR, LEN)"
 	@echo "  analyze   - Analyze ROM structure"
+	@echo "  disasterrng - Re-enumerate the disaster pick RNG sequences + coherence stats"
 	@echo "  verify    - Verify built ROM matches original"
 	@echo "  clean     - Remove build artifacts"
 	@echo "  distclean - Remove all generated files"
@@ -112,4 +134,4 @@ help:
 	@echo "  make disasm FILE=rom/prg/prg_1f.bin ADDR=8000 LEN=256"
 	@echo "  make analyze"
 
-.PHONY: all split banks disasm analyze verify clean distclean help
+.PHONY: all split banks databanks databanks-csv verifydata disasm analyze disasterrng verify clean distclean help

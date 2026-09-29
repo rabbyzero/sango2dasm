@@ -16,12 +16,12 @@
 ; --- Code Region ---
 OfficerCardRender_Entry:  ; (BankedCallbackTrampoline target; B19_1A_OverlayStripRender_Entry)
   JMP OfficerCardRender                   ; $A000: 4C 1F CE ; OfficerCardRender (sprite overlay card strip)
-AttractDemoDispatch_Entry:  ; (dispatch callback target)
-  JMP AttractDemoDispatch                 ; $A003: 4C 33 A0
+CountryRotationDispatch_Entry:  ; (dispatch callback target)
+  JMP CountryRotationDispatch                 ; $A003: 4C 33 A0
 StrategyRequestDispatch_Entry:  ; (dispatch callback target)
   JMP StrategyRequestDispatch             ; $A006: 4C 73 C7
-DemoEventDispatch_Entry:  ; (dispatch callback target)
-  JMP DemoEventDispatch                   ; $A009: 4C 96 A2
+MonthlyEventDispatch_Entry:  ; (dispatch callback target)
+  JMP MonthlyEventDispatch                   ; $A009: 4C 96 A2
 OfficerStatusScene_Entry:  ; (dispatch callback target)
   JMP OfficerStatusScene                  ; $A00C: 4C 81 AD
 ExchangeMarchCutscene_Entry:  ; (NmiState3_Battle per-frame call)
@@ -49,25 +49,27 @@ SramSaveCommit_Entry:  ; (BankedCallbackTrampoline target)
 GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
   JMP GoodsSendApply                      ; $A030: 4C 73 BB
 ;===============================================================================
-; $A033: AttractDemoDispatch
+; $A033: CountryRotationDispatch
 ; Frame state $0B handler of the map-screen frame machine (entered from
 ; prg_1b_1c MapScreenFrameStateDispatch via banks $19+$1A entry $A003):
-; the title-screen attract demo run when no game is active. Dispatches the
-; demo sub-state by $0401:
-;   0 CountrySelect - rotation tick, Officer census, pick the next Country
-;     of the demo, hand off to camera-focus frame state $0A
+; the per-Country TURN ROTATION / next-Ruler handoff frame. Run unattended
+; (every Country control byte $03) after boot / new game it is the title-
+; screen attract cycle; in a live game it is re-entered at turn handoffs.
+; Dispatches the rotation sub-state by $0401:
+;   0 CountrySelect - rotation tick, Officer census, pick the next acting
+;     Country, hand off to its month (camera-focus frame state $0A)
 ;   1 OverlayInit   - status overlay ($20) + camera target setup
-;   2 OverlayPoll   - wait with overlay up, Start exits the demo
+;   2 OverlayPoll   - wait with overlay up, Start exits the rotation
 ;   3 ResetCheck    - idle check, Start soft-resets to the title
-; Demo RAM: $6F00 demo year counter (starts $59), $6F01 rotation step (0-$0B),
+; Rotation RAM: $6F00 scenario year counter (starts $59), $6F01 month/rotation step (0-$0B),
 ; $6F02 game level (0-2), $6F03 focused Country slot (0-6), $6F04 frame divider
-; (0-6), $6F05 Province count display value, $6F06 camera-focus phase flag,
+; (0-6), $6F05 current Country's OrderScroll (command points, overlay display), $6F06 camera-focus phase flag,
 ; $6F45 rotation order index (0-4, random from SramInit). Country records:
 ; 7 x 8 bytes at $6F07..$6F37 (stride 8): [0]=Ruler id ($FF = empty),
 ; [1]=home Province.
 ;===============================================================================
-.proc AttractDemoDispatch
-  LDA $0401                               ; $A033: AD 01 04 ; attract demo sub-state
+.proc CountryRotationDispatch
+  LDA $0401                               ; $A033: AD 01 04 ; rotation sub-state
   JSR B1F_CallbackDispatcher              ; $A036: 20 DE EA
 ; --- Inline pointer table (4 entries) ---
   .word @CountrySelect                     ; $A039: 41 A0 ; sub-state 0
@@ -76,15 +78,15 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
   .word ResetCheck                        ; $A03F: 86 A1 ; sub-state 3
 ;===============================================================================
 ; $A041: CountrySelect (sub-state 0)
-; Sub-state 0. Every 7th frame advances rotation step $6F01 (12 steps per
-; demo year $6F00), decays the per-Country timers, and picks the next
-; Country slot from AttractCountryOrderTable row $6F45. For the focused
-; Country: builds the Country list + Officer census (AttractDemoCensusBuild),
-; counts its Provinces, draws the demo year on the stats overlay (banked
-; call to bank $1D YearDisplaySetup, entry $A01E -> $A6B6), resolves the
-; Ruler's home Province, then hands off to camera-focus frame state $0A.
-; If fewer than 30 unclaimed Officers remain, the demo idles via overlay
-; $D5 (sub-state 3).
+; Sub-state 0. Every 7th frame advances the month/rotation step $6F01 (12
+; steps per scenario year $6F00), decays the per-Country timers, and picks
+; the next acting Country slot from CountryRotationOrderTable row $6F45. For
+; the focused Country: builds the Country list + Officer census
+; (CountryCensusBuild), counts its Provinces, draws the year on the stats
+; overlay (banked call to bank $1D YearDisplaySetup, entry $A01E -> $A6B6),
+; resolves the Ruler's home Province, then hands off to that Country's month
+; (camera-focus frame state $0A). If fewer than 30 unclaimed Officers
+; remain, the rotation idles via overlay $D5 (sub-state 3).
 ;===============================================================================
 @CountrySelect:  ; sub-state 0
   LDA #$F0                                ; $A041: A9 F0
@@ -98,10 +100,10 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
   STA $6F06                               ; $A055: 8D 06 6F ; camera-focus phase flag
   LDY $6F01                               ; $A058: AC 01 6F ; rotation step
   INY                                     ; $A05B: C8
-  CPY #$0C                                ; $A05C: C0 0C ; 12 steps per demo year
+  CPY #$0C                                ; $A05C: C0 0C ; 12 steps per year
   BCC @StoreStep                          ; $A05E: 90 05
   LDY #$00                                ; $A060: A0 00
-  INC $6F00                               ; $A062: EE 00 6F ; demo year tick
+  INC $6F00                               ; $A062: EE 00 6F ; scenario year tick
 @StoreStep:
   STY $6F01                               ; $A065: 8C 01 6F
   JSR DecayCountryTimers                  ; $A068: 20 09 A2
@@ -112,24 +114,24 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
   ASL                                     ; $A070: 0A
   ORA $6F04                               ; $A071: 0D 04 6F ; row*8 + frame divider
   TAY                                     ; $A074: A8
-  LDA AttractCountryOrderTable,Y          ; $A075: B9 04 A1 ; next Country slot
+  LDA @CountryRotationOrderTable,Y          ; $A075: B9 04 A1 ; next Country slot
   STA $6F03                               ; $A078: 8D 03 6F ; focused Country slot
   ASL                                     ; $A07B: 0A
   TAY                                     ; $A07C: A8
-  LDA CountryRecordPtrTable,Y             ; $A07D: B9 D6 A0 ; Country record ptr lo
+  LDA @CountryRecordPtrTable,Y             ; $A07D: B9 D6 A0 ; Country record ptr lo
   STA a:$00EE                             ; $A080: 8D EE 00
-  LDA CountryRecordPtrTable+1,Y           ; $A083: B9 D7 A0 ; Country record ptr hi
+  LDA @CountryRecordPtrTable+1,Y           ; $A083: B9 D7 A0 ; Country record ptr hi
   STA a:$00EF                             ; $A086: 8D EF 00
   LDY #$00                                ; $A089: A0 00
   LDA ($EE),Y                             ; $A08B: B1 EE     ; Country record[0] = Ruler id
   CMP #$FF                                ; $A08D: C9 FF     ; $FF = empty slot
   BEQ @CountrySelect                       ; $A08F: F0 B0     ; empty: spin until filled
-  JSR AttractDemoCensusBuild              ; $A091: 20 40 A2 ; -> $0011 = unclaimed Officer count
+  JSR CountryCensusBuild              ; $A091: 20 40 A2 ; -> $0011 = unclaimed Officer count
   LDA a:$0011                             ; $A094: AD 11 00
   CMP #$1E                                ; $A097: C9 1E     ; 30+ Officers still unclaimed?
   BCS @FocusReady                         ; $A099: B0 0A
   LDA #$03                                ; $A09B: A9 03
-  STA $0401                               ; $A09D: 8D 01 04 ; demo over -> sub-state 3
+  STA $0401                               ; $A09D: 8D 01 04 ; rotation ends -> sub-state 3
   LDA #$D5                                ; $A0A0: A9 D5
   JMP B1F_SetUI4                          ; $A0A2: 4C 8B F2 ; idle overlay (no return)
 @FocusReady:
@@ -137,8 +139,8 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
   AND #$07                                ; $A0A8: 29 07
   JSR ProvinceCountByOwner                ; $A0AA: 20 9F A1 ; -> $0003 = owned Province count
   LDY a:$0003                             ; $A0AD: AC 03 00
-  LDA ProvinceCountDisplayTable,Y         ; $A0B0: B9 E4 A0
-  STA $6F05                               ; $A0B3: 8D 05 6F ; Province count display value
+  LDA @OrderScrollByProvinceTable,Y        ; $A0B0: B9 E4 A0
+  STA $6F05                               ; $A0B3: 8D 05 6F ; focused Country's OrderScroll value
   LDY #$3D                                ; $A0B6: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $A0B8: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -156,7 +158,7 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
   STA $0401                               ; $A0D2: 8D 01 04
   RTS                                     ; $A0D5: 60
 ; --- Country record pointer table (same entries as B1F CountryDataPtrTable) ---
-CountryRecordPtrTable:
+@CountryRecordPtrTable:
   .word $6F07                             ; $A0D6: 07 6F ; Country slot 0
   .word $6F0F                             ; $A0D8: 0F 6F ; Country slot 1
   .word $6F17                             ; $A0DA: 17 6F ; Country slot 2
@@ -164,14 +166,14 @@ CountryRecordPtrTable:
   .word $6F27                             ; $A0DE: 27 6F ; Country slot 4
   .word $6F2F                             ; $A0E0: 2F 6F ; Country slot 5
   .word $6F37                             ; $A0E2: 37 6F ; Country slot 6
-; --- Province count display table: owned Province count (0-31) -> overlay value ---
-ProvinceCountDisplayTable:
+; --- OrderScroll display table: owned Province count (0-31) -> OrderScroll ---
+@OrderScrollByProvinceTable:
   .byte $00,$03,$03,$03,$04,$05,$07,$07   ; $A0E4: 00 03 03 03 04 05 07 07
   .byte $07,$08,$08,$08,$08,$09,$09,$09   ; $A0EC: 07 08 08 08 08 09 09 09
   .byte $09,$0A,$0A,$0A,$0B,$0B,$0B,$0B   ; $A0F4: 09 0A 0A 0A 0B 0B 0B 0B
   .byte $0C,$0C,$0C,$0C,$0D,$0D,$0D,$0D   ; $A0FC: 0C 0C 0C 0C 0D 0D 0D 0D
-; --- Attract demo Country rotation orders: 5 rows x 8 (7 slots + pad), row = $6F45 ---
-AttractCountryOrderTable:
+; --- Country rotation orders (attract/title cycle when unattended): 5 rows x 8 (7 slots + pad), row = $6F45 ---
+@CountryRotationOrderTable:
   .byte $00,$01,$02,$03,$06,$05,$04,$00   ; $A104: 00 01 02 03 06 05 04 00 ; order 0
   .byte $01,$04,$06,$00,$02,$03,$05,$00   ; $A10C: 01 04 06 00 02 03 05 00 ; order 1
   .byte $03,$02,$04,$06,$05,$00,$01,$00   ; $A114: 03 02 04 06 05 00 01 00 ; order 2
@@ -193,7 +195,7 @@ OverlayInit:  ; sub-state 1
   LDA ($EE),Y                             ; $A136: B1 EE     ; focused Country's Ruler id
   STA $042C                               ; $A138: 8D 2C 04 ; overlay: Country
   LDA $6F05                               ; $A13B: AD 05 6F
-  STA $042F                               ; $A13E: 8D 2F 04 ; overlay: Province count value
+  STA $042F                               ; $A13E: 8D 2F 04 ; overlay: OrderScroll value
   LDA #$00                                ; $A141: A9 00
   STA $0430                               ; $A143: 8D 30 04
   STA $0431                               ; $A146: 8D 31 04
@@ -212,7 +214,7 @@ OverlayInit:  ; sub-state 1
 ; Sub-state 2, runs every frame while the status overlay is up. Banked call
 ; to bank $1D SlowPeriodic (entry $A021 -> $A77F: PeriodicOverlayRefresh
 ; slow tick, redraws the stats overlay from $6F05 every 16th tick), then
-; draws the marker sprite; Start exits the demo back to frame state 0.
+; draws the marker sprite; Start exits the rotation back to frame state 0.
 ;===============================================================================
 OverlayPoll:  ; sub-state 2
   LDY #$3D                                ; $A15E: A0 3D     ; target banks $1D+$1E
@@ -237,7 +239,7 @@ OverlayPoll:  ; sub-state 2
   RTS                                     ; $A185: 60
 ;===============================================================================
 ; $A186: ResetCheck (sub-state 3)
-; Sub-state 3 (demo idled: too few unclaimed Officers). Once both overlay
+; Sub-state 3 (rotation idled: too few unclaimed Officers). Once both overlay
 ; slots are free, Start soft-resets the console back to the title sequence.
 ;===============================================================================
 ResetCheck:  ; sub-state 3
@@ -284,7 +286,7 @@ ProvinceCountByOwner:
 .endproc
 ;===============================================================================
 ; $A1C2: MarkerSpriteDraw
-; Draws the demo marker sprite (MarkerSpriteData) at fixed screen position
+; Draws the rotation marker sprite (MarkerSpriteData) at fixed screen position
 ; ($D8,$A0) via B1F_SpriteOamWriterSimple. Skipped while $005E bit4 is set.
 ;===============================================================================
 .proc MarkerSpriteDraw
@@ -341,7 +343,7 @@ FindOfficerProvince:
 ; $A209: DecayCountryTimers
 ; Decays the four packed-nibble timers (Country record offsets $04-$07) of
 ; every Country record ($6F07..$6F37): low nibble -1, high nibble -$10,
-; each skipped once zero. Run once per rotation step by the demo cycle.
+; each skipped once zero. Run once per rotation step by the turn cycle.
 ;===============================================================================
 .proc DecayCountryTimers
 DecayCountryTimers:
@@ -378,24 +380,24 @@ DecayCountryTimers:
   RTS                                     ; $A23F: 60
 .endproc
 ;===============================================================================
-; $A240: AttractDemoCensusBuild
-; Prepares the demo's Country list and Officer census:
+; $A240: CountryCensusBuild
+; Builds the acting-Country list and Officer census for the rotation:
 ;   1. Switches $8000 to bank $11, copies the seven Country record[0] Ruler
 ;      ids into the $042C list, and blanks the focused slot ($6F03) with $FF.
 ;   2. Scans all Officer ids $00-$EC (237 Officers): counts into $0011 those
 ;      that are not one of the active Rulers and whose SRAM record flag
-;      (offset $0B & $03) is not 3. Output $0011 gates the demo's end: the
+;      (offset $0B & $03) is not 3. Output $0011 gates the cycle's end: the
 ;      caller idles once fewer than 30 such Officers remain.
 ;===============================================================================
-.proc AttractDemoCensusBuild
-AttractDemoCensusBuild:
+.proc CountryCensusBuild
+CountryCensusBuild:
   LDY #$31                                ; $A240: A0 31
   JSR B1F_SwitchBank8_B                   ; $A242: 20 5F F2 ; $8000 <- bank $11
   LDY #$00                                ; $A245: A0 00
   LDX #$00                                ; $A247: A2 00
 @CopyLoop:
   LDA $6F07,Y                             ; $A249: B9 07 6F ; Country record[0] = Ruler id
-  STA $042C,X                             ; $A24C: 9D 2C 04 ; demo Country list
+  STA $042C,X                             ; $A24C: 9D 2C 04 ; acting Country list
   INX                                     ; $A24F: E8
   TXA                                     ; $A250: 8A
   ASL                                     ; $A251: 0A
@@ -435,15 +437,15 @@ AttractDemoCensusBuild:
   RTS                                     ; $A295: 60
 .endproc
 ;===============================================================================
-; $A296: DemoEventDispatch
+; $A296: MonthlyEventDispatch
 ; Map screen frame state $0A handler (entered from prg_1b_1c
 ; MapScreenFrameStateDispatch via banks $19+$1A entry
-; DemoEventDispatch_Entry, Y=$39): the attract-demo MONTHLY EVENT DISPATCH.
-; AttractDemoDispatch hands off with $0400=$0A after picking the demo
+; MonthlyEventDispatch_Entry, Y=$39): the per-Country MONTHLY EVENT DISPATCH.
+; CountryRotationDispatch hands off with $0400=$0A after picking the acting
 ; Country; this machine decides whether and how that month's events happen
 ; (in-proc random rolls that mutate the SRAM scenario state), scheduled by
-; the demo month $6F01 (12 months per year $6F00), then returns to frame
-; state $0B (next demo Country) or $09 (strategy turn). Dispatches the
+; the month $6F01 (12 months per year $6F00), then returns to frame
+; state $0B (next acting Country) or $09 (strategy turn). Dispatches the
 ; event sub-state by $0401 through a 16-entry B1F_CallbackDispatcher table:
 ;   0 EventPaceGate        - wait overlay sentinels, pick month job by $6F01
 ;   1 EventDisasterRoute   - disaster router by $6F01 (raw 4/5 -> flood,
@@ -453,7 +455,7 @@ AttractDemoCensusBuild:
 ;   3 EventRulerLoad       - load Ruler officer id into $040B, -> death rolls
 ;   4 EventRulerDeathCheck - Ruler out-of-action check -> succession or exit
 ;   5 EventControlHandoff  - branch on Country control byte: $09 turn
-;                            engine / $0B demo rotation
+;                            engine / $0B Country rotation
 ;   6 TaxCollectionEvent   - 税金の徴収: annual Gold payout (Pop x Industry x Gov)
 ;   7 RiceHarvestEvent     - 米の収穫: annual Rice payout (Pop x Land x Gov)
 ;   8 DroughtDamageScene   - drought (日照り): population/land/officer troop drain
@@ -462,7 +464,7 @@ AttractDemoCensusBuild:
 ;   B OfficerNaturalDeathScene - monthly natural-death (シホウ) roll per Officer
 ;   C RulerSuccessionScene - heir march/transfer + new-Ruler coronation
 ;   D SuccessionApplyScene - apply the succession: install the heir (or strongest officer) as Ruler
-;   E ScenarioHandoffPrep  - fill demo record $042E-$0434, exit handoff
+;   E ScenarioHandoffPrep  - fill handoff record $042E-$0434, exit handoff
 ;   F ProvinceRebellionEvent  - monthly peasant rebellion: 統治度<50 roll + drain
 ; Handlers C/D/E are shared sub-states of frame state $0D
 ; (OfficerStatusScene, banks $19+$1A stub $A00C).
@@ -470,7 +472,7 @@ AttractDemoCensusBuild:
 ; province/officer cursors, $040E/$040F scan cursors, $0470-$0473 pending
 ; exit handoff, $042C/$042D card params, $6F44 marker Country.
 ;===============================================================================
-.proc DemoEventDispatch
+.proc MonthlyEventDispatch
   LDA $0401                               ; $A296: AD 01 04
   JSR B1F_CallbackDispatcher               ; $A299: 20 DE EA
 ; --- Inline pointer table (16 entries) ---
@@ -622,15 +624,15 @@ AttractDemoCensusBuild:
 ;===============================================================================
 ; $A363: EventControlHandoff
 ; Terminal handoff of the event machine (sub-state 5). The "Event" prefix is
-; the DemoEventDispatch sub-state family scope marker; the proc itself does
+; the MonthlyEventDispatch sub-state family scope marker; the proc itself does
 ; no event work beyond clearing the pending handoff param $0470. Routes on
 ; the acting Country's control byte, Country record[$03] via ($EE):
 ;   == $03 (AI / unattended): $0400 = $09 -> CallStrategyRequestDispatch
 ;              (frame table prg_1b_1c $A037): the Country's strategy turn
 ;              runs through the normal turn engine; $0401 = 0
 ;   else (player-owned 0-2):  latches the control byte into $6F44,
-;              $0400 = $0B -> CallAttractDemoDispatch (frame table $A03B):
-;              back to the attract-demo Country rotation; $0401 = 1
+;              $0400 = $0B -> CallCountryRotationDispatch (frame table $A03B):
+;              back to the Country rotation frame; $0401 = 1
 ;===============================================================================
 .proc EventControlHandoff
   LDA #$00                                ; $A363: A9 00
@@ -638,16 +640,16 @@ AttractDemoCensusBuild:
   LDY #$03                                ; $A368: A0 03
   LDA ($EE),Y                             ; $A36A: B1 EE ; Country control byte
   CMP #$03                                ; $A36C: C9 03 ; AI/unattended?
-  BNE @HandoffToDemo                      ; $A36E: D0 0B
+  BNE @HandoffToRotation                   ; $A36E: D0 0B
   LDA #$09                                ; $A370: A9 09
   STA $0400                               ; $A372: 8D 00 04 ; -> strategy turn engine
   LDA #$00                                ; $A375: A9 00
   STA $0401                               ; $A377: 8D 01 04
   RTS                                     ; $A37A: 60
-@HandoffToDemo:  ; player-owned control value
+@HandoffToRotation:  ; player-owned control value
   STA $6F44                               ; $A37B: 8D 44 6F ; latch control byte
   LDA #$0B                                ; $A37E: A9 0B
-  STA $0400                               ; $A380: 8D 00 04 ; -> demo rotation
+  STA $0400                               ; $A380: 8D 00 04 ; -> Country rotation
   LDA #$01                                ; $A383: A9 01
   STA $0401                               ; $A385: 8D 01 04
   RTS                                     ; $A388: 60
@@ -722,7 +724,7 @@ AttractDemoCensusBuild:
 
 ;===============================================================================
 ; $A3E5: TaxCollectionEvent
-; DemoEventDispatch sub-state 6: the annual TaxCollection event (税金の徴収),
+; MonthlyEventDispatch sub-state 6: the annual TaxCollection event (税金の徴収),
 ; armed by EventPaceGate for raw month 3 (display April; the manual's tax
 ; window is months 1-3, docs/manual_kb/05-events.md). 3-step machine on
 ; $0402: open banner stream $BC (message tiles $9F), wait the anim +
@@ -1012,7 +1014,7 @@ AttractDemoCensusBuild:
 
 ;===============================================================================
 ; $A5AA: RiceHarvestEvent
-; DemoEventDispatch sub-state 7: the annual RiceHarvest event (米の収穫),
+; MonthlyEventDispatch sub-state 7: the annual RiceHarvest event (米の収穫),
 ; armed by EventPaceGate for raw month 9 (display October; the manual's
 ; harvest window is months 11-12, docs/manual_kb/05-events.md). Same
 ; 3-step machine on $0402: banner stream $BD (message tiles $9F), overlay
@@ -1183,11 +1185,13 @@ AttractDemoCensusBuild:
 
 ;===============================================================================
 ; $A6EF: DroughtDamageScene
-; DemoEventDispatch sub-state 8: the monthly DROUGHT event (日照り, Aug/Sep,
+; MonthlyEventDispatch sub-state 8: the monthly DROUGHT event (日照り, Aug/Sep,
 ; see EventDisasterRoute). 4-step banner/card machine on $0402:
-;   0 @DamageListBuild    - ProvincePickListBuild pool A (Y=$00): up to 16
-;                           drought-hit Provinces into $042D-$043C; none picked
-;                           -> exit to sub-state 2 (EventReinforceGate)
+;   0 @DamageListBuild    - ProvincePickListBuild @DroughtProvincePool
+;                           (Y=$00): 0-15 drought-hit Provinces into
+;                           $042D-$043C, each slot kept on a 1/6 roll; entry
+;                           $A8CF = $FF leaves 15 candidates. Count 0 in
+;                           a:$0000 -> exit sub-state 2 (EventReinforceGate)
 ;   1 @DamageOverlayWait  - open banner stream $BE, message tiles $9F, wait
 ;                           anim $04A0 and overlay sentinels $0300/$0304
 ;   2 @DamageProvincePoll - per pick (skip UnclaimedLand owner nibble 7):
@@ -1412,42 +1416,95 @@ DamageCardRedraw:  ; (dispatch callback target)
 
 ;===============================================================================
 ; $A896: ProvincePickListBuild
-; Flood/drought hit-list builder: blanks the 16 slots $042C-$043B with $FF,
-; then per slot X re-rolls B1F_RandomMod8 until the roll is <6; only roll 0
-; keeps the pool entry: $042D,X = @ProvincePickPoolA + Y (Y is the slot index
-; offset from the caller: $00 = pool A for DroughtDamageScene, $10 = pool B
-; for FloodDamageScene), rolls 1-5 leave the slot empty (~2.7 hits per
-; month). a:$0000 = hit count; 0 makes the caller skip the scene entirely.
+; Flood/drought hit-list builder, disaster-agnostic: the caller's Y picks which
+; disaster's 16-entry Province-id candidate pool gets consumed.
+; In: Y = pool base offset, set by the caller immediately before the JSR
+;   $00 -> @DroughtProvincePool ($A8C0), from DroughtDamageScene sub-state 8
+;   $10 -> @FloodProvincePool ($A8D0), from FloodDamageScene sub-state 9
+; Y is never re-initialized here: it enters as a pool base offset and grows into
+; the running index, because LDA @DroughtProvincePool,Y is absolute-Y from $A8C0
+; and simply lands on the flood pool for Y = $10-$1F (one instruction serves
+; both tables).  Valid since B1F_RandomMod8 -> RandomByte saves/restores X and
+; never touches Y, so the pool cursor survives every JSR in the loop.
+;   Step 1: X = $10..$00 stores $FF at base $042C -> blanks 17 bytes
+;           $042C-$043C. The 16 list slots are $042D-$043C; $042C (the scene's
+;           current-province/overlay scratch cell) is cleared as a side effect.
+;   Step 2: 16 iterations, one roll per slot. B1F_RandomMod8 is re-rolled while
+;           >= 6 (rejection sampling -> uniform 0..5) and only roll 0 keeps the
+;           slot, so inclusion is a 1/6 coin flip. INY and INX both run on the
+;           skip path too, so slot X is bound positionally to pool entry X: the
+;           candidate Province per slot is deterministic, only its inclusion is
+;           random, and hits come out in fixed pool order (the scenes poll
+;           $042D,Y ascending).
+; Out: $042D-$043C hit list ($FF = empty slot); a:$0000 = hit count, and 0 makes
+; the caller jump straight to sub-state 2 (no banner/card that month).
+; Max 15 REAL hits, not 16: the 16th entry of each pool ($A8CF / $A8DF) is $FF,
+; so a roll of 0 there stores the empty sentinel the poll skips.  ROM quirk: INC
+; a:$0000 fires on any roll of 0 regardless of the byte stored, so a:$0000 can
+; be nonzero while the list holds only $FF (banner opens, poll runs through to
+; the $10 end-check).
+; RNG behaviour, enumerated over all 256 entry values of the random index $0050
+; (code/disaster_pick_rng_coherence.md, tools/analyze_disaster_pick_rng.py):
+; a:$0000 is always 1..5, mean 2.660 (2.48 real hits) -> the callers' "no hit,
+; skip the scene" branch ($A705 / $A9B6 -> sub-state 2) is unreachable, and each
+; Province's marginal rate is a flat 14.8..18.4% (no favoured victim).
+; SAME-MONTH coherence is the real structure: the 16 slots share one contiguous
+; walk of the 256-byte table, so two Provinces' hit indicators are NOT
+; independent - joint counts span 0.12x..1.94x of independence (mean 0.80x, mean
+; phi -0.04), fixed by where the &$07==$00 bytes sit in the table. Slot pairs 4
+; apart burn together in just 1 of 256 months (8.6 expected), pairs 7 or 9 apart
+; in up to 14 of 256. The months themselves are NOT linked: $0050 is the global
+; RNG index and the rest of the turn consumes it in data-dependent amounts, so
+; there is no cross-month correlation worth modelling.
+; The pools are disjoint and cover all 30 Provinces $00-$1D: each disaster hits
+; only its own half of the map. Damage amounts and severity are NOT decided here
+; - the scenes' *ProvincePoll steps drain the stats, scaled by the
+; DisasterSeverityRoll tier x from the 防災 byte.
 ;===============================================================================
 .proc ProvincePickListBuild
-  LDX #$10                                ; $A896: A2 10
-  LDA #$FF                                ; $A898: A9 FF
+; --- Step 1: blank 17 bytes $042C-$043C (16 slots + $042C scratch) ---
+  LDX #$10                                ; $A896: A2 10 ; fill cursor $10..$00
+  LDA #$FF                                ; $A898: A9 FF ; blank sentinel
 @ProvincePickFillLoop:
-  STA $042C,X                             ; $A89A: 9D 2C 04
+  STA $042C,X                             ; $A89A: 9D 2C 04 ; base $042C, slots start $042D
   DEX                                     ; $A89D: CA
-  BPL @ProvincePickFillLoop                ; $A89E: 10 FA
-  LDX #$00                                ; $A8A0: A2 00
-  STX a:$0000                             ; $A8A2: 8E 00 00
+  BPL @ProvincePickFillLoop                ; $A89E: 10 FA ; 17 stores, not 16
+; --- Step 2: 16 positional rolls, Y = pool cursor from the caller ---
+  LDX #$00                                ; $A8A0: A2 00 ; slot cursor / output index
+  STX a:$0000                             ; $A8A2: 8E 00 00 ; hit count = 0
 @ProvincePickRoll:
-  JSR B1F_RandomMod8                       ; $A8A5: 20 56 E8
+  JSR B1F_RandomMod8                       ; $A8A5: 20 56 E8 ; preserves X, never touches Y
   CMP #$06                                ; $A8A8: C9 06
-  BCS @ProvincePickRoll                    ; $A8AA: B0 F9
+  BCS @ProvincePickRoll                    ; $A8AA: B0 F9 ; reject 6/7 -> uniform 0..5
   CMP #$00                                ; $A8AC: C9 00
-  BNE @ProvincePickSkip                    ; $A8AE: D0 09
-  LDA @ProvincePickPoolA,Y               ; $A8B0: B9 C0 A8
-  STA $042D,X                             ; $A8B3: 9D 2D 04
-  INC a:$0000                             ; $A8B6: EE 00 00
-@ProvincePickSkip:
+  BNE @ProvincePickSkip                    ; $A8AE: D0 09 ; only roll 0 kept -> 1/6 hit
+  LDA @DroughtProvincePool,Y              ; $A8B0: B9 C0 A8 ; abs-Y from $A8C0: $00-$0F drought, $10-$1F flood
+  STA $042D,X                             ; $A8B3: 9D 2D 04 ; slot X <- pool entry X (1:1)
+  INC a:$0000                             ; $A8B6: EE 00 00 ; counts any roll 0, incl. the $FF 16th entry
+@ProvincePickSkip:  ; slot stays $FF (no hit this iteration)
   INY                                     ; $A8B9: C8
-  INX                                     ; $A8BA: E8
-  CPX #$10                                ; $A8BB: E0 10
-  BCC @ProvincePickRoll                    ; $A8BD: 90 E6
+  INX                                     ; $A8BA: E8 ; both advance on the skip path, so the
+  CPX #$10                                ; $A8BB: E0 10 ; candidate per slot is fixed and only
+  BCC @ProvincePickRoll                    ; $A8BD: 90 E6 ; inclusion is random
   RTS                                     ; $A8BF: 60
 ; --- Data Region ---
-@ProvincePickPoolA:                      ; Province-id pool A (16 entries, roll-loop pick)
+@DroughtProvincePool:                    ; Drought candidate Provinces (Y=$00 base): 15 ids + $FF
   .byte $01,$02,$05,$06,$07,$08,$09,$0D,$11,$15,$18,$19,$1A,$1C,$1D,$FF; $A8C0: 01 02 05 06 07 08 09 0D 11 15 18 19 1A 1C 1D FF
-@ProvincePickPoolB:                      ; Province-id pool B (16 entries, unreferenced in this bank)
+; Slot -> Province:  0 Yuushuu 幽州    1 Heishuu 并州    2 Seianyou 西安陽 3 Ryoushuu 涼州
+;                    4 Antei 安定     5 Chouan 長安     6 Seiheikan 西平関 7 Shinya 新野
+;                    8 Ken'an 建安     9 Keishuu 荊州    10 Reiryou 零陵   11 Kanchuu 漢中
+;                    12 Seito 成都     13 Unnan 雲南     14 Eishou 永昌    15 $FF dead slot
+@FloodProvincePool:                      ; Flood candidate Provinces (Y=$10 base): same absolute-Y
   .byte $00,$03,$04,$0A,$0B,$0C,$0E,$0F,$10,$12,$13,$14,$16,$17,$1B,$FF; $A8D0: 00 03 04 0A 0B 0C 0E 0F 10 12 13 14 16 17 1B FF
+; Slot -> Province:  0 Ryoutou 遼東    1 Seishuu 青州    2 Kishuu 冀州     3 Joshuu 徐州
+;                    4 Enshuu 兗州     5 Rakuyou 洛陽    6 Yoshuu 豫州     7 Kengyou 建業
+;                    8 Youshuu 揚州    9 Koushuu 交州    10 Ikurin 郁林   11 Kouka 江夏
+;                    12 Shouyou 襄陽   13 Chousa 長沙    14 Furyou 涪陵   15 $FF dead slot
+; Both pools are disjoint, union = all 30 Province ids $00-$1D; entry $0F = $FF
+; in each ($A8CF/$A8DF) so a disaster has only 15 real hit candidates, and a
+; flood-hit Province can never be a drought-hit Province (and vice versa).
+; Per-Province hit rates over all 256 random indices: 14.8-18.4%, same for both
+; pools. Same-month Province-pair structure: code/disaster_pick_rng_coherence.md.
 .endproc
 
 ;===============================================================================
@@ -1581,10 +1638,11 @@ DamageCardRedraw:  ; (dispatch callback target)
 
 ;===============================================================================
 ; $A9A0: FloodDamageScene
-; DemoEventDispatch sub-state 9: the monthly FLOOD event (洪水, May/Jun, see
+; MonthlyEventDispatch sub-state 9: the monthly FLOOD event (洪水, May/Jun, see
 ; EventDisasterRoute). Same 4-step banner/card machine as DroughtDamageScene,
 ; differing in the pick pool and the drained stats:
-;   0 @LossListBuild      - ProvincePickListBuild pool B (Y=$10)
+;   0 @LossListBuild      - ProvincePickListBuild @FloodProvincePool (Y=$10,
+;                           15 candidates - entry $A8DF = $FF)
 ;   1 @LossWindowOpen     - open banner stream $BF, message tiles $9F, wait
 ;                           anim $04A0 and overlay sentinels
 ;   2 @LossProvincePoll   - per pick (skip UnclaimedLand owner nibble 7):
@@ -1775,7 +1833,7 @@ LossCardRedraw:  ; (dispatch callback target)
 .endproc
 ;===============================================================================
 ; $AB15: ProvinceRebellionEvent
-; Monthly peasant-rebellion processor (the demo's default month job, reached from
+; Monthly peasant-rebellion processor (the default month job, reached from
 ; EventPaceGate for any month that is not a tax/harvest payout). Scans all 30 Provinces:
 ;   1. @RebellionEventGate - during the scenario's first months (year $6F00==$59
 ;      and month $6F01<4) skip; otherwise clear the pick list.
@@ -1960,10 +2018,10 @@ RebellionOverlayWait:  ; (dispatch callback target)
   JSR MarkerSpriteDraw                    ; $AC68: 20 C2 A1
   LDA a:$0081                             ; $AC6B: AD 81 00
   LSR                                     ; $AC6E: 4A
-  BCS RebellionOverlayAck                     ; $AC6F: B0 01
+  BCS @RebellionOverlayAck                     ; $AC6F: B0 01
 @RebellionOverlayWaitExit:
   RTS                                     ; $AC71: 60
-RebellionOverlayAck:
+@RebellionOverlayAck:
   INC $0402                               ; $AC72: EE 02 04
   LDA #$04                                ; $AC75: A9 04
   STA a:$00A4                             ; $AC77: 8D A4 00
@@ -2113,7 +2171,7 @@ StatPairSubtract:
 ; byte [3], set up by the strategy banks): $03 (computer/AI-controlled) hands off
 ; to the strategy request mailbox poll, any other value returns to the map
 ; with camera and year display setup. Sub-states 4-6 are the same procs used
-; as demo sub-states $C-$E of DemoEventDispatch (RulerSuccessionScene,
+; as sub-states $C-$E of MonthlyEventDispatch (RulerSuccessionScene,
 ; SuccessionApplyScene, ScenarioHandoffPrep).
 ; Dispatches the scene sub-state by $0401:
 ;   0 @StatusSceneInit     - clear sprite refresh flag, camera Y $F0, year display
@@ -2974,11 +3032,11 @@ RowMarkerBob:
   LDA a:$0005                             ; $B322: AD 05 00 ; slot mod 3 = card row
   ASL                                     ; $B325: 0A
   TAY                                     ; $B326: A8
-  LDA CardRowBaseTable,Y                  ; $B327: B9 B9 B4 ; row base lo
+  LDA @CardRowBaseTable,Y                  ; $B327: B9 B9 B4 ; row base lo
   CLC                                     ; $B32A: 18
   ADC $0382                               ; $B32B: 6D 82 03
   STA $0382                               ; $B32E: 8D 82 03
-  LDA CardRowBaseTable+1,Y                ; $B331: B9 BA B4 ; row base hi
+  LDA @CardRowBaseTable+1,Y                ; $B331: B9 BA B4 ; row base hi
   ADC $0381                               ; $B334: 6D 81 03
   STA $0381                               ; $B337: 8D 81 03
   LDY $040C                               ; $B33A: AC 0C 04 ; target slot
@@ -2993,9 +3051,9 @@ RowMarkerBob:
   ASL                                     ; $B34B: 0A
   TAY                                     ; $B34C: A8
 @CopyPattern:
-  LDA CardAnimPatternPtrs,Y               ; $B34D: B9 85 B3 ; pattern ptr lo
+  LDA @CardAnimPatternPtrs,Y               ; $B34D: B9 85 B3 ; pattern ptr lo
   STA a:$0000                             ; $B350: 8D 00 00
-  LDA CardAnimPatternPtrs+1,Y             ; $B353: B9 86 B3 ; pattern ptr hi
+  LDA @CardAnimPatternPtrs+1,Y             ; $B353: B9 86 B3 ; pattern ptr hi
   STA a:$0001                             ; $B356: 8D 01 00
   LDY #$00                                ; $B359: A0 00
 @TileLoop:
@@ -3019,7 +3077,7 @@ RowMarkerBob:
 @CardAnimFrameDone:
   RTS                                     ; $B384: 60
 ; --- Card animation pattern pointers (10 frames; 8/9 share $B499) ---
-CardAnimPatternPtrs:
+@CardAnimPatternPtrs:
   .word @CardAnimPatternFrames             ; $B385: 99 B3 ; frame 0
   .word @CardAnimPatternFrames+$20         ; $B387: B9 B3 ; frame 1
   .word @CardAnimPatternFrames+$40         ; $B389: D9 B3 ; frame 2
@@ -3051,7 +3109,7 @@ CardAnimPatternPtrs:
   .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B499: frame 8/9 (shared)
   .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B4A9
 ; --- Card row PPU base addresses (slot mod 3): $2400 / $2540 / $2680 ---
-CardRowBaseTable:
+@CardRowBaseTable:
   .word $2400                             ; $B4B9: 00 24 ; card row 0
   .word $2540                             ; $B4BB: 40 25 ; card row 1
   .word $2680                             ; $B4BD: 80 26 ; card row 2
@@ -3307,13 +3365,13 @@ PortraitLevelTiles:  ; frame 4
   AND #$03                                ; $B636: 29 03     ; bits 2-3
   ASL                                     ; $B638: 0A
   TAY                                     ; $B639: A8
-  LDA PortraitTilesAttr,Y                 ; $B63A: B9 47 B6 ; tile pair lo
+  LDA @PortraitTilesAttr,Y                 ; $B63A: B9 47 B6 ; tile pair lo
   STA $038B                               ; $B63D: 8D 8B 03
-  LDA PortraitTilesAttr+1,Y               ; $B640: B9 48 B6 ; tile pair hi
+  LDA @PortraitTilesAttr+1,Y               ; $B640: B9 48 B6 ; tile pair hi
   STA $038C                               ; $B643: 8D 8C 03
   RTS                                     ; $B646: 60
 ; --- Portrait tile pairs by record[$0B] bits 2-3 (frame 4) ---
-PortraitTilesAttr:
+@PortraitTilesAttr:
   .word $6362                             ; $B647: 62 63 ; attr 0
   .word $6564                             ; $B649: 64 65 ; attr 1
   .word $6160                             ; $B64B: 60 61 ; attr 2
@@ -3333,9 +3391,9 @@ PortraitAndStatsFill:  ; frame 5
   AND #$03                                ; $B653: 29 03     ; bits 2-3
   ASL                                     ; $B655: 0A
   TAY                                     ; $B656: A8
-  LDA PortraitTilesLevel,Y                ; $B657: B9 13 B7 ; tile pair lo
+  LDA @PortraitTilesLevel,Y                ; $B657: B9 13 B7 ; tile pair lo
   STA $038B                               ; $B65A: 8D 8B 03
-  LDA PortraitTilesLevel+1,Y              ; $B65D: B9 14 B7 ; tile pair hi
+  LDA @PortraitTilesLevel+1,Y              ; $B65D: B9 14 B7 ; tile pair hi
   STA $038C                               ; $B660: 8D 8C 03
   LDY #$08                                ; $B663: A0 08     ; record[$08] lo
   LDA ($10),Y                             ; $B665: B1 10
@@ -3350,14 +3408,14 @@ PortraitAndStatsFill:  ; frame 5
   LDX #$00                                ; $B67B: A2 00
   LDY #$00                                ; $B67D: A0 00     ; digit cell $0390
   LDA a:$0008                             ; $B67F: AD 08 00 ; thousands+tens byte
-  JSR DigitStoreUpper                     ; $B682: 20 19 B7
+  JSR @DigitStoreUpper                     ; $B682: 20 19 B7
   LDA a:$0008                             ; $B685: AD 08 00
-  JSR DigitStoreLower                     ; $B688: 20 1D B7
+  JSR @DigitStoreLower                     ; $B688: 20 1D B7
   LDA a:$0007                             ; $B68B: AD 07 00 ; hundreds+ones byte
-  JSR DigitStoreUpper                     ; $B68E: 20 19 B7
+  JSR @DigitStoreUpper                     ; $B68E: 20 19 B7
   LDA a:$0007                             ; $B691: AD 07 00
   AND #$0F                                ; $B694: 29 0F     ; ones
-  JSR DigitStoreOnes                      ; $B696: 20 27 B7
+  JSR @DigitStoreOnes                      ; $B696: 20 27 B7
   LDY #$01                                ; $B699: A0 01     ; record[$01]
   LDA ($10),Y                             ; $B69B: B1 10
   STA a:$0001                             ; $B69D: 8D 01 00
@@ -3421,7 +3479,7 @@ PortraitAndStatsFill:  ; frame 5
   STA $039F                               ; $B70F: 8D 9F 03
   RTS                                     ; $B712: 60
 ; --- Portrait tile pairs by record[$0B] bits 2-3 (frame 5) ---
-PortraitTilesLevel:
+@PortraitTilesLevel:
   .word $7372                             ; $B713: 72 73 ; level 0
   .word $7574                             ; $B715: 74 75 ; level 1
   .word $7170                             ; $B717: 70 71 ; level 2
@@ -3432,23 +3490,23 @@ PortraitTilesLevel:
 ; rule), and the unconditional ones digit. X counts digits printed, Y
 ; tracks the cell index.
 ;===============================================================================
-DigitStoreUpper:
+@DigitStoreUpper:
   LSR                                     ; $B719: 4A
   LSR                                     ; $B71A: 4A
   LSR                                     ; $B71B: 4A
   LSR                                     ; $B71C: 4A        ; fall into lower
-DigitStoreLower:
+@DigitStoreLower:
   AND #$0F                                ; $B71D: 29 0F
   CPX #$00                                ; $B71F: E0 00
-  BNE DigitStoreOnes                      ; $B721: D0 04     ; not leading
+  BNE @DigitStoreOnes                      ; $B721: D0 04     ; not leading
   CMP #$00                                ; $B723: C9 00
-  BEQ SkipLeadingZero                     ; $B725: F0 07     ; leading zero: blank
-DigitStoreOnes:
+  BEQ @SkipLeadingZero                     ; $B725: F0 07     ; leading zero: blank
+@DigitStoreOnes:
   CLC                                     ; $B727: 18
   ADC #$76                                ; $B728: 69 76     ; digit tile base
   STA $0390,Y                             ; $B72A: 99 90 03 ; digit cell
   INX                                     ; $B72D: E8        ; digits printed
-SkipLeadingZero:
+@SkipLeadingZero:
   INY                                     ; $B72E: C8        ; next cell
   RTS                                     ; $B72F: 60
 ;===============================================================================
@@ -3954,7 +4012,7 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
                                           ; pairs (Officer id, Country); the scout find
                                           ; gate in prg_1b_1c $AB75 compares the Province
                                           ; owner Country with the second byte
-  .byte $6D,$04                           ; $BA50: 6D 04  ; Shokatsuryou ショカツリョウ 諸葛亮/诸葛亮 -> Country 2
+  .byte $6D,$04                           ; $BA50: 6D 04  ; Shokatsuryou ショカツリョウ 諸葛亮/诸葛亮 -> Country 4
   .byte $70,$04                           ; $BA52: 70 04  ; Josho ジョショ 徐庶/徐庶 -> Country 4
   .byte $56,$02                           ; $BA54: 56 02  ; Shibai シバイ 司馬懿/司马懿 -> Country 2
   .byte $37,$04                           ; $BA56: 37 04  ; Kyoui キョウイ 姜維/姜维 -> Country 4
@@ -4026,7 +4084,7 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
   ADC $0471                               ; $BABA: 6D 71 04  ; message id + amount
   STA $0471                               ; $BABD: 8D 71 04
   LDY a:$0010                             ; $BAC0: AC 10 00
-  LDA DevIncrementTable,Y                 ; $BAC3: B9 DF BA  ; field increment
+  LDA @DevIncrementTable,Y                 ; $BAC3: B9 DF BA  ; field increment
   STA $0472                               ; $BAC6: 8D 72 04
   LDA $0470                               ; $BAC9: AD 70 04
   ASL                                     ; $BACC: 0A
@@ -4037,13 +4095,13 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
   CLC                                     ; $BAD3: 18
   ADC a:$0010                             ; $BAD4: 6D 10 00  ; + amount
   TAY                                     ; $BAD7: A8
-  LDA DevResultIndexTable,Y               ; $BAD8: B9 E8 BA  ; result overlay index
+  LDA @DevResultIndexTable,Y               ; $BAD8: B9 E8 BA  ; result overlay index
   STA $04A2                               ; $BADB: 8D A2 04
   RTS                                     ; $BADE: 60
 ; --- Data Region ---
-DevIncrementTable:                        ; $BADF: amount -> field increment ($0A+2*amount)
+@DevIncrementTable:                        ; $BADF: amount -> field increment ($0A+2*amount)
   .byte $0A,$0C,$0E,$10,$12,$14,$16,$18,$1A ; $BADF: 0A 0C 0E 10 12 14 16 18 1A
-DevResultIndexTable:                      ; $BAE8: [$0470*9 + amount] result index
+@DevResultIndexTable:                      ; $BAE8: [$0470*9 + amount] result index
   .byte $0A,$0B,$07,$07,$07,$0E,$0E,$15,$0E ; $BAE8: 0A 0B 07 07 07 0E 0E 15 0E
   .byte $10,$14,$18,$16,$12,$12,$14,$15,$14 ; $BAF1: 10 14 18 16 12 12 14 15 14
   .byte $16,$18,$16,$18,$10,$10,$18,$0F,$10 ; $BAFA: 16 18 16 18 10 10 18 0F 10
@@ -4192,7 +4250,7 @@ DevResultIndexTable:                      ; $BAE8: [$0470*9 + amount] result ind
 ;     from MapScreenFrameUpdate $A014 in banks $1B+$1C). No-op unless sprite
 ;     dirty mark $04E4 is set; marks pending province $0402.
 ;   - ByZone: in-bank secondary entry; marks the zone id passed in
-;     A (used by DirtyMarkAndCard with demo camera zone $0472).
+;     A (used by DirtyMarkAndCard with rotation camera zone $0472).
 ; Zone id encoding: bit 0-2 = bit position within the bitmap byte (X),
 ; bits 3-7 = bitmap byte index Y, so bit = $04E0[id>>3] mask 1<<(id&7).
 ;===============================================================================
@@ -4212,11 +4270,11 @@ ByZone:
   LSR                                     ; $BBEE: 4A         ; A = id / 8
   TAY                                     ; $BBEF: A8         ; bitmap byte index
   LDA $04E0,Y                             ; $BBF0: B9 E0 04  ; dirty bitmap byte
-  ORA MapProvinceDirtyBitMaskTable,X      ; $BBF3: 1D FA BB  ; set zone bit
+  ORA @MapProvinceDirtyBitMaskTable,X      ; $BBF3: 1D FA BB  ; set zone bit
   STA $04E0,Y                             ; $BBF6: 99 E0 04
   RTS                                     ; $BBF9: 60
 ; --- Data Region ---
-MapProvinceDirtyBitMaskTable:
+@MapProvinceDirtyBitMaskTable:
   .byte $01,$02,$04,$08,$10,$20,$40,$80   ; $BBFA: 01 02 04 08 10 20 40 80 ; bit masks 0-7 (duplicate of $DFEE in banks $1B+$1C)
 .endproc
 
@@ -4416,21 +4474,21 @@ DeathChanceRoll:
   LDA #$06                                ; $BD46: A9 06
 @ChanceIndexClamp:
   TAY                                     ; $BD48: A8
-  LDA DeathChanceThreshold,Y            ; $BD49: B9 60 BD
+  LDA @DeathChanceThreshold,Y            ; $BD49: B9 60 BD
   STA a:$000C                             ; $BD4C: 8D 0C 00
   LDA #$C8                                ; $BD4F: A9 C8
   JSR B1F_RandomBelowThreshold             ; $BD51: 20 62 E8
   CMP a:$000C                             ; $BD54: CD 0C 00
-  BCC DeathApplyKill                          ; $BD57: 90 02
+  BCC @DeathApplyKill                          ; $BD57: 90 02
 @ChanceRollSurvive:
   CLC                                     ; $BD59: 18
   RTS                                     ; $BD5A: 60
-DeathApplyKill:
+@DeathApplyKill:
   JSR OfficerKill                          ; $BD5B: 20 BB BD
   SEC                                     ; $BD5E: 38
   RTS                                     ; $BD5F: 60
 ; --- Data Region ---
-DeathChanceThreshold:                    ; death roll threshold out of $C8, indexed by clamped year deficit (0-6)
+@DeathChanceThreshold:                    ; death roll threshold out of $C8, indexed by clamped year deficit (0-6)
   .byte $05,$0A,$14,$25,$50,$A0,$C9       ; $BD60: 05 0A 14 25 50 A0 C9
 DeathOverlayWait:  ; (dispatch callback target)
 ; --- Code Region ---
@@ -4527,8 +4585,8 @@ OfficerKill:
   .word @SuccessionFindSlot                ; $BE09: 2E BE ; sub 1
   .word @SuccessionPickProvince             ; $BE0B: 83 BE ; sub 2
   .word @SuccessionTransferGate             ; $BE0D: D1 BE ; sub 3
-  .word SuccessionMarchAnim                ; $BE0F: 2F BF ; sub 4
-  .word SuccessionArrivalScan              ; $BE11: B9 BF ; sub 5
+  .word @SuccessionMarchAnim                ; $BE0F: 2F BF ; sub 4
+  .word @SuccessionArrivalScan              ; $BE11: B9 BF ; sub 5
   .word SuccessionArrivalApply             ; $BE13: 1E C0 ; sub 6
   .word SuccessionApplyWait                ; $BE15: E5 C0 ; sub 7
 @SuccessionNotice:  ; (dispatch callback target)
@@ -4639,14 +4697,14 @@ OfficerKill:
   LDA $047C                               ; $BEEB: AD 7C 04
   BPL @SuccessionTransferHold             ; $BEEE: 10 0C
   CMP #$90                                ; $BEF0: C9 90
-  BNE SuccessionMarchSetup                 ; $BEF2: D0 09
+  BNE @SuccessionMarchSetup                 ; $BEF2: D0 09
   DEC $0402                               ; $BEF4: CE 02 04
   LDA #$D0                                ; $BEF7: A9 D0
   JMP B1F_SetUI0                           ; $BEF9: 4C 6D F2
 @SuccessionTransferHold:
 ; --- Code Region ---
   RTS                                     ; $BEFC: 60
-SuccessionMarchSetup:
+@SuccessionMarchSetup:
   LDA #$00                                ; $BEFD: A9 00
   STA a:$008F                             ; $BEFF: 8D 8F 00
   LDA #$03                                ; $BF02: A9 03
@@ -4666,27 +4724,27 @@ SuccessionMarchSetup:
   STA $0425                               ; $BF27: 8D 25 04
   LDA #$D2                                ; $BF2A: A9 D2
   JMP B1F_SetUI4                           ; $BF2C: 4C 8B F2
-SuccessionMarchAnim:  ; (dispatch callback target)
+@SuccessionMarchAnim:  ; (dispatch callback target)
   LDA $0300                               ; $BF2F: AD 00 03
   CMP #$FF                                ; $BF32: C9 FF
   BNE @SuccessionMarchWait                ; $BF34: D0 4E
   LDA $0304                               ; $BF36: AD 04 03
   CMP #$FF                                ; $BF39: C9 FF
   BNE @SuccessionMarchWait                ; $BF3B: D0 47
-  LDA #<SuccessionConfirmValidTable       ; $BF3D: A9 AC
+  LDA #<@SuccessionConfirmValidTable       ; $BF3D: A9 AC
   STA a:$0010                             ; $BF3F: 8D 10 00
-  LDA #>SuccessionConfirmValidTable       ; $BF42: A9 BF
+  LDA #>@SuccessionConfirmValidTable       ; $BF42: A9 BF
   STA a:$0011                             ; $BF44: 8D 11 00
   LDA #$00                                ; $BF47: A9 00
   STA a:$0012                             ; $BF49: 8D 12 00
   JSR B1F_MenuStep2                        ; $BF4C: 20 1E ED
-  LDA #<SuccessionConfirmCursorPosTable   ; $BF4F: A9 B0
+  LDA #<@SuccessionConfirmCursorPosTable   ; $BF4F: A9 B0
   STA a:$0010                             ; $BF51: 8D 10 00
-  LDA #>SuccessionConfirmCursorPosTable   ; $BF54: A9 BF
+  LDA #>@SuccessionConfirmCursorPosTable   ; $BF54: A9 BF
   STA a:$0011                             ; $BF56: 8D 11 00
-  LDA #<SuccessionConfirmCursorSprite     ; $BF59: A9 B4
+  LDA #<@SuccessionConfirmCursorSprite     ; $BF59: A9 B4
   STA a:$0000                             ; $BF5B: 8D 00 00
-  LDA #>SuccessionConfirmCursorSprite     ; $BF5E: A9 BF
+  LDA #>@SuccessionConfirmCursorSprite     ; $BF5E: A9 BF
   STA a:$0001                             ; $BF60: 8D 01 00
   LDA a:$0012                             ; $BF63: AD 12 00
   JSR B1F_PointerTableLookup               ; $BF66: 20 F5 ED
@@ -4722,13 +4780,13 @@ SuccessionMarchAnim:  ; (dispatch callback target)
   LDA #$D3                                ; $BFA7: A9 D3
   JMP B1F_SetUI4                           ; $BFA9: 4C 8B F2
 ; --- Data Region ---
-SuccessionConfirmValidTable:
+@SuccessionConfirmValidTable:
   .byte $00,$01,$FF,$FF                   ; $BFAC: 00 01 FF FF ; indices 0-1, then $FF padding
-SuccessionConfirmCursorPosTable:
+@SuccessionConfirmCursorPosTable:
   .byte $C8,$58,$C8,$98                   ; $BFB0: C8 58 C8 98 ; Y=$C8 X=$58 (yes) / Y=$C8 X=$98 (no)
-SuccessionConfirmCursorSprite:
+@SuccessionConfirmCursorSprite:
   .byte $00,$07,$00,$00,$80               ; $BFB4: 00 07 00 00 80 ; dy, length, tile, attr, dx
-SuccessionArrivalScan:  ; (dispatch callback target)
+@SuccessionArrivalScan:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0300                               ; $BFB9: AD 00 03
   CMP #$FF                                ; $BFBC: C9 FF
@@ -4985,7 +5043,7 @@ SuccessionApplyListScan:  ; (dispatch callback target)
   CMP #$FF                                ; $C180: C9 FF
   BEQ @ListScanDone                       ; $C182: F0 19
   STA $040D                               ; $C184: 8D 0D 04
-  JSR ProvinceOfOfficerFind                ; $C187: 20 A1 C1
+  JSR @ProvinceOfOfficerFind                ; $C187: 20 A1 C1
   BCS @ListScanFound                      ; $C18A: B0 06
   INC a:$0012                             ; $C18C: EE 12 00
   JMP @ListScanLoop                       ; $C18F: 4C 7B C1
@@ -4998,7 +5056,7 @@ SuccessionApplyListScan:  ; (dispatch callback target)
 @ListScanDone:
   INC $0402                               ; $C19D: EE 02 04
   RTS                                     ; $C1A0: 60
-ProvinceOfOfficerFind:
+@ProvinceOfOfficerFind:
   LDX #$00                                ; $C1A1: A2 00
 @ProvinceScanLoop:
   TXA                                     ; $C1A3: 8A
@@ -5044,7 +5102,7 @@ SuccessionApplyStrongestScan:  ; (dispatch callback target)
   AND #$07                                ; $C1ED: 29 07
   CMP $040A                               ; $C1EF: CD 0A 04
   BNE @StrongestScanNext                  ; $C1F2: D0 03
-  JSR StrongestOfficerFind                 ; $C1F4: 20 1D C2
+  JSR @StrongestOfficerFind                 ; $C1F4: 20 1D C2
 @StrongestScanNext:
   INX                                     ; $C1F7: E8
   CPX #$1E                                ; $C1F8: E0 1E
@@ -5064,7 +5122,7 @@ SuccessionApplyStrongestScan:  ; (dispatch callback target)
   LDA #$00                                ; $C217: A9 00
   STA $0402                               ; $C219: 8D 02 04
   RTS                                     ; $C21C: 60
-StrongestOfficerFind:
+@StrongestOfficerFind:
   LDA a:$0000                             ; $C21D: AD 00 00
   STA a:$0002                             ; $C220: 8D 02 00
   LDA a:$0001                             ; $C223: AD 01 00
@@ -5167,7 +5225,7 @@ SuccessionApplyRosterScan:
   JSR B1F_RandomBelow100                   ; $C2F7: 20 43 E8
   CMP #$14                                ; $C2FA: C9 14
   BCS @SuccessionApplyScanNext                    ; $C2FC: B0 03
-  JSR ArrivalRosterShift                   ; $C2FE: 20 18 C3
+  JSR @ArrivalRosterShift                   ; $C2FE: 20 18 C3
 @SuccessionApplyScanNext:
 ; --- Code Region ---
   INC a:$0013                             ; $C301: EE 13 00
@@ -5180,7 +5238,7 @@ SuccessionApplyRosterScan:
   CMP #$1E                                ; $C311: C9 1E
   BCC @ShiftProvinceLoop                  ; $C313: 90 96
   JMP SuccessionApplyBoostAndExit                 ; $C315: 4C 8E C2
-ArrivalRosterShift:
+@ArrivalRosterShift:
   LDA a:$0031                             ; $C318: AD 31 00
   CMP $040D                               ; $C31B: CD 0D 04
   BNE @RosterShiftStart                   ; $C31E: D0 01
@@ -5755,7 +5813,7 @@ SuccessionArrivalOfficerTable:
   RTS                                     ; $C736: 60
 .endproc
 ; --- Per-Province map camera tables (30 Provinces each): target camera X/Y ---
-; --- Shared by AttractDemoDispatch ($A14E), OfficerStatusScene ($AEA1) and
+; --- Shared by CountryRotationDispatch ($A14E), OfficerStatusScene ($AEA1) and
 ; --- MapProvinceUnderCamera ($C71F): used by multiple procs, so they live
 ; --- outside any .proc.
 ProvinceCameraXTable:
@@ -5776,7 +5834,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ;   1. runs CountryControlToggle ($CD8C), the Start+A "control every Country"
 ;      switch (inert in the shipped ROM: fixed-bank padding byte $FFF9 is $00,
 ;      so the $FF arm-check never passes),
-;   2. refreshes the Ruler card through bank $1D BankedDataHandler, and
+;   2. refreshes the Ruler card through bank $1D RulerCardRefresh, and
 ;   3. decodes the mailbox code and starts the matching presentation.
 ; Mailbox codes (requester -> sub-state):
 ;   $FE ResolveProvinceConquest (prg_0a_0b $A8C1, human defender: war pending)
@@ -5790,7 +5848,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ;   $F8 prg_0a_0b $B786 (Province transfer, needs answer)  -> sub-state $10
 ;   $FF turn exhausted (prg_0a_0b $D147 action-budget underflow, prg_08_09
 ;       $A093/$BAAD) -> counts $040C; after $20 exhausted turns the map screen
-;       returns to frame state 0 with the game-state flag $6F05 cleared
+;       returns to frame state 0 with the OrderScroll $6F05 cleared
 ; Every presentation ends either by setting $6F8B directly (sub-states $A/$C:
 ; $01 = hand over to the War phase) or through RequestAckReturn ($CD6F), which
 ; writes the result code $040C back into $6F8B - releasing the requester's
@@ -5804,9 +5862,9 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   JSR B1F_CallbackDispatcher              ; $C776: 20 DE EA
 ; --- Inline pointer table (17 entries) ---
   .word @RulerPanelOpen                    ; $C779: 9B C7 ; sub-state 0
-  .word RequestPoll                       ; $C77B: E0 C7 ; sub-state 1
-  .word RequestPoll                       ; $C77D: E0 C7 ; sub-state 2
-  .word RequestPoll                       ; $C77F: E0 C7 ; sub-state 3
+  .word @RequestPoll                       ; $C77B: E0 C7 ; sub-state 1
+  .word @RequestPoll                       ; $C77D: E0 C7 ; sub-state 2
+  .word @RequestPoll                       ; $C77F: E0 C7 ; sub-state 3
   .word WarMenuCloseWait                  ; $C781: D2 C9 ; sub-state 4
   .word ArmyDeploySceneTrigger            ; $C783: 42 CA ; sub-state 5
   .word ArmyDeploySceneTrigger            ; $C785: 42 CA ; sub-state 6
@@ -5824,7 +5882,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ; $C79B: RulerPanelOpen (sub-state 0)
 ; Opens the Ruler status overlay (UI $BB) for the current Ruler, parks the
 ; camera Y off-screen, seeds the strategy-mode AI action budget $6F5D
-; (sram_action_budget in prg_0a_0b) from AiActionBudgetTable ($6F05 * 10),
+; (sram_action_budget in prg_0a_0b) from @AiActionBudgetTable ($6F05 * 10),
 ; clears the request mailbox $6F8B and the
 ; per-turn counters $6F5B/$6F5C/$6F62, then advances to the poll sub-state 1.
 ;===============================================================================
@@ -5839,8 +5897,8 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   INC $0401                               ; $C7AC: EE 01 04 ; -> sub-state 1
   LDA #$00                                ; $C7AF: A9 00
   STA $040C                               ; $C7B1: 8D 0C 04 ; step counter / result code
-  LDY $6F05                               ; $C7B4: AC 05 6F ; SRAM game-state flag
-  LDA AiActionBudgetTable,Y               ; $C7B7: B9 CC C7 ; AI action budget = flag * 10
+  LDY $6F05                               ; $C7B4: AC 05 6F ; current country's OrderScroll (command points)
+  LDA @AiActionBudgetTable,Y              ; $C7B7: B9 CC C7 ; AI action budget = OrderScroll * 10
   STA $6F5D                               ; $C7BA: 8D 5D 6F ; strategy AI action budget
   LDA #$00                                ; $C7BD: A9 00
   STA $6F8B                               ; $C7BF: 8D 8B 6F ; clear request mailbox
@@ -5848,30 +5906,74 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   STA $6F5C                               ; $C7C5: 8D 5C 6F
   STA $6F62                               ; $C7C8: 8D 62 6F ; global action phase
   RTS                                     ; $C7CB: 60
-; --- Strategy-mode AI action budget table: game-state flag $6F05 (0-19) ->
-; --- flag*10; seeds sram_action_budget $6F5D (prg_0a_0b) each ruler turn ---
-AiActionBudgetTable:
+; --- Strategy-mode AI action budget table: OrderScroll $6F05 (0-19) ->
+; --- OrderScroll*10; seeds sram_action_budget $6F5D (prg_0a_0b) each ruler turn ---
+@AiActionBudgetTable:
   .byte $00,$0A,$14,$1E,$28,$32,$3C,$46   ; $C7CC: 00 0A 14 1E 28 32 3C 46
   .byte $50,$5A,$64,$6E,$78,$82,$8C,$96   ; $C7D4: 50 5A 64 6E 78 82 8C 96
   .byte $A0,$AA,$B4,$BE                   ; $C7DC: A0 AA B4 BE
 ;===============================================================================
-; $C7E0: RequestPoll (sub-states 1-3)
-; Per-tick poll loop, also the idle state of frame state 9. $040C is a shared
-; step counter that doubles as the bank-$1D card refresh mode, the exhausted
-; turn counter and the prompt result code:
-;   $040C == 0 (first tick after the panel opened or after an acknowledge):
-;     wait until both overlay slots $0300/$0304 are idle ($FF), refresh the
-;     Ruler card through bank $1D BankedDataHandler with mode 0, then bump
-;     $040C to 1 which arms the mailbox decode path below.
-;   $040C != 0: refresh the card with mode $040C, then decode the mailbox $6F8B
-;     and jump to the matching request handler. Code $FF (turn exhausted) is
-;     not a presentation: it just counts $040C and, once it reaches $20, tears
-;     the map screen down back to frame state 0.
+; $C7E0: RequestPoll (sub-states 1-3) - the steady/idle state of frame state 9
+; Entered once per unfrozen frame (MapScreenFrameUpdate gates the whole
+; frame-state machine on $0087 bit 7, so an in-flight palette fade freezes it).
+; The name records why the state exists and what ends it: it samples the
+; strategy engine's request mailbox $6F8B and routes the request into a
+; presentation sub-state. Note the asymmetry that the name does not cover: the
+; mailbox is read in the polling phase only, while the bank-$1D Ruler card
+; refresh runs unconditionally on every tick.
+; Phase gate: $040C == 0 -> arming phase, $040C != 0 -> polling phase. $040C is
+; one shared cell acting as poll phase, RulerCardRefresh mode, exhausted-turn
+; counter and prompt result code.
+;
+; Arming phase ($C7E8-$C818) - draws the card, never reads the mailbox:
+;   Gate: both overlay/animation queue slots $0300 and $0304 must be idle ($FF),
+;   otherwise the tick ends at @IdleExit and the draw is retried next frame.
+;   Then $000B = the acting Country's Ruler Officer id ($6F03 ->
+;   B1F_GetCountryDataPtr, record[0]), $000A = label variant 0, $000C = mode 0,
+;   and the banked call to B1D_1E_RulerCardRefresh clears $0380-$03B0 and
+;   rebuilds the tile stream (the BG label kanji row) on top of posting the name
+;   sprites. INC $040C at $C815 arms the polling phase, which then stays armed
+;   until some handler resets the cell to 0.
+;
+; Polling phase ($C81B-$C86D) - refresh first, then decode the mailbox:
+;   Same Ruler lookup and same banked call, but $000C = mode $040C (non-zero =
+;   name sprites only; the callee only tests for zero, so any armed value behaves
+;   alike). The sprite half has to be re-posted every frame because the NMI
+;   zeroes the OAM slot cursor $007C. LDA $6F8B then feeds a CMP/BEQ cascade;
+;   unmatched values fall through to @PollDone. The $FF turn-exhausted code is
+;   handled last, below.
+;     $FE -> @ReqWarPending           $C899 -> sub-state 4
+;     $FD -> @ReqCountryAbsorbed      $C8CF -> sub-state 8
+;     $FC -> @ReqOfficerSwapNotice    $C905 -> sub-state $B
+;     $FB -> @ReqOfficerRemovalNotice $C91B -> sub-state $C
+;     $FA -> ReqProvinceSweepNotice   $C942 -> sub-state $E
+;     $F9 -> ReqAbsorbSweepNotice     $C97D -> sub-state $F
+;     $F8 -> ReqTransferConfirm       $C9AB -> sub-state $10 (needs an answer)
+;     $00 -> @PollDone                                       idle, nothing to play
+;   Those targets are tail labels of this same proc, not the sub-state handlers
+;   they point at: each one only sets up its presentation (map dirty flags, the
+;   bank-$1D menu id $04A0 and extra parameter $04D6, a further card refresh
+;   with label variant 1) and then writes $0401 plus $040C = 0, so the next tick
+;   leaves this handler and a later return re-arms a full card rebuild. The
+;   requesters behind the codes are listed in the StrategyRequestDispatch header.
+;
+; Turn-exhausted path ($C86B-$C896, mailbox $FF) - not a presentation:
+;   $040C is reused as a counter of exhausted turns; below $20 the tick just
+;   ends. On the 32nd the map screen is torn down: $0400/$0401 = 0 (back to frame
+;   state 0, the ruler intro), OrderScroll $6F05 = 0 (no active game), and
+;   RulerCardRefresh is called a third time with $000B = $FF (no Officer -> no
+;   name sprites), $000A = $FF (blank label cells) and $000C = 0 (rebuild) - i.e.
+;   the card is cleared. The engine parks its own turn cycle when it posts $FF
+;   ($6F5B = 2, $6F8D = 0), so this branch only shuts the presentation down.
+;
+; Side duty: the JSR CountryControlToggle at $C7E0 is the Start+A "control every
+;   Country" debug switch, inert in the shipped ROM (its arm check reads
+;   fixed-bank padding $FFF9 = $00); see the $CD8C header.
 ;===============================================================================
-RequestPoll:  ; sub-states 1-3
+@RequestPoll:  ; sub-states 1-3
   JSR CountryControlToggle                ; $C7E0: 20 8C CD ; Start+A: control every Country (inert: see $CD8C)
-  LDA $040C                               ; $C7E3: AD 0C 04 ; step counter / result code
-  BNE @DecodeMailbox                      ; $C7E6: D0 33     ; armed: poll the mailbox
+  LDA $040C                               ; $C7E3: AD 0C 04 ; phase gate: 0 = arming, non-zero = polling
+  BNE @DecodeMailbox                      ; $C7E6: D0 33     ; armed: polling phase
   LDA $0304                               ; $C7E8: AD 04 03 ; overlay slot 1 ($FF = idle)
   CMP #$FF                                ; $C7EB: C9 FF
   BNE @IdleExit                           ; $C7ED: D0 29
@@ -5885,17 +5987,17 @@ RequestPoll:  ; sub-states 1-3
   STA a:$000B                             ; $C800: 8D 0B 00
   LDA #$00                                ; $C803: A9 00
   STA a:$000A                             ; $C805: 8D 0A 00
-  LDA $040C                               ; $C808: AD 0C 04 ; = 0: plain card refresh
+  LDA $040C                               ; $C808: AD 0C 04 ; = 0: card refresh mode 0 (clear + rebuild)
   STA a:$000C                             ; $C80B: 8D 0C 00
   LDY #$3D                                ; $C80E: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $C810: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $C813: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $C813: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh, mode 0 = full card rebuild)
 ; --- Resumed code after trampoline return ---
   INC $040C                               ; $C815: EE 0C 04 ; arm the mailbox decode path
 @IdleExit:
   JMP @PollDone                           ; $C818: 4C 98 C8
-@DecodeMailbox:
+@DecodeMailbox:  ; polling phase
   LDA $6F03                               ; $C81B: AD 03 6F ; current Country slot
   JSR B1F_GetCountryDataPtr               ; $C81E: 20 68 F3
   LDY #$00                                ; $C821: A0 00
@@ -5903,27 +6005,27 @@ RequestPoll:  ; sub-states 1-3
   STA a:$000B                             ; $C825: 8D 0B 00
   LDA #$00                                ; $C828: A9 00
   STA a:$000A                             ; $C82A: 8D 0A 00
-  LDA $040C                               ; $C82D: AD 0C 04 ; card refresh mode
+  LDA $040C                               ; $C82D: AD 0C 04 ; card refresh mode, non-zero = name sprites only
   STA a:$000C                             ; $C830: 8D 0C 00
   LDY #$3D                                ; $C833: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $C835: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $C838: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $C838: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh, mode $040C = name sprites only)
 ; --- Resumed code after trampoline return ---
   LDA $6F8B                               ; $C83A: AD 8B 6F ; request mailbox
   CMP #$FE                                ; $C83D: C9 FE
-  BEQ ReqWarPending                       ; $C83F: F0 58     ; defender still has forces
+  BEQ @ReqWarPending                       ; $C83F: F0 58     ; defender still has forces
   CMP #$FD                                ; $C841: C9 FD
   BNE @NotAbsorbed                        ; $C843: D0 03
-  JMP ReqCountryAbsorbed                  ; $C845: 4C CF C8 ; Country fully absorbed
+  JMP @ReqCountryAbsorbed                  ; $C845: 4C CF C8 ; Country fully absorbed
 @NotAbsorbed:
   CMP #$FC                                ; $C848: C9 FC
   BNE @NotOfficerSwap                     ; $C84A: D0 03
-  JMP ReqOfficerSwapNotice                ; $C84C: 4C 05 C9
+  JMP @ReqOfficerSwapNotice                ; $C84C: 4C 05 C9
 @NotOfficerSwap:
   CMP #$FB                                ; $C84F: C9 FB
   BNE @NotOfficerRemoval                  ; $C851: D0 03
-  JMP ReqOfficerRemovalNotice             ; $C853: 4C 1B C9
+  JMP @ReqOfficerRemovalNotice             ; $C853: 4C 1B C9
 @NotOfficerRemoval:
   CMP #$FA                                ; $C856: C9 FA
   BNE @NotProvinceSweep                   ; $C858: D0 03
@@ -5946,7 +6048,7 @@ RequestPoll:  ; sub-states 1-3
   LDA #$00                                ; $C879: A9 00
   STA $0400                               ; $C87B: 8D 00 04 ; back to frame state 0 (ruler intro)
   STA $0401                               ; $C87E: 8D 01 04
-  STA $6F05                               ; $C881: 8D 05 6F ; game-state flag = no active game
+  STA $6F05                               ; $C881: 8D 05 6F ; OrderScroll = 0 (no active game)
   LDA #$FF                                ; $C884: A9 FF
   STA a:$000B                             ; $C886: 8D 0B 00
   STA a:$000A                             ; $C889: 8D 0A 00 ; Officer id $FFFF = none
@@ -5955,7 +6057,7 @@ RequestPoll:  ; sub-states 1-3
   LDY #$3D                                ; $C891: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $C893: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $C896: 42 A0 (bank $1D $A042: clears the Ruler card)
+  .word B1D_1E_RulerCardRefresh           ; $C896: 42 A0 (bank $1D $A042 -> RulerCardRefresh: Officer/label $FF, mode 0 = clears the card)
 @PollDone:
   RTS                                     ; $C898: 60
 ;===============================================================================
@@ -5967,7 +6069,7 @@ RequestPoll:  ; sub-states 1-3
 ; menu skip its PPU re-init because the map screen is already up) and moves to
 ; sub-state 4.
 ;===============================================================================
-ReqWarPending:  ; mailbox $FE
+@ReqWarPending:  ; mailbox $FE
   JSR MapHalfFlagByProvince               ; $C899: 20 2A CA ; $0150 = map half of Province $003A
   LDA $6F03                               ; $C89C: AD 03 6F ; current Country slot
   JSR B1F_GetCountryDataPtr               ; $C89F: 20 68 F3
@@ -5975,13 +6077,13 @@ ReqWarPending:  ; mailbox $FE
   LDA ($00),Y                             ; $C8A4: B1 00     ; Ruler Officer id
   STA a:$000B                             ; $C8A6: 8D 0B 00
   LDA #$01                                ; $C8A9: A9 01
-  STA a:$000A                             ; $C8AB: 8D 0A 00 ; card slot 1
+  STA a:$000A                             ; $C8AB: 8D 0A 00 ; label variant 1
   LDA #$00                                ; $C8AE: A9 00
   STA a:$000C                             ; $C8B0: 8D 0C 00 ; mode 0
   LDY #$3D                                ; $C8B3: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $C8B5: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $C8B8: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $C8B8: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh)
 ; --- Resumed code after trampoline return ---
   LDA #$09                                ; $C8BA: A9 09
   STA $04A0                               ; $C8BC: 8D A0 04 ; bank $1D menu id 9 (MenuAction08)
@@ -5998,7 +6100,7 @@ ReqWarPending:  ; mailbox $FE
 ; deploy: same war menu 9 is opened but with extra parameter $04D6 = $A2 (menu
 ; does re-init the PPU) and the flow starts directly at the post-war sub-state 8.
 ;===============================================================================
-ReqCountryAbsorbed:  ; mailbox $FD
+@ReqCountryAbsorbed:  ; mailbox $FD
   JSR MapHalfFlagByProvince               ; $C8CF: 20 2A CA
   LDA $6F03                               ; $C8D2: AD 03 6F
   JSR B1F_GetCountryDataPtr               ; $C8D5: 20 68 F3
@@ -6006,13 +6108,13 @@ ReqCountryAbsorbed:  ; mailbox $FD
   LDA ($00),Y                             ; $C8DA: B1 00     ; Ruler Officer id
   STA a:$000B                             ; $C8DC: 8D 0B 00
   LDA #$01                                ; $C8DF: A9 01
-  STA a:$000A                             ; $C8E1: 8D 0A 00 ; card slot 1
+  STA a:$000A                             ; $C8E1: 8D 0A 00 ; label variant 1
   LDA #$00                                ; $C8E4: A9 00
   STA a:$000C                             ; $C8E6: 8D 0C 00 ; mode 0
   LDY #$3D                                ; $C8E9: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $C8EB: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $C8EE: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $C8EE: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh)
 ; --- Resumed code after trampoline return ---
   LDA #$09                                ; $C8F0: A9 09
   STA $04A0                               ; $C8F2: 8D A0 04 ; bank $1D menu id 9 (MenuAction08)
@@ -6029,7 +6131,7 @@ ReqCountryAbsorbed:  ; mailbox $FD
 ; become $01. Shows overlay $C1 for the Officer in $0038 and moves to the
 ; sub-state $B/$C delay-and-acknowledge chain.
 ;-------------------------------------------------------------------------------
-ReqOfficerSwapNotice:  ; mailbox $FC
+@ReqOfficerSwapNotice:  ; mailbox $FC
   LDA a:$0038                             ; $C905: AD 38 00 ; strategy-layer Officer id
   STA $042C                               ; $C908: 8D 2C 04 ; overlay: Officer
   LDA #$C1                                ; $C90B: A9 C1
@@ -6046,11 +6148,11 @@ ReqOfficerSwapNotice:  ; mailbox $FC
 ; up from OfficerCategoryTileTable by the Officer category $0040, then moves
 ; straight to the acknowledge sub-state $C.
 ;-------------------------------------------------------------------------------
-ReqOfficerRemovalNotice:  ; mailbox $FB
+@ReqOfficerRemovalNotice:  ; mailbox $FB
   LDA a:$0038                             ; $C91B: AD 38 00 ; strategy-layer Officer id
   STA $042C                               ; $C91E: 8D 2C 04 ; overlay: Officer
   LDY a:$0040                             ; $C921: AC 40 00 ; Officer category (0-6)
-  LDA OfficerCategoryTileTable,Y          ; $C924: B9 3A C9
+  LDA @OfficerCategoryTileTable,Y          ; $C924: B9 3A C9
   STA $042D                               ; $C927: 8D 2D 04 ; overlay: category tile
   LDA #$C3                                ; $C92A: A9 C3
   JSR B1F_SetUI4                          ; $C92C: 20 8B F2
@@ -6060,7 +6162,7 @@ ReqOfficerRemovalNotice:  ; mailbox $FB
   STA $040C                               ; $C936: 8D 0C 04
   RTS                                     ; $C939: 60
 ; --- Officer category (0-6) -> overlay tile for UI $C3 (8th byte is padding) ---
-OfficerCategoryTileTable:
+@OfficerCategoryTileTable:
   .byte $AD,$08,$83,$8A,$DE,$DC,$B6,$00   ; $C93A: AD 08 83 8A DE DC B6 00
 ;-------------------------------------------------------------------------------
 ; $C942: ReqProvinceSweepNotice (mailbox $FA)
@@ -6162,13 +6264,13 @@ WarMenuCloseWait:  ; sub-state 4
   LDA ($00),Y                             ; $C9DD: B1 00     ; Ruler Officer id
   STA a:$000B                             ; $C9DF: 8D 0B 00
   LDA #$01                                ; $C9E2: A9 01
-  STA a:$000A                             ; $C9E4: 8D 0A 00 ; card slot 1
+  STA a:$000A                             ; $C9E4: 8D 0A 00 ; label variant 1
   LDA #$01                                ; $C9E7: A9 01
   STA a:$000C                             ; $C9E9: 8D 0C 00 ; mode 1
   LDY #$3D                                ; $C9EC: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $C9EE: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $C9F1: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $C9F1: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh)
 ; --- Resumed code after trampoline return ---
   LDA $04A0                               ; $C9F3: AD A0 04 ; bank $1D menu flag
   ORA $0140                               ; $C9F6: 0D 40 01 ; screen transition flag
@@ -6185,13 +6287,13 @@ WarMenuCloseWait:  ; sub-state 4
 ;-------------------------------------------------------------------------------
 MarkSweepProvincesDirty:
   LDA $050E                               ; $CA02: AD 0E 05 ; battle Province index
-  JSR MarkProvinceZoneDirty               ; $CA05: 20 0F CA
+  JSR @MarkProvinceZoneDirty               ; $CA05: 20 0F CA
   LDA a:$003A                             ; $CA08: AD 3A 00 ; target Province id
-  JSR MarkProvinceZoneDirty               ; $CA0B: 20 0F CA
+  JSR @MarkProvinceZoneDirty               ; $CA0B: 20 0F CA
   RTS                                     ; $CA0E: 60
 ; Zone id encoding: bits 0-2 = bit position in the bitmap byte, bits 3-7 = byte
 ; index, so bit = $04E0[id>>3] mask 1<<(id&7) (same scheme as MapProvinceDirtyMark).
-MarkProvinceZoneDirty:
+@MarkProvinceZoneDirty:
   PHA                                     ; $CA0F: 48
   AND #$07                                ; $CA10: 29 07     ; bit index within byte
   TAX                                     ; $CA12: AA
@@ -6201,10 +6303,10 @@ MarkProvinceZoneDirty:
   LSR                                     ; $CA16: 4A         ; A = id / 8
   TAY                                     ; $CA17: A8         ; bitmap byte index
   LDA $04E0,Y                             ; $CA18: B9 E0 04  ; dirty bitmap byte
-  ORA StrategyDirtyBitMaskTable,X         ; $CA1B: 1D 22 CA  ; set the zone bit
+  ORA @StrategyDirtyBitMaskTable,X         ; $CA1B: 1D 22 CA  ; set the zone bit
   STA $04E0,Y                             ; $CA1E: 99 E0 04
   RTS                                     ; $CA21: 60
-StrategyDirtyBitMaskTable:
+@StrategyDirtyBitMaskTable:
   .byte $01,$02,$04,$08,$10,$20,$40,$80   ; $CA22: 01 02 04 08 10 20 40 80 ; duplicate of MapProvinceDirtyBitMaskTable ($BBFA)
 ;-------------------------------------------------------------------------------
 ; $CA2A: MapHalfFlagByProvince
@@ -6280,13 +6382,13 @@ PostWarRulerMenu:  ; sub-state 8
   LDA ($00),Y                             ; $CA8F: B1 00     ; Ruler Officer id
   STA a:$000B                             ; $CA91: 8D 0B 00
   LDA #$01                                ; $CA94: A9 01
-  STA a:$000A                             ; $CA96: 8D 0A 00 ; card slot 1
+  STA a:$000A                             ; $CA96: 8D 0A 00 ; label variant 1
   LDA #$01                                ; $CA99: A9 01
   STA a:$000C                             ; $CA9B: 8D 0C 00 ; mode 1
   LDY #$3D                                ; $CA9E: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $CAA0: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $CAA3: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $CAA3: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh)
 ; --- Resumed code after trampoline return ---
   LDA $04A0                               ; $CAA5: AD A0 04 ; bank $1D menu flag
   ORA $0140                               ; $CAA8: 0D 40 01 ; screen transition flag
@@ -6297,13 +6399,13 @@ PostWarRulerMenu:  ; sub-state 8
   LDA ($00),Y                             ; $CAB5: B1 00     ; Ruler Officer id
   STA a:$000B                             ; $CAB7: 8D 0B 00
   LDA #$02                                ; $CABA: A9 02
-  STA a:$000A                             ; $CABC: 8D 0A 00 ; card slot 2
+  STA a:$000A                             ; $CABC: 8D 0A 00 ; label variant 2
   LDA #$00                                ; $CABF: A9 00
   STA a:$000C                             ; $CAC1: 8D 0C 00 ; mode 0
   LDY #$3D                                ; $CAC4: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $CAC6: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $CAC9: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $CAC9: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh)
 ; --- Resumed code after trampoline return ---
   LDA #$05                                ; $CACB: A9 05
   STA $04A0                               ; $CACD: 8D A0 04 ; bank $1D menu id 5
@@ -6325,13 +6427,13 @@ PostWarPairedRulerMenu:  ; sub-state 9
   LDA ($00),Y                             ; $CADF: B1 00     ; Ruler Officer id
   STA a:$000B                             ; $CAE1: 8D 0B 00
   LDA #$01                                ; $CAE4: A9 01
-  STA a:$000A                             ; $CAE6: 8D 0A 00 ; card slot 1
+  STA a:$000A                             ; $CAE6: 8D 0A 00 ; label variant 1
   LDA #$01                                ; $CAE9: A9 01
   STA a:$000C                             ; $CAEB: 8D 0C 00 ; mode 1
   LDY #$3D                                ; $CAEE: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $CAF0: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $CAF3: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $CAF3: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh)
 ; --- Resumed code after trampoline return ---
   LDA $04A0                               ; $CAF5: AD A0 04 ; bank $1D menu flag
   ORA $0140                               ; $CAF8: 0D 40 01 ; screen transition flag
@@ -6350,13 +6452,13 @@ PostWarPairedRulerMenu:  ; sub-state 9
   LDA ($00),Y                             ; $CB10: B1 00     ; opposing Ruler Officer id
   STA a:$000B                             ; $CB12: 8D 0B 00
   LDA #$03                                ; $CB15: A9 03
-  STA a:$000A                             ; $CB17: 8D 0A 00 ; card slot 3
+  STA a:$000A                             ; $CB17: 8D 0A 00 ; label variant 3
   LDA #$00                                ; $CB1A: A9 00
   STA a:$000C                             ; $CB1C: 8D 0C 00 ; mode 0
   LDY #$3D                                ; $CB1F: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $CB21: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $CB24: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $CB24: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh)
 ; --- Resumed code after trampoline return ---
   LDA #$06                                ; $CB26: A9 06
   STA $04A0                               ; $CB28: 8D A0 04 ; bank $1D menu id 6
@@ -6386,13 +6488,13 @@ WarPhaseHandoff:  ; sub-state $A
   LDA ($00),Y                             ; $CB45: B1 00     ; opposing Ruler Officer id
   STA a:$000B                             ; $CB47: 8D 0B 00
   LDA #$01                                ; $CB4A: A9 01
-  STA a:$000A                             ; $CB4C: 8D 0A 00 ; card slot 1
+  STA a:$000A                             ; $CB4C: 8D 0A 00 ; label variant 1
   LDA #$01                                ; $CB4F: A9 01
   STA a:$000C                             ; $CB51: 8D 0C 00 ; mode 1
   LDY #$3D                                ; $CB54: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $CB56: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_BankedDataHandler          ; $CB59: 42 A0 (bank $1D $A042 -> JMP $AA37: BankedDataHandler)
+  .word B1D_1E_RulerCardRefresh           ; $CB59: 42 A0 (bank $1D $A042 -> JMP $AA37: RulerCardRefresh)
 ; --- Resumed code after trampoline return ---
   LDA $04A0                               ; $CB5B: AD A0 04 ; bank $1D menu flag
   ORA $0140                               ; $CB5E: 0D 40 01 ; screen transition flag
@@ -6622,20 +6724,20 @@ TransferPromptChoose:  ; phase 1
   STA a:$000A                             ; $CCE0: 8D 0A 00 ; card layout $A7
   LDX #$00                                ; $CCE3: A2 00     ; card slot 0
   JSR OfficerCardRender                   ; $CCE5: 20 1F CE ; Officer card renderer
-  LDA #<ConfirmCursorValidTable           ; $CCE8: A9 46
+  LDA #<@ConfirmCursorValidTable           ; $CCE8: A9 46
   STA a:$0010                             ; $CCEA: 8D 10 00 ; ConfirmCursorValidTable lo
-  LDA #>ConfirmCursorValidTable           ; $CCED: A9 CD
+  LDA #>@ConfirmCursorValidTable           ; $CCED: A9 CD
   STA a:$0011                             ; $CCEF: 8D 11 00 ; ... hi
   LDA #$00                                ; $CCF2: A9 00
   STA a:$0012                             ; $CCF4: 8D 12 00 ; cursor index
   JSR B1F_MenuStep2                       ; $CCF7: 20 1E ED ; 2-way cursor -> $0012
-  LDA #<ConfirmCursorPosTable             ; $CCFA: A9 4A
+  LDA #<@ConfirmCursorPosTable             ; $CCFA: A9 4A
   STA a:$0010                             ; $CCFC: 8D 10 00 ; ConfirmCursorPosTable lo
-  LDA #>ConfirmCursorPosTable             ; $CCFF: A9 CD
+  LDA #>@ConfirmCursorPosTable             ; $CCFF: A9 CD
   STA a:$0011                             ; $CD01: 8D 11 00 ; ... hi
-  LDA #<ConfirmCursorSprite               ; $CD04: A9 4E
+  LDA #<@ConfirmCursorSprite               ; $CD04: A9 4E
   STA a:$0000                             ; $CD06: 8D 00 00 ; ConfirmCursorSprite lo
-  LDA #>ConfirmCursorSprite               ; $CD09: A9 CD
+  LDA #>@ConfirmCursorSprite               ; $CD09: A9 CD
   STA a:$0001                             ; $CD0B: 8D 01 00 ; ... hi
   LDA a:$0012                             ; $CD0E: AD 12 00 ; chosen cursor index
   JSR B1F_PointerTableLookup              ; $CD11: 20 F5 ED ; draw the cursor sprite
@@ -6664,11 +6766,11 @@ TransferPromptChoose:  ; phase 1
   RTS                                     ; $CD45: 60
 ; --- Yes/No cursor data: valid index list, sprite Y/X pair per index, and the
 ;     1-sprite cursor descriptor consumed by B1F_PointerTableLookup ---
-ConfirmCursorValidTable:
+@ConfirmCursorValidTable:
   .byte $00,$01,$FF,$FF                   ; $CD46: 00 01 FF FF ; indices 0-1, then $FF padding
-ConfirmCursorPosTable:
+@ConfirmCursorPosTable:
   .byte $D6,$58,$D6,$98                   ; $CD4A: D6 58 D6 98 ; Y=$D6 X=$58 (yes) / Y=$D6 X=$98 (no)
-ConfirmCursorSprite:
+@ConfirmCursorSprite:
   .byte $00,$07,$00,$00,$80               ; $CD4E: 00 07 00 00 80 ; dy, length, tile, attr, dx
 TransferPromptWait:  ; phase 2
   LDA $0300                               ; $CD53: AD 00 03 ; overlay slot 0 ($FF = idle)

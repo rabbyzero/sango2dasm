@@ -124,11 +124,11 @@ Dynamic $8000 tables: `TileBankTable` ($B8BB in $08), `BattleBankTable`
 
 | Caller | Y | Target pair | Purpose |
 |---|---|---|---|
-| State_NewGameInit $E110 | $37 | $17+$18 | `B17_18_PpuCopyRaw` display |
-| State_NewGameInit $E118, $E134 | $3D | $1D+$1E | SRAM flag / `B1D_1E_MenuUpdate` |
+| State_StrategyMapLaunch $E110 | $37 | $17+$18 | `B17_18_PpuCopyRaw` display |
+| State_StrategyMapLaunch $E118, $E134 | $3D | $1D+$1E | palette record / `B1D_1E_MenuUpdate` |
 | State_StrategyAiTurnFrame $E182 | $2A | $0A+$0B | Strategy Mode AI turn dispatch (`StrategyAiTurnDispatch_Entry` $A000) |
 | State_KingdomSelect $E19A | $37 | $17+$18 | `B17_18_DataRecordLoader` |
-| State_KingdomSelect $E1A9 | $2C | $0C+$0D | `B0C_0D_OfficerTransferCalc_Entry` (scenario mode) |
+| State_KingdomSelect $E1A9 | $2C | $0C+$0D | `B0C_0D_OfficerFateCommitDispatch_Entry` (post-battle officer-fate commit, $0500=$0B) |
 | State_KingdomSelect $E1B4 | $28 | $08+$09 | `B17_18_PpuCopyRaw`-equivalent in $08 (normal mode) |
 | State_KingdomSelect $E1D9 | $3D | $1D+$1E | `B1D_1E_StateHandler` |
 | State_WarAiTurnFrame $E226 | $28 | $08+$09 | War/tactical AI turn frame (`B08_09_AiTurnProcess_Entry` $A000) |
@@ -145,14 +145,25 @@ Dynamic $8000 tables: `TileBankTable` ($B8BB in $08), `BattleBankTable`
 
 | Caller | Y | Bank | Purpose |
 |---|---|---|---|
-| State_NewGameInit $E0E9 | $30 | $10 | data read after pointer setup |
-| State_BattlePhase $E2FC | $30 | $10 | battle data |
+| State_StrategyMapLaunch $E0E9 | $30 | $10 | `StrategyMapBaseScreen` -> PPU $2000 (1KB via `PpuCopyRaw` $E113) |
+| State_DuelSceneLaunch $E2FC (older name in this table: State_BattlePhase) | $30 | $10 | `DuelBaseScreen` -> PPU $2000 (1KB via `PpuCopyRaw` $E318) |
 | State_TerritoryView $E38B | $35 | $15 | map graphics |
 | State_NewGameSetup $E3FD | $32 | $12 | new-game setup tiles |
 | State_EventMessageScene $E479 | $36 | $16 | blank message scene tiles |
 | GetNameDisplayScale $F30D | $30 | $10 | name width data |
 | GetOfficerRomRecordAddr $F389 | $31 | $11 | officer records |
 | SoundNotePlayer $E60B | $22 | $02 | wavetable/note data |
+
+Two caveats on this table: some caller names are the older ones used in
+`bank_switch_map.md` and disagree with `prg_1f.asm` (`State_TerritoryView` $E37C
+= `State_CountryMapView`) - neither name describes the mode, see
+`code/initial_data_tables.md` §9 for the sub-state based attribution. Two rows
+have already been corrected on that evidence: $E0DA `State_NewGameInit` ->
+`State_StrategyMapLaunch` (it runs on every return to the map) and $E2E8
+`State_BattlePhase` -> `State_TacticalMode` -> `State_DuelSceneLaunch` (its
+sub-state 5 selects the Duel VBlank handler). And the
+third bank-$10 screen is not switched from `$1F` at all: `ScenePageCopy` $BC9D
+(bank $1D+$1E) selects $30 and streams `TacticalTerrainScreen` to PPU $2400.
 
 **NMI sub-dispatch** ($EE53): bit4-7 of $007E trigger `LDY #$3D;
 SwitchBankAC_B; JMP` into bank $1D jump-table entries:
@@ -164,16 +175,19 @@ SwitchBankAC_B; JMP` into bank $1D jump-table entries:
 | bit1 | $1D $A012 `B1D_1E_FlushTileBuffer` |
 | bit0 | $1D $A000 `B1D_1E_PPUTileRender` |
 
-**NMI state handlers** ($F87B table, per `addr_game_state`): every handler
-starts with `$0E+$0F` (Y=$2E, shared font/tile data), then state-specific
-pairs, finally re-selects the pair the interrupted code was using:
+**NMI state handlers** ($F87B table, indexed by `addr_sub_state` ($0078) &
+`$0F` - *not* by `addr_game_state`; `NmiHandler` does `LDA $78 / AND #$0F / ASL /
+JMP (table)` at `$F866`-$F878, so a state proc picks its VBlank handler by the
+sub-state it stores): every handler starts with `$0E+$0F` (Y=$2E, shared
+font/tile data), then state-specific pairs, finally re-selects the pair the
+interrupted code was using:
 
 | Handler | Additional pairs touched |
 |---|---|
 | NmiState2_MapScreen | $1D+$1E, $1B+$1C |
 | NmiState3_Battle | $17+$18, $19+$1A, $0C+$0D, $1D+$1E |
 | NmiState4_Menu | ($0E+$0F only) |
-| NmiState5_Diplomacy | $17+$18, $1D+$1E |
+| NmiState5_Duel | $17+$18, $1D+$1E |
 | NmiState6_Event | $0A+$0B |
 | NmiState7_Strategy | $1D+$1E, $08+$09 |
 | NmiState8_Officer | $1D+$1E, $17+$18 |
@@ -249,9 +263,9 @@ trampoline. Jump-table entry = `$A000 + 3*idx`.
 | MainLoopDispatch $C1FE | $28 | $08 | $A009 (AI officer action dispatch) |
 | ArmyDeployDispatch $C360, $C39C | $39 | $19 | $A000 / $A012 |
 | OfficerExchangeDispatch $C73D | $28 | $08 | $A018 (validate special officer) |
-| OfficerTransferCalc $C7AF | $2E | $0E | $A009 |
-| OfficerTransferCalc $C7D5 | $28 | $08 | $A02A |
-| OfficerTransferCalc $C815, $C880 | $2A | $0A | $A00C (DistanceClamp) / $A006 (ArmyValueCalc) |
+| OfficerFateCommitDispatch $C7AF | $2E | $0E | $A009 |
+| OfficerFateCommitDispatch $C7D5 | $28 | $08 | $A02A |
+| OfficerFateCommitDispatch $C815, $C880 | $2A | $0A | $A00C (DistanceClamp) / $A006 (ArmyValueCalc) |
 | ExchangeScene $D4F5 | $28 | $08 | $A006 (war phase process) |
 | ExchangeScene $D72E, $DB6D | $37 | $17 | $A012 (battle dispatch) |
 | ExchangeScene $D7B5 | $37 | $17 | $A018 (advisor tiles) |
@@ -296,7 +310,7 @@ DomesticMenu_Return $C95D, Y=$3D -> self pair, $A015
 | Caller | Bank | Notes |
 |---|---|---|
 | MenuUpdate, OfficerListHandler, ScenePageCopy, SramInit, StateHandler | $10 | menu/scene data |
-| SetupBankedData, StateHandler, SramInit | $11 | banked data |
+| OfficerNameSpritePost, StateHandler, SramInit | $11 | banked data; OfficerNameSpritePost reads the 13-byte Officer name-glyph records at `$8DB4 + id*$0D` |
 | MenuRenderer | $16 | renderer tiles |
 | MenuFontRecordLoad | $01 | menu font graphics |
 | MenuUpdate `CmdDrawName*` handlers | save/restore | `LDA cur_bank_8000 ($E1); PHA`, switch to $10 or dynamic bank from command stream (`LDA ($A6),Y`), then `PLA; TAY; JSR B1F_SwitchBank8_B` to restore |
@@ -357,7 +371,7 @@ each frame by `MapProvinceSpriteRefresh`.
 | $00-$07 | data assets: terrain detail maps, battle scene tiles, sprite/animation frames (kept as .incbin stubs, not disassembled; no code callers — reached only via the $8000 window) |
 | $02 | sound note/wavetable data (SoundNotePlayer) |
 | $06 | AI + domestic action data |
-| $10 | record/menu/province data (heaviest $8000 data bank) |
+| $10 | three pre-baked PPU screens (`$8000-$8BFF`, see code/initial_data_tables.md §9), province master records (`$8C00`), rice-buy rates (`$8FC0`), katakana name tables, province adjacency (`$9D72`) - heaviest $8000 data bank |
 | $11 | officer records / sprite data |
 | $12/$13 | sprite position data (PosDataBankTable), advisor tiles |
 | $14/$15 | battle sprites (DrawSpriteFromBank), territory tiles |
