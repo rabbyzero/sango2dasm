@@ -7,7 +7,15 @@
 ; Analysed regions (editable .byte records, one label per row):
 ;   $8000-$8B1B  off_records        (2844 bytes)
 ;   $8B1C-$8D73  schedule           (600 bytes)
+;   $8D74-$8DB3  reinforce_pools    (64 bytes)
+;   $8DB4-$99BC  off_glyphs         (3081 bytes)
+;   $99BD-$9AB3  zero_filler11      (247 bytes)
+;   $9AB4-$9BA3  defense_side_type  (240 bytes)
+;   $9BA4-$9C57  facility_tiles     (180 bytes)
 ;   $9C58-$9D44  death_years        (237 bytes)
+;   $9D45-$9D57  b11_tail_gap       (19 bytes)
+;   $9D58-$9DCF  pixel_pos          (120 bytes)
+;   $9DD0-$9FFF  b11_ff_filler      (560 bytes)
 ;
 ; Everything else is a sliced .incbin of rom/prg/prg_11.bin and must not
 ; be edited here: the raw image stays the source for those bytes.
@@ -435,11 +443,528 @@ ArrivalSchedule_EISHOU:
   .byte $AC, $BE, $C8, $C2, $CA, $C4, $4E, $C6, $FF, $FF           ; $8D60 172(董荼奴)->190 200(孟获)->194 202(孟优)->196 78(兀突骨)->198
   .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF           ; $8D6A empty
 
+; ==============================================================================
+; $8D74-$8DB3  Reinforcement candidate pools: 4 pointers + 4 lists
+; $8D74-$8D7B holds 4 little-endian words whose HIGH byte is stored
+; biased by -$60 (the reader adds #$60 back), so every target stays
+; inside this bank (stored value = target - $6000). Each word addresses
+; one $FF-terminated candidate list; the lists sit back-to-back in
+; $8D7C-$8DB3.
+; List format: 2-byte entries, [0] = Officer id, [1] = reinforcement
+; year in the reign encoding (byte = display year - 100), $FF padded to
+; the list end. Every entry is therefore a multiple of 2 bytes and no
+; Officer id reaches $ED (checked here at generation time).
+; Year encoding differs from the arrival schedule $8B1C above: that one
+; stores the DISPLAY year literally (@ScheduleYear prg_19_1a $B9C0 does
+; SBC #$64 before comparing), while @ReinforceScan compares the pair
+; byte straight against $6F00 ($AF10/$AF12), so here the byte is
+; already year - 100. Observed display years: 192-210.
+; Reader - @ReinforceScan prg_19_1a $AECE: LDY #$31 / SwitchBank8_B,
+;   ($0000) <- $8D74, index $0470 is a BYTE offset into the pointer
+;   table ($00/$02/$04/$06 = the four pools); ($10) = the chosen list.
+;   The scan $AEF0 walks it by PAIRS (INX/INX at $AF08 to skip a
+;   rejected entry, single INX at $AF0D to step onto the year byte):
+;     1. entry[0] == $FF -> no candidate ($AF19 frame state $0401 = 3).
+;     2. keep only a hidden Officer (SRAM record[$0B] & 3 == 1).
+;     3. entry[1] > $6F00 (reign year not reached) -> also no candidate;
+;        entry[1] <= $6F00 -> append the Officer to the province roster
+;        ($00 + $11..) and set his status to 2 = rostered ($AF4E-$AF52).
+; Content (decoded names): the pools group Officers by faction/family -
+; list 0 曹氏/夏侯氏/司马氏, list 1 周瑜+孙氏+诸葛恪, list 2
+; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. Which $0470 value picks which pool
+; is not yet decoded.
+; ==============================================================================
+ReinforceCandidatePtrTable:
+  .word $2D7C, $2D95, $2D9E, $2DAB                             ; $8D74 -> $8D7C (12 pairs) / $8D95 (4 pairs) / $8D9E (6 pairs) / $8DAB (4 pairs)
+
+ReinforceCandidateList_0:  ; $8D7C 12 (Officer id, year) pairs, display years 196-210
+  .byte $20, $60, $81, $64, $7C, $65, $84, $66   ; $8D7C 32(夏侯楙)->196 129(曹真)->200 124(曹休)->201 132(曹丕)->202
+  .byte $7F, $67, $21, $67, $80, $68, $85, $69   ; $8D84 127(曹彰)->203 33(夏侯兰)->203 128(曹植)->204 133(曹熊)->205
+  .byte $1F, $6C, $57, $6C, $58, $6D, $7B, $6E   ; $8D8C 31(夏侯霸)->208 87(司马师)->208 88(司马昭)->209 123(曹叡)->210
+  .byte $FF                                           ; $8D94 list end
+
+ReinforceCandidateList_1:  ; $8D95 4 (Officer id, year) pairs, display years 192-210
+  .byte $5D, $5C, $89, $61, $8B, $63, $6E, $6E   ; $8D95 93(周瑜)->192 137(孙权)->197 139(孙翊)->199 110(诸葛恪)->210
+  .byte $FF                                           ; $8D9D list end
+
+ReinforceCandidateList_2:  ; $8D9E 6 (Officer id, year) pairs, display years 198-210
+  .byte $30, $62, $E0, $63, $9A, $67, $2A, $68   ; $8D9E 48(关平)->198 224(刘封)->199 154(张苞)->203 42(关兴)->204
+  .byte $2B, $69, $6C, $6E                       ; $8DA6 43(关索)->205 108(诸葛瞻)->210
+  .byte $FF                                           ; $8DAA list end
+
+ReinforceCandidateList_3:  ; $8DAB 4 (Officer id, year) pairs, display years 193-197
+  .byte $B4, $5D, $B3, $5E, $B5, $5F, $B0, $61   ; $8DAB 180(马超)->193 179(马岱)->194 181(马铁)->195 176(马休)->197
+  .byte $FF                                           ; $8DB3 list end
+
+; ==============================================================================
+; $8DB4-$99BC  Officer name-glyph records: 237 real x 13 bytes
+; Index id*13 + $8DB4. Layout: [0] = the NAMCO-163 CHR code page the
+; tile bytes decode on (page V = 1KB slice chr_(V//8).bin @
+; (V%8)*$400, same convention as the bank-$30 name patterns), then 4
+; bytes PER CHARACTER - CHARACTER-major, not line-major:
+;   [1..4] = character 1, [5..8] = character 2, [9..12] = character 3,
+; each group being the four 8x8 cells of one 16x16 kanji (top-left,
+; top-right, bottom-left, bottom-right) = tile ids (n, n+1, n+$10,
+; n+$11): horizontal step +$01, vertical step +$10 on a 16-tile page
+; row, so one page holds 16 kanji (64 tiles). Up to 3 characters, $FF
+; terminated and padded to the record end. Verified 237/237: every
+; record's tile count is a multiple of 4 and every group obeys the
+; (+1, +$10, +$11) relation.
+; The bank-$30 EquipmentNamePatterns ($9B52, data_10.asm) store the
+; same kind of glyph data LINE-major instead: 2 lines x 8 tiles, so
+; there character k = line1[2k], line1[2k+1], line2[2k], line2[2k+1]
+; and its four tiles are NOT adjacent.
+; Tile bytes are page-relative; the readers add #$C0 to reach the
+; sprite tile page $C0-$FF. Officers sharing a surname share the
+; leading ids (ids 29-33 夏侯淵/惇/覇/楙/蘭 all start 00 01 10 11 |
+; 02 03 12 13).
+; Readers (all after LDY #$31; the byte [$0B] bias and the +$C0 tile
+; bias live in the readers, not here):
+;   OfficerNameSpritePost prg_1d_1e $AB38 - officer-card name sprites;
+;   ProvinceDataWindowFrame $ABD7 -> RenderSubState $B1B1 - province
+;     window ruler/governor names; prg_17_18 $B1EE ->
+;     ExpandMetatileToSprites $CFDB - 4 rows x 6 tiles metatile;
+;   RecalcExchangeStats prg_0c_0d $CC29 -> @GetRulerValue $CC86 -
+;     exchange-screen ruler name (index = ruler base value, not id);
+;   @MarchFormationOamDraw prg_19_1a $D2EA -> $D334 - marching
+;     formation name flag (index $0664[$0509]).
+; [0] has no disassembled reader ($00B9 is written but never read).
+; The trailing comment groups the tile bytes per character, 4 apiece.
+; Field evidence: code/ruler_card_decode.md section 4.
+; ==============================================================================
+OfficerNameGlyphTable:
+
+OfficerNameGlyph_AKAINAN: .byte $6A, $2A, $2B, $3A, $3B, $2C, $2D, $3C, $3D, $2E, $2F, $3E, $3F  ; $8DB4 id   0 アカイナン 阿会喃 page $6A kanji 3: 2A 2B 3A 3B | 2C 2D 3C 3D | 2E 2F 3E 3F
+OfficerNameGlyph_IKOU: .byte $5F, $0A, $0B, $1A, $1B, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $8DC1 id   1 イコウ 韦康 page $5F kanji 2: 0A 0B 1A 1B | 0C 0D 1C 1D
+OfficerNameGlyph_ISEKI: .byte $72, $00, $01, $10, $11, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $8DCE id   2 イセキ 伊籍 page $72 kanji 2: 00 01 10 11 | 20 21 30 31
+OfficerNameGlyph_INKAI: .byte $62, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $8DDB id   3 インカイ 尹楷 page $62 kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_INSHOU: .byte $62, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $8DE8 id   4 インショウ 尹赏 page $62 kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_UKIN: .byte $62, $08, $09, $18, $19, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $8DF5 id   5 ウキン 于禁 page $62 kanji 2: 08 09 18 19 | 0A 0B 1A 1B
+OfficerNameGlyph_ETSUKITSU: .byte $62, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $8E02 id   6 エツキツ 越吉 page $62 kanji 2: 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_ENKI: .byte $62, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $8E0F id   7 エンキ 袁熙 page $62 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_ENSHOU: .byte $62, $20, $21, $30, $31, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $8E1C id   8 エンショウ 袁绍 page $62 kanji 2: 20 21 30 31 | 24 25 34 35
+OfficerNameGlyph_ENTAN: .byte $62, $20, $21, $30, $31, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $8E29 id   9 エンタン 袁谭 page $62 kanji 2: 20 21 30 31 | 26 27 36 37
+OfficerNameGlyph_ENHO: .byte $62, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $8E36 id  10 エンホ 阎圃 page $62 kanji 2: 28 29 38 39 | 2A 2B 3A 3B
+OfficerNameGlyph_OUKEN: .byte $61, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $8E43 id  11 オウケン 王建 page $61 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_OUSAN: .byte $61, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $8E50 id  12 オウサン 王粲 page $61 kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_OUSOU: .byte $61, $00, $01, $10, $11, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $8E5D id  13 オウソウ 王双 page $61 kanji 2: 00 01 10 11 | 0A 0B 1A 1B
+OfficerNameGlyph_OUCHUU: .byte $61, $00, $01, $10, $11, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $8E6A id  14 オウチュウ 王忠 page $61 kanji 2: 00 01 10 11 | 0C 0D 1C 1D
+OfficerNameGlyph_OUHEI: .byte $61, $00, $01, $10, $11, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $8E77 id  15 オウヘイ 王平 page $61 kanji 2: 00 01 10 11 | 0E 0F 1E 1F
+OfficerNameGlyph_OUHO: .byte $61, $00, $01, $10, $11, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $8E84 id  16 オウホ 王甫 page $61 kanji 2: 00 01 10 11 | 20 21 30 31
+OfficerNameGlyph_OURUI: .byte $61, $00, $01, $10, $11, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $8E91 id  17 オウルイ 王累 page $61 kanji 2: 00 01 10 11 | 22 23 32 33
+OfficerNameGlyph_KAIETSU: .byte $72, $0A, $0B, $1A, $1B, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $8E9E id  18 カイエツ 蒯越 page $72 kanji 2: 0A 0B 1A 1B | 2A 2B 3A 3B
+OfficerNameGlyph_KAIRYOU: .byte $61, $2C, $2D, $3C, $3D, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $8EAB id  19 カイリョウ 蒯良 page $61 kanji 2: 2C 2D 3C 3D | 08 09 18 19
+OfficerNameGlyph_KAKA: .byte $63, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $8EB8 id  20 カカ 贾华 page $63 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_KAKIN: .byte $63, $02, $03, $12, $13, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $8EC5 id  21 カキン 华歆 page $63 kanji 2: 02 03 12 13 | 04 05 14 15
+OfficerNameGlyph_KAKU: .byte $63, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $8ED2 id  22 カク 贾诩 page $63 kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_KAKUSHI: .byte $64, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $8EDF id  23 カクシ 郭汜 page $64 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_KAKUKA: .byte $64, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $8EEC id  24 カクカ 郭嘉 page $64 kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_KAKUSHOU: .byte $64, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $8EF9 id  25 カクショウ 郝昭 page $64 kanji 2: 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_GAKUSHIN: .byte $64, $08, $09, $18, $19, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $8F06 id  26 ガクシン 乐进 page $64 kanji 2: 08 09 18 19 | 0A 0B 1A 1B
+OfficerNameGlyph_KAKUTO: .byte $64, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $8F13 id  27 カクト 郭图 page $64 kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_KAKUWAI: .byte $60, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $8F20 id  28 カクワイ 郭淮 page $60 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_KAKOUEN: .byte $66, $00, $01, $10, $11, $02, $03, $12, $13, $04, $05, $14, $15  ; $8F2D id  29 カコウエン 夏侯渊 page $66 kanji 3: 00 01 10 11 | 02 03 12 13 | 04 05 14 15
+OfficerNameGlyph_KAKOUTON: .byte $66, $00, $01, $10, $11, $02, $03, $12, $13, $06, $07, $16, $17  ; $8F3A id  30 カコウトン 夏侯惇 page $66 kanji 3: 00 01 10 11 | 02 03 12 13 | 06 07 16 17
+OfficerNameGlyph_KAKOUHA: .byte $66, $00, $01, $10, $11, $02, $03, $12, $13, $2C, $2D, $3C, $3D  ; $8F47 id  31 カコウハ 夏侯霸 page $66 kanji 3: 00 01 10 11 | 02 03 12 13 | 2C 2D 3C 3D
+OfficerNameGlyph_KAKOUBOU: .byte $66, $00, $01, $10, $11, $02, $03, $12, $13, $08, $09, $18, $19  ; $8F54 id  32 カコウボウ 夏侯楙 page $66 kanji 3: 00 01 10 11 | 02 03 12 13 | 08 09 18 19
+OfficerNameGlyph_KAKOURAN: .byte $66, $00, $01, $10, $11, $02, $03, $12, $13, $0A, $0B, $1A, $1B  ; $8F61 id  33 カコウラン 夏侯兰 page $66 kanji 3: 00 01 10 11 | 02 03 12 13 | 0A 0B 1A 1B
+OfficerNameGlyph_GATAN: .byte $64, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $8F6E id  34 ガタン 雅丹 page $64 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_GAKKAN: .byte $6A, $26, $27, $36, $37, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $8F7B id  35 ガッカン 鄂焕 page $6A kanji 2: 26 27 36 37 | 28 29 38 39
+OfficerNameGlyph_KAHAN: .byte $63, $00, $01, $10, $11, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $8F88 id  36 カハン 贾范 page $63 kanji 2: 00 01 10 11 | 0A 0B 1A 1B
+OfficerNameGlyph_KAYUU: .byte $63, $02, $03, $12, $13, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $8F95 id  37 カユウ 华雄 page $63 kanji 2: 02 03 12 13 | 0C 0D 1C 1D
+OfficerNameGlyph_KANU: .byte $61, $24, $25, $34, $35, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $8FA2 id  38 カンウ 关羽 page $61 kanji 2: 24 25 34 35 | 2E 2F 3E 3F
+OfficerNameGlyph_KANEI: .byte $68, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $8FAF id  39 カンエイ 韩瑛 page $68 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_KANKI: .byte $68, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $8FBC id  40 カンキ 韩琪 page $68 kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_KANGEN: .byte $68, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $8FC9 id  41 カンゲン 韩玄 page $68 kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_KANKOU: .byte $69, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $8FD6 id  42 カンコウ 关兴 page $69 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_KANSAKU: .byte $69, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $8FE3 id  43 カンサク 关索 page $69 kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_KANSUI: .byte $68, $00, $01, $10, $11, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $8FF0 id  44 カンスイ 韩遂 page $68 kanji 2: 00 01 10 11 | 08 09 18 19
+OfficerNameGlyph_KANTOU: .byte $68, $00, $01, $10, $11, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $8FFD id  45 カントウ 韩当 page $68 kanji 2: 00 01 10 11 | 0A 0B 1A 1B
+OfficerNameGlyph_KANTOKU: .byte $68, $00, $01, $10, $11, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $900A id  46 カントク 韩德 page $68 kanji 2: 00 01 10 11 | 0C 0D 1C 1D
+OfficerNameGlyph_KANNEI: .byte $67, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $9017 id  47 カンネイ 甘宁 page $67 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_KANPEI: .byte $61, $24, $25, $34, $35, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9024 id  48 カンペイ 关平 page $61 kanji 2: 24 25 34 35 | 0E 0F 1E 1F
+OfficerNameGlyph_KANMOU: .byte $68, $00, $01, $10, $11, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9031 id  49 カンモウ 韩猛 page $68 kanji 2: 00 01 10 11 | 0E 0F 1E 1F
+OfficerNameGlyph_KANYOU: .byte $67, $04, $05, $14, $15, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $903E id  50 カンヨウ 简雍 page $67 kanji 2: 04 05 14 15 | 06 07 16 17
+OfficerNameGlyph_GANRYOU: .byte $69, $06, $07, $16, $17, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $904B id  51 ガンリョウ 颜良 page $69 kanji 2: 06 07 16 17 | 08 09 18 19
+OfficerNameGlyph_GIEN: .byte $67, $08, $09, $18, $19, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $9058 id  52 ギエン 魏延 page $67 kanji 2: 08 09 18 19 | 0A 0B 1A 1B
+OfficerNameGlyph_GIKYO: .byte $67, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9065 id  53 ギキョ 义渠 page $67 kanji 2: 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_GYUUKIN: .byte $67, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $9072 id  54 ギュウキン 牛金 page $67 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_KYOUI: .byte $67, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $907F id  55 キョウイ 姜维 page $67 kanji 2: 28 29 38 39 | 2A 2B 3A 3B
+OfficerNameGlyph_KYOYUU: .byte $68, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $908C id  56 キョユウ 许攸 page $68 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_KYOCHO: .byte $68, $20, $21, $30, $31, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $9099 id  57 キョチョ 许褚 page $68 kanji 2: 20 21 30 31 | 24 25 34 35
+OfficerNameGlyph_GIRAN: .byte $6A, $0A, $0B, $1A, $1B, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $90A6 id  58 ギラン 妫览 page $6A kanji 2: 0A 0B 1A 1B | 08 09 18 19
+OfficerNameGlyph_KIREI: .byte $73, $0A, $0B, $1A, $1B, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $90B3 id  59 キレイ 纪灵 page $73 kanji 2: 0A 0B 1A 1B | 2E 2F 3E 3F
+OfficerNameGlyph_KINKANKETSU: .byte $67, $22, $23, $32, $33, $24, $25, $34, $35, $26, $27, $36, $37  ; $90C0 id  60 キンカンケツ 金环结 page $67 kanji 3: 22 23 32 33 | 24 25 34 35 | 26 27 36 37
+OfficerNameGlyph_GUHON: .byte $68, $26, $27, $36, $37, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $90CD id  61 グホン 虞翻 page $68 kanji 2: 26 27 36 37 | 28 29 38 39
+OfficerNameGlyph_KEIDOUEI: .byte $68, $2A, $2B, $3A, $3B, $2C, $2D, $3C, $3D, $2E, $2F, $3E, $3F  ; $90DA id  62 ケイドウエイ 邢道荣 page $68 kanji 3: 2A 2B 3A 3B | 2C 2D 3C 3D | 2E 2F 3E 3F
+OfficerNameGlyph_GENGAN: .byte $69, $0A, $0B, $1A, $1B, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $90E7 id  63 ゲンガン 严颜 page $69 kanji 2: 0A 0B 1A 1B | 06 07 16 17
+OfficerNameGlyph_GENSHUN: .byte $69, $0A, $0B, $1A, $1B, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $90F4 id  64 ゲンシュン 严畯 page $69 kanji 2: 0A 0B 1A 1B | 0C 0D 1C 1D
+OfficerNameGlyph_GENKOU: .byte $69, $0A, $0B, $1A, $1B, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9101 id  65 ゲンコウ 严纲 page $69 kanji 2: 0A 0B 1A 1B | 0E 0F 1E 1F
+OfficerNameGlyph_GOI: .byte $65, $2E, $2F, $3E, $3F, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $910E id  66 ゴイ 吴懿 page $65 kanji 2: 2E 2F 3E 3F | 04 05 14 15
+OfficerNameGlyph_KOUGAI: .byte $6A, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $911B id  67 コウガイ 黄盖 page $6A kanji 2: 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_KOUKAN: .byte $6A, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $9128 id  68 コウカン 高干 page $6A kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_KOUSHOU: .byte $6A, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $9135 id  69 コウショウ 高翔 page $6A kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_KOUKEN: .byte $6A, $0C, $0D, $1C, $1D, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $9142 id  70 コウケン 黄权 page $6A kanji 2: 0C 0D 1C 1D | 20 21 30 31
+OfficerNameGlyph_KOUSEI: .byte $66, $02, $03, $12, $13, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $914F id  71 コウセイ 侯成 page $66 kanji 2: 02 03 12 13 | 0C 0D 1C 1D
+OfficerNameGlyph_KOUSEN: .byte $66, $02, $03, $12, $13, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $915C id  72 コウセン 侯选 page $66 kanji 2: 02 03 12 13 | 0E 0F 1E 1F
+OfficerNameGlyph_KOUSONEN: .byte $5F, $20, $21, $30, $31, $22, $23, $32, $33, $24, $25, $34, $35  ; $9169 id  73 コウソンエン 公孙渊 page $5F kanji 3: 20 21 30 31 | 22 23 32 33 | 24 25 34 35
+OfficerNameGlyph_KOUSONKOU: .byte $5F, $20, $21, $30, $31, $22, $23, $32, $33, $0C, $0D, $1C, $1D  ; $9176 id  74 コウソンコウ 公孙康 page $5F kanji 3: 20 21 30 31 | 22 23 32 33 | 0C 0D 1C 1D
+OfficerNameGlyph_KOUCHUU: .byte $6A, $0C, $0D, $1C, $1D, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $9183 id  75 コウチュウ 黄忠 page $6A kanji 2: 0C 0D 1C 1D | 24 25 34 35
+OfficerNameGlyph_KOUTEI: .byte $6A, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $9190 id  76 コウテイ 高定 page $6A kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_KOURAN: .byte $6A, $00, $01, $10, $11, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $919D id  77 コウラン 高览 page $6A kanji 2: 00 01 10 11 | 08 09 18 19
+OfficerNameGlyph_GOTSUTOTSUKOTSU: .byte $61, $04, $05, $14, $15, $26, $27, $36, $37, $2A, $2B, $3A, $3B  ; $91AA id  78 ゴツトツコツ 兀突骨 page $61 kanji 3: 04 05 14 15 | 26 27 36 37 | 2A 2B 3A 3B
+OfficerNameGlyph_KOYOU: .byte $67, $2C, $2D, $3C, $3D, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $91B7 id  79 コヨウ 顾雍 page $67 kanji 2: 2C 2D 3C 3D | 06 07 16 17
+OfficerNameGlyph_KOSHAJI: .byte $69, $22, $23, $32, $33, $24, $25, $34, $35, $26, $27, $36, $37  ; $91C4 id  80 コシャジ 胡车儿 page $69 kanji 3: 22 23 32 33 | 24 25 34 35 | 26 27 36 37
+OfficerNameGlyph_GORAN: .byte $66, $2E, $2F, $3E, $3F, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $91D1 id  81 ゴラン 吴兰 page $66 kanji 2: 2E 2F 3E 3F | 0A 0B 1A 1B
+OfficerNameGlyph_SAIEN: .byte $63, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $91DE id  82 サイエン 崔琰 page $63 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_SAIYOU: .byte $69, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $91EB id  83 サイヨウ 蔡阳 page $69 kanji 2: 28 29 38 39 | 2A 2B 3A 3B
+OfficerNameGlyph_SAIRYOU: .byte $63, $20, $21, $30, $31, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $91F8 id  84 サイリョウ 崔谅 page $63 kanji 2: 20 21 30 31 | 24 25 34 35
+OfficerNameGlyph_SHIKAN: .byte $69, $2C, $2D, $3C, $3D, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $9205 id  85 シカン 史涣 page $69 kanji 2: 2C 2D 3C 3D | 2E 2F 3E 3F
+OfficerNameGlyph_SHIBAI: .byte $65, $00, $01, $10, $11, $02, $03, $12, $13, $04, $05, $14, $15  ; $9212 id  86 シバイ 司马懿 page $65 kanji 3: 00 01 10 11 | 02 03 12 13 | 04 05 14 15
+OfficerNameGlyph_SHIBASHI: .byte $65, $00, $01, $10, $11, $02, $03, $12, $13, $06, $07, $16, $17  ; $921F id  87 シバシ 司马师 page $65 kanji 3: 00 01 10 11 | 02 03 12 13 | 06 07 16 17
+OfficerNameGlyph_SHIBASHOU: .byte $65, $00, $01, $10, $11, $02, $03, $12, $13, $08, $09, $18, $19  ; $922C id  88 シバショウ 司马昭 page $65 kanji 3: 00 01 10 11 | 02 03 12 13 | 08 09 18 19
+OfficerNameGlyph_SHUUZEN: .byte $6B, $04, $05, $14, $15, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $9239 id  89 シュウゼン 周善 page $6B kanji 2: 04 05 14 15 | 06 07 16 17
+OfficerNameGlyph_SHUUSOU: .byte $6B, $04, $05, $14, $15, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $9246 id  90 シュウソウ 周仓 page $6B kanji 2: 04 05 14 15 | 08 09 18 19
+OfficerNameGlyph_SHUUTAI: .byte $6B, $04, $05, $14, $15, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $9253 id  91 シュウタイ 周泰 page $6B kanji 2: 04 05 14 15 | 0A 0B 1A 1B
+OfficerNameGlyph_SHUUHOU: .byte $6B, $04, $05, $14, $15, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $9260 id  92 シュウホウ 周鲂 page $6B kanji 2: 04 05 14 15 | 0C 0D 1C 1D
+OfficerNameGlyph_SHUUYU: .byte $6B, $04, $05, $14, $15, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $926D id  93 シュウユ 周瑜 page $6B kanji 2: 04 05 14 15 | 0E 0F 1E 1F
+OfficerNameGlyph_SHUKAN: .byte $6C, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $927A id  94 シュカン 朱桓 page $6C kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_SHUZEN: .byte $6C, $20, $21, $30, $31, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $9287 id  95 シュゼン 朱然 page $6C kanji 2: 20 21 30 31 | 24 25 34 35
+OfficerNameGlyph_SHUCHI: .byte $6C, $20, $21, $30, $31, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $9294 id  96 シュチ 朱治 page $6C kanji 2: 20 21 30 31 | 26 27 36 37
+OfficerNameGlyph_SHUHOU: .byte $6C, $20, $21, $30, $31, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $92A1 id  97 シュホウ 朱褒 page $6C kanji 2: 20 21 30 31 | 28 29 38 39
+OfficerNameGlyph_SHUREI: .byte $6C, $20, $21, $30, $31, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $92AE id  98 シュレイ 朱灵 page $6C kanji 2: 20 21 30 31 | 2A 2B 3A 3B
+OfficerNameGlyph_JUNIKU: .byte $6C, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $92BB id  99 ジュンイク 荀彧 page $6C kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_JUNUKEI: .byte $62, $2C, $2D, $3C, $3D, $08, $09, $18, $19, $2E, $2F, $3E, $3F  ; $92C8 id 100 ジュンウケイ 淳于琼 page $62 kanji 3: 2C 2D 3C 3D | 08 09 18 19 | 2E 2F 3E 3F
+OfficerNameGlyph_JUNJIN: .byte $6C, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $92D5 id 101 ジュンジン 荀谌 page $6C kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_SHOUKAN: .byte $6C, $06, $07, $16, $17, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $92E2 id 102 ショウカン 蒋干 page $6C kanji 2: 06 07 16 17 | 08 09 18 19
+OfficerNameGlyph_SHOUKAI: .byte $6A, $22, $23, $32, $33, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $92EF id 103 ショウカイ 钟会 page $6A kanji 2: 22 23 32 33 | 2C 2D 3C 3D
+OfficerNameGlyph_SHOUEN: .byte $6C, $06, $07, $16, $17, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $92FC id 104 ショウエン 蒋琬 page $6C kanji 2: 06 07 16 17 | 0A 0B 1A 1B
+OfficerNameGlyph_SHOUCHOU: .byte $64, $24, $25, $34, $35, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $9309 id 105 ショウチョウ 向宠 page $64 kanji 2: 24 25 34 35 | 26 27 36 37
+OfficerNameGlyph_JOEI: .byte $6B, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $9316 id 106 ジョエイ 徐荣 page $6B kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_SHOKATSUKIN: .byte $64, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $2C, $2D, $3C, $3D  ; $9323 id 107 ショカツキン 诸葛瑾 page $64 kanji 3: 28 29 38 39 | 2A 2B 3A 3B | 2C 2D 3C 3D
+OfficerNameGlyph_SHOKATSUSEN: .byte $72, $06, $07, $16, $17, $08, $09, $18, $19, $28, $29, $38, $39  ; $9330 id 108 ショカツセン 诸葛瞻 page $72 kanji 3: 06 07 16 17 | 08 09 18 19 | 28 29 38 39
+OfficerNameGlyph_SHOKATSURYOU: .byte $64, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $2E, $2F, $3E, $3F  ; $933D id 109 ショカツリョウ 诸葛亮 page $64 kanji 3: 28 29 38 39 | 2A 2B 3A 3B | 2E 2F 3E 3F
+OfficerNameGlyph_SHOKATSUKAKU: .byte $72, $06, $07, $16, $17, $08, $09, $18, $19, $26, $27, $36, $37  ; $934A id 110 ショカツカク 诸葛恪 page $72 kanji 3: 06 07 16 17 | 08 09 18 19 | 26 27 36 37
+OfficerNameGlyph_JOKOU: .byte $6B, $00, $01, $10, $11, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $9357 id 111 ジョコウ 徐晃 page $6B kanji 2: 00 01 10 11 | 20 21 30 31
+OfficerNameGlyph_JOSHO: .byte $6B, $00, $01, $10, $11, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $9364 id 112 ジョショ 徐庶 page $6B kanji 2: 00 01 10 11 | 22 23 32 33
+OfficerNameGlyph_JOSEI: .byte $6B, $00, $01, $10, $11, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $9371 id 113 ジョセイ 徐盛 page $6B kanji 2: 00 01 10 11 | 24 25 34 35
+OfficerNameGlyph_JINSHUN: .byte $6B, $26, $27, $36, $37, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $937E id 114 ジンシュン 任峻 page $6B kanji 2: 26 27 36 37 | 28 29 38 39
+OfficerNameGlyph_JINSOU: .byte $6B, $26, $27, $36, $37, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $938B id 115 ジンソウ 任双 page $6B kanji 2: 26 27 36 37 | 2A 2B 3A 3B
+OfficerNameGlyph_SHINTAN: .byte $6B, $2C, $2D, $3C, $3D, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $9398 id 116 シンタン 申耽 page $6B kanji 2: 2C 2D 3C 3D | 2E 2F 3E 3F
+OfficerNameGlyph_SHINPAI: .byte $66, $22, $23, $32, $33, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $93A5 id 117 シンパイ 审配 page $66 kanji 2: 22 23 32 33 | 24 25 34 35
+OfficerNameGlyph_SHINPI: .byte $66, $26, $27, $36, $37, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $93B2 id 118 シンピ 辛毗 page $66 kanji 2: 26 27 36 37 | 28 29 38 39
+OfficerNameGlyph_SHINPYOU: .byte $66, $26, $27, $36, $37, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $93BF id 119 シンピョウ 辛评 page $66 kanji 2: 26 27 36 37 | 2A 2B 3A 3B
+OfficerNameGlyph_SEIGI: .byte $66, $0C, $0D, $1C, $1D, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $93CC id 120 セイギ 成宜 page $66 kanji 2: 0C 0D 1C 1D | 20 21 30 31
+OfficerNameGlyph_SESSOU: .byte $72, $2C, $2D, $3C, $3D, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $93D9 id 121 セッソウ 薛综 page $72 kanji 2: 2C 2D 3C 3D | 2E 2F 3E 3F
+OfficerNameGlyph_ZENSOU: .byte $6D, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $93E6 id 122 ゼンソウ 全琮 page $6D kanji 2: 28 29 38 39 | 2A 2B 3A 3B
+OfficerNameGlyph_SOUEI: .byte $6D, $00, $01, $10, $11, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $93F3 id 123 ソウエイ 曹叡 page $6D kanji 2: 00 01 10 11 | 26 27 36 37
+OfficerNameGlyph_SOUKYUU: .byte $6D, $00, $01, $10, $11, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9400 id 124 ソウキュウ 曹休 page $6D kanji 2: 00 01 10 11 | 0E 0F 1E 1F
+OfficerNameGlyph_SOUKEN: .byte $6D, $22, $23, $32, $33, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $940D id 125 ソウケン 宋宪 page $6D kanji 2: 22 23 32 33 | 24 25 34 35
+OfficerNameGlyph_SOUKOU: .byte $6D, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $941A id 126 ソウコウ 曹洪 page $6D kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_SOUSHOU: .byte $6D, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $9427 id 127 ソウショウ 曹彰 page $6D kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_SOUSHOKU: .byte $6D, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $9434 id 128 ソウショク 曹植 page $6D kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_SOUSHIN: .byte $72, $04, $05, $14, $15, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $9441 id 129 ソウシン 曹真 page $72 kanji 2: 04 05 14 15 | 24 25 34 35
+OfficerNameGlyph_SOUJIN: .byte $6D, $00, $01, $10, $11, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $944E id 130 ソウジン 曹仁 page $6D kanji 2: 00 01 10 11 | 08 09 18 19
+OfficerNameGlyph_SOUSOU: .byte $6D, $00, $01, $10, $11, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $945B id 131 ソウソウ 曹操 page $6D kanji 2: 00 01 10 11 | 0A 0B 1A 1B
+OfficerNameGlyph_SOUHI: .byte $6D, $00, $01, $10, $11, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $9468 id 132 ソウヒ 曹丕 page $6D kanji 2: 00 01 10 11 | 0C 0D 1C 1D
+OfficerNameGlyph_SOUYUU: .byte $6D, $00, $01, $10, $11, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $9475 id 133 ソウユウ 曹熊 page $6D kanji 2: 00 01 10 11 | 20 21 30 31
+OfficerNameGlyph_SOJU: .byte $6E, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $9482 id 134 ソジュ 沮授 page $6E kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_SOHI: .byte $6E, $06, $07, $16, $17, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $948F id 135 ソヒ 苏飞 page $6E kanji 2: 06 07 16 17 | 08 09 18 19
+OfficerNameGlyph_SONKAN: .byte $6E, $20, $21, $30, $31, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $949C id 136 ソンカン 孙乾 page $6E kanji 2: 20 21 30 31 | 26 27 36 37
+OfficerNameGlyph_SONKEN: .byte $6E, $20, $21, $30, $31, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $94A9 id 137 ソンケン 孙权 page $6E kanji 2: 20 21 30 31 | 24 25 34 35
+OfficerNameGlyph_SONSAKU: .byte $6E, $20, $21, $30, $31, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $94B6 id 138 ソンサク 孙策 page $6E kanji 2: 20 21 30 31 | 28 29 38 39
+OfficerNameGlyph_SONYOKU: .byte $6E, $20, $21, $30, $31, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $94C3 id 139 ソンヨク 孙翊 page $6E kanji 2: 20 21 30 31 | 2A 2B 3A 3B
+OfficerNameGlyph_SONREI: .byte $6E, $20, $21, $30, $31, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $94D0 id 140 ソンレイ 孙礼 page $6E kanji 2: 20 21 30 31 | 2C 2D 3C 3D
+OfficerNameGlyph_TAISHIJI: .byte $6C, $0C, $0D, $1C, $1D, $2C, $2D, $3C, $3D, $2E, $2F, $3E, $3F  ; $94DD id 141 タイシジ 太史慈 page $6C kanji 3: 0C 0D 1C 1D | 2C 2D 3C 3D | 2E 2F 3E 3F
+OfficerNameGlyph_TANYUU: .byte $63, $0E, $0F, $1E, $1F, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $94EA id 142 タンユウ 谭雄 page $63 kanji 2: 0E 0F 1E 1F | 0C 0D 1C 1D
+OfficerNameGlyph_CHOUSAI: .byte $70, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $94F7 id 143 チョウサイ 张济 page $70 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_CHOUUN: .byte $6F, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $9504 id 144 チョウウン 赵云 page $6F kanji 2: 28 29 38 39 | 2A 2B 3A 3B
+OfficerNameGlyph_CHOUEI: .byte $70, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $9511 id 145 チョウエイ 张卫 page $70 kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_CHOUOU: .byte $70, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $951E id 146 チョウオウ 张横 page $70 kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_CHOUGI: .byte $70, $00, $01, $10, $11, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $952B id 147 チョウギ 张嶷 page $70 kanji 2: 00 01 10 11 | 08 09 18 19
+OfficerNameGlyph_CHOUGETSU: .byte $6F, $28, $29, $38, $39, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $9538 id 148 チョウゲツ 赵月 page $6F kanji 2: 28 29 38 39 | 2C 2D 3C 3D
+OfficerNameGlyph_CHOUKOU: .byte $70, $00, $01, $10, $11, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $9545 id 149 チョウコウ 张郃 page $70 kanji 2: 00 01 10 11 | 0A 0B 1A 1B
+OfficerNameGlyph_CHOUSHOU: .byte $70, $00, $01, $10, $11, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9552 id 150 チョウショウ 张松 page $70 kanji 2: 00 01 10 11 | 0E 0F 1E 1F
+OfficerNameGlyph_CHOUJIN: .byte $70, $00, $01, $10, $11, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $955F id 151 チョウジン 张任 page $70 kanji 2: 00 01 10 11 | 20 21 30 31
+OfficerNameGlyph_CHOUNAN: .byte $70, $00, $01, $10, $11, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $956C id 152 チョウナン 张南 page $70 kanji 2: 00 01 10 11 | 22 23 32 33
+OfficerNameGlyph_CHOUHI: .byte $70, $00, $01, $10, $11, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $9579 id 153 チョウヒ 张飞 page $70 kanji 2: 00 01 10 11 | 24 25 34 35
+OfficerNameGlyph_CHOUHOU: .byte $70, $00, $01, $10, $11, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $9586 id 154 チョウホウ 张苞 page $70 kanji 2: 00 01 10 11 | 26 27 36 37
+OfficerNameGlyph_CHOUYOKU: .byte $70, $00, $01, $10, $11, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $9593 id 155 チョウヨク 张翼 page $70 kanji 2: 00 01 10 11 | 28 29 38 39
+OfficerNameGlyph_CHOURYOU: .byte $70, $00, $01, $10, $11, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $95A0 id 156 チョウリョウ 张辽 page $70 kanji 2: 00 01 10 11 | 2A 2B 3A 3B
+OfficerNameGlyph_CHINSHIN: .byte $71, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $95AD id 157 チンシン 陈震 page $71 kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_CHINBU: .byte $71, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $95BA id 158 チンブ 陈武 page $71 kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_CHINRAN: .byte $71, $00, $01, $10, $11, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $95C7 id 159 チンラン 陈兰 page $71 kanji 2: 00 01 10 11 | 08 09 18 19
+OfficerNameGlyph_CHINRIN: .byte $71, $00, $01, $10, $11, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $95D4 id 160 チンリン 陈琳 page $71 kanji 2: 00 01 10 11 | 0A 0B 1A 1B
+OfficerNameGlyph_TEIIKU: .byte $71, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $95E1 id 161 テイイク 程昱 page $71 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_TEIGIN: .byte $71, $20, $21, $30, $31, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $95EE id 162 テイギン 程银 page $71 kanji 2: 20 21 30 31 | 24 25 34 35
+OfficerNameGlyph_TEIFU: .byte $71, $20, $21, $30, $31, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $95FB id 163 テイフ 程普 page $71 kanji 2: 20 21 30 31 | 26 27 36 37
+OfficerNameGlyph_TEIHEI: .byte $71, $20, $21, $30, $31, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $9608 id 164 テイヘイ 程秉 page $71 kanji 2: 20 21 30 31 | 28 29 38 39
+OfficerNameGlyph_TENI: .byte $5F, $26, $27, $36, $37, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $9615 id 165 テンイ 典韦 page $5F kanji 2: 26 27 36 37 | 0A 0B 1A 1B
+OfficerNameGlyph_DENCHUU: .byte $71, $2A, $2B, $3A, $3B, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $9622 id 166 デンチュウ 田畴 page $71 kanji 2: 2A 2B 3A 3B | 2C 2D 3C 3D
+OfficerNameGlyph_DENHOU: .byte $71, $2A, $2B, $3A, $3B, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $962F id 167 デンホウ 田丰 page $71 kanji 2: 2A 2B 3A 3B | 2E 2F 3E 3F
+OfficerNameGlyph_TOUIN: .byte $6F, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $963C id 168 トウイン 董允 page $6F kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_TOUGAI: .byte $6F, $04, $05, $14, $15, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $9649 id 169 トウガイ 邓艾 page $6F kanji 2: 04 05 14 15 | 06 07 16 17
+OfficerNameGlyph_TOUSHI: .byte $6F, $04, $05, $14, $15, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $9656 id 170 トウシ 邓芝 page $6F kanji 2: 04 05 14 15 | 08 09 18 19
+OfficerNameGlyph_TOUSHUU: .byte $6F, $00, $01, $10, $11, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $9663 id 171 トウシュウ 董袭 page $6F kanji 2: 00 01 10 11 | 0A 0B 1A 1B
+OfficerNameGlyph_TOUTONU: .byte $6F, $00, $01, $10, $11, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F  ; $9670 id 172 トウトヌ 董荼奴 page $6F kanji 3: 00 01 10 11 | 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_TOUTAKU: .byte $6F, $00, $01, $10, $11, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $967D id 173 トウタク 董卓 page $6F kanji 2: 00 01 10 11 | 20 21 30 31
+OfficerNameGlyph_BAEN: .byte $65, $02, $03, $12, $13, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $968A id 174 バエン 马延 page $65 kanji 2: 02 03 12 13 | 0A 0B 1A 1B
+OfficerNameGlyph_BAGAN: .byte $65, $02, $03, $12, $13, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $9697 id 175 バガン 马玩 page $65 kanji 2: 02 03 12 13 | 0C 0D 1C 1D
+OfficerNameGlyph_BAKYUU: .byte $65, $02, $03, $12, $13, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $96A4 id 176 バキュウ 马休 page $65 kanji 2: 02 03 12 13 | 0E 0F 1E 1F
+OfficerNameGlyph_BASHOKU: .byte $65, $02, $03, $12, $13, $20, $21, $30, $31, $FF, $FF, $FF, $FF  ; $96B1 id 177 バショク 马谡 page $65 kanji 2: 02 03 12 13 | 20 21 30 31
+OfficerNameGlyph_BAJUN: .byte $65, $02, $03, $12, $13, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $96BE id 178 バジュン 马遵 page $65 kanji 2: 02 03 12 13 | 22 23 32 33
+OfficerNameGlyph_BATAI: .byte $65, $02, $03, $12, $13, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $96CB id 179 バタイ 马岱 page $65 kanji 2: 02 03 12 13 | 24 25 34 35
+OfficerNameGlyph_BACHOU: .byte $65, $02, $03, $12, $13, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $96D8 id 180 バチョウ 马超 page $65 kanji 2: 02 03 12 13 | 26 27 36 37
+OfficerNameGlyph_BATETSU: .byte $65, $02, $03, $12, $13, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $96E5 id 181 バテツ 马铁 page $65 kanji 2: 02 03 12 13 | 28 29 38 39
+OfficerNameGlyph_BATOU: .byte $65, $02, $03, $12, $13, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $96F2 id 182 バトウ 马腾 page $65 kanji 2: 02 03 12 13 | 2A 2B 3A 3B
+OfficerNameGlyph_BARYOU: .byte $65, $02, $03, $12, $13, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $96FF id 183 バリョウ 马良 page $65 kanji 2: 02 03 12 13 | 2C 2D 3C 3D
+OfficerNameGlyph_BANIKU: .byte $6C, $0E, $0F, $1E, $1F, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $970C id 184 バンイク 万彧 page $6C kanji 2: 0E 0F 1E 1F | 02 03 12 13
+OfficerNameGlyph_HANSHOU: .byte $70, $2C, $2D, $3C, $3D, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $9719 id 185 ハンショウ 潘璋 page $70 kanji 2: 2C 2D 3C 3D | 2E 2F 3E 3F
+OfficerNameGlyph_HANCHUU: .byte $72, $02, $03, $12, $13, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $9726 id 186 ハンチュウ 樊稠 page $72 kanji 2: 02 03 12 13 | 22 23 32 33
+OfficerNameGlyph_HII: .byte $71, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9733 id 187 ヒイ 费祎 page $71 kanji 2: 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_BIJIKU: .byte $63, $26, $27, $36, $37, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $9740 id 188 ビジク 麋竺 page $63 kanji 2: 26 27 36 37 | 28 29 38 39
+OfficerNameGlyph_BIHOU: .byte $63, $26, $27, $36, $37, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $974D id 189 ビホウ 麋芳 page $63 kanji 2: 26 27 36 37 | 08 09 18 19
+OfficerNameGlyph_FUEI: .byte $72, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $975A id 190 フエイ 傅婴 page $72 kanji 2: 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_BUNSHUU: .byte $63, $2A, $2B, $3A, $3B, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $9767 id 191 ブンシュウ 文丑 page $63 kanji 2: 2A 2B 3A 3B | 2C 2D 3C 3D
+OfficerNameGlyph_BUNPEI: .byte $63, $2A, $2B, $3A, $3B, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $9774 id 192 ブンペイ 文聘 page $63 kanji 2: 2A 2B 3A 3B | 2E 2F 3E 3F
+OfficerNameGlyph_BUANKOKU: .byte $73, $04, $05, $14, $15, $02, $03, $12, $13, $06, $07, $16, $17  ; $9781 id 193 ブアンコク 武安国 page $73 kanji 3: 04 05 14 15 | 02 03 12 13 | 06 07 16 17
+OfficerNameGlyph_HOUKI: .byte $73, $08, $09, $18, $19, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $978E id 194 ホウキ 逄纪 page $73 kanji 2: 08 09 18 19 | 0A 0B 1A 1B
+OfficerNameGlyph_HOUJUU: .byte $73, $20, $21, $30, $31, $24, $25, $34, $35, $FF, $FF, $FF, $FF  ; $979B id 195 ホウジュウ 庞柔 page $73 kanji 2: 20 21 30 31 | 24 25 34 35
+OfficerNameGlyph_HOUSEI: .byte $5F, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $97A8 id 196 ホウセイ 法正 page $5F kanji 2: 28 29 38 39 | 2A 2B 3A 3B
+OfficerNameGlyph_HOUTOU: .byte $73, $20, $21, $30, $31, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $97B5 id 197 ホウトウ 庞统 page $73 kanji 2: 20 21 30 31 | 26 27 36 37
+OfficerNameGlyph_HOUTOKU: .byte $73, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $97C2 id 198 ホウトク 庞德 page $73 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_HOSHITSU: .byte $73, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $97CF id 199 ホシツ 步骘 page $73 kanji 2: 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_MOUKAKU: .byte $74, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $97DC id 200 モウカク 孟获 page $74 kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_MOUTATSU: .byte $74, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $97E9 id 201 モウタツ 孟达 page $74 kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_MOUYUU: .byte $74, $00, $01, $10, $11, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $97F6 id 202 モウユウ 孟优 page $74 kanji 2: 00 01 10 11 | 08 09 18 19
+OfficerNameGlyph_YOUGAI: .byte $67, $06, $07, $16, $17, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $9803 id 203 ヨウガイ 雍闿 page $67 kanji 2: 06 07 16 17 | 2E 2F 3E 3F
+OfficerNameGlyph_YOUGI: .byte $74, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $9810 id 204 ヨウギ 杨仪 page $74 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_YOUKOU: .byte $74, $20, $21, $30, $31, $28, $29, $38, $39, $FF, $FF, $FF, $FF  ; $981D id 205 ヨウコウ 杨洪 page $74 kanji 2: 20 21 30 31 | 28 29 38 39
+OfficerNameGlyph_YOUSHUU: .byte $74, $20, $21, $30, $31, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $982A id 206 ヨウシュウ 杨修 page $74 kanji 2: 20 21 30 31 | 04 05 14 15
+OfficerNameGlyph_YOUFU: .byte $74, $20, $21, $30, $31, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $9837 id 207 ヨウフ 杨阜 page $74 kanji 2: 20 21 30 31 | 2A 2B 3A 3B
+OfficerNameGlyph_RAIHAKU: .byte $60, $2C, $2D, $3C, $3D, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $9844 id 208 ライハク 雷薄 page $60 kanji 2: 2C 2D 3C 3D | 2E 2F 3E 3F
+OfficerNameGlyph_RAIDOU: .byte $60, $2C, $2D, $3C, $3D, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $9851 id 209 ライドウ 雷铜 page $60 kanji 2: 2C 2D 3C 3D | 0A 0B 1A 1B
+OfficerNameGlyph_RII: .byte $60, $06, $07, $16, $17, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $985E id 210 リイ 李异 page $60 kanji 2: 06 07 16 17 | 26 27 36 37
+OfficerNameGlyph_RIKAKU: .byte $60, $06, $07, $16, $17, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $986B id 211 リカク 李傕 page $60 kanji 2: 06 07 16 17 | 08 09 18 19
+OfficerNameGlyph_RIKUSEKI: .byte $73, $28, $29, $38, $39, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $9878 id 212 リクセキ 陆绩 page $73 kanji 2: 28 29 38 39 | 2A 2B 3A 3B
+OfficerNameGlyph_RIKUSON: .byte $73, $28, $29, $38, $39, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $9885 id 213 リクソン 陆逊 page $73 kanji 2: 28 29 38 39 | 2C 2D 3C 3D
+OfficerNameGlyph_RIGEN: .byte $74, $0A, $0B, $1A, $1B, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $9892 id 214 リゲン 李严 page $74 kanji 2: 0A 0B 1A 1B | 0C 0D 1C 1D
+OfficerNameGlyph_RITAN: .byte $74, $0A, $0B, $1A, $1B, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $989F id 215 リタン 李湛 page $74 kanji 2: 0A 0B 1A 1B | 0E 0F 1E 1F
+OfficerNameGlyph_RITEN: .byte $74, $0A, $0B, $1A, $1B, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $98AC id 216 リテン 李典 page $74 kanji 2: 0A 0B 1A 1B | 2C 2D 3C 3D
+OfficerNameGlyph_RIFU: .byte $74, $0A, $0B, $1A, $1B, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $98B9 id 217 リフ 李孚 page $74 kanji 2: 0A 0B 1A 1B | 2E 2F 3E 3F
+OfficerNameGlyph_RYOFU: .byte $5F, $00, $01, $10, $11, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $98C6 id 218 リョフ 吕布 page $5F kanji 2: 00 01 10 11 | 02 03 12 13
+OfficerNameGlyph_RIJU: .byte $6F, $22, $23, $32, $33, $26, $27, $36, $37, $FF, $FF, $FF, $FF  ; $98D3 id 219 リジュ 李儒 page $6F kanji 2: 22 23 32 33 | 26 27 36 37
+OfficerNameGlyph_RYUUSHOU: .byte $6E, $02, $03, $12, $13, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $98E0 id 220 リュウショウ 刘璋 page $6E kanji 2: 02 03 12 13 | 2E 2F 3E 3F
+OfficerNameGlyph_RYUUDO: .byte $6E, $02, $03, $12, $13, $0C, $0D, $1C, $1D, $FF, $FF, $FF, $FF  ; $98ED id 221 リュウド 刘度 page $6E kanji 2: 02 03 12 13 | 0C 0D 1C 1D
+OfficerNameGlyph_RYUUBI: .byte $6E, $02, $03, $12, $13, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $98FA id 222 リュウビ 刘备 page $6E kanji 2: 02 03 12 13 | 0E 0F 1E 1F
+OfficerNameGlyph_RYUUHEI: .byte $61, $28, $29, $38, $39, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9907 id 223 リュウヘイ 留平 page $61 kanji 2: 28 29 38 39 | 0E 0F 1E 1F
+OfficerNameGlyph_RYUUHOU: .byte $6E, $02, $03, $12, $13, $0A, $0B, $1A, $1B, $FF, $FF, $FF, $FF  ; $9914 id 224 リュウホウ 刘封 page $6E kanji 2: 02 03 12 13 | 0A 0B 1A 1B
+OfficerNameGlyph_RYUUYOU: .byte $6E, $02, $03, $12, $13, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $9921 id 225 リュウヨウ 刘晔 page $6E kanji 2: 02 03 12 13 | 22 23 32 33
+OfficerNameGlyph_RYOUKA: .byte $60, $20, $21, $30, $31, $22, $23, $32, $33, $FF, $FF, $FF, $FF  ; $992E id 226 リョウカ 廖化 page $60 kanji 2: 20 21 30 31 | 22 23 32 33
+OfficerNameGlyph_RYOUKOU: .byte $69, $20, $21, $30, $31, $02, $03, $12, $13, $FF, $FF, $FF, $FF  ; $993B id 227 リョウコウ 梁兴 page $69 kanji 2: 20 21 30 31 | 02 03 12 13
+OfficerNameGlyph_RYOUTOU: .byte $60, $0C, $0D, $1C, $1D, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $9948 id 228 リョウトウ 凌统 page $60 kanji 2: 0C 0D 1C 1D | 0E 0F 1E 1F
+OfficerNameGlyph_RYOGAI: .byte $5F, $00, $01, $10, $11, $04, $05, $14, $15, $FF, $FF, $FF, $FF  ; $9955 id 229 リョガイ 吕凯 page $5F kanji 2: 00 01 10 11 | 04 05 14 15
+OfficerNameGlyph_RYOKOU: .byte $5F, $00, $01, $10, $11, $06, $07, $16, $17, $FF, $FF, $FF, $FF  ; $9962 id 230 リョコウ 吕旷 page $5F kanji 2: 00 01 10 11 | 06 07 16 17
+OfficerNameGlyph_RYOKEN: .byte $5F, $00, $01, $10, $11, $08, $09, $18, $19, $FF, $FF, $FF, $FF  ; $996F id 231 リョケン 吕虔 page $5F kanji 2: 00 01 10 11 | 08 09 18 19
+OfficerNameGlyph_RYOSHOU: .byte $5F, $00, $01, $10, $11, $0E, $0F, $1E, $1F, $FF, $FF, $FF, $FF  ; $997C id 232 リョショウ 吕翔 page $5F kanji 2: 00 01 10 11 | 0E 0F 1E 1F
+OfficerNameGlyph_RYOHAN: .byte $5F, $00, $01, $10, $11, $2C, $2D, $3C, $3D, $FF, $FF, $FF, $FF  ; $9989 id 233 リョハン 吕范 page $5F kanji 2: 00 01 10 11 | 2C 2D 3C 3D
+OfficerNameGlyph_RYOMOU: .byte $5F, $00, $01, $10, $11, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $9996 id 234 リョモウ 吕蒙 page $5F kanji 2: 00 01 10 11 | 2E 2F 3E 3F
+OfficerNameGlyph_ROSHUKU: .byte $60, $04, $05, $14, $15, $2A, $2B, $3A, $3B, $FF, $FF, $FF, $FF  ; $99A3 id 235 ロシュク 鲁肃 page $60 kanji 2: 04 05 14 15 | 2A 2B 3A 3B
+OfficerNameGlyph_RIKEI: .byte $6F, $22, $23, $32, $33, $2E, $2F, $3E, $3F, $FF, $FF, $FF, $FF  ; $99B0 id 236 リケイ 李珪 page $6F kanji 2: 22 23 32 33 | 2E 2F 3E 3F
+
 ; ------------------------------------------------------------------------------
-; $8D74-$9C57 (3812 bytes): NOT ANALYSED - raw slice of
-; rom/prg/prg_11.bin, so this bank always reproduces the ROM.
-; Verify with: python tools/verify_data_banks.py --bank 11
-.incbin "rom/prg/prg_11.bin", $0D74, $0EE4
+; $99BD-$9AB3 (247 bytes): unused $00 filler.
+; Gap between the name-glyph records (end $99BC) and the defense side
+; type table (starts $9AB4); every byte is $00. No analysed code
+; accesses it - the bank-$31 readers key off $8D74 / $8DB4 + id*$0D /
+; $9AB4 / $9BA4 only. Listed as .byte rows so the whole bank is visible.
+; ------------------------------------------------------------------------------
+ZeroFiller11_99BD_9AB3:
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $99BD (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $99CD (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $99DD (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $99ED (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $99FD (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A0D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A1D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A2D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A3D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A4D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A5D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A6D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A7D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A8D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9A9D (16 bytes)
+  .byte $00, $00, $00, $00, $00, $00, $00                                              ; $9AAD (7 bytes)
+
+; ==============================================================================
+; $9AB4-$9BA3  Tactical DEFENSE side types: 30 provinces x 8 slots
+; One byte per adjacency slot, same province*8 + $9AB4 index the bank
+; $30 adjacency graph $9D72 uses, and $FF padded on exactly the same
+; slot in all 30 rows (checked row by row against prg_10.bin $9D72;
+; the adjacency scan that yields the index runs under LDY #$30, the
+; read itself under LDY #$31). Observed values are $00/$01 only.
+; Meaning (user-confirmed): the defense side type, selecting the
+; defender's initial officer arrangement for Tactical Mode. Counterpart
+; of the bank-$30 $9E62 TacticalAttackSideTypeTable; the two are chosen
+; by SIDE, never by controller.
+; Readers (both scan the bank-$30 adjacency row of $050E for $052A,
+; then read this table at that slot):
+;   @SetupDefenderRoster in .proc WarSetup prg_08_09 $B2AE -> $B2D6,
+;     and GetCityOfficerData prg_0c_0d $DEDE -> $DEE2 (called from
+;     @BuildOfficerList $C3D2 and @CheckBoundsForPosition $C44E in the
+;     cursor-driven army-deploy scene).
+; Role of the value: a SELECTOR index, never a count. Every consumer
+; scales it and adds it to a per-province base in the bank-$26 geometry
+; tables (physical bank $06):
+;   $8C52[$050E*2] + type*32 -> defender unit placement pool (16 (Y,X)
+;     pairs: anchor, then runs for unit ids 1-4 at offsets $02/$08/$0C/
+;     $14); @StoreCoordinates prg_08_09 $B266 writes it to $0600/$0614,
+;     @BuildOfficerList feeds it to SearchRosterByTileCoord.
+;   $94D6[$050E*2] + type*4  -> city bounds rectangle ([Ymin,Ymax] at
+;     +0/+2, [Xmin,Xmax] at +1/+3) tested by @CheckBoundsForPosition.
+; The bank-$30 twin $9E62 (values 0-$03) does the same job for the
+; attacker side: $8000[$050E] + type*34 and $932E[$050E] + type*4.
+; The key is not the province alone but the adjacency SLOT holding
+; $052A inside $050E's row - a per-approach-route selector.
+; Controller independence (it is NOT an AI-only table): WarSetup has
+; no human/AI gating - the only status tests in $B130-$B310 are
+; faction record[$03] == 3 for side 0 then side 1, and @FillCoordinates
+; $B258 branches on side_unit_base $6F91 (0 = defender, $0A = attacker),
+; so the type is read whenever side 0 deploys, human or AI. Its
+; launcher State_WarSceneLaunch prg_1f $E18B dispatches only on
+; war_scene_id $0500 ($0B officer-fate vs battle deployment), and the
+; arming sites include the player-driven WarSceneLaunch prg_1b_1c $B5DC
+; (frame sub-state 21, controller polled at $0081) plus
+; ArmyDeploySceneTrigger prg_19_1a $CA42. The GetCityOfficerData readers
+; are player UI in the army-deploy scene ArmyDeployDispatch prg_0c_0d
+; $C204: the readers test only mode byte $050B == 2, written by
+; @State_CheckSrcRuler $C267 (side 0 of $0507, the defender); every other
+; value ($03 from @State_CheckDestRuler $C2A6 = side 1, $00 from
+; @State_ResetForTransfer $C2E0) takes the attacker twin.
+; $00 vs $01 (measured over the 23 provinces that reserve the second
+; 32-byte block): two authored variants of the DEFENDER ARRAY, and the
+; $8C52 base table reserves exactly (max type + 1) * 32 bytes in all 29
+; measurable provinces (6 x 32, 23 x 64). The anchor pair (bytes 0-1) is
+; identical in both; the other 15 (Y,X) unit positions all change (5-10
+; of 15 shared by coincidence). Type 0 sits west of the city anchor
+; (mean dX <= 0 in 23/23), type 1 east (mean dX > 0 in 19/23; provinces
+; 9/10/15/17 shift along Y). Unlike the attack side, where the anchor
+; itself moves, the garrison keeps its city and only re-arrays.
+; The bounds rectangle is a DUPLICATED pair - byte-identical for 0 and
+; 1 in 22/23, province 14 differs by one X column - so what actually
+; changes with the type is the placement array, not the city area.
+; What selects 1 is hand-authored, not derived: the relative map
+; direction of the two provinces predicts it no better than a coin flip
+; (best rule 68/128 over all 128 province/neighbour pairs), slot parity
+; does not (66/128), and the value is directional - 46 of the 64 shared
+; borders use different values in the two directions. Provinces
+; 0/3/4/6/7/18/29 never use 1, none use only 1, and exactly the 23
+; provinces that do have base+32 reserved as a spare geometry block.
+; Bank-window note: under LDY #$30 the same CPU address $9AB4 is bank
+; $10 EquipmentNamePatterns, and bank $10 keeps its own attacker-side
+; table at $9E62; the three tables are distinct.
+; ==============================================================================
+TacticalDefenseSideTypeTable:
+
+  .byte $00, $00, $FF, $FF, $FF, $FF, $FF, $FF   ; $9AB4 id  0 リョウトウ  defense type per neighbour slot: 0, 0
+  .byte $01, $00, $00, $01, $FF, $FF, $FF, $FF   ; $9ABC id  1 ユウシュウ  defense type per neighbour slot: 1, 0, 0, 1
+  .byte $01, $01, $00, $00, $FF, $FF, $FF, $FF   ; $9AC4 id  2 ヘイシュウ  defense type per neighbour slot: 1, 1, 0, 0
+  .byte $00, $00, $00, $00, $FF, $FF, $FF, $FF   ; $9ACC id  3 セイシュウ  defense type per neighbour slot: 0, 0, 0, 0
+  .byte $00, $00, $00, $00, $00, $FF, $FF, $FF   ; $9AD4 id  4 キシュウ  defense type per neighbour slot: 0, 0, 0, 0, 0
+  .byte $00, $01, $01, $FF, $FF, $FF, $FF, $FF   ; $9ADC id  5 セイアンヨウ  defense type per neighbour slot: 0, 1, 1
+  .byte $00, $00, $FF, $FF, $FF, $FF, $FF, $FF   ; $9AE4 id  6 リョウシュウ  defense type per neighbour slot: 0, 0
+  .byte $00, $00, $00, $00, $00, $FF, $FF, $FF   ; $9AEC id  7 アンテイ  defense type per neighbour slot: 0, 0, 0, 0, 0
+  .byte $01, $00, $00, $01, $01, $01, $FF, $FF   ; $9AF4 id  8 チョウアン  defense type per neighbour slot: 1, 0, 0, 1, 1, 1
+  .byte $01, $01, $01, $00, $FF, $FF, $FF, $FF   ; $9AFC id  9 セイヘイカン  defense type per neighbour slot: 1, 1, 1, 0
+  .byte $01, $00, $00, $00, $FF, $FF, $FF, $FF   ; $9B04 id 10 ジョシュウ  defense type per neighbour slot: 1, 0, 0, 0
+  .byte $00, $00, $00, $01, $01, $FF, $FF, $FF   ; $9B0C id 11 エンシュウ  defense type per neighbour slot: 0, 0, 0, 1, 1
+  .byte $00, $00, $00, $01, $01, $01, $FF, $FF   ; $9B14 id 12 ラクヨウ  defense type per neighbour slot: 0, 0, 0, 1, 1, 1
+  .byte $00, $01, $01, $01, $FF, $FF, $FF, $FF   ; $9B1C id 13 シンヤ  defense type per neighbour slot: 0, 1, 1, 1
+  .byte $00, $00, $01, $01, $01, $FF, $FF, $FF   ; $9B24 id 14 ヨシュウ  defense type per neighbour slot: 0, 0, 1, 1, 1
+  .byte $00, $00, $01, $FF, $FF, $FF, $FF, $FF   ; $9B2C id 15 ケンギョウ  defense type per neighbour slot: 0, 0, 1
+  .byte $00, $00, $00, $01, $01, $01, $FF, $FF   ; $9B34 id 16 ヨウシュウ  defense type per neighbour slot: 0, 0, 0, 1, 1, 1
+  .byte $00, $00, $00, $01, $FF, $FF, $FF, $FF   ; $9B3C id 17 ケンアン  defense type per neighbour slot: 0, 0, 0, 1
+  .byte $00, $00, $00, $FF, $FF, $FF, $FF, $FF   ; $9B44 id 18 コウシュウ  defense type per neighbour slot: 0, 0, 0
+  .byte $01, $00, $00, $FF, $FF, $FF, $FF, $FF   ; $9B4C id 19 イクリン  defense type per neighbour slot: 1, 0, 0
+  .byte $00, $00, $01, $01, $01, $00, $FF, $FF   ; $9B54 id 20 コウカ  defense type per neighbour slot: 0, 0, 1, 1, 1, 0
+  .byte $00, $00, $01, $01, $01, $01, $00, $FF   ; $9B5C id 21 ケイシュウ  defense type per neighbour slot: 0, 0, 1, 1, 1, 1, 0
+  .byte $00, $00, $01, $01, $00, $FF, $FF, $FF   ; $9B64 id 22 ショウヨウ  defense type per neighbour slot: 0, 0, 1, 1, 0
+  .byte $00, $00, $01, $01, $FF, $FF, $FF, $FF   ; $9B6C id 23 チョウサ  defense type per neighbour slot: 0, 0, 1, 1
+  .byte $00, $00, $01, $01, $FF, $FF, $FF, $FF   ; $9B74 id 24 レイリョウ  defense type per neighbour slot: 0, 0, 1, 1
+  .byte $01, $00, $01, $00, $00, $FF, $FF, $FF   ; $9B7C id 25 カンチュウ  defense type per neighbour slot: 1, 0, 1, 0, 0
+  .byte $01, $01, $00, $00, $00, $FF, $FF, $FF   ; $9B84 id 26 セイト  defense type per neighbour slot: 1, 1, 0, 0, 0
+  .byte $01, $00, $00, $01, $FF, $FF, $FF, $FF   ; $9B8C id 27 フリョウ  defense type per neighbour slot: 1, 0, 0, 1
+  .byte $00, $00, $01, $01, $FF, $FF, $FF, $FF   ; $9B94 id 28 ウンナン  defense type per neighbour slot: 0, 0, 1, 1
+  .byte $00, $00, $FF, $FF, $FF, $FF, $FF, $FF   ; $9B9C id 29 エイショウ  defense type per neighbour slot: 0, 0
+
+; ==============================================================================
+; $9BA4-$9C57  Tactical facility tiles: 30 rows x 6 bytes - the
+; facility locations of each province's tactical-mode battlefield.
+; 3 ordered (X,Y) tile pairs per province, fixed slot order:
+;   +0/+1 House (民家/rice market), +2/+3 Armory (武器屋),
+;   +4/+5 Hospital (病院). Direct proof: arriving on pair N
+;   routes route_mode $0470=N through State9_RouteNextAction
+;   prg_08_09 $C7C8: N=$00 -> State0 rice-buy panel $C0D5, N=$01
+;   -> State5 armory grid $C4B8, else -> State3 vitality check
+;   $C3E3 -> State4 hospital heal $C3E9. Also: slot 0 is the
+;   Action_BuyRice march target, slot 2 the Action_RestoreHP one
+;   (both via the sliding *3 index below). The
+;   market slot does NOT equal the strategy-layer has_market bit
+;   (docs/rice_prices.csv): 青州 has a market but no slot-0 tile,
+;   襄阳 no market yet slot 2. Row area ends exactly at
+;   OfficerDeathYearTable $9C58. A pair is unused when its X has
+;   bit7 set (readers BMI/BPL; padding stored is $FF $FF). Coords are
+;   tiles of the 32x32 battlefield ($00-$1D observed); the march
+;   readers decrement a Y >= $10 once (map gap row).
+; Readers - two indexings exist; stride-6 (correct rows):
+;   DrawStratagemTargetMarkers prg_08_09 $D24D -> $D25D: $050E *3 *2
+;     (=*6), walks pairs at +0/+2/+4 and draws a city-target marker
+;     (tiles *16 -> pixels) at each used pair;
+;   OfficerTransfer_SetupResult prg_0c_0d $A4DD -> $A4EF: $050E *3 *2
+;     (=*6), scans the 3 pairs vs the destination (X,Y); a match
+;     stores the slot index (X) as the action selector and enters
+;     state $09 (war action panel, WarTownActionDispatch).
+;   The war/AI readers use $050E * 3 instead, so they slide across the
+;   rows ($FF means "no entry" to them): Action_BuyRice $A329 ->
+;   $A33B (+0/+1 = this row's House slot exactly), Action_RestoreHP
+;   $A507 -> $A51C (+4/+5 = lands on the NEXT row's House slot byte
+;   pair, not this row's Hospital), casualty Phases 5/6 $CA5F ->
+;   $CA71 / $CAC2 -> $CAD7 (presence tests: +0 / +4 != $FF gates the
+;   reinforcement/morale path). Kept as raw evidence.
+; ==============================================================================
+ProvinceTacticalFacilityTiles:
+
+  .byte $13, $0B, $FF, $FF, $FF, $FF       ; $9BA4 id  0 リョウトウ  House(13,0B@19,11) Armory- Hospital-
+  .byte $FF, $FF, $08, $05, $16, $0C       ; $9BAA id  1 ユウシュウ  House- Armory(08,05@8,5) Hospital(16,0C@22,12)
+  .byte $11, $0A, $14, $0D, $18, $07       ; $9BB0 id  2 ヘイシュウ  House(11,0A@17,10) Armory(14,0D@20,13) Hospital(18,07@24,7)
+  .byte $FF, $FF, $FF, $FF, $05, $10       ; $9BB6 id  3 セイシュウ  House- Armory- Hospital(05,10@5,16)
+  .byte $04, $03, $1D, $12, $16, $06       ; $9BBC id  4 キシュウ  House(04,03@4,3) Armory(1D,12@29,18) Hospital(16,06@22,6)
+  .byte $FF, $FF, $06, $0C, $13, $10       ; $9BC2 id  5 セイアンヨウ  House- Armory(06,0C@6,12) Hospital(13,10@19,16)
+  .byte $13, $06, $01, $06, $05, $13       ; $9BC8 id  6 リョウシュウ  House(13,06@19,6) Armory(01,06@1,6) Hospital(05,13@5,19)
+  .byte $0A, $04, $FF, $FF, $06, $0C       ; $9BCE id  7 アンテイ  House(0A,04@10,4) Armory- Hospital(06,0C@6,12)
+  .byte $08, $07, $12, $05, $19, $0C       ; $9BD4 id  8 チョウアン  House(08,07@8,7) Armory(12,05@18,5) Hospital(19,0C@25,12)
+  .byte $FF, $FF, $14, $11, $16, $03       ; $9BDA id  9 セイヘイカン  House- Armory(14,11@20,17) Hospital(16,03@22,3)
+  .byte $07, $0E, $FF, $FF, $12, $10       ; $9BE0 id 10 ジョシュウ  House(07,0E@7,14) Armory- Hospital(12,10@18,16)
+  .byte $0B, $07, $14, $03, $18, $10       ; $9BE6 id 11 エンシュウ  House(0B,07@11,7) Armory(14,03@20,3) Hospital(18,10@24,16)
+  .byte $05, $05, $0A, $11, $13, $12       ; $9BEC id 12 ラクヨウ  House(05,05@5,5) Armory(0A,11@10,17) Hospital(13,12@19,18)
+  .byte $19, $03, $07, $05, $11, $0D       ; $9BF2 id 13 シンヤ  House(19,03@25,3) Armory(07,05@7,5) Hospital(11,0D@17,13)
+  .byte $0D, $12, $FF, $FF, $14, $0A       ; $9BF8 id 14 ヨシュウ  House(0D,12@13,18) Armory- Hospital(14,0A@20,10)
+  .byte $05, $0A, $1A, $12, $0C, $12       ; $9BFE id 15 ケンギョウ  House(05,0A@5,10) Armory(1A,12@26,18) Hospital(0C,12@12,18)
+  .byte $04, $08, $FF, $FF, $17, $05       ; $9C04 id 16 ヨウシュウ  House(04,08@4,8) Armory- Hospital(17,05@23,5)
+  .byte $FF, $FF, $18, $03, $04, $12       ; $9C0A id 17 ケンアン  House- Armory(18,03@24,3) Hospital(04,12@4,18)
+  .byte $16, $04, $0A, $12, $FF, $FF       ; $9C10 id 18 コウシュウ  House(16,04@22,4) Armory(0A,12@10,18) Hospital-
+  .byte $FF, $FF, $06, $11, $0D, $05       ; $9C16 id 19 イクリン  House- Armory(06,11@6,17) Hospital(0D,05@13,5)
+  .byte $0F, $04, $07, $10, $17, $0C       ; $9C1C id 20 コウカ  House(0F,04@15,4) Armory(07,10@7,16) Hospital(17,0C@23,12)
+  .byte $11, $04, $05, $0A, $FF, $FF       ; $9C22 id 21 ケイシュウ  House(11,04@17,4) Armory(05,0A@5,10) Hospital-
+  .byte $FF, $FF, $FF, $FF, $0B, $07       ; $9C28 id 22 ショウヨウ  House- Armory- Hospital(0B,07@11,7)
+  .byte $0E, $0D, $0A, $06, $FF, $FF       ; $9C2E id 23 チョウサ  House(0E,0D@14,13) Armory(0A,06@10,6) Hospital-
+  .byte $16, $05, $FF, $FF, $0C, $0A       ; $9C34 id 24 レイリョウ  House(16,05@22,5) Armory- Hospital(0C,0A@12,10)
+  .byte $10, $06, $06, $0C, $14, $10       ; $9C3A id 25 カンチュウ  House(10,06@16,6) Armory(06,0C@6,12) Hospital(14,10@20,16)
+  .byte $0C, $0D, $09, $03, $13, $0B       ; $9C40 id 26 セイト  House(0C,0D@12,13) Armory(09,03@9,3) Hospital(13,0B@19,11)
+  .byte $FF, $FF, $09, $11, $16, $06       ; $9C46 id 27 フリョウ  House- Armory(09,11@9,17) Hospital(16,06@22,6)
+  .byte $06, $01, $FF, $FF, $13, $0D       ; $9C4C id 28 ウンナン  House(06,01@6,1) Armory- Hospital(13,0D@19,13)
+  .byte $FF, $FF, $05, $03, $FF, $FF       ; $9C52 id 29 エイショウ  House- Armory(05,03@5,3) Hospital-
 
 ; ==============================================================================
 ; $9C58-$9D44  Officer natural-death year table: 1 byte per id (237)
@@ -480,8 +1005,166 @@ OfficerDeathYearTable:
   .byte $7B, $80, $7C, $75, $83                    ; $9D40 id 232-236: 吕翔=223 吕范=228 吕蒙=224 鲁肃=217 李珪=231
 
 ; ------------------------------------------------------------------------------
-; $9D45-$9FFF (699 bytes): NOT ANALYSED - raw slice of
-; rom/prg/prg_11.bin, so this bank always reproduces the ROM.
-; Verify with: python tools/verify_data_banks.py --bank 11
-.incbin "rom/prg/prg_11.bin", $1D45, $02BB
+; $9D45-$9D57 (19 bytes): unused $00 gap.
+; Between OfficerDeathYearTable (ends $9D44) and the province
+; pixel-position table (starts $9D58). The death-year scan reads
+; 237 bytes from $9C58 and stops at $9D44, so no code reaches here.
+; ------------------------------------------------------------------------------
+B11TailGap_9D45_9D57:
+  .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9D45 (16 bytes)
+  .byte $00, $00, $00                                                                  ; $9D55 (3 bytes)
+
+; ==============================================================================
+; $9D58-$9DCF  Province pixel-position table: 30 provinces x 4 bytes
+; Indexed province *4 ($050E / $0402 *4), one row = two .word
+; entries: map pixel Y then map pixel X, both stored offset by the
+; $8000 window base (like the reinforcement pool pointers above), so
+; the on-map pixel is coord - $8000; all stored values are
+; $0050-$0180. The stride is exactly
+; 30 rows: the 4 bytes after the last row ($9DD0-$9DD3) are $FF like
+; the following filler, so no province is missing. Readers (bank $31
+; window via LDY #$31 / B1F_SwitchBank8_B):
+;   DrawStratagemTargetMarkers prg_08_09 $D204 -> $D20F: the pair goes
+;     to a:$000A-$000D as the sprite base position for
+;     B1F_SpriteOamWriterScroll (battle stratagem province marker).
+;   ExchangeScene_Init prg_0c_0d $DC99 -> $DCCE: 16-bit clamp of
+;     X - $80 into $0512/$0513 and Y - $60 into $0510/$0511 (the
+;     exchange-scene map window bounds).
+; ==============================================================================
+ProvincePixelPositionTable:
+
+ProvincePixelPos_RYOUTOU:
+  .word $0050                       ; $9D58 id  0 リョウトウ  pixel Y
+  .word $0180                       ; $9D5A pixel X
+ProvincePixelPos_YUUSHUU:
+  .word $0080                       ; $9D5C id  1 ユウシュウ  pixel Y
+  .word $0120                       ; $9D5E pixel X
+ProvincePixelPos_HEISHUU:
+  .word $0090                       ; $9D60 id  2 ヘイシュウ  pixel Y
+  .word $0150                       ; $9D62 pixel X
+ProvincePixelPos_SEISHUU:
+  .word $0080                       ; $9D64 id  3 セイシュウ  pixel Y
+  .word $0160                       ; $9D66 pixel X
+ProvincePixelPos_KISHUU:
+  .word $00E0                       ; $9D68 id  4 キシュウ  pixel Y
+  .word $0140                       ; $9D6A pixel X
+ProvincePixelPos_SEIANYOU:
+  .word $0090                       ; $9D6C id  5 セイアンヨウ  pixel Y
+  .word $0110                       ; $9D6E pixel X
+ProvincePixelPos_RYOUSHUU:
+  .word $0070                       ; $9D70 id  6 リョウシュウ  pixel Y
+  .word $00A0                       ; $9D72 pixel X
+ProvincePixelPos_ANTEI:
+  .word $0080                       ; $9D74 id  7 アンテイ  pixel Y
+  .word $0050                       ; $9D76 pixel X
+ProvincePixelPos_CHOUAN:
+  .word $00B0                       ; $9D78 id  8 チョウアン  pixel Y
+  .word $00F0                       ; $9D7A pixel X
+ProvincePixelPos_SEIHEIKAN:
+  .word $00A0                       ; $9D7C id  9 セイヘイカン  pixel Y
+  .word $00E0                       ; $9D7E pixel X
+ProvincePixelPos_JOSHUU:
+  .word $00A0                       ; $9D80 id 10 ジョシュウ  pixel Y
+  .word $0100                       ; $9D82 pixel X
+ProvincePixelPos_ENSHUU:
+  .word $00A0                       ; $9D84 id 11 エンシュウ  pixel Y
+  .word $00C0                       ; $9D86 pixel X
+ProvincePixelPos_RAKUYOU:
+  .word $0090                       ; $9D88 id 12 ラクヨウ  pixel Y
+  .word $00F0                       ; $9D8A pixel X
+ProvincePixelPos_SHINYA:
+  .word $00B0                       ; $9D8C id 13 シンヤ  pixel Y
+  .word $00F0                       ; $9D8E pixel X
+ProvincePixelPos_YOSHUU:
+  .word $00B0                       ; $9D90 id 14 ヨシュウ  pixel Y
+  .word $00F0                       ; $9D92 pixel X
+ProvincePixelPos_KENGYOU:
+  .word $0090                       ; $9D94 id 15 ケンギョウ  pixel Y
+  .word $0170                       ; $9D96 pixel X
+ProvincePixelPos_YOUSHUU:
+  .word $00B0                       ; $9D98 id 16 ヨウシュウ  pixel Y
+  .word $0100                       ; $9D9A pixel X
+ProvincePixelPos_KENAN:
+  .word $00C0                       ; $9D9C id 17 ケンアン  pixel Y
+  .word $0150                       ; $9D9E pixel X
+ProvincePixelPos_KOUSHUU:
+  .word $00C0                       ; $9DA0 id 18 コウシュウ  pixel Y
+  .word $0140                       ; $9DA2 pixel X
+ProvincePixelPos_IKURIN:
+  .word $00D0                       ; $9DA4 id 19 イクリン  pixel Y
+  .word $00F0                       ; $9DA6 pixel X
+ProvincePixelPos_KOUKA:
+  .word $00B0                       ; $9DA8 id 20 コウカ  pixel Y
+  .word $00D0                       ; $9DAA pixel X
+ProvincePixelPos_KEISHUU:
+  .word $00B0                       ; $9DAC id 21 ケイシュウ  pixel Y
+  .word $0100                       ; $9DAE pixel X
+ProvincePixelPos_SHOUYOU:
+  .word $0090                       ; $9DB0 id 22 ショウヨウ  pixel Y
+  .word $0120                       ; $9DB2 pixel X
+ProvincePixelPos_CHOUSA:
+  .word $0080                       ; $9DB4 id 23 チョウサ  pixel Y
+  .word $0150                       ; $9DB6 pixel X
+ProvincePixelPos_REIRYOU:
+  .word $00D0                       ; $9DB8 id 24 レイリョウ  pixel Y
+  .word $0140                       ; $9DBA pixel X
+ProvincePixelPos_KANCHUU:
+  .word $00A0                       ; $9DBC id 25 カンチュウ  pixel Y
+  .word $00E0                       ; $9DBE pixel X
+ProvincePixelPos_SEITO:
+  .word $00A0                       ; $9DC0 id 26 セイト  pixel Y
+  .word $00C0                       ; $9DC2 pixel X
+ProvincePixelPos_FURYOU:
+  .word $00B0                       ; $9DC4 id 27 フリョウ  pixel Y
+  .word $00B0                       ; $9DC6 pixel X
+ProvincePixelPos_UNNAN:
+  .word $0080                       ; $9DC8 id 28 ウンナン  pixel Y
+  .word $00E0                       ; $9DCA pixel X
+ProvincePixelPos_EISHOU:
+  .word $0110                       ; $9DCC id 29 エイショウ  pixel Y
+  .word $0070                       ; $9DCE pixel X
+
+; ------------------------------------------------------------------------------
+; $9DD0-$9FFF (560 bytes): unused $FF tail padding.
+; The pixel-position table stride ends at $9DCF, so these are its
+; first 4 bytes; nothing from here to the end of the bank is read.
+; Listed as .byte rows so the whole bank is visible in-tree, like
+; the bank $10 filler regions.
+; ------------------------------------------------------------------------------
+B11FFFiller_9DD0_9FFF:
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9DD0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9DE0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9DF0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E00 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E10 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E20 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E30 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E40 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E50 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E60 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E70 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E80 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9E90 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9EA0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9EB0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9EC0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9ED0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9EE0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9EF0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F00 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F10 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F20 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F30 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F40 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F50 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F60 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F70 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F80 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F90 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FA0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FB0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FC0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FD0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FE0 (16 bytes)
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FF0 (16 bytes)
 

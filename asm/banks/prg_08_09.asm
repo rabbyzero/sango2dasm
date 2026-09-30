@@ -187,7 +187,7 @@ adjacent_scan_results  = $6FDD  ; adjacent officer scan result table
 ; AiOfficerActionDecide - Decide action for current AI officer
 ; Input: Y = officer index ($6F8C also holds it)
 ; Reads officer state from $6FA1,Y; low nibble selects the action handler via
-; the inline CallbackDispatcher table:
+; the inline InlineTableDispatcher table:
 ;   0 = Action_DefaultDecision   (flee/stratagem/attack/move priority chain)
 ;   1 = Action_Regroup           (rejoin main force / march to capital)
 ;   2 = Action_AttackNearest     (nearest enemy, range 2 from self)
@@ -201,8 +201,8 @@ adjacent_scan_results  = $6FDD  ; adjacent officer scan result table
 @AiOfficerActionDecide:
   LDA officer_state_table,Y             ; $A099: B9 A1 6F  ; officer state
   AND #$0F                              ; $A09C: 29 0F     ; low nibble = action type
-  JSR CallbackDispatcher                ; $A09E: 20 17 B5  ; dispatch on action type (0-7)
-  ; Inline dispatch table (targets of CallbackDispatcher)
+  JSR InlineTableDispatcher             ; $A09E: 20 17 B5  ; dispatch on action type (0-7)
+  ; Inline dispatch table (targets of InlineTableDispatcher)
   .word Action_DefaultDecision          ; $A0A1: B1 A0     ; action 0: priority chain (flee/stratagem/attack/move/random)
   .word Action_Regroup                  ; $A0A3: 05 A1     ; action 1: rejoin main force / march to capital
   .word Action_AttackNearest            ; $A0A5: 66 A1     ; action 2: attack nearest enemy (range 2, self)
@@ -1907,7 +1907,7 @@ AiCheckStratagemFeasible:
   JSR GetTileTerrainClamped             ; $ACA2: 20 E5 B6  ; terrain at self
   STA a:$0029                           ; $ACA5: 8D 29 00
   LDA a:$002C                           ; $ACA8: AD 2C 00  ; stratagem code -> A
-  JSR CallbackDispatcher                ; $ACAB: 20 17 B5
+  JSR InlineTableDispatcher             ; $ACAB: 20 17 B5
 ; --- Inline dispatch table: stratagem code (A) -> condition handler ---
   .word AiFeasible_FireAttack           ; $ACAE: CE AC      ; stratagem 0
   .word AiFeasible_PitfallTrap                 ; $ACB0: DB AC      ; stratagem 1
@@ -3189,13 +3189,15 @@ FactionRecordPtrTable:                  ; faction 0-6 records, 8 bytes apart
   RTS                                   ; $B516: 60
 .endproc  ; GetOfficerRecordPtrBanked
 ;===============================================================================
-; CallbackDispatcher ($B517-$B535)
+; InlineTableDispatcher ($B517-$B535)
+; Bank-local twin of B1F_CallbackDispatcher ($EADE); distinct proc name to
+; avoid the ca65 scope conflict when both banks assemble in one pass.
 ; Inline table dispatcher: A = index into .word table following the JSR.
 ; JMPs to table[A]; handler RTS returns to code after the table.
 ; Y is preserved (saved via $20). Usage:
-;   LDA #index / JSR CallbackDispatcher / .word target0, target1, ...
+;   LDA #index / JSR InlineTableDispatcher / .word target0, target1, ...
 ;===============================================================================
-.proc CallbackDispatcher
+.proc InlineTableDispatcher
   STY a:$0020                           ; $B517: 8C 20 00  ; save Y
   ASL                                   ; $B51A: 0A        ; A = index*2
   TAY                                   ; $B51B: A8

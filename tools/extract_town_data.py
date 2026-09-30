@@ -32,10 +32,16 @@ Armory stock (subs 19-21 of the town dispatch, $C76E-$C9EF):
 * Cell -> item: cell index == equipment id as encoded in the officer
   record +10 (bits 0-4 weapon, bits 5-7 armor; see
   tools/extract_officer_data.py). Weapons: 0-4 剣, 8-13 刀, 16-21 槍;
-  armor: 24-29 = armor ids 0-5. Cells 14/15/22/23 (weapons) and 30/31
-  (armor ids 6/7) never appear on any starting officer; 14 is unpriced,
-  the rest are the hidden top-tier items (15 sold only in 建業's armory,
-  22/23/30/31 in no starting-scenario armory).
+  armor: 24-29 = armor ids 0-5. The nine ids absent from the starting
+  grids (5/6/7 剣, 14/15 刀, 22/23 槍, 30/31 防具) are SPECIAL items:
+  none appears in the printed manual, and all nine names were decoded
+  by rendering each EquipmentNamePatterns record's byte0 CHR code page
+  (asm/banks/data_10.asm $9B52; cross-checked against player records
+  2026-09-30). They are obtainable in-game - duel loot from appointed
+  rulers, or battle-time / gated armory stock (22 狼牙鎗 武90+, 30
+  聖者の衣 徳90+, 15 関王刀 only in 建業, 23 蛇矛 only as 涪陵's 4th
+  grid cell via the prg_1b_1c $C7B3 special case); 5/6/7/14 carry no
+  price entry at all.
 
 Rice market (sub 3 of the town dispatch, $C1C1):
 
@@ -81,16 +87,15 @@ FACILITY_SHORT = ['武', '学', '病', '商']
 # 237 officer records against a published roster of this ROM).
 WEAPON_NAMES = {
     0: '短剣', 1: '飛剣', 2: '長剣', 3: '破斬剣', 4: '大剣',
+    5: '青釭の剣', 6: '倚天の剣', 7: '七星宝剣',
     8: '薤刀', 9: '眉尖刀', 10: '三尖刀', 11: '鉤鐮刀', 12: '偃月刀',
-    13: '鳳嘴刀',
+    13: '鳳嘴刀', 14: '龍牙刀', 15: '関王刀',
     16: '矛', 17: '双戟', 18: '単鉤槍', 19: '戦斧', 20: '双鉤槍',
-    21: '方天画戟',
-    14: '(unused blade)', 15: '(hidden blade)',
-    22: '(hidden spear-class weapon)', 23: '(hidden spear-class weapon)',
+    21: '方天画戟', 22: '狼牙鎗', 23: '蛇矛',
 }
 ARMOR_NAMES = {
     0: '綸巾', 1: '籠手', 2: '兜', 3: '硬皮', 4: '鶴氅', 5: '甲冑',
-    6: '(hidden armor)', 7: '(hidden armor)',
+    6: '聖者の衣', 7: '竜鱗の鎧',
 }
 
 
@@ -102,21 +107,23 @@ def item_name(cell):
 
 
 def item_class(cell):
+    # '(special)' = not in the printed manual; obtainable via duel loot
+    # from appointed rulers or battle-time / gated armory stock.
     if cell < 5:
         return '剣 sword'
     if cell < 8:
-        return '剣 sword (unused)'
+        return '剣 sword (special)'
     if cell < 14:
         return '刀 blade'
     if cell < 16:
-        return '刀 blade (hidden)'
+        return '刀 blade (special)'
     if cell < 22:
         return '槍 spear'
     if cell < 24:
-        return '槍 spear (hidden)'
+        return '槍 spear (special)'
     if cell < 30:
         return '防具 armor'
-    return '防具 armor (hidden)'
+    return '防具 armor (special)'
 
 
 # Equipment weight per item id, from StrategyMode_EquipWeightTable
@@ -220,7 +227,7 @@ def extract():
             'price_gold': price if price else '',
             'sold_at_189_start': ('yes' if where else
                                   ('no (unpriced)' if not price else
-                                   'no (hidden item)')),
+                                   'no (special item)')),
             'provinces': ' '.join(str(p) for p in where),
         })
 

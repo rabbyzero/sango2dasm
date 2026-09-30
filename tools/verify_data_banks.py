@@ -99,6 +99,8 @@ def label_index(bank):
     labels = {}
     for m in re.finditer(r'^(OfficerRecord|ProvinceRecord|OfficerName|'
                          r'ProvinceName|ArrivalSchedule|OfficerRecordPadding|'
+                         r'ProvinceAdj|RawDump|EquipName|'
+                         r'FFFiller|'
                          r'OfficerName_Unused)_([A-Za-z0-9_]+):', text, re.M):
         # offset comes from the first address comment on the following byte line
         tail = text[m.end():m.end() + 4000]
@@ -114,9 +116,23 @@ def label_index(bank):
                'off_names': gen.OFF_NAME_STRIDE,
                'prov_names': gen.PROV_NAME_STRIDE,
                'schedule': gen.ARRIVAL_STRIDE,
+               'reinforce_pools': 2,
+               'off_glyphs': gen.NAME_GLYPH_STRIDE,
+               'zero_filler11': 1,
+               'facility_tiles': gen.FACILITY_TILE_STRIDE,
+               'b11_tail_gap': 1,
+               'pixel_pos': gen.PIXEL_POS_STRIDE,
+               'prov_name_gap': 1,
                'death_years': 1,
                'ppu_screens': gen.SCREEN_SIZE,
-               'prov_facility': 1}
+               'prov_facility': 1,
+               'pattern_ptr': gen.PATTERN_PTR_STRIDE,
+               'pattern_rec': gen.PATTERN_REC_STRIDE,
+               'adjacency': gen.ADJ_STRIDE,
+               'attack_side_type': gen.ADJ_STRIDE,
+               'defense_side_type': gen.ADJ_STRIDE,
+               'raw_dump': 1,
+               'ff_filler': 1}
     for cpu, length, kind in gen.bank_regions(bank):
         stride = strides[kind]
         regions.append((cpu - gen.WINDOW_CPU, cpu - gen.WINDOW_CPU + length,

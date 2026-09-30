@@ -161,7 +161,7 @@ Regenerated from the on-disk dump by tools/regen_memory_readme.py.
 - [Semantic distinction: war/tactical layer vs Battle Mode in prg_08_09.asm](important_decision_experience/semantic-distinction-war-tactical-vs-battle-mode.md) — `19852f62-c751-46c4-9bae-864f8f449149`
 - [Semantic Routine Renaming Decision - SceneRenderer](important_decision_experience/semantic-routine-renaming-decision-scenerenderer.md) — `c0b6b2f7-6433-412a-96af-d86bc4031d82`
 
-### project_architecture (25)
+### project_architecture (26)
 
 - [Bank file standalone scope for $A000-$DFFF operands](project_architecture/bank-file-standalone-scope-a000-dfff-operands.md) — `16a918fd-e1c7-4652-912e-59df71b5692d`
 - [Banked callback trampoline Y=$3B targets bank 1B/1C $A003](project_architecture/banked-callback-trampoline-y-3b-bank-1b-1c.md) — `7b44d044-ae5e-4811-b616-3794c8a0cd0b`
@@ -184,6 +184,7 @@ Regenerated from the on-disk dump by tools/regen_memory_readme.py.
 - [PRG bank 0F code/data region boundaries](project_architecture/prg-bank-0f-code-data-region-boundaries.md) — `bd70b98b-b1bc-441c-86c4-6b0d4dc503e4`
 - [prg_0e_0f.asm RAM map: btl_ globals plus proc-local zero-page naming](project_architecture/prg_0e_0f-ram-map.md) — `2dd3b789-00bc-4521-9fb6-88310369000b`
 - [Province record layout and AI action-to-castle-command mapping](project_architecture/province-record-layout-ai-action-castle-command-mapping.md) — `a58a7941-0f51-4d78-b65e-c5f1a6a7b486`
+- [ProvinceCityTileTable facility tile slots in bank $31 ($9BA4)](project_architecture/provincecitytiletable-facility-tile-slots-bank-31.md) — `(local dump entry)`
 - [SramSaveCommit $BC02 decoded; mapper-19 WRAM write-protect register semantics](project_architecture/sramsavecommit-bc02-decoded-wram-write-protect.md) — `3c46cc3e-be50-449c-850d-b0c49109354f`
 - [Terminology authority for war/tactical vs Battle Mode distinction](project_architecture/terminology-authority-war-tactical-vs-battle-mode.md) — `9af68d5e-65a6-47bb-9a01-81253ae34097`
 - [Terminology.md as authoritative naming reference for game-domain vocabulary](project_architecture/terminology-md-authoritative-naming-reference.md) — `dc38da38-69da-4b22-aa66-96fec4957080`
@@ -427,5 +428,5 @@ Regenerated from the on-disk dump by tools/regen_memory_readme.py.
 ## Totals
 
 - Categories: 14
-- Memory files: 373
+- Memory files: 374
 

@@ -42,7 +42,11 @@ Weapon indices fall into three groups of 8 (剣 / 刀 / 槍系) and armor is
 ordered worst-to-best; both tables were recovered by correlating every record
 against a published roster of this ROM and cross-checked against the scanned
 manual (`docs/manual_kb/10-duel-mode.md` gives 呂布 = 方天画戟 + 甲冑, which is
-exactly what record 218 decodes to).
+exactly what record 218 decodes to). The nine special items (weapon indices
+5/6/7/14/15/22/23, armor indices 6/7) are not on any starting officer and are
+not in the printed manual; their names were decoded from the
+EquipmentNamePatterns CHR code pages in bank $30 (asm/banks/data_10.asm
+$9B52; 2026-09-30) and are listed here for completeness.
 
 Simplified-Chinese names are joined in from tools/data/officer_kanji.tsv.
 The full evidence chain for the table locations is in
@@ -87,12 +91,14 @@ ARRIVAL_SCHEDULE_STRIDE = 0x14
 
 WEAPONS = {
     0: '短剣', 1: '飛剣', 2: '長剣', 3: '破斬剣', 4: '大剣',
+    5: '青釭の剣', 6: '倚天の剣', 7: '七星宝剣',
     8: '薤刀', 9: '眉尖刀', 10: '三尖刀', 11: '鉤鐮刀', 12: '偃月刀',
-    13: '鳳嘴刀',
+    13: '鳳嘴刀', 14: '龍牙刀', 15: '関王刀',
     16: '矛', 17: '双戟', 18: '単鉤槍', 19: '戦斧', 20: '双鉤槍',
-    21: '方天画戟',
+    21: '方天画戟', 22: '狼牙鎗', 23: '蛇矛',
 }
-ARMOR = {0: '綸巾', 1: '籠手', 2: '兜', 3: '硬皮', 4: '鶴氅', 5: '甲冑'}
+ARMOR = {0: '綸巾', 1: '籠手', 2: '兜', 3: '硬皮', 4: '鶴氅', 5: '甲冑',
+         6: '聖者の衣', 7: '竜鱗の鎧'}
 # 軍の属性 (ArmyAffinity) = bits 2-3 of +11; the battle AI masks the field with
 # AND #$0C, so the two low bits are free for OfficerStatus.
 ARMY_AFFINITY = {0: '平', 1: '山', 2: '水'}

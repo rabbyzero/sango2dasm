@@ -51,7 +51,7 @@ flowchart TD
 ## Action-type dispatch (`@AiOfficerActionDecide`, $A099)
 
 The officer state's **low nibble** selects one of 8 handlers through the inline
-`CallbackDispatcher` table at $A0A1:
+`InlineTableDispatcher` table at $A0A1:
 
 | Nibble | Handler | Behavior |
 |--------|---------|----------|

@@ -9,7 +9,14 @@
 ;   $8C00-$8FBF  prov_records       (960 bytes)
 ;   $8FC0-$9019  prov_facility      (90 bytes)
 ;   $901A-$9979  off_names          (2400 bytes)
+;   $997A-$9A19  raw_dump           (160 bytes)
 ;   $9A1A-$9B09  prov_names         (240 bytes)
+;   $9B0A-$9B11  prov_name_withdraw (8 bytes)
+;   $9B12-$9B51  pattern_ptr        (64 bytes)
+;   $9B52-$9D71  pattern_rec        (544 bytes)
+;   $9D72-$9E61  adjacency          (240 bytes)
+;   $9E62-$9F51  attack_side_type   (240 bytes)
+;   $9F52-$9FFF  ff_filler          (174 bytes)
 ;
 ; Everything else is a sliced .incbin of rom/prg/prg_10.bin and must not
 ; be edited here: the raw image stays the source for those bytes.
@@ -773,10 +780,31 @@ OfficerName_Unused_238: .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ;
 OfficerName_Unused_239: .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $9970 slot $EF padding
 
 ; ------------------------------------------------------------------------------
-; $997A-$9A19 (160 bytes): NOT ANALYSED - raw slice of
-; rom/prg/prg_10.bin, so this bank always reproduces the ROM.
-; Verify with: python tools/verify_data_banks.py --bank 10
-.incbin "rom/prg/prg_10.bin", $197A, $00A0
+; $997A-$9A19 (160 bytes): NOT ANALYSED - raw dump of
+; rom/prg/prg_10.bin $197A-$1A19, byte-exact against the ROM
+; (verify with: python tools/verify_data_banks.py --bank 10).
+; Gap between off_names (ends $9979) and prov_names (starts $9A1A); no
+; analysed code accesses it (all $30-window reads key off the $8000/
+; $8400/$8800/$8C00/$8FC0/$8FFC/$901A/$9A1A bases), so it stays
+; unreferenced filler, listed as .byte rows for in-tree traceability.
+; ------------------------------------------------------------------------------
+RawDump_997A_9A19:
+  .byte $0A, $31, $00, $00, $00, $00, $00, $00, $00, $00 ; $997A
+  .byte $0D, $25, $00, $00, $00, $00, $00, $00, $00, $00 ; $9984
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $998E
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $9998
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99A2
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99AC
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99B6
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99C0
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99CA
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99D4
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99DE
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99E8
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99F2
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $99FC
+  .byte $48, $6F, $6B, $00, $00, $00, $00, $00, $00, $00 ; $9A06
+  .byte $01, $01, $01, $01, $01, $01, $01, $01, $01, $01 ; $9A10
 
 ; ==============================================================================
 ; $9A1A-$9B09  Province katakana names: 30 x 8 bytes, $00-terminated
@@ -818,8 +846,318 @@ ProvinceName_UNNAN: .byte $06, $31, $18, $31, $00, $00, $00, $00 ; $9AFA id 28  
 ProvinceName_EISHOU: .byte $07, $05, $0F, $37, $06, $00, $00, $00 ; $9B02 id 29  エイショウ 永昌 (Eishou)
 
 ; ------------------------------------------------------------------------------
-; $9B0A-$9FFF (1270 bytes): NOT ANALYSED - raw slice of
-; rom/prg/prg_10.bin, so this bank always reproduces the ROM.
-; Verify with: python tools/verify_data_banks.py --bank 10
-.incbin "rom/prg/prg_10.bin", $1B0A, $04F6
+; $9B0A-$9B11 (8 bytes): 下野 (ざいや) label
+; Read through the same id*8+$9A1A province-name mechanism
+; (CmdDrawNameFromData $A426, slot index $1E = 30). The tactical
+; Withdraw menu renders this when an officer opts to 下野 instead
+; of retreating to another province. Glyph codes are in the
+; hiragana menu block ($44+): $4E=さ $39=゛→ざ $45=い $67=や.
+; ------------------------------------------------------------------------------
+ProvinceName_WITHDRAW:
+  .byte $4E, $39, $45, $67, $00, $00, $00, $00 ; $9B0A  ざいや (下野)
+
+; ==============================================================================
+; $9B12-$9B51  Equipment-name pattern-pointer table: 32 words
+; Entry n -> the 8x16-kanji name pattern of equipment id n (0-31,
+; docs/equipment_catalog.csv). Words are stored page-relative; the
+; code adds $80 to the high byte, so CPU target = word + $8000, which
+; is exactly the EquipName_NN record in the EquipmentNamePatterns
+; block below. The armory / warehouse grid indexes this by equipment
+; id (State6_RenderArmoryItems prg_08_09 $C565, TownCommandDispatch
+; prg_1b_1c $C840); the name-plate renderer reuses it by strip id
+; (NamePlateStripSetup prg_19_1a $B7C8). All switch bank $30 first.
+; ==============================================================================
+EquipmentNamePtrTable:
+  .word EquipName_00-$8000         ; $9B12 -> $9B52  equip 00 短剣
+  .word EquipName_01-$8000         ; $9B14 -> $9B63  equip 01 飛剣
+  .word EquipName_02-$8000         ; $9B16 -> $9B74  equip 02 長剣
+  .word EquipName_03-$8000         ; $9B18 -> $9B85  equip 03 破斬剣
+  .word EquipName_04-$8000         ; $9B1A -> $9B96  equip 04 大剣
+  .word EquipName_05-$8000         ; $9B1C -> $9BA7  equip 05 青釭の剣
+  .word EquipName_06-$8000         ; $9B1E -> $9BB8  equip 06 倚天の剣
+  .word EquipName_07-$8000         ; $9B20 -> $9BC9  equip 07 七星宝剣
+  .word EquipName_08-$8000         ; $9B22 -> $9BDA  equip 08 薤刀
+  .word EquipName_09-$8000         ; $9B24 -> $9BEB  equip 09 眉尖刀
+  .word EquipName_10-$8000         ; $9B26 -> $9BFC  equip 10 三尖刀
+  .word EquipName_11-$8000         ; $9B28 -> $9C0D  equip 11 鉤鐮刀
+  .word EquipName_12-$8000         ; $9B2A -> $9C1E  equip 12 偃月刀
+  .word EquipName_13-$8000         ; $9B2C -> $9C2F  equip 13 鳳嘴刀
+  .word EquipName_14-$8000         ; $9B2E -> $9C40  equip 14 龍牙刀
+  .word EquipName_15-$8000         ; $9B30 -> $9C51  equip 15 関王刀
+  .word EquipName_16-$8000         ; $9B32 -> $9C62  equip 16 矛
+  .word EquipName_17-$8000         ; $9B34 -> $9C73  equip 17 双戟
+  .word EquipName_18-$8000         ; $9B36 -> $9C84  equip 18 単鉤槍
+  .word EquipName_19-$8000         ; $9B38 -> $9C95  equip 19 戦斧
+  .word EquipName_20-$8000         ; $9B3A -> $9CA6  equip 20 双鉤槍
+  .word EquipName_21-$8000         ; $9B3C -> $9CB7  equip 21 方天画戟
+  .word EquipName_22-$8000         ; $9B3E -> $9CC8  equip 22 狼牙鎗
+  .word EquipName_23-$8000         ; $9B40 -> $9CD9  equip 23 蛇矛
+  .word EquipName_24-$8000         ; $9B42 -> $9CEA  equip 24 綸巾
+  .word EquipName_25-$8000         ; $9B44 -> $9CFB  equip 25 籠手
+  .word EquipName_26-$8000         ; $9B46 -> $9D0C  equip 26 兜
+  .word EquipName_27-$8000         ; $9B48 -> $9D1D  equip 27 硬皮
+  .word EquipName_28-$8000         ; $9B4A -> $9D2E  equip 28 鶴氅
+  .word EquipName_29-$8000         ; $9B4C -> $9D3F  equip 29 甲冑
+  .word EquipName_30-$8000         ; $9B4E -> $9D50  equip 30 聖者の衣
+  .word EquipName_31-$8000         ; $9B50 -> $9D61  equip 31 竜鱗の鎧
+
+; ==============================================================================
+; $9B52-$9D71  Equipment-name patterns: 32 records x 17 bytes
+; One 8x16-kanji equipment name per record, drawn as 2 lines of 8
+; tiles: byte0 = the NAMCO-163 CHR code page the tile bytes decode
+; on (page V = 1KB slice chr_(V//8).bin @ (V%8)*$400), bytes 1-8 =
+; line 1, bytes 9-16 = line 2. Tile bytes $80-$BF are offsets $00-$3F
+; into that page ($01 = blank), so the same byte is a different glyph
+; on a different page ($92/$93 = 剣 top on $04 vs 刀 bottom on $54).
+; Storage is LINE-major: character k = line1[2k], line1[2k+1] (top
+; cells) plus line2[2k], line2[2k+1] (bottom cells), so its 4 tiles
+; are NOT adjacent - 4 character columns of 2 cells per line. The
+; bank-$31 OfficerNameGlyphTable ($8DB4, data_11.asm) is the other
+; way round: 4 CONTIGUOUS bytes per character (character-major).
+; Group by those offsets, not by value: kanji on the class pages do
+; follow (n, n+1, n+$10, n+$11) (短 = 90 91 / A0 A1), but hiragana の
+; occupies a single cell and the dedicated pages ($0D 七星宝剣, $10
+; 甲冑) allocate tiles sequentially, so their vertical step differs.
+; Each class has its own page (sword $04, blade $54, spear $56, armor
+; $55); two special items carry a page of their own (id 7 七星宝剣
+; $0D, id 29 甲冑 $10), marked below. Names mix kanji with の.
+; The armory/warehouse renderers never draw byte0: they compare it
+; against the cached page of cell 0 and add $40 to the tiles of a
+; different-page item, routing it to the other loaded CHR slot.
+; ==============================================================================
+EquipmentNamePatterns:
+
+EquipName_00: .byte $04                                      ; $9B52 短剣 | font page $04 (剣 sword)
+          .byte $90, $91, $92, $93, $01, $01, $01, $01 ; $9B53 line 1: top cells of chars 0-3
+          .byte $A0, $A1, $A2, $A3, $01, $01, $01, $01 ; $9B5B line 2: bottom cells of chars 0-3
+EquipName_01: .byte $04                                      ; $9B63 飛剣 | font page $04 (剣 sword)
+          .byte $94, $95, $92, $93, $01, $01, $01, $01 ; $9B64 line 1: top cells of chars 0-3
+          .byte $A4, $A5, $A2, $A3, $01, $01, $01, $01 ; $9B6C line 2: bottom cells of chars 0-3
+EquipName_02: .byte $04                                      ; $9B74 長剣 | font page $04 (剣 sword)
+          .byte $96, $97, $92, $93, $01, $01, $01, $01 ; $9B75 line 1: top cells of chars 0-3
+          .byte $A6, $A7, $A2, $A3, $01, $01, $01, $01 ; $9B7D line 2: bottom cells of chars 0-3
+EquipName_03: .byte $04                                      ; $9B85 破斬剣 | font page $04 (剣 sword)
+          .byte $98, $99, $9A, $9B, $92, $93, $01, $01 ; $9B86 line 1: top cells of chars 0-3
+          .byte $A8, $A9, $AA, $AB, $A2, $A3, $01, $01 ; $9B8E line 2: bottom cells of chars 0-3
+EquipName_04: .byte $04                                      ; $9B96 大剣 | font page $04 (剣 sword)
+          .byte $9C, $9D, $92, $93, $01, $01, $01, $01 ; $9B97 line 1: top cells of chars 0-3
+          .byte $AC, $AD, $A2, $A3, $01, $01, $01, $01 ; $9B9F line 2: bottom cells of chars 0-3
+EquipName_05: .byte $04                                      ; $9BA7 青釭の剣 | font page $04 (剣 sword)
+          .byte $9E, $9F, $B0, $B1, $01, $92, $93, $01 ; $9BA8 line 1: top cells of chars 0-3
+          .byte $AE, $AF, $B2, $B3, $8C, $A2, $A3, $01 ; $9BB0 line 2: bottom cells of chars 0-3
+EquipName_06: .byte $04                                      ; $9BB8 倚天の剣 | font page $04 (剣 sword)
+          .byte $B4, $B5, $B8, $B9, $01, $92, $93, $01 ; $9BB9 line 1: top cells of chars 0-3
+          .byte $B6, $B7, $BA, $BB, $8C, $A2, $A3, $01 ; $9BC1 line 2: bottom cells of chars 0-3
+EquipName_07: .byte $0D                                      ; $9BC9 七星宝剣 | own font page $0D (special 剣 item)
+          .byte $A9, $AA, $AB, $AC, $AD, $AE, $AF, $B0 ; $9BCA line 1: top cells of chars 0-3
+          .byte $B9, $BA, $BB, $BC, $BD, $BE, $BF, $B1 ; $9BD2 line 2: bottom cells of chars 0-3
+EquipName_08: .byte $54                                      ; $9BDA 薤刀 | font page $54 (刀 blade)
+          .byte $80, $81, $82, $83, $01, $01, $01, $01 ; $9BDB line 1: top cells of chars 0-3
+          .byte $90, $91, $92, $93, $01, $01, $01, $01 ; $9BE3 line 2: bottom cells of chars 0-3
+EquipName_09: .byte $54                                      ; $9BEB 眉尖刀 | font page $54 (刀 blade)
+          .byte $84, $85, $86, $87, $82, $83, $01, $01 ; $9BEC line 1: top cells of chars 0-3
+          .byte $94, $95, $96, $97, $92, $93, $01, $01 ; $9BF4 line 2: bottom cells of chars 0-3
+EquipName_10: .byte $54                                      ; $9BFC 三尖刀 | font page $54 (刀 blade)
+          .byte $88, $89, $86, $87, $82, $83, $01, $01 ; $9BFD line 1: top cells of chars 0-3
+          .byte $98, $99, $96, $97, $92, $93, $01, $01 ; $9C05 line 2: bottom cells of chars 0-3
+EquipName_11: .byte $54                                      ; $9C0D 鉤鐮刀 | font page $54 (刀 blade)
+          .byte $8A, $8B, $8C, $8D, $82, $83, $01, $01 ; $9C0E line 1: top cells of chars 0-3
+          .byte $9A, $9B, $9C, $9D, $92, $93, $01, $01 ; $9C16 line 2: bottom cells of chars 0-3
+EquipName_12: .byte $54                                      ; $9C1E 偃月刀 | font page $54 (刀 blade)
+          .byte $8E, $8F, $A0, $A1, $82, $83, $01, $01 ; $9C1F line 1: top cells of chars 0-3
+          .byte $9E, $9F, $B0, $B1, $92, $93, $01, $01 ; $9C27 line 2: bottom cells of chars 0-3
+EquipName_13: .byte $54                                      ; $9C2F 鳳嘴刀 | font page $54 (刀 blade)
+          .byte $A2, $A3, $A4, $A5, $82, $83, $01, $01 ; $9C30 line 1: top cells of chars 0-3
+          .byte $B2, $B3, $B4, $B5, $92, $93, $01, $01 ; $9C38 line 2: bottom cells of chars 0-3
+EquipName_14: .byte $54                                      ; $9C40 龍牙刀 | font page $54 (刀 blade)
+          .byte $A6, $A7, $A8, $A9, $82, $83, $01, $01 ; $9C41 line 1: top cells of chars 0-3
+          .byte $B6, $B7, $B8, $B9, $92, $93, $01, $01 ; $9C49 line 2: bottom cells of chars 0-3
+EquipName_15: .byte $54                                      ; $9C51 関王刀 | font page $54 (刀 blade)
+          .byte $AA, $AB, $AC, $AD, $82, $83, $01, $01 ; $9C52 line 1: top cells of chars 0-3
+          .byte $BA, $BB, $BC, $BD, $92, $93, $01, $01 ; $9C5A line 2: bottom cells of chars 0-3
+EquipName_16: .byte $56                                      ; $9C62 矛 | font page $56 (槍 spear)
+          .byte $82, $83, $01, $01, $01, $01, $01, $01 ; $9C63 line 1: top cells of chars 0-3
+          .byte $92, $93, $01, $01, $01, $01, $01, $01 ; $9C6B line 2: bottom cells of chars 0-3
+EquipName_17: .byte $56                                      ; $9C73 双戟 | font page $56 (槍 spear)
+          .byte $A4, $A5, $A2, $A3, $01, $01, $01, $01 ; $9C74 line 1: top cells of chars 0-3
+          .byte $B4, $B5, $B2, $B3, $01, $01, $01, $01 ; $9C7C line 2: bottom cells of chars 0-3
+EquipName_18: .byte $56                                      ; $9C84 単鉤槍 | font page $56 (槍 spear)
+          .byte $84, $85, $86, $87, $88, $89, $01, $01 ; $9C85 line 1: top cells of chars 0-3
+          .byte $94, $95, $96, $97, $98, $99, $01, $01 ; $9C8D line 2: bottom cells of chars 0-3
+EquipName_19: .byte $56                                      ; $9C95 戦斧 | font page $56 (槍 spear)
+          .byte $AC, $AD, $AE, $AF, $01, $01, $01, $01 ; $9C96 line 1: top cells of chars 0-3
+          .byte $BC, $BD, $BE, $BF, $01, $01, $01, $01 ; $9C9E line 2: bottom cells of chars 0-3
+EquipName_20: .byte $56                                      ; $9CA6 双鉤槍 | font page $56 (槍 spear)
+          .byte $8A, $8B, $86, $87, $88, $89, $01, $01 ; $9CA7 line 1: top cells of chars 0-3
+          .byte $9A, $9B, $96, $97, $98, $99, $01, $01 ; $9CAF line 2: bottom cells of chars 0-3
+EquipName_21: .byte $56                                      ; $9CB7 方天画戟 | font page $56 (槍 spear)
+          .byte $8C, $8D, $8E, $8F, $A0, $A1, $A2, $A3 ; $9CB8 line 1: top cells of chars 0-3
+          .byte $9C, $9D, $9E, $9F, $B0, $B1, $B2, $B3 ; $9CC0 line 2: bottom cells of chars 0-3
+EquipName_22: .byte $56                                      ; $9CC8 狼牙鎗 | font page $56 (槍 spear)
+          .byte $AA, $AB, $A8, $A9, $88, $89, $01, $01 ; $9CC9 line 1: top cells of chars 0-3
+          .byte $BA, $BB, $B8, $B9, $98, $99, $01, $01 ; $9CD1 line 2: bottom cells of chars 0-3
+EquipName_23: .byte $56                                      ; $9CD9 蛇矛 | font page $56 (槍 spear)
+          .byte $80, $81, $82, $83, $01, $01, $01, $01 ; $9CDA line 1: top cells of chars 0-3
+          .byte $90, $91, $92, $93, $01, $01, $01, $01 ; $9CE2 line 2: bottom cells of chars 0-3
+EquipName_24: .byte $55                                      ; $9CEA 綸巾 | font page $55 (防具 armor)
+          .byte $80, $81, $82, $83, $01, $01, $01, $01 ; $9CEB line 1: top cells of chars 0-3
+          .byte $90, $91, $92, $93, $01, $01, $01, $01 ; $9CF3 line 2: bottom cells of chars 0-3
+EquipName_25: .byte $55                                      ; $9CFB 籠手 | font page $55 (防具 armor)
+          .byte $84, $85, $86, $87, $01, $01, $01, $01 ; $9CFC line 1: top cells of chars 0-3
+          .byte $94, $95, $96, $97, $01, $01, $01, $01 ; $9D04 line 2: bottom cells of chars 0-3
+EquipName_26: .byte $55                                      ; $9D0C 兜 | font page $55 (防具 armor)
+          .byte $AE, $AF, $01, $01, $01, $01, $01, $01 ; $9D0D line 1: top cells of chars 0-3
+          .byte $BE, $BF, $01, $01, $01, $01, $01, $01 ; $9D15 line 2: bottom cells of chars 0-3
+EquipName_27: .byte $55                                      ; $9D1D 硬皮 | font page $55 (防具 armor)
+          .byte $88, $89, $8A, $8B, $01, $01, $01, $01 ; $9D1E line 1: top cells of chars 0-3
+          .byte $98, $99, $9A, $9B, $01, $01, $01, $01 ; $9D26 line 2: bottom cells of chars 0-3
+EquipName_28: .byte $55                                      ; $9D2E 鶴氅 | font page $55 (防具 armor)
+          .byte $8C, $8D, $8E, $8F, $01, $01, $01, $01 ; $9D2F line 1: top cells of chars 0-3
+          .byte $9C, $9D, $9E, $9F, $01, $01, $01, $01 ; $9D37 line 2: bottom cells of chars 0-3
+EquipName_29: .byte $10                                      ; $9D3F 甲冑 | own font page $10 (special 防具 item)
+          .byte $B6, $B7, $BA, $BB, $01, $01, $01, $01 ; $9D40 line 1: top cells of chars 0-3
+          .byte $B8, $B9, $BC, $BD, $01, $01, $01, $01 ; $9D48 line 2: bottom cells of chars 0-3
+EquipName_30: .byte $55                                      ; $9D50 聖者の衣 | font page $55 (防具 armor)
+          .byte $A0, $A1, $A2, $A3, $01, $A4, $A5, $01 ; $9D51 line 1: top cells of chars 0-3
+          .byte $B0, $B1, $B2, $B3, $BC, $B4, $B5, $01 ; $9D59 line 2: bottom cells of chars 0-3
+EquipName_31: .byte $55                                      ; $9D61 竜鱗の鎧 | font page $55 (防具 armor)
+          .byte $A6, $A7, $A8, $A9, $01, $AA, $AB, $01 ; $9D62 line 1: top cells of chars 0-3
+          .byte $B6, $B7, $B8, $B9, $BC, $BA, $BB, $01 ; $9D6A line 2: bottom cells of chars 0-3
+
+; ==============================================================================
+; $9D72-$9E61  Province adjacency graph: 30 provinces x 8 slots
+; Up to 8 neighbor province ids per row, $FF padded to the row end
+; (readers stop on $FF / BMI). Indexed id*8 + $9D72, read only
+; through the $8000 window after switching bank $30. Neighbor values
+; are province ids (see include/province_ids.inc).
+; This is the strategic-map neighbor list used across the AI turn and
+; the war layer. Readers (representative):
+;   prg_0a_0b  BuildAdjacencyBitmap $D4F6, FindBestEnemyProvince
+;              $A274, AiCountExpansionRoom $A0EF, SettleStagedOfficers
+;              $ABBA, EvalProvinceAbsorption $B1B1, CalcActionProb
+;              $C70E, CountDefendedBorderProvinces $D0E9,
+;              CollectEnemyBorderProvinces $D1C5/$D216
+;   prg_08_09  AiTurnProcess $B01D, WarSetup $B2BA, SetupPostWarState $BBEB
+;   prg_0c_0d  ProvinceSelect_InitList $BBBB, ExchangeScene $DEAA
+;   prg_19_1a  OfficerArrivalScan $B9F8
+;   prg_1b_1c  ProvinceAdjacencyValidate $DD8A
+; ==============================================================================
+ProvinceAdjacencyTable:
+
+ProvinceAdj_RYOUTOU: .byte $01, $03, $FF, $FF, $FF, $FF, $FF, $FF ; $9D72 id  0 リョウトウ -> [YUUSHUU SEISHUU]
+ProvinceAdj_YUUSHUU: .byte $00, $02, $04, $03, $FF, $FF, $FF, $FF ; $9D7A id  1 ユウシュウ -> [RYOUTOU HEISHUU KISHUU SEISHUU]
+ProvinceAdj_HEISHUU: .byte $01, $04, $05, $08, $FF, $FF, $FF, $FF ; $9D82 id  2 ヘイシュウ -> [YUUSHUU KISHUU SEIANYOU CHOUAN]
+ProvinceAdj_SEISHUU: .byte $00, $01, $04, $0A, $FF, $FF, $FF, $FF ; $9D8A id  3 セイシュウ -> [RYOUTOU YUUSHUU KISHUU JOSHUU]
+ProvinceAdj_KISHUU: .byte $02, $0C, $0B, $03, $01, $FF, $FF, $FF ; $9D92 id  4 キシュウ -> [HEISHUU RAKUYOU ENSHUU SEISHUU YUUSHUU]
+ProvinceAdj_SEIANYOU: .byte $07, $08, $02, $FF, $FF, $FF, $FF, $FF ; $9D9A id  5 セイアンヨウ -> [ANTEI CHOUAN HEISHUU]
+ProvinceAdj_RYOUSHUU: .byte $07, $09, $FF, $FF, $FF, $FF, $FF, $FF ; $9DA2 id  6 リョウシュウ -> [ANTEI SEIHEIKAN]
+ProvinceAdj_ANTEI: .byte $06, $09, $19, $08, $05, $FF, $FF, $FF ; $9DAA id  7 アンテイ -> [RYOUSHUU SEIHEIKAN KANCHUU CHOUAN SEIANYOU]
+ProvinceAdj_CHOUAN: .byte $05, $07, $19, $0D, $0C, $02, $FF, $FF ; $9DB2 id  8 チョウアン -> [SEIANYOU ANTEI KANCHUU SHINYA RAKUYOU HEISHUU]
+ProvinceAdj_SEIHEIKAN: .byte $1A, $19, $07, $06, $FF, $FF, $FF, $FF ; $9DBA id  9 セイヘイカン -> [SEITO KANCHUU ANTEI RYOUSHUU]
+ProvinceAdj_JOSHUU: .byte $03, $0B, $10, $0F, $FF, $FF, $FF, $FF ; $9DC2 id 10 ジョシュウ -> [SEISHUU ENSHUU YOUSHUU KENGYOU]
+ProvinceAdj_ENSHUU: .byte $04, $0C, $0E, $10, $0A, $FF, $FF, $FF ; $9DCA id 11 エンシュウ -> [KISHUU RAKUYOU YOSHUU YOUSHUU JOSHUU]
+ProvinceAdj_RAKUYOU: .byte $08, $0D, $15, $0E, $0B, $04, $FF, $FF ; $9DD2 id 12 ラクヨウ -> [CHOUAN SHINYA KEISHUU YOSHUU ENSHUU KISHUU]
+ProvinceAdj_SHINYA: .byte $08, $16, $15, $0C, $FF, $FF, $FF, $FF ; $9DDA id 13 シンヤ -> [CHOUAN SHOUYOU KEISHUU RAKUYOU]
+ProvinceAdj_YOSHUU: .byte $0C, $15, $14, $10, $0B, $FF, $FF, $FF ; $9DE2 id 14 ヨシュウ -> [RAKUYOU KEISHUU KOUKA YOUSHUU ENSHUU]
+ProvinceAdj_KENGYOU: .byte $0A, $10, $11, $FF, $FF, $FF, $FF, $FF ; $9DEA id 15 ケンギョウ -> [JOSHUU YOUSHUU KENAN]
+ProvinceAdj_YOUSHUU: .byte $0B, $0E, $14, $11, $0F, $0A, $FF, $FF ; $9DF2 id 16 ヨウシュウ -> [ENSHUU YOSHUU KOUKA KENAN KENGYOU JOSHUU]
+ProvinceAdj_KENAN: .byte $0F, $10, $14, $12, $FF, $FF, $FF, $FF ; $9DFA id 17 ケンアン -> [KENGYOU YOUSHUU KOUKA KOUSHUU]
+ProvinceAdj_KOUSHUU: .byte $11, $17, $14, $FF, $FF, $FF, $FF, $FF ; $9E02 id 18 コウシュウ -> [KENAN CHOUSA KOUKA]
+ProvinceAdj_IKURIN: .byte $18, $16, $1C, $FF, $FF, $FF, $FF, $FF ; $9E0A id 19 イクリン -> [REIRYOU SHOUYOU UNNAN]
+ProvinceAdj_KOUKA: .byte $15, $17, $12, $11, $10, $0E, $FF, $FF ; $9E12 id 20 コウカ -> [KEISHUU CHOUSA KOUSHUU KENAN YOUSHUU YOSHUU]
+ProvinceAdj_KEISHUU: .byte $16, $18, $17, $14, $0E, $0C, $0D, $FF ; $9E1A id 21 ケイシュウ -> [SHOUYOU REIRYOU CHOUSA KOUKA YOSHUU RAKUYOU SHINYA]
+ProvinceAdj_SHOUYOU: .byte $1B, $13, $18, $15, $0D, $FF, $FF, $FF ; $9E22 id 22 ショウヨウ -> [FURYOU IKURIN REIRYOU KEISHUU SHINYA]
+ProvinceAdj_CHOUSA: .byte $15, $18, $12, $14, $FF, $FF, $FF, $FF ; $9E2A id 23 チョウサ -> [KEISHUU REIRYOU KOUSHUU KOUKA]
+ProvinceAdj_REIRYOU: .byte $16, $13, $17, $15, $FF, $FF, $FF, $FF ; $9E32 id 24 レイリョウ -> [SHOUYOU IKURIN CHOUSA KEISHUU]
+ProvinceAdj_KANCHUU: .byte $09, $1A, $1B, $08, $07, $FF, $FF, $FF ; $9E3A id 25 カンチュウ -> [SEIHEIKAN SEITO FURYOU CHOUAN ANTEI]
+ProvinceAdj_SEITO: .byte $1D, $1C, $1B, $19, $09, $FF, $FF, $FF ; $9E42 id 26 セイト -> [EISHOU UNNAN FURYOU KANCHUU SEIHEIKAN]
+ProvinceAdj_FURYOU: .byte $19, $1A, $1C, $16, $FF, $FF, $FF, $FF ; $9E4A id 27 フリョウ -> [KANCHUU SEITO UNNAN SHOUYOU]
+ProvinceAdj_UNNAN: .byte $1A, $1D, $13, $1B, $FF, $FF, $FF, $FF ; $9E52 id 28 ウンナン -> [SEITO EISHOU IKURIN FURYOU]
+ProvinceAdj_EISHOU: .byte $1A, $1C, $FF, $FF, $FF, $FF, $FF, $FF ; $9E5A id 29 エイショウ -> [SEITO UNNAN]
+
+; ==============================================================================
+; $9E62-$9F51  Tactical ATTACK side types: 30 provinces x 8 slots
+; One byte per neighbour slot, row-parallel to ProvinceAdjacencyTable
+; $9D72 (same id*8 + $9E62 index, $FF where that adjacency slot is
+; $FF), so a value belongs to the (province, neighbour) pair - the
+; approach route - not to a province alone.
+; Meaning (user-confirmed): the attack side type 0-$03, selecting the
+; attacker's initial officer arrangement for Tactical Mode. Counterpart
+; of the bank-$31 $9AB4 TacticalDefenseSideTypeTable; the two are chosen
+; by SIDE, never by controller.
+; Readers (bank $30 window, after the same $9D72 slot scan):
+;   @SetupAttackerRoster prg_08_09 $B312 -> $B331: $8000[$050E*2] +
+;     type*34 -> side-1 placement pool, cursors @AttackerCursorSeeds
+;     $02/$0C/$16/$1C (5+5+3+2 (Y,X) pairs after the anchor).
+;   GetCityDataA prg_0c_0d $DEB8 -> @Mode2Bounds $C41C (same pool,
+;     type*34 on $8000[$050E*2]) and @OtherModeBounds $C48E
+;     ($932E[$050E*2] + type*4 bounds rectangle). The army-deploy scene
+;     takes this table whenever its mode byte $050B != 2; $050B == 2
+;     (@State_CheckSrcRuler $C267, source side) takes $9AB4 instead.
+; Geometry (measured in bank $06, physical file prg_06.bin): each
+; province reserves exactly (max type used + 1) 34-byte records - the
+; $8000 base table steps 34/68/102/136 across the 29 measurable
+; provinces (1/4/16/8 provinces respectively) and no row violates the
+; rule, which pins both the stride and the record ownership.
+; Attack vs defense asymmetry: the attack records differ in their
+; ANCHOR as well as in the 15 unit positions (province 1 types 0-3
+; anchor at (3,2) (4,28) (16,29) (18,2) - i.e. the army enters along a
+; map flank), while the defense records keep one city anchor and only
+; re-array the garrison. Each attack record also carries a 17th (Y,X)
+; pair at +32/+33 that none of the four seeded cursors reaches.
+; The entry flank is only weakly tied to the route: the anchor side
+; matches the neighbour's map side in 59%% of the 128 province/neighbour
+; pairs on each axis, so the type is an authored per-route choice, not
+; a computed direction.
+; ==============================================================================
+TacticalAttackSideTypeTable:
+
+  .byte $00, $00, $FF, $FF, $FF, $FF, $FF, $FF ; $9E62 id  0 リョウトウ  attack type per neighbour slot: 0, 0, -, -, -, -, -, -
+  .byte $01, $00, $03, $02, $FF, $FF, $FF, $FF ; $9E6A id  1 ユウシュウ  attack type per neighbour slot: 1, 0, 3, 2, -, -, -, -
+  .byte $01, $01, $00, $02, $FF, $FF, $FF, $FF ; $9E72 id  2 ヘイシュウ  attack type per neighbour slot: 1, 1, 0, 2, -, -, -, -
+  .byte $01, $00, $00, $02, $FF, $FF, $FF, $FF ; $9E7A id  3 セイシュウ  attack type per neighbour slot: 1, 0, 0, 2, -, -, -, -
+  .byte $00, $01, $01, $00, $00, $FF, $FF, $FF ; $9E82 id  4 キシュウ  attack type per neighbour slot: 0, 1, 1, 0, 0, -, -, -
+  .byte $00, $02, $01, $FF, $FF, $FF, $FF, $FF ; $9E8A id  5 セイアンヨウ  attack type per neighbour slot: 0, 2, 1, -, -, -, -, -
+  .byte $00, $01, $FF, $FF, $FF, $FF, $FF, $FF ; $9E92 id  6 リョウシュウ  attack type per neighbour slot: 0, 1, -, -, -, -, -, -
+  .byte $00, $00, $02, $01, $01, $FF, $FF, $FF ; $9E9A id  7 アンテイ  attack type per neighbour slot: 0, 0, 2, 1, 1, -, -, -
+  .byte $01, $00, $00, $02, $02, $01, $FF, $FF ; $9EA2 id  8 チョウアン  attack type per neighbour slot: 1, 0, 0, 2, 2, 1, -, -
+  .byte $02, $01, $01, $00, $FF, $FF, $FF, $FF ; $9EAA id  9 セイヘイカン  attack type per neighbour slot: 2, 1, 1, 0, -, -, -, -
+  .byte $01, $00, $00, $02, $FF, $FF, $FF, $FF ; $9EB2 id 10 ジョシュウ  attack type per neighbour slot: 1, 0, 0, 2, -, -, -, -
+  .byte $00, $00, $02, $01, $01, $FF, $FF, $FF ; $9EBA id 11 エンシュウ  attack type per neighbour slot: 0, 0, 2, 1, 1, -, -, -
+  .byte $00, $03, $03, $02, $02, $01, $FF, $FF ; $9EC2 id 12 ラクヨウ  attack type per neighbour slot: 0, 3, 3, 2, 2, 1, -, -
+  .byte $00, $03, $02, $01, $FF, $FF, $FF, $FF ; $9ECA id 13 シンヤ  attack type per neighbour slot: 0, 3, 2, 1, -, -, -, -
+  .byte $00, $03, $02, $02, $01, $FF, $FF, $FF ; $9ED2 id 14 ヨシュウ  attack type per neighbour slot: 0, 3, 2, 2, 1, -, -, -
+  .byte $01, $00, $02, $FF, $FF, $FF, $FF, $FF ; $9EDA id 15 ケンギョウ  attack type per neighbour slot: 1, 0, 2, -, -, -, -, -
+  .byte $00, $00, $02, $01, $01, $01, $FF, $FF ; $9EE2 id 16 ヨウシュウ  attack type per neighbour slot: 0, 0, 2, 1, 1, 1, -, -
+  .byte $01, $00, $00, $02, $FF, $FF, $FF, $FF ; $9EEA id 17 ケンアン  attack type per neighbour slot: 1, 0, 0, 2, -, -, -, -
+  .byte $01, $00, $01, $FF, $FF, $FF, $FF, $FF ; $9EF2 id 18 コウシュウ  attack type per neighbour slot: 1, 0, 1, -, -, -, -, -
+  .byte $02, $01, $00, $FF, $FF, $FF, $FF, $FF ; $9EFA id 19 イクリン  attack type per neighbour slot: 2, 1, 0, -, -, -, -, -
+  .byte $03, $03, $02, $01, $01, $00, $FF, $FF ; $9F02 id 20 コウカ  attack type per neighbour slot: 3, 3, 2, 1, 1, 0, -, -
+  .byte $03, $03, $02, $02, $01, $01, $00, $FF ; $9F0A id 21 ケイシュウ  attack type per neighbour slot: 3, 3, 2, 2, 1, 1, 0, -
+  .byte $00, $02, $01, $01, $00, $FF, $FF, $FF ; $9F12 id 22 ショウヨウ  attack type per neighbour slot: 0, 2, 1, 1, 0, -, -, -
+  .byte $00, $03, $02, $01, $FF, $FF, $FF, $FF ; $9F1A id 23 チョウサ  attack type per neighbour slot: 0, 3, 2, 1, -, -, -, -
+  .byte $00, $02, $01, $01, $FF, $FF, $FF, $FF ; $9F22 id 24 レイリョウ  attack type per neighbour slot: 0, 2, 1, 1, -, -, -, -
+  .byte $01, $03, $02, $00, $00, $FF, $FF, $FF ; $9F2A id 25 カンチュウ  attack type per neighbour slot: 1, 3, 2, 0, 0, -, -, -
+  .byte $02, $02, $01, $01, $00, $FF, $FF, $FF ; $9F32 id 26 セイト  attack type per neighbour slot: 2, 2, 1, 1, 0, -, -, -
+  .byte $01, $00, $00, $02, $FF, $FF, $FF, $FF ; $9F3A id 27 フリョウ  attack type per neighbour slot: 1, 0, 0, 2, -, -, -, -
+  .byte $01, $01, $00, $00, $FF, $FF, $FF, $FF ; $9F42 id 28 ウンナン  attack type per neighbour slot: 1, 1, 0, 0, -, -, -, -
+  .byte $00, $01, $FF, $FF, $FF, $FF, $FF, $FF ; $9F4A id 29 エイショウ  attack type per neighbour slot: 0, 1, -, -, -, -, -, -
+
+; ------------------------------------------------------------------------------
+; $9F52-$9FFF (174 bytes): unused $FF tail padding.
+; The attack side type table ends at $9F51; nothing from here to the end of
+; the bank is read. Listed as .byte rows so the whole bank is visible.
+; ------------------------------------------------------------------------------
+FFFiller_9F52_9FFF:
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F52
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F62
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F72
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F82
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F92
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FA2
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FB2
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FC2
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FD2
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FE2
+  .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9FF2
 

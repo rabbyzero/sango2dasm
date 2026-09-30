@@ -73,6 +73,166 @@ DEATH_CPU = 0x9C58                                   # bank $31
 DEATH_COUNT = officer_tool.OFFICER_COUNT
 DEATH_YEAR_OFFSET = 100                              # byte = death year - 100
 
+# Bank $10 tail $9B0A-$9FFF: three accessed byte tables after the province
+# katakana names. Evidence (all read through the $8000 window once bank $30
+# is switched in):
+#   $9B12 EquipmentNamePtrTable  - 32 little-endian words; the code adds $80 to the
+#     high byte, so CPU target = stored_word + $8000, i.e. into $9B52-$9D71.
+#     Entry n is the 8x16-kanji NAME pattern of equipment id n (0-31, matching
+#     docs/equipment_catalog.csv): the armory / warehouse grid indexes it by
+#     equipment id, and the name-plate renderer reuses it by strip id (0-31).
+#     Readers: State6_RenderArmoryItems prg_08_09 $C565, TownCommandDispatch
+#     prg_1b_1c $C840 (index = equipment id), NamePlateStripSetup prg_19_1a
+#     $B7C8 (index = strip id * 2).
+#   $9B52 EquipmentNamePatterns - the 32 pointer targets, each 17 bytes ($11
+#     grid): byte0 = the NAMCO-163 CHR code page the record's tile bytes
+#     decode on (page V = 1KB slice: chr_(V//8).bin @ (V%8)*$400), then
+#     2 lines x 8 tile bytes ($80-$BF = page offsets $00-$3F, $01 = blank)
+#     spelling the name (kanji mixed with hiragana の). Each weapon class
+#     has its own page (sword $04 / blade $54 / spear $56 / armor $55), so
+#     the same tile byte is a different glyph across pages ($92/$93 = 剣
+#     top on $04 vs 刀 bottom on $54). Two special items carry a page of
+#     their own: id 7 七星宝剣 = $0D, id 29 甲冑 = $10. Verified by
+#     rendering each page from rom/chr and reading the names (2026-09-30).
+#   $9D72 ProvinceAdjacencyTable - 30 x 8 neighbor province ids, $FF-terminated
+#     (see code/bank_switch_map.md 5.2 and the AI/war readers).
+#   $9E62 TacticalAttackSideTypeTable - parallel to the adjacency table (same
+#     id*8 index); per-neighbor roster-layout byte. Readers: GetCityDataA
+#     prg_0c_0d $DEB8 (returns it as that neighbor's "city data" byte) and
+#     @SetupAttackerRoster prg_08_09 $B331 (value * 34 -> a side-1 roster base
+#     in bank $26).
+PATTERN_PTR_CPU = 0x9B12
+PATTERN_PTR_COUNT = 32
+PATTERN_PTR_STRIDE = 2
+PATTERN_REC_CPU = 0x9B52
+PATTERN_REC_STRIDE = 0x11
+PATTERN_REC_COUNT = 32
+
+# Names decoded by rendering each record's byte0 CHR code page from rom/chr
+# and reading the composed glyphs, cross-checked against known in-game item
+# lists (2026-09-30). The catalog CSV can only offer '(weapon id N)'/
+# '(hidden ...)' placeholders for these because they are not in the regular
+# armory stock lists; they are real in-game items (hidden armories for
+# appointed officers / duel loot from appointed rulers).
+EQUIP_DECODED_NAMES = {
+    5: '青釭の剣', 6: '倚天の剣', 7: '七星宝剣',
+    14: '龍牙刀', 15: '関王刀',
+    22: '狼牙鎗', 23: '蛇矛',
+    30: '聖者の衣', 31: '竜鱗の鎧',  # id14 uses full-form 龍; id31 uses the
+                                      # 立+日+乚 variant 竜 (U+7ADC)
+}
+ADJ_CPU = 0x9D72
+ADJ_STRIDE = 8
+ATTACK_SIDE_TYPE_CPU = 0x9E62
+
+# Bank $10 tail padding $9F52-$9FFF (174 bytes): unused $FF filler after the
+# attack side type table (which ends at $9F51). No reader reaches it. Rendered as
+# .byte rows (not a .incbin) so the whole bank tail is visible in-tree.
+FF_FILLER_CPU = 0x9F52
+FF_FILLER_LEN = BANK_SIZE - (FF_FILLER_CPU - WINDOW_CPU)   # $2000 - $1F52 = $AE
+FF_FILLER_ROW = 16
+
+# Bank $10 gap $997A-$9A19 (160 bytes) between off_names (ends $9979) and
+# prov_names (starts $9A1A): unreferenced filler, not a table. Rendered as
+# .byte rows (not a sliced .incbin) purely for in-tree traceability of the
+# ROM bytes.
+RAW_DUMP_CPU = 0x997A
+RAW_DUMP_LEN = 160
+RAW_DUMP_ROW = 10
+
+# Bank $10 slot $9B0A-$9B11 (8 bytes): 下野 (ざいや) label, read through the
+# same id*8+$9A1A province-name mechanism as ProvinceNameTable. The tactical
+# Withdraw menu uses this entry when an officer opts to 下野 (retire from
+# service) instead of retreating to another province. Glyph bytes live in the
+# hiragana menu block ($44+), not the katakana name block ($04-$38); reader
+# CmdDrawNameFromData ($A426) indexes them identically (slot 30 = $1E).
+PROV_NAME_WITHDRAW_CPU = 0x9B0A
+PROV_NAME_WITHDRAW_LEN = PATTERN_PTR_CPU - PROV_NAME_WITHDRAW_CPU
+
+# Bank $11 $8D74-$8DB3: four reinforcement candidate pools. $8D74-$8D7B holds
+# four little-endian word pointers whose HIGH byte is stored biased by -$60
+# (@ReinforceScan adds #$60 back), so each word addresses a $FF-terminated list
+# of (Officer id, reinforcement year) pairs in the same slice. The year byte is
+# the reign encoding (display year - 100), which is what $6F00 also holds.
+REINFORCE_CPU = 0x8D74
+REINFORCE_PTR_COUNT = 4
+REINFORCE_HI_BIAS = 0x60
+REINFORCE_ENTRY_STRIDE = 2           # [0] Officer id, [1] year - 100
+REINFORCE_YEAR_OFFSET = 100          # display year = byte + 100
+REINFORCE_PAIRS_PER_ROW = 4
+REINFORCE_BYTES = 0x8DB4 - REINFORCE_CPU       # 64
+
+# Bank $11 $8DB4-$99BC: Officer name-glyph records, 13 bytes per Officer id:
+# [0] = name-font CHR code page, then 4 CONTIGUOUS bytes per character - the
+# 8x8 quadruple (n, n+1, n+$10, n+$11) of one 16x16 kanji - $FF terminated.
+# (The bank $10 equipment patterns at $9B52 are line-major instead: 2 lines x
+# 8 tiles, so a character's 4 cells straddle the two lines.)
+# Field evidence: code/ruler_card_decode.md section 4.
+NAME_GLYPH_CPU = 0x8DB4
+NAME_GLYPH_STRIDE = 0x0D
+NAME_GLYPH_TILES = 4                 # tile cells per character (2x2 of 8x8)
+
+# Bank $11 gap $99BD-$9AB3 (247 bytes) between the glyph records (end $99BC)
+# and the tactical defense side type table (starts $9AB4): every byte is $00 and no
+# analysed reader reaches it. Rendered as .byte rows (not a sliced .incbin) so
+# the whole bank is visible in-tree, like the bank $10 filler regions.
+B11_GAP_CPU = 0x99BD
+B11_GAP_LEN = 0x9AB4 - B11_GAP_CPU    # 247
+B11_GAP_ROW = 16
+
+# Bank $11 $9AB4-$9BA3: one byte per (province, neighbor) slot, 30 x 8, exactly
+# parallel to the bank $10 adjacency graph $9D72 - every row's $FF run starts on
+# the same slot as its adjacency row (verified 30/30). Values are $00/$01 only.
+DEFENSE_SIDE_TYPE_CPU = 0x9AB4
+
+# Bank $11 $9BA4-$9C57: battlefield facility-tile table, 30 rows x 6 = three
+# ordered (X,Y) tile pairs per province - the facility tiles of the province's
+# tactical map. Fixed slot order: 0=market (march target of Action_BuyRice,
+# entry+0/+1), 2=hospital (march target of Action_RestoreHP, entry+4/+5),
+# 1=remaining facility (armory) by elimination. A pair is unused when its X has
+# bit7 set (readers BMI/BPL; padding stored is $FF $FF). Coords are 32x32
+# battlefield tiles ($00-$1D observed); Y >= $10 is decremented once by the
+# march readers (map gap row). The row area ends exactly at
+# OfficerDeathYearTable $9C58.
+FACILITY_TILE_CPU = 0x9BA4
+FACILITY_TILE_STRIDE = 6
+FACILITY_TILE_PAIRS = 3
+FACILITY_TILE_SLOTS = ('House', 'Armory', 'Hospital')
+
+# Bank $11 tail $9D45-$9FFF: the raw slice that used to cover it splits into
+# three parts, all now rendered in-tree (same treatment as the bank $10 raw
+# dump / FF filler); the table itself uses .word, the filler stays .byte.
+#   $9D45-$9D57  19 x $00 gap right after OfficerDeathYearTable (ends $9D44);
+#                no reader reaches it.
+#   $9D58-$9DCF  province pixel-position table: 30 rows x 4 bytes indexed
+#                province *4, each row two .word entries - map pixel Y then
+#                map pixel X, both stored offset by the $8000 window base
+#                (like the reinforcement pool pointers, whose high byte is
+#                stored biased by -$60). On-map pixel = coord - $8000, so every
+#                stored value is $0050-$0180 (a multiple of $10 px) and the hi
+#                byte is only ever $00/$01. The stride is exactly 30 rows: the
+#                4 bytes after the last row ($9DD0-$9DD3) are $FF like the
+#                following filler, which the emitter asserts instead of drawing
+#                them into the table region.
+#   $9DD0-$9FFF  560 x $FF tail padding (the first $FF byte of the bank sits
+#                at $9DD0, right where the table stride ends).
+B11_TAIL_GAP_CPU = 0x9D45
+B11_TAIL_GAP_LEN = 0x9D58 - B11_TAIL_GAP_CPU      # 19
+B11_TAIL_GAP_ROW = 16
+PIXEL_POS_CPU = 0x9D58
+PIXEL_POS_STRIDE = 4
+PIXEL_POS_ROWS = PROV_COUNT        # 30 rows, ending $9DCF
+PIXEL_POS_TAIL_PAD = 4             # $9DD0-$9DD3: $FF, stride alignment proof
+PIXEL_POS_MAX_COORD = 0x01F0       # sane 16-bit map pixel bound (asserted)
+PIXEL_POS_WINDOW_BASE = WINDOW_CPU  # coords carry the $8000 window as a base
+B11_FF_FILLER_CPU = 0x9DD0
+B11_FF_FILLER_LEN = BANK_SIZE - (B11_FF_FILLER_CPU - WINDOW_CPU)   # 560
+B11_FF_FILLER_ROW = 16
+
+# Notes printed inside a remaining raw slice, keyed by (bank, cpu_start).
+GAP_NOTES = {
+}
+
 # Bank $10 $8000-$8BFF: three full PPU screens (960 tile bytes + 64 attribute
 # bytes each), i.e. the game's pre-baked background nametables.
 SCREEN_CPU = 0x8000
@@ -258,6 +418,26 @@ def load_schedule(officers):
 # Emitters
 # ---------------------------------------------------------------------------
 
+def load_equipment_names():
+    """item_id -> (item_name, category) from docs/equipment_catalog.csv.
+
+    Only used for comments in the bank $10 pattern tables; tolerant of a
+    missing file (returns {} so the tables still render).
+    """
+    names = {}
+    path = os.path.join(DOCS, 'equipment_catalog.csv')
+    try:
+        with open(path, newline='', encoding='utf-8') as f:
+            for r in csv.DictReader(f):
+                try:
+                    iid = int(r['item_id'])
+                except (KeyError, ValueError):
+                    continue
+                names[iid] = (r.get('item_name', ''), r.get('category', ''))
+    except OSError:
+        pass
+    return names
+
 def emit_gap(out, bank, start_off, end_off):
     if start_off >= end_off:
         return
@@ -267,6 +447,8 @@ def emit_gap(out, bank, start_off, end_off):
                   end_off - start_off))
     out.append('; rom/prg/prg_%02x.bin, so this bank always reproduces the ROM.'
                % bank)
+    for note in GAP_NOTES.get((bank, WINDOW_CPU + start_off), ()):
+        out.append(('; ' + note).rstrip())
     out.append('; Verify with: python tools/verify_data_banks.py --bank %02x' % bank)
     out.append('.incbin "rom/prg/prg_%02x.bin", $%04X, $%04X'
                % (bank, start_off, end_off - start_off))
@@ -558,6 +740,735 @@ def emit_death_years(out, rows):
 
 
 # ---------------------------------------------------------------------------
+# Bank $11 tail $9D45-$9FFF: zero gap, province pixel-position table, FF filler
+# ---------------------------------------------------------------------------
+
+def pixel_pos_rows(data):
+    """Decode the $9D58 province pixel-position table, one row per province.
+
+    Row = two 16-bit LE words: map pixel Y (+0/+1) then map pixel X (+2/+3),
+    each carrying the $8000 window base, indexed province *4 exactly as the two
+    readers do. Raises if a coordinate leaves the sane map-pixel range, if a
+    province row is $FF padded, or if the 4 bytes after the last row are not
+    the surrounding $FF filler - so the emitter can never mis-parse the stride
+    or swallow a hidden byte.
+    """
+    base = PIXEL_POS_CPU - WINDOW_CPU
+    rows = []
+    for pid in range(PIXEL_POS_ROWS):
+        chunk = data[base + pid * PIXEL_POS_STRIDE:
+                     base + (pid + 1) * PIXEL_POS_STRIDE]
+        if 0xFF in chunk:
+            raise SystemExit('bank $11 pixel table province id %d is $FF padded'
+                             % pid)
+        y = chunk[0] | chunk[1] << 8
+        x = chunk[2] | chunk[3] << 8
+        if y > PIXEL_POS_MAX_COORD or x > PIXEL_POS_MAX_COORD:
+            raise SystemExit('bank $11 pixel table id %d coords Y=$%04X '
+                             'X=$%04X out of range' % (pid, y, x))
+        rows.append({'id': pid, 'bytes': chunk, 'y': y, 'x': x})
+    tail = data[base + PIXEL_POS_ROWS * PIXEL_POS_STRIDE:
+                base + PIXEL_POS_ROWS * PIXEL_POS_STRIDE + PIXEL_POS_TAIL_PAD]
+    if set(tail) != {0xFF}:
+        raise SystemExit('bank $11 pixel table does not end on the $FF filler '
+                         '($9DD0-$9DD3 changed)')
+    return rows
+
+
+def emit_b11_tail_gap(out, data):
+    """$9D45-$9D57: $00 gap after the death-year table, shown as .byte rows."""
+    base = B11_TAIL_GAP_CPU - WINDOW_CPU
+    end = B11_TAIL_GAP_CPU + B11_TAIL_GAP_LEN - 1
+    if set(data[base:base + B11_TAIL_GAP_LEN]) != {0x00}:
+        raise SystemExit('bank $11 tail gap $9D45-$9D57 is no longer all $00')
+    out.append('; ' + '-' * 78)
+    out.append('; $%04X-$%04X (%d bytes): unused $00 gap.'
+               % (B11_TAIL_GAP_CPU, end, B11_TAIL_GAP_LEN))
+    out.append('; Between OfficerDeathYearTable (ends $9D44) and the province')
+    out.append('; pixel-position table (starts $9D58). The death-year scan reads')
+    out.append('; 237 bytes from $9C58 and stops at $9D44, so no code reaches here.')
+    out.append('; ' + '-' * 78)
+    out.append('B11TailGap_%04X_%04X:' % (B11_TAIL_GAP_CPU, end))
+    for off in range(0, B11_TAIL_GAP_LEN, B11_TAIL_GAP_ROW):
+        n = min(B11_TAIL_GAP_ROW, B11_TAIL_GAP_LEN - off)
+        chunk = data[base + off:base + off + n]
+        out.append('  .byte %-78s ; $%04X (%d bytes)'
+                   % (byte_list(chunk), B11_TAIL_GAP_CPU + off, n))
+    out.append('')
+
+
+def emit_province_pixel_positions(out, data, provinces):
+    """$9D58-$9DCF: 16-bit map pixel (Y,X) per province, one row per province."""
+    pad_end = (PIXEL_POS_CPU + PIXEL_POS_ROWS * PIXEL_POS_STRIDE
+               + PIXEL_POS_TAIL_PAD)
+    last_row = PIXEL_POS_CPU + PIXEL_POS_ROWS * PIXEL_POS_STRIDE - 1
+    pad_start = last_row + 1
+    by_id = {r['id']: r for r in provinces}
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Province pixel-position table: %d provinces x %d bytes'
+               % (PIXEL_POS_CPU, last_row, PIXEL_POS_ROWS, PIXEL_POS_STRIDE))
+    out.append('; Indexed province *%d ($050E / $0402 *4), one row = two .word'
+               % PIXEL_POS_STRIDE)
+    out.append('; entries: map pixel Y then map pixel X, both stored offset by the')
+    out.append('; $%04X window base (like the reinforcement pool pointers above), so'
+               % PIXEL_POS_WINDOW_BASE)
+    out.append('; the on-map pixel is coord - $%04X; all stored values are'
+               % PIXEL_POS_WINDOW_BASE)
+    out.append('; $0050-$0180. The stride is exactly')
+    out.append('; %d rows: the %d bytes after the last row ($%04X-$%04X) are $FF like'
+               % (PIXEL_POS_ROWS, PIXEL_POS_TAIL_PAD, pad_start, pad_end - 1))
+    out.append('; the following filler, so no province is missing. Readers (bank $31')
+    out.append('; window via LDY #$31 / B1F_SwitchBank8_B):')
+    out.append(';   DrawStratagemTargetMarkers prg_08_09 $D204 -> $D20F: the pair goes')
+    out.append(';     to a:$000A-$000D as the sprite base position for')
+    out.append(';     B1F_SpriteOamWriterScroll (battle stratagem province marker).')
+    out.append(';   ExchangeScene_Init prg_0c_0d $DC99 -> $DCCE: 16-bit clamp of')
+    out.append(';     X - $80 into $0512/$0513 and Y - $60 into $0510/$0511 (the')
+    out.append(';     exchange-scene map window bounds).')
+    out.append('; ' + '=' * 78)
+    out.append('ProvincePixelPositionTable:')
+    out.append('')
+    for row in pixel_pos_rows(data):
+        pid = row['id']
+        prov = by_id.get(pid, {})
+        addr = PIXEL_POS_CPU + pid * PIXEL_POS_STRIDE
+        out.append('ProvincePixelPos_%s:' % prov.get('label', '%02X' % pid))
+        out.append('  .word $%04X                       ; $%04X id %2d %s  pixel Y'
+                   % (row['y'], addr, pid, prov.get('katakana', '')))
+        out.append('  .word $%04X                       ; $%04X pixel X'
+                   % (row['x'], addr + 2))
+    out.append('')
+
+
+def emit_b11_ff_filler(out, data):
+    """$9DD0-$9FFF: unused $FF tail padding (incl. the 4-byte stride pad)."""
+    base = B11_FF_FILLER_CPU - WINDOW_CPU
+    end = B11_FF_FILLER_CPU + B11_FF_FILLER_LEN - 1
+    last_row = PIXEL_POS_CPU + PIXEL_POS_ROWS * PIXEL_POS_STRIDE - 1
+    if set(data[base:base + B11_FF_FILLER_LEN]) != {0xFF}:
+        raise SystemExit('bank $11 tail $9DD0-$9FFF is no longer all $FF')
+    out.append('; ' + '-' * 78)
+    out.append('; $%04X-$%04X (%d bytes): unused $FF tail padding.'
+               % (B11_FF_FILLER_CPU, end, B11_FF_FILLER_LEN))
+    out.append('; The pixel-position table stride ends at $%04X, so these are its'
+               % last_row)
+    out.append('; first %d bytes; nothing from here to the end of the bank is read.'
+               % PIXEL_POS_TAIL_PAD)
+    out.append('; Listed as .byte rows so the whole bank is visible in-tree, like')
+    out.append('; the bank $10 filler regions.')
+    out.append('; ' + '-' * 78)
+    out.append('B11FFFiller_%04X_%04X:' % (B11_FF_FILLER_CPU, end))
+    for off in range(0, B11_FF_FILLER_LEN, B11_FF_FILLER_ROW):
+        n = min(B11_FF_FILLER_ROW, B11_FF_FILLER_LEN - off)
+        chunk = data[base + off:base + off + n]
+        out.append('  .byte %-78s ; $%04X (%d bytes)'
+                   % (byte_list(chunk), B11_FF_FILLER_CPU + off, n))
+    out.append('')
+
+
+# ---------------------------------------------------------------------------
+# Bank $11: the tables that used to live in the $8D74-$9C57 raw slice
+# ---------------------------------------------------------------------------
+
+def reinforce_lists(blk):
+    """Decode the $8D74 block: returns (word_values, [(cpu, [(id, year), ...]), ...]).
+
+    The stored high bytes are biased by -$60, so word = lo | (hi + $60) << 8.
+    Raises if a pointer leaves the block, the lists do not tile it, an entry is
+    not a whole (id, year) pair, or an Officer id is out of range - so the
+    emitter can never drift from the ROM bytes or mis-parse the stride.
+    """
+    words = [blk[i * 2] | (blk[i * 2 + 1] + REINFORCE_HI_BIAS) << 8
+             for i in range(REINFORCE_PTR_COUNT)]
+    lists = []
+    for word in words:
+        start = word - REINFORCE_CPU
+        if not 0 <= start < len(blk):
+            raise SystemExit('reinforce pointer $%04X leaves $%04X-$%04X'
+                             % (word, REINFORCE_CPU, REINFORCE_CPU + len(blk) - 1))
+        n = start
+        while n < len(blk) and blk[n] != 0xFF:
+            n += 1
+        body = blk[start:n]
+        if len(body) % REINFORCE_ENTRY_STRIDE:
+            raise SystemExit('reinforce list at $%04X holds %d bytes, not whole '
+                             '%d-byte pairs'
+                             % (word, len(body), REINFORCE_ENTRY_STRIDE))
+        pairs = [(body[k], body[k + 1])
+                 for k in range(0, len(body), REINFORCE_ENTRY_STRIDE)]
+        for oid, _ in pairs:
+            if oid >= OFF_RECORD_COUNT:
+                raise SystemExit('reinforce entry at $%04X names Officer %d'
+                                 % (word, oid))
+        lists.append((REINFORCE_CPU + start, pairs))
+    spans = sorted([(cpu, cpu + REINFORCE_ENTRY_STRIDE * len(pairs) + 1)
+                    for cpu, pairs in lists])
+    for (_, prev_end), (cpu, _) in zip(spans, spans[1:]):
+        if prev_end != cpu:
+            raise SystemExit('reinforce lists overlap or leave holes at $%04X'
+                             % cpu)
+    if spans and spans[-1][1] != REINFORCE_CPU + len(blk):
+        raise SystemExit('reinforce lists do not end at $%04X'
+                         % (REINFORCE_CPU + len(blk) - 1))
+    return words, lists
+
+
+def emit_reinforce_pools(out, data, officers):
+    """$8D74-$8DB3: 4 word pointers plus the (Officer id, year) pair pools."""
+    base = REINFORCE_CPU - WINDOW_CPU
+    blk = data[base:base + REINFORCE_BYTES]
+    end = REINFORCE_CPU + REINFORCE_BYTES - 1
+    by_id = {r['id']: r for r in officers}
+    words, lists = reinforce_lists(blk)
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Reinforcement candidate pools: %d pointers + %d lists'
+               % (REINFORCE_CPU, end, REINFORCE_PTR_COUNT, len(lists)))
+    out.append('; $%04X-$%04X holds %d little-endian words whose HIGH byte is stored'
+               % (REINFORCE_CPU, REINFORCE_CPU + 2 * REINFORCE_PTR_COUNT - 1,
+                  REINFORCE_PTR_COUNT))
+    out.append('; biased by -$%02X (the reader adds #$%02X back), so every target stays'
+               % (REINFORCE_HI_BIAS, REINFORCE_HI_BIAS))
+    out.append('; inside this bank (stored value = target - $6000). Each word addresses')
+    out.append('; one $FF-terminated candidate list; the lists sit back-to-back in')
+    out.append('; $%04X-$%04X.' % (words[0], end))
+    out.append('; List format: %d-byte entries, [0] = Officer id, [1] = reinforcement'
+               % REINFORCE_ENTRY_STRIDE)
+    out.append('; year in the reign encoding (byte = display year - %d), $FF padded to'
+               % REINFORCE_YEAR_OFFSET)
+    out.append('; the list end. Every entry is therefore a multiple of %d bytes and no'
+               % REINFORCE_ENTRY_STRIDE)
+    out.append('; Officer id reaches $ED (checked here at generation time).')
+    out.append('; Year encoding differs from the arrival schedule $8B1C above: that one')
+    out.append('; stores the DISPLAY year literally (@ScheduleYear prg_19_1a $B9C0 does')
+    out.append('; SBC #$64 before comparing), while @ReinforceScan compares the pair')
+    out.append('; byte straight against $6F00 ($AF10/$AF12), so here the byte is')
+    out.append('; already year - %d. Observed display years: %d-%d.'
+               % (REINFORCE_YEAR_OFFSET,
+                  min(y for _, pairs in lists for _, y in pairs) + REINFORCE_YEAR_OFFSET,
+                  max(y for _, pairs in lists for _, y in pairs) + REINFORCE_YEAR_OFFSET))
+    out.append('; Reader - @ReinforceScan prg_19_1a $AECE: LDY #$31 / SwitchBank8_B,')
+    out.append(';   ($0000) <- $%04X, index $0470 is a BYTE offset into the pointer'
+               % REINFORCE_CPU)
+    out.append(';   table ($00/$02/$04/$06 = the four pools); ($10) = the chosen list.')
+    out.append(';   The scan $AEF0 walks it by PAIRS (INX/INX at $AF08 to skip a')
+    out.append(';   rejected entry, single INX at $AF0D to step onto the year byte):')
+    out.append(';     1. entry[0] == $FF -> no candidate ($AF19 frame state $0401 = 3).')
+    out.append(';     2. keep only a hidden Officer (SRAM record[$0B] & 3 == 1).')
+    out.append(';     3. entry[1] > $6F00 (reign year not reached) -> also no candidate;')
+    out.append(';        entry[1] <= $6F00 -> append the Officer to the province roster')
+    out.append(';        ($00 + $11..) and set his status to 2 = rostered ($AF4E-$AF52).')
+    out.append('; Content (decoded names): the pools group Officers by faction/family -')
+    out.append('; list 0 曹氏/夏侯氏/司马氏, list 1 周瑜+孙氏+诸葛恪, list 2')
+    out.append('; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. Which $0470 value picks which pool')
+    out.append('; is not yet decoded.')
+    out.append('; ' + '=' * 78)
+    out.append('ReinforceCandidatePtrTable:')
+    out.append('  .word %-54s ; $%04X -> %s'
+               % (', '.join('$%04X' % (w - (REINFORCE_HI_BIAS << 8))
+                            for w in words), REINFORCE_CPU,
+                  ' / '.join('$%04X (%d pairs)' % (cpu, len(pairs))
+                             for cpu, pairs in lists)))
+    out.append('')
+    for idx, (cpu, pairs) in enumerate(lists):
+        label = 'ReinforceCandidateList_%d:' % idx
+        years = [y for _, y in pairs]
+        out.append('%s%s; $%04X %d (Officer id, year) pairs, display years %d-%d'
+                   % (label, ' ' * max(1, 27 - len(label)), cpu, len(pairs),
+                      min(years) + REINFORCE_YEAR_OFFSET,
+                      max(years) + REINFORCE_YEAR_OFFSET))
+        for start in range(0, len(pairs), REINFORCE_PAIRS_PER_ROW):
+            chunk = pairs[start:start + REINFORCE_PAIRS_PER_ROW]
+            flat = [b for oid, year in chunk for b in (oid, year)]
+            out.append('  .byte %-40s ; $%04X %s'
+                       % (byte_list(flat), cpu + 2 * start,
+                          ' '.join('%d(%s)->%d'
+                                   % (oid, by_id[oid]['zh_hans'] if oid in by_id
+                                      else '?', year + REINFORCE_YEAR_OFFSET)
+                                   for oid, year in chunk)))
+        out.append('  .byte $FF                                  '
+                   '         ; $%04X list end' % (cpu + 2 * len(pairs)))
+        out.append('')
+
+
+def emit_officer_name_glyphs(out, data, officers):
+    """$8DB4-$99BC: 13-byte Officer name-glyph records (sprite tile ids)."""
+    base = NAME_GLYPH_CPU - WINDOW_CPU
+    end = NAME_GLYPH_CPU + OFF_RECORD_COUNT * NAME_GLYPH_STRIDE - 1
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Officer name-glyph records: %d real x %d bytes'
+               % (NAME_GLYPH_CPU, end, OFF_RECORD_COUNT, NAME_GLYPH_STRIDE))
+    out.append('; Index id*%d + $%04X. Layout: [0] = the NAMCO-163 CHR code page the'
+               % (NAME_GLYPH_STRIDE, NAME_GLYPH_CPU))
+    out.append('; tile bytes decode on (page V = 1KB slice chr_(V//8).bin @')
+    out.append('; (V%8)*$400, same convention as the bank-$30 name patterns), then 4')
+    out.append('; bytes PER CHARACTER - CHARACTER-major, not line-major:')
+    out.append(';   [1..4] = character 1, [5..8] = character 2, [9..12] = character 3,')
+    out.append('; each group being the four 8x8 cells of one 16x16 kanji (top-left,')
+    out.append('; top-right, bottom-left, bottom-right) = tile ids (n, n+1, n+$10,')
+    out.append('; n+$11): horizontal step +$01, vertical step +$10 on a 16-tile page')
+    out.append('; row, so one page holds 16 kanji (64 tiles). Up to 3 characters, $FF')
+    out.append('; terminated and padded to the record end. Verified 237/237: every')
+    out.append('; record\'s tile count is a multiple of 4 and every group obeys the')
+    out.append('; (+1, +$10, +$11) relation.')
+    out.append('; The bank-$30 EquipmentNamePatterns ($9B52, data_10.asm) store the')
+    out.append('; same kind of glyph data LINE-major instead: 2 lines x 8 tiles, so')
+    out.append('; there character k = line1[2k], line1[2k+1], line2[2k], line2[2k+1]')
+    out.append('; and its four tiles are NOT adjacent.')
+    out.append('; Tile bytes are page-relative; the readers add #$C0 to reach the')
+    out.append('; sprite tile page $C0-$FF. Officers sharing a surname share the')
+    out.append('; leading ids (ids 29-33 夏侯淵/惇/覇/楙/蘭 all start 00 01 10 11 |')
+    out.append('; 02 03 12 13).')
+    out.append('; Readers (all after LDY #$31; the byte [$0B] bias and the +$C0 tile')
+    out.append('; bias live in the readers, not here):')
+    out.append(';   OfficerNameSpritePost prg_1d_1e $AB38 - officer-card name sprites;')
+    out.append(';   ProvinceDataWindowFrame $ABD7 -> RenderSubState $B1B1 - province')
+    out.append(';     window ruler/governor names; prg_17_18 $B1EE ->')
+    out.append(';     ExpandMetatileToSprites $CFDB - 4 rows x 6 tiles metatile;')
+    out.append(';   RecalcExchangeStats prg_0c_0d $CC29 -> @GetRulerValue $CC86 -')
+    out.append(';     exchange-screen ruler name (index = ruler base value, not id);')
+    out.append(';   @MarchFormationOamDraw prg_19_1a $D2EA -> $D334 - marching')
+    out.append(';     formation name flag (index $0664[$0509]).')
+    out.append('; [0] has no disassembled reader ($00B9 is written but never read).')
+    out.append('; The trailing comment groups the tile bytes per character, 4 apiece.')
+    out.append('; Field evidence: code/ruler_card_decode.md section 4.')
+    out.append('; ' + '=' * 78)
+    out.append('OfficerNameGlyphTable:')
+    out.append('')
+    for row in officers:
+        chunk = data[base + row['id'] * NAME_GLYPH_STRIDE:
+                     base + (row['id'] + 1) * NAME_GLYPH_STRIDE]
+        tiles = chunk[1:]
+        n = 0
+        while n < len(tiles) and tiles[n] != 0xFF:
+            n += 1
+        groups = [' '.join('%02X' % b for b in tiles[k:k + NAME_GLYPH_TILES])
+                  for k in range(0, n, NAME_GLYPH_TILES)]
+        out.append('OfficerNameGlyph_%s: .byte %-64s ; $%04X id %3d %s %s page $%02X '
+                   'kanji %d: %s'
+                   % (row['label'], byte_list(chunk),
+                      NAME_GLYPH_CPU + row['id'] * NAME_GLYPH_STRIDE, row['id'],
+                      row['katakana'], row['zh_hans'], chunk[0], len(groups),
+                      ' | '.join(groups) or 'none'))
+    out.append('')
+
+
+def emit_zero_filler11(out, data):
+    """$99BD-$9AB3: $00 filler between the tables, shown as .byte rows."""
+    base = B11_GAP_CPU - WINDOW_CPU
+    end = B11_GAP_CPU + B11_GAP_LEN - 1
+    if set(data[base:base + B11_GAP_LEN]) != {0x00}:
+        raise SystemExit('bank $11 gap $99BD-$9AB3 is no longer all $00')
+    out.append('; ' + '-' * 78)
+    out.append('; $%04X-$%04X (%d bytes): unused $00 filler.'
+               % (B11_GAP_CPU, end, B11_GAP_LEN))
+    out.append('; Gap between the name-glyph records (end $99BC) and the defense side')
+    out.append('; type table (starts $9AB4); every byte is $00. No analysed code')
+    out.append('; accesses it - the bank-$31 readers key off $8D74 / $8DB4 + id*$0D /')
+    out.append('; $9AB4 / $9BA4 only. Listed as .byte rows so the whole bank is visible.')
+    out.append('; ' + '-' * 78)
+    out.append('ZeroFiller11_%04X_%04X:' % (B11_GAP_CPU, end))
+    for off in range(0, B11_GAP_LEN, B11_GAP_ROW):
+        n = min(B11_GAP_ROW, B11_GAP_LEN - off)
+        chunk = data[base + off:base + off + n]
+        out.append('  .byte %-78s ; $%04X (%d bytes)'
+                   % (byte_list(chunk), B11_GAP_CPU + off, n))
+    out.append('')
+
+
+def emit_defense_side_types(out, data, provinces):
+    """$9AB4-$9BA3: tactical defense side type, one byte per (province, neighbour)."""
+    base = DEFENSE_SIDE_TYPE_CPU - WINDOW_CPU
+    end = DEFENSE_SIDE_TYPE_CPU + PROV_COUNT * ADJ_STRIDE - 1
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Tactical DEFENSE side types: %d provinces x %d slots'
+               % (DEFENSE_SIDE_TYPE_CPU, end, PROV_COUNT, ADJ_STRIDE))
+    out.append('; One byte per adjacency slot, same province*%d + $%04X index the bank'
+               % (ADJ_STRIDE, DEFENSE_SIDE_TYPE_CPU))
+    out.append('; $30 adjacency graph $9D72 uses, and $FF padded on exactly the same')
+    out.append('; slot in all %d rows (checked row by row against prg_10.bin $9D72;'
+               % PROV_COUNT)
+    out.append('; the adjacency scan that yields the index runs under LDY #$30, the')
+    out.append('; read itself under LDY #$31). Observed values are $00/$01 only.')
+    out.append('; Meaning (user-confirmed): the defense side type, selecting the')
+    out.append('; defender\'s initial officer arrangement for Tactical Mode. Counterpart')
+    out.append('; of the bank-$30 $9E62 TacticalAttackSideTypeTable; the two are chosen')
+    out.append('; by SIDE, never by controller.')
+    out.append('; Readers (both scan the bank-$30 adjacency row of $050E for $052A,')
+    out.append('; then read this table at that slot):')
+    out.append(';   @SetupDefenderRoster in .proc WarSetup prg_08_09 $B2AE -> $B2D6,')
+    out.append(';     and GetCityOfficerData prg_0c_0d $DEDE -> $DEE2 (called from')
+    out.append(';     @BuildOfficerList $C3D2 and @CheckBoundsForPosition $C44E in the')
+    out.append(';     cursor-driven army-deploy scene).')
+    out.append('; Role of the value: a SELECTOR index, never a count. Every consumer')
+    out.append('; scales it and adds it to a per-province base in the bank-$26 geometry')
+    out.append('; tables (physical bank $06):')
+    out.append(';   $8C52[$050E*2] + type*32 -> defender unit placement pool (16 (Y,X)')
+    out.append(';     pairs: anchor, then runs for unit ids 1-4 at offsets $02/$08/$0C/')
+    out.append(';     $14); @StoreCoordinates prg_08_09 $B266 writes it to $0600/$0614,')
+    out.append(';     @BuildOfficerList feeds it to SearchRosterByTileCoord.')
+    out.append(';   $94D6[$050E*2] + type*4  -> city bounds rectangle ([Ymin,Ymax] at')
+    out.append(';     +0/+2, [Xmin,Xmax] at +1/+3) tested by @CheckBoundsForPosition.')
+    out.append('; The bank-$30 twin $9E62 (values 0-$03) does the same job for the')
+    out.append('; attacker side: $8000[$050E] + type*34 and $932E[$050E] + type*4.')
+    out.append('; The key is not the province alone but the adjacency SLOT holding')
+    out.append('; $052A inside $050E\'s row - a per-approach-route selector.')
+    out.append('; Controller independence (it is NOT an AI-only table): WarSetup has')
+    out.append('; no human/AI gating - the only status tests in $B130-$B310 are')
+    out.append('; faction record[$03] == 3 for side 0 then side 1, and @FillCoordinates')
+    out.append('; $B258 branches on side_unit_base $6F91 (0 = defender, $0A = attacker),')
+    out.append('; so the type is read whenever side 0 deploys, human or AI. Its')
+    out.append('; launcher State_WarSceneLaunch prg_1f $E18B dispatches only on')
+    out.append('; war_scene_id $0500 ($0B officer-fate vs battle deployment), and the')
+    out.append('; arming sites include the player-driven WarSceneLaunch prg_1b_1c $B5DC')
+    out.append('; (frame sub-state 21, controller polled at $0081) plus')
+    out.append('; ArmyDeploySceneTrigger prg_19_1a $CA42. The GetCityOfficerData readers')
+    out.append('; are player UI in the army-deploy scene ArmyDeployDispatch prg_0c_0d')
+    out.append('; $C204: the readers test only mode byte $050B == 2, written by')
+    out.append('; @State_CheckSrcRuler $C267 (side 0 of $0507, the defender); every other')
+    out.append('; value ($03 from @State_CheckDestRuler $C2A6 = side 1, $00 from')
+    out.append('; @State_ResetForTransfer $C2E0) takes the attacker twin.')
+    out.append('; $00 vs $01 (measured over the 23 provinces that reserve the second')
+    out.append('; 32-byte block): two authored variants of the DEFENDER ARRAY, and the')
+    out.append('; $8C52 base table reserves exactly (max type + 1) * 32 bytes in all 29')
+    out.append('; measurable provinces (6 x 32, 23 x 64). The anchor pair (bytes 0-1) is')
+    out.append('; identical in both; the other 15 (Y,X) unit positions all change (5-10')
+    out.append('; of 15 shared by coincidence). Type 0 sits west of the city anchor')
+    out.append('; (mean dX <= 0 in 23/23), type 1 east (mean dX > 0 in 19/23; provinces')
+    out.append('; 9/10/15/17 shift along Y). Unlike the attack side, where the anchor')
+    out.append('; itself moves, the garrison keeps its city and only re-arrays.')
+    out.append('; The bounds rectangle is a DUPLICATED pair - byte-identical for 0 and')
+    out.append('; 1 in 22/23, province 14 differs by one X column - so what actually')
+    out.append('; changes with the type is the placement array, not the city area.')
+    out.append('; What selects 1 is hand-authored, not derived: the relative map')
+    out.append('; direction of the two provinces predicts it no better than a coin flip')
+    out.append('; (best rule 68/128 over all 128 province/neighbour pairs), slot parity')
+    out.append('; does not (66/128), and the value is directional - 46 of the 64 shared')
+    out.append('; borders use different values in the two directions. Provinces')
+    out.append('; 0/3/4/6/7/18/29 never use 1, none use only 1, and exactly the 23')
+    out.append('; provinces that do have base+32 reserved as a spare geometry block.')
+    out.append('; Bank-window note: under LDY #$30 the same CPU address $9AB4 is bank')
+    out.append('; $10 EquipmentNamePatterns, and bank $10 keeps its own attacker-side')
+    out.append('; table at $9E62; the three tables are distinct.')
+    out.append('; ' + '=' * 78)
+    out.append('TacticalDefenseSideTypeTable:')
+    out.append('')
+    for row in provinces:
+        pid = row['id']
+        chunk = data[base + pid * ADJ_STRIDE:base + (pid + 1) * ADJ_STRIDE]
+        n = chunk.index(0xFF) if 0xFF in chunk else ADJ_STRIDE
+        out.append('  .byte %-40s ; $%04X id %2d %s  defense type per neighbour slot: %s'
+                   % (byte_list(chunk), DEFENSE_SIDE_TYPE_CPU + pid * ADJ_STRIDE,
+                      pid, row['katakana'],
+                      ', '.join('%d' % b for b in chunk[:n]) or 'none'))
+    out.append('')
+
+
+def emit_tactical_facility_tiles(out, data, provinces):
+    """$9BA4-$9C57: three (X,Y) facility-tile pairs per province (war map)."""
+    base = FACILITY_TILE_CPU - WINDOW_CPU
+    end = FACILITY_TILE_CPU + PROV_COUNT * FACILITY_TILE_STRIDE - 1
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Tactical facility tiles: %d rows x %d bytes - the'
+               % (FACILITY_TILE_CPU, end, PROV_COUNT, FACILITY_TILE_STRIDE))
+    out.append('; facility locations of each province\'s tactical-mode battlefield.')
+    out.append('; %d ordered (X,Y) tile pairs per province, fixed slot order:' % FACILITY_TILE_PAIRS)
+    out.append(';   +0/+1 House (民家/rice market), +2/+3 Armory (武器屋),')
+    out.append(';   +4/+5 Hospital (病院). Direct proof: arriving on pair N')
+    out.append(';   routes route_mode $0470=N through State9_RouteNextAction')
+    out.append(';   prg_08_09 $C7C8: N=$00 -> State0 rice-buy panel $C0D5, N=$01')
+    out.append(';   -> State5 armory grid $C4B8, else -> State3 vitality check')
+    out.append(';   $C3E3 -> State4 hospital heal $C3E9. Also: slot 0 is the')
+    out.append(';   Action_BuyRice march target, slot 2 the Action_RestoreHP one')
+    out.append(';   (both via the sliding *3 index below). The')
+    out.append(';   market slot does NOT equal the strategy-layer has_market bit')
+    out.append(';   (docs/rice_prices.csv): 青州 has a market but no slot-0 tile,')
+    out.append(';   襄阳 no market yet slot 2. Row area ends exactly at')
+    out.append(';   OfficerDeathYearTable $%04X. A pair is unused when its X has' % DEATH_CPU)
+    out.append(';   bit7 set (readers BMI/BPL; padding stored is $FF $FF). Coords are')
+    out.append(';   tiles of the 32x32 battlefield ($00-$1D observed); the march')
+    out.append(';   readers decrement a Y >= $10 once (map gap row).')
+    out.append('; Readers - two indexings exist; stride-6 (correct rows):')
+    out.append(';   DrawStratagemTargetMarkers prg_08_09 $D24D -> $D25D: $050E *3 *2')
+    out.append(';     (=*6), walks pairs at +0/+2/+4 and draws a city-target marker')
+    out.append(';     (tiles *16 -> pixels) at each used pair;')
+    out.append(';   OfficerTransfer_SetupResult prg_0c_0d $A4DD -> $A4EF: $050E *3 *2')
+    out.append(';     (=*6), scans the 3 pairs vs the destination (X,Y); a match')
+    out.append(';     stores the slot index (X) as the action selector and enters')
+    out.append(';     state $09 (war action panel, WarTownActionDispatch).')
+    out.append(';   The war/AI readers use $050E * 3 instead, so they slide across the')
+    out.append(';   rows ($FF means "no entry" to them): Action_BuyRice $A329 ->')
+    out.append(';   $A33B (+0/+1 = this row\'s House slot exactly), Action_RestoreHP')
+    out.append(';   $A507 -> $A51C (+4/+5 = lands on the NEXT row\'s House slot byte')
+    out.append(';   pair, not this row\'s Hospital), casualty Phases 5/6 $CA5F ->')
+    out.append(';   $CA71 / $CAC2 -> $CAD7 (presence tests: +0 / +4 != $FF gates the')
+    out.append(';   reinforcement/morale path). Kept as raw evidence.')
+    out.append('; ' + '=' * 78)
+    out.append('ProvinceTacticalFacilityTiles:')
+    out.append('')
+    for row in provinces:
+        pid = row['id']
+        chunk = data[base + pid * FACILITY_TILE_STRIDE:
+                     base + (pid + 1) * FACILITY_TILE_STRIDE]
+        pairs = ' '.join(
+            '%s(%02X,%02X@%d,%d)' % (FACILITY_TILE_SLOTS[i // 2], chunk[i],
+                                     chunk[i + 1], chunk[i], chunk[i + 1])
+            if chunk[i] < 0x80 else '%s-' % FACILITY_TILE_SLOTS[i // 2]
+            for i in range(0, FACILITY_TILE_STRIDE, 2))
+        out.append('  .byte %-34s ; $%04X id %2d %s  %s'
+                   % (byte_list(chunk), FACILITY_TILE_CPU + pid * FACILITY_TILE_STRIDE,
+                      pid, row['katakana'], pairs))
+    out.append('')
+
+
+# ---------------------------------------------------------------------------
+# Bank $10 tail: raw dump, FF filler, pattern pointers, adjacency, deployment
+# ---------------------------------------------------------------------------
+
+def emit_raw_dump(out, data):
+    """$997A-$9A19: unreferenced filler rendered as .byte rows for traceability."""
+    base = RAW_DUMP_CPU - WINDOW_CPU
+    end = RAW_DUMP_CPU + RAW_DUMP_LEN - 1
+    out.append('; ' + '-' * 78)
+    out.append('; $%04X-$%04X (%d bytes): NOT ANALYSED - raw dump of'
+               % (RAW_DUMP_CPU, end, RAW_DUMP_LEN))
+    out.append('; rom/prg/prg_10.bin $%04X-$%04X, byte-exact against the ROM'
+               % (base, base + RAW_DUMP_LEN - 1))
+    out.append('; (verify with: python tools/verify_data_banks.py --bank 10).')
+    out.append('; Gap between off_names (ends $9979) and prov_names (starts $9A1A); no')
+    out.append('; analysed code accesses it (all $30-window reads key off the $8000/')
+    out.append('; $8400/$8800/$8C00/$8FC0/$8FFC/$901A/$9A1A bases), so it stays')
+    out.append('; unreferenced filler, listed as .byte rows for in-tree traceability.')
+    out.append('; ' + '-' * 78)
+    out.append('RawDump_%04X_%04X:' % (RAW_DUMP_CPU, end))
+    for off in range(0, RAW_DUMP_LEN, RAW_DUMP_ROW):
+        chunk = data[base + off:base + off + RAW_DUMP_ROW]
+        out.append('  .byte %-44s ; $%04X' % (byte_list(chunk),
+                                              RAW_DUMP_CPU + off))
+    out.append('')
+
+
+def emit_prov_name_withdraw(out, data):
+    """$9B0A-$9B11: 下野 (ざいや) label, hiragana block via id*8+$9A1A."""
+    base = PROV_NAME_WITHDRAW_CPU - WINDOW_CPU
+    end = PROV_NAME_WITHDRAW_CPU + PROV_NAME_WITHDRAW_LEN - 1
+    out.append('; ' + '-' * 78)
+    out.append('; $%04X-$%04X (%d bytes): 下野 (ざいや) label'
+               % (PROV_NAME_WITHDRAW_CPU, end, PROV_NAME_WITHDRAW_LEN))
+    out.append('; Read through the same id*8+$9A1A province-name mechanism')
+    out.append('; (CmdDrawNameFromData $A426, slot index $1E = 30). The tactical')
+    out.append('; Withdraw menu renders this when an officer opts to 下野 instead')
+    out.append('; of retreating to another province. Glyph codes are in the')
+    out.append('; hiragana menu block ($44+): $4E=さ $39=゛→ざ $45=い $67=や.')
+    out.append('; ' + '-' * 78)
+    out.append('ProvinceName_WITHDRAW:')
+    out.append('  .byte %-34s ; $%04X  ざいや (下野)'
+               % (byte_list(data[base:base + PROV_NAME_WITHDRAW_LEN]),
+                  PROV_NAME_WITHDRAW_CPU))
+    out.append('')
+
+
+def emit_ff_filler(out, data):
+    """$9F52-$9FFF: unused $FF tail padding, shown as .byte rows."""
+    base = FF_FILLER_CPU - WINDOW_CPU
+    end = FF_FILLER_CPU + FF_FILLER_LEN - 1
+    out.append('; ' + '-' * 78)
+    out.append('; $%04X-$%04X (%d bytes): unused $FF tail padding.'
+               % (FF_FILLER_CPU, end, FF_FILLER_LEN))
+    out.append('; The attack side type table ends at $9F51; nothing from here to the end of')
+    out.append('; the bank is read. Listed as .byte rows so the whole bank is visible.')
+    out.append('; ' + '-' * 78)
+    out.append('FFFiller_%04X_%04X:' % (FF_FILLER_CPU, end))
+    for off in range(0, FF_FILLER_LEN, FF_FILLER_ROW):
+        n = min(FF_FILLER_ROW, FF_FILLER_LEN - off)
+        chunk = data[base + off:base + off + n]
+        out.append('  .byte %-48s ; $%04X' % (byte_list(chunk),
+                                              FF_FILLER_CPU + off))
+    out.append('')
+
+
+def emit_pattern_ptrs(out, data, equip):
+    base = PATTERN_PTR_CPU - WINDOW_CPU
+    end = PATTERN_PTR_CPU + PATTERN_PTR_COUNT * PATTERN_PTR_STRIDE - 1
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Equipment-name pattern-pointer table: %d words'
+               % (PATTERN_PTR_CPU, end, PATTERN_PTR_COUNT))
+    out.append('; Entry n -> the 8x16-kanji name pattern of equipment id n (0-31,')
+    out.append('; docs/equipment_catalog.csv). Words are stored page-relative; the')
+    out.append('; code adds $80 to the high byte, so CPU target = word + $8000, which')
+    out.append('; is exactly the EquipName_NN record in the EquipmentNamePatterns')
+    out.append('; block below. The armory / warehouse grid indexes this by equipment')
+    out.append('; id (State6_RenderArmoryItems prg_08_09 $C565, TownCommandDispatch')
+    out.append('; prg_1b_1c $C840); the name-plate renderer reuses it by strip id')
+    out.append('; (NamePlateStripSetup prg_19_1a $B7C8). All switch bank $30 first.')
+    out.append('; ' + '=' * 78)
+    out.append('EquipmentNamePtrTable:')
+    for n in range(PATTERN_PTR_COUNT):
+        target = PATTERN_REC_CPU + n * PATTERN_REC_STRIDE
+        name, _cat = equip.get(n, ('', ''))
+        name = EQUIP_DECODED_NAMES.get(n, name)
+        out.append('  .word EquipName_%02d-$8000%s; $%04X -> $%04X  equip %02d %s'
+                   % (n, ' ' * 9, PATTERN_PTR_CPU + n * 2, target, n, name))
+    out.append('')
+
+
+def emit_pattern_records(out, data, equip):
+    base = PATTERN_REC_CPU - WINDOW_CPU
+    end = PATTERN_REC_CPU + PATTERN_REC_COUNT * PATTERN_REC_STRIDE - 1
+    # byte0 is the CHR code page the record's tiles decode on; find its
+    # canonical value per category (most common byte0 across the 8 items of
+    # that type) and mark the items that carry a page of their own.
+    cat_of = {}
+    b0_of = {}
+    for n in range(PATTERN_REC_COUNT):
+        b0_of[n] = data[base + n * PATTERN_REC_STRIDE]
+        cat_of[n] = equip.get(n, ('', ''))[1].split()[0] if equip.get(n) else ''
+    canon = {}
+    for cat in {c for c in cat_of.values() if c}:
+        vals = [b0_of[n] for n in range(PATTERN_REC_COUNT) if cat_of[n] == cat]
+        canon[cat] = max(set(vals), key=vals.count)
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Equipment-name patterns: %d records x %d bytes'
+               % (PATTERN_REC_CPU, end, PATTERN_REC_COUNT, PATTERN_REC_STRIDE))
+    out.append('; One 8x16-kanji equipment name per record, drawn as 2 lines of 8')
+    out.append('; tiles: byte0 = the NAMCO-163 CHR code page the tile bytes decode')
+    out.append('; on (page V = 1KB slice chr_(V//8).bin @ (V%8)*$400), bytes 1-8 =')
+    out.append('; line 1, bytes 9-16 = line 2. Tile bytes $80-$BF are offsets $00-$3F')
+    out.append('; into that page ($01 = blank), so the same byte is a different glyph')
+    out.append('; on a different page ($92/$93 = 剣 top on $04 vs 刀 bottom on $54).')
+    out.append('; Storage is LINE-major: character k = line1[2k], line1[2k+1] (top')
+    out.append('; cells) plus line2[2k], line2[2k+1] (bottom cells), so its 4 tiles')
+    out.append('; are NOT adjacent - 4 character columns of 2 cells per line. The')
+    out.append('; bank-$31 OfficerNameGlyphTable ($8DB4, data_11.asm) is the other')
+    out.append('; way round: 4 CONTIGUOUS bytes per character (character-major).')
+    out.append('; Group by those offsets, not by value: kanji on the class pages do')
+    out.append('; follow (n, n+1, n+$10, n+$11) (短 = 90 91 / A0 A1), but hiragana の')
+    out.append('; occupies a single cell and the dedicated pages ($0D 七星宝剣, $10')
+    out.append('; 甲冑) allocate tiles sequentially, so their vertical step differs.')
+    out.append('; Each class has its own page (sword $04, blade $54, spear $56, armor')
+    out.append('; $55); two special items carry a page of their own (id 7 七星宝剣')
+    out.append('; $0D, id 29 甲冑 $10), marked below. Names mix kanji with の.')
+    out.append('; The armory/warehouse renderers never draw byte0: they compare it')
+    out.append('; against the cached page of cell 0 and add $40 to the tiles of a')
+    out.append('; different-page item, routing it to the other loaded CHR slot.')
+    out.append('; ' + '=' * 78)
+    out.append('EquipmentNamePatterns:')
+    out.append('')
+    for n in range(PATTERN_REC_COUNT):
+        off = base + n * PATTERN_REC_STRIDE
+        b0 = data[off]
+        line1 = data[off + 1:off + 9]
+        line2 = data[off + 9:off + 17]
+        name, cat = equip.get(n, ('', ''))
+        name = EQUIP_DECODED_NAMES.get(n, name)
+        cat = cat.split(' (')[0]  # drop catalog (unused)/(hidden) qualifiers:
+                                  # these items are in-game obtainable (hidden
+                                  # armories for appointed officers, duel loot
+                                  # from appointed rulers) - not unused/hidden
+        ckey = cat.split()[0] if cat else ''
+        exp = canon.get(ckey)
+        tag = 'font page $%02X (%s)' % (b0, cat) if b0 == exp else \
+            'own font page $%02X (special %s item)' % (b0, ckey)
+        out.append('EquipName_%02d: .byte $%02X%s; $%04X %s | %s'
+                   % (n, b0, ' ' * 38, PATTERN_REC_CPU + n * PATTERN_REC_STRIDE,
+                      name, tag))
+        out.append('          .byte %-24s ; $%04X line 1: top cells of chars 0-3'
+                   % (byte_list(line1), PATTERN_REC_CPU + n * PATTERN_REC_STRIDE + 1))
+        out.append('          .byte %-24s ; $%04X line 2: bottom cells of chars 0-3'
+                   % (byte_list(line2), PATTERN_REC_CPU + n * PATTERN_REC_STRIDE + 9))
+    out.append('')
+
+
+def emit_province_adjacency(out, data, provinces):
+    base = ADJ_CPU - WINDOW_CPU
+    end = ADJ_CPU + PROV_COUNT * ADJ_STRIDE - 1
+    by_id = {r['id']: r for r in provinces}
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Province adjacency graph: %d provinces x %d slots'
+               % (ADJ_CPU, end, PROV_COUNT, ADJ_STRIDE))
+    out.append('; Up to %d neighbor province ids per row, $FF padded to the row end' % ADJ_STRIDE)
+    out.append('; (readers stop on $FF / BMI). Indexed id*%d + $%04X, read only' % (ADJ_STRIDE, ADJ_CPU))
+    out.append('; through the $8000 window after switching bank $30. Neighbor values')
+    out.append('; are province ids (see include/province_ids.inc).')
+    out.append('; This is the strategic-map neighbor list used across the AI turn and')
+    out.append('; the war layer. Readers (representative):')
+    out.append(';   prg_0a_0b  BuildAdjacencyBitmap $D4F6, FindBestEnemyProvince')
+    out.append(';              $A274, AiCountExpansionRoom $A0EF, SettleStagedOfficers')
+    out.append(';              $ABBA, EvalProvinceAbsorption $B1B1, CalcActionProb')
+    out.append(';              $C70E, CountDefendedBorderProvinces $D0E9,')
+    out.append(';              CollectEnemyBorderProvinces $D1C5/$D216')
+    out.append(';   prg_08_09  AiTurnProcess $B01D, WarSetup $B2BA, SetupPostWarState $BBEB')
+    out.append(';   prg_0c_0d  ProvinceSelect_InitList $BBBB, ExchangeScene $DEAA')
+    out.append(';   prg_19_1a  OfficerArrivalScan $B9F8')
+    out.append(';   prg_1b_1c  ProvinceAdjacencyValidate $DD8A')
+    out.append('; ' + '=' * 78)
+    out.append('ProvinceAdjacencyTable:')
+    out.append('')
+    for row in provinces:
+        pid = row['id']
+        chunk = data[base + pid * ADJ_STRIDE:base + (pid + 1) * ADJ_STRIDE]
+        nbrs = [b for b in chunk if b != 0xFF]
+        nb_txt = ' '.join('%s' % by_id[b]['label'] if b in by_id else '%d' % b
+                          for b in nbrs) or 'empty'
+        out.append('ProvinceAdj_%s: .byte %-34s ; $%04X id %2d %s -> [%s]'
+                   % (row['label'], byte_list(chunk),
+                      ADJ_CPU + pid * ADJ_STRIDE, pid, row['katakana'], nb_txt))
+    out.append('')
+
+
+def emit_attack_side_types(out, data, provinces):
+    base = ATTACK_SIDE_TYPE_CPU - WINDOW_CPU
+    end = ATTACK_SIDE_TYPE_CPU + PROV_COUNT * ADJ_STRIDE - 1
+    out.append('; ' + '=' * 78)
+    out.append('; $%04X-$%04X  Tactical ATTACK side types: %d provinces x %d slots'
+               % (ATTACK_SIDE_TYPE_CPU, end, PROV_COUNT, ADJ_STRIDE))
+    out.append('; One byte per neighbour slot, row-parallel to ProvinceAdjacencyTable')
+    out.append('; $9D72 (same id*%d + $%04X index, $FF where that adjacency slot is' % (ADJ_STRIDE, ATTACK_SIDE_TYPE_CPU))
+    out.append('; $FF), so a value belongs to the (province, neighbour) pair - the')
+    out.append('; approach route - not to a province alone.')
+    out.append('; Meaning (user-confirmed): the attack side type 0-$03, selecting the')
+    out.append('; attacker\'s initial officer arrangement for Tactical Mode. Counterpart')
+    out.append('; of the bank-$31 $9AB4 TacticalDefenseSideTypeTable; the two are chosen')
+    out.append('; by SIDE, never by controller.')
+    out.append('; Readers (bank $30 window, after the same $9D72 slot scan):')
+    out.append(';   @SetupAttackerRoster prg_08_09 $B312 -> $B331: $8000[$050E*2] +')
+    out.append(';     type*34 -> side-1 placement pool, cursors @AttackerCursorSeeds')
+    out.append(';     $02/$0C/$16/$1C (5+5+3+2 (Y,X) pairs after the anchor).')
+    out.append(';   GetCityDataA prg_0c_0d $DEB8 -> @Mode2Bounds $C41C (same pool,')
+    out.append(';     type*34 on $8000[$050E*2]) and @OtherModeBounds $C48E')
+    out.append(';     ($932E[$050E*2] + type*4 bounds rectangle). The army-deploy scene')
+    out.append(';     takes this table whenever its mode byte $050B != 2; $050B == 2')
+    out.append(';     (@State_CheckSrcRuler $C267, source side) takes $9AB4 instead.')
+    out.append('; Geometry (measured in bank $06, physical file prg_06.bin): each')
+    out.append('; province reserves exactly (max type used + 1) 34-byte records - the')
+    out.append('; $8000 base table steps 34/68/102/136 across the 29 measurable')
+    out.append('; provinces (1/4/16/8 provinces respectively) and no row violates the')
+    out.append('; rule, which pins both the stride and the record ownership.')
+    out.append('; Attack vs defense asymmetry: the attack records differ in their')
+    out.append('; ANCHOR as well as in the 15 unit positions (province 1 types 0-3')
+    out.append('; anchor at (3,2) (4,28) (16,29) (18,2) - i.e. the army enters along a')
+    out.append('; map flank), while the defense records keep one city anchor and only')
+    out.append('; re-array the garrison. Each attack record also carries a 17th (Y,X)')
+    out.append('; pair at +32/+33 that none of the four seeded cursors reaches.')
+    out.append('; The entry flank is only weakly tied to the route: the anchor side')
+    out.append('; matches the neighbour\'s map side in 59%% of the 128 province/neighbour')
+    out.append('; pairs on each axis, so the type is an authored per-route choice, not')
+    out.append('; a computed direction.')
+    out.append('; ' + '=' * 78)
+    out.append('TacticalAttackSideTypeTable:')
+    out.append('')
+    for row in provinces:
+        pid = row['id']
+        chunk = data[base + pid * ADJ_STRIDE:base + (pid + 1) * ADJ_STRIDE]
+        adj = data[ADJ_CPU - WINDOW_CPU + pid * ADJ_STRIDE:
+                   ADJ_CPU - WINDOW_CPU + (pid + 1) * ADJ_STRIDE]
+        pairs = ', '.join('%d' % b if a != 0xFF else '-' for a, b in zip(adj, chunk))
+        out.append('  .byte %-34s ; $%04X id %2d %s  attack type per neighbour slot: %s'
+                   % (byte_list(chunk), ATTACK_SIDE_TYPE_CPU + pid * ADJ_STRIDE, pid,
+                      row['katakana'], pairs))
+    out.append('')
+
+
+# ---------------------------------------------------------------------------
 # Bank $10 PPU screens
 # ---------------------------------------------------------------------------
 
@@ -712,7 +1623,14 @@ def bank_regions(bank):
             (PROV_RECORD_CPU, PROV_COUNT * PROV_RECORD_STRIDE, 'prov_records'),
             (TRADE_CPU, TRADE_PRICE_BYTES + TRADE_FLAG_BYTES, 'prov_facility'),
             (OFF_NAME_CPU, OFF_RECORD_SLOTS * OFF_NAME_STRIDE, 'off_names'),
+            (RAW_DUMP_CPU, RAW_DUMP_LEN, 'raw_dump'),
             (PROV_NAME_CPU, PROV_COUNT * PROV_NAME_STRIDE, 'prov_names'),
+            (PROV_NAME_WITHDRAW_CPU, PROV_NAME_WITHDRAW_LEN, 'prov_name_withdraw'),
+            (PATTERN_PTR_CPU, PATTERN_PTR_COUNT * PATTERN_PTR_STRIDE, 'pattern_ptr'),
+            (PATTERN_REC_CPU, PATTERN_REC_COUNT * PATTERN_REC_STRIDE, 'pattern_rec'),
+            (ADJ_CPU, PROV_COUNT * ADJ_STRIDE, 'adjacency'),
+            (ATTACK_SIDE_TYPE_CPU, PROV_COUNT * ADJ_STRIDE, 'attack_side_type'),
+            (FF_FILLER_CPU, FF_FILLER_LEN, 'ff_filler'),
         ]
     if bank == 0x11:
         return [
@@ -721,7 +1639,16 @@ def bank_regions(bank):
             (OFF_RECORD_CPU, OFF_RECORD_COUNT * OFF_RECORD_STRIDE,
              'off_records'),
             (ARRIVAL_CPU, PROV_COUNT * ARRIVAL_STRIDE, 'schedule'),
+            (REINFORCE_CPU, REINFORCE_BYTES, 'reinforce_pools'),
+            (NAME_GLYPH_CPU, OFF_RECORD_COUNT * NAME_GLYPH_STRIDE,
+             'off_glyphs'),
+            (B11_GAP_CPU, B11_GAP_LEN, 'zero_filler11'),
+            (DEFENSE_SIDE_TYPE_CPU, PROV_COUNT * ADJ_STRIDE, 'defense_side_type'),
+            (FACILITY_TILE_CPU, PROV_COUNT * FACILITY_TILE_STRIDE, 'facility_tiles'),
             (DEATH_CPU, DEATH_COUNT, 'death_years'),
+            (B11_TAIL_GAP_CPU, B11_TAIL_GAP_LEN, 'b11_tail_gap'),
+            (PIXEL_POS_CPU, PIXEL_POS_ROWS * PIXEL_POS_STRIDE, 'pixel_pos'),
+            (B11_FF_FILLER_CPU, B11_FF_FILLER_LEN, 'b11_ff_filler'),
         ]
     raise SystemExit('only banks 0x10 and 0x11 are seed banks, got $%02X' % bank)
 
@@ -747,6 +1674,8 @@ def header(bank, regions):
         % bank,
         '; be edited here: the raw image stays the source for those bytes.',
         '; Layout and field evidence: code/initial_data_tables.md.',
+    ]
+    lines += [
         ';=======================================================================',
         '',
         '.segment "CODE_BANK%02X"' % bank,
@@ -765,6 +1694,8 @@ def render_bank(bank, ctx):
         'prov_records': lambda: emit_province_records(out, ctx['provinces']),
         'prov_facility': lambda: emit_province_trade(out, data, ctx['provinces']),
         'prov_names': lambda: emit_province_names(out, ctx['provinces']),
+        'raw_dump': lambda: emit_raw_dump(out, data),
+        'prov_name_withdraw': lambda: emit_prov_name_withdraw(out, data),
         'off_names': lambda: emit_officer_names(out, ctx['officers'],
                                                 OFF_RECORD_SLOTS),
         'off_records': lambda: emit_officer_records(out, ctx['officers'],
@@ -772,6 +1703,25 @@ def render_bank(bank, ctx):
         'schedule': lambda: emit_arrival_schedule(out, ctx['schedule'],
                                                   ctx['provinces']),
         'death_years': lambda: emit_death_years(out, ctx['deaths']),
+        'reinforce_pools': lambda: emit_reinforce_pools(out, data,
+                                                        ctx['officers']),
+        'off_glyphs': lambda: emit_officer_name_glyphs(out, data,
+                                                       ctx['officers']),
+        'zero_filler11': lambda: emit_zero_filler11(out, data),
+        'defense_side_type': lambda: emit_defense_side_types(out, data,
+                                                      ctx['provinces']),
+        'facility_tiles': lambda: emit_tactical_facility_tiles(out, data, ctx['provinces']),
+        'b11_tail_gap': lambda: emit_b11_tail_gap(out, data),
+        'pixel_pos': lambda: emit_province_pixel_positions(out, data,
+                                                           ctx['provinces']),
+        'b11_ff_filler': lambda: emit_b11_ff_filler(out, data),
+        'pattern_ptr': lambda: emit_pattern_ptrs(out, data, ctx['equip']),
+        'pattern_rec': lambda: emit_pattern_records(out, data, ctx['equip']),
+        'adjacency': lambda: emit_province_adjacency(out, data,
+                                                     ctx['provinces']),
+        'attack_side_type': lambda: emit_attack_side_types(out, data,
+                                                          ctx['provinces']),
+        'ff_filler': lambda: emit_ff_filler(out, data),
     }
     for cpu, length, kind in regions:
         start = cpu - WINDOW_CPU
@@ -846,6 +1796,7 @@ def build_context(bank, from_csv):
 
     return {'bank_bytes': data, 'officers': officers, 'provinces': provinces,
             'schedule': load_schedule(officers),
+            'equip': load_equipment_names(),
             'deaths': load_death_years(data)}
 
 

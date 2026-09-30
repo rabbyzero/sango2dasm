@@ -246,7 +246,7 @@ province_id,province,item_id,item_name,category,price_gold
 15,建业 ケンギョウ,8,薤刀,刀 blade,60
 15,建业 ケンギョウ,9,眉尖刀,刀 blade,100
 15,建业 ケンギョウ,10,三尖刀,刀 blade,150
-15,建业 ケンギョウ,15,(hidden blade),刀 blade (hidden),400
+15,建业 ケンギョウ,15,関王刀,刀 blade (special),400
 15,建业 ケンギョウ,17,双戟,槍 spear,100
 15,建业 ケンギョウ,18,単鉤槍,槍 spear,120
 15,建业 ケンギョウ,19,戦斧,槍 spear,200
