@@ -755,12 +755,28 @@ B19_1A_OfficerCardRender = $CE1F         ; Officer card sprite overlay strip ren
 B19_1A_ExchangeMarchCutscene_Proc = $CFD6 ; War exchange marching cutscene (per-frame)
 
 ;===============================================================================
-; SECTION 3: Banked Code at $8000-$9FFF (Slot 0)
+; SECTION 3: Banked Code/Data at $8000-$9FFF (Slot 0)
 ; Banks switched via SwitchBank8_B ($F25F) or SwitchBank8_A ($F266)
 ; TODO: No banked JSR/JMP calls to $8000-$9FFF found in bank $1F yet
 ;===============================================================================
 ; Template for future use:
 ; B00_FunctionName        = $8000
+
+;-------------------------------------------------------------------------------
+; 3A: Bank $02 - Sound/note data (only reader: B1F_SoundNotePlayer, $E609)
+; Reached via LDY #$22 ; JSR SwitchBank8_B (Y & $1F = $02). Note entries are
+; addressed as $8000 + soundID*4, so code uses the computed pointer, not a
+; per-ID symbol; the equates below document the decoded layout. The wavetable
+; itself is B1F_WavetableInitData ($E6A6, bank $1F), NOT in this bank.
+; Evidence: asm/banks/data_02.asm, code/bank_switch_map.md 5.2.
+;-------------------------------------------------------------------------------
+B02_SoundNoteHeaderTable  = $8000   ; 184 x 4-byte note entries (index = soundID)
+B02_SoundNoteEntrySize    = $04     ; note entry width: ptr = $8000 + soundID*4
+B02_SoundNoteHeaderCount  = $B8     ; soundID range $00-$B7
+B02_SoundTrackStride      = $16     ; sound-RAM track block (entry b0 = stride*track)
+B02_SoundTrackCount       = $0B     ; 11 tracks in $0700 sound RAM (SoundInit bound $F2)
+B02_SoundStreamPtrBias    = $40     ; entry b3 stored at $0703 as (b3 + $40)
+B02_SoundCommandStreams   = $82E0   ; Namco-163 note-sequence command streams ($82E0-$9FFF)
 
 ;===============================================================================
 ; SECTION 4: Banked Code at $C000-$DFFF (Slot 2)

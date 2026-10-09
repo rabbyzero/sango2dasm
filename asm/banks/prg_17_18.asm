@@ -9661,7 +9661,10 @@ SpriteFromTable:
 
 ;===============================================================================
 ; $DF15: DataRecordLoader
-; DataRecordLoader_Entry: Data record loader (pointer table lookup)
+; DataRecordLoader_Entry: loads the current battlefield's 4 terrain quadrant zone
+; ids (see PermutationTable below) into $00AA-$00AD and points ($A8) at $00AA.
+; GetTileTerrain ($B6EF, prg_08_09.asm) then reads ($A8),Y with Y = the map
+; quadrant, so this is the war/tactical layer's ($A8) provider.
 ;===============================================================================
 ; Target0C ($DF15):
 .proc DataRecordLoader
@@ -9702,8 +9705,8 @@ DataRecordLoader:
 
 ;===============================================================================
 ; $DF4A: DataRecord pointer table (30 entries, 16-bit addresses)
-; Used by DataRecordLoader: index = param_050e * 2
-; Each entry points to a 4-byte data record; stride = +4
+; Used by DataRecordLoader: index = param_050e * 2  (param_050e = province id)
+; Each entry points to a 4-byte province record; stride = +4
 ;===============================================================================
 DataRecordPtrTable:
   .addr $DF86, $DF8A, $DF8E, $DF92, $DF96, $DF9A, $DF9E, $DFA2; $DF4A
@@ -9712,9 +9715,12 @@ DataRecordPtrTable:
   .addr $DFE6, $DFEA, $DFEE, $DFF2, $DFF6, $DFFA             ; $DF7A
 
 ;===============================================================================
-; $DF86: Permutation index table (30 groups × 4 bytes) + sentinel
-; Pattern per group: {base, base+2, base+1, base+3}
-; Used for tile/attribute reordering
+; $DF86: PermutationTable - province -> 4 terrain map zone ids (30 x 4 bytes)
+; Pattern per group: {base, base+2, base+1, base+3}, base = 4 * province id.
+; Index = the ($A8) quadrant number from GetTileTerrain: 0=TL 1=TR 2=BL 3=BR, so
+; zone ids run TL, BL, TR, BR inside a province. The 120 values are a permutation
+; of $00-$77, one per tactical 16x16 quadrant map (code/bank_00_data_layout.md 2).
+; Stub-era name is a misnomer; it is a zone table, not a reordering vector.
 ;===============================================================================
 PermutationTable:
   .byte $00,$02,$01,$03, $04,$06,$05,$07, $08,$0A,$09,$0B, $0C,$0E,$0D,$0F; $DF86

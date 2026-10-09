@@ -127,7 +127,7 @@ Dynamic $8000 tables: `TileBankTable` ($B8BB in $08), `BattleBankTable`
 | State_StrategyMapLaunch $E110 | $37 | $17+$18 | `B17_18_PpuCopyRaw` display |
 | State_StrategyMapLaunch $E118, $E134 | $3D | $1D+$1E | palette record / `B1D_1E_MenuUpdate` |
 | State_StrategyAiTurnFrame $E182 | $2A | $0A+$0B | Strategy Mode AI turn dispatch (`StrategyAiTurnDispatch_Entry` $A000) |
-| State_KingdomSelect $E19A | $37 | $17+$18 | `B17_18_DataRecordLoader` |
+| State_KingdomSelect $E19A | $37 | $17+$18 | `B17_18_DataRecordLoader` (installs the war layer's `($A8)` quadrant zone table, see [bank_00_data_layout.md](bank_00_data_layout.md) §2) |
 | State_KingdomSelect $E1A9 | $2C | $0C+$0D | `B0C_0D_OfficerFateCommitDispatch_Entry` (post-battle officer-fate commit, $0500=$0B) |
 | State_KingdomSelect $E1B4 | $28 | $08+$09 | `B17_18_PpuCopyRaw`-equivalent in $08 (normal mode) |
 | State_KingdomSelect $E1D9 | $3D | $1D+$1E | `B1D_1E_StateHandler` |
@@ -152,7 +152,7 @@ Dynamic $8000 tables: `TileBankTable` ($B8BB in $08), `BattleBankTable`
 | State_EventMessageScene $E479 | $36 | $16 | blank message scene tiles |
 | GetNameDisplayScale $F30D | $30 | $10 | name width data |
 | GetOfficerRomRecordAddr $F389 | $31 | $11 | officer records |
-| SoundNotePlayer $E60B | $22 | $02 | wavetable/note data |
+| SoundNotePlayer $E60B | $22 | $02 | 4-byte note header entry at $8000+soundID*4 |
 
 Two caveats on this table: some caller names are the older ones used in
 `bank_switch_map.md` and disagree with `prg_1f.asm` (`State_TerritoryView` $E37C
@@ -217,7 +217,9 @@ WarCasualtyResolution, DrawStratagemTargetMarkers).
 
 **Dynamic:** `GetTileTerrainClamped::@GetTileTerrain` ($B71C) reads
 `TileBankTable` ($B8BB, zone-indexed): values $20/$23/$24/$25 -> physical
-banks **$00/$03/$04/$05** hold the 16x16 terrain detail maps.
+banks **$00/$03/$04/$05** hold the 16-column terrain quadrant crops - 4 per
+province, 15 + 5 content rows assembled into the 32x20 tactical map (format and
+per-zone offsets: [bank_00_data_layout.md](bank_00_data_layout.md)).
 
 ### 4.3 Banks $0A+$0B (prg_0a_0b.asm)
 
@@ -296,7 +298,7 @@ $11 (RecalcExchangeStats, ExchangeScene x3).
 | DomesticActionDispatch, ScrollPanel_LoadRow | $06 | domestic action/panel data |
 | DomAction_BuildOfficerList | $10 | officer list data |
 | DomesticAffairs_BuildSpriteData | $11 | sprite data |
-| BattleDispatch::BattleResolve, OverlayWindow (LoadOverlayPrimary) | **dynamic** | `BattleBankTable` ($A822): idx 0-31 -> $20, 32-55 -> $23, 56-63 -> $25, 64-95 -> $24, 96-119 -> $25; physical banks **$00, $03, $05, $04, $05** hold battle scene tiles/overlays |
+| BattleDispatch::BattleResolve, OverlayWindow (LoadOverlayPrimary) | **dynamic** | `BattleBankTable` ($A822): idx 0-31 -> $20, 32-55 -> $23, 56-63 -> $25, 64-95 -> $24, 96-119 -> $25; physical banks **$00, $03, $05, $04, $05** hold battle scene tiles/overlays — the same 16x16 terrain quadrant maps as the `TileBankTable` path, see [bank_00_data_layout.md](bank_00_data_layout.md) §7 |
 | DrawSpriteFromBank | $14 / $15 | bit7 of A selects set A ($34) vs set B ($35) |
 
 ### 4.6 Banks $1D+$1E (prg_1d_1e.asm)
@@ -368,8 +370,9 @@ each frame by `MapProvinceSpriteRefresh`.
 
 | Bank | Role (as observed) |
 |---|---|
-| $00-$07 | data assets: terrain detail maps, battle scene tiles, sprite/animation frames (kept as .incbin stubs, not disassembled; no code callers — reached only via the $8000 window) |
-| $02 | sound note/wavetable data (SoundNotePlayer) |
+| $00 | 32 terrain quadrant crops (16x16 grids of terrain tile bytes) = provinces 0-7 x 4 quadrants; `GetTileTerrainClamped` ($B6E5, prg_08_09) assembles 4 of them into each province's 32x20 tactical map (15 content rows from the upper crops + 5 from the lower), through `TileBankTable` + the `($A8)` zone table; Battle Mode re-reads the same bytes because `BattleTilePtrTable`/`BattleOverlayPtrTable` alias those pointers. Decoded in [bank_00_data_layout.md](bank_00_data_layout.md) |
+| $01/$03-$07 | data assets: terrain quadrant maps ($03/$04/$05, same ribbon format as $00, provinces 8-29), sprite/animation frames (kept as .incbin stubs, not disassembled; no code callers — reached only via the $8000 window) |
+| $02 | sound/note data, decoded in [asm/banks/data_02.asm](../asm/banks/data_02.asm). Only reader: `SoundNotePlayer` ($E609, bank $1F) via `LDY #$22`/`SwitchBank8_B`, reading the 4-byte note entry at `$8000 + soundID*4`; the `SoundWrapper0..F` fall-through chain plays contiguous IDs (a fanfare = a run of entries). Layout: `$8000-$82DF` = `SoundNoteHeaderTable` (184 x 4-byte note entries; b0 = sound-RAM track offset stride $16/11 tracks, b1 -> $0701 channel gated CMP #$04, b2 -> $0702, b3 -> $0703 = b3+$40 stream-pointer low, $0700 <- $00 active/$FF idle), `$82E0-$9FFF` = `SoundCommandStreams` (Namco-163 note-sequence command byte streams, not yet decoded per-stream). The wavetable is NOT here - it is `WavetableInitData` ($E6A6, bank $1F). |
 | $06 | AI + domestic action data |
 | $10 | three pre-baked PPU screens (`$8000-$8BFF`, see code/initial_data_tables.md §9), province master records (`$8C00`), rice-buy rates (`$8FC0`), katakana name tables, province adjacency (`$9D72`) - heaviest $8000 data bank |
 | $11 | officer records / sprite data |

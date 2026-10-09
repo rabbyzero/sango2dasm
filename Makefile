@@ -79,6 +79,43 @@ databanks-csv:
 verifydata:
 	@python3 tools/verify_data_banks.py
 
+# Re-render the sound/note data bank (PRG $02) from the ROM, then verify
+databank02:
+	@python3 tools/gen_data_bank_02_asm.py --write
+	@$(MAKE) verifydata02
+
+# Assemble bank $02 standalone and prove it byte-exact against the ROM
+verifydata02:
+	@python3 tools/verify_data_bank_02.py
+
+# Re-render the four terrain banks $00/$03/$04/$05 (30 provinces) as hex plus
+# their CSV twins, then verify byte-exact against the stock ROM
+terrain:
+	@python3 tools/gen_terrain_asm.py --bank all --write --with-csv
+	@$(MAKE) verifyterrain
+
+# Re-render the terrain banks from the edited CSVs (docs/terrain_bank_XX.csv).
+# Verifies asm == CSV; drift from the stock ROM is expected on this path.
+terrain-csv:
+	@python3 tools/gen_terrain_asm.py --bank all --from-csv --write
+	@python3 tools/verify_terrain_banks.py --bank all --against-csv --allow-edits
+
+# Show the terrain edits that are live relative to the stock ROM
+terrain-diff:
+	@python3 tools/verify_terrain_banks.py --bank all --allow-edits
+
+# Assemble the terrain banks standalone and prove them byte-exact vs the ROM
+verifyterrain:
+	@python3 tools/verify_terrain_banks.py --bank all
+
+# Full lossless-loop check: ROM <-> CSV <-> asm <-> editor views
+checkterrain:
+	@python3 tools/check_terrain_pipeline.py
+
+# Launch the standalone tactical-map GUI editor (needs python3-tk)
+map-editor:
+	@python3 editor/tactical_map_editor.py
+
 # Split ROM into banks
 split:
 	@python3 tools/split_rom.py "Sangokushi 2 - Haou no Tairiku (J).nes" $(ROM_DIR)
@@ -122,6 +159,14 @@ help:
 	@echo '  databanks   - Re-render annotated seed-data banks $$10/$$11 from the ROM'
 	@echo '  databanks-csv - Re-render them from docs/officer_data.csv/province_data.csv'
 	@echo '  verifydata  - Assemble banks $$10/$$11 and prove byte-exactness'
+	@echo '  databank02  - Re-render sound/note data bank $$02 from the ROM'
+	@echo '  verifydata02 - Assemble bank $$02 and prove byte-exactness'
+	@echo '  terrain     - Re-render terrain banks $$00/$$03/$$04/$$05 hex + docs/terrain_bank_XX.csv'
+	@echo '  terrain-csv - Re-render them from the edited terrain CSVs (asm == CSV gate)'
+	@echo '  terrain-diff - List the terrain edits still live vs the stock ROM'
+	@echo '  verifyterrain - Assemble the terrain banks and prove byte-exactness'
+	@echo '  checkterrain - Prove the ROM/CSV/asm/editor loop is lossless'
+	@echo '  map-editor  - Open the standalone tactical-map GUI editor (editor/)'
 	@echo "  disasm    - Disassemble a binary (FILE, ADDR, LEN)"
 	@echo "  analyze   - Analyze ROM structure"
 	@echo "  disasterrng - Re-enumerate the disaster pick RNG sequences + coherence stats"
@@ -134,4 +179,6 @@ help:
 	@echo "  make disasm FILE=rom/prg/prg_1f.bin ADDR=8000 LEN=256"
 	@echo "  make analyze"
 
-.PHONY: all split banks databanks databanks-csv verifydata disasm analyze disasterrng verify clean distclean help
+.PHONY: all split banks databanks databanks-csv verifydata databank02 verifydata02 terrain terrain-csv \
+        terrain-diff verifyterrain checkterrain map-editor disasm analyze \
+        disasterrng verify clean distclean help

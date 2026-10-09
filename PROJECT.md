@@ -21,6 +21,10 @@ sango2dasm/
 ├── asm/
 │   ├── main.asm                             # Entry point (reset/NMI/IRQ stubs)
 │   └── banks/                               # Bank files: code prg_XX.asm, seed data data_XX.asm
+│       ├── data_00.asm                       # Terrain DATA bank (reg $20, prov 0-7): annotated .byte hex, CSV-linked
+│       ├── data_03.asm                       # Terrain DATA bank (reg $23, prov 8-13): annotated .byte hex
+│       ├── data_04.asm                       # Terrain DATA bank (reg $24, prov 16-23): annotated .byte hex
+│       ├── data_05.asm                       # Terrain DATA bank (reg $25, prov 14-15,24-29): annotated .byte hex
 │       ├── data_10.asm                       # Seed DATA bank (reg $30): annotated .byte records
 │       └── data_11.asm                       # Seed DATA bank (reg $31): annotated .byte records
 ├── include/
@@ -47,6 +51,11 @@ sango2dasm/
 │   ├── analyze_disaster_pick_rng.py         # All 256 disaster pick RNG indices + same-month Province pair coherence
 │   ├── gen_data_bank_asm.py                 # Render seed banks $10/$11 as annotated .byte asm
 │   ├── verify_data_banks.py                 # Assemble those banks, prove byte-exact, decode edits
+│   ├── dump_bank_00_terrain.py              # Decode/draw the tactical terrain crops of banks $00/$03/$04/$05
+│   ├── terrain_model.py                     # Terrain codec (4 banks, 120 zones): geometry, driver tables, tile->terrain, CSV, asm renderer
+│   ├── gen_terrain_asm.py                   # Render the terrain banks as annotated .byte hex (+ their CSV twins)
+│   ├── verify_terrain_banks.py              # Assemble the terrain banks, prove byte-exact, decode terrain edits
+│   ├── check_terrain_pipeline.py            # Prove ROM <-> CSV <-> asm <-> editor views is lossless (all banks)
 │   ├── data/
 │   │   ├── officer_kanji.tsv                # id -> kanji / 繁體 / 简体 / pinyin map
 │   │   └── province_kanji.tsv               # Province id -> kanji / 繁體 / 简体 / pinyin map
@@ -63,11 +72,18 @@ sango2dasm/
 │   ├── province_names.csv                   # 30 province katakana names + kanji/繁體/简体/pinyin
 │   ├── province_data.md                     # Province record layout, countries, starting data, raw dumps
 │   ├── province_data.csv                    # Same, as CSV (adds raw record bytes)
+│   ├── terrain_bank_00.csv                   # Terrain of provinces 0-7: one owner row x 16 tile bytes per 16 B (editable)
+│   ├── terrain_bank_03.csv                   # provinces 8-13 (same shape)
+│   ├── terrain_bank_04.csv                   # provinces 16-23
+│   ├── terrain_bank_05.csv                   # provinces 14-15, 24-29
 │   ├── disaster_pick_rng_sequences.csv      # All 256 random indices -> flood/drought hit Provinces (generated)
 │   ├── disaster_pick_rng_pair_coherence.csv # Per-Province-pair joint hit counts / lift / phi in one month (generated)
 │   └── manual_kb/                           # Knowledge base transcribed from the original Japanese manual
 ├── res/
 │   └── manual_jpn/                          # Scanned pages of the original user manual (37 JPGs)
+├── editor/                                  # Standalone GUI project: tactical map editor (tkinter)
+│   ├── tactical_map_editor.py               # Paint any of the 30 provinces, save CSVs, drive gen/verify tools
+│   └── README.md                            # Usage, views, pipeline link, terrain semantics
 └── build/                                   # Build output
     ├── sango2.nes                           # Built ROM
     ├── prg.bin                              # Raw PRG output from linker
@@ -95,6 +111,11 @@ Path: `/home/zero/.local/bin/` (added to PATH in `.bashrc`/`.zshrc`)
 | `make databanks` | Re-render the annotated seed-data banks `$10`/`$11` from the ROM, then verify |
 | `make databanks-csv` | Re-render them from the decoded `docs/*.csv` (the CSV editing path) |
 | `make verifydata` | Assemble banks `$10`/`$11` standalone and prove byte-exactness |
+| `make terrain` | Re-render the four terrain banks `$00/$03/$04/$05` (30 provinces) as hex + `docs/terrain_bank_XX.csv` from the ROM, then verify |
+| `make terrain-csv` | Re-render them from the edited terrain CSVs (the CSV editing path) |
+| `make verifyterrain` | Assemble the terrain banks standalone and prove byte-exactness |
+| `make checkterrain` | Prove the ROM <-> CSV <-> asm <-> editor loop is lossless |
+| `make map-editor` | Launch the standalone tactical-map GUI editor (`editor/`) |
 | `make analyze` | Analyze original ROM structure |
 | `make disasterrng` | Re-enumerate the 256 disaster province-pick RNG indices and rebuild the same-month coherence doc/CSVs |
 | `make disasm FILE=rom/prg/prg_XX.bin ADDR=XXXX LEN=256` | Disassemble binary (use ADDR=E000 for bank 0x1F) |

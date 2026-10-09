@@ -3338,12 +3338,18 @@ RandomTable:                            ; $B5E5: 256-byte permutation of $00-$FF
   RTS                                   ; $B6EE: 60
 ;-------------------------------------------------------------------------------
 ; @GetTileTerrain - province terrain lookup for map coords ($0020,$0021),
-; each 0-31. Computes quadrant = (x >= 16) | ((y >= 16) << 1) and reads the
-; terrain zone id from the caller-provided map zone table at ($00A8).
-; The zone selects both the 16x16 detail-map pointer (TerrainMapPtrTable)
-; and the PRG bank holding that map (TileBankTable, switched into the $8000
-; window via SwitchBank8_A). The detail tile is map[(y&15)*16 + (x&15)];
-; tiles >= $80 yield terrain 0, others are converted via TileTerrainTable.
+; bounded by @EvalStepCost to X < $1F and Y < $14 (X 0-30, Y 0-19). Computes
+; quadrant = (x >= 16) | ((y >= 16) << 1) and reads the terrain zone id from the
+; map zone table at ($00A8), which DataRecordLoader ($DF15, prg_17_18.asm) fills
+; from the battlefield province $050E (4 quadrant zone ids per province).
+; The zone selects both the 16x16 crop pointer (TerrainMapPtrTable) and the PRG
+; bank holding it (TileBankTable, switched into the $8000 window via
+; SwitchBank8_A). The detail tile is crop[(y&15)*16 + (x&15)]; tiles >= $80 yield
+; terrain 0, others are converted via TileTerrainTable.
+; Note the data is authored as 15 content rows in the upper crops plus 5 in the
+; lower ones (a 32x20 map); the y >= 16 split here therefore reads the ribbon's
+; blank gap row (tile $00 -> Forest) for y = 15 and never reaches the lower
+; crops' 5th row. See code/bank_00_data_layout.md 1.
 ;-------------------------------------------------------------------------------
 @GetTileTerrain:
   LDY #$00                              ; $B6EF: A0 00
