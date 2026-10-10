@@ -763,20 +763,28 @@ B19_1A_ExchangeMarchCutscene_Proc = $CFD6 ; War exchange marching cutscene (per-
 ; B00_FunctionName        = $8000
 
 ;-------------------------------------------------------------------------------
-; 3A: Bank $02 - Sound/note data (only reader: B1F_SoundNotePlayer, $E609)
-; Reached via LDY #$22 ; JSR SwitchBank8_B (Y & $1F = $02). Note entries are
+; 3A: Bank $02 - Sound/note data (player: B1F_SoundNotePlayer, $E609; driver:
+; B0E/B0F BattleAnimSoundEngine $D8D4 + BattleSoundChannelProc $DC59)
+; Reached via LDY #$22 ; JSR SwitchBank8_B (Y & $1F = $02). Descriptors are
 ; addressed as $8000 + soundID*4, so code uses the computed pointer, not a
-; per-ID symbol; the equates below document the decoded layout. The wavetable
-; itself is B1F_WavetableInitData ($E6A6, bank $1F), NOT in this bank.
+; per-ID symbol; the equates below document the decoded layout. In each entry
+; the last 2 bytes are ONE 16-bit stream pointer (b2 -> $0702 lo, b3+$40 ->
+; $0703 hi), and the driver maps bank $03
+; at $A000 while it walks a stream (LDA #$23 / ORA #$C0 / STA NAMCO_PRG_A000),
+; so the command-stream area spans bank $02 $82DC-$9FFF plus bank $03
+; $8000-$8965. The wavetable itself is B1F_WavetableInitData ($E6A6, bank $1F),
+; NOT in this bank. Format and validation: tools/sound_streams.py.
 ; Evidence: asm/banks/data_02.asm, code/bank_switch_map.md 5.2.
 ;-------------------------------------------------------------------------------
-B02_SoundNoteHeaderTable  = $8000   ; 184 x 4-byte note entries (index = soundID)
-B02_SoundNoteEntrySize    = $04     ; note entry width: ptr = $8000 + soundID*4
+B02_SoundNoteHeaderTable  = $8000   ; 184 x 4-byte entries (index = soundID)
+B02_SoundNoteEntrySize    = $04     ; entry width: ptr = $8000 + soundID*4
 B02_SoundNoteHeaderCount  = $B8     ; soundID range $00-$B7
-B02_SoundTrackStride      = $16     ; sound-RAM track block (entry b0 = stride*track)
+B02_SoundTrackStride      = $16     ; sound-RAM track block (descriptor b0 = stride*track)
 B02_SoundTrackCount       = $0B     ; 11 tracks in $0700 sound RAM (SoundInit bound $F2)
-B02_SoundStreamPtrBias    = $40     ; entry b3 stored at $0703 as (b3 + $40)
-B02_SoundCommandStreams   = $82E0   ; Namco-163 note-sequence command streams ($82E0-$9FFF)
+B02_SoundStreamPtrBias    = $40     ; b3 + $40 = command-stream pointer high byte
+B02_SoundCommandStreams   = $82DC   ; starts on entry $B7's row: the note 17 ptr words target
+B02_SoundCellSize         = $02     ; command cell = [opcode][operand]
+B02_SoundStreamTailB03    = $0966   ; area ends at bank $03 offset $0966 ($8965)
 
 ;===============================================================================
 ; SECTION 4: Banked Code at $C000-$DFFF (Slot 2)

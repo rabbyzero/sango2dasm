@@ -30,7 +30,38 @@ Views
             physically belong to the next crop (edits go through the owner).
   Bank rows  a bank exactly as its CSV states it - every owner row of 16 bytes,
             so the overlay heads, the inter-crop pads, the $FF tails and bank
-            `$03`'s leading unanalysed data are reachable too.
+            `$03`'s leading sound command streams are reachable too.
+
+Zoom
+----
+The grid scales from 6 to 96 px per cell (100 % = 20 px). Ctrl+wheel zooms at
+the pointer, plain wheel pans, `+` / `-` zoom about the centre, `Ctrl+0` returns
+to 100 %, `f` (or `Fit`) sizes the view so the whole map is visible. Glyphs and
+ruler digits drop out below 10 px / 16 px so a zoomed-out map stays readable.
+Painting always resolves the pointer back through the current scale, so a click
+writes the byte under the cursor at any zoom.
+
+Render modes
+------------
+  Classes   the decode view: one flat colour per terrain class plus a letter
+            glyph, which is what makes a 128->9 collapse legible.
+  Real tiles the graphics the console actually draws: the tile byte indexes
+            `MetaTileData` ($F477, bank $1F) for 4 nametable bytes (TL,TR,BL,BR)
+            = one 16x16 px cell, decoded from display record 1's CHR pages
+            ($88/$89/$8A) and coloured with the crop's own attribute head under
+            palette record $01. Codec in `tools/terrain_tiles.py`, which is also
+            a standalone PNG renderer. Needs `rom/prg/prg_1f.bin` +
+            `rom/chr/*.bin`; without them the mode disables itself and the class
+            view keeps working.
+
+Settlement objects
+------------------
+`$61` (Castle) and `$79`/`$7A`/`$7B` are gameplay ids, not art - their metatile
+is plain ground. The classes view therefore writes them as **letters** (`c`
+castle; `h`/`a`/`b` for the House/Armory/Hospital slot that
+`ProvinceTacticalFacilityTiles` assigns to that cell, `v` for a settlement with
+no pair), and only the real-tiles view draws the game's 16x16 OAM markers
+(`@ProvinceMarkerOam`, `@CityMarkerOam`) when `objects` is ticked.
 
 Running it
 ----------
@@ -60,8 +91,19 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-CELL = 20                    # grid cell edge in px
+CELL = 20                    # grid cell edge in px (the 100 % zoom)
+CELL_MIN = 6                 # smallest cell edge that still reads as a grid
+CELL_MAX = 96                # one cell per screen quarter-ish; keeps pan useful
+ZOOM_STEP = 1.25             # per wheel notch / per +/- keypress
+GLYPH_MIN_PX = 10            # below this cell edge a tile glyph is unreadable
+TILE_PX = 16                 # a map cell is 16x16 px: MetaTileData is 2x2 tiles
+# Classes-view letters for the settlement objects (the map byte only says
+# castle-vs-settlement, so the facility letters follow the table slot order
+# House 民家 / Armory 武器屋 / Hospital 病院; 'v' = 村 with no table pair).
+OBJECT_CHARS = {'castle': 'c', 'facility': 'hab', 'village': 'v'}
 LABEL = 26                   # left/top ruler width/height
+CANVAS_W = 700               # requested grid pane, see _build_ui (a canvas
+CANVAS_H = 430               # otherwise requests nothing and gets starved)
 MAX_UNDO = 40
 
 
@@ -93,6 +135,26 @@ def load_model(cli_path=None):
         % ', '.join(directories))
 
 
+# --- tile graphics import ------------------------------------------------
+def load_tiles(directory=None):
+    """Import terrain_tiles from wherever the codec came from (optional).
+
+    The real-tile render mode needs ROM dumps (prg_1f.bin, chr_*.bin) that a
+    standalone CSV-only copy of the editor does not have, so failing to find the
+    module is a supported state, not an error.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    directories = ([directory] if directory else []) + [
+        here, os.path.join(os.path.dirname(here), 'tools')]
+    for path in directories:
+        if os.path.exists(os.path.join(path, 'terrain_tiles.py')):
+            if path not in sys.path:
+                sys.path.insert(0, path)
+            import terrain_tiles
+            return terrain_tiles
+    return None
+
+
 # --- view geometry ------------------------------------------------------
 class Cell:
     """One paintable grid position: which bank byte it stands for."""
@@ -107,6 +169,41 @@ class Cell:
         self.is_gap = is_gap
 
 
+def cell_at(px, origin, cell):
+    """Grid index for a canvas coordinate - the inverse of draw_grid's layout."""
+    return int((px - origin) // cell)
+
+
+def fit_cell(cols, rows, avail_w, avail_h):
+    """Largest cell edge that shows a whole view without any scrolling."""
+    return max(CELL_MIN, min(CELL_MAX, (avail_w - LABEL) // cols,
+                             (avail_h - LABEL) // rows))
+
+
+def scroll_frac(origin, total, visible):
+    """xview/yview fraction placing canvas coordinate `origin` at the edge."""
+    span = total - visible
+    return 0.0 if span <= 0 else max(0.0, min(1.0, float(origin) / span))
+
+
+def wheel_steps(event):
+    """Normalise a wheel event to notches: +1 up, -1 down, 0 none."""
+    num = getattr(event, 'num', None)
+    if num in (4, 5):                       # X11 reports the button, not delta
+        return 1 if num == 4 else -1
+    return int(event.delta / 120)
+
+
+def glyph_font(cell):
+    """Monospace size for a tile glyph/ruler digit at this cell edge."""
+    return max(6, min(16, int(cell * 0.5)))
+
+
+CONTROL_MASK = 0x0004
+SHIFT_MASK = 0x0001
+
+
+# --- view builders ------------------------------------------------------
 def province_view(m, prov):
     """Authored 32 x 20 map cells; every cell is an owned crop byte."""
     rows = []
@@ -187,11 +284,21 @@ class TacticalMapEditor(tk.Tk):
         self.brush = tk.IntVar(value=0x39)  # Plain tile $39, the common ground
         self.show_glyphs = tk.BooleanVar(value=True)
         self.show_edits = tk.BooleanVar(value=False)
+        self.show_objects = tk.BooleanVar(value=True)
+        self.cell = CELL                   # current zoom: cell edge in px
+        self.render_mode = tk.StringVar(value='class')
+        self.tiles = None
+        self.tile_codec = None               # the terrain_tiles module, if found
+        self.facilities = None               # bank $31 ProvinceTacticalFacilityTiles
+        self._images = {}                  # (tile, cell px) -> PhotoImage
+        self._markers = {}                 # (kind, cell px)  -> marker PhotoImage
         self.tile_table = model.TILE_TERRAIN_TABLE
         self._dragging = False
         self._dirty = False
         self._selector_cache = {}        # view kind -> dropdown entries
         self._build_ui()
+        self._load_tiles()
+        self._zoom_var().set('%d px  %d%%' % (self.cell, 100))
         self._load_default(csv_path, rom_path)
         self._refresh_all()
         self.protocol('WM_DELETE_WINDOW', self.on_close)
@@ -235,6 +342,8 @@ class TacticalMapEditor(tk.Tk):
                         command=self.draw_grid).pack(side='left', padx=6)
         ttk.Checkbutton(bar, text='highlight edits', variable=self.show_edits,
                         command=self.draw_grid).pack(side='left')
+        ttk.Checkbutton(bar, text='objects', variable=self.show_objects,
+                        command=self.draw_grid).pack(side='left', padx=6)
 
         body = ttk.Panedwindow(self, orient='horizontal')
         body.pack(side='top', fill='both', expand=True, padx=6, pady=4)
@@ -242,18 +351,56 @@ class TacticalMapEditor(tk.Tk):
         right = ttk.Frame(body, width=340)
         body.add(left, weight=3)
         body.add(right, weight=1)
-
-        self.canvas = tk.Canvas(left, bg='#202020', highlightthickness=0)
+        # ttk only lays sashes out from requested sizes when the window is
+        # resized, so a cold start leaves the map pane a sliver without this.
+        self._sash_placed = False
+        body.bind('<Configure>', self._place_sash)
+        # A Panedwindow splits by each pane's *requested* size, and a bare
+        # tk.Canvas requests 0x0, which would starve the map down to a sliver.
+        self.canvas = tk.Canvas(left, bg='#202020', highlightthickness=0,
+                                width=CANVAS_W, height=CANVAS_H)
         self.hscroll = ttk.Scrollbar(left, orient='horizontal',
                                      command=self.canvas.xview)
-        self.canvas.configure(xscrollcommand=self.hscroll.set)
-        self.canvas.pack(side='top', fill='both', expand=True)
-        self.hscroll.pack(side='bottom', fill='x')
+        self.vscroll = ttk.Scrollbar(left, orient='vertical',
+                                     command=self.canvas.yview)
+        self.canvas.configure(xscrollcommand=self.hscroll.set,
+                              yscrollcommand=self.vscroll.set)
+        self._show_grid(True)
         self.canvas.bind('<Button-1>', self.on_press)
         self.canvas.bind('<B1-Motion>', self.on_drag)
         self.canvas.bind('<ButtonRelease-1>', self.on_release)
         self.canvas.bind('<Motion>', self.on_motion)
         self.canvas.bind('<Configure>', lambda e: self.draw_grid())
+        # one wheel handler: Tk delivers MouseWheel or Button-4/5 per platform
+        for seq in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
+            self.canvas.bind(seq, self.on_wheel)
+
+        # what the grid is painted with: the terrain decode, or the real CHR art
+        mode = ttk.Frame(right)
+        mode.pack(side='top', fill='x', pady=(0, 4))
+        ttk.Label(mode, text='Render',
+                  font=('TkDefaultFont', 9, 'bold')).pack(side='left')
+        self._mode_buttons = []
+        for text, val in (('classes', 'class'), ('real tiles', 'tile')):
+            button = ttk.Radiobutton(mode, text=text, value=val,
+                                     variable=self.render_mode,
+                                     command=self._refresh_all)
+            button.pack(side='left', padx=4)
+            self._mode_buttons.append(button)
+
+        # zoom controls live in the side panel: the button bar is already full
+        zoom = ttk.Frame(right)
+        zoom.pack(side='top', fill='x', pady=(0, 6))
+        ttk.Label(zoom, text='Zoom', font=('TkDefaultFont', 9, 'bold')).pack(
+            side='left')
+        ttk.Button(zoom, text='Fit', command=self.zoom_fit).pack(side='right')
+        ttk.Label(zoom, textvariable=self._zoom_var(), width=10).pack(
+            side='right', padx=4)
+        ttk.Button(zoom, text='+', width=3,
+                   command=lambda: self.zoom_step(ZOOM_STEP)).pack(side='right')
+        ttk.Button(zoom, text='\u2212', width=3,
+                   command=lambda: self.zoom_step(1 / ZOOM_STEP)).pack(
+            side='right', padx=(0, 4))
 
         ttk.Label(right, text='Brush - tile byte (terrain it resolves to)',
                   font=('TkDefaultFont', 9, 'bold')).pack(anchor='w')
@@ -301,6 +448,13 @@ class TacticalMapEditor(tk.Tk):
         for digit in range(10):
             self.bind('<KeyPress-%d>' % digit,
                       lambda e, n=digit: self.select_by_digit(n))
+        for seq in ('<KeyPress-plus>', '<KeyPress-equal>', '<KeyPress-KP_Add>'):
+            self.bind(seq, lambda e: self.zoom_key(ZOOM_STEP))
+        for seq in ('<KeyPress-minus>', '<KeyPress-KP_Subtract>'):
+            self.bind(seq, lambda e: self.zoom_key(1 / ZOOM_STEP))
+        self.bind('<Control-KeyPress-0>',
+                  lambda e: self.set_cell(CELL))     # 100 %, Ctrl+ avoids the digit keys
+        self.bind('<KeyPress-f>', lambda e: self.zoom_fit())
 
         # bank row tree (hidden unless the CSV-rows view is active)
         self.tree = ttk.Treeview(self.canvas.master, columns=(
@@ -325,6 +479,182 @@ class TacticalMapEditor(tk.Tk):
         if not hasattr(self, '_brush_label'):
             self._brush_label = tk.StringVar(value='')
         return self._brush_label
+
+    def _zoom_var(self):
+        if not hasattr(self, '_zoom'):
+            self._zoom = tk.StringVar(value='')
+        return self._zoom
+
+    def _place_sash(self, event):
+        """Give the map pane its requested width once, on the first real size."""
+        if self._sash_placed or event.width < 2:
+            return
+        self._sash_placed = True
+        event.widget.sashpos(0, max(1, min(CANVAS_W, event.width - 420)))
+
+    def _load_tiles(self):
+        """Try to arm the real-tile render mode; the class view works without it."""
+        for button in self._mode_buttons:
+            button.config(state='disabled')
+        module = load_tiles(os.path.dirname(os.path.abspath(self.m.__file__)))
+        if module is None:
+            self.log_line('terrain_tiles.py not found - real tiles unavailable')
+            return
+        self.tiles = module.load(self.m.ROOT)
+        if not self.tiles.available:
+            self.log_line('real tiles unavailable: %s' % self.tiles.error)
+            return
+        self.tile_codec = module
+        self.facilities = module.load_facilities(self.m.ROOT)
+        for button in self._mode_buttons:
+            button.config(state='normal')
+        self.log_line('real tiles: %s' % self.tiles.summary())
+        self.log_line('settlement markers: %s' % (
+            '%d provinces from ProvinceTacticalFacilityTiles'
+            % len(self.facilities) if self.facilities else
+            'bank $31 not readable, positions come from the map bytes only'))
+
+    def _tiles_ready(self):
+        return (self.tiles is not None and self.tiles.available
+                and self.render_mode.get() == 'tile')
+
+    def _cell_palette(self, cell):
+        """Sub-palette of one crop cell, from its zone's attribute head."""
+        if self.tile_codec is None:
+            return 0
+        m = self.m
+        off = m.zone_offset(cell.zone)
+        head = self.banks[m.zone_bank(cell.zone)]
+        return self.tile_codec.head_palette(
+            head[off - self.tile_codec.HEAD_BYTES:off],
+            cell.col & (m.GRID - 1), cell.crop_row)
+
+    def _tile_image(self, tile, size, bgpal=0):
+        """A cell-size PhotoImage of one tile byte, nearest-neighbour scaled.
+
+        Tk only scales by whole numbers, and the zoom steps are not multiples of
+        16, so the resample is done here instead of with PhotoImage.zoom.
+        """
+        key = (tile, size, bgpal)
+        image = self._images.get(key)
+        if image is not None:
+            return image
+        image = tk.PhotoImage(width=size, height=size)
+        rgb = self.tiles.cell_rgb(tile, bgpal)
+        if rgb is None:                       # blocked byte: no MetaTileData row
+            image.put([['#FF00FF'] * size for _ in range(size)])
+        else:
+            step = float(TILE_PX) / size
+            image.put([['#%02X%02X%02X' % rgb[min(TILE_PX - 1, int(y * step))][
+                                                  min(TILE_PX - 1, int(x * step))]
+                        for x in range(size)] for y in range(size)])
+        self._images[key] = image
+        return image
+
+    def _marker_image(self, kind, size):
+        """A cell-size marker sprite, transparent where the game leaves holes.
+
+        A fresh tk.PhotoImage is fully transparent, so only the opaque pixels are
+        put() and the map shows through - which is how the OAM sprite behaves.
+        """
+        key = (kind, size)
+        image = self._markers.get(key)
+        if image is not None:
+            return image
+        image = tk.PhotoImage(width=size, height=size)
+        rgb = self.tiles.marker_rgb(kind)
+        step = float(TILE_PX) / size
+        for y in range(size):
+            for x in range(size):
+                px = rgb[min(TILE_PX - 1, int(y * step))][
+                    min(TILE_PX - 1, int(x * step))]
+                if px is not None:
+                    image.put('#%02X%02X%02X' % px, (x, y))
+        self._markers[key] = image
+        return image
+
+    def _object_marker(self, cell):
+        """'castle' / 'facility' when this cell should show its OAM sprite.
+
+        Markers belong to the real-tiles view only; the classes view spells the
+        same objects out as characters instead.
+        """
+        if (self.tile_codec is None or not self.show_objects.get()
+                or self.render_mode.get() != 'tile'):
+            return None
+        return self.tile_codec.OBJECT_TILES.get(
+            self.get_byte(cell.bank, cell.offset))
+
+    def _facility_index(self, cell):
+        """Which ProvinceTacticalFacilityTiles slot (0/1/2) this cell is, or None."""
+        if self.facilities is None or self.tile_codec is None:
+            return None
+        m = self.m
+        prov, quad = m.zone_meta(cell.zone)[0], cell.quad
+        gx = cell.col & (m.GRID - 1)
+        x = gx if quad in ('TL', 'BL') else m.GRID + gx
+        y = cell.crop_row if quad in ('TL', 'TR') else m.TOP_ROWS + cell.crop_row
+        for slot, pair in enumerate(self.facilities[prov]):
+            if pair == (x, y):
+                return slot
+        return None
+
+    def _facility_slot(self, cell):
+        """The facility name the table gives this cell, e.g. 'Hospital 病院'."""
+        index = self._facility_index(cell)
+        return None if index is None else self.tile_codec.FACILITY_SLOTS[index]
+
+    def _object_char(self, cell):
+        """The classes-view character for a settlement cell, else None.
+
+        The map byte says only "castle" or "settlement"; which facility it is
+        comes from ProvinceTacticalFacilityTiles, so the letter follows the
+        table when it has a pair here and falls back to 村 (village) when not.
+        """
+        codec = self.tile_codec
+        if codec is None:
+            return None
+        kind = codec.OBJECT_TILES.get(self.get_byte(cell.bank, cell.offset))
+        if kind is None:
+            return None
+        if kind == 'castle':
+            return OBJECT_CHARS['castle']
+        index = self._facility_index(cell)
+        return (OBJECT_CHARS['facility'][index] if index is not None
+                else OBJECT_CHARS['village'])
+
+    def _object_note(self, tile, cell):
+        """The cell-info line explaining a settlement byte, or '' for terrain."""
+        codec = self.tile_codec
+        if codec is None or tile not in codec.OBJECT_TILES:
+            return ''
+        kind = codec.OBJECT_TILES[tile]
+        slot = self._facility_slot(cell)
+        return ('settlement object: %s (%s) - marker sprite over plain ground, '
+                'no building in the map art%s'
+                % (kind, self._object_char(cell) or '?',
+                   '  - table slot: ' + slot if slot
+                   else '  - no ProvinceTacticalFacilityTiles pair here'))
+
+    def _prune_images(self, keep):
+        """Drop cached tile/marker images for zoom levels the user has left behind."""
+        for cache in (self._images, self._markers):
+            for key in [k for k in cache if k[1] not in keep]:
+                del cache[key]            # Tk frees the image with the last ref
+
+    def _show_grid(self, show):
+        """Pack/forget the canvas with its scrollbars in the right order.
+
+        Pack order matters in tkinter: the scrollbars claim their edge first,
+        so the canvas fills what is left instead of pushing them off-screen.
+        """
+        for widget in (self.vscroll, self.hscroll, self.canvas):
+            widget.pack_forget()
+        if not show:
+            return
+        self.vscroll.pack(side='right', fill='y')
+        self.hscroll.pack(side='bottom', fill='x')
+        self.canvas.pack(side='top', fill='both', expand=True)
 
     # -- bank access -----------------------------------------------------
     def get_byte(self, bank, offset):
@@ -476,8 +806,8 @@ class TacticalMapEditor(tk.Tk):
             return None
         x = self.canvas.canvasx(event.x)
         y = self.canvas.canvasy(event.y)
-        col = int((x - geom['ox']) // CELL)
-        row = int((y - geom['oy']) // CELL)
+        col = cell_at(x, geom['ox'], self.cell)
+        row = cell_at(y, geom['oy'], self.cell)
         if 0 <= row < len(geom['cells']) and 0 <= col < len(geom['cells'][0]):
             return geom['cells'][row][col]
         return None
@@ -534,6 +864,7 @@ class TacticalMapEditor(tk.Tk):
                if tile >= m.BLOCKED else ''),
             'ribbon gap row - the engine still reads it as terrain'
             if cell.is_gap else '',
+            self._object_note(tile, cell),
         ]
         self._set_text(self.info, [ln for ln in lines if ln])
         self.status.config(text='%s | tile $%02X %s | brush $%02X %s'
@@ -612,10 +943,14 @@ class TacticalMapEditor(tk.Tk):
             self.view_index.set(current)
         self._refresh_all()
 
+    def _typing_focus(self):
+        """True when an entry/combobox/text panel owns the keystroke."""
+        return isinstance(self.focus_get(),
+                          (tk.Entry, tk.Text, ttk.Entry, ttk.Combobox))
+
     def select_by_digit(self, digit):
         """Keys 0-9 jump straight to provinces 0-9 (the rest: dropdown)."""
-        focus = self.focus_get()
-        if isinstance(focus, (tk.Entry, tk.Text, ttk.Entry, ttk.Combobox)):
+        if self._typing_focus():
             return                      # the keys belong to the text widget
         if self.view_kind.get() != 'province' or digit >= self.m.PROVINCES:
             return
@@ -628,18 +963,77 @@ class TacticalMapEditor(tk.Tk):
         self.view_index.set((self.view_index.get() + delta) % limit)
         self._refresh_all()
 
+    # -- zoom ------------------------------------------------------------
+    def zoom_key(self, factor):
+        if not self._typing_focus():
+            self.zoom_step(factor)
+
+    def zoom_step(self, factor):
+        self.set_cell(self.cell * factor)
+
+    def zoom_fit(self):
+        """Scale the current view so the whole map fits without scrolling."""
+        if self.view_kind.get() == 'raw':
+            return
+        self.canvas.update_idletasks()      # else winfo_* reports a stale box
+        cols, rows = self._view_cells()[:2]
+        self.set_cell(fit_cell(cols, rows, self.canvas.winfo_width(),
+                               self.canvas.winfo_height()))
+        self.canvas.xview_moveto(0.0)
+        self.canvas.yview_moveto(0.0)
+
+    def set_cell(self, value, anchor=None):
+        """Scale the grid, keeping the map point under `anchor` (a widget xy) put.
+
+        Without an anchor the visible centre is the pivot, which is what the
+        toolbar buttons and +/- keys want; the wheel passes the pointer instead.
+        """
+        if self.view_kind.get() == 'raw':     # the row table has no zoom
+            return
+        new = max(CELL_MIN, min(CELL_MAX, int(round(value))))
+        old = self.cell
+        if new == old:
+            return
+        c = self.canvas
+        vis_w, vis_h = max(1, c.winfo_width()), max(1, c.winfo_height())
+        ax, ay = (vis_w // 2, vis_h // 2) if anchor is None else anchor
+        px, py = c.canvasx(ax), c.canvasy(ay)
+        self.cell = new
+        self.draw_grid()
+        # only after the repaint: a canvas item may not reference a freed image
+        self._prune_images({new, old})
+        total_w, total_h = max(self.geom['w'], vis_w), max(self.geom['h'],
+                                                           vis_h)
+        # where the pivot's cell landed at the new scale, then scroll it back
+        self.canvas.xview_moveto(scroll_frac(
+            LABEL + (px - LABEL) * new / old - ax, total_w, vis_w))
+        self.canvas.yview_moveto(scroll_frac(
+            LABEL + (py - LABEL) * new / old - ay, total_h, vis_h))
+        self._zoom_var().set('%d px  %d%%' % (new, 100 * new // CELL))
+
+    def on_wheel(self, event):
+        """Ctrl+wheel zooms at the pointer, plain wheel pans, Shift pans X."""
+        steps = wheel_steps(event)
+        if not steps:
+            return
+        if event.state & CONTROL_MASK:
+            self.set_cell(self.cell * (ZOOM_STEP if steps > 0 else 1 / ZOOM_STEP),
+                          anchor=(event.x, event.y))
+        elif event.state & SHIFT_MASK:
+            self.canvas.xview_scroll(-steps * 2, 'units')
+        else:
+            self.canvas.yview_scroll(-steps * 2, 'units')
+
     def _on_view_kind(self):
         kind = self.view_kind.get()
         if self.view_index.get() >= self.index_limit():
             self.view_index.set(0)
+        self.tree.pack_forget()
         if kind == 'raw':
-            self.canvas.pack_forget()
-            self.hscroll.pack_forget()
+            self._show_grid(False)
             self.tree.pack(side='top', fill='both', expand=True)
         else:
-            self.tree.pack_forget()
-            self.canvas.pack(side='top', fill='both', expand=True)
-            self.hscroll.pack(side='bottom', fill='x')
+            self._show_grid(True)
         self._refresh_all()
 
     def _title(self):
@@ -697,12 +1091,30 @@ class TacticalMapEditor(tk.Tk):
             lines.append('  %d cells sit on ribbon gap rows' % gaps)
         if blocked:
             lines.append('  %d blocked tiles (>= $80) read as Forest' % blocked)
+        if self.tile_codec is not None:
+            seen = {}
+            for r in cells:
+                for cc in r:
+                    char = self._object_char(cc)
+                    if not char:
+                        continue
+                    kind = self.tile_codec.OBJECT_TILES.get(
+                        self.get_byte(cc.bank, cc.offset))
+                    label = ('castle' if kind == 'castle'
+                             else (self._facility_slot(cc) or 'village 村')
+                             ).split()[0]
+                    seen.setdefault(char, [label, 0])
+                    seen[char][1] += 1
+            if seen:
+                lines.append('  settlement objects (not art in the map): %s'
+                             % ', '.join('%d %s=%s' % (n, ch, lab)
+                                         for ch, (lab, n) in sorted(seen.items())))
         self._set_text(self.census, lines)
 
     def _view_cells(self):
         if self.view_kind.get() == 'province':
-            return province_view(self.m, self.view_index.get())[:3]
-        return crop_view(self.m, self.view_index.get())[:3]
+            return province_view(self.m, self.view_index.get())
+        return crop_view(self.m, self.view_index.get())
 
     def draw_grid(self):
         m = self.m
@@ -710,61 +1122,93 @@ class TacticalMapEditor(tk.Tk):
         c.delete('all')
         if self.view_kind.get() == 'raw':
             return
+        s = self.cell
         cols, rows, cells, _ = self._view_cells()
         ox, oy = LABEL, LABEL
-        w = ox + cols * CELL + 2
-        h = oy + rows * CELL + 2
-        c.configure(scrollregion=(0, 0, max(w, c.winfo_width()),
-                                  max(h, c.winfo_height())))
-        self.geom = {'ox': ox, 'oy': oy, 'cells': cells}
+        w, h = ox + cols * s + 2, oy + rows * s + 2
+        total_w, total_h = max(w, c.winfo_width()), max(h, c.winfo_height())
+        c.configure(scrollregion=(0, 0, total_w, total_h))
+        self.geom = {'ox': ox, 'oy': oy, 'cells': cells, 'w': total_w,
+                     'h': total_h}
+        grid = '#101010' if s >= 8 else ''   # outlines would eat a sub-8 px cell
+        font = ('DejaVu Sans Mono', glyph_font(s))
+        mark = max(1, s // 10)
+        tiles = self._tiles_ready()
         for y in range(rows):
             for x in range(cols):
                 cell = cells[y][x]
                 tile = self.get_byte(cell.bank, cell.offset)
-                tid = m.tile_terrain(tile, self.tile_table)
-                colour = '#%02X%02X%02X' % m.TERRAIN_RGB.get(
-                    tid, (0x80, 0x80, 0x80))
-                if cell.is_gap:
-                    colour = '#404040'
-                if tile >= m.BLOCKED:
-                    colour = '#FF00FF'
-                x0, y0 = ox + x * CELL, oy + y * CELL
-                c.create_rectangle(x0, y0, x0 + CELL, y0 + CELL,
-                                   fill=colour, outline='#101010', width=1,
+                x0, y0 = ox + x * s, oy + y * s
+                if tiles:
+                    c.create_image(x0 + s // 2, y0 + s // 2, anchor='center',
+                                   image=self._tile_image(
+                                       tile, s, self._cell_palette(cell)),
                                    tags='cell')
-                if self.show_glyphs.get() and not cell.is_gap:
-                    c.create_text(x0 + CELL // 2, y0 + CELL // 2,
-                                  text=m.terrain_char(tile, self.tile_table),
-                                  fill='#000000' if tid in (1, 2, 8)
-                                  else '#FFFFFF',
-                                  font=('DejaVu Sans Mono', 8))
+                else:
+                    tid = m.tile_terrain(tile, self.tile_table)
+                    colour = '#%02X%02X%02X' % m.TERRAIN_RGB.get(
+                        tid, (0x80, 0x80, 0x80))
+                    if cell.is_gap:
+                        colour = '#404040'
+                    if tile >= m.BLOCKED:
+                        colour = '#FF00FF'
+                    c.create_rectangle(x0, y0, x0 + s, y0 + s, fill=colour,
+                                       outline=grid, width=1 if grid else 0,
+                                       tags='cell')
+                    # the classes view spells settlement objects out as letters
+                    # (c/h/a/b/v); the real-tiles view draws their sprites instead
+                    char = self._object_char(cell) or m.terrain_char(
+                        tile, self.tile_table)
+                    if (self.show_glyphs.get() and not cell.is_gap
+                            and s >= GLYPH_MIN_PX):
+                        c.create_text(x0 + s // 2, y0 + s // 2, text=char,
+                                      fill='#000000' if tid in (1, 2, 8)
+                                      else '#FFFFFF', font=font)
                 base = self.stock.get(cell.bank)
                 if (self.show_edits.get() and base is not None
                         and base[cell.offset] != tile):
-                    c.create_rectangle(x0 + 1, y0 + 1, x0 + CELL - 1,
-                                       y0 + CELL - 1, outline='#FFFF00',
-                                       width=2, tags='mark')
-        for x in range(cols):
-            c.create_text(ox + x * CELL + CELL // 2, LABEL // 2, text=str(x),
-                          fill='#AAAAAA', font=('DejaVu Sans Mono', 7))
-        for y in range(rows):
-            c.create_text(LABEL // 2, oy + y * CELL + CELL // 2, text=str(y),
-                          fill='#AAAAAA', font=('DejaVu Sans Mono', 7))
+                    c.create_rectangle(x0 + mark, y0 + mark, x0 + s - mark,
+                                       y0 + s - mark, outline='#FFFF00',
+                                       width=mark, tags='mark')
+        # settlement objects: 16x16 OAM markers over the cell, as the game draws
+        # them (the terrain byte under them is plain ground, never a building)
+        if self.tiles is not None and self.tiles.available:
+            for y in range(rows):
+                for x in range(cols):
+                    kind = self._object_marker(cells[y][x])
+                    if kind:
+                        c.create_image(ox + x * s + s // 2, oy + y * s + s // 2,
+                                       anchor='center',
+                                       image=self._marker_image(kind, s),
+                                       tags='mark')
+        # the rulers thin out as cells shrink so their digits never overlap
+        every = 1 if s >= 16 else (2 if s >= 8 else 4)
+        ruler = ('DejaVu Sans Mono', min(7, glyph_font(s)))
+        for x in range(0, cols, every):
+            c.create_text(ox + x * s + s // 2, LABEL // 2, text=str(x),
+                          fill='#AAAAAA', font=ruler)
+        for y in range(0, rows, every):
+            c.create_text(LABEL // 2, oy + y * s + s // 2, text=str(y),
+                          fill='#AAAAAA', font=ruler)
         if self.view_kind.get() == 'province':
             # where the four crops are spliced, and the province stronghold
-            c.create_line(ox + m.GRID * CELL, oy, ox + m.GRID * CELL,
-                          oy + rows * CELL, fill='#FFFFFF', dash=(4, 3))
-            c.create_line(ox, oy + m.TOP_ROWS * CELL, ox + cols * CELL,
-                          oy + m.TOP_ROWS * CELL, fill='#FFFFFF', dash=(4, 3))
+            c.create_line(ox + m.GRID * s, oy, ox + m.GRID * s, oy + rows * s,
+                          fill='#FFFFFF', dash=(4, 3))
+            c.create_line(ox, oy + m.TOP_ROWS * s, ox + cols * s,
+                          oy + m.TOP_ROWS * s, fill='#FFFFFF', dash=(4, 3))
+            inset = max(2, s // 4)
             for y in range(rows):
                 for x in range(cols):
                     cell = cells[y][x]
                     if m.tile_terrain(self.get_byte(cell.bank, cell.offset),
-                                      self.tile_table) == 5:
-                        c.create_oval(ox + x * CELL + 5, oy + y * CELL + 5,
-                                      ox + x * CELL + CELL - 5,
-                                      oy + y * CELL + CELL - 5,
-                                      outline='#FFFFFF', tags='mark')
+                                      self.tile_table) != 5:
+                        continue
+                    if self._object_marker(cell):
+                        continue      # the castle marker already shows it
+                    c.create_oval(ox + x * s + inset, oy + y * s + inset,
+                                  ox + (x + 1) * s - inset,
+                                  oy + (y + 1) * s - inset,
+                                  outline='#FFFFFF', tags='mark')
 
     # -- bank row table --------------------------------------------------
     def fill_raw_tree(self):

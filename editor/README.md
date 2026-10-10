@@ -41,8 +41,8 @@ the current province lives in.
 | 2 Plain 平地 | `$1C-$1F`, `$22`, `$25`, `$27`, `$2B`, `$2E-$35`, `$39`, `$48`, `$4C-$55`, … | `p` |
 | 3 River 川 | `$02-$1B`, `$40-$47`, `$5E`, `$65`, `$67-$69`, `$77-$78` | `r` |
 | 4 Mountain 山 | `$20-$21`, `$23-$24`, `$26`, `$28-$2A`, `$56`, `$59`, `$5B-$5D` | `m` |
-| 5 Castle 城 | `$61-$64` | `c` |
-| 6/7/8 unresolved (村/民家?) | `$79` / `$7A` / `$7B` | `6 7 8` |
+| 5 Castle 城 | `$61` (`$62-$64` are defined but unused in every crop) | `c` |
+| 6/7/8 settlement 村/民家 | `$79` / `$7A` / `$7B` | `h` `a` `b` (or `v`) — see "Settlement objects" |
 | blocked → reads as Forest, no table lookup | `$80-$FF` (`$FF` = bank filler) | `@` |
 
 You always edit a **tile byte**, never a terrain id: 128 tile ids collapse into 9
@@ -56,6 +56,10 @@ Evidence for all of the above: `code/bank_00_data_layout.md` and
 
 Python 3 with `tkinter` (stdlib; on Debian/Ubuntu `sudo apt install python3-tk`).
 Nothing else. Developed against Python 3.14.
+
+The **real tiles** render mode additionally reads `rom/prg/prg_1f.bin`
+(`MetaTileData`) and `rom/chr/chr_11.bin` (display record 1); outside the repo it
+disables itself and the classes view keeps working.
 
 ## Running
 
@@ -90,14 +94,14 @@ and `Export bin` (an 8 KB image you can patch into any ROM).
 
 ```
 View (o) Province 32x20  ( ) Crop 16x16  ( ) Raw CSV rows   Province [◀][ 3  青州 (セイシュウ) ▼][▶]  title
-[Open CSV][Open ROM bin][Save CSV][Export bin][Write ASM][Verify][Revert][Undo]  [x]glyphs [x]highlight edits
-+--------------------------------------------+  +-----------------------------+
-|   terrain grid (click / drag to paint)     |  | Brush  [$39] [Set] $39->Plain|
-|   ruler: cell coordinates, dashed lines at |  | Palette  (tile picker)       |
-|   x=16 and y=15 in province view, white    |  | Cell info                  |
-|   ring on the Castle cell                   |  | Terrain census (this view) |
-|                                            |  | Output (tool log)          |
-+--------------------------------------------+  +-----------------------------+
+[Open CSV][Open ROM bin][Save all CSVs][Export bin][Write ASM][Verify][Revert to source][Undo] [x]glyphs [x]objects
++--------------------------------------------+  +--------------------------------+
+|   terrain grid (click / drag to paint)     |  | Render (o)classes (o)real tiles|
+|   scrollbars: wheel pans, Ctrl+wheel       |  | Zoom  [-][+][ 20 px 100%][Fit] |
+|   zooms; ruler shows cell coordinates      |  | Brush [$39] [Set] $39->Plain   |
+|   dashed lines at x=16 / y=15 in province  |  | Palette (tile picker)          |
+|   view, white ring on the Castle cell      |  | Cell info / census / Output    |
++--------------------------------------------+  +--------------------------------+
 status bar: hovered cell / tile / terrain / brush
 ```
 
@@ -107,20 +111,121 @@ see "Switching province (or crop)" below.
 * **Province view** — the authored 32 × 20 tactical map of any of provinces 0-29.
   This is the level-designer view: one pixel-per-cell edit maps to exactly one map
   cell. The dashed lines show where the four crops are spliced (x = 16, y = 15),
-  the white ring marks the province Castle.
+  the white ring marks the province Castle, and settlement cells carry a letter
+  rather than terrain art (see "Settlement objects").
 * **Crop view** — one of the 120 raw 16 × 16 windows as the engine addresses them
   (zones 0-119). Ribbon gap rows are drawn grey. For an odd zone, rows 9-15 are
   the *next* crop's rows 0-6 (the ribbon overlap); painting there writes the
   owning bytes, so the alias is kept consistent automatically.
 * **Bank CSV rows** — pick one of the four banks and see it exactly as its CSV
   states it: 512-ish owner rows of 16 bytes, so the Battle-Mode head, the
-  inter-crop pads, any unanalysed span and the `$FF` tail are reachable too.
+  inter-crop pads, bank `$03`'s leading sound command streams and the `$FF`
+  tail are reachable too.
   Double-click the `t0..t15` column and paste 16 hex bytes (`$44`, `44` and
   `0x44` all parse).
 
 Keys: `0`-`9` jump to provinces 0-9 (the rest via the dropdown or stepping),
 `PageDown`/`PageUp` step through the current list, `Ctrl+S` save CSVs,
 `Ctrl+B` write ASM, `Ctrl+Z`/`Ctrl+Y` undo/redo.
+
+## Zoom and panning
+
+The grid scales from **6 to 96 px per cell**; `20 px` is shown as 100 %, and the
+readout next to the `−` / `+` buttons reports both.
+
+| Action | Effect |
+|---|---|
+| `Ctrl` + wheel | zoom one step (×1.25) about the pointer, which stays on its cell |
+| wheel / `Shift` + wheel | pan vertically / horizontally |
+| `+` / `-` | zoom one step about the centre of the pane |
+| `Ctrl+0` | back to 100 % (20 px) |
+| `f` or `Fit` | largest scale where the whole view is visible, scrolled to the origin |
+| `−` `+` buttons, readout | same stepping with the mouse |
+
+Below 10 px per cell the terrain glyphs are dropped, and below 16 px the ruler
+numbers print every 2nd (every 4th below 8 px) column, so a zoomed-out province
+still reads as a map instead of noise. Zooming past the pane is fine: both
+scrollbars and the wheel follow the grid. Painting is unaffected by the scale —
+a click resolves through the current cell size to the same bank byte it addressed
+at 100 %, which is what `tools/check_terrain_pipeline.py` now asserts for every
+level from 6 to 96 px.
+
+Zoom is a view-only setting: it changes no bytes, and the `raw` CSV-row table
+ignores it.
+
+## Rendering modes
+
+`Render` switches what each cell is painted with. Both modes read and write the
+same tile bytes; only the picture changes.
+
+| Mode | Shows | For |
+|---|---|---|
+| **classes** | one flat colour per terrain class + a letter glyph | seeing the 128→9 terrain decode, spotting gap rows and blocked `$80-$FF` bytes |
+| **real tiles** | the graphics the console draws: `MetaTileData[$F477 + byte*4]` → 4 nametable bytes (TL,TR,BL,BR) → 2×2 CHR patterns from display record 1 (`88 89 8A 88`) → the crop's attribute head under palette record `$01` | judging what an edit actually looks like in-game; at 16 px/cell the map is pixel-exact to the console |
+
+The chain is documented and asserted by `tools/terrain_tiles.py` (which is also a
+standalone PNG renderer: `python3 tools/terrain_tiles.py --province all --scale 1`
+writes `build/terrain_tiles_pNN.png`). `tools/check_terrain_pipeline.py` section 9
+proves the table is read from `$F477`, that all 128 tile bytes decode to a 16×16
+RGB cell, and that the mode degrades to disabled when `rom/` is not present — so a
+standalone CSV-only copy of the editor still runs.
+
+Colour is not a guess. Each crop is preceded by a 64-byte **NES attribute head**
+(`BattleOverlayPtrTable == TerrainMapPtrTable - $40`), and the game's own indexing
+(`prg_0c_0d.asm:7543`) is reused verbatim: byte `((x & $0E) >> 1) | ((y & $0E) << 2)`
+over the 16×16 crop, 2-bit field `((y & 1) * 2 + (x & 1))`. Read that way the head
+is exactly the authored terrain palette — across all 30 provinces it selects
+**sub-palette 1 for River and sub-palette 0 for every other class, with zero
+exceptions** over 19,200 cells, which `tools/check_terrain_pipeline.py` section 9
+asserts. Palette **record $01** is what makes those two read as the manual's
+tactical screenshot (gold plains, dark green pines, solid blue water); record $00
+swaps land and water, which is why the first cut of this mode looked wrong.
+
+The one thing tile mode does not claim is **blocked bytes**: `$80-$FF` have no
+`MetaTileData` entry at all — the engine never looks one up — so they stay
+magenta. In practice `$FF` is the only one present in the four banks, and only as
+bank filler.
+
+## Settlement objects (castle / village / house)
+
+**These are not in the terrain map.** `$61` (Castle 城) and `$79`/`$7A`/`$7B`
+(settlement 村/民家) are *gameplay ids* stamped onto map cells: their
+`MetaTileData` entry is byte-for-byte the plain-ground metatile, so there is no
+building art behind them. What you see in the game is a **16x16 OAM sprite**
+drawn over the cell by `DrawStratagemTargetMarkers` (`prg_08_09.asm:$D24D`):
+
+| Object | Map byte | Sprite | Source of its position |
+|---|---|---|---|
+| Castle / province city | `$61` | `@ProvinceMarkerOam` (`$D315`, tiles $02 $03 $0E $0F) | the map cell itself |
+| 民家 House, 武器屋 Armory, 病院 Hospital | `$79` / `$7A` / `$7B` | `@CityMarkerOam` (`$D326`, tiles $3C $3D $3E $3F) | map cell, cross-checked against `ProvinceTacticalFacilityTiles` |
+
+The two render modes spell these out differently, on purpose:
+
+* **classes** draws a **character**, never game art: `c` for the castle, and for
+  a settlement cell the letter of its facility slot — `h` 民家 House, `a` 武器屋
+  Armory, `b` 病院 Hospital, or `v` when the table has no pair for that cell. The
+  white Castle ring stays.
+* **real tiles** draws the **sprites**, when the `objects` checkbox is ticked
+  (transparent where the sprite leaves holes, so the map shows through).
+
+The census names the letters it used (`settlement objects (not art in the map):
+1 b=Hospital, 1 c=castle`), and hovering such a cell reports the object kind plus
+its table slot.
+
+`ProvinceTacticalFacilityTiles` (bank `$31` `$9BA4`, 30 rows x 6 B = three
+`(X,Y)` tile pairs, X bit7 = unused, `Y >= $10` normalised by `Y -= 1` for the
+map's gap row) is the authored *identity* of each facility. It agrees with the
+map bytes on **55 of 67** pairs; the other 12 sit on ordinary terrain, and a
+province's `$61` castle is never in the table at all — so the map byte is what
+decides *where* a marker is drawn, and the table only labels it.
+`tools/check_terrain_pipeline.py` section 9 asserts the ground-not-building
+property, that `$62-$64` stay unused, that both sprites decode with
+transparency, and that the pairs stay in bounds.
+
+Note `ProvincePixelPositionTable` (bank `$31` `$9D58`, 30 x 4 B) is **not** a
+tactical position: its values run to (224, 384), outside the 512x320 px
+battlefield, i.e. it is strategy-layer map space. It is deliberately not used
+for the overlay.
 
 ## How the data is linked
 
@@ -141,8 +246,9 @@ tools/verify_terrain_banks.py  --  byte-exact gate + decoded edit report
 ```
 
 Each bank's CSV stores **every byte of that bank exactly once** (one row per 16
-physical bytes, tagged `kind = crop/pad/overlay_head/filler/unanalysed` plus
-zone/province/quadrant/crop_row), so the round trip ROM → CSV → asm → assemble →
+physical bytes, tagged `kind = crop/pad/overlay_head/sound_stream/sound_tail/filler`
+plus zone/province/quadrant/crop_row), so the round trip ROM → CSV → asm →
+assemble →
 ROM is the identity for all four banks. The ribbon's overlapping crop windows are
 resolved through that owner table, which is why editing an aliased row never
 produces a contradictory pair of bytes.

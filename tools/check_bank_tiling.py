@@ -41,7 +41,12 @@ def emitted_entries(path):
             entries.append((WINDOW_CPU + int(m.group(1), 16),
                             int(m.group(2), 16), lineno, text))
         elif '.word' in code:
-            n = 2 * len(WORD.findall(code))
+            # Count operands, not `$`-hex tokens: a resolved `.word Label` emits 2
+            # bytes but carries no hex, which used to be measured as zero and made
+            # the whole stream lag.
+            operands = [t for t in re.split(r',\s*', code.partition('.word')[2])
+                        if t.strip()]
+            n = 2 * len(operands)
             m = ADDR.search(comment)
             entries.append((int(m.group(1), 16) if m else None, n, lineno, text))
         elif '.byte' in code:

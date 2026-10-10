@@ -1,9 +1,0 @@
-# NMI sub_state dispatch table mapping and NmiState5_Duel rename
-
-- **Category:** project_architecture
-- **Memory ID:** fae9d0a2-db6f-4ae9-be99-e458a384db77
-- **Keywords:** NmiDispatchTable, NmiState5_Duel, addr_sub_state, Tactical Mode, MainGameDispatch
-
-## Content
-
-NMI VBlank handler dispatch in prg_1f.asm ($F800 NmiHandler) indexes NmiDispatchTable ($F87B) by addr_sub_state ($0078) & $0F. Verified mapping of sub_state writer to handler: 2=State_NewGameInit->NmiState2_MapScreen, 3=$E18E handler->NmiState3_Battle, 4=$E22F handler->NmiState4_Menu, 5=State_TacticalMode ($E2ED)->NmiState5_Duel, 6=State_CountryMapView->NmiState6_Event, 7=State_NewGameSetup ($E3F3; renamed 2026-09 from State_AdvisorCouncil — the old name came from misreading the SramInit call $A018 as "advisor dialogue"; the state actually performs the new-game SRAM re-seed and menu screen setup, entered from the prg_0a_0b title-menu new-game path ClearOverlayExit $DBCE)->NmiState7_Strategy, 8=State_EventMessageScene (renamed 2026-09 from State_TurnSummary — the old name came from the bank_1f_analysis.md guess pass; the state actually arms the dated ruler message screen: event-notice closing of DemoEventPlaybackDispatch/OfficerStatusScene via ScenarioHandoffPrep, title-overlay cancel via ClearOverlayCancel, and the UnificationEndingDispatch verdict; $0541 selects variant/music $98 vs $AA)->NmiState8_Officer. NmiState5 was originally misnamed NmiState5_Intrigue (策略); corrected: it is the Tactical Mode frame handler whose sole game-logic payload is B17_18_MainGameDispatch ($B100), a 22-entry duel-scene dispatcher (DuelScene/DuelCommand/DuelAi/DuelStrikeResolve/Surrender/Persuade/Insult/Strike/Feint/Desperate etc.). Only bank $1F writes $0078. The old Intrigue name was wrong on both counts: not the stratagem system, and driven by Tactical Mode.

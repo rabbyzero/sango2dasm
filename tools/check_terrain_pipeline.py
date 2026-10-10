@@ -24,9 +24,15 @@ Proves, in order:
   6. all 30 provinces address bytes across the four banks (the four provinces
      straddling a bank seam included), and every province keeps a Castle;
   7. the GUI's view builders address the same bytes as the model, its selector
-     lists all 30 provinces, and every `self.<attribute>` it reads is defined;
+     lists all 30 provinces, every `self.<attribute>` it reads is defined, the
+     view tuple its canvas unpacks is the one it asks for, and the zoom
+     arithmetic (pixel->cell hit test, fit, scroll clamp) holds at 6-96 px;
   8. the editor still runs in standalone mode, i.e. with only a copy of the
-     model codec and a CSV next to it and no disassembly repo around.
+     model codec and a CSV next to it and no disassembly repo around;
+  9. the real-tile render mode's chain holds: MetaTileData is read from $F477,
+     every tile byte the banks can hold decodes to a 16x16 RGB cell, blocked
+     bytes stay unrenderable, and the mode degrades instead of crashing when
+     the ROM dumps are missing.
 
 The GUI is imported with a stubbed `tkinter`, so this needs no display.
 """
@@ -97,7 +103,7 @@ def test_regions():
               and offs == sorted(offs)
               and offs[0] == 0 and offs[-1] == model.BANK_SIZE - 1,
               str(kinds))
-        # crops + pads + heads + filler/unanalysed make the whole bank
+        # crops + pads + heads + sound streams + filler make the whole bank
         check('bank $%02X: region kinds total the bank size' % bank,
               sum(kinds.values()) == model.BANK_SIZE
               and kinds.get('crop', 0) <= crop, str(kinds))
@@ -268,6 +274,8 @@ def test_gui_views():
           all(n and 'id ' not in n for n in names), ' / '.join(names))
     check_editor_attributes(gui)
     check_selector(gui)
+    check_view_cells(gui)
+    check_zoom(gui)
 
 
 class _Var:
@@ -306,6 +314,73 @@ def check_selector(gui):
     provs = app.selector_values()
     check('province dropdown is 30 entries (0-29), one per map',
           len(provs) == 30 and any('17' in v for v in provs), provs[17])
+
+
+def check_view_cells(gui):
+    """The arity contract draw_grid()/_update_census() rely on at launch.
+
+    A headless build cannot paint the canvas, so unpack _view_cells() the same
+    way its callers do; that is what catches a truncated view tuple without a
+    human having to launch the GUI to find the crash.
+    """
+    app = gui.TacticalMapEditor.__new__(gui.TacticalMapEditor)
+    app.m = model
+    for kind, index in (('province', 0), ('province', model.PROVINCES - 1),
+                        ('zone', 0), ('zone', model.ZONE_COUNT - 1)):
+        app.view_kind = _Var(kind)
+        app.view_index = _Var(index)
+        label = '%s %s view' % (kind, index)
+        try:
+            cols, rows, cells, title = app._view_cells()
+        except ValueError as exc:
+            check('%s unpacks into the 4 values its callers expect' % label,
+                  False, str(exc))
+            continue
+        check('%s: %d x %d tiles addressed, titled' % (label, cols, rows),
+              len(cells) == rows and all(len(r) == cols for r in cells)
+              and bool(title), title)
+
+
+def check_zoom(gui):
+    """Zoom is pure arithmetic, so its hit-test contract checks without a screen.
+
+    Painting resolves a pixel back to a cell, so a scale that drifts that
+    inverse would silently write the wrong bank byte. These are the invariants
+    the GUI relies on at every cell edge it can be zoomed to.
+    """
+    bad = ['%d px: x=%d -> col %d, want %d' % (s, gui.LABEL + col * s + s // 2,
+                                               gui.cell_at(gui.LABEL + col * s
+                                                           + s // 2,
+                                                           gui.LABEL, s), col)
+           for s in range(gui.CELL_MIN, gui.CELL_MAX + 1)
+           for col in (0, 1, 15, 16, 31)
+           if gui.cell_at(gui.LABEL + col * s + s // 2, gui.LABEL, s) != col]
+    check('pixel->cell hit test exact at every zoom level (%d-%d px)'
+          % (gui.CELL_MIN, gui.CELL_MAX), not bad, bad[0] if bad else '')
+
+    fits = all(gui.fit_cell(c, r, w, h) * c + gui.LABEL <= w
+               and gui.fit_cell(c, r, w, h) * r + gui.LABEL <= h
+               for c, r in ((model.MAP_COLS, model.MAP_H), (model.GRID,
+                                                            model.GRID))
+               for w, h in ((400, 300), (700, 430), (1200, 900)))
+    check('fit_cell never asks for more than the pane holds', fits)
+    check('fit_cell stays inside the clamp',
+          gui.fit_cell(32, 20, 120, 120) == gui.CELL_MIN
+          and gui.fit_cell(32, 20, 100000, 100000) == gui.CELL_MAX)
+
+    fracs = [gui.scroll_frac(o, 1948, 700) for o in (-500, 0, 600, 1248, 5000)]
+    check('scroll fractions clamp to the scrollable span',
+          fracs[0] == 0.0 and fracs[1] == 0.0 and abs(fracs[2] - 0.4808) < 1e-3
+          and fracs[3] == 1.0 and fracs[4] == 1.0, str(fracs))
+
+    notches = [(types.SimpleNamespace(num=n, delta=d), want)
+               for n, d, want in ((4, 0, 1), (5, 0, -1), (None, 120, 1),
+                                  (None, -120, -1), (None, 0, 0))]
+    check('wheel notches read the same on X11 and Windows/mac',
+          all(gui.wheel_steps(e) == want for e, want in notches))
+    check('glyph size stays bounded and grows with the cell',
+          all(6 <= gui.glyph_font(s) <= 16 for s in range(1, 200))
+          and gui.glyph_font(8) <= gui.glyph_font(20) <= gui.glyph_font(96))
 
 
 # Methods inherited from tkinter.Tk / standard widget API, so they are not
@@ -409,6 +484,112 @@ def test_standalone():
     shutil.rmtree(sandbox)
 
 
+def test_tile_graphics():
+    section('9. real CHR tile graphics (MetaTileData + display record 1)')
+    import shutil
+    import terrain_tiles as tiles
+    set_ = tiles.load()
+    check('tile graphics load from the repo ROM dumps', set_.available,
+          set_.summary())
+
+    with open(os.path.join(ROOT, 'rom', 'prg', 'prg_1f.bin'), 'rb') as f:
+        f.seek(tiles.METATILE_CPU - tiles.PRG_1F_WINDOW)
+        raw = f.read(tiles.METATILE_BYTES)
+    check('MetaTileData is read as 128 entries x 4 bytes from $%04X'
+          % tiles.METATILE_CPU,
+          bytes(set_.metatile) == raw and len(raw) == tiles.METATILE_BYTES)
+    check('a known tile byte maps to its 4 nametable bytes',
+          list(set_.metatile_bytes(0x39)) == [0x22, 0x23, 0x32, 0x33],
+          ' '.join('$%02X' % b for b in set_.metatile_bytes(0x39)))
+
+    bad = [t for t in range(model.BLOCKED)
+           if (lambda c: c is None or len(c) != tiles.CELL_PX
+               or any(len(r) != tiles.CELL_PX or any(len(px) != 3 for px in r)
+                      for r in c))(set_.cell_rgb(t))]
+    check('all 128 tile bytes render as a 16x16 RGB cell', not bad, str(bad[:6]))
+    check('cell_rgb honours the BG sub-palette',
+          set_.cell_rgb(0x02, 0) != set_.cell_rgb(0x02, 1))
+    check('the tactical palette record is $%02X (gold land, blue water)'
+          % tiles.PALETTE_RECORD, tiles.PALETTE_RECORD == 1)
+
+    # Colour correctness, as an invariant over the authored data: the attribute
+    # head in front of each crop must say sub-palette 1 for River and 0 for
+    # every other class. This is what makes the tile render match the manual.
+    images = {b: model.read_bank(b) for b in model.TERRAIN_BANKS}
+    wrong = []
+    for prov in range(model.PROVINCES):
+        for cy in range(model.MAP_H):
+            for cx in range(model.MAP_COLS):
+                zone = (prov * 4 + (0 if cy < model.TOP_ROWS else 1)
+                        + (2 if cx >= model.GRID else 0))
+                gx = cx % model.GRID
+                gy = cy if cy < model.TOP_ROWS else cy - model.TOP_ROWS
+                bank = model.zone_bank(zone)
+                off = model.zone_offset(zone)
+                data = images[bank]
+                tid = model.tile_terrain(data[off + gy * model.GRID + gx],
+                                         model.TILE_TERRAIN_TABLE)
+                got = tiles.head_palette(data[off - tiles.HEAD_BYTES:off], gx, gy)
+                if got != (1 if tid == 3 else 0):
+                    wrong.append((prov, cx, cy, tid, got))
+    check('attribute head = River -> sub-palette 1, all other classes -> 0 '
+          'over %d cells' % (model.PROVINCES * model.MAP_H * model.MAP_COLS),
+          not wrong, '%d mismatches, first %s' % (len(wrong), wrong[:3]))
+    check('blocked bytes have no entry (the engine never looks one up)',
+          all(set_.metatile_bytes(t) is None for t in (0x80, 0xFE, 0xFF)))
+
+    used = set()
+    for bank in model.TERRAIN_BANKS:
+        for zone in model.bank_zones(bank):
+            for row in model.zone_grid(lambda b, o: model.read_bank(b)[o], zone):
+                used.update(row)
+    check('every tile byte in the 120 crops renders (%d distinct bytes)'
+          % len(used),
+          all(set_.cell_rgb(t) is not None for t in used if t < model.BLOCKED))
+    check('the blocked bytes present in the banks stay unrenderable',
+          all(set_.cell_rgb(t) is None for t in used if t >= model.BLOCKED),
+          ' '.join('$%02X' % t for t in sorted(used) if t >= model.BLOCKED)[:60])
+
+    sandbox = os.path.join(ROOT, 'build', '_tiles_solo')
+    os.makedirs(sandbox, exist_ok=True)
+    try:
+        solo = tiles.load(sandbox)
+        check('no ROM -> tile graphics degrade instead of crashing',
+              not solo.available and bool(solo.error), solo.error)
+    finally:
+        shutil.rmtree(sandbox)
+
+    # Settlement objects: the map byte is an id, the picture is an OAM sprite.
+    ground = set_.cell_rgb(0x39, 0)
+    same = [t for t in tiles.OBJECT_TILES if set_.cell_rgb(t, 0) != ground]
+    check('every settlement byte renders as plain ground, never a building',
+          not same, ' '.join('$%02X' % t for t in same))
+    check('the settlement bytes that exist in the data are $61/$79/$7A/$7B',
+          set(tiles.OBJECT_TILES) == {0x61, 0x79, 0x7A, 0x7B})
+    for kind in ('castle', 'facility'):
+        rgb = set_.marker_rgb(kind)
+        ink = sum(1 for r in rgb for p in r if p is not None)
+        check('%s marker is a 16x16 sprite with transparency' % kind,
+              len(rgb) == tiles.CELL_PX and all(len(r) == tiles.CELL_PX
+                                                for r in rgb)
+              and 0 < ink < tiles.CELL_PX ** 2, '%d/%d opaque'
+              % (ink, tiles.CELL_PX ** 2))
+    fac = tiles.load_facilities()
+    check('ProvinceTacticalFacilityTiles loads (30 rows x 3 slots)',
+          fac is not None and len(fac) == model.PROVINCES
+          and all(len(row) == 3 for row in fac))
+    pairs = [p for row in fac for p in row if p]
+    in_bounds = [p for p in pairs if p[0] < model.MAP_COLS and p[1] < model.MAP_H]
+    on_object = sum(1 for prov, row in enumerate(fac) for p in row
+                    if p and p[0] < model.MAP_COLS and p[1] < model.MAP_H
+                    and model.province_map(
+                        lambda b, o: images[b][o], prov)[p[1]][p[0]]
+                    in tiles.OBJECT_TILES)
+    check('facility pairs stay in the map and land on settlement cells',
+          len(in_bounds) == len(pairs) and on_object >= 0.8 * len(pairs),
+          '%d/%d land on a settlement byte' % (on_object, len(pairs)))
+
+
 def _raises_oserror(fn):
     try:
         fn()
@@ -428,6 +609,7 @@ def main():
     test_all_provinces()
     test_gui_views()
     test_standalone()
+    test_tile_graphics()
     print('=' * 72)
     if FAILED:
         print('FAILED: %d check(s)\n  - %s' % (len(FAILED), '\n  - '.join(FAILED)))

@@ -88,6 +88,16 @@ databank02:
 verifydata02:
 	@python3 tools/verify_data_bank_02.py
 
+# Re-render the war-placement / strategy-scroll data bank (PRG $06) from the ROM,
+# then verify
+databank06:
+	@python3 tools/gen_data_bank_06_asm.py --write
+	@$(MAKE) verifydata06
+
+# Assemble bank $06 standalone and prove it byte-exact against the ROM
+verifydata06:
+	@python3 tools/verify_data_bank_06.py
+
 # Re-render the four terrain banks $00/$03/$04/$05 (30 provinces) as hex plus
 # their CSV twins, then verify byte-exact against the stock ROM
 terrain:
@@ -161,6 +171,8 @@ help:
 	@echo '  verifydata  - Assemble banks $$10/$$11 and prove byte-exactness'
 	@echo '  databank02  - Re-render sound/note data bank $$02 from the ROM'
 	@echo '  verifydata02 - Assemble bank $$02 and prove byte-exactness'
+	@echo '  databank06  - Re-render war-placement / strategy-scroll data bank $$06 from the ROM'
+	@echo '  verifydata06 - Assemble bank $$06 and prove byte-exactness'
 	@echo '  terrain     - Re-render terrain banks $$00/$$03/$$04/$$05 hex + docs/terrain_bank_XX.csv'
 	@echo '  terrain-csv - Re-render them from the edited terrain CSVs (asm == CSV gate)'
 	@echo '  terrain-diff - List the terrain edits still live vs the stock ROM'
@@ -179,6 +191,7 @@ help:
 	@echo "  make disasm FILE=rom/prg/prg_1f.bin ADDR=8000 LEN=256"
 	@echo "  make analyze"
 
-.PHONY: all split banks databanks databanks-csv verifydata databank02 verifydata02 terrain terrain-csv \
+.PHONY: all split banks databanks databanks-csv verifydata databank02 verifydata02 \
+        databank06 verifydata06 terrain terrain-csv \
         terrain-diff verifyterrain checkterrain map-editor disasm analyze \
         disasterrng verify clean distclean help

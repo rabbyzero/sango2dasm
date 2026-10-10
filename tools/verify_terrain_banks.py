@@ -7,7 +7,7 @@ The banks are rendered by tools/gen_terrain_asm.py: every byte is a labelled
 rom/prg/prg_XX.bin.
 
 Any difference is reported in terrain terms, not just as an offset: the byte is
-mapped to its region (crop / pad / overlay head / filler / unanalysed), the
+mapped to its region (crop / pad / overlay head / sound stream / filler), the
 province, the quadrant crop, the crop row and column, and the old/new decoded
 terrain - so editing a `.byte` (or regenerating from an edited
 docs/terrain_bank_XX.csv) produces a readable diff.

@@ -23,8 +23,10 @@ TerrainMapPtrTable + TileBankTable in bank `$08`):
 Every bank carries the same ribbon geometry (layout doc §4): blocks of `$1C0`
 bytes, an upper crop window (256 B) at block+`$000`, a 48 B pad at block+`$100`
 and a lower crop window at block+`$130`, whose rows 9-15 are physically the next
-block's rows 0-6. Bank `$03` is the odd one out: its ribbon starts at `$89A6`, so
-the first `$09A6` bytes are other (unanalysed) data, not terrain.
+block's rows 0-6. Bank `$03` is the odd one out: its ribbon starts at `$89A6`,
+because the sound driver's command streams occupy `$8000-$8965` ahead of it
+(§ "bank $03's leading sound area" below) and `$8966-$89A5` is the attribute
+head of the first crop.
 
 Layout and field evidence: `code/bank_00_data_layout.md` (its §4/§5/§6 model
 holds verbatim in all four banks, verified by §8.1's checks).
@@ -37,10 +39,11 @@ lossless in both directions and never stores a byte twice:
     crop           a 16x16 window, cut where the next window starts, so the
                    ribbon overlap is stored once and aliased on read
     pad            the 48 B inter-crop gap (Battle Mode's overlay crop source)
-    overlay head   the first 64 B when the ribbon starts at $0040 (zone 0's
-                   Battle Mode overlay crop)
+    overlay head   the 64 B attribute head in front of a ribbon's first crop
     filler         an all-$FF tail
-    unanalysed     everything else (bank $03's leading $09A6 bytes)
+    sound_stream   a Namco-163/APU command stream (bank $03's leading $0966 B)
+    sound_tail     the part of such a stream that spilled in from bank $02
+    unanalysed     anything the above does not claim
 
 CSV shape (one row per up-to-16 physical bytes, in offset order):
 
@@ -138,6 +141,154 @@ TILE_BANK_TABLE = (
 )
 
 
+# --- bank $03's leading sound area (layout doc §10) --------------------
+# `@BattleAnimSoundEngine` ($D8D4, prg_0e_0f.asm:8945-8950) maps two windows at
+# once before it walks a stream:
+#     LDY #$22 ; JSR B1F_SwitchBank8_B          -> $8000-$9FFF = PRG bank $02
+#     LDA #$23 ; STA $00E2 ; ORA #$C0 ; STA $E800 -> $A000-$BFFF = PRG bank $03
+# So while sound plays, this bank's first bytes are CPU $A000-$A965 and hold
+# Namco-163/APU command streams, addressed straight from the
+# SoundNoteHeaderTable descriptor of bank $02 (b2 = pointer low, b3 + $40 =
+# pointer high - prg_1f.asm:1096). `tools/sound_streams.py` is the standalone
+# decoder that proves the whole $82DC-$A965 area is exactly covered by streams;
+# the walk below re-derives the same boundaries so this bank renders them.
+SOUND_CODE_CPU = 0xA000          # where the sound driver sees bank $03
+SOUND_DESC_CPU = 0x8000          # SoundNoteHeaderTable, bank $02
+SOUND_DESC_STRIDE = 4
+SOUND_DESC_COUNT = 183           # soundID $B7 at $82DC is a stream, not a descriptor
+SOUND_PTR_BIAS = 0x40            # descriptor b3 + $40 = stream pointer high byte
+SOUND_TRACK_STRIDE = 0x16        # sound-RAM track block at $0700 + b0, 11 tracks
+SOUND_HDR_LEN = 4                # [tick divisor][duty source][control][sweep]
+SOUND_CELL = 2                   # command cell = [opcode][operand]
+SOUND_END = 0xFF                 # stops the track; its operand byte is not consumed
+SOUND_TICK_BASE = 1              # frames per cell when the tick divisor is $00
+SOUND_CHANNELS = ('pulse1', 'pulse2', 'triangle', 'noise',
+                  'namco1', 'namco2', 'namco3', 'namco4')
+NOTE_NAMES = ('F', 'F#', 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E')
+SOUND_KINDS = ('sound_stream', 'sound_tail')
+SOUND_LABEL = 'SoundStream_B%02X_Snd%02X'
+SOUND_TAIL_LABEL = 'SoundStreamTail_B%02X_Snd%02X'
+
+
+def sound_reader():
+    """Byte reader over the two windows the sound driver maps simultaneously."""
+    b02, b03 = read_bank(0x02), read_bank(0x03)
+
+    def rd(addr):
+        addr &= 0xFFFF
+        if addr < SOUND_CODE_CPU:
+            return b02[addr - WINDOW_CPU]
+        return b03[addr - SOUND_CODE_CPU]
+    return rd
+
+
+def sound_descriptors(rd):
+    """The 183 bank $02 descriptors: sound-RAM track, channel, stream address."""
+    out = []
+    for sid in range(SOUND_DESC_COUNT):
+        base = SOUND_DESC_CPU + sid * SOUND_DESC_STRIDE
+        slot, chan, lo, hi = (rd(base + i) for i in range(SOUND_DESC_STRIDE))
+        out.append({'id': sid, 'slot': slot, 'track': slot // SOUND_TRACK_STRIDE,
+                    'chan': chan, 'ch_name': SOUND_CHANNELS[chan & 7],
+                    'addr': ((hi + SOUND_PTR_BIAS) << 8) | lo})
+    return out
+
+
+def sound_stream(rd, addr, cap=BANK_SIZE):
+    """(header, [(abs, opcode, operand)], address just after the terminating $FF)."""
+    hdr = [rd(addr + i) for i in range(SOUND_HDR_LEN)]
+    cells, off = [], SOUND_HDR_LEN
+    while off < cap:
+        op = rd(addr + off)
+        if op == SOUND_END:
+            return hdr, cells, addr + off + 1
+        cells.append((addr + off, op, rd(addr + off + 1)))
+        off += SOUND_CELL
+    raise ValueError('sound stream at $%04X has no $FF within $%X bytes'
+                     % (addr, cap))
+
+
+def sound_cell_text(op, arg, chan):
+    """One command cell, as the dispatch chain reads it (prg_0e_0f.asm:9051-9231).
+
+    Pitch cells (`opcode < $A0`) name the pulse-channel reference: the low nibble
+    is the semitone over NoteFreqTable ($DD06) and bits 4-6 count period
+    right-shifts, so the octave rises with them. $C-$F nibbles are rests; the
+    noise channel takes the opcode as a raw period instead.
+    """
+    if op < 0xA0:
+        semi = op & 0x0F
+        if semi >= 0x0C:
+            return 'rest/%d' % arg
+        if chan == 3:
+            return 'noise $%02X/%d' % (op, arg)
+        name = '%s%d' % (NOTE_NAMES[semi], 1 + ((op >> 4) & 0x07)
+                        + (1 if semi >= 7 else 0))
+        return '%s/%d' % (name, arg)
+    if op == 0xA0:
+        return 'ctrl=$%02X' % arg
+    if op == 0xA1:
+        return 'sweep=$%02X' % arg
+    if op == 0xA2:
+        return 'duty=%d' % (arg & 3)
+    if op == 0xA3:
+        return 'vib r%d s$%02X' % ((arg & 0x0F) * 2, arg & 0x70)
+    if op == 0xA4:
+        return 'vib off'
+    if op == 0xAD:
+        return 'reloc $%02X' % arg
+    if op == 0xAE:
+        return 'durw $%02X' % arg
+    if op == 0xAF:
+        return 'tick=%d' % (arg & 0x0F)
+    if op == 0xB0:
+        return 'goto %s' % ('mark' if not arg else 'c%d' % arg)
+    if op < 0xC0:
+        return 'loop %s x%d' % ('mark' if not arg else 'c%d' % arg, op & 0x0F)
+    if op < 0xD0:
+        return 'trem d%d p%d' % (op & 0x0F, arg)
+    if op < 0xF0:
+        return 'env %s%d/%d' % ('-' if op >= 0xE0 else '+', op & 0x0F, arg)
+    if op == 0xFD:
+        return 'mark'
+    return 'nop $%02X' % op
+
+
+def _sound_regions(bank, lead_end):
+    """The streams claiming `$0000-lead_end`, in offset order, gaps included."""
+    rd = sound_reader()
+    span_lo, span_hi = SOUND_CODE_CPU, SOUND_CODE_CPU + lead_end
+    found = []
+    for desc in sound_descriptors(rd):
+        hdr, cells, end = sound_stream(rd, desc['addr'])
+        start, stop = max(desc['addr'], span_lo), min(end, span_hi)
+        if start < stop:
+            found.append((start, stop, desc, hdr, cells))
+    out, cursor = [], 0
+    for start, stop, desc, hdr, cells in sorted(found):
+        rel = start - SOUND_CODE_CPU
+        if rel > cursor:
+            out.append(Region(bank, 'unanalysed', cursor, rel - cursor,
+                              None, None, '', None))
+        full = start == desc['addr']          # else the stream begins in bank $02
+        out.append(Region(bank,
+                          'sound_stream' if full else 'sound_tail',
+                          rel, stop - start, None, None, '', None,
+                          {'id': desc['id'], 'ch_name': desc['ch_name'],
+                           'track': desc['track'], 'addr': desc['addr'],
+                           'tick': (hdr[0] & 0x0F) + SOUND_TICK_BASE,
+                           'hdr': hdr if full else None,
+                           'cells': [(off - start,
+                                      sound_cell_text(op, arg, desc['chan']))
+                                     for off, op, arg in cells
+                                     if start <= off < stop]}))
+        cursor = stop - SOUND_CODE_CPU
+    if cursor < lead_end:
+        out.append(Region(bank, 'unanalysed', cursor, lead_end - cursor,
+                          None, None, '', None))
+    return out
+
+
 # --- addressing ---------------------------------------------------------
 def zone_bank(zone):
     """Physical PRG bank holding one zone's crop ($00/$03/$04/$05)."""
@@ -180,9 +331,17 @@ def is_gap(zone, row):
 
 
 # --- region walk --------------------------------------------------------
-class Region(namedtuple('Region',
-                        'bank kind start length zone province quadrant first_row')):
-    """One physically owned slice of a bank, emitted as up-to-16-byte lines."""
+class Region(namedtuple(
+        'Region',
+        'bank kind start length zone province quadrant first_row sound',
+        defaults=(None,))):
+    """One physically owned slice of a bank, emitted as up-to-16-byte lines.
+
+    `sound` carries the decoded stream of a `sound_stream`/`sound_tail` region
+    (soundID, channel, track, stream address, tick, header bytes and the cell
+    texts keyed by their offset inside the region); it is None for every other
+    kind.
+    """
     __slots__ = ()
 
     @property
@@ -208,6 +367,10 @@ class Region(namedtuple('Region',
             return HEAD_LABEL % self.bank
         if self.kind == 'filler':
             return FILLER_LABEL % self.bank
+        if self.kind == 'sound_stream':
+            return SOUND_LABEL % (self.bank, self.sound['id'])
+        if self.kind == 'sound_tail':
+            return SOUND_TAIL_LABEL % (self.bank, self.sound['id'])
         return OTHER_LABEL % (self.bank, self.start)
 
     @property
@@ -232,7 +395,21 @@ class Region(namedtuple('Region',
                     'no terrain zone points here (§7)')
         if self.kind == 'filler':
             return '$FF bank filler'
-        return 'unanalysed data (not terrain) - kept as hex, editable with care'
+        if self.kind == 'sound_stream':
+            s = self.sound
+            return ('soundID $%02X %s (track %s) command stream: %d cells, %d '
+                    'frame/cell, header %s; descriptor b2/b3 -> $%04X, i.e. this '
+                    'bank as the $A000 sound window (§10)'
+                    % (s['id'], s['ch_name'], s['track'], len(s['cells']),
+                       s['tick'], ' '.join('$%02X' % b for b in s['hdr']),
+                       s['addr']))
+        if self.kind == 'sound_tail':
+            s = self.sound
+            return ('tail of soundID $%02X (%s): its stream starts at $%04X in '
+                    'bank $02 and its command cells continue here (§10)'
+                    % (s['id'], s['ch_name'], s['addr']))
+        return ('unanalysed data (not terrain) - kept as hex, editable with '
+                'care')
 
 
 HEAD_LABEL = 'TerrainOverlayHead_B%02X'
@@ -267,8 +444,8 @@ def regions(bank):
     cursor = 0
     for index, crop in enumerate(crops):
         if crop.start > cursor:
-            out.append(_gap_region(bank, cursor, crop.start, crops[index - 1]
-                                   if index else None, crop))
+            out.extend(_gap_regions(bank, cursor, crop.start, crops[index - 1]
+                                    if index else None, crop))
         out.append(crop)
         cursor = crop.end
     if cursor < BANK_SIZE:
@@ -281,23 +458,32 @@ def regions(bank):
     return out
 
 
-def _gap_region(bank, start, end, upper, lower):
-    """Classify an unowned span between two crop regions.
+def _gap_regions(bank, start, end, upper, lower):
+    """Regions for an unowned span between two crop windows, in offset order.
 
-    Only two shapes occur: the 64-byte Battle Mode overlay head in front of a
-    ribbon that starts at `$0040`, and the 48-byte inter-crop pad at block+`$100`
-    between a pair's upper and lower crop (`code/bank_00_data_layout.md` §4, §9).
+    Three shapes occur: the 64-byte Battle Mode overlay head in front of a
+    ribbon that starts at `$0040`, the 48-byte inter-crop pad at block+`$100`
+    between a pair's upper and lower crop, and bank `$03`'s leading span, which
+    the sound driver owns (`code/bank_00_data_layout.md` §4, §9, §10).
     """
     length = end - start
     if start == 0 and length == OVERLAY_HEAD_LEN:
-        return Region(bank, 'overlay_head', start, length, None, None, '', None)
+        return [Region(bank, 'overlay_head', start, length, None, None, '', None)]
+    if start == 0 and length > OVERLAY_HEAD_LEN:
+        head = length - OVERLAY_HEAD_LEN
+        try:
+            lead = _sound_regions(bank, head)
+        except OSError:            # no sound ROM to derive the streams from
+            lead = [Region(bank, 'unanalysed', 0, head, None, None, '', None)]
+        return lead + [Region(bank, 'overlay_head', head, OVERLAY_HEAD_LEN,
+                              None, None, '', None)]
     if (length == PAD_LEN and upper is not None and lower is not None
             and upper.zone % 2 == 0 and upper.end == start
             and lower.start == end):
         # the gap inside one block, between its upper (even) and lower (odd) crop
-        return Region(bank, 'pad', start, length, upper.zone, upper.zone // 4,
-                      '', None)
-    return Region(bank, 'unanalysed', start, length, None, None, '', None)
+        return [Region(bank, 'pad', start, length, upper.zone, upper.zone // 4,
+                       '', None)]
+    return [Region(bank, 'unanalysed', start, length, None, None, '', None)]
 
 
 def _tail_region(bank, start):
@@ -580,6 +766,8 @@ def asm_text(bank, rows, source_note, table=None):
     generated file is self-documenting about its editing surface.
     """
     table = table or TILE_TERRAIN_TABLE
+    regs = regions(bank)
+    sound = [r for r in regs if r.kind in SOUND_KINDS]
     lines = [
         ';===============================================================================',
         '; DATA Bank %02X (PRG $%02X) - 8KB terrain bank, mapped into $8000-$9FFF by'
@@ -596,6 +784,31 @@ def asm_text(bank, rows, source_note, table=None):
         '; GetTileTerrain ($B6EF) reads them through TileBankTable + the ($A8) province',
         '; zone table; 4 crops form one province 32x20 tactical map (15 content rows from',
         '; the upper crops, 5 from the lower); Battle Mode re-reads the same bytes.',
+    ]
+    if sound:
+        lo, hi = WINDOW_CPU + sound[0].start, WINDOW_CPU + sound[-1].end - 1
+        lines += [
+            ';',
+            '; Also: $%04X-$%04X = %d Namco-163/APU sound command streams (soundIDs'
+            % (lo, hi, len(sound)),
+            ';   $%02X-$%02X), which is why this bank\'s terrain ribbon starts at $%04X'
+            % (sound[0].sound['id'], sound[-1].sound['id'],
+               WINDOW_CPU + zone_offset(bank_zones(bank)[0])),
+            ';   instead of $8040. While sound plays, @BattleAnimSoundEngine ($D8D4)',
+            ';   maps it at $A000-$BFFF (LDA #$23 / STA $00E2 / ORA #$C0 / STA $E800)',
+            ';   next to bank $02 at $8000, and the SoundNoteHeaderTable descriptor of',
+            ';   bank $02 points straight at these bytes: stream = (b3+$40)<<8 | b2.',
+            ';   Layout: code/bank_00_data_layout.md §10, decoder: tools/sound_streams.py',
+            '; Sound cell legend: 4-byte stream header [tick][duty][control][sweep],',
+            ';   then 2-byte cells [opcode][operand] - "C#4/16" = pitch/sustain ticks',
+            ';   (pulse reference pitch: the 163 channels read divisor rows 2 octaves',
+            ';   higher, noise takes the opcode as a raw period, and a low nibble of',
+            ';   $C-$F is "rest/16"), "mark" = $FD loop point, "goto cN"/',
+            ';   "loop cN xK" = jump to cell N, "trem dD pP"/"env+n/p" = volume',
+            ';   envelope, "ctrl/sweep/duty/vib/tick" = channel setup, and $FF ends the',
+            ';   stream without consuming its operand byte (the area is packed).',
+        ]
+    lines += [
         '; Layout: code/bank_00_data_layout.md (sections cited per region below).',
         ';',
         '; Byte source: %s' % source_note,
@@ -609,7 +822,7 @@ def asm_text(bank, rows, source_note, table=None):
     by_offset = {parse_int(r['offset']): r for r in rows}
     if len(by_offset) != len(rows):
         raise ValueError('CSV rows carry duplicate offsets - not a full map')
-    for reg in regions(bank):
+    for reg in regs:
         lines.append('')
         lines.append('; --- $%04X-$%04X  %s ---' % (WINDOW_CPU + reg.start,
                                                     WINDOW_CPU + reg.end - 1,
@@ -619,7 +832,7 @@ def asm_text(bank, rows, source_note, table=None):
             off, length = reg.row_span(index)
             r = by_offset[off]
             lines.append(_byte_line(r['tiles'], _row_comment(off, r, length,
-                                                             table)))
+                                                             table, reg)))
     lines.append('')
     return '\n'.join(lines) + '\n'
 
@@ -652,8 +865,8 @@ def _byte_line(tiles, comment):
     return '  .byte %-46s ; %s' % (body, comment)
 
 
-def _row_comment(off, r, length, table):
-    """`; $8040  z000 P00 TL r00  <glyphs>` - address, ownership, terrain preview."""
+def _row_comment(off, r, length, table, reg=None):
+    """`; $8040  z000 P00 TL r00  <glyphs>` - address, ownership, decoded preview."""
     parts = ['$%04X' % (WINDOW_CPU + off)]
     kind = r['kind']
     if kind == 'crop':
@@ -672,6 +885,17 @@ def _row_comment(off, r, length, table):
     elif kind == 'overlay_head':
         parts.append('overlay head')
         parts.append(''.join(terrain_char(t, table) for t in r['tiles']))
+    elif kind in SOUND_KINDS and reg is not None:
+        # not terrain: the stream's own cells are the only meaning here
+        s = reg.sound
+        parts.append('snd $%02X %-8s' % (s['id'], s['ch_name']))
+        base = off - reg.start
+        if s['hdr'] is not None and base == 0:
+            parts.append('hdr %s tick %d'
+                         % (' '.join('$%02X' % b for b in s['hdr']), s['tick']))
+        texts = [text for rel, text in s['cells'] if base <= rel < base + length]
+        if texts:
+            parts.append(' | '.join(texts))
     elif kind == 'unanalysed':
         # not terrain: decoding it as tiles would invent meaning that is not there
         parts.append('%-13s' % 'unanalysed')

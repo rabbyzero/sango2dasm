@@ -22,9 +22,11 @@ sango2dasm/
 │   ├── main.asm                             # Entry point (reset/NMI/IRQ stubs)
 │   └── banks/                               # Bank files: code prg_XX.asm, seed data data_XX.asm
 │       ├── data_00.asm                       # Terrain DATA bank (reg $20, prov 0-7): annotated .byte hex, CSV-linked
+│       ├── data_02.asm                       # Sound DATA bank (reg $22): note descriptors + command streams (tail in $03)
 │       ├── data_03.asm                       # Terrain DATA bank (reg $23, prov 8-13): annotated .byte hex
 │       ├── data_04.asm                       # Terrain DATA bank (reg $24, prov 16-23): annotated .byte hex
 │       ├── data_05.asm                       # Terrain DATA bank (reg $25, prov 14-15,24-29): annotated .byte hex
+│       ├── data_06.asm                       # DATA bank (reg $26): war unit-placement pools + strategy scroll graphics
 │       ├── data_10.asm                       # Seed DATA bank (reg $30): annotated .byte records
 │       └── data_11.asm                       # Seed DATA bank (reg $31): annotated .byte records
 ├── include/
@@ -51,11 +53,17 @@ sango2dasm/
 │   ├── analyze_disaster_pick_rng.py         # All 256 disaster pick RNG indices + same-month Province pair coherence
 │   ├── gen_data_bank_asm.py                 # Render seed banks $10/$11 as annotated .byte asm
 │   ├── verify_data_banks.py                 # Assemble those banks, prove byte-exact, decode edits
+│   ├── gen_data_bank_02_asm.py              # Render sound bank $02 as descriptors + decoded command streams
+│   ├── sound_streams.py                     # Namco-163 command-stream decoder: format, walk, coverage proof
+│   ├── verify_data_bank_02.py               # Assemble bank $02, prove byte-exact, decode diffs by soundID/cell
+│   ├── gen_data_bank_06_asm.py              # Render bank $06 as placement pools / bounds rects / scroll tile + sprite tables
+│   ├── verify_data_bank_06.py               # Assemble bank $06, prove byte-exact, re-derive its geometry from the ROM
 │   ├── dump_bank_00_terrain.py              # Decode/draw the tactical terrain crops of banks $00/$03/$04/$05
 │   ├── terrain_model.py                     # Terrain codec (4 banks, 120 zones): geometry, driver tables, tile->terrain, CSV, asm renderer
 │   ├── gen_terrain_asm.py                   # Render the terrain banks as annotated .byte hex (+ their CSV twins)
 │   ├── verify_terrain_banks.py              # Assemble the terrain banks, prove byte-exact, decode terrain edits
 │   ├── check_terrain_pipeline.py            # Prove ROM <-> CSV <-> asm <-> editor views is lossless (all banks)
+│   ├── terrain_tiles.py                     # Tile byte -> MetaTileData -> CHR (record 1) -> 16x16 RGB cell, for real-tile rendering
 │   ├── data/
 │   │   ├── officer_kanji.tsv                # id -> kanji / 繁體 / 简体 / pinyin map
 │   │   └── province_kanji.tsv               # Province id -> kanji / 繁體 / 简体 / pinyin map
@@ -82,7 +90,7 @@ sango2dasm/
 ├── res/
 │   └── manual_jpn/                          # Scanned pages of the original user manual (37 JPGs)
 ├── editor/                                  # Standalone GUI project: tactical map editor (tkinter)
-│   ├── tactical_map_editor.py               # Paint any of the 30 provinces, save CSVs, drive gen/verify tools
+│   ├── tactical_map_editor.py               # Paint any of the 30 provinces (terrain-class or real CHR tiles), save CSVs, drive gen/verify tools
 │   └── README.md                            # Usage, views, pipeline link, terrain semantics
 └── build/                                   # Build output
     ├── sango2.nes                           # Built ROM
@@ -111,6 +119,10 @@ Path: `/home/zero/.local/bin/` (added to PATH in `.bashrc`/`.zshrc`)
 | `make databanks` | Re-render the annotated seed-data banks `$10`/`$11` from the ROM, then verify |
 | `make databanks-csv` | Re-render them from the decoded `docs/*.csv` (the CSV editing path) |
 | `make verifydata` | Assemble banks `$10`/`$11` standalone and prove byte-exactness |
+| `make databank02` | Re-render the sound/note bank `$02` from the ROM (descriptors + decoded streams), then verify |
+| `make verifydata02` | Assemble bank `$02` standalone, prove byte-exactness and re-walk the stream area |
+| `make databank06` | Re-render war-placement / strategy-scroll data bank `$06` from the ROM, then verify |
+| `make verifydata06` | Assemble bank `$06` standalone, prove byte-exactness and re-derive its region geometry |
 | `make terrain` | Re-render the four terrain banks `$00/$03/$04/$05` (30 provinces) as hex + `docs/terrain_bank_XX.csv` from the ROM, then verify |
 | `make terrain-csv` | Re-render them from the edited terrain CSVs (the CSV editing path) |
 | `make verifyterrain` | Assemble the terrain banks standalone and prove byte-exactness |
@@ -393,6 +405,105 @@ Byte-exact location evidence: [code/initial_data_tables.md](./code/initial_data_
 `asm/banks/data_10.asm` renders both province tables as labelled `.byte` records
 (`ProvinceRecord_<NAME>` with a decoded summary per province, plus
 `ProvinceName_<NAME>`), verified byte-exact by `make verifydata`.
+
+## Sound Data (Banks $02 + $03 Head)
+
+`make databank02` renders `asm/banks/data_02.asm`; `make verifydata02` (or
+`python tools/verify_data_bank_02.py`) assembles it standalone, proves it is
+byte-exact against `rom/prg/prg_02.bin`, re-walks the stream area and describes
+any diff as *soundID / stream address / cell index / opcode-or-operand*.
+`python tools/sound_streams.py --validate` is the coverage proof, `--dump 08 98`
+prints a stream as annotated text. Streams are labelled `SoundStream_B02_SndXX`;
+the bank $03 half is decoded the same way in `data_03.asm` (`SoundStream_B03_*`,
+owned by `tools/terrain_model.py` / `make terrain`).
+
+**Access path.** `B1F_SoundNotePlayer` ($E609) is the only reader of the
+descriptor table: `LDY #$22 ; JSR SwitchBank8_B`, then it reads `$8000+soundID*4`
+and copies it into a sound-RAM track block at `$0700+X` (stride $16, 11 tracks).
+The per-frame driver is `B0E/B0F BattleAnimSoundEngine` ($D8D4) with
+`BattleSoundChannelProc` ($DC59); it maps **two** windows - bank $02 at $8000 and
+**bank $03 at $A000** ($23 | $C0 -> `NAMCO_PRG_A000`) - so stream pointers with
+high byte $A0-$A8 read bank $03. The wavetable is not in these banks: it is
+`B1F_WavetableInitData` ($E6A6, bank $1F), uploaded by `SoundInit` ($E590).
+
+**Header entries (184 rows, $8000-$82DF).** The last 2 bytes of every entry are
+one 16-bit stream pointer (b2 = low, b3 stored at `$0703,X` as b3 + $40 = high).
+b0 = sound-RAM track slot (X = b0, stride $16, 11 tracks at `$0700`; `$0700,X <- $00`
+arms the track, `$FF` is the idle sentinel), b1 = hardware channel 0-7 (0-3 APU
+pulse1/pulse2/triangle/noise, 4-7 Namco-163); on a retrigger of a busy track the
+player mutes that track's previous APU channel via `$4015` (SoundChannelTable
+$E667). Entry $B7's pointer ($4010) is never followed - its 4 bytes at $82DC are
+the note that 17 pointers target (so `SoundCommandStreams` starts there and its
+`$FF` terminator lands at $82E0), which is how the `SoundWrapper0..F` fall-through
+chain leaves individual tracks of a fanfare silent.
+
+**Stream.** 4-byte record header (tick divisor, duty source, channel control byte
+= volume/env/duty, sweep byte) then 2-byte command cells `[opcode][operand]`:
+`<$A0` pitch (low nibble = semitone over `NoteFreqTable` row 1 = F1..E2, bits4-6 =
+octaves up, `$C-$F` = rest, operand = sustain in ticks), `$A0/$A1/$A2/$A3/$A4`
+control/sweep/duty/vibrato-on/off, `$B0 nn` goto cell nn, `$Bn nn` that jump n
+more times over a `$FD` marker, `$Cn nn` tremolo, `$Dn/$En nn` volume LFO,
+`$AD` reloc (unused by this ROM), `$FF` end. `$FF`'s operand byte is **not**
+consumed, so the next stream starts on the very next byte: 166 streams pack
+$82DC-$A965 with zero gaps and zero unknown opcodes (3136 pitch cells; song
+lengths quantise to 14-frame ticks, the duel music to 12).
+
+Note names in the generated comments are the pulse reference; the triangle
+channel sounds 3 octaves higher and the 163 channels use `NoteFreqTable`'s
+separate divisor rows (index base +$30).
+
+**Bank $03.** Offsets $0000-$0965 are sound data (the tail of the stream area,
+reached at $A000 while the driver runs) - which is why that bank's terrain ribbon
+only starts at $89A6. `tools/terrain_model.py` owns that boundary and labels the
+area `sound_stream`/`sound_tail`; the 64 bytes at $0966-$09A5 in front of the
+first crop are its NES attribute head, the same head every crop carries
+(`code/bank_00_data_layout.md` §5a/§7).
+
+## War Placement + Strategy Scroll Data (Bank $06)
+
+`make databank06` renders `asm/banks/data_06.asm`; `make verifydata06` (or
+`python tools/verify_data_bank_06.py`) assembles it standalone, proves it
+byte-exact against `rom/prg/prg_06.bin`, re-derives the region geometry from the
+ROM (pointer runs, per-scene record counts against the bank $10/$11 selectors,
+the blob chains, the filler tail) and fails if the on-disk file has drifted from
+what the generator renders.
+
+**Access path.** The bank is only ever selected into the `$8000-$9FFF` window
+(`LDY #$26 ; JSR B1F_SwitchBank8_A/B`), from eight sites in three code banks:
+`prg_08_09` war AI placement (`GetOrderedDestination` $A1E5,
+`@SetupDefenderRoster` $B2E4, `@SetupAttackerRoster` $B343), `prg_0c_0d`
+army-deploy (`@BuildOfficerList` $C3DC/$C42B, `@CheckBoundsForPosition`
+$C455/$C495) and `prg_17_18` strategy scroll screens
+(`StrategyCommandDispatch` $D693, `ScrollPanel_LoadRow` $DC13,
+`RenderDispatchSprite` $DBF3).
+
+**Placement geometry ($8000-$95E5).** Four parallel 30-entry `.word` tables
+keyed by `war_province_idx` ($050E) - the row index into bank $10's
+`ProvinceAdjacencyTable` $9D72: attack pools ($8000, 91 x 34 B), defense pools
+($8C52, 53 x 32 B), and the matching city-bounds rectangle tables ($932E /
+$94D6, 91/53 x 4 B of `[row_min,col_min,row_max,col_max]`). Within a province the
+*side type* selects the record: `TacticalAttackSideTypeTable` (bank $10 $9E62,
+0-$03) scaled by 34, `TacticalDefenseSideTypeTable` (bank $11 $9AB4, 0-$01) scaled
+by 32 - both keyed on the adjacency *slot* holding the target province, so the
+choice is per approach route. Each pool is an entry **anchor** `(row,col)` then 15
+**unit tiles**; `@Setup*Roster` seeds four per-slot read cursors
+(`@AttackerCursorSeeds` $02/$0C/$16/$1C, `@DefenderCursorSeeds` $02/$08/$0C/$14)
+which split those 15 pairs 5/5/3/2 and 3/2/4/6, each unit consuming one pair and
+advancing its cursor by 2 into `unit_coord_y/x` ($0614/$0600).
+`@CheckBoundsForPosition` uses the rectangle to gate which map tile the army-deploy
+command may select. Pool rows skip 15 (observed $01-$0E then $10-$14), the same
+row-15 quirk the terrain codec carries.
+
+**Strategy scroll graphics ($95E6-$9FBB).** Three 392-byte tile blocks = 14 rows
+x 28 tiles, one per scroll phase ($0541 = 1/2/3, the three `ScrollPanel_LoadRow`
+call sites), streamed to PPU `$2082` - nametable $2000 rows 4-17, columns 2-29;
+the attributes for that area come from the *local* `ScrollPanel_RowTemplate_*`
+records in bank $17, not from this bank. Then three OAM sprite-blob tables (21 /
+4 / 6 entries, 1-based) in the shared `[y_off,tile,attr,x]` + `$80` terminator
+format consumed by `B1F_SpriteOamWriterSimple` ($F1AD), with writer bases X $10 /
+Y $1F forced by `RenderDispatchSprite`. `DispatchBankTable` ($D755, bank $17) that
+selects blob indexes 9-21 is a pass *sequence*, not a bank or command lookup.
+$9FBB-$9FFF is unused `$FF` filler.
 
 ## Game Manual Knowledge Base
 

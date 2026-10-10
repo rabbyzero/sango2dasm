@@ -11,6 +11,22 @@
 ; GetTileTerrain ($B6EF) reads them through TileBankTable + the ($A8) province
 ; zone table; 4 crops form one province 32x20 tactical map (15 content rows from
 ; the upper crops, 5 from the lower); Battle Mode re-reads the same bytes.
+;
+; Also: $8000-$8965 = 20 Namco-163/APU sound command streams (soundIDs
+;   $A3-$B6), which is why this bank's terrain ribbon starts at $89A6
+;   instead of $8040. While sound plays, @BattleAnimSoundEngine ($D8D4)
+;   maps it at $A000-$BFFF (LDA #$23 / STA $00E2 / ORA #$C0 / STA $E800)
+;   next to bank $02 at $8000, and the SoundNoteHeaderTable descriptor of
+;   bank $02 points straight at these bytes: stream = (b3+$40)<<8 | b2.
+;   Layout: code/bank_00_data_layout.md §10, decoder: tools/sound_streams.py
+; Sound cell legend: 4-byte stream header [tick][duty][control][sweep],
+;   then 2-byte cells [opcode][operand] - "C#4/16" = pitch/sustain ticks
+;   (pulse reference pitch: the 163 channels read divisor rows 2 octaves
+;   higher, noise takes the opcode as a raw period, and a low nibble of
+;   $C-$F is "rest/16"), "mark" = $FD loop point, "goto cN"/
+;   "loop cN xK" = jump to cell N, "trem dD pP"/"env+n/p" = volume
+;   envelope, "ctrl/sweep/duty/vib/tick" = channel setup, and $FF ends the
+;   stream without consuming its operand byte (the area is packed).
 ; Layout: code/bank_00_data_layout.md (sections cited per region below).
 ;
 ; Byte source: rom/prg/prg_03.bin (stock ROM, read-only reference)
@@ -21,163 +37,232 @@
 
 .segment "CODE_BANK03"
 
-; --- $8000-$89A5  unanalysed data (not terrain) - kept as hex, editable with care ---
-TerrainOther_B03_0000:
-  .byte $1F, $0C, $FD, $FE, $17, $08, $B2, $06, $17, $18, $17, $18, $17, $08, $B2, $0A ; $8000  unanalysed     (16 bytes, no zone points here)
-  .byte $17, $18, $17, $08, $B2, $0D, $18, $08, $B5, $0F, $B1, $00, $17, $18, $FF, $00 ; $8010  unanalysed     (16 bytes, no zone points here)
-  .byte $00, $1C, $00, $C1, $10, $FD, $FE, $0C, $08, $B2, $04, $0C, $18, $0C, $18, $0C ; $8020  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $B2, $08, $0C, $18, $0C, $08, $B8, $0B, $B1, $00, $C1, $20, $0C, $20, $FF ; $8030  unanalysed     (16 bytes, no zone points here)
-  .byte $00, $01, $1D, $00, $C1, $16, $A3, $20, $FD, $FE, $12, $08, $B2, $05, $12, $18 ; $8040  unanalysed     (16 bytes, no zone points here)
-  .byte $12, $18, $12, $08, $B2, $09, $12, $18, $12, $08, $B2, $0C, $13, $08, $B5, $0E ; $8050  unanalysed     (16 bytes, no zone points here)
-  .byte $B1, $00, $12, $18, $FF, $00, $01, $1F, $00, $A3, $21, $C1, $30, $37, $18, $39 ; $8060  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $38, $02, $37, $02, $36, $02, $35, $02, $34, $18, $32, $0C, $34, $0C, $30 ; $8070  unanalysed     (16 bytes, no zone points here)
-  .byte $0C, $29, $0C, $30, $0C, $32, $0C, $34, $0C, $32, $04, $34, $04, $32, $04, $30 ; $8080  unanalysed     (16 bytes, no zone points here)
-  .byte $0C, $29, $0C, $30, $30, $FF, $00, $01, $18, $00, $A3, $50, $C1, $30, $1F, $0C ; $8090  unanalysed     (16 bytes, no zone points here)
-  .byte $37, $18, $39, $10, $38, $02, $37, $02, $36, $02, $35, $02, $34, $18, $32, $0C ; $80A0  unanalysed     (16 bytes, no zone points here)
-  .byte $34, $0C, $30, $0C, $29, $0C, $30, $0C, $32, $0C, $34, $0C, $32, $04, $34, $04 ; $80B0  unanalysed     (16 bytes, no zone points here)
-  .byte $32, $04, $30, $0C, $29, $0C, $30, $30, $FF, $00, $01, $1D, $00, $A3, $21, $C1 ; $80C0  unanalysed     (16 bytes, no zone points here)
-  .byte $30, $32, $18, $34, $10, $33, $02, $32, $02, $31, $02, $30, $02, $2B, $18, $29 ; $80D0  unanalysed     (16 bytes, no zone points here)
-  .byte $0C, $2B, $0C, $27, $0C, $24, $0C, $27, $0C, $29, $0C, $2B, $0C, $29, $04, $2B ; $80E0  unanalysed     (16 bytes, no zone points here)
-  .byte $04, $29, $04, $27, $0C, $25, $0C, $27, $30, $FF, $00, $01, $1F, $00, $C1, $30 ; $80F0  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $0C, $20, $0C, $05, $0C, $15, $0C, $07, $0C, $17, $0C, $05, $0C, $15, $0C ; $8100  unanalysed     (16 bytes, no zone points here)
-  .byte $04, $0C, $14, $0C, $05, $0C, $15, $0C, $07, $0C, $06, $0C, $05, $0C, $02, $0C ; $8110  unanalysed     (16 bytes, no zone points here)
-  .byte $00, $30, $FF, $00, $01, $1F, $00, $C1, $15, $A3, $21, $1F, $20, $21, $10, $23 ; $8120  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $C1, $70, $1A, $50, $C1, $15, $18, $10, $16, $10, $18, $10, $1A, $10, $C1 ; $8130  unanalysed     (16 bytes, no zone points here)
-  .byte $50, $21, $40, $B1, $09, $C1, $15, $18, $10, $16, $10, $18, $10, $1A, $20, $C1 ; $8140  unanalysed     (16 bytes, no zone points here)
-  .byte $30, $31, $20, $33, $20, $C1, $15, $31, $10, $33, $10, $C1, $30, $2A, $20, $C1 ; $8150  unanalysed     (16 bytes, no zone points here)
-  .byte $15, $28, $10, $2A, $10, $23, $20, $C1, $7F, $23, $60, $FD, $FE, $A0, $18, $C9 ; $8160  unanalysed     (16 bytes, no zone points here)
-  .byte $03, $41, $08, $43, $08, $3A, $10, $3A, $08, $41, $08, $38, $10, $38, $08, $3A ; $8170  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $36, $10, $33, $08, $36, $08, $31, $10, $B1, $27, $A0, $1F, $C9, $0A, $23 ; $8180  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $26, $08, $23, $08, $26, $10, $28, $10, $2A, $10, $31, $08, $2A, $08, $31 ; $8190  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $33, $10, $36, $10, $38, $08, $36, $08, $33, $08, $36, $08, $33, $08, $31 ; $81A0  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $33, $08, $31, $08, $2A, $08, $28, $08, $2A, $08, $28, $08, $26, $08, $21 ; $81B0  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $B1, $36, $C2, $08, $33, $60, $38, $10, $3A, $10, $38, $50, $36, $10, $C2 ; $81C0  unanalysed     (16 bytes, no zone points here)
-  .byte $02, $33, $05, $36, $05, $33, $06, $C2, $08, $31, $10, $B2, $51, $33, $60, $38 ; $81D0  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $3A, $10, $41, $30, $3A, $10, $C2, $02, $38, $05, $3A, $05, $38, $06, $C2 ; $81E0  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $36, $10, $33, $10, $31, $10, $B0, $25, $FF, $00, $01, $18, $00, $C1, $15 ; $81F0  unanalysed     (16 bytes, no zone points here)
-  .byte $A3, $50, $1F, $2C, $21, $10, $23, $10, $C1, $70, $1A, $50, $C1, $15, $18, $10 ; $8200  unanalysed     (16 bytes, no zone points here)
-  .byte $16, $10, $18, $10, $1A, $10, $C1, $50, $21, $40, $B1, $09, $C1, $15, $18, $10 ; $8210  unanalysed     (16 bytes, no zone points here)
-  .byte $16, $10, $18, $10, $1A, $20, $C1, $30, $31, $20, $33, $20, $C1, $15, $31, $10 ; $8220  unanalysed     (16 bytes, no zone points here)
-  .byte $33, $10, $C1, $30, $2A, $20, $C1, $15, $28, $10, $2A, $10, $23, $20, $C1, $7F ; $8230  unanalysed     (16 bytes, no zone points here)
-  .byte $23, $59, $FD, $FE, $A0, $15, $C9, $03, $41, $08, $43, $08, $3A, $10, $3A, $08 ; $8240  unanalysed     (16 bytes, no zone points here)
-  .byte $41, $08, $38, $10, $38, $08, $3A, $08, $36, $10, $33, $08, $36, $08, $31, $10 ; $8250  unanalysed     (16 bytes, no zone points here)
-  .byte $B1, $27, $A0, $18, $C9, $0A, $23, $10, $26, $08, $23, $08, $26, $10, $28, $10 ; $8260  unanalysed     (16 bytes, no zone points here)
-  .byte $2A, $10, $31, $08, $2A, $08, $31, $10, $33, $10, $36, $10, $38, $08, $36, $08 ; $8270  unanalysed     (16 bytes, no zone points here)
-  .byte $33, $08, $36, $08, $33, $08, $31, $08, $33, $08, $31, $08, $2A, $08, $28, $08 ; $8280  unanalysed     (16 bytes, no zone points here)
-  .byte $2A, $08, $28, $08, $26, $08, $21, $08, $B1, $36, $C2, $08, $33, $60, $38, $10 ; $8290  unanalysed     (16 bytes, no zone points here)
-  .byte $3A, $10, $38, $50, $36, $10, $C2, $02, $33, $05, $36, $05, $33, $06, $C2, $08 ; $82A0  unanalysed     (16 bytes, no zone points here)
-  .byte $31, $10, $B2, $51, $33, $60, $38, $10, $3A, $10, $41, $30, $3A, $10, $C2, $02 ; $82B0  unanalysed     (16 bytes, no zone points here)
-  .byte $38, $05, $3A, $05, $38, $06, $C2, $08, $36, $10, $33, $10, $31, $10, $B0, $25 ; $82C0  unanalysed     (16 bytes, no zone points here)
-  .byte $FF, $00, $00, $1F, $00, $C9, $10, $0D, $F0, $C9, $08, $0D, $10, $C9, $10, $0D ; $82D0  unanalysed     (16 bytes, no zone points here)
-  .byte $70, $C9, $08, $0D, $10, $C9, $10, $0D, $48, $1F, $18, $C1, $1A, $08, $20, $0A ; $82E0  unanalysed     (16 bytes, no zone points here)
-  .byte $20, $C1, $0A, $0A, $10, $0A, $10, $C1, $1A, $B1, $0F, $0A, $20, $C1, $70, $0A ; $82F0  unanalysed     (16 bytes, no zone points here)
-  .byte $60, $FD, $FE, $C9, $0A, $0E, $10, $03, $10, $07, $10, $03, $08, $03, $08, $0E ; $8300  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $0E, $10, $03, $10, $07, $10, $B0, $00, $FF, $00, $01, $1F, $00, $EF, $18 ; $8310  unanalysed     (16 bytes, no zone points here)
-  .byte $06, $F0, $E0, $FE, $A0, $1F, $06, $08, $1F, $08, $EF, $0C, $06, $70, $E0, $FE ; $8320  unanalysed     (16 bytes, no zone points here)
-  .byte $A0, $1F, $06, $08, $1F, $08, $EF, $0C, $06, $50, $E0, $FE, $A0, $1F, $C1, $30 ; $8330  unanalysed     (16 bytes, no zone points here)
-  .byte $1F, $10, $06, $20, $13, $20, $C1, $15, $13, $10, $13, $10, $C1, $30, $11, $20 ; $8340  unanalysed     (16 bytes, no zone points here)
-  .byte $C1, $15, $11, $10, $11, $10, $10, $20, $C1, $7F, $0B, $60, $FD, $FE, $C1, $1A ; $8350  unanalysed     (16 bytes, no zone points here)
-  .byte $06, $08, $1F, $08, $06, $10, $B2, $23, $06, $08, $1F, $08, $01, $10, $B1, $00 ; $8360  unanalysed     (16 bytes, no zone points here)
-  .byte $FD, $FE, $03, $08, $1F, $08, $03, $10, $B1, $2C, $06, $08, $1F, $08, $06, $10 ; $8370  unanalysed     (16 bytes, no zone points here)
-  .byte $B1, $30, $08, $08, $1F, $08, $08, $10, $B1, $34, $0A, $08, $1F, $08, $0A, $10 ; $8380  unanalysed     (16 bytes, no zone points here)
-  .byte $B1, $38, $B1, $00, $FD, $FE, $C1, $0A, $0B, $10, $C1, $1A, $0B, $20, $C1, $0A ; $8390  unanalysed     (16 bytes, no zone points here)
-  .byte $0B, $10, $B1, $3F, $11, $10, $C1, $1A, $11, $20, $C1, $0A, $11, $10, $B1, $45 ; $83A0  unanalysed     (16 bytes, no zone points here)
-  .byte $B1, $00, $10, $10, $C1, $1A, $10, $20, $C1, $0A, $10, $10, $B1, $4C, $0B, $10 ; $83B0  unanalysed     (16 bytes, no zone points here)
-  .byte $C1, $1A, $0B, $20, $C1, $0A, $0B, $10, $B1, $52, $11, $10, $C1, $1A, $11, $20 ; $83C0  unanalysed     (16 bytes, no zone points here)
-  .byte $C1, $0A, $11, $10, $B3, $58, $B0, $21, $FF, $00, $01, $17, $00, $C2, $02, $31 ; $83D0  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $33, $08, $31, $08, $2A, $08, $BD, $03, $31, $08, $C1, $30, $A0, $1C, $1F ; $83E0  unanalysed     (16 bytes, no zone points here)
-  .byte $18, $2A, $20, $2A, $20, $C1, $15, $2A, $10, $2A, $10, $C1, $30, $26, $20, $C1 ; $83F0  unanalysed     (16 bytes, no zone points here)
-  .byte $15, $26, $10, $26, $10, $20, $20, $C1, $7F, $1B, $60, $C9, $0A, $1F, $80, $1F ; $8400  unanalysed     (16 bytes, no zone points here)
-  .byte $80, $1A, $10, $21, $08, $1A, $08, $21, $10, $23, $10, $23, $10, $26, $08, $23 ; $8410  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $26, $10, $28, $10, $31, $10, $33, $08, $31, $08, $2A, $08, $31, $08, $2A ; $8420  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $28, $08, $2A, $08, $28, $08, $25, $08, $23, $08, $25, $08, $23, $08, $21 ; $8430  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $1A, $08, $B1, $1C, $FD, $FE, $A2, $00, $C1, $0A, $23, $10, $C1, $1A, $23 ; $8440  unanalysed     (16 bytes, no zone points here)
-  .byte $20, $C1, $0A, $23, $10, $B1, $39, $25, $10, $C1, $1A, $25, $20, $C1, $0A, $25 ; $8450  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $B1, $3F, $B1, $00, $23, $10, $C1, $1A, $23, $20, $C1, $0A, $23, $10, $B3 ; $8460  unanalysed     (16 bytes, no zone points here)
-  .byte $46, $25, $10, $C1, $1A, $25, $20, $C1, $0A, $25, $10, $B3, $4C, $A2, $01, $B0 ; $8470  unanalysed     (16 bytes, no zone points here)
-  .byte $19, $FF, $00, $01, $16, $00, $C2, $02, $26, $08, $28, $08, $26, $08, $23, $08 ; $8480  unanalysed     (16 bytes, no zone points here)
-  .byte $BD, $03, $26, $08, $C1, $30, $A0, $1C, $1F, $18, $26, $20, $26, $20, $C1, $15 ; $8490  unanalysed     (16 bytes, no zone points here)
-  .byte $26, $10, $26, $10, $C1, $30, $23, $20, $C1, $15, $23, $10, $23, $10, $18, $20 ; $84A0  unanalysed     (16 bytes, no zone points here)
-  .byte $C1, $7F, $18, $60, $A0, $10, $00, $80, $B5, $1A, $FD, $FE, $A2, $00, $C1, $0A ; $84B0  unanalysed     (16 bytes, no zone points here)
-  .byte $A0, $1C, $1A, $10, $C1, $1A, $1A, $20, $C1, $0A, $1A, $10, $BB, $20, $18, $10 ; $84C0  unanalysed     (16 bytes, no zone points here)
-  .byte $C1, $1A, $18, $20, $C1, $0A, $18, $10, $B3, $26, $A2, $01, $B0, $19, $FF, $00 ; $84D0  unanalysed     (16 bytes, no zone points here)
-  .byte $01, $12, $00, $C9, $03, $A3, $20, $DF, $16, $25, $09, $27, $09, $2A, $09, $27 ; $84E0  unanalysed     (16 bytes, no zone points here)
-  .byte $09, $30, $09, $2A, $09, $35, $09, $33, $09, $B3, $05, $D0, $FE, $A0, $1F, $C2 ; $84F0  unanalysed     (16 bytes, no zone points here)
-  .byte $06, $20, $24, $23, $24, $C2, $02, $25, $06, $27, $06, $25, $06, $C2, $06, $23 ; $8500  unanalysed     (16 bytes, no zone points here)
-  .byte $09, $1F, $09, $20, $09, $1F, $09, $1A, $09, $1F, $09, $20, $6C, $1F, $24, $B1 ; $8510  unanalysed     (16 bytes, no zone points here)
-  .byte $11, $35, $48, $33, $24, $35, $24, $37, $12, $3A, $12, $43, $12, $42, $12, $40 ; $8520  unanalysed     (16 bytes, no zone points here)
-  .byte $24, $3A, $24, $EF, $12, $40, $90, $40, $90, $E0, $FE, $FD, $FE, $A0, $1C, $30 ; $8530  unanalysed     (16 bytes, no zone points here)
-  .byte $12, $33, $12, $35, $12, $33, $09, $35, $09, $37, $12, $3A, $24, $37, $09, $3A ; $8540  unanalysed     (16 bytes, no zone points here)
-  .byte $09, $40, $12, $3A, $12, $C2, $02, $37, $06, $3A, $06, $37, $06, $C2, $06, $35 ; $8550  unanalysed     (16 bytes, no zone points here)
-  .byte $12, $37, $36, $1F, $12, $30, $12, $33, $12, $35, $12, $33, $09, $35, $09, $37 ; $8560  unanalysed     (16 bytes, no zone points here)
-  .byte $12, $3A, $24, $37, $09, $3A, $09, $40, $12, $3A, $12, $C2, $02, $37, $06, $3A ; $8570  unanalysed     (16 bytes, no zone points here)
-  .byte $06, $37, $06, $C2, $06, $35, $12, $33, $36, $1F, $12, $35, $12, $37, $12, $C2 ; $8580  unanalysed     (16 bytes, no zone points here)
-  .byte $02, $35, $06, $37, $06, $35, $06, $C2, $06, $33, $12, $37, $12, $3A, $24, $37 ; $8590  unanalysed     (16 bytes, no zone points here)
-  .byte $09, $3A, $09, $40, $12, $3A, $12, $43, $09, $42, $09, $40, $09, $3A, $09, $37 ; $85A0  unanalysed     (16 bytes, no zone points here)
-  .byte $36, $1F, $12, $35, $12, $37, $12, $C2, $02, $35, $06, $37, $06, $35, $06, $C2 ; $85B0  unanalysed     (16 bytes, no zone points here)
-  .byte $06, $33, $12, $37, $12, $3A, $24, $37, $09, $33, $09, $35, $12, $C2, $02, $37 ; $85C0  unanalysed     (16 bytes, no zone points here)
-  .byte $06, $35, $06, $33, $06, $C2, $06, $30, $12, $2A, $12, $30, $36, $FE, $FE, $1F ; $85D0  unanalysed     (16 bytes, no zone points here)
-  .byte $12, $35, $24, $C1, $18, $33, $12, $35, $12, $37, $12, $3A, $12, $43, $12, $42 ; $85E0  unanalysed     (16 bytes, no zone points here)
-  .byte $12, $40, $24, $C1, $70, $30, $FC, $FF, $00, $01, $10, $00, $C9, $03, $A3, $50 ; $85F0  unanalysed     (16 bytes, no zone points here)
-  .byte $1F, $09, $D8, $24, $25, $09, $27, $09, $2A, $09, $27, $09, $30, $09, $2A, $09 ; $8600  unanalysed     (16 bytes, no zone points here)
-  .byte $35, $09, $33, $09, $B3, $06, $D0, $FE, $A0, $18, $C2, $06, $20, $24, $23, $24 ; $8610  unanalysed     (16 bytes, no zone points here)
-  .byte $C2, $02, $25, $06, $27, $06, $25, $06, $C2, $06, $23, $09, $1F, $09, $20, $09 ; $8620  unanalysed     (16 bytes, no zone points here)
-  .byte $1F, $09, $1A, $09, $1F, $09, $20, $6C, $1F, $24, $B1, $12, $1F, $09, $35, $48 ; $8630  unanalysed     (16 bytes, no zone points here)
-  .byte $33, $24, $35, $24, $37, $12, $3A, $12, $43, $12, $42, $12, $40, $24, $3A, $24 ; $8640  unanalysed     (16 bytes, no zone points here)
-  .byte $EF, $24, $40, $90, $40, $87, $E0, $FE, $FD, $FE, $A0, $17, $30, $12, $33, $12 ; $8650  unanalysed     (16 bytes, no zone points here)
-  .byte $35, $12, $33, $09, $35, $09, $37, $12, $3A, $24, $37, $09, $3A, $09, $40, $12 ; $8660  unanalysed     (16 bytes, no zone points here)
-  .byte $3A, $12, $C2, $02, $37, $06, $3A, $06, $37, $06, $C2, $06, $35, $12, $37, $36 ; $8670  unanalysed     (16 bytes, no zone points here)
-  .byte $1F, $12, $30, $12, $33, $12, $35, $12, $33, $09, $35, $09, $37, $12, $3A, $24 ; $8680  unanalysed     (16 bytes, no zone points here)
-  .byte $37, $09, $3A, $09, $40, $12, $3A, $12, $C2, $02, $37, $06, $3A, $06, $37, $06 ; $8690  unanalysed     (16 bytes, no zone points here)
-  .byte $C2, $06, $35, $12, $33, $36, $1F, $12, $35, $12, $37, $12, $C2, $02, $35, $06 ; $86A0  unanalysed     (16 bytes, no zone points here)
-  .byte $37, $06, $35, $06, $C2, $06, $33, $12, $37, $12, $3A, $24, $37, $09, $3A, $09 ; $86B0  unanalysed     (16 bytes, no zone points here)
-  .byte $40, $12, $3A, $12, $43, $09, $42, $09, $40, $09, $3A, $09, $37, $36, $1F, $12 ; $86C0  unanalysed     (16 bytes, no zone points here)
-  .byte $35, $12, $37, $12, $C2, $02, $35, $06, $37, $06, $35, $06, $C2, $06, $33, $12 ; $86D0  unanalysed     (16 bytes, no zone points here)
-  .byte $37, $12, $3A, $24, $37, $09, $33, $09, $35, $12, $C2, $02, $37, $06, $35, $06 ; $86E0  unanalysed     (16 bytes, no zone points here)
-  .byte $33, $06, $C2, $06, $30, $12, $2A, $12, $30, $36, $FE, $FE, $1F, $12, $35, $24 ; $86F0  unanalysed     (16 bytes, no zone points here)
-  .byte $C1, $18, $33, $12, $35, $12, $37, $12, $3A, $12, $43, $12, $42, $12, $40, $24 ; $8700  unanalysed     (16 bytes, no zone points here)
-  .byte $C1, $60, $30, $FC, $FF, $00, $00, $1C, $00, $C1, $7F, $1F, $90, $1F, $90, $FD ; $8710  unanalysed     (16 bytes, no zone points here)
-  .byte $FE, $09, $90, $09, $5A, $C1, $10, $0E, $12, $B2, $09, $C1, $7F, $B1, $00, $0A ; $8720  unanalysed     (16 bytes, no zone points here)
-  .byte $90, $C1, $30, $0A, $48, $C1, $2A, $0A, $24, $0A, $24, $C1, $7F, $09, $90, $A0 ; $8730  unanalysed     (16 bytes, no zone points here)
-  .byte $18, $0A, $90, $A0, $1F, $C9, $02, $03, $12, $03, $12, $C1, $30, $02, $24, $BE ; $8740  unanalysed     (16 bytes, no zone points here)
-  .byte $18, $C9, $02, $03, $12, $03, $12, $C1, $18, $0A, $12, $0A, $12, $C1, $2A, $0D ; $8750  unanalysed     (16 bytes, no zone points here)
-  .byte $24, $C1, $10, $0D, $12, $0D, $12, $0A, $12, $B3, $29, $0A, $24, $C1, $70, $0E ; $8760  unanalysed     (16 bytes, no zone points here)
-  .byte $6C, $FF, $00, $00, $10, $00, $D8, $24, $40, $90, $40, $90, $D0, $FE, $A0, $1C ; $8770  unanalysed     (16 bytes, no zone points here)
-  .byte $A2, $01, $C2, $06, $17, $24, $1A, $24, $C2, $02, $20, $06, $22, $06, $20, $06 ; $8780  unanalysed     (16 bytes, no zone points here)
-  .byte $C2, $02, $1A, $09, $1F, $09, $17, $09, $1F, $09, $15, $09, $1F, $09, $17, $6C ; $8790  unanalysed     (16 bytes, no zone points here)
-  .byte $1F, $24, $B1, $09, $A0, $1A, $C2, $02, $35, $09, $37, $09, $35, $09, $33, $09 ; $87A0  unanalysed     (16 bytes, no zone points here)
-  .byte $B3, $1B, $37, $09, $3A, $09, $37, $09, $35, $09, $B3, $20, $C2, $0A, $A0, $1C ; $87B0  unanalysed     (16 bytes, no zone points here)
-  .byte $A2, $00, $40, $12, $3A, $12, $C2, $02, $37, $06, $3A, $06, $37, $06, $C2, $0A ; $87C0  unanalysed     (16 bytes, no zone points here)
-  .byte $35, $12, $37, $12, $35, $12, $C2, $02, $33, $06, $35, $06, $33, $06, $C2, $0A ; $87D0  unanalysed     (16 bytes, no zone points here)
-  .byte $2A, $12, $EF, $0C, $30, $90, $FF, $00, $01, $13, $00, $C9, $03, $1F, $90, $FE ; $87E0  unanalysed     (16 bytes, no zone points here)
-  .byte $FE, $D6, $09, $20, $09, $22, $09, $25, $09, $22, $09, $27, $09, $25, $09, $30 ; $87F0  unanalysed     (16 bytes, no zone points here)
-  .byte $09, $2A, $09, $B1, $06, $D0, $FE, $A0, $1F, $C0, $FE, $00, $D8, $C1, $10, $00 ; $8800  unanalysed     (16 bytes, no zone points here)
-  .byte $12, $07, $12, $07, $12, $0A, $12, $B1, $11, $C0, $FE, $05, $7E, $C1, $10, $05 ; $8810  unanalysed     (16 bytes, no zone points here)
-  .byte $12, $C0, $FE, $07, $36, $C1, $10, $07, $12, $C1, $40, $07, $24, $07, $24, $C0 ; $8820  unanalysed     (16 bytes, no zone points here)
-  .byte $FE, $00, $5A, $C1, $10, $00, $12, $C1, $40, $07, $24, $C0, $FE, $00, $7E, $C1 ; $8830  unanalysed     (16 bytes, no zone points here)
-  .byte $10, $00, $12, $C1, $50, $10, $48, $0A, $48, $C1, $30, $08, $24, $0A, $24, $C1 ; $8840  unanalysed     (16 bytes, no zone points here)
-  .byte $50, $10, $48, $10, $48, $0A, $48, $C1, $30, $08, $24, $0A, $24, $C1, $50, $03 ; $8850  unanalysed     (16 bytes, no zone points here)
-  .byte $48, $05, $48, $07, $48, $C1, $30, $08, $24, $0A, $24, $C1, $50, $13, $48, $05 ; $8860  unanalysed     (16 bytes, no zone points here)
-  .byte $48, $07, $48, $FE, $FE, $08, $24, $0A, $24, $C1, $50, $00, $48, $C0, $FE, $05 ; $8870  unanalysed     (16 bytes, no zone points here)
-  .byte $48, $C1, $30, $07, $24, $07, $24, $C1, $18, $00, $24, $C1, $70, $00, $FC, $FF ; $8880  unanalysed     (16 bytes, no zone points here)
-  .byte $00, $00, $10, $00, $D8, $24, $37, $90, $37, $90, $D0, $FE, $A0, $18, $C2, $02 ; $8890  unanalysed     (16 bytes, no zone points here)
-  .byte $33, $09, $35, $09, $33, $09, $30, $09, $BF, $08, $C2, $06, $20, $90, $22, $48 ; $88A0  unanalysed     (16 bytes, no zone points here)
-  .byte $22, $24, $22, $24, $23, $6C, $22, $24, $EF, $18, $23, $90, $E0, $FE, $FD, $FE ; $88B0  unanalysed     (16 bytes, no zone points here)
-  .byte $A0, $16, $27, $48, $25, $48, $23, $24, $25, $24, $27, $48, $B1, $19, $20, $48 ; $88C0  unanalysed     (16 bytes, no zone points here)
-  .byte $22, $48, $23, $24, $25, $24, $27, $48, $B1, $1F, $A0, $1A, $A2, $01, $C2, $06 ; $88D0  unanalysed     (16 bytes, no zone points here)
-  .byte $30, $24, $C1, $18, $30, $12, $30, $12, $32, $12, $35, $12, $3A, $12, $3A, $12 ; $88E0  unanalysed     (16 bytes, no zone points here)
-  .byte $37, $24, $C1, $70, $27, $FC, $FF, $00, $00, $10, $00, $D8, $24, $35, $90, $35 ; $88F0  unanalysed     (16 bytes, no zone points here)
-  .byte $90, $D0, $FE, $A0, $18, $C2, $02, $2A, $09, $30, $09, $2A, $09, $27, $09, $BF ; $8900  unanalysed     (16 bytes, no zone points here)
-  .byte $08, $C2, $06, $18, $90, $1A, $48, $1A, $24, $1A, $24, $17, $6C, $15, $24, $EF ; $8910  unanalysed     (16 bytes, no zone points here)
-  .byte $18, $17, $90, $E0, $FE, $FD, $FE, $A0, $16, $23, $48, $22, $48, $20, $24, $22 ; $8920  unanalysed     (16 bytes, no zone points here)
-  .byte $24, $23, $48, $23, $48, $22, $48, $20, $24, $22, $24, $1A, $48, $18, $48, $1A ; $8930  unanalysed     (16 bytes, no zone points here)
-  .byte $48, $20, $24, $22, $24, $23, $48, $B1, $23, $A0, $1A, $A2, $01, $C2, $06, $28 ; $8940  unanalysed     (16 bytes, no zone points here)
-  .byte $24, $C1, $18, $28, $12, $28, $12, $2A, $12, $32, $12, $37, $12, $37, $12, $33 ; $8950  unanalysed     (16 bytes, no zone points here)
-  .byte $24, $C1, $70, $23, $FC, $FF, $00, $00, $00, $00, $51, $00, $00, $00, $00, $00 ; $8960  unanalysed     (16 bytes, no zone points here)
-  .byte $00, $00, $44, $10, $00, $00, $00, $00, $00, $00, $00, $51, $00, $00, $00, $00 ; $8970  unanalysed     (16 bytes, no zone points here)
-  .byte $00, $00, $00, $04, $51, $00, $00, $00, $00, $00, $00, $00, $00, $50, $00, $00 ; $8980  unanalysed     (16 bytes, no zone points here)
-  .byte $00, $00, $00, $00, $54, $15, $00, $00, $00, $44, $55, $55, $05, $00, $00, $00 ; $8990  unanalysed     (16 bytes, no zone points here)
-  .byte $00, $04, $01, $00, $00, $00                   ; $89A0  unanalysed     (6 bytes, no zone points here)
+; --- $8000-$801E  tail of soundID $A3 (pulse2): its stream starts at $9FF8 in bank $02 and its command cells continue here (§10) ---
+SoundStreamTail_B03_SndA3:
+  .byte $1F, $0C, $FD, $FE, $17, $08, $B2, $06, $17, $18, $17, $18, $17, $08, $B2, $0A ; $8000  snd $A3 pulse2    rest/12 | mark | C3/8 | loop c6 x2 | C3/24 | C3/24 | C3/8 | loop c10 x2
+  .byte $17, $18, $17, $08, $B2, $0D, $18, $08, $B5, $0F, $B1, $00, $17, $18, $FF ; $8010  snd $A3 pulse2    C3/24 | C3/8 | loop c13 x2 | C#3/8 | loop c15 x5 | loop mark x1 | C3/24
+
+; --- $801F-$803F  soundID $A4 noise (track 2) command stream: 14 cells, 1 frame/cell, header $00 $00 $1C $00; descriptor b2/b3 -> $A01F, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndA4:
+  .byte $00, $00, $1C, $00, $C1, $10, $FD, $FE, $0C, $08, $B2, $04, $0C, $18, $0C, $18 ; $801F  snd $A4 noise     hdr $00 $00 $1C $00 tick 1  trem d1 p16 | mark | rest/8 | loop c4 x2 | rest/24 | rest/24
+  .byte $0C, $08, $B2, $08, $0C, $18, $0C, $08, $B8, $0B, $B1, $00, $C1, $20, $0C, $20 ; $802F  snd $A4 noise     rest/8 | loop c8 x2 | rest/24 | rest/8 | loop c11 x8 | loop mark x1 | trem d1 p32 | rest/32
+  .byte $FF                                            ; $803F  snd $A4 noise   
+
+; --- $8040-$8064  soundID $A5 namco1 (track 3) command stream: 16 cells, 1 frame/cell, header $00 $01 $1D $00; descriptor b2/b3 -> $A040, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndA5:
+  .byte $00, $01, $1D, $00, $C1, $16, $A3, $20, $FD, $FE, $12, $08, $B2, $05, $12, $18 ; $8040  snd $A5 namco1    hdr $00 $01 $1D $00 tick 1  trem d1 p22 | vib r0 s$20 | mark | G2/8 | loop c5 x2 | G2/24
+  .byte $12, $18, $12, $08, $B2, $09, $12, $18, $12, $08, $B2, $0C, $13, $08, $B5, $0E ; $8050  snd $A5 namco1    G2/24 | G2/8 | loop c9 x2 | G2/24 | G2/8 | loop c12 x2 | G#2/8 | loop c14 x5
+  .byte $B1, $00, $12, $18, $FF                        ; $8060  snd $A5 namco1    loop mark x1 | G2/24
+
+; --- $8065-$8095  soundID $A6 pulse1 (track 0) command stream: 22 cells, 1 frame/cell, header $00 $01 $1F $00; descriptor b2/b3 -> $A065, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndA6:
+  .byte $00, $01, $1F, $00, $A3, $21, $C1, $30, $37, $18, $39, $10, $38, $02, $37, $02 ; $8065  snd $A6 pulse1    hdr $00 $01 $1F $00 tick 1  vib r2 s$20 | trem d1 p48 | C5/24 | D5/16 | C#5/2 | C5/2
+  .byte $36, $02, $35, $02, $34, $18, $32, $0C, $34, $0C, $30, $0C, $29, $0C, $30, $0C ; $8075  snd $A6 pulse1    B4/2 | A#4/2 | A4/24 | G4/12 | A4/12 | F4/12 | D4/12 | F4/12
+  .byte $32, $0C, $34, $0C, $32, $04, $34, $04, $32, $04, $30, $0C, $29, $0C, $30, $30 ; $8085  snd $A6 pulse1    G4/12 | A4/12 | G4/4 | A4/4 | G4/4 | F4/12 | D4/12 | F4/48
+  .byte $FF                                            ; $8095  snd $A6 pulse1  
+
+; --- $8096-$80C8  soundID $A7 pulse2 (track 1) command stream: 23 cells, 1 frame/cell, header $00 $01 $18 $00; descriptor b2/b3 -> $A096, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndA7:
+  .byte $00, $01, $18, $00, $A3, $50, $C1, $30, $1F, $0C, $37, $18, $39, $10, $38, $02 ; $8096  snd $A7 pulse2    hdr $00 $01 $18 $00 tick 1  vib r0 s$50 | trem d1 p48 | rest/12 | C5/24 | D5/16 | C#5/2
+  .byte $37, $02, $36, $02, $35, $02, $34, $18, $32, $0C, $34, $0C, $30, $0C, $29, $0C ; $80A6  snd $A7 pulse2    C5/2 | B4/2 | A#4/2 | A4/24 | G4/12 | A4/12 | F4/12 | D4/12
+  .byte $30, $0C, $32, $0C, $34, $0C, $32, $04, $34, $04, $32, $04, $30, $0C, $29, $0C ; $80B6  snd $A7 pulse2    F4/12 | G4/12 | A4/12 | G4/4 | A4/4 | G4/4 | F4/12 | D4/12
+  .byte $30, $30, $FF                                  ; $80C6  snd $A7 pulse2    F4/48
+
+; --- $80C9-$80F9  soundID $A8 namco1 (track 2) command stream: 22 cells, 1 frame/cell, header $00 $01 $1D $00; descriptor b2/b3 -> $A0C9, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndA8:
+  .byte $00, $01, $1D, $00, $A3, $21, $C1, $30, $32, $18, $34, $10, $33, $02, $32, $02 ; $80C9  snd $A8 namco1    hdr $00 $01 $1D $00 tick 1  vib r2 s$20 | trem d1 p48 | G4/24 | A4/16 | G#4/2 | G4/2
+  .byte $31, $02, $30, $02, $2B, $18, $29, $0C, $2B, $0C, $27, $0C, $24, $0C, $27, $0C ; $80D9  snd $A8 namco1    F#4/2 | F4/2 | E4/24 | D4/12 | E4/12 | C4/12 | A3/12 | C4/12
+  .byte $29, $0C, $2B, $0C, $29, $04, $2B, $04, $29, $04, $27, $0C, $25, $0C, $27, $30 ; $80E9  snd $A8 namco1    D4/12 | E4/12 | D4/4 | E4/4 | D4/4 | C4/12 | A#3/12 | C4/48
+  .byte $FF                                            ; $80F9  snd $A8 namco1  
+
+; --- $80FA-$8122  soundID $A9 namco2 (track 3) command stream: 18 cells, 1 frame/cell, header $00 $01 $1F $00; descriptor b2/b3 -> $A0FA, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndA9:
+  .byte $00, $01, $1F, $00, $C1, $30, $10, $0C, $20, $0C, $05, $0C, $15, $0C, $07, $0C ; $80FA  snd $A9 namco2    hdr $00 $01 $1F $00 tick 1  trem d1 p48 | F2/12 | F3/12 | A#1/12 | A#2/12 | C2/12
+  .byte $17, $0C, $05, $0C, $15, $0C, $04, $0C, $14, $0C, $05, $0C, $15, $0C, $07, $0C ; $810A  snd $A9 namco2    C3/12 | A#1/12 | A#2/12 | A1/12 | A2/12 | A#1/12 | A#2/12 | C2/12
+  .byte $06, $0C, $05, $0C, $02, $0C, $00, $30, $FF    ; $811A  snd $A9 namco2    B1/12 | A#1/12 | G1/12 | F1/48
+
+; --- $8123-$81F9  soundID $AA pulse1 (track 5) command stream: 105 cells, 1 frame/cell, header $00 $01 $1F $00; descriptor b2/b3 -> $A123, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndAA:
+  .byte $00, $01, $1F, $00, $C1, $15, $A3, $21, $1F, $20, $21, $10, $23, $10, $C1, $70 ; $8123  snd $AA pulse1    hdr $00 $01 $1F $00 tick 1  trem d1 p21 | vib r2 s$20 | rest/32 | F#3/16 | G#3/16 | trem d1 p112
+  .byte $1A, $50, $C1, $15, $18, $10, $16, $10, $18, $10, $1A, $10, $C1, $50, $21, $40 ; $8133  snd $AA pulse1    D#3/80 | trem d1 p21 | C#3/16 | B2/16 | C#3/16 | D#3/16 | trem d1 p80 | F#3/64
+  .byte $B1, $09, $C1, $15, $18, $10, $16, $10, $18, $10, $1A, $20, $C1, $30, $31, $20 ; $8143  snd $AA pulse1    loop c9 x1 | trem d1 p21 | C#3/16 | B2/16 | C#3/16 | D#3/32 | trem d1 p48 | F#4/32
+  .byte $33, $20, $C1, $15, $31, $10, $33, $10, $C1, $30, $2A, $20, $C1, $15, $28, $10 ; $8153  snd $AA pulse1    G#4/32 | trem d1 p21 | F#4/16 | G#4/16 | trem d1 p48 | D#4/32 | trem d1 p21 | C#4/16
+  .byte $2A, $10, $23, $20, $C1, $7F, $23, $60, $FD, $FE, $A0, $18, $C9, $03, $41, $08 ; $8163  snd $AA pulse1    D#4/16 | G#3/32 | trem d1 p127 | G#3/96 | mark | ctrl=$18 | trem d9 p3 | F#5/8
+  .byte $43, $08, $3A, $10, $3A, $08, $41, $08, $38, $10, $38, $08, $3A, $08, $36, $10 ; $8173  snd $AA pulse1    G#5/8 | D#5/16 | D#5/8 | F#5/8 | C#5/16 | C#5/8 | D#5/8 | B4/16
+  .byte $33, $08, $36, $08, $31, $10, $B1, $27, $A0, $1F, $C9, $0A, $23, $10, $26, $08 ; $8183  snd $AA pulse1    G#4/8 | B4/8 | F#4/16 | loop c39 x1 | ctrl=$1F | trem d9 p10 | G#3/16 | B3/8
+  .byte $23, $08, $26, $10, $28, $10, $2A, $10, $31, $08, $2A, $08, $31, $10, $33, $10 ; $8193  snd $AA pulse1    G#3/8 | B3/16 | C#4/16 | D#4/16 | F#4/8 | D#4/8 | F#4/16 | G#4/16
+  .byte $36, $10, $38, $08, $36, $08, $33, $08, $36, $08, $33, $08, $31, $08, $33, $08 ; $81A3  snd $AA pulse1    B4/16 | C#5/8 | B4/8 | G#4/8 | B4/8 | G#4/8 | F#4/8 | G#4/8
+  .byte $31, $08, $2A, $08, $28, $08, $2A, $08, $28, $08, $26, $08, $21, $08, $B1, $36 ; $81B3  snd $AA pulse1    F#4/8 | D#4/8 | C#4/8 | D#4/8 | C#4/8 | B3/8 | F#3/8 | loop c54 x1
+  .byte $C2, $08, $33, $60, $38, $10, $3A, $10, $38, $50, $36, $10, $C2, $02, $33, $05 ; $81C3  snd $AA pulse1    trem d2 p8 | G#4/96 | C#5/16 | D#5/16 | C#5/80 | B4/16 | trem d2 p2 | G#4/5
+  .byte $36, $05, $33, $06, $C2, $08, $31, $10, $B2, $51, $33, $60, $38, $10, $3A, $10 ; $81D3  snd $AA pulse1    B4/5 | G#4/6 | trem d2 p8 | F#4/16 | loop c81 x2 | G#4/96 | C#5/16 | D#5/16
+  .byte $41, $30, $3A, $10, $C2, $02, $38, $05, $3A, $05, $38, $06, $C2, $08, $36, $10 ; $81E3  snd $AA pulse1    F#5/48 | D#5/16 | trem d2 p2 | C#5/5 | D#5/5 | C#5/6 | trem d2 p8 | B4/16
+  .byte $33, $10, $31, $10, $B0, $25, $FF              ; $81F3  snd $AA pulse1    G#4/16 | F#4/16 | goto c37
+
+; --- $81FA-$82D0  soundID $AB pulse2 (track 6) command stream: 105 cells, 1 frame/cell, header $00 $01 $18 $00; descriptor b2/b3 -> $A1FA, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndAB:
+  .byte $00, $01, $18, $00, $C1, $15, $A3, $50, $1F, $2C, $21, $10, $23, $10, $C1, $70 ; $81FA  snd $AB pulse2    hdr $00 $01 $18 $00 tick 1  trem d1 p21 | vib r0 s$50 | rest/44 | F#3/16 | G#3/16 | trem d1 p112
+  .byte $1A, $50, $C1, $15, $18, $10, $16, $10, $18, $10, $1A, $10, $C1, $50, $21, $40 ; $820A  snd $AB pulse2    D#3/80 | trem d1 p21 | C#3/16 | B2/16 | C#3/16 | D#3/16 | trem d1 p80 | F#3/64
+  .byte $B1, $09, $C1, $15, $18, $10, $16, $10, $18, $10, $1A, $20, $C1, $30, $31, $20 ; $821A  snd $AB pulse2    loop c9 x1 | trem d1 p21 | C#3/16 | B2/16 | C#3/16 | D#3/32 | trem d1 p48 | F#4/32
+  .byte $33, $20, $C1, $15, $31, $10, $33, $10, $C1, $30, $2A, $20, $C1, $15, $28, $10 ; $822A  snd $AB pulse2    G#4/32 | trem d1 p21 | F#4/16 | G#4/16 | trem d1 p48 | D#4/32 | trem d1 p21 | C#4/16
+  .byte $2A, $10, $23, $20, $C1, $7F, $23, $59, $FD, $FE, $A0, $15, $C9, $03, $41, $08 ; $823A  snd $AB pulse2    D#4/16 | G#3/32 | trem d1 p127 | G#3/89 | mark | ctrl=$15 | trem d9 p3 | F#5/8
+  .byte $43, $08, $3A, $10, $3A, $08, $41, $08, $38, $10, $38, $08, $3A, $08, $36, $10 ; $824A  snd $AB pulse2    G#5/8 | D#5/16 | D#5/8 | F#5/8 | C#5/16 | C#5/8 | D#5/8 | B4/16
+  .byte $33, $08, $36, $08, $31, $10, $B1, $27, $A0, $18, $C9, $0A, $23, $10, $26, $08 ; $825A  snd $AB pulse2    G#4/8 | B4/8 | F#4/16 | loop c39 x1 | ctrl=$18 | trem d9 p10 | G#3/16 | B3/8
+  .byte $23, $08, $26, $10, $28, $10, $2A, $10, $31, $08, $2A, $08, $31, $10, $33, $10 ; $826A  snd $AB pulse2    G#3/8 | B3/16 | C#4/16 | D#4/16 | F#4/8 | D#4/8 | F#4/16 | G#4/16
+  .byte $36, $10, $38, $08, $36, $08, $33, $08, $36, $08, $33, $08, $31, $08, $33, $08 ; $827A  snd $AB pulse2    B4/16 | C#5/8 | B4/8 | G#4/8 | B4/8 | G#4/8 | F#4/8 | G#4/8
+  .byte $31, $08, $2A, $08, $28, $08, $2A, $08, $28, $08, $26, $08, $21, $08, $B1, $36 ; $828A  snd $AB pulse2    F#4/8 | D#4/8 | C#4/8 | D#4/8 | C#4/8 | B3/8 | F#3/8 | loop c54 x1
+  .byte $C2, $08, $33, $60, $38, $10, $3A, $10, $38, $50, $36, $10, $C2, $02, $33, $05 ; $829A  snd $AB pulse2    trem d2 p8 | G#4/96 | C#5/16 | D#5/16 | C#5/80 | B4/16 | trem d2 p2 | G#4/5
+  .byte $36, $05, $33, $06, $C2, $08, $31, $10, $B2, $51, $33, $60, $38, $10, $3A, $10 ; $82AA  snd $AB pulse2    B4/5 | G#4/6 | trem d2 p8 | F#4/16 | loop c81 x2 | G#4/96 | C#5/16 | D#5/16
+  .byte $41, $30, $3A, $10, $C2, $02, $38, $05, $3A, $05, $38, $06, $C2, $08, $36, $10 ; $82BA  snd $AB pulse2    F#5/48 | D#5/16 | trem d2 p2 | C#5/5 | D#5/5 | C#5/6 | trem d2 p8 | B4/16
+  .byte $33, $10, $31, $10, $B0, $25, $FF              ; $82CA  snd $AB pulse2    G#4/16 | F#4/16 | goto c37
+
+; --- $82D1-$8319  soundID $AC noise (track 7) command stream: 34 cells, 1 frame/cell, header $00 $00 $1F $00; descriptor b2/b3 -> $A2D1, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndAC:
+  .byte $00, $00, $1F, $00, $C9, $10, $0D, $F0, $C9, $08, $0D, $10, $C9, $10, $0D, $70 ; $82D1  snd $AC noise     hdr $00 $00 $1F $00 tick 1  trem d9 p16 | rest/240 | trem d9 p8 | rest/16 | trem d9 p16 | rest/112
+  .byte $C9, $08, $0D, $10, $C9, $10, $0D, $48, $1F, $18, $C1, $1A, $08, $20, $0A, $20 ; $82E1  snd $AC noise     trem d9 p8 | rest/16 | trem d9 p16 | rest/72 | rest/24 | trem d1 p26 | noise $08/32 | noise $0A/32
+  .byte $C1, $0A, $0A, $10, $0A, $10, $C1, $1A, $B1, $0F, $0A, $20, $C1, $70, $0A, $60 ; $82F1  snd $AC noise     trem d1 p10 | noise $0A/16 | noise $0A/16 | trem d1 p26 | loop c15 x1 | noise $0A/32 | trem d1 p112 | noise $0A/96
+  .byte $FD, $FE, $C9, $0A, $0E, $10, $03, $10, $07, $10, $03, $08, $03, $08, $0E, $10 ; $8301  snd $AC noise     mark | trem d9 p10 | rest/16 | noise $03/16 | noise $07/16 | noise $03/8 | noise $03/8 | rest/16
+  .byte $0E, $10, $03, $10, $07, $10, $B0, $00, $FF    ; $8311  snd $AC noise     rest/16 | noise $03/16 | noise $07/16 | goto mark
+
+; --- $831A-$83D8  soundID $AD namco1 (track 8) command stream: 93 cells, 1 frame/cell, header $00 $01 $1F $00; descriptor b2/b3 -> $A31A, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndAD:
+  .byte $00, $01, $1F, $00, $EF, $18, $06, $F0, $E0, $FE, $A0, $1F, $06, $08, $1F, $08 ; $831A  snd $AD namco1    hdr $00 $01 $1F $00 tick 1  env -15/24 | B1/240 | env -0/254 | ctrl=$1F | B1/8 | rest/8
+  .byte $EF, $0C, $06, $70, $E0, $FE, $A0, $1F, $06, $08, $1F, $08, $EF, $0C, $06, $50 ; $832A  snd $AD namco1    env -15/12 | B1/112 | env -0/254 | ctrl=$1F | B1/8 | rest/8 | env -15/12 | B1/80
+  .byte $E0, $FE, $A0, $1F, $C1, $30, $1F, $10, $06, $20, $13, $20, $C1, $15, $13, $10 ; $833A  snd $AD namco1    env -0/254 | ctrl=$1F | trem d1 p48 | rest/16 | B1/32 | G#2/32 | trem d1 p21 | G#2/16
+  .byte $13, $10, $C1, $30, $11, $20, $C1, $15, $11, $10, $11, $10, $10, $20, $C1, $7F ; $834A  snd $AD namco1    G#2/16 | trem d1 p48 | F#2/32 | trem d1 p21 | F#2/16 | F#2/16 | F2/32 | trem d1 p127
+  .byte $0B, $60, $FD, $FE, $C1, $1A, $06, $08, $1F, $08, $06, $10, $B2, $23, $06, $08 ; $835A  snd $AD namco1    E2/96 | mark | trem d1 p26 | B1/8 | rest/8 | B1/16 | loop c35 x2 | B1/8
+  .byte $1F, $08, $01, $10, $B1, $00, $FD, $FE, $03, $08, $1F, $08, $03, $10, $B1, $2C ; $836A  snd $AD namco1    rest/8 | F#1/16 | loop mark x1 | mark | G#1/8 | rest/8 | G#1/16 | loop c44 x1
+  .byte $06, $08, $1F, $08, $06, $10, $B1, $30, $08, $08, $1F, $08, $08, $10, $B1, $34 ; $837A  snd $AD namco1    B1/8 | rest/8 | B1/16 | loop c48 x1 | C#2/8 | rest/8 | C#2/16 | loop c52 x1
+  .byte $0A, $08, $1F, $08, $0A, $10, $B1, $38, $B1, $00, $FD, $FE, $C1, $0A, $0B, $10 ; $838A  snd $AD namco1    D#2/8 | rest/8 | D#2/16 | loop c56 x1 | loop mark x1 | mark | trem d1 p10 | E2/16
+  .byte $C1, $1A, $0B, $20, $C1, $0A, $0B, $10, $B1, $3F, $11, $10, $C1, $1A, $11, $20 ; $839A  snd $AD namco1    trem d1 p26 | E2/32 | trem d1 p10 | E2/16 | loop c63 x1 | F#2/16 | trem d1 p26 | F#2/32
+  .byte $C1, $0A, $11, $10, $B1, $45, $B1, $00, $10, $10, $C1, $1A, $10, $20, $C1, $0A ; $83AA  snd $AD namco1    trem d1 p10 | F#2/16 | loop c69 x1 | loop mark x1 | F2/16 | trem d1 p26 | F2/32 | trem d1 p10
+  .byte $10, $10, $B1, $4C, $0B, $10, $C1, $1A, $0B, $20, $C1, $0A, $0B, $10, $B1, $52 ; $83BA  snd $AD namco1    F2/16 | loop c76 x1 | E2/16 | trem d1 p26 | E2/32 | trem d1 p10 | E2/16 | loop c82 x1
+  .byte $11, $10, $C1, $1A, $11, $20, $C1, $0A, $11, $10, $B3, $58, $B0, $21, $FF ; $83CA  snd $AD namco1    F#2/16 | trem d1 p26 | F#2/32 | trem d1 p10 | F#2/16 | loop c88 x3 | goto c33
+
+; --- $83D9-$8481  soundID $AE namco2 (track 9) command stream: 82 cells, 1 frame/cell, header $00 $01 $17 $00; descriptor b2/b3 -> $A3D9, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndAE:
+  .byte $00, $01, $17, $00, $C2, $02, $31, $08, $33, $08, $31, $08, $2A, $08, $BD, $03 ; $83D9  snd $AE namco2    hdr $00 $01 $17 $00 tick 1  trem d2 p2 | F#4/8 | G#4/8 | F#4/8 | D#4/8 | loop c3 x13
+  .byte $31, $08, $C1, $30, $A0, $1C, $1F, $18, $2A, $20, $2A, $20, $C1, $15, $2A, $10 ; $83E9  snd $AE namco2    F#4/8 | trem d1 p48 | ctrl=$1C | rest/24 | D#4/32 | D#4/32 | trem d1 p21 | D#4/16
+  .byte $2A, $10, $C1, $30, $26, $20, $C1, $15, $26, $10, $26, $10, $20, $20, $C1, $7F ; $83F9  snd $AE namco2    D#4/16 | trem d1 p48 | B3/32 | trem d1 p21 | B3/16 | B3/16 | F3/32 | trem d1 p127
+  .byte $1B, $60, $C9, $0A, $1F, $80, $1F, $80, $1A, $10, $21, $08, $1A, $08, $21, $10 ; $8409  snd $AE namco2    E3/96 | trem d9 p10 | rest/128 | rest/128 | D#3/16 | F#3/8 | D#3/8 | F#3/16
+  .byte $23, $10, $23, $10, $26, $08, $23, $08, $26, $10, $28, $10, $31, $10, $33, $08 ; $8419  snd $AE namco2    G#3/16 | G#3/16 | B3/8 | G#3/8 | B3/16 | C#4/16 | F#4/16 | G#4/8
+  .byte $31, $08, $2A, $08, $31, $08, $2A, $08, $28, $08, $2A, $08, $28, $08, $25, $08 ; $8429  snd $AE namco2    F#4/8 | D#4/8 | F#4/8 | D#4/8 | C#4/8 | D#4/8 | C#4/8 | A#3/8
+  .byte $23, $08, $25, $08, $23, $08, $21, $08, $1A, $08, $B1, $1C, $FD, $FE, $A2, $00 ; $8439  snd $AE namco2    G#3/8 | A#3/8 | G#3/8 | F#3/8 | D#3/8 | loop c28 x1 | mark | duty=0
+  .byte $C1, $0A, $23, $10, $C1, $1A, $23, $20, $C1, $0A, $23, $10, $B1, $39, $25, $10 ; $8449  snd $AE namco2    trem d1 p10 | G#3/16 | trem d1 p26 | G#3/32 | trem d1 p10 | G#3/16 | loop c57 x1 | A#3/16
+  .byte $C1, $1A, $25, $20, $C1, $0A, $25, $10, $B1, $3F, $B1, $00, $23, $10, $C1, $1A ; $8459  snd $AE namco2    trem d1 p26 | A#3/32 | trem d1 p10 | A#3/16 | loop c63 x1 | loop mark x1 | G#3/16 | trem d1 p26
+  .byte $23, $20, $C1, $0A, $23, $10, $B3, $46, $25, $10, $C1, $1A, $25, $20, $C1, $0A ; $8469  snd $AE namco2    G#3/32 | trem d1 p10 | G#3/16 | loop c70 x3 | A#3/16 | trem d1 p26 | A#3/32 | trem d1 p10
+  .byte $25, $10, $B3, $4C, $A2, $01, $B0, $19, $FF    ; $8479  snd $AE namco2    A#3/16 | loop c76 x3 | duty=1 | goto c25
+
+; --- $8482-$84DE  soundID $AF namco3 (track 10) command stream: 44 cells, 1 frame/cell, header $00 $01 $16 $00; descriptor b2/b3 -> $A482, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndAF:
+  .byte $00, $01, $16, $00, $C2, $02, $26, $08, $28, $08, $26, $08, $23, $08, $BD, $03 ; $8482  snd $AF namco3    hdr $00 $01 $16 $00 tick 1  trem d2 p2 | B3/8 | C#4/8 | B3/8 | G#3/8 | loop c3 x13
+  .byte $26, $08, $C1, $30, $A0, $1C, $1F, $18, $26, $20, $26, $20, $C1, $15, $26, $10 ; $8492  snd $AF namco3    B3/8 | trem d1 p48 | ctrl=$1C | rest/24 | B3/32 | B3/32 | trem d1 p21 | B3/16
+  .byte $26, $10, $C1, $30, $23, $20, $C1, $15, $23, $10, $23, $10, $18, $20, $C1, $7F ; $84A2  snd $AF namco3    B3/16 | trem d1 p48 | G#3/32 | trem d1 p21 | G#3/16 | G#3/16 | C#3/32 | trem d1 p127
+  .byte $18, $60, $A0, $10, $00, $80, $B5, $1A, $FD, $FE, $A2, $00, $C1, $0A, $A0, $1C ; $84B2  snd $AF namco3    C#3/96 | ctrl=$10 | F1/128 | loop c26 x5 | mark | duty=0 | trem d1 p10 | ctrl=$1C
+  .byte $1A, $10, $C1, $1A, $1A, $20, $C1, $0A, $1A, $10, $BB, $20, $18, $10, $C1, $1A ; $84C2  snd $AF namco3    D#3/16 | trem d1 p26 | D#3/32 | trem d1 p10 | D#3/16 | loop c32 x11 | C#3/16 | trem d1 p26
+  .byte $18, $20, $C1, $0A, $18, $10, $B3, $26, $A2, $01, $B0, $19, $FF ; $84D2  snd $AF namco3    C#3/32 | trem d1 p10 | C#3/16 | loop c38 x3 | duty=1 | goto c25
+
+; --- $84DF-$85F7  soundID $B0 pulse1 (track 4) command stream: 138 cells, 1 frame/cell, header $00 $01 $12 $00; descriptor b2/b3 -> $A4DF, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndB0:
+  .byte $00, $01, $12, $00, $C9, $03, $A3, $20, $DF, $16, $25, $09, $27, $09, $2A, $09 ; $84DF  snd $B0 pulse1    hdr $00 $01 $12 $00 tick 1  trem d9 p3 | vib r0 s$20 | env +15/22 | A#3/9 | C4/9 | D#4/9
+  .byte $27, $09, $30, $09, $2A, $09, $35, $09, $33, $09, $B3, $05, $D0, $FE, $A0, $1F ; $84EF  snd $B0 pulse1    C4/9 | F4/9 | D#4/9 | A#4/9 | G#4/9 | loop c5 x3 | env +0/254 | ctrl=$1F
+  .byte $C2, $06, $20, $24, $23, $24, $C2, $02, $25, $06, $27, $06, $25, $06, $C2, $06 ; $84FF  snd $B0 pulse1    trem d2 p6 | F3/36 | G#3/36 | trem d2 p2 | A#3/6 | C4/6 | A#3/6 | trem d2 p6
+  .byte $23, $09, $1F, $09, $20, $09, $1F, $09, $1A, $09, $1F, $09, $20, $6C, $1F, $24 ; $850F  snd $B0 pulse1    G#3/9 | rest/9 | F3/9 | rest/9 | D#3/9 | rest/9 | F3/108 | rest/36
+  .byte $B1, $11, $35, $48, $33, $24, $35, $24, $37, $12, $3A, $12, $43, $12, $42, $12 ; $851F  snd $B0 pulse1    loop c17 x1 | A#4/72 | G#4/36 | A#4/36 | C5/18 | D#5/18 | G#5/18 | G5/18
+  .byte $40, $24, $3A, $24, $EF, $12, $40, $90, $40, $90, $E0, $FE, $FD, $FE, $A0, $1C ; $852F  snd $B0 pulse1    F5/36 | D#5/36 | env -15/18 | F5/144 | F5/144 | env -0/254 | mark | ctrl=$1C
+  .byte $30, $12, $33, $12, $35, $12, $33, $09, $35, $09, $37, $12, $3A, $24, $37, $09 ; $853F  snd $B0 pulse1    F4/18 | G#4/18 | A#4/18 | G#4/9 | A#4/9 | C5/18 | D#5/36 | C5/9
+  .byte $3A, $09, $40, $12, $3A, $12, $C2, $02, $37, $06, $3A, $06, $37, $06, $C2, $06 ; $854F  snd $B0 pulse1    D#5/9 | F5/18 | D#5/18 | trem d2 p2 | C5/6 | D#5/6 | C5/6 | trem d2 p6
+  .byte $35, $12, $37, $36, $1F, $12, $30, $12, $33, $12, $35, $12, $33, $09, $35, $09 ; $855F  snd $B0 pulse1    A#4/18 | C5/54 | rest/18 | F4/18 | G#4/18 | A#4/18 | G#4/9 | A#4/9
+  .byte $37, $12, $3A, $24, $37, $09, $3A, $09, $40, $12, $3A, $12, $C2, $02, $37, $06 ; $856F  snd $B0 pulse1    C5/18 | D#5/36 | C5/9 | D#5/9 | F5/18 | D#5/18 | trem d2 p2 | C5/6
+  .byte $3A, $06, $37, $06, $C2, $06, $35, $12, $33, $36, $1F, $12, $35, $12, $37, $12 ; $857F  snd $B0 pulse1    D#5/6 | C5/6 | trem d2 p6 | A#4/18 | G#4/54 | rest/18 | A#4/18 | C5/18
+  .byte $C2, $02, $35, $06, $37, $06, $35, $06, $C2, $06, $33, $12, $37, $12, $3A, $24 ; $858F  snd $B0 pulse1    trem d2 p2 | A#4/6 | C5/6 | A#4/6 | trem d2 p6 | G#4/18 | C5/18 | D#5/36
+  .byte $37, $09, $3A, $09, $40, $12, $3A, $12, $43, $09, $42, $09, $40, $09, $3A, $09 ; $859F  snd $B0 pulse1    C5/9 | D#5/9 | F5/18 | D#5/18 | G#5/9 | G5/9 | F5/9 | D#5/9
+  .byte $37, $36, $1F, $12, $35, $12, $37, $12, $C2, $02, $35, $06, $37, $06, $35, $06 ; $85AF  snd $B0 pulse1    C5/54 | rest/18 | A#4/18 | C5/18 | trem d2 p2 | A#4/6 | C5/6 | A#4/6
+  .byte $C2, $06, $33, $12, $37, $12, $3A, $24, $37, $09, $33, $09, $35, $12, $C2, $02 ; $85BF  snd $B0 pulse1    trem d2 p6 | G#4/18 | C5/18 | D#5/36 | C5/9 | G#4/9 | A#4/18 | trem d2 p2
+  .byte $37, $06, $35, $06, $33, $06, $C2, $06, $30, $12, $2A, $12, $30, $36, $FE, $FE ; $85CF  snd $B0 pulse1    C5/6 | A#4/6 | G#4/6 | trem d2 p6 | F4/18 | D#4/18 | F4/54 | nop $FE
+  .byte $1F, $12, $35, $24, $C1, $18, $33, $12, $35, $12, $37, $12, $3A, $12, $43, $12 ; $85DF  snd $B0 pulse1    rest/18 | A#4/36 | trem d1 p24 | G#4/18 | A#4/18 | C5/18 | D#5/18 | G#5/18
+  .byte $42, $12, $40, $24, $C1, $70, $30, $FC, $FF    ; $85EF  snd $B0 pulse1    G5/18 | F5/36 | trem d1 p112 | F4/252
+
+; --- $85F8-$8714  soundID $B1 pulse2 (track 5) command stream: 140 cells, 1 frame/cell, header $00 $01 $10 $00; descriptor b2/b3 -> $A5F8, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndB1:
+  .byte $00, $01, $10, $00, $C9, $03, $A3, $50, $1F, $09, $D8, $24, $25, $09, $27, $09 ; $85F8  snd $B1 pulse2    hdr $00 $01 $10 $00 tick 1  trem d9 p3 | vib r0 s$50 | rest/9 | env +8/36 | A#3/9 | C4/9
+  .byte $2A, $09, $27, $09, $30, $09, $2A, $09, $35, $09, $33, $09, $B3, $06, $D0, $FE ; $8608  snd $B1 pulse2    D#4/9 | C4/9 | F4/9 | D#4/9 | A#4/9 | G#4/9 | loop c6 x3 | env +0/254
+  .byte $A0, $18, $C2, $06, $20, $24, $23, $24, $C2, $02, $25, $06, $27, $06, $25, $06 ; $8618  snd $B1 pulse2    ctrl=$18 | trem d2 p6 | F3/36 | G#3/36 | trem d2 p2 | A#3/6 | C4/6 | A#3/6
+  .byte $C2, $06, $23, $09, $1F, $09, $20, $09, $1F, $09, $1A, $09, $1F, $09, $20, $6C ; $8628  snd $B1 pulse2    trem d2 p6 | G#3/9 | rest/9 | F3/9 | rest/9 | D#3/9 | rest/9 | F3/108
+  .byte $1F, $24, $B1, $12, $1F, $09, $35, $48, $33, $24, $35, $24, $37, $12, $3A, $12 ; $8638  snd $B1 pulse2    rest/36 | loop c18 x1 | rest/9 | A#4/72 | G#4/36 | A#4/36 | C5/18 | D#5/18
+  .byte $43, $12, $42, $12, $40, $24, $3A, $24, $EF, $24, $40, $90, $40, $87, $E0, $FE ; $8648  snd $B1 pulse2    G#5/18 | G5/18 | F5/36 | D#5/36 | env -15/36 | F5/144 | F5/135 | env -0/254
+  .byte $FD, $FE, $A0, $17, $30, $12, $33, $12, $35, $12, $33, $09, $35, $09, $37, $12 ; $8658  snd $B1 pulse2    mark | ctrl=$17 | F4/18 | G#4/18 | A#4/18 | G#4/9 | A#4/9 | C5/18
+  .byte $3A, $24, $37, $09, $3A, $09, $40, $12, $3A, $12, $C2, $02, $37, $06, $3A, $06 ; $8668  snd $B1 pulse2    D#5/36 | C5/9 | D#5/9 | F5/18 | D#5/18 | trem d2 p2 | C5/6 | D#5/6
+  .byte $37, $06, $C2, $06, $35, $12, $37, $36, $1F, $12, $30, $12, $33, $12, $35, $12 ; $8678  snd $B1 pulse2    C5/6 | trem d2 p6 | A#4/18 | C5/54 | rest/18 | F4/18 | G#4/18 | A#4/18
+  .byte $33, $09, $35, $09, $37, $12, $3A, $24, $37, $09, $3A, $09, $40, $12, $3A, $12 ; $8688  snd $B1 pulse2    G#4/9 | A#4/9 | C5/18 | D#5/36 | C5/9 | D#5/9 | F5/18 | D#5/18
+  .byte $C2, $02, $37, $06, $3A, $06, $37, $06, $C2, $06, $35, $12, $33, $36, $1F, $12 ; $8698  snd $B1 pulse2    trem d2 p2 | C5/6 | D#5/6 | C5/6 | trem d2 p6 | A#4/18 | G#4/54 | rest/18
+  .byte $35, $12, $37, $12, $C2, $02, $35, $06, $37, $06, $35, $06, $C2, $06, $33, $12 ; $86A8  snd $B1 pulse2    A#4/18 | C5/18 | trem d2 p2 | A#4/6 | C5/6 | A#4/6 | trem d2 p6 | G#4/18
+  .byte $37, $12, $3A, $24, $37, $09, $3A, $09, $40, $12, $3A, $12, $43, $09, $42, $09 ; $86B8  snd $B1 pulse2    C5/18 | D#5/36 | C5/9 | D#5/9 | F5/18 | D#5/18 | G#5/9 | G5/9
+  .byte $40, $09, $3A, $09, $37, $36, $1F, $12, $35, $12, $37, $12, $C2, $02, $35, $06 ; $86C8  snd $B1 pulse2    F5/9 | D#5/9 | C5/54 | rest/18 | A#4/18 | C5/18 | trem d2 p2 | A#4/6
+  .byte $37, $06, $35, $06, $C2, $06, $33, $12, $37, $12, $3A, $24, $37, $09, $33, $09 ; $86D8  snd $B1 pulse2    C5/6 | A#4/6 | trem d2 p6 | G#4/18 | C5/18 | D#5/36 | C5/9 | G#4/9
+  .byte $35, $12, $C2, $02, $37, $06, $35, $06, $33, $06, $C2, $06, $30, $12, $2A, $12 ; $86E8  snd $B1 pulse2    A#4/18 | trem d2 p2 | C5/6 | A#4/6 | G#4/6 | trem d2 p6 | F4/18 | D#4/18
+  .byte $30, $36, $FE, $FE, $1F, $12, $35, $24, $C1, $18, $33, $12, $35, $12, $37, $12 ; $86F8  snd $B1 pulse2    F4/54 | nop $FE | rest/18 | A#4/36 | trem d1 p24 | G#4/18 | A#4/18 | C5/18
+  .byte $3A, $12, $43, $12, $42, $12, $40, $24, $C1, $60, $30, $FC, $FF ; $8708  snd $B1 pulse2    D#5/18 | G#5/18 | G5/18 | F5/36 | trem d1 p96 | F4/252
+
+; --- $8715-$8771  soundID $B2 noise (track 6) command stream: 44 cells, 1 frame/cell, header $00 $00 $1C $00; descriptor b2/b3 -> $A715, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndB2:
+  .byte $00, $00, $1C, $00, $C1, $7F, $1F, $90, $1F, $90, $FD, $FE, $09, $90, $09, $5A ; $8715  snd $B2 noise     hdr $00 $00 $1C $00 tick 1  trem d1 p127 | rest/144 | rest/144 | mark | noise $09/144 | noise $09/90
+  .byte $C1, $10, $0E, $12, $B2, $09, $C1, $7F, $B1, $00, $0A, $90, $C1, $30, $0A, $48 ; $8725  snd $B2 noise     trem d1 p16 | rest/18 | loop c9 x2 | trem d1 p127 | loop mark x1 | noise $0A/144 | trem d1 p48 | noise $0A/72
+  .byte $C1, $2A, $0A, $24, $0A, $24, $C1, $7F, $09, $90, $A0, $18, $0A, $90, $A0, $1F ; $8735  snd $B2 noise     trem d1 p42 | noise $0A/36 | noise $0A/36 | trem d1 p127 | noise $09/144 | ctrl=$18 | noise $0A/144 | ctrl=$1F
+  .byte $C9, $02, $03, $12, $03, $12, $C1, $30, $02, $24, $BE, $18, $C9, $02, $03, $12 ; $8745  snd $B2 noise     trem d9 p2 | noise $03/18 | noise $03/18 | trem d1 p48 | noise $02/36 | loop c24 x14 | trem d9 p2 | noise $03/18
+  .byte $03, $12, $C1, $18, $0A, $12, $0A, $12, $C1, $2A, $0D, $24, $C1, $10, $0D, $12 ; $8755  snd $B2 noise     noise $03/18 | trem d1 p24 | noise $0A/18 | noise $0A/18 | trem d1 p42 | rest/36 | trem d1 p16 | rest/18
+  .byte $0D, $12, $0A, $12, $B3, $29, $0A, $24, $C1, $70, $0E, $6C, $FF ; $8765  snd $B2 noise     rest/18 | noise $0A/18 | loop c41 x3 | noise $0A/36 | trem d1 p112 | rest/108
+
+; --- $8772-$87E6  soundID $B3 namco1 (track 7) command stream: 56 cells, 1 frame/cell, header $00 $00 $10 $00; descriptor b2/b3 -> $A772, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndB3:
+  .byte $00, $00, $10, $00, $D8, $24, $40, $90, $40, $90, $D0, $FE, $A0, $1C, $A2, $01 ; $8772  snd $B3 namco1    hdr $00 $00 $10 $00 tick 1  env +8/36 | F5/144 | F5/144 | env +0/254 | ctrl=$1C | duty=1
+  .byte $C2, $06, $17, $24, $1A, $24, $C2, $02, $20, $06, $22, $06, $20, $06, $C2, $02 ; $8782  snd $B3 namco1    trem d2 p6 | C3/36 | D#3/36 | trem d2 p2 | F3/6 | G3/6 | F3/6 | trem d2 p2
+  .byte $1A, $09, $1F, $09, $17, $09, $1F, $09, $15, $09, $1F, $09, $17, $6C, $1F, $24 ; $8792  snd $B3 namco1    D#3/9 | rest/9 | C3/9 | rest/9 | A#2/9 | rest/9 | C3/108 | rest/36
+  .byte $B1, $09, $A0, $1A, $C2, $02, $35, $09, $37, $09, $35, $09, $33, $09, $B3, $1B ; $87A2  snd $B3 namco1    loop c9 x1 | ctrl=$1A | trem d2 p2 | A#4/9 | C5/9 | A#4/9 | G#4/9 | loop c27 x3
+  .byte $37, $09, $3A, $09, $37, $09, $35, $09, $B3, $20, $C2, $0A, $A0, $1C, $A2, $00 ; $87B2  snd $B3 namco1    C5/9 | D#5/9 | C5/9 | A#4/9 | loop c32 x3 | trem d2 p10 | ctrl=$1C | duty=0
+  .byte $40, $12, $3A, $12, $C2, $02, $37, $06, $3A, $06, $37, $06, $C2, $0A, $35, $12 ; $87C2  snd $B3 namco1    F5/18 | D#5/18 | trem d2 p2 | C5/6 | D#5/6 | C5/6 | trem d2 p10 | A#4/18
+  .byte $37, $12, $35, $12, $C2, $02, $33, $06, $35, $06, $33, $06, $C2, $0A, $2A, $12 ; $87D2  snd $B3 namco1    C5/18 | A#4/18 | trem d2 p2 | G#4/6 | A#4/6 | G#4/6 | trem d2 p10 | D#4/18
+  .byte $EF, $0C, $30, $90, $FF                        ; $87E2  snd $B3 namco1    env -15/12 | F4/144
+
+; --- $87E7-$888F  soundID $B4 namco2 (track 8) command stream: 82 cells, 1 frame/cell, header $00 $01 $13 $00; descriptor b2/b3 -> $A7E7, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndB4:
+  .byte $00, $01, $13, $00, $C9, $03, $1F, $90, $FE, $FE, $D6, $09, $20, $09, $22, $09 ; $87E7  snd $B4 namco2    hdr $00 $01 $13 $00 tick 1  trem d9 p3 | rest/144 | nop $FE | env +6/9 | F3/9 | G3/9
+  .byte $25, $09, $22, $09, $27, $09, $25, $09, $30, $09, $2A, $09, $B1, $06, $D0, $FE ; $87F7  snd $B4 namco2    A#3/9 | G3/9 | C4/9 | A#3/9 | F4/9 | D#4/9 | loop c6 x1 | env +0/254
+  .byte $A0, $1F, $C0, $FE, $00, $D8, $C1, $10, $00, $12, $07, $12, $07, $12, $0A, $12 ; $8807  snd $B4 namco2    ctrl=$1F | trem d0 p254 | F1/216 | trem d1 p16 | F1/18 | C2/18 | C2/18 | D#2/18
+  .byte $B1, $11, $C0, $FE, $05, $7E, $C1, $10, $05, $12, $C0, $FE, $07, $36, $C1, $10 ; $8817  snd $B4 namco2    loop c17 x1 | trem d0 p254 | A#1/126 | trem d1 p16 | A#1/18 | trem d0 p254 | C2/54 | trem d1 p16
+  .byte $07, $12, $C1, $40, $07, $24, $07, $24, $C0, $FE, $00, $5A, $C1, $10, $00, $12 ; $8827  snd $B4 namco2    C2/18 | trem d1 p64 | C2/36 | C2/36 | trem d0 p254 | F1/90 | trem d1 p16 | F1/18
+  .byte $C1, $40, $07, $24, $C0, $FE, $00, $7E, $C1, $10, $00, $12, $C1, $50, $10, $48 ; $8837  snd $B4 namco2    trem d1 p64 | C2/36 | trem d0 p254 | F1/126 | trem d1 p16 | F1/18 | trem d1 p80 | F2/72
+  .byte $0A, $48, $C1, $30, $08, $24, $0A, $24, $C1, $50, $10, $48, $10, $48, $0A, $48 ; $8847  snd $B4 namco2    D#2/72 | trem d1 p48 | C#2/36 | D#2/36 | trem d1 p80 | F2/72 | F2/72 | D#2/72
+  .byte $C1, $30, $08, $24, $0A, $24, $C1, $50, $03, $48, $05, $48, $07, $48, $C1, $30 ; $8857  snd $B4 namco2    trem d1 p48 | C#2/36 | D#2/36 | trem d1 p80 | G#1/72 | A#1/72 | C2/72 | trem d1 p48
+  .byte $08, $24, $0A, $24, $C1, $50, $13, $48, $05, $48, $07, $48, $FE, $FE, $08, $24 ; $8867  snd $B4 namco2    C#2/36 | D#2/36 | trem d1 p80 | G#2/72 | A#1/72 | C2/72 | nop $FE | C#2/36
+  .byte $0A, $24, $C1, $50, $00, $48, $C0, $FE, $05, $48, $C1, $30, $07, $24, $07, $24 ; $8877  snd $B4 namco2    D#2/36 | trem d1 p80 | F1/72 | trem d0 p254 | A#1/72 | trem d1 p48 | C2/36 | C2/36
+  .byte $C1, $18, $00, $24, $C1, $70, $00, $FC, $FF    ; $8887  snd $B4 namco2    trem d1 p24 | F1/36 | trem d1 p112 | F1/252
+
+; --- $8890-$88F6  soundID $B5 namco3 (track 9) command stream: 49 cells, 1 frame/cell, header $00 $00 $10 $00; descriptor b2/b3 -> $A890, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndB5:
+  .byte $00, $00, $10, $00, $D8, $24, $37, $90, $37, $90, $D0, $FE, $A0, $18, $C2, $02 ; $8890  snd $B5 namco3    hdr $00 $00 $10 $00 tick 1  env +8/36 | C5/144 | C5/144 | env +0/254 | ctrl=$18 | trem d2 p2
+  .byte $33, $09, $35, $09, $33, $09, $30, $09, $BF, $08, $C2, $06, $20, $90, $22, $48 ; $88A0  snd $B5 namco3    G#4/9 | A#4/9 | G#4/9 | F4/9 | loop c8 x15 | trem d2 p6 | F3/144 | G3/72
+  .byte $22, $24, $22, $24, $23, $6C, $22, $24, $EF, $18, $23, $90, $E0, $FE, $FD, $FE ; $88B0  snd $B5 namco3    G3/36 | G3/36 | G#3/108 | G3/36 | env -15/24 | G#3/144 | env -0/254 | mark
+  .byte $A0, $16, $27, $48, $25, $48, $23, $24, $25, $24, $27, $48, $B1, $19, $20, $48 ; $88C0  snd $B5 namco3    ctrl=$16 | C4/72 | A#3/72 | G#3/36 | A#3/36 | C4/72 | loop c25 x1 | F3/72
+  .byte $22, $48, $23, $24, $25, $24, $27, $48, $B1, $1F, $A0, $1A, $A2, $01, $C2, $06 ; $88D0  snd $B5 namco3    G3/72 | G#3/36 | A#3/36 | C4/72 | loop c31 x1 | ctrl=$1A | duty=1 | trem d2 p6
+  .byte $30, $24, $C1, $18, $30, $12, $30, $12, $32, $12, $35, $12, $3A, $12, $3A, $12 ; $88E0  snd $B5 namco3    F4/36 | trem d1 p24 | F4/18 | F4/18 | G4/18 | A#4/18 | D#5/18 | D#5/18
+  .byte $37, $24, $C1, $70, $27, $FC, $FF              ; $88F0  snd $B5 namco3    C5/36 | trem d1 p112 | C4/252
+
+; --- $88F7-$8965  soundID $B6 namco4 (track 10) command stream: 53 cells, 1 frame/cell, header $00 $00 $10 $00; descriptor b2/b3 -> $A8F7, i.e. this bank as the $A000 sound window (§10) ---
+SoundStream_B03_SndB6:
+  .byte $00, $00, $10, $00, $D8, $24, $35, $90, $35, $90, $D0, $FE, $A0, $18, $C2, $02 ; $88F7  snd $B6 namco4    hdr $00 $00 $10 $00 tick 1  env +8/36 | A#4/144 | A#4/144 | env +0/254 | ctrl=$18 | trem d2 p2
+  .byte $2A, $09, $30, $09, $2A, $09, $27, $09, $BF, $08, $C2, $06, $18, $90, $1A, $48 ; $8907  snd $B6 namco4    D#4/9 | F4/9 | D#4/9 | C4/9 | loop c8 x15 | trem d2 p6 | C#3/144 | D#3/72
+  .byte $1A, $24, $1A, $24, $17, $6C, $15, $24, $EF, $18, $17, $90, $E0, $FE, $FD, $FE ; $8917  snd $B6 namco4    D#3/36 | D#3/36 | C3/108 | A#2/36 | env -15/24 | C3/144 | env -0/254 | mark
+  .byte $A0, $16, $23, $48, $22, $48, $20, $24, $22, $24, $23, $48, $23, $48, $22, $48 ; $8927  snd $B6 namco4    ctrl=$16 | G#3/72 | G3/72 | F3/36 | G3/36 | G#3/72 | G#3/72 | G3/72
+  .byte $20, $24, $22, $24, $1A, $48, $18, $48, $1A, $48, $20, $24, $22, $24, $23, $48 ; $8937  snd $B6 namco4    F3/36 | G3/36 | D#3/72 | C#3/72 | D#3/72 | F3/36 | G3/36 | G#3/72
+  .byte $B1, $23, $A0, $1A, $A2, $01, $C2, $06, $28, $24, $C1, $18, $28, $12, $28, $12 ; $8947  snd $B6 namco4    loop c35 x1 | ctrl=$1A | duty=1 | trem d2 p6 | C#4/36 | trem d1 p24 | C#4/18 | C#4/18
+  .byte $2A, $12, $32, $12, $37, $12, $37, $12, $33, $24, $C1, $70, $23, $FC, $FF ; $8957  snd $B6 namco4    D#4/18 | G4/18 | C5/18 | C5/18 | G#4/36 | trem d1 p112 | G#3/252
+
+; --- $8966-$89A5  overlay head - Battle Mode overlay crop of the first zone, no terrain zone points here (§7) ---
+TerrainOverlayHead_B03:
+  .byte $00, $00, $00, $00, $51, $00, $00, $00, $00, $00, $00, $00, $44, $10, $00, $00 ; $8966  overlay head  ffffpfffffffrrff
+  .byte $00, $00, $00, $00, $00, $51, $00, $00, $00, $00, $00, $00, $00, $04, $51, $00 ; $8976  overlay head  fffffpfffffffrpf
+  .byte $00, $00, $00, $00, $00, $00, $00, $50, $00, $00, $00, $00, $00, $00, $54, $15 ; $8986  overlay head  fffffffpffffffpr
+  .byte $00, $00, $00, $44, $55, $55, $05, $00, $00, $00, $00, $04, $01, $00, $00, $00 ; $8996  overlay head  fffrpprffffrsfff
 
 ; --- $89A6-$8AA5  zone 032 - province 8 TL 16x16 crop window, rows 0-15 owned here ---
 TerrainCrop_Z032_P08_TL:

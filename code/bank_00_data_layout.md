@@ -140,8 +140,10 @@ Offsets below are inside `rom/prg/prg_00.bin`; CPU address = `offset + $8000`.
 
 ```
 $0000-$003F  64 B head - no *terrain* zone points here; it is Battle Mode's
-             overlay crop for index 0 (see §7), which is why it holds terrain-
-             like bytes ($44/$54/$11/$40/$55) rather than padding
+             overlay crop for index 0 (see §7). It is NOT terrain bytes: it is a
+             packed NES **attribute map** (four 2-bit BG palette fields per byte)
+             for the 16x16 crop that follows, which is why the values are all
+             nibble-combinations of 0/1 ($44/$54/$55/$11/$40/$05) - see §5a
 $0040-$1C3F  16 blocks of $1C0 B (448), block k at $0040 + $1C0*k
              |  crop of zone 2k     at block + $000   (256 B: 15 content rows
              |                                            + row 15 = gap row)
@@ -214,6 +216,17 @@ One byte per map cell, row-major, 16 bytes per row:
 
 * The byte is a **war-map terrain metatile id**, not a CHR pattern index: 128 ids
   (`$00-$7F`) are collapsed into 9 terrain classes by `TileTerrainTable`.
+  Its graphics side of that contract is now resolved: the same byte indexes
+  `MetaTileData` (`$F477`, bank `$1F`, 512 B = 128 entries x 4) and the 4 bytes
+  are the nametable pair-rows TL,TR,BL,BR of one **16x16 px** cell.
+  `CalcTileAddrHoriz` (`prg_17_18.asm:1125`) computes `base + byte*4`
+  (`ASL/ROL/ASL/ROL/ADC $0002($77)/ADC $0003($F4)`) and `CopyTileRowHoriz`
+  (`:1139`) writes 2 of the 4 per PPU row, picking the pair from a row bit. The
+  resulting nametable bytes are drawn with display record 1's CHR pages
+  (`88 89 8A 88`) and coloured per cell from the crop's attribute head under
+  palette record `$01` (§5a) - the same CHR set `TacticalTerrainScreen` (§7) is
+  render-verified with. Writing the raw byte to the nametable instead is *wrong*:
+  `$00-$3F` of that record is a text page. See `tools/terrain_tiles.py`.
 * `$80-$FF` short-circuit to terrain `0` *without* a table lookup (`$B741`). In
   bank `$00` the only such byte is `$FF`, and only inside zone 31's tail, so
   `$FF` is filler/padding rather than authored ground.
@@ -235,6 +248,51 @@ One byte per map cell, row-major, 16 bytes per row:
 | 4 Mountain | `$20-$21`, `$23-$24`, `$26`, `$28-$2A`, `$56`, `$59`, `$5B-$5D` | 13 |
 | 5 Castle | `$61-$64` | 4 |
 | 6 / 7 / 8 | `$79` / `$7A` / `$7B` | 1 each |
+
+## 5a. What the tile byte looks like: `MetaTileData` and the attribute head
+
+The graphics half of the tile byte contract resolves in two steps, and neither
+one is the raw byte:
+
+1. **Shapes.** The byte indexes `MetaTileData` (`$F477`, bank `$1F`, 512 B = 128
+   entries x 4). The 4 bytes are the nametable pair-rows TL,TR,BL,BR of one
+   **16x16 px** cell: `CalcTileAddrHoriz` (`prg_17_18.asm:1125`) computes
+   `base + byte*4` (`ASL/ROL/ASL/ROL/ADC $0002($77)/ADC $0003($F4)`) and
+   `CopyTileRowHoriz` (`:1139`) writes 2 of the 4 per PPU row, choosing the pair
+   from a row bit. Patterns come from display record 1 (`88 89 8A 88`, i.e.
+   `chr_11.bin` slots 0-2) - the same record `TacticalTerrainScreen` (§7) is
+   render-verified with. Writing the *raw* byte to the nametable instead is
+   wrong: record 1's `$00-$3F` page is a font, so it draws digits and 山/水.
+2. **Colour.** The 64-byte head in front of every crop is the NES attribute map
+   for its 16x16 cells. The game's indexing (`prg_0c_0d.asm:7543`,
+   `AND #$0E / LSR / AND #$0E / ASL / ASL / ORA`) is byte
+   `((x & $0E) >> 1) | ((y & $0E) << 2)` with the 2-bit field
+   `((y & 1) * 2 + (x & 1))` inside it. Read that way the head is exactly the
+   authored terrain palette: over all 30 provinces x 640 cells (19,200 samples)
+   it selects **sub-palette 1 for every River cell and sub-palette 0 for every
+   other class, with no exceptions** - which is also why the head's bytes only
+   ever combine the nibbles 0 and 1. With palette record **$01** that yields the
+   manual's tactical screenshot (gold plains, dark green pines, solid blue
+   water); record `$00` swaps land and water.
+
+`tools/terrain_tiles.py` implements both steps, and
+`tools/check_terrain_pipeline.py` section 9 asserts the table offset, the
+128-cells-decode property and the River/land sub-palette invariant.
+
+### Settlement ids are not art
+
+`$61` (terrain 5 Castle) and `$79`/`$7A`/`$7B` (terrain 6/7/8) carry the *same*
+metatile as plain ground `$39` (`22 23 32 33`), so no building is drawn from the
+map: they are gameplay ids stamped on a cell. The visible object is a 16x16 OAM
+sprite that `DrawStratagemTargetMarkers` (`prg_08_09.asm:$D24D`) puts at
+`(X*16, Y*16)` from `@ProvinceMarkerOam` (`$D315`, tiles $02/$03/$0E/$0F) for the
+province city and `@CityMarkerOam` (`$D326`, tiles $3C/$3D/$3E/$3F) for each used
+pair of `ProvinceTacticalFacilityTiles`. `$62`/`$63`/`$64` (the other bytes the
+table also maps to Castle) occur **zero** times across all 120 crops, and their
+metatiles point into the font page - unreachable, which is why they were never
+caught as broken. The facility table (bank `$31` `$9BA4`, 30 x 6 B) names which
+facility a cell is; it agrees with the settlement bytes on 55 of its 67 used
+pairs, and never with the `$61` castle.
 
 ## 6. Terrain id semantics
 
@@ -293,10 +351,11 @@ prg_17_18.asm) look up two more pointer tables and select the bank with
 
 So a Battle Mode scene *is* a terrain zone crop: the scene tile stream starts at
 the zone's 16x16 grid, and the overlay stream starts 64 bytes earlier (the
-`$0000-$003F` "head" for index 0). `BattleResolve` hands the pointer to the bank
-`$19` RLE/PPU writer with marker `$0002 = $77` and `$0003 = $F4`, so the scene
-format is a walk over the same tile bytes rather than a second copy of them -
-decoding that stream is out of scope here.
+`$0000-$003F` attribute head for index 0). `BattleResolve` sets `$0002 = $77` and
+`$0003 = $F4`, which are **not** an RLE marker pair but the low/high bytes of the
+`MetaTileData` base address `$F477` that `CalcTileAddrHoriz` adds `byte*4` to
+(§5a) - the crop bytes are walked and expanded through that table, not copied to
+the PPU verbatim. The full stream format is out of scope here.
 
 ## 8. Tool
 
@@ -350,6 +409,7 @@ generalised over all four banks and all 120 zones (30 provinces):
 | `tools/gen_terrain_asm.py` | renders `asm/banks/data_XX.asm`; `--bank all` covers all four, `--make-csv`/`--with-csv` write the CSV twins, `--from-csv` takes a CSV as the source of truth |
 | `tools/verify_terrain_banks.py` | per-bank harness: assembles each bank at `$8000`, proves byte-exactness, reports drift by bank/province/quadrant/row/col, checks the terrain invariants over all 30 provinces |
 | `tools/check_terrain_pipeline.py` | end-to-end losslessness proof for ROM <-> CSV <-> asm <-> editor views, across every bank (no display needed) |
+| `tools/terrain_tiles.py` | the graphics chain above: `MetaTileData` + display record 1 + attribute head + palette record `$01` -> a 16x16 RGB cell per tile byte, as a PNG sheet or for the editor's real-tile mode |
 | `editor/tactical_map_editor.py` | standalone tkinter editor that paints any of the 30 province maps and drives the two tools above (see `editor/README.md`) |
 
 Ownership is what makes each bank's CSV lossless: every byte has exactly one
@@ -359,8 +419,10 @@ crop's rows 0-6) is stored once and aliased on read instead of being duplicated:
 ```
 docs/terrain_bank_00.csv  ~512 rows x 16 tile bytes = 8192 bytes   (one per bank)
   offset,kind,zone,province,quadrant,crop_row,t0..t15
-  kind = crop | pad (48 B, §9) | overlay_head ($0000-$003F, §7) | filler ($FF tail)
-              | unanalysed (bank $03's non-terrain span)
+  kind = crop | pad (48 B, §9) | overlay_head (the 64 B attribute head in front of
+              the bank's first crop: $0000-$003F, or $0966-$09A5 in bank $03)
+            | sound_stream / sound_tail (bank $03's $0000-$0965, §10)
+            | filler ($FF tail) | unanalysed (no byte of a shipped bank is one)
 ```
 
 Make targets: `make terrain` (re-render asm + CSV for all four banks from the
@@ -431,3 +493,89 @@ confirmation of the 15 + 5 model.
   model transfers and only the terrain content differs.
 * Bank `$00` has no code and no trampoline target - the only way in is a
   `SwitchBank8` read of these grids (see [bank_switch_map.md](bank_switch_map.md) §3).
+
+## 10. Bank `$03`'s leading `$8000-$8965`: sound command streams (§4's exception)
+
+Bank `$03` is dual-purpose, and that is the whole reason its ribbon starts at
+`$89A6` instead of `$8040` (§3/§4). Its first 2406 bytes are **Namco-163/APU
+sound command streams** - the packed tail of the stream area that begins in bank
+`$02` at `$82DC` - and they are reached through a *different* mapper window:
+
+| Window | Register | Set by | Holds while sound plays |
+|---|---|---|---|
+| `$8000-$9FFF` | `$E000` | `LDY #$22 / JSR B1F_SwitchBank8_B` (`$D8D4`/`$D8D6`) | bank `$02` - descriptors + most streams |
+| `$A000-$BFFF` | `$E800` | `LDA #$23 / STA $00E2 / ORA #$C0 / STA $E800` (`$D8D9-$D8E0`) | **bank `$03`** - these bytes |
+
+`@BattleAnimSoundEngine` (`asm/banks/prg_0e_0f.asm:8945-8950`) sets both, and
+`@NmiHandler` re-applies the `$A000` shadow `$00E2` to `$E800` on every vblank
+(`asm/banks/prg_1f.asm:3690-3692`), so the driver reads the two windows as one
+contiguous address space: `$9FFF` is followed by `$A000`. The stream address in a
+`SoundNoteHeaderTable` descriptor is therefore a *real* CPU address
+(`$0702 = b2`, `$0703 = b3 + $40` - `asm/banks/prg_1f.asm:1136-1141`), and the 19
+descriptors whose high byte is `$60-$68` land here. Nothing points at
+`$8966` or beyond, which is exactly where the terrain model takes over.
+
+Format, from `@InitChannel` (`$D958`) and `@CmdProcess`/`@CmdLoop`
+(`$D99B-$DA15`, `$DB21-$DBF0`); `tools/sound_streams.py` is the standalone
+decoder and `--validate` proves the whole `$82DC-$A965` area is claimed by 166
+packed streams with 0 gaps:
+
+* **4-byte stream header**: `[tick divisor][duty source][channel control][sweep]`.
+  The control byte is what reaches `$4000/$4004/$4008/$400C` (volume bits 0-3,
+  envelope mode bit 4, duty bits 6-7); `tick divisor & $0F` + 1 = frames per cell.
+* **2-byte command cells** `[opcode][operand]` from offset 4. The driver keeps its
+  position as a *cell index* and computes `stream + 2*state`
+  (`ASL / ROL / ADC $0702,X` at `$D9A6-$D9B9`), so a jump operand **is a cell
+  number**, and the `$FD` marker plus `$B0/$Bn` are what make a loop.
+* Alphabet: `< $A0` pitch (low nibble = semitone over `NoteFreqTable` `$DD06`,
+  bits 4-6 = period right-shifts, nibble `$C-$F` = rest, the noise channel takes
+  the byte as a raw period, Namco rows sit 2 octaves higher) with the operand as
+  sustain in ticks; `$A0` control, `$A1` sweep, `$A2` duty, `$A3`/`$A4` vibrato
+  on/off, `$AF` tick divisor, `$B0 nn` goto cell `nn` (0 = the marker),
+  `$Bn nn` repeat that target `n` more times, `$Cn nn` tremolo depth `n` period
+  `nn`, `$Dn`/`$En nn` volume LFO `+/-%d` over `nn` ticks, `$FD` save loop marker
+  (its operand byte is inert `$FE`), `$FF` end.
+* **`$FF` consumes only its own byte**, so the next stream's first byte follows
+  immediately: the area is packed, and a bank-`$03` row boundary can fall in the
+  middle of a cell pair.
+
+The 20 owned spans (`SoundStream_B03_Snd<n>` / `SoundStreamTail_B03_Snd<n>` in
+`asm/banks/data_03.asm`, CSV kind `sound_stream` / `sound_tail`):
+
+| soundID | descriptor | track | channel | bank `$03` span | cells |
+|---|---|---|---|---|---|
+| `$A3` | `$828C` | 1 | pulse2 | `$8000-$801E` | 15 |
+| `$A4` | `$8290` | 2 | noise | `$801F-$803F` | 14 |
+| `$A5` | `$8294` | 3 | namco1 | `$8040-$8064` | 16 |
+| `$A6` | `$8298` | 0 | pulse1 | `$8065-$8095` | 22 |
+| `$A7` | `$829C` | 1 | pulse2 | `$8096-$80C8` | 23 |
+| `$A8` | `$82A0` | 2 | namco1 | `$80C9-$80F9` | 22 |
+| `$A9` | `$82A4` | 3 | namco2 | `$80FA-$8122` | 18 |
+| `$AA` | `$82A8` | 5 | pulse1 | `$8123-$81F9` | 105 |
+| `$AB` | `$82AC` | 6 | pulse2 | `$81FA-$82D0` | 105 |
+| `$AC` | `$82B0` | 7 | noise | `$82D1-$8319` | 34 |
+| `$AD` | `$82B4` | 8 | namco1 | `$831A-$83D8` | 93 |
+| `$AE` | `$82B8` | 9 | namco2 | `$83D9-$8481` | 82 |
+| `$AF` | `$82BC` | 10 | namco3 | `$8482-$84DE` | 44 |
+| `$B0` | `$82C0` | 4 | pulse1 | `$84DF-$85F7` | 138 |
+| `$B1` | `$82C4` | 5 | pulse2 | `$85F8-$8714` | 140 |
+| `$B2` | `$82C8` | 6 | noise | `$8715-$8771` | 44 |
+| `$B3` | `$82CC` | 7 | namco1 | `$8772-$87E6` | 56 |
+| `$B4` | `$82D0` | 8 | namco2 | `$87E7-$888F` | 82 |
+| `$B5` | `$82D4` | 9 | namco3 | `$8890-$88F6` | 49 |
+| `$B6` | `$82D8` | 10 | namco4 | `$88F7-$8965` | 53 |
+
+`$A3` is the only stream that *starts* in bank `$02` (`$9FF8`) and spills in;
+`$A4`/`$A5` are short (14/16 cells) and finish the track run `$A2-$A5` begun in
+bank `$02`, while `$A6-$A9` (tracks 0-3), `$AA-$AF` (tracks 5-10) and `$B0-$B6`
+(tracks 4-10) are three contiguous multi-voice blocks - i.e. whole songs whose
+parts live here. Every pitch cell in the area has a low nibble `<= $B`, and the
+melodies cluster on `$30/$32/$34/$37/$39` (a major-pentatonic row), which is the
+data-side confirmation that the cell alignment is right.
+
+Consequences for the terrain model: `$8966-$89A5` is the 64-byte attribute head
+(§5a) of zone 32's crop, so bank `$03` carries an `overlay_head` region like the
+other banks - just at `$0966` rather than `$0000`; the §4 block formula is
+relative to the `$09A6` ribbon start, which is why `--check-layout --bank 3`
+still reports 0 mismatches; and no terrain byte is entangled with the sound
+bytes, so the sound decode cannot move a crop.
