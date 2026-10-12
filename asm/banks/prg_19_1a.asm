@@ -133,7 +133,7 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
   LDA #$03                                ; $A09B: A9 03
   STA $0401                               ; $A09D: 8D 01 04 ; rotation ends -> sub-state 3
   LDA #$D5                                ; $A0A0: A9 D5
-  JMP B1F_SetUI4                          ; $A0A2: 4C 8B F2 ; idle overlay (no return)
+  JMP B1F_OpenMsgWindow4                  ; $A0A2: 4C 8B F2 ; idle overlay (no return)
 @FocusReady:
   LDA $6F03                               ; $A0A5: AD 03 6F
   AND #$07                                ; $A0A8: 29 07
@@ -190,7 +190,7 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
 OverlayInit:  ; sub-state 1
   INC $0401                               ; $A12C: EE 01 04 ; -> sub-state 2
   LDA #$20                                ; $A12F: A9 20
-  JSR B1F_SetUI4                          ; $A131: 20 8B F2 ; Country status overlay
+  JSR B1F_OpenMsgWindow4                  ; $A131: 20 8B F2 ; Country status overlay
   LDY #$00                                ; $A134: A0 00
   LDA ($EE),Y                             ; $A136: B1 EE     ; focused Country's Ruler id
   STA $042C                               ; $A138: 8D 2C 04 ; overlay: Country
@@ -752,7 +752,7 @@ CountryCensusBuild:
 @TaxWindow:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$BC                                ; $A3F1: A9 BC
-  JSR B1F_SetUI4                           ; $A3F3: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $A3F3: 20 8B F2
   INC $0402                               ; $A3F6: EE 02 04
   LDA #$A6                                ; $A3F9: A9 A6
   STA $04D6                               ; $A3FB: 8D D6 04
@@ -1038,7 +1038,7 @@ CountryCensusBuild:
 @HarvestWindow:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA #$BD                                ; $A5B6: A9 BD
-  JSR B1F_SetUI4                           ; $A5B8: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $A5B8: 20 8B F2
   INC $0402                               ; $A5BB: EE 02 04
   LDA #$A6                                ; $A5BE: A9 A6
   STA $04D6                               ; $A5C0: 8D D6 04
@@ -1208,7 +1208,7 @@ CountryCensusBuild:
 ;                           (OfficerDisplay_Lookup trampoline, UI stream $3F)
 ;   3 DamageCardRedraw    - DirtyMarkAndCard + marker draw, wait sentinels
 ;                           and A-ack ($0081 bit 0), next pick; after 16
-;                           slots close banner (SetUI4 $00) -> sub-state 2
+;                           slots close banner (OpenMsgWindow4 $00) -> sub-state 2
 ; Scratch: $0403 pick cursor, a:$0010 severity tier x, a:$0011 card officer
 ; id, a:$000A/$000B drained-record ptr, a:$000C/$000D Province record ptr,
 ; a:$00A4 overlay mode $04 active / $03 done.
@@ -1234,7 +1234,7 @@ CountryCensusBuild:
 @DamageWindowOpen:
 ; --- Code Region ---
   LDA #$BE                                ; $A70D: A9 BE
-  JSR B1F_SetUI4                           ; $A70F: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $A70F: 20 8B F2
   LDA #$9F                                ; $A712: A9 9F
   STA $04D6                               ; $A714: 8D D6 04
   LDA #$1C                                ; $A717: A9 1C
@@ -1273,7 +1273,7 @@ DamageListAdvance:
   STA $0401                               ; $A757: 8D 01 04
   LDA #$00                                ; $A75A: A9 00
   STA a:$00A4                             ; $A75C: 8D A4 00
-  JSR B1F_SetUI4                           ; $A75F: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $A75F: 20 8B F2
 @DamageListAdvanceExit:
   RTS                                     ; $A762: 60
 DamageProvinceApply:
@@ -1384,7 +1384,7 @@ DamageProvinceApply:
   .word B1D_1E_OfficerDisplay_Lookup     ; $A858: 2A A0 (bank $1D $A02A -> JMP OfficerDisplay_Lookup)
 ; --- Resumed code after trampoline return ---
   LDA #$3F                                ; $A85A: A9 3F
-  JMP B1F_SetUI0                           ; $A85C: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $A85C: 4C 6D F2
 DamageCardRedraw:  ; (dispatch callback target)
   JSR DirtyMarkAndCard                     ; $A85F: 20 85 A9
   LDA $0300                               ; $A862: AD 00 03
@@ -1409,7 +1409,7 @@ DamageCardRedraw:  ; (dispatch callback target)
   LDA #$03                                ; $A88B: A9 03
   STA a:$00A4                             ; $A88D: 8D A4 00
   LDA #$4D                                ; $A890: A9 4D
-  JSR B1F_SetUI0                           ; $A892: 20 6D F2
+  JSR B1F_OpenMsgWindow0                   ; $A892: 20 6D F2
 @DamageCardWaitExit:
   RTS                                     ; $A895: 60
 .endproc
@@ -1678,7 +1678,7 @@ DamageCardRedraw:  ; (dispatch callback target)
   RTS                                     ; $A9BD: 60
 @LossWindowShow:
   LDA #$BF                                ; $A9BE: A9 BF
-  JSR B1F_SetUI4                           ; $A9C0: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $A9C0: 20 8B F2
   LDA #$9F                                ; $A9C3: A9 9F
   STA $04D6                               ; $A9C5: 8D D6 04
   LDA #$1E                                ; $A9C8: A9 1E
@@ -1715,7 +1715,7 @@ LossListAdvance:
   STA $0401                               ; $AA08: 8D 01 04
   LDA #$00                                ; $AA0B: A9 00
   STA a:$00A4                             ; $AA0D: 8D A4 00
-  JSR B1F_SetUI4                           ; $AA10: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $AA10: 20 8B F2
 @LossListAdvanceExit:
   RTS                                     ; $AA13: 60
 LossProvinceApply:
@@ -1802,7 +1802,7 @@ LossProvinceApply:
   LDA #$04                                ; $AAD4: A9 04
   STA a:$00A4                             ; $AAD6: 8D A4 00
   LDA #$45                                ; $AAD9: A9 45
-  JMP B1F_SetUI0                           ; $AADB: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $AADB: 4C 6D F2
 LossCardRedraw:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR DirtyMarkAndCard                     ; $AADE: 20 85 A9
@@ -1827,7 +1827,7 @@ LossCardRedraw:  ; (dispatch callback target)
   LDA #$03                                ; $AB0A: A9 03
   STA a:$00A4                             ; $AB0C: 8D A4 00
   LDA #$4D                                ; $AB0F: A9 4D
-  JSR B1F_SetUI0                           ; $AB11: 20 6D F2
+  JSR B1F_OpenMsgWindow0                   ; $AB11: 20 6D F2
 @LossCardWaitExit:
   RTS                                     ; $AB14: 60
 .endproc
@@ -1940,7 +1940,7 @@ RebellionPollAdvance:
   STA $0401                               ; $ABBD: 8D 01 04
   LDA #$00                                ; $ABC0: A9 00
   STA a:$00A4                             ; $ABC2: 8D A4 00
-  JSR B1F_SetUI4                           ; $ABC5: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $ABC5: 20 8B F2
 @RebellionPollAdvanceExit:
   RTS                                     ; $ABC8: 60
 RebellionProvinceHit:
@@ -2001,7 +2001,7 @@ RebellionProvinceHit:
   LDA #$1F                                ; $AC43: A9 1F
   STA $04A0                               ; $AC45: 8D A0 04
   LDA #$E8                                ; $AC48: A9 E8
-  JMP B1F_SetUI4                           ; $AC4A: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $AC4A: 4C 8B F2
 RebellionOverlayWait:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR DirtyMarkAndCard                     ; $AC4D: 20 85 A9
@@ -2039,7 +2039,7 @@ RebellionOverlayWait:  ; (dispatch callback target)
   LDA #$E8                                ; $AC91: A9 E8
   CLC                                     ; $AC93: 18
   ADC $0470                               ; $AC94: 6D 70 04
-  JMP B1F_SetUI0                           ; $AC97: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $AC97: 4C 6D F2
 RebellionOverlayWait2:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR DirtyMarkAndCard                     ; $AC9A: 20 85 A9
@@ -2055,7 +2055,7 @@ RebellionOverlayWait2:  ; (dispatch callback target)
   BCC @RebellionOverlayWait2Exit             ; $ACB2: 90 08
   INC $0402                               ; $ACB4: EE 02 04
   LDA #$00                                ; $ACB7: A9 00
-  JMP B1F_SetUI4                           ; $ACB9: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $ACB9: 4C 8B F2
 @RebellionOverlayWait2Exit:
   RTS                                     ; $ACBC: 60
 RebellionExitCheck:  ; (dispatch callback target)
@@ -2338,7 +2338,7 @@ StatPairSubtract:
   CMP #$03                                ; $AE5D: C9 03     ; $03 = computer/AI-controlled
   BNE @StatusApplyMapReturn               ; $AE5F: D0 2A
   LDA #$BB                                ; $AE61: A9 BB
-  JSR B1F_SetUI4                           ; $AE63: 20 8B F2 ; Ruler status overlay
+  JSR B1F_OpenMsgWindow4                   ; $AE63: 20 8B F2 ; Ruler status overlay
   LDY #$00                                ; $AE66: A0 00
   LDA ($EE),Y                             ; $AE68: B1 EE
   STA $042C                               ; $AE6A: 8D 2C 04 ; overlay: Ruler id
@@ -2478,7 +2478,7 @@ ReinforceRosterInsert:
   STA $042D                               ; $AF69: 8D 2D 04
   INC $0402                               ; $AF6C: EE 02 04
   LDA #$00                                ; $AF6F: A9 00
-  JMP B1F_SetUI4                           ; $AF71: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $AF71: 4C 8B F2
 ReinforceOverlayWait:  ; (dispatch callback target)
   LDA $0300                               ; $AF74: AD 00 03
   CMP #$FF                                ; $AF77: C9 FF
@@ -2488,7 +2488,7 @@ ReinforceOverlayWait:  ; (dispatch callback target)
   BNE @ReinforceOverlayWaitExit           ; $AF80: D0 08
   INC $0402                               ; $AF82: EE 02 04
   LDA #$30                                ; $AF85: A9 30
-  JMP B1F_SetUI0                           ; $AF87: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $AF87: 4C 6D F2
 @ReinforceOverlayWaitExit:
   RTS                                     ; $AF8A: 60
 ReinforceCardWait:  ; (dispatch callback target)
@@ -2514,7 +2514,7 @@ ReinforceCardWait:  ; (dispatch callback target)
 ; --- Resumed code after trampoline return ---
   INC $0402                               ; $AFB0: EE 02 04
   LDA #$39                                ; $AFB3: A9 39
-  JMP B1F_SetUI0                           ; $AFB5: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $AFB5: 4C 6D F2
 ReinforceCardShow:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $042C                               ; $AFB8: AD 2C 04
@@ -4434,7 +4434,7 @@ RosterSlotScanLoop:
   LDA $040A                               ; $BCE9: AD 0A 04
   STA $042C                               ; $BCEC: 8D 2C 04
   LDA #$C1                                ; $BCEF: A9 C1
-  JMP B1F_SetUI4                           ; $BCF1: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $BCF1: 4C 8B F2
 RosterSlotAdvance:
   INC $0409                               ; $BCF4: EE 09 04
   LDA $0409                               ; $BCF7: AD 09 04
@@ -4595,7 +4595,7 @@ OfficerKill:
   STA $042C                               ; $BE1A: 8D 2C 04
   INC $0402                               ; $BE1D: EE 02 04
   LDA #$C1                                ; $BE20: A9 C1
-  JSR B1F_SetUI4                           ; $BE22: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $BE22: 20 8B F2
   JSR B1F_BankPpuInit                      ; $BE25: 20 7F E5
   LDA #$08                                ; $BE28: A9 08
   JSR B1F_SoundWrapperC                    ; $BE2A: 20 83 E6
@@ -4640,7 +4640,7 @@ OfficerKill:
   LDA #$41                                ; $BE78: A9 41
   STA $6F41                               ; $BE7A: 8D 41 6F
   LDA #$D0                                ; $BE7D: A9 D0
-  JMP B1F_SetUI4                           ; $BE7F: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $BE7F: 4C 8B F2
 @SuccessionFindWait:
   RTS                                     ; $BE82: 60
 @SuccessionPickProvince:  ; (dispatch callback target)
@@ -4671,15 +4671,15 @@ OfficerKill:
   LDA #$0F                                ; $BEBC: A9 0F
   STA $047C                               ; $BEBE: 8D 7C 04
   LDA #$D1                                ; $BEC1: A9 D1
-  JMP B1F_SetUI0                           ; $BEC3: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $BEC3: 4C 6D F2
 @SuccessionPickWait:
   RTS                                     ; $BEC6: 60
 @SuccessionPickInvalid:
   LDA #$21                                ; $BEC7: A9 21
-  JMP B1F_SetUI0                           ; $BEC9: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $BEC9: 4C 6D F2
 @SuccessionPickWrongOwner:
   LDA #$22                                ; $BECC: A9 22
-  JMP B1F_SetUI0                           ; $BECE: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $BECE: 4C 6D F2
 @SuccessionTransferGate:  ; (dispatch callback target)
   LDA $0478                               ; $BED1: AD 78 04
   BNE @SuccessionTransferHold             ; $BED4: D0 26
@@ -4700,7 +4700,7 @@ OfficerKill:
   BNE @SuccessionMarchSetup                 ; $BEF2: D0 09
   DEC $0402                               ; $BEF4: CE 02 04
   LDA #$D0                                ; $BEF7: A9 D0
-  JMP B1F_SetUI0                           ; $BEF9: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                   ; $BEF9: 4C 6D F2
 @SuccessionTransferHold:
 ; --- Code Region ---
   RTS                                     ; $BEFC: 60
@@ -4723,7 +4723,7 @@ OfficerKill:
   STA $0424                               ; $BF24: 8D 24 04
   STA $0425                               ; $BF27: 8D 25 04
   LDA #$D2                                ; $BF2A: A9 D2
-  JMP B1F_SetUI4                           ; $BF2C: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $BF2C: 4C 8B F2
 @SuccessionMarchAnim:  ; (dispatch callback target)
   LDA $0300                               ; $BF2F: AD 00 03
   CMP #$FF                                ; $BF32: C9 FF
@@ -4760,7 +4760,7 @@ OfficerKill:
   STA $047C                               ; $BF79: 8D 7C 04
   DEC $0402                               ; $BF7C: CE 02 04
   LDA #$D1                                ; $BF7F: A9 D1
-  JSR B1F_SetUI0                           ; $BF81: 20 6D F2
+  JSR B1F_OpenMsgWindow0                   ; $BF81: 20 6D F2
 @SuccessionMarchWait:
   RTS                                     ; $BF84: 60
 @SuccessionMarchConfirm:
@@ -4778,7 +4778,7 @@ OfficerKill:
   JSR RosterSwapFirst                      ; $BFA1: 20 01 C1
   INC $0402                               ; $BFA4: EE 02 04
   LDA #$D3                                ; $BFA7: A9 D3
-  JMP B1F_SetUI4                           ; $BFA9: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $BFA9: 4C 8B F2
 ; --- Data Region ---
 @SuccessionConfirmValidTable:
   .byte $00,$01,$FF,$FF                   ; $BFAC: 00 01 FF FF ; indices 0-1, then $FF padding
@@ -4940,7 +4940,7 @@ ArrivalShiftRoster:
   LDA a:$0031                             ; $C0DA: AD 31 00
   STA $042C                               ; $C0DD: 8D 2C 04
   LDA #$D4                                ; $C0E0: A9 D4
-  JMP B1F_SetUI4                           ; $C0E2: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $C0E2: 4C 8B F2
 SuccessionApplyWait:  ; (dispatch callback target)
   LDA $0300                               ; $C0E5: AD 00 03
   CMP #$FF                                ; $C0E8: C9 FF
@@ -5017,7 +5017,7 @@ SuccessionApplyWait:  ; (dispatch callback target)
   LDA $040B                               ; $C14C: AD 0B 04
   STA $042C                               ; $C14F: 8D 2C 04
   LDA #$C1                                ; $C152: A9 C1
-  JSR B1F_SetUI4                           ; $C154: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $C154: 20 8B F2
 ListScanDelayWait:
   RTS                                     ; $C157: 60
 SuccessionApplyListScan:  ; (dispatch callback target)
@@ -5164,7 +5164,7 @@ SuccessionApplyAnnounce:  ; (dispatch callback target)
   LDA #$00                                ; $C276: A9 00
   STA $04D0                               ; $C278: 8D D0 04
   LDA #$C2                                ; $C27B: A9 C2
-  JMP B1F_SetUI4                           ; $C27D: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                   ; $C27D: 4C 8B F2
 SuccessionApplyDelay:  ; (dispatch callback target)
   INC $04D0                               ; $C280: EE D0 04
   BNE @SuccessionApplyDelayWait                  ; $C283: D0 03
@@ -5305,7 +5305,7 @@ SuccessionArrivalOfficerTable:
   LDA @HandoffNoticeIdTable,Y             ; $C389: B9 BB C3
   STA $042D                               ; $C38C: 8D 2D 04
   LDA #$C3                                ; $C38F: A9 C3
-  JSR B1F_SetUI4                           ; $C391: 20 8B F2
+  JSR B1F_OpenMsgWindow4                   ; $C391: 20 8B F2
   LDA $040A                               ; $C394: AD 0A 04
   JSR B1F_GetCountryDataPtr                ; $C397: 20 68 F3
   LDY #$00                                ; $C39A: A0 00
@@ -5411,7 +5411,7 @@ SuccessionArrivalOfficerTable:
 ;     with the highest record byte [+2] across Provinces owned by Ruler
 ;     $6F03 (sram_player_id), caches his id in $042D, renders his card via
 ;     bank $1D B1D_1E_OfficerDisplay_Lookup ($A02A), sets $00A4 = 3, advances
-;     to sub-state 2 and starts UI card $DF through B1F_SetUI0.
+;     to sub-state 2 and starts UI card $DF through B1F_OpenMsgWindow0.
 ;   2 @VerdictWait - redraws the card via OfficerCardRender ($CE1F, Officer id
 ;     in $0000), waits for the UI engine to close it ($0300/$0304 = $FF),
 ;     polls input ($A1C2) and on the A-button edge ($0081 bit 0) sets
@@ -5601,7 +5601,7 @@ SuccessionArrivalOfficerTable:
   STA a:$00A4                             ; $C5D4: 8D A4 00 ; card renderer parameter
   INC $0401                               ; $C5D7: EE 01 04 ; advance to verdict sub-state
   LDA #$DF                                ; $C5DA: A9 DF
-  JMP B1F_SetUI0                          ; $C5DC: 4C 6D F2 ; start UI card $DF
+  JMP B1F_OpenMsgWindow0                  ; $C5DC: 4C 6D F2 ; start UI card $DF
 @VerdictWait:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $042D                               ; $C5DF: AD 2D 04
@@ -5888,7 +5888,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ;===============================================================================
 @RulerPanelOpen:  ; sub-state 0
   LDA #$BB                                ; $C79B: A9 BB     ; Ruler status overlay id
-  JSR B1F_SetUI4                          ; $C79D: 20 8B F2
+  JSR B1F_OpenMsgWindow4                  ; $C79D: 20 8B F2
   LDY #$00                                ; $C7A0: A0 00
   LDA ($EE),Y                             ; $C7A2: B1 EE     ; current Ruler's Officer id
   STA $042C                               ; $C7A4: 8D 2C 04 ; overlay: Officer
@@ -6135,7 +6135,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   LDA a:$0038                             ; $C905: AD 38 00 ; strategy-layer Officer id
   STA $042C                               ; $C908: 8D 2C 04 ; overlay: Officer
   LDA #$C1                                ; $C90B: A9 C1
-  JSR B1F_SetUI4                          ; $C90D: 20 8B F2
+  JSR B1F_OpenMsgWindow4                  ; $C90D: 20 8B F2
   LDA #$0B                                ; $C910: A9 0B
   STA $0401                               ; $C912: 8D 01 04 ; -> sub-state $B
   LDA #$00                                ; $C915: A9 00
@@ -6155,7 +6155,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   LDA @OfficerCategoryTileTable,Y          ; $C924: B9 3A C9
   STA $042D                               ; $C927: 8D 2D 04 ; overlay: category tile
   LDA #$C3                                ; $C92A: A9 C3
-  JSR B1F_SetUI4                          ; $C92C: 20 8B F2
+  JSR B1F_OpenMsgWindow4                  ; $C92C: 20 8B F2
   LDA #$0C                                ; $C92F: A9 0C
   STA $0401                               ; $C931: 8D 01 04 ; -> sub-state $C
   LDA #$00                                ; $C934: A9 00
@@ -6177,7 +6177,7 @@ ReqProvinceSweepNotice:  ; mailbox $FA
   LDA a:$0040                             ; $C948: AD 40 00
   STA $042D                               ; $C94B: 8D 2D 04 ; overlay: Officer 1
   LDA #$E6                                ; $C94E: A9 E6
-  JSR B1F_SetUI0                          ; $C950: 20 6D F2
+  JSR B1F_OpenMsgWindow0                  ; $C950: 20 6D F2
   LDA a:$003D                             ; $C953: AD 3D 00
   STA a:$0000                             ; $C956: 8D 00 00 ; Officer to look up
   LDY #$3D                                ; $C959: A0 3D     ; target banks $1D+$1E
@@ -6210,7 +6210,7 @@ ReqAbsorbSweepNotice:  ; mailbox $F9
   LDA a:$0039                             ; $C983: AD 39 00
   STA $042D                               ; $C986: 8D 2D 04 ; overlay: Officer 1
   LDA #$E6                                ; $C989: A9 E6
-  JSR B1F_SetUI0                          ; $C98B: 20 6D F2
+  JSR B1F_OpenMsgWindow0                  ; $C98B: 20 6D F2
   LDA a:$003D                             ; $C98E: AD 3D 00
   STA a:$0000                             ; $C991: 8D 00 00 ; Officer to look up
   LDY #$3D                                ; $C994: A0 3D     ; target banks $1D+$1E
@@ -6242,7 +6242,7 @@ ReqTransferConfirm:  ; mailbox $F8
   LDA a:$0042                             ; $C9B7: AD 42 00 ; envoy officer id (most loyal)
   STA $042E                               ; $C9BA: 8D 2E 04 ; overlay: envoy Officer
   LDA #$E2                                ; $C9BD: A9 E2
-  JSR B1F_SetUI4                          ; $C9BF: 20 8B F2
+  JSR B1F_OpenMsgWindow4                  ; $C9BF: 20 8B F2
   LDA #$10                                ; $C9C2: A9 10
   STA $0401                               ; $C9C4: 8D 01 04 ; -> sub-state $10
   LDA #$00                                ; $C9C7: A9 00
@@ -6500,7 +6500,7 @@ WarPhaseHandoff:  ; sub-state $A
   ORA $0140                               ; $CB5E: 0D 40 01 ; screen transition flag
   BNE PairedRulerExit                     ; $CB61: D0 CB     ; menu 6 still up
   LDA #$BB                                ; $CB63: A9 BB
-  JSR B1F_SetUI4                          ; $CB65: 20 8B F2 ; Ruler status overlay
+  JSR B1F_OpenMsgWindow4                  ; $CB65: 20 8B F2 ; Ruler status overlay
   LDY #$00                                ; $CB68: A0 00
   LDA ($EE),Y                             ; $CB6A: B1 EE     ; current Ruler's Officer id
   STA $042C                               ; $CB6C: 8D 2C 04 ; overlay: Officer
@@ -6526,7 +6526,7 @@ NoticeDelayWait:  ; sub-states $B and $D
   LDA a:$0027                             ; $CB89: AD 27 00 ; strategy-layer Officer id
   STA $042C                               ; $CB8C: 8D 2C 04 ; overlay: Officer
   LDA #$C2                                ; $CB8F: A9 C2
-  JSR B1F_SetUI4                          ; $CB91: 20 8B F2 ; notice overlay
+  JSR B1F_OpenMsgWindow4                  ; $CB91: 20 8B F2 ; notice overlay
   INC $0401                               ; $CB94: EE 01 04 ; $B -> $C, $D -> $E
   LDA #$00                                ; $CB97: A9 00
   STA $040C                               ; $CB99: 8D 0C 04
@@ -6545,7 +6545,7 @@ RulerPanelAck:  ; sub-state $C
   CMP #$F0                                ; $CBA3: C9 F0     ; 240 ticks elapsed?
   BCC @StillWaiting                       ; $CBA5: 90 1B
   LDA #$BB                                ; $CBA7: A9 BB
-  JSR B1F_SetUI4                          ; $CBA9: 20 8B F2 ; Ruler status overlay
+  JSR B1F_OpenMsgWindow4                  ; $CBA9: 20 8B F2 ; Ruler status overlay
   LDY #$00                                ; $CBAC: A0 00
   LDA ($EE),Y                             ; $CBAE: B1 EE     ; current Ruler's Officer id
   STA $042C                               ; $CBB0: 8D 2C 04 ; overlay: Officer
@@ -6593,7 +6593,7 @@ SweepOfficerPrompt:  ; sub-state $E
   LDA a:$0040                             ; $CBFB: AD 40 00
   STA $042D                               ; $CBFE: 8D 2D 04 ; overlay: Officer 1
   LDA #$E0                                ; $CC01: A9 E0
-  JSR B1F_SetUI0                          ; $CC03: 20 6D F2
+  JSR B1F_OpenMsgWindow0                  ; $CC03: 20 6D F2
   INC $0402                               ; $CC06: EE 02 04 ; -> phase 1
 @PhaseExit:
   RTS                                     ; $CC09: 60
@@ -6646,7 +6646,7 @@ AbsorbOfficerPrompt:  ; sub-state $F
   LDA a:$0039                             ; $CC5E: AD 39 00
   STA $042D                               ; $CC61: 8D 2D 04 ; overlay: Officer 1
   LDA #$E1                                ; $CC64: A9 E1
-  JSR B1F_SetUI0                          ; $CC66: 20 6D F2
+  JSR B1F_OpenMsgWindow0                  ; $CC66: 20 6D F2
   INC $0402                               ; $CC69: EE 02 04 ; -> phase 1
 @PhaseExit:
   RTS                                     ; $CC6C: 60
@@ -6704,7 +6704,7 @@ TransferConfirmPrompt:  ; sub-state $10
   BEQ @SetOverlay                         ; $CCB8: F0 02
   LDA #$EE                                ; $CCBA: A9 EE     ; alternate overlay
 @SetOverlay:
-  JSR B1F_SetUI0                          ; $CCBC: 20 6D F2
+  JSR B1F_OpenMsgWindow0                  ; $CCBC: 20 6D F2
   INC $0402                               ; $CCBF: EE 02 04 ; -> phase 1
   LDA #$00                                ; $CCC2: A9 00
   STA $0424                               ; $CCC4: 8D 24 04 ; cursor X
@@ -6757,11 +6757,11 @@ TransferPromptChoose:  ; phase 1
   STA $040C                               ; $CD35: 8D 0C 04 ; result code for the ack
   BNE @AnswerNo                           ; $CD38: D0 06
   LDA #$E4                                ; $CD3A: A9 E4
-  JSR B1F_SetUI4                          ; $CD3C: 20 8B F2 ; "transfer accepted" overlay
+  JSR B1F_OpenMsgWindow4                  ; $CD3C: 20 8B F2 ; "transfer accepted" overlay
   RTS                                     ; $CD3F: 60
 @AnswerNo:
   LDA #$E5                                ; $CD40: A9 E5
-  JSR B1F_SetUI4                          ; $CD42: 20 8B F2 ; "transfer refused" overlay
+  JSR B1F_OpenMsgWindow4                  ; $CD42: 20 8B F2 ; "transfer refused" overlay
 @ChooseExit:
   RTS                                     ; $CD45: 60
 ; --- Yes/No cursor data: valid index list, sprite Y/X pair per index, and the
@@ -6795,7 +6795,7 @@ TransferPromptWait:  ; phase 2
 ;-------------------------------------------------------------------------------
 RequestAckReturn:
   LDA #$BB                                ; $CD6F: A9 BB
-  JSR B1F_SetUI4                          ; $CD71: 20 8B F2 ; Ruler status overlay
+  JSR B1F_OpenMsgWindow4                  ; $CD71: 20 8B F2 ; Ruler status overlay
   LDY #$00                                ; $CD74: A0 00
   LDA ($EE),Y                             ; $CD76: B1 EE     ; current Ruler's Officer id
   STA $042C                               ; $CD78: 8D 2C 04 ; overlay: Officer
@@ -6896,34 +6896,41 @@ RequestAckReturn:
 ; the BG card frame.
 ; Inputs:
 ;   $0000 = Officer id
-;   X     = strip 0/1 (0: CHR page bias $00, portrait tile -> $00B8;
-;                     1: CHR page bias $40, portrait tile -> $00B9)
+;   X     = strip 0/1 (0: CHR page bias $00, portrait CHR page -> $00B8;
+;                     1: CHR page bias $40, portrait CHR page -> $00B9)
 ;   $000A = strip screen X base ($A7 strategy card, $A5 battle strip)
-;   $00A4 = card slot offset 0-4 within the Officer's class group
-;           (callers set 0/2/3/4; $6FEA outcome bits 2/3 force 3/4)
+;   $00A4 = card slot offset 0-4 within the Officer's class group; the low
+;           3 bits select the face expression: 0/1 = normal, 2 = angry
+;           (duel pursuer, prg_17_18 $BAF7), 3 = sad (war defeat, prg_08_09
+;           $D691), 4 = happy (war victory, prg_08_09 $D6BA)
 ;   $04BC = one-shot strip row param (Y base); cleared after the body draw
 ;   $007C = OAM sprite cursor (advanced by the writer)
 ; Clobbers: A/X/Y, $0000-$0005, $000C, $007C (via writer)
 ; Bank/data notes: switches the $8000 window to bank $01 ($21 & $1F) for
 ; its tables: $99A0 = per-Officer class base (256 bytes, values 0/5/10/15),
 ; $9AA0 = card body sprite-set pointers (20 words, 4 distinct ~14-sprite
-; sets, one per class), $9BAC/$9D64 = per-slot 6-sprite overlay pointers
-; (20 words each = the two frames of the overlay animation).
+; sets, one per class), $9BAC = per-slot 6-sprite face-expression pointers
+; and $9D64 = talking-frame pointers (20 words each; the talking frame
+; repeats the same expression with the mouth tile swapped).
 ; Flow:
-;   1. $6FEA bits 2/3 override $00A4 to 3/4.
+;   1. $6FEA bits 2/3 (result-scene dir-repeat latches, WarResultDirRepeat2/3)
+;      override $00A4 to 3 (sad) / 4 (happy).
 ;   2. slot = ($00A4 & 7) + $99A0[Officer]; slot*2 is kept on the stack
 ;      across the body draw (the writer clobbers Y).
 ;   3. Body draw: sprite set from $9AA0[slot*2]; Y base = $04BC or $10,
 ;      flip flags off, tile bias $00/$40 by strip, right-edge overflow
 ;      clip $0004 = $A0.
-;   4. Overlay draw (tail call): 6-sprite set from $9BAC[slot*2]; when
-;      the strategy render engine is active in direct mode ($00A4 bit7
-;      clear, $007E bit0 render request set, $0304 != $FF, $0303 == 0)
-;      and frame tick bit 3 ($005E) is set, the animated frame from
-;      $9D64 is used instead (8-frame toggle).
-;   $CED6[Officer] (portrait base tile, @PortraitTileTable) is
-;   recorded to $00B8/$00B9 per strip; no disassembled code reads them
-;   back.
+;   4. Face draw (tail call): 6-sprite face set (expression per slot
+;      offset) from $9BAC[slot*2]; when the strategy render engine is
+;      active in direct mode ($00A4 bit7 clear, $007E bit0 render request
+;      set, $0304 != $FF, $0303 == 0) and frame tick bit 3 ($005E) is set,
+;      the talking frame from $9D64 (same expression, mouth tile swapped)
+;      is used instead (8-frame toggle).
+;   $CED6[Officer] (@OfficerPortraitChrPageTable) is the Officer's portrait
+;   CHR 1KB page id, recorded to $00B8/$00B9 per strip and latched into
+;   Namco-163 CHR registers 2/3 (sprite windows PPU $0800/$0C00) by the
+;   IRQ handler (prg_1f $FD03-$FD14), so the card's OAM tiles resolve
+;   inside that page.
 ;===============================================================================
 .proc OfficerCardRender
   ; outcome-latch override: $6FEA bits 2/3 force the slot offset to 3/4
@@ -6949,13 +6956,13 @@ RequestAckReturn:
   BEQ @Strip0                             ; $CE43: F0 0E
   LDA #$40                                ; $CE45: A9 40 ; strip 1: tile bias $40
   STA a:$0003                             ; $CE47: 8D 03 00
-  LDA @PortraitTileTable,Y                ; $CE4A: B9 D6 CE ; portrait base tile
+  LDA @OfficerPortraitChrPageTable,Y        ; $CE4A: B9 D6 CE ; portrait CHR page
   STA a:$00B9                             ; $CE4D: 8D B9 00
   JMP @SlotCalc                           ; $CE50: 4C 5E CE
 @Strip0:
   LDA #$00                                ; $CE53: A9 00 ; strip 0: tile bias $00
   STA a:$0003                             ; $CE55: 8D 03 00
-  LDA @PortraitTileTable,Y                ; $CE58: B9 D6 CE
+  LDA @OfficerPortraitChrPageTable,Y        ; $CE58: B9 D6 CE
   STA a:$00B8                             ; $CE5B: 8D B8 00
 @SlotCalc:
   LDA #$00                                ; $CE5E: A9 00
@@ -6985,7 +6992,7 @@ RequestAckReturn:
   STA $04BC                               ; $CE94: 8D BC 04 ; row param is one-shot
   PLA                                     ; $CE97: 68
   TAY                                     ; $CE98: A8 ; restore slot*2
-  ; overlay frame select: animated frame only while the strategy render
+  ; face/talk-frame select: talking frame only while the strategy render
   ; engine is active in direct mode and frame tick bit 3 is set
   LDA a:$00A4                             ; $CE99: AD A4 00
   BMI @FrameSetDefault                    ; $CE9C: 30 1A ; bit7 set -> default
@@ -7001,27 +7008,31 @@ RequestAckReturn:
   AND #$08                                ; $CEB4: 29 08 ; frame tick bit 3
   BNE @FrameSetAnimated                   ; $CEB6: D0 0F
 @FrameSetDefault:
-  LDA $9BAC,Y                             ; $CEB8: B9 AC 9B ; overlay set ptr lo
+  LDA $9BAC,Y                             ; $CEB8: B9 AC 9B ; face set ptr lo
   STA a:$0000                             ; $CEBB: 8D 00 00
   LDA $9BAD,Y                             ; $CEBE: B9 AD 9B ; hi
   STA a:$0001                             ; $CEC1: 8D 01 00
   JMP B1F_SpriteOamWriterSimple_NoInit    ; $CEC4: 4C B7 F1 ; tail draw
 @FrameSetAnimated:
-  LDA $9D64,Y                             ; $CEC7: B9 64 9D ; animated overlay set ptr lo
+  LDA $9D64,Y                             ; $CEC7: B9 64 9D ; talking frame set ptr lo
   STA a:$0000                             ; $CECA: 8D 00 00
   LDA $9D65,Y                             ; $CECD: B9 65 9D ; hi
   STA a:$0001                             ; $CED0: 8D 01 00
   JMP B1F_SpriteOamWriterSimple_NoInit    ; $CED3: 4C B7 F1 ; tail draw
 
 ;-------------------------------------------------------------------------------
-; @PortraitTileTable ($CED6-$CFD5)
-; 256-byte per-Officer table (index = Officer id): base CHR tile of the
-; Officer's portrait/figure. Read via $CED6,Y to record the strip portrait
-; tile in $00B8/$00B9. Entries span $18-$53 for regular Officers; the tail
-; mixes $9F/$DB markers, $00 padding and unused $41-$44 filler for the high
-; (mostly unused) ids.
+; @OfficerPortraitChrPageTable ($CED6-$CFD5)
+; 256-byte per-Officer table (index = Officer id): the Officer's portrait CHR
+; 1KB page id — each page is one authored officer portrait (body + face
+; tiles for the card). Values $18-$53 = 60 portrait pages shared across the
+; 237 Officers; the tail mixes $9F/$DB markers, $00 padding and unused
+; $41-$44 filler for the high (mostly unused) ids. Recorded to $00B8
+; (strip 0) / $00B9 (strip 1) and latched into Namco-163 CHR registers 2/3
+; (sprite windows PPU $0800/$0C00, tiles $80-$BF/$C0-$FF) by the IRQ
+; handler (prg_1f $FD03-$FD14). Page N = 1KB window N&7 of
+; rom/chr/chr_(N>>3).bin.
 ;-------------------------------------------------------------------------------
-@PortraitTileTable:
+@OfficerPortraitChrPageTable:
   .byte $40,$37,$4E,$20,$52,$41,$4F,$4F,$18,$1B,$33,$46,$4C,$9F,$46,$2C  ; $CED6: 40 37 4E 20 52 41 4F 4F 18 1B 33 46 4C 9F 46 2C
   .byte $3D,$46,$39,$DB,$3F,$4A,$39,$3A,$3B,$3F,$50,$44,$3F,$3A,$53,$26  ; $CEE6: 3D 46 39 DB 3F 4A 39 3A 3B 3F 50 44 3F 3A 53 26
   .byte $3D,$35,$51,$31,$20,$1C,$19,$42,$31,$1C,$21,$36,$2F,$34,$51,$1D  ; $CEF6: 3D 35 51 31 20 1C 19 42 31 1C 21 36 2F 34 51 1D
@@ -7045,7 +7056,7 @@ RequestAckReturn:
 ; executes. Called every NMI frame from NmiState3_Battle (prg_1f $F945, banks
 ; $19/$1A mapped via Y=$39); self-gating on $04C8:
 ;   $04C8 = 0      -> idle, returns immediately.
-;   $04C8 = 1..$7F -> trigger (0c_0d CommandState_Confirm stores
+;   $04C8 = 1..$7F -> trigger (0c_0d StratagemState_Confirm stores
 ;                     move_path_total+1): start scene = $04C8-1 into $04C9,
 ;                     cursor $04CA = 0, latch $04C8 = $80.
 ;   $04C8 = $80    -> phase 1: BG panel build (5 steps, $04CA cursor).
@@ -7070,7 +7081,7 @@ RequestAckReturn:
 ; $00BF/$00C7/$00CF) and draw OAM blocks via @DrawSceneSpriteBlock.
 ; End: every tail funnels into @SceneTimerCheck; when $04D0 reaches $B0
 ; (~2.9 s) @CutsceneFinish uploads a $AA strip to PPU $27D8, clears $04C8
-; (releasing 0c_0d CommandState_ShowResult), sets $0518/$007D, trampolines
+; (releasing 0c_0d StratagemState_ShowResult), sets $0518/$007D, trampolines
 ; to B1D_1E_LoadScenarioData (Y=$3D, bank pair $1D/$1E), restores the
 ; exchange overlay tiles $88/$89/$8A into $00C2-$00D5, BankPpuInit and
 ; plays note $1D via B1F_SoundWrapperA.

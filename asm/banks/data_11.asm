@@ -469,30 +469,34 @@ ArrivalSchedule_EISHOU:
 ;     3. entry[1] > $6F00 (reign year not reached) -> also no candidate;
 ;        entry[1] <= $6F00 -> append the Officer to the province roster
 ;        ($00 + $11..) and set his status to 2 = rostered ($AF4E-$AF52).
-; Content (decoded names): the pools group Officers by faction/family -
+; Content (decoded names): the pools group Officers by family -
 ; list 0 曹氏/夏侯氏/司马氏, list 1 周瑜+孙氏+诸葛恪, list 2
-; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. Which $0470 value picks which pool
-; is not yet decoded.
+; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. EventReinforceGate ($A33C,
+; prg_19_1a) picks pool (Country-2) for the acting Country each
+; January (Country 6 aliases slot 3; Countries 0/1/5 have none),
+; and OfficerReinforceScene ($AEC0) inducts the first still-hidden
+; Officer whose year has arrived into the Country's home Province.
+; Editing surface: docs/officer_reinforcement.csv.
 ; ==============================================================================
 ReinforceCandidatePtrTable:
   .word $2D7C, $2D95, $2D9E, $2DAB                             ; $8D74 -> $8D7C (12 pairs) / $8D95 (4 pairs) / $8D9E (6 pairs) / $8DAB (4 pairs)
 
-ReinforceCandidateList_0:  ; $8D7C 12 (Officer id, year) pairs, display years 196-210
+ReinforceCandidateList_0:  ; $8D7C Country 2, 12 (Officer id, year) pairs, display years 196-210
   .byte $20, $60, $81, $64, $7C, $65, $84, $66   ; $8D7C 32(夏侯楙)->196 129(曹真)->200 124(曹休)->201 132(曹丕)->202
   .byte $7F, $67, $21, $67, $80, $68, $85, $69   ; $8D84 127(曹彰)->203 33(夏侯兰)->203 128(曹植)->204 133(曹熊)->205
   .byte $1F, $6C, $57, $6C, $58, $6D, $7B, $6E   ; $8D8C 31(夏侯霸)->208 87(司马师)->208 88(司马昭)->209 123(曹叡)->210
   .byte $FF                                           ; $8D94 list end
 
-ReinforceCandidateList_1:  ; $8D95 4 (Officer id, year) pairs, display years 192-210
+ReinforceCandidateList_1:  ; $8D95 Country 3, 4 (Officer id, year) pairs, display years 192-210
   .byte $5D, $5C, $89, $61, $8B, $63, $6E, $6E   ; $8D95 93(周瑜)->192 137(孙权)->197 139(孙翊)->199 110(诸葛恪)->210
   .byte $FF                                           ; $8D9D list end
 
-ReinforceCandidateList_2:  ; $8D9E 6 (Officer id, year) pairs, display years 198-210
+ReinforceCandidateList_2:  ; $8D9E Country 4, 6 (Officer id, year) pairs, display years 198-210
   .byte $30, $62, $E0, $63, $9A, $67, $2A, $68   ; $8D9E 48(关平)->198 224(刘封)->199 154(张苞)->203 42(关兴)->204
   .byte $2B, $69, $6C, $6E                       ; $8DA6 43(关索)->205 108(诸葛瞻)->210
   .byte $FF                                           ; $8DAA list end
 
-ReinforceCandidateList_3:  ; $8DAB 4 (Officer id, year) pairs, display years 193-197
+ReinforceCandidateList_3:  ; $8DAB Country 6, 4 (Officer id, year) pairs, display years 193-197
   .byte $B4, $5D, $B3, $5E, $B5, $5F, $B0, $61   ; $8DAB 180(马超)->193 179(马岱)->194 181(马铁)->195 176(马休)->197
   .byte $FF                                           ; $8DB3 list end
 
@@ -921,7 +925,7 @@ TacticalDefenseSideTypeTable:
 ;   DrawStratagemTargetMarkers prg_08_09 $D24D -> $D25D: $050E *3 *2
 ;     (=*6), walks pairs at +0/+2/+4 and draws a city-target marker
 ;     (tiles *16 -> pixels) at each used pair;
-;   OfficerTransfer_SetupResult prg_0c_0d $A4DD -> $A4EF: $050E *3 *2
+;   MoveState_CheckDest prg_0c_0d $A4DD -> $A4EF: $050E *3 *2
 ;     (=*6), scans the 3 pairs vs the destination (X,Y); a match
 ;     stores the slot index (X) as the action selector and enters
 ;     state $09 (war action panel, WarTownActionDispatch).

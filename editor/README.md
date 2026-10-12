@@ -1,5 +1,8 @@
 # Tactical Map Editor — Sangokushi 2 terrain data banks `$00/$03/$04/$05`
 
+> The officer seed-data editor (banks `$10`/`$11`) has its own README:
+> [`README_officer.md`](README_officer.md).
+
 A standalone desktop editor for the tactical (war-layer) terrain maps of
 *Sangokushi 2 - Haou no Tairiku* (Famicom, Namco-163 / mapper 19). It paints the
 terrain maps of all **30 provinces** and writes the result back out as the data

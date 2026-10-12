@@ -23,7 +23,7 @@ $B6EF, `TileTerrainTable` $B74B: tile bytes $61/$62/$63 = terrain 6/7/8, the
 special settlement tiles clamped to plain by the AI wrapper). The table's
 three slots are the facility tiles of the province map, in a constant order —
 proved directly by the arrival routing:
-`OfficerTransfer_SetupResult`/`MoveState_CheckDest_Found` (prg_0c_0d
+`MoveState_CheckDest`/`MoveState_CheckDest_Found` (prg_0c_0d
 $A4DD/$A508) stores the matched slot index into $0470 and enters phase $09;
 `State9_RouteNextAction` (prg_08_09 $C7C8) dispatches on exactly that byte:
 
@@ -49,7 +49,7 @@ Stride-6 (correct row addressing, `$050E *3` then `*2`):
   `@CheckPositionHitsCityTile` $D337 suppresses a marker when the position is
   already occupied (battlefield unit coords $0600/$0614, 20 slots) unless
   $005E bit6 is set.
-* `OfficerTransfer_SetupResult` prg_0c_0d $A4DD-$A502 — scans the 3 pairs of
+* `MoveState_CheckDest` prg_0c_0d $A4DD-$A502 — scans the 3 pairs of
   row $050E against the moved officer's destination ($10,$11) loaded from
   $0600/$0614; a match stores the **slot index in X** (`STX` into $0470,
   the action-selector work byte) and enters phase $09 (war action panel,

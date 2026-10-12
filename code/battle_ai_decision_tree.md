@@ -79,7 +79,7 @@ Runs per AI side from round pass >= 4 (Y = 0 / $0B). The commander routs only wh
 | Loyalty | commander officer record field [3] != 100 (100 = never routs) |
 | Roll | `B1F_RandomBelowThreshold(100)` below @RoutThresholds+3 = 55/50/30 (by game level) |
 
-On success it drops its own return and `Phase1AiSideRefresh`'s return (2x PLA), runs `B1F_BankPpuInit` + SFX $6C, and **forces the phase 4 battle result** (phase/sub = 4/0, retreat strip $0514-$0517 mode 3, UI mode 4 via `B1F_SetUI4` $7D).
+On success it drops its own return and `Phase1AiSideRefresh`'s return (2x PLA), runs `B1F_BankPpuInit` + SFX $6C, and **forces the phase 4 battle result** (phase/sub = 4/0, retreat strip $0514-$0517 mode 3, UI mode 4 via `B1F_OpenMsgWindow4` $7D).
 
 ROM asymmetry: side A writes its own commander $0560 into $042C/$0514 and the enemy $0561 into $0516; side B writes its own commander $0561 into both slots.
 

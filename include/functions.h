@@ -196,12 +196,12 @@ B1F_SwitchBank8_B         = $F25F   ; Switch $8000 bank (slot B: $00E1)
 B1F_SwitchBank8_A         = $F266   ; Switch $8000 bank (slot A: $00DE)
 
 ;-------------------------------------------------------------------------------
-; 1Q: UI Mode Helpers
+; 1Q: Message Window Helpers
 ;-------------------------------------------------------------------------------
-B1F_SetUI0                = $F26D   ; Set UI mode 0
-B1F_SetUI2                = $F283   ; Set UI mode 2
-B1F_SetUI4                = $F28B   ; Set UI mode 4
-B1F_SetUI5                = $F293   ; Set UI mode 5
+B1F_OpenMsgWindow0        = $F26D   ; Open message window mode 0 (blank at $22A8)
+B1F_OpenMsgWindow2        = $F283   ; Open message window mode 2 (blank at $2428)
+B1F_OpenMsgWindow4        = $F28B   ; Open message window mode 4 (blank at $22A0)
+B1F_OpenMsgWindow5        = $F293   ; Open message window mode 5 (blank at $2420)
 B1F_ClearUI               = $F29B   ; Clear UI state
 
 ;-------------------------------------------------------------------------------
@@ -676,8 +676,8 @@ B1D_1E_SceneRecordLookup_Proc = $DEB9 ; Scene record lookup procedure
 ;
 ; Jump table entry points ($A000-$A032)
 ;-------------------------------------------------------------------------------
-B19_1A_OverlayStripRender_Entry = $A000  ; $A000 stub: redraw one battle overlay strip (X = strip 0/1)
-B19_1A_OfficerCardRender_Entry = $A000   ; $A000 stub alias: officer card overlay strip render
+B19_1A_OverlayStripRender_Entry = $A000  ; legacy alias of B19_1A_OfficerCardRender_Entry (pre-rename name)
+B19_1A_OfficerCardRender_Entry = $A000   ; $A000 stub alias: officer card render (body + face expression)
 B19_1A_CountryRotationDispatch            = $A003 ; CountryRotationDispatch_Entry: per-Country turn rotation (frame $0B) entry
 B19_1A_StrategyRequestDispatch       = $A006 ; StrategyRequestDispatch_Entry: strategy request dispatch
 B19_1A_MonthlyEventDispatch              = $A009 ; MonthlyEventDispatch_Entry: per-Country monthly event dispatch (frame $0A)
@@ -751,7 +751,7 @@ B19_1A_MapCameraScrollRepeat = $C67C     ; Map camera scroll with auto-repeat (b
 B19_1A_MapProvinceUnderCamera = $C708    ; Find Province under camera center
 B19_1A_StrategyRequestDispatch_Proc = $C773 ; Strategy request processing dispatch
 B19_1A_CountryControlToggle = $CD8C      ; Country control (player/AI) toggle
-B19_1A_OfficerCardRender = $CE1F         ; Officer card sprite overlay strip render
+B19_1A_OfficerCardRender = $CE1F         ; Officer card renderer (body + face expression, portrait CHR page $CED6)
 B19_1A_ExchangeMarchCutscene_Proc = $CFD6 ; War exchange marching cutscene (per-frame)
 
 ;===============================================================================
@@ -962,15 +962,15 @@ B0C_0D_OfficerFateCommitDispatch_Entry = $A006 ; OfficerFateCommitDispatch_Entry
 B0C_0D_ExchangeFrameUpdate = $A009  ; Main frame update loop
 B0C_0D_PhaseDispatch      = $A04E   ; 5-phase exchange flow dispatcher
 B0C_0D_OfficerDetailView  = $A21B   ; Officer detail panel display
-B0C_0D_OfficerTransferExecute = $A293 ; Officer transfer animation + result
+B0C_0D_OfficerAttackExecute = $A293 ; Attack (こうげき) flow: enemy target select, animation, battle result
 B0C_0D_OfficerMovePhase   = $A44D   ; Officer movement on strategic map
-B0C_0D_OfficerCommandPhase = $A87C  ; Command menu, target select, confirm
+B0C_0D_OfficerStratagemPhase = $A87C ; Stratagem (けいりゃく) menu, target select, confirm
 B0C_0D_ValidateActionTarget = $AD80 ; Per-action validation (14 action types)
 B0C_0D_ExecuteAction      = $B02B   ; Per-action execution engine
 B0C_0D_CheckActionSuccess = $B72B   ; Action success check (distance + stats)
 B0C_0D_CalcDistance       = $B860   ; Hex distance calculation
 B0C_0D_BuildNeighborList  = $B8A1   ; Build adjacent tile neighbor list
-B0C_0D_ProvinceSelectDispatch = $B94A ; Province selection UI (6 states)
+B0C_0D_OfficerRetreatDispatch = $B94A ; Retreat (たいきゃく) castle selection (6 states)
 B0C_0D_OfficerTurnDispatch = $BC93  ; Officer turn cycle (8 states)
 B0C_0D_OfficerMarchDispatch = $BE7E ; Army march dispatch (17 states)
 

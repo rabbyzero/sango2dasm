@@ -25,8 +25,10 @@
 ;
 ;   $99A0            Officer class-base table: one byte per officer id (values
 ;   $9AA0            $00/$05/$0A/$0F...). + ($00A4 & $07), *2 indexes:
-;   $9BAC              $9AA0 body-sprite pointers, $9BAC default-overlay pointers,
-;   $9D64              $9D64 animated-overlay pointers.
+;   $9BAC              $9AA0 body-sprite pointers (4 figure classes),
+;   $9D64              $9BAC face-expression pointers (0/1 = normal, 2 = angry,
+;                      3 = sad, 4 = happy) and $9D64 talking-frame pointers
+;                      (same expression, mouth tile swapped for the talk loop).
 ;   $9AC8-$9FFF      Officer card sprite blobs (16-bit ptr tables above target these).
 ;                    All three pointer tables + blobs read by prg_19_1a officer-card renderer.
 ;
@@ -595,7 +597,7 @@ Bank01StratAnimFrame_Blob14:
 ;-------------------------------------------------------------------------------
 ; OFFICER CARD - class base table  ($99A0-$9A9F)
 ;   One byte per officer id ($00/$05/$0A/$0F...); + ($00A4 & $07), *2 selects a
-;   body/overlay/animated-overlay sprite-set slot in the tables below.
+;   body/face-expression/talking sprite-set slot in the tables below.
 ;-------------------------------------------------------------------------------
 Bank01OfficerClassBase:
   .byte $05, $05, $0A, $00, $0A, $05, $05, $0A, $05, $05, $00, $00, $0A, $05, $00, $0A ; $99A0: 05 05 0A 00 0A 05 05 0A 05 05 00 00 0A 05 00 0A
@@ -616,9 +618,16 @@ Bank01OfficerClassBase:
   .byte $00, $05, $0A, $00, $00, $05, $0A, $00, $00, $05, $0A, $00, $00, $05, $0A, $00 ; $9A90: 00 05 0A 00 00 05 0A 00 00 05 0A 00 00 05 0A 00
 
 ;-------------------------------------------------------------------------------
-; OFFICER CARD - body / overlay / animated-overlay  ($9AA0-$9FFF)
-;   Three parallel 20-entry pointer tables and their OAM sprite blobs (portrait
-;   tiles $80+, palette/flip in attr). Read by prg_19_1a OfficerCardRender.
+; OFFICER CARD - body / face expressions / talking frames  ($9AA0-$9FFF)
+;   Body: one ~14-sprite figure per class (4 distinct sets). Face: one 6-sprite
+;   set per slot; the slot offset ($00A4 & 7) picks the expression -
+;   0/1 = normal, 2 = angry, 3 = sad, 4 = happy (call sites: normal = officer
+;   detail/roster views, angry = duel pursuer prg_17_18 $BAF7, sad = war-defeat
+;   scene prg_08_09 $D691, happy = war-victory scene prg_08_09 $D6BA). Talking
+;   frames repeat the same upper-face tiles with the mouth tile swapped; the
+;   renderer alternates face/talking every 8 frames. Read by prg_19_1a
+;   OfficerCardRender; OAM tiles resolve into the officer's portrait CHR page
+;   (per-officer page id from prg_19_1a $CED6, latched by the IRQ handler).
 ;-------------------------------------------------------------------------------
 Bank01OfficerBodyPtrTable:
   .word $9AC8  ; $9AA0: C8 9A  ; slot 0 -> body $9AC8
@@ -642,203 +651,203 @@ Bank01OfficerBodyPtrTable:
   .word $9B73  ; $9AC4: 73 9B  ; slot 18 -> body $9B73
   .word $9B73  ; $9AC6: 73 9B  ; slot 19 -> body $9B73
 
-Bank01OfficerCardBody_Blob0:
-  .byte $00, $80, $23, $00, $00, $81, $23, $08, $00, $81, $63, $10, $00, $80, $63, $18 ; $9AC8: 00 80 23 00 00 81 23 08 00 81 63 10 00 80 63 18  ; body blob @$9AC8: 14 records + $80; slots [0, 1, 2, 3, 4]
+Bank01OfficerCardBody_Class0:
+  .byte $00, $80, $23, $00, $00, $81, $23, $08, $00, $81, $63, $10, $00, $80, $63, $18 ; $9AC8: 00 80 23 00 00 81 23 08 00 81 63 10 00 80 63 18  ; body blob (class 0) @$9AC8: 14 records + $80; slots [0, 1, 2, 3, 4]
   .byte $08, $82, $23, $00, $08, $82, $63, $18, $10, $84, $23, $00, $10, $84, $63, $18 ; $9AD8: 08 82 23 00 08 82 63 18 10 84 23 00 10 84 63 18
   .byte $18, $86, $23, $00, $18, $86, $63, $18, $20, $88, $23, $00, $20, $89, $23, $08 ; $9AE8: 18 86 23 00 18 86 63 18 20 88 23 00 20 89 23 08
   .byte $20, $89, $63, $10, $20, $88, $63, $18, $80 ; $9AF8: 20 89 63 10 20 88 63 18 80
 
-Bank01OfficerCardBody_Blob1:
-  .byte $00, $94, $23, $00, $00, $95, $23, $08, $00, $95, $63, $10, $00, $94, $63, $18 ; $9B01: 00 94 23 00 00 95 23 08 00 95 63 10 00 94 63 18  ; body blob @$9B01: 14 records + $80; slots [5, 6, 7, 8, 9]
+Bank01OfficerCardBody_Class1:
+  .byte $00, $94, $23, $00, $00, $95, $23, $08, $00, $95, $63, $10, $00, $94, $63, $18 ; $9B01: 00 94 23 00 00 95 23 08 00 95 63 10 00 94 63 18  ; body blob (class 1) @$9B01: 14 records + $80; slots [5, 6, 7, 8, 9]
   .byte $08, $96, $23, $00, $08, $96, $63, $18, $10, $98, $23, $00, $10, $98, $63, $18 ; $9B11: 08 96 23 00 08 96 63 18 10 98 23 00 10 98 63 18
   .byte $18, $9A, $23, $00, $18, $9A, $63, $18, $20, $9C, $23, $00, $20, $9D, $23, $08 ; $9B21: 18 9A 23 00 18 9A 63 18 20 9C 23 00 20 9D 23 08
   .byte $20, $9D, $63, $10, $20, $9C, $63, $18, $80 ; $9B31: 20 9D 63 10 20 9C 63 18 80
 
-Bank01OfficerCardBody_Blob2:
-  .byte $00, $A8, $23, $00, $00, $A9, $23, $08, $00, $A9, $63, $10, $00, $A8, $63, $18 ; $9B3A: 00 A8 23 00 00 A9 23 08 00 A9 63 10 00 A8 63 18  ; body blob @$9B3A: 14 records + $80; slots [10, 11, 12, 13, 14]
+Bank01OfficerCardBody_Class2:
+  .byte $00, $A8, $23, $00, $00, $A9, $23, $08, $00, $A9, $63, $10, $00, $A8, $63, $18 ; $9B3A: 00 A8 23 00 00 A9 23 08 00 A9 63 10 00 A8 63 18  ; body blob (class 2) @$9B3A: 14 records + $80; slots [10, 11, 12, 13, 14]
   .byte $08, $AA, $23, $00, $08, $AA, $63, $18, $10, $AC, $23, $00, $10, $AC, $63, $18 ; $9B4A: 08 AA 23 00 08 AA 63 18 10 AC 23 00 10 AC 63 18
   .byte $18, $AE, $23, $00, $18, $AE, $63, $18, $20, $B0, $23, $00, $20, $B1, $23, $08 ; $9B5A: 18 AE 23 00 18 AE 63 18 20 B0 23 00 20 B1 23 08
   .byte $20, $B1, $63, $10, $20, $B0, $63, $18, $80 ; $9B6A: 20 B1 63 10 20 B0 63 18 80
 
-Bank01OfficerCardBody_Blob3:
-  .byte $00, $A8, $23, $00, $00, $A9, $23, $08, $00, $A9, $63, $10, $00, $A8, $63, $18 ; $9B73: 00 A8 23 00 00 A9 23 08 00 A9 63 10 00 A8 63 18  ; body blob @$9B73: 14 records + $80; slots [15, 16, 17, 18, 19]
+Bank01OfficerCardBody_Class3:
+  .byte $00, $A8, $23, $00, $00, $A9, $23, $08, $00, $A9, $63, $10, $00, $A8, $63, $18 ; $9B73: 00 A8 23 00 00 A9 23 08 00 A9 63 10 00 A8 63 18  ; body blob (class 3) @$9B73: 14 records + $80; slots [15, 16, 17, 18, 19]
   .byte $08, $AA, $23, $00, $08, $AA, $63, $18, $10, $AD, $23, $00, $10, $AD, $63, $18 ; $9B83: 08 AA 23 00 08 AA 63 18 10 AD 23 00 10 AD 63 18
   .byte $18, $B0, $23, $00, $18, $B0, $63, $18, $20, $B2, $23, $00, $20, $B3, $23, $08 ; $9B93: 18 B0 23 00 18 B0 63 18 20 B2 23 00 20 B3 23 08
   .byte $20, $B3, $63, $10, $20, $B2, $63, $18, $80 ; $9BA3: 20 B3 63 10 20 B2 63 18 80
 
-Bank01OfficerOverlayPtrTable:
-  .word $9BD4  ; $9BAC: D4 9B  ; slot 0 -> overlay $9BD4
-  .word $9BD4  ; $9BAE: D4 9B  ; slot 1 -> overlay $9BD4
-  .word $9BED  ; $9BB0: ED 9B  ; slot 2 -> overlay $9BED
-  .word $9C06  ; $9BB2: 06 9C  ; slot 3 -> overlay $9C06
-  .word $9C1F  ; $9BB4: 1F 9C  ; slot 4 -> overlay $9C1F
-  .word $9C38  ; $9BB6: 38 9C  ; slot 5 -> overlay $9C38
-  .word $9C38  ; $9BB8: 38 9C  ; slot 6 -> overlay $9C38
-  .word $9C51  ; $9BBA: 51 9C  ; slot 7 -> overlay $9C51
-  .word $9C6A  ; $9BBC: 6A 9C  ; slot 8 -> overlay $9C6A
-  .word $9C83  ; $9BBE: 83 9C  ; slot 9 -> overlay $9C83
-  .word $9C9C  ; $9BC0: 9C 9C  ; slot 10 -> overlay $9C9C
-  .word $9C9C  ; $9BC2: 9C 9C  ; slot 11 -> overlay $9C9C
-  .word $9CB5  ; $9BC4: B5 9C  ; slot 12 -> overlay $9CB5
-  .word $9CCE  ; $9BC6: CE 9C  ; slot 13 -> overlay $9CCE
-  .word $9CE7  ; $9BC8: E7 9C  ; slot 14 -> overlay $9CE7
-  .word $9D00  ; $9BCA: 00 9D  ; slot 15 -> overlay $9D00
-  .word $9D00  ; $9BCC: 00 9D  ; slot 16 -> overlay $9D00
-  .word $9D19  ; $9BCE: 19 9D  ; slot 17 -> overlay $9D19
-  .word $9D32  ; $9BD0: 32 9D  ; slot 18 -> overlay $9D32
-  .word $9D4B  ; $9BD2: 4B 9D  ; slot 19 -> overlay $9D4B
+Bank01OfficerFacePtrTable:
+  .word $9BD4  ; $9BAC: D4 9B  ; slot 0 (normal) -> face $9BD4
+  .word $9BD4  ; $9BAE: D4 9B  ; slot 1 (normal) -> face $9BD4
+  .word $9BED  ; $9BB0: ED 9B  ; slot 2 (angry)  -> face $9BED
+  .word $9C06  ; $9BB2: 06 9C  ; slot 3 (sad)    -> face $9C06
+  .word $9C1F  ; $9BB4: 1F 9C  ; slot 4 (happy)  -> face $9C1F
+  .word $9C38  ; $9BB6: 38 9C  ; slot 5 (normal) -> face $9C38
+  .word $9C38  ; $9BB8: 38 9C  ; slot 6 (normal) -> face $9C38
+  .word $9C51  ; $9BBA: 51 9C  ; slot 7 (angry)  -> face $9C51
+  .word $9C6A  ; $9BBC: 6A 9C  ; slot 8 (sad)    -> face $9C6A
+  .word $9C83  ; $9BBE: 83 9C  ; slot 9 (happy)  -> face $9C83
+  .word $9C9C  ; $9BC0: 9C 9C  ; slot 10 (normal) -> face $9C9C
+  .word $9C9C  ; $9BC2: 9C 9C  ; slot 11 (normal) -> face $9C9C
+  .word $9CB5  ; $9BC4: B5 9C  ; slot 12 (angry)  -> face $9CB5
+  .word $9CCE  ; $9BC6: CE 9C  ; slot 13 (sad)    -> face $9CCE
+  .word $9CE7  ; $9BC8: E7 9C  ; slot 14 (happy)  -> face $9CE7
+  .word $9D00  ; $9BCA: 00 9D  ; slot 15 (normal) -> face $9D00
+  .word $9D00  ; $9BCC: 00 9D  ; slot 16 (normal) -> face $9D00
+  .word $9D19  ; $9BCE: 19 9D  ; slot 17 (angry)  -> face $9D19
+  .word $9D32  ; $9BD0: 32 9D  ; slot 18 (sad)    -> face $9D32
+  .word $9D4B  ; $9BD2: 4B 9D  ; slot 19 (happy)  -> face $9D4B
 
-Bank01OfficerCardOverlay_Blob0:
-  .byte $08, $83, $23, $08, $08, $83, $63, $10, $10, $85, $23, $08, $10, $85, $63, $10 ; $9BD4: 08 83 23 08 08 83 63 10 10 85 23 08 10 85 63 10  ; overlay blob @$9BD4: 6 records + $80; slots [0, 1]
+Bank01OfficerFaceNormal_Class0:
+  .byte $08, $83, $23, $08, $08, $83, $63, $10, $10, $85, $23, $08, $10, $85, $63, $10 ; $9BD4: 08 83 23 08 08 83 63 10 10 85 23 08 10 85 63 10  ; face blob (normal) @$9BD4: 6 records + $80; class 0 slots [0, 1]
   .byte $18, $8C, $23, $08, $18, $8C, $63, $10, $80 ; $9BE4: 18 8C 23 08 18 8C 63 10 80
 
-Bank01OfficerCardOverlay_Blob1:
-  .byte $08, $8A, $23, $08, $08, $8A, $63, $10, $10, $8B, $23, $08, $10, $8B, $63, $10 ; $9BED: 08 8A 23 08 08 8A 63 10 10 8B 23 08 10 8B 63 10  ; overlay blob @$9BED: 6 records + $80; slots [2]
+Bank01OfficerFaceAngry_Class0:
+  .byte $08, $8A, $23, $08, $08, $8A, $63, $10, $10, $8B, $23, $08, $10, $8B, $63, $10 ; $9BED: 08 8A 23 08 08 8A 63 10 10 8B 23 08 10 8B 63 10  ; face blob (angry) @$9BED: 6 records + $80; class 0 slot [2]
   .byte $18, $8C, $23, $08, $18, $8C, $63, $10, $80 ; $9BFD: 18 8C 23 08 18 8C 63 10 80
 
-Bank01OfficerCardOverlay_Blob2:
-  .byte $08, $8E, $23, $08, $08, $8E, $63, $10, $10, $8F, $23, $08, $10, $8F, $63, $10 ; $9C06: 08 8E 23 08 08 8E 63 10 10 8F 23 08 10 8F 63 10  ; overlay blob @$9C06: 6 records + $80; slots [3]
+Bank01OfficerFaceSad_Class0:
+  .byte $08, $8E, $23, $08, $08, $8E, $63, $10, $10, $8F, $23, $08, $10, $8F, $63, $10 ; $9C06: 08 8E 23 08 08 8E 63 10 10 8F 23 08 10 8F 63 10  ; face blob (sad) @$9C06: 6 records + $80; class 0 slot [3]
   .byte $18, $8C, $23, $08, $18, $8C, $63, $10, $80 ; $9C16: 18 8C 23 08 18 8C 63 10 80
 
-Bank01OfficerCardOverlay_Blob3:
-  .byte $08, $91, $23, $08, $08, $91, $63, $10, $10, $92, $23, $08, $10, $92, $63, $10 ; $9C1F: 08 91 23 08 08 91 63 10 10 92 23 08 10 92 63 10  ; overlay blob @$9C1F: 6 records + $80; slots [4]
+Bank01OfficerFaceHappy_Class0:
+  .byte $08, $91, $23, $08, $08, $91, $63, $10, $10, $92, $23, $08, $10, $92, $63, $10 ; $9C1F: 08 91 23 08 08 91 63 10 10 92 23 08 10 92 63 10  ; face blob (happy) @$9C1F: 6 records + $80; class 0 slot [4]
   .byte $18, $8C, $23, $08, $18, $8C, $63, $10, $80 ; $9C2F: 18 8C 23 08 18 8C 63 10 80
 
-Bank01OfficerCardOverlay_Blob4:
-  .byte $08, $97, $23, $08, $08, $97, $63, $10, $10, $99, $23, $08, $10, $99, $63, $10 ; $9C38: 08 97 23 08 08 97 63 10 10 99 23 08 10 99 63 10  ; overlay blob @$9C38: 6 records + $80; slots [5, 6]
+Bank01OfficerFaceNormal_Class1:
+  .byte $08, $97, $23, $08, $08, $97, $63, $10, $10, $99, $23, $08, $10, $99, $63, $10 ; $9C38: 08 97 23 08 08 97 63 10 10 99 23 08 10 99 63 10  ; face blob (normal) @$9C38: 6 records + $80; class 1 slots [5, 6]
   .byte $18, $A0, $23, $08, $18, $A0, $63, $10, $80 ; $9C48: 18 A0 23 08 18 A0 63 10 80
 
-Bank01OfficerCardOverlay_Blob5:
-  .byte $08, $9E, $23, $08, $08, $9E, $63, $10, $10, $9F, $23, $08, $10, $9F, $63, $10 ; $9C51: 08 9E 23 08 08 9E 63 10 10 9F 23 08 10 9F 63 10  ; overlay blob @$9C51: 6 records + $80; slots [7]
+Bank01OfficerFaceAngry_Class1:
+  .byte $08, $9E, $23, $08, $08, $9E, $63, $10, $10, $9F, $23, $08, $10, $9F, $63, $10 ; $9C51: 08 9E 23 08 08 9E 63 10 10 9F 23 08 10 9F 63 10  ; face blob (angry) @$9C51: 6 records + $80; class 1 slot [7]
   .byte $18, $A0, $23, $08, $18, $A0, $63, $10, $80 ; $9C61: 18 A0 23 08 18 A0 63 10 80
 
-Bank01OfficerCardOverlay_Blob6:
-  .byte $08, $A2, $23, $08, $08, $A2, $63, $10, $10, $A3, $23, $08, $10, $A3, $63, $10 ; $9C6A: 08 A2 23 08 08 A2 63 10 10 A3 23 08 10 A3 63 10  ; overlay blob @$9C6A: 6 records + $80; slots [8]
+Bank01OfficerFaceSad_Class1:
+  .byte $08, $A2, $23, $08, $08, $A2, $63, $10, $10, $A3, $23, $08, $10, $A3, $63, $10 ; $9C6A: 08 A2 23 08 08 A2 63 10 10 A3 23 08 10 A3 63 10  ; face blob (sad) @$9C6A: 6 records + $80; class 1 slot [8]
   .byte $18, $A0, $23, $08, $18, $A0, $63, $10, $80 ; $9C7A: 18 A0 23 08 18 A0 63 10 80
 
-Bank01OfficerCardOverlay_Blob7:
-  .byte $08, $A5, $23, $08, $08, $A5, $63, $10, $10, $A6, $23, $08, $10, $A6, $63, $10 ; $9C83: 08 A5 23 08 08 A5 63 10 10 A6 23 08 10 A6 63 10  ; overlay blob @$9C83: 6 records + $80; slots [9]
+Bank01OfficerFaceHappy_Class1:
+  .byte $08, $A5, $23, $08, $08, $A5, $63, $10, $10, $A6, $23, $08, $10, $A6, $63, $10 ; $9C83: 08 A5 23 08 08 A5 63 10 10 A6 23 08 10 A6 63 10  ; face blob (happy) @$9C83: 6 records + $80; class 1 slot [9]
   .byte $18, $A0, $23, $08, $18, $A0, $63, $10, $80 ; $9C93: 18 A0 23 08 18 A0 63 10 80
 
-Bank01OfficerCardOverlay_Blob8:
-  .byte $08, $AB, $23, $08, $08, $AB, $63, $10, $10, $AD, $23, $08, $10, $AD, $63, $10 ; $9C9C: 08 AB 23 08 08 AB 63 10 10 AD 23 08 10 AD 63 10  ; overlay blob @$9C9C: 6 records + $80; slots [10, 11]
+Bank01OfficerFaceNormal_Class2:
+  .byte $08, $AB, $23, $08, $08, $AB, $63, $10, $10, $AD, $23, $08, $10, $AD, $63, $10 ; $9C9C: 08 AB 23 08 08 AB 63 10 10 AD 23 08 10 AD 63 10  ; face blob (normal) @$9C9C: 6 records + $80; class 2 slots [10, 11]
   .byte $18, $B4, $23, $08, $18, $B4, $63, $10, $80 ; $9CAC: 18 B4 23 08 18 B4 63 10 80
 
-Bank01OfficerCardOverlay_Blob9:
-  .byte $08, $B2, $23, $08, $08, $B2, $63, $10, $10, $B3, $23, $08, $10, $B3, $63, $10 ; $9CB5: 08 B2 23 08 08 B2 63 10 10 B3 23 08 10 B3 63 10  ; overlay blob @$9CB5: 6 records + $80; slots [12]
+Bank01OfficerFaceAngry_Class2:
+  .byte $08, $B2, $23, $08, $08, $B2, $63, $10, $10, $B3, $23, $08, $10, $B3, $63, $10 ; $9CB5: 08 B2 23 08 08 B2 63 10 10 B3 23 08 10 B3 63 10  ; face blob (angry) @$9CB5: 6 records + $80; class 2 slot [12]
   .byte $18, $B4, $23, $08, $18, $B4, $63, $10, $80 ; $9CC5: 18 B4 23 08 18 B4 63 10 80
 
-Bank01OfficerCardOverlay_Blob10:
-  .byte $08, $B6, $23, $08, $08, $B6, $63, $10, $10, $B7, $23, $08, $10, $B7, $63, $10 ; $9CCE: 08 B6 23 08 08 B6 63 10 10 B7 23 08 10 B7 63 10  ; overlay blob @$9CCE: 6 records + $80; slots [13]
+Bank01OfficerFaceSad_Class2:
+  .byte $08, $B6, $23, $08, $08, $B6, $63, $10, $10, $B7, $23, $08, $10, $B7, $63, $10 ; $9CCE: 08 B6 23 08 08 B6 63 10 10 B7 23 08 10 B7 63 10  ; face blob (sad) @$9CCE: 6 records + $80; class 2 slot [13]
   .byte $18, $B4, $23, $08, $18, $B4, $63, $10, $80 ; $9CDE: 18 B4 23 08 18 B4 63 10 80
 
-Bank01OfficerCardOverlay_Blob11:
-  .byte $08, $B9, $23, $08, $08, $B9, $63, $10, $10, $BA, $23, $08, $10, $BA, $63, $10 ; $9CE7: 08 B9 23 08 08 B9 63 10 10 BA 23 08 10 BA 63 10  ; overlay blob @$9CE7: 6 records + $80; slots [14]
+Bank01OfficerFaceHappy_Class2:
+  .byte $08, $B9, $23, $08, $08, $B9, $63, $10, $10, $BA, $23, $08, $10, $BA, $63, $10 ; $9CE7: 08 B9 23 08 08 B9 63 10 10 BA 23 08 10 BA 63 10  ; face blob (happy) @$9CE7: 6 records + $80; class 2 slot [14]
   .byte $18, $B4, $23, $08, $18, $B4, $63, $10, $80 ; $9CF7: 18 B4 23 08 18 B4 63 10 80
 
-Bank01OfficerCardOverlay_Blob12:
-  .byte $08, $AB, $23, $08, $08, $AC, $23, $10, $10, $AE, $23, $08, $10, $AF, $23, $10 ; $9D00: 08 AB 23 08 08 AC 23 10 10 AE 23 08 10 AF 23 10  ; overlay blob @$9D00: 6 records + $80; slots [15, 16]
+Bank01OfficerFaceNormal_Class3:
+  .byte $08, $AB, $23, $08, $08, $AC, $23, $10, $10, $AE, $23, $08, $10, $AF, $23, $10 ; $9D00: 08 AB 23 08 08 AC 23 10 10 AE 23 08 10 AF 23 10  ; face blob (normal) @$9D00: 6 records + $80; class 3 slots [15, 16]
   .byte $18, $B6, $23, $08, $18, $B6, $63, $10, $80 ; $9D10: 18 B6 23 08 18 B6 63 10 80
 
-Bank01OfficerCardOverlay_Blob13:
-  .byte $08, $B4, $23, $08, $08, $AC, $23, $10, $10, $B5, $23, $08, $10, $AF, $23, $10 ; $9D19: 08 B4 23 08 08 AC 23 10 10 B5 23 08 10 AF 23 10  ; overlay blob @$9D19: 6 records + $80; slots [17]
+Bank01OfficerFaceAngry_Class3:
+  .byte $08, $B4, $23, $08, $08, $AC, $23, $10, $10, $B5, $23, $08, $10, $AF, $23, $10 ; $9D19: 08 B4 23 08 08 AC 23 10 10 B5 23 08 10 AF 23 10  ; face blob (angry) @$9D19: 6 records + $80; class 3 slot [17]
   .byte $18, $B6, $23, $08, $18, $B6, $63, $10, $80 ; $9D29: 18 B6 23 08 18 B6 63 10 80
 
-Bank01OfficerCardOverlay_Blob14:
-  .byte $08, $B8, $23, $08, $08, $AC, $23, $10, $10, $B9, $23, $08, $10, $AF, $23, $10 ; $9D32: 08 B8 23 08 08 AC 23 10 10 B9 23 08 10 AF 23 10  ; overlay blob @$9D32: 6 records + $80; slots [18]
+Bank01OfficerFaceSad_Class3:
+  .byte $08, $B8, $23, $08, $08, $AC, $23, $10, $10, $B9, $23, $08, $10, $AF, $23, $10 ; $9D32: 08 B8 23 08 08 AC 23 10 10 B9 23 08 10 AF 23 10  ; face blob (sad) @$9D32: 6 records + $80; class 3 slot [18]
   .byte $18, $B6, $23, $08, $18, $B6, $63, $10, $80 ; $9D42: 18 B6 23 08 18 B6 63 10 80
 
-Bank01OfficerCardOverlay_Blob15:
-  .byte $08, $BB, $23, $08, $08, $AC, $23, $10, $10, $BC, $23, $08, $10, $AF, $23, $10 ; $9D4B: 08 BB 23 08 08 AC 23 10 10 BC 23 08 10 AF 23 10  ; overlay blob @$9D4B: 6 records + $80; slots [19]
+Bank01OfficerFaceHappy_Class3:
+  .byte $08, $BB, $23, $08, $08, $AC, $23, $10, $10, $BC, $23, $08, $10, $AF, $23, $10 ; $9D4B: 08 BB 23 08 08 AC 23 10 10 BC 23 08 10 AF 23 10  ; face blob (happy) @$9D4B: 6 records + $80; class 3 slot [19]
   .byte $18, $B6, $23, $08, $18, $B6, $63, $10, $80 ; $9D5B: 18 B6 23 08 18 B6 63 10 80
 
-Bank01OfficerAnimOverlayPtrTable:
-  .word $9D8C  ; $9D64: 8C 9D  ; slot 0 -> anim-overlay $9D8C
-  .word $9D8C  ; $9D66: 8C 9D  ; slot 1 -> anim-overlay $9D8C
-  .word $9DA5  ; $9D68: A5 9D  ; slot 2 -> anim-overlay $9DA5
-  .word $9DBE  ; $9D6A: BE 9D  ; slot 3 -> anim-overlay $9DBE
-  .word $9DD7  ; $9D6C: D7 9D  ; slot 4 -> anim-overlay $9DD7
-  .word $9DF0  ; $9D6E: F0 9D  ; slot 5 -> anim-overlay $9DF0
-  .word $9DF0  ; $9D70: F0 9D  ; slot 6 -> anim-overlay $9DF0
-  .word $9E09  ; $9D72: 09 9E  ; slot 7 -> anim-overlay $9E09
-  .word $9E22  ; $9D74: 22 9E  ; slot 8 -> anim-overlay $9E22
-  .word $9E3B  ; $9D76: 3B 9E  ; slot 9 -> anim-overlay $9E3B
-  .word $9E54  ; $9D78: 54 9E  ; slot 10 -> anim-overlay $9E54
-  .word $9E54  ; $9D7A: 54 9E  ; slot 11 -> anim-overlay $9E54
-  .word $9E6D  ; $9D7C: 6D 9E  ; slot 12 -> anim-overlay $9E6D
-  .word $9E86  ; $9D7E: 86 9E  ; slot 13 -> anim-overlay $9E86
-  .word $9E9F  ; $9D80: 9F 9E  ; slot 14 -> anim-overlay $9E9F
-  .word $9EB8  ; $9D82: B8 9E  ; slot 15 -> anim-overlay $9EB8
-  .word $9EB8  ; $9D84: B8 9E  ; slot 16 -> anim-overlay $9EB8
-  .word $9ED1  ; $9D86: D1 9E  ; slot 17 -> anim-overlay $9ED1
-  .word $9EEA  ; $9D88: EA 9E  ; slot 18 -> anim-overlay $9EEA
-  .word $9F03  ; $9D8A: 03 9F  ; slot 19 -> anim-overlay $9F03
+Bank01OfficerFaceTalkPtrTable:
+  .word $9D8C  ; $9D64: 8C 9D  ; slot 0 (normal) -> talk frame $9D8C
+  .word $9D8C  ; $9D66: 8C 9D  ; slot 1 (angry) -> talk frame $9D8C
+  .word $9DA5  ; $9D68: A5 9D  ; slot 2 (sad) -> talk frame $9DA5
+  .word $9DBE  ; $9D6A: BE 9D  ; slot 3 (happy) -> talk frame $9DBE
+  .word $9DD7  ; $9D6C: D7 9D  ; slot 4 (normal) -> talk frame $9DD7
+  .word $9DF0  ; $9D6E: F0 9D  ; slot 5 (angry) -> talk frame $9DF0
+  .word $9DF0  ; $9D70: F0 9D  ; slot 6 (sad) -> talk frame $9DF0
+  .word $9E09  ; $9D72: 09 9E  ; slot 7 (happy) -> talk frame $9E09
+  .word $9E22  ; $9D74: 22 9E  ; slot 8 (normal) -> talk frame $9E22
+  .word $9E3B  ; $9D76: 3B 9E  ; slot 9 (angry) -> talk frame $9E3B
+  .word $9E54  ; $9D78: 54 9E  ; slot 10 (sad) -> talk frame $9E54
+  .word $9E54  ; $9D7A: 54 9E  ; slot 11 (happy) -> talk frame $9E54
+  .word $9E6D  ; $9D7C: 6D 9E  ; slot 12 (normal) -> talk frame $9E6D
+  .word $9E86  ; $9D7E: 86 9E  ; slot 13 (angry) -> talk frame $9E86
+  .word $9E9F  ; $9D80: 9F 9E  ; slot 14 (sad) -> talk frame $9E9F
+  .word $9EB8  ; $9D82: B8 9E  ; slot 15 (happy) -> talk frame $9EB8
+  .word $9EB8  ; $9D84: B8 9E  ; slot 16 (normal) -> talk frame $9EB8
+  .word $9ED1  ; $9D86: D1 9E  ; slot 17 (angry) -> talk frame $9ED1
+  .word $9EEA  ; $9D88: EA 9E  ; slot 18 (sad) -> talk frame $9EEA
+  .word $9F03  ; $9D8A: 03 9F  ; slot 19 (happy) -> talk frame $9F03
 
-Bank01OfficerCardAnim_Blob0:
-  .byte $08, $83, $23, $08, $08, $83, $63, $10, $10, $85, $23, $08, $10, $85, $63, $10 ; $9D8C: 08 83 23 08 08 83 63 10 10 85 23 08 10 85 63 10  ; anim-overlay blob @$9D8C: 6 records + $80; slots [0, 1]
+Bank01OfficerFaceTalkNormal_Class0:
+  .byte $08, $83, $23, $08, $08, $83, $63, $10, $10, $85, $23, $08, $10, $85, $63, $10 ; $9D8C: 08 83 23 08 08 83 63 10 10 85 23 08 10 85 63 10  ; talk frame (normal) @$9D8C: 6 records + $80; class 0 slots [0, 1]
   .byte $18, $87, $23, $08, $18, $87, $63, $10, $80 ; $9D9C: 18 87 23 08 18 87 63 10 80
 
-Bank01OfficerCardAnim_Blob1:
-  .byte $08, $8A, $23, $08, $08, $8A, $63, $10, $10, $8B, $23, $08, $10, $8B, $63, $10 ; $9DA5: 08 8A 23 08 08 8A 63 10 10 8B 23 08 10 8B 63 10  ; anim-overlay blob @$9DA5: 6 records + $80; slots [2]
+Bank01OfficerFaceTalkAngry_Class0:
+  .byte $08, $8A, $23, $08, $08, $8A, $63, $10, $10, $8B, $23, $08, $10, $8B, $63, $10 ; $9DA5: 08 8A 23 08 08 8A 63 10 10 8B 23 08 10 8B 63 10  ; talk frame (sad) @$9DA5: 6 records + $80; class 0 slots [2]
   .byte $18, $8D, $23, $08, $18, $8D, $63, $10, $80 ; $9DB5: 18 8D 23 08 18 8D 63 10 80
 
-Bank01OfficerCardAnim_Blob2:
-  .byte $08, $8E, $23, $08, $08, $8E, $63, $10, $10, $8F, $23, $08, $10, $8F, $63, $10 ; $9DBE: 08 8E 23 08 08 8E 63 10 10 8F 23 08 10 8F 63 10  ; anim-overlay blob @$9DBE: 6 records + $80; slots [3]
+Bank01OfficerFaceTalkSad_Class0:
+  .byte $08, $8E, $23, $08, $08, $8E, $63, $10, $10, $8F, $23, $08, $10, $8F, $63, $10 ; $9DBE: 08 8E 23 08 08 8E 63 10 10 8F 23 08 10 8F 63 10  ; talk frame (happy) @$9DBE: 6 records + $80; class 0 slots [3]
   .byte $18, $90, $23, $08, $18, $90, $63, $10, $80 ; $9DCE: 18 90 23 08 18 90 63 10 80
 
-Bank01OfficerCardAnim_Blob3:
-  .byte $08, $91, $23, $08, $08, $91, $63, $10, $10, $92, $23, $08, $10, $92, $63, $10 ; $9DD7: 08 91 23 08 08 91 63 10 10 92 23 08 10 92 63 10  ; anim-overlay blob @$9DD7: 6 records + $80; slots [4]
+Bank01OfficerFaceTalkHappy_Class0:
+  .byte $08, $91, $23, $08, $08, $91, $63, $10, $10, $92, $23, $08, $10, $92, $63, $10 ; $9DD7: 08 91 23 08 08 91 63 10 10 92 23 08 10 92 63 10  ; talk frame (normal) @$9DD7: 6 records + $80; class 1 slots [4]
   .byte $18, $93, $23, $08, $18, $93, $63, $10, $80 ; $9DE7: 18 93 23 08 18 93 63 10 80
 
-Bank01OfficerCardAnim_Blob4:
-  .byte $08, $97, $23, $08, $08, $97, $63, $10, $10, $99, $23, $08, $10, $99, $63, $10 ; $9DF0: 08 97 23 08 08 97 63 10 10 99 23 08 10 99 63 10  ; anim-overlay blob @$9DF0: 6 records + $80; slots [5, 6]
+Bank01OfficerFaceTalkNormal_Class1:
+  .byte $08, $97, $23, $08, $08, $97, $63, $10, $10, $99, $23, $08, $10, $99, $63, $10 ; $9DF0: 08 97 23 08 08 97 63 10 10 99 23 08 10 99 63 10  ; talk frame (angry) @$9DF0: 6 records + $80; class 1 slots [5, 6]
   .byte $18, $9B, $23, $08, $18, $9B, $63, $10, $80 ; $9E00: 18 9B 23 08 18 9B 63 10 80
 
-Bank01OfficerCardAnim_Blob5:
-  .byte $08, $9E, $23, $08, $08, $9E, $63, $10, $10, $9F, $23, $08, $10, $9F, $63, $10 ; $9E09: 08 9E 23 08 08 9E 63 10 10 9F 23 08 10 9F 63 10  ; anim-overlay blob @$9E09: 6 records + $80; slots [7]
+Bank01OfficerFaceTalkAngry_Class1:
+  .byte $08, $9E, $23, $08, $08, $9E, $63, $10, $10, $9F, $23, $08, $10, $9F, $63, $10 ; $9E09: 08 9E 23 08 08 9E 63 10 10 9F 23 08 10 9F 63 10  ; talk frame (happy) @$9E09: 6 records + $80; class 1 slots [7]
   .byte $18, $A1, $23, $08, $18, $A1, $63, $10, $80 ; $9E19: 18 A1 23 08 18 A1 63 10 80
 
-Bank01OfficerCardAnim_Blob6:
-  .byte $08, $A2, $23, $08, $08, $A2, $63, $10, $10, $A3, $23, $08, $10, $A3, $63, $10 ; $9E22: 08 A2 23 08 08 A2 63 10 10 A3 23 08 10 A3 63 10  ; anim-overlay blob @$9E22: 6 records + $80; slots [8]
+Bank01OfficerFaceTalkSad_Class1:
+  .byte $08, $A2, $23, $08, $08, $A2, $63, $10, $10, $A3, $23, $08, $10, $A3, $63, $10 ; $9E22: 08 A2 23 08 08 A2 63 10 10 A3 23 08 10 A3 63 10  ; talk frame (normal) @$9E22: 6 records + $80; class 2 slots [8]
   .byte $18, $A4, $23, $08, $18, $A4, $63, $10, $80 ; $9E32: 18 A4 23 08 18 A4 63 10 80
 
-Bank01OfficerCardAnim_Blob7:
-  .byte $08, $A5, $23, $08, $08, $A5, $63, $10, $10, $A6, $23, $08, $10, $A6, $63, $10 ; $9E3B: 08 A5 23 08 08 A5 63 10 10 A6 23 08 10 A6 63 10  ; anim-overlay blob @$9E3B: 6 records + $80; slots [9]
+Bank01OfficerFaceTalkHappy_Class1:
+  .byte $08, $A5, $23, $08, $08, $A5, $63, $10, $10, $A6, $23, $08, $10, $A6, $63, $10 ; $9E3B: 08 A5 23 08 08 A5 63 10 10 A6 23 08 10 A6 63 10  ; talk frame (angry) @$9E3B: 6 records + $80; class 2 slots [9]
   .byte $18, $A7, $23, $08, $18, $A7, $63, $10, $80 ; $9E4B: 18 A7 23 08 18 A7 63 10 80
 
-Bank01OfficerCardAnim_Blob8:
-  .byte $08, $AB, $23, $08, $08, $AB, $63, $10, $10, $AD, $23, $08, $10, $AD, $63, $10 ; $9E54: 08 AB 23 08 08 AB 63 10 10 AD 23 08 10 AD 63 10  ; anim-overlay blob @$9E54: 6 records + $80; slots [10, 11]
+Bank01OfficerFaceTalkNormal_Class2:
+  .byte $08, $AB, $23, $08, $08, $AB, $63, $10, $10, $AD, $23, $08, $10, $AD, $63, $10 ; $9E54: 08 AB 23 08 08 AB 63 10 10 AD 23 08 10 AD 63 10  ; talk frame (sad) @$9E54: 6 records + $80; class 2 slots [10, 11]
   .byte $18, $AF, $23, $08, $18, $AF, $63, $10, $80 ; $9E64: 18 AF 23 08 18 AF 63 10 80
 
-Bank01OfficerCardAnim_Blob9:
-  .byte $08, $B2, $23, $08, $08, $B2, $63, $10, $10, $B3, $23, $08, $10, $B3, $63, $10 ; $9E6D: 08 B2 23 08 08 B2 63 10 10 B3 23 08 10 B3 63 10  ; anim-overlay blob @$9E6D: 6 records + $80; slots [12]
+Bank01OfficerFaceTalkAngry_Class2:
+  .byte $08, $B2, $23, $08, $08, $B2, $63, $10, $10, $B3, $23, $08, $10, $B3, $63, $10 ; $9E6D: 08 B2 23 08 08 B2 63 10 10 B3 23 08 10 B3 63 10  ; talk frame (normal) @$9E6D: 6 records + $80; class 3 slots [12]
   .byte $18, $B5, $23, $08, $18, $B5, $63, $10, $80 ; $9E7D: 18 B5 23 08 18 B5 63 10 80
 
-Bank01OfficerCardAnim_Blob10:
-  .byte $08, $B6, $23, $08, $08, $B6, $63, $10, $10, $B7, $23, $08, $10, $B7, $63, $10 ; $9E86: 08 B6 23 08 08 B6 63 10 10 B7 23 08 10 B7 63 10  ; anim-overlay blob @$9E86: 6 records + $80; slots [13]
+Bank01OfficerFaceTalkSad_Class2:
+  .byte $08, $B6, $23, $08, $08, $B6, $63, $10, $10, $B7, $23, $08, $10, $B7, $63, $10 ; $9E86: 08 B6 23 08 08 B6 63 10 10 B7 23 08 10 B7 63 10  ; talk frame (angry) @$9E86: 6 records + $80; class 3 slots [13]
   .byte $18, $B8, $23, $08, $18, $B8, $63, $10, $80 ; $9E96: 18 B8 23 08 18 B8 63 10 80
 
-Bank01OfficerCardAnim_Blob11:
-  .byte $08, $B9, $23, $08, $08, $B9, $63, $10, $10, $BA, $23, $08, $10, $BA, $63, $10 ; $9E9F: 08 B9 23 08 08 B9 63 10 10 BA 23 08 10 BA 63 10  ; anim-overlay blob @$9E9F: 6 records + $80; slots [14]
+Bank01OfficerFaceTalkHappy_Class2:
+  .byte $08, $B9, $23, $08, $08, $B9, $63, $10, $10, $BA, $23, $08, $10, $BA, $63, $10 ; $9E9F: 08 B9 23 08 08 B9 63 10 10 BA 23 08 10 BA 63 10  ; talk frame (sad) @$9E9F: 6 records + $80; class 3 slots [14]
   .byte $18, $BB, $23, $08, $18, $BB, $63, $10, $80 ; $9EAF: 18 BB 23 08 18 BB 63 10 80
 
-Bank01OfficerCardAnim_Blob12:
-  .byte $08, $AB, $23, $08, $08, $AC, $23, $10, $10, $AE, $23, $08, $10, $AF, $23, $10 ; $9EB8: 08 AB 23 08 08 AC 23 10 10 AE 23 08 10 AF 23 10  ; anim-overlay blob @$9EB8: 6 records + $80; slots [15, 16]
+Bank01OfficerFaceTalkNormal_Class3:
+  .byte $08, $AB, $23, $08, $08, $AC, $23, $10, $10, $AE, $23, $08, $10, $AF, $23, $10 ; $9EB8: 08 AB 23 08 08 AC 23 10 10 AE 23 08 10 AF 23 10  ; talk frame (happy) @$9EB8: 6 records + $80; class 3 slots [15, 16]
   .byte $18, $B1, $23, $08, $18, $B1, $63, $10, $80 ; $9EC8: 18 B1 23 08 18 B1 63 10 80
 
-Bank01OfficerCardAnim_Blob13:
-  .byte $08, $B4, $23, $08, $08, $AC, $23, $10, $10, $B5, $23, $08, $10, $AF, $23, $10 ; $9ED1: 08 B4 23 08 08 AC 23 10 10 B5 23 08 10 AF 23 10  ; anim-overlay blob @$9ED1: 6 records + $80; slots [17]
+Bank01OfficerFaceTalkAngry_Class3:
+  .byte $08, $B4, $23, $08, $08, $AC, $23, $10, $10, $B5, $23, $08, $10, $AF, $23, $10 ; $9ED1: 08 B4 23 08 08 AC 23 10 10 B5 23 08 10 AF 23 10  ; talk frame (angry) @$9ED1: 6 records + $80; class 4 slots [17]
   .byte $18, $B7, $23, $08, $18, $B7, $63, $10, $80 ; $9EE1: 18 B7 23 08 18 B7 63 10 80
 
-Bank01OfficerCardAnim_Blob14:
-  .byte $08, $B8, $23, $08, $08, $AC, $23, $10, $10, $B9, $23, $08, $10, $AF, $23, $10 ; $9EEA: 08 B8 23 08 08 AC 23 10 10 B9 23 08 10 AF 23 10  ; anim-overlay blob @$9EEA: 6 records + $80; slots [18]
+Bank01OfficerFaceTalkSad_Class3:
+  .byte $08, $B8, $23, $08, $08, $AC, $23, $10, $10, $B9, $23, $08, $10, $AF, $23, $10 ; $9EEA: 08 B8 23 08 08 AC 23 10 10 B9 23 08 10 AF 23 10  ; talk frame (sad) @$9EEA: 6 records + $80; class 4 slots [18]
   .byte $18, $BA, $23, $08, $18, $BA, $63, $10, $80 ; $9EFA: 18 BA 23 08 18 BA 63 10 80
 
-Bank01OfficerCardAnim_Blob15:
-  .byte $08, $BB, $23, $08, $08, $AC, $23, $10, $10, $BC, $23, $08, $10, $AF, $23, $10 ; $9F03: 08 BB 23 08 08 AC 23 10 10 BC 23 08 10 AF 23 10  ; anim-overlay blob @$9F03: 6 records + $80; slots [19]
+Bank01OfficerFaceTalkHappy_Class3:
+  .byte $08, $BB, $23, $08, $08, $AC, $23, $10, $10, $BC, $23, $08, $10, $AF, $23, $10 ; $9F03: 08 BB 23 08 08 AC 23 10 10 BC 23 08 10 AF 23 10  ; talk frame (happy) @$9F03: 6 records + $80; class 4 slots [19]
   .byte $18, $BD, $23, $08, $18, $BD, $63, $10, $80 ; $9F13: 18 BD 23 08 18 BD 63 10 80
 
-Bank01OfficerCardAnimFiller:
+Bank01OfficerFaceTalkFiller:
   .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F1C: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF  ; unused $FF filler (past last referenced blob)
   .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F2C: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
   .byte $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF ; $9F3C: FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF

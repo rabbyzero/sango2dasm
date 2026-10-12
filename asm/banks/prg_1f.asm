@@ -3194,11 +3194,12 @@ SpriteOamWriterSimple_NoInit:
 .endproc
 
 ;===============================================================================
-; $F26D: Set UI Mode 0
-; Input: A = UI ID
-; Sets UI sub-ID to 0, clears next/FF markers
+; $F26D: Open Message Window 0
+; Input: A = UI/message stream id
+; Seeds pos_buf_0..3 ($0310-$0313): mode head 0 (blank window at $22A8),
+; id in pos_buf_1, $FF terminators
 ;===============================================================================
-.proc SetUI0
+.proc OpenMsgWindow0
   STA $0311                                     ; $F26D: 8D 11 03
   LDA #$00                                      ; $F270: A9 00
 common:
@@ -3212,33 +3213,33 @@ common:
 .endproc
 
 ;===============================================================================
-; $F283: Set UI Mode 2
+; $F283: Open Message Window 2 (blank window at $2428)
 ; Input: A = UI ID
 ;===============================================================================
-.proc SetUI2
+.proc OpenMsgWindow2
   STA $0311                                     ; $F283: 8D 11 03
   LDA #$02                                      ; $F286: A9 02
-  JMP SetUI0::common                            ; $F288: 4C 72 F2
+  JMP OpenMsgWindow0::common                    ; $F288: 4C 72 F2
 .endproc
 
 ;===============================================================================
-; $F28B: Set UI Mode 4
+; $F28B: Open Message Window 4 (blank window at $22A0)
 ; Input: A = UI ID
 ;===============================================================================
-.proc SetUI4
+.proc OpenMsgWindow4
   STA $0311                                     ; $F28B: 8D 11 03
   LDA #$04                                      ; $F28E: A9 04
-  JMP SetUI0::common                            ; $F290: 4C 72 F2
+  JMP OpenMsgWindow0::common                    ; $F290: 4C 72 F2
 .endproc
 
 ;===============================================================================
-; $F293: Set UI Mode 5
+; $F293: Open Message Window 5 (blank window at $2420)
 ; Input: A = UI ID
 ;===============================================================================
-.proc SetUI5
+.proc OpenMsgWindow5
   STA $0311                                     ; $F293: 8D 11 03
   LDA #$05                                      ; $F296: A9 05
-  JMP SetUI0::common                            ; $F298: 4C 72 F2
+  JMP OpenMsgWindow0::common                    ; $F298: 4C 72 F2
 .endproc
 
 ;===============================================================================

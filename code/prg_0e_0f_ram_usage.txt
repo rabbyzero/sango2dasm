@@ -1558,7 +1558,7 @@ mnems: ?(25), LDA(22), CMP(1)
     1378 (file-top)                   ?                  ; $0C <- 0), overlay strip buffer pointer $0560 into $0A (or $0561 for
     1386 Phase2DamagePanelUpdate      LDA $0560          ; $A7CD: AD 60 05 ; strip 0 buffer ptr
     1793 (file-top)                   ?                  ; $0560[$0549], X=0), then dispatches on $0541 via B1F_CallbackDispatcher
-    1825 (file-top)                   ?                  ; mode $D1 (B1F_SetUI0) and resolves the acting unit id $0560[$0549] to its
+    1825 (file-top)                   ?                  ; mode $D1 (B1F_OpenMsgWindow0) and resolves the acting unit id $0560[$0549] to its
   ...
 ==============================================================================
 $561  (36 refs)

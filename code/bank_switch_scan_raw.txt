@@ -136,8 +136,8 @@
   $A4D0 L  879 [MoveState_CheckDest] LDY #$28 trampoline -> B08_09_WarResultSceneInit_Entry
   $A579 L  972 [MoveState_Select] LDY #$2E trampoline -> B0E_0F_OfficerBattleExpLevelCheck_Entry
   $A5BB L 1002 [MoveState_Select] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
-  $A8BB L 1376 [CommandState_Init] LDY #$28 trampoline -> B08_09_BuildCommandList_Entry
-  $AADD L 1661 [CommandState_Cancel] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
+  $A8BB L 1376 [StratagemState_Init] LDY #$28 trampoline -> B08_09_BuildCommandList_Entry
+  $AADD L 1661 [StratagemState_Cancel] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
   $B3AD L 2802 [ExecStratagem_Enticement] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
   $B62A L 3155 [ApplyLoyaltyChange] LDY #$2E trampoline -> B0E_0F_OfficerStatSumBattleTransfer_Entry
   $B63D L 3163 [ApplyLoyaltyChange] LDY #$28 trampoline -> B08_09_WarSlotClear_Entry
@@ -258,14 +258,14 @@
   prg_0a_0b.asm      -> $11 @$8000       (2 calls: EvaluateAndMarkOfficer, ReadBankedRecordField)
   prg_0a_0b.asm      -> $17+$18          (1 calls: CallStrategyModeDisplay)
   prg_0c_0d.asm      -> $06 @$8000       (4 calls: ArmyDeployDispatch)
-  prg_0c_0d.asm      -> $08+$09          (13 calls: ?, ApplyLoyaltyChange, CommandState_Init, ExchangeScene, MainLoopDispatch, MoveState_CheckDest...)
+  prg_0c_0d.asm      -> $08+$09          (13 calls: ?, ApplyLoyaltyChange, StratagemState_Init, ExchangeScene, MainLoopDispatch, MoveState_CheckDest...)
   prg_0c_0d.asm      -> $0A+$0B          (3 calls: ExecStratagem_Enticement, OfficerFateCommitDispatch)
   prg_0c_0d.asm      -> $0E+$0F          (4 calls: ApplyGoldChange, ApplyLoyaltyChange, MoveState_Select, OfficerFateCommitDispatch)
   prg_0c_0d.asm      -> $10 @$8000       (4 calls: ExchangeScene, OfficerExchangeSelectDispatch, ProvinceSelect_InitList)
   prg_0c_0d.asm      -> $11 @$8000       (4 calls: ExchangeScene, RecalcExchangeStats)
   prg_0c_0d.asm      -> $17+$18          (6 calls: ExchangeScene)
   prg_0c_0d.asm      -> $19+$1A          (5 calls: ArmyDeployDispatch, ExchangeScene, OfficerDetail_RenderWait)
-  prg_0c_0d.asm      -> $1D+$1E          (7 calls: CommandState_Cancel, MoveState_Select, OfficerMarchDispatch, OfficerTurnState_Confirm, Phase_Input)
+  prg_0c_0d.asm      -> $1D+$1E          (7 calls: StratagemState_Cancel, MoveState_Select, OfficerMarchDispatch, OfficerTurnState_Confirm, Phase_Input)
   prg_17_18.asm      -> $01 @$8000       (2 calls: AnimSeq_PlayFrames, StrategyModeDisplay)
   prg_17_18.asm      -> $06 @$8000       (2 calls: ScrollPanel_LoadRow, StrategyCommandDispatch)
   prg_17_18.asm      -> $10 @$8000       (1 calls: StrategyCommand_BuildOfficerList)

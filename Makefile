@@ -98,6 +98,33 @@ databank06:
 verifydata06:
 	@python3 tools/verify_data_bank_06.py
 
+# Re-render the battle-scene sprite bank (PRG $14) from the ROM, then verify
+databank14:
+	@python3 tools/gen_data_bank_14_asm.py --write
+	@$(MAKE) verifydata14
+
+# Assemble bank $14 standalone and prove it byte-exact against the ROM
+verifydata14:
+	@python3 tools/verify_data_bank_14.py
+
+# Re-render the battle-sprite / country-map bank (PRG $15) from the ROM, then verify
+databank15:
+	@python3 tools/gen_data_bank_15_asm.py --write
+	@$(MAKE) verifydata15
+
+# Assemble bank $15 standalone and prove it byte-exact against the ROM
+verifydata15:
+	@python3 tools/verify_data_bank_15.py
+
+# Re-render the command-menu OAM blob bank (PRG $16) from the ROM, then verify
+databank16:
+	@python3 tools/gen_data_bank_16_asm.py --write
+	@$(MAKE) verifydata16
+
+# Assemble bank $16 standalone and prove it byte-exact against the ROM
+verifydata16:
+	@python3 tools/verify_data_bank_16.py
+
 # Re-render the four terrain banks $00/$03/$04/$05 (30 provinces) as hex plus
 # their CSV twins, then verify byte-exact against the stock ROM
 terrain:
@@ -125,6 +152,18 @@ checkterrain:
 # Launch the standalone tactical-map GUI editor (needs python3-tk)
 map-editor:
 	@python3 editor/tactical_map_editor.py
+
+# Launch the standalone officer GUI editor (needs python3-tk)
+officer-editor:
+	@python3 editor/officer_editor.py
+
+# Show the officer seed edits that are live relative to the stock ROM
+officer-diff:
+	@python3 tools/verify_data_banks.py --allow-edits
+
+# Full lossless-loop check: ROM <-> docs CSVs <-> asm <-> both officer editors
+checkofficers:
+	@python3 tools/check_officer_pipeline.py
 
 # Split ROM into banks
 split:
@@ -167,18 +206,24 @@ help:
 	@echo "  split     - Split original ROM into PRG/CHR banks"
 	@echo "  banks     - Generate PRG bank stub files"
 	@echo '  databanks   - Re-render annotated seed-data banks $$10/$$11 from the ROM'
-	@echo '  databanks-csv - Re-render them from docs/officer_data.csv/province_data.csv'
+	@echo '  databanks-csv - Re-render them from the edited docs/*.csv (records, names,'
+	@echo '                arrival schedule, death years, province rosters)'
 	@echo '  verifydata  - Assemble banks $$10/$$11 and prove byte-exactness'
 	@echo '  databank02  - Re-render sound/note data bank $$02 from the ROM'
 	@echo '  verifydata02 - Assemble bank $$02 and prove byte-exactness'
 	@echo '  databank06  - Re-render war-placement / strategy-scroll data bank $$06 from the ROM'
 	@echo '  verifydata06 - Assemble bank $$06 and prove byte-exactness'
+	@echo '  databank16  - Re-render command-menu OAM blob bank $$16 from the ROM'
+	@echo '  verifydata16 - Assemble bank $$16 and prove byte-exactness'
 	@echo '  terrain     - Re-render terrain banks $$00/$$03/$$04/$$05 hex + docs/terrain_bank_XX.csv'
 	@echo '  terrain-csv - Re-render them from the edited terrain CSVs (asm == CSV gate)'
 	@echo '  terrain-diff - List the terrain edits still live vs the stock ROM'
 	@echo '  verifyterrain - Assemble the terrain banks and prove byte-exactness'
 	@echo '  checkterrain - Prove the ROM/CSV/asm/editor loop is lossless'
 	@echo '  map-editor  - Open the standalone tactical-map GUI editor (editor/)'
+	@echo '  officer-editor - Open the standalone officer GUI editor (editor/)'
+	@echo '  officer-diff - List the officer seed edits still live vs the stock ROM'
+	@echo '  checkofficers - Prove the officer CSV/asm/editor loop is lossless'
 	@echo "  disasm    - Disassemble a binary (FILE, ADDR, LEN)"
 	@echo "  analyze   - Analyze ROM structure"
 	@echo "  disasterrng - Re-enumerate the disaster pick RNG sequences + coherence stats"
@@ -192,6 +237,7 @@ help:
 	@echo "  make analyze"
 
 .PHONY: all split banks databanks databanks-csv verifydata databank02 verifydata02 \
-        databank06 verifydata06 terrain terrain-csv \
-        terrain-diff verifyterrain checkterrain map-editor disasm analyze \
+        databank06 verifydata06 databank16 verifydata16 terrain terrain-csv \
+        terrain-diff verifyterrain checkterrain map-editor \
+        officer-editor officer-diff checkofficers disasm analyze \
         disasterrng verify clean distclean help

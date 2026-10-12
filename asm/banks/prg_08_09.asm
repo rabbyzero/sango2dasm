@@ -4560,7 +4560,7 @@ ApplyCoordDeltas_Entry = UpdateOfficerCoords::ApplyCoordDeltas ; $C027 (file-sco
 ; Each handler performs one phase of a town facility action (panel drawing,
 ; rice trade math, vitality checks, armory grid setup/render/purchase),
 ; then either RTS to wait for the next callback or loads a UI mode into A
-; and JMPs B1F_SetUI2/B1F_SetUI5 to advance the facility presentation.
+; and JMPs B1F_OpenMsgWindow2/B1F_OpenMsgWindow5 to advance the facility presentation.
 ; Side resource pairs (X=0 near side, X=2 far side, from GetBattleSideOffset):
 ;   $0522/$0523 = remaining rice, $0526/$0527 = remaining gold
 ;   (rice clamped to 0..9999, gold clamped to 0).
@@ -4680,7 +4680,7 @@ State0_ShowActionPanel:
   LDA #$02                              ; $C165: A9 02
   STA war_scene_phase                   ; $C167: 8D 01 05  ; continue in state 2
   LDA #$AA                              ; $C16A: A9 AA     ; UI mode $AA
-  JMP B1F_SetUI2                        ; $C16C: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C16C: 4C 83 F2
 @PercentPath:
   LDY #$01                              ; $C16F: A0 01
   LDA ($02),Y                           ; $C171: B1 02     ; param byte 1 -> percent
@@ -4723,7 +4723,7 @@ State0_ShowActionPanel:
   STA stat_delta_hi                     ; $C1D3: 8D 91 04
   INC war_scene_phase                   ; $C1D6: EE 01 05  ; continue in state 1
   LDA #$A9                              ; $C1D9: A9 A9     ; UI mode $A9
-  JMP B1F_SetUI2                        ; $C1DB: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C1DB: 4C 83 F2
 ; Action panel layout descriptor for state 0 (drawn by B1F_MenuStep2 above)
 State0PanelLayout:
   .byte $00,$01,$FF,$FF,$C6,$47,$C6,$87,$00,$07,$00,$00,$80; $C1DE: 00 01 FF FF C6 47 C6 87 00 07 00 00 80
@@ -4757,7 +4757,7 @@ State1_BuyRice:
   STA menu_cursor_col                   ; $C20F: 8D 24 04
   STA menu_cursor_page                  ; $C212: 8D 25 04
   LDA #$A8                              ; $C215: A9 A8     ; UI mode $A8
-  JMP B1F_SetUI2                        ; $C217: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C217: 4C 83 F2
 @Wait:
   RTS                                   ; $C21A: 60
 @ApplyGain:
@@ -4825,7 +4825,7 @@ State1_BuyRice:
   LDA #$08                              ; $C2B6: A9 08
   STA war_scene_phase                   ; $C2B8: 8D 01 05  ; continue in state 8
   LDA #$AB                              ; $C2BB: A9 AB     ; UI mode $AB
-  JMP B1F_SetUI2                        ; $C2BD: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C2BD: 4C 83 F2
 ;-------------------------------------------------------------------------------
 ; State 2 - Sell rice: mirror of State1_BuyRice.
 ; Waits for the panel animation, runs the banked callback at $A003, then on
@@ -4857,7 +4857,7 @@ State2_SellRice:
   STA menu_cursor_col                   ; $C2E6: 8D 24 04
   STA menu_cursor_page                  ; $C2E9: 8D 25 04
   LDA #$A8                              ; $C2EC: A9 A8     ; UI mode $A8
-  JMP B1F_SetUI2                        ; $C2EE: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C2EE: 4C 83 F2
 @Wait:
   RTS                                   ; $C2F1: 60
 @ApplyDrain:
@@ -4923,7 +4923,7 @@ State2_SellRice:
   LDA #$08                              ; $C388: A9 08
   STA war_scene_phase                   ; $C38A: 8D 01 05  ; continue in state 8
   LDA #$AC                              ; $C38D: A9 AC     ; UI mode $AC
-  JMP B1F_SetUI2                        ; $C38F: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C38F: 4C 83 F2
 ;-------------------------------------------------------------------------------
 ; State 3 - Check officer vitality (record byte 0) against ROM maximum.
 ; Waits for the panel animation, draws the action marker (DrawActionMarker),
@@ -4960,7 +4960,7 @@ State3_CheckVitalityDeficit:
   LDA #$08                              ; $C3C4: A9 08
   STA war_scene_phase                   ; $C3C6: 8D 01 05  ; unchanged -> state 8
   LDA #$B3                              ; $C3C9: A9 B3     ; UI mode $B3
-  JMP B1F_SetUI2                        ; $C3CB: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C3CB: 4C 83 F2
 @StatChanged:
   LDA #$32                              ; $C3CE: A9 32     ; 50 units to restore
   STA action_result_lo                  ; $C3D0: 8D 2C 04
@@ -4971,7 +4971,7 @@ State3_CheckVitalityDeficit:
   STA menu_cursor_page                  ; $C3DE: 8D 25 04
   INC war_scene_phase                   ; $C3E1: EE 01 05  ; continue in state 4
   LDA #$B2                              ; $C3E4: A9 B2     ; UI mode $B2
-  JMP B1F_SetUI2                        ; $C3E6: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C3E6: 4C 83 F2
 ;-------------------------------------------------------------------------------
 ; State 4 - Hospital heal: spend 50 gold to restore officer vitality.
 ; Draws the panel from State4PanelLayout, waits for $0081:
@@ -5027,7 +5027,7 @@ State4_HospitalHeal:
   LDA #$08                              ; $C440: A9 08
   STA war_scene_phase                   ; $C442: 8D 01 05  ; state 8
   LDA #$B0                              ; $C445: A9 B0     ; UI mode $B0
-  JMP B1F_SetUI2                        ; $C447: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C447: 4C 83 F2
 @Deduct50:
   LDA war_gold_lo,X                     ; $C44A: BD 26 05  ; gold -= 50
   SEC                                   ; $C44D: 38
@@ -5070,7 +5070,7 @@ State4_HospitalHeal:
   LDA #$08                              ; $C4A1: A9 08
   STA war_scene_phase                   ; $C4A3: 8D 01 05  ; continue in state 8
   LDA #$B4                              ; $C4A6: A9 B4     ; UI mode $B4
-  JMP B1F_SetUI2                        ; $C4A8: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C4A8: 4C 83 F2
 ; Action panel layout descriptor for state 4 (drawn by B1F_MenuStep2 above)
 State4PanelLayout:
   .byte $00,$01,$FF,$FF,$D6,$50,$D6,$98,$00,$07,$00,$00,$80; $C4AB: 00 01 FF FF D6 50 D6 98 00 07 00 00 80
@@ -5080,7 +5080,7 @@ State4PanelLayout:
 ;   bit0 -> @ExpandSlots: grid set = ArmoryGridSetTable[$050E]; call
 ;           ExpandArmoryGridSlots ($0012 = menu category 0-3) to fill the 4
 ;           grid cells ($044C equipment ids, $042C price records), clear
-;           $0424/$0425, state 6 (UI $AE via B1F_SetUI5).
+;           $0424/$0425, state 6 (UI $AE via B1F_OpenMsgWindow5).
 ;   bit1 -> reset command ($0500/$0501 = 0).
 ;-------------------------------------------------------------------------------
 State5_ArmoryGridSetup:
@@ -5121,7 +5121,7 @@ State5_ArmoryGridSetup:
   STA menu_cursor_col                   ; $C507: 8D 24 04
   STA menu_cursor_page                  ; $C50A: 8D 25 04
   LDA #$AE                              ; $C50D: A9 AE     ; UI mode $AE
-  JMP B1F_SetUI5                        ; $C50F: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C50F: 4C 93 F2
 ; Armory category panel layout descriptor for state 5 (4 entries, drawn by
 ; B1F_MenuStep2 above)
 State5PanelLayout:
@@ -5294,7 +5294,7 @@ State7_ArmoryPurchaseApply:
   STA menu_cursor_col                   ; $C66F: 8D 24 04
   STA menu_cursor_page                  ; $C672: 8D 25 04
   LDA #$AD                              ; $C675: A9 AD     ; UI mode $AD
-  JMP B1F_SetUI5                        ; $C677: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C677: 4C 93 F2
 @Wait:
   RTS                                   ; $C67A: 60
 @ApplySelectedTile:
@@ -5322,7 +5322,7 @@ State7_ArmoryPurchaseApply:
   STA purchase_result_flag              ; $C6AE: 8D 71 04
   INC war_scene_phase                   ; $C6B1: EE 01 05  ; state 8
   LDA #$B0                              ; $C6B4: A9 B0     ; UI mode $B0
-  JMP B1F_SetUI5                        ; $C6B6: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C6B6: 4C 93 F2
 @CheckSpecial:
   JSR CheckSpecialEquipment             ; $C6B9: 20 3B C7
   BCS @ApplyTileBits                    ; $C6BC: B0 06     ; C=1: apply item normally
@@ -5372,7 +5372,7 @@ State7_ArmoryPurchaseApply:
   LDA #$08                              ; $C71E: A9 08
   STA war_scene_phase                   ; $C720: 8D 01 05  ; continue in state 8
   LDA #$AF                              ; $C723: A9 AF     ; UI mode $AF
-  JMP B1F_SetUI5                        ; $C725: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C725: 4C 93 F2
 ; State 7 panel layout, packed as three sub-tables reached by lo/hi pointer
 ; immediates in State7_ArmoryPurchaseApply:
 ;   +0  State7MenuStream     - 4 slot entries + $FF page filler (B1F_MenuStep2)
@@ -5439,7 +5439,7 @@ CheckSpecialEquipment:
   JMP @LatchFlag                        ; $C789: 4C 93 C7
 @NoMatch:
   LDA #$48                              ; $C78C: A9 48     ; UI mode $48 (no trigger)
-  JSR B1F_SetUI5                        ; $C78E: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $C78E: 20 93 F2
   CLC                                   ; $C791: 18
   RTS                                   ; $C792: 60
 @LatchFlag:
@@ -5455,7 +5455,7 @@ CheckSpecialEquipment:
   RTS                                   ; $C7A8: 60
 @AlreadyTriggered:
   LDA #$49                              ; $C7A9: A9 49     ; UI mode $49 (repeat)
-  JSR B1F_SetUI5                        ; $C7AB: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $C7AB: 20 93 F2
   CLC                                   ; $C7AE: 18
   RTS                                   ; $C7AF: 60
 ;-------------------------------------------------------------------------------
@@ -5528,7 +5528,7 @@ State9_RouteNextAction:
   LDA #$00                              ; $C81D: A9 00
   STA war_scene_phase                   ; $C81F: 8D 01 05  ; mode 0 -> state 0
   LDA #$A8                              ; $C822: A9 A8     ; UI mode $A8
-  JMP B1F_SetUI2                        ; $C824: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C824: 4C 83 F2
 @CheckMode1:
   CMP #$01                              ; $C827: C9 01
   BNE @RouteToState3                    ; $C829: D0 0F
@@ -5537,12 +5537,12 @@ State9_RouteNextAction:
   LDA #$8C                              ; $C830: A9 8C
   STA a:$00BD                           ; $C832: 8D BD 00
   LDA #$AD                              ; $C835: A9 AD     ; UI mode $AD
-  JMP B1F_SetUI2                        ; $C837: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C837: 4C 83 F2
 @RouteToState3:
   LDA #$03                              ; $C83A: A9 03
   STA war_scene_phase                   ; $C83C: 8D 01 05  ; other -> state 3
   LDA #$B1                              ; $C83F: A9 B1     ; UI mode $B1
-  JMP B1F_SetUI2                        ; $C841: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C841: 4C 83 F2
 ; Action panel layout descriptor for state 9 (drawn by B1F_MenuStep2 above)
 State9PanelLayout:
   .byte $00,$01,$FF,$FF,$C6,$50,$C6,$97,$00,$07,$00,$00,$80; $C844: 00 01 FF FF C6 50 C6 97 00 07 00 00 80
@@ -7259,7 +7259,7 @@ special_officer_idx    = $052F  ; special officer roster index
 ; Note:   The same roster and class thresholds are reused by BuildCommandList
 ;         (banked entry $A01B), which grants these special officers an
 ;         extended command menu (menu types 5-8 = 12/14/15/16 items) in
-;         prg_0c_0d CommandState_Init. Officer $6D is the same "special
+;         prg_0c_0d StratagemState_Init. Officer $6D is the same "special
 ;         officer" handled by WarAttritionRound::@LoadSpecialOfficer.
 ;===============================================================================
 .proc ValidateSpecialOfficer
@@ -7338,7 +7338,7 @@ special_officer_idx    = $052F  ; special officer roster index
 ; $D51B-$D57A).
 ; Entry: JMP stub BuildCommandList_Entry at $A01B; invoked via
 ;        B1F_BankedCallbackTrampoline with LDY #$28 (PRG banks 08+09) from
-;        prg_0c_0d CommandState_Init ($A8BB, inline .word $A01B).
+;        prg_0c_0d StratagemState_Init ($A8BB, inline .word $A01B).
 ;
 ; Input:  $050A = scene/command index; $0664 = battle roster (officer ids).
 ; Output: $0580-$058F = slot ID list ($FF-filled tail = unused slots),
@@ -7843,7 +7843,7 @@ WarResult_SceneTick:  ; (dispatch callback target)
 ; WarResult_RecordInitTable, clears the dir-repeat counters $0545-$0549,
 ; latches the result parameters ($0543 -> $6F43, $0544 -> $6F02), clears the
 ; outcome flag $6F44, arms UI context $042C=1/$042D=0/$042E=0 and enters UI
-; page $DA via B1F_SetUI4 (does not return here).
+; page $DA via B1F_OpenMsgWindow4 (does not return here).
 ;-------------------------------------------------------------------------------
 .proc WarResult_InitRecords  ; (dispatch callback target)
 ; --- Proc-local RAM ---
@@ -7872,7 +7872,7 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA action_result_hi                  ; $D76C: 8D 2D 04
   STA action_result_cnt                 ; $D76F: 8D 2E 04
   LDA #$DA                              ; $D772: A9 DA
-  JMP B1F_SetUI4                        ; $D774: 4C 8B F2  ; enter UI page $DA
+  JMP B1F_OpenMsgWindow4                ; $D774: 4C 8B F2  ; enter UI page $DA
 .endproc  ; WarResult_InitRecords
   .byte $60                             ; $D777: 60       ; pad (RTS opcode)
 ;-------------------------------------------------------------------------------
@@ -7959,7 +7959,7 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA action_result_hi                  ; $D801: 8D 2D 04
   STA action_result_cnt                 ; $D804: 8D 2E 04
   LDA #$DA                              ; $D807: A9 DA
-  JMP B1F_SetUI4                        ; $D809: 4C 8B F2  ; enter UI page $DA
+  JMP B1F_OpenMsgWindow4                ; $D809: 4C 8B F2  ; enter UI page $DA
 .endproc  ; WarResult_SelectMenuEntry
 ;-------------------------------------------------------------------------------
 ; Phase 3: WarResult_ConfirmMenuWait
@@ -8000,7 +8000,7 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
 ; fresh pick - the entry id ($DA0F table, idx*4) goes to $046D, phase -> 5,
 ; UI re-armed ($0098=$A0/$0097=0/$00BB=9), then the slot is cleared through a
 ; banked call ($A02A stub, bank pair $3D) with the entry id in $0000, and UI
-; mode $DB is entered via B1F_SetUI0 (does not return here).
+; mode $DB is entered via B1F_OpenMsgWindow0 (does not return here).
 ;-------------------------------------------------------------------------------
 .proc WarResult_PickEntry  ; (dispatch callback target)
   JSR WarResultMenuPoll                 ; $D844: 20 06 D9
@@ -8045,7 +8045,7 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
 ; --- BankedCallbackTrampoline target ---
   .word B1D_1E_OfficerDisplay_Lookup     ; $D899: 2A A0  ; slot clear (bank $3D)
   LDA #$DB                              ; $D89B: A9 DB
-  JMP B1F_SetUI0                        ; $D89D: 4C 6D F2  ; UI mode $DB
+  JMP B1F_OpenMsgWindow0                ; $D89D: 4C 6D F2  ; UI mode $DB
 .endproc  ; WarResult_PickEntry
 ;-------------------------------------------------------------------------------
 ; Phase 5: WarResult_InspectEntry

@@ -18,11 +18,14 @@ Two sources for the record bytes:
 
   default     read them straight from rom/prg/prg_XX.bin (the stock ROM)
   --from-csv  rebuild them from the decoded columns of docs/officer_data.csv /
-              docs/province_data.csv, i.e. edit the CSV, regenerate the
-              assembly. tools/verify_data_banks.py then reports the drift from
-              the stock ROM in human terms (which record, which field, old ->
-              new), so the CSV is the comfortable editing surface and the .byte
-              listing is the readable in-tree rendering.
+              docs/province_data.csv / docs/officer_death_years.csv, i.e. edit
+              the CSV, regenerate the assembly. The officer name strings are
+              re-encoded from the CSV `katakana` column and the arrival schedule
+              from its province/year columns. tools/verify_data_banks.py then
+              reports the drift from the stock ROM in human terms (which record,
+              which field, old -> new), so the CSV is the comfortable editing
+              surface and the .byte listing is the readable in-tree rendering.
+              editor/officer_editor.py drives exactly this path.
 
 Usage:
     python tools/gen_data_bank_asm.py --bank all                # preview
@@ -39,6 +42,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from charmap_kana import decode_name                # noqa: E402
 import extract_officer_data as officer_tool         # noqa: E402
 import extract_province_data as province_tool       # noqa: E402
+import officer_model                                # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK_DIR = os.path.join(ROOT, 'rom', 'prg')
@@ -68,6 +72,7 @@ TRADE_PRICE_BYTES = PROV_COUNT * 2    # $8FC0-$8FFB rice rate byte pairs
 TRADE_FLAG_BYTES = PROV_COUNT         # $8FFC-$9019 province facility flags
 ARRIVAL_STRIDE = 0x14
 ARRIVAL_PAIRS = 10
+ARRIVAL_PAIRS_PER_LINE = 5                             # one .byte line
 YEAR_BASE = 0xBD                                     # $BD = 189
 DEATH_CPU = 0x9C58                                   # bank $31
 DEATH_COUNT = officer_tool.OFFICER_COUNT
@@ -161,6 +166,11 @@ REINFORCE_ENTRY_STRIDE = 2           # [0] Officer id, [1] year - 100
 REINFORCE_YEAR_OFFSET = 100          # display year = byte + 100
 REINFORCE_PAIRS_PER_ROW = 4
 REINFORCE_BYTES = 0x8DB4 - REINFORCE_CPU       # 64
+# EventReinforceGate ($A33C, prg_19_1a) runs each January per acting Country
+# and picks pool (Country - 2); Country 6 aliases slot 3, and Countries 0/1/5
+# have no pool. OfficerReinforceScene ($AEC0) then inducts the first
+# still-hidden officer whose year has arrived into the Country's home Province.
+REINFORCE_POOL_COUNTRIES = (2, 3, 4, 6)
 
 # Bank $11 $8DB4-$99BC: Officer name-glyph records, 13 bytes per Officer id:
 # [0] = name-font CHR code page, then 4 CONTIGUOUS bytes per character - the
@@ -335,16 +345,12 @@ PRG_COMBINED = os.path.join(ROOT, 'rom', 'prg_combined.bin')
 
 
 def officer_record_from_fields(row):
-    """Rebuild 12 record bytes from decoded CSV columns (+5 stays 0)."""
-    return bytes([
-        row['vitality'], row['might'], row['intelligence'], row['loyalty'],
-        row['virtue'], 0,
-        row['experience'] & 0xFF, (row['experience'] >> 8) & 0xFF,
-        row['troop_count'] & 0xFF, (row['troop_count'] >> 8) & 0xFF,
-        (row['armor_index'] << 5) | row['weapon_index'],
-        ((row['officer_level'] - 1) << 4)
-        | (row['army_affinity_bits'] << 2) | row['officer_status_bits'],
-    ])
+    """Rebuild 12 record bytes from decoded CSV columns (+5 stays 0).
+
+    The packing lives in `tools/officer_model.py`, which the standalone officer
+    editor uses too, so both write the same bytes for the same columns.
+    """
+    return officer_model.record_from_fields(row)
 
 
 def load_provinces(from_csv, rom_rows):
@@ -391,11 +397,31 @@ def write16(rec, ofs, value):
     rec[ofs + 1] = (value >> 8) & 0xFF
 
 
-def load_death_years(bank_bytes):
-    """[{byte, year, short}] for the 237 ids, read from the ROM bank."""
+def load_death_years(bank_bytes, from_csv=False):
+    """[{byte, year, short}] for the 237 ids.
+
+    Default reads the ROM bank; `--from-csv` takes the `table_byte` column of
+    docs/officer_death_years.csv instead, so the death table is as editable as
+    the records are.
+    """
+    table, path = None, None
+    if from_csv:
+        path = os.path.join(DOCS, 'officer_death_years.csv')
+        with open(path, newline='', encoding='utf-8') as f:
+            table = {int(r['id']): int(r['table_byte'])
+                     for r in csv.DictReader(f)}
     rows = []
     for oid in range(DEATH_COUNT):
-        raw = bank_bytes[DEATH_CPU - WINDOW_CPU + oid]
+        if table is None:
+            raw = bank_bytes[DEATH_CPU - WINDOW_CPU + oid]
+        else:
+            if oid not in table:
+                raise SystemExit('%s: no row for officer id %d' % (path, oid))
+            raw = table[oid]
+            if not 0 <= raw <= 0xFF:
+                raise SystemExit('%s: id %d table_byte %d is not one byte '
+                                 '(death year %d)'
+                                 % (path, oid, raw, raw + DEATH_YEAR_OFFSET))
         rows.append({'byte': raw, 'year': raw + DEATH_YEAR_OFFSET,
                      'short': OFF_ZH.get(oid, '?')})
     return rows
@@ -701,13 +727,23 @@ def emit_arrival_schedule(out, schedule, provinces):
     out.append('')
     for prov in provinces:
         pairs = schedule[prov['id']]
+        if len(pairs) > ARRIVAL_PAIRS:
+            # A block is ARRIVAL_STRIDE bytes wide, so the extra pairs have
+            # nowhere to go: emitting only the first ARRIVAL_PAIRS would drop
+            # officers from the schedule without a word, and the bank would
+            # still assemble byte-exact.
+            raise SystemExit('arrival schedule province %d holds %d entries but '
+                             'a block is $%02X bytes = %d pairs'
+                             % (prov['id'], len(pairs), ARRIVAL_STRIDE,
+                                ARRIVAL_PAIRS))
         base = ARRIVAL_CPU + prov['id'] * ARRIVAL_STRIDE
         out.append('; %s %s (%s) - %d scheduled'
                    % (prov['id'], prov['katakana'], prov['romaji'], len(pairs)))
         out.append('ArrivalSchedule_%s:' % prov['label'])
-        for line in range(2):
+        for line in range(ARRIVAL_PAIRS // ARRIVAL_PAIRS_PER_LINE):
+            first = line * ARRIVAL_PAIRS_PER_LINE
             body, notes = [], []
-            for idx in range(line * 5, line * 5 + 5):
+            for idx in range(first, first + ARRIVAL_PAIRS_PER_LINE):
                 if idx < len(pairs):
                     oid, year = pairs[idx]
                     body.append('$%02X, $%02X' % (oid, year))
@@ -715,7 +751,7 @@ def emit_arrival_schedule(out, schedule, provinces):
                 else:
                     body.append('$FF, $FF')
             out.append('  .byte %-58s ; $%04X %s'
-                       % (', '.join(body), base + line * 10,
+                       % (', '.join(body), base + first * 2,
                           ' '.join(notes) or 'empty'))
         out.append('')
 
@@ -913,13 +949,33 @@ def reinforce_lists(blk):
     return words, lists
 
 
-def emit_reinforce_pools(out, data, officers):
-    """$8D74-$8DB3: 4 word pointers plus the (Officer id, year) pair pools."""
-    base = REINFORCE_CPU - WINDOW_CPU
-    blk = data[base:base + REINFORCE_BYTES]
-    end = REINFORCE_CPU + REINFORCE_BYTES - 1
+def emit_reinforce_pools(out, data, officers, pools_csv=None):
+    """$8D74-$8DB3: 4 word pointers plus the (Officer id, year) pair pools.
+
+    Default decodes the ROM bytes; on the --from-csv path `pools_csv` (from
+    load_reinforce_csv) rebuilds the same layout from
+    docs/officer_reinforcement.csv, recomputing the pointers from the list
+    lengths.
+    """
     by_id = {r['id']: r for r in officers}
-    words, lists = reinforce_lists(blk)
+    if pools_csv is not None:
+        lists = []
+        cursor = REINFORCE_CPU + 2 * REINFORCE_PTR_COUNT
+        for country in REINFORCE_POOL_COUNTRIES:
+            pairs = pools_csv[country]
+            lists.append((cursor, pairs))
+            cursor += REINFORCE_ENTRY_STRIDE * len(pairs) + 1
+        if cursor - 1 > REINFORCE_CPU + REINFORCE_BYTES - 1:
+            raise SystemExit('CSV pools overflow $%04X-$%04X (end at $%04X) - '
+                             'drop some entries'
+                             % (REINFORCE_CPU, REINFORCE_CPU
+                                + REINFORCE_BYTES - 1, cursor - 1))
+        words = [cpu for cpu, _ in lists]
+    else:
+        base = REINFORCE_CPU - WINDOW_CPU
+        blk = data[base:base + REINFORCE_BYTES]
+        words, lists = reinforce_lists(blk)
+    end = REINFORCE_CPU + REINFORCE_BYTES - 1
     out.append('; ' + '=' * 78)
     out.append('; $%04X-$%04X  Reinforcement candidate pools: %d pointers + %d lists'
                % (REINFORCE_CPU, end, REINFORCE_PTR_COUNT, len(lists)))
@@ -957,10 +1013,14 @@ def emit_reinforce_pools(out, data, officers):
     out.append(';     3. entry[1] > $6F00 (reign year not reached) -> also no candidate;')
     out.append(';        entry[1] <= $6F00 -> append the Officer to the province roster')
     out.append(';        ($00 + $11..) and set his status to 2 = rostered ($AF4E-$AF52).')
-    out.append('; Content (decoded names): the pools group Officers by faction/family -')
+    out.append('; Content (decoded names): the pools group Officers by family -')
     out.append('; list 0 曹氏/夏侯氏/司马氏, list 1 周瑜+孙氏+诸葛恪, list 2')
-    out.append('; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. Which $0470 value picks which pool')
-    out.append('; is not yet decoded.')
+    out.append('; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. EventReinforceGate ($A33C,')
+    out.append('; prg_19_1a) picks pool (Country-2) for the acting Country each')
+    out.append('; January (Country 6 aliases slot 3; Countries 0/1/5 have none),')
+    out.append('; and OfficerReinforceScene ($AEC0) inducts the first still-hidden')
+    out.append('; Officer whose year has arrived into the Country\'s home Province.')
+    out.append('; Editing surface: docs/officer_reinforcement.csv.')
     out.append('; ' + '=' * 78)
     out.append('ReinforceCandidatePtrTable:')
     out.append('  .word %-54s ; $%04X -> %s'
@@ -972,8 +1032,10 @@ def emit_reinforce_pools(out, data, officers):
     for idx, (cpu, pairs) in enumerate(lists):
         label = 'ReinforceCandidateList_%d:' % idx
         years = [y for _, y in pairs]
-        out.append('%s%s; $%04X %d (Officer id, year) pairs, display years %d-%d'
-                   % (label, ' ' * max(1, 27 - len(label)), cpu, len(pairs),
+        out.append('%s%s; $%04X Country %d, %d (Officer id, year) pairs, '
+                   'display years %d-%d'
+                   % (label, ' ' * max(1, 27 - len(label)), cpu,
+                      REINFORCE_POOL_COUNTRIES[idx], len(pairs),
                       min(years) + REINFORCE_YEAR_OFFSET,
                       max(years) + REINFORCE_YEAR_OFFSET))
         for start in range(0, len(pairs), REINFORCE_PAIRS_PER_ROW):
@@ -1191,7 +1253,7 @@ def emit_tactical_facility_tiles(out, data, provinces):
     out.append(';   DrawStratagemTargetMarkers prg_08_09 $D24D -> $D25D: $050E *3 *2')
     out.append(';     (=*6), walks pairs at +0/+2/+4 and draws a city-target marker')
     out.append(';     (tiles *16 -> pixels) at each used pair;')
-    out.append(';   OfficerTransfer_SetupResult prg_0c_0d $A4DD -> $A4EF: $050E *3 *2')
+    out.append(';   MoveState_CheckDest prg_0c_0d $A4DD -> $A4EF: $050E *3 *2')
     out.append(';     (=*6), scans the 3 pairs vs the destination (X,Y); a match')
     out.append(';     stores the slot index (X) as the action selector and enters')
     out.append(';     state $09 (war action panel, WarTownActionDispatch).')
@@ -1704,7 +1766,8 @@ def render_bank(bank, ctx):
                                                   ctx['provinces']),
         'death_years': lambda: emit_death_years(out, ctx['deaths']),
         'reinforce_pools': lambda: emit_reinforce_pools(out, data,
-                                                        ctx['officers']),
+                                                        ctx['officers'],
+                                                        ctx['reinforce_csv']),
         'off_glyphs': lambda: emit_officer_name_glyphs(out, data,
                                                        ctx['officers']),
         'zero_filler11': lambda: emit_zero_filler11(out, data),
@@ -1735,10 +1798,11 @@ def render_bank(bank, ctx):
 def build_context(bank, from_csv):
     """Load everything the emitters need for one bank.
 
-    With from_csv the record bytes are rebuilt from the decoded CSV columns (the
-    CSV is then the editing surface); otherwise they come from the ROM. Name
-    bytes always come from the ROM bank: the kana code space is not re-encoded
-    from CSV text.
+    With from_csv the record bytes are rebuilt from the decoded CSV columns, the
+    names are re-encoded from the CSV `katakana` text and the death years come
+    from docs/officer_death_years.csv - the CSVs are then the editing surface
+    (see tools/officer_model.py, which the standalone officer editor shares).
+    Otherwise everything comes from the ROM.
     """
     data = read_bank(bank)
     rom_officers = officer_tool.load_rows(NES_PATH)[0]
@@ -1748,8 +1812,18 @@ def build_context(bank, from_csv):
         rows = []
         for row in rom_officers:
             merged = dict(by_id[row['id']])
-            merged['katakana'] = row['katakana']
-            merged['zh_hans'] = row['zh_hans']
+            # The CSV is the editing surface for the name bytes, so an emptied
+            # cell must fail here rather than fall back to the stock ROM text:
+            # tools/officer_model.py refuses it, and the two would render
+            # different bytes for the same CSV.
+            if not str(merged.get('katakana', '')).strip():
+                raise SystemExit('docs/officer_data.csv: officer %d has an '
+                                 'empty katakana name - every officer has one, '
+                                 'and the field is a $00-terminated string'
+                                 % row['id'])
+            # 简体 is comment-only, so an empty cell keeps the extracted name
+            # instead of blanking the annotation.
+            merged['zh_hans'] = merged.get('zh_hans') or row['zh_hans']
             rows.append(merged)
         officer_source = rows
     else:
@@ -1757,8 +1831,12 @@ def build_context(bank, from_csv):
     officers = load_officers(from_csv, officer_source)
     name_base = OFF_NAME_CPU - WINDOW_CPU
     for row in officers:
-        row['name_bytes'] = data[name_base + row['id'] * OFF_NAME_STRIDE:
-                                 name_base + (row['id'] + 1) * OFF_NAME_STRIDE]
+        if from_csv:
+            row['name_bytes'] = officer_model.encode_name(row['katakana'])
+        else:
+            row['name_bytes'] = data[name_base + row['id'] * OFF_NAME_STRIDE:
+                                     name_base + (row['id'] + 1)
+                                     * OFF_NAME_STRIDE]
 
     rom_provinces = list(province_tool.load_provinces(PRG_COMBINED))
     stock_prov_records = {r['id']: bytes.fromhex(r['hex']) for r in rom_provinces}
@@ -1767,11 +1845,23 @@ def build_context(bank, from_csv):
                   encoding='utf-8') as f:
             csv_provs = {int(r['id']): r for r in csv.DictReader(f)}
         rows = []
+        officer_by_id = {r['id']: r for r in officers}
         for row in rom_provinces:
             src = csv_provs[row['id']]
             merged = dict(row)
             merged.update({k: int(src[k]) for k in PROV_CSV_INT})
             merged['roster'] = [int(o) for o in src['officer_ids'].split()]
+            # officer_count / active_troops / ruler_officer_id are derived from
+            # the roster, and tools/officer_model.py recomputes them on every
+            # save - so recompute them here too. Only province_summary reads
+            # them, but keeping the ROM values would print a stale 現役= and
+            # ruler= next to the edited roster on the same comment line.
+            rostered = [officer_by_id[o] for o in merged['roster']
+                        if o in officer_by_id]
+            merged['officer_count'] = len(merged['roster'])
+            merged['active_troops'] = sum(o['troop_count'] for o in rostered)
+            rulers = [o['id'] for o in rostered if o['loyalty'] == 100]
+            merged['ruler_officer_id'] = rulers[-1] if rulers else None
             rows.append(merged)
         province_source = rows
     else:
@@ -1797,7 +1887,40 @@ def build_context(bank, from_csv):
     return {'bank_bytes': data, 'officers': officers, 'provinces': provinces,
             'schedule': load_schedule(officers),
             'equip': load_equipment_names(),
-            'deaths': load_death_years(data)}
+            'deaths': load_death_years(data, from_csv),
+            'reinforce_csv': load_reinforce_csv() if from_csv else None}
+
+
+def load_reinforce_csv():
+    """{Country id: [(Officer id, table byte), ...]} from the pools CSV.
+
+    docs/officer_reinforcement.csv (written by
+    tools/extract_reinforcement_pools.py, edited by the officer editor) holds
+    one row per pair in stored list order; row order within a country is the
+    list order, and the lists are emitted back-to-back in
+    REINFORCE_POOL_COUNTRIES order with the pointers recomputed from the
+    lengths.
+    """
+    path = os.path.join(DOCS, 'officer_reinforcement.csv')
+    with open(path, newline='', encoding='utf-8') as f:
+        rows = list(csv.DictReader(f))
+    pools = {country: [] for country in REINFORCE_POOL_COUNTRIES}
+    for row in rows:
+        country = int(row['country'])
+        if country not in pools:
+            raise SystemExit('%s: Country %d is not one of %s - the pool '
+                             'selector in EventReinforceGate ($A33C) only '
+                             'addresses those four'
+                             % (path, country, REINFORCE_POOL_COUNTRIES))
+        oid = int(row['officer_id'])
+        if not 0 <= oid < OFF_RECORD_COUNT:
+            raise SystemExit('%s: Officer id %d out of range' % (path, oid))
+        byte = int(row['table_byte'])
+        if not 0 <= byte <= 0xFF:
+            raise SystemExit('%s: table_byte %d does not fit one byte'
+                             % (path, byte))
+        pools[country].append((oid, byte))
+    return pools
 
 
 def main():

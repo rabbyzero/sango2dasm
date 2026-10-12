@@ -262,7 +262,7 @@ overlay owns `$0540-$05D7`.
 | `$0545-$0549` | — | `btl_scan_col/row/wait` + `btl_frame_counter` + `btl_acting_unit` (0e_0f); `state_overlay_param`/`state_palette_mode` (0a_0b); `result_dir_repeat` 4 bytes `$0545-$0548` (08_09) |
 | `$054A-$054F` | — | `btl_walk_row/col`, `btl_recorded_status`, `btl_target_col`, `btl_command` (0e_0f) |
 | `$0550-$055B` | — | `btl_order_slots_a/b` `$0550/$0554`, `btl_advance_*` `$0558-$055B` (0e_0f); `unit_ally_counts` `$0550` (08_09); `exchange_sel_list` `$0550-$055F` (0c_0d) |
-| `$0560-$056D` | — | `btl_strip_buf_a/b`, input modes, countries, column counts, formations (0e_0f); `xfer_officer/ruler_*` (0c_0d); `sprite_idx1/2` (1f) |
+| `$0560-$056D` | — | `btl_strip_buf_a/b`, input modes, countries, column counts, formations (0e_0f); `attack_officer/ruler_*` (0c_0d); `sprite_idx1/2` (1f) |
 | `$0568-$0569` | — | `btl_player_request_a/b` player handoff flags (0e_0f) |
 | `$056A-$0577` | — | combat stats: `btl_attack_a/b`, `btl_defense_a/b`, `btl_edge_bonus_a/b`, `btl_point_budget_a/b`, `btl_status_ctr0-3` (0e_0f) |
 | `$0578-$057C` | — | `btl_reload_a/b`, `btl_round_pass`, `btl_input_mask`, `btl_side_index` (0e_0f) |

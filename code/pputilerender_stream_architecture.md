@@ -116,13 +116,12 @@ For pos >= $20, uses $007A for dynamic bank selection.
 
 Location: PRG bank $30 (physical $10), address $901A
 
-Name entries are stored as null-terminated tile index sequences:
-- Entry 0: `$04 $09 $05 $18 $31`
-- Entry 1: `$05 $0D $06`
-- Entry 2: `$05 $11 $0A`
-- ...
-
-Tile indices $04-$09 represent character set groups (kanji), and higher values ($31, $36, $37, $39, $3A) are modifiers or second bytes in a multi-byte encoding scheme.
+Name entries are stored as null-terminated tile index sequences in the serial
+gojuon katakana code space ($04=ア..$31=ン; see code/font_analysis.md). The
+same code space is what the streams' low tile range $04-$38 renders with, so
+CmdDrawName bytes pass through StoreTileByte unchanged and land on katakana
+glyphs. Full stream text decode (both code spaces, dakuten marks, dynamic
+placeholders): tools/menu_text_map.py + tools/report_stream_text.txt.
 
 ## Tile Rendering Buffers
 

@@ -17,7 +17,7 @@ evidence):
 A pair is unused when its X byte has bit7 set (readers BMI/BPL; the padding
 stored is $FF $FF). The stride-6 readers are DrawStratagemTargetMarkers
 (prg_08_09 $D24D, city-target markers at each pair) and
-OfficerTransfer_SetupResult (prg_0c_0d $A4DD, scans the 3 pairs against the
+MoveState_CheckDest (prg_0c_0d $A4DD, scans the 3 pairs against the
 move destination; a match enters the war action panel state $09).
 
 Usage:

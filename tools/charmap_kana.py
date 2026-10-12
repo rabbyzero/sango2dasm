@@ -41,7 +41,12 @@ HANDAKUTEN = 0x3A   # ゜  semi-voiced: ヘ゜=ペ
 # strategy command lists in PRG bank $33: ジョウホウあつめ=0F 39 37 06 21 06 +
 # 44 55 65, クニづくり=0B 19 55 39 4B 6B, しますか/ましょう suffixes, を=$70,
 # の=$5C). Same gojuon order as KATAKANA; ゛/゜ postfix applies here too
-# (づ = 55 39, ぶ = 1F 39 ...).
+# (づ = 55 39, ぶ = 1F 39 ...). Full menu decoder: tools/menu_text_map.py.
+# NOTE (2026-10-10 decode): the menu-stream tail past ん is ゃ=$72 ゅ=$73
+# ょ=$74 っ=$75 (まちましょう = ...62 4F 74 46), and menu-low tiles $32-$34
+# are ー/!/ィ, NOT this file's ァィゥ guess. The digits '0'-'9' at tiles
+# $74-$7D (chr_0f @ $0000) belong to a different display mode's number font,
+# not to the strategy text streams.
 HIRAGANA_MENU = {0x44 + i: c for i, c in enumerate(
     'あいうえおかきくけこさしすせそたちつてとなにぬねの'
     'はひふへほまみむめもやゆよらりるれろわをんゃゅょっ')}

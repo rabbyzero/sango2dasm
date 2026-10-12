@@ -96,16 +96,41 @@ counts them as width-only). $01 = space tile. Digits are NOT in this code
 space; drawn tile-level as nibble+$76 (page $78). Full map + decoder:
 tools/charmap_kana.py. (Supersedes the earlier "not officer names" guess.)
 
-## Remaining problem
+## Menu-stream charmap — SOLVED (2026-10-10)
 
-Per-glyph identification for ~110 kanji/kana tiles (pages $95/$78).
-8x8 ASCII reading is ambiguous; prior Noto-bitmap matching scored ~0.3-0.45
-(unreliable). Two viable routes:
-1. Constraint solve: decode streams against manual-KB command vocabulary
-   (土地の開墾/出陣/偵察/徴兵/任命/与える/物資を運ぶ...). Tools:
-   tools/solve_charmap.py (seeded), output/menu_streams.txt (53 streams).
-2. Runtime dump via Mesen (tools/mesen_chr_dump.lua) reading $00AE-$00B5 and
-   PPU $1000+ on a live strategy screen.
+The MenuUpdate stream literal bytes carry Japanese text in two serial code
+spaces (decoder: tools/menu_text_map.py; full text dump:
+`python3 tools/report_stream_text.py` -> build/stream_text_report.txt):
+
+- tiles $04-$38: katakana, serial gojuon from ア (the officer-name code
+  space; リュウビ = 2B 36 06 1E decodes through it). Menu-specific tail,
+  all proven by decoded words: $32=ー (ダメージ $13 39 $25 32 $0F 39),
+  $33=! (まて! $53 $45 $33), $34=ィ (コーディネーター), $35-$38=ャュョッ.
+- tiles $44-$75: hiragana, serial gojuon from あ; small kana ゃゅょっ at
+  $72-$75 (まちましょう = ... $62 $4F $74 $46). Anchors: しますか =
+  $4F $62 $50 $49, どのブショウにメイレイをだしますか (pos $C0).
+- $01 = space; $39/$3A = dakuten/handakuten postfix marks (StoreTileByte
+  routes them to the row-2 overlay buffer $034B,X when indirect is off).
+- every other literal, and everything under a nonzero $89 tile_base_offset,
+  is window graphics (frame tiles, bars, dither). $7E/$7F render as
+  precomposed 10/100 on the number font page (chr_0f @ 0: digits '0'-'9' at
+  tiles $74-$7D, '10' $7E, '100' $7F) - but that page is a DIFFERENT display
+  mode's font; in strategy-menu text streams $74-$75 are ょ/っ.
+- the strategy prompt officer names (CmdDrawName) draw bank-$30 $901A name
+  bytes straight through StoreTileByte, i.e. through the SAME katakana code
+  space, so no extra offset is involved.
+
+chr page mapping correction: the earlier claim "strategy menus: tiles
+$00-$3F = page $95 = dense kanji" was WRONG - page $95 (chr_12 @ $1400) is
+window graphics, and the readable glyphs live on the slot-5/6 page. Which
+chr file holds the text glyph shapes is display-record dependent and still
+unpinned; the code-space decode above does not depend on it.
+
+The old constraint-solve route is retired: all 377 streams in banks $12/$13
+now decode to clean Japanese (battle/duel taunts, war tactics, shops,
+castle/army/warehouse/town menus, development plans, events, endings, staff
+credits). Renamed stream labels (MenuStream_posXX_<Content>) live in the
+generators' STREAM_NAMES tables.
 
 ## Tool inventory (this session)
 

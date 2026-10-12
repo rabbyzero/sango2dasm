@@ -244,10 +244,10 @@ $0524  province_ptr_b_lo         [prg_0c_0d.asm:171]  group B province ptr lo
 $0525  province_ptr_b_hi         [prg_0c_0d.asm:172]  group B province ptr hi
 $052A  scene_province_idx         [prg_0c_0d.asm:175]  province index copy (from $0402)
 $052B  scene_sel_officer         [prg_0c_0d.asm:176]  exchange scene selected officer index
-$052C  xfer_status_0         [prg_0c_0d.asm:177]  officer 0 status flags (byte 11 hi-nibble)
-$052D  xfer_status_1         [prg_0c_0d.asm:178]  officer 1 status flags
-$052E  xfer_power_0         [prg_0c_0d.asm:179]  officer 0 power (byte 1)
-$052F  xfer_power_1         [prg_0c_0d.asm:180]  officer 1 power
+$052C  attack_status_0        [prg_0c_0d.asm:177]  attack result officer 0 status flags (byte 11 hi-nibble)
+$052D  attack_status_1        [prg_0c_0d.asm:178]  attack result officer 1 status flags
+$052E  attack_power_0        [prg_0c_0d.asm:179]  attack result officer 0 power (byte 1)
+$052F  attack_power_1        [prg_0c_0d.asm:180]  attack result officer 1 power
 $053D  undo_province_x         [prg_0c_0d.asm:184]  undo: province X
 $053E  undo_province_y         [prg_0c_0d.asm:185]  undo: province Y
 $053F  undo_cost         [prg_0c_0d.asm:186]  undo: movement cost
@@ -257,12 +257,12 @@ $0542  move_path_cost         [prg_0c_0d.asm:192]  move path cost array
 $0543  move_path_total         [prg_0c_0d.asm:193]  move path total cost / action index
 $0544  action_dispatch_idx         [prg_0c_0d.asm:194]  terrain type / action dispatch index
 $0550  exchange_sel_list         [prg_0c_0d.asm:198]  exchange officer selection list (16 bytes)
-$0560  xfer_officer_id_0         [prg_0c_0d.asm:201]  officer ID slot 0 (result display)
-$0561  xfer_officer_id_1         [prg_0c_0d.asm:202]  officer ID slot 1
-$0562  xfer_ruler_data_0         [prg_0c_0d.asm:203]  ruler byte-3 for source ruler
-$0563  xfer_ruler_data_1         [prg_0c_0d.asm:204]  ruler byte-3 for target ruler
-$0564  xfer_ruler_id_0         [prg_0c_0d.asm:205]  ruler ID 0 (from $0507, ordered by dir)
-$0565  xfer_ruler_id_1         [prg_0c_0d.asm:206]  ruler ID 1
+$0560  attack_officer_id_0        [prg_0c_0d.asm:201]  attack result officer ID slot 0
+$0561  attack_officer_id_1        [prg_0c_0d.asm:202]  attack result officer ID slot 1
+$0562  attack_ruler_data_0        [prg_0c_0d.asm:203]  ruler byte-3 for source ruler
+$0563  attack_ruler_data_1        [prg_0c_0d.asm:204]  ruler byte-3 for target ruler
+$0564  attack_ruler_id_0        [prg_0c_0d.asm:205]  ruler ID 0 (from $0507, ordered by dir)
+$0565  attack_ruler_id_1        [prg_0c_0d.asm:206]  ruler ID 1
 $0580  officer_select_flg         [prg_0c_0d.asm:210]  officer selection flags base (32 bytes)
 
 ====================================================================================================

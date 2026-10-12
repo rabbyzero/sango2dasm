@@ -119,7 +119,7 @@ explicit open item (§7).
 
    | Offset | Content |
    |---|---|
-   | `[0]` | name-font CHR page id → `$00B9` (no disassembled reader) |
+   | `[0]` | name-font CHR page id → `$00B9` (latched into Namco-163 CHR reg 3 by the IRQ handler, see §7) |
    | `[1..12]` | up to 3 kanji × 4 tile ids (`00-$3F`), `$FF` terminated and padded |
 
    One kanji = the 4 ids `(n, n+1, n+$10, n+$11)` = top-left, top-right,
@@ -209,10 +209,15 @@ index before declaring a stub "orphan code".
 - Which kanji the four label variants spell: needs the card font page identified
   in CHR (`tools/render_font_chunks.py` / `dump_record_fonts.py` are the
   starting point).
-- Who consumes the name-font page id in `$00B9` (presumably the CHR page upload
-  for the card font). No disassembled bank reads `$00B8/$00B9` — consistent with
-  the note in `OfficerCardRender` (`prg_19_1a.asm:6822`). The writer is most
-  likely in the not-yet-disassembled banks `$10-$16`.
+- ~~Who consumes the name-font page id in `$00B9`~~ **Resolved (2026-10-10)**:
+  the IRQ handler (`prg_1f.asm` `$FD03-$FD14`) latches `$B6-$BD` into the eight
+  Namco-163 CHR registers — `$B8` → reg 2 (sprite PPU `$0800`, tiles `$80-$BF`)
+  and `$B9` → reg 3 (`$0C00`, tiles `$C0-$FF`). `$00B8/$00B9` hold 1KB CHR page
+  ids: the officer card's portrait page (written by `OfficerCardRender` from
+  `@OfficerPortraitChrPageTable` `$CED6`, prg_19_1a.asm) and the ruler card's
+  name-font page (written by `OfficerNameSpritePost` `$AB38`). The card font
+  was never in banks `$10-$16`; it is a per-officer/per-name authored CHR page
+  selected through this latch.
 - `$00BD ← $76`: `prg_0e_0f` labels `$00BB/$00BC/$00BD` as
   `zp_panel_param_a/b/c` (script id / page / panel id) and other banks write
   `$0C/$0D/$8C` there; `$76` is the digit tile base (`'0' = $76`) used by the

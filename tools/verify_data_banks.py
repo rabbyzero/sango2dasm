@@ -122,25 +122,61 @@ def label_index(bank):
                'facility_tiles': gen.FACILITY_TILE_STRIDE,
                'b11_tail_gap': 1,
                'pixel_pos': gen.PIXEL_POS_STRIDE,
-               'prov_name_gap': 1,
                'death_years': 1,
                'ppu_screens': gen.SCREEN_SIZE,
                'prov_facility': 1,
+               'prov_name_withdraw': gen.PROV_NAME_WITHDRAW_LEN,
                'pattern_ptr': gen.PATTERN_PTR_STRIDE,
                'pattern_rec': gen.PATTERN_REC_STRIDE,
                'adjacency': gen.ADJ_STRIDE,
                'attack_side_type': gen.ADJ_STRIDE,
                'defense_side_type': gen.ADJ_STRIDE,
                'raw_dump': 1,
-               'ff_filler': 1}
+               'ff_filler': 1,
+               'b11_ff_filler': 1}
     for cpu, length, kind in gen.bank_regions(bank):
-        stride = strides[kind]
+        # An unlisted kind must not lose the report: describe() only reads the
+        # stride for the kinds it decodes by name and falls back to a plain
+        # offset line for the rest, so byte-wise grouping is the safe default.
+        stride = strides.get(kind, 1)
         regions.append((cpu - gen.WINDOW_CPU, cpu - gen.WINDOW_CPU + length,
                         kind, stride))
     return regions, labels
 
 
-def describe(bank, offset, expected, actual, regions, labels, ctx):
+def describe_reinforce(offset, expected, actual, built, start, ctx):
+    """A differing byte in the $8D74 pools -> the pair it belongs to."""
+    blk = built[start:start + gen.REINFORCE_BYTES]
+    _, lists = gen.reinforce_lists(blk)
+    in_off = offset - start
+    if in_off < 2 * gen.REINFORCE_PTR_COUNT:
+        return ('ReinforceCandidatePtrTable: pointer word %d changed '
+                '$%02X -> $%02X' % (in_off // 2, expected, actual))
+    for idx, (cpu, pairs) in enumerate(lists):
+        rel = offset - (cpu - gen.WINDOW_CPU)
+        if rel == 2 * len(pairs):
+            return ('ReinforceCandidateList_%d: list terminator changed '
+                    '$%02X -> $%02X' % (idx, expected, actual))
+        if 0 <= rel < 2 * len(pairs):
+            oid, _ = pairs[rel // 2]
+            who = lambda v: ('%d (empty)' % v if v == 0xFF else
+                             '%d %s' % (v, ctx['off_by_id'].get(
+                                 v, {}).get('zh_hans', '?'))
+                             if v < gen.OFF_RECORD_COUNT
+                             else '%d (no such officer)' % v)
+            if rel % 2 == 0:
+                return ('ReinforceCandidateList_%d pair %d: officer id '
+                        '%s -> %s' % (idx, rel // 2, who(expected),
+                                      who(actual)))
+            return ('reinforcement join year of officer %d (%s): %d -> %d'
+                    % (oid, ctx['off_by_id'].get(oid, {}).get('zh_hans', '?'),
+                       expected + gen.REINFORCE_YEAR_OFFSET,
+                       actual + gen.REINFORCE_YEAR_OFFSET))
+    return 'offset $%04X: $%02X -> $%02X (pool byte outside any list)' % (
+        gen.WINDOW_CPU + offset, expected, actual)
+
+
+def describe(bank, offset, expected, actual, regions, labels, ctx, built=None):
     """One differing byte -> a human-readable line."""
     for start, end, kind, stride in regions:
         if not (start <= offset < end):
@@ -184,6 +220,9 @@ def describe(bank, offset, expected, actual, regions, labels, ctx):
                     % (oid, ctx['off_by_id'].get(oid, {}).get('zh_hans', '?'),
                        expected + gen.DEATH_YEAR_OFFSET,
                        actual + gen.DEATH_YEAR_OFFSET))
+        if kind == 'reinforce_pools' and built is not None:
+            return describe_reinforce(offset, expected, actual, built, start,
+                                      ctx)
     return 'offset $%04X: $%02X -> $%02X (unanalysed gap?)' % (
         gen.WINDOW_CPU + offset, expected, actual)
 
@@ -322,7 +361,7 @@ def main():
             print('  %d byte(s) differ from the stock ROM:' % len(diffs))
             for i in diffs[:60]:
                 print('   ', describe(bank, i, stock[i], built[i], regions,
-                                      labels, ctx))
+                                      labels, ctx, built=built))
             if len(diffs) > 60:
                 print('     ... %d more' % (len(diffs) - 60))
             if not args.allow_edits:

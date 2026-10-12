@@ -213,7 +213,10 @@ Consequences worth remembering:
   corrected to "label variant".
 - **Open questions**: whether the alias sub-states 2/3/$D were live in an
   earlier build; what the four label-variant kanji strings are (needs the card
-  CHR font page); which code consumes the name-font page id in `$00B9`.
+  CHR font page). ~~Which code consumes the name-font page id in `$00B9`~~
+  Resolved (2026-10-10): the IRQ handler (`prg_1f.asm` `$FD03-$FD14`) latches
+  `$B8`/`$B9` into Namco-163 CHR registers 2/3 — see
+  `code/ruler_card_decode.md` §7.
 
 ## 8. Related documents
 

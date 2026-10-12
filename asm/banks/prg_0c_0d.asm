@@ -15,13 +15,13 @@
 ;   $A000-$A04D  Jump table + ExchangeFrameUpdate main loop
 ;   $A04E-$A21A  PhaseDispatch - 5-phase exchange flow state machine
 ;   $A21B-$A292  OfficerDetailView - officer info panel
-;   $A293-$A44C  OfficerTransferExecute - transfer animation + result
+;   $A293-$A44C  OfficerAttackExecute - attack (こうげき) target select + result
 ;   $A44D-$A87B  OfficerMovePhase - officer movement on strategic map
-;   $A87C-$AD7F  OfficerCommandPhase - command menu, target select, confirm
+;   $A87C-$AD7F  OfficerStratagemPhase - stratagem (けいりゃく) select, target, result
 ;   $AD80-$B02A  ValidateActionTarget - per-stratagem validation (16 stratagems)
 ;   $B02B-$B72A  ExecuteAction - per-stratagem execution (16 stratagems)
 ;   $B72B-$B949  CheckActionSuccess / CalcDistance / BuildNeighborList
-;   $B94A-$BC92  ProvinceSelectDispatch - province selection UI
+;   $B94A-$BC92  OfficerRetreatDispatch - retreat (たいきゃく) castle selection
 ;   $BC93-$BE7D  OfficerTurnDispatch - officer turn cycle
 ;   $BE7E-$C1FB  OfficerMarchDispatch - army march (17 sub-states)
 ;   $C1FC-$C203  MainLoopDispatch - trampoline back to frame update
@@ -97,7 +97,7 @@ exchange_ruler_id   = $044C  ; exchange partner ruler ID
 ; $045C-$045D - group A reserve counts (cleared)
 
 ; --- Country parameter snapshot ($046C-$046F) ---
-; Copied from SRAM $6F3F-$6F42 in CommandState_Init.
+; Copied from SRAM $6F3F-$6F42 in StratagemState_Init.
 country_param_copy  = $046C  ; country parameter snapshot (4 bytes)
 
 ; --- Animation / scroll pointers ($0470-$0473) ---
@@ -149,7 +149,7 @@ province_check_flag = $050E  ; province check flag
 ruler_status_flag   = $050F  ; ruler data byte 3 (alliance/status)
 
 ; --- Map scroll position ($0510-$0513) ---
-; Copied from ZP $8E-$91 in OfficerTransfer_ShowResult.
+; Copied from ZP $8E-$91 in OfficerAttack_ShowResult.
 map_scroll_x_lo     = $0510  ; map scroll X lo
 map_scroll_x_hi     = $0511  ; map scroll X hi
 map_scroll_y_lo     = $0512  ; map scroll Y lo
@@ -174,10 +174,10 @@ province_ptr_b_hi   = $0525  ; group B province ptr hi
 ; --- Exchange scene state ($052A-$052F) ---
 scene_province_idx  = $052A  ; province index copy (from $0402)
 scene_sel_officer   = $052B  ; exchange scene selected officer index
-xfer_status_0       = $052C  ; officer 0 status flags (byte 11 hi-nibble)
-xfer_status_1       = $052D  ; officer 1 status flags
-xfer_power_0        = $052E  ; officer 0 power (byte 1)
-xfer_power_1        = $052F  ; officer 1 power
+attack_status_0     = $052C  ; attack result officer 0 status flags (byte 11 hi-nibble)
+attack_status_1     = $052D  ; attack result officer 1 status flags
+attack_power_0      = $052E  ; attack result officer 0 power (byte 1)
+attack_power_1      = $052F  ; attack result officer 1 power
 
 ; --- Move path undo buffer ($053D-$053F) ---
 ; 3 bytes per undo step: province X, province Y, cost.
@@ -197,13 +197,13 @@ action_dispatch_idx = $0544  ; terrain type / action dispatch index
 ; Used in exchange scene; $FF = empty slot.
 exchange_sel_list   = $0550  ; exchange officer selection list (16 bytes)
 
-; --- Transfer result data ($0560-$0565) ---
-xfer_officer_id_0   = $0560  ; officer ID slot 0 (result display)
-xfer_officer_id_1   = $0561  ; officer ID slot 1
-xfer_ruler_data_0   = $0562  ; ruler byte-3 for source ruler
-xfer_ruler_data_1   = $0563  ; ruler byte-3 for target ruler
-xfer_ruler_id_0     = $0564  ; ruler ID 0 (from $0507, ordered by dir)
-xfer_ruler_id_1     = $0565  ; ruler ID 1
+; --- Attack result data ($0560-$0565) ---
+attack_officer_id_0 = $0560  ; officer ID slot 0 (result display)
+attack_officer_id_1 = $0561  ; officer ID slot 1
+attack_ruler_data_0 = $0562  ; ruler byte-3 for source ruler
+attack_ruler_data_1 = $0563  ; ruler byte-3 for target ruler
+attack_ruler_id_0   = $0564  ; ruler ID 0 (from $0507, ordered by dir)
+attack_ruler_id_1   = $0565  ; ruler ID 1
 
 ; --- Officer selection flags ($0580-$059F, 32 bytes) ---
 ; Used by exchange scene to mark selected officers; $FF = unselected.
@@ -249,11 +249,11 @@ ExchangeFrameUpdate:
 ; --- CallbackDispatcher table (16 entries) ---
   .word PhaseDispatch                      ; $A02E: 4E A0
   .word OfficerDetailView                    ; $A030: 1B A2
-  .word OfficerTransferExecute                ; $A032: 93 A2
-  .word OfficerTransferExecute                ; $A034: 93 A2
+  .word OfficerAttackExecute                 ; $A032: 93 A2
+  .word OfficerAttackExecute                 ; $A034: 93 A2
   .word OfficerMovePhase                    ; $A036: 4D A4
-  .word OfficerCommandPhase                 ; $A038: 7C A8
-  .word ProvinceSelectDispatch              ; $A03A: 4A B9
+  .word OfficerStratagemPhase                 ; $A038: 7C A8
+  .word OfficerRetreatDispatch              ; $A03A: 4A B9
   .word OfficerTurnDispatch                 ; $A03C: 93 BC
   .word OfficerMarchDispatch               ; $A03E: 7E BE
   .word MainLoopDispatch                    ; $A040: FC C1
@@ -314,7 +314,7 @@ ExchangeFrameUpdate:
   BNE @NotReady                         ; $A098: D0 20
   INC exchange_phase                      ; $A09A: EE 01 05
   LDA #$C0                              ; $A09D: A9 C0
-  JSR B1F_SetUI5                        ; $A09F: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $A09F: 20 93 F2
   LDA packed_ruler_pair                   ; $A0A2: AD 07 05
   LDY exchange_dir_flag                   ; $A0A5: AC 04 05
   BPL @GetNibble                        ; $A0A8: 10 04
@@ -358,7 +358,7 @@ ExchangeFrameUpdate:
 ; --- BankedCallbackTrampoline target ---
   .word B1D_1E_ProvinceDataHandler      ; $A0EB: $27 A0
   LDA #$C1                                    ; $A0ED: A9 C1
-  JSR B1F_SetUI5                              ; $A0EF: 20 83 F2
+  JSR B1F_OpenMsgWindow5                      ; $A0EF: 20 83 F2
   LDA #$00                                    ; $A0F2: A9 00
   STA menu_cursor_col                                   ; $A0F4: 8D 24 04
   STA menu_cursor_page                                   ; $A0F7: 8D 25 04
@@ -424,7 +424,7 @@ PhaseExit:
   BEQ @CheckFirstItem                   ; $A16A: F0 08
   INC $0501                             ; $A16C: EE 01 05
   LDA #$BC                              ; $A16F: A9 BC
-  JMP B1F_SetUI2                        ; $A171: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $A171: 4C 83 F2
 @CheckFirstItem:
   CPY #$01                              ; $A174: C0 01
   BNE @ApplySelection                   ; $A176: D0 07
@@ -488,7 +488,7 @@ PhaseExit:
 .proc FinishSequence
   ; Complete sequence: set UI mode 5, reset phase, clear $0424/$0425
   LDA #$05                              ; $A1F7: A9 05
-  JSR B1F_SetUI5                        ; $A1F9: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $A1F9: 20 93 F2
   LDA #$01                              ; $A1FC: A9 01
   STA $12                               ; $A1FE: 85 12
   JSR UpdateCursorTile                             ; $A200: 20 CC D6
@@ -561,7 +561,7 @@ PhaseExit:
   BEQ @Done                             ; $A270: F0 08
   INC $0501                                   ; $A272: EE 01 05
   LDA #$05                                    ; $A275: A9 05
-  JSR B1F_SetUI5                        ; $A277: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $A277: 20 93 F2
 @Done:
   RTS                                   ; $A27A: 60
 .endproc
@@ -581,24 +581,28 @@ PhaseExit:
   RTS                                   ; $A292: 60
 .endproc
 
-.proc OfficerTransferExecute
-  ; States $0500=2/3: Execute officer transfer between adjacent rulers
+.proc OfficerAttackExecute
+  ; States $0500=2/3: Attack (こうげき) flow - pick an adjacent enemy officer,
+  ; promise message, arrow animation, battle result handoff. Entered from the
+  ; war order menu item 1 (こうげき, @MenuCommandTable+25) and from
+  ; OfficerMarchDispatch::@EnterBattle (retreat interception, phase 3).
   ; Dispatches on $0501 (4 phases: init, target select, animation, result)
   LDY $050A                             ; $A293: AC 0A 05
   JSR CenterMapOnSlot                             ; $A296: 20 36 DC
   LDA $0501                             ; $A299: AD 01 05
   JSR B1F_CallbackDispatcher            ; $A29C: 20 DE EA
 ; --- CallbackDispatcher table (4 entries) ---
-  .word OfficerTransfer_Init                ; $A29F: $A7 A2
-  .word OfficerTransfer_SelectTarget        ; $A2A1: $BB A2
-  .word OfficerTransfer_Animate             ; $A2A3: $0C A3
-  .word OfficerTransfer_ShowResult          ; $A2A5: $25 A3
+  .word OfficerAttack_Init                 ; $A29F: $A7 A2
+  .word OfficerAttack_SelectTarget        ; $A2A1: $BB A2
+  .word OfficerAttack_Animate             ; $A2A3: $0C A3
+  .word OfficerAttack_ShowResult          ; $A2A5: $25 A3
 .endproc
 
-.proc OfficerTransfer_Init
-  ; Set UI mode, advance phase, copy source officer index
+.proc OfficerAttack_Init
+  ; UI id $C3 via B1F_OpenMsgWindow5 (どのテキにコウゲキをしかけますか), advance phase,
+  ; copy source officer index
   LDA #$C3                                    ; $A2A7: A9 C3
-  JSR B1F_SetUI5                              ; $A2A9: 20 83 F2
+  JSR B1F_OpenMsgWindow5                      ; $A2A9: 20 83 F2
   INC $0501                                   ; $A2AC: EE 01 05
   LDA $0509                                   ; $A2AF: AD 09 05
   STA $050A                                   ; $A2B2: 8D 0A 05
@@ -607,7 +611,7 @@ PhaseExit:
   RTS                                         ; $A2BA: 60
 .endproc
 
-.proc OfficerTransfer_SelectTarget
+.proc OfficerAttack_SelectTarget
   ; Process cursor input; B cancels, A selects target and checks adjacency
   LDA $050A                             ; $A2BB: AD 0A 05
   STA $0509                             ; $A2BE: 8D 09 05
@@ -619,7 +623,7 @@ PhaseExit:
   LDA $81                               ; $A2CF: A5 81
   AND #$02                              ; $A2D1: 29 02
   BEQ @CheckConfirm                     ; $A2D3: F0 0D
-  ; B button: cancel transfer, reset state
+  ; B button: cancel attack, reset state
   LDA #$00                              ; $A2D5: A9 00
   STA $0501                             ; $A2D7: 8D 01 05
   LDA #$00                              ; $A2DA: A9 00
@@ -643,8 +647,8 @@ PhaseExit:
   INC $0501                             ; $A2FE: EE 01 05
   LDA #$02                              ; $A301: A9 02
   STA $00A4                             ; $A303: 8D A4 00
-  LDA #$CB                              ; $A306: A9 CB
-  JSR B1F_SetUI2                        ; $A308: 20 83 F2
+  LDA #$CB                              ; $A306: A9 CB  かならずやテキを けちらして まいります
+  JSR B1F_OpenMsgWindow2                ; $A308: 20 83 F2
 @Done:
   RTS                                   ; $A30B: 60
 @CheckGridAdjacency:
@@ -710,7 +714,7 @@ PhaseExit:
   RTS                                   ; $A3D1: 60
 .endproc
 
-.proc OfficerTransfer_Animate
+.proc OfficerAttack_Animate
   ; Wait for animation; on complete, advance phase and set up result
   JSR DrawExchangeArrows_Right                             ; $A30C: 20 63 DC
   LDA $81                               ; $A30F: A5 81
@@ -720,10 +724,10 @@ PhaseExit:
   INC $0501                             ; $A318: EE 01 05
   DEC $0505                             ; $A31B: CE 05 05
   DEC $0505                             ; $A31E: CE 05 05
-  JSR OfficerTransfer_SetupResult                          ; $A321: 20 D2 A3
+  JSR OfficerAttack_SetupResult                          ; $A321: 20 D2 A3
 @Done:
   RTS                                   ; $A324: 60
-OfficerTransfer_SetupResult:
+OfficerAttack_SetupResult:
   ; Load both officers' data and resolve ruler associations for result display
   ; $0560/$0561 = officer IDs, $052C/$052D = status, $052E/$052F = power
   ; $0562/$0563 = ruler byte-3 values for source/target rulers
@@ -789,7 +793,7 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $A44C: 60
 .endproc
 
-.proc OfficerTransfer_ShowResult
+.proc OfficerAttack_ShowResult
   ; Wait for animation flag; set up result display with officer/ruler data
   LDA $0087                             ; $A325: AD 87 00
   BPL @Done                             ; $A328: 10 3D
@@ -843,7 +847,7 @@ OfficerTransfer_SetupResult:
 
 .proc MoveState_Init
   LDA #$C6                                    ; $A470: A9 C6
-  JSR B1F_SetUI5                              ; $A472: 20 83 F2
+  JSR B1F_OpenMsgWindow5                      ; $A472: 20 83 F2
   INC $0501                                   ; $A475: EE 01 05
   LDA #$00                                    ; $A478: A9 00
   STA $050A                                   ; $A47A: 8D 0A 05
@@ -933,7 +937,7 @@ OfficerTransfer_SetupResult:
   STA $0500                             ; $A514: 8D 00 05
   STA $0501                             ; $A517: 8D 01 05
   LDA #$A7                              ; $A51A: A9 A7
-  JMP B1F_SetUI5                        ; $A51C: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $A51C: 4C 93 F2
 .endproc
 
 .proc MoveState_CheckStart
@@ -1010,7 +1014,7 @@ OfficerTransfer_SetupResult:
   STA $052E                             ; $A5B1: 8D 2E 05
   LDA #$B8                              ; $A5B4: A9 B8
 @ShowUI:
-  JSR B1F_SetUI2                        ; $A5B6: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $A5B6: 20 83 F2
   LDY #$3D                              ; $A5B9: A0 3D
   JSR B1F_BankedCallbackTrampoline      ; $A5BB: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
@@ -1079,7 +1083,7 @@ OfficerTransfer_SetupResult:
   LDA #$FF                              ; $A640: A9 FF
   STA officer_sel_list+1                             ; $A642: 8D 2D 04
   LDA #$4B                              ; $A645: A9 4B
-  JMP B1F_SetUI5                        ; $A647: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $A647: 4C 93 F2
 .endproc
 
 .proc MovePhase_Exit
@@ -1352,27 +1356,27 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $A87B: 60
 .endproc
 
-.proc OfficerCommandPhase
+.proc OfficerStratagemPhase
   ; (dispatch callback target)
   LDY $050A                             ; $A87C: AC 0A 05
   JSR CenterMapOnSlot                             ; $A87F: 20 36 DC
   LDA $0501                             ; $A882: AD 01 05
   JSR B1F_CallbackDispatcher            ; $A885: 20 DE EA
 ; --- CallbackDispatcher table (11 entries) ---
-  .word CommandState_Init                    ; $A888: $9E A8
-  .word CommandState_Animate                 ; $A88A: $C1 A8
-  .word CommandState_MenuSetup               ; $A88C: $D8 A8
-  .word CommandState_Menu                    ; $A88E: $17 A9
-  .word CommandState_SelectTarget            ; $A890: $DD A9
-  .word CommandState_Confirm                 ; $A892: $2E AA
-  .word CommandState_ShowResult              ; $A894: $6C AA
-  .word CommandState_Cancel                  ; $A896: $A7 AA
-  .word CommandState_Confirm2                ; $A898: $2A AB
-  .word CommandState_CancelConfirm           ; $A89A: $52 AB
-  .word CommandState_Reset                   ; $A89C: $90 AB
+  .word StratagemState_Init                    ; $A888: $9E A8
+  .word StratagemState_Animate                 ; $A88A: $C1 A8
+  .word StratagemState_MenuSetup               ; $A88C: $D8 A8
+  .word StratagemState_Menu                    ; $A88E: $17 A9
+  .word StratagemState_SelectTarget            ; $A890: $DD A9
+  .word StratagemState_Confirm                 ; $A892: $2E AA
+  .word StratagemState_ShowResult              ; $A894: $6C AA
+  .word StratagemState_Cancel                  ; $A896: $A7 AA
+  .word StratagemState_Confirm2                ; $A898: $2A AB
+  .word StratagemState_CancelConfirm           ; $A89A: $52 AB
+  .word StratagemState_Reset                   ; $A89C: $90 AB
 .endproc
 
-.proc CommandState_Init
+.proc StratagemState_Init
   LDA #$F3                              ; $A89E: A9 F3
   STA $0310                             ; $A8A0: 8D 10 03
   LDA #$00                              ; $A8A3: A9 00
@@ -1392,10 +1396,10 @@ OfficerTransfer_SetupResult:
   RTS                                         ; $A8C0: 60
 .endproc
 
-.proc CommandState_Animate
+.proc StratagemState_Animate
   JSR CheckExchangePossible                             ; $A8C1: 20 27 DF
   BCC @Done                             ; $A8C4: 90 11
-  JSR CommandPhase_BuildMsg              ; $A8C6: 20 D9 AB
+  JSR StratagemPhase_BuildMsg              ; $A8C6: 20 D9 AB
   LDA $050B                             ; $A8C9: AD 0B 05
   INC $050B                             ; $A8CC: EE 0B 05
   CMP $0542                             ; $A8CF: CD 42 05
@@ -1405,9 +1409,9 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $A8D7: 60
 .endproc
 
-.proc CommandState_MenuSetup
+.proc StratagemState_MenuSetup
   LDA #$C7                              ; $A8D8: A9 C7
-  JSR B1F_SetUI2                        ; $A8DA: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $A8DA: 20 83 F2
   INC $0501                             ; $A8DD: EE 01 05
   LDA #$E1                              ; $A8E0: A9 E1
   STA $E7                               ; $A8E2: 85 E7
@@ -1437,7 +1441,7 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $A916: 60
 .endproc
 
-.proc CommandState_Menu
+.proc StratagemState_Menu
   LDA #$5B                              ; $A917: A9 5B
   STA $B2                               ; $A919: 85 B2
   LDA $0542                             ; $A91B: AD 42 05
@@ -1472,7 +1476,7 @@ OfficerTransfer_SetupResult:
   LDY $12                               ; $A95C: A4 12
   CMP @ActionParamTable+5,Y             ; $A95E: D9 C9 AB
   BCC @NotEnough                        ; $A961: 90 03
-  JMP CommandState_Menu_Enough           ; $A963: 4C A0 A9
+  JMP StratagemState_Menu_Enough           ; $A963: 4C A0 A9
 @NotEnough:
   LDA #$00                              ; $A966: A9 00
 @CheckCancel:
@@ -1505,7 +1509,7 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $A99F: 60
 .endproc
 
-.proc CommandState_Menu_Enough
+.proc StratagemState_Menu_Enough
   LDA #$89                              ; $A9A0: A9 89
   STA $B3                               ; $A9A2: 85 B3
   LDA #$8A                              ; $A9A4: A9 8A
@@ -1528,36 +1532,36 @@ OfficerTransfer_SetupResult:
   BNE @ShowMenuUI                       ; $A9C9: D0 09
   LDY $050A                             ; $A9CB: AC 0A 05
   INC $0501                             ; $A9CE: EE 01 05
-  JMP CommandState_SelectTarget_Proceed  ; $A9D1: 4C 03 AA
+  JMP StratagemState_SelectTarget_Proceed  ; $A9D1: 4C 03 AA
 @ShowMenuUI:
   LDA #$F4                              ; $A9D4: A9 F4
-  JSR B1F_SetUI2                        ; $A9D6: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $A9D6: 20 83 F2
   INC $0501                             ; $A9D9: EE 01 05
   RTS                                   ; $A9DC: 60
 .endproc
 
-.proc CommandState_SelectTarget
+.proc StratagemState_SelectTarget
   JSR ExchangeAnimFrameUpdate           ; $A9DD: 20 FB D4
   JSR MapScroll_Update                  ; $A9E0: 20 EE D5
   JSR RenderExchangeSprites             ; $A9E3: 20 57 D6
   JSR CheckExchangePossible                             ; $A9E6: 20 27 DF
-  BCC CommandState_SelectTarget_Done     ; $A9E9: 90 3D
+  BCC StratagemState_SelectTarget_Done     ; $A9E9: 90 3D
   LDA $81                               ; $A9EB: A5 81
   LSR                                   ; $A9ED: 4A
   BCS @HandleConfirm                    ; $A9EE: B0 06
   LSR                                   ; $A9F0: 4A
-  BCS CommandState_SelectTarget_Reset    ; $A9F1: B0 30
-  JMP CommandState_SelectTarget_Done     ; $A9F3: 4C 28 AA
+  BCS StratagemState_SelectTarget_Reset    ; $A9F1: B0 30
+  JMP StratagemState_SelectTarget_Done     ; $A9F3: 4C 28 AA
 @HandleConfirm:
   JSR ScrollToTileSearch                             ; $A9F6: 20 8A D6
   TYA                                   ; $A9F9: 98
-  BMI CommandState_SelectTarget_Done     ; $A9FA: 30 2C
+  BMI StratagemState_SelectTarget_Done     ; $A9FA: 30 2C
   JSR CheckOfficerArmyGroup                             ; $A9FC: 20 4B DC
   CMP #$FF                              ; $A9FF: C9 FF
-  BNE CommandState_SelectTarget_Done     ; $AA01: D0 25
+  BNE StratagemState_SelectTarget_Done     ; $AA01: D0 25
 .endproc
 
-.proc CommandState_SelectTarget_Proceed
+.proc StratagemState_SelectTarget_Proceed
   STY $0509                             ; $AA03: 8C 09 05
   JSR CalcDistance                      ; $AA06: 20 60 B8
   CMP #$06                              ; $AA09: C9 06
@@ -1567,29 +1571,29 @@ OfficerTransfer_SetupResult:
   LDA #$0A                              ; $AA12: A9 0A
   STA $0501                             ; $AA14: 8D 01 05
   LDA #$F7                              ; $AA17: A9 F7
-  JSR B1F_SetUI2                        ; $AA19: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $AA19: 20 83 F2
   RTS                                   ; $AA1C: 60
 @ValidTarget:
   INC $0501                             ; $AA1D: EE 01 05
-  JMP CommandPhase_ShowResultMsg         ; $AA20: 4C 63 AD
+  JMP StratagemPhase_ShowResultMsg         ; $AA20: 4C 63 AD
 .endproc
 
-.proc CommandState_SelectTarget_Reset
+.proc StratagemState_SelectTarget_Reset
   LDA #$00                              ; $AA23: A9 00
   STA $0501                             ; $AA25: 8D 01 05
 .endproc
 
-.proc CommandState_SelectTarget_Done
+.proc StratagemState_SelectTarget_Done
   RTS                                   ; $AA28: 60
 .endproc
 
-.proc CommandState_SelectTarget_ShowFull
+.proc StratagemState_SelectTarget_ShowFull
 @ShowFullUI:
   LDA #$4C                              ; $AA29: A9 4C
-  JMP B1F_SetUI2                        ; $AA2B: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $AA2B: 4C 83 F2
 .endproc
 
-.proc CommandState_Confirm
+.proc StratagemState_Confirm
   JSR DrawExchangeArrows_Right                             ; $AA2E: 20 63 DC
   JSR RenderExchangeSprites             ; $AA31: 20 57 D6
   JSR CheckExchangePossible                             ; $AA34: 20 27 DF
@@ -1620,7 +1624,7 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $AA6B: 60
 .endproc
 
-.proc CommandState_ShowResult
+.proc StratagemState_ShowResult
   LDA exchange_result_cnt                             ; $AA6C: AD C8 04
   BNE @Done                             ; $AA6F: D0 35
   LDY $050A                             ; $AA71: AC 0A 05
@@ -1648,7 +1652,7 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $AAA6: 60
 .endproc
 
-.proc CommandState_Cancel
+.proc StratagemState_Cancel
   LDA $007E                             ; $AAA7: AD 7E 00
   BNE @Done                             ; $AAAA: D0 36
   LDA $050B                             ; $AAAC: AD 0B 05
@@ -1666,7 +1670,7 @@ OfficerTransfer_SetupResult:
   LDA #$04                              ; $AACB: A9 04
   STA $00A4                             ; $AACD: 8D A4 00
   LDA #$73                              ; $AAD0: A9 73
-  JSR B1F_SetUI2                        ; $AAD2: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $AAD2: 20 83 F2
 @FinishAndExit:
   LDA $050A                             ; $AAD5: AD 0A 05
   STA $0509                             ; $AAD8: 8D 09 05
@@ -1697,17 +1701,17 @@ OfficerTransfer_SetupResult:
   BEQ @ShowCancelMsg                    ; $AB07: F0 08
   STA officer_sel_list                             ; $AB09: 8D 2C 04
   LDA #$4E                              ; $AB0C: A9 4E
-  JMP B1F_SetUI5                        ; $AB0E: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $AB0E: 4C 93 F2
 @ShowCancelMsg:
   LDA @CancelMsgTable,Y                 ; $AB11: B9 1A AB
-  JSR B1F_SetUI2                        ; $AB14: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $AB14: 20 83 F2
   JMP @FinishAndExit                    ; $AB17: 4C D5 AA
 ; Cancel message IDs indexed by stratagem code
 @CancelMsgTable:
   .byte $6C,$6D,$6E,$6C,$6C,$6F,$6C,$6C,$70,$BB,$71,$BA,$6C,$6C,$6C,$72; $AB1A: 6C 6D 6E 6C 6C 6F 6C 6C 70 BB 71 BA 6C 6C 6C 72
 .endproc
 
-.proc CommandState_Confirm2
+.proc StratagemState_Confirm2
   JSR CheckExchangePossible                             ; $AB2A: 20 27 DF
   BCC @Done                             ; $AB2D: 90 22
   JSR DrawExchangeArrows_Right                             ; $AB2F: 20 63 DC
@@ -1719,7 +1723,7 @@ OfficerTransfer_SetupResult:
   STA officer_sel_list                             ; $AB3E: 8D 2C 04
   JSR ValidateExchangeOfficer                             ; $AB41: 20 E9 DE
   BCS @Skip2                            ; $AB44: 90 29 (inverted)
-  JMP CommandPhase_RestorePosition       ; (was fall-through to @AB6F)
+  JMP StratagemPhase_RestorePosition       ; (was fall-through to @AB6F)
 @Skip2:
   INC $0501                             ; $AB46: EE 01 05
   JSR B1F_BankPpuInit                   ; $AB49: 20 7F E5
@@ -1729,7 +1733,7 @@ OfficerTransfer_SetupResult:
   RTS                                   ; $AB51: 60
 .endproc
 
-.proc CommandState_CancelConfirm
+.proc StratagemState_CancelConfirm
   JSR CheckExchangePossible                             ; $AB52: 20 27 DF
   BCC @Done                             ; $AB55: 90 2E
   JSR DrawExchangeArrows_Right                             ; $AB57: 20 63 DC
@@ -1742,17 +1746,17 @@ OfficerTransfer_SetupResult:
   JSR B1F_BankPpuInit                   ; $AB67: 20 7F E5
   LDA #$1D                              ; $AB6A: A9 1D
   JSR B1F_SoundWrapperA                 ; $AB6C: 20 73 E6
-  JSR CommandPhase_RestorePosition       ; (was fall-through to @AB6F)
+  JSR StratagemPhase_RestorePosition       ; (was fall-through to @AB6F)
 @Done:
   RTS                                   ; $AB85: 60
 @ShowCancelUI:
   LDA #$FF                              ; $AB86: A9 FF
   STA officer_sel_list+1                             ; $AB88: 8D 2D 04
   LDA #$4B                              ; $AB8B: A9 4B
-  JMP B1F_SetUI5                        ; $AB8D: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $AB8D: 4C 93 F2
 .endproc
 
-.proc CommandPhase_RestorePosition
+.proc StratagemPhase_RestorePosition
   LDY #$03                              ; $AB6F: A0 03
 @CopyLoop:
   LDA country_param_copy,Y                           ; $AB71: B9 6C 04
@@ -1765,7 +1769,7 @@ OfficerTransfer_SetupResult:
   JMP FinishSequence                    ; $AB82: 4C F7 A1
 .endproc
 
-.proc CommandState_Reset
+.proc StratagemState_Reset
   JSR CheckExchangePossible                             ; $AB90: 20 27 DF
   BCC @Done                             ; $AB93: 90 0E
   JSR DrawExchangeArrows_Right                             ; $AB95: 20 63 DC
@@ -1786,7 +1790,7 @@ OfficerTransfer_SetupResult:
   .byte $0A,$0A,$08,$0C,$0A               ; $ABD4: 0A 0A 08 0C 0A
 .endproc
 
-.proc CommandPhase_BuildMsg
+.proc StratagemPhase_BuildMsg
   LDY $050B                             ; $ABD9: AC 0B 05
   LDA $0580,Y                           ; $ABDC: B9 80 05
   ASL                                   ; $ABDF: 0A
@@ -1876,12 +1880,12 @@ OfficerTransfer_SetupResult:
   .byte $30,$07,$FA,$FB,$FC,$FD,$FE,$FF,$31; $AD5A: 30 07 FA FB FC FD FE FF 31
 .endproc
 
-.proc CommandPhase_ShowResultMsg
+.proc StratagemPhase_ShowResultMsg
   LDA $0543                             ; $AD63: AD 43 05
   AND #$0F                              ; $AD66: 29 0F
   TAY                                   ; $AD68: A8
   LDA @ResultMsgTable,Y                 ; $AD69: B9 70 AD
-  JSR B1F_SetUI2                        ; $AD6C: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $AD6C: 20 83 F2
   RTS                                   ; $AD6F: 60
 ; Result message IDs indexed by stratagem code
 @ResultMsgTable:
@@ -2368,18 +2372,18 @@ ValidStratagem_FloodAttack = ValidStratagem_ChainLink
 ; alias. Drains resources from the target officer to the acting side.
 ;   Entry 1 (ExecStratagem_FireAttack): dispatch entry - check success by stats;
 ;           on failure set error flag $0544=$FF and return.
-;   Entry 2 (CommandPhase_DrainCalc, $B070): drain calculation only (no success
+;   Entry 2 (StratagemPhase_DrainCalc, $B070): drain calculation only (no success
 ;           check); also called directly from ExecStratagem_FriendlyFire
 ;           and ExecStratagem_FriendlyFireNeighbor.
 ;===============================================================================
 .proc ExecStratagem_FireAttack
   JSR CheckSuccessByStats               ; $B062: 20 BE B7
-  BCS CommandPhase_DrainCalc             ; $B065: B0 09
+  BCS StratagemPhase_DrainCalc             ; $B065: B0 09
   INC $0501                             ; $B067: EE 01 05
   LDA #$FF                              ; $B06A: A9 FF
   STA $0544                             ; $B06C: 8D 44 05
   RTS                                   ; $B06F: 60
-CommandPhase_DrainCalc:
+StratagemPhase_DrainCalc:
   LDY $050A                             ; $B070: AC 0A 05
   LDA $0664,Y                           ; $B073: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B076: 20 D7 F2
@@ -2444,14 +2448,14 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
 .proc ExecStratagem_PitfallTrap
   JSR CheckSuccessByStats               ; $B0DD: 20 BE B7
-  BCS CommandPhase_LoyaltyDrainCalc     ; $B0E0: B0 09
+  BCS StratagemPhase_LoyaltyDrainCalc     ; $B0E0: B0 09
   INC $0501                             ; $B0E2: EE 01 05
   LDA #$FF                              ; $B0E5: A9 FF
   STA $0544                             ; $B0E7: 8D 44 05
   RTS                                   ; $B0EA: 60
 .endproc
 
-.proc CommandPhase_LoyaltyDrainCalc
+.proc StratagemPhase_LoyaltyDrainCalc
   LDY $050A                             ; $B0EB: AC 0A 05
   LDA $0664,Y                           ; $B0EE: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B0F1: 20 D7 F2
@@ -2529,14 +2533,14 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
 .proc ExecStratagem_AmbushStrike
   JSR CheckSuccessByStats               ; $B17A: 20 BE B7
-  BCS CommandPhase_StatDrainCalcA       ; $B17D: B0 09
+  BCS StratagemPhase_StatDrainCalcA       ; $B17D: B0 09
   INC $0501                             ; $B17F: EE 01 05
   LDA #$FF                              ; $B182: A9 FF
   STA $0544                             ; $B184: 8D 44 05
   RTS                                   ; $B187: 60
 .endproc
 
-.proc CommandPhase_StatDrainCalcA
+.proc StratagemPhase_StatDrainCalcA
   LDY $050A                             ; $B188: AC 0A 05
   LDA $0664,Y                           ; $B18B: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B18E: 20 D7 F2
@@ -2575,14 +2579,14 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
 .proc ExecStratagem_BoatSabotage
   JSR CheckSuccessByStats               ; $B1D5: 20 BE B7
-  BCS CommandPhase_StatDrainCalcB       ; $B1D8: B0 09
+  BCS StratagemPhase_StatDrainCalcB       ; $B1D8: B0 09
   INC $0501                             ; $B1DA: EE 01 05
   LDA #$FF                              ; $B1DD: A9 FF
   STA $0544                             ; $B1DF: 8D 44 05
   RTS                                   ; $B1E2: 60
 .endproc
 
-.proc CommandPhase_StatDrainCalcB
+.proc StratagemPhase_StatDrainCalcB
   LDY $050A                             ; $B1E3: AC 0A 05
   LDA $0664,Y                           ; $B1E6: B9 64 06
   JSR B1F_GetOfficerRecordAddr          ; $B1E9: 20 D7 F2
@@ -2709,7 +2713,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   STA $0544                             ; $B2D7: 8D 44 05
   RTS                                   ; $B2DA: 60
 @Success:
-  JSR CommandPhase_DrainCalc              ; $B2DB: 20 70 B0
+  JSR StratagemPhase_DrainCalc              ; $B2DB: 20 70 B0
   JSR GetOfficerPos                     ; $B2DE: 20 7B B6
   DEC $10                               ; $B2E1: C6 10
   JSR ExecStratagem_FriendlyFireNeighbor ; $B2E3: 20 04 B3
@@ -2735,7 +2739,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDA $0509                             ; $B30D: AD 09 05
   PHA                                   ; $B310: 48
   STY $0509                             ; $B311: 8C 09 05
-  JSR CommandPhase_DrainCalc              ; $B314: 20 70 B0
+  JSR StratagemPhase_DrainCalc              ; $B314: 20 70 B0
   PLA                                   ; $B317: 68
   STA $0509                             ; $B318: 8D 09 05
 @Done:
@@ -2827,8 +2831,8 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   STA $0544                             ; $B3C0: 8D 44 05
   RTS                                   ; $B3C3: 60
 @Success:
-  JSR CommandPhase_LoyaltyDrainCalc     ; $B3C4: 20 EB B0
-  JSR CommandPhase_StatDrainCalcA       ; $B3C7: 20 88 B1
+  JSR StratagemPhase_LoyaltyDrainCalc     ; $B3C4: 20 EB B0
+  JSR StratagemPhase_StatDrainCalcA       ; $B3C7: 20 88 B1
   LDA #$07                              ; $B3CA: A9 07
   STA $0501                             ; $B3CC: 8D 01 05
   RTS                                   ; $B3CF: 60
@@ -2961,7 +2965,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDA $0509                             ; $B4A9: AD 09 05
   PHA                                   ; $B4AC: 48
   STY $0509                             ; $B4AD: 8C 09 05
-  JSR CommandPhase_StatDrainCalcB       ; $B4B0: 20 E3 B1
+  JSR StratagemPhase_StatDrainCalcB       ; $B4B0: 20 E3 B1
   PLA                                   ; $B4B3: 68
   STA $0509                             ; $B4B4: 8D 09 05
 @Done:
@@ -3637,7 +3641,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   RTS                                   ; $B949: 60
 .endproc
 
-.proc ProvinceSelectDispatch
+.proc OfficerRetreatDispatch
   ; (dispatch callback target)
   LDA #$00                              ; $B94A: A9 00
   STA $00A4                             ; $B94C: 8D A4 00
@@ -3645,22 +3649,22 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDA $0501                             ; $B952: AD 01 05
   JSR B1F_CallbackDispatcher            ; $B955: 20 DE EA
 ; --- CallbackDispatcher table (6 entries) ---
-  .word ProvinceState_Init                  ; $B958: $64 B9
-  .word ProvinceState_Select                ; $B95A: $6D B9
-  .word ProvinceState_Menu                  ; $B95C: $B6 B9
-  .word ProvinceState_Confirm               ; $B95E: $30 BA
-  .word ProvinceState_Cancel                ; $B960: $64 BA
-  .word ProvinceState_Reset                 ; $B962: $83 BA
+  .word RetreatState_Init                  ; $B958: $64 B9
+  .word RetreatState_Select                ; $B95A: $6D B9
+  .word RetreatState_PickCastle            ; $B95C: $B6 B9
+  .word RetreatState_Confirm               ; $B95E: $30 BA
+  .word RetreatState_Cancel                ; $B960: $64 BA
+  .word RetreatState_Reset                 ; $B962: $83 BA
 .endproc
 
-.proc ProvinceState_Init
+.proc RetreatState_Init
   LDA #$D6                                    ; $B964: A9 D6
-  JSR B1F_SetUI5                              ; $B966: 20 83 F2
+  JSR B1F_OpenMsgWindow5                      ; $B966: 20 83 F2
   INC $0501                                   ; $B969: EE 01 05
   RTS                                         ; $B96C: 60
 .endproc
 
-.proc ProvinceState_Select
+.proc RetreatState_Select
   JSR DrawExchangeArrows_Left                             ; $B96D: 20 70 DC
   JSR TryAutoAdvance                       ; $B970: 20 DE A1
   JSR CheckExchangePossible                             ; $B973: 20 27 DF
@@ -3679,7 +3683,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   BEQ @Done                             ; $B98F: F0 24
   INC $0501                             ; $B991: EE 01 05
   LDA #$D7                              ; $B994: A9 D7
-  JSR B1F_SetUI2                        ; $B996: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $B996: 20 83 F2
   LDA #$00                              ; $B999: A9 00
   STA menu_cursor_col                             ; $B99B: 8D 24 04
   STA menu_cursor_page                             ; $B99E: 8D 25 04
@@ -3690,12 +3694,12 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDA #$05                              ; $B9AB: A9 05
   STA $0501                             ; $B9AD: 8D 01 05
   LDA #$D9                              ; $B9B0: A9 D9
-  JSR B1F_SetUI2                        ; $B9B2: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $B9B2: 20 83 F2
 @Done:
   RTS                                   ; $B9B5: 60
 .endproc
 
-.proc ProvinceState_Menu
+.proc RetreatState_PickCastle
   JSR TryAutoAdvance                       ; $B9B6: 20 DE A1
   LDA $050A                             ; $B9B9: AD 0A 05
   ASL                                   ; $B9BC: 0A
@@ -3739,7 +3743,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   LDA #$01                              ; $BA0F: A9 01
   STA $0501                             ; $BA11: 8D 01 05
   LDA #$DA                              ; $BA14: A9 DA
-  JSR B1F_SetUI2                        ; $BA16: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $BA16: 20 83 F2
 @Done:
   RTS                                   ; $BA19: 60
 @AdvanceState:
@@ -3750,13 +3754,13 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   BNE @ShowMenuUI                       ; $BA24: D0 05
 @ShowFullUI:
   LDA #$52                              ; $BA26: A9 52
-  JMP B1F_SetUI2                        ; $BA28: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $BA28: 4C 83 F2
 @ShowMenuUI:
   LDA #$C8                              ; $BA2B: A9 C8
-  JMP B1F_SetUI2                        ; $BA2D: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $BA2D: 4C 83 F2
 .endproc
 
-.proc ProvinceState_Confirm
+.proc RetreatState_Confirm
   JSR DrawExchangeArrows_Left                             ; $BA30: 20 70 DC
   JSR TryAutoAdvance                       ; $BA33: 20 DE A1
   JSR CheckExchangePossible                             ; $BA36: 20 27 DF
@@ -3778,12 +3782,12 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   STA $12                               ; $BA59: 85 12
   JSR UpdateCursorTile                             ; $BA5B: 20 CC D6
   LDA #$D8                              ; $BA5E: A9 D8
-  JSR B1F_SetUI5                        ; $BA60: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $BA60: 20 93 F2
 @Done:
   RTS                                   ; $BA63: 60
 .endproc
 
-.proc ProvinceState_Cancel
+.proc RetreatState_Cancel
   JSR CheckExchangePossible                             ; $BA64: 20 27 DF
   BCC @Done                             ; $BA67: 90 19
   JSR DrawExchangeArrows_Left                             ; $BA69: 20 70 DC
@@ -3800,7 +3804,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
   RTS                                   ; $BA82: 60
 .endproc
 
-.proc ProvinceState_Reset
+.proc RetreatState_Reset
   JSR CheckExchangePossible                             ; $BA83: 20 27 DF
   BCC @Done                             ; $BA86: 90 16
   JSR DrawExchangeArrows_Left                             ; $BA88: 20 70 DC
@@ -3819,7 +3823,7 @@ ExecStratagem_CastleRaid = ExecStratagem_FireAttack
 
 ; Pointer table: maps menu type index (0-15) to its item index list.
 ; Type N has (16-N) valid item indices, padded with $FF terminators.
-; Used by CommandState_Menu ($0542), ProvinceState_Menu ($050A), and
+; Used by StratagemState_Menu ($0542), RetreatState_PickCastle ($050A), and
 ; province select callbacks at $CDFA and $D353.
 MenuTypeItemListPtrs:                     ; $BA9F
   .word MenuItemIndexPool00               ; type  0:  1 item
@@ -4064,7 +4068,7 @@ ProvinceSelect_GetRecord:
   LDA #$00                              ; $BCB3: A9 00
   STA $00A4                             ; $BCB5: 8D A4 00
   LDA #$CA                              ; $BCB8: A9 CA
-  JSR B1F_SetUI2                        ; $BCBA: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $BCBA: 20 83 F2
   INC $0501                             ; $BCBD: EE 01 05
   RTS                                   ; $BCC0: 60
 .endproc
@@ -4088,7 +4092,7 @@ ProvinceSelect_GetRecord:
   LDA #$07                              ; $BCE2: A9 07
   STA $0501                             ; $BCE4: 8D 01 05
   LDA #$05                              ; $BCE7: A9 05
-  JSR B1F_SetUI5                        ; $BCE9: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $BCE9: 20 93 F2
 @Done:
   RTS                                   ; $BCEC: 60
 .endproc
@@ -4113,7 +4117,7 @@ ProvinceSelect_GetRecord:
   STA officer_sel_list                                   ; $BD07: 8D 2C 04
   INC $0501                                   ; $BD0A: EE 01 05
   LDA $050A                                   ; $BD0D: AD 0A 05
-  JMP B1F_SetUI5                              ; $BD10: 4C 83 F2
+  JMP B1F_OpenMsgWindow5                      ; $BD10: 4C 83 F2
 .endproc
 
 .proc OfficerTurnState_Reset
@@ -4184,7 +4188,7 @@ ProvinceSelect_GetRecord:
   LDA #$FF                              ; $BD84: A9 FF
   STA officer_sel_list+1                             ; $BD86: 8D 2D 04
   LDA #$4B                              ; $BD89: A9 4B
-  JMP B1F_SetUI5                        ; $BD8B: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $BD8B: 4C 93 F2
 @Done:
   RTS                                   ; $BD8E: 60
 @ExitToIdle:
@@ -4210,7 +4214,7 @@ ProvinceSelect_GetRecord:
   LDA $03                               ; $BDB3: A5 03
   STA $6F42                             ; $BDB5: 8D 42 6F
   LDA #$05                              ; $BDB8: A9 05
-  JSR B1F_SetUI5                        ; $BDBA: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $BDBA: 20 93 F2
   JMP ResetToIdle                          ; $BDBD: 4C 0C A2
 .endproc
 
@@ -4374,7 +4378,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   CMP #$0C                              ; $BF0A: C9 0C
   BNE @DispatchDone                     ; $BF0C: D0 05
   LDA #$05                              ; $BF0E: A9 05
-  JSR B1F_SetUI5                        ; $BF10: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $BF10: 20 93 F2
 @DispatchDone:
   RTS                                   ; $BF13: 60
 ; Dispatch table for phase transitions
@@ -4458,7 +4462,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   DEC $0505                                   ; $BFAD: CE 05 05
   INC $0501                                   ; $BFB0: EE 01 05
   LDA #$A0                                    ; $BFB3: A9 A0
-  JMP B1F_SetUI5                              ; $BFB5: 4C 83 F2
+  JMP B1F_OpenMsgWindow5                      ; $BFB5: 4C 83 F2
 @WaitConfirm:
   LDY $6F8D                             ; $BFB8: AC 8D 6F
   JSR CenterMapOnSlot                             ; $BFBB: 20 36 DC
@@ -4490,7 +4494,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDA #$00                              ; $BFFB: A9 00
   STA $00A4                             ; $BFFD: 8D A4 00
 .segment "CODE_BANK0D"
-  JMP OfficerTransfer_SetupResult                          ; $C000: 4C D2 A3
+  JMP OfficerAttack_SetupResult                          ; $C000: 4C D2 A3
 @NextDone:
   RTS                                   ; $C003: 60
 @ShowCost:
@@ -4516,7 +4520,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   STA officer_sel_list+1                                   ; $C030: 8D 2D 04
   STA officer_sel_list+2                                   ; $C033: 8D 2E 04
   LDA #$A1                                    ; $C036: A9 A1
-  JSR B1F_SetUI5                              ; $C038: 20 83 F2
+  JSR B1F_OpenMsgWindow5                      ; $C038: 20 83 F2
   LDA #$65                                    ; $C03B: A9 65
   JSR B1F_SoundWrapperF                 ; $C03D: 20 9B E6
   INC $0501                                   ; $C040: EE 01 05
@@ -4566,7 +4570,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDA #$03                              ; $C0B4: A9 03
   STA $00A4                             ; $C0B6: 8D A4 00
   LDA #$A2                              ; $C0B9: A9 A2
-  JMP B1F_SetUI2                        ; $C0BB: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C0BB: 4C 83 F2
 @ShowMsg:
   LDA #$04                              ; $C0BE: A9 04
   STA $00A4                             ; $C0C0: 8D A4 00
@@ -4592,13 +4596,13 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDA #$0F                              ; $C0EB: A9 0F
   STA $0501                             ; $C0ED: 8D 01 05
   LDA #$4E                              ; $C0F0: A9 4E
-  JMP B1F_SetUI5                        ; $C0F2: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C0F2: 4C 93 F2
 @ShowCancelMsg:
   LDA @CancelMsgTable,Y                 ; $C0F5: B9 00 C1
-  JMP B1F_SetUI2                        ; $C0F8: 4C 83 F2
+  JMP B1F_OpenMsgWindow2                ; $C0F8: 4C 83 F2
 @ShowFullMsg:
   LDA #$B7                              ; $C0FB: A9 B7
-  JMP B1F_SetUI5                        ; $C0FD: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C0FD: 4C 93 F2
 ; Cancel message IDs indexed by stratagem code
 @CancelMsgTable:
   .byte $A3,$A4,$A5,$A3,$A3,$A6,$A3,$A3,$B7,$4F,$A5,$A3,$A3,$A3,$A3,$B6; $C100: A3 A4 A5 A3 A3 A6 A3 A3 B7 4F A5 A3 A3 A3 A3 B6
@@ -4616,7 +4620,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   BEQ @NoActionExit                     ; $C12B: F0 0D
   JSR FinishSequence                       ; $C12D: 20 F7 A1
   LDA #$05                              ; $C130: A9 05
-  JSR B1F_SetUI5                        ; $C132: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $C132: 20 93 F2
   LDA #$10                              ; $C135: A9 10
   STA $0501                             ; $C137: 8D 01 05
 @WaitInput:
@@ -4648,7 +4652,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   STA officer_sel_list                                   ; $C16D: 8D 2C 04
   INC $0501                                   ; $C170: EE 01 05
   LDA #$BD                                    ; $C173: A9 BD
-  JMP B1F_SetUI5                              ; $C175: 4C 83 F2
+  JMP B1F_OpenMsgWindow5                      ; $C175: 4C 83 F2
 @ConfirmAction:
   LDA #$00                              ; $C178: A9 00
   STA $00A4                             ; $C17A: 8D A4 00
@@ -4668,7 +4672,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   STA $050B                             ; $C19E: 8D 0B 05
   JSR ProvinceSelect_RemoveOfficer      ; $C1A1: 20 2A BC
   LDA #$05                              ; $C1A4: A9 05
-  JSR B1F_SetUI5                        ; $C1A6: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $C1A6: 20 93 F2
 ; Advance to final state
   LDA #$10                              ; $C1A9: A9 10
   STA $0501                             ; $C1AB: 8D 01 05
@@ -4696,7 +4700,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   BEQ @CancelPending                    ; $C1DD: F0 0B
   JSR FinishSequence                       ; $C1DF: 20 F7 A1
   LDA #$05                              ; $C1E2: A9 05
-  JSR B1F_SetUI5                        ; $C1E4: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $C1E4: 20 93 F2
   INC $0501                             ; $C1E7: EE 01 05
 @ExitPending:
   RTS                                   ; $C1EA: 60
@@ -4771,7 +4775,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDA #$00                              ; $C26C: A9 00
   STA $0509                             ; $C26E: 8D 09 05
   LDA #$F9                              ; $C271: A9 F9
-  JSR B1F_SetUI5                        ; $C273: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $C273: 20 93 F2
   LDA $0507                             ; $C276: AD 07 05
   AND #$0F                              ; $C279: 29 0F
   JSR B1F_GetCountryDataPtr               ; $C27B: 20 68 F3
@@ -4802,7 +4806,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDA #$0A                              ; $C2AB: A9 0A
   STA $0509                             ; $C2AD: 8D 09 05
   LDA #$F9                              ; $C2B0: A9 F9
-  JSR B1F_SetUI5                        ; $C2B2: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $C2B2: 20 93 F2
   LDA $0507                             ; $C2B5: AD 07 05
   LSR                                   ; $C2B8: 4A
   LSR                                   ; $C2B9: 4A
@@ -4859,7 +4863,7 @@ OfficerTurn_SwitchRuler_CheckPhase:
   LDA $050B                             ; $C31C: AD 0B 05
   STA $0501                             ; $C31F: 8D 01 05
   LDA #$05                              ; $C322: A9 05
-  JMP B1F_SetUI5                        ; $C324: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C324: 4C 93 F2
   RTS                                   ; $C327: 60  (unreachable - after JMP)
 @Timeout:
   LDY $0509                             ; $C328: AC 09 05
@@ -5349,7 +5353,7 @@ MoraleCapByAvgMerit:                    ; $C613: maximum morale after bonus
   LDA #$FF                              ; $C6E0: A9 FF
   STA officer_sel_list+1                             ; $C6E2: 8D 2D 04
   LDA #$4B                              ; $C6E5: A9 4B
-  JMP B1F_SetUI5                        ; $C6E7: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C6E7: 4C 93 F2
 ; --- Setup and validate officer transfer ---
 ; $10 = officer/group ID, $0470 = mode (1=init, 2=select)
 ; Determines slot from $0560, loads officer data, validates ally status
@@ -5406,7 +5410,7 @@ MoraleCapByAvgMerit:                    ; $C613: maximum morale after bonus
   BNE @DisplayUI                        ; $C754: D0 02
   LDA #$4D                                    ; $C756: A9 4D
 @DisplayUI:
-  JMP B1F_SetUI5                        ; $C758: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $C758: 4C 93 F2
 .endproc
 
 ; --- Find officer in active roster ($0664, 20 entries) ---
@@ -5723,7 +5727,7 @@ AdjustStatsByIndex:
 @State_Init:
   JSR B1F_BankPpuInit                   ; $C99E: 20 7F E5
   LDA #$D5                              ; $C9A1: A9 D5
-  JSR B1F_SetUI5                        ; $C9A3: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $C9A3: 20 93 F2
   JSR @InitExchangeDisplay              ; $C9A6: 20 F8 CA
   INC $0501                             ; $C9A9: EE 01 05
   RTS                                   ; $C9AC: 60
@@ -5735,7 +5739,7 @@ AdjustStatsByIndex:
   INC $0501                             ; $C9B7: EE 01 05
   JSR @BuildExchangeMsg                 ; $C9BA: 20 53 CA
   LDA #$04                              ; $C9BD: A9 04
-  JSR B1F_SetUI4                        ; $C9BF: 20 8B F2
+  JSR B1F_OpenMsgWindow4                ; $C9BF: 20 8B F2
 @Done:
   RTS                                   ; $C9C2: 60
 @State_Menu:
@@ -5791,7 +5795,7 @@ AdjustStatsByIndex:
 @AdvanceState:
   INC $0501                             ; $CA26: EE 01 05
   LDA #$D5                              ; $CA29: A9 D5
-  JSR B1F_SetUI5                        ; $CA2B: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $CA2B: 20 93 F2
   RTS                                   ; $CA2E: 60
 @State_Cancel:
   JSR RecalcExchangeStats               ; $CA2F: 20 29 CC
@@ -6186,7 +6190,7 @@ AdjustStatsByIndex:
   RTS                                   ; $CD45: 60
 @ShowUI:
   LDA #$DC                              ; $CD46: A9 DC
-  JSR B1F_SetUI5                        ; $CD48: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $CD48: 20 93 F2
   JSR LoadExchangeRulerId               ; $CD4B: 20 C3 D0
   INC $0501                             ; $CD4E: EE 01 05
 @Done:
@@ -6227,7 +6231,7 @@ AdjustStatsByIndex:
   CMP #$0A                              ; $CD8F: C9 0A
   BCS @NextSlot                         ; $CD91: B0 06
   LDA #$D7                              ; $CD93: A9 D7
-  JSR B1F_SetUI2                        ; $CD95: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $CD95: 20 83 F2
   RTS                                   ; $CD98: 60
 @NextSlot:
   DEY                                   ; $CD99: 88
@@ -6323,7 +6327,7 @@ AdjustStatsByIndex:
   BNE @ShowUI                           ; $CE4B: D0 02
   LDA #$E5                              ; $CE4D: A9 E5
 @ShowConfirmUI:
-  JSR B1F_SetUI2                        ; $CE4F: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $CE4F: 20 83 F2
   JSR LoadExchangeRulerId               ; $CE52: 20 C3 D0
 @ConfirmDone:
   RTS                                   ; $CE55: 60
@@ -6339,7 +6343,7 @@ AdjustStatsByIndex:
   JSR BuildOfficerList                  ; $CE67: 20 E1 D0
   STX $050A                             ; $CE6A: 8E 0A 05
   LDA #$DE                              ; $CE6D: A9 DE
-  JSR B1F_SetUI4                        ; $CE6F: 20 8B F2
+  JSR B1F_OpenMsgWindow4                ; $CE6F: 20 8B F2
   INC $0501                             ; $CE72: EE 01 05
 @ExecuteDone:
   RTS                                   ; $CE75: 60
@@ -6412,7 +6416,7 @@ AdjustStatsByIndex:
   BNE @ShowConfirmUI                    ; $CEF9: D0 02
   LDA #$E6                              ; $CEFB: A9 E6
 @ShowCancelUI:
-  JSR B1F_SetUI2                        ; $CEFD: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $CEFD: 20 83 F2
   INC $0501                             ; $CF00: EE 01 05
 @FinalizeDone:
   RTS                                   ; $CF03: 60
@@ -6870,7 +6874,7 @@ ExecuteAllTransfers:
 @InitError:
   ; Too few officers; show error dialog and advance state
   LDA #$DF                              ; $D304: A9 DF
-  JSR B1F_SetUI5                        ; $D306: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $D306: 20 93 F2
   JSR OfficerExchangeSelectDispatch::LoadExchangeRulerId  ; $D309: 20 C3 D0
   INC $0501                             ; $D30C: EE 01 05
   RTS                                   ; $D30F: 60
@@ -6885,7 +6889,7 @@ ExecuteAllTransfers:
   BEQ @WaitDone                         ; $D31F: F0 29
   INC $0501                             ; $D321: EE 01 05
   LDA #$D7                              ; $D324: A9 D7
-  JSR B1F_SetUI2                        ; $D326: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $D326: 20 83 F2
   LDA #$00                              ; $D329: A9 00
   STA menu_cursor_col                             ; $D32B: 8D 24 04
   STA menu_cursor_page                             ; $D32E: 8D 25 04
@@ -6948,7 +6952,7 @@ ExecuteAllTransfers:
   BNE @SetMenuUI                        ; $D3A4: D0 02
   LDA #$E5                              ; $D3A6: A9 E5
 @SetMenuUI:
-  JSR B1F_SetUI2                        ; $D3A8: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $D3A8: 20 83 F2
   JSR OfficerExchangeSelectDispatch::LoadExchangeRulerId  ; $D3AB: 20 C3 D0
 @MenuDone:
   RTS                                   ; $D3AE: 60
@@ -6967,7 +6971,7 @@ ExecuteAllTransfers:
   JSR OfficerExchangeSelectDispatch::BuildOfficerList  ; $D3C8: 20 E1 D0
   STX $050A                             ; $D3CB: 8E 0A 05
   LDA #$DE                              ; $D3CE: A9 DE
-  JSR B1F_SetUI4                        ; $D3D0: 20 8B F2
+  JSR B1F_OpenMsgWindow4                ; $D3D0: 20 8B F2
   INC $0501                             ; $D3D3: EE 01 05
 @ConfirmDone:
   RTS                                   ; $D3D6: 60
@@ -7037,7 +7041,7 @@ ExecuteAllTransfers:
   BNE @SetRenderUI                      ; $D452: D0 02
   LDA #$E6                              ; $D454: A9 E6
 @SetRenderUI:
-  JSR B1F_SetUI2                        ; $D456: 20 83 F2
+  JSR B1F_OpenMsgWindow2                ; $D456: 20 83 F2
   INC $0501                             ; $D459: EE 01 05
 @RenderDone:
   RTS                                   ; $D45C: 60
@@ -8380,7 +8384,7 @@ CheckExchangeGroupStatus:
   STA officer_sel_list                             ; $DE77: 8D 2C 04
   INC $0501                             ; $DE7A: EE 01 05
   LDA #$55                              ; $DE7D: A9 55
-  JMP B1F_SetUI5                        ; $DE7F: 4C 93 F2
+  JMP B1F_OpenMsgWindow5                ; $DE7F: 4C 93 F2
 @FindFirstOfficerByGroup:
   ; Find first officer in army group matching flag in A; carry set if found, Y=slot
   STA $0002                             ; $DE82: 8D 02 00
@@ -8478,7 +8482,7 @@ ValidateExchangeOfficer:
   BNE @SetResult                        ; $DF1C: D0 02
   LDA #$4D                                    ; $DF1E: A9 4D
 @SetResult:
-  JSR B1F_SetUI5                        ; $DF20: 20 93 F2
+  JSR B1F_OpenMsgWindow5                ; $DF20: 20 93 F2
   SEC                                   ; $DF23: 38
   RTS                                   ; $DF24: 60
 @Valid:

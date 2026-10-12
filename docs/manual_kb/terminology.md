@@ -126,7 +126,7 @@ A country contains one or more provinces; these stats are per-province.
 | 同盟 | doumei | Alliance |
 | 離間 | rikan | Discord |
 | 引き抜き | hikinuki | Poaching |
-| 武将の移動 | bushou no idou | OfficerTransfer |
+| 武将の移動 | bushou no idou | OfficerTransfer (castle command; do NOT apply to the war-mode attack flow, now OfficerAttack*) |
 | 防災 | bousai | DisasterPrevention (command) |
 | 記録する | kiroku suru | SaveGame |
 

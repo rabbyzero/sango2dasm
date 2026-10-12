@@ -3355,7 +3355,7 @@ DuelCmd_RoundSetup:
   STA a:zp_a4                                         ; $B3BB: 8D A4 00
   INC sub_state                                           ; $B3BE: EE A9 04
   LDA #$2B                                            ; $B3C1: A9 2B
-  JMP B1F_SetUI0                                      ; $B3C3: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                              ; $B3C3: 4C 6D F2
 @ResolveRandomWinner:
   LDX #$00                                            ; $B3C6: A2 00
 @loop:
@@ -3444,7 +3444,7 @@ DuelCmd_CommandMenu:
   BNE @skip                                           ; $B451: D0 08
   INC sub_state                                           ; $B453: EE A9 04
   LDA #$2C                                            ; $B456: A9 2C
-  JMP B1F_SetUI0                                      ; $B458: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                              ; $B458: 4C 6D F2
 @skip:
   LDA #$02                                            ; $B45B: A9 02
   STA sub_state                                           ; $B45D: 8D A9 04
@@ -3487,7 +3487,7 @@ DuelCmd_CommandRoute:
   LDA player_officer_id_0,Y                                         ; $B49A: B9 AD 04
   STA selected_officer_id                                           ; $B49D: 8D 2C 04
   LDA #$23                                            ; $B4A0: A9 23
-  JMP B1F_SetUI4                                      ; $B4A2: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $B4A2: 4C 8B F2
 @skip:
   CMP #$01                                            ; $B4A5: C9 01
   BNE @skip_2                                           ; $B4A7: D0 0F
@@ -3496,7 +3496,7 @@ DuelCmd_CommandRoute:
   LDA #$00                                            ; $B4AE: A9 00
   STA sub_state                                           ; $B4B0: 8D A9 04
   LDA #$00                                            ; $B4B3: A9 00
-  JMP B1F_SetUI4                                      ; $B4B5: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $B4B5: 4C 8B F2
 @skip_2:
   CMP #$02                                            ; $B4B8: C9 02
   BNE @skip_3                                           ; $B4BA: D0 22
@@ -3512,7 +3512,7 @@ DuelCmd_CommandRoute:
   LDA player_officer_id_0,Y                                         ; $B4D3: B9 AD 04
   STA selected_officer_id                                           ; $B4D6: 8D 2C 04
   LDA #$21                                            ; $B4D9: A9 21
-  JMP B1F_SetUI4                                      ; $B4DB: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $B4DB: 4C 8B F2
 @skip_3:
   CMP #$03                                            ; $B4DE: C9 03
   BNE @skip_5                                           ; $B4E0: D0 18
@@ -3526,7 +3526,7 @@ DuelCmd_CommandRoute:
   LDA #$00                                            ; $B4F0: A9 00
   STA sub_state                                           ; $B4F2: 8D A9 04
   LDA #$00                                            ; $B4F5: A9 00
-  JMP B1F_SetUI4                                      ; $B4F7: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $B4F7: 4C 8B F2
 @skip_5:
   CMP #$05                                            ; $B4FA: C9 05
   BNE @skip_6                                           ; $B4FC: D0 14
@@ -3553,7 +3553,7 @@ DuelCmd_CommandRoute:
   LDA player_officer_id_0,Y                                         ; $B52D: B9 AD 04
   STA selected_officer_id                                           ; $B530: 8D 2C 04
   LDA #$24                                            ; $B533: A9 24
-  JMP B1F_SetUI4                                      ; $B535: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $B535: 4C 8B F2
 @skip_7:
   CMP #$07                                            ; $B538: C9 07
   BNE @skip_8                                           ; $B53A: D0 0B
@@ -3634,7 +3634,7 @@ DuelCmd_TacticSelect:
   LDA #$01                                            ; $B5B0: A9 01
   STA sub_state                                           ; $B5B2: 8D A9 04
   LDA #$2B                                            ; $B5B5: A9 2B
-  JMP B1F_SetUI0                                      ; $B5B7: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                              ; $B5B7: 4C 6D F2
 @skip_2:
   RTS                                                 ; $B5BA: 60
 DuelTacticMenuData:
@@ -4241,10 +4241,10 @@ DuelStrike_ApplyGauge:
   STA officer_id_ext                                           ; $B990: 8D 2D 04
   STA war_result_phase                                           ; $B993: 8D 2E 04
   LDA #$22                                            ; $B996: A9 22
-  JMP B1F_SetUI4                                      ; $B998: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $B998: 4C 8B F2
 @skip_2:
   LDA #$39                                            ; $B99B: A9 39
-  JMP B1F_SetUI4                                      ; $B99D: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $B99D: 4C 8B F2
 .endproc
 ;===============================================================================
 ; $B9A0: DuelStrike_ShowParried
@@ -4252,7 +4252,7 @@ DuelStrike_ApplyGauge:
 .proc DuelStrike_ShowParried
 DuelStrike_ShowParried:
   LDA #$25                                            ; $B9A0: A9 25
-  JMP B1F_SetUI0                                      ; $B9A2: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                              ; $B9A2: 4C 6D F2
 .endproc
 ;===============================================================================
 ; $B9A5: DuelStrike_WaitConfirm
@@ -4413,7 +4413,7 @@ DuelPursue_Init:
 ; --- BankedCallbackTrampoline target ---
   .word B1D_1E_OfficerDisplay_Render                  ; $BA9D: 30 A0
   LDA #$29                                            ; $BA9F: A9 29
-  JMP B1F_SetUI0                                      ; $BAA1: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                              ; $BAA1: 4C 6D F2
 @skip:
   RTS                                                 ; $BAA4: 60
 .endproc
@@ -4432,7 +4432,7 @@ DuelPursue_WaitIntro:
   BEQ @skip                                           ; $BAB5: F0 08
   INC sub_state                                           ; $BAB7: EE A9 04
   LDA #$00                                            ; $BABA: A9 00
-  JMP B1F_SetUI4                                      ; $BABC: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $BABC: 4C 8B F2
 @skip:
   RTS                                                 ; $BABF: 60
 .endproc
@@ -4481,7 +4481,7 @@ DuelPursue_SetupPursuer:
   STA a:zp_a4                                         ; $BAF7: 8D A4 00
   INC sub_state                                           ; $BAFA: EE A9 04
   LDA #$2A                                            ; $BAFD: A9 2A
-  JMP B1F_SetUI0                                      ; $BAFF: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                              ; $BAFF: 4C 6D F2
 @skip:
   RTS                                                 ; $BB02: 60
 .endproc
@@ -4516,11 +4516,11 @@ DuelPursue_EscapeRoll:
   LDA #$09                                            ; $BB2E: A9 09
   STA sub_state                                           ; $BB30: 8D A9 04
   LDA #$3C                                            ; $BB33: A9 3C
-  JMP B1F_SetUI0                                      ; $BB35: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                              ; $BB35: 4C 6D F2
 @skip:
   INC sub_state                                           ; $BB38: EE A9 04
   LDA #$00                                            ; $BB3B: A9 00
-  JMP B1F_SetUI4                                      ; $BB3D: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $BB3D: 4C 8B F2
 @skip_2:
   RTS                                                 ; $BB40: 60
 .endproc
@@ -4579,7 +4579,7 @@ DuelPursue_ApplyStrike:
   STA (officer_data_ptr),Y                                         ; $BB89: 91 00
   INC sub_state                                           ; $BB8B: EE A9 04
   LDA #$3D                                            ; $BB8E: A9 3D
-  JMP B1F_SetUI4                                      ; $BB90: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $BB90: 4C 8B F2
 .endproc
 ;===============================================================================
 ; $BB93: DuelPursue_CheckDeath
@@ -4608,7 +4608,7 @@ DuelPursue_CheckDeath:
 @skip:
   INC sub_state                                           ; $BBB7: EE A9 04
   LDA #$26                                            ; $BBBA: A9 26
-  JMP B1F_SetUI4                                      ; $BBBC: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $BBBC: 4C 8B F2
 @skip_2:
   RTS                                                 ; $BBBF: 60
 .endproc
@@ -4854,7 +4854,7 @@ Surrender_Init:
   LDA #$04                                            ; $BD13: A9 04
   STA a:zp_a4                                         ; $BD15: 8D A4 00
   LDA #$27                                            ; $BD18: A9 27
-  JMP B1F_SetUI0                                      ; $BD1A: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                              ; $BD1A: 4C 6D F2
 @skip:
   RTS                                                 ; $BD1D: 60
 .endproc
@@ -4877,7 +4877,7 @@ Surrender_ShowText:
   LDA #$6C                                            ; $BD36: A9 6C
   JSR B1F_SoundWrapperC                               ; $BD38: 20 83 E6
   LDA #$00                                            ; $BD3B: A9 00
-  JMP B1F_SetUI4                                      ; $BD3D: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $BD3D: 4C 8B F2
 .endproc
 ;===============================================================================
 ; $BD40: Surrender_Display
@@ -4980,7 +4980,7 @@ Surrender_Execute:
   LDA player_officer_id_0,Y                                         ; $BDC0: B9 AD 04
   STA selected_officer_id                                           ; $BDC3: 8D 2C 04
   LDA #$28                                            ; $BDC6: A9 28
-  JMP B1F_SetUI4                                      ; $BDC8: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $BDC8: 4C 8B F2
 .endproc
 ;-------------------------------------------------------------------------------
 ; $BDCB: DrawOfficerCards - shared sprite draw helper at the tail of
@@ -5549,7 +5549,7 @@ TacticDialog_Execute:
   CMP #$04                                            ; $C1C8: C9 04
   BNE @skip_2                                           ; $C1CA: D0 15
   LDA #$38                                            ; $C1CC: A9 38
-  JMP B1F_SetUI4                                      ; $C1CE: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $C1CE: 4C 8B F2
 @skip:
   LDA #$01                                            ; $C1D1: A9 01
   STA duel_state                                           ; $C1D3: 8D A8 04
@@ -5691,7 +5691,7 @@ MapFade_Draw:
   JSR MapFade_DrawColumn                                           ; $C29F: 20 CC C2
   INC sub_state                                           ; $C2A2: EE A9 04
   LDA #$26                                            ; $C2A5: A9 26
-  JMP B1F_SetUI4                                      ; $C2A7: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $C2A7: 4C 8B F2
 .endproc
 ;===============================================================================
 ; $C2AA: MapFade_Complete
@@ -5928,7 +5928,7 @@ Spoils_RollLoot:
 ; $C40B: Spoils_GrantWeapon
 ; Writes the loot weapon id (ptr_0010_lo) into the winner's record +0A
 ; weapon bits (0-4, armor bits 5-7 preserved), advances to the confirm
-; wait and shows the loot panel (ptr_0010_hi) via B1F_SetUI4.
+; wait and shows the loot panel (ptr_0010_hi) via B1F_OpenMsgWindow4.
 ;===============================================================================
 .proc Spoils_GrantWeapon
   officer_data_ptr     = $0000
@@ -5948,13 +5948,13 @@ Spoils_GrantWeapon:
   STA (officer_data_ptr),Y                                         ; $C423: 91 00
   INC sub_state                                           ; $C425: EE A9 04
   LDA ptr_0010_hi                                         ; $C428: AD 11 00
-  JMP B1F_SetUI4                                      ; $C42B: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $C42B: 4C 8B F2
 .endproc
 ;===============================================================================
 ; $C42E: Spoils_GrantArmor
 ; 劉備 RYUUBI ($DE) drop: writes armor id 7 (item 31 リュウリンのヨロイ)
 ; into the winner's record +0A armor bits (5-7, weapon bits 0-4 preserved),
-; advances to the confirm wait and shows panel $42 via B1F_SetUI4.
+; advances to the confirm wait and shows panel $42 via B1F_OpenMsgWindow4.
 ;===============================================================================
 .proc Spoils_GrantArmor
   officer_data_ptr     = $0000
@@ -5972,7 +5972,7 @@ Spoils_GrantArmor:
   STA (officer_data_ptr),Y                                         ; $C445: 91 00
   INC sub_state                                           ; $C447: EE A9 04
   LDA #$42                                            ; $C44A: A9 42
-  JMP B1F_SetUI4                                      ; $C44C: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                              ; $C44C: 4C 8B F2
 .endproc
 ;===============================================================================
 ; $C44F: Spoils_WaitConfirm
@@ -8526,7 +8526,7 @@ StrategyCommand_InitOfficerScroll:
   BEQ @skip                                           ; $D6C9: F0 02
   LDA #$D8                                            ; $D6CB: A9 D8
 @skip:
-  JSR B1F_SetUI4                                      ; $D6CD: 20 8B F2
+  JSR B1F_OpenMsgWindow4                              ; $D6CD: 20 8B F2
   JSR B1F_PaletteFadeInit                             ; $D6D0: 20 BF EC
   RTS                                                 ; $D6D3: 60
 @skip_2:
@@ -8639,7 +8639,7 @@ StrategyCommand_ScrollIntroPanel:
   LDA #$02                                            ; $D7C9: A9 02
   STA dispatch_src_ptr_lo                                           ; $D7CB: 8D CA 04
   LDA #$DC                                            ; $D7CE: A9 DC
-  JSR B1F_SetUI4                                      ; $D7D0: 20 8B F2
+  JSR B1F_OpenMsgWindow4                              ; $D7D0: 20 8B F2
   JSR B1F_PaletteFadeInit                             ; $D7D3: 20 BF EC
 @skip_2:
   RTS                                                 ; $D7D6: 60
@@ -8689,7 +8689,7 @@ StrategyCommand_ScrollIntroPanel:
   STA dispatch_src_ptr_lo                                           ; $D82E: 8D CA 04
   INC strat_scroll_param                                           ; $D831: EE 41 05
   LDA #$00                                            ; $D834: A9 00
-  JSR B1F_SetUI4                                      ; $D836: 20 8B F2
+  JSR B1F_OpenMsgWindow4                              ; $D836: 20 8B F2
 @skip_8:
   RTS                                                 ; $D839: 60
 .endproc
@@ -8715,7 +8715,7 @@ StrategyCommand_ScrollTextPhase2:
   LDA #$01                                            ; $D859: A9 01
   STA dispatch_src_ptr_lo                                           ; $D85B: 8D CA 04
   LDA #$DD                                            ; $D85E: A9 DD
-  JSR B1F_SetUI4                                      ; $D860: 20 8B F2
+  JSR B1F_OpenMsgWindow4                              ; $D860: 20 8B F2
   JSR B1F_PaletteFadeInit                             ; $D863: 20 BF EC
 @skip_2:
   RTS                                                 ; $D866: 60
@@ -8767,7 +8767,7 @@ StrategyCommand_ScrollTextPhase2:
   STA dispatch_step                                           ; $D8BD: 8D C9 04
   STA dispatch_src_ptr_lo                                           ; $D8C0: 8D CA 04
   LDA #$00                                            ; $D8C3: A9 00
-  JSR B1F_SetUI4                                      ; $D8C5: 20 8B F2
+  JSR B1F_OpenMsgWindow4                              ; $D8C5: 20 8B F2
 @skip_9:
   RTS                                                 ; $D8C8: 60
 .endproc
@@ -8793,7 +8793,7 @@ StrategyCommand_ScrollAndWait:
   LDA #$01                                            ; $D8E8: A9 01
   STA dispatch_src_ptr_lo                                           ; $D8EA: 8D CA 04
   LDA #$DE                                            ; $D8ED: A9 DE
-  JSR B1F_SetUI4                                      ; $D8EF: 20 8B F2
+  JSR B1F_OpenMsgWindow4                              ; $D8EF: 20 8B F2
   JSR B1F_PaletteFadeInit                             ; $D8F2: 20 BF EC
 @skip_2:
   RTS                                                 ; $D8F5: 60
@@ -8862,7 +8862,7 @@ Finalize_Init:
 .proc Finalize_SetupUI
 Finalize_SetupUI:
   LDA strat_display_ptr_hi                                           ; $D950: AD 43 05
-  JSR B1F_SetUI4                                      ; $D953: 20 8B F2
+  JSR B1F_OpenMsgWindow4                              ; $D953: 20 8B F2
   INC strat_display_ptr_lo                                           ; $D956: EE 42 05
   RTS                                                 ; $D959: 60
 .endproc
@@ -9017,7 +9017,7 @@ StrategyCommand_BuildOfficerList:
   LDA #$06                                            ; $DA36: A9 06
   STA strat_display_ptr_lo                                           ; $DA38: 8D 42 05
   LDA #$F1                                            ; $DA3B: A9 F1
-  JSR B1F_SetUI4                                      ; $DA3D: 20 8B F2
+  JSR B1F_OpenMsgWindow4                              ; $DA3D: 20 8B F2
   RTS                                                 ; $DA40: 60
 .endproc
 ;===============================================================================

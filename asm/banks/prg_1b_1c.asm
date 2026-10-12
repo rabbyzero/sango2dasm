@@ -185,7 +185,7 @@ MapScreenFrameStateTable:
 ;     (ending/unification scene, B19_1A_UnificationEndingDispatch).
 ;   - OrderScroll (command points) $6F05 of the current country is $00 or
 ;     negative (the acting country owns 0 provinces -> no live turn):
-;     frame state $0B + sub-state 0 (Country rotation / title attract) via B1F_SetUI4.
+;     frame state $0B + sub-state 0 (Country rotation / title attract) via B1F_OpenMsgWindow4.
 ;   - Active game: cache the player's home province from the SRAM ruler
 ;     record (($EE), set up by bank $0A+$0B) into $042C, snapshot the
 ;     OrderScroll $6F05 into
@@ -218,7 +218,7 @@ MapRulerIntroInit:  ; (dispatch callback target)
   STA $0400                               ; $A0BC: 8D 00 04  ; Country rotation frame
   LDA #$00                                ; $A0BF: A9 00
   STA $0401                               ; $A0C1: 8D 01 04
-  JMP B1F_SetUI4                               ; $A0C4: 4C 8B F2  ; B1F_SetUI4 (no return)
+  JMP B1F_OpenMsgWindow4                       ; $A0C4: 4C 8B F2  ; B1F_OpenMsgWindow4 (no return)
 @GameActive:
   LDY #$00                                ; $A0C7: A0 00
   LDA ($EE),Y                             ; $A0C9: B1 EE     ; home province from SRAM ruler record
@@ -228,7 +228,7 @@ MapRulerIntroInit:  ; (dispatch callback target)
   LDA $6F05                               ; $A0D4: AD 05 6F
   STA $042F                               ; $A0D7: 8D 2F 04  ; snapshot of OrderScroll
   LDA #$1F                                ; $A0DA: A9 1F
-  JMP B1F_SetUI0                               ; $A0DC: 4C 6D F2  ; B1F_SetUI0 mode $1F (no return)
+  JMP B1F_OpenMsgWindow0                       ; $A0DC: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $1F (no return)
 ;===============================================================================
 ; MapRulerIntroCameraSync ($A0DF-$A121)
 ; Frame sub-state 1 of the ruler-intro sequence. Each animation tick it:
@@ -243,7 +243,7 @@ MapRulerIntroInit:  ; (dispatch callback target)
 ;          $0400 (sub-state resets to 0).
 ;        - B pressed ($0081 bit1): resolve camera $6F3F/$6F41 to a province
 ;          via MapProvinceHitTest; if in bounds and owned by ruler $6F03, reset the scroll
-;          pointers and enter UI mode 4 via B1F_SetUI4, advancing the
+;          pointers and enter UI mode 4 via B1F_OpenMsgWindow4, advancing the
 ;          sub-state to the transition wait (MapRulerIntroWait).
 ;        - Select on pad 1 or 2 (($0081|$0082) bit2): back out to frame state
 ;          $0E with the sub-state decremented (MapRulerIntroCancelCheck).
@@ -288,10 +288,10 @@ MapRulerIntroCameraSync:  ; (dispatch callback target)
   RTS                                     ; $A121: 60
 MapRulerIntroCameraOffMapExit:
   LDA #$21                                ; $A122: A9 21     ; UI mode $21: camera outside map
-  JMP B1F_SetUI0                          ; $A124: 4C 6D F2  (no return)
+  JMP B1F_OpenMsgWindow0                  ; $A124: 4C 6D F2  (no return)
 MapRulerIntroCameraNotOwnedExit:
   LDA #$22                                ; $A127: A9 22     ; UI mode $22: province not owned
-  JMP B1F_SetUI0                          ; $A129: 4C 6D F2  (no return)
+  JMP B1F_OpenMsgWindow0                  ; $A129: 4C 6D F2  (no return)
 MapRulerIntroCameraSyncExit:
   RTS                                     ; $A12C: 60        ; shared exit: busy or no action this tick
 ;===============================================================================
@@ -299,7 +299,7 @@ MapRulerIntroCameraSyncExit:
 ; B-button edge helper. If B ($0081 bit1) is newly pressed, resolves the
 ; camera position to a province via MapProvinceHitTest and, when it lands on a province
 ; owned by ruler $6F03, advances the sub-state to the transition wait and
-; switches to UI mode 4 via B1F_SetUI4.
+; switches to UI mode 4 via B1F_OpenMsgWindow4.
 ;===============================================================================
 MapRulerIntroPadAdvance:
   LDA a:$0081                             ; $A12D: AD 81 00  ; pad 1 newly-pressed (edge)
@@ -322,7 +322,7 @@ MapRulerIntroPadAdvance:
   LDA #$00                                ; $A155: A9 00
   STA $0470                               ; $A157: 8D 70 04  ; reset scroll ptr slot 0
   STA $0471                               ; $A15A: 8D 71 04  ; reset scroll ptr slot 1
-  JMP B1F_SetUI4                          ; $A15D: 4C 8B F2  ; UI mode 4 (no return)
+  JMP B1F_OpenMsgWindow4                  ; $A15D: 4C 8B F2  ; UI mode 4 (no return)
 MapRulerIntroPadAdvanceExit:
   RTS                                     ; $A160: 60        ; shared exit: no B press or invalid landing
 ;===============================================================================
@@ -424,7 +424,7 @@ CommandCategoryMenuScreenInit:  ; (dispatch callback target)
 @FlagWord:
   STX $0150                               ; $A1C7: 8E 50 01  ; hemisphere/attr flag word
   LDA #$23                                ; $A1CA: A9 23
-  JMP B1F_SetUI0                               ; $A1CC: 4C 6D F2  ; UI mode $23 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $A1CC: 4C 6D F2  ; UI mode $23 (no return)
 @InitExit:
   RTS                                     ; $A1CF: 60        ; init-gate exit
 ;===============================================================================
@@ -468,7 +468,7 @@ CommandCategoryMenuInput:  ; (dispatch callback target)
   STA $0140                               ; $A220: 8D 40 01  ; transition busy
   LDA #$00                                ; $A223: A9 00
   STA $0401                               ; $A225: 8D 01 04  ; sub-state <- 0 of new state
-  JMP B1F_SetUI0                               ; $A228: 4C 6D F2  ; UI mode 0 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $A228: 4C 6D F2  ; UI mode 0 (no return)
 @CancelCheck:
   LSR                                     ; $A22B: 4A
   BCC CommandCategoryMenuExit             ; $A22C: 90 15     ; bit1 = B
@@ -576,7 +576,7 @@ CommandCategoryMapScrollStep:
 ;   19 CastleSaveExecute           SRAM save stub $A02D (SramSaveCommit), then result redraw
 ;   20 CastleResultMenuRedraw      $04A0 <- $04A2 overlay redraw trigger
 ;   21 CastlePostResultRoute       wait redraw; $0473 bit7 -> sub 13 else 22
-;   22 CastleScreenIdleWait        A/B exit to frame state 0 (B1F_SetUI4)
+;   22 CastleScreenIdleWait        A/B exit to frame state 0 (B1F_OpenMsgWindow4)
 ; Shared helpers: CastleDevFieldAddCapped ($A690), CastleScoutRecruitApply
 ; ($ACE0, exits via sub 22), CastleMoveRosterApply ($AD41), and the bank-$1C
 ; scout outcome roll CastleScoutOutcomeRoll ($DB99).
@@ -628,7 +628,7 @@ CastleMenuScreenInit:  ; (dispatch callback target)
   ORA $0150                               ; $A2ED: 0D 50 01
   STA $0150                               ; $A2F0: 8D 50 01
   LDA #$25                                ; $A2F3: A9 25
-  JMP B1F_SetUI0                               ; $A2F5: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A2F5: 4C 6D F2
 @InitGateExit:
   RTS                                     ; $A2F8: 60
 CastleCommandMenuInput:  ; (dispatch callback target)
@@ -682,7 +682,7 @@ CastleCommandRouteDispatch:  ; (dispatch callback target)
   BNE @RouteCommand1                      ; $A369: D0 08  ; command 1: officer move
   INC $0401                               ; $A36B: EE 01 04
   LDA #$26                                ; $A36E: A9 26
-  JMP B1F_SetUI0                               ; $A370: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A370: 4C 6D F2
 @RouteCommand1:
   CMP #$01                                ; $A373: C9 01
   BNE @RouteCommand2                      ; $A375: D0 13  ; command 2: scouting
@@ -692,7 +692,7 @@ CastleCommandRouteDispatch:  ; (dispatch callback target)
   LDA #$07                                ; $A380: A9 07
   STA $0401                               ; $A382: 8D 01 04
   LDA #$2E                                ; $A385: A9 2E
-  JMP B1F_SetUI0                               ; $A387: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A387: 4C 6D F2
 @RouteCommand2:
   CMP #$02                                ; $A38A: C9 02
   BNE @RouteCommand3                      ; $A38C: D0 14  ; command 3: disaster prevention
@@ -703,14 +703,14 @@ CastleCommandRouteDispatch:  ; (dispatch callback target)
   LDA #$0F                                ; $A398: A9 0F
   STA $047C                               ; $A39A: 8D 7C 04
   LDA #$27                                ; $A39D: A9 27
-  JMP B1F_SetUI0                               ; $A39F: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A39F: 4C 6D F2
 @RouteCommand3:
   CMP #$03                                ; $A3A2: C9 03
   BNE @RouteCommand4                      ; $A3A4: D0 0A  ; command 4: exit to frame state 6
   LDA #$11                                ; $A3A6: A9 11
   STA $0401                               ; $A3A8: 8D 01 04
   LDA #$4F                                ; $A3AB: A9 4F
-  JMP B1F_SetUI0                               ; $A3AD: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A3AD: 4C 6D F2
 @RouteCommand4:
   CMP #$04                                ; $A3B0: C9 04
   BNE @RouteCommand5                      ; $A3B2: D0 0F  ; command 5: save
@@ -719,12 +719,12 @@ CastleCommandRouteDispatch:  ; (dispatch callback target)
   LDA #$00                                ; $A3B9: A9 00
   STA $0401                               ; $A3BB: 8D 01 04
   LDA #$3B                                ; $A3BE: A9 3B
-  JMP B1F_SetUI0                               ; $A3C0: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A3C0: 4C 6D F2
 @RouteCommand5:
   LDA #$12                                ; $A3C3: A9 12
   STA $0401                               ; $A3C5: 8D 01 04
   LDA #$51                                ; $A3C8: A9 51
-  JMP B1F_SetUI0                               ; $A3CA: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A3CA: 4C 6D F2
 CastleDevTargetMenu:  ; (dispatch callback target)
   LDA #<CastleDevTargetMenuTable          ; $A3CD: A9 5F
   STA a:$0010                             ; $A3CF: 8D 10 00
@@ -782,7 +782,7 @@ CastleDevTargetMenu:  ; (dispatch callback target)
   LDA #$16                                ; $A443: A9 16
   STA $0401                               ; $A445: 8D 01 04
   LDA #$A7                                ; $A448: A9 A7
-  JMP B1F_SetUI0                               ; $A44A: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A44A: 4C 6D F2
 @CapOkStartAnim:
   LDA #$80                                ; $A44D: A9 80
   STA $0478                               ; $A44F: 8D 78 04
@@ -790,7 +790,7 @@ CastleDevTargetMenu:  ; (dispatch callback target)
   STA $047C                               ; $A454: 8D 7C 04
   INC $0401                               ; $A457: EE 01 04
   LDA #$27                                ; $A45A: A9 27
-  JMP B1F_SetUI0                               ; $A45C: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A45C: 4C 6D F2
 ; --- Data Region ---
 CastleDevTargetMenuTable:  ; B1F_MenuStep1 items (dev targets: 0 land / 1 industry / 2 population)
   .byte $00,$01,$02,$FF                   ; $A45F: 00 01 02 FF
@@ -820,7 +820,7 @@ CastleDevAnimWait:  ; (dispatch callback target)
   LDA #$03                                ; $A492: A9 03
   STA $0401                               ; $A494: 8D 01 04
   LDA #$26                                ; $A497: A9 26
-  JMP B1F_SetUI0                               ; $A499: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A499: 4C 6D F2
 ; --- Data Region ---
 CastleDevAnimWaitExit:
   RTS                                     ; $A49C: 60        ; anim window not active
@@ -845,7 +845,7 @@ CastleDevAnimWaitStep:
   JSR B1F_BankedCallbackTrampoline                               ; $A4C6: 20 07 EE  ; B1F_BankedCallbackTrampoline
   .word B19_1A_CastleDevResultRoll        ; $A4C9: 24 A0 (BankedCallbackTrampoline target; bank $19 $A024 -> JMP CastleDevResultRoll)
   LDA $0471                               ; $A4CB: AD 71 04  ; rolled UI/message id
-  JMP B1F_SetUI0                               ; $A4CE: 4C 6D F2  ; B1F_SetUI0 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $A4CE: 4C 6D F2  ; B1F_OpenMsgWindow0 (no return)
 CastleDevAmountRoll:
 ; --- Code Region ---
   JSR B1F_RandomMod4                               ; $A4D1: 20 50 E8
@@ -871,7 +871,7 @@ CastleDevAmountRoll:
   STA $042D                               ; $A4FA: 8D 2D 04
   STA $042E                               ; $A4FD: 8D 2E 04
   LDA #$4F                                ; $A500: A9 4F
-  JMP B1F_SetUI0                               ; $A502: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A502: 4C 6D F2
 CastleDevConfirmGate:  ; (dispatch callback target)
   LDA $0481                               ; $A505: AD 81 04
   JSR OfficerCardShow                     ; $A508: 20 5E DD  ; show officer card ($0481)
@@ -893,7 +893,7 @@ CastleDevConfirmGate:  ; (dispatch callback target)
   STA $0401                               ; $A52C: 8D 01 04  ; -> sub 3 (repeat target menu)
   JSR MenuCursorReset                     ; $A52F: 20 70 DD
   LDA #$26                                ; $A532: A9 26
-  JMP B1F_SetUI0                               ; $A534: 4C 6D F2  ; UI mode $26 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $A534: 4C 6D F2  ; UI mode $26 (no return)
 CastleDevConfirmCancel:
 ; --- Code Region ---
   LDA #$00                                ; $A537: A9 00
@@ -919,13 +919,13 @@ CastleDevAmountCheck:
   JSR MenuCursorReset                     ; $A55B: 20 70 DD  ; menu cursor reset $0424/$0425 <- 0 (A=$00)
   STA $046C                               ; $A55E: 8D 6C 04
   LDA #$29                                ; $A561: A9 29
-  JMP B1F_SetUI0                               ; $A563: 4C 6D F2  ; set UI mode $29
+  JMP B1F_OpenMsgWindow0                       ; $A563: 4C 6D F2  ; set UI mode $29
 @AmountTooHigh:
 ; --- Code Region ---
   LDA #$16                                ; $A566: A9 16
   STA $0401                               ; $A568: 8D 01 04
   LDA #$2A                                ; $A56B: A9 2A
-  JMP B1F_SetUI0                               ; $A56D: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A56D: 4C 6D F2
 CastleDevExecute:  ; (dispatch callback target)
   JSR ConfirmDialogPoll                  ; $A570: 20 BD D5
   LDA a:$0013                             ; $A573: AD 13 00
@@ -1005,7 +1005,7 @@ CastleDevExecute:  ; (dispatch callback target)
   LDA #$24                                ; $A61C: A9 24
   STA $04D6                               ; $A61E: 8D D6 04
   LDA #$2B                                ; $A621: A9 2B
-  JMP B1F_SetUI0                               ; $A623: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A623: 4C 6D F2
 @DevRouteCheck1:
   CMP #$01                                ; $A626: C9 01
   BNE @DevRouteCheck2                     ; $A628: D0 0F
@@ -1014,7 +1014,7 @@ CastleDevExecute:  ; (dispatch callback target)
   LDA #$29                                ; $A62F: A9 29
   STA $04D6                               ; $A631: 8D D6 04
   LDA #$2C                                ; $A634: A9 2C
-  JMP B1F_SetUI0                               ; $A636: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A636: 4C 6D F2
 @DevRouteCheck2:
   CMP #$02                                ; $A639: C9 02
   BNE @DevRouteDisaster                   ; $A63B: D0 24
@@ -1032,7 +1032,7 @@ CastleDevExecute:  ; (dispatch callback target)
   LDA #$2E                                ; $A657: A9 2E
   STA $04D6                               ; $A659: 8D D6 04
   LDA #$2D                                ; $A65C: A9 2D
-  JMP B1F_SetUI0                               ; $A65E: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A65E: 4C 6D F2
 @DevRouteDisaster:
   LDY #$0A                                ; $A661: A0 0A
   LDA ($00),Y                             ; $A663: B1 00
@@ -1055,7 +1055,7 @@ CastleDevExecute:  ; (dispatch callback target)
   LDA #$24                                ; $A686: A9 24
   STA $04D6                               ; $A688: 8D D6 04
   LDA #$50                                ; $A68B: A9 50
-  JMP B1F_SetUI0                               ; $A68D: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A68D: 4C 6D F2
 ;===============================================================================
 ; CastleDevFieldAddCapped ($A690-$A6EB)
 ; Dev-execute helper (Y = province record offset of the target field): adds
@@ -1154,7 +1154,7 @@ CastleMoveTargetSelect:  ; (dispatch callback target)
   LDA #$80                                ; $A750: A9 80
   STA $0478                               ; $A752: 8D 78 04
   LDA #$27                                ; $A755: A9 27
-  JMP B1F_SetUI0                               ; $A757: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A757: 4C 6D F2
 @MoveCancelCheck:
   LSR                                     ; $A75A: 4A
   BCC @MoveSelectExit                     ; $A75B: 90 14
@@ -1170,10 +1170,10 @@ CastleMoveTargetSelect:  ; (dispatch callback target)
   RTS                                     ; $A771: 60
 @MoveOffMapExit:
   LDA #$24                                ; $A772: A9 24
-  JMP B1F_SetUI0                               ; $A774: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A774: 4C 6D F2
 @MoveSelectError:
   LDA #$2F                                ; $A777: A9 2F
-  JMP B1F_SetUI0                               ; $A779: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A779: 4C 6D F2
 CastleMoveListAnimWait:  ; (dispatch callback target)
   LDA $0478                               ; $A77C: AD 78 04
   BNE @ListAnimExit                       ; $A77F: D0 48
@@ -1204,7 +1204,7 @@ CastleMoveListAnimWait:  ; (dispatch callback target)
   CPX a:$0002                             ; $A7B5: EC 02 00
   BNE CastleMoveProceedSelect             ; $A7B8: D0 4C  ; selected != roster count: proceed to officer select (sub 10)
   LDA #$32                                ; $A7BA: A9 32
-  JMP B1F_SetUI0                               ; $A7BC: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A7BC: 4C 6D F2
 @PanAnimDone:
   LDA #$00                                ; $A7BF: A9 00
   STA $0401                               ; $A7C1: 8D 01 04
@@ -1240,7 +1240,7 @@ CastleMoveConfirmMenu:  ; (dispatch callback target)
 CastleMoveProceedSelect:
   INC $0401                               ; $A806: EE 01 04
   LDA #$29                                ; $A809: A9 29
-  JMP B1F_SetUI0                               ; $A80B: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A80B: 4C 6D F2
 CastleMoveMenuBCheck:
   LSR                                     ; $A80E: 4A
   BCC CastleMoveMenuExit                  ; $A80F: 90 05
@@ -1294,7 +1294,7 @@ CastleMoveDestOwner:
   LDA a:$0010                             ; $A871: AD 10 00
   STA ($00),Y                             ; $A874: 91 00
   LDA #$31                                ; $A876: A9 31
-  JMP B1F_SetUI0                               ; $A878: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A878: 4C 6D F2
 CastleMoveCancel:
   LDA #$00                                ; $A87B: A9 00
   STA $0401                               ; $A87D: 8D 01 04
@@ -1315,7 +1315,7 @@ CastleScoutAnimWait:  ; (dispatch callback target)
   JSR MenuCursorReset                     ; $A89E: 20 70 DD
   STA $046C                               ; $A8A1: 8D 6C 04
   LDA #$29                                ; $A8A4: A9 29
-  JMP B1F_SetUI0                               ; $A8A6: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A8A6: 4C 6D F2
 @ScoutAnimDone:
   LDA #$00                                ; $A8A9: A9 00
   STA $0401                               ; $A8AB: 8D 01 04
@@ -1339,7 +1339,7 @@ CastleScoutDialogWait:  ; (dispatch callback target)
   LDA #$14                                ; $A8D2: A9 14
   STA $0401                               ; $A8D4: 8D 01 04
   LDA #$31                                ; $A8D7: A9 31
-  JMP B1F_SetUI0                               ; $A8D9: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A8D9: 4C 6D F2
 @ScoutDialogCancel:
   LDA #$00                                ; $A8DC: A9 00
   STA $0401                               ; $A8DE: 8D 01 04
@@ -1378,7 +1378,7 @@ CastleScoutExecute:  ; (dispatch callback target)
   STA $0481                               ; $A924: 8D 81 04  ; close officer window
   INC $0401                               ; $A927: EE 01 04  ; -> sub 14 (result gate)
   LDA #$33                                ; $A92A: A9 33
-  JMP B1F_SetUI0                               ; $A92C: 4C 6D F2  ; UI mode $33 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $A92C: 4C 6D F2  ; UI mode $33 (no return)
 CastleScoutNothingFound:
 ; --- Code Region ---
   LDA #$04                                ; $A92F: A9 04
@@ -1386,7 +1386,7 @@ CastleScoutNothingFound:
   LDA #$16                                ; $A934: A9 16
   STA $0401                               ; $A936: 8D 01 04
   LDA #$35                                ; $A939: A9 35
-  JMP B1F_SetUI0                               ; $A93B: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A93B: 4C 6D F2
 CastleScoutFoundTreasure:
   JSR B1F_RandomMod4                               ; $A93E: 20 50 E8
   BEQ CastleScoutFoundTreasure            ; $A941: F0 FB  ; reroll until non-zero (1-3)
@@ -1409,7 +1409,7 @@ CastleScoutFoundTreasure:
   LDA #$16                                ; $A964: A9 16
   STA $0401                               ; $A966: 8D 01 04
   LDA #$34                                ; $A969: A9 34
-  JMP B1F_SetUI0                               ; $A96B: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A96B: 4C 6D F2
 CastleScoutReportMenu:
   LDA #$00                                ; $A96E: A9 00
   STA $042D                               ; $A970: 8D 2D 04
@@ -1452,7 +1452,7 @@ CastleScoutReportMenu:
   LDA #$16                                ; $A9C0: A9 16
   STA $0401                               ; $A9C2: 8D 01 04
   LDA a:$0010                             ; $A9C5: AD 10 00
-  JMP B1F_SetUI0                               ; $A9C8: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A9C8: 4C 6D F2
 @ReportCmd2Town:
   LDA #$32                                ; $A9CB: A9 32
   CLC                                     ; $A9CD: 18
@@ -1474,7 +1474,7 @@ CastleScoutReportMenu:
   LDA #$16                                ; $A9F1: A9 16
   STA $0401                               ; $A9F3: 8D 01 04
   LDA #$B9                                ; $A9F6: A9 B9
-  JMP B1F_SetUI0                               ; $A9F8: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $A9F8: 4C 6D F2
 CastleScoutResultGate:  ; (dispatch callback target)
   JSR OverlayIdleCheck                               ; $A9FB: 20 AD DD
   BCC @ResultGateIdle                     ; $A9FE: 90 2F
@@ -1492,12 +1492,12 @@ CastleScoutResultGate:  ; (dispatch callback target)
   BEQ @ResultGateCmd7                     ; $AA1B: F0 08
   INC $0401                               ; $AA1D: EE 01 04
   LDA #$37                                ; $AA20: A9 37
-  JMP B1F_SetUI0                               ; $AA22: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $AA22: 4C 6D F2
 @ResultGateCmd7:
   LDA #$10                                ; $AA25: A9 10
   STA $0401                               ; $AA27: 8D 01 04
   LDA #$36                                ; $AA2A: A9 36
-  JMP B1F_SetUI0                               ; $AA2C: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $AA2C: 4C 6D F2
 @ResultGateIdle:
   LDA $0482                               ; $AA2F: AD 82 04
   JMP OfficerCardShow                     ; $AA32: 4C 5E DD  ; show officer card ($0482)
@@ -1534,7 +1534,7 @@ CastleScoutResultGate:  ; (dispatch callback target)
   LDA a:$0002                             ; $AA7E: AD 02 00
   STA $042D                               ; $AA81: 8D 2D 04
   LDA #$38                                ; $AA84: A9 38
-  JMP B1F_SetUI0                               ; $AA86: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $AA86: 4C 6D F2
 CastleScoutRecruitDialog:  ; (dispatch callback target)
   LDA #<CastleScoutRecruitDialogTable     ; $AA89: A9 DF
   STA a:$0010                             ; $AA8B: 8D 10 00
@@ -1569,7 +1569,7 @@ CastleScoutRecruitDialog:  ; (dispatch callback target)
   STA $0400                               ; $AACD: 8D 00 04
   STA $0401                               ; $AAD0: 8D 01 04
   JSR MapTransitionStateSave              ; $AAD3: 20 68 D5
-  JMP B1F_SetUI4                               ; $AAD6: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                       ; $AAD6: 4C 8B F2
 @RecruitIdle:
   LDA $0482                               ; $AAD9: AD 82 04
   JMP OfficerCardShow                     ; $AADC: 4C 5E DD
@@ -1611,7 +1611,7 @@ CastleScoutFindDialog:  ; (dispatch callback target)
   LDA #$00                                ; $AB29: A9 00
   STA $0400                               ; $AB2B: 8D 00 04
   STA $0401                               ; $AB2E: 8D 01 04
-  JMP B1F_SetUI4                               ; $AB31: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                       ; $AB31: 4C 8B F2
 @FindIdle:
   LDA $0482                               ; $AB34: AD 82 04
   JMP OfficerCardShow                     ; $AB37: 4C 5E DD
@@ -1661,7 +1661,7 @@ CastleScoutFindDialog:  ; (dispatch callback target)
   LDA #$16                                ; $AB9A: A9 16
   STA $0401                               ; $AB9C: 8D 01 04  ; -> sub 22 (screen idle wait)
   LDA #$3A                                ; $AB9F: A9 3A
-  JMP B1F_SetUI0                               ; $ABA1: 4C 6D F2  ; UI mode $3A (no return)
+  JMP B1F_OpenMsgWindow0                       ; $ABA1: 4C 6D F2  ; UI mode $3A (no return)
 @FindRestoreAmount:
 ; --- Code Region ---
   LDY #$02                                ; $ABA4: A0 02
@@ -1675,7 +1675,7 @@ CastleScoutFindDialog:  ; (dispatch callback target)
   LDA #$16                                ; $ABB7: A9 16
   STA $0401                               ; $ABB9: 8D 01 04
   LDA #$2A                                ; $ABBC: A9 2A
-  JMP B1F_SetUI0                               ; $ABBE: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $ABBE: 4C 6D F2
 ; --- Data Region ---
 CastleScoutFindDialogTable:  ; B1F_MenuStep2 items (0 claim / 1 decline, $FF page filler)
   .byte $00,$01,$FF,$FF                   ; $ABC1: 00 01 FF FF
@@ -1695,7 +1695,7 @@ CastleDisasterCapCheck:  ; (dispatch callback target)
   LDA #$16                                ; $ABDD: A9 16
   STA $0401                               ; $ABDF: 8D 01 04
   LDA #$A7                                ; $ABE2: A9 A7
-  JMP B1F_SetUI0                               ; $ABE4: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $ABE4: 4C 6D F2
 @DisasterStartAnim:
   LDA #$03                                ; $ABE7: A9 03
   STA $0470                               ; $ABE9: 8D 70 04
@@ -1706,7 +1706,7 @@ CastleDisasterCapCheck:  ; (dispatch callback target)
   LDA #$0F                                ; $ABF6: A9 0F
   STA $047C                               ; $ABF8: 8D 7C 04
   LDA #$27                                ; $ABFB: A9 27
-  JMP B1F_SetUI0                               ; $ABFD: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $ABFD: 4C 6D F2
 CastleSavePromptWait:  ; (dispatch callback target)
   JSR OverlayIdleCheck                               ; $AC00: 20 AD DD
   BCC @SavePromptExit                     ; $AC03: 90 24
@@ -1720,7 +1720,7 @@ CastleSavePromptWait:  ; (dispatch callback target)
   JSR MenuCursorReset                     ; $AC16: 20 70 DD
   STA $046C                               ; $AC19: 8D 6C 04
   LDA #$29                                ; $AC1C: A9 29
-  JMP B1F_SetUI0                               ; $AC1E: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $AC1E: 4C 6D F2
 @SaveBCheck:
   LSR                                     ; $AC21: 4A
   BCC @SavePromptExit                     ; $AC22: 90 05
@@ -1759,7 +1759,7 @@ CastleSaveExecute:  ; (dispatch callback target)
   JSR MapTransitionStateSave              ; $AC6B: 20 68 D5  ; save camera snapshot before result redraw
   INC $0401                               ; $AC6E: EE 01 04  ; -> sub 20 (result redraw)
   LDA #$52                                ; $AC71: A9 52
-  JMP B1F_SetUI0                               ; $AC73: 4C 6D F2  ; UI mode $52 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $AC73: 4C 6D F2  ; UI mode $52 (no return)
 @SaveDialogCancel:
 ; --- Code Region ---
   LDA #$00                                ; $AC76: A9 00
@@ -1808,7 +1808,7 @@ CastleScreenIdleWait:  ; (dispatch callback target)
   LDA #$00                                ; $ACCA: A9 00
   STA $0400                               ; $ACCC: 8D 00 04
   STA $0401                               ; $ACCF: 8D 01 04
-  JMP B1F_SetUI4                               ; $ACD2: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                       ; $ACD2: 4C 8B F2
 @IdleWindowClose:
   LDA $0481                               ; $ACD5: AD 81 04
   CMP #$FF                                ; $ACD8: C9 FF
@@ -1870,7 +1870,7 @@ CastleScoutRecruitDone:
   LDA #$16                                ; $AD37: A9 16
   STA $0401                               ; $AD39: 8D 01 04
   LDA #$39                                ; $AD3C: A9 39
-  JMP B1F_SetUI0                               ; $AD3E: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $AD3E: 4C 6D F2
 ;===============================================================================
 ; CastleMoveRosterApply ($AD41-$ADF1)
 ; Officer-move execution helper, called from CastleMoveExecute with the mover
@@ -2056,7 +2056,7 @@ CastleMoveSourceCompact:
 ; ($FF = idle), then initializes the army command screen: advances to sub 1,
 ; MenuCursorReset ($0424/$0425 <- 0, A = $00) stored to $0473/$00A4, marks the
 ; transition busy ($0140 <- $80), ORs $03 into the hemisphere/attr flag word
-; $0150 and enters UI mode $60 via B1F_SetUI0.
+; $0150 and enters UI mode $60 via B1F_OpenMsgWindow0.
 ;===============================================================================
 ArmyMenuScreenInit:  ; (dispatch callback target)
   LDA $0140                               ; $AE2A: AD 40 01
@@ -2074,7 +2074,7 @@ ArmyMenuScreenInit:  ; (dispatch callback target)
   ORA $0150                               ; $AE49: 0D 50 01
   STA $0150                               ; $AE4C: 8D 50 01  ; flag word |= $03
   LDA #$60                                ; $AE4F: A9 60
-  JMP B1F_SetUI0                          ; $AE51: 4C 6D F2  ; UI mode $60 (no return)
+  JMP B1F_OpenMsgWindow0                  ; $AE51: 4C 6D F2  ; UI mode $60 (no return)
 @InitGateExit:
   RTS                                     ; $AE54: 60        ; init-gate exit
 ArmyCommandMenuInput:  ; (dispatch callback target)
@@ -2107,14 +2107,14 @@ ArmyCommandMenuInput:  ; (dispatch callback target)
   STA $0470                               ; $AE97: 8D 70 04
   INC $0401                               ; $AE9A: EE 01 04
   LDA #$61                                ; $AE9D: A9 61
-  JMP B1F_SetUI0                          ; $AE9F: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AE9F: 4C 6D F2
 @RouteConscription:
   CMP #$01                                ; $AEA2: C9 01
   BNE @RouteRecon                         ; $AEA4: D0 0A
   LDA #$09                                ; $AEA6: A9 09
   STA $0401                               ; $AEA8: 8D 01 04
   LDA #$68                                ; $AEAB: A9 68
-  JMP B1F_SetUI0                          ; $AEAD: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AEAD: 4C 6D F2
 @RouteRecon:
   CMP #$02                                ; $AEB0: C9 02
   BNE @RouteGovernor                      ; $AEB2: D0 10
@@ -2123,7 +2123,7 @@ ArmyCommandMenuInput:  ; (dispatch callback target)
   JSR MenuCursorReset                     ; $AEB9: 20 70 DD
   STA $046C                               ; $AEBC: 8D 6C 04
   LDA #$29                                ; $AEBF: A9 29
-  JMP B1F_SetUI0                          ; $AEC1: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AEC1: 4C 6D F2
 @RouteGovernor:
   LDY #$01                                ; $AEC4: A0 01
   LDA ($EE),Y                             ; $AEC6: B1 EE
@@ -2132,7 +2132,7 @@ ArmyCommandMenuInput:  ; (dispatch callback target)
   LDA #$16                                ; $AECD: A9 16
   STA $0401                               ; $AECF: 8D 01 04
   LDA #$49                                ; $AED2: A9 49
-  JMP B1F_SetUI0                          ; $AED4: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AED4: 4C 6D F2
 @AppointListSetup:
   LDA #$14                                ; $AED7: A9 14
   STA $0401                               ; $AED9: 8D 01 04
@@ -2142,7 +2142,7 @@ ArmyCommandMenuInput:  ; (dispatch callback target)
   LDA #$0F                                ; $AEE4: A9 0F
   STA $047C                               ; $AEE6: 8D 7C 04
   LDA #$6C                                ; $AEE9: A9 6C
-  JMP B1F_SetUI0                          ; $AEEB: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AEEB: 4C 6D F2
 @CancelCheck:
   LSR                                     ; $AEEE: 4A
   BCC @MenuExit                           ; $AEEF: 90 0D
@@ -2226,16 +2226,16 @@ SortieTargetPadPoll:  ; (dispatch callback target)
   LDA #$81                                ; $AF95: A9 81
   STA $0478                               ; $AF97: 8D 78 04
   LDA #$27                                ; $AF9A: A9 27
-  JMP B1F_SetUI0                          ; $AF9C: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AF9C: 4C 6D F2
 @TargetBlocked:
   LDA #$41                                ; $AF9F: A9 41
-  JMP B1F_SetUI0                          ; $AFA1: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AFA1: 4C 6D F2
 @OffMapExit:
   LDA #$24                                ; $AFA4: A9 24
-  JMP B1F_SetUI0                          ; $AFA6: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AFA6: 4C 6D F2
 @TargetRefused:
   LDA #$62                                ; $AFA9: A9 62
-  JMP B1F_SetUI0                          ; $AFAB: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AFAB: 4C 6D F2
 SortieRosterAnimWait:  ; (dispatch callback target)
   LDA $0478                               ; $AFAE: AD 78 04
   BNE @AnimWaitExit                       ; $AFB1: D0 25
@@ -2252,7 +2252,7 @@ SortieRosterAnimWait:  ; (dispatch callback target)
   STA $6F41                               ; $AFCD: 8D 41 6F
   JSR MapTransitionStateSave              ; $AFD0: 20 68 D5
   LDA #$61                                ; $AFD3: A9 61
-  JMP B1F_SetUI0                          ; $AFD5: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $AFD5: 4C 6D F2
 @AnimWaitExit:
   RTS                                     ; $AFD8: 60
 @Totalize:
@@ -2305,7 +2305,7 @@ SortieRosterTroopSumLoop:
   BNE SortieProvisionSeed                 ; $B03D: D0 4D
   JSR MenuCursorReset                     ; $B03F: 20 70 DD
   LDA #$32                                ; $B042: A9 32
-  JMP B1F_SetUI0                          ; $B044: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B044: 4C 6D F2
 SortieProvisionMenu:  ; (dispatch callback target)
   LDA #<ArmyProvisionMenuTable            ; $B047: A9 C2
   STA a:$0010                             ; $B049: 8D 10 00
@@ -2361,7 +2361,7 @@ SortieProvisionSeed:
   LDA #$00                                ; $B0B8: A9 00
   STA $0472                               ; $B0BA: 8D 72 04
   LDA #$63                                ; $B0BD: A9 63
-  JMP B1F_SetUI0                          ; $B0BF: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B0BF: 4C 6D F2
 ; --- Data Region ---
 ArmyProvisionMenuTable:  ; B1F_MenuStep2 items (0 provision / 1 cancel, $FF page filler)
   .byte $00,$01,$FF,$FF                   ; $B0C2: 00 01 FF FF
@@ -2406,7 +2406,7 @@ SortieProvisionDialog:  ; (dispatch callback target)
   LDA #$81                                ; $B11C: A9 81
   STA $0478                               ; $B11E: 8D 78 04
   LDA #$27                                ; $B121: A9 27
-  JMP B1F_SetUI0                          ; $B123: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B123: 4C 6D F2
 @BusyExit:
   RTS                                     ; $B126: 60
 @RicePhase:
@@ -2440,7 +2440,7 @@ SortieProvisionDialog:  ; (dispatch callback target)
   LDA #$06                                ; $B16E: A9 06
   STA $0401                               ; $B170: 8D 01 04
   LDA #$65                                ; $B173: A9 65
-  JMP B1F_SetUI0                          ; $B175: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B175: 4C 6D F2
 @RiceBack:
   LSR                                     ; $B178: 4A
   BCC @BusyExit                           ; $B179: 90 AB
@@ -2506,7 +2506,7 @@ SortieMemberMenu:  ; (dispatch callback target)
   LDA #$FF                                ; $B1FB: A9 FF
   STA $047C                               ; $B1FD: 8D 7C 04
   LDA #$66                                ; $B200: A9 66
-  JMP B1F_SetUI0                          ; $B202: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B202: 4C 6D F2
 @PadBCheck:
   LSR                                     ; $B205: 4A
   BCC @MenuExit                           ; $B206: 90 05
@@ -2543,7 +2543,7 @@ SortieMarchDialogSetup:
   JSR MenuCursorReset                     ; $B238: 20 70 DD
   STA $046C                               ; $B23B: 8D 6C 04
   LDA #$29                                ; $B23E: A9 29
-  JMP B1F_SetUI0                          ; $B240: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B240: 4C 6D F2
 SortieWarRequestGate:  ; (dispatch callback target)
   JSR ConfirmDialogPoll                  ; $B243: 20 BD D5
   LDA a:$0013                             ; $B246: AD 13 00
@@ -2568,7 +2568,7 @@ SortieWarRequestGate:  ; (dispatch callback target)
   LDA #$00                                ; $B26E: A9 00
   STA $0473                               ; $B270: 8D 73 04
   LDA #$67                                ; $B273: A9 67
-  JMP B1F_SetUI0                          ; $B275: 4C 6D F2  ; UI mode $67 (no return)
+  JMP B1F_OpenMsgWindow0                  ; $B275: 4C 6D F2  ; UI mode $67 (no return)
 ConscriptionPanelWait:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR OverlayIdleCheck                               ; $B278: 20 AD DD
@@ -2653,7 +2653,7 @@ ConscriptionPanelWait:  ; (dispatch callback target)
   JSR ActionDeltaWorkReset                ; $B331: 20 87 DB
   INC $0401                               ; $B334: EE 01 04
   LDA #$69                                ; $B337: A9 69
-  JMP B1F_SetUI0                          ; $B339: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B339: 4C 6D F2
 ConscriptionPanelInput:  ; (dispatch callback target)
   JSR OverlayIdleCheck                               ; $B33C: 20 AD DD
   BCC @PanelExit                          ; $B33F: 90 2B
@@ -2670,7 +2670,7 @@ ConscriptionPanelInput:  ; (dispatch callback target)
   STA $046C                               ; $B359: 8D 6C 04
   INC $0401                               ; $B35C: EE 01 04
   LDA #$29                                ; $B35F: A9 29
-  JMP B1F_SetUI0                          ; $B361: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B361: 4C 6D F2
 @PanelBCheck:
   LSR                                     ; $B364: 4A
   BCC @PanelExit                          ; $B365: 90 05
@@ -2761,7 +2761,7 @@ ResultPanPrompt:  ; (dispatch callback target)
   STA $047C                               ; $B425: 8D 7C 04
   INC $0401                               ; $B428: EE 01 04
   LDA #$6A                                ; $B42B: A9 6A
-  JMP B1F_SetUI0                          ; $B42D: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B42D: 4C 6D F2
 @PromptExit:
   RTS                                     ; $B430: 60
 ResultPanWait:  ; (dispatch callback target)
@@ -2793,7 +2793,7 @@ ReconPromptWait:  ; (dispatch callback target)
   INC $0401                               ; $B469: EE 01 04
   JSR MapTransitionStateSave              ; $B46C: 20 68 D5
   LDA #$6B                                ; $B46F: A9 6B
-  JMP B1F_SetUI0                          ; $B471: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B471: 4C 6D F2
 @PromptCancel:
   LDA #$00                                ; $B474: A9 00
   STA $0401                               ; $B476: 8D 01 04
@@ -2817,10 +2817,10 @@ ReconTargetPadPoll:  ; (dispatch callback target)
   JSR MenuCursorReset                     ; $B49A: 20 70 DD
   STA $04E4                               ; $B49D: 8D E4 04
   LDA #$6D                                ; $B4A0: A9 6D
-  JMP B1F_SetUI0                          ; $B4A2: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B4A2: 4C 6D F2
 @OffMapExit:
   LDA #$24                                ; $B4A5: A9 24
-  JMP B1F_SetUI0                          ; $B4A7: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B4A7: 4C 6D F2
 @TargetPick:
   JSR MapProvinceHitTest                  ; $B4AA: 20 BA DE
   CPY #$FF                                ; $B4AD: C0 FF
@@ -2851,7 +2851,7 @@ ReconTargetPadPoll:  ; (dispatch callback target)
   LDA #$17                                ; $B4E4: A9 17
   STA $0401                               ; $B4E6: 8D 01 04
   LDA #$B7                                ; $B4E9: A9 B7
-  JMP B1F_SetUI0                          ; $B4EB: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B4EB: 4C 6D F2
 @TargetOwned:
   LDA #$00                                ; $B4EE: A9 00
   STA $0400                               ; $B4F0: 8D 00 04
@@ -2862,7 +2862,7 @@ ReconTargetPadPoll:  ; (dispatch callback target)
   LDA #$10                                ; $B4FD: A9 10
   STA $0471                               ; $B4FF: 8D 71 04
   LDA #$00                                ; $B502: A9 00
-  JMP B1F_SetUI0                          ; $B504: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B504: 4C 6D F2
 ReconExitPromptInit:  ; (dispatch callback target)
   LDA #$80                                ; $B507: A9 80
   STA $0140                               ; $B509: 8D 40 01
@@ -2877,7 +2877,7 @@ ReconExitPromptInit:  ; (dispatch callback target)
   LDA #$00                                ; $B51E: A9 00
   STA $04E4                               ; $B520: 8D E4 04
   LDA #$6D                                ; $B523: A9 6D
-  JMP B1F_SetUI0                          ; $B525: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B525: 4C 6D F2
 ReconExitMenu:  ; (dispatch callback target)
   LDA #<ArmyReconExitMenuTable            ; $B528: A9 85
   STA a:$0010                             ; $B52A: 8D 10 00
@@ -2906,7 +2906,7 @@ ReconExitMenu:  ; (dispatch callback target)
   LDA #$0F                                ; $B564: A9 0F
   STA $0401                               ; $B566: 8D 01 04
   LDA #$6B                                ; $B569: A9 6B
-  JMP B1F_SetUI0                          ; $B56B: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B56B: 4C 6D F2
 @ExitLeave:
   LDA $046D                               ; $B56E: AD 6D 04
   STA $6F3F                               ; $B571: 8D 3F 6F
@@ -3147,7 +3147,7 @@ GovernorRosterSlideWait:  ; (dispatch callback target)
   LDA #$16                                ; $B734: A9 16
   STA $0401                               ; $B736: 8D 01 04
   LDA #$64                                ; $B739: A9 64
-  JMP B1F_SetUI0                          ; $B73B: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                  ; $B73B: 4C 6D F2
 GovernorAppointMessageWait:  ; (dispatch callback target)
   JSR OverlayIdleCheck                               ; $B73E: 20 AD DD
   BCC @MessageExit                        ; $B741: 90 15
@@ -3273,7 +3273,7 @@ WarehouseMenuScreenInit:  ; (dispatch callback target)
   ORA $0150                               ; $B79B: 0D 50 01
   STA $0150                               ; $B79E: 8D 50 01
   LDA #$53                                ; $B7A1: A9 53
-  JMP B1F_SetUI0                               ; $B7A3: 4C 6D F2  ; B1F_SetUI0 mode $53 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $B7A3: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $53 (no return)
 @InitGateExit:
   RTS                                     ; $B7A6: 60        ; init-gate exit
 ;===============================================================================
@@ -3310,13 +3310,13 @@ WarehouseCommandMenuInput:  ; (dispatch callback target)
   LDA $0402                               ; $B7E9: AD 02 04
   STA $0470                               ; $B7EC: 8D 70 04  ; snapshot selected province
   LDA #$54                                ; $B7EF: A9 54
-  JMP B1F_SetUI0                               ; $B7F1: 4C 6D F2  ; B1F_SetUI0 mode $54 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $B7F1: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $54 (no return)
 @MenuToGive:
   LDA #$05                                ; $B7F4: A9 05
   STA $0401                               ; $B7F6: 8D 01 04  ; -> sub 5 (与える menu)
   JSR MenuCursorReset                     ; $B7F9: 20 70 DD
   LDA #$58                                ; $B7FC: A9 58
-  JMP B1F_SetUI0                               ; $B7FE: 4C 6D F2  ; B1F_SetUI0 mode $58 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $B7FE: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $58 (no return)
 @MenuCancel:
   LSR                                     ; $B801: 4A
   BCC @MenuFrameExit                      ; $B802: 90 0D
@@ -3370,10 +3370,10 @@ WarehouseDestProvinceSelect:  ; (dispatch callback target)
   JMP @DestAccepted                       ; $B85C: 4C 69 B8
 @DestOffMapMsg:
   LDA #$24                                ; $B85F: A9 24
-  JMP B1F_SetUI0                               ; $B861: 4C 6D F2  ; B1F_SetUI0 mode $24 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $B861: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $24 (no return)
 @DestRejectMsg:
   LDA #$55                                ; $B864: A9 55
-  JMP B1F_SetUI0                               ; $B866: 4C 6D F2  ; B1F_SetUI0 mode $55 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $B866: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $55 (no return)
 @DestAccepted:
   LDY #$39                                ; $B869: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $B86B: 20 07 EE  ; banks $19+$1A $A018 -> TransferCapacityCalc_Entry
@@ -3391,7 +3391,7 @@ WarehouseDestProvinceSelect:  ; (dispatch callback target)
   STA $04E4                               ; $B88C: 8D E4 04  ; sprite dirty mark
   INC $0401                               ; $B88F: EE 01 04  ; -> sub 3 (goods amount panel)
   LDA #$57                                ; $B892: A9 57
-  JMP B1F_SetUI0                               ; $B894: 4C 6D F2  ; B1F_SetUI0 mode $57 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $B894: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $57 (no return)
 ;===============================================================================
 ; WarehouseGoodsAmountPanel ($B897-$B97D) - sub 3
 ;===============================================================================
@@ -3498,7 +3498,7 @@ WarehouseGoodsAmountPanel:  ; (dispatch callback target)
   STA $046C                               ; $B973: 8D 6C 04
   INC $0401                               ; $B976: EE 01 04  ; -> sub 4 (transfer apply)
   LDA #$29                                ; $B979: A9 29
-  JMP B1F_SetUI0                               ; $B97B: 4C 6D F2  ; B1F_SetUI0 mode $29 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $B97B: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $29 (no return)
 ;===============================================================================
 ; WarehouseGoodsTransferApply ($B97E-$BA03) - sub 4
 ;===============================================================================
@@ -3565,7 +3565,7 @@ WarehouseGoodsTransferApply:  ; (dispatch callback target)
   LDA #$0C                                ; $B9F4: A9 0C
   STA $0401                               ; $B9F6: 8D 01 04  ; -> sub $0C (result redraw gate)
   LDA #$31                                ; $B9F9: A9 31
-  JMP B1F_SetUI0                               ; $B9FB: 4C 6D F2  ; B1F_SetUI0 mode $31 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $B9FB: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $31 (no return)
 @ApplyCancel:
   LDA #$00                                ; $B9FE: A9 00
   STA $0401                               ; $BA00: 8D 01 04  ; -> sub 0
@@ -3611,7 +3611,7 @@ WarehouseGiveMenuInput:  ; (dispatch callback target)
   BNE @GiveMenuPopulace                   ; $BA4D: D0 08     ; item 1: populace give (sub $0A)
   INC $0401                               ; $BA4F: EE 01 04  ; item 0: -> sub 6 (officer give)
   LDA #$7E                                ; $BA52: A9 7E
-  JMP B1F_SetUI0                               ; $BA54: 4C 6D F2  ; B1F_SetUI0 mode $7E (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BA54: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $7E (no return)
 @GiveMenuPopulace:
   LDA $0402                               ; $BA57: AD 02 04
   JSR B1F_GetProvinceRecordAddr                               ; $BA5A: 20 AF F2  ; B1F_GetProvinceRecordAddr: province $0402
@@ -3622,7 +3622,7 @@ WarehouseGiveMenuInput:  ; (dispatch callback target)
   LDA #$0E                                ; $BA65: A9 0E
   STA $0401                               ; $BA67: 8D 01 04  ; already max: -> sub $0E (message)
   LDA #$A7                                ; $BA6A: A9 A7
-  JMP B1F_SetUI0                               ; $BA6C: 4C 6D F2  ; B1F_SetUI0 mode $A7 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BA6C: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $A7 (no return)
 @GiveMenuCapOk:
   LDA a:$0000                             ; $BA6F: AD 00 00  ; ($10) = ($00): keep record pointer
   STA a:$0010                             ; $BA72: 8D 10 00
@@ -3661,7 +3661,7 @@ WarehouseGiveMenuInput:  ; (dispatch callback target)
   LDA #$0A                                ; $BAB8: A9 0A
   STA $0401                               ; $BABA: 8D 01 04  ; -> sub $0A (populace amount panel)
   LDA #$59                                ; $BABD: A9 59
-  JMP B1F_SetUI0                               ; $BABF: 4C 6D F2  ; B1F_SetUI0 mode $59 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BABF: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $59 (no return)
 ; --- Data Region ---
 WarehouseGiveMenuStream:
   .byte $00,$01,$FF                       ; $BAC2: 00 01 FF                  ; menu window stream
@@ -3717,7 +3717,7 @@ WarehouseOfficerGiveMenu:  ; (dispatch callback target)
   STA $0491                               ; $BB2B: 8D 91 04
   STA $0470                               ; $BB2E: 8D 70 04  ; flow flag <- 0 (gold give)
   LDA #$5B                                ; $BB31: A9 5B
-  JMP B1F_SetUI0                               ; $BB33: 4C 6D F2  ; B1F_SetUI0 mode $5B (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BB33: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $5B (no return)
 @OfficerMenuTreasure:
   LDY #$10                                ; $BB36: A0 10
   LDA ($00),Y                             ; $BB38: B1 00     ; record +$10 (treasure count)
@@ -3731,12 +3731,12 @@ WarehouseOfficerGiveMenu:  ; (dispatch callback target)
   LDA #$0F                                ; $BB4B: A9 0F
   STA $047C                               ; $BB4D: 8D 7C 04  ; window anim phase
   LDA #$5D                                ; $BB50: A9 5D
-  JMP B1F_SetUI0                               ; $BB52: 4C 6D F2  ; B1F_SetUI0 mode $5D (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BB52: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $5D (no return)
 @OfficerMenuNoTreasure:
   LDA #$0F                                ; $BB55: A9 0F
   STA $0401                               ; $BB57: 8D 01 04  ; -> sub $0F (route-back message)
   LDA #$AC                                ; $BB5A: A9 AC
-  JMP B1F_SetUI0                               ; $BB5C: 4C 6D F2  ; B1F_SetUI0 mode $AC (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BB5C: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $AC (no return)
 @OfficerMenuCancel:
   LSR                                     ; $BB5F: 4A
   BCC @OfficerMenuFrameExit               ; $BB60: 90 0D
@@ -3744,7 +3744,7 @@ WarehouseOfficerGiveMenu:  ; (dispatch callback target)
   STA $0401                               ; $BB64: 8D 01 04  ; B: -> sub 5 (与える menu)
   JSR MenuCursorReset                     ; $BB67: 20 70 DD
   LDA #$58                                ; $BB6A: A9 58
-  JMP B1F_SetUI0                               ; $BB6C: 4C 6D F2  ; B1F_SetUI0 mode $58 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BB6C: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $58 (no return)
 @OfficerMenuFrameExit:
   RTS                                     ; $BB6F: 60
 ; --- Data Region ---
@@ -3780,7 +3780,7 @@ WarehouseGoldAmountPrompt:  ; (dispatch callback target)
   LDA #$0F                                ; $BBAA: A9 0F
   STA $047C                               ; $BBAC: 8D 7C 04  ; window anim phase
   LDA #$5D                                ; $BBAF: A9 5D
-  JMP B1F_SetUI0                               ; $BBB1: 4C 6D F2  ; B1F_SetUI0 mode $5D (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BBB1: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $5D (no return)
 @GoldPromptCancel:
   LSR                                     ; $BBB4: 4A
   BCC @GoldPromptFrameExit                ; $BBB5: 90 0E
@@ -3788,7 +3788,7 @@ WarehouseGoldAmountPrompt:  ; (dispatch callback target)
   JSR MenuCursorReset                     ; $BBBA: 20 70 DD
   JSR ActionDeltaWorkReset                ; $BBBD: 20 87 DB
   LDA #$7E                                ; $BBC0: A9 7E
-  JMP B1F_SetUI0                               ; $BBC2: 4C 6D F2  ; B1F_SetUI0 mode $7E (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BBC2: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $7E (no return)
 @GoldPromptFrameExit:
   RTS                                     ; $BBC5: 60
 ;===============================================================================
@@ -3818,7 +3818,7 @@ WarehouseOfficerGiveGate:  ; (dispatch callback target)
   LDA #$80                                ; $BBF1: A9 80
   STA $0478                               ; $BBF3: 8D 78 04  ; window anim counter
   LDA #$4A                                ; $BBF6: A9 4A
-  JMP B1F_SetUI0                               ; $BBF8: 4C 6D F2  ; B1F_SetUI0 mode $4A (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BBF8: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $4A (no return)
 @GiveGateLoyaltyMax:
   LDA $0481                               ; $BBFB: AD 81 04  ; gift-recipient officer id
   STA a:$0000                             ; $BBFE: 8D 00 00
@@ -3828,14 +3828,14 @@ WarehouseOfficerGiveGate:  ; (dispatch callback target)
   LDA #$0E                                ; $BC08: A9 0E
   STA $0401                               ; $BC0A: 8D 01 04  ; -> sub $0E (result message)
   LDA #$5E                                ; $BC0C: A9 5E
-  JMP B1F_SetUI0                               ; $BC0E: 4C 6D F2  ; B1F_SetUI0 mode $5E (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BC0E: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $5E (no return)
 @GiveGateAnimDone:
   LDA #$06                                ; $BC12: A9 06
   STA $0401                               ; $BC14: 8D 01 04  ; -> sub 6 (resource menu)
   JSR MenuCursorReset                     ; $BC17: 20 70 DD
   JSR ActionDeltaWorkReset                ; $BC1A: 20 87 DB
   LDA #$7E                                ; $BC1D: A9 7E
-  JMP B1F_SetUI0                               ; $BC1F: 4C 6D F2  ; B1F_SetUI0 mode $7E (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BC1F: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $7E (no return)
 @GiveGateFrameExit:
   RTS                                     ; $BC22: 60
 @GiveGateRedraw:
@@ -3915,7 +3915,7 @@ WarehouseOfficerGiveGate:  ; (dispatch callback target)
   STA $046C                               ; $BCDB: 8D 6C 04
   INC $0401                               ; $BCDE: EE 01 04  ; -> sub 9 (officer give apply)
   LDA #$29                                ; $BCE1: A9 29
-  JMP B1F_SetUI0                               ; $BCE3: 4C 6D F2  ; B1F_SetUI0 mode $29 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BCE3: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $29 (no return)
 ;===============================================================================
 ; WarehouseOfficerGiveApply ($BCE6-$BD66) - sub 9
 ;===============================================================================
@@ -3977,7 +3977,7 @@ WarehouseOfficerGiveApply:  ; (dispatch callback target)
   LDA #$5F                                ; $BD57: A9 5F
   STA $0473                               ; $BD59: 8D 73 04  ; post-result UI mode
   LDA #$00                                ; $BD5C: A9 00
-  JMP B1F_ClearUI                               ; $BD5E: 4C 9B F2  ; B1F_SetUI1 mode 0 (no return)
+  JMP B1F_ClearUI                               ; $BD5E: 4C 9B F2  ; clear UI (no return)
 @OfficerApplyCancel:
   LDA #$00                                ; $BD61: A9 00
   STA $0401                               ; $BD63: 8D 01 04  ; -> sub 0
@@ -4016,7 +4016,7 @@ WarehousePopulaceAmountPanel:  ; (dispatch callback target)
   STA $0401                               ; $BDA0: 8D 01 04  ; B: -> sub 5 (与える menu)
   JSR MenuCursorReset                     ; $BDA3: 20 70 DD
   LDA #$58                                ; $BDA6: A9 58
-  JMP B1F_SetUI0                               ; $BDA8: 4C 6D F2  ; B1F_SetUI0 mode $58 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BDA8: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $58 (no return)
 @PopulaceFrameExit:
   RTS                                     ; $BDAB: 60
 @PopulacePhaseNext:
@@ -4053,7 +4053,7 @@ WarehousePopulaceAmountPanel:  ; (dispatch callback target)
 @PopulaceAdvance:
   INC $0401                               ; $BDF9: EE 01 04  ; -> sub $0B (populace give apply)
   LDA #$29                                ; $BDFC: A9 29
-  JMP B1F_SetUI0                               ; $BDFE: 4C 6D F2  ; B1F_SetUI0 mode $29 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BDFE: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $29 (no return)
 @PopulacePhase2Cancel:
   LSR                                     ; $BE01: 4A
   BCC @PopulaceFrameExit                  ; $BE02: 90 A7
@@ -4171,7 +4171,7 @@ WarehousePopulaceGiveApply:  ; (dispatch callback target)
   LDA #$0C                                ; $BEFB: A9 0C
   STA $0401                               ; $BEFD: 8D 01 04  ; -> sub $0C (result redraw gate)
   LDA #$5A                                ; $BF00: A9 5A
-  JMP B1F_SetUI0                               ; $BF02: 4C 6D F2  ; B1F_SetUI0 mode $5A (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BF02: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $5A (no return)
 ;===============================================================================
 ; WarehouseResultRedrawGate ($BF05-$BF18) - sub $0C
 ;===============================================================================
@@ -4206,7 +4206,7 @@ WarehouseResultRedrawWait:  ; (dispatch callback target)
   JSR B1F_BankedCallbackTrampoline        ; $BF38: 20 07 EE
   .word B1D_1E_OfficerDisplay_Lookup      ; $BF3B: 2A A0 (BankedCallbackTrampoline target; bank $1D $A02A -> JMP OfficerDisplay_Lookup)
   LDA $0473                               ; $BF3D: AD 73 04
-  JMP B1F_SetUI0                               ; $BF40: 4C 6D F2  ; B1F_SetUI0 mode $0473 (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BF40: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $0473 (no return)
 @RedrawWaitExit:
   RTS                                     ; $BF43: 60
 ;===============================================================================
@@ -4247,7 +4247,7 @@ WarehouseResultRouteBack:  ; (dispatch callback target)
   LDA #$06                                ; $BF7E: A9 06
   STA $0401                               ; $BF80: 8D 01 04  ; -> sub 6 (resource menu)
   LDA #$7E                                ; $BF83: A9 7E
-  JMP B1F_SetUI0                               ; $BF85: 4C 6D F2  ; B1F_SetUI0 mode $7E (no return)
+  JMP B1F_OpenMsgWindow0                       ; $BF85: 4C 6D F2  ; B1F_OpenMsgWindow0 mode $7E (no return)
 @RouteBackFrameExit:
   RTS                                     ; $BF88: 60
 ;===============================================================================
@@ -4454,7 +4454,7 @@ WarehouseSliderScale10:
   STA $0470                               ; $C01A: 8D 70 04  ; map scroll anim counter
   TAY                                     ; $C01D: A8
   LDA @TownFacilityUiTable,Y              ; $C01E: B9 43 C0  ; screen UI mode per facility set
-  JMP B1F_SetUI0                               ; $C021: 4C 6D F2  ; set UI mode
+  JMP B1F_OpenMsgWindow0                       ; $C021: 4C 6D F2  ; set UI mode
 @InitGateExit:
 ; --- Code Region ---
   RTS                                     ; $C024: 60
@@ -4490,7 +4490,7 @@ WarehouseSliderScale10:
   STA $0400                               ; $C07F: 8D 00 04
   LDA #$00                                ; $C082: A9 00
   STA $0401                               ; $C084: 8D 01 04
-  JSR B1F_SetUI0                               ; $C087: 20 6D F2
+  JSR B1F_OpenMsgWindow0                       ; $C087: 20 6D F2
 @MenuIdleExit:
   RTS                                     ; $C08A: 60
 @FacilitySelect:
@@ -4514,7 +4514,7 @@ WarehouseSliderScale10:
   LDA #$2E                                ; $C0AF: A9 2E
   STA $04D6                               ; $C0B1: 8D D6 04
   LDA #$6F                                ; $C0B4: A9 6F
-  JMP B1F_SetUI0                               ; $C0B6: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C0B6: 4C 6D F2
 @ActionArmory:
   LDA #$12                                ; $C0B9: A9 12
   STA $0401                               ; $C0BB: 8D 01 04
@@ -4523,7 +4523,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $C0C3: A9 0F
   STA $047C                               ; $C0C5: 8D 7C 04
   LDA #$A4                                ; $C0C8: A9 A4
-  JMP B1F_SetUI0                               ; $C0CA: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C0CA: 4C 6D F2
 @ActionAcademy:
   LDA #$0E                                ; $C0CD: A9 0E
   STA $0401                               ; $C0CF: 8D 01 04
@@ -4532,7 +4532,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $C0D7: A9 0F
   STA $047C                               ; $C0D9: 8D 7C 04
   LDA #$78                                ; $C0DC: A9 78
-  JMP B1F_SetUI0                               ; $C0DE: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C0DE: 4C 6D F2
 @ActionHospital:
   JSR HospitalWoundedRosterBuild          ; $C0E1: 20 7C DC  ; wounded roster -> $0151-$015A
   LDA $0151                               ; $C0E4: AD 51 01
@@ -4545,12 +4545,12 @@ WarehouseSliderScale10:
   LDA #$FF                                ; $C0F5: A9 FF
   STA $047C                               ; $C0F7: 8D 7C 04
   LDA #$77                                ; $C0FA: A9 77
-  JMP B1F_SetUI0                               ; $C0FC: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C0FC: 4C 6D F2
 @HospitalIdleRoute:
   LDA #$11                                ; $C0FF: A9 11
   STA $0401                               ; $C101: 8D 01 04
   LDA #$AD                                ; $C104: A9 AD
-  JMP B1F_SetUI0                               ; $C106: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C106: 4C 6D F2
 ; --- Data Region ---
 @FacilityCursorSprite:
   .byte $00,$04,$00,$00,$80               ; $C109: 00 04 00 00 80 ; facility menu cursor sprite template
@@ -4588,7 +4588,7 @@ WarehouseSliderScale10:
   INC $0401                               ; $C175: EE 01 04
   JSR MenuCursorReset                     ; $C178: 20 70 DD
   LDA #$72                                ; $C17B: A9 72
-  JMP B1F_SetUI0                               ; $C17D: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C17D: 4C 6D F2
 @MarketTreasureRoute:
   LDA $0402                               ; $C180: AD 02 04
   JSR B1F_GetProvinceRecordAddr                               ; $C183: 20 AF F2
@@ -4602,12 +4602,12 @@ WarehouseSliderScale10:
   STA $0401                               ; $C196: 8D 01 04
   JSR ActionDeltaWorkReset                ; $C199: 20 87 DB
   LDA #$70                                ; $C19C: A9 70
-  JMP B1F_SetUI0                               ; $C19E: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C19E: 4C 6D F2
 @MarketNoTreasure:
   LDA #$11                                ; $C1A1: A9 11
   STA $0401                               ; $C1A3: 8D 01 04
   LDA #$AC                                ; $C1A6: A9 AC
-  JMP B1F_SetUI0                               ; $C1A8: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C1A8: 4C 6D F2
 @MarketCancel:
   LSR                                     ; $C1AB: 4A
   BCC @MarketMenuExit                     ; $C1AC: 90 05
@@ -4651,7 +4651,7 @@ WarehouseSliderScale10:
   DEC $0401                               ; $C1FB: CE 01 04
   JSR MenuCursorReset                     ; $C1FE: 20 70 DD
   LDA #$6F                                ; $C201: A9 6F
-  JMP B1F_SetUI0                               ; $C203: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C203: 4C 6D F2
 @RiceTradeIdleExit:
   RTS                                     ; $C206: 60
 @RiceTradeConfirm:
@@ -4686,7 +4686,7 @@ WarehouseSliderScale10:
   LDA #$06                                ; $C24A: A9 06
   STA $0401                               ; $C24C: 8D 01 04
   LDA #$74                                ; $C24F: A9 74
-  JMP B1F_SetUI0                               ; $C251: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C251: 4C 6D F2
 @RiceBuySeed:
   LDY #$01                                ; $C254: A0 01
   LDA ($02),Y                             ; $C256: B1 02
@@ -4727,7 +4727,7 @@ WarehouseSliderScale10:
   STA $0491                               ; $C2AD: 8D 91 04
   INC $0401                               ; $C2B0: EE 01 04
   LDA #$73                                ; $C2B3: A9 73
-  JMP B1F_SetUI0                               ; $C2B5: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C2B5: 4C 6D F2
 ; --- Data Region ---
 @RiceTradeMenuStream:
   .byte $00,$01,$FF,$FF                   ; $C2B8: 00 01 FF FF ; 2-item rice trade menu stream header
@@ -4752,7 +4752,7 @@ WarehouseSliderScale10:
   DEC $0401                               ; $C2E0: CE 01 04
   JSR MenuCursorReset                     ; $C2E3: 20 70 DD
   LDA #$72                                ; $C2E6: A9 72
-  JMP B1F_SetUI0                               ; $C2E8: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C2E8: 4C 6D F2
 @RiceBuyIdleExit:
   RTS                                     ; $C2EB: 60
 @RiceBuyConfirm:
@@ -4784,7 +4784,7 @@ WarehouseSliderScale10:
   JSR MenuCursorReset                     ; $C32E: 20 70 DD
   STA $046C                               ; $C331: 8D 6C 04
   LDA #$29                                ; $C334: A9 29
-  JMP B1F_SetUI0                               ; $C336: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C336: 4C 6D F2
 @MarketRiceBuyApply:  ; (dispatch callback target)
   JSR ConfirmDialogPoll                  ; $C339: 20 BD D5
   LDA a:$0013                             ; $C33C: AD 13 00
@@ -4829,7 +4829,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $C390: A9 0F
   STA $0401                               ; $C392: 8D 01 04
   LDA #$75                                ; $C395: A9 75
-  JMP B1F_SetUI0                               ; $C397: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C397: 4C 6D F2
 @BuyCancel:
   LDA #$00                                ; $C39A: A9 00
   STA $0401                               ; $C39C: 8D 01 04
@@ -4852,7 +4852,7 @@ WarehouseSliderScale10:
   STA $0401                               ; $C3BD: 8D 01 04
   JSR MenuCursorReset                     ; $C3C0: 20 70 DD
   LDA #$72                                ; $C3C3: A9 72
-  JMP B1F_SetUI0                               ; $C3C5: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C3C5: 4C 6D F2
 @RiceSellIdleExit:
   RTS                                     ; $C3C8: 60
 @RiceSellConfirm:
@@ -4883,7 +4883,7 @@ WarehouseSliderScale10:
   STA $046C                               ; $C409: 8D 6C 04
   INC $0401                               ; $C40C: EE 01 04
   LDA #$29                                ; $C40F: A9 29
-  JMP B1F_SetUI0                               ; $C411: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C411: 4C 6D F2
 @MarketRiceSellApply:  ; (dispatch callback target)
   JSR ConfirmDialogPoll                  ; $C414: 20 BD D5
   LDA a:$0013                             ; $C417: AD 13 00
@@ -4922,7 +4922,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $C45A: A9 0F
   STA $0401                               ; $C45C: 8D 01 04
   LDA #$76                                ; $C45F: A9 76
-  JMP B1F_SetUI0                               ; $C461: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C461: 4C 6D F2
 @SellCancel:
   LDA #$00                                ; $C464: A9 00
   STA $0401                               ; $C466: 8D 01 04
@@ -4946,7 +4946,7 @@ WarehouseSliderScale10:
   JSR MenuCursorReset                     ; $C48C: 20 70 DD
   STA $046C                               ; $C48F: 8D 6C 04
   LDA #$29                                ; $C492: A9 29
-  JMP B1F_SetUI0                               ; $C494: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C494: 4C 6D F2
 @TreasurePromptCancel:
   LSR                                     ; $C497: 4A
   BCC @TreasurePromptExit                 ; $C498: 90 0D
@@ -4954,7 +4954,7 @@ WarehouseSliderScale10:
   STA $0401                               ; $C49C: 8D 01 04
   JSR MenuCursorReset                     ; $C49F: 20 70 DD
   LDA #$6F                                ; $C4A2: A9 6F
-  JMP B1F_SetUI0                               ; $C4A4: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C4A4: 4C 6D F2
 @TreasurePromptExit:
   RTS                                     ; $C4A7: 60
 @MarketTreasureSellApply:  ; (dispatch callback target)
@@ -4999,7 +4999,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $C505: A9 0F
   STA $0401                               ; $C507: 8D 01 04
   LDA #$76                                ; $C50A: A9 76
-  JMP B1F_SetUI0                               ; $C50C: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C50C: 4C 6D F2
 @TreasureSellAbort:
   LDA #$00                                ; $C50F: A9 00
   STA $0401                               ; $C511: 8D 01 04
@@ -5022,7 +5022,7 @@ WarehouseSliderScale10:
   STA $042C                               ; $C536: 8D 2C 04
   INC $0401                               ; $C539: EE 01 04
   LDA #$28                                ; $C53C: A9 28
-  JMP B1F_SetUI0                               ; $C53E: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C53E: 4C 6D F2
 @HospitalFeeAbort:
   LDA #$00                                ; $C541: A9 00
   STA $0401                               ; $C543: 8D 01 04
@@ -5049,12 +5049,12 @@ WarehouseSliderScale10:
   JSR MenuCursorReset                     ; $C56C: 20 70 DD
   STA $046C                               ; $C56F: 8D 6C 04
   LDA #$29                                ; $C572: A9 29
-  JMP B1F_SetUI0                               ; $C574: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C574: 4C 6D F2
 @FeeInsufficient:
   LDA #$11                                ; $C577: A9 11
   STA $0401                               ; $C579: 8D 01 04
   LDA #$2A                                ; $C57C: A9 2A
-  JMP B1F_SetUI0                               ; $C57E: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C57E: 4C 6D F2
 @FeeCancelCheck:
   LSR                                     ; $C581: 4A
   BCC @FeeConfirmExit                     ; $C582: 90 0A
@@ -5091,10 +5091,10 @@ WarehouseSliderScale10:
   LDA $0470                               ; $C5C2: AD 70 04  ; service flag (0 hospital / 1 academy)
   BNE @AcademyListUI                      ; $C5C5: D0 05
   LDA #$7A                                ; $C5C7: A9 7A
-  JMP B1F_SetUI0                          ; $C5C9: 4C 6D F2  ; UI mode $7A (hospital officer list, no return)
+  JMP B1F_OpenMsgWindow0                  ; $C5C9: 4C 6D F2  ; UI mode $7A (hospital officer list, no return)
 @AcademyListUI:
   LDA #$7C                                ; $C5CC: A9 7C
-  JMP B1F_SetUI0                               ; $C5CE: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C5CE: 4C 6D F2
 @FeePayAbort:
   LDA #$00                                ; $C5D1: A9 00
   STA $0401                               ; $C5D3: 8D 01 04
@@ -5156,7 +5156,7 @@ WarehouseSliderScale10:
   LDA #$52                                ; $C648: A9 52
   STA $04D6                               ; $C64A: 8D D6 04
   LDA #$7B                                ; $C64D: A9 7B
-  JMP B1F_SetUI0                               ; $C64F: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C64F: 4C 6D F2
 @AcademyTrainApply:
   LDA $0481                               ; $C652: AD 81 04
   JSR B1F_GetOfficerRecordAddr                               ; $C655: 20 D7 F2
@@ -5176,7 +5176,7 @@ WarehouseSliderScale10:
   LDA #$52                                ; $C675: A9 52
   STA $04D6                               ; $C677: 8D D6 04
   LDA #$7D                                ; $C67A: A9 7D
-  JMP B1F_SetUI0                               ; $C67C: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C67C: 4C 6D F2
 @AcademyCostSelect:  ; (dispatch callback target)
   LDA $0478                               ; $C67F: AD 78 04
   BNE @AcademyExit                        ; $C682: D0 73
@@ -5217,7 +5217,7 @@ WarehouseSliderScale10:
   LDA #$0B                                ; $C6CE: A9 0B
   STA $0401                               ; $C6D0: 8D 01 04
   LDA #$28                                ; $C6D3: A9 28
-  JMP B1F_SetUI0                               ; $C6D5: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C6D5: 4C 6D F2
 @AcademyMaxed:
   LDA $0481                               ; $C6D8: AD 81 04
   STA $0473                               ; $C6DB: 8D 73 04
@@ -5229,7 +5229,7 @@ WarehouseSliderScale10:
   LDA #$11                                ; $C6E8: A9 11
   STA $0401                               ; $C6EA: 8D 01 04  ; -> sub $11 (screen exit wait)
   LDA #$79                                ; $C6EC: A9 79
-  JMP B1F_SetUI0                          ; $C6EE: 4C 6D F2  ; UI mode $79 (Intelligence maxed message, no return)
+  JMP B1F_OpenMsgWindow0                  ; $C6EE: 4C 6D F2  ; UI mode $79 (Intelligence maxed message, no return)
 @AcademyAbort:
   LDA #$00                                ; $C6F2: A9 00
   STA $0401                               ; $C6F4: 8D 01 04
@@ -5288,7 +5288,7 @@ WarehouseSliderScale10:
   STA a:$00BD                             ; $C75D: 8D BD 00
   JSR MenuCursorReset                     ; $C760: 20 70 DD
   LDA #$A5                                ; $C763: A9 A5
-  JMP B1F_SetUI0                               ; $C765: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C765: 4C 6D F2
 @ArmoryAbort:
   LDA #$00                                ; $C768: A9 00
   STA $0401                               ; $C76A: 8D 01 04
@@ -5338,7 +5338,7 @@ WarehouseSliderScale10:
   INC $0401                               ; $C7CD: EE 01 04
   JSR MenuCursorReset                     ; $C7D0: 20 70 DD
   LDA #$A6                                ; $C7D3: A9 A6
-  JMP B1F_SetUI4                               ; $C7D5: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                       ; $C7D5: 4C 8B F2
 @ArmoryMenuBack:
   LSR                                     ; $C7D8: 4A
   BCC @ArmoryMenuExit                     ; $C7D9: 90 12
@@ -5348,7 +5348,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $C7E3: A9 0F
   STA $047C                               ; $C7E5: 8D 7C 04
   LDA #$A4                                ; $C7E8: A9 A4
-  JMP B1F_SetUI0                               ; $C7EA: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $C7EA: 4C 6D F2
 @ArmoryMenuExit:
   RTS                                     ; $C7ED: 60
 ; --- Data Region ---
@@ -5498,7 +5498,7 @@ WarehouseSliderScale10:
   INC $0401                               ; $C944: EE 01 04
   JSR MenuCursorReset                     ; $C947: 20 70 DD
   LDA #$A5                                ; $C94A: A9 A5
-  JMP B1F_SetUI4                               ; $C94C: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                       ; $C94C: 4C 8B F2
 @BuyMenuIdleExit:
   RTS                                     ; $C94F: 60
 @ArmoryBuySelect:
@@ -5542,13 +5542,13 @@ WarehouseSliderScale10:
   JSR MenuCursorReset                     ; $C9A7: 20 70 DD
   STA $046C                               ; $C9AA: 8D 6C 04
   LDA #$29                                ; $C9AD: A9 29
-  JMP B1F_SetUI4                               ; $C9AF: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                       ; $C9AF: 4C 8B F2
 @ArmoryBuyCantAfford:
   LDA #$11                                ; $C9B2: A9 11
   STA $0471                               ; $C9B4: 8D 71 04
   INC $0401                               ; $C9B7: EE 01 04
   LDA #$AA                                ; $C9BA: A9 AA
-  JMP B1F_SetUI4                               ; $C9BC: 4C 8B F2
+  JMP B1F_OpenMsgWindow4                       ; $C9BC: 4C 8B F2
 ; --- Data Region ---
 @ArmoryBuyMenuStream:
   .byte $00,$01,$02,$03,$FF,$FF           ; $C9BF: 00 01 02 03 FF FF ; 4-item buy menu stream
@@ -5626,7 +5626,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $CA5B: A9 0F
   STA $0401                               ; $CA5D: 8D 01 04
   LDA #$AB                                ; $CA60: A9 AB
-  JMP B1F_SetUI0                               ; $CA62: 4C 6D F2
+  JMP B1F_OpenMsgWindow0                       ; $CA62: 4C 6D F2
 @PurchaseAbort:
   LDA #$00                                ; $CA65: A9 00
   STA $0401                               ; $CA67: 8D 01 04
@@ -5686,7 +5686,7 @@ WarehouseSliderScale10:
   JMP @FamousWeaponGateGrantBit                               ; $CABB: 4C C5 CA
 @FamousWeaponGateDenied:
   LDA #$9A                                ; $CABE: A9 9A     ; "cannot buy this" message
-  JSR B1F_SetUI4                               ; $CAC0: 20 8B F2
+  JSR B1F_OpenMsgWindow4                       ; $CAC0: 20 8B F2
   CLC                                     ; $CAC3: 18
   RTS                                     ; $CAC4: 60
 @FamousWeaponGateGrantBit:
@@ -5701,7 +5701,7 @@ WarehouseSliderScale10:
   RTS                                     ; $CAD7: 60
 @FamousWeaponGateAlreadyOwned:
   LDA #$9B                                ; $CAD8: A9 9B     ; "already bought" message
-  JSR B1F_SetUI4                               ; $CADA: 20 8B F2
+  JSR B1F_OpenMsgWindow4                       ; $CADA: 20 8B F2
   CLC                                     ; $CADD: 18
   RTS                                     ; $CADE: 60        ; gate exit
 .endproc
@@ -5877,7 +5877,7 @@ WarehouseSliderScale10:
   LDA #$08                                ; $CB71: A9 08
   STA $0401                               ; $CB73: 8D 01 04  ; -> @TargetProvincePick
   LDA #$3E                                ; $CB76: A9 3E
-  JMP B1F_SetUI0                               ; $CB78: 4C 6D F2  ; UI mode $3E (camera pick)
+  JMP B1F_OpenMsgWindow0                       ; $CB78: 4C 6D F2  ; UI mode $3E (camera pick)
 @MenuRoutePoaching:
   LDA $0402                               ; $CB7B: AD 02 04
   STA $0470                               ; $CB7E: 8D 70 04  ; own province for the capacity check
@@ -5923,14 +5923,14 @@ WarehouseSliderScale10:
   CMP #$02                                ; $CBD6: C9 02
   BCC @MenuNoRivals                       ; $CBD8: 90 05     ; fewer than two living countries
   LDA #$3C                                ; $CBDA: A9 3C
-  JMP B1F_SetUI0                               ; $CBDC: 4C 6D F2  ; UI mode $3C (ruler scroll panel)
+  JMP B1F_OpenMsgWindow0                       ; $CBDC: 4C 6D F2  ; UI mode $3C (ruler scroll panel)
 @MenuNoRivals:
   LDA #$FF                                ; $CBDF: A9 FF
   STA $0473                               ; $CBE1: 8D 73 04
   LDA #$0E                                ; $CBE4: A9 0E
   STA $0401                               ; $CBE6: 8D 01 04  ; -> @MessageWaitRoute
   LDA #$A8                                ; $CBE9: A9 A8
-  JMP B1F_SetUI0                               ; $CBEB: 4C 6D F2  ; UI mode $A8 (notice)
+  JMP B1F_OpenMsgWindow0                       ; $CBEB: 4C 6D F2  ; UI mode $A8 (notice)
 ; --- Data Region ---
 @CommandMenuItems:  ; B1F_MenuStep2 items (0-2 = Alliance/Discord/Poaching, $FF filler)
   .byte $00,$01,$02,$FF,$FF,$FF           ; $CBEE: 00 01 02 FF FF FF
@@ -6050,7 +6050,7 @@ WarehouseSliderScale10:
   LDA #$3B                                ; $CCED: A9 3B
   STA $042C                               ; $CCEF: 8D 2C 04
   LDA #$00                                ; $CCF2: A9 00
-  JMP B1F_SetUI4                               ; $CCF4: 4C 8B F2  ; message UI
+  JMP B1F_OpenMsgWindow4                       ; $CCF4: 4C 8B F2  ; message UI
 @RulerInputExit:
   RTS                                     ; $CCF7: 60
 @RulerConfirm:
@@ -6068,7 +6068,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $CD17: A9 0F
   STA $047C                               ; $CD19: 8D 7C 04
   LDA #$27                                ; $CD1C: A9 27
-  JMP B1F_SetUI4                               ; $CD1E: 4C 8B F2  ; message UI ($27)
+  JMP B1F_OpenMsgWindow4                       ; $CD1E: 4C 8B F2  ; message UI ($27)
 @RulerAlreadyAllied:
   LDA #$05                                ; $CD21: A9 05
   STA $0401                               ; $CD23: 8D 01 04  ; -> @AllianceDialogCloseWait
@@ -6076,7 +6076,7 @@ WarehouseSliderScale10:
   STA $042C                               ; $CD28: 8D 2C 04
   LDA #$00                                ; $CD2B: A9 00
   STA $046C                               ; $CD2D: 8D 6C 04
-  JMP B1F_SetUI4                               ; $CD30: 4C 8B F2  ; message UI
+  JMP B1F_OpenMsgWindow4                       ; $CD30: 4C 8B F2  ; message UI
 ; --- Data Region ---
 @RulerSelectMenuItems:  ; B1F_MenuStep2 items (paged 3-row rival list, $FF filler)
   .byte $00,$01,$02,$03,$04,$05,$FF,$FF   ; $CD33: 00 01 02 03 04 05 FF FF
@@ -6108,13 +6108,13 @@ WarehouseSliderScale10:
   LDA #$00                                ; $CD74: A9 00
   STA $046C                               ; $CD76: 8D 6C 04
   LDA #$29                                ; $CD79: A9 29
-  JMP B1F_SetUI0                               ; $CD7B: 4C 6D F2  ; set UI mode $29
+  JMP B1F_OpenMsgWindow0                       ; $CD7B: 4C 6D F2  ; set UI mode $29
 @AnimClosed:
 ; --- Code Region ---
   LDA #$00                                ; $CD7E: A9 00
   STA $0401                               ; $CD80: 8D 01 04  ; -> @MenuScreenInput
   LDA #$3B                                ; $CD83: A9 3B
-  JMP B1F_SetUI0                               ; $CD85: 4C 6D F2  ; UI mode $3B
+  JMP B1F_OpenMsgWindow0                       ; $CD85: 4C 6D F2  ; UI mode $3B
 ; --- Data Region ---
 @AnimBusyExit:  ; stray RTS padding byte reached by the anim-busy branches
   .byte $60                               ; $CD88: 60
@@ -6248,7 +6248,7 @@ WarehouseSliderScale10:
   LDY #$00                                ; $CEA4: A0 00
   STY $0401                               ; $CEA6: 8C 01 04  ; back to sub 0
 @DialogKeepSub:
-  JMP B1F_SetUI0                               ; $CEA9: 4C 6D F2  ; UI mode <- A ($042C)
+  JMP B1F_OpenMsgWindow0                       ; $CEA9: 4C 6D F2  ; UI mode <- A ($042C)
 @DialogWaitExit:
   RTS                                     ; $CEAC: 60
 @AllianceDissolveGate:  ; (dispatch callback target)
@@ -6282,7 +6282,7 @@ WarehouseSliderScale10:
   LDA #$0E                                ; $CEED: A9 0E
   STA $0401                               ; $CEEF: 8D 01 04  ; -> @MessageWaitRoute
   LDA #$44                                ; $CEF2: A9 44
-  JMP B1F_SetUI0                               ; $CEF4: 4C 6D F2  ; UI mode $44
+  JMP B1F_OpenMsgWindow0                       ; $CEF4: 4C 6D F2  ; UI mode $44
 @PoachProvincePrep:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $0470                               ; $CEF7: AD 70 04
@@ -6293,14 +6293,14 @@ WarehouseSliderScale10:
   JSR MapTransitionStateSave              ; $CF04: 20 68 D5  ; close command window
   INC $0401                               ; $CF07: EE 01 04  ; -> @TargetProvincePick
   LDA #$3E                                ; $CF0A: A9 3E
-  JMP B1F_SetUI0                               ; $CF0C: 4C 6D F2  ; UI mode $3E (camera pick)
+  JMP B1F_OpenMsgWindow0                       ; $CF0C: 4C 6D F2  ; UI mode $3E (camera pick)
 @PoachRosterFull:
   LDA #$0E                                ; $CF0F: A9 0E
   STA $0401                               ; $CF11: 8D 01 04  ; -> @MessageWaitRoute
   LDA #$80                                ; $CF14: A9 80
   STA $0473                               ; $CF16: 8D 73 04
   LDA #$47                                ; $CF19: A9 47
-  JMP B1F_SetUI0                               ; $CF1B: 4C 6D F2  ; UI mode $47 (roster-full notice)
+  JMP B1F_OpenMsgWindow0                       ; $CF1B: 4C 6D F2  ; UI mode $47 (roster-full notice)
 @TargetProvincePick:  ; (dispatch callback target)
 ; --- Code Region ---
   JSR MapCameraScroll                     ; $CF1E: 20 F2 DD  ; map camera D-pad scroll (auto-repeat)
@@ -6329,7 +6329,7 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $CF54: A9 0F
   STA $047C                               ; $CF56: 8D 7C 04
   LDA #$48                                ; $CF59: A9 48
-  JMP B1F_SetUI0                               ; $CF5B: 4C 6D F2  ; UI mode $48 (officer list)
+  JMP B1F_OpenMsgWindow0                       ; $CF5B: 4C 6D F2  ; UI mode $48 (officer list)
 @PickCancelCheck:
   LSR                                     ; $CF5E: 4A
   BCC @PickIdleExit                       ; $CF5F: 90 2B
@@ -6346,13 +6346,13 @@ WarehouseSliderScale10:
   JMP @PickIdleExit                       ; $CF7A: 4C 8C CF
 @PickUnclaimed:
   LDA #$46                                ; $CF7D: A9 46
-  JMP B1F_SetUI0                               ; $CF7F: 4C 6D F2  ; UI mode $46 (unclaimed notice)
+  JMP B1F_OpenMsgWindow0                       ; $CF7F: 4C 6D F2  ; UI mode $46 (unclaimed notice)
 @PickOffMap:
   LDA #$24                                ; $CF82: A9 24
-  JMP B1F_SetUI0                               ; $CF84: 4C 6D F2  ; UI mode $24
+  JMP B1F_OpenMsgWindow0                       ; $CF84: 4C 6D F2  ; UI mode $24
 @PickOwnProvince:
   LDA #$40                                ; $CF87: A9 40
-  JMP B1F_SetUI0                               ; $CF89: 4C 6D F2  ; UI mode $40 (own province notice)
+  JMP B1F_OpenMsgWindow0                       ; $CF89: 4C 6D F2  ; UI mode $40 (own province notice)
 @PickIdleExit:
   RTS                                     ; $CF8C: 60
 @TargetOfficerSelect:  ; (dispatch callback target)
@@ -6378,14 +6378,14 @@ WarehouseSliderScale10:
   LDA #$0F                                ; $CFBB: A9 0F
   STA $047C                               ; $CFBD: 8D 7C 04
   LDA #$27                                ; $CFC0: A9 27
-  JMP B1F_SetUI0                               ; $CFC2: 4C 6D F2  ; UI mode $27 (confirm dialog)
+  JMP B1F_OpenMsgWindow0                       ; $CFC2: 4C 6D F2  ; UI mode $27 (confirm dialog)
 @OfficerReopen:
   LDA #$0F                                ; $CFC5: A9 0F
   STA $047C                               ; $CFC7: 8D 7C 04
   LDA #$80                                ; $CFCA: A9 80
   STA $0478                               ; $CFCC: 8D 78 04
   LDA #$4A                                ; $CFCF: A9 4A
-  JMP B1F_SetUI0                               ; $CFD1: 4C 6D F2  ; UI mode $4A
+  JMP B1F_OpenMsgWindow0                       ; $CFD1: 4C 6D F2  ; UI mode $4A
 @OfficerCancel:
   LDA #$02                                ; $CFD4: A9 02
   STA $0400                               ; $CFD6: 8D 00 04  ; back to castle screen (state 2)
@@ -6414,7 +6414,7 @@ WarehouseSliderScale10:
   JSR MenuCursorReset                     ; $D004: 20 70 DD
   STA $046C                               ; $D007: 8D 6C 04
   LDA #$29                                ; $D00A: A9 29
-  JMP B1F_SetUI0                               ; $D00C: 4C 6D F2  ; UI mode $29
+  JMP B1F_OpenMsgWindow0                       ; $D00C: 4C 6D F2  ; UI mode $29
 @CmdClosed:
   LDA #$02                                ; $D00F: A9 02
   STA $0400                               ; $D011: 8D 00 04  ; back to castle screen (state 2)
@@ -6543,7 +6543,7 @@ WarehouseSliderScale10:
   EOR #$01                                ; $D115: 49 01
   STA $6F44                               ; $D117: 8D 44 6F  ; alliance-formed toggle
   LDA #$E2                                ; $D11A: A9 E2
-  JMP B1F_SetUI4                               ; $D11C: 4C 8B F2  ; message UI (ruler card)
+  JMP B1F_OpenMsgWindow4                       ; $D11C: 4C 8B F2  ; message UI (ruler card)
 @ResultGiftCheck:
   CMP #$03                                ; $D11F: C9 03
   BNE @ResultMessage                      ; $D121: D0 05
@@ -6558,7 +6558,7 @@ WarehouseSliderScale10:
   .word B1D_1E_OfficerDisplay_Lookup      ; $D136: 2A A0  ; inline trampoline target
 ; --- Code Region ---
   LDA $0470                               ; $D138: AD 70 04
-  JMP B1F_SetUI0                               ; $D13B: 4C 6D F2  ; UI mode <- message id
+  JMP B1F_OpenMsgWindow0                       ; $D13B: 4C 6D F2  ; UI mode <- message id
 @ResultWaitExit:
   RTS                                     ; $D13E: 60
 @MessageWaitRoute:  ; (dispatch callback target)
@@ -6617,7 +6617,7 @@ WarehouseSliderScale10:
   .word B1D_1E_OfficerDisplay_Lookup      ; $D1B1: 2A A0  ; inline trampoline target
 ; --- Code Region ---
   LDA #$EF                                ; $D1B3: A9 EF
-  JMP B1F_SetUI0                               ; $D1B5: 4C 6D F2  ; UI mode $EF
+  JMP B1F_OpenMsgWindow0                       ; $D1B5: 4C 6D F2  ; UI mode $EF
 @CardIdleExit:
   RTS                                     ; $D1B8: 60
 @CardCloseRoute:  ; (dispatch callback target)
@@ -6663,10 +6663,10 @@ WarehouseSliderScale10:
   LDA $0482                               ; $D21E: AD 82 04
   JSR AllianceStateSet                    ; $D221: 20 08 D5  ; set alliance nibble on target side
   LDA #$E4                                ; $D224: A9 E4
-  JMP B1F_SetUI4                               ; $D226: 4C 8B F2  ; message UI (alliance formed)
+  JMP B1F_OpenMsgWindow4                       ; $D226: 4C 8B F2  ; message UI (alliance formed)
 @CardDismissed:
   LDA #$E5                                ; $D229: A9 E5
-  JMP B1F_SetUI4                               ; $D22B: 4C 8B F2  ; message UI (alliance declined)
+  JMP B1F_OpenMsgWindow4                       ; $D22B: 4C 8B F2  ; message UI (alliance declined)
 @CardCloseIdle:
   RTS                                     ; $D22E: 60
 ; --- Data Region ---
@@ -6711,7 +6711,7 @@ WarehouseSliderScale10:
   LDA a:$0012                             ; $D285: AD 12 00
   BEQ @GiftPay                            ; $D288: F0 05     ; item 0 = pay the gift
   LDA #$E5                                ; $D28A: A9 E5
-  JMP B1F_SetUI4                               ; $D28C: 4C 8B F2  ; message UI (alliance declined)
+  JMP B1F_OpenMsgWindow4                       ; $D28C: 4C 8B F2  ; message UI (alliance declined)
 @GiftPay:
   LDY #$39                                ; $D28F: A0 39
   JSR B1F_BankedCallbackTrampoline        ; $D291: 20 07 EE  ; banks $19+$1A $A030 -> GoodsSendApply_Entry
@@ -6734,7 +6734,7 @@ WarehouseSliderScale10:
   LDA #$02                                ; $D2BD: A9 02
   JSR MapTransitionStateRestore           ; $D2BF: 20 8C D5  ; restore map scroll
   LDA #$E4                                ; $D2C2: A9 E4
-  JMP B1F_SetUI4                               ; $D2C4: 4C 8B F2  ; message UI (alliance formed)
+  JMP B1F_OpenMsgWindow4                       ; $D2C4: 4C 8B F2  ; message UI (alliance formed)
 @GiftShortfall:
 ; --- Code Region ---
   LDX #$2A                                ; $D2C7: A2 2A
@@ -6744,7 +6744,7 @@ WarehouseSliderScale10:
   LDX #$ED                                ; $D2D0: A2 ED     ; rice gift ($F1)
 @GiftShortfallMsg:
   TXA                                     ; $D2D2: 8A
-  JMP B1F_SetUI4                               ; $D2D3: 4C 8B F2  ; message UI (shortfall)
+  JMP B1F_OpenMsgWindow4                       ; $D2D3: 4C 8B F2  ; message UI (shortfall)
 ; --- Data Region ---
 @GiftDialogMenuItems:  ; B1F_MenuStep2 items (2-item pay dialog, $FF filler)
   .byte $00,$01,$FF,$FF                   ; $D2D6: 00 01 FF FF

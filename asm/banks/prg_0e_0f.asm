@@ -732,7 +732,7 @@ Phase1SidePriorityOrder:
   LDA #$00                                ; $A2D7: A9 00
   STA btl_overlay_sub                               ; $A2D9: 8D 41 05 ; sub-phase <- 0
   LDA #$D3                                ; $A2DC: A9 D3
-  JSR B1F_SetUI4                          ; $A2DE: 20 8B F2 ; SFX
+  JSR B1F_OpenMsgWindow4                  ; $A2DE: 20 8B F2 ; SFX
   JSR B1F_BankPpuInit                     ; $A2E1: 20 7F E5
   LDA #$71                                ; $A2E4: A9 71
   JSR B1F_SoundWrapperC                   ; $A2E6: 20 83 E6
@@ -762,7 +762,7 @@ Phase1SidePriorityOrder:
   LDA #$00                                ; $A31A: A9 00
   STA btl_overlay_sub                               ; $A31C: 8D 41 05 ; sub-phase <- 0
   LDA #$D3                                ; $A31F: A9 D3
-  JSR B1F_SetUI4                          ; $A321: 20 8B F2 ; SFX
+  JSR B1F_OpenMsgWindow4                  ; $A321: 20 8B F2 ; SFX
   JSR B1F_BankPpuInit                     ; $A324: 20 7F E5
   LDA #$71                                ; $A327: A9 71
   JSR B1F_SoundWrapperC                   ; $A329: 20 83 E6
@@ -801,7 +801,7 @@ Phase1SidePriorityOrder:
   LDA #$03                                ; $A359: A9 03
   STA btl_overlay_sub                               ; $A35B: 8D 41 05 ; sub-phase <- 3
   LDA #$FA                                ; $A35E: A9 FA
-  JSR B1F_SetUI4                          ; $A360: 20 8B F2 ; SFX
+  JSR B1F_OpenMsgWindow4                  ; $A360: 20 8B F2 ; SFX
   PLA                                     ; $A363: 68 ; drop caller return addr
   PLA                                     ; $A364: 68
   RTS                                     ; $A365: 60 ; skip rest of frame
@@ -823,7 +823,7 @@ Phase1SidePriorityOrder:
   LDA #$03                                ; $A38B: A9 03
   STA btl_overlay_sub                               ; $A38D: 8D 41 05 ; sub-phase <- 3
   LDA #$FA                                ; $A390: A9 FA
-  JSR B1F_SetUI4                          ; $A392: 20 8B F2 ; SFX
+  JSR B1F_OpenMsgWindow4                  ; $A392: 20 8B F2 ; SFX
   LDA #$01                                ; $A395: A9 01
   STA btl_scan_col                               ; $A397: 8D 45 05 ; scan column <- 1
   PLA                                     ; $A39A: 68 ; drop caller return addr
@@ -984,7 +984,7 @@ pad_state      = $0001  ; merged both-pad raw state
   STA btl_panel_params+4                               ; $A442: 8D 30 04
   STA btl_panel_params+5                               ; $A445: 8D 31 04
   LDA #$7E                                ; $A448: A9 7E
-  JSR B1F_SetUI4                          ; $A44A: 20 8B F2 ; SFX
+  JSR B1F_OpenMsgWindow4                  ; $A44A: 20 8B F2 ; SFX
   LDA btl_scan_col                               ; $A44D: AD 45 05 ; scan column selects side
   BNE @SideB                              ; $A450: D0 1B
   LDA btl_strip_sel_a                               ; $A452: AD 14 05 ; strip 0 buffer ptr
@@ -1041,7 +1041,7 @@ pad_state      = $0001  ; merged both-pad raw state
 @Advance:
   INC btl_overlay_sub                               ; $A4AC: EE 41 05 ; sub-phase <- 5
   LDA #$D3                                ; $A4AF: A9 D3
-  JSR B1F_SetUI4                          ; $A4B1: 20 8B F2 ; SFX
+  JSR B1F_OpenMsgWindow4                  ; $A4B1: 20 8B F2 ; SFX
 @Done:
   RTS                                     ; $A4B4: 60
 .endproc
@@ -2078,7 +2078,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 ;===============================================================================
 ; $AA4A: Phase3CommandPanelInit
 ; Sub 0. Advances to sub 1, clears the menu step $0548 and $054A, sets UI
-; mode $D1 (B1F_SetUI0) and resolves the acting unit id $0560[$0549] to its
+; mode $D1 (B1F_OpenMsgWindow0) and resolves the acting unit id $0560[$0549] to its
 ; officer record pointer ($00) via B1F_GetOfficerRecordAddr. Then fills the
 ; command panel field block $044C-$0457: base value = column-0 troop count of
 ; side A ($05AC) or side B ($05B7) per acting side, overridden from record
@@ -2094,7 +2094,7 @@ rec_ptr_lo     = $0000  ; officer record ptr lo (hi in $0001)
   STA btl_frame_counter                               ; $AA4F: 8D 48 05 ; menu step <- 0
   STA btl_walk_row                               ; $AA52: 8D 4A 05
   LDA #$D1                                ; $AA55: A9 D1
-  JSR B1F_SetUI0                          ; $AA57: 20 6D F2 ; UI mode
+  JSR B1F_OpenMsgWindow0                  ; $AA57: 20 6D F2 ; UI mode
   LDY btl_acting_unit                               ; $AA5A: AC 49 05 ; acting side
   LDA btl_strip_buf_a,Y                             ; $AA5D: B9 60 05 ; acting unit id
   JSR B1F_GetOfficerRecordAddr            ; $AA60: 20 D7 F2 ; record ptr -> ($00)
@@ -2553,7 +2553,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 @StoreTier:
   STY btl_walk_row                               ; $AD15: 8C 4A 05 ; point tier
   LDA #$E7                                ; $AD18: A9 E7
-  JSR B1F_SetUI0                          ; $AD1A: 20 6D F2 ; UI mode $E7
+  JSR B1F_OpenMsgWindow0                  ; $AD1A: 20 6D F2 ; UI mode $E7
   LDY btl_acting_unit                               ; $AD1D: AC 49 05 ; acting side
   LDA btl_point_budget_a,Y                             ; $AD20: B9 72 05 ; point budget
   STA btl_panel_fields                               ; $AD23: 8D 4C 04 ; panel base value
@@ -2969,13 +2969,13 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
   CMP a:rank_a_work                             ; $AFB9: CD 0A 00
   BCS @Fail                               ; $AFBC: B0 0B ; rand >= chance
   LDA #$EA                                ; $AFBE: A9 EA
-  JSR B1F_SetUI0                          ; $AFC0: 20 6D F2 ; UI $EA: success
+  JSR B1F_OpenMsgWindow0                  ; $AFC0: 20 6D F2 ; UI $EA: success
   LDA #$04                                ; $AFC3: A9 04
   STA btl_overlay_sub                               ; $AFC5: 8D 41 05 ; sub-phase <- 4
   RTS                                     ; $AFC8: 60
 @Fail:
   LDA #$EB                                ; $AFC9: A9 EB
-  JSR B1F_SetUI0                          ; $AFCB: 20 6D F2 ; UI $EB: failure
+  JSR B1F_OpenMsgWindow0                  ; $AFCB: 20 6D F2 ; UI $EB: failure
   INC btl_overlay_sub                               ; $AFCE: EE 41 05 ; sub-phase <- 3
   RTS                                     ; $AFD1: 60
 .endproc
@@ -2992,11 +2992,11 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
   BNE @Hit                                ; $AFD7: D0 09
   INC btl_overlay_sub                               ; $AFD9: EE 41 05 ; sub-phase <- 3
   LDA #$ED                                ; $AFDC: A9 ED
-  JSR B1F_SetUI0                          ; $AFDE: 20 6D F2 ; UI $ED: miss
+  JSR B1F_OpenMsgWindow0                  ; $AFDE: 20 6D F2 ; UI $ED: miss
   RTS                                     ; $AFE1: 60
 @Hit:
   LDA #$EC                                ; $AFE2: A9 EC
-  JSR B1F_SetUI0                          ; $AFE4: 20 6D F2 ; UI $EC: hit
+  JSR B1F_OpenMsgWindow0                  ; $AFE4: 20 6D F2 ; UI $EC: hit
   LDA btl_acting_unit                               ; $AFE7: AD 49 05 ; acting side
   EOR #$01                                ; $AFEA: 49 01 ; opposing side
   TAY                                     ; $AFEC: A8
@@ -3032,7 +3032,7 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
 ;===============================================================================
 .proc Phase8RowCrossbowVolley
   LDA #$EE                                ; $B00E: A9 EE
-  JSR B1F_SetUI0                          ; $B010: 20 6D F2 ; UI $EE
+  JSR B1F_OpenMsgWindow0                  ; $B010: 20 6D F2 ; UI $EE
   INC btl_overlay_sub                               ; $B013: EE 41 05 ; sub-phase <- 3
 Apply:
   LDA btl_status_ctr1                               ; $B016: AD 75 05 ; status counter 575 (multi-entry: AiTacticPointSpend)
@@ -3060,7 +3060,7 @@ Apply:
 ;===============================================================================
 .proc Phase8RowMoraleBoost
   LDA #$EF                                ; $B02E: A9 EF
-  JSR B1F_SetUI0                          ; $B030: 20 6D F2 ; UI $EF
+  JSR B1F_OpenMsgWindow0                  ; $B030: 20 6D F2 ; UI $EF
   INC btl_overlay_sub                               ; $B033: EE 41 05 ; sub-phase <- 3
 Apply:
   LDA btl_status_ctr2                               ; $B036: AD 76 05 ; status counter 576 (multi-entry: AiTacticPointSpend)
@@ -3114,7 +3114,7 @@ roll           = $0000  ; random roll amount
 ;===============================================================================
 .proc Phase8RowFireArrows
   LDA #$F0                                ; $B07C: A9 F0
-  JSR B1F_SetUI0                          ; $B07E: 20 6D F2 ; UI $F0
+  JSR B1F_OpenMsgWindow0                  ; $B07E: 20 6D F2 ; UI $F0
   INC btl_overlay_sub                               ; $B081: EE 41 05 ; sub-phase <- 3
 Apply:
   LDA btl_status_ctr3                               ; $B084: AD 77 05 ; status counter 577 (multi-entry: AiTacticPointSpend)
@@ -3141,7 +3141,7 @@ Apply:
   LDA #$00                                ; $B0A1: A9 00
   STA btl_overlay_sub                               ; $B0A3: 8D 41 05 ; sub-phase <- 0
   LDA #$F1                                ; $B0A6: A9 F1
-  JSR B1F_SetUI0                          ; $B0A8: 20 6D F2 ; UI $F1
+  JSR B1F_OpenMsgWindow0                  ; $B0A8: 20 6D F2 ; UI $F1
   RTS                                     ; $B0AB: 60
 .endproc
 ;===============================================================================
@@ -7155,7 +7155,7 @@ strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
   JMP Phase6AdvanceToSideBFormation       ; $CE42: 4C FA CE ; AI: skip menus
 @ShowPanel:
   LDA #$D4                                ; $CE45: A9 D4
-  JSR B1F_SetUI0                          ; $CE47: 20 6D F2 ; formation panel
+  JSR B1F_OpenMsgWindow0                  ; $CE47: 20 6D F2 ; formation panel
   INC btl_overlay_sub                               ; $CE4A: EE 41 05 ; sub-phase <- 1
   LDA btl_strip_buf_a                               ; $CE4D: AD 60 05 ; side A commander id
   STA a:strip_ptr_lo                             ; $CE50: 8D 00 00
@@ -7208,7 +7208,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
   BEQ @Done                               ; $CE96: F0 15
   INC btl_overlay_sub                               ; $CE98: EE 41 05 ; sub-phase <- 2
   LDA #$D2                                ; $CE9B: A9 D2
-  JSR B1F_SetUI0                          ; $CE9D: 20 6D F2 ; confirm panel
+  JSR B1F_OpenMsgWindow0                  ; $CE9D: 20 6D F2 ; confirm panel
   LDA btl_country_a                               ; $CEA0: AD 64 05 ; side A country
   JSR B1F_GetCountryDataPtr               ; $CEA3: 20 68 F3
   LDY #$00                                ; $CEA6: A0 00
@@ -7401,7 +7401,7 @@ strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
   JSR BattleAnimQueueIdleCheck            ; $CF9D: 20 70 B8
   BCC @Done                               ; $CFA0: 90 1F ; queue busy: wait
   LDA #$D4                                ; $CFA2: A9 D4
-  JSR B1F_SetUI0                          ; $CFA4: 20 6D F2 ; formation panel
+  JSR B1F_OpenMsgWindow0                  ; $CFA4: 20 6D F2 ; formation panel
   INC btl_overlay_sub                               ; $CFA7: EE 41 05 ; sub-phase <- 2
   LDA btl_strip_buf_b                               ; $CFAA: AD 61 05 ; side B commander id
   STA a:strip_ptr_lo                             ; $CFAD: 8D 00 00
@@ -7454,7 +7454,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
   BEQ @Done                               ; $CFF0: F0 15
   INC btl_overlay_sub                               ; $CFF2: EE 41 05 ; sub-phase <- 3
   LDA #$D2                                ; $CFF5: A9 D2
-  JSR B1F_SetUI0                          ; $CFF7: 20 6D F2 ; confirm panel
+  JSR B1F_OpenMsgWindow0                  ; $CFF7: 20 6D F2 ; confirm panel
   LDA btl_country_b                               ; $CFFA: AD 65 05 ; side B country
   JSR B1F_GetCountryDataPtr               ; $CFFD: 20 68 F3
   LDY #$00                                ; $D000: A0 00
@@ -7786,7 +7786,7 @@ AiOrderVectorWindow:
 ; and Phase1AiSideRefresh's return addresses (2x PLA, resuming
 ; Phase1RoundPass at $A2A0), runs B1F_BankPpuInit + SFX $6C and forces the
 ; phase 4 battle result (phase/sub <- 4/0, retreat strip $0514-$0517 with
-; mode 3, UI mode 4 via B1F_SetUI4 $7D). Original asymmetry: side A writes
+; mode 3, UI mode 4 via B1F_OpenMsgWindow4 $7D). Original asymmetry: side A writes
 ; its own commander $0560 into $042C/$0514 and the enemy $0561 into $0516,
 ; while side B writes its own commander $0561 into both slots.
 ;===============================================================================
@@ -7891,7 +7891,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   LDA #$00                                ; $D2A0: A9 00
   STA btl_overlay_sub                               ; $D2A2: 8D 41 05 ; sub-phase <- 0
   LDA #$7D                                ; $D2A5: A9 7D
-  JSR B1F_SetUI4                          ; $D2A7: 20 8B F2 ; UI mode 4
+  JSR B1F_OpenMsgWindow4                  ; $D2A7: 20 8B F2 ; UI mode 4
   RTS                                     ; $D2AA: 60
 @StripSideB:
   LDA btl_strip_buf_b                               ; $D2AB: AD 61 05 ; side B commander
@@ -7908,7 +7908,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   LDA #$00                                ; $D2C9: A9 00
   STA btl_overlay_sub                               ; $D2CB: 8D 41 05 ; sub-phase <- 0
   LDA #$7D                                ; $D2CE: A9 7D
-  JSR B1F_SetUI4                          ; $D2D0: 20 8B F2 ; UI mode 4
+  JSR B1F_OpenMsgWindow4                  ; $D2D0: 20 8B F2 ; UI mode 4
   RTS                                     ; $D2D3: 60
 .endproc
 ;===============================================================================
@@ -8171,7 +8171,7 @@ zone_count     = $0000  ; enemy-in-zone count
 ; ($057E), then a B1F_RandomBelowThreshold(100) roll below
 ; @ExplosionSuccessChance[count] (0/0/40/70/100...) succeeds: pops the
 ; ladder return, sets phase/sub <- 9/0 (formation advance), UI $F1
-; (B1F_SetUI0) and deducts 12 points.
+; (B1F_OpenMsgWindow0) and deducts 12 points.
 ;-------------------------------------------------------------------------------
 @ExplosionPurchase:
   LDY btl_scan_col                               ; $D42F: AC 45 05 ; roster base
@@ -8230,7 +8230,7 @@ zone_count     = $0000  ; enemy-in-zone count
   LDA #$00                                ; $D493: A9 00
   STA btl_overlay_sub                               ; $D495: 8D 41 05 ; sub-phase <- 0
   LDA #$F1                                ; $D498: A9 F1
-  JSR B1F_SetUI0                          ; $D49A: 20 6D F2 ; UI $F1
+  JSR B1F_OpenMsgWindow0                  ; $D49A: 20 6D F2 ; UI $F1
   LDY btl_side_index                               ; $D49D: AC 7C 05 ; side index
   LDA btl_point_budget_a,Y                             ; $D4A0: B9 72 05 ; point budget
   SEC                                     ; $D4A3: 38
@@ -8568,7 +8568,7 @@ zone_count     = $0000  ; enemy-in-zone count
   LDA #$00                                ; $D6CF: A9 00
   STA btl_frame_counter                               ; $D6D1: 8D 48 05 ; row cursor <- 0
   LDA #$7B                                ; $D6D4: A9 7B
-  JSR B1F_SetUI0                          ; $D6D6: 20 6D F2 ; UI panel $7B
+  JSR B1F_OpenMsgWindow0                  ; $D6D6: 20 6D F2 ; UI panel $7B
   JSR Phase8RowCounter574                 ; $D6D9: 20 F6 AF ; counter $0574 <- 4
   RTS                                     ; $D6DC: 60
 .endproc
@@ -8664,7 +8664,7 @@ strip_ptr_hi   = $0001  ; officer display render buffer ptr hi
   LDA #$00                                ; $D746: A9 00
   STA btl_frame_counter                               ; $D748: 8D 48 05 ; row cursor <- 0
   LDA #$7C                                ; $D74B: A9 7C
-  JSR B1F_SetUI0                          ; $D74D: 20 6D F2 ; UI panel $7C
+  JSR B1F_OpenMsgWindow0                  ; $D74D: 20 6D F2 ; UI panel $7C
   LDY btl_side_index                               ; $D750: AC 7C 05 ; side index
   LDA btl_strip_buf_a,Y                             ; $D753: B9 60 05 ; own commander unit id
   STA btl_panel_params                               ; $D756: 8D 2C 04 ; effect target
