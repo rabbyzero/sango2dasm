@@ -3,3 +3,22 @@
 res/
 build/
 __pycache__/
+
+# output/ is scratch: ignore everything except the keep-list below
+# (regenerable tool outputs and doc-cited evidence)
+output/*
+!output/bank_00_terrain_provinces.csv
+!output/bank_00_terrain_provinces.png
+!output/bank_00_terrain_zones.csv
+!output/bank_00_terrain_zones.png
+!output/bank_all_terrain_provinces.csv
+!output/bank_all_terrain_provinces.png
+!output/font_candidate_records.txt
+!output/font_slot0_tiles00.png
+!output/font_slot1_tiles40.png
+!output/menu_streams.txt
+!output/name_xref.txt
+!output/strategy_font_ascii.txt
+!output/prg_0e_0f_raw.asm
+!output/prg_19_1a_raw.asm
+!output/prg_1b_1c_raw.asm
