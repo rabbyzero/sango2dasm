@@ -473,15 +473,15 @@ guessed from the values:
 
 | Field | Evidence |
 |---|---|
-| `+0` 所属国 | `ProvinceCountByOwner` (`asm/banks/prg_19_1a.asm`) masks the byte with `#$0F` and compares against a Country id; `FindOfficerProvince` scans the same records |
-| `+2/+3` 金 | 徴兵 (`$B294`, `asm/banks/prg_1b_1c.asm`) charges 20 gold per 100 men here; 輸送 (`$B8D7`, `prg_19_1a.asm`) moves it |
+| `+0` 所属国 | `ProvinceCountByOwner` (`asm/banks/prg_19_1a_event_scenes.asm`) masks the byte with `#$0F` and compares against a Country id; `FindOfficerProvince` scans the same records |
+| `+2/+3` 金 | 徴兵 (`$B294`, `asm/banks/prg_1b_1c_map_screen.asm`) charges 20 gold per 100 men here; 輸送 (`$B8D7`, `prg_19_1a_event_scenes.asm`) moves it |
 | `+4/+5` 米 | 輸送 moves it as the second 16-bit resource; the annual harvest (below) credits it |
 | `+6/+7` 人口 | panel stream draws it with 5 digits followed by two literal `$B6` (`0`) tiles, so the stored value is / 100 |
-| `+8/+9` 土地 | annual harvest (`$A60B`, `prg_19_1a.asm`): `land / lvl_div * lvl_base / $3C * 統治度tier / 100` is **added to 米** (`+4/+5`) |
+| `+8/+9` 土地 | annual harvest (`$A60B`, `prg_19_1a_event_scenes.asm`): `land / lvl_div * lvl_base / $3C * 統治度tier / 100` is **added to 米** (`+4/+5`) |
 | `+10` 防災 | panel stream draws it with 2 digits (max 99) right after 人口, matching the panel order in `docs/manual_kb/03-country-stats.md` |
 | `+11` 統治度 | `RebellionTakeoverCheck` (`$AB6E`) rolls a rebellion when it is `< 50` (tiers at 50/40/30/20); both income routines scale their yield by its 50/60/70/80/90/100 tier |
 | `+12/+13` 控え | 徴兵 adds the recruited men here and clamps at `$2710` (10000) |
-| `+14/+15` 産業 | annual tax (`$A446`, `prg_19_1a.asm`): `industry / lvl_div * lvl_base / $50 * 統治度tier / 100` is **added to 金** (`+2/+3`) |
+| `+14/+15` 産業 | annual tax (`$A446`, `prg_19_1a_event_scenes.asm`): `industry / lvl_div * lvl_base / $50 * 統治度tier / 100` is **added to 金** (`+2/+3`) |
 | `+16` 宝 | 輸送 moves it as an 8-bit resource, clamped at 99 |
 | `+17..+26` 武将 | `FindOfficerProvince` and the `$F0`/`$F3` panel commands walk slots `$11-$1A` looking for `$FF` |
 | `+27` cooldown | `RebellionTakeoverMark` stores 6 there, and the rebellion check skips a province while it is non-zero |

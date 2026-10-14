@@ -17,7 +17,7 @@
 ;===============================================================================
 ; MapScreenFrameUpdate_Entry ($A000) - dispatch entry stub
 ; Jump-table stub aliasing the map-screen frame update handler. Called from
-; NmiState2_MapScreen (bank $1F, $F8EF) every VBlank of the map screen with
+; NmiState2_StrategyMap (bank $1F, $F8EF) every VBlank of the map screen with
 ; banks $1B+$1C mapped in (Y=$3B). Shares its handler with entry $A00C.
 ;===============================================================================
 MapScreenFrameUpdate_Entry:  ; (dispatch callback target)
@@ -30,7 +30,7 @@ ProvinceZoneOriginGet_Entry:  ; (dispatch callback target; bank $1B $A009 -> Pro
   JMP ProvinceZoneOriginGet               ; $A009: 4C 25 DF
 ;===============================================================================
 ; MapScreenFrameUpdate ($A00C-$A044)
-; Per-frame map-screen update for banks $1B+$1C, invoked by NmiState2_MapScreen
+; Per-frame map-screen update for banks $1B+$1C, invoked by NmiState2_StrategyMap
 ; via the $A000 stub (and directly as dispatch entry $A00C):
 ;   1. MapRulerMarkerDraw ($DE83) - place ruler marker sprites at the camera
 ;      position ($6F3F=X, $6F41=Y), skipped during screen transitions ($008F)
@@ -2990,7 +2990,7 @@ WarSceneLaunch:  ; (dispatch callback target)
   STA $0506                               ; $B615: 8D 06 05
   LDY #$2C                                ; $B618: A0 2C     ; target banks $0C+$0D
   JSR B1F_BankedCallbackTrampoline        ; $B61A: 20 07 EE
-  .word B0C_0D_ExchangeSceneInit_Entry    ; $B61D: 03 A0 (BankedCallbackTrampoline target)
+  .word B0C_0D_TacticalMapSceneInit_Entry    ; $B61D: 03 A0 (BankedCallbackTrampoline target)
 @WarLaunchSkip:
   RTS                                     ; $B61F: 60
 ;===============================================================================
@@ -5321,7 +5321,7 @@ WarehouseSliderScale10:
   LDY #$28                                ; $C7A9: A0 28     ; target banks $08+$09
   JSR B1F_BankedCallbackTrampoline                               ; $C7AB: 20 07 EE  ; inputs: $0000 = province grid set (from @ArmoryGridSetTable), $0012 = menu category 0-3
 ; --- Code Region ---
-  .word B08_09_ExpandArmoryGridSlots_Entry ; $C7AE: 1E A0 (BankedCallbackTrampoline target; reaches shared entry stub $A01E in prg_08_09.asm -> JMP ExpandArmoryGridSlots; stub shared with war-map armory flow WarTownActionDispatch state 5; reused to lay out the 4 weapon grid cells $044C-$044F and the price records $042C+slot*3)
+  .word B08_09_ExpandArmoryGridSlots_Entry ; $C7AE: 1E A0 (BankedCallbackTrampoline target; reaches shared entry stub $A01E in prg_08_09_tactical_war.asm -> JMP ExpandArmoryGridSlots; stub shared with war-map armory flow WarTownActionDispatch state 5; reused to lay out the 4 weapon grid cells $044C-$044F and the price records $042C+slot*3)
   LDA $0402                               ; $C7B0: AD 02 04  ; province id
   CMP #$1B                                ; $C7B3: C9 1B     ; province #$1B = Furyou (フリョウ, 涪陵)
   BNE @ArmoryGridNext                     ; $C7B5: D0 16     ; famous-weapon grid only in province $1B (Furyou 涪陵)
@@ -8372,7 +8372,7 @@ CastleScoutOutcomeTable:  ; result class per (Virtue base + Intelligence offset)
 ;===============================================================================
 ; MenuCursorReset ($DD70-$DD78)
 ; Clears the shared menu cursor: menu_cursor_col/menu_cursor_page
-; ($0424/$0425, prg_0c_0d.asm equates) <- 0 and returns A = $00, which
+; ($0424/$0425, prg_0c_0d_tactical_commands.asm equates) <- 0 and returns A = $00, which
 ; callers commonly propagate into a follow-up zero store ($0470 scroll
 ; animation counter, $046C). Called from the category/command menu screens
 ; throughout this bank (51 direct JSR + 1 JMP tail call).
@@ -8440,7 +8440,7 @@ CastleScoutOutcomeTable:  ; result class per (Virtue base + Intelligence offset)
 ;===============================================================================
 ; OverlayIdleCheck ($DDAD-$DDBE, bank $1C)
 ; Returns C=1 only while both overlay/animation queue slot headers $0300 and
-; $0304 (anim_queue_hdr0/hdr1, prg_0e_0f.asm equates) are $FF (empty); C=0
+; $0304 (anim_queue_hdr0/hdr1, prg_0e_0f_battle.asm equates) are $FF (empty); C=0
 ; while either overlay is still busy. Used as the idle gate before polling
 ; controller edges in the map/castle state machines (15 call sites in this
 ; bank pair).

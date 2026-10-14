@@ -413,7 +413,7 @@ def main():
     project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     binary_path = os.path.join(project_dir, "rom/prg/prg_1f.bin")
-    asm_path = os.path.join(project_dir, "asm/banks/prg_1f.asm")
+    asm_path = os.path.join(project_dir, "asm/banks/prg_1f_boot.asm")
     bak_path = asm_path + ".bak"
     include_dir = os.path.join(project_dir, "include")
 

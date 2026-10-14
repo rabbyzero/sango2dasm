@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Usage report for RAM addresses $0000-$07FF in prg_0e_0f.asm.
+"""Usage report for RAM addresses $0000-$07FF in prg_0e_0f_battle.asm.
 
 Groups operand references by address, showing procs, mnemonics and the
 inline comments, to support semantic naming of parameters/globals.
@@ -9,7 +9,7 @@ import re
 import sys
 from collections import defaultdict
 
-SRC = "asm/banks/prg_0e_0f.asm"
+SRC = "asm/banks/prg_0e_0f_battle.asm"
 # operand position: not immediate (#), preceded by space/comma/( or 'a:'
 OPER = re.compile(r'(?<![#\w$])\$0([0-7])([0-9A-Fa-f]{2})\b(?!\s*[,)])')
 LINE = re.compile(r'^(\s*)(?:@?[\w.]+:)?\s*([A-Za-z]{3})\s+(.*?)(?:;.*)?$')

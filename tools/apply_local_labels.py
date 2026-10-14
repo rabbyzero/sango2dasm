@@ -16,7 +16,7 @@ Usage: apply_local_labels.py [TARGET]
 """
 import re, sys, glob, subprocess
 
-TARGET = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_19_1a.asm"
+TARGET = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_19_1a_event_scenes.asm"
 VERIFY = "tools/verify_19_1a.py"
 
 orig_text = open(TARGET).read()

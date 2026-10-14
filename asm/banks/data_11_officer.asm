@@ -287,7 +287,7 @@ OfficerRecord_RIKEI: .byte $26, $24, $34, $46, $57, $00, $00, $00, $00, $00, $00
 ; $8B1C-$8D73  Officer arrival schedule: 30 Province blocks x $14
 ; Up to 10 (officer id, appear year) pairs per block, $FF $FF padded to
 ; the block end. Year is plain binary ($BD=189 .. $D2=210) and ascends
-; inside a block. Reader: OfficerArrivalScan ($B964, prg_19_1a.asm) =
+; inside a block. Reader: OfficerArrivalScan ($B964, prg_19_1a_event_scenes.asm) =
 ; $8B1C + province*$14. These ids are exactly the officers whose seed
 ; 状態 = 1 (hidden). 154 of the 180 hidden officers appear here.
 ; ==============================================================================
@@ -455,11 +455,11 @@ ArrivalSchedule_EISHOU:
 ; the list end. Every entry is therefore a multiple of 2 bytes and no
 ; Officer id reaches $ED (checked here at generation time).
 ; Year encoding differs from the arrival schedule $8B1C above: that one
-; stores the DISPLAY year literally (@ScheduleYear prg_19_1a $B9C0 does
+; stores the DISPLAY year literally (@ScheduleYear prg_19_1a_event_scenes $B9C0 does
 ; SBC #$64 before comparing), while @ReinforceScan compares the pair
 ; byte straight against $6F00 ($AF10/$AF12), so here the byte is
 ; already year - 100. Observed display years: 192-210.
-; Reader - @ReinforceScan prg_19_1a $AECE: LDY #$31 / SwitchBank8_B,
+; Reader - @ReinforceScan prg_19_1a_event_scenes $AECE: LDY #$31 / SwitchBank8_B,
 ;   ($0000) <- $8D74, index $0470 is a BYTE offset into the pointer
 ;   table ($00/$02/$04/$06 = the four pools); ($10) = the chosen list.
 ;   The scan $AEF0 walks it by PAIRS (INX/INX at $AF08 to skip a
@@ -472,7 +472,7 @@ ArrivalSchedule_EISHOU:
 ; Content (decoded names): the pools group Officers by family -
 ; list 0 曹氏/夏侯氏/司马氏, list 1 周瑜+孙氏+诸葛恪, list 2
 ; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. EventReinforceGate ($A33C,
-; prg_19_1a) picks pool (Country-2) for the acting Country each
+; prg_19_1a_event_scenes) picks pool (Country-2) for the acting Country each
 ; January (Country 6 aliases slot 3; Countries 0/1/5 have none),
 ; and OfficerReinforceScene ($AEC0) inducts the first still-hidden
 ; Officer whose year has arrived into the Country's home Province.
@@ -514,7 +514,7 @@ ReinforceCandidateList_3:  ; $8DAB Country 6, 4 (Officer id, year) pairs, displa
 ; terminated and padded to the record end. Verified 237/237: every
 ; record's tile count is a multiple of 4 and every group obeys the
 ; (+1, +$10, +$11) relation.
-; The bank-$30 EquipmentNamePatterns ($9B52, data_10.asm) store the
+; The bank-$30 EquipmentNamePatterns ($9B52, data_10_seed.asm) store the
 ; same kind of glyph data LINE-major instead: 2 lines x 8 tiles, so
 ; there character k = line1[2k], line1[2k+1], line2[2k], line2[2k+1]
 ; and its four tiles are NOT adjacent.
@@ -524,13 +524,13 @@ ReinforceCandidateList_3:  ; $8DAB Country 6, 4 (Officer id, year) pairs, displa
 ; 02 03 12 13).
 ; Readers (all after LDY #$31; the byte [$0B] bias and the +$C0 tile
 ; bias live in the readers, not here):
-;   OfficerNameSpritePost prg_1d_1e $AB38 - officer-card name sprites;
+;   OfficerNameSpritePost prg_1d_1e_menu_screens $AB38 - officer-card name sprites;
 ;   ProvinceDataWindowFrame $ABD7 -> RenderSubState $B1B1 - province
-;     window ruler/governor names; prg_17_18 $B1EE ->
+;     window ruler/governor names; prg_17_18_display $B1EE ->
 ;     ExpandMetatileToSprites $CFDB - 4 rows x 6 tiles metatile;
-;   RecalcExchangeStats prg_0c_0d $CC29 -> @GetRulerValue $CC86 -
+;   WarSideStatDigitsRender prg_0c_0d_tactical_commands $CC29 -> @GetRulerValue $CC86 -
 ;     exchange-screen ruler name (index = ruler base value, not id);
-;   @MarchFormationOamDraw prg_19_1a $D2EA -> $D334 - marching
+;   @MarchFormationOamDraw prg_19_1a_event_scenes $D2EA -> $D334 - marching
 ;     formation name flag (index $0664[$0509]).
 ; [0] has no disassembled reader ($00B9 is written but never read).
 ; The trailing comment groups the tile bytes per character, 4 apiece.
@@ -814,8 +814,8 @@ ZeroFiller11_99BD_9AB3:
 ; by SIDE, never by controller.
 ; Readers (both scan the bank-$30 adjacency row of $050E for $052A,
 ; then read this table at that slot):
-;   @SetupDefenderRoster in .proc WarSetup prg_08_09 $B2AE -> $B2D6,
-;     and GetCityOfficerData prg_0c_0d $DEDE -> $DEE2 (called from
+;   @SetupDefenderRoster in .proc WarSetup prg_08_09_tactical_war $B2AE -> $B2D6,
+;     and GetCityOfficerData prg_0c_0d_tactical_commands $DEDE -> $DEE2 (called from
 ;     @BuildOfficerList $C3D2 and @CheckBoundsForPosition $C44E in the
 ;     cursor-driven army-deploy scene).
 ; Role of the value: a SELECTOR index, never a count. Every consumer
@@ -823,7 +823,7 @@ ZeroFiller11_99BD_9AB3:
 ; tables (physical bank $06):
 ;   $8C52[$050E*2] + type*32 -> defender unit placement pool (16 (Y,X)
 ;     pairs: anchor, then runs for unit ids 1-4 at offsets $02/$08/$0C/
-;     $14); @StoreCoordinates prg_08_09 $B266 writes it to $0600/$0614,
+;     $14); @StoreCoordinates prg_08_09_tactical_war $B266 writes it to $0600/$0614,
 ;     @BuildOfficerList feeds it to SearchRosterByTileCoord.
 ;   $94D6[$050E*2] + type*4  -> city bounds rectangle ([Ymin,Ymax] at
 ;     +0/+2, [Xmin,Xmax] at +1/+3) tested by @CheckBoundsForPosition.
@@ -836,12 +836,12 @@ ZeroFiller11_99BD_9AB3:
 ; faction record[$03] == 3 for side 0 then side 1, and @FillCoordinates
 ; $B258 branches on side_unit_base $6F91 (0 = defender, $0A = attacker),
 ; so the type is read whenever side 0 deploys, human or AI. Its
-; launcher State_WarSceneLaunch prg_1f $E18B dispatches only on
+; launcher State_WarSceneLaunch prg_1f_boot $E18B dispatches only on
 ; war_scene_id $0500 ($0B officer-fate vs battle deployment), and the
-; arming sites include the player-driven WarSceneLaunch prg_1b_1c $B5DC
+; arming sites include the player-driven WarSceneLaunch prg_1b_1c_map_screen $B5DC
 ; (frame sub-state 21, controller polled at $0081) plus
-; ArmyDeploySceneTrigger prg_19_1a $CA42. The GetCityOfficerData readers
-; are player UI in the army-deploy scene ArmyDeployDispatch prg_0c_0d
+; ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA42. The GetCityOfficerData readers
+; are player UI in the army-deploy scene ArmyDeploy prg_0c_0d_tactical_commands
 ; $C204: the readers test only mode byte $050B == 2, written by
 ; @State_CheckSrcRuler $C267 (side 0 of $0507, the defender); every other
 ; value ($03 from @State_CheckDestRuler $C2A6 = side 1, $00 from
@@ -909,7 +909,7 @@ TacticalDefenseSideTypeTable:
 ;   +0/+1 House (民家/rice market), +2/+3 Armory (武器屋),
 ;   +4/+5 Hospital (病院). Direct proof: arriving on pair N
 ;   routes route_mode $0470=N through State9_RouteNextAction
-;   prg_08_09 $C7C8: N=$00 -> State0 rice-buy panel $C0D5, N=$01
+;   prg_08_09_tactical_war $C7C8: N=$00 -> State0 rice-buy panel $C0D5, N=$01
 ;   -> State5 armory grid $C4B8, else -> State3 vitality check
 ;   $C3E3 -> State4 hospital heal $C3E9. Also: slot 0 is the
 ;   Action_BuyRice march target, slot 2 the Action_RestoreHP one
@@ -922,10 +922,10 @@ TacticalDefenseSideTypeTable:
 ;   tiles of the 32x32 battlefield ($00-$1D observed); the march
 ;   readers decrement a Y >= $10 once (map gap row).
 ; Readers - two indexings exist; stride-6 (correct rows):
-;   DrawStratagemTargetMarkers prg_08_09 $D24D -> $D25D: $050E *3 *2
+;   DrawStratagemTargetMarkers prg_08_09_tactical_war $D24D -> $D25D: $050E *3 *2
 ;     (=*6), walks pairs at +0/+2/+4 and draws a city-target marker
 ;     (tiles *16 -> pixels) at each used pair;
-;   MoveState_CheckDest prg_0c_0d $A4DD -> $A4EF: $050E *3 *2
+;   MoveState_CheckDest prg_0c_0d_tactical_commands $A4DD -> $A4EF: $050E *3 *2
 ;     (=*6), scans the 3 pairs vs the destination (X,Y); a match
 ;     stores the slot index (X) as the action selector and enters
 ;     state $09 (war action panel, WarTownActionDispatch).
@@ -974,7 +974,7 @@ ProvinceTacticalFacilityTiles:
 ; $9C58-$9D44  Officer natural-death year table: 1 byte per id (237)
 ; byte = death year - 100; from that year on, every strategy turn rolls
 ; death against DeathChanceThreshold (DeathChanceRoll, $BD28,
-; prg_19_1a.asm). Full table: docs/officer_death_years.csv
+; prg_19_1a_event_scenes.asm). Full table: docs/officer_death_years.csv
 ; ==============================================================================
 OfficerDeathYearTable:
   .byte $8F, $7C, $82, $85, $8C, $79, $8E, $8F     ; $9C58 id   0-  7: 阿会喃=243 韦康=224 伊籍=230 尹楷=233 尹赏=240 于禁=221 越吉=242 袁熙=243
@@ -1028,10 +1028,10 @@ B11TailGap_9D45_9D57:
 ; 30 rows: the 4 bytes after the last row ($9DD0-$9DD3) are $FF like
 ; the following filler, so no province is missing. Readers (bank $31
 ; window via LDY #$31 / B1F_SwitchBank8_B):
-;   DrawStratagemTargetMarkers prg_08_09 $D204 -> $D20F: the pair goes
+;   DrawStratagemTargetMarkers prg_08_09_tactical_war $D204 -> $D20F: the pair goes
 ;     to a:$000A-$000D as the sprite base position for
 ;     B1F_SpriteOamWriterScroll (battle stratagem province marker).
-;   ExchangeScene_Init prg_0c_0d $DC99 -> $DCCE: 16-bit clamp of
+;   TacticalMapScene_Init prg_0c_0d_tactical_commands $DC99 -> $DCCE: 16-bit clamp of
 ;     X - $80 into $0512/$0513 and Y - $60 into $0510/$0511 (the
 ;     exchange-scene map window bounds).
 ; ==============================================================================

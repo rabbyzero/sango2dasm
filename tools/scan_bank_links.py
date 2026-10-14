@@ -22,21 +22,27 @@ BANKS_DIR = os.path.join(os.path.dirname(__file__), "..", "asm", "banks")
 FUNC_H = os.path.join(os.path.dirname(__file__), "..", "include", "functions.h")
 
 FILES = [
-    "prg_1f.asm",
-    "prg_17_18.asm",
-    "prg_1d_1e.asm",
-    "prg_0c_0d.asm",
-    "prg_08_09.asm",
-    "prg_0a_0b.asm",
+    "prg_1f_boot.asm",
+    "prg_17_18_display.asm",
+    "prg_1d_1e_menu_screens.asm",
+    "prg_1b_1c_map_screen.asm",
+    "prg_19_1a_event_scenes.asm",
+    "prg_0e_0f_battle.asm",
+    "prg_0c_0d_tactical_commands.asm",
+    "prg_08_09_tactical_war.asm",
+    "prg_0a_0b_strategy_ai.asm",
 ]
 
 SRC_FILE_TO_BANK = {
-    "prg_1f.asm": "$1F (fixed $E000-$FFFF)",
-    "prg_17_18.asm": "$17/$18 ($A000-$DFFF)",
-    "prg_1d_1e.asm": "$1D/$1E ($A000-$DFFF)",
-    "prg_0c_0d.asm": "$0C/$0D ($A000-$DFFF)",
-    "prg_08_09.asm": "$08/$09 ($A000-$DFFF)",
-    "prg_0a_0b.asm": "$0A/$0B ($A000-$DFFF)",
+    "prg_1f_boot.asm": "$1F (fixed $E000-$FFFF)",
+    "prg_17_18_display.asm": "$17/$18 ($A000-$DFFF)",
+    "prg_1d_1e_menu_screens.asm": "$1D/$1E ($A000-$DFFF)",
+    "prg_1b_1c_map_screen.asm": "$1B/$1C ($A000-$DFFF)",
+    "prg_19_1a_event_scenes.asm": "$19/$1A ($A000-$DFFF)",
+    "prg_0e_0f_battle.asm": "$0E/$0F ($A000-$DFFF)",
+    "prg_0c_0d_tactical_commands.asm": "$0C/$0D ($A000-$DFFF)",
+    "prg_08_09_tactical_war.asm": "$08/$09 ($A000-$DFFF)",
+    "prg_0a_0b_strategy_ai.asm": "$0A/$0B ($A000-$DFFF)",
 }
 
 RE_ADDR = re.compile(r"\$([0-9A-Fa-f]{4})")

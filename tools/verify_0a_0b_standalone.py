@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone byte verification for asm/banks/prg_0a_0b.asm.
+"""Standalone byte verification for asm/banks/prg_0a_0b_strategy_ai.asm.
 
 Assembles the bank file in isolation: external references are stubbed with
 equates, both segments are laid out back-to-back at $A000, and the 16KB

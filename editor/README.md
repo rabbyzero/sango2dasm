@@ -175,7 +175,7 @@ standalone CSV-only copy of the editor still runs.
 
 Colour is not a guess. Each crop is preceded by a 64-byte **NES attribute head**
 (`BattleOverlayPtrTable == TerrainMapPtrTable - $40`), and the game's own indexing
-(`prg_0c_0d.asm:7543`) is reused verbatim: byte `((x & $0E) >> 1) | ((y & $0E) << 2)`
+(`prg_0c_0d_tactical_commands.asm:7543`) is reused verbatim: byte `((x & $0E) >> 1) | ((y & $0E) << 2)`
 over the 16×16 crop, 2-bit field `((y & 1) * 2 + (x & 1))`. Read that way the head
 is exactly the authored terrain palette — across all 30 provinces it selects
 **sub-palette 1 for River and sub-palette 0 for every other class, with zero
@@ -195,7 +195,7 @@ bank filler.
 (settlement 村/民家) are *gameplay ids* stamped onto map cells: their
 `MetaTileData` entry is byte-for-byte the plain-ground metatile, so there is no
 building art behind them. What you see in the game is a **16x16 OAM sprite**
-drawn over the cell by `DrawStratagemTargetMarkers` (`prg_08_09.asm:$D24D`):
+drawn over the cell by `DrawStratagemTargetMarkers` (`prg_08_09_tactical_war.asm:$D24D`):
 
 | Object | Map byte | Sprite | Source of its position |
 |---|---|---|---|

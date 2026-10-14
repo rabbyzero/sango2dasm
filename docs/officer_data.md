@@ -12,7 +12,7 @@ directly out of the iNES image by
 Both tables live in the two PRG banks that are only ever
 selected into the $8000-$9FFF data window (256 KB PRG =
 32 x 8 KB, so mapper register `$3n` selects physical bank
-`$0n`). `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e.asm`) seeds
+`$0n`). `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e_menu_screens.asm`) seeds
 SRAM from them, and `GetOfficerRomRecordAddr` (`$F387`) also
 reads the seed straight from ROM at runtime; see
 `code/initial_data_tables.md` for the byte-exact evidence.
@@ -74,7 +74,7 @@ worst to best.
 軍の属性 / ArmyAffinity is bits 2-3 of `+11`: `0` = 平軍 PlainsArmy (111 officers), `1` = 山軍 MountainArmy (70),
 `2` = 水軍 NavalArmy (56); value `3` never occurs. The battle AI
 indexes its order-vector tables with the masked field
-(`prg_0e_0f.asm` `@OrderResolve` `$D110`: `LSR LSR AND #$03`),
+(`prg_0e_0f_battle.asm` `@OrderResolve` `$D110`: `LSR LSR AND #$03`),
 and every reader of the status nibble uses `AND #$03` /
 `ORA #$03`, so the two bit pairs are independent fields that
 happen to sit next to each other. (Reading the whole low
@@ -99,26 +99,26 @@ that maintains them:
 
 | `& $03` | Meaning | Key evidence |
 |---|---|---|
-| `0` | 在野 free / unaffiliated | `OfficerArrivalScan` fallback (prg_19_1a `$BA1A`) looks for free officers whose `+5` location matches the scouted province; defection paths clear the bits (prg_0a_0b `$CBE0`) |
-| `1` | hidden / not yet appeared (the seed state of the 180 officers off the map) | arrival-schedule scan prg_0a_0b `$C63B` only considers `&3 == 1` officers whose appear year has passed, and recruits them to the province roster as `2` (prg_0a_0b `$C657`); reinforcement scan prg_19_1a `$AF04` |
-| `2` | rostered to a province (the seed state of the 57 officers on the map) | `ValidateProvinceSlots` (prg_19_1a `$A59A`, debug): every non-empty province roster slot must hold a status-2 officer |
-| `3` | out of action (dead / removed; triggers ruler succession) | `OfficerKill` (prg_19_1a `$BDCA`) sets it via `ORA #$03` and `$FF`s the roster slot; prg_0a_0b `$CA4B` labels the already-3 case `@RulerAlreadyDead`; the year-end `OfficerStatusScene` (prg_19_1a `$ADD5`) arms `RulerSuccessionScene` on it; counted as excluded at prg_19_1a `$A284` |
+| `0` | 在野 free / unaffiliated | `OfficerArrivalScan` fallback (prg_19_1a_event_scenes `$BA1A`) looks for free officers whose `+5` location matches the scouted province; defection paths clear the bits (prg_0a_0b_strategy_ai `$CBE0`) |
+| `1` | hidden / not yet appeared (the seed state of the 180 officers off the map) | arrival-schedule scan prg_0a_0b_strategy_ai `$C63B` only considers `&3 == 1` officers whose appear year has passed, and recruits them to the province roster as `2` (prg_0a_0b_strategy_ai `$C657`); reinforcement scan prg_19_1a_event_scenes `$AF04` |
+| `2` | rostered to a province (the seed state of the 57 officers on the map) | `ValidateProvinceSlots` (prg_19_1a_event_scenes `$A59A`, debug): every non-empty province roster slot must hold a status-2 officer |
+| `3` | out of action (dead / removed; triggers ruler succession) | `OfficerKill` (prg_19_1a_event_scenes `$BDCA`) sets it via `ORA #$03` and `$FF`s the roster slot; prg_0a_0b_strategy_ai `$CA4B` labels the already-3 case `@RulerAlreadyDead`; the year-end `OfficerStatusScene` (prg_19_1a_event_scenes `$ADD5`) arms `RulerSuccessionScene` on it; counted as excluded at prg_19_1a_event_scenes `$A284` |
 
 `+5` 位置 LocationProvince holds the province id ($00-$2D)
 where the officer currently is. It is written whenever an
 officer changes location: a defecting roster officer is
 re-tagged with the province he defects in
-(`prg_0a_0b.asm` `$CBE4`, post-succession pass; likewise the
-arrival relocation `prg_19_1a.asm` `$C0A1`), and the AI
+(`prg_0a_0b_strategy_ai.asm` `$CBE4`, post-succession pass; likewise the
+arrival relocation `prg_19_1a_event_scenes.asm` `$C0A1`), and the AI
 stationing pass assigns a free officer a province from the
 companion-province table $9D72 with a 1-in-8 roll
-(`prg_0a_0b.asm` `$AC3A`).
+(`prg_0a_0b_strategy_ai.asm` `$AC3A`).
 
 Starting province and appearance year are *not* in this
 record; they live in the arrival schedule at bank `$31`
 `$8B1C`: ten (officer id, appear year) pairs per province
 (stride `$14`), walked by `OfficerArrivalScan`
-(`prg_19_1a.asm` `$B964`).
+(`prg_19_1a_event_scenes.asm` `$B964`).
 
 ### Notes
 

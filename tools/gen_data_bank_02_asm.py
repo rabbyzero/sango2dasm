@@ -6,7 +6,7 @@ and read by B1F_SoundNotePlayer ($E609, fixed bank $1F), which does
 `LDY #$22 ; JSR SwitchBank8_B` (Y & $1F = $02) and then loads the 4-byte note
 entry at $8000 + soundID*4. The per-frame player is B0E/B0F
 BattleAnimSoundEngine ($D8D4) + BattleSoundChannelProc ($DC59). See
-asm/banks/prg_1f.asm and code/bank_switch_map.md (sections 3, 4.1, 5.2).
+asm/banks/prg_1f_boot.asm and code/bank_switch_map.md (sections 3, 4.1, 5.2).
 
 Layout (format proof and cell semantics: tools/sound_streams.py):
 
@@ -15,7 +15,7 @@ Layout (format proof and cell semantics: tools/sound_streams.py):
                  (b2 = low, b3 stored by the player as b3 + $40 = high)
   $82E0-$9FFF  SoundCommandStreams   - note records + 2-byte command cells,
                  flush-packed; the tail runs on into bank $03 $8000-$8965,
-                 which data_03.asm decodes (SoundStream_B03_*).
+                 which data_03_terrain.asm decodes (SoundStream_B03_*).
 
 Entry $B7's pointer ($4010) is never followed; its 4 bytes at $82DC are the
 note that 17 entries' pointers target, so this file emits its $FF terminator
@@ -23,7 +23,7 @@ note that 17 entries' pointers target, so this file emits its $FF terminator
 
 Usage:
     python tools/gen_data_bank_02_asm.py            # preview on stdout
-    python tools/gen_data_bank_02_asm.py --write    # update asm/banks/data_02.asm
+    python tools/gen_data_bank_02_asm.py --write    # update asm/banks/data_02_sound.asm
 """
 import argparse
 import os
@@ -35,7 +35,8 @@ import sound_streams as ss          # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK = 0x02
 BANK_BIN = os.path.join('rom', 'prg', 'prg_%02x.bin' % BANK)
-ASM_PATH = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % BANK)
+from bank_asm_names import data_asm_path               # noqa: E402
+ASM_PATH = data_asm_path(BANK, ROOT)
 
 WINDOW_CPU = 0x8000          # bank $02 is only ever mapped into $8000-$9FFF
 BANK_SIZE = 0x2000           # 8 KB
@@ -46,7 +47,7 @@ STREAM_CPU = 0x82E0          # first byte of the SoundCommandStreams region
 TRACK_STRIDE = ss.TRACK_STRIDE
 TRACK_COUNT = 11             # $0700 + 11*22 = $0F2, the SoundInit clear bound
 STREAM_PTR_BIAS = ss.PTR_HIGH_BIAS
-ROW_BYTES = 16               # .byte bytes per line (matches data_03.asm)
+ROW_BYTES = 16               # .byte bytes per line (matches data_03_terrain.asm)
 COMMENT_COL = 88
 
 BANNER = """\
@@ -75,11 +76,11 @@ BANNER = """\
 ;   $82DC-$9FFF  SoundCommandStreams   (starts on entry $B7's row - see below)
 ;
 ; The stream pointer is a complete CPU address and the driver maps two windows
-; while playing (prg_0e_0f.asm $D8D4-$D8E0: bank $02 at $8000 AND bank $03 at
+; while playing (prg_0e_0f_battle.asm $D8D4-$D8E0: bank $02 at $8000 AND bank $03 at
 ; $A000 via LDA #$23 / ORA #$C0 / STA NAMCO_PRG_A000). Stream high bytes run
 ; $82-$A8, so soundIDs $A4-$B6 play out of bank $03: the sound area is bank $02
 ; $82DC-$9FFF followed by bank $03 $8000-$8965, with no gaps in between; the
-; bank $03 half is decoded in asm/banks/data_03.asm (SoundStream_B03_*).
+; bank $03 half is decoded in asm/banks/data_03_terrain.asm (SoundStream_B03_*).
 ;
 ; Sound cell legend (decoder + coverage proof: tools/sound_streams.py):
 ;   4-byte stream header [tick][duty][control][sweep], then 2-byte cells
@@ -160,7 +161,7 @@ def block_comment(desc, cells, hdr, end):
         extra.append('%d notes, %.1f s single pass' % (len(pitch), length / 60.0))
     if end > ss.STREAM_B02_END:
         tail = end - ss.STREAM_B02_END
-        extra.append('cells continue in data_03.asm $8000-$%04X' % (0x8000 + tail - 1))
+        extra.append('cells continue in data_03_terrain.asm $8000-$%04X' % (0x8000 + tail - 1))
     if extra:
         out.append(';     ' + ', '.join(extra))
     return out
@@ -202,7 +203,7 @@ def emit_stream(sd, desc, lo, hi):
     if rows and rows[-1][0] + sum(x[0] for x in rows[-1][1]) < end:
         rest = end - (rows[-1][0] + sum(x[0] for x in rows[-1][1]))
         lines.append('  ; %s-%s: the remaining %d bytes are bank $03 data '
-                     '(data_03.asm $8000-$%04X)'
+                     '(data_03_terrain.asm $8000-$%04X)'
                      % (_hex(ss.STREAM_B02_END), _hex(end - 1), rest,
                         0x8000 + rest - 1))
     return lines
@@ -250,7 +251,7 @@ def render(data):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_02.asm')
+    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_02_sound.asm')
     args = ap.parse_args()
     text = render(read_bank())
     if args.write:

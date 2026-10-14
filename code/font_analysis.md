@@ -4,11 +4,11 @@ Status: font pages IDENTIFIED; per-glyph char mapping still in progress.
 
 ## CHR hardware chain (verified in code)
 
-1. `MenuFontRecordLoad` ($DE7E, prg_1d_1e): copies 48 bytes from bank $21 table
+1. `MenuFontRecordLoad` ($DE7E, prg_1d_1e_menu_screens): copies 48 bytes from bank $21 table
    `$946C + A*48` (phys bank $01, file ofs 0x346C in prg_combined.bin) to
    `$00AE-$00DD`. A = display-mode index.
 2. First 8 bytes ($00AE-$00B5) = 1KB CHR page numbers for NAMCO163 slots 0-7.
-3. `ChrBankSwitch` ($F206, prg_1f) pushes $00AE-$00B5 to $8000-$B800.
+3. `ChrBankSwitch` ($F206, prg_1f_boot) pushes $00AE-$00B5 to $8000-$B800.
 4. PPUCTRL mirror $008B = $10 -> BG pattern table = PPU $1000 -> NAMCO slots 4-7:
    - tiles $00-$3F -> $00B2 (record byte 4)
    - tiles $40-$7F -> $00B3 (record byte 5)
@@ -17,7 +17,7 @@ Status: font pages IDENTIFIED; per-glyph char mapping still in progress.
 5. Page value V: file = V//8 (chr_XX.bin), offset = (V%8)*0x400.
 6. CHR-RAM disabled (ORA #$C0 -> NAMCO_PRG_A000) => all glyphs live in CHR-ROM.
 
-## Display modes (DisplayInit @ $E370, prg_1f)
+## Display modes (DisplayInit @ $E370, prg_1f_boot)
 
 - mode 0 (sub_state 2), mode 1 (sub_state 3)
 - State_StrategyMode ($E230): mode = action_type ($0544) + 2

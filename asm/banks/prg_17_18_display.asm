@@ -9663,7 +9663,7 @@ SpriteFromTable:
 ; $DF15: DataRecordLoader
 ; DataRecordLoader_Entry: loads the current battlefield's 4 terrain quadrant zone
 ; ids (see PermutationTable below) into $00AA-$00AD and points ($A8) at $00AA.
-; GetTileTerrain ($B6EF, prg_08_09.asm) then reads ($A8),Y with Y = the map
+; GetTileTerrain ($B6EF, prg_08_09_tactical_war.asm) then reads ($A8),Y with Y = the map
 ; quadrant, so this is the war/tactical layer's ($A8) provider.
 ;===============================================================================
 ; Target0C ($DF15):

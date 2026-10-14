@@ -45,7 +45,7 @@ manual (`docs/manual_kb/10-duel-mode.md` gives 呂布 = 方天画戟 + 甲冑, w
 exactly what record 218 decodes to). The nine special items (weapon indices
 5/6/7/14/15/22/23, armor indices 6/7) are not on any starting officer and are
 not in the printed manual; their names were decoded from the
-EquipmentNamePatterns CHR code pages in bank $30 (asm/banks/data_10.asm
+EquipmentNamePatterns CHR code pages in bank $30 (asm/banks/data_10_seed.asm
 $9B52; 2026-09-30) and are listed here for completeness.
 
 Simplified-Chinese names are joined in from tools/data/officer_kanji.tsv.
@@ -334,7 +334,7 @@ def write_md(rows, path, info):
         f.write('Both tables live in the two PRG banks that are only ever\n'
                 'selected into the $8000-$9FFF data window (256 KB PRG =\n'
                 '32 x 8 KB, so mapper register `$3n` selects physical bank\n'
-                '`$0n`). `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e.asm`) seeds\n'
+                '`$0n`). `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e_menu_screens.asm`) seeds\n'
                 'SRAM from them, and `GetOfficerRomRecordAddr` (`$F387`) also\n'
                 'reads the seed straight from ROM at runtime; see\n'
                 '`code/initial_data_tables.md` for the byte-exact evidence.\n\n')
@@ -372,7 +372,7 @@ def write_md(rows, path, info):
                 'PlainsArmy (111 officers), `1` = 山軍 MountainArmy (70),\n'
                 '`2` = 水軍 NavalArmy (56); value `3` never occurs. The battle AI\n'
                 'indexes its order-vector tables with the masked field\n'
-                '(`prg_0e_0f.asm` `@OrderResolve` `$D110`: `LSR LSR AND #$03`),\n'
+                '(`prg_0e_0f_battle.asm` `@OrderResolve` `$D110`: `LSR LSR AND #$03`),\n'
                 'and every reader of the status nibble uses `AND #$03` /\n'
                 '`ORA #$03`, so the two bit pairs are independent fields that\n'
                 'happen to sit next to each other. (Reading the whole low\n'
@@ -401,42 +401,42 @@ def write_md(rows, path, info):
         f.write('| `& $03` | Meaning | Key evidence |\n|---|---|---|\n')
         f.write(
             '| `0` | 在野 free / unaffiliated | `OfficerArrivalScan` fallback '
-            '(prg_19_1a `$BA1A`) looks for free officers whose `+5` location '
+            '(prg_19_1a_event_scenes `$BA1A`) looks for free officers whose `+5` location '
             'matches the scouted province; defection paths clear the bits '
-            '(prg_0a_0b `$CBE0`) |\n')
+            '(prg_0a_0b_strategy_ai `$CBE0`) |\n')
         f.write(
             '| `1` | hidden / not yet appeared (the seed state of the 180 '
             'officers off the map) | arrival-schedule scan '
-            'prg_0a_0b `$C63B` only considers `&3 == 1` officers whose appear '
+            'prg_0a_0b_strategy_ai `$C63B` only considers `&3 == 1` officers whose appear '
             'year has passed, and recruits them to the province roster as `2` '
-            '(prg_0a_0b `$C657`); reinforcement scan prg_19_1a `$AF04` |\n')
+            '(prg_0a_0b_strategy_ai `$C657`); reinforcement scan prg_19_1a_event_scenes `$AF04` |\n')
         f.write(
             '| `2` | rostered to a province (the seed state of the 57 officers '
             'on the map) | `ValidateProvinceSlots` '
-            '(prg_19_1a `$A59A`, debug): every non-empty province roster slot '
+            '(prg_19_1a_event_scenes `$A59A`, debug): every non-empty province roster slot '
             'must hold a status-2 officer |\n')
         f.write(
             '| `3` | out of action (dead / removed; triggers ruler '
-            'succession) | `OfficerKill` (prg_19_1a `$BDCA`) sets it via '
-            '`ORA #$03` and `$FF`s the roster slot; prg_0a_0b `$CA4B` labels '
+            'succession) | `OfficerKill` (prg_19_1a_event_scenes `$BDCA`) sets it via '
+            '`ORA #$03` and `$FF`s the roster slot; prg_0a_0b_strategy_ai `$CA4B` labels '
             'the already-3 case `@RulerAlreadyDead`; the year-end '
-            '`OfficerStatusScene` (prg_19_1a `$ADD5`) arms '
+            '`OfficerStatusScene` (prg_19_1a_event_scenes `$ADD5`) arms '
             '`RulerSuccessionScene` on it; counted as excluded at '
-            'prg_19_1a `$A284` |\n')
+            'prg_19_1a_event_scenes `$A284` |\n')
         f.write('\n`+5` 位置 LocationProvince holds the province id ($00-$2D)\n'
                 'where the officer currently is. It is written whenever an\n'
                 'officer changes location: a defecting roster officer is\n'
                 're-tagged with the province he defects in\n'
-                '(`prg_0a_0b.asm` `$CBE4`, post-succession pass; likewise the\n'
-                'arrival relocation `prg_19_1a.asm` `$C0A1`), and the AI\n'
+                '(`prg_0a_0b_strategy_ai.asm` `$CBE4`, post-succession pass; likewise the\n'
+                'arrival relocation `prg_19_1a_event_scenes.asm` `$C0A1`), and the AI\n'
                 'stationing pass assigns a free officer a province from the\n'
                 'companion-province table $9D72 with a 1-in-8 roll\n'
-                '(`prg_0a_0b.asm` `$AC3A`).\n\n'
+                '(`prg_0a_0b_strategy_ai.asm` `$AC3A`).\n\n'
                 'Starting province and appearance year are *not* in this\n'
                 'record; they live in the arrival schedule at bank `$31`\n'
                 '`$8B1C`: ten (officer id, appear year) pairs per province\n'
                 '(stride `$14`), walked by `OfficerArrivalScan`\n'
-                '(`prg_19_1a.asm` `$B964`).\n')
+                '(`prg_19_1a_event_scenes.asm` `$B964`).\n')
         f.write('\n### Notes\n\n')
         f.write('* Records 237-239 exist in the 240-slot SRAM array but hold\n'
                 '  unrelated bytes: `SramInit` copies `$0B40` bytes from\n'

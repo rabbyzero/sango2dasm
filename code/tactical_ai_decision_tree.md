@@ -1,12 +1,12 @@
-# Battle AI Decision Tree — prg_08_09.asm (`AiTurnProcess`, $A02D–$B12F)
+# Battle AI Decision Tree — prg_08_09_tactical_war.asm (`AiTurnProcess`, $A02D–$B12F)
 
-Source: `asm/banks/prg_08_09.asm`, `.proc AiTurnProcess` and its nested helpers.
+Source: `asm/banks/prg_08_09_tactical_war.asm`, `.proc AiTurnProcess` and its nested helpers.
 All decisions below are reconstructed from the byte-exact disassembly.
 
 Companions in the four-AI-layer set (Strategy > Tactical > Battle > Duel):
-`code/strategy_ai_decision_tree.md` (strategy-layer AI, `prg_0a_0b.asm`),
-`code/battle_ai_decision_tree.md` (Battle Mode side director, `prg_0e_0f.asm`),
-`code/duel_ai_decision_tree.md` (one-on-one duel AI, `prg_17_18.asm`).
+`code/strategy_ai_decision_tree.md` (strategy-layer AI, `prg_0a_0b_strategy_ai.asm`),
+`code/battle_ai_decision_tree.md` (Battle Mode side director, `prg_0e_0f_battle.asm`),
+`code/duel_ai_decision_tree.md` (one-on-one duel AI, `prg_17_18_display.asm`).
 
 ## Key inputs
 
@@ -136,7 +136,7 @@ flowchart TD
   capped at `remaining_gold * 7 / 10` ($0526). Affordable → gold -= cost,
   rice += shortfall; otherwise → spend the whole 70% cap (`gold -= cap`,
   `rice += cap * rate / 100`). War resources were verified via war setup
-  (prg_0a_0b $A84E: province record +2/+3 gold → $0526, +4/+5 rice → $0522),
+  (prg_0a_0b_strategy_ai $A84E: province record +2/+3 gold → $0526, +4/+5 rice → $0522),
   the war-end write-back, and the market states of AiOfficerActionDispatch.
 - **RestoreHP ($A507):** march to `$9BA4[$050E*3 + 4]`. When arrived: abort if
   faction gold < 50, else deduct 50 gold, roll `random & $0F` (reroll ≥ $0B →

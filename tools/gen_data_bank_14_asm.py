@@ -2,7 +2,7 @@
 """Render PRG bank $14 (battle-scene sprite set A) as annotated asm.
 
 Bank $14 is pure data: it is mapped into the $8000-$9FFF window by SwitchBank8
-and read by exactly one routine, DrawSpriteFromBank ($CEA5, prg_17_18.asm):
+and read by exactly one routine, DrawSpriteFromBank ($CEA5, prg_17_18_display.asm):
 
   - A = sprite id; bit 7 selects the bank (clear -> $34 = this bank, set ->
     $35 = bank $15, the palette/layout mirror), bits 6-0 index a 122-entry
@@ -11,7 +11,7 @@ and read by exactly one routine, DrawSpriteFromBank ($CEA5, prg_17_18.asm):
     (HI_OFFSET_A = $00; DrawSpriteFromBank SBCs $00 at $CECC). Bank $15
     stores its pointers with hi + $20 instead.
   - The record pointer lands in $00/$01 and B1F_SpriteOamWriterSimple
-    ($F1AD, prg_1f.asm) walks it: 4-byte OAM entries [y_off, tile, attr,
+    ($F1AD, prg_1f_boot.asm) walks it: 4-byte OAM entries [y_off, tile, attr,
     x_off] until a byte equal to $80. y_off + $000A -> OAM Y, tile +
     $0003 (bias $00) -> OAM tile, attr EOR $0002 (caller flip flags) ->
     OAM attr, x_off + $000C -> OAM X. The writer is entered fresh, so
@@ -24,7 +24,7 @@ tile-identical attr-$40 sibling record next to them - a second palette of
 the same image that callers reach directly instead of through the writer's
 flip-flag EOR.
 
-Call-site evidence for the ids (all in prg_17_18.asm; bases are added to
+Call-site evidence for the ids (all in prg_17_18_display.asm; bases are added to
 runtime values, so the ids listed are the fixed bases, not exhaustive):
 
   $00-$10   MapScroll_UpdatePosition $CEE1 backward scroll: phase 0-7 from
@@ -51,7 +51,7 @@ Layout (coverage proof: this generator asserts every region tiles exactly):
 
 Usage:
     python tools/gen_data_bank_14_asm.py            # preview on stdout
-    python tools/gen_data_bank_14_asm.py --write    # update asm/banks/data_14.asm
+    python tools/gen_data_bank_14_asm.py --write    # update asm/banks/data_14_sprite_set_a.asm
 """
 import argparse
 import os
@@ -60,7 +60,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK = 0x14
 BANK_BIN = os.path.join('rom', 'prg', 'prg_%02x.bin' % BANK)
-ASM_PATH = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % BANK)
+from bank_asm_names import data_asm_path               # noqa: E402
+ASM_PATH = data_asm_path(BANK, ROOT)
 
 WINDOW_CPU = 0x8000
 BANK_SIZE = 0x2000
@@ -263,12 +264,12 @@ BANNER = """\
 ; by tools/verify_data_bank_14.py. Raw source: rom/prg/prg_14.bin (read-only) -
 ; do not hand-edit the rendered records.
 ;
-; Selected as $34 by DrawSpriteFromBank ($CEA5, prg_17_18): A = sprite id,
+; Selected as $34 by DrawSpriteFromBank ($CEA5, prg_17_18_display): A = sprite id,
 ; bit 7 picks the bank (clear = $34 / this bank, set = $35 / bank $15) and
 ; bits 6-0 index the .word table at $8000 (Y = id * 2). The stored pointer
 ; high byte is used unchanged for this bank (the routine SBCs HI_OFFSET_A =
 ; $00; bank $15 stores its pointers with hi + $20). The record pointer goes
-; to $00/$01 and B1F_SpriteOamWriterSimple ($F1AD, prg_1f) expands it to OAM:
+; to $00/$01 and B1F_SpriteOamWriterSimple ($F1AD, prg_1f_boot) expands it to OAM:
 ;
 ;   record = repeated 4-byte entries [y_off, tile, attr, x_off], $80 ends;
 ;     y_off  + $000A (from $04BA) -> OAM Y   ($0200)
@@ -283,7 +284,7 @@ BANNER = """\
 ; writer's EOR supplies the palette bit at run time (MapScroll's forward path
 ; passes $40/$41 + player slot).
 ;
-; Caller evidence for the ids (prg_17_18; fixed bases - runtime adds may reach
+; Caller evidence for the ids (prg_17_18_display; fixed bases - runtime adds may reach
 ; further ids of the same family): $00-$10 MapScroll_UpdatePosition backward
 ; scroll (phase 0-7 / ScrollSpriteTopTable $CF93 / ScrollSpriteMidTable $CF9B
 ; + player offset 0/2), $11-$21 its forward scroll (same tables + $11, flip
@@ -307,7 +308,7 @@ BANNER = """\
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_14.asm')
+    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_14_sprite_set_a.asm')
     args = ap.parse_args()
     text = render(read_bank())
     if args.write:

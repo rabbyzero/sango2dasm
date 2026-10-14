@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify asm/banks/data_02.asm reproduces rom/prg/prg_02.bin byte-for-byte.
+"""Verify asm/banks/data_02_sound.asm reproduces rom/prg/prg_02.bin byte-for-byte.
 
 Bank $02 (the Namco-163 sound/note data bank, read by B1F_SoundNotePlayer) is
 rendered by tools/gen_data_bank_02_asm.py: the SoundNoteHeaderTable is decoded
@@ -49,7 +49,7 @@ def linker_cfg():
 def assemble():
     """ca65 + ld65 the single bank; returns the built bytes or None."""
     os.makedirs(BUILD, exist_ok=True)
-    src = os.path.join(ROOT, 'asm', 'banks', 'data_02.asm')
+    src = os.path.join(ROOT, 'asm', 'banks', 'data_02_sound.asm')
     obj = os.path.join(BUILD, '_d02.o')
     cfg = os.path.join(BUILD, '_d02.cfg')
     out = os.path.join(BUILD, '_d02.bin')
@@ -142,7 +142,7 @@ def main():
         return 1
     stock = gen.read_bank()
     streams = stream_map()
-    print('bank 02 (asm/banks/data_02.asm): %d bytes assembled' % len(built))
+    print('bank 02 (asm/banks/data_02_sound.asm): %d bytes assembled' % len(built))
     rc = 0
     if len(built) != len(stock):
         print('  FAIL: length %d, expected %d' % (len(built), len(stock)))

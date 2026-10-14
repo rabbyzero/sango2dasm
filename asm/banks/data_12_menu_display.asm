@@ -7,7 +7,7 @@
 ; do not hand-edit the rendered records.
 ;
 ; Selected as $32 from two consumers:
-;   prg_1d_1e  SelectDataBankByPos $A690 + @PosDataBankTable $A6A7: bank $12 is
+;   prg_1d_1e_menu_screens  SelectDataBankByPos $A690 + @PosDataBankTable $A6A7: bank $12 is
 ;              mapped whenever the pos id is >= $20 AND sub_state ($007A) is
 ;              3-8; CalcMenuDataPtr $A61D then reads the .word at
 ;              $8000 + pos*2 and adds $40 to its high byte, so
@@ -17,7 +17,7 @@
 ;              ($82) chains inside the streams; CmdEndMenu ($80) shifts the
 ;              queue. pos ids < $20 always read bank $13 instead (its
 ;              pointer words are stored biased by -$20, this bank by -$40).
-;   prg_1f     State_NewGameSetup $E3FB: LDY #$32 / SwitchBank8_B, then
+;   prg_1f_boot     State_NewGameSetup $E3FB: LDY #$32 / SwitchBank8_B, then
 ;              B17_18_PpuCopyRaw copies 1 KB from $9AE3 to PPU $2000.
 ;
 ; Regions:
@@ -253,7 +253,7 @@ MenuStreamPtrTable:
   .word MenuStream_posB4_HealedMsg-$4000   ; $8168  word $57CA -> $97CA  pos $B4 war town action panel
   .word MenuStream_posB5_EnemyRetreatedNews-$4000 ; $816A  word $57E6 -> $97E6  pos $B5
   .word MenuStream_posB6_LostInStoneMazeMsg-$4000 ; $816C  word $580A -> $980A  pos $B6
-  .word MenuStream_posB7_OfficerDefectedMsg-$4000 ; $816E  word $5822 -> $9822  pos $B7 army march/OfficerMarchDispatch panel
+  .word MenuStream_posB7_OfficerDefectedMsg-$4000 ; $816E  word $5822 -> $9822  pos $B7 army march/AiMarch panel
   .word MenuStream_posB8_AmbushedByFukheiMsg-$4000 ; $8170  word $5833 -> $9833  pos $B8 move select panel
   .word MenuStream_posB9_FukheiAmbushMsg-$4000 ; $8172  word $5854 -> $9854  pos $B9 castle cmd panel
   .word MenuStream_posBA_FukheiHiddenMsg-$4000 ; $8174  word $5877 -> $9877  pos $BA
@@ -1492,7 +1492,7 @@ MenuStream_posB6_LostInStoneMazeMsg:
   .byte $48, $24, $11, $0A, $0F, $39, $31, $59, $01, $62, $69, $45, $4D, $71, $56, $39 ; $980A  vram 2448 | セ | キ | シ | ジ | ン | に | sp | ま | よ | い | こ | ん | て | で
   .byte $81, $4F, $62, $45, $62, $4F, $53, $80 ; $981A  row | し | ま | い | ま | し | た | end
 
-; --- $9822-$9832 (17 B) pos $B7 army march/OfficerMarchDispatch panel ---
+; --- $9822-$9832 (17 B) pos $B7 army march/AiMarch panel ---
 ;     start PPU 2448; 12 tiles, 1 marks, 1 end
 ;     text: "〈名〉は テキにねがえりました"
 MenuStream_posB7_OfficerDefectedMsg:
@@ -1666,7 +1666,7 @@ MenuStream_pos55_ArmyAnnihilatedMsg:
   .byte $53, $80                           ; $9AE1  た | end
 
 ; --- $9AE3-$9EE2  NewGameBaseScreen: 1 KB nametable image streamed to
-;     PPU $2000 by State_NewGameSetup (prg_1f $E3FB) via B17_18_PpuCopyRaw:
+;     PPU $2000 by State_NewGameSetup (prg_1f_boot $E3FB) via B17_18_PpuCopyRaw:
 ;     960 tile bytes (blank $01, frame tiles $AA/$00/$12/$22/$13/$23,
 ;     text tiles $7C...) then 64 attribute bytes, all $AA (palette 2).
 ;     Rows 4-17 hold the ruler-name entry kana grid (2 x 5-char column

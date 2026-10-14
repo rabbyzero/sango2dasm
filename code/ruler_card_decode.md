@@ -150,7 +150,7 @@ Entry count is always 8 (2 kanji) or 12 (3 kanji) for the 237 real officers, and
 the X shift `$20/$10/$00` right-aligns a 1-2 kanji name inside the 3-cell row
 (X cells `$38/$48/$58`, Y cells `$AF/$B7`).
 
-## 5. Callers (11 sites, all in `prg_19_1a.asm` `StrategyRequestDispatch`)
+## 5. Callers (11 sites, all in `prg_19_1a_event_scenes.asm` `StrategyRequestDispatch`)
 
 | Site | Handler | variant `$000A` | mode `$000C` | Officer `$000B` |
 |---|---|---|---|---|
@@ -210,15 +210,15 @@ index before declaring a stub "orphan code".
   in CHR (`tools/render_font_chunks.py` / `dump_record_fonts.py` are the
   starting point).
 - ~~Who consumes the name-font page id in `$00B9`~~ **Resolved (2026-10-10)**:
-  the IRQ handler (`prg_1f.asm` `$FD03-$FD14`) latches `$B6-$BD` into the eight
+  the IRQ handler (`prg_1f_boot.asm` `$FD03-$FD14`) latches `$B6-$BD` into the eight
   Namco-163 CHR registers — `$B8` → reg 2 (sprite PPU `$0800`, tiles `$80-$BF`)
   and `$B9` → reg 3 (`$0C00`, tiles `$C0-$FF`). `$00B8/$00B9` hold 1KB CHR page
   ids: the officer card's portrait page (written by `OfficerCardRender` from
-  `@OfficerPortraitChrPageTable` `$CED6`, prg_19_1a.asm) and the ruler card's
+  `@OfficerPortraitChrPageTable` `$CED6`, prg_19_1a_event_scenes.asm) and the ruler card's
   name-font page (written by `OfficerNameSpritePost` `$AB38`). The card font
   was never in banks `$10-$16`; it is a per-officer/per-name authored CHR page
   selected through this latch.
-- `$00BD ← $76`: `prg_0e_0f` labels `$00BB/$00BC/$00BD` as
+- `$00BD ← $76`: `prg_0e_0f_battle` labels `$00BB/$00BC/$00BD` as
   `zp_panel_param_a/b/c` (script id / page / panel id) and other banks write
   `$0C/$0D/$8C` there; `$76` is the digit tile base (`'0' = $76`) used by the
   BCD paths, so this write is either a panel id that happens to be `$76` or a

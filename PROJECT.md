@@ -21,14 +21,14 @@ sango2dasm/
 ├── asm/
 │   ├── main.asm                             # Entry point (reset/NMI/IRQ stubs)
 │   └── banks/                               # Bank files: code prg_XX.asm, seed data data_XX.asm
-│       ├── data_00.asm                       # Terrain DATA bank (reg $20, prov 0-7): annotated .byte hex, CSV-linked
-│       ├── data_02.asm                       # Sound DATA bank (reg $22): note descriptors + command streams (tail in $03)
-│       ├── data_03.asm                       # Terrain DATA bank (reg $23, prov 8-13): annotated .byte hex
-│       ├── data_04.asm                       # Terrain DATA bank (reg $24, prov 16-23): annotated .byte hex
-│       ├── data_05.asm                       # Terrain DATA bank (reg $25, prov 14-15,24-29): annotated .byte hex
-│       ├── data_06.asm                       # DATA bank (reg $26): war unit-placement pools + strategy scroll graphics
-│       ├── data_10.asm                       # Seed DATA bank (reg $30): annotated .byte records
-│       └── data_11.asm                       # Seed DATA bank (reg $31): annotated .byte records
+│       ├── data_00_terrain.asm                       # Terrain DATA bank (reg $20, prov 0-7): annotated .byte hex, CSV-linked
+│       ├── data_02_sound.asm                       # Sound DATA bank (reg $22): note descriptors + command streams (tail in $03)
+│       ├── data_03_terrain.asm                       # Terrain DATA bank (reg $23, prov 8-13): annotated .byte hex
+│       ├── data_04_terrain.asm                       # Terrain DATA bank (reg $24, prov 16-23): annotated .byte hex
+│       ├── data_05_terrain.asm                       # Terrain DATA bank (reg $25, prov 14-15,24-29): annotated .byte hex
+│       ├── data_06_placement_and_scroll.asm                       # DATA bank (reg $26): war unit-placement pools + strategy scroll graphics
+│       ├── data_10_seed.asm                       # Seed DATA bank (reg $30): annotated .byte records
+│       └── data_11_officer.asm                       # Seed DATA bank (reg $31): annotated .byte records
 ├── include/
 │   ├── 6502_registers.h                     # PPU/APU register definitions
 │   ├── namco163.h                           # Namco-163 mapper definitions + bank switch macros
@@ -335,7 +335,7 @@ Province and appearance year come from the arrival schedule in the same bank at
 [code/initial_data_tables.md](./code/initial_data_tables.md), machine-checked by
 `tools/verify_seed_tables.py`.
 
-The bank itself is checked out as readable data: `asm/banks/data_11.asm` renders
+The bank itself is checked out as readable data: `asm/banks/data_11_officer.asm` renders
 all 237 officer records as labelled `.byte` rows (`OfficerRecord_<NAME>`, one
 decoded summary per row) with the unanalysed ranges kept as sliced `.incbin`.
 Edit it directly, or edit `docs/officer_data.csv` and run `make databanks-csv`;
@@ -354,7 +354,7 @@ bank `$30`:
 | Province katakana names | `$9A1A` | `$21A1A` | `prg_10.bin + $1A1A` | 8 bytes, `$00`-terminated |
 | Province master records | `$8C00` | `$20C00` | `prg_10.bin + $0C00` | 32 bytes |
 
-`SramInit` (`$DD8B`, `asm/banks/prg_1d_1e.asm`) copies the whole `$3C0`-byte
+`SramInit` (`$DD8B`, `asm/banks/prg_1d_1e_menu_screens.asm`) copies the whole `$3C0`-byte
 record block verbatim to SRAM `$6000` (`@Copy1Loop`, `$DDCD`-`$DE10`: bank `$30`,
 source `$8C00`, length test `CMP #$03` / `CPX #$C0`), so the ROM block *is* the
 new-game starting state: `sram_record = id * 32 + $6000`. The block fills
@@ -395,26 +395,26 @@ semantic English terms from `docs/manual_kb/terminology.md` (`country_id`,
 the full column glossary is in `docs/province_data.md`.
 
 The two 999-capped stats are told apart by the annual income routines in
-`asm/banks/prg_19_1a.asm`: `$A60B` scales `+8/+9` into 米 (土地) and `$A446`
+`asm/banks/prg_19_1a_event_scenes.asm`: `$A60B` scales `+8/+9` into 米 (土地) and `$A446`
 scales `+14/+15` into 金 (産業), both multiplied by the 統治度 tier. This also
 resolves three province readings the manual scan could not
 (`docs/manual_kb/14-map.md`): 襄陽, 涪陵, 永昌. `--check` validates without
 writing, including that the roster set equals the officer seed's status-2 set.
 Byte-exact location evidence: [code/initial_data_tables.md](./code/initial_data_tables.md).
 
-`asm/banks/data_10.asm` renders both province tables as labelled `.byte` records
+`asm/banks/data_10_seed.asm` renders both province tables as labelled `.byte` records
 (`ProvinceRecord_<NAME>` with a decoded summary per province, plus
 `ProvinceName_<NAME>`), verified byte-exact by `make verifydata`.
 
 ## Sound Data (Banks $02 + $03 Head)
 
-`make databank02` renders `asm/banks/data_02.asm`; `make verifydata02` (or
+`make databank02` renders `asm/banks/data_02_sound.asm`; `make verifydata02` (or
 `python tools/verify_data_bank_02.py`) assembles it standalone, proves it is
 byte-exact against `rom/prg/prg_02.bin`, re-walks the stream area and describes
 any diff as *soundID / stream address / cell index / opcode-or-operand*.
 `python tools/sound_streams.py --validate` is the coverage proof, `--dump 08 98`
 prints a stream as annotated text. Streams are labelled `SoundStream_B02_SndXX`;
-the bank $03 half is decoded the same way in `data_03.asm` (`SoundStream_B03_*`,
+the bank $03 half is decoded the same way in `data_03_terrain.asm` (`SoundStream_B03_*`,
 owned by `tools/terrain_model.py` / `make terrain`).
 
 **Access path.** `B1F_SoundNotePlayer` ($E609) is the only reader of the
@@ -461,7 +461,7 @@ first crop are its NES attribute head, the same head every crop carries
 
 ## War Placement + Strategy Scroll Data (Bank $06)
 
-`make databank06` renders `asm/banks/data_06.asm`; `make verifydata06` (or
+`make databank06` renders `asm/banks/data_06_placement_and_scroll.asm`; `make verifydata06` (or
 `python tools/verify_data_bank_06.py`) assembles it standalone, proves it
 byte-exact against `rom/prg/prg_06.bin`, re-derives the region geometry from the
 ROM (pointer runs, per-scene record counts against the bank $10/$11 selectors,
@@ -470,10 +470,10 @@ what the generator renders.
 
 **Access path.** The bank is only ever selected into the `$8000-$9FFF` window
 (`LDY #$26 ; JSR B1F_SwitchBank8_A/B`), from eight sites in three code banks:
-`prg_08_09` war AI placement (`GetOrderedDestination` $A1E5,
-`@SetupDefenderRoster` $B2E4, `@SetupAttackerRoster` $B343), `prg_0c_0d`
+`prg_08_09_tactical_war` war AI placement (`GetOrderedDestination` $A1E5,
+`@SetupDefenderRoster` $B2E4, `@SetupAttackerRoster` $B343), `prg_0c_0d_tactical_commands`
 army-deploy (`@BuildOfficerList` $C3DC/$C42B, `@CheckBoundsForPosition`
-$C455/$C495) and `prg_17_18` strategy scroll screens
+$C455/$C495) and `prg_17_18_display` strategy scroll screens
 (`StrategyCommandDispatch` $D693, `ScrollPanel_LoadRow` $DC13,
 `RenderDispatchSprite` $DBF3).
 

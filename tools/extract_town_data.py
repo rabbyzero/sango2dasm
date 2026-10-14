@@ -6,7 +6,7 @@ trade rates. Writes CSV files to docs/.
 All data is read from the ROM image; every table is code-referenced:
 
 Town screen (strategy mode frame state 5, TownCommandDispatch $BFB7,
-asm/banks/prg_1b_1c.asm):
+asm/banks/prg_1b_1c_map_screen.asm):
 
 * Province -> town type (0-9): bank $1C $C025, 30 bytes, indexed by
   province id (`LDY $0402 / LDA $C025,Y`), also selecting the town-screen
@@ -23,7 +23,7 @@ Armory stock (subs 19-21 of the town dispatch, $C76E-$C9EF):
 * Province -> armory formation id: bank $1C $C801, 30 bytes
   (`LDY $0402 / LDA $C801,Y`), passed as the formation argument through the
   banked trampoline at $C7AB (bank $28 & $1F = $08, $A01E -> bank $09) into
-  ExpandFormationSlots (prg_08_09.asm $C851), which fans the formation's
+  ExpandFormationSlots (prg_08_09_tactical_war.asm $C851), which fans the formation's
   16 tile cells out to the 4 armory pages (side * 4 + slot).
 * Cell -> sale price: ItemPriceTable bank $09 $C89E, 32 words
   (the same table the battle-prep shop uses for prices; the armory
@@ -36,12 +36,19 @@ Armory stock (subs 19-21 of the town dispatch, $C76E-$C9EF):
   grids (5/6/7 剣, 14/15 刀, 22/23 槍, 30/31 防具) are SPECIAL items:
   none appears in the printed manual, and all nine names were decoded
   by rendering each EquipmentNamePatterns record's byte0 CHR code page
-  (asm/banks/data_10.asm $9B52; cross-checked against player records
+  (asm/banks/data_10_seed.asm $9B52; cross-checked against player records
   2026-09-30). They are obtainable in-game - duel loot from appointed
   rulers, or battle-time / gated armory stock (22 狼牙鎗 武90+, 30
   聖者の衣 徳90+, 15 関王刀 only in 建業, 23 蛇矛 only as 涪陵's 4th
-  grid cell via the prg_1b_1c $C7B3 special case); 5/6/7/14 carry no
+  grid cell via the prg_1b_1c_map_screen $C7B3 special case); 5/6/7/14 carry no
   price entry at all.
+
+* Item -> attack/defense value (equipment_catalog.csv): the equipment
+  stat tables of the battle overlay - BattleEdgeBonusLowTable (bank $0F
+  $CA1F, weapon attack, indexed by record[$0A] & $1F) and
+  BattleEdgeDefenseHighTable ($CA37, armor defense, indexed by
+  record[$0A] >> 5). Both feed AttackDamageCompute's edge-column damage
+  adjustment via BattleSideCombatStatsInit ($C926).
 
 Rice market (sub 3 of the town dispatch, $C1C1):
 
@@ -127,7 +134,7 @@ def item_class(cell):
 
 
 # Equipment weight per item id, from StrategyMode_EquipWeightTable
-# ($B2C0-$B2DF in prg_17_18.asm): entries $00-$17 = weapons (swords,
+# ($B2C0-$B2DF in prg_17_18_display.asm): entries $00-$17 = weapons (swords,
 # blades, spears), entries $18-$1F = armors (item ids 24-31). Subtracted
 # from (Vitality + Might) / 10 + $14 to elect the faster duelist as the
 # first actor (StrategyMode_CalcEquipSpeed).
@@ -137,6 +144,24 @@ EQUIP_WEIGHTS = [
     4, 5, 6, 8, 7, 8, 6, 10,  # $10-$17 spears 槍
     1, 2, 4, 6, 5, 10, 3, 7,  # $18-$1F armors 防具 (item ids 24-31)
 ]
+
+# Equipment attack per weapon id, from BattleEdgeBonusLowTable
+# ($CA1F-$CA36 in prg_0e_0f_battle.asm, 24 entries; ids 0-23).
+# Added to the side attack value at the edge columns (side A column 0 /
+# side B column $0B) of AttackDamageCompute before the troop-count tier
+# scaling; at those same columns BattleEdgeDefenseHighTable is subtracted
+# from half the damage (BattleSideCombatStatsInit $C926 latches
+# record[$0A] & $1F / >> 5 into $0570/$056E per side).
+EQUIP_ATTACK = [
+    3, 4, 7, 9, 13, 15, 16, 17,   # $00-$07 swords 剣
+    4, 5, 8, 10, 12, 11, 17, 19,  # $08-$0F blades 刀
+    5, 6, 7, 10, 11, 16, 18, 20,  # $10-$17 spears 槍
+]
+
+# Equipment defense per armor id (item ids 24-31), from
+# BattleEdgeDefenseHighTable ($CA37-$CA3E in prg_0e_0f_battle.asm,
+# indexed by record[$0A] >> 5).
+EQUIP_DEFENSE = [2, 3, 5, 7, 8, 10, 11, 12]  # $18-$1F armors 防具
 
 
 def load_province_names():
@@ -224,6 +249,8 @@ def extract():
             'item_name': item_name(cell),
             'category': item_class(cell),
             'weight': EQUIP_WEIGHTS[cell],
+            'attack_value': EQUIP_ATTACK[cell] if cell < 24 else '',
+            'defense_value': EQUIP_DEFENSE[cell - 24] if cell >= 24 else '',
             'price_gold': price if price else '',
             'sold_at_189_start': ('yes' if where else
                                   ('no (unpriced)' if not price else
@@ -290,8 +317,9 @@ def main():
               ['province_id', 'province', 'item_id', 'item_name', 'category',
                'price_gold'])
     write_csv(os.path.join(docs, 'equipment_catalog.csv'), catalog_rows,
-              ['item_id', 'item_name', 'category', 'weight', 'price_gold',
-               'sold_at_189_start', 'provinces'])
+              ['item_id', 'item_name', 'category', 'weight', 'attack_value',
+               'defense_value', 'price_gold', 'sold_at_189_start',
+               'provinces'])
     write_csv(os.path.join(docs, 'rice_prices.csv'), rice_rows,
               ['province_id', 'province', 'has_market',
                'buy_rate_rice_per_100g', 'sell_rate_rice_per_100g',

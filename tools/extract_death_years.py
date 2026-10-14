@@ -2,7 +2,7 @@
 """Extract the per-officer natural-death year table from the ROM.
 
 The strategy-mode turn-start death check (OfficerNaturalDeathScene /
-DeathChanceRoll in asm/banks/prg_19_1a.asm, bank $19 $BD28) reads a
+DeathChanceRoll in asm/banks/prg_19_1a_event_scenes.asm, bank $19 $BD28) reads a
 one-byte-per-officer table from bank $31 (mapper page $31 -> PRG $22000)
 at CPU $9C58. Each byte stores death_year - 100; the monthly death roll
 starts in the year table[id] + 100.
@@ -53,7 +53,7 @@ def write_md(rows, path):
         w('(PRG `$23C58`), one byte per officer id `$00-$EC`. Each byte\n')
         w('stores `death_year - 100`; from that year on, every strategy\n')
         w('turn (month) the officer rolls death against\n')
-        w('`DeathChanceThreshold` in `asm/banks/prg_19_1a.asm`\n')
+        w('`DeathChanceThreshold` in `asm/banks/prg_19_1a_event_scenes.asm`\n')
         w('(`DeathChanceRoll`, $BD28).\n\n')
         w('| id | name | 漢字 | death year | table byte |\n')
         w('|---:|---|---|---:|---:|\n')

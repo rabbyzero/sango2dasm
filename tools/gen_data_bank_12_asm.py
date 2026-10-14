@@ -4,14 +4,14 @@
 Bank $12 is pure data: it is mapped into the $8000-$9FFF window by SwitchBank8
 and read by two consumers:
 
-  - B1D_1E_MenuUpdate's stream VM (prg_1d_1e.asm $A154-$A2DA): SelectDataBankByPos
+  - B1D_1E_MenuUpdate's stream VM (prg_1d_1e_menu_screens.asm $A154-$A2DA): SelectDataBankByPos
     ($A690) picks bank $12 whenever pos id >= $20 AND sub_state ($007A) is 3-8
     (@PosDataBankTable $A6A7, entry = $32), then CalcMenuDataPtr ($A61D) reads the
     .word at $8000 + pos*2 and adds $40 to the stored high byte, so
     stream address = stored word + $4000. The seed values reach pos_buf_0
     ($0310-$0313, a 4-entry UI queue) through B1F_OpenMsgWindow0/2/4/5 ($F26D-$F29B)
     and CmdPushPosition chains inside the streams themselves.
-  - State_NewGameSetup (prg_1f.asm $E3FB): LDY #$32 / SwitchBank8_B, then
+  - State_NewGameSetup (prg_1f_boot.asm $E3FB): LDY #$32 / SwitchBank8_B, then
     B17_18_PpuCopyRaw streams 1 KB from $9AE3 to PPU $2000 (the new-game
     screen background nametable image, 960 tile bytes + 64 attribute bytes).
 
@@ -30,7 +30,7 @@ Layout (coverage proof: this generator asserts every region tiles exactly):
 
 Usage:
     python tools/gen_data_bank_12_asm.py            # preview on stdout
-    python tools/gen_data_bank_12_asm.py --write    # update asm/banks/data_12.asm
+    python tools/gen_data_bank_12_asm.py --write    # update asm/banks/data_12_menu_display.asm
 """
 import argparse
 import os
@@ -42,7 +42,8 @@ from menu_text_map import walk_stream, glyph_char  # noqa: E402  (shared stream 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK = 0x12
 BANK_BIN = os.path.join('rom', 'prg', 'prg_%02x.bin' % BANK)
-ASM_PATH = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % BANK)
+from bank_asm_names import data_asm_path               # noqa: E402
+ASM_PATH = data_asm_path(BANK, ROOT)
 
 WINDOW_CPU = 0x8000
 BANK_SIZE = 0x2000
@@ -236,7 +237,7 @@ BANNER = """\
 ; do not hand-edit the rendered records.
 ;
 ; Selected as $32 from two consumers:
-;   prg_1d_1e  SelectDataBankByPos $A690 + @PosDataBankTable $A6A7: bank $12 is
+;   prg_1d_1e_menu_screens  SelectDataBankByPos $A690 + @PosDataBankTable $A6A7: bank $12 is
 ;              mapped whenever the pos id is >= $20 AND sub_state ($007A) is
 ;              3-8; CalcMenuDataPtr $A61D then reads the .word at
 ;              $8000 + pos*2 and adds $40 to its high byte, so
@@ -246,7 +247,7 @@ BANNER = """\
 ;              ($82) chains inside the streams; CmdEndMenu ($80) shifts the
 ;              queue. pos ids < $20 always read bank $13 instead (its
 ;              pointer words are stored biased by -$20, this bank by -$40).
-;   prg_1f     State_NewGameSetup $E3FB: LDY #$32 / SwitchBank8_B, then
+;   prg_1f_boot     State_NewGameSetup $E3FB: LDY #$32 / SwitchBank8_B, then
 ;              B17_18_PpuCopyRaw copies 1 KB from $9AE3 to PPU $2000.
 ;
 ; Regions:
@@ -719,7 +720,7 @@ def screen_row_text(vals):
 def emit_screen(data):
     out = ['',
            '; --- $9AE3-$9EE2  NewGameBaseScreen: 1 KB nametable image streamed to',
-           ';     PPU $2000 by State_NewGameSetup (prg_1f $E3FB) via B17_18_PpuCopyRaw:',
+           ';     PPU $2000 by State_NewGameSetup (prg_1f_boot $E3FB) via B17_18_PpuCopyRaw:',
            ';     960 tile bytes (blank $01, frame tiles $AA/$00/$12/$22/$13/$23,',
            ';     text tiles $7C...) then 64 attribute bytes, all $AA (palette 2).',
            ';     Rows 4-17 hold the ruler-name entry kana grid (2 x 5-char column',
@@ -778,7 +779,7 @@ def render(data):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_12.asm')
+    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_12_menu_display.asm')
     args = ap.parse_args()
     text = render(read_bank())
     if args.write:

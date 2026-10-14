@@ -565,7 +565,7 @@ if __name__ == "__main__":
 
     # Build disassembly
     asm = build_asm(data, base_addr)
-    out_path = "asm/banks/prg_1f.asm"
+    out_path = "asm/banks/prg_1f_boot.asm"
     with open(out_path, "w") as f:
         f.write(asm)
     print(f"Disassembly written to {out_path}")

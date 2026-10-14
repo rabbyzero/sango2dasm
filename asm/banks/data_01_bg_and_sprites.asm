@@ -6,7 +6,7 @@
 ; four consumer banks. Window addresses below are CPU-side; file offset = addr - $8000.
 ;
 ;   $8000            Strategy Mode shared BG ATTRIBUTE stream (palette bytes).
-;                    Read by prg_17_18 StrategyModeDisplay -> SetupDisplayPtrs.
+;                    Read by prg_17_18_display StrategyModeDisplay -> SetupDisplayPtrs.
 ;   $8440 $8570      7 x Strategy Mode BG TILE streams, 304 B ($130) each, via
 ;   $86A0 $87D0      SetupDisplayPtrs::StrategyModeTilePtrTable (7 entries).
 ;   $8900 $8A30 $8B60
@@ -14,13 +14,13 @@
 ;
 ;   $946C            Menu font records: 14 x 48 B ($30) CHR page-config rows
 ;                    (bytes 4-7 = NAMCO-163 slot 4-7 pages = BG tiles
-;                    $00-3F/$40-7F/$80-BF/$C0-FF). Read by prg_1d_1e MenuFontRecordLoad.
+;                    $00-3F/$40-7F/$80-BF/$C0-FF). Read by prg_1d_1e_menu_screens MenuFontRecordLoad.
 ;
 ;   $970C            Selection-sprite pointer table: 5 x 16-bit, -> OAM blobs at
-;                    $9716/$9763/$9770/$9791/$97CE. Read by prg_0a_0b
+;                    $9716/$9763/$9770/$9791/$97CE. Read by prg_0a_0b_strategy_ai
 ;                    DrawSelectionSprites/WriteSingleSprite and StateSpriteAnim.
 ;   $97EF            Strategy animation frame pointer table: 15 x 16-bit -> OAM
-;                    blobs at $980D+. Read by prg_17_18 AnimSeq_PlayFrames ->
+;                    blobs at $980D+. Read by prg_17_18_display AnimSeq_PlayFrames ->
 ;                    SpriteFromTable (frame indices come from StratAnim_FrameTable).
 ;
 ;   $99A0            Officer class-base table: one byte per officer id (values
@@ -30,7 +30,7 @@
 ;                      3 = sad, 4 = happy) and $9D64 talking-frame pointers
 ;                      (same expression, mouth tile swapped for the talk loop).
 ;   $9AC8-$9FFF      Officer card sprite blobs (16-bit ptr tables above target these).
-;                    All three pointer tables + blobs read by prg_19_1a officer-card renderer.
+;                    All three pointer tables + blobs read by prg_19_1a_event_scenes officer-card renderer.
 ;
 ; All sprite blobs use the B1F_SpriteOamWriterSimple format: repeated 4-byte
 ; [y_off, tile, attr, x_off] entries terminated by a leading $80 byte; screen
@@ -622,12 +622,12 @@ Bank01OfficerClassBase:
 ;   Body: one ~14-sprite figure per class (4 distinct sets). Face: one 6-sprite
 ;   set per slot; the slot offset ($00A4 & 7) picks the expression -
 ;   0/1 = normal, 2 = angry, 3 = sad, 4 = happy (call sites: normal = officer
-;   detail/roster views, angry = duel pursuer prg_17_18 $BAF7, sad = war-defeat
-;   scene prg_08_09 $D691, happy = war-victory scene prg_08_09 $D6BA). Talking
+;   detail/roster views, angry = duel pursuer prg_17_18_display $BAF7, sad = war-defeat
+;   scene prg_08_09_tactical_war $D691, happy = war-victory scene prg_08_09_tactical_war $D6BA). Talking
 ;   frames repeat the same upper-face tiles with the mouth tile swapped; the
-;   renderer alternates face/talking every 8 frames. Read by prg_19_1a
+;   renderer alternates face/talking every 8 frames. Read by prg_19_1a_event_scenes
 ;   OfficerCardRender; OAM tiles resolve into the officer's portrait CHR page
-;   (per-officer page id from prg_19_1a $CED6, latched by the IRQ handler).
+;   (per-officer page id from prg_19_1a_event_scenes $CED6, latched by the IRQ handler).
 ;-------------------------------------------------------------------------------
 Bank01OfficerBodyPtrTable:
   .word $9AC8  ; $9AA0: C8 9A  ; slot 0 -> body $9AC8

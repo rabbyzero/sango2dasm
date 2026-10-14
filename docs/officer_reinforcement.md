@@ -1,6 +1,6 @@
 # Family-heir reinforcement pools (bank $31 $8D74)
 
-Each January `EventReinforceGate` (`$A33C`, prg_19_1a) picks
+Each January `EventReinforceGate` (`$A33C`, prg_19_1a_event_scenes) picks
 the acting Country's pool - Countries 2/3/4, with 6 aliasing
 slot 3; Countries 0/1/5 have none - and
 `OfficerReinforceScene` (`$AEC0`) inducts the FIRST still-
@@ -12,7 +12,7 @@ it straight against $6F00).
 These are exactly the 26 hidden officers with no arrival-
 schedule entry, grouped by family. Editing surface:
 `docs/officer_reinforcement.csv` (this file's CSV twin),
-re-rendered into `asm/banks/data_11.asm` by
+re-rendered into `asm/banks/data_11_officer.asm` by
 `tools/gen_data_bank_asm.py --from-csv`.
 
 ## Pool 0 -> Country 2

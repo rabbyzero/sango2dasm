@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-transform_17_18.py - Transform prg_17_18.asm with section headers
+transform_17_18.py - Transform prg_17_18_display.asm with section headers
 and semantic B17_18_ naming.
 
 Pass 1: Jump table entries and their immediate callees.
@@ -171,7 +171,7 @@ REGION_MAP = [
 def main():
     dry_run = "--dry-run" in sys.argv
 
-    asm_path = Path(__file__).parent.parent / "asm" / "banks" / "prg_17_18.asm"
+    asm_path = Path(__file__).parent.parent / "asm" / "banks" / "prg_17_18_display.asm"
     lines = asm_path.read_text().splitlines()
 
     # --- Regex patterns ---

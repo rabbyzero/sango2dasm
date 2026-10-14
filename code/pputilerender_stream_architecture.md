@@ -2,7 +2,7 @@
 
 ## Overview
 
-The strategy mode display engine uses a bytecode stream format to render menu UI tiles. The core renderer is `PPUTileRender` ($A048-$A11A) and the stream decoder is `MenuUpdate` ($A153-$A1C6), both in `prg_1d_1e.asm`.
+The strategy mode display engine uses a bytecode stream format to render menu UI tiles. The core renderer is `PPUTileRender` ($A048-$A11A) and the stream decoder is `MenuUpdate` ($A153-$A1C6), both in `prg_1d_1e_menu_screens.asm`.
 
 ## Stream Location
 
@@ -101,7 +101,7 @@ Each MenuAction handler calls `SetupDisplayPtrs` with a specific pos_buf_0 value
 | $18 | MenuAction18_SearchItem | $C5 |
 | $19 | MenuAction19_UnidentifiedCmd | $F4 |
 | $1A | MenuAction1A_OfficerDeath | $C1 |
-| $1B | MenuAction1B_StrategyCmdDispatch | $FC |
+| $1B | MenuAction1B_UnidentifiedCmd | $FC |
 
 ## PosDataBankTable ($A6A7)
 

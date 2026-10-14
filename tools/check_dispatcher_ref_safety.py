@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Check reference safety for bare-label -> @-local conversion candidates
-in prg_19_1a.asm B1F_CallbackDispatcher tables.
+in prg_19_1a_event_scenes.asm B1F_CallbackDispatcher tables.
 
 A candidate is convertible only if EVERY reference (definition + uses) in the
 whole repo is inside the defining proc.
 """
 import re, glob
 
-TARGET = "asm/banks/prg_19_1a.asm"
+TARGET = "asm/banks/prg_19_1a_event_scenes.asm"
 CANDIDATES = [
     ("AttractDemoDispatch", "CountrySelect"), ("AttractDemoDispatch", "OverlayInit"),
     ("AttractDemoDispatch", "OverlayPoll"), ("AttractDemoDispatch", "ResetCheck"),

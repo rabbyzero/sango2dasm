@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One-shot mechanical rename of the mislabeled duel-module identifiers.
 
-Applies whole-word replacements (longest-first) to prg_17_18.asm and the
+Applies whole-word replacements (longest-first) to prg_17_18_display.asm and the
 B17_18_* aliases in include/functions.h. Idempotent: already-renamed
 occurrences are untouched.
 """
@@ -114,7 +114,7 @@ REnames = [
 ]
 
 FILES = [
-    "/home/zero/project/sango2dasm/asm/banks/prg_17_18.asm",
+    "/home/zero/project/sango2dasm/asm/banks/prg_17_18_display.asm",
     "/home/zero/project/sango2dasm/include/functions.h",
 ]
 

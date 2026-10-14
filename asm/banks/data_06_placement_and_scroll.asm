@@ -9,15 +9,15 @@
 ; Two very different payloads share the bank:
 ;   $8000-$95E5  the Tactical (war) layer's unit placement geometry - the records
 ;        that the attack/defense "side type" selectors point into.
-;   $95E6-$9FBB  graphics for the strategy scroll screen machine in prg_17_18
+;   $95E6-$9FBB  graphics for the strategy scroll screen machine in prg_17_18_display
 ;        (StrategyCommandDispatch $D693): tile rows and OAM sprite blobs.
 ;
 ; Selected as $26 ($26 & $1F = $06) from eight sites in three consumer banks:
-;   prg_08_09  GetOrderedDestination $A1E5, @SetupDefenderRoster $B2E4,
+;   prg_08_09_tactical_war  GetOrderedDestination $A1E5, @SetupDefenderRoster $B2E4,
 ;              @SetupAttackerRoster $B343     - war AI unit placement
-;   prg_0c_0d  @BuildOfficerList $C3DC/$C42B and @CheckBoundsForPosition
-;              $C455/$C495 (ArmyDeployDispatch)  - army-deploy command
-;   prg_17_18  StrategyCommandDispatch $D693, ScrollPanel_LoadRow $DC13 and
+;   prg_0c_0d_tactical_commands  @BuildOfficerList $C3DC/$C42B and @CheckBoundsForPosition
+;              $C455/$C495 (ArmyDeploy)  - army-deploy command
+;   prg_17_18_display  StrategyCommandDispatch $D693, ScrollPanel_LoadRow $DC13 and
 ;              RenderDispatchSprite $DBF3     - strategy scroll screens
 ;
 ; Layout (window addresses; file offset = addr - $8000):
@@ -42,13 +42,13 @@
 ; gaps: per province the pool count equals the highest side type that province uses
 ; in the matching selector table (attack: bank $10 $9E62, defense: bank $11 $9AB4)
 ; plus one, and the bounds run carries exactly one rectangle per pool. Both
-; selector tables are documented in data_10.asm / data_11.asm - this bank is the
+; selector tables are documented in data_10_seed.asm / data_11_officer.asm - this bank is the
 ; arrangement they select.
 ;
-; Sprite blobs use the B1F_SpriteOamWriterSimple format ($F1AD, prg_1f): repeated
+; Sprite blobs use the B1F_SpriteOamWriterSimple format ($F1AD, prg_1f_boot): repeated
 ; [y_off, tile, attr, x_off] quads terminated by a leading $80 byte. Screen
 ; position = (y_off + Y base $000A, x_off + X base $000C), tile + $0003 bias, attr
-; EOR $0002 flip flags. Same format as the blobs in asm/banks/data_01.asm.
+; EOR $0002 flip flags. Same format as the blobs in asm/banks/data_01_bg_and_sprites.asm.
 ;
 ; Original binary: rom/prg/prg_06.bin
 ;===============================================================================
@@ -65,8 +65,9 @@
 ;   selector is keyed on the adjacency SLOT holding province $052A in that
 ;   row, so it is a per-approach-route choice, not a per-province one.
 ;   Readers, all with this bank armed at $8000:
-;     prg_08_09 @SetupAttackerRoster $B343 - war AI / war scene setup.
-;     prg_0c_0d @BuildOfficerList $C3DC/$C42B - army-deploy scene.
+;     prg_08_09_tactical_war @SetupAttackerRoster $B343 - war AI / war scene
+;     setup. prg_0c_0d_tactical_commands @BuildOfficerList $C3DC/$C42B -
+;     army-deploy scene.
 ;-------------------------------------------------------------------------------
 TacticalAttackPoolPtrTable:
   .word TacticalAttackPool_00_0                                           ; $8000: 3C 80  ; province  0 リョウトウ 遼東 -> $803C, 1 pool(s) for types 0-0
@@ -104,24 +105,24 @@ TacticalAttackPoolPtrTable:
 ; TACTICAL ATTACK UNIT PLACEMENT POOLS  ($803C-$8C51)
 ;   91 pools x 34 B = 17 (row,col) tile pairs in one fixed order: pair 0 is
 ;   the entry ANCHOR, then the 15 unit positions used by unit ids 1-4.
-;   prg_08_09 @SetupAttackerRoster $B343 points ($20) at the pool chosen by
-;   the province/adjacency side type and seeds the four per-unit read cursors
-;   $0022-$0025 from @AttackerCursorSeeds $02/$0C/$16/$1C ($B36D). A cursor
-;   run ends where the next one starts, so the seeds split the 15 unit pairs
-;   5/5/3/2 by slot; each unit reads the pair at its own cursor and advances
-;   it by 2 (@StoreCoordinates $B266 / $B285-$B2A4), storing into
-;   unit_coord_y/x ($0614/$0600).
+;   prg_08_09_tactical_war @SetupAttackerRoster $B343 points ($20) at the pool
+;   chosen by the province/adjacency side type and seeds the four per-unit
+;   read cursors $0022-$0025 from @AttackerCursorSeeds $02/$0C/$16/$1C
+;   ($B36D). A cursor run ends where the next one starts, so the seeds split
+;   the 15 unit pairs 5/5/3/2 by slot; each unit reads the pair at its own
+;   cursor and advances it by 2 (@StoreCoordinates $B266 / $B285-$B2A4),
+;   storing into unit_coord_y/x ($0614/$0600).
 ;   The final 2 bytes of every pool - one (row,col) pair - lie past the fourth
 ;   cursor's reach; no known reader touches them.
-;   prg_0c_0d @BuildOfficerList walks the same run from pair 1, looking for
-;   the first tile NOT already held by an officer (SearchRosterByTileCoord
-;   $D6B6), and gives that tile to the unit being deployed. Rows skip 15:
-;   observed values $01-$14 with $0F unused, and a reader that needs the 0-19
-;   space subtracts 1 from anything >= $10 (GetOrderedDestination $A1FF-$A204)
-;   while the war AI stores the byte through unchanged. Columns $01-$1E on the
-;   32-wide x 20-high tactical map. The anchor itself moves with the type,
-;   i.e. the army enters on a flank. Per-side measurements: data_10.asm $9E62
-;   block.
+;   prg_0c_0d_tactical_commands @BuildOfficerList walks the same run from pair
+;   1, looking for the first tile NOT already held by an officer
+;   (SearchRosterByTileCoord $D6B6), and gives that tile to the unit being
+;   deployed. Rows skip 15: observed values $01-$14 with $0F unused, and a
+;   reader that needs the 0-19 space subtracts 1 from anything >= $10
+;   (GetOrderedDestination $A1FF-$A204) while the war AI stores the byte
+;   through unchanged. Columns $01-$1E on the 32-wide x 20-high tactical map.
+;   The anchor itself moves with the type, i.e. the army enters on a flank.
+;   Per-side measurements: data_10_seed.asm $9E62 block.
 ;-------------------------------------------------------------------------------
 
 ; province  0 リョウトウ 遼東, attack side type 0 - anchor (19,2) + 15 unit tiles + 1 pair past the cursors
@@ -862,10 +863,11 @@ TacticalAttackPool_29_1:
 ;   The selector is keyed on the adjacency SLOT holding province $052A in that
 ;   row, so it is a per-approach-route choice, not a per-province one.
 ;   Readers, all with this bank armed at $8000:
-;     prg_08_09 @SetupDefenderRoster $B2E4 - war AI / war scene setup.
-;     prg_0c_0d @BuildOfficerList $C3DC/$C42B - army-deploy scene.
-;     prg_08_09 GetOrderedDestination $A1E5 - reads pair 0 (the anchor) as the
-;     ordered march destination of a faction-assigned officer.
+;     prg_08_09_tactical_war @SetupDefenderRoster $B2E4 - war AI / war scene
+;     setup. prg_0c_0d_tactical_commands @BuildOfficerList $C3DC/$C42B -
+;     army-deploy scene.
+;     prg_08_09_tactical_war GetOrderedDestination $A1E5 - reads pair 0 (the
+;     anchor) as the ordered march destination of a faction-assigned officer.
 ;-------------------------------------------------------------------------------
 TacticalDefensePoolPtrTable:
   .word TacticalDefensePool_00_0                                          ; $8C52: 8E 8C  ; province  0 リョウトウ 遼東 -> $8C8E, 1 pool(s) for types 0-0
@@ -903,22 +905,22 @@ TacticalDefensePoolPtrTable:
 ; TACTICAL DEFENSE UNIT PLACEMENT POOLS  ($8C8E-$932D)
 ;   53 pools x 32 B = 16 (row,col) tile pairs in one fixed order: pair 0 is
 ;   the entry ANCHOR, then the 15 unit positions used by unit ids 1-4.
-;   prg_08_09 @SetupDefenderRoster $B2E4 points ($20) at the pool chosen by
-;   the province/adjacency side type and seeds the four per-unit read cursors
-;   $0022-$0025 from @DefenderCursorSeeds $02/$08/$0C/$14 ($B30E). A cursor
-;   run ends where the next one starts, so the seeds split the 15 unit pairs
-;   3/2/4/6 by slot; each unit reads the pair at its own cursor and advances
-;   it by 2 (@StoreCoordinates $B266 / $B285-$B2A4), storing into
-;   unit_coord_y/x ($0614/$0600).
-;   prg_0c_0d @BuildOfficerList walks the same run from pair 1, looking for
-;   the first tile NOT already held by an officer (SearchRosterByTileCoord
-;   $D6B6), and gives that tile to the unit being deployed. Rows skip 15:
-;   observed values $01-$13 with $0F unused, and a reader that needs the 0-19
-;   space subtracts 1 from anything >= $10 (GetOrderedDestination $A1FF-$A204)
-;   while the war AI stores the byte through unchanged. Columns $02-$1C on the
-;   32-wide x 20-high tactical map. Both types keep the same city anchor and
-;   only re-array the garrison. Per-side measurements: data_11.asm $9AB4
-;   block.
+;   prg_08_09_tactical_war @SetupDefenderRoster $B2E4 points ($20) at the pool
+;   chosen by the province/adjacency side type and seeds the four per-unit
+;   read cursors $0022-$0025 from @DefenderCursorSeeds $02/$08/$0C/$14
+;   ($B30E). A cursor run ends where the next one starts, so the seeds split
+;   the 15 unit pairs 3/2/4/6 by slot; each unit reads the pair at its own
+;   cursor and advances it by 2 (@StoreCoordinates $B266 / $B285-$B2A4),
+;   storing into unit_coord_y/x ($0614/$0600).
+;   prg_0c_0d_tactical_commands @BuildOfficerList walks the same run from pair
+;   1, looking for the first tile NOT already held by an officer
+;   (SearchRosterByTileCoord $D6B6), and gives that tile to the unit being
+;   deployed. Rows skip 15: observed values $01-$13 with $0F unused, and a
+;   reader that needs the 0-19 space subtracts 1 from anything >= $10
+;   (GetOrderedDestination $A1FF-$A204) while the war AI stores the byte
+;   through unchanged. Columns $02-$1C on the 32-wide x 20-high tactical map.
+;   Both types keep the same city anchor and only re-array the garrison.
+;   Per-side measurements: data_11_officer.asm $9AB4 block.
 ;-------------------------------------------------------------------------------
 
 ; province  0 リョウトウ 遼東, defense side type 0 - anchor (5,24) + 15 unit tiles
@@ -1297,13 +1299,13 @@ TacticalDefensePool_29_0:
 ;   30 x .word, same province index and the same side-type scaling as the pool
 ;   table above; the pointee run holds exactly one 4-byte rectangle per pool
 ;   of this side.
-;   Reader: prg_0c_0d @CheckBoundsForPosition $C447 (defense, army-deploy mode
-;   $050B = 2) and @OtherModeBounds $C48E (attack) form ($10) = table[$050E*2]
-;   + type*$04 and keep CARRY SET only if the cursor tile lies inside the
-;   rectangle - the gate on which map tile the 出兵 army-deploy command may
-;   select. The rectangle is the selectable city area, not the bounding box of
-;   the paired placement pool: the two tables answer different questions and
-;   are reached with one index.
+;   Reader: prg_0c_0d_tactical_commands @CheckBoundsForPosition $C447
+;   (defense, army-deploy mode $050B = 2) and @OtherModeBounds $C48E (attack)
+;   form ($10) = table[$050E*2] + type*$04 and keep CARRY SET only if the
+;   cursor tile lies inside the rectangle - the gate on which map tile the 出兵
+;   army-deploy command may select. The rectangle is the selectable city area,
+;   not the bounding box of the paired placement pool: the two tables answer
+;   different questions and are reached with one index.
 ;-------------------------------------------------------------------------------
 TacticalAttackBoundsPtrTable:
   .word TacticalAttackBounds_00_0                                         ; $932E: 6A 93  ; province  0 リョウトウ 遼東 -> $936A, 1 rect(s)
@@ -1346,7 +1348,7 @@ TacticalAttackBoundsPtrTable:
 ;   No two adjacent side types share a rectangle here (0 of the 90 consecutive
 ;   pairs are byte-identical): on this side each type carries its own city
 ;   area as well as its own placement array - see the attack note in
-;   data_10.asm $9E62 block.
+;   data_10_seed.asm $9E62 block.
 ;-------------------------------------------------------------------------------
 
 ; province  0 リョウトウ 遼東, attack side type 0 - rows [16,21) cols [0,9)
@@ -1718,13 +1720,13 @@ TacticalAttackBounds_29_1:
 ;   30 x .word, same province index and the same side-type scaling as the pool
 ;   table above; the pointee run holds exactly one 4-byte rectangle per pool
 ;   of this side.
-;   Reader: prg_0c_0d @CheckBoundsForPosition $C447 (defense, army-deploy mode
-;   $050B = 2) and @OtherModeBounds $C48E (attack) form ($10) = table[$050E*2]
-;   + type*$04 and keep CARRY SET only if the cursor tile lies inside the
-;   rectangle - the gate on which map tile the 出兵 army-deploy command may
-;   select. The rectangle is the selectable city area, not the bounding box of
-;   the paired placement pool: the two tables answer different questions and
-;   are reached with one index.
+;   Reader: prg_0c_0d_tactical_commands @CheckBoundsForPosition $C447
+;   (defense, army-deploy mode $050B = 2) and @OtherModeBounds $C48E (attack)
+;   form ($10) = table[$050E*2] + type*$04 and keep CARRY SET only if the
+;   cursor tile lies inside the rectangle - the gate on which map tile the 出兵
+;   army-deploy command may select. The rectangle is the selectable city area,
+;   not the bounding box of the paired placement pool: the two tables answer
+;   different questions and are reached with one index.
 ;-------------------------------------------------------------------------------
 TacticalDefenseBoundsPtrTable:
   .word TacticalDefenseBounds_00_0                                        ; $94D6: 12 95  ; province  0 リョウトウ 遼東 -> $9512, 1 rect(s)
@@ -1766,8 +1768,8 @@ TacticalDefenseBoundsPtrTable:
 ;   encoding as the pools.
 ;   Adjacent side types often share one rectangle (22 of the 52 consecutive
 ;   pairs here are byte-identical): on this side the selector changes the
-;   placement array, not the city area - see the defense note in data_11.asm
-;   $9AB4 block.
+;   placement array, not the city area - see the defense note in
+;   data_11_officer.asm $9AB4 block.
 ;-------------------------------------------------------------------------------
 
 ; province  0 リョウトウ 遼東, defense side type 0 - rows [0,9) cols [20,29)
@@ -1986,12 +1988,12 @@ TacticalDefenseBounds_29_0:
 ; STRATEGY SCROLL PHASE TILE BLOCKS  ($95E6-$9A7D)
 ;   3 blocks of 14 rows x 28 tile bytes - the tile rows of strategy scroll
 ;   phases 1-3.
-;   The scroll machine prg_17_18 StrategyCommandDispatch ($D693) dispatches on
-;   strat_scroll_param ($0541) as a PHASE index (6 handlers; phases chain with
-;   INC $0541 at $D831/$D8B8/$D90C), and ScrollPanel_LoadRow is called from
-;   exactly three of them - $D7B7, $D847 and $D8D6 - so $0541 = 1/2/3 select
-;   blocks 1/2/3 through the local ScrollPanel_DataPtrTable ($DCD5 =
-;   $95E6/$976E/$98F6). Phases 4-6 never read this bank.
+;   The scroll machine prg_17_18_display StrategyCommandDispatch ($D693)
+;   dispatches on strat_scroll_param ($0541) as a PHASE index (6 handlers;
+;   phases chain with INC $0541 at $D831/$D8B8/$D90C), and ScrollPanel_LoadRow
+;   is called from exactly three of them - $D7B7, $D847 and $D8D6 - so $0541 =
+;   1/2/3 select blocks 1/2/3 through the local ScrollPanel_DataPtrTable
+;   ($DCD5 = $95E6/$976E/$98F6). Phases 4-6 never read this bank.
 ;   Each call copies one 28-byte row into the $0383 tile buffer and terminates
 ;   it with $FF (count $1C at $0380); the PPU target is ($0381,$0382) =
 ;   dispatch_offset_ptr ($04D4/$04D5), seeded $2082 at $DCC8/$DCCD and stepped
@@ -2113,8 +2115,8 @@ StrategyScrollPhase3TileRows:
 ;   $DC06/$DC08, tile bias $0003 = 0 at $DC0B/$DC0D and flip/attr EOR $0002 =
 ;   0 - so
 ;   the blob's own attr byte is used unchanged and no caller alters it.
-;   prg_17_18 StrategyCommand_InitOfficerScroll ($D6AA) arms ($10/$11) = $9A7E
-;   ($D6D7-$D6DD)
+;   prg_17_18_display StrategyCommand_InitOfficerScroll ($D6AA) arms ($10/$11)
+;   = $9A7E ($D6D7-$D6DD)
 ;   and calls RenderDispatchSprite three times per pass: index
 ;   dispatch_src_ptr_lo
 ;   ($04CA, 1..8), then $04CA+4 (5..12), then dispatch_src_ptr_hi ($04CB,
@@ -2269,8 +2271,8 @@ StrategyScrollPhase1Sprite_Blob20:
 
 ;-------------------------------------------------------------------------------
 ; STRATEGY SCROLL PHASE 2 SPRITE BLOBS  ($9CD9-$9CE0)
-;   4 x .word, 1-based index. prg_17_18 StrategyCommand_ScrollIntroPanel
-;   ($D795) arms
+;   4 x .word, 1-based index. prg_17_18_display
+;   StrategyCommand_ScrollIntroPanel ($D795) arms
 ;   ($10/$11) = $9CD9 at $D7E7-$D7ED and calls RenderDispatchSprite with
 ;   dispatch_src_ptr_lo ($04CA) = 1..4, one blob per pass of that phase. All
 ;   four blobs
@@ -2328,8 +2330,8 @@ StrategyScrollPhase2Sprite_Blob3:
 
 ;-------------------------------------------------------------------------------
 ; STRATEGY SCROLL PHASE 3 SPRITE BLOBS  ($9E75-$9E80)
-;   6 x .word, 1-based index. prg_17_18 StrategyCommand_ScrollTextPhase2
-;   ($D82A) arms
+;   6 x .word, 1-based index. prg_17_18_display
+;   StrategyCommand_ScrollTextPhase2 ($D82A) arms
 ;   ($10/$11) = $9E75 at $D877-$D87D and calls RenderDispatchSprite twice per
 ;   pass, with
 ;   $04CA (1..3) and $04CA+3 (4..6), so two blobs layer per pass. $04CA is

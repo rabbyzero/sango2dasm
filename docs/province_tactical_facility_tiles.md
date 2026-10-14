@@ -1,7 +1,7 @@
 # ProvinceTacticalFacilityTiles - tactical-map facility tiles
 
 Bank $31 (physical `rom/prg/prg_11.bin`) `$9BA4-$9C57`, label
-`ProvinceTacticalFacilityTiles` in `asm/banks/data_11.asm`. 30 rows x 6 bytes;
+`ProvinceTacticalFacilityTiles` in `asm/banks/data_11_officer.asm`. 30 rows x 6 bytes;
 three ordered (X,Y) tile pairs per province giving the facility
 locations of that province's tactical-mode battlefield (32x32 tile
 grid, values observed $01-$1D). Slot order: 0 House 民家 (rice market),

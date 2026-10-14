@@ -15,7 +15,7 @@ mapper 19) as the new game seeds them, across every table that describes one:
 | province rosters | `$30` | `$8C00 + $11..$1A` | 30 x 10 slots | `docs/province_data.csv` |
 
 The master record is the seed image of the officer's SRAM record at
-`id * 12 + $63C0`; `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e.asm`) copies it
+`id * 12 + $63C0`; `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e_menu_screens.asm`) copies it
 into SRAM and `B1F_GetOfficerRomRecordAddr` (`$F387`) also reads the ROM seed at
 runtime, so these bytes are the new game:
 
@@ -31,7 +31,7 @@ Placement is spread over three tables, which is why the editor owns all of them:
 a rostered officer (状態 2) sits in a province roster slot - slot `+$11` is the
 太守 governor - and has no arrival entry, while a hidden officer (状態 1) may
 carry an (appear year, province) pair in the bank `$31` `$8B1C` schedule walked
-by `OfficerArrivalScan` (`$B964`, `prg_19_1a.asm`). That `状態 2 == the union of
+by `OfficerArrivalScan` (`$B964`, `prg_19_1a_event_scenes.asm`). That `状態 2 == the union of
 all roster slots` is a cross-bank invariant `tools/verify_data_banks.py` proves
 on the assembled bytes, so the editor never lets the two drift apart: Assign and
 Unassign are the only way to move 状態.
@@ -103,6 +103,7 @@ GROUP_TITLES = (
     ('career', '経歴 Career'),
     ('equipment', '装備 Equipment / 軍の属性 ArmyAffinity'),
     ('placement', '配置 Placement (状態 / roster / arrival)'),
+    ('successors', 'AI継承 Successor priority (read-only)'),
     ('life', '寿命 Life'),
     ('plate', '漢字 name plate (read-only)'),
 )
@@ -121,11 +122,20 @@ PORTRAIT_NOTE = (
     'prg_1a $CED6 + id: the officer\'s 1KB portrait CHR page; OfficerCardRender '
     '($CE1F) draws a 14-sprite body + 6-sprite face from the bank-$01 tables '
     '(records [y, tile, attr, x], IRQ-latched into CHR regs 2/3). Every card '
-    'sprite is attr palette 3, and the roster scene loads palette record 0 '
+    'sprite is attr palette 3, and the card scenes load palette record 0 '
     'before drawing, so the colours are $0F $20 $27 $17 (white / gold / '
     'brown; verified against the manual scan card). Left to right: normal '
-    '(strategy card), angry (duel), sad (defeat), happy (victory). Officers '
-    '13/19/116/228 carry marker pages $9F/$DB - no authored art. Read-only.')
+    '(strategy card), angry (duel), sad (defeat), happy (victory). All 237 '
+    'officers have authored pages: $18-$53 shared across the roster, plus '
+    '$9F for 13/116 and $DB for 19/228 (the reinforcement-only heirs). '
+    'Read-only.')
+HEIR_NOTE = (
+    'prg_0b $CAD8 (AppointSuccessor $CA68, runs when a country\'s ruler '
+    'dies): per Country 0-6, the first listed officer governing one of the '
+    'country\'s provinces (roster slot $11, the 太守) becomes the new ruler. '
+    'If none qualifies, the AI installs the country\'s governor with the '
+    'highest 人徳 Virtue. Read-only authored data - no CSV twin, no editing '
+    'surface.')
 
 
 # --- codec import --------------------------------------------------------
@@ -252,7 +262,7 @@ class OfficerEditor(tk.Tk):
                 ('Save CSVs', self.save_csv,
                  'write every loaded CSV twin (Ctrl+S)'),
                 ('Write ASM', self.write_asm,
-                 'save, then re-render asm/banks/data_10.asm + data_11.asm '
+                 'save, then re-render asm/banks/data_10_seed.asm + data_11_officer.asm '
                  'and report the decoded edits (Ctrl+B)'),
                 ('Verify', self.verify,
                  'run tools/verify_data_banks.py --allow-edits'),
@@ -397,6 +407,7 @@ class OfficerEditor(tk.Tk):
                                                    sticky='ew', padx=6, pady=2)
                 box.columnconfigure(1, weight=1)
         self._build_placement(parent)
+        self._build_successors(parent)
         self._build_plate(parent)
 
     def _field_widget(self, parent, spec):
@@ -475,20 +486,55 @@ class OfficerEditor(tk.Tk):
                                  row=6, column=0, columnspan=4, sticky='w',
                                  padx=6, pady=(0, 4))
 
+    def _build_successors(self, parent):
+        box = ttk.LabelFrame(parent, text=dict(GROUP_TITLES)['successors'])
+        box.pack(fill='x', padx=8, pady=4)
+        self.successor_var = tk.StringVar(value='')
+        self._wrap(ttk.Label(box, textvariable=self.successor_var)).grid(
+            row=0, column=0, columnspan=2, sticky='w', padx=6, pady=3)
+        ttk.Button(box, text='Show text',
+                   command=lambda: self._text_popup(
+                       'AI継承 Successor priority', self.successor_var,
+                       HEIR_NOTE,
+                       text='\n'.join(self.model.heir_priority_lines())
+                       if self.model.has_heirs else
+                       'heir priority lists not loaded '
+                       '(rom/prg/prg_0b.bin beside the CSVs)')).grid(
+                           row=1, column=0, sticky='e', padx=6, pady=(0, 4))
+
+    def _show_successors(self, off):
+        if off is None:
+            self.successor_var.set('')
+            return
+        if not self.model.has_heirs:
+            self.successor_var.set('prg_0b not loaded beside the CSVs')
+            return
+        hits = self.model.heir_successor_lists(off.id)
+        if not hits:
+            self.successor_var.set(
+                'not in any AI successor list - the fallback installs the '
+                'country\'s governor with the highest 人徳 Virtue')
+            return
+        self.successor_var.set('; '.join(
+            'Country %d: %s (he is #%d of %d)'
+            % (country, ' > '.join(self.model.by_id[oid].name for oid in ids),
+               pos + 1, len(ids))
+            for country, pos, ids in hits))
+
     def _build_plate(self, parent):
         box = ttk.LabelFrame(parent, text=dict(GROUP_TITLES)['plate'])
         box.pack(fill='x', padx=8, pady=4)
         # One paper-toned cell per kanji: pixel 0 is transparent in the sprite
-        # palette, so the glyphs need a backdrop to be readable at all.
+        # palette, so the glyphs need a backdrop to be readable at all. The
+        # decode text stays off the pane - a button opens it in a popup.
         self.plate_glyphs = ttk.Frame(box)
         self.plate_images = []
         self.plate_glyphs.grid(row=0, column=0, sticky='w', padx=6, pady=3)
         self.plate_var = tk.StringVar(value='')
-        self._wrap(ttk.Label(box, textvariable=self.plate_var,
-                             font=('TkFixedFont', 9))).grid(
-                                 row=1, column=0, sticky='w', padx=6, pady=3)
-        self._wrap(ttk.Label(box, foreground='#555', text=PLATE_NOTE)).grid(
-            row=2, column=0, sticky='w', padx=6, pady=(0, 4))
+        ttk.Button(box, text='Show text',
+                   command=lambda: self._text_popup(
+                       '漢字 name plate', self.plate_var, PLATE_NOTE)).grid(
+                           row=1, column=0, sticky='e', padx=6, pady=(0, 4))
 
     def _build_portrait(self, parent):
         box = ttk.LabelFrame(parent, text=dict(GROUP_TITLES)['portrait'])
@@ -496,15 +542,38 @@ class OfficerEditor(tk.Tk):
         # Sprite pixel 0 is transparent and the card's own background colour
         # belongs to the screen, not the sprites, so this viewer supplies a
         # neutral dark one (the pale paper tone washes the gold/brown out).
+        # The decode text stays off the pane - a button opens it in a popup.
         self.portrait_cell = ttk.Frame(box)
         self.portrait_images = []
-        self.portrait_cell.grid(row=0, column=0, sticky='nw', padx=6, pady=4)
+        self.portrait_cell.grid(row=0, column=0, columnspan=2, sticky='nw',
+                                padx=6, pady=4)
         self.portrait_var = tk.StringVar(value='')
-        self._wrap(ttk.Label(box, textvariable=self.portrait_var,
-                             font=('TkFixedFont', 9))).grid(
-                                 row=0, column=1, sticky='w', padx=6, pady=4)
-        self._wrap(ttk.Label(box, foreground='#555', text=PORTRAIT_NOTE)).grid(
-            row=1, column=0, columnspan=2, sticky='w', padx=6, pady=(0, 4))
+        ttk.Button(box, text='Show text',
+                   command=lambda: self._text_popup(
+                       '肖像 Portrait', self.portrait_var, PORTRAIT_NOTE)).grid(
+                           row=1, column=1, sticky='e', padx=6, pady=(0, 4))
+
+    def _text_popup(self, title, var, note, text=None):
+        """The decode text of a read-only view, in its own window."""
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.transient(self)
+        frame = ttk.Frame(win, padding=8)
+        frame.pack(fill='both', expand=True)
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+        info = tk.Text(frame, wrap='word', width=68, height=14,
+                       font=('TkFixedFont', 9), state='disabled')
+        vsb = ttk.Scrollbar(frame, orient='vertical', command=info.yview)
+        info.configure(yscrollcommand=vsb.set)
+        info.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        info.configure(state='normal')
+        info.insert('1.0', ((text if text is not None else var.get())
+                            + '\n\n' + note).strip())
+        info.configure(state='disabled')
+        ttk.Button(frame, text='Close', command=win.destroy).grid(
+            row=1, column=0, columnspan=2, sticky='e', pady=(6, 0))
 
     def _show_portrait(self, off):
         for child in self.portrait_cell.winfo_children():
@@ -612,6 +681,9 @@ class OfficerEditor(tk.Tk):
                                           os.path.join('rom', 'prg',
                                                        'prg_1a.bin'))
                                   or paths.get('portrait_page_bank'),
+            'heir_bank': sibling(officer_csv,
+                                 os.path.join('rom', 'prg', 'prg_0b.bin'))
+                         or paths.get('heir_bank'),
             'chr_dir': sibling(officer_csv, os.path.join('rom', 'chr'))
                        or paths.get('chr_dir'),
         }
@@ -624,7 +696,8 @@ class OfficerEditor(tk.Tk):
             glyph_bank=paths.get('glyph_bank'), chr_dir=paths.get('chr_dir'),
             reinforce_csv=paths.get('reinforce'),
             card_bank=paths.get('card_bank'),
-            portrait_page_bank=paths.get('portrait_page_bank'))
+            portrait_page_bank=paths.get('portrait_page_bank'),
+            heir_bank=paths.get('heir_bank'))
         self.source = dict(self.model.paths)
         self.log_line('loaded %s (%d officers, %d provinces, death years %s, '
                       'kanji plates %s)'
@@ -747,7 +820,8 @@ class OfficerEditor(tk.Tk):
             if off is None:
                 self.head_var.set('(no officer selected)')
                 for var in (self.record_var, self.placement_var,
-                            self.plate_var, self.roster_info):
+                            self.plate_var, self.roster_info,
+                            self.successor_var):
                     var.set('')
                 for widget in self.w.values():
                     widget.configure(state='disabled')
@@ -768,6 +842,7 @@ class OfficerEditor(tk.Tk):
             self.w['death_year'].configure(
                 state='normal' if self.model.has_deaths else 'disabled')
             self._show_placement(off)
+            self._show_successors(off)
             self._show_plate(off)
             self._show_portrait(off)
         finally:

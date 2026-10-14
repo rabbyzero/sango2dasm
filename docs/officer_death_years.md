@@ -4,7 +4,7 @@ Extracted from the bank-$31 death-year table at CPU `$9C58`
 (PRG `$23C58`), one byte per officer id `$00-$EC`. Each byte
 stores `death_year - 100`; from that year on, every strategy
 turn (month) the officer rolls death against
-`DeathChanceThreshold` in `asm/banks/prg_19_1a.asm`
+`DeathChanceThreshold` in `asm/banks/prg_19_1a_event_scenes.asm`
 (`DeathChanceRoll`, $BD28).
 
 | id | name | 漢字 | death year | table byte |

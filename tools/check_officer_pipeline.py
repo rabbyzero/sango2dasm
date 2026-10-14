@@ -29,7 +29,7 @@ Proves, in order:
      model untouched, a half-filled arrival pair still renders, and the stock
      data trips none of them;
   5. the generator agrees with the codec - `--from-csv` on the stock CSVs
-     re-renders the committed `asm/banks/data_10.asm` / `data_11.asm` unchanged,
+     re-renders the committed `asm/banks/data_10_seed.asm` / `data_11_officer.asm` unchanged,
      on an edited CSV set the record / name / schedule / death bytes and the
      roster-derived province comments it renders are the ones the codec
      predicts, and an emptied name or an over-full arrival block stops the
@@ -71,6 +71,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'editor'))
 
 import officer_model as model                     # noqa: E402
+from bank_asm_names import data_asm_path           # noqa: E402
 
 FAILED = []
 CSV_NAMES = ('officer_data.csv', 'province_data.csv',
@@ -237,6 +238,24 @@ def test_codec_matches_rom():
           and m.officer(2).portrait_pixels(3) != m.officer(2).portrait_pixels(4))
     check('expression 1 is the normal face again',
           m.officer(2).portrait_pixels(1) == m.officer(2).portrait_pixels(0))
+    # The AI ruler successor priority lists (bank $0B $CAD8): read-only, and
+    # the decode must match the committed asm table byte for byte.
+    check('the AI successor lists parse from bank $0B $CAD8',
+          m.has_heirs and len(m.heir_priority) == 7,
+          (m.has_heirs, len(m.heir_priority)))
+    check('the successor lists decode to the committed officers',
+          m.heir_priority_lines(names=False) == [
+              'Country 0: 218 > 219 > 211',
+              'Country 1: 9 > 7',
+              'Country 2: 132 > 123 > 127 > 128 > 133 > 130',
+              'Country 3: 137 > 139 > 93',
+              'Country 4: 224 > 109 > 38 > 153',
+              'Country 5: 66 > 151',
+              'Country 6: 180 > 176 > 181 > 179'],
+          m.heir_priority_lines(names=False))
+    check('heir_successor_lists finds the listed heirs',
+          m.heir_successor_lists(180) == [(6, 0, [180, 176, 181, 179])]
+          and m.heir_successor_lists(131) == [])
     # The family-heir reinforcement pools (bank $31 $8D74): EventReinforceGate
     # $A33C picks the acting Country's pool each January, and
     # OfficerReinforceScene $AEC0 inducts the first still-hidden officer whose
@@ -478,7 +497,7 @@ def test_generator():
             gen.DOCS = saved
 
     for bank_id in (0x10, 0x11):
-        path = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % bank_id)
+        path = data_asm_path(bank_id, ROOT)
         with open(path, encoding='utf-8') as f:
             committed = f.read()
         for flag in (False, True):
@@ -858,6 +877,15 @@ def test_front_ends():
         check('cli show renders the late-heir page $9F card',
               'portrait  $CED6[13] -> page $9F' in marker.getvalue(),
               marker.getvalue()[:200])
+        heirs = io.StringIO()
+        with contextlib.redirect_stdout(heirs):
+            cli.main(['heirs', '--repo', ROOT, '--csv',
+                      os.path.join(tmp, 'officer_data.csv')])
+        check('cli heirs prints all seven country lists',
+              'Country 2: 曹丕 > 曹叡 > 曹彰 > 曹植 > 曹熊 > 曹仁'
+              in heirs.getvalue()
+              and heirs.getvalue().count('Country ') == 7,
+              heirs.getvalue()[:200])
     finally:
         shutil.rmtree(tmp)
 
@@ -1005,6 +1033,42 @@ def test_gui(args):
               len(app.portrait_images) == 4
               and 'page $9F' in app.portrait_var.get(),
               app.portrait_var.get())
+        # The successor group: read-only, per-officer line + all-countries
+        # popup behind Show text.
+        app.tree.selection_set('180')
+        app._on_select()
+        check('the successor group names his country list position',
+              'Country 6' in app.successor_var.get()
+              and '(he is #1 of 4)' in app.successor_var.get(),
+              app.successor_var.get())
+        app.tree.selection_set('131')
+        app._on_select()
+        check('an unlisted officer says so',
+              'not in any AI successor list' in app.successor_var.get(),
+              app.successor_var.get())
+        # The decode text lives behind a Show text button, not on the pane.
+        boxes = [w for w in app.detail.winfo_children()
+                 if isinstance(w, gui.ttk.LabelFrame)
+                 and w.cget('text') in (dict(gui.GROUP_TITLES)['portrait'],
+                                        dict(gui.GROUP_TITLES)['plate'])]
+        buttons = [b for box in boxes for b in box.winfo_children()
+                   if isinstance(b, gui.ttk.Button) and b.cget('text')
+                   == 'Show text']
+        check('the read-only views hide their text behind Show text buttons',
+              len(boxes) == 2 and len(buttons) == 2
+              and not [w for box in boxes for w in box.winfo_children()
+                       if isinstance(w, gui.ttk.Label)
+                       and w.cget('textvariable')],
+              [(box.cget('text'), len(buttons)) for box in boxes])
+        buttons[0].invoke()
+        popups = [w for w in app.winfo_children() if isinstance(w, gui.tk.Toplevel)]
+        shown = popups and any(
+            isinstance(w, gui.tk.Text)
+            for w in popups[0].winfo_children()[0].winfo_children())
+        check('  and the popup shows the decode text',
+              bool(shown), [str(w) for w in app.winfo_children()])
+        for w in popups:
+            w.destroy()
         # The heir row: officer 180 馬超 sits in Country 6's pool (193).
         app.tree.selection_set('180')
         app._on_select()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the annotated seed-data banks asm/banks/data_10.asm and data_11.asm.
+"""Verify the annotated seed-data banks asm/banks/data_10_seed.asm and data_11_officer.asm.
 
 The banks are rendered by tools/gen_data_bank_asm.py: analysed tables are
 labelled `.byte` records, everything else is a sliced `.incbin`. This harness
@@ -29,6 +29,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import extract_officer_data as officer_tool        # noqa: E402
+from bank_asm_names import data_asm_path           # noqa: E402
 import extract_province_data as province_tool      # noqa: E402
 import gen_data_bank_asm as gen                    # noqa: E402
 
@@ -54,7 +55,7 @@ def linker_cfg(bank):
 def assemble_bank(bank):
     """ca65 + ld65 the single bank; returns the built bytes or None."""
     os.makedirs(BUILD, exist_ok=True)
-    src = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % bank)
+    src = data_asm_path(bank, ROOT)
     obj = os.path.join(BUILD, '_seed%02x.o' % bank)
     asm = os.path.join(BUILD, '_seed%02x.asm' % bank)
     cfg = os.path.join(BUILD, '_seed%02x.cfg' % bank)
@@ -93,7 +94,7 @@ def label_index(bank):
     `labels` maps a record's bank offset to its label text, read back from the
     generated assembly so the report names records the way the source does.
     """
-    src = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % bank)
+    src = data_asm_path(bank, ROOT)
     with open(src, encoding='utf-8') as f:
         text = f.read()
     labels = {}
@@ -348,8 +349,8 @@ def main():
             return 1
         built_all[bank] = built
         stock = gen.read_bank(bank)
-        print('bank %02X (asm/banks/data_%02x.asm): %d bytes assembled'
-              % (bank, bank, len(built)))
+        print('bank %02X (%s): %d bytes assembled'
+              % (bank, data_asm_path(bank), len(built)))
         if len(built) != len(stock):
             print('  FAIL: length %d, expected %d' % (len(built), len(stock)))
             return 1

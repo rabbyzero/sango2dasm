@@ -13,7 +13,7 @@ ca65 cheap-local group semantics (nearest-preceding-global scoping).
 """
 import re, sys, glob
 
-TARGET = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_19_1a.asm"
+TARGET = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_19_1a_event_scenes.asm"
 
 lines = open(TARGET).read().splitlines()
 

@@ -1,6 +1,6 @@
 # AI Action Weights — Expansion / Domestic / Loop Thresholds by Country and Game Level
 
-Source: `prg_0a_0b.asm` `InitWorkAreas` ($A043) + `AiCountExpansionRoom` ($A0D3),
+Source: `prg_0a_0b_strategy_ai.asm` `InitWorkAreas` ($A043) + `AiCountExpansionRoom` ($A0D3),
 consumed by `AiActionChoose` ($A19C). All data verified against the ROM bytes.
 Country slot → ruler mapping follows the scenario seed table documented in
 [province_data.md](province_data.md) (Country records, 7 × 8 bytes at SRAM

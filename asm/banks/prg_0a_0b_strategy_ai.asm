@@ -1644,8 +1644,8 @@ CompareValues:
 ; $A8D7: SettleStagedOfficers
 ; Settles the staged officer columns $0664/$066E left by a completed war or
 ; officer march. Entered ONLY via the strategy mailbox $01 (posted by
-; WarPhaseHandoff prg_19_1a $CB7B after the war-report menus, or by
-; MoveState_CheckStart prg_0c_0d $A528 on march completion) through
+; WarPhaseHandoff prg_19_1a_event_scenes $CB7B after the war-report menus, or by
+; MoveState_CheckStart prg_0c_0d_tactical_commands $A528 on march completion) through
 ; StrategyAiTurnDispatch $A01B. Mode byte $6F8C selects the placement path:
 ;   $00 = attacker conquered the war province (ApplyScenarioDeductions runs,
 ;        @PlaceColumnsConquest + owner flip at $A906)
@@ -3654,7 +3654,7 @@ AbsorbUpdateRecord:
 ; (record +$01 武力) is moved there; spends 2 action budget points.
 ; NOTE: the scan has NO ruler exclusion (unlike @FindMostLoyalOfficer), so
 ; the ruler is transferred if he has the highest Might. The governor (太守)
-; is the officer in roster slot $11 (cf. prg_1b_1c @AppointSwap $B708), so:
+; is the officer in roster slot $11 (cf. prg_1b_1c_map_screen @AppointSwap $B708), so:
 ; - target with occupied slot $11: the ruler lands in a later slot and is
 ;   NOT the target's governor;
 ; - empty target roster: the ruler lands in slot $11 and BECOMES governor;
@@ -3783,11 +3783,11 @@ AbsorbUpdateRecord:
 ; tribute from its ruler's province. The tribute scales with the recipient's
 ; province count, and the most-loyal officer rides along as envoy.
 ; Accepting sets the mutual alliance nibbles (=$A) in both country records —
-; the AI-side equivalent of prg_1b_1c AllianceStateSet $D508 (human path
+; the AI-side equivalent of prg_1b_1c_map_screen AllianceStateSet $D508 (human path
 ; writes $C; AllianceStateGet $D4ED treats any non-zero nibble as allied).
-; Recipients engaged in war (status [3] == 3, cf. prg_08_09 $B157) accept
+; Recipients engaged in war (status [3] == 3, cf. prg_08_09_tactical_war $B157) accept
 ; without a prompt; anyone else gets the mailbox $F8 Yes/No
-; (prg_19_1a ReqTransferConfirm: $00 = accepted, anything else = refused).
+; (prg_19_1a_event_scenes ReqTransferConfirm: $00 = accepted, anything else = refused).
 ; Called from @AiIntrigueSelect when random value is $3C-$59.
 ;===============================================================================
 @AiAction_ProposeAlliance:
@@ -3940,13 +3940,13 @@ AbsorbUpdateRecord:
   JSR GetCountryRecordPtr                                      ; $B751: 20 19 D3
   LDY #$03                                            ; $B754: A0 03
   LDA ($24),Y                                         ; $B756: B1 24  ; recipient status byte [3]
-  CMP #$03                                            ; $B758: C9 03  ; 3 = at war (cf. prg_08_09 $B157)
+  CMP #$03                                            ; $B758: C9 03  ; 3 = at war (cf. prg_08_09_tactical_war $B157)
   BNE @AllianceNeedsConfirm                                       ; $B75A: D0 09  ; not at war -> Yes/No prompt first
   JSR @MarkAllianceNibbles                               ; $B75C: 20 0A B9  ; at war: accepts without prompt
   JSR @PayAllianceGift                             ; $B75F: 20 CE B7
   JMP @ExitToActionLoop                               ; $B762: 4C 16 B6
 @AllianceNeedsConfirm:
-  ; Not allied: ask via the strategy-layer mailbox. prg_19_1a ReqTransferConfirm
+  ; Not allied: ask via the strategy-layer mailbox. prg_19_1a_event_scenes ReqTransferConfirm
   ; shows overlay $E2 (recipient $0041, sender $0040, envoy $0042) and writes
   ; the answer back to $6F8B: $00 = accepted, anything else = refused
   LDA $6F03                                           ; $B765: AD 03 6F
@@ -4231,7 +4231,7 @@ AbsorbUpdateRecord:
 ; Sets the alliance-state nibble for the partner country in BOTH country
 ; records: one nibble (selected by the other country's index 0-5 -> offsets
 ; 4-7) is set to $A in each record. Same nibble array the human intrigue
-; screen maintains via AllianceStateSet/Get (prg_1b_1c $D508/$D4ED; human
+; screen maintains via AllianceStateSet/Get (prg_1b_1c_map_screen $D508/$D4ED; human
 ; path writes $C, any non-zero nibble reads as allied).
 ; The nibbles also gate new proposals: @AiAction_ProposeAlliance exits while
 ; the sender's record bytes [4..7] are non-zero.
@@ -4549,7 +4549,7 @@ AbsorbUpdateRecord:
   ; --- Check if new officer is AI-controlled ---
   LDY #$03                                            ; $BB05: A0 03  ; offset 3 = country status byte
   LDA ($24),Y                                         ; $BB07: B1 24
-  CMP #$03                                            ; $BB09: C9 03  ; status 3 = at war (cf. prg_08_09 $B157)?
+  CMP #$03                                            ; $BB09: C9 03  ; status 3 = at war (cf. prg_08_09_tactical_war $B157)?
   BEQ @Exit                                           ; $BB0B: F0 38  ; at war -> skip notice + rescan
   ; --- Post-action: update all provinces for new ownership ---
   LDA #$00                                            ; $BB0D: A9 00
@@ -4574,7 +4574,7 @@ AbsorbUpdateRecord:
   BCC @PostUpdateLoop                                           ; $BB39: 90 E1  ; loop over all provinces
   ; --- Signal game-start flag and wait for completion ---
   LDA #$FA                                            ; $BB3B: A9 FA
-  STA $6F8B                                           ; $BB3D: 8D 8B 6F  ; signal province-sweep notice $FA (prg_19_1a ReqProvinceSweepNotice)
+  STA $6F8B                                           ; $BB3D: 8D 8B 6F  ; signal province-sweep notice $FA (prg_19_1a_event_scenes ReqProvinceSweepNotice)
 @WaitLoop:
   LDA $6F8B                                           ; $BB40: AD 8B 6F
   BNE @WaitLoop                                           ; $BB43: D0 FB  ; busy-wait until flag cleared
@@ -4661,7 +4661,7 @@ AbsorbUpdateRecord:
 ;          + level modifier $10/$20/$30 (@LevelDiscordModifiers)
 ; Phase 6: loyalty -= (random(1..7) + own best Intelligence/20), clamped >= 0;
 ;          rescan the victim country's provinces for its best remaining
-;          officer; signal mailbox $F9 (prg_19_1a ReqAbsorbSweepNotice) and wait
+;          officer; signal mailbox $F9 (prg_19_1a_event_scenes ReqAbsorbSweepNotice) and wait
 ;-------------------------------------------------------------------------------
 @AiAction_SowDiscord:
   LDA #$00                                            ; $BBB2: A9 00  ; province index = 0
@@ -4846,7 +4846,7 @@ AbsorbUpdateRecord:
   CMP #$1E                                            ; $BD2D: C9 1E
   BCC @SweepLoop                                       ; $BD2F: 90 E5
   LDA #$F9                                            ; $BD31: A9 F9
-  STA $6F8B                                           ; $BD33: 8D 8B 6F  ; signal absorb-sweep notice $F9 (prg_19_1a ReqAbsorbSweepNotice)
+  STA $6F8B                                           ; $BD33: 8D 8B 6F  ; signal absorb-sweep notice $F9 (prg_19_1a_event_scenes ReqAbsorbSweepNotice)
 @DiscordWaitFlag:
   LDA $6F8B                                           ; $BD36: AD 8B 6F
   BNE @DiscordWaitFlag                                     ; $BD39: D0 FB  ; busy-wait until flag cleared

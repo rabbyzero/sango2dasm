@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply per-proc local zero-page name designs to prg_0e_0f.asm.
+"""Apply per-proc local zero-page name designs to prg_0e_0f_battle.asm.
 
 Driven by a JSON manifest (produced by hand, one entry per proc):
   [{"proc": "Name",
@@ -19,7 +19,7 @@ import json
 import re
 import sys
 
-SRC = "asm/banks/prg_0e_0f.asm"
+SRC = "asm/banks/prg_0e_0f_battle.asm"
 ROMC = re.compile(r"; (\$[0-9A-F]{4}):")
 TOKEN = re.compile(r"\b(zp_[a-z0-9_]+)\b")
 

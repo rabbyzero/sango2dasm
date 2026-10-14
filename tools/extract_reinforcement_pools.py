@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract the family-heir reinforcement pools from the ROM.
 
-Each January, EventReinforceGate ($A33C, prg_19_1a) picks the acting
+Each January, EventReinforceGate ($A33C, prg_19_1a_event_scenes) picks the acting
 Country's pool from the pointer table at bank $31 $8D74 (Countries 2/3/4,
 with 6 aliasing slot 3; 0/1/5 have none), and OfficerReinforceScene ($AEC0)
 inducts the FIRST still-hidden officer (record[$0B] & 3 == 1) whose join
@@ -20,7 +20,7 @@ The CSV this writes is the editing surface:
 tools/officer_model.py loads it, editor/officer_editor.py and
 editor/officer_cli.py edit it, and tools/gen_data_bank_asm.py --from-csv
 re-renders the ReinforceCandidatePtrTable / ReinforceCandidateList_N blocks
-of asm/banks/data_11.asm from it (tools/verify_data_banks.py gates the
+of asm/banks/data_11_officer.asm from it (tools/verify_data_banks.py gates the
 bytes).
 
 Usage:
@@ -114,7 +114,7 @@ def _pad(text, width):
 def write_md(pools, names, path):
     with open(path, 'w', encoding='utf-8') as f:
         f.write('# Family-heir reinforcement pools (bank $31 $8D74)\n\n')
-        f.write('Each January `EventReinforceGate` (`$A33C`, prg_19_1a) picks\n')
+        f.write('Each January `EventReinforceGate` (`$A33C`, prg_19_1a_event_scenes) picks\n')
         f.write('the acting Country\'s pool - Countries 2/3/4, with 6 aliasing\n')
         f.write('slot 3; Countries 0/1/5 have none - and\n')
         f.write('`OfficerReinforceScene` (`$AEC0`) inducts the FIRST still-\n')
@@ -125,7 +125,7 @@ def write_md(pools, names, path):
         f.write('These are exactly the 26 hidden officers with no arrival-\n')
         f.write('schedule entry, grouped by family. Editing surface:\n')
         f.write('`docs/officer_reinforcement.csv` (this file\'s CSV twin),\n')
-        f.write('re-rendered into `asm/banks/data_11.asm` by\n')
+        f.write('re-rendered into `asm/banks/data_11_officer.asm` by\n')
         f.write('`tools/gen_data_bank_asm.py --from-csv`.\n\n')
         for pool, pairs in enumerate(pools):
             f.write('## Pool %d -> Country %d\n\n' % (pool,

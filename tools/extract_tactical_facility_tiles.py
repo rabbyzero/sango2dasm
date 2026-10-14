@@ -8,16 +8,16 @@ grid). Fixed slot order (see code/tactical_facility_tile_decode.md for the reade
 evidence):
 
   +0/+1  House    民家  rice market   - march target of Action_BuyRice
-                                       (prg_08_09 $A329, sliding *3 index)
+                                       (prg_08_09_tactical_war $A329, sliding *3 index)
   +2/+3  Armory   武器屋             - remaining manual village facility,
                                        by elimination
   +4/+5  Hospital 病院               - march target of Action_RestoreHP
-                                       (prg_08_09 $A507, entry +4/+5)
+                                       (prg_08_09_tactical_war $A507, entry +4/+5)
 
 A pair is unused when its X byte has bit7 set (readers BMI/BPL; the padding
 stored is $FF $FF). The stride-6 readers are DrawStratagemTargetMarkers
-(prg_08_09 $D24D, city-target markers at each pair) and
-MoveState_CheckDest (prg_0c_0d $A4DD, scans the 3 pairs against the
+(prg_08_09_tactical_war $D24D, city-target markers at each pair) and
+MoveState_CheckDest (prg_0c_0d_tactical_commands $A4DD, scans the 3 pairs against the
 move destination; a match enters the war action panel state $09).
 
 Usage:
@@ -92,7 +92,7 @@ def write_md(rows, provs, markets):
     lines = ['# ProvinceTacticalFacilityTiles - tactical-map facility tiles',
              '',
              'Bank $31 (physical `rom/prg/prg_11.bin`) `$9BA4-$9C57`, label',
-             '`ProvinceTacticalFacilityTiles` in `asm/banks/data_11.asm`. 30 rows x 6 bytes;',
+             '`ProvinceTacticalFacilityTiles` in `asm/banks/data_11_officer.asm`. 30 rows x 6 bytes;',
              'three ordered (X,Y) tile pairs per province giving the facility',
              'locations of that province\'s tactical-mode battlefield (32x32 tile',
              'grid, values observed $01-$1D). Slot order: 0 House 民家 (rice market),',

@@ -4,21 +4,21 @@
 Bank $16 is pure data: it is mapped into the $8000-$9FFF window by SwitchBank8_B
 and read by two consumers:
 
-  - prg_1d_1e @render_menu ($BE6A): LDY #$36 / B1F_SwitchBank8_B, then
+  - prg_1d_1e_menu_screens @render_menu ($BE6A): LDY #$36 / B1F_SwitchBank8_B, then
     B1F_CallbackDispatcher on $04A2 through @menu_dispatch_table ($BE75, 35
     entries MenuAction00_InitialSetup .. MenuAction22_Cleanup). Each handler's
     load phase sets tile_ptr ($0010/$0011) to one of the 34 .word tables in
     this bank, loads an index into Y from $04A1 (or $04A4 for the second of a
-    two-pointer handler), and calls DisplayTileData ($C994, prg_1d_1e):
+    two-pointer handler), and calls DisplayTileData ($C994, prg_1d_1e_menu_screens):
     DEY / ASL, word at ($10),Y -> $0000 (lo), high byte SEC/SBC #$40 -> $0001,
     i.e. blob address = stored word - $4000 (the stored word is blob + $4000 -
     the OPPOSITE polarity of bank $12, whose CalcMenuDataPtr ADDS $40 to a word
     stored as addr - $4000). DisplayTileData then sets $000A = $2F (OAM Y
     base), $000C = X base ($20, or $90 when $0150 bit 7 is set) and $0002 = 3
-    (flip/attr EOR) and JMPs B1F_SpriteOamWriterSimple ($F1AD, prg_1f), which
+    (flip/attr EOR) and JMPs B1F_SpriteOamWriterSimple ($F1AD, prg_1f_boot), which
     walks [y,tile,attr,x] quads (OAM Y $0200,X = y + $000A; X $0203,X =
     x + $000C; attr EOR $0002; tile bias $0003 = 0) up to a leading $80 byte.
-  - prg_1f State_EventMessageScene ($E477): LDY #$36 / SwitchBank8_B, then
+  - prg_1f_boot State_EventMessageScene ($E477): LDY #$36 / SwitchBank8_B, then
     B17_18_PpuCopyRaw streams 1 KB from $9B92 to PPU $2000 (the event-message
     scene background nametable image, 960 tile bytes + 64 attribute bytes).
 
@@ -32,7 +32,7 @@ Layout (coverage proof: this generator asserts every region tiles exactly):
 
 Usage:
     python tools/gen_data_bank_16_asm.py            # preview on stdout
-    python tools/gen_data_bank_16_asm.py --write    # update asm/banks/data_16.asm
+    python tools/gen_data_bank_16_asm.py --write    # update asm/banks/data_16_menu_oam.asm
 """
 import argparse
 import os
@@ -41,7 +41,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK = 0x16
 BANK_BIN = os.path.join('rom', 'prg', 'prg_%02x.bin' % BANK)
-ASM_PATH = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % BANK)
+from bank_asm_names import data_asm_path               # noqa: E402
+ASM_PATH = data_asm_path(BANK, ROOT)
 
 WINDOW_CPU = 0x8000
 BANK_SIZE = 0x2000
@@ -55,7 +56,7 @@ COMMENT_COL = 74
 
 # table address -> enclosing dispatch entry (menu_dispatch_table $BE75 entry id).
 # Entry counts are DERIVED from the binary (count = (first blob - table)/2) and
-# cross-checked against the handler index bounds in prg_1d_1e.asm where the
+# cross-checked against the handler index bounds in prg_1d_1e_menu_screens.asm where the
 # index source is static (e.g. MenuAction02 LDY #$01; MenuAction03's
 # $04A1 = 1-2 / $04A4 = 3-4; MenuAction01's @MenuAction01_RowTable 1-4;
 # MenuAction08's $04A4 = 3-5). The exact-tile assertion below rejects any wrong
@@ -88,7 +89,7 @@ TABLES = [
     ('MenuAction18_SearchItem', 0x92A0, 6),
     ('MenuAction19_UnidentifiedCmd', 0x9342, 3),
     ('MenuAction1A_OfficerDeath', 0x9477, 6),
-    ('MenuAction1B_StrategyCommandDispatch', 0x9691, 6),
+    ('MenuAction1B_UnidentifiedCmd', 0x9691, 6),
     ('MenuAction1C_CopyTileData', 0x9733, 2),
     ('MenuAction1D_SetupActionDisplay', 0x9769, 2),
     ('MenuAction1E_CalcParams', 0x981F, 4),
@@ -231,7 +232,7 @@ def emit_tables(data, entries):
 def emit_screen(data):
     out = ['',
            '; --- $9B92-$9F91  EventMessageSceneScreen: 1 KB nametable image streamed',
-           ';     to PPU $2000 by State_EventMessageScene (prg_1f $E477) via',
+           ';     to PPU $2000 by State_EventMessageScene (prg_1f_boot $E477) via',
            ';     B17_18_PpuCopyRaw: 960 tile bytes then 64 attribute bytes.',
            ';     No decodable text: display mode 13 (DisplayInit $E474) loads font',
            ';     record 13, whose slots map tiles to chr_00/$0400 and chr_14 window',
@@ -289,7 +290,7 @@ BANNER = """\
 ; rom/prg/prg_16.bin (read-only) - do not hand-edit the rendered records.
 ;
 ; Selected as $36 from two consumers:
-;   prg_1d_1e  @render_menu $BE6A: LDY #$36 / B1F_SwitchBank8_B, then
+;   prg_1d_1e_menu_screens  @render_menu $BE6A: LDY #$36 / B1F_SwitchBank8_B, then
 ;              B1F_CallbackDispatcher on $04A2 through @menu_dispatch_table
 ;              $BE75 (35 entries MenuAction00_InitialSetup ..
 ;              MenuAction22_Cleanup). Each load phase sets tile_ptr
@@ -302,11 +303,11 @@ BANNER = """\
 ;              a word stored as addr - $4000). DisplayTileData then sets
 ;              $000A = $2F (OAM Y base), $000C = $20 X base ($90 when $0150
 ;              bit 7 is set - right-panel render) and $0002 = 3 (attr EOR) and
-;              JMPs B1F_SpriteOamWriterSimple ($F1AD, prg_1f), which walks
+;              JMPs B1F_SpriteOamWriterSimple ($F1AD, prg_1f_boot), which walks
 ;              [y,tile,attr,x] quads (OAM Y $0200,X = y + $000A; X $0203,X =
 ;              x + $000C; attr EOR $0002; tile bias $0003 = 0) up to a leading
 ;              $80 terminator.
-;   prg_1f     State_EventMessageScene $E477: LDY #$36 / SwitchBank8_B, then
+;   prg_1f_boot     State_EventMessageScene $E477: LDY #$36 / SwitchBank8_B, then
 ;              B17_18_PpuCopyRaw copies 1 KB from $9B92 to PPU $2000.
 ;
 ; Regions:
@@ -320,7 +321,7 @@ BANNER = """\
 ; each table's first blob starts immediately after its last .word, each blob
 ; terminates on $80, and the last blob ends exactly at the screen. Entry
 ; counts are derived from that tiling and match the handler index bounds
-; wherever they are statically checkable in prg_1d_1e.asm (MenuAction02's
+; wherever they are statically checkable in prg_1d_1e_menu_screens.asm (MenuAction02's
 ; LDY #$01, MenuAction01's @MenuAction01_RowTable 1-4, MenuAction03/05's
 ; $04A1 = 1-2 + $04A4 = 3-4, MenuAction08's $04A4 = 3-5).
 ;
@@ -329,7 +330,7 @@ BANNER = """\
 ; is $90), tile $40-$FF, attr $00/$01/$28 (EOR'd with the caller's $02 = 3).
 ; Sprites are always 8x8: no writer ever sets PPUCTRL bit 5 ($008B is only
 ; ever $10, ORA #$80 / AND #$7F / scroll-bit updates). Tile decode pages:
-; the MenuActions run under State_StrategyMode (prg_1f $E27E), whose
+; the MenuActions run under State_StrategyMode (prg_1f_boot $E27E), whose
 ; DisplayInit A=$04 loads font record 4 (7C 7D 7D 04 ...), so sprite slots
 ; 0-3 = pages $7C/$7D/$7D/$04: tiles $40-$BF land on $7D (chr_0f @ $1400,
 ; the command-scene icon sheet - carts, structures, banners, cursors,
@@ -343,7 +344,7 @@ BANNER = """\
 .segment "CODE_BANK16"
 
 ; Bank-16 labels are scoped: the generated files of the other data banks must
-; stay free to reuse the generic MenuOam* vocabulary (cf. data_13.asm's
+; stay free to reuse the generic MenuOam* vocabulary (cf. data_13_menu_display.asm's
 ; Bank13MenuStreams scope).
 
 .proc Bank16MenuOamData
@@ -353,7 +354,7 @@ BANNER = """\
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_16.asm')
+    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_16_menu_oam.asm')
     args = ap.parse_args()
     text = render(read_bank())
     if args.write:

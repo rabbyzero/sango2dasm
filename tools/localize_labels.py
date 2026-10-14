@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 localize_labels.py - Add .proc/.endproc and convert branch-only labels to @local
-in prg_17_18.asm, matching the convention from prg_1f.asm.
+in prg_17_18_display.asm, matching the convention from prg_1f_boot.asm.
 
 Phase 1: Parse and build reference map
 Phase 2: Classify labels (proc-start, inner-global, @local)
@@ -420,7 +420,7 @@ def main():
     dry_run = '--dry-run' in sys.argv
     verbose = '--verbose' in sys.argv
 
-    asm_path = Path(__file__).parent.parent / 'asm' / 'banks' / 'prg_17_18.asm'
+    asm_path = Path(__file__).parent.parent / 'asm' / 'banks' / 'prg_17_18_display.asm'
     lines = asm_path.read_text().splitlines()
     print(f"Read {len(lines)} lines from {asm_path}")
 

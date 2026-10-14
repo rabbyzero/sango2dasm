@@ -1,7 +1,7 @@
-# prg_0e_0f.asm RAM Map Analysis ($0000-$07FF)
+# prg_0e_0f_battle.asm RAM Map Analysis ($0000-$07FF)
 
 Analysis of all RAM references in the $0000-$07FF range (zero page + low
-WRAM) in `asm/banks/prg_0e_0f.asm`, with semantic names assigned to the
+WRAM) in `asm/banks/prg_0e_0f_battle.asm`, with semantic names assigned to the
 cross-procedure parameters and global variables. The raw-operand usage
 inventory this analysis is based on is preserved in
 `code/prg_0e_0f_ram_usage.txt` (generated pre-rename by
@@ -17,7 +17,7 @@ inventory this analysis is based on is preserved in
 | $0300-$0311   | Tile-animation queue (slot headers + slot 0 anim id)         |
 | $0380-$039C   | VRAM update script buffer (two FF-terminated segment records)|
 | $0424-$04D8   | Shared menu/panel state (menu cursor, panel param/field blocks, side-event panel) |
-| $0500-$0501   | War scene id/phase (shared with prg_08_09.asm)               |
+| $0500-$0501   | War scene id/phase (shared with prg_08_09_tactical_war.asm)               |
 | $0514-$057C   | Battle overlay state machine, per-side combat stats, AI tactic state |
 | $0580-$05D7   | Battlefield unit arrays (columns/rows/HP/roster codes, side B at +$0B) |
 | $0700-$0715   | Sound channel state (parallel arrays indexed by channel base, stride $16) |
@@ -25,14 +25,14 @@ inventory this analysis is based on is preserved in
 
 ## Naming decisions
 
-- Cross-proc globals: file-top equate block in `prg_0e_0f.asm`, `btl_`
+- Cross-proc globals: file-top equate block in `prg_0e_0f_battle.asm`, `btl_`
   prefix for battle-scene variables, `snd_chan_*`/`snd_*` for the sound
   engine. All names verified unique across the whole ca65 assembly (all
   banks share one namespace).
 - **Zero-page cells $0000-$001F are proc-local**: each proc defines its own
   "zero-page work cells" equate block right after `.proc` with names that
   describe the cell's role in that proc (e.g. `damage`/`troops_pre` in
-  Phase2AttackDamageApply vs `total_a_lo`..`total_b_hi` in
+  AttackDamageApply vs `total_a_lo`..`total_b_hi` in
   BattleOutnumberedCheck for the same cells). A cell may carry several
   local aliases in one proc for sequential-reuse lifecycles (e.g.
   `rank_a_work` -> `success_chance` chains, or `strip_ptr_lo` and
@@ -48,15 +48,15 @@ inventory this analysis is based on is preserved in
   parameter quad (X, X hi, Y, Y hi or buffer ptr hi depending on writer).
 - Addresses owned by other scenes reuse the canonical names from the
   owning bank files (no redefinition): `menu_cursor_col`/`menu_cursor_page`
-  ($0424/$0425, prg_0c_0d.asm), `war_scene_id`/`war_scene_phase`
-  ($0500/$0501, prg_08_09.asm).
+  ($0424/$0425, prg_0c_0d_tactical_commands.asm), `war_scene_id`/`war_scene_phase`
+  ($0500/$0501, prg_08_09_tactical_war.asm).
 - The pre-existing proc-local equates `frame_tick` ($005E) and
   `battle_phase` ($0544) were promoted to the file-top block: replacements
   use them bank-wide, and proc-local scope would hide them from other
   procedures.
 - Remaining raw zero-page addresses outside $00-$1F keep raw form where
   single-proc and minor: $00AE-$00DD CHR bank shadows (BattleChrBankAnimate
-  / Phase9AdvanceInit marker OAM rows), $00E2 and $00F0/$00F1
+  / FormationAdvanceInit marker OAM rows), $00E2 and $00F0/$00F1
   (BattleAnimSoundEngine stream pointer), $00B7 (BattleSideStatusCounterDraw).
 
 ## Highlights per group

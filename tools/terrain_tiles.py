@@ -11,13 +11,13 @@ the console does, through the same chain the war scene uses:
 
 Evidence for each link:
   * `MetaTileData` $F477, 512 B = 128 entries x 4, in the fixed $E000-$FFFF bank
-    (`asm/banks/prg_1f.asm:3585`). `CalcTileAddrHoriz` (`asm/banks/prg_17_18.asm:1125`)
+    (`asm/banks/prg_1f_boot.asm:3585`). `CalcTileAddrHoriz` (`asm/banks/prg_17_18_display.asm:1125`)
     computes it as `ASL A / ROL $0009 / ASL A / ROL $0009 / ADC $0002($77) /
     ADC $0003($F4)`, i.e. base + byte*4, indexed by the **raw crop byte**.
-  * `CopyTileRowHoriz` (`prg_17_18.asm:1139`) writes 2 of the 4 bytes per PPU
+  * `CopyTileRowHoriz` (`prg_17_18_display.asm:1139`) writes 2 of the 4 bytes per PPU
     row and picks the pair from a row bit, so a cell is 2x2 patterns = 16x16 px.
   * CHR pages come from display record 1 (`88 89 8A 88`), armed for the war
-    scene by `State_WarSceneLaunch` - `asm/banks/data_10.asm:200` documents the
+    scene by `State_WarSceneLaunch` - `asm/banks/data_10_seed.asm:200` documents the
     static `TacticalTerrainScreen` with exactly that record and calls the result
     "terrain only - mountain / forest / water dither". Page V -> chr_V//8.bin at
     (V%8)*$400 (`code/font_analysis.md:17`).
@@ -26,7 +26,7 @@ Evidence for each link:
 
 Each cell's palette comes from the 64-byte NES **attribute head** that precedes
 every crop (`BattleOverlayPtrTable == TerrainMapPtrTable - $40`). The game's own
-indexing is `prg_0c_0d.asm:7543` (`AND #$0E / LSR / AND #$0E / ASL / ASL / ORA`),
+indexing is `prg_0c_0d_tactical_commands.asm:7543` (`AND #$0E / LSR / AND #$0E / ASL / ASL / ORA`),
 i.e. byte `((x & $0E) >> 1) | ((y & $0E) << 2)` over the 16x16 crop, and the
 2-bit field `((y & 1) * 2 + (x & 1))` within it. That is what `head_palette`
 below implements, and it is provably the authored terrain palette: across all 30
@@ -68,7 +68,7 @@ RIVER_PALETTE = 1               # what the crops' attribute heads say for River
 # Settlement objects. These bytes are NOT terrain art: $61's metatile is plain
 # ground and $62-$64 (never used in any crop) point into the font page, so the
 # building you see is a 16x16 OAM sprite drawn over the cell by
-# DrawStratagemTargetMarkers (prg_08_09 $D24D) from @ProvinceMarkerOam ($D315)
+# DrawStratagemTargetMarkers (prg_08_09_tactical_war $D24D) from @ProvinceMarkerOam ($D315)
 # and @CityMarkerOam ($D326). Each list is (xoff, tile, attr, yoff); all four
 # sprites share attribute $01 = sprite palette 1, colour 0 transparent.
 MARKER_TILES = {'castle': (0x02, 0x03, 0x0E, 0x0F),
@@ -112,7 +112,7 @@ def load_facilities(root=None):
 def head_palette(head, cx, cy):
     """2-bit BG sub-palette of crop cell (cx, cy) from its 64-byte head.
 
-    Indexing copied from the game: `prg_0c_0d.asm:7543`.
+    Indexing copied from the game: `prg_0c_0d_tactical_commands.asm:7543`.
     """
     if not head or len(head) < HEAD_BYTES:
         return LAND_PALETTE

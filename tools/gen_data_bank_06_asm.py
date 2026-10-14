@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Render asm/banks/data_06.asm from rom/prg/prg_06.bin.
+"""Render asm/banks/data_06_placement_and_scroll.asm from rom/prg/prg_06.bin.
 
 Bank $06 (selected as $26 into the $8000-$9FFF window) holds two things:
 
   1. The Tactical (war) layer's per-province unit PLACEMENT POOLS and city BOUNDS
      rectangles - the geometry that the `TacticalAttackSideTypeTable` (bank $10
      $9E62) and `TacticalDefenseSideTypeTable` (bank $11 $9AB4) selectors point
-     into. Those two selector tables are already documented in data_10.asm and
-     data_11.asm; this bank is the arrangement they select.
+     into. Those two selector tables are already documented in data_10_seed.asm and
+     data_11_officer.asm; this bank is the arrangement they select.
   2. The strategy 命令書 (OrderScroll) screen graphics: three 14-row panel tile
      blocks and three tables of OAM sprite blobs.
 
 Usage:
     python3 tools/gen_data_bank_06_asm.py              # render to stdout
-    python3 tools/gen_data_bank_06_asm.py --write      # overwrite asm/banks/data_06.asm
+    python3 tools/gen_data_bank_06_asm.py --write      # overwrite asm/banks/data_06_placement_and_scroll.asm
     python3 tools/verify_data_bank_06.py               # prove it is byte-exact
 
 Every region length, stride and pointer run is asserted against the ROM while the
@@ -29,7 +29,7 @@ import textwrap
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROM_BANK = os.path.join(ROOT, 'rom', 'prg', 'prg_06.bin')
-ASM_PATH = os.path.join(ROOT, 'asm', 'banks', 'data_06.asm')
+ASM_PATH = os.path.join(ROOT, 'asm', 'banks', 'data_06_placement_and_scroll.asm')
 PROVINCE_IDS = os.path.join(ROOT, 'include', 'province_ids.inc')
 
 WINDOW_CPU = 0x8000
@@ -54,14 +54,14 @@ SIDE = {
         seeds=('$02', '$0C', '$16', '$1C'), seeds_name='Attacker',
         selector='bank $10 $9E62 TacticalAttackSideTypeTable',
         selector_file='rom/prg/prg_10.bin', selector_cpu=0x9E62,
-        doc='data_10.asm $9E62 block',
+        doc='data_10_seed.asm $9E62 block',
         anchor='The anchor itself moves with the type, i.e. the army enters on a flank'),
     'Defense': dict(
         roster='@SetupDefenderRoster $B2E4', seeds_addr='$B30E',
         seeds=('$02', '$08', '$0C', '$14'), seeds_name='Defender',
         selector='bank $11 $9AB4 TacticalDefenseSideTypeTable',
         selector_file='rom/prg/prg_11.bin', selector_cpu=0x9AB4,
-        doc='data_11.asm $9AB4 block',
+        doc='data_11_officer.asm $9AB4 block',
         anchor='Both types keep the same city anchor and only re-array the garrison'),
 }
 
@@ -231,11 +231,11 @@ def emit_pool_table(side, groups):
         ' choice, not a per-province one.'
         % (side.lower(), cfg['selector'], stride),
         'Readers, all with this bank armed at $8000:',
-        '  prg_08_09 %s - war AI / war scene setup. prg_0c_0d @BuildOfficerList'
+        '  prg_08_09_tactical_war %s - war AI / war scene setup. prg_0c_0d_tactical_commands @BuildOfficerList'
         ' $C3DC/$C42B - army-deploy scene.' % cfg['roster'],
     ]
     if side == 'Defense':
-        prose += ['  prg_08_09 GetOrderedDestination $A1E5 - reads pair 0 (the anchor) as the'
+        prose += ['  prg_08_09_tactical_war GetOrderedDestination $A1E5 - reads pair 0 (the anchor) as the'
                   ' ordered march destination of a faction-assigned officer.']
     out = banner('TACTICAL %s UNIT PLACEMENT POOL POINTERS' % side.upper(),
                  '$%04X-$%04X' % (cpu, cpu + 2 * SCENE_COUNT - 1), prose)
@@ -259,7 +259,7 @@ def emit_pool_records(side, data, groups):
     tail = stride - 2 - 2 * UNIT_PAIRS
     prose = [
         '%d pools x %d B = %d (row,col) tile pairs in one fixed order: pair 0 is the entry'
-        ' ANCHOR, then the %d unit positions used by unit ids 1-4. prg_08_09 %s points ($20) at'
+        ' ANCHOR, then the %d unit positions used by unit ids 1-4. prg_08_09_tactical_war %s points ($20) at'
         ' the pool chosen by the province/adjacency side type and seeds the four per-unit read'
         ' cursors $0022-$0025 from @%sCursorSeeds %s (%s). A cursor run ends where the next one'
         ' starts, so the seeds split the %d unit pairs %s by slot; each unit reads the pair at'
@@ -273,7 +273,7 @@ def emit_pool_records(side, data, groups):
         prose += ['The final %d bytes of every pool - one (row,col) pair - lie past the fourth'
                   " cursor's reach; no known reader touches them." % tail]
     prose += [
-        'prg_0c_0d @BuildOfficerList walks the same run from pair 1, looking for the first tile'
+        'prg_0c_0d_tactical_commands @BuildOfficerList walks the same run from pair 1, looking for the first tile'
         ' NOT already held by an officer (SearchRosterByTileCoord $D6B6), and gives that tile to'
         ' the unit being deployed. Rows skip 15: observed values %s with $0F unused, and a reader'
         ' that needs the 0-19 space subtracts 1 from anything >= $10 (GetOrderedDestination'
@@ -315,7 +315,7 @@ def emit_bounds_table(side, groups):
     prose = [
         '30 x .word, same province index and the same side-type scaling as the pool table'
         ' above; the pointee run holds exactly one 4-byte rectangle per pool of this side.',
-        'Reader: prg_0c_0d @CheckBoundsForPosition $C447 (defense, army-deploy mode $050B = 2)'
+        'Reader: prg_0c_0d_tactical_commands @CheckBoundsForPosition $C447 (defense, army-deploy mode $050B = 2)'
         ' and @OtherModeBounds $C48E (attack) form ($10) = table[$050E*2] + type*$04 and keep'
         ' CARRY SET only if the cursor tile lies inside the rectangle - the gate on which map'
         " tile the 出兵 army-deploy command may select. The rectangle is the selectable city"
@@ -372,7 +372,7 @@ def emit_panels(data):
     prose = [
         '%d blocks of %d rows x %d tile bytes - the tile rows of strategy scroll phases 1-3.'
         % (PANEL_COUNT, PANEL_ROWS, PANEL_COLS),
-        'The scroll machine prg_17_18 StrategyCommandDispatch ($D693) dispatches on'
+        'The scroll machine prg_17_18_display StrategyCommandDispatch ($D693) dispatches on'
         ' strat_scroll_param ($0541) as a PHASE index (6 handlers; phases chain with INC $0541'
         ' at $D831/$D8B8/$D90C), and ScrollPanel_LoadRow is called from exactly three of them'
         ' - $D7B7, $D847 and $D8D6 - so $0541 = 1/2/3 select blocks 1/2/3 through the local'
@@ -419,7 +419,7 @@ BLOB_NOTES = {
         ' forces the writer bases itself - X $000C = $10 at $DBF3/$DBF5, Y $000A = $1F at',
         ' $DC06/$DC08, tile bias $0003 = 0 at $DC0B/$DC0D and flip/attr EOR $0002 = 0 - so',
         " the blob's own attr byte is used unchanged and no caller alters it.",
-        'prg_17_18 StrategyCommand_InitOfficerScroll ($D6AA) arms ($10/$11) = $9A7E ($D6D7-$D6DD)',
+        'prg_17_18_display StrategyCommand_InitOfficerScroll ($D6AA) arms ($10/$11) = $9A7E ($D6D7-$D6DD)',
         ' and calls RenderDispatchSprite three times per pass: index dispatch_src_ptr_lo',
         ' ($04CA, 1..8), then $04CA+4 (5..12), then dispatch_src_ptr_hi ($04CB, 9..21), the',
         ' last skipped when that byte is negative (BMI $D6E2). $04CA comes from the scroll row',
@@ -432,14 +432,14 @@ BLOB_NOTES = {
         " tested at $D708. Despite its name DispatchBankTable holds no PRG bank numbers.",
     ],
     0x9CD9: [
-        '4 x .word, 1-based index. prg_17_18 StrategyCommand_ScrollIntroPanel ($D795) arms',
+        '4 x .word, 1-based index. prg_17_18_display StrategyCommand_ScrollIntroPanel ($D795) arms',
         ' ($10/$11) = $9CD9 at $D7E7-$D7ED and calls RenderDispatchSprite with',
         ' dispatch_src_ptr_lo ($04CA) = 1..4, one blob per pass of that phase. All four blobs',
         ' hold exactly 25 records: one 25-sprite layout re-emitted four times with only the',
         ' tile bytes differing.',
     ],
     0x9E75: [
-        '6 x .word, 1-based index. prg_17_18 StrategyCommand_ScrollTextPhase2 ($D82A) arms',
+        '6 x .word, 1-based index. prg_17_18_display StrategyCommand_ScrollTextPhase2 ($D82A) arms',
         ' ($10/$11) = $9E75 at $D877-$D87D and calls RenderDispatchSprite twice per pass, with',
         ' $04CA (1..3) and $04CA+3 (4..6), so two blobs layer per pass. $04CA is clamped to 3',
         ' at $D897, so the index space really is 1..6.',
@@ -579,15 +579,15 @@ def header(pools, bounds):
         '; Two very different payloads share the bank:',
         ';   $8000-$95E5  the Tactical (war) layer\'s unit placement geometry - the records',
         ';        that the attack/defense "side type" selectors point into.',
-        ';   $95E6-$9FBB  graphics for the strategy scroll screen machine in prg_17_18',
+        ';   $95E6-$9FBB  graphics for the strategy scroll screen machine in prg_17_18_display',
         ';        (StrategyCommandDispatch $D693): tile rows and OAM sprite blobs.',
         ';',
         '; Selected as $26 ($26 & $1F = $06) from eight sites in three consumer banks:',
-        ';   prg_08_09  GetOrderedDestination $A1E5, @SetupDefenderRoster $B2E4,',
+        ';   prg_08_09_tactical_war  GetOrderedDestination $A1E5, @SetupDefenderRoster $B2E4,',
         ';              @SetupAttackerRoster $B343     - war AI unit placement',
-        ';   prg_0c_0d  @BuildOfficerList $C3DC/$C42B and @CheckBoundsForPosition',
+        ';   prg_0c_0d_tactical_commands  @BuildOfficerList $C3DC/$C42B and @CheckBoundsForPosition',
         ';              $C455/$C495 (ArmyDeployDispatch)  - army-deploy command',
-        ';   prg_17_18  StrategyCommandDispatch $D693, ScrollPanel_LoadRow $DC13 and',
+        ';   prg_17_18_display  StrategyCommandDispatch $D693, ScrollPanel_LoadRow $DC13 and',
         ';              RenderDispatchSprite $DBF3     - strategy scroll screens',
         ';',
         '; Layout (window addresses; file offset = addr - $8000):',
@@ -597,13 +597,13 @@ def header(pools, bounds):
         '; gaps: per province the pool count equals the highest side type that province uses',
         '; in the matching selector table (attack: bank $10 $9E62, defense: bank $11 $9AB4)',
         '; plus one, and the bounds run carries exactly one rectangle per pool. Both',
-        '; selector tables are documented in data_10.asm / data_11.asm - this bank is the',
+        '; selector tables are documented in data_10_seed.asm / data_11_officer.asm - this bank is the',
         '; arrangement they select.',
         ';',
-        '; Sprite blobs use the B1F_SpriteOamWriterSimple format ($F1AD, prg_1f): repeated',
+        '; Sprite blobs use the B1F_SpriteOamWriterSimple format ($F1AD, prg_1f_boot): repeated',
         '; [y_off, tile, attr, x_off] quads terminated by a leading $80 byte. Screen',
         '; position = (y_off + Y base $000A, x_off + X base $000C), tile + $0003 bias, attr',
-        '; EOR $0002 flip flags. Same format as the blobs in asm/banks/data_01.asm.',
+        '; EOR $0002 flip flags. Same format as the blobs in asm/banks/data_01_bg_and_sprites.asm.',
         ';',
         '; Original binary: rom/prg/prg_06.bin',
         ';===============================================================================',
@@ -615,7 +615,7 @@ def header(pools, bounds):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--write', action='store_true',
-                    help='overwrite asm/banks/data_06.asm (default: stdout only)')
+                    help='overwrite asm/banks/data_06_placement_and_scroll.asm (default: stdout only)')
     args = ap.parse_args()
     text = render(read(ROM_BANK))
     if args.write:

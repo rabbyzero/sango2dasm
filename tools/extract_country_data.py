@@ -8,13 +8,13 @@ Provinces (州). The game stores no per-country stat table in ROM: a
 Country's resources are the sum over the Provinces it owns, and its Ruler
 is fixed by a hard-coded seed. Both sources are read here:
 
-  Country -> Ruler seed   bank $08/$09 `WarResult_RecordInitTable` ($DA0F):
-                          7 x 4-byte records (prg_08_09.asm). Byte [0] is the
+  Country -> Ruler seed   bank $08/$09 `CountrySelect_RecordInitTable` ($DA0F):
+                          7 x 4-byte records (prg_08_09_tactical_war.asm). Byte [0] is the
                           Ruler officer id in Country-slot order 0-6:
                             $AD 董卓(173), $08 袁绍(8), $83 曹操(131),
                             $8A 孙策(138), $DE 刘备(222), $DC 刘璋(220),
                             $B6 马腾(182)
-                          (also inlined by WarResultEntryInit, $D97A)
+                          (also inlined by CountrySelectEntryInit, $D97A)
 
   Province -> Country     the low nibble of province master record `+0`
                           (bank $30 $8C00, see extract_province_data.py);
@@ -58,10 +58,10 @@ PRG_COMBINED = os.path.join(ROOT, 'rom', 'prg_combined.bin')
 COUNTRY_COUNT = 7                     # slots 0-6; 7 = UnclaimedLand
 COUNTRY_RECORD_BASE = 0x6F07          # SRAM base of the 7 x 8-byte records
 COUNTRY_RECORD_STRIDE = 8
-# Hard-coded Ruler seed (WarResult_RecordInitTable, bank $08/$09 $DA0F):
+# Hard-coded Ruler seed (CountrySelect_RecordInitTable, bank $08/$09 $DA0F):
 # Country slot -> Ruler officer id. Used as the cross-check reference.
 SEED_RULERS = {0: 0xAD, 1: 0x08, 2: 0x83, 3: 0x8A, 4: 0xDE, 5: 0xDC, 6: 0xB6}
-SEED_STATUS = 0x03                    # record[3] in WarResultEntryInit seed
+SEED_STATUS = 0x03                    # record[3] in CountrySelectEntryInit seed
 
 # Statistics summed over every Province the Country owns (province record
 # field -> aggregated column). See extract_province_data.FIELDS for the ROM
@@ -139,7 +139,7 @@ def _pad(text, width):
 
 
 def _provenance(f):
-    f.write(f'* Country -> Ruler seed: `WarResult_RecordInitTable`, bank '
+    f.write(f'* Country -> Ruler seed: `CountrySelect_RecordInitTable`, bank '
             f'$08/$09 CPU `$DA0F` (7 x 4 B, byte [0] = Ruler id)\n')
     f.write(f'* Country record (SRAM): 7 x {COUNTRY_RECORD_STRIDE} B at '
             f'`${COUNTRY_RECORD_BASE:04X}` (stride {COUNTRY_RECORD_STRIDE}), '
@@ -178,8 +178,8 @@ def write_md(rows, path, pinyin):
         f.write('## Country record layout (SRAM `$6F07`)\n\n')
         f.write('Seven 8-byte records at `$6F07`, `$6F0F`, ... `$6F37` '
                 '(stride 8), resolved by `B1F_GetCountryDataPtr` ($F368). '
-                'The seed below is written by `WarResultEntryInit` ($D97A) '
-                'from `WarResult_RecordInitTable` ($DA0F).\n\n')
+                'The seed below is written by `CountrySelectEntryInit` ($D97A) '
+                'from `CountrySelect_RecordInitTable` ($DA0F).\n\n')
         f.write('| Offset | Field | Notes |\n|---|---|---|\n')
         f.write('| `[0]` | Ruler officer id | `$FF` = Country destroyed |\n')
         f.write('| `[1]` | Home Province id | the Ruler\'s seat |\n')
@@ -249,7 +249,7 @@ def write_md(rows, path, pinyin):
         f.write('\n')
 
         f.write('## Ruler seed cross-check\n\n')
-        f.write('The `WarResult_RecordInitTable` seed (Country slot -> Ruler '
+        f.write('The `CountrySelect_RecordInitTable` seed (Country slot -> Ruler '
                 'id) is independent of the province-derived Ruler (the roster '
                 'officer whose Loyalty is 100). They agree for every '
                 'Country:\n\n')
@@ -268,12 +268,12 @@ EVIDENCE = """## How the mapping was verified
 
 | Fact | Evidence |
 |---|---|
-| Country slot -> Ruler id | `WarResult_RecordInitTable` ($DA0F, `asm/banks/prg_08_09.asm`) and its inlined copy in `WarResultEntryInit` ($D97A) write `$AD,$08,$83,$8A,$DE,$DC,$B6` into `[0]` of the 7 records at `$6F07` |
+| Country slot -> Ruler id | `CountrySelect_RecordInitTable` ($DA0F, `asm/banks/prg_08_09_tactical_war.asm`) and its inlined copy in `CountrySelectEntryInit` ($D97A) write `$AD,$08,$83,$8A,$DE,$DC,$B6` into `[0]` of the 7 records at `$6F07` |
 | Ruler == Loyalty-100 officer | `extract_province_data.load_provinces` flags the roster officer whose Loyalty is 100; the two agree for all 7 Countries (cross-check table above) |
-| Province -> Country id | `ProvinceCountByOwner` / `FindOfficerProvince` (`asm/banks/prg_19_1a.asm`) mask province record `+0` with `#$0F` and compare to the acting Country id; `7` = `UnclaimedLand` |
+| Province -> Country id | `ProvinceCountByOwner` / `FindOfficerProvince` (`asm/banks/prg_19_1a_event_scenes.asm`) mask province record `+0` with `#$0F` and compare to the acting Country id; `7` = `UnclaimedLand` |
 | Country record base | `B1F_GetCountryDataPtr` ($F368) / `GetCountryRecordPtr` ($D319) / `@CountryRecordPtrTable` ($A0D6) all index the 7 pointers `$6F07, $6F0F, ... $6F37` |
-| Alliance nibbles `[4..7]` | `@MarkAllianceNibbles` / `@ApplyNibbleMarker` (`asm/banks/prg_0a_0b.asm`) set one nibble per rival in `[4..7]`; `@CountCountriesLoop` treats `[0] == $FF` as an empty Country |
-| Home Province `[1]` | `AttractDemoDispatch` (@CountrySelect, `asm/banks/prg_19_1a.asm`) resolves the Ruler's Province via `FindOfficerProvince` and stores it in record `[1]` |
+| Alliance nibbles `[4..7]` | `@MarkAllianceNibbles` / `@ApplyNibbleMarker` (`asm/banks/prg_0a_0b_strategy_ai.asm`) set one nibble per rival in `[4..7]`; `@CountCountriesLoop` treats `[0] == $FF` as an empty Country |
+| Home Province `[1]` | `AttractDemoDispatch` (@CountrySelect, `asm/banks/prg_19_1a_event_scenes.asm`) resolves the Ruler's Province via `FindOfficerProvince` and stores it in record `[1]` |
 | Resources = sum of Provinces | No per-country stat table exists in ROM; the stats panel (`docs/manual_kb/03-province-stats.md`) and the AI budget (`@OrderScrollByProvinceTable`) are computed per-province and per-owned-province-count respectively |
 """
 

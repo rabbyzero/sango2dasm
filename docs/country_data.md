@@ -4,14 +4,14 @@ The 7 Countries (国) at the 189 new-game start: each Ruler (君主), their home
 
 A Country owns one or more Provinces; its resources are the sum over those Provinces (there is no per-country stat table in ROM). Column names use the canonical semantic English terms from `docs/manual_kb/terminology.md`.
 
-* Country -> Ruler seed: `WarResult_RecordInitTable`, bank $08/$09 CPU `$DA0F` (7 x 4 B, byte [0] = Ruler id)
+* Country -> Ruler seed: `CountrySelect_RecordInitTable`, bank $08/$09 CPU `$DA0F` (7 x 4 B, byte [0] = Ruler id)
 * Country record (SRAM): 7 x 8 B at `$6F07` (stride 8), via `B1F_GetCountryDataPtr` ($F368) / `CountryDataPtrTable` ($F379)
 * Province -> Country: low nibble of province master record `+0` (bank $30 CPU `$8C00`)
 * Per-country stats are the 189 new-game start, summed over the owned Province master records
 
 ## Country record layout (SRAM `$6F07`)
 
-Seven 8-byte records at `$6F07`, `$6F0F`, ... `$6F37` (stride 8), resolved by `B1F_GetCountryDataPtr` ($F368). The seed below is written by `WarResultEntryInit` ($D97A) from `WarResult_RecordInitTable` ($DA0F).
+Seven 8-byte records at `$6F07`, `$6F0F`, ... `$6F37` (stride 8), resolved by `B1F_GetCountryDataPtr` ($F368). The seed below is written by `CountrySelectEntryInit` ($D97A) from `CountrySelect_RecordInitTable` ($DA0F).
 
 | Offset | Field | Notes |
 |---|---|---|
@@ -102,7 +102,7 @@ Every owned Province with its own starting stats (the rows that sum into the tab
 
 ## Ruler seed cross-check
 
-The `WarResult_RecordInitTable` seed (Country slot -> Ruler id) is independent of the province-derived Ruler (the roster officer whose Loyalty is 100). They agree for every Country:
+The `CountrySelect_RecordInitTable` seed (Country slot -> Ruler id) is independent of the province-derived Ruler (the roster officer whose Loyalty is 100). They agree for every Country:
 
 | Country id | seed Ruler | derived Ruler | match |
 |---:|---:|---:|:---:|
@@ -118,10 +118,10 @@ The `WarResult_RecordInitTable` seed (Country slot -> Ruler id) is independent o
 
 | Fact | Evidence |
 |---|---|
-| Country slot -> Ruler id | `WarResult_RecordInitTable` ($DA0F, `asm/banks/prg_08_09.asm`) and its inlined copy in `WarResultEntryInit` ($D97A) write `$AD,$08,$83,$8A,$DE,$DC,$B6` into `[0]` of the 7 records at `$6F07` |
+| Country slot -> Ruler id | `CountrySelect_RecordInitTable` ($DA0F, `asm/banks/prg_08_09_tactical_war.asm`) and its inlined copy in `CountrySelectEntryInit` ($D97A) write `$AD,$08,$83,$8A,$DE,$DC,$B6` into `[0]` of the 7 records at `$6F07` |
 | Ruler == Loyalty-100 officer | `extract_province_data.load_provinces` flags the roster officer whose Loyalty is 100; the two agree for all 7 Countries (cross-check table above) |
-| Province -> Country id | `ProvinceCountByOwner` / `FindOfficerProvince` (`asm/banks/prg_19_1a.asm`) mask province record `+0` with `#$0F` and compare to the acting Country id; `7` = `UnclaimedLand` |
+| Province -> Country id | `ProvinceCountByOwner` / `FindOfficerProvince` (`asm/banks/prg_19_1a_event_scenes.asm`) mask province record `+0` with `#$0F` and compare to the acting Country id; `7` = `UnclaimedLand` |
 | Country record base | `B1F_GetCountryDataPtr` ($F368) / `GetCountryRecordPtr` ($D319) / `@CountryRecordPtrTable` ($A0D6) all index the 7 pointers `$6F07, $6F0F, ... $6F37` |
-| Alliance nibbles `[4..7]` | `@MarkAllianceNibbles` / `@ApplyNibbleMarker` (`asm/banks/prg_0a_0b.asm`) set one nibble per rival in `[4..7]`; `@CountCountriesLoop` treats `[0] == $FF` as an empty Country |
-| Home Province `[1]` | `AttractDemoDispatch` (@CountrySelect, `asm/banks/prg_19_1a.asm`) resolves the Ruler's Province via `FindOfficerProvince` and stores it in record `[1]` |
+| Alliance nibbles `[4..7]` | `@MarkAllianceNibbles` / `@ApplyNibbleMarker` (`asm/banks/prg_0a_0b_strategy_ai.asm`) set one nibble per rival in `[4..7]`; `@CountCountriesLoop` treats `[0] == $FF` as an empty Country |
+| Home Province `[1]` | `AttractDemoDispatch` (@CountrySelect, `asm/banks/prg_19_1a_event_scenes.asm`) resolves the Ruler's Province via `FindOfficerProvince` and stores it in record `[1]` |
 | Resources = sum of Provinces | No per-country stat table exists in ROM; the stats panel (`docs/manual_kb/03-province-stats.md`) and the AI budget (`@OrderScrollByProvinceTable`) are computed per-province and per-owned-province-count respectively |

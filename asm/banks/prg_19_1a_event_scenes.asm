@@ -24,8 +24,8 @@ MonthlyEventDispatch_Entry:  ; (dispatch callback target)
   JMP MonthlyEventDispatch                   ; $A009: 4C 96 A2
 OfficerStatusScene_Entry:  ; (dispatch callback target)
   JMP OfficerStatusScene                  ; $A00C: 4C 81 AD
-ExchangeMarchCutscene_Entry:  ; (NmiState3_Battle per-frame call)
-  JMP ExchangeMarchCutscene               ; $A00F: 4C D6 CF  ; war exchange marching cutscene
+StratagemCutscene_Entry:  ; (NmiState3_WarScene per-frame call)
+  JMP StratagemCutscene                   ; $A00F: 4C D6 CF  ; war-map stratagem cutscene
 OfficerCardAnimStep_Entry:  ; (BankedCallbackTrampoline target)
   JMP OfficerCardAnimStep                 ; $A012: 4C D7 B2
 SortieWarCommit_Entry:  ; (BankedCallbackTrampoline target)
@@ -51,7 +51,7 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
 ;===============================================================================
 ; $A033: CountryRotationDispatch
 ; Frame state $0B handler of the map-screen frame machine (entered from
-; prg_1b_1c MapScreenFrameStateDispatch via banks $19+$1A entry $A003):
+; prg_1b_1c_map_screen MapScreenFrameStateDispatch via banks $19+$1A entry $A003):
 ; the per-Country TURN ROTATION / next-Ruler handoff frame. Run unattended
 ; (every Country control byte $03) after boot / new game it is the title-
 ; screen attract cycle; in a live game it is re-entered at turn handoffs.
@@ -438,7 +438,7 @@ CountryCensusBuild:
 .endproc
 ;===============================================================================
 ; $A296: MonthlyEventDispatch
-; Map screen frame state $0A handler (entered from prg_1b_1c
+; Map screen frame state $0A handler (entered from prg_1b_1c_map_screen
 ; MapScreenFrameStateDispatch via banks $19+$1A entry
 ; MonthlyEventDispatch_Entry, Y=$39): the per-Country MONTHLY EVENT DISPATCH.
 ; CountryRotationDispatch hands off with $0400=$0A after picking the acting
@@ -628,7 +628,7 @@ CountryCensusBuild:
 ; no event work beyond clearing the pending handoff param $0470. Routes on
 ; the acting Country's control byte, Country record[$03] via ($EE):
 ;   == $03 (AI / unattended): $0400 = $09 -> CallStrategyRequestDispatch
-;              (frame table prg_1b_1c $A037): the Country's strategy turn
+;              (frame table prg_1b_1c_map_screen $A037): the Country's strategy turn
 ;              runs through the normal turn engine; $0401 = 0
 ;   else (player-owned 0-2):  latches the control byte into $6F44,
 ;              $0400 = $0B -> CallCountryRotationDispatch (frame table $A03B):
@@ -921,7 +921,7 @@ CountryCensusBuild:
 ; $A540: ValidateProvinceStats
 ; Debug validation of the recalculated Province record at ($10), wired in
 ; from TaxCollectionEvent ($A514) and RiceHarvestEvent ($A6D9). Same debug-validation family as the
-; prg_0a_0b ValidateRecordStats/ValidateRecordGold checks: asserts the
+; prg_0a_0b_strategy_ai ValidateRecordStats/ValidateRecordGold checks: asserts the
 ; 16-bit stat pairs at offsets +2, +4, +$0C are < $2710 (10000), then
 ; checks Province byte 0 low nibble against byte $11. Retail ROM stubs the
 ; entry to RTS, so the check body below is unreachable.
@@ -2159,11 +2159,11 @@ StatPairSubtract:
 
 ;===============================================================================
 ; $AD81: OfficerStatusScene
-; Map screen frame state $0D handler (entered from prg_1b_1c
+; Map screen frame state $0D handler (entered from prg_1b_1c_map_screen
 ; MapScreenFrameStateDispatch via banks $19+$1A entry $A00C; the strategy
-; banks hand off here, prg_0a_0b $DB11). Year-end handoff for the two
+; banks hand off here, prg_0a_0b_strategy_ai $DB11). Year-end handoff for the two
 ; Countries packed into $0507 (low nibble = first Country processed, high
-; nibble = second; assembled at prg_0a_0b $A887 and prg_19_1a $B7FC/$B854).
+; nibble = second; assembled at prg_0a_0b_strategy_ai $A887 and prg_19_1a_event_scenes $B7FC/$B854).
 ; For each Country the Ruler's Officer record status (record[$0B] & 3) is
 ; checked: when it is 3 (Ruler out of office) the handoff params $0470-$0473
 ; are armed and RulerSuccessionScene runs; otherwise the scene ends in
@@ -2541,7 +2541,7 @@ ReinforceCardShow:  ; (dispatch callback target)
 .endproc
 
 ; $AFE5: ProvinceOfficerRosterDispatch
-; Map screen frame state $0C handler (entered from prg_1b_1c
+; Map screen frame state $0C handler (entered from prg_1b_1c_map_screen
 ; MapScreenFrameStateDispatch via banks $19+$1A entry $A021). Displays the
 ; focused Province's ($0402) Officer roster as a scrolling card carousel:
 ;   0 @RosterLoadInit   - load scenario data, fill roster into $0410
@@ -2989,7 +2989,7 @@ RowMarkerBob:
 ; via CardRowBaseTable) + frame*$20 (slide-down one tile row per frame),
 ; tile bytes from CardAnimPatternPtrs[frame], then CardFillDispatch fills
 ; in the Officer-specific cells. Setting $007E bit2 requests the NMI
-; VRAM-buffer write (prg_1f NmiDoBank3D_VramWrite $EEBE clears bit2 and
+; VRAM-buffer write (prg_1f_boot NmiDoBank3D_VramWrite $EEBE clears bit2 and
 ; calls B1D_1E_VRAMBufferWrite, which consumes the strip record), and the
 ; busy bit also gates re-entry. Steps $040D 0-9 then $FF (done). Officer id
 ; $FE in the roster selects the shared pattern frame 8.
@@ -3627,7 +3627,7 @@ NamePlateStripSetup:
 
 ;===============================================================================
 ; $B7D9: SortieWarCommit
-; Executes an accepted 出陣 Sortie declaration. Called from prg_1b_1c
+; Executes an accepted 出陣 Sortie declaration. Called from prg_1b_1c_map_screen
 ; SortieWarRequestGate ($B257) via banks $19+$1A entry $A015 once the war
 ; request dialog returns a non-cancel result. Caller prerequisites:
 ; $0470/$0402 = sortie source Province, $0471 = war target Province,
@@ -3790,7 +3790,7 @@ NamePlateStripSetup:
 ;===============================================================================
 ; $B8D7: TransferCapacityCalc
 ; Computes the transportable amounts for the 倉 warehouse command
-; 物資を運ぶ (called from prg_1b_1c WarehouseDestProvinceSelect
+; 物資を運ぶ (called from prg_1b_1c_map_screen WarehouseDestProvinceSelect
 ; @DestAccepted, $B86B, via banks $19+$1A entry $A018). Inputs:
 ; $0470 = source Province, $0471 = destination Province. For each good the
 ; result is min(source stock, cap - destination stock):
@@ -3868,7 +3868,7 @@ NamePlateStripSetup:
 
 ;===============================================================================
 ; $B964: OfficerArrivalScan
-; Finds an Officer candidate for Province $0402 (called from prg_1b_1c
+; Finds an Officer candidate for Province $0402 (called from prg_1b_1c_map_screen
 ; $DC18 via banks $19+$1A entry $A01B). Two paths:
 ;   1. Scheduled arrival: walks the bank-$31 arrival schedule at ($02) =
 ;      $8B1C + $0402*$14, ten (Officer id, appear year) pairs per Province.
@@ -3881,7 +3881,7 @@ NamePlateStripSetup:
 ; Found: $0472 = Officer id, $0473 = preferred Country id (from
 ; OfficerPreferredCountryTable, scheduled path only), $0470 = $07 handoff.
 ; The caller compares $0473 against the scouting Province's owner Country
-; (prg_1b_1c $AB75): match -> find threshold 2, otherwise $0D. Not found:
+; (prg_1b_1c_map_screen $AB75): match -> find threshold 2, otherwise $0D. Not found:
 ; $0011 = $80 (the caller tests $0011 bit 7). The scheduled path returns
 ; without setting $0470 when the Officer id misses OfficerPreferredCountryTable.
 ; Note: the OfficerPreferredCountryTable scan walks offsets $00-$22 (18 pair
@@ -4010,7 +4010,7 @@ NamePlateStripSetup:
 ; --- Data Region ---
 OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Country id
                                           ; pairs (Officer id, Country); the scout find
-                                          ; gate in prg_1b_1c $AB75 compares the Province
+                                          ; gate in prg_1b_1c_map_screen $AB75 compares the Province
                                           ; owner Country with the second byte
   .byte $6D,$04                           ; $BA50: 6D 04  ; Shokatsuryou ショカツリョウ 諸葛亮/诸葛亮 -> Country 4
   .byte $70,$04                           ; $BA52: 70 04  ; Josho ジョショ 徐庶/徐庶 -> Country 4
@@ -4033,8 +4033,8 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
 ;===============================================================================
 ; $BA70: CastleDevResultRoll
 ; Rolls the outcome of a castle 国造り development command (called from
-; prg_1b_1c CastleDevAnimWait $A4C6 via banks $19+$1A entry $A024 for
-; commands 0-2; command 3 情報集め rolls its own amount in prg_1b_1c).
+; prg_1b_1c_map_screen CastleDevAnimWait $A4C6 via banks $19+$1A entry $A024 for
+; commands 0-2; command 3 情報集め rolls its own amount in prg_1b_1c_map_screen).
 ; Inputs: $0470 = dev command (0 開墾 land / 1 産業 industry / 2 町開発
 ; population), $0481 = acting Officer. Amount = B1F_RandomMod8 rejected
 ; down to 0-4, plus the Intelligence tier bonus from record[+2]
@@ -4109,11 +4109,11 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
 
 ;===============================================================================
 ; $BB03: GoodsSendPrepare
-; Prepares a goods send out of Province $0402 (called from prg_1b_1c
+; Prepares a goods send out of Province $0402 (called from prg_1b_1c_map_screen
 ; $CE4C via banks $19+$1A entry $A027; the follow-up call at $D291 runs
 ; GoodsSendApply - together the pair deducts gold/rice from $0402 and
 ; credits the Province housing Officer $042C, the payment leg of the
-; prg_1b_1c intrigue flow). Inputs: $042F/$0430 = base amount word.
+; prg_1b_1c_map_screen intrigue flow). Inputs: $042F/$0430 = base amount word.
 ;   1. Copies record[+$02..+$04] to $0002-$0004, then compares the gold
 ;      word $0002/$0003 against ($0004,$0005): $042D = $07 when gold is
 ;      lower, $05 when equal (Y is still $05 from the copy loop), $03
@@ -4286,8 +4286,8 @@ ByZone:
 ; battery-backed backup half $7000-$7FFD and stamps integrity data:
 ;   $7FFC/$7FFD = "ID" magic ($49/$44), $7FFE/$7FFF = 16-bit additive
 ;   checksum over every copied byte (lo/hi), matching VerifySramChecksum
-;   (prg_0a_0b $DC2F); the backup is restored by CopySramToWork
-;   (prg_0a_0b $DC97).
+;   (prg_0a_0b_strategy_ai $DC2F); the backup is restored by CopySramToWork
+;   (prg_0a_0b_strategy_ai $DC97).
 ; The mapper-19 WRAM write-protect register guards the backup half: upper
 ; nybble $4 enables writes, low nybble bits 0-3 write-protect the four 2KB
 ; windows. $00A5 is the software mirror of this register (written at boot,
@@ -5389,7 +5389,7 @@ SuccessionArrivalOfficerTable:
 
 ;===============================================================================
 ; $C435: UnificationEndingDispatch
-; Map-screen frame state $0F handler (entered from prg_1b_1c
+; Map-screen frame state $0F handler (entered from prg_1b_1c_map_screen
 ; MapScreenFrameStateDispatch state $0F -> banks $19+$1A entry $A01E): the
 ; unification ending, reached from MapRulerIntroInit once the player Ruler
 ; owns all 30 Provinces. Dispatches the ending sub-state by $0401:
@@ -5824,7 +5824,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   .byte $60,$70,$88,$88,$68,$68,$70,$78,$80,$50,$60,$68,$78,$78; $C765: 60 70 88 88 68 68 70 78 80 50 60 68 78 78
 ;===============================================================================
 ; $C773: StrategyRequestDispatch
-; Map-screen frame state 9 handler (entered from prg_1b_1c
+; Map-screen frame state 9 handler (entered from prg_1b_1c_map_screen
 ; MapScreenFrameStateDispatch state 9 -> banks $19+$1A entry $A006). This is
 ; the map screen's Strategy Mode playback state: the strategy engine running in
 ; banks $0A+$0B / $0C+$0D / $08+$09 posts a presentation request into the SRAM
@@ -5837,16 +5837,16 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ;   2. refreshes the Ruler card through bank $1D RulerCardRefresh, and
 ;   3. decodes the mailbox code and starts the matching presentation.
 ; Mailbox codes (requester -> sub-state):
-;   $FE ResolveProvinceConquest (prg_0a_0b $A8C1, human defender: war pending)
+;   $FE ResolveProvinceConquest (prg_0a_0b_strategy_ai $A8C1, human defender: war pending)
 ;       -> sub-state 4: war menu, army-deploy scene, then the post-war menus
-;   $FD ResolveProvinceConquest (prg_0a_0b $A8D1, computer defender: instantly conquered)
+;   $FD ResolveProvinceConquest (prg_0a_0b_strategy_ai $A8D1, computer defender: instantly conquered)
 ;       -> sub-state 8: post-war menus only
-;   $FC prg_0a_0b $CB74 (Officer swapped into a record)   -> sub-state $B
-;   $FB prg_0a_0b $CA7A (Officer record deleted)           -> sub-state $C
-;   $FA prg_0a_0b $BB3B (post-action Province sweep)       -> sub-state $E
-;   $F9 prg_0a_0b $BD31 (absorb sweep)                     -> sub-state $F
-;   $F8 prg_0a_0b $B786 (Province transfer, needs answer)  -> sub-state $10
-;   $FF turn exhausted (prg_0a_0b $D147 action-budget underflow, prg_08_09
+;   $FC prg_0a_0b_strategy_ai $CB74 (Officer swapped into a record)   -> sub-state $B
+;   $FB prg_0a_0b_strategy_ai $CA7A (Officer record deleted)           -> sub-state $C
+;   $FA prg_0a_0b_strategy_ai $BB3B (post-action Province sweep)       -> sub-state $E
+;   $F9 prg_0a_0b_strategy_ai $BD31 (absorb sweep)                     -> sub-state $F
+;   $F8 prg_0a_0b_strategy_ai $B786 (Province transfer, needs answer)  -> sub-state $10
+;   $FF turn exhausted (prg_0a_0b_strategy_ai $D147 action-budget underflow, prg_08_09_tactical_war
 ;       $A093/$BAAD) -> counts $040C; after $20 exhausted turns the map screen
 ;       returns to frame state 0 with the OrderScroll $6F05 cleared
 ; Every presentation ends either by setting $6F8B directly (sub-states $A/$C:
@@ -5882,7 +5882,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
 ; $C79B: RulerPanelOpen (sub-state 0)
 ; Opens the Ruler status overlay (UI $BB) for the current Ruler, parks the
 ; camera Y off-screen, seeds the strategy-mode AI action budget $6F5D
-; (sram_action_budget in prg_0a_0b) from @AiActionBudgetTable ($6F05 * 10),
+; (sram_action_budget in prg_0a_0b_strategy_ai) from @AiActionBudgetTable ($6F05 * 10),
 ; clears the request mailbox $6F8B and the
 ; per-turn counters $6F5B/$6F5C/$6F62, then advances to the poll sub-state 1.
 ;===============================================================================
@@ -5907,7 +5907,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   STA $6F62                               ; $C7C8: 8D 62 6F ; global action phase
   RTS                                     ; $C7CB: 60
 ; --- Strategy-mode AI action budget table: OrderScroll $6F05 (0-19) ->
-; --- OrderScroll*10; seeds sram_action_budget $6F5D (prg_0a_0b) each ruler turn ---
+; --- OrderScroll*10; seeds sram_action_budget $6F5D (prg_0a_0b_strategy_ai) each ruler turn ---
 @AiActionBudgetTable:
   .byte $00,$0A,$14,$1E,$28,$32,$3C,$46   ; $C7CC: 00 0A 14 1E 28 32 3C 46
   .byte $50,$5A,$64,$6E,$78,$82,$8C,$96   ; $C7D4: 50 5A 64 6E 78 82 8C 96
@@ -6127,7 +6127,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   RTS                                     ; $C904: 60
 ;-------------------------------------------------------------------------------
 ; $C905: ReqOfficerSwapNotice (mailbox $FC)
-; prg_0a_0b $CB74 swapped an Officer into a record and spin-waits for $6F8B to
+; prg_0a_0b_strategy_ai $CB74 swapped an Officer into a record and spin-waits for $6F8B to
 ; become $01. Shows overlay $C1 for the Officer in $0038 and moves to the
 ; sub-state $B/$C delay-and-acknowledge chain.
 ;-------------------------------------------------------------------------------
@@ -6143,7 +6143,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   RTS                                     ; $C91A: 60
 ;-------------------------------------------------------------------------------
 ; $C91B: ReqOfficerRemovalNotice (mailbox $FB)
-; prg_0a_0b $CA7A deleted an Officer record and spin-waits for $6F8B to become
+; prg_0a_0b_strategy_ai $CA7A deleted an Officer record and spin-waits for $6F8B to become
 ; $01. Shows overlay $C3 for the Officer in $0038 plus the category tile looked
 ; up from OfficerCategoryTileTable by the Officer category $0040, then moves
 ; straight to the acknowledge sub-state $C.
@@ -6166,7 +6166,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   .byte $AD,$08,$83,$8A,$DE,$DC,$B6,$00   ; $C93A: AD 08 83 8A DE DC B6 00
 ;-------------------------------------------------------------------------------
 ; $C942: ReqProvinceSweepNotice (mailbox $FA)
-; prg_0a_0b $BB3B (@AiAction_PoachOfficer) finished its post-poach sweep and
+; prg_0a_0b_strategy_ai $BB3B (@AiAction_PoachOfficer) finished its post-poach sweep and
 ; spin-waits for $6F8B to become $00. Opens overlay $E6 with the swept pair
 ; $0041/$0040, resolves the Officer display for $003D in bank $1D, caches the
 ; new owner's Country field [3] into $6F44 and moves to sub-state $E.
@@ -6199,7 +6199,7 @@ ReqProvinceSweepNotice:  ; mailbox $FA
   RTS                                     ; $C97C: 60
 ;-------------------------------------------------------------------------------
 ; $C97D: ReqAbsorbSweepNotice (mailbox $F9)
-; prg_0a_0b $BD31 (@AiAction_SowDiscord) finished its loyalty-drop sweep and
+; prg_0a_0b_strategy_ai $BD31 (@AiAction_SowDiscord) finished its loyalty-drop sweep and
 ; spin-waits for $6F8B to become
 ; $00. Same shape as ReqProvinceSweepNotice but with the pair $003A/$0039 and
 ; the shorter sub-state $F prompt (no Country field caching).
@@ -6227,7 +6227,7 @@ ReqAbsorbSweepNotice:  ; mailbox $F9
   RTS                                     ; $C9AA: 60
 ;-------------------------------------------------------------------------------
 ; $C9AB: ReqTransferConfirm (mailbox $F8)
-; prg_0a_0b $B786 (@AiAction_ProposeAlliance) wants to form an alliance with
+; prg_0a_0b_strategy_ai $B786 (@AiAction_ProposeAlliance) wants to form an alliance with
 ; this country, paying a gold/rice tribute; it spin-waits for $6F8B to change;
 ; $00 means "accepted, pay and form the alliance", anything else means
 ; "refused". Opens overlay $E2 with the recipient Ruler ($0041), the sender
@@ -6333,9 +6333,9 @@ MapHalfFlagByProvince:
 ; $CA42: ArmyDeploySceneTrigger (sub-states 5-7)
 ; Waits for the next animation tick ($0087 bit7), then hands the map screen
 ; over to the bank $0C+$0D officer-exchange module in army-deploy mode:
-; game state $007A = 3, exchange mode $0500 = $0A (ArmyDeployDispatch) with
+; game state $007A = 3, exchange mode $0500 = $0A (ArmyDeploy) with
 ; $0501-$0506 = 0/0/0/$80/0/0 and the $0510-$0513 block cleared, entered
-; through jump-table entry $A003 (ExchangeScene_Init). The scene owns $0401
+; through jump-table entry $A003 (TacticalMapScene_Init). The scene owns $0401
 ; from here and walks it through sub-states 6 and 7 back to this handler until
 ; the deployment is done, at which point it leaves sub-state 8 pending.
 ;===============================================================================
@@ -6351,7 +6351,7 @@ ArmyDeploySceneTrigger:  ; sub-states 5-7
   STA $0512                               ; $CA57: 8D 12 05
   STA $0513                               ; $CA5A: 8D 13 05
   LDA #$0A                                ; $CA5D: A9 0A
-  STA $0500                               ; $CA5F: 8D 00 05 ; exchange mode $0A = ArmyDeployDispatch
+  STA $0500                               ; $CA5F: 8D 00 05 ; exchange mode $0A = ArmyDeploy
   LDA #$00                                ; $CA62: A9 00
   STA $0501                               ; $CA64: 8D 01 05 ; mode sub-state
   STA $0502                               ; $CA67: 8D 02 05
@@ -6365,7 +6365,7 @@ ArmyDeploySceneTrigger:  ; sub-states 5-7
   LDY #$2C                                ; $CA7C: A0 2C     ; target banks $0C+$0D
   JSR B1F_BankedCallbackTrampoline        ; $CA7E: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B0C_0D_ExchangeSceneInit_Entry    ; $CA81: 03 A0 (bank $0C $A003 -> JMP $DC99: ExchangeScene_Init)
+  .word B0C_0D_TacticalMapSceneInit_Entry    ; $CA81: 03 A0 (bank $0C $A003 -> JMP $DC99: TacticalMapScene_Init)
 @NoAnimTick:
   RTS                                     ; $CA83: 60
 ;===============================================================================
@@ -6536,7 +6536,7 @@ NoticeDelayWait:  ; sub-states $B and $D
 ; $CB9D: RulerPanelAck (sub-state $C)
 ; Second 240-tick delay of the $FB/$FC notice chains. Restores the Ruler status
 ; overlay (UI $BB), returns to the poll sub-state 1 with result code 0 and sets
-; the mailbox $6F8B = $01, which is exactly what the prg_0a_0b requesters at
+; the mailbox $6F8B = $01, which is exactly what the prg_0a_0b_strategy_ai requesters at
 ; $CA7F/$CB79 spin-wait for.
 ;===============================================================================
 RulerPanelAck:  ; sub-state $C
@@ -6675,7 +6675,7 @@ AbsorbPromptAck:  ; phase 1
 ;                          on A/Start the answer $0012 becomes the result code
 ;                          $040C and overlay $E4 (yes) / $E5 (no) is posted
 ;   2 TransferPromptWait - wait for A/Start, then acknowledge: the answer is
-;                          written back into $6F8B, where prg_0a_0b $B78B reads
+;                          written back into $6F8B, where prg_0a_0b_strategy_ai $B78B reads
 ;                          $00 as "perform the swap" and anything else as
 ;                          "abandon it"
 ;===============================================================================
@@ -6886,7 +6886,7 @@ RequestAckReturn:
 ;===============================================================================
 ; $CE1F: OfficerCardRender
 ; Sprite-card renderer shared by the strategy screens (Officer card at the
-; right screen edge, X base $000A=$A7) and the battle overlay (prg_0e_0f
+; right screen edge, X base $000A=$A7) and the battle overlay (prg_0e_0f_battle
 ; phases 0-2 redraw both strips, X = strip 0/1, through the $A000 entry
 ; stub). Draws TWO sprite sets into OAM via the fixed-bank writer
 ; SpriteOamWriterSimple mid-entry $F1B7
@@ -6901,8 +6901,8 @@ RequestAckReturn:
 ;   $000A = strip screen X base ($A7 strategy card, $A5 battle strip)
 ;   $00A4 = card slot offset 0-4 within the Officer's class group; the low
 ;           3 bits select the face expression: 0/1 = normal, 2 = angry
-;           (duel pursuer, prg_17_18 $BAF7), 3 = sad (war defeat, prg_08_09
-;           $D691), 4 = happy (war victory, prg_08_09 $D6BA)
+;           (duel pursuer, prg_17_18_display $BAF7), 3 = sad (war defeat, prg_08_09_tactical_war
+;           $D691), 4 = happy (war victory, prg_08_09_tactical_war $D6BA)
 ;   $04BC = one-shot strip row param (Y base); cleared after the body draw
 ;   $007C = OAM sprite cursor (advanced by the writer)
 ; Clobbers: A/X/Y, $0000-$0005, $000C, $007C (via writer)
@@ -6913,7 +6913,7 @@ RequestAckReturn:
 ; and $9D64 = talking-frame pointers (20 words each; the talking frame
 ; repeats the same expression with the mouth tile swapped).
 ; Flow:
-;   1. $6FEA bits 2/3 (result-scene dir-repeat latches, WarResultDirRepeat2/3)
+;   1. $6FEA bits 2/3 (country-select cheat latch bits, CountrySelectCheatCheck2/3)
 ;      override $00A4 to 3 (sad) / 4 (happy).
 ;   2. slot = ($00A4 & 7) + $99A0[Officer]; slot*2 is kept on the stack
 ;      across the body draw (the writer clobbers Y).
@@ -6929,7 +6929,7 @@ RequestAckReturn:
 ;   $CED6[Officer] (@OfficerPortraitChrPageTable) is the Officer's portrait
 ;   CHR 1KB page id, recorded to $00B8/$00B9 per strip and latched into
 ;   Namco-163 CHR registers 2/3 (sprite windows PPU $0800/$0C00) by the
-;   IRQ handler (prg_1f $FD03-$FD14), so the card's OAM tiles resolve
+;   IRQ handler (prg_1f_boot $FD03-$FD14), so the card's OAM tiles resolve
 ;   inside that page.
 ;===============================================================================
 .proc OfficerCardRender
@@ -7029,7 +7029,7 @@ RequestAckReturn:
 ; $41-$44 filler for the high (mostly unused) ids. Recorded to $00B8
 ; (strip 0) / $00B9 (strip 1) and latched into Namco-163 CHR registers 2/3
 ; (sprite windows PPU $0800/$0C00, tiles $80-$BF/$C0-$FF) by the IRQ
-; handler (prg_1f $FD03-$FD14). Page N = 1KB window N&7 of
+; handler (prg_1f_boot $FD03-$FD14). Page N = 1KB window N&7 of
 ; rom/chr/chr_(N>>3).bin.
 ;-------------------------------------------------------------------------------
 @OfficerPortraitChrPageTable:
@@ -7051,19 +7051,39 @@ RequestAckReturn:
   .byte $41,$41,$41,$41,$42,$42,$42,$42,$43,$43,$43,$43,$44,$44,$44,$44  ; $CFC6: 41 41 41 41 42 42 42 42 43 43 43 43 44 44 44 44
 .endproc
 ;===============================================================================
-; $CFD6-$D7FE: ExchangeMarchCutscene
-; War-screen marching cutscene played while a war exchange (troop hand-off)
-; executes. Called every NMI frame from NmiState3_Battle (prg_1f $F945, banks
-; $19/$1A mapped via Y=$39); self-gating on $04C8:
+; $CFD6-$D7FE: StratagemCutscene
+; War-map stratagem cutscene: the animated presentation played while a selected
+; stratagem executes on the tactical screen. Called every NMI frame from
+; NmiState3_WarScene (prg_1f_boot $F945, banks $19/$1A mapped via Y=$39);
+; self-gating on $04C8 (stratagem_result_latch in 0c_0d):
 ;   $04C8 = 0      -> idle, returns immediately.
-;   $04C8 = 1..$7F -> trigger (0c_0d StratagemState_Confirm stores
-;                     move_path_total+1): start scene = $04C8-1 into $04C9,
-;                     cursor $04CA = 0, latch $04C8 = $80.
+;   $04C8 = 1..$7F -> trigger, armed only by 0c_0d StratagemState_Confirm
+;                     ($AA5E) as selected stratagem code + 1 ($0543+1, code
+;                     picked from the unit's stratagem list at $A956): start
+;                     scene = $04C8-1 (= stratagem code) into $04C9, cursor
+;                     $04CA = 0, latch $04C8 = $80.
 ;   $04C8 = $80    -> phase 1: BG panel build (5 steps, $04CA cursor).
-;   $04C8 = $81    -> phase 2: animated scene loop (11 scenes, $04C9 index).
+;   $04C8 = $81    -> phase 2: animated scene loop ($04C9 scene index).
 ; Entry gate: tile-anim sentinels $0300 and $0304 must both be $FF.
+; The stratagem code armed into $04C9 (= the $0543 code space 0c_0d indexes
+; with AND #$0F in StratagemPhase_ShowResultMsg / ExecuteAction) is NOT the
+; scene index: phase-1 step 1 (@Step1LoadScene $D4F7) maps it through
+; @SceneTransitionTable ($D549, 16 entries) with >>1 to one of 11 ANIMATION
+; GROUPS, and $04C9 then holds that group for the phase-2 handler dispatch,
+; @SceneSpriteBlockLists, @ScenePaletteTable and @SceneNoteTable. Groups are
+; reused across stratagems:
+;   0 <- $0F MysticalStasis
+;   1 <- 0 FireAttack, 5 SupplyBurning, $0E Inferno
+;   2 <- 4 BoatSabotage, $0C FloodAttack
+;   3 <- 2 FeintTroops
+;   4 <- 3 AmbushStrike, 7 FriendlyFire, $0B TenfoldAmbush
+;   5 <- $0A ChainLink    6 <- 8 Enticement    7 <- 6 CastleRaid
+;   8 <- 1 PitfallTrap    9 <- $0D RepeatingCrossbow    $0A <- 9 Rockfall
+; Each handler animates its group's effect over the 12-sprite soldier
+; formation of the targeted unit (slot $0509, set to the unit at the
+; confirmed target tile by StratagemState_SelectTarget_Proceed $AA03).
 ; Phase 1 steps (@Phase1StepSequencer, table $D425, $04D1 frame countdown):
-;   0 fetch acting Officer stats ($0664[$0509] -> cells $042C-$0430)
+;   0 fetch targeted-unit Officer record ($0664[$0509] -> cells $042C-$0430)
 ;   1 copy 64-tile BG strips per frame; on completion load the scene overlay
 ;     cells via @SceneTransitionTable[$04C9]>>1 and bank-$01 $8E10 records
 ;     into $00C3/$00CB/$00D3 digit cells, then render stat digit pairs
@@ -7073,20 +7093,21 @@ RequestAckReturn:
 ;   4 fill the strip records with tile $01, arm phase 2 ($04C8=$81), zero
 ;     cursors, BankPpuInit, play scene note (@SceneNoteTable)
 ; Phase 2 per frame (@Phase2FrameHandler): $04D0++, draw the 12-sprite
-; marching formation (bank-$11 record $8DB4 + id*13, id = $0664[$0509],
-; positions @MarchFormationPosTable), load scene block list
+; soldier formation of the targeted unit (bank-$11 record $8DB4 + id*13,
+; id = $0664[$0509], positions @MarchFormationPosTable), load scene block list
 ; @SceneSpriteBlockLists[$04C9] into $0010/$0011, bump $04CD/$04CE frame
 ; counters, dispatch the scene handler (table $D034, 11 entries). Handlers
 ; animate the three overlay sprite tile cells ($00BE/$00C6/$00CE and
 ; $00BF/$00C7/$00CF) and draw OAM blocks via @DrawSceneSpriteBlock.
 ; End: every tail funnels into @SceneTimerCheck; when $04D0 reaches $B0
 ; (~2.9 s) @CutsceneFinish uploads a $AA strip to PPU $27D8, clears $04C8
-; (releasing 0c_0d StratagemState_ShowResult), sets $0518/$007D, trampolines
-; to B1D_1E_LoadScenarioData (Y=$3D, bank pair $1D/$1E), restores the
-; exchange overlay tiles $88/$89/$8A into $00C2-$00D5, BankPpuInit and
-; plays note $1D via B1F_SoundWrapperA.
+; (releasing 0c_0d StratagemState_ShowResult), sets $0518 and arms the
+; palette-upload latch $007D, trampolines to B1D_1E_LoadScenarioData (Y=$3D,
+; bank pair $1D/$1E; the palette-record loader), restores the tactical
+; overlay tiles $88/$89/$8A into $00C2-$00D5, BankPpuInit and plays note $1D
+; via B1F_SoundWrapperA.
 ;===============================================================================
-.proc ExchangeMarchCutscene
+.proc StratagemCutscene
 ; --- Code Region ---
   LDA $04C8                               ; $CFD6: AD C8 04
   BNE @SentinelCheck                      ; $CFD9: D0 01
@@ -7135,28 +7156,30 @@ RequestAckReturn:
   LDA $04C9                               ; $D02E: AD C9 04
   JSR B1F_CallbackDispatcher              ; $D031: 20 DE EA ; dispatch scene handler by $04C9
 ; --- Data Region ---
-  .word @Scene00OverlayInit               ; $D034: 4A D0  ; scene 0: overlay cell init + cursor cycle
-  .word @Scene01PaletteSwap               ; $D036: 7C D0  ; scene 1: $010D-$010F palette swap
-  .word @Scene02OverlayInit               ; $D038: B8 D0  ; scene 2: overlay cell init
-  .word @Scene03OverlayInit               ; $D03A: F5 D0  ; scene 3: overlay cell init
-  .word @Scene04OverlayInit               ; $D03C: 32 D1  ; scene 4: two sprites, gates on $04CD
-  .word @Scene05OverlayInit               ; $D03E: 8C D1  ; scene 5: overlay cell init
-  .word @Scene06OverlayInit               ; $D040: C3 D1  ; scene 6: two sprites
-  .word @Scene07OverlayInit               ; $D042: 06 D2  ; scene 7: overlay cell init
-  .word @Scene08OverlayInit               ; $D044: 32 D2  ; scene 8: overlay cell init
-  .word @Scene09OverlayInit               ; $D046: 63 D2  ; scene 9: overlay cell init
-  .word @Scene10OverlayInit               ; $D048: 94 D2  ; scene 10: soldiers leave one by one
-@Scene00OverlayInit:  ; (dispatch callback target)
+; Scene index = animation group: @SceneTransitionTable[stratagem code $0543] >> 1
+; (armed by 0c_0d StratagemState_Confirm; groups are reused across stratagems):
+  .word @MysticalStasisScene              ; $D034: 4A D0  ; group 0 <- $0F MysticalStasis: overlay cell init + cursor cycle
+  .word @FireAttackScene                  ; $D036: 7C D0  ; group 1 <- 0 FireAttack / 5 SupplyBurning / $0E Inferno: $010D-$010F palette swap
+  .word @BoatSabotageScene                ; $D038: B8 D0  ; group 2 <- 4 BoatSabotage / $0C FloodAttack: overlay cell init
+  .word @FeintTroopsScene                 ; $D03A: F5 D0  ; group 3 <- 2 FeintTroops: overlay cell init
+  .word @AmbushStrikeScene                ; $D03C: 32 D1  ; group 4 <- 3 AmbushStrike / 7 FriendlyFire / $0B TenfoldAmbush: two sprites, gates on $04CD
+  .word @ChainLinkScene                   ; $D03E: 8C D1  ; group 5 <- $0A ChainLink: overlay cell init
+  .word @EnticementScene                  ; $D040: C3 D1  ; group 6 <- 8 Enticement: two sprites
+  .word @CastleRaidScene                  ; $D042: 06 D2  ; group 7 <- 6 CastleRaid: overlay cell init
+  .word @PitfallTrapScene                 ; $D044: 32 D2  ; group 8 <- 1 PitfallTrap: overlay cell init
+  .word @RepeatingCrossbowScene           ; $D046: 63 D2  ; group 9 <- $0D RepeatingCrossbow: overlay cell init
+  .word @RockfallScene                    ; $D048: 94 D2  ; group $0A <- 9 Rockfall: soldiers leave one by one
+@MysticalStasisScene:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $04CA                               ; $D04A: AD CA 04
-  BNE @Scene00Tail                        ; $D04D: D0 0F
+  BNE @MysticalStasisSceneTail            ; $D04D: D0 0F
   LDA #$FB                                ; $D04F: A9 FB
   STA a:$00BE                             ; $D051: 8D BE 00
   STA a:$00C6                             ; $D054: 8D C6 00
   STA a:$00CE                             ; $D057: 8D CE 00
   INC $04CA                               ; $D05A: EE CA 04
   RTS                                     ; $D05D: 60
-@Scene00Tail:
+@MysticalStasisSceneTail:
 ; --- Code Region ---
   LDY $04CA                               ; $D05E: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D061: 20 C9 D2
@@ -7167,48 +7190,48 @@ RequestAckReturn:
   LSR                                     ; $D06A: 4A
   AND #$03                                ; $D06B: 29 03
   CMP #$03                                ; $D06D: C9 03
-@Scene00Wrap:
-  BNE @Scene00Store                       ; $D06F: D0 02
+@MysticalStasisSceneWrap:
+  BNE @MysticalStasisSceneStore           ; $D06F: D0 02
   LDA #$01                                ; $D071: A9 01
-@Scene00Store:
+@MysticalStasisSceneStore:
   STA $04CA                               ; $D073: 8D CA 04
   INC $04CA                               ; $D076: EE CA 04
   JMP @SceneTimerCheck                    ; $D079: 4C A3 D3
-@Scene01PaletteSwap:  ; (dispatch callback target)
+@FireAttackScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D07C: AD CA 04
   CMP $04CB                               ; $D07F: CD CB 04
-  BNE @Scene01Swap                        ; $D082: D0 0E
+  BNE @FireAttackSceneSwap                ; $D082: D0 0E
   LDA $04CD                               ; $D084: AD CD 04
   LSR                                     ; $D087: 4A
   LSR                                     ; $D088: 4A
   LSR                                     ; $D089: 4A
   AND #$03                                ; $D08A: 29 03
   STA $04CA                               ; $D08C: 8D CA 04
-  JMP @Scene01Done                        ; $D08F: 4C A9 D0
-@Scene01Swap:
+  JMP @FireAttackSceneDone                ; $D08F: 4C A9 D0
+@FireAttackSceneSwap:
   STA $04CB                               ; $D092: 8D CB 04
   ASL                                     ; $D095: 0A
   CLC                                     ; $D096: 18
   ADC $04CA                               ; $D097: 6D CA 04
   TAY                                     ; $D09A: A8
   LDX #$0D                                ; $D09B: A2 0D
-@Scene01Copy:
-  LDA @Scene01PaletteTable,Y              ; $D09D: B9 AC D0
+@FireAttackSceneCopy:
+  LDA @FireAttackPaletteTable,Y           ; $D09D: B9 AC D0
   STA $0100,X                             ; $D0A0: 9D 00 01
   INY                                     ; $D0A3: C8
   INX                                     ; $D0A4: E8
   CPX #$10                                ; $D0A5: E0 10
-  BCC @Scene01Copy                        ; $D0A7: 90 F4
-@Scene01Done:
+  BCC @FireAttackSceneCopy                ; $D0A7: 90 F4
+@FireAttackSceneDone:
   JMP @SceneTimerCheck                    ; $D0A9: 4C A3 D3
 ; --- Data Region ---
-@Scene01PaletteTable:
+@FireAttackPaletteTable:
   .byte $16,$26,$27,$26,$27,$26           ; $D0AC: 16 26 27 26 27 26  ; 3-byte $010D-$010F cell triple per cursor
   .byte $27,$26,$16,$26,$16,$26           ; $D0B2: 27 26 16 26 16 26
-@Scene02OverlayInit:  ; (dispatch callback target)
+@BoatSabotageScene:  ; (dispatch callback target)
 ; --- Code Region ---
   LDA $04CA                               ; $D0B8: AD CA 04
-  BNE @Scene02Tail                        ; $D0BB: D0 1A
+  BNE @BoatSabotageSceneTail              ; $D0BB: D0 1A
   LDA #$FC                                ; $D0BD: A9 FC
   STA a:$00BE                             ; $D0BF: 8D BE 00
   STA a:$00C6                             ; $D0C2: 8D C6 00
@@ -7219,7 +7242,7 @@ RequestAckReturn:
   STA a:$00CF                             ; $D0D0: 8D CF 00
   INC $04CA                               ; $D0D3: EE CA 04
   RTS                                     ; $D0D6: 60
-@Scene02Tail:
+@BoatSabotageSceneTail:
 ; --- Code Region ---
   LDY $04CA                               ; $D0D7: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D0DA: 20 C9 D2
@@ -7230,15 +7253,15 @@ RequestAckReturn:
   LSR                                     ; $D0E3: 4A
   AND #$03                                ; $D0E4: 29 03
   CMP #$03                                ; $D0E6: C9 03
-  BNE @Scene02Store                       ; $D0E8: D0 02
+  BNE @BoatSabotageSceneStore             ; $D0E8: D0 02
   LDA #$01                                ; $D0EA: A9 01
-@Scene02Store:
+@BoatSabotageSceneStore:
   STA $04CA                               ; $D0EC: 8D CA 04
   INC $04CA                               ; $D0EF: EE CA 04
   JMP @SceneTimerCheck                    ; $D0F2: 4C A3 D3
-@Scene03OverlayInit:  ; (dispatch callback target)
+@FeintTroopsScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D0F5: AD CA 04
-  BNE @Scene03Tail                        ; $D0F8: D0 1A
+  BNE @FeintTroopsSceneTail               ; $D0F8: D0 1A
   LDA #$F0                                ; $D0FA: A9 F0
   STA a:$00BE                             ; $D0FC: 8D BE 00
   STA a:$00C6                             ; $D0FF: 8D C6 00
@@ -7249,7 +7272,7 @@ RequestAckReturn:
   STA a:$00CF                             ; $D10D: 8D CF 00
   INC $04CA                               ; $D110: EE CA 04
   RTS                                     ; $D113: 60
-@Scene03Tail:
+@FeintTroopsSceneTail:
   LDY $04CA                               ; $D114: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D117: 20 C9 D2
   LDA $04CD                               ; $D11A: AD CD 04
@@ -7259,15 +7282,15 @@ RequestAckReturn:
   LSR                                     ; $D120: 4A
   AND #$03                                ; $D121: 29 03
   CMP #$03                                ; $D123: C9 03
-  BNE @Scene03Store                       ; $D125: D0 02
+  BNE @FeintTroopsSceneStore              ; $D125: D0 02
   LDA #$01                                ; $D127: A9 01
-@Scene03Store:
+@FeintTroopsSceneStore:
   STA $04CA                               ; $D129: 8D CA 04
   INC $04CA                               ; $D12C: EE CA 04
   JMP @SceneTimerCheck                    ; $D12F: 4C A3 D3
-@Scene04OverlayInit:  ; (dispatch callback target)
+@AmbushStrikeScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D132: AD CA 04
-  BNE @Scene04Tail                        ; $D135: D0 2E
+  BNE @AmbushStrikeSceneTail              ; $D135: D0 2E
   LDA #$EC                                ; $D137: A9 EC
   STA a:$00BE                             ; $D139: 8D BE 00
   STA a:$00C6                             ; $D13C: 8D C6 00
@@ -7286,27 +7309,27 @@ RequestAckReturn:
   LDA #$03                                ; $D15F: A9 03
   STA $04CB                               ; $D161: 8D CB 04
   RTS                                     ; $D164: 60
-@Scene04Tail:
+@AmbushStrikeSceneTail:
   LDY $04CA                               ; $D165: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D168: 20 C9 D2
   LDY $04CB                               ; $D16B: AC CB 04
   JSR @DrawSceneSpriteBlock16             ; $D16E: 20 C9 D2
   LDA $04CD                               ; $D171: AD CD 04
   CMP #$40                                ; $D174: C9 40
-  BNE @Scene04MidGate                     ; $D176: D0 08
+  BNE @AmbushStrikeSceneMidGate           ; $D176: D0 08
   LDA #$02                                ; $D178: A9 02
   STA $04CA                               ; $D17A: 8D CA 04
-  JMP @Scene04TimerJmp                    ; $D17D: 4C 89 D1
-@Scene04MidGate:
+  JMP @AmbushStrikeSceneTimerJmp          ; $D17D: 4C 89 D1
+@AmbushStrikeSceneMidGate:
   CMP #$60                                ; $D180: C9 60
-  BNE @Scene04TimerJmp                    ; $D182: D0 05
+  BNE @AmbushStrikeSceneTimerJmp          ; $D182: D0 05
   LDA #$04                                ; $D184: A9 04
   STA $04CB                               ; $D186: 8D CB 04
-@Scene04TimerJmp:
+@AmbushStrikeSceneTimerJmp:
   JMP @SceneTimerCheck                    ; $D189: 4C A3 D3
-@Scene05OverlayInit:  ; (dispatch callback target)
+@ChainLinkScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D18C: AD CA 04
-  BNE @Scene05Tail                        ; $D18F: D0 1A
+  BNE @ChainLinkSceneTail                 ; $D18F: D0 1A
   LDA #$E5                                ; $D191: A9 E5
   STA a:$00BE                             ; $D193: 8D BE 00
   STA a:$00C6                             ; $D196: 8D C6 00
@@ -7317,7 +7340,7 @@ RequestAckReturn:
   STA a:$00CF                             ; $D1A4: 8D CF 00
   INC $04CA                               ; $D1A7: EE CA 04
   RTS                                     ; $D1AA: 60
-@Scene05Tail:
+@ChainLinkSceneTail:
   LDY $04CA                               ; $D1AB: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D1AE: 20 C9 D2
   LDA $04CD                               ; $D1B1: AD CD 04
@@ -7330,9 +7353,9 @@ RequestAckReturn:
   ADC #$01                                ; $D1BB: 69 01
   STA $04CA                               ; $D1BD: 8D CA 04
   JMP @SceneTimerCheck                    ; $D1C0: 4C A3 D3
-@Scene06OverlayInit:  ; (dispatch callback target)
+@EnticementScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D1C3: AD CA 04
-  BNE @Scene06Tail                        ; $D1C6: D0 14
+  BNE @EnticementSceneTail                ; $D1C6: D0 14
   LDA #$EF                                ; $D1C8: A9 EF
   STA a:$00BE                             ; $D1CA: 8D BE 00
   STA a:$00C6                             ; $D1CD: 8D C6 00
@@ -7341,17 +7364,17 @@ RequestAckReturn:
   LDA #$03                                ; $D1D6: A9 03
   STA $04CB                               ; $D1D8: 8D CB 04
   RTS                                     ; $D1DB: 60
-@Scene06Tail:
+@EnticementSceneTail:
   LDY $04CA                               ; $D1DC: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D1DF: 20 C9 D2
   LDY $04CB                               ; $D1E2: AC CB 04
   JSR @DrawSceneSpriteBlock16             ; $D1E5: 20 C9 D2
   LDA $04CD                               ; $D1E8: AD CD 04
   CMP #$60                                ; $D1EB: C9 60
-  BNE @Scene06SetCount                    ; $D1ED: D0 05
+  BNE @EnticementSceneSetCount            ; $D1ED: D0 05
   LDA #$02                                ; $D1EF: A9 02
   STA $04CA                               ; $D1F1: 8D CA 04
-@Scene06SetCount:
+@EnticementSceneSetCount:
   LDA $04CD                               ; $D1F4: AD CD 04
   LSR                                     ; $D1F7: 4A
   LSR                                     ; $D1F8: 4A
@@ -7362,16 +7385,16 @@ RequestAckReturn:
   ADC #$03                                ; $D1FE: 69 03
   STA $04CB                               ; $D200: 8D CB 04
   JMP @SceneTimerCheck                    ; $D203: 4C A3 D3
-@Scene07OverlayInit:  ; (dispatch callback target)
+@CastleRaidScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D206: AD CA 04
-  BNE @Scene07Tail                        ; $D209: D0 0F
+  BNE @CastleRaidSceneTail                ; $D209: D0 0F
   LDA #$BB                                ; $D20B: A9 BB
   STA a:$00BF                             ; $D20D: 8D BF 00
   STA a:$00C7                             ; $D210: 8D C7 00
   STA a:$00CF                             ; $D213: 8D CF 00
   INC $04CA                               ; $D216: EE CA 04
   RTS                                     ; $D219: 60
-@Scene07Tail:
+@CastleRaidSceneTail:
   LDY $04CA                               ; $D21A: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D21D: 20 C9 D2
   LDA $04CD                               ; $D220: AD CD 04
@@ -7384,16 +7407,16 @@ RequestAckReturn:
   ADC #$01                                ; $D22A: 69 01
   STA $04CA                               ; $D22C: 8D CA 04
   JMP @SceneTimerCheck                    ; $D22F: 4C A3 D3
-@Scene08OverlayInit:  ; (dispatch callback target)
+@PitfallTrapScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D232: AD CA 04
-  BNE @Scene08Tail                        ; $D235: D0 0F
+  BNE @PitfallTrapSceneTail               ; $D235: D0 0F
   LDA #$B9                                ; $D237: A9 B9
   STA a:$00BF                             ; $D239: 8D BF 00
   STA a:$00C7                             ; $D23C: 8D C7 00
   STA a:$00CF                             ; $D23F: 8D CF 00
   INC $04CA                               ; $D242: EE CA 04
   RTS                                     ; $D245: 60
-@Scene08Tail:
+@PitfallTrapSceneTail:
   LDY $04CA                               ; $D246: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D249: 20 C9 D2
   LDA $04CD                               ; $D24C: AD CD 04
@@ -7402,22 +7425,22 @@ RequestAckReturn:
   LSR                                     ; $D251: 4A
   AND #$03                                ; $D252: 29 03
   CMP #$03                                ; $D254: C9 03
-  BNE @Scene08Store                       ; $D256: D0 02
+  BNE @PitfallTrapSceneStore              ; $D256: D0 02
   LDA #$01                                ; $D258: A9 01
-@Scene08Store:
+@PitfallTrapSceneStore:
   STA $04CA                               ; $D25A: 8D CA 04
   INC $04CA                               ; $D25D: EE CA 04
   JMP @SceneTimerCheck                    ; $D260: 4C A3 D3
-@Scene09OverlayInit:  ; (dispatch callback target)
+@RepeatingCrossbowScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D263: AD CA 04
-  BNE @Scene09Tail                        ; $D266: D0 0F
+  BNE @RepeatingCrossbowSceneTail         ; $D266: D0 0F
   LDA #$D8                                ; $D268: A9 D8
   STA a:$00BF                             ; $D26A: 8D BF 00
   STA a:$00C7                             ; $D26D: 8D C7 00
   STA a:$00CF                             ; $D270: 8D CF 00
   INC $04CA                               ; $D273: EE CA 04
   RTS                                     ; $D276: 60
-@Scene09Tail:
+@RepeatingCrossbowSceneTail:
   LDY $04CA                               ; $D277: AC CA 04
   JSR @DrawSceneSpriteBlock16             ; $D27A: 20 C9 D2
   LDA $04CD                               ; $D27D: AD CD 04
@@ -7426,15 +7449,15 @@ RequestAckReturn:
   LSR                                     ; $D282: 4A
   AND #$03                                ; $D283: 29 03
   CMP #$03                                ; $D285: C9 03
-  BNE @Scene09Store                       ; $D287: D0 02
+  BNE @RepeatingCrossbowSceneStore        ; $D287: D0 02
   LDA #$01                                ; $D289: A9 01
-@Scene09Store:
+@RepeatingCrossbowSceneStore:
   STA $04CA                               ; $D28B: 8D CA 04
   INC $04CA                               ; $D28E: EE CA 04
   JMP @SceneTimerCheck                    ; $D291: 4C A3 D3
-@Scene10OverlayInit:  ; (dispatch callback target)
+@RockfallScene:  ; (dispatch callback target)
   LDA $04CA                               ; $D294: AD CA 04
-  BNE @Scene10Tail                        ; $D297: D0 16
+  BNE @RockfallSceneTail                  ; $D297: D0 16
   LDA #$E3                                ; $D299: A9 E3
   STA a:$00BF                             ; $D29B: 8D BF 00
   STA a:$00C7                             ; $D29E: 8D C7 00
@@ -7444,7 +7467,7 @@ RequestAckReturn:
   LDA #$10                                ; $D2A9: A9 10
   STA $04CB                               ; $D2AB: 8D CB 04
   RTS                                     ; $D2AE: 60
-@Scene10Tail:
+@RockfallSceneTail:
   LDY #$01                                ; $D2AF: A0 01
   LDX $04CB                               ; $D2B1: AE CB 04
   JSR @DrawSceneSpriteBlock               ; $D2B4: 20 CB D2
@@ -7750,8 +7773,24 @@ RequestAckReturn:
   JMP @Step1RequestRender                 ; $D546: 4C E4 D4
 ; --- Data Region ---
 @SceneTransitionTable:
-  .byte $02,$10,$06,$08,$04,$02,$0E,$08   ; $D549: 02 10 06 08 04 02 0E 08  ; next scene = tbl[$04C9] >> 1
-  .byte $0C,$14,$0A,$08,$04,$12,$02,$00   ; $D551: 0C 14 0A 08 04 12 02 00  ; scenes 8-15
+; Stratagem code -> scene index, indexed by the code still in $04C9 at
+; phase-1 step 1; scene played = tbl[code] >> 1 (all values even).
+  .byte $02                             ; $D549: 02  ; stratagem 0 FireAttack -> scene 1 FireAttackScene
+  .byte $10                             ; $D54A: 10  ; stratagem 1 PitfallTrap -> scene 8 PitfallTrapScene
+  .byte $06                             ; $D54B: 06  ; stratagem 2 FeintTroops -> scene 3 FeintTroopsScene
+  .byte $08                             ; $D54C: 08  ; stratagem 3 AmbushStrike -> scene 4 AmbushStrikeScene
+  .byte $04                             ; $D54D: 04  ; stratagem 4 BoatSabotage -> scene 2 BoatSabotageScene
+  .byte $02                             ; $D54E: 02  ; stratagem 5 SupplyBurning -> scene 1 FireAttackScene
+  .byte $0E                             ; $D54F: 0E  ; stratagem 6 CastleRaid -> scene 7 CastleRaidScene
+  .byte $08                             ; $D550: 08  ; stratagem 7 FriendlyFire -> scene 4 AmbushStrikeScene
+  .byte $0C                             ; $D551: 0C  ; stratagem 8 Enticement -> scene 6 EnticementScene
+  .byte $14                             ; $D552: 14  ; stratagem 9 Rockfall -> scene $0A RockfallScene
+  .byte $0A                             ; $D553: 0A  ; stratagem $0A ChainLink -> scene 5 ChainLinkScene
+  .byte $08                             ; $D554: 08  ; stratagem $0B TenfoldAmbush -> scene 4 AmbushStrikeScene
+  .byte $04                             ; $D555: 04  ; stratagem $0C FloodAttack -> scene 2 BoatSabotageScene
+  .byte $12                             ; $D556: 12  ; stratagem $0D RepeatingCrossbow -> scene 9 RepeatingCrossbowScene
+  .byte $02                             ; $D557: 02  ; stratagem $0E Inferno -> scene 1 FireAttackScene
+  .byte $00                             ; $D558: 00  ; stratagem $0F MysticalStasis -> scene 0 MysticalStasisScene
 @Phase1Step2RowCopy:  ; (dispatch callback target)
 ; --- Code Region ---
   LDY #$21                                ; $D559: A0 21

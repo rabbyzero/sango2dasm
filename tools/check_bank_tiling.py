@@ -19,6 +19,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bank_asm_names import data_asm_path           # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WINDOW_CPU = 0x8000
 BANK_SIZE = 0x2000
@@ -57,7 +60,7 @@ def emitted_entries(path):
 
 
 def check(bank):
-    path = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % bank)
+    path = data_asm_path(bank, ROOT)
     if not os.path.exists(path):
         print('missing %s' % path)
         return 1

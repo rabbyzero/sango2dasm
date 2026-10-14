@@ -23,11 +23,11 @@
 ;   $82DC-$9FFF  SoundCommandStreams   (starts on entry $B7's row - see below)
 ;
 ; The stream pointer is a complete CPU address and the driver maps two windows
-; while playing (prg_0e_0f.asm $D8D4-$D8E0: bank $02 at $8000 AND bank $03 at
+; while playing (prg_0e_0f_battle.asm $D8D4-$D8E0: bank $02 at $8000 AND bank $03 at
 ; $A000 via LDA #$23 / ORA #$C0 / STA NAMCO_PRG_A000). Stream high bytes run
 ; $82-$A8, so soundIDs $A4-$B6 play out of bank $03: the sound area is bank $02
 ; $82DC-$9FFF followed by bank $03 $8000-$8965, with no gaps in between; the
-; bank $03 half is decoded in asm/banks/data_03.asm (SoundStream_B03_*).
+; bank $03 half is decoded in asm/banks/data_03_terrain.asm (SoundStream_B03_*).
 ;
 ; Sound cell legend (decoder + coverage proof: tools/sound_streams.py):
 ;   4-byte stream header [tick][duty][control][sweep], then 2-byte cells
@@ -1201,7 +1201,7 @@ SoundStream_B02_SndA2:
   .byte $17, $18, $17, $08, $B2, $09, $17, $18, $17, $08, $B2, $0C, $18, $08, $B5, $0E  ; $9FE3 snd $A2 pulse1    C3/24 | C3/8 | loop c9 x2 | C3/24 | C3/8 | loop c12 x2 | C#3/8 | loop c14 x5
   .byte $B1, $00, $17, $18, $FF                                                         ; $9FF3 snd $A2 pulse1    loop mark x1 | C3/24 | end
 ; --- $9FF8-$A01E  soundID $A3 pulse2 (track 1) command stream: 18 cells, 1 frame/cell, header $00 $01 $18 $00; descriptor b2/b3 -> $9FF8 ---
-;     1 loop marker(s), 5 jump/loop cell(s), 9 notes, 2.3 s single pass, cells continue in data_03.asm $8000-$801E
+;     1 loop marker(s), 5 jump/loop cell(s), 9 notes, 2.3 s single pass, cells continue in data_03_terrain.asm $8000-$801E
 SoundStream_B02_SndA3:
   .byte $00, $01, $18, $00, $C1, $16, $A3, $50                                          ; $9FF8 snd $A3 pulse2    hdr $00 $01 $18 $00 tick 1 | trem d1 p22 | vib r0 s$50
-  ; $A000-$A01E: the remaining 31 bytes are bank $03 data (data_03.asm $8000-$801E)
+  ; $A000-$A01E: the remaining 31 bytes are bank $03 data (data_03_terrain.asm $8000-$801E)

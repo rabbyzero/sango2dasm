@@ -12,9 +12,9 @@ Descriptor (bank $02, $8000-$82DB, index = soundID, stride $04):
     b1 -> $0701,X    hardware channel index 0-7 (0-3 = APU, 4-7 = Namco-163)
     b2 -> $0702,X    stream pointer LOW  byte
     b3 -> $0703,X    stream pointer HIGH byte, stored as b3 + $40
-    $0700,X <- $00   track armed ($FF = idle)          (prg_1f.asm:1096-1150)
+    $0700,X <- $00   track armed ($FF = idle)          (prg_1f_boot.asm:1096-1150)
 
-The driver maps two windows before walking a stream (prg_0e_0f.asm:8945-8950):
+The driver maps two windows before walking a stream (prg_0e_0f_battle.asm:8945-8950):
     LDY #$22 ; JSR SwitchBank8_B      -> $8000-$9FFF = PRG bank $02
     LDA #$23 ; ORA #$C0 ; STA $E800   -> $A000-$BFFF = PRG bank $03
 so a stream pointer is a real CPU address and the sound data spans bank $02
@@ -34,7 +34,7 @@ Stream layout, proven by @InitChannel ($D958) and @CmdProcess/@CmdLoop
     +4 ..      2-byte command cells [opcode][operand]; the cell index (the
             driver's "state") counts cells, so a jump operand is a cell number
 
-Command alphabet (dispatch chain prg_0e_0f.asm:9051-9231):
+Command alphabet (dispatch chain prg_0e_0f_battle.asm:9051-9231):
 
     opcode < $A0   pitch. low nibble = semitone over NoteFreqTable row 1
                    (F1..E2, measured within 3% of equal temperament), bits4-6 =

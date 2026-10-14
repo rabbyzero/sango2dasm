@@ -151,7 +151,7 @@ addr_menu_page      = $0425                     ; Cursor page (0-based)
 ; --- SRAM ---
 sram_map_cam_y       = $6F3F                    ; Map camera Y pos low (parked at $80 by State_StrategyMapLaunch; high at $6F40)
 sram_map_cam_x       = $6F41                    ; Map camera X pos low (parked at $F0 by State_StrategyMapLaunch; high at $6F42)
-sram_game_start_flag = $6F8B                    ; Strategy request mailbox ($FF = turn complete; see prg_0a_0b StrategyAiTurnDispatch)
+sram_game_start_flag = $6F8B                    ; Strategy request mailbox ($FF = turn complete; see prg_0a_0b_strategy_ai StrategyAiTurnDispatch)
 
 ;===============================================================================
 ; $E000: Reset Handler
@@ -294,7 +294,7 @@ VectorTable:
 ; and this proc is re-entered on every return to the map, not only on a new game).
 ; Role: launch the Strategy Mode map screen.
 ;   1. addr_sub_state = 2, so the VBlank handler from here on is
-;      NmiState2_MapScreen ($F8B5).
+;      NmiState2_StrategyMap ($F8B5).
 ;   2. DisplayInit(0) selects display record 0 (map CHR pages 00 01 02 10);
 ;      SwitchBank8_B($30) + B17_18_PpuCopyRaw then upload the 1KB nametable
 ;      StrategyMapBaseScreen (bank $10 $8000) to PPU $2000; palette record 0 via
@@ -302,7 +302,7 @@ VectorTable:
 ;   3. Stores $6F8B = $FF (strategy request mailbox 'turn complete') only when the
 ;      caller has NOT staged a scene handoff, i.e. $0400 != $0D ($E126-$E12F).
 ;      ClearOverlayWait $DB0C and WarPostProcess $BBAA both stage $0400 = $0D (with
-;      $0401 = 3 / 0), so the write happens on the WarResult_Finalize $D8FF and
+;      $0401 = 3 / 0), so the write happens on the CountrySelect_Finalize $D8FF and
 ;      StrategyCommand_InitOfficerScroll $D74E entries. That conditional is itself
 ;      the proof that this state is not new-game-only; see
 ;      code/initial_data_tables.md §9 for the full caller list.
@@ -404,21 +404,21 @@ VectorTable:
 ; $E18B: Entry 3 - War Scene Launch (verified; formerly misnamed "Ruler Select")
 ; One-shot launch frame on the war/battle side, then INC addr_game_state -> 4
 ; (WarAiTurnFrame / AiTurnProcess). Only four sites store game state 3:
-;   WarSceneLaunch prg_1b_1c $B5E1 / ArmyDeploySceneTrigger prg_19_1a $CA4A
-;     arm war_scene_id $0500 = $0A; Spoils_ExitFade prg_17_18 $C354 and
-;     Phase4ResultFlashTrigger prg_0e_0f $A403 arm $0500 = $0B post-battle.
+;   WarSceneLaunch prg_1b_1c_map_screen $B5E1 / ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA4A
+;     arm war_scene_id $0500 = $0A; Spoils_ExitFade prg_17_18_display $C354 and
+;     BattleResultFlashTrigger prg_0e_0f_battle $A403 arm $0500 = $0B post-battle.
 ; Dispatch on $0500:
-;   $0B  -> bank $0C/$0D OfficerFateCommitDispatch: commit post-battle officer
+;   $0B  -> bank $0C/$0D OfficerFateCommit: commit post-battle officer
 ;           fates queued in $0514-$0517 (action 2 = officer killed/removed)
 ;   else -> bank $08/$09 WarSetup: deploy the $0507 faction pair for battle
 ; No controller input is polled; NMI render sub-state $0078 = 3
-; (NmiState3_Battle).
+; (NmiState3_WarScene).
 ; Params: $0500 = launch selector ($0B = officer-fate commit)
 ;         $0510-$0513 = map scroll target data (cleared by the launchers)
 ;         $0068/$0069 = map data pointer
 ;===============================================================================
 .proc State_WarSceneLaunch
-war_scene_id    = $0500  ; launch selector, alias of prg_08_09 war_scene_id
+war_scene_id    = $0500  ; launch selector, alias of prg_08_09_tactical_war war_scene_id
 map_scroll_y    = $0510
 map_scroll_y_hi = $0511
 map_scroll_x    = $0512
@@ -440,7 +440,7 @@ map_data_ptr_hi = $0069
   BNE @battle_deployment                        ; $E1A5: D0 0B
   LDY #$2C                                      ; $E1A7: A0 2C
   JSR SwitchBankAC_B                            ; $E1A9: 20 37 F2
-  JSR B0C_0D_OfficerFateCommitDispatch_Entry          ; $E1AC: 20 06 A0  Commit post-battle officer fates $0514-$0517 (bank $0C)
+  JSR B0C_0D_OfficerFateCommit_Entry          ; $E1AC: 20 06 A0  Commit post-battle officer fates $0514-$0517 (bank $0C)
   JMP @after_mode_check                         ; $E1AF: 4C BA E1
 @battle_deployment:
   LDY #$28                                      ; $E1B2: A0 28
@@ -456,7 +456,7 @@ map_data_ptr_hi = $0069
   LDA map_scroll_x_hi                           ; $E1CC: AD 13 05
   STA a:$008F                                   ; $E1CF: 8D 8F 00
   LDA #$FF                                      ; $E1D2: A9 FF
-  STA $0518                                     ; $E1D4: 8D 18 05  Clear exchange-SFX sequence flag (SetupExchangeSfx, prg_0c_0d)
+  STA $0518                                     ; $E1D4: 8D 18 05  Clear exchange-SFX sequence flag (MapSfxSetup, prg_0c_0d_tactical_commands)
 
   ; Display + render
   LDY #$37                                      ; $E1D7: A0 37
@@ -636,11 +636,11 @@ StrategyCommandSpriteYPos:
 ;      (State_RandomAdvance2, which only advances the RNG while the NMI handler
 ;      drives the duel) and starts the duel music $12.
 ; Entry: the only writer of addr_game_state = 7 in the ROM is
-;        Phase5SideEventPanelSetup $CD66 (bank $0E, Battle Mode phase 5 side
+;        SideEventPanelSetup $CD66 (bank $0E, Battle Mode phase 5 side
 ;        event); it also stages the two side slots this proc reads - see
 ;        code/initial_data_tables.md §9.
 ; Params: $04AB/$04AC = the two side-event slots that
-;               Phase5SideEventPanelSetup stores from the pad input modes
+;               SideEventPanelSetup stores from the pad input modes
 ;               $0562/$0563 ($80 when AI-controlled); bank $0E misnames them
 ;               btl_sideev_troop_a/b
 ;         $0098 = display param ($A0)
@@ -788,9 +788,12 @@ sidev_slot_b      = $04AC
 ; (B1D_1E_SramInit: province/officer records reloaded from ROM banks
 ; $10/$11, year 189 / month 1 seeded, AI counters reset, demo rotation
 ; index randomized), loads menu font/display record $0C, selects the
-; NmiState7_Strategy menu frame handler (addr_sub_state = 7), then parks
-; in state 12 (IdleWait) where the menu system takes over.
-; Entered from the title-menu new-game path (prg_0a_0b ClearOverlayExit,
+; NmiState7_CountrySelect frame handler (addr_sub_state = 7), then parks
+; in state 12 (IdleWait). From here on the frames run that handler, whose
+; bank-$08 card-grid machine (CountrySelectDispatch via stub $A024) drives the
+; ruler/country pick over the seven $6F07 faction records and finally
+; CountrySelect_Finalize -> game state 1 (strategy map launch).
+; Entered from the title-menu new-game path (prg_0a_0b_strategy_ai ClearOverlayExit,
 ; $DBCE); the continue path exits earlier via ClearOverlayWait -> state 1.
 ;===============================================================================
 .proc State_NewGameSetup
@@ -847,15 +850,15 @@ sidev_slot_b      = $04AC
 ; $E46A: Entry 13 - Event Message Scene
 ; One-shot scene setup for the dated ruler message screen: scene record 5
 ; (SceneRecordLookup), scenario record $0D, NMI sub-state 8 ->
-; NmiState8_Officer renderer; advances to state 14 (IdleWait). Callers fill
+; NmiState8_EventMessage frame handler; advances to state 14 (IdleWait). Callers fill
 ; the display block $042C-$0434 (ruler id, notice id, year+100, month+1)
 ; before entering:
-;   - ScenarioHandoffPrep @HandoffLeaderStore (prg_19_1a $C410): closing
+;   - ScenarioHandoffPrep @HandoffLeaderStore (prg_19_1a_event_scenes $C410): closing
 ;     sub-state of the MonthlyEventDispatch / OfficerStatusScene event
 ;     scenes (war damage, troop losses, succession, ...); $0541=0
-;   - ClearOverlayCancel (prg_0a_0b $DC00): title-overlay cancel message;
+;   - ClearOverlayCancel (prg_0a_0b_strategy_ai $DC00): title-overlay cancel message;
 ;     $0541=1
-;   - UnificationEndingDispatch @VerdictWait (prg_19_1a $C606): stores the
+;   - UnificationEndingDispatch @VerdictWait (prg_19_1a_event_scenes $C606): stores the
 ;     verdict tier (score $0435: >=$46 -> 1, >=$28 -> 2, else 3) in $0541
 ; $0541 = message variant / music selector: 0 -> music $98 (event notice),
 ; nonzero -> music $AA (ending verdict / cancel fanfare).
@@ -3715,10 +3718,10 @@ MetaTileData:
 
 NmiDispatchTable:
   .word NmiState0_Idle, NmiState0_Idle          ; $F87B: states 0,1
-  .word NmiState2_MapScreen, NmiState3_Battle   ; $F87F: states 2,3
-  .word NmiState4_Menu, NmiState5_Duel        ; $F883: states 4,5
-  .word NmiState6_Event, NmiState7_Strategy     ; $F887: states 6,7
-  .word NmiState8_Officer                       ; $F88B: state 8
+  .word NmiState2_StrategyMap, NmiState3_WarScene ; $F87F: states 2,3
+  .word NmiState4_Battle, NmiState5_Duel        ; $F883: states 4,5
+  .word NmiState6_TitleScreen, NmiState7_CountrySelect ; $F887: states 6,7
+  .word NmiState8_EventMessage                  ; $F88B: state 8
 .endproc
 
 ;===============================================================================
@@ -3753,8 +3756,8 @@ NmiDispatchTable:
   RTI                                           ; $F8B4: 40
 .endproc
 
-;--- $F8B5: VBlank handler - map screen ---
-.proc NmiState2_MapScreen
+;--- $F8B5: VBlank handler - strategy map screen ---
+.proc NmiState2_StrategyMap
   JSR NmiSubDispatch                            ; $F8B5: 20 53 EE
   JSR ChrBankSwitch                             ; $F8B8: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $F8BB: 20 0B FB
@@ -3783,8 +3786,8 @@ NmiDispatchTable:
   JMP NmiEpilogue                               ; $F8FB: 4C 8D F8
 .endproc
 
-;--- $F8FE: VBlank handler - battle ---
-.proc NmiState3_Battle
+;--- $F8FE: VBlank handler - war scene (Tactical Mode map) ---
+.proc NmiState3_WarScene
   JSR NmiSubDispatch                            ; $F8FE: 20 53 EE
   JSR ChrBankSwitch                             ; $F901: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $F904: 20 0B FB
@@ -3813,10 +3816,10 @@ NmiDispatchTable:
   JSR SwapPlayerPointers                        ; $F93D: 20 A9 FA
   LDY #$39                                      ; $F940: A0 39
   JSR SwitchBankAC_B                            ; $F942: 20 37 F2
-  JSR B19_1A_ExchangeMarchCutscene              ; $F945: 20 0F A0  ; war exchange marching cutscene
+  JSR B19_1A_StratagemCutscene                  ; $F945: 20 0F A0  ; war-map stratagem cutscene
   LDY #$2C                                      ; $F948: A0 2C
   JSR SwitchBankAC_B                            ; $F94A: 20 37 F2
-  JSR B0C_0D_ExchangeFrameUpdate_Entry          ; $F94D: 20 00 A0  Exchange frame update (bank $0C)
+  JSR B0C_0D_TacticalTurnFrameUpdate_Entry          ; $F94D: 20 00 A0  Exchange frame update (bank $0C)
   LDY #$3D                                      ; $F950: A0 3D
   JSR SwitchBankAC_B                            ; $F952: 20 37 F2
   JSR B1D_1E_MenuUpdate                         ; $F955: 20 03 A0  Menu update (bank $1D)
@@ -3828,8 +3831,8 @@ NmiDispatchTable:
   JMP NmiEpilogue                               ; $F967: 4C 8D F8
 .endproc
 
-;--- $F96A: VBlank handler - menu ---
-.proc NmiState4_Menu
+;--- $F96A: VBlank handler - Battle Mode screen (戦闘モード) ---
+.proc NmiState4_Battle
   JSR NmiSubDispatch                            ; $F96A: 20 53 EE
   JSR ChrBankSwitch                             ; $F96D: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $F970: 20 0B FB
@@ -3884,8 +3887,8 @@ NmiDispatchTable:
   JMP NmiEpilogue                               ; $F9E1: 4C 8D F8
 .endproc
 
-;--- $F9E4: VBlank handler - event ---
-.proc NmiState6_Event
+;--- $F9E4: VBlank handler - title screen (title overlay menu, bank $0A) ---
+.proc NmiState6_TitleScreen
   JSR NmiSubDispatch                            ; $F9E4: 20 53 EE
   JSR ChrBankSwitch                             ; $F9E7: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $F9EA: 20 0B FB
@@ -3905,8 +3908,8 @@ NmiDispatchTable:
   JMP NmiEpilogue                               ; $FA10: 4C 8D F8
 .endproc
 
-;--- $FA13: VBlank handler - strategy ---
-.proc NmiState7_Strategy
+;--- $FA13: VBlank handler - new-game country select (card grid, bank $08) ---
+.proc NmiState7_CountrySelect
   JSR NmiSubDispatch                            ; $FA13: 20 53 EE
   JSR ChrBankSwitch                             ; $FA16: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $FA19: 20 0B FB
@@ -3925,15 +3928,15 @@ NmiDispatchTable:
   JSR B1D_1E_MenuUpdate                         ; $FA3C: 20 03 A0  Menu update (bank $1D)
   LDY #$28                                      ; $FA3F: A0 28
   JSR SwitchBankAC_B                            ; $FA41: 20 37 F2
-  JSR B08_09_WarResultDispatch_Entry         ; $FA44: 20 24 A0  Battle result dispatch (bank $08)
+  JSR B08_09_CountrySelectDispatch_Entry     ; $FA44: 20 24 A0  Country select card-grid dispatch (bank $08)
   JSR RestorePlayerPointers                     ; $FA47: 20 BF FA
   JSR SpriteClearFromIndex                      ; $FA4A: 20 30 E8
   JSR WaitVBlank                                ; $FA4D: 20 28 FB
   JMP NmiEpilogue                               ; $FA50: 4C 8D F8
 .endproc
 
-;--- $FA53: VBlank handler - officer mgmt ---
-.proc NmiState8_Officer
+;--- $FA53: VBlank handler - event message screen (monthly notice / ending) ---
+.proc NmiState8_EventMessage
   JSR NmiSubDispatch                            ; $FA53: 20 53 EE
   JSR ChrBankSwitch                             ; $FA56: 20 06 F2
   JSR SetupChrBanksAndWait                      ; $FA59: 20 0B FB

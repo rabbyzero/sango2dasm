@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the terrain bank assembly files data_00/03/04/05.asm byte-for-byte.
+"""Verify the terrain bank assembly files data_00_terrain/03/04/05.asm byte-for-byte.
 
 The banks are rendered by tools/gen_terrain_asm.py: every byte is a labelled
 `.byte` row, no `.incbin` remains. This harness assembles each bank on its own
@@ -280,8 +280,8 @@ def main():
                 return 1
             ref_rows = model.rows_from_bank(bank, reference)
             label = 'rom/prg/prg_%02x.bin' % bank
-        print('bank $%02X (asm/banks/data_%02x.asm): %d bytes assembled'
-              % (bank, bank, len(built)))
+        print('bank $%02X (%s): %d bytes assembled'
+              % (bank, model.asm_path(bank), len(built)))
         n = report_diffs(bank, reference, built, ref_rows, table)
         if n == 0:
             print('  byte-exact vs %s' % label)

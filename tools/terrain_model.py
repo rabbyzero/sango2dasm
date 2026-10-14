@@ -142,14 +142,14 @@ TILE_BANK_TABLE = (
 
 
 # --- bank $03's leading sound area (layout doc §10) --------------------
-# `@BattleAnimSoundEngine` ($D8D4, prg_0e_0f.asm:8945-8950) maps two windows at
+# `@BattleAnimSoundEngine` ($D8D4, prg_0e_0f_battle.asm:8945-8950) maps two windows at
 # once before it walks a stream:
 #     LDY #$22 ; JSR B1F_SwitchBank8_B          -> $8000-$9FFF = PRG bank $02
 #     LDA #$23 ; STA $00E2 ; ORA #$C0 ; STA $E800 -> $A000-$BFFF = PRG bank $03
 # So while sound plays, this bank's first bytes are CPU $A000-$A965 and hold
 # Namco-163/APU command streams, addressed straight from the
 # SoundNoteHeaderTable descriptor of bank $02 (b2 = pointer low, b3 + $40 =
-# pointer high - prg_1f.asm:1096). `tools/sound_streams.py` is the standalone
+# pointer high - prg_1f_boot.asm:1096). `tools/sound_streams.py` is the standalone
 # decoder that proves the whole $82DC-$A965 area is exactly covered by streams;
 # the walk below re-derives the same boundaries so this bank renders them.
 SOUND_CODE_CPU = 0xA000          # where the sound driver sees bank $03
@@ -209,7 +209,7 @@ def sound_stream(rd, addr, cap=BANK_SIZE):
 
 
 def sound_cell_text(op, arg, chan):
-    """One command cell, as the dispatch chain reads it (prg_0e_0f.asm:9051-9231).
+    """One command cell, as the dispatch chain reads it (prg_0e_0f_battle.asm:9051-9231).
 
     Pitch cells (`opcode < $A0`) name the pulse-channel reference: the low nibble
     is the semitone over NoteFreqTable ($DD06) and bits 4-6 count period
@@ -698,7 +698,8 @@ def csv_path(bank, root=None):
 
 
 def asm_path(bank, root=None):
-    return os.path.join(root or ROOT, 'asm', 'banks', 'data_%02x.asm' % bank)
+    from bank_asm_names import data_asm_name
+    return os.path.join(root or ROOT, 'asm', 'banks', data_asm_name(bank))
 
 
 def csv_write(path, rows):

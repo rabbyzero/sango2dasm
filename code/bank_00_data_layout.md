@@ -1,6 +1,6 @@
 # Bank $00 data layout: tactical terrain maps (provinces 0-7)
 
-Scope: what actually lives in `rom/prg/prg_00.bin` (= `asm/banks/data_00.asm`,
+Scope: what actually lives in `rom/prg/prg_00.bin` (= `asm/banks/data_00_terrain.asm`,
 PRG bank `$00`, one of the banks reachable only through the `$8000-$9FFF`
 window). It holds **32 of the game's 120 terrain quadrant crops** - 16x16 cells,
 one byte per cell - that the tactical/war layer assembles into each province's
@@ -62,7 +62,7 @@ default and offers `--model engine` for the literal lookup.
 
 ## 2. Province -> 4 quadrant zones (`($A8)` provider)
 
-`DataRecordLoader` (`$DF15`, prg_17_18.asm) is the routine that installs the
+`DataRecordLoader` (`$DF15`, prg_17_18_display.asm) is the routine that installs the
 `($A8)` table step 2 reads:
 
 ```
@@ -88,7 +88,7 @@ So zone ids are packed per province in the order **TL, BL, TR, BR** - the two
 left quadrants then the two right quadrants, i.e. column-major, which is also how
 the authoring ribbon packs them (§4). The disassembly still carries the stub-era
 label `PermutationTable`, a misnomer - it is the province -> quadrant zone table
-(rename to `ProvinceTerrainZoneTable` pending: `asm/banks/prg_17_18.asm` does not
+(rename to `ProvinceTerrainZoneTable` pending: `asm/banks/prg_17_18_display.asm` does not
 assemble standalone yet, so a rename cannot be byte-verified).
 
 Evidence that this grouping is right (`python tools/dump_bank_00_terrain.py
@@ -219,7 +219,7 @@ One byte per map cell, row-major, 16 bytes per row:
   Its graphics side of that contract is now resolved: the same byte indexes
   `MetaTileData` (`$F477`, bank `$1F`, 512 B = 128 entries x 4) and the 4 bytes
   are the nametable pair-rows TL,TR,BL,BR of one **16x16 px** cell.
-  `CalcTileAddrHoriz` (`prg_17_18.asm:1125`) computes `base + byte*4`
+  `CalcTileAddrHoriz` (`prg_17_18_display.asm:1125`) computes `base + byte*4`
   (`ASL/ROL/ASL/ROL/ADC $0002($77)/ADC $0003($F4)`) and `CopyTileRowHoriz`
   (`:1139`) writes 2 of the 4 per PPU row, picking the pair from a row bit. The
   resulting nametable bytes are drawn with display record 1's CHR pages
@@ -256,7 +256,7 @@ one is the raw byte:
 
 1. **Shapes.** The byte indexes `MetaTileData` (`$F477`, bank `$1F`, 512 B = 128
    entries x 4). The 4 bytes are the nametable pair-rows TL,TR,BL,BR of one
-   **16x16 px** cell: `CalcTileAddrHoriz` (`prg_17_18.asm:1125`) computes
+   **16x16 px** cell: `CalcTileAddrHoriz` (`prg_17_18_display.asm:1125`) computes
    `base + byte*4` (`ASL/ROL/ASL/ROL/ADC $0002($77)/ADC $0003($F4)`) and
    `CopyTileRowHoriz` (`:1139`) writes 2 of the 4 per PPU row, choosing the pair
    from a row bit. Patterns come from display record 1 (`88 89 8A 88`, i.e.
@@ -264,7 +264,7 @@ one is the raw byte:
    render-verified with. Writing the *raw* byte to the nametable instead is
    wrong: record 1's `$00-$3F` page is a font, so it draws digits and 山/水.
 2. **Colour.** The 64-byte head in front of every crop is the NES attribute map
-   for its 16x16 cells. The game's indexing (`prg_0c_0d.asm:7543`,
+   for its 16x16 cells. The game's indexing (`prg_0c_0d_tactical_commands.asm:7543`,
    `AND #$0E / LSR / AND #$0E / ASL / ASL / ORA`) is byte
    `((x & $0E) >> 1) | ((y & $0E) << 2)` with the 2-bit field
    `((y & 1) * 2 + (x & 1))` inside it. Read that way the head is exactly the
@@ -284,7 +284,7 @@ one is the raw byte:
 `$61` (terrain 5 Castle) and `$79`/`$7A`/`$7B` (terrain 6/7/8) carry the *same*
 metatile as plain ground `$39` (`22 23 32 33`), so no building is drawn from the
 map: they are gameplay ids stamped on a cell. The visible object is a 16x16 OAM
-sprite that `DrawStratagemTargetMarkers` (`prg_08_09.asm:$D24D`) puts at
+sprite that `DrawStratagemTargetMarkers` (`prg_08_09_tactical_war.asm:$D24D`) puts at
 `(X*16, Y*16)` from `@ProvinceMarkerOam` (`$D315`, tiles $02/$03/$0E/$0F) for the
 province city and `@CityMarkerOam` (`$D326`, tiles $3C/$3D/$3E/$3F) for each used
 pair of `ProvinceTacticalFacilityTiles`. `$62`/`$63`/`$64` (the other bytes the
@@ -339,7 +339,7 @@ what pins ids 0-5. Types 1/2 swap the River/Mountain costs, matching 水軍
 
 The very same bytes are re-read by the Battle Mode scene loader. `BattleResolve`
 (`$A61F`) and `LoadOverlayPrimary`/`LoadOverlaySecondary` (`$AEF0`/`$AF0C`,
-prg_17_18.asm) look up two more pointer tables and select the bank with
+prg_17_18_display.asm) look up two more pointer tables and select the bank with
 `B1F_SwitchBank8_B` (`$A63E`/`$AF08`). Comparing the ROM tables
 (`python tools/dump_bank_00_terrain.py --check-alias`):
 
@@ -389,8 +389,8 @@ the ribbon model holds in all four terrain banks.
 
 ### 8.1 Editing surface: hex in the tree, CSV as the edit target, GUI on top
 
-The four terrain banks are no longer blind `.incbin`: `asm/banks/data_00.asm`,
-`data_03.asm`, `data_04.asm` and `data_05.asm` each render their whole 8 KB as
+The four terrain banks are no longer blind `.incbin`: `asm/banks/data_00_terrain.asm`,
+`data_03_terrain.asm`, `data_04_terrain.asm` and `data_05_terrain.asm` each render their whole 8 KB as
 labelled `.byte` rows - one line per 16 map cells - with the decoded terrain as
 an ASCII preview in every row comment:
 
@@ -506,12 +506,12 @@ sound command streams** - the packed tail of the stream area that begins in bank
 | `$8000-$9FFF` | `$E000` | `LDY #$22 / JSR B1F_SwitchBank8_B` (`$D8D4`/`$D8D6`) | bank `$02` - descriptors + most streams |
 | `$A000-$BFFF` | `$E800` | `LDA #$23 / STA $00E2 / ORA #$C0 / STA $E800` (`$D8D9-$D8E0`) | **bank `$03`** - these bytes |
 
-`@BattleAnimSoundEngine` (`asm/banks/prg_0e_0f.asm:8945-8950`) sets both, and
+`@BattleAnimSoundEngine` (`asm/banks/prg_0e_0f_battle.asm:8945-8950`) sets both, and
 `@NmiHandler` re-applies the `$A000` shadow `$00E2` to `$E800` on every vblank
-(`asm/banks/prg_1f.asm:3690-3692`), so the driver reads the two windows as one
+(`asm/banks/prg_1f_boot.asm:3690-3692`), so the driver reads the two windows as one
 contiguous address space: `$9FFF` is followed by `$A000`. The stream address in a
 `SoundNoteHeaderTable` descriptor is therefore a *real* CPU address
-(`$0702 = b2`, `$0703 = b3 + $40` - `asm/banks/prg_1f.asm:1136-1141`), and the 19
+(`$0702 = b2`, `$0703 = b3 + $40` - `asm/banks/prg_1f_boot.asm:1136-1141`), and the 19
 descriptors whose high byte is `$60-$68` land here. Nothing points at
 `$8966` or beyond, which is exactly where the terrain model takes over.
 
@@ -540,7 +540,7 @@ packed streams with 0 gaps:
   middle of a cell pair.
 
 The 20 owned spans (`SoundStream_B03_Snd<n>` / `SoundStreamTail_B03_Snd<n>` in
-`asm/banks/data_03.asm`, CSV kind `sound_stream` / `sound_tail`):
+`asm/banks/data_03_terrain.asm`, CSV kind `sound_stream` / `sound_tail`):
 
 | soundID | descriptor | track | channel | bank `$03` span | cells |
 |---|---|---|---|---|---|

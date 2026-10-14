@@ -2,7 +2,7 @@
 """Render PRG bank $13 (the second menu display-list bank) as annotated asm.
 
 Bank $13 is pure data: it is mapped into the $8000-$9FFF window by SwitchBank8
-and read by B1D_1E_MenuUpdate's stream VM (prg_1d_1e.asm $A154-$A2DA) through
+and read by B1D_1E_MenuUpdate's stream VM (prg_1d_1e_menu_screens.asm $A154-$A2DA) through
 the same pointer-table protocol as bank $12. SelectDataBankByPos ($A690) picks
 bank $13 in two cases:
 
@@ -17,7 +17,7 @@ CMP #$03 ladder that gives bank $12 its +$40 bias for indices 3-8), so
 stream address = stored word + $2000.
 
 The small pos ids are the UI-queue "mode screens": B1F_OpenMsgWindow0/2/4/5
-(prg_1f.asm $F26D-$F29B) store the mode (0/2/4/5) into pos_buf_0 ($0310) -
+(prg_1f_boot.asm $F26D-$F29B) store the mode (0/2/4/5) into pos_buf_0 ($0310) -
 the stream the VM renders first - and the UI id into pos_buf_1 ($0311),
 which CmdEndMenu ($A248) shifts into pos_buf_0 when the mode stream ends.
 B1F_ClearUI ($F29B) stores the caller's A (always $00 at its call sites)
@@ -44,7 +44,7 @@ Layout (coverage proof: this generator asserts every region tiles exactly):
 
 Usage:
     python tools/gen_data_bank_13_asm.py            # preview on stdout
-    python tools/gen_data_bank_13_asm.py --write    # update asm/banks/data_13.asm
+    python tools/gen_data_bank_13_asm.py --write    # update asm/banks/data_13_menu_display.asm
 """
 import argparse
 import os
@@ -57,7 +57,8 @@ from menu_text_map import walk_stream       # shared stream VM decoder
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK = 0x13
 BANK_BIN = os.path.join('rom', 'prg', 'prg_%02x.bin' % BANK)
-ASM_PATH = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % BANK)
+from bank_asm_names import data_asm_path               # noqa: E402
+ASM_PATH = data_asm_path(BANK, ROOT)
 
 WINDOW_CPU = 0x8000
 BANK_SIZE = 0x2000
@@ -86,7 +87,7 @@ B13_POS_NAMES = {
     0x16: 'UI id seeded by CastleCommandDispatch (OpenMsgWindow0 $16): re-renders the '
           'pos-00 blank-row stream',
     0x1F: 'ruler intro panel (MapRulerIntroDispatch OpenMsgWindow0 $1F)',
-    0xF3: 'head seeded by StratagemState_Init (prg_0c_0d $A8A0, renders '
+    0xF3: 'head seeded by StratagemState_Init (prg_0c_0d_tactical_commands $A8A0, renders '
           'bank-12 blank placeholder in war mode)',
 }
 
@@ -574,7 +575,7 @@ BANNER = """\
 ; by tools/verify_data_bank_13.py. Raw source: rom/prg/prg_13.bin (read-only) -
 ; do not hand-edit the rendered records.
 ;
-; Selected as $33 from B1D_1E_MenuUpdate's stream VM (prg_1d_1e):
+; Selected as $33 from B1D_1E_MenuUpdate's stream VM (prg_1d_1e_menu_screens):
 ;   SelectDataBankByPos $A690 + @PosDataBankTable $A6A7: bank $13 is mapped
 ;   whenever the pos id (pos_buf_0, $0310) is < $20 (table index forced to 0),
 ;   or whenever pos id >= $20 and sub_state ($007A) is outside 3-8 (indices
@@ -582,7 +583,7 @@ BANNER = """\
 ;   adds $20 to its high byte for those indices (bank $12 gets +$40 for
 ;   indices 3-8), so stream address = stored word + $2000. The pos ids enter
 ;   the 4-entry UI queue pos_buf_0..3 ($0310-$0313) through B1F_OpenMsgWindow0/2/4/5
-;   (prg_1f $F26D-$F29B: mode -> pos_buf_0, UI id -> pos_buf_1), through
+;   (prg_1f_boot $F26D-$F29B: mode -> pos_buf_0, UI id -> pos_buf_1), through
 ;   B1F_ClearUI ($F29B, caller A always $00), through direct $0310/$0311
 ;   writes (StratagemState_Init seeds $F3;
 ;   OfficerExchangeConfirmDispatch seeds $E0/$DB), and through
@@ -650,7 +651,7 @@ BANNER = """\
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_13.asm')
+    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_13_menu_display.asm')
     args = ap.parse_args()
     text = render(read_bank())
     if args.write:

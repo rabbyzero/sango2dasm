@@ -7,15 +7,15 @@
 ; do not hand-edit the rendered records.
 ;
 ; Read from two consumers:
-;   prg_17_18  DrawSpriteFromBank $CEA5: A with bit 7 set selects this bank as
+;   prg_17_18_display  DrawSpriteFromBank $CEA5: A with bit 7 set selects this bank as
 ;              $35; Y = (A & $7F) * 2 indexes the pointer table at $8000 and
 ;              the code subtracts $20 from the pointer high byte, so blob
 ;              address = stored word - $2000 (indices with bit 7 clear read
 ;              bank $14 instead, whose words are stored unbiased). The blob is
-;              rendered by B1F_SpriteOamWriterSimple (prg_1f $F1AD); callers
+;              rendered by B1F_SpriteOamWriterSimple (prg_1f_boot $F1AD); callers
 ;              pass the base coordinates in $04BA (Y) / $04BB (X) and the flip
 ;              flags in $0002.
-;   prg_1f     State_CountryMapView $E37C: LDY #$35 / SwitchBank8_B ($E38B),
+;   prg_1f_boot     State_CountryMapView $E37C: LDY #$35 / SwitchBank8_B ($E38B),
 ;              then B17_18_PpuCopyRaw copies 1 KB from $9A90 to PPU $2000.
 ;
 ; Regions:
@@ -30,14 +30,14 @@
 ; FIRST byte is $80 terminates the blob (a $80 in byte 1 is a legitimate tile
 ; id - the terminator is only checked in the y position). The $000A = Y /
 ; $000C = X polarity follows from the OAM byte layout the writer stores
-; (b0 -> $0200,X = Y, b3 -> $0203,X = X); some prg_17_18 comments name $04BA
+; (b0 -> $0200,X = Y, b3 -> $0203,X = X); some prg_17_18_display comments name $04BA
 ; "X base" - those are reversed.
 ;===============================================================================
 
 .segment "CODE_BANK15"
 
 ; --- $8000-$80B7  SpriteBlobPtrTable: 92 x .word, indexed by
-;     Y = (A & $7F) * 2 from DrawSpriteFromBank (prg_17_18 $CEA5) with
+;     Y = (A & $7F) * 2 from DrawSpriteFromBank (prg_17_18_display $CEA5) with
 ;     bit 7 of A set; stored word = blob address + $2000 (the code
 ;     subtracts $20 from the high byte); no index bit 7 clear ever
 ;     reaches this bank - those read bank $14 ---
@@ -138,7 +138,7 @@ SpriteBlobPtrTable:
 ; --- $80B8-$9A8F  SpriteBlobArea: the 92 OAM blobs, packed back to
 ;     back. Each blob is n x 4-byte sprite entries
 ;     [y_off, tile, attr, x_off] followed by a $80 terminator in the
-;     y position. SpriteOamWriterSimple (prg_1f $F1AD) emits
+;     y position. SpriteOamWriterSimple (prg_1f_boot $F1AD) emits
 ;     OAM Y = y_off + $000A, OAM tile = tile + $0003,
 ;     OAM attr = attr EOR $0002 (caller flip flags),
 ;     OAM X = x_off + $000C; the bases come from $04BA (Y) and
@@ -2146,7 +2146,7 @@ SpriteBlob_5B:
   .byte $80                                ; $9A8F  terminator
 
 ; --- $9A90-$9E8F  CountryMapScreen: 1 KB nametable image streamed to
-;     PPU $2000 by State_CountryMapView (prg_1f $E37C, mapped by
+;     PPU $2000 by State_CountryMapView (prg_1f_boot $E37C, mapped by
 ;     LDY #$35 at $E38B) via B17_18_PpuCopyRaw: 960 tile bytes then
 ;     64 attribute bytes ---
 CountryMapScreen:

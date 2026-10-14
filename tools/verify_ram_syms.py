@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Whole-bank verification for prg_08_09.asm after the RAM symbol
+"""Whole-bank verification for prg_08_09_tactical_war.asm after the RAM symbol
 consolidation. Slices the bank file, forces absolute $00xx operands,
 assembles, links (CODE_BANK08 + CODE_BANK09), compares against
 prg_08.bin / prg_09.bin. External RAM globals owned by other bank files
@@ -13,7 +13,7 @@ import sys
 CC65 = "/home/zero/.local/bin/ca65"
 LD65 = "/home/zero/.local/bin/ld65"
 
-src_path = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_08_09.asm"
+src_path = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_08_09_tactical_war.asm"
 all_lines = open(src_path).readlines()
 end = len(all_lines)  # whole file (free-space tail is a .res fill)
 

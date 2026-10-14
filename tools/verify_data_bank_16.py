@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify asm/banks/data_16.asm against rom/prg/prg_16.bin byte-for-byte.
+"""Verify asm/banks/data_16_menu_oam.asm against rom/prg/prg_16.bin byte-for-byte.
 
 Assembles the bank standalone (its own linker config, $8000-$9FFF window) with
 the real ca65/ld65 and compares the 8192 built bytes with the stock ROM. On a
@@ -54,7 +54,7 @@ TABLES = [
     ('MenuAction18_SearchItem', 0x92A0, 6),
     ('MenuAction19_UnidentifiedCmd', 0x9342, 3),
     ('MenuAction1A_OfficerDeath', 0x9477, 6),
-    ('MenuAction1B_StrategyCommandDispatch', 0x9691, 6),
+    ('MenuAction1B_UnidentifiedCmd', 0x9691, 6),
     ('MenuAction1C_CopyTileData', 0x9733, 2),
     ('MenuAction1D_SetupActionDisplay', 0x9769, 2),
     ('MenuAction1E_CalcParams', 0x981F, 4),
@@ -70,7 +70,7 @@ def assemble():
     cfg = os.path.join(BUILD, '_seed16.cfg')
     obj = os.path.join(BUILD, '_seed16.o')
     out = os.path.join(BUILD, '_seed16.bin')
-    with open(os.path.join(ROOT, 'asm', 'banks', 'data_16.asm'),
+    with open(os.path.join(ROOT, 'asm', 'banks', 'data_16_menu_oam.asm'),
               encoding='utf-8') as f:
         text = f.read()
     with open(asm, 'w', encoding='utf-8') as f:

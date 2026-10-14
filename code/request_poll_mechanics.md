@@ -1,4 +1,4 @@
-# RequestPoll mechanics — map frame state 9 (`prg_19_1a.asm` $C773-$CD8B)
+# RequestPoll mechanics — map frame state 9 (`prg_19_1a_event_scenes.asm` $C773-$CD8B)
 
 Deep read of the map screen's strategy-playback poll: `RequestPoll` ($C7E0) plus
 the `$040C`/`$6F8B` handshake it shares with the Ruler card refresher
@@ -9,7 +9,7 @@ the ROM bytes (`tools/verify_19_1a.py`, `tools/verify_0a_0b`-style byte scans).
 ## 1. Where it runs, and how often
 
 ```
-NMI -> NmiState2_MapScreen -> MapScreenFrameUpdate ($A00C, prg_1b_1c)
+NMI -> NmiState2_StrategyMap -> MapScreenFrameUpdate ($A00C, prg_1b_1c_map_screen)
       -> BIT-test on $0087 (palette animation direction)   ; BMI = bit7 set
       -> MapScreenFrameStateDispatch ($A01F, table by $0400)
       -> state 9 = CallStrategyRequestDispatch ($A055)
@@ -28,8 +28,8 @@ Cadence, precisely:
   count of *unfrozen* frames, not of wall-clock frames (240 ≈ 4 s at 60 Hz only
   when no fade is in flight).
 - Two sites enter frame state 9 (scanned across all banks):
-  - `prg_19_1a` `$A370`: `$0400 ← 9`, `$0401 ← 0` → starts at `RulerPanelOpen`.
-  - `prg_19_1a` `$AE6D`: `$0400 ← 9`, `$0401 ← 1`, `$040C ← 0` → starts directly
+  - `prg_19_1a_event_scenes` `$A370`: `$0400 ← 9`, `$0401 ← 0` → starts at `RulerPanelOpen`.
+  - `prg_19_1a_event_scenes` `$AE6D`: `$0400 ← 9`, `$0401 ← 1`, `$040C ← 0` → starts directly
     in `RequestPoll` with the poll re-armed (full card rebuild next tick).
 
 ## 2. Sub-state inventory ($0401)
@@ -67,7 +67,7 @@ sub-state.
 **Naming decision (kept).** `RequestPoll` names the state's reason to exist and
 what terminates it — sampling the engine's mailbox `$6F8B` and routing the
 request — not everything it does. Two facts the name does *not* carry, now
-documented in the proc's own header block (`prg_19_1a.asm` $C7E0):
+documented in the proc's own header block (`prg_19_1a_event_scenes.asm` $C7E0):
 
 - the bank-$1D `RulerCardRefresh` call is **unconditional** (all three sites:
   arming $C813, polling $C838, teardown $C896), while the mailbox read at $C83A
@@ -131,7 +131,7 @@ C884  $000B ← $FF ; $000A ← $FF ; RulerCardRefresh with no Officer and no la
 C88C  $000C ← 0                 ; mode 0 -> the card buffer is blanked
 ```
 
-The engine side (`DeductCounterMultiEntry` `$D140`, and `prg_08_09` `$A093`/`$BAAD`)
+The engine side (`DeductCounterMultiEntry` `$D140`, and `prg_08_09_tactical_war` `$A093`/`$BAAD`)
 also sets `$6F5B ← 2` and `$6F8D ← 0` when it posts `$FF`, i.e. the AI turn-cycle
 counter is parked at "idle" — the poll's job is only to shut the presentation
 down after 32 further exhausted-turn frames.
@@ -160,12 +160,12 @@ side, with the verified wait loops:
 |---|---|---|---|
 | $FE | `ResolveProvinceConquest` $A8C1 (human defender) | nothing — posts and returns (`PLA PLA`) so the map plays the war; next `StrategyAiTurnDispatch` sees `BMI $A012` (bit 7 = busy) and idles | `WarPhaseHandoff` → `$01` |
 | $FD | `ResolveProvinceConquest` $A8D1 (AI defender) | same post-and-return shape (instantly conquered, no war scene) | `WarPhaseHandoff` → `$01` via the sub-state 8/9 chain |
-| $FC | prg_0a_0b $CB74 (Officer staged into a record) | spin `CMP #$01 / BNE` at $CB79 | `RulerPanelAck` `$CBBF` |
-| $FB | prg_0a_0b $CA7A (Officer record deleted) | spin for `$01` | `RulerPanelAck` |
-| $FA | prg_0a_0b $BB3B (province sweep) | spin `BNE` — waits for the cell to become **0** | `RequestAckReturn` with `$040C = 0` |
-| $F9 | prg_0a_0b $BD31 (absorb sweep) | spin `BNE` for **0** | `RequestAckReturn` |
-| $F8 | prg_0a_0b $B786 (province transfer, needs an answer) | spin `CMP #$F8 / BEQ` then branch on `$00` = accept | `TransferConfirmPrompt` phase 2 → `RequestAckReturn` with `$040C = $0012` |
-| $FF | `DeductCounterMultiEntry` $D147, prg_08_09 $A093/$BAAD | no wait; also `$6F5B ← 2`, `$6F8D ← 0` | poll teardown after 32 ticks |
+| $FC | prg_0a_0b_strategy_ai $CB74 (Officer staged into a record) | spin `CMP #$01 / BNE` at $CB79 | `RulerPanelAck` `$CBBF` |
+| $FB | prg_0a_0b_strategy_ai $CA7A (Officer record deleted) | spin for `$01` | `RulerPanelAck` |
+| $FA | prg_0a_0b_strategy_ai $BB3B (province sweep) | spin `BNE` — waits for the cell to become **0** | `RequestAckReturn` with `$040C = 0` |
+| $F9 | prg_0a_0b_strategy_ai $BD31 (absorb sweep) | spin `BNE` for **0** | `RequestAckReturn` |
+| $F8 | prg_0a_0b_strategy_ai $B786 (province transfer, needs an answer) | spin `CMP #$F8 / BEQ` then branch on `$00` = accept | `TransferConfirmPrompt` phase 2 → `RequestAckReturn` with `$040C = $0012` |
+| $FF | `DeductCounterMultiEntry` $D147, prg_08_09_tactical_war $A093/$BAAD | no wait; also `$6F5B ← 2`, `$6F8D ← 0` | poll teardown after 32 ticks |
 | $01 | written by the map, read by the War engine (`WarClashResolve`) | — | — |
 | $00 | cleared by `RulerPanelOpen` | — | idle |
 
@@ -198,7 +198,7 @@ Consequences worth remembering:
 
 ## 7. Findings and corrections from this pass
 
-- **`PoachRosterTransfer` was mislabelled** (`prg_1b_1c.asm` $D46A-$D46F): the
+- **`PoachRosterTransfer` was mislabelled** (`prg_1b_1c_map_screen.asm` $D46A-$D46F): the
   site loads `Y = $2A`, which selects banks `$0A+$0B`, so its inline word `$A006`
   is **bank $0A's `ArmyValueCalc_Entry`** ($CF3F), not the identically valued
   bank-$19 `StrategyRequestDispatch` entry. The call recomputes the poached
@@ -206,7 +206,7 @@ Consequences worth remembering:
   `clamp(newRuler.Virtue(+4) + 70 − officer.Loyalty(+3), 10, 90)`; `$0030` =
   destination Ruler, `$0031` = moved Officer. Fixed the label, comment and proc
   header; `tools/verify_1b_1c.py` → 16384 bytes, 0 mismatches.
-  Follow-up: `ArmyValueCalc`'s own name/header in `prg_0a_0b.asm` ("army strength
+  Follow-up: `ArmyValueCalc`'s own name/header in `prg_0a_0b_strategy_ai.asm` ("army strength
   rating") does not match what it computes (Loyalty) and should be renamed.
 - **`BankedDataHandler` → `RulerCardRefresh`** and the label table rename
   (`code/ruler_card_decode.md`), with the 11 call sites' "card slot" comments
@@ -214,7 +214,7 @@ Consequences worth remembering:
 - **Open questions**: whether the alias sub-states 2/3/$D were live in an
   earlier build; what the four label-variant kanji strings are (needs the card
   CHR font page). ~~Which code consumes the name-font page id in `$00B9`~~
-  Resolved (2026-10-10): the IRQ handler (`prg_1f.asm` `$FD03-$FD14`) latches
+  Resolved (2026-10-10): the IRQ handler (`prg_1f_boot.asm` `$FD03-$FD14`) latches
   `$B8`/`$B9` into Namco-163 CHR registers 2/3 — see
   `code/ruler_card_decode.md` §7.
 

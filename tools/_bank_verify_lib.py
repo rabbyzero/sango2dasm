@@ -26,6 +26,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bank_asm_names import prg_asm_path           # noqa: E402
+
 CC65 = "/home/zero/.local/bin/ca65"
 LD65 = "/home/zero/.local/bin/ld65"
 
@@ -138,7 +141,7 @@ def verify_bank_pair(bank_hi, bank_lo, *,
     region_cfg = "build/_region{}.cfg".format(pair)
     region_out = "build/_region{}.out".format(pair)
 
-    src = open("asm/banks/prg_{}.asm".format(pair)).read()
+    src = open(prg_asm_path(pair)).read()
     src = _inject_orgs(src, bank_hi, bank_lo)
     ram_block = "".join(external_ram or [])
 

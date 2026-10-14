@@ -41,25 +41,25 @@
 ;     State_StrategyMapLaunch, because it runs on every return to the map (the
 ;     new-game data re-seed is a different proc, State_NewGameSetup $E3EE). It
 ;     stores addr_sub_state = 2 ($E0DD), so the frames that follow run
-;     NmiState2_MapScreen ($F8B5); it writes the $6F8B request mailbox with $FF
+;     NmiState2_StrategyMap ($F8B5); it writes the $6F8B request mailbox with $FF
 ;     only when the caller has not staged a scene handoff ($0400 = $0D, done by
 ;     ClearOverlayWait and WarPostProcess); and it parks the map camera
 ;     $6F41 = $F0 / $6F3F = $80 ($E15D-$E164).
 ;   Callers - every writer of addr_game_state ($007A) = 1 in the ROM:
-;     ClearOverlayWait $DB0C (prg_0a_0b)      - clear overlay done: after
+;     ClearOverlayWait $DB0C (prg_0a_0b_strategy_ai)      - clear overlay done: after
 ;       CopySramToWork, with frame state $0400 = $0D / $0401 = 3 and the player
 ;       country $6F03 looked up in PlayerPtrTable
-;     WarPostProcess $BBAA (prg_08_09)        - tactical war layer finished
-;     WarResult_Finalize $D8FF (prg_08_09)    - war result finalized
-;     StrategyCommand_InitOfficerScroll $D74E (prg_17_18) - on A while
+;     WarPostProcess $BBAA (prg_08_09_tactical_war)        - tactical war layer finished
+;     CountrySelect_Finalize $D8FF (prg_08_09_tactical_war) - country select finalized
+;     StrategyCommand_InitOfficerScroll $D74E (prg_17_18_display) - on A while
 ;       sram_scroll_pending $6F43 is set (A with $6F43 = 0 resets via B1F_Reset)
 ;     WarPostProcess also stores frame state $0400 = $0D (post-war officer
-;     status scene, $0401 = 0); WarResult_Finalize jumps to WarResultSlotReset.
+;     status scene, $0401 = 0); CountrySelect_Finalize jumps to CountrySelectSlotReset.
 ;     The $0400 = $0D handoff is what the mailbox test at $E126 keys on.
-;   Loader: prg_1f State_StrategyMapLaunch ($E0DA) - LDY #$30 / JSR
+;   Loader: prg_1f_boot State_StrategyMapLaunch ($E0DA) - LDY #$30 / JSR
 ;     SwitchBank8_B ($E0E9), ($000A/$000B) <- $8000 ($E0EC-$E0F3), PPU addr
 ;     $0000/$0001 <- $2000, then LDY #$37 / JSR B17_18_PpuCopyRaw ($E113).
-;     PpuCopyRaw ($A212, prg_17_18.asm) streams exactly $400 bytes
+;     PpuCopyRaw ($A212, prg_17_18_display.asm) streams exactly $400 bytes
 ;     ($000C/$000D counter) from ($000A) to PPUDATA, so this block is one whole
 ;     screen at $2000.
 ;   CHR (render-verified): display mode $00 (DisplayInit #$00 at $E0E4 ->
@@ -68,7 +68,7 @@
 ;     (the plate kanji and the digits). Palette record 0 ($E11B-$E120).
 ;   Date plate: tile rows 1-3 carry the 年 ... 月 plate. Its only sub-$40 tiles
 ;     are $0E/$1E at row 2-3 col 6 and $0F/$1F at row 2-3 col 10, i.e. two 8x16
-;     kanji (upper + lower tile); YearDisplaySetup ($A6B6, prg_1d_1e) turns the
+;     kanji (upper + lower tile); YearDisplaySetup ($A6B6, prg_1d_1e_menu_screens) turns the
 ;     scenario year $6F00 + $64 and the month $6F01 + 1 into BCD digit tiles
 ;     nibble + $04 (upper) / + $14 (lower) and writes them into the gaps.
 ;   Tile rows 20-29 are the blank tile $01 - the bottom 80 px is always covered
@@ -124,10 +124,10 @@ StrategyMapBaseScreenAttr:
 ;     The picture is a dark field between two frame bands - what the duel
 ;     sprites are drawn over.
 ;   Callers - the only writer of addr_game_state ($007A) = 7 in the ROM:
-;     Phase5SideEventPanelSetup $CD66 (prg_0e_0f) - Battle Mode phase 5 side
+;     SideEventPanelSetup $CD66 (prg_0e_0f_battle) - Battle Mode phase 5 side
 ;       event panel; it disables NMI and stores through the $007A slot, which
 ;       that bank aliases as btl_flash_counter.
-;   Loader: prg_1f State_DuelSceneLaunch ($E2E8) - LDY #$30 / JSR
+;   Loader: prg_1f_boot State_DuelSceneLaunch ($E2E8) - LDY #$30 / JSR
 ;     SwitchBank8_B ($E2FC), ($000A/$000B) <- $8400 ($E2FF-$E306), PPU addr <-
 ;     $2000, then LDY #$37 / JSR B17_18_PpuCopyRaw ($E318). Same 1KB raw stream
 ;     as above.
@@ -183,17 +183,17 @@ DuelBaseScreenAttr:
 ;   Role: Tactical Mode (war scene) terrain. Display record 1 is armed by the
 ;     game-state-3 proc State_WarSceneLaunch ($E193) - "war" is this project's
 ;     name for the tactical layer - and game state 3 is stored by
-;     WarSceneLaunch $B5E3 (prg_1b_1c), Spoils_ExitFade $C356 (prg_17_18),
-;     ArmyDeploySceneTrigger $CA4C (prg_19_1a) and Phase4ResultFlashTrigger
-;     $A403 (prg_0e_0f).
-;   Loader: prg_1d_1e SceneRenderer ($BC71) callback 1 ScenePageCopy ($BC9B) -
+;     WarSceneLaunch $B5E3 (prg_1b_1c_map_screen), Spoils_ExitFade $C356 (prg_17_18_display),
+;     ArmyDeploySceneTrigger $CA4C (prg_19_1a_event_scenes) and BattleResultFlashTrigger
+;     $A403 (prg_0e_0f_battle).
+;   Loader: prg_1d_1e_menu_screens SceneRenderer ($BC71) callback 1 ScenePageCopy ($BC9B) -
 ;     LDY #$30 / JSR B1F_SwitchBank8_B ($BC9D), source ($0470/$0471) = $8800
 ;     seeded by callback 0 ($BC83), PPU destination ($0472/$0473) = $2400 and
 ;     +$40 per call until the high byte reaches $28, i.e. exactly this 1KB.
 ;     Each call builds one 64-byte PPU stream packet at $0380: count $40, addr
 ;     hi/lo, 64 tile bytes, $FF terminator (written back through $03C3), and
 ;     $0401 only advances at $2800, so the screen is uploaded over 16 frames.
-;   Callers: NmiState2_MapScreen $F8EF (LDY #$3B = banks $1B+$1C, JSR $A000;
+;   Callers: NmiState2_StrategyMap $F8EF (LDY #$3B = banks $1B+$1C, JSR $A000;
 ;     the label there used to read B19_1A_OverlayStripRender_Entry, which is
 ;     wrong for that bank pair - see code/bank_switch_map.md) ->
 ;     MapScreenFrameUpdate ($A00C) -> frame state $0E = CallSceneRenderer
@@ -481,17 +481,17 @@ ProvinceRecord_EISHOU:
 ;       province (the game always reads the two rates at consecutive
 ;       addresses, so they are stored as bytes rather than words):
 ;       +0 = rate used by the market BUY RICE leg (gold = rice*100/rate,
-;           @RiceBuySeed prg_1b_1c $C254; the pair is also the action
+;           @RiceBuySeed prg_1b_1c_map_screen $C254; the pair is also the action
 ;           parameter record of the war-layer buy/sell panel, State 0
-;           prg_08_09 $C129 dereferences ($02) = id*2 + $8FC0),
+;           prg_08_09_tactical_war $C129 dereferences ($02) = id*2 + $8FC0),
 ;       +1 = rice per 100 gold for the SELL legs (SellSurplusRice
-;           prg_0a_0b $CC9E, Action_BuyRice rice cost prg_08_09 $A457).
+;           prg_0a_0b_strategy_ai $CC9E, Action_BuyRice rice cost prg_08_09_tactical_war $A457).
 ;       Provinces with no 町 rice trade hold $00, $00; every (+0, +1)
 ;       pair matches the sell/buy rate columns of docs/rice_prices.csv.
 ;   $8FFC-$9019  ProvinceFacilityFlags: one flag byte per province
 ;       (initial-value seed) - province facility flags behind the town
 ;       commands. The town screen menu layout comes from a separate table
-;       pair (@TownFacilitySetTable/@FacilityActionCodeTable prg_1b_1c
+;       pair (@TownFacilitySetTable/@FacilityActionCodeTable prg_1b_1c_map_screen
 ;       $C025/$C10E, action codes 0=兵器工房 armory, 1=学校 academy,
 ;       2=医院 hospital, 3=町 market); these bits gate the individual
 ;       commands, so they are not a bijection onto those 4 codes.
@@ -499,7 +499,7 @@ ProvinceRecord_EISHOU:
 ;       町 bit2 / 募 bit3, `-` = clear.
 ;       Consumers test one bit each:
 ;       bit0 = gate for the war-AI action loop (@AiAction_
-;              EvaluateAndExecute prg_0a_0b $C33F AND #$01 - clear => skip
+;              EvaluateAndExecute prg_0a_0b_strategy_ai $C33F AND #$01 - clear => skip
 ;              to the next province). Clear: 0, 3, 7, 10, 14, 16, 22, 24.
 ;       bit1 = additional town-command facility flag (not yet tied to a
 ;              named command; overlaps but is not contained in bit2).
@@ -507,9 +507,9 @@ ProvinceRecord_EISHOU:
 ;       bit2 = has a working 町 rice market - the 23 provinces whose rate
 ;              pair is non-zero (docs/rice_prices.csv has_market matches
 ;              this bit exactly). Also gates the AI sell path
-;              (SellSurplusRice prg_0a_0b $CC45 AND #$04).
+;              (SellSurplusRice prg_0a_0b_strategy_ai $CC45 AND #$04).
 ;              Clear: 1, 5, 9, 17, 19, 22, 29.
-;       bit3 = recruit/transfer eligible (@CheckEligibility prg_0a_0b
+;       bit3 = recruit/transfer eligible (@CheckEligibility prg_0a_0b_strategy_ai
 ;              $C872 AND #$08, together with the <10 subordinate count; the
 ;              $C7F1 dispatch routes on the same bit). Clear on exactly
 ;              the seven ruler capitals. Clear: 0, 16, 18, 21, 23, 27, 29.
@@ -863,9 +863,9 @@ ProvinceName_WITHDRAW:
 ; code adds $80 to the high byte, so CPU target = word + $8000, which
 ; is exactly the EquipName_NN record in the EquipmentNamePatterns
 ; block below. The armory / warehouse grid indexes this by equipment
-; id (State6_RenderArmoryItems prg_08_09 $C565, TownCommandDispatch
-; prg_1b_1c $C840); the name-plate renderer reuses it by strip id
-; (NamePlateStripSetup prg_19_1a $B7C8). All switch bank $30 first.
+; id (State6_RenderArmoryItems prg_08_09_tactical_war $C565, TownCommandDispatch
+; prg_1b_1c_map_screen $C840); the name-plate renderer reuses it by strip id
+; (NamePlateStripSetup prg_19_1a_event_scenes $B7C8). All switch bank $30 first.
 ; ==============================================================================
 EquipmentNamePtrTable:
   .word EquipName_00-$8000         ; $9B12 -> $9B52  equip 00 短剣
@@ -912,7 +912,7 @@ EquipmentNamePtrTable:
 ; Storage is LINE-major: character k = line1[2k], line1[2k+1] (top
 ; cells) plus line2[2k], line2[2k+1] (bottom cells), so its 4 tiles
 ; are NOT adjacent - 4 character columns of 2 cells per line. The
-; bank-$31 OfficerNameGlyphTable ($8DB4, data_11.asm) is the other
+; bank-$31 OfficerNameGlyphTable ($8DB4, data_11_officer.asm) is the other
 ; way round: 4 CONTIGUOUS bytes per character (character-major).
 ; Group by those offsets, not by value: kanji on the class pages do
 ; follow (n, n+1, n+$10, n+$11) (短 = 90 91 / A0 A1), but hiragana の
@@ -1032,15 +1032,15 @@ EquipName_31: .byte $55                                      ; $9D61 竜鱗の�
 ; are province ids (see include/province_ids.inc).
 ; This is the strategic-map neighbor list used across the AI turn and
 ; the war layer. Readers (representative):
-;   prg_0a_0b  BuildAdjacencyBitmap $D4F6, FindBestEnemyProvince
+;   prg_0a_0b_strategy_ai  BuildAdjacencyBitmap $D4F6, FindBestEnemyProvince
 ;              $A274, AiCountExpansionRoom $A0EF, SettleStagedOfficers
 ;              $ABBA, EvalProvinceAbsorption $B1B1, CalcActionProb
 ;              $C70E, CountDefendedBorderProvinces $D0E9,
 ;              CollectEnemyBorderProvinces $D1C5/$D216
-;   prg_08_09  AiTurnProcess $B01D, WarSetup $B2BA, SetupPostWarState $BBEB
-;   prg_0c_0d  ProvinceSelect_InitList $BBBB, ExchangeScene $DEAA
-;   prg_19_1a  OfficerArrivalScan $B9F8
-;   prg_1b_1c  ProvinceAdjacencyValidate $DD8A
+;   prg_08_09_tactical_war  AiTurnProcess $B01D, WarSetup $B2BA, SetupPostWarState $BBEB
+;   prg_0c_0d_tactical_commands  ProvinceSelect_InitList $BBBB, TacticalMapScene $DEAA
+;   prg_19_1a_event_scenes  OfficerArrivalScan $B9F8
+;   prg_1b_1c_map_screen  ProvinceAdjacencyValidate $DD8A
 ; ==============================================================================
 ProvinceAdjacencyTable:
 
@@ -1086,10 +1086,10 @@ ProvinceAdj_EISHOU: .byte $1A, $1C, $FF, $FF, $FF, $FF, $FF, $FF ; $9E5A id 29 �
 ; of the bank-$31 $9AB4 TacticalDefenseSideTypeTable; the two are chosen
 ; by SIDE, never by controller.
 ; Readers (bank $30 window, after the same $9D72 slot scan):
-;   @SetupAttackerRoster prg_08_09 $B312 -> $B331: $8000[$050E*2] +
+;   @SetupAttackerRoster prg_08_09_tactical_war $B312 -> $B331: $8000[$050E*2] +
 ;     type*34 -> side-1 placement pool, cursors @AttackerCursorSeeds
 ;     $02/$0C/$16/$1C (5+5+3+2 (Y,X) pairs after the anchor).
-;   GetCityDataA prg_0c_0d $DEB8 -> @Mode2Bounds $C41C (same pool,
+;   GetCityDataA prg_0c_0d_tactical_commands $DEB8 -> @Mode2Bounds $C41C (same pool,
 ;     type*34 on $8000[$050E*2]) and @OtherModeBounds $C48E
 ;     ($932E[$050E*2] + type*4 bounds rectangle). The army-deploy scene
 ;     takes this table whenever its mode byte $050B != 2; $050B == 2

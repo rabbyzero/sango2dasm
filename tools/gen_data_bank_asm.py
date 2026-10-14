@@ -43,6 +43,7 @@ from charmap_kana import decode_name                # noqa: E402
 import extract_officer_data as officer_tool         # noqa: E402
 import extract_province_data as province_tool       # noqa: E402
 import officer_model                                # noqa: E402
+import bank_asm_names as bank_names                 # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK_DIR = os.path.join(ROOT, 'rom', 'prg')
@@ -86,8 +87,8 @@ DEATH_YEAR_OFFSET = 100                              # byte = death year - 100
 #     Entry n is the 8x16-kanji NAME pattern of equipment id n (0-31, matching
 #     docs/equipment_catalog.csv): the armory / warehouse grid indexes it by
 #     equipment id, and the name-plate renderer reuses it by strip id (0-31).
-#     Readers: State6_RenderArmoryItems prg_08_09 $C565, TownCommandDispatch
-#     prg_1b_1c $C840 (index = equipment id), NamePlateStripSetup prg_19_1a
+#     Readers: State6_RenderArmoryItems prg_08_09_tactical_war $C565, TownCommandDispatch
+#     prg_1b_1c_map_screen $C840 (index = equipment id), NamePlateStripSetup prg_19_1a_event_scenes
 #     $B7C8 (index = strip id * 2).
 #   $9B52 EquipmentNamePatterns - the 32 pointer targets, each 17 bytes ($11
 #     grid): byte0 = the NAMCO-163 CHR code page the record's tile bytes
@@ -103,8 +104,8 @@ DEATH_YEAR_OFFSET = 100                              # byte = death year - 100
 #     (see code/bank_switch_map.md 5.2 and the AI/war readers).
 #   $9E62 TacticalAttackSideTypeTable - parallel to the adjacency table (same
 #     id*8 index); per-neighbor roster-layout byte. Readers: GetCityDataA
-#     prg_0c_0d $DEB8 (returns it as that neighbor's "city data" byte) and
-#     @SetupAttackerRoster prg_08_09 $B331 (value * 34 -> a side-1 roster base
+#     prg_0c_0d_tactical_commands $DEB8 (returns it as that neighbor's "city data" byte) and
+#     @SetupAttackerRoster prg_08_09_tactical_war $B331 (value * 34 -> a side-1 roster base
 #     in bank $26).
 PATTERN_PTR_CPU = 0x9B12
 PATTERN_PTR_COUNT = 32
@@ -166,7 +167,7 @@ REINFORCE_ENTRY_STRIDE = 2           # [0] Officer id, [1] year - 100
 REINFORCE_YEAR_OFFSET = 100          # display year = byte + 100
 REINFORCE_PAIRS_PER_ROW = 4
 REINFORCE_BYTES = 0x8DB4 - REINFORCE_CPU       # 64
-# EventReinforceGate ($A33C, prg_19_1a) runs each January per acting Country
+# EventReinforceGate ($A33C, prg_19_1a_event_scenes) runs each January per acting Country
 # and picks pool (Country - 2); Country 6 aliases slot 3, and Countries 0/1/5
 # have no pool. OfficerReinforceScene ($AEC0) then inducts the first
 # still-hidden officer whose year has arrived into the Country's home Province.
@@ -540,17 +541,17 @@ def emit_province_trade(out, data, rows):
     out.append(';       province (the game always reads the two rates at consecutive')
     out.append(';       addresses, so they are stored as bytes rather than words):')
     out.append(';       +0 = rate used by the market BUY RICE leg (gold = rice*100/rate,')
-    out.append(';           @RiceBuySeed prg_1b_1c $C254; the pair is also the action')
+    out.append(';           @RiceBuySeed prg_1b_1c_map_screen $C254; the pair is also the action')
     out.append(';           parameter record of the war-layer buy/sell panel, State 0')
-    out.append(';           prg_08_09 $C129 dereferences ($02) = id*2 + $%04X),' % TRADE_CPU)
+    out.append(';           prg_08_09_tactical_war $C129 dereferences ($02) = id*2 + $%04X),' % TRADE_CPU)
     out.append(';       +1 = rice per 100 gold for the SELL legs (SellSurplusRice')
-    out.append(';           prg_0a_0b $CC9E, Action_BuyRice rice cost prg_08_09 $A457).')
+    out.append(';           prg_0a_0b_strategy_ai $CC9E, Action_BuyRice rice cost prg_08_09_tactical_war $A457).')
     out.append(';       Provinces with no 町 rice trade hold $00, $00; every (+0, +1)')
     out.append(';       pair matches the sell/buy rate columns of docs/rice_prices.csv.')
     out.append(';   $%04X-$%04X  ProvinceFacilityFlags: one flag byte per province' % (flag_cpu, flag_cpu + TRADE_FLAG_BYTES - 1))
     out.append(';       (initial-value seed) - province facility flags behind the town')
     out.append(';       commands. The town screen menu layout comes from a separate table')
-    out.append(';       pair (@TownFacilitySetTable/@FacilityActionCodeTable prg_1b_1c')
+    out.append(';       pair (@TownFacilitySetTable/@FacilityActionCodeTable prg_1b_1c_map_screen')
     out.append(';       $C025/$C10E, action codes 0=兵器工房 armory, 1=学校 academy,')
     out.append(';       2=医院 hospital, 3=町 market); these bits gate the individual')
     out.append(';       commands, so they are not a bijection onto those 4 codes.')
@@ -558,7 +559,7 @@ def emit_province_trade(out, data, rows):
     out.append(';       町 bit2 / 募 bit3, `-` = clear.')
     out.append(';       Consumers test one bit each:')
     out.append(';       bit0 = gate for the war-AI action loop (@AiAction_')
-    out.append(';              EvaluateAndExecute prg_0a_0b $C33F AND #$01 - clear => skip')
+    out.append(';              EvaluateAndExecute prg_0a_0b_strategy_ai $C33F AND #$01 - clear => skip')
     out.append(';              to the next province). Clear: %s.' % cleared(1))
     out.append(';       bit1 = additional town-command facility flag (not yet tied to a')
     out.append(';              named command; overlaps but is not contained in bit2).')
@@ -566,9 +567,9 @@ def emit_province_trade(out, data, rows):
     out.append(';       bit2 = has a working 町 rice market - the 23 provinces whose rate')
     out.append(';              pair is non-zero (docs/rice_prices.csv has_market matches')
     out.append(';              this bit exactly). Also gates the AI sell path')
-    out.append(';              (SellSurplusRice prg_0a_0b $CC45 AND #$04).')
+    out.append(';              (SellSurplusRice prg_0a_0b_strategy_ai $CC45 AND #$04).')
     out.append(';              Clear: %s.' % cleared(4))
-    out.append(';       bit3 = recruit/transfer eligible (@CheckEligibility prg_0a_0b')
+    out.append(';       bit3 = recruit/transfer eligible (@CheckEligibility prg_0a_0b_strategy_ai')
     out.append(';              $C872 AND #$08, together with the <10 subordinate count; the')
     out.append(';              $C7F1 dispatch routes on the same bit). Clear on exactly')
     out.append(';              the seven ruler capitals. Clear: %s.' % cleared(8))
@@ -718,7 +719,7 @@ def emit_arrival_schedule(out, schedule, provinces):
     out.append('; Up to %d (officer id, appear year) pairs per block, $FF $FF padded to'
                % ARRIVAL_PAIRS)
     out.append('; the block end. Year is plain binary ($BD=189 .. $D2=210) and ascends')
-    out.append('; inside a block. Reader: OfficerArrivalScan ($B964, prg_19_1a.asm) =')
+    out.append('; inside a block. Reader: OfficerArrivalScan ($B964, prg_19_1a_event_scenes.asm) =')
     out.append('; $%04X + province*$%02X. These ids are exactly the officers whose seed'
                % (ARRIVAL_CPU, ARRIVAL_STRIDE))
     out.append('; 状態 = 1 (hidden). 154 of the 180 hidden officers appear here.')
@@ -763,7 +764,7 @@ def emit_death_years(out, rows):
     out.append('; byte = death year - %d; from that year on, every strategy turn rolls'
                % DEATH_YEAR_OFFSET)
     out.append('; death against DeathChanceThreshold (DeathChanceRoll, $BD28,')
-    out.append('; prg_19_1a.asm). Full table: docs/officer_death_years.csv')
+    out.append('; prg_19_1a_event_scenes.asm). Full table: docs/officer_death_years.csv')
     out.append('; ' + '=' * 78)
     out.append('OfficerDeathYearTable:')
     for start in range(0, len(rows), 8):
@@ -855,10 +856,10 @@ def emit_province_pixel_positions(out, data, provinces):
                % (PIXEL_POS_ROWS, PIXEL_POS_TAIL_PAD, pad_start, pad_end - 1))
     out.append('; the following filler, so no province is missing. Readers (bank $31')
     out.append('; window via LDY #$31 / B1F_SwitchBank8_B):')
-    out.append(';   DrawStratagemTargetMarkers prg_08_09 $D204 -> $D20F: the pair goes')
+    out.append(';   DrawStratagemTargetMarkers prg_08_09_tactical_war $D204 -> $D20F: the pair goes')
     out.append(';     to a:$000A-$000D as the sprite base position for')
     out.append(';     B1F_SpriteOamWriterScroll (battle stratagem province marker).')
-    out.append(';   ExchangeScene_Init prg_0c_0d $DC99 -> $DCCE: 16-bit clamp of')
+    out.append(';   TacticalMapScene_Init prg_0c_0d_tactical_commands $DC99 -> $DCCE: 16-bit clamp of')
     out.append(';     X - $80 into $0512/$0513 and Y - $60 into $0510/$0511 (the')
     out.append(';     exchange-scene map window bounds).')
     out.append('; ' + '=' * 78)
@@ -995,14 +996,14 @@ def emit_reinforce_pools(out, data, officers, pools_csv=None):
                % REINFORCE_ENTRY_STRIDE)
     out.append('; Officer id reaches $ED (checked here at generation time).')
     out.append('; Year encoding differs from the arrival schedule $8B1C above: that one')
-    out.append('; stores the DISPLAY year literally (@ScheduleYear prg_19_1a $B9C0 does')
+    out.append('; stores the DISPLAY year literally (@ScheduleYear prg_19_1a_event_scenes $B9C0 does')
     out.append('; SBC #$64 before comparing), while @ReinforceScan compares the pair')
     out.append('; byte straight against $6F00 ($AF10/$AF12), so here the byte is')
     out.append('; already year - %d. Observed display years: %d-%d.'
                % (REINFORCE_YEAR_OFFSET,
                   min(y for _, pairs in lists for _, y in pairs) + REINFORCE_YEAR_OFFSET,
                   max(y for _, pairs in lists for _, y in pairs) + REINFORCE_YEAR_OFFSET))
-    out.append('; Reader - @ReinforceScan prg_19_1a $AECE: LDY #$31 / SwitchBank8_B,')
+    out.append('; Reader - @ReinforceScan prg_19_1a_event_scenes $AECE: LDY #$31 / SwitchBank8_B,')
     out.append(';   ($0000) <- $%04X, index $0470 is a BYTE offset into the pointer'
                % REINFORCE_CPU)
     out.append(';   table ($00/$02/$04/$06 = the four pools); ($10) = the chosen list.')
@@ -1016,7 +1017,7 @@ def emit_reinforce_pools(out, data, officers, pools_csv=None):
     out.append('; Content (decoded names): the pools group Officers by family -')
     out.append('; list 0 曹氏/夏侯氏/司马氏, list 1 周瑜+孙氏+诸葛恪, list 2')
     out.append('; 关氏/张苞/刘封/诸葛瞻, list 3 马氏. EventReinforceGate ($A33C,')
-    out.append('; prg_19_1a) picks pool (Country-2) for the acting Country each')
+    out.append('; prg_19_1a_event_scenes) picks pool (Country-2) for the acting Country each')
     out.append('; January (Country 6 aliases slot 3; Countries 0/1/5 have none),')
     out.append('; and OfficerReinforceScene ($AEC0) inducts the first still-hidden')
     out.append('; Officer whose year has arrived into the Country\'s home Province.')
@@ -1072,7 +1073,7 @@ def emit_officer_name_glyphs(out, data, officers):
     out.append('; terminated and padded to the record end. Verified 237/237: every')
     out.append('; record\'s tile count is a multiple of 4 and every group obeys the')
     out.append('; (+1, +$10, +$11) relation.')
-    out.append('; The bank-$30 EquipmentNamePatterns ($9B52, data_10.asm) store the')
+    out.append('; The bank-$30 EquipmentNamePatterns ($9B52, data_10_seed.asm) store the')
     out.append('; same kind of glyph data LINE-major instead: 2 lines x 8 tiles, so')
     out.append('; there character k = line1[2k], line1[2k+1], line2[2k], line2[2k+1]')
     out.append('; and its four tiles are NOT adjacent.')
@@ -1082,13 +1083,13 @@ def emit_officer_name_glyphs(out, data, officers):
     out.append('; 02 03 12 13).')
     out.append('; Readers (all after LDY #$31; the byte [$0B] bias and the +$C0 tile')
     out.append('; bias live in the readers, not here):')
-    out.append(';   OfficerNameSpritePost prg_1d_1e $AB38 - officer-card name sprites;')
+    out.append(';   OfficerNameSpritePost prg_1d_1e_menu_screens $AB38 - officer-card name sprites;')
     out.append(';   ProvinceDataWindowFrame $ABD7 -> RenderSubState $B1B1 - province')
-    out.append(';     window ruler/governor names; prg_17_18 $B1EE ->')
+    out.append(';     window ruler/governor names; prg_17_18_display $B1EE ->')
     out.append(';     ExpandMetatileToSprites $CFDB - 4 rows x 6 tiles metatile;')
-    out.append(';   RecalcExchangeStats prg_0c_0d $CC29 -> @GetRulerValue $CC86 -')
+    out.append(';   RecalcExchangeStats prg_0c_0d_tactical_commands $CC29 -> @GetRulerValue $CC86 -')
     out.append(';     exchange-screen ruler name (index = ruler base value, not id);')
-    out.append(';   @MarchFormationOamDraw prg_19_1a $D2EA -> $D334 - marching')
+    out.append(';   @MarchFormationOamDraw prg_19_1a_event_scenes $D2EA -> $D334 - marching')
     out.append(';     formation name flag (index $0664[$0509]).')
     out.append('; [0] has no disassembled reader ($00B9 is written but never read).')
     out.append('; The trailing comment groups the tile bytes per character, 4 apiece.')
@@ -1157,8 +1158,8 @@ def emit_defense_side_types(out, data, provinces):
     out.append('; by SIDE, never by controller.')
     out.append('; Readers (both scan the bank-$30 adjacency row of $050E for $052A,')
     out.append('; then read this table at that slot):')
-    out.append(';   @SetupDefenderRoster in .proc WarSetup prg_08_09 $B2AE -> $B2D6,')
-    out.append(';     and GetCityOfficerData prg_0c_0d $DEDE -> $DEE2 (called from')
+    out.append(';   @SetupDefenderRoster in .proc WarSetup prg_08_09_tactical_war $B2AE -> $B2D6,')
+    out.append(';     and GetCityOfficerData prg_0c_0d_tactical_commands $DEDE -> $DEE2 (called from')
     out.append(';     @BuildOfficerList $C3D2 and @CheckBoundsForPosition $C44E in the')
     out.append(';     cursor-driven army-deploy scene).')
     out.append('; Role of the value: a SELECTOR index, never a count. Every consumer')
@@ -1166,7 +1167,7 @@ def emit_defense_side_types(out, data, provinces):
     out.append('; tables (physical bank $06):')
     out.append(';   $8C52[$050E*2] + type*32 -> defender unit placement pool (16 (Y,X)')
     out.append(';     pairs: anchor, then runs for unit ids 1-4 at offsets $02/$08/$0C/')
-    out.append(';     $14); @StoreCoordinates prg_08_09 $B266 writes it to $0600/$0614,')
+    out.append(';     $14); @StoreCoordinates prg_08_09_tactical_war $B266 writes it to $0600/$0614,')
     out.append(';     @BuildOfficerList feeds it to SearchRosterByTileCoord.')
     out.append(';   $94D6[$050E*2] + type*4  -> city bounds rectangle ([Ymin,Ymax] at')
     out.append(';     +0/+2, [Xmin,Xmax] at +1/+3) tested by @CheckBoundsForPosition.')
@@ -1179,12 +1180,12 @@ def emit_defense_side_types(out, data, provinces):
     out.append('; faction record[$03] == 3 for side 0 then side 1, and @FillCoordinates')
     out.append('; $B258 branches on side_unit_base $6F91 (0 = defender, $0A = attacker),')
     out.append('; so the type is read whenever side 0 deploys, human or AI. Its')
-    out.append('; launcher State_WarSceneLaunch prg_1f $E18B dispatches only on')
+    out.append('; launcher State_WarSceneLaunch prg_1f_boot $E18B dispatches only on')
     out.append('; war_scene_id $0500 ($0B officer-fate vs battle deployment), and the')
-    out.append('; arming sites include the player-driven WarSceneLaunch prg_1b_1c $B5DC')
+    out.append('; arming sites include the player-driven WarSceneLaunch prg_1b_1c_map_screen $B5DC')
     out.append('; (frame sub-state 21, controller polled at $0081) plus')
-    out.append('; ArmyDeploySceneTrigger prg_19_1a $CA42. The GetCityOfficerData readers')
-    out.append('; are player UI in the army-deploy scene ArmyDeployDispatch prg_0c_0d')
+    out.append('; ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA42. The GetCityOfficerData readers')
+    out.append('; are player UI in the army-deploy scene ArmyDeployDispatch prg_0c_0d_tactical_commands')
     out.append('; $C204: the readers test only mode byte $050B == 2, written by')
     out.append('; @State_CheckSrcRuler $C267 (side 0 of $0507, the defender); every other')
     out.append('; value ($03 from @State_CheckDestRuler $C2A6 = side 1, $00 from')
@@ -1237,7 +1238,7 @@ def emit_tactical_facility_tiles(out, data, provinces):
     out.append(';   +0/+1 House (民家/rice market), +2/+3 Armory (武器屋),')
     out.append(';   +4/+5 Hospital (病院). Direct proof: arriving on pair N')
     out.append(';   routes route_mode $0470=N through State9_RouteNextAction')
-    out.append(';   prg_08_09 $C7C8: N=$00 -> State0 rice-buy panel $C0D5, N=$01')
+    out.append(';   prg_08_09_tactical_war $C7C8: N=$00 -> State0 rice-buy panel $C0D5, N=$01')
     out.append(';   -> State5 armory grid $C4B8, else -> State3 vitality check')
     out.append(';   $C3E3 -> State4 hospital heal $C3E9. Also: slot 0 is the')
     out.append(';   Action_BuyRice march target, slot 2 the Action_RestoreHP one')
@@ -1250,10 +1251,10 @@ def emit_tactical_facility_tiles(out, data, provinces):
     out.append(';   tiles of the 32x32 battlefield ($00-$1D observed); the march')
     out.append(';   readers decrement a Y >= $10 once (map gap row).')
     out.append('; Readers - two indexings exist; stride-6 (correct rows):')
-    out.append(';   DrawStratagemTargetMarkers prg_08_09 $D24D -> $D25D: $050E *3 *2')
+    out.append(';   DrawStratagemTargetMarkers prg_08_09_tactical_war $D24D -> $D25D: $050E *3 *2')
     out.append(';     (=*6), walks pairs at +0/+2/+4 and draws a city-target marker')
     out.append(';     (tiles *16 -> pixels) at each used pair;')
-    out.append(';   MoveState_CheckDest prg_0c_0d $A4DD -> $A4EF: $050E *3 *2')
+    out.append(';   MoveState_CheckDest prg_0c_0d_tactical_commands $A4DD -> $A4EF: $050E *3 *2')
     out.append(';     (=*6), scans the 3 pairs vs the destination (X,Y); a match')
     out.append(';     stores the slot index (X) as the action selector and enters')
     out.append(';     state $09 (war action panel, WarTownActionDispatch).')
@@ -1359,9 +1360,9 @@ def emit_pattern_ptrs(out, data, equip):
     out.append('; code adds $80 to the high byte, so CPU target = word + $8000, which')
     out.append('; is exactly the EquipName_NN record in the EquipmentNamePatterns')
     out.append('; block below. The armory / warehouse grid indexes this by equipment')
-    out.append('; id (State6_RenderArmoryItems prg_08_09 $C565, TownCommandDispatch')
-    out.append('; prg_1b_1c $C840); the name-plate renderer reuses it by strip id')
-    out.append('; (NamePlateStripSetup prg_19_1a $B7C8). All switch bank $30 first.')
+    out.append('; id (State6_RenderArmoryItems prg_08_09_tactical_war $C565, TownCommandDispatch')
+    out.append('; prg_1b_1c_map_screen $C840); the name-plate renderer reuses it by strip id')
+    out.append('; (NamePlateStripSetup prg_19_1a_event_scenes $B7C8). All switch bank $30 first.')
     out.append('; ' + '=' * 78)
     out.append('EquipmentNamePtrTable:')
     for n in range(PATTERN_PTR_COUNT):
@@ -1400,7 +1401,7 @@ def emit_pattern_records(out, data, equip):
     out.append('; Storage is LINE-major: character k = line1[2k], line1[2k+1] (top')
     out.append('; cells) plus line2[2k], line2[2k+1] (bottom cells), so its 4 tiles')
     out.append('; are NOT adjacent - 4 character columns of 2 cells per line. The')
-    out.append('; bank-$31 OfficerNameGlyphTable ($8DB4, data_11.asm) is the other')
+    out.append('; bank-$31 OfficerNameGlyphTable ($8DB4, data_11_officer.asm) is the other')
     out.append('; way round: 4 CONTIGUOUS bytes per character (character-major).')
     out.append('; Group by those offsets, not by value: kanji on the class pages do')
     out.append('; follow (n, n+1, n+$10, n+$11) (短 = 90 91 / A0 A1), but hiragana の')
@@ -1453,15 +1454,15 @@ def emit_province_adjacency(out, data, provinces):
     out.append('; are province ids (see include/province_ids.inc).')
     out.append('; This is the strategic-map neighbor list used across the AI turn and')
     out.append('; the war layer. Readers (representative):')
-    out.append(';   prg_0a_0b  BuildAdjacencyBitmap $D4F6, FindBestEnemyProvince')
+    out.append(';   prg_0a_0b_strategy_ai  BuildAdjacencyBitmap $D4F6, FindBestEnemyProvince')
     out.append(';              $A274, AiCountExpansionRoom $A0EF, SettleStagedOfficers')
     out.append(';              $ABBA, EvalProvinceAbsorption $B1B1, CalcActionProb')
     out.append(';              $C70E, CountDefendedBorderProvinces $D0E9,')
     out.append(';              CollectEnemyBorderProvinces $D1C5/$D216')
-    out.append(';   prg_08_09  AiTurnProcess $B01D, WarSetup $B2BA, SetupPostWarState $BBEB')
-    out.append(';   prg_0c_0d  ProvinceSelect_InitList $BBBB, ExchangeScene $DEAA')
-    out.append(';   prg_19_1a  OfficerArrivalScan $B9F8')
-    out.append(';   prg_1b_1c  ProvinceAdjacencyValidate $DD8A')
+    out.append(';   prg_08_09_tactical_war  AiTurnProcess $B01D, WarSetup $B2BA, SetupPostWarState $BBEB')
+    out.append(';   prg_0c_0d_tactical_commands  ProvinceSelect_InitList $BBBB, TacticalMapScene $DEAA')
+    out.append(';   prg_19_1a_event_scenes  OfficerArrivalScan $B9F8')
+    out.append(';   prg_1b_1c_map_screen  ProvinceAdjacencyValidate $DD8A')
     out.append('; ' + '=' * 78)
     out.append('ProvinceAdjacencyTable:')
     out.append('')
@@ -1492,10 +1493,10 @@ def emit_attack_side_types(out, data, provinces):
     out.append('; of the bank-$31 $9AB4 TacticalDefenseSideTypeTable; the two are chosen')
     out.append('; by SIDE, never by controller.')
     out.append('; Readers (bank $30 window, after the same $9D72 slot scan):')
-    out.append(';   @SetupAttackerRoster prg_08_09 $B312 -> $B331: $8000[$050E*2] +')
+    out.append(';   @SetupAttackerRoster prg_08_09_tactical_war $B312 -> $B331: $8000[$050E*2] +')
     out.append(';     type*34 -> side-1 placement pool, cursors @AttackerCursorSeeds')
     out.append(';     $02/$0C/$16/$1C (5+5+3+2 (Y,X) pairs after the anchor).')
-    out.append(';   GetCityDataA prg_0c_0d $DEB8 -> @Mode2Bounds $C41C (same pool,')
+    out.append(';   GetCityDataA prg_0c_0d_tactical_commands $DEB8 -> @Mode2Bounds $C41C (same pool,')
     out.append(';     type*34 on $8000[$050E*2]) and @OtherModeBounds $C48E')
     out.append(';     ($932E[$050E*2] + type*4 bounds rectangle). The army-deploy scene')
     out.append(';     takes this table whenever its mode byte $050B != 2; $050B == 2')
@@ -1548,25 +1549,25 @@ SCREEN_SPECS = [
         '  State_StrategyMapLaunch, because it runs on every return to the map (the',
         '  new-game data re-seed is a different proc, State_NewGameSetup $E3EE). It',
         '  stores addr_sub_state = 2 ($E0DD), so the frames that follow run',
-        '  NmiState2_MapScreen ($F8B5); it writes the $6F8B request mailbox with $FF',
+        '  NmiState2_StrategyMap ($F8B5); it writes the $6F8B request mailbox with $FF',
         '  only when the caller has not staged a scene handoff ($0400 = $0D, done by',
         '  ClearOverlayWait and WarPostProcess); and it parks the map camera',
         '  $6F41 = $F0 / $6F3F = $80 ($E15D-$E164).',
         'Callers - every writer of addr_game_state ($007A) = 1 in the ROM:',
-        '  ClearOverlayWait $DB0C (prg_0a_0b)      - clear overlay done: after',
+        '  ClearOverlayWait $DB0C (prg_0a_0b_strategy_ai)      - clear overlay done: after',
         '    CopySramToWork, with frame state $0400 = $0D / $0401 = 3 and the player',
         '    country $6F03 looked up in PlayerPtrTable',
-        '  WarPostProcess $BBAA (prg_08_09)        - tactical war layer finished',
-        '  WarResult_Finalize $D8FF (prg_08_09)    - war result finalized',
-        '  StrategyCommand_InitOfficerScroll $D74E (prg_17_18) - on A while',
+        '  WarPostProcess $BBAA (prg_08_09_tactical_war)        - tactical war layer finished',
+        '  CountrySelect_Finalize $D8FF (prg_08_09_tactical_war) - country select finalized',
+        '  StrategyCommand_InitOfficerScroll $D74E (prg_17_18_display) - on A while',
         '    sram_scroll_pending $6F43 is set (A with $6F43 = 0 resets via B1F_Reset)',
         '  WarPostProcess also stores frame state $0400 = $0D (post-war officer',
-        '  status scene, $0401 = 0); WarResult_Finalize jumps to WarResultSlotReset.',
+        '  status scene, $0401 = 0); CountrySelect_Finalize jumps to CountrySelectSlotReset.',
         '  The $0400 = $0D handoff is what the mailbox test at $E126 keys on.',
-        'Loader: prg_1f State_StrategyMapLaunch ($E0DA) - LDY #$30 / JSR',
+        'Loader: prg_1f_boot State_StrategyMapLaunch ($E0DA) - LDY #$30 / JSR',
         '  SwitchBank8_B ($E0E9), ($000A/$000B) <- $8000 ($E0EC-$E0F3), PPU addr',
         '  $0000/$0001 <- $2000, then LDY #$37 / JSR B17_18_PpuCopyRaw ($E113).',
-        '  PpuCopyRaw ($A212, prg_17_18.asm) streams exactly $400 bytes',
+        '  PpuCopyRaw ($A212, prg_17_18_display.asm) streams exactly $400 bytes',
         '  ($000C/$000D counter) from ($000A) to PPUDATA, so this block is one whole',
         '  screen at $2000.',
         'CHR (render-verified): display mode $00 (DisplayInit #$00 at $E0E4 ->',
@@ -1575,7 +1576,7 @@ SCREEN_SPECS = [
         '  (the plate kanji and the digits). Palette record 0 ($E11B-$E120).',
         'Date plate: tile rows 1-3 carry the 年 ... 月 plate. Its only sub-$40 tiles',
         '  are $0E/$1E at row 2-3 col 6 and $0F/$1F at row 2-3 col 10, i.e. two 8x16',
-        '  kanji (upper + lower tile); YearDisplaySetup ($A6B6, prg_1d_1e) turns the',
+        '  kanji (upper + lower tile); YearDisplaySetup ($A6B6, prg_1d_1e_menu_screens) turns the',
         '  scenario year $6F00 + $64 and the month $6F01 + 1 into BCD digit tiles',
         '  nibble + $04 (upper) / + $14 (lower) and writes them into the gaps.',
         'Tile rows 20-29 are the blank tile $01 - the bottom 80 px is always covered',
@@ -1589,10 +1590,10 @@ SCREEN_SPECS = [
         '  The picture is a dark field between two frame bands - what the duel',
         '  sprites are drawn over.',
         'Callers - the only writer of addr_game_state ($007A) = 7 in the ROM:',
-        '  Phase5SideEventPanelSetup $CD66 (prg_0e_0f) - Battle Mode phase 5 side',
+        '  SideEventPanelSetup $CD66 (prg_0e_0f_battle) - Battle Mode phase 5 side',
         '    event panel; it disables NMI and stores through the $007A slot, which',
         '    that bank aliases as btl_flash_counter.',
-        'Loader: prg_1f State_DuelSceneLaunch ($E2E8) - LDY #$30 / JSR',
+        'Loader: prg_1f_boot State_DuelSceneLaunch ($E2E8) - LDY #$30 / JSR',
         '  SwitchBank8_B ($E2FC), ($000A/$000B) <- $8400 ($E2FF-$E306), PPU addr <-',
         '  $2000, then LDY #$37 / JSR B17_18_PpuCopyRaw ($E318). Same 1KB raw stream',
         '  as above.',
@@ -1606,17 +1607,17 @@ SCREEN_SPECS = [
         'Role: Tactical Mode (war scene) terrain. Display record 1 is armed by the',
         '  game-state-3 proc State_WarSceneLaunch ($E193) - "war" is this project\'s',
         '  name for the tactical layer - and game state 3 is stored by',
-        '  WarSceneLaunch $B5E3 (prg_1b_1c), Spoils_ExitFade $C356 (prg_17_18),',
-        '  ArmyDeploySceneTrigger $CA4C (prg_19_1a) and Phase4ResultFlashTrigger',
-        '  $A403 (prg_0e_0f).',
-        'Loader: prg_1d_1e SceneRenderer ($BC71) callback 1 ScenePageCopy ($BC9B) -',
+        '  WarSceneLaunch $B5E3 (prg_1b_1c_map_screen), Spoils_ExitFade $C356 (prg_17_18_display),',
+        '  ArmyDeploySceneTrigger $CA4C (prg_19_1a_event_scenes) and BattleResultFlashTrigger',
+        '  $A403 (prg_0e_0f_battle).',
+        'Loader: prg_1d_1e_menu_screens SceneRenderer ($BC71) callback 1 ScenePageCopy ($BC9B) -',
         '  LDY #$30 / JSR B1F_SwitchBank8_B ($BC9D), source ($0470/$0471) = $8800',
         '  seeded by callback 0 ($BC83), PPU destination ($0472/$0473) = $2400 and',
         '  +$40 per call until the high byte reaches $28, i.e. exactly this 1KB.',
         '  Each call builds one 64-byte PPU stream packet at $0380: count $40, addr',
         '  hi/lo, 64 tile bytes, $FF terminator (written back through $03C3), and',
         '  $0401 only advances at $2800, so the screen is uploaded over 16 frames.',
-        'Callers: NmiState2_MapScreen $F8EF (LDY #$3B = banks $1B+$1C, JSR $A000;',
+        'Callers: NmiState2_StrategyMap $F8EF (LDY #$3B = banks $1B+$1C, JSR $A000;',
         '  the label there used to read B19_1A_OverlayStripRender_Entry, which is',
         '  wrong for that bank pair - see code/bank_switch_map.md) ->',
         '  MapScreenFrameUpdate ($A00C) -> frame state $0E = CallSceneRenderer',
@@ -1940,7 +1941,7 @@ def main():
         ctx = build_context(bank, args.from_csv)
         lines = render_bank(bank, ctx)
         if args.write:
-            path = os.path.join(ASM_DIR, 'data_%02x.asm' % bank)
+            path = os.path.join(ASM_DIR, bank_names.data_asm_name(bank))
             with open(path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines) + '\n')
             print('wrote %s (%d lines)'

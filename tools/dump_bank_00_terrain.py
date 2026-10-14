@@ -7,7 +7,7 @@ two lower crops carry 5, so rows 0-14 come from TL/TR and rows 15-19 from BL/BR.
 That is the authored layout, proved by the blank tile $00 (never used as terrain)
 occurring only in the ribbon's inter-crop gap rows - `--check-geometry`.
 
-`@GetTileTerrain` ($B6EF, prg_08_09.asm) does the runtime lookup:
+`@GetTileTerrain` ($B6EF, prg_08_09_tactical_war.asm) does the runtime lookup:
 
     quadrant = (x >= 16) | ((y >= 16) << 1)          ; 0=TL 1=TR 2=BL 3=BR
     zone     = ($00A8)[quadrant]                     ; 4-byte per-war table
@@ -25,7 +25,7 @@ data describes. `@EvalStepCost` bounds queries at X < $1F and Y < $14, so column
 31 is never read (`--width 31` for that view).
 
 The 120 zones are exactly 30 provinces x 4 quadrants. `DataRecordLoader` ($DF15,
-prg_17_18.asm) installs the `($00A8)` table: `PermutationTable` ($DF86, bank $18)
+prg_17_18_display.asm) installs the `($00A8)` table: `PermutationTable` ($DF86, bank $18)
 holds 30 groups of 4 zone ids, indexed by the battlefield province `$050E`, and
 the group is copied to ZP `$00AA-$00AD`. Each group is {base, base+2, base+1,
 base+3}, so zone order inside a province is TL, BL, TR, BR.
@@ -91,7 +91,7 @@ GAP_ROWS_TOP = (15,)           # ribbon gap rows inside a TL/TR crop window
 GAP_ROWS_BOTTOM = (5, 6, 7, 8)  # ribbon gap rows inside a BL/BR crop window
 BLOCKED = 0x80                 # tile >= $80 -> terrain 0 without a table lookup
 
-# Second consumer of the same bytes: Battle Mode (prg_17_18.asm), whose scene
+# Second consumer of the same bytes: Battle Mode (prg_17_18_display.asm), whose scene
 # tile / overlay loaders keep copies of the zone pointer table.
 BATTLE_BANK = 0x17
 BATTLE_WINDOW = 0xA000
@@ -569,7 +569,7 @@ def main():
     ap.add_argument('--out-prefix', default=None,
                     help='output stem (default output/bank_<bank>_terrain)')
     ap.add_argument('--verify-asm', metavar='ASM', nargs='?',
-                    const=os.path.join(ROOT, 'asm', 'banks', 'prg_08_09.asm'),
+                    const=os.path.join(ROOT, 'asm', 'banks', 'prg_08_09_tactical_war.asm'),
                     help='check the ROM tables against the disassembly hex '
                     'comments and exit')
     ap.add_argument('--check-provinces', action='store_true',

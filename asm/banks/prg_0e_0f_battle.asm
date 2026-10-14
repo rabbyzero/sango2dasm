@@ -12,12 +12,12 @@
 ; Tactical Mode): the per-VBlank UI state machine that runs on top of the
 ; battlefield scene rendered by banks $08/$09, plus the battle animation
 ; and sound engine. It is entered through a 5-entry jump table
-; ($A000-$A00C); the frame hook is dispatched from bank $1F NmiState3_Battle.
+; ($A000-$A00C); the frame hook is dispatched from bank $1F NmiState4_Battle.
 ;
 ; Major functional areas:
 ;   $A000-$A00E  Jump table (VBlank hook, anim/sound engine, exp/level,
 ;                stat-sum exp transfer, sound play)
-;   $A00F-$A084  BattleVBlankFrameUpdate + BattleOverlayDispatch (11-entry
+;   $A00F-$A084  BattleVBlankFrameUpdate + BattleModeStateLoop (11-entry
 ;                phase table at $A06F, indexed by $0540)
 ;   $A085-$A15E  Phase 0 - battle intro (skip check, roster walk, anim
 ;                queue, data format top/bottom)
@@ -30,7 +30,7 @@
 ;                move/attack commit, damage compute and apply)
 ;   $AA23-$ACC4  Phase 3 - acting-unit command selection (menu, arrows,
 ;                markers)
-;   $ACC5-$B15A  Phase 8 - tactic point-spend panel + row effects
+;   $ACC5-$B15A  Phase 8 - battle tactics menu + row effects
 ;   $B15B-$B1EB  BattleSideStatusCountersDecrement
 ;   $B1EC-$B547  Phase 9 - formation advance (animation, contact damage)
 ;   $B548-$B86F  BattleRosterSetup (per-side roster/unit array build)
@@ -73,8 +73,8 @@
 ; its own local semantic equates (see the "zero-page work cells" blocks).
 ; Addresses owned by other scenes reuse the canonical globals from the
 ; owning bank files:
-;   $0424/$0425 = menu_cursor_col/menu_cursor_page (prg_0c_0d.asm)
-;   $0500/$0501 = war_scene_id/war_scene_phase     (prg_08_09.asm)
+;   $0424/$0425 = menu_cursor_col/menu_cursor_page (prg_0c_0d_tactical_commands.asm)
+;   $0500/$0501 = war_scene_id/war_scene_phase     (prg_08_09_tactical_war.asm)
 ;===============================================================================
 ; --- Zero-page engine/hardware cells ---
 frame_tick         = $005E  ; frame tick counter (incremented every 8 frames by NmiEpilogue)
@@ -114,8 +114,8 @@ btl_strip_flag_a  = $0515  ; side A strip flag (2 = drained/retreat, mode 3 = AI
 btl_strip_sel_b   = $0516  ; side B strip buffer pointer / selection
 btl_strip_flag_b  = $0517  ; side B strip flag
 ; --- Battle overlay state machine ($0540-$054F) ---
-btl_overlay_phase = $0540  ; BattleOverlayDispatch phase (0-6, $B)
-btl_overlay_sub   = $0541  ; BattleOverlayDispatch sub-phase (per-phase state)
+btl_overlay_phase = $0540  ; BattleModeStateLoop phase (0-6, $B)
+btl_overlay_sub   = $0541  ; BattleModeStateLoop sub-phase (per-phase state)
 battle_phase      = $0544  ; battle mode phase (0-4 normal, 5 = siege battle; also battle map index)
 btl_scan_col      = $0545  ; roster scan column (0-$14)
 btl_scan_row      = $0546  ; side-group priority row
@@ -224,11 +224,11 @@ OfficerStatSumExpGrant_Entry:
 SoundPlayAlt_Entry:
   JMP BattleSoundChannelProc::SoundPlayAlt                          ; $A00C: 4C 6E DF
 ;===============================================================================
-; $A00F: BattleVBlankFrameUpdate
+                                          ; $A00F: BattleVBlankFrameUpdate
 ; Battle Mode VBlank frame hook (entry 5 of the bank jump table, dispatched
-; via BattleVBlankFrameUpdate_Entry at $A000), called from prg_1f.asm
-; NmiState3_Battle ($F945, bank $19 pair). Applies the CHR bank animation,
-; runs the battle overlay state machine BattleOverlayDispatch (phases 0-2
+; via BattleVBlankFrameUpdate_Entry at $A000), called from prg_1f_boot.asm
+; NmiState4_Battle ($F994). Applies the CHR bank animation,
+; runs the battle overlay state machine BattleModeStateLoop (phases 0-2
 ; also redraw the overlay strips), then banked-calls B1D_1E_MenuUpdate with
 ; input suppressed ($057B=0 is temporarily swapped into the input flags at
 ; $0081). Resumes after the inline trampoline target word.
@@ -237,7 +237,7 @@ SoundPlayAlt_Entry:
   JSR BattleChrBankAnimate                ; $A00F: 20 1B C0
   LDA #$00                                ; $A012: A9 00
   STA btl_input_mask                               ; $A014: 8D 7B 05
-  JSR BattleOverlayDispatch               ; $A017: 20 30 A0
+  JSR BattleModeStateLoop                 ; $A017: 20 30 A0
   LDA a:btl_pad1_lo                             ; $A01A: AD 81 00
   PHA                                     ; $A01D: 48
   LDA btl_input_mask                               ; $A01E: AD 7B 05
@@ -251,7 +251,7 @@ SoundPlayAlt_Entry:
   RTS                                     ; $A02F: 60
 .endproc
 ;===============================================================================
-; $A030: BattleOverlayDispatch
+                                                      ; $A030: BattleModeStateLoop
 ; Battle overlay state-machine dispatcher, run every VBlank from
 ; BattleVBlankFrameUpdate. Phase = $0540, sub-phase = $0541.
 ;
@@ -263,36 +263,36 @@ SoundPlayAlt_Entry:
 ; Phase 0 (battle intro) sub-states 0-4 are the BattleOverlayIntroSkipCheck..
 ; BattleOverlayIntroDataFormatBottomAndAdvance handlers ($A095-$A137);
 ; sub-state 4 ends by advancing to phase 1. Phase 1 (next-actor selection)
-; sub-states 0-2 are Phase1CycleInit/Phase1NextActorSelect/Phase1RoundPass.
+; sub-states 0-2 are NextActorCycleInit/NextActorSelect/NextActorRoundPass.
 ; Phase 2 (acting-unit command resolution) sub-states 0-$A are the
-; Phase2ActionGate..Phase2ActionDoneWait handlers ($A4F7-$AA22).
+; ActionGate..ActionDoneWait handlers ($A4F7-$AA22).
 ; Phase 3 (acting-unit command selection, player-request entry) sub-states
-; 0-4 are the Phase3CommandPanelInit..Phase3CommandResultWait handlers
+; 0-4 are the CommandPanelInit..CommandResultWait handlers
 ; ($AA23-$ACC4); it resumes at the latched phase/sub in $054B/$054C.
 ; Phase 4 (defeat/retreat result) sub-states 0-6 are the
-; Phase4ResultAdvance..Phase4ResultConfirmInput handlers; it is entered at
+; BattleResultAdvance..BattleResultConfirmInput handlers; it is entered at
 ; sub 0 by BattleDefeatEventCheck and at sub 3 by BattleRetreatEventCheck.
 ; Phase 6 (side A pre-battle formation select) sub-states 0-3 are the
-; Phase6FormationPanelInit..Phase6AdvanceToSideBFormation handlers
+; SideAFormationPanelInit..AdvanceToSideBFormation handlers
 ; ($CE25-$CF04); the A-confirm hands off to phase 3 with resume latch
 ; $054B/$054C <- 6/3, and sub 3 advances to phase 7. Phase 7 (side B
 ; formation select) sub-states 0-4 are the
-; Phase7FormationPanelInit..Phase7BattleModeStart handlers ($CF67-$D066);
+; SideBFormationPanelInit..BattleModeStart handlers ($CF67-$D066);
 ; it mirrors phase 6 for side B (formation $056D, input mode $0563,
 ; country $0565); its A-confirm hands off to phase 3 with resume latch
 ; $054B/$054C <- 7/4 so sub 4 starts battle mode (roster setup), and input
 ; mode 3 (AI) jumps straight to sub 4.
-; Phase 8 (point-spend panel) sub-states 0-4 are the
-; Phase8PanelInit..Phase8PanelAdvanceWait handlers ($ACC5-$AEAD); it is
-; entered from Phase3CommandInput::@Commit when the step-0 action slot is 4
+; Phase 8 (battle tactics menu) sub-states 0-4 are the
+; BattleTacticsMenuInit..BattleTacticsMenuAdvanceWait handlers ($ACC5-$AEAD); it is
+; entered from CommandInput::@Commit when the step-0 action slot is 4
 ; and no side status counters $0574-$0577 are pending. The panel spends the
 ; per-side point budget $0572[$0549]; B-cancel and A-confirm return to
 ; phase 3 sub 3, row effects route to sub 3/sub 4 or on to phase 9.
-; Phase 8 (point-spend panel) enters phase 9 via its $B09C entry (SFX $F1);
+; Phase 8 (battle tactics menu) enters phase 9 via its $B09C entry (SFX $F1);
 ; phase 9 (formation advance) runs the animated advance sweep and returns to
-; the phase-8 sub-dispatch at sub-state 3 (Phase9AdvanceComplete).
+; the phase-8 sub-dispatch at sub-state 3 (FormationAdvanceComplete).
 ;===============================================================================
-.proc BattleOverlayDispatch
+.proc BattleModeStateLoop
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo (bank $19)
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -330,24 +330,24 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDA btl_overlay_phase                               ; $A069: AD 40 05
   JSR B1F_CallbackDispatcher              ; $A06C: 20 DE EA
 ; --- CallbackDispatcher phase table, indexed by $0540 ---
-  .word Phase0IntroSubDispatch            ; $A06F: 85 A0 ; phase 0: intro sub-dispatch ($A085)
-  .word Phase1NextActorSubDispatch        ; $A071: 5F A1 ; phase 1: next-actor select ($A15F)
-  .word Phase2ActionSubDispatch           ; $A073: F7 A4 ; phase 2: command resolution ($A4F7)
-  .word Phase3CommandSubDispatch          ; $A075: 23 AA ; phase 3: command selection ($AA23)
-  .word Phase4ResultSubDispatch           ; $A077: BC A3 ; phase 4: defeat/retreat result ($A3BC)
-  .word Phase5SideEventSubDispatch        ; $A079: 43 CD ; phase 5: side event ($CD43)
-  .word Phase6FormationSelectSubDispatch  ; $A07B: 25 CE ; phase 6: side A formation select ($CE25)
-  .word Phase7FormationSelectSubDispatch  ; $A07D: 67 CF ; phase 7: side B formation select ($CF67)
-  .word Phase8PanelSubDispatch            ; $A07F: C5 AC ; phase 8: point-spend panel ($ACC5)
-  .word Phase9AdvanceSubDispatch          ; $A081: EC B1 ; phase 9: formation advance ($B1EC)
-  .word PhaseATauntSubDispatch            ; $A083: BA D6 ; phase $A: AI taunt scene ($D6BA)
+  .word BattleIntro            ; $A06F: 85 A0 ; phase 0: intro sub-dispatch ($A085)
+  .word NextActor              ; $A071: 5F A1 ; phase 1: next-actor select ($A15F)
+  .word ActionResolve           ; $A073: F7 A4 ; phase 2: command resolution ($A4F7)
+  .word CommandSelect           ; $A075: 23 AA ; phase 3: command selection ($AA23)
+  .word BattleResult           ; $A077: BC A3 ; phase 4: defeat/retreat result ($A3BC)
+  .word SideEvent              ; $A079: 43 CD ; phase 5: side event ($CD43)
+  .word SideAFormation         ; $A07B: 25 CE ; phase 6: side A formation select ($CE25)
+  .word SideBFormation         ; $A07D: 67 CF ; phase 7: side B formation select ($CF67)
+  .word BattleTacticsMenu      ; $A07F: C5 AC ; phase 8: battle tactics menu ($ACC5)
+  .word FormationAdvance       ; $A081: EC B1 ; phase 9: formation advance ($B1EC)
+  .word AiTaunt                ; $A083: BA D6 ; phase $A: AI taunt scene ($D6BA)
 .endproc
 ;===============================================================================
-; $A085: Phase0IntroSubDispatch
+                                                    ; $A085: BattleIntro
 ; Phase-0 handler entry (battle intro): sub-dispatch on $0541 through the
 ; inline 5-entry table below, covering intro sub-states 0-4.
 ;===============================================================================
-.proc Phase0IntroSubDispatch
+.proc BattleIntro
   LDA btl_overlay_sub                               ; $A085: AD 41 05
   JSR B1F_CallbackDispatcher              ; $A088: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
@@ -358,7 +358,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   .word BattleOverlayIntroDataFormatBottomAndAdvance ; $A093: 37 A1 ; sub 4
 .endproc
 ;===============================================================================
-; $A095: BattleOverlayIntroSkipCheck
+                                                   ; $A095: BattleOverlayIntroSkipCheck
 ; Intro sub-state 0. If $0087 bit7 is set, skip the intro entirely: jump to
 ; phase 6 with all per-unit/per-side status slots ($0550-$0557, $0574-$0577)
 ; and the roster index $0548 cleared, then run BattleSideCombatStatsInit
@@ -391,7 +391,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   RTS                                     ; $A0D2: 60
 .endproc
 ;===============================================================================
-; $A0D3: BattleOverlayIntroRosterWalk
+                                               ; $A0D3: BattleOverlayIntroRosterWalk
 ; Intro sub-state 1. Waits for the animation queue to idle (BattleAnimQueueIdleCheck, C=1 idle),
 ; then draws one roster entry per frame: entry $0548 of the 22-slot list at
 ; $0580 is passed to BattleCellRedraw (skipping $FF slots) with zp $12/$13 params. When
@@ -418,7 +418,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   RTS                                     ; $A0F8: 60
 .endproc
 ;===============================================================================
-; $A0F9: BattleOverlayIntroAnimQueue
+                                               ; $A0F9: BattleOverlayIntroAnimQueue
 ; Intro sub-state 2. Waits for the animation queue to idle, then enqueues the
 ; $E8/$E9 tile animation ($0310/$0311, slot $0300=0), sets panel param
 ; $00BC=5, refreshes the panel troop-count block (BattlePanelStatsRefresh)
@@ -441,7 +441,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   RTS                                     ; $A118: 60
 .endproc
 ;===============================================================================
-; $A119: BattleOverlayIntroDataFormatTop
+                                               ; $A119: BattleOverlayIntroDataFormatTop
 ; Intro sub-state 3. Waits for the animation queue to idle, then banked-calls
 ; B1D_1E_DataFormatter (bank $1D, Y=$3D) with buffer ptr $00/$01 = $0560/0
 ; and param $00BB=9 to format the top panel. Advances to sub-state 4.
@@ -467,7 +467,7 @@ fmt_ptr_hi     = $0001  ; formatter buffer ptr hi
   RTS                                     ; $A136: 60
 .endproc
 ;===============================================================================
-; $A137: BattleOverlayIntroDataFormatBottomAndAdvance
+                                                   ; $A137: BattleOverlayIntroDataFormatBottomAndAdvance
 ; Intro sub-state 4. If $007E is clear, banked-calls B1D_1E_DataFormatter
 ; (bank $1D) with buffer ptr $00/$01 = $0561/1 to format the bottom panel,
 ; then ends the intro: phase <- 1, sub-phase <- 0, clear handoff flags
@@ -498,7 +498,7 @@ fmt_ptr_hi     = $0001  ; formatter buffer ptr hi
   RTS                                     ; $A15E: 60
 .endproc
 ;===============================================================================
-; $A15F: Phase1NextActorSubDispatch
+                                          ; $A15F: NextActor
 ; Phase-1 handler entry (next-actor selection): redraws the packed per-side
 ; status counters $0574-$0577 via BattleSideStatusCounterDraw every frame,
 ; then sub-dispatches on $0541 through the inline 3-entry table below.
@@ -506,33 +506,33 @@ fmt_ptr_hi     = $0001  ; formatter buffer ptr hi
 ; sub 2 passes the round (incrementing the pass counter $057A and ticking
 ; the status counters) when a full roster scan found nobody.
 ;===============================================================================
-.proc Phase1NextActorSubDispatch
+.proc NextActor
   JSR BattleSideStatusCounterDraw         ; $A15F: 20 4C BF
   LDA btl_overlay_sub                               ; $A162: AD 41 05
   JSR B1F_CallbackDispatcher              ; $A165: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase1CycleInit                   ; $A168: 6E A1 ; sub 0
-  .word Phase1NextActorSelect             ; $A16A: 83 A1 ; sub 1
-  .word Phase1RoundPass                   ; $A16C: 35 A2 ; sub 2
+  .word NextActorCycleInit                ; $A168: 6E A1 ; sub 0
+  .word NextActorSelect                   ; $A16A: 83 A1 ; sub 1
+  .word NextActorRoundPass                ; $A16C: 35 A2 ; sub 2
 .endproc
 ;===============================================================================
-; $A16E: Phase1CycleInit
+                                                    ; $A16E: NextActorCycleInit
 ; Sub-phase 0. Advances to sub-phase 1, clears the roster-scan cursor
 ; ($0545=column, $0546=side-group row, $0547=frame wait) and the round-pass
-; counter $057A, then refreshes the AI sides via Phase1AiSideRefresh ($D067).
+; counter $057A, then refreshes the AI sides via NextActorAiSideRefresh ($D067).
 ;===============================================================================
-.proc Phase1CycleInit
+.proc NextActorCycleInit
   INC btl_overlay_sub                               ; $A16E: EE 41 05 ; sub-phase <- 1
   LDA #$00                                ; $A171: A9 00
   STA btl_scan_col                               ; $A173: 8D 45 05 ; scan column <- 0
   STA btl_scan_row                               ; $A176: 8D 46 05 ; side-group row <- 0
   STA btl_scan_wait                               ; $A179: 8D 47 05 ; frame wait <- 0
   STA btl_round_pass                               ; $A17C: 8D 7A 05 ; round-pass counter <- 0
-  JSR Phase1AiSideRefresh                 ; $A17F: 20 67 D0
+  JSR NextActorAiSideRefresh              ; $A17F: 20 67 D0
   RTS                                     ; $A182: 60
 .endproc
 ;===============================================================================
-; $A183: Phase1NextActorSelect
+                                          ; $A183: NextActorSelect
 ; Sub-phase 1. Battle-end event checks first: BattleRetreatEventCheck (side
 ; event flags $0580/$058B == $FE) and BattleDefeatEventCheck (== $FF) abort
 ; the frame straight into phase 4. Next, a queued player request (handoff
@@ -546,9 +546,9 @@ fmt_ptr_hi     = $0001  ; formatter buffer ptr hi
 ; A full scan without a match clears $0547 and advances to sub-phase 2
 ; (round pass).
 ;===============================================================================
-.proc Phase1NextActorSelect
+.proc NextActorSelect
 ; zero-page work cells (proc-local):
-side_id        = $0000  ; side id from Phase1SidePriorityOrder
+side_id        = $0000  ; side id from NextActorSidePriorityOrder
 slot_base      = $0000  ; order-slot base (0 cols 0-$A, 4 cols $B-$14)
   JSR BattleRetreatEventCheck             ; $A183: 20 2F A3 ; $FE side event -> phase 4
   JSR BattleDefeatEventCheck              ; $A186: 20 A9 A2 ; $FF side event -> phase 4
@@ -575,7 +575,7 @@ slot_base      = $0000  ; order-slot base (0 cols 0-$A, 4 cols $B-$14)
   STA btl_player_request_b                               ; $A1B9: 8D 69 05
 @NextCell:
   LDY btl_scan_row                               ; $A1BC: AC 46 05 ; side-group row
-  LDA Phase1SidePriorityOrder,Y           ; $A1BF: B9 31 A2 ; side id for this row
+  LDA NextActorSidePriorityOrder,Y        ; $A1BF: B9 31 A2 ; side id for this row
   STA side_id                                 ; $A1C2: 85 00
   LDY btl_scan_col                               ; $A1C4: AC 45 05 ; roster column
   LDA btl_roster_code_a,Y                             ; $A1C7: B9 C2 05 ; roster entry
@@ -629,25 +629,25 @@ slot_base      = $0000  ; order-slot base (0 cols 0-$A, 4 cols $B-$14)
   RTS                                     ; $A230: 60
 .endproc
 ; --- Phase 1 side-group priority order, indexed by scan row $0546 ---
-Phase1SidePriorityOrder:
+NextActorSidePriorityOrder:
   .byte $03,$02,$01,$00                   ; $A231: 03 02 01 00
 ;===============================================================================
-; $A235: Phase1RoundPass
+                                          ; $A235: NextActorRoundPass
 ; Sub-phase 2, entered when a full roster scan found no acting unit. Re-arms
 ; sub-phase 1 (the cycle resumes with another scan next frame) and, once the
 ; animation queue idles (BattleAnimQueueIdleCheck, C=1 idle), enqueues the $E9 tile animation
 ; ($0310=$E9, slot $0300=0) and refreshes the panel troop-count block
 ; (BattlePanelStatsRefresh). Then walks the same 22x4 roster grid
-; as Phase1NextActorSelect but only for side groups 0 and 1: cells of side
+; as NextActorSelect but only for side groups 0 and 1: cells of side
 ; groups 2/3 advance immediately, while the first side-0/1 cell stalls one
 ; frame ($0547 counts 0 -> 1) before the walk resumes one cell per visit.
 ; After the full walk: round-pass counter $057A is incremented, the packed
 ; side status counters $0574-$0577 are ticked down via
 ; BattleSideStatusCountersDecrement, then the AI sides may spend their
 ; tactic point budget (AiTacticSpendDispatch $D0AE) and are refreshed via
-; Phase1AiSideRefresh ($D067).
+; NextActorAiSideRefresh ($D067).
 ;===============================================================================
-.proc Phase1RoundPass
+.proc NextActorRoundPass
   LDA #$01                                ; $A235: A9 01
   STA btl_overlay_sub                               ; $A237: 8D 41 05 ; sub-phase <- 1 (resume scan next frame)
   JSR BattleAnimQueueIdleCheck                 ; $A23A: 20 70 B8 ; anim queue idle check
@@ -662,7 +662,7 @@ Phase1SidePriorityOrder:
   CMP #$04                                ; $A24F: C9 04
   BCS @PassComplete                       ; $A251: B0 39 ; all side groups walked
   LDY btl_scan_row                               ; $A253: AC 46 05
-  LDA Phase1SidePriorityOrder,Y           ; $A256: B9 31 A2 ; side id for this row
+  LDA NextActorSidePriorityOrder,Y        ; $A256: B9 31 A2 ; side id for this row
   CMP #$02                                ; $A259: C9 02
   BEQ @AdvanceCell                        ; $A25B: F0 0E ; side 2: skip wait
   CMP #$03                                ; $A25D: C9 03
@@ -692,7 +692,7 @@ Phase1SidePriorityOrder:
   INC btl_round_pass                               ; $A294: EE 7A 05 ; round-pass counter++
   JSR BattleSideStatusCountersDecrement   ; $A297: 20 5B B1 ; tick $0574-$0577
   JSR AiTacticSpendDispatch             ; $A29A: 20 AE D0 ; AI tactic-point spend
-  JSR Phase1AiSideRefresh               ; $A29D: 20 67 D0 ; AI side refresh (orders/rout)
+  JSR NextActorAiSideRefresh            ; $A29D: 20 67 D0 ; AI side refresh (orders/rout)
   LDA #$00                                ; $A2A0: A9 00
   STA btl_scan_col                               ; $A2A2: 8D 45 05
   STA btl_scan_row                               ; $A2A5: 8D 46 05
@@ -700,7 +700,7 @@ Phase1SidePriorityOrder:
   RTS                                     ; $A2A8: 60
 .endproc
 ;===============================================================================
-; $A2A9: BattleDefeatEventCheck
+                                                   ; $A2A9: BattleDefeatEventCheck
 ; Checks the per-side battle event flags ($0580 = side A, $058B = side B)
 ; for the defeat value $FF. When a side is defeated, loads the overlay strip
 ; buffer pointers $0560/$0561 into the panel parameter block $042C and
@@ -772,7 +772,7 @@ Phase1SidePriorityOrder:
   RTS                                     ; $A32E: 60
 .endproc
 ;===============================================================================
-; $A32F: BattleRetreatEventCheck
+                                                   ; $A32F: BattleRetreatEventCheck
 ; Checks the per-side battle event flags ($0580 = side A, $058B = side B)
 ; for the retreat value $FE. When a side retreats, loads the overlay strip
 ; buffer pointers $0560/$0561 into the panel parameter block ($0514-$0517,
@@ -832,11 +832,11 @@ Phase1SidePriorityOrder:
   RTS                                     ; $A39C: 60
 .endproc
 ;===============================================================================
-; $A39D: BattlePlayerRequestPoll
+                                          ; $A39D: BattlePlayerRequestPoll
 ; Called every frame from the phase-2 handler inline code ($A4F7). Fetches the
 ; mode-filtered input state of each controller via BattlePadStateFetch and,
 ; on an A-button edge (bit0 of $0001), latches the player-request handoff
-; flags $0568 (pad 1) / $0569 (pad 2). Phase1NextActorSelect consumes them:
+; flags $0568 (pad 1) / $0569 (pad 2). NextActorSelect consumes them:
 ; any request aborts the automatic actor scan and jumps to phase 3 (player
 ; command input) with $0549 <- $0569 selecting the acting player.
 ;===============================================================================
@@ -862,54 +862,54 @@ pad_edge       = $0001  ; mode-filtered controller edge flags
   RTS                                     ; $A3BB: 60
 .endproc
 ;===============================================================================
-; $A3BC: Phase4ResultSubDispatch
+                                                    ; $A3BC: BattleResult
 ; Phase 4 (battle result: defeat/retreat resolution) handler of
-; BattleOverlayDispatch, run once per VBlank while $0540 = 4. Entered at
+; BattleModeStateLoop, run once per VBlank while $0540 = 4. Entered at
 ; sub 0 by BattleDefeatEventCheck ($A2A9) and at sub 3 by
 ; BattleRetreatEventCheck ($A32F). Runs a random damage-roll cycle that
 ; drains one side's troop count ($05AC side A / $05B7 side B, selected by scan
 ; column $0545) and ends by advancing to phase 5. Sub-phases via inline
 ; 7-entry table at $A3C4 indexed by $0541:
-;   0 Phase4ResultAdvance        ($A3D0) stall one frame
-;   1 Phase4ResultDefeatInputWait($A3D4) wait anim-idle + A/B edge -> sub 2
-;   2 Phase4ResultFlashTrigger   ($A3F2) $0087 bit7 -> flash $0500=$0B, $007A <- 3
-;   3 Phase4ResultRetreatInputWait($A407) wait anim-idle + A/B edge, then
+;   0 BattleResultAdvance        ($A3D0) stall one frame
+;   1 BattleResultDefeatInputWait($A3D4) wait anim-idle + A/B edge -> sub 2
+;   2 BattleResultFlashTrigger   ($A3F2) $0087 bit7 -> flash $0500=$0B, $007A <- 3
+;   3 BattleResultRetreatInputWait($A407) wait anim-idle + A/B edge, then
 ;                                         roll [0,100): <32 -> sub 2 retry,
 ;                                         else damage = roll2+5 -> sub 4
 ;                                         (roll continuation at $A42F)
-;   4 Phase4ResultDamageApply    ($A488) apply damage, confirm -> sub 2
-;   5 Phase4ResultConfirmInput   ($A4B5) A/B edge -> sub 2 (loop) with SFX $D3
-;   6 Phase4ResultFlashTrigger   ($A3F2) shared with sub 2
+;   4 BattleResultDamageApply    ($A488) apply damage, confirm -> sub 2
+;   5 BattleResultConfirmInput   ($A4B5) A/B edge -> sub 2 (loop) with SFX $D3
+;   6 BattleResultFlashTrigger   ($A3F2) shared with sub 2
 ;===============================================================================
-.proc Phase4ResultSubDispatch
+.proc BattleResult
   LDA btl_overlay_sub                               ; $A3BC: AD 41 05 ; sub-phase index
   JSR B1F_CallbackDispatcher              ; $A3BF: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase4ResultAdvance               ; $A3C2: D0 A3 ; sub 0
-  .word Phase4ResultDefeatInputWait       ; $A3C4: D4 A3 ; sub 1
-  .word Phase4ResultFlashTrigger          ; $A3C6: F2 A3 ; sub 2
-  .word Phase4ResultRetreatInputWait      ; $A3C8: 07 A4 ; sub 3
-  .word Phase4ResultDamageApply           ; $A3CA: 88 A4 ; sub 4
-  .word Phase4ResultConfirmInput          ; $A3CC: B5 A4 ; sub 5
-  .word Phase4ResultFlashTrigger          ; $A3CE: F2 A3 ; sub 6
+  .word BattleResultAdvance               ; $A3C2: D0 A3 ; sub 0
+  .word BattleResultDefeatInputWait       ; $A3C4: D4 A3 ; sub 1
+  .word BattleResultFlashTrigger          ; $A3C6: F2 A3 ; sub 2
+  .word BattleResultRetreatInputWait      ; $A3C8: 07 A4 ; sub 3
+  .word BattleResultDamageApply           ; $A3CA: 88 A4 ; sub 4
+  .word BattleResultConfirmInput          ; $A3CC: B5 A4 ; sub 5
+  .word BattleResultFlashTrigger          ; $A3CE: F2 A3 ; sub 6
 .endproc
 ;===============================================================================
-; $A3D0: Phase4ResultAdvance
+                                                    ; $A3D0: BattleResultAdvance
 ; Sub 0 (defeat entry point): stalls one frame by advancing to sub 1.
 ;===============================================================================
-.proc Phase4ResultAdvance
+.proc BattleResultAdvance
   INC btl_overlay_sub                               ; $A3D0: EE 41 05 ; sub-phase <- 1
   RTS                                     ; $A3D3: 60
 .endproc
 ;===============================================================================
-; $A3D4: Phase4ResultDefeatInputWait
+                                          ; $A3D4: BattleResultDefeatInputWait
 ; Sub 1: waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set), draws
 ; the blinking input prompt sprite (BattleInputPromptDraw) and accepts an
 ; A/B button edge on either pad (BattleBothPadsStateFetch $CD22, bits 0-1 of
 ; merged $0001),
 ; then advances to sub 2 via B1F_PaletteCopyBuffer + BattleOverlayTotalRefresh.
 ;===============================================================================
-.proc Phase4ResultDefeatInputWait
+.proc BattleResultDefeatInputWait
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
   JSR BattleBothPadsStateFetch            ; $A3D4: 20 22 CD ; merge both pads -> $0000/$0001
@@ -927,12 +927,12 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $A3F1: 60
 .endproc
 ;===============================================================================
-; $A3F2: Phase4ResultFlashTrigger
+                                                   ; $A3F2: BattleResultFlashTrigger
 ; Sub 2 and sub 6 shared handler: waits on $0087 bit7 (palette/frame flag);
 ; while clear, stalls. When set, arms a screen flash ($0500 <- $0B,
 ; $0501 <- 0, flash counter $007A <- 3) and falls through.
 ;===============================================================================
-.proc Phase4ResultFlashTrigger
+.proc BattleResultFlashTrigger
   LDA a:btl_frame_flag                             ; $A3F2: AD 87 00 ; palette/frame flag
   BPL @Done                               ; $A3F5: 10 0F ; bit7 clear: wait
   LDA #$0B                                ; $A3F7: A9 0B
@@ -945,7 +945,7 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $A406: 60
 .endproc
 ;===============================================================================
-; $A407: Phase4ResultRetreatInputWait
+                                          ; $A407: BattleResultRetreatInputWait
 ; Sub 3 (retreat entry point): same anim-idle + A/B edge gate as sub 1, but
 ; on input rolls a random value [0,100) (B1F_RandomBelowThreshold): < $20
 ; re-routes to sub 2 (flash/retry via B1F_PaletteCopyBuffer +
@@ -953,7 +953,7 @@ pad_state      = $0001  ; merged both-pad raw state
 ; amount $0548 (mirror $042F), clears $0430/$0431, plays SFX $7E and
 ; advances to sub 4.
 ;===============================================================================
-.proc Phase4ResultRetreatInputWait
+.proc BattleResultRetreatInputWait
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
   JSR BattleBothPadsStateFetch            ; $A407: 20 22 CD ; merge both pads
@@ -1015,13 +1015,13 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $A487: 60
 .endproc
 ;===============================================================================
-; $A488: Phase4ResultDamageApply
-; Sub 4: anim-idle + A/B edge gate; on input, Phase4ResultColumnDamageSelect
+                                          ; $A488: BattleResultDamageApply
+; Sub 4: anim-idle + A/B edge gate; on input, BattleResultColumnDamageSelect
 ; returns the current troop count of the scanned side (0 if fully drained).
 ; Non-zero confirms (B1F_PaletteCopyBuffer, sub <- 2, BattleOverlayTotalRefresh);
 ; zero advances to sub 5 with SFX $D3.
 ;===============================================================================
-.proc Phase4ResultDamageApply
+.proc BattleResultDamageApply
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
   JSR BattleBothPadsStateFetch            ; $A488: 20 22 CD ; merge both pads
@@ -1032,7 +1032,7 @@ pad_state      = $0001  ; merged both-pad raw state
   LDA pad_state                                 ; $A496: A5 01 ; merged raw state
   AND #$03                                ; $A498: 29 03 ; A or B edge?
   BEQ @Done                               ; $A49A: F0 18
-  JSR Phase4ResultColumnDamageSelect      ; $A49C: 20 D8 A4 ; troop count of scanned side
+  JSR BattleResultColumnDamageSelect      ; $A49C: 20 D8 A4 ; troop count of scanned side
   BEQ @Advance                            ; $A49F: F0 0B ; fully drained
   JSR B1F_PaletteCopyBuffer               ; $A4A1: 20 EE EC ; confirm path
   LDA #$02                                ; $A4A4: A9 02
@@ -1046,12 +1046,12 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $A4B4: 60
 .endproc
 ;===============================================================================
-; $A4B5: Phase4ResultConfirmInput
-; Sub 5: anim-idle + A/B edge gate; on input, Phase4ResultColumnStripSelect
+                                          ; $A4B5: BattleResultConfirmInput
+; Sub 5: anim-idle + A/B edge gate; on input, BattleResultColumnStripSelect
 ; marks the drained side's strip flag ($0515 side A / $0517 side B <- 2),
 ; then loops to sub 2 via B1F_PaletteCopyBuffer + BattleOverlayTotalRefresh.
 ;===============================================================================
-.proc Phase4ResultConfirmInput
+.proc BattleResultConfirmInput
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
   JSR BattleBothPadsStateFetch            ; $A4B5: 20 22 CD ; merge both pads
@@ -1062,7 +1062,7 @@ pad_state      = $0001  ; merged both-pad raw state
   LDA pad_state                                 ; $A4C3: A5 01 ; merged raw state
   AND #$03                                ; $A4C5: 29 03 ; A or B edge?
   BEQ @Done                               ; $A4C7: F0 0E
-  JSR Phase4ResultColumnStripSelect       ; $A4C9: 20 E6 A4 ; mark drained side strip
+  JSR BattleResultColumnStripSelect       ; $A4C9: 20 E6 A4 ; mark drained side strip
   JSR B1F_PaletteCopyBuffer               ; $A4CC: 20 EE EC ; palette refresh
   LDA #$02                                ; $A4CF: A9 02
   STA btl_overlay_sub                               ; $A4D1: 8D 41 05 ; sub-phase <- 2
@@ -1071,12 +1071,12 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $A4D7: 60
 .endproc
 ;===============================================================================
-; $A4D8: Phase4ResultColumnDamageSelect
-; Helper for Phase4ResultDamageApply: returns A = troop count of the side
+                                                 ; $A4D8: BattleResultColumnDamageSelect
+; Helper for BattleResultDamageApply: returns A = troop count of the side
 ; selected by scan column $0545 (0 -> side A $05AC, non-zero -> side B
 ; $05B7); Z flag set when the side is fully drained.
 ;===============================================================================
-.proc Phase4ResultColumnDamageSelect
+.proc BattleResultColumnDamageSelect
   LDA btl_troops_a                               ; $A4D8: AD AC 05 ; side A troop count
   LDY btl_scan_col                               ; $A4DB: AC 45 05 ; scan column
   BEQ @Compare                            ; $A4DE: F0 03 ; column 0: side A
@@ -1086,12 +1086,12 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $A4E5: 60
 .endproc
 ;===============================================================================
-; $A4E6: Phase4ResultColumnStripSelect
-; Helper for Phase4ResultConfirmInput: sets the strip flag of the side
+                                                 ; $A4E6: BattleResultColumnStripSelect
+; Helper for BattleResultConfirmInput: sets the strip flag of the side
 ; selected by scan column $0545: column 0 -> $0515 (side A), else $0517
 ; (side B) <- 2.
 ;===============================================================================
-.proc Phase4ResultColumnStripSelect
+.proc BattleResultColumnStripSelect
   LDY btl_scan_col                               ; $A4E6: AC 45 05 ; scan column
   BEQ @SideA                              ; $A4E9: F0 06 ; column 0: side A
   LDA #$02                                ; $A4EB: A9 02
@@ -1103,38 +1103,38 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $A4F6: 60
 .endproc
 ;===============================================================================
-; $A4F7: Phase2ActionSubDispatch
-; Phase 2 (acting-unit command resolution) handler of BattleOverlayDispatch,
+                                          ; $A4F7: ActionResolve
+; Phase 2 (acting-unit command resolution) handler of BattleModeStateLoop,
 ; run once per VBlank while $0540 = 2. Redraws the side status counters
 ; ($0574-$0577), polls both pads for player takeover requests
 ; (BattlePlayerRequestPoll), then sub-dispatches on $0541 through the inline
 ; 11-entry table below. Sub-state flow: sub 0 routes on the acting unit's
 ; command value $054F to the attack path (subs 6-9), the move path (subs
 ; 3-5) or the cursor-walk/pass path (subs 1-2); subs 5 and $A wait out the
-; action animation before returning to phase 1 sub 2 (Phase1RoundPass).
+; action animation before returning to phase 1 sub 2 (NextActorRoundPass).
 ;===============================================================================
-.proc Phase2ActionSubDispatch
+.proc ActionResolve
   JSR BattleSideStatusCounterDraw         ; $A4F7: 20 4C BF ; redraw $0574-$0577
   JSR BattlePlayerRequestPoll             ; $A4FA: 20 9D A3 ; player takeover poll
   LDA btl_overlay_sub                               ; $A4FD: AD 41 05 ; sub-phase index
   JSR B1F_CallbackDispatcher              ; $A500: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase2ActionGate                  ; $A503: 19 A5 ; sub 0
-  .word Phase2CursorWalkInit              ; $A505: C4 A5 ; sub 1
-  .word Phase2CursorWalkStep              ; $A507: F3 A5 ; sub 2
-  .word Phase2MoveEventCheck              ; $A509: 1D A6 ; sub 3
-  .word Phase2MoveCommit                  ; $A50B: 54 A6 ; sub 4
-  .word Phase2ActionEndWait               ; $A50D: E4 A6 ; sub 5
-  .word Phase2AttackSetup                 ; $A50F: 02 A7 ; sub 6
-  .word Phase2AttackArrowAnim             ; $A511: 2E A7 ; sub 7
-  .word Phase2AttackAnimCount             ; $A513: 4A A7 ; sub 8
-  .word Phase2AttackDamageApply           ; $A515: 5B A7 ; sub 9
-  .word Phase2ActionDoneWait              ; $A517: E0 A7 ; sub $A
+  .word ActionGate                        ; $A503: 19 A5 ; sub 0
+  .word CursorWalkInit                    ; $A505: C4 A5 ; sub 1
+  .word CursorWalkStep                    ; $A507: F3 A5 ; sub 2
+  .word MoveEventCheck                    ; $A509: 1D A6 ; sub 3
+  .word MoveCommit                        ; $A50B: 54 A6 ; sub 4
+  .word ActionEndWait                     ; $A50D: E4 A6 ; sub 5
+  .word AttackSetup                       ; $A50F: 02 A7 ; sub 6
+  .word AttackArrowAnim                   ; $A511: 2E A7 ; sub 7
+  .word AttackAnimCount                   ; $A513: 4A A7 ; sub 8
+  .word AttackDamageApply                 ; $A515: 5B A7 ; sub 9
+  .word ActionDoneWait                    ; $A517: E0 A7 ; sub $A
 .endproc
 ;===============================================================================
-; $A519: Phase2ActionGate
+                                          ; $A519: ActionGate
 ; Sub 0: routes the acting unit's command value $054F (copied from action
-; slot $0550 by Phase1NextActorSelect). First clears the frame counter $0548
+; slot $0550 by NextActorSelect). First clears the frame counter $0548
 ; and the recorded-status byte $054C. Command 1 goes straight to the
 ; selection gate. Otherwise the cursor column's status $05C2[$0545] decides:
 ; action bits == 2 takes the attack route (status recorded into $054C,
@@ -1144,11 +1144,11 @@ pad_state      = $0001  ; merged both-pad raw state
 ; Selection gate: command 2 passes the turn outright; otherwise the side
 ; status counter $0574 nybble for the scanned board half (low for columns
 ; 0-$A, high for columns $B-$15) must be clear to select - non-zero passes
-; the turn. Selection clears $FE/$FF markers via Phase2ColumnResetCheck,
-; runs Phase2WalkDirectionResolve, encodes the resolved direction into the
+; the turn. Selection clears $FE/$FF markers via ColumnResetCheck,
+; runs WalkDirectionResolve, encodes the resolved direction into the
 ; column status and advances to the cursor walk (sub 1).
 ;===============================================================================
-.proc Phase2ActionGate
+.proc ActionGate
   LDA #$00                                ; $A519: A9 00
   STA btl_frame_counter                               ; $A51B: 8D 48 05 ; frame counter <- 0
   LDA #$00                                ; $A51E: A9 00
@@ -1161,7 +1161,7 @@ pad_state      = $0001  ; merged both-pad raw state
   AND #$0F                                ; $A530: 29 0F ; action bits
   CMP #$02                                ; $A532: C9 02
   BNE @MoveRoute                          ; $A534: D0 2B
-  JSR Phase2AttackRouteResolve            ; $A536: 20 0F C3 ; attack-route setup
+  JSR AttackRouteResolve                  ; $A536: 20 0F C3 ; attack-route setup
   LDA btl_acting_unit                               ; $A539: AD 49 05 ; acting unit id
   BMI @MoveRoute                          ; $A53C: 30 23 ; no actor: move route
   LDA btl_command                               ; $A53E: AD 4F 05
@@ -1175,12 +1175,12 @@ pad_state      = $0001  ; merged both-pad raw state
   LDA btl_roster_code_a,Y                             ; $A54F: B9 C2 05 ; column status
   STA btl_recorded_status                               ; $A552: 8D 4C 05 ; record for commit
   LDA btl_acting_unit                               ; $A555: AD 49 05 ; acting unit id
-  JSR Phase2ColumnStatusEncode            ; $A558: 20 0F AA ; encode into status
+  JSR ColumnStatusEncode                  ; $A558: 20 0F AA ; encode into status
   LDA #$06                                ; $A55B: A9 06
   STA btl_overlay_sub                               ; $A55D: 8D 41 05 ; sub-phase <- 6 (attack)
   RTS                                     ; $A560: 60
 @MoveRoute:
-  JSR Phase2MoveRouteResolve              ; $A561: 20 0F C2 ; move-route setup
+  JSR MoveRouteResolve                    ; $A561: 20 0F C2 ; move-route setup
   LDA btl_acting_unit                               ; $A564: AD 49 05
   BMI @SelectGate                         ; $A567: 30 23 ; no actor: selection gate
   LDA btl_command                               ; $A569: AD 4F 05
@@ -1194,7 +1194,7 @@ pad_state      = $0001  ; merged both-pad raw state
   LDA btl_roster_code_a,Y                             ; $A57A: B9 C2 05 ; column status
   STA btl_walk_col                               ; $A57D: 8D 4B 05 ; record for commit
   LDA btl_acting_unit                               ; $A580: AD 49 05 ; acting unit id
-  JSR Phase2ColumnStatusEncode            ; $A583: 20 0F AA ; encode into status
+  JSR ColumnStatusEncode                  ; $A583: 20 0F AA ; encode into status
   LDA #$03                                ; $A586: A9 03
   STA btl_overlay_sub                               ; $A588: 8D 41 05 ; sub-phase <- 3 (move)
   RTS                                     ; $A58B: 60
@@ -1215,26 +1215,26 @@ pad_state      = $0001  ; merged both-pad raw state
   AND #$F0                                ; $A5A8: 29 F0 ; upper-half nybble
   BNE @PassTurn                           ; $A5AA: D0 15
 @Select:
-  JSR Phase2ColumnResetCheck              ; $A5AC: 20 FE A7 ; clear $FE/$FF markers
-  JSR Phase2WalkDirectionResolve          ; $A5AF: 20 64 C0 ; resolve walk direction
+  JSR ColumnResetCheck                    ; $A5AC: 20 FE A7 ; clear $FE/$FF markers
+  JSR WalkDirectionResolve                ; $A5AF: 20 64 C0 ; resolve walk direction
   LDA btl_acting_unit                               ; $A5B2: AD 49 05 ; direction ($FF = none)
   BMI @PassTurn                           ; $A5B5: 30 0A ; no direction: pass turn
   INC btl_overlay_sub                               ; $A5B7: EE 41 05 ; sub-phase <- 1 (walk)
   LDA btl_acting_unit                               ; $A5BA: AD 49 05
-  JSR Phase2ColumnStatusEncode            ; $A5BD: 20 0F AA ; encode actor
+  JSR ColumnStatusEncode                  ; $A5BD: 20 0F AA ; encode actor
 @Done:
   RTS                                     ; $A5C0: 60
 @PassTurn:
-  JMP Phase2TurnPassReset                 ; $A5C1: 4C 06 A6
+  JMP TurnPassReset                       ; $A5C1: 4C 06 A6
 .endproc
 ;===============================================================================
-; $A5C4: Phase2CursorWalkInit
+                                          ; $A5C4: CursorWalkInit
 ; Sub 1: un-highlights the cursor column ($12=0/$13=column -> BattleCellRedraw),
 ; advances to sub 2, clears the frame counter $0548 and latches the acting
 ; column's row markers: $054A <- $0580[$0545]<<4, $054B <- $0596[$0545]<<4.
-; Draws the first cursor-arrow frame via Phase2CursorArrowDraw.
+; Draws the first cursor-arrow frame via CursorArrowDraw.
 ;===============================================================================
-.proc Phase2CursorWalkInit
+.proc CursorWalkInit
   LDA #$00                                ; $A5C4: A9 00
   STA $12                                 ; $A5C6: 85 12 ; un-highlight
   LDA btl_scan_col                               ; $A5C8: AD 45 05 ; cursor column
@@ -1256,35 +1256,35 @@ pad_state      = $0001  ; merged both-pad raw state
   ASL                                     ; $A5EA: 0A
   ASL                                     ; $A5EB: 0A
   STA btl_walk_col                               ; $A5EC: 8D 4B 05 ; walk column << 4
-  JSR Phase2CursorArrowDraw               ; $A5EF: 20 8F BB ; cursor arrow draw
+  JSR CursorArrowDraw                     ; $A5EF: 20 8F BB ; cursor arrow draw
   RTS                                     ; $A5F2: 60
 .endproc
 ;===============================================================================
-; $A5F3: Phase2CursorWalkStep
-; Sub 2: animates the cursor walk - redraws the arrow (Phase2CursorArrowDraw)
+                                          ; $A5F3: CursorWalkStep
+; Sub 2: animates the cursor walk - redraws the arrow (CursorArrowDraw)
 ; and steps the
 ; walk position one cell per frame in the direction for acting side $0549
-; (Phase2CursorStep). After $10 frames calls Phase2CommitMarkerAdjust, whose
-; RTS lands in Phase2TurnPassReset; while walking, the wait loop branches to
-; Phase2TurnPassReset's shared Phase2WalkExit RTS.
+; (CursorStep). After $10 frames calls CommitMarkerAdjust, whose
+; RTS lands in TurnPassReset; while walking, the wait loop branches to
+; TurnPassReset's shared WalkExit RTS.
 ;===============================================================================
-.proc Phase2CursorWalkStep
-  JSR Phase2CursorArrowDraw               ; $A5F3: 20 8F BB ; cursor arrow draw
-  JSR Phase2CursorStep                    ; $A5F6: 20 A0 A9 ; step walk position
+.proc CursorWalkStep
+  JSR CursorArrowDraw                     ; $A5F3: 20 8F BB ; cursor arrow draw
+  JSR CursorStep                          ; $A5F6: 20 A0 A9 ; step walk position
   INC btl_frame_counter                               ; $A5F9: EE 48 05 ; frame counter++
   LDA btl_frame_counter                               ; $A5FC: AD 48 05
   CMP #$10                                ; $A5FF: C9 10
-  BCC Phase2WalkExit                      ; $A601: 90 19 ; still walking
-  JSR Phase2CommitMarkerAdjust            ; $A603: 20 BD A9 ; commit; falls through
+  BCC WalkExit                            ; $A601: 90 19 ; still walking
+  JSR CommitMarkerAdjust                  ; $A603: 20 BD A9 ; commit; falls through
 .endproc
 ;===============================================================================
-; $A606: Phase2TurnPassReset
-; Turn-pass reset, entered two ways: fall-through from Phase2CursorWalkStep
-; (after the walk completes) and via JMP from Phase2ActionGate's pass-turn
+                                          ; $A606: TurnPassReset
+; Turn-pass reset, entered two ways: fall-through from CursorWalkStep
+; (after the walk completes) and via JMP from ActionGate's pass-turn
 ; paths. Re-highlights the cursor column ($12=$10/$13=column -> BattleCellRedraw) and
-; returns to phase 1 sub 2 (Phase1RoundPass).
+; returns to phase 1 sub 2 (NextActorRoundPass).
 ;===============================================================================
-.proc Phase2TurnPassReset
+.proc TurnPassReset
   LDA #$10                                ; $A606: A9 10
   STA $12                                 ; $A608: 85 12 ; highlight
   LDA btl_scan_col                               ; $A60A: AD 45 05 ; cursor column
@@ -1293,27 +1293,27 @@ pad_state      = $0001  ; merged both-pad raw state
   LDA #$01                                ; $A612: A9 01
   STA btl_overlay_phase                               ; $A614: 8D 40 05 ; phase <- 1
   LDA #$02                                ; $A617: A9 02
-  STA btl_overlay_sub                               ; $A619: 8D 41 05 ; sub <- 2 (Phase1RoundPass)
+  STA btl_overlay_sub                               ; $A619: 8D 41 05 ; sub <- 2 (NextActorRoundPass)
 .endproc
 ;-------------------------------------------------------------------------------
-; $A61C: Phase2WalkExit - shared RTS at the tail of Phase2TurnPassReset,
-; branched to by Phase2CursorWalkStep's wait loop.
+                                          ; $A61C: WalkExit - shared RTS at the tail of TurnPassReset,
+; branched to by CursorWalkStep's wait loop.
 ; Practice: a shared RTS has exactly one byte, so its label cannot live in
 ; two procs; ca65 scopes every label inside .proc (plain cross-proc refs,
 ; Proc::Label, anonymous :-, and .global all fail to reach it), so shared
 ; exit labels must stay bare globals between procs.
 ;-------------------------------------------------------------------------------
-Phase2WalkExit:
+WalkExit:
   RTS                                     ; $A61C: 60
 ;===============================================================================
-; $A61D: Phase2MoveEventCheck
+                                                 ; $A61D: MoveEventCheck
 ; Sub 3 (move path first step): end-battle event gate - when the cursor
 ; column is one of the side-event columns (0 or $0B) and the latched walk
 ; position ($054A) is also 0 or $0B, a pending side event routes straight
 ; to phase 5 sub 0. Otherwise re-highlights the cursor column, advances to
 ; sub 4, clears the frame counter $0548 and plays SFX $5E (move start).
 ;===============================================================================
-.proc Phase2MoveEventCheck
+.proc MoveEventCheck
   LDA btl_scan_col                               ; $A61D: AD 45 05 ; cursor column
   BEQ @EventColumnCheck                   ; $A620: F0 04 ; column 0
   CMP #$0B                                ; $A622: C9 0B
@@ -1342,36 +1342,36 @@ Phase2WalkExit:
   JSR B1F_SoundNotePlayer                 ; $A650: 20 09 E6 ; SFX move start
 .endproc
 ;-------------------------------------------------------------------------------
-; $A653: Phase2AnimWaitExit - shared RTS at the tail of Phase2MoveEventCheck,
-; branched to by Phase2MoveCommit's animation wait loop.
-; Bare global between procs by necessity: see Phase2WalkExit ($A61C).
+                                          ; $A653: AnimWaitExit - shared RTS at the tail of MoveEventCheck,
+; branched to by MoveCommit's animation wait loop.
+; Bare global between procs by necessity: see WalkExit ($A61C).
 ;-------------------------------------------------------------------------------
-Phase2AnimWaitExit:
+AnimWaitExit:
   RTS                                     ; $A653: 60
 ;===============================================================================
-; $A654: Phase2MoveCommit
+                                          ; $A654: MoveCommit
 ; Sub 4: draws the cursor arrow via BattleCursorArrowSprSubmit ($BE15) and
 ; blinks the target
-; column (Phase2CursorBlinkIfActive, Y = walk row $054A) while the frame
+; column (CursorBlinkIfActive, Y = walk row $054A) while the frame
 ; counter $0548 counts to $20. Then writes the recorded column status $054B
 ; back to $05C2[$0545] and computes the damage inflicted on column $054A:
-; if its action bits are 2, Phase2AttackComputeDefended (60% base), else
-; Phase2AttackDamageCompute. The damage ($00) is subtracted from the column
+; if its action bits are 2, AttackComputeDefended (60% base), else
+; AttackDamageCompute. The damage ($00) is subtracted from the column
 ; troop count $05AC[$054A]; a drained column is eliminated (panel update with amount
 ; $01, un-highlight, roster slots $0580/$0596/$05AC/$05C2 <- $FF), a
 ; surviving column is redrawn highlighted. Either way advances to sub 5.
 ;===============================================================================
-.proc Phase2MoveCommit
+.proc MoveCommit
 ; zero-page work cells (proc-local):
 damage         = $0000  ; contact damage subtracted from troop count
 amount         = $0001  ; panel update amount (pre-damage troop count)
   JSR BattleCursorArrowSprSubmit          ; $A654: 20 15 BE ; cursor arrow draw
   LDY btl_walk_row                               ; $A657: AC 4A 05 ; target column
-  JSR Phase2CursorBlinkIfActive           ; $A65A: 20 D0 A6 ; blink target
+  JSR CursorBlinkIfActive                 ; $A65A: 20 D0 A6 ; blink target
   INC btl_frame_counter                               ; $A65D: EE 48 05 ; frame counter++
   LDA btl_frame_counter                               ; $A660: AD 48 05
   CMP #$20                                ; $A663: C9 20
-  BCC Phase2AnimWaitExit                  ; $A665: 90 EC ; still animating
+  BCC AnimWaitExit                        ; $A665: 90 EC ; still animating
   LDY btl_scan_col                               ; $A667: AC 45 05 ; cursor column
   LDA btl_walk_col                               ; $A66A: AD 4B 05 ; recorded status
   STA btl_roster_code_a,Y                             ; $A66D: 99 C2 05 ; commit new status
@@ -1380,10 +1380,10 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
   AND #$0F                                ; $A676: 29 0F ; action bits
   CMP #$02                                ; $A678: C9 02
   BNE @PlainDamage                        ; $A67A: D0 06
-  JSR Phase2AttackComputeDefended         ; $A67C: 20 4D A8 ; 60% base damage
+  JSR AttackComputeDefended               ; $A67C: 20 4D A8 ; 60% base damage
   JMP @ApplyDamage                        ; $A67F: 4C 85 A6
 @PlainDamage:
-  JSR Phase2AttackDamageCompute           ; $A682: 20 F2 A8 ; full damage
+  JSR AttackDamageCompute                 ; $A682: 20 F2 A8 ; full damage
 @ApplyDamage:
   LDY btl_walk_row                               ; $A685: AC 4A 05 ; target column
   LDA btl_troops_a,Y                             ; $A688: B9 AC 05 ; target troop count
@@ -1395,7 +1395,7 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
 @Eliminated:
   LDA amount                                 ; $A695: A5 01 ; computed amount
   STA damage                                 ; $A697: 85 00
-  JSR Phase2DamagePanelUpdate             ; $A699: 20 C5 A7 ; panel damage number
+  JSR DamagePanelUpdate                   ; $A699: 20 C5 A7 ; panel damage number
   LDA #$00                                ; $A69C: A9 00
   STA $12                                 ; $A69E: 85 12 ; un-highlight
   LDA btl_walk_row                               ; $A6A0: AD 4A 05 ; target column
@@ -1410,7 +1410,7 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
   INC btl_overlay_sub                               ; $A6B9: EE 41 05 ; sub-phase <- 5
   RTS                                     ; $A6BC: 60
 @Survived:
-  JSR Phase2DamagePanelUpdate             ; $A6BD: 20 C5 A7 ; panel damage number
+  JSR DamagePanelUpdate                   ; $A6BD: 20 C5 A7 ; panel damage number
   LDA #$10                                ; $A6C0: A9 10
   STA $12                                 ; $A6C2: 85 12 ; highlight
   LDA btl_walk_row                               ; $A6C4: AD 4A 05 ; target column
@@ -1421,12 +1421,12 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
   RTS                                     ; $A6CF: 60
 .endproc
 ;===============================================================================
-; $A6D0: Phase2CursorBlinkIfActive
+                                               ; $A6D0: CursorBlinkIfActive
 ; Conditional column blink: when $005E bits 0-1 are set (frame phase),
 ; bit 3 selects the highlight mode into $12 and the column index (Y) into
 ; $13, then updates the column tile via BattleCellRedraw.
 ;===============================================================================
-.proc Phase2CursorBlinkIfActive
+.proc CursorBlinkIfActive
   LDA a:frame_tick                             ; $A6D0: AD 5E 00 ; frame phase flags
   AND #$03                                ; $A6D3: 29 03
   BEQ @Done                               ; $A6D5: F0 0C ; not a blink frame
@@ -1439,11 +1439,11 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
   RTS                                     ; $A6E3: 60
 .endproc
 ;===============================================================================
-; $A6E4: Phase2ActionEndWait
+                                                   ; $A6E4: ActionEndWait
 ; Sub 5: waits for $007E bit2 (action animation done); then re-highlights
-; the cursor column and returns to phase 1 sub 2 (Phase1RoundPass).
+; the cursor column and returns to phase 1 sub 2 (NextActorRoundPass).
 ;===============================================================================
-.proc Phase2ActionEndWait
+.proc ActionEndWait
   LDA a:btl_anim_flags                             ; $A6E4: AD 7E 00 ; action status
   AND #$04                                ; $A6E7: 29 04 ; done flag
   BNE @Done                               ; $A6E9: D0 16 ; not yet: wait
@@ -1455,17 +1455,17 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
   LDA #$01                                ; $A6F7: A9 01
   STA btl_overlay_phase                               ; $A6F9: 8D 40 05 ; phase <- 1
   LDA #$02                                ; $A6FC: A9 02
-  STA btl_overlay_sub                               ; $A6FE: 8D 41 05 ; sub <- 2 (Phase1RoundPass)
+  STA btl_overlay_sub                               ; $A6FE: 8D 41 05 ; sub <- 2 (NextActorRoundPass)
 @Done:
   RTS                                     ; $A701: 60
 .endproc
 ;===============================================================================
-; $A702: Phase2AttackSetup
+                                          ; $A702: AttackSetup
 ; Sub 6: re-highlights the cursor column, advances to sub 7, latches the
 ; acting column's row markers ($054A <- $0580[Y]<<4, $054B <- $0596[Y]<<4)
 ; and plays SFX $5A (attack start).
 ;===============================================================================
-.proc Phase2AttackSetup
+.proc AttackSetup
   LDA #$10                                ; $A702: A9 10
   STA $12                                 ; $A704: 85 12 ; highlight
   LDA btl_scan_col                               ; $A706: AD 45 05 ; cursor column
@@ -1491,18 +1491,18 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
   RTS                                     ; $A72D: 60
 .endproc
 ;===============================================================================
-; $A72E: Phase2AttackArrowAnim
-; Sub 7: submits the attack arrow (Phase2AttackArrowSprSubmit) and fast-steps
-; the cursor position (Phase2CursorStepFast) each frame, decrementing the
+                                          ; $A72E: AttackArrowAnim
+; Sub 7: submits the attack arrow (AttackArrowSprSubmit) and fast-steps
+; the cursor position (CursorStepFast) each frame, decrementing the
 ; frame counter $0548 by 2; when it goes negative, resets it to 8, advances
 ; to sub 8 and plays SFX $5D.
 ;===============================================================================
-.proc Phase2AttackArrowAnim
-  JSR Phase2AttackArrowSprSubmit          ; $A72E: 20 76 BE ; attack arrow draw
-  JSR Phase2CursorStepFast                ; $A731: 20 E6 A9 ; step x2
+.proc AttackArrowAnim
+  JSR AttackArrowSprSubmit                ; $A72E: 20 76 BE ; attack arrow draw
+  JSR CursorStepFast                      ; $A731: 20 E6 A9 ; step x2
   DEC btl_frame_counter                               ; $A734: CE 48 05 ; frame counter -= 2
   DEC btl_frame_counter                               ; $A737: CE 48 05
-  BPL Phase2DamageAnimExit                ; $A73A: 10 75 ; still animating
+  BPL DamageAnimExit                      ; $A73A: 10 75 ; still animating
   LDA #$08                                ; $A73C: A9 08
   STA btl_frame_counter                               ; $A73E: 8D 48 05 ; counter <- 8
   INC btl_overlay_sub                               ; $A741: EE 41 05 ; sub-phase <- 8
@@ -1512,13 +1512,13 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
   RTS                                     ; $A749: 60
 .endproc
 ;===============================================================================
-; $A74A: Phase2AttackAnimCount
-; Sub 8: submits the attack marker (Phase2AttackMarkerSprSubmit) each frame,
+                                          ; $A74A: AttackAnimCount
+; Sub 8: submits the attack marker (AttackMarkerSprSubmit) each frame,
 ; decrementing the frame counter $0548; when it goes negative, resets it to
 ; $18 and advances to sub 9 (damage apply delay).
 ;===============================================================================
-.proc Phase2AttackAnimCount
-  JSR Phase2AttackMarkerSprSubmit         ; $A74A: 20 15 BF ; attack marker draw
+.proc AttackAnimCount
+  JSR AttackMarkerSprSubmit               ; $A74A: 20 15 BF ; attack marker draw
   DEC btl_frame_counter                               ; $A74D: CE 48 05 ; frame counter--
   BPL @Done                               ; $A750: 10 08 ; still animating
   LDA #$18                                ; $A752: A9 18
@@ -1528,30 +1528,30 @@ amount         = $0001  ; panel update amount (pre-damage troop count)
   RTS                                     ; $A75A: 60
 .endproc
 ;===============================================================================
-; $A75B: Phase2AttackDamageApply
-; Sub 9: blinks the target column (Phase2CursorBlinkIfActive, Y = $054D)
+                                                   ; $A75B: AttackDamageApply
+; Sub 9: blinks the target column (CursorBlinkIfActive, Y = $054D)
 ; while the frame counter $0548 counts down from $18. Then writes the
 ; recorded status $054C to $05C2[$0545], copies the target column $054D to
 ; $054A, recomputes the column highlight with attack bonus
-; (Phase2AttackComputeWithBonus), and subtracts the damage ($00) from troop count
+; (AttackComputeWithBonus), and subtracts the damage ($00) from troop count
 ; $05AC[$054D]. A drained column is eliminated (panel update, un-highlight,
 ; roster slots <- $FF); a surviving column is redrawn highlighted. Either
 ; way advances to sub $A.
 ;===============================================================================
-.proc Phase2AttackDamageApply
+.proc AttackDamageApply
 ; zero-page work cells (proc-local):
 damage         = $0000  ; computed damage
 troops_pre     = $0001  ; pre-damage troop count
   LDY btl_target_col                               ; $A75B: AC 4D 05 ; target column
-  JSR Phase2CursorBlinkIfActive           ; $A75E: 20 D0 A6 ; blink target
+  JSR CursorBlinkIfActive                 ; $A75E: 20 D0 A6 ; blink target
   DEC btl_frame_counter                               ; $A761: CE 48 05 ; frame counter--
-  BPL Phase2DamageAnimExit                ; $A764: 10 4B ; still waiting
+  BPL DamageAnimExit                      ; $A764: 10 4B ; still waiting
   LDY btl_scan_col                               ; $A766: AC 45 05 ; cursor column
   LDA btl_recorded_status                               ; $A769: AD 4C 05 ; recorded status
   STA btl_roster_code_a,Y                             ; $A76C: 99 C2 05 ; commit new status
   LDA btl_target_col                               ; $A76F: AD 4D 05 ; target column
   STA btl_walk_row                               ; $A772: 8D 4A 05
-  JSR Phase2AttackComputeWithBonus        ; $A775: 20 71 A8 ; damage + bonus
+  JSR AttackComputeWithBonus              ; $A775: 20 71 A8 ; damage + bonus
   LDY btl_target_col                               ; $A778: AC 4D 05 ; target column
   LDA btl_troops_a,Y                             ; $A77B: B9 AC 05 ; target troop count
   STA troops_pre                                 ; $A77E: 85 01 ; keep pre-damage troop count
@@ -1559,11 +1559,11 @@ troops_pre     = $0001  ; pre-damage troop count
   SBC damage                                 ; $A781: E5 00 ; subtract damage
   STA btl_troops_a,Y                             ; $A783: 99 AC 05
   BEQ @Eliminated                         ; $A786: F0 02 ; exactly drained
-  BCS Phase2DamageSurvived                ; $A788: B0 28 ; troop count left
+  BCS DamageSurvived                      ; $A788: B0 28 ; troop count left
 @Eliminated:
   LDA troops_pre                                 ; $A78A: A5 01 ; pre-damage troop count
   STA damage                                 ; $A78C: 85 00
-  JSR Phase2DamagePanelUpdate             ; $A78E: 20 C5 A7 ; panel damage number
+  JSR DamagePanelUpdate                   ; $A78E: 20 C5 A7 ; panel damage number
   LDA #$00                                ; $A791: A9 00
   STA $12                                 ; $A793: 85 12 ; un-highlight
   LDA btl_target_col                               ; $A795: AD 4D 05 ; target column
@@ -1578,20 +1578,20 @@ troops_pre     = $0001  ; pre-damage troop count
   INC btl_overlay_sub                               ; $A7AE: EE 41 05 ; sub-phase <- $A
 .endproc
 ;-------------------------------------------------------------------------------
-; $A7B1: Phase2DamageAnimExit - shared RTS at the tail of the eliminated
-; path of Phase2AttackDamageApply, branched to by the sub 7/sub 9
+                                          ; $A7B1: DamageAnimExit - shared RTS at the tail of the eliminated
+; path of AttackDamageApply, branched to by the sub 7/sub 9
 ; animation wait loops.
-; Bare global between procs by necessity: see Phase2WalkExit ($A61C).
+; Bare global between procs by necessity: see WalkExit ($A61C).
 ;-------------------------------------------------------------------------------
-Phase2DamageAnimExit:
+DamageAnimExit:
   RTS                                     ; $A7B1: 60
 ;===============================================================================
-; $A7B2: Phase2DamageSurvived
-; Survived path of Phase2AttackDamageApply: updates the damage panel,
+                                          ; $A7B2: DamageSurvived
+; Survived path of AttackDamageApply: updates the damage panel,
 ; re-highlights the target column and advances to sub $A.
 ;===============================================================================
-.proc Phase2DamageSurvived
-  JSR Phase2DamagePanelUpdate             ; $A7B2: 20 C5 A7 ; panel damage number
+.proc DamageSurvived
+  JSR DamagePanelUpdate                   ; $A7B2: 20 C5 A7 ; panel damage number
   LDA #$10                                ; $A7B5: A9 10
   STA $12                                 ; $A7B7: 85 12 ; highlight
   LDA btl_target_col                               ; $A7B9: AD 4D 05 ; target column
@@ -1601,12 +1601,12 @@ Phase2DamageAnimExit:
   RTS                                     ; $A7C4: 60
 .endproc
 ;===============================================================================
-; $A7C5: Phase2DamagePanelUpdate
+                                             ; $A7C5: DamagePanelUpdate
 ; Sets up the damage-number panel update: amount $00 into $0B (high byte
 ; $0C <- 0), overlay strip buffer pointer $0560 into $0A (or $0561 for
 ; cursor columns >= $0B), then submits via OfficerBattleExpAccrueAndLevelUp.
 ;===============================================================================
-.proc Phase2DamagePanelUpdate
+.proc DamagePanelUpdate
 ; zero-page work cells (proc-local):
 damage         = $0000  ; damage amount
 writer_ptr     = $000A  ; strip writer buffer ptr ($0560/$0561)
@@ -1628,11 +1628,11 @@ writer_pad     = $000C  ; writer param: 0
   RTS                                     ; $A7DF: 60
 .endproc
 ;===============================================================================
-; $A7E0: Phase2ActionDoneWait
+                                                   ; $A7E0: ActionDoneWait
 ; Sub $A: waits for $007E bit2 (action animation done); then re-highlights
-; the cursor column and returns to phase 1 sub 2 (Phase1RoundPass).
+; the cursor column and returns to phase 1 sub 2 (NextActorRoundPass).
 ;===============================================================================
-.proc Phase2ActionDoneWait
+.proc ActionDoneWait
   LDA a:btl_anim_flags                             ; $A7E0: AD 7E 00 ; action status
   AND #$04                                ; $A7E3: 29 04 ; done flag
   BNE @Done                               ; $A7E5: D0 16 ; not yet: wait
@@ -1644,20 +1644,20 @@ writer_pad     = $000C  ; writer param: 0
   LDA #$01                                ; $A7F3: A9 01
   STA btl_overlay_phase                               ; $A7F5: 8D 40 05 ; phase <- 1
   LDA #$02                                ; $A7F8: A9 02
-  STA btl_overlay_sub                               ; $A7FA: 8D 41 05 ; sub <- 2 (Phase1RoundPass)
+  STA btl_overlay_sub                               ; $A7FA: 8D 41 05 ; sub <- 2 (NextActorRoundPass)
 @Done:
   RTS                                     ; $A7FD: 60
 .endproc
 ;===============================================================================
-; $A7FE: Phase2ColumnResetCheck
+                                                 ; $A7FE: ColumnResetCheck
 ; If the cursor column holds a pending side event (command 1 with marker
 ; $0580[$0545] == 0 for columns 0-$A, or low nibble $F for columns >= $0B),
 ; un-highlights the column, returns the overlay machine to phase 1 sub 2
-; (Phase1RoundPass), marks the column slots cleared ($0580/$0596 <- $FE,
+; (NextActorRoundPass), marks the column slots cleared ($0580/$0596 <- $FE,
 ; $05C2 <- $FF) and pops the caller return address so the rest of the frame
 ; is skipped.
 ;===============================================================================
-.proc Phase2ColumnResetCheck
+.proc ColumnResetCheck
   LDY btl_scan_col                               ; $A7FE: AC 45 05 ; cursor column
   CPY #$0B                                ; $A801: C0 0B
   BCS @UpperColumns                       ; $A803: B0 0F ; columns $B-$15
@@ -1684,7 +1684,7 @@ writer_pad     = $000C  ; writer param: 0
   LDA #$01                                ; $A830: A9 01
   STA btl_overlay_phase                               ; $A832: 8D 40 05 ; phase <- 1
   LDA #$02                                ; $A835: A9 02
-  STA btl_overlay_sub                               ; $A837: 8D 41 05 ; sub <- 2 (Phase1RoundPass)
+  STA btl_overlay_sub                               ; $A837: 8D 41 05 ; sub <- 2 (NextActorRoundPass)
   LDY btl_scan_col                               ; $A83A: AC 45 05
   LDA #$FE                                ; $A83D: A9 FE
   STA btl_unit_col_a,Y                             ; $A83F: 99 80 05 ; cleared marker
@@ -1697,25 +1697,25 @@ writer_pad     = $000C  ; writer param: 0
   RTS                                     ; $A84C: 60
 .endproc
 ;===============================================================================
-; $A84D: Phase2AttackComputeDefended
+                                                 ; $A84D: AttackComputeDefended
 ; Damage compute for a defended target (column action bits == 2): saves the
 ; side attack values $056A/$056B, scales each to 60% via
-; Phase2PercentScale, computes the damage through
-; Phase2AttackDamageCompute (result in $00), then restores the original
+; PercentScale, computes the damage through
+; AttackDamageCompute (result in $00), then restores the original
 ; values.
 ;===============================================================================
-.proc Phase2AttackComputeDefended
+.proc AttackComputeDefended
   LDA btl_attack_a                               ; $A84D: AD 6A 05 ; side A attack value
   PHA                                     ; $A850: 48
   LDY #$3C                                ; $A851: A0 3C ; 60 percent
-  JSR Phase2PercentScale                  ; $A853: 20 CF A8
+  JSR PercentScale                        ; $A853: 20 CF A8
   STA btl_attack_a                               ; $A856: 8D 6A 05
   LDA btl_attack_b                               ; $A859: AD 6B 05 ; side B attack value
   PHA                                     ; $A85C: 48
   LDY #$3C                                ; $A85D: A0 3C ; 60 percent
-  JSR Phase2PercentScale                  ; $A85F: 20 CF A8
+  JSR PercentScale                        ; $A85F: 20 CF A8
   STA btl_attack_b                               ; $A862: 8D 6B 05
-  JSR Phase2AttackDamageCompute           ; $A865: 20 F2 A8 ; damage -> $00
+  JSR AttackDamageCompute                 ; $A865: 20 F2 A8 ; damage -> $00
   PLA                                     ; $A868: 68
   STA btl_attack_b                               ; $A869: 8D 6B 05 ; restore
   PLA                                     ; $A86C: 68
@@ -1724,18 +1724,18 @@ writer_pad     = $000C  ; writer param: 0
   RTS                                     ; $A870: 60
 .endproc
 ;===============================================================================
-; $A871: Phase2AttackComputeWithBonus
+                                                 ; $A871: AttackComputeWithBonus
 ; Damage compute for the main attack: saves $056A/$056B, scales each to 70%
-; via Phase2PercentScale, then - when the matching nybble of the packed
+; via PercentScale, then - when the matching nybble of the packed
 ; counter $0577 (low for side A, high for side B) is set - adds a random
 ; bonus of 0-9 (B1F_RandomByte low nibble, capped at 100). Computes the
-; damage through Phase2AttackDamageCompute and restores the originals.
+; damage through AttackDamageCompute and restores the originals.
 ;===============================================================================
-.proc Phase2AttackComputeWithBonus
+.proc AttackComputeWithBonus
   LDA btl_attack_a                               ; $A871: AD 6A 05 ; side A attack value
   PHA                                     ; $A874: 48
   LDY #$46                                ; $A875: A0 46 ; 70 percent
-  JSR Phase2PercentScale                  ; $A877: 20 CF A8
+  JSR PercentScale                        ; $A877: 20 CF A8
   STA btl_attack_a                               ; $A87A: 8D 6A 05
   LDA btl_status_ctr3                               ; $A87D: AD 77 05 ; packed bonus counter
   AND #$0F                                ; $A880: 29 0F ; side A nybble
@@ -1756,7 +1756,7 @@ writer_pad     = $000C  ; writer param: 0
   LDA btl_attack_b                               ; $A89A: AD 6B 05 ; side B attack value
   PHA                                     ; $A89D: 48
   LDY #$46                                ; $A89E: A0 46 ; 70 percent
-  JSR Phase2PercentScale                  ; $A8A0: 20 CF A8
+  JSR PercentScale                        ; $A8A0: 20 CF A8
   STA btl_attack_b                               ; $A8A3: 8D 6B 05
   LDA btl_status_ctr3                               ; $A8A6: AD 77 05 ; packed bonus counter
   AND #$F0                                ; $A8A9: 29 F0 ; side B nybble
@@ -1774,7 +1774,7 @@ writer_pad     = $000C  ; writer param: 0
 @StoreSideB:
   STA btl_attack_b                               ; $A8C0: 8D 6B 05
 @Compute:
-  JSR Phase2AttackDamageCompute           ; $A8C3: 20 F2 A8 ; damage -> $00
+  JSR AttackDamageCompute                 ; $A8C3: 20 F2 A8 ; damage -> $00
   PLA                                     ; $A8C6: 68
   STA btl_attack_b                               ; $A8C7: 8D 6B 05 ; restore
   PLA                                     ; $A8CA: 68
@@ -1783,11 +1783,11 @@ writer_pad     = $000C  ; writer param: 0
   RTS                                     ; $A8CE: 60
 .endproc
 ;===============================================================================
-; $A8CF: Phase2PercentScale
+                                              ; $A8CF: PercentScale
 ; Returns A = A * Y / 100 (value in A, percent in Y) using
 ; B1F_MathMul24x8 + B1F_MathDiv16.
 ;===============================================================================
-.proc Phase2PercentScale
+.proc PercentScale
 ; zero-page work cells (proc-local):
 mul_value      = $0000  ; multiplicand lo (24-bit cell $0000-$0002)
 dividend_lo    = $0001  ; MathDiv16 dividend lo (product byte 0)
@@ -1817,7 +1817,7 @@ product_hi     = $0007  ; product byte 1
   RTS                                     ; $A8F1: 60
 .endproc
 ;===============================================================================
-; $A8F2: Phase2AttackDamageCompute
+                                                 ; $A8F2: AttackDamageCompute
 ; Core damage computation, result in $00. Base value = side attack value
 ; $056A (cursor column < $0B, plus bonus $0570 when column 0) or $056B
 ; (columns >= $0B, plus bonus $0571 when column $0B), scaled by a tier
@@ -1827,7 +1827,7 @@ product_hi     = $0007  ; product byte 1
 ; $056E/$056F from half the damage (floor 0); a column whose action bits
 ; are 1 scales the damage to 3/4.
 ;===============================================================================
-.proc Phase2AttackDamageCompute
+.proc AttackDamageCompute
 ; zero-page work cells (proc-local):
 damage         = $0000  ; damage work value (result)
 dividend_lo    = $0001  ; MathDiv16 dividend lo
@@ -1932,11 +1932,11 @@ product_hi     = $0007  ; product byte 1
   RTS                                     ; $A99F: 60
 .endproc
 ;===============================================================================
-; $A9A0: Phase2CursorStep
+                                                    ; $A9A0: CursorStep
 ; Steps the walk position ($054A column / $054B row) one cell per the
 ; acting side $0549: 0 -> row--, 1 -> row++, 2 -> column--, 3 -> column++.
 ;===============================================================================
-.proc Phase2CursorStep
+.proc CursorStep
   LDA btl_acting_unit                               ; $A9A0: AD 49 05 ; acting side
   BNE @Side1                              ; $A9A3: D0 04
   DEC btl_walk_col                               ; $A9A5: CE 4B 05 ; row--
@@ -1957,12 +1957,12 @@ product_hi     = $0007  ; product byte 1
   RTS                                     ; $A9BC: 60
 .endproc
 ;===============================================================================
-; $A9BD: Phase2CommitMarkerAdjust
+                                                    ; $A9BD: CommitMarkerAdjust
 ; Commits the walk into the acting column's row markers, per acting side
 ; $0549: 0 -> $0596[X]--, 1 -> $0596[X]++, 2 -> $0580[X]--, 3 -> $0580[X]++
 ; (X = cursor column $0545).
 ;===============================================================================
-.proc Phase2CommitMarkerAdjust
+.proc CommitMarkerAdjust
   LDA btl_acting_unit                               ; $A9BD: AD 49 05 ; acting side
   BNE @Side1                              ; $A9C0: D0 07
   LDX btl_scan_col                               ; $A9C2: AE 45 05 ; cursor column
@@ -1987,11 +1987,11 @@ product_hi     = $0007  ; product byte 1
   RTS                                     ; $A9E5: 60
 .endproc
 ;===============================================================================
-; $A9E6: Phase2CursorStepFast
-; Double step variant of Phase2CursorStep (two cells per call), used by the
+                                                    ; $A9E6: CursorStepFast
+; Double step variant of CursorStep (two cells per call), used by the
 ; attack arrow animation.
 ;===============================================================================
-.proc Phase2CursorStepFast
+.proc CursorStepFast
   LDA btl_acting_unit                               ; $A9E6: AD 49 05 ; acting side
   BNE @Side1                              ; $A9E9: D0 07
   DEC btl_walk_col                               ; $A9EB: CE 4B 05 ; row -= 2
@@ -2016,12 +2016,12 @@ product_hi     = $0007  ; product byte 1
   RTS                                     ; $AA0E: 60
 .endproc
 ;===============================================================================
-; $AA0F: Phase2ColumnStatusEncode
+                                          ; $AA0F: ColumnStatusEncode
 ; Encodes the acting unit id (A) into the high nibble of the cursor
 ; column's roster status $05C2[$0545], preserving the low nibble (action
 ; bits).
 ;===============================================================================
-.proc Phase2ColumnStatusEncode
+.proc ColumnStatusEncode
 ; zero-page work cells (proc-local):
 status_work    = $0000  ; column status/id work byte
   ASL                                     ; $AA0F: 0A ; id << 4
@@ -2038,21 +2038,21 @@ status_work    = $0000  ; column status/id work byte
   RTS                                     ; $AA22: 60
 .endproc
 ;===============================================================================
-; $AA23: Phase3CommandSubDispatch
-; Phase 3 (acting-unit command selection), entered from Phase1NextActorSelect
+                                                    ; $AA23: CommandSelect
+; Phase 3 (acting-unit command selection), entered from NextActorSelect
 ; on a queued player request (handoff flags $0568/$0569) with $0549 = acting
 ; side and the resume latch $054B/$054C <- 1/1. First redraws the acting
 ; side's overlay strip via a banked call into bank $19 (buffer ptr lo from
 ; $0560[$0549], X=0), then dispatches on $0541 via B1F_CallbackDispatcher
 ; through the inline 5-entry sub table ($AA40):
-;   sub 0 Phase3CommandPanelInit   - command panel field setup
-;   sub 1 Phase3CommandAnimStep    - marker step animation + officer display re-render
-;   sub 2 Phase3CommandInput       - player command input (A/B/directions)
-;   sub 3 Phase3CommandConfirmWait - confirm panel reformat wait
-;   sub 4 Phase3CommandResultWait  - result strip reformat, then resumes the
+;   sub 0 CommandPanelInit   - command panel field setup
+;   sub 1 CommandAnimStep    - marker step animation + officer display re-render
+;   sub 2 CommandInput       - player command input (A/B/directions)
+;   sub 3 CommandConfirmWait - confirm panel reformat wait
+;   sub 4 CommandResultWait  - result strip reformat, then resumes the
 ;                                    latched phase/sub at $054B/$054C
 ;===============================================================================
-.proc Phase3CommandSubDispatch
+.proc CommandSelect
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -2069,14 +2069,14 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDA btl_overlay_sub                               ; $AA3A: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $AA3D: 20 DE EA
 ; --- CallbackDispatcher sub table, indexed by $0541 ---
-  .word Phase3CommandPanelInit            ; $AA40: 4A AA ; sub 0 ($AA4A)
-  .word Phase3CommandAnimStep             ; $AA42: BD AA ; sub 1 ($AABD)
-  .word Phase3CommandInput                ; $AA44: F0 AA ; sub 2 ($AAF0)
-  .word Phase3CommandConfirmWait          ; $AA46: 75 AB ; sub 3 ($AB75)
-  .word Phase3CommandResultWait           ; $AA48: 9A AB ; sub 4 ($AB9A)
+  .word CommandPanelInit                  ; $AA40: 4A AA ; sub 0 ($AA4A)
+  .word CommandAnimStep                   ; $AA42: BD AA ; sub 1 ($AABD)
+  .word CommandInput                      ; $AA44: F0 AA ; sub 2 ($AAF0)
+  .word CommandConfirmWait                ; $AA46: 75 AB ; sub 3 ($AB75)
+  .word CommandResultWait                 ; $AA48: 9A AB ; sub 4 ($AB9A)
 .endproc
 ;===============================================================================
-; $AA4A: Phase3CommandPanelInit
+                                                    ; $AA4A: CommandPanelInit
 ; Sub 0. Advances to sub 1, clears the menu step $0548 and $054A, sets UI
 ; mode $D1 (B1F_OpenMsgWindow0) and resolves the acting unit id $0560[$0549] to its
 ; officer record pointer ($00) via B1F_GetOfficerRecordAddr. Then fills the
@@ -2086,7 +2086,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 ; go to $044F/$0452/$0455, and field [3] == 100 forces $0457 <- $FE. Panel
 ; param $00BD <- 6.
 ;===============================================================================
-.proc Phase3CommandPanelInit
+.proc CommandPanelInit
 ; zero-page work cells (proc-local):
 rec_ptr_lo     = $0000  ; officer record ptr lo (hi in $0001)
   INC btl_overlay_sub                               ; $AA4A: EE 41 05 ; sub-phase <- 1
@@ -2139,16 +2139,16 @@ rec_ptr_lo     = $0000  ; officer record ptr lo (hi in $0001)
   RTS                                     ; $AABC: 60
 .endproc
 ;===============================================================================
-; $AABD: Phase3CommandAnimStep
+                                               ; $AABD: CommandAnimStep
 ; Sub 1. Waits while the animation queue is busy (BattleAnimQueueIdleCheck carry clear) or
 ; input flag $007E bit2 is set (both wait paths exit at the trailing RTS).
 ; Otherwise, per frame, refreshes the target marker
-; (Phase3CommandMarkerUpdate) and counts the menu step $0548 up to 4;
+; (CommandMarkerUpdate) and counts the menu step $0548 up to 4;
 ; then advances to sub 2, resets $0548 and banked-calls
 ; B1D_1E_OfficerDisplay_Render (Y=$3D) with buffer ptr $0000 <-
 ; $0560[$0549] to re-render the officer display.
 ;===============================================================================
-.proc Phase3CommandAnimStep
+.proc CommandAnimStep
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; officer display render buffer ptr lo
   JSR BattleAnimQueueIdleCheck                 ; $AABD: 20 70 B8 ; anim queue idle check
@@ -2159,7 +2159,7 @@ strip_ptr_lo   = $0000  ; officer display render buffer ptr lo
   LDA btl_frame_counter                               ; $AAC9: AD 48 05 ; menu step
   CMP #$04                                ; $AACC: C9 04
   BCS @Advance                            ; $AACE: B0 07 ; animation done
-  JSR Phase3CommandMarkerUpdate           ; $AAD0: 20 A8 AC ; marker step
+  JSR CommandMarkerUpdate                 ; $AAD0: 20 A8 AC ; marker step
   INC btl_frame_counter                               ; $AAD3: EE 48 05 ; step++
   RTS                                     ; $AAD6: 60
 @Advance:
@@ -2177,7 +2177,7 @@ strip_ptr_lo   = $0000  ; officer display render buffer ptr lo
   RTS                                     ; $AAEF: 60
 .endproc
 ;===============================================================================
-; $AAF0: Phase3CommandInput
+                                                    ; $AAF0: CommandInput
 ; Sub 2. Player command input for the acting side $0549 (pad state via
 ; BattlePadStateFetch; AI-controlled sides get zeros). B (raw bit1) toggles
 ; battle flag $008F. A (raw bit0) resolves the current action slot
@@ -2187,10 +2187,10 @@ strip_ptr_lo   = $0000  ; officer display render buffer ptr lo
 ; $E8/$E9 tile animation ($0310/$0311, slot $0300=0) and refreshing the
 ; panel troop-count block (BattlePanelStatsRefresh) when the
 ; resume latch $054B == 1 (player-request entry), else handing control off
-; at Phase3CommandResultWait::Phase3CommandResumeHandoff. Every frame also
-; runs Phase3CommandDirInput + Phase3CommandArrowDraw.
+; at CommandResultWait::CommandResumeHandoff. Every frame also
+; runs CommandDirInput + CommandArrowDraw.
 ;===============================================================================
-.proc Phase3CommandInput
+.proc CommandInput
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
   LDA btl_acting_unit                               ; $AAF0: AD 49 05 ; acting side
@@ -2242,7 +2242,7 @@ pad_state      = $0001  ; merged both-pad raw state
   INC btl_overlay_sub                               ; $AB51: EE 41 05 ; sub-phase <- 3
   LDA btl_walk_col                               ; $AB54: AD 4B 05 ; resume latch phase
   CMP #$01                                ; $AB57: C9 01
-  BNE Phase3CommandResumeHandoff          ; $AB59: D0 56 ; hand off
+  BNE CommandResumeHandoff                ; $AB59: D0 56 ; hand off
   LDA #$E8                                ; $AB5B: A9 E8
   STA anim_queue_id0_lo                               ; $AB5D: 8D 10 03 ; anim id lo
   LDA #$E9                                ; $AB60: A9 E9
@@ -2252,18 +2252,18 @@ pad_state      = $0001  ; merged both-pad raw state
   JSR BattlePanelStatsRefresh           ; $AB6A: 20 F1 CB ; refresh panel stats
   RTS                                     ; $AB6D: 60
 @FrameUpdate:
-  JSR Phase3CommandDirInput               ; $AB6E: 20 C3 AB ; direction buttons
-  JSR Phase3CommandArrowDraw              ; $AB71: 20 73 AC ; arrow sprite
+  JSR CommandDirInput                     ; $AB6E: 20 C3 AB ; direction buttons
+  JSR CommandArrowDraw                    ; $AB71: 20 73 AC ; arrow sprite
   RTS                                     ; $AB74: 60
 .endproc
 ;===============================================================================
-; $AB75: Phase3CommandConfirmWait
+                                          ; $AB75: CommandConfirmWait
 ; Sub 3. Sets panel param $00BD <- 6 and waits for the animation queue to
 ; idle (BattleAnimQueueIdleCheck carry clear); then sets panel param $00BB <- 9 and
 ; banked-calls B1D_1E_DataFormatter (Y=$3D) with buffer ptr ($0000) <-
 ; $0560/0 to reformat the confirm panel, advancing to sub 4.
 ;===============================================================================
-.proc Phase3CommandConfirmWait
+.proc CommandConfirmWait
 ; zero-page work cells (proc-local):
 buf_ptr_lo     = $0000  ; panel reformat buffer ptr lo
 buf_ptr_hi     = $0001  ; buffer ptr hi
@@ -2286,21 +2286,21 @@ buf_ptr_hi     = $0001  ; buffer ptr hi
   RTS                                     ; $AB99: 60
 .endproc
 ;===============================================================================
-; $AB9A: Phase3CommandResultWait
+                                                   ; $AB9A: CommandResultWait
 ; Sub 4. Waits while input flag $007E is set; then banked-calls
 ; B1D_1E_DataFormatter (Y=$3D) with buffer ptr ($0000) <- $0561/1 to
 ; reformat the result strip and falls through into
-; Phase3CommandResumeHandoff. That path is also entered directly from
-; Phase3CommandInput's confirm branch: it clears battle flag $008F and
+; CommandResumeHandoff. That path is also entered directly from
+; CommandInput's confirm branch: it clears battle flag $008F and
 ; resumes the latched phase/sub-phase from $054B/$054C (player-request
-; entry latches 1/1, returning to Phase1NextActorSelect sub 1).
+; entry latches 1/1, returning to NextActorSelect sub 1).
 ;===============================================================================
-.proc Phase3CommandResultWait
+.proc CommandResultWait
 ; zero-page work cells (proc-local):
 buf_ptr_lo     = $0000  ; result strip reformat buffer ptr lo
 buf_ptr_hi     = $0001  ; buffer ptr hi
   LDA a:btl_anim_flags                             ; $AB9A: AD 7E 00 ; input busy flag
-  BNE Phase3CommandResultDone             ; $AB9D: D0 23 ; still busy: wait
+  BNE CommandResultDone                   ; $AB9D: D0 23 ; still busy: wait
   LDA btl_strip_buf_b                               ; $AB9F: AD 61 05 ; strip 1 buffer ptr lo
   STA a:buf_ptr_lo                             ; $ABA2: 8D 00 00
   LDA #$01                                ; $ABA5: A9 01
@@ -2310,28 +2310,28 @@ buf_ptr_hi     = $0001  ; buffer ptr hi
 ; --- BankedCallbackTrampoline target (banks $1D+$1E) ---
   .word B1D_1E_DataFormatter              ; $ABAF: 3C A0
 .endproc
-; Resume handoff: fall-through tail of Phase3CommandResultWait, also entered
-; directly from Phase3CommandInput's confirm branch.
-Phase3CommandResumeHandoff:
+; Resume handoff: fall-through tail of CommandResultWait, also entered
+; directly from CommandInput's confirm branch.
+CommandResumeHandoff:
   LDA #$00                                ; $ABB1: A9 00
   STA a:btl_battle_flag                             ; $ABB3: 8D 8F 00 ; battle flag <- 0
   LDA btl_walk_col                               ; $ABB6: AD 4B 05 ; resume latch phase
   STA btl_overlay_phase                               ; $ABB9: 8D 40 05
   LDA btl_recorded_status                               ; $ABBC: AD 4C 05 ; resume latch sub-phase
   STA btl_overlay_sub                               ; $ABBF: 8D 41 05
-Phase3CommandResultDone:
+CommandResultDone:
   RTS                                     ; $ABC2: 60
 ;===============================================================================
-; $ABC3: Phase3CommandDirInput
+                                                    ; $ABC3: CommandDirInput
 ; Direction-button handler for the phase-3 command menu (acting side $0549,
 ; pad raw bits via BattlePadStateFetch): right $80 / left $40 adjust the
 ; action slot value $0550[$0549*4+$0548], down $20 / up $10 cycle the menu
 ; step $0548 through 0-3. Slot values run 0-3, extended to 4/5 at step 0
 ; while the resume latch $054B == 1 (player-request entry): right underflow
 ; wraps to 4 there (else 3), left caps at 5 there (else 4, wrapping to 0).
-; Any change refreshes the marker via Phase3CommandMarkerUpdate.
+; Any change refreshes the marker via CommandMarkerUpdate.
 ;===============================================================================
-.proc Phase3CommandDirInput
+.proc CommandDirInput
 ; zero-page work cells (proc-local):
 step_cap       = $0000  ; cursor step cap index
 pad_state      = $0001  ; merged both-pad raw state
@@ -2419,18 +2419,18 @@ pad_state      = $0001  ; merged both-pad raw state
   LDA #$03                                ; $AC6A: A9 03
   STA btl_frame_counter                               ; $AC6C: 8D 48 05 ; wrap <0 -> 3
 @MarkerUpdate:
-  JSR Phase3CommandMarkerUpdate           ; $AC6F: 20 A8 AC
+  JSR CommandMarkerUpdate                 ; $AC6F: 20 A8 AC
 @Done:
   RTS                                     ; $AC72: 60
 .endproc
 ;===============================================================================
-; $AC73: Phase3CommandArrowDraw
+                                          ; $AC73: CommandArrowDraw
 ; Submits the command-menu selection arrow sprite for the current menu step
-; $0548: table pointer ($0000) <- Phase3CommandArrowTiles, tile id from the
+; $0548: table pointer ($0000) <- CommandArrowTiles, tile id from the
 ; step table, row param $000C <- $80, direct placement through
 ; B1F_SpriteOamWriterSimple (tail call).
 ;===============================================================================
-.proc Phase3CommandArrowDraw
+.proc CommandArrowDraw
 ; zero-page work cells (proc-local):
 table_ptr_lo   = $0000  ; arrow table ptr lo
 table_ptr_hi   = $0001  ; arrow table ptr hi
@@ -2444,7 +2444,7 @@ writer_arg_d   = $000D  ; OAM writer param D
   LDA #$AC                                ; $AC78: A9 AC
   STA a:table_ptr_hi                             ; $AC7A: 8D 01 00 ; table ptr hi
   LDY btl_frame_counter                               ; $AC7D: AC 48 05 ; menu step
-  LDA Phase3CommandArrowTiles,Y           ; $AC80: B9 9B AC ; tile id
+  LDA CommandArrowTiles,Y                 ; $AC80: B9 9B AC ; tile id
   STA a:writer_arg_a                             ; $AC83: 8D 0A 00
   LDA #$80                                ; $AC86: A9 80
   STA a:writer_row_param                             ; $AC88: 8D 0C 00 ; row param
@@ -2455,21 +2455,21 @@ writer_arg_d   = $000D  ; OAM writer param D
   STA a:flip_flags                             ; $AC95: 8D 02 00
   JMP B1F_SpriteOamWriterSimple           ; $AC98: 4C AD F1 ; direct placement
 ;===============================================================================
-; $AC9B: Phase3CommandArrowTiles
+                                        ; $AC9B: CommandArrowTiles
 ; Selection-arrow tile ids per menu step: two identical groups of
 ; $A6/$B6/$C6/$D6 (steps 0-3), followed by filler bytes.
 ;===============================================================================
-Phase3CommandArrowTiles:
+CommandArrowTiles:
   .byte $A6,$B6,$C6,$D6,$A6,$B6,$C6,$D6 ; $AC9B: A6 B6 C6 D6 A6 B6 C6 D6 ; steps 0-3 (x2)
   .byte $00,$07,$00,$00,$80              ; $ACA3: 00 07 00 00 80 ; filler
 .endproc
 ;===============================================================================
-; $ACA8: Phase3CommandMarkerUpdate
+                                                      ; $ACA8: CommandMarkerUpdate
 ; Refreshes the command-menu target marker: menu step $0548 into $0000 and
 ; the current action slot value $0550[$0549*4+$0548] into $0001/$0002,
-; then updates via Phase3CommandMarkerRender.
+; then updates via CommandMarkerRender.
 ;===============================================================================
-.proc Phase3CommandMarkerUpdate
+.proc CommandMarkerUpdate
 ; zero-page work cells (proc-local):
 menu_step      = $0000  ; menu step (btl_frame_counter copy)
 slot_value_lo  = $0001  ; action slot value lo
@@ -2485,18 +2485,18 @@ slot_value_hi  = $0002  ; action slot value hi
   LDA btl_order_slots_a,Y                             ; $ACB8: B9 50 05 ; action slot value
   STA a:slot_value_lo                             ; $ACBB: 8D 01 00
   STA a:slot_value_hi                             ; $ACBE: 8D 02 00
-  JSR Phase3CommandMarkerRender           ; $ACC1: 20 39 C8 ; marker update
+  JSR CommandMarkerRender                 ; $ACC1: 20 39 C8 ; marker update
   RTS                                     ; $ACC4: 60
 .endproc
 ;===============================================================================
-; $ACC5: Phase8PanelSubDispatch
-; Phase-8 handler entry (point-spend panel). First redraws the acting side's
+                                                    ; $ACC5: BattleTacticsMenu
+; Phase-8 handler entry (battle tactics menu). First redraws the acting side's
 ; overlay strip (buffer ptr lo from $0560[$0549], hi fixed $A5, X=0) via
 ; bank $19 $A000, then sub-dispatches on $0541 through the inline 5-entry
-; table below: sub-states 0-4 are the Phase8PanelInit..
-; Phase8PanelAdvanceWait handlers.
+; table below: sub-states 0-4 are the BattleTacticsMenuInit..
+; BattleTacticsMenuAdvanceWait handlers.
 ;===============================================================================
-.proc Phase8PanelSubDispatch
+.proc BattleTacticsMenu
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -2513,14 +2513,14 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDA btl_overlay_sub                               ; $ACDC: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $ACDF: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase8PanelInit                   ; $ACE2: EC AC ; sub 0 ($ACEC)
-  .word Phase8PanelScriptStep             ; $ACE4: 3C AD ; sub 1 ($AD3C)
-  .word Phase8PanelMenuInput              ; $ACE6: 5D AD ; sub 2 ($AD5D)
-  .word Phase8PanelConfirmWait            ; $ACE8: 11 AE ; sub 3 ($AE11)
-  .word Phase8PanelAdvanceWait            ; $ACEA: 8E AE ; sub 4 ($AE8E)
+  .word BattleTacticsMenuInit             ; $ACE2: EC AC ; sub 0 ($ACEC)
+  .word BattleTacticsMenuScriptStep       ; $ACE4: 3C AD ; sub 1 ($AD3C)
+  .word BattleTacticsMenuInput            ; $ACE6: 5D AD ; sub 2 ($AD5D)
+  .word BattleTacticsMenuConfirmWait      ; $ACE8: 11 AE ; sub 3 ($AE11)
+  .word BattleTacticsMenuAdvanceWait      ; $ACEA: 8E AE ; sub 4 ($AE8E)
 .endproc
 ;===============================================================================
-; $ACEC: Phase8PanelInit
+                                                    ; $ACEC: BattleTacticsMenuInit
 ; Sub 0. Advances to sub 1 and clears the row cursor $0548, then computes
 ; the point tier $054A (0-5) from the per-side point budget $0572[$0549]
 ; through the threshold ladder <5/<7/<8/<$A/<$C. Sets UI mode $E7 and fills
@@ -2528,7 +2528,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 ; $044D/$044E cleared, panel param $00BD <- $57, menu cursor $0424/$0425
 ; cleared. The tier selects the row count (tier+1) for sub 1/sub 2.
 ;===============================================================================
-.proc Phase8PanelInit
+.proc BattleTacticsMenuInit
   INC btl_overlay_sub                               ; $ACEC: EE 41 05 ; sub-phase <- 1
   LDA #$00                                ; $ACEF: A9 00
   STA btl_frame_counter                               ; $ACF1: 8D 48 05 ; row cursor <- 0
@@ -2568,20 +2568,20 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   RTS                                     ; $AD3B: 60
 .endproc
 ;===============================================================================
-; $AD3C: Phase8PanelScriptStep
+                                               ; $AD3C: BattleTacticsMenuScriptStep
 ; Sub 1. Waits while the animation queue is busy ($B870 carry clear) or a
 ; row script is still displayed ($007E != 0). Otherwise queues the row
 ; script line $0548 (row text table via Loc_B0AC, script id $00BB <- 9) and
 ; counts $0548 up to the point tier $054A; then advances to sub 2.
 ;===============================================================================
-.proc Phase8PanelScriptStep
+.proc BattleTacticsMenuScriptStep
   JSR BattleAnimQueueIdleCheck                 ; $AD3C: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $AD3F: 90 1B ; still busy: wait
   LDA a:btl_anim_flags                             ; $AD41: AD 7E 00 ; script busy flag
   BNE @Done                               ; $AD44: D0 16 ; script pending: wait
   LDA #$09                                ; $AD46: A9 09
   STA a:zp_panel_param_a                             ; $AD48: 8D BB 00 ; script id
-  JSR Phase8RowScriptQueue                ; $AD4B: 20 AC B0
+  JSR BattleTacticsRowScriptQueue         ; $AD4B: 20 AC B0
   LDA btl_frame_counter                               ; $AD4E: AD 48 05 ; row cursor
   INC btl_frame_counter                               ; $AD51: EE 48 05 ; row++
   CMP btl_walk_row                               ; $AD54: CD 4A 05 ; vs point tier
@@ -2591,23 +2591,23 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   RTS                                     ; $AD5C: 60
 .endproc
 ;===============================================================================
-; $AD5D: Phase8PanelMenuInput
-; Sub 2. Row selection for the point-spend panel. Saves the pad latch
+                                                ; $AD5D: BattleTacticsMenuInput
+; Sub 2. Row selection for the battle tactics menu. Saves the pad latch
 ; $0083/$0081 on the stack, refetches the acting side's pad state and
 ; latches it back, then steps the row cursor $0012 over the current tier's
-; FF-terminated row list (Phase8TierRowPtrTable[$054A]) via B1F_MenuStep2
+; FF-terminated row list (BattleTacticsTierRowPtrTable[$054A]) via B1F_MenuStep2
 ; and draws the selection cursor sprite through B1F_PointerTableLookup
-; (coords Phase8RowCursorCoords, params Phase8RowCursorParams). When the
+; (coords BattleTacticsRowCursorCoords, params BattleTacticsRowCursorParams). When the
 ; animation queue idles (BattleAnimQueueIdleCheck carry set):
 ;   A: if the budget $0572[$0549] covers the row cost
 ;      (@RowCostTable[$0012] = 3/5/7/8/$A/$C), deducts it and applies the
-;      row effect via Phase8RowEffectDispatch (Phase8RowBind..
-;      Phase8RowExplosion);
+;      row effect via BattleTacticsRowEffectDispatch (BattleTacticsRowBind..
+;      BattleTacticsRowExplosion);
 ;   B: cancels back to phase 3 sub 3 (queueing the $E8/$E9 tile animation
 ;      slot 0 and refreshing the panel troop-count block via
 ;      BattlePanelStatsRefresh).
 ;===============================================================================
-.proc Phase8PanelMenuInput
+.proc BattleTacticsMenuInput
 ; zero-page work cells (proc-local):
 pad_fetched_hi = $0000  ; BattlePadStateFetch result hi
 pad_fetched_lo = $0001  ; BattlePadStateFetch result lo
@@ -2633,9 +2633,9 @@ pad_state      = $0001  ; merged both-pad raw state
   LDA btl_walk_row                               ; $AD77: AD 4A 05 ; point tier
   ASL                                     ; $AD7A: 0A
   TAY                                     ; $AD7B: A8
-  LDA Phase8TierRowPtrTable,Y             ; $AD7C: B9 D0 AE ; row list ptr lo
+  LDA BattleTacticsTierRowPtrTable,Y      ; $AD7C: B9 D0 AE ; row list ptr lo
   STA a:row_list_ptr_lo                             ; $AD7F: 8D 10 00
-  LDA Phase8TierRowPtrTable+1,Y           ; $AD82: B9 D1 AE ; row list ptr hi
+  LDA BattleTacticsTierRowPtrTable+1,Y    ; $AD82: B9 D1 AE ; row list ptr hi
   STA a:row_list_ptr_hi                             ; $AD85: 8D 11 00
   LDA #$00                                ; $AD88: A9 00
   STA a:selected_row                             ; $AD8A: 8D 12 00 ; selected row <- 0
@@ -2670,7 +2670,7 @@ pad_state      = $0001  ; merged both-pad raw state
   SBC @RowCostTable,Y                     ; $ADD3: F9 DF AD ; deduct cost
   LDY btl_acting_unit                               ; $ADD6: AC 49 05
   STA btl_point_budget_a,Y                             ; $ADD9: 99 72 05 ; budget -= cost
-  JMP Phase8RowEffectDispatch             ; $ADDC: 4C 11 AF ; apply row effect
+  JMP BattleTacticsRowEffectDispatch      ; $ADDC: 4C 11 AF ; apply row effect
 ; --- Row cost per selected row index (last two entries unused padding) ---
 @RowCostTable:
   .byte $03,$05,$07,$08,$0A,$0C,$0C,$0C   ; $ADDF: 03 05 07 08 0A 0C 0C 0C
@@ -2695,7 +2695,7 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $AE10: 60
 .endproc
 ;===============================================================================
-; $AE11: Phase8PanelConfirmWait
+                                        ; $AE11: BattleTacticsMenuConfirmWait
 ; Sub 3. Waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set) and an A
 ; button edge, then returns to phase 3 sub 3 (queueing the $E8/$E9 tile
 ; animation slot 0 and refreshing the panel troop-count block via
@@ -2704,7 +2704,7 @@ pad_state      = $0001  ; merged both-pad raw state
 ; BattleBothPadsStateFetch and the resume latch $054B/$054C is set to 1/1
 ; so phase 3 hands control back afterwards.
 ;===============================================================================
-.proc Phase8PanelConfirmWait
+.proc BattleTacticsMenuConfirmWait
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
   JSR BattleInputPromptDraw             ; $AE11: 20 A8 CC ; blink input prompt sprite
@@ -2726,7 +2726,7 @@ pad_state      = $0001  ; merged both-pad raw state
   LDY btl_acting_unit                               ; $AE36: AC 49 05 ; acting side
   LDA btl_input_mode_a,Y                             ; $AE39: B9 62 05 ; side control flag
   CMP #$03                                ; $AE3C: C9 03
-  BNE Phase8PanelReturnToCommand          ; $AE3E: D0 2C ; plain return
+  BNE BattleTacticsMenuReturnToCommand    ; $AE3E: D0 2C ; plain return
   LDA #$03                                ; $AE40: A9 03
   STA btl_overlay_phase                               ; $AE42: 8D 40 05 ; phase <- 3
   LDA #$03                                ; $AE45: A9 03
@@ -2748,12 +2748,12 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $AE6B: 60
 .endproc
 ;===============================================================================
-; $AE6C: Phase8PanelReturnToCommand
+                                          ; $AE6C: BattleTacticsMenuReturnToCommand
 ; Returns to phase 3 sub 3: sets the phase/sub, queues the $E8/$E9 tile
 ; animation (slot 0, anim id lo cleared afterwards) and refreshes the
 ; panel troop-count block (BattlePanelStatsRefresh).
 ;===============================================================================
-.proc Phase8PanelReturnToCommand
+.proc BattleTacticsMenuReturnToCommand
   LDA #$03                                ; $AE6C: A9 03
   STA btl_overlay_phase                               ; $AE6E: 8D 40 05 ; phase <- 3
   LDA #$03                                ; $AE71: A9 03
@@ -2770,11 +2770,11 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $AE8D: 60
 .endproc
 ;===============================================================================
-; $AE8E: Phase8PanelAdvanceWait
+                                        ; $AE8E: BattleTacticsMenuAdvanceWait
 ; Sub 4. Waits for the animation queue to idle (BattleAnimQueueIdleCheck carry set) and an A
 ; button edge, then advances to phase 5 sub 0 (battle resolution).
 ;===============================================================================
-.proc Phase8PanelAdvanceWait
+.proc BattleTacticsMenuAdvanceWait
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
   JSR BattleInputPromptDraw             ; $AE8E: 20 A8 CC ; blink input prompt sprite
@@ -2793,12 +2793,12 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $AEAD: 60
 .endproc
 ;===============================================================================
-; $AEAE: Phase8PanelReturnToCommandDup
-; Unreferenced duplicate of Phase8PanelReturnToCommand without the $0300
+                                          ; $AEAE: BattleTacticsMenuReturnToCommandDup
+; Unreferenced duplicate of BattleTacticsMenuReturnToCommand without the $0300
 ; clear (identical effect, the slot byte is written last in the other
 ; copy). Retained as code for ROM byte-exactness.
 ;===============================================================================
-.proc Phase8PanelReturnToCommandDup
+.proc BattleTacticsMenuReturnToCommandDup
   LDA #$03                                ; $AEAE: A9 03
   STA btl_overlay_phase                               ; $AEB0: 8D 40 05 ; phase <- 3
   LDA #$03                                ; $AEB3: A9 03
@@ -2815,48 +2815,48 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $AECF: 60
 .endproc
 ;===============================================================================
-; $AED0: Phase8TierRowPtrTable
+                                          ; $AED0: BattleTacticsTierRowPtrTable
 ; FF-terminated selectable-row lists per point tier $054A: tier t exposes
 ; rows 0..t (up to 6 rows), each padded with extra $FF terminators.
 ;===============================================================================
-Phase8TierRowPtrTable:
-  .word Phase8Tier0Rows                   ; $AED0: FC AE ; tier 0
-  .word Phase8Tier1Rows                   ; $AED2: F8 AE ; tier 1
-  .word Phase8Tier2Rows                   ; $AED4: F2 AE ; tier 2
-  .word Phase8Tier3Rows                   ; $AED6: EC AE ; tier 3
-  .word Phase8Tier4Rows                   ; $AED8: E4 AE ; tier 4
-  .word Phase8Tier5Rows                   ; $AEDA: DC AE ; tier 5
-Phase8Tier5Rows:
+BattleTacticsTierRowPtrTable:
+  .word BattleTacticsTier0Rows            ; $AED0: FC AE ; tier 0
+  .word BattleTacticsTier1Rows            ; $AED2: F8 AE ; tier 1
+  .word BattleTacticsTier2Rows            ; $AED4: F2 AE ; tier 2
+  .word BattleTacticsTier3Rows            ; $AED6: EC AE ; tier 3
+  .word BattleTacticsTier4Rows            ; $AED8: E4 AE ; tier 4
+  .word BattleTacticsTier5Rows            ; $AEDA: DC AE ; tier 5
+BattleTacticsTier5Rows:
   .byte $00,$01,$02,$03,$04,$05,$FF,$FF  ; $AEDC: 00 01 02 03 04 05 FF FF ; rows 0-5
-Phase8Tier4Rows:
+BattleTacticsTier4Rows:
   .byte $00,$01,$02,$03,$04,$FF,$FF,$FF  ; $AEE4: 00 01 02 03 04 FF FF FF ; rows 0-4
-Phase8Tier3Rows:
+BattleTacticsTier3Rows:
   .byte $00,$01,$02,$03,$FF,$FF          ; $AEEC: 00 01 02 03 FF FF ; rows 0-3
-Phase8Tier2Rows:
+BattleTacticsTier2Rows:
   .byte $00,$01,$02,$FF,$FF,$FF          ; $AEF2: 00 01 02 FF FF FF ; rows 0-2
-Phase8Tier1Rows:
+BattleTacticsTier1Rows:
   .byte $00,$01,$FF,$FF                  ; $AEF8: 00 01 FF FF ; rows 0-1
-Phase8Tier0Rows:
+BattleTacticsTier0Rows:
   .byte $00,$FF,$FF,$FF                  ; $AEFC: 00 FF FF FF ; row 0 only
 ;===============================================================================
-; $AF00: Phase8RowCursorCoords
+                                          ; $AF00: BattleTacticsRowCursorCoords
 ; Selection-cursor sprite coordinates per selected row (word = y,x):
-; a 2-column x 3-row grid (x=$48/$88, y=$B4/$C4/$D4). Phase8RowCursorParams
+; a 2-column x 3-row grid (x=$48/$88, y=$B4/$C4/$D4). BattleTacticsRowCursorParams
 ; is the parameter block passed alongside through B1F_PointerTableLookup.
 ;===============================================================================
-Phase8RowCursorCoords:
+BattleTacticsRowCursorCoords:
   .word $48B4                             ; $AF00: B4 48 ; row 0: y=$B4 x=$48
   .word $88B4                             ; $AF02: B4 88 ; row 1: y=$B4 x=$88
   .word $48C4                             ; $AF04: C4 48 ; row 2: y=$C4 x=$48
   .word $88C4                             ; $AF06: C4 88 ; row 3: y=$C4 x=$88
   .word $48D4                             ; $AF08: D4 48 ; row 4: y=$D4 x=$48
   .word $88D4                             ; $AF0A: D4 88 ; row 5: y=$D4 x=$88
-Phase8RowCursorParams:
+BattleTacticsRowCursorParams:
   .byte $00,$07,$00,$00,$80              ; $AF0C: 00 07 00 00 80 ; cursor params
 ;===============================================================================
-; $AF11: Phase8RowEffectDispatch
+                                                 ; $AF11: BattleTacticsRowEffectDispatch
 ; Applies the purchased row effect after the cost deduction in
-; Phase8PanelMenuInput: dispatches on the selected row ($0012, mirrored to
+; BattleTacticsMenuInput: dispatches on the selected row ($0012, mirrored to
 ; $0548) through the inline 6-entry table below. Rows 0/2/3/4 set timed
 ; side status counters $0574-$0577 (the acting side's nibble) - row 3 also
 ; saves and advances the periodic reload value $056A/$056B; row 1 rolls an
@@ -2864,22 +2864,22 @@ Phase8RowCursorParams:
 ; row 0 (Bind) coin-flips and on a hit targets the opposing unit $042C;
 ; row 5 (Explosion) advances to phase 9 (formation advance).
 ;===============================================================================
-.proc Phase8RowEffectDispatch
+.proc BattleTacticsRowEffectDispatch
 ; zero-page work cells (proc-local):
 selected_row   = $0012  ; selected row index
   LDA a:selected_row                             ; $AF11: AD 12 00 ; selected row
   STA btl_frame_counter                               ; $AF14: 8D 48 05 ; mirror to row slot
   JSR B1F_CallbackDispatcher              ; $AF17: 20 DE EA
 ; --- CallbackDispatcher row-effect table, indexed by selected row ---
-  .word Phase8RowBind                 ; $AF1A: D2 AF ; row 0 ($AFD2)
-  .word Phase8RowTaunt                ; $AF1C: 26 AF ; row 1 ($AF26)
-  .word Phase8RowCrossbowVolley               ; $AF1E: 0E B0 ; row 2 ($B00E)
-  .word Phase8RowMoraleBoost               ; $AF20: 2E B0 ; row 3 ($B02E)
-  .word Phase8RowFireArrows               ; $AF22: 7C B0 ; row 4 ($B07C)
-  .word Phase8RowExplosion                  ; $AF24: 9C B0 ; row 5 ($B09C)
+  .word BattleTacticsRowBind          ; $AF1A: D2 AF ; row 0 ($AFD2)
+  .word BattleTacticsRowTaunt         ; $AF1C: 26 AF ; row 1 ($AF26)
+  .word BattleTacticsRowCrossbowVolley        ; $AF1E: 0E B0 ; row 2 ($B00E)
+  .word BattleTacticsRowMoraleBoost        ; $AF20: 2E B0 ; row 3 ($B02E)
+  .word BattleTacticsRowFireArrows        ; $AF22: 7C B0 ; row 4 ($B07C)
+  .word BattleTacticsRowExplosion           ; $AF24: 9C B0 ; row 5 ($B09C)
 .endproc
 ;===============================================================================
-; $AF26: Phase8RowTaunt
+                                                 ; $AF26: BattleTacticsRowTaunt
 ; Row 1 (Taunt). Auto-fails while the battle phase $0544 == 5 on side A.
 ; Otherwise reads both officers' records (B1F_GetOfficerRecordAddr on the
 ; side unit ids $0560/$0561): field [$B]>>4 (rank/aptitude) and field [2]
@@ -2889,7 +2889,7 @@ selected_row   = $0012  ; selected row index
 ; lands below the chance, succeeds (UI $EA, sub-phase <- 4 = advance wait),
 ; otherwise fails at @Fail (UI $EB, sub-phase++ = confirm wait).
 ;===============================================================================
-.proc Phase8RowTaunt
+.proc BattleTacticsRowTaunt
 ; zero-page work cells (proc-local):
 rec_ptr_lo     = $0000  ; officer record ptr lo (caller-set)
 opp_troops_scratch = $0001  ; opponent troop count scratch
@@ -2980,13 +2980,13 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
   RTS                                     ; $AFD1: 60
 .endproc
 ;===============================================================================
-; $AFD2: Phase8RowBind
+                                          ; $AFD2: BattleTacticsRowBind
 ; Row 0 (Bind). Coin flip on B1F_RandomByte bit 0. Miss (bit clear): UI $ED and
 ; back to the confirm wait (sub-phase++). Hit (bit set): UI $EC, stores the
 ; opposing side's unit id $0560[$0549^1] into $042C as the effect target,
-; then falls through into Phase8RowCounter574 (bind counter $0574 <- 4).
+; then falls through into BattleTacticsRowCounter574 (bind counter $0574 <- 4).
 ;===============================================================================
-.proc Phase8RowBind
+.proc BattleTacticsRowBind
   JSR B1F_RandomByte                      ; $AFD2: 20 7A E8
   AND #$01                                ; $AFD5: 29 01 ; coin bit
   BNE @Hit                                ; $AFD7: D0 09
@@ -3005,12 +3005,12 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
   INC btl_overlay_sub                               ; $AFF3: EE 41 05 ; sub-phase <- 3
 .endproc
 ;===============================================================================
-; $AFF6: Phase8RowCounter574
+                                                    ; $AFF6: BattleTacticsRowCounter574
 ; Sets status counter $0574 to 4 in the acting side's nibble (side A: low
 ; nibble, side B: high nibble), preserving the other side's nibble. Fall-
-; through tail of Phase8RowBind.
+; through tail of BattleTacticsRowBind.
 ;===============================================================================
-.proc Phase8RowCounter574
+.proc BattleTacticsRowCounter574
   LDA btl_status_ctr0                               ; $AFF6: AD 74 05 ; status counter 574
   LDY btl_acting_unit                               ; $AFF9: AC 49 05 ; acting side
   BNE @SideB                              ; $AFFC: D0 08
@@ -3025,12 +3025,12 @@ troops_b_work  = $000D  ; side B troop count -> opponent troops
   RTS                                     ; $B00D: 60
 .endproc
 ;===============================================================================
-; $B00E: Phase8RowCrossbowVolley
+                                          ; $B00E: BattleTacticsRowCrossbowVolley
 ; Row 2. UI $EE, sub-phase++, then sets status counter $0575 to 3 in the
 ; acting side's nibble. The counter-set tail ($B016, Apply) is also
 ; called directly from AiTacticPointSpend without the UI preamble.
 ;===============================================================================
-.proc Phase8RowCrossbowVolley
+.proc BattleTacticsRowCrossbowVolley
   LDA #$EE                                ; $B00E: A9 EE
   JSR B1F_OpenMsgWindow0                  ; $B010: 20 6D F2 ; UI $EE
   INC btl_overlay_sub                               ; $B013: EE 41 05 ; sub-phase <- 3
@@ -3049,16 +3049,16 @@ Apply:
   RTS                                     ; $B02D: 60
 .endproc
 ;===============================================================================
-; $B02E: Phase8RowMoraleBoost
+                                          ; $B02E: BattleTacticsRowMoraleBoost
 ; Row 3. UI $EF, sub-phase++, sets status counter $0576 to 4 in the acting
 ; side's nibble, then advances the side's periodic reload value: the
 ; current $056A/$056B is saved into the reload latch $0578/$0579 and
-; replaced by itself + 5 + rand[0,5) (Phase8RowReloadRoll). When a $0576
+; replaced by itself + 5 + rand[0,5) (BattleTacticsRowReloadRoll). When a $0576
 ; nibble expires, BattleSideStatusCountersDecrement latches the saved
 ; values back into $056A/$056B. The counter-set tail ($B036, Apply) is
 ; also called directly from AiTacticPointSpend without the UI preamble.
 ;===============================================================================
-.proc Phase8RowMoraleBoost
+.proc BattleTacticsRowMoraleBoost
   LDA #$EF                                ; $B02E: A9 EF
   JSR B1F_OpenMsgWindow0                  ; $B030: 20 6D F2 ; UI $EF
   INC btl_overlay_sub                               ; $B033: EE 41 05 ; sub-phase <- 3
@@ -3071,7 +3071,7 @@ Apply:
   STA btl_status_ctr2                               ; $B042: 8D 76 05
   LDA btl_attack_b                               ; $B045: AD 6B 05 ; side B reload value
   STA btl_reload_b                               ; $B048: 8D 79 05 ; save to reload latch
-  JSR Phase8RowReloadRoll                 ; $B04B: 20 66 B0 ; + 5 + rand[0,5)
+  JSR BattleTacticsRowReloadRoll          ; $B04B: 20 66 B0 ; + 5 + rand[0,5)
   STA btl_attack_b                               ; $B04E: 8D 6B 05 ; advance reload
   RTS                                     ; $B051: 60
 @SideA:
@@ -3080,16 +3080,16 @@ Apply:
   STA btl_status_ctr2                               ; $B056: 8D 76 05
   LDA btl_attack_a                               ; $B059: AD 6A 05 ; side A reload value
   STA btl_reload_a                               ; $B05C: 8D 78 05 ; save to reload latch
-  JSR Phase8RowReloadRoll                 ; $B05F: 20 66 B0 ; + 5 + rand[0,5)
+  JSR BattleTacticsRowReloadRoll          ; $B05F: 20 66 B0 ; + 5 + rand[0,5)
   STA btl_attack_a                               ; $B062: 8D 6A 05 ; advance reload
   RTS                                     ; $B065: 60
 .endproc
 ;===============================================================================
-; $B066: Phase8RowReloadRoll
+                                          ; $B066: BattleTacticsRowReloadRoll
 ; Returns A + 5 + rand[0,5): rolls B1F_RandomByte & 7 until below 5, then
 ; adds 5 and the roll to the input value.
 ;===============================================================================
-.proc Phase8RowReloadRoll
+.proc BattleTacticsRowReloadRoll
 ; zero-page work cells (proc-local):
 roll           = $0000  ; random roll amount
   PHA                                     ; $B066: 48 ; input value
@@ -3107,12 +3107,12 @@ roll           = $0000  ; random roll amount
   RTS                                     ; $B07B: 60
 .endproc
 ;===============================================================================
-; $B07C: Phase8RowFireArrows
+                                          ; $B07C: BattleTacticsRowFireArrows
 ; Row 4. UI $F0, sub-phase++, then sets status counter $0577 to 3 in the
 ; acting side's nibble. The counter-set tail ($B084, Apply) is also
 ; called directly from AiTacticPointSpend without the UI preamble.
 ;===============================================================================
-.proc Phase8RowFireArrows
+.proc BattleTacticsRowFireArrows
   LDA #$F0                                ; $B07C: A9 F0
   JSR B1F_OpenMsgWindow0                  ; $B07E: 20 6D F2 ; UI $F0
   INC btl_overlay_sub                               ; $B081: EE 41 05 ; sub-phase <- 3
@@ -3131,11 +3131,11 @@ Apply:
   RTS                                     ; $B09B: 60
 .endproc
 ;===============================================================================
-; $B09C: Phase8RowExplosion
+                                          ; $B09C: BattleTacticsRowExplosion
 ; Row 5 (Explosion). Leaves the panel: phase <- 9 (formation advance),
 ; sub-phase <- 0, UI mode $F1.
 ;===============================================================================
-.proc Phase8RowExplosion
+.proc BattleTacticsRowExplosion
   LDA #$09                                ; $B09C: A9 09
   STA btl_overlay_phase                               ; $B09E: 8D 40 05 ; phase <- 9
   LDA #$00                                ; $B0A1: A9 00
@@ -3145,21 +3145,21 @@ Apply:
   RTS                                     ; $B0AB: 60
 .endproc
 ;===============================================================================
-; $B0AC: Phase8RowScriptQueue
-; Copies the FF-terminated row script Phase8RowScriptTable[$0548] into the
+                                                      ; $B0AC: BattleTacticsRowScriptQueue
+; Copies the FF-terminated row script BattleTacticsRowScriptTable[$0548] into the
 ; script buffer $0380 and marks the script pending ($007E bit 2). Called by
-; Phase8PanelScriptStep with the script id $00BB already set.
+; BattleTacticsMenuScriptStep with the script id $00BB already set.
 ;===============================================================================
-.proc Phase8RowScriptQueue
+.proc BattleTacticsRowScriptQueue
 ; zero-page work cells (proc-local):
 script_ptr_lo  = $0000  ; script byte stream ptr lo
 script_ptr_hi  = $0001  ; script byte stream ptr hi
   LDA btl_frame_counter                               ; $B0AC: AD 48 05 ; row cursor
   ASL                                     ; $B0AF: 0A
   TAY                                     ; $B0B0: A8 ; table index * 2
-  LDA Phase8RowScriptTable,Y              ; $B0B1: B9 D5 B0 ; script ptr lo
+  LDA BattleTacticsRowScriptTable,Y       ; $B0B1: B9 D5 B0 ; script ptr lo
   STA a:script_ptr_lo                             ; $B0B4: 8D 00 00
-  LDA Phase8RowScriptTable+1,Y            ; $B0B7: B9 D6 B0 ; script ptr hi
+  LDA BattleTacticsRowScriptTable+1,Y     ; $B0B7: B9 D6 B0 ; script ptr hi
   STA a:script_ptr_hi                             ; $B0BA: 8D 01 00
   LDY #$00                                ; $B0BD: A0 00
 @CopyLoop:
@@ -3176,39 +3176,39 @@ script_ptr_hi  = $0001  ; script byte stream ptr hi
   RTS                                     ; $B0D4: 60
 .endproc
 ;===============================================================================
-; $B0D5: Phase8RowScriptTable
+                                          ; $B0D5: BattleTacticsRowScriptTable
 ; Pointers to the FF-terminated row scripts displayed by
-; Phase8PanelScriptStep (row index 0-5). Scripts carry a segment header
+; BattleTacticsMenuScriptStep (row index 0-5). Scripts carry a segment header
 ; (length byte, nametable row $22/$23) followed by tile runs and $01 fill;
 ; physical order below is row 1, 0, 2, 3, 4, 5.
 ;===============================================================================
-Phase8RowScriptTable:
-  .word Phase8RowScript0                  ; $B0D5: F7 B0 ; row 0 ($B0F7)
-  .word Phase8RowScript1                  ; $B0D7: E1 B0 ; row 1 ($B0E1)
-  .word Phase8RowScript2                  ; $B0D9: 08 B1 ; row 2 ($B108)
-  .word Phase8RowScript3                  ; $B0DB: 19 B1 ; row 3 ($B119)
-  .word Phase8RowScript4                  ; $B0DD: 33 B1 ; row 4 ($B133)
-  .word Phase8RowScript5                  ; $B0DF: 45 B1 ; row 5 ($B145)
-Phase8RowScript1:
+BattleTacticsRowScriptTable:
+  .word BattleTacticsRowScript0           ; $B0D5: F7 B0 ; row 0 ($B0F7)
+  .word BattleTacticsRowScript1           ; $B0D7: E1 B0 ; row 1 ($B0E1)
+  .word BattleTacticsRowScript2           ; $B0D9: 08 B1 ; row 2 ($B108)
+  .word BattleTacticsRowScript3           ; $B0DB: 19 B1 ; row 3 ($B119)
+  .word BattleTacticsRowScript4           ; $B0DD: 33 B1 ; row 4 ($B133)
+  .word BattleTacticsRowScript5           ; $B0DF: 45 B1 ; row 5 ($B145)
+BattleTacticsRowScript1:
   .byte $04,$22,$D2,$C0,$C1,$C2,$C3,$0B,$22,$F2,$D0,$D1,$D2,$D3,$01,$01; $B0E1: 04 22 D2 C0 C1 C2 C3 0B 22 F2 D0 D1 D2 D3 01 01
   .byte $01,$01,$01,$01,$7B,$FF          ; $B0F1: 01 01 01 01 7B FF
-Phase8RowScript0:
+BattleTacticsRowScript0:
   .byte $04,$22,$CA,$C4,$C5,$C6,$C7,$06,$22,$EA,$D4,$D5,$D6,$D7,$01,$79; $B0F7: 04 22 CA C4 C5 C6 C7 06 22 EA D4 D5 D6 D7 01 79
   .byte $FF                               ; $B107: FF
-Phase8RowScript2:
+BattleTacticsRowScript2:
   .byte $04,$23,$0A,$C8,$C9,$CA,$CB,$06,$23,$2A,$D8,$D9,$DA,$DB,$01,$7D; $B108: 04 23 0A C8 C9 CA CB 06 23 2A D8 D9 DA DB 01 7D
   .byte $FF                               ; $B118: FF
-Phase8RowScript3:
+BattleTacticsRowScript3:
   .byte $08,$23,$12,$CC,$CD,$CE,$CF,$E0,$E1,$E2,$E3,$0B,$23,$32,$DC,$DD; $B119: 08 23 12 CC CD CE CF E0 E1 E2 E3 0B 23 32 DC DD
   .byte $DE,$DF,$F0,$F1,$F2,$F3,$01,$01,$7E,$FF; $B129: DE DF F0 F1 F2 F3 01 01 7E FF
-Phase8RowScript4:
+BattleTacticsRowScript4:
   .byte $04,$23,$4A,$E4,$E5,$E6,$E7,$07,$23,$6A,$F4,$F5,$F6,$F7,$01,$77; $B133: 04 23 4A E4 E5 E6 E7 07 23 6A F4 F5 F6 F7 01 77
   .byte $76,$FF                           ; $B143: 76 FF
-Phase8RowScript5:
+BattleTacticsRowScript5:
   .byte $04,$23,$52,$E8,$E9,$EA,$EB,$0B,$23,$72,$F8,$F9,$FA,$FB,$01,$01; $B145: 04 23 52 E8 E9 EA EB 0B 23 72 F8 F9 FA FB 01 01
   .byte $01,$01,$01,$77,$78,$FF          ; $B155: 01 01 01 77 78 FF
 ;===============================================================================
-; $B15B: BattleSideStatusCountersDecrement
+                                                    ; $B15B: BattleSideStatusCountersDecrement
 ; Ticks down the packed per-side status counters $0574-$0577 once per
 ; round pass (each byte holds two nibble counters). $0574/$0575/$0577 use
 ; @NibbleDecrement; $0576 uses @CounterDecrementLatch instead: when one of
@@ -3286,15 +3286,15 @@ ctr_work       = $0000  ; counter byte work cell for @NibbleDecrement
   RTS                                     ; $B1EB: 60
 .endproc
 ;===============================================================================
-; $B1EC: Phase9AdvanceSubDispatch
+                                                    ; $B1EC: FormationAdvance
 ; Phase-9 handler entry (formation advance), entered from the phase-8 row-
 ; effect dispatch row 5 ($B09C, SFX $F1). Redraws the acting side's overlay
 ; strip (buffer ptr lo from $0560[$0549], hi fixed $A5, X=0) via bank $19
 ; $A000, then sub-dispatches on $0541 through the inline 4-entry table
-; below: sub-states 0-3 are the Phase9AdvanceInit..
-; Phase9AdvanceRosterSweep handlers.
+; below: sub-states 0-3 are the FormationAdvanceInit..
+; FormationAdvanceRosterSweep handlers.
 ;===============================================================================
-.proc Phase9AdvanceSubDispatch
+.proc FormationAdvance
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -3311,13 +3311,13 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   LDA btl_overlay_sub                               ; $B203: AD 41 05 ; sub-phase
   JSR B1F_CallbackDispatcher              ; $B206: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase9AdvanceInit                 ; $B209: 11 B2 ; sub 0 ($B211)
-  .word Phase9AdvanceAnimFrame            ; $B20B: 5B B2 ; sub 1 ($B25B)
-  .word Phase9AdvanceContactTick          ; $B20D: F5 B2 ; sub 2 ($B2F5)
-  .word Phase9AdvanceRosterSweep          ; $B20F: EF B3 ; sub 3 ($B3EF)
+  .word FormationAdvanceInit              ; $B209: 11 B2 ; sub 0 ($B211)
+  .word FormationAdvanceAnimFrame         ; $B20B: 5B B2 ; sub 1 ($B25B)
+  .word FormationAdvanceContactTick       ; $B20D: F5 B2 ; sub 2 ($B2F5)
+  .word FormationAdvanceRosterSweep       ; $B20F: EF B3 ; sub 3 ($B3EF)
 .endproc
 ;===============================================================================
-; $B211: Phase9AdvanceInit
+                                          ; $B211: FormationAdvanceInit
 ; Sub 0. Blanks the five marker OAM rows ($00B1/$00C1/$00D1/$00C9/$00D9 <-
 ; $7F), resets the advance frame counter $0548, advances to sub 1 and loads
 ; the advance parameters from the acting side's roster base slot ($0558 <-
@@ -3325,7 +3325,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 ; high nibble), start row $055A (unit row $0596 << 4) and start column
 ; $055B (unit column $0580 << 4). Clears the battle flag $008F.
 ;===============================================================================
-.proc Phase9AdvanceInit
+.proc FormationAdvanceInit
   LDA #$7F                                ; $B211: A9 7F
   STA a:$00B1                             ; $B213: 8D B1 00 ; marker OAM row blank
   STA a:$00C1                             ; $B216: 8D C1 00
@@ -3365,17 +3365,17 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   RTS                                     ; $B25A: 60
 .endproc
 ;===============================================================================
-; $B25B: Phase9AdvanceAnimFrame
+                                                      ; $B25B: FormationAdvanceAnimFrame
 ; Sub 1. Runs the 32-frame advance animation. Each frame steps the marker
 ; position one unit in direction $0559 (0 row up, 1 row down, 2 column left,
 ; 3 column right); leaving the strip bounds (row >= $A0, column wrap
-; through $FF/0) finishes the advance via Phase9AdvanceComplete. Every 8
+; through $FF/0) finishes the advance via FormationAdvanceComplete. Every 8
 ; frames the marker render picks the next wobble offset from
-; Phase9AdvanceWobbleOffsetTable, then draws the descriptor at
-; Phase9AdvanceStripDrawDesc through B1F_SpriteOamWriterScroll_NoInit at
+; FormationAdvanceWobbleOffsetTable, then draws the descriptor at
+; FormationAdvanceStripDrawDesc through B1F_SpriteOamWriterScroll_NoInit at
 ; (row $055A - wobble, column $055B).
 ;===============================================================================
-.proc Phase9AdvanceAnimFrame
+.proc FormationAdvanceAnimFrame
   INC btl_frame_counter                               ; $B25B: EE 48 05 ; frame counter +1
   LDA btl_frame_counter                               ; $B25E: AD 48 05
   CMP #$20                                ; $B261: C9 20
@@ -3389,48 +3389,48 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   DEC btl_advance_marker_row                               ; $B272: CE 5A 05 ; dir 0: row -1
   LDA btl_advance_marker_row                               ; $B275: AD 5A 05
   CMP #$A0                                ; $B278: C9 A0
-  BCS Phase9AdvanceComplete               ; $B27A: B0 2D ; off-strip
-  JMP Phase9AdvanceMarkerRender           ; $B27C: 4C AC B2
+  BCS FormationAdvanceComplete            ; $B27A: B0 2D ; off-strip
+  JMP FormationAdvanceMarkerRender        ; $B27C: 4C AC B2
 @DirDown:
   CMP #$01                                ; $B27F: C9 01
   BNE @DirLeft                            ; $B281: D0 0D
   INC btl_advance_marker_row                               ; $B283: EE 5A 05 ; dir 1: row +1
   LDA btl_advance_marker_row                               ; $B286: AD 5A 05
   CMP #$A0                                ; $B289: C9 A0
-  BCS Phase9AdvanceComplete               ; $B28B: B0 1C ; off-strip
-  JMP Phase9AdvanceMarkerRender           ; $B28D: 4C AC B2
+  BCS FormationAdvanceComplete            ; $B28B: B0 1C ; off-strip
+  JMP FormationAdvanceMarkerRender        ; $B28D: 4C AC B2
 @DirLeft:
   CMP #$02                                ; $B290: C9 02
   BNE @DirRight                           ; $B292: D0 0D
   DEC btl_advance_marker_col                               ; $B294: CE 5B 05 ; dir 2: column -1
   LDA btl_advance_marker_col                               ; $B297: AD 5B 05
   CMP #$FF                                ; $B29A: C9 FF
-  BEQ Phase9AdvanceComplete               ; $B29C: F0 0B ; wrapped off-strip
-  JMP Phase9AdvanceMarkerRender           ; $B29E: 4C AC B2
+  BEQ FormationAdvanceComplete            ; $B29C: F0 0B ; wrapped off-strip
+  JMP FormationAdvanceMarkerRender        ; $B29E: 4C AC B2
 @DirRight:
   INC btl_advance_marker_col                               ; $B2A1: EE 5B 05 ; dir 3: column +1
   LDA btl_advance_marker_col                               ; $B2A4: AD 5B 05
-  BNE Phase9AdvanceMarkerRender           ; $B2A7: D0 03 ; still on-strip
+  BNE FormationAdvanceMarkerRender        ; $B2A7: D0 03 ; still on-strip
 .endproc
 ;===============================================================================
-; $B2A9: Phase9AdvanceComplete
+                                          ; $B2A9: FormationAdvanceComplete
 ; Shared off-strip exit of the advance animation: routes through
-; Phase9AdvanceFinish back to the phase-8 row-effect dispatch.
+; FormationAdvanceFinish back to the phase-8 row-effect dispatch.
 ;===============================================================================
-.proc Phase9AdvanceComplete
-  JMP Phase9AdvanceFinish                 ; $B2A9: 4C 40 B4
+.proc FormationAdvanceComplete
+  JMP FormationAdvanceFinish              ; $B2A9: 4C 40 B4
 .endproc
 ;===============================================================================
-; $B2AC: Phase9AdvanceMarkerRender
+                                          ; $B2AC: FormationAdvanceMarkerRender
 ; Draws the advance marker: descriptor ptr ($0000/$0001) <-
-; Phase9AdvanceStripDrawDesc, sprite row <- marker row $055A minus the
-; wobble offset (Phase9AdvanceWobbleOffsetTable indexed by frame/4),
+; FormationAdvanceStripDrawDesc, sprite row <- marker row $055A minus the
+; wobble offset (FormationAdvanceWobbleOffsetTable indexed by frame/4),
 ; sprite column <- $055B; writer preset $0003=0/$0004=$A0. Exits through
 ; B1F_SpriteOamWriterScroll_NoInit.
 ;===============================================================================
-.proc Phase9AdvanceMarkerRender
+.proc FormationAdvanceMarkerRender
 ; zero-page work cells (proc-local):
-desc_ptr_lo    = $0000  ; Phase9AdvanceStripDrawDesc ptr lo
+desc_ptr_lo    = $0000  ; FormationAdvanceStripDrawDesc ptr lo
 desc_ptr_hi    = $0001  ; descriptor ptr hi
 desc_index     = $0002  ; descriptor index (0)
 spr_y          = $000A  ; sprite Y (marker row - wobble)
@@ -3452,7 +3452,7 @@ writer_preset_hi = $0004  ; OAM writer preset hi ($A0)
   TAY                                     ; $B2C2: A8
   LDA btl_advance_marker_row                               ; $B2C3: AD 5A 05 ; marker row
   SEC                                     ; $B2C6: 38
-  SBC Phase9AdvanceWobbleOffsetTable,Y   ; $B2C7: F9 ED B2 ; - wobble
+  SBC FormationAdvanceWobbleOffsetTable,Y; $B2C7: F9 ED B2 ; - wobble
   STA a:spr_y                             ; $B2CA: 8D 0A 00 ; sprite Y
   LDA btl_advance_marker_col                               ; $B2CD: AD 5B 05 ; marker column
   STA a:spr_x                             ; $B2D0: 8D 0C 00 ; sprite X
@@ -3466,19 +3466,19 @@ writer_preset_hi = $0004  ; OAM writer preset hi ($A0)
   JMP B1F_SpriteOamWriterScroll_NoInit    ; $B2E5: 4C 9C F0
 .endproc
 ; --- Data Region ---
-Phase9AdvanceStripDrawDesc:
+FormationAdvanceStripDrawDesc:
   .byte $00,$C4,$02,$00,$80               ; $B2E8: 00 C4 02 00 80 ; marker strip draw descriptor (5-byte head)
-Phase9AdvanceWobbleOffsetTable:
+FormationAdvanceWobbleOffsetTable:
   .byte $00,$01,$02,$03,$03,$02,$01,$00  ; $B2ED: 00 01 02 03 03 02 01 00 ; 8-step marker wobble ramp (overlaps descriptor tail)
 ;===============================================================================
-; $B2F5: Phase9AdvanceContactTick
+                                               ; $B2F5: FormationAdvanceContactTick
 ; Sub 2. Contact-damage tick while the animation settles: runs only when the
 ; $005E low-nibble frame phase is 0; every 4 ticks applies
-; Phase9AdvanceContactScan, then advances to sub 3 with the frame counter
+; FormationAdvanceContactScan, then advances to sub 3 with the frame counter
 ; reset. Between ticks it re-renders the marker at its current position
-; using the frame entry from Phase9AdvanceFramePtrTable.
+; using the frame entry from FormationAdvanceFramePtrTable.
 ;===============================================================================
-.proc Phase9AdvanceContactTick
+.proc FormationAdvanceContactTick
 ; zero-page work cells (proc-local):
 desc_ptr_lo    = $0000  ; marker draw descriptor ptr lo
 desc_ptr_hi    = $0001  ; descriptor ptr hi
@@ -3496,7 +3496,7 @@ writer_preset_hi = $0004  ; OAM writer preset hi ($A0)
   LDA btl_frame_counter                               ; $B2FF: AD 48 05
   CMP #$04                                ; $B302: C9 04
   BCC @RenderFrame                        ; $B304: 90 0C ; 4 ticks not done
-  JSR Phase9AdvanceContactScan            ; $B306: 20 4B B4
+  JSR FormationAdvanceContactScan         ; $B306: 20 4B B4
   INC btl_overlay_sub                               ; $B309: EE 41 05 ; sub-phase <- 3
   LDA #$00                                ; $B30C: A9 00
   STA btl_frame_counter                               ; $B30E: 8D 48 05 ; tick counter <- 0
@@ -3505,9 +3505,9 @@ writer_preset_hi = $0004  ; OAM writer preset hi ($A0)
   LDA btl_frame_counter                               ; $B312: AD 48 05 ; tick counter
   ASL                                     ; $B315: 0A ; word index
   TAY                                     ; $B316: A8
-  LDA Phase9AdvanceFramePtrTable,Y        ; $B317: B9 49 B3 ; frame ptr lo
+  LDA FormationAdvanceFramePtrTable,Y     ; $B317: B9 49 B3 ; frame ptr lo
   STA a:desc_ptr_lo                             ; $B31A: 8D 00 00
-  LDA Phase9AdvanceFramePtrTable+1,Y      ; $B31D: B9 4A B3 ; frame ptr hi
+  LDA FormationAdvanceFramePtrTable+1,Y   ; $B31D: B9 4A B3 ; frame ptr hi
   STA a:desc_ptr_hi                             ; $B320: 8D 01 00
   LDA #$00                                ; $B323: A9 00
   STA a:desc_index                             ; $B325: 8D 02 00
@@ -3525,11 +3525,11 @@ writer_preset_hi = $0004  ; OAM writer preset hi ($A0)
   JMP B1F_SpriteOamWriterScroll_NoInit    ; $B346: 4C 9C F0
 .endproc
 ; --- Data Region ---
-; Phase9AdvanceFramePtrTable ($B349-$B3EE, 166 bytes): per-frame strip
-; animation data used by Phase9AdvanceContactTick. The leading word entries
+; FormationAdvanceFramePtrTable ($B349-$B3EE, 166 bytes): per-frame strip
+; animation data used by FormationAdvanceContactTick. The leading word entries
 ; (indexed by tick counter x2) point into this very block at the per-tick
 ; render records; the remaining bytes are the record payloads.
-Phase9AdvanceFramePtrTable:
+FormationAdvanceFramePtrTable:
   .byte $55,$B3,$66,$B3,$66,$B3,$66,$B3,$66,$B3,$66,$B3,$00,$E9,$02,$00; $B349: 55 B3 66 B3 66 B3 66 B3 66 B3 66 B3 00 E9 02 00
   .byte $00,$EA,$02,$08,$08,$F9,$02,$00,$08,$FA,$02,$08,$80,$F0,$C5,$02; $B359: 00 EA 02 08 08 F9 02 00 08 FA 02 08 80 F0 C5 02
   .byte $F8,$F8,$D4,$02,$F0,$F8,$D5,$02,$F8,$F0,$E6,$02,$00,$F0,$E6,$42; $B369: F8 F8 D4 02 F0 F8 D5 02 F8 F0 E6 02 00 F0 E6 42
@@ -3542,14 +3542,14 @@ Phase9AdvanceFramePtrTable:
   .byte $00,$18,$D8,$42,$08,$10,$C7,$42,$10,$10,$C6,$42,$18,$18,$D7,$42; $B3D9: 00 18 D8 42 08 10 C7 42 10 10 C6 42 18 18 D7 42
   .byte $10,$18,$D6,$42,$18,$80                       ; $B3E9: 10 18 D6 42 18 80
 ;===============================================================================
-; $B3EF: Phase9AdvanceRosterSweep
+                                          ; $B3EF: FormationAdvanceRosterSweep
 ; Sub 3. Sweeps the acting side's 11 roster slots ($0558+$0548, slot index
 ; $0548 = 0..$0A): dead units ($05AC == 0) are cleared from the OAM via BattleCellRedraw
 ; ($0012=0) and removed from the event/row/column/roster arrays ($FF);
 ; living units get their strip sprite refreshed ($0012=1). When all slots
-; are processed the advance finishes via Phase9AdvanceFinish.
+; are processed the advance finishes via FormationAdvanceFinish.
 ;===============================================================================
-.proc Phase9AdvanceRosterSweep
+.proc FormationAdvanceRosterSweep
 ; zero-page work cells (proc-local):
 sprite_mode    = $0012  ; 0 = clear sprite, 1 = refresh sprite
 slot_param     = $0013  ; roster slot parameter
@@ -3590,31 +3590,31 @@ slot_param     = $0013  ; roster slot parameter
   INC btl_frame_counter                               ; $B436: EE 48 05 ; slot cursor +1
   LDA btl_frame_counter                               ; $B439: AD 48 05
   CMP #$0B                                ; $B43C: C9 0B
-  BCC Phase9AdvanceReturn                 ; $B43E: 90 0A ; 11 slots not done
+  BCC FormationAdvanceReturn              ; $B43E: 90 0A ; 11 slots not done
 .endproc
 ;===============================================================================
-; $B440: Phase9AdvanceFinish
+                                          ; $B440: FormationAdvanceFinish
 ; Shared advance-finish block (also the fall-through exit of
-; Phase9AdvanceRosterSweep): re-enters the phase-8 row-effect dispatch at
+; FormationAdvanceRosterSweep): re-enters the phase-8 row-effect dispatch at
 ; entry 3 ($0540 <- 8, $0541 <- 3).
 ;===============================================================================
-.proc Phase9AdvanceFinish
+.proc FormationAdvanceFinish
   LDA #$08                                ; $B440: A9 08
   STA btl_overlay_phase                               ; $B442: 8D 40 05 ; phase <- 8
   LDA #$03                                ; $B445: A9 03
   STA btl_overlay_sub                               ; $B447: 8D 41 05 ; row-effect entry 3
 .endproc
-Phase9AdvanceReturn:
+FormationAdvanceReturn:
   RTS                                     ; $B44A: 60
 ;===============================================================================
-; $B44B: Phase9AdvanceContactScan
+                                                           ; $B44B: FormationAdvanceContactScan
 ; Contact-damage scan: converts the marker position $055A/$055B to tile
 ; coordinates ($001A row, $001B column) and scans the OPPOSING side's 11
 ; roster slots (side 0 -> slots $0B-$15, side 1 -> slots 0-$0A, cursor
 ; $001C); units within 2 tiles on both axes take contact damage
-; (Phase9AdvanceContactApply).
+; (FormationAdvanceContactApply).
 ;===============================================================================
-.proc Phase9AdvanceContactScan
+.proc FormationAdvanceContactScan
 ; zero-page work cells (proc-local):
 marker_row     = $001A  ; marker tile row
 marker_col     = $001B  ; marker tile column
@@ -3636,7 +3636,7 @@ slot_cursor    = $001C  ; opposing roster slot cursor
   LDA #$0B                                ; $B464: A9 0B ; opposing base (side B)
   STA a:slot_cursor                             ; $B466: 8D 1C 00 ; slot cursor
 @ScanSideB:
-  JSR Phase9AdvanceContactCheck           ; $B469: 20 8A B4
+  JSR FormationAdvanceContactCheck        ; $B469: 20 8A B4
   INC a:slot_cursor                             ; $B46C: EE 1C 00
   LDA a:slot_cursor                             ; $B46F: AD 1C 00
   CMP #$16                                ; $B472: C9 16 ; 11 slots
@@ -3646,7 +3646,7 @@ slot_cursor    = $001C  ; opposing roster slot cursor
   LDA #$00                                ; $B477: A9 00 ; opposing base (side A)
   STA a:slot_cursor                             ; $B479: 8D 1C 00 ; slot cursor
 @ScanSideALoop:
-  JSR Phase9AdvanceContactCheck           ; $B47C: 20 8A B4
+  JSR FormationAdvanceContactCheck        ; $B47C: 20 8A B4
   INC a:slot_cursor                             ; $B47F: EE 1C 00
   LDA a:slot_cursor                             ; $B482: AD 1C 00
   CMP #$0B                                ; $B485: C9 0B ; 11 slots
@@ -3654,12 +3654,12 @@ slot_cursor    = $001C  ; opposing roster slot cursor
   RTS                                     ; $B489: 60
 .endproc
 ;===============================================================================
-; $B48A: Phase9AdvanceContactCheck
+                                                ; $B48A: FormationAdvanceContactCheck
 ; Proximity check for roster slot $001C: |unit row $0596 - marker row $001A|
 ; <= 2 and |unit column $0580 - marker column $001B| <= 2 (both via biased
-; unsigned compare) triggers Phase9AdvanceContactApply.
+; unsigned compare) triggers FormationAdvanceContactApply.
 ;===============================================================================
-.proc Phase9AdvanceContactCheck
+.proc FormationAdvanceContactCheck
 ; zero-page work cells (proc-local):
 slot_cursor    = $001C  ; roster slot cursor
 marker_row     = $001A  ; marker tile row
@@ -3678,19 +3678,19 @@ marker_col     = $001B  ; marker tile column
   CLC                                     ; $B4A2: 18
   ADC #$01                                ; $B4A3: 69 01 ; bias +1
   CMP #$03                                ; $B4A5: C9 03
-  BCC Phase9AdvanceContactApply           ; $B4A7: 90 01 ; in contact
+  BCC FormationAdvanceContactApply        ; $B4A7: 90 01 ; in contact
 @NoContact:
   RTS                                     ; $B4A9: 60
 .endproc
 ;===============================================================================
-; $B4AA: Phase9AdvanceContactApply
-; Applies the rolled contact damage (Phase9AdvanceDamageRoll result $0000)
+                                          ; $B4AA: FormationAdvanceContactApply
+; Applies the rolled contact damage (FormationAdvanceDamageRoll result $0000)
 ; to unit troop count $05AC[$001C] (clamped at zero; on clamp the pre-damage troop count is
 ; reported instead), then feeds the damage into the acting-side strip
 ; buffer ($000A <- $0560[$0549], $000B <- damage, $000C <- 0) and exits
 ; through OfficerBattleExpAccrueAndLevelUp at $D7FB.
 ;===============================================================================
-.proc Phase9AdvanceContactApply
+.proc FormationAdvanceContactApply
 ; zero-page work cells (proc-local):
 slot_cursor    = $001C  ; roster slot cursor
 damage         = $0000  ; contact damage dealt
@@ -3698,7 +3698,7 @@ troops_pre     = $0001  ; pre-damage troop count
 writer_ptr     = $000A  ; strip writer buffer ptr
 writer_damage  = $000B  ; writer param: damage
 writer_pad     = $000C  ; writer param: 0
-  JSR Phase9AdvanceDamageRoll             ; $B4AA: 20 E3 B4
+  JSR FormationAdvanceDamageRoll          ; $B4AA: 20 E3 B4
   LDY a:slot_cursor                             ; $B4AD: AC 1C 00 ; slot cursor
   LDA btl_troops_a,Y                             ; $B4B0: B9 AC 05 ; unit troop count
   STA a:troops_pre                             ; $B4B3: 8D 01 00 ; old troop count
@@ -3722,7 +3722,7 @@ writer_pad     = $000C  ; writer param: 0
   JMP OfficerBattleExpAccrueAndLevelUp    ; $B4E0: 4C FB D7 ; exp accrual/level-up
 .endproc
 ;===============================================================================
-; $B4E3: Phase9AdvanceDamageRoll
+                                                    ; $B4E3: FormationAdvanceDamageRoll
 ; Contact-damage roll for slot $001C. Base damage = B1F_RandomBelowThreshold
 ; ($0A) + 2 subtracted from the acting-side officer record byte +2 (via
 ; B1F_GetOfficerRecordAddr on $0560[$0549]), clamped at zero then +1 (so
@@ -3730,7 +3730,7 @@ writer_pad     = $000C  ; writer param: 0
 ; ($05C2 low nibble) takes one third via B1F_MathDiv16 doubled. Result in
 ; $0000.
 ;===============================================================================
-.proc Phase9AdvanceDamageRoll
+.proc FormationAdvanceDamageRoll
 ; zero-page work cells (proc-local):
 damage_work    = $0000  ; damage roll -> base damage -> third share
 rec_ptr_lo     = $0000  ; officer record ptr lo (record byte 2 max)
@@ -3789,9 +3789,9 @@ slot_cursor    = $001C  ; roster slot cursor
   RTS                                     ; $B547: 60
 .endproc
 ;===============================================================================
-; $B548: BattleRosterSetup
+                                          ; $B548: BattleRosterSetup
 ; Builds the battle rosters of both sides from the side officer ids $0560
-; (side A) and $0561 (side B); called from Phase7BattleModeStart at battle
+; (side A) and $0561 (side B); called from BattleModeStart at battle
 ; start. First
 ; clears the $58-byte roster block $0580-$05D7 with $FF (unit columns
 ; $0580/$058B, unit rows $0596/$05A1, roster codes $05C2/$05CD, column troop count
@@ -4194,7 +4194,7 @@ BattleFormationRows_4:
 BattleFormationRows_5:
   .byte $05,$04,$06,$02,$08,$03,$07,$02,$08,$01,$09 ; $B865
 ;===============================================================================
-; $B870: BattleAnimQueueIdleCheck
+                                                    ; $B870: BattleAnimQueueIdleCheck
 ; Returns the battle animation queue status in the carry: C=1 when both
 ; queue slot headers $0300 (slot 0) and $0304 (slot 1) hold $FF (empty),
 ; C=0 while either slot still runs an animation. Callers poll this before
@@ -4214,7 +4214,7 @@ BattleFormationRows_5:
   RTS                                     ; $B881: 60
 .endproc
 ;===============================================================================
-; $B882: BattleCellRedraw
+                                                ; $B882: BattleCellRedraw
 ; Rebuilds the battlefield cell of roster slot $0013 as a queued dual-
 ; nametable PPU update record ($0380-$039C, $FF-terminated) and raises
 ; $007E bit 2 so the NMI handler transfers it. Parameters: $0012 mode
@@ -4429,7 +4429,7 @@ attr_ofs       = $0000  ; attribute cell offset
   RTS                                     ; $BA17: 60
 .endproc
 ;===============================================================================
-; $BA18: BattleCellTroopCountDigitOverlay
+                                                ; $BA18: BattleCellTroopCountDigitOverlay
 ; Highlight-pass helper: overlays the unit's troop count as two digit tiles on the
 ; cell's bottom row of record 2 ($0396/$0397). troop count $05AC[$0013] is packed
 ; to BCD via B1F_MathBinToBcd; the tens and ones digits map to tiles
@@ -4475,7 +4475,7 @@ bcd_thousands  = $0008  ; BCD thousands+hundreds result
   RTS                                     ; $BA55: 60
 .endproc
 ;===============================================================================
-; $BA56: BattleCellAdjacencyScan
+                                             ; $BA56: BattleCellAdjacencyScan
 ; Merges occupancy bits into the attribute byte $0000 for the target cell
 ; ($0010 col / $0011 row): scans all 22 roster slots $15 -> 0 and, for each
 ; occupied slot, merges the side-specific mask bits when that unit sits in
@@ -4510,7 +4510,7 @@ target_slot    = $0013  ; target roster slot
   RTS                                     ; $BA78: 60
 .endproc
 ;===============================================================================
-; $BA79: BattleCellSlotAdjacencyMerge
+                                          ; $BA79: BattleCellSlotAdjacencyMerge
 ; Merges the occupancy mask for roster slot Y into attribute byte $0000.
 ; Probes the four sub-cells of the target 2x2 block - (col,row),
 ; (col+1,row), (col+1,row+1), (col,row+1) - against the slot's position
@@ -4632,9 +4632,9 @@ BattleCellHighlightTiles:
   .byte $46,$47,$54,$55,$44,$45,$54,$55,$40,$41,$50,$51,$42,$43,$52,$53; $BB6F
   .byte $56,$57,$66,$67,$64,$65,$66,$67,$6C,$6D,$6E,$6F,$68,$69,$6A,$6B; $BB7F
 ;===============================================================================
-; $BB8F: Phase2CursorArrowDraw
+                                               ; $BB8F: CursorArrowDraw
 ; Draws the walk-cursor arrow sprite at the walk position ($054A row / $054B
-; column, pixel coords latched by Phase2CursorWalkInit). The sprite stream is
+; column, pixel coords latched by CursorWalkInit). The sprite stream is
 ; picked from BattleCursorArrowSpritePtrs indexed by the cursor column's
 ; status $05C2[$0545] (high nibble = unit status, bits 1:0 = action bits)
 ; and the 2-bit animation frame from bits 3:2 of the frame tick counter
@@ -4644,7 +4644,7 @@ BattleCellHighlightTiles:
 ; unit columns ($0545 < $0B). Position: X = $054B, Y = $054A + 8. Tail JMP
 ; into B1F_SpriteOamWriterScroll.
 ;===============================================================================
-.proc Phase2CursorArrowDraw
+.proc CursorArrowDraw
 ; zero-page work cells (proc-local):
 status_work    = $0000  ; cursor status word (action bits)
 status_frame   = $0001  ; status word with animation frame
@@ -4824,8 +4824,8 @@ BattleCursorArrowSprBox22:    ; tiles $22/$23/$32/$33
   .byte $80                               ; $BE14: 80
 ; Reachable cursor-marker sprite submit: Y offset
 ; <- $0580[$0545]<<4, X offset <- $0596[$0545]<<4, stream ptr <-
-; BattleCursorArrowSprMarker, offsets Phase2AttackArrowRowOffsetTable/
-; Phase2AttackArrowColOffsetTable + $0549, then JMP B1F_SpriteOamWriterScroll.
+; BattleCursorArrowSprMarker, offsets AttackArrowRowOffsetTable/
+; AttackArrowColOffsetTable + $0549, then JMP B1F_SpriteOamWriterScroll.
 ; Called by JSR from phase 2 sub 4 ($A654); kept as assembled bytes for
 ; byte-exact output.
 BattleCursorArrowSprSubmit:
@@ -4841,17 +4841,17 @@ BattleCursorArrowSprMarker:   ; 2x2 marker, tiles $86/$87/$96/$97 (attr $02)
   .byte $00,$86,$02,$00,$00,$87,$02,$08; $BE65: 00 86 02 00 00 87 02 08
   .byte $08,$96,$02,$00,$08,$97,$02,$08,$80; $BE6D: 08 96 02 00 08 97 02 08 80
 ;===============================================================================
-; $BE76: Phase2AttackArrowSprSubmit
-; Submits the attack arrow sprite for phase 2 sub 7 (Phase2AttackArrowAnim).
+                                                 ; $BE76: AttackArrowSprSubmit
+; Submits the attack arrow sprite for phase 2 sub 7 (AttackArrowAnim).
 ; Stream select: index = acting side $0549 (0-3), plus +4 when the acting
 ; slot's side action counter is pending ($0545 >= $0B -> side B, check high
 ; nibble of $0577; else side A, check low nibble). The stream pointer comes
-; from Phase2AttackArrowStreamPtrTable[index*2]. Sprite position = arrow
+; from AttackArrowStreamPtrTable[index*2]. Sprite position = arrow
 ; walk position ($054A row / $054B column) plus per-side pixel offsets
-; (Phase2AttackArrowRowOffsetTable/ColOffsetTable). Tail-calls
+; (AttackArrowRowOffsetTable/ColOffsetTable). Tail-calls
 ; B1F_SpriteOamWriterScroll (JMP, no return).
 ;===============================================================================
-.proc Phase2AttackArrowSprSubmit
+.proc AttackArrowSprSubmit
 ; zero-page work cells (proc-local):
 path_ptr_lo    = $0000  ; arrow path stream ptr lo
 path_ptr_hi    = $0001  ; arrow path stream ptr hi
@@ -4883,18 +4883,18 @@ spr_y_hi       = $000D  ; arrow sprite Y hi (0)
 @Submit:
   ASL                                     ; $BEA0: 0A ; index * 2
   TAY                                     ; $BEA1: A8
-  LDA Phase2AttackArrowStreamPtrTable,Y   ; $BEA2: B9 DD BE ; stream ptr lo
+  LDA AttackArrowStreamPtrTable,Y         ; $BEA2: B9 DD BE ; stream ptr lo
   STA a:path_ptr_lo                             ; $BEA5: 8D 00 00
-  LDA Phase2AttackArrowStreamPtrTable+1,Y ; $BEA8: B9 DE BE ; stream ptr hi
+  LDA AttackArrowStreamPtrTable+1,Y       ; $BEA8: B9 DE BE ; stream ptr hi
   STA a:path_ptr_hi                             ; $BEAB: 8D 01 00
   LDY btl_acting_unit                               ; $BEAE: AC 49 05 ; acting side
   LDA btl_walk_row                               ; $BEB1: AD 4A 05 ; arrow row
   CLC                                     ; $BEB4: 18
-  ADC Phase2AttackArrowRowOffsetTable,Y   ; $BEB5: 79 D5 BE ; + side row offset
+  ADC AttackArrowRowOffsetTable,Y         ; $BEB5: 79 D5 BE ; + side row offset
   STA a:spr_y                             ; $BEB8: 8D 0C 00 ; sprite Y
   LDA btl_walk_col                               ; $BEBB: AD 4B 05 ; arrow column
   CLC                                     ; $BEBE: 18
-  ADC Phase2AttackArrowColOffsetTable,Y   ; $BEBF: 79 D9 BE ; + side column offset
+  ADC AttackArrowColOffsetTable,Y         ; $BEBF: 79 D9 BE ; + side column offset
   STA a:spr_x                             ; $BEC2: 8D 0A 00 ; sprite X
   LDA #$00                                ; $BEC5: A9 00
   STA a:spr_x_hi                             ; $BEC7: 8D 0B 00 ; X hi <- 0
@@ -4904,44 +4904,44 @@ spr_y_hi       = $000D  ; arrow sprite Y hi (0)
   JMP B1F_SpriteOamWriterScroll           ; $BED2: 4C 92 F0 ; submit OAM stream
 .endproc
 ; --- Per-side sprite pixel offsets, indexed by acting side ($BE76) ---
-Phase2AttackArrowRowOffsetTable:  ; row (Y) offset per side 0-3
+AttackArrowRowOffsetTable:  ; row (Y) offset per side 0-3
   .byte $00,$00,$F8,$08           ; $BED5: 00 00 F8 08
-Phase2AttackArrowColOffsetTable:  ; column (X) offset per side 0-3
+AttackArrowColOffsetTable:  ; column (X) offset per side 0-3
   .byte $F8,$08,$00,$00           ; $BED9: F8 08 00 00
 ; --- Arrow stream pointers, indexed (side + engaged*4) * 2 ($BE76) ---
-Phase2AttackArrowStreamPtrTable:
-  .word Phase2AttackArrowSprUp            ; $BEDD: ED BE ; side 0 (row--)
-  .word Phase2AttackArrowSprDown          ; $BEDF: F2 BE ; side 1 (row++)
-  .word Phase2AttackArrowSprLeft          ; $BEE1: F7 BE ; side 2 (col--)
-  .word Phase2AttackArrowSprRight         ; $BEE3: FC BE ; side 3 (col++)
-  .word Phase2AttackArrowSprUpEngaged     ; $BEE5: 01 BF ; side 0, counter pending
-  .word Phase2AttackArrowSprDownEngaged   ; $BEE7: 06 BF ; side 1, counter pending
-  .word Phase2AttackArrowSprLeftEngaged   ; $BEE9: 0B BF ; side 2, counter pending
-  .word Phase2AttackArrowSprRightEngaged  ; $BEEB: 10 BF ; side 3, counter pending
+AttackArrowStreamPtrTable:
+  .word AttackArrowSprUp                  ; $BEDD: ED BE ; side 0 (row--)
+  .word AttackArrowSprDown                ; $BEDF: F2 BE ; side 1 (row++)
+  .word AttackArrowSprLeft                ; $BEE1: F7 BE ; side 2 (col--)
+  .word AttackArrowSprRight               ; $BEE3: FC BE ; side 3 (col++)
+  .word AttackArrowSprUpEngaged           ; $BEE5: 01 BF ; side 0, counter pending
+  .word AttackArrowSprDownEngaged         ; $BEE7: 06 BF ; side 1, counter pending
+  .word AttackArrowSprLeftEngaged         ; $BEE9: 0B BF ; side 2, counter pending
+  .word AttackArrowSprRightEngaged        ; $BEEB: 10 BF ; side 3, counter pending
 ; --- Arrow sprite streams: one [relY,tile,attr,relX] record + $80 terminator ---
-Phase2AttackArrowSprUp:
+AttackArrowSprUp:
   .byte $04,$84,$02,$04,$80       ; $BEED: 04 84 02 04 80
-Phase2AttackArrowSprDown:
+AttackArrowSprDown:
   .byte $04,$94,$02,$04,$80       ; $BEF2: 04 94 02 04 80
-Phase2AttackArrowSprLeft:
+AttackArrowSprLeft:
   .byte $04,$A4,$42,$04,$80       ; $BEF7: 04 A4 42 04 80 ; tile h-flipped
-Phase2AttackArrowSprRight:
+AttackArrowSprRight:
   .byte $04,$A4,$02,$04,$80       ; $BEFC: 04 A4 02 04 80
-Phase2AttackArrowSprUpEngaged:
+AttackArrowSprUpEngaged:
   .byte $04,$85,$02,$04,$80       ; $BF01: 04 85 02 04 80
-Phase2AttackArrowSprDownEngaged:
+AttackArrowSprDownEngaged:
   .byte $04,$95,$02,$04,$80       ; $BF06: 04 95 02 04 80
-Phase2AttackArrowSprLeftEngaged:
+AttackArrowSprLeftEngaged:
   .byte $04,$A5,$42,$04,$80       ; $BF0B: 04 A5 42 04 80 ; tile h-flipped
-Phase2AttackArrowSprRightEngaged:
+AttackArrowSprRightEngaged:
   .byte $04,$A5,$02,$04,$80       ; $BF10: 04 A5 02 04 80
 ;===============================================================================
-; $BF15: Phase2AttackMarkerSprSubmit
+                                          ; $BF15: AttackMarkerSprSubmit
 ; Submits the 2x2 attack-marker sprite (tiles $86/$87/$96/$97) at the final
 ; arrow position ($054A row / $054B column) during phase 2 sub 8
-; (Phase2AttackAnimCount). Tail-calls B1F_SpriteOamWriterScroll.
+; (AttackAnimCount). Tail-calls B1F_SpriteOamWriterScroll.
 ;===============================================================================
-.proc Phase2AttackMarkerSprSubmit
+.proc AttackMarkerSprSubmit
 ; zero-page work cells (proc-local):
 path_ptr_lo    = $0000  ; marker path stream ptr lo
 path_ptr_hi    = $0001  ; marker path stream ptr hi
@@ -4965,17 +4965,17 @@ spr_y_hi       = $000D  ; marker sprite Y hi (0)
   STA a:flip_flags                             ; $BF35: 8D 02 00 ; no flip
   JMP B1F_SpriteOamWriterScroll           ; $BF38: 4C 92 F0 ; submit OAM stream
 .endproc
-Phase2AttackMarkerSprites:      ; 2x2 marker, tiles $86/$87/$96/$97 (attr $02)
+AttackMarkerSprites:      ; 2x2 marker, tiles $86/$87/$96/$97 (attr $02)
   .byte $00,$86,$02,$00,$00,$87,$02,$08,$08,$96,$02,$00,$08,$97,$02,$08; $BF3B: 00 86 02 00 00 87 02 08 08 96 02 00 08 97 02 08
   .byte $80                               ; $BF4B: 80 ; stream terminator
 ;===============================================================================
-; $BF4C: BattleSideStatusCounterDraw
+                                          ; $BF4C: BattleSideStatusCounterDraw
 ; Redraws the four packed per-side status counter bytes $0574-$0577 (two
 ; one-digit counters per byte). For each counter, the high nibble is drawn
 ; in row X=$80 and the low nibble in row X=$70; the per-counter PPU stream
 ; pointer comes from @PerCounterStreamPtrTable (Y = counter index * 2) and
 ; the digit tile base is $D0. Submission goes through $F092 with $00B7=$91.
-; Zero nibbles are skipped. Called every frame by Phase1NextActorSubDispatch.
+; Zero nibbles are skipped. Called every frame by NextActor.
 ;===============================================================================
 .proc BattleSideStatusCounterDraw
 ; zero-page work cells (proc-local):
@@ -5069,7 +5069,7 @@ BattleSideStatusCounterStream3:  ; counter 3, tiles $6D/$6E/$7D/$7E (attr $02)
   .byte $00,$6D,$02,$00,$00,$6E,$02,$08; $C00A: 00 6D 02 00 00 6E 02 08
   .byte $08,$7D,$02,$00,$08,$7E,$02,$08,$80; $C012: 08 7D 02 00 08 7E 02 08 80
 ;===============================================================================
-; $C01B: BattleChrBankAnimate
+                                          ; $C01B: BattleChrBankAnimate
 ; Animates the battle CHR banks once per VBlank. Row index = bits 3-4 of the
 ; frame tick counter $005E (advances every 8 frames); battle phase 3
 ; ($0544) selects the second half of the table. Writes the chosen pair of CHR
@@ -5112,9 +5112,9 @@ BattleChrBankAnimTable:
   .byte $78,$79,$78,$79,$7A,$7B,$7A,$7B,$18,$19,$18,$19,$18,$19,$18,$19; $C054: 78 79 78 79 7A 7B 7A 7B 18 19 18 19 18 19 18 19
 .endproc
 ;===============================================================================
-; $C064: Phase2WalkDirectionResolve
+                                          ; $C064: WalkDirectionResolve
 ; Walk-direction resolver for the phase-2 selection gate, called by
-; Phase2ActionGate @Select ($A5AF) with Y = acting slot $0545. Picks a
+; ActionGate @Select ($A5AF) with Y = acting slot $0545. Picks a
 ; single step direction toward the objective and stores it in $0549
 ; (0=row-/up, 1=row+/down, 2=col-/left, 3=col+/right; $FF = none), after
 ; which the gate encodes $0549 into the column status and starts the cursor
@@ -5126,12 +5126,12 @@ BattleChrBankAnimTable:
 ; (random bit0 tiebreak via B1F_RandomByte), 2 biases to row steps, others
 ; bias to column steps; an already-aligned axis (< 2 tiles apart) switches
 ; to the other one. The preferred axis steps one tile toward the objective
-; when that tile is empty (Phase2StepTileProbe carry) and terrain-passable
+; when that tile is empty (StepTileProbe carry) and terrain-passable
 ; (BattleTerrainPassabilityCheck returns 0); on failure the other axis
 ; gets one retry via the zero-page flag $0012, then $0549 <- $FF (the gate
 ; passes the turn).
 ;===============================================================================
-.proc Phase2WalkDirectionResolve
+.proc WalkDirectionResolve
 ; zero-page work cells (proc-local):
 axis_retry     = $0012  ; axis retry counter
 col_work       = $0010  ; objective column -> signed column delta
@@ -5240,7 +5240,7 @@ row_dist       = $0001  ; row distance
   STA a:col_dist                             ; $C135: 8D 00 00
   LDA #$00                                ; $C138: A9 00
   STA a:row_dist                             ; $C13A: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C13D: 20 CD C1 ; probe left tile
+  JSR StepTileProbe                       ; $C13D: 20 CD C1 ; probe left tile
   BCC @HorizontalRetry                    ; $C140: 90 25 ; occupied: blocked
   JSR BattleTerrainPassabilityCheck       ; $C142: 20 F9 CA ; terrain passability
   BNE @HorizontalRetry                    ; $C145: D0 20 ; impassable terrain
@@ -5252,7 +5252,7 @@ row_dist       = $0001  ; row distance
   STA a:col_dist                             ; $C14F: 8D 00 00
   LDA #$00                                ; $C152: A9 00
   STA a:row_dist                             ; $C154: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C157: 20 CD C1 ; probe right tile
+  JSR StepTileProbe                       ; $C157: 20 CD C1 ; probe right tile
   BCC @HorizontalRetry                    ; $C15A: 90 0B ; occupied: blocked
   JSR BattleTerrainPassabilityCheck       ; $C15C: 20 F9 CA ; terrain passability
   BNE @HorizontalRetry                    ; $C15F: D0 06 ; impassable terrain
@@ -5282,7 +5282,7 @@ row_dist       = $0001  ; row distance
   STA a:col_dist                             ; $C18A: 8D 00 00
   LDA #$FF                                ; $C18D: A9 FF
   STA a:row_dist                             ; $C18F: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C192: 20 CD C1 ; probe upper tile
+  JSR StepTileProbe                       ; $C192: 20 CD C1 ; probe upper tile
   BCC @VerticalRetry                      ; $C195: 90 25 ; occupied: blocked
   JSR BattleTerrainPassabilityCheck       ; $C197: 20 F9 CA ; terrain passability
   BNE @VerticalRetry                      ; $C19A: D0 20 ; impassable terrain
@@ -5294,7 +5294,7 @@ row_dist       = $0001  ; row distance
   STA a:col_dist                             ; $C1A4: 8D 00 00
   LDA #$01                                ; $C1A7: A9 01
   STA a:row_dist                             ; $C1A9: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C1AC: 20 CD C1 ; probe lower tile
+  JSR StepTileProbe                       ; $C1AC: 20 CD C1 ; probe lower tile
   BCC @VerticalRetry                      ; $C1AF: 90 0B ; occupied: blocked
   JSR BattleTerrainPassabilityCheck       ; $C1B1: 20 F9 CA ; terrain passability
   BNE @VerticalRetry                      ; $C1B4: D0 06 ; impassable terrain
@@ -5312,9 +5312,9 @@ row_dist       = $0001  ; row distance
   RTS                                     ; $C1CC: 60
 .endproc
 ;-------------------------------------------------------------------------------
-; $C1CD: Phase2StepTileProbe
-; Step-tile probe shared by the direction resolvers (Phase2WalkDirectionResolve
-; selection gate, Phase2MoveRouteResolve move route, Phase2AttackRouteResolve
+                                                 ; $C1CD: StepTileProbe
+; Step-tile probe shared by the direction resolvers (WalkDirectionResolve
+; selection gate, MoveRouteResolve move route, AttackRouteResolve
 ; attack route and later routines). Applies the step delta
 ; ($0000 = column, $0001 = row,
 ; signed) to the acting slot $0545's position ($0580/$0596), writing the
@@ -5328,7 +5328,7 @@ row_dist       = $0001  ; row distance
 ;   carry clear, A = $00   - occupied by a same-side unit, or out of
 ;                            bounds.
 ;-------------------------------------------------------------------------------
-.proc Phase2StepTileProbe
+.proc StepTileProbe
 ; zero-page work cells (proc-local):
 cand_col       = $0000  ; candidate column (col + delta)
 cand_row       = $0001  ; candidate row (row + delta)
@@ -5368,14 +5368,14 @@ cand_row       = $0001  ; candidate row (row + delta)
   RTS                                     ; $C20E: 60
 .endproc
 ;===============================================================================
-; $C20F: Phase2MoveRouteResolve
-; Move-route direction resolver called from Phase2ActionGate (@MoveRoute) when
+                                          ; $C20F: MoveRouteResolve
+; Move-route direction resolver called from ActionGate (@MoveRoute) when
 ; the acting unit's command takes the move path. Probes the four orthogonal
-; neighbours of acting slot $0545 via Phase2StepTileProbe looking for an
+; neighbours of acting slot $0545 via StepTileProbe looking for an
 ; adjacent enemy unit, in randomized axis order (bit 0 of B1F_RandomByte) and
 ; randomized side order per axis (sign bit). An enemy hit commits: direction
 ; code (0 = up, 1 = down, 2 = left, 3 = right) <- $0549, enemy slot <- $054A
-; (becomes Phase2MoveCommit's damage target). Empty or same-side tiles bounce
+; (becomes MoveCommit's damage target). Empty or same-side tiles bounce
 ; off the zero-page probe counter $0010: retry value 3 gives up with
 ; $0549 <- $FF (all four neighbours blocked; the caller drops to the
 ; selection gate), value 1 switches to the other axis (both sides of the
@@ -5383,7 +5383,7 @@ cand_row       = $0001  ; candidate row (row + delta)
 ; alongside $0010 but unused here. Every neighbour is probed at most once, so
 ; the retry chain always terminates within four probes.
 ;===============================================================================
-.proc Phase2MoveRouteResolve
+.proc MoveRouteResolve
 ; zero-page work cells (proc-local):
 probe_ctr      = $0010  ; probe loop counter
 probe_spare    = $0011  ; spare (cleared, unused)
@@ -5405,7 +5405,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C22A: 8D 00 00
   LDA #$00                                ; $C22D: A9 00
   STA a:cand_row                             ; $C22F: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C232: 20 CD C1 ; probe left tile
+  JSR StepTileProbe                       ; $C232: 20 CD C1 ; probe left tile
   BCS @LeftRetry                          ; $C235: B0 0C ; empty: blocked
   TAY                                     ; $C237: A8
   BEQ @LeftRetry                          ; $C238: F0 09 ; same side: blocked
@@ -5433,7 +5433,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C262: 8D 00 00
   LDA #$00                                ; $C265: A9 00
   STA a:cand_row                             ; $C267: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C26A: 20 CD C1 ; probe right tile
+  JSR StepTileProbe                       ; $C26A: 20 CD C1 ; probe right tile
   BCS @RightRetry                         ; $C26D: B0 0C ; empty: blocked
   TAY                                     ; $C26F: A8
   BEQ @RightRetry                         ; $C270: F0 09 ; same side: blocked
@@ -5465,7 +5465,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C2A1: 8D 00 00
   LDA #$FF                                ; $C2A4: A9 FF
   STA a:cand_row                             ; $C2A6: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C2A9: 20 CD C1 ; probe upper tile
+  JSR StepTileProbe                       ; $C2A9: 20 CD C1 ; probe upper tile
   BCS @UpRetry                            ; $C2AC: B0 0C ; empty: blocked
   TAY                                     ; $C2AE: A8
   BEQ @UpRetry                            ; $C2AF: F0 09 ; same side: blocked
@@ -5493,7 +5493,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C2D9: 8D 00 00
   LDA #$01                                ; $C2DC: A9 01
   STA a:cand_row                             ; $C2DE: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C2E1: 20 CD C1 ; probe lower tile
+  JSR StepTileProbe                       ; $C2E1: 20 CD C1 ; probe lower tile
   BCS @DownRetry                          ; $C2E4: B0 0C ; empty: blocked
   TAY                                     ; $C2E6: A8
   BEQ @DownRetry                          ; $C2E7: F0 09 ; same side: blocked
@@ -5518,29 +5518,29 @@ cand_row       = $0001  ; candidate row argument
   JMP @ProbeUp                            ; $C30C: 4C 9F C2 ; try the other side
 .endproc
 ;===============================================================================
-; $C30F: Phase2AttackRouteResolve
-; Attack-route resolver called from Phase2ActionGate ($A536) when the cursor
+                                          ; $C30F: AttackRouteResolve
+; Attack-route resolver called from ActionGate ($A536) when the cursor
 ; column's action bits == 2. Scans outward along one orthogonal axis from
 ; the acting slot $0545 looking for an enemy column to shoot at. Axis order
 ; (bit 0 of B1F_RandomByte) and side per axis (sign bit) are randomized.
 ; Each side walks tiles 1-6 away in order, testing every tile with
-; Phase2ArrowPathTileCheck (bounds + terrain; blocking terrain aborts the
-; side) and Phase2StepTileProbe: an enemy at distance 1 aborts the side
+; ArrowPathTileCheck (bounds + terrain; blocking terrain aborts the
+; side) and StepTileProbe: an enemy at distance 1 aborts the side
 ; (point-blank combat is the move route's job), empty and same-side tiles
 ; are shot over, and the first enemy column commits: target column <- $054D,
 ; arrow flight counter $0548 <- $1C/$2C/$3C/$4C/$5C for distances 2-6
-; (Phase2AttackArrowAnim decrements it by 2 per frame), direction $0549 <-
+; (AttackArrowAnim decrements it by 2 per frame), direction $0549 <-
 ; 0 up / 1 down / 2 left / 3 right. Distances 5-6 additionally require the
-; acting side's nibble of $0575 (loaded to 3 by Phase8RowCrossbowVolley, ticked
+; acting side's nibble of $0575 (loaded to 3 by BattleTacticsRowCrossbowVolley, ticked
 ; down by BattleSideStatusCountersDecrement) to be non-zero.
 ; Side failures dispatch through the probe counter $0010 like
-; Phase2MoveRouteResolve: 3 = give up ($0549 <- $FF, the gate falls back to
+; MoveRouteResolve: 3 = give up ($0549 <- $FF, the gate falls back to
 ; the move route), 1 = switch axis, otherwise flip side - except @LeftFail
 ; re-enters itself, so a fresh failure on the left side double-increments
 ; and switches axis without probing the right side. $0011 is cleared
 ; alongside $0010 but unused here.
 ;===============================================================================
-.proc Phase2AttackRouteResolve
+.proc AttackRouteResolve
 ; zero-page work cells (proc-local):
 probe_ctr      = $0010  ; probe loop counter
 probe_spare    = $0011  ; spare (cleared, unused)
@@ -5563,7 +5563,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C32D: 8D 00 00
   LDA #$00                                ; $C330: A9 00
   STA a:cand_row                             ; $C332: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C335: 20 C8 CA ; range-1 terrain
+  JSR ArrowPathTileCheck                  ; $C335: 20 C8 CA ; range-1 terrain
   TAY                                     ; $C338: A8
   BEQ @LeftAdjProbe                       ; $C339: F0 03 ; passable
   JMP @LeftFail                           ; $C33B: 4C 4C C4 ; blocked terrain
@@ -5572,7 +5572,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C340: 8D 00 00
   LDA #$00                                ; $C343: A9 00
   STA a:cand_row                             ; $C345: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C348: 20 CD C1 ; probe adjacent tile
+  JSR StepTileProbe                       ; $C348: 20 CD C1 ; probe adjacent tile
   BCS @LeftRange2Terrain                  ; $C34B: B0 06 ; empty: keep scanning
   TAY                                     ; $C34D: A8
   BEQ @LeftRange2Terrain                  ; $C34E: F0 03 ; ally: shoot over
@@ -5582,7 +5582,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C355: 8D 00 00
   LDA #$00                                ; $C358: A9 00
   STA a:cand_row                             ; $C35A: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C35D: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C35D: 20 C8 CA
   TAY                                     ; $C360: A8
   BEQ @LeftRange2Probe                    ; $C361: F0 03
   JMP @LeftFail                           ; $C363: 4C 4C C4
@@ -5591,7 +5591,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C368: 8D 00 00
   LDA #$00                                ; $C36B: A9 00
   STA a:cand_row                             ; $C36D: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C370: 20 CD C1
+  JSR StepTileProbe                       ; $C370: 20 CD C1
   BCS @LeftRange3Terrain                  ; $C373: B0 08 ; empty: keep scanning
   TAY                                     ; $C375: A8
   BEQ @LeftRange3Terrain                  ; $C376: F0 05 ; ally: shoot over
@@ -5602,7 +5602,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C37F: 8D 00 00
   LDA #$00                                ; $C382: A9 00
   STA a:cand_row                             ; $C384: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C387: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C387: 20 C8 CA
   TAY                                     ; $C38A: A8
   BEQ @LeftRange3Probe                    ; $C38B: F0 03
   JMP @LeftFail                           ; $C38D: 4C 4C C4
@@ -5611,7 +5611,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C392: 8D 00 00
   LDA #$00                                ; $C395: A9 00
   STA a:cand_row                             ; $C397: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C39A: 20 CD C1
+  JSR StepTileProbe                       ; $C39A: 20 CD C1
   BCS @LeftRange4Terrain                  ; $C39D: B0 08 ; empty: keep scanning
   TAY                                     ; $C39F: A8
   BEQ @LeftRange4Terrain                  ; $C3A0: F0 05 ; ally: shoot over
@@ -5622,7 +5622,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C3A9: 8D 00 00
   LDA #$00                                ; $C3AC: A9 00
   STA a:cand_row                             ; $C3AE: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C3B1: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C3B1: 20 C8 CA
   TAY                                     ; $C3B4: A8
   BEQ @LeftRange4Probe                    ; $C3B5: F0 03
   JMP @LeftFail                           ; $C3B7: 4C 4C C4
@@ -5631,7 +5631,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C3BC: 8D 00 00
   LDA #$00                                ; $C3BF: A9 00
   STA a:cand_row                             ; $C3C1: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C3C4: 20 CD C1
+  JSR StepTileProbe                       ; $C3C4: 20 CD C1
   BCS @LeftRangeGate                      ; $C3C7: B0 08 ; empty: keep scanning
   TAY                                     ; $C3C9: A8
   BEQ @LeftRangeGate                      ; $C3CA: F0 05 ; ally: shoot over
@@ -5655,7 +5655,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C3EE: 8D 00 00
   LDA #$00                                ; $C3F1: A9 00
   STA a:cand_row                             ; $C3F3: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C3F6: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C3F6: 20 C8 CA
   TAY                                     ; $C3F9: A8
   BEQ @LeftRange5Probe                    ; $C3FA: F0 03
   JMP @LeftFail                           ; $C3FC: 4C 4C C4
@@ -5664,7 +5664,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C401: 8D 00 00
   LDA #$00                                ; $C404: A9 00
   STA a:cand_row                             ; $C406: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C409: 20 CD C1
+  JSR StepTileProbe                       ; $C409: 20 CD C1
   BCS @LeftRange6Terrain                  ; $C40C: B0 08 ; empty: keep scanning
   TAY                                     ; $C40E: A8
   BEQ @LeftRange6Terrain                  ; $C40F: F0 05 ; ally: shoot over
@@ -5675,7 +5675,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C418: 8D 00 00
   LDA #$00                                ; $C41B: A9 00
   STA a:cand_row                             ; $C41D: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C420: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C420: 20 C8 CA
   TAY                                     ; $C423: A8
   BEQ @LeftRange6Probe                    ; $C424: F0 03
   JMP @LeftFail                           ; $C426: 4C 4C C4
@@ -5684,7 +5684,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C42B: 8D 00 00
   LDA #$00                                ; $C42E: A9 00
   STA a:cand_row                             ; $C430: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C433: 20 CD C1
+  JSR StepTileProbe                       ; $C433: 20 CD C1
   BCS @LeftFail                           ; $C436: B0 14 ; empty: out of range
   TAY                                     ; $C438: A8
   BEQ @LeftFail                           ; $C439: F0 11 ; ally: out of range
@@ -5716,7 +5716,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C46B: 8D 00 00
   LDA #$00                                ; $C46E: A9 00
   STA a:cand_row                             ; $C470: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C473: 20 C8 CA ; range-1 terrain
+  JSR ArrowPathTileCheck                  ; $C473: 20 C8 CA ; range-1 terrain
   TAY                                     ; $C476: A8
   BEQ @RightAdjProbe                      ; $C477: F0 03 ; passable
   JMP @RightFail                          ; $C479: 4C 87 C5 ; blocked terrain
@@ -5725,7 +5725,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C47E: 8D 00 00
   LDA #$00                                ; $C481: A9 00
   STA a:cand_row                             ; $C483: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C486: 20 CD C1 ; probe adjacent tile
+  JSR StepTileProbe                       ; $C486: 20 CD C1 ; probe adjacent tile
   BCS @RightRange2Terrain                 ; $C489: B0 06 ; empty: keep scanning
   TAY                                     ; $C48B: A8
   BEQ @RightRange2Terrain                 ; $C48C: F0 03 ; ally: shoot over
@@ -5735,7 +5735,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C493: 8D 00 00
   LDA #$00                                ; $C496: A9 00
   STA a:cand_row                             ; $C498: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C49B: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C49B: 20 C8 CA
   TAY                                     ; $C49E: A8
   BEQ @RightRange2Probe                   ; $C49F: F0 03
   JMP @RightFail                          ; $C4A1: 4C 87 C5
@@ -5744,7 +5744,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C4A6: 8D 00 00
   LDA #$00                                ; $C4A9: A9 00
   STA a:cand_row                             ; $C4AB: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C4AE: 20 CD C1
+  JSR StepTileProbe                       ; $C4AE: 20 CD C1
   BCS @RightRange3Terrain                 ; $C4B1: B0 08 ; empty: keep scanning
   TAY                                     ; $C4B3: A8
   BEQ @RightRange3Terrain                 ; $C4B4: F0 05 ; ally: shoot over
@@ -5755,7 +5755,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C4BD: 8D 00 00
   LDA #$00                                ; $C4C0: A9 00
   STA a:cand_row                             ; $C4C2: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C4C5: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C4C5: 20 C8 CA
   TAY                                     ; $C4C8: A8
   BEQ @RightRange3Probe                   ; $C4C9: F0 03
   JMP @RightFail                          ; $C4CB: 4C 87 C5
@@ -5764,7 +5764,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C4D0: 8D 00 00
   LDA #$00                                ; $C4D3: A9 00
   STA a:cand_row                             ; $C4D5: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C4D8: 20 CD C1
+  JSR StepTileProbe                       ; $C4D8: 20 CD C1
   BCS @RightRange4Terrain                 ; $C4DB: B0 08 ; empty: keep scanning
   TAY                                     ; $C4DD: A8
   BEQ @RightRange4Terrain                 ; $C4DE: F0 05 ; ally: shoot over
@@ -5775,7 +5775,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C4E7: 8D 00 00
   LDA #$00                                ; $C4EA: A9 00
   STA a:cand_row                             ; $C4EC: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C4EF: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C4EF: 20 C8 CA
   TAY                                     ; $C4F2: A8
   BEQ @RightRange4Probe                   ; $C4F3: F0 03
   JMP @RightFail                          ; $C4F5: 4C 87 C5
@@ -5784,7 +5784,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C4FA: 8D 00 00
   LDA #$00                                ; $C4FD: A9 00
   STA a:cand_row                             ; $C4FF: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C502: 20 CD C1
+  JSR StepTileProbe                       ; $C502: 20 CD C1
   BCS @RightRangeGate                     ; $C505: B0 08 ; empty: keep scanning
   TAY                                     ; $C507: A8
   BEQ @RightRangeGate                     ; $C508: F0 05 ; ally: shoot over
@@ -5808,7 +5808,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C52C: 8D 00 00
   LDA #$00                                ; $C52F: A9 00
   STA a:cand_row                             ; $C531: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C534: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C534: 20 C8 CA
   TAY                                     ; $C537: A8
   BEQ @RightRange5Probe                   ; $C538: F0 03
   JMP @RightFail                          ; $C53A: 4C 87 C5
@@ -5817,7 +5817,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C53F: 8D 00 00
   LDA #$00                                ; $C542: A9 00
   STA a:cand_row                             ; $C544: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C547: 20 CD C1
+  JSR StepTileProbe                       ; $C547: 20 CD C1
   BCS @RightRange6Terrain                 ; $C54A: B0 08 ; empty: keep scanning
   TAY                                     ; $C54C: A8
   BEQ @RightRange6Terrain                 ; $C54D: F0 05 ; ally: shoot over
@@ -5828,7 +5828,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C556: 8D 00 00
   LDA #$00                                ; $C559: A9 00
   STA a:cand_row                             ; $C55B: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C55E: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C55E: 20 C8 CA
   TAY                                     ; $C561: A8
   BEQ @RightRange6Probe                   ; $C562: F0 03
   JMP @RightFail                          ; $C564: 4C 87 C5
@@ -5837,7 +5837,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C569: 8D 00 00
   LDA #$00                                ; $C56C: A9 00
   STA a:cand_row                             ; $C56E: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C571: 20 CD C1
+  JSR StepTileProbe                       ; $C571: 20 CD C1
   BCS @RightFail                          ; $C574: B0 11 ; empty: out of range
   TAY                                     ; $C576: A8
   BEQ @RightFail                          ; $C577: F0 0E ; ally: out of range
@@ -5873,7 +5873,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C5B0: 8D 00 00
   LDA #$FF                                ; $C5B3: A9 FF
   STA a:cand_row                             ; $C5B5: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C5B8: 20 C8 CA ; range-1 terrain
+  JSR ArrowPathTileCheck                  ; $C5B8: 20 C8 CA ; range-1 terrain
   TAY                                     ; $C5BB: A8
   BEQ @UpAdjProbe                         ; $C5BC: F0 03 ; passable
   JMP @UpFail                             ; $C5BE: 4C CF C6 ; blocked terrain
@@ -5882,7 +5882,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C5C3: 8D 00 00
   LDA #$FF                                ; $C5C6: A9 FF
   STA a:cand_row                             ; $C5C8: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C5CB: 20 CD C1 ; probe adjacent tile
+  JSR StepTileProbe                       ; $C5CB: 20 CD C1 ; probe adjacent tile
   BCS @UpRange2Terrain                    ; $C5CE: B0 06 ; empty: keep scanning
   TAY                                     ; $C5D0: A8
   BEQ @UpRange2Terrain                    ; $C5D1: F0 03 ; ally: shoot over
@@ -5892,7 +5892,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C5D8: 8D 00 00
   LDA #$FE                                ; $C5DB: A9 FE
   STA a:cand_row                             ; $C5DD: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C5E0: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C5E0: 20 C8 CA
   TAY                                     ; $C5E3: A8
   BEQ @UpRange2Probe                      ; $C5E4: F0 03
   JMP @UpFail                             ; $C5E6: 4C CF C6
@@ -5901,7 +5901,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C5EB: 8D 00 00
   LDA #$FE                                ; $C5EE: A9 FE
   STA a:cand_row                             ; $C5F0: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C5F3: 20 CD C1
+  JSR StepTileProbe                       ; $C5F3: 20 CD C1
   BCS @UpRange3Terrain                    ; $C5F6: B0 08 ; empty: keep scanning
   TAY                                     ; $C5F8: A8
   BEQ @UpRange3Terrain                    ; $C5F9: F0 05 ; ally: shoot over
@@ -5912,7 +5912,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C602: 8D 00 00
   LDA #$FD                                ; $C605: A9 FD
   STA a:cand_row                             ; $C607: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C60A: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C60A: 20 C8 CA
   TAY                                     ; $C60D: A8
   BEQ @UpRange3Probe                      ; $C60E: F0 03
   JMP @UpFail                             ; $C610: 4C CF C6
@@ -5921,7 +5921,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C615: 8D 00 00
   LDA #$FD                                ; $C618: A9 FD
   STA a:cand_row                             ; $C61A: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C61D: 20 CD C1
+  JSR StepTileProbe                       ; $C61D: 20 CD C1
   BCS @UpRange4Terrain                    ; $C620: B0 08 ; empty: keep scanning
   TAY                                     ; $C622: A8
   BEQ @UpRange4Terrain                    ; $C623: F0 05 ; ally: shoot over
@@ -5932,7 +5932,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C62C: 8D 00 00
   LDA #$FC                                ; $C62F: A9 FC
   STA a:cand_row                             ; $C631: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C634: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C634: 20 C8 CA
   TAY                                     ; $C637: A8
   BEQ @UpRange4Probe                      ; $C638: F0 03
   JMP @UpFail                             ; $C63A: 4C CF C6
@@ -5941,7 +5941,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C63F: 8D 00 00
   LDA #$FC                                ; $C642: A9 FC
   STA a:cand_row                             ; $C644: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C647: 20 CD C1
+  JSR StepTileProbe                       ; $C647: 20 CD C1
   BCS @UpRangeGate                        ; $C64A: B0 08 ; empty: keep scanning
   TAY                                     ; $C64C: A8
   BEQ @UpRangeGate                        ; $C64D: F0 05 ; ally: shoot over
@@ -5965,7 +5965,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C671: 8D 00 00
   LDA #$FB                                ; $C674: A9 FB
   STA a:cand_row                             ; $C676: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C679: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C679: 20 C8 CA
   TAY                                     ; $C67C: A8
   BEQ @UpRange5Probe                      ; $C67D: F0 03
   JMP @UpFail                             ; $C67F: 4C CF C6
@@ -5974,7 +5974,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C684: 8D 00 00
   LDA #$FB                                ; $C687: A9 FB
   STA a:cand_row                             ; $C689: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C68C: 20 CD C1
+  JSR StepTileProbe                       ; $C68C: 20 CD C1
   BCS @UpRange6Terrain                    ; $C68F: B0 08 ; empty: keep scanning
   TAY                                     ; $C691: A8
   BEQ @UpRange6Terrain                    ; $C692: F0 05 ; ally: shoot over
@@ -5985,7 +5985,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C69B: 8D 00 00
   LDA #$FA                                ; $C69E: A9 FA
   STA a:cand_row                             ; $C6A0: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C6A3: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C6A3: 20 C8 CA
   TAY                                     ; $C6A6: A8
   BEQ @UpRange6Probe                      ; $C6A7: F0 03
   JMP @UpFail                             ; $C6A9: 4C CF C6
@@ -5994,7 +5994,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C6AE: 8D 00 00
   LDA #$FA                                ; $C6B1: A9 FA
   STA a:cand_row                             ; $C6B3: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C6B6: 20 CD C1
+  JSR StepTileProbe                       ; $C6B6: 20 CD C1
   BCS @UpFail                             ; $C6B9: B0 14 ; empty: out of range
   TAY                                     ; $C6BB: A8
   BEQ @UpFail                             ; $C6BC: F0 11 ; ally: out of range
@@ -6026,7 +6026,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C6EE: 8D 00 00
   LDA #$01                                ; $C6F1: A9 01
   STA a:cand_row                             ; $C6F3: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C6F6: 20 C8 CA ; range-1 terrain
+  JSR ArrowPathTileCheck                  ; $C6F6: 20 C8 CA ; range-1 terrain
   TAY                                     ; $C6F9: A8
   BEQ @DownAdjProbe                       ; $C6FA: F0 03 ; passable
   JMP @DownFail                           ; $C6FC: 4C 0A C8 ; blocked terrain
@@ -6035,7 +6035,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C701: 8D 00 00
   LDA #$01                                ; $C704: A9 01
   STA a:cand_row                             ; $C706: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C709: 20 CD C1 ; probe adjacent tile
+  JSR StepTileProbe                       ; $C709: 20 CD C1 ; probe adjacent tile
   BCS @DownRange2Terrain                  ; $C70C: B0 06 ; empty: keep scanning
   TAY                                     ; $C70E: A8
   BEQ @DownRange2Terrain                  ; $C70F: F0 03 ; ally: shoot over
@@ -6045,7 +6045,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C716: 8D 00 00
   LDA #$02                                ; $C719: A9 02
   STA a:cand_row                             ; $C71B: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C71E: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C71E: 20 C8 CA
   TAY                                     ; $C721: A8
   BEQ @DownRange2Probe                    ; $C722: F0 03
   JMP @DownFail                           ; $C724: 4C 0A C8
@@ -6054,7 +6054,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C729: 8D 00 00
   LDA #$02                                ; $C72C: A9 02
   STA a:cand_row                             ; $C72E: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C731: 20 CD C1
+  JSR StepTileProbe                       ; $C731: 20 CD C1
   BCS @DownRange3Terrain                  ; $C734: B0 08 ; empty: keep scanning
   TAY                                     ; $C736: A8
   BEQ @DownRange3Terrain                  ; $C737: F0 05 ; ally: shoot over
@@ -6065,7 +6065,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C740: 8D 00 00
   LDA #$03                                ; $C743: A9 03
   STA a:cand_row                             ; $C745: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C748: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C748: 20 C8 CA
   TAY                                     ; $C74B: A8
   BEQ @DownRange3Probe                    ; $C74C: F0 03
   JMP @DownFail                           ; $C74E: 4C 0A C8
@@ -6074,7 +6074,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C753: 8D 00 00
   LDA #$03                                ; $C756: A9 03
   STA a:cand_row                             ; $C758: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C75B: 20 CD C1
+  JSR StepTileProbe                       ; $C75B: 20 CD C1
   BCS @DownRange4Terrain                  ; $C75E: B0 08 ; empty: keep scanning
   TAY                                     ; $C760: A8
   BEQ @DownRange4Terrain                  ; $C761: F0 05 ; ally: shoot over
@@ -6085,7 +6085,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C76A: 8D 00 00
   LDA #$04                                ; $C76D: A9 04
   STA a:cand_row                             ; $C76F: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C772: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C772: 20 C8 CA
   TAY                                     ; $C775: A8
   BEQ @DownRange4Probe                    ; $C776: F0 03
   JMP @DownFail                           ; $C778: 4C 0A C8
@@ -6094,7 +6094,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C77D: 8D 00 00
   LDA #$04                                ; $C780: A9 04
   STA a:cand_row                             ; $C782: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C785: 20 CD C1
+  JSR StepTileProbe                       ; $C785: 20 CD C1
   BCS @DownRangeGate                      ; $C788: B0 08 ; empty: keep scanning
   TAY                                     ; $C78A: A8
   BEQ @DownRangeGate                      ; $C78B: F0 05 ; ally: shoot over
@@ -6118,7 +6118,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C7AF: 8D 00 00
   LDA #$05                                ; $C7B2: A9 05
   STA a:cand_row                             ; $C7B4: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C7B7: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C7B7: 20 C8 CA
   TAY                                     ; $C7BA: A8
   BEQ @DownRange5Probe                    ; $C7BB: F0 03
   JMP @DownFail                           ; $C7BD: 4C 0A C8
@@ -6127,7 +6127,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C7C2: 8D 00 00
   LDA #$05                                ; $C7C5: A9 05
   STA a:cand_row                             ; $C7C7: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C7CA: 20 CD C1
+  JSR StepTileProbe                       ; $C7CA: 20 CD C1
   BCS @DownRange6Terrain                  ; $C7CD: B0 08 ; empty: keep scanning
   TAY                                     ; $C7CF: A8
   BEQ @DownRange6Terrain                  ; $C7D0: F0 05 ; ally: shoot over
@@ -6138,7 +6138,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C7D9: 8D 00 00
   LDA #$06                                ; $C7DC: A9 06
   STA a:cand_row                             ; $C7DE: 8D 01 00
-  JSR Phase2ArrowPathTileCheck            ; $C7E1: 20 C8 CA
+  JSR ArrowPathTileCheck                  ; $C7E1: 20 C8 CA
   TAY                                     ; $C7E4: A8
   BEQ @DownRange6Probe                    ; $C7E5: F0 03
   JMP @DownFail                           ; $C7E7: 4C 0A C8
@@ -6147,7 +6147,7 @@ cand_row       = $0001  ; candidate row argument
   STA a:cand_col                             ; $C7EC: 8D 00 00
   LDA #$06                                ; $C7EF: A9 06
   STA a:cand_row                             ; $C7F1: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $C7F4: 20 CD C1
+  JSR StepTileProbe                       ; $C7F4: 20 CD C1
   BCS @DownFail                           ; $C7F7: B0 11 ; empty: out of range
   TAY                                     ; $C7F9: A8
   BEQ @DownFail                           ; $C7FA: F0 0E ; ally: out of range
@@ -6175,7 +6175,7 @@ cand_row       = $0001  ; candidate row argument
   JMP @UpAdjTerrain                       ; $C824: 4C AE C5 ; try the other side
 .endproc
 ;-------------------------------------------------------------------------------
-; $C827: BattleSlotSideCompare
+                                          ; $C827: BattleSlotSideCompare
 ; Side-relation compare for roster slots: A = actor slot, X = other slot.
 ; Slots 0-$0A belong to side A, $0B-$15 to side B. Returns A = 1 when the
 ; two slots sit on opposing sides, A = 0 when on the same side.
@@ -6196,19 +6196,19 @@ cand_row       = $0001  ; candidate row argument
   RTS                                     ; $C838: 60
 .endproc
 ;===============================================================================
-; $C839: Phase3CommandMarkerRender
+                                              ; $C839: CommandMarkerRender
 ; Draws the phase-3 command-menu value marker: a 4x2-tile command icon for
 ; action slot value $0001 (0-4) at the PPU position of menu step $0000
 ; (0-3). Builds a two-segment, FF-terminated VRAM script in the $0380
 ; buffer: segment 1 = icon top row (4 tiles + blank $01) at
-; Phase3CommandMarkerAddrTable[2*step] (nametable page $22/$23, panel row
+; CommandMarkerAddrTable[2*step] (nametable page $22/$23, panel row
 ; 20+2*step, column 20), segment 2 = icon bottom row at
-; Phase3CommandMarkerAddrTable[2*step+1] ORA #$04 (page + $0400, row
+; CommandMarkerAddrTable[2*step+1] ORA #$04 (page + $0400, row
 ; 21+2*step). Raises $007E bit 2 so the NMI sub-dispatch banked-jumps to
 ; B1D_1E_VRAMBufferWrite, which streams the script to the PPU; sets script
-; param $00BB <- $77. Called by Phase3CommandMarkerUpdate.
+; param $00BB <- $77. Called by CommandMarkerUpdate.
 ;===============================================================================
-.proc Phase3CommandMarkerRender
+.proc CommandMarkerRender
 ; zero-page work cells (proc-local):
 menu_step      = $0000  ; menu step value ($0548 copy)
 slot_value     = $0001  ; action slot value (*5 for table)
@@ -6216,13 +6216,13 @@ slot_value     = $0001  ; action slot value (*5 for table)
   ASL                                     ; $C83C: 0A ; step * 4
   ASL                                     ; $C83D: 0A ; (word pair index)
   TAY                                     ; $C83E: A8
-  LDA Phase3CommandMarkerAddrTable+1,Y    ; $C83F: B9 BC C8 ; seg 1 addr hi
+  LDA CommandMarkerAddrTable+1,Y          ; $C83F: B9 BC C8 ; seg 1 addr hi
   STA vram_script_buf+$01                               ; $C842: 8D 81 03
-  LDA Phase3CommandMarkerAddrTable,Y      ; $C845: B9 BB C8 ; seg 1 addr lo
+  LDA CommandMarkerAddrTable,Y            ; $C845: B9 BB C8 ; seg 1 addr lo
   STA vram_script_buf+$02                               ; $C848: 8D 82 03
-  LDA Phase3CommandMarkerAddrTable+3,Y    ; $C84B: B9 BE C8 ; seg 2 addr hi
+  LDA CommandMarkerAddrTable+3,Y          ; $C84B: B9 BE C8 ; seg 2 addr hi
   STA vram_script_buf+$09                               ; $C84E: 8D 89 03
-  LDA Phase3CommandMarkerAddrTable+2,Y    ; $C851: B9 BD C8 ; seg 2 addr lo
+  LDA CommandMarkerAddrTable+2,Y          ; $C851: B9 BD C8 ; seg 2 addr lo
   STA vram_script_buf+$0A                               ; $C854: 8D 8A 03
   LDA a:slot_value                             ; $C857: AD 01 00 ; action slot value
   ASL                                     ; $C85A: 0A ; value * 10
@@ -6231,25 +6231,25 @@ slot_value     = $0001  ; action slot value (*5 for table)
   ADC a:slot_value                             ; $C85D: 6D 01 00 ; * 5
   ASL                                     ; $C860: 0A ; * 10
   TAY                                     ; $C861: A8
-  LDA Phase3CommandMarkerTiles,Y          ; $C862: B9 CB C8 ; icon top tile 0
+  LDA CommandMarkerTiles,Y                ; $C862: B9 CB C8 ; icon top tile 0
   STA vram_script_buf+$03                               ; $C865: 8D 83 03
-  LDA Phase3CommandMarkerTiles+1,Y        ; $C868: B9 CC C8 ; top tile 1
+  LDA CommandMarkerTiles+1,Y              ; $C868: B9 CC C8 ; top tile 1
   STA vram_script_buf+$04                               ; $C86B: 8D 84 03
-  LDA Phase3CommandMarkerTiles+2,Y        ; $C86E: B9 CD C8 ; top tile 2
+  LDA CommandMarkerTiles+2,Y              ; $C86E: B9 CD C8 ; top tile 2
   STA vram_script_buf+$05                               ; $C871: 8D 85 03
-  LDA Phase3CommandMarkerTiles+3,Y        ; $C874: B9 CE C8 ; top tile 3
+  LDA CommandMarkerTiles+3,Y              ; $C874: B9 CE C8 ; top tile 3
   STA vram_script_buf+$06                               ; $C877: 8D 86 03
-  LDA Phase3CommandMarkerTiles+4,Y        ; $C87A: B9 CF C8 ; blank tail
+  LDA CommandMarkerTiles+4,Y              ; $C87A: B9 CF C8 ; blank tail
   STA vram_script_buf+$07                               ; $C87D: 8D 87 03
-  LDA Phase3CommandMarkerTiles+5,Y        ; $C880: B9 D0 C8 ; icon bottom tile 0
+  LDA CommandMarkerTiles+5,Y              ; $C880: B9 D0 C8 ; icon bottom tile 0
   STA vram_script_buf+$0B                               ; $C883: 8D 8B 03
-  LDA Phase3CommandMarkerTiles+6,Y        ; $C886: B9 D1 C8 ; bottom tile 1
+  LDA CommandMarkerTiles+6,Y              ; $C886: B9 D1 C8 ; bottom tile 1
   STA vram_script_buf+$0C                               ; $C889: 8D 8C 03
-  LDA Phase3CommandMarkerTiles+7,Y        ; $C88C: B9 D2 C8 ; bottom tile 2
+  LDA CommandMarkerTiles+7,Y              ; $C88C: B9 D2 C8 ; bottom tile 2
   STA vram_script_buf+$0D                               ; $C88F: 8D 8D 03
-  LDA Phase3CommandMarkerTiles+8,Y        ; $C892: B9 D3 C8 ; bottom tile 3
+  LDA CommandMarkerTiles+8,Y              ; $C892: B9 D3 C8 ; bottom tile 3
   STA vram_script_buf+$0E                               ; $C895: 8D 8E 03
-  LDA Phase3CommandMarkerTiles+9,Y        ; $C898: B9 D4 C8 ; blank tail
+  LDA CommandMarkerTiles+9,Y              ; $C898: B9 D4 C8 ; blank tail
   STA vram_script_buf+$0F                               ; $C89B: 8D 8F 03
   LDA #$05                                ; $C89E: A9 05
   STA vram_script_buf                               ; $C8A0: 8D 80 03 ; seg 1 length: 5 tiles
@@ -6265,14 +6265,14 @@ slot_value     = $0001  ; action slot value (*5 for table)
   RTS                                     ; $C8BA: 60
 .endproc
 ;===============================================================================
-; $C8BB: Phase3CommandMarkerAddrTable
+                                          ; $C8BB: CommandMarkerAddrTable
 ; PPU addresses of the command-menu value marker, two words per menu step:
 ; word 2*s = segment 1 (icon top row, nametable page $22/$23), word 2*s+1
 ; = segment 2 base (icon bottom row; the render ORs $04 into the high
 ; byte). Row 20+2*s, column 20 -> step 0 $2294/$22B4, step 1 $22D4/$22F4,
 ; step 2 $2314/$2334, step 3 $2354/$2374.
 ;===============================================================================
-Phase3CommandMarkerAddrTable:
+CommandMarkerAddrTable:
   .word $2294                             ; $C8BB: 94 22 ; step 0, seg 1 (top row)
   .word $22B4                             ; $C8BD: B4 22 ; step 0, seg 2 (bottom row)
   .word $22D4                             ; $C8BF: D4 22 ; step 1, seg 1
@@ -6282,20 +6282,20 @@ Phase3CommandMarkerAddrTable:
   .word $2354                             ; $C8C7: 54 23 ; step 3, seg 1
   .word $2374                             ; $C8C9: 74 23 ; step 3, seg 2
 ;===============================================================================
-; $C8CB: Phase3CommandMarkerTiles
+                                                ; $C8CB: CommandMarkerTiles
 ; Command icon tiles per action slot value (5 rows of 10 bytes, row index =
 ; slot value): bytes 0-3 = icon top row, byte 4 = blank tile $01, bytes 5-8
 ; = icon bottom row, byte 9 = blank tile $01. Each icon is two 2x2-tile
 ; blocks side by side; tile ids are not monotonic across values.
 ;===============================================================================
-Phase3CommandMarkerTiles:
+CommandMarkerTiles:
   .byte $40,$41,$42,$43,$01,$50,$51,$52,$53,$01 ; $C8CB: 40 41 42 43 01 50 51 52 53 01 ; value 0
   .byte $60,$61,$62,$63,$01,$70,$71,$72,$73,$01 ; $C8D5: 60 61 62 63 01 70 71 72 73 01 ; value 1
   .byte $64,$65,$66,$67,$01,$74,$75,$68,$69,$01 ; $C8DF: 64 65 66 67 01 74 75 68 69 01 ; value 2
   .byte $48,$49,$4A,$4B,$01,$58,$59,$5A,$5B,$01 ; $C8E9: 48 49 4A 4B 01 58 59 5A 5B 01 ; value 3
   .byte $44,$45,$46,$47,$01,$54,$55,$56,$57,$01 ; $C8F3: 44 45 46 47 01 54 55 56 57 01 ; value 4
 ;===============================================================================
-; $C8FD: FormationConfirmPromptDraw
+                                               ; $C8FD: FormationConfirmPromptDraw
 ; Draws the blinking "press A" confirmation prompt sprite (tile $04) at OAM
 ; base Y=$D8/X=$A0 via B1F_SpriteOamWriterSimple, gated by frame counter
 ; $005E bit 4 (visible 16 frames, hidden 16 frames). On the hidden half the
@@ -6338,20 +6338,20 @@ FormationConfirmPromptSprite:
   .byte $00,$00,$80                       ; $C923: attr 0, x_off 0, terminator
 .endproc
 ;===============================================================================
-; $C926: BattleSideCombatStatsInit
+                                                    ; $C926: BattleSideCombatStatsInit
 ; Pre-battle combat-parameter setup for both sides, from the commanders'
 ; officer records (B1F_GetOfficerRecordAddr on $0560/$0561). Runs once, from
 ; BattleOverlayIntroSkipCheck ($A0CF) after an intro skip; sole initializer
 ; of these battle-RAM outputs (later writers are mid-battle reload latches):
 ;   - Attack value -> $056A/$056B (mirrored to $04C1/$04C2): record[1]
 ;     scaled by a 45-70% tier plus a 1..9 roll (see BattleAttackValueRoll);
-;     consumed as the base damage by Phase2AttackDamageCompute;
+;     consumed as the base damage by AttackDamageCompute;
 ;   - Edge-column attack bonus -> $0570/$0571: BattleEdgeBonusLowTable
 ;     [record[$0A] & $1F], added at cursor column 0 (side A) / $0B (side B);
 ;   - Edge-column defense -> $056E/$056F: BattleEdgeDefenseHighTable
 ;     [record[$0A] >> 5], subtracted from half the damage at those columns;
 ;   - Tactic point budget -> $0572/$0573: record[2] * 13 / 100, spent by the
-;     phase-8 point-spend panel (indexed by acting side $0549).
+;     phase-8 battle tactics menu (indexed by acting side $0549).
 ; BattleAttackValueRoll clobbers zp $00/$01, so the record pointer is
 ; re-fetched before each record[2] read below.
 ;===============================================================================
@@ -6405,7 +6405,7 @@ product_hi     = $0007  ; product byte 1
   STA btl_point_budget_b                               ; $C98D: 8D 73 05
   RTS                                     ; $C990: 60
 ;-------------------------------------------------------------------------------
-; $C991: BattleAttackValueRoll - side attack roll from the officer record at
+                                          ; $C991: BattleAttackValueRoll - side attack roll from the officer record at
 ; ($00). Returns A = record[1] * tier% / 100 + 9 - rand(0..8), floored at 1,
 ; with tier% = 45/50/55/60/65/70 for record[1] < $32/$41/$50/$57/$5C/else;
 ; Y = BattleEdgeBonusLowTable[record[$0A] & $1F] (edge-column attack bonus);
@@ -6486,24 +6486,24 @@ BattleAttackValueRoll:
   LDA a:dividend_lo                             ; $CA1B: AD 01 00
   RTS                                     ; $CA1E: 60 ; A=attack, Y=bonus, X=defense
 ; --- Data Region ---
-; $CA1F: Edge-column attack bonus, indexed by record[$0A] & $1F. Only 24
+                                                                       ; $CA1F: Edge-column attack bonus, indexed by record[$0A] & $1F. Only 24
 ; entries before the defense table below; indices $18-$1F alias those bytes
 ; (layout kept as disassembled; verified against ROM).
 BattleEdgeBonusLowTable:
   .byte $03,$04,$07,$09,$0D,$0F,$10,$11,$04,$05,$08,$0A,$0C,$0B,$11,$13; $CA1F: 03 04 07 09 0D 0F 10 11 04 05 08 0A 0C 0B 11 13
   .byte $05,$06,$07,$0A,$0B,$10,$12,$14   ; $CA2F: 05 06 07 0A 0B 10 12 14
-; $CA37: Edge-column defense, indexed by record[$0A] >> 5 (0-7).
+                                          ; $CA37: Edge-column defense, indexed by record[$0A] >> 5 (0-7).
 BattleEdgeDefenseHighTable:
   .byte $02,$03,$05,$07,$08,$0A,$0B,$0C   ; $CA37: 02 03 05 07 08 0A 0B 0C
 .endproc
 ;===============================================================================
-; $CA3F: BattleOverlayTotalRefresh
+                                                    ; $CA3F: BattleOverlayTotalRefresh
 ; Commits both sides' current troop state into the commander roster records
 ; (B1F_GetOfficerRecordAddr on $0560/$0561): record[0] <- side troop count
 ; ($05AC side A / $05B7 side B), record[8/9] <- 16-bit sum of the side's
 ; 10 per-unit HP values ($05AD-$05B6 side A / $05B8-$05C1 side B, $FF empty
 ; slots skipped; record[9] keeps its low 2 bits). Used by the phase-4 result
-; handlers and phase 5 sub 0 (Phase5SideEventRosterCommit).
+; handlers and phase 5 sub 0 (SideEventRosterCommit).
 ;===============================================================================
 .proc BattleOverlayTotalRefresh
 ; zero-page work cells (proc-local):
@@ -6575,8 +6575,8 @@ addr_hi        = $0003  ; VRAM address work hi
   RTS                                     ; $CAC7: 60
 .endproc
 ;-------------------------------------------------------------------------------
-; $CAC8: Phase2ArrowPathTileCheck
-; Line-of-fire tile check used by Phase2AttackRouteResolve for every tile
+                                                 ; $CAC8: ArrowPathTileCheck
+; Line-of-fire tile check used by AttackRouteResolve for every tile
 ; along a scan direction. Applies the step delta ($0000 = column,
 ; $0001 = row, signed) to the acting slot $0545's position ($0580/$0596)
 ; and rejects out-of-bounds tiles (A = 1; negative wraps land >= $10),
@@ -6586,7 +6586,7 @@ addr_hi        = $0003  ; VRAM address work hi
 ; non-zero) by class 1 always and by classes 2/3 when the acting troop
 ; type cannot traverse them. A = 0: the arrow can cross this tile.
 ;-------------------------------------------------------------------------------
-.proc Phase2ArrowPathTileCheck
+.proc ArrowPathTileCheck
 ; zero-page work cells (proc-local):
 cand_col       = $0000  ; candidate column (col + delta)
 cand_row       = $0001  ; candidate row (row + delta)
@@ -6619,7 +6619,7 @@ cand_row       = $0001  ; candidate row (row + delta)
   RTS                                     ; $CAF8: 60
 .endproc
 ;-------------------------------------------------------------------------------
-; $CAF9: BattleTerrainPassabilityCheck
+                                                 ; $CAF9: BattleTerrainPassabilityCheck
 ; Terrain passability check for the acting slot $0545's army affinity against
 ; the candidate tile at absolute coordinates $0000/$0001. Reads the tile id
 ; from the current battle map's terrain grid ($0544 = map index; per-map
@@ -6713,7 +6713,7 @@ BattleArmyAffinityTerrainTableA:
 BattleArmyAffinityTerrainTableB:
   .byte $00,$02,$04,$00                   ; $CBED: 00 02 04 00
 ;===============================================================================
-; $CBF1: BattlePanelStatsRefresh
+                                          ; $CBF1: BattlePanelStatsRefresh
 ; Rebuilds the battle status panel troop-count field block $044C-$046C from
 ; the live roster: the per-side general/infantry/archer/cavalry troop counts
 ; shown on the panel (cf. manual p. 31 example: 体73/騎97/弓179/歩700). The
@@ -6826,7 +6826,7 @@ total_hi       = $0002  ; class troop total hi
   RTS                                     ; $CCA7: 60
 .endproc
 ;===============================================================================
-; $CCA8: BattleInputPromptDraw
+                                          ; $CCA8: BattleInputPromptDraw
 ; Draws the blinking input-prompt sprite (tile $04, X base $A0) used by the
 ; A/B input-wait states: phase 4 defeat/retreat/damage/confirm handlers
 ; ($A3DC, $A40F, $A490, $A4BD) and the phase 8 panel confirm/advance waits
@@ -6879,7 +6879,7 @@ BattleInputPromptSprite:
   .byte $00,$04,$00,$00,$80               ; $CCD9: 00 04 00 00 80
 .endproc
 ;===============================================================================
-; $CCDE: BattlePadStateFetch
+                                          ; $CCDE: BattlePadStateFetch
 ; Mode-filtered controller state fetch. Input: A = pad index (0/1). The input
 ; source mode is taken from $0562 (pad 1) / $0563 (pad 2):
 ;   mode 1: $0000 <- pad 2 edge ($0085), $0001 <- pad 2 raw ($0082)
@@ -6927,7 +6927,7 @@ merged_lo      = $0001  ; merged pad state lo (relatched to $0081)
   RTS                                     ; $CD21: 60
 .endproc
 ;===============================================================================
-; $CD22: BattleBothPadsStateFetch
+                                          ; $CD22: BattleBothPadsStateFetch
 ; Fetches both pads' mode-filtered states via BattlePadStateFetch and merges
 ; them: $0000 = pad1 edge | pad2 edge, $0001 = pad1 raw | pad2 raw. Used by
 ; the phase-4 result handlers to accept an A/B edge from either controller.
@@ -6953,43 +6953,43 @@ merged_lo      = $0001  ; OR-merged both-pad state lo
   RTS                                     ; $CD42: 60
 .endproc
 ;===============================================================================
-; $CD43: Phase5SideEventSubDispatch
+                                                    ; $CD43: SideEvent
 ; Phase-5 handler entry (side event): sub-dispatch on $0541 through the
 ; inline 3-entry table below, covering side-event sub-states 0-2. Entered
-; from Phase2MoveEventCheck when a unit walks onto a side-event column
+; from MoveEventCheck when a unit walks onto a side-event column
 ; (0 or $0B), and re-enters the overlay at phase 0 sub 1 once sub 2 finishes.
-;   0 Phase5SideEventRosterCommit ($CD4F) palette copy + roster HP commit
-;   1 Phase5SideEventPanelSetup   ($CD59) panel params + per-side pad flags
-;   2 Phase5SideEventClose        ($CDCF) troop reload, retreat marks, exit
+;   0 SideEventRosterCommit ($CD4F) palette copy + roster HP commit
+;   1 SideEventPanelSetup   ($CD59) panel params + per-side pad flags
+;   2 SideEventClose        ($CDCF) troop reload, retreat marks, exit
 ;===============================================================================
-.proc Phase5SideEventSubDispatch
+.proc SideEvent
   LDA btl_overlay_sub                               ; $CD43: AD 41 05
   JSR B1F_CallbackDispatcher              ; $CD46: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase5SideEventRosterCommit       ; $CD49: 4F CD ; sub 0
-  .word Phase5SideEventPanelSetup         ; $CD4B: 59 CD ; sub 1
-  .word Phase5SideEventClose              ; $CD4D: CF CD ; sub 2
+  .word SideEventRosterCommit             ; $CD49: 4F CD ; sub 0
+  .word SideEventPanelSetup               ; $CD4B: 59 CD ; sub 1
+  .word SideEventClose                    ; $CD4D: CF CD ; sub 2
 .endproc
 ;===============================================================================
-; $CD4F: Phase5SideEventRosterCommit
+                                          ; $CD4F: SideEventRosterCommit
 ; Sub 0 (side-event entry): copies the palette buffer (B1F_PaletteCopyBuffer),
 ; advances to sub 1 and commits both sides' current troop counts and per-unit
 ; HP totals into the commander roster records (BattleOverlayTotalRefresh).
 ;===============================================================================
-.proc Phase5SideEventRosterCommit
+.proc SideEventRosterCommit
   JSR B1F_PaletteCopyBuffer               ; $CD4F: 20 EE EC ; palette refresh
   INC btl_overlay_sub                               ; $CD52: EE 41 05 ; sub-phase <- 1
   JSR BattleOverlayTotalRefresh           ; $CD55: 20 3F CA ; roster HP commit
 .endproc
 ;-------------------------------------------------------------------------------
-; $CD58: Phase5WaitExit - shared RTS at the tail of Phase5SideEventRosterCommit,
-; branched to by Phase5SideEventPanelSetup's palette-wait loop. Same scoping
-; constraint as Phase2WalkExit: shared exit labels stay bare globals.
+                                          ; $CD58: SideEventWaitExit - shared RTS at the tail of SideEventRosterCommit,
+; branched to by SideEventPanelSetup's palette-wait loop. Same scoping
+; constraint as WalkExit: shared exit labels stay bare globals.
 ;-------------------------------------------------------------------------------
-Phase5WaitExit:
+SideEventWaitExit:
   RTS                                     ; $CD58: 60
 ;===============================================================================
-; $CD59: Phase5SideEventPanelSetup
+                                                   ; $CD59: SideEventPanelSetup
 ; Sub 1: waits on $0087 bit7 (palette/frame flag), then disables NMI
 ; (B1F_NmiDisable), advances to sub 2, arms the flash counter ($007A <- 7)
 ; and clears panel params $04A8-$04AA. Then fills the per-side panel block
@@ -6999,9 +6999,9 @@ Phase5WaitExit:
 ; $04AE/$04AD) and each side's pad mode is stored (or $80 for AI mode 3)
 ; into $04AB/$04AC (swapped: $04AC/$04AB).
 ;===============================================================================
-.proc Phase5SideEventPanelSetup
+.proc SideEventPanelSetup
   LDA a:btl_frame_flag                             ; $CD59: AD 87 00 ; palette/frame flag
-  BPL Phase5WaitExit                      ; $CD5C: 10 FA ; bit7 clear: wait
+  BPL SideEventWaitExit                   ; $CD5C: 10 FA ; bit7 clear: wait
   JSR B1F_NmiDisable                      ; $CD5E: 20 68 E7
   INC btl_overlay_sub                               ; $CD61: EE 41 05 ; sub-phase <- 2
   LDA #$07                                ; $CD64: A9 07
@@ -7055,16 +7055,16 @@ Phase5WaitExit:
   RTS                                     ; $CDCE: 60
 .endproc
 ;===============================================================================
-; $CDCF: Phase5SideEventClose
+                                                   ; $CDCF: SideEventClose
 ; Sub 2: waits on $0087 bit7, then reloads both sides' troop counts from
 ; offset 0 of the commander roster records ($0560/$0561 via
 ; B1F_GetOfficerRecordAddr) into $05AC/$05B7. Marks a retreat (strip flag
 ; == 1 in $0515/$0517) by setting slot 0 of the corresponding side's action
-; slot array ($0550 side A / $0554 side B) via Phase5RetreatSlotMark, then
+; slot array ($0550 side A / $0554 side B) via SideEventRetreatSlotMark, then
 ; re-enters the overlay: phase <- 0, sub <- 1 (BattleOverlayIntroRosterWalk),
 ; frame counter $0548 <- 0.
 ;===============================================================================
-.proc Phase5SideEventClose
+.proc SideEventClose
 ; zero-page work cells (proc-local):
 rec_ptr        = $0000  ; officer record ptr (record[0] troop count)
   LDA a:btl_frame_flag                             ; $CDCF: AD 87 00 ; palette/frame flag
@@ -7087,21 +7087,21 @@ rec_ptr        = $0000  ; officer record ptr (record[0] troop count)
   STA btl_frame_counter                               ; $CDFA: 8D 48 05 ; frame counter <- 0
   LDA btl_strip_sel_a                               ; $CDFD: AD 14 05 ; side A strip ptr
   LDY btl_strip_flag_a                               ; $CE00: AC 15 05 ; side A strip flag
-  JSR Phase5RetreatSlotMark               ; $CE03: 20 10 CE
+  JSR SideEventRetreatSlotMark            ; $CE03: 20 10 CE
   LDA btl_strip_sel_b                               ; $CE06: AD 16 05 ; side B strip ptr
   LDY btl_strip_flag_b                               ; $CE09: AC 17 05 ; side B strip flag
-  JSR Phase5RetreatSlotMark               ; $CE0C: 20 10 CE
+  JSR SideEventRetreatSlotMark            ; $CE0C: 20 10 CE
 @Done:
   RTS                                     ; $CE0F: 60
 .endproc
 ;===============================================================================
-; $CE10: Phase5RetreatSlotMark
-; Helper for Phase5SideEventClose: A = side strip ptr, Y = side strip flag.
+                                          ; $CE10: SideEventRetreatSlotMark
+; Helper for SideEventClose: A = side strip ptr, Y = side strip flag.
 ; Only a retreat flag (Y == 1) is handled: if the strip ptr matches side A
 ; ($0560), slot 0 of side A's action slot array ($0550) is marked 1,
 ; otherwise slot 0 of side B's array ($0554).
 ;===============================================================================
-.proc Phase5RetreatSlotMark
+.proc SideEventRetreatSlotMark
   CPY #$01                                ; $CE10: C0 01 ; strip flag: 1 = retreated
   BNE @Done                               ; $CE12: D0 10
   CMP btl_strip_buf_a                               ; $CE14: CD 60 05 ; side A strip?
@@ -7116,7 +7116,7 @@ rec_ptr        = $0000  ; officer record ptr (record[0] troop count)
   RTS                                     ; $CE24: 60
 .endproc
 ;===============================================================================
-; $CE25: Phase6FormationSelectSubDispatch
+                                                    ; $CE25: SideAFormation
 ; Phase 6 handler (side A pre-battle formation select): sub-dispatch on
 ; $0541 through the inline 4-entry table below. Edits the side A formation
 ; index $056C (0-3: Serpent/Goose/Wedge/Fish Scale, consumed by
@@ -7125,17 +7125,17 @@ rec_ptr        = $0000  ; officer record ptr (record[0] troop count)
 ; phase 3 command selection with resume latch $054B/$054C <- 6/3 so sub 3
 ; here advances to phase 7 (side B formation select) afterwards.
 ;===============================================================================
-.proc Phase6FormationSelectSubDispatch
+.proc SideAFormation
   LDA btl_overlay_sub                               ; $CE25: AD 41 05
   JSR B1F_CallbackDispatcher              ; $CE28: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase6FormationPanelInit          ; $CE2B: 33 CE ; sub 0 ($CE33)
-  .word Phase6FormationMenuInput          ; $CE2D: 68 CE ; sub 1 ($CE68)
-  .word Phase6FormationConfirmWait        ; $CE2F: AE CE ; sub 2 ($CEAE)
-  .word Phase6AdvanceToSideBFormation     ; $CE31: FA CE ; sub 3 ($CEFA)
+  .word SideAFormationPanelInit           ; $CE2B: 33 CE ; sub 0 ($CE33)
+  .word SideAFormationMenuInput           ; $CE2D: 68 CE ; sub 1 ($CE68)
+  .word SideAFormationConfirmWait         ; $CE2F: AE CE ; sub 2 ($CEAE)
+  .word AdvanceToSideBFormation           ; $CE31: FA CE ; sub 3 ($CEFA)
 .endproc
 ;===============================================================================
-; $CE33: Phase6FormationPanelInit
+                                          ; $CE33: SideAFormationPanelInit
 ; Sub 0. Seeds formation index $056C with a random value (&3) as the
 ; default, then (unless side A input mode $0562 = 3, AI: jump straight to
 ; sub 3) requests UI panel $D4 (formation select), advances to sub 1,
@@ -7143,7 +7143,7 @@ rec_ptr        = $0000  ; officer record ptr (record[0] troop count)
 ; buffer $0560) and resets the shared menu cursor ($0424 column / $0425
 ; page); panel param $00BC <- $7D.
 ;===============================================================================
-.proc Phase6FormationPanelInit
+.proc SideAFormationPanelInit
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
   JSR B1F_RandomByte                      ; $CE33: 20 7A E8
@@ -7152,7 +7152,7 @@ strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
   LDA btl_input_mode_a                               ; $CE3B: AD 62 05 ; side A input mode
   CMP #$03                                ; $CE3E: C9 03
   BNE @ShowPanel                          ; $CE40: D0 03 ; not AI: show panel
-  JMP Phase6AdvanceToSideBFormation       ; $CE42: 4C FA CE ; AI: skip menus
+  JMP AdvanceToSideBFormation             ; $CE42: 4C FA CE ; AI: skip menus
 @ShowPanel:
   LDA #$D4                                ; $CE45: A9 D4
   JSR B1F_OpenMsgWindow0                  ; $CE47: 20 6D F2 ; formation panel
@@ -7171,7 +7171,7 @@ strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
   RTS                                     ; $CE67: 60
 .endproc
 ;===============================================================================
-; $CE68: Phase6FormationMenuInput
+                                                    ; $CE68: SideAFormationMenuInput
 ; Sub 1. Per frame: re-render the side A overlay strip (bank $19 render with
 ; buffer $0560, X=0), run FormationSelectMenu (side-A pad input through the
 ; 4-wide menu; shared cursor $0424/$0425, selected item -> $056C) and wait
@@ -7179,7 +7179,7 @@ strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
 ; panel $D2 (confirm) and copy side A country $0564's ruler officer id
 ; (country record byte 0) to $042C for panel formatting.
 ;===============================================================================
-.proc Phase6FormationMenuInput
+.proc SideAFormationMenuInput
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; strip render ptr lo / country data ptr
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -7218,7 +7218,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
   RTS                                     ; $CEAD: 60
 .endproc
 ;===============================================================================
-; $CEAE: Phase6FormationConfirmWait
+                                                    ; $CEAE: SideAFormationConfirmWait
 ; Sub 2. Per frame: re-render the side A overlay strip, wait while the
 ; animation queue is busy, then draw the blinking A-confirm prompt
 ; (FormationConfirmPromptDraw). On A: hand control to phase 3 command
@@ -7226,7 +7226,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
 ; resume latch $054B/$054C <- 6/3, so phase 6 resumes at sub 3 (advance to
 ; side B) once the command cycle finishes; panel param $00BC <- 5.
 ;===============================================================================
-.proc Phase6FormationConfirmWait
+.proc SideAFormationConfirmWait
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; strip render buffer ptr lo
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -7266,13 +7266,13 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $CEF9: 60
 .endproc
 ;===============================================================================
-; $CEFA: Phase6AdvanceToSideBFormation
+                                          ; $CEFA: AdvanceToSideBFormation
 ; Sub 3. Advances the overlay to phase 7 (side B pre-battle formation
 ; select), sub 0. Reached when the side A confirm completes its phase 3
 ; command cycle (resume latch 6/3), or immediately from sub 0 when side A
 ; is AI-controlled.
 ;===============================================================================
-.proc Phase6AdvanceToSideBFormation
+.proc AdvanceToSideBFormation
   LDA #$07                                ; $CEFA: A9 07
   STA btl_overlay_phase                               ; $CEFC: 8D 40 05 ; phase <- 7
   LDA #$00                                ; $CEFF: A9 00
@@ -7280,7 +7280,7 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $CF04: 60
 .endproc
 ;===============================================================================
-; $CF05: FormationSelectMenu
+                                                ; $CF05: FormationSelectMenu
 ; Side-wrapped 4-wide menu (bank $1F helpers): temporarily swaps the side's
 ; pad state (BattlePadStateFetch on Y = side) into the shared menu input
 ; slots $0083/$0081, steps the menu (B1F_MenuStep4) over
@@ -7342,7 +7342,7 @@ FormationSelectCursorPosTable:  ; per item: cursor OAM Y base, X base
 FormationSelectCursorSprite:  ; OAM record (dy/tile/attr/dx) + $80 terminator
   .byte $00,$04,$00,$00,$80               ; $CF62: 00 04 00 00 80
 ;===============================================================================
-; $CF67: Phase7FormationSelectSubDispatch
+                                                    ; $CF67: SideBFormation
 ; Phase 7 handler (side B pre-battle formation select): sub-dispatch on
 ; $0541 through the inline 5-entry table below. Mirrors phase 6 for side B:
 ; edits the side B formation index $056D (0-3: Serpent/Goose/Wedge/Fish
@@ -7352,32 +7352,32 @@ FormationSelectCursorSprite:  ; OAM record (dy/tile/attr/dx) + $80 terminator
 ; $054B/$054C <- 7/4, so sub 4 here starts the battle once the command
 ; cycle finishes.
 ;===============================================================================
-.proc Phase7FormationSelectSubDispatch
+.proc SideBFormation
   LDA btl_overlay_sub                               ; $CF67: AD 41 05
   JSR B1F_CallbackDispatcher              ; $CF6A: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word Phase7FormationPanelInit          ; $CF6D: 77 CF ; sub 0 ($CF77)
-  .word Phase7FormationPanelOpen          ; $CF6F: 9D CF ; sub 1 ($CF9D)
-  .word Phase7FormationMenuInput          ; $CF71: C2 CF ; sub 2 ($CFC2)
-  .word Phase7FormationConfirmWait        ; $CF73: 08 D0 ; sub 3 ($D008)
-  .word Phase7BattleModeStart             ; $CF75: 54 D0 ; sub 4 ($D054)
+  .word SideBFormationPanelInit           ; $CF6D: 77 CF ; sub 0 ($CF77)
+  .word SideBFormationPanelOpen           ; $CF6F: 9D CF ; sub 1 ($CF9D)
+  .word SideBFormationMenuInput           ; $CF71: C2 CF ; sub 2 ($CFC2)
+  .word SideBFormationConfirmWait         ; $CF73: 08 D0 ; sub 3 ($D008)
+  .word BattleModeStart                   ; $CF75: 54 D0 ; sub 4 ($D054)
 .endproc
 ;===============================================================================
-; $CF77: Phase7FormationPanelInit
+                                          ; $CF77: SideBFormationPanelInit
 ; Sub 0. Seeds formation index $056D with a random value (&3) as the
 ; default, then (unless side B input mode $0563 = 3, AI: jump straight to
 ; sub 4 battle mode start) clears the pending animation id/slot
 ; ($0310/$0300), advances to sub 1 and resets the shared menu cursor
 ; ($0424 column / $0425 page).
 ;===============================================================================
-.proc Phase7FormationPanelInit
+.proc SideBFormationPanelInit
   JSR B1F_RandomByte                      ; $CF77: 20 7A E8
   AND #$03                                ; $CF7A: 29 03
   STA btl_formation_b                               ; $CF7C: 8D 6D 05 ; formation <- random
   LDA btl_input_mode_b                               ; $CF7F: AD 63 05 ; side B input mode
   CMP #$03                                ; $CF82: C9 03
   BNE @ShowPanel                          ; $CF84: D0 03 ; not AI: show panel
-  JMP Phase7BattleModeStart               ; $CF86: 4C 54 D0 ; AI: skip menus
+  JMP BattleModeStart                     ; $CF86: 4C 54 D0 ; AI: skip menus
 @ShowPanel:
   LDA #$00                                ; $CF89: A9 00
   STA anim_queue_id0_lo                               ; $CF8B: 8D 10 03 ; anim id <- 0
@@ -7389,13 +7389,13 @@ FormationSelectCursorSprite:  ; OAM record (dy/tile/attr/dx) + $80 terminator
   RTS                                     ; $CF9C: 60
 .endproc
 ;===============================================================================
-; $CF9D: Phase7FormationPanelOpen
+                                          ; $CF9D: SideBFormationPanelOpen
 ; Sub 1. Waits for the animation queue to idle (BattleAnimQueueIdleCheck,
 ; C=1 idle), then requests UI panel $D4 (formation select), advances to
 ; sub 2, re-renders the side B officer display (B1D_1E_OfficerDisplay_Render
 ; with buffer $0561) and sets panel params $00BB <- 9 / $00BC <- $7D.
 ;===============================================================================
-.proc Phase7FormationPanelOpen
+.proc SideBFormationPanelOpen
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
   JSR BattleAnimQueueIdleCheck            ; $CF9D: 20 70 B8
@@ -7417,7 +7417,7 @@ strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
   RTS                                     ; $CFC1: 60
 .endproc
 ;===============================================================================
-; $CFC2: Phase7FormationMenuInput
+                                                    ; $CFC2: SideBFormationMenuInput
 ; Sub 2. Per frame: re-render the side B overlay strip (bank $19 render with
 ; buffer $0561, X=0), run FormationSelectMenu (side B pad input through the
 ; 4-wide menu; shared cursor $0424/$0425, selected item -> $056D) and wait
@@ -7425,7 +7425,7 @@ strip_ptr_lo   = $0000  ; overlay strip render buffer ptr lo
 ; panel $D2 (confirm) and copy side B country $0565's ruler officer id
 ; (country record byte 0) to $042C for panel formatting.
 ;===============================================================================
-.proc Phase7FormationMenuInput
+.proc SideBFormationMenuInput
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; strip render ptr lo / country data ptr
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -7464,7 +7464,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
   RTS                                     ; $D007: 60
 .endproc
 ;===============================================================================
-; $D008: Phase7FormationConfirmWait
+                                                    ; $D008: SideBFormationConfirmWait
 ; Sub 3. Per frame: re-render the side B overlay strip, wait while the
 ; animation queue is busy, then draw the blinking A-confirm prompt
 ; (FormationConfirmPromptDraw). On A: hand control to phase 3 command
@@ -7472,7 +7472,7 @@ menu_result    = $0012  ; FormationSelectMenu selected item
 ; resume latch $054B/$054C <- 7/4, so phase 7 resumes at sub 4 (battle mode
 ; start) once the command cycle finishes; panel param $00BC <- 5.
 ;===============================================================================
-.proc Phase7FormationConfirmWait
+.proc SideBFormationConfirmWait
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; strip render buffer ptr lo
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -7512,14 +7512,14 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $D053: 60
 .endproc
 ;===============================================================================
-; $D054: Phase7BattleModeStart
+                                          ; $D054: BattleModeStart
 ; Sub 4. Battle Mode start: reset phase/sub-phase to 0/1 (intro roster
 ; walk), clear the damage counter $0548 and build both sides' rosters via
 ; BattleRosterSetup. Reached through the resume latch 7/4 after the side B
 ; A-confirm's phase 3 command cycle, or directly from sub 0 when side B is
 ; AI-controlled.
 ;===============================================================================
-.proc Phase7BattleModeStart
+.proc BattleModeStart
   LDA #$00                                ; $D054: A9 00
   STA btl_overlay_phase                               ; $D056: 8D 40 05 ; phase <- 0
   LDA #$01                                ; $D059: A9 01
@@ -7530,8 +7530,8 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $D066: 60
 .endproc
 ;===============================================================================
-; $D067: Phase1AiSideRefresh
-; Phase-1 helper called from Phase1CycleInit ($A17F) and Phase1RoundPass
+                                        ; $D067: NextActorAiSideRefresh
+; Phase-1 helper called from NextActorCycleInit ($A17F) and NextActorRoundPass
 ; ($A29D). Refreshes the AI side state for the battle round:
 ; 1. AiBattleOrderAssign ($D0CB) assigns the four order slots
 ;    $0550-$0553 / $0554-$0557 of every AI-controlled side (control mode
@@ -7544,11 +7544,11 @@ pad_state      = $0001  ; merged both-pad raw state
 ;    siege battles ($0544 == 5) use fixed Hold/Advance patterns. Slot
 ;    values: 0 = Advance, 1 = Withdraw, 2 = Hold, 3 = Surround, 4 = Tactic,
 ;    $80 = coin flip between Advance and Hold (rerolled in
-;    Phase1NextActorSelect).
+;    NextActorSelect).
 ; 2. From round pass 4 on, each AI side runs AiCommanderRoutCheck ($D1D8,
 ;    roster base Y = 0 / $0B): when the commander troop count $05AC+Y drops
 ;    below the game-level ($6F02) threshold @TroopThreshold, two or more
-;    enemy units are adjacent to the commander (Phase2StepTileProbe on the
+;    enemy units are adjacent to the commander (StepTileProbe on the
 ;    neighbouring tiles), record field [3] != 100 and a
 ;    B1F_RandomBelowThreshold(100) roll lands below @RollThreshold[level],
 ;    the check drops its own return address (2x PLA) and forces the phase 4
@@ -7558,10 +7558,10 @@ pad_state      = $0001  ; merged both-pad raw state
 ;    the side is not already withdrawing and BattleOutnumberedCheck reports
 ;    its non-commander troop total below 200 while outnumbered by 145+, a
 ;    0-99 roll below @RoutRollThreshold[level] drops the whole call chain
-;    (4x PLA, up to Phase1RoundPass) and orders all four slots to Withdraw
+;    (4x PLA, up to NextActorRoundPass) and orders all four slots to Withdraw
 ;    (slot <- 1).
 ;===============================================================================
-.proc Phase1AiSideRefresh
+.proc NextActorAiSideRefresh
   JSR AiBattleOrderAssign               ; $D067: 20 CB D0
   LDA btl_round_pass                               ; $D06A: AD 7A 05
   CMP #$04                                ; $D06D: C9 04
@@ -7598,8 +7598,8 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $D0AD: 60
 .endproc
 ;===============================================================================
-; $D0AE: AiTacticSpendDispatch
-; Per-round-pass AI tactic-point spend dispatch, called from Phase1RoundPass
+                                                     ; $D0AE: AiTacticSpendDispatch
+; Per-round-pass AI tactic-point spend dispatch, called from NextActorRoundPass
 ; ($A29A) after the side status counters are ticked down. Runs
 ; AiTacticPointSpend for every AI-controlled side (control mode $0562/$0563
 ; == 3) with X = side index (0/1 -> $057C/$0549) and Y = roster base
@@ -7625,11 +7625,11 @@ pad_state      = $0001  ; merged both-pad raw state
   RTS                                     ; $D0CA: 60
 .endproc
 ;===============================================================================
-; $D0CB: AiBattleOrderAssign
+                                                     ; $D0CB: AiBattleOrderAssign
 ; Assigns the four battle order slots $0550-$0553 (side A) / $0554-$0557
 ; (side B) of every AI-controlled side (control mode $0562/$0563 == 3),
 ; skipped while the side is already withdrawing (first slot == 1). Called
-; from Phase1AiSideRefresh. Per side, the resolver @OrderResolve loads the
+; from NextActorAiSideRefresh. Per side, the resolver @OrderResolve loads the
 ; commander officer record (B1F_GetOfficerRecordAddr) and indexes
 ; AiOrderIndexTable by army affinity (record [$B] bits 2-3) * 8 + battle
 ; phase $0544; the resulting offset selects a 4-byte order vector in
@@ -7774,17 +7774,17 @@ AiOrderVectorWindow:
   .byte $02,$00,$00,$00,$80,$00,$00,$00   ; $D1D0: 02 00 00 00 80 00 00 00
 .endproc
 ;===============================================================================
-; $D1D8: AiCommanderRoutCheck
-; Commander rout check for one AI side, called from Phase1AiSideRefresh
+                                                 ; $D1D8: AiCommanderRoutCheck
+; Commander rout check for one AI side, called from NextActorAiSideRefresh
 ; (round pass >= 4) with Y = roster base (0 = side A, $0B = side B). When
 ; the commander troop count $05AC,Y falls below @RoutThresholds[$6F02]
 ; (45/40/30 by game level), probes the four orthogonal neighbours of the
-; commander via Phase2StepTileProbe and counts adjacent enemy units in
+; commander via StepTileProbe and counts adjacent enemy units in
 ; $0548. With 2+ adjacent enemies, the commander officer record field [3]
 ; != 100 and a B1F_RandomBelowThreshold(100) roll below
 ; @RoutThresholds+3[$6F02] (55/50/30), the commander routs: drops its own
-; and Phase1AiSideRefresh's return addresses (2x PLA, resuming
-; Phase1RoundPass at $A2A0), runs B1F_BankPpuInit + SFX $6C and forces the
+; and NextActorAiSideRefresh's return addresses (2x PLA, resuming
+; NextActorRoundPass at $A2A0), runs B1F_BankPpuInit + SFX $6C and forces the
 ; phase 4 battle result (phase/sub <- 4/0, retreat strip $0514-$0517 with
 ; mode 3, UI mode 4 via B1F_OpenMsgWindow4 $7D). Original asymmetry: side A writes
 ; its own commander $0560 into $042C/$0514 and the enemy $0561 into $0516,
@@ -7802,7 +7802,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   BCC @AdjacentScan                       ; $D1E4: 90 07
   RTS                                     ; $D1E6: 60 ; troops still safe
 @RoutThresholds:
-; $D1E7: troop threshold per game level (45/40/30); $D1EA: rout roll
+                                          ; $D1E7: troop threshold per game level (45/40/30); $D1EA: rout roll
 ; threshold per game level (55/50/30).
   .byte $2D,$28,$1E,$37,$32,$1E           ; $D1E7: 2D 28 1E 37 32 1E
 @AdjacentScan:
@@ -7812,7 +7812,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   STA a:probe_col_delta                             ; $D1F4: 8D 00 00 ; column delta +1
   LDA #$00                                ; $D1F7: A9 00
   STA a:probe_row_delta                             ; $D1F9: 8D 01 00 ; row delta 0
-  JSR Phase2StepTileProbe                 ; $D1FC: 20 CD C1 ; right neighbour
+  JSR StepTileProbe                       ; $D1FC: 20 CD C1 ; right neighbour
   BCS @ProbeLeft                          ; $D1FF: B0 06 ; empty tile
   TAY                                     ; $D201: A8
   BEQ @ProbeLeft                          ; $D202: F0 03 ; same side / blocked
@@ -7822,7 +7822,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   STA a:probe_col_delta                             ; $D209: 8D 00 00 ; column delta -1
   LDA #$00                                ; $D20C: A9 00
   STA a:probe_row_delta                             ; $D20E: 8D 01 00 ; row delta 0
-  JSR Phase2StepTileProbe                 ; $D211: 20 CD C1 ; left neighbour
+  JSR StepTileProbe                       ; $D211: 20 CD C1 ; left neighbour
   BCS @ProbeUp                            ; $D214: B0 06 ; empty tile
   TAY                                     ; $D216: A8
   BEQ @ProbeUp                            ; $D217: F0 03 ; same side / blocked
@@ -7832,7 +7832,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   STA a:probe_col_delta                             ; $D21E: 8D 00 00 ; column delta 0
   LDA #$FF                                ; $D221: A9 FF
   STA a:probe_row_delta                             ; $D223: 8D 01 00 ; row delta -1
-  JSR Phase2StepTileProbe                 ; $D226: 20 CD C1 ; upper neighbour
+  JSR StepTileProbe                       ; $D226: 20 CD C1 ; upper neighbour
   BCS @ProbeDown                          ; $D229: B0 06 ; empty tile
   TAY                                     ; $D22B: A8
   BEQ @ProbeDown                          ; $D22C: F0 03 ; same side / blocked
@@ -7842,7 +7842,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   STA a:probe_col_delta                             ; $D233: 8D 00 00 ; column delta 0
   LDA #$01                                ; $D236: A9 01
   STA a:probe_row_delta                             ; $D238: 8D 01 00 ; row delta +1
-  JSR Phase2StepTileProbe                 ; $D23B: 20 CD C1 ; lower neighbour
+  JSR StepTileProbe                       ; $D23B: 20 CD C1 ; lower neighbour
   BCS @CountGate                          ; $D23E: B0 06 ; empty tile
   TAY                                     ; $D240: A8
   BEQ @CountGate                          ; $D241: F0 03 ; same side / blocked
@@ -7871,7 +7871,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   CMP @RoutThresholds+3,Y                 ; $D26E: D9 EA D1 ; rout roll thresholds
   BCS @NoRout                             ; $D271: B0 DA ; roll failed
   PLA                                     ; $D273: 68 ; drop own return
-  PLA                                     ; $D274: 68 ; drop Phase1AiSideRefresh return
+  PLA                                     ; $D274: 68 ; drop NextActorAiSideRefresh return
   JSR B1F_BankPpuInit                     ; $D275: 20 7F E5
   LDA #$6C                                ; $D278: A9 6C
   JSR B1F_SoundWrapperC                   ; $D27A: 20 83 E6 ; SFX $6C
@@ -7912,15 +7912,15 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   RTS                                     ; $D2D3: 60
 .endproc
 ;===============================================================================
-; $D2D4: AiArmyRoutCheck
-; Whole-army rout check for one AI side, called from Phase1AiSideRefresh
+                                                 ; $D2D4: AiArmyRoutCheck
+; Whole-army rout check for one AI side, called from NextActorAiSideRefresh
 ; (round pass >= 4) with Y = roster base (0 = side A, $0B = side B). Skips
 ; sides already withdrawing (first order slot == 1). When
 ; BattleOutnumberedCheck reports the side's non-commander troop total
 ; below 200 while the enemy outnumbers it by 145+, a
 ; B1F_RandomBelowThreshold(100) roll below @RoutRollThreshold[$6F02]
 ; (30/40/45 by game level) routs the whole army: four PLAs drop the entire
-; call chain up to Phase1RoundPass's caller (the rest of the frame is
+; call chain up to NextActorRoundPass's caller (the rest of the frame is
 ; skipped) and all four of the side's order slots ($0550-$0553 or
 ; $0554-$0557) are set to Withdraw (1).
 ;===============================================================================
@@ -7950,7 +7950,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   PLA                                     ; $D300: 68 ; drop this check's return
   PLA                                     ; $D301: 68 ; drop AiArmyRoutCheck... chain
   PLA                                     ; $D302: 68
-  PLA                                     ; $D303: 68 ; ...up to Phase1RoundPass's caller
+  PLA                                     ; $D303: 68 ; ...up to NextActorRoundPass's caller
   LDA btl_scan_col                               ; $D304: AD 45 05 ; roster base
   BNE @SideBWithdraw                      ; $D307: D0 0F
   LDA #$01                                ; $D309: A9 01 ; Withdraw
@@ -7972,7 +7972,7 @@ rec_ptr        = $0000  ; commander record ptr (field [3] loyalty)
   .byte $1E,$28,$2D                       ; $D327: 1E 28 2D
 .endproc
 ;===============================================================================
-; $D32A: BattleOutnumberedCheck
+                                          ; $D32A: BattleOutnumberedCheck
 ; Side strength comparison shared by AiArmyRoutCheck and the
 ; AiTacticPointSpend rout-pressure purchase. Totals the active
 ; non-commander troop counts of both sides: side A from slots 1-$A
@@ -8064,10 +8064,10 @@ total_b_hi     = $0003  ; side B troop total hi
   RTS                                     ; $D3C6: 60
 .endproc
 ;===============================================================================
-; $D3C7: AiTacticPointSpend
+                                                   ; $D3C7: AiTacticPointSpend
 ; AI-side tactic point spend, run by AiTacticSpendDispatch for every
 ; AI-controlled side after each round pass (the AI counterpart of the
-; phase-8 point-spend panel). Inputs: X = side index (0/1, stored in
+; phase-8 battle tactics menu). Inputs: X = side index (0/1, stored in
 ; $057C and mirrored to the acting side $0549), Y = roster base
 ; (0 / $0B, stored in $0545).
 ; Gate: the side's packed status counters $0574-$0577 are OR-combined and
@@ -8082,18 +8082,18 @@ total_b_hi     = $0003  ; side B troop total hi
 ;   cost $0C @ExplosionPurchase: Explosion (phase 9 sub 0, UI $F1),
 ;     gated on enemies crowding the commander's facing probe zone;
 ;   cost $0A @FireArrowsPurchase: status counter $0577 <- 3
-;     (Phase8RowFireArrows::Apply), gated on enemies near the side's
+;     (BattleTacticsRowFireArrows::Apply), gated on enemies near the side's
 ;     class-2 units;
 ;   cost $08 @MoraleBoostPurchase: status counter $0576 <- 4 plus periodic
-;     reload advance (Phase8RowMoraleBoost::Apply), flat 20% roll;
+;     reload advance (BattleTacticsRowMoraleBoost::Apply), flat 20% roll;
 ;   cost $07 @CrossbowVolleyPurchase: status counter $0575 <- 3
-;     (Phase8RowCrossbowVolley::Apply), odds scale with the class-2 unit count;
+;     (BattleTacticsRowCrossbowVolley::Apply), odds scale with the class-2 unit count;
 ;   cost $05 @TauntPurchase: phase $A sub 4 (Taunt, battle event wrapper),
 ;     gated on own attack bonus and commander troops both >= the enemy's;
 ;   cost $03 @BindPurchase: phase $A sub 0 (Bind, battle event wrapper,
 ;     grants counter $0574 <- 4), gated on the enemy army collapsing
 ;     (BattleOutnumberedCheck), a 50% roll and a coin flip.
-; The purchases reuse the Phase8 row effects without their panel UI.
+; The purchases reuse the BattleTactics row effects without their panel UI.
 ; Row identities are confirmed against the manual's battle tactics list
 ; (docs/manual_kb/06-reference-tables.md): row 0 = Bind (Jubaku), row 1 =
 ; Taunt (Chouhatsu), row 2 = CrossbowVolley, row 3 = MoraleBoost (Shiki
@@ -8162,12 +8162,12 @@ zone_count     = $0000  ; enemy-in-zone count
 @LadderDone:
   RTS                                     ; $D42E: 60
 ;-------------------------------------------------------------------------------
-; $D42F: @ExplosionPurchase (cost $0C)
+                                                 ; $D42F: @ExplosionPurchase (cost $0C)
 ; Explosion (Bakuen) purchase. Selects one of four 9-tile probe zones
 ; (@ExplosionZoneDown/Up/Left/Right) by the high nibble of the commander's
 ; roster code $05C2[$0545] - the side tag (3 = A, 2 = B) picks the zone
 ; facing the enemy half of the board, other values pick the vertical
-; zones. Counts enemy-occupied tiles in the zone via Phase2StepTileProbe
+; zones. Counts enemy-occupied tiles in the zone via StepTileProbe
 ; ($057E), then a B1F_RandomBelowThreshold(100) roll below
 ; @ExplosionSuccessChance[count] (0/0/40/70/100...) succeeds: pops the
 ; ladder return, sets phase/sub <- 9/0 (formation advance), UI $F1
@@ -8201,7 +8201,7 @@ zone_count     = $0000  ; enemy-in-zone count
   TAY                                     ; $D45D: A8
   LDA (calc_work_a),Y                             ; $D45E: B1 0A ; row delta
   STA a:row_delta                             ; $D460: 8D 01 00
-  JSR Phase2StepTileProbe                 ; $D463: 20 CD C1 ; commander + delta
+  JSR StepTileProbe                       ; $D463: 20 CD C1 ; commander + delta
   BCS @ZoneNext                           ; $D466: B0 06 ; empty tile
   TAY                                     ; $D468: A8
   BEQ @ZoneNext                           ; $D469: F0 03 ; same side / blocked
@@ -8264,14 +8264,14 @@ zone_count     = $0000  ; enemy-in-zone count
 ; 100 from four enemies on.
   .byte $00,$00,$28,$46,$64,$64,$64,$64,$64,$64,$64,$64; $D4FA: 00 00 28 46 64 64 64 64 64 64 64 64
 ;-------------------------------------------------------------------------------
-; $D506: @FireArrowsPurchase (cost $0A)
+                                          ; $D506: @FireArrowsPurchase (cost $0A)
 ; FireArrows purchase. Scans the side's 11 roster slots; every
 ; class-2 unit (roster code low nibble == 2) runs @FlankProbe, a 9-tile
 ; long-range probe (columns 0, rows +/-2..+/-4 and columns -2..-4, row 0)
 ; counting enemy-occupied tiles into $057E across all class-2 units. A
 ; B1F_RandomBelowThreshold(100) roll below @FlankProbeSuccessChance[count]
 ; (0/0/40/70/100...) succeeds: sets counter $0577 <- 3 for the acting
-; side via Phase8RowFireArrows::Apply (no panel UI), deducts 10 points and
+; side via BattleTacticsRowFireArrows::Apply (no panel UI), deducts 10 points and
 ; pops the ladder return.
 ;-------------------------------------------------------------------------------
 @FireArrowsPurchase:
@@ -8307,7 +8307,7 @@ zone_count     = $0000  ; enemy-in-zone count
 @FlankMiss:
   RTS                                     ; $D545: 60 ; back to the ladder
 @FlankHit:
-  JSR Phase8RowFireArrows::Apply          ; $D546: 20 84 B0 ; counter $0577 <- 3
+  JSR BattleTacticsRowFireArrows::Apply   ; $D546: 20 84 B0 ; counter $0577 <- 3
   LDY btl_side_index                               ; $D549: AC 7C 05 ; side index
   LDA btl_point_budget_a,Y                             ; $D54C: B9 72 05 ; point budget
   SEC                                     ; $D54F: 38
@@ -8325,7 +8325,7 @@ zone_count     = $0000  ; enemy-in-zone count
   STA a:col_delta                             ; $D55F: 8D 00 00 ; column delta
   LDA @FlankProbeRowDeltas,Y              ; $D562: B9 88 D5
   STA a:row_delta                             ; $D565: 8D 01 00 ; row delta
-  JSR Phase2StepTileProbe                 ; $D568: 20 CD C1 ; slot + delta
+  JSR StepTileProbe                       ; $D568: 20 CD C1 ; slot + delta
   BCS @FlankProbeNext                     ; $D56B: B0 06 ; empty tile
   TAY                                     ; $D56D: A8
   BEQ @FlankProbeNext                     ; $D56E: F0 03 ; same side / blocked
@@ -8356,10 +8356,10 @@ zone_count     = $0000  ; enemy-in-zone count
 ; four enemies on.
   .byte $00,$00,$28,$46,$64,$64,$64,$64,$64,$64,$64,$64; $D594: 00 00 28 46 64 64 64 64 64 64 64 64
 ;-------------------------------------------------------------------------------
-; $D5A0: @MoraleBoostPurchase (cost $08)
+                                          ; $D5A0: @MoraleBoostPurchase (cost $08)
 ; MoraleBoost purchase. Flat 20% roll (B1F_RandomBelowThreshold(100)
 ; below $14); on success sets counter $0576 <- 4 and advances the side's
-; periodic reload value via Phase8RowMoraleBoost::Apply, deducts 8 points and
+; periodic reload value via BattleTacticsRowMoraleBoost::Apply, deducts 8 points and
 ; pops the ladder return.
 ;-------------------------------------------------------------------------------
 @MoraleBoostPurchase:
@@ -8369,7 +8369,7 @@ zone_count     = $0000  ; enemy-in-zone count
   BCC @ReloadHit                          ; $D5A7: 90 01
   RTS                                     ; $D5A9: 60 ; back to the ladder
 @ReloadHit:
-  JSR Phase8RowMoraleBoost::Apply          ; $D5AA: 20 36 B0 ; counter $0576 <- 4 + reload
+  JSR BattleTacticsRowMoraleBoost::Apply   ; $D5AA: 20 36 B0 ; counter $0576 <- 4 + reload
   LDY btl_side_index                               ; $D5AD: AC 7C 05 ; side index
   LDA btl_point_budget_a,Y                             ; $D5B0: B9 72 05 ; point budget
   SEC                                     ; $D5B3: 38
@@ -8379,12 +8379,12 @@ zone_count     = $0000  ; enemy-in-zone count
   PLA                                     ; $D5BA: 68 ; drop ladder return
   RTS                                     ; $D5BB: 60 ; back to AiTacticSpendDispatch
 ;-------------------------------------------------------------------------------
-; $D5BC: @CrossbowVolleyPurchase (cost $07)
+                                          ; $D5BC: @CrossbowVolleyPurchase (cost $07)
 ; CrossbowVolley purchase. Counts the side's class-2 units via
 ; @ClassCount; a B1F_RandomBelowThreshold(100) roll below
 ; @CrossbowVolleyClassCountChance[count] (0/0/48/80/128, guaranteed from four
 ; units on) succeeds: sets counter $0575 <- 3 via
-; Phase8RowCrossbowVolley::Apply, deducts 7 points and pops the ladder return.
+; BattleTacticsRowCrossbowVolley::Apply, deducts 7 points and pops the ladder return.
 ;-------------------------------------------------------------------------------
 @CrossbowVolleyPurchase:
   JSR @ClassCount                         ; $D5BC: 20 F3 D5 ; count -> $0000
@@ -8399,7 +8399,7 @@ zone_count     = $0000  ; enemy-in-zone count
 @ClassMiss:
   RTS                                     ; $D5D4: 60 ; back to the ladder
 @ClassHit:
-  JSR Phase8RowCrossbowVolley::Apply          ; $D5D5: 20 16 B0 ; counter $0575 <- 3
+  JSR BattleTacticsRowCrossbowVolley::Apply   ; $D5D5: 20 16 B0 ; counter $0575 <- 3
   LDY btl_side_index                               ; $D5D8: AC 7C 05 ; side index
   LDA btl_point_budget_a,Y                             ; $D5DB: B9 72 05 ; point budget
   SEC                                     ; $D5DE: 38
@@ -8435,9 +8435,9 @@ zone_count     = $0000  ; enemy-in-zone count
   BCC @ClassCountLoop                     ; $D60F: 90 EA
   RTS                                     ; $D611: 60
 ;-------------------------------------------------------------------------------
-; $D612: @BindPurchase (cost $03)
-; Bind purchase (PhaseATauntSubDispatch sub 0: counter $0574 <- 4
-; via PhaseATauntSceneOpen). Gate: with $0545 flipped to the enemy roster
+                                                 ; $D612: @BindPurchase (cost $03)
+; Bind purchase (AiTaunt sub 0: counter $0574 <- 4
+; via AiTauntSceneOpen). Gate: with $0545 flipped to the enemy roster
 ; base ($057C EOR 1, zero/non-zero is all BattleOutnumberedCheck needs), the
 ; enemy army must be collapsing, then a roll below 50 must pass. The 3
 ; points are deducted before the final B1F_RandomByte coin flip, so a
@@ -8479,8 +8479,8 @@ zone_count     = $0000  ; enemy-in-zone count
   STA btl_overlay_sub                               ; $D64E: 8D 41 05 ; sub-phase <- 0
   RTS                                     ; $D651: 60 ; back to AiTacticSpendDispatch
 ;-------------------------------------------------------------------------------
-; $D652: @TauntPurchase (cost $05)
-; Taunt purchase (PhaseATauntSubDispatch sub 4). Loads the commander-column attack
+                                                     ; $D652: @TauntPurchase (cost $05)
+; Taunt purchase (AiTaunt sub 4). Loads the commander-column attack
 ; bonuses $0570/$0571 and commander troop counts $05AC/$05B7 of both
 ; sides; when the acting side is B ($0545 != 0) the pairs are swapped so
 ; ($000A,$000C) describe the acting side. Gate: own attack bonus >= the
@@ -8536,74 +8536,74 @@ zone_count     = $0000  ; enemy-in-zone count
   RTS                                     ; $D6B9: 60 ; back to AiTacticSpendDispatch
 .endproc
 ;===============================================================================
-; $D6BA: PhaseATauntSubDispatch
+                                                    ; $D6BA: AiTaunt
 ; Phase-$A handler entry (AI taunt scene): sub-dispatch on $0541 through the
 ; inline 6-entry table below. Entered only from the AI tactic-point spend
 ; ladder AiTacticPointSpend: @BindPurchase (Bind row, cost 3) starts at
 ; sub 0 and runs subs 0-5; @TauntPurchase (Taunt row, cost 5) starts
 ; at sub 4 and skips the opening beat. Subs 2/3 are idle wait frames; the
-; scene exits either back to the command select (Phase3CommandConfirmWait
+; scene exits either back to the command select (CommandConfirmWait
 ; with the resume latch 1/1) or into the phase-5 side event (sub 0).
 ;===============================================================================
-.proc PhaseATauntSubDispatch
+.proc AiTaunt
   LDA btl_overlay_sub                               ; $D6BA: AD 41 05
   JSR B1F_CallbackDispatcher              ; $D6BD: 20 DE EA
 ; --- CallbackDispatcher sub-phase table, indexed by $0541 ---
-  .word PhaseATauntSceneOpen              ; $D6C0: CC D6 ; sub 0 ($D6CC)
-  .word PhaseATauntSceneAdvanceWait       ; $D6C2: DD D6 ; sub 1 ($D6DD)
-  .word PhaseATauntSceneWaitFrame         ; $D6C4: 2A D7 ; sub 2 ($D72A)
-  .word PhaseATauntSceneWaitFrame         ; $D6C6: 2A D7 ; sub 3 ($D72A)
-  .word PhaseATauntSceneStep              ; $D6C8: 43 D7 ; sub 4 ($D743)
-  .word PhaseATauntSceneChoice            ; $D6CA: 7F D7 ; sub 5 ($D77F)
+  .word AiTauntSceneOpen                  ; $D6C0: CC D6 ; sub 0 ($D6CC)
+  .word AiTauntSceneAdvanceWait           ; $D6C2: DD D6 ; sub 1 ($D6DD)
+  .word AiTauntSceneWaitFrame             ; $D6C4: 2A D7 ; sub 2 ($D72A)
+  .word AiTauntSceneWaitFrame             ; $D6C6: 2A D7 ; sub 3 ($D72A)
+  .word AiTauntSceneStep                  ; $D6C8: 43 D7 ; sub 4 ($D743)
+  .word AiTauntSceneChoice                ; $D6CA: 7F D7 ; sub 5 ($D77F)
 .endproc
 ;===============================================================================
-; $D6CC: PhaseATauntSceneOpen
+                                                    ; $D6CC: AiTauntSceneOpen
 ; Sub 0 (taunt opening beat). Advances to sub 1, clears the row cursor
 ; $0548, sets UI panel $7B and applies status counter $0574 <- 4 for the
-; acting side through Phase8RowCounter574 (the no-UI counter tail of the
+; acting side through BattleTacticsRowCounter574 (the no-UI counter tail of the
 ; player-side Bind row).
 ;===============================================================================
-.proc PhaseATauntSceneOpen
+.proc AiTauntSceneOpen
   INC btl_overlay_sub                               ; $D6CC: EE 41 05 ; sub-phase <- 1
   LDA #$00                                ; $D6CF: A9 00
   STA btl_frame_counter                               ; $D6D1: 8D 48 05 ; row cursor <- 0
   LDA #$7B                                ; $D6D4: A9 7B
   JSR B1F_OpenMsgWindow0                  ; $D6D6: 20 6D F2 ; UI panel $7B
-  JSR Phase8RowCounter574                 ; $D6D9: 20 F6 AF ; counter $0574 <- 4
+  JSR BattleTacticsRowCounter574          ; $D6D9: 20 F6 AF ; counter $0574 <- 4
   RTS                                     ; $D6DC: 60
 .endproc
 ;===============================================================================
-; $D6DD: PhaseATauntSceneAdvanceWait
+                                                   ; $D6DD: AiTauntSceneAdvanceWait
 ; Sub 1. Per frame, redraws the opposing side's overlay strip
-; (PhaseATauntStripRedraw with $057C temporarily flipped) and refetches
+; (AiTauntStripRedraw with $057C temporarily flipped) and refetches
 ; both pads (BattleBothPadsStateFetch); once the animation queue idles
 ; (BattleAnimQueueIdleCheck carry set) and an A-button edge arrives on
 ; either pad ($0001 bit0), closes the scene: phase/sub <- 3/3
-; (Phase3CommandConfirmWait), clears the scan cursor $0545/$0546, latches
+; (CommandConfirmWait), clears the scan cursor $0545/$0546, latches
 ; the resume pair $054B/$054C <- 1/1 (resumption target phase 1 sub 1),
 ; queues the $E8/$E9 tile animation into slot 0 ($0310/$0311, $0300) and
 ; refreshes the panel troop-count block (BattlePanelStatsRefresh).
 ;===============================================================================
-.proc PhaseATauntSceneAdvanceWait
+.proc AiTauntSceneAdvanceWait
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
   LDA btl_side_index                               ; $D6DD: AD 7C 05 ; side index
   PHA                                     ; $D6E0: 48
   EOR #$01                                ; $D6E1: 49 01 ; opposing side
   STA btl_side_index                               ; $D6E3: 8D 7C 05
-  JSR PhaseATauntStripRedraw              ; $D6E6: 20 2B D7 ; enemy strip redraw
+  JSR AiTauntStripRedraw                  ; $D6E6: 20 2B D7 ; enemy strip redraw
   PLA                                     ; $D6E9: 68
   STA btl_side_index                               ; $D6EA: 8D 7C 05 ; restore side index
   JSR BattleBothPadsStateFetch            ; $D6ED: 20 22 CD ; both pads
   JSR BattleAnimQueueIdleCheck            ; $D6F0: 20 70 B8
-  BCC PhaseATauntSceneWaitFrame           ; $D6F3: 90 35 ; busy: wait
+  BCC AiTauntSceneWaitFrame               ; $D6F3: 90 35 ; busy: wait
   LDA a:pad_state                             ; $D6F5: AD 01 00 ; pad raw merged
   AND #$01                                ; $D6F8: 29 01 ; A button edge
-  BEQ PhaseATauntSceneWaitFrame           ; $D6FA: F0 2E ; no press: wait
+  BEQ AiTauntSceneWaitFrame               ; $D6FA: F0 2E ; no press: wait
 .endproc
-; Shared scene exit (also entered from PhaseATauntSceneChoice row 1):
+; Shared scene exit (also entered from AiTauntSceneChoice row 1):
 ; re-enter the command select at phase 3 sub 3 with the resume latch 1/1.
-PhaseATauntCommandReturn:
+AiTauntCommandReturn:
   LDA #$03                                ; $D6FC: A9 03
   STA btl_overlay_phase                               ; $D6FE: 8D 40 05 ; phase <- 3
   LDA #$03                                ; $D701: A9 03
@@ -8623,15 +8623,15 @@ PhaseATauntCommandReturn:
   STA anim_queue_hdr0                               ; $D724: 8D 00 03 ; anim slot index <- 0
   JSR BattlePanelStatsRefresh             ; $D727: 20 F1 CB ; refresh panel stats
 ; Shared wait frame (dispatch subs 2/3 and the sub-1 wait paths): plain RTS.
-PhaseATauntSceneWaitFrame:
+AiTauntSceneWaitFrame:
   RTS                                     ; $D72A: 60
 ;===============================================================================
-; $D72B: PhaseATauntStripRedraw
+                                                   ; $D72B: AiTauntStripRedraw
 ; Redraws the overlay strip of the side currently in $057C: buffer ptr lo
 ; from $0560[$057C] (hi fixed $A5) via the bank-19 strip renderer
 ; (B19_1A_OverlayStripRender_Entry), X=0 strip slot, Y=$39.
 ;===============================================================================
-.proc PhaseATauntStripRedraw
+.proc AiTauntStripRedraw
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; taunt strip render buffer ptr lo
 strip_ptr_hi   = $000A  ; strip render buffer ptr hi
@@ -8648,7 +8648,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
   RTS                                     ; $D742: 60
 .endproc
 ;===============================================================================
-; $D743: PhaseATauntSceneStep
+                                                    ; $D743: AiTauntSceneStep
 ; Sub 4. Advances to sub 5, clears the row cursor $0548 and sets UI panel
 ; $7C; publishes the acting side's commander unit id $0560[$057C] as the
 ; effect target $042C, sets script id $00BB <- 9, then banked-calls
@@ -8656,7 +8656,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 ; $0560[$057C^1]/0 to render the opposing commander's data panel, and
 ; finally clears the menu cursor $0424/$0425.
 ;===============================================================================
-.proc PhaseATauntSceneStep
+.proc AiTauntSceneStep
 ; zero-page work cells (proc-local):
 strip_ptr_lo   = $0000  ; officer display render buffer ptr lo
 strip_ptr_hi   = $0001  ; officer display render buffer ptr hi
@@ -8687,20 +8687,20 @@ strip_ptr_hi   = $0001  ; officer display render buffer ptr hi
   RTS                                     ; $D77E: 60
 .endproc
 ;===============================================================================
-; $D77F: PhaseATauntSceneChoice
+                                                   ; $D77F: AiTauntSceneChoice
 ; Sub 5. Two-row choice menu for the taunt scene. Saves the pad latch
-; $0081, refreshes the opposing side's overlay strip (PhaseATauntStripRedraw
+; $0081, refreshes the opposing side's overlay strip (AiTauntStripRedraw
 ; with $057C temporarily flipped), refetches both pads and latches the
 ; merged raw state back into $0081, then steps the row cursor $0012 over
-; the FF-terminated row list PhaseATauntChoiceRows via B1F_MenuStep2 and
+; the FF-terminated row list AiTauntChoiceRows via B1F_MenuStep2 and
 ; draws the selection cursor through B1F_PointerTableLookup (coords
-; PhaseATauntChoiceCursorCoords, params PhaseATauntChoiceCursorParams).
+; AiTauntChoiceCursorCoords, params AiTauntChoiceCursorParams).
 ; When the animation queue idles and an A-button edge arrives on either
 ; pad, the choice commits: row 0 hands over to the side event (phase/sub
-; <- 5/0, Phase5SideEventRosterCommit); row 1 exits to the command select
-; via PhaseATauntCommandReturn.
+; <- 5/0, SideEventRosterCommit); row 1 exits to the command select
+; via AiTauntCommandReturn.
 ;===============================================================================
-.proc PhaseATauntSceneChoice
+.proc AiTauntSceneChoice
 ; zero-page work cells (proc-local):
 pad_state      = $0001  ; merged both-pad raw state
 list_ptr_lo    = $0010  ; taunt row list ptr lo
@@ -8714,7 +8714,7 @@ param_ptr_hi   = $0001  ; cursor param ptr hi
   PHA                                     ; $D782: 48
   EOR #$01                                ; $D783: 49 01 ; opposing side
   STA btl_side_index                               ; $D785: 8D 7C 05
-  JSR PhaseATauntStripRedraw              ; $D788: 20 2B D7 ; enemy strip redraw
+  JSR AiTauntStripRedraw                  ; $D788: 20 2B D7 ; enemy strip redraw
   PLA                                     ; $D78B: 68
   STA btl_side_index                               ; $D78C: 8D 7C 05 ; restore side index
   LDA a:btl_pad1_lo                             ; $D78F: AD 81 00 ; pad latch lo
@@ -8722,22 +8722,22 @@ param_ptr_hi   = $0001  ; cursor param ptr hi
   JSR BattleBothPadsStateFetch            ; $D793: 20 22 CD ; both pads
   LDA a:pad_state                             ; $D796: AD 01 00 ; merged raw state
   STA a:btl_pad1_lo                             ; $D799: 8D 81 00 ; relatch
-  LDA #<PhaseATauntChoiceRows             ; $D79C: A9 EE
+  LDA #<AiTauntChoiceRows                 ; $D79C: A9 EE
   STA a:list_ptr_lo                             ; $D79E: 8D 10 00 ; row list ptr lo
-  LDA #>PhaseATauntChoiceRows             ; $D7A1: A9 D7
+  LDA #>AiTauntChoiceRows                 ; $D7A1: A9 D7
   STA a:list_ptr_hi                             ; $D7A3: 8D 11 00 ; row list ptr hi
   LDA #$00                                ; $D7A6: A9 00
   STA a:selected_row                             ; $D7A8: 8D 12 00 ; selected row <- 0
   JSR B1F_MenuStep2                       ; $D7AB: 20 1E ED ; step row cursor
   PLA                                     ; $D7AE: 68
   STA a:btl_pad1_lo                             ; $D7AF: 8D 81 00 ; restore latch
-  LDA #<PhaseATauntChoiceCursorCoords     ; $D7B2: A9 F2
+  LDA #<AiTauntChoiceCursorCoords         ; $D7B2: A9 F2
   STA a:cursor_ptr_lo                             ; $D7B4: 8D 10 00 ; cursor coord ptr lo
-  LDA #>PhaseATauntChoiceCursorCoords     ; $D7B7: A9 D7
+  LDA #>AiTauntChoiceCursorCoords         ; $D7B7: A9 D7
   STA a:cursor_ptr_hi                             ; $D7B9: 8D 11 00 ; cursor coord ptr hi
-  LDA #<PhaseATauntChoiceCursorParams     ; $D7BC: A9 F6
+  LDA #<AiTauntChoiceCursorParams         ; $D7BC: A9 F6
   STA a:param_ptr_lo                             ; $D7BE: 8D 00 00 ; cursor param ptr lo
-  LDA #>PhaseATauntChoiceCursorParams     ; $D7C1: A9 D7
+  LDA #>AiTauntChoiceCursorParams         ; $D7C1: A9 D7
   STA a:param_ptr_hi                             ; $D7C3: 8D 01 00 ; cursor param ptr hi
   LDA a:selected_row                             ; $D7C6: AD 12 00 ; selected row
   JSR B1F_PointerTableLookup              ; $D7C9: 20 F5 ED ; cursor sprite
@@ -8749,7 +8749,7 @@ param_ptr_hi   = $0001  ; cursor param ptr hi
   BEQ @Wait                               ; $D7D9: F0 12 ; no press: wait
   LDA a:selected_row                             ; $D7DB: AD 12 00 ; selected row
   BEQ @SideEventEntry                     ; $D7DE: F0 03 ; row 0
-  JMP PhaseATauntCommandReturn            ; $D7E0: 4C FC D6 ; row 1: command return
+  JMP AiTauntCommandReturn                ; $D7E0: 4C FC D6 ; row 1: command return
 @SideEventEntry:
   LDA #$05                                ; $D7E3: A9 05
   STA btl_overlay_phase                               ; $D7E5: 8D 40 05 ; phase <- 5 (side event)
@@ -8759,29 +8759,29 @@ param_ptr_hi   = $0001  ; cursor param ptr hi
   RTS                                     ; $D7ED: 60
 .endproc
 ; --- Data Region ---
-PhaseATauntChoiceRows:
+AiTauntChoiceRows:
 ; FF-terminated selectable-row list for the taunt scene choice menu: rows
 ; 0-1 (accept -> side event, refuse -> command return).
   .byte $00,$01,$FF,$FF                   ; $D7EE: 00 01 FF FF
-PhaseATauntChoiceCursorCoords:
+AiTauntChoiceCursorCoords:
 ; Selection-cursor sprite coordinates per selected row (word = y,x): row 0
 ; y=$CE x=$48, row 1 y=$CE x=$88.
   .word $48CE                             ; $D7F2: CE 48 ; row 0
   .word $88CE                             ; $D7F4: CE 88 ; row 1
-PhaseATauntChoiceCursorParams:
+AiTauntChoiceCursorParams:
 ; Cursor sprite parameter block passed alongside through
 ; B1F_PointerTableLookup.
   .byte $00,$07,$00,$00,$80               ; $D7F6: 00 07 00 00 80
 ;===============================================================================
-; $D7FB: OfficerBattleExpAccrueAndLevelUp
+                                               ; $D7FB: OfficerBattleExpAccrueAndLevelUp
 ; Accrues battle experience for an officer and applies the LevelUp when the
 ; experience threshold is reached. Input: $000A <- officer id (experience
 ; recipient), $000B/$000C <- 16-bit amount (credited halved, per the manual
 ; roughly 1 exp point per 2 enemy soldiers defeated). Bank entry
 ; OfficerBattleExpAccrueAndLevelUp_Entry; also called from
-; Phase2DamagePanelUpdate ($A7DC) and Phase9AdvanceContactApply ($B4E0), and
-; via BankedCallbackTrampoline from prg_0c_0d.asm ($A57C, $B6ED) and
-; prg_08_09.asm ($CE1E).
+; DamagePanelUpdate ($A7DC) and FormationAdvanceContactApply ($B4E0), and
+; via BankedCallbackTrampoline from prg_0c_0d_tactical_commands.asm ($A57C, $B6ED) and
+; prg_08_09_tactical_war.asm ($CE1E).
 ; Adds the halved amount to the officer's 16-bit Experience field (record
 ; bytes 6-7, capped at $C34F = 49999). The experience total is then compared
 ; against the OfficerLevelExpThresholds entry for the officer's current level
@@ -8898,7 +8898,7 @@ LevelUp:
   RTS                                     ; $D8AF: 60
 .endproc
 ;===============================================================================
-; $D8B0: OfficerStatSumExpGrant
+                                               ; $D8B0: OfficerStatSumExpGrant
 ; Credits the recipient officer with experience equal to the donor officer's
 ; Might (record byte 1) + Intelligence (record byte 2) sum, then falls through
 ; to OfficerBattleExpAccrueAndLevelUp, which halves the amount and applies the
@@ -8908,7 +8908,7 @@ LevelUp:
 ; Input: $000A <- recipient officer id (passed through to $D7FB, experience
 ; target), $000B <- donor officer id (stat source). Bank entry
 ; OfficerStatSumExpGrant_Entry;
-; called via BankedCallbackTrampoline from prg_0c_0d.asm ($B628, $C7AD).
+; called via BankedCallbackTrampoline from prg_0c_0d_tactical_commands.asm ($B628, $C7AD).
 ;===============================================================================
 .proc OfficerStatSumExpGrant
 ; zero-page work cells (proc-local):
@@ -8932,7 +8932,7 @@ rec_ptr        = $0000  ; officer record ptr (Might/Int)
   JMP OfficerBattleExpAccrueAndLevelUp    ; $D8D1: 4C FB D7 ; exp accrual/level-up
 .endproc
 ;===============================================================================
-; $D8D4: BattleAnimSoundEngine
+                                          ; $D8D4: BattleAnimSoundEngine
 ; Battle scene multi-channel animation and audio engine. Processes 22
 ; independent channels each VBlank: 4 NES APU channels (pulse 1/2, triangle,
 ; noise) plus up to 18 Namco-163 expansion audio channels. Each channel
@@ -9413,7 +9413,7 @@ VolumeExtractNamco:
   RTS                                     ; $DC58: 60
 .endproc
 ;===============================================================================
-; $DC59: BattleSoundChannelProc
+                                          ; $DC59: BattleSoundChannelProc
 ; Sound channel processing engine. Handles frequency scaling, vibrato, sound
 ; playback, and APU/Namco register writes for battle scene audio channels.
 ; Primary entry at SoundPlayAlt ($DF6E), dispatched via bank entry

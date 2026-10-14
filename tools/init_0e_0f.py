@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Initialize asm/banks/prg_0e_0f.asm from output/prg_0e_0f_raw.asm.
+Initialize asm/banks/prg_0e_0f_battle.asm from output/prg_0e_0f_raw.asm.
 
 Steps:
   1. Parse the raw disassembly produced by tools/disasm_prg.py.
@@ -19,7 +19,7 @@ import re
 import sys
 
 RAW_PATH = "output/prg_0e_0f_raw.asm"
-OUT_PATH = "asm/banks/prg_0e_0f.asm"
+OUT_PATH = "asm/banks/prg_0e_0f_battle.asm"
 BANK_LO = "rom/prg/prg_0e.bin"
 BANK_HI = "rom/prg/prg_0f.bin"
 BOUNDARY = 0xC000

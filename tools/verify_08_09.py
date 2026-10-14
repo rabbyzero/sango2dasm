@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone byte verification for asm/banks/prg_08_09.asm.
+"""Standalone byte verification for asm/banks/prg_08_09_tactical_war.asm.
 
 Assembles the bank file in isolation: external references are stubbed with
 equates, both segments are laid out back-to-back at $A000, and the 16KB
@@ -9,7 +9,7 @@ from _bank_verify_lib import main
 
 main("08", "09",
      stub_strategy="retry",
-     stub_header="; RAM globals owned by other bank files (addresses per prg_08_09.asm header)\n",
+     stub_header="; RAM globals owned by other bank files (addresses per prg_08_09_tactical_war.asm header)\n",
      external_ram=[
          "menu_cursor_col = $0424\n",
          "menu_cursor_page = $0425\n",

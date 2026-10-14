@@ -19,7 +19,7 @@ Commands
     roster add|remove|governor ID [PROVINCE] [--slot N]
     check                the invariant report; exit 1 on any problem
     diff PATH            field-level diff against another set of CSVs
-    write-asm            save, re-render asm/banks/data_10.asm + data_11.asm,
+    write-asm            save, re-render asm/banks/data_10_seed.asm + data_11_officer.asm,
                          then report the decoded edits (repo only)
     verify               run tools/verify_data_banks.py --allow-edits
 
@@ -223,6 +223,13 @@ def cmd_show(m, model, args):
               'each January the Country inducts the first still-hidden heir '
               'whose year has arrived)'
               % pool)
+    if model.has_heirs:
+        hits = model.heir_successor_lists(off.id)
+        if hits:
+            print('  AI successor priority: %s (first listed officer governing '
+                  'one of the Country\'s provinces takes it on ruler death)'
+                  % '; '.join('Country %d #%d of %d' % (c, pos + 1, len(ids))
+                              for c, pos, ids in hits))
     if off.death_year is None:
         print('  death year  (death-year CSV not loaded)')
     else:
@@ -355,6 +362,22 @@ def cmd_reinforce(m, model, args):
     return _finish(model, args, snapshot, 'officer %d reinforcement' % off.id)
 
 
+def cmd_heirs(m, model, args):
+    """The AI ruler successor priority lists, all seven countries."""
+    if not model.has_heirs:
+        print('heir priority lists not loaded (pass --repo, or keep '
+              'rom/prg/prg_0b.bin beside the CSVs)')
+        return 0
+    print('AI ruler successor priority (prg_0b $CAD8, AppointSuccessor $CA68)')
+    for line in model.heir_priority_lines():
+        print('  %s' % line)
+    print('  on ruler death the first listed officer governing one of the '
+          'country\'s provinces (slot $11, the 太守) takes the country;')
+    print('  if none qualifies the AI installs the governor with the highest '
+          '人徳 Virtue. Read-only authored data.')
+    return 0
+
+
 def cmd_check(m, model, args):
     problems, notes = model.report()
     for line in problems:
@@ -452,6 +475,9 @@ def _load(m, args, officer_csv=None):
     page_bank = m.sibling_path(officer_csv,
                                os.path.join('rom', 'prg', 'prg_1a.bin')) \
         or paths.get('portrait_page_bank')
+    heir_bank = m.sibling_path(officer_csv,
+                               os.path.join('rom', 'prg', 'prg_0b.bin')) \
+        or paths.get('heir_bank')
     chr_dir = m.sibling_path(officer_csv, os.path.join('rom', 'chr')) \
         or paths.get('chr_dir')
     try:
@@ -464,7 +490,9 @@ def _load(m, args, officer_csv=None):
             if reinforce_csv and os.path.exists(reinforce_csv) else None,
             card_bank=card if card and os.path.exists(card) else None,
             portrait_page_bank=page_bank
-            if page_bank and os.path.exists(page_bank) else None)
+            if page_bank and os.path.exists(page_bank) else None,
+            heir_bank=heir_bank if heir_bank and os.path.exists(heir_bank)
+            else None)
     except m.OfficerError as exc:
         die(str(exc), 2)
 
@@ -620,6 +648,10 @@ def build_parser(m):
     p.add_argument('year', help='display year 100-255 (the stored byte is '
                                 'year - 100)')
     p.set_defaults(func=cmd_reinforce)
+
+    p = sub.add_parser('heirs', parents=[common],
+                       help='the AI ruler successor priority lists (read-only)')
+    p.set_defaults(func=cmd_heirs)
 
     p = sub.add_parser('check', parents=[common],
                        help='the invariant report (exit 1 on problems)')

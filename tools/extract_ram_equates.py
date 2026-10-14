@@ -9,9 +9,9 @@ import os
 
 BANK_DIR = "asm/banks"
 BANKS = [
-    "prg_08_09.asm", "prg_0a_0b.asm", "prg_0c_0d.asm", "prg_0e_0f.asm",
-    "prg_17_18.asm", "prg_19_1a.asm", "prg_1b_1c.asm", "prg_1d_1e.asm",
-    "prg_1f.asm",
+    "prg_08_09_tactical_war.asm", "prg_0a_0b_strategy_ai.asm", "prg_0c_0d_tactical_commands.asm", "prg_0e_0f_battle.asm",
+    "prg_17_18_display.asm", "prg_19_1a_event_scenes.asm", "prg_1b_1c_map_screen.asm", "prg_1d_1e_menu_screens.asm",
+    "prg_1f_boot.asm",
 ]
 
 eq_re = re.compile(r"^\s*([A-Za-z_][\w]*)\s*=\s*\$([0-9A-Fa-f]{1,4})\b\s*;?(.*)$")

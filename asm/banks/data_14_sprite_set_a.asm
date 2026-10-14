@@ -7,12 +7,12 @@
 ; by tools/verify_data_bank_14.py. Raw source: rom/prg/prg_14.bin (read-only) -
 ; do not hand-edit the rendered records.
 ;
-; Selected as $34 by DrawSpriteFromBank ($CEA5, prg_17_18): A = sprite id,
+; Selected as $34 by DrawSpriteFromBank ($CEA5, prg_17_18_display): A = sprite id,
 ; bit 7 picks the bank (clear = $34 / this bank, set = $35 / bank $15) and
 ; bits 6-0 index the .word table at $8000 (Y = id * 2). The stored pointer
 ; high byte is used unchanged for this bank (the routine SBCs HI_OFFSET_A =
 ; $00; bank $15 stores its pointers with hi + $20). The record pointer goes
-; to $00/$01 and B1F_SpriteOamWriterSimple ($F1AD, prg_1f) expands it to OAM:
+; to $00/$01 and B1F_SpriteOamWriterSimple ($F1AD, prg_1f_boot) expands it to OAM:
 ;
 ;   record = repeated 4-byte entries [y_off, tile, attr, x_off], $80 ends;
 ;     y_off  + $000A (from $04BA) -> OAM Y   ($0200)
@@ -27,7 +27,7 @@
 ; writer's EOR supplies the palette bit at run time (MapScroll's forward path
 ; passes $40/$41 + player slot).
 ;
-; Caller evidence for the ids (prg_17_18; fixed bases - runtime adds may reach
+; Caller evidence for the ids (prg_17_18_display; fixed bases - runtime adds may reach
 ; further ids of the same family): $00-$10 MapScroll_UpdatePosition backward
 ; scroll (phase 0-7 / ScrollSpriteTopTable $CF93 / ScrollSpriteMidTable $CF9B
 ; + player offset 0/2), $11-$21 its forward scroll (same tables + $11, flip

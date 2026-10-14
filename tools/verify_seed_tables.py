@@ -9,7 +9,7 @@ the disassembly, so a later refactor cannot silently invalidate them:
                         8KB banks rom/prg/prg_10.bin / prg_11.bin, and those
                         files are the matching slices of rom/prg_combined.bin.
   2. SramInit copies  - the two block loops inside .proc SramInit
-                        (asm/banks/prg_1d_1e.asm, $DD8B) are re-read from the
+                        (asm/banks/prg_1d_1e_menu_screens.asm, $DD8B) are re-read from the
                         disassembly and their source/destination/length
                         immediates must produce:
                           bank $30 $8C00 -> $6000, $3C0 bytes (30 x 32)
@@ -32,7 +32,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK_DIR = os.path.join(ROOT, 'rom', 'prg')
 PRG_COMBINED = os.path.join(ROOT, 'rom', 'prg_combined.bin')
-SRAM_INIT_ASM = os.path.join(ROOT, 'asm', 'banks', 'prg_1d_1e.asm')
+SRAM_INIT_ASM = os.path.join(ROOT, 'asm', 'banks', 'prg_1d_1e_menu_screens.asm')
 
 PROV_BANK = 0x30
 PROV_CPU = 0x8C00

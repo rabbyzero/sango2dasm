@@ -4,7 +4,7 @@
 The data banks reachable only through the $8000 window (`SwitchBank8_A/B`,
 mapper registers $30-$37) hold whole 1KB nametable images: 960 tile bytes
 (30 rows x 32 cols) followed by 64 attribute bytes. `PpuCopyRaw` ($A212,
-prg_17_18.asm) and `ScenePageCopy` ($BC9B, prg_1d_1e.asm) stream exactly that
+prg_17_18_display.asm) and `ScenePageCopy` ($BC9B, prg_1d_1e_menu_screens.asm) stream exactly that
 many bytes to PPUDATA - see code/initial_data_tables.md §9.
 
 A screen is only recognisable with the CHR pages *and* the palette the game had
@@ -14,7 +14,7 @@ loaded for it:
         $946C, 48 B/record, bytes 4-7 = NAMCO-163 CHR slots 4-7 = BG tile groups
         $00-3F / $40-7F / $80-BF / $C0-FF (BG pattern table $1000, PPUCTRL mirror
         $008B = $10). Page value V = chr file V//8 at offset (V%8)*$400.
-  color `LoadScenarioData` ($DBB1, prg_1d_1e.asm) copies a 32-byte palette record
+  color `LoadScenarioData` ($DBB1, prg_1d_1e_menu_screens.asm) copies a 32-byte palette record
         to $0100, which `PaletteUpload` ($E70E) sends to PPU $3F00. The records
         live in bank $1E at $DBEB (14 entries, index 9 repeats 8).
 
@@ -72,7 +72,7 @@ NES_RGB = (
     (0xa8, 0xf0, 0xf8), (0xa8, 0xa8, 0xa8), (0xfc, 0xfc, 0xfc), (0x00, 0x00, 0x00),
 )
 
-# LoadScenarioData @RecordPtrTable ($DBCF, prg_1d_1e.asm): CPU address of each
+# LoadScenarioData @RecordPtrTable ($DBCF, prg_1d_1e_menu_screens.asm): CPU address of each
 # 32-byte palette record. Bank $1E holds $C000-$FFFF, so file offset = cpu-$C000.
 PALETTE_CPU = (
     0xDBEB, 0xDC0B, 0xDC2B, 0xDC4B, 0xDC6B, 0xDC8B, 0xDCAB, 0xDCCB,

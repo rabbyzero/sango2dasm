@@ -6,7 +6,7 @@
 ; by tools/verify_data_bank_13.py. Raw source: rom/prg/prg_13.bin (read-only) -
 ; do not hand-edit the rendered records.
 ;
-; Selected as $33 from B1D_1E_MenuUpdate's stream VM (prg_1d_1e):
+; Selected as $33 from B1D_1E_MenuUpdate's stream VM (prg_1d_1e_menu_screens):
 ;   SelectDataBankByPos $A690 + @PosDataBankTable $A6A7: bank $13 is mapped
 ;   whenever the pos id (pos_buf_0, $0310) is < $20 (table index forced to 0),
 ;   or whenever pos id >= $20 and sub_state ($007A) is outside 3-8 (indices
@@ -14,10 +14,10 @@
 ;   adds $20 to its high byte for those indices (bank $12 gets +$40 for
 ;   indices 3-8), so stream address = stored word + $2000. The pos ids enter
 ;   the 4-entry UI queue pos_buf_0..3 ($0310-$0313) through B1F_OpenMsgWindow0/2/4/5
-;   (prg_1f $F26D-$F29B: mode -> pos_buf_0, UI id -> pos_buf_1), through
+;   (prg_1f_boot $F26D-$F29B: mode -> pos_buf_0, UI id -> pos_buf_1), through
 ;   B1F_ClearUI ($F29B, caller A always $00), through direct $0310/$0311
 ;   writes (StratagemState_Init seeds $F3;
-;   OfficerExchangeConfirmDispatch seeds $E0/$DB), and through
+;   WarResultPanel seeds $E0/$DB), and through
 ;   CmdPushPosition ($82) chains inside the streams;
 ;   CmdEndMenu ($A248) shifts the queue. This bank is also the push target of
 ;   the bank-$12 streams: their single small-id push ($82 $03) enters the
@@ -267,7 +267,7 @@ MenuStreamPtrTable:
   .word MenuStream_posB4_TownDestMenuH-$2000 ; $8168  word $7620 -> $9620  pos $B4, $C4 war town action panel
   .word MenuStream_posB5-$2000             ; $816A  word $766F -> $966F  pos $B5, $C5
   .word MenuStream_posB6-$2000             ; $816C  word $76BE -> $96BE  pos $B6, $C6 move state init panel
-  .word MenuStream_posB7_NoOfficerHereMsg-$2000 ; $816E  word $770D -> $970D  pos $B7, $C7 army march/OfficerMarchDispatch panel
+  .word MenuStream_posB7_NoOfficerHereMsg-$2000 ; $816E  word $770D -> $970D  pos $B7, $C7 army march/AiMarch panel
   .word MenuStream_posB8_CaughtBanditsMsg-$2000 ; $8170  word $7721 -> $9721  pos $B8, $C8 move select panel
   .word MenuStream_posB9_RichRiceDonationMsg-$2000 ; $8172  word $7750 -> $9750  pos $B9, $C9 castle cmd panel
   .word MenuStream_posBA_RichGoldDonationMsg-$2000 ; $8174  word $7776 -> $9776  pos $BA, $CA officer turn init panel
@@ -283,7 +283,7 @@ MenuStreamPtrTable:
   .word MenuStream_posB4_TownDestMenuH-$2000 ; $8188  word $7620 -> $9620  pos $B4, $C4 war town action panel
   .word MenuStream_posB5-$2000             ; $818A  word $766F -> $966F  pos $B5, $C5
   .word MenuStream_posB6-$2000             ; $818C  word $76BE -> $96BE  pos $B6, $C6 move state init panel
-  .word MenuStream_posB7_NoOfficerHereMsg-$2000 ; $818E  word $770D -> $970D  pos $B7, $C7 army march/OfficerMarchDispatch panel
+  .word MenuStream_posB7_NoOfficerHereMsg-$2000 ; $818E  word $770D -> $970D  pos $B7, $C7 army march/AiMarch panel
   .word MenuStream_posB8_CaughtBanditsMsg-$2000 ; $8190  word $7721 -> $9721  pos $B8, $C8 move select panel
   .word MenuStream_posB9_RichRiceDonationMsg-$2000 ; $8192  word $7750 -> $9750  pos $B9, $C9 castle cmd panel
   .word MenuStream_posBA_RichGoldDonationMsg-$2000 ; $8194  word $7776 -> $9776  pos $BA, $CA officer turn init panel
@@ -327,7 +327,7 @@ MenuStreamPtrTable:
   .word MenuStream_posF0_EndingNamesPanel-$2000 ; $81E0  word $7D18 -> $9D18  pos $F0 fire arrows overlay
   .word MenuStream_posF1_StrengthMenCaption-$2000 ; $81E2  word $7D23 -> $9D23  pos $F1 explosion/tactic point overlay
   .word MenuStream_posF2_StaffCaption-$2000 ; $81E4  word $7D36 -> $9D36  pos $F2
-  .word MenuStream_posF3_StaffCreditsCoordinator-$2000 ; $81E6  word $7D3E -> $9D3E  pos $F3 head seeded by StratagemState_Init (prg_0c_0d $A8A0, renders bank-12 blank placeholder in war mode)
+  .word MenuStream_posF3_StaffCreditsCoordinator-$2000 ; $81E6  word $7D3E -> $9D3E  pos $F3 head seeded by StratagemState_Init (prg_0c_0d_tactical_commands $A8A0, renders bank-12 blank placeholder in war mode)
   .word MenuStream_posF4_StaffCreditsProgrammer-$2000 ; $81E8  word $7D75 -> $9D75  pos $F4 command menu (funds ok) panel
   .word MenuStream_posF5_StaffCreditsCharacter-$2000 ; $81EA  word $7DAB -> $9DAB  pos $F5
   .word MenuStream_posF6_StaffCreditsComposer-$2000 ; $81EC  word $7DE6 -> $9DE6  pos $F6
@@ -1505,7 +1505,7 @@ MenuStream_posB6:
   .byte $E3, $01, $01, $01, $CF, $D0, $D1, $86, $C8, $22, $85, $88, $4D, $4D, $5D, $22 ; $96EE  [E3] | sp | sp | sp | [CF] | [D0] | [D1] | vram C822 | ovl off | ind off | こ | こ | は | マ
   .byte $14, $56, $39, $50, $01, $57, $39, $4D, $60, $45, $4A, $62, $50, $49, $80 ; $96FE  チ | て | で | す | sp | と | ど | こ | へ | い | き | ま | す | か | end
 
-; --- $970D-$9720 (20 B) pos $B7 $C7 army march/OfficerMarchDispatch panel ---
+; --- $970D-$9720 (20 B) pos $B7 $C7 army march/AiMarch panel ---
 ;     start PPU 22EA; 15 tiles, 1 ovl, 1 marks, 1 end
 ;     text: "このクニに ブショウはいません"
 ;     other ids: command menu setup panel
@@ -1853,7 +1853,7 @@ MenuStream_posF1_StrengthMenCaption:
 MenuStream_posF2_StaffCaption:
   .byte $8D, $25, $84, $10, $13, $38, $1F, $80 ; $9D36  vram 258D | ovl on | ス | タ | ッ | フ | end
 
-; --- $9D3E-$9D74 (55 B) pos $F3 head seeded by StratagemState_Init (prg_0c_0d $A8A0, renders bank-12 blank placeholder in war mode) ---
+; --- $9D3E-$9D74 (55 B) pos $F3 head seeded by StratagemState_Init (prg_0c_0d_tactical_commands $A8A0, renders bank-12 blank placeholder in war mode) ---
 ;     start PPU 26C4; 42 tiles, 3 rows, 1 ovl, 1 vram, 3 marks, 1 end
 ;     text: "コーディネーター     / くれいじーホース   / きだんしゃ      / ラーフス     "
 MenuStream_posF3_StaffCreditsCoordinator:

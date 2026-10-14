@@ -14,10 +14,10 @@
 ; RAM map (WRAM $0400-$06FF work area, SRAM $6F00-$6FFF) - war/battle context
 ; Cross-proc globals for this bank. Addresses shared with other scenes reuse
 ; the canonical globals defined in the owning bank files:
-;   $0424/$0425 = menu_cursor_col/menu_cursor_page (prg_0c_0d.asm)
+;   $0424/$0425 = menu_cursor_col/menu_cursor_page (prg_0c_0d_tactical_commands.asm)
 ;   $04D8       = army_slot_base (+1 target X, +2 target Y, +3 timer,
-;                 +4 group 1 owner, +5..+7 group 1 timers) (prg_0c_0d.asm)
-;   $6F8B       = sram_game_start_flag (prg_0a_0b.asm)
+;                 +4 group 1 owner, +5..+7 group 1 timers) (prg_0c_0d_tactical_commands.asm)
+;   $6F8B       = sram_game_start_flag (prg_0a_0b_strategy_ai.asm)
 ;===============================================================================
 ; --- War scene state ($0500-$0514) ---
 war_scene_id        = $0500  ; battle scene/command id (state select)
@@ -43,16 +43,16 @@ war_target_param    = $052C  ; secondary target param (officer/province)
 action_result_lo       = $042C  ; reported amount / result lo
 action_result_hi       = $042D  ; reported amount / result hi
 action_result_cnt      = $042E  ; result counter / record byte 2
-; --- Battle result scene menu ($040C-$046D) ---
-result_cursor_x        = $040C  ; result menu cursor X (cleared per phase)
-result_cursor_y        = $040D  ; result menu cursor Y / pending-select flag
-result_sel_entry       = $0410  ; result menu selected entry id
-result_menu_row        = $046C  ; result menu row cursor
+; --- Country-select scene menu ($040C-$046D) ---
+csel_cursor_x        = $040C  ; select menu cursor X (cleared per phase)
+csel_cursor_y        = $040D  ; select menu cursor Y / pending-select flag
+csel_sel_entry       = $0410  ; select menu selected faction entry id
+csel_menu_row        = $046C  ; select menu row cursor
 war_overlay_flag    = $04C8  ; battle overlay flag (gates panel/marker draw)
-; --- Battle result scene state ($0541-$0548, $6F44, $6FEA) ---
-result_scene_phase     = $0541  ; result scene phase index (0-6)
-result_dir_repeat      = $0545  ; dir-repeat hold counters (4 bytes, +0..+3)
-result_latch_flags     = $6FEA  ; dir-repeat latch / outcome bits
+; --- Country-select scene state ($0541-$0548, $6F44, $6FEA) ---
+csel_phase           = $0541  ; select scene phase index (0-6)
+csel_cheat_step      = $0545  ; cheat sequence step counters (4 bytes, +0..+3)
+csel_cheat_latch     = $6FEA  ; cheat latch bits (0/1 finalize Province reset, 2/3 portrait mood)
 war_outcome_flag    = $6F44  ; battle outcome / ruler result flag
 ; --- Battle slot record columns (20 slots, 10 per side) ---
 unit_coord_x           = $0600  ; slot X coord column
@@ -105,8 +105,8 @@ ExpandArmoryGridSlots_Entry:
   JMP WarTownActionDispatch::ExpandArmoryGridSlots   ; $A01E: 4C 51 C8
 WarMapScrollUpdate_Entry:
   JMP WarMapScrollUpdate                ; $A021: 4C 7B D5
-WarResultDispatch_Entry:
-  JMP WarResultDispatch                 ; $A024: 4C 0F D7
+CountrySelectDispatch_Entry:
+  JMP CountrySelectDispatch                 ; $A024: 4C 0F D7
 WarResultSceneInit_Entry:
   JMP WarResultSceneInit                ; $A027: 4C 6E D6
 WarSlotClear_Entry:  ; (dispatch callback target)
@@ -3340,7 +3340,7 @@ RandomTable:                            ; $B5E5: 256-byte permutation of $00-$FF
 ; @GetTileTerrain - province terrain lookup for map coords ($0020,$0021),
 ; bounded by @EvalStepCost to X < $1F and Y < $14 (X 0-30, Y 0-19). Computes
 ; quadrant = (x >= 16) | ((y >= 16) << 1) and reads the terrain zone id from the
-; map zone table at ($00A8), which DataRecordLoader ($DF15, prg_17_18.asm) fills
+; map zone table at ($00A8), which DataRecordLoader ($DF15, prg_17_18_display.asm) fills
 ; from the battlefield province $050E (4 quadrant zone ids per province).
 ; The zone selects both the 16x16 crop pointer (TerrainMapPtrTable) and the PRG
 ; bank holding it (TileBankTable, switched into the $8000 window via
@@ -3770,7 +3770,7 @@ reserve_units          = $6F47  ; reserve unit id lists (2 x $14)
 ; faction officer table ($9D72) calling $F2AF for each until $FF sentinel.
 ;-------------------------------------------------------------------------------
 .proc WarPostProcess
-; --- Proc-local RAM (scene handoff, canonical names from prg_0c_0d.asm) ---
+; --- Proc-local RAM (scene handoff, canonical names from prg_0c_0d_tactical_commands.asm) ---
 scene_callback_id      = $0400  ; next scene callback id ($0D post-battle)
 scene_callback_st      = $0401  ; next scene callback state
   LDA a:$0087                           ; $BBA0: AD 87 00
@@ -4549,7 +4549,7 @@ ApplyCoordDeltas_Entry = UpdateOfficerCoords::ApplyCoordDeltas ; $C027 (file-sco
 ;===============================================================================
 ; WarTownActionDispatch - War-map town facility action state machine
 ; (player-side Market/Armory/Hospital flow; runs at war-map mode $09, entered
-; from OfficerMovePhase after an officer finishes moving). NOT AI: every state
+; from UnitMove after an officer finishes moving). NOT AI: every state
 ; polls the pad-1 edge latch $0081 and states 1/2 read trade amounts via
 ; B1B_1C_ActionDeltaInputPoll.
 ; Entry via JMP stub at $A009. Dispatches on $0501 (phase index) through
@@ -5129,7 +5129,7 @@ State5PanelLayout:
   .byte $00,$00,$80                     ; $C522: 00 00 80
 ; ArmoryGridSetTable - armory grid set (0-5) per province index $050E,
 ; consumed by State5_ArmoryGridSetup and passed to ExpandArmoryGridSlots.
-; (The prg_1b_1c strategy-map armory flow uses its own @ArmoryGridSetTable.)
+; (The prg_1b_1c_map_screen strategy-map armory flow uses its own @ArmoryGridSetTable.)
 ArmoryGridSetTable:
   .byte $00,$00,$00,$00,$04,$00,$03,$00,$01,$00,$00,$01,$01,$01,$00,$01; $C525: 00 00 00 00 04 00 03 00 01 00 00 01 01 01 00 01
   .byte $00,$00,$01,$00,$01,$01,$00,$00,$00,$01,$01,$01,$00,$05 ; $C535: 00 00 01 00 01 01 00 00 00 01 01 01 00 05
@@ -5548,7 +5548,7 @@ State9PanelLayout:
   .byte $00,$01,$FF,$FF,$C6,$50,$C6,$97,$00,$07,$00,$00,$80; $C844: 00 01 FF FF C6 50 C6 97 00 07 00 00 80
 ;-------------------------------------------------------------------------------
 ; ExpandArmoryGridSlots - expand an armory grid set into 4 item slots.
-; Also reachable via the entry stub at $A01E (shared with the prg_1b_1c
+; Also reachable via the entry stub at $A01E (shared with the prg_1b_1c_map_screen
 ; strategy-map armory flow at $C7AE).
 ; Input: $0000 = grid set id (0-5), $0012 = grid category (0-3).
 ; Reads 4 consecutive equipment cells from ArmoryGridLayouts
@@ -5605,7 +5605,7 @@ ExpandArmoryGridSlots:
 ; record +$0A (weapons 0-23, armor 24-31 = armor codes 0-7). The word is
 ; stored into the slot record at $042C by ExpandArmoryGridSlots; the purchase
 ; code subtracts it from the side gold pair (war-map armory:
-; State7_ArmoryPurchaseApply; strategy-map town armory: prg_1b_1c $C962).
+; State7_ArmoryPurchaseApply; strategy-map town armory: prg_1b_1c_map_screen $C962).
 ;-------------------------------------------------------------------------------
 ItemPriceTable:
   .word $0032,$0046,$0078,$00B4,$00FA,$0000,$0000,$0000 ; $C89E: 32 00 46 00 78 00 B4 00 FA 00 00 00 00 00 00 00
@@ -7240,8 +7240,8 @@ special_officer_idx    = $052F  ; special officer roster index
 ; $D390-$D3ED (roster @SpecialOfficerTable at $D3D8).
 ; Entry: JMP stub ValidateSpecialOfficer_Entry at $A018; invoked via
 ;        B1F_BankedCallbackTrampoline with LDY #$28 (PRG banks 08+09) from
-;        prg_0c_0d officer exchange flows: OfficerExchangeDispatch::
-;        @SetupAndValidate ($C73D) and ValidateExchangeOfficer ($DF12).
+;        prg_0c_0d_tactical_commands officer exchange flows: OfficerLevelUp::
+;        @SetupAndValidate ($C73D) and OfficerLevelUpCheck ($DF12).
 ;
 ; Input:  $042C = candidate officer ID (officer_sel_list work byte).
 ; Output: $042D = unchanged (callers pre-clear it to 0) when the officer is
@@ -7259,7 +7259,7 @@ special_officer_idx    = $052F  ; special officer roster index
 ; Note:   The same roster and class thresholds are reused by BuildCommandList
 ;         (banked entry $A01B), which grants these special officers an
 ;         extended command menu (menu types 5-8 = 12/14/15/16 items) in
-;         prg_0c_0d StratagemState_Init. Officer $6D is the same "special
+;         prg_0c_0d_tactical_commands StratagemState_Init. Officer $6D is the same "special
 ;         officer" handled by WarAttritionRound::@LoadSpecialOfficer.
 ;===============================================================================
 .proc ValidateSpecialOfficer
@@ -7338,7 +7338,7 @@ special_officer_idx    = $052F  ; special officer roster index
 ; $D51B-$D57A).
 ; Entry: JMP stub BuildCommandList_Entry at $A01B; invoked via
 ;        B1F_BankedCallbackTrampoline with LDY #$28 (PRG banks 08+09) from
-;        prg_0c_0d StratagemState_Init ($A8BB, inline .word $A01B).
+;        prg_0c_0d_tactical_commands StratagemState_Init ($A8BB, inline .word $A01B).
 ;
 ; Input:  $050A = scene/command index; $0664 = battle roster (officer ids).
 ; Output: $0580-$058F = slot ID list ($FF-filled tail = unused slots),
@@ -7790,82 +7790,92 @@ scroll_dir_bits        = $0508  ; pending scroll direction bits (7=E,6=W,5=N,4=S
   RTS                                   ; $D70E: 60
 .endproc  ; WarSlotClear
 ;===============================================================================
-; WarResultDispatch - War result scene per-frame state machine
+; CountrySelectDispatch - New-game country select per-frame state machine
 ; ($D70F-$D739, phases nested through $D905)
-; Called via bank entry stub $A024: NmiState7_Strategy in prg_1f ($FA44)
-; maps banks 08/09 (Y=$28) and JSRs $A024 every frame of the result scene.
-; Per frame it first runs the four direction input-repeat handlers
-; (WarResultDirRepeat0-3, counters $0545-$0548), then dispatches twice
+; Called via bank entry stub $A024: NmiState7_CountrySelect in prg_1f_boot ($FA44)
+; maps banks 08/09 (Y=$28) and JSRs $A024 every frame of the select scene.
+; Drives the new-game country/ruler pick over the seven faction records at
+; $6F07 (the same block prg_0a_0b PlayerPtrTable points at); ruler cards are
+; rendered by B19_1A_OfficerCardRender (bank pair $39). NOT a war-result
+; scene - the real war-result setup is WarResultSceneInit $D66E (arms
+; war_scene_id $0500 = 7), which runs inside the war-scene machine under
+; NmiState3_WarScene. The csel_param_a input is the title-menu selection
+; ($0543, written by ClearOverlayMenu bank $0A): 0 = 1P new game, nonzero
+; (2P) routes the pick through the confirm flow and sets $6F44 = 1, the
+; flag SwapPlayerPointers reads to swap the player pointers.
+; Per frame it first runs the four cheat sequence input checks
+; (CountrySelectCheatCheck0-3, counters $0545-$0548), then dispatches twice
 ; through B1F_CallbackDispatcher with inline tables:
 ;   1) on $0540 (scene sub-mode; single entry -> the scene tick below)
 ;   2) on $0541 (phase index, 7 entries below)
 ; The dispatcher pops the JSR return address and JMPs to the selected
 ; handler, so a phase handler's RTS returns directly to the NMI caller
 ; (tail call); execution never continues past an inline table.
-;   Phase 0: WarResult_InitRecords   - init entry records, enter UI page $DA
-;   Phase 1: WarResult_OpenMenuWait  - wait A/B press, open the entry menu
-;   Phase 2: WarResult_SelectMenuEntry - A/B on a menu row (B=finalize)
-;   Phase 3: WarResult_ConfirmMenuWait - second A/B wait, enter pick mode
-;   Phase 4: WarResult_PickEntry     - row pick; banked slot clear ($A02A)
-;   Phase 5: WarResult_InspectEntry  - banked callback ($A000), A/B -> back
-;   Phase 6: WarResult_Finalize      - banked finalize, slot template reset
+;   Phase 0: CountrySelect_InitRecords   - seed the 7 faction records, enter UI page $DA
+;   Phase 1: CountrySelect_OpenMenuWait  - wait A/B press, open the entry menu
+;   Phase 2: CountrySelect_SelectMenuEntry - A on a menu row picks a country
+;   Phase 3: CountrySelect_ConfirmMenuWait - second A/B wait, enter pick mode (2P)
+;   Phase 4: CountrySelect_PickEntry     - row pick; banked officer lookup (bank $3D)
+;   Phase 5: CountrySelect_InspectEntry  - ruler card render (bank $39), A/B -> back
+;   Phase 6: CountrySelect_Finalize      - card render, then $0087 bit7 set ->
+;              arm game state 1 + CountrySelectCheatExecute
 ;===============================================================================
-; --- Shared RAM (used by the result phase handlers below) ---
+; --- Shared RAM (used by the select phase handlers below) ---
 picked_entry_id        = $046D  ; picked entry id (phases 4-5)
-result_param_copy      = $6F43  ; latched result parameter ($0543 copy)
-.proc WarResultDispatch
+csel_param_copy      = $6F43  ; latched $0543 title-menu selection (0 = 1P new game)
+.proc CountrySelectDispatch
 ; --- Proc-local RAM ---
-result_sub_mode        = $0540  ; result scene sub-mode (dispatch index)
-  JSR WarResultDirRepeat0               ; $D70F: 20 10 DB  ; dir repeat, group 0
-  JSR WarResultDirRepeat1               ; $D712: 20 62 DB  ; dir repeat, group 1
-  JSR WarResultDirRepeat2               ; $D715: 20 B4 DB  ; dir repeat, group 2
-  JSR WarResultDirRepeat3               ; $D718: 20 FF DB  ; dir repeat, group 3
-  LDA result_sub_mode                   ; $D71B: AD 40 05  ; scene sub-mode (0)
+csel_sub_mode        = $0540  ; select scene sub-mode (dispatch index)
+  JSR CountrySelectCheatCheck0          ; $D70F: 20 10 DB  ; cheat check group 0
+  JSR CountrySelectCheatCheck1          ; $D712: 20 62 DB  ; cheat check group 1
+  JSR CountrySelectCheatCheck2          ; $D715: 20 B4 DB  ; cheat check group 2
+  JSR CountrySelectCheatCheck3          ; $D718: 20 FF DB  ; cheat check group 3
+  LDA csel_sub_mode                   ; $D71B: AD 40 05  ; scene sub-mode (0)
   JSR B1F_CallbackDispatcher            ; $D71E: 20 DE EA
 ; --- Inline dispatch table (1 entry) ---
-  .word WarResult_SceneTick          ; $D721: 23 D7
-WarResult_SceneTick:  ; (dispatch callback target)
-  JSR WarResultSceneFrameDraw           ; $D723: 20 48 DA  ; scene frame sprites
-  LDA result_scene_phase                ; $D726: AD 41 05  ; phase index
+  .word CountrySelect_SceneTick          ; $D721: 23 D7
+CountrySelect_SceneTick:  ; (dispatch callback target)
+  JSR CountrySelectSceneFrameDraw           ; $D723: 20 48 DA  ; scene frame sprites
+  LDA csel_phase                ; $D726: AD 41 05  ; phase index
   JSR B1F_CallbackDispatcher            ; $D729: 20 DE EA
 ; --- Inline dispatch table (7 entries, phases 0-6) ---
-  .word WarResult_InitRecords        ; $D72C: 3A D7  (phase 0)
-  .word WarResult_OpenMenuWait       ; $D72E: 78 D7  (phase 1)
-  .word WarResult_SelectMenuEntry    ; $D730: B0 D7  (phase 2)
-  .word WarResult_ConfirmMenuWait    ; $D732: 0C D8  (phase 3)
-  .word WarResult_PickEntry          ; $D734: 44 D8  (phase 4)
-  .word WarResult_InspectEntry       ; $D736: A0 D8  (phase 5)
-  .word WarResult_Finalize           ; $D738: E4 D8  (phase 6)
+  .word CountrySelect_InitRecords        ; $D72C: 3A D7  (phase 0)
+  .word CountrySelect_OpenMenuWait       ; $D72E: 78 D7  (phase 1)
+  .word CountrySelect_SelectMenuEntry    ; $D730: B0 D7  (phase 2)
+  .word CountrySelect_ConfirmMenuWait    ; $D732: 0C D8  (phase 3)
+  .word CountrySelect_PickEntry          ; $D734: 44 D8  (phase 4)
+  .word CountrySelect_InspectEntry       ; $D736: A0 D8  (phase 5)
+  .word CountrySelect_Finalize           ; $D738: E4 D8  (phase 6)
 .endproc
 ;-------------------------------------------------------------------------------
-; Phase 0: WarResult_InitRecords
-; Initializes the seven result entry records at $6F07..$6F3A (stride 8) from
-; WarResult_RecordInitTable, clears the dir-repeat counters $0545-$0549,
-; latches the result parameters ($0543 -> $6F43, $0544 -> $6F02), clears the
+; Phase 0: CountrySelect_InitRecords
+; Initializes the seven faction records at $6F07..$6F3A (stride 8) from
+; CountrySelect_RecordInitTable, clears the cheat step counters $0545-$0549,
+; latches the title-menu selections ($0543 -> $6F43, $0544 -> $6F02), clears the
 ; outcome flag $6F44, arms UI context $042C=1/$042D=0/$042E=0 and enters UI
 ; page $DA via B1F_OpenMsgWindow4 (does not return here).
 ;-------------------------------------------------------------------------------
-.proc WarResult_InitRecords  ; (dispatch callback target)
+.proc CountrySelect_InitRecords  ; (dispatch callback target)
 ; --- Proc-local RAM ---
-result_param_a         = $0543  ; result parameter A (-> result_param_copy)
-result_param_b         = $0544  ; result parameter B (-> result_kingdom_idx)
-result_kingdom_idx     = $6F02  ; latched kingdom index
-dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
-  JSR WarResultEntryInit                ; $D73A: 20 7A D9
+csel_param_a         = $0543  ; title-menu selection (ClearOverlayMenu, bank $0A)
+csel_param_b         = $0544  ; title confirm-menu selection
+csel_game_level     = $6F02  ; latched $0544 copy = game level (sram_game_level in bank $0A)
+csel_cheat_spare       = $0549  ; spare cheat-step byte (cleared)
+  JSR CountrySelectEntryInit                ; $D73A: 20 7A D9
   LDA #$00                              ; $D73D: A9 00
-  STA result_dir_repeat                 ; $D73F: 8D 45 05  ; dir repeat idx 0
-  STA result_dir_repeat+1               ; $D742: 8D 46 05  ; dir repeat idx 1
-  STA result_dir_repeat+2               ; $D745: 8D 47 05  ; dir repeat idx 2
-  STA result_dir_repeat+3               ; $D748: 8D 48 05  ; dir repeat idx 3
-  STA dir_repeat_spare                  ; $D74B: 8D 49 05
-  LDA result_param_a                    ; $D74E: AD 43 05  ; result parameter
-  STA result_param_copy                 ; $D751: 8D 43 6F
-  LDA result_param_b                    ; $D754: AD 44 05  ; result parameter
-  STA result_kingdom_idx                ; $D757: 8D 02 6F
+  STA csel_cheat_step                 ; $D73F: 8D 45 05  ; cheat step idx 0
+  STA csel_cheat_step+1               ; $D742: 8D 46 05  ; cheat step idx 1
+  STA csel_cheat_step+2               ; $D745: 8D 47 05  ; cheat step idx 2
+  STA csel_cheat_step+3               ; $D748: 8D 48 05  ; cheat step idx 3
+  STA csel_cheat_spare                  ; $D74B: 8D 49 05
+  LDA csel_param_a                    ; $D74E: AD 43 05  ; result parameter
+  STA csel_param_copy                 ; $D751: 8D 43 6F
+  LDA csel_param_b                    ; $D754: AD 44 05  ; result parameter
+  STA csel_game_level                ; $D757: 8D 02 6F
   LDA #$00                              ; $D75A: A9 00
   STA war_outcome_flag                  ; $D75C: 8D 44 6F  ; outcome flag = none
   STA a:$00A4                           ; $D75F: 8D A4 00  ; event index = 0
-  INC result_scene_phase                ; $D762: EE 41 05  ; -> phase 1
+  INC csel_phase                ; $D762: EE 41 05  ; -> phase 1
   LDA #$01                              ; $D765: A9 01
   STA action_result_lo                  ; $D767: 8D 2C 04  ; UI context
   LDA #$00                              ; $D76A: A9 00
@@ -7873,32 +7883,32 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA action_result_cnt                 ; $D76F: 8D 2E 04
   LDA #$DA                              ; $D772: A9 DA
   JMP B1F_OpenMsgWindow4                ; $D774: 4C 8B F2  ; enter UI page $DA
-.endproc  ; WarResult_InitRecords
+.endproc  ; CountrySelect_InitRecords
   .byte $60                             ; $D777: 60       ; pad (RTS opcode)
 ;-------------------------------------------------------------------------------
-; Phase 1: WarResult_OpenMenuWait
-; Waits until the scene is ready (WarResultReadyCheck), keeps the menu
-; cursor sprite alive (WarResultCursorSpriteDraw), then waits for an A or B
+; Phase 1: CountrySelect_OpenMenuWait
+; Waits until the scene is ready (CountrySelectReadyCheck), keeps the menu
+; cursor sprite alive (CountrySelectCursorSpriteDraw), then waits for an A or B
 ; press ($0081 bits 0-1). On press: advance to phase 2, clear the menu
 ; context ($0424/$0425/$040C/$040D), reset the row cursor $046C, preselect
 ; entry $DE in $0410 and re-arm the UI request registers.
 ;-------------------------------------------------------------------------------
-.proc WarResult_OpenMenuWait  ; (dispatch callback target)
-  JSR WarResultReadyCheck               ; $D778: 20 FE DA
+.proc CountrySelect_OpenMenuWait  ; (dispatch callback target)
+  JSR CountrySelectReadyCheck               ; $D778: 20 FE DA
   BCC @Wait                             ; $D77B: 90 32     ; scene not ready
-  JSR WarResultCursorSpriteDraw         ; $D77D: 20 D9 DA
+  JSR CountrySelectCursorSpriteDraw         ; $D77D: 20 D9 DA
   LDA a:$0081                           ; $D780: AD 81 00  ; new presses
   AND #$03                              ; $D783: 29 03     ; A or B
   BEQ @Wait                             ; $D785: F0 28
-  INC result_scene_phase                ; $D787: EE 41 05  ; -> phase 2
+  INC csel_phase                ; $D787: EE 41 05  ; -> phase 2
   LDA #$00                              ; $D78A: A9 00
   STA menu_cursor_col                   ; $D78C: 8D 24 04
   STA menu_cursor_page                  ; $D78F: 8D 25 04
-  STA result_cursor_x                   ; $D792: 8D 0C 04
-  STA result_cursor_y                   ; $D795: 8D 0D 04
-  STA result_menu_row                   ; $D798: 8D 6C 04  ; row cursor = 0
+  STA csel_cursor_x                   ; $D792: 8D 0C 04
+  STA csel_cursor_y                   ; $D795: 8D 0D 04
+  STA csel_menu_row                   ; $D798: 8D 6C 04  ; row cursor = 0
   LDA #$DE                              ; $D79B: A9 DE
-  STA result_sel_entry                  ; $D79D: 8D 10 04  ; default entry id
+  STA csel_sel_entry                  ; $D79D: 8D 10 04  ; default entry id
   LDA #$00                              ; $D7A0: A9 00
   STA a:$0098                           ; $D7A2: 8D 98 00
   LDA #$01                              ; $D7A5: A9 01
@@ -7907,18 +7917,18 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA a:$00BB                           ; $D7AC: 8D BB 00
 @Wait:
   RTS                                   ; $D7AF: 60
-.endproc  ; WarResult_OpenMenuWait
+.endproc  ; CountrySelect_OpenMenuWait
 ;-------------------------------------------------------------------------------
-; Phase 2: WarResult_SelectMenuEntry
-; Polls the entry menu (WarResultMenuPoll) until the selection is stable,
+; Phase 2: CountrySelect_SelectMenuEntry
+; Polls the entry menu (CountrySelectMenuPoll) until the selection is stable,
 ; then samples the pad. A-only press selects the row in $0012: the mapped
 ; entry record's status byte ($6F07+idx*8, offset 3) is cleared to 0 and,
-; depending on the result parameter $6F43, either enters the confirm wait
-; (phase 3, outcome flag $6F44=1, UI context $042C=2) or jumps straight to
-; phase 6 after a palette buffer copy. A+B together finalizes immediately.
+; depending on the title-menu selection copy $6F43 (0 = 1P game), either enters
+; (the confirm wait: phase 3, outcome flag $6F44=1 i.e. 2P, UI context $042C=2)
+; or jumps straight to phase 6 after a palette buffer copy. A+B finalizes at once.
 ;-------------------------------------------------------------------------------
-.proc WarResult_SelectMenuEntry  ; (dispatch callback target)
-  JSR WarResultMenuPoll                 ; $D7B0: 20 06 D9
+.proc CountrySelect_SelectMenuEntry  ; (dispatch callback target)
+  JSR CountrySelectMenuPoll                 ; $D7B0: 20 06 D9
   BCC @Done                             ; $D7B3: 90 2D     ; cursor still moving
   LDA a:$0081                           ; $D7B5: AD 81 00  ; new presses
   AND #$01                              ; $D7B8: 29 01     ; A
@@ -7926,25 +7936,25 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   LDA a:$0083                           ; $D7BC: AD 83 00  ; held buttons
   AND #$08                              ; $D7BF: 29 08     ; B held too
   BEQ @Select                           ; $D7C1: F0 03
-  JMP WarResult_Finalize                ; $D7C3: 4C E4 D8  ; A+B -> finalize
+  JMP CountrySelect_Finalize                ; $D7C3: 4C E4 D8  ; A+B -> finalize
 @Select:
   LDY a:$0012                           ; $D7C6: AC 12 00  ; selected row
-  LDA WarResult_RowToRecordMap,Y        ; $D7C9: B9 07 DA  ; row -> record idx
+  LDA CountrySelect_RowToRecordMap,Y        ; $D7C9: B9 07 DA  ; row -> record idx
   ASL                                   ; $D7CC: 0A
   ASL                                   ; $D7CD: 0A
   ASL                                   ; $D7CE: 0A        ; idx*8
   TAY                                   ; $D7CF: A8
   LDA #$00                              ; $D7D0: A9 00
   STA faction_rec_status,Y              ; $D7D2: 99 0A 6F  ; record status = 0
-  LDA result_param_copy                 ; $D7D5: AD 43 6F  ; result parameter
+  LDA csel_param_copy                 ; $D7D5: AD 43 6F  ; result parameter
   BNE @AdvanceConfirm                   ; $D7D8: D0 09
   LDA #$06                              ; $D7DA: A9 06
-  STA result_scene_phase                ; $D7DC: 8D 41 05  ; -> phase 6
+  STA csel_phase                ; $D7DC: 8D 41 05  ; -> phase 6
   JSR B1F_PaletteCopyBuffer             ; $D7DF: 20 EE EC
 @Done:
   RTS                                   ; $D7E2: 60
 @AdvanceConfirm:
-  INC result_scene_phase                ; $D7E3: EE 41 05  ; -> phase 3
+  INC csel_phase                ; $D7E3: EE 41 05  ; -> phase 3
   LDA #$01                              ; $D7E6: A9 01
   STA war_outcome_flag                  ; $D7E8: 8D 44 6F  ; outcome flag = 1
   LDA #$A0                              ; $D7EB: A9 A0
@@ -7960,29 +7970,29 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA action_result_cnt                 ; $D804: 8D 2E 04
   LDA #$DA                              ; $D807: A9 DA
   JMP B1F_OpenMsgWindow4                ; $D809: 4C 8B F2  ; enter UI page $DA
-.endproc  ; WarResult_SelectMenuEntry
+.endproc  ; CountrySelect_SelectMenuEntry
 ;-------------------------------------------------------------------------------
-; Phase 3: WarResult_ConfirmMenuWait
+; Phase 3: CountrySelect_ConfirmMenuWait
 ; Mirror of phase 1 for the confirm step: waits for scene readiness, keeps
 ; the cursor sprite alive, and on an A/B press advances to phase 4 with the
 ; menu context cleared, entry preselect $DE and re-armed UI registers.
 ;-------------------------------------------------------------------------------
-.proc WarResult_ConfirmMenuWait  ; (dispatch callback target)
-  JSR WarResultReadyCheck               ; $D80C: 20 FE DA
+.proc CountrySelect_ConfirmMenuWait  ; (dispatch callback target)
+  JSR CountrySelectReadyCheck               ; $D80C: 20 FE DA
   BCC @Wait                             ; $D80F: 90 32     ; scene not ready
-  JSR WarResultCursorSpriteDraw         ; $D811: 20 D9 DA
+  JSR CountrySelectCursorSpriteDraw         ; $D811: 20 D9 DA
   LDA a:$0081                           ; $D814: AD 81 00  ; new presses
   AND #$03                              ; $D817: 29 03     ; A or B
   BEQ @Wait                             ; $D819: F0 28
-  INC result_scene_phase                ; $D81B: EE 41 05  ; -> phase 4
+  INC csel_phase                ; $D81B: EE 41 05  ; -> phase 4
   LDA #$00                              ; $D81E: A9 00
   STA menu_cursor_col                   ; $D820: 8D 24 04
   STA menu_cursor_page                  ; $D823: 8D 25 04
-  STA result_cursor_x                   ; $D826: 8D 0C 04
-  STA result_cursor_y                   ; $D829: 8D 0D 04
-  STA result_menu_row                   ; $D82C: 8D 6C 04  ; row cursor = 0
+  STA csel_cursor_x                   ; $D826: 8D 0C 04
+  STA csel_cursor_y                   ; $D829: 8D 0D 04
+  STA csel_menu_row                   ; $D82C: 8D 6C 04  ; row cursor = 0
   LDA #$DE                              ; $D82F: A9 DE
-  STA result_sel_entry                  ; $D831: 8D 10 04  ; default entry id
+  STA csel_sel_entry                  ; $D831: 8D 10 04  ; default entry id
   LDA #$00                              ; $D834: A9 00
   STA a:$0098                           ; $D836: 8D 98 00
   LDA #$01                              ; $D839: A9 01
@@ -7991,9 +8001,9 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA a:$00BB                           ; $D840: 8D BB 00
 @Wait:
   RTS                                   ; $D843: 60
-.endproc  ; WarResult_ConfirmMenuWait
+.endproc  ; CountrySelect_ConfirmMenuWait
 ;-------------------------------------------------------------------------------
-; Phase 4: WarResult_PickEntry
+; Phase 4: CountrySelect_PickEntry
 ; Polls the entry menu and, on an A press with the selection stable, looks up
 ; the row's entry record. Status != 0: record is marked consumed (status = 1)
 ; and the scene jumps to phase 6 after a palette buffer copy. Status == 0:
@@ -8002,14 +8012,14 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
 ; banked call ($A02A stub, bank pair $3D) with the entry id in $0000, and UI
 ; mode $DB is entered via B1F_OpenMsgWindow0 (does not return here).
 ;-------------------------------------------------------------------------------
-.proc WarResult_PickEntry  ; (dispatch callback target)
-  JSR WarResultMenuPoll                 ; $D844: 20 06 D9
+.proc CountrySelect_PickEntry  ; (dispatch callback target)
+  JSR CountrySelectMenuPoll                 ; $D844: 20 06 D9
   BCC @Done                             ; $D847: 90 23     ; cursor still moving
   LDA a:$0081                           ; $D849: AD 81 00  ; new presses
   AND #$01                              ; $D84C: 29 01     ; A
   BEQ @Done                             ; $D84E: F0 1C
   LDY a:$0012                           ; $D850: AC 12 00  ; selected row
-  LDA WarResult_RowToRecordMap,Y        ; $D853: B9 07 DA  ; row -> record idx
+  LDA CountrySelect_RowToRecordMap,Y        ; $D853: B9 07 DA  ; row -> record idx
   ASL                                   ; $D856: 0A
   ASL                                   ; $D857: 0A
   ASL                                   ; $D858: 0A        ; idx*8
@@ -8019,42 +8029,42 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   LDA #$01                              ; $D85F: A9 01
   STA faction_rec_status,Y              ; $D861: 99 0A 6F  ; status = consumed
   LDA #$06                              ; $D864: A9 06
-  STA result_scene_phase                ; $D866: 8D 41 05  ; -> phase 6
+  STA csel_phase                ; $D866: 8D 41 05  ; -> phase 6
   JSR B1F_PaletteCopyBuffer             ; $D869: 20 EE EC
 @Done:
   RTS                                   ; $D86C: 60
 @PickFresh:
   LDY a:$0012                           ; $D86D: AC 12 00  ; selected row
-  LDA WarResult_RowToRecordMap,Y        ; $D870: B9 07 DA  ; row -> record idx
+  LDA CountrySelect_RowToRecordMap,Y        ; $D870: B9 07 DA  ; row -> record idx
   ASL                                   ; $D873: 0A
   ASL                                   ; $D874: 0A        ; idx*4
   TAY                                   ; $D875: A8
-  LDA WarResult_RecordInitTable,Y       ; $D876: B9 0F DA  ; entry id
+  LDA CountrySelect_RecordInitTable,Y       ; $D876: B9 0F DA  ; faction seed id
   STA picked_entry_id                   ; $D879: 8D 6D 04
-  INC result_scene_phase                ; $D87C: EE 41 05  ; -> phase 5
+  INC csel_phase                ; $D87C: EE 41 05  ; -> phase 5
   LDA #$A0                              ; $D87F: A9 A0
   STA a:$0098                           ; $D881: 8D 98 00
   LDA #$00                              ; $D884: A9 00
   STA a:$0097                           ; $D886: 8D 97 00
   LDA #$09                              ; $D889: A9 09
   STA a:$00BB                           ; $D88B: 8D BB 00
-  LDA picked_entry_id                   ; $D88E: AD 6D 04  ; entry id
+  LDA picked_entry_id                   ; $D88E: AD 6D 04  ; faction seed id
   STA a:$0000                           ; $D891: 8D 00 00  ; slot index param
   LDY #$3D                              ; $D894: A0 3D     ; bank pair param
   JSR B1F_BankedCallbackTrampoline      ; $D896: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_OfficerDisplay_Lookup     ; $D899: 2A A0  ; slot clear (bank $3D)
+  .word B1D_1E_OfficerDisplay_Lookup     ; $D899: 2A A0  ; officer display lookup (bank $1D/$1E)
   LDA #$DB                              ; $D89B: A9 DB
   JMP B1F_OpenMsgWindow0                ; $D89D: 4C 6D F2  ; UI mode $DB
-.endproc  ; WarResult_PickEntry
+.endproc  ; CountrySelect_PickEntry
 ;-------------------------------------------------------------------------------
-; Phase 5: WarResult_InspectEntry
+; Phase 5: CountrySelect_InspectEntry
 ; Runs the banked callback for the picked entry ($046D in $0000, target $A000,
 ; bank pair $39, OAM slot base $000A=$A7), then waits for scene readiness and
 ; an A/B press. Any press returns to phase 4 (DEC $0541) with the entry id
 ; promoted to the selection $0410 and the UI request registers re-armed.
 ;-------------------------------------------------------------------------------
-.proc WarResult_InspectEntry  ; (dispatch callback target)
+.proc CountrySelect_InspectEntry  ; (dispatch callback target)
   LDA picked_entry_id                   ; $D8A0: AD 6D 04  ; picked entry id
   STA a:$0000                           ; $D8A3: 8D 00 00  ; callback param
   LDX #$00                              ; $D8A6: A2 00
@@ -8064,18 +8074,18 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   JSR B1F_BankedCallbackTrampoline      ; $D8AF: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B19_1A_OfficerCardRender_Entry  ; $D8B2: 00 A0
-  JSR WarResultReadyCheck               ; $D8B4: 20 FE DA
+  JSR CountrySelectReadyCheck               ; $D8B4: 20 FE DA
   BCC @Wait                             ; $D8B7: 90 2A     ; scene not ready
-  JSR WarResultCursorSpriteDraw         ; $D8B9: 20 D9 DA
+  JSR CountrySelectCursorSpriteDraw         ; $D8B9: 20 D9 DA
   LDA a:$0081                           ; $D8BC: AD 81 00  ; new presses
   AND #$03                              ; $D8BF: 29 03     ; A or B
   BEQ @Wait                             ; $D8C1: F0 20
-  DEC result_scene_phase                ; $D8C3: CE 41 05  ; back to phase 4
-  LDA picked_entry_id                   ; $D8C6: AD 6D 04  ; entry id
-  STA result_sel_entry                  ; $D8C9: 8D 10 04  ; -> selection
+  DEC csel_phase                ; $D8C3: CE 41 05  ; back to phase 4
+  LDA picked_entry_id                   ; $D8C6: AD 6D 04  ; faction seed id
+  STA csel_sel_entry                  ; $D8C9: 8D 10 04  ; -> selection
   LDA #$00                              ; $D8CC: A9 00
-  STA result_cursor_x                   ; $D8CE: 8D 0C 04
-  STA result_cursor_y                   ; $D8D1: 8D 0D 04
+  STA csel_cursor_x                   ; $D8CE: 8D 0C 04
+  STA csel_cursor_y                   ; $D8D1: 8D 0D 04
   LDA #$00                              ; $D8D4: A9 00
   STA a:$0098                           ; $D8D6: 8D 98 00
   LDA #$01                              ; $D8D9: A9 01
@@ -8084,49 +8094,49 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA a:$00BB                           ; $D8E0: 8D BB 00
 @Wait:
   RTS                                   ; $D8E3: 60
-.endproc  ; WarResult_InspectEntry
+.endproc  ; CountrySelect_InspectEntry
 ;-------------------------------------------------------------------------------
-; Phase 6: WarResult_Finalize
+; Phase 6: CountrySelect_Finalize
 ; Final banked callback (selection $0410 in $0000, target $A000, bank pair
-; $39, OAM slot base $A7). If the battle-continue flag $0087 is negative the
-; scene hands over to WarResultSlotReset (sets $007A=1 and tail-JMPs);
+; $39, OAM slot base $A7). If frame flag $0087 bit7 (display handshake) is set the
+; scene arms game state 1 and hands over to CountrySelectCheatExecute (tail-JMP);
 ; otherwise it just returns and keeps polling.
 ;-------------------------------------------------------------------------------
-.proc WarResult_Finalize  ; (dispatch callback target)
+.proc CountrySelect_Finalize  ; (dispatch callback target)
   LDA #$A7                              ; $D8E4: A9 A7
   STA a:$000A                           ; $D8E6: 8D 0A 00  ; OAM slot base
-  LDA result_sel_entry                  ; $D8E9: AD 10 04  ; selected entry
+  LDA csel_sel_entry                  ; $D8E9: AD 10 04  ; selected entry
   STA a:$0000                           ; $D8EC: 8D 00 00  ; callback param
   LDX #$00                              ; $D8EF: A2 00
   LDY #$39                              ; $D8F1: A0 39     ; bank pair param
   JSR B1F_BankedCallbackTrampoline      ; $D8F3: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B19_1A_OfficerCardRender_Entry  ; $D8F6: 00 A0
-  LDA a:$0087                           ; $D8F8: AD 87 00  ; battle-continue flag
+  LDA a:$0087                           ; $D8F8: AD 87 00  ; frame flag $0087 (bit7 = display handshake ready)
   BPL @Exit                             ; $D8FB: 10 08
   LDA #$01                              ; $D8FD: A9 01
   STA a:$007A                           ; $D8FF: 8D 7A 00
-  JMP WarResultSlotReset                ; $D902: 4C 4A DC
+  JMP CountrySelectCheatExecute         ; $D902: 4C 4A DC
 @Exit:
   RTS                                   ; $D905: 60
-.endproc  ; WarResult_Finalize
+.endproc  ; CountrySelect_Finalize
 ;-------------------------------------------------------------------------------
-; WarResultMenuPoll - entry menu refresh and selection poll ($D906-$D979)
+; CountrySelectMenuPoll - entry menu refresh and selection poll ($D906-$D979)
 ; Called from phases 2 and 4.
-; 1) Points ($0010) at WarResult_CursorPosTable and ($00) at
-;    WarResult_CursorSpriteLayout; B1F_PointerTableLookup draws the cursor
+; 1) Points ($0010) at CountrySelect_CursorPosTable and ($00) at
+;    CountrySelect_CursorSpriteLayout; B1F_PointerTableLookup draws the cursor
 ;    sprite at the Y/X base pair selected by the row cursor $046C.
 ; 2) Banked UI refresh ($A000, bank pair $39, OAM slot base $A7) with the
 ;    current selection $0410 in $0000.
 ; 3) If the pending-selection flag $040D != $FF: re-arms the banked refresh
 ;    with target $A012 and reports busy (CLC).
 ;    Otherwise steps the menu via B1F_MenuStep2 over
-;    WarResult_EntryOrderList (result in $0012): a changed row index
+;    CountrySelect_EntryOrderList (result in $0012): a changed row index
 ;    updates $046C, resolves the entry id through RowToRecordMap /
 ;    RecordInitTable into $0410, clears $040C/$040D and reports busy (CLC);
 ;    an unchanged index reports stable (SEC) so the caller polls the pad.
 ;-------------------------------------------------------------------------------
-.proc WarResultMenuPoll
+.proc CountrySelectMenuPoll
   LDA #$35                              ; $D906: A9 35
   STA a:$0010                           ; $D908: 8D 10 00
   LDA #$DA                              ; $D90B: A9 DA
@@ -8135,18 +8145,18 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA a:$0000                           ; $D912: 8D 00 00
   LDA #$DA                              ; $D915: A9 DA
   STA a:$0001                           ; $D917: 8D 01 00  ; ($00) = $DA43 cursor layout
-  LDA result_menu_row                   ; $D91A: AD 6C 04  ; row cursor
+  LDA csel_menu_row                   ; $D91A: AD 6C 04  ; row cursor
   JSR B1F_PointerTableLookup            ; $D91D: 20 F5 ED  ; draw cursor sprite
   LDA #$A7                              ; $D920: A9 A7
   STA a:$000A                           ; $D922: 8D 0A 00  ; OAM slot base
-  LDA result_sel_entry                  ; $D925: AD 10 04  ; selection
+  LDA csel_sel_entry                  ; $D925: AD 10 04  ; selection
   STA a:$0000                           ; $D928: 8D 00 00  ; callback param
   LDX #$00                              ; $D92B: A2 00
   LDY #$39                              ; $D92D: A0 39     ; bank pair param
   JSR B1F_BankedCallbackTrampoline      ; $D92F: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
   .word B19_1A_OfficerCardRender_Entry  ; $D932: 00 A0
-  LDA result_cursor_y                   ; $D934: AD 0D 04  ; pending-selection flag
+  LDA csel_cursor_y                   ; $D934: AD 0D 04  ; pending-selection flag
   CMP #$FF                              ; $D937: C9 FF
   BEQ @StepMenu                         ; $D939: F0 09     ; none: step the menu
   LDY #$39                              ; $D93B: A0 39     ; bank pair param
@@ -8164,32 +8174,32 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   STA a:$0012                           ; $D950: 8D 12 00  ; step result
   JSR B1F_MenuStep2                     ; $D953: 20 1E ED
   LDA a:$0012                           ; $D956: AD 12 00  ; new row index
-  CMP result_menu_row                   ; $D959: CD 6C 04
+  CMP csel_menu_row                   ; $D959: CD 6C 04
   BNE @CursorMoved                      ; $D95C: D0 02
   SEC                                   ; $D95E: 38        ; stable: poll input
   RTS                                   ; $D95F: 60
 @CursorMoved:
-  STA result_menu_row                   ; $D960: 8D 6C 04  ; update row cursor
+  STA csel_menu_row                   ; $D960: 8D 6C 04  ; update row cursor
   TAY                                   ; $D963: A8
-  LDA WarResult_RowToRecordMap,Y        ; $D964: B9 07 DA  ; row -> record idx
+  LDA CountrySelect_RowToRecordMap,Y        ; $D964: B9 07 DA  ; row -> record idx
   ASL                                   ; $D967: 0A
   ASL                                   ; $D968: 0A        ; idx*4
   TAY                                   ; $D969: A8
-  LDA WarResult_RecordInitTable,Y       ; $D96A: B9 0F DA  ; entry id
-  STA result_sel_entry                  ; $D96D: 8D 10 04  ; -> selection
+  LDA CountrySelect_RecordInitTable,Y       ; $D96A: B9 0F DA  ; faction seed id
+  STA csel_sel_entry                  ; $D96D: 8D 10 04  ; -> selection
   LDA #$00                              ; $D970: A9 00
-  STA result_cursor_x                   ; $D972: 8D 0C 04
-  STA result_cursor_y                   ; $D975: 8D 0D 04
+  STA csel_cursor_x                   ; $D972: 8D 0C 04
+  STA csel_cursor_y                   ; $D975: 8D 0D 04
   CLC                                   ; $D978: 18        ; moving: skip input
   RTS                                   ; $D979: 60
-.endproc  ; WarResultMenuPoll
+.endproc  ; CountrySelectMenuPoll
 ;-------------------------------------------------------------------------------
-; WarResultEntryInit - entry record block init ($D97A-$DA06)
-; Writes the seven 8-byte entry records at $6F07, $6F0F, ... $6F37 from
-; WarResult_RecordInitTable: record byte 0 = entry id ($AD,$08,$83,$8A,
+; CountrySelectEntryInit - entry record block init ($D97A-$DA06)
+; Writes the seven 8-byte faction records at $6F07, $6F0F, ... $6F37 from
+; CountrySelect_RecordInitTable: record byte 0 = entry id ($AD,$08,$83,$8A,
 ; $DE,$DC,$B6), bytes 1-2 = 0, byte 3 (status, at +3) = 3.
 ;-------------------------------------------------------------------------------
-.proc WarResultEntryInit
+.proc CountrySelectEntryInit
   LDA #$AD                              ; $D97A: A9 AD
   STA faction_records                   ; $D97C: 8D 07 6F
   LDA #$00                              ; $D97F: A9 00
@@ -8247,17 +8257,17 @@ dir_repeat_spare       = $0549  ; spare dir-repeat byte (cleared)
   LDA #$03                              ; $DA01: A9 03
   STA faction_records+$33               ; $DA03: 8D 3A 6F
   RTS                                   ; $DA06: 60
-.endproc  ; WarResultEntryInit
+.endproc  ; CountrySelectEntryInit
 ;-------------------------------------------------------------------------------
-; Result scene data tables ($DA07-$DA47) - kept at top level:
-; WarResult_RowToRecordMap/WarResult_RecordInitTable are shared by
-; WarResult_PickEntry, WarResult_SelectMenuEntry and WarResultMenuPoll;
-; the remaining tables are private to WarResultMenuPoll but physically
+; Select scene data tables ($DA07-$DA47) - kept at top level:
+; CountrySelect_RowToRecordMap/CountrySelect_RecordInitTable are shared by
+; CountrySelect_PickEntry, CountrySelect_SelectMenuEntry and CountrySelectMenuPoll;
+; the remaining tables are private to CountrySelectMenuPoll but physically
 ; non-adjacent to its code, so they cannot be enclosed in its scope.
 ;-------------------------------------------------------------------------------
-WarResult_RowToRecordMap:            ; $DA07: menu row -> record index
+CountrySelect_RowToRecordMap:            ; $DA07: menu row -> record index
   .byte $04,$02,$03,$01,$06,$05,$00,$00 ; $DA07: 04 02 03 01 06 05 00 00
-WarResult_RecordInitTable:           ; $DA0F: 7 x 4-byte entry records
+CountrySelect_RecordInitTable:           ; $DA0F: 7 x 4-byte entry records
   .byte $AD,$00,$00,$03                 ; $DA0F: entry 0 (id $AD)
   .byte $08,$00,$00,$03                 ; $DA13: entry 1 (id $08)
   .byte $83,$00,$00,$03                 ; $DA17: entry 2 (id $83)
@@ -8265,21 +8275,21 @@ WarResult_RecordInitTable:           ; $DA0F: 7 x 4-byte entry records
   .byte $DE,$00,$00,$03                 ; $DA1F: entry 4 (id $DE)
   .byte $DC,$00,$00,$03                 ; $DA23: entry 5 (id $DC)
   .byte $B6,$00,$00,$03                 ; $DA27: entry 6 (id $B6)
-WarResult_EntryOrderList:            ; $DA2B: entry order + $FF sentinels
+CountrySelect_EntryOrderList:            ; $DA2B: entry order + $FF sentinels
   .byte $00,$01,$02,$03,$04,$05,$06,$FF,$FF,$FF ; $DA2B: 00..06, FF FF FF
-WarResult_CursorPosTable:            ; $DA35: cursor (Y,X) base per row
+CountrySelect_CursorPosTable:            ; $DA35: cursor (Y,X) base per row
   .byte $24,$10,$24,$80,$44,$10,$44,$80 ; $DA35: rows 0-3
   .byte $64,$10,$64,$80,$84,$10         ; $DA3D: rows 4-6
-WarResult_CursorSpriteLayout:        ; $DA43: single-tile cursor layout
+CountrySelect_CursorSpriteLayout:        ; $DA43: single-tile cursor layout
   .byte $00,$07,$00,$00                 ; $DA43: Y=$00 tile=$07 attr=$00 X=$00
   .byte $80                             ; $DA47: terminator
 ;-------------------------------------------------------------------------------
-; WarResultSceneFrameDraw - result scene frame sprites ($DA48-$DA67)
-; Scene tick called from WarResultDispatch's sub-mode table: draws the
-; full scene frame from WarResult_FrameSpriteLayout through
+; CountrySelectSceneFrameDraw - select scene frame sprites ($DA48-$DA67)
+; Scene tick called from CountrySelectDispatch's sub-mode table: draws the
+; full scene frame from CountrySelect_FrameSpriteLayout through
 ; B1F_SpriteOamWriterSimple with Y base $000A=$20 and X base $000C=$48.
 ;-------------------------------------------------------------------------------
-.proc WarResultSceneFrameDraw
+.proc CountrySelectSceneFrameDraw
   LDA #$68                              ; $DA48: A9 68
   STA a:$0000                           ; $DA4A: 8D 00 00
   LDA #$DA                              ; $DA4D: A9 DA
@@ -8294,7 +8304,7 @@ WarResult_CursorSpriteLayout:        ; $DA43: single-tile cursor layout
   JSR B1F_SpriteOamWriterSimple         ; $DA64: 20 AD F1
   RTS                                   ; $DA67: 60
 ; --- Data Region (private) ---
-WarResult_FrameSpriteLayout:         ; $DA68: 28 OAM records + terminator
+CountrySelect_FrameSpriteLayout:         ; $DA68: 28 OAM records + terminator
   .byte $60,$62,$00,$00                 ; $DA68: Y=$60 tile=$62 attr=$00 X=$00
   .byte $60,$63,$00,$08                 ; $DA6C: Y=$60 tile=$63 attr=$00 X=$08
   .byte $68,$72,$00,$00                 ; $DA70: Y=$68 tile=$72 attr=$00 X=$00
@@ -8324,14 +8334,14 @@ WarResult_FrameSpriteLayout:         ; $DA68: 28 OAM records + terminator
   .byte $48,$7E,$00,$00                 ; $DAD0: Y=$48 tile=$7E attr=$00 X=$00
   .byte $48,$7F,$00,$08                 ; $DAD4: Y=$48 tile=$7F attr=$00 X=$08
   .byte $80                             ; $DAD8: terminator
-.endproc  ; WarResultSceneFrameDraw (includes private frame sprite layout)
+.endproc  ; CountrySelectSceneFrameDraw (includes private frame sprite layout)
 ;-------------------------------------------------------------------------------
-; WarResultCursorSpriteDraw - menu cursor sprite ($DAD9-$DAF8)
+; CountrySelectCursorSpriteDraw - menu cursor sprite ($DAD9-$DAF8)
 ; Called every frame from phases 1, 3 and 5 while the scene is ready. If
-; $005E bit 4 is set, draws WarResult_MarkerSpriteLayout at the base
+; $005E bit 4 is set, draws CountrySelect_MarkerSpriteLayout at the base
 ; position (Y/X bases 0) through B1F_SpriteOamWriterSimple.
 ;-------------------------------------------------------------------------------
-.proc WarResultCursorSpriteDraw
+.proc CountrySelectCursorSpriteDraw
   LDA a:$005E                           ; $DAD9: AD 5E 00  ; cursor enable flags
   AND #$10                              ; $DADC: 29 10     ; bit 4 = draw cursor
   BEQ @Done                             ; $DADE: F0 18
@@ -8347,16 +8357,16 @@ WarResult_FrameSpriteLayout:         ; $DA68: 28 OAM records + terminator
 @Done:
   RTS                                   ; $DAF8: 60
 ; --- Data Region (private) ---
-WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
+CountrySelect_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   .byte $D9,$04,$00,$7C                 ; $DAF9: Y=$D9 tile=$04 attr=$00 X=$7C
   .byte $80                             ; $DAFD: terminator
-.endproc  ; WarResultCursorSpriteDraw (includes private marker sprite layout)
+.endproc  ; CountrySelectCursorSpriteDraw (includes private marker sprite layout)
 ;-------------------------------------------------------------------------------
-; WarResultReadyCheck - result scene readiness ($DAFE-$DB0F)
+; CountrySelectReadyCheck - select scene readiness ($DAFE-$DB0F)
 ; Returns carry set once both scene handshake bytes $0304 and $0300 are no
 ; longer $FF (scene data loaded); carry clear while still pending.
 ;-------------------------------------------------------------------------------
-.proc WarResultReadyCheck
+.proc CountrySelectReadyCheck
   LDA $0304                             ; $DAFE: AD 04 03  ; handshake byte 1
   CMP #$FF                              ; $DB01: C9 FF
   BNE @CheckSecond                      ; $DB03: D0 09
@@ -8368,48 +8378,61 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
 @CheckSecond:
   CLC                                   ; $DB0E: 18        ; not ready
   RTS                                   ; $DB0F: 60
-.endproc  ; WarResultReadyCheck
+.endproc  ; CountrySelectReadyCheck
 ;-------------------------------------------------------------------------------
-; Direction input-repeat handlers ($DB10-$DC49)
-; Four near-identical trackers, run every frame by WarResultDispatch,
-; advance hold counters $0545-$0548 while a direction stays held and fire
-; sound $62 once (per-group $6FEA latch bit) when a counter reaches the $80
-; terminator entry of its hold-mask table:
-;   group 0: gated to phase 1, counter $0545, latch bit 0, pad $0083/$0081
-;   group 1: gated to phase 3, counter $0546, latch bit 1, pad $0085/$0082
-;   group 2: ungated,          counter $0547, latch bit 2, pad $0083/$0081
-;   group 3: ungated,          counter $0548, latch bit 3, pad $0083/$0081
+; Cheat sequence input checks ($DB10-$DC49) - Start/Select button codes
+; Four near-identical detectors, run every frame by CountrySelectDispatch.
+; Each requires its hold mask to stay held ($0C = Start+Select for groups
+; 0-1; Select or Start alone for groups 2-3), counts matching new-press
+; edges against an 8-step sequence table, and on reaching the $80 terminator
+; entry fires sound $62 once and ORs its cheat latch bit into $6FEA:
+;   group 0: gated to phase 1, step $0545, latch bit 0, pad $0083/$0081
+;   group 1: gated to phase 3, step $0546, latch bit 1, pad $0085/$0082
+;   group 2: ungated,          step $0547, latch bit 2, pad $0083/$0081
+;   group 3: ungated,          step $0548, latch bit 3, pad $0083/$0081
+; Latch effects: bits 0/1 arm the finalize Province reset (the
+; CountrySelectCheatExecute control-byte class scan); bits 2/3 force the
+; OfficerCardRender portrait mood (read by bank $19).
 ;-------------------------------------------------------------------------------
-.proc WarResultDirRepeat0
-  LDA result_scene_phase                ; $DB10: AD 41 05  ; phase index
+; CountrySelectCheatCheck0 - pad 1: hold Start+Select, tap U,D,U,D,L,R,L,R
+; Gated to phase 1 (before the entry menu opens). Start+Select ($0C) must
+; stay held for the whole sequence; the 8 new-press edges must match the
+; tap table at $DB5A ($10,$20,$10,$20,$40,$80,$40,$80 = Up,Down,Up,Down,
+; Left,Right,Left,Right). Completing fires sound $62 once and arms $6FEA
+; bit 0. Effect: at finalize, CountrySelectCheatExecute maxes the capital
+; Province of the first country whose control byte (record byte 3) is $00
+; (player 1's claim).
+;-------------------------------------------------------------------------------
+.proc CountrySelectCheatCheck0
+  LDA csel_phase                ; $DB10: AD 41 05  ; phase index
   CMP #$01                              ; $DB13: C9 01     ; only phase 1
   BNE @Done2                            ; $DB15: D0 39
-  LDY result_dir_repeat                 ; $DB17: AC 45 05  ; repeat counter
+  LDY csel_cheat_step                 ; $DB17: AC 45 05  ; cheat step counter
   LDA @HoldMasks,Y                      ; $DB1A: B9 51 DB
   BPL @CheckHold                        ; $DB1D: 10 15     ; $80 = hold complete
-  LDA result_latch_flags                ; $DB1F: AD EA 6F  ; latch flags
+  LDA csel_cheat_latch                ; $DB1F: AD EA 6F  ; latch flags
   AND #$01                              ; $DB22: 29 01
   BNE @Done                             ; $DB24: D0 0D     ; already fired
-  LDA result_latch_flags                ; $DB26: AD EA 6F
+  LDA csel_cheat_latch                ; $DB26: AD EA 6F
   ORA #$01                              ; $DB29: 09 01
-  STA result_latch_flags                ; $DB2B: 8D EA 6F
-  LDA #$62                              ; $DB2E: A9 62     ; repeat sound
+  STA csel_cheat_latch                ; $DB2B: 8D EA 6F
+  LDA #$62                              ; $DB2E: A9 62     ; cheat confirm sound
   JSR B1F_SoundWrapperE                 ; $DB30: 20 93 E6
 @Done:
   RTS                                   ; $DB33: 60
 @CheckHold:
   LDA a:$0083                           ; $DB34: AD 83 00  ; held directions
-  LDY result_dir_repeat                 ; $DB37: AC 45 05
+  LDY csel_cheat_step                 ; $DB37: AC 45 05
   AND @HoldMasks,Y                      ; $DB3A: 39 51 DB
   BNE @CheckEdge                        ; $DB3D: D0 06
   LDA #$00                              ; $DB3F: A9 00
-  STA result_dir_repeat                 ; $DB41: 8D 45 05  ; released: reset
+  STA csel_cheat_step                 ; $DB41: 8D 45 05  ; released: reset
   RTS                                   ; $DB44: 60
 @CheckEdge:
   LDA a:$0081                           ; $DB45: AD 81 00  ; new presses
   AND @EdgeMasks,Y                      ; $DB48: 39 5A DB
   BEQ @Done2                            ; $DB4B: F0 03
-  INC result_dir_repeat                 ; $DB4D: EE 45 05  ; advance counter
+  INC csel_cheat_step                 ; $DB4D: EE 45 05  ; advance cheat step
 @Done2:
   RTS                                   ; $DB50: 60
 @HoldMasks:
@@ -8417,37 +8440,47 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   .byte $80                             ; $DB59: hold-complete terminator
 @EdgeMasks:
   .byte $10,$20,$10,$20,$40,$80,$40,$80 ; $DB5A: edge masks (idx 0-7)
-.endproc  ; WarResultDirRepeat0
-.proc WarResultDirRepeat1
-  LDA result_scene_phase                ; $DB62: AD 41 05  ; phase index
+.endproc  ; CountrySelectCheatCheck0
+;-------------------------------------------------------------------------------
+; CountrySelectCheatCheck1 - pad 2: hold Start+Select, tap U,L,D,R,L,U,R,D
+; Pad-2 twin of check 0 (held on $0085, edges on $0082), gated to phase 3
+; (the 2P confirm flow). Same $0C hold mask; tap table at $DBAC ($10,$40,
+; $20,$80,$40,$10,$80,$20 = Up,Left,Down,Right,Left,Up,Right,Down).
+; Completing fires sound $62 once and arms $6FEA bit 1. Effect: at finalize,
+; CountrySelectCheatExecute maxes the capital Province of the first country
+; whose control byte is $01 (player 2's claim; the same byte feeds the
+; $6F44 player flag that SwapPlayerPointers reads).
+;-------------------------------------------------------------------------------
+.proc CountrySelectCheatCheck1
+  LDA csel_phase                ; $DB62: AD 41 05  ; phase index
   CMP #$03                              ; $DB65: C9 03     ; only phase 3
   BNE @Done2                            ; $DB67: D0 39
-  LDY result_dir_repeat+1               ; $DB69: AC 46 05  ; repeat counter
+  LDY csel_cheat_step+1               ; $DB69: AC 46 05  ; cheat step counter
   LDA @HoldMasks,Y                      ; $DB6C: B9 A3 DB
   BPL @CheckHold                        ; $DB6F: 10 15     ; $80 = hold complete
-  LDA result_latch_flags                ; $DB71: AD EA 6F  ; latch flags
+  LDA csel_cheat_latch                ; $DB71: AD EA 6F  ; latch flags
   AND #$02                              ; $DB74: 29 02
   BNE @Done                             ; $DB76: D0 0D     ; already fired
-  LDA result_latch_flags                ; $DB78: AD EA 6F
+  LDA csel_cheat_latch                ; $DB78: AD EA 6F
   ORA #$02                              ; $DB7B: 09 02
-  STA result_latch_flags                ; $DB7D: 8D EA 6F
-  LDA #$62                              ; $DB80: A9 62     ; repeat sound
+  STA csel_cheat_latch                ; $DB7D: 8D EA 6F
+  LDA #$62                              ; $DB80: A9 62     ; cheat confirm sound
   JSR B1F_SoundWrapperE                 ; $DB82: 20 93 E6
 @Done:
   RTS                                   ; $DB85: 60
 @CheckHold:
   LDA a:$0085                           ; $DB86: AD 85 00  ; held directions
-  LDY result_dir_repeat+1               ; $DB89: AC 46 05
+  LDY csel_cheat_step+1               ; $DB89: AC 46 05
   AND @HoldMasks,Y                      ; $DB8C: 39 A3 DB
   BNE @CheckEdge                        ; $DB8F: D0 06
   LDA #$00                              ; $DB91: A9 00
-  STA result_dir_repeat+1               ; $DB93: 8D 46 05  ; released: reset
+  STA csel_cheat_step+1               ; $DB93: 8D 46 05  ; released: reset
   RTS                                   ; $DB96: 60
 @CheckEdge:
   LDA a:$0082                           ; $DB97: AD 82 00  ; new presses
   AND @EdgeMasks,Y                      ; $DB9A: 39 AC DB
   BEQ @Done2                            ; $DB9D: F0 03
-  INC result_dir_repeat+1               ; $DB9F: EE 46 05  ; advance counter
+  INC csel_cheat_step+1               ; $DB9F: EE 46 05  ; advance cheat step
 @Done2:
   RTS                                   ; $DBA2: 60
 @HoldMasks:
@@ -8455,34 +8488,44 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   .byte $80                             ; $DBAB: hold-complete terminator
 @EdgeMasks:
   .byte $10,$40,$20,$80,$40,$10,$80,$20 ; $DBAC: edge masks (idx 0-7)
-.endproc  ; WarResultDirRepeat1
-.proc WarResultDirRepeat2
-  LDY result_dir_repeat+2               ; $DBB4: AC 47 05  ; repeat counter
+.endproc  ; CountrySelectCheatCheck1
+;-------------------------------------------------------------------------------
+; CountrySelectCheatCheck2 - pad 1: hold Select, tap R,R,D,D,U,D,U,D
+; Ungated (runs in every phase). Select ($04) must stay held; the 8 edges
+; must match the tap table at $DBF7 ($80,$80,$20,$20,$10,$20,$10,$20 =
+; Right,Right,Down,Down,Up,Down,Up,Down). Completing fires sound $62 once
+; and arms $6FEA bit 2. Effect: OfficerCardRender (bank $19, drawn every
+; frame of the card grid) forces every officer card portrait to face
+; expression 3 (sad) for the rest of the session; the latch has no
+; clearing write.
+;-------------------------------------------------------------------------------
+.proc CountrySelectCheatCheck2
+  LDY csel_cheat_step+2               ; $DBB4: AC 47 05  ; cheat step counter
   LDA @HoldMasks,Y                      ; $DBB7: B9 EE DB
   BPL @CheckHold                        ; $DBBA: 10 15     ; $80 = hold complete
-  LDA result_latch_flags                ; $DBBC: AD EA 6F  ; latch flags
+  LDA csel_cheat_latch                ; $DBBC: AD EA 6F  ; latch flags
   AND #$04                              ; $DBBF: 29 04
   BNE @Done                             ; $DBC1: D0 0D     ; already fired
-  LDA result_latch_flags                ; $DBC3: AD EA 6F
+  LDA csel_cheat_latch                ; $DBC3: AD EA 6F
   ORA #$04                              ; $DBC6: 09 04
-  STA result_latch_flags                ; $DBC8: 8D EA 6F
-  LDA #$62                              ; $DBCB: A9 62     ; repeat sound
+  STA csel_cheat_latch                ; $DBC8: 8D EA 6F
+  LDA #$62                              ; $DBCB: A9 62     ; cheat confirm sound
   JSR B1F_SoundWrapperE                 ; $DBCD: 20 93 E6
 @Done:
   RTS                                   ; $DBD0: 60
 @CheckHold:
   LDA a:$0083                           ; $DBD1: AD 83 00  ; held directions
-  LDY result_dir_repeat+2               ; $DBD4: AC 47 05
+  LDY csel_cheat_step+2               ; $DBD4: AC 47 05
   AND @HoldMasks,Y                      ; $DBD7: 39 EE DB
   BNE @CheckEdge                        ; $DBDA: D0 06
   LDA #$00                              ; $DBDC: A9 00
-  STA result_dir_repeat+2               ; $DBDE: 8D 47 05  ; released: reset
+  STA csel_cheat_step+2               ; $DBDE: 8D 47 05  ; released: reset
   RTS                                   ; $DBE1: 60
 @CheckEdge:
   LDA a:$0081                           ; $DBE2: AD 81 00  ; new presses
   AND @EdgeMasks,Y                      ; $DBE5: 39 F7 DB
   BEQ @Done2                            ; $DBE8: F0 03
-  INC result_dir_repeat+2               ; $DBEA: EE 47 05  ; advance counter
+  INC csel_cheat_step+2               ; $DBEA: EE 47 05  ; advance cheat step
 @Done2:
   RTS                                   ; $DBED: 60
 @HoldMasks:
@@ -8490,34 +8533,43 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   .byte $80                             ; $DBF6: hold-complete terminator
 @EdgeMasks:
   .byte $80,$80,$20,$20,$10,$20,$10,$20 ; $DBF7: edge masks (idx 0-7)
-.endproc  ; WarResultDirRepeat2
-.proc WarResultDirRepeat3
-  LDY result_dir_repeat+3               ; $DBFF: AC 48 05  ; repeat counter
+.endproc  ; CountrySelectCheatCheck2
+;-------------------------------------------------------------------------------
+; CountrySelectCheatCheck3 - pad 1: hold Start, tap U,R,D,L,U,L,D,R
+; Ungated (runs in every phase). Start ($08) must stay held; the 8 edges
+; must match the tap table at $DC42 ($10,$80,$20,$40,$10,$40,$20,$80 =
+; Up,Right,Down,Left,Up,Left,Down,Right). Completing fires sound $62 once
+; and arms $6FEA bit 3. Effect: OfficerCardRender (bank $19) forces every
+; officer card portrait to face expression 4 (happy) for the rest of the
+; session; the latch has no clearing write.
+;-------------------------------------------------------------------------------
+.proc CountrySelectCheatCheck3
+  LDY csel_cheat_step+3               ; $DBFF: AC 48 05  ; cheat step counter
   LDA @HoldMasks,Y                      ; $DC02: B9 39 DC
   BPL @CheckHold                        ; $DC05: 10 15     ; $80 = hold complete
-  LDA result_latch_flags                ; $DC07: AD EA 6F  ; latch flags
+  LDA csel_cheat_latch                ; $DC07: AD EA 6F  ; latch flags
   AND #$08                              ; $DC0A: 29 08
   BNE @Done                             ; $DC0C: D0 0D     ; already fired
-  LDA result_latch_flags                ; $DC0E: AD EA 6F
+  LDA csel_cheat_latch                ; $DC0E: AD EA 6F
   ORA #$08                              ; $DC11: 09 08
-  STA result_latch_flags                ; $DC13: 8D EA 6F
-  LDA #$62                              ; $DC16: A9 62     ; repeat sound
+  STA csel_cheat_latch                ; $DC13: 8D EA 6F
+  LDA #$62                              ; $DC16: A9 62     ; cheat confirm sound
   JSR B1F_SoundWrapperE                 ; $DC18: 20 93 E6
 @Done:
   RTS                                   ; $DC1B: 60
 @CheckHold:
   LDA a:$0083                           ; $DC1C: AD 83 00  ; held directions
-  LDY result_dir_repeat+3               ; $DC1F: AC 48 05
+  LDY csel_cheat_step+3               ; $DC1F: AC 48 05
   AND @HoldMasks,Y                      ; $DC22: 39 39 DC
   BNE @CheckEdge                        ; $DC25: D0 06
   LDA #$00                              ; $DC27: A9 00
-  STA result_dir_repeat+3               ; $DC29: 8D 48 05  ; released: reset
+  STA csel_cheat_step+3               ; $DC29: 8D 48 05  ; released: reset
   RTS                                   ; $DC2C: 60
 @CheckEdge:
   LDA a:$0081                           ; $DC2D: AD 81 00  ; new presses
   AND @EdgeMasks,Y                      ; $DC30: 39 42 DC
   BEQ @Done2                            ; $DC33: F0 03
-  INC result_dir_repeat+3               ; $DC35: EE 48 05  ; advance counter
+  INC csel_cheat_step+3               ; $DC35: EE 48 05  ; advance cheat step
 @Done2:
   RTS                                   ; $DC38: 60
 @HoldMasks:
@@ -8525,18 +8577,22 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   .byte $80                             ; $DC41: hold-complete terminator
 @EdgeMasks:
   .byte $10,$80,$20,$40,$10,$40,$20,$80 ; $DC42: edge masks (idx 0-7)
-.endproc  ; WarResultDirRepeat3
+.endproc  ; CountrySelectCheatCheck3
 ;-------------------------------------------------------------------------------
-; WarResultSlotReset - post-result slot record refresh ($DC4A-$DC9B)
-; Reached from WarResult_Finalize (JMP $DC4A). Scans the seven country
-; records via B1F_GetCountryDataPtr (country index in A, record to ($00)) and
-; applies WarResultSlotTemplateApply to the first slot whose record byte 3
-; matches the outcome class selected by the $6FEA latch bits:
-;   bit 0 set: byte 3 == 0 -> apply template, then fall through to bit 1
-;   bit 1 set: byte 3 == 1 -> apply template and return
+; CountrySelectCheatExecute - cheat execution at finalize ($DC4A-$DC9B)
+; Reached from CountrySelect_Finalize (JMP $DC4A) after game state 1 is
+; armed. With neither cheat bit armed the scans find no match and this
+; returns without effect (the normal path). If CountrySelectCheatCheck0/1
+; armed $6FEA bit 0/1, scans the seven country records via
+; B1F_GetCountryDataPtr (country index in A, record to ($00)) for the first
+; whose control byte (record byte 3) matches the armed class, then maxes
+; that country's capital Province record via CountrySelectCheatMaxProvince
+; (Province pointer table at $DCB7, inside that proc):
+;   bit 0 set: byte 3 == 0 (P1's claimed country) -> apply, then fall through to bit 1
+;   bit 1 set: byte 3 == 1 (P2's claim in a 2P game) -> apply and return
 ;-------------------------------------------------------------------------------
-.proc WarResultSlotReset
-  LDA result_latch_flags                ; $DC4A: AD EA 6F  ; latch/outcome bits
+.proc CountrySelectCheatExecute
+  LDA csel_cheat_latch                ; $DC4A: AD EA 6F  ; latch/outcome bits
   AND #$01                              ; $DC4D: 29 01
   BEQ @CheckSecondBit                   ; $DC4F: F0 23
   LDA #$00                              ; $DC51: A9 00
@@ -8548,7 +8604,7 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   CMP #$00                              ; $DC5D: C9 00     ; class 0
   BNE @NextClass0                       ; $DC5F: D0 09
   LDA a:$0002                           ; $DC61: AD 02 00  ; slot index
-  JSR WarResultSlotTemplateApply        ; $DC64: 20 9C DC
+  JSR CountrySelectCheatMaxProvince     ; $DC64: 20 9C DC
   JMP @CheckSecondBit                   ; $DC67: 4C 74 DC
 @NextClass0:
   INC a:$0002                           ; $DC6A: EE 02 00
@@ -8556,7 +8612,7 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   CMP #$07                              ; $DC70: C9 07     ; 7 slots
   BCC @ScanClass0                       ; $DC72: 90 E2
 @CheckSecondBit:
-  LDA result_latch_flags                ; $DC74: AD EA 6F
+  LDA csel_cheat_latch                ; $DC74: AD EA 6F
   AND #$02                              ; $DC77: 29 02
   BEQ @Exit                             ; $DC79: F0 20
   LDA #$00                              ; $DC7B: A9 00
@@ -8568,7 +8624,7 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   CMP #$01                              ; $DC87: C9 01     ; class 1
   BNE @NextClass1                       ; $DC89: D0 06
   LDA a:$0002                           ; $DC8B: AD 02 00  ; slot index
-  JMP WarResultSlotTemplateApply        ; $DC8E: 4C 9C DC  ; apply + return
+  JMP CountrySelectCheatMaxProvince     ; $DC8E: 4C 9C DC  ; apply + return
 @NextClass1:
   INC a:$0002                           ; $DC91: EE 02 00
   LDA a:$0002                           ; $DC94: AD 02 00
@@ -8576,42 +8632,43 @@ WarResult_MarkerSpriteLayout:        ; $DAF9: single marker sprite
   BCC @ScanClass1                       ; $DC99: 90 E5
 @Exit:
   RTS                                   ; $DC9B: 60
-.endproc  ; WarResultSlotReset
+.endproc  ; CountrySelectCheatExecute
 ;-------------------------------------------------------------------------------
-; WarResultSlotTemplateApply - reset one slot record ($DC9C-$DCD3)
-; A = slot index. Loads the slot's record pointer from
-; WarResult_SlotRecordPtrs into ($00) and copies 15 bytes of
-; WarResult_SlotRecordTemplate into record offsets 2-$10 (the loop indexes
-; the template from $DCC3 with Y = 2..$10).
+; CountrySelectCheatMaxProvince - max one Province record ($DC9C-$DCD3)
+; A = Province record index (0-6). Loads the Province record pointer from
+; @SlotRecordPtrs into ($00) and copies 15 bytes of @SlotRecordTemplate
+; into record offsets 2-$10 (the loop indexes the template from $DCC3 with
+; Y = 2..$10); the template is the maxed-BCD stat set (9999/99). Only
+; reached from CountrySelectCheatExecute when a cheat latch bit is armed.
 ;-------------------------------------------------------------------------------
-.proc WarResultSlotTemplateApply
+.proc CountrySelectCheatMaxProvince
   ASL                                   ; $DC9C: 0A        ; slot * 2
   TAY                                   ; $DC9D: A8
-  LDA WarResult_SlotRecordPtrs,Y        ; $DC9E: B9 B7 DC  ; ptr low
+  LDA @SlotRecordPtrs,Y        ; $DC9E: B9 B7 DC  ; ptr low
   STA a:$0000                           ; $DCA1: 8D 00 00
-  LDA WarResult_SlotRecordPtrs+1,Y      ; $DCA4: B9 B8 DC  ; ptr high
+  LDA @SlotRecordPtrs+1,Y      ; $DCA4: B9 B8 DC  ; ptr high
   STA a:$0001                           ; $DCA7: 8D 01 00
   LDY #$02                              ; $DCAA: A0 02     ; first record offset
 @CopyLoop:
-  LDA WarResult_SlotRecordTemplate-2,Y  ; $DCAC: B9 C3 DC ; Y spans 2-$10
+  LDA @SlotRecordTemplate-2,Y  ; $DCAC: B9 C3 DC ; Y spans 2-$10
   STA ($00),Y                           ; $DCAF: 91 00
   INY                                   ; $DCB1: C8
   CPY #$11                              ; $DCB2: C0 11     ; past offset $10
   BCC @CopyLoop                         ; $DCB4: 90 F6
   RTS                                   ; $DCB6: 60
 ; --- Data Region ---
-WarResult_SlotRecordPtrs:            ; $DCB7: slot -> record pointer
-  .word $6180                           ; $DCB7: slot 0
-  .word $6080                           ; $DCB9: slot 1
-  .word $6160                           ; $DCBB: slot 2
-  .word $6280                           ; $DCBD: slot 3
-  .word $6040                           ; $DCBF: slot 4
-  .word $6340                           ; $DCC1: slot 5
-  .word $60C0                           ; $DCC3: slot 6
-WarResult_SlotRecordTemplate:        ; $DCC5: values for offsets 2-$10
+@SlotRecordPtrs:            ; $DCB7: Country slot -> capital Province record ($6000 + home_province_id*32)
+  .word $6180                           ; $DCB7: slot 0 = Province $0C 洛阳 Rakuyou (董卓)
+  .word $6080                           ; $DCB9: slot 1 = Province $04 冀州 Kishuu (袁绍)
+  .word $6160                           ; $DCBB: slot 2 = Province $0B 兖州 Enshuu (曹操)
+  .word $6280                           ; $DCBD: slot 3 = Province $14 江夏 Kouka (孙策)
+  .word $6040                           ; $DCBF: slot 4 = Province $02 并州 Heishuu (刘备)
+  .word $6340                           ; $DCC1: slot 5 = Province $1A 成都 Seito (刘璋)
+  .word $60C0                           ; $DCC3: slot 6 = Province $06 凉州 Ryoushuu (马腾)
+@SlotRecordTemplate:        ; $DCC5: values for offsets 2-$10
   .byte $0F,$27,$0F,$27,$0F,$27,$0F,$27 ; $DCC5: 0F 27 0F 27 0F 27 0F 27
   .byte $63,$63,$0F,$27,$E7,$03,$63     ; $DCCD: 63 63 0F 27 E7 03 63
-.endproc  ; WarResultSlotTemplateApply
+.endproc  ; CountrySelectCheatMaxProvince
 ;-------------------------------------------------------------------------------
 ; Padding ($DCD4-$DFFF) - unused bank 09 region, $FF fill
 ;-------------------------------------------------------------------------------

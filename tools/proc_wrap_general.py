@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-General-purpose proc wrapper for prg_0c_0d.asm.
+General-purpose proc wrapper for prg_0c_0d_tactical_commands.asm.
 Processes a handler region and wraps it in .proc/.endproc.
 
 Usage: python3 tools/proc_wrap_general.py <start_label> <end_label> [internal_labels...]
@@ -10,7 +10,7 @@ import os
 import sys
 
 os.chdir('/home/zero/project/sango2dasm')
-ASM_FILE = "asm/banks/prg_0c_0d.asm"
+ASM_FILE = "asm/banks/prg_0c_0d_tactical_commands.asm"
 
 # Known external helpers that should remain as global references
 EXTERNAL_HELPERS = ['Loc_A1DE', 'Loc_A1F7', 'Loc_A20C']

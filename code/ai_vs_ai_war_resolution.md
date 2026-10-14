@@ -1,4 +1,4 @@
-# AI vs AI War Resolution — Decision Tree (prg_0a_0b conquest pipeline)
+# AI vs AI War Resolution — Decision Tree (prg_0a_0b_strategy_ai conquest pipeline)
 
 Companion to the four AI decision-tree docs (`strategy_ai_decision_tree.md`,
 `tactical_ai_decision_tree.md`, `battle_ai_decision_tree.md`,
@@ -8,7 +8,7 @@ game never show Tactical / Battle / Duel mode?**
 
 Short answer: an AI-initiated war against an AI-owned province never enters
 the banks $08+$09 tactical war machine. It is resolved instantly inside the
-Strategy Mode AI turn (banks $0A+$0B, `prg_0a_0b.asm`) as a **province
+Strategy Mode AI turn (banks $0A+$0B, `prg_0a_0b_strategy_ai.asm`) as a **province
 conquest**: the target province's roster and stocks are seized, the war
 against its owning country is staged, and the owning country's **control byte
 `record[$03]`** decides the outcome — `$03` (computer) → `$6F8B = $FD`
@@ -27,14 +27,14 @@ computer):
 
 | Site | Evidence |
 |---|---|
-| prg_0c_0d $A418–$A42F | Loads both countries' record[3] into $0562/$0563 — the Battle Mode per-side control mode; `== 3` gates `Phase1AiSideRefresh` (AI assigns orders), human sides get orders from the phase-3 UI (byte-verified in `battle_ai_decision_tree.md`) |
-| prg_0a_0b $B754–$B762 | Alliance gift: recipient with [3]==$03 accepts **silently**; otherwise the Yes/No prompt is posted through mailbox $F8 — only a human needs a prompt |
-| prg_0a_0b $BB05 | Existing comment literally: "Check if new officer is AI-controlled" before the [3]==$03 test |
-| prg_0a_0b $BBF4–$BBFA | SowDiscord target scan skips [3]==$03 countries (scheming only pays off against humans) |
-| prg_19_1a $CDDD–$CE1E | Debug hook (armed by ROM-space byte $FFF9, inert in the shipped ROM) backs up and rewrites all seven control bytes $6F0A…$6F3A (stride 8) |
-| prg_08_09 $D97A–$D98B | Caveat: post-war the *same* 8-byte record area is reused as result-entry records, where byte 3 means "entry fresh/consumed" ($03 written by `WarResultEntryInit`). Do not confuse that reuse with the control byte. |
+| prg_0c_0d_tactical_commands $A418–$A42F | Loads both countries' record[3] into $0562/$0563 — the Battle Mode per-side control mode; `== 3` gates `NextActorAiSideRefresh` (AI assigns orders), human sides get orders from the phase-3 UI (byte-verified in `battle_ai_decision_tree.md`) |
+| prg_0a_0b_strategy_ai $B754–$B762 | Alliance gift: recipient with [3]==$03 accepts **silently**; otherwise the Yes/No prompt is posted through mailbox $F8 — only a human needs a prompt |
+| prg_0a_0b_strategy_ai $BB05 | Existing comment literally: "Check if new officer is AI-controlled" before the [3]==$03 test |
+| prg_0a_0b_strategy_ai $BBF4–$BBFA | SowDiscord target scan skips [3]==$03 countries (scheming only pays off against humans) |
+| prg_19_1a_event_scenes $CDDD–$CE1E | Debug hook (armed by ROM-space byte $FFF9, inert in the shipped ROM) backs up and rewrites all seven control bytes $6F0A…$6F3A (stride 8) |
+| prg_08_09_tactical_war $D97A–$D98B | Caveat: post-war the *same* 8-byte record area is reused as result-entry records, where byte 3 means "entry fresh/consumed" ($03 written by `CountrySelectEntryInit`). Do not confuse that reuse with the control byte. |
 
-## Entry points (all prg_0a_0b unless noted)
+## Entry points (all prg_0a_0b_strategy_ai unless noted)
 
 | Address | Procedure | Role in the AI-vs-AI war |
 |---|---|---|
@@ -51,7 +51,7 @@ computer):
 | $A79C | `ResolveProvinceConquest` | Executes the province conquest + **the AI-vs-AI / vs-human branch** |
 | $ACD5 | `SumWarSideStrengths` | Post-conquest settlement math |
 | $A8D7 | `SettleStagedOfficers` | Staged-column settlement (mailbox $01): attrition, casualties, war exp, supply, re-placement, succession |
-| prg_19_1a $C7E0 | `RequestPoll` (frame-9 AI-turn panel) | Consumes $FD/$FE: war-report menus vs deployment launch |
+| prg_19_1a_event_scenes $C7E0 | `RequestPoll` (frame-9 AI-turn panel) | Consumes $FD/$FE: war-report menus vs deployment launch |
 
 ## Key RAM
 
@@ -176,7 +176,7 @@ flowchart TD
     ROLL -- "no" --> C0
 ```
 
-## Decision tree 6 — mailbox playback (prg_19_1a frame-9)
+## Decision tree 6 — mailbox playback (prg_19_1a_event_scenes frame-9)
 
 ```mermaid
 flowchart TD
@@ -184,7 +184,7 @@ flowchart TD
     DEC -- "$FD" --> ABSD["ReqCountryAbsorbed $C8CF<br/>war-report menu 9 ($04D6=$A2)<br/>SKIP deployment, straight to sub-state 8<br/>ruler-card menus 5/6, WarPhaseHandoff $CB2F"]
     DEC -- "$FE" --> PEND["ReqWarPending $C899<br/>war menu 9 ($04D6=$47)<br/>ArmyDeploySceneTrigger $CA42:<br/>game state 3, $0500 = $0A"]
     ABSD --> ACK["WarPhaseHandoff sets $6F8B = $01<br/>-> SettleStagedOfficers settlement pass:<br/>attrition, casualties, war exp, supply,<br/>PlaceColumnsConquest, owner flip, succession"]
-    PEND --> TACT["Tactical war machine (states 3/4)<br/>prg_08_09 WarSetup $B130 + AiTurnProcess $A02D<br/>player defends; Battle/Duel modes possible"]
+    PEND --> TACT["Tactical war machine (states 3/4)<br/>prg_08_09_tactical_war WarSetup $B130 + AiTurnProcess $A02D<br/>player defends; Battle/Duel modes possible"]
 ```
 
 ## The algorithm in detail
@@ -231,7 +231,7 @@ goldCost  = 100 * m + s·random(100)    ; $003D/$003E, s = ± by B1F_RandomByte2
    lifted into the defender column $0664, slots emptied.
 5. **Seize** ($A84E–$A874): target gold `[$02/$03]` → $0526/$0527, target
    rice `[$04/$05]` → $0522/$0523 (same pool layout as the player sortie,
-   prg_19_1a `SortieWarCommit` $B7D9); the four pairs are zeroed.
+   prg_19_1a_event_scenes `SortieWarCommit` $B7D9); the four pairs are zeroed.
 6. **Stage** ($A876–$A8AB): `$0507 = actingCountry<<4 | targetOwner`,
    `$050E` = target province, `$0402` = launch province, $0524/$25 = riceCost,
    $0528/$29 = goldCost.
@@ -252,7 +252,7 @@ $6F8C (conquest outcome):  seized rice pool $0522/23 cannot cover
 $6F8D scales the per-officer attrition (×4/10) applied in
 `ApplyScenarioDeductions` / the settlement pass of `SettleStagedOfficers` $A8D7
 (reached because the frame-9 flow hands the mailbox to $01 at
-`WarPhaseHandoff` prg_19_1a $CB7B). $6F8C selects the settlement path
+`WarPhaseHandoff` prg_19_1a_event_scenes $CB7B). $6F8C selects the settlement path
 ($00 = conquest: `@PlaceColumnsConquest` + owner flip at $A906, $01 = province
 held: `@PlaceColumnsHeld`, no flip), which ends in `ProcessRulerSuccession` —
 the losing ruler's country is extinguished or succeeded, provinces having
@@ -271,7 +271,7 @@ bits 4-7 = level). Values: `0` = released, destination in record[5];
 `2` = garrisoned (alive); `3` = dead. The seed ROM uses bits 0-3 as affinity;
 placement code overwrites the low bits with status 2 when officers are
 assigned to provinces. Death marking is always `AND #$FC / ORA #$03` — the
-same op the tactical clash aftermath uses at prg_0c_0d $B60D when an
+same op the tactical clash aftermath uses at prg_0c_0d_tactical_commands $B60D when an
 officer's HP hits 0 (followed by the exp-grant callback and war-slot clear).
 
 1. **HP/Vitality is never deducted** in the AI-vs-AI settlement. Vitality
@@ -364,7 +364,7 @@ banks $0E+$0F Battle Mode, $17+$18 Duel Mode). The AI-vs-AI branch never
 leaves banks $0A+$0B/$19+$1A: `ResolveProvinceConquest` takes the $FD path,
 the deployment trigger is skipped, so no scene that could host Battle/Duel UI
 is ever launched. Even inside genuine wars, AI-vs-AI officer clashes are
-plain arithmetic — `WarClashResolve` prg_08_09 $B933 resolves a pending
+plain arithmetic — `WarClashResolve` prg_08_09_tactical_war $B933 resolves a pending
 strike as
 `damage = defenderAttack($0B byte)*10 + defenderLevel*random(30..40)/10`
 applied to the striking officer's HP (clamped ≥ 0), with two ROM quirks: the
@@ -391,12 +391,12 @@ All renames are comment-column-preserving; ca65 error-set verified unchanged.
 
 ## Correction notes for legacy comments
 
-- "status/byte 3 = at war" comments (prg_08_09 $B157 region, prg_0a_0b
+- "status/byte 3 = at war" comments (prg_08_09_tactical_war $B157 region, prg_0a_0b_strategy_ai
   $B758/$BB09/$BBF8, `WarAttackerSetup`/`WarDefenderSetup` headers) describe
   the **computer-control byte** tested against $03, not a war state. The
   branch documented in DT4 is the decisive evidence together with the
   Battle Mode input-mode load.
-- "defender still has forces" as the $FE condition (prg_19_1a legacy
+- "defender still has forces" as the $FE condition (prg_19_1a_event_scenes legacy
   comments) is wrong: $FE means **human defender** (control byte ≠ $03),
   regardless of remaining forces; $FD means **computer defender**.
 - `@SubLimitB` ($B224, delta clamp in `TransferProvinceValues`) is a distinct

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify asm/banks/data_06.asm reproduces rom/prg/prg_06.bin byte-for-byte.
+"""Verify asm/banks/data_06_placement_and_scroll.asm reproduces rom/prg/prg_06.bin byte-for-byte.
 
 Bank $06 (war-scene unit placement geometry + 命令書 OrderScroll graphics) is
 rendered by tools/gen_data_bank_06_asm.py. This harness assembles the bank on
@@ -60,7 +60,7 @@ def linker_cfg():
 def assemble():
     """ca65 + ld65 the single bank; returns the built bytes or None."""
     os.makedirs(BUILD, exist_ok=True)
-    src = os.path.join(ROOT, 'asm', 'banks', 'data_06.asm')
+    src = os.path.join(ROOT, 'asm', 'banks', 'data_06_placement_and_scroll.asm')
     obj = os.path.join(BUILD, '_d06.o')
     cfg = os.path.join(BUILD, '_d06.cfg')
     out = os.path.join(BUILD, '_d06.bin')
@@ -216,7 +216,7 @@ def main():
                     help='print the assembled placement-pool decode')
     args = ap.parse_args()
 
-    src_path = os.path.join(ROOT, 'asm', 'banks', 'data_06.asm')
+    src_path = os.path.join(ROOT, 'asm', 'banks', 'data_06_placement_and_scroll.asm')
     with open(src_path, encoding='utf-8') as f:
         text = f.read()
     stock = gen.read(gen.ROM_BANK)
@@ -224,7 +224,7 @@ def main():
     if built is None:
         return 1
     rc = 0
-    print('bank 06 (asm/banks/data_06.asm): %d bytes assembled' % len(built))
+    print('bank 06 (asm/banks/data_06_placement_and_scroll.asm): %d bytes assembled' % len(built))
     if len(built) != len(stock):
         print('  FAIL: length %d, expected %d' % (len(built), len(stock)))
         return 1
@@ -259,7 +259,7 @@ def main():
 
     rendered = gen.render(stock)
     if rendered != text:
-        print('  DRIFT: data_06.asm is not what the generator renders; run '
+        print('  DRIFT: data_06_placement_and_scroll.asm is not what the generator renders; run '
               'tools/gen_data_bank_06_asm.py --write')
         for d in list(difflib.unified_diff(rendered.splitlines(), text.splitlines(),
                                            'generated', 'on-disk', lineterm=''))[:40]:

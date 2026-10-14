@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Scan raw RAM address references ($00xx-$07xx, $6Fxx/$7xxx) in prg_19_1a.asm and
-prg_1b_1c.asm operand fields; print per-address usage with one sample comment."""
+"""Scan raw RAM address references ($00xx-$07xx, $6Fxx/$7xxx) in prg_19_1a_event_scenes.asm and
+prg_1b_1c_map_screen.asm operand fields; print per-address usage with one sample comment."""
 import re
 from collections import defaultdict
 
-FILES = ["asm/banks/prg_19_1a.asm", "asm/banks/prg_1b_1c.asm"]
+FILES = ["asm/banks/prg_19_1a_event_scenes.asm", "asm/banks/prg_1b_1c_map_screen.asm"]
 op_re = re.compile(r"^\s*(?:[A-Z]{3}[A-Z]?|\.byte|\.word)\s+(.*?)(?:\s*;.*)?$")
 addr_re = re.compile(r"\$([0-9A-Fa-f]{3,4})\b")
 

@@ -1,4 +1,4 @@
-# Strategy AI Decision Tree — prg_0a_0b.asm
+# Strategy AI Decision Tree — prg_0a_0b_strategy_ai.asm
 
 Bank pair `$0A/$0B` (`$A000-$DFFF`) implements the **Strategy Mode AI**: the
 per-country turn engine that expands territory, manages officers and
@@ -11,10 +11,10 @@ Related documents — the four AI layers of the nested mode hierarchy
 (Strategy > Tactical > Battle > Duel):
 
 - `code/tactical_ai_decision_tree.md` — the **war/tactical** AI decision tree
-  (`AiTurnProcess`, prg_08_09); this file covers the strategy-layer AI.
+  (`AiTurnProcess`, prg_08_09_tactical_war); this file covers the strategy-layer AI.
 - `code/battle_ai_decision_tree.md` — the **Battle Mode** side director
-  (prg_0e_0f).
-- `code/duel_ai_decision_tree.md` — the **one-on-one duel** AI (prg_17_18).
+  (prg_0e_0f_battle).
+- `code/duel_ai_decision_tree.md` — the **one-on-one duel** AI (prg_17_18_display).
 - `code/cpu_ram_map.md` — WRAM `$6Fxx` semantic map (updated with the 0a_0b
   aliases pinned during this review).
 - `memory/project_tech_stack/strategy-layer-request-mailbox-protocol.md` —
@@ -330,9 +330,9 @@ flowchart LR
 
 Review result (cross-checked against `code/cpu_ram_map.md`):
 
-| Cell | Equate / meaning in prg_0a_0b | Notes |
+| Cell | Equate / meaning in prg_0a_0b_strategy_ai | Notes |
 |------|-------------------------------|-------|
-| `$6F00` | `sram_game_year` — calendar year − 100 | Seeded `$59` (year 189) at new game (prg_1d_1e `$DE59`); expansion gate `>= $5A`; demo year tick reuse |
+| `$6F00` | `sram_game_year` — calendar year − 100 | Seeded `$59` (year 189) at new game (prg_1d_1e_menu_screens `$DE59`); expansion gate `>= $5A`; demo year tick reuse |
 | `$6F01` | `sram_game_month` — calendar month − 1 | Troop reinforcement in April–August (raw 3–7); level-1 expansion gate `>= 6` (July+); demo rotation step reuse |
 | `$6F02` | `sram_game_level` — difficulty 0-2 | Indexes AiWeight*Base/AiWeight*TierAdj, LevelTierDispatch, LevelActionModifiers |
 | `$6F03` | `sram_current_country` — acting country slot | Owner comparisons, `@AiDev_ActionThreshold` index (`& 7`), `@ScanBorderingCountries` |
@@ -355,8 +355,8 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
 ## 6. Review corrections applied (2026-09)
 
 1. `$6F00`/`$6F01` were commented as "development counter" / "sub-phase
-   counter" (and once as "game state"). Cross-bank evidence (prg_19_1a
-   `$B9C5`/`$C3EC` reign-year/calendar comments, prg_1d_1e new-game seed
+   counter" (and once as "game state"). Cross-bank evidence (prg_19_1a_event_scenes
+   `$B9C5`/`$C3EC` reign-year/calendar comments, prg_1d_1e_menu_screens new-game seed
    `$59`/`$00`) proves they are the **calendar year (−100)** and **month
    (−1)** cells. Comments fixed; `sram_game_year`/`sram_game_month` equates
    added and used at the four read sites.
@@ -374,7 +374,7 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
 6. Province-record "morale" deep dive (2026-09): the field does not exist in
    the game. `+$06/$07` is **Population 人口 (stored ÷100)** — proven by the
    ROM seed table (`docs/province_data.md`, bank `$30` `$8C00`, 32 B/record)
-   and the human castle-development command (`prg_1b_1c.asm`
+   and the human castle-development command (`prg_1b_1c_map_screen.asm`
    `CastleDevFieldOffsetTable`: `+$08` land, `+$0E` industry, `+$06`
    population, `+$0A` disaster prevention). The whole province record table in
    `code/cpu_ram_map.md` was realigned: Rice `+$04/$05`, LandValue `+$08/$09`,

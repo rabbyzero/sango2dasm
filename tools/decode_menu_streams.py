@@ -2,7 +2,7 @@
 """
 Decode MenuAction tile stream data from the PPUTileRender bytecode format.
 
-The display engine (MenuUpdate/PPUTileRender at $A153-$A394 in prg_1d_1e.asm) reads
+The display engine (MenuUpdate/PPUTileRender at $A153-$A394 in prg_1d_1e_menu_screens.asm) reads
 a bytecode stream from banked PRG ROM. This script:
 1. Resolves the pointer table for each pos_buf_0 value
 2. Reads the tile stream bytecode
@@ -51,7 +51,7 @@ HANDLERS = {
     0x18: ("MenuAction18_SearchItem", 0xC5),
     0x19: ("MenuAction19_UnidentifiedCmd", 0xF4),
     0x1A: ("MenuAction1A_OfficerDeath", 0xC1),
-    0x1B: ("MenuAction1B_StrategyCmdDispatch", 0xFC),
+    0x1B: ("MenuAction1B_UnidentifiedCmd", 0xFC),
 }
 
 # PosDataBankTable at $A6A7 (15 entries)

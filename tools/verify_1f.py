@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Robust byte-exact verification for prg_1f.asm.
+"""Robust byte-exact verification for prg_1f_boot.asm.
 
 Disassembles rom/prg/prg_1f.bin from $E000, walks the source lines in
 order, assembles each instruction mentally via a small 6502 model, and
@@ -16,7 +16,7 @@ import re
 import sys
 
 ROM = open("rom/prg/prg_1f.bin", "rb").read()
-SRC_PATH = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_1f.asm"
+SRC_PATH = sys.argv[1] if len(sys.argv) > 1 else "asm/banks/prg_1f_boot.asm"
 
 # ---- 1. collect equate values (simple `name = $XXXX` lines) ----
 src_lines = open(SRC_PATH).read().splitlines()

@@ -1,15 +1,15 @@
 # Menu stream text, callers and validation (data banks $12/$13)
 
-Cross-check of every message stream in `asm/banks/data_12.asm` (PRG $12) and
-`asm/banks/data_13.asm` (PRG $13) against the code that seeds its pos id.
+Cross-check of every message stream in `asm/banks/data_12_menu_display.asm` (PRG $12) and
+`asm/banks/data_13_menu_display.asm` (PRG $13) against the code that seeds its pos id.
 
-**Bank selection** (`SelectDataBankByPos` $A690, prg_1d_1e): pos ids < $20 always read bank 13;
+**Bank selection** (`SelectDataBankByPos` $A690, prg_1d_1e_menu_screens): pos ids < $20 always read bank 13;
 ids >= $20 read bank 12 when `addr_game_state` ($007A) is 3-8 (war / war-AI / strategy-frame /
 duel contexts) and bank 13 otherwise (strategy play, events, new game, ending).
 `B1F_OpenMsgWindow0/2/4/5(A)` queues A into `pos_buf_1`; the mode-head stream (a window-blanking
 primitive) renders first, then `$80` shifts the queue and the seeded id's stream renders.
-Caller tags: `[12]` = war/battle/duel context (prg_08_09 / 0c_0d / 0e_0f / duel procs of 17_18),
-`[13]` = strategy/event context (prg_19_1a / 1b_1c / StrategyCommand_*).
+Caller tags: `[12]` = war/battle/duel context (prg_08_09_tactical_war / 0c_0d / 0e_0f / duel procs of 17_18),
+`[13]` = strategy/event context (prg_19_1a_event_scenes / 1b_1c / StrategyCommand_*).
 Placeholders: 〈名〉 officer name, 〈名7 n〉 7-char name slot, 〈名p 20〉 ruler card name,
 〈省NN〉 province name, ⟨数n⟩ number slot. JP text is the literal tile decode
 (`tools/report_stream_text.py`); EN is a working translation; readings marked (?) are uncertain.
@@ -58,51 +58,51 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $40 | 〈名〉は シチセイホウケンを / てに いれました | ...the Seven-Star Treasure Sword (shichisei houken 七星宝剣) | IntrigueCommandDispatch $CF89[13] | ok - Spoils_GrantWeapon (item-indexed) |
 | $41 | 〈名〉は リュウガトウを / てに いれました | ...the Ryuga (龍牙) Blade | ArmyCommandDispatch $AFA1[13] | ok - Spoils_GrantWeapon (item-indexed); kanji confirmed vs equipment_catalog.csv id 14 |
 | $42 | 〈名〉は リュウリンのヨロイを / てに いれました | ...the Ryurin (竜鱗) Armor | Spoils_GrantArmor $C44C[12] | ok - Spoils_GrantArmor; kanji confirmed vs equipment_catalog.csv id 31 (竜鱗の鎧, 竜 not 龍) |
-| $C0 | 〈名〉さま / どのブショウにメイレイをだしますか | My lord <mei> - to which officer do you give orders? | Phase_Wait $A09F[12] | ok - Phase_Wait |
-| $C1 | いどう       こうげき / けいりゃく     たいき / たいきゃく / メイレイを してください | menu: move / attack / stratagem / hold / retreat - give your orders | Phase_Input $A0EF[12]; OfficerNaturalDeathScene $BCF1[13]; RulerSuccessionScene $BE22[13]; SuccessionApplyScene $C154[13]; StrategyRequestDispatch $C90D[13] | ok - Phase_Input |
-| $C2 | どのブタイをテイサツしますか | Which unit shall be scouted? | SuccessionApplyScene $C27D[13]; StrategyRequestDispatch $CB91[13] | ok - runtime arg (OfficerTurnState_Confirm loads $050A) |
-| $C3 | どのテキにコウゲキを しかけますか | Which enemy shall we attack? | OfficerAttack_Init $A2A9[12]; ScenarioHandoffPrep $C391[13]; StrategyRequestDispatch $C92C[13] | ok - OfficerAttack_Init |
+| $C0 | 〈名〉さま / どのブショウにメイレイをだしますか | My lord <mei> - to which officer do you give orders? | WarOrder_Wait $A09F[12] | ok - WarOrder_Wait |
+| $C1 | いどう       こうげき / けいりゃく     たいき / たいきゃく / メイレイを してください | menu: move / attack / stratagem / hold / retreat - give your orders | WarOrder_Input $A0EF[12]; OfficerNaturalDeathScene $BCF1[13]; RulerSuccessionScene $BE22[13]; SuccessionApplyScene $C154[13]; StrategyRequestDispatch $C90D[13] | ok - WarOrder_Input |
+| $C2 | どのブタイをテイサツしますか | Which unit shall be scouted? | SuccessionApplyScene $C27D[13]; StrategyRequestDispatch $CB91[13] | ok - runtime arg (TurnEndState_Confirm loads $050A) |
+| $C3 | どのテキにコウゲキを しかけますか | Which enemy shall we attack? | UnitAttack_Init $A2A9[12]; ScenarioHandoffPrep $C391[13]; StrategyRequestDispatch $C92C[13] | ok - UnitAttack_Init |
 | $C4 | そこにはテキはおりません | There is no enemy there | - | ok - runtime/table arg |
-| $C5 | かならずやテキを けちらして / まいります | We shall surely rout the enemy and return | - | ok - OfficerAttack_SelectTarget (seeds shared $CB) |
+| $C5 | かならずやテキを けちらして / まいります | We shall surely rout the enemy and return | - | ok - UnitAttack_SelectTarget (seeds shared $CB) |
 | $C6 | どこへ イドウしますか / コマをすすめてください | Where to move? Advance the piece | MoveState_Init $A472[12] | ok - MoveState_Init |
 | $C7 | どのようなケイリャクを もちいりましょう | Which stratagem (keiryaku 計略) shall we employ? | StratagemState_MenuSetup $A8DA[12] | ok - StratagemState_MenuSetup |
 | $C8 | メイレイとあれば しかたありません / シロへ タイキャクしましょう | If it is your order, so be it - we withdraw to the castle | RetreatState_PickCastle $BA2D[12] | ok - RetreatState_PickCastle |
 | $C9 | メイレイとあれば しかたありません / ゼングンをひきいて ひとまず / シロへ タイキャクしましょう | ...leading the whole army, we withdraw to the castle | - | ok - RetreatState_PickCastle branch (no direct seed found) |
-| $CA | ここは ぜんぐんタイキして / テキのでかたを まちましょう | All armies hold position and await the enemy's move | OfficerTurnState_Init $BCBA[12] | ok - OfficerTurnState_Init (taiki たいき) |
-| $CB $CC $CD $CE $CF $D0 | かならずやテキを けちらして / まいります | We shall surely rout the enemy and return | OfficerAttack_SelectTarget $A308[12] | ok - OfficerAttack_SelectTarget (shared stream $CB-$D0) |
-| $D1 | ⟨数00⟩ / ⟨数01⟩ / ⟨数02⟩ / ⟨数03⟩ | unit gauge panel <su00-03> | Phase3CommandPanelInit $AA57[12]; RulerSuccessionScene $BEC3[13]; RulerSuccessionScene $BF81[13] | ok - Phase3CommandPanelInit |
-| $D2 | 〈名〉さま / かくブタイにメイレイをだしてください | My lord - give orders to each unit | Phase6FormationMenuInput $CE9D[12]; Phase7FormationMenuInput $CFF7[12]; RulerSuccessionScene $BF2C[13] | ok - Phase6/7FormationMenuInput |
-| $D3 | 〈名〉は / ついに ちからつきた | <mei>'s strength gave out | BattleDefeatEventCheck $A2DE[12]; BattleDefeatEventCheck $A321[12]; Phase4ResultDamageApply $A4B1[12]; RulerSuccessionScene $BFA9[13] | ok - BattleDefeatEventCheck x2; Phase4ResultDamageApply |
-| $D4 | ジンケイをきめてください | Choose your formation (jinkei 陣形) | Phase6FormationPanelInit $CE47[12]; Phase7FormationPanelOpen $CFA4[12]; RulerSuccessionScene $C0E2[13] | ok - Phase6/7FormationPanelInit |
-| $D5 | ⟨数00⟩イ⟨数01⟩イ / ⟨数02⟩⟨数03⟩ / ⟨数04⟩⟨数05⟩ | strength gauge panel | OfficerExchangeConfirmDispatch $C9A3[12]; OfficerExchangeConfirmDispatch $CA2B[12]; CountryRotationDispatch $A0A2[13] | no war-context caller found (CountryRotationDispatch renders bank 13) |
+| $CA | ここは ぜんぐんタイキして / テキのでかたを まちましょう | All armies hold position and await the enemy's move | TurnEndState_Init $BCBA[12] | ok - TurnEndState_Init (taiki たいき) |
+| $CB $CC $CD $CE $CF $D0 | かならずやテキを けちらして / まいります | We shall surely rout the enemy and return | UnitAttack_SelectTarget $A308[12] | ok - UnitAttack_SelectTarget (shared stream $CB-$D0) |
+| $D1 | ⟨数00⟩ / ⟨数01⟩ / ⟨数02⟩ / ⟨数03⟩ | unit gauge panel <su00-03> | CommandPanelInit $AA57[12]; RulerSuccessionScene $BEC3[13]; RulerSuccessionScene $BF81[13] | ok - CommandPanelInit |
+| $D2 | 〈名〉さま / かくブタイにメイレイをだしてください | My lord - give orders to each unit | SideAFormationMenuInput $CE9D[12]; SideBFormationMenuInput $CFF7[12]; RulerSuccessionScene $BF2C[13] | ok - SideA/BFormationMenuInput |
+| $D3 | 〈名〉は / ついに ちからつきた | <mei>'s strength gave out | BattleDefeatEventCheck $A2DE[12]; BattleDefeatEventCheck $A321[12]; BattleResultDamageApply $A4B1[12]; RulerSuccessionScene $BFA9[13] | ok - BattleDefeatEventCheck x2; BattleResultDamageApply |
+| $D4 | ジンケイをきめてください | Choose your formation (jinkei 陣形) | SideAFormationPanelInit $CE47[12]; SideBFormationPanelOpen $CFA4[12]; RulerSuccessionScene $C0E2[13] | ok - SideA/BFormationPanelInit |
+| $D5 | ⟨数00⟩イ⟨数01⟩イ / ⟨数02⟩⟨数03⟩ / ⟨数04⟩⟨数05⟩ | strength gauge panel | WarResultPanel $C9A3[12]; WarResultPanel $CA2B[12]; CountryRotationDispatch $A0A2[13] | no war-context caller found (CountryRotationDispatch renders bank 13) |
 | $D6 | 〈名〉さま / どのシロに たいきゃくしますか | My lord - to which castle do we retreat? | RetreatState_Init $B966[12] | ok - RetreatState_Init |
-| $D7 | 〈省00〉⟨数00⟩  〈省01〉⟨数01⟩ / 〈省02〉⟨数02⟩  〈省03〉⟨数03⟩ / 〈省04〉⟨数04⟩  〈省05〉⟨数05⟩ / 〈省06〉⟨数06⟩  〈省07〉⟨数07⟩ | province roster <sho NN><su> list | RetreatState_Select $B996[12]; OfficerExchangeSelectDispatch $CD95[12]; OfficerReserveAssignDispatch $D326[12] | ok - RetreatState_Select |
+| $D7 | 〈省00〉⟨数00⟩  〈省01〉⟨数01⟩ / 〈省02〉⟨数02⟩  〈省03〉⟨数03⟩ / 〈省04〉⟨数04⟩  〈省05〉⟨数05⟩ / 〈省06〉⟨数06⟩  〈省07〉⟨数07⟩ | province roster <sho NN><su> list | RetreatState_Select $B996[12]; UnitWithdraw $CD95[12]; UnitGarrison $D326[12] | ok - RetreatState_Select |
 | $D8 | ぶじ シロへもどりました | Returned safely to the castle | RetreatState_Confirm $BA60[12]; StrategyCommand_InitOfficerScroll $D6CD[13] | ok - RetreatState_Confirm |
 | $D9 | もどるシロが ありません | There is no castle to return to | RetreatState_Select $B9B2[12] | ok - RetreatState_Select (empty list) |
-| $DA | そのシロには たいきゃくできません | Cannot retreat to that castle | WarResult_InitRecords $D774[12]; WarResult_SelectMenuEntry $D809[12]; RetreatState_PickCastle $BA16[12] | ok - RetreatState_PickCastle; WarResult_InitRecords |
-| $DB | たたかいは おわりました | The battle is over | WarResult_PickEntry $D89D[12] | ok - WarResult_PickEntry |
-| $DC | 〈名p 20〉さま / どのシロに たいきゃくしますか | My lord (ruler card) - to which castle retreat? | OfficerExchangeSelectDispatch $CD48[12]; StrategyCommand_ScrollIntroPanel $D7D0[13] | ok? - OfficerExchangeSelectDispatch (garrison-swap castle pick) |
+| $DA | そのシロには たいきゃくできません | Cannot retreat to that castle | CountrySelect_InitRecords $D774[12]; CountrySelect_SelectMenuEntry $D809[12]; RetreatState_PickCastle $BA16[12] | ok - RetreatState_PickCastle; CountrySelect_InitRecords |
+| $DB | たたかいは おわりました | The battle is over | CountrySelect_PickEntry $D89D[12] | ok - CountrySelect_PickEntry |
+| $DC | 〈名p 20〉さま / どのシロに たいきゃくしますか | My lord (ruler card) - to which castle retreat? | UnitWithdraw $CD48[12]; StrategyCommand_ScrollIntroPanel $D7D0[13] | ok? - UnitWithdraw (garrison-swap castle pick) |
 | $DD | 〈名p 20〉さま / たいきゃくするブショウをえらんでください | My lord - choose the officers to withdraw | StrategyCommand_ScrollTextPhase2 $D860[13] | no direct OpenMsgWindow caller (StrategyCommand_ScrollTextPhase2 renders bank 13) |
-| $DE | 〈名7 00〉  〈名7 01〉  〈名7 02〉 / 〈名7 03〉  〈名7 04〉  〈名7 05〉 / 〈名7 06〉  〈名7 07〉  〈名7 08〉 / 〈名7 09〉  〈名7 0A〉  〈名7 0B〉 / 〈名7 0C〉  〈名7 0D〉  〈名7 0E〉 / 〈名7 0F〉  〈名7 10〉  〈名7 11〉 / 〈名7 12〉  〈名7 13〉  〈名7 14〉 | officer selection grid <mei7 00-14> | OfficerExchangeSelectDispatch $CE6F[12]; OfficerReserveAssignDispatch $D3D0[12]; StrategyCommand_ScrollAndWait $D8EF[13] | ok - OfficerExchangeSelectDispatch; OfficerReserveAssignDispatch |
-| $DF | 〈名p 20〉さま / このシロにはいるブショウが10にんを / こえました ほかのシロへいどうしてください | Officers entering this castle would exceed 10 - move some elsewhere | OfficerReserveAssignDispatch $D306[12]; UnificationEndingDispatch $C5DC[13] | ok - OfficerReserveAssignDispatch |
-| $E0 | -(graphics/no text) | garrison-result graphics panel (no text) | StrategyRequestDispatch $CC03[13] | ok - OfficerExchangeConfirmDispatch (direct $0310 write) |
+| $DE | 〈名7 00〉  〈名7 01〉  〈名7 02〉 / 〈名7 03〉  〈名7 04〉  〈名7 05〉 / 〈名7 06〉  〈名7 07〉  〈名7 08〉 / 〈名7 09〉  〈名7 0A〉  〈名7 0B〉 / 〈名7 0C〉  〈名7 0D〉  〈名7 0E〉 / 〈名7 0F〉  〈名7 10〉  〈名7 11〉 / 〈名7 12〉  〈名7 13〉  〈名7 14〉 | officer selection grid <mei7 00-14> | UnitWithdraw $CE6F[12]; UnitGarrison $D3D0[12]; StrategyCommand_ScrollAndWait $D8EF[13] | ok - UnitWithdraw; UnitGarrison |
+| $DF | 〈名p 20〉さま / このシロにはいるブショウが10にんを / こえました ほかのシロへいどうしてください | Officers entering this castle would exceed 10 - move some elsewhere | UnitGarrison $D306[12]; UnificationEndingDispatch $C5DC[13] | ok - UnitGarrison |
+| $E0 | -(graphics/no text) | garrison-result graphics panel (no text) | StrategyRequestDispatch $CC03[13] | ok - WarResultPanel (direct $0310 write) |
 | $E1 | -(graphics/no text) | garrison-result graphics panel (no text) | StrategyRequestDispatch $CC66[13] | push target of bank-12 streams; no OpenMsgWindow caller |
 | $E2 | -(graphics/no text) | garrison-result graphics panel (no text) | StrategyRequestDispatch $C9BF[13]; IntrigueCommandDispatch $D11C[13] | push target; no OpenMsgWindow caller |
 | $E3 | -(graphics/no text) | garrison-result graphics panel (no text) | - | push target; no OpenMsgWindow caller |
 | $E4 | -(graphics/no text) | garrison-result graphics panel (no text) | StrategyRequestDispatch $CD3C[13]; IntrigueCommandDispatch $D226[13]; IntrigueCommandDispatch $D2C4[13]; IntrigueCommandDispatch $D2D3[13] | ok - StrategyRequestDispatch $CD3C - but strategy context renders bank 13 |
-| $E5 | 〈名p 20〉さま / ざいやにおとすブショウをえらんでください | My lord - choose the officers to leave in the field | OfficerExchangeSelectDispatch $CE4F[12]; OfficerReserveAssignDispatch $D3A8[12]; StrategyRequestDispatch $CD42[13]; IntrigueCommandDispatch $D22B[13]; IntrigueCommandDispatch $D28C[13] | ok - OfficerExchangeSelectDispatch |
-| $E6 | 〈名p 20〉さま / ブショウは ざいやにおちました | The officer was left behind in the field | OfficerExchangeSelectDispatch $CEFD[12]; OfficerReserveAssignDispatch $D456[12]; StrategyRequestDispatch $C950[13]; StrategyRequestDispatch $C98B[13] | ok - OfficerExchangeSelectDispatch; OfficerReserveAssignDispatch |
-| $E7 $FF | ゜ / ホイント  ⟨数00⟩ | hint <su00> panel (shared with $FF) | Phase8PanelInit $AD1A[12] | ok - Phase8PanelInit |
+| $E5 | 〈名p 20〉さま / ざいやにおとすブショウをえらんでください | My lord - choose the officers to leave in the field | UnitWithdraw $CE4F[12]; UnitGarrison $D3A8[12]; StrategyRequestDispatch $CD42[13]; IntrigueCommandDispatch $D22B[13]; IntrigueCommandDispatch $D28C[13] | ok - UnitWithdraw |
+| $E6 | 〈名p 20〉さま / ブショウは ざいやにおちました | The officer was left behind in the field | UnitWithdraw $CEFD[12]; UnitGarrison $D456[12]; StrategyRequestDispatch $C950[13]; StrategyRequestDispatch $C98B[13] | ok - UnitWithdraw; UnitGarrison |
+| $E7 $FF | ゜ / ホイント  ⟨数00⟩ | hint <su00> panel (shared with $FF) | BattleTacticsMenuInit $AD1A[12] | ok - BattleTacticsMenuInit |
 | $E8 | -(graphics/no text) | graphics panel (no text) | ProvinceRebellionEvent $AC4A[13]; ProvinceRebellionEvent $AC97[13] | no caller - ProvinceRebellionEvent $E8 renders bank 13 |
 | $E9 | ⟨数00⟩ア   ⟨数01⟩ア / ⟨数02⟩ア   ⟨数03⟩ア / ⟨数04⟩ア   ⟨数05⟩ア / ⟨数06⟩    ⟨数07⟩ | cavalry-count gauge panel | - | no OpenMsgWindow caller found |
-| $EA | ちょうはつに せいこうしました | The taunt (chouhatsu 挑発) succeeded | Phase8RowTaunt $AFC0[12] | ok - Phase8RowTaunt |
-| $EB | ちょうはつは しっぱいにおわりました | The taunt (挑発) failed | Phase8RowTaunt $AFCB[12] | ok - Phase8RowTaunt |
-| $EC | 〈名〉は とうぶんのあいだ / うごけないでしょう | <mei> will be immobile for a while | Phase8RowBind $AFE4[12] | ok - Phase8RowBind (hit) |
-| $ED | ジュバクは しっぱいにおわりました | The bind (jubaku 縛) failed | Phase8RowBind $AFDE[12] | ok - Phase8RowBind (miss) |
-| $EE | ゆみやが とおくへ とぶでしょう | The arrows will fly far | Phase8RowCrossbowVolley $B010[12]; StrategyRequestDispatch $CCBC[13] | ok - Phase8RowCrossbowVolley |
-| $EF | とうぶんのあいだ / シキがあがるでしょう | Morale (shiki 士気) will rise for a while | Phase8RowMoraleBoost $B030[12]; IntrigueCommandDispatch $D1B5[13] | ok - Phase8RowMoraleBoost |
-| $F0 | ゆみやに ひをつけましょう | Set the arrows alight | Phase8RowFireArrows $B07E[12] | ok - Phase8RowFireArrows |
-| $F1 | ひをはなちましょう | Loose the fire | Phase8RowExplosion $B0A8[12]; AiTacticPointSpend $D49A[12]; StrategyCommand_BuildOfficerList $DA3D[13] | ok - Phase8RowExplosion; AiTacticPointSpend |
+| $EA | ちょうはつに せいこうしました | The taunt (chouhatsu 挑発) succeeded | BattleTacticsRowTaunt $AFC0[12] | ok - BattleTacticsRowTaunt |
+| $EB | ちょうはつは しっぱいにおわりました | The taunt (挑発) failed | BattleTacticsRowTaunt $AFCB[12] | ok - BattleTacticsRowTaunt |
+| $EC | 〈名〉は とうぶんのあいだ / うごけないでしょう | <mei> will be immobile for a while | BattleTacticsRowBind $AFE4[12] | ok - BattleTacticsRowBind (hit) |
+| $ED | ジュバクは しっぱいにおわりました | The bind (jubaku 縛) failed | BattleTacticsRowBind $AFDE[12] | ok - BattleTacticsRowBind (miss) |
+| $EE | ゆみやが とおくへ とぶでしょう | The arrows will fly far | BattleTacticsRowCrossbowVolley $B010[12]; StrategyRequestDispatch $CCBC[13] | ok - BattleTacticsRowCrossbowVolley |
+| $EF | とうぶんのあいだ / シキがあがるでしょう | Morale (shiki 士気) will rise for a while | BattleTacticsRowMoraleBoost $B030[12]; IntrigueCommandDispatch $D1B5[13] | ok - BattleTacticsRowMoraleBoost |
+| $F0 | ゆみやに ひをつけましょう | Set the arrows alight | BattleTacticsRowFireArrows $B07E[12] | ok - BattleTacticsRowFireArrows |
+| $F1 | ひをはなちましょう | Loose the fire | BattleTacticsRowExplosion $B0A8[12]; AiTacticPointSpend $D49A[12]; StrategyCommand_BuildOfficerList $DA3D[13] | ok - BattleTacticsRowExplosion; AiTacticPointSpend |
 | $F2 | マジックポイントが たりません | tactic-point graphics panel (no text) | - | no OpenMsgWindow caller found |
 | $F3 | -(graphics/no text) | blank placeholder (single $80) | - | ok - StratagemState_Init (direct $0310=$F3, war context) |
 | $F4 | どのテキにケイリャクを かけましょう | On which enemy shall we use the stratagem? | StratagemState_Menu_Enough $A9D6[12] | ok - StratagemState_Menu_Enough |
@@ -110,7 +110,7 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $F6 | 〈名〉に ケイリャクをかけましょう | Use the stratagem on <mei> | - | table - @ResultMsgTable |
 | $F7 | ここでは ほかの ケイリャクを / もちいたほうが よいでしょう | A different stratagem would serve better here | StratagemState_SelectTarget_Proceed $AA19[12] | ok - StratagemState_SelectTarget_Proceed |
 | $F8 | ケイリャクは しっぱいに おわりました / もうしわけ ありません | The stratagem failed - our apologies | - | ok - StratagemState_Cancel (@CancelMsgTable) |
-| $F9 | 〈名〉さま / ブショウをどこに はいちしますか / ばしょを きめてください | My lord - where shall the officers be placed? Choose the spot | ArmyDeployDispatch $C273[12]; ArmyDeployDispatch $C2B2[12] | ok - ArmyDeployDispatch x2 |
+| $F9 | 〈名〉さま / ブショウをどこに はいちしますか / ばしょを きめてください | My lord - where shall the officers be placed? Choose the spot | ArmyDeploy $C273[12]; ArmyDeploy $C2B2[12] | ok - ArmyDeploy x2 |
 | $FA | 〈名〉は / たいきゃくしました | <mei> withdrew | BattleRetreatEventCheck $A360[12]; BattleRetreatEventCheck $A392[12] | ok - BattleRetreatEventCheck x2 |
 | $FB | それでは ひをはなってテキのブタイを / やきはらいましょう | Loose fire and burn away the enemy unit | - | table - stratagem confirm panels $FB-$FE |
 | $FC | それでは ワナをしかけてテキのブショウに / いたでをおわせましょう | Set a trap and wound the enemy officer | - | table |
@@ -139,17 +139,17 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $74 | われこそは〈名〉! てきしょう〈名〉よ / ショウブしろ | I am <mei>, rival general (tekishou 敵将) of <mei>! Fight me! | TownCommandDispatch $C251[13] | table - enemy strategist duel challenge |
 | $75 | おムてきしょうをジュバクしました | Bound the enemy champion (jubaku 縛) | TownCommandDispatch $C397[13] | table |
 | $77 | ジュバクにしっぱいしました | Failed to bind the enemy champion | TownCommandDispatch $C0FC[13] | table |
-| $78 | ゴウドをつかって こうげきをします | Attack using the crossbow volley (ゴウド = 強弩 kyoudo) | TownCommandDispatch $C0DE[13] | ok (user-confirmed) - battle-mode crossbow-volley tactic; code = Phase8RowCrossbowVolley $B00E (prg_0e_0f); label renamed MenuStream_pos78_CrossbowVolleyAttackMsg |
-| $79 | シキをコウジョウさせました | Morale (shiki 志気) was raised | TownCommandDispatch $C6EE[13] | table - battle-mode morale-boost tactic announcement; code = Phase8RowMoraleBoost $B02E (prg_0e_0f) |
-| $7A | ヒヤをつかって こうげきをします | Attack using fire arrows (hiya 火矢) | TownCommandDispatch $C5C9[13] | table - battle-mode fire-arrows tactic announcement; code = Phase8RowFireArrows $B07C (prg_0e_0f) |
-| $7B | みうごきが とれません | Cannot move | PhaseATauntSceneOpen $D6D6[12]; TownCommandDispatch $C64F[13] | ok - PhaseATauntSceneOpen |
-| $7C | うける     ことわる / 〈名〉が / いっきうちを もうしこんできました | accept / refuse - <mei> challenges you to single combat (ikkiuchi 一騎打ち) | PhaseATauntSceneStep $D74D[12]; TownCommandDispatch $C5CE[13] | ok - PhaseATauntSceneStep |
+| $78 | ゴウドをつかって こうげきをします | Attack using the crossbow volley (ゴウド = 強弩 kyoudo) | TownCommandDispatch $C0DE[13] | ok (user-confirmed) - battle-mode crossbow-volley tactic; code = BattleTacticsRowCrossbowVolley $B00E (prg_0e_0f_battle); label renamed MenuStream_pos78_CrossbowVolleyAttackMsg |
+| $79 | シキをコウジョウさせました | Morale (shiki 志気) was raised | TownCommandDispatch $C6EE[13] | table - battle-mode morale-boost tactic announcement; code = BattleTacticsRowMoraleBoost $B02E (prg_0e_0f_battle) |
+| $7A | ヒヤをつかって こうげきをします | Attack using fire arrows (hiya 火矢) | TownCommandDispatch $C5C9[13] | table - battle-mode fire-arrows tactic announcement; code = BattleTacticsRowFireArrows $B07C (prg_0e_0f_battle) |
+| $7B | みうごきが とれません | Cannot move | AiTauntSceneOpen $D6D6[12]; TownCommandDispatch $C64F[13] | ok - AiTauntSceneOpen |
+| $7C | うける     ことわる / 〈名〉が / いっきうちを もうしこんできました | accept / refuse - <mei> challenges you to single combat (ikkiuchi 一騎打ち) | AiTauntSceneStep $D74D[12]; TownCommandDispatch $C5CE[13] | ok - AiTauntSceneStep |
 | $7D | 〈名〉は コウフクしました | <mei> surrendered (降伏) | AiCommanderRoutCheck $D2A7[12]; AiCommanderRoutCheck $D2D0[12]; TownCommandDispatch $C67C[13] | ok - AiCommanderRoutCheck x2 |
-| $7E | 〈名〉は おいうちにあい / ⟨数⟩の ダメージをうけた | caught in the pursuit - took <su> damage | Phase4ResultRetreatInputWait $A44A[12]; WarehouseCommandDispatch $BA54[13]; WarehouseCommandDispatch $BBC2[13]; WarehouseCommandDispatch $BC1F[13]; WarehouseCommandDispatch $BF85[13] | ok - Phase4ResultRetreatInputWait |
-| $A0 | テキが コウゲキをしかけてきました | The enemy launched an attack | OfficerMarchDispatch $BFB5[12] | ok - OfficerMarchDispatch |
-| $A1 | テキが ケイリャクをしかけてきました | The enemy used a stratagem | OfficerMarchDispatch $C038[12] | ok - OfficerMarchDispatch |
-| $A2 | しかし シッパイにおわったようです | ...but it appears to have failed | OfficerMarchDispatch $C0BB[12] | ok - OfficerMarchDispatch |
-| $A3 | ヘイが ⟨数⟩ニンへりました | Soldiers fell by <su> | - | ok - OfficerMarchDispatch |
+| $7E | 〈名〉は おいうちにあい / ⟨数⟩の ダメージをうけた | caught in the pursuit - took <su> damage | BattleResultRetreatInputWait $A44A[12]; WarehouseCommandDispatch $BA54[13]; WarehouseCommandDispatch $BBC2[13]; WarehouseCommandDispatch $BC1F[13]; WarehouseCommandDispatch $BF85[13] | ok - BattleResultRetreatInputWait |
+| $A0 | テキが コウゲキをしかけてきました | The enemy launched an attack | AiMarch $BFB5[12] | ok - AiMarch |
+| $A1 | テキが ケイリャクをしかけてきました | The enemy used a stratagem | AiMarch $C038[12] | ok - AiMarch |
+| $A2 | しかし シッパイにおわったようです | ...but it appears to have failed | AiMarch $C0BB[12] | ok - AiMarch |
+| $A3 | ヘイが ⟨数⟩ニンへりました | Soldiers fell by <su> | - | ok - AiMarch |
 | $A4 | タイリョクが ⟨数⟩へりました | Strength fell by <su> | TownCommandDispatch $C0CA[13]; TownCommandDispatch $C7EA[13] | ok - runtime/table arg |
 | $A5 | うごきが とれなくなりました | Movement was lost | TownCommandDispatch $C765[13]; TownCommandDispatch $C94C[13] | ok - runtime/table arg |
 | $A6 | ヒョウロウが ⟨数⟩へりました | Provisions fell by <su> | TownCommandDispatch $C7D5[13] | ok - runtime/table arg |
@@ -169,29 +169,29 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $B4 | ブショウの タイリョクが / ⟨数⟩ かいふくしました | Strength restored by <su> | WarTownActionDispatch $C4A8[12] | ok - WarTownActionDispatch |
 | $B5 | 〈名〉さま およろこびください / テキは タイキャクしたもようです | My lord, rejoice - the enemy appears to have withdrawn | - | table/runtime arg |
 | $B6 | セキジンに まよいこんで / しまいました | Wandered into the stone sentinels (sekijin 石人) | - | table/runtime arg |
-| $B7 | 〈名〉は テキにねがえりました | This country has no officers | OfficerMarchDispatch $C0FD[12]; ArmyCommandDispatch $B4EB[13] | ok - OfficerMarchDispatch - but strategy context renders bank 13 |
+| $B7 | 〈名〉は テキにねがえりました | This country has no officers | AiMarch $C0FD[12]; ArmyCommandDispatch $B4EB[13] | ok - AiMarch - but strategy context renders bank 13 |
 | $B8 | テキのフクヘイに キシュウをうけ / ヘイが ⟨数⟩ニンへりました | Ambushed by enemy ambushers - soldiers fell by <su> | MoveState_Select $A5B6[12] | ok - MoveState_Select (march ambush) |
 | $B9 | フクヘイが キシュウをかけて / テキのヘイが ⟨数⟩ニンへりました | Our ambushers struck - enemy soldiers fell by <su> | CastleCommandDispatch $A9F8[13] | table/runtime arg |
 | $BA | ヘイ100ニンを マイフクしました | Buried 100 soldiers in ambush (maifuku 埋伏) | - | table/runtime arg |
 | $BB | テキのブショウのタイリョクが ⟨数⟩ / テキのヘイが ⟨数⟩ニンへりました | Enemy officer's strength <su>; enemy soldiers fell by <su> | OfficerStatusScene $AE63[13]; StrategyRequestDispatch $C79D[13]; StrategyRequestDispatch $CB65[13]; StrategyRequestDispatch $CBA9[13]; StrategyRequestDispatch $CD71[13] | FLAG 2026-10-12: no war-context caller; bank-13 copy is blank; the $BB 'ruler status overlay' seeders render bank 13 |
-| $BC | テキのケイリャクに かかって / うごきが とれません | Caught by the enemy's stratagem - cannot move | Phase_Menu $A171[12]; TaxCollectionEvent $A3F3[13] | ok - Phase_Menu |
-| $BD | 〈名〉は / タイキャクしたようです | <mei> appears to have withdrawn | OfficerMarchDispatch $C175[12]; RiceHarvestEvent $A5B8[13] | ok - OfficerMarchDispatch |
+| $BC | テキのケイリャクに かかって / うごきが とれません | Caught by the enemy's stratagem - cannot move | WarOrder_Menu $A171[12]; TaxCollectionEvent $A3F3[13] | ok - WarOrder_Menu |
+| $BD | 〈名〉は / タイキャクしたようです | <mei> appears to have withdrawn | AiMarch $C175[12]; RiceHarvestEvent $A5B8[13] | ok - AiMarch |
 | $BE | 〈名〉さま / タタカイが ながびいておりますので / いったん タイキャクせねばなりません | The battle drags on - we must withdraw for now | DroughtDamageScene $A70F[13] | table/runtime arg |
 | $BF | 〈名〉さま / ヒョウロウが つきてしまいました / これいじょうは たたかえません | Provisions are spent - we can fight no longer | FloodDamageScene $A9C0[13] | table/runtime arg |
 | $48 | あなたでは このブキを / つかいこなすことは ふかのうです | You cannot master this weapon | WarTownActionDispatch $C78E[12]; IntrigueCommandDispatch $CF5B[13] | ok - WarTownActionDispatch |
 | $49 | すみません / それは うりきれてしまいました | Sorry - that is sold out | WarTownActionDispatch $C7AB[12]; ArmyCommandDispatch $AED4[13] | ok - WarTownActionDispatch |
 | $4A | 〈名〉は レベルがあがりました / ブリョクが ⟨数⟩あがりました | <mei> leveled up; Might (buryoku 武力) +<su> | WarehouseCommandDispatch $BBF8[13]; IntrigueCommandDispatch $CFD1[13] | table/runtime arg |
-| $4B | 〈名〉は あたらしいケイリャクを / おぼえました | <mei> learned a new stratagem | MoveState_Cancel $A647[12]; StratagemState_CancelConfirm $AB8D[12]; OfficerTurnState_Cancel $BD8B[12]; OfficerExchangeDispatch $C6E7[12] | ok - OfficerExchangeDispatch |
+| $4B | 〈名〉は あたらしいケイリャクを / おぼえました | <mei> learned a new stratagem | MoveState_Cancel $A647[12]; StratagemState_CancelConfirm $AB8D[12]; TurnEndState_Cancel $BD8B[12]; OfficerLevelUp $C6E7[12] | ok - OfficerLevelUp |
 | $4C | もうすこし ちかづかなければ / ケイリャクを しかけることはできません | Must close in further before using a stratagem | StratagemState_SelectTarget_ShowFull $AA2B[12] | ok - StratagemState_SelectTarget_ShowFull |
-| $4D | 〈名〉は レベルがあがりました | <mei> leveled up | OfficerExchangeDispatch $C758[12]; ExchangeScene $DF20[12]; DroughtDamageScene $A892[13]; FloodDamageScene $AB11[13] | ok - OfficerExchangeDispatch; ExchangeScene |
-| $4E | 〈名〉は / ついに ちからつきた | <mei>'s strength gave out | StratagemState_Cancel $AB0E[12]; StratagemState_Cancel $AB14[12]; OfficerMarchDispatch $C0F2[12]; OfficerMarchDispatch $C0F8[12] | ok - OfficerMarchDispatch; StratagemState_Cancel (@CancelMsgTable) |
+| $4D | 〈名〉は レベルがあがりました | <mei> leveled up | OfficerLevelUp $C758[12]; TacticalMapScene $DF20[12]; DroughtDamageScene $A892[13]; FloodDamageScene $AB11[13] | ok - OfficerLevelUp; TacticalMapScene |
+| $4E | 〈名〉は / ついに ちからつきた | <mei>'s strength gave out | StratagemState_Cancel $AB0E[12]; StratagemState_Cancel $AB14[12]; AiMarch $C0F2[12]; AiMarch $C0F8[12] | ok - AiMarch; StratagemState_Cancel (@CancelMsgTable) |
 | $4F | ヘイが ⟨数⟩ニン / タイリョクが ⟨数⟩へりました | Soldiers fell by <su>; strength fell by <su> | CastleCommandDispatch $A3AD[13]; CastleCommandDispatch $A502[13] | table/runtime arg |
 | $50 | 〈名〉さま およろこびください / テキのシロを センリョウしました | My lord, rejoice - we captured the enemy castle (senryou 占領) | CastleCommandDispatch $A68D[13] | table/runtime arg |
 | $51 | 〈名〉さま / シロが センリョウされてしまいました / これいじょうは たたかえません | My lord - our castle was captured; we can fight no longer | CastleCommandDispatch $A3CA[13] | table/runtime arg |
 | $52 | ぜんぐんタイキャクをして / たいせいを たてなおしましょう | Withdraw the whole army and regroup | RetreatState_PickCastle $BA28[12]; CastleCommandDispatch $AC73[13] | ok - RetreatState_PickCastle (all-army branch) |
 | $53 | 〈名〉さま / テキは そうだいしょうをうしなって / タイキャクしていきます | The enemy lost its commander-in-chief (soudaishou 総大将) and is withdrawing | WarehouseCommandDispatch $B7A3[13] | table |
 | $54 | 〈名〉さま / わがグンは そうだいしょうをうしなって / そうくずれです | We lost our commander-in-chief - total collapse | WarehouseCommandDispatch $B7F1[13] | table |
-| $55 | 〈名〉グンは ゼンメツしました | The army of <mei> was annihilated (zenmetsu 全滅) | ExchangeScene $DE7F[12]; WarehouseCommandDispatch $B866[13] | ok - ExchangeScene |
+| $55 | 〈名〉グンは ゼンメツしました | The army of <mei> was annihilated (zenmetsu 全滅) | TacticalMapScene $DE7F[12]; WarehouseCommandDispatch $B866[13] | ok - TacticalMapScene |
 
 ## Bank $13 - strategy / event / new-game copies (other states)
 
@@ -241,17 +241,17 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $48 | どのブショウにしかけるのか えらんでください | Pick which officer to scheme against | WarTownActionDispatch $C78E[12]; IntrigueCommandDispatch $CF5B[13] | ok - IntrigueCommandDispatch |
 | $49 | クンシュがいるシロは / クンシュがタイシュになります | In a castle with its lord, the lord becomes the vanguard | WarTownActionDispatch $C7AB[12]; ArmyCommandDispatch $AED4[13] | ok - ArmyCommandDispatch |
 | $4A | そのブショウは クンシュです | That officer is the lord | WarehouseCommandDispatch $BBF8[13]; IntrigueCommandDispatch $CFD1[13] | ok - WarehouseCommandDispatch |
-| $4B | およろこびください / 〈名〉は あなたのハイカに / なりました | Rejoice - <mei> became your vassal (配下) | MoveState_Cancel $A647[12]; StratagemState_CancelConfirm $AB8D[12]; OfficerTurnState_Cancel $BD8B[12]; OfficerExchangeDispatch $C6E7[12] | table |
+| $4B | およろこびください / 〈名〉は あなたのハイカに / なりました | Rejoice - <mei> became your vassal (配下) | MoveState_Cancel $A647[12]; StratagemState_CancelConfirm $AB8D[12]; TurnEndState_Cancel $BD8B[12]; OfficerLevelUp $C6E7[12] | table |
 | $4C | すみません / サクリャクは しっぱいにおわりました | Sorry - the scheme (策略) failed | StratagemState_SelectTarget_ShowFull $AA2B[12] | table |
-| $4D | しかし ゴアンシンください / ヒガイは ありませんでした | But rest assured - no harm was done | OfficerExchangeDispatch $C758[12]; ExchangeScene $DF20[12]; DroughtDamageScene $A892[13]; FloodDamageScene $AB11[13] | ok - DroughtDamageScene; FloodDamageScene (no-damage variant) |
-| $4E | フッフッフッ / 〈名〉と クンシュのなかは / かくじつに わるくなったでしょう | Heh heh heh - the lord's standing with <mei> has surely soured | StratagemState_Cancel $AB0E[12]; StratagemState_Cancel $AB14[12]; OfficerMarchDispatch $C0F2[12]; OfficerMarchDispatch $C0F8[12] | table - Discord (離間) success |
+| $4D | しかし ゴアンシンください / ヒガイは ありませんでした | But rest assured - no harm was done | OfficerLevelUp $C758[12]; TacticalMapScene $DF20[12]; DroughtDamageScene $A892[13]; FloodDamageScene $AB11[13] | ok - DroughtDamageScene; FloodDamageScene (no-damage variant) |
+| $4E | フッフッフッ / 〈名〉と クンシュのなかは / かくじつに わるくなったでしょう | Heh heh heh - the lord's standing with <mei> has surely soured | StratagemState_Cancel $AB0E[12]; StratagemState_Cancel $AB14[12]; AiMarch $C0F2[12]; AiMarch $C0F8[12] | table - Discord (離間) success |
 | $4F | サイガイに そなえるためには / キン ⟨数⟩がヒツヨウです | <su> gold is needed to prepare for disasters | CastleCommandDispatch $A3AD[13]; CastleCommandDispatch $A502[13] | ok - CastleCommandDispatch |
 | $50 | ボウサイチが ⟨数⟩あがりました | Disaster-preparedness (bousaichi 防災値) +<su> | CastleCommandDispatch $A68D[13] | ok - CastleCommandDispatch |
 | $51 | これまでの データを キロクします | Recording the data so far (save) | CastleCommandDispatch $A3CA[13] | ok - CastleCommandDispatch |
 | $52 | ⟨数⟩ネン ⟨数⟩ガツの / データを キロクしました | Saved the <year>/<month> data | RetreatState_PickCastle $BA28[12]; CastleCommandDispatch $AC73[13] | ok - CastleCommandDispatch |
 | $53 | ブッシをはこぶ / あたえる / ここはクラです メイレイをしてください | carry goods / give - this is the warehouse; give your orders | WarehouseCommandDispatch $B7A3[13] | ok - WarehouseCommandDispatch |
 | $54 | どのシロに はこびますか / で えらんでください | Carry to which castle? Choose | WarehouseCommandDispatch $B7F1[13] | ok - WarehouseCommandDispatch |
-| $55 | そのシロへは はこべません | Cannot carry there | ExchangeScene $DE7F[12]; WarehouseCommandDispatch $B866[13] | ok - WarehouseCommandDispatch (ExchangeScene $55 renders bank 12) |
+| $55 | そのシロへは はこべません | Cannot carry there | TacticalMapScene $DE7F[12]; WarehouseCommandDispatch $B866[13] | ok - WarehouseCommandDispatch (TacticalMapScene $55 renders bank 12) |
 | $56 | そのシロの クラのなかは / すでに いっぱいになっています | The warehouse there is already full | - | table |
 | $57 | キン     0  コメ     0 / タカラ    0 / なにを どれだけ はこびますか | gold <su> / rice <su> / treasure <su> - what and how much to carry? | WarehouseCommandDispatch $B894[13] | ok - WarehouseCommandDispatch |
 | $58 | ハイカの ブショウ / シロの ミンシュウ / どちらに あたえますか | your officers / the castle's people - to whom shall it be given? | WarehouseCommandDispatch $B7FE[13]; WarehouseCommandDispatch $BB6C[13]; WarehouseCommandDispatch $BDA8[13] | ok - WarehouseCommandDispatch |
@@ -289,10 +289,10 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $78 | だれを ガクモンジョへ いかせますか | Who to send to the academy (gakumonjo 学府所)? | TownCommandDispatch $C0DE[13] | ok - TownCommandDispatch |
 | $79 | わたしに そのような / ひつようは ありません | I have no need of that (intelligence maxed) | TownCommandDispatch $C6EE[13] | ok - TownCommandDispatch |
 | $7A | では しばらく ようじょういたします | Then I shall rest and recuperate for a while | TownCommandDispatch $C5C9[13] | ok - TownCommandDispatch |
-| $7B | ブショウの タイリョクが / ⟨数⟩ かいふくしました | Strength restored by <su> | PhaseATauntSceneOpen $D6D6[12]; TownCommandDispatch $C64F[13] | ok - TownCommandDispatch |
-| $7C | しっかり ベンキョウいたします | I shall study diligently | PhaseATauntSceneStep $D74D[12]; TownCommandDispatch $C5CE[13] | ok - TownCommandDispatch |
+| $7B | ブショウの タイリョクが / ⟨数⟩ かいふくしました | Strength restored by <su> | AiTauntSceneOpen $D6D6[12]; TownCommandDispatch $C64F[13] | ok - TownCommandDispatch |
+| $7C | しっかり ベンキョウいたします | I shall study diligently | AiTauntSceneStep $D74D[12]; TownCommandDispatch $C5CE[13] | ok - TownCommandDispatch |
 | $7D | ブショウの チリョクが / ⟨数⟩ あがりました | Intelligence (chiryoku 知力) +<su> | AiCommanderRoutCheck $D2A7[12]; AiCommanderRoutCheck $D2D0[12]; TownCommandDispatch $C67C[13] | ok - TownCommandDispatch |
-| $7E | キン        タカラ / どちらを あたえますか | gold / treasure - which to give? | Phase4ResultRetreatInputWait $A44A[12]; WarehouseCommandDispatch $BA54[13]; WarehouseCommandDispatch $BBC2[13]; WarehouseCommandDispatch $BC1F[13]; WarehouseCommandDispatch $BF85[13] | ok - WarehouseCommandDispatch x2 |
+| $7E | キン        タカラ / どちらを あたえますか | gold / treasure - which to give? | BattleResultRetreatInputWait $A44A[12]; WarehouseCommandDispatch $BA54[13]; WarehouseCommandDispatch $BBC2[13]; WarehouseCommandDispatch $BC1F[13]; WarehouseCommandDispatch $BF85[13] | ok - WarehouseCommandDispatch x2 |
 | $7F | あれた トチが あります / そこを セイビしてつかいましょう / キン10が ひつようです | proposal: reclaim the barren land (10 gold needed) | - | table - advisor proposal panels $7F-$99 |
 | $80 | モリを きりひらいて ノウチを / つくりましょう / キン12が ひつようです | proposal: clear forest into farmland (12) | - | table |
 | $81 | ヌマチを うめたて ノウチに / しましょう / キン14が ひつようです | proposal: fill the marsh for farmland (14) | - | table |
@@ -325,9 +325,9 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $9C | -(graphics/no text) | blank placeholder (single $80) | - | unseeded padding |
 | $9D $9E | -(graphics/no text) | blank placeholder (single $80) | - | unseeded padding ($9D/$9E shared) |
 | $9F | -(graphics/no text) | blank placeholder (single $80) | - | unseeded padding |
-| $A0 | -(graphics/no text) | blank placeholder (single $80) | OfficerMarchDispatch $BFB5[12] | unseeded padding |
-| $A1 | -(graphics/no text) | blank placeholder (single $80) | OfficerMarchDispatch $C038[12] | unseeded padding |
-| $A2 | -(graphics/no text) | blank placeholder (single $80) | OfficerMarchDispatch $C0BB[12] | unseeded padding |
+| $A0 | -(graphics/no text) | blank placeholder (single $80) | AiMarch $BFB5[12] | unseeded padding |
+| $A1 | -(graphics/no text) | blank placeholder (single $80) | AiMarch $C038[12] | unseeded padding |
+| $A2 | -(graphics/no text) | blank placeholder (single $80) | AiMarch $C0BB[12] | unseeded padding |
 | $A3 | ここは ブキヤです | This is the armory | - | table/runtime arg |
 | $A4 | ここは ブキヤです だれが ブキを かいますか | Armory - who will buy weapons? | TownCommandDispatch $C0CA[13]; TownCommandDispatch $C7EA[13] | ok - TownCommandDispatch x2 |
 | $A5 | どれを かいますか | Which one to buy? | TownCommandDispatch $C765[13]; TownCommandDispatch $C94C[13] | ok - TownCommandDispatch |
@@ -348,24 +348,24 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $B4 $C4 | ここはマチです どこへいきますか | This is town - where will you go? (variant window) | WarTownActionDispatch $C4A8[12] | shared variant $B4/$C4; no direct OpenMsgWindow seed found |
 | $B5 $C5 | ここはマチです どこへいきますか | This is town - where will you go? (variant window) | - | shared variant $B5/$C5; no direct OpenMsgWindow seed found |
 | $B6 $C6 | ここはマチです どこへいきますか | This is town - where will you go? (variant window) | - | shared variant $B6/$C6; no direct OpenMsgWindow seed found |
-| $B7 $C7 | このクニに ブショウはいません | This country has no officers | OfficerMarchDispatch $C0FD[12]; ArmyCommandDispatch $B4EB[13] | ok - ArmyCommandDispatch |
+| $B7 $C7 | このクニに ブショウはいません | This country has no officers | AiMarch $C0FD[12]; ArmyCommandDispatch $B4EB[13] | ok - ArmyCommandDispatch |
 | $B8 $C8 | マチはずれに シュツボツしていた / ゾクをつかまえ キン ⟨数⟩を / ボッシュウしました | Caught bandits lurking outside town - seized <su> gold | MoveState_Select $A5B6[12] | table/event-driven |
 | $B9 $C9 | ジョウカにすんでいる フゴウが / コメ ⟨数⟩を キフしてくれました | A wealthy man (fugou 富豪) of the town donated <su> rice | CastleCommandDispatch $A9F8[13] | table/event-driven |
 | $BA $CA | ジョウカにすんでいる フゴウが / キン ⟨数⟩を キフしてくれました | A wealthy man of the town donated <su> gold | - | table/event-driven |
-| $CB | -(graphics/no text) | blank placeholder (single $80) | OfficerAttack_SelectTarget $A308[12] | unseeded padding |
-| $BC $CC | 4がつです / ゼイキンがあつまりキンがふえました | It is April - taxes gathered, gold increased | Phase_Menu $A171[12]; TaxCollectionEvent $A3F3[13] | ok - TaxCollectionEvent |
-| $BD $CD | 10がつです / コメのシュウカクのきせつです | It is October - the rice harvest season | OfficerMarchDispatch $C175[12]; RiceHarvestEvent $A5B8[13] | ok - RiceHarvestEvent |
+| $CB | -(graphics/no text) | blank placeholder (single $80) | UnitAttack_SelectTarget $A308[12] | unseeded padding |
+| $BC $CC | 4がつです / ゼイキンがあつまりキンがふえました | It is April - taxes gathered, gold increased | WarOrder_Menu $A171[12]; TaxCollectionEvent $A3F3[13] | ok - TaxCollectionEvent |
+| $BD $CD | 10がつです / コメのシュウカクのきせつです | It is October - the rice harvest season | AiMarch $C175[12]; RiceHarvestEvent $A5B8[13] | ok - RiceHarvestEvent |
 | $BE $CE | かくちでヒデリが はっせいしています | Drought is striking everywhere | DroughtDamageScene $A70F[13] | ok - DroughtDamageScene |
 | $BF $CF $E7 | かくちでコウズイが はっせいしています | Flood is striking everywhere | FloodDamageScene $A9C0[13] | ok - FloodDamageScene |
-| $C0 | 〈名〉ぐん セントウチュウ | Army <mei> - in battle | Phase_Wait $A09F[12] | table/shared (no OpenMsgWindow seed found) |
-| $C1 | 〈名〉が シボウしました | <mei> has died | Phase_Input $A0EF[12]; OfficerNaturalDeathScene $BCF1[13]; RulerSuccessionScene $BE22[13]; SuccessionApplyScene $C154[13]; StrategyRequestDispatch $C90D[13] | ok - StrategyRequestDispatch |
+| $C0 | 〈名〉ぐん セントウチュウ | Army <mei> - in battle | WarOrder_Wait $A09F[12] | table/shared (no OpenMsgWindow seed found) |
+| $C1 | 〈名〉が シボウしました | <mei> has died | WarOrder_Input $A0EF[12]; OfficerNaturalDeathScene $BCF1[13]; RulerSuccessionScene $BE22[13]; SuccessionApplyScene $C154[13]; StrategyRequestDispatch $C90D[13] | ok - StrategyRequestDispatch |
 | $C2 | 〈名〉が / あとをついでクンシュとなります | <mei> succeeds and becomes the new lord | SuccessionApplyScene $C27D[13]; StrategyRequestDispatch $CB91[13] | ok - SuccessionApplyScene |
-| $C3 | 〈名〉が シボウして / 〈名〉いちぞくは めつぼうしました | <mei> died and the clan of <mei> perished | OfficerAttack_Init $A2A9[12]; ScenarioHandoffPrep $C391[13]; StrategyRequestDispatch $C92C[13] | ok - StrategyRequestDispatch; ScenarioHandoffPrep |
+| $C3 | 〈名〉が シボウして / 〈名〉いちぞくは めつぼうしました | <mei> died and the clan of <mei> perished | UnitAttack_Init $A2A9[12]; ScenarioHandoffPrep $C391[13]; StrategyRequestDispatch $C92C[13] | ok - StrategyRequestDispatch; ScenarioHandoffPrep |
 | $D0 | あらたな クンシュをきめます / アトツギのいる シロをえらんでください | Choose a new lord - pick the castle with an heir | RulerSuccessionScene $BE7F[13]; RulerSuccessionScene $BEF9[13] | ok - RulerSuccessionScene x2 |
-| $D1 | どのブショウを アトツギとしますか | Which officer shall be the heir (atotsugi 跡継ぎ)? | Phase3CommandPanelInit $AA57[12]; RulerSuccessionScene $BEC3[13]; RulerSuccessionScene $BF81[13] | ok - RulerSuccessionScene x2 |
-| $D2 | はい      いいえ / 〈名〉で よろしいですか | yes/no - is <mei> acceptable? | Phase6FormationMenuInput $CE9D[12]; Phase7FormationMenuInput $CFF7[12]; RulerSuccessionScene $BF2C[13] | ok - RulerSuccessionScene |
-| $D3 | 〈名〉は クンシュになりました | <mei> became the lord | BattleDefeatEventCheck $A2DE[12]; BattleDefeatEventCheck $A321[12]; Phase4ResultDamageApply $A4B1[12]; RulerSuccessionScene $BFA9[13] | ok - RulerSuccessionScene |
-| $D4 | 〈名〉は ザイヤにくだりました | <mei> stepped down to private life (zaiya 在野) | Phase6FormationPanelInit $CE47[12]; Phase7FormationPanelOpen $CFA4[12]; RulerSuccessionScene $C0E2[13] | ok - RulerSuccessionScene |
+| $D1 | どのブショウを アトツギとしますか | Which officer shall be the heir (atotsugi 跡継ぎ)? | CommandPanelInit $AA57[12]; RulerSuccessionScene $BEC3[13]; RulerSuccessionScene $BF81[13] | ok - RulerSuccessionScene x2 |
+| $D2 | はい      いいえ / 〈名〉で よろしいですか | yes/no - is <mei> acceptable? | SideAFormationMenuInput $CE9D[12]; SideBFormationMenuInput $CFF7[12]; RulerSuccessionScene $BF2C[13] | ok - RulerSuccessionScene |
+| $D3 | 〈名〉は クンシュになりました | <mei> became the lord | BattleDefeatEventCheck $A2DE[12]; BattleDefeatEventCheck $A321[12]; BattleResultDamageApply $A4B1[12]; RulerSuccessionScene $BFA9[13] | ok - RulerSuccessionScene |
+| $D4 | 〈名〉は ザイヤにくだりました | <mei> stepped down to private life (zaiya 在野) | SideAFormationPanelInit $CE47[12]; SideBFormationPanelOpen $CFA4[12]; RulerSuccessionScene $C0E2[13] | ok - RulerSuccessionScene |
 | $D8 | ⟨数⟩ねん ⟨数⟩がつ 〈名〉は / 〈名〉グンに やぶれさった / こうして 〈名〉のいちぞくは / タイリクから そのすがたをけした | In <year>/<month> <mei> was crushed by the army of <mei> - thus the clan vanished from history | RetreatState_Confirm $BA60[12]; StrategyCommand_InitOfficerScroll $D6CD[13] | ok - StrategyCommand_InitOfficerScroll (war_result_phase != $FF; ending chronicle) |
 | $D9 | ⟨数⟩ねん ⟨数⟩がつ 〈名〉は / こころざし なかばにして このよをさった / こうして 〈名〉のいちぞくは / タイリクから そのすがたをけした | <mei> left this world with the ambition half-fulfilled - thus the clan vanished from history | RetreatState_Select $B9B2[12] | ok - StrategyCommand_InitOfficerScroll (war_result_phase = $FF; death chronicle) |
 | $E0 | 〈名〉が ねがえって / 〈名〉の ハイカになってしまいました | <mei> defected and became the vassal of <mei> | StrategyRequestDispatch $CC03[13] | ok - StrategyRequestDispatch |
@@ -373,25 +373,25 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $E2 | 〈名〉さま 〈名〉のハイカの / 〈名〉が ドウメイのししゃとして / まいりました | My lord - <mei> of the camp of <mei> has come as an alliance envoy | StrategyRequestDispatch $C9BF[13]; IntrigueCommandDispatch $D11C[13] | ok - StrategyRequestDispatch |
 | $E3 | はい      いいえ / 〈名〉どの ドウメイをむすぶなら / キン⟨数⟩を けんじょう しましょう / ドウメイを むすびますか | yes/no - to ally with lord <mei>, offer <su> gold; conclude the alliance? | - | table - IntrigueCommandDispatch message route |
 | $E4 | 〈名〉と ドウメイを むすびました | Allied with <mei> | StrategyRequestDispatch $CD3C[13]; IntrigueCommandDispatch $D226[13]; IntrigueCommandDispatch $D2C4[13]; IntrigueCommandDispatch $D2D3[13] | ok - StrategyRequestDispatch; IntrigueCommandDispatch x3 |
-| $E5 | 〈名〉との ドウメイを ことわりました | Declined the alliance with <mei> | OfficerExchangeSelectDispatch $CE4F[12]; OfficerReserveAssignDispatch $D3A8[12]; StrategyRequestDispatch $CD42[13]; IntrigueCommandDispatch $D22B[13]; IntrigueCommandDispatch $D28C[13] | ok - StrategyRequestDispatch; IntrigueCommandDispatch x2 |
-| $E6 | 〈名〉さま 〈名〉がなにか / サクリャクを しかけてきたようですぞ | My lord - <mei> appears to be scheming against us! | OfficerExchangeSelectDispatch $CEFD[12]; OfficerReserveAssignDispatch $D456[12]; StrategyRequestDispatch $C950[13]; StrategyRequestDispatch $C98B[13] | ok - StrategyRequestDispatch |
-| $DA | プレーヤー⟨数⟩の クンシュを / えらんでください | Choose the lord of player <su> | WarResult_InitRecords $D774[12]; WarResult_SelectMenuEntry $D809[12]; RetreatState_PickCastle $BA16[12] | no OpenMsgWindow caller (new-game flow) |
-| $DB | わたしは すでに えらばれています / ほかの クンシュを おえらびください | I am already chosen - pick another lord | WarResult_PickEntry $D89D[12] | no OpenMsgWindow caller (OfficerExchangeConfirmDispatch $DB renders bank 12) |
-| $DC | ⟨数00⟩ ネンものあいだつづいた センランは / イダイなる エイユウのシュツゲンによって / おわりをつげた | The great war that raged <su>00 years ended with the rise of a mighty hero | OfficerExchangeSelectDispatch $CD48[12]; StrategyCommand_ScrollIntroPanel $D7D0[13] | ok - StrategyCommand_ScrollIntroPanel (ending card) |
+| $E5 | 〈名〉との ドウメイを ことわりました | Declined the alliance with <mei> | UnitWithdraw $CE4F[12]; UnitGarrison $D3A8[12]; StrategyRequestDispatch $CD42[13]; IntrigueCommandDispatch $D22B[13]; IntrigueCommandDispatch $D28C[13] | ok - StrategyRequestDispatch; IntrigueCommandDispatch x2 |
+| $E6 | 〈名〉さま 〈名〉がなにか / サクリャクを しかけてきたようですぞ | My lord - <mei> appears to be scheming against us! | UnitWithdraw $CEFD[12]; UnitGarrison $D456[12]; StrategyRequestDispatch $C950[13]; StrategyRequestDispatch $C98B[13] | ok - StrategyRequestDispatch |
+| $DA | プレーヤー⟨数⟩の クンシュを / えらんでください | Choose the lord of player <su> | CountrySelect_InitRecords $D774[12]; CountrySelect_SelectMenuEntry $D809[12]; RetreatState_PickCastle $BA16[12] | no OpenMsgWindow caller (new-game flow) |
+| $DB | わたしは すでに えらばれています / ほかの クンシュを おえらびください | I am already chosen - pick another lord | CountrySelect_PickEntry $D89D[12] | no OpenMsgWindow caller (WarResultPanel $DB renders bank 12) |
+| $DC | ⟨数00⟩ ネンものあいだつづいた センランは / イダイなる エイユウのシュツゲンによって / おわりをつげた | The great war that raged <su>00 years ended with the rise of a mighty hero | UnitWithdraw $CD48[12]; StrategyCommand_ScrollIntroPanel $D7D0[13] | ok - StrategyCommand_ScrollIntroPanel (ending card) |
 | $DD | いくつものトウソウを くりひろげ / タイリクをせいはした エイユウこそ / 〈名〉であった | Waging countless campaigns and mastering the age - the hero was <mei> | StrategyCommand_ScrollTextPhase2 $D860[13] | ok - StrategyCommand_ScrollTextPhase2 (ending card) |
-| $DE | ⟨数⟩ネン ⟨数⟩ガツ 〈名〉は / ゼンコクトウイツのユメを はたしました / レベル⟨数01⟩  トウイツドは⟨数⟩です | In <y>/<m>, <mei> fulfilled the dream of unification; level <su>, unification score <su> | OfficerExchangeSelectDispatch $CE6F[12]; OfficerReserveAssignDispatch $D3D0[12]; StrategyCommand_ScrollAndWait $D8EF[13] | ok - StrategyCommand_ScrollAndWait (ending stats) |
-| $DF | 〈名〉さま ゼンコクトウイツ / おめでとうございます | My lord - congratulations on total unification! | OfficerReserveAssignDispatch $D306[12]; UnificationEndingDispatch $C5DC[13] | ok - UnificationEndingDispatch |
-| $D5 | もはや このニンズウでは / ゼンコクトウイツは フカノウです / もういちどはじめから チャレンジしてください | Unification is impossible with this many rulers - try again from the start | OfficerExchangeConfirmDispatch $C9A3[12]; OfficerExchangeConfirmDispatch $CA2B[12]; CountryRotationDispatch $A0A2[13] | ok - CountryRotationDispatch (game-over check) |
+| $DE | ⟨数⟩ネン ⟨数⟩ガツ 〈名〉は / ゼンコクトウイツのユメを はたしました / レベル⟨数01⟩  トウイツドは⟨数⟩です | In <y>/<m>, <mei> fulfilled the dream of unification; level <su>, unification score <su> | UnitWithdraw $CE6F[12]; UnitGarrison $D3D0[12]; StrategyCommand_ScrollAndWait $D8EF[13] | ok - StrategyCommand_ScrollAndWait (ending stats) |
+| $DF | 〈名〉さま ゼンコクトウイツ / おめでとうございます | My lord - congratulations on total unification! | UnitGarrison $D306[12]; UnificationEndingDispatch $C5DC[13] | ok - UnificationEndingDispatch |
+| $D5 | もはや このニンズウでは / ゼンコクトウイツは フカノウです / もういちどはじめから チャレンジしてください | Unification is impossible with this many rulers - try again from the start | WarResultPanel $C9A3[12]; WarResultPanel $CA2B[12]; CountryRotationDispatch $A0A2[13] | ok - CountryRotationDispatch (game-over check) |
 | $E8 | たいへんです 〈省20〉で / ハンランが おこりました | Disaster - a revolt (hanran 反乱) broke out in <sho> | ProvinceRebellionEvent $AC4A[13]; ProvinceRebellionEvent $AC97[13] | ok - ProvinceRebellionEvent x2 |
 | $E9 | シロのミンシュウが つぎつぎと / クニから でていっています | The castle's people are leaving the country one after another | - | table/event-driven |
-| $EA | ミンシュウが ダンケツして / シロのクラを おそっています | The people banded together and raid the granary | Phase8RowTaunt $AFC0[12] | table/event-driven |
-| $EB | ロウドウシャたちが てをくんで / シゴトを さぼっています | The labourers band together and shirk their work | Phase8RowTaunt $AFCB[12] | table/event-driven |
-| $EC | はい      いいえ / 〈名〉は ドウメイのジョウケンに / 〈名〉⟨数⟩を ヨウキュウしてきました / ヨウキュウをうけますか | yes/no - <mei> demands <mei><su> as alliance terms; accept the demand? | Phase8RowBind $AFE4[12] | table/AI-driven |
-| $ED | いま このシロには それほどの / コメが ありません / べつのメイレイを してください | This castle lacks that much rice - choose another order | Phase8RowBind $AFDE[12] | table |
-| $EE | はい      いいえ / 〈名〉どの ドウメイをむすぶなら / コメ⟨数⟩を けんじょう しましょう / ドウメイを むすびますか | yes/no - to ally with lord <mei>, offer <su> rice; conclude the alliance? | Phase8RowCrossbowVolley $B010[12]; StrategyRequestDispatch $CCBC[13] | ok - StrategyRequestDispatch |
-| $EF | はい      いいえ / 〈名〉どの リョウゴクのへいわのために / ドウメイを むすびましょう | yes/no - for the peace of both lands, let us ally, lord <mei> | Phase8RowMoraleBoost $B030[12]; IntrigueCommandDispatch $D1B5[13] | ok - StrategyRequestDispatch |
-| $F0 | 〈名7 00〉 / 〈名7 01〉 | two 7-char name slots (hall-of-fame rows) | Phase8RowFireArrows $B07E[12] | ok - StrategyCommand officer-scroll flow (bank-13 context) |
-| $F1 | タイリクをセイハしたおとこたち | caption: 'the men who dominated their age' | Phase8RowExplosion $B0A8[12]; AiTacticPointSpend $D49A[12]; StrategyCommand_BuildOfficerList $DA3D[13] | ok - StrategyCommand_BuildOfficerList - FLAG: generator comment wrongly says 'explosion/tactic point overlay' (bank-12 meaning) |
+| $EA | ミンシュウが ダンケツして / シロのクラを おそっています | The people banded together and raid the granary | BattleTacticsRowTaunt $AFC0[12] | table/event-driven |
+| $EB | ロウドウシャたちが てをくんで / シゴトを さぼっています | The labourers band together and shirk their work | BattleTacticsRowTaunt $AFCB[12] | table/event-driven |
+| $EC | はい      いいえ / 〈名〉は ドウメイのジョウケンに / 〈名〉⟨数⟩を ヨウキュウしてきました / ヨウキュウをうけますか | yes/no - <mei> demands <mei><su> as alliance terms; accept the demand? | BattleTacticsRowBind $AFE4[12] | table/AI-driven |
+| $ED | いま このシロには それほどの / コメが ありません / べつのメイレイを してください | This castle lacks that much rice - choose another order | BattleTacticsRowBind $AFDE[12] | table |
+| $EE | はい      いいえ / 〈名〉どの ドウメイをむすぶなら / コメ⟨数⟩を けんじょう しましょう / ドウメイを むすびますか | yes/no - to ally with lord <mei>, offer <su> rice; conclude the alliance? | BattleTacticsRowCrossbowVolley $B010[12]; StrategyRequestDispatch $CCBC[13] | ok - StrategyRequestDispatch |
+| $EF | はい      いいえ / 〈名〉どの リョウゴクのへいわのために / ドウメイを むすびましょう | yes/no - for the peace of both lands, let us ally, lord <mei> | BattleTacticsRowMoraleBoost $B030[12]; IntrigueCommandDispatch $D1B5[13] | ok - StrategyRequestDispatch |
+| $F0 | 〈名7 00〉 / 〈名7 01〉 | two 7-char name slots (hall-of-fame rows) | BattleTacticsRowFireArrows $B07E[12] | ok - StrategyCommand officer-scroll flow (bank-13 context) |
+| $F1 | タイリクをセイハしたおとこたち | caption: 'the men who dominated their age' | BattleTacticsRowExplosion $B0A8[12]; AiTacticPointSpend $D49A[12]; StrategyCommand_BuildOfficerList $DA3D[13] | ok - StrategyCommand_BuildOfficerList - FLAG: generator comment wrongly says 'explosion/tactic point overlay' (bank-12 meaning) |
 | $F2 | スタッフ | STAFF (caption) | - | no OpenMsgWindow caller (event-script chain after unification) |
 | $F3 | コーディネーター / くれいじーホース / きだんしゃ / ラーフス | coordinator credits (Crazy Horse, etc.) | - | no OpenMsgWindow caller; StratagemState_Init's $F3 seed renders the bank-12 blank in war mode |
 | $F4 | プログラマー / ハマー / こうちゃん | programmer credits (Hammer, Kou-chan) | StratagemState_Menu_Enough $A9D6[12] | no OpenMsgWindow caller; generator comment wrongly says 'command menu (funds ok) panel' |
@@ -399,9 +399,9 @@ table = no direct OpenMsgWindow caller, seeded via indexed message tables (@Resu
 | $F6 | コンポーザー / あまにし ばんじろう | composer credits (Amanishi Banjiro) | - | no OpenMsgWindow caller |
 | $F7 | ディレクター / ひで | director credits (Hide) | StratagemState_SelectTarget_Proceed $AA19[12] | no OpenMsgWindow caller; generator comment wrongly says 'select target proceed panel' |
 | $F8 | -(graphics/no text) | ending blank panel (graphics) | - | no OpenMsgWindow caller; generator comment wrongly says 'army deploy panel' |
-| $F9 | -(graphics/no text) | ending graphics tile-row panel | ArmyDeployDispatch $C273[12]; ArmyDeployDispatch $C2B2[12] | no OpenMsgWindow caller |
+| $F9 | -(graphics/no text) | ending graphics tile-row panel | ArmyDeploy $C273[12]; ArmyDeploy $C2B2[12] | no OpenMsgWindow caller |
 | $00 $06 $08 $0A $0C $0E $10 $12 $14 $16 $18 $1A $1C $1E $BB | -(graphics/no text) | blank-window primitive at $22A8 (mode-0 head / ClearUI idle) | DuelCmd_CommandRoute $B4B5[12]; DuelCmd_CommandRoute $B4F7[12]; DuelPursue_WaitIntro $BABC[12]; DuelPursue_EscapeRoll $BB3D[12]; Surrender_ShowText $BD3D[12]; StrategyCommand_ScrollIntroPanel $D836[13]; StrategyCommand_ScrollTextPhase2 $D8C5[13]; DroughtDamageScene $A75F[13]; FloodDamageScene $AA10[13]; ProvinceRebellionEvent $ABC5[13]; ProvinceRebellionEvent $ACB9[13]; OfficerReinforceScene $AF71[13]; MapRulerIntroDispatch $A0C4[13]; MapRulerIntroDispatch $A15D[13]; CommandCategoryMenuDispatch $A228[13]; CastleCommandDispatch $AAD6[13]; CastleCommandDispatch $AB31[13]; CastleCommandDispatch $ACD2[13]; ArmyCommandDispatch $B504[13]; TownCommandDispatch $C087[13]; IntrigueCommandDispatch $CCF4[13]; IntrigueCommandDispatch $CD30[13] | ok - many callers use it as a blank helper ($00 seeds) |
 | $03 | -(graphics/no text) | 32-tile blank-row push macro (one window row) | - | ok - pushed by bank-12 streams and pos 04/05 |
 | $02 | -(graphics/no text) | blank-window primitive at $2428 (mode-2 head) | - | ok - OpenMsgWindow2 head callers |
-| $04 | -(graphics/no text) | blank-window primitive at $22A0 (mode-4 head) | OfficerExchangeConfirmDispatch $C9BF[12]; WarehouseCommandDispatch $BF40[13]; TownCommandDispatch $C021[13] | ok - OpenMsgWindow4 head callers; OfficerExchangeConfirmDispatch; WarehouseCommandDispatch; TownCommandDispatch |
-| $05 | -(graphics/no text) | blank-window primitive at $2420 (mode-5 head) | FinishSequence $A1F9[12]; OfficerDetail_RenderWait $A277[12]; OfficerTurnState_Select $BCE9[12]; OfficerTurn_RestoreAndExit $BDBA[12]; OfficerMarchDispatch $BF10[12]; OfficerMarchDispatch $C132[12]; OfficerMarchDispatch $C1A6[12]; OfficerMarchDispatch $C1E4[12]; ArmyDeployDispatch $C324[12] | ok - blank-helper seeds (FinishSequence, OfficerTurnState_Select, ...) |
+| $04 | -(graphics/no text) | blank-window primitive at $22A0 (mode-4 head) | WarResultPanel $C9BF[12]; WarehouseCommandDispatch $BF40[13]; TownCommandDispatch $C021[13] | ok - OpenMsgWindow4 head callers; WarResultPanel; WarehouseCommandDispatch; TownCommandDispatch |
+| $05 | -(graphics/no text) | blank-window primitive at $2420 (mode-5 head) | FinishSequence $A1F9[12]; OfficerDetail_RenderWait $A277[12]; TurnEndState_Select $BCE9[12]; ArmyTurnEnd_RestoreAndExit $BDBA[12]; AiMarch $BF10[12]; AiMarch $C132[12]; AiMarch $C1A6[12]; AiMarch $C1E4[12]; ArmyDeploy $C324[12] | ok - blank-helper seeds (FinishSequence, TurnEndState_Select, ...) |

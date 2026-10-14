@@ -3,7 +3,7 @@
 
 This is the single codec shared by
 
-  * `tools/gen_data_bank_asm.py`       - renders `asm/banks/data_10.asm` / `data_11.asm`
+  * `tools/gen_data_bank_asm.py`       - renders `asm/banks/data_10_seed.asm` / `data_11_officer.asm`
   * `tools/check_officer_pipeline.py`  - proves the CSV -> asm -> ROM loop is lossless
   * `editor/officer_editor.py`         - the standalone officer GUI editor
   * `editor/officer_cli.py`            - the headless front-end over the same model
@@ -20,7 +20,7 @@ Tables in scope (all new-game seed data, read through the `$8000-$9FFF` window):
 | kanji name plates | `$31` | `$8DB4` | 237 x 13 B (page + 3 kanji x 4 tiles) | read-only, see `NAME_GLYPH_CPU` |
 
 The master record is the seed image of the officer's SRAM record at
-`id * 12 + $63C0`; `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e.asm`) copies it and
+`id * 12 + $63C0`; `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e_menu_screens.asm`) copies it and
 `B1F_GetOfficerRomRecordAddr` (`$F387`) also reads the ROM seed at runtime.
 Field names follow the canonical glossary in `docs/manual_kb/terminology.md`, and
 the byte-level evidence is in `docs/officer_data.md` /
@@ -87,7 +87,7 @@ SRAM_RECORD_BASE = 0x63C0
 # The kanji name plate is a *second*, independent name encoding: 13 bytes per id
 # at bank $31 $8DB4 - [0] the name-font CHR page, then up to three kanji x four
 # 8x8 tile ids, the quadruple (n, n+1, n+$10, n+$11) of one 16x16 glyph, $FF
-# terminated. `CmdDrawNameFromData` ($A426, prg_19_1a) posts it as OAM sprites on
+# terminated. `CmdDrawNameFromData` ($A426, prg_19_1a_event_scenes) posts it as OAM sprites on
 # the ruler card. Tile ids are page-local and the pages are authored per surname
 # group (code/ruler_card_decode.md section 4), so there is no kanji -> tiles
 # function to re-encode a renamed officer with: this table is read-only here and
@@ -100,7 +100,7 @@ GLYPH_TERMINATOR = 0xFF
 # The family-heir reinforcement pools (bank $31 $8D74, right before the plate
 # table): 4 little-endian word pointers whose HIGH byte is stored +$60 (the
 # reader adds it back), each to a $FF-terminated (officer id, join year) list.
-# EventReinforceGate ($A33C, prg_19_1a) runs each January per acting Country:
+# EventReinforceGate ($A33C, prg_19_1a_event_scenes) runs each January per acting Country:
 # Countries 2/3/4 (6 aliases slot 3) select pool (Country-2), and
 # OfficerReinforceScene ($AEC0) inducts the FIRST still-hidden officer whose
 # year has arrived into the Country's home Province roster (状態 <- 2, officer
@@ -124,11 +124,11 @@ REINFORCE_COLUMNS = ('pool', 'country', 'officer_id', 'katakana', 'zh_hans',
 # $18-$53 are the authored portrait block shared across the roster; the four
 # reinforcement-only heirs sit outside it - 13 王双 and 116 申耽 share page
 # $9F, 19 蒯良 and 228 凌统 share page $DB (verified by rendering: distinct
-# authored cards, one per officer). OfficerCardRender ($CE1F, prg_19_1a)
+# authored cards, one per officer). OfficerCardRender ($CE1F, prg_19_1a_event_scenes)
 # draws a 14-sprite body + 6-sprite face from the bank-$01 tables (class
 # base $99A0, body pointers $9AA0, face-expression pointers $9BAC; records
 # [y, tile, attr, x] + $80, consumed by SpriteOamWriterSimple $F1AD) and the
-# IRQ handler (prg_1f $FD03) latches the page into CHR regs 2/3, so the card
+# IRQ handler (prg_1f_boot $FD03) latches the page into CHR regs 2/3, so the card
 # OAM tiles resolve into the officer's own page (tile & $3F). Expression =
 # ($00A4 & 7) + class base: 0/1 normal, 2 angry (duel pursuer), 3 sad (war
 # defeat), 4 happy (war victory); the talking frames ($9D64) alternate the
@@ -155,6 +155,20 @@ PORTRAIT_EXPRESSIONS = ((0, 'normal'), (2, 'angry'), (3, 'sad'), (4, 'happy'))
 # Sprite value 0 is transparent.
 PORTRAIT_SPRITE_PALETTES = ((0x0F, 0x0F, 0x20, 0x16), (0x0F, 0x0F, 0x2B, 0x28),
                             (0x0F, 0x36, 0x30, 0x16), (0x0F, 0x20, 0x27, 0x17))
+
+# --- AI ruler successor priority lists ------------------------------------
+# AppointSuccessor ($CA68, bank $0B, reached when a country's ruler dies):
+# HeirPriorityListPtrs ($CAD8) holds 7 word pointers (country 0-6), each to a
+# $FF-terminated list of officer ids. The first listed officer found governing
+# one of the country's provinces (roster slot $11) becomes the new ruler; if
+# none qualifies, the fallback scans the country's governors for the highest
+# 人徳 Virtue (record byte +4). Read-only authored data - no CSV twin, no
+# editing surface.
+HEIR_PRIORITY_BANK_FILE = 'prg_0b.bin'
+HEIR_PRIORITY_BANK_BASE = 0xC000       # bank $0B maps at $C000-$DFFF
+HEIR_PRIORITY_PTR_CPU = 0xCAD8
+HEIR_PRIORITY_COUNTRY_COUNT = 7
+HEIR_PRIORITY_END = 0xFF
 # Plate tile ids are page-local ($00-$3F); page V is the 1KB CHR chunk
 # rom/chr/chr_(V//8).bin at (V%8)*$400 - the same mapping the BG display
 # records use (code/initial_data_tables.md section 9). Verified by rendering:
@@ -736,6 +750,7 @@ class Model:
         self._baseline = {'officers': {}, 'rosters': {}}
         self.chr_pages = {}          # plate font page id -> 1KB of CHR, when
         self.portrait_chunks = {}    # portrait page id -> 1KB of CHR, likewise
+        self.heir_priority = []      # (Country id, [officer ids]) from bank $0B
         self.reinforce_pools = []    # (Country id, [(officer id, join year)])
         self.loaded = False          # rom/chr was found beside the glyph bank
 
@@ -743,7 +758,8 @@ class Model:
     @classmethod
     def load(cls, officer_csv, province_csv=None, death_csv=None,
              labels_inc=None, glyph_bank=None, chr_dir=None,
-             reinforce_csv=None, card_bank=None, portrait_page_bank=None):
+             reinforce_csv=None, card_bank=None, portrait_page_bank=None,
+             heir_bank=None):
         m = cls()
         m.paths['officer'] = officer_csv
         header, rows = _read_csv(officer_csv)
@@ -899,6 +915,24 @@ class Model:
                 for pi in range(REINFORCE_POOL_COUNT)]
             m.paths['reinforce'] = reinforce_csv
 
+        if heir_bank and os.path.exists(heir_bank):
+            # Read-only authored data: AppointSuccessor walks the lists in
+            # order, so this parse must preserve id order exactly.
+            with open(heir_bank, 'rb') as f:
+                bank = f.read()
+            base = HEIR_PRIORITY_PTR_CPU - HEIR_PRIORITY_BANK_BASE
+            if len(bank) >= base + HEIR_PRIORITY_COUNTRY_COUNT * 2:
+                m.paths['heir'] = heir_bank
+                for ci in range(HEIR_PRIORITY_COUNTRY_COUNT):
+                    word = bank[base + ci * 2] \
+                        | (bank[base + ci * 2 + 1] << 8)
+                    cur = word - HEIR_PRIORITY_BANK_BASE
+                    ids = []
+                    while cur < len(bank) and bank[cur] != HEIR_PRIORITY_END:
+                        ids.append(bank[cur])
+                        cur += 1
+                    m.heir_priority.append((ci, ids))
+
         m.loaded = True
         m._snapshot_baseline()
         return m
@@ -961,6 +995,27 @@ class Model:
     def has_portraits(self):
         """True when the card portraits (page table + OAM blobs) were read."""
         return 'portrait' in self.paths
+
+    @property
+    def has_heirs(self):
+        """True when the AI successor priority lists were read from bank $0B."""
+        return 'heir' in self.paths
+
+    def heir_successor_lists(self, oid):
+        """(country, position, ids) for every priority list containing oid."""
+        return [(country, ids.index(oid), ids)
+                for country, ids in self.heir_priority if oid in ids]
+
+    def heir_priority_lines(self, names=True):
+        """All seven lists, one 'Country N: a > b > c' line each."""
+        out = []
+        for country, ids in self.heir_priority:
+            if names:
+                listed = ' > '.join(self.by_id[oid].name for oid in ids)
+            else:
+                listed = ' > '.join(str(oid) for oid in ids)
+            out.append('Country %d: %s' % (country, listed or '(empty)'))
+        return out
 
     # --- editing ---------------------------------------------------------
     def set(self, oid, key, value):
@@ -1896,6 +1951,7 @@ def default_paths(root):
         'glyph_bank': os.path.join(root, 'rom', 'prg', 'prg_11.bin'),
         'card_bank': os.path.join(root, 'rom', 'prg', 'prg_01.bin'),
         'portrait_page_bank': os.path.join(root, 'rom', 'prg', 'prg_1a.bin'),
+        'heir_bank': os.path.join(root, 'rom', 'prg', 'prg_0b.bin'),
         'chr_dir': os.path.join(root, 'rom', 'chr'),
     }
 
@@ -1914,7 +1970,8 @@ def load_default(root, require_officer=True):
                       chr_dir=paths['chr_dir'],
                       reinforce_csv=paths['reinforce'],
                       card_bank=paths['card_bank'],
-                      portrait_page_bank=paths['portrait_page_bank'])
+                      portrait_page_bank=paths['portrait_page_bank'],
+                      heir_bank=paths['heir_bank'])
 
 
 if __name__ == '__main__':

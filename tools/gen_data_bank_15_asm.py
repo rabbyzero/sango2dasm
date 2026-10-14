@@ -4,11 +4,11 @@
 Bank $15 is pure data: it is mapped into the $8000-$9FFF window by SwitchBank8
 and read by two consumers:
 
-  - prg_17_18 DrawSpriteFromBank ($CEA5): A with bit 7 set selects bank $35.
+  - prg_17_18_display DrawSpriteFromBank ($CEA5): A with bit 7 set selects bank $35.
     Y = (A & $7F) * 2 indexes the .word table at $8000; the stored pointer
     high byte is $20 above the real page (the code does SEC/SBC #$20), so
     blob address = stored word - $2000. The blob is handed to
-    B1F_SpriteOamWriterSimple (prg_1f $F1AD), which renders 4-byte entries
+    B1F_SpriteOamWriterSimple (prg_1f_boot $F1AD), which renders 4-byte entries
     [y_off, tile, attr, x_off] until an entry whose FIRST byte is $80:
       OAM Y    = y_off + $000A   ($000A was loaded from $04BA = Y base)
       OAM tile = tile + $0003    (bias $00 on this path)
@@ -16,9 +16,9 @@ and read by two consumers:
       OAM X    = x_off + $000C   ($000C was loaded from $04BB = X base)
     Entries whose computed Y is below $0004 are skipped. The $000A = Y /
     $000C = X polarity is fixed by the OAM byte layout (writer stores
-    b0 -> $0200,X = Y and b3 -> $0203,X = X); several prg_17_18 comments
+    b0 -> $0200,X = Y and b3 -> $0203,X = X); several prg_17_18_display comments
     name $04BA "X" - they are reversed.
-  - prg_1f State_CountryMapView ($E37C): LDY #$35 / SwitchBank8_B ($E38B),
+  - prg_1f_boot State_CountryMapView ($E37C): LDY #$35 / SwitchBank8_B ($E38B),
     then B17_18_PpuCopyRaw copies 1 KB from $9A90 to PPU $2000 (the country
     map base nametable image, 960 tile bytes + 64 attribute bytes).
 
@@ -35,7 +35,7 @@ Layout (coverage proof: this generator asserts every region tiles exactly):
 
 Usage:
     python tools/gen_data_bank_15_asm.py            # preview on stdout
-    python tools/gen_data_bank_15_asm.py --write    # update asm/banks/data_15.asm
+    python tools/gen_data_bank_15_asm.py --write    # update asm/banks/data_15_sprite_set_b.asm
 """
 import argparse
 import os
@@ -44,7 +44,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BANK = 0x15
 BANK_BIN = os.path.join('rom', 'prg', 'prg_%02x.bin' % BANK)
-ASM_PATH = os.path.join(ROOT, 'asm', 'banks', 'data_%02x.asm' % BANK)
+from bank_asm_names import data_asm_path               # noqa: E402
+ASM_PATH = data_asm_path(BANK, ROOT)
 
 WINDOW_CPU = 0x8000
 BANK_SIZE = 0x2000
@@ -108,7 +109,7 @@ def build_plan(data):
 def emit_ptr_table(ptrs, blobs):
     out = ['',
            '; --- $8000-$80B7  SpriteBlobPtrTable: 92 x .word, indexed by',
-           ';     Y = (A & $7F) * 2 from DrawSpriteFromBank (prg_17_18 $CEA5) with',
+           ';     Y = (A & $7F) * 2 from DrawSpriteFromBank (prg_17_18_display $CEA5) with',
            ';     bit 7 of A set; stored word = blob address + $2000 (the code',
            ';     subtracts $20 from the high byte); no index bit 7 clear ever',
            ';     reaches this bank - those read bank $14 ---']
@@ -129,7 +130,7 @@ def emit_blobs(data, blobs):
            '; --- $80B8-$9A8F  SpriteBlobArea: the 92 OAM blobs, packed back to',
            ';     back. Each blob is n x 4-byte sprite entries',
            ';     [y_off, tile, attr, x_off] followed by a $80 terminator in the',
-           ';     y position. SpriteOamWriterSimple (prg_1f $F1AD) emits',
+           ';     y position. SpriteOamWriterSimple (prg_1f_boot $F1AD) emits',
            ';     OAM Y = y_off + $000A, OAM tile = tile + $0003,',
            ';     OAM attr = attr EOR $0002 (caller flip flags),',
            ';     OAM X = x_off + $000C; the bases come from $04BA (Y) and',
@@ -156,7 +157,7 @@ def emit_blobs(data, blobs):
 def emit_screen(data):
     out = ['',
            '; --- $9A90-$9E8F  CountryMapScreen: 1 KB nametable image streamed to',
-           ';     PPU $2000 by State_CountryMapView (prg_1f $E37C, mapped by',
+           ';     PPU $2000 by State_CountryMapView (prg_1f_boot $E37C, mapped by',
            ';     LDY #$35 at $E38B) via B17_18_PpuCopyRaw: 960 tile bytes then',
            ';     64 attribute bytes ---']
     out.append('CountryMapScreen:')
@@ -197,15 +198,15 @@ BANNER = """\
 ; do not hand-edit the rendered records.
 ;
 ; Read from two consumers:
-;   prg_17_18  DrawSpriteFromBank $CEA5: A with bit 7 set selects this bank as
+;   prg_17_18_display  DrawSpriteFromBank $CEA5: A with bit 7 set selects this bank as
 ;              $35; Y = (A & $7F) * 2 indexes the pointer table at $8000 and
 ;              the code subtracts $20 from the pointer high byte, so blob
 ;              address = stored word - $2000 (indices with bit 7 clear read
 ;              bank $14 instead, whose words are stored unbiased). The blob is
-;              rendered by B1F_SpriteOamWriterSimple (prg_1f $F1AD); callers
+;              rendered by B1F_SpriteOamWriterSimple (prg_1f_boot $F1AD); callers
 ;              pass the base coordinates in $04BA (Y) / $04BB (X) and the flip
 ;              flags in $0002.
-;   prg_1f     State_CountryMapView $E37C: LDY #$35 / SwitchBank8_B ($E38B),
+;   prg_1f_boot     State_CountryMapView $E37C: LDY #$35 / SwitchBank8_B ($E38B),
 ;              then B17_18_PpuCopyRaw copies 1 KB from $9A90 to PPU $2000.
 ;
 ; Regions:
@@ -220,7 +221,7 @@ BANNER = """\
 ; FIRST byte is $80 terminates the blob (a $80 in byte 1 is a legitimate tile
 ; id - the terminator is only checked in the y position). The $000A = Y /
 ; $000C = X polarity follows from the OAM byte layout the writer stores
-; (b0 -> $0200,X = Y, b3 -> $0203,X = X); some prg_17_18 comments name $04BA
+; (b0 -> $0200,X = Y, b3 -> $0203,X = X); some prg_17_18_display comments name $04BA
 ; "X base" - those are reversed.
 ;===============================================================================
 
@@ -242,7 +243,7 @@ def render(data):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_15.asm')
+    ap.add_argument('--write', action='store_true', help='overwrite asm/banks/data_15_sprite_set_b.asm')
     args = ap.parse_args()
     text = render(read_bank())
     if args.write:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify asm/banks/data_13.asm against rom/prg/prg_13.bin byte-for-byte.
+"""Verify asm/banks/data_13_menu_display.asm against rom/prg/prg_13.bin byte-for-byte.
 
 Assembles the bank standalone (its own linker config, $8000-$9FFF window) with
 the real ca65/ld65 and compares the 8192 built bytes with the stock ROM. On a
@@ -33,7 +33,7 @@ def assemble():
     cfg = os.path.join(BUILD, '_seed13.cfg')
     obj = os.path.join(BUILD, '_seed13.o')
     out = os.path.join(BUILD, '_seed13.bin')
-    with open(os.path.join(ROOT, 'asm', 'banks', 'data_13.asm'),
+    with open(os.path.join(ROOT, 'asm', 'banks', 'data_13_menu_display.asm'),
               encoding='utf-8') as f:
         text = f.read()
     with open(asm, 'w', encoding='utf-8') as f:

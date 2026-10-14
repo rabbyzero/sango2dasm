@@ -32,17 +32,17 @@ Code that proves each base address:
 | `GetOfficerRecordAddr` | `$F2D7` | `id * 12 + $63C0` (SRAM) |
 | `GetOfficerRomRecordAddr` | `$F387` | `LDY #$31`, `SwitchBank8_B`, `id * 12 + $8000` - the ROM seed is also read *directly* at runtime (the hospital compares live 体力 against the seed) |
 | `GetNameDisplayScale` | `$F308` | `LDY #$30`, `id * 10 + $901A` (officer names) |
-| `@RiceBuySeed` (prg_1b_1c) | `$C254` | `LDY #$30`, `($02) = province * 2 + $8FC0`, buys rice: `gold = ceil(rice * 100 / rate)` at the `+0` byte |
-| `State 0` of the war buy/sell panel (prg_08_09) | `$C129` | same pair dereferenced as the action parameter record (`($02),Y` with `Y=0/1` picking the leg) |
-| `SellSurplusRice` (prg_0a_0b) | `$CC9E` | `LDA $8FC0,Y` with `Y = province * 2 + 1` - the `+1` byte is the sell rate (rice/100 gold) |
+| `@RiceBuySeed` (prg_1b_1c_map_screen) | `$C254` | `LDY #$30`, `($02) = province * 2 + $8FC0`, buys rice: `gold = ceil(rice * 100 / rate)` at the `+0` byte |
+| `State 0` of the war buy/sell panel (prg_08_09_tactical_war) | `$C129` | same pair dereferenced as the action parameter record (`($02),Y` with `Y=0/1` picking the leg) |
+| `SellSurplusRice` (prg_0a_0b_strategy_ai) | `$CC9E` | `LDA $8FC0,Y` with `Y = province * 2 + 1` - the `+1` byte is the sell rate (rice/100 gold) |
 | `@CheckEligibility` / `@AiAction_EvaluateAndExecute` / `SellSurplusRice` gate | `$C872` / `$C33F` / `$CC45` | `LDA $8FFC,Y` with `Y = province`, testing facility bit 3 / bit 0 / bit 2 |
-| `@TownScreenInit` (prg_1b_1c) | `$C014` | `LDY $0402`, `@TownFacilitySetTable[province]` -> facility set id (`$C025`), expanded by `@FacilityActionCodeTable` (`$C10E`) |
+| `@TownScreenInit` (prg_1b_1c_map_screen) | `$C014` | `LDY $0402`, `@TownFacilitySetTable[province]` -> facility set id (`$C025`), expanded by `@FacilityActionCodeTable` (`$C10E`) |
 | `CmdDrawNameFromData` | `$A426` | `LDY #$30`, `id * 8 + $9A1A`, up to 6 glyphs (province names) |
 | `OfficerArrivalScan` | `$B964` | `LDY #$31`, `$8B1C + province * $14` |
 
 ## 2. `SramInit` seeds SRAM from these two blocks
 
-`SramInit` (`$DD8B`, `asm/banks/prg_1d_1e.asm`) clears `$6000-$6FFF`, then runs
+`SramInit` (`$DD8B`, `asm/banks/prg_1d_1e_menu_screens.asm`) clears `$6000-$6FFF`, then runs
 two blind block copies. `tools/verify_seed_tables.py` re-parses them from the
 disassembly rather than trusting this text:
 
@@ -64,10 +64,10 @@ $6F07-$6F3F  7 country records      (8 B each, see docs/country_data.md)
 237 officers exist: the officer table ends at `$8B1C`, exactly where the
 arrival schedule begins, so the last `$24` bytes of the copy window stage the
 schedule's head into `$6EDC-$6EFF`. Nothing ever reads those slots - every
-officer scan loop bounds itself with `CMP #$ED` (237): `prg_19_1a.asm` `$A291`
+officer scan loop bounds itself with `CMP #$ED` (237): `prg_19_1a_event_scenes.asm` `$A291`
 ("Officer ids $00-$EC") and `$BA22` ("all Officers scanned"), plus
-`prg_0a_0b.asm` `$C760` (`CPX #$ED` while stepping the `$0C`-byte records).
-(The `CMP #$ED` at `prg_19_1a.asm` `$B4C5` is a different use: `CardFillDispatch`
+`prg_0a_0b_strategy_ai.asm` `$C760` (`CPX #$ED` while stepping the `$0C`-byte records).
+(The `CMP #$ED` at `prg_19_1a_event_scenes.asm` `$B4C5` is a different use: `CardFillDispatch`
 rejects every roster card slot whose id is >= `$ED`, so `$ED` doubles as the
 "not a real officer" / pending-transfer marker.) The officer count is
 therefore 237, not 240.
@@ -107,7 +107,7 @@ which earlier read as one "affinity code" table. Splitting it:
 
 * **bits 2-3 = 軍の属性 ArmyAffinity**: `0` 平 (111 officers), `1` 山 (70),
   `2` 水 (56). The battle AI masks it with `AND #$0C` and then
-  `LSR LSR AND #$03` (`prg_0e_0f.asm` `@OrderResolve` `$D110`).
+  `LSR LSR AND #$03` (`prg_0e_0f_battle.asm` `@OrderResolve` `$D110`).
 * **bits 0-1 = 状態 OfficerStatus**: every runtime reader tests `AND #$03`
   (`OfficerKill` sets it with `ORA #$03`), i.e. the two low bits are a
   separate field sitting right below the affinity pair.
@@ -137,7 +137,7 @@ written at runtime when an officer changes location.
 
 There is no per-country stat table: a Country's resources are the sum over the
 provinces it owns, and its Ruler comes from a hard-coded 7-entry seed
-(`WarResult_RecordInitTable`, `$DA0F`, `asm/banks/prg_08_09.asm`). See
+(`CountrySelect_RecordInitTable`, `$DA0F`, `asm/banks/prg_08_09_tactical_war.asm`). See
 `docs/country_data.md` and `tools/extract_country_data.py`.
 
 ## 6. Re-verify
@@ -150,13 +150,13 @@ python tools/extract_country_data.py   --check
 ```
 
 `verify_seed_tables.py` checks the bank-file/combined-image correspondence,
-re-parses both `SramInit` loops out of `prg_1d_1e.asm`, asserts the table
+re-parses both `SramInit` loops out of `prg_1d_1e_menu_screens.asm`, asserts the table
 extents and the roster/OfficerStatus equality, and validates the schedule
 geometry.
 
 ## 7. The banks as editable, annotated assembly
 
-`asm/banks/data_10.asm` and `data_11.asm` are no longer blind `.incbin` stubs: the
+`asm/banks/data_10_seed.asm` and `data_11_officer.asm` are no longer blind `.incbin` stubs: the
 analysed tables are rendered as labelled `.byte` records with the decoded values
 in the comment, and only the still-unanalysed ranges stay as sliced includes
 (`ca65` supports `.incbin "file", skip, length`) so the bank always reproduces
@@ -226,11 +226,11 @@ The 3 KB in front of the province records are three whole nametable images:
 960 tile bytes (30 rows x 32 cols of 8 px) + 64 attribute bytes (one 2-bit
 palette index per 2x2 tile block) = 1024 bytes each. No code lives here and no
 byte is ever read as a scalar - each block is streamed to the PPU as a picture.
-`asm/banks/data_10.asm` renders them as `StrategyMapBaseScreen`,
+`asm/banks/data_10_seed.asm` renders them as `StrategyMapBaseScreen`,
 `DuelBaseScreen`, `TacticalTerrainScreen` (tile row + attribute row per `.byte`
 line).
 
-**Mode attribution rule - do not trust the proc names.** Several `prg_1f.asm`
+**Mode attribution rule - do not trust the proc names.** Several `prg_1f_boot.asm`
 state procs are misnamed, so the mode a screen belongs to is settled by two
 other facts: (a) `addr_sub_state` (`$0078`) selects the VBlank handler from
 `NmiDispatchTable` (`$F87B`), so the sub-state a state proc stores names the
@@ -242,22 +242,22 @@ been renamed on this evidence (`State_NewGameInit` -> `State_StrategyMapLaunch`,
 `State_TacticalMode` -> `State_DuelSceneLaunch`); `docs/manual_kb/terminology.md`
 keeps the mode hierarchy.
 
-The seven `addr_sub_state` stores - all in `prg_1f.asm` - give the real identity
+The seven `addr_sub_state` stores - all in `prg_1f_boot.asm` - give the real identity
 of each state proc:
 
 | State proc (`$007A`) | Stores `$0078` | VBlank handler that runs | Screen it shows |
 |---|---|---|---|
-| `$E0DA` `State_StrategyMapLaunch` (1) | 2 | `NmiState2_MapScreen` `$F8B5` - strategy map | `$8000` |
-| `$E18B` `State_WarSceneLaunch` (3) | 3 | `NmiState3_Battle` `$F8FE` | (arms display rec 1 = `$8800`) |
-| `$E22F` `State_StrategyMode` (5) | 4 | `NmiState4_Menu` `$F96A` | - |
+| `$E0DA` `State_StrategyMapLaunch` (1) | 2 | `NmiState2_StrategyMap` `$F8B5` - strategy map | `$8000` |
+| `$E18B` `State_WarSceneLaunch` (3) | 3 | `NmiState3_WarScene` `$F8FE` | (arms display rec 1 = `$8800`) |
+| `$E22F` `State_StrategyMode` (5) | 4 | `NmiState4_Battle` `$F96A` | - |
 | `$E2E8` `State_DuelSceneLaunch` (7) | 5 | `NmiState5_Duel` `$F9A0` -> `DuelModeDispatch` | `$8400` |
-| `$E37C` `State_CountryMapView` (9) | 6 | `NmiState6_Event` `$F9E4` | bank `$15` `$9A90` -> `$2000` (title logo) |
-| `$E3EE` `State_NewGameSetup` (11) | 7 | `NmiState7_Strategy` `$FA13` | bank `$12` `$9AE3` -> `$2000` |
-| `$E46A` `State_EventMessageScene` (13) | 8 | `NmiState8_Officer` `$FA53` | bank `$16` `$9B92` -> `$2000` |
+| `$E37C` `State_CountryMapView` (9) | 6 | `NmiState6_TitleScreen` `$F9E4` | bank `$15` `$9A90` -> `$2000` (title logo) |
+| `$E3EE` `State_NewGameSetup` (11) | 7 | `NmiState7_CountrySelect` `$FA13` | bank `$12` `$9AE3` -> `$2000` |
+| `$E46A` `State_EventMessageScene` (13) | 8 | `NmiState8_EventMessage` `$FA53` | bank `$16` `$9B92` -> `$2000` |
 
 | Screen | CPU | PPU dest | Mode | Loader proc (rename history noted) | Uploader | CHR rec | Palette rec |
 |---|---|---|---|---|---|---|---|
-| `StrategyMapBaseScreen` | `$8000-$83FF` | `$2000` | Strategy (map screen) | `$E0DA` `State_StrategyMapLaunch` (was `State_NewGameInit`) - sub-state 2 -> `NmiState2_MapScreen` | `B17_18_PpuCopyRaw` `$E113` | 0 `00 01 02 10` | 0 |
+| `StrategyMapBaseScreen` | `$8000-$83FF` | `$2000` | Strategy (map screen) | `$E0DA` `State_StrategyMapLaunch` (was `State_NewGameInit`) - sub-state 2 -> `NmiState2_StrategyMap` | `B17_18_PpuCopyRaw` `$E113` | 0 `00 01 02 10` | 0 |
 | `DuelBaseScreen` | `$8400-$87FF` | `$2000` | Duel (一騎討ち) | `$E2E8` `State_DuelSceneLaunch` (was `State_TacticalMode`, earlier `State_BattlePhase`) - sub-state 5 -> `NmiState5_Duel` -> `DuelModeDispatch` `$F9CD` | `B17_18_PpuCopyRaw` `$E318` | 10 `8D 8E 8F 90` | `$0A` |
 | `TacticalTerrainScreen` | `$8800-$8BBF` | `$2400-$27FF` | Tactical (war scene) | `SceneRenderer` callback 1 - display record 1 armed by `$E18B` (`State_WarSceneLaunch`, "war" = tactical layer) | `ScenePageCopy` `$BC9B` | 1 `88 89 8A 88` | 0 |
 
@@ -265,12 +265,12 @@ Callers - every writer found in the ROM, not just the obvious path:
 
 | Screen | Call chain |
 |---|---|
-| `$8000` | `addr_game_state = 1` <- `ClearOverlayWait` `$DB0C` (prg_0a_0b: clear overlay done -> `CopySramToWork`, frame state `$0400 = $0D` / `$0401 = 3`, player country `$6F03` via `PlayerPtrTable`) · `WarPostProcess` `$BBAA` (prg_08_09: tactical war layer finished, also sets frame state `$0400 = $0D`) · `WarResult_Finalize` `$D8FF` (prg_08_09) · `StrategyCommand_InitOfficerScroll` `$D74E` (prg_17_18: A pressed while `sram_scroll_pending $6F43` is set) -> state proc `$E0DA` `State_StrategyMapLaunch` -> `PpuCopyRaw`. The proc itself separates the families: it writes the `$6F8B` request mailbox with `$FF` (turn complete) only when the caller has not staged a scene handoff at `$0400 = $0D` - `ClearOverlayWait` and `WarPostProcess` do stage it, `WarResult_Finalize` and `StrategyCommand_InitOfficerScroll` do not. Either way the screen is re-uploaded on every return to the map. |
-| `$8400` | `addr_game_state = 7` <- `Phase5SideEventPanelSetup` `$CD66` (prg_0e_0f: Battle Mode phase 5 side-event panel; it disables NMI and stores through the `$007A` slot, which that bank aliases as `btl_flash_counter`) - the **only** writer of 7 -> state proc `$E2E8` -> `PpuCopyRaw`. |
-| `$8800` | `NmiState2_MapScreen` `$F8EF` (`LDY #$3B` = banks `$1B+$1C`, `JSR $A000`; the label there read `B19_1A_OverlayStripRender_Entry`, wrong for that bank pair - fixed) -> `MapScreenFrameUpdate` `$A00C` -> frame state `$0E` = `CallSceneRenderer` `$A06D` -> `B1D_1E_SceneRenderer` `$A039` -> `SceneRenderer` `$BC71` callbacks 0 then 1 (x16 frames) -> `ScenePageCopy`. Frame state `$0400 = $0E` is written by exactly one site in the ROM: `MapRulerIntroCancelCheck` `$A172` (Select during the ruler intro / camera-focus phase). Display record 1 comes from the state-3 proc, entered by `WarSceneLaunch` `$B5E3`, `Spoils_ExitFade` `$C356`, `ArmyDeploySceneTrigger` `$CA4C` and `Phase4ResultFlashTrigger` `$A403`. |
+| `$8000` | `addr_game_state = 1` <- `ClearOverlayWait` `$DB0C` (prg_0a_0b_strategy_ai: clear overlay done -> `CopySramToWork`, frame state `$0400 = $0D` / `$0401 = 3`, player country `$6F03` via `PlayerPtrTable`) · `WarPostProcess` `$BBAA` (prg_08_09_tactical_war: tactical war layer finished, also sets frame state `$0400 = $0D`) · `CountrySelect_Finalize` `$D8FF` (prg_08_09_tactical_war) · `StrategyCommand_InitOfficerScroll` `$D74E` (prg_17_18_display: A pressed while `sram_scroll_pending $6F43` is set) -> state proc `$E0DA` `State_StrategyMapLaunch` -> `PpuCopyRaw`. The proc itself separates the families: it writes the `$6F8B` request mailbox with `$FF` (turn complete) only when the caller has not staged a scene handoff at `$0400 = $0D` - `ClearOverlayWait` and `WarPostProcess` do stage it, `CountrySelect_Finalize` and `StrategyCommand_InitOfficerScroll` do not. Either way the screen is re-uploaded on every return to the map. |
+| `$8400` | `addr_game_state = 7` <- `SideEventPanelSetup` `$CD66` (prg_0e_0f_battle: Battle Mode phase 5 side-event panel; it disables NMI and stores through the `$007A` slot, which that bank aliases as `btl_flash_counter`) - the **only** writer of 7 -> state proc `$E2E8` -> `PpuCopyRaw`. |
+| `$8800` | `NmiState2_StrategyMap` `$F8EF` (`LDY #$3B` = banks `$1B+$1C`, `JSR $A000`; the label there read `B19_1A_OverlayStripRender_Entry`, wrong for that bank pair - fixed) -> `MapScreenFrameUpdate` `$A00C` -> frame state `$0E` = `CallSceneRenderer` `$A06D` -> `B1D_1E_SceneRenderer` `$A039` -> `SceneRenderer` `$BC71` callbacks 0 then 1 (x16 frames) -> `ScenePageCopy`. Frame state `$0400 = $0E` is written by exactly one site in the ROM: `MapRulerIntroCancelCheck` `$A172` (Select during the ruler intro / camera-focus phase). Display record 1 comes from the state-3 proc, entered by `WarSceneLaunch` `$B5E3`, `Spoils_ExitFade` `$C356`, `ArmyDeploySceneTrigger` `$CA4C` and `BattleResultFlashTrigger` `$A403`. |
 
 The date plate on screen 1 confirms the attribution independently:
-`YearDisplaySetup` (`$A6B6`, prg_1d_1e) converts the scenario year `$6F00 + $64`
+`YearDisplaySetup` (`$A6B6`, prg_1d_1e_menu_screens) converts the scenario year `$6F00 + $64`
 and month `$6F01 + 1` to BCD digit tiles `nibble + $04` / `+ $14`, and those land
 in the plate's gaps - the plate's own kanji are the screen's only sub-`$40`
 tiles, `$0E/$1E` (年) and `$0F/$1F` (月) at tile rows 2-3, cols 6 and 10 (8x16
@@ -278,9 +278,9 @@ glyphs: upper + lower tile).
 
 Access mechanics, per loader:
 
-* `PpuCopyRaw` (`$A212`, `prg_17_18.asm`): sets `PPUADDR` from `$0001`/`$0000`,
+* `PpuCopyRaw` (`$A212`, `prg_17_18_display.asm`): sets `PPUADDR` from `$0001`/`$0000`,
   then loops `LDA ($0A),Y : STA $2007` with a 16-bit counter `$000C/$000D` up to
-  `$0400` - exactly one screen. The caller in `prg_1f.asm` does
+  `$0400` - exactly one screen. The caller in `prg_1f_boot.asm` does
   `LDY #$30 / JSR SwitchBank8_B`, writes the source pointer into
   `$000A/$000B` (`$8000` or `$8400`) and the PPU address into `$0000/$0001`
   (`$2000`), switches the code bank to `$17+$18` and calls it.
@@ -300,7 +300,7 @@ Access mechanics, per loader:
   record 1 gives coherent terrain, and the same blocks with any other record are
   noise. See `code/font_analysis.md` for the CHR chain.
 * Colour comes from a second, independent table: `LoadScenarioData` (`$DBB1`,
-  prg_1d_1e) is really a **palette load** - its `@RecordPtrTable` (`$DBCF`, 14
+  prg_1d_1e_menu_screens) is really a **palette load** - its `@RecordPtrTable` (`$DBCF`, 14
   entries, index 9 repeats 8) points at 32-byte palettes at `$DBEB` (bank `$1E`
   file offset `$1BEB`), copied to `$0100` and uploaded to PPU `$3F00` by
   `PaletteUpload` (`$E70E`). Layout is the NES `$3F00-$3F1F` block: byte 0 =
@@ -327,20 +327,20 @@ The 90 bytes between the province master records (`$8C00-$8FBF`) and the officer
 katakana names (`$901A`) are **two parallel 30-entry tables, one row per province
 id**, not one blob: 60 rate bytes at `$8FC0` immediately followed by 30 facility
 flag bytes at `$8FFC` (there is no gap - `$8FFC = $8FC0 + 30 * 2`). Rendered in
-`asm/banks/data_10.asm` as `ProvinceRiceTradeRateTable` (`.byte`, 2 bytes per
+`asm/banks/data_10_seed.asm` as `ProvinceRiceTradeRateTable` (`.byte`, 2 bytes per
 province) + `ProvinceFacilityFlags`.
 
 ### Rate byte pairs (`ProvinceRiceTradeRateTable`, `$8FC0 + province * 2`)
 
 Each pair is two rice-per-100-gold rates, always read byte-wise:
 
-* `+0` (`($02)` / `$8FC0+2p`): the **buy rice** leg - `@RiceBuySeed` (prg_1b_1c
+* `+0` (`($02)` / `$8FC0+2p`): the **buy rice** leg - `@RiceBuySeed` (prg_1b_1c_map_screen
   `$C254`) computes `gold = ceil(rice * 100 / rate)`; the same pair is what
-  war-layer State 0 (prg_08_09 `$C129`) dereferences as the "action parameter
+  war-layer State 0 (prg_08_09_tactical_war `$C129`) dereferences as the "action parameter
   record" of the buy/sell panel (`($02),Y` with `Y=0/1` selecting the leg).
 * `+1` (`$8FC0+2p+1`, reached with `INY` after `ASL`): the **sell rice** rate -
-  `SellSurplusRice` (prg_0a_0b `$CC9E`) and `Action_BuyRice`'s rice cost
-  (prg_08_09 `$A457`) use it as a `Div24Bit` divisor.
+  `SellSurplusRice` (prg_0a_0b_strategy_ai `$CC9E`) and `Action_BuyRice`'s rice cost
+  (prg_08_09_tactical_war `$A457`) use it as a `Div24Bit` divisor.
 * The twelve provinces with no 町 rice trade hold `$00, $00`.
 * Cross-check: every (`+0`, `+1`) pair equals the `sell_rate` / `buy_rate` columns
   of `docs/rice_prices.csv`, and the `$00, $00` entries are exactly its
@@ -349,7 +349,7 @@ Each pair is two rice-per-100-gold rates, always read byte-wise:
 ### Facility flags (`ProvinceFacilityFlags`, `$8FFC + province`)
 
 The per-province facility flags behind the town commands. This is a second, finer
-layer than the town screen's menu tables: `@TownFacilitySetTable` (prg_1b_1c
+layer than the town screen's menu tables: `@TownFacilitySetTable` (prg_1b_1c_map_screen
 `$C025`) maps a province to one of 10 facility *sets*, and `@FacilityActionCodeTable`
 (`$C10E`) expands a set into up to 4 action codes (0=兵器工房 armory, 1=学校 academy,
 2=医院 hospital, 3=町 market) - that pair is what draws the menu. These flag bytes
@@ -366,10 +366,10 @@ officer ids reach 236):
 
 | Bit | Facility / verified consumer | Provinces with the bit **clear** |
 |---|---|---|
-| `$01` | gate read by the war AI before it evaluates the province: `@AiAction_EvaluateAndExecute` (prg_0a_0b `$C33F`) - clear => skip to the next province | 0, 3, 7, 10, 14, 16, 22, 24 |
+| `$01` | gate read by the war AI before it evaluates the province: `@AiAction_EvaluateAndExecute` (prg_0a_0b_strategy_ai `$C33F`) - clear => skip to the next province | 0, 3, 7, 10, 14, 16, 22, 24 |
 | `$02` | additional town-command facility flag, not yet tied to a named command: 14 provinces, overlapping but *not* contained in the 町 bit below (only 襄阳/永昌 carry it without a 町) | 1, 2, 5, 7, 9, 11, 13, 14, 17, 18, 19, 20, 24, 25, 27, 28 |
-| `$04` | 町 rice market: set on exactly the 23 provinces whose rate pair is non-zero, i.e. `docs/rice_prices.csv` `has_market` matches this bit. Also the AI sell gate: `SellSurplusRice` (prg_0a_0b `$CC45`) - clear => the AI does not liquidate rice here | 1, 5, 9, 17, 19, 22, 29 |
-| `$08` | recruit/transfer facility: `@CheckEligibility` (prg_0a_0b `$C872`, with the `<10 subordinate count`) and the `$C7F1` recruit-vs-transfer routing. Clear on exactly the seven ruler capitals (并州 刘备/冀州 袁绍/凉州 马腾/兖州 曹操/洛阳 董卓/江夏 孙策/成都 刘璋) | 0, 16, 18, 21, 23, 27, 29 |
+| `$04` | 町 rice market: set on exactly the 23 provinces whose rate pair is non-zero, i.e. `docs/rice_prices.csv` `has_market` matches this bit. Also the AI sell gate: `SellSurplusRice` (prg_0a_0b_strategy_ai `$CC45`) - clear => the AI does not liquidate rice here | 1, 5, 9, 17, 19, 22, 29 |
+| `$08` | recruit/transfer facility: `@CheckEligibility` (prg_0a_0b_strategy_ai `$C872`, with the `<10 subordinate count`) and the `$C7F1` recruit-vs-transfer routing. Clear on exactly the seven ruler capitals (并州 刘备/冀州 袁绍/凉州 马腾/兖州 曹操/洛阳 董卓/江夏 孙策/成都 刘璋) | 0, 16, 18, 21, 23, 27, 29 |
 
 Bits `$02` and `$04` are independent, not nested: 11 provinces have the 町
 (`$04`) without `$02`, and only 襄阳 (22, `$0A`) and 永昌 (29, `$03`) have `$02`

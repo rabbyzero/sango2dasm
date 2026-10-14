@@ -7,7 +7,7 @@
 ; rom/prg/prg_16.bin (read-only) - do not hand-edit the rendered records.
 ;
 ; Selected as $36 from two consumers:
-;   prg_1d_1e  @render_menu $BE6A: LDY #$36 / B1F_SwitchBank8_B, then
+;   prg_1d_1e_menu_screens  @render_menu $BE6A: LDY #$36 / B1F_SwitchBank8_B, then
 ;              B1F_CallbackDispatcher on $04A2 through @menu_dispatch_table
 ;              $BE75 (35 entries MenuAction00_InitialSetup ..
 ;              MenuAction22_Cleanup). Each load phase sets tile_ptr
@@ -20,11 +20,11 @@
 ;              a word stored as addr - $4000). DisplayTileData then sets
 ;              $000A = $2F (OAM Y base), $000C = $20 X base ($90 when $0150
 ;              bit 7 is set - right-panel render) and $0002 = 3 (attr EOR) and
-;              JMPs B1F_SpriteOamWriterSimple ($F1AD, prg_1f), which walks
+;              JMPs B1F_SpriteOamWriterSimple ($F1AD, prg_1f_boot), which walks
 ;              [y,tile,attr,x] quads (OAM Y $0200,X = y + $000A; X $0203,X =
 ;              x + $000C; attr EOR $0002; tile bias $0003 = 0) up to a leading
 ;              $80 terminator.
-;   prg_1f     State_EventMessageScene $E477: LDY #$36 / SwitchBank8_B, then
+;   prg_1f_boot     State_EventMessageScene $E477: LDY #$36 / SwitchBank8_B, then
 ;              B17_18_PpuCopyRaw copies 1 KB from $9B92 to PPU $2000.
 ;
 ; Regions:
@@ -38,7 +38,7 @@
 ; each table's first blob starts immediately after its last .word, each blob
 ; terminates on $80, and the last blob ends exactly at the screen. Entry
 ; counts are derived from that tiling and match the handler index bounds
-; wherever they are statically checkable in prg_1d_1e.asm (MenuAction02's
+; wherever they are statically checkable in prg_1d_1e_menu_screens.asm (MenuAction02's
 ; LDY #$01, MenuAction01's @MenuAction01_RowTable 1-4, MenuAction03/05's
 ; $04A1 = 1-2 + $04A4 = 3-4, MenuAction08's $04A4 = 3-5).
 ;
@@ -47,7 +47,7 @@
 ; is $90), tile $40-$FF, attr $00/$01/$28 (EOR'd with the caller's $02 = 3).
 ; Sprites are always 8x8: no writer ever sets PPUCTRL bit 5 ($008B is only
 ; ever $10, ORA #$80 / AND #$7F / scroll-bit updates). Tile decode pages:
-; the MenuActions run under State_StrategyMode (prg_1f $E27E), whose
+; the MenuActions run under State_StrategyMode (prg_1f_boot $E27E), whose
 ; DisplayInit A=$04 loads font record 4 (7C 7D 7D 04 ...), so sprite slots
 ; 0-3 = pages $7C/$7D/$7D/$04: tiles $40-$BF land on $7D (chr_0f @ $1400,
 ; the command-scene icon sheet - carts, structures, banners, cursors,
@@ -61,7 +61,7 @@
 .segment "CODE_BANK16"
 
 ; Bank-16 labels are scoped: the generated files of the other data banks must
-; stay free to reuse the generic MenuOam* vocabulary (cf. data_13.asm's
+; stay free to reuse the generic MenuOam* vocabulary (cf. data_13_menu_display.asm's
 ; Bank13MenuStreams scope).
 
 .proc Bank16MenuOamData
@@ -1025,7 +1025,7 @@ MenuOam_1A_5:
   .byte $40, $71, $00, $38, $40, $72, $00, $40, $48, $73, $00, $28, $48, $74, $00, $30 ; $9678: 40 71 00 38 40 72 00 40 48 73 00 28 48 74 00 30
   .byte $48, $75, $00, $38, $48, $76, $00, $40, $80                       ; $9688: 48 75 00 38 48 76 00 40 80  ; terminator $80
 
-; --- MenuAction1B_StrategyCommandDispatch: 6 x .word @ $9691, indexed via DisplayTileData
+; --- MenuAction1B_UnidentifiedCmd: 6 x .word @ $9691, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_1B:
   .word MenuOam_1B_0+$4000                                                ; $9691: 9D D6  ; entry 0 -> blob $969D, 4 records
@@ -1243,7 +1243,7 @@ MenuOam_21_1:
 .endproc
 
 ; --- $9B92-$9F91  EventMessageSceneScreen: 1 KB nametable image streamed
-;     to PPU $2000 by State_EventMessageScene (prg_1f $E477) via
+;     to PPU $2000 by State_EventMessageScene (prg_1f_boot $E477) via
 ;     B17_18_PpuCopyRaw: 960 tile bytes then 64 attribute bytes.
 ;     No decodable text: display mode 13 (DisplayInit $E474) loads font
 ;     record 13, whose slots map tiles to chr_00/$0400 and chr_14 window

@@ -39,8 +39,8 @@ def report_bank(mod, title, out):
 
 def main():
     out = []
-    report_bank(g12, 'BANK $12 (data_12.asm)', out)
-    report_bank(g13, 'BANK $13 (data_13.asm)', out)
+    report_bank(g12, 'BANK $12 (data_12_menu_display.asm)', out)
+    report_bank(g13, 'BANK $13 (data_13_menu_display.asm)', out)
     os.makedirs('build', exist_ok=True)
     with open('build/stream_text_report.txt', 'w', encoding='utf-8') as f:
         f.write('\n'.join(out))

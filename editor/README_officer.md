@@ -32,9 +32,10 @@ register `$30` → physical bank `$10`, `$31` → `$11`):
 | reinforcement pools | `$11` | `$8D74` | 4 pointers + `$FF`-terminated (id, year − 100) lists | `docs/officer_reinforcement.csv` |
 | kanji name plates | `$11` | `$8DB4` | 237 × 13 B | **read-only** — see "Renaming" |
 | card portraits | `$1A` `$CED6` + `$01` `$99A0`/`$9AA0`/`$9BAC` | — | 237 × 1 B page id + OAM blobs | **read-only** — see "Portraits" |
+| AI successor priority | `$0B` | `$CAD8` | 7 pointers + `$FF`-terminated officer-id lists | **read-only** — see "AI ruler successor priority" |
 
 The master record is the seed image of the officer's SRAM record at
-`id * 12 + $63C0`: `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e.asm`) copies
+`id * 12 + $63C0`: `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e_menu_screens.asm`) copies
 `$0B40` bytes = 240 slots (the last three are padding), and
 `B1F_GetOfficerRomRecordAddr` (`$F387`) also reads the ROM seed at runtime.
 
@@ -127,7 +128,7 @@ invariant report, `Save CSVs`, `Diff`, `save`.
 |   red = trips an invariant, gold = a ruler)   | SRAM   $6DF8   name $989E                 |
 |                                               | name   2B 37 1F 00 00 00 00 00 00 00     |
 |  237 rows, filtered by the toolbar            | 身分 Identity      名前 Name [リョフ     ] |
-|                                               | 肖像 Portrait      [normal][angry][sad][happy] |
+|                                               | 肖像 Portrait  [normal][angry][sad][happy] |
 |                                               | 能力 Stats (+00..+04) 体力 Vitality [ 99] |
 |                                               | 経歴 Career        レベル OfficerLevel [4]|
 |                                               | 装備 Equipment     武器 Weapon [21 方天画戟]|
@@ -137,7 +138,7 @@ invariant report, `Save CSVs`, `Diff`, `save`.
 |                                               |   出現 arrival [province ▾][year]         |
 |                                               |     [Set][Clear]                          |
 |                                               | 寿命 Life          死亡年 DeathYear [215] |
-|                                               | 漢字 name plate (read-only) $98C6 page $5F|
+|                                               | 漢字 name plate  [kanji][kanji] [Show text]|
 +-----------------------------------------------+-------------------------------------------+
 | Invariants (problems) and conventions (notes) | Output (commands, decoded edits)          |
 +-----------------------------------------------+-------------------------------------------+
@@ -145,7 +146,9 @@ status bar: rows shown | unsaved edits | problems | the selected officer's recor
 ```
 
 The detail pane is a scrollable column pinned to the canvas width, so the prose
-lines (the province roster, the plate note) re-wrap instead of being clipped.
+lines (the province roster) re-wrap instead of being clipped. The read-only
+portrait and name-plate views show only the graphics; their decode text opens
+in a popup window via the **Show text** button.
 
 Keys: `Ctrl+S` save the CSVs, `Ctrl+B` write ASM + verify, `Ctrl+Z` / `Ctrl+Y`
 undo / redo, `Ctrl+F` or `/` focus the filter, `Escape` clear it,
@@ -172,12 +175,12 @@ Placement is spread over three tables, so the editor owns all three and moves
 | `Clear` (arrival) | drops the pair; he stays hidden and unscheduled |
 
 The governor is not a flag: **whoever occupies roster slot `+$11` is the 太守**,
-and `CompactRecordSlots` (`$D3DD`, `asm/banks/prg_0a_0b.asm`) slides entries left,
+and `CompactRecordSlots` (`$D3DD`, `asm/banks/prg_0a_0b_strategy_ai.asm`) slides entries left,
 so removing a governor silently promotes the next officer. The roster line under
 the controls shows the whole province roster with a `*` on slot `+$11`.
 
 A rostered officer has no arrival entry (`OfficerArrivalScan` `$B964`,
-`prg_19_1a.asm`, only considers 状態 1), so `Assign` clears one and reports it in
+`prg_19_1a_event_scenes.asm`, only considers 状態 1), so `Assign` clears one and reports it in
 the change list. Setting 状態 directly is refused in the direction that would
 break the cross-bank gate — that is deliberate, not a missing feature.
 
@@ -188,12 +191,12 @@ Three independent mechanisms read 状態 1, and the editor surfaces all three:
 | Mechanism | Where | Who |
 |---|---|---|
 | Arrival schedule | bank `$31` `$8B1C` (this editor's 出現 columns) | 154 officers; once the year is reached, scouting the block's province finds them |
-| Preferred-country gate | `OfficerPreferredCountryTable` `$BA50` (prg_19_1a) | 16 strategists among those 154; when the scouting province's owner matches, they join on a 14/16 roll instead of 3/16 |
+| Preferred-country gate | `OfficerPreferredCountryTable` `$BA50` (prg_19_1a_event_scenes) | 16 strategists among those 154; when the scouting province's owner matches, they join on a 14/16 roll instead of 3/16 |
 | Reinforcement pools | bank `$31` `$8D74` (`docs/officer_reinforcement.csv`) | the 26 heirs with **no** arrival entry: each January `EventReinforceGate` (`$A33C`) picks Countries 2/3/4/6's (id, year) list and `OfficerReinforceScene` (`$AEC0`) inducts the first still-hidden officer whose year has arrived into the Country's home Province roster |
 
 The pools are as editable as every other table: `docs/officer_reinforcement.csv`
 (one row per heir in stored list order, `tools/extract_reinforcement_pools.py`
-writes it) is re-rendered into `data_11.asm` by `make databanks-csv`. The GUI's
+writes it) is re-rendered into `data_11_officer.asm` by `make databanks-csv`. The GUI's
 placement pane has a 継承 heir row (pool + join year, `Set` applies), the CLI has
 `reinforce ID YEAR`, and moving an heir between countries or re-ordering a pool
 is a CSV edit — the row order *is* the stored list order, which the pool scan
@@ -230,10 +233,10 @@ change, not a re-branding.
 Every officer carries a 武将カード card portrait, and the 肖像 Portrait group
 renders it with the game's own tiles. `prg_1a` `$CED6 + id`
 (`@OfficerPortraitChrPageTable`) holds the officer's **1KB CHR page id**;
-`OfficerCardRender` (`$CE1F`, `prg_19_1a`) draws a 14-sprite body plus a
+`OfficerCardRender` (`$CE1F`, `prg_19_1a_event_scenes`) draws a 14-sprite body plus a
 6-sprite face from the bank-`$01` tables — class base `$99A0` (values
 0/5/10/15), body pointers `$9AA0`, face pointers `$9BAC`, records
-`[y, tile, attr, x]` + `$80` — and the IRQ handler (`prg_1f` `$FD03`) latches
+`[y, tile, attr, x]` + `$80` — and the IRQ handler (`prg_1f_boot` `$FD03`) latches
 the page into the Namco-163 CHR registers, so the card's OAM tiles resolve
 inside that page (tile `& $3F`). Every card sprite in the blobs carries attr
 `$23`/`$63` — palette 3 either way — and the card scenes load palette record 0
@@ -245,7 +248,7 @@ gold `$27`); pixel 0 is transparent and the paper tone behind it is the
 viewer's, as with the plates.
 
 The pane shows **all four expressions side by side** — normal (strategy card),
-angry (duel pursuer, `prg_17_18` `$BAF7`), sad (war defeat, `prg_08_09`
+angry (duel pursuer, `prg_17_18_display` `$BAF7`), sad (war defeat, `prg_08_09_tactical_war`
 `$D691`), happy (war victory, `$D6BA`); offsets 0/1 are both the normal face.
 The talking frames (`$9D64`) only swap the mouth tile every 8 frames, so they
 are not shown.
@@ -256,6 +259,19 @@ authored block; the four reinforcement-only heirs sit outside it — 13 王双 a
 rendering: each pair shares the page but the class bases differ, so each
 officer's card is distinct). Everything here is read-only authored data: the
 page table and the OAM blobs have no CSV twin and no editing surface.
+
+## AI ruler successor priority
+
+When a country's ruler dies, `AppointSuccessor` (`$CA68`, bank `$0B`) walks
+that country's heir priority list — `HeirPriorityListPtrs` (`$CAD8`), 7 word
+pointers (Country 0-6) each to a `$FF`-terminated officer-id list — and the
+**first listed officer governing one of the country's provinces** (roster slot
+`$11`, the 太守) becomes the new ruler. If none qualifies, the fallback scans
+the country's governors for the highest 人徳 Virtue. The 配置 Placement group's
+**AI継承 Successor priority** line shows, for the selected officer, each list
+that contains him and his position; the **Show text** button opens all seven
+lists (also `officer_cli.py heirs`). This is read-only authored data — no CSV
+twin and no editing surface.
 
 ## How the data is linked
 
@@ -273,7 +289,7 @@ tools/officer_model.py   -- the codec: record/name/schedule/death/roster, invari
         v
 tools/gen_data_bank_asm.py --bank all --from-csv --write
         v
-asm/banks/data_10.asm, data_11.asm   (annotated .byte, one line per record)
+asm/banks/data_10_seed.asm, data_11_officer.asm   (annotated .byte, one line per record)
         |  ca65 + ld65 (per-bank harness)
         v
 tools/verify_data_banks.py   -- byte-exact gate + decoded edit report
@@ -288,7 +304,7 @@ strict run, which exits 1 until the edited assembly is committed.
 Repo commands doing the same thing as the buttons:
 
 ```sh
-make databanks-csv   # re-render data_10.asm + data_11.asm from the edited CSVs
+make databanks-csv   # re-render data_10_seed.asm + data_11_officer.asm from the edited CSVs
 make verifydata      # assemble both banks, prove byte-exactness (strict)
 make officer-diff    # list the seed edits still live vs the stock ROM
 make checkofficers   # prove the whole loop is lossless (incl. both editors)

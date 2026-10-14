@@ -438,7 +438,7 @@ $E461-$E467: Display updates
 $E467: JMP $E066      ; Return to dispatch
 ```
 
-**Analysis**: New-game setup (verified 2026-09; the old "advisor dialogue" reading of $A018 was wrong — $A018 is `SramInit`, which clears $6000-$6FFF and re-seeds the full new-game record area from ROM: province records from bank $10 $8C00, officer records from bank $11 $8000, year $59 (189) / month $00, AI counters reset, demo rotation index randomized). Entered from the title-menu new-game path (prg_0a_0b ClearOverlayExit $DBCE); the continue path exits earlier via ClearOverlayWait -> state 1. Advances to state 12 (IdleWait) where NmiState7_Strategy drives the menu screen. Sound $08. Bank switch config 2.
+**Analysis**: New-game setup (verified 2026-09; the old "advisor dialogue" reading of $A018 was wrong — $A018 is `SramInit`, which clears $6000-$6FFF and re-seeds the full new-game record area from ROM: province records from bank $10 $8C00, officer records from bank $11 $8000, year $59 (189) / month $00, AI counters reset, demo rotation index randomized). Entered from the title-menu new-game path (prg_0a_0b_strategy_ai ClearOverlayExit $DBCE); the continue path exits earlier via ClearOverlayWait -> state 1. Advances to state 12 (IdleWait) where NmiState7_CountrySelect drives the menu screen. Sound $08. Bank switch config 2.
 
 ---
 
