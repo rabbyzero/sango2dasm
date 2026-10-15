@@ -4,6 +4,39 @@
 ; Namco-163 Mapper 19
 ;
 ; Bank $1B at $A000-$BFFF, Bank $1C at $C000-$DFFF
+;
+; MODULE SUMMARY: Strategy Mode command menus and screen state machine
+;
+; This bank is the Strategy Mode (戦略モード) screen machine that runs under
+; NmiState2_StrategyMap. StrategyFrameUpdate ($A00C) refreshes the map layer
+; each VBlank and dispatches the frame state $0400 over the command menus:
+; category selection (1), castle (2), army (3), warehouse (4), town (5) and
+; intrigue (6), plus the dialog / roster / numeric-input helpers those menus
+; share. The map screen itself is a minority of the bank - 975 B (6%) of
+; camera, ruler-marker and province-sprite plumbing - against 12,632 B (77%)
+; of command-screen state machines and 2,709 B (17%) of menu support logic.
+;
+; Major functional areas:
+;   $A000-$A00B  Jump table (4 dispatch entries)
+;   $A00C-$A044  StrategyFrameUpdate + the $0400 frame-state dispatch table
+;   $A045-$A07C  Banked-call wrappers into $19/$1A and $1D/$1E (states 9-$0F)
+;   $A07D-$A18A  MapRulerIntro* - ruler intro / camera focus (states 0, 7, 8)
+;   $A18B-$A294  CommandCategoryMenu* - 城/軍隊/倉/町 category select (state 1)
+;   $A295-$ADF1  CastleCommand* - development, relocation, scouting (state 2)
+;   $ADF2-$B758  ArmyCommand* - sortie, conscription, reconnaissance,
+;                governor appointment, march (state 3)
+;   $B759-$BFB6  WarehouseCommand* - transport and gold/rice/treasure gifts
+;                with amount sliders (state 4)
+;   $BFB7-$CADC  TownCommand* - armory, academy, hospital, market (state 5);
+;                the bank $1B/$1C boundary falls inside this block
+;   $CADF-$D2D5  IntrigueCommand* - alliance, discord, poaching (state 6)
+;   $D2E3-$DDBF  Shared menu support: poach/discord odds, alliance state
+;                get/set, map cursor + transition save/restore, ConfirmDialogPoll,
+;                OfficerSelectDialogPoll, troop-pool distribution, ActionDeltaInputPoll
+;                numeric input, scout outcome roll, hospital/town-facility setup,
+;                record getters
+;   $DDF2-$DF61  Strategy map plumbing: MapCameraScroll, MapRulerMarkerDraw,
+;                MapProvinceHitTest, ProvinceZoneOriginGet, MapProvinceSpriteRefresh
 ;===============================================================================
 
 .include "6502_registers.h"
@@ -15,13 +48,14 @@
 
 ; --- Code Region ---
 ;===============================================================================
-; MapScreenFrameUpdate_Entry ($A000) - dispatch entry stub
-; Jump-table stub aliasing the map-screen frame update handler. Called from
-; NmiState2_StrategyMap (bank $1F, $F8EF) every VBlank of the map screen with
-; banks $1B+$1C mapped in (Y=$3B). Shares its handler with entry $A00C.
+; StrategyFrameUpdate_Entry ($A000) - dispatch entry stub
+; Jump-table stub aliasing the Strategy Mode frame update handler. Called from
+; NmiState2_StrategyMap (bank $1F, $F8EF) every VBlank of Strategy Mode - the
+; map screen and the command menus opened over it - with banks $1B+$1C mapped
+; in (Y=$3B). Shares its handler with entry $A00C.
 ;===============================================================================
-MapScreenFrameUpdate_Entry:  ; (dispatch callback target)
-  JMP MapScreenFrameUpdate                ; $A000: 4C 0C A0
+StrategyFrameUpdate_Entry:  ; (dispatch callback target)
+  JMP StrategyFrameUpdate                 ; $A000: 4C 0C A0
 ActionDeltaInputPoll_Entry:  ; (dispatch callback target)
   JMP ActionDeltaInputPoll                ; $A003: 4C 02 DA
 OfficerSelectDialogPoll_Entry:  ; (dispatch callback target)
@@ -29,8 +63,8 @@ OfficerSelectDialogPoll_Entry:  ; (dispatch callback target)
 ProvinceZoneOriginGet_Entry:  ; (dispatch callback target; bank $1B $A009 -> ProvinceZoneOriginGet)
   JMP ProvinceZoneOriginGet               ; $A009: 4C 25 DF
 ;===============================================================================
-; MapScreenFrameUpdate ($A00C-$A044)
-; Per-frame map-screen update for banks $1B+$1C, invoked by NmiState2_StrategyMap
+; StrategyFrameUpdate ($A00C-$A044)
+; Per-frame Strategy Mode update for banks $1B+$1C, invoked by NmiState2_StrategyMap
 ; via the $A000 stub (and directly as dispatch entry $A00C):
 ;   1. MapRulerMarkerDraw ($DE83) - place ruler marker sprites at the camera
 ;      position ($6F3F=X, $6F41=Y), skipped during screen transitions ($008F)
@@ -40,30 +74,32 @@ ProvinceZoneOriginGet_Entry:  ; (dispatch callback target; bank $1B $A009 -> Pro
 ;   3. Banked callback to banks $19+$1A entry $A02A (JMP MapProvinceDirtyMark): marks pending
 ;      province $0402 in dirty bitmap $04E0-$04E3 for the next frame.
 ;   4. When palette/frame flag $0087 bit7 is set (animation phase tick from
-;      B1F_PaletteAnimation), dispatch the frame-state handler by $0400.
+;      B1F_PaletteAnimation), dispatch the scene handler over the frame-state
+;      table below: states 0-8 are the map camera and the six command menus,
+;      states 9-$0F bank out to $19/$1A and $1D/$1E.
 ;===============================================================================
-.proc MapScreenFrameUpdate  ; (dispatch callback target)
+.proc StrategyFrameUpdate  ; (dispatch callback target)
   JSR MapRulerMarkerDraw                  ; $A00C: 20 83 DE
   JSR MapProvinceSpriteRefresh            ; $A00F: 20 35 DF
   LDY #$39                                ; $A012: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline        ; $A014: 20 07 EE
   .word B19_1A_MapProvinceDirtyMark       ; $A017: 2A A0 (BankedCallbackTrampoline target; bank $19 $A02A -> JMP MapProvinceDirtyMark)
   LDA a:$0087                             ; $A019: AD 87 00  ; palette/frame flag
-  BMI MapScreenFrameStateDispatch         ; $A01C: 30 01     ; bit7 set: animation tick -> run state machine
+  BMI StrategyFrameStateDispatch          ; $A01C: 30 01     ; bit7 set: animation tick -> run state machine
   RTS                                     ; $A01E: 60        ; frame flag idle: nothing more this VBlank
-MapScreenFrameStateDispatch:
-  LDA $0400                               ; $A01F: AD 00 04  ; map screen frame state
+StrategyFrameStateDispatch:
+  LDA $0400                               ; $A01F: AD 00 04  ; strategy mode frame state
   JSR B1F_CallbackDispatcher              ; $A022: 20 DE EA
-MapScreenFrameStateTable:
-  .word MapRulerIntroDispatch             ; $A025: 7D A0 ; state 0: sub-state dispatch by $0401
+StrategyFrameStateTable:
+  .word MapRulerIntroDispatch             ; $A025: 7D A0 ; state 0: map camera + ruler intro (sub-dispatch by $0401)
   .word CommandCategoryMenuDispatch       ; $A027: 8B A1 ; state 1: command category menu (sub-dispatch by $0401)
   .word CastleCommandDispatch             ; $A029: 95 A2 ; state 2: castle command screen
   .word ArmyCommandDispatch               ; $A02B: F2 AD ; state 3: army command screen (sub-dispatch by $0401)
   .word WarehouseCommandDispatch          ; $A02D: 59 B7 ; state 4: warehouse command screen
   .word TownCommandDispatch               ; $A02F: B7 BF ; state 5: town command screen (sub-dispatch by $0401)
   .word IntrigueCommandDispatch           ; $A031: DF CA ; state 6: intrigue command screen (sub-dispatch by $0401)
-  .word MapRulerIntroDispatch             ; $A033: 7D A0 ; state 7: sub-state dispatch by $0401
-  .word MapRulerIntroDispatch             ; $A035: 7D A0 ; state 8: sub-state dispatch by $0401
+  .word MapRulerIntroDispatch             ; $A033: 7D A0 ; state 7: map camera + ruler intro (same handler as state 0)
+  .word MapRulerIntroDispatch             ; $A035: 7D A0 ; state 8: map camera + ruler intro (same handler as state 0)
   .word CallStrategyRequestDispatch       ; $A037: 55 A0 ; state 9: banked call, B19_1A_StrategyRequestDispatch
   .word CallMonthlyEventDispatch             ; $A039: 5D A0 ; state $0A: banked call, B19_1A_MonthlyEventDispatch
   .word CallCountryRotationDispatch           ; $A03B: 45 A0 ; state $0B: banked call, B19_1A_CountryRotationDispatch
@@ -364,7 +400,7 @@ MapRulerIntroWaitExit:
 ; CommandCategoryMenuDispatch ($A18B-$A294) - dispatch callback target (state 1)
 ; Strategy command category selection menu (manual pp.14-15 categories:
 ; 城 castle / 軍隊 army / 倉 warehouse / 町 town, the bottom-bar icons).
-; Dispatched from MapScreenFrameStateTable with $0400 = 1; sub-dispatches on
+; Dispatched from StrategyFrameStateTable with $0400 = 1; sub-dispatches on
 ; $0401 through the inline 2-entry table below:
 ;   sub 0 CommandCategoryMenuScreenInit ($A195): gate on the screen-transition
 ;     busy flag $0140 and the overlay slot sentinel $0304 ($FF = idle), then
@@ -840,7 +876,7 @@ CastleDevAnimWaitStep:
   INC $0401                               ; $A4BA: EE 01 04  ; -> sub 5 (confirm gate)
   LDA $0470                               ; $A4BD: AD 70 04  ; castle command id
   CMP #$03                                ; $A4C0: C9 03
-  BEQ CastleDevAmountRoll                 ; $A4C2: F0 0D     ; command 3: random amount path
+  BEQ CastleDevAmountRoll                 ; $A4C2: F0 0D     ; 防災: rolls its own gold cost
   LDY #$39                                ; $A4C4: A0 39     ; target banks $19+$1A
   JSR B1F_BankedCallbackTrampoline                               ; $A4C6: 20 07 EE  ; B1F_BankedCallbackTrampoline
   .word B19_1A_CastleDevResultRoll        ; $A4C9: 24 A0 (BankedCallbackTrampoline target; bank $19 $A024 -> JMP CastleDevResultRoll)
@@ -849,24 +885,24 @@ CastleDevAnimWaitStep:
 CastleDevAmountRoll:
 ; --- Code Region ---
   JSR B1F_RandomMod4                               ; $A4D1: 20 50 E8
-  STA $0472                               ; $A4D4: 8D 72 04
-  LDA $0482                               ; $A4D7: AD 82 04
+  STA $0472                               ; $A4D4: 8D 72 04  ; 防災 random 0-3
+  LDA $0482                               ; $A4D7: AD 82 04  ; Officer Intelligence
   CMP #$51                                ; $A4DA: C9 51
   BCC @RollTierMid                        ; $A4DC: 90 05
-  LDA #$10                                ; $A4DE: A9 10
+  LDA #$10                                ; $A4DE: A9 10     ; fee base 16
   JMP @ApplyRollTier                      ; $A4E0: 4C EE A4
 @RollTierMid:
   CMP #$33                                ; $A4E3: C9 33
   BCC @RollTierLow                        ; $A4E5: 90 05
-  LDA #$0D                                ; $A4E7: A9 0D
+  LDA #$0D                                ; $A4E7: A9 0D     ; fee base 13
   JMP @ApplyRollTier                      ; $A4E9: 4C EE A4
 @RollTierLow:
-  LDA #$0A                                ; $A4EC: A9 0A
+  LDA #$0A                                ; $A4EC: A9 0A     ; fee base 10
 @ApplyRollTier:
   CLC                                     ; $A4EE: 18
   ADC $0472                               ; $A4EF: 6D 72 04
-  STA $0472                               ; $A4F2: 8D 72 04
-  STA $042C                               ; $A4F5: 8D 2C 04
+  STA $0472                               ; $A4F2: 8D 72 04  ; gold cost 10-19
+  STA $042C                               ; $A4F5: 8D 2C 04  ; fee as msg $4F ⟨数⟩
   LDA #$00                                ; $A4F8: A9 00
   STA $042D                               ; $A4FA: 8D 2D 04
   STA $042E                               ; $A4FD: 8D 2E 04
@@ -905,7 +941,7 @@ CastleDevAmountCheck:
   JSR B1F_GetProvinceRecordAddr                               ; $A540: 20 AF F2
   LDY #$02                                ; $A543: A0 02
   LDA ($00),Y                             ; $A545: B1 00
-  CMP $0472                               ; $A547: CD 72 04
+  CMP $0472                               ; $A547: CD 72 04  ; gold vs dev cost
   BCS @AmountOkShowList                   ; $A54A: B0 05
   INY                                     ; $A54C: C8
   LDA ($00),Y                             ; $A54D: B1 00
@@ -940,7 +976,7 @@ CastleDevExecute:  ; (dispatch callback target)
   LDA #$00                                ; $A582: A9 00
   STA a:$0001                             ; $A584: 8D 01 00
   STA a:$0002                             ; $A587: 8D 02 00
-  LDA $0472                               ; $A58A: AD 72 04
+  LDA $0472                               ; $A58A: AD 72 04  ; dev gold cost (multiplicand)
   STA a:$0000                             ; $A58D: 8D 00 00
   LDA $0482                               ; $A590: AD 82 04
   STA a:$0003                             ; $A593: 8D 03 00
@@ -984,7 +1020,7 @@ CastleDevExecute:  ; (dispatch callback target)
   LDY #$02                                ; $A5ED: A0 02
   LDA ($00),Y                             ; $A5EF: B1 00
   SEC                                     ; $A5F1: 38
-  SBC $0472                               ; $A5F2: ED 72 04
+  SBC $0472                               ; $A5F2: ED 72 04  ; pay dev gold cost
   STA ($00),Y                             ; $A5F5: 91 00
   INY                                     ; $A5F7: C8
   LDA ($00),Y                             ; $A5F8: B1 00
@@ -1991,7 +2027,7 @@ CastleMoveSourceCompact:
 ; 偵察 Reconnaissance, 徴兵 Conscription, 任命 GovernorAppointment; the menu
 ; item order 0=Sortie, 1=Conscription, 2=Reconnaissance, 3=Appointment follows
 ; the selection routing in ArmyCommandMenuInput). Dispatched from
-; MapScreenFrameStateTable with $0400 = 3; sub-dispatches on $0401 through the
+; StrategyFrameStateTable with $0400 = 3; sub-dispatches on $0401 through the
 ; inline 25-entry table below:
 ;    0  ArmyMenuScreenInit         gate $0140/$0304, cursor reset, UI mode $60
 ;    1  ArmyCommandMenuInput       4-item command menu; routes by selection

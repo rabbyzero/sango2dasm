@@ -88,7 +88,7 @@ DEATH_YEAR_OFFSET = 100                              # byte = death year - 100
 #     docs/equipment_catalog.csv): the armory / warehouse grid indexes it by
 #     equipment id, and the name-plate renderer reuses it by strip id (0-31).
 #     Readers: State6_RenderArmoryItems prg_08_09_tactical_war $C565, TownCommandDispatch
-#     prg_1b_1c_map_screen $C840 (index = equipment id), NamePlateStripSetup prg_19_1a_event_scenes
+#     prg_1b_1c_strategy_mode $C840 (index = equipment id), NamePlateStripSetup prg_19_1a_event_scenes
 #     $B7C8 (index = strip id * 2).
 #   $9B52 EquipmentNamePatterns - the 32 pointer targets, each 17 bytes ($11
 #     grid): byte0 = the NAMCO-163 CHR code page the record's tile bytes
@@ -541,7 +541,7 @@ def emit_province_trade(out, data, rows):
     out.append(';       province (the game always reads the two rates at consecutive')
     out.append(';       addresses, so they are stored as bytes rather than words):')
     out.append(';       +0 = rate used by the market BUY RICE leg (gold = rice*100/rate,')
-    out.append(';           @RiceBuySeed prg_1b_1c_map_screen $C254; the pair is also the action')
+    out.append(';           @RiceBuySeed prg_1b_1c_strategy_mode $C254; the pair is also the action')
     out.append(';           parameter record of the war-layer buy/sell panel, State 0')
     out.append(';           prg_08_09_tactical_war $C129 dereferences ($02) = id*2 + $%04X),' % TRADE_CPU)
     out.append(';       +1 = rice per 100 gold for the SELL legs (SellSurplusRice')
@@ -551,7 +551,7 @@ def emit_province_trade(out, data, rows):
     out.append(';   $%04X-$%04X  ProvinceFacilityFlags: one flag byte per province' % (flag_cpu, flag_cpu + TRADE_FLAG_BYTES - 1))
     out.append(';       (initial-value seed) - province facility flags behind the town')
     out.append(';       commands. The town screen menu layout comes from a separate table')
-    out.append(';       pair (@TownFacilitySetTable/@FacilityActionCodeTable prg_1b_1c_map_screen')
+    out.append(';       pair (@TownFacilitySetTable/@FacilityActionCodeTable prg_1b_1c_strategy_mode')
     out.append(';       $C025/$C10E, action codes 0=兵器工房 armory, 1=学校 academy,')
     out.append(';       2=医院 hospital, 3=町 market); these bits gate the individual')
     out.append(';       commands, so they are not a bijection onto those 4 codes.')
@@ -1182,7 +1182,7 @@ def emit_defense_side_types(out, data, provinces):
     out.append('; so the type is read whenever side 0 deploys, human or AI. Its')
     out.append('; launcher State_WarSceneLaunch prg_1f_boot $E18B dispatches only on')
     out.append('; war_scene_id $0500 ($0B officer-fate vs battle deployment), and the')
-    out.append('; arming sites include the player-driven WarSceneLaunch prg_1b_1c_map_screen $B5DC')
+    out.append('; arming sites include the player-driven WarSceneLaunch prg_1b_1c_strategy_mode $B5DC')
     out.append('; (frame sub-state 21, controller polled at $0081) plus')
     out.append('; ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA42. The GetCityOfficerData readers')
     out.append('; are player UI in the army-deploy scene ArmyDeployDispatch prg_0c_0d_tactical_commands')
@@ -1361,7 +1361,7 @@ def emit_pattern_ptrs(out, data, equip):
     out.append('; is exactly the EquipName_NN record in the EquipmentNamePatterns')
     out.append('; block below. The armory / warehouse grid indexes this by equipment')
     out.append('; id (State6_RenderArmoryItems prg_08_09_tactical_war $C565, TownCommandDispatch')
-    out.append('; prg_1b_1c_map_screen $C840); the name-plate renderer reuses it by strip id')
+    out.append('; prg_1b_1c_strategy_mode $C840); the name-plate renderer reuses it by strip id')
     out.append('; (NamePlateStripSetup prg_19_1a_event_scenes $B7C8). All switch bank $30 first.')
     out.append('; ' + '=' * 78)
     out.append('EquipmentNamePtrTable:')
@@ -1462,7 +1462,7 @@ def emit_province_adjacency(out, data, provinces):
     out.append(';   prg_08_09_tactical_war  AiTurnProcess $B01D, WarSetup $B2BA, SetupPostWarState $BBEB')
     out.append(';   prg_0c_0d_tactical_commands  ProvinceSelect_InitList $BBBB, TacticalMapScene $DEAA')
     out.append(';   prg_19_1a_event_scenes  OfficerArrivalScan $B9F8')
-    out.append(';   prg_1b_1c_map_screen  ProvinceAdjacencyValidate $DD8A')
+    out.append(';   prg_1b_1c_strategy_mode  ProvinceAdjacencyValidate $DD8A')
     out.append('; ' + '=' * 78)
     out.append('ProvinceAdjacencyTable:')
     out.append('')
@@ -1607,7 +1607,7 @@ SCREEN_SPECS = [
         'Role: Tactical Mode (war scene) terrain. Display record 1 is armed by the',
         '  game-state-3 proc State_WarSceneLaunch ($E193) - "war" is this project\'s',
         '  name for the tactical layer - and game state 3 is stored by',
-        '  WarSceneLaunch $B5E3 (prg_1b_1c_map_screen), Spoils_ExitFade $C356 (prg_17_18_display),',
+        '  WarSceneLaunch $B5E3 (prg_1b_1c_strategy_mode), Spoils_ExitFade $C356 (prg_17_18_display),',
         '  ArmyDeploySceneTrigger $CA4C (prg_19_1a_event_scenes) and BattleResultFlashTrigger',
         '  $A403 (prg_0e_0f_battle).',
         'Loader: prg_1d_1e_menu_screens SceneRenderer ($BC71) callback 1 ScenePageCopy ($BC9B) -',
@@ -1620,7 +1620,7 @@ SCREEN_SPECS = [
         'Callers: NmiState2_StrategyMap $F8EF (LDY #$3B = banks $1B+$1C, JSR $A000;',
         '  the label there used to read B19_1A_OverlayStripRender_Entry, which is',
         '  wrong for that bank pair - see code/bank_switch_map.md) ->',
-        '  MapScreenFrameUpdate ($A00C) -> frame state $0E = CallSceneRenderer',
+        '  StrategyFrameUpdate ($A00C) -> frame state $0E = CallSceneRenderer',
         '  ($A06D) -> B1D_1E_SceneRenderer ($A039). Frame state $0400 = $0E is',
         '  written by exactly one site in the ROM: MapRulerIntroCancelCheck $A172',
         '  (Select during the ruler intro / camera focus phase).',

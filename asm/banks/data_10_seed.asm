@@ -183,7 +183,7 @@ DuelBaseScreenAttr:
 ;   Role: Tactical Mode (war scene) terrain. Display record 1 is armed by the
 ;     game-state-3 proc State_WarSceneLaunch ($E193) - "war" is this project's
 ;     name for the tactical layer - and game state 3 is stored by
-;     WarSceneLaunch $B5E3 (prg_1b_1c_map_screen), Spoils_ExitFade $C356 (prg_17_18_display),
+;     WarSceneLaunch $B5E3 (prg_1b_1c_strategy_mode), Spoils_ExitFade $C356 (prg_17_18_display),
 ;     ArmyDeploySceneTrigger $CA4C (prg_19_1a_event_scenes) and BattleResultFlashTrigger
 ;     $A403 (prg_0e_0f_battle).
 ;   Loader: prg_1d_1e_menu_screens SceneRenderer ($BC71) callback 1 ScenePageCopy ($BC9B) -
@@ -196,7 +196,7 @@ DuelBaseScreenAttr:
 ;   Callers: NmiState2_StrategyMap $F8EF (LDY #$3B = banks $1B+$1C, JSR $A000;
 ;     the label there used to read B19_1A_OverlayStripRender_Entry, which is
 ;     wrong for that bank pair - see code/bank_switch_map.md) ->
-;     MapScreenFrameUpdate ($A00C) -> frame state $0E = CallSceneRenderer
+;     StrategyFrameUpdate ($A00C) -> frame state $0E = CallSceneRenderer
 ;     ($A06D) -> B1D_1E_SceneRenderer ($A039). Frame state $0400 = $0E is
 ;     written by exactly one site in the ROM: MapRulerIntroCancelCheck $A172
 ;     (Select during the ruler intro / camera focus phase).
@@ -480,18 +480,20 @@ ProvinceRecord_EISHOU:
 ;   $8FC0-$8FFB  ProvinceRiceTradeRateTable: 2 rate bytes per
 ;       province (the game always reads the two rates at consecutive
 ;       addresses, so they are stored as bytes rather than words):
-;       +0 = rate used by the market BUY RICE leg (gold = rice*100/rate,
-;           @RiceBuySeed prg_1b_1c_map_screen $C254; the pair is also the action
-;           parameter record of the war-layer buy/sell panel, State 0
-;           prg_08_09_tactical_war $C129 dereferences ($02) = id*2 + $8FC0),
-;       +1 = rice per 100 gold for the SELL legs (SellSurplusRice
-;           prg_0a_0b_strategy_ai $CC9E, Action_BuyRice rice cost prg_08_09_tactical_war $A457).
+;       +0 = the SELL rate: SellSurplusRice prg_0a_0b_strategy_ai $CC9E loads it
+;           with ASL/TAY and no INY, then computes gold = rice * rate / 100,
+;       +1 = the BUY rate: @RiceBuySeed prg_1b_1c_strategy_mode $C254 loads it with
+;           LDY #$01 and computes gold = ceil(rice * rate / 100); Action_BuyRice's
+;           rice cost prg_08_09_tactical_war $A457 uses the same +1 byte.
+;       The pair is also the action parameter record of the war-layer buy/sell
+;       panel: State 0 prg_08_09_tactical_war $C129 dereferences ($02) = id*2 +
+;       $8FC0 with Y = 0/1 selecting the leg.
 ;       Provinces with no 町 rice trade hold $00, $00; every (+0, +1)
 ;       pair matches the sell/buy rate columns of docs/rice_prices.csv.
 ;   $8FFC-$9019  ProvinceFacilityFlags: one flag byte per province
 ;       (initial-value seed) - province facility flags behind the town
 ;       commands. The town screen menu layout comes from a separate table
-;       pair (@TownFacilitySetTable/@FacilityActionCodeTable prg_1b_1c_map_screen
+;       pair (@TownFacilitySetTable/@FacilityActionCodeTable prg_1b_1c_strategy_mode
 ;       $C025/$C10E, action codes 0=兵器工房 armory, 1=学校 academy,
 ;       2=医院 hospital, 3=町 market); these bits gate the individual
 ;       commands, so they are not a bijection onto those 4 codes.
@@ -864,7 +866,7 @@ ProvinceName_WITHDRAW:
 ; is exactly the EquipName_NN record in the EquipmentNamePatterns
 ; block below. The armory / warehouse grid indexes this by equipment
 ; id (State6_RenderArmoryItems prg_08_09_tactical_war $C565, TownCommandDispatch
-; prg_1b_1c_map_screen $C840); the name-plate renderer reuses it by strip id
+; prg_1b_1c_strategy_mode $C840); the name-plate renderer reuses it by strip id
 ; (NamePlateStripSetup prg_19_1a_event_scenes $B7C8). All switch bank $30 first.
 ; ==============================================================================
 EquipmentNamePtrTable:
@@ -1040,7 +1042,7 @@ EquipName_31: .byte $55                                      ; $9D61 竜鱗の�
 ;   prg_08_09_tactical_war  AiTurnProcess $B01D, WarSetup $B2BA, SetupPostWarState $BBEB
 ;   prg_0c_0d_tactical_commands  ProvinceSelect_InitList $BBBB, TacticalMapScene $DEAA
 ;   prg_19_1a_event_scenes  OfficerArrivalScan $B9F8
-;   prg_1b_1c_map_screen  ProvinceAdjacencyValidate $DD8A
+;   prg_1b_1c_strategy_mode  ProvinceAdjacencyValidate $DD8A
 ; ==============================================================================
 ProvinceAdjacencyTable:
 

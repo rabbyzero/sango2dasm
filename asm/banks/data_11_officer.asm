@@ -838,7 +838,7 @@ ZeroFiller11_99BD_9AB3:
 ; so the type is read whenever side 0 deploys, human or AI. Its
 ; launcher State_WarSceneLaunch prg_1f_boot $E18B dispatches only on
 ; war_scene_id $0500 ($0B officer-fate vs battle deployment), and the
-; arming sites include the player-driven WarSceneLaunch prg_1b_1c_map_screen $B5DC
+; arming sites include the player-driven WarSceneLaunch prg_1b_1c_strategy_mode $B5DC
 ; (frame sub-state 21, controller polled at $0081) plus
 ; ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA42. The GetCityOfficerData readers
 ; are player UI in the army-deploy scene ArmyDeploy prg_0c_0d_tactical_commands

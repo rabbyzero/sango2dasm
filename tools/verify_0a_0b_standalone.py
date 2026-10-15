@@ -9,7 +9,4 @@ from _bank_verify_lib import main
 
 main("0a", "0b",
      stub_strategy="retry",
-     stub_header="; RAM globals owned by other bank files\n",
-     external_ram=[
-         "sram_game_start_flag = $6F8B\n",
-     ])
+     stub_header="; RAM globals owned by other bank files\n")

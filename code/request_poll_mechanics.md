@@ -9,9 +9,9 @@ the ROM bytes (`tools/verify_19_1a.py`, `tools/verify_0a_0b`-style byte scans).
 ## 1. Where it runs, and how often
 
 ```
-NMI -> NmiState2_StrategyMap -> MapScreenFrameUpdate ($A00C, prg_1b_1c_map_screen)
+NMI -> NmiState2_StrategyMap -> StrategyFrameUpdate ($A00C, prg_1b_1c_strategy_mode)
       -> BIT-test on $0087 (palette animation direction)   ; BMI = bit7 set
-      -> MapScreenFrameStateDispatch ($A01F, table by $0400)
+      -> StrategyFrameStateDispatch ($A01F, table by $0400)
       -> state 9 = CallStrategyRequestDispatch ($A055)
       -> LDY #$39 / JSR B1F_BankedCallbackTrampoline / .word B19_1A_StrategyRequestDispatch
       -> bank $19 $A006 -> JMP $C773 StrategyRequestDispatch
@@ -20,7 +20,7 @@ NMI -> NmiState2_StrategyMap -> MapScreenFrameUpdate ($A00C, prg_1b_1c_map_scree
 Cadence, precisely:
 
 - The handler runs **at most once per frame**, and only while the palette
-  animation is parked: `MapScreenFrameUpdate` branches to the state machine only
+  animation is parked: `StrategyFrameUpdate` branches to the state machine only
   when `$0087` has bit 7 set. `PaletteFadeInit` writes `$0087 = $00` and
   `PaletteCopyBuffer` writes `$0087 = $01` (animation running), and
   `PaletteAnimation` marks completion with `$0087 = $FF`. So a window
@@ -152,8 +152,9 @@ register* of the whole frame state.
 
 ## 5. Mailbox `$6F8B` protocol (both sides)
 
-`$6F8B` is the strategy-layer request mailbox (see also
-`memory/project_tech_stack/strategy-layer-request-mailbox-protocol.md`). Requester
+`$6F8B` is the strategy-layer request mailbox (equates: `sram_request_mailbox`,
+renamed 2026-10-15 from the misnomer `sram_game_start_flag`; the requester
+headers are `prg_0a_0b_strategy_ai.asm` `$A00F` and the tables below). Requester
 side, with the verified wait loops:
 
 | Code | Requester | Waits for | Released by |
@@ -198,7 +199,7 @@ Consequences worth remembering:
 
 ## 7. Findings and corrections from this pass
 
-- **`PoachRosterTransfer` was mislabelled** (`prg_1b_1c_map_screen.asm` $D46A-$D46F): the
+- **`PoachRosterTransfer` was mislabelled** (`prg_1b_1c_strategy_mode.asm` $D46A-$D46F): the
   site loads `Y = $2A`, which selects banks `$0A+$0B`, so its inline word `$A006`
   is **bank $0A's `ArmyValueCalc_Entry`** ($CF3F), not the identically valued
   bank-$19 `StrategyRequestDispatch` entry. The call recomputes the poached

@@ -6,7 +6,7 @@ trade rates. Writes CSV files to docs/.
 All data is read from the ROM image; every table is code-referenced:
 
 Town screen (strategy mode frame state 5, TownCommandDispatch $BFB7,
-asm/banks/prg_1b_1c_map_screen.asm):
+asm/banks/prg_1b_1c_strategy_mode.asm):
 
 * Province -> town type (0-9): bank $1C $C025, 30 bytes, indexed by
   province id (`LDY $0402 / LDA $C025,Y`), also selecting the town-screen
@@ -40,7 +40,7 @@ Armory stock (subs 19-21 of the town dispatch, $C76E-$C9EF):
   2026-09-30). They are obtainable in-game - duel loot from appointed
   rulers, or battle-time / gated armory stock (22 狼牙鎗 武90+, 30
   聖者の衣 徳90+, 15 関王刀 only in 建業, 23 蛇矛 only as 涪陵's 4th
-  grid cell via the prg_1b_1c_map_screen $C7B3 special case); 5/6/7/14 carry no
+  grid cell via the prg_1b_1c_strategy_mode $C7B3 special case); 5/6/7/14 carry no
   price entry at all.
 
 * Item -> attack/defense value (equipment_catalog.csv): the equipment

@@ -22,7 +22,7 @@ EXTERNAL_RAM = [
     "menu_cursor_col = $0424\n",
     "menu_cursor_page = $0425\n",
     "army_slot_base = $04D8\n",
-    "sram_game_start_flag = $6F8B\n",
+    "sram_request_mailbox = $6F8B\n",
 ]
 
 def build_region(extra_equates):

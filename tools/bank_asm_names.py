@@ -31,7 +31,7 @@ PRG_PAIR_ASM = {
     '0e_0f': 'prg_0e_0f_battle.asm',
     '17_18': 'prg_17_18_display.asm',
     '19_1a': 'prg_19_1a_event_scenes.asm',
-    '1b_1c': 'prg_1b_1c_map_screen.asm',
+    '1b_1c': 'prg_1b_1c_strategy_mode.asm',
     '1d_1e': 'prg_1d_1e_menu_screens.asm',
     '1f': 'prg_1f_boot.asm',
 }

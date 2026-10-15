@@ -142,7 +142,7 @@ PORTRAIT_FACE_PTR_CPU = 0x9BAC
 PORTRAIT_SPRITE_REC = 4                # [y, tile, attr, x]
 PORTRAIT_SPRITE_END = 0x80
 PORTRAIT_EXPRESSIONS = ((0, 'normal'), (2, 'angry'), (3, 'sad'), (4, 'happy'))
-# Sprite palettes of palette record 0 (LoadScenarioData $DBB1 -> bank $1E
+# Sprite palettes of palette record 0 (PaletteRecordLoad $DBB1 -> bank $1E
 # $DBEB, copied to the $0100 buffer and uploaded at $3F00 by PaletteUpload
 # $E70E, so bytes 16-31 are the four sprite palettes at $3F10-$3F1F). The
 # card scenes load record 0 before drawing (ProvinceOfficerRosterDispatch
@@ -177,7 +177,7 @@ PLATE_TILE_BYTES = 16
 PLATE_CHUNK_BYTES = 0x400
 PLATE_TILES_PER_SIDE = 2
 # OAM attribute $01 (ruler_card_decode.md section 4) = sprite palette 1, and
-# the strategy layer runs palette record 0 (LoadScenarioData, see
+# the strategy layer runs palette record 0 (PaletteRecordLoad, see
 # code/initial_data_tables.md - validated by the title-screen control render):
 # $3F14-$3F17 = $0F $0F $2B $28, and no other code writes the palette buffer.
 NAME_SPRITE_PALETTE = (0x0F, 0x0F, 0x2B, 0x28)

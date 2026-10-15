@@ -6,14 +6,14 @@ RAM (`$0000-$07FF`) and the battery-backed PRG-RAM window (`$6000-$7FFF`) of
 
 Sources: the analyzed bank files `asm/banks/prg_08_09_tactical_war.asm`, `prg_0a_0b_strategy_ai.asm`,
 `prg_0c_0d_tactical_commands.asm`, `prg_0e_0f_battle.asm`, `prg_17_18_display.asm`, `prg_19_1a_event_scenes.asm`,
-`prg_1b_1c_map_screen.asm`, `prg_1d_1e_menu_screens.asm`, `prg_1f_boot.asm` (banks `$00-$07` and `$10-$16`
+`prg_1b_1c_strategy_mode.asm`, `prg_1d_1e_menu_screens.asm`, `prg_1f_boot.asm` (banks `$00-$07` and `$10-$16`
 are still unanalyzed stubs), plus the curated notes under `memory/`
 (`officer-12-byte-record-field-layout`, `ruler-country-province-domain-model`,
 `strategy-layer-request-mailbox-protocol`, `frame-state-9-handler-and-6f8b-mailbox`,
 `battle-bank-ram-semantic-map-prg_08_09_tactical_war`, `scope-rule-for-04xx-ram-variables`).
 Equate inventories were extracted with `tools/extract_ram_equates.py` (full
 dump: `code/ram_equates_full.txt`); raw address usage of the two
-comment-documented banks (`prg_19_1a_event_scenes`, `prg_1b_1c_map_screen`) was scanned with
+comment-documented banks (`prg_19_1a_event_scenes`, `prg_1b_1c_strategy_mode`) was scanned with
 `tools/scan_raw_ram_refs.py`.
 
 Naming follows the project conventions: shared kernel cells use `addr_*`,
@@ -95,7 +95,7 @@ Writes to `$6000-$7FFF` are gated by the Namco-163 write-protect register at
 | `$007A`        | `addr_game_state`                 | Game state counter (0-14), indexes the state VectorTable |
 | `$007B`        | NMI busy / re-entry flag          | Set while the NMI handler is running; temp saved around OAM DMA (`prg_1f_boot`) |
 | `$007C`        | `addr_sprite_count`               | Current OAM slot write cursor (`btl_oam_slot_cursor` during battle) |
-| `$007D`        | `addr_nmi_flag`                   | NMI update pending flag |
+| `$007D`        | `addr_pal_upload_arm`                   | Palette-upload armed latch: `PaletteAnimation`/`PaletteFadeInit`/`StrategyMenu_Return` arm it, `NmiSubDispatch $EE53` tests it first, `PaletteUpload $E70E` streams `$0100-$011F` to PPU `$3F00` and clears it at `$E71B`. Not an NMI pending flag |
 | `$007E`        | `addr_nmi_ctrl`                   | NMI sub-dispatch control bits / render-request flags (`frame_flags`, `btl_anim_flags`); bit 2 = queued task done |
 | `$0081-$0086`  | controller latches                | pad 1/2 newly-pressed (edge) `$0081/$0082`, pad 1/2 raw `$0083/$0085`, pad 1/2 previous `$0084/$0086`; battle bank aliases them as `btl_pad1_lo/hi`, `btl_pad2_lo/hi`; `prg_1d_1e_menu_screens` reads `input_flags` `$0081` |
 | `$0087-$008A`  | palette animation                 | `addr_anim_direction/step/speed/counter` (`$0087` bit 7 = animation halted) |
@@ -258,7 +258,7 @@ overlay owns `$0540-$05D7`.
 | `$051A-$0525` | — | merit sums, officer counts, province ptr pairs (0c_0d); war stat pairs `$0522-$0527` side A/B (08_09, 0e_0f-adjacent) |
 | `$052A-$052F` | — | battle target province/officer/param + special-officer flag (08_09); tactical-map scene state incl. level-up snapshots $052C/$052E (0c_0d) |
 | `$053D-$053F` | — | undo state snapshot (0c_0d) |
-| `$0540-$0544` | — | phase/sub-phase cells: `btl_overlay_phase/sub` `$0540/$0541` (0e_0f), `csel_sub_mode`/`csel_phase` (08_09), `state_sub_dispatch/display_idx` (0a_0b), `move_path_x/y/cost/total` (0c_0d), `strat_scroll_*` (17_18), `battle_phase` `$0544` (0e_0f, also `action_type` in 1f) |
+| `$0540-$0544` | — | phase/sub-phase cells: `btl_overlay_phase/sub` `$0540/$0541` (0e_0f), `csel_sub_mode`/`csel_phase` (08_09), `title_scene_phase/step` (0a_0b, also `dispatch_buffer` alias), `move_path_x/y/cost/total` (0c_0d), `strat_scroll_*` (17_18), `battle_phase` `$0544` (0e_0f, also `action_type` in 1f) |
 | `$0545-$0549` | — | `btl_scan_col/row/wait` + `btl_frame_counter` + `btl_acting_unit` (0e_0f); `state_overlay_param`/`state_palette_mode` (0a_0b); `csel_cheat_step` 4 bytes `$0545-$0548` (08_09) |
 | `$054A-$054F` | — | `btl_walk_row/col`, `btl_recorded_status`, `btl_target_col`, `btl_command` (0e_0f) |
 | `$0550-$055B` | — | `btl_order_slots_a/b` `$0550/$0554`, `btl_advance_*` `$0558-$055B` (0e_0f); `unit_ally_counts` `$0550` (08_09); `province_sel_list` `$0550-$055F` (0c_0d) |
@@ -336,7 +336,7 @@ as `GetProvinceRuntimePtr` returning the pointer in `($20)`; `prg_0a_0b_strategy
 
 Layout verified against the ROM seed table (bank `$30`, `$8C00`, 32 B/record) in
 `docs/province_data.md` / `docs/province_data.csv` and against the human
-development command (`prg_1b_1c_map_screen.asm` `CastleDevFieldOffsetTable`: `+$08` land,
+development command (`prg_1b_1c_strategy_mode.asm` `CastleDevFieldOffsetTable`: `+$08` land,
 `+$0E` industry, `+$06` population) and the AI equivalents in `prg_0a_0b_strategy_ai.asm`.
 The block is the new-game seed: `SramInit` `@Copy1Loop` (`$DDED`) copies exactly
 `$3C0` bytes from bank `$30` `$8C00` to `$6000` (30 records x 32), see
@@ -410,7 +410,7 @@ officer's decoded starting record.
 | `$6F04-$6F06` | — | attract-demo scratch: frame divider, OrderScroll display value, camera-focus phase flag |
 | `$6F05` | — | OrderScroll (command points, 命令書) of the current country (0 / negative = no active game); seeds AI action budget (`$6F5D = $6F05 * 10`, max 130); BCD-displayed on the stats overlay; DEC'd per confirmed command (ConfirmDialogPoll) |
 | `$6F07-$6F3E` | `faction_records` / `sram_country_data` | Country records, 7 countries × 8 bytes (stride 8): slots at `$6F07,$6F0F,$6F17,$6F1F,$6F27,$6F2F,$6F37`, resolved by `B1F_GetCountryDataPtr` (`prg_1f_boot` `$F368`) via `CountryDataPtrTable` (`$F379`). Record byte `[0]` = Ruler id (`$FF` = empty), `[1]` = home Province, `[3]` = status/alliance byte (`$6F0A` + stride 8) |
-| `$6F3F-$6F42` | `sram_map_cam_y/x` | Map camera position: Y low `$6F3F`, Y high `$6F40`, X low `$6F41`, X high `$6F42` (init `$80`/`$F0` on new game) |
+| `$6F3F-$6F42` | `sram_map_cam_x` / `sram_map_cam_y` | Map camera position: **X low `$6F3F`, X high `$6F40`** (Right/Left, bounds `$10`-`$F8`); **Y low `$6F41`, Y high `$6F42`** (Up/Down, bounds `$10`-`$94`). `State_StrategyMapLaunch` inits X=`$80`, Y=`$F0` (off-screen) |
 | `$6F3F` / `$6F41` | — | country init params `$80`/`$F0` on new game (17_18 view of the same bytes) |
 | `$6F43` | — | latched result parameter / scroll-pending flag |
 | `$6F44` | — | multi-alias: battle outcome flag (08_09), absorbed-officer display flag (0a_0b `$B783`/`$BD04`), target province record field 3 (19_1a), player swap trigger (17_18) |
@@ -423,8 +423,8 @@ officer's decoded starting record.
 | `$6F73-$6F82` | — | AI work area, cleared before each decision pass. `$6F73[0..7]` = per-owner "has active provinces" marks (`$FF` = none, `$00` = has provinces; a helper counts the `$00` entries in `$6F73[0..6]`). Dual-use inside 0a_0b `SettleStagedOfficers`: `$6F73/$6F74` and `$6F75/$6F76` are 16-bit army-pool accumulators distributed over the `$066E` / `$0664` rosters. `AiAction_ContinueTurn` reuses `$6F73-$6F7C` as per-slot processed markers for the officer-slot scans `$11-$1A` (cleared to `$FF` each pass, picked slots marked `$00` so retries skip them) |
 | `$6F7B-$6F82` | — | transfer/claim buffer, 8 bytes, initialised to `$FF` = unclaimed |
 | `$6F83` | — | per-country action counter (`$6F83,X`); after `$1E` actions the global phase advances |
-| `$6F8B` | `sram_game_start_flag` | **Strategy-layer request mailbox** — the main cross-bank handshake. Strategy banks `$0A/$0B` post a request code and spin-wait; map-screen frame state 9 (banks `$19/$1A`, `$C773-$CD8B`, 16-entry sub-state table at `$C779`) polls it and acknowledges by writing `$01`. Codes: `$FF` turn complete (posted by `$08/$09`), `$FE` battle pending, `$FD` fully absorbed, `$FC` absorption result, `$FB`/`$FA`/`$F9` strategy actions, `$F8` absorption variant. Parameters travel in zero page `$0038-$0043`. Also set to `$FF` at new game. See `memory/project_tech_stack/strategy-layer-request-mailbox-protocol.md` |
-| `$6F8C` | — | war AI: `ai_officer_idx` (08_09); 0a_0b `sram_continue_flag`: post-conquest context flag (0 = full new-game setup, 1 = continue existing armies) |
+| `$6F8B` | `sram_request_mailbox` | **Strategy-layer request mailbox** — the main cross-bank handshake. The engine banks (`$0A/$0B` strategy AI, `$08/$09` war AI) post a request code and spin-wait; map-screen frame state 9 (banks `$19/$1A`, `$C773-$CD8B`, 17-entry sub-state table at `$C779`) polls it once per unfrozen frame and releases the requester either through `RequestAckReturn` `$CD6F` (which writes the result code `$040C` back into the mailbox) or by writing `$01` to hand over to the War phase. Codes: `$FF` turn exhausted (posted at `$0A/$0B` `$D147`, `$08/$09` `$A093`/`$BAAD`), `$FE` war pending (human defender), `$FD` province conquered (computer defender), `$FC` officer swapped into a record, `$FB` officer record deleted, `$FA` province sweep, `$F9` absorb sweep, `$F8` province transfer (needs an answer), `$01` consumed, `$00` idle. Parameters travel in zero page `$0038-$0043`, payload in `$6F8C`/`$6F8D`. `$FF` is also posted on every map launch (`State_StrategyMapLaunch` `$E12F`). Not a game-start flag. See `code/request_poll_mechanics.md` §5 |
+| `$6F8C` | `ai_officer_idx` (08_09/0c_0d) / `sram_conquest_path_bit` (0a_0b) | Multiplexed per phase: acting officer slot for the war/march AI, and the 0/1 war-outcome selector posted with the `$6F8B` mailbox (conquest vs held placement in `SettleStagedOfficers`). It is **not** a continue/new-game flag - that gloss was retracted by its own proc header |
 | `$6F8D` | — | war AI: `ai_target_slot` (08_09); 0a_0b `sram_absorb_adjust`: absorption adjustment parameter (`$1E −` clamped army delta, written at `$AE96`; drives `ApplyScenarioDeductions` thresholds and `×4/10` cost scaling) |
 | `$6F91-$6F9B` | — | war AI scratch: `side_unit_base` (0/10), `rng_cursor`, `rng_x_save`, `officer_scan_idx`, `acted_officer_cnt`, `valid_officer_cnt`, `ai_move_cost`, `formation_slot0/1_units` (nibbles, stride 2 at `$6F9A`) |
 | `$6FA1-$6FE0` | `officer_state_table` | Officer state / unit placement queue (`$40` bytes) |
@@ -483,7 +483,7 @@ seeded `$AA`. They are only reachable from the anti-piracy path of
 | `prg_0e_0f_battle.asm` | `btl_`/`snd_` globals + proc-local zp | battle overlay `$0514-$05D7`, anim queue `$0300-$0311`, vram script `$0380-$039C`, sound `$0700-$07F9` |
 | `prg_17_18_display.asm` | file-top equates | kernel cells, map tile grids `$0600-$06FF`, player state `$04A8-$04C6`, display queue `$0300-$0313` |
 | `prg_19_1a_event_scenes.asm` | raw addresses + comments (no equates) | attract demo / map screen frame states `$0400-$0437`, overlay sentinels `$0300-$03BB`, demo SRAM scratch `$6F00-$6F06`, `$6F8B` mailbox handler (frame state 9), SRAM save (`$BC02`) |
-| `prg_1b_1c_map_screen.asm` | raw addresses + comments (no equates) | map screen frame states `$0400-$04E4`, transition busy `$0140/$0150` |
+| `prg_1b_1c_strategy_mode.asm` | raw addresses + comments (no equates) | strategy frame states `$0400-$04E4`, transition busy `$0140/$0150` |
 | `prg_1d_1e_menu_screens.asm` | file-top equates | state handler zp `$00A6-$00DD`, render buffers `$0100-$0190`, `$0300-$03C3`, menu system `$0420-$04D6` |
 | `prg_1f_boot.asm` | file-top equates | kernel cells (game state, IRQ modes `$0060-$0062`, RNG `$0050-$0055`, trampoline `$0058-$005D`, bank selects `$00DE-$00ED`), menu `$0424/$0425`, map scroll `$0510-$0513`, all SRAM record accessors (`$F2AF`, `$F2D7`, `$F368`) |
 

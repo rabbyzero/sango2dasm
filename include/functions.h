@@ -5,8 +5,10 @@
 ; Defines symbolic names for all known functions and data labels.
 ; Include from any .asm file:  .include "functions.h"
 ;
-; Naming Convention: BXX_FunctionName
-;   XX = PRG bank number (hex, $00-$1F)
+; Naming Convention: Bxx_yy_FunctionName for a switchable bank pair (e.g.
+;   B1D_1E_...), Bxx_FunctionName for a single bank (B1F_ for the fixed engine
+;   bank $1F, B02_ for the singly-mapped sound-data window)
+;   XX/yy = PRG bank number (hex, $00-$1F)
 ;   Bank $1F symbols are at fixed addresses $E000-$FFFF
 ;   Banked symbols ($8000-$DFFF) share CPU addresses across banks
 ;
@@ -534,7 +536,7 @@ B1D_1E_ProvinceDataWindowFrame = $A009 ; ProvinceDataWindowFrame_Entry: Province
 B1D_1E_MapDisplaySetup    = $A00C   ; MapDisplaySetup_Entry: Map display setup
 B1D_1E_OfficerListHandler = $A00F   ; OfficerListHandler_Entry: Officer list handler
 B1D_1E_FlushTileBuffer    = $A012   ; FlushTileBuffer_Entry: Upload 64-byte tile buffer to VRAM
-B1D_1E_LoadScenarioData   = $A015   ; LoadScenarioData_Entry: Load 32-byte palette record to $0100 (uploaded to $3F00)
+B1D_1E_PaletteRecordLoad   = $A015   ; PaletteRecordLoad_Entry: Load 32-byte palette record to $0100 (uploaded to $3F00)
 B1D_1E_SramInit           = $A018   ; SramInit_Entry: SRAM initialization
 B1D_1E_MenuFontRecordLoad = $A01B   ; MenuFontRecordLoad_Entry: Menu font record load
 B1D_1E_YearDisplaySetup   = $A01E   ; YearDisplaySetup_Entry: Year display setup
@@ -664,8 +666,8 @@ B1D_1E_SaveSlotHeaderLoad = $CAC5   ; Load per-slot display header (no checksum 
 B1D_1E_OfficerNameRowsEmit = $CB52  ; Emit officer name row records to $0380
 B1D_1E_SaveScreenSoundSelect = $CC09 ; Select save-screen sound by $04D6
 B1D_1E_MenuTilemapStream  = $CC40   ; Menu tilemap data stream (large)
-B1D_1E_LoadScenarioData_Proc = $DBB1 ; Palette record loader (14 records; see prg_1d_1e_menu_screens header for caller map)
-B1D_1E_ScenarioRecordPtrTable = $DBCF  ; LoadScenarioData @RecordPtrTable - palette record ptrs (14 x .word, $DBCF-$DBEA)
+B1D_1E_PaletteRecordLoad_Proc = $DBB1 ; Palette record loader (14 records; see prg_1d_1e_menu_screens header for caller map)
+B1D_1E_PalRecordPtrTable = $DBCF  ; PaletteRecordLoad @RecordPtrTable - palette record ptrs (14 x .word, $DBCF-$DBEA)
 B1D_1E_SramInit_Proc      = $DD8B   ; SRAM init procedure
 B1D_1E_MenuFontRecordLoad_Proc = $DE7E ; Menu font record load procedure
 B1D_1E_SceneRecordLookup_Proc = $DEB9 ; Scene record lookup procedure
@@ -689,7 +691,7 @@ B19_1A_TransferCapacityCalc          = $A018 ; TransferCapacityCalc_Entry: trans
 B19_1A_OfficerArrivalScan            = $A01B ; OfficerArrivalScan_Entry: find arriving/available Officer for $0402
 B19_1A_UnificationEndingDispatch     = $A01E ; UnificationEndingDispatch_Entry: unification ending scene
 B19_1A_ProvinceOfficerRosterDispatch = $A021 ; ProvinceOfficerRosterDispatch_Entry: province officer roster
-B19_1A_CastleDevResultRoll           = $A024 ; CastleDevResultRoll_Entry: castle dev result roll (message/increment/index)
+B19_1A_CastleDevResultRoll           = $A024 ; CastleDevResultRoll_Entry: castle dev result roll (message/gold cost/overlay index)
 B19_1A_GoodsSendPrepare              = $A027 ; GoodsSendPrepare_Entry: goods send type roll + amount scale
 B19_1A_GoodsSendApply                = $A030 ; GoodsSendApply_Entry: goods send apply to Officer $042C Province
 B19_1A_MapProvinceDirtyMark          = $A02A ; MapProvinceDirtyMark_Entry: marks province $0402 dirty in $04E0-$04E3
@@ -732,7 +734,7 @@ B19_1A_CardFillDispatch = $B4BF          ; Officer card fill dispatch (animation
 B19_1A_SortieWarCommit_Proc = $B7D9      ; Commit the sortie: seize stocks, build war roster
 B19_1A_TransferCapacityCalc_Proc = $B8D7 ; Transport capacity min() per good
 B19_1A_OfficerArrivalScan_Proc = $B964   ; Find arriving/available Officer for $0402
-B19_1A_CastleDevResultRoll_Proc = $BA70  ; Castle dev result roll (message/increment/index)
+B19_1A_CastleDevResultRoll_Proc = $BA70  ; Castle dev result roll (message/gold cost/overlay index)
 B19_1A_GoodsSendPrepare_Proc = $BB03     ; Goods send type roll + amount scale
 B19_1A_GoodsSendApply_Proc = $BB73       ; Apply goods send to Officer $042C Province
 B19_1A_MapProvinceDirtyMark_Proc = $BBDE ; Mark province $0402 dirty in $04E0-$04E3
@@ -804,7 +806,7 @@ B02_SoundStreamTailB03    = $0966   ; area ends at bank $03 offset $0966 ($8965)
 ; Jump Table Entry Points ($A000-$A00E)
 ;-------------------------------------------------------------------------------
 B0A_0B_StrategyAiTurnDispatch_Entry = $A000 ; StrategyAiTurnDispatch_Entry: Strategy Mode per-country turn driver
-B0A_0B_SubStateDispatch_Entry = $A003 ; SubStateDispatch_Entry: Sub-state dispatch
+B0A_0B_TitleScreenPhaseDispatch_Entry = $A003 ; TitleScreenPhaseDispatch_Entry: title screen scene phase machine
 B0A_0B_ArmyValueCalc_Entry = $A006 ; ArmyValueCalc_Entry: Army value calculation
 B0A_0B_DataRecordLookup_Entry = $A009 ; DataRecordLookup_Entry: Data record lookup
 B0A_0B_DistanceClamp_Entry = $A00C ; DistanceClamp_Entry: Distance clamp
@@ -884,8 +886,8 @@ B0A_0B_ValidateRecordGold = $D688   ; Validate record gold
 B0A_0B_ClampRecordStatPairsAlt = $D69D ; Clamp record stat pairs (alt)
 B0A_0B_DebugStub_E5       = $D6E5   ; Debug stub (RTS)
 B0A_0B_ValidateProvinceSlots = $D6E6 ; Validate province slots
-B0A_0B_SubStateDispatch   = $D717   ; Sub-state dispatch
-B0A_0B_CallStrategyModeDisplay = $D72A ; Call Strategy Mode display (trampoline to bank $17)
+B0A_0B_TitleScreenPhaseDispatch = $D717 ; Title screen scene phase machine ($0540), run by NmiState6_TitleScreen
+B0A_0B_CallTitleAnimationDispatch = $D72A ; Banked call to bank $17 AnimationDispatch_Entry ($A021)
 B0A_0B_StackFill          = $D732   ; Stack fill
 B0A_0B_FillStackLoop      = $D73C   ; Fill stack loop
 B0A_0B_ActionResultDisplay = $D74C  ; Action result display
@@ -1353,7 +1355,7 @@ B0E_0F_BattleSoundChannelProc   = $DC59 ; Sound channel processing engine
 ;===============================================================================
 ; SECTION 9: Combined Banks $1B+$1C ($A000-$DFFF)
 ; Bank $1B at $A000-$BFFF paired with Bank $1C at $C000-$DFFF
-; Map screen frame update module
+; Strategy Mode frame update + command menu module (castle/army/warehouse/town/intrigue)
 ; Loaded via SwitchBankAC with Y=$3B ($3B & $1F = $1B)
 ; Entry points via jump table at $A000-$A00B
 ;===============================================================================
@@ -1361,7 +1363,7 @@ B0E_0F_BattleSoundChannelProc   = $DC59 ; Sound channel processing engine
 ;-------------------------------------------------------------------------------
 ; Jump Table Entry Points ($A000-$A00B)
 ;-------------------------------------------------------------------------------
-B1B_1C_MapScreenFrameUpdate_Entry = $A000 ; MapScreenFrameUpdate_Entry: per-frame map-screen update (NmiState2_StrategyMap)
+B1B_1C_StrategyFrameUpdate_Entry = $A000 ; StrategyFrameUpdate_Entry: per-frame Strategy Mode update (NmiState2_StrategyMap)
 B1B_1C_ActionDeltaInputPoll_Entry = $A003 ; ActionDeltaInputPoll_Entry: war-scene action delta input poll
 B1B_1C_OfficerSelectDialogPoll_Entry = $A006 ; OfficerSelectDialogPoll_Entry: Officer select dialog poll (dispatch callback target)
 B1B_1C_ProvinceZoneOriginGet_Entry = $A009 ; ProvinceZoneOriginGet_Entry: Province id $000A -> map zone origin $000B/$000C
@@ -1369,7 +1371,7 @@ B1B_1C_ProvinceZoneOriginGet_Entry = $A009 ; ProvinceZoneOriginGet_Entry: Provin
 ;-------------------------------------------------------------------------------
 ; Internal procs - Bank $1B ($A00C-$BFFF)
 ;-------------------------------------------------------------------------------
-B1B_1C_MapScreenFrameUpdate = $A00C      ; Per-frame map-screen update (invoked by NmiState2_StrategyMap)
+B1B_1C_StrategyFrameUpdate = $A00C      ; Per-frame Strategy Mode update (invoked by NmiState2_StrategyMap)
 B1B_1C_CallCountryRotationDispatch = $A045   ; Banked-call wrapper -> B19_1A_CountryRotationDispatch
 B1B_1C_CallProvinceOfficerRosterDispatch = $A04D ; Banked-call wrapper -> B19_1A_ProvinceOfficerRosterDispatch
 B1B_1C_CallStrategyRequestDispatch = $A055 ; Banked-call wrapper -> B19_1A_StrategyRequestDispatch

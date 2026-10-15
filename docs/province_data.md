@@ -290,7 +290,7 @@ guessed from the values:
 | Field | Evidence |
 |---|---|
 | `+0` 所属国 | `ProvinceCountByOwner` (`asm/banks/prg_19_1a_event_scenes.asm`) masks the byte with `#$0F` and compares against a Country id; `FindOfficerProvince` scans the same records |
-| `+2/+3` 金 | 徴兵 (`$B294`, `asm/banks/prg_1b_1c_map_screen.asm`) charges 20 gold per 100 men here; 輸送 (`$B8D7`, `prg_19_1a_event_scenes.asm`) moves it |
+| `+2/+3` 金 | 徴兵 (`$B294`, `asm/banks/prg_1b_1c_strategy_mode.asm`) charges 20 gold per 100 men here; 輸送 (`$B8D7`, `prg_19_1a_event_scenes.asm`) moves it |
 | `+4/+5` 米 | 輸送 moves it as the second 16-bit resource; the annual harvest (below) credits it |
 | `+6/+7` 人口 | panel stream draws it with 5 digits followed by two literal `$B6` (`0`) tiles, so the stored value is / 100 |
 | `+8/+9` 土地 | annual harvest (`$A60B`, `prg_19_1a_event_scenes.asm`): `land / lvl_div * lvl_base / $3C * 統治度tier / 100` is **added to 米** (`+4/+5`) |

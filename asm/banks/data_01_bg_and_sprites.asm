@@ -34,7 +34,9 @@
 ;
 ; All sprite blobs use the B1F_SpriteOamWriterSimple format: repeated 4-byte
 ; [y_off, tile, attr, x_off] entries terminated by a leading $80 byte; screen
-; position = (y_off + Y-base $0C, x_off + X-base $0A). See code/bank_switch_map.md.
+; position = (y_off + Y-base $000A, x_off + X-base $000C) - $F1CB adds byte 0 to
+; $000A and stores OAM+0 (Y), $F1F3 adds byte 3 to $000C and stores OAM+3 (X).
+; See code/bank_switch_map.md and data_14_sprite_set_a.asm.
 ;
 ; Original binary: rom/prg/prg_01.bin
 ;===============================================================================

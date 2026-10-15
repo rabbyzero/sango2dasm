@@ -25,7 +25,7 @@
 .include "data_16_menu_oam.asm"
 .include "prg_17_18_display.asm"
 .include "prg_19_1a_event_scenes.asm"
-.include "prg_1b_1c_map_screen.asm"
+.include "prg_1b_1c_strategy_mode.asm"
 .include "prg_1d_1e_menu_screens.asm"
 .include "prg_1f_boot.asm"
 

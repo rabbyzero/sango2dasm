@@ -103,7 +103,7 @@ state_row_cnt5_hi = $00DC  ; ProvinceDataWindowFrame row counter 5 hi
 ;-------------------------------------------------------------------------------
 ; Page $01: State handler workspace / display buffers ($0100-$0190)
 ;-------------------------------------------------------------------------------
-disp_ptr_table    = $0100  ; display pointer table (SetupDisplayPtrs, MenuRenderer_SecondaryDispatch, LoadScenarioData)
+disp_ptr_table    = $0100  ; display pointer table (SetupDisplayPtrs, MenuRenderer_SecondaryDispatch, PaletteRecordLoad)
 disp_ptr_src_lo   = $0110  ; display ptr source lo (SetupDisplayPtrs copies to $0100)
 disp_ptr_src_hi   = $0120  ; display ptr source hi (SetupDisplayPtrs copies to $0110)
 tile_buf_base     = $0140  ; state dispatch control / tile buffer base
@@ -282,9 +282,9 @@ OfficerListHandler_Entry:
 FlushTileBuffer_Entry:
   ; FlushTileBuffer - upload 64-byte $0160 tile buffer to VRAM at $0480/$0481
   JMP FlushTileBuffer             ; $A012: 4C 41 BC
-LoadScenarioData_Entry:
-  ; LoadScenarioData
-  JMP LoadScenarioData                      ; $A015: 4C B1 DB
+PaletteRecordLoad_Entry:
+  ; PaletteRecordLoad
+  JMP PaletteRecordLoad                      ; $A015: 4C B1 DB
 SramInit_Entry:
   ; SramInit -> $DD8B (bank $1E)
   JMP SramInit                                ; $A018: 4C 8B DD
@@ -1398,7 +1398,7 @@ OfficerDisplay_Lookup:
   LDY #$3D                                ; $A899: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $A89B: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_LoadScenarioData           ; $A89E: 15 A0  -> LoadScenarioData_Entry ($DBB1)
+  .word B1D_1E_PaletteRecordLoad           ; $A89E: 15 A0  -> PaletteRecordLoad_Entry ($DBB1)
   PLA                                       ; $A8A0: 68
   STA a:$0000 ; $A8A1: 8D 00 00
 ; Entry: copy name tilemap and render
@@ -2369,7 +2369,7 @@ ProvinceDataWindowFrame:
   TAY                                     ; $B03A: A8
   LDA #$B6                                ; $B03B: A9 B6
   STA a:$0017 ; $B03D: 8D 17 00
-ExtractBcdDigits:
+::ExtractBcdDigits:
   LDA #$01                                ; $B040: A9 01
   STA a:$0016 ; $B042: 8D 16 00
   LDA a:$0013 ; $B045: AD 13 00
@@ -2678,9 +2678,6 @@ DrawNameScaled:
   RTS                                     ; $B29E: 60
 
 .endproc
-
-; ExtractBcdDigits is called from OfficerListHandler; alias the proc-scope label
-ExtractBcdDigits = ProvinceDataWindowFrame::ExtractBcdDigits
 
 .proc MapDisplaySetup
 MapDisplaySetup:
@@ -3343,7 +3340,7 @@ SceneRendererDispatch:
   STA a:$00E6 ; $BD23: 8D E6 00
   LDA #$00                                ; $BD26: A9 00
   STA a:$0000 ; $BD28: 8D 00 00
-  JSR LoadScenarioData                      ; $BD2B: 20 B1 DB
+  JSR PaletteRecordLoad                      ; $BD2B: 20 B1 DB
   INC $0401                               ; $BD2E: EE 01 04
   JSR SceneInitTimer                            ; $BD31: 20 FE BD
   JMP B1F_PaletteFadeInit                   ; $BD34: 4C BF EC
@@ -3396,7 +3393,7 @@ SceneRendererDispatch:
   STA a:$00E6 ; $BD80: 8D E6 00
   LDA #$00                                ; $BD83: A9 00
   STA a:$0000 ; $BD85: 8D 00 00
-  JSR LoadScenarioData                      ; $BD88: 20 B1 DB
+  JSR PaletteRecordLoad                      ; $BD88: 20 B1 DB
   INC $0401                               ; $BD8B: EE 01 04
   JMP B1F_PaletteFadeInit                   ; $BD8E: 4C BF EC
 @render_exit3:
@@ -5036,7 +5033,7 @@ MenuAction22_Continue:
 ;===============================================================================
 .proc StrategyMenu_Return
   ; Proc-local RAM variable
-  strategy_trigger  = $007D  ; strategy menu trigger
+  addr_pal_upload_arm = $007D  ; palette-upload arm latch (tested by NmiSubDispatch $EE53, cleared by PaletteUpload $E71B)
 StrategyMenu_Return:
   LDA $04D0                                             ; $C934: AD D0 04
   CMP $04CC                                             ; $C937: CD CC 04
@@ -5052,13 +5049,13 @@ StrategyMenu_Return:
   JSR B1F_SoundWrapperA                                       ; $C94E: 20 73 E6
 @InitPpuAndSound:
   LDA #$01                                              ; $C951: A9 01
-  STA a:$007D ; $C953: 8D 7D 00
+  STA a:addr_pal_upload_arm                             ; $C953: 8D 7D 00
   LDA #$00                                              ; $C956: A9 00
   STA a:$0000 ; $C958: 8D 00 00
   LDY #$3D                                              ; $C95B: A0 3D
   JSR B1F_BankedCallbackTrampoline                      ; $C95D: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_LoadScenarioData           ; $C960: 15 A0  -> LoadScenarioData_Entry ($DBB1)
+  .word B1D_1E_PaletteRecordLoad           ; $C960: 15 A0  -> PaletteRecordLoad_Entry ($DBB1)
   LDA #$80                                              ; $C962: A9 80
   STA $0140                                             ; $C964: 8D 40 01
   LDA #$22                                              ; $C967: A9 22
@@ -5114,7 +5111,7 @@ ResetDispatchState:
 DisplayTileData:
   LDX #$20                                              ; $C994: A2 20
 DisplayTileDataWithX:
-DisplayTileDataWithParams:
+::DisplayTileDataWithParams:
   DEY                                                   ; $C996: 88
   TYA                                                   ; $C997: 98
   ASL                                                   ; $C998: 0A
@@ -5140,9 +5137,6 @@ DisplayTileDataWithParams:
   STA a:$0002 ; $C9BC: 8D 02 00
   JMP B1F_SpriteOamWriterSimple                               ; $C9BF: 4C AD F1
 .endproc
-
-; MenuAction procs JSR the param-taking entry directly; alias the proc-scope label
-DisplayTileDataWithParams = DisplayTileData::DisplayTileDataWithParams
 
 .proc MenuRenderer_SecondaryDispatch
   LDA $04A1                                             ; $C9C2: AD A1 04
@@ -5850,8 +5844,8 @@ MenuTilemap_Sec25_Final:
   .byte $00, $00, $00, $72, $72 ; $DBAC: 00 00 00 72 72  ; End of MenuTilemapStream
 
 ;===============================================================================
-; $DBB1: LoadScenarioData - load a 32-byte palette record into $0100
-; Input: $0000 = record index. Looks up @RecordPtrTable[index] and copies the
+; $DBB1: PaletteRecordLoad - load a 32-byte palette record into $0100
+; Input: $0000 = record index. Looks up @PalRecordPtrTable[index] and copies the
 ; 32 bytes at the target address (the palette records at $DBEB-$DD8A) to
 ; $0100-$011F, the palette RAM mirror. Despite the name this is a palette
 ; load, not scenario data: the NMI uploads the buffer to PPU $3F00 via
@@ -5876,14 +5870,14 @@ MenuTilemap_Sec25_Final:
 ;   $0D event-message scene: State_EventMessageScene $E49F (all-black -
 ;       the fade-in source palette)
 ;===============================================================================
-.proc LoadScenarioData
-LoadScenarioData:
+.proc PaletteRecordLoad
+PaletteRecordLoad:
   LDA a:$0000 ; $DBB1: AD 00 00
   ASL                                                   ; $DBB4: 0A
   TAY                                                   ; $DBB5: A8
-  LDA @RecordPtrTable,Y                                ; $DBB6: B9 CF DB
+  LDA @PalRecordPtrTable,Y                                ; $DBB6: B9 CF DB
   STA a:$000A ; $DBB9: 8D 0A 00
-  LDA @RecordPtrTable+1,Y                              ; $DBBC: B9 D0 DB
+  LDA @PalRecordPtrTable+1,Y                              ; $DBBC: B9 D0 DB
   STA a:$000B ; $DBBF: 8D 0B 00
   LDY #$00                                              ; $DBC2: A0 00
 @copy_loop:
@@ -5895,12 +5889,12 @@ LoadScenarioData:
   RTS                                                   ; $DBCE: 60
 
 ;-------------------------------------------------------------------------------
-; $DBCF-$DBEA: @RecordPtrTable - palette record pointer table; 16-bit target
+; $DBCF-$DBEA: @PalRecordPtrTable - palette record pointer table; 16-bit target
 ; addresses of the 32-byte palette records below, indexed by record index
-; (A * 2). See the LoadScenarioData header for the caller -> record map.
+; (A * 2). See the PaletteRecordLoad header for the caller -> record map.
 ; 14 entries; entry 09 duplicates entry 08 (both target $DCEB).
 ;-------------------------------------------------------------------------------
-@RecordPtrTable:
+@PalRecordPtrTable:
   .word @PalRecord00_StrategyMap                   ; $DBCF: EB DB ; -> $DBEB
   .word @PalRecord01_WarScene                   ; $DBD1: 0B DC ; -> $DC0B
   .word @PalRecord02_BattleAction0                   ; $DBD3: 2B DC ; -> $DC2B

@@ -2125,7 +2125,7 @@ StrategyScrollPhase3TileRows:
 ;   scroll row
 ;   offset at $D6F7-$D702 ($04CD >> 3 & 3 + 1).
 ;   The 9..21 half is a SEQUENCE, not a lookup of a subject id: $04CB =
-;   DispatchBankTable[$04CE >> 2] ($D71D-$D723, that table's only read site)
+;   SpriteBlobIndexTable[$04CE >> 2] ($D71D-$D723, that table's only read site)
 ;   and $04CE is
 ;   a pass counter (cleared $D6B4, INC $D71A/$D7E4/$D874/$D8FB). Its 24 bytes
 ;   - $09..$15
@@ -2133,7 +2133,7 @@ StrategyScrollPhase3TileRows:
 ;   at each
 ;   pass, where bit7 ($F0) means "draw no sprite this pass" and $FE is the end
 ;   sentinel
-;   tested at $D708. Despite its name DispatchBankTable holds no PRG bank
+;   tested at $D708. Despite its name SpriteBlobIndexTable holds no PRG bank
 ;   numbers.
 ;   Measured over the 135 records of this table: tile $01-$99, y_off $08-$60,
 ;   x_off $30-$98, attr values $00.

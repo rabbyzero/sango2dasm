@@ -51,7 +51,7 @@ GoodsSendApply_Entry:  ; (BankedCallbackTrampoline target)
 ;===============================================================================
 ; $A033: CountryRotationDispatch
 ; Frame state $0B handler of the map-screen frame machine (entered from
-; prg_1b_1c_map_screen MapScreenFrameStateDispatch via banks $19+$1A entry $A003):
+; prg_1b_1c_strategy_mode StrategyFrameStateDispatch via banks $19+$1A entry $A003):
 ; the per-Country TURN ROTATION / next-Ruler handoff frame. Run unattended
 ; (every Country control byte $03) after boot / new game it is the title-
 ; screen attract cycle; in a live game it is re-entered at turn handoffs.
@@ -438,8 +438,8 @@ CountryCensusBuild:
 .endproc
 ;===============================================================================
 ; $A296: MonthlyEventDispatch
-; Map screen frame state $0A handler (entered from prg_1b_1c_map_screen
-; MapScreenFrameStateDispatch via banks $19+$1A entry
+; Map screen frame state $0A handler (entered from prg_1b_1c_strategy_mode
+; StrategyFrameStateDispatch via banks $19+$1A entry
 ; MonthlyEventDispatch_Entry, Y=$39): the per-Country MONTHLY EVENT DISPATCH.
 ; CountryRotationDispatch hands off with $0400=$0A after picking the acting
 ; Country; this machine decides whether and how that month's events happen
@@ -628,7 +628,7 @@ CountryCensusBuild:
 ; no event work beyond clearing the pending handoff param $0470. Routes on
 ; the acting Country's control byte, Country record[$03] via ($EE):
 ;   == $03 (AI / unattended): $0400 = $09 -> CallStrategyRequestDispatch
-;              (frame table prg_1b_1c_map_screen $A037): the Country's strategy turn
+;              (frame table prg_1b_1c_strategy_mode $A037): the Country's strategy turn
 ;              runs through the normal turn engine; $0401 = 0
 ;   else (player-owned 0-2):  latches the control byte into $6F44,
 ;              $0400 = $0B -> CallCountryRotationDispatch (frame table $A03B):
@@ -2159,8 +2159,8 @@ StatPairSubtract:
 
 ;===============================================================================
 ; $AD81: OfficerStatusScene
-; Map screen frame state $0D handler (entered from prg_1b_1c_map_screen
-; MapScreenFrameStateDispatch via banks $19+$1A entry $A00C; the strategy
+; Map screen frame state $0D handler (entered from prg_1b_1c_strategy_mode
+; StrategyFrameStateDispatch via banks $19+$1A entry $A00C; the strategy
 ; banks hand off here, prg_0a_0b_strategy_ai $DB11). Year-end handoff for the two
 ; Countries packed into $0507 (low nibble = first Country processed, high
 ; nibble = second; assembled at prg_0a_0b_strategy_ai $A887 and prg_19_1a_event_scenes $B7FC/$B854).
@@ -2541,8 +2541,8 @@ ReinforceCardShow:  ; (dispatch callback target)
 .endproc
 
 ; $AFE5: ProvinceOfficerRosterDispatch
-; Map screen frame state $0C handler (entered from prg_1b_1c_map_screen
-; MapScreenFrameStateDispatch via banks $19+$1A entry $A021). Displays the
+; Map screen frame state $0C handler (entered from prg_1b_1c_strategy_mode
+; StrategyFrameStateDispatch via banks $19+$1A entry $A021). Displays the
 ; focused Province's ($0402) Officer roster as a scrolling card carousel:
 ;   0 @RosterLoadInit   - load scenario data, fill roster into $0410
 ;   1 @CardPanelSetup   - card panel window parameters
@@ -2569,8 +2569,8 @@ ReinforceCardShow:  ; (dispatch callback target)
   .word RosterScroll                      ; $AFF3: 55 B1 ; sub-state 4
 ;===============================================================================
 ; $AFF5: @RosterLoadInit (sub-state 0)
-; Loads scenario data via bank $1D entry $A015 (LoadScenarioData -> $DBB1:
-; copies the @RecordPtrTable[$0000 = 0] target record (32 bytes) to
+; Loads a palette record via bank $1D entry $A015 (PaletteRecordLoad -> $DBB1:
+; copies the @PalRecordPtrTable[$0000 = 0] target record (32 bytes) to
 ; $0100), forces a
 ; full sprite refresh, resets the card animation state, sets the map
 ; overlay window parameters ($00BA/$00BB), clears the roster and fills
@@ -2583,7 +2583,7 @@ ReinforceCardShow:  ; (dispatch callback target)
   LDY #$3D                                ; $AFFA: A0 3D     ; target banks $1D+$1E
   JSR B1F_BankedCallbackTrampoline        ; $AFFC: 20 07 EE
 ; --- BankedCallbackTrampoline target ---
-  .word B1D_1E_LoadScenarioData           ; $AFFF: 15 A0 (bank $1D $A015 -> JMP $DBB1: LoadScenarioData)
+  .word B1D_1E_PaletteRecordLoad           ; $AFFF: 15 A0 (bank $1D $A015 -> JMP $DBB1: PaletteRecordLoad)
 ; --- Resumed code after trampoline return ---
   LDA #$FF                                ; $B001: A9 FF
   STA $04E4                               ; $B003: 8D E4 04 ; force full sprite refresh
@@ -3627,7 +3627,7 @@ NamePlateStripSetup:
 
 ;===============================================================================
 ; $B7D9: SortieWarCommit
-; Executes an accepted 出陣 Sortie declaration. Called from prg_1b_1c_map_screen
+; Executes an accepted 出陣 Sortie declaration. Called from prg_1b_1c_strategy_mode
 ; SortieWarRequestGate ($B257) via banks $19+$1A entry $A015 once the war
 ; request dialog returns a non-cancel result. Caller prerequisites:
 ; $0470/$0402 = sortie source Province, $0471 = war target Province,
@@ -3790,7 +3790,7 @@ NamePlateStripSetup:
 ;===============================================================================
 ; $B8D7: TransferCapacityCalc
 ; Computes the transportable amounts for the 倉 warehouse command
-; 物資を運ぶ (called from prg_1b_1c_map_screen WarehouseDestProvinceSelect
+; 物資を運ぶ (called from prg_1b_1c_strategy_mode WarehouseDestProvinceSelect
 ; @DestAccepted, $B86B, via banks $19+$1A entry $A018). Inputs:
 ; $0470 = source Province, $0471 = destination Province. For each good the
 ; result is min(source stock, cap - destination stock):
@@ -3868,7 +3868,7 @@ NamePlateStripSetup:
 
 ;===============================================================================
 ; $B964: OfficerArrivalScan
-; Finds an Officer candidate for Province $0402 (called from prg_1b_1c_map_screen
+; Finds an Officer candidate for Province $0402 (called from prg_1b_1c_strategy_mode
 ; $DC18 via banks $19+$1A entry $A01B). Two paths:
 ;   1. Scheduled arrival: walks the bank-$31 arrival schedule at ($02) =
 ;      $8B1C + $0402*$14, ten (Officer id, appear year) pairs per Province.
@@ -3881,7 +3881,7 @@ NamePlateStripSetup:
 ; Found: $0472 = Officer id, $0473 = preferred Country id (from
 ; OfficerPreferredCountryTable, scheduled path only), $0470 = $07 handoff.
 ; The caller compares $0473 against the scouting Province's owner Country
-; (prg_1b_1c_map_screen $AB75): match -> find threshold 2, otherwise $0D. Not found:
+; (prg_1b_1c_strategy_mode $AB75): match -> find threshold 2, otherwise $0D. Not found:
 ; $0011 = $80 (the caller tests $0011 bit 7). The scheduled path returns
 ; without setting $0470 when the Officer id misses OfficerPreferredCountryTable.
 ; Note: the OfficerPreferredCountryTable scan walks offsets $00-$22 (18 pair
@@ -4010,7 +4010,7 @@ NamePlateStripSetup:
 ; --- Data Region ---
 OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Country id
                                           ; pairs (Officer id, Country); the scout find
-                                          ; gate in prg_1b_1c_map_screen $AB75 compares the Province
+                                          ; gate in prg_1b_1c_strategy_mode $AB75 compares the Province
                                           ; owner Country with the second byte
   .byte $6D,$04                           ; $BA50: 6D 04  ; Shokatsuryou ショカツリョウ 諸葛亮/诸葛亮 -> Country 4
   .byte $70,$04                           ; $BA52: 70 04  ; Josho ジョショ 徐庶/徐庶 -> Country 4
@@ -4033,15 +4033,25 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
 ;===============================================================================
 ; $BA70: CastleDevResultRoll
 ; Rolls the outcome of a castle 国造り development command (called from
-; prg_1b_1c_map_screen CastleDevAnimWait $A4C6 via banks $19+$1A entry $A024 for
-; commands 0-2; command 3 情報集め rolls its own amount in prg_1b_1c_map_screen).
-; Inputs: $0470 = dev command (0 開墾 land / 1 産業 industry / 2 町開発
-; population), $0481 = acting Officer. Amount = B1F_RandomMod8 rejected
-; down to 0-4, plus the Intelligence tier bonus from record[+2]
-; ($51+ -> +4, $33+ -> +2). Outputs:
-;   $0471 = result message id, $7F/$88/$91 + amount per command
-;   $0472 = DevIncrementTable[amount] = $0A + 2*amount field increment
+; prg_1b_1c_strategy_mode CastleDevAnimWait $A4C6 via banks $19+$1A entry $A024 for
+; dev targets 0-2; the 防災 command 3 reaches the same pipeline through
+; CastleDisasterCapCheck $ABE7 and rolls its own cost in the caller
+; CastleDevAmountRoll). Inputs: $0470 = dev target (0 開墾 land /
+; 1 産業 industry / 2 町開発 population), $0481 = acting Officer.
+; Amount = B1F_RandomMod8 rejected down to 0-4, plus the Intelligence tier
+; bonus from record[+2] ($51+ -> +4, $33+ -> +2). Outputs:
+;   $0471 = result message id, $7F/$88/$91 + amount per target - the advisor
+;           proposal stream for that id quotes the same gold fee, e.g. $7F
+;           "キン10が ひつようです" .. $87 "キン26が ..."
+;           (docs/menu_stream_text_callers.md)
+;   $0472 = DevGoldCostTable[amount] = $0A + 2*amount gold cost, 10-26:
+;           CastleDevAmountCheck $A547 refuses the command while province gold
+;           +$02/$03 is short of it and CastleDevExecute $A5F2 deducts it
 ;   $04A2 = DevResultIndexTable[$0470*9 + amount] result overlay index
+; The gold paid, not the rolled amount, sizes the gain: CastleDevExecute $A582
+; computes $042C = cost * Intelligence / 100 * random / 10 (min 1; random is
+; 10-17 for the dev targets, 6-9 for 防災), which CastleDevFieldAddCapped
+; $A690 adds to the target field.
 ;===============================================================================
 .proc CastleDevResultRoll
   LDX #$7F                                ; $BA70: A2 7F     ; land message base
@@ -4084,7 +4094,7 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
   ADC $0471                               ; $BABA: 6D 71 04  ; message id + amount
   STA $0471                               ; $BABD: 8D 71 04
   LDY a:$0010                             ; $BAC0: AC 10 00
-  LDA @DevIncrementTable,Y                 ; $BAC3: B9 DF BA  ; field increment
+  LDA @DevGoldCostTable,Y                  ; $BAC3: B9 DF BA  ; gold cost of the command
   STA $0472                               ; $BAC6: 8D 72 04
   LDA $0470                               ; $BAC9: AD 70 04
   ASL                                     ; $BACC: 0A
@@ -4099,7 +4109,7 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
   STA $04A2                               ; $BADB: 8D A2 04
   RTS                                     ; $BADE: 60
 ; --- Data Region ---
-@DevIncrementTable:                        ; $BADF: amount -> field increment ($0A+2*amount)
+@DevGoldCostTable:                         ; $BADF: amount -> gold cost paid ($0A+2*amount, 10-26)
   .byte $0A,$0C,$0E,$10,$12,$14,$16,$18,$1A ; $BADF: 0A 0C 0E 10 12 14 16 18 1A
 @DevResultIndexTable:                      ; $BAE8: [$0470*9 + amount] result index
   .byte $0A,$0B,$07,$07,$07,$0E,$0E,$15,$0E ; $BAE8: 0A 0B 07 07 07 0E 0E 15 0E
@@ -4109,11 +4119,11 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
 
 ;===============================================================================
 ; $BB03: GoodsSendPrepare
-; Prepares a goods send out of Province $0402 (called from prg_1b_1c_map_screen
+; Prepares a goods send out of Province $0402 (called from prg_1b_1c_strategy_mode
 ; $CE4C via banks $19+$1A entry $A027; the follow-up call at $D291 runs
 ; GoodsSendApply - together the pair deducts gold/rice from $0402 and
 ; credits the Province housing Officer $042C, the payment leg of the
-; prg_1b_1c_map_screen intrigue flow). Inputs: $042F/$0430 = base amount word.
+; prg_1b_1c_strategy_mode intrigue flow). Inputs: $042F/$0430 = base amount word.
 ;   1. Copies record[+$02..+$04] to $0002-$0004, then compares the gold
 ;      word $0002/$0003 against ($0004,$0005): $042D = $07 when gold is
 ;      lower, $05 when equal (Y is still $05 from the copy loop), $03
@@ -4247,7 +4257,7 @@ OfficerPreferredCountryTable:             ; $BA50: Officer id -> preferred Count
 ; MapProvinceSpriteRefresh (banks $1B+$1C, $DF35) rebuilds its marker sprites
 ; next frame. Multi-entry:
 ;   - MapProvinceDirtyMark: banked entry via the $A02A stub (Y=$39 callback
-;     from MapScreenFrameUpdate $A014 in banks $1B+$1C). No-op unless sprite
+;     from StrategyFrameUpdate $A014 in banks $1B+$1C). No-op unless sprite
 ;     dirty mark $04E4 is set; marks pending province $0402.
 ;   - ByZone: in-bank secondary entry; marks the zone id passed in
 ;     A (used by DirtyMarkAndCard with rotation camera zone $0472).
@@ -5389,8 +5399,8 @@ SuccessionArrivalOfficerTable:
 
 ;===============================================================================
 ; $C435: UnificationEndingDispatch
-; Map-screen frame state $0F handler (entered from prg_1b_1c_map_screen
-; MapScreenFrameStateDispatch state $0F -> banks $19+$1A entry $A01E): the
+; Map-screen frame state $0F handler (entered from prg_1b_1c_strategy_mode
+; StrategyFrameStateDispatch state $0F -> banks $19+$1A entry $A01E): the
 ; unification ending, reached from MapRulerIntroInit once the player Ruler
 ; owns all 30 Provinces. Dispatches the ending sub-state by $0401:
 ;   0 @CensusRecount - unification census. Caches the player Ruler id from
@@ -5824,11 +5834,11 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   .byte $60,$70,$88,$88,$68,$68,$70,$78,$80,$50,$60,$68,$78,$78; $C765: 60 70 88 88 68 68 70 78 80 50 60 68 78 78
 ;===============================================================================
 ; $C773: StrategyRequestDispatch
-; Map-screen frame state 9 handler (entered from prg_1b_1c_map_screen
-; MapScreenFrameStateDispatch state 9 -> banks $19+$1A entry $A006). This is
+; Map-screen frame state 9 handler (entered from prg_1b_1c_strategy_mode
+; StrategyFrameStateDispatch state 9 -> banks $19+$1A entry $A006). This is
 ; the map screen's Strategy Mode playback state: the strategy engine running in
 ; banks $0A+$0B / $0C+$0D / $08+$09 posts a presentation request into the SRAM
-; mailbox $6F8B (sram_game_start_flag) and then spin-waits, while this
+; mailbox $6F8B (sram_request_mailbox) and then spin-waits, while this
 ; dispatcher plays the request back on the map and acknowledges it.
 ; Every animation tick it:
 ;   1. runs CountryControlToggle ($CD8C), the Start+A "control every Country"
@@ -5914,7 +5924,7 @@ ProvinceCameraYTable:  ; $C755-$C772; $C773 starts StrategyRequestDispatch
   .byte $A0,$AA,$B4,$BE                   ; $C7DC: A0 AA B4 BE
 ;===============================================================================
 ; $C7E0: RequestPoll (sub-states 1-3) - the steady/idle state of frame state 9
-; Entered once per unfrozen frame (MapScreenFrameUpdate gates the whole
+; Entered once per unfrozen frame (StrategyFrameUpdate gates the whole
 ; frame-state machine on $0087 bit 7, so an in-flight palette fade freezes it).
 ; The name records why the state exists and what ends it: it samples the
 ; strategy engine's request mailbox $6F8B and routes the request into a
@@ -7102,7 +7112,7 @@ RequestAckReturn:
 ; End: every tail funnels into @SceneTimerCheck; when $04D0 reaches $B0
 ; (~2.9 s) @CutsceneFinish uploads a $AA strip to PPU $27D8, clears $04C8
 ; (releasing 0c_0d StratagemState_ShowResult), sets $0518 and arms the
-; palette-upload latch $007D, trampolines to B1D_1E_LoadScenarioData (Y=$3D,
+; palette-upload latch $007D, trampolines to B1D_1E_PaletteRecordLoad (Y=$3D,
 ; bank pair $1D/$1E; the palette-record loader), restores the tactical
 ; overlay tiles $88/$89/$8A into $00C2-$00D5, BankPpuInit and plays note $1D
 ; via B1F_SoundWrapperA.
@@ -7612,7 +7622,7 @@ RequestAckReturn:
   LDY #$3D                                ; $D3E5: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $D3E7: 20 07 EE ; Y=$3D -> bank pair $1D/$1E
 ; --- Data Region ---
-  .word B1D_1E_LoadScenarioData           ; $D3EA: 15 A0  ; inline trampoline target
+  .word B1D_1E_PaletteRecordLoad           ; $D3EA: 15 A0  ; inline trampoline target
 @CutsceneFinishTail:
 ; --- Code Region ---
   LDA #$88                                ; $D3EC: A9 88

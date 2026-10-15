@@ -425,11 +425,11 @@ BLOB_NOTES = {
         ' last skipped when that byte is negative (BMI $D6E2). $04CA comes from the scroll row',
         " offset at $D6F7-$D702 ($04CD >> 3 & 3 + 1).",
         'The 9..21 half is a SEQUENCE, not a lookup of a subject id: $04CB =',
-        " DispatchBankTable[$04CE >> 2] ($D71D-$D723, that table's only read site) and $04CE is",
+        " SpriteBlobIndexTable[$04CE >> 2] ($D71D-$D723, that table's only read site) and $04CE is",
         ' a pass counter (cleared $D6B4, INC $D71A/$D7E4/$D874/$D8FB). Its 24 bytes - $09..$15',
         ' with repeats, three $F0 and a closing $FE - are therefore the blob played at each',
         ' pass, where bit7 ($F0) means "draw no sprite this pass" and $FE is the end sentinel',
-        " tested at $D708. Despite its name DispatchBankTable holds no PRG bank numbers.",
+        " tested at $D708. Despite its name SpriteBlobIndexTable holds no PRG bank numbers.",
     ],
     0x9CD9: [
         '4 x .word, 1-based index. prg_17_18_display StrategyCommand_ScrollIntroPanel ($D795) arms',

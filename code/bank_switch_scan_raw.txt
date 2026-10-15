@@ -32,48 +32,48 @@
   $E3BA L  757 [State_CountryMapView] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @756)
   $E3CD L  764 [State_CountryMapView] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @763)
   $E3DC L  770 [State_CountryMapView] BankSwitch cfg #2 (LDA #$02 @769)
-  $E3FD L  803 [State_NewGameSetup] LDY #$32 JSR SwitchBank8_B  -> $12 @ $8000  (LDY #$32 @802)
-  $E424 L  818 [State_NewGameSetup] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @817)
-  $E42C L  821 [State_NewGameSetup] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @820)
-  $E434 L  824 [State_NewGameSetup] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @823)
-  $E447 L  831 [State_NewGameSetup] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @830)
-  $E456 L  837 [State_NewGameSetup] BankSwitch cfg #2 (LDA #$02 @836)
-  $E479 L  872 [State_EventMessageScene] LDY #$36 JSR SwitchBank8_B  -> $16 @ $8000  (LDY #$36 @871)
-  $E492 L  882 [State_EventMessageScene] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @881)
-  $E49A L  885 [State_EventMessageScene] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @884)
-  $E4AA L  891 [State_EventMessageScene] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @890)
-  $E4B9 L  897 [State_EventMessageScene] BankSwitch cfg #2 (LDA #$02 @896)
-  $E60B L 1102 [SoundNotePlayer] LDY #$22 JSR SwitchBank8_B  -> $02 @ $8000  (LDY #$22 @1101)
-  $EE2D L 2504 [BankedCallbackTrampoline] LDY #?? JSR SwitchBankAC_B  -> ?  (LDY a:addr_trampoline_bank_param @2503 (RAM))
-  $EE4F L 2523 [BankedCallbackTrampoline] LDY #?? JSR SwitchBankAC_B  -> ?  (computed Y @2522)
-  $EEB0 L 2607 [NmiDoBank3D_MapDisplay] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @2606)
-  $EEC8 L 2620 [NmiDoBank3D_VramWrite] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @2619)
-  $EED8 L 2630 [NmiDoBank3D_FlushTiles] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @2629)
-  $EEE0 L 2637 [NmiDoBank3D_TileRender] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @2636)
-  $F30D L 3335 [GetNameDisplayScale] LDY #$30 JSR SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @3334)
-  $F389 L 3414 [GetOfficerRomRecordAddr] LDY #$31 JSR SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @3413)
-  $F8C6 L 3764 [NmiState2_MapScreen] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3763)
-  $F8DB L 3772 [NmiState2_MapScreen] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3771)
-  $F8EC L 3778 [NmiState2_MapScreen] LDY #$3B JSR SwitchBankAC_B  -> $1B/$1C @ $A000/$C000  (LDY #$3B @3777)
-  $F913 L 3796 [NmiState3_Battle] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3795)
-  $F934 L 3809 [NmiState3_Battle] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @3808)
-  $F942 L 3815 [NmiState3_Battle] LDY #$39 JSR SwitchBankAC_B  -> $19/$1A @ $A000/$C000  (LDY #$39 @3814)
-  $F94A L 3818 [NmiState3_Battle] LDY #$2C JSR SwitchBankAC_B  -> $0C/$0D @ $A000/$C000  (LDY #$2C @3817)
-  $F952 L 3821 [NmiState3_Battle] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3820)
-  $F97F L 3841 [NmiState4_Menu] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3840)
-  $F991 L 3848 [NmiState4_Menu] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3847)
-  $F9B5 L 3868 [NmiState5_Duel] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3867)
-  $F9CA L 3876 [NmiState5_Duel] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @3875)
-  $F9D2 L 3879 [NmiState5_Duel] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3878)
-  $F9F2 L 3894 [NmiState6_Event] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3893)
-  $FA01 L 3900 [NmiState6_Event] LDY #$2A JSR SwitchBankAC_B  -> $0A/$0B @ $A000/$C000  (LDY #$2A @3899)
-  $FA24 L 3916 [NmiState7_Strategy] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3915)
-  $FA39 L 3924 [NmiState7_Strategy] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3923)
-  $FA41 L 3927 [NmiState7_Strategy] LDY #$28 JSR SwitchBankAC_B  -> $08/$09 @ $A000/$C000  (LDY #$28 @3926)
-  $FA61 L 3942 [NmiState8_Officer] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3941)
-  $FA6D L 3947 [NmiState8_Officer] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3946)
-  $FA82 L 3955 [NmiState8_Officer] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @3954)
-  $FAE6 L 4017 [NmiHandler_Busy] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @4016)
+  $E3FD L  806 [State_NewGameSetup] LDY #$32 JSR SwitchBank8_B  -> $12 @ $8000  (LDY #$32 @805)
+  $E424 L  821 [State_NewGameSetup] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @820)
+  $E42C L  824 [State_NewGameSetup] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @823)
+  $E434 L  827 [State_NewGameSetup] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @826)
+  $E447 L  834 [State_NewGameSetup] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @833)
+  $E456 L  840 [State_NewGameSetup] BankSwitch cfg #2 (LDA #$02 @839)
+  $E479 L  875 [State_EventMessageScene] LDY #$36 JSR SwitchBank8_B  -> $16 @ $8000  (LDY #$36 @874)
+  $E492 L  885 [State_EventMessageScene] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @884)
+  $E49A L  888 [State_EventMessageScene] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @887)
+  $E4AA L  894 [State_EventMessageScene] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @893)
+  $E4B9 L  900 [State_EventMessageScene] BankSwitch cfg #2 (LDA #$02 @899)
+  $E60B L 1105 [SoundNotePlayer] LDY #$22 JSR SwitchBank8_B  -> $02 @ $8000  (LDY #$22 @1104)
+  $EE2D L 2507 [BankedCallbackTrampoline] LDY #?? JSR SwitchBankAC_B  -> ?  (LDY a:addr_trampoline_bank_param @2506 (RAM))
+  $EE4F L 2526 [BankedCallbackTrampoline] LDY #?? JSR SwitchBankAC_B  -> ?  (computed Y @2525)
+  $EEB0 L 2610 [NmiDoBank3D_MapDisplay] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @2609)
+  $EEC8 L 2623 [NmiDoBank3D_VramWrite] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @2622)
+  $EED8 L 2633 [NmiDoBank3D_FlushTiles] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @2632)
+  $EEE0 L 2640 [NmiDoBank3D_TileRender] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @2639)
+  $F30D L 3338 [GetNameDisplayScale] LDY #$30 JSR SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @3337)
+  $F389 L 3417 [GetOfficerRomRecordAddr] LDY #$31 JSR SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @3416)
+  $F8C6 L 3767 [NmiState2_StrategyMap] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3766)
+  $F8DB L 3775 [NmiState2_StrategyMap] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3774)
+  $F8EC L 3781 [NmiState2_StrategyMap] LDY #$3B JSR SwitchBankAC_B  -> $1B/$1C @ $A000/$C000  (LDY #$3B @3780)
+  $F913 L 3799 [NmiState3_WarScene] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3798)
+  $F934 L 3812 [NmiState3_WarScene] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @3811)
+  $F942 L 3818 [NmiState3_WarScene] LDY #$39 JSR SwitchBankAC_B  -> $19/$1A @ $A000/$C000  (LDY #$39 @3817)
+  $F94A L 3821 [NmiState3_WarScene] LDY #$2C JSR SwitchBankAC_B  -> $0C/$0D @ $A000/$C000  (LDY #$2C @3820)
+  $F952 L 3824 [NmiState3_WarScene] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3823)
+  $F97F L 3844 [NmiState4_Battle] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3843)
+  $F991 L 3851 [NmiState4_Battle] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3850)
+  $F9B5 L 3871 [NmiState5_Duel] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3870)
+  $F9CA L 3879 [NmiState5_Duel] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @3878)
+  $F9D2 L 3882 [NmiState5_Duel] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3881)
+  $F9F2 L 3897 [NmiState6_TitleScreen] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3896)
+  $FA01 L 3903 [NmiState6_TitleScreen] LDY #$2A JSR SwitchBankAC_B  -> $0A/$0B @ $A000/$C000  (LDY #$2A @3902)
+  $FA24 L 3919 [NmiState7_CountrySelect] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3918)
+  $FA39 L 3927 [NmiState7_CountrySelect] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3926)
+  $FA41 L 3930 [NmiState7_CountrySelect] LDY #$28 JSR SwitchBankAC_B  -> $08/$09 @ $A000/$C000  (LDY #$28 @3929)
+  $FA61 L 3945 [NmiState8_EventMessage] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @3944)
+  $FA6D L 3950 [NmiState8_EventMessage] LDY #$3D JSR SwitchBankAC_B  -> $1D/$1E @ $A000/$C000  (LDY #$3D @3949)
+  $FA82 L 3958 [NmiState8_EventMessage] LDY #$37 JSR SwitchBankAC_B  -> $17/$18 @ $A000/$C000  (LDY #$37 @3957)
+  $FAE6 L 4020 [NmiHandler_Busy] LDY #$2E JSR SwitchBankAC_B  -> $0E/$0F @ $A000/$C000  (LDY #$2E @4019)
 
 ## prg_17_18_display.asm (25 sites)
   $A02C L  252 [StrategyModeDisplay] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @251)
@@ -117,61 +117,61 @@
   $ABD9 L 1854 [ProvinceDataWindowFrame] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @1853)
   $ADF8 L 2096 [ProvinceDataWindowFrame] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @2095)
   $AECE L 2196 [ProvinceDataWindowFrame] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @2195)
-  $B112 L 2479 [ProvinceDataWindowFrame] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @2478)
-  $BA30 L 2934 [OfficerListHandler] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @2933)
-  $BC9D L 3276 [ScenePageCopy] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @3275)
-  $BE6C L 3539 [MenuRenderer] LDY #$36 JSR B1F_SwitchBank8_B  -> $16 @ $8000  (LDY #$36 @3538)
-  $C95D L 5061 [StrategyMenu_Return] LDY #$3D trampoline -> B1D_1E_LoadScenarioData
-  $DDCF L 5907 [SramInit] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @5906)
-  $DE14 L 5940 [SramInit] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @5939)
-  $DE80 L 5997 [MenuFontRecordLoad] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @5996)
+  $B112 L 2483 [ProvinceDataWindowFrame] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @2482)
+  $BA30 L 2938 [OfficerListHandler] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @2937)
+  $BC9D L 3280 [ScenePageCopy] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @3279)
+  $BE6C L 3543 [MenuRenderer] LDY #$36 JSR B1F_SwitchBank8_B  -> $16 @ $8000  (LDY #$36 @3542)
+  $C95D L 5059 [StrategyMenu_Return] LDY #$3D trampoline -> B1D_1E_LoadScenarioData
+  $DDCF L 6013 [SramInit] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @6012)
+  $DE14 L 6046 [SramInit] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @6045)
+  $DE80 L 6103 [MenuFontRecordLoad] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @6102)
 
-## prg_1b_1c_map_screen.asm (45 sites)
-  $A014 L   49 [MapScreenFrameUpdate] LDY #$39 trampoline -> B19_1A_MapProvinceDirtyMark
-  $A047 L   83 [CallCountryRotationDispatch] LDY #$39 trampoline -> B19_1A_CountryRotationDispatch
-  $A04F L   95 [CallProvinceOfficerRosterDispatch] LDY #$39 trampoline -> B19_1A_ProvinceOfficerRosterDispatch
-  $A057 L  107 [CallStrategyRequestDispatch] LDY #$39 trampoline -> B19_1A_StrategyRequestDispatch
-  $A05F L  119 [CallMonthlyEventDispatch] LDY #$39 trampoline -> B19_1A_MonthlyEventDispatch
-  $A067 L  131 [CallOfficerStatusScene] LDY #$39 trampoline -> B19_1A_OfficerStatusScene
-  $A06F L  143 [CallSceneRenderer] LDY #$3D trampoline -> B1D_1E_SceneRenderer
-  $A077 L  155 [CallUnificationEndingDispatch] LDY #$39 trampoline -> B19_1A_UnificationEndingDispatch
-  $A0E4 L  262 [MapRulerIntroDispatch] LDY #$3D trampoline -> B1D_1E_SlowPeriodic
-  $A4A8 L  833 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $A4C6 L  845 [CastleCommandDispatch] LDY #$39 trampoline -> B19_1A_CastleDevResultRoll
-  $A51E L  887 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $A556 L  916 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $A8FF L 1363 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $AB95 L 1659 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $AC38 L 1738 [CastleCommandDispatch] LDY #$39 trampoline -> B19_1A_SramSaveCommit
-  $ACEB L 1835 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $AD32 L 1866 [CastleCommandDispatch] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
-  $B257 L 2559 [ArmyCommandDispatch] LDY #$39 trampoline -> B19_1A_SortieWarCommit
-  $B5C3 L 2952 [ArmyCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $B61A L 2992 [ArmyCommandDispatch] LDY #$2C trampoline -> B0C_0D_TacticalMapSceneInit_Entry
-  $B86B L 3379 [WarehouseCommandDispatch] LDY #$39 trampoline -> B19_1A_TransferCapacityCalc
-  $BC03 L 3826 [WarehouseCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $BF38 L 4206 [WarehouseCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $C20C L 4660 [TownCommandDispatch] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @4659)
-  $C5BA L 5087 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $C5F2 L 5117 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $C6E3 L 5226 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $C6FA L 5240 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $C7AB L 5322 [TownCommandDispatch] LDY #$28 trampoline -> B08_09_ExpandArmoryGridSlots_Entry
-  $C829 L 5374 [TownCommandDispatch] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @5373)
-  $C9E3 L 5568 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $CC01 L 5944 [IntrigueCommandDispatch] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @5943)
-  $CD62 L 6100 [IntrigueCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $CE4C L 6208 [IntrigueCommandDispatch] LDY #$39 trampoline -> B19_1A_GoodsSendPrepare
-  $CE95 L 6241 [IntrigueCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $D133 L 6557 [IntrigueCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $D1AE L 6616 [IntrigueCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $D291 L 6717 [IntrigueCommandDispatch] LDY #$39 trampoline -> B19_1A_GoodsSendApply
-  $D46C L 6955 [PoachRosterTransfer] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
-  $D622 L 7261 [ConfirmDialogPoll] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
-  $D62A L 7266 [ConfirmDialogPoll] LDY #$3D trampoline -> B1D_1E_FastPeriodic
-  $DC18 L 8149 [CastleScoutOutcomeRoll] LDY #$39 trampoline -> B19_1A_OfficerArrivalScan
-  $DD6A L 8367 [OfficerCardShow] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
-  $DD7B L 8410 [ProvinceAdjacencyValidate] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @8409)
+## prg_1b_1c_strategy_mode.asm (45 sites)
+  $A014 L   85 [StrategyFrameUpdate] LDY #$39 trampoline -> B19_1A_MapProvinceDirtyMark
+  $A047 L  119 [CallCountryRotationDispatch] LDY #$39 trampoline -> B19_1A_CountryRotationDispatch
+  $A04F L  131 [CallProvinceOfficerRosterDispatch] LDY #$39 trampoline -> B19_1A_ProvinceOfficerRosterDispatch
+  $A057 L  143 [CallStrategyRequestDispatch] LDY #$39 trampoline -> B19_1A_StrategyRequestDispatch
+  $A05F L  155 [CallMonthlyEventDispatch] LDY #$39 trampoline -> B19_1A_MonthlyEventDispatch
+  $A067 L  167 [CallOfficerStatusScene] LDY #$39 trampoline -> B19_1A_OfficerStatusScene
+  $A06F L  179 [CallSceneRenderer] LDY #$3D trampoline -> B1D_1E_SceneRenderer
+  $A077 L  191 [CallUnificationEndingDispatch] LDY #$39 trampoline -> B19_1A_UnificationEndingDispatch
+  $A0E4 L  298 [MapRulerIntroDispatch] LDY #$3D trampoline -> B1D_1E_SlowPeriodic
+  $A4A8 L  869 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $A4C6 L  881 [CastleCommandDispatch] LDY #$39 trampoline -> B19_1A_CastleDevResultRoll
+  $A51E L  923 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $A556 L  952 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $A8FF L 1399 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $AB95 L 1695 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $AC38 L 1774 [CastleCommandDispatch] LDY #$39 trampoline -> B19_1A_SramSaveCommit
+  $ACEB L 1871 [CastleCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $AD32 L 1902 [CastleCommandDispatch] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
+  $B257 L 2595 [ArmyCommandDispatch] LDY #$39 trampoline -> B19_1A_SortieWarCommit
+  $B5C3 L 2988 [ArmyCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $B61A L 3028 [ArmyCommandDispatch] LDY #$2C trampoline -> B0C_0D_TacticalMapSceneInit_Entry
+  $B86B L 3415 [WarehouseCommandDispatch] LDY #$39 trampoline -> B19_1A_TransferCapacityCalc
+  $BC03 L 3862 [WarehouseCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $BF38 L 4242 [WarehouseCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $C20C L 4696 [TownCommandDispatch] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @4695)
+  $C5BA L 5123 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $C5F2 L 5153 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $C6E3 L 5262 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $C6FA L 5276 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $C7AB L 5358 [TownCommandDispatch] LDY #$28 trampoline -> B08_09_ExpandArmoryGridSlots_Entry
+  $C829 L 5410 [TownCommandDispatch] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @5409)
+  $C9E3 L 5604 [TownCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $CC01 L 5980 [IntrigueCommandDispatch] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @5979)
+  $CD62 L 6136 [IntrigueCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $CE4C L 6244 [IntrigueCommandDispatch] LDY #$39 trampoline -> B19_1A_GoodsSendPrepare
+  $CE95 L 6277 [IntrigueCommandDispatch] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $D133 L 6593 [IntrigueCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $D1AE L 6652 [IntrigueCommandDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $D291 L 6753 [IntrigueCommandDispatch] LDY #$39 trampoline -> B19_1A_GoodsSendApply
+  $D46C L 6991 [PoachRosterTransfer] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
+  $D622 L 7297 [ConfirmDialogPoll] LDY #$3D trampoline -> B1D_1E_ImmediateOverlay
+  $D62A L 7302 [ConfirmDialogPoll] LDY #$3D trampoline -> B1D_1E_FastPeriodic
+  $DC18 L 8185 [CastleScoutOutcomeRoll] LDY #$39 trampoline -> B19_1A_OfficerArrivalScan
+  $DD6A L 8403 [OfficerCardShow] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
+  $DD7B L 8446 [ProvinceAdjacencyValidate] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @8445)
 
 ## prg_19_1a_event_scenes.asm (46 sites)
   $A0B8 L  145 [CountryRotationDispatch] LDY #$3D trampoline -> B1D_1E_YearDisplaySetup
@@ -192,34 +192,34 @@
   $B966 L 3895 [OfficerArrivalScan] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @3894)
   $B9EC L 3959 [OfficerArrivalScan] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @3958)
   $BA06 L 3974 [OfficerArrivalScan] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @3973)
-  $BD2A L 4462 [OfficerNaturalDeathScene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @4461)
-  $BDBD L 4543 [OfficerNaturalDeathScene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @4542)
-  $BDD0 L 4551 [OfficerNaturalDeathScene] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @4550)
-  $BEE2 L 4691 [RulerSuccessionScene] LDY #$3B trampoline -> B1B_1C_OfficerSelectDialogPoll_Entry
-  $C05B L 4872 [RulerSuccessionScene] LDY #$2A trampoline -> B0A_0B_DataRecordLookup_Entry
-  $C2EA L 5217 [SuccessionApplyScene] LDY #$2A trampoline -> B0A_0B_DataRecordLookup_Entry
-  $C5CD L 5597 [UnificationEndingDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $C810 L 5993 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $C835 L 6011 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $C893 L 6058 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $C8B5 L 6084 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $C8EB L 6115 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $C95B L 6184 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $C996 L 6217 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $C9EE L 6271 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $CA32 L 6323 [StrategyRequestDispatch] LDY #$3B trampoline -> B1B_1C_ProvinceZoneOriginGet_Entry
-  $CA7E L 6366 [StrategyRequestDispatch] LDY #$2C trampoline -> B0C_0D_TacticalMapSceneInit_Entry
-  $CAA0 L 6389 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $CAC6 L 6406 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $CAF0 L 6434 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $CB21 L 6459 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $CB56 L 6495 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
-  $CCD2 L 6715 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $CE39 L 6950 [OfficerCardRender] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @6949)
-  $D2EC L 7480 [StratagemCutscene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @7479)
-  $D3E7 L 7590 [StratagemCutscene] LDY #$3D trampoline -> B1D_1E_LoadScenarioData
-  $D478 L 7654 [StratagemCutscene] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @7653)
-  $D55B L 7758 [StratagemCutscene] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @7757)
+  $BD2A L 4472 [OfficerNaturalDeathScene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @4471)
+  $BDBD L 4553 [OfficerNaturalDeathScene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @4552)
+  $BDD0 L 4561 [OfficerNaturalDeathScene] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @4560)
+  $BEE2 L 4701 [RulerSuccessionScene] LDY #$3B trampoline -> B1B_1C_OfficerSelectDialogPoll_Entry
+  $C05B L 4882 [RulerSuccessionScene] LDY #$2A trampoline -> B0A_0B_DataRecordLookup_Entry
+  $C2EA L 5227 [SuccessionApplyScene] LDY #$2A trampoline -> B0A_0B_DataRecordLookup_Entry
+  $C5CD L 5607 [UnificationEndingDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $C810 L 6003 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $C835 L 6021 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $C893 L 6068 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $C8B5 L 6094 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $C8EB L 6125 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $C95B L 6194 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $C996 L 6227 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $C9EE L 6281 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $CA32 L 6333 [StrategyRequestDispatch] LDY #$3B trampoline -> B1B_1C_ProvinceZoneOriginGet_Entry
+  $CA7E L 6376 [StrategyRequestDispatch] LDY #$2C trampoline -> B0C_0D_TacticalMapSceneInit_Entry
+  $CAA0 L 6399 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $CAC6 L 6416 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $CAF0 L 6444 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $CB21 L 6469 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $CB56 L 6505 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_RulerCardRefresh
+  $CCD2 L 6725 [StrategyRequestDispatch] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $CE39 L 6960 [OfficerCardRender] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @6959)
+  $D2EC L 7513 [StratagemCutscene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @7512)
+  $D3E7 L 7623 [StratagemCutscene] LDY #$3D trampoline -> B1D_1E_LoadScenarioData
+  $D478 L 7687 [StratagemCutscene] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @7686)
+  $D55B L 7807 [StratagemCutscene] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @7806)
 
 ## prg_0e_0f_battle.asm (22 sites)
   $A026 L  246 [BattleVBlankFrameUpdate] LDY #$3D trampoline -> B1D_1E_MenuUpdate
@@ -246,57 +246,57 @@
   $D8D6 L 8946 [BattleAnimSoundEngine] LDY #$22 JSR B1F_SwitchBank8_B  -> $02 @ $8000  (LDY #$22 @8945)
 
 ## prg_0c_0d_tactical_commands.asm (51 sites)
-  $A00E L  235 [?] LDY #$28 trampoline -> B08_09_WarStatusPanelDraw_Entry
-  $A015 L  239 [?] LDY #$28 trampoline -> B08_09_WarMapScrollUpdate_Entry
-  $A022 L  245 [?] LDY #$28 trampoline -> B08_09_StratagemTargetMarker_Entry
-  $A0E8 L  362 [WarOrder_Input] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
-  $A257 L  553 [OfficerDetail_RenderWait] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
-  $A262 L  559 [OfficerDetail_RenderWait] LDY #$39 trampoline -> B19_1A_OfficerCardAnimStep_Entry
-  $A4D0 L  900 [MoveState_CheckDest] LDY #$28 trampoline -> B08_09_WarResultSceneInit_Entry
-  $A4DF L  909 [MoveState_CheckDest] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @908)
-  $A579 L  994 [MoveState_Select] LDY #$2E trampoline -> B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry
-  $A5BB L 1024 [MoveState_Select] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
-  $A8BB L 1398 [StratagemState_Init] LDY #$28 trampoline -> B08_09_BuildCommandList_Entry
-  $AADD L 1683 [StratagemState_Cancel] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
-  $B3AD L 2824 [ExecStratagem_Enticement] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
-  $B62A L 3177 [ApplyLoyaltyChange] LDY #$2E trampoline -> B0E_0F_OfficerStatSumExpGrant_Entry
-  $B63D L 3185 [ApplyLoyaltyChange] LDY #$28 trampoline -> B08_09_WarSlotClear_Entry
-  $B6EA L 3283 [ApplyGoldChange] LDY #$2E trampoline -> B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry
-  $BBAF L 3925 [ProvinceSelect_InitList] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @3924)
-  $BCF8 L 4115 [TurnEndState_Confirm] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
-  $BE0C L 4259 [ArmyTurnEnd_Commit] LDY #$28 trampoline -> B08_09_WarAttritionRound_Entry
-  $BE69 L 4302 [ArmyTurnEnd_SwitchRuler] LDY #$28 trampoline -> B08_09_WarCasualtyResolution_Entry
-  $BFA0 L 4461 [AiMarch] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
-  $C016 L 4514 [AiMarch] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
-  $C158 L 4648 [AiMarch] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
-  $C1FE L 4727 [TownAction] LDY #$28 trampoline -> B08_09_WarTownActionDispatch_Entry
-  $C360 L 4899 [ArmyDeploy] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
-  $C39C L 4924 [ArmyDeploy] LDY #$39 trampoline -> B19_1A_OfficerCardAnimStep_Entry
-  $C3DE L 4959 [ArmyDeploy] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @4958)
-  $C42D L 5004 [ArmyDeploy] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @5003)
-  $C457 L 5025 [ArmyDeploy] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @5024)
-  $C497 L 5062 [ArmyDeploy] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @5061)
-  $C73D L 5405 [OfficerLevelUp] LDY #$28 trampoline -> B08_09_ValidateSpecialOfficer_Entry
-  $C7AF L 5475 [OfficerFateCommit] LDY #$2E trampoline -> B0E_0F_OfficerStatSumExpGrant_Entry
-  $C7D5 L 5496 [OfficerFateCommit] LDY #$28 trampoline -> B08_09_WarSlotClear_Entry
-  $C815 L 5532 [OfficerFateCommit] LDY #$2A trampoline -> B0A_0B_DistanceClamp_Entry
-  $C880 L 5588 [OfficerFateCommit] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
-  $CC2B L 6048 [WarSideStatDigitsRender] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @6047)
-  $D225 L 6750 [UnitWithdraw] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6749)
-  $D4F5 L 7150 [TacticalMapScene] LDY #$28 trampoline -> B08_09_WarPhaseProcess_Entry
-  $D72E L 7454 [TacticalMapScene] LDY #$37 trampoline -> B17_18_BattleDispatch
-  $D7B5 L 7525 [TacticalMapScene] LDY #$37 trampoline -> B17_18_SetupAdvisorTiles
-  $D7E0 L 7548 [TacticalMapScene] LDY #$37 trampoline -> B17_18_OverlayWindow
-  $D827 L 7593 [TacticalMapScene] LDY #$37 trampoline -> B17_18_OverlayWindow
-  $D847 L 7612 [TacticalMapScene] LDY #$37 trampoline -> B17_18_OverlayWindow
-  $DB05 L 7982 [TacticalMapScene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @7981)
-  $DB6D L 8041 [TacticalMapScene] LDY #$37 trampoline -> B17_18_BattleDispatch
-  $DC45 L 8103 [TacticalMapScene] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
-  $DC9B L 8155 [TacticalMapScene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @8154)
-  $DEA0 L 8416 [TacticalMapScene] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @8415)
-  $DEC1 L 8438 [TacticalMapScene] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @8437)
-  $DEDD L 8455 [TacticalMapScene] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @8454)
-  $DF12 L 8482 [TacticalMapScene] LDY #$28 trampoline -> B08_09_ValidateSpecialOfficer_Entry
+  $A00E L  239 [?] LDY #$28 trampoline -> B08_09_WarStatusPanelDraw_Entry
+  $A015 L  243 [?] LDY #$28 trampoline -> B08_09_WarMapScrollUpdate_Entry
+  $A022 L  249 [?] LDY #$28 trampoline -> B08_09_StratagemTargetMarker_Entry
+  $A0E8 L  366 [WarOrder_Input] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
+  $A257 L  557 [OfficerDetail_RenderWait] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
+  $A262 L  563 [OfficerDetail_RenderWait] LDY #$39 trampoline -> B19_1A_OfficerCardAnimStep_Entry
+  $A4D0 L  904 [MoveState_CheckDest] LDY #$28 trampoline -> B08_09_WarResultSceneInit_Entry
+  $A4DF L  913 [MoveState_CheckDest] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @912)
+  $A579 L  998 [MoveState_Select] LDY #$2E trampoline -> B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry
+  $A5BB L 1028 [MoveState_Select] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
+  $A8BB L 1402 [StratagemState_Init] LDY #$28 trampoline -> B08_09_BuildCommandList_Entry
+  $AADD L 1687 [StratagemState_Cancel] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
+  $B3AD L 2829 [ExecStratagem_Enticement] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
+  $B62A L 3182 [ApplyLoyaltyChange] LDY #$2E trampoline -> B0E_0F_OfficerStatSumExpGrant_Entry
+  $B63D L 3190 [ApplyLoyaltyChange] LDY #$28 trampoline -> B08_09_WarSlotClear_Entry
+  $B6EA L 3288 [ApplyGoldChange] LDY #$2E trampoline -> B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry
+  $BBAF L 3930 [ProvinceSelect_InitList] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @3929)
+  $BCF8 L 4123 [TurnEndState_Confirm] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
+  $BE0C L 4267 [ArmyTurnEnd_Commit] LDY #$28 trampoline -> B08_09_WarAttritionRound_Entry
+  $BE69 L 4313 [?] LDY #$28 trampoline -> B08_09_WarCasualtyResolution_Entry
+  $BFA0 L 4471 [AiMarch] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
+  $C016 L 4524 [AiMarch] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
+  $C158 L 4658 [AiMarch] LDY #$3D trampoline -> B1D_1E_ProvinceDataHandler
+  $C1FE L 4737 [TownAction] LDY #$28 trampoline -> B08_09_WarTownActionDispatch_Entry
+  $C360 L 4909 [ArmyDeploy] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
+  $C39C L 4934 [ArmyDeploy] LDY #$39 trampoline -> B19_1A_OfficerCardAnimStep_Entry
+  $C3DE L 4969 [ArmyDeploy] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @4968)
+  $C42D L 5014 [ArmyDeploy] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @5013)
+  $C457 L 5035 [ArmyDeploy] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @5034)
+  $C497 L 5072 [ArmyDeploy] LDY #$26 JSR B1F_SwitchBank8_B  -> $06 @ $8000  (LDY #$26 @5071)
+  $C73D L 5415 [OfficerLevelUp] LDY #$28 trampoline -> B08_09_ValidateSpecialOfficer_Entry
+  $C7AF L 5485 [OfficerFateCommit] LDY #$2E trampoline -> B0E_0F_OfficerStatSumExpGrant_Entry
+  $C7D5 L 5506 [OfficerFateCommit] LDY #$28 trampoline -> B08_09_WarSlotClear_Entry
+  $C815 L 5542 [OfficerFateCommit] LDY #$2A trampoline -> B0A_0B_DistanceClamp_Entry
+  $C880 L 5598 [OfficerFateCommit] LDY #$2A trampoline -> B0A_0B_ArmyValueCalc_Entry
+  $CC2B L 6058 [WarSideStatDigitsRender] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @6057)
+  $D225 L 6760 [UnitWithdraw] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6759)
+  $D4F5 L 7159 [?] LDY #$28 trampoline -> B08_09_WarPhaseProcess_Entry
+  $D72E L 7463 [?] LDY #$37 trampoline -> B17_18_BattleDispatch
+  $D7B5 L 7534 [?] LDY #$37 trampoline -> B17_18_SetupAdvisorTiles
+  $D7E0 L 7557 [?] LDY #$37 trampoline -> B17_18_OverlayWindow
+  $D827 L 7602 [?] LDY #$37 trampoline -> B17_18_OverlayWindow
+  $D847 L 7621 [?] LDY #$37 trampoline -> B17_18_OverlayWindow
+  $DB05 L 7991 [?] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @7990)
+  $DB6D L 8050 [?] LDY #$37 trampoline -> B17_18_BattleDispatch
+  $DC45 L 8112 [?] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
+  $DC9B L 8164 [?] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @8163)
+  $DEA0 L 8425 [?] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @8424)
+  $DEC1 L 8447 [?] LDY #$30 JSR B1F_SwitchBank8_B  -> $10 @ $8000  (LDY #$30 @8446)
+  $DEDD L 8464 [?] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @8463)
+  $DF12 L 8491 [?] LDY #$28 trampoline -> B08_09_ValidateSpecialOfficer_Entry
 
 ## prg_08_09_tactical_war.asm (37 sites)
   $A1E7 L  383 [AiTurnProcess] LDY #$26 JSR B1F_SwitchBank8_A  -> $06 @ $8000  (LDY #$26 @382)
@@ -331,36 +331,36 @@
   $CE1B L 6475 [WarAttritionRound] LDY #$2E trampoline -> B0E_0F_OfficerBattleExpAccrueAndLevelUp_Entry
   $D206 L 7040 [DrawStratagemTargetMarkers] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @7039)
   $D24F L 7072 [DrawStratagemTargetMarkers] LDY #$31 JSR B1F_SwitchBank8_B  -> $11 @ $8000  (LDY #$31 @7071)
-  $D896 L 8044 [WarResult_PickEntry] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
-  $D8AF L 8064 [WarResult_InspectEntry] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
-  $D8F3 L 8102 [WarResult_Finalize] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
-  $D92F L 8146 [WarResultMenuPoll] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
-  $D93D L 8153 [WarResultMenuPoll] LDY #$39 trampoline -> B19_1A_OfficerCardAnimStep_Entry
+  $D896 L 8054 [CountrySelect_PickEntry] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Lookup
+  $D8AF L 8074 [CountrySelect_InspectEntry] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
+  $D8F3 L 8112 [CountrySelect_Finalize] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
+  $D92F L 8156 [CountrySelectMenuPoll] LDY #$39 trampoline -> B19_1A_OfficerCardRender_Entry
+  $D93D L 8163 [CountrySelectMenuPoll] LDY #$39 trampoline -> B19_1A_OfficerCardAnimStep_Entry
 
 ## prg_0a_0b_strategy_ai.asm (23 sites)
-  $A0D5 L  354 [AiCountExpansionRoom] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @353)
-  $A242 L  618 [FindBestEnemyProvince] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @617)
-  $ABA5 L 2068 [SettleStagedOfficers] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @2067)
-  $B182 L 2901 [EvalProvinceAbsorption] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @2900)
-  $B89A L 4156 [AiAction_DomesticTurn] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @4155)
-  $C339 L 5867 [AiAction_DomesticTurn] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @5866)
-  $C349 L 5896 [AiAction_DomesticTurn] LDY #$0A JMP $C349 
-  $C349 L 5917 [AiAction_DomesticTurn] LDY #$0A JMP $C349 
-  $C5D4 L 6261 [EvaluateAndMarkOfficer] LDY #$31 JSR B1F_SwitchBank8_A  -> $11 @ $8000  (LDY #$31 @6260)
-  $C6F8 L 6434 [CalcActionProb] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6433)
-  $C7EB L 6671 [AiOfficer_RecruitTransfer] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6670)
-  $C816 L 6696 [AiOfficer_RecruitTransfer] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6695)
-  $C86D L 6754 [AiOfficer_RecruitTransfer] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6753)
-  $CC3F L 7395 [PromoteBestOfficerForCountry] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @7394)
-  $CC96 L 7434 [PromoteBestOfficerForCountry] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @7433)
-  $D0AC L 8144 [CountDefendedBorderProvinces] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @8143)
-  $D1AB L 8350 [CollectEnemyBorderProvinces] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @8349)
-  $D1FB L 8410 [CollectEnemyBorderProvincesX] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @8409)
-  $D2D7 L 8579 [ReadBankedRecordField] LDY #$31 JSR B1F_SwitchBank8_A  -> $11 @ $8000  (LDY #$31 @8578)
-  $D4D7 L 9051 [BuildAdjacencyBitmap] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @9050)
-  $D72C L 9517 [CallStrategyModeDisplay] LDY #$37 trampoline
-  $D7EE L 9679 [StateSpriteAnim] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @9678)
-  $DD36 L10481 [DrawSelectionSprites] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @10480)
+  $A0D5 L  353 [AiCountExpansionRoom] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @352)
+  $A242 L  617 [FindBestEnemyProvince] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @616)
+  $ABA5 L 2067 [SettleStagedOfficers] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @2066)
+  $B182 L 2900 [EvalProvinceAbsorption] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @2899)
+  $B89A L 4155 [AiAction_DomesticTurn] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @4154)
+  $C339 L 5866 [AiAction_DomesticTurn] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @5865)
+  $C349 L 5895 [AiAction_DomesticTurn] LDY #$0A JMP $C349 
+  $C349 L 5916 [AiAction_DomesticTurn] LDY #$0A JMP $C349 
+  $C5D4 L 6260 [EvaluateAndMarkOfficer] LDY #$31 JSR B1F_SwitchBank8_A  -> $11 @ $8000  (LDY #$31 @6259)
+  $C6F8 L 6433 [CalcActionProb] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6432)
+  $C7EB L 6672 [AiOfficer_RecruitTransfer] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6671)
+  $C816 L 6697 [AiOfficer_RecruitTransfer] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6696)
+  $C86D L 6755 [AiOfficer_RecruitTransfer] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @6754)
+  $CC3F L 7396 [PromoteBestOfficerForCountry] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @7395)
+  $CC96 L 7435 [PromoteBestOfficerForCountry] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @7434)
+  $D0AC L 8145 [CountDefendedBorderProvinces] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @8144)
+  $D1AB L 8351 [CollectEnemyBorderProvinces] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @8350)
+  $D1FB L 8411 [CollectEnemyBorderProvincesX] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @8410)
+  $D2D7 L 8580 [ReadBankedRecordField] LDY #$31 JSR B1F_SwitchBank8_A  -> $11 @ $8000  (LDY #$31 @8579)
+  $D4D7 L 9052 [BuildAdjacencyBitmap] LDY #$30 JSR B1F_SwitchBank8_A  -> $10 @ $8000  (LDY #$30 @9051)
+  $D72C L 9533 [CallTitleAnimationDispatch] LDY #$37 trampoline
+  $D7EE L 9695 [StateSpriteAnim] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @9694)
+  $DD36 L10497 [DrawSelectionSprites] LDY #$21 JSR B1F_SwitchBank8_B  -> $01 @ $8000  (LDY #$21 @10496)
 
 # Aggregated PRG linkage (source file -> target bank pair)
 
@@ -368,24 +368,24 @@
   prg_08_09_tactical_war.asm -> $0E+$0F          (1 calls: WarAttritionRound)
   prg_08_09_tactical_war.asm -> $10 @$8000       (13 calls: ?, AiTurnProcess, SetupPostWarState, UpdateOfficerCoords, WarSetup, WarTownActionDispatch)
   prg_08_09_tactical_war.asm -> $11 @$8000       (12 calls: AiTurnProcess, DrawStratagemTargetMarkers, GetOfficerRecordPtrBanked, UpdateOfficerCoords, WarCasualtyResolution, WarSetup)
-  prg_08_09_tactical_war.asm -> $19+$1A          (4 calls: WarResultMenuPoll, WarResult_Finalize, WarResult_InspectEntry)
+  prg_08_09_tactical_war.asm -> $19+$1A          (4 calls: CountrySelectMenuPoll, CountrySelect_Finalize, CountrySelect_InspectEntry)
   prg_08_09_tactical_war.asm -> $1B+$1C          (2 calls: WarTownActionDispatch)
-  prg_08_09_tactical_war.asm -> $1D+$1E          (1 calls: WarResult_PickEntry)
+  prg_08_09_tactical_war.asm -> $1D+$1E          (1 calls: CountrySelect_PickEntry)
   prg_08_09_tactical_war.asm -> dynamic @$8000   (1 calls: GetTileTerrainClamped)
   prg_0a_0b_strategy_ai.asm -> $01 @$8000       (2 calls: DrawSelectionSprites, StateSpriteAnim)
   prg_0a_0b_strategy_ai.asm -> $0A+$0B          (2 calls: AiAction_DomesticTurn)
   prg_0a_0b_strategy_ai.asm -> $10 @$8000       (16 calls: AiAction_DomesticTurn, AiCountExpansionRoom, AiOfficer_RecruitTransfer, BuildAdjacencyBitmap, CalcActionProb, CollectEnemyBorderProvinces...)
   prg_0a_0b_strategy_ai.asm -> $11 @$8000       (2 calls: EvaluateAndMarkOfficer, ReadBankedRecordField)
-  prg_0a_0b_strategy_ai.asm -> $17+$18          (1 calls: CallStrategyModeDisplay)
+  prg_0a_0b_strategy_ai.asm -> $17+$18          (1 calls: CallTitleAnimationDispatch)
   prg_0c_0d_tactical_commands.asm -> $06 @$8000       (4 calls: ArmyDeploy)
-  prg_0c_0d_tactical_commands.asm -> $08+$09          (13 calls: ?, ApplyLoyaltyChange, MoveState_CheckDest, OfficerLevelUp, OfficerFateCommit, ArmyTurnEnd_Commit...)
+  prg_0c_0d_tactical_commands.asm -> $08+$09          (13 calls: ?, ApplyLoyaltyChange, ArmyTurnEnd_Commit, MoveState_CheckDest, OfficerFateCommit, OfficerLevelUp...)
   prg_0c_0d_tactical_commands.asm -> $0A+$0B          (3 calls: ExecStratagem_Enticement, OfficerFateCommit)
   prg_0c_0d_tactical_commands.asm -> $0E+$0F          (4 calls: ApplyGoldChange, ApplyLoyaltyChange, MoveState_Select, OfficerFateCommit)
-  prg_0c_0d_tactical_commands.asm -> $10 @$8000       (4 calls: UnitWithdraw, ProvinceSelect_InitList, TacticalMapScene)
-  prg_0c_0d_tactical_commands.asm -> $11 @$8000       (5 calls: MoveState_CheckDest, WarSideStatDigitsRender, TacticalMapScene)
-  prg_0c_0d_tactical_commands.asm -> $17+$18          (6 calls: TacticalMapScene)
-  prg_0c_0d_tactical_commands.asm -> $19+$1A          (5 calls: ArmyDeploy, OfficerDetail_RenderWait, TacticalMapScene)
-  prg_0c_0d_tactical_commands.asm -> $1D+$1E          (7 calls: MoveState_Select, AiMarch, TurnEndState_Confirm, WarOrder_Input, StratagemState_Cancel)
+  prg_0c_0d_tactical_commands.asm -> $10 @$8000       (4 calls: ?, ProvinceSelect_InitList, UnitWithdraw)
+  prg_0c_0d_tactical_commands.asm -> $11 @$8000       (5 calls: ?, MoveState_CheckDest, WarSideStatDigitsRender)
+  prg_0c_0d_tactical_commands.asm -> $17+$18          (6 calls: ?)
+  prg_0c_0d_tactical_commands.asm -> $19+$1A          (5 calls: ?, ArmyDeploy, OfficerDetail_RenderWait)
+  prg_0c_0d_tactical_commands.asm -> $1D+$1E          (7 calls: AiMarch, MoveState_Select, StratagemState_Cancel, TurnEndState_Confirm, WarOrder_Input)
   prg_0e_0f_battle.asm -> $02 @$8000       (1 calls: BattleAnimSoundEngine)
   prg_0e_0f_battle.asm -> $19+$1A          (10 calls: AiTauntStripRedraw, BattleModeStateLoop, BattleTacticsMenu, CommandSelect, FormationAdvance, SideAFormationConfirmWait...)
   prg_0e_0f_battle.asm -> $1D+$1E          (9 calls: AiTauntSceneStep, BattleOverlayIntroDataFormatBottomAndAdvance, BattleOverlayIntroDataFormatTop, BattleVBlankFrameUpdate, CommandAnimStep, CommandConfirmWait...)
@@ -403,13 +403,13 @@
   prg_19_1a_event_scenes.asm -> $10 @$8000       (3 calls: CardFillDispatch, OfficerArrivalScan, OfficerNaturalDeathScene)
   prg_19_1a_event_scenes.asm -> $11 @$8000       (9 calls: CardFillDispatch, CountryCensusBuild, OfficerArrivalScan, OfficerNaturalDeathScene, OfficerReinforceScene, StratagemCutscene)
   prg_19_1a_event_scenes.asm -> $1B+$1C          (3 calls: ProvinceRebellionEvent, RulerSuccessionScene, StrategyRequestDispatch)
-  prg_19_1a_event_scenes.asm -> $1D+$1E          (25 calls: CountryRotationDispatch, DroughtDamageScene, FloodDamageScene, OfficerReinforceScene, OfficerStatusScene, StratagemCutscene...)
-  prg_1b_1c_map_screen.asm -> $08+$09          (1 calls: TownCommandDispatch)
-  prg_1b_1c_map_screen.asm -> $0A+$0B          (2 calls: CastleCommandDispatch, PoachRosterTransfer)
-  prg_1b_1c_map_screen.asm -> $0C+$0D          (1 calls: ArmyCommandDispatch)
-  prg_1b_1c_map_screen.asm -> $10 @$8000       (4 calls: IntrigueCommandDispatch, ProvinceAdjacencyValidate, TownCommandDispatch)
-  prg_1b_1c_map_screen.asm -> $19+$1A          (15 calls: ArmyCommandDispatch, CallCountryRotationDispatch, CallMonthlyEventDispatch, CallOfficerStatusScene, CallProvinceOfficerRosterDispatch, CallStrategyRequestDispatch...)
-  prg_1b_1c_map_screen.asm -> $1D+$1E          (22 calls: ArmyCommandDispatch, CallSceneRenderer, CastleCommandDispatch, ConfirmDialogPoll, IntrigueCommandDispatch, MapRulerIntroDispatch...)
+  prg_19_1a_event_scenes.asm -> $1D+$1E          (25 calls: CountryRotationDispatch, DroughtDamageScene, FloodDamageScene, OfficerReinforceScene, OfficerStatusScene, ProvinceOfficerRosterDispatch...)
+  prg_1b_1c_strategy_mode.asm -> $08+$09          (1 calls: TownCommandDispatch)
+  prg_1b_1c_strategy_mode.asm -> $0A+$0B          (2 calls: CastleCommandDispatch, PoachRosterTransfer)
+  prg_1b_1c_strategy_mode.asm -> $0C+$0D          (1 calls: ArmyCommandDispatch)
+  prg_1b_1c_strategy_mode.asm -> $10 @$8000       (4 calls: IntrigueCommandDispatch, ProvinceAdjacencyValidate, TownCommandDispatch)
+  prg_1b_1c_strategy_mode.asm -> $19+$1A          (15 calls: ArmyCommandDispatch, CallCountryRotationDispatch, CallMonthlyEventDispatch, CallOfficerStatusScene, CallProvinceOfficerRosterDispatch, CallStrategyRequestDispatch...)
+  prg_1b_1c_strategy_mode.asm -> $1D+$1E          (22 calls: ArmyCommandDispatch, CallSceneRenderer, CastleCommandDispatch, ConfirmDialogPoll, IntrigueCommandDispatch, MapRulerIntroDispatch...)
   prg_1d_1e_menu_screens.asm -> $01 @$8000       (1 calls: MenuFontRecordLoad)
   prg_1d_1e_menu_screens.asm -> $10 @$8000       (10 calls: MenuUpdate, OfficerListHandler, ProvinceDataWindowFrame, ScenePageCopy, SramInit)
   prg_1d_1e_menu_screens.asm -> $11 @$8000       (3 calls: OfficerNameSpritePost, ProvinceDataWindowFrame, SramInit)
@@ -417,17 +417,17 @@
   prg_1d_1e_menu_screens.asm -> $1D+$1E          (2 calls: OfficerDisplay_Lookup, StrategyMenu_Return)
   prg_1d_1e_menu_screens.asm -> dynamic @$8000   (5 calls: MenuUpdate)
   prg_1f_boot.asm    -> $02 @$8000       (1 calls: SoundNotePlayer)
-  prg_1f_boot.asm    -> $08+$09          (3 calls: NmiState7_Strategy, State_WarAiTurnFrame, State_WarSceneLaunch)
-  prg_1f_boot.asm    -> $0A+$0B          (2 calls: NmiState6_Event, State_StrategyAiTurnFrame)
-  prg_1f_boot.asm    -> $0C+$0D          (2 calls: NmiState3_Battle, State_WarSceneLaunch)
-  prg_1f_boot.asm    -> $0E+$0F          (9 calls: NmiHandler_Busy, NmiState2_MapScreen, NmiState3_Battle, NmiState4_Menu, NmiState5_Duel, NmiState6_Event...)
+  prg_1f_boot.asm    -> $08+$09          (3 calls: NmiState7_CountrySelect, State_WarAiTurnFrame, State_WarSceneLaunch)
+  prg_1f_boot.asm    -> $0A+$0B          (2 calls: NmiState6_TitleScreen, State_StrategyAiTurnFrame)
+  prg_1f_boot.asm    -> $0C+$0D          (2 calls: NmiState3_WarScene, State_WarSceneLaunch)
+  prg_1f_boot.asm    -> $0E+$0F          (9 calls: NmiHandler_Busy, NmiState2_StrategyMap, NmiState3_WarScene, NmiState4_Battle, NmiState5_Duel, NmiState6_TitleScreen...)
   prg_1f_boot.asm    -> $10 @$8000       (3 calls: GetNameDisplayScale, State_DuelSceneLaunch, State_StrategyMapLaunch)
   prg_1f_boot.asm    -> $11 @$8000       (1 calls: GetOfficerRomRecordAddr)
   prg_1f_boot.asm    -> $12 @$8000       (1 calls: State_NewGameSetup)
   prg_1f_boot.asm    -> $15 @$8000       (1 calls: State_CountryMapView)
   prg_1f_boot.asm    -> $16 @$8000       (1 calls: State_EventMessageScene)
-  prg_1f_boot.asm    -> $17+$18          (12 calls: NmiState3_Battle, NmiState5_Duel, NmiState8_Officer, State_CountryMapView, State_DuelSceneLaunch, State_EventMessageScene...)
-  prg_1f_boot.asm    -> $19+$1A          (1 calls: NmiState3_Battle)
-  prg_1f_boot.asm    -> $1B+$1C          (1 calls: NmiState2_MapScreen)
-  prg_1f_boot.asm    -> $1D+$1E          (25 calls: DisplayInit, NmiDoBank3D_FlushTiles, NmiDoBank3D_MapDisplay, NmiDoBank3D_TileRender, NmiDoBank3D_VramWrite, NmiState2_MapScreen...)
+  prg_1f_boot.asm    -> $17+$18          (12 calls: NmiState3_WarScene, NmiState5_Duel, NmiState8_EventMessage, State_CountryMapView, State_DuelSceneLaunch, State_EventMessageScene...)
+  prg_1f_boot.asm    -> $19+$1A          (1 calls: NmiState3_WarScene)
+  prg_1f_boot.asm    -> $1B+$1C          (1 calls: NmiState2_StrategyMap)
+  prg_1f_boot.asm    -> $1D+$1E          (25 calls: DisplayInit, NmiDoBank3D_FlushTiles, NmiDoBank3D_MapDisplay, NmiDoBank3D_TileRender, NmiDoBank3D_VramWrite, NmiState2_StrategyMap...)
   prg_1f_boot.asm    -> dynamic          (2 calls: BankedCallbackTrampoline)

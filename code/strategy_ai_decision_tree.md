@@ -270,7 +270,7 @@ prg_0b.bin`).
 flowchart LR
     subgraph PUB["Public entry stubs $A000-$A00E"]
         direction TB
-        P1["StrategyAiTurnDispatch_Entry<br/>SubStateDispatch_Entry<br/>ArmyValueCalc_Entry<br/>DataRecordLookup_Entry<br/>DistanceClamp_Entry"]
+        P1["StrategyAiTurnDispatch_Entry<br/>TitleScreenPhaseDispatch_Entry<br/>ArmyValueCalc_Entry<br/>DataRecordLookup_Entry<br/>DistanceClamp_Entry"]
     end
     subgraph AI["AI turn engine $A00F-$A6xx, $B49C-$C50D, $C50E-$C79A"]
         direction TB
@@ -294,7 +294,7 @@ flowchart LR
     end
     subgraph UI["Display / overlay / input $D717-$DC2E, $A55C-$A6BB"]
         direction TB
-        F1["SubStateDispatch $D717 5-way<br/>ActionResultDisplay + State* frame handlers<br/>RenderOverlay / Overlay* / ClearOverlay*<br/>ScrollUpdate<br/>DrawSelectionSprites / MenuInputHandler<br/>SpriteSetup2 / PaletteCheck"]
+        F1["TitleScreenPhaseDispatch $D717 5-way<br/>ActionResultDisplay + State* frame handlers<br/>RenderOverlay / Overlay* / ClearOverlay*<br/>ScrollUpdate<br/>DrawSelectionSprites / MenuInputHandler<br/>SpriteSetup2 / PaletteCheck"]
     end
     subgraph SRAM["SRAM save / load $DC2F-$DCC7"]
         direction TB
@@ -314,14 +314,14 @@ flowchart LR
 
 | Group | Procs |
 |-------|-------|
-| Public stubs | `StrategyAiTurnDispatch_Entry` $A000, `SubStateDispatch_Entry` $A003, `ArmyValueCalc_Entry` $A006, `DataRecordLookup_Entry` $A009, `DistanceClamp_Entry` $A00C |
+| Public stubs | `StrategyAiTurnDispatch_Entry` $A000, `TitleScreenPhaseDispatch_Entry` $A003, `ArmyValueCalc_Entry` $A006, `DataRecordLookup_Entry` $A009, `DistanceClamp_Entry` $A00C |
 | AI engine | `StrategyAiTurnDispatch` $A00F, `InitWorkAreas` $A043, `AiCountExpansionRoom` $A0D3, `AiActionChoose` $A19C, `AiAction_ExpandProvinces` $A1C5, `AiAction_LoopTramp` $A23D, `FindBestEnemyProvince` $A240, `FindAbsorptionSource` $A303, `DispatchOfficerArmies` $A45C, `ArmyDispatch` $A481, `AiAction_DomesticTurn` $B49C, `AiOfficer_RulerToFrontier` $C50E, `AiOfficer_RosterFill` $C5B9, `CalcActionProb` $C66F, `AiOfficer_RecruitTransfer` $C79A, `PromoteBestOfficerForCountry` $C98F, `ApplyScenarioDeductions` $CD68, `BracketDeductArmy` $CEDD |
 | Conquest | `ResolveProvinceConquest` $A79C, `SettleStagedOfficers` $A8D7, `EvalProvinceAbsorption` $B10E, `AbsorbPreview` $B1F9, `TransferProvinceValues` $B1FD, `AbsorbUpdateRecord` $B287, `FallbackMergeProvinces` $B357 |
 | Tier / costs | `LevelTierDispatch` $A6BC, `CalcArmyTierAndCosts` $A6C9, `CalcExpeditionCosts` $A74A, `CoverGoldShortfall` $A55C, `CoverRiceShortfall` $A60C |
 | Record helpers | `ArmyValueCalc` $CF3F, `DataRecordLookup` $CF7C, `DistanceClamp` $D00C, `CalcOfficersPerProvince` $D03A, `CalcOfficersPerProvinceDup` $D05D, `CountCountryProvinces` $D080, `CountDefendedBorderProvinces` $D0AA, `GetProvinceOwner` $D105, `DeductCounterMultiEntry` $D12D, `CollectEnemyBorderProvinces` $D1A4, `CollectEnemyBorderProvincesX` $D1F4, `FindCountryProvinceOfOfficer` $D249, `GetOfficerRecordField` $D283, `ReadBankedRecordField` $D2D3, `CountRecordSlots` $D304, `GetCountryRecordPtr` $D319, `DeductRecordStat2` $D36F, `DeductRecordStat4` $D3A9, `CompactRecordSlots` $D3DD |
 | Math / geometry | `Divide24` $D336, `Divide16` $D40F, `Multiply32` $D438, `Multiply8x8` $D471, `JumpDispatcher` $D494, `RandomBelow` $D4AD, `BuildAdjacencyBitmap` $D4CB, `MergeAdjacencyBits` $D53E, `CheckPathExists` $D583 |
 | Debug / validation | `DebugStub_E7` $D5E7, `ValidateRecordStats` $D5E8, `DebugStub_1E` $D61E, `ValidateRecordStatsAlt` $D61F, `ClampRecordStatPairs` $D655, `ValidateRecordGold` $D688, `ClampRecordStatPairsAlt` $D69D, `DebugStub_E5` $D6E5, `ValidateProvinceSlots` $D6E6 |
-| Display / overlay | `SubStateDispatch` $D717, `CallStrategyModeDisplay` $D72A, `StackFill` $D732, `FillStackLoop` $D73C, `ActionResultDisplay` $D74C, `StateWait64Frames` $D799, `StateScrollDown` $D7BD, `StateSpriteAnim` $D7EC, `StateSetupParams` $D83B, `StatePaletteUpdate` $D856, `StateSetupMenu` $D890, `StateTileScroll` $D8AD, `StateWriteText` $D8D9, `StateWaitInput` $D8F8, `SkipToTileScroll` $D90D, `RenderOverlay` $D99C, `OverlayInit` $D9A8, `OverlayFillRows` $D9D0, `OverlayCommit` $DA1B, `ClearOverlay` $DA7E, `ClearOverlayInit` $DA95, `ClearOverlayMenu` $DAA6, `ClearOverlayWait` $DAFD, `ClearOverlayCopyText` $DB2B, `ClearOverlayConfirm` $DB7B, `ClearOverlayExit` $DBC1, `ClearOverlayCancel` $DBF1, `ScrollUpdate` $DCC8, `ScrollDigitWriter` $DD0F, `DrawSelectionSprites` $DD34, `WriteSingleSprite` $DD53, `MenuInputHandler` $DD79, `SpriteSetup2` $DEAF, `PaletteCheck` $DF4C |
+| Display / overlay | `TitleScreenPhaseDispatch` $D717, `CallTitleAnimationDispatch` $D72A, `StackFill` $D732, `FillStackLoop` $D73C, `ActionResultDisplay` $D74C, `StateWait64Frames` $D799, `StateScrollDown` $D7BD, `StateSpriteAnim` $D7EC, `StateSetupParams` $D83B, `StatePaletteUpdate` $D856, `StateSetupMenu` $D890, `StateTileScroll` $D8AD, `StateWriteText` $D8D9, `StateWaitInput` $D8F8, `SkipToTileScroll` $D90D, `RenderOverlay` $D99C, `OverlayInit` $D9A8, `OverlayFillRows` $D9D0, `OverlayCommit` $DA1B, `ClearOverlay` $DA7E, `ClearOverlayInit` $DA95, `ClearOverlayMenu` $DAA6, `ClearOverlayWait` $DAFD, `ClearOverlayCopyText` $DB2B, `ClearOverlayConfirm` $DB7B, `ClearOverlayExit` $DBC1, `ClearOverlayCancel` $DBF1, `ScrollUpdate` $DCC8, `ScrollDigitWriter` $DD0F, `DrawSelectionSprites` $DD34, `WriteSingleSprite` $DD53, `MenuInputHandler` $DD79, `SpriteSetup2` $DEAF, `PaletteCheck` $DF4C |
 | SRAM | `VerifySramChecksum` $DC2F, `CopySramToWork` $DC97 |
 
 ---
@@ -345,7 +345,7 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
 | `$6F5F-$6F61` | AI action weights A/B/C (`sram_ai_weight_a/b/c` proc-local) | Seeded by `InitWorkAreas` (base + tier adj, see section 5), consumed by `AiActionChoose` |
 | `$6F62` | AI global phase | Advances every 30 actions; wraps at 3 with a game-state transition through `$D140`. The `$6F62,Y` accesses in the ContinueTurn officer finders index Y = `$11-$1A` and actually address `$6F73-$6F7C` (processed-slot markers) |
 | `$6F73-$6F78` | per-owner "has provinces" marks; army-pool accumulators in `SettleStagedOfficers` | Dual use, documented in cpu_ram_map.md |
-| `$6F8B` | `sram_game_start_flag` — strategy-layer mailbox | AI action requests `$F8` alliance-gift confirm, `$F9` absorb-sweep notice, `$FA` province-sweep notice, `$FB`/`$FC` officer notices; plus `$FE` war pending (human defender), `$FD` conquest settled (computer defender), `$FF` turn complete, `$01` consumed |
+| `$6F8B` | `sram_request_mailbox` — strategy-layer mailbox | AI action requests `$F8` alliance-gift confirm, `$F9` absorb-sweep notice, `$FA` province-sweep notice, `$FB`/`$FC` officer notices; plus `$FE` war pending (human defender), `$FD` conquest settled (computer defender), `$FF` turn complete, `$01` consumed |
 | `$6F8C` | settlement mode (0 = attacker conquered the war province) | Read/written by `SettleStagedOfficers` |
 | `$6F8D` | `sram_absorb_adjust` — absorption adjustment parameter | Written `$AE96`, drives `ApplyScenarioDeductions` and `×4/10` scaling |
 | `$6FFF` | BRK debug error-code sink | Validate routines only; outside the `$6000-$6FFD` save snapshot |
@@ -374,7 +374,7 @@ Review result (cross-checked against `code/cpu_ram_map.md`):
 6. Province-record "morale" deep dive (2026-09): the field does not exist in
    the game. `+$06/$07` is **Population 人口 (stored ÷100)** — proven by the
    ROM seed table (`docs/province_data.md`, bank `$30` `$8C00`, 32 B/record)
-   and the human castle-development command (`prg_1b_1c_map_screen.asm`
+   and the human castle-development command (`prg_1b_1c_strategy_mode.asm`
    `CastleDevFieldOffsetTable`: `+$08` land, `+$0E` industry, `+$06`
    population, `+$0A` disaster prevention). The whole province record table in
    `code/cpu_ram_map.md` was realigned: Rice `+$04/$05`, LandValue `+$08/$09`,

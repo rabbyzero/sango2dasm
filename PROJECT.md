@@ -501,7 +501,7 @@ the attributes for that area come from the *local* `ScrollPanel_RowTemplate_*`
 records in bank $17, not from this bank. Then three OAM sprite-blob tables (21 /
 4 / 6 entries, 1-based) in the shared `[y_off,tile,attr,x]` + `$80` terminator
 format consumed by `B1F_SpriteOamWriterSimple` ($F1AD), with writer bases X $10 /
-Y $1F forced by `RenderDispatchSprite`. `DispatchBankTable` ($D755, bank $17) that
+Y $1F forced by `RenderDispatchSprite`. `SpriteBlobIndexTable` ($D755, bank $17) that
 selects blob indexes 9-21 is a pass *sequence*, not a bank or command lookup.
 $9FBB-$9FFF is unused `$FF` filler.
 

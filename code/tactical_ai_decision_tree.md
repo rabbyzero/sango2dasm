@@ -12,7 +12,7 @@ Companions in the four-AI-layer set (Strategy > Tactical > Battle > Duel):
 
 | RAM | Meaning |
 |-----|---------|
-| `sram_game_start_flag` ($6F8B) | Turn state: `$FF` = turn complete/idle, `$01` = phase 1 (→ `WarClashResolve`) |
+| `sram_request_mailbox` ($6F8B) | Turn state: `$FF` = turn complete/idle, `$01` = phase 1 (→ `WarClashResolve`) |
 | `war_side_flag` ($0504) | Acting side (bit7 = AI side acting) |
 | `war_action_points` ($0505) | AI action budget (attacking costs 2; stratagems cost 4–$0C) |
 | `war_faction_pair` ($0507) | lo = side0 faction, hi = side1 faction |
@@ -24,7 +24,7 @@ Companions in the four-AI-layer set (Strategy > Tactical > Battle > Duel):
 
 ```mermaid
 flowchart TD
-    Entry["AiTurnProcess ($A02D)\ncalled via dispatch stub $A000"] --> G1{"sram_game_start_flag\n== $FF?"}
+    Entry["AiTurnProcess ($A02D)\ncalled via dispatch stub $A000"] --> G1{"sram_request_mailbox\n== $FF?"}
     G1 -- "yes (idle)" --> Exit["RTS"]
     G1 -- no --> G2{"flag == $01\n(phase 1)?"}
     G2 -- "yes" --> Clash["JMP WarClashResolve\n(engagement resolver)"]
@@ -39,7 +39,7 @@ flowchart TD
     Count --> Decide["@AiOfficerActionDecide\n(A = state low nibble 0-7)"]
     Decide --> G6{"ai_action_result == 3\n(no action)?"}
     G6 -- "yes: officer finished" --> IncActed["INC acted_officer_cnt"] --> Cont
-    G6 -- "no (0,1,2,4)" --> Done["sram_game_start_flag = $FF\nRTS — action executed by caller"]
+    G6 -- "no (0,1,2,4)" --> Done["sram_request_mailbox = $FF\nRTS — action executed by caller"]
     Cont --> G7{"scan_idx < 20?"}
     G7 -- yes --> Loop
     G7 -- no --> G8{"valid_officer_cnt\n== acted_officer_cnt?"}

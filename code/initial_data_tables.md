@@ -32,11 +32,11 @@ Code that proves each base address:
 | `GetOfficerRecordAddr` | `$F2D7` | `id * 12 + $63C0` (SRAM) |
 | `GetOfficerRomRecordAddr` | `$F387` | `LDY #$31`, `SwitchBank8_B`, `id * 12 + $8000` - the ROM seed is also read *directly* at runtime (the hospital compares live 体力 against the seed) |
 | `GetNameDisplayScale` | `$F308` | `LDY #$30`, `id * 10 + $901A` (officer names) |
-| `@RiceBuySeed` (prg_1b_1c_map_screen) | `$C254` | `LDY #$30`, `($02) = province * 2 + $8FC0`, buys rice: `gold = ceil(rice * 100 / rate)` at the `+0` byte |
+| `@RiceBuySeed` (prg_1b_1c_strategy_mode) | `$C254` | `LDY #$30`, `($02) = province * 2 + $8FC0`, buys rice: `gold = ceil(rice * 100 / rate)` at the `+0` byte |
 | `State 0` of the war buy/sell panel (prg_08_09_tactical_war) | `$C129` | same pair dereferenced as the action parameter record (`($02),Y` with `Y=0/1` picking the leg) |
 | `SellSurplusRice` (prg_0a_0b_strategy_ai) | `$CC9E` | `LDA $8FC0,Y` with `Y = province * 2 + 1` - the `+1` byte is the sell rate (rice/100 gold) |
 | `@CheckEligibility` / `@AiAction_EvaluateAndExecute` / `SellSurplusRice` gate | `$C872` / `$C33F` / `$CC45` | `LDA $8FFC,Y` with `Y = province`, testing facility bit 3 / bit 0 / bit 2 |
-| `@TownScreenInit` (prg_1b_1c_map_screen) | `$C014` | `LDY $0402`, `@TownFacilitySetTable[province]` -> facility set id (`$C025`), expanded by `@FacilityActionCodeTable` (`$C10E`) |
+| `@TownScreenInit` (prg_1b_1c_strategy_mode) | `$C014` | `LDY $0402`, `@TownFacilitySetTable[province]` -> facility set id (`$C025`), expanded by `@FacilityActionCodeTable` (`$C10E`) |
 | `CmdDrawNameFromData` | `$A426` | `LDY #$30`, `id * 8 + $9A1A`, up to 6 glyphs (province names) |
 | `OfficerArrivalScan` | `$B964` | `LDY #$31`, `$8B1C + province * $14` |
 
@@ -267,7 +267,7 @@ Callers - every writer found in the ROM, not just the obvious path:
 |---|---|
 | `$8000` | `addr_game_state = 1` <- `ClearOverlayWait` `$DB0C` (prg_0a_0b_strategy_ai: clear overlay done -> `CopySramToWork`, frame state `$0400 = $0D` / `$0401 = 3`, player country `$6F03` via `PlayerPtrTable`) · `WarPostProcess` `$BBAA` (prg_08_09_tactical_war: tactical war layer finished, also sets frame state `$0400 = $0D`) · `CountrySelect_Finalize` `$D8FF` (prg_08_09_tactical_war) · `StrategyCommand_InitOfficerScroll` `$D74E` (prg_17_18_display: A pressed while `sram_scroll_pending $6F43` is set) -> state proc `$E0DA` `State_StrategyMapLaunch` -> `PpuCopyRaw`. The proc itself separates the families: it writes the `$6F8B` request mailbox with `$FF` (turn complete) only when the caller has not staged a scene handoff at `$0400 = $0D` - `ClearOverlayWait` and `WarPostProcess` do stage it, `CountrySelect_Finalize` and `StrategyCommand_InitOfficerScroll` do not. Either way the screen is re-uploaded on every return to the map. |
 | `$8400` | `addr_game_state = 7` <- `SideEventPanelSetup` `$CD66` (prg_0e_0f_battle: Battle Mode phase 5 side-event panel; it disables NMI and stores through the `$007A` slot, which that bank aliases as `btl_flash_counter`) - the **only** writer of 7 -> state proc `$E2E8` -> `PpuCopyRaw`. |
-| `$8800` | `NmiState2_StrategyMap` `$F8EF` (`LDY #$3B` = banks `$1B+$1C`, `JSR $A000`; the label there read `B19_1A_OverlayStripRender_Entry`, wrong for that bank pair - fixed) -> `MapScreenFrameUpdate` `$A00C` -> frame state `$0E` = `CallSceneRenderer` `$A06D` -> `B1D_1E_SceneRenderer` `$A039` -> `SceneRenderer` `$BC71` callbacks 0 then 1 (x16 frames) -> `ScenePageCopy`. Frame state `$0400 = $0E` is written by exactly one site in the ROM: `MapRulerIntroCancelCheck` `$A172` (Select during the ruler intro / camera-focus phase). Display record 1 comes from the state-3 proc, entered by `WarSceneLaunch` `$B5E3`, `Spoils_ExitFade` `$C356`, `ArmyDeploySceneTrigger` `$CA4C` and `BattleResultFlashTrigger` `$A403`. |
+| `$8800` | `NmiState2_StrategyMap` `$F8EF` (`LDY #$3B` = banks `$1B+$1C`, `JSR $A000`; the label there read `B19_1A_OverlayStripRender_Entry`, wrong for that bank pair - fixed) -> `StrategyFrameUpdate` `$A00C` -> frame state `$0E` = `CallSceneRenderer` `$A06D` -> `B1D_1E_SceneRenderer` `$A039` -> `SceneRenderer` `$BC71` callbacks 0 then 1 (x16 frames) -> `ScenePageCopy`. Frame state `$0400 = $0E` is written by exactly one site in the ROM: `MapRulerIntroCancelCheck` `$A172` (Select during the ruler intro / camera-focus phase). Display record 1 comes from the state-3 proc, entered by `WarSceneLaunch` `$B5E3`, `Spoils_ExitFade` `$C356`, `ArmyDeploySceneTrigger` `$CA4C` and `BattleResultFlashTrigger` `$A403`. |
 
 The date plate on screen 1 confirms the attribution independently:
 `YearDisplaySetup` (`$A6B6`, prg_1d_1e_menu_screens) converts the scenario year `$6F00 + $64`
@@ -299,8 +299,8 @@ Access mechanics, per loader:
   screen 1 with record 0 gives the map plus the 年/月 plate, screen 3 with
   record 1 gives coherent terrain, and the same blocks with any other record are
   noise. See `code/font_analysis.md` for the CHR chain.
-* Colour comes from a second, independent table: `LoadScenarioData` (`$DBB1`,
-  prg_1d_1e_menu_screens) is really a **palette load** - its `@RecordPtrTable` (`$DBCF`, 14
+* Colour comes from a second, independent table: `PaletteRecordLoad` (`$DBB1`,
+  prg_1d_1e_menu_screens) is really a **palette load** - its `@PalRecordPtrTable` (`$DBCF`, 14
   entries, index 9 repeats 8) points at 32-byte palettes at `$DBEB` (bank `$1E`
   file offset `$1BEB`), copied to `$0100` and uploaded to PPU `$3F00` by
   `PaletteUpload` (`$E70E`). Layout is the NES `$3F00-$3F1F` block: byte 0 =
@@ -334,14 +334,22 @@ province) + `ProvinceFacilityFlags`.
 
 Each pair is two rice-per-100-gold rates, always read byte-wise:
 
-* `+0` (`($02)` / `$8FC0+2p`): the **buy rice** leg - `@RiceBuySeed` (prg_1b_1c_map_screen
-  `$C254`) computes `gold = ceil(rice * 100 / rate)`; the same pair is what
-  war-layer State 0 (prg_08_09_tactical_war `$C129`) dereferences as the "action parameter
-  record" of the buy/sell panel (`($02),Y` with `Y=0/1` selecting the leg).
-* `+1` (`$8FC0+2p+1`, reached with `INY` after `ASL`): the **sell rice** rate -
-  `SellSurplusRice` (prg_0a_0b_strategy_ai `$CC9E`) and `Action_BuyRice`'s rice cost
-  (prg_08_09_tactical_war `$A457`) use it as a `Div24Bit` divisor.
-* The twelve provinces with no 町 rice trade hold `$00, $00`.
+Both legs have the same shape - `gold = quantity x rate / 100` - and only the
+byte differs:
+
+* `+0` (`$8FC0+2p`): the **sell** rate. `SellSurplusRice` (prg_0a_0b_strategy_ai
+  `$CC9E`) reaches it with `ASL`/`TAY` and **no `INY`**, then computes
+  `gold = rice * rate / 100` (`Multiply32`, then `/100`).
+* `+1` (`$8FC0+2p+1`): the **buy** rate. `@RiceBuySeed` (prg_1b_1c_strategy_mode
+  `$C254`) loads it with `LDY #$01` and computes `gold = ceil(rice * rate / 100)`
+  (`B1F_MathMul24x8`, `MathDivideProduct`, +1 when the remainder `$0005` is
+  nonzero); `Action_BuyRice`'s rice cost (prg_08_09_tactical_war `$A457`) uses the
+  same `+1` byte via `INY`.
+* The pair is also the action-parameter record of the war-layer buy/sell panel:
+  State 0 (prg_08_09_tactical_war `$C129`) dereferences `($02) = id*2 + $8FC0` with
+  `Y = 0/1` selecting the leg.
+* The **seven** provinces with no 町 rice trade hold `$00, $00` (ids 1, 5, 9, 17,
+  19, 22, 29); the other 23 hold nonzero rates.
 * Cross-check: every (`+0`, `+1`) pair equals the `sell_rate` / `buy_rate` columns
   of `docs/rice_prices.csv`, and the `$00, $00` entries are exactly its
   `has_market = no` rows (facility bit `$04` below).
@@ -349,7 +357,7 @@ Each pair is two rice-per-100-gold rates, always read byte-wise:
 ### Facility flags (`ProvinceFacilityFlags`, `$8FFC + province`)
 
 The per-province facility flags behind the town commands. This is a second, finer
-layer than the town screen's menu tables: `@TownFacilitySetTable` (prg_1b_1c_map_screen
+layer than the town screen's menu tables: `@TownFacilitySetTable` (prg_1b_1c_strategy_mode
 `$C025`) maps a province to one of 10 facility *sets*, and `@FacilityActionCodeTable`
 (`$C10E`) expands a set into up to 4 action codes (0=兵器工房 armory, 1=学校 academy,
 2=医院 hospital, 3=町 market) - that pair is what draws the menu. These flag bytes

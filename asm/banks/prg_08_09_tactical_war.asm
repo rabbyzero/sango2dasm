@@ -17,7 +17,7 @@
 ;   $0424/$0425 = menu_cursor_col/menu_cursor_page (prg_0c_0d_tactical_commands.asm)
 ;   $04D8       = army_slot_base (+1 target X, +2 target Y, +3 timer,
 ;                 +4 group 1 owner, +5..+7 group 1 timers) (prg_0c_0d_tactical_commands.asm)
-;   $6F8B       = sram_game_start_flag (prg_0a_0b_strategy_ai.asm)
+;   $6F8B       = sram_request_mailbox (prg_0a_0b_strategy_ai.asm)
 ;===============================================================================
 ; --- War scene state ($0500-$0514) ---
 war_scene_id        = $0500  ; battle scene/command id (state select)
@@ -132,7 +132,7 @@ ai_target_officer      = $6F8E  ; action target officer slot
 ai_move_cost           = $6F97  ; committed move cost nibble
 move_reverse_dirs      = $6FB5  ; per-officer reverse of last move direction
 adjacent_scan_results  = $6FDD  ; adjacent officer scan result table
-  LDA sram_game_start_flag              ; $A02D: AD 8B 6F  ; game start flag
+  LDA sram_request_mailbox              ; $A02D: AD 8B 6F  ; request mailbox ($FF = turn complete -> idle)
   CMP #$FF                              ; $A030: C9 FF
   BNE @CheckPhase                       ; $A032: D0 01
   RTS                                   ; $A034: 60
@@ -181,7 +181,7 @@ adjacent_scan_results  = $6FDD  ; adjacent officer scan result table
   STA officer_scan_idx                  ; $A090: 8D 94 6F
 @Done:
   LDA #$FF                              ; $A093: A9 FF
-  STA sram_game_start_flag              ; $A095: 8D 8B 6F  ; mark turn complete
+  STA sram_request_mailbox              ; $A095: 8D 8B 6F  ; mark turn complete
   RTS                                   ; $A098: 60
 ;===============================================================================
 ; AiOfficerActionDecide - Decide action for current AI officer
@@ -3450,7 +3450,7 @@ TileBankTable:                          ; $B8BB: zone id -> PRG bank ($8000 wind
 ; ($20,$21)) decides whether the strike lands. On a hit, damage is computed
 ; from both officers' SRAM records (level and record byte $B) and applied
 ; to the attacker's HP field; the damage is stored into $042C-$042D.
-; Ends by setting the game start flag $6F8B to $FF (battle resolved).
+; Ends by posting $FF (turn complete) into the request mailbox $6F8B.
 ;===============================================================================
 .proc WarClashResolve
   LDA #$FF                              ; $B933: A9 FF
@@ -3615,7 +3615,7 @@ TileBankTable:                          ; $B8BB: zone id -> PRG bank ($8000 wind
   STA ai_action_result                  ; $BAAA: 8D 8F 6F  ; action result = done
 @FinishBattle:
   LDA #$FF                              ; $BAAD: A9 FF
-  STA sram_game_start_flag              ; $BAAF: 8D 8B 6F  ; game start flag = resolved
+  STA sram_request_mailbox              ; $BAAF: 8D 8B 6F  ; post $FF = turn complete
   RTS                                   ; $BAB2: 60
 .endproc
 ;===============================================================================
@@ -5129,7 +5129,7 @@ State5PanelLayout:
   .byte $00,$00,$80                     ; $C522: 00 00 80
 ; ArmoryGridSetTable - armory grid set (0-5) per province index $050E,
 ; consumed by State5_ArmoryGridSetup and passed to ExpandArmoryGridSlots.
-; (The prg_1b_1c_map_screen strategy-map armory flow uses its own @ArmoryGridSetTable.)
+; (The prg_1b_1c_strategy_mode strategy-map armory flow uses its own @ArmoryGridSetTable.)
 ArmoryGridSetTable:
   .byte $00,$00,$00,$00,$04,$00,$03,$00,$01,$00,$00,$01,$01,$01,$00,$01; $C525: 00 00 00 00 04 00 03 00 01 00 00 01 01 01 00 01
   .byte $00,$00,$01,$00,$01,$01,$00,$00,$00,$01,$01,$01,$00,$05 ; $C535: 00 00 01 00 01 01 00 00 00 01 01 01 00 05
@@ -5548,7 +5548,7 @@ State9PanelLayout:
   .byte $00,$01,$FF,$FF,$C6,$50,$C6,$97,$00,$07,$00,$00,$80; $C844: 00 01 FF FF C6 50 C6 97 00 07 00 00 80
 ;-------------------------------------------------------------------------------
 ; ExpandArmoryGridSlots - expand an armory grid set into 4 item slots.
-; Also reachable via the entry stub at $A01E (shared with the prg_1b_1c_map_screen
+; Also reachable via the entry stub at $A01E (shared with the prg_1b_1c_strategy_mode
 ; strategy-map armory flow at $C7AE).
 ; Input: $0000 = grid set id (0-5), $0012 = grid category (0-3).
 ; Reads 4 consecutive equipment cells from ArmoryGridLayouts
@@ -5605,7 +5605,7 @@ ExpandArmoryGridSlots:
 ; record +$0A (weapons 0-23, armor 24-31 = armor codes 0-7). The word is
 ; stored into the slot record at $042C by ExpandArmoryGridSlots; the purchase
 ; code subtracts it from the side gold pair (war-map armory:
-; State7_ArmoryPurchaseApply; strategy-map town armory: prg_1b_1c_map_screen $C962).
+; State7_ArmoryPurchaseApply; strategy-map town armory: prg_1b_1c_strategy_mode $C962).
 ;-------------------------------------------------------------------------------
 ItemPriceTable:
   .word $0032,$0046,$0078,$00B4,$00FA,$0000,$0000,$0000 ; $C89E: 32 00 46 00 78 00 B4 00 FA 00 00 00 00 00 00 00

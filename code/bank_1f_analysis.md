@@ -1727,7 +1727,7 @@ Computes $009A/$009B from $0098, sets $00EA/$00EC. Two variants with different $
 | $0562/$0563 | Sprite position indices |
 | $6F07-$6F37 | Kingdom data (battery SRAM) |
 | $6F3F/$6F41 | Kingdom init params (SRAM) |
-| $6F8B | Game start flag (SRAM) |
+| $6F8B | Strategy-layer request mailbox (SRAM; `$FF` = turn complete) |
 
 ---
 

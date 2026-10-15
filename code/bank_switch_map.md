@@ -5,7 +5,7 @@ Sangokushi 2 - Haou no Tairiku (J) / Namco-163 (Mapper 19)
 Maps every PRG bank-switching call site found in `prg_1f_boot.asm` and all
 eight disassembled bank pairs (`prg_08_09_tactical_war`, `prg_0a_0b_strategy_ai`,
 `prg_0c_0d_tactical_commands`, `prg_0e_0f_battle`, `prg_17_18_display`,
-`prg_19_1a_event_scenes`, `prg_1b_1c_map_screen`, `prg_1d_1e_menu_screens`) to its
+`prg_19_1a_event_scenes`, `prg_1b_1c_strategy_mode`, `prg_1d_1e_menu_screens`) to its
 target bank(s). Every PRG bank is now disassembled; the $8000-window data banks
 $00-$07 and $10-$16 are decoded in `asm/banks/data_*` (section 5.2).
 
@@ -91,7 +91,7 @@ code in other banks exclusively through `BankedCallbackTrampoline`.
 | **$0E+$0F** (battle overlay) | $19, $1D+$1E | trampoline |
 | **$17+$18** (display) | $19, $1D+$1E | trampoline |
 | **$19+$1A** (event scenes) | $0A+$0B, $0C+$0D, $1B+$1C, $1D+$1E | trampoline |
-| **$1B+$1C** (map screen) | $08+$09, $0A+$0B, $0C+$0D, $19, $1D+$1E | trampoline |
+| **$1B+$1C** (strategy mode) | $08+$09, $0A+$0B, $0C+$0D, $19, $1D+$1E | trampoline |
 | **$1D+$1E** (menus/SRAM) | $1D+$1E (self pair) | trampoline |
 
 All code-bank pairs are disassembled, so every trampoline target above resolves
@@ -116,7 +116,7 @@ Single 8KB bank targets. Never affects code banks.
 | **$0E+$0F** (battle overlay) | $01 (battle cell maps, via `BattleCellMapBankTable`), $02 (sound streams) |
 | **$17+$18** (display) | $00, $03, $04, $05 (battle scene, via `BattleBankTable`), $01, $06, $10, $11, $14/$15 (sprites, `DrawSpriteFromBank`) |
 | **$19+$1A** (event scenes) | $01 (officer card tables), $10, $11 |
-| **$1B+$1C** (map screen) | $10 |
+| **$1B+$1C** (strategy mode) | $10 |
 | **$1D+$1E** (menus/SRAM) | $01, $10, $11, $12/$13 (via `PosDataBankTable`), $16 |
 
 Dynamic $8000 tables: `TileBankTable` ($B8BB in $08), `BattleBankTable`
@@ -233,8 +233,9 @@ per-zone offsets: [bank_00_data_layout.md](bank_00_data_layout.md)).
 
 ### 4.3 Banks $0A+$0B (prg_0a_0b_strategy_ai.asm)
 
-**Code switch (trampoline):** CallDomesticDisplay $D72C, Y=$37 -> $17+$18
-`StrategyAiTurnDispatch::AiOfficerPhaseEntry` ($A021).
+**Code switch (trampoline):** `CallTitleAnimationDispatch` $D72A (JSR at $D72C), Y=$37 -> $17+$18
+`B17_18_AnimationDispatch_Entry` ($A021). The same absolute address holds the unrelated
+bank-$0A mid-proc label `StrategyAiTurnDispatch::AiOfficerPhaseEntry`; the window decides which runs.
 
 **Data switches ($8000):**
 
@@ -355,7 +356,7 @@ war-result/battle-overlay strip renderer).
 | DroughtDamageScene $A855, FloodDamageScene $AACF, ProvinceRebellionEvent $AC8C, OfficerReinforceScene $AFAB, UnificationEndingDispatch $C5CD, StrategyRequestDispatch $C95B/$C996/$CCD2 | $3D | $1D $A02A `B1D_1E_OfficerDisplay_Lookup` |
 | OfficerStatusScene $ADA1 / $AEB2 | $3D | $1D `B1D_1E_YearDisplaySetup` |
 | StrategyRequestDispatch ($C810-$CB56, 11 sites) | $3D | $1D $A042 `B1D_1E_RulerCardRefresh` |
-| ProvinceOfficerRosterDispatch $AFFC, StratagemCutscene $D3E7 | $3D | $1D $A015 `B1D_1E_LoadScenarioData` |
+| ProvinceOfficerRosterDispatch $AFFC, StratagemCutscene $D3E7 | $3D | $1D $A015 `B1D_1E_PaletteRecordLoad` |
 | ProvinceRebellionEvent $AC2F, StrategyRequestDispatch $CA32 | $3B | $1B $A009 `B1B_1C_ProvinceZoneOriginGet_Entry` |
 | RulerSuccessionScene $BEE2 | $3B | $1B $A006 `B1B_1C_OfficerSelectDialogPoll_Entry` |
 | RulerSuccessionScene $C05B, SuccessionApplyScene $C2EA | $2A | $0A $A009 `B0A_0B_DataRecordLookup_Entry` |
@@ -368,22 +369,22 @@ $11 (CountryCensusBuild, OfficerReinforceScene, CardFillDispatch,
 OfficerArrivalScan, OfficerNaturalDeathScene, StratagemCutscene —
 officer records and glyphs).
 
-### 4.8 Banks $1B+$1C (prg_1b_1c_map_screen.asm)
+### 4.8 Banks $1B+$1C (prg_1b_1c_strategy_mode.asm)
 
 **Called from bank $1F (code switch):** NmiState2_StrategyMap ($F8EF) switches
-Y=$3B and JSR $A000 -> `MapScreenFrameUpdate` ($A00C): per-frame map-screen
+Y=$3B and JSR $A000 -> `StrategyFrameUpdate` ($A00C): per-frame Strategy Mode
 update (ruler marker sprites via `MapRulerMarkerDraw` $DE83, animated
 province sprites via `MapProvinceSpriteRefresh` $DF35, then frame-state
 dispatch by $0400 through `B1F_CallbackDispatcher`). Entry $A000 is a stub
 aliasing $A00C; $A003/$A006/$A009 jump to ActionDeltaInputPoll ($DA02) /
 OfficerSelectDialogPoll ($D64A) / $DF25.
 
-**Code switches out (trampoline, from MapScreenFrameUpdate and its
+**Code switches out (trampoline, from StrategyFrameUpdate and its
 frame-state table $A025-$A044):**
 
 | Caller | Y | Target |
 |---|---|---|
-| MapScreenFrameUpdate $A014 | $39 | $19 $A02A (MapProvinceDirtyMark: marks pending province $0402 in dirty bitmap $04E0-$04E3) |
+| StrategyFrameUpdate $A014 | $39 | $19 $A02A (MapProvinceDirtyMark: marks pending province $0402 in dirty bitmap $04E0-$04E3) |
 | frame state $0B handler $A047 | $39 | $19 $A003 |
 | frame state $0C handler $A04F | $39 | $19 $A021 |
 | frame state 9 handler $A057 | $39 | $19 $A006 |
@@ -398,10 +399,13 @@ $A02A->MapProvinceDirtyMark); several are shared with battle overlay usage.
 The $04E0-$04E3 dirty bitmap is set by bank $19 $A02A and consumed/cleared
 each frame by `MapProvinceSpriteRefresh`.
 
-Beyond the frame machine, the bank holds the strategy map screen's command
-menus — Castle, Army, Warehouse, Town and Intrigue command dispatchers
-(MapScreenFrameStateTable states 2-6) plus MapRulerIntroDispatch,
-ConfirmDialogPoll and OfficerCardShow. Their outbound trampoline traffic:
+Beyond the frame machine, most of the bank is Strategy Mode command logic: the
+command category menu and the Castle, Army, Warehouse, Town and Intrigue command
+dispatchers (StrategyFrameStateTable states 1-6, 12,632 B = 77% of the bank) plus
+their shared dialog/numeric-input helpers (ConfirmDialogPoll,
+OfficerSelectDialogPoll, OfficerTroopPoolAssignPoll, ActionDeltaInputPoll) and
+MapRulerIntroDispatch. The map-screen plumbing (ruler marker, province sprites,
+camera scroll, hit-test) is 975 B = 6%. Their outbound trampoline traffic:
 
 | Caller | Y | Target |
 |---|---|---|
@@ -424,7 +428,7 @@ ProvinceAdjacencyValidate — item/ruler-name records and adjacency).
 
 **Code switch (trampoline):** OfficerDisplay_Lookup $A89B and
 DomesticMenu_Return $C95D, Y=$3D -> self pair, $A015
-`B1D_1E_LoadScenarioData`.
+`B1D_1E_PaletteRecordLoad`.
 
 **Data switches ($8000):**
 
@@ -452,7 +456,7 @@ DomesticMenu_Return $C95D, Y=$3D -> self pair, $A015
 | $0E+$0F | battle-mode overlay UI state machine + battle animation/sound engine (disassembled); also the shared font/tile helper pair every NMI state handler maps first |
 | $17+$18 | display engine (disassembled) |
 | $19+$1A | event/scene bank (disassembled): officer card renderer, Country rotation / turn handoff (and title attract cycle), Strategy requests, monthly events (flood/drought/rebellion/reinforce/natural death), officer status scene, exchange-march cutscene, ruler succession, unification ending, SRAM save commit; $A000 doubles as the shared overlay-strip/RLE renderer for war results and the battle overlay |
-| $1B+$1C | strategy map screen (disassembled): per-frame update (ruler marker + province sprites + frame-state machine, $A000/$A00C), war-scene action delta input ($A003 -> ActionDeltaInputPoll $DA02, called from banks $08+$09 AiOfficerActionDispatch), the Castle/Army/Warehouse/Town/Intrigue command menus, officer select dialogs, ProvinceZoneOriginGet |
+| $1B+$1C | strategy-mode command menus + map frame machine (disassembled): the $0400 frame-state machine ($A000/$A00C), the command category and Castle/Army/Warehouse/Town/Intrigue command dispatchers (states 1-6 — 77% of the bank) with their shared officer-select, confirm-dialog and numeric-input helpers; the map-screen plumbing (ruler marker + province sprites + camera) is only 6%; war-scene action delta input ($A003 -> ActionDeltaInputPoll $DA02, called from banks $08+$09 AiOfficerActionDispatch), ProvinceZoneOriginGet |
 | $1D+$1E | menus / domestic dispatch / SRAM (disassembled) |
 
 ### 5.2 Data banks (mapped at $8000 via SwitchBank8 only)
@@ -485,7 +489,7 @@ graph LR
   B1F -->|9| B0E["$0E+$0F battle overlay"]
   B1F -->|12| B17["$17+$18 display"]
   B1F -->|1| B19["$19+$1A event scenes"]
-  B1F -->|1| B1B["$1B+$1C map screen"]
+  B1F -->|1| B1B["$1B+$1C strategy mode"]
   B1F -->|25| B1D["$1D+$1E menus/SRAM"]
 
   B08 -->|1| B0E
@@ -543,7 +547,7 @@ graph LR
   B0E["$0E+$0F battle overlay"]
   B17["$17+$18 display"]
   B19["$19+$1A event scenes"]
-  B1B["$1B+$1C map screen"]
+  B1B["$1B+$1C strategy mode"]
   B1D["$1D+$1E menus/SRAM"]
 
   D00["$00 terrain crops prov 0-7"]

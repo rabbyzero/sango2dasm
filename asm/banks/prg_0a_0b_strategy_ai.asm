@@ -10,119 +10,6 @@
 .include "namco163.h"
 .include "functions.h"
 
-; Global label declarations (ca65 .proc creates local scope)
-.global ArmyDispatch
-.global StrategyAiTurnDispatch_Entry
-.global SubStateDispatch_Entry
-.global ArmyValueCalc_Entry
-.global DataRecordLookup_Entry
-.global DistanceClamp_Entry
-.global InitWorkAreas
-.global CoverRiceShortfall
-.global StrategyAiTurnDispatch
-.global FindAbsorptionSource
-.global AiCountExpansionRoom
-.global AiActionChoose
-.global CoverGoldShortfall
-.global ArmyValueCalc
-.global CallStrategyModeDisplay
-.global ClearOverlay
-.global DataRecordLookup
-.global DistanceClamp
-.global FillStackLoop
-.global Init
-.global AiAction_LoopTramp
-.global CalcOfficersPerProvince
-.global PaletteCheck
-.global RenderOverlay
-.global SoundDispatch
-.global SpriteSetup2
-.global StackFill
-.global SubStateDispatch
-.global FindBestEnemyProvince
-.global ProvinceEvalExit
-
-.global DispatchOfficerArmies
-.global LevelTierDispatch
-.global CalcArmyTierAndCosts
-.global CalcExpeditionCosts
-.global ResolveProvinceConquest
-.global SettleStagedOfficers
-.global EvalProvinceAbsorption
-.global AbsorbPreview
-.global TransferProvinceValues
-.global FallbackMergeProvinces
-.global AiAction_DomesticTurn
-.global AiOfficer_RulerToFrontier
-.global AiOfficer_RosterFill
-.global EvaluateAndMarkOfficer
-.global CalcActionProb
-.global AiOfficer_RecruitTransfer
-.global PromoteBestOfficerForCountry
-.global ApplyScenarioDeductions
-.global BracketDeductGold
-.global ArmyDeductionTable
-.global ArmyResultTable
-.global BracketDeductArmy
-.global CalcOfficersPerProvinceDup
-.global CountCountryProvinces
-.global CountDefendedBorderProvinces
-.global GetProvinceOwner
-.global DeductCounterMultiEntry
-.global DeductCounter_ZeroEnd
-.global DeductCounter_Unwind1
-.global DeductCounter_Unwind2
-.global DeductCounter_Unwind3
-.global CollectEnemyBorderProvinces
-.global CollectEnemyBorderProvincesX
-.global FindCountryProvinceOfOfficer
-.global GetOfficerRecordField
-.global ReadBankedRecordField
-.global CountRecordSlots
-.global GetCountryRecordPtr
-.global Divide24
-.global DeductRecordStat2
-.global DeductRecordStat4
-.global CompactRecordSlots
-.global Divide16
-.global Multiply32
-.global Multiply8x8
-.global JumpDispatcher
-.global RandomBelow
-.global RandomBelowFull
-.global BuildAdjacencyBitmap
-.global MergeAdjacencyBits
-.global CheckPathExists
-.global AdjRowOffsets
-.global DebugStub_E7
-.global ValidateRecordStats
-.global DebugStub_1E
-.global ValidateRecordStatsAlt
-.global ClampRecordStatPairs
-.global ValidateRecordGold
-.global ClampRecordStatPairsAlt
-.global DebugStub_E5
-.global ValidateProvinceSlots
-.global ActionResultDisplay
-.global OverlayInit
-.global OverlayFillRows
-.global OverlayCommit
-.global OverlayTileData
-.global ClearOverlayInit
-.global ClearOverlayMenu
-.global ClearOverlayWait
-.global ClearOverlayCopyText
-.global ClearOverlayConfirm
-.global ClearOverlayExit
-.global PlayerPtrTable
-.global ClearOverlayCancel
-.global VerifySramChecksum
-.global CopySramToWork
-.global ScrollDigitWriter
-.global DrawSelectionSprites
-.global WriteSingleSprite
-.global MenuInputHandler
-
 ;===============================================================================
 ; Global RAM Address Definitions
 ;===============================================================================
@@ -133,10 +20,10 @@ sram_game_year        = $6F00  ; Calendar year - 100 (display year = $6F00+$64; 
 sram_game_month       = $6F01  ; Calendar month - 1 (display month = $6F01+1); demo rotation step reuse
 sram_game_level        = $6F02  ; Game level (0-2), selected at new game start
 sram_current_country  = $6F03  ; Current acting country id (whose turn/AI action is running; the human country during human turns)
-sram_game_start_flag   = $6F8B  ; Strategy-layer request mailbox ($01 = consumed, $F8 = alliance-gift confirm, $F9/$FA = sweep notices, $FB/$FC = officer notices, $FD = fully absorbed, $FE = battle pending, $FF = turn complete)
+sram_request_mailbox   = $6F8B  ; Strategy-layer request mailbox ($00 idle, $01 = consumed ack, $F8 province transfer (needs an answer), $F9 absorb sweep, $FA province sweep, $FB officer record deleted, $FC officer swapped in, $FD = province conquered (computer defender), $FE = war pending (human defender), $FF turn exhausted)
 sram_counter           = $6F5B  ; AI turn-cycle counter (dispatch selector in StrategyAiTurnDispatch)
 sram_action_budget     = $6F5D  ; AI action-point budget (decremented per action)
-sram_continue_flag     = $6F8C  ; Post-conquest context flag (0 = full new-game setup, 1 = continue)
+sram_conquest_path_bit     = $6F8C  ; War-outcome selector posted with the $6F8B mailbox: SumWarSideStrengths writes 0/1 ($AEB5/$AEBB), SettleStagedOfficers $A8D7 picks conquest vs held placement on it. NOT a continue/new-game flag (see the $A8D7 header retraction). The same cell is the acting officer slot in banks $08/$09 and $0C/$0D.
 sram_absorb_adjust     = $6F8D  ; Absorption adjustment parameter (drives ApplyScenarioDeductions and cost scaling)
 
 ; --- Work Area ($0036-$0045) ---
@@ -165,8 +52,8 @@ math_temp2             = $26    ; Math temporary 2
 math_temp3             = $27    ; Math temporary 3
 
 ; --- Game State ($05xx) ---
-state_sub_dispatch     = $0540  ; Sub-state dispatch index
-state_display_idx      = $0541  ; Display state index
+title_scene_phase      = $0540  ; Title scene phase 0-4 (TitleScreenPhaseDispatch $D717)
+title_scene_step       = $0541  ; Step counter inside the current title scene phase
 state_overlay_param    = $0545  ; Overlay/menu parameter
 state_palette_mode     = $0547  ; Palette animation mode
 
@@ -177,8 +64,8 @@ state_palette_mode     = $0547  ; Palette animation mode
 ;===============================================================================
 StrategyAiTurnDispatch_Entry:
   JMP StrategyAiTurnDispatch                       ; $A000: 4C 0F A0
-SubStateDispatch_Entry:
-  JMP SubStateDispatch                            ; $A003: 4C 17 D7
+TitleScreenPhaseDispatch_Entry:
+  JMP TitleScreenPhaseDispatch                    ; $A003: 4C 17 D7
 ArmyValueCalc_Entry:
   JMP ArmyValueCalc                               ; $A006: 4C 3F CF
 DataRecordLookup_Entry:
@@ -194,17 +81,16 @@ DistanceClamp_Entry:
 ;   $01 -> staged-officer settlement: JMP SettleStagedOfficers (war/march
 ;          aftermath, placement path selected by $6F8C)
 ;   otherwise -> the AI turn officer phase $A01E-$A035 (part of the strategy
-;          AI decision tree; re-entered at $A021 by the bank-$0B display
-;          callback CallStrategyModeDisplay), then the AI turn-cycle counter
+;          AI decision tree), then the AI turn-cycle counter
 ;          $6F5B selects via JumpDispatcher:
 ;          0 -> InitWorkAreas (seed AI weights $6F5F-$6F61)
 ;          1 -> AiActionChoose (weighted action)
 ;          >= 2 -> RTS (idle until the next call)
 ;===============================================================================
 .proc StrategyAiTurnDispatch
-  game_start_flag          = $6F8B
+  request_mailbox          = $6F8B
 
-  LDA game_start_flag                               ; $A00F: AD 8B 6F
+  LDA request_mailbox                               ; $A00F: AD 8B 6F
   BMI @Exit                                           ; $A012: 30 2E  negative: mailbox busy/notice -> done
   CMP #$01                                            ; $A014: C9 01
   BNE @NotOne                                         ; $A016: D0 06  != $01 -> AI turn path
@@ -1478,7 +1364,7 @@ CompareValues:
   work_temp_1              = $003D
   work_temp_2              = $003E
   sram_current_country     = $6F03
-  sram_game_start_flag     = $6F8B
+  sram_request_mailbox     = $6F8B
 
   LDA a:$003A                                         ; $A79C: AD 3A 00
   JSR GetProvinceOwner                                       ; $A79F: 20 05 D1
@@ -3559,7 +3445,7 @@ AbsorbUpdateRecord:
   work_ref_officer_prov    = $0045
   sram_game_level          = $6F02
   sram_current_country     = $6F03
-  sram_game_start_flag     = $6F8B
+  sram_request_mailbox     = $6F8B
 
   JSR B1F_RandomByte4                                 ; $B49C: 20 AA E8
   AND #$7F                                            ; $B49F: 29 7F
@@ -3654,7 +3540,7 @@ AbsorbUpdateRecord:
 ; (record +$01 武力) is moved there; spends 2 action budget points.
 ; NOTE: the scan has NO ruler exclusion (unlike @FindMostLoyalOfficer), so
 ; the ruler is transferred if he has the highest Might. The governor (太守)
-; is the officer in roster slot $11 (cf. prg_1b_1c_map_screen @AppointSwap $B708), so:
+; is the officer in roster slot $11 (cf. prg_1b_1c_strategy_mode @AppointSwap $B708), so:
 ; - target with occupied slot $11: the ruler lands in a later slot and is
 ;   NOT the target's governor;
 ; - empty target roster: the ruler lands in slot $11 and BECOMES governor;
@@ -3783,7 +3669,7 @@ AbsorbUpdateRecord:
 ; tribute from its ruler's province. The tribute scales with the recipient's
 ; province count, and the most-loyal officer rides along as envoy.
 ; Accepting sets the mutual alliance nibbles (=$A) in both country records —
-; the AI-side equivalent of prg_1b_1c_map_screen AllianceStateSet $D508 (human path
+; the AI-side equivalent of prg_1b_1c_strategy_mode AllianceStateSet $D508 (human path
 ; writes $C; AllianceStateGet $D4ED treats any non-zero nibble as allied).
 ; Recipients engaged in war (status [3] == 3, cf. prg_08_09_tactical_war $B157) accept
 ; without a prompt; anyone else gets the mailbox $F8 Yes/No
@@ -4231,7 +4117,7 @@ AbsorbUpdateRecord:
 ; Sets the alliance-state nibble for the partner country in BOTH country
 ; records: one nibble (selected by the other country's index 0-5 -> offsets
 ; 4-7) is set to $A in each record. Same nibble array the human intrigue
-; screen maintains via AllianceStateSet/Get (prg_1b_1c_map_screen $D508/$D4ED; human
+; screen maintains via AllianceStateSet/Get (prg_1b_1c_strategy_mode $D508/$D4ED; human
 ; path writes $C, any non-zero nibble reads as allied).
 ; The nibbles also gate new proposals: @AiAction_ProposeAlliance exits while
 ; the sender's record bytes [4..7] are non-zero.
@@ -4479,8 +4365,8 @@ AbsorbUpdateRecord:
 ;===============================================================================
 ; $BA7E: @PoachNoTarget
 ; Executes the AI strategy action: transfers a officer from another province
-; into the acting country's army. Updates all references and triggers the
-; game-start flag to signal the UI.
+; into the acting country's army. Updates all references and posts a request
+; into the $6F8B mailbox for the map screen to play back.
 ;-------------------------------------------------------------------------------
 ;; @LevelTierModifiers: indexed by (game_level * 4 + tier)
 ;   tier = target's loyalty band: 0 = < 31, 1 = 31-50, 2 = >= 51
@@ -4572,7 +4458,7 @@ AbsorbUpdateRecord:
   LDA a:$0036                                         ; $BB34: AD 36 00
   CMP #$1E                                            ; $BB37: C9 1E
   BCC @PostUpdateLoop                                           ; $BB39: 90 E1  ; loop over all provinces
-  ; --- Signal game-start flag and wait for completion ---
+  ; --- Post the $FA request into the mailbox and wait for the ack ---
   LDA #$FA                                            ; $BB3B: A9 FA
   STA $6F8B                                           ; $BB3D: 8D 8B 6F  ; signal province-sweep notice $FA (prg_19_1a_event_scenes ReqProvinceSweepNotice)
 @WaitLoop:
@@ -6349,8 +6235,6 @@ AbsorbUpdateRecord:
 ; iterate officer records, roll random vs threshold, assign officers on success.
 ;===============================================================================
 .proc CalcActionProb
-  .global CalcActionProb_Entry
-  .global CalcActionProb_GetThreshold
   math_acc_lo              = $0020
   math_acc_mhi             = $0022
   math_acc_hi              = $0023
@@ -6609,7 +6493,9 @@ CalcActionProb_Entry:
 ;                           TransferValidate target for swap
 ;   $0038  work_inner_idx2   TransferValidate subordinate record ID
 ;   $0039  work_sub_idx      SwapSlots: subordinate to match/swap
-;   $0540  state_sub_dispatch Dispatch buffer (16 bytes, cleared per province)
+;   $0540  dispatch_buffer   Per-province dispatch claims [0..$0F], cleared to
+;                           $FF (this cell is the title scene phase byte in the
+;                           $D717 machine; the two uses never overlap in time)
 ;   $6F03  sram_current_country    Current country id
 ;   $6F73  recruit buffer    Recruit slot claims (16 bytes)
 ;   $6F7B  transfer buffer   Transfer slot claims (8 bytes)
@@ -6625,7 +6511,7 @@ CalcActionProb_Entry:
   work_inner_idx           = $0037
   work_inner_idx2          = $0038
   work_sub_idx             = $0039
-  state_sub_dispatch       = $0540
+  dispatch_buffer          = $0540
   sram_current_country     = $6F03
 
   LDY #$FF                                            ; $C79A: A0 FF
@@ -6645,7 +6531,7 @@ CalcActionProb_Entry:
   LDY #$0F                                            ; $C7B7: A0 0F
   LDA #$FF                                            ; $C7B9: A9 FF
 @ClearBuffer:
-  STA $0540,Y                                         ; $C7BB: 99 40 05
+  STA dispatch_buffer,Y                               ; $C7BB: 99 40 05
   DEY                                                 ; $C7BE: 88
   BPL @ClearBuffer                                    ; $C7BF: 10 FA
 @EvalLoop:
@@ -6968,7 +6854,7 @@ CalcActionProb_Entry:
   work_limit_b             = $003B
   work_temp_0              = $003C
   work_country_id          = $0040
-  sram_game_start_flag     = $6F8B
+  sram_request_mailbox     = $6F8B
 
 ; --- Outer loop: iterate 30 province slots ---
   STA a:work_inner_idx                                ; $C98F: 8D 37 00  country id
@@ -7094,9 +6980,9 @@ ProcessRulerSuccession: LDA #$00                                      ; $CA19: A
   LDA #$FF                                            ; $CA76: A9 FF
   STA (math_ext),Y                                    ; $CA78: 91 24  mark ruler record empty
   LDA #$FB                                            ; $CA7A: A9 FB
-  STA sram_game_start_flag                            ; $CA7C: 8D 8B 6F
+  STA sram_request_mailbox                            ; $CA7C: 8D 8B 6F
 @WaitDone:
-  LDA sram_game_start_flag                            ; $CA7F: AD 8B 6F
+  LDA sram_request_mailbox                            ; $CA7F: AD 8B 6F
   CMP #$01                                            ; $CA82: C9 01
   BNE @WaitDone                                       ; $CA84: D0 F9  busy-wait
   RTS                                                 ; $CA86: 60
@@ -7279,7 +7165,7 @@ HeirPriorityList6:                                      ; $CB00: heir list 6
   LDA #$FC                                            ; $CB74: A9 FC
   STA $6F8B                                           ; $CB76: 8D 8B 6F
 @WaitGameFlag:
-  LDA sram_game_start_flag                            ; $CB79: AD 8B 6F
+  LDA sram_request_mailbox                            ; $CB79: AD 8B 6F
   CMP #$01                                            ; $CB7C: C9 01
   BNE @WaitGameFlag                                   ; $CB7E: D0 F9
   RTS                                                 ; $CB80: 60
@@ -7365,7 +7251,7 @@ HeirPriorityList6:                                      ; $CB00: heir list 6
 ; for each province owned by the current country with gold (+$02/+$03) under
 ; $32 (50), convert surplus rice into gold: keeps rice worth max(officer-stat
 ; total, rice - 300), sells the rest at the province's rice price
-; ProvinceRiceTradeRateTable[province] +1 byte (rice/100 gold), credits the
+; ProvinceRiceTradeRateTable[province] +0 byte (the sell rate), credits the
 ; proceeds to the province's gold, clamps,
 ; and spends 2 action-budget points (DeductCounter_Unwind1).
 SellSurplusRice:
@@ -8240,12 +8126,12 @@ ArmyResultTable:                                      ; $CED3
 ;   Entry $D165 (@Entry2): 2 PLA then JMP @GameOver
 ;   Entry $D178 (@Entry4): 4 PLA then JMP @GameOver
 ;   Entry $D18D (@Entry6): 6 PLA then JMP @GameOver
-; @GameOver: sets sram_counter=2, game_start_flag=$FF, clears $6F8D.
+; @GameOver: sets sram_counter=2, sram_request_mailbox=$FF, clears $6F8D.
 ;===============================================================================
 .proc DeductCounterMultiEntry
   math_acc_lo              = $0020
   sram_counter             = $6F5B
-  sram_game_start_flag     = $6F8B
+  sram_request_mailbox     = $6F8B
 
   STA $20                                             ; $D12D: 85 20
   LDA $6F5D                                           ; $D12F: AD 5D 6F
@@ -9491,17 +9377,28 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
 
 
 ;===============================================================================
-; $D717: SubStateDispatch
-; Sub-state dispatch: route to specific game phases
+; $D717: TitleScreenPhaseDispatch
+; Title screen scene machine, run once per VBlank by bank $1F
+; NmiState6_TitleScreen (sub_state 6, set only by $E37C). Phase $0540 selects
+; via B1F_CallbackDispatcher; each phase counts its own steps on $0541:
+;   0 -> CallTitleAnimationDispatch  bank-$17 AnimationDispatch; its
+;        AnimSeq_ResetScene ($DED6) INCs $0540 -> 1
+;   1 -> ActionResultDisplay::TimerLoop  9-step text/scroll sequence, A skips to
+;        step 6; after $0B58 idle frames -> $0540 = 4
+;   2 -> RenderOverlay  3-step name-table overlay build; commit INCs -> 3
+;   3 -> ClearOverlay  7-step title menu (1P/2P pick, save verify); its exits
+;        write addr_game_state $007A (1 / 11 / 13) and reset $0540 = 0
+;   4 -> StackFill  attract-timeout tail: fill $0100-$011F, then $D74C =
+;        B1F_Reset (soft reset back to boot)
 ;===============================================================================
-.proc SubStateDispatch
-  state_sub_dispatch       = $0540
+.proc TitleScreenPhaseDispatch
+  title_scene_phase        = $0540
 
   JSR DrawSelectionSprites                              ; $D717: 20 34 DD
-  LDA $0540                                           ; $D71A: AD 40 05
+  LDA title_scene_phase                               ; $D71A: AD 40 05
   JSR B1F_CallbackDispatcher                          ; $D71D: 20 DE EA
   ; --- Inline pointer table (5 entries) ---
-  .addr CallStrategyModeDisplay                       ; $D720: 2A D7
+  .addr CallTitleAnimationDispatch                    ; $D720: 2A D7
   .addr ActionResultDisplay::TimerLoop                ; $D722: 4F D7
   .addr RenderOverlay                             ; $D724: 9C D9
   .addr ClearOverlay                              ; $D726: 7E DA
@@ -9509,14 +9406,18 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
 .endproc
 
 ;===============================================================================
-; $D72A: CallStrategyModeDisplay
+; $D72A: CallTitleAnimationDispatch
+; Banked call into the title animation machine. Y = $37 selects the $17+$18
+; window, so the callback target $A021 is the bank-$17 entry stub
+; B17_18_AnimationDispatch, NOT the same-address bank-$0A label
+; StrategyAiTurnDispatch::AiOfficerPhaseEntry.
 ;===============================================================================
-.proc CallStrategyModeDisplay
+.proc CallTitleAnimationDispatch
 
   LDY #$37                                            ; $D72A: A0 37
   JSR B1F_BankedCallbackTrampoline                    ; $D72C: 20 07 EE
-  ; --- BankedCallbackTrampoline target ---
-  .addr StrategyAiTurnDispatch::AiOfficerPhaseEntry   ; $D72F: 21 A0
+  ; --- BankedCallbackTrampoline target (bank $17 window) ---
+  .addr B17_18_AnimationDispatch                    ; $D72F: 21 A0
   RTS                                                 ; $D731: 60
 .endproc
 
@@ -9524,7 +9425,7 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
 ; $D732: StackFill
 ;===============================================================================
 .proc StackFill
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDA $0541                                           ; $D732: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D735: 20 DE EA
@@ -9537,7 +9438,7 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
 ; $D73C: FillStackLoop
 ;===============================================================================
 .proc FillStackLoop
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDY #$00                                            ; $D73C: A0 00
   LDA #$0F                                            ; $D73E: A9 0F
@@ -9553,20 +9454,20 @@ ValidateGoldEntry = ClampRecordStatPairsAlt::ValidateGold
 
 ;===============================================================================
 ; $D74C: ActionResultDisplay
-; Display sequence dispatcher. Contains the 9-state display sub-machine
+; Display sequence dispatcher. Contains the 9-step display sub-machine
 ; and the A-button skip handler (SkipToTileScroll).
 ;   Entry $D74C: JMP B1F_Reset (exit to fixed-bank code)
 ;   Entry $D74F (@TimerLoop): frame-counter timeout then dispatch display
-;     sub-states via $0541. Referenced from StackFill dispatch table.
+;     steps via $0541. Referenced from StackFill dispatch table.
 ;
-; Sub-states (dispatch table order):
+; Display steps (dispatch table order):
 ;   StateWait64Frames, StateScrollDown, StateSpriteAnim, StateSetupParams,
 ;   StatePaletteUpdate, StateSetupMenu, StateTileScroll, StateWriteText,
 ;   StateWaitInput, SkipToTileScroll (A-button skip handler)
 ;===============================================================================
 .proc ActionResultDisplay
-  state_sub_dispatch       = $0540
-  state_display_idx        = $0541
+  title_scene_phase           = $0540
+  title_scene_step            = $0541
 
   JMP B1F_Reset                                       ; $D74C: 4C 00 E0
 
@@ -9582,20 +9483,20 @@ TimerLoop:
   CMP #$0B                                            ; $D761: C9 0B
   BNE @Dispatch                                       ; $D763: D0 0B
   LDA #$04                                            ; $D765: A9 04
-  STA state_sub_dispatch                              ; $D767: 8D 40 05
+  STA title_scene_phase                              ; $D767: 8D 40 05
   LDA #$00                                            ; $D76A: A9 00
-  STA state_display_idx                               ; $D76C: 8D 41 05
+  STA title_scene_step                               ; $D76C: 8D 41 05
   RTS                                                 ; $D76F: 60
 @Dispatch:
   LDA a:$0081                                         ; $D770: AD 81 00
   AND #$08                                            ; $D773: 29 08
   BEQ @DoDispatch                                     ; $D775: F0 0A
-  LDA state_display_idx                               ; $D777: AD 41 05
+  LDA title_scene_step                               ; $D777: AD 41 05
   CMP #$07                                            ; $D77A: C9 07
   BEQ @DoDispatch                                     ; $D77C: F0 03
   JMP SkipToTileScroll                                ; $D77E: 4C 0D D9
 @DoDispatch:
-  LDA state_display_idx                               ; $D781: AD 41 05
+  LDA title_scene_step                               ; $D781: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D784: 20 DE EA
   ; --- Inline pointer table (9 entries) ---
   .addr StateWait64Frames                             ; $D787: 99 D7
@@ -9611,10 +9512,10 @@ TimerLoop:
 
 ;===============================================================================
 ; $D799: StateWait64Frames
-; Wait 64 frames, then set up PPU scroll params and advance display state.
+; Wait 64 frames, then set up PPU scroll params and advance the display step.
 ;===============================================================================
 .proc StateWait64Frames
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   INC $0544                                           ; $D799: EE 44 05
   LDA $0544                                           ; $D79C: AD 44 05
@@ -9630,7 +9531,7 @@ TimerLoop:
   STA a:$0087                                         ; $D7B0: 8D 87 00
   STA $0543                                           ; $D7B3: 8D 43 05
   STA $0544                                           ; $D7B6: 8D 44 05
-  INC state_display_idx                               ; $D7B9: EE 41 05
+  INC title_scene_step                               ; $D7B9: EE 41 05
   RTS                                                 ; $D7BC: 60
 .endproc
 
@@ -9641,7 +9542,7 @@ TimerLoop:
 ; in $0543. At threshold $B8, set up OAM entries and advance state.
 ;===============================================================================
 .proc StateScrollDown
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   JSR ScrollUpdate                                      ; $D7BD: 20 C8 DC
   LDA a:$0087                                         ; $D7C0: AD 87 00
@@ -9658,7 +9559,7 @@ TimerLoop:
   STA $0123                                           ; $D7DB: 8D 23 01
   LDA #$08                                            ; $D7DE: A9 08
   STA $0543                                           ; $D7E0: 8D 43 05
-  INC state_display_idx                               ; $D7E3: EE 41 05
+  INC title_scene_step                               ; $D7E3: EE 41 05
   LDA #$5A                                            ; $D7E6: A9 5A
   JSR $E69B                                           ; $D7E8: 20 9B E6
 @Done:
@@ -9673,7 +9574,7 @@ TimerLoop:
 ; decrement counter. Advance state when counter reaches 0.
 ;===============================================================================
 .proc StateSpriteAnim
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDY #$21                                            ; $D7EC: A0 21
   JSR B1F_SwitchBank8_B                               ; $D7EE: 20 5F F2
@@ -9711,7 +9612,7 @@ TimerLoop:
   BCC @HideLoop                                       ; $D830: 90 EE
   DEC $0543                                           ; $D832: CE 43 05
   BPL @Done                                           ; $D835: 10 03
-  INC state_display_idx                               ; $D837: EE 41 05
+  INC title_scene_step                               ; $D837: EE 41 05
 @Done:
   RTS                                                 ; $D83A: 60
 .endproc
@@ -9719,10 +9620,10 @@ TimerLoop:
 
 ;===============================================================================
 ; $D83B: StateSetupParams
-; Initialize scroll/palette parameters and advance display state.
+; Initialize scroll/palette parameters and advance the display step.
 ;===============================================================================
 .proc StateSetupParams
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDA #$00                                            ; $D83B: A9 00
   STA a:$0087                                         ; $D83D: 8D 87 00
@@ -9733,7 +9634,7 @@ TimerLoop:
   STA a:$0089                                         ; $D84A: 8D 89 00
   LDA #$07                                            ; $D84D: A9 07
   STA $0542                                           ; $D84F: 8D 42 05
-  INC state_display_idx                               ; $D852: EE 41 05
+  INC title_scene_step                               ; $D852: EE 41 05
   RTS                                                 ; $D855: 60
 .endproc
 
@@ -9743,7 +9644,7 @@ TimerLoop:
 ; counter. Advance state after $20 frames.
 ;===============================================================================
 .proc StatePaletteUpdate
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   JSR ScrollUpdate                                      ; $D856: 20 C8 DC
   LDA a:$0088                                         ; $D859: AD 88 00
@@ -9764,7 +9665,7 @@ TimerLoop:
   LDA $0543                                           ; $D875: AD 43 05
   CMP #$20                                            ; $D878: C9 20
   BNE @Done                                           ; $D87A: D0 03
-  INC state_display_idx                               ; $D87C: EE 41 05
+  INC title_scene_step                               ; $D87C: EE 41 05
 @Done:
   RTS                                                 ; $D87F: 60
 @Count:
@@ -9779,7 +9680,7 @@ TimerLoop:
 ; Set up menu display parameters and advance state.
 ;===============================================================================
 .proc StateSetupMenu
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDA #$00                                            ; $D890: A9 00
   STA a:$0087                                         ; $D892: 8D 87 00
@@ -9791,7 +9692,7 @@ TimerLoop:
   STA $0542                                           ; $D8A1: 8D 42 05
   LDA #$00                                            ; $D8A4: A9 00
   STA $0543                                           ; $D8A6: 8D 43 05
-  INC state_display_idx                               ; $D8A9: EE 41 05
+  INC title_scene_step                               ; $D8A9: EE 41 05
   RTS                                                 ; $D8AC: 60
 .endproc
 
@@ -9801,7 +9702,7 @@ TimerLoop:
 ; ScrollTileData to PPU buffer $0380. Sets NMI flag and advances state.
 ;===============================================================================
 .proc StateTileScroll
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   JSR ScrollUpdate                                      ; $D8AD: 20 C8 DC
   LDA a:$0087                                         ; $D8B0: AD 87 00
@@ -9821,7 +9722,7 @@ TimerLoop:
   STA a:$007E                                         ; $D8CD: 8D 7E 00
   LDA #$1F                                            ; $D8D0: A9 1F
   STA $0542                                           ; $D8D2: 8D 42 05
-  INC state_display_idx                               ; $D8D5: EE 41 05
+  INC title_scene_step                               ; $D8D5: EE 41 05
 @Done:
   RTS                                                 ; $D8D8: 60
 .endproc
@@ -9833,7 +9734,7 @@ TimerLoop:
 ; Sets NMI flag and advances state.
 ;===============================================================================
 .proc StateWriteText
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDY #$00                                            ; $D8D9: A0 00
 @CopyLoop:
@@ -9848,18 +9749,18 @@ TimerLoop:
   LDA a:$007E                                         ; $D8EC: AD 7E 00
   ORA #$04                                            ; $D8EF: 09 04
   STA a:$007E                                         ; $D8F1: 8D 7E 00
-  INC state_display_idx                               ; $D8F4: EE 41 05
+  INC title_scene_step                               ; $D8F4: EE 41 05
   RTS                                                 ; $D8F7: 60
 .endproc
 
 
 ;===============================================================================
 ; $D8F8: StateWaitInput
-; Wait for timer or A-button press, then advance sub-state dispatch.
+; Wait for timer or A-button press, then advance the title scene phase ($0540).
 ;===============================================================================
 .proc StateWaitInput
-  state_sub_dispatch       = $0540
-  state_display_idx        = $0541
+  title_scene_phase           = $0540
+  title_scene_step            = $0541
 
   LDA $0543                                           ; $D8F8: AD 43 05
   BNE @Advance                                        ; $D8FB: D0 07
@@ -9867,9 +9768,9 @@ TimerLoop:
   AND #$08                                            ; $D900: 29 08
   BEQ @Done                                           ; $D902: F0 08
 @Advance:
-  INC state_sub_dispatch                              ; $D904: EE 40 05
+  INC title_scene_phase                              ; $D904: EE 40 05
   LDA #$00                                            ; $D907: A9 00
-  STA state_display_idx                               ; $D909: 8D 41 05
+  STA title_scene_step                               ; $D909: 8D 41 05
 @Done:
   RTS                                                 ; $D90C: 60
 .endproc
@@ -9878,10 +9779,10 @@ TimerLoop:
 ;===============================================================================
 ; $D90D: SkipToTileScroll
 ; A-button skip handler: setup OAM entries from stack template, configure
-; display params, and jump to display state 6 (StateTileScroll).
+; display params, and jump to display step 6 (StateTileScroll).
 ;===============================================================================
 .proc SkipToTileScroll
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDA #$28                                            ; $D90D: A9 28
   STA $0121                                           ; $D90F: 8D 21 01
@@ -9900,7 +9801,7 @@ TimerLoop:
   STA $0542                                           ; $D92B: 8D 42 05
   STA $0543                                           ; $D92E: 8D 43 05
   LDA #$06                                            ; $D931: A9 06
-  STA state_display_idx                               ; $D933: 8D 41 05
+  STA title_scene_step                               ; $D933: 8D 41 05
   LDA #$FF                                            ; $D936: A9 FF
   STA a:$0087                                         ; $D938: 8D 87 00
   RTS                                                 ; $D93B: 60
@@ -9927,7 +9828,7 @@ ActionResultDisplay_TimerLoop = ActionResultDisplay::TimerLoop
 ; Render overlay tiles to name table via 3-phase state machine.
 ;===============================================================================
 .proc RenderOverlay
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDA $0541                                           ; $D99C: AD 41 05
   JSR B1F_CallbackDispatcher                          ; $D99F: 20 DE EA
@@ -9942,7 +9843,7 @@ ActionResultDisplay_TimerLoop = ActionResultDisplay::TimerLoop
 ; Initialize overlay: fill stack buffer with $0F, set up PPU address params.
 ;===============================================================================
 .proc OverlayInit
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDY #$08                                            ; $D9A8: A0 08
   LDA #$0F                                            ; $D9AA: A9 0F
@@ -9960,7 +9861,7 @@ ActionResultDisplay_TimerLoop = ActionResultDisplay::TimerLoop
   STA $0544                                           ; $D9C4: 8D 44 05
   LDA #$17                                            ; $D9C7: A9 17
   STA $0542                                           ; $D9C9: 8D 42 05
-  INC state_display_idx                               ; $D9CC: EE 41 05
+  INC title_scene_step                               ; $D9CC: EE 41 05
   RTS                                                 ; $D9CF: 60
 .endproc
 
@@ -9971,7 +9872,7 @@ ActionResultDisplay_TimerLoop = ActionResultDisplay::TimerLoop
 ; Advance PPU address by $40 each iteration until 3 rows done.
 ;===============================================================================
 .proc OverlayFillRows
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDA #$40                                            ; $D9D0: A9 40
   STA $0380                                           ; $D9D2: 8D 80 03
@@ -9998,7 +9899,7 @@ ActionResultDisplay_TimerLoop = ActionResultDisplay::TimerLoop
   LDA $0543                                           ; $DA03: AD 43 05
   CMP #$C0                                            ; $DA06: C9 C0
   BNE @Done                                           ; $DA08: D0 08
-  INC state_display_idx                               ; $DA0A: EE 41 05
+  INC title_scene_step                               ; $DA0A: EE 41 05
   LDA #$17                                            ; $DA0D: A9 17
   STA $0542                                           ; $DA0F: 8D 42 05
   LDA a:$007E                                         ; $DA12: AD 7E 00
@@ -10011,11 +9912,11 @@ ActionResultDisplay_TimerLoop = ActionResultDisplay::TimerLoop
 ;===============================================================================
 ; $DA1B: OverlayCommit
 ; Copy overlay tile data from inline table at $DA3F to PPU buffer $0380.
-; Sets NMI flag and advances sub-state.
+; Sets the NMI redraw flag and advances the title scene phase ($0540).
 ;===============================================================================
 .proc OverlayCommit
-  state_sub_dispatch       = $0540
-  state_display_idx        = $0541
+  title_scene_phase           = $0540
+  title_scene_step            = $0541
 
   LDY #$00                                            ; $DA1B: A0 00
 @CopyLoop:
@@ -10030,9 +9931,9 @@ ActionResultDisplay_TimerLoop = ActionResultDisplay::TimerLoop
   LDA a:$007E                                         ; $DA2E: AD 7E 00
   ORA #$04                                            ; $DA31: 09 04
   STA a:$007E                                         ; $DA33: 8D 7E 00
-  INC state_sub_dispatch                              ; $DA36: EE 40 05
+  INC title_scene_phase                              ; $DA36: EE 40 05
   LDA #$00                                            ; $DA39: A9 00
-  STA state_display_idx                               ; $DA3B: 8D 41 05
+  STA title_scene_step                               ; $DA3B: 8D 41 05
   RTS                                                 ; $DA3E: 60
 .endproc
 
@@ -10052,7 +9953,7 @@ OverlayTileData:
 ; Clear overlay region via 7-phase state machine (menu, wait, copy, confirm).
 ;===============================================================================
 .proc ClearOverlay
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   JSR B1F_PaletteAnimation                            ; $DA7E: 20 67 EC
   LDA $0541                                           ; $DA81: AD 41 05
@@ -10072,10 +9973,10 @@ OverlayTileData:
 ; Reset overlay parameters and advance state.
 ;===============================================================================
 .proc ClearOverlayInit
-  state_display_idx        = $0541
+  title_scene_step            = $0541
   state_overlay_param      = $0545
 
-  INC state_display_idx                               ; $DA95: EE 41 05
+  INC title_scene_step                               ; $DA95: EE 41 05
   LDA #$00                                            ; $DA98: A9 00
   STA $0424                                           ; $DA9A: 8D 24 04
   STA $0425                                           ; $DA9D: 8D 25 04
@@ -10090,7 +9991,7 @@ OverlayTileData:
 ; handle selection. On confirm (A press): validate checksum, advance state.
 ;===============================================================================
 .proc ClearOverlayMenu
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   JSR MenuInputHandler                                  ; $DAA6: 20 79 DD
   JSR PaletteCheck                                    ; $DAA9: 20 4C DF
@@ -10120,12 +10021,12 @@ OverlayTileData:
   BNE @Done                                           ; $DAE7: D0 0B
   JSR VerifySramChecksum                                ; $DAE9: 20 2F DC
   BCC @ChecksumFail                                   ; $DAEC: 90 0E
-  INC state_display_idx                               ; $DAEE: EE 41 05
+  INC title_scene_step                               ; $DAEE: EE 41 05
   JMP B1F_PaletteCopyBuffer                           ; $DAF1: 4C EE EC
 @ChecksumFail:
   STA $6F43                                           ; $DAF4: 8D 43 6F
   LDA #$03                                            ; $DAF7: A9 03
-  STA state_display_idx                               ; $DAF9: 8D 41 05
+  STA title_scene_step                               ; $DAF9: 8D 41 05
 @Done:
   RTS                                                 ; $DAFC: 60
 .endproc
@@ -10136,14 +10037,14 @@ OverlayTileData:
 ; and load player record pointer.
 ;===============================================================================
 .proc ClearOverlayWait
-  state_display_idx        = $0541
+  title_scene_step            = $0541
   sram_current_country     = $6F03
 
   LDA a:$0087                                         ; $DAFD: AD 87 00
   BPL @Done                                           ; $DB00: 10 FA
   JSR CopySramToWork                                    ; $DB02: 20 97 DC
   LDA #$00                                            ; $DB05: A9 00
-  STA state_display_idx                               ; $DB07: 8D 41 05
+  STA title_scene_step                               ; $DB07: 8D 41 05
   LDA #$01                                            ; $DB0A: A9 01
   STA a:$007A                                         ; $DB0C: 8D 7A 00
   LDA #$0D                                            ; $DB0F: A9 0D
@@ -10167,7 +10068,7 @@ OverlayTileData:
 ; Sets NMI flag and advances state.
 ;===============================================================================
 .proc ClearOverlayCopyText
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDY #$00                                            ; $DB2B: A0 00
 @CopyLoop:
@@ -10181,7 +10082,7 @@ OverlayTileData:
   LDA #$00                                            ; $DB3B: A9 00
   STA $0424                                           ; $DB3D: 8D 24 04
   STA $0425                                           ; $DB40: 8D 25 04
-  INC state_display_idx                               ; $DB43: EE 41 05
+  INC title_scene_step                               ; $DB43: EE 41 05
   LDA a:$007E                                         ; $DB46: AD 7E 00
   ORA #$04                                            ; $DB49: 09 04
   STA a:$007E                                         ; $DB4B: 8D 7E 00
@@ -10197,7 +10098,7 @@ OverlayTileData:
 ; Display confirmation menu, wait for A press, then copy palette and advance.
 ;===============================================================================
 .proc ClearOverlayConfirm
-  state_display_idx        = $0541
+  title_scene_step            = $0541
 
   LDA #$D4                                            ; $DB7B: A9 D4
   STA a:$0010                                         ; $DB7D: 8D 10 00
@@ -10222,7 +10123,7 @@ OverlayTileData:
   LDA a:$0012                                         ; $DBAE: AD 12 00
   STA $0544                                           ; $DBB1: 8D 44 05
   JSR B1F_PaletteCopyBuffer                           ; $DBB4: 20 EE EC
-  INC state_display_idx                               ; $DBB7: EE 41 05
+  INC title_scene_step                               ; $DBB7: EE 41 05
 @Done:
   RTS                                                 ; $DBBA: 60
 .endproc
@@ -10232,17 +10133,17 @@ OverlayTileData:
 
 ;===============================================================================
 ; $DBC1: ClearOverlayExit
-; Wait for scroll done, then reset state machine to sub-state 0.
+; Wait for scroll done, then reset the scene machine to phase 0 ($0540).
 ;===============================================================================
 .proc ClearOverlayExit
-  state_sub_dispatch       = $0540
-  state_display_idx        = $0541
+  title_scene_phase           = $0540
+  title_scene_step            = $0541
 
   LDA a:$0087                                         ; $DBC1: AD 87 00
   BPL @Done                                           ; $DBC4: 10 F4
   LDA #$00                                            ; $DBC6: A9 00
-  STA state_sub_dispatch                              ; $DBC8: 8D 40 05
-  STA state_display_idx                               ; $DBCB: 8D 41 05
+  STA title_scene_phase                              ; $DBC8: 8D 40 05
+  STA title_scene_step                               ; $DBCB: 8D 41 05
   LDA #$0B                                            ; $DBCE: A9 0B
   STA a:$007A                                         ; $DBD0: 8D 7A 00
 @Done:
@@ -10260,19 +10161,19 @@ PlayerPtrTable:
 
 ;===============================================================================
 ; $DBF1: ClearOverlayCancel
-; Wait for scroll done, then set up cancel display (sub-state 0, display 1).
+; Wait for scroll done, then set up the cancel display (phase 0, step 1).
 ; Initializes $042C buffer with pattern data.
 ;===============================================================================
 .proc ClearOverlayCancel
-  state_sub_dispatch       = $0540
-  state_display_idx        = $0541
+  title_scene_phase           = $0540
+  title_scene_step            = $0541
 
   LDA a:$0087                                         ; $DBF1: AD 87 00
   BPL @Done                                           ; $DBF4: 10 38
   LDA #$00                                            ; $DBF6: A9 00
-  STA state_sub_dispatch                              ; $DBF8: 8D 40 05
+  STA title_scene_phase                              ; $DBF8: 8D 40 05
   LDA #$01                                            ; $DBFB: A9 01
-  STA state_display_idx                               ; $DBFD: 8D 41 05
+  STA title_scene_step                               ; $DBFD: 8D 41 05
   LDA #$0D                                            ; $DC00: A9 0D
   STA a:$007A                                         ; $DC02: 8D 7A 00
   LDA #$00                                            ; $DC05: A9 00
@@ -10743,7 +10644,7 @@ DigitTileTable:
 ; sound $62). Otherwise check frame counter and button input to advance.
 ;===============================================================================
 .proc PaletteCheck
-  state_display_idx        = $0541
+  title_scene_step            = $0541
   state_palette_mode       = $0547
 
   LDY $0547                                           ; $DF4C: AC 47 05

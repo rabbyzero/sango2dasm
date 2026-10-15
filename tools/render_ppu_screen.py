@@ -14,7 +14,7 @@ loaded for it:
         $946C, 48 B/record, bytes 4-7 = NAMCO-163 CHR slots 4-7 = BG tile groups
         $00-3F / $40-7F / $80-BF / $C0-FF (BG pattern table $1000, PPUCTRL mirror
         $008B = $10). Page value V = chr file V//8 at offset (V%8)*$400.
-  color `LoadScenarioData` ($DBB1, prg_1d_1e_menu_screens.asm) copies a 32-byte palette record
+  color `PaletteRecordLoad` ($DBB1, prg_1d_1e_menu_screens.asm) copies a 32-byte palette record
         to $0100, which `PaletteUpload` ($E70E) sends to PPU $3F00. The records
         live in bank $1E at $DBEB (14 entries, index 9 repeats 8).
 
@@ -72,7 +72,7 @@ NES_RGB = (
     (0xa8, 0xf0, 0xf8), (0xa8, 0xa8, 0xa8), (0xfc, 0xfc, 0xfc), (0x00, 0x00, 0x00),
 )
 
-# LoadScenarioData @RecordPtrTable ($DBCF, prg_1d_1e_menu_screens.asm): CPU address of each
+# PaletteRecordLoad @PalRecordPtrTable ($DBCF, prg_1d_1e_menu_screens.asm): CPU address of each
 # 32-byte palette record. Bank $1E holds $C000-$FFFF, so file offset = cpu-$C000.
 PALETTE_CPU = (
     0xDBEB, 0xDC0B, 0xDC2B, 0xDC4B, 0xDC6B, 0xDC8B, 0xDCAB, 0xDCCB,
@@ -163,7 +163,7 @@ def main():
     ap.add_argument('--page', help='override the CHR page of --group')
     ap.add_argument('--group', default='00', help='tile group the override applies to')
     ap.add_argument('--palette', default=None,
-                    help='LoadScenarioData palette record index, hex (0-d)')
+                    help='PaletteRecordLoad palette record index, hex (0-d)')
     ap.add_argument('--scale', type=int, default=3)
     ap.add_argument('--out', default=None,
                     help='output png (default build/screen_<bank>_<addr>.png)')

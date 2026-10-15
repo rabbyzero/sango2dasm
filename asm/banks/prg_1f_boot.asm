@@ -64,7 +64,7 @@ addr_ppu_ctrl_ram   = $008B                     ; RAM copy of PPU control ($2000
 addr_ppu_mask_ram   = $008C                     ; RAM copy of PPU mask ($2001)
 addr_display_mode   = $0098                     ; Display mode parameter
 addr_display_mode_h = $0099                     ; Display mode parameter (high)
-addr_nmi_flag       = $007D                     ; NMI update pending flag
+addr_pal_upload_arm = $007D                     ; Palette-upload armed latch (NmiSubDispatch $EE53 tests it, PaletteUpload clears it at $E71B); never an NMI pending flag
 addr_nmi_ctrl       = $007E                     ; NMI sub-dispatch control bits
 
 ; --- Controller ---
@@ -149,9 +149,9 @@ addr_menu_column    = $0424                     ; Cursor column (0-based within 
 addr_menu_page      = $0425                     ; Cursor page (0-based)
 
 ; --- SRAM ---
-sram_map_cam_y       = $6F3F                    ; Map camera Y pos low (parked at $80 by State_StrategyMapLaunch; high at $6F40)
-sram_map_cam_x       = $6F41                    ; Map camera X pos low (parked at $F0 by State_StrategyMapLaunch; high at $6F42)
-sram_game_start_flag = $6F8B                    ; Strategy request mailbox ($FF = turn complete; see prg_0a_0b_strategy_ai StrategyAiTurnDispatch)
+sram_map_cam_x       = $6F3F                    ; Map camera X pos low (Right/Left move it, bounds $10-$F8; parked at $80 by State_StrategyMapLaunch; high at $6F40)
+sram_map_cam_y       = $6F41                    ; Map camera Y pos low (Up/Down move it, bounds $10-$94; parked at $F0 = off-screen by State_StrategyMapLaunch; high at $6F42)
+sram_request_mailbox = $6F8B                    ; Strategy request mailbox ($FF = turn complete; see prg_0a_0b_strategy_ai StrategyAiTurnDispatch)
 
 ;===============================================================================
 ; $E000: Reset Handler
@@ -298,7 +298,7 @@ VectorTable:
 ;   2. DisplayInit(0) selects display record 0 (map CHR pages 00 01 02 10);
 ;      SwitchBank8_B($30) + B17_18_PpuCopyRaw then upload the 1KB nametable
 ;      StrategyMapBaseScreen (bank $10 $8000) to PPU $2000; palette record 0 via
-;      B1D_1E_LoadScenarioData; SceneRecordLookup(0) arms the scene parameters.
+;      B1D_1E_PaletteRecordLoad; SceneRecordLookup(0) arms the scene parameters.
 ;   3. Stores $6F8B = $FF (strategy request mailbox 'turn complete') only when the
 ;      caller has NOT staged a scene handoff, i.e. $0400 != $0D ($E126-$E12F).
 ;      ClearOverlayWait $DB0C and WarPostProcess $BBAA both stage $0400 = $0D (with
@@ -346,15 +346,15 @@ VectorTable:
   JSR SwitchBankAC_B                            ; $E118: 20 37 F2
   LDA #$00                                      ; $E11B: A9 00
   STA a:$0000                                   ; $E11D: 8D 00 00
-  JSR B1D_1E_LoadScenarioData                   ; $E120: 20 15 A0  Load scenario data (bank-switched)
+  JSR B1D_1E_PaletteRecordLoad                   ; $E120: 20 15 A0  Load palette record (bank-switched)
 
   JSR ScrollSet                                 ; $E123: 20 F7 EA
   LDA $0400                                     ; $E126: AD 00 04  Check input
   CMP #$0D                                      ; $E129: C9 0D
-  BEQ @skip_sram_flag                           ; $E12B: F0 05
+  BEQ @skip_mailbox_post                        ; $E12B: F0 05
   LDA #$FF                                      ; $E12D: A9 FF
-  STA sram_game_start_flag                      ; $E12F: 8D 8B 6F  Set SRAM flag
-@skip_sram_flag:
+  STA sram_request_mailbox                      ; $E12F: 8D 8B 6F  Post $FF turn-complete into the request mailbox
+@skip_mailbox_post:
   LDY #$3D                                      ; $E132: A0 3D
   JSR SwitchBankAC_B                            ; $E134: 20 37 F2
   JSR B1D_1E_ClearWorkBuffer                    ; $E137: 20 36 A0  Clear work buffer (bank-switched)
@@ -372,9 +372,9 @@ VectorTable:
   STA $04E2                                     ; $E157: 8D E2 04
   STA $04E3                                     ; $E15A: 8D E3 04
   LDA #$F0                                      ; $E15D: A9 F0
-  STA sram_map_cam_x                            ; $E15F: 8D 41 6F  SRAM: map camera X
+  STA sram_map_cam_y                            ; $E15F: 8D 41 6F  SRAM: map camera Y (parked off-screen at $F0)
   LDA #$80                                      ; $E162: A9 80
-  STA sram_map_cam_y                            ; $E164: 8D 3F 6F  SRAM: map camera Y
+  STA sram_map_cam_x                            ; $E164: 8D 3F 6F  SRAM: map camera X
   LDA #$00                                      ; $E167: A9 00
   JSR BankSwitch                                ; $E169: 20 1F E5
   INC a:addr_game_state                         ; $E16C: EE 7A 00  Next state
@@ -404,7 +404,7 @@ VectorTable:
 ; $E18B: Entry 3 - War Scene Launch (verified; formerly misnamed "Ruler Select")
 ; One-shot launch frame on the war/battle side, then INC addr_game_state -> 4
 ; (WarAiTurnFrame / AiTurnProcess). Only four sites store game state 3:
-;   WarSceneLaunch prg_1b_1c_map_screen $B5E1 / ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA4A
+;   WarSceneLaunch prg_1b_1c_strategy_mode $B5E1 / ArmyDeploySceneTrigger prg_19_1a_event_scenes $CA4A
 ;     arm war_scene_id $0500 = $0A; Spoils_ExitFade prg_17_18_display $C354 and
 ;     BattleResultFlashTrigger prg_0e_0f_battle $A403 arm $0500 = $0B post-battle.
 ; Dispatch on $0500:
@@ -466,7 +466,7 @@ map_data_ptr_hi = $0069
   JSR SwitchBankAC_B                            ; $E1E1: 20 37 F2
   LDA #$01                                      ; $E1E4: A9 01
   STA a:$0000                                   ; $E1E6: 8D 00 00
-  JSR B1D_1E_LoadScenarioData                   ; $E1E9: 20 15 A0
+  JSR B1D_1E_PaletteRecordLoad                   ; $E1E9: 20 15 A0
   JSR ScrollSet                                 ; $E1EC: 20 F7 EA
 
   LDA #$00                                      ; $E1EF: A9 00
@@ -536,7 +536,7 @@ sprite_idx2     = $0562
   CLC                                           ; $E255: 18
   ADC #$02                                      ; $E256: 69 02
   STA a:$0000                                   ; $E258: 8D 00 00
-  JSR B1D_1E_LoadScenarioData                   ; $E25B: 20 15 A0  Load scenario data (bank-switched)
+  JSR B1D_1E_PaletteRecordLoad                   ; $E25B: 20 15 A0  Load palette record (bank-switched)
 
   ; Sprite positions from table
   LDY sprite_idx1                               ; $E25E: AC 63 05
@@ -629,7 +629,7 @@ StrategyCommandSpriteYPos:
 ;   2. DisplayInit($0A) selects display record 10 (CHR pages 8D 8E 8F 90);
 ;      SwitchBank8_B($30) + B17_18_PpuCopyRaw upload the 1KB nametable
 ;      DuelBaseScreen (bank $10 $8400) to PPU $2000 - the dark field the duel
-;      sprites are drawn over; palette record $0A via B1D_1E_LoadScenarioData.
+;      sprites are drawn over; palette record $0A via B1D_1E_PaletteRecordLoad.
 ;   3. When a side's staged slot equals 1, zeroes that side's pair of $0100-block
 ;      entries ($04AB -> $0106/$0116, $04AC -> $010E/$011A).
 ;   4. PaletteFadeInit, SceneRecordLookup(2), then INC addr_game_state -> 8
@@ -673,7 +673,7 @@ sidev_slot_b      = $04AC
   JSR SwitchBankAC_B                            ; $E31D: 20 37 F2
   LDA #$0A                                      ; $E320: A9 0A
   STA a:$0000                                   ; $E322: 8D 00 00
-  JSR B1D_1E_LoadScenarioData                   ; $E325: 20 15 A0  Load scenario data (bank-switched)
+  JSR B1D_1E_PaletteRecordLoad                   ; $E325: 20 15 A0  Load palette record (bank-switched)
 
   JSR ScrollSet                                 ; $E328: 20 F7 EA
 
@@ -757,7 +757,7 @@ sidev_slot_b      = $04AC
   JSR SwitchBankAC_B                            ; $E3BA: 20 37 F2
   LDA #$0B                                      ; $E3BD: A9 0B
   STA a:$0000                                   ; $E3BF: 8D 00 00
-  JSR B1D_1E_LoadScenarioData                   ; $E3C2: 20 15 A0
+  JSR B1D_1E_PaletteRecordLoad                   ; $E3C2: 20 15 A0
   JSR ScrollSet                                 ; $E3C5: 20 F7 EA
   JSR PaletteFadeInit                           ; $E3C8: 20 BF EC
   LDY #$3D                                      ; $E3CB: A0 3D
@@ -827,7 +827,7 @@ sidev_slot_b      = $04AC
   JSR SwitchBankAC_B                            ; $E434: 20 37 F2
   LDA #$0C                                      ; $E437: A9 0C
   STA a:$0000                                   ; $E439: 8D 00 00
-  JSR B1D_1E_LoadScenarioData                   ; $E43C: 20 15 A0
+  JSR B1D_1E_PaletteRecordLoad                   ; $E43C: 20 15 A0
   JSR ScrollSet                                 ; $E43F: 20 F7 EA
   JSR PaletteFadeInit                           ; $E442: 20 BF EC
   LDY #$3D                                      ; $E445: A0 3D
@@ -888,7 +888,7 @@ music_select = $0541
   JSR SwitchBankAC_B                            ; $E49A: 20 37 F2
   LDA #$0D                                      ; $E49D: A9 0D
   STA a:$0000                                   ; $E49F: 8D 00 00
-  JSR B1D_1E_LoadScenarioData                   ; $E4A2: 20 15 A0
+  JSR B1D_1E_PaletteRecordLoad                   ; $E4A2: 20 15 A0
   JSR ScrollSet                                 ; $E4A5: 20 F7 EA
   LDY #$3D                                      ; $E4A8: A0 3D
   JSR SwitchBankAC_B                            ; $E4AA: 20 37 F2
@@ -1264,7 +1264,7 @@ WavetableInitData:
   STA PPU_CTRL                                  ; $E713: 8D 00 20  Apply to PPU
   LDA PPU_STATUS                                ; $E716: AD 02 20  Reset PPU address latch
   LDY #$00                                      ; $E719: A0 00
-  STY a:$007D                                   ; $E71B: 8C 7D 00
+  STY a:addr_pal_upload_arm                     ; $E71B: 8C 7D 00  Disarm the palette upload latch
   LDA #$3F                                      ; $E71E: A9 3F
   STA PPU_ADDR                                  ; $E720: 8D 06 20  PPU addr high = $3F
   STY PPU_ADDR                                  ; $E723: 8C 06 20  PPU addr low = $00
@@ -2192,7 +2192,6 @@ anim_direction  = $0087
 anim_step       = $0088
 anim_speed      = $0089
 anim_counter    = $008A
-nmi_flag        = $007D
 
   LDA a:anim_direction                          ; $EC67: AD 87 00
   BMI @done                                     ; $EC6A: 30 52
@@ -2201,7 +2200,7 @@ nmi_flag        = $007D
   LDA a:anim_speed                              ; $EC71: AD 89 00
   STA a:anim_counter                            ; $EC74: 8D 8A 00
   LDA #$01                                      ; $EC77: A9 01
-  STA a:nmi_flag                                ; $EC79: 8D 7D 00
+  STA a:addr_pal_upload_arm                     ; $EC79: 8D 7D 00  Arm the palette upload latch
   LDA a:anim_direction                          ; $EC7C: AD 87 00
   BEQ @reverse                                  ; $EC7F: F0 0D
   INC a:anim_step                               ; $EC81: EE 88 00
@@ -2534,7 +2533,7 @@ ptr_hi   = $0C
 ; bit5 -> PpuAttrTileWrite, bit4 -> PpuAttrTileWriteAlt
 ;===============================================================================
 .proc NmiSubDispatch
-  LDA a:addr_nmi_flag                           ; $EE53: AD 7D 00
+  LDA a:addr_pal_upload_arm                           ; $EE53: AD 7D 00
   BNE NmiPaletteUpload                          ; $EE56: D0 1A
   LDA a:addr_nmi_ctrl                           ; $EE58: AD 7E 00
   BMI NmiDoBgWrite                              ; $EE5B: 30 18
@@ -2890,7 +2889,7 @@ ptr_hi   = $0C
 ; $F092: Sprite OAM Writer (with scroll offsets)
 ; Converts sprite data at ($00) with scroll/flip handling
 ; Input: $00/$01 = sprite data ptr, $02 = flip flags
-;        $0A/$0B = X offset, $0C/$0D = Y offset
+;        $0A/$0B = Y offset, $0C/$0D = X offset
 ;        $007C = starting OAM slot index
 ; Mid-entry $F09C (B1F_SpriteOamWriterScroll_NoInit): skips the $0003/$0004
 ; init; caller must preset $0003 (tile bias) and $0004 (Y clamp).
@@ -3047,10 +3046,11 @@ SpriteOamWriterScroll_NoInit:
 ; $F1AD: Sprite OAM Writer (Simple - no scroll)
 ; Converts sprite data at ($00) directly to OAM
 ; Input: $00/$01 = sprite data ptr, $02 = flip flags
-;        $0A = X base, $0C = Y base, $007C = OAM slot
+;        $0A = Y base, $0C = X base, $007C = OAM slot
 ; Mid-entry $F1B7 (B1F_SpriteOamWriterSimple_NoInit): skips the $0003/$0004
-; init; caller must preset $0003 (tile bias) and $0004 (X clip min, write
-; only sprites with screen X >= $0004).
+; init; caller must preset $0003 (tile bias) and $0004 (Y clip min, write
+; only sprites with screen Y >= $0004: $F1CB tests blob byte 0 + $000A, which
+; is the value written to OAM $0200 = Y, before $F1D1's BCS skips the sprite).
 ;===============================================================================
 .proc SpriteOamWriterSimple
   LDA #$00                                      ; $F1AD: A9 00
@@ -3779,7 +3779,7 @@ NmiDispatchTable:
   JSR B1D_1E_MenuRenderer                       ; $F8E7: 20 3F A0  Menu renderer (bank $1D)
   LDY #$3B                                      ; $F8EA: A0 3B   ; banks $1B+$1C
   JSR SwitchBankAC_B                            ; $F8EC: 20 37 F2
-  JSR B1B_1C_MapScreenFrameUpdate_Entry         ; $F8EF: 20 00 A0  Map screen frame update (bank $1B $A00C)
+  JSR B1B_1C_StrategyFrameUpdate_Entry          ; $F8EF: 20 00 A0  Strategy Mode frame update (bank $1B $A00C)
   JSR RestorePlayerPointers                     ; $F8F2: 20 BF FA
   JSR SpriteClearFromIndex                      ; $F8F5: 20 30 E8
   JSR WaitVBlank                                ; $F8F8: 20 28 FB
@@ -3901,7 +3901,7 @@ NmiDispatchTable:
   STA NAMCO_WRAM_WRITE_PROTECT                  ; $F9FC: 8D 00 F8
   LDY #$2A                                      ; $F9FF: A0 2A
   JSR SwitchBankAC_B                            ; $FA01: 20 37 F2
-  JSR B0A_0B_SubStateDispatch_Entry             ; $FA04: 20 03 A0  Sub-state dispatch (bank $0A)
+  JSR B0A_0B_TitleScreenPhaseDispatch_Entry     ; $FA04: 20 03 A0  Title screen scene phase machine (bank $0A)
   JSR CalcScrollAddr                            ; $FA07: 20 62 FF
   JSR SpriteClearFromIndex                      ; $FA0A: 20 30 E8
   JSR WaitVBlank                                ; $FA0D: 20 28 FB

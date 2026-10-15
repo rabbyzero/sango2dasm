@@ -72,7 +72,7 @@ computer):
 | `$0507` | war faction pair = actingCountry<<4 \| targetOwner |
 | `$050E` | `war_province_idx` = target province |
 | `$0402` | launch province (post-war bookkeeping) |
-| `$6F8B` | `sram_game_start_flag` mailbox: $FD / $FE / $01 / $FF |
+| `$6F8B` | `sram_request_mailbox` mailbox: $FD / $FE / $01 / $FF |
 | `$6F8D` | conquest adjust from the settlement (scales ×4/10 attrition) |
 | `$6F73-$6F76` | war pools (defender/attacker): lost troops + 120×casualties, converted into war experience for survivors |
 | `$6F77/$6F78` | casualty counts (defender/attacker column) |

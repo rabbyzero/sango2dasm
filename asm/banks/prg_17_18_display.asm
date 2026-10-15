@@ -155,7 +155,7 @@ sram_country_param_0         = $6F3F  ; Country init param 0 (set to $80 on new 
 sram_country_param_1         = $6F41  ; Country init param 1 (set to $F0 on new game)
 sram_scroll_pending          = $6F43  ; Scroll update pending flag (cleared after copy to strategy work ptr)
 sram_player_swap             = $6F44  ; Player 2 / palette swap trigger (non-zero = swap active)
-sram_game_start_flag         = $6F8B  ; Game start flag (set to $FF on new game)
+sram_request_mailbox         = $6F8B  ; Strategy-layer request mailbox ($FF = turn complete; posted by the $08/$0A-$0B engines, consumed by prg_19_1a StrategyRequestDispatch $C773)
 sram_territory_event         = $6FE1  ; Territory event flag (bit 0 = capture officer)
 
 ; --- OAM / Sprite Buffer ($03xx) ---
@@ -7629,8 +7629,8 @@ BuildPPUTileBuffer:
 ;
 ; Input:
 ;   A      = sprite ID: bit 7 selects bank, bits 6-0 = table entry index
-;   $04BA  = X base coordinate (copied to $0A for OAM writer)
-;   $04BB  = Y base coordinate (copied to $0C for OAM writer)
+;   $04BA  = Y base coordinate (copied to $000A for the OAM writer)
+;   $04BB  = X base coordinate (copied to $000C for the OAM writer)
 ;   $0002  = flip flags (pre-set by caller, used by OAM writer)
 ;
 ; Bank selection: bit 7 clear -> PRG bank $34, bit 7 set -> PRG bank $35.
@@ -7641,10 +7641,10 @@ BuildPPUTileBuffer:
 .proc DrawSpriteFromBank
   sprite_ptr_lo   = $0000                               ; Sprite data ptr lo (output)
   sprite_ptr_hi   = $0001                               ; Sprite data ptr hi (output, adjusted)
-  x_coord_base    = $000A                               ; X base coord (for OAM writer)
-  y_coord_base    = $000C                               ; Y base coord (for OAM writer)
-  sprite_pos_lo   = $04BA                               ; Sprite position ptr lo (input)
-  sprite_pos_hi   = $04BB                               ; Sprite position ptr hi (input)
+  y_coord_base    = $000A                               ; Y base coord (added to blob byte 0 -> OAM $0200)
+  x_coord_base    = $000C                               ; X base coord (added to blob byte 3 -> OAM $0203)
+  sprite_y_base   = $04BA                               ; Sprite Y base (input)
+  sprite_x_base   = $04BB                               ; Sprite X base (input)
   BANK_SPRITE_A   = $34                                 ; PRG bank for sprites (set A)
   BANK_SPRITE_B   = $35                                 ; PRG bank for sprites (set B)
   HI_OFFSET_A     = $00                                 ; Ptr hi adjustment bank A
@@ -7676,11 +7676,11 @@ DrawSpriteFromBank:
   SEC                                                 ; $CECB: 38
   SBC sprite_ptr_hi                                     ; $CECC: ED 01 00  (hi - offset)
   STA sprite_ptr_hi                                     ; $CECF: 8D 01 00
-  ;--- Load X/Y base coordinates from $04BA/$04BB ---
-  LDA sprite_pos_lo                                     ; $CED2: AD BA 04
-  STA x_coord_base                                      ; $CED5: 8D 0A 00  ($0A for OAM writer)
-  LDA sprite_pos_hi                                     ; $CED8: AD BB 04
-  STA y_coord_base                                      ; $CEDB: 8D 0C 00  ($0C for OAM writer)
+  ;--- Load the Y/X base coordinates from $04BA/$04BB ---
+  LDA sprite_y_base                                       ; $CED2: AD BA 04
+  STA y_coord_base                                      ; $CED5: 8D 0A 00  ($000A = Y base for the OAM writer)
+  LDA sprite_x_base                                       ; $CED8: AD BB 04
+  STA x_coord_base                                      ; $CEDB: 8D 0C 00  ($000C = X base for the OAM writer)
   ;--- Hand off to OAM writer (reads sprite data, writes OAM entries) ---
   JMP B1F_SpriteOamWriterSimple                         ; $CEDE: 4C AD F1
 .endproc
@@ -7697,12 +7697,12 @@ DrawSpriteFromBank:
 ;   $04AA  = active player slot
 ;   $04AF+slot = player state (2 = special offset applied)
 ;   $04B8  = frame counter (incremented here)
-;   $04BA  = X coordinate base for sprites (adjusted by phase)
+;   $04BA  = Y coordinate base for sprites (adjusted by phase)
 ;
 ; Process:
 ;   1. Increment frame counter, play sound every 32 frames
 ;   2. Derive scroll phase (0-7) from counter / 4
-;   3. Adjust X base ($04BA) by phase: phase 1,2 -> -2; phase 4,5 -> +2
+;   3. Adjust the Y base ($04BA) by phase: phase 1,2 -> -2 (2 px higher); 4,5 -> +2
 ;   4. Draw 3 sprites (top/middle/bottom tiles of the column)
 ;   5. Two paths: forward ($0011=0) or backward ($0011!=0) with different
 ;      sprite indices and flip flags
@@ -7715,8 +7715,8 @@ DrawSpriteFromBank:
   scroll_timer    = $04B8                               ; Frame counter for animation
   player_slot     = $04AA                               ; Active player slot index
   player_states   = $04AF                               ; Player state array base
-  sprite_x_base   = $04BA                               ; Sprite X coordinate base
-  SPRITE_X_DEFAULT = $5D                                ; Default X position
+  sprite_y_base   = $04BA                               ; Sprite Y coordinate base (feeds $000A in DrawSpriteFromBank)
+  SPRITE_Y_DEFAULT = $5D                                ; Default Y position
   SOUND_SCROLL    = $60                                 ; Sound ID for scroll tick
   TIMER_PERIOD    = $20                                 ; Frames between sound ticks
 MapScroll_UpdatePosition:
@@ -7735,10 +7735,10 @@ MapScroll_UpdatePosition:
   LSR A                                               ; $CEF6: 4A  (A = timer / 4)
   AND #$0F                                            ; $CEF7: 29 0F
   STA scroll_col_off                                     ; $CEF9: 8D 10 00  (reuse as phase index)
-  ;--- Adjust sprite X base by scroll phase ---
-  ; Phase 1,2 -> shift left (-2); Phase 4,5 -> shift right (+2); else unchanged
-  LDA #SPRITE_X_DEFAULT                                 ; $CEFC: A9 5D
-  STA sprite_x_base                                     ; $CEFE: 8D BA 04
+  ;--- Adjust the sprite Y base by scroll phase ---
+  ; Phase 1,2 -> -2 (2 px higher); Phase 4,5 -> +2 (2 px lower); else unchanged
+  LDA #SPRITE_Y_DEFAULT                                 ; $CEFC: A9 5D
+  STA sprite_y_base                                     ; $CEFE: 8D BA 04
   LDA scroll_col_off                                     ; $CF01: AD 10 00
   CMP #$01                                            ; $CF04: C9 01
   BEQ @shift_left                                       ; $CF06: F0 15
@@ -7749,12 +7749,12 @@ MapScroll_UpdatePosition:
   CMP #$05                                            ; $CF10: C9 05
   BNE @phase_done                                       ; $CF12: D0 0F
 @shift_right:
-  INC sprite_x_base                                     ; $CF14: EE BA 04  (phase 4,5: +2)
-  INC sprite_x_base                                     ; $CF17: EE BA 04
+  INC sprite_y_base                                     ; $CF14: EE BA 04  (phase 4,5: +2)
+  INC sprite_y_base                                     ; $CF17: EE BA 04
   JMP @phase_done                                       ; $CF1A: 4C 23 CF
 @shift_left:
-  DEC sprite_x_base                                     ; $CF1D: CE BA 04  (phase 1,2: -2)
-  DEC sprite_x_base                                     ; $CF20: CE BA 04
+  DEC sprite_y_base                                     ; $CF1D: CE BA 04  (phase 1,2: -2)
+  DEC sprite_y_base                                     ; $CF20: CE BA 04
 @phase_done:
   ;--- Compute player-specific offset (2 if player state == 2, else 0) ---
   LDY player_slot                                        ; $CF23: AC AA 04
@@ -8191,7 +8191,7 @@ slot_defaults:                                        ; 4x 16-byte default slot 
 ; $D235: DrawCompletionSprite
 ;
 ; Draw a map-scroll completion sprite at a fixed screen position.
-; Temporarily overrides $04BA/$04BB with fixed X/Y coordinates, calls
+; Temporarily overrides $04BA (Y base) / $04BB (X base) with fixed values, calls
 ; DrawSpriteFromBank, then restores the original values.
 ;
 ; Input (set by caller before JMP):
@@ -8200,15 +8200,15 @@ slot_defaults:                                        ; 4x 16-byte default slot 
 ;
 ; Side effects:
 ;   $0002  = set to $03 (H+V flip flags for OAM writer)
-;   $04BA  = temporarily set to $57 (sprite X position)
-;   $04BB  = temporarily set to $B8 (player 0) or $38 (player 1)
+;   $04BA  = temporarily set to $57 (sprite Y base)
+;   $04BB  = temporarily set to $B8 (player 0) or $38 (player 1) - sprite X base
 ;===============================================================================
 .proc DrawCompletionSprite
   sprite_flip_flags = $0002                               ; Flip flags for OAM writer ($03 = H+V)
   sprite_index      = $0010                               ; Sprite data index (input from caller)
-  SPRITE_X_POS      = $57                                 ; Fixed X coordinate for completion sprite
-  SPRITE_Y_P0       = $B8                                 ; Y coordinate for player 0 (bottom viewport)
-  SPRITE_Y_P1       = $38                                 ; Y coordinate for player 1 (top viewport)
+  SPRITE_Y_POS      = $57                                 ; Fixed Y base for the completion sprite
+  SPRITE_X_P0       = $B8                                 ; X base for player 0
+  SPRITE_X_P1       = $38                                 ; X base for player 1
   FLIP_HV           = $03                                 ; Horizontal + vertical flip
 DrawCompletionSprite:
   ;--- Save current sprite position values ---
@@ -8217,12 +8217,12 @@ DrawCompletionSprite:
   LDA slide_y_pos                                           ; $D239: AD BB 04
   PHA                                                 ; $D23C: 48
   ;--- Override with fixed completion sprite coordinates ---
-  LDA #SPRITE_X_POS                                       ; $D23D: A9 57  (X position)
+  LDA #SPRITE_Y_POS                                       ; $D23D: A9 57  (Y base)
   STA scroll_row_count                                           ; $D23F: 8D BA 04
-  LDX #SPRITE_Y_P1                                       ; $D242: A2 38  (default: player 1 Y)
+  LDX #SPRITE_X_P1                                       ; $D242: A2 38  (default: player 1 X base)
   LDA active_player_slot                                           ; $D244: AD AA 04
   BNE @skip                                           ; $D247: D0 02
-  LDX #SPRITE_Y_P0                                       ; $D249: A2 B8  (player 0 Y)
+  LDX #SPRITE_X_P0                                       ; $D249: A2 B8  (player 0 X base)
 @skip:
   STX slide_y_pos                                           ; $D24B: 8E BB 04
   ;--- Set flip flags and draw the completion sprite ---
@@ -8568,7 +8568,7 @@ StrategyCommand_InitOfficerScroll:
   LSR A                                               ; $D720: 4A
   LSR A                                               ; $D721: 4A
   TAY                                                 ; $D722: A8
-  LDA DispatchBankTable,Y                                         ; $D723: B9 55 D7
+  LDA SpriteBlobIndexTable,Y                                         ; $D723: B9 55 D7
   STA dispatch_src_ptr_hi                                           ; $D726: 8D CB 04
 @skip_4:
   RTS                                                 ; $D729: 60
@@ -8592,8 +8592,8 @@ StrategyCommand_InitOfficerScroll:
   RTS                                                 ; $D751: 60
 @skip_7:
   JMP B1F_Reset                                       ; $D752: 4C 00 E0
-DispatchBankTable:
-  .byte $09,$0A,$0B,$0C,$F0,$F0,$F0,$0D,$0E,$0F,$10,$11,$12,$13,$13,$14; $D755: Dispatch bank lookup (index → PRG bank)
+SpriteBlobIndexTable:
+  .byte $09,$0A,$0B,$0C,$F0,$F0,$F0,$0D,$0E,$0F,$10,$11,$12,$13,$13,$14; $D755: 1-based sprite-blob indexes into bank $06 $9A7E ($F0 = draw nothing)
   .byte $14,$15,$15,$14,$14,$13,$13,$FE               ; $D765: 14 15 15 14 14 13 13 FE
 @init_palette:
   LDY #$00                                            ; $D76D: A0 00
