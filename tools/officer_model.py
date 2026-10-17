@@ -35,6 +35,11 @@ Record layout (12 bytes):
     +B bits 4-7 レベル OfficerLevel (0-based), bits 2-3 軍の属性 ArmyAffinity,
        bits 0-1 状態 OfficerStatus
 
+The 計略 stratagem tier the front-ends display is derived, never stored:
+`BuildCommandList` ($D3EE) gives every officer 2/4/6/8/10 of the 16 stratagems
+by 知力, and 12/14/15/16 only to 21 authored officer ids whose レベル clears a
+roster floor (see STRATAGEM_*).
+
 Invariants
 ----------
 `problems()` reports exactly the rules that `tools/verify_data_banks.py`
@@ -169,6 +174,60 @@ HEIR_PRIORITY_BANK_BASE = 0xC000       # bank $0B maps at $C000-$DFFF
 HEIR_PRIORITY_PTR_CPU = 0xCAD8
 HEIR_PRIORITY_COUNTRY_COUNT = 7
 HEIR_PRIORITY_END = 0xFF
+
+# --- 計略 stratagem tier availability -------------------------------------
+# `BuildCommandList` ($D3EE, asm/banks/prg_08_09_tactical_war.asm) is what
+# decides the player's 計略 menu: `StratagemState_Init` (prg_0c_0d $A89E) calls
+# it through the bank stub $A01B, and `StratagemState_Menu` ($A917) uses the
+# count it leaves in $0542 (= slots - 1) to pick the menu layout. Every list it
+# installs is the sequential codes $00..N-1, so N is exactly how many
+# stratagems the commander can select. Two authored gates, tried in this order:
+#
+#   1. the officer id against four strategist rosters, each with a レベル floor
+#      (record +$0B bits 4-7, stored 0-based); a member below every floor of his
+#      roster falls through;
+#   2. otherwise 知力 (record +$02) against the `CMP` chain at $D4D2-$D4E5.
+#
+# So 知力 carries an officer as far as the 10 basic stratagems and only these 21
+# ids can reach the advanced 6 - and 15/16 need stored level 5/6, which no seed
+# record has (the seed maximum is 董卓 id $AD, stored 4), so those two tiers
+# arrive only through the in-game `OfficerLevelUp` (prg_0c_0d $C691) or an edit.
+# The AI side uses the same thresholds as a 1/3/5/7/9 tier (`AiPickStratagemTarget`
+# $A95C) and, for codes $0A-$0F, `AiCheckAdvancedStratagem` ($AAF8) adds a 知力
+# >= $5C floor on top of these rosters.
+STRATAGEM_COUNT = 16
+# Code order is the handler table `ValidateActionTarget` ($ADAC-$ADCA, prg_0c_0d);
+# the Japanese forms are the manual glossary (docs/manual_kb/terminology.md).
+STRATAGEM_NAMES = (
+    ('火計', 'FireAttack'), ('陥穽', 'PitfallTrap'), ('虚兵', 'FeintTroops'),
+    ('要撃', 'AmbushStrike'), ('乱水', 'BoatSabotage'), ('火箭', 'SupplyBurning'),
+    ('偽撃転殺', 'CastleRaid'), ('共殺', 'FriendlyFire'), ('籠絡', 'Enticement'),
+    ('落石', 'Rockfall'), ('連環', 'ChainLink'), ('十面埋伏', 'TenfoldAmbush'),
+    ('水攻', 'FloodAttack'), ('連弩', 'RepeatingCrossbow'), ('劫火', 'Inferno'),
+    ('奇門遁甲', 'MysticalStasis'),
+)
+# (知力 floor, slots) - the ROM's `CMP #$28 / #$3C / #$4B / #$55` chain.
+STRATAGEM_INTELLIGENCE_LADDER = ((0x00, 2), (0x28, 4), (0x3C, 6), (0x4B, 8),
+                                 (0x55, 10))
+# (roster ids, ((stored レベル floor, slots), ...)) in descending floor order.
+STRATAGEM_LEVEL_ROSTERS = (
+    (frozenset((0x6D,)),
+     ((6, 16), (5, 15), (4, 14), (3, 12))),
+    (frozenset((0xC5, 0x56, 0x5D)),
+     ((5, 15), (4, 14), (3, 12))),
+    (frozenset((0x18, 0x37, 0x70, 0xD5, 0x6E, 0x67)),
+     ((4, 14), (3, 12))),
+    (frozenset((0xA1, 0x63, 0xA7, 0x16, 0xC4, 0xDB, 0xEA, 0x6B, 0xCE, 0xEB,
+                0xB7)),
+     ((3, 12),)),
+)
+
+StratagemAccess = namedtuple(
+    'StratagemAccess',
+    'count codes source level_floor intel_count next_kind next_count '
+    'next_intelligence next_level roster_ids')
+StratagemAccess.__new__.__defaults__ = (None,) * 10
+
 # Plate tile ids are page-local ($00-$3F); page V is the 1KB CHR chunk
 # rom/chr/chr_(V//8).bin at (V%8)*$400 - the same mapping the BG display
 # records use (code/initial_data_tables.md section 9). Verified by rendering:
@@ -446,6 +505,142 @@ EDITABLE = tuple(f.key for f in FIELDS)
 AFFINITY_EN = {0: 'Plains', 1: 'Mountain', 2: 'Naval'}
 
 
+# --- stratagem availability ----------------------------------------------
+def stratagem_intelligence_count(intelligence):
+    """The 知力 ladder's verdict - the gate every officer misses only by a
+    roster boost."""
+    count = STRATAGEM_INTELLIGENCE_LADDER[0][1]
+    for floor, slots in STRATAGEM_INTELLIGENCE_LADDER:
+        if intelligence >= floor:
+            count = slots
+    return count
+
+
+def stratagem_roster(oid):
+    """(ids, floors) of the strategist roster owning this id, or (None, ())."""
+    for ids, floors in STRATAGEM_LEVEL_ROSTERS:
+        if oid in ids:
+            return ids, floors
+    return None, ()
+
+
+def stratagem_access(oid, officer_level, intelligence):
+    """The stratagems this commander can select, and the next step up.
+
+    `officer_level` is the decoded 1-based レベル field; the ROM compares the
+    stored byte, so every floor here is one below it. The answer is the same
+    whether the roster gate or the 知力 gate decides: `count` codes $00..N-1.
+    """
+    stored = officer_level - 1
+    intel_count = stratagem_intelligence_count(intelligence)
+    roster_ids, floors = stratagem_roster(oid)
+    for index, (floor, slots) in enumerate(floors):
+        if stored < floor:
+            continue
+        next_kind, next_count, next_level = None, None, None
+        if index:
+            next_kind, next_count = 'level', floors[index - 1][1]
+            next_level = floors[index - 1][0] + 1
+        return StratagemAccess(count=slots, codes=tuple(range(slots)),
+                               source='level', level_floor=floor + 1,
+                               intel_count=intel_count, next_kind=next_kind,
+                               next_count=next_count, next_level=next_level,
+                               roster_ids=roster_ids)
+    ladder = STRATAGEM_INTELLIGENCE_LADDER
+    index = max(i for i, (floor, _) in enumerate(ladder)
+                if intelligence >= floor)
+    next_kind, next_count, next_int, next_level = None, None, None, None
+    if index + 1 < len(ladder):
+        next_kind, next_int, next_count = ('intelligence',
+                                          ladder[index + 1][0],
+                                          ladder[index + 1][1])
+    elif floors:
+        next_kind, next_level, next_count = ('level', floors[-1][0] + 1,
+                                            floors[-1][1])
+    return StratagemAccess(count=intel_count, codes=tuple(range(intel_count)),
+                           source='intelligence', intel_count=intel_count,
+                           next_kind=next_kind, next_count=next_count,
+                           next_intelligence=next_int, next_level=next_level,
+                           roster_ids=roster_ids)
+
+
+def stratagem_names(codes):
+    """'火計 FireAttack' for each code, comma-joined."""
+    return ', '.join('%s %s' % STRATAGEM_NAMES[code] for code in codes)
+
+
+def stratagem_ladder_lines(by_id=None):
+    """The ROM's tier table as text: the 知力 rungs, then each roster's floors."""
+    ladder = STRATAGEM_INTELLIGENCE_LADDER
+    lines = ['知力 Intelligence (record +$02) - every officer:']
+    for index, (floor, slots) in enumerate(ladder):
+        hi = ladder[index + 1][0] - 1 if index + 1 < len(ladder) else None
+        window = ('$%02X-$%02X (%d-%d)' % (floor, hi, floor, hi)
+                  if hi is not None else '$%02X+ (%d+)' % (floor, floor))
+        lines.append('  知力 %s -> %d slots ($00-$%02X)'
+                     % (window, slots, slots - 1))
+    lines.append('')
+    lines.append('officer id + レベル OfficerLevel (record +$0B bits 4-7) - '
+                 'these %d ids only:'
+                 % sum(len(ids) for ids, _ in STRATAGEM_LEVEL_ROSTERS))
+    for ids, floors in STRATAGEM_LEVEL_ROSTERS:
+        steps = ' | '.join('%d slots at stored レベル %d' % (slots, floor)
+                           for floor, slots in floors)
+        names = ', '.join(
+            '$%02X %s' % (oid, by_id[oid].name) if by_id else '$%02X' % oid
+            for oid in sorted(ids))
+        lines.append('  %s' % names)
+        lines.append('    %s' % steps)
+    return lines
+
+
+def stratagem_access_lines(off):
+    """The pane text for one officer: usable count, the deciding gate, next step."""
+    acc = off.stratagem_access()
+    ladder = STRATAGEM_INTELLIGENCE_LADDER
+    locked = tuple(code for code in range(STRATAGEM_COUNT)
+                   if code not in acc.codes)
+    lines = ['計略 menu: %d of %d slots ($00-$%02X)'
+             % (acc.count, STRATAGEM_COUNT, acc.count - 1)]
+    if acc.source == 'level':
+        lines.append('  boosted: レベル %d (stored %d) clears stored floor %d '
+                     'of the %d-id strategist roster, so 知力 %d (%d slots) '
+                     'is not consulted'
+                     % (off.officer_level, off.officer_level - 1,
+                        acc.level_floor - 1, len(acc.roster_ids),
+                        off.intelligence, acc.intel_count))
+    else:
+        index = max(i for i, (floor, slots) in enumerate(ladder)
+                    if off.intelligence >= floor)
+        if index:
+            lines.append('  知力 %d >= $%02X (%d)'
+                         % (off.intelligence, ladder[index][0], ladder[index][0]))
+        else:
+            lines.append('  知力 %d < $%02X (%d): the bottom rung'
+                         % (off.intelligence, ladder[1][0], ladder[1][0]))
+        if acc.roster_ids:
+            entry_floor, entry_slots = stratagem_roster(off.id)[1][-1]
+            lines.append('  also in the strategist roster (entry stored レベル '
+                         '%d = レベル %d -> %d slots)'
+                         % (entry_floor, entry_floor + 1, entry_slots))
+    if acc.next_kind == 'intelligence':
+        lines.append('  next: 知力 >= $%02X (%d) -> %d slots'
+                     % (acc.next_intelligence, acc.next_intelligence,
+                        acc.next_count))
+    elif acc.next_kind == 'level':
+        lines.append('  next: レベル %d -> %d slots'
+                     % (acc.next_level, acc.next_count))
+    else:
+        lines.append('  next: %s'
+                     % ('none - all %d stratagems are open' % STRATAGEM_COUNT
+                        if acc.count == STRATAGEM_COUNT else
+                        'none - the top of his own tier list'))
+    lines.append('  usable %s' % stratagem_names(acc.codes))
+    if locked:
+        lines.append('  locked %s' % stratagem_names(locked))
+    return lines
+
+
 class Officer:
     """One officer: the seed record plus its name, schedule and death year.
 
@@ -530,6 +725,15 @@ class Officer:
         if self.schedule_province_id is not None or self.appear_year is not None:
             return 'incomplete arrival entry'
         return 'unscheduled (hidden, found by the free-officer scans)'
+
+    # --- 計略 tier -------------------------------------------------------
+    def stratagem_access(self):
+        """The stratagems he can select as a war commander (see BuildCommandList)."""
+        return stratagem_access(self.id, self.officer_level, self.intelligence)
+
+    def stratagem_lines(self):
+        """Pane text: usable count and names, the deciding gate, the next step."""
+        return stratagem_access_lines(self)
 
     # --- bytes -----------------------------------------------------------
     def fields(self):

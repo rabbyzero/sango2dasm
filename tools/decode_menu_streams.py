@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """
-Decode MenuAction tile stream data from the PPUTileRender bytecode format.
+Decode the tile stream whose id equals a MenuAction handler's display latch.
+
+CORRECTION (2026-10-15): the value a handler passes to SetupDisplayPtrs is NOT a
+pos_buf_0 stream id. It only latches the display cell block
+$00BF/$00C7/$00CF (and $00C0/$00C8/$00D0 through ResetDispatchState) - the same
+cells the prg_19_1a cutscene handlers animate - and no reader feeds them to
+CalcMenuDataPtr. The stream a screen really shows is pushed by that screen's
+OPENER through B1F_OpenMsgWindow0/2/4/5, so the handler/stream pairing below is a
+numeric coincidence, not a content link. Do not use this script to name or
+explain screens; use tools/report_stream_text.py plus the per-handler comment
+blocks in asm/banks/prg_1d_1e_menu_screens.asm.
 
 The display engine (MenuUpdate/PPUTileRender at $A153-$A394 in prg_1d_1e_menu_screens.asm) reads
 a bytecode stream from banked PRG ROM. This script:
-1. Resolves the pointer table for each pos_buf_0 value
+1. Resolves the pointer table for each handler latch value, treated as a pos id
 2. Reads the tile stream bytecode
 3. Decodes commands and literal tile bytes
 4. Outputs a summary of tile indices and name references per handler
@@ -22,36 +32,42 @@ import sys
 ROM_DIR = os.path.join(os.path.dirname(__file__), '..', 'rom')
 PRG_COMBINED = os.path.join(ROM_DIR, 'prg_combined.bin')
 
-# Handler → pos_buf_0 parameter (passed to SetupDisplayPtrs)
+# Handler -> first display latch (SetupDisplayPtrs immediate -> $00BF/$00C7/$00CF)
 HANDLERS = {
-    0x00: ("MenuAction00_InitialSetup", 0xE8),
-    0x01: ("MenuAction01_DisplaySetup", 0xDC),
-    0x02: ("MenuAction02_LandReclamation", 0xE1),
-    0x03: ("MenuAction03_DisasterPreventionSetup", 0xC6),
-    0x04: ("MenuAction04_DisasterPrevention", None),  # shared code with 07
-    0x05: ("MenuAction05_UnidentifiedCmdSetup", 0xC6),
-    0x06: ("MenuAction06_UnidentifiedCmd", 0xEA),
-    0x07: ("MenuAction07_CountryEnd", 0xB7),
-    0x08: ("MenuAction08_GoldDistribution", 0xCA),
-    0x09: ("MenuAction09_RiceDistribution", 0xF1),
-    0x0A: ("MenuAction0A_Conscription", 0xF0),
-    0x0B: ("MenuAction0B_HireOfficer", 0xE9),
-    0x0C: ("MenuAction0C_TransferOfficer", 0xF8),
-    0x0D: ("MenuAction0D_UnidentifiedCmd", 0xF7),
-    0x0E: ("MenuAction0E_UnidentifiedCmd", 0xF3),
-    0x0F: ("MenuAction0F_GiveItem", 0xF0),
-    0x10: ("MenuAction10_SuccessorSelection", 0xD0),
-    0x11: ("MenuAction11_Intrigue", 0xF5),
-    0x12: ("MenuAction12_Sortie", 0xF8),
-    0x13: ("MenuAction13_Reconnaissance", 0xE7),
-    0x14: ("MenuAction14_Market", 0xFB),
-    0x15: ("MenuAction15_Exchange", 0xEA),
-    0x16: ("MenuAction16_Trade", 0xF6),
-    0x17: ("MenuAction17_SearchOfficer", 0xF7),
-    0x18: ("MenuAction18_SearchItem", 0xC5),
-    0x19: ("MenuAction19_UnidentifiedCmd", 0xF4),
-    0x1A: ("MenuAction1A_OfficerDeath", 0xC1),
-    0x1B: ("MenuAction1B_UnidentifiedCmd", 0xFC),
+    0x00: ("MenuAction00_SortieResult", 0xE8),
+    0x01: ("MenuAction01_AcademyResult", 0xDC),
+    0x02: ("MenuAction02_SaveGameResult", 0xE1),
+    0x03: ("MenuAction03_DiscordResult", 0xE9),
+    0x04: ("MenuAction04_WarRulerCard", 0xD1),
+    0x05: ("MenuAction05_WarRivalRulerCard", 0xC6),
+    0x06: ("MenuAction06_DisasterPreventionResult", 0xEA),
+    0x07: ("MenuAction07_ArmoryResult", 0xB7),
+    0x08: ("MenuAction08_WarOutbreakNotice", 0xCA),
+    0x09: ("MenuAction09_LandReclamationResult0A", 0xF1),
+    0x0A: ("MenuAction0A_LandReclamationResult0B", 0xF0),
+    0x0B: ("MenuAction0B_CivilianReliefResult", 0xE9),
+    0x0C: ("MenuAction0C_HospitalResult", 0xF8),
+    0x0D: ("MenuAction0D_LandReclamationResult0E", 0xF7),
+    0x0E: ("MenuAction0E_TownDevelopmentResult0F", 0xF3),
+    0x0F: ("MenuAction0F_IndustryAndTownResult10", 0xF0),
+    0x10: ("MenuAction10_OfficerTransferResult", 0xD0),
+    0x11: ("MenuAction11_IndustryDevelopmentResult12", 0xF5),
+    0x12: ("MenuAction12_PoachingResult", 0xF8),
+    0x13: ("MenuAction13_IndustryDevelopmentResult14", 0xE7),
+    0x14: ("MenuAction14_LandAndIndustryResult15", 0xFB),
+    0x15: ("MenuAction15_IndustryAndTownResult16", 0xEA),
+    0x16: ("MenuAction16_OfficerGiftResult", 0xF6),
+    0x17: ("MenuAction17_IndustryAndTownResult18", 0xF7),
+    0x18: ("MenuAction18_AllianceResult", 0xC5),
+    0x19: ("MenuAction19_ConscriptionResult", 0xF4),
+    0x1A: ("MenuAction1A_IntelligenceGatheringResult", 0xC1),
+    0x1B: ("MenuAction1B_DroughtDamageWindow", 0xFC),
+    0x1C: ("MenuAction1C_RiceHarvestWindow", 0xC2),
+    0x1D: ("MenuAction1D_FloodDamageWindow", 0xD1),
+    0x1E: ("MenuAction1E_RebellionWindow", 0xC6),
+    0x1F: ("MenuAction1F_TaxCollectionWindow", 0xBD),
+    0x20: ("MenuAction20_MarketPanel", 0xB7),
+    0x21: ("MenuAction21_SupplyTransportResult", 0xAA),
 }
 
 # PosDataBankTable at $A6A7 (15 entries)

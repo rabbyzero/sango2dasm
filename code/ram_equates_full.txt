@@ -283,7 +283,7 @@ $0000  cursor_ptr_lo (x2)    [prg_0e_0f_battle.asm:2619]  cursor param ptr lo
 $0000  damage (x5)    [prg_0e_0f_battle.asm:1366]  contact damage subtracted from troop count
 $0000  damage_work         [prg_0e_0f_battle.asm:3735]  damage roll -> base damage -> third share
 $0000  desc_ptr_lo (x2)    [prg_0e_0f_battle.asm:3433]  FormationAdvanceStripDrawDesc ptr lo
-$0000  fmt_ptr_lo (x2)    [prg_0e_0f_battle.asm:451]  B1D_1E_DataFormatter buffer ptr lo
+$0000  fmt_ptr_lo (x2)    [prg_0e_0f_battle.asm:451]  B1D_1E_BattleOfficerPanelCompose buffer ptr lo
 $0000  grade_work         [prg_0e_0f_battle.asm:3829]  grade index g (n*4 + g)
 $0000  hit_work         [prg_0e_0f_battle.asm:4528]  terrain hit work byte
 $0000  map_ptr         [prg_0e_0f_battle.asm:4237]  battlefield cell map ptr (indirect)

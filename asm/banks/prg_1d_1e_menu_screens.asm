@@ -5,8 +5,26 @@
 ;
 ; Bank $1D at $A000-$BFFF, Bank $1E at $C000-$DFFF
 ;
-; Bank $1D: Jump table ($A000-$A047), code, tile data, menu handlers
-; Bank $1E: Strategy Mode command dispatch, tile data, save/load screens
+; Bank $1D: 24-entry jump table ($A000-$A047) + the display-list VM, the
+;   overlay refreshers, the Ruler card compose, the side window compositor.
+; Bank $1E: the 35-screen Strategy-Mode command window engine ($BE36-$CC3D),
+;   its tilemap/name data streams, the palette-record loader, new-game seed.
+;
+; The window engine has two phases, and every MenuActionNN handler follows the
+; same contract.  See the MenuRenderer block for the full ABI:
+;   OPEN  - a caller writes V into menu_dispatch_flg $04A0; MenuRenderer stores
+;           $04A2 = V-1 as the screen id, zeroes $04A1 and enters the generic
+;           window chrome builder $C9C2, which runs 4 steps off $04A1: title
+;           block / idle fill / border records / per-screen descriptor
+;           ($CD59 + $04A2 * $6C) plus its text rows, then sets $04A0 = $81.
+;   PAGE  - each frame the $04A2-indexed table at $BE75 dispatches one
+;           MenuActionNN, which blits rows of $80-terminated OAM blobs out of
+;           data bank $16 at $8000 and picks the next row from its own
+;           @RowTable indexed by the frame tick $04A3, until
+;           StrategyMenu_Return's $04D0/$04CC gate closes the screen.
+;
+; NOT in this bank despite older names: no SRAM save/load I/O (that is
+; SramSaveCommit in prg_19_1a and CopySramToWork in prg_0a_0b), no strategy AI.
 ;===============================================================================
 
 .include "6502_registers.h"
@@ -255,6 +273,7 @@ data_ptr_hi       = $00A7
 frame_flags       = $007E  ; bit 0 = render request flag
 input_flags       = $0081  ; controller input flags
 ppu_ctrl_mirror   = $008B  ; mirror of PPU_CTRL ($2000)
+addr_pal_upload_arm = $007D  ; palette-upload arm latch (tested by NmiSubDispatch $EE53, cleared by PaletteUpload $E71B)
 cur_bank_8000     = $00E1  ; current PRG bank mapped at $8000-$9FFF
 
 ;===============================================================================
@@ -321,9 +340,9 @@ ClearWorkBuffer_Entry:
 SceneRenderer_Entry:
   ; SceneRenderer
   JMP SceneRenderer               ; $A039: 4C 71 BC
-DataFormatter_Entry:
-  ; DataFormatter
-  JMP DataFormatter               ; $A03C: 4C 91 A9
+BattleOfficerPanelCompose_Entry:
+  ; BattleOfficerPanelCompose
+  JMP BattleOfficerPanelCompose   ; $A03C: 4C 91 A9
 MenuRenderer_Entry:
   ; MenuRenderer
   JMP MenuRenderer                ; $A03F: 4C 36 BE
@@ -338,6 +357,33 @@ SceneRecordLookup_Entry:
 ; Code Region ($A048-$B304)
 ;===============================================================================
 
+
+;===============================================================================
+; $A048: PPUTileRender
+; Two-row nametable blitter for the MenuUpdate display stream (stub $A000, NMI
+;   bit $007E.0). MenuUpdate fills the row address cells $031C/$031D and
+;   $034C/$034D and their tile arrays; this proc uploads them one nametable
+;   column at a time, walking the column cursor $0304.
+;
+; overlay_flag $0303 or input_flag $0308 set -> @render_row1 flushes both whole
+;   rows in a single NMI with no column interleaving, which is what the
+;   overlay/event screens want. (frame_tick_ctr $005E & render_bitmask $0305) !=
+;   0 -> the frame is handed to B1F_NmiPaletteUpload instead, so the tile stream
+;   paces the palette upload.
+;
+; indirect_flag $030C skips the row-2 half of the column.
+;
+; A $80 tile in row 2 ends the stream: $0304 = $FF and $007E bit 0 is cleared.
+;
+; Pair order: $2006 is written from $031D before $031C, so a stored [b0][b1]
+;   pair is the PPU address (b1<<8)|b0 - the *_hi/*_lo equate names are inverted
+;   relative to that role, as already recorded in data_13_menu_display.asm and
+;   code/pputilerender_stream_architecture.md.
+;
+; $A10A-$A11A is unreachable: the $A107 JMP @reset_tile dominates the
+;   fall-through. It duplicates @reset_tile plus menu_status = $FF; kept because
+;   the bytes are in the ROM.
+;===============================================================================
 
 .proc PPUTileRender
 PPUTileRender:
@@ -437,6 +483,23 @@ PPUTileRender:
 
 .endproc
 
+;===============================================================================
+; $A11B: VRAMBufferWrite
+; Drains the $0380 VRAM write queue (stub $A006, NMI bit $007E.2). Record
+;   format: [tile count][PPU addr hi][PPU addr lo][count tile bytes], a $FF
+;   first byte ends the queue.
+;
+; That first byte is the "type" seen in the OverlayTemplate and BattleOfficerPanelCompose
+;   tilemaps: type $04 = a 7-byte record carrying 4 tiles, type $08 = 11 bytes
+;   carrying 8 tiles.
+;
+; Clears bit 2 of the $008B PPUCTRL mirror (8x8 sprite mode - the write
+;   increment is bit 1), seeds ($0000) = $0380 and replays records to
+;   $2006/$2007. Callers build the queue (MenuUpdate, ProvinceDataWindowFrame,
+;   the prg_19_1a scenes); this proc only drains it, so "buffer write" describes
+;   the wrong half of the job.
+;===============================================================================
+
 .proc VRAMBufferWrite
 VRAMBufferWrite:
   LDA a:$008B ; $A11B: AD 8B 00
@@ -471,6 +534,41 @@ VRAMBufferWrite:
   RTS                                     ; $A152: 60
 
 .endproc
+
+;===============================================================================
+; $A153: MenuUpdate
+; Display-list virtual machine behind every menu and overlay screen (stub
+;   $A003).
+;
+; Stream selection: SelectDataBankByPos $A690 indexes @PosDataBankTable $A6A7 by
+;   sub_state $007A (a pos id below $20 is forced to index 0) and maps the
+;   result at $8000 - bank $13 for the strategy/ending streams, bank $12 for the
+;   tactical ones. CalcMenuDataPtr $A61D then reads the .word at $8000 + pos*2
+;   and applies the bank bias (+$2000 for $13, +$4000 for $12). pos = pos_buf_0
+;   $0310.
+;
+; Byte classes at dispatch $A1C8: $00-$7F and $C0-$FF -> StoreTileByte: literal
+;   + tile_base_offset $030F stored into the row-1 array at $031C,X. $39/$3A are
+;   the dakuten/handakuten postfix marks: in direct mode they go to $034B,X
+;   WITHOUT advancing X, so the voiced mark lands in row 2 over the column of
+;   the base kana it modifies instead of consuming a column of its own. $80-$BF
+;   -> dispatch_cmd $A202: SEC/SBC #$80 then the inline 32-word
+;   MenuDispatchTable $A208 through B1F_CallbackDispatcher. That dispatcher
+;   consumes both JSR return bytes, so a Cmd handler RTS returns to MenuUpdate's
+;   CALLER rather than resuming after the table. Only $86 (and its $8A-$8F
+;   aliases) suspends the stream that way; the others JMP back to dispatch and
+;   keep executing in the same frame.
+;
+; Each frame starts from vram_pos $0306/$0307: row 1 = that address, row 2 = it
+;   minus $20, one nametable row above. A handler ends a row segment by writing
+;   $80 into $031C,X/$034C,X.
+;
+; pos_buf $0310-$0313 is a FIFO of open windows, not a stack: CmdEndMenu shifts
+;   it left and re-arms menu_status only while another window is still queued.
+;   CmdPushPosition/ CmdPopPosition are the stream's own depth-1 call stack,
+;   stashing pos_buf_0 and ($00A6) in $0309-$030B, so stream nesting is exactly
+;   one level deep.
+;===============================================================================
 
 .proc MenuUpdate
   ; Proc-local RAM variables
@@ -1159,6 +1257,18 @@ SelectDataBankByPos:
 
 .endproc
 
+;===============================================================================
+; $A6B6: YearDisplaySetup
+; Builds the scene date line into the $0380 queue (stub $A01E) $A6B6-$A77E. Two
+;   4-tile records are emitted per row because the scene font is 8x16 split
+;   across CHR pages: header $07 at $2043 carries the upper halves and header
+;   $07 at $2063 the lower, so glyph n is written as tile n (top) and n+$10
+;   (bottom), then the $FF terminator. Reads the date from SRAM - sram_game_year
+;   $6F00 and sram_game_month $6F01 + 1 - expands it with B1F_MathBinToBcd into
+;   nibble+$04 tiles, and blanks a zero month tens digit. One-shot per scene
+;   entry: there is no cadence latch here, only the render request $007E.2.
+;===============================================================================
+
 .proc YearDisplaySetup
   ; Proc-local RAM variables
   year_disp_84      = $0384  ; year display buffer 84
@@ -1265,6 +1375,31 @@ YearDisplaySetup:
 
 .endproc
 
+;===============================================================================
+; $A77F: PeriodicOverlayRefresh
+; Three entries, one rebuild body (stubs $A021 / $A02D / $A024) $A77F-$A82F.
+;   Refreshes the 59-byte OverlayTemplate status panel into $0380 with the
+;   acting country's 命令書 OrderScroll count $6F05 overlaid as two digits at
+;   $03AA/$03AB (tile = nibble + $76).
+;
+; The entries differ only in how they gate on frame_tick_ctr $005E, so a caller
+;   picks its cadence at the jump table:
+;
+; ::SlowPeriodic fires on (tick+5)&$0F == 0 - about one frame in sixteen.
+;
+; ::FastPeriodic idle unless (tick+1)&$03 == 0; then ImmediateOverlay unless
+;   (tick+1)&$04 == 0, and in that last phase it copies the template alone,
+;   which leaves the digit cells at their template $01 blanks - a deliberate
+;   blanking half-phase.
+;
+; ::ImmediateOverlay unconditional BCD + template copy + digits, tens digit
+;   dropped when 0.
+;
+; The copy runs Y = $3A..$00 and so reads one byte past the template into $03BA;
+;   the renderer stops at the $FF sentinel, which is why the over-read never
+;   shows.
+;===============================================================================
+
 .proc PeriodicOverlayRefresh
   ; Proc-local RAM variables
   overlay_bcd_hi    = $03AA  ; overlay BCD high digit tile
@@ -1352,6 +1487,20 @@ OverlayTemplate:
 
 .endproc
 
+;===============================================================================
+; $A830: ProvinceDataHandler
+; (stub $A027). The name is contradicted by the code: no province record is read
+;   here. It takes the acting officer id from the war roster at $0664,Y, Y being
+;   the slot index $0509, copies the 59-byte @ProvinceDisplayTilemap into $0380
+;   (nametable band $2422-$24E0) and layers that officer's kana name and stat
+;   digits through DisplayScaledName and DisplayScaledNumber.
+;
+; Every caller is a Tactical-Mode unit command in prg_0c_0d - WarOrder_Input,
+;   MoveState_Select, StratagemState_Cancel, TurnEndState_Confirm, AiMarch -
+;   reached through B1F_BankedCallbackTrampoline with Y = $3D. This is the
+;   war-map officer info strip.
+;===============================================================================
+
 .proc ProvinceDataHandler
   ; Proc-local RAM variables
   province_tmp      = $0020  ; province data temp
@@ -1388,6 +1537,20 @@ ProvinceDataHandler:
   .byte $FF                                 ; $A88F: sentinel
 
 .endproc
+
+;===============================================================================
+; $A890: OfficerDisplay_Lookup
+; (stubs $A02A and $A030). "Lookup" is really "compose with the strategy-map
+;   palette": it saves $0000, zeroes it, runs PaletteRecordLoad to install
+;   palette record 0, restores $0000 and falls through into
+;   ::OfficerDisplay_Render. $0000 carries the officer name id on entry. The
+;   .word $A015 after the $EE07 trampoline JSR is that stub consumed as
+;   trampoline data, not an executed instruction. ::OfficerDisplay_Render emits
+;   the officer name strip at $22A2-$2360 from @OfficerDisplayTilemap, whose 59
+;   bytes are byte-identical to BattleOfficerPanelCompose's
+;   @PanelRowTiles_Top - i.e. this entry is the Top panel with the selector
+;   branch taken out.
+;===============================================================================
 
 .proc OfficerDisplay_Lookup
 OfficerDisplay_Lookup:
@@ -1432,6 +1595,15 @@ OfficerDisplay_Lookup:
 
 .endproc
 
+;===============================================================================
+; $A8FD: OfficerNameDisplay
+; (stub $A033). Third variant of the officer name strip, placed at $22B9-$2377.
+;
+; It reads $04AE, the battle side-event strip cell written in prg_0e_0f and
+;   consumed by the prg_17_18 duel tactic dialog, copies @OfficerNameTilemap and
+;   then layers the name and number passes exactly as ProvinceDataHandler does.
+;===============================================================================
+
 .proc OfficerNameDisplay
   ; Proc-local RAM variable
   officer_name_disp = $04AE  ; officer name display temp
@@ -1466,6 +1638,18 @@ OfficerNameDisplay:
 
 .endproc
 
+;===============================================================================
+; $A957: DisplayScaledName
+; Pass 1 of splitting one kana name record into the two glyph layers the strip
+;   renderer needs. B1F_GetNameDisplayScale $F308 leaves ($0000) on the bank-$10
+;   kana record $901A + id*10 and returns A = NameScaleTable[visible char count]
+;   = 3,3,3,2,2,1,1,0,0 - the leading-blank offset that right-aligns a short
+;   name inside the fixed-width cell. "Scaled" is that offset: not a
+;   proportional kanji post, not a pixel scale. This pass records ONLY the $39
+;   dakuten and $3A handakuten marks, into the overlay row $03A5,X at the index
+;   of the character each mark modifies.
+;===============================================================================
+
 .proc DisplayScaledName
   ; Proc-local RAM variable
   scaled_name_tmp   = $03A5  ; scaled name temp
@@ -1492,6 +1676,14 @@ DisplayScaledName:
 
 .endproc
 
+;===============================================================================
+; $A976: DisplayScaledNumber
+; Pass 2 of the same split: emits the kana tiles themselves into $03B1,X. The
+;   name claims a number but the proc formats no digits - it is the
+;   complementary glyph layer of DisplayScaledName, and the two are always
+;   called back to back.
+;===============================================================================
+
 .proc DisplayScaledNumber
   ; Proc-local RAM variable
   disp_scaled_num   = $03B1  ; scaled number temp
@@ -1516,13 +1708,28 @@ DisplayScaledNumber:
 
 .endproc
 
-.proc DataFormatter
-DataFormatter:
+;===============================================================================
+; $A991: BattleOfficerPanelCompose
+; (stub $A03C). Builds the battle overlay's two fixed officer-name panels. $0001
+;   is the panel selector ($00 -> @PanelRowTiles_Top at $A9FD, non-zero ->
+;   @PanelRowTiles_Bottom at $A9C3, the same rows shifted +$18); 59 bytes go
+;   into the $0380 queue and the officer named by $0000 is layered on through
+;   DisplayScaledName + DisplayScaledNumber. It formats no numbers, and the
+;   lists it copies are the same tilemap records the rest of this bank uses.
+;
+; Callers are the prg_0e_0f battle overlay: BattleOverlayIntroDataFormatTop/
+;   BottomAndAdvance, CommandConfirmWait, CommandResultWait, AiTauntSceneStep.
+;   Former name: DataFormatter, retired because nothing here formats data - it
+;   selects a nametable template and composes the officer's kana name onto it.
+;===============================================================================
+
+.proc BattleOfficerPanelCompose
+BattleOfficerPanelCompose:
   LDA a:$0001 ; $A991: AD 01 00
   BNE @fmt_setup2                            ; $A994: D0 0E
   LDY #$3A                                ; $A996: A0 3A
 @fmt_copy_loop1:
-  LDA @DataFormatter_Table2,Y                ; $A998: B9 FD A9
+  LDA @PanelRowTiles_Top,Y                   ; $A998: B9 FD A9
   STA $0380,Y                             ; $A99B: 99 80 03
   DEY                                     ; $A99E: 88
   BPL @fmt_copy_loop1                            ; $A99F: 10 F7
@@ -1530,7 +1737,7 @@ DataFormatter:
 @fmt_setup2:
   LDY #$3A                                ; $A9A4: A0 3A
 @fmt_copy_loop2:
-  LDA @DataFormatter_Table1,Y                ; $A9A6: B9 C3 A9
+  LDA @PanelRowTiles_Bottom,Y                ; $A9A6: B9 C3 A9
   STA $0380,Y                             ; $A9A9: 99 80 03
   DEY                                     ; $A9AC: 88
   BPL @fmt_copy_loop2                            ; $A9AD: 10 F7
@@ -1545,31 +1752,34 @@ DataFormatter:
   STA a:$007E ; $A9BF: 8D 7E 00
   RTS                                     ; $A9C2: 60
 ; ---- Display template table 1 (mode ≠ 0), copied to $0380 ----
-; Variable-length records: type $04 = 7 bytes, type $08 = 11 bytes
-; Record format: type, data_count, PPU_addr_hi, PPU_addr_lo, data[count]
+; Variable-length records: the FIRST byte is the tile count, so $04 = 7 bytes
+;   total and $08 = 11 - it is not a type field with a separate count.
+; Record format: [tile count][PPU_addr_hi][PPU_addr_lo][count tiles], the same
+;   shape VRAMBufferWrite $A11B drains (hi before lo, unlike the MenuUpdate
+;   streams, which store the pair low first).
 ; Total: 5×7 + 2×11 + 1(terminator) = 58 bytes
 ; $A9C3
-@DataFormatter_Table1:
-  .byte $04, $22, $BA, $00, $00, $00, $00              ; record 1: PPU $22BA, 3 data bytes
-  .byte $04, $22, $DA, $00, $00, $00, $00              ; record 2: PPU $22DA, 3 data bytes
-  .byte $04, $22, $FA, $00, $00, $00, $00              ; record 3: PPU $22FA, 3 data bytes
-  .byte $04, $23, $1A, $00, $00, $00, $00              ; record 4: PPU $231A, 3 data bytes
-  .byte $04, $23, $3A, $00, $00, $00, $00              ; record 5: PPU $233A, 3 data bytes
-  .byte $08, $23, $58, $01, $01, $01, $01, $01, $01, $01, $01  ; record 6: PPU $2358, 7 static tiles
-  .byte $08, $23, $78, $01, $01, $01, $01, $01, $01, $01, $01  ; record 7: PPU $2378, 7 static tiles
+@PanelRowTiles_Bottom:
+  .byte $04, $22, $BA, $00, $00, $00, $00              ; record 1: PPU $22BA, 4 tiles
+  .byte $04, $22, $DA, $00, $00, $00, $00              ; record 2: PPU $22DA, 4 tiles
+  .byte $04, $22, $FA, $00, $00, $00, $00              ; record 3: PPU $22FA, 4 tiles
+  .byte $04, $23, $1A, $00, $00, $00, $00              ; record 4: PPU $231A, 4 tiles
+  .byte $04, $23, $3A, $00, $00, $00, $00              ; record 5: PPU $233A, 4 tiles
+  .byte $08, $23, $58, $01, $01, $01, $01, $01, $01, $01, $01  ; record 6: PPU $2358, 8 tiles
+  .byte $08, $23, $78, $01, $01, $01, $01, $01, $01, $01, $01  ; record 7: PPU $2378, 8 tiles
   .byte $FF                                           ; terminator
 
 ; ---- Display template table 2 (mode = 0), copied to $0380 ----
 ; Same structure as Table 1, 58 bytes
 ; $A9FD
-@DataFormatter_Table2:
-  .byte $04, $22, $A2, $00, $00, $00, $00              ; record 1: PPU $22A2, 3 data bytes
-  .byte $04, $22, $C2, $00, $00, $00, $00              ; record 2: PPU $22C2, 3 data bytes
-  .byte $04, $22, $E2, $00, $00, $00, $00              ; record 3: PPU $22E2, 3 data bytes
-  .byte $04, $23, $02, $00, $00, $00, $00              ; record 4: PPU $2302, 3 data bytes
-  .byte $04, $23, $22, $00, $00, $00, $00              ; record 5: PPU $2322, 3 data bytes
-  .byte $08, $23, $40, $01, $01, $01, $01, $01, $01, $01, $01  ; record 6: PPU $2340, 7 static tiles
-  .byte $08, $23, $60, $01, $01, $01, $01, $01, $01, $01, $01  ; record 7: PPU $2360, 7 static tiles
+@PanelRowTiles_Top:
+  .byte $04, $22, $A2, $00, $00, $00, $00              ; record 1: PPU $22A2, 4 tiles
+  .byte $04, $22, $C2, $00, $00, $00, $00              ; record 2: PPU $22C2, 4 tiles
+  .byte $04, $22, $E2, $00, $00, $00, $00              ; record 3: PPU $22E2, 4 tiles
+  .byte $04, $23, $02, $00, $00, $00, $00              ; record 4: PPU $2302, 4 tiles
+  .byte $04, $23, $22, $00, $00, $00, $00              ; record 5: PPU $2322, 4 tiles
+  .byte $08, $23, $40, $01, $01, $01, $01, $01, $01, $01, $01  ; record 6: PPU $2340, 8 tiles
+  .byte $08, $23, $60, $01, $01, $01, $01, $01, $01, $01, $01  ; record 7: PPU $2360, 8 tiles
   .byte $FF                                           ; terminator
 
 .endproc
@@ -1749,6 +1959,16 @@ DataFormatter:
 ; ($AF/$B7 = the two 8-pixel tile rows of a kanji), @NameSpriteX_Table + shift
 ; -> byte 3 ($38/$40, $48/$50, $58/$60 = the three 16-pixel kanji cells).
 ;-------------------------------------------------------------------------------
+;===============================================================================
+; $AB38: OfficerNameSpritePost
+; Single caller: RulerCardRefresh $AA4A. Maps PRG $11 at $8000 (LDY #$31), reads
+;   the 13-byte kanji name plate at $8DB4 + id*$0D and posts it as OAM sprites
+;   from cursor $007C. Pass 1 scans the $00 terminator to derive the right-align
+;   shift in $0002 (X = $30, decremented $10 per 4-slot group); pass 2 writes
+;   [y, tile + $C0, attr $01, x + shift] entries, 12 sprites max, using the
+;   paired Y/X coordinate tables at $ABB8/$ABC5.
+;===============================================================================
+
 .proc OfficerNameSpritePost
   ; Proc-local RAM variable
   name_font_page    = $00B9  ; name-font CHR page id (record byte 0)
@@ -1829,6 +2049,54 @@ DataFormatter:
   .byte $48, $50, $48, $50, $58            ; $ABCA
   .byte $60, $58, $60                       ; $ABCF: slots 10-12, kanji 3 cells
 .endproc
+
+;===============================================================================
+; $ABD2: ProvinceDataWindowFrame
+; (stub $A009) - the Strategy-Mode side window compositor, called every VBlank
+;   from NmiState2_StrategyMap right after MenuUpdate. One proc drives the
+;   province detail panel, three stat panels and the map-view scroll strip.
+;
+; IN $0140 step (bit 7 = open request written by prg_19_1a / prg_1b_1c, 1..$0F =
+;   the animation countdown), $0150 mode bits 0-3 + side bit 7, province_idx
+;   $0402, $007E bit 3 busy handshake.
+;
+; OUT window pointers $0141-$0154, the 56-byte tile row buffer $0160, merged
+;   attribute bytes $014B-$014E, sub-state ids $037C-$037E, $0420, and $007E |=
+;   $08.
+;
+; Flow: the sub-state pass runs FIRST and independently of $0140 - when $037C !=
+;   0 it maps bank $11 and posts the Ruler (::RenderSubState with A=1, id from
+;   $037D) and the Governor (A=2, id from $037E) as kanji name sprites. Then
+;   $0140: 0 = idle, negative = @init, low nibble 1 = @cleanup_state, anything
+;   else = one strip per frame (@advance_state for the detail and stat panels,
+;   @advance_draw for the map view). Both set $007E bit 3 and leave the PPU
+;   write to MapDisplaySetup.
+;
+; $0140 has a second life: @add_addr_offset treats $0140-$0148 as a packed array
+;   of 16-bit variables, so writes to $0141/$0143/$0145/$0147 are array element
+;   updates.
+;
+; Modes: 0 = map-scroll strip, reading the bank-$10 screen at $8000, revealing 4
+;   rows per frame and DEcrementing src/attr/dest pointers by $80/$8 - the
+;   window builds from the bottom up; 1 = province detail
+;   (@ProvinceDetailTilemap $B305); 2/3/4 = stat panels A/B/C
+;   ($B3E5/$B4C1/$B59C). $0150 bit 7 puts the window on the right side and $0420
+;   at $40 instead of $80.
+;
+; During the detail countdown the name rows overlay per step: 4 = kanji plate
+;   records, 3 = ruler kana, 2 = governor kana.
+;
+; @cleanup_state sets $037C = $FF for mode 1 so the ruler/governor sprites
+;   outlive the panel, and masks $0150 down to its side bit.
+;
+; The panel streams are literal tiles below $F0 plus record triples [code, digit
+;   width, province-record offset]: $F0 walks the officer roster slots, $F1 =
+;   16-bit field, $F2 = 8-bit field, $F3 = sum of the roster officers' troops.
+;   Values go through B1F_MathBinToBcd and are emitted as digit + $B6 tiles with
+;   leading zeros blanked. That is how the window shows gold, rice, population
+;   (stored /100, hence the two padding 0 tiles), land value, industry, officer
+;   count and troops.
+;===============================================================================
 
 .proc ProvinceDataWindowFrame
   ; Proc-local RAM variables
@@ -2046,8 +2314,8 @@ ProvinceDataWindowFrame:
   JMP @advance_state                          ; $AD81: 4C F3 AD
 ; --- Data Region: CountryTemplatePtrs (proc-local; ptr table by country type) ---
 @country_template_ptrs:
-  .word $6F07, $6F0F, $6F17, $6F1F          ; $AD84: template pointers by country type (0-3)
-  .word $6F27, $6F2F, $6F37                   ; $AD8C: template pointers by country type (4-6)
+  .word $6F07, $6F0F, $6F17, $6F1F          ; $AD84: 07 6F 0F 6F 17 6F 1F 6F ; WRAM country records, stride 8
+  .word $6F27, $6F2F, $6F37                   ; $AD8C: 27 6F 2F 6F 37 6F ; WRAM country records $6F27-$6F37
 @init_window_mode:
   LDA #$22                                ; $AD92: A9 22
   STA $0142                               ; $AD94: 8D 42 01
@@ -2615,9 +2883,9 @@ RenderSubState:
   RTS                                     ; $B221: 60
 ; --- Data Region: @SubStateChrTiles ---
 @SubStateChrTiles:
-  .byte $40,$48, $48,$48, $40,$50, $48,$50 ; $B222: tile pairs 0-3
-  .byte $50,$48, $58,$48, $50,$50, $58,$50 ; $B22A: tile pairs 4-7
-  .byte $60,$48, $68,$48, $60,$50, $68,$50 ; $B232: tile pairs 8-11
+  .byte $40,$48, $48,$48, $40,$50, $48,$50 ; $B222: 40 48 48 48 40 50 48 50 ; sprite position pairs 0-3
+  .byte $50,$48, $58,$48, $50,$50, $58,$50 ; $B22A: 50 48 58 48 50 50 58 50 ; sprite position pairs 4-7
+  .byte $60,$48, $68,$48, $60,$50, $68,$50 ; $B232: 60 48 68 48 60 50 68 50 ; sprite position pairs 8-11
 LoadOfficerNameInfo:                        ; A=0: ruler ($037D), A=1: governor ($037E)
   STA a:$000F ; $B23A: 8D 0F 00
   LDA $0402                               ; $B23D: AD 02 04
@@ -2678,6 +2946,17 @@ DrawNameScaled:
   RTS                                     ; $B29E: 60
 
 .endproc
+
+;===============================================================================
+; $B29F: MapDisplaySetup
+; (stub $A00C, NMI bit $007E.3). The name says setup; the proc is pure PPU
+;   output. It streams the $0160 row buffer to the nametable in 14-tile rows -
+;   RAM stride 14 against a VRAM stride of $20, so each pass shows a half-width
+;   strip - re-latching $2006 from $0142:$0141 per row until $0154 bytes are
+;   done, then writes the four merged attribute bytes $014B-$014E to
+;   $0148:$0147. Clears PPUCTRL bit 2 (8x8 sprite mode). Every input it reads is
+;   written by ProvinceDataWindowFrame in this same bank.
+;===============================================================================
 
 .proc MapDisplaySetup
 MapDisplaySetup:
@@ -2840,6 +3119,32 @@ ProvinceDetailTilemap:                      ; $B305
   .byte $01,$01,$01,$01,$01,$01,$01,$48,$6F,$6B,$01,$01,$01,$01,$01,$01; $B965: 01 01 01 01 01 01 01 48 6F 6B 01 01 01 01 01 01
   .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01; $B975: 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
   .byte $01,$01,$01,$01                   ; $B985: 01 01 01 01
+
+;===============================================================================
+; $B989: OfficerListHandler
+; (stub $A00F, every VBlank). Renders the officer-list band at $23C0 for the
+;   Strategy-Mode command screens: a chunk-streaming state machine on
+;   officer_list_ctrl $0478, driven by the castle/army/warehouse command code in
+;   prg_1b_1c, which writes $0478/$047C.
+;
+; $0478 negative -> ::ProcessOfficerListScroll: rebuild the 10-entry province
+;   roster ($0402, or $040C when the low nibble is 2) into $0151, count valid
+;   slots into $047B and select the cursor / no-cursor window template ($B809 /
+;   $B8C9).
+;
+; $0478 == $10 -> ::InitOfficerListState: clear the state, prime the row
+;   budgets.
+;
+; $0478 $02-$0B -> ::DrawOfficerRecord, one officer row per frame.
+;
+; otherwise -> @OfficerListDispatch $BA9D: copy 64-byte template chunks, then
+;   blank rows, $0480 += $40 per pass, and request the deferred upload by
+;   setting $007E bit 1.
+;
+; It writes the $0160 tile buffer and the $0183 name temp. It does not use the
+;   $0380 queue and it does not touch the PPU - FlushTileBuffer does that, on
+;   the bit 1 request.
+;===============================================================================
 
 .proc OfficerListHandler
   ; Proc-local RAM variables
@@ -3195,8 +3500,8 @@ DrawOfficerRecord:
 ;-------------------------------------------------------------------------------
 .proc FlushTileBuffer
 FlushTileBuffer:
-  LDA a:$008B                               ; $BC41: AD 8B 00 (ppu_ctrl_mirror: force VRAM increment +1)
-  AND #$FB                                ; $BC44: 29 FB (clear bit 2)
+  LDA a:$008B                               ; $BC41: AD 8B 00 (ppu_ctrl_mirror)
+  AND #$FB                                ; $BC44: 29 FB (clear bit 2 = 8x8 sprites; the write increment is bit 1)
   STA $2000                               ; $BC46: 8D 00 20 (PPUCTRL)
   LDA $2002                               ; $BC49: AD 02 20 (PPUSTATUS: reset PPUADDR latch)
   LDA $0481                               ; $BC4C: AD 81 04 (VRAM dest addr hi)
@@ -3214,6 +3519,13 @@ FlushTileBuffer:
 
 .endproc
 
+;===============================================================================
+; $BC66: ClearWorkBuffer
+; (stub $A036). Zeroes the 64-byte page-$01 window scratch $0140-$017F, which
+;   covers the $0160 tile row buffer. Called from State_StrategyMapLaunch
+;   (prg_1f_boot.asm) before any window proc runs.
+;===============================================================================
+
 .proc ClearWorkBuffer
 ClearWorkBuffer:
   LDY #$3F                                ; $BC66: A0 3F
@@ -3225,6 +3537,19 @@ ClearWorkBuffer:
   RTS                                     ; $BC70: 60
 
 .endproc
+
+;===============================================================================
+; $BC71: SceneRenderer
+; (stub $A039). Per-frame step machine of the strategy-map ruler-intro
+;   cinematic. Bank $1B reaches it through CallSceneRenderer from
+;   StrategyFrameUpdate when the frame state $0400 == $0E. The step run is
+;   scene_callback_st $0401, indexed into the inline 6-word table at $BC77
+;   (bytes 83 BC 9B BC 03 BD 38 BD 60 BD 92 BD) via B1F_CallbackDispatcher - so
+;   each state's RTS tail-calls back into the bank $1B frame loop. The six
+;   states are the cinematic legs: 0 arm the page pointers, 1 staged page copy
+;   (one page per frame), 2 fade in plus CHR/timer arm, 3 park the sprites and
+;   poll input, 4 fade out, 5 attribute fill and hand $0400/$0401 back to 0.
+;===============================================================================
 
 .proc SceneRenderer
   ; Proc-local RAM variables
@@ -3495,26 +3820,70 @@ SceneRendererDispatch:
   RTS                                     ; $BE35: 60
 .endproc
 
+;===============================================================================
+; $BE36: MenuRenderer
+; (stub $A03F). Two-phase driver for the 35 Strategy-Mode command screens.
+;
+; Phase 1 OPEN: a caller writes V (bit 7 clear) into menu_dispatch_flg $04A0 -
+;   directly in prg_19_1a, or by setting $04A2 and letting a result-redraw gate
+;   mirror it into $04A0 once the map transition $0140 is idle (prg_1b_1c
+;   $AC84/$B59A/$BF0D/$C707/$D0F0). MenuRenderer stores $04A2 = V then DECs it,
+;   so the dispatch index is V-1; zeroes $04A1, sets $0420 = $40/$80 from $0150
+;   bit 7, sets $04A0 = $80 and jumps to the window chrome builder at $C9C2.
+;   Coming back with $04A0 bit 7 set and low nibble 0 re-enters that builder,
+;   which is how the chrome is laid a few records per frame; its last step
+;   writes $04A0 = $81.
+;
+; Phase 2 PAGE: with $04A0 = $81 each frame it INCs $04A3 (free-running tick)
+;   and $04D0 (elapsed), maps data bank $16 (data_16_menu_oam) at $8000 with LDY
+;   #$36, and dispatches $04A2 through the 35-word table $BE75-$BEBA. Handlers
+;   tail JMP StrategyMenu_Return, whose $04D0 vs $04CC gate closes the screen
+;   and forces $04A2 = $22 for the teardown. Shared handler contract - all 35
+;   follow it: $04A1 == 0, one frame of setup: SetupDisplayPtrs #id and/or
+;   ResetDispatchState #id2 latch the overlay cells $00BF/$00C7/$00CF and
+;   $00C0/$00C8/$00D0 and copy the 16-byte arrays $0120 -> $0100 and $0130 ->
+;   $0110, which the chrome builder seeded from the per-screen descriptor; then
+;   INC $04A1 and RTS. $04A1 != 0: $0010/$0011 point at this screen's .word row
+;   table in the bank-$16 window, LDY $04A1 + JSR DisplayTileData blits that
+;   row's $80-terminated OAM blob into $0200, and the NEXT value of $04A1 comes
+;   from the handler's @RowTable indexed by ($04A3 >> k) & mask. So during phase
+;   2 $04A1 is not a monotonic page counter - the frame tick picks the row and
+;   the RowTable values are per-row dwell lengths, i.e. an animated multi-panel
+;   build rather than user-driven paging. Handlers may preset $04A3 to start the
+;   cycle partway through (id $06 uses #$78, id $0A uses #$28).
+;
+; StrategyMenu_Return skips the page sound for $04A2 in {0, 4, 8}: those are
+;   silent event overlays rather than interactive screens.
+;===============================================================================
+
 .proc MenuRenderer
 MenuRenderer:
   LDA $04A0                               ; $BE36: AD A0 04
   BNE @menu_dispatch                            ; $BE39: D0 01
   RTS                                     ; $BE3B: 60
 @menu_dispatch:
-; Menu screen dispatch table ($BE75-$BEBA), indexed by menu id $04A2.
-; These are Strategy Mode UI screens (docs/manual_kb/04-strategy-commands.md).
-; In-game menu vocabulary (decoded from the PRG bank $33 text streams with the
-; kana char map, see tools/charmap_kana.py HIRAGANA_MENU):
-;   Castle (城): クニづくり{トチのカイコン,サンギョウのハッテン,マチのカイハツ},
-;                ブショウのいどう, ジョウホウあつめ, ボウサイ,
-;                サクリャク{ドウメイ,リカン,ヒキヌキ}, キロクする
-;   Army (軍隊): シュツジン / チョウヘイ / テイサツ / ニンメイ
-;   Warehouse (倉): ブッシをはこぶ / あたえる
-;   Town (町): ブキヤ / ガクモンジョ / ビョウイン / ショウテン
-; There is NO castle-repair/tax/capital-move/execute/exile command in that
-; vocabulary; handlers whose names match the catalog are confirmed, the rest
-; (05/06, 08, 0D, 0E, 19 ...) remain unresolved; 07/10/1A are event screens
-; (country end / successor selection / officer death), 14 is the 商店 (Market).
+; Menu screen dispatch table ($BE75-$BEBA), indexed by screen id $04A2 = V-1.
+; 34 command/event result windows plus the id $22 teardown step, all
+;   Strategy-Mode (docs/manual_kb/04-strategy-commands.md, terminology.md).
+; A command result writes raw V into $04A2 and a result-redraw gate mirrors it
+;   into $04A0 (prg_1b_1c_strategy_mode $AC84/$B59A/$BF0D/$C707/$D0F0); an event
+;   scene writes V into $04A0 directly (prg_19_1a). MenuRenderer stores
+;   $04A2 = V and decrements it, so every handler is named for the opener that
+;   puts its V on screen, and the text that opener pushes through
+;   B1F_OpenMsgWindow0/4 is quoted in the handler block. 24 of the 34 ids come
+;   from decoded command/event openers; the other ten ($0A,$0B,$0E,$0F,$10,
+;   $12,$14,$15,$16,$18) are the values prg_19_1a @DevResultIndexTable $BAE8
+;   stores for 国造り internal development, indexed [target*9 + rolled amount]
+;   over 土地の開墾 / 産業の発展 / 町の開発. Each of those ten is named for the
+;   command(s) whose rolls reach it plus its raw id, e.g.
+;   MenuAction15_IndustryAndTownResult16 = raw $16, 産業の発展 roll 3 and
+;   町の開発 rolls 0/2; the block lists the exact roll set.
+;   In-game menu vocabulary (kana char map, tools/charmap_kana.py HIRAGANA_MENU):
+;   Castle (城) クニづくり{トチのカイコン,サンギョウのハッテン,マチのカイハツ},
+;     ブショウのいどう, ジョウホウあつめ, ボウサイ, サクリャク{ドウメイ,リカン,
+;     ヒキヌキ}, キロクする;  Army (軍隊) シュツジン/チョウヘイ/テイサツ/ニンメイ;
+;   Warehouse (倉) ブッシをはこぶ / あたえる;  Town (町) ブキヤ/ガクモンジョ/
+;     ビョウイン/ショウテン;  periodic events 税金の徴収/米の収穫/日照り/洪水/反乱.
   BMI @check_low                            ; $BE3C: 30 1F
   STA $04A2                               ; $BE3E: 8D A2 04
   DEC $04A2                               ; $BE41: CE A2 04
@@ -3528,11 +3897,11 @@ MenuRenderer:
   STX $0420                               ; $BE52: 8E 20 04
   LDA #$80                                ; $BE55: A9 80
   STA $04A0                               ; $BE57: 8D A0 04
-  JMP $C9C2                               ; $BE5A: 4C C2 C9
+  JMP MenuRenderer_SecondaryDispatch      ; $BE5A: 4C C2 C9
 @check_low:
   AND #$0F                                ; $BE5D: 29 0F
   BNE @render_menu                            ; $BE5F: D0 03
-  JMP $C9C2                               ; $BE61: 4C C2 C9
+  JMP MenuRenderer_SecondaryDispatch      ; $BE61: 4C C2 C9
 @render_menu:
   INC $04A3                               ; $BE64: EE A3 04
   INC $04D0                               ; $BE67: EE D0 04
@@ -3541,45 +3910,57 @@ MenuRenderer:
   LDA $04A2                               ; $BE6F: AD A2 04
   JSR B1F_CallbackDispatcher              ; $BE72: 20 DE EA
 @menu_dispatch_table:
-  .word MenuAction00_InitialSetup         ; $BE75: -> $BEBB
-  .word MenuAction01_DisplaySetup         ; $BE77: -> $BEEB
-  .word MenuAction02_LandReclamation       ; $BE79: -> $BF2F
-  .word MenuAction03_DisasterPreventionSetup ; $BE7B: -> $BF70
-  .word MenuAction04_DisasterPrevention    ; $BE7D: -> $BFBF
-  .word MenuAction05_UnidentifiedCmdSetup  ; $BE7F: -> $BFF3
-  .word MenuAction06_UnidentifiedCmd       ; $BE81: -> $C046
-  .word MenuAction07_CountryEnd            ; $BE83: -> $C090
-  .word MenuAction08_GoldDistribution      ; $BE85: -> $C0C8
-  .word MenuAction09_RiceDistribution      ; $BE87: -> $C123
-  .word MenuAction0A_Conscription          ; $BE89: -> $C168
-  .word MenuAction0B_HireOfficer           ; $BE8B: -> $C1AC
-  .word MenuAction0C_TransferOfficer       ; $BE8D: -> $C1FA
-  .word MenuAction0D_UnidentifiedCmd       ; $BE8F: -> $C25D
-  .word MenuAction0E_UnidentifiedCmd       ; $BE91: -> $C2DD
-  .word MenuAction0F_GiveItem              ; $BE93: -> $C33D
-  .word MenuAction10_SuccessorSelection    ; $BE95: -> $C3A2
-  .word MenuAction11_Intrigue             ; $BE97: -> $C3F6
-  .word MenuAction12_Sortie                ; $BE99: -> $C43E
-  .word MenuAction13_Reconnaissance        ; $BE9B: -> $C4E1
-  .word MenuAction14_Market                ; $BE9D: -> $C511
-  .word MenuAction15_Exchange              ; $BE9F: -> $C556
-  .word MenuAction16_Trade                 ; $BEA1: -> $C5B1
-  .word MenuAction17_SearchOfficer         ; $BEA3: -> $C5F7
-  .word MenuAction18_SearchItem            ; $BEA5: -> $C636
-  .word MenuAction19_UnidentifiedCmd       ; $BEA7: -> $C67D
-  .word MenuAction1A_OfficerDeath          ; $BEA9: -> $C6C6
-  .word MenuAction1B_UnidentifiedCmd ; $BEAB: -> $C75F
-  .word MenuAction1C_CopyTileData          ; $BEAD: -> $C7D1
-  .word MenuAction1D_SetupActionDisplay    ; $BEAF: -> $C800
-  .word MenuAction1E_CalcParams            ; $BEB1: -> $C830
-  .word MenuAction1F_CalcParams2           ; $BEB3: -> $C87D
-  .word MenuAction20_CalcParams3           ; $BEB5: -> $C8B4
-  .word MenuAction21_Finalize              ; $BEB7: -> $C8F1
-  .word MenuAction22_Cleanup               ; $BEB9: -> $C926
+  .word MenuAction00_SortieResult                 ; $BE75: -> $BEBB
+  .word MenuAction01_AcademyResult                ; $BE77: -> $BEEB
+  .word MenuAction02_SaveGameResult               ; $BE79: -> $BF2F
+  .word MenuAction03_DiscordResult                ; $BE7B: -> $BF70
+  .word MenuAction04_WarRulerCard                 ; $BE7D: -> $BFBF
+  .word MenuAction05_WarRivalRulerCard            ; $BE7F: -> $BFF3
+  .word MenuAction06_DisasterPreventionResult     ; $BE81: -> $C046
+  .word MenuAction07_ArmoryResult                 ; $BE83: -> $C090
+  .word MenuAction08_WarOutbreakNotice            ; $BE85: -> $C0C8
+  .word MenuAction09_LandReclamationResult0A      ; $BE87: -> $C123
+  .word MenuAction0A_LandReclamationResult0B      ; $BE89: -> $C168
+  .word MenuAction0B_CivilianReliefResult         ; $BE8B: -> $C1AC
+  .word MenuAction0C_HospitalResult               ; $BE8D: -> $C1FA
+  .word MenuAction0D_LandReclamationResult0E      ; $BE8F: -> $C25D
+  .word MenuAction0E_TownDevelopmentResult0F      ; $BE91: -> $C2DD
+  .word MenuAction0F_IndustryAndTownResult10      ; $BE93: -> $C33D
+  .word MenuAction10_OfficerTransferResult        ; $BE95: -> $C3A2
+  .word MenuAction11_IndustryDevelopmentResult12  ; $BE97: -> $C3F6
+  .word MenuAction12_PoachingResult               ; $BE99: -> $C43E
+  .word MenuAction13_IndustryDevelopmentResult14  ; $BE9B: -> $C4E1
+  .word MenuAction14_LandAndIndustryResult15      ; $BE9D: -> $C511
+  .word MenuAction15_IndustryAndTownResult16      ; $BE9F: -> $C556
+  .word MenuAction16_OfficerGiftResult            ; $BEA1: -> $C5B1
+  .word MenuAction17_IndustryAndTownResult18      ; $BEA3: -> $C5F7
+  .word MenuAction18_AllianceResult               ; $BEA5: -> $C636
+  .word MenuAction19_ConscriptionResult           ; $BEA7: -> $C67D
+  .word MenuAction1A_IntelligenceGatheringResult  ; $BEA9: -> $C6C6
+  .word MenuAction1B_DroughtDamageWindow          ; $BEAB: -> $C75F
+  .word MenuAction1C_RiceHarvestWindow            ; $BEAD: -> $C7D1
+  .word MenuAction1D_FloodDamageWindow            ; $BEAF: -> $C800
+  .word MenuAction1E_RebellionWindow              ; $BEB1: -> $C830
+  .word MenuAction1F_TaxCollectionWindow          ; $BEB3: -> $C87D
+  .word MenuAction20_MarketPanel                  ; $BEB5: -> $C8B4
+  .word MenuAction21_SupplyTransportResult        ; $BEB7: -> $C8F1
+  .word MenuAction22_WindowTeardown               ; $BEB9: -> $C926
 .endproc
 
-.proc MenuAction00_InitialSetup
-MenuAction00_InitialSetup:
+;===============================================================================
+; $BEBB: MenuAction00_SortieResult
+; Screen id $00 (raw $01). Two rows and no @RowTable: bit 2 of the frame tick
+;   $04A3 alone toggles $04A1 between 1 and 2, so the two icon rows of bank-$16
+;   table_00 blink alternately. Latches $00BF/$00C7/$00CF = $E8.
+;
+; Opener: ArmyCommandDispatch @WarRequestCommit $B25E, after the
+;   B19_1A_SortieWarCommit trampoline - the 出陣 Sortie order goes out with $04D6
+;   = $47 and B1F_OpenMsgWindow0 #$67 = "かならずや シロをおとしてまいります" (I shall surely
+;   take the castle).
+;===============================================================================
+
+.proc MenuAction00_SortieResult
+MenuAction00_SortieResult:
   LDA $04A1                               ; $BEBB: AD A1 04
   BNE @load_row0                            ; $BEBE: D0 09
   LDA #$E8                                ; $BEC0: A9 E8
@@ -3603,8 +3984,19 @@ MenuAction00_InitialSetup:
   JMP StrategyMenu_Return                        ; $BEE8: 4C 34 C9
 .endproc
 
-.proc MenuAction01_DisplaySetup
-MenuAction01_DisplaySetup:
+;===============================================================================
+; $BEEB: MenuAction01_AcademyResult
+; Screen id $01 (raw $02). Rows $DC then $DF; @RowTable $BF29 = 1,2,3,4,3,2
+;   indexed by ($04A3 >> 3) & 7 with a reset at phase 6, so the panel breathes
+;   up and down. Latches $00BF/$00C7/$00CF = $DC and $00C0/$00C8/$00D0 = $DF.
+;
+; Opener: TownCommandDispatch @AcademyTrainApply $C672 - the 学問所 Academy result,
+;   written right after the rolled 知力 gain is added to officer record[+2]; $04D6
+;   = $52 and B1F_OpenMsgWindow0 #$7D = "ブショウの チリョクが ⟨数⟩ あがりました".
+;===============================================================================
+
+.proc MenuAction01_AcademyResult
+MenuAction01_AcademyResult:
   LDA $04A1                               ; $BEEB: AD A1 04
   BNE @load_row1                            ; $BEEE: D0 0E
   LDA #$DC                                ; $BEF0: A9 DC
@@ -3642,8 +4034,19 @@ MenuAction01_DisplaySetup:
   .byte $02                               ; $BF2E: 02
 .endproc
 
-.proc MenuAction02_LandReclamation
-MenuAction02_LandReclamation:
+;===============================================================================
+; $BF2F: MenuAction02_SaveGameResult
+; Screen id $02 (raw $03). One fixed row (LDY #$01) plus a loop that parks OAM
+;   slots 0..$54 at y = $F0 while the phase stays below $15. Latches
+;   $00BF/$00C7/$00CF = $E1.
+;
+; Opener: CastleCommandDispatch CastleSaveExecute $AC63 - the 記録する SaveGame
+;   result, with $04D6 = $42 and B1F_OpenMsgWindow0 #$52 = "⟨数⟩ネン ⟨数⟩ガツの データを
+;   キロクしました" (the year/month data has been saved).
+;===============================================================================
+
+.proc MenuAction02_SaveGameResult
+MenuAction02_SaveGameResult:
   LDA $04A1                               ; $BF2F: AD A1 04
   BNE @load_row2                            ; $BF32: D0 09
   LDA #$E1                                ; $BF34: A9 E1
@@ -3681,8 +4084,19 @@ MenuAction02_LandReclamation:
   JMP StrategyMenu_Return                        ; $BF6D: 4C 34 C9
 .endproc
 
-.proc MenuAction03_DisasterPreventionSetup
-MenuAction03_DisasterPreventionSetup:
+;===============================================================================
+; $BF70: MenuAction03_DiscordResult
+; Screen id $03 (raw $04). Two rows per frame, from $04A1 and from $04A4 (preset
+;   3, alternated 3/4 together with the panel row by ($04A3 >> 4) & 1). Latches
+;   $00BF/$00C7/$00CF = $E9 and $00C0/$00C8/$00D0 = $EA.
+;
+; Opener: IntrigueCommandDispatch @DiscordBranch $D068 - the 離間 Discord result
+;   panel; its failure route falls into @OutcomeFail $D0C3, which pushes
+;   B1F_OpenMsgWindow4 #$77.
+;===============================================================================
+
+.proc MenuAction03_DiscordResult
+MenuAction03_DiscordResult:
   LDA $04A1                               ; $BF70: AD A1 04
   BNE @load_row3                            ; $BF73: D0 13
   LDA #$E9                                ; $BF75: A9 E9
@@ -3721,8 +4135,19 @@ MenuAction03_DisasterPreventionSetup:
   JMP StrategyMenu_Return                        ; $BFBC: 4C 34 C9
 .endproc
 
-.proc MenuAction04_DisasterPrevention
-MenuAction04_DisasterPrevention:
+;===============================================================================
+; $BFBF: MenuAction04_WarRulerCard
+; Screen id $04 (raw $05). Raises the duration $04CC to $80 (128 frames) and
+;   toggles two rows of table_04. Latches $00BF/$00C7/$00CF = $D1.
+;
+; Opener: prg_19_1a StrategyRequestDispatch PostWarRulerMenu $CACD - the second
+;   window of the war-outbreak chain (id $08 first, id $05 last), entered right
+;   after a RulerCardRefresh trampoline posts the current country's Ruler card
+;   (label variant 2, mode 0).
+;===============================================================================
+
+.proc MenuAction04_WarRulerCard
+MenuAction04_WarRulerCard:
   LDA $04A1                               ; $BFBF: AD A1 04
   BNE @load_row4                            ; $BFC2: D0 0E
   LDA #$D1                                ; $BFC4: A9 D1
@@ -3748,12 +4173,23 @@ MenuAction04_DisasterPrevention:
   JMP StrategyMenu_Return                        ; $BFF0: 4C 34 C9
 .endproc
 
-.proc MenuAction05_UnidentifiedCmdSetup
-MenuAction05_UnidentifiedCmdSetup:
-  ; NOT castle repair: no such command exists in the decoded in-game menu
-  ; vocabulary. Setup/exec pair (05/06) sharing the province-panel streams
-  ; with 03/04; menu IDs $05/$06 are assigned in PRG bank $1A together with
-  ; $09 (candidate: ブッシをはこぶ SupplyTransport setup/exec).
+;===============================================================================
+; $BFF3: MenuAction05_WarRivalRulerCard
+; Screen id $05 (raw $06), and the only proc that straddles the bank seam: the
+;   ResetDispatchState JSR keeps its opcode at $BFFF and its operand at $C000,
+;   so the handler ends in bank $1D and its load-rows half is
+;   ::MenuAction05_LoadRows. $04CC = $80, two rows ($04A1 + $04A4 preset 3).
+;   Latches $00BF/$00C7/$00CF = $C6 and $00C0/$00C8/$00D0 = $CF.
+;
+; Opener: prg_19_1a PostWarPairedRulerMenu @LowNibble $CB28 - the third window
+;   of the war-outbreak chain: the opposing Ruler is unpacked from the packed
+;   Ruler pair $0507 (low nibble when the AI officer selector $6F8C is
+;   non-zero), posted through RulerCardRefresh with label variant 3, then this
+;   window opens before WarPhaseHandoff $CB2F hands the war to banks $08+$09.
+;===============================================================================
+
+.proc MenuAction05_WarRivalRulerCard
+MenuAction05_WarRivalRulerCard:
   LDA $04A1                               ; $BFF3: AD A1 04
   .byte $D0, $18                          ; $BFF6: D0 18 (BNE $C010 = MenuAction05_LoadRows)
   LDA #$C6                                ; $BFF8: A9 C6
@@ -3772,6 +4208,10 @@ MenuAction05_UnidentifiedCmdSetup:
 
 ;===============================================================================
 ; $C010: MenuAction05 load-rows phase
+; $C010 - the $04A1 != 0 pass of MenuAction05, reached by the branch at $BFF6.
+;   It is emitted as `.byte $D0,$18` rather than BNE because the target crosses
+;   the $BFFF/$C000 segment seam and ca65 cannot resolve a relative branch
+;   across banks; the ROM bytes are a plain BNE $C010.
 ;===============================================================================
 .proc MenuAction05_LoadRows
   LDA #$A7                                              ; $C010: A9 A7
@@ -3800,8 +4240,20 @@ MenuAction05_UnidentifiedCmdSetup:
   JMP StrategyMenu_Return                                      ; $C043: 4C 34 C9
 .endproc
 
-.proc MenuAction06_UnidentifiedCmd
-MenuAction06_UnidentifiedCmd:
+;===============================================================================
+; $C046: MenuAction06_DisasterPreventionResult
+; Screen id $06 (raw $07). Presets $04A3 = #$78 to start its 16-phase @RowTable
+;   at the tail, and cycles the latch pair $00BF/$00C7/$00CF = $EA over
+;   $00C0/$00C8/$00D0 = $EB.
+;
+; Opener: CastleCommandDispatch @DisasterResultSetup $A683 - the 防災
+;   DisasterPrevention result, with $04D6 = $24 and B1F_OpenMsgWindow0 #$50 =
+;   "ボウサイチが ⟨数⟩あがりました" (the disaster-prevention value rose). prg_19_1a
+;   @DevResultIndexTable $BAE8 also routes 土地の開墾 rolls 2-4 to this id.
+;===============================================================================
+
+.proc MenuAction06_DisasterPreventionResult
+MenuAction06_DisasterPreventionResult:
   LDA $04A1                                             ; $C046: AD A1 04
   BNE MenuAction06_LoadRows                                 ; $C049: D0 13
   LDA #$EA                                              ; $C04B: A9 EA
@@ -3832,11 +4284,17 @@ MenuAction06_LoadRows:
   .byte $01, $02, $03, $03, $03, $03, $03, $02, $02, $02, $02, $01, $01, $01, $01, $01 ; $C080: 01 02 03 03 03 03 03 02 02 02 02 01 01 01 01 01
 .endproc
 
-.proc MenuAction07_CountryEnd
-MenuAction07_CountryEnd:
-  ; NOT a tax-rate screen: "このクニにフショウはいません" (this country has no
-  ; officers) sentences the end of a country — country-end event screen; the
-  ; row loader is shared with Action04.
+;===============================================================================
+; $C090: MenuAction07_ArmoryResult
+; Screen id $07 (raw $08). One row. Latches $00BF/$00C7/$00CF = $B7.
+;
+; Opener: TownCommandDispatch @EquipApply $CA50 - the 武器屋 Armory purchase
+;   result, with $04D6 = $4D and B1F_OpenMsgWindow0 #$AB = "あたらしいブキを かいました /
+;   いままで つかっていたブキは ブキヤに ひきとってもらいます".
+;===============================================================================
+
+.proc MenuAction07_ArmoryResult
+MenuAction07_ArmoryResult:
   LDA $04A1                                             ; $C090: AD A1 04
   BNE MenuAction07_LoadRows                                 ; $C093: D0 09
   LDA #$B7                                              ; $C095: A9 B7
@@ -3871,8 +4329,23 @@ MenuAction07_LoadRows:
   JMP StrategyMenu_Return                                      ; $C0C5: 4C 34 C9
 .endproc
 
-.proc MenuAction08_GoldDistribution
-MenuAction08_GoldDistribution:
+;===============================================================================
+; $C0C8: MenuAction08_WarOutbreakNotice
+; Screen id $08 (raw $09). Sets $04CC = $80 only when $04D6 != $47, then two
+;   rows ($04A1 and $04A4 in 3..5) over the 5-entry table_08. Latches
+;   $00BF/$00C7/$00CF = $CA; $04D6 is the completion-sound selector read by
+;   SaveScreenSoundSelect.
+;
+; Openers: prg_19_1a StrategyRequestDispatch @ReqWarPending $C8BC ($04D6 = $47,
+;   the map screen is already up so the PPU re-init is skipped) and
+;   @ReqCountryAbsorbed $C8F2 ($04D6 = $A2) - the first window of the
+;   war-outbreak chain, opened by ResolveProvinceConquest after it takes a
+;   Province, right after a RulerCardRefresh posts the current Ruler card (label
+;   variant 1).
+;===============================================================================
+
+.proc MenuAction08_WarOutbreakNotice
+MenuAction08_WarOutbreakNotice:
   LDA $04A1                                             ; $C0C8: AD A1 04
   BNE MenuAction08_LoadRows                                 ; $C0CB: D0 1A
   LDA #$CA                                              ; $C0CD: A9 CA
@@ -3888,6 +4361,11 @@ MenuAction08_GoldDistribution:
 @skipPpuInit:
   RTS                                                   ; $C0E6: 60
 .endproc
+
+;===============================================================================
+; $C0E7: MenuAction08_LoadRows
+; - the $04A1 != 0 pass of MenuAction08.
+;===============================================================================
 
 .proc MenuAction08_LoadRows
 MenuAction08_LoadRows:
@@ -3921,8 +4399,19 @@ MenuAction08_LoadRows:
   JMP StrategyMenu_Return                                      ; $C120: 4C 34 C9
 .endproc
 
-.proc MenuAction09_RiceDistribution
-MenuAction09_RiceDistribution:
+;===============================================================================
+; $C123: MenuAction09_LandReclamationResult0A
+; Screen id $09 (raw $0A). One icon page over the 4-entry @RowTable. Latches
+;   $00BF/$00C7/$00CF = $F1 and $00C0/$00C8/$00D0 = $F2.
+;
+; Opener: prg_19_1a CastleDevResultRoll @ApplyRoll $BADB, which stores
+;   @DevResultIndexTable[$0470*9 + amount] into $04A2; this id is 土地の開墾
+;   LandReclamation roll 0 (gold fee $0A, proposal message $7F). 国造り
+;   internal-development result panel.
+;===============================================================================
+
+.proc MenuAction09_LandReclamationResult0A
+MenuAction09_LandReclamationResult0A:
   LDA $04A1                                             ; $C123: AD A1 04
   BNE MenuAction09_LoadRows                                 ; $C126: D0 0E
   LDA #$F1                                              ; $C128: A9 F1
@@ -3955,8 +4444,18 @@ MenuAction09_LoadRows:
   .byte $01, $02, $03, $03, $03, $04, $04, $04, $03, $03, $03, $04, $04, $04, $02, $01 ; $C158: 01 02 03 03 03 04 04 04 03 03 03 04 04 04 02 01
 .endproc
 
-.proc MenuAction0A_Conscription
-MenuAction0A_Conscription:
+;===============================================================================
+; $C168: MenuAction0A_LandReclamationResult0B
+; Screen id $0A (raw $0B). Presets $04A3 = #$28 so the animation starts partway
+;   through its cycle. Latches $00BF/$00C7/$00CF = $F0.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 土地の開墾
+;   LandReclamation roll 1 (gold fee $0C, proposal message $80). 国造り
+;   internal-development result panel.
+;===============================================================================
+
+.proc MenuAction0A_LandReclamationResult0B
+MenuAction0A_LandReclamationResult0B:
   LDA $04A1                                             ; $C168: AD A1 04
   BNE MenuAction0A_LoadRows                                 ; $C16B: D0 0E
   LDA #$F0                                              ; $C16D: A9 F0
@@ -3988,8 +4487,19 @@ MenuAction0A_LoadRows:
   .byte $01, $02, $03, $03, $03, $03, $03, $03, $02, $02, $02, $02, $01, $01, $01, $01 ; $C19C: 01 02 03 03 03 03 03 03 02 02 02 02 01 01 01 01
 .endproc
 
-.proc MenuAction0B_HireOfficer
-MenuAction0B_HireOfficer:
+;===============================================================================
+; $C1AC: MenuAction0B_CivilianReliefResult
+; Screen id $0B (raw $0C). Two rows, $04A1 plus a fixed LDY #$04, and it
+;   hard-writes the pointer pair $C3EB into $00C1/$00C9/$00D1. Latches
+;   $00BF/$00C7/$00CF = $E9 and $00C0/$00C8/$00D0 = $EB.
+;
+; Opener: WarehouseCommandDispatch @PopulaceApplyStore $BEEB - the 倉 与える (城の民衆)
+;   CivilianRelief result, written by the populace-relief apply path; $04D6 =
+;   $29 and B1F_OpenMsgWindow0 #$5A = "ミンシュウが よろこんでいます / トウチドが ⟨数⟩あがりました".
+;===============================================================================
+
+.proc MenuAction0B_CivilianReliefResult
+MenuAction0B_CivilianReliefResult:
   LDA $04A1                                             ; $C1AC: AD A1 04
   BNE MenuAction0B_LoadRows                                 ; $C1AF: D0 19
   LDA #$E9                                              ; $C1B1: A9 E9
@@ -4029,8 +4539,20 @@ MenuAction0B_LoadRows:
   .byte $02, $03, $02, $03, $01, $01, $01, $01          ; $C1F2: 02 03 02 03 01 01 01 01
 .endproc
 
-.proc MenuAction0C_TransferOfficer
-MenuAction0C_TransferOfficer:
+;===============================================================================
+; $C1FA: MenuAction0C_HospitalResult
+; Screen id $0C (raw $0D). The @RowTable row plus a second DisplayTileData at
+;   row ((($04A3 >> 3) & 1) + 5) of table_0C, with $04A3 reset at phase 10.
+;   Latches $00BF/$00C7/$00CF = $F8, $00C0/$00C8/$00D0 = $F9 and the pair $FAF9
+;   into $00C1/$00C9/$00D1.
+;
+; Opener: TownCommandDispatch @HealResultUI $C645 - the 病院 Hospital result,
+;   written after the heal amount is applied; $04D6 = $52 and B1F_OpenMsgWindow0
+;   #$7B = "ブショウの タイリョクが ⟨数⟩ かいふくしました".
+;===============================================================================
+
+.proc MenuAction0C_HospitalResult
+MenuAction0C_HospitalResult:
   LDA $04A1                                             ; $C1FA: AD A1 04
   BNE MenuAction0C_LoadRows                                 ; $C1FD: D0 19
   LDA #$F8                                              ; $C1FF: A9 F8
@@ -4082,10 +4604,17 @@ MenuAction0C_LoadRows:
   .byte $01, $02, $03, $04, $04, $03, $04, $04, $03, $02, $01 ; $C252: 01 02 03 04 04 03 04 04 03 02 01
 .endproc
 
-.proc MenuAction0D_UnidentifiedCmd
-MenuAction0D_UnidentifiedCmd:
-  ; NOT officer execution: no such command in the decoded vocabulary; stream
-  ; shows the stratagem guard "ここではほかのケイリャクをもちいたほうが…".
+;===============================================================================
+; $C25D: MenuAction0D_LandReclamationResult0E
+; Screen id $0D (raw $0E). One row. Latches $00BF/$00C7/$00CF = $F7.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 土地の開墾
+;   LandReclamation rolls 5, 6 and 8 (gold fees $14/$16/$1A). 国造り
+;   internal-development result panel.
+;===============================================================================
+
+.proc MenuAction0D_LandReclamationResult0E
+MenuAction0D_LandReclamationResult0E:
   LDA $04A1                                             ; $C25D: AD A1 04
   BNE MenuAction0D_LoadRows                                 ; $C260: D0 28
   LDA #$F7                                              ; $C262: A9 F7
@@ -4144,9 +4673,18 @@ MenuAction0D_LoadRows:
   .byte $2E, $0F, $0F, $03, $23, $DC, $22, $00, $00, $FF ; $C2D3: 2E 0F 0F 03 23 DC 22 00 00 FF
 .endproc
 
-.proc MenuAction0E_UnidentifiedCmd
-MenuAction0E_UnidentifiedCmd:
-  ; NOT officer exile: no such command in the decoded vocabulary; unresolved.
+;===============================================================================
+; $C2DD: MenuAction0E_TownDevelopmentResult0F
+; Screen id $0E (raw $0F). Latches $00BF/$00C7/$00CF = $F3 and $00C0/$00C8/$00D0
+;   = $F4.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 町の開発
+;   TownDevelopment roll 7 (gold fee $18). 国造り internal-development result
+;   panel.
+;===============================================================================
+
+.proc MenuAction0E_TownDevelopmentResult0F
+MenuAction0E_TownDevelopmentResult0F:
   LDA $04A1                                             ; $C2DD: AD A1 04
   BNE MenuAction0E_LoadRows                                 ; $C2E0: D0 0E
   LDA #$F3                                              ; $C2E2: A9 F3
@@ -4195,8 +4733,17 @@ MenuAction0E_LoadRows:
   .byte $03, $03, $03, $03, $03, $03, $04, $05, $05, $04, $03 ; $C332: 03 03 03 03 03 03 04 05 05 04 03
 .endproc
 
-.proc MenuAction0F_GiveItem
-MenuAction0F_GiveItem:
+;===============================================================================
+; $C33D: MenuAction0F_IndustryAndTownResult10
+; Screen id $0F (raw $10). One row. Latches $00BF/$00C7/$00CF = $F0.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 産業の発展
+;   IndustryDevelopment roll 0 and 町の開発 TownDevelopment rolls 4, 5 and 8. 国造り
+;   internal-development result panel.
+;===============================================================================
+
+.proc MenuAction0F_IndustryAndTownResult10
+MenuAction0F_IndustryAndTownResult10:
   LDA $04A1                                             ; $C33D: AD A1 04
   BNE MenuAction0F_LoadRows                                 ; $C340: D0 0E
   LDA #$F0                                              ; $C342: A9 F0
@@ -4254,11 +4801,18 @@ MenuAction0F_LoadRows:
   JMP StrategyMenu_Return                                      ; $C39F: 4C 34 C9
 .endproc
 
-.proc MenuAction10_SuccessorSelection
-MenuAction10_SuccessorSelection:
-  ; Selecting the country's successor, NOT capital move: "あらたなクンシュを
-  ; きめます / アトツキのいるシロをえらんでください" (decide a new ruler /
-  ; choose a castle that has an heir).
+;===============================================================================
+; $C3A2: MenuAction10_OfficerTransferResult
+; Screen id $10 (raw $11). Latches $00BF/$00C7/$00CF = $D0 and $00C0/$00C8/$00D0
+;   = $D1.
+;
+; Opener: CastleCommandDispatch CastleMoveExecute $A835 - the 武将の移動
+;   OfficerTransfer result, written after CastleMoveRosterApply moves the
+;   selected officers $0481-$048A into province $0471; $04D6 = $32.
+;===============================================================================
+
+.proc MenuAction10_OfficerTransferResult
+MenuAction10_OfficerTransferResult:
   LDA $04A1                                             ; $C3A2: AD A1 04
   BNE MenuAction10_LoadRows                                 ; $C3A5: D0 13
   LDA #$D0                                              ; $C3A7: A9 D0
@@ -4303,8 +4857,18 @@ MenuAction10_LoadRows:
   JMP StrategyMenu_Return                                      ; $C3F3: 4C 34 C9
 .endproc
 
-.proc MenuAction11_Intrigue
-MenuAction11_Intrigue:
+;===============================================================================
+; $C3F6: MenuAction11_IndustryDevelopmentResult12
+; Screen id $11 (raw $12). Latches $00BF/$00C7/$00CF = $F5 and $00C0/$00C8/$00D0
+;   = $F7.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 産業の発展
+;   IndustryDevelopment rolls 4 and 5 (gold fees $12/$14). 国造り
+;   internal-development result panel.
+;===============================================================================
+
+.proc MenuAction11_IndustryDevelopmentResult12
+MenuAction11_IndustryDevelopmentResult12:
   LDA $04A1                                             ; $C3F6: AD A1 04
   BNE MenuAction11_LoadRows                                 ; $C3F9: D0 19
   LDA #$F5                                              ; $C3FB: A9 F5
@@ -4341,8 +4905,20 @@ MenuAction11_LoadRows:
   .byte $01, $02, $03, $03, $03, $03, $02, $01          ; $C436: 01 02 03 03 03 03 02 01
 .endproc
 
-.proc MenuAction12_Sortie
-MenuAction12_Sortie:
+;===============================================================================
+; $C43E: MenuAction12_PoachingResult
+; Screen id $12 (raw $13). Presets $04A1 = 5 to start mid-block, copies one of
+;   two 16-byte sprite records at $C4C1/$C4D1 into $0380 (X chosen from $0150
+;   bit 7). Latches $00BF/$00C7/$00CF = $F8 and $00C0/$00C8/$00D0 = $FA.
+;
+; Opener: IntrigueCommandDispatch @PoachingBranch $D040 - the 引き抜き Poaching
+;   result panel: the roll against PoachOddsCalc $D2E3 lands here, the success
+;   path stages message id $4B in $0470 plus the roster-transfer gate $0473, the
+;   failure path falls into @OutcomeFail $D0C3.
+;===============================================================================
+
+.proc MenuAction12_PoachingResult
+MenuAction12_PoachingResult:
   LDA $04A1                                             ; $C43E: AD A1 04
   BNE MenuAction12_LoadRows                                 ; $C441: D0 37
   LDA #$F8                                              ; $C443: A9 F8
@@ -4415,8 +4991,17 @@ MenuAction12_LoadRows:
   .byte $02, $23, $CC, $AA, $EA, $02, $23, $D4, $AE, $EF, $02, $23, $DC, $AA, $EE, $FF ; $C4D1: 02 23 CC AA EA 02 23 D4 AE EF 02 23 DC AA EE FF
 .endproc
 
-.proc MenuAction13_Reconnaissance
-MenuAction13_Reconnaissance:
+;===============================================================================
+; $C4E1: MenuAction13_IndustryDevelopmentResult14
+; Screen id $13 (raw $14). One row. Latches $00BF/$00C7/$00CF = $E7.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 産業の発展
+;   IndustryDevelopment rolls 1, 6 and 8 (gold fees $0C/$16/$1A). 国造り
+;   internal-development result panel.
+;===============================================================================
+
+.proc MenuAction13_IndustryDevelopmentResult14
+MenuAction13_IndustryDevelopmentResult14:
   LDA $04A1                                             ; $C4E1: AD A1 04
   BNE @LoadRows                                            ; $C4E4: D0 09
   LDA #$E7                                              ; $C4E6: A9 E7
@@ -4443,10 +5028,18 @@ MenuAction13_Reconnaissance:
   JMP StrategyMenu_Return                                      ; $C50E: 4C 34 C9
 .endproc
 
-.proc MenuAction14_Market
-MenuAction14_Market:
-  ; 商店 (Market) screen, NOT accounting: "タカラなら1つにつきキン100で
-  ; ひきとりましょう" = the shop buys treasures at 100 gold each.
+;===============================================================================
+; $C511: MenuAction14_LandAndIndustryResult15
+; Screen id $14 (raw $15). A 16-step auto @RowTable. Latches $00BF/$00C7/$00CF =
+;   $FB and $00C0/$00C8/$00D0 = $FC.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 土地の開墾
+;   LandReclamation roll 7 and 産業の発展 IndustryDevelopment roll 7 (gold fee $18).
+;   国造り internal-development result panel.
+;===============================================================================
+
+.proc MenuAction14_LandAndIndustryResult15
+MenuAction14_LandAndIndustryResult15:
   LDA $04A1                                             ; $C511: AD A1 04
     BNE MenuAction14_LoadRows                                 ; $C514: D0 0E
   LDA #$FB                                              ; $C516: A9 FB
@@ -4479,8 +5072,19 @@ MenuAction14_LoadRows:
   .byte $01, $03, $01, $03, $02, $03, $01, $03, $02, $01, $01, $04, $04, $04, $04, $04 ; $C546: 01 03 01 03 02 03 01 03 02 01 01 04 04 04 04 04
 .endproc
 
-.proc MenuAction15_Exchange
-MenuAction15_Exchange:
+;===============================================================================
+; $C556: MenuAction15_IndustryAndTownResult16
+; Screen id $15 (raw $16). Walks $04A1 with a $04A5 down-counter and tracks
+;   $04A4 as the highlight row. Latches $00BF/$00C7/$00CF = $EA,
+;   $00C0/$00C8/$00D0 = $EB and $ED into $00C1.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 産業の発展
+;   IndustryDevelopment roll 3 (gold fee $10) and 町の開発 TownDevelopment rolls 0
+;   and 2 (gold fees $0A/$0E). 国造り internal-development result panel.
+;===============================================================================
+
+.proc MenuAction15_IndustryAndTownResult16
+MenuAction15_IndustryAndTownResult16:
   LDA $04A1                                             ; $C556: AD A1 04
   BNE MenuAction15_LoadRows                                 ; $C559: D0 1E
   LDA #$EA                                              ; $C55B: A9 EA
@@ -4528,8 +5132,17 @@ MenuAction15_LoadRows:
   JMP StrategyMenu_Return                                      ; $C5AE: 4C 34 C9
 .endproc
 
-.proc MenuAction16_Trade
-MenuAction16_Trade:
+;===============================================================================
+; $C5B1: MenuAction16_OfficerGiftResult
+; Screen id $16 (raw $17). One row. Latches $00BF/$00C7/$00CF = $F6.
+;
+; Opener: WarehouseCommandDispatch @OfficerApplyStore $BD42 - the 倉 与える (配下の武将)
+;   OfficerGift result, written by the officer-gift apply path; $04D6 = $29 and
+;   the flow closes the UI through B1F_ClearUI $BD5E.
+;===============================================================================
+
+.proc MenuAction16_OfficerGiftResult
+MenuAction16_OfficerGiftResult:
   LDA $04A1                                             ; $C5B1: AD A1 04
   BNE MenuAction16_LoadRows                                 ; $C5B4: D0 0E
   LDA #$F6                                              ; $C5B6: A9 F6
@@ -4568,8 +5181,18 @@ MenuAction16_LoadRows:
   JMP StrategyMenu_Return                                      ; $C5F4: 4C 34 C9
 .endproc
 
-.proc MenuAction17_SearchOfficer
-MenuAction17_SearchOfficer:
+;===============================================================================
+; $C5F7: MenuAction17_IndustryAndTownResult18
+; Screen id $17 (raw $18). Latches $00BF/$00C7/$00CF = $F7 and $00C0/$00C8/$00D0
+;   = $DF.
+;
+; Opener: @DevResultIndexTable via CastleDevResultRoll @ApplyRoll - 産業の発展
+;   IndustryDevelopment roll 2 (gold fee $0E) and 町の開発 TownDevelopment rolls 1,
+;   3 and 6 (gold fees $0C/$10/$16). 国造り internal-development result panel.
+;===============================================================================
+
+.proc MenuAction17_IndustryAndTownResult18
+MenuAction17_IndustryAndTownResult18:
   LDA $04A1                                             ; $C5F7: AD A1 04
   BNE MenuAction17_LoadRows                                 ; $C5FA: D0 0E
   LDA #$F7                                              ; $C5FC: A9 F7
@@ -4606,8 +5229,17 @@ MenuAction17_LoadRows:
   JMP StrategyMenu_Return                                      ; $C633: 4C 34 C9
 .endproc
 
-.proc MenuAction18_SearchItem
-MenuAction18_SearchItem:
+;===============================================================================
+; $C636: MenuAction18_AllianceResult
+; Screen id $18 (raw $19). One row. Latches $00BF/$00C7/$00CF = $C5.
+;
+; Opener: IntrigueCommandDispatch @ConfirmAccepted $CDA3 - the 同盟 Alliance
+;   acceptance panel, entered after CountryRulerIdGet $DD56 stages the target
+;   ruler's officer id into the $042C name slot at $CDAC.
+;===============================================================================
+
+.proc MenuAction18_AllianceResult
+MenuAction18_AllianceResult:
   LDA $04A1                                             ; $C636: AD A1 04
   BNE MenuAction18_LoadRows                                 ; $C639: D0 09
   LDA #$C5                                              ; $C63B: A9 C5
@@ -4650,9 +5282,19 @@ MenuAction18_LoadRows:
   JMP StrategyMenu_Return                                      ; $C67A: 4C 34 C9
 .endproc
 
-.proc MenuAction19_UnidentifiedCmd
-MenuAction19_UnidentifiedCmd:
-  ; NOT land inspection: no such command in the decoded vocabulary; unresolved.
+;===============================================================================
+; $C67D: MenuAction19_ConscriptionResult
+; Screen id $19 (raw $1A). Latches $00BF/$00C7/$00CF = $F4 and $00C0/$00C8/$00D0
+;   = $F5, then pages the 16-step auto @RowTable.
+;
+; Opener: ArmyCommandDispatch @ApplyAmount $B3F4 - the 徴兵 Conscription panel,
+;   opened when the conscripted amount is applied; $04D6 = $4D and the flow
+;   closes the UI through B1F_ClearUI $B40B. The manual prices 徴兵 at 金20 per 100
+;   men (docs/manual_kb/04-strategy-commands.md).
+;===============================================================================
+
+.proc MenuAction19_ConscriptionResult
+MenuAction19_ConscriptionResult:
   LDA $04A1                                             ; $C67D: AD A1 04
   BNE MenuAction19_LoadRows                                 ; $C680: D0 19
   LDA #$F4                                              ; $C682: A9 F4
@@ -4690,10 +5332,19 @@ MenuAction19_LoadRows:
   .byte $01, $02, $01, $02, $01, $03, $03, $03          ; $C6BE: 01 02 01 02 01 03 03 03
 .endproc
 
-.proc MenuAction1A_OfficerDeath
-MenuAction1A_OfficerDeath:
-  ; An officer dies — event screen, NOT personal affairs: the stream says
-  ; "[NAME]がシホウしました" ([NAME] has died).
+;===============================================================================
+; $C6C6: MenuAction1A_IntelligenceGatheringResult
+; Screen id $1A (raw $1B). Walks $04A1 on the $04A5 counter with $04A4 as the
+;   highlight row. Latches $00BF/$00C7/$00CF = $C1.
+;
+; Opener: CastleCommandDispatch CastleScoutDialogWait $A8BD - the 情報集め
+;   IntelligenceGathering panel, opened when the confirm dialog returns; $04D6 =
+;   $32 and B1F_OpenMsgWindow0 #$31 = "では いってまいります" (well then, I'll be on my
+;   way).
+;===============================================================================
+
+.proc MenuAction1A_IntelligenceGatheringResult
+MenuAction1A_IntelligenceGatheringResult:
   LDA $04A1                                             ; $C6C6: AD A1 04
   BNE MenuAction1A_LoadRows                                 ; $C6C9: D0 32
   LDA #$C1                                              ; $C6CB: A9 C1
@@ -4753,11 +5404,18 @@ MenuAction1A_LoadRows:
   .byte $FA, $03, $23, $D4, $2E, $0F, $0F, $03, $23, $DC, $62, $50, $50, $FF ; $C751: FA 03 23 D4 2E 0F 0F 03 23 DC 62 50 50 FF
 .endproc
 
-.proc MenuAction1B_UnidentifiedCmd
-MenuAction1B_UnidentifiedCmd:
-  ; NOT strategy-command dispatch: no such command in the decoded vocabulary;
-  ; content is an OAM-blob display screen (bank $16 MenuOamPtrTable_1B via
-  ; DisplayTileData); unresolved.
+;===============================================================================
+; $C75F: MenuAction1B_DroughtDamageWindow
+; Screen id $1B (raw $1C). Presets $04A3, one row. Latches $00BF/$00C7/$00CF =
+;   $FC.
+;
+; Opener: prg_19_1a DroughtDamageScene @DamageWindowOpen $A719 - the 日照り Drought
+;   damage window, with $04D6 = $9F and B1F_OpenMsgWindow4 #$BE = "かくちで ヒデリが
+;   はっせいしています".
+;===============================================================================
+
+.proc MenuAction1B_DroughtDamageWindow
+MenuAction1B_DroughtDamageWindow:
   LDA $04A1                                             ; $C75F: AD A1 04
   BNE MenuAction1B_LoadRows                                 ; $C762: D0 28
   LDA #$FC                                              ; $C764: A9 FC
@@ -4810,8 +5468,17 @@ MenuAction1B_LoadRows:
   .byte $2A, $0A, $0A, $03, $23, $D4, $E2, $F0, $F0, $FF ; $C7C7: 2A 0A 0A 03 23 D4 E2 F0 F0 FF
 .endproc
 
-.proc MenuAction1C_CopyTileData
-MenuAction1C_CopyTileData:
+;===============================================================================
+; $C7D1: MenuAction1C_RiceHarvestWindow
+; Screen id $1C (raw $1D). One row. Latches $00BF/$00C7/$00CF = $C2.
+;
+; Opener: prg_19_1a RiceHarvestEvent @HarvestWindow $A5C5 - the 米の収穫 RiceHarvest
+;   window, with $04D6 = $A6 and B1F_OpenMsgWindow4 #$BD = "10がつです /
+;   コメのシュウカクのきせつです".
+;===============================================================================
+
+.proc MenuAction1C_RiceHarvestWindow
+MenuAction1C_RiceHarvestWindow:
   LDA $04A1                                             ; $C7D1: AD A1 04
   BNE MenuAction1C_LoadRows                                 ; $C7D4: D0 09
   LDA #$C2                                              ; $C7D6: A9 C2
@@ -4840,8 +5507,17 @@ MenuAction1C_LoadRows:
   JMP StrategyMenu_Return                                      ; $C7FD: 4C 34 C9
 .endproc
 
-.proc MenuAction1D_SetupActionDisplay
-MenuAction1D_SetupActionDisplay:
+;===============================================================================
+; $C800: MenuAction1D_FloodDamageWindow
+; Screen id $1D (raw $1E). One row. Latches $00BF/$00C7/$00CF = $D1.
+;
+; Opener: prg_19_1a FloodDamageScene @LossWindowShow $A9CA - the 洪水 Flood damage
+;   window, with $04D6 = $9F and B1F_OpenMsgWindow4 #$BF = "かくちで コウズイが
+;   はっせいしています".
+;===============================================================================
+
+.proc MenuAction1D_FloodDamageWindow
+MenuAction1D_FloodDamageWindow:
   LDA $04A1                                             ; $C800: AD A1 04
   BNE MenuAction1D_LoadRows                                 ; $C803: D0 09
   LDA #$D1                                              ; $C805: A9 D1
@@ -4870,8 +5546,18 @@ MenuAction1D_LoadRows:
   JMP StrategyMenu_Return                                      ; $C82D: 4C 34 C9
 .endproc
 
-.proc MenuAction1E_CalcParams
-MenuAction1E_CalcParams:
+;===============================================================================
+; $C830: MenuAction1E_RebellionWindow
+; Screen id $1E (raw $1F). Latches $00BF/$00C7/$00CF = $C6.
+;
+; Opener: prg_19_1a ProvinceRebellionEvent @RebellionMarkerArm $AC45 - the 反乱
+;   Rebellion window, which arms the province marker in $0150 and
+;   $044C/$0470-$0472 and pushes B1F_OpenMsgWindow4 #$E8 = "たいへんです 〈省〉で ハンランが
+;   おこりました".
+;===============================================================================
+
+.proc MenuAction1E_RebellionWindow
+MenuAction1E_RebellionWindow:
   LDA $04A1                                             ; $C830: AD A1 04
   BNE MenuAction1E_LoadRows                                 ; $C833: D0 0E
   LDA #$C6                                              ; $C835: A9 C6
@@ -4912,8 +5598,17 @@ MenuAction1E_LoadRows:
   JMP StrategyMenu_Return                                      ; $C87A: 4C 34 C9
 .endproc
 
-.proc MenuAction1F_CalcParams2
-MenuAction1F_CalcParams2:
+;===============================================================================
+; $C87D: MenuAction1F_TaxCollectionWindow
+; Screen id $1F (raw $20). Latches $00BF/$00C7/$00CF = $BD.
+;
+; Opener: prg_19_1a TaxCollectionEvent @TaxWindow $A400 - the 税金の徴収
+;   TaxCollection window, with $04D6 = $A6 and B1F_OpenMsgWindow4 #$BC = "4がつです
+;   / ゼイキンがあつまりキンがふえました".
+;===============================================================================
+
+.proc MenuAction1F_TaxCollectionWindow
+MenuAction1F_TaxCollectionWindow:
   LDA $04A1                                             ; $C87D: AD A1 04
   BNE MenuAction1F_LoadRows                                 ; $C880: D0 09
   LDA #$BD                                              ; $C882: A9 BD
@@ -4947,8 +5642,17 @@ MenuAction1F_LoadRows:
   JMP StrategyMenu_Return                                      ; $C8B1: 4C 34 C9
 .endproc
 
-.proc MenuAction20_CalcParams3
-MenuAction20_CalcParams3:
+;===============================================================================
+; $C8B4: MenuAction20_MarketPanel
+; Screen id $20 (raw $21). Latches both cell trios from $B7.
+;
+; Opener: TownCommandDispatch @FacilitySelect market branch $C0AC - the 商店
+;   Market buy/sell panel, with $04D6 = $2E and B1F_OpenMsgWindow0 #$6F = "コメ /
+;   タカラ / ここは ショウテンです / なにの とりひきをいたしますか".
+;===============================================================================
+
+.proc MenuAction20_MarketPanel
+MenuAction20_MarketPanel:
   LDA $04A1                                             ; $C8B4: AD A1 04
   BNE MenuAction20_LoadRows                                 ; $C8B7: D0 0E
   LDA #$B7                                              ; $C8B9: A9 B7
@@ -4985,8 +5689,19 @@ MenuAction20_LoadRows:
   JMP StrategyMenu_Return                                      ; $C8EE: 4C 34 C9
 .endproc
 
-.proc MenuAction21_Finalize
-MenuAction21_Finalize:
+;===============================================================================
+; $C8F1: MenuAction21_SupplyTransportResult
+; Screen id $21 (raw $22). Latches $00BF/$00C7/$00CF = $AA and $00C0/$00C8/$00D0
+;   = $AB.
+;
+; Opener: WarehouseCommandDispatch @ApplyAddLoop $B9E4 - the 倉 物資を運ぶ
+;   SupplyTransport result, written after the goods are credited to the
+;   destination province record; $04D6 = $32 and B1F_OpenMsgWindow0 #$31 = "では
+;   いってまいります".
+;===============================================================================
+
+.proc MenuAction21_SupplyTransportResult
+MenuAction21_SupplyTransportResult:
   LDA $04A1                                             ; $C8F1: AD A1 04
   BNE MenuAction21_LoadRows                                 ; $C8F4: D0 0E
   LDA #$AA                                              ; $C8F6: A9 AA
@@ -5017,8 +5732,18 @@ MenuAction21_LoadRows:
   JMP StrategyMenu_Return                                      ; $C923: 4C 34 C9
 .endproc
 
-.proc MenuAction22_Cleanup
-MenuAction22_Cleanup:
+;===============================================================================
+; $C926: MenuAction22_WindowTeardown
+; Id $22 is the teardown step of every window rather than a screen of its own:
+;   StrategyMenu_Return forces $04A2 = $22 when a window closes. It clears $04A0
+;   and $04A2 once the map transition $0140 has finished, which stops
+;   MenuRenderer's phase-2 dispatch, then re-arms the palette upload, plays the
+;   close sound through B1F_SoundWrapperA and trampolines to
+;   B1D_1E_PaletteRecordLoad.
+;===============================================================================
+
+.proc MenuAction22_WindowTeardown
+MenuAction22_WindowTeardown:
   LDA $0140                                             ; $C926: AD 40 01
   BNE MenuAction22_Continue                                 ; $C929: D0 08
   LDA #$00                                              ; $C92B: A9 00
@@ -5032,8 +5757,6 @@ MenuAction22_Continue:
 ; $C934: StrategyMenu_Return
 ;===============================================================================
 .proc StrategyMenu_Return
-  ; Proc-local RAM variable
-  addr_pal_upload_arm = $007D  ; palette-upload arm latch (tested by NmiSubDispatch $EE53, cleared by PaletteUpload $E71B)
 StrategyMenu_Return:
   LDA $04D0                                             ; $C934: AD D0 04
   CMP $04CC                                             ; $C937: CD CC 04
@@ -5138,18 +5861,36 @@ DisplayTileDataWithX:
   JMP B1F_SpriteOamWriterSimple                               ; $C9BF: 4C AD F1
 .endproc
 
+;===============================================================================
+; $C9C2: MenuRenderer_SecondaryDispatch
+; The generic window chrome builder MenuRenderer enters on every open, and
+;   re-enters each frame while $04A0 bit 7 is set with a zero low nibble. It
+;   dispatches the builder step $04A1 through the inline 4-word table at $C9C8
+;   -> title block, idle fill, border record stream, per-screen text/name rows.
+;   Entry 1 points at the code immediately after the table, which is how a
+;   fall-through default is reached; because B1F_CallbackDispatcher consumed the
+;   JSR return bytes, each step's RTS returns into MenuRenderer's caller. Steps
+;   run 0 -> 1 -> 2 -> 3 and the last hands the screen over to the MenuAction
+;   table with $04A0 = $81.
+;===============================================================================
+
 .proc MenuRenderer_SecondaryDispatch
+MenuRenderer_SecondaryDispatch:
   LDA $04A1                                             ; $C9C2: AD A1 04
   JSR B1F_CallbackDispatcher                            ; $C9C5: 20 DE EA
-  INX                                                   ; $C9C8: E8
-  CMP #$D0                                              ; $C9C9: C9 D0
-  CMP #$4E                                              ; $C9CB: C9 4E
-  DEX                                                   ; $C9CD: CA
-  .byte $52                                             ; $C9CE: 52
-  .byte $CB, $A9                                        ; $C9CF: CB A9
-  .byte $01, $8D                                        ; $C9D1: 01 8D
-  .byte $7D, $00, $A0                                   ; $C9D3: 7D 00 A0
-  .byte $0C                                             ; $C9D6: 0C
+; Inline dispatch table ($C9C8-$C9CF), indexed by the builder step $04A1. These
+; were previously decoded as INX/CMP/CMP/DEX plus five .byte lines; the ROM
+; bytes E8 C9 D0 C9 4E CA 52 CB are four .word entries, and entry 1 is the
+; fall-through step that starts immediately after the table.
+  .word SaveScreenBlock                                 ; $C9C8: E8 C9 ; -> $C9E8
+  .word ChromeIdleFill                                  ; $C9C9: D0 C9 ; -> $C9D0
+  .word LoadScreenBlock                                 ; $C9CA: 4E CA ; -> $CA4E
+  .word OfficerNameRowsEmit                             ; $C9CC: 52 CB ; -> $CB52
+; Builder step 1: arm the palette upload, idle the overlay-cell pointers.
+ChromeIdleFill:
+  LDA #$01                                              ; $C9D0: A9 01
+  STA a:addr_pal_upload_arm                             ; $C9D2: 8D 7D 00
+  LDY #$0C                                              ; $C9D5: A0 0C
   LDA #$0F                                              ; $C9D7: A9 0F
 @FillLoop:
   STA $0100,Y                                           ; $C9D9: 99 00 01
@@ -5162,14 +5903,26 @@ DisplayTileDataWithX:
 .endproc
 
 ;===============================================================================
-; Save/load screen display builders ($C9E8-$CC3D), dispatched by
-; MenuRenderer_SecondaryDispatch ($C9C2, indexed by $04A1). None of these touch
-; SRAM ($6000-$7FFF); the real save/load I/O is SramSaveCommit (prg_19_1a) and
-; CopySramToWork (prg_0a_0b).
+; Generic window chrome builder ($C9E8-$CC3D), dispatched by
+; MenuRenderer_SecondaryDispatch ($C9C2) off the builder step $04A1, and
+; entered on every screen open before the MenuActionNN table runs. It composes
+; the window frame, its attribute rows and its per-screen text/name rows - the
+; same chrome for all 35 Strategy-Mode screens.
 ;
-; SaveScreenBlock ($C9E8): copy the 28-byte save-screen header block from
-;   MenuTilemapStream $CC40 (+$1C when $0150 bit7) into the $0380 display
-;   stream, then seed the row-VRAM and tile-source pointers for the slots.
+; None of $C9E8-$CC3D touches SRAM ($6000-$7FFF); the real save/load I/O is
+; SramSaveCommit (prg_19_1a) and CopySramToWork (prg_0a_0b), and the branch on
+; $0150 bit 7 is the left/right window side, not save versus load. The step-3
+; table is indexed by the SCREEN id $04A2, which is what finally retires the
+; "slot" and "checksum" readings of these five procs.
+; $C9E8-$C9ED+ builder step 0. Copies the 28-byte window title/frame block from
+;   MenuTilemapStream $CC40 - or from $CC5C when $0150 bit 7 selects the
+;   right-hand window - into the $0380 queue, terminates it with $FF and raises
+;   $007E bit 2. Then it seeds the border pass: source $04D4/$04D5 = $CC78 (the
+;   fourteen 16-byte frame records), the row-offset adder $04D2 = $02 or $10 by
+;   side, overlay cells $00C4/$00CC/$00D4/$00DC = $02 and the record budget
+;   $04A3 = 4.
+;
+; The $0150 bit-7 branch is the window side, not save versus load.
 ;===============================================================================
 .proc SaveScreenBlock
 SaveScreenBlock:
@@ -5224,6 +5977,12 @@ SaveScreenBlock:
 ; LoadScreenBlock ($CA4E): stream 16-byte slot display records from
 ;   MenuTilemapStream $CC78+ into $0380; when the record counter $04A3 is
 ;   exhausted, falls through to SaveSlotHeaderLoad.
+; $CA4E-$CA56+ builder step 2. Emits up to $04A3 border records per frame from
+;   $04D4, rewriting each 16-byte source record [$hi][$lo][$0E tiles] into the
+;   $0380 queue as [$0E][row hi][row lo + $04D2][14 tiles], stopping at a $FF
+;   first byte; when the budget runs out it jumps to the descriptor step.
+;   Nothing is loaded from SRAM - the name is the survivor of the retired
+;   save/load reading.
 ;===============================================================================
 .proc LoadScreenBlock
 LoadScreenBlock:
@@ -5292,6 +6051,17 @@ LoadScreenBlock:
 ;   slot ($CD59 + slot * $6C) into the row-VRAM counters and the $0120 display
 ;   pointer copies. Despite the former "VerifyChecksum" name, nothing is
 ;   checksummed here.
+; $CAC5-$CB0E+ builder step 3. Computes $CD59 + $04A2 * $6C with B1F_MathMul24x8
+;   - $04A2 is the SCREEN id, so this indexes the per-screen window descriptor
+;   table, not save slots. From its 8-byte header: byte 0 into the overlay cells
+;   $00C3/$00CB/$00D3, byte 1 into $00C2/$00CA/$00D2, bytes 2-4 into $012D-$012F
+;   and bytes 5-7 into $013D-$013F - the arrays SetupDisplayPtrs later copies
+;   into $0100/$0110. It sets $010C/$011C = $0F, picks the name- row VRAM base
+;   $04D2/$04D3 = $C4/$20 or $D2/$20 by window side, points $04D4 at header+8
+;   and leaves the row budget $04A3 = 1.
+;
+; The former VerifyChecksum name was wrong twice over: no checksum is computed
+;   and no slot is read.
 ;===============================================================================
 .proc SaveSlotHeaderLoad
   ; Proc-local RAM variables
@@ -5368,6 +6138,14 @@ SaveSlotHeaderLoad:
 ; OfficerNameRowsEmit ($CB52): emit 4 VRAM-write records (count $0A, row VRAM
 ;   addr from $04D2/$04D3 advancing $20, 10 name tiles from $04D4/$04D5) into
 ;   the $0380 display stream; then chain SaveScreenSoundSelect.
+; $CB52-$CC08+ builder step 3, repeated. Blits the descriptor's 100-byte
+;   text/name block as two passes of five [$0A][hi][lo][10 tiles] records,
+;   stepping the row address by $20 and counting $04A3 down. When the block is
+;   exhausted it closes the chrome: screen ids 4 and 5 (the post-war ruler-card
+;   menus) skip B1F_BankPpuInit and the completion sound, everything else runs
+;   both through the sound router; then $04A0 = $81, $04CC = $FF and
+;   $04A1/$04A3/$04D0 are cleared, which hands the window to the MenuAction
+;   table.
 ;===============================================================================
 .proc OfficerNameRowsEmit
 OfficerNameRowsEmit:
@@ -5454,6 +6232,12 @@ OfficerNameRowsEmit:
 ;===============================================================================
 ; SaveScreenSoundSelect ($CC09): play sound B/C/D/E selected by $04D6
 ;   (B: $32/$47, D: $2E/$3E/$52/$A2/$A6, E: $38/$3B/$9F, else C).
+; $CC09-$CC3D. A sound router, reached only from the chrome builder's final
+;   step: it maps the completion-sound id that the opening command left in $04D6
+;   ($29, $2E, $32, $4D, $9F, $A6 and friends, each written as LDA #imm / STA
+;   $04D6 in prg_1b_1c and prg_19_1a) onto B1F_SoundWrapperB/C/D/E.
+;
+; It selects no screen and reads no save data.
 ;===============================================================================
 .proc SaveScreenSoundSelect
 SaveScreenSoundSelect:
@@ -5970,6 +6754,23 @@ PaletteRecordLoad:
   .byte $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F, $0F ; $DD7B: 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F 0F
 
 .endproc
+
+;===============================================================================
+; $DD8B: SramInit
+; (stub $A018). Genuine battery-backed RAM work, unlike the chrome builder
+;   cluster below it: it reads $6F43, wipes $6000-$6FFF, restores $6F43, seeds
+;   $6F45 with a 0-4 attract-demo rotation index, sets $6F04 and $6FE2 to $FF,
+;   then rebuilds the working set from ROM - 30 province records (bank $10,
+;   window $8C00, $3C0 bytes -> $6000) and 240 officer slots (bank $11, $B40
+;   bytes -> $63C0) - and finishes with the new-game globals $6F00 = $59 (year
+;   189), $6F01 = 0, $6F83-$6F89 = $FF, $6F8A = 0.
+;
+; Scope: $6000-$6FFF only - not the $7000-$7FFF save snapshots, and not the
+;   $F800 write-protect port. The $6F43 read/PHA ... PLA/write brackets that one
+;   cell across the wipe deliberately. Called from State_NewGameSetup, so this
+;   is the new-game workspace seed, with the side effect of clearing unrelated
+;   scratch such as the $6FEA cheat latch.
+;===============================================================================
 
 .proc SramInit
   LDA $6F43                                             ; $DD8B: AD 43 6F

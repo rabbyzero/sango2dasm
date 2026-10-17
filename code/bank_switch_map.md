@@ -305,7 +305,7 @@ maps this pair first (Y=$2E) for the shared font/tile helpers (section 4.1).
 | Caller | Y | Target |
 |---|---|---|
 | BattleVBlankFrameUpdate $A026 | $3D | $1D $A003 `B1D_1E_MenuUpdate` |
-| BattleOverlayIntroDataFormatTop $A12E, BattleOverlayIntroDataFormatBottomAndAdvance $A147, CommandConfirmWait $AB91, CommandResultWait $ABAC, AiTauntSceneStep $D771 | $3D | $1D `B1D_1E_DataFormatter` (data panel render) |
+| BattleOverlayIntroDataFormatTop $A12E, BattleOverlayIntroDataFormatBottomAndAdvance $A147, CommandConfirmWait $AB91, CommandResultWait $ABAC, AiTauntSceneStep $D771 | $3D | $1D `B1D_1E_BattleOfficerPanelCompose` (data panel render) |
 | CommandAnimStep $AAEA, SideAFormationPanelInit $CE55, SideBFormationPanelOpen $CFB2 | $3D | $1D `B1D_1E_OfficerDisplay_Render` |
 | BattleModeStateLoop $A04D/$A064, CommandSelect $AA35, BattleTacticsMenu $ACD7, FormationAdvance $B1FE, SideAFormationMenuInput $CE77, SideAFormationConfirmWait $CEBD, SideBFormationMenuInput $CFD1, SideBFormationConfirmWait $D017, AiTauntStripRedraw $D73D | $39 | $19 $A000 `B19_1A_OverlayStripRender_Entry` |
 

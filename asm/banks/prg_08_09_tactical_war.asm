@@ -7346,16 +7346,21 @@ special_officer_idx    = $052F  ; special officer roster index
 ;
 ; Logic:  Commander = $0664[$050A]. Fetches the 12-byte officer record
 ;         ($63C0 + id*12) via B1F_GetOfficerRecordAddr and derives the
-;         status class from the high nibble of record byte 11 ($0011).
+;         レベル OfficerLevel from the high nibble of record byte 11 ($0011).
 ;         Officers belonging to the special officer roster (same IDs as
 ;         ValidateSpecialOfficer::@SpecialOfficerTable) get an extended
-;         slot list based on their status class:
+;         slot list based on their レベル:
+;         (each class N roster below is named for the stored レベル it needs)
 ;           class 3 roster ($A1..$B7)              -> 12 slots
 ;           class 4 roster ($18..$67)              -> 14 slots (class 3: 12)
-;           class 5 roster ($C5,$56,$5D)           -> 16 slots (4: 15, 3: 12)
+;           class 5 roster ($C5,$56,$5D)           -> 15 slots (4: 14, 3: 12)
 ;           special officer $6D                    -> 16 slots (5: 15, 4: 14, 3: 12)
 ;         All other officers fall back to record byte 2 (rating):
 ;           < $28 -> 2 slots, < $3C -> 4, < $4B -> 6, < $55 -> 8, else 10.
+;         Every list is the sequential codes $00..count-1, so the count is the
+;         stratagem tier: 知力 buys the first 2/4/6/8/10 of the 16, and only the
+;         rostered strategists at or above their レベル floor reach the
+;         advanced 連環 / 十面埋伏 / 水攻 / 連弩 / 劫火 / 奇門遁甲.
 ;         The resulting slot tier Y indexes SlotTierPtrs; the selected
 ;         $FF-terminated slot ID list is copied into $0580 and $0542 is
 ;         set to count-1. Consumers in banks $0C/$0D use $0542 to pick
@@ -7381,7 +7386,7 @@ slot_count_m1          = $0542  ; last used slot index (count - 1)
   LSR                                   ; $D408: 4A
   LSR                                   ; $D409: 4A
   LSR                                   ; $D40A: 4A
-  LSR                                   ; $D40B: 4A        ; A = status class
+  LSR                                   ; $D40B: 4A        ; A = レベル OfficerLevel
   STA a:$0011                           ; $D40C: 8D 11 00
   LDA a:$0010                           ; $D40F: AD 10 00
   CMP #$A1                              ; $D412: C9 A1     ; class 3 roster ids
@@ -7449,12 +7454,12 @@ slot_count_m1          = $0542  ; last used slot index (count - 1)
   LDA a:$0011                           ; $D489: AD 11 00
   CMP #$05                              ; $D48C: C9 05
   BCC @Class5RosterClass4               ; $D48E: 90 05
-  LDY #$07                              ; $D490: A0 07     ; class 5: 16 slots
+  LDY #$07                              ; $D490: A0 07     ; class 5: 15 slots
   JMP @ApplyTier                        ; $D492: 4C E6 D4
 @Class5RosterClass4:
   CMP #$04                              ; $D495: C9 04
   BCC @Class5RosterClass3               ; $D497: 90 05
-  LDY #$06                              ; $D499: A0 06     ; class 4: 15 slots
+  LDY #$06                              ; $D499: A0 06     ; class 4: 14 slots
   JMP @ApplyTier                        ; $D49B: 4C E6 D4
 @Class5RosterClass3:
   CMP #$03                              ; $D49E: C9 03

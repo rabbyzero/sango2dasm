@@ -443,12 +443,12 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 ;===============================================================================
                                                ; $A119: BattleOverlayIntroDataFormatTop
 ; Intro sub-state 3. Waits for the animation queue to idle, then banked-calls
-; B1D_1E_DataFormatter (bank $1D, Y=$3D) with buffer ptr $00/$01 = $0560/0
+; B1D_1E_BattleOfficerPanelCompose (bank $1D, Y=$3D) with buffer ptr $00/$01 = $0560/0
 ; and param $00BB=9 to format the top panel. Advances to sub-state 4.
 ;===============================================================================
 .proc BattleOverlayIntroDataFormatTop
 ; zero-page work cells (proc-local):
-fmt_ptr_lo     = $0000  ; B1D_1E_DataFormatter buffer ptr lo
+fmt_ptr_lo     = $0000  ; B1D_1E_BattleOfficerPanelCompose buffer ptr lo
 fmt_ptr_hi     = $0001  ; formatter buffer ptr hi
   JSR BattleAnimQueueIdleCheck                 ; $A119: 20 70 B8 ; anim queue idle check
   BCC @Done                               ; $A11C: 90 18 ; still busy: wait
@@ -461,21 +461,21 @@ fmt_ptr_hi     = $0001  ; formatter buffer ptr hi
   LDY #$3D                                ; $A12C: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $A12E: 20 07 EE
 ; --- BankedCallbackTrampoline target (banks $1D+$1E) ---
-  .word B1D_1E_DataFormatter              ; $A131: 3C A0
+  .word B1D_1E_BattleOfficerPanelCompose  ; $A131: 3C A0
   INC btl_overlay_sub                               ; $A133: EE 41 05 ; sub-state <- 4
 @Done:
   RTS                                     ; $A136: 60
 .endproc
 ;===============================================================================
                                                    ; $A137: BattleOverlayIntroDataFormatBottomAndAdvance
-; Intro sub-state 4. If $007E is clear, banked-calls B1D_1E_DataFormatter
+; Intro sub-state 4. If $007E is clear, banked-calls B1D_1E_BattleOfficerPanelCompose
 ; (bank $1D) with buffer ptr $00/$01 = $0561/1 to format the bottom panel,
 ; then ends the intro: phase <- 1, sub-phase <- 0, clear handoff flags
 ; $0568/$0569.
 ;===============================================================================
 .proc BattleOverlayIntroDataFormatBottomAndAdvance
 ; zero-page work cells (proc-local):
-fmt_ptr_lo     = $0000  ; B1D_1E_DataFormatter buffer ptr lo
+fmt_ptr_lo     = $0000  ; B1D_1E_BattleOfficerPanelCompose buffer ptr lo
 fmt_ptr_hi     = $0001  ; formatter buffer ptr hi
   LDA a:btl_anim_flags                             ; $A137: AD 7E 00
   BNE @Done                               ; $A13A: D0 22
@@ -486,7 +486,7 @@ fmt_ptr_hi     = $0001  ; formatter buffer ptr hi
   LDY #$3D                                ; $A145: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $A147: 20 07 EE
 ; --- BankedCallbackTrampoline target (banks $1D+$1E) ---
-  .word B1D_1E_DataFormatter              ; $A14A: 3C A0
+  .word B1D_1E_BattleOfficerPanelCompose  ; $A14A: 3C A0
   LDA #$01                                ; $A14C: A9 01
   STA btl_overlay_phase                               ; $A14E: 8D 40 05 ; phase <- 1 (intro done)
   LDA #$00                                ; $A151: A9 00
@@ -2260,7 +2260,7 @@ pad_state      = $0001  ; merged both-pad raw state
                                           ; $AB75: CommandConfirmWait
 ; Sub 3. Sets panel param $00BD <- 6 and waits for the animation queue to
 ; idle (BattleAnimQueueIdleCheck carry clear); then sets panel param $00BB <- 9 and
-; banked-calls B1D_1E_DataFormatter (Y=$3D) with buffer ptr ($0000) <-
+; banked-calls B1D_1E_BattleOfficerPanelCompose (Y=$3D) with buffer ptr ($0000) <-
 ; $0560/0 to reformat the confirm panel, advancing to sub 4.
 ;===============================================================================
 .proc CommandConfirmWait
@@ -2280,7 +2280,7 @@ buf_ptr_hi     = $0001  ; buffer ptr hi
   LDY #$3D                                ; $AB8F: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $AB91: 20 07 EE
 ; --- BankedCallbackTrampoline target (banks $1D+$1E) ---
-  .word B1D_1E_DataFormatter              ; $AB94: 3C A0
+  .word B1D_1E_BattleOfficerPanelCompose  ; $AB94: 3C A0
   INC btl_overlay_sub                               ; $AB96: EE 41 05 ; sub-phase <- 4
 @Done:
   RTS                                     ; $AB99: 60
@@ -2288,7 +2288,7 @@ buf_ptr_hi     = $0001  ; buffer ptr hi
 ;===============================================================================
                                                    ; $AB9A: CommandResultWait
 ; Sub 4. Waits while input flag $007E is set; then banked-calls
-; B1D_1E_DataFormatter (Y=$3D) with buffer ptr ($0000) <- $0561/1 to
+; B1D_1E_BattleOfficerPanelCompose (Y=$3D) with buffer ptr ($0000) <- $0561/1 to
 ; reformat the result strip and falls through into
 ; CommandResumeHandoff. That path is also entered directly from
 ; CommandInput's confirm branch: it clears battle flag $008F and
@@ -2308,7 +2308,7 @@ buf_ptr_hi     = $0001  ; buffer ptr hi
   LDY #$3D                                ; $ABAA: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $ABAC: 20 07 EE
 ; --- BankedCallbackTrampoline target (banks $1D+$1E) ---
-  .word B1D_1E_DataFormatter              ; $ABAF: 3C A0
+  .word B1D_1E_BattleOfficerPanelCompose  ; $ABAF: 3C A0
 .endproc
 ; Resume handoff: fall-through tail of CommandResultWait, also entered
 ; directly from CommandInput's confirm branch.
@@ -8652,7 +8652,7 @@ strip_ptr_hi   = $000A  ; strip render buffer ptr hi
 ; Sub 4. Advances to sub 5, clears the row cursor $0548 and sets UI panel
 ; $7C; publishes the acting side's commander unit id $0560[$057C] as the
 ; effect target $042C, sets script id $00BB <- 9, then banked-calls
-; B1D_1E_DataFormatter (Y=$3D) with buffer ptr ($0000)/($0001) <-
+; B1D_1E_BattleOfficerPanelCompose (Y=$3D) with buffer ptr ($0000)/($0001) <-
 ; $0560[$057C^1]/0 to render the opposing commander's data panel, and
 ; finally clears the menu cursor $0424/$0425.
 ;===============================================================================
@@ -8680,7 +8680,7 @@ strip_ptr_hi   = $0001  ; officer display render buffer ptr hi
   LDY #$3D                                ; $D76F: A0 3D
   JSR B1F_BankedCallbackTrampoline        ; $D771: 20 07 EE
 ; --- BankedCallbackTrampoline target (banks $1D+$1E) ---
-  .word B1D_1E_DataFormatter              ; $D774: 3C A0 ; data panel render
+  .word B1D_1E_BattleOfficerPanelCompose  ; $D774: 3C A0 ; data panel render
   LDA #$00                                ; $D776: A9 00
   STA menu_cursor_col                               ; $D778: 8D 24 04 ; menu cursor col <- 0
   STA menu_cursor_page                               ; $D77B: 8D 25 04 ; menu cursor page <- 0

@@ -230,6 +230,8 @@ def cmd_show(m, model, args):
                   'one of the Country\'s provinces takes it on ruler death)'
                   % '; '.join('Country %d #%d of %d' % (c, pos + 1, len(ids))
                               for c, pos, ids in hits))
+    for line in off.stratagem_lines():
+        print(line)
     if off.death_year is None:
         print('  death year  (death-year CSV not loaded)')
     else:

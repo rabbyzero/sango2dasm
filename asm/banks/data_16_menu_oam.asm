@@ -9,8 +9,8 @@
 ; Selected as $36 from two consumers:
 ;   prg_1d_1e_menu_screens  @render_menu $BE6A: LDY #$36 / B1F_SwitchBank8_B, then
 ;              B1F_CallbackDispatcher on $04A2 through @menu_dispatch_table
-;              $BE75 (35 entries MenuAction00_InitialSetup ..
-;              MenuAction22_Cleanup). Each load phase sets tile_ptr
+;              $BE75 (35 entries MenuAction00_SortieResult ..
+;              MenuAction22_WindowTeardown). Each load phase sets tile_ptr
 ;              ($0010/$0011) to one of the 34 .word tables below, loads Y from
 ;              $04A1 (or $04A4 for the second pointer of a two-pointer
 ;              handler) and calls DisplayTileData ($C994): DEY/ASL, word at
@@ -75,7 +75,7 @@
 ;     $2F), x_off $00-$48 (screen X = x_off + $20 left panel / $90 right
 ;     panel), tile $40-$FF, attr $00, $01, $28 (EOR $03 flip/flags).
 
-; --- MenuAction00_InitialSetup: 2 x .word @ $8000, indexed via DisplayTileData
+; --- MenuAction00_SortieResult: 2 x .word @ $8000, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_00:
   .word MenuOam_00_0+$4000                                                ; $8000: 04 C0  ; entry 0 -> blob $8004, 30 records
@@ -103,7 +103,7 @@ MenuOam_00_1:
   .byte $40, $6E, $00, $10, $40, $6F, $00, $40, $40, $5A, $00, $48, $48, $70, $00, $00 ; $80DD: 40 6E 00 10 40 6F 00 40 40 5A 00 48 48 70 00 00
   .byte $48, $71, $00, $08, $48, $5D, $00, $48, $80                       ; $80ED: 48 71 00 08 48 5D 00 48 80  ; terminator $80
 
-; --- MenuAction01_DisplaySetup: 4 x .word @ $80F6, indexed via DisplayTileData
+; --- MenuAction01_AcademyResult: 4 x .word @ $80F6, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_01:
   .word MenuOam_01_0+$4000                                                ; $80F6: FE C0  ; entry 0 -> blob $80FE, 7 records
@@ -131,7 +131,7 @@ MenuOam_01_3:
   .byte $10, $73, $00, $20, $10, $74, $00, $28, $18, $7E, $00, $20, $18, $B9, $00, $28 ; $8155: 10 73 00 20 10 74 00 28 18 7E 00 20 18 B9 00 28
   .byte $18, $77, $00, $30, $20, $B7, $00, $20, $20, $BA, $00, $28, $80   ; $8165: 18 77 00 30 20 B7 00 20 20 BA 00 28 80  ; terminator $80
 
-; --- MenuAction02_LandReclamation: 1 x .word @ $8172, indexed via DisplayTileData
+; --- MenuAction02_SaveGameResult: 1 x .word @ $8172, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_02:
   .word MenuOam_02_0+$4000                                                ; $8172: 74 C1  ; entry 0 -> blob $8174, 22 records
@@ -145,7 +145,7 @@ MenuOam_02_0:
   .byte $30, $7C, $00, $20, $08, $7D, $00, $10, $10, $6D, $00, $10, $18, $7E, $00, $10 ; $81B4: 30 7C 00 20 08 7D 00 10 10 6D 00 10 18 7E 00 10
   .byte $20, $70, $00, $10, $28, $7F, $00, $10, $80                       ; $81C4: 20 70 00 10 28 7F 00 10 80  ; terminator $80
 
-; --- MenuAction03_DisasterPreventionSetup: 4 x .word @ $81CD, indexed via DisplayTileData
+; --- MenuAction03_DiscordResult: 4 x .word @ $81CD, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_03:
   .word MenuOam_03_0+$4000                                                ; $81CD: D5 C1  ; entry 0 -> blob $81D5, 1 records
@@ -173,7 +173,7 @@ MenuOam_03_3:
   .byte $10, $7F, $00, $10, $10, $80, $00, $18, $18, $81, $00, $08, $18, $82, $00, $10 ; $821C: 10 7F 00 10 10 80 00 18 18 81 00 08 18 82 00 10
   .byte $18, $83, $00, $18, $20, $84, $00, $10, $20, $85, $00, $18, $80   ; $822C: 18 83 00 18 20 84 00 10 20 85 00 18 80  ; terminator $80
 
-; --- MenuAction04_DisasterPrevention: 2 x .word @ $8239, indexed via DisplayTileData
+; --- MenuAction04_WarRulerCard: 2 x .word @ $8239, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_04:
   .word MenuOam_04_0+$4000                                                ; $8239: 3D C2  ; entry 0 -> blob $823D, 13 records
@@ -193,7 +193,7 @@ MenuOam_04_1:
   .byte $20, $78, $00, $28, $20, $79, $00, $30, $28, $7A, $00, $00, $28, $7B, $00, $08 ; $8292: 20 78 00 28 20 79 00 30 28 7A 00 00 28 7B 00 08
   .byte $28, $7C, $00, $10, $80                                           ; $82A2: 28 7C 00 10 80  ; terminator $80
 
-; --- MenuAction05_UnidentifiedCmdSetup: 4 x .word @ $82A7, indexed via DisplayTileData
+; --- MenuAction05_WarRivalRulerCard: 4 x .word @ $82A7, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_05:
   .word MenuOam_05_0+$4000                                                ; $82A7: AF C2  ; entry 0 -> blob $82AF, 25 records
@@ -229,7 +229,7 @@ MenuOam_05_2:
 MenuOam_05_3:
   .byte $38, $BF, $00, $30, $80                                           ; $837E: 38 BF 00 30 80
 
-; --- MenuAction06_UnidentifiedCmd: 3 x .word @ $8383, indexed via DisplayTileData
+; --- MenuAction06_DisasterPreventionResult: 3 x .word @ $8383, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_06:
   .word MenuOam_06_0+$4000                                                ; $8383: 89 C3  ; entry 0 -> blob $8389, 15 records
@@ -259,7 +259,7 @@ MenuOam_06_2:
   .byte $33, $8B, $00, $18, $33, $8C, $00, $20, $33, $8D, $00, $28, $33, $A6, $00, $38 ; $843F: 33 8B 00 18 33 8C 00 20 33 8D 00 28 33 A6 00 38
   .byte $33, $A7, $00, $40, $80                                           ; $844F: 33 A7 00 40 80  ; terminator $80
 
-; --- MenuAction07_CountryEnd: 3 x .word @ $8454, indexed via DisplayTileData
+; --- MenuAction07_ArmoryResult: 3 x .word @ $8454, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_07:
   .word MenuOam_07_0+$4000                                                ; $8454: 5A C4  ; entry 0 -> blob $845A, 21 records
@@ -293,7 +293,7 @@ MenuOam_07_2:
   .byte $40, $6F, $00, $20, $48, $70, $00, $18, $48, $71, $00, $20, $40, $74, $00, $48 ; $8544: 40 6F 00 20 48 70 00 18 48 71 00 20 40 74 00 48
   .byte $48, $75, $00, $48, $80                                           ; $8554: 48 75 00 48 80  ; terminator $80
 
-; --- MenuAction08_GoldDistribution: 5 x .word @ $8559, indexed via DisplayTileData
+; --- MenuAction08_WarOutbreakNotice: 5 x .word @ $8559, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_08:
   .word MenuOam_08_0+$4000                                                ; $8559: 63 C5  ; entry 0 -> blob $8563, 10 records
@@ -332,7 +332,7 @@ MenuOam_08_4:
   .byte $40, $6C, $00, $38, $40, $6D, $00, $40, $48, $6E, $00, $08, $48, $5B, $00, $30 ; $861F: 40 6C 00 38 40 6D 00 40 48 6E 00 08 48 5B 00 30
   .byte $48, $5C, $00, $38, $48, $6F, $00, $40, $48, $70, $00, $48, $80   ; $862F: 48 5C 00 38 48 6F 00 40 48 70 00 48 80  ; terminator $80
 
-; --- MenuAction09_RiceDistribution: 4 x .word @ $863C, indexed via DisplayTileData
+; --- MenuAction09_LandReclamationResult0A: 4 x .word @ $863C, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_09:
   .word MenuOam_09_0+$4000                                                ; $863C: 44 C6  ; entry 0 -> blob $8644, 19 records
@@ -372,7 +372,7 @@ MenuOam_09_3:
   .byte $30, $B0, $00, $19, $30, $B1, $00, $28, $30, $B2, $00, $30, $38, $85, $00, $11 ; $8747: 30 B0 00 19 30 B1 00 28 30 B2 00 30 38 85 00 11
   .byte $38, $86, $00, $19, $38, $B3, $00, $2B, $80                       ; $8757: 38 86 00 19 38 B3 00 2B 80  ; terminator $80
 
-; --- MenuAction0A_Conscription: 3 x .word @ $8760, indexed via DisplayTileData
+; --- MenuAction0A_LandReclamationResult0B: 3 x .word @ $8760, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_0A:
   .word MenuOam_0A_0+$4000                                                ; $8760: 66 C7  ; entry 0 -> blob $8766, 8 records
@@ -397,7 +397,7 @@ MenuOam_0A_2:
   .byte $10, $54, $00, $28, $10, $55, $00, $30, $18, $56, $00, $28, $18, $57, $00, $30 ; $87B8: 10 54 00 28 10 55 00 30 18 56 00 28 18 57 00 30
   .byte $20, $58, $00, $28, $20, $59, $00, $30, $80                       ; $87C8: 20 58 00 28 20 59 00 30 80  ; terminator $80
 
-; --- MenuAction0B_HireOfficer: 4 x .word @ $87D1, indexed via DisplayTileData
+; --- MenuAction0B_CivilianReliefResult: 4 x .word @ $87D1, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_0B:
   .word MenuOam_0B_0+$4000                                                ; $87D1: D9 C7  ; entry 0 -> blob $87D9, 18 records
@@ -435,7 +435,7 @@ MenuOam_0B_3:
   .byte $48, $FC, $00, $20, $48, $FD, $00, $28, $48, $FE, $00, $30, $48, $FF, $00, $38 ; $88C4: 48 FC 00 20 48 FD 00 28 48 FE 00 30 48 FF 00 38
   .byte $80                                                               ; $88D4: 80  ; terminator $80
 
-; --- MenuAction0C_TransferOfficer: 6 x .word @ $88D5, indexed via DisplayTileData
+; --- MenuAction0C_HospitalResult: 6 x .word @ $88D5, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_0C:
   .word MenuOam_0C_0+$4000                                                ; $88D5: E1 C8  ; entry 0 -> blob $88E1, 12 records
@@ -481,7 +481,7 @@ MenuOam_0C_4:
 MenuOam_0C_5:
   .byte $28, $D2, $00, $08, $28, $D3, $00, $10, $80                       ; $89AE: 28 D2 00 08 28 D3 00 10 80
 
-; --- MenuAction0D_UnidentifiedCmd: 5 x .word @ $89B7, indexed via DisplayTileData
+; --- MenuAction0D_LandReclamationResult0E: 5 x .word @ $89B7, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_0D:
   .word MenuOam_0D_0+$4000                                                ; $89B7: C1 C9  ; entry 0 -> blob $89C1, 9 records
@@ -518,7 +518,7 @@ MenuOam_0D_4:
   .byte $20, $70, $00, $10, $20, $74, $00, $18, $28, $72, $00, $10, $28, $75, $00, $18 ; $8A41: 20 70 00 10 20 74 00 18 28 72 00 10 28 75 00 18
   .byte $80                                                               ; $8A51: 80  ; terminator $80
 
-; --- MenuAction0E_UnidentifiedCmd: 5 x .word @ $8A52, indexed via DisplayTileData
+; --- MenuAction0E_TownDevelopmentResult0F: 5 x .word @ $8A52, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_0E:
   .word MenuOam_0E_0+$4000                                                ; $8A52: 5C CA  ; entry 0 -> blob $8A5C, 5 records
@@ -561,7 +561,7 @@ MenuOam_0E_4:
   .byte $30, $8C, $00, $38, $30, $8D, $00, $40, $30, $8E, $00, $48, $38, $7E, $00, $38 ; $8B40: 30 8C 00 38 30 8D 00 40 30 8E 00 48 38 7E 00 38
   .byte $38, $7F, $00, $40, $80                                           ; $8B50: 38 7F 00 40 80  ; terminator $80
 
-; --- MenuAction0F_GiveItem: 6 x .word @ $8B55, indexed via DisplayTileData
+; --- MenuAction0F_IndustryAndTownResult10: 6 x .word @ $8B55, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_0F:
   .word MenuOam_0F_0+$4000                                                ; $8B55: 61 CB  ; entry 0 -> blob $8B61, 4 records
@@ -604,7 +604,7 @@ MenuOam_0F_5:
   .byte $28, $70, $00, $40, $28, $71, $00, $48, $30, $72, $00, $38, $30, $73, $00, $40 ; $8BEE: 28 70 00 40 28 71 00 48 30 72 00 38 30 73 00 40
   .byte $30, $74, $00, $48, $80                                           ; $8BFE: 30 74 00 48 80  ; terminator $80
 
-; --- MenuAction10_SuccessorSelection: 5 x .word @ $8C03, indexed via DisplayTileData
+; --- MenuAction10_OfficerTransferResult: 5 x .word @ $8C03, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_10:
   .word MenuOam_10_0+$4000                                                ; $8C03: 0D CC  ; entry 0 -> blob $8C0D, 17 records
@@ -649,7 +649,7 @@ MenuOam_10_3:
 MenuOam_10_4:
   .byte $10, $7D, $00, $30, $10, $7E, $00, $38, $10, $7E, $00, $40, $80   ; $8D21: 10 7D 00 30 10 7E 00 38 10 7E 00 40 80
 
-; --- MenuAction11_Intrigue: 3 x .word @ $8D2E, indexed via DisplayTileData
+; --- MenuAction11_IndustryDevelopmentResult12: 3 x .word @ $8D2E, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_11:
   .word MenuOam_11_0+$4000                                                ; $8D2E: 34 CD  ; entry 0 -> blob $8D34, 21 records
@@ -683,7 +683,7 @@ MenuOam_11_2:
   .byte $40, $55, $00, $18, $40, $6F, $00, $20, $40, $70, $00, $28, $40, $71, $00, $30 ; $8E1E: 40 55 00 18 40 6F 00 20 40 70 00 28 40 71 00 30
   .byte $48, $58, $00, $20, $48, $59, $00, $28, $80                       ; $8E2E: 48 58 00 20 48 59 00 28 80  ; terminator $80
 
-; --- MenuAction12_Sortie: 6 x .word @ $8E37, indexed via DisplayTileData
+; --- MenuAction12_PoachingResult: 6 x .word @ $8E37, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_12:
   .word MenuOam_12_0+$4000                                                ; $8E37: 43 CE  ; entry 0 -> blob $8E43, 2 records
@@ -723,7 +723,7 @@ MenuOam_12_5:
   .byte $10, $48, $00, $10, $18, $49, $00, $08, $18, $4A, $00, $10, $20, $4B, $01, $08 ; $8EC4: 10 48 00 10 18 49 00 08 18 4A 00 10 20 4B 01 08
   .byte $20, $4C, $01, $10, $20, $94, $01, $00, $80                       ; $8ED4: 20 4C 01 10 20 94 01 00 80  ; terminator $80
 
-; --- MenuAction13_Reconnaissance: 2 x .word @ $8EDD, indexed via DisplayTileData
+; --- MenuAction13_IndustryDevelopmentResult14: 2 x .word @ $8EDD, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_13:
   .word MenuOam_13_0+$4000                                                ; $8EDD: E1 CE  ; entry 0 -> blob $8EE1, 17 records
@@ -745,7 +745,7 @@ MenuOam_13_1:
   .byte $10, $6E, $00, $28, $10, $6F, $00, $30, $10, $70, $00, $38, $18, $71, $00, $28 ; $8F56: 10 6E 00 28 10 6F 00 30 10 70 00 38 18 71 00 28
   .byte $18, $72, $00, $30, $80                                           ; $8F66: 18 72 00 30 80  ; terminator $80
 
-; --- MenuAction14_Market: 4 x .word @ $8F6B, indexed via DisplayTileData
+; --- MenuAction14_LandAndIndustryResult15: 4 x .word @ $8F6B, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_14:
   .word MenuOam_14_0+$4000                                                ; $8F6B: 73 CF  ; entry 0 -> blob $8F73, 16 records
@@ -785,7 +785,7 @@ MenuOam_14_3:
   .byte $20, $79, $00, $38, $20, $7A, $00, $40, $20, $7B, $00, $48, $28, $7C, $00, $40 ; $9066: 20 79 00 38 20 7A 00 40 20 7B 00 48 28 7C 00 40
   .byte $80                                                               ; $9076: 80  ; terminator $80
 
-; --- MenuAction15_Exchange: 3 x .word @ $9077, indexed via DisplayTileData
+; --- MenuAction15_IndustryAndTownResult16: 3 x .word @ $9077, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_15:
   .word MenuOam_15_0+$4000                                                ; $9077: 7D D0  ; entry 0 -> blob $907D, 16 records
@@ -816,7 +816,7 @@ MenuOam_15_2:
   .byte $40, $BE, $00, $30, $40, $BF, $00, $38, $40, $FE, $00, $40, $40, $FF, $00, $48 ; $912F: 40 BE 00 30 40 BF 00 38 40 FE 00 40 40 FF 00 48
   .byte $80                                                               ; $913F: 80  ; terminator $80
 
-; --- MenuAction16_Trade: 4 x .word @ $9140, indexed via DisplayTileData
+; --- MenuAction16_OfficerGiftResult: 4 x .word @ $9140, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_16:
   .word MenuOam_16_0+$4000                                                ; $9140: 48 D1  ; entry 0 -> blob $9148, 1 records
@@ -848,7 +848,7 @@ MenuOam_16_3:
   .byte $18, $6F, $00, $10, $18, $70, $00, $18, $20, $71, $00, $00, $20, $72, $00, $08 ; $91C7: 18 6F 00 10 18 70 00 18 20 71 00 00 20 72 00 08
   .byte $20, $73, $00, $10, $80                                           ; $91D7: 20 73 00 10 80  ; terminator $80
 
-; --- MenuAction17_SearchOfficer: 4 x .word @ $91DC, indexed via DisplayTileData
+; --- MenuAction17_IndustryAndTownResult18: 4 x .word @ $91DC, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_17:
   .word MenuOam_17_0+$4000                                                ; $91DC: E4 D1  ; entry 0 -> blob $91E4, 13 records
@@ -882,7 +882,7 @@ MenuOam_17_3:
   .byte $28, $56, $00, $38, $28, $57, $00, $40, $28, $81, $00, $48, $30, $5A, $00, $38 ; $9287: 28 56 00 38 28 57 00 40 28 81 00 48 30 5A 00 38
   .byte $30, $42, $00, $18, $38, $44, $00, $08, $80                       ; $9297: 30 42 00 18 38 44 00 08 80  ; terminator $80
 
-; --- MenuAction18_SearchItem: 6 x .word @ $92A0, indexed via DisplayTileData
+; --- MenuAction18_AllianceResult: 6 x .word @ $92A0, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_18:
   .word MenuOam_18_0+$4000                                                ; $92A0: AC D2  ; entry 0 -> blob $92AC, 1 records
@@ -924,7 +924,7 @@ MenuOam_18_5:
   .byte $48, $74, $00, $00, $48, $75, $00, $08, $48, $76, $00, $10, $48, $77, $00, $18 ; $9331: 48 74 00 00 48 75 00 08 48 76 00 10 48 77 00 18
   .byte $80                                                               ; $9341: 80  ; terminator $80
 
-; --- MenuAction19_UnidentifiedCmd: 3 x .word @ $9342, indexed via DisplayTileData
+; --- MenuAction19_ConscriptionResult: 3 x .word @ $9342, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_19:
   .word MenuOam_19_0+$4000                                                ; $9342: 48 D3  ; entry 0 -> blob $9348, 25 records
@@ -961,7 +961,7 @@ MenuOam_19_2:
   .byte $28, $65, $00, $28, $28, $7B, $00, $30, $30, $FE, $00, $18, $30, $FF, $00, $20 ; $9462: 28 65 00 28 28 7B 00 30 30 FE 00 18 30 FF 00 20
   .byte $30, $68, $00, $28, $80                                           ; $9472: 30 68 00 28 80  ; terminator $80
 
-; --- MenuAction1A_OfficerDeath: 6 x .word @ $9477, indexed via DisplayTileData
+; --- MenuAction1A_IntelligenceGatheringResult: 6 x .word @ $9477, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_1A:
   .word MenuOam_1A_0+$4000                                                ; $9477: 83 D4  ; entry 0 -> blob $9483, 21 records
@@ -1025,7 +1025,7 @@ MenuOam_1A_5:
   .byte $40, $71, $00, $38, $40, $72, $00, $40, $48, $73, $00, $28, $48, $74, $00, $30 ; $9678: 40 71 00 38 40 72 00 40 48 73 00 28 48 74 00 30
   .byte $48, $75, $00, $38, $48, $76, $00, $40, $80                       ; $9688: 48 75 00 38 48 76 00 40 80  ; terminator $80
 
-; --- MenuAction1B_UnidentifiedCmd: 6 x .word @ $9691, indexed via DisplayTileData
+; --- MenuAction1B_DroughtDamageWindow: 6 x .word @ $9691, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_1B:
   .word MenuOam_1B_0+$4000                                                ; $9691: 9D D6  ; entry 0 -> blob $969D, 4 records
@@ -1068,7 +1068,7 @@ MenuOam_1B_5:
   .byte $30, $70, $00, $28, $30, $71, $00, $30, $30, $72, $00, $38, $30, $73, $00, $40 ; $9722: 30 70 00 28 30 71 00 30 30 72 00 38 30 73 00 40
   .byte $80                                                               ; $9732: 80  ; terminator $80
 
-; --- MenuAction1C_CopyTileData: 2 x .word @ $9733, indexed via DisplayTileData
+; --- MenuAction1C_RiceHarvestWindow: 2 x .word @ $9733, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_1C:
   .word MenuOam_1C_0+$4000                                                ; $9733: 37 D7  ; entry 0 -> blob $9737, 6 records
@@ -1084,7 +1084,7 @@ MenuOam_1C_1:
   .byte $18, $4C, $00, $38, $18, $4D, $00, $40, $20, $5C, $00, $38, $20, $5D, $00, $40 ; $9750: 18 4C 00 38 18 4D 00 40 20 5C 00 38 20 5D 00 40
   .byte $28, $6C, $00, $38, $28, $6D, $00, $40, $80                       ; $9760: 28 6C 00 38 28 6D 00 40 80  ; terminator $80
 
-; --- MenuAction1D_SetupActionDisplay: 2 x .word @ $9769, indexed via DisplayTileData
+; --- MenuAction1D_FloodDamageWindow: 2 x .word @ $9769, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_1D:
   .word MenuOam_1D_0+$4000                                                ; $9769: 6D D7  ; entry 0 -> blob $976D, 22 records
@@ -1108,7 +1108,7 @@ MenuOam_1D_1:
   .byte $38, $4A, $00, $18, $40, $4A, $00, $00, $40, $4B, $00, $10, $40, $4F, $00, $20 ; $9806: 38 4A 00 18 40 4A 00 00 40 4B 00 10 40 4F 00 20
   .byte $48, $4B, $00, $08, $48, $50, $00, $20, $80                       ; $9816: 48 4B 00 08 48 50 00 20 80  ; terminator $80
 
-; --- MenuAction1E_CalcParams: 4 x .word @ $981F, indexed via DisplayTileData
+; --- MenuAction1E_RebellionWindow: 4 x .word @ $981F, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_1E:
   .word MenuOam_1E_0+$4000                                                ; $981F: 27 D8  ; entry 0 -> blob $9827, 8 records
@@ -1138,7 +1138,7 @@ MenuOam_1E_3:
   .byte $40, $49, $00, $08, $40, $4A, $00, $10, $48, $58, $00, $00, $48, $59, $00, $08 ; $987E: 40 49 00 08 40 4A 00 10 48 58 00 00 48 59 00 08
   .byte $48, $5A, $00, $10, $80                                           ; $988E: 48 5A 00 10 80  ; terminator $80
 
-; --- MenuAction1F_CalcParams2: 4 x .word @ $9893, indexed via DisplayTileData
+; --- MenuAction1F_TaxCollectionWindow: 4 x .word @ $9893, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_1F:
   .word MenuOam_1F_0+$4000                                                ; $9893: 9B D8  ; entry 0 -> blob $989B, 20 records
@@ -1182,7 +1182,7 @@ MenuOam_1F_3:
   .byte $20, $40, $00, $08, $20, $41, $00, $10, $20, $42, $00, $18, $20, $43, $00, $20 ; $99CE: 20 40 00 08 20 41 00 10 20 42 00 18 20 43 00 20
   .byte $80                                                               ; $99DE: 80  ; terminator $80
 
-; --- MenuAction20_CalcParams3: 3 x .word @ $99DF, indexed via DisplayTileData
+; --- MenuAction20_MarketPanel: 3 x .word @ $99DF, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_20:
   .word MenuOam_20_0+$4000                                                ; $99DF: E5 D9  ; entry 0 -> blob $99E5, 21 records
@@ -1216,7 +1216,7 @@ MenuOam_20_2:
   .byte $40, $6F, $00, $20, $48, $70, $00, $18, $48, $71, $00, $20, $40, $74, $00, $48 ; $9ACF: 40 6F 00 20 48 70 00 18 48 71 00 20 40 74 00 48
   .byte $48, $75, $00, $48, $80                                           ; $9ADF: 48 75 00 48 80  ; terminator $80
 
-; --- MenuAction21_Finalize: 2 x .word @ $9AE4, indexed via DisplayTileData
+; --- MenuAction21_SupplyTransportResult: 2 x .word @ $9AE4, indexed via DisplayTileData
 ;     (Y = $04A1 or $04A4, table index = Y - 1) ---
 MenuOamPtrTable_21:
   .word MenuOam_21_0+$4000                                                ; $9AE4: E8 DA  ; entry 0 -> blob $9AE8, 21 records

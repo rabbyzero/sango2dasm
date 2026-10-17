@@ -5,7 +5,7 @@ mnems: ?(106), JSR(2)
       69 (file-top)                   ?                  ; RAM map ($0000-$07FF) - battle overlay / battlefield context
       71 (file-top)                   ?                  ; ($0000-$001F) are deliberately NOT defined here: they are per-proc
      297 BattleModeStateLoop          ?                  ; overlay strip render buffer ptr lo (bank $19)
-     451 BattleOverlayIntroDataFormatTop ?                  ; B1D_1E_DataFormatter buffer ptr lo
+     451 BattleOverlayIntroDataFormatTop ?                  ; B1D_1E_BattleOfficerPanelCompose buffer ptr lo
      551 NextActorSelect              ?                  ; side id from NextActorSidePriorityOrder
      552 NextActorSelect              ?                  ; order-slot base (0 cols 0-$A, 4 cols $B-$14)
      915 BattleResultDefeatInputWait  JSR BattleBothPadsStateFetch ; $A3D4: 20 22 CD ; merge both pads -> $0000/$0001
@@ -313,7 +313,7 @@ $07E  (10 refs)
 procs: (file-top)(10)
 mnems: ?(10)
       83 (file-top)                   ?                  ; NMI-owned animation/script status flags (bit2 = queued task done / input busy)
-     471 (file-top)                   ?                  ; Intro sub-state 4. If $007E is clear, banked-calls B1D_1E_DataFormatter
+     471 (file-top)                   ?                  ; Intro sub-state 4. If $007E is clear, banked-calls B1D_1E_BattleOfficerPanelCompose
     1443 (file-top)                   ?                  ; Sub 5: waits for $007E bit2 (action animation done); then re-highlights
     1632 (file-top)                   ?                  ; Sub $A: waits for $007E bit2 (action animation done); then re-highlights
     2144 (file-top)                   ?                  ; input flag $007E bit2 is set (both wait paths exit at the trailing RTS).
@@ -1072,7 +1072,7 @@ mnems: ?(28)
      138 (file-top)                   ?                  ; --- Side setup / strip buffers ($0560-$0567) ---
      139 (file-top)                   ?                  ; overlay strip 0 buffer pointer lo (side A representative id)
      307 BattleModeStateLoop          ?                  ; Strip 0: buffer ptr lo from $0560 (hi fixed $A5), X=0
-     446 (file-top)                   ?                  ; B1D_1E_DataFormatter (bank $1D, Y=$3D) with buffer ptr $00/$01 = $0560/0
+     446 (file-top)                   ?                  ; B1D_1E_BattleOfficerPanelCompose (bank $1D, Y=$3D) with buffer ptr $00/$01 = $0560/0
      706 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block $042C and
      778 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block ($0514-$0517,
     1606 (file-top)                   ?                  ; $0C <- 0), overlay strip buffer pointer $0560 into $0A (or $0561 for
@@ -1094,7 +1094,7 @@ mnems: ?(13)
      706 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block $042C and
      778 (file-top)                   ?                  ; buffer pointers $0560/$0561 into the panel parameter block ($0514-$0517,
     1606 (file-top)                   ?                  ; $0C <- 0), overlay strip buffer pointer $0560 into $0A (or $0561 for
-    2291 (file-top)                   ?                  ; B1D_1E_DataFormatter (Y=$3D) with buffer ptr ($0000) <- $0561/1 to
+    2291 (file-top)                   ?                  ; B1D_1E_BattleOfficerPanelCompose (Y=$3D) with buffer ptr ($0000) <- $0561/1 to
     3794 (file-top)                   ?                  ; (side A) and $0561 (side B); called from BattleModeStart at battle
     6635 (file-top)                   ?                  ; lead officer ($0560 for side A slots, $0561 for side B slots).
     6998 (file-top)                   ?                  ; side B mode is 0/1. Strip pointers $0560/$0561 go to $04AD/$04AE (swapped:

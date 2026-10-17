@@ -4375,8 +4375,8 @@ ByZone:
 ;   1. DeathProvinceScan: every Province owned by $6F03, every roster slot
 ;      [$11]-[$1A]: the Ruler ($040B) is skipped and his Province/slot cached
 ;      into $001E/$001F for the pass-2 roll; every other rostered Officer
-;      rolls DeathChanceRoll, and on a kill the death card (UI $C1,
-;      MenuAction1A_OfficerDeath "[NAME]がシホウしました", Officer id in
+;      rolls DeathChanceRoll, and on a kill the death message (stream pos
+;      $C1 through B1F_OpenMsgWindow4: "[NAME]が シボウしました", Officer id in
 ;      $042C) is shown (DeathOverlayWait) before OfficerKill marks
 ;      record[$0B] status 3 and compacts the roster.
 ;   2. After all Provinces: the cached Ruler slot is restored into

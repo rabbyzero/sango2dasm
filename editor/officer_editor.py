@@ -104,6 +104,7 @@ GROUP_TITLES = (
     ('equipment', '装備 Equipment / 軍の属性 ArmyAffinity'),
     ('placement', '配置 Placement (状態 / roster / arrival)'),
     ('successors', 'AI継承 Successor priority (read-only)'),
+    ('stratagem', '計略 Stratagem tier (read-only)'),
     ('life', '寿命 Life'),
     ('plate', '漢字 name plate (read-only)'),
 )
@@ -136,6 +137,22 @@ HEIR_NOTE = (
     'If none qualifies, the AI installs the country\'s governor with the '
     'highest 人徳 Virtue. Read-only authored data - no CSV twin, no editing '
     'surface.')
+STRATAGEM_NOTE = (
+    'BuildCommandList ($D3EE, prg_08_09), called by StratagemState_Init '
+    '($A89E, prg_0c_0d), fills the 計略 menu with the first N stratagem codes, '
+    'and $0542 = N-1 is what StratagemState_Menu ($A917) reads. Two authored '
+    'gates, tried in that order: the officer id against four strategist '
+    'rosters, each with a レベル floor (record +$0B bits 4-7, stored 0-based); '
+    'otherwise 知力 (record +$02) against $28 / $3C / $4B / $55 for 2/4/6/8/10 '
+    'slots. A roster member below every floor of his roster falls through to '
+    'the 知力 gate, and a member above one never has his 知力 read, so for '
+    'those 21 ids レベル replaces the 知力 gate outright. The 15/16 tiers need '
+    'stored レベル 5/6, above the seed maximum (董卓, stored 4), so they arrive '
+    'only through OfficerLevelUp ($C691, prg_0c_0d) or an edit here. The AI '
+    'uses the same thresholds as a 1/3/5/7/9 tier (AiPickStratagemTarget '
+    '$A95C) and AiCheckAdvancedStratagem ($AAF8) adds a 知力 >= $5C floor on '
+    'top of these rosters for codes $0A-$0F. Derived from the record - nothing '
+    'here is stored per officer.')
 
 
 # --- codec import --------------------------------------------------------
@@ -408,6 +425,7 @@ class OfficerEditor(tk.Tk):
                 box.columnconfigure(1, weight=1)
         self._build_placement(parent)
         self._build_successors(parent)
+        self._build_stratagems(parent)
         self._build_plate(parent)
 
     def _field_widget(self, parent, spec):
@@ -520,6 +538,36 @@ class OfficerEditor(tk.Tk):
             % (country, ' > '.join(self.model.by_id[oid].name for oid in ids),
                pos + 1, len(ids))
             for country, pos, ids in hits))
+
+    def _build_stratagems(self, parent):
+        box = ttk.LabelFrame(parent, text=dict(GROUP_TITLES)['stratagem'])
+        box.pack(fill='x', padx=8, pady=4)
+        self.stratagem_var = tk.StringVar(value='')
+        self._wrap(ttk.Label(box, textvariable=self.stratagem_var,
+                             font=('TkFixedFont', 9))).grid(
+                                 row=0, column=0, columnspan=2, sticky='w',
+                                 padx=6, pady=3)
+        self.stratagem_detail = []
+        ttk.Button(box, text='Show text',
+                   command=lambda: self._text_popup(
+                       '計略 Stratagem tier', self.stratagem_var,
+                       STRATAGEM_NOTE,
+                       text='\n'.join(
+                           list(self.stratagem_detail)
+                           + [''] + self.m.stratagem_ladder_lines(
+                               self.model.by_id)))).grid(
+                               row=1, column=0, sticky='e', padx=6, pady=(0, 4))
+
+    def _show_stratagems(self, off):
+        if off is None:
+            self.stratagem_detail = []
+            self.stratagem_var.set('')
+            return
+        lines = off.stratagem_lines()
+        self.stratagem_detail = lines
+        # The pane carries the verdict and the reason; the full name lists and
+        # the tier ladder stay in the popup, where the column text can wrap.
+        self.stratagem_var.set('\n'.join(lines[:3]))
 
     def _build_plate(self, parent):
         box = ttk.LabelFrame(parent, text=dict(GROUP_TITLES)['plate'])
@@ -826,6 +874,7 @@ class OfficerEditor(tk.Tk):
                 for widget in self.w.values():
                     widget.configure(state='disabled')
                 self._show_portrait(None)
+                self._show_stratagems(None)
                 return
             for spec in self.m.FIELDS:
                 widget = self.w.get(spec.key)
@@ -843,6 +892,7 @@ class OfficerEditor(tk.Tk):
                 state='normal' if self.model.has_deaths else 'disabled')
             self._show_placement(off)
             self._show_successors(off)
+            self._show_stratagems(off)
             self._show_plate(off)
             self._show_portrait(off)
         finally:

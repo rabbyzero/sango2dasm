@@ -225,12 +225,12 @@
   $A026 L  246 [BattleVBlankFrameUpdate] LDY #$3D trampoline -> B1D_1E_MenuUpdate
   $A04D L  314 [BattleModeStateLoop] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
   $A064 L  326 [BattleModeStateLoop] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
-  $A12E L  462 [BattleOverlayIntroDataFormatTop] LDY #$3D trampoline -> B1D_1E_DataFormatter
-  $A147 L  487 [BattleOverlayIntroDataFormatBottomAndAdvance] LDY #$3D trampoline -> B1D_1E_DataFormatter
+  $A12E L  462 [BattleOverlayIntroDataFormatTop] LDY #$3D trampoline -> B1D_1E_BattleOfficerPanelCompose
+  $A147 L  487 [BattleOverlayIntroDataFormatBottomAndAdvance] LDY #$3D trampoline -> B1D_1E_BattleOfficerPanelCompose
   $AA35 L 2066 [CommandSelect] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
   $AAEA L 2173 [CommandAnimStep] LDY #$3D trampoline -> B1D_1E_OfficerDisplay_Render
-  $AB91 L 2281 [CommandConfirmWait] LDY #$3D trampoline -> B1D_1E_DataFormatter
-  $ABAC L 2309 [CommandResultWait] LDY #$3D trampoline -> B1D_1E_DataFormatter
+  $AB91 L 2281 [CommandConfirmWait] LDY #$3D trampoline -> B1D_1E_BattleOfficerPanelCompose
+  $ABAC L 2309 [CommandResultWait] LDY #$3D trampoline -> B1D_1E_BattleOfficerPanelCompose
   $ACD7 L 2510 [BattleTacticsMenu] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
   $B1FE L 3308 [FormationAdvance] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
   $B89B L 4261 [BattleCellRedraw] LDY #?? JSR B1F_SwitchBank8_B  -> ?  (computed Y @4260)
@@ -242,7 +242,7 @@
   $CFD1 L 7441 [SideBFormationMenuInput] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
   $D017 L 7486 [SideBFormationConfirmWait] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
   $D73D L 8645 [AiTauntStripRedraw] LDY #$39 trampoline -> B19_1A_OverlayStripRender_Entry
-  $D771 L 8681 [AiTauntSceneStep] LDY #$3D trampoline -> B1D_1E_DataFormatter
+  $D771 L 8681 [AiTauntSceneStep] LDY #$3D trampoline -> B1D_1E_BattleOfficerPanelCompose
   $D8D6 L 8946 [BattleAnimSoundEngine] LDY #$22 JSR B1F_SwitchBank8_B  -> $02 @ $8000  (LDY #$22 @8945)
 
 ## prg_0c_0d_tactical_commands.asm (51 sites)

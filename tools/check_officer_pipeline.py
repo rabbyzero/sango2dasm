@@ -50,9 +50,14 @@ Proves, in order:
      detail pane, a widget edit lands in the model and in the table cell, an
      out-of-range value is refused, undo/redo restore the bytes, the filters and
      sorting select the same officers as the codec, and a save writes CSVs that
-     reload clean.
+     reload clean;
+ 10. the 計略 stratagem tier display is `BuildCommandList` ($D3EE): the 知力
+     windows and the four strategist-id rosters are re-derived over every
+     id / レベル / 知力 combination, the code order is the handler table, the
+     stock census is 233 知力 tiers plus 4 roster boosts, and both front-ends
+     print the same verdict.
 
-Sections 1-8 need no display; section 9 prints `skipped` without one.
+Sections 1-8 and 10 need no display; section 9 prints `skipped` without one.
 """
 import argparse
 import ast
@@ -1233,6 +1238,102 @@ def test_gui(args):
         shutil.rmtree(tmp)
 
 
+# --- 10 the 計略 stratagem tier display -----------------------------------
+# The evidence these restate: BuildCommandList ($D3EE, prg_08_09) compares 知力
+# against $28/$3C/$4B/$55 ($D4D2-$D4E5) and selects SlotList_2/4/6/8/10/12/14/
+# 15/16 through SlotTierPtrs ($D509); the four strategist id rosters and their
+# stored-レベル floors are the CMP chain at $D412-$D4C4. The code order is the
+# ValidateActionTarget handler table ($ADAC-$ADCA, prg_0c_0d).
+def test_stratagem_tier():
+    section('10. the 計略 stratagem tier display matches BuildCommandList')
+    windows = {2: (0x00, 0x27), 4: (0x28, 0x3B), 6: (0x3C, 0x4A),
+               8: (0x4B, 0x54), 10: (0x55, 100)}
+    wrong = [(intel, count, slots) for intel in range(0, 101)
+             for slots, (lo, hi) in windows.items()
+             if lo <= intel <= hi
+             for count in [model.stratagem_intelligence_count(intel)]
+             if count != slots]
+    check('every 知力 value lands in its BuildCommandList window', not wrong,
+          wrong[:3])
+    check('the ladder constants are the ROM CMP chain',
+          [value for value, _ in model.STRATAGEM_INTELLIGENCE_LADDER]
+          == [0x00, 0x28, 0x3C, 0x4B, 0x55]
+          and [slots for _, slots in model.STRATAGEM_INTELLIGENCE_LADDER]
+          == [2, 4, 6, 8, 10])
+    check('handler-table order pins codes $08/$09/$0B/$0F',
+          [name[1] for name in model.STRATAGEM_NAMES] == [
+              'FireAttack', 'PitfallTrap', 'FeintTroops', 'AmbushStrike',
+              'BoatSabotage', 'SupplyBurning', 'CastleRaid', 'FriendlyFire',
+              'Enticement', 'Rockfall', 'ChainLink', 'TenfoldAmbush',
+              'FloodAttack', 'RepeatingCrossbow', 'Inferno', 'MysticalStasis'])
+    listed = model.STRATAGEM_LEVEL_ROSTERS
+    check('the four strategist rosters are the $D412-$D4C4 sets',
+          sorted(sum((sorted(ids) for ids, _ in listed), [])) == sorted([
+              0xA1, 0x63, 0xA7, 0x16, 0xC4, 0xDB, 0xEA, 0x6B, 0xCE, 0xEB, 0xB7,
+              0x18, 0x37, 0x70, 0xD5, 0x6E, 0x67, 0xC5, 0x56, 0x5D, 0x6D]))
+
+    def rom_count(oid, stored_level, intel):
+        """The gate as the ROM reads it, walked in $D412-$D4E5 order."""
+        for ids, floors in listed:
+            if oid in ids:
+                for floor, slots in floors:
+                    if stored_level >= floor:
+                        return slots
+        for value, slots in sorted(model.STRATAGEM_INTELLIGENCE_LADDER,
+                                   reverse=True):
+            if intel >= value:
+                return slots
+        return 2
+
+    mismatched = []
+    for oid in range(model.OFFICER_COUNT):
+        for stored in range(0, 8):
+            for intel in (1, 39, 40, 74, 75, 84, 85, 100):
+                got = model.stratagem_access(oid, stored + 1, intel)
+                want = rom_count(oid, stored, intel)
+                if got.count != want or got.codes != tuple(range(want)):
+                    mismatched.append('%d/%d/%d: %s != %s'
+                                      % (oid, stored, intel, got.count, want))
+    check('the codec reproduces the gate over every id/レベル/知力',
+          not mismatched, mismatched[:3])
+    boosted = [off.id for off in load_stock().officers
+               if off.stratagem_access().source == 'level']
+    counts = [off.stratagem_access().count for off in load_stock().officers]
+    check('the stock seed tops out at 12 slots (no stored レベル reaches 5)',
+          max(counts) == 12 and counts.count(12) == 4,
+          sorted(set(counts)))
+    check('the stock seed breaks down as 233 知力 tiers + 4 roster boosts',
+          len(boosted) == 4 and set(boosted) == {0x37, 0x67, 0x6E, 0xD5},
+          boosted)
+
+    import officer_editor as gui
+    import officer_cli as cli
+    check('the GUI owns a stratagem pane and its note cites $D3EE',
+          hasattr(gui.OfficerEditor, '_build_stratagems')
+          and hasattr(gui.OfficerEditor, '_show_stratagems')
+          and 'stratagem' in dict(gui.GROUP_TITLES)
+          and '$D3EE' in gui.STRATAGEM_NOTE)
+    tmp = temp_csvs()
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(io.StringIO()):
+            code = cli.main(['show', str(0x37), '--csv',
+                             os.path.join(tmp, 'officer_data.csv')])
+    finally:
+        shutil.rmtree(tmp)
+    text = out.getvalue()
+    check('the CLI prints the same verdict for 姜维',
+          code == 0 and '計略 menu: 12 of 16 slots ($00-$0B)' in text
+          and 'locked 水攻 FloodAttack' in text,
+          [line for line in text.splitlines() if 'menu' in line])
+    lines = model.stratagem_ladder_lines(load_stock().by_id)
+    check('the ladder table names both gates and all 21 ids',
+          lines[1].startswith('  知力 $00-$27')
+          and sum(line.count('$') for line in lines[7:]) >= 21,
+          lines[7:9])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1250,6 +1351,7 @@ def main():
     test_front_ends()
     test_standalone()
     test_gui(args)
+    test_stratagem_tier()
     print('\n' + '=' * 72)
     if FAILED:
         print('FAILED: %d check(s)\n  - %s' % (len(FAILED),

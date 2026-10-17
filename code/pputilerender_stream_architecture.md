@@ -68,40 +68,58 @@ The strategy mode display engine uses a bytecode stream format to render menu UI
 4. Converts each BCD nibble to tile: `digit + $76` ('0' = $76, '9' = $7F)
 5. Leading zero suppression via $0000 flag
 
-## Handler pos_buf_0 Values
+## MenuAction handler display latches
 
-Each MenuAction handler calls `SetupDisplayPtrs` with a specific pos_buf_0 value:
+Each handler calls `SetupDisplayPtrs` and sometimes `ResetDispatchState` on
+its first frame (`$04A1 == 0`). **These immediates are NOT stream positions**
+- they only latch the display cell block `$00BF/$00C7/$00CF` and
+`$00C0/$00C8/$00D0`, which the prg_19_1a cutscene handlers animate and
+prg_17_18 reuses as a tile buffer, and which nothing reads back as
+`pos_buf_0` (`$0310`). The stream a screen actually shows is pushed by its
+opener through `B1F_OpenMsgWindow0/2/4/5` (prg_1f_boot `$F26D-$F29B`); each
+handler block in `asm/banks/prg_1d_1e_menu_screens.asm` names that opener and
+quotes its message text.
 
-| Handler | Name | pos_buf_0 |
-|---------|------|-----------|
-| $00 | MenuAction00_InitialSetup | $E8 |
-| $01 | MenuAction01_DisplaySetup | $DC |
-| $02 | MenuAction02_LandReclamation | $E1 |
-| $03 | MenuAction03_DisasterPreventionSetup | $C6 |
-| $04 | MenuAction04_DisasterPrevention | (shared with $03) |
-| $05 | MenuAction05_UnidentifiedCmdSetup | $C6 |
-| $06 | MenuAction06_UnidentifiedCmd | $EA |
-| $07 | MenuAction07_CountryEnd | $B7 |
-| $08 | MenuAction08_GoldDistribution | $CA |
-| $09 | MenuAction09_RiceDistribution | $F1 |
-| $0A | MenuAction0A_Conscription | $F0 |
-| $0B | MenuAction0B_HireOfficer | $E9 |
-| $0C | MenuAction0C_TransferOfficer | $F8 |
-| $0D | MenuAction0D_UnidentifiedCmd | $F7 |
-| $0E | MenuAction0E_UnidentifiedCmd | $F3 |
-| $0F | MenuAction0F_GiveItem | $F0 |
-| $10 | MenuAction10_SuccessorSelection | $D0 |
-| $11 | MenuAction11_Intrigue | $F5 |
-| $12 | MenuAction12_Sortie | $F8 |
-| $13 | MenuAction13_Reconnaissance | $E7 |
-| $14 | MenuAction14_Market | $FB |
-| $15 | MenuAction15_Exchange | $EA |
-| $16 | MenuAction16_Trade | $F6 |
-| $17 | MenuAction17_SearchOfficer | $F7 |
-| $18 | MenuAction18_SearchItem | $C5 |
-| $19 | MenuAction19_UnidentifiedCmd | $F4 |
-| $1A | MenuAction1A_OfficerDeath | $C1 |
-| $1B | MenuAction1B_UnidentifiedCmd | $FC |
+| id $04A2 | handler | `$00BF/$00C7/$00CF` | `$00C0/$00C8/$00D0` |
+|----------|---------|--------------------|--------------------|
+| `$00` | MenuAction00_SortieResult | $E8 | - |
+| `$01` | MenuAction01_AcademyResult | $DC | $DF |
+| `$02` | MenuAction02_SaveGameResult | $E1 | - |
+| `$03` | MenuAction03_DiscordResult | $E9 | $EA |
+| `$04` | MenuAction04_WarRulerCard | $D1 | - |
+| `$05` | MenuAction05_WarRivalRulerCard | $C6 | $CF |
+| `$06` | MenuAction06_DisasterPreventionResult | $EA | $EB |
+| `$07` | MenuAction07_ArmoryResult | $B7 | - |
+| `$08` | MenuAction08_WarOutbreakNotice | $CA | - |
+| `$09` | MenuAction09_LandReclamationResult0A | $F1 | $F2 |
+| `$0A` | MenuAction0A_LandReclamationResult0B | $F0 | - |
+| `$0B` | MenuAction0B_CivilianReliefResult | $E9 | $EB |
+| `$0C` | MenuAction0C_HospitalResult | $F8 | $F9 |
+| `$0D` | MenuAction0D_LandReclamationResult0E | $F7 | - |
+| `$0E` | MenuAction0E_TownDevelopmentResult0F | $F3 | $F4 |
+| `$0F` | MenuAction0F_IndustryAndTownResult10 | $F0 | - |
+| `$10` | MenuAction10_OfficerTransferResult | $D0 | $D1 |
+| `$11` | MenuAction11_IndustryDevelopmentResult12 | $F5 | $F7 |
+| `$12` | MenuAction12_PoachingResult | $F8 | $FA |
+| `$13` | MenuAction13_IndustryDevelopmentResult14 | $E7 | - |
+| `$14` | MenuAction14_LandAndIndustryResult15 | $FB | $FC |
+| `$15` | MenuAction15_IndustryAndTownResult16 | $EA | $EB |
+| `$16` | MenuAction16_OfficerGiftResult | $F6 | - |
+| `$17` | MenuAction17_IndustryAndTownResult18 | $F7 | $DF |
+| `$18` | MenuAction18_AllianceResult | $C5 | - |
+| `$19` | MenuAction19_ConscriptionResult | $F4 | $F5 |
+| `$1A` | MenuAction1A_IntelligenceGatheringResult | $C1 | - |
+| `$1B` | MenuAction1B_DroughtDamageWindow | $FC | - |
+| `$1C` | MenuAction1C_RiceHarvestWindow | $C2 | - |
+| `$1D` | MenuAction1D_FloodDamageWindow | $D1 | - |
+| `$1E` | MenuAction1E_RebellionWindow | $C6 | - |
+| `$1F` | MenuAction1F_TaxCollectionWindow | $BD | - |
+| `$20` | MenuAction20_MarketPanel | $B7 | $B7 |
+| `$21` | MenuAction21_SupplyTransportResult | $AA | $AB |
+| `$22` | MenuAction22_WindowTeardown | - | - |
+
+Handler `$22` (`MenuAction22_WindowTeardown`) latches nothing: it is the
+teardown step `StrategyMenu_Return` forces, not a screen.
 
 ## PosDataBankTable ($A6A7)
 
@@ -143,5 +161,8 @@ Decode:
 
 ## Tools
 
-- `tools/decode_menu_streams.py` - Decodes stream bytecode for all handlers
+- `tools/decode_menu_streams.py` - Decodes the stream whose id equals each handler
+  display latch; its header records that that pairing is a coincidence, not a
+  content link (see the correction above), so it is not a naming source
+- `tools/report_stream_text.py` - the full decoded text of every bank $12/$13 stream
 - `tools/extract_names.py` - Extracts name data from bank $30

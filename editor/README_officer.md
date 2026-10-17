@@ -33,6 +33,7 @@ register `$30` → physical bank `$10`, `$31` → `$11`):
 | kanji name plates | `$11` | `$8DB4` | 237 × 13 B | **read-only** — see "Renaming" |
 | card portraits | `$1A` `$CED6` + `$01` `$99A0`/`$9AA0`/`$9BAC` | — | 237 × 1 B page id + OAM blobs | **read-only** — see "Portraits" |
 | AI successor priority | `$0B` | `$CAD8` | 7 pointers + `$FF`-terminated officer-id lists | **read-only** — see "AI ruler successor priority" |
+| 計略 stratagem tier | derived | — | 知力 `+$02` + レベル `+$0B` bits 4-7 + the officer id | **read-only** — see "計略 Stratagem tier" |
 
 The master record is the seed image of the officer's SRAM record at
 `id * 12 + $63C0`: `SramInit` (`$DD8B`, `asm/banks/prg_1d_1e_menu_screens.asm`) copies
@@ -137,6 +138,7 @@ invariant report, `Save CSVs`, `Diff`, `save`.
 |                                               |     [Assign][Unassign][Make 太守]         |
 |                                               |   出現 arrival [province ▾][year]         |
 |                                               |     [Set][Clear]                          |
+|                                               | 計略 Stratagem tier 12/16 ($00-$0B)       |
 |                                               | 寿命 Life          死亡年 DeathYear [215] |
 |                                               | 漢字 name plate  [kanji][kanji] [Show text]|
 +-----------------------------------------------+-------------------------------------------+
@@ -272,6 +274,36 @@ the country's governors for the highest 人徳 Virtue. The 配置 Placement grou
 that contains him and his position; the **Show text** button opens all seven
 lists (also `officer_cli.py heirs`). This is read-only authored data — no CSV
 twin and no editing surface.
+
+## 計略 Stratagem tier
+
+Which of the 16 stratagems an officer can select as a war commander is derived
+from his record, never stored: `BuildCommandList` (`$D3EE`, bank `$08/$09`) is
+what `StratagemState_Init` (`$A89E`, bank `$0C/$0D`) calls to fill the 計略 menu,
+and it leaves the slot count − 1 in `$0542`. Two authored gates, tried in that
+order:
+
+| gate | evidence | slots |
+|---|---|---|
+| 知力 Intelligence (record `+$02`) | `CMP #$28 / #$3C / #$4B / #$55` at `$D4D2`-`$D4E5` | 2 / 4 / 6 / 8 / 10 |
+| officer id + レベル OfficerLevel (record `+$0B` bits 4-7, stored 0-based) | the `CMP` chain at `$D412`-`$D4C4` over four authored id rosters | 12 / 14 / 15 / 16 |
+
+Every list is the sequential codes `$00..count-1`, so the count *is* the tier:
+知力 buys the basic stratagems, and only the 21 rostered strategists (程昱, 荀彧,
+田丰, 贾诩, 法正, 李儒, 吕蒙, 诸葛瑾, 杨修, 鲁肃, 马良 / 郭嘉, 姜维, 徐庶, 陆逊,
+诸葛恪, 钟会 / 庞统, 司马懿, 周瑜 / 诸葛亮) reach 連環, 十面埋伏, 水攻, 連弩, 劫火
+and 奇門遁甲. A roster member below every floor of his roster falls through to
+the 知力 gate; a member at or above one never has his 知力 read. The 15/16 tiers
+need stored レベル 5/6, above the stock maximum (董卓, stored 4), so in the seed
+data the ceiling is 12 slots — reached by 姜维, 陆逊, 诸葛恪 and 钟会 — and the
+rest is `OfficerLevelUp` (`$C691`, bank `$0C/$0D`) territory.
+
+The **計略 Stratagem tier** line shows the count, which gate decided it and what
+the next step up costs; **Show text** adds the usable and locked names plus the
+whole ladder table. `officer_cli.py show <id>` prints the same lines, and
+`tools/check_officer_pipeline.py` section 10 re-derives the gate over every
+id / レベル / 知力 combination. Read-only: it is arithmetic over 知力, レベル and
+the officer id, so nothing here needs a CSV twin.
 
 ## How the data is linked
 
